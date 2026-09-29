@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_derivative.h"
 
+#include <cmath>
 #include <cstddef>
 #include <random>
 #include <string>
@@ -26,6 +27,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_smooth.h"
+#include "src/engine/engine_core_util.h"
 #include "src/engine/engine_derivative_fd.h"
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
@@ -40,6 +42,7 @@ using ::std::vector;
 using ::testing::DoubleNear;
 using ::testing::Each;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using DerivativeTest = MujocoTest;
@@ -89,6 +92,8 @@ static const char* const kLinearPath = "engine/testdata/derivative/linear.xml";
 static const char* const kDCMotorPath =
     "engine/testdata/derivative/dcmotor.xml";
 static const char* const kModelPath = "testdata/model.xml";
+static const char* const kSleepEqualityPath =
+    "engine/testdata/sleep/equality.xml";
 
 // compare analytic and finite-difference d_smooth/d_qvel
 TEST_F(DerivativeTest, SmoothDvel) {
@@ -219,6 +224,154 @@ TEST_F(DerivativeTest, FreeBiasVel) {
       EXPECT_NEAR(B[6 * r + c], fd, MjTol(1e-7, 1e-2))
           << "FD mismatch at (" << r << ", " << c << ")";
     }
+  }
+}
+
+// fixed descendants contribute inertia about the free joint, not their own body
+// frames
+TEST_F(DerivativeTest, FreeBiasVelFixedDescendants) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default><geom contype="0" conaffinity="0"/></default>
+    <worldbody>
+      <body pos=".1 -.2 .3" euler="20 -30 40">
+        <freejoint/>
+        <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03" euler="10 20 30"/>
+        <body pos=".2 -.1 .3" euler="30 20 -10">
+          <geom type="box" size=".2 .1 .1" mass="1" pos=".03 .01 -.02"/>
+          <body pos="-.1 .2 .1" euler="10 -20 30">
+            <geom type="box" size=".1 .1 .2" mass=".5"/>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nbody, 4);
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+  mjtNum qvel[6] = {0.4, -0.3, 0.2, 5, -3, 2};
+  mju_copy(d->qvel, qvel, 6);
+  mj_forward(m, d);
+
+  mjtNum B[36];
+  mjd_freeBias_vel(m, d, /*jnt=*/0, B);
+
+  // compare the aggregate derivative with the full recursive Newton-Euler
+  // derivative
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m, d, /*flg_bias=*/1);
+  for (int r = 0; r < 6; r++) {
+    ASSERT_EQ(m->D_rownnz[r], 6);
+    for (int k = 0; k < 6; k++) {
+      int adr = m->D_rowadr[r] + k;
+      EXPECT_NEAR(B[6 * r + m->D_colind[adr]], -d->qDeriv[adr],
+                  MjTol(1e-14, 1e-5));
+    }
+  }
+
+  // independent central finite differences, including the zero linear-velocity
+  // columns
+  mjtNum eps = MjEps(1e-6, 1e-3);
+  for (int c = 0; c < 6; c++) {
+    mjtNum plus[6], minus[6];
+    d->qvel[c] = qvel[c] + eps;
+    mj_comVel(m, d);
+    mj_rne(m, d, /*flg_acc=*/0, plus);
+    d->qvel[c] = qvel[c] - eps;
+    mj_comVel(m, d);
+    mj_rne(m, d, /*flg_acc=*/0, minus);
+    d->qvel[c] = qvel[c];
+    for (int r = 0; r < 6; r++) {
+      EXPECT_NEAR(B[6 * r + c], (plus[r] - minus[r]) / (2 * eps),
+                  MjTol(1e-7, 1e-2));
+    }
+  }
+}
+
+// fixed-body fusion preserves the bias derivative of a massless free root
+TEST_F(DerivativeTest, FreeBiasVelFusedInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="false" alignfree="false"/>
+    <default><geom contype="0" conaffinity="0"/></default>
+    <worldbody>
+      <body pos=".1 -.2 .3" euler="20 -30 40">
+        <freejoint/>
+        <body pos=".2 -.1 .3" euler="30 20 -10">
+          <geom type="box" size=".2 .1 .1" mass="1" pos=".03 .01 -.02"/>
+          <body pos="-.1 .2 .1" euler="10 -20 30">
+            <geom type="box" size=".1 .1 .2" mass=".5"/>
+          </body>
+        </body>
+        <body pos="-.1 .3 -.2" euler="-20 10 40">
+          <geom type="box" size=".1 .2 .3" mass="2" pos=".04 -.02 .03"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::string fused_xml = xml;
+  fused_xml.replace(fused_xml.find("false"), 5, "true");
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjModelPtr fused =
+      LoadModelFromString(fused_xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(fused.get(), NotNull()) << error;
+  ASSERT_EQ(model->nbody, 5);
+  ASSERT_EQ(fused->nbody, 2);
+  ASSERT_EQ(model->body_mass[1], 0);
+  MjDataPtr data = MakeData(model);
+  MjDataPtr fused_data = MakeData(fused);
+
+  mjtNum qvel[6] = {0.4, -0.3, 0.2, 5, -3, 2};
+  mju_copy(data->qvel, qvel, 6);
+  mju_copy(fused_data->qvel, qvel, 6);
+  mj_forward(model.get(), data.get());
+  mj_forward(fused.get(), fused_data.get());
+
+  mjtNum B[36], B_fused[36];
+  mjd_freeBias_vel(model.get(), data.get(), /*jnt=*/0, B);
+  mjd_freeBias_vel(fused.get(), fused_data.get(), /*jnt=*/0, B_fused);
+  EXPECT_GT(mju_norm(B, 36), 1);
+
+  // fusing diagonalizes the inertia at compiler precision
+  EXPECT_THAT(AsVector(B, 36),
+              Pointwise(MjNear(1e-5, 1e-5), AsVector(B_fused, 36)));
+}
+
+// a jointed descendant must still exclude the free root from the local six-DOF
+// solve
+TEST_F(DerivativeTest, FreeMhatRejectsArticulatedSubtree) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1"/>
+        <body pos="0 0 1">
+          <joint/>
+          <geom size=".1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  mjtNum A[36];
+  for (int discrete : {0, 1}) {
+    EXPECT_EQ(mjd_freeMhat(model.get(), data.get(), /*jnt=*/0,
+                           model->opt.timestep, A, discrete),
+              0);
   }
 }
 
@@ -359,7 +512,10 @@ TEST_F(DerivativeTest, PassiveDvel) {
        {kTumblingThinObjectPath, kTumblingThinObjectEllipsoidPath}) {
     // load model
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    char error[1024];
+    mjModel* model =
+        mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
     int nD = model->nD;
     mjData* data = mj_makeData(model);
     // allocate Jacobians
@@ -405,7 +561,9 @@ TEST_F(DerivativeTest, PassiveDvel) {
 // mj_stepSkip computes the same next state as mj_step
 TEST_F(DerivativeTest, StepSkip) {
   const std::string xml_path = GetTestDataFilePath(kDampedPendulumPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   int nq = model->nq;
   int nv = model->nv;
@@ -547,7 +705,9 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
 // compare FD derivatives to analytic derivatives of linear dynamical system
 TEST_F(DerivativeTest, LinearSystem) {
   const std::string xml_path = GetTestDataFilePath(kLinearPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   int nv = model->nv, nu = model->nu;
 
@@ -607,7 +767,9 @@ TEST_F(DerivativeTest, LinearSystem) {
 // check ctrl derivatives at the range limit
 TEST_F(DerivativeTest, ClampedCtrlDerivatives) {
   const std::string xml_path = GetTestDataFilePath(kLinearPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   int nv = model->nv, nu = model->nu;
 
@@ -758,8 +920,9 @@ TEST_F(DerivativeTest, SensorSkip) {
 // derivatives don't mutate the state
 TEST_F(DerivativeTest, NoStateMutation) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data0 = mj_makeData(model);
   mjData* data = mj_makeData(model);
   int nv = model->nv, nu = model->nu, na = model->na, ns = model->nsensordata;
@@ -805,6 +968,40 @@ TEST_F(DerivativeTest, NoStateMutation) {
   mj_deleteData(data0);
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+// finite differencing is not supported with sleeping enabled
+TEST_F(DerivativeTest, FiniteDifferenceRejectsSleep) {
+  const std::string xml_path = GetTestDataFilePath(kSleepEqualityPath);
+  char error[1024];
+  MjModelPtr model(mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error)));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  int nv = model->nv, ndx = 2 * nv + model->na;
+  vector<mjtNum> A(ndx * ndx);
+  vector<mjtNum> DfDq(nv * nv);
+  mjtNum eps = 1e-6;
+
+  // all trees are awake, but the evaluations would change the sleep state
+  auto transition_error = MjuErrorMessageFrom(mjd_transitionFD);
+  EXPECT_THAT(transition_error(model.get(), data.get(), eps, /*centered=*/1,
+                               A.data(), nullptr, nullptr, nullptr),
+              HasSubstr("sleeping is not supported"));
+  auto inverse_error = MjuErrorMessageFrom(mjd_inverseFD);
+  EXPECT_THAT(inverse_error(model.get(), data.get(), eps, /*flg_actuation=*/0,
+                            DfDq.data(), nullptr, nullptr, nullptr, nullptr,
+                            nullptr, nullptr),
+              HasSubstr("sleeping is not supported"));
+
+  // disabling sleep allows finite differencing
+  model->opt.enableflags &= ~mjENBL_SLEEP;
+  EXPECT_EQ(transition_error(model.get(), data.get(), eps, /*centered=*/1,
+                             A.data(), nullptr, nullptr, nullptr),
+            "");
+  EXPECT_EQ(inverse_error(model.get(), data.get(), eps, /*flg_actuation=*/0,
+                          DfDq.data(), nullptr, nullptr, nullptr, nullptr,
+                          nullptr, nullptr),
+            "");
 }
 
 // compare dense and sparse derivatives of qfrc_bias (RNE)
@@ -855,7 +1052,9 @@ TEST_F(DerivativeTest, DenseSparseRneEquivalent) {
 // compare FD inverse derivatives to analytic derivatives of linear system
 TEST_F(DerivativeTest, LinearSystemInverse) {
   const std::string xml_path = GetTestDataFilePath(kLinearPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   int nv = model->nv;
@@ -1468,6 +1667,11 @@ TEST_F(DerivativeTest, ActearlyDerivative) {
   </mujoco>
   )";
 
+  // the affine velocity gain of 1 makes M - h*qDeriv exactly singular at h=1:
+  // expect a clamped-pivot warning from the implicitfast qH factorization
+  mock_warning_handler.ExpectWarnings(
+      "Inertia matrix is too close to singular");
+
   char error[1024];
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;
@@ -1609,6 +1813,52 @@ TEST_F(DerivativeTest, DCMotorStatefulConvergesToStateless) {
 
   EXPECT_NEAR(diag_sf, diag_sl, 1e-6)
       << "stateful derivative should converge to stateless as te -> 0";
+}
+
+// verify hot winding resistance is used for stateless and stateful derivatives
+TEST_F(DerivativeTest, DCMotorThermalDerivative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002"/>
+    <worldbody>
+      <body>
+        <joint name="stateless" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+      <body>
+        <joint name="stateful" type="slide"/>
+        <geom type="sphere" size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="stateless" motorconst="1" resistance="1"
+               thermal="1 1 0 0.004 25 25"/>
+      <dcmotor joint="stateful" motorconst="1" resistance="1"
+               inductance="0 0.01" thermal="1 1 0 0.004 25 25"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // A 250-degree rise doubles both winding resistances.
+  d->act[m->actuator_actadr[0]] = 250;
+  d->act[m->actuator_actadr[1]] = 250;
+  d->qvel[0] = 0.5;
+  d->qvel[1] = 0.5;
+  mj_forward(m.get(), d.get());
+
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_vel(m.get(), d.get(), /*flg_bias=*/1);
+  vector<mjtNum> analytic = AsVector(d->qDeriv, m->nD);
+
+  mju_zero(d->qDeriv, m->nD);
+  mjd_smooth_velFD(m.get(), d.get(), MjTol(1e-7, 1e-3));
+  EXPECT_THAT(AsVector(d->qDeriv, m->nD),
+              Pointwise(MjNear(1e-7, 3e-3), analytic));
 }
 
 // Utility: Rotate flex grid
@@ -2024,6 +2274,475 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   mj_deleteData(perturbed);
 }
 
+struct FlexFrameCase {
+  const char* name;
+  bool welded;
+  bool rotated_siblings;
+  int nflex;
+};
+
+class FlexFrameTest : public MujocoTest,
+                      public testing::WithParamInterface<FlexFrameCase> {
+ protected:
+  void SetUp() override { LoadPatch(); }
+
+  // Two equilateral triangles; only the body frames and attachment topology
+  // vary.
+  void LoadPatch(const char* elastic2d = "both") {
+    std::string xml = R"(
+      <mujoco>
+        <option timestep="0.002" integrator="discrete" solver="CG"/>
+        <worldbody><body name="parent" euler="90 35 20">
+    )";
+    const char* positions[] = {"0 0 0", "0.1 0 0", "0.05 0.0866025404 0",
+                               "0.15 0.0866025404 0"};
+    const char* rotations[] = {"0 0 0", "30 -15 20", "-20 40 10", "45 10 -35"};
+    for (int v = 0; v < 4; v++) {
+      const char* rotation =
+          GetParam().rotated_siblings ? rotations[v] : "0 0 0";
+      if (GetParam().welded && v == 3) {
+        rotation = "25 -15 40";
+      }
+      xml += "<body name='v" + std::to_string(v) + "' pos='" + positions[v] +
+             "' euler='" + rotation + R"('>
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+          <joint type="slide" axis="1 0 0" armature="0.01"/>
+          <joint type="slide" axis="0 1 0" armature="0.02"/>
+          <joint type="slide" axis="0 0 1" armature="0.03"/>
+      )";
+      if (GetParam().welded && v == 3) {
+        xml += R"(<body name="welded" euler="20 10 30">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+        </body>)";
+      }
+      xml += "</body>";
+    }
+    xml += "</body></worldbody><deformable>";
+    for (int f = 0; f < GetParam().nflex; f++) {
+      xml += std::string("<flex dim='2' body='v0 v1 v2 ") +
+             (GetParam().welded ? "welded" : "v3") + R"(' element="0 1 2 1 3 2">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e4" poisson="0.3" thickness="0.01" damping="0.02"
+      )";
+      xml += std::string("elastic2d='") + elastic2d + "'/></flex>";
+    }
+    xml += "</deformable></mujoco>";
+    char error[1024];
+    data.reset();
+    model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    ASSERT_EQ(model->nv, 12);
+    if (!GetParam().welded) {
+      for (int v = 0; v < 4; v++) {
+        EXPECT_EQ(model->body_simple[model->flex_vertbodyid[v]], 2);
+      }
+    }
+    data = MakeData(model);
+    mj_forward(model.get(), data.get());
+  }
+
+  std::vector<mjtNum> Direction() const {
+    std::vector<mjtNum> vec(model->nv);
+    for (int i = 0; i < model->nv; i++) {
+      vec[i] = mju_Halton(i, 3) - 0.5;
+    }
+    return vec;
+  }
+
+  // Dilate in world coordinates, then add a small out-of-plane perturbation.
+  // All edges stay in tension, where the stretch Hessian is exact.
+  void Deform() {
+    for (int v = 0; v < 4; v++) {
+      int body = model->body_weldid[model->flex_vertbodyid[v]];
+      mjtNum delta[3];
+      mju_scl3(delta, data->flexvert_xpos + 3 * v, 0.05);
+      delta[2] += 1e-4 * (mju_Halton(v, 2) - 0.5);
+      mju_mulMatTVec3(data->qpos + model->body_dofadr[body],
+                      data->xmat + 9 * body, delta);
+    }
+    mj_forward(model.get(), data.get());
+  }
+
+  std::vector<mjtNum> Apply(const std::vector<mjtNum>& vec, mjtNum s1,
+                            mjtNum s2) {
+    std::vector<mjtNum> result(model->nv, 0);
+    mjd_flexBend_mul(model.get(), data.get(), result.data(), vec.data(), s1,
+                     s2);
+    mjd_flexStretch_mul(model.get(), data.get(), result.data(), vec.data(), s1,
+                        s2);
+    return result;
+  }
+
+  void ExpectDerivative(bool velocity) {
+    // The stretch operator includes geometric stiffness; its velocity part
+    // equals the force Jacobian at the unstretched reference, where that extra
+    // term vanishes.
+    if (!velocity) {
+      Deform();
+    }
+    auto vec = Direction();
+    auto result = Apply(vec, !velocity, velocity);
+    MjDataPtr perturbed(mj_copyData(nullptr, model.get(), data.get()));
+    mjtNum eps = MjEps(1e-7, 1e-4);
+    mju_addToScl(velocity ? perturbed->qvel : perturbed->qpos, vec.data(), eps,
+                 model->nv);
+    mj_forward(model.get(), perturbed.get());
+    const mjtNum* force = velocity ? data->qfrc_damper : data->qfrc_spring;
+    const mjtNum* pert_force =
+        velocity ? perturbed->qfrc_damper : perturbed->qfrc_spring;
+    for (int i = 0; i < model->nv; i++) {
+      mjtNum fd = -(pert_force[i] - force[i]) / eps;
+      EXPECT_NEAR(result[i], fd, MjTol(1e-3, 5e-2) * mju_max(1, mju_abs(fd)))
+          << i;
+    }
+  }
+
+  void ExpectAssembly(mjtNum s1, mjtNum s2) {
+    Deform();
+    auto vec = Direction();
+    auto result = Apply(vec, s1, s2);
+    std::vector<int> rownnz(model->nv), rowadr(model->nv);
+    int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                                     rowadr.data(), nullptr, nullptr, s1, s2, 1,
+                                     1, nullptr);
+    std::vector<int> colind(nnz);
+    std::vector<mjtNum> val(nnz);
+    mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                           rowadr.data(), colind.data(), val.data(), s1, s2, 1,
+                           1, nullptr);
+    for (int i = 0; i < model->nv; i++) {
+      mjtNum assembled = mju_dotSparse(val.data() + rowadr[i], vec.data(),
+                                       rownnz[i], colind.data() + rowadr[i]);
+      EXPECT_THAT(assembled, MjNear(result[i], 1e-10, 2e-5)) << i;
+    }
+  }
+
+  void ExpectBendingFactorInverse() {
+    // Bending-only models use the constant factor, without per-step block
+    // preconditioning.
+    ASSERT_EQ(data->nefmdof, 0);
+    ASSERT_EQ(model->nefm0dof, model->nv);
+    int nv = model->nv;
+    std::vector<mjtNum> rhs(nv), solution(nv), product(nv);
+    mjtNum h = model->opt.timestep;
+    for (int col = 0; col < nv; col++) {
+      mju_zero(rhs.data(), nv);
+      rhs[col] = 1;
+      mjd_effPrec(model.get(), data.get(), solution.data(), rhs.data());
+      mj_mulM(model.get(), data.get(), product.data(), solution.data());
+      mjd_flexBend_mul(model.get(), data.get(), product.data(), solution.data(),
+                       h * h, h);
+      for (int row = 0; row < nv; row++) {
+        EXPECT_THAT(product[row], MjNear(rhs[row], 1e-12, 2e-6))
+            << row << ", " << col;
+      }
+    }
+  }
+
+  MjModelPtr model;
+  MjDataPtr data;
+};
+
+TEST_P(FlexFrameTest, RigidTranslationHasNoDamping) {
+  const mjtNum velocity[3] = {0.7, -0.4, 1.2};
+  for (int v = 0; v < 4; v++) {
+    int body = model->body_weldid[model->flex_vertbodyid[v]];
+    mju_mulMatTVec3(data->qvel + model->body_dofadr[body],
+                    data->xmat + 9 * body, velocity);
+  }
+  mj_forward(model.get(), data.get());
+  EXPECT_THAT(AsVector(data->qfrc_damper, model->nv),
+              Each(MjNear(0, 1e-10, 1e-5)));
+}
+
+TEST_P(FlexFrameTest, PositionDerivative) { ExpectDerivative(false); }
+
+TEST_P(FlexFrameTest, VelocityDerivativeAtReference) { ExpectDerivative(true); }
+
+TEST_P(FlexFrameTest, PositionAssembly) { ExpectAssembly(1, 0); }
+
+TEST_P(FlexFrameTest, VelocityAssembly) { ExpectAssembly(0, 1); }
+
+TEST_P(FlexFrameTest, ConstantBendingFactor) {
+  ASSERT_NO_FATAL_FAILURE(LoadPatch("bend"));
+  ExpectBendingFactorInverse();
+}
+
+TEST_P(FlexFrameTest, ConstantBendingFactorAfterFrameChange) {
+  ASSERT_NO_FATAL_FAILURE(LoadPatch("bend"));
+  int body = mj_name2id(model.get(), mjOBJ_BODY, "v1");
+  const mjtNum rotation[4] = {0.5, 0.5, 0.5, 0.5};
+  mju_copy4(model->body_quat + 4 * body, rotation);
+  mj_setConst(model.get(), data.get());
+  mj_forward(model.get(), data.get());
+  ExpectBendingFactorInverse();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Frames, FlexFrameTest,
+    testing::Values(FlexFrameCase{"Aligned", false, false, 1},
+                    FlexFrameCase{"Welded", true, false, 1},
+                    FlexFrameCase{"RotatedSiblings", false, true, 1},
+                    FlexFrameCase{"SharedFlexBodies", true, true, 2}),
+    [](const testing::TestParamInfo<FlexFrameCase>& info) {
+      return info.param.name;
+    });
+
+// The cache follows position updates, survives velocity-only evaluations and
+// mj_copyData, and does not change spring forces or either material's damping.
+TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <default>
+      <joint type="slide"/>
+      <geom type="sphere" size=".01" mass=".2" contype="0" conaffinity="0"/>
+    </default>
+    <worldbody>
+      <body name="unused" pos="2 2 2">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="a">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="b" pos="1 0 0">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="c" pos=".2 .9 0">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="d" pos="-.1 .3 1.1">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="tet" dim="3" body="unused a b c d" element="1 2 3 4">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3" damping=".02"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  struct {
+    int dim;
+    int elastic3d;
+  } cases[] = {{2, 0}, {3, 0}, {3, 1}};
+  for (auto [dim, elastic3d] : cases) {
+    SCOPED_TRACE(dim);
+    SCOPED_TRACE(elastic3d);
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"));
+    flex->elastic3d = elastic3d;
+    if (dim == 2) {
+      flex->dim = 2;
+      flex->elastic2d = 2;  // stretching
+      flex->thickness = .02;
+      int triangle[] = {1, 2, 3};
+      mjs_setInt(flex->elem, triangle, 3);
+    }
+    MjModelPtr m(mj_compile(spec, nullptr));
+    mj_deleteSpec(spec);
+    ASSERT_THAT(m.get(), NotNull());
+    m->opt.disableflags |= mjDSBL_DAMPER;
+    MjDataPtr d = MakeData(m);
+    MjDataPtr fresh = MakeData(m);
+    std::vector<mjtNum> vec(m->nv), result(m->nv), expected(m->nv);
+    for (int i = 0; i < m->nv; i++) {
+      vec[i] = mju_Halton(i, 2) - .5;
+      d->qpos[i] = .1 * vec[i];
+    }
+
+    auto cache_values = [&m](const mjData* data) {
+      std::vector<mjtNum> values =
+          AsVector(data->flexvert_hessian, 6 * m->nflexvert);
+      values.insert(values.end(), data->flexedge_hessian,
+                    data->flexedge_hessian + 9 * m->nflexedge);
+      return values;
+    };
+
+    // Euler with damping disabled needs no Cartesian Hessian.
+    mj_forward(m.get(), d.get());
+    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    std::vector<mjtNum> spring(d->qfrc_spring, d->qfrc_spring + m->nv);
+    mjd_flexStretch_mul(m.get(), d.get(), result.data(), vec.data(), 1, 0);
+    ASSERT_TRUE(d->flex_hessian_valid[0]);
+    std::vector<mjtNum> cache = cache_values(d.get());
+    mj_passive(m.get(), d.get());
+    EXPECT_THAT(spring, Pointwise(Eq(), AsVector(d->qfrc_spring, m->nv)));
+
+    // Changing velocity, damping, or timestep does not change the cached
+    // Hessian.
+    mju_copy(d->qvel, vec.data(), m->nv);
+    m->opt.disableflags &= ~mjDSBL_DAMPER;
+    m->flex_damping[0] = .04;
+    m->opt.timestep *= 2;
+    mj_forwardSkip(m.get(), d.get(), mjSTAGE_POS, 1);
+    EXPECT_TRUE(d->flex_hessian_valid[0]);
+    EXPECT_THAT(cache, Pointwise(Eq(), cache_values(d.get())));
+    mju_copy(fresh->qpos, d->qpos, m->nq);
+    mju_copy(fresh->qvel, d->qvel, m->nv);
+    mj_forward(m.get(), fresh.get());
+    // Euler computes damping directly when no cache is already available.
+    EXPECT_FALSE(fresh->flex_hessian_valid[0]);
+    EXPECT_THAT(AsVector(d->qfrc_spring, m->nv),
+                Pointwise(Eq(), AsVector(fresh->qfrc_spring, m->nv)));
+    EXPECT_THAT(
+        AsVector(d->qfrc_damper, m->nv),
+        Pointwise(MjNear(1e-12, 1e-5), AsVector(fresh->qfrc_damper, m->nv)));
+
+    // Copying mjData preserves a usable cache; subsequent geometry updates
+    // invalidate only the updated data, including standalone kinematics calls.
+    mj_copyData(fresh.get(), m.get(), d.get());
+    ASSERT_TRUE(fresh->flex_hessian_valid[0]);
+    mjd_flexStretch_mul(m.get(), fresh.get(), expected.data(), vec.data(), 1,
+                        0);
+    EXPECT_THAT(result, Pointwise(Eq(), expected));
+    d->qpos[3] += .17;
+    mj_fwdKinematics(m.get(), d.get());
+    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    EXPECT_THAT(cache, Pointwise(Eq(), cache_values(fresh.get())));
+    mju_zero(result.data(), m->nv);
+    mjd_flexStretch_mul(m.get(), d.get(), result.data(), vec.data(), 1, 0);
+    EXPECT_TRUE(d->flex_hessian_valid[0]);
+    EXPECT_NE(cache, cache_values(d.get()));
+    mju_copy(fresh->qpos, d->qpos, m->nq);
+    mj_forward(m.get(), fresh.get());
+    mju_zero(expected.data(), m->nv);
+    mjd_flexStretch_mul(m.get(), fresh.get(), expected.data(), vec.data(), 1,
+                        0);
+    EXPECT_THAT(result, Pointwise(Eq(), expected));
+
+    // Neither explicit integrator constructs the cache for material damping.
+    for (int integrator : {mjINT_EULER, mjINT_RK4}) {
+      m->opt.integrator = integrator;
+      mj_resetData(m.get(), d.get());
+      mju_copy(d->qvel, vec.data(), m->nv);
+      mj_step(m.get(), d.get());
+      EXPECT_FALSE(d->flex_hessian_valid[0]);
+    }
+
+    // Reset invalidates even when the remaining derived data is debug-filled.
+    // Discrete assembly also handles the unused vertex's empty sparse rows.
+    mj_resetDataDebug(m.get(), d.get(), 255);
+    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    m->opt.integrator = mjINT_DISCRETE;
+    mj_forward(m.get(), d.get());
+    EXPECT_TRUE(d->flex_hessian_valid[0]);
+  }
+}
+
+// The exact SNH Hessian remains finite through degeneracy and inversion,
+// including negative curvature. Assembly, matrix-free products, damping, and
+// force derivatives agree.
+TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete"/>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1  .1 .2 -.8"
+                element="0 1 2 3  0 2 1 4">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3" damping=".02"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
+  ASSERT_THAT(m.get(), NotNull());
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  // Two tetrahedra share three edges with different local orientations.
+  std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 15);
+  int nv = m->nv;
+  ASSERT_EQ(nv, 15);
+  bool negative_curvature = false;
+  for (int rank = 0; rank <= 3; rank++) {
+    for (mjtNum scale :
+         {mjtNum(-1), mjtNum(-.01), mjtNum(0), mjtNum(.01), mjtNum(1.05)}) {
+      for (int v = 0; v < 5; v++) {
+        int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+        mjtNum x = rank > 0 ? 1.05 * rest[3 * v] : 0;
+        mjtNum y = rank > 1 ? 1.05 * rest[3 * v + 1] : 0;
+        mjtNum z = rank > 2 ? scale * rest[3 * v + 2] : 0;
+        if (rank == 3 && scale > 1) {
+          // Distinct singular values and nontrivial left/right singular
+          // vectors.
+          x = 1.06 * (.8 * rest[3 * v] - .6 * rest[3 * v + 1]);
+          y = 1.09 * (.6 * rest[3 * v] + .8 * rest[3 * v + 1]);
+          z = 1.12 * rest[3 * v + 2];
+        }
+        d->qpos[adr] = .8 * x - .6 * y - rest[3 * v];
+        d->qpos[adr + 1] = .6 * x + .8 * y - rest[3 * v + 1];
+        d->qpos[adr + 2] = z - rest[3 * v + 2];
+      }
+      for (int i = 0; i < nv; i++) d->qvel[i] = mju_Halton(i, 2) - .5;
+      mj_forward(m.get(), d.get());
+      std::vector<mjtNum> K(nv * nv, 0);
+      stretchK_dense(m.get(), d.get(), K.data(), nv, 1, 0);
+      std::vector<int> rownnz(nv), rowadr(nv);
+      int nnz =
+          mjd_flexStiff_assemble(m.get(), d.get(), rownnz.data(), rowadr.data(),
+                                 nullptr, nullptr, 1, 0, 0, 1, nullptr);
+      std::vector<int> colind(nnz);
+      std::vector<mjtNum> values(nnz);
+      mjd_flexStiff_assemble(m.get(), d.get(), rownnz.data(), rowadr.data(),
+                             colind.data(), values.data(), 1, 0, 0, 1, nullptr);
+      for (int i = 0; i < nv; i++) {
+        for (int j = 0; j < nv; j++) {
+          EXPECT_TRUE(std::isfinite(K[i * nv + j]));
+          EXPECT_NEAR(K[i * nv + j], K[j * nv + i], MjTol(1e-10, 1e-3));
+        }
+        for (int j = rowadr[i]; j < rowadr[i] + rownnz[i]; j++) {
+          EXPECT_NEAR(values[j], K[i * nv + colind[j]], MjTol(1e-10, 1e-3));
+        }
+      }
+      std::vector<mjtNum> L = K;
+      for (int i = 0; i < nv; i++) L[i * nv + i] += MjTol(1e-8, .01);
+      negative_curvature |= mju_cholFactor(L.data(), nv, 0) < nv;
+      std::vector<mjtNum> damp(nv, 0);
+      mjd_flexStretch_mul(m.get(), d.get(), damp.data(), d->qvel, 0, 1);
+      for (int i = 0; i < nv; i++) {
+        EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
+      }
+      // The uncached explicit damping path agrees through collapse and
+      // inversion.
+      m->opt.integrator = mjINT_EULER;
+      mj_forward(m.get(), d.get());
+      EXPECT_FALSE(d->flex_hessian_valid[0]);
+      for (int i = 0; i < nv; i++) {
+        EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
+      }
+      m->opt.integrator = mjINT_DISCRETE;
+      // Central differences verify the full tangent even at rank zero and under
+      // reflection.
+      m->flex_damping[0] = 0;
+      mjtNum eps = MjEps(1e-6, 1e-3);
+      for (int j = 0; j < nv; j++) {
+        mjtNum saved = d->qpos[j];
+        d->qpos[j] = saved + eps;
+        mj_forward(m.get(), d.get());
+        std::vector<mjtNum> plus(d->qfrc_spring, d->qfrc_spring + nv);
+        d->qpos[j] = saved - eps;
+        mj_forward(m.get(), d.get());
+        for (int i = 0; i < nv; i++) {
+          mjtNum fd = -(plus[i] - d->qfrc_spring[i]) / (2 * eps);
+          EXPECT_NEAR(K[i * nv + j], fd, MjTol(1e-6, .2));
+        }
+        d->qpos[j] = saved;
+      }
+      m->flex_damping[0] = .02;
+    }
+  }
+  EXPECT_TRUE(negative_curvature)
+      << "the exact Hessian must not silently clamp negative modes";
+}
+
 // K_stretch must be the full Hessian of the stretch force, not just its
 // Gauss-Newton part: the geometric (stress-proportional) term is what makes it
 // the Jacobian at finite strain. Uniformly dilating the mesh puts every edge in
@@ -2096,11 +2815,11 @@ TEST_F(DerivativeTest, FlexStretchDerivativesTensile) {
       << "mjd_flexStretch_mul is not the Jacobian of the flex stretch force";
 }
 
-// verify mjd_flexStretch_mul (Gauss-Newton Hessian of the standard-flex
-// stretch force) against finite differences of qfrc_passive, plus symmetry,
-// positive semi-definiteness and (s1, s2) scale linearity. The model covers
-// both element edge tables (dim=2 triangles and dim=3 tets) and a pinned
-// vertex (zero-dof body guard).
+// verify mjd_flexStretch_mul (stiffness of the standard-flex stretch force)
+// against finite differences of qfrc_passive, plus symmetry, positive
+// semi-definiteness and (s1, s2) scale linearity. The model covers both
+// element edge tables (dim=2 triangles and dim=3 tets) and a pinned vertex
+// (zero-dof body guard).
 TEST_F(DerivativeTest, FlexStretchDerivatives) {
   static const char* const kXml = R"(
   <mujoco>
@@ -2132,8 +2851,9 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 
   // deform both flexes deterministically, at small strain.
   // FlexStretchDerivativesTensile covers finite strain, where the geometric
-  // term of K_stretch is what carries the accuracy; the solid (dim=3) flex
-  // below has no such term, so the tolerance stays loose here.
+  // term of K_stretch is what carries the accuracy; here some edges are
+  // compressed and the operator drops their geometric term to stay PSD, so the
+  // tolerance stays loose.
   for (int i = 0; i < nv; i++) {
     data->qpos[i] += 5e-4 * (mju_Halton(i, 2) - 0.5);
   }
@@ -2155,8 +2875,8 @@ TEST_F(DerivativeTest, FlexStretchDerivatives) {
 
     // qfrc_passive = -dV/dq  =>  -(qfrc_new - qfrc)/eps ~= K * vec.
     // Compare max error against the force scale rather than entrywise:
-    // individual near-zero entries are not meaningful, and the dim=3 flex still
-    // carries a Gauss-Newton residual.
+    // individual near-zero entries are not meaningful, and the dropped
+    // compressive geometric term leaves a residual in both flexes.
     mjtNum max_err = 0, scale = 0;
     for (int i = 0; i < nv; ++i) {
       mjtNum fd =
@@ -2362,10 +3082,281 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   }
 }
 
-// mjd_effSolve drives (M+K)x = b to opt.tolerance on the relative residual,
-// for every metric coverage case. It is a PCG whose preconditioner
-// (mjd_effPrec) is only approximate, so the accuracy comes from the iteration
-// and not from the preconditioner being exact.
+struct FlexAttachmentCase {
+  const char* name;
+  const char* joints;
+  bool sliding_child = false;
+  bool shared_body = false;
+};
+
+class FlexAttachmentTest
+    : public MujocoTest,
+      public testing::WithParamInterface<FlexAttachmentCase> {
+ protected:
+  void SetUp() override { Load(); }
+
+  std::string Xml(bool independent, const char* elasticity,
+                  bool mixed = false) {
+    const char* inertia =
+        R"(<inertial pos="0 0 0" mass="0.1" diaginertia=".01 .02 .03"/>)";
+    const char* slides = R"(<joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/><joint type="slide" axis="0 0 1"/>)";
+    const char* positions[] = {"0 0 0", ".1 0 0", "0 .1 0", ".1 .1 0"};
+    std::string xml = R"(<mujoco><option integrator="discrete" solver="CG"
+      gravity="0 0 0" iterations="500"/><worldbody>)";
+    int count = independent ? 4 : (GetParam().shared_body ? 2 : 3);
+    for (int v = 0; v < count; v++) {
+      xml += "<body name='v" + std::to_string(v) + "' pos='" + positions[v] +
+             "'>" + inertia + slides + "</body>";
+    }
+    if (!independent) {
+      xml += std::string("<body name='carrier' pos='.08 .08 -.02'>") + inertia +
+             GetParam().joints;
+      if (GetParam().shared_body) xml += "<body name='v2' pos='-.08 .02 .02'/>";
+      xml += "<body name='v3' pos='.02 .02 .02'>";
+      if (GetParam().sliding_child) xml += std::string(inertia) + slides;
+      xml += "</body></body>";
+    }
+    if (mixed) {
+      xml += R"(<flexcomp name="ordinary" dim="2" type="grid" count="3 3 1"
+        spacing=".1 .1 .1" pos="2 0 0" mass="1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="100" thickness=".02" damping=".02" elastic2d="stretch"/>
+      </flexcomp>)";
+    }
+    xml +=
+        R"(</worldbody><deformable><flex name="patch" dim="2" body="v0 v1 v2 v3"
+      element="0 1 2 1 3 2"><contact contype="0" conaffinity="0" selfcollide="none"/>
+      <elasticity young="100" poisson=".3" thickness=".02" damping=".02" elastic2d=")";
+    return xml + elasticity + R"("/></flex></deformable></mujoco>)";
+  }
+
+  void Load(const char* elasticity = "both", bool mixed = false) {
+    char error[1024];
+    data.reset();
+    model = LoadModelFromString(Xml(false, elasticity, mixed), error,
+                                sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    flex = mj_name2id(model.get(), mjOBJ_FLEX, "patch");
+    ASSERT_FALSE(mj_flexSimple(model.get(), flex));
+  }
+
+  std::vector<mjtNum> Direction(int base = 2) {
+    std::vector<mjtNum> result(model->nv);
+    for (int i = 0; i < model->nv; i++) result[i] = mju_Halton(i, base) - .5;
+    return result;
+  }
+
+  void Deform() {
+    auto direction = Direction();
+    mj_integratePos(model.get(), data->qpos, direction.data(), .05);
+    mju_copy(data->qvel, direction.data(), model->nv);
+    mj_forward(model.get(), data.get());
+  }
+
+  // Independent oracle: public point Jacobians and force application, not the
+  // flex helpers.
+  std::vector<mjtNum> Gather(const std::vector<mjtNum>& vec) {
+    std::vector<mjtNum> result(12), jac(3 * model->nv);
+    for (int v = 0; v < 4; v++) {
+      int gv = model->flex_vertadr[flex] + v;
+      mj_jac(model.get(), data.get(), jac.data(), nullptr,
+             data->flexvert_xpos + 3 * gv, model->flex_vertbodyid[gv]);
+      mju_mulMatVec(result.data() + 3 * v, jac.data(), vec.data(), 3,
+                    model->nv);
+    }
+    return result;
+  }
+
+  std::vector<mjtNum> Scatter(const mjtNum* force) {
+    std::vector<mjtNum> result(model->nv, 0);
+    for (int v = 0; v < 4; v++) {
+      int gv = model->flex_vertadr[flex] + v;
+      mj_applyFT(model.get(), data.get(), force + 3 * v, nullptr,
+                 data->flexvert_xpos + 3 * gv, model->flex_vertbodyid[gv],
+                 result.data());
+    }
+    return result;
+  }
+
+  void Reference(const char* elasticity) {
+    char error[1024];
+    reference_data.reset();
+    reference =
+        LoadModelFromString(Xml(true, elasticity), error, sizeof(error));
+    ASSERT_THAT(reference.get(), NotNull()) << error;
+    reference_data = MakeData(reference);
+    auto velocity = Gather(AsVector(data->qvel, model->nv));
+    mju_copy(reference_data->qvel, velocity.data(), 12);
+    for (int v = 0; v < 4; v++) {
+      int body = reference->flex_vertbodyid[v];
+      mju_sub3(reference_data->qpos + 3 * v,
+               data->flexvert_xpos + 3 * (model->flex_vertadr[flex] + v),
+               reference->body_pos + 3 * body);
+    }
+    mj_forward(reference.get(), reference_data.get());
+  }
+
+  void ExpectForce(const char* elasticity, bool damping) {
+    ASSERT_NO_FATAL_FAILURE(Load(elasticity));
+    Deform();
+    ASSERT_NO_FATAL_FAILURE(Reference(elasticity));
+    auto expected = Scatter(damping ? reference_data->qfrc_damper
+                                    : reference_data->qfrc_spring);
+    const mjtNum* actual = damping ? data->qfrc_damper : data->qfrc_spring;
+    EXPECT_GT(mju_norm(expected.data(), model->nv), MjTol(1e-7, 1e-4));
+    EXPECT_THAT(AsVector(actual, model->nv),
+                Pointwise(MjNear(1e-10, 1e-5), expected));
+  }
+
+  void ExpectOperator(bool bend) {
+    Deform();
+    ASSERT_NO_FATAL_FAILURE(Reference("both"));
+    auto vec = Direction(3), world = Gather(vec);
+    auto apply = bend ? mjd_flexBend_mul : mjd_flexStretch_mul;
+    std::vector<mjtNum> world_result(12, 0), result(model->nv + 3, 0);
+    apply(reference.get(), reference_data.get(), world_result.data(),
+          world.data(), 1, 0);
+    result[model->nv] = result[model->nv + 1] = result[model->nv + 2] = 123;
+    apply(model.get(), data.get(), result.data(), vec.data(), 1, 0);
+    EXPECT_THAT(AsVector(result.data(), model->nv),
+                Pointwise(MjNear(1e-10, 2e-5), Scatter(world_result.data())));
+    EXPECT_THAT(AsVector(result.data() + model->nv, 3), Each(123));
+  }
+
+  void ExpectMetric(bool mixed) {
+    ASSERT_NO_FATAL_FAILURE(Load("both", mixed));
+    Deform();
+    EXPECT_EQ(data->nefmK > 0, mixed);
+    auto vec = Direction(3);
+    std::vector<mjtNum> expected(model->nv, 0), actual(model->nv, 0);
+    mjtNum h = model->opt.timestep;
+    mjd_flexBend_mul(model.get(), data.get(), expected.data(), vec.data(),
+                     h * h, h);
+    mjd_flexStretch_mul(model.get(), data.get(), expected.data(), vec.data(),
+                        h * h, h);
+    mjd_effMulAdd(model.get(), data.get(), actual.data(), vec.data(), 1);
+    EXPECT_THAT(actual, Pointwise(MjNear(1e-12, 1e-7), expected));
+  }
+
+  int flex;
+  MjModelPtr model, reference;
+  MjDataPtr data, reference_data;
+};
+
+TEST_P(FlexAttachmentTest, GatherMatchesPointJacobian) {
+  Deform();
+  auto vec = Direction();
+  std::vector<mjtNum> actual(12);
+  mj_flexGather(model.get(), data.get(), flex, actual.data(), vec.data());
+  EXPECT_THAT(actual, Pointwise(MjNear(1e-12, 1e-6), Gather(vec)));
+}
+
+TEST_P(FlexAttachmentTest, ScatterPreservesVirtualWork) {
+  Deform();
+  auto vec = Direction(), world = Gather(vec);
+  std::vector<mjtNum> force(12), actual(model->nv, 0);
+  for (int i = 0; i < 12; i++) force[i] = mju_Halton(i, 5) - .5;
+  mj_flexScatter(model.get(), data.get(), flex, actual.data(), force.data(), 1);
+  EXPECT_THAT(actual, Pointwise(MjNear(1e-12, 1e-6), Scatter(force.data())));
+  EXPECT_THAT(mju_dot(vec.data(), actual.data(), model->nv),
+              MjNear(mju_dot(world.data(), force.data(), 12), 1e-12, 1e-6));
+}
+
+TEST_P(FlexAttachmentTest, BendingSpringIncludesAttachmentReaction) {
+  ExpectForce("bend", false);
+}
+TEST_P(FlexAttachmentTest, BendingDampingIncludesAttachmentReaction) {
+  ExpectForce("bend", true);
+}
+TEST_P(FlexAttachmentTest, StretchSpringIncludesAttachmentReaction) {
+  ExpectForce("stretch", false);
+}
+TEST_P(FlexAttachmentTest, StretchDampingIncludesAttachmentReaction) {
+  ExpectForce("stretch", true);
+}
+TEST_P(FlexAttachmentTest, BendingOperatorMatchesWorldPatch) {
+  ExpectOperator(true);
+}
+TEST_P(FlexAttachmentTest, StretchOperatorMatchesWorldPatch) {
+  ExpectOperator(false);
+}
+TEST_P(FlexAttachmentTest, MatrixFreeMetric) { ExpectMetric(false); }
+TEST_P(FlexAttachmentTest, MixedAssembledAndMatrixFreeMetric) {
+  ExpectMetric(true);
+}
+
+TEST_P(FlexAttachmentTest, BendingDampingDerivative) {
+  ASSERT_NO_FATAL_FAILURE(Load("bend"));
+  Deform();
+  auto vec = Direction(3);
+  std::vector<mjtNum> expected(model->nv, 0);
+  mjd_flexBend_mul(model.get(), data.get(), expected.data(), vec.data(), 0, 1);
+  auto initial = AsVector(data->qfrc_damper, model->nv);
+  mjtNum eps = MjEps(1e-6, 1e-3);
+  mju_addToScl(data->qvel, vec.data(), eps, model->nv);
+  mj_forward(model.get(), data.get());
+  for (int i = 0; i < model->nv; i++) {
+    EXPECT_THAT(-(data->qfrc_damper[i] - initial[i]) / eps,
+                MjNear(expected[i], 1e-9, 1e-5));
+  }
+}
+
+TEST_P(FlexAttachmentTest, EffectiveSolveResidual) {
+  ASSERT_NO_FATAL_FAILURE(Load("both", true));
+  Deform();
+  auto rhs = Direction(3);
+  std::vector<mjtNum> solution(model->nv), product(model->nv);
+  mjd_effSolve(model.get(), data.get(), solution.data(), rhs.data());
+  mj_mulM(model.get(), data.get(), product.data(), solution.data());
+  mjd_effMulAdd(model.get(), data.get(), product.data(), solution.data(), 1);
+  EXPECT_THAT(product, Pointwise(MjNear(2e-8, 2e-5), rhs));
+}
+
+TEST_P(FlexAttachmentTest, MetricIsSymmetricAndPositive) {
+  Deform();
+  auto u = Direction(3), v = Direction(5);
+  std::vector<mjtNum> Ku(model->nv, 0), Kv(model->nv, 0);
+  mjd_effMulAdd(model.get(), data.get(), Ku.data(), u.data(), 1);
+  mjd_effMulAdd(model.get(), data.get(), Kv.data(), v.data(), 1);
+  EXPECT_THAT(mju_dot(u.data(), Kv.data(), model->nv),
+              MjNear(mju_dot(v.data(), Ku.data(), model->nv), 1e-12, 1e-7));
+  EXPECT_GE(mju_dot(u.data(), Ku.data(), model->nv), -MjTol(1e-12, 1e-7));
+}
+
+TEST_P(FlexAttachmentTest, AttachmentCannotUseFreeGyroShortcut) {
+  int body = mj_name2id(model.get(), mjOBJ_BODY, "carrier");
+  EXPECT_FALSE(
+      mjd_freeGyroPossible(model.get(), data.get(), model->body_jntadr[body]));
+}
+
+TEST_P(FlexAttachmentTest, RequiresCGForDiscreteIntegrator) {
+  std::string xml = Xml(false, "both");
+  xml.replace(xml.find("solver=\"CG\""), 11, "solver=\"Newton\"");
+  char error[1024];
+  auto rejected = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_EQ(rejected.get(), nullptr);
+  EXPECT_THAT(error, HasSubstr("general attachments requires solver='CG'"));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Attachments, FlexAttachmentTest,
+    testing::Values(
+        FlexAttachmentCase{"Hinge", "<joint axis='0 1 0'/>"},
+        FlexAttachmentCase{"Ball", "<joint type='ball'/>"},
+        FlexAttachmentCase{"Free", "<freejoint/>"},
+        FlexAttachmentCase{"ReorderedSlides", R"(
+                      <joint type="slide" axis="0 1 0"/>
+                      <joint type="slide" axis="1 0 0"/>
+                      <joint type="slide" axis="0 0 -1"/>)"},
+        FlexAttachmentCase{"MovingAncestor", "<joint type='ball'/>", true},
+        FlexAttachmentCase{"SharedBody", "<joint type='ball'/>", false, true}),
+    [](const testing::TestParamInfo<FlexAttachmentCase>& info) {
+      return info.param.name;
+    });
+
 TEST_F(DerivativeTest, EffSolve) {
   // relative residual of (M+K)x - b after mjd_effSolve
   auto solve_residual = [](const mjModel* m, mjData* d) {
@@ -2429,8 +3420,8 @@ TEST_F(DerivativeTest, EffSolve) {
   EXPECT_GT(model->nefm0dof, 0);
   EXPECT_LT(solve_residual(model.get(), data.get()), MjTol(1e-8, 1e-4));
 
-  // cloth under a jointed parent: M couples across the covered block, not
-  // exact, the refinement path must still meet its tolerance
+  // A cloth under a jointed parent uses the matrix-free attachment mapping;
+  // the iterative solve must still meet its tolerance.
   static const char* const kXmlMoving = R"(
   <mujoco>
     <option solver="CG" integrator="discrete"/>
@@ -2441,7 +3432,7 @@ TEST_F(DerivativeTest, EffSolve) {
         <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
                   radius=".005" dim="2" mass="0.5" pos="0 0 0" dof="full">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
-          <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both" thickness="0.01"/>
+          <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="stretch" thickness="0.01"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -2456,21 +3447,51 @@ TEST_F(DerivativeTest, EffSolve) {
 }
 
 // A cloth with per-step stretch stiffness, used by the two tests below.
+// Independent flex slides with an articulated descendant: the mass matrix
+// couples the covered vertex triple to an uncovered hinge in the same kinematic
+// tree.
 static const char* const kStretchCloth = R"(
 <mujoco>
   <option solver="CG" integrator="discrete"/>
+  <default>
+    <geom type="sphere" size=".01" mass=".1" contype="0" conaffinity="0"/>
+  </default>
   <worldbody>
-    <body name="base" pos="0 0 1">
+    <body name="v0">
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
       <joint type="slide" axis="0 0 1"/>
-      <geom type="sphere" size=".01" mass="1" contype="0" conaffinity="0"/>
-      <flexcomp name="cloth" type="grid" count="6 6 1" spacing="0.05 0.05 0.05"
-                radius=".005" dim="2" mass="0.5" pos="0 0 0" dof="full">
-        <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both"
-                    thickness="0.01"/>
-      </flexcomp>
+      <geom/>
+      <body pos=".02 0 0">
+        <joint axis="0 1 0"/>
+        <geom pos=".1 0 0"/>
+      </body>
+    </body>
+    <body name="v1" pos=".1 0 0">
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
+      <geom/>
+    </body>
+    <body name="v2" pos="0 .1 0">
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
+      <geom/>
+    </body>
+    <body name="v3" pos=".1 .1 0">
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 1 0"/>
+      <joint type="slide" axis="0 0 1"/>
+      <geom/>
     </body>
   </worldbody>
+  <deformable>
+    <flex dim="2" body="v0 v1 v2 v3" element="0 1 2 1 3 2">
+      <contact selfcollide="none" contype="0" conaffinity="0"/>
+      <elasticity young="1e3" poisson=".2" damping=".1" elastic2d="stretch" thickness=".01"/>
+    </flex>
+  </deformable>
 </mujoco>
 )";
 
@@ -2490,7 +3511,7 @@ TEST_F(DerivativeTest, EffSolveCapWarns) {
         <flexcomp name="cloth" type="grid" count="24 24 1" dim="2"
                   spacing="0.02 0.02 0.02" radius=".002" mass="0.02" dof="full">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
-          <elasticity young="1e9" poisson="0.45" damping="0" elastic2d="both"
+          <elasticity young="1e9" poisson="0.45" damping="0" elastic2d="stretch"
                       thickness="0.02"/>
         </flexcomp>
       </body>
@@ -2501,6 +3522,10 @@ TEST_F(DerivativeTest, EffSolveCapWarns) {
   MjModelPtr model = LoadModelFromString(kStiffCloth, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
+  // Excite in-plane stretch modes; gravity alone translates this flat cloth.
+  for (int i = 0; i < model->nv; i++) {
+    data->qfrc_applied[i] = mju_Halton(i, 2) - 0.5;
+  }
 
   MockWarningHandler warning_handler;
   // both: the specific cause, then the mjWARN_INERTIA it is reported through
@@ -2512,7 +3537,7 @@ TEST_F(DerivativeTest, EffSolveCapWarns) {
 
 // PCG requires a symmetric preconditioner. mjd_effPrec must satisfy
 // u.P(v) == v.P(u); it did not when the covered and uncovered dofs shared a
-// kinematic tree, which is what the flex-under-a-slider model here exercises.
+// kinematic tree, which is what the articulated vertex body here exercises.
 TEST_F(DerivativeTest, EffPrecIsSymmetric) {
   char error[1024];
   MjModelPtr model = LoadModelFromString(kStretchCloth, error, sizeof(error));
@@ -2520,6 +3545,8 @@ TEST_F(DerivativeTest, EffPrecIsSymmetric) {
   MjDataPtr data = MakeData(model);
   mj_forward(model.get(), data.get());
   ASSERT_GE(data->efm_active, 1);
+  ASSERT_EQ(data->nefmdof, 4);
+  ASSERT_EQ(model->nv, 13);
 
   int nv = model->nv;
   std::vector<mjtNum> u(nv), v(nv), Pu(nv), Pv(nv);

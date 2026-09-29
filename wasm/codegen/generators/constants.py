@@ -52,10 +52,12 @@ _SKIPPED_PLUGIN_FUNCTIONS: tuple[str, ...] = (
     "mjc_distance",
     "mjc_getSDF",
     "mjc_gradient",
+    "mjp_archiveResourceProviderCount",
     "mjp_defaultDecoder",
     "mjp_defaultEncoder",
     "mjp_defaultPlugin",
     "mjp_defaultResourceProvider",
+    "mjp_findArchiveResourceProvider",
     "mjp_findDecoder",
     "mjp_findEncoder",
     "mjp_getPlugin",
@@ -63,6 +65,7 @@ _SKIPPED_PLUGIN_FUNCTIONS: tuple[str, ...] = (
     "mjp_getResourceProvider",
     "mjp_getResourceProviderAtSlot",
     "mjp_pluginCount",
+    "mjp_registerArchiveResourceProvider",
     "mjp_registerDecoder",
     "mjp_registerEncoder",
     "mjp_registerPlugin",
@@ -185,6 +188,7 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
 
 _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
+    "mj_readCtrl",
     "mj_readSensor",
     "mju_closeResource",
     "mju_decodeResource",

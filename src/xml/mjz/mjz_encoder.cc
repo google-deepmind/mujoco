@@ -18,6 +18,7 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <stack>
 #include <string>
 #include <string_view>
@@ -83,7 +84,7 @@ using RewriteMap = std::unordered_map<RewriteKey, std::string, RewriteKeyHash>;
 fs::path SanitizePath(const fs::path& path) {
   // replace characters that are not alphanumeric, '/', '.', '_', or '-'
   // with '_'
-  std::string result = path.string();
+  std::string result = path.generic_string();
   for (char& c : result) {
     if (!std::isalnum(static_cast<unsigned char>(c)) &&
         c != '/' &&
@@ -106,14 +107,31 @@ std::string RemoveLeadingDotDot(const fs::path& p) {
     skipping  = false;
     result   /= component;
   }
-  return result.string();
+  return result.generic_string();
 }
 
 
-// Apply file-attribute rewrites to the serialized XML.
+// Map a path to a relative path inside the archive.
+fs::path LocalizePath(const fs::path& path) {
+  // sanitize the path to remove any URI schemes or other non-path characters if the file path
+  // has a URI scheme (e.g. "http://foo/mesh.stl"), strip it so the archive entry uses a
+  // concrete path and decoding the MJZ won't try to invoke a resource provider. First remove
+  // any leading ".." path components. my_provider:a/../b/c_$.obj ->
+  // my_provider_a/../b/c__.obj
+  const fs::path sanitized = SanitizePath(path);
+  // my_provider_a/../b/c__.obj -> my_provider_a/b/c__.obj
+  const fs::path normalized = sanitized.lexically_normal();
+  // ../../b/c__.obj -> b/c__.obj
+  // Also remove any leading '/'.
+  return RemoveLeadingDotDot(normalized.relative_path());
+}
+
+
+// Apply path-attribute rewrites to the serialized XML.
 // For each element, all attributes are checked against the rewrite map keyed
-// by (tag_name, attribute_value, element_name). This handles both regular
-// "file" attributes and cubemap face attributes (fileright, fileleft, etc.).
+// by (tag_name, attribute_value, element_name). This handles regular "file"
+// attributes, cubemap face attributes (fileright, fileleft, etc.), and the
+// compiler's meshdir and texturedir.
 void ApplyRewrites(std::string& xml, const RewriteMap& rewrites) {
   if (rewrites.empty()) return;
 
@@ -130,11 +148,14 @@ void ApplyRewrites(std::string& xml, const RewriteMap& rewrites) {
     const char* tag_name  = elem->Value();
     const char* name_attr = elem->Attribute("name");
 
-    // Check file-related attributes for paths that need rewriting.
-    // This covers "file" and cubemap face attributes: fileright, fileleft, etc.
+    // Check path attributes for values that need rewriting.
+    // This covers "file", cubemap face attributes (fileright, fileleft, etc.), meshdir and
+    // texturedir.
     for (const tinyxml2::XMLAttribute* attr = elem->FirstAttribute(); attr; attr = attr->Next()) {
       std::string_view attr_name{attr->Name()};
-      if (!attr_name.starts_with("file")) continue;
+      if (!attr_name.starts_with("file") && attr_name != "meshdir" && attr_name != "texturedir") {
+        continue;
+      }
 
       const char* attr_value = attr->Value();
       if (!attr_value) continue;
@@ -155,20 +176,31 @@ void ApplyRewrites(std::string& xml, const RewriteMap& rewrites) {
 }
 
 
+// Rewrite the attribute value in key to path if the texts differ; fs::path equality would ignore
+// repeated separators ("sub//box.obj" == "sub/box.obj"), which normalizes the XML inside the
+// archive.
+void AddRewrite(RewriteMap& rewrites, const RewriteKey& key, const fs::path& path) {
+  std::string value = path.generic_string();
+  if (value != key.file) { rewrites[key] = std::move(value); }
+}
+
+
 // collect all referenced asset files from the spec
 //
 // returns a map from unique archive entry names to AssetEntry structs
-// and populates xml_rewrites with XML file attributes that need to be updated.
+// and populates xml_rewrites with XML path attributes that need to be updated.
 std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
                                                           RewriteMap&   xml_rewrites) {
   const mjString* root_meshdir    = spec->compiler.meshdir;
   const mjString* root_texturedir = spec->compiler.texturedir;
 
-  struct PathHash {
-    std::size_t operator()(const fs::path& p) const { return fs::hash_value(p); }
-  };
-  // maps full disk paths to their archive paths
-  std::unordered_map<fs::path, std::string, PathHash> archived_paths;
+  // directories of meshdir and texturedir assets in the archive; the compiler attributes are
+  // rewritten to these, and the decoder resolves file attributes against them
+  const fs::path mesh_dir    = LocalizePath(*root_meshdir);
+  const fs::path texture_dir = LocalizePath(*root_texturedir);
+
+  // maps (root dir, full disk path) to the archived file's path relative to the root dir
+  std::map<std::pair<fs::path, fs::path>, fs::path> archived_paths;
   // all asset entries, keyed by the final archive path
   std::unordered_map<std::string, AssetEntry> archive_entries;
 
@@ -193,7 +225,7 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
         const fs::path owning_spec_dir{owning_spec->modelfiledir ? *owning_spec->modelfiledir : ""};
         const fs::path raw_path{*raw_file};
         const fs::path prefix_dir{use_meshdir ? *comp->meshdir : *comp->texturedir};
-        const fs::path root_dir = fs::path(use_meshdir ? *root_meshdir : *root_texturedir);
+        const fs::path& root_dir = use_meshdir ? mesh_dir : texture_dir;
 
         const char* ch     = std::strchr(raw_file->c_str(), ':');
         const bool  is_uri = ch != nullptr;
@@ -212,44 +244,32 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
           full_path = owning_spec_dir / full_spec_path;
         }
 
-        // sanitize the path to remove any URI schemes or other non-path characters if the file path
-        // has a URI scheme (e.g. "http://foo/mesh.stl"), strip it so the archive entry uses a
-        // concrete path and decoding the MJZ won't try to invoke a resource provider. First remove
-        // any leading ".." path components. my_provider:a/../b/c_$.obj ->
-        // my_provider_a/../b/c__.obj
-        const fs::path sanitized = SanitizePath(raw_path);
-        // my_provider_a/../b/c__.obj -> my_provider_a/b/c__.obj
-        const fs::path normalized = sanitized.lexically_normal();
-        // ../../b/c__.obj -> b/c__.obj
-        // Also remove any leading '/'.
-        const fs::path localized = RemoveLeadingDotDot(normalized.relative_path());
-        // path relative to the root XML in the archive
-        fs::path archive_path = root_dir / localized;
+        const fs::path localized = LocalizePath(raw_path);
 
         // If this file was already archived, we may still need to add a rewrite if raw_file was
-        // sanitized or collision-renamed for the first occurrence.
-        if (auto it = archived_paths.find(full_path); it != archived_paths.end()) {
-          if (archive_path != it->second || localized != raw_path) {
-            xml_rewrites[rewrite_key] = it->second;
-          }
+        // sanitized or collision-renamed for the first occurrence, or is spelled differently here.
+        if (auto it = archived_paths.find({root_dir, full_path}); it != archived_paths.end()) {
+          AddRewrite(xml_rewrites, rewrite_key, it->second);
           return;
         }
 
-        if (localized != raw_path) { xml_rewrites[rewrite_key] = archive_path.string(); }
-
         // Collision renaming: if this archive path is already in use, try again with an incremented
         // suffix.
-        fs::path parent    = archive_path.parent_path();
-        fs::path stem      = archive_path.stem();
-        fs::path extension = archive_path.extension();
-        for (int i = 0; archive_entries.contains(archive_path.string()); ++i) {
-          std::string new_name      = stem.string() + "_" + std::to_string(i) + extension.string();
-          archive_path              = parent / new_name;
-          xml_rewrites[rewrite_key] = archive_path.string();
+        fs::path file      = localized;
+        fs::path parent    = file.parent_path();
+        fs::path stem      = file.stem();
+        fs::path extension = file.extension();
+        for (int i = 0; archive_entries.contains((root_dir / file).generic_string()); ++i) {
+          std::string new_name = stem.string() + "_" + std::to_string(i) + extension.string();
+          file                 = parent / new_name;
         }
 
-        archived_paths[full_path] = archive_path.string();
-        archive_entries[archive_path.string()] =
+        AddRewrite(xml_rewrites, rewrite_key, file);
+
+        // path relative to the root XML in the archive, named with '/' separators on every platform
+        const fs::path archive_path           = root_dir / file;
+        archived_paths[{root_dir, full_path}] = file;
+        archive_entries[archive_path.generic_string()] =
             AssetEntry{archive_path, owning_spec_dir, full_spec_path};
       };
 
@@ -257,7 +277,6 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
   {
     const mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec, mjOBJ_MESH));
     while (mesh != nullptr) {
-      if (!mesh->file) continue;
       process(mesh->element, mesh->file, /*use_meshdir=*/true, "mesh");
       mesh = mjs_asMesh(mjs_nextElement(spec, mesh->element));
     }
@@ -266,7 +285,6 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
   {
     const mjsHField* hf = mjs_asHField(mjs_firstElement(spec, mjOBJ_HFIELD));
     while (hf != nullptr) {
-      if (!hf->file) continue;
       process(hf->element, hf->file, /*use_meshdir=*/true, "hfield");
       hf = mjs_asHField(mjs_nextElement(spec, hf->element));
     }
@@ -275,7 +293,6 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
   {
     const mjsSkin* skin = mjs_asSkin(mjs_firstElement(spec, mjOBJ_SKIN));
     while (skin != nullptr) {
-      if (!skin->file) continue;
       process(skin->element, skin->file, /*use_meshdir=*/true, "skin");
       skin = mjs_asSkin(mjs_nextElement(spec, skin->element));
     }
@@ -285,7 +302,6 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
   {
     const mjsTexture* tex = mjs_asTexture(mjs_firstElement(spec, mjOBJ_TEXTURE));
     while (tex != nullptr) {
-      if (!tex->file) continue;
       process(tex->element, tex->file, /*use_meshdir=*/false, "texture");
       if (tex->cubefiles) {
         for (const mjString& file : *tex->cubefiles) {
@@ -295,6 +311,9 @@ std::unordered_map<std::string, AssetEntry> CollectAssets(const mjSpec* spec,
       tex = mjs_asTexture(mjs_nextElement(spec, tex->element));
     }
   }
+
+  AddRewrite(xml_rewrites, {"compiler", *root_meshdir, ""}, mesh_dir);
+  AddRewrite(xml_rewrites, {"compiler", *root_texturedir, ""}, texture_dir);
 
   return archive_entries;
 }
@@ -363,8 +382,8 @@ mjtSize MjzEncode(const mjSpec*  spec,
                                        sizeof(error));
     if (!res) {
       mju_warning("MJZ encoder: failed to open resource '%s' (dir='%s'): %s",
-                  entry.disk_path.c_str(),
-                  entry.source_dir.c_str(),
+                  entry.disk_path.string().c_str(),
+                  entry.source_dir.string().c_str(),
                   error);
       continue;
     }

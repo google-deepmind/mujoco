@@ -585,10 +585,10 @@ void CheckTetrahedronWasRescaled(mjModel* model) {
   // with vertices (0, 0, 0), (1, 0, 0), (0, 2, 0), (0, 0, 3)
   // after mesh preprocessing is performed
   std::vector<mjtNum> vert = {
-      -0.51610732078552246, -0.57402724027633667, -0.5283237099647522,
-      0.42337465286254883,  -0.90627568960189819, -0.61189728975296021,
-      0.065528042614459991, 1.2306677103042603,   -1.1645441055297852,
-      0.027204651385545731, 0.24963514506816864,  2.3047652244567871};
+      -0.51610732078552246, -0.57402682304382324, -0.52832412719726562,
+      0.42337465286254883,  -0.90627527236938477, -0.61189794540405273,
+      0.065528050065040588, 1.2306685447692871,   -1.1645431518554688,
+      0.027204651385545731, 0.24963347613811493,  2.3047652244567871};
   mjtNum tolerance = std::numeric_limits<float>::epsilon();
   for (int i = 0; i < 12; ++i) {
     EXPECT_NEAR(model->mesh_vert[i], vert[i], tolerance);
@@ -1196,6 +1196,58 @@ TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
   }
 }
 
+TEST_F(MjCMeshTest, NegativeScaleConvexPolygons) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="normal"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1 1  1 -1 1  1 1 1  -1 1 1"/>
+      <mesh name="mirrored" scale="1 -1 1" inertia="convex"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1 1  1 -1 1  1 1 1  -1 1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="normal"/>
+      <geom type="mesh" mesh="mirrored"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  auto check_normals = [&](const char* name) {
+    int mesh_id = mj_name2id(model.get(), mjOBJ_MESH, name);
+    int start = model->mesh_vertadr[mesh_id];
+    int poly_start = model->mesh_polyadr[mesh_id];
+    int poly_num = model->mesh_polynum[mesh_id];
+    ASSERT_EQ(poly_num, 6);
+
+    for (int p = 0; p < poly_num; p++) {
+      int a = model->mesh_polyvertadr[poly_start + p];
+      int num_polyvert = model->mesh_polyvertnum[poly_start + p];
+      mjtNum outward[3] = {0, 0, 0};
+
+      for (int i = 0; i < num_polyvert; i++) {
+        int v_id = start + model->mesh_polyvert[a + i];
+        outward[0] += model->mesh_vert[3 * v_id + 0];
+        outward[1] += model->mesh_vert[3 * v_id + 1];
+        outward[2] += model->mesh_vert[3 * v_id + 2];
+      }
+
+      int normal_idx = 3 * (poly_start + p);
+      mjtNum dot = outward[0] * model->mesh_polynormal[normal_idx + 0] +
+                   outward[1] * model->mesh_polynormal[normal_idx + 1] +
+                   outward[2] * model->mesh_polynormal[normal_idx + 2];
+      EXPECT_GT(dot, 0.0) << "Normal is inward for mesh " << name;
+    }
+  };
+
+  check_normals("normal");
+  check_normals("mirrored");
+}
+
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1203,9 +1255,13 @@ TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
       <mesh name="example_mesh" scale="-1 1 1" inertia="exact"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
         face="0 2 1  0 3 2  1 3 0  1 2 3" />
+      <mesh name="convex_mesh" scale="-1 1 1" inertia="convex"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
     </asset>
     <worldbody>
       <geom type="mesh" mesh="example_mesh"/>
+      <geom type="mesh" mesh="convex_mesh"/>
     </worldbody>
   </mujoco>
   )";

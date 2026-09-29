@@ -190,9 +190,9 @@ class Viewer {
       flags[i] = render_flags[i];
     }
 
-    renderer_->Render(model.get(), data.get(), perturb.get(), camera.get(),
-                      vis_options.get(), width * scale, height * scale, pixels_,
-                      geoms);
+    renderer_->Sync(model.get(), data.get(), perturb.get(), camera.get(),
+                      vis_options.get(), width * scale, height * scale, geoms);
+    renderer_->Submit(width * scale, height * scale, pixels_);
 
     window_->EndFrame();
     window_->Present(pixels_);
@@ -210,7 +210,7 @@ class Viewer {
 
  private:
   std::unique_ptr<mujoco::studio::Window> window_;
-  std::unique_ptr<mujoco::studio::Renderer> renderer_;
+  std::unique_ptr<mujoco::studio::FilamentRenderer> renderer_;
   std::vector<std::byte> pixels_;
 };
 

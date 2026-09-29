@@ -257,7 +257,7 @@ The graph can then be launched or re-launched
   wp.capture_launch(capture.graph)
 
 and will typically be significantly faster compared to calling the function directly. Please see the
-`Warp Graph API reference <https://nvidia.github.io/warp/modules/runtime.html#graph-api-reference>`__ for details.
+`Warp Graph API reference <https://nvidia.github.io/warp/stable/user_guide/execution_and_performance/concurrency.html#graph-launches>`__ for details.
 
 Batch sizes
 -----------
@@ -321,7 +321,7 @@ Memory
 Simulation throughput is often limited by memory requirements for large numbers of worlds. Considerations for optimizing
 memory utilization include:
 
-- CCD colliders require more memory than primitive colliders, see MuJoCo's :ref:`pair-wise colliders table <coPairwise>`
+- CCD colliders require more memory than primitive colliders, see the :ref:`pair-wise colliders table <mjwPairwise>`
   for information about colliders.
 - :ref:`multiccd <option-flag-multiccd>` requires more memory than CCD.
 - CCD memory requirements scale linearly with :ref:`Option.ccd_iterations <option-ccd_iterations>`.
@@ -337,7 +337,8 @@ Memory allocated inline, including for CCD and the constraint solver, can also b
 .. admonition:: Maximum number of contacts per collider
   :class: note
 
-  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo:
+  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo (see the
+  :ref:`pair-wise colliders table <mjwPairwise>`):
 
   - ``PLANE<>MESH``: 4 versus 3
   - ``HFieldCCD``: 4 versus ``mjMAXCONPAIR``
@@ -833,7 +834,7 @@ Batch Rendering
 ===============
 
 MJWarp provides a batch renderer for high-throughput ray tracing built on
-`Warp's accelerated BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__ for
+`Warp's accelerated BVHs <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.Bvh.html>`__ for
 rendering worlds with multiple cameras in parallel.
 
 Key features:
@@ -851,7 +852,7 @@ Key features:
   `mat_rgba`.
 - **BVH-accelerated ray/rays API**: Ray casting: Accelerated :func:`mjw.ray <mujoco_warp.ray>`,
   :func:`mjw.rays <mujoco_warp.rays>`, and :ref:`rangefinder sensors <sensor-rangefinder>` via
-  `Warp's BVHs <https://nvidia.github.io/warp/api_reference/_generated/warp.Bvh.html#warp.Bvh>`__.
+  `Warp's BVHs <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.Bvh.html>`__.
 
 Basic Usage
 -----------
@@ -1022,7 +1023,7 @@ Learning frameworks
 **Does MJWarp work with JAX?**
 
 Yes. MJWarp is interoperable with `JAX <https://jax.readthedocs.io/>`__. Please see the
-`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#jax>`__ documentation for details.
+`Warp Interoperability <https://nvidia.github.io/warp/stable/user_guide/interoperability/jax.html>`__ documentation for details.
 
 Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :doc:`API <api>`. The implementation is
 specified with ``impl='warp'``.
@@ -1030,14 +1031,14 @@ specified with ``impl='warp'``.
 **Does MJWarp work with PyTorch?**
 
 Yes. MJWarp is interoperable with `PyTorch <https://pytorch.org>`__. Please see the
-`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#pytorch>`__ documentation for
+`Warp Interoperability <https://nvidia.github.io/warp/stable/user_guide/interoperability/pytorch.html>`__ documentation for
 details.
 
 **How to train policies with MJWarp physics?**
 
 For examples that train policies with MJWarp physics, please see:
 
-- `Isaac Lab <https://github.com/isaac-sim/IsaacLab/tree/feature/newton>`__: Train via
+- `Isaac Lab <https://github.com/isaac-sim/IsaacLab>`__: Train via
   `Newton API <https://github.com/newton-physics/newton>`__.
 - `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
 - `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
@@ -1050,7 +1051,7 @@ Features
 **Is MJWarp differentiable?**
 
 No. MJWarp is not currently differentiable via
-Warp's `automatic differentiation <https://nvidia.github.io/warp/modules/differentiability.html#differentiability>`__
+Warp's `automatic differentiation <https://nvidia.github.io/warp/stable/user_guide/differentiability.html>`__
 functionality. Updates from the team related to enabling automatic differentiation for MJWarp are tracked in this
 `GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/500>`__.
 
@@ -1075,7 +1076,7 @@ Yes. Warp's ``wp.ScopedDevice`` enables multi-GPU computation
      wp.capture_launch(graph[device])
 
 Please see the
-`Warp documentation <https://nvidia.github.io/modules/devices.html#example-using-wp-scopeddevice-with-multiple-gpus>`__
+`Warp documentation <https://nvidia.github.io/warp/stable/user_guide/execution_and_performance/concurrency.html>`__
 for details and
 `mjlab distributed training <https://mujocolab.github.io/mjlab/main/source/training/distributed_training.html>`__ for a
 reinforcement learning example.
@@ -1094,11 +1095,11 @@ Developments for deterministic results on GPU are tracked in this
 Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conventions<siLayout>`:
 ``w, x, y, z`` or ``scalar, vector``.
 
-.. admonition:: ``wp.quaternion``
+.. admonition:: ``wp.quat``
   :class: note
 
-  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/modules/functions.html#warp.quaternion>`__
-  ``wp.quaternion``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
+  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.quat.html>`__
+  ``wp.quat``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
   operations and instead implements quaternion routines that follow MuJoCo's conventions. Please see
   `math.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/math.py>`__ for the
   implementations.
@@ -1129,7 +1130,7 @@ loading on GPU.
 
 **Why are numerical results from MJWarp and MuJoCo different?**
 
-MJWarp utilizes `float <https://nvidia.github.io/warp/modules/functions.html#warp.float32>`__s in contrast to MuJoCo's
+MJWarp utilizes `float <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.float32.html>`__s in contrast to MuJoCo's
 default double representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection, and small
 friction values may be sensitive to differences in floating point representation.
 
@@ -1166,7 +1167,8 @@ Compilation
 
 Limit the number of unique colliders that require the general convex collision pipeline. These colliders are listed as
 ``CONVEX`` in ``MJ_COLLISION_TABLE`` in
-`collision_driver.py <https://github.com/google-deepmind/mujoco_warp/blob/e357e88b6b47166d325b564c805d9ecbae659a64/mujoco_warp/_src/collision_driver.py#L45>`__.
+`collision_driver.py <https://github.com/google-deepmind/mujoco_warp/blob/e357e88b6b47166d325b564c805d9ecbae659a64/mujoco_warp/_src/collision_driver.py#L45>`__
+(and marked as ``CCD`` in the :ref:`pair-wise colliders table <mjwPairwise>`).
 
 **Why are the physics not working as expected after upgrading MJWarp?**
 
@@ -1181,7 +1183,7 @@ can be accomplished by deleting the directory ``~/.cache/warp`` or via Python
 **Is it possible to compile MJWarp ahead of time instead of at runtime?**
 
 Yes. Please see Warp's
-`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/codegen.html#ahead-of-time-compilation-workflows>`__
+`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/stable/user_guide/programming_model/code_generation.html#ahead-of-time-compilation-workflows>`__
 documentation for details.
 
 Differences from MuJoCo
@@ -1201,7 +1203,7 @@ Inertia matrix factorization
 
 MJWarp performs a per-tree factorization of the inertia matrix that is stored in ``qLD`` where the size of the tree
 determines if Warp's ``U'U`` Cholesky factorization
-`wp.tile_cholesky <https://nvidia.github.io/warp/language_reference/_generated/warp._src.lang.tile_cholesky.html>`__,
+`wp.tile_cholesky <https://nvidia.github.io/warp/stable/language_reference/_generated/warp.tile_cholesky.html>`__,
 MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse rountine is employed.
 
 Options
@@ -1395,6 +1397,236 @@ The following callbacks are available:
   mjw.step(m, d)
   assert d.ctrl.numpy()[0, 0] == 2.0
 
+.. _mjwPairwise:
+
+Pair-wise colliders
+-------------------
+
+The table below provides information about the colliders and maximum number of contacts generated for different geom
+pairs in MJWarp. Use the toggles to see the maximum number of contacts with the options
+:ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
+:ref:`margin<body-geom-margin>`.
+
+.. raw:: html
+
+   <div class="pairwise-toggles">
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="nativeccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>nativeccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="multiccd-checkbox" checked>
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>multiccd</span>
+     </div>
+     <div class="pairwise-toggle-item">
+       <label class="pairwise-switch">
+         <input type="checkbox" id="margin-checkbox">
+         <span class="pairwise-slider"></span>
+       </label>
+       <span>with margin</span>
+     </div>
+   </div>
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **4**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldCCD
+       | **4**
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="mjw-boxbox">
+           <div class="line">CCD</div>
+           <div class="line"><strong>4</strong></div>
+         </div>
+
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
+.. raw:: html
+
+   <script>
+     (() => {
+       const nativeccd = document.getElementById('nativeccd-checkbox');
+       const multiccd = document.getElementById('multiccd-checkbox');
+       const margin = document.getElementById('margin-checkbox');
+
+       const update = () => {
+         const isNative = nativeccd && nativeccd.checked;
+         const isMulti = multiccd && multiccd.checked;
+         const isMargin = margin && margin.checked;
+
+         const ccdVal = (isMulti && !isMargin) ? '4' : '1';
+         document.querySelectorAll('.mjw-ccd').forEach(el => el.textContent = ccdVal);
+
+         const meshVal = (isMulti && isMargin)
+           ? '<a href="#mjwccdmargin">not implemented</a>'
+           : `<strong>${ccdVal}</strong>`;
+         document.querySelectorAll('.mjw-mesh-ccd').forEach(el => el.innerHTML = meshVal);
+
+         const boxbox = document.querySelector('.mjw-boxbox');
+         if (boxbox) {
+           if (!isNative) {
+             boxbox.innerHTML = '<div class="line">primitive</div><div class="line"><strong>8</strong></div>';
+           } else if (isMargin) {
+             boxbox.innerHTML = '<div class="line">CCD</div><div class="line"><a href="#mjwccdmargin">not implemented</a></div>';
+           } else {
+             boxbox.innerHTML = `<div class="line">CCD</div><div class="line"><strong>${isMulti ? '4' : '1'}</strong></div>`;
+           }
+         }
+       };
+
+       [nativeccd, multiccd, margin].forEach(cb => cb && cb.addEventListener('change', update));
+     })();
+   </script>
+
+.. _mjwBoxBox:
+
 Box-box collisions
 ------------------
 
@@ -1409,6 +1641,8 @@ is available by setting the ``NATIVECCD`` disable flag:
 
 The specialized collider generates up to 8 contact points, compared to up to 4 for the convex pipeline, and may improve
 contact stability for tasks involving box stacking or manipulation.
+
+.. _mjwCCDMargin:
 
 CCD margin
 ----------

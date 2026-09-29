@@ -129,18 +129,54 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource, LodePNGColorTy
   return image;
 }
 
-// associate all child list elements with a frame and copy them to parent list, clear child list
+// associate all child list elements with a frame and copy them to parent list, clear child list;
+// elements that are already in a frame stay in it
 template <typename T>
 void MapFrame(std::vector<T*>& parent,
               std::vector<T*>& child,
               mjCFrame*        frame,
               mjCBody*         parent_body) {
   std::for_each(child.begin(), child.end(), [frame, parent_body](T* element) {
-    element->SetFrame(frame);
-    element->SetParent(parent_body);
+    element->SetParent(parent_body);  // needs to happen first, SetFrame checks the parent
+    if (!element->frame) { element->SetFrame(frame); }
   });
   parent.insert(parent.end(), child.begin(), child.end());
   child.clear();
+}
+
+// express a pose given in a frame in the coordinates of the body holding the frame, using the
+// specs of the frame and of its ancestors, which need not be compiled
+void FrameToBody(const mjCFrame* frame, double pos[3], double quat[4]) {
+  for (; frame; frame = frame->frame) {
+    double framequat[4];
+    mjuu_copyvec(framequat, frame->spec.quat, 4);
+    const char* err = ResolveOrientation(framequat,
+                                         frame->compiler->degree,
+                                         frame->compiler->eulerseq,
+                                         frame->spec.alt);
+    if (err) { throw mjCError(frame, "orientation specification error '%s' in frame", err); }
+    mjuu_normvec(framequat, 4);
+    mjuu_frameaccumChild(frame->spec.pos, framequat, pos, quat);
+  }
+}
+
+// rotate an inertia matrix, given as (xx, yy, zz, xy, xz, yz)
+void RotateInertia(double res[6], const double inert[6], const double quat[4]) {
+  double mat[9], full[9], rotated[9];
+  full[0] = inert[0];
+  full[4] = inert[1];
+  full[8] = inert[2];
+  full[1] = full[3] = inert[3];
+  full[2] = full[6] = inert[4];
+  full[5] = full[7] = inert[5];
+  mjuu_quat2mat(mat, quat);
+  mjuu_mulRMRT(rotated, mat, full);
+  res[0] = rotated[0];
+  res[1] = rotated[4];
+  res[2] = rotated[8];
+  res[3] = rotated[1];
+  res[4] = rotated[2];
+  res[5] = rotated[5];
 }
 
 }  // namespace
@@ -348,6 +384,7 @@ void mjCBoundingVolumeHierarchy::AllocateBoundingVolumes(int nleaf) {
   bvh_.clear();
   child_.clear();
   nodeid_.clear();
+  nodeidptr_.clear();
   level_.clear();
   bvleaf_.clear();
   bvleaf_.reserve(nleaf);
@@ -1553,6 +1590,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   mjs_defaultBody(&spec);
   elemtype    = mjOBJ_BODY;
   parent      = nullptr;
+  iframe      = nullptr;
   weldid      = -1;
   dofnum      = 0;
   lastdof     = -1;
@@ -1564,6 +1602,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   mjuu_setvec(xquat0, 1, 0, 0, 0);
   last_attached = nullptr;
   mocapid       = -1;
+  bodyadr_      = -1;
 
   // clear object lists
   bodies.clear();
@@ -1604,10 +1643,18 @@ mjCBody& mjCBody::operator=(const mjCBody& other) {
     cameras.clear();
     lights.clear();
     id          = -1;
+    mocapid     = -1;
+    bodyadr_    = -1;
     subtreedofs = 0;
 
     // add elements to lists
     *this += other;
+
+    // point to the copy of the frame enclosing the inertial element
+    iframe = nullptr;
+    for (int i = 0; i < other.frames.size(); i++) {
+      if (other.frames[i] == other.iframe) { iframe = frames[i]; }
+    }
   }
   PointToLocal();
   return *this;
@@ -1793,6 +1840,8 @@ void mjCBody::CopyList(std::vector<T*>&          dst,
 mjCBody& mjCBody::operator-=(const mjCBody& subtree) {
   for (int i = 0; i < bodies.size(); i++) {
     if (bodies[i] == &subtree) {
+      bodies[i]->SetParent(nullptr);
+      bodies[i]->frame = nullptr;
       bodies.erase(bodies.begin() + i);
       break;
     }
@@ -1845,7 +1894,9 @@ void mjCBody::SetModel(mjCModel* _model) {
 
 // reset ids of all objects in this body
 void mjCBody::ResetId() {
-  id = -1;
+  id       = -1;
+  mocapid  = -1;
+  bodyadr_ = -1;
   for (auto& body : bodies) { body->ResetId(); }
   for (auto& frame : frames) { frame->id = -1; }
   for (auto& geom : geoms) { geom->id = -1; }
@@ -1889,13 +1940,20 @@ void mjCBody::CopyPlugin() {
 
 // destructor
 mjCBody::~mjCBody() {
-  for (int i = 0; i < bodies.size(); i++) bodies[i]->Release();
-  for (int i = 0; i < geoms.size(); i++) geoms[i]->Release();
-  for (int i = 0; i < frames.size(); i++) frames[i]->Release();
-  for (int i = 0; i < joints.size(); i++) joints[i]->Release();
-  for (int i = 0; i < sites.size(); i++) sites[i]->Release();
-  for (int i = 0; i < cameras.size(); i++) cameras[i]->Release();
-  for (int i = 0; i < lights.size(); i++) lights[i]->Release();
+  auto release_children = [](auto& list) {
+    for (auto* child : list) {
+      child->SetParent(nullptr);
+      child->frame = nullptr;
+      child->Release();
+    }
+  };
+  release_children(bodies);
+  release_children(geoms);
+  release_children(frames);
+  release_children(joints);
+  release_children(sites);
+  release_children(cameras);
+  release_children(lights);
 }
 
 
@@ -1950,8 +2008,8 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 
   obj->parent = this;
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -1959,12 +2017,16 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 // create new frame and add it to body
 mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   mjCFrame* obj = new mjCFrame(model, _frame ? _frame : NULL);
+
+  // set body pointer, add
+  obj->body = this;
+
   frames.push_back(obj);
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -1984,8 +2046,8 @@ mjCJoint* mjCBody::AddFreeJoint() {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2004,8 +2066,8 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2024,8 +2086,8 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2044,8 +2106,8 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2064,8 +2126,8 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
@@ -2084,26 +2146,25 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-  // update signature
-  model->spec.element->signature = model->Signature();
+  // invalidate signature
+  model->InvalidateSignature();
   return obj;
 }
 
 
 // create a frame in the parent body and move all contents of this body into it
 mjCFrame* mjCBody::ToFrame() {
+  if (!parent) { throw mjCError(this, "the world body cannot be converted to a frame"); }
+
+  // merge the inertial into the parent; this can fail, do it before anything is modified
+  if (parent->name != "world" && mjuu_defined(spec.ipos[0]) && spec.mass >= mjMINVAL) {
+    parent->MergeInertial(this);
+  }
+
   mjCFrame* newframe = parent->AddFrame(frame);
   mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
   mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
-  if (parent->name != "world" && mass >= mjMINVAL) {
-    if (!parent->explicitinertial) {
-      parent->MakeInertialExplicit();
-      mjuu_zerovec(parent->spec.ipos, 3);
-      mjuu_zerovec(parent->spec.iquat, 4);
-      mjuu_zerovec(parent->spec.inertia, 3);
-    }
-    parent->AccumulateInertia(&this->spec, &parent->spec);
-  }
+  newframe->spec.alt = spec.alt;
   MapFrame(parent->bodies, bodies, newframe, parent);
   MapFrame(parent->geoms, geoms, newframe, parent);
   MapFrame(parent->joints, joints, newframe, parent);
@@ -2117,7 +2178,7 @@ mjCFrame* mjCBody::ToFrame() {
                        parent->bodies.end());
   model->ResetTreeLists();
   model->MakeTreeLists();
-  model->spec.element->signature = model->Signature();
+  model->InvalidateSignature();
   return newframe;
 }
 
@@ -2422,11 +2483,94 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
-// accumulate inertia of another body into this body
-void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
-  if (!result) {
-    result = this;  // use the private mjsBody
+// get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
+void mjCBody::SpecInertial(double com[3], double inert[6]) const {
+  double orient[4];
+  double local[6] = {spec.inertia[0], spec.inertia[1], spec.inertia[2], 0, 0, 0};
+  mjuu_copyvec(com, spec.ipos, 3);
+  mjuu_copyvec(orient, spec.iquat, 4);
+  mjuu_normvec(orient, 4);
+
+  // full or diagonal inertia in the inertial frame, same checks as the compiler
+  if (mjuu_defined(spec.fullinertia[0])) {
+    if (spec.ialt.type != mjORIENTATION_QUAT) {
+      throw mjCError(this, "fullinertia and inertial orientation cannot both be specified");
+    }
+    if (spec.inertia[0] || spec.inertia[1] || spec.inertia[2]) {
+      throw mjCError(this, "fullinertia and diagonal inertia cannot both be specified");
+    }
+    mjuu_copyvec(local, spec.fullinertia, 6);
+  } else {
+    const char* err = ResolveOrientation(orient, compiler->degree, compiler->eulerseq, spec.ialt);
+    if (err) { throw mjCError(this, "error '%s' in inertia alternative", err); }
   }
+
+  // frame enclosing the inertial element
+  if (iframe) { FrameToBody(iframe, com, orient); }
+
+  RotateInertia(inert, local, orient);
+}
+
+
+// merge the inertial in the spec of a child body into the inertial in the spec of this body
+void mjCBody::MergeInertial(const mjCBody* child) {
+  // pose of the child in this body
+  double childpos[3], childquat[4];
+  mjuu_copyvec(childpos, child->spec.pos, 3);
+  mjuu_copyvec(childquat, child->spec.quat, 4);
+  mjuu_normvec(childquat, 4);
+  const char* err = ResolveOrientation(childquat,
+                                       child->compiler->degree,
+                                       child->compiler->eulerseq,
+                                       child->spec.alt);
+  if (err) { throw mjCError(child, "error '%s' in frame alternative", err); }
+  FrameToBody(child->frame, childpos, childquat);
+
+  // inertial of this body, if any
+  double masses[2] = {0, child->spec.mass};
+  double coms[2][3], inerts[2][6];
+  mjuu_zerovec(coms[0], 3);
+  mjuu_zerovec(inerts[0], 6);
+  if (mjuu_defined(spec.ipos[0])) {
+    masses[0] = spec.mass;
+    SpecInertial(coms[0], inerts[0]);
+  }
+
+  // inertial of the child, in the coordinates of this body
+  child->SpecInertial(coms[1], inerts[1]);
+  mjuu_rotVecQuat(coms[1], coms[1], childquat);
+  mjuu_addtovec(coms[1], childpos, 3);
+  RotateInertia(inerts[1], inerts[1], childquat);
+
+  // total mass, center of mass and inertia about it
+  double totalmass     = masses[0] + masses[1];
+  double totalcom[3]   = {0, 0, 0};
+  double totalinert[6] = {0, 0, 0, 0, 0, 0};
+  for (int j = 0; j < 2; j++) {
+    for (int k = 0; k < 3; k++) { totalcom[k] += masses[j] * coms[j][k] / totalmass; }
+  }
+  for (int j = 0; j < 2; j++) {
+    double offcenter[6];
+    double dpos[3] = {coms[j][0] - totalcom[0], coms[j][1] - totalcom[1], coms[j][2] - totalcom[2]};
+    mjuu_offcenter(offcenter, masses[j], dpos);
+    for (int k = 0; k < 6; k++) { totalinert[k] += inerts[j][k] + offcenter[k]; }
+  }
+
+  // save as full inertia in body coordinates
+  MakeInertialExplicit();
+  iframe    = nullptr;
+  spec.mass = totalmass;
+  mjuu_copyvec(spec.ipos, totalcom, 3);
+  mjuu_setvec(spec.iquat, 1, 0, 0, 0);
+  mjuu_setvec(spec.inertia, 0, 0, 0);
+  mjuu_copyvec(spec.fullinertia, totalinert, 6);
+  mjs_defaultOrientation(&spec.ialt);
+}
+
+
+// accumulate compiled inertia of another body into this body
+void mjCBody::AccumulateInertia(const mjsBody* other) {
+  mjsBody* result = this;  // the private mjsBody
 
   // body_ipose = body_pose * body_ipose
   double other_ipos[3];
@@ -2498,10 +2642,11 @@ void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
 
 // compute bounding volume hierarchy
 void mjCBody::ComputeBVH() {
+  // discard the tree of a previous compilation, also when no geoms are left
+  tree.AllocateBoundingVolumes(geoms.size());
   if (geoms.empty()) { return; }
 
   tree.Set(ipos, iquat);
-  tree.AllocateBoundingVolumes(geoms.size());
   for (const mjCGeom* geom : geoms) {
     tree.AddBoundingVolume(&geom->id,
                            geom->contype,
@@ -2577,7 +2722,25 @@ void mjCBody::Compile(void) {
 
   // process orientation alternatives for inertia
   if (mjuu_defined(fullinertia[0])) {
-    const char* err = mjuu_fullInertia(iquat, inertia, this->fullinertia);
+    // rotate tensor from inertial frame to body frame
+    double mat[9], full[9], full_body[9], fullinertia_body[6];
+    mjuu_quat2mat(mat, iquat);
+    full[0] = this->fullinertia[0];
+    full[4] = this->fullinertia[1];
+    full[8] = this->fullinertia[2];
+    full[1] = full[3] = this->fullinertia[3];
+    full[2] = full[6] = this->fullinertia[4];
+    full[5] = full[7] = this->fullinertia[5];
+    mjuu_mulRMRT(full_body, mat, full);
+    fullinertia_body[0] = full_body[0];
+    fullinertia_body[1] = full_body[4];
+    fullinertia_body[2] = full_body[8];
+    fullinertia_body[3] = full_body[1];
+    fullinertia_body[4] = full_body[2];
+    fullinertia_body[5] = full_body[5];
+
+    // decompose rotated tensor into principal axes
+    const char* err = mjuu_fullInertia(iquat, inertia, fullinertia_body);
     if (err) { throw mjCError(this, "error '%s' in fullinertia", err); }
   }
 
@@ -2585,6 +2748,9 @@ void mjCBody::Compile(void) {
     const char* err = ResolveOrientation(iquat, compiler->degree, compiler->eulerseq, ialt);
     if (err) { throw mjCError(this, "error '%s' in inertia alternative", err); }
   }
+
+  // frame enclosing the inertial element
+  if (iframe) { mjuu_frameaccumChild(iframe->pos, iframe->quat, ipos, iquat); }
 
   // compile all geoms
   for (int i = 0; i < geoms.size(); i++) {
@@ -2749,6 +2915,11 @@ void mjCBody::Compile(void) {
       double qunit[4] = {1, 0, 0, 0};
       mjuu_frameaccumChild(ipos_inverse, iquat_inverse, lights[i]->pos, qunit);
       mjuu_rotVecQuat(lights[i]->dir, lights[i]->dir, iquat_inverse);
+    }
+
+    // frames: keep them in place relative to their contents, for the writer
+    for (int i = 0; i < frames.size(); i++) {
+      mjuu_frameaccumChild(ipos_inverse, iquat_inverse, frames[i]->pos, frames[i]->quat);
     }
   }
 }
@@ -3053,7 +3224,7 @@ int mjCJoint::Compile(void) {
   // otherwise if actfrclimited is auto, check consistency wrt auto-limits
   else if (actfrclimited == mjLIMITED_AUTO) {
     bool hasrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
-    checklimited(this, compiler->autolimits, "joint", "", actfrclimited, hasrange);
+    checklimited(this, compiler->autolimits, "joint", "actuatorfrc", actfrclimited, hasrange);
   }
 
   // resolve actuator force range limits
@@ -4131,18 +4302,9 @@ void mjCSite::Compile(void) {
     if (err) { throw mjCError(this, "orientation specification error '%s' in site %d", err, id); }
   }
 
-  // mesh: accumulate frame, set size
+  // mesh: set size
   if (mesh) {
     if (mjuu_defined(fromto[0])) { throw mjCError(this, "fromto cannot be used with mesh site"); }
-
-    mjCMesh* pmesh     = mesh;
-    double   center[3] = {0, 0, 0};
-
-    double meshpos[3];
-    mjuu_rotVecQuat(meshpos, center, pmesh->GetQuatPtr());
-    mjuu_addtovec(meshpos, pmesh->GetPosPtr(), 3);
-
-    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr());
 
     const double* aamm = mesh->aamm();
 
@@ -5702,7 +5864,7 @@ void mjCPair::ResolveReferences(const mjCModel* m) {
   }
 
   // get geom ids and body signature
-  signature = ((geom1->body->id) << 16) + geom2->body->id;
+  signature = ((unsigned int)(geom1->body->id) << 16) + geom2->body->id;
 }
 
 
@@ -5905,7 +6067,7 @@ void mjCBodyPair::ResolveReferences(const mjCModel* m) {
   // get body ids and body signature
   body1     = pb1->id;
   body2     = pb2->id;
-  signature = (body1 << 16) + body2;
+  signature = ((unsigned int)body1 << 16) + body2;
 }
 
 
@@ -5928,6 +6090,7 @@ mjCEquality::mjCEquality(mjCModel* _model, mjCDef* _def) {
   // clear internal variables
   spec_name1_.clear();
   spec_name2_.clear();
+  eqadr_ = -1;
   obj1id = obj2id = -1;
 
   // reset to default if given
@@ -5957,6 +6120,8 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 
     *static_cast<mjCEquality_*>(this) = static_cast<const mjCEquality_&>(other);
     *static_cast<mjsEquality*>(this)  = static_cast<const mjsEquality&>(other);
+
+    eqadr_ = -1;
   }
   PointToLocal();
   return *this;
@@ -6058,10 +6223,18 @@ void mjCEquality::Compile(void) {
   // find objects
   ResolveReferences(model);
 
-  // make sure flex is not rigid
-  if ((type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) &&
-      model->Flexes()[obj1id]->rigid) {
-    throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
+  // make sure flex is not rigid, and has no conflicting stretch forces
+  if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+    mjCFlex* flex = model->Flexes()[obj1id];
+    if (flex->rigid) {
+      throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
+    }
+    if (flex->elastic2d != 1 && flex->young > 0) {
+      throw mjCError(this, "flex constraints and elasticity (young) cannot both be present");
+    }
+    if (flex->edgestiffness > 0) {
+      throw mjCError(this, "flex constraints and edge stiffness cannot both be present");
+    }
   }
 }
 
@@ -6157,7 +6330,7 @@ void mjCTendon::CopyFromSpec() {
 // desctructor
 mjCTendon::~mjCTendon() {
   // delete objects allocated here
-  for (unsigned int i = 0; i < path.size(); i++) { delete path[i]; }
+  for (unsigned int i = 0; i < path.size(); i++) { path[i]->Release(); }
 
   path.clear();
 }
@@ -6421,7 +6594,12 @@ void mjCTendon::Compile(void) {
   // if limited is auto, set to 1 if range is specified, otherwise unlimited
   if (actfrclimited == mjLIMITED_AUTO) {
     bool hasactfrcrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
-    checklimited(this, compiler->autolimits, "tendon", "", actfrclimited, hasactfrcrange);
+    checklimited(this,
+                 compiler->autolimits,
+                 "tendon",
+                 "actuatorfrc",
+                 actfrclimited,
+                 hasactfrcrange);
   }
 
   // check actfrclimits
@@ -6607,8 +6785,10 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   PointToLocal();
 
   // no previous state when an actuator is created
-  actadr_ = -1;
-  actdim_ = -1;
+  actadr_     = -1;
+  actdim_     = -1;
+  historyadr_ = -1;
+  historynum_ = 0;
 
   // input and output blocks, set by mjCModel; all actuator types are currently 1x1
   ctrladr_  = -1;
@@ -6632,7 +6812,13 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
     *static_cast<mjCActuator_*>(this) = static_cast<const mjCActuator_&>(other);
     *static_cast<mjsActuator*>(this)  = static_cast<const mjsActuator&>(other);
 
-    ptarget = nullptr;
+    actadr_     = -1;
+    actdim_     = -1;
+    ctrladr_    = -1;
+    outadr_     = -1;
+    historyadr_ = -1;
+    historynum_ = 0;
+    ptarget     = nullptr;
   }
   PointToLocal();
   return *this;
@@ -6657,16 +6843,12 @@ bool mjCActuator::is_actlimited() const {
 
 
 std::vector<mjtNum>& mjCActuator::act(const std::string& state_name) {
-  if (act_.find(state_name) == act_.end()) {
-    act_[state_name] = std::vector<mjtNum>(model->nu, mjNAN);
-  }
-  return act_.at(state_name);
+  return act_[state_name];
 }
 
 
-mjtNum& mjCActuator::ctrl(const std::string& state_name) {
-  if (ctrl_.find(state_name) == ctrl_.end()) { ctrl_[state_name] = mjNAN; }
-  return ctrl_.at(state_name);
+std::vector<mjtNum>& mjCActuator::ctrl(const std::string& state_name) {
+  return ctrl_[state_name];
 }
 
 
@@ -7277,8 +7459,10 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   spec_objname_.clear();
   spec_refname_.clear();
   spec_userdata_.clear();
-  obj = nullptr;
-  ref = nullptr;
+  historyadr_ = -1;
+  historynum_ = 0;
+  obj         = nullptr;
+  ref         = nullptr;
 
   // in case this sensor is not compiled
   CopyFromSpec();
@@ -7300,8 +7484,10 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
     *static_cast<mjCSensor_*>(this) = static_cast<const mjCSensor_&>(other);
     *static_cast<mjsSensor*>(this)  = static_cast<const mjsSensor&>(other);
 
-    obj = nullptr;
-    ref = nullptr;
+    historyadr_ = -1;
+    historynum_ = 0;
+    obj         = nullptr;
+    ref         = nullptr;
   }
   PointToLocal();
   return *this;
@@ -8350,6 +8536,8 @@ void mjCKey::Compile(const mjModel* m) {
 mjCPlugin::mjCPlugin(mjCModel* _model) {
   name        = "";
   nstate      = -1;
+  stateadr_   = -1;
+  statenum_   = 0;
   plugin_slot = -1;
   parent      = this;
   model       = _model;
@@ -8379,6 +8567,8 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
 
     *static_cast<mjCPlugin_*>(this) = static_cast<const mjCPlugin_&>(other);
 
+    stateadr_   = -1;
+    statenum_   = 0;
     parent      = this;
     plugin_slot = other.plugin_slot;
   }

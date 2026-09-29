@@ -948,6 +948,47 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsite, 10)
     self.assertEqual(model.nsensor, 9)
 
+  def test_delete_frame(self):
+    spec = mujoco.MjSpec.from_string("""
+      <mujoco>
+        <worldbody>
+          <body name="body">
+            <geom name="geom" size=".1"/>
+            <frame name="frame" pos="1 0 0">
+              <geom name="in_frame" size=".1"/>
+              <site name="in_frame"/>
+              <frame name="nested">
+                <body name="in_nested">
+                  <geom name="in_body" size=".1"/>
+                </body>
+              </frame>
+            </frame>
+          </body>
+        </worldbody>
+
+        <sensor>
+          <framepos name="geom" objtype="geom" objname="geom"/>
+          <framepos name="in_frame" objtype="site" objname="in_frame"/>
+        </sensor>
+      </mujoco>
+    """)
+    frame = spec.frame('frame')
+    spec.delete(frame)
+
+    # the frame is deleted together with its contents and their references
+    self.assertEmpty(spec.frames)
+    self.assertEqual([body.name for body in spec.bodies], ['world', 'body'])
+    self.assertEqual([geom.name for geom in spec.geoms], ['geom'])
+    self.assertEmpty(spec.sites)
+    self.assertEqual([sensor.name for sensor in spec.sensors], ['geom'])
+
+    model = spec.compile()
+    self.assertEqual(model.ngeom, 1)
+    np.testing.assert_array_equal(model.geom_pos, [[0, 0, 0]])
+
+    with self.assertRaisesRegex(ValueError, 'frame is not in this model'):
+      spec.delete(frame)
+
   def test_plugin(self):
     spec = mujoco.MjSpec()
     spec.activate_plugin('mujoco.elasticity.cable')
@@ -1351,6 +1392,7 @@ class SpecsTest(absltest.TestCase):
     spec.compile()
     frame = body.to_frame()
     np.testing.assert_array_equal(frame.pos, [1, 2, 3])
+    self.assertEqual(frame.parent, spec.worldbody)
 
   def test_get_frame(self):
     spec = mujoco.MjSpec()
@@ -2127,7 +2169,7 @@ class SpecsTest(absltest.TestCase):
         cellcount=[2, 2, 1],
         mass=0.5,
         equality=3,  # strain
-        elastic2d=2,  # bend
+        elastic2d=1,  # bend
     )
     flex2.young = 1e3
     flex2.thickness = 0.01
@@ -2358,6 +2400,85 @@ class SpecsTest(absltest.TestCase):
           parent_xml,
           include={'child.xml': child_xml.encode()},
       )
+
+  def test_bind_rejects_stale_model_after_first_equality(self):
+    spec = mujoco.MjSpec()
+    for name in ('a', 'b'):
+      body = spec.worldbody.add_body(name=name)
+      body.add_geom(size=[1, 0, 0])
+      body.add_freejoint()
+    model = spec.compile()
+
+    # the first equality must invalidate the compiled model for bind
+    equality = spec.add_equality(
+        type=mujoco.mjtEq.mjEQ_WELD,
+        objtype=mujoco.mjtObj.mjOBJ_BODY,
+        name1='a',
+        name2='b',
+    )
+    with self.assertRaisesRegex(ValueError, 'does not match'):
+      model.bind(equality)
+
+    model = spec.compile()
+    self.assertEqual(model.bind(equality).id, 0)
+
+  def test_delete_reclaims_memory_and_invalidates_bind(self):
+    spec = mujoco.MjSpec()
+    for i in range(100):
+      body = spec.worldbody.add_body(name=f'body_{i}')
+      joint = body.add_joint(
+          name=f'joint_{i}', type=mujoco.mjtJoint.mjJNT_HINGE
+      )
+      body.add_geom(size=[0.1, 0.1, 0.1])
+      act = spec.add_actuator(
+          name=f'act_{i}',
+          target=f'joint_{i}',
+          trntype=mujoco.mjtTrn.mjTRN_JOINT,
+      )
+      spec.delete(body)
+
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    self.assertEqual(model.nbody, 1)
+    self.assertEqual(model.nu, 0)
+
+    # A Python reference to a deleted body or implicitly deleted actuator
+    # remains memory-safe for attribute access and raises IndexError on bind.
+    self.assertEqual(body.name, 'body_99')
+    self.assertIsNone(body.parent)
+    self.assertEqual(joint.name, 'joint_99')
+    self.assertEqual(act.name, 'act_99')
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(body)
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(joint)
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(act)
+
+    # A child obtained via spec.joints (whose reference_internal parent is spec,
+    # not the body) stays alive with parent cleared to None once its body is
+    # deleted and freed.
+    spec.worldbody.add_body(name='temp_body').add_joint(name='orphan_joint')
+    orphan = spec.joints[-1]
+    spec.delete(spec.bodies[-1])
+    self.assertEqual(orphan.name, 'orphan_joint')
+    self.assertIsNone(orphan.parent)
+
+  def test_signature_tracks_edits(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    body.add_geom(size=[1, 0, 0])
+    model = spec.compile()
+    self.assertEqual(body.signature, model.signature)
+
+    geom = body.add_geom(size=[1, 0, 0])
+    self.assertNotEqual(geom.signature, model.signature)
+    with self.assertRaisesRegex(ValueError, 'does not match'):
+      model.bind(geom)
+
+    model = spec.compile()
+    self.assertEqual(geom.signature, model.signature)
+    self.assertEqual(model.bind(geom).id, 1)
 
 
 if __name__ == '__main__':

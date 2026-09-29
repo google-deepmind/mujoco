@@ -72,6 +72,9 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
            "Returns the current pause state.")
       .def("request_single_step", &StepControl::RequestSingleStep,
            "Request a single step if paused.")
+      .def("consume_single_step_request",
+           &StepControl::ConsumeSingleStepRequest,
+           "Returns whether a single step is pending, clearing the request.")
       .def(
           "get_noise_parameters",
           [](const StepControl& self) {
@@ -96,6 +99,14 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
            "mjtNum states.")
       .def("get_index", &SimHistory::GetIndex,
            "Returns the current history offset (0 is the most recent state).")
+      .def(
+          "set_index",
+          [](SimHistory& self, int offset) { self.SetIndex(offset); },
+          py::arg("offset"),
+          "Sets the history offset (0 is the most recent state)."
+      )
       .def("size", &SimHistory::Size,
-           "Returns the number of recorded states.");
+           "Returns the number of recorded states.")
+      .def("set_size", &SimHistory::SetSize, py::arg("size"),
+           "Sets the number of recorded states.");
 }

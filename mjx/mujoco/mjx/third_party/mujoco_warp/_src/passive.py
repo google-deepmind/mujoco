@@ -422,24 +422,28 @@ def _fluid_force(
       A_max = wp.pi * d_max * d_mid
 
       lin_speed = wp.length(l_lin)
+      inv_speed = wp.where(lin_speed > MJ_MINVAL, 1.0 / lin_speed, 0.0)
+      v = l_lin * inv_speed
+      inv_dmax = wp.where(d_max > MJ_MINVAL, 1.0 / d_max, 0.0)
+      s = semiaxes * inv_dmax
 
       magnus_force = wp.cross(l_ang, l_lin) * (magnus_coef * density * volume)
 
-      s12 = semiaxes[1] * semiaxes[2]
-      s20 = semiaxes[2] * semiaxes[0]
-      s01 = semiaxes[0] * semiaxes[1]
+      s12_sq = _pow2(s[1] * s[2])
+      s20_sq = _pow2(s[2] * s[0])
+      s01_sq = _pow2(s[0] * s[1])
 
-      proj_denom = _pow4(s12) * _pow2(l_lin[0]) + _pow4(s20) * _pow2(l_lin[1]) + _pow4(s01) * _pow2(l_lin[2])
-      proj_num = _pow2(s12 * l_lin[0]) + _pow2(s20 * l_lin[1]) + _pow2(s01 * l_lin[2])
+      proj_num = s12_sq * _pow2(v[0]) + s20_sq * _pow2(v[1]) + s01_sq * _pow2(v[2])
+      inv_proj_num = wp.where(proj_num > MJ_MINVAL, 1.0 / proj_num, 0.0)
+      a = s12_sq * inv_proj_num
+      b = s20_sq * inv_proj_num
+      c = s01_sq * inv_proj_num
+      proj_denom = a * a * v[0] * v[0] + b * b * v[1] * v[1] + c * c * v[2] * v[2]
 
-      A_proj = wp.pi * wp.sqrt(proj_denom / wp.max(MJ_MINVAL, proj_num))
-      cos_alpha = proj_num / wp.max(MJ_MINVAL, lin_speed * proj_denom)
+      A_proj = wp.pi * d_max * d_max * wp.sqrt(proj_num * proj_denom)
+      cos_alpha = wp.where(proj_denom > MJ_MINVAL, 1.0 / proj_denom, 0.0)
 
-      norm = wp.vec3(
-        _pow2(s12) * l_lin[0],
-        _pow2(s20) * l_lin[1],
-        _pow2(s01) * l_lin[2],
-      )
+      norm = wp.vec3(a * v[0], b * v[1], c * v[2])
 
       kutta_force = wp.vec3(0.0)
       if density > 0.0 and kutta_coef != 0.0 and lin_speed > MJ_MINVAL:
@@ -697,10 +701,16 @@ def _flex_elasticity(
   worldid, elemid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
+  f = int(0)
+  local_elemid = int(0)
+  elemnum = int(1)
   for i in range(nflex):
     locid = elemid - flex_elemadr[i]
-    if locid >= 0 and locid < flex_elemnum[i]:
+    enum = flex_elemnum[i]
+    if locid >= 0 and locid < enum:
       f = i
+      local_elemid = locid
+      elemnum = enum
       break
 
   stiffness_adr_base = flex_stiffnessadr[f]
@@ -709,7 +719,6 @@ def _flex_elasticity(
   if flex_stiffness[stiffness_adr_base] == 0.0:
     return
 
-  local_elemid = elemid - flex_elemadr[f]
   dim = flex_dim[f]
   nvert = dim + 1
   nedge = nvert * (nvert - 1) / 2
@@ -745,16 +754,24 @@ def _flex_elasticity(
       gradient[e, 3 + i] = xpos1[i] - xpos0[i]
 
   elongation = wp.spatial_vectorf(0.0)
+  elemedge_adr = flex_elemedgeadr[f] + local_elemid * nedge
+  edge_adr = flex_edgeadr[f]
   for e in range(nedge):
-    idx = flex_elemedge[flex_elemedgeadr[f] + local_elemid * nedge + e]
-    vel = flexedge_velocity_in[worldid, flex_edgeadr[f] + idx]
-    deformed = flexedge_length_in[worldid, flex_edgeadr[f] + idx]
-    reference = flexedge_length0[flex_edgeadr[f] + idx]
+    idx = flex_elemedge[elemedge_adr + e]
+    vel = flexedge_velocity_in[worldid, edge_adr + idx]
+    deformed = flexedge_length_in[worldid, edge_adr + idx]
+    reference = flexedge_length0[edge_adr + idx]
     previous = deformed - vel * timestep
     elongation[e] = deformed * deformed - reference * reference + (deformed * deformed - previous * previous) * kD
 
   metric = wp.matrix(0.0, shape=(6, 6))
-  stiffness_size = 21
+  stiffness_end = flex_stiffness.shape[0]
+  for i in range(f + 1, nflex):
+    next_adr = flex_stiffnessadr[i]
+    if next_adr >= 0:
+      stiffness_end = next_adr
+      break
+  stiffness_size = int((stiffness_end - stiffness_adr_base) / elemnum)
   stiffness_adr = stiffness_adr_base + local_elemid * stiffness_size
   id = int(0)
   for ed1 in range(nedge):

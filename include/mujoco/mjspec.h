@@ -486,7 +486,6 @@ typedef struct mjsFlex_ {          // flex specification
   int dim;                         // element dimensionality
   double radius;                   // radius around primitive element
   double size[3];                  // vertex bounding box half sizes in qpos0
-  mjtBool internal;                // enable internal collisions
   mjtBool flatskin;                // render flex skin with flat shading
   mjtFlexSelf selfcollide;         // mode for flex self collision
   int passive;                     // mode for passive collisions
@@ -501,6 +500,8 @@ typedef struct mjsFlex_ {          // flex specification
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
   int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
+  int elastic3d;  // experimental 3D material (mjSpec only); 0: Saint
+                  // Venant-Kirchhoff, 1: Stable Neo-Hookean
   int cellcount[3];                // grid cell count for finite cell method
   int order;                       // interpolation order (1: trilinear, 2: quadratic)
 

@@ -2782,7 +2782,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_readCtrl',
      FunctionDecl(
          name='mj_readCtrl',
-         return_type=ValueType(name='mjtNum'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjtNum', is_const=True),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='m',
@@ -2805,11 +2807,17 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
+                 name='result',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
                  name='interp',
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Read ctrl value for actuator at given time. Returns d->ctrl[id] if no history, otherwise reads from history buffer. interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+         doc='Read ctrl value for actuator at given time. Returns pointer to ctrl (no history) or history buffer (exact match), or NULL if interpolation performed (writes to result). interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
      )),
     ('mj_readSensor',
      FunctionDecl(
@@ -9974,6 +9982,43 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Return the encoder that matches against the content type or filename extension. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_registerArchiveResourceProvider',
+     FunctionDecl(
+         name='mjp_registerArchiveResourceProvider',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider', is_const=True),  # pylint: disable=line-too-long
+                 ),
+             ),
+         ),
+         doc='Globally register an archive resource provider. This function is thread-safe. provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).',  # pylint: disable=line-too-long
+     )),
+    ('mjp_findArchiveResourceProvider',
+     FunctionDecl(
+         name='mjp_findArchiveResourceProvider',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpResourceProvider', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource_name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the archive resource provider that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_archiveResourceProviderCount',
+     FunctionDecl(
+         name='mjp_archiveResourceProviderCount',
+         return_type=ValueType(name='int'),
+         parameters=(),
+         doc='Return the number of globally registered archive resource providers.',  # pylint: disable=line-too-long
      )),
     ('mju_openResource',
      FunctionDecl(

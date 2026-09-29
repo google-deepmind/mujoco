@@ -325,29 +325,17 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
 [[nodiscard]] int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d) {
   mjCModel*   modelC     = static_cast<mjCModel*>(s->element);
   std::string state_name = "state";
-  mjtNum      time       = 0;
+
+  mjCModel::mjRecompileState state;
   try {
-    if (d) {
-      time = d->time;
-      modelC->SaveState(state_name, d->qpos, d->qvel, d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
-    }
+    if (d) { modelC->SaveState(state_name, m, d, &state); }
     if (!modelC->Compile(vfs, &m)) {
       if (d) { mj_deleteData(d); }
       return -1;
     };
     if (d) {
       modelC->MakeData(m, &d);
-      modelC->RestoreState(state_name,
-                           m->qpos0,
-                           m->body_pos,
-                           m->body_quat,
-                           d->qpos,
-                           d->qvel,
-                           d->act,
-                           d->ctrl,
-                           d->mocap_pos,
-                           d->mocap_quat);
-      d->time = time;
+      modelC->RestoreState(state_name, m, d, &state);
     }
   } catch (mjCError& e) {
     modelC->SetError(e);
@@ -1738,19 +1726,15 @@ mjsBody* mjs_findChild(const mjsBody* bodyspec, const char* name) {
 mjsBody* mjs_getParent(const mjsElement* element) {
   switch (element->elemtype) {
     case mjOBJ_BODY:
-      return &(static_cast<const mjCBody*>(element)->GetParent()->spec);
     case mjOBJ_FRAME:
-      return &(static_cast<const mjCFrame*>(element)->GetParent()->spec);
     case mjOBJ_JOINT:
-      return &(static_cast<const mjCJoint*>(element)->GetParent()->spec);
     case mjOBJ_GEOM:
-      return &(static_cast<const mjCGeom*>(element)->GetParent()->spec);
     case mjOBJ_SITE:
-      return &(static_cast<const mjCSite*>(element)->GetParent()->spec);
     case mjOBJ_CAMERA:
-      return &(static_cast<const mjCCamera*>(element)->GetParent()->spec);
-    case mjOBJ_LIGHT:
-      return &(static_cast<const mjCLight*>(element)->GetParent()->spec);
+    case mjOBJ_LIGHT: {
+      mjCBody* parent = static_cast<mjCBody*>(static_cast<const mjCBase*>(element)->GetParent());
+      return parent ? &parent->spec : nullptr;
+    }
     default:
       return nullptr;
   }
@@ -1808,11 +1792,16 @@ const char* mjs_resolveOrientation(double                quat[4],
 
 // Transform body into a frame.
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
-  mjCBody*  bodyC   = static_cast<mjCBody*>((*body)->element);
-  mjCFrame* frameC  = bodyC->ToFrame();
-  *bodyC->model    -= (*body)->element;
-  *body             = nullptr;
-  return &frameC->spec;
+  mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
+  try {
+    mjCFrame* frameC  = bodyC->ToFrame();
+    *bodyC->model    -= (*body)->element;
+    *body             = nullptr;
+    return &frameC->spec;
+  } catch (mjCError& e) {
+    bodyC->model->SetError(e);
+    return nullptr;
+  }
 }
 
 void mjs_setUserValue(mjsElement* element, const char* key, const void* data) {
@@ -2266,13 +2255,13 @@ int mjs_setName(mjsElement* element, const char* name) {
     return 0;
   }
   mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->name    = std::string(name);
   try {
-    baseC->model->CheckRepeat(element->elemtype);
+    baseC->model->CheckNameChange(element->elemtype, baseC->name, name);
   } catch (mjCError& e) {
     baseC->model->SetError(e);
     return -1;
   }
+  baseC->name = std::string(name);
   return 0;
 }
 
@@ -2620,4 +2609,30 @@ void mjs_setAuthored(const void* elem_ptr, const void* field_ptr, int authored) 
 
 #undef SET_FIELD
 #undef SET_FIELD_VEC
+}
+
+
+// increment reference count of element (for internal bindings use only)
+void _mjPRIVATE_addRefElement(mjsElement* element) {
+  if (!element) { return; }
+  if (element->elemtype == mjOBJ_DEFAULT) {
+    static_cast<mjCDef*>(element)->AddRef();
+    return;
+  }
+  // embedded sub-elements inside mjCDef are by-value members with model == nullptr
+  mjCBase* base = static_cast<mjCBase*>(element);
+  if (base->model) { base->AddRef(); }
+}
+
+
+// decrement reference count of element (for internal bindings use only)
+void _mjPRIVATE_releaseElement(mjsElement* element) {
+  if (!element) { return; }
+  if (element->elemtype == mjOBJ_DEFAULT) {
+    static_cast<mjCDef*>(element)->Release();
+    return;
+  }
+  // embedded sub-elements inside mjCDef are by-value members with model == nullptr
+  mjCBase* base = static_cast<mjCBase*>(element);
+  if (base->model) { base->Release(); }
 }

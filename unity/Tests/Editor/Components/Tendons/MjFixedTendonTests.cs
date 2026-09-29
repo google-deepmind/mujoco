@@ -45,11 +45,13 @@ namespace Mujoco {
 
     [Test]
     public void ParseAllSettings() {
-      _doc.LoadXml("<fixed range='3 4'>" + "<joint joint='joint1' coef='1'/>" +
+      _doc.LoadXml("<fixed range='3 4' springlength='0.2 0.8'>" + "<joint joint='joint1' coef='1'/>" +
                    "<joint joint='joint2' coef='2'/>" + "</fixed>");
       _tendon.ParseMjcf(_doc.GetElementsByTagName("fixed")[0] as XmlElement);
       Assert.That(_tendon.RangeLower, Is.EqualTo(3));
       Assert.That(_tendon.RangeUpper, Is.EqualTo(4));
+      Assert.That(_tendon.SpringLengthLower, Is.EqualTo(0.2f));
+      Assert.That(_tendon.SpringLengthUpper, Is.EqualTo(0.8f));
       Assert.That(_tendon.JointList.Count, Is.EqualTo(2));
       Assert.That(_tendon.JointList[0].Joint, Is.EqualTo(_joint1));
       Assert.That(_tendon.JointList[0].Coefficient, Is.EqualTo(1.0f));

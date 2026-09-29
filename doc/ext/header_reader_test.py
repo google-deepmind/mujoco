@@ -14,10 +14,17 @@
 # ==============================================================================
 """Tests for MuJoCo API header reader."""
 
+import os
+import sys
+
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import header_reader
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import header_reader  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
 
 _EXAMPLE = """
 //------- My favorite section --------

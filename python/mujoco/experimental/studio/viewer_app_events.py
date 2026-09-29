@@ -233,10 +233,13 @@ def handle_camera_select_keyboard_events(
 
 
 def handle_miscellaneous_keyboard_events(app: Any) -> bool:
-  """Handles miscellaneous keyboard shortcuts (e.g. F2 for Info, F3 for Profiler).
+  """Handles miscellaneous keyboard shortcuts for toggling panels and windows.
+
+  Tab/Shift+Tab toggle Options and Inspector panels.
+  F2/F3 the Info and Profiler windows.
 
   Args:
-    app: The viewer application instance with UI state flags.
+    app: The viewer application instance, whose config holds the UI state flags.
 
   Returns:
     True if a key was handled, False otherwise.
@@ -244,11 +247,18 @@ def handle_miscellaneous_keyboard_events(app: Any) -> bool:
   if imgui.GetIO().WantCaptureKeyboard:
     return False
 
-  if imgui.IsKeyChordPressed(imgui.Key.F2):
-    app.show_info = not app.show_info
+  # Shift+Tab has to be tested before Tab, else the plain chord consumes it.
+  if imgui.IsKeyChordPressed(int(imgui.Key.Tab) | int(imgui.Key.Shift)):
+    app.config.show_inspector = not app.config.show_inspector
+    return True
+  elif imgui.IsKeyChordPressed(imgui.Key.Tab):
+    app.config.show_options = not app.config.show_options
+    return True
+  elif imgui.IsKeyChordPressed(imgui.Key.F2):
+    app.config.show_info = not app.config.show_info
     return True
   elif imgui.IsKeyChordPressed(imgui.Key.F3):
-    app.show_profiler = not app.show_profiler
+    app.config.show_profiler = not app.config.show_profiler
     return True
 
   return False

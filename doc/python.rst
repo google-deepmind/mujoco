@@ -522,9 +522,7 @@ Assets
 ^^^^^^
 
 MuJoCo optionally uses a :ref:`Virtual File System <Virtualfilesystem>` (VFS) to load assets (like meshes and textures)
-from memory. Some :ref:`decoders<exDecoder>` may also choose to leverage the VFS as a way to load assets on
-demand, such as when addressing files in an archive format. This requires the same VFS to be used when parsing and
-compiling a spec (and all attached specs) into a model.
+from memory.
 
 The Python bindings provide the ``mujoco.MjVfs`` as a wrapper around the :ref:`mjVFS` C struct.
 
@@ -684,9 +682,9 @@ Lists of all elements in a spec can be accessed using named properties, using th
 Element removal
 ^^^^^^^^^^^^^^^
 The method ``delete()`` removes the corresponding element from the spec, e.g. ``spec.delete(spec.geom('my_geom'))`` will
-remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies
-and defaults), ``delete`` also removes all of their children. When deleting body subtrees, all elements which reference
-elements in the subtree, will also be removed.
+remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies,
+frames and defaults), ``delete`` also removes all of their children. When deleting bodies or frames, all elements which
+reference the deleted children will also be removed.
 
 Tree traversal
 ^^^^^^^^^^^^^^
@@ -750,7 +748,7 @@ For users familiar with ``PyMJCF``, the ``MjSpec`` object is conceptually simila
 Model Editing
 `colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__
 includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
-`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
+`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/tutorial.ipynb>`__.
 
 ``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
 In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to

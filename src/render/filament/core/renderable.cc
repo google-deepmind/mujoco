@@ -220,6 +220,7 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
   if (assigned_scene_ != scene) {
     mju_error("Attempting to remove renderable from wrong scene.");
   }
+  SetMaterialInstance(0);
   for (Part& part : parts_) {
     scene->remove(part.entity);
   }

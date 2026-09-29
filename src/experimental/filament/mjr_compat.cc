@@ -41,6 +41,16 @@ class CompatContext {
 
   void ReadPixels(mjrRect viewport, unsigned char* rgb, float* depth);
 
+  // The headlight is a render request option; fill it in from the bridge.
+  void SetHeadlight(mjrfRenderRequest* req) const {
+    req->enable_headlight = scene_bridge_->IsHeadlightEnabled();
+    const float* color = scene_bridge_->GetHeadlightColor();
+    req->headlight_color[0] = color[0];
+    req->headlight_color[1] = color[1];
+    req->headlight_color[2] = color[2];
+    req->headlight_intensity = scene_bridge_->GetHeadlightIntensity();
+  }
+
   void SetFrameBuffer(int framebuffer) {
     framebuffer_ = (mjtFramebuffer)framebuffer;
   }
@@ -101,6 +111,7 @@ void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
     req.draw_mode = draw_mode_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
+    SetHeadlight(&req);
     mjrf_render(context_.get(), &req, 1, nullptr, 0);
   }
 }
@@ -131,6 +142,7 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
     req.target = color_target_.get();
+    SetHeadlight(&req);
 
     mjrfReadPixelsRequest read_req;
     mjrf_defaultReadPixelsRequest(&read_req);

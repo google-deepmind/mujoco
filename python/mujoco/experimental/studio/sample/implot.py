@@ -236,19 +236,13 @@ def main(argv: list[str]) -> None:
       http_port=_PORT.value,
   )
 
-  with launch_passive.launch_passive(
+  launch_passive.run(
       config,
+      model=model,
+      data=data,
       viewer_plugins=[viewer_app.ViewerApp(), BodyInspector()],
       sim_plugins=[step_control.StepControl()],
-  ) as handle:
-    handle.send_to_viewer(messages.ModelEvent(model=model))
-
-    try:
-      while handle.is_running():
-        model, data = handle.sync(model, data)
-    except KeyboardInterrupt:
-      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
-      print('\nShutting down.', flush=True)
+  )
 
 
 if __name__ == '__main__':

@@ -21,12 +21,6 @@ namespace mujoco::studio {
 
 // Describes the configuration of the graphics and rendering systems.
 enum class GraphicsMode {
-  // The classic MuJoCo OpenGL renderer.
-  ClassicOpenGl,
-
-  // The classic MuJoCo OpenGL renderer.
-  ClassicOpenGlHeadless,
-
   // The Filament-based renderer running on OpenGL.
   FilamentOpenGl,
 
@@ -46,7 +40,6 @@ enum class GraphicsMode {
   FilamentOpenGlSoftware,
 };
 
-bool IsClassic(GraphicsMode gfx_mode);
 bool IsFilament(GraphicsMode gfx_mode);
 bool IsOpenGl(GraphicsMode gfx_mode);
 bool IsVulkan(GraphicsMode gfx_mode);

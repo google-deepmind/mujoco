@@ -302,7 +302,6 @@ static const mjXDefaultEntry kDefaults_mjsFlex[] = {
   {"solimp", (int)offsetof(mjsFlex, solimp), 4, mjNIMP, 5, 0, {0.9, 0.95, 0.001, 0.5, 2.0}},
   {"margin", (int)offsetof(mjsFlex, margin), 0, 1, 0, 0, {0}},
   {"gap", (int)offsetof(mjsFlex, gap), 0, 1, 0, 0, {0}},
-  {"internal", (int)offsetof(mjsFlex, internal), 3, 1, 0, 0, {0}},
   {"selfcollide", (int)offsetof(mjsFlex, selfcollide), 2, 1, 1, 0, {(double)mjFLEXSELF_AUTO}},
   {"activelayers", (int)offsetof(mjsFlex, activelayers), 2, 1, 1, 0, {1.0}},
   {"passive", (int)offsetof(mjsFlex, passive), 2, 1, 0, 0, {0}},
@@ -471,7 +470,7 @@ static const mjXDefaultEntry kDefaults_mjsSkin[] = {
 static const mjXDefaultEntry kDefaults_mjsTendon[] = {
   {"group", (int)offsetof(mjsTendon, group), 2, 1, 0, 0, {0}},
   {"limited", (int)offsetof(mjsTendon, limited), 2, 1, 1, 0, {(double)2}},
-  {"actuatorfrclimited", (int)offsetof(mjsTendon, actfrclimited), 2, 1, 0, 0, {0}},
+  {"actuatorfrclimited", (int)offsetof(mjsTendon, actfrclimited), 2, 1, 1, 0, {(double)2}},
   {"range", (int)offsetof(mjsTendon, range), 0, 2, 0, 0, {0}},
   {"actuatorfrcrange", (int)offsetof(mjsTendon, actfrcrange), 0, 2, 0, 0, {0}},
   {"solreflimit", (int)offsetof(mjsTendon, solref_limit), 4, mjNREF, 2, 0, {0.02, 1.0}},

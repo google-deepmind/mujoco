@@ -19,11 +19,12 @@ that the calling thread uses to push simulation state into the viewer.
 
 from typing import Any
 
+import mujoco
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
 
-def launch_passive(
+def launch(
     config: viewer_protocol.ViewerConfig,
     *,
     viewer_plugins: list[Any] | None = None,
@@ -50,15 +51,33 @@ def launch_passive(
   if config.gfx in ('web', 'webgl'):
     from mujoco.experimental.studio import launch_web  # pylint: disable=g-import-not-at-top
 
-    return launch_web.launch_web(
+    return launch_web.launch(
         config,
         viewer_plugins=viewer_plugins,
         sim_plugins=sim_plugins,
     )
   from mujoco.experimental.studio import launch_native  # pylint: disable=g-import-not-at-top
 
-  return launch_native.launch_native(
+  return launch_native.launch(
       config,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   )
+
+
+def run(
+    config: viewer_protocol.ViewerConfig,
+    *,
+    model: mujoco.MjModel | None = None,
+    data: mujoco.MjData | None = None,
+    model_path: str | None = None,
+    viewer_plugins: list[Any] | None = None,
+    sim_plugins: list[Any] | None = None,
+) -> None:
+  """Launches the viewer and runs the blocking simulation sync loop."""
+  with launch(
+      config,
+      viewer_plugins=viewer_plugins,
+      sim_plugins=sim_plugins,
+  ) as handle:
+    viewer_handle.run_sim_loop(handle, model, data, model_path=model_path)

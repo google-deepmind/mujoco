@@ -34,7 +34,7 @@
                 radius=".001" rgba="0 .7 .7 1" mass="5" name="radial" dof="radial">
         <edge equality="true" solimp="0 0.9 0.01" solref=".02 1"/>
         <!-- <elasticity young="6e2" poisson="0.3" damping="0.05"/> -->
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
   </worldbody>

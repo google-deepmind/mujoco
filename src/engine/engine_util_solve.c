@@ -351,20 +351,25 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
 
     // factor row r diagonal, handle rank-deficient case
     mjtNum diag = dense[r];
-    if (diag < mindiag) {
+    int deficient = diag < mindiag;
+    if (deficient) {
       diag = mindiag;
       rank--;
     }
 
-    // scale off-diagonals
+    // scale off-diagonals; if deficient clear them, decoupling the row as mju_cholFactor does
     mjtNum L_rr = mju_sqrt(diag);
     mjtNum L_rr_inv = 1.0 / L_rr;
     int L_adr = L_rowadr[r];
     int L_nnz = L_rownnz[r];
     const int* colptr = L_colind + L_adr;
     mjtNum* Lptr = L + L_adr;
-    for (int i = 0; i < L_nnz - 1; i++) {
-      Lptr[i] = dense[colptr[i]] * L_rr_inv;
+    if (deficient) {
+      mju_zero(Lptr, L_nnz - 1);
+    } else {
+      for (int i = 0; i < L_nnz - 1; i++) {
+        Lptr[i] = dense[colptr[i]] * L_rr_inv;
+      }
     }
 
     // store diagonal
@@ -929,10 +934,12 @@ void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int
 
 // sparse reverse-order LU factorization, no fill-in (assuming tree topology)
 //   result: LU = L + U; original = (U+I) * L; scratch size is n
-void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
-                        const int* rownnz, const int* rowadr, const int* colind,
-                        const int* index) {
+//   clamp pivots with magnitude below mjMINVAL, return first clamped dof index or -1 if none
+int mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
+                       const int* rownnz, const int* rowadr, const int* colind,
+                       const int* index) {
   int* remaining = scratch;
+  int clamped = -1;
 
   // set remaining = rownnz
   if (index) {
@@ -956,9 +963,12 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
       mjERROR("missing diagonal element");
     }
 
-    // make sure diagonal is not too small
+    // near-singular pivot: clamp, preserving the sign
     if (mju_abs(LU[ii]) < mjMINVAL) {
-      mjERROR("diagonal element too small");
+      LU[ii] = LU[ii] < 0 ? -mjMINVAL : mjMINVAL;
+      if (clamped < 0) {
+        clamped = i;
+      }
     }
 
     // rows j above i
@@ -1013,6 +1023,8 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
       mjERROR("unexpected sparse matrix structure");
     }
   }
+
+  return clamped;
 }
 
 
@@ -1085,12 +1097,34 @@ void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]) {
 
 //--------------------------- eigen decomposition --------------------------------------------------
 
-// eigenvalue decomposition of symmetric 3x3 matrix
-static const mjtNum eigEPS = mjMINVAL * 1000;
+// off-diagonal tolerance and eigenvalue swap threshold, relative to max element
+#ifdef mjUSESINGLE
+static const mjtNum eigTOL = 2e-6f;
+static const mjtNum eigEPS = 1e-5f;
+#else
+static const mjtNum eigTOL = 4e-15;
+static const mjtNum eigEPS = 1e-12;
+#endif
+
+// eigenvalue decomposition of symmetric 3x3 matrix, using eigTOL; returns number of iterations
 int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
+  return mju_eig3Tol(eigval, eigvec, quat, mat, eigTOL);
+}
+
+
+// same as mju_eig3, stop when off-diagonal elements are below reltol times the largest element
+int mju_eig3Tol(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9],
+                mjtNum reltol) {
   mjtNum D[9], tmp[9];
-  mjtNum tau, t, c;
+  mjtNum tau, t;
   int iter, rk, ck, rotk;
+
+  // off-diagonal tolerance: no smaller than the roundoff level of D, about 16 epsilons
+  mjtNum scale = 0;
+  for (int i=0; i < 9; i++) {
+    scale = mju_max(scale, mju_abs(mat[i]));
+  }
+  mjtNum tol = scale * mju_max(reltol, eigTOL);
 
   // initialize with unit quaternion
   quat[0] = 1;
@@ -1124,32 +1158,23 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     }
 
     // terminate if max off-diagonal element too small
-    if (mju_abs(D[3*rk+ck]) < eigEPS) {
+    if (mju_abs(D[3*rk+ck]) <= tol) {
       break;
     }
 
-    // 2x2 symmetric Schur decomposition
+    // 2x2 symmetric Schur decomposition: t = tan(angle)
     tau = (D[4*ck]-D[4*rk])/(2*D[3*rk+ck]);
     if (tau >= 0) {
       t = 1.0/(tau + mju_sqrt(1 + tau*tau));
     } else {
       t = -1.0/(-tau + mju_sqrt(1 + tau*tau));
     }
-    c = 1.0/mju_sqrt(1 + t*t);
 
-    // terminate if cosine too close to 1
-    if (c > 1.0-eigEPS) {
-      break;
-    }
-
-    // express rotation as quaternion
+    // express rotation as quaternion, using h = tan(angle/2): accurate for small angles
+    mjtNum h = t/(1 + mju_sqrt(1 + t*t));
+    tmp[0] = 1/mju_sqrt(1 + h*h);
     tmp[1] = tmp[2] = tmp[3] = 0;
-    tmp[rotk+1] = (tau >= 0 ? -mju_sqrt(0.5-0.5*c) : mju_sqrt(0.5-0.5*c));
-    if (rotk == 1) {
-      tmp[rotk+1] = -tmp[rotk+1];
-    }
-    tmp[0] = mju_sqrt(1.0 - tmp[rotk+1]*tmp[rotk+1]);
-    mju_normalize4(tmp);
+    tmp[rotk+1] = (rotk == 1 ? h : -h) * tmp[0];
 
     // accumulate quaternion rotation
     mju_mulQuat(quat, quat, tmp);
@@ -1157,11 +1182,12 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
   }
 
   // sort eigenvalues in decreasing order (bubble sort: 0, 1, 0)
+  mjtNum eps = scale * eigEPS;
   for (int j=0; j < 3; j++) {
     int j1 = j%2;       // lead index
 
     // only swap if the eigenvalues are different
-    if (eigval[j1]+eigEPS < eigval[j1+1]) {
+    if (eigval[j1]+eps < eigval[j1+1]) {
       // swap eigenvalues
       t = eigval[j1];
       eigval[j1] = eigval[j1+1];

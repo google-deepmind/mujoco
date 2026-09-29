@@ -43,8 +43,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 3013001
-#define mjVERSIONSTRING "3.13.1"
+ #define mjVERSION 3014001
+#define mjVERSIONSTRING "3.14.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -78,7 +78,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Fwdinv",
   "InvDiscrete",
   "Sleep",
-  "DiagExact"
+  "DiagExact",
+  "IPC"
 };
 
 
@@ -619,9 +620,14 @@ int mj_insideSite(const mjModel* m, const mjData* d, int siteid, const mjtNum po
     }
 
     // rotate into local frame
-    mjtNum vec[3], plocal[3];
+    mjtNum vec[3], plocal[3], meshmat[9];
     mju_sub3(vec, point, pos);
     mju_mulMatTVec3(plocal, mat, vec);
+
+    // transform from authored site frame to canonical mesh frame
+    mju_sub3(vec, plocal, m->mesh_pos+3*meshid);
+    mju_quat2Mat(meshmat, m->mesh_quat+4*meshid);
+    mju_mulMatTVec3(plocal, meshmat, vec);
 
     // check bounding box
     if (mju_abs(plocal[0]) > size[0] ||
@@ -931,28 +937,28 @@ void mju_camIntrinsics(const mjModel* m, int camid,
 
 
 // read delayed ctrl value for actuator at given time
-mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp) {
+const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                          mjtNum* result, int interp) {
   // validate actuator id
   if (id < 0 || id >= m->nactuator) {
     mjERROR("invalid actuator id %d", id);
-    return 0;
+    return NULL;
   }
 
   // no delay: return current ctrl value
   int nsample = m->actuator_history[2*id];
   if (nsample == 0) {
-    return d->ctrl[m->actuator_ctrladr[id]];
+    return d->ctrl + m->actuator_ctrladr[id];
   }
 
   // resolve interpolation order: use model's interp if argument is -1
   if (interp < 0) interp = m->actuator_history[2*id+1];
 
   // get buffer pointer and read from history buffer
+  int dim = m->actuator_ctrlnum[id];
   mjtNum delay = m->actuator_delay[id];
   const mjtNum* buf = d->history + m->actuator_historyadr[id];
-  mjtNum res;
-  const mjtNum* ptr = mju_historyRead(buf, nsample, /*dim=*/1, &res, time - delay, interp);
-  return ptr ? *ptr : res;
+  return mju_historyRead(buf, nsample, dim, result, time - delay, interp);
 }
 
 
@@ -998,8 +1004,9 @@ void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
     return;
   }
 
-  // get buffer pointer
+  // get buffer pointer and dimension
   mjtNum* buf = d->history + m->actuator_historyadr[id];
+  int dim = m->actuator_ctrlnum[id];
 
   // if times is NULL, use existing buffer times
   const mjtNum* buf_times = times ? times : buf + 2;
@@ -1008,7 +1015,7 @@ void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
   mjtNum user = buf[0];
 
   // initialize history buffer
-  mju_historyInit(buf, nsample, 1, buf_times, values, user);
+  mju_historyInit(buf, nsample, dim, buf_times, values, user);
 }
 
 

@@ -30,6 +30,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::NotNull;
 using ThreadTest = MujocoTest;
 
 TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
@@ -37,10 +38,12 @@ TEST_F(ThreadTest, SingleAndMultiThreadedMatch) {
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   model->opt.solver = mjSOL_CG;  // use CG solver
 
   mjModel* model_threaded =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(model_threaded, NotNull()) << error.data();
   model_threaded->opt.solver = mjSOL_CG;  // use CG solver
 
   mjData* data = mj_makeData(model);
@@ -89,11 +92,13 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
   model->opt.solver = mjSOL_CG;               // use CG solver
   model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjModel* model_threaded =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(model_threaded, NotNull()) << error.data();
   model_threaded->opt.solver = mjSOL_CG;               // use CG solver
   model_threaded->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 

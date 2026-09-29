@@ -15,8 +15,10 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cstdio>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -32,6 +34,191 @@ using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using UserFlexTest = MujocoTest;
+
+// SNH is selected through mjSpec, with StVK remaining the default for MJCF.
+TEST_F(UserFlexTest, SNHSpecOnly) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp name="old" type="grid" dim="3" count="2 2 2" spacing="1 1 1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3"/>
+      </flexcomp>
+      <flexcomp name="new" type="grid" dim="3" count="2 2 2" spacing="1 1 1" pos="3 0 0">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  SpecPtr spec(mj_parseXMLString(xml, nullptr, nullptr, 0), mj_deleteSpec);
+  ASSERT_THAT(spec.get(), NotNull());
+  mjsFlex* flex = mjs_asFlex(mjs_findElement(spec.get(), mjOBJ_FLEX, "new"));
+  ASSERT_THAT(flex, NotNull());
+  EXPECT_EQ(flex->elastic3d, 0);
+  MjModelPtr initial(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(initial.get(), NotNull()) << mjs_getError(spec.get());
+  for (int t = 0; t < initial->nflexelem; t++) {
+    for (int i = 21; i < 24; i++)
+      EXPECT_EQ(initial->flex_stiffness[24 * t + i], 0);
+  }
+
+  // Recompilation and spec copying retain the programmatic selection.
+  flex->elastic3d = 1;
+  SpecPtr copy(mj_copySpec(spec.get()), mj_deleteSpec);
+  ASSERT_THAT(copy.get(), NotNull());
+  EXPECT_EQ(
+      mjs_asFlex(mjs_findElement(copy.get(), mjOBJ_FLEX, "new"))->elastic3d, 1);
+  MjModelPtr m(mj_compile(copy.get(), nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(copy.get());
+  ASSERT_EQ(m->nflexstiffness, 24 * m->nflexelem);
+  for (int f = 0; f < 2; f++) {
+    for (int t = 0; t < m->flex_elemnum[f]; t++) {
+      const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f] + 24 * t;
+      if (f == 0) {
+        EXPECT_EQ(k[21], 0);
+        EXPECT_EQ(k[22], 0);
+        EXPECT_EQ(k[23], 0);
+      } else {
+        EXPECT_LT(k[21], 0);
+        EXPECT_GT(k[22], 0);
+        EXPECT_NE(k[23], 0);
+      }
+    }
+  }
+
+  // Reflection preserves every edge length. StVK has zero force, SNH does not.
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  for (int v = 0; v < m->nflexvert; v++) {
+    int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+    d->qpos[adr + 2] = -2 * d->flexvert_xpos[3 * v + 2];
+  }
+  mj_forward(m.get(), d.get());
+  mjtNum snh_force = 0;
+  for (int f = 0; f < 2; f++) {
+    for (int v = 0; v < m->flex_vertnum[f]; v++) {
+      int adr = m->body_dofadr[m->flex_vertbodyid[m->flex_vertadr[f] + v]];
+      for (int x = 0; x < 3; x++) {
+        if (f == 0) {
+          EXPECT_NEAR(d->qfrc_spring[adr + x], 0, MjTol(1e-10, 1e-3));
+        } else {
+          snh_force += mju_abs(d->qfrc_spring[adr + x]);
+        }
+      }
+    }
+  }
+  EXPECT_GT(snh_force, 1);
+
+  // The compiled coefficients preserve the choice in MJB without a model flag.
+  std::vector<char> buffer(mj_sizeModel(m.get()));
+  mj_saveModel(m.get(), nullptr, buffer.data(), buffer.size());
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  ASSERT_EQ(mj_addBufferVFS(&vfs, "mixed.mjb", buffer.data(), buffer.size()),
+            0);
+  MjModelPtr restored(mj_loadModel("mixed.mjb", &vfs));
+  mj_deleteVFS(&vfs);
+  ASSERT_THAT(restored.get(), NotNull());
+  ASSERT_EQ(restored->nflexstiffness, m->nflexstiffness);
+  for (int i = 0; i < m->nflexstiffness; i++) {
+    EXPECT_EQ(restored->flex_stiffness[i], m->flex_stiffness[i]);
+  }
+  MjDataPtr restored_data = MakeData(restored);
+  mju_copy(restored_data->qpos, d->qpos, m->nq);
+  mj_forward(restored.get(), restored_data.get());
+  for (int i = 0; i < m->nv; i++)
+    EXPECT_EQ(restored_data->qfrc_spring[i], d->qfrc_spring[i]);
+
+  // MJCF cannot represent the choice: report an error instead of changing the
+  // material.
+  std::array<char, 32768> output;
+  std::array<char, 1024> error;
+  EXPECT_EQ(mj_saveXMLString(copy.get(), output.data(), output.size(),
+                             error.data(), error.size()),
+            -1);
+  EXPECT_THAT(error.data(), HasSubstr("mjSpec-only"));
+  flex->elastic3d = 0;
+  MjModelPtr reset(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(reset.get(), NotNull());
+  EXPECT_EQ(reset->flex_stiffness[reset->flex_stiffnessadr[1] + 21], 0);
+  EXPECT_EQ(mj_saveXMLString(spec.get(), output.data(), output.size(),
+                             error.data(), error.size()),
+            0);
+}
+
+TEST_F(UserFlexTest, Elastic3DNotInMJCF) {
+  for (const char* xml : {
+           R"(<mujoco>
+                <worldbody>
+                  <flexcomp name="test" dim="3">
+                    <elasticity young="1000" elastic3d="1"/>
+                  </flexcomp>
+                </worldbody>
+              </mujoco>)",
+           R"(<mujoco>
+                <deformable>
+                  <flex name="test" dim="3" body="world">
+                    <elasticity young="1000" elastic3d="1"/>
+                  </flex>
+                </deformable>
+              </mujoco>)"}) {
+    std::array<char, 1024> error;
+    MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(error.data(), HasSubstr("unrecognized attribute: 'elastic3d'"));
+  }
+}
+
+TEST_F(UserFlexTest, Elastic3DInvalidSelector) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" dim="3" count="2 2 2">
+        <elasticity young="1000"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"));
+  for (int value : {-1, 2}) {
+    flex->elastic3d = value;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec),
+                HasSubstr("elastic3d must be 0 (StVK) or 1 (SNH)"));
+  }
+  mj_deleteSpec(spec);
+}
+
+TEST_F(UserFlexTest, SNHRequiresStandard3D) {
+  for (const char* attributes :
+       {"dim='2' count='2 2 1'", "dim='3' count='2 2 2' dof='trilinear'"}) {
+    std::string xml =
+        "<mujoco>\n"
+        "  <worldbody>\n"
+        "    <flexcomp name='test' " +
+        std::string(attributes) +
+        ">\n"
+        "      <contact selfcollide='none'/>\n"
+        "      <elasticity young='1000'/>\n"
+        "    </flexcomp>\n"
+        "  </worldbody>\n"
+        "</mujoco>";
+    mjSpec* spec = mj_parseXMLString(xml.c_str(), nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->elastic3d = 1;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec),
+                HasSubstr("requires a non-interpolated 3d flex"));
+    mj_deleteSpec(spec);
+  }
+}
 
 TEST_F(UserFlexTest, ParentMustHaveName) {
   static constexpr char xml[] = R"(
@@ -326,7 +513,7 @@ TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="auto" internal="false"/>
+      <contact selfcollide="auto"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -335,19 +522,6 @@ TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
   EXPECT_THAT(m1.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(),
               HasSubstr("trilinear interpolation cannot do self-collision"));
-  static constexpr char xml_internal[] = R"(
-  <mujoco>
-  <worldbody>
-    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="true"/>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-  MjModelPtr m2 = LoadModelFromString(xml_internal, error.data(), error.size());
-  EXPECT_THAT(m2.get(), IsNull()) << error.data();
-  EXPECT_THAT(error.data(),
-              HasSubstr("trilinear interpolation cannot do internal"));
 }
 
 TEST_F(UserFlexTest, TrilinearInterpolation) {
@@ -356,7 +530,7 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   <worldbody>
     <geom type="plane" pos="0 0 -.5" size="10 10 .1"/>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -373,7 +547,7 @@ TEST_F(UserFlexTest, TrilinearInterpolation) {
   <worldbody>
     <geom type="plane" pos="0 0 -.5" size="10 10 .1"/>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -446,7 +620,7 @@ TEST_F(UserFlexTest, StiffnessMatrix) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
       <elasticity young="1"/>
     </flexcomp>
   </worldbody>
@@ -478,7 +652,7 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
       <elasticity young="1" poisson="0.3"/>
     </flexcomp>
   </worldbody>
@@ -489,7 +663,7 @@ TEST_F(UserFlexTest, StiffnessCacheDiffersByGeometry) {
   <mujoco>
   <worldbody>
     <flexcomp name="test" type="grid" count="3 3 3" spacing="2 2 2" dim="3" dof="trilinear">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
       <elasticity young="1" poisson="0.3"/>
     </flexcomp>
   </worldbody>
@@ -824,6 +998,121 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingElement_Fail) {
   EXPECT_THAT(error.data(),
               HasSubstr("XML Error: Error: Error reading Elements"));
   mj_deleteModel(m);
+}
+
+// Resource buffers are not null-terminated, so the GMSH header parser must stay
+// within the reported size. A file that is exactly "$MeshFormat" leaves nothing
+// after the tag; reading on is a heap overflow.
+TEST_F(UserFlexTest, LoadMSHTruncatedHeader_Fail) {
+  static constexpr char msh[] = "$MeshFormat";
+
+  // sizeof - 1: the buffer must be added without its terminating null
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "truncated.msh", msh, sizeof(msh) - 1);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="truncated.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Could not read GMSH file header"));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, LoadMSHMissingNodesSection_Fail) {
+  static constexpr char msh[] =
+      "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n"
+      "$Elements\n1 1 1 1\n3 1 4 1\n1 1 1 1 1\n$EndElements\n";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "nonodes.msh", msh, sizeof(msh) - 1);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="nonodes.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("GMSH file missing $Nodes"));
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, LoadMSHMissingElementsSection_Fail) {
+  static constexpr char msh[] =
+      "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n"
+      "$Nodes\n1 1 1 1\n3 1 0 1\n1\n0 0 0\n$EndNodes\n";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "noelements.msh", msh, sizeof(msh) - 1);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="noelements.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("GMSH file missing $Elements"));
+  mj_deleteVFS(&vfs);
+}
+
+// The last section marker of a GMSH file need not be followed by a newline.
+TEST_F(UserFlexTest, LoadMSHEndMarkerAtEOF_Success) {
+  // read a well-formed GMSH file
+  const std::string msh_path =
+      GetTestDataFilePath("user/testdata/cube_41_ascii_vol_gmshApp.msh");
+  FILE* f = fopen(msh_path.c_str(), "rb");
+  ASSERT_THAT(f, NotNull()) << "Could not open " << msh_path;
+  fseek(f, 0, SEEK_END);
+  long msh_size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  std::string msh(msh_size, '\0');
+  fread(msh.data(), 1, msh_size, f);
+  fclose(f);
+
+  // drop the newline after the final $EndElements
+  static constexpr char kEndElements[] = "$EndElements";
+  size_t end = msh.rfind(kEndElements);
+  ASSERT_NE(end, std::string::npos);
+  msh.resize(end + sizeof(kEndElements) - 1);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "cube.msh", msh.data(), msh.size());
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001" file="cube.msh">
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nflexvert, 14);
+  EXPECT_EQ(m->nflexelem, 24);
+  mj_deleteVFS(&vfs);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
@@ -1206,7 +1495,7 @@ TEST_F(UserFlexTest, TotalMassTrilinear) {
   <worldbody>
     <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
               dim="3" dof="trilinear" mass="1.5">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -1229,7 +1518,7 @@ TEST_F(UserFlexTest, TotalMassQuadratic) {
   <worldbody>
     <flexcomp name="test" type="grid" count="3 2 2" spacing="1 1 1"
               dim="3" dof="quadratic" mass="2.0">
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -1315,7 +1604,7 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
     <body name="parent">
       <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
                 dim="3" dof="trilinear">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
   </worldbody>
@@ -1329,7 +1618,7 @@ TEST_F(UserFlexTest, Vert0RotationInvariant) {
     <body name="parent" quat="0.9238795 0 0 0.3826834">
       <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1"
                 dim="3" dof="trilinear">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
   </worldbody>
@@ -1366,7 +1655,7 @@ TEST_F(UserFlexTest, Load1DFlexFromOBJ) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserFlexTest, PinBendingRejectsNonStaticBody) {
+TEST_F(UserFlexTest, PinBendingAcceptsMovingBody) {
   // pinned vertex inherits the flexcomp's parent body, which here has a joint
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1385,8 +1674,7 @@ TEST_F(UserFlexTest, PinBendingRejectsNonStaticBody) {
   )";
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("static"));
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
 TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
@@ -1408,6 +1696,284 @@ TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
+
+TEST_F(UserFlexTest, FlexConstraintsAndElasticityError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 3 1" spacing="1 1 1"
+                radius="0.01" dim="2">
+        <elasticity young="1" poisson="0" thickness="1" elastic2d="stretch"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flex flex="test"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr(
+          "flex constraints and elasticity (young) cannot both be present"));
+}
+
+TEST_F(UserFlexTest, FlexConstraintsAndEdgeStiffnessError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 1 1" spacing="1 1 1"
+                radius="0.01" dim="1">
+        <edge stiffness="10"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flex flex="test"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("flex constraints and edge stiffness cannot both be present"));
+}
+
+struct FlexDampingCase {
+  const char* name;
+  const char* flex_attributes;
+  const char* joint_attributes;
+};
+
+class FlexDampingTest : public MujocoTest,
+                        public testing::WithParamInterface<FlexDampingCase> {};
+
+TEST_P(FlexDampingTest, RejectsInheritedDamping) {
+  std::string xml =
+      std::string("<mujoco><default><joint ") + GetParam().joint_attributes +
+      "/></default><worldbody><flexcomp name='test' type='grid' " +
+      GetParam().flex_attributes + R"(>
+        <contact selfcollide="none"/>
+        <elasticity young="10"/>
+      </flexcomp></worldbody></mujoco>)";
+  char error[1024];
+  auto model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("cannot have joint damping"));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    VerticesAndNodes, FlexDampingTest,
+    testing::Values(
+        FlexDampingCase{"Vertex", "dim='2' count='3 3 1'", "damping='0.1'"},
+        FlexDampingCase{"VertexPolynomial", "dim='2' count='3 3 1'",
+                        "damping='0 0.1'"},
+        FlexDampingCase{"VertexSpringDamper", "dim='2' count='3 3 1'",
+                        "springdamper='0.1 1'"},
+        FlexDampingCase{"Node", "dim='3' count='3 3 2' dof='trilinear'",
+                        "damping='0.1'"},
+        FlexDampingCase{"NodePolynomial",
+                        "dim='3' count='3 3 2' dof='trilinear'",
+                        "damping='0 0.1'"},
+        FlexDampingCase{"NodeSpringDamper",
+                        "dim='3' count='3 3 2' dof='trilinear'",
+                        "springdamper='0.1 1'"}),
+    [](const testing::TestParamInfo<FlexDampingCase>& info) {
+      return info.param.name;
+    });
+
+TEST_F(UserFlexTest, AllowsDampingOnPinnedParent) {
+  static constexpr char xml[] = R"(
+    <mujoco><worldbody>
+      <body name="slider" pos="0 0 1">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        <joint type="slide" axis="0 0 1" damping="5"/>
+        <flexcomp name="test" type="grid" count="3 3 1" spacing="0.1 0.1 0.1" dim="2">
+          <pin id="4"/>
+          <edge equality="true"/>
+        </flexcomp>
+      </body>
+    </worldbody></mujoco>)";
+  char error[1024];
+  auto model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), NotNull()) << error;
+}
+
+class FlexPinnedDampingTest : public MujocoTest,
+                              public testing::WithParamInterface<bool> {};
+
+TEST_P(FlexPinnedDampingTest, AllowsDampingOnRigidAttachment) {
+  std::string pin =
+      GetParam()
+          ? "<joint type='slide' damping='5'/><geom type='sphere' size='0.1'/>"
+          : "<joint type='hinge' damping='5'/>";
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <body name="pin">
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>)" +
+                    pin + R"(
+      </body>
+      <body name="end" pos="1 0 0">
+        <inertial pos="0 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex dim="1" body="pin end" element="0 1">
+        <edge damping="0.1"/>
+      </flex>
+    </deformable>
+  </mujoco>)";
+  char error[1024];
+  auto model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model.get(), NotNull()) << error;
+}
+
+INSTANTIATE_TEST_SUITE_P(LeafBodies, FlexPinnedDampingTest, testing::Bool(),
+                         [](const testing::TestParamInfo<bool>& info) {
+                           return info.param ? "SliderWithGeom" : "Hinge";
+                         });
+
+constexpr char kXYZSlides[] = R"(
+    <joint type="slide" axis="1 0 0"/>
+    <joint type="slide" axis="0 1 0"/>
+    <joint type="slide" axis="0 0 1"/>)";
+
+struct BendingAttachmentCase {
+  const char* name;
+  std::string joints;
+  std::string ancestor;
+  std::string attributes;
+};
+
+class FlexBendingAttachmentTest
+    : public MujocoTest,
+      public testing::WithParamInterface<BendingAttachmentCase> {
+ protected:
+  MjModelPtr LoadAttachment(char* error, int error_size,
+                            const char* elastic2d = "bend") {
+    std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <body name="v0"/>
+      <body name="v1" pos="0.1 0 0"/>
+      <body name="ancestor" pos="0.1 0.1 0" )" +
+                      GetParam().attributes + R"(>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>)" +
+                      GetParam().ancestor + R"(
+        <body name="carrier">
+          <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>)" +
+                      GetParam().joints + R"(
+          <body name="pin"/>
+        </body>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex dim="2" body="v0 v1 pin" element="0 1 2">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="10" thickness="0.01" elastic2d=")" +
+                      elastic2d + R"("/>
+      </flex>
+    </deformable>
+  </mujoco>)";
+    return LoadModelFromString(xml, error, error_size);
+  }
+};
+
+TEST_P(FlexBendingAttachmentTest, AcceptsArticulatedBendingMotion) {
+  char error[1024];
+  auto model = LoadAttachment(error, sizeof(error));
+  EXPECT_THAT(model.get(), NotNull()) << error;
+}
+
+TEST_P(FlexBendingAttachmentTest, DoesNotRestrictStretchOnlyAttachments) {
+  char error[1024];
+  auto model = LoadAttachment(error, sizeof(error), "stretch");
+  EXPECT_THAT(model.get(), NotNull()) << error;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ArticulatedMotion, FlexBendingAttachmentTest,
+    testing::Values(
+        BendingAttachmentCase{"Ball", "<joint type='ball'/>", ""},
+        BendingAttachmentCase{
+            "Hinges", "<joint/><joint axis='1 0 0'/><joint axis='0 1 0'/>", ""},
+        BendingAttachmentCase{"SingleSlide", "<joint type='slide'/>", ""},
+        BendingAttachmentCase{"ReorderedSlides", R"(
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 0 1"/>)",
+                              ""},
+        BendingAttachmentCase{"ReversedSlide", R"(
+          <joint type="slide" axis="-1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>)",
+                              ""},
+        BendingAttachmentCase{
+            "JointFrame",
+            std::string("<frame euler='0 0 30'>") + kXYZSlides + "</frame>",
+            ""},
+        BendingAttachmentCase{"MovingAncestor", kXYZSlides,
+                              "<joint type='ball'/>"}),
+    [](const testing::TestParamInfo<BendingAttachmentCase>& info) {
+      return info.param.name;
+    });
+
+class FlexMocapAttachmentTest : public FlexBendingAttachmentTest {};
+
+TEST_P(FlexMocapAttachmentTest, RejectsMocapElasticity) {
+  for (const char* elasticity : {"bend", "stretch"}) {
+    SCOPED_TRACE(elasticity);
+    char error[1024];
+    auto model = LoadAttachment(error, sizeof(error), elasticity);
+    EXPECT_EQ(model.get(), nullptr);
+    EXPECT_THAT(
+        error, HasSubstr("flex elasticity does not support mocap attachments"));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Mocap, FlexMocapAttachmentTest,
+    testing::Values(BendingAttachmentCase{"FixedChild", "", "", "mocap='true'"},
+                    BendingAttachmentCase{"SliderChild", kXYZSlides, "",
+                                          "mocap='true'"}),
+    [](const testing::TestParamInfo<BendingAttachmentCase>& info) {
+      return info.param.name;
+    });
+
+class FlexBendingSupportedAttachmentTest : public FlexBendingAttachmentTest {};
+
+TEST_P(FlexBendingSupportedAttachmentTest, AcceptsFixedOrXYZSlideAttachments) {
+  char error[1024];
+  auto model = LoadAttachment(error, sizeof(error));
+  EXPECT_THAT(model.get(), NotNull()) << error;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    SupportedMotion, FlexBendingSupportedAttachmentTest,
+    testing::Values(BendingAttachmentCase{"Fixed", "", ""},
+                    BendingAttachmentCase{"XYZSlides", kXYZSlides, ""},
+                    BendingAttachmentCase{"NormalizedAxes", R"(
+          <joint type="slide" axis="2 0 0"/>
+          <joint type="slide" axis="0 3 0"/>
+          <joint type="slide" axis="0 0 4"/>)",
+                                          ""},
+                    BendingAttachmentCase{"CompiledJointFrame", R"(
+          <frame euler="0 0 90">
+            <joint type="slide" axis="0 -1 0"/>
+            <joint type="slide" axis="1 0 0"/>
+            <joint type="slide" axis="0 0 1"/>
+          </frame>)",
+                                          ""}),
+    [](const testing::TestParamInfo<BendingAttachmentCase>& info) {
+      return info.param.name;
+    });
 
 }  // namespace
 }  // namespace mujoco

@@ -712,5 +712,36 @@ TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
               MjNear(0.5 + expected_act_dot * m->opt.timestep, 1e-6, 1e-4));
 }
 
+TEST_F(EnginePluginTest, ArchiveResourceProviderRegistration) {
+  int initial_count = mjp_archiveResourceProviderCount();
+
+  mjpResourceProvider provider;
+  mjp_defaultResourceProvider(&provider);
+  provider.prefix = ".testarchive|.alsoarchive";
+  provider.open = [](mjResource* res) {
+    res->data = const_cast<char*>("test_handle");
+    return 1;
+  };
+  provider.read = [](mjResource* res, const void** buf) {
+    static const char data[] = "test data";
+    *buf = data;
+    return static_cast<int>(sizeof(data) - 1);
+  };
+  provider.close = [](mjResource* res) {};
+
+  mjp_registerArchiveResourceProvider(&provider);
+
+  EXPECT_GT(mjp_archiveResourceProviderCount(), initial_count);
+
+  const mjpResourceProvider* found1 =
+      mjp_findArchiveResourceProvider("model.testarchive");
+  ASSERT_THAT(found1, NotNull());
+  EXPECT_TRUE(found1->open != nullptr);
+
+  const mjpResourceProvider* found2 =
+      mjp_findArchiveResourceProvider("model.alsoarchive");
+  ASSERT_THAT(found2, NotNull());
+}
+
 }  // namespace
 }  // namespace mujoco

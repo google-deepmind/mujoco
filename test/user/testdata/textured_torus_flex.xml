@@ -7,7 +7,7 @@
   <worldbody>
     <flexcomp name="torus" type="mesh" file="textured_torus.obj"
       radius="0.01" dim="2" material="carpet">
-      <contact internal="false" selfcollide="none"/>
+      <contact selfcollide="none"/>
       <edge equality="true" />
     </flexcomp>
   </worldbody>

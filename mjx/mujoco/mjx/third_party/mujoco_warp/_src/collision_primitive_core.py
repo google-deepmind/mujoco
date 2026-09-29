@@ -742,7 +742,7 @@ def box_box(
 
     lp = p
     for i in range(wp.static(3)):
-      lp += rt[i] * s[i] * wp.where(clcorner & 1 << i, 1.0, -1.0)
+      lp += rt[i] * s[i] * wp.where(clcorner & (1 << i), 1.0, -1.0)
 
     m = wp.int32(1)
     dirs = wp.int32(0)
@@ -1183,7 +1183,7 @@ def capsule_box(
 
   for i in range(8):
     for j in range(3):
-      if i & (1 << j) != 0:
+      if (i & (1 << j)) != 0:
         continue
 
       c2 = wp.int32(-123)

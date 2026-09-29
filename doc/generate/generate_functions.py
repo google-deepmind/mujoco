@@ -14,15 +14,18 @@
 # ==============================================================================
 """Generates functions API for APIreference.rst."""
 
+import os
 import re
 import sys
 
-import os
-import sys
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-sys.path.insert(0, _SCRIPT_DIR)
-import generate_api_header
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import generate_api_header  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+# File for section paragraphs and function doc overrides.
 _FUNCTIONS_OVERRIDE = 'doc/APIreference/functions_override.rst'
 
 _RST_SECTION_REGEX = re.compile(r'^\.\. (?P<section>_[A-Z].+):')
@@ -76,7 +79,7 @@ def generate() -> str:
   rst_str = ''
   api = generate_api_header.read_headers()
 
-  filepath = os.path.join(_REPO_ROOT, _FUNCTIONS_OVERRIDE)
+  filepath = resource_loader.resolve_path(_FUNCTIONS_OVERRIDE)
   with open(filepath, 'r', encoding='utf-8') as file:
     current_section = None
     current_function = None

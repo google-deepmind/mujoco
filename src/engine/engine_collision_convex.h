@@ -128,6 +128,11 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1,
 // set CCD internal buffer
 void mjc_setCCDBuffer(void* buffer);
 
+// returns approximation (lower bound) of directed Hausdorff distance between two
+// compact convex geoms; if distance is positive then g1 is guaranteed to not be enclosed in g2
+MJAPI mjtNum mjc_hausdorff(const mjModel* m, const mjData* d, int g1, int g2, int nitermax,
+                           mjtNum stepsize, mjtNum tolerance);
+
 #ifdef __cplusplus
 }
 #endif

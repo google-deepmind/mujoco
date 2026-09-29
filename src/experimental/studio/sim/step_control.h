@@ -82,6 +82,12 @@ class StepControl {
   // Advance() call.
   void RequestSingleStep() { single_step_ = true; }
 
+  // Returns whether a single step is pending, clearing the request.
+  // This function is useful for clients that do not step themselves but rather
+  // forward the request to whoever does (e.g., a viewer thread may drive the
+  // step control UI but the actual stepping occurs in the sim thread).
+  bool ConsumeSingleStepRequest();
+
  private:
   std::string AdvanceOneStep(const mjModel* m, mjData* d);
 

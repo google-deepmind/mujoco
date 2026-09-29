@@ -141,6 +141,8 @@ void ForEachPipeSeparated(std::string_view str, Fn&& fn) {
   }
 }
 
+struct ArchiveTag {};
+
 // resource provider helpers
 std::string_view ResourceProviderKey(const mjpResourceProvider& provider) {
   return std::string_view(provider.prefix, strklen(provider.prefix));
@@ -151,6 +153,8 @@ bool ResourceProviderEqual(const mjpResourceProvider& p1, const mjpResourceProvi
           p1.open == p2.open &&
           p1.read == p2.read &&
           p1.close == p2.close &&
+          p1.mount == p2.mount &&
+          p1.unmount == p2.unmount &&
           p1.modified == p2.modified &&
           p1.write == p2.write &&
           p1.data == p2.data);
@@ -283,6 +287,9 @@ bool GlobalTable<mjpPlugin>::CopyObject(mjpPlugin& dst, const mjpPlugin& src, Er
   return true;
 }
 
+
+
+// Standard URI resource provider table specialization
 template <>
 const char* GlobalTable<mjpResourceProvider>::HumanReadableTypeName() {
   return "resource provider";
@@ -301,6 +308,27 @@ bool GlobalTable<mjpResourceProvider>::ObjectEqual(const mjpResourceProvider& p1
 
 template <>
 bool GlobalTable<mjpResourceProvider>::CopyObject(mjpResourceProvider& dst, const mjpResourceProvider& src, ErrorMessage& err) {
+  return ResourceProviderCopy(dst, src, err);
+}
+
+// Archive resource provider table specialization
+template <>
+const char* GlobalTable<mjpResourceProvider, ArchiveTag>::HumanReadableTypeName() {
+  return "archive resource provider";
+}
+
+template <>
+std::string_view GlobalTable<mjpResourceProvider, ArchiveTag>::ObjectKey(const mjpResourceProvider& plugin) {
+  return ResourceProviderKey(plugin);
+}
+
+template <>
+bool GlobalTable<mjpResourceProvider, ArchiveTag>::ObjectEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
+  return ResourceProviderEqual(p1, p2);
+}
+
+template <>
+bool GlobalTable<mjpResourceProvider, ArchiveTag>::CopyObject(mjpResourceProvider& dst, const mjpResourceProvider& src, ErrorMessage& err) {
   return ResourceProviderCopy(dst, src, err);
 }
 
@@ -464,6 +492,8 @@ bool GlobalTable<mjpEncoder>::CopyObject(mjpEncoder& dst, const mjpEncoder& src,
 
   return true;
 }
+
+
 
 // globally register a plugin (thread-safe), return new slot id
 int mjp_registerPlugin(const mjpPlugin* plugin) {
@@ -705,6 +735,47 @@ const mjpEncoder* mjp_findEncoder(const char* filename,
 
   return nullptr;
 }
+
+// registers an archive resource provider
+void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider) {
+  if (!provider || !provider->open || !provider->read || !provider->close) {
+    mju_error("archive provider must provide open, read, and close callbacks.");
+    return;
+  }
+
+  if (!provider->prefix) {
+    mju_error("archive provider must provide prefix (file extensions).");
+    return;
+  }
+
+  char ext_buf[kMaxNameLength + 1];
+  ForEachPipeSeparated(provider->prefix, [&](std::string_view ext) {
+    if (ext.size() <= kMaxNameLength) {
+      std::memcpy(ext_buf, ext.data(), ext.size());
+      ext_buf[ext.size()] = '\0';
+      mjpResourceProvider provider_copy = *provider;
+      provider_copy.prefix = ext_buf;
+      GlobalTable<mjpResourceProvider, ArchiveTag>::GetSingleton().AppendIfUnique(provider_copy);
+    }
+  });
+}
+
+// find an archive resource provider that matches a given resource or content type
+const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name) {
+  std::string extension = resource_name ? getext(resource_name) : "";
+  if (extension.empty()) {
+    return nullptr;
+  }
+
+  return GlobalTable<mjpResourceProvider, ArchiveTag>::GetSingleton().GetByKey(
+      extension.c_str(), nullptr);
+}
+
+// return the number of globally registered archive resource providers
+int mjp_archiveResourceProviderCount() {
+  return GlobalTable<mjpResourceProvider, ArchiveTag>::GetSingleton().count();
+}
+
 
 // load plugins from a dynamic library
 void mj_loadPluginLibrary(const char* path) {

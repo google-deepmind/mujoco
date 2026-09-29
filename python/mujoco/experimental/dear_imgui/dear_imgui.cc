@@ -185,7 +185,7 @@ PYBIND11_MODULE(dear_imgui, m) {
       .value("FramePadding", ImGuiTreeNodeFlags_FramePadding)
       .value("SpanAvailWidth", ImGuiTreeNodeFlags_SpanAvailWidth)
       .value("SpanFullWidth", ImGuiTreeNodeFlags_SpanFullWidth)
-      .value("SpanTextWidth", ImGuiTreeNodeFlags_SpanTextWidth)
+      .value("SpanLabelWidth", ImGuiTreeNodeFlags_SpanLabelWidth)
       .value("SpanAllColumns", ImGuiTreeNodeFlags_SpanAllColumns)
       .value("NavLeftJumpsBackHere", ImGuiTreeNodeFlags_NavLeftJumpsBackHere)
       .value("CollapsingHeader", ImGuiTreeNodeFlags_CollapsingHeader);

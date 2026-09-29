@@ -86,6 +86,13 @@ typedef struct mjrfRenderRequest_ {
   mjtBool enable_post_processing;    // enable post processing, enabled by default
   mjtBool enable_reflections;        // enable reflections, enabled by default
   mjtBool enable_shadows;            // enable shadows, enabled by default
+
+  // The headlight is a directional light aligned with this request's camera. It
+  // is a property of the request rather than of the scene, so that a scene
+  // rendered from several cameras is not lit by any one of them.
+  mjtBool enable_headlight;          // enable the headlight, disabled by default
+  float headlight_color[3];          // headlight color, RGB
+  float headlight_intensity;         // headlight intensity, in lux
 } mjrfRenderRequest;
 
 // Initializes the mjrfRenderRequest to default values.
@@ -280,14 +287,32 @@ void mjrf_destroyLight(mjrfLight* light);
 // Enables or disables the light.
 void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
 
-// Sets the intensity of the light, in candela.
-void mjrf_setLightIntensity(mjrfLight* light, float intensity);
-
-// Sets the resolution of the light's shadow map, in texels.
-void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
+// Enables or disables whether or not the light casts shadows.
+void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled);
 
 // Sets the RGB color of the light.
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
+
+// Sets the intensity of the light, in candela.
+void mjrf_setLightIntensity(mjrfLight* light, float intensity);
+
+// Sets the effective range of the light, in meters.
+void mjrf_setLightRange(mjrfLight* light, float range);
+
+// Sets the cutoff angle of the light, in degrees. Only used for spot lights.
+void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff);
+
+// Sets the softness of the light, in the range [0, 1]. Only used for spot lights.
+void mjrf_setLightSoftness(mjrfLight* light, float softness);
+
+// Sets the radius of the light bulb.
+void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
+
+// Sets the width of the blur applied to the light's shadow map, in texels.
+void mjrf_setLightBlurWidth(mjrfLight* light, float blur_width);
+
+// Sets the resolution of the light's shadow map, in texels.
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
 
 // Sets the position and direction of the light.
 void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);

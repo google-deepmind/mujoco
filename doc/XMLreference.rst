@@ -169,7 +169,8 @@ Meta elements
 
 These elements are not strictly part of the low-level MJCF format definition, but rather instruct the compiler to
 perform some operation on the model. A general property of meta-elements is that they disappear from the model upon
-saving the XML. There are currently six meta-elements in MJCF:
+saving the XML; the exception is :ref:`frame<frame>`, which is preserved. There are currently six meta-elements in
+MJCF:
 
 - :ref:`include<include>`, :ref:`frame<frame>`, and :ref:`replicate<replicate>` which are outside of the schema.
 - :ref:`composite<body-composite>`, :ref:`flexcomp<body-flexcomp>` and :ref:`attach<body-attach>` which are part of the
@@ -181,46 +182,10 @@ saving the XML. There are currently six meta-elements in MJCF:
 ^^^^^^^^^^^^^
 
 The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
-(under :ref:`worldbody<body>`). After compilation, frame elements disappear and their transformation is accumulated
-in their direct children. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
-
-.. collapse:: Usage example of frame
-
-   Loading this model and saving it:
-
-   .. code-block:: xml
-
-      <mujoco>
-        <worldbody>
-          <frame quat="0 0 1 0">
-             <geom name="Alice" quat="0 1 0 0" size="1"/>
-          </frame>
-
-          <frame pos="0 1 0">
-            <geom name="Bob" pos="0 1 0" size="1"/>
-            <body name="Carl" pos="1 0 0">
-              ...
-            </body>
-          </frame>
-        </worldbody>
-      </mujoco>
-
-   Results in this model:
-
-   .. code-block:: xml
-
-      <mujoco>
-        <worldbody>
-          <geom name="Alice" quat="0 0 0 1" size="1"/>
-          <geom name="Bob" pos="0 2 0" size="1"/>
-          <body name="Carl" pos="1 1 0">
-            ...
-          </body>
-        </worldbody>
-      </mujoco>
-
-   Note that in the saved model, the frame elements have disappeared but their transformation was accumulated with those
-   of their child elements.
+(under :ref:`worldbody<body>`). At compile time the transformation is accumulated into the frame's direct children;
+frames have no counterpart in :ref:`mjModel`. Unlike the other meta-elements, frames are preserved when the model is
+saved: the frame is written with its pose and its contents in frame-relative coordinates, so a saved model reloads
+with the same frames. The attributes of the frame meta-element are documented :ref:`below<body-frame>`.
 
 .. _replicate:
 
@@ -510,7 +475,7 @@ adjust it properly through the XML.
 
 .. _option-ccd_iterations:
 
-:at:`ccd_iterations`: :at-val:`int, "50"`
+:at:`ccd_iterations`: :at-val:`int, "35"`
    Maximum number of iterations of the algorithm used for convex collisions. This rarely needs to be adjusted,
    except in situations where some geoms have very large aspect ratios.
 
@@ -591,7 +556,7 @@ from its default.
 .. _option-flag-spring:
 
 :at:`spring`: :at-val:`[disable, enable], "enable"`
-   This flag disables passive joint and tendon springs. If passive :ref:`damper <option-flag-damper>` forces are
+   This flag disables passive joint, tendon and flex springs. If passive :ref:`damper <option-flag-damper>` forces are
    also disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by
    the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
    :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
@@ -599,9 +564,9 @@ from its default.
 .. _option-flag-damper:
 
 :at:`damper`: :at-val:`[disable, enable], "enable"`
-   This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
-   disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
-   :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
+   This flag disables passive joint, tendon and flex dampers. If passive :ref:`spring <option-flag-spring>` forces are
+   also disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by
+   the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
    :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
 .. _option-flag-gravity:
@@ -761,6 +726,42 @@ from its default.
 
    Under the ``discrete`` :ref:`integrator<option-integrator>`, the exact diagonal is computed against the factored
    backbone of the effective metric :math:`\widehat{M}`; tendon, actuator and flex couplings are not included.
+
+.. _option-flag-ipc:
+
+:at:`ipc`: :at-val:`[disable, enable], "disable"`
+   This flag selects the IPC contact mode of the ``discrete`` :ref:`integrator<option-integrator>`; it is an error
+   with any other integrator. The mode is experimental. It keeps contact multipliers in :ref:`mjData` across steps
+   that no :ref:`state specification<mjtState>` covers, so :ref:`mj_getState` and :ref:`mj_setState` do not capture
+   its full state and exact replay from a saved state is not supported. The mode solves its subproblems with
+   matrix-free conjugate gradient, so :ref:`solver<option-solver>` must be ``CG``, and it cannot be combined with
+   the ``fwdinv`` or ``sleep`` flags. It applies model-wide: every flex the mode supports has its contact solved this
+   way. Contacts between two supported flexes, and between a supported flex and a static plane, sphere, capsule, box
+   or mesh, are resolved by the mode and the collision pipeline does not generate them; contacts with moving bodies
+   and with the other geom types keep their constraint rows. The pairs the mode resolves are frictionless: they carry
+   normal forces only, and the friction parameters of the flexes and geoms involved do not apply to them.
+   The usual collision filtering applies to the pairs the mode resolves: none with the ``contact`` flag disabled, the
+   contype/conaffinity rule of contact :ref:`selection<coSelection>` between a flex and a geom or between two flexes,
+   and each flex's ``selfcollide`` for its self-contact. A pinned flex vertex may ride a static body or a body reached
+   through slide joints only, whose points move on the straight segments the mode sweeps; a hinge, ball or free joint
+   on that chain is an error. The mode assumes metre-scale models with millimetre-thick flexes: its detection band, rest
+   gap between flex surfaces and convergence speed are fixed at 3 mm, 1 mm and 0.05 m/s.
+   Contact is passive under this flag whatever :ref:`passive<flex-contact-passive>` says, since the flag replaces
+   the penalty form of passive contact — the same contact law with the multiplier held at zero — with the
+   augmented-Lagrangian solve, rather than returning any flex to the constraint solver. Flex contact is solved by a
+   barrier-free augmented-Lagrangian outer loop around the discrete solve: each step minimizes an incremental
+   potential subject to linearized contact constraints, carried as one-sided rows of the constraint solver whose
+   multipliers are updated between solves, re-linearizing contact at trial positions, and every committed position
+   update is verified intersection-free by continuous collision detection, so flex contact cannot tunnel. Rigid bodies
+   are carried through the same position-level step with their contacts kept in the constraint solver, and a model
+   without 2D flexes takes that step as well. Supported for dim-2 flexes: a flex with edge equality constraints keeps
+   its elasticity in the constraint solver, while :ref:`elastic2d<flex-elasticity-elastic2d>` elasticity is integrated
+   implicitly through the effective metric.
+   Under this flag the constraint stage of :ref:`mj_forward` is skipped for a model with a 2D flex: after
+   :ref:`mj_forward`, ``mjData.qacc`` holds the free-flight acceleration and the acceleration-stage sensors are
+   computed from it. The step recomputes those sensors from its own acceleration and constraint force before it
+   commits, so after :ref:`mj_step` they read as under the plain ``discrete`` integrator; a user or plugin sensor
+   at the acceleration stage is evaluated twice per step. Inverse dynamics is not supported.
 
 .. _compiler:
 
@@ -3448,7 +3449,7 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 
 .. _body-composite-initial:
 
-:at:`initial`: :at-val:`[free, ball, none], "0"`
+:at:`initial`: :at-val:`[free, ball, none], "ball"`
    Behavior of the first point. Free: free joint. Ball: ball joint. None: no dof.
 
 .. _body-composite-curve:
@@ -4193,8 +4194,8 @@ the saved XML file. Note that this element is a subset of the functionality of t
 :el-prefix:`body/` |-| **frame** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
-and the transformation they encode is accumulated in their direct children. See :ref:`frame<frame>` for examples.
+Frames specify a coordinate transformation which is applied to all child elements. During compilation the
+transformation they encode is accumulated in their direct children; frames are preserved when the model is saved.
 
 .. _frame-name:
 
@@ -4543,6 +4544,13 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
    "both": bending and stretching. Bending is not yet supported by :ref:`dof<body-flexcomp-dof>` **trilinear** and
    **quadratic**.
 
+   Non-interpolated flex elasticity supports vertices attached to articulated bodies, including jointless welded children.
+   A vertex pinned to a moving body follows that body's motion and applies its reaction force and torque to the body.
+   With the :ref:`discrete<option-integrator>` integrator, use :ref:`solver<option-solver>` **CG** for general attachments.
+   Newton supports fixed attachments and independent slide bodies with local positive X, Y and Z joints in that order
+   and fixed ancestors. Mocap attachments are not supported for non-rigid flexes with elasticity because mocap poses do
+   not provide velocities for elastic damping.
+
 .. _flex-contact:
 
 :el-prefix:`flex/` |-| **contact** |?|
@@ -4550,19 +4558,6 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
 
 This element adjusts the contact properties of the flex. It is mostly identical to geom contact properties, with some
 extensions specific to flexes.
-
-.. _flex-contact-internal:
-
-:at:`internal`: :at-val:`[true, false], "false"`
-   Enables or disables internal collisions which prevent flex self-penetration and element inversion. Note that flex
-   elements that have shared vertices cannot collide (or else there will be permanent contacts). In 1D and 2D, internal
-   collision checks rely on predefined vertex-element pairs, where the vertex is treated as a sphere with the same
-   radius as the flex. These spheres correspond to non-shared vertices of neighboring elements on the periphery of the
-   flex. The pre-defined vertex-element pairs are generated by the model compiler automatically. In 3D, internal
-   collision checks are performed within each tetraheron: each vertex is collided with the plane corresponding to the
-   opposing triangle face (again using the flex radius). The resulting contacts are always created with condim 1, gap 0,
-   margin 0. Note that internal contacts modify the behavior implied by the :ref:`elasticity parameters<flex-elasticity>`
-   and is recommended only for flexes where element inversion cannot be prevented.
 
 .. _flex-contact-selfcollide:
 
@@ -4618,9 +4613,10 @@ extensions specific to flexes.
    The force is a penalty on penetration depth whose stiffness is chosen as a natural frequency scaled by the
    participating vertex mass, so a single value is appropriate across model scales; it is not user-specified. That
    stiffness is integrated implicitly, its curvature being carried by the effective metric, and is therefore far
-   stiffer than an explicit force at the same timestep could be. It follows that the feature requires an integrator
-   whose constraint solve runs in that metric: :at:`implicit` or :at:`implicitfast` with the CG solver, pyramidal
-   friction cones and sleep disabled. A model requesting passive flex collisions otherwise is rejected with an error.
+   stiffer than an explicit force at the same timestep could be. It follows that the feature requires the ``discrete``
+   :ref:`integrator<option-integrator>`, with the ``CG`` or ``Newton`` :ref:`solver<option-solver>`, no
+   :ref:`noslip<option-noslip_iterations>` iterations and the :ref:`sleep<option-flag-sleep>` flag disabled. A model
+   requesting passive flex collisions otherwise is rejected with an error.
 
    Being a penalty force, it does not guarantee non-penetration: a thin flex moving fast enough to cross another
    within one step will pass through it. This is an experimental feature.
@@ -5639,7 +5635,7 @@ specify them independently.
    Armature inertia (or mass for slider joints) contributed by the actuator to its transmission target (joint or tendon
    only). This is the actual inertia of the spinning element inside the actuator (e.g., a rotor). The contributed value
    is scaled by :ref:`gear<actuator-general-gear>` squared, because the gear ratio scales both forces and velocities,
-   leading to `reflected inertia <https://en.wikipedia.org/wiki/Reflective_inertia>`__. See
+   leading to reflected inertia. See
    :ref:`joint<body-joint-armature>` and :ref:`tendon<tendon-fixed-armature>` armature for more details.
 
    See also the note in :ref:`damping<actuator-general-damping>` regarding multiple actuators acting on the same

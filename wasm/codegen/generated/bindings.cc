@@ -1936,10 +1936,6 @@ mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const N
   return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
 }
 
-mjtNum mj_readCtrl_wrapper(const MjModel& m, const MjData& d, int id, mjtNum time, int interp) {
-  return mj_readCtrl(m.get(), d.get(), id, time, interp);
-}
-
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_referenceConstraint(m.get(), d.get());
 }
@@ -4047,6 +4043,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjENBL_INVDISCRETE", mjENBL_INVDISCRETE)
     .value("mjENBL_SLEEP", mjENBL_SLEEP)
     .value("mjENBL_DIAGEXACT", mjENBL_DIAGEXACT)
+    .value("mjENBL_IPC", mjENBL_IPC)
     .value("mjNENABLE", mjNENABLE);
   enum_<mjtEq>("mjtEq")
     .value("mjEQ_CONNECT", mjEQ_CONNECT)
@@ -4656,12 +4653,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efm_ts", &MjData::efm_ts)
     .property("energy", &MjData::energy)
     .property("eq_active", &MjData::eq_active)
+    .property("flex_hessian_valid", &MjData::flex_hessian_valid)
     .property("flexedge_J", &MjData::flexedge_J)
+    .property("flexedge_hessian", &MjData::flexedge_hessian)
     .property("flexedge_length", &MjData::flexedge_length)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("flexelem_aabb", &MjData::flexelem_aabb)
     .property("flexelem_krot", &MjData::flexelem_krot)
     .property("flexvert_J", &MjData::flexvert_J)
+    .property("flexvert_conage", &MjData::flexvert_conage)
+    .property("flexvert_hessian", &MjData::flexvert_hessian)
+    .property("flexvert_lambda", &MjData::flexvert_lambda)
     .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
     .property("flg_energypos", &MjData::flg_energypos, &MjData::set_flg_energypos)
@@ -4996,14 +4998,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_elemlayer", &MjModel::flex_elemlayer)
     .property("flex_elemnum", &MjModel::flex_elemnum)
     .property("flex_elemtexcoord", &MjModel::flex_elemtexcoord)
-    .property("flex_evpair", &MjModel::flex_evpair)
-    .property("flex_evpairadr", &MjModel::flex_evpairadr)
-    .property("flex_evpairnum", &MjModel::flex_evpairnum)
     .property("flex_flatskin", &MjModel::flex_flatskin)
     .property("flex_friction", &MjModel::flex_friction)
     .property("flex_gap", &MjModel::flex_gap)
     .property("flex_group", &MjModel::flex_group)
-    .property("flex_internal", &MjModel::flex_internal)
     .property("flex_interp", &MjModel::flex_interp)
     .property("flex_margin", &MjModel::flex_margin)
     .property("flex_matid", &MjModel::flex_matid)
@@ -5232,7 +5230,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nflexelem", &MjModel::nflexelem, &MjModel::set_nflexelem)
     .property("nflexelemdata", &MjModel::nflexelemdata, &MjModel::set_nflexelemdata)
     .property("nflexelemedge", &MjModel::nflexelemedge, &MjModel::set_nflexelemedge)
-    .property("nflexevpair", &MjModel::nflexevpair, &MjModel::set_nflexevpair)
     .property("nflexnode", &MjModel::nflexnode, &MjModel::set_nflexnode)
     .property("nflexshelldata", &MjModel::nflexshelldata, &MjModel::set_nflexshelldata)
     .property("nflexstiffness", &MjModel::nflexstiffness, &MjModel::set_nflexstiffness)
@@ -5789,6 +5786,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("edgedamping", &MjsFlex::edgedamping, &MjsFlex::set_edgedamping)
     .property("edgestiffness", &MjsFlex::edgestiffness, &MjsFlex::set_edgestiffness)
     .property("elastic2d", &MjsFlex::elastic2d, &MjsFlex::set_elastic2d)
+    .property("elastic3d", &MjsFlex::elastic3d, &MjsFlex::set_elastic3d)
     .property("elem", &MjsFlex::elem, reference())
     .property("element", &MjsFlex::element, reference())
     .property("elemtexcoord", &MjsFlex::elemtexcoord, reference())
@@ -5797,7 +5795,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("gap", &MjsFlex::gap, &MjsFlex::set_gap)
     .property("group", &MjsFlex::group, &MjsFlex::set_group)
     .property("info", &MjsFlex::info, &MjsFlex::set_info, reference())
-    .property("internal", &MjsFlex::internal, &MjsFlex::set_internal)
     .property("margin", &MjsFlex::margin, &MjsFlex::set_margin)
     .property("material", &MjsFlex::material, &MjsFlex::set_material, reference())
     .property("node", &MjsFlex::node, reference())
@@ -6402,7 +6399,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_rayFlex", &mj_rayFlex_wrapper);
   function("mj_rayHfield", &mj_rayHfield_wrapper);
   function("mj_rayMesh", &mj_rayMesh_wrapper);
-  function("mj_readCtrl", &mj_readCtrl_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
   function("mj_resetCallbacks", &mj_resetCallbacks);
   function("mj_resetCtrl", &mj_resetCtrl_wrapper);

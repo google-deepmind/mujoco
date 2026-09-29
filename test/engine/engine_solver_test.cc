@@ -765,5 +765,50 @@ TEST_F(SolverTest, ConeFoldEquivalent) {
   }
 }
 
+// A chain of thin capsules whose tip is connected to a slider: the connect
+// fills H = M + J'*D*J, and once the chain sags, the twist pivots of the
+// reverse factorization (the capsules' tiny axial inertia) are five orders of
+// magnitude below their diagonals. In single precision rounding loses one:
+// Newton must clamp and decouple it and continue, not abort or diverge.
+TEST_F(SolverTest, NewtonHessianSurvivesLostPivot) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <composite type="cable" curve="s" count="41 1 1" size="1" initial="none">
+        <joint kind="main" damping=".015"/>
+        <geom type="capsule" size=".005" contype="0" conaffinity="0"/>
+      </composite>
+      <body name="slider" pos="1 0 0">
+        <joint type="slide" axis="1 0 0" damping=".1"/>
+        <geom size=".01" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+    <equality>
+      <connect body1="B_last" body2="slider" anchor=".025 0 0"/>
+    </equality>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  model->opt.solver = mjSOL_NEWTON;
+
+  for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    for (int disableflags : {0, (int)mjDSBL_ISLAND}) {
+      model->opt.jacobian = jacobian;
+      model->opt.disableflags = disableflags;
+      MjDataPtr data = MakeData(model);
+
+      // bounded by step count: a divergence resets mjData and rewinds the clock
+      for (int step = 0; step < 200; step++) {
+        mj_step(model.get(), data.get());
+      }
+      EXPECT_EQ(data->warning[mjWARN_BADQACC].number, 0)
+          << "jacobian " << jacobian << ", disableflags " << disableflags;
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

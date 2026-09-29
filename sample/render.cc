@@ -280,7 +280,6 @@ static bool ParseFlag(string_view name, string_view val, Options& opt) {
   return ParseVisOrRndFlag(name, val, opt);
 }
 
-
 // helper: parse command line arguments
 static bool ParseCommandLine(int& argc, char** argv, Options& opt) {
 
@@ -304,8 +303,7 @@ static bool ParseCommandLine(int& argc, char** argv, Options& opt) {
       }
 
       if (!ParseFlag(name, val, opt)) {
-        printf("Unknown or invalid option: --%.*s\n",
-               static_cast<int>(name.size()), name.data());
+        printf("Unknown or invalid option: --%.*s\n", static_cast<int>(name.size()), name.data());
         return false;
       }
     } else if (opt.model_path.empty()) {
@@ -530,10 +528,15 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
   // create render request
   mjrfRenderRequest request;
   mjrf_defaultRenderRequest(&request);
-  request.scene    = scene.get();
-  request.camera   = mjv_camera2GLCamera(m, d, &cam);
-  request.viewport = viewport;
-  request.target   = render_target.get();
+  request.scene               = scene.get();
+  request.camera              = mjv_camera2GLCamera(m, d, &cam);
+  request.viewport            = viewport;
+  request.target              = render_target.get();
+  request.enable_headlight    = m->vis.headlight.active;
+  request.headlight_color[0]  = m->vis.headlight.diffuse[0];
+  request.headlight_color[1]  = m->vis.headlight.diffuse[1];
+  request.headlight_color[2]  = m->vis.headlight.diffuse[2];
+  request.headlight_intensity = model_lights->GetHeadlightIntensity();
 
   // process render flags
   if (rnd_flags[mjRND_SEGMENT] > 0) {
@@ -546,6 +549,8 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
     request.draw_mode = mjDRAW_MODE_DEPTH;
   } else if (rnd_flags[mjRND_WIREFRAME] > 0) {
     request.draw_mode = mjDRAW_MODE_WIREFRAME;
+  } else if (opt.flags[mjVIS_ISLAND]) {
+    request.draw_mode = mjDRAW_MODE_ISLANDS;
   }
   if (rnd_flags[mjRND_SHADOW] >= 0) { request.enable_shadows = rnd_flags[mjRND_SHADOW]; }
   if (rnd_flags[mjRND_REFLECTION] >= 0) {
@@ -587,7 +592,6 @@ static vector<unsigned char> RenderClassic(mjModel*         m,
                                            const int        rnd_flags[mjNRNDFLAG],
                                            int              width,
                                            int              height) {
-
   // create scene
   static constexpr int kMaxGeom = 50000;
   mjvScene             scn;

@@ -34,12 +34,12 @@
     <flexcomp type="ellipsoid" count="8 8 8" spacing=".07 .07 .07" pos="-.5 -.5 1" dim="3"
               radius=".001" rgba="0 .7 .7 1" mass="5" name="soft" dof="trilinear">
       <elasticity young="1e3" poisson="0.49" damping="0.1"/>
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
     <flexcomp type="ellipsoid" count="8 8 8" spacing=".07 .07 .07" pos="-.5 .5 1" dim="3"
               radius=".001" rgba="0 .7 .7 1" mass="5" name="rubber" dof="trilinear">
       <elasticity young="1e4" poisson="0.4" damping="3e-3"/>
-      <contact selfcollide="none" internal="false" solref="-5000 -10"/>
+      <contact selfcollide="none" solref="-5000 -10"/>
     </flexcomp>
   </worldbody>
 </mujoco>

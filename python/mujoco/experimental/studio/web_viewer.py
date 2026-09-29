@@ -280,7 +280,7 @@ class WebViewer(viewer_protocol.Viewer):
   # ---------------------------------------------------------------------------
 
   @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_model(self, event: messages.ModelEvent) -> bool:
+  def _on_model(self, event: messages.ModelEvent) -> None:
     """Loads the new model, then updates the server to serve it.
 
     The plugin registry discovers handlers by name, so this override replaces
@@ -291,7 +291,6 @@ class WebViewer(viewer_protocol.Viewer):
     super()._on_model(event)
     self._update_model()
     print('Model changed: the browser page reloads automatically.', flush=True)
-    return False  # Do not consume; let other handlers see the event.
 
   # ---------------------------------------------------------------------------
   # Viewer interface.

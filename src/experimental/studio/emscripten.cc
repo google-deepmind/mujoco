@@ -49,7 +49,7 @@ class AssetRegistry {
 
   // Registers asset contents with the given filename.
   void RegisterAsset(std::string filename, std::string contents) {
-    std::filesystem::path(filename).filename().string();
+    filename = std::filesystem::path(filename).filename().string();
     assets_[filename] = std::move(contents);
   }
 
@@ -437,6 +437,14 @@ void LoadUrl(const std::string& url) {
   g_app->LoadModelFromFile(url);
 }
 
+// Javascript-facing function to select and load a keyframe by name or index.
+void LoadKeyframe(const std::string& keyframe) {
+  if (!g_app) {
+    return;
+  }
+  g_app->LoadKeyframe(keyframe);
+}
+
 // Javascript-facing function to render a single frame.
 void RenderFrame() {
   if (g_app) {
@@ -462,6 +470,7 @@ EMSCRIPTEN_BINDINGS(studio_bindings) {
   emscripten::function("init", &Init);
   emscripten::function("loadFile", &LoadFile);
   emscripten::function("loadUrl", &LoadUrl);
+  emscripten::function("loadKeyframe", &LoadKeyframe);
   emscripten::function("renderFrame", &RenderFrame);
   emscripten::function("deinit", &Deinit);
 }

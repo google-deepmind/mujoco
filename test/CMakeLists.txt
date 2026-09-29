@@ -63,6 +63,13 @@ macro(mujoco_test name)
       WORKING_DIRECTORY ${MUJOCO_TEST_WORKING_DIR}
       TEST_LIST testList
     )
+    # gtest_add_tests marks a test skipped if any of its cases skipped, regardless of the exit
+    # code, which hides failures in the other cases of a TEST_P. Mark it skipped only if every
+    # case skipped: gtest reports 0 passed tests, followed by nothing but skipped tests.
+    set_tests_properties(
+      ${testList} PROPERTIES SKIP_REGULAR_EXPRESSION
+      "\\[  PASSED  \\] 0 tests\\.\n(\\[  SKIPPED \\] [^\n]*\n)+$"
+    )
     if(WIN32)
       set_tests_properties(
         ${testList} PROPERTIES ENVIRONMENT "PATH=$<TARGET_FILE_DIR:mujoco>;$ENV{PATH}"

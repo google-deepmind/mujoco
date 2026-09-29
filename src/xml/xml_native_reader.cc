@@ -38,6 +38,7 @@
 #include "user/user_api.h"
 #include "user/user_composite.h"
 #include "user/user_flexcomp.h"
+#include "user/user_objects.h"
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
@@ -427,6 +428,7 @@ void mjXReader::Option(XMLElement* section, mjSpec* s, mjOption* opt) {
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("sleep",       mjENBL_SLEEP)
     READENBL("diagexact",   mjENBL_DIAGEXACT)
+    READENBL("ipc",         mjENBL_IPC)
     // clang-format on
 #undef READENBL
   }
@@ -1447,7 +1449,10 @@ void mjXReader::OneComposite(XMLElement*       elem,
   // cable
   string curves;
   ReadAttrTxt(elem, "curve", curves);
-  ReadAttrTxt(elem, "initial", comp.initial);
+  if (ReadAttrTxt(elem, "initial", comp.initial) &&
+      FindKey(initial_map, initial_sz, comp.initial) < 0) {
+    throw mjXError(elem, "invalid keyword: '%s'", comp.initial.c_str());
+  }
   ReadAttr(elem, "size", 3, comp.size, text, false, false);
   auto uservert = ReadAttrVec<float>(elem, "vertex");
   if (uservert.has_value()) { comp.uservert = std::move(uservert.value()); }
@@ -1652,11 +1657,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
   }
 
-  // check errors
-  if (dflex.elastic2d != 1 && fcomp.equality && dflex.young > 0) {
-    throw mjXError(elem, "flex constraints and elasticity (young) cannot both be present");
-  }
-
   // contact
   XMLElement* cont = FirstChildElement(elem, "contact");
   if (cont) {
@@ -1670,7 +1670,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(cont, "solimp", mjNIMP, dflex.solimp, text, false, false);
     ReadAttr(cont, "margin", 1, &dflex.margin, text);
     ReadAttr(cont, "gap", 1, &dflex.gap, text);
-    if (MapValue(cont, "internal", &n, bool_map, 2)) { dflex.internal = (n == 1); }
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
     if (MapValue(cont, "passive", &n, bool_map, 2)) { dflex.passive = (n == 1); }
     ReadAttrInt(cont, "activelayers", &dflex.activelayers);
@@ -2288,6 +2287,10 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       ReadQuat(elem, "quat", body->iquat, text);
       ReadAlternative(elem, body->ialt);
       ReadAttr(elem, "fullinertia", 6, body->fullinertia, text);
+
+      // the inertial frame is relative to the enclosing frame
+      mjCBody* bodyC = static_cast<mjCBody*>(body->element);
+      bodyC->iframe  = frame ? static_cast<mjCFrame*>(frame->element) : nullptr;
     }
 
     // joint sub-element

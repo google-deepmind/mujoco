@@ -28,7 +28,9 @@ from mujoco.mjx._src import io as mjx_io
 from mujoco.mjx._src import test_util
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import ConeType
+from mujoco.mjx._src.types import EnableBit
 from mujoco.mjx._src.types import Impl
+from mujoco.mjx._src.types import IntegratorType
 from mujoco.mjx._src.types import JacobianType
 # pylint: enable=g-importing-member
 import mujoco.mjx.warp as mjxw
@@ -244,6 +246,25 @@ class ModelIOTest(parameterized.TestCase):
               '<mujoco><option integrator="implicit"/><worldbody/></mujoco>'
           )
       )
+
+  def test_discrete_integrator(self):
+    m = mujoco.MjModel.from_xml_string(
+        '<mujoco><option integrator="discrete"/><worldbody/></mujoco>'
+    )
+    mx = mjx.put_model(m)
+    self.assertEqual(mx.opt.integrator, IntegratorType.DISCRETE)
+
+  def test_ipc_enableflag(self):
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option integrator="discrete" solver="CG">
+          <flag ipc="enable"/>
+        </option>
+        <worldbody/>
+      </mujoco>
+    """)
+    mx = mjx.put_model(m)
+    self.assertTrue(mx.opt.enableflags & EnableBit.IPC)
 
   def test_pgs_not_implemented(self):
     with self.assertRaises(NotImplementedError):

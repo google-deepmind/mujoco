@@ -147,7 +147,6 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   if (!d->name) {                                                             \
     mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
     mj_clearEfc(d);                                                           \
-    d->parena = d->ncon * sizeof(mjContact);                                  \
     return 0;                                                                 \
   }
 
@@ -389,11 +388,6 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
-  d->parena = d->ncon * sizeof(mjContact);
-#ifdef mjUSEASAN
-  ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
-#endif
   mj_clearEfc(d);
 
   // copy contact
@@ -3028,7 +3022,6 @@ static void mj_makeYSymbolic(const mjModel* m, mjData* d) {
     if (!d->efc_Y_rownnz || !d->efc_Y_rowadr) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
       return;
     }
 
@@ -3046,7 +3039,6 @@ static void mj_makeYSymbolic(const mjModel* m, mjData* d) {
     if (!d->efc_Y || !d->efc_Y_colind) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
       return;
     }
 
@@ -3067,7 +3059,6 @@ static void mj_makeYSymbolic(const mjModel* m, mjData* d) {
     if (!d->efc_Y) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
       return;
     }
   }
@@ -3169,7 +3160,6 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
     if (!d->efc_AR_rownnz || !d->efc_AR_rowadr) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
       mj_freeStack(d);
       return;
     }
@@ -3186,7 +3176,6 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
     if (!d->efc_AR || !d->efc_AR_colind) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
       mj_freeStack(d);
       return;
     }
@@ -3207,7 +3196,6 @@ static void mj_makeARSymbolic(const mjModel* m, mjData* d) {
     if (!d->efc_AR) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       mj_clearEfc(d);
-      d->parena = d->ncon * sizeof(mjContact);
       return;
     }
   }

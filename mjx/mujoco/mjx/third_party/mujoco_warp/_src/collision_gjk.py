@@ -56,6 +56,10 @@ _FACE_DELETED_BIT = wp.constant(wp.uint32(0x80000000))
 _FACE_INVALID_BIT = wp.constant(wp.uint32(0x40000000))
 _FACE_INVALID_OR_DELETED_MASK = wp.constant(wp.uint32(0xC0000000))
 
+# Precomputed circle coordinates for 16-gon cylinder face approximation
+_CYLINDER_COS_16 = tuple(math.cos(i * math.pi / 8.0) for i in range(16))
+_CYLINDER_SIN_16 = tuple(math.sin(i * math.pi / 8.0) for i in range(16))
+
 
 @wp.struct
 class GJKResult:
@@ -149,7 +153,8 @@ def support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
       res[0] = local_dir[0] * scl
       res[1] = local_dir[1] * scl
     # set result in Z direction
-    res[2] = wp.sign(local_dir[2]) * geom.size[1]
+    res[2] = wp.where(local_dir[2] >= 0.0, geom.size[1], -geom.size[1])
+    sp.vertex_index = wp.where(local_dir[2] >= 0.0, 0, 1)
     sp.point = geom.rot @ res + geom.pos
   elif geomtype == GeomType.MESH:
     max_dist = float(FLOAT_MIN)
@@ -1305,7 +1310,7 @@ def _polytope4(
 @wp.func
 def _get_face_verts(face: int) -> wp.vec3i:
   """Return the three vertices of the face given by indices into the polytope vertex array."""
-  return wp.vec3i(face & 0x3FF, face >> 10 & 0x3FF, face >> 20 & 0x3FF)
+  return wp.vec3i(face & 0x3FF, (face >> 10) & 0x3FF, (face >> 20) & 0x3FF)
 
 
 @wp.func
@@ -1481,7 +1486,7 @@ def _epa(
 @wp.func
 def _area4(a: wp.vec3, b: wp.vec3, c: wp.vec3, d: wp.vec3) -> float:
   """Computes area of a quadrilateral embedded in 3D space."""
-  return 0.5 * wp.norm_l2(wp.cross(a - d, d - b) + wp.cross(b - c, c - a))
+  return 0.5 * wp.norm_l2(wp.cross(a - c, b - d))
 
 
 @wp.func
@@ -1565,9 +1570,15 @@ def _aligned_faces(vert1: wp.array[wp.vec3], len1: int, vert2: wp.array[wp.vec3]
 # find two normals that are perpendicular to each other within a tolerance
 # return 1 if found
 @wp.func
-def _aligned_face_edge(edge: wp.array[wp.vec3], nedge: int, face: wp.array[wp.vec3], nface: int) -> Tuple[int, wp.vec2i]:
+def _aligned_face_edge(
+  edge: wp.array[wp.vec3], nedge: int, face: wp.array[wp.vec3], nface: int, dir: wp.vec3
+) -> Tuple[int, wp.vec2i]:
   res = wp.vec2i()
   for i in range(nface):
+    # ignore faces pointing away from the collision direction (negative dot product)
+    if wp.dot(face[i], dir) <= MINVAL:
+      continue
+
     for j in range(nedge):
       if wp.abs(wp.dot(edge[j], face[i])) < EDGE_TOL:
         res[0] = j
@@ -1937,6 +1948,81 @@ def _mesh_face(
   return nvert
 
 
+# try recovering the cylinder normal from vertex index
+@wp.func
+def _cylinder_normals(
+  # In:
+  feature_dim: int,
+  feature_index: wp.vec3i,
+  mat: wp.mat33,
+  # Out:
+  normal_out: wp.array[wp.vec3],
+  index_out: wp.array[int],
+) -> int:
+  if feature_dim == 1:
+    sgn = wp.where(feature_index[0] != 0, -1.0, 1.0)
+    normal_out[0] = mat[:, 2] * sgn
+    index_out[0] = feature_index[0]
+    return 1
+  return 0
+
+
+# recover edge of a cylinder from collision point
+@wp.func
+def _cylinder_edge_normals(
+  # In:
+  dim: int,
+  mat: wp.mat33,
+  size: wp.vec3,
+  v: wp.vec3,
+  v1i: int,
+  # Out:
+  normal_out: wp.array[wp.vec3],
+  endvert_out: wp.array[wp.vec3],
+) -> int:
+  if dim == 1 or dim == 2:
+    sgn = wp.where(v1i != 0, 1.0, -1.0)
+    res = mat[:, 2] * sgn
+    normal_out[0] = res
+    endvert_out[0] = v + res * (2.0 * size[1])
+    return 1
+  return 0
+
+
+# recover face of a cylinder (approximated as a 16-gon) from its index
+@wp.func
+def _cylinder_face(
+  # In:
+  mat: wp.mat33,
+  pos: wp.vec3,
+  size: wp.vec3,
+  idx: int,
+  # Out:
+  face_out: wp.array[wp.vec3],
+) -> int:
+  sgn = wp.where(idx != 0, -1.0, 1.0)
+  center = mat[:, 2] * (sgn * size[1]) + pos
+  col0 = mat[:, 0] * size[0]
+  col1 = mat[:, 1] * (size[0] * sgn)
+  face_out[0] = col0 * wp.static(_CYLINDER_COS_16[0]) - col1 * wp.static(_CYLINDER_SIN_16[0]) + center
+  face_out[1] = col0 * wp.static(_CYLINDER_COS_16[1]) - col1 * wp.static(_CYLINDER_SIN_16[1]) + center
+  face_out[2] = col0 * wp.static(_CYLINDER_COS_16[2]) - col1 * wp.static(_CYLINDER_SIN_16[2]) + center
+  face_out[3] = col0 * wp.static(_CYLINDER_COS_16[3]) - col1 * wp.static(_CYLINDER_SIN_16[3]) + center
+  face_out[4] = col0 * wp.static(_CYLINDER_COS_16[4]) - col1 * wp.static(_CYLINDER_SIN_16[4]) + center
+  face_out[5] = col0 * wp.static(_CYLINDER_COS_16[5]) - col1 * wp.static(_CYLINDER_SIN_16[5]) + center
+  face_out[6] = col0 * wp.static(_CYLINDER_COS_16[6]) - col1 * wp.static(_CYLINDER_SIN_16[6]) + center
+  face_out[7] = col0 * wp.static(_CYLINDER_COS_16[7]) - col1 * wp.static(_CYLINDER_SIN_16[7]) + center
+  face_out[8] = col0 * wp.static(_CYLINDER_COS_16[8]) - col1 * wp.static(_CYLINDER_SIN_16[8]) + center
+  face_out[9] = col0 * wp.static(_CYLINDER_COS_16[9]) - col1 * wp.static(_CYLINDER_SIN_16[9]) + center
+  face_out[10] = col0 * wp.static(_CYLINDER_COS_16[10]) - col1 * wp.static(_CYLINDER_SIN_16[10]) + center
+  face_out[11] = col0 * wp.static(_CYLINDER_COS_16[11]) - col1 * wp.static(_CYLINDER_SIN_16[11]) + center
+  face_out[12] = col0 * wp.static(_CYLINDER_COS_16[12]) - col1 * wp.static(_CYLINDER_SIN_16[12]) + center
+  face_out[13] = col0 * wp.static(_CYLINDER_COS_16[13]) - col1 * wp.static(_CYLINDER_SIN_16[13]) + center
+  face_out[14] = col0 * wp.static(_CYLINDER_COS_16[14]) - col1 * wp.static(_CYLINDER_SIN_16[14]) + center
+  face_out[15] = col0 * wp.static(_CYLINDER_COS_16[15]) - col1 * wp.static(_CYLINDER_SIN_16[15]) + center
+  return 16
+
+
 @wp.func
 def _plane_normal(v1: wp.vec3, v2: wp.vec3, n: wp.vec3) -> Tuple[float, wp.vec3]:
   v3 = v1 + n
@@ -2185,6 +2271,8 @@ def multicontact(
   dir_neg = -dir
 
   # get all possible face normals for each geom
+  nnorms1 = 0
+  nnorms2 = 0
   if geomtype1 == GeomType.BOX:
     nnorms1 = _box_normals(nface1, feature_index1, geom1.rot, dir_neg, n1, idx1)
   elif geomtype1 == GeomType.MESH:
@@ -2201,6 +2289,9 @@ def multicontact(
       n1,
       idx1,
     )
+  elif geomtype1 == GeomType.CYLINDER:
+    nnorms1 = _cylinder_normals(nface1, feature_index1, geom1.rot, n1, idx1)
+
   if geomtype2 == GeomType.BOX:
     nnorms2 = _box_normals(nface2, feature_index2, geom2.rot, dir, n2, idx2)
   elif geomtype2 == GeomType.MESH:
@@ -2217,6 +2308,8 @@ def multicontact(
       n2,
       idx2,
     )
+  elif geomtype2 == GeomType.CYLINDER:
+    nnorms2 = _cylinder_normals(nface2, feature_index2, geom2.rot, n2, idx2)
 
   # determine if any two face normals match
   is_edge_contact_geom1 = 0
@@ -2250,7 +2343,9 @@ def multicontact(
           n1,
           endvert,
         )
-      nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2)
+      elif geomtype1 == GeomType.CYLINDER:
+        nnorms1 = _cylinder_edge_normals(nface1, geom1.rot, geom1.size, feature_vertex1[0], feature_index1[0], n1, endvert)
+      nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2, dir)
       if not nres:
         return 1, witness1, witness2, dists
       is_edge_contact_geom1 = 1
@@ -2282,7 +2377,9 @@ def multicontact(
           n2,
           endvert,
         )
-      nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1)
+      elif geomtype2 == GeomType.CYLINDER:
+        nnorms2 = _cylinder_edge_normals(nface2, geom2.rot, geom2.size, feature_vertex2[0], feature_index2[0], n2, endvert)
+      nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1, dir_neg)
       if not nres:
         return 1, witness1, witness2, dists
       is_edge_contact_geom2 = 1
@@ -2313,6 +2410,8 @@ def multicontact(
         ind,
         face1,
       )
+    elif geomtype1 == GeomType.CYLINDER:
+      nface1 = _cylinder_face(geom1.rot, geom1.pos, geom1.size, ind, face1)
 
   # recover geom2 matching edge or face
   if is_edge_contact_geom2:
@@ -2333,6 +2432,8 @@ def multicontact(
         idx2[j],
         face2,
       )
+    elif geomtype2 == GeomType.CYLINDER:
+      nface2 = _cylinder_face(geom2.rot, geom2.pos, geom2.size, idx2[j], face2)
 
   # face1 is an edge; clip face1 against face2
   if is_edge_contact_geom1:
@@ -2569,8 +2670,10 @@ def epa_phase(
   if geom1.margin != 0.0 or geom2.margin != 0.0:
     idx = -1
 
-  # multicontact only supported for boxes and meshes
-  if (geomtype1 != GeomType.BOX and geomtype1 != GeomType.MESH) or (geomtype2 != GeomType.BOX and geomtype2 != GeomType.MESH):
+  # multicontact only supported for boxes, cylinders, and meshes
+  if (geomtype1 != GeomType.BOX and geomtype1 != GeomType.MESH and geomtype1 != GeomType.CYLINDER) or (
+    geomtype2 != GeomType.BOX and geomtype2 != GeomType.MESH and geomtype2 != GeomType.CYLINDER
+  ):
     idx = -1
 
   return dist, 1, x1, x2, idx

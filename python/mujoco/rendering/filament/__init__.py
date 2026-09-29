@@ -13,5 +13,14 @@
 # limitations under the License.
 # ==============================================================================
 
-# Package marker for mujoco.rendering.filament required for Python package
-# discovery and wheel distribution.
+"""Filament rendering package for MuJoCo.
+
+Package marker required for Python package discovery and wheel distribution.
+
+Note:
+  When using Filament materials or assets, ensure that resource providers are
+  registered by importing `mujoco.experimental.studio.window` or by
+  constructing `mujoco.experimental.studio.renderer.Renderer` before creating
+  a Filament context. `mujoco.rendering.filament.renderer.Renderer` does not
+  register them: it wraps a context the caller has already created.
+"""

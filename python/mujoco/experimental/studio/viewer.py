@@ -16,7 +16,6 @@
 from absl import app as _app
 from absl import flags as _flags
 from mujoco.experimental.studio import launch_passive
-from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
@@ -53,22 +52,14 @@ def main(argv: list[str]) -> None:
   if model_path and (data := parser.parse(model_path)):
     model = data.model
 
-  with launch_passive.launch_passive(
+  launch_passive.run(
       config,
+      model=model,
+      data=data,
+      model_path=model_path,
       viewer_plugins=[viewer_app.ViewerApp()],
       sim_plugins=[step_control.StepControl()],
-  ) as handle:
-    # Send the model to the viewer, if we have a model.
-    if model is not None:
-      handle.send_to_viewer(messages.ModelEvent(model=model, path=model_path))  # pyrefly: ignore[bad-argument-type]
-
-    # Run the simulation.
-    try:
-      while handle.is_running():
-        model, data = handle.sync(model, data)
-    except KeyboardInterrupt:
-      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
-      print('\nShutting down.', flush=True)
+  )
 
 
 _app.run(main)

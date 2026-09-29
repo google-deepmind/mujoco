@@ -50,8 +50,20 @@ struct MjDataDeleter {
 };
 using MjDataPtr = std::unique_ptr<mjData, MjDataDeleter>;
 
-// Runtime scale factor for test tolerances, controlled by MJTOL_SCALE env var.
-// Set MJTOL_SCALE=0 to run tests with zero tolerance and see actual residuals.
+// Runtime scale factor for test tolerances, controlled by the MJTOL_SCALE
+// environment variable. Setting MJTOL_SCALE=0 scales tolerances to zero,
+// causing assertions to fail and print the exact numerical residuals between
+// expected and actual values.
+//
+// Recommended workflow for calibrating tolerances:
+// 1. Run the test with MJTOL_SCALE=0 (e.g. `MJTOL_SCALE=0 ./my_test` or
+//    `MJTOL_SCALE=0 ctest`) to reveal the exact failure residual r.
+// 2. Set the tolerance to ~10x above the residual, rounded to a single
+//    significant digit in scientific notation N*10^-M (typically 1e-X, e.g.
+//    r = 1.4e-6 -> 1e-5). This leaves headroom for compiler and platform
+//    variations without being overly permissive.
+// 3. Repeat under single precision (built with mjUSESINGLE) and provide both
+//    values to MjTol(double_tol, float_tol) or MjNear(double_tol, float_tol).
 inline mjtNum MjTolScale() {
   static const mjtNum scale = []() {
     const char* env = std::getenv("MJTOL_SCALE");
@@ -162,12 +174,12 @@ class MujocoTest : public ::testing::Test {
       const char* plugin_dir = std::getenv("MUJOCO_PLUGIN_DIR");
       if (plugin_dir) {
         mj_loadAllPluginLibraries(
-          plugin_dir, +[](const char* filename, int first, int count) {
-            std::printf("Plugins registered by library '%s':\n", filename);
-            for (int i = first; i < first + count; ++i) {
-              std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
-            }
-          });
+            plugin_dir, +[](const char* filename, int first, int count) {
+              std::printf("Plugins registered by library '%s':\n", filename);
+              for (int i = first; i < first + count; ++i) {
+                std::printf("    %s\n", mjp_getPluginAtSlot(i)->name);
+              }
+            });
       }
     });
   }
@@ -204,10 +216,17 @@ auto MjuErrorMessageFrom(Return (*func)(Args...)) {
 }
 
 // Returns a path to a data file, under the mujoco/test directory.
+// When testing with Bazel, this file should be a data dependency of the test
+// target. When testing with cmake, this will look in the source directory.
 const std::string GetTestDataFilePath(std::string_view path);
 
 // Returns a path to a data file, under the mujoco/model directory.
+// When testing with Bazel, this file should be a data dependency of the test
+// target. When testing with cmake, this will look in the source directory.
 const std::string GetModelPath(std::string_view path);
+
+// Returns a path to a data file, under the mujoco_menagerie/ directory.
+std::string GetMenagerieModelPath(std::string_view path);
 
 // Returns a newly-allocated mjModel, loaded from the contents of xml.
 // On failure returns nullptr and populates the error array if present.

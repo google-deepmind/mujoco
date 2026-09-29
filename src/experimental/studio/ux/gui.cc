@@ -683,15 +683,38 @@ void SetSpeedIndex(StepControl* step_control, int& speed_index,
   step_control->SetSpeed(speed);
 }
 
-void LoadHistoryFrame(SimHistory& history, StepControl& step_control,
-                      const mjModel* model, mjData* data, int index) {
+void LoadHistoryFrame(SimHistory& history, const mjModel* model, mjData* data,
+                      int index) {
+  if (model == nullptr || data == nullptr) {
+    return;
+  }
   std::span<mjtNum> state = history.SetIndex(index);
   if (!state.empty()) {
-    // Pause simulation when entering history mode.
-    step_control.SetPauseState(StepControl::PauseState::kNormalPaused);
     mj_setState(model, data, state.data(), mjSTATE_INTEGRATION);
     mj_forward(model, data);
   }
+}
+
+void RecordHistoryFrame(SimHistory& history, SimulationTimelineState& timeline,
+                        const mjModel* model, const mjData* data) {
+  if (model == nullptr || data == nullptr) {
+    return;
+  }
+  std::span<mjtNum> state = history.AddToHistory();
+  if (!state.empty()) {
+    mj_getState(model, data, state.data(), mjSTATE_INTEGRATION);
+    timeline.sim_head_time = data->time;
+  }
+}
+
+void ResetHistory(SimHistory& history, SimulationTimelineState& timeline,
+                  const mjModel* model, const mjData* data) {
+  if (model == nullptr) {
+    return;
+  }
+  history.Init(mj_stateSize(model, mjSTATE_INTEGRATION));
+  timeline = SimulationTimelineState();
+  RecordHistoryFrame(history, timeline, model, data);
 }
 
 static std::string FormatTimelineTime(double time_in_s) {
@@ -734,7 +757,8 @@ static std::string FormatTimelineTime(double time_in_s) {
 
 void TimelineScrubberGui(const mjModel* model, mjData* data,
                          StepControl& step_control, SimHistory& history,
-                         SimulationTimelineState& timeline) {
+                         SimulationTimelineState& timeline,
+                         bool load_history_locally) {
   // Timeline scrubber: spine + sliding knob widget.
   const double max_time = timeline.sim_head_time;
   const int hist_size = history.Size();
@@ -861,7 +885,12 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
     }
 
     if (new_index != current_index) {
-      LoadHistoryFrame(history, step_control, model, data, new_index);
+      if (load_history_locally) {
+        LoadHistoryFrame(history, model, data, new_index);
+      } else {
+        history.SetIndex(new_index);
+      }
+      step_control.SetPauseState(StepControl::PauseState::kNormalPaused);
       current_index = new_index;
       t = static_cast<float>(current_index - hist_min) /
           static_cast<float>(hist_max - hist_min);
@@ -1082,8 +1111,13 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       const float btn_w = (avail - spacing) / 2.0f;
 
       if (ImGui::Button(prev_label, ImVec2(btn_w, 0))) {
-        LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data,
-                         ctx.history->GetIndex() - 1);
+        if (ctx.load_history_locally) {
+          LoadHistoryFrame(*ctx.history, ctx.model, ctx.data,
+                           ctx.history->GetIndex() - 1);
+        } else {
+          ctx.history->SetIndex(ctx.history->GetIndex() - 1);
+        }
+        ctx.step_control->SetPauseState(StepControl::PauseState::kNormalPaused);
       }
       ImGui::SetItemTooltip("%s", "Load previous frame from history");
       ImGui::SameLine();
@@ -1091,15 +1125,21 @@ void SimulationGui(const SimulationGuiContext& ctx) {
         if (ctx.history->GetIndex() == 0) {
           ctx.step_control->RequestSingleStep();
         } else {
-          LoadHistoryFrame(*ctx.history, *ctx.step_control, ctx.model, ctx.data,
-                           ctx.history->GetIndex() + 1);
+          if (ctx.load_history_locally) {
+            LoadHistoryFrame(*ctx.history, ctx.model, ctx.data,
+                             ctx.history->GetIndex() + 1);
+          } else {
+            ctx.history->SetIndex(ctx.history->GetIndex() + 1);
+          }
+          ctx.step_control->SetPauseState(
+              StepControl::PauseState::kNormalPaused);
         }
       }
       ImGui::SetItemTooltip("%s", "Load next frame from history / Single step");
 
       // Timeline scrubber.
       TimelineScrubberGui(ctx.model, ctx.data, *ctx.step_control, *ctx.history,
-                          *ctx.timeline);
+                          *ctx.timeline, ctx.load_history_locally);
     }
 
     // Keyframe controls.
@@ -1108,51 +1148,55 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       ImGui::Separator();
       ImGui::Spacing();
       {
-        char key_fmt[128];
-        const char* key_name = mj_id2name(ctx.model, mjOBJ_KEY, (*ctx.key_idx));
-        if (key_name) {
-          std::snprintf(key_fmt, sizeof(key_fmt), "%s", key_name);
-        } else {
-          std::snprintf(key_fmt, sizeof(key_fmt), "Key %d", (*ctx.key_idx));
+        if (*ctx.key_idx >= ctx.model->nkey || *ctx.key_idx < -1) {
+          *ctx.key_idx = -1;
         }
+        std::string key_name = GetKeyframeName(ctx.model, *ctx.key_idx);
         ImGui::SetNextItemWidth(slider_w);
-        ImGui::SliderInt("Keyframe", &(*ctx.key_idx), 0, ctx.model->nkey - 1,
-                         key_fmt);
+        if (ImGui::BeginCombo("Keyframe", key_name.c_str())) {
+          if (ImGui::Selectable("\xE2\x80\x94", (*ctx.key_idx == -1))) {
+            *ctx.key_idx = -1;
+            ctx.reset();
+          }
+          for (int k = 0; k < ctx.model->nkey; k++) {
+            std::string item_name = GetKeyframeName(ctx.model, k);
+            ImGui::PushID(k);
+            if (ImGui::Selectable(item_name.c_str(), (*ctx.key_idx == k))) {
+              *ctx.key_idx = k;
+              ctx.reset();
+            }
+            ImGui::PopID();
+          }
+          ImGui::EndCombo();
+        }
       }
 
       // Keyframe buttons.
       {
-        char load_label[32];
-        std::snprintf(load_label, sizeof(load_label), "%s Load key",
-                      ICON_FA_DOWNLOAD);
         char save_label[32];
-        std::snprintf(save_label, sizeof(save_label), "%s Save key",
+        std::snprintf(save_label, sizeof(save_label), "%s Save keyframe",
                       ICON_FA_UPLOAD);
         char copy_label[32];
-        std::snprintf(copy_label, sizeof(copy_label), "%s Copy key",
+        std::snprintf(copy_label, sizeof(copy_label), "%s Copy keyframe",
                       ICON_FA_COPY);
 
         const float avail = ImGui::GetContentRegionAvail().x;
         const float spacing = ImGui::GetStyle().ItemSpacing.x;
-        const float btn_w = (avail - spacing * 2) / 3.0f;
+        const float btn_w = (avail - spacing) / 2.0f;
 
-        if (ImGui::Button(load_label, ImVec2(btn_w, 0))) {
-          mj_resetDataKeyframe(ctx.model, ctx.data, (*ctx.key_idx));
-          mj_forward(ctx.model, ctx.data);
-        }
-        ImGui::SetItemTooltip("%s", "Load selected keyframe to active state");
-        ImGui::SameLine();
+        ImGui::BeginDisabled(*ctx.key_idx < 0 || *ctx.key_idx >= ctx.model->nkey);
         if (ImGui::Button(save_label, ImVec2(btn_w, 0))) {
           mj_setKeyframe(ctx.model, ctx.data, (*ctx.key_idx));
         }
         ImGui::SetItemTooltip("%s", "Save active state to selected keyframe");
+        ImGui::EndDisabled();
         ImGui::SameLine();
         if (ImGui::Button(copy_label, ImVec2(btn_w, 0))) {
           std::string str = KeyframeToString(ctx.model, ctx.data, false);
           MaybeSaveToClipboard(str);
         }
         ImGui::SetItemTooltip(
-            "%s", "Copy selected keyframe to clipboard as MJCF XML");
+            "%s", "Copy active state to clipboard as MJCF XML");
       }
     }
 
@@ -1270,6 +1314,18 @@ bool FrameSelectionGui(mjvOption* opts) {
   }
   ImGui::SetItemTooltip("%s", "Frame");
   return changed;
+}
+
+std::string GetKeyframeName(const mjModel* model, int index) {
+  if (index < 0) {
+    return "\xE2\x80\x94";
+  }
+  if (model && index < model->nkey) {
+    if (const char* key_name = mj_id2name(model, mjOBJ_KEY, index)) {
+      return key_name;
+    }
+  }
+  return "Key " + std::to_string(index);
 }
 
 std::string GetCameraName(const mjModel* model, const mjvCamera& camera,

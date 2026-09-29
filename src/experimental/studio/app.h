@@ -15,26 +15,29 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <mujoco/mujoco.h>
 #include "experimental/studio/hal/graphics_mode.h"
-#include "experimental/studio/hal/renderer.h"
+#include "experimental/studio/hal/filament_renderer.h"
 #include "experimental/studio/hal/window.h"
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/sim/sim_history.h"
 #include "experimental/studio/sim/sim_profiler.h"
 #include "experimental/studio/sim/step_control.h"
 #include "experimental/studio/ux/gui.h"
-#include "experimental/studio/ux/gui_spec.h"
 #include "experimental/studio/ux/imgui_widgets.h"
 #include "experimental/studio/ux/interaction.h"
 #include "experimental/studio/ux/picture_gui.h"
@@ -82,6 +85,10 @@ class App {
                            std::string_view content_type,
                            std::string_view name);
 
+  // Selects and loads a keyframe by name or numerical index. If invalid,
+  // silently ignores it.
+  void LoadKeyframe(std::string_view keyframe);
+
   // Processes window events and advances the state of the simulation.
   bool Update();
 
@@ -100,6 +107,31 @@ class App {
     kModelFromBuffer,
   };
 
+  // Information for building a new empty model.
+  struct EmptyModel {};
+
+  // Information needed for building a model from a file.
+  struct FileModel {
+    std::string_view filepath;
+  };
+
+  // Information needed for building a model from a memory buffer.
+  struct BufferModel {
+    std::span<const std::byte> buffer;
+    std::string_view content_type;
+    std::string_view name;
+  };
+
+  // Information needed for recompiling the model.
+  struct RecompileModel {};
+
+  // Information needed for recompiling the model from the spec editor.
+  struct RecompileFromSpec {};
+
+  // The different ways in which the model can be built.
+  using BuildModelInfo = std::variant<EmptyModel, FileModel, BufferModel,
+                                      RecompileModel, RecompileFromSpec>;
+
   enum class SpecPropertiesMode {
     kSpec,
     kModel,
@@ -108,10 +140,6 @@ class App {
 
   // UI state that is persisted across application runs
   struct UiState {
-    char watch_field[1000] = "qpos";
-    int watch_index = 0;
-    int camera_idx = kTumbleCameraIdx;
-    int key_idx = 0;
     GuiTheme theme = GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
@@ -126,7 +154,6 @@ class App {
   // UI state that is transient and only needed while the application runs
   struct UiTempState {
     bool should_exit = false;
-    bool first_frame = true;
     bool update_threadpool = false;
 
     // Windows.
@@ -147,19 +174,20 @@ class App {
     float editor_split = -1;
     float explorer_split = -1;
 
+    int camera_idx = kTumbleCameraIdx;
+    int key_idx = -1;
+
     // Controls.
-    bool perturb_active = false;
     int speed_index = 0;
     float cam_speed = 0.0f;
-
-    // Cached data.
-    float expected_label_width = 0;
-    std::vector<std::string> camera_names;
-    std::vector<std::string> speed_names;
 
     // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
     mjsElement* curr_element = nullptr;
+
+    // Watch.
+    char watch_field[1000] = "qpos";
+    int watch_index = 0;
 
     // State.
     int state_sig = 0;
@@ -190,12 +218,21 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Recompiles the spec, updating the model and data.
-  void Recompile();
+  // (Re)builds the model based on the given configmration.
+  void BuildModel(const BuildModelInfo& info);
 
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
-  void OnModelLoaded(std::string filename, ModelKind model_kind);
+  void OnModelLoaded(std::string_view filename, ModelKind model_kind);
+
+  struct KeyframeSelection {
+    bool is_reload = false;
+    int key_idx = -1;
+    std::string key_name;
+    std::vector<std::string> all_old_names;
+  };
+  KeyframeSelection CaptureKeyframeSelection(bool is_reload) const;
+  void RestoreKeyframeSelection(const KeyframeSelection& saved);
 
   void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
 
@@ -238,42 +275,57 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
+  std::unique_ptr<Window> window_;
+  std::unique_ptr<FilamentRenderer> renderer_;
+  std::unique_ptr<ModelHolder> model_holder_;
+
+  mutable std::mutex physics_mutex_;
+#ifndef __EMSCRIPTEN__
+  void PhysicsThreadLoop();
+  std::thread physics_thread_;
+  std::atomic<bool> stop_physics_thread_{false};
+#endif
+
   std::string app_title_;
   std::string ini_path_;
-  // Window state storage (e.g. collapsing header open/closed state), keyed
-  // "<window name>/<id>", which ImGui does not serialize. Entries stay
-  // pending until their window is first created.
-  KeyValues window_state_storage_;
-  std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
+
+  ModelKind model_kind_ = kEmptyModel;
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
+
+  // Cached previous state.
+  std::vector<std::byte> last_buffer_;
+  std::string last_content_type_;
   StepControl::PauseState last_pause_state_ =
       StepControl::PauseState::kNormalPaused;
 
+  // Pending operations.
   std::optional<std::string> pending_load_;
+  bool pending_reload_ = false;
+  bool recompile_spec_ = false;
   std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
-  ModelKind model_kind_ = kEmptyModel;
-  GraphicsMode gfx_mode_ = GraphicsMode::FilamentVulkan;
 
-  std::unique_ptr<Window> window_;
-  std::unique_ptr<Renderer> renderer_;
-  std::unique_ptr<ModelHolder> model_holder_;
-
+  // Studio components.
   StepControl step_control_;
   SimProfiler profiler_;
   SimHistory sim_history_;
   SimulationTimelineState timeline_;
   SpecEditor spec_editor_;
-  std::vector<std::string> search_paths_;
-  std::vector<std::byte> pixels_;
+  // Window state storage (e.g. collapsing header open/closed state), keyed
+  // "<window name>/<id>", which ImGui does not serialize. Entries stay
+  // pending until their window is first created.
+  KeyValues window_state_storage_;
 
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
   mjvScene plugin_scene_;
+
+  std::vector<std::string> search_paths_;
+  std::vector<std::byte> pixels_;
 
   UiState ui_;
   UiTempState tmp_;

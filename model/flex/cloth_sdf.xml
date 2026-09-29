@@ -40,7 +40,7 @@
     <body name="flex" pos="0 0 .6">
       <flexcomp name="test" type="grid" count="8 8 1" spacing=".2 .2 .2" dim="2" rgba="0 .7 .7 1">
         <edge equality="true"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </body>
     <body pos="0 0 1.0">

@@ -43,11 +43,15 @@ std::vector<std::string> GetRecompileTestModels() {
   for (const auto& path : {GetTestDataFilePath("."), GetModelPath(".")}) {
     for (const auto& p : std::filesystem::recursive_directory_iterator(path)) {
       if (p.path().extension() == ext) {
-        std::string xml = p.path().string();
+        // generic format, so patterns containing '/' also match on Windows
+        std::string xml = p.path().generic_string();
         if (absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||
             absl::StrContains(xml, "touch_grid") ||
             absl::StrContains(xml, "perf") || absl::StrContains(xml, "cow") ||
+#ifndef MJ_WITH_USD
+            absl::StrContains(xml, "usd.xml") ||
+#endif
             // exclude conflict test assets (designed to fail compile)
             absl::StrContains(xml, "xml/testdata/parent_")) {
           continue;
@@ -80,8 +84,9 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   // copy spec
   mjSpec* s_copy = mj_copySpec(s);
 
-  // compare signature
-  EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
+  // an uncompiled spec has no signature
+  EXPECT_EQ(s->element->signature, 0) << xml;
+  EXPECT_EQ(s_copy->element->signature, 0) << xml;
 
   // compile twice and compare
   mjModel* m_old = mj_compile(s, nullptr);
@@ -99,6 +104,10 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   // compare signature
   EXPECT_EQ(m_old->signature, m_new->signature) << xml;
   EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
+
+  // compiling refreshes the signature of the spec
+  EXPECT_EQ(s->element->signature, m_new->signature) << xml;
+  EXPECT_EQ(s_copy->element->signature, m_copy->signature) << xml;
 
   ASSERT_THAT(m_new, NotNull())
       << "Failed to recompile " << xml << ": " << mjs_getError(s);

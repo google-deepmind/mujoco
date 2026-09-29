@@ -107,6 +107,7 @@
             <attribute name="invdiscrete" type="keyword" valid_values="disable enable" default="disable"/>
             <attribute name="sleep" type="keyword" valid_values="disable enable" default="disable"/>
             <attribute name="diagexact" type="keyword" valid_values="disable enable" default="disable"/>
+            <attribute name="ipc" type="keyword" valid_values="disable enable" default="disable"/>
           </attributes>
         </element>
       </children>
@@ -1412,7 +1413,7 @@
                 <attribute name="count" type="array" array_type="int" array_size="3"/>
                 <attribute name="offset" type="array" array_type="float" array_size="3"/>
                 <attribute name="vertex" type="array" array_type="float"/>
-                <attribute name="initial" type="string"/>
+                <attribute name="initial" type="keyword" valid_values="none free ball" default="ball"/>
                 <attribute name="curve" type="string"/>
                 <attribute name="size" type="array" array_type="float" array_size="3"/>
                 <attribute name="quat" type="array" array_type="float" array_size="4"/>
@@ -1558,7 +1559,6 @@
                     <attribute name="solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
                     <attribute name="margin" type="float"/>
                     <attribute name="gap" type="float"/>
-                    <attribute name="internal" type="keyword" valid_values="false true"/>
                     <attribute name="selfcollide" type="keyword" valid_values="none narrow bvh sap auto" default="auto"/>
                     <attribute name="activelayers" type="int" default="1"/>
                     <attribute name="passive" type="keyword" valid_values="false true"/>
@@ -1722,7 +1722,7 @@
             <attribute name="count" type="array" array_type="int" array_size="3"/>
             <attribute name="offset" type="array" array_type="float" array_size="3"/>
             <attribute name="vertex" type="array" array_type="float"/>
-            <attribute name="initial" type="string"/>
+            <attribute name="initial" type="keyword" valid_values="none free ball" default="ball"/>
             <attribute name="curve" type="string"/>
             <attribute name="size" type="array" array_type="float" array_size="3"/>
             <attribute name="quat" type="array" array_type="float" array_size="4"/>
@@ -1868,7 +1868,6 @@
                 <attribute name="solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
                 <attribute name="margin" type="float"/>
                 <attribute name="gap" type="float"/>
-                <attribute name="internal" type="keyword" valid_values="false true"/>
                 <attribute name="selfcollide" type="keyword" valid_values="none narrow bvh sap auto" default="auto"/>
                 <attribute name="activelayers" type="int" default="1"/>
                 <attribute name="passive" type="keyword" valid_values="false true"/>
@@ -1934,7 +1933,6 @@
                 <attribute name="solimp" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
                 <attribute name="margin" type="float"/>
                 <attribute name="gap" type="float"/>
-                <attribute name="internal" type="keyword" valid_values="false true"/>
                 <attribute name="selfcollide" type="keyword" valid_values="none narrow bvh sap auto" default="auto"/>
                 <attribute name="activelayers" type="int" default="1"/>
                 <attribute name="passive" type="keyword" valid_values="false true"/>
@@ -2018,7 +2016,7 @@
             <attribute name="class" type="reference" reference_namespace="default"/>
             <attribute name="group" type="int"/>
             <attribute name="limited" type="keyword" valid_values="false true auto" default="auto"/>
-            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto"/>
+            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto" default="auto"/>
             <attribute name="range" type="array" array_type="float" array_size="2"/>
             <attribute name="actuatorfrcrange" type="array" array_type="float" array_size="2"/>
             <attribute name="solreflimit" type="array" array_type="float" array_size="2" default="0.02 1"/>
@@ -2061,7 +2059,7 @@
             <attribute name="class" type="reference" reference_namespace="default"/>
             <attribute name="group" type="int"/>
             <attribute name="limited" type="keyword" valid_values="false true auto" default="auto"/>
-            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto"/>
+            <attribute name="actuatorfrclimited" type="keyword" valid_values="false true auto" default="auto"/>
             <attribute name="range" type="array" array_type="float" array_size="2"/>
             <attribute name="actuatorfrcrange" type="array" array_type="float" array_size="2"/>
             <attribute name="solreflimit" type="array" array_type="float" array_size="2" default="0.02 1"/>

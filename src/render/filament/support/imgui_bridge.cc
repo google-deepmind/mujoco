@@ -55,16 +55,17 @@ ImguiBridge::~ImguiBridge() {
 
 uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
                                    int width, int height, int bpp) {
-  if (bpp != 4 && bpp != 3) {
-    mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
-  }
-
   if (pixels == nullptr) {
-    // If the pixels are nullptr, we destroy the texture.
+    // If the pixels are nullptr, we destroy the texture. This is checked before
+    // the bpp validation below: a destruction request carries no pixel format.
     if (tex_id != 0) {
       textures_.erase(tex_id);
     }
     return 0;
+  }
+
+  if (bpp != 4 && bpp != 3) {
+    mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
   }
 
   // Assign a new texture ID.
@@ -185,7 +186,7 @@ void ImguiBridge::Update() {
       sizeof(float) * 4 + sizeof(uint8_t) * 4;
 
   int num_elements = 0;
-  for (int n = 0; n < commands->CmdListsCount; ++n) {
+  for (int n = 0; n < commands->CmdLists.Size; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
     if (kExpectedVertexSize != sizeof(cmds->VtxBuffer.Data[0])) {
       mju_error("Invalid vertex buffer size.");
@@ -216,7 +217,7 @@ void ImguiBridge::Update() {
 
   meshes_.clear();
   int renderable_index = 0;
-  for (int n = 0; n < commands->CmdListsCount; ++n) {
+  for (int n = 0; n < commands->CmdLists.Size; ++n) {
     const ImDrawList* cmds = commands->CmdLists[n];
 
     mjrfMeshConfig config;

@@ -231,16 +231,40 @@ void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled) {
   }
 }
 
-void mjrf_setLightIntensity(mjrfLight* light, float intensity) {
-  mujoco::Light::downcast(light)->SetIntensity(intensity);
-}
-
-void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size) {
-  mujoco::Light::downcast(light)->SetShadowMapSize(map_size);
+void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled) {
+  mujoco::Light::downcast(light)->SetShadowsEnabled(enabled);
 }
 
 void mjrf_setLightColor(mjrfLight* light, const float color[3]) {
   mujoco::Light::downcast(light)->SetColor({color[0], color[1], color[2]});
+}
+
+void mjrf_setLightIntensity(mjrfLight* light, float intensity) {
+  mujoco::Light::downcast(light)->SetIntensity(intensity);
+}
+
+void mjrf_setLightRange(mjrfLight* light, float range) {
+  mujoco::Light::downcast(light)->SetRange(range);
+}
+
+void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff) {
+  mujoco::Light::downcast(light)->SetCutoffAngle(cutoff);
+}
+
+void mjrf_setLightSoftness(mjrfLight* light, float softness) {
+  mujoco::Light::downcast(light)->SetSoftness(softness);
+}
+
+void mjrf_setLightBulbRadius(mjrfLight* light, float radius) {
+  mujoco::Light::downcast(light)->SetBulbRadius(radius);
+}
+
+void mjrf_setLightBlurWidth(mjrfLight* light, float blur_width) {
+  mujoco::Light::downcast(light)->SetBlurWidth(blur_width);
+}
+
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size) {
+  mujoco::Light::downcast(light)->SetShadowMapSize(map_size);
 }
 
 void mjrf_setLightTransform(mjrfLight* light, const float position[3],

@@ -30,6 +30,7 @@
 #include "engine/engine_derivative.h"
 #include "engine/engine_inverse.h"
 #include "engine/engine_io.h"
+#include "engine/engine_ipc.h"
 #include "engine/engine_island.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -231,6 +232,7 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   // refresh the metric's velocity-stage values
   mjd_effShift(m, d);
 
+
   TM_END(mjTIMER_VELOCITY);
 }
 
@@ -385,15 +387,13 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
   mj_markStack(d);
   mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
 
-  // read from ctrl or history buffer for delayed actuators
+  // copy controls, overwrite delayed actuators from history buffer
+  mju_copy(ctrl, d->ctrl, nu);
   for (int i = 0; i < nactuator; i++) {
-    int adr = m->actuator_ctrladr[i];
     if (m->actuator_delay[i]) {
-      // delayed: read from history buffer (scalar input)
-      int interp = m->actuator_history[2*i+1];
-      ctrl[adr] = mj_readCtrl(m, d, i, d->time, interp);
-    } else {
-      mju_copy(ctrl + adr, d->ctrl + adr, m->actuator_ctrlnum[i]);
+      int adr = m->actuator_ctrladr[i];
+      const mjtNum* ptr = mj_readCtrl(m, d, i, d->time, ctrl + adr, -1);
+      if (ptr) mju_copy(ctrl + adr, ptr, m->actuator_ctrlnum[i]);
     }
   }
 
@@ -717,8 +717,8 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       break;
 
     case mjGAIN_DCMOTOR: {          // DC motor: gain = K or K/R
-      mjtNum R = gainprm[0];  // resistance
-      mjtNum K = gainprm[1];  // motor constant
+      mjtNum R = mj_dcmotorResistance(m, d, i);  // motor resistance
+      mjtNum K = gainprm[1];                     // motor constant
       mjDCMotorSlots slots = mj_dcmotorSlots(dynprm, gainprm);
 
       // verify allocated state size matches parameters; SHOULD NOT OCCUR
@@ -726,25 +726,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
         mjERROR("inconsistent state array dimension in DC motor (actuator %d)", i);
       }
 
-      int adr = m->actuator_actadr[i];
-
-      // adjust R for temperature if enabled
-      if (slots.temperature >= 0) {
-        mjtNum T = d->act[adr + slots.temperature];
-        mjtNum alpha = gainprm[2];  // temperature coefficient
-        mjtNum T0 = gainprm[3];     // reference temperature
-        mjtNum Ta = dynprm[4];      // ambient temperature
-        R *= 1 + alpha * (T + Ta - T0);
-      }
-
       // stateful current: gain = K, force = K * act[last] (generic path)
       // stateless: gain = K/R, force = K/R * ctrl (condition below)
-      gain = (dynprm[0] > 0) ? K : K / mju_max(mjMINVAL, R);
+      gain = (dynprm[0] > 0) ? K : K / R;
 
       // controller: compute voltage, override ctrl[uadr] for force computation
       // (pure raw-voltage motor reads ctrl directly; empty block reads as 0 below)
       if (m->actuator_ctrlspec[i] != mjINPUT_VOLTAGE && m->actuator_ctrlnum[i] > 0) {
-        mjtNum x_I = (slots.integral >= 0) ? d->act[adr + slots.integral] : 0;
+        mjtNum x_I = (slots.integral >= 0) ? d->act[m->actuator_actadr[i]+slots.integral] : 0;
         ctrl[uadr] = dcmotorVoltage(ctrl + uadr, m->actuator_ctrlspec[i],
                                     d->actuator_length[oadr],
                                     d->actuator_velocity[oadr], x_I, gainprm);
@@ -1220,7 +1209,7 @@ static void mj_discreteGyro(const mjModel* m, mjData* d) {
 
 
 // compute efc_b, efc_force, qfrc_constraint; update qacc
-void mj_fwdConstraint(const mjModel* m, mjData* d) {
+static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg_island) {
   TM_START;
   int nv = m->nv, nefc = d->nefc, nisland = d->nisland, nidof;
 
@@ -1241,11 +1230,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mj_mulJacVec(m, d, d->efc_b, d->qacc_smooth);
   mju_subFrom(d->efc_b, d->efc_aref, nefc);
 
-  // check for invalid solver type
-  if (m->opt.solver != mjSOL_PGS && m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
-    mjERROR("unknown solver type %d", m->opt.solver);
-  }
-
   // warmstart solver
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
@@ -1257,12 +1241,12 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // still forces a monolithic solve: the flex operators (stencils, 3x3 block factors)
   // have no island-local form.
   // TODO: island-local flex operators, then remove the flex condition.
-  int islands_supported = !mjDISABLED(mjDSBL_ISLAND) && nisland > 0 &&
+  int islands_supported = flg_island && nisland > 0 &&
                           !(mj_isMetric(m) && effFlexAny(m));
 
   // run solver over constraint islands
   if (islands_supported) {
-    switch ((mjtSolver) m->opt.solver) {
+    switch ((mjtSolver) solver) {
     case mjSOL_PGS:
       mju_dispatch(m, d, solveIslandTask, NULL, nisland);
       break;
@@ -1297,7 +1281,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // run solver over all constraints (monolithic)
   else {
-    switch ((mjtSolver) m->opt.solver) {
+    switch ((mjtSolver) solver) {
     case mjSOL_PGS:                     // PGS
       mj_solPGS(m, d, m->opt.iterations);
       break;
@@ -1318,7 +1302,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   }
 
   // dual solvers: map efc_force to joint space (always monolithic)
-  if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
+  if (solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
     mj_dualFinish(m, d);
   }
 
@@ -1326,15 +1310,32 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   TM_END(mjTIMER_CONSTRAINT);
 }
 
+// forward constraint solve, using the model's own solver and island policy
+void mj_fwdConstraint(const mjModel* m, mjData* d) {
+  // check for invalid solver type, on the entry callers invoke (mj_fwdConstraintCG pins a valid
+  // one); the condition mirrors fwdConstraint's early-out
+  if (d->nefc && m->opt.solver != mjSOL_PGS &&
+      m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
+    mjERROR("unknown solver type %d", m->opt.solver);
+  }
+  fwdConstraint(m, d, (mjtSolver)m->opt.solver, !mjDISABLED(mjDSBL_ISLAND));
+}
+
+
+// forward constraint solve pinned to matrix-free CG over the monolithic problem, for the IPC
+// mode's inner subproblem: the metric operators have no island-local form, and engine_ipc
+// should not have to mutate m->opt to say so
+void mj_fwdConstraintCG(const mjModel* m, mjData* d) {
+  fwdConstraint(m, d, mjSOL_CG, 0);
+}
+
 
 //-------------------------- state advancement and integration  ------------------------------------
 
-// advance state and time
+// the work every integrator does at the pre-step state before it writes the new one: history
+// buffers, activations, sleep
 //   act_dot: activation derivatives
-//   qacc:    acceleration used to update d->qvel (d->qvel += h*qacc)
-//   qvel:    optional velocity used for position integration; if NULL, use d->qvel
-static void mj_advance(const mjModel* m, mjData* d,
-                       const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
   int nactuator = m->nactuator, nsensor = m->nsensor;
 
   // advance history buffers
@@ -1345,8 +1346,10 @@ static void mj_advance(const mjModel* m, mjData* d,
       if (nsample == 0) continue;
 
       // get history buffer pointer and insert ctrl at current time
+      int dim = m->actuator_ctrlnum[i];
       mjtNum* buf = d->history + m->actuator_historyadr[i];
-      *mju_historyInsert(buf, nsample, /*dim=*/1, d->time) = d->ctrl[m->actuator_ctrladr[i]];
+      mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
+      mju_copy(slot, d->ctrl + m->actuator_ctrladr[i], dim);
     }
 
     // advance sensor history buffers
@@ -1433,20 +1436,11 @@ static void mj_advance(const mjModel* m, mjData* d,
     // update sleep indices
     mj_updateSleep(m, d);
   }
+}
 
-  // advance velocities
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
-  if (sleep_filter) {
-    mju_addToSclInd(d->qvel, qacc, d->dof_awake_ind, m->opt.timestep, d->nv_awake);
-  } else {
-    mju_addToScl(d->qvel, qacc, m->opt.timestep, m->nv);
-  }
 
-  // advance positions with qvel if given, d->qvel otherwise (semi-implicit)
-  const int* index = sleep_filter ? d->body_awake_ind : NULL;
-  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
-  mj_integratePosInd(m, d->qpos, qvel ? qvel : d->qvel, m->opt.timestep, index, nbody);
-
+// the work every integrator does after it wrote the new state: time, plugin states
+static void advanceFinish(const mjModel* m, mjData* d) {
   // advance time
   d->time += m->opt.timestep;
 
@@ -1464,9 +1458,53 @@ static void mj_advance(const mjModel* m, mjData* d,
       }
     }
   }
+}
+
+
+// advance state and time
+//   act_dot: activation derivatives
+//   qacc:    acceleration used to update d->qvel (d->qvel += h*qacc)
+//   qvel:    optional velocity used for position integration; if NULL, use d->qvel
+void mj_advance(const mjModel* m, mjData* d,
+                const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+  advanceStart(m, d, act_dot);
+
+  // advance velocities
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  if (sleep_filter) {
+    mju_addToSclInd(d->qvel, qacc, d->dof_awake_ind, m->opt.timestep, d->nv_awake);
+  } else {
+    mju_addToScl(d->qvel, qacc, m->opt.timestep, m->nv);
+  }
+
+  // advance positions with qvel if given, d->qvel otherwise (semi-implicit)
+  const int* index = sleep_filter ? d->body_awake_ind : NULL;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  mj_integratePosInd(m, d->qpos, qvel ? qvel : d->qvel, m->opt.timestep, index, nbody);
+
+  advanceFinish(m, d);
 
   // save qacc for next step warmstart
   mju_copy(d->qacc_warmstart, d->qacc, m->nv);
+}
+
+
+// advance state and time to a verified endpoint, for an integrator that solved the step at the
+// position level: the effective acceleration is published first, as it is the step's acceleration
+// at the pre-step state (a delayed acceleration sensor reads it there); then the pre-step work,
+// then the endpoint and its velocity replace the state in full, then time and plugins. The
+// warm start is left to the caller
+//   act_dot: activation derivatives
+//   qpos:    the endpoint
+//   qvel:    the velocity at the endpoint
+//   qacc:    the effective acceleration of the step, (qvel - d->qvel)/h on the dofs it moved
+void mj_commit(const mjModel* m, mjData* d, const mjtNum* act_dot,
+               const mjtNum* qpos, const mjtNum* qvel, const mjtNum* qacc) {
+  mju_copy(d->qacc, qacc, m->nv);
+  advanceStart(m, d, act_dot);
+  mju_copy(d->qpos, qpos, m->nq);
+  mju_copy(d->qvel, qvel, m->nv);
+  advanceFinish(m, d);
 }
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
@@ -1526,8 +1564,12 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
         d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * damp_deriv;
       }
 
-      // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+      // factorize in-place; warn if a near-singular pivot was clamped
+      int clamped = mj_factorI(d->qH, d->qHDiagInv, nv,
+                               m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+      if (clamped >= 0) {
+        mj_warning(d, mjWARN_INERTIA, clamped);
+      }
     }
 
     // solve
@@ -1672,6 +1714,30 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
 // runtime option validation for the discrete integrator
 void mj_checkDiscrete(const mjModel* m) {
+  // the IPC contact mode is a mode of the discrete integrator: its inner solves are the
+  // discrete solve, so no other integrator can host it
+  if (mjENABLED(mjENBL_IPC) && m->opt.integrator != mjINT_DISCRETE) {
+    mjERROR("flag ipc requires integrator='discrete'");
+  }
+
+  // the inner solves are matrix-free CG: the metric operators are never factored, which keeps
+  // them well defined under stiff contact
+  if (mjENABLED(mjENBL_IPC) && m->opt.solver != mjSOL_CG) {
+    mjERROR("flag ipc requires solver='CG'");
+  }
+
+  // inverse dynamics is not supported under the flag (mj_discreteAcc), and this option runs it
+  // on every step
+  if (mjENABLED(mjENBL_IPC) && mjENABLED(mjENBL_FWDINV)) {
+    mjERROR("flag ipc does not support flag fwdinv: inverse dynamics is not available");
+  }
+
+  // the IPC step appends every articulated tree to its solve and writes the result back, with no
+  // notion of a sleeping tree; sleeping bodies are also invisible to its flex broad phase
+  if (mjENABLED(mjENBL_IPC) && mjENABLED(mjENBL_SLEEP)) {
+    mjERROR("flag ipc does not support flag sleep");
+  }
+
   // passive flex contact is too stiff for explicit integration: it is carried by the
   // effective metric, which requires the discrete integrator
   if (!mj_isMetric(m)) {
@@ -1695,6 +1761,13 @@ void mj_checkDiscrete(const mjModel* m) {
       }
     }
     return;
+  }
+  if (m->opt.solver == mjSOL_NEWTON) {
+    for (int f=0; f < m->nflex; f++) {
+      if (!m->flex_interp[f] && mj_effFlexStiffPossible(m, f) && !mj_flexSimple(m, f)) {
+        mjERROR("discrete integrator: flex with general attachments requires solver='CG'");
+      }
+    }
   }
   if (m->opt.solver == mjSOL_NEWTON && !mjd_flexInterpAssemblable(m)) {
     mjERROR("discrete integrator: interpolated flex with non-simple nodes not yet "
@@ -1784,11 +1857,19 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
     }
 
     // standard factorization (implicit / implicitfast)
+    int clamped;
     if (m->opt.integrator == mjINT_IMPLICIT) {
       int* scratch = mjSTACKALLOC(d, nv, int);
-      mju_factorLUSparse(d->qLU, nv, scratch, m->D_rownnz, m->D_rowadr, m->D_colind, dof_awake_ind);
+      clamped = mju_factorLUSparse(d->qLU, nv, scratch,
+                                   m->D_rownnz, m->D_rowadr, m->D_colind, dof_awake_ind);
     } else {
-      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+      clamped = mj_factorI(d->qH, d->qHDiagInv, nv,
+                           m->M_rownnz, m->M_rowadr, m->M_colind, dof_awake_ind);
+    }
+
+    // warn if a near-singular pivot was clamped
+    if (clamped >= 0) {
+      mj_warning(d, mjWARN_INERTIA, clamped);
     }
   }
 
@@ -1845,6 +1926,30 @@ void mj_implicit(const mjModel* m, mjData* d) {
 
 //-------------------------- top-level API ---------------------------------------------------------
 
+// under the ipc flag a model with a dim-2 flex takes its constraint solves inside mj_ipc, so the
+// forward pipeline skips its own (mj_ipc would discard it); a rigid-only model keeps it
+static int ipcSkipConstraint(const mjModel* m) {
+  if (!mjENABLED(mjENBL_IPC)) return 0;
+  for (int i = 0; i < m->nflex; i++) {
+    if (m->flex_dim[i] == 2) return 1;
+  }
+  return 0;
+}
+
+
+// the constraint stage, unless the IPC mode owns it (ipcSkipConstraint): then qacc stays at the
+// free-flight acceleration, the integrator computes the step and recomputes the acceleration-stage
+// sensors from it (mj_ipc)
+static void fwdConstraintStage(const mjModel* m, mjData* d) {
+  if (ipcSkipConstraint(m)) {
+    mju_copy(d->qacc, d->qacc_smooth, m->nv);
+    mju_zeroInt(d->solver_niter, mjNISLAND);
+  } else {
+    mj_fwdConstraint(m, d);
+  }
+}
+
+
 // forward dynamics with skip; skipstage is mjtStage
 void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) {
   TM_START;
@@ -1894,7 +1999,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
     mj_referenceConstraint(m, d);
   }
   mj_fwdAcceleration(m, d);
-  mj_fwdConstraint(m, d);
+  fwdConstraintStage(m, d);
   if (!skipsensor) {
     d->flg_rnepost = 0;  // clear flag for lazy evaluation
     mj_sensorAcc(m, d);
@@ -1917,6 +2022,9 @@ void mj_step(const mjModel* m, mjData* d) {
   // common to all integrators
   mj_checkPos(m, d);
   mj_checkVel(m, d);
+  // under the ipc flag with a flex the constraint stage is skipped (ipcSkipConstraint): qacc_smooth
+  // is the free-flight acceleration mj_ipc linearizes about, and mj_ipc runs the solves itself and
+  // recomputes the acceleration-stage sensors from its result
   mj_forward(m, d);
   mj_checkAcc(m, d);
 
@@ -1941,7 +2049,11 @@ void mj_step(const mjModel* m, mjData* d) {
     break;
 
   case mjINT_DISCRETE:
-    mj_discrete(m, d);
+    if (mjENABLED(mjENBL_IPC)) {
+      mj_ipc(m, d);
+    } else {
+      mj_discrete(m, d);
+    }
     break;
 
   default:
@@ -1995,7 +2107,7 @@ void mj_step2(const mjModel* m, mjData* d) {
     mj_referenceConstraint(m, d);
   }
   mj_fwdAcceleration(m, d);
-  mj_fwdConstraint(m, d);
+  fwdConstraintStage(m, d);
   d->flg_rnepost = 0;  // clear flag for lazy evaluation
   mj_sensorAcc(m, d);
   mj_checkAcc(m, d);
@@ -2007,7 +2119,11 @@ void mj_step2(const mjModel* m, mjData* d) {
 
   // integrate with Euler, implicit or discrete; RK4 defaults to Euler
   if (m->opt.integrator == mjINT_DISCRETE) {
-    mj_discrete(m, d);
+    if (mjENABLED(mjENBL_IPC)) {
+      mj_ipc(m, d);
+    } else {
+      mj_discrete(m, d);
+    }
   } else if (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST) {
     mj_implicit(m, d);
   } else {

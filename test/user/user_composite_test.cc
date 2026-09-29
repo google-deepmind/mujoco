@@ -37,6 +37,75 @@ using UserCompositeTest = MujocoTest;
 
 // ------------------------ cable tests ---------------------------------------
 
+TEST_F(UserCompositeTest, InvalidInitialRejected) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="cable" count="5 1 1" curve="s" initial="fixed">
+      <geom type="capsule" size=".02"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid keyword: 'fixed'"));
+}
+
+TEST_F(UserCompositeTest, InitialNone) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="cable" count="5 1 1" curve="s" initial="none">
+      <geom type="capsule" size=".02"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->njnt, 3);
+  EXPECT_EQ(m->nv, 9);
+}
+
+TEST_F(UserCompositeTest, InitialFree) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="cable" count="5 1 1" curve="s" initial="free">
+      <geom type="capsule" size=".02"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->njnt, 4);
+  EXPECT_EQ(m->jnt_type[0], mjJNT_FREE);
+  EXPECT_EQ(m->nv, 15);
+}
+
+TEST_F(UserCompositeTest, InitialBall) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <composite type="cable" count="5 1 1" curve="s" initial="ball">
+      <geom type="capsule" size=".02"/>
+    </composite>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->njnt, 4);
+  EXPECT_EQ(m->jnt_type[0], mjJNT_BALL);
+  EXPECT_EQ(m->nv, 12);
+}
+
 TEST_F(UserCompositeTest, ShapeCanBeOmitted) {
   static constexpr char xml[] = R"(
   <mujoco>

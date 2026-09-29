@@ -414,6 +414,14 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="kw_initial">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="free"/>
+      <xs:enumeration value="ball"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="kw_shape">
     <xs:restriction base="xs:string">
       <xs:enumeration value="s"/>
@@ -1175,6 +1183,7 @@
     <xs:attribute name="invdiscrete" type="kw_enable" default="disable"/>
     <xs:attribute name="sleep" type="kw_enable" default="disable"/>
     <xs:attribute name="diagexact" type="kw_enable" default="disable"/>
+    <xs:attribute name="ipc" type="kw_enable" default="disable"/>
   </xs:complexType>
 
   <xs:complexType name="global">
@@ -2330,7 +2339,7 @@
     <xs:attribute name="count" type="int1to3"/>
     <xs:attribute name="offset" type="double3"/>
     <xs:attribute name="vertex" type="doublelist"/>
-    <xs:attribute name="initial" type="xs:string"/>
+    <xs:attribute name="initial" type="kw_initial" default="ball"/>
     <xs:attribute name="curve" type="xs:string"/>
     <xs:attribute name="size" type="double1to3"/>
     <xs:attribute name="quat" type="double4"/>
@@ -2460,7 +2469,7 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
@@ -2503,7 +2512,7 @@
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="group" type="xs:int"/>
     <xs:attribute name="limited" type="kw_FalseTrueAuto" default="auto"/>
-    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto"/>
+    <xs:attribute name="actuatorfrclimited" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="range" type="double2"/>
     <xs:attribute name="actuatorfrcrange" type="double2"/>
     <xs:attribute name="solreflimit" type="double1to2" default="0.02 1"/>
@@ -4061,7 +4070,6 @@
     <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="gap" type="xs:double"/>
-    <xs:attribute name="internal" type="kw_bool"/>
     <xs:attribute name="selfcollide" type="kw_flexself" default="auto"/>
     <xs:attribute name="activelayers" type="xs:int" default="1"/>
     <xs:attribute name="passive" type="kw_bool"/>

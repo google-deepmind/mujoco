@@ -477,12 +477,14 @@ class mjCBase : public mjCBase_ {
 
 class mjCBody_ : public mjCBase {
  protected:
-  mjCBody* parent;
+  mjCBody*  parent;
+  mjCFrame* iframe;  // frame enclosing the inertial element, nullptr if none
 
   // variables computed by 'Compile' and 'AddXXX'
-  int weldid;   // top index of body we are welded to
-  int dofnum;   // number of motion dofs for body
-  int mocapid;  // mocap id, -1: not mocap
+  int weldid;    // top index of body we are welded to
+  int dofnum;    // number of motion dofs for body
+  int mocapid;   // mocap id, -1: not mocap
+  int bodyadr_;  // address of body in model, -1: not compiled
 
   int    contype;      // OR over geom contypes
   int    conaffinity;  // OR over geom conaffinities
@@ -603,9 +605,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   template <class T>
   const std::vector<T*>& GetList() const;
 
-  // accumulate inertia of another body into this body, if `result` is not nullptr, the accumulated
-  // inertia will be stored in `result`, otherwise the body's private spec will be used.
-  void AccumulateInertia(const mjsBody* other, mjsBody* result = nullptr);
+  // accumulate compiled inertia of another body into this body
+  void AccumulateInertia(const mjsBody* other);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -613,6 +614,12 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void Compile(void);          // compiler
   void InertiaFromGeom(void);  // get inertial info from geoms
+
+  // get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
+  void SpecInertial(double com[3], double inert[6]) const;
+
+  // merge the inertial in the spec of a child body into the inertial in the spec of this body
+  void MergeInertial(const mjCBody* child);
 
   // objects allocated by Add functions
   std::vector<mjCBody*>   bodies;   // child bodies
@@ -654,6 +661,7 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   friend class mjCCamera;
   friend class mjCLight;
   friend class mjCModel;
+  friend class mjXWriter;
 
  public:
   mjCFrame(mjCModel* = 0, mjCFrame* = 0);
@@ -701,6 +709,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   friend class mjCDef;
   friend class mjCEquality;
   friend class mjCBody;
+  friend class mjCFlex;
   friend class mjCModel;
   friend class mjCSensor;
   friend class mjXWriter;
@@ -999,7 +1008,6 @@ class mjCFlex_ : public mjCBase {
   std::vector<std::pair<int, int>> edge;          // edge vertex ids
   std::vector<int>                 shell;         // shell fragment vertex ids (dim per fragment)
   std::vector<int>                 elemlayer;     // element layer (distance from border)
-  std::vector<int>                 evpair;        // element-vertex pairs
   std::vector<StencilFlap>         flaps;         // adjacent triangles
   std::vector<double>              vertxpos;      // global vertex positions
   mjCBoundingVolumeHierarchy       tree;          // bounding volume hierarchy
@@ -1071,9 +1079,10 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
 
 
  private:
+  bool IsSimple() const;           // fixed or independent XYZ-slide attachments
   void Compile(const mjVFS* vfs);  // compiler
   void CreateBVH(void);            // create flex BVH
-  void CreateShellPair(void);      // create shells and evpairs
+  void CreateShell(void);          // create shells
   void ComputeCellEmpty(const double* vpos,
                         const int*    elems,  // identify cells
                         int           nv,
@@ -1591,7 +1600,7 @@ class mjCPair : public mjCPair_, private mjsPair {
   const std::string& get_geomname1() const { return geomname1_; }
   const std::string& get_geomname2() const { return geomname2_; }
 
-  int GetSignature(void) { return signature; }
+  uint32_t GetSignature(void) const { return signature; }
 
  private:
   void Compile(void);  // compiler
@@ -1636,7 +1645,7 @@ class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
   std::string get_bodyname1() const { return bodyname1_; }
   std::string get_bodyname2() const { return bodyname2_; }
 
-  int GetSignature() { return signature; }
+  uint32_t GetSignature() const { return signature; }
 
  private:
   void Compile();  // compiler
@@ -1648,6 +1657,7 @@ class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
 
 class mjCEquality_ : public mjCBase {
  protected:
+  int         eqadr_;
   int         obj1id;
   int         obj2id;
   std::string name1_;
@@ -1783,7 +1793,10 @@ class mjCWrap : public mjCWrap_, private mjsWrap {
 
 class mjCPlugin_ : public mjCBase {
  public:
-  int                                             nstate;  // state size for the plugin instance
+  int nstate;  // state size for the plugin instance
+  int stateadr_;
+  int statenum_;
+
   std::map<std::string, std::string, std::less<>> config_attribs;  // raw config attributes from XML
   std::vector<char> flattened_attributes;  // config attributes flattened in plugin-declared order;
 
@@ -1819,18 +1832,21 @@ class mjCActuator_ : public mjCBase {
   int trnid[2];  // id of transmission target
 
   // variable used for temporarily storing the state of the actuator
-  int     actadr_;                                   // address of dof in data->act
-  int     actdim_;                                   // number of dofs in data->act
-  int     ctrladr_;                                  // address of first control in data->ctrl
-  int     ctrlnum_;                                  // number of controls
-  int     ctrlspec_;                                 // resolved input signature, scoped by gaintype
-  int     outadr_;                                   // address of first force output
-  int     outnum_;                                   // number of force outputs, from trntype
-  bool    so3_;                                      // compiles to an SO3 transmission
-  double  ctrlranges_[4][2];                         // resolved per-input control ranges
-  mjtByte ctrllimiteds_[4];                          // resolved per-input limited flags
+  int     actadr_;            // address of dof in data->act
+  int     actdim_;            // number of dofs in data->act
+  int     ctrladr_;           // address of first control in data->ctrl
+  int     ctrlnum_;           // number of controls
+  int     ctrlspec_;          // resolved input signature, scoped by gaintype
+  int     outadr_;            // address of first force output
+  int     outnum_;            // number of force outputs, from trntype
+  int     historyadr_;        // address in data->history
+  int     historynum_;        // number of elements in data->history
+  bool    so3_;               // compiles to an SO3 transmission
+  double  ctrlranges_[4][2];  // resolved per-input control ranges
+  mjtByte ctrllimiteds_[4];   // resolved per-input limited flags
+
   std::map<std::string, std::vector<mjtNum>> act_;   // act at the previous step
-  std::map<std::string, mjtNum>              ctrl_;  // ctrl at the previous step
+  std::map<std::string, std::vector<mjtNum>> ctrl_;  // ctrl at the previous step
 
   // variable-size data
   std::string         plugin_name;
@@ -1870,7 +1886,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   bool is_actlimited() const;
 
   std::vector<mjtNum>& act(const std::string& state_name);
-  mjtNum&              ctrl(const std::string& state_name);
+  std::vector<mjtNum>& ctrl(const std::string& state_name);
 
  private:
   void Compile(void);  // compiler
@@ -1892,6 +1908,9 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
 class mjCSensor_ : public mjCBase {
  protected:
+  int historyadr_;  // address in data->history
+  int historynum_;  // number of elements in data->history
+
   // variable-size data
   std::string         plugin_name;
   std::string         plugin_instance_name;
@@ -2117,7 +2136,14 @@ class mjCDef : public mjsElement {
   mjsDefault spec;
   mjCModel*  model;  // pointer to model that owns object
 
+  void AddRef() { ++refcount; }
+  int  GetRef() { return refcount; }
+  void Release() {
+    if (--refcount == 0) { delete this; }
+  }
+
  private:
+  int         refcount = 1;
   mjCJoint    joint_;
   mjCGeom     geom_;
   mjCSite     site_;

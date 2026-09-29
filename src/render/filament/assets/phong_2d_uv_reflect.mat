@@ -60,8 +60,7 @@ fragment {
                              materialParams.ReflectionNormal));
     // Single-bounce gate: reject secondary reflection passes.
     vec2 refl_err = refl_uv - gl_FragCoord.xy * getResolution().zw;
-    float main_view =
-        step(length(refl_err) + 48.0 * length(fwidth(refl_err)), 0.02);
+    float main_view = step(length(refl_err), 0.02);
     material.postLightingColor =
         vec4(reflection * fresnel * front * main_view, 0.0);
   }

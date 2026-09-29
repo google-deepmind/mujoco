@@ -210,14 +210,21 @@ typedef struct mjData_ {
   mjtNum* cinert;            // com-based body inertia and mass                  (nbody x 10)
 
   // computed by mj_fwdPosition/mj_flex
-  mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
-  mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
-  mjtNum* flexelem_krot;     // corotated element stiffness (implicit only)      (nflexstiffness x 1)
-  mjtNum* flexedge_J;        // flex edge Jacobian                               (nJfe x 1)
-  mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
-  mjtNum* flexvert_J;        // flex vertex Jacobian                             (nJfv x 2)
-  mjtNum* flexvert_length;   // flex vertex lengths                              (nflexvert x 2)
-  mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
+  mjtNum*  flexvert_xpos;      // Cartesian flex vertex positions                (nflexvert x 3)
+  mjtNum*  flexelem_aabb;      // flex element bounding boxes (center, size)     (nflexelem x 6)
+  mjtNum*  flexelem_krot;      // corotated element stiffness (implicit only)    (nflexstiffness x 1)
+  mjtBool* flex_hessian_valid; // Cartesian stretch Hessian cache is current     (nflex x 1)
+  mjtNum*  flexvert_hessian;   // symmetric diagonal Hessian blocks              (nflexvert x 6)
+  mjtNum*  flexedge_hessian;   // oriented off-diagonal Hessian blocks           (nflexedge x 9)
+  mjtNum*  flexedge_J;         // flex edge Jacobian                             (nJfe x 1)
+  mjtNum*  flexedge_length;    // flex edge lengths                              (nflexedge x 1)
+  mjtNum*  flexvert_J;         // flex vertex Jacobian                           (nJfv x 2)
+  mjtNum*  flexvert_length;    // flex vertex lengths                            (nflexvert x 2)
+  mjtNum*  bvh_aabb_dyn;       // global bounding box (center, size)             (nbvhdynamic x 6)
+
+  // AL contact state carried across steps (flag ipc, not in mjtState)
+  mjtNum*  flexvert_lambda;    // flex contact multiplier                        (nflexvert x 1)
+  int*     flexvert_conage;    // flex contact age: <0 loaded, >0 steps since    (nflexvert x 1)
 
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
@@ -299,7 +306,7 @@ typedef struct mjData_ {
   mjtNum* qacc_smooth;       // unconstrained acceleration                       (nv x 1)
 
   // computed by mj_fwdConstraint/mj_inverse
-  mjtNum* qfrc_constraint;   // constraint force                                 (nv x 1)
+  mjtNum* qfrc_constraint;   // constraint force (flag ipc: incl. flex contact)  (nv x 1)
 
   // computed by mj_inverse
   mjtNum* qfrc_inverse;      // net external force; should equal:
@@ -401,8 +408,8 @@ typedef struct mjData_ {
   int*    efm_K_colind;      // effective-stiffness CSR column indices           (nefmK x 1)
   mjtNum* efm_K_val;         // effective-stiffness CSR values                   (nefmK x 1)
   int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
-  int*    efm_con_ind;       // contact rank-1 rows, packed [nnz, colind...]     (nefmcon x 1)
-  mjtNum* efm_con_val;       // contact rank-1 rows, packed [scale, val...]      (nefmcon x 1)
+  int*    efm_con_ind;       // contact rows, packed [nnz, conid, colind...]     (nefmcon x 1)
+  mjtNum* efm_con_val;       // contact rows, packed [scale, force, val...]      (nefmcon x 1)
   mjtNum* efm_L;             // factored 3x3 diagonal blocks of M+K              (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
@@ -624,7 +631,6 @@ typedef struct mjModel_ {
   mjtSize nefm0L;                 // number of non-zeros in the constant metric factor
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
-  mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
   mjtSize nflextexcoord;          // number of vertices with texture coordinates
   mjtSize nJfe;                   // number of non-zeros in sparse flexedge Jacobian matrix
   mjtSize nJfv;                   // number of non-zeros in sparse flexvert Jacobian matrix
@@ -898,7 +904,6 @@ typedef struct mjModel_ {
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
   mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
   mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
-  mjtBool*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
   int*      flex_passive;         // passive collisions enabled               (nflex x 1)
@@ -923,8 +928,6 @@ typedef struct mjModel_ {
   int*      flex_bendingadr;      // first bending data address               (nflex x 1)
   int*      flex_shellnum;        // number of shells                         (nflex x 1)
   int*      flex_shelldataadr;    // first shell data address                 (nflex x 1)
-  int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
-  int*      flex_evpairnum;       // number of evpairs                        (nflex x 1)
   int*      flex_texcoordadr;     // address in flex_texcoord; -1: none       (nflex x 1)
   int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
@@ -938,7 +941,6 @@ typedef struct mjModel_ {
   int*      flex_elemedge;        // element edge ids                         (nflexelemedge x 1)
   int*      flex_elemlayer;       // element distance from surface, 3D only   (nflexelem x 1)
   int*      flex_shell;           // shell fragment vertex ids (dim per frag) (nflexshelldata x 1)
-  int*      flex_evpair;          // (element, vertex) collision pairs        (nflexevpair x 2)
   mjtNum*   flex_vert;            // vertex positions in local body frames    (nflexvert x 3)
   mjtNum*   flex_vert0;           // vertex positions in qpos0 on [0, 1]^d    (nflexvert x 3)
   mjtNum*   flex_vertmetric;      // inverse of reference shape matrix        (nflexvert x 4)
@@ -1577,6 +1579,13 @@ typedef struct mjrfRenderRequest_ {
   mjtBool enable_post_processing;    // enable post processing, enabled by default
   mjtBool enable_reflections;        // enable reflections, enabled by default
   mjtBool enable_shadows;            // enable shadows, enabled by default
+
+  // The headlight is a directional light aligned with this request's camera. It
+  // is a property of the request rather than of the scene, so that a scene
+  // rendered from several cameras is not lit by any one of them.
+  mjtBool enable_headlight;          // enable the headlight, disabled by default
+  float headlight_color[3];          // headlight color, RGB
+  float headlight_intensity;         // headlight intensity, in lux
 } mjrfRenderRequest;
 typedef struct mjrfReadPixelsRequest_ {
   mjrfRenderTarget* target;              // render target from which to read the image pixels
@@ -2057,7 +2066,6 @@ typedef struct mjsFlex_ {          // flex specification
   int dim;                         // element dimensionality
   double radius;                   // radius around primitive element
   double size[3];                  // vertex bounding box half sizes in qpos0
-  mjtBool internal;                // enable internal collisions
   mjtBool flatskin;                // render flex skin with flat shading
   mjtFlexSelf selfcollide;         // mode for flex self collision
   int passive;                     // mode for passive collisions
@@ -2072,6 +2080,8 @@ typedef struct mjsFlex_ {          // flex specification
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
   int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
+  int elastic3d;  // experimental 3D material (mjSpec only); 0: Saint
+                  // Venant-Kirchhoff, 1: Stable Neo-Hookean
   int cellcount[3];                // grid cell count for finite cell method
   int order;                       // interpolation order (1: trilinear, 2: quadratic)
 
@@ -2414,8 +2424,9 @@ typedef enum mjtEnableBit {       // enable optional feature bitflags
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
   mjENBL_SLEEP        = 1<<4,     // sleeping
   mjENBL_DIAGEXACT    = 1<<5,     // exact diagonal of constraint inertia
+  mjENBL_IPC          = 1<<6,     // IPC flex contact mode of the discrete integrator
 
-  mjNENABLE           = 6         // number of enable flags
+  mjNENABLE           = 7         // number of enable flags
 } mjtEnableBit;
 typedef enum mjtJoint {           // type of degree of freedom
   mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
@@ -3475,7 +3486,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Fwdinv",
   "InvDiscrete",
   "Sleep",
-  "DiagExact"
+  "DiagExact",
+  "IPC"
 };
 const char* mjTIMERSTRING[mjNTIMER]= {
   "step",
@@ -3614,9 +3626,15 @@ void mjrf_defaultLightParams(mjrfLightParams* params);
 mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
 void mjrf_destroyLight(mjrfLight* light);
 void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
-void mjrf_setLightIntensity(mjrfLight* light, float intensity);
-void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
+void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled);
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
+void mjrf_setLightIntensity(mjrfLight* light, float intensity);
+void mjrf_setLightRange(mjrfLight* light, float range);
+void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff);
+void mjrf_setLightSoftness(mjrfLight* light, float softness);
+void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
+void mjrf_setLightBlurWidth(mjrfLight* light, float blur_width);
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
 void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
 int mjrf_getLightType(const mjrfLight* light);
 void mjrf_defaultMaterial(mjrfMaterial* material);
@@ -3770,7 +3788,8 @@ void mj_extractState(const mjModel* m, const mjtNum* src, int srcsig,
                      mjtNum* dst, int dstsig);
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig);
 void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
-mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                          mjtNum* result, int interp);
 const mjtNum* mj_readSensor(const mjModel* m, const mjData* d, int id, mjtNum time,
                             mjtNum* result, int interp);
 void mj_initCtrlHistory(const mjModel* m, mjData* d, int id,
@@ -4110,6 +4129,9 @@ const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* conten
 void mjp_registerEncoder(const mjpEncoder* encoder);
 void mjp_defaultEncoder(mjpEncoder* encoder);
 const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
+void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+int mjp_archiveResourceProviderCount(void);
 mjResource* mju_openResource(const char* dir, const char* name,
                              const mjVFS* vfs, char* error, size_t nerror);
 void mju_closeResource(mjResource* resource);

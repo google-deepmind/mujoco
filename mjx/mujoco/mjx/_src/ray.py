@@ -177,7 +177,7 @@ def _ray_triangle(
   # intersect ray with plane of triangle
   nrm = jp.cross(vert[0] - vert[2], vert[1] - vert[2])
   dist = math.safe_div(jp.dot(vert[2] - pnt, nrm), jp.dot(vec, nrm))
-  valid &= dist >= 0
+  valid &= (dist >= 0)
   dist = jp.where(valid, dist, jp.inf)
 
   return dist
@@ -283,9 +283,9 @@ def ray(
     if geom_type == GeomType.MESH:
       dist, id_ = fn(m, id_, *args)  # pyrefly: ignore[bad-argument-count, bad-argument-type]
     else:
-      dist = jax.vmap(fn)(*args)
+      dist = jax.vmap(fn)(*args)  # pyrefly: ignore[bad-argument-type, missing-argument]
 
-    dist = jp.where(geom_filter_dyn[id_], dist, jp.inf)
+    dist = jp.where(geom_filter_dyn[id_], dist, jp.inf)  # pyrefly: ignore[bad-argument-type]
     dists, ids = dists + [dist], ids + [id_]
 
   if not ids:

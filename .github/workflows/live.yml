@@ -4,16 +4,22 @@ on:
   push:
     branches:
       - live
+  # zizmor: ignore[dangerous-triggers] - triggers on completion of update-live to build live branch
+  workflow_run:
+    workflows: ["update-live"]
+    types: [completed]
 
 permissions:
   contents: read
 
 jobs:
   build-and-upload-artifacts:
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
+        ref: live
         persist-credentials: false
 
     - name: Prepare Linux
@@ -30,8 +36,9 @@ jobs:
 
     - name: Prepare files for GitHub Pages
       run: |
-        mkdir -p dist/bin
+        mkdir -p dist/bin/ios
         cp -r build_wasm/bin/* dist/bin/
+        cp -r build_wasm_ios/bin/* dist/bin/ios/
         cp src/experimental/studio/live.html dist/index.html
         cp src/experimental/studio/live.css dist/live.css
         cp src/experimental/studio/live.js dist/live.js

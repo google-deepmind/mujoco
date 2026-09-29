@@ -29,6 +29,7 @@ mujoco_test(
   xml_native_writer_test
   ADDITIONAL_LINK_LIBRARIES
   absl::flat_hash_set
+  compare_model
   PROPERTIES
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
@@ -43,3 +44,5 @@ mujoco_test(
   ENVIRONMENT
   "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )
+
+add_subdirectory(mjz)

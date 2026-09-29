@@ -874,7 +874,10 @@ class HFieldTest(absltest.TestCase):
 
   def test_hfield_outside(self):
     """Tests that objects outside of the hfield do not collide."""
-    positions = ['2.0 0', '-2.0 0', '0 -2.0', '0 2.0']
+    positions = [
+        '2.0 0', '-2.0 0', '0 -2.0', '0 2.0',
+        '1e10 0', '-1e10 0', '0 -1e10', '0 1e10',
+    ]
     for p in positions:
       xml = self._HFIELD.replace('<body pos="0 0', f'<body pos="{p}')
       _, dx = _collide(xml)

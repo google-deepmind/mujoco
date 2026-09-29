@@ -115,8 +115,9 @@ MJAPI void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], con
 
 // sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
-void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
-                        const int *rownnz, const int *rowadr, const int *colind, const int *index);
+//  clamp pivots with magnitude below mjMINVAL, return first clamped dof index or -1 if none
+int mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
+                       const int *rownnz, const int *rowadr, const int *colind, const int *index);
 
 // solve mat*res=vec given LU factorization of mat (only dofs in index, if given)
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
@@ -128,6 +129,10 @@ void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
+
+// same as mju_eig3, stop when off-diagonal elements are below reltol times the largest element
+MJAPI int mju_eig3Tol(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9],
+                      mjtNum reltol);
 
 // solve QCQP in 2 dimensions:
 //  min  0.5*x'*A*x + x'*b  s.t.  sum (xi/di)^2 <= r^2

@@ -234,14 +234,21 @@ typedef struct mjData_ {
   mjtNum* cinert;            // com-based body inertia and mass                  (nbody x 10)
 
   // computed by mj_fwdPosition/mj_flex
-  mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
-  mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
-  mjtNum* flexelem_krot;     // corotated element stiffness (implicit only)      (nflexstiffness x 1)
-  mjtNum* flexedge_J;        // flex edge Jacobian                               (nJfe x 1)
-  mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
-  mjtNum* flexvert_J;        // flex vertex Jacobian                             (nJfv x 2)
-  mjtNum* flexvert_length;   // flex vertex lengths                              (nflexvert x 2)
-  mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
+  mjtNum*  flexvert_xpos;      // Cartesian flex vertex positions                (nflexvert x 3)
+  mjtNum*  flexelem_aabb;      // flex element bounding boxes (center, size)     (nflexelem x 6)
+  mjtNum*  flexelem_krot;      // corotated element stiffness (implicit only)    (nflexstiffness x 1)
+  mjtBool* flex_hessian_valid; // Cartesian stretch Hessian cache is current     (nflex x 1)
+  mjtNum*  flexvert_hessian;   // symmetric diagonal Hessian blocks              (nflexvert x 6)
+  mjtNum*  flexedge_hessian;   // oriented off-diagonal Hessian blocks           (nflexedge x 9)
+  mjtNum*  flexedge_J;         // flex edge Jacobian                             (nJfe x 1)
+  mjtNum*  flexedge_length;    // flex edge lengths                              (nflexedge x 1)
+  mjtNum*  flexvert_J;         // flex vertex Jacobian                           (nJfv x 2)
+  mjtNum*  flexvert_length;    // flex vertex lengths                            (nflexvert x 2)
+  mjtNum*  bvh_aabb_dyn;       // global bounding box (center, size)             (nbvhdynamic x 6)
+
+  // AL contact state carried across steps (flag ipc, not in mjtState)
+  mjtNum*  flexvert_lambda;    // flex contact multiplier                        (nflexvert x 1)
+  int*     flexvert_conage;    // flex contact age: <0 loaded, >0 steps since    (nflexvert x 1)
 
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
@@ -323,7 +330,7 @@ typedef struct mjData_ {
   mjtNum* qacc_smooth;       // unconstrained acceleration                       (nv x 1)
 
   // computed by mj_fwdConstraint/mj_inverse
-  mjtNum* qfrc_constraint;   // constraint force                                 (nv x 1)
+  mjtNum* qfrc_constraint;   // constraint force (flag ipc: incl. flex contact)  (nv x 1)
 
   // computed by mj_inverse
   mjtNum* qfrc_inverse;      // net external force; should equal:
@@ -425,8 +432,8 @@ typedef struct mjData_ {
   int*    efm_K_colind;      // effective-stiffness CSR column indices           (nefmK x 1)
   mjtNum* efm_K_val;         // effective-stiffness CSR values                   (nefmK x 1)
   int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
-  int*    efm_con_ind;       // contact rank-1 rows, packed [nnz, colind...]     (nefmcon x 1)
-  mjtNum* efm_con_val;       // contact rank-1 rows, packed [scale, val...]      (nefmcon x 1)
+  int*    efm_con_ind;       // contact rows, packed [nnz, conid, colind...]     (nefmcon x 1)
+  mjtNum* efm_con_val;       // contact rows, packed [scale, force, val...]      (nefmcon x 1)
   mjtNum* efm_L;             // factored 3x3 diagonal blocks of M+K              (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent

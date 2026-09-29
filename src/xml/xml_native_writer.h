@@ -105,7 +105,12 @@ class mjXWriter : public mjXBase {
   void OneTendon(tinyxml2::XMLElement* elem, const mjCTendon* ptendon, mjCDef* def);
   void OneActuator(tinyxml2::XMLElement* elem, const mjCActuator* pactuator, mjCDef* def);
   void OnePlugin(tinyxml2::XMLElement* elem, const mjsPlugin* plugin);
-  tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem, mjCFrame* frame);
+  tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem,
+                                 mjCFrame*             frame,
+                                 std::string_view      childclass);
+
+  // strip a frame from a compiled pose: pos/quat become relative to the frame
+  static void FrameLocal(const mjCFrame* frame, double pos[3], double quat[4]);
 
   bool writingdefaults;  // true during defaults write
 };

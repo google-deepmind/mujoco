@@ -74,7 +74,7 @@ def _forward_shim(
     actuator_ctrlnum: wp.array[int],
     actuator_ctrlrange: wp.array2d[wp.vec2],
     actuator_ctrlspec: wp.array[int],
-    actuator_delay: wp.array[float],
+    actuator_delay: wp.array2d[float],
     actuator_dynprm: wp.array2d[mjwp_types.vec10],
     actuator_dyntype: wp.array[int],
     actuator_forcelimited: wp.array[bool],
@@ -82,8 +82,8 @@ def _forward_shim(
     actuator_gainprm: wp.array2d[mjwp_types.vec10],
     actuator_gaintype: wp.array[int],
     actuator_gear: wp.array2d[wp.spatial_vector],
-    actuator_history: wp.array[wp.vec2i],
-    actuator_historyadr: wp.array[int],
+    actuator_history: wp.array2d[wp.vec2i],
+    actuator_historyadr: wp.array2d[int],
     actuator_lengthrange: wp.array2d[wp.vec2],
     actuator_trnid: wp.array[wp.vec2i],
     actuator_trntype: wp.array[int],
@@ -242,6 +242,8 @@ def _forward_shim(
     geom_solref: wp.array2d[wp.vec2],
     geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
+    has_1d_flex: bool,
+    has_2d_flex: bool,
     has_3d_flex: bool,
     has_ellipsoid_geom: bool,
     has_flex_selfcollide: bool,
@@ -334,6 +336,7 @@ def _forward_shim(
     nsensorcontact: int,
     nsensortaxel: int,
     nsite: int,
+    ntactileweld: int,
     ntendon: int,
     ntree: int,
     nu: int,
@@ -370,13 +373,13 @@ def _forward_shim(
     sensor_contact_adr: wp.array[int],
     sensor_cutoff: wp.array[float],
     sensor_datatype: wp.array[int],
-    sensor_delay: wp.array[float],
+    sensor_delay: wp.array2d[float],
     sensor_dim: wp.array[int],
     sensor_e_kinetic: bool,
     sensor_e_potential: bool,
-    sensor_history: wp.array[wp.vec2i],
-    sensor_historyadr: wp.array[int],
-    sensor_interval: wp.array[wp.vec2],
+    sensor_history: wp.array2d[wp.vec2i],
+    sensor_historyadr: wp.array2d[int],
+    sensor_interval: wp.array2d[wp.vec2],
     sensor_intprm: wp.array2d[int],
     sensor_limitfrc_adr: wp.array[int],
     sensor_limitpos_adr: wp.array[int],
@@ -431,6 +434,7 @@ def _forward_shim(
     tree_dofadr: wp.array[int],
     tree_dofnum: wp.array[int],
     tree_sleep_policy: wp.array[int],
+    weld_tactile_id: wp.array[int],
     wrap_geom_adr: wp.array[int],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
@@ -455,6 +459,7 @@ def _forward_shim(
     opt__ls_tolerance: wp.array[float],
     opt__magnetic: wp.array[wp.vec3],
     opt__run_collision_detection: bool,
+    opt__run_rne_postconstraint: bool,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     opt__solver: int,
@@ -836,6 +841,8 @@ def _forward_shim(
   _m.geom_solref = geom_solref
   _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
+  _m.has_1d_flex = has_1d_flex
+  _m.has_2d_flex = has_2d_flex
   _m.has_3d_flex = has_3d_flex
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_selfcollide = has_flex_selfcollide
@@ -928,6 +935,7 @@ def _forward_shim(
   _m.nsensorcontact = nsensorcontact
   _m.nsensortaxel = nsensortaxel
   _m.nsite = nsite
+  _m.ntactileweld = ntactileweld
   _m.ntendon = ntendon
   _m.ntree = ntree
   _m.nu = nu
@@ -957,6 +965,7 @@ def _forward_shim(
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
   _m.opt.run_collision_detection = opt__run_collision_detection
+  _m.opt.run_rne_postconstraint = opt__run_rne_postconstraint
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.opt.solver = opt__solver
@@ -1051,6 +1060,7 @@ def _forward_shim(
   _m.tree_dofadr = tree_dofadr
   _m.tree_dofnum = tree_dofnum
   _m.tree_sleep_policy = tree_sleep_policy
+  _m.weld_tactile_id = weld_tactile_id
   _m.wrap_geom_adr = wrap_geom_adr
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
@@ -1555,11 +1565,14 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'actuator_biasprm',
           'actuator_cranklength',
           'actuator_ctrlrange',
+          'actuator_delay',
           'actuator_dynprm',
           'actuator_force',
           'actuator_forcerange',
           'actuator_gainprm',
           'actuator_gear',
+          'actuator_history',
+          'actuator_historyadr',
           'actuator_length',
           'actuator_lengthrange',
           'actuator_moment',
@@ -1775,6 +1788,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'qpos0',
           'qpos_spring',
           'qvel',
+          'sensor_delay',
+          'sensor_history',
+          'sensor_historyadr',
+          'sensor_interval',
           'sensordata',
           'site_pos',
           'site_quat',
@@ -2168,6 +2185,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.geom_solref,
       m._impl.geom_surfacevel,
       m.geom_type,
+      m._impl.has_1d_flex,
+      m._impl.has_2d_flex,
       m._impl.has_3d_flex,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_selfcollide,
@@ -2260,6 +2279,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.nsensorcontact,
       m._impl.nsensortaxel,
       m.nsite,
+      m._impl.ntactileweld,
       m.ntendon,
       m._impl.ntree,
       m.nu,
@@ -2357,6 +2377,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.tree_dofadr,
       m._impl.tree_dofnum,
       m._impl.tree_sleep_policy,
+      m._impl.weld_tactile_id,
       m._impl.wrap_geom_adr,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
@@ -2381,6 +2402,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.ls_tolerance,
       m.opt.magnetic,
       m.opt._impl.run_collision_detection,
+      m.opt._impl.run_rne_postconstraint,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       m.opt.solver,
@@ -2766,7 +2788,7 @@ def _step_shim(
     actuator_ctrlnum: wp.array[int],
     actuator_ctrlrange: wp.array2d[wp.vec2],
     actuator_ctrlspec: wp.array[int],
-    actuator_delay: wp.array[float],
+    actuator_delay: wp.array2d[float],
     actuator_dynprm: wp.array2d[mjwp_types.vec10],
     actuator_dyntype: wp.array[int],
     actuator_forcelimited: wp.array[bool],
@@ -2774,8 +2796,8 @@ def _step_shim(
     actuator_gainprm: wp.array2d[mjwp_types.vec10],
     actuator_gaintype: wp.array[int],
     actuator_gear: wp.array2d[wp.spatial_vector],
-    actuator_history: wp.array[wp.vec2i],
-    actuator_historyadr: wp.array[int],
+    actuator_history: wp.array2d[wp.vec2i],
+    actuator_historyadr: wp.array2d[int],
     actuator_lengthrange: wp.array2d[wp.vec2],
     actuator_trnid: wp.array[wp.vec2i],
     actuator_trntype: wp.array[int],
@@ -2788,6 +2810,7 @@ def _step_shim(
     body_fluid_box_adr: wp.array[int],
     body_fluid_ellipsoid: wp.array[bool],
     body_fluid_ellipsoid_adr: wp.array[int],
+    body_freeadr: wp.array[int],
     body_geomadr: wp.array[int],
     body_geomnum: wp.array[int],
     body_gravcomp: wp.array2d[float],
@@ -2936,6 +2959,8 @@ def _step_shim(
     geom_solref: wp.array2d[wp.vec2],
     geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
+    has_1d_flex: bool,
+    has_2d_flex: bool,
     has_3d_flex: bool,
     has_ellipsoid_geom: bool,
     has_flex_selfcollide: bool,
@@ -3031,6 +3056,7 @@ def _step_shim(
     nsensorcontact: int,
     nsensortaxel: int,
     nsite: int,
+    ntactileweld: int,
     ntendon: int,
     ntree: int,
     nu: int,
@@ -3069,13 +3095,13 @@ def _step_shim(
     sensor_contact_adr: wp.array[int],
     sensor_cutoff: wp.array[float],
     sensor_datatype: wp.array[int],
-    sensor_delay: wp.array[float],
+    sensor_delay: wp.array2d[float],
     sensor_dim: wp.array[int],
     sensor_e_kinetic: bool,
     sensor_e_potential: bool,
-    sensor_history: wp.array[wp.vec2i],
-    sensor_historyadr: wp.array[int],
-    sensor_interval: wp.array[wp.vec2],
+    sensor_history: wp.array2d[wp.vec2i],
+    sensor_historyadr: wp.array2d[int],
+    sensor_interval: wp.array2d[wp.vec2],
     sensor_intprm: wp.array2d[int],
     sensor_limitfrc_adr: wp.array[int],
     sensor_limitpos_adr: wp.array[int],
@@ -3130,6 +3156,7 @@ def _step_shim(
     tree_dofadr: wp.array[int],
     tree_dofnum: wp.array[int],
     tree_sleep_policy: wp.array[int],
+    weld_tactile_id: wp.array[int],
     wrap_geom_adr: wp.array[int],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
@@ -3155,6 +3182,7 @@ def _step_shim(
     opt__ls_tolerance: wp.array[float],
     opt__magnetic: wp.array[wp.vec3],
     opt__run_collision_detection: bool,
+    opt__run_rne_postconstraint: bool,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     opt__sleep_tolerance: wp.array[float],
@@ -3398,6 +3426,7 @@ def _step_shim(
   _m.body_fluid_box_adr = body_fluid_box_adr
   _m.body_fluid_ellipsoid = body_fluid_ellipsoid
   _m.body_fluid_ellipsoid_adr = body_fluid_ellipsoid_adr
+  _m.body_freeadr = body_freeadr
   _m.body_geomadr = body_geomadr
   _m.body_geomnum = body_geomnum
   _m.body_gravcomp = body_gravcomp
@@ -3546,6 +3575,8 @@ def _step_shim(
   _m.geom_solref = geom_solref
   _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
+  _m.has_1d_flex = has_1d_flex
+  _m.has_2d_flex = has_2d_flex
   _m.has_3d_flex = has_3d_flex
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_selfcollide = has_flex_selfcollide
@@ -3641,6 +3672,7 @@ def _step_shim(
   _m.nsensorcontact = nsensorcontact
   _m.nsensortaxel = nsensortaxel
   _m.nsite = nsite
+  _m.ntactileweld = ntactileweld
   _m.ntendon = ntendon
   _m.ntree = ntree
   _m.nu = nu
@@ -3671,6 +3703,7 @@ def _step_shim(
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
   _m.opt.run_collision_detection = opt__run_collision_detection
+  _m.opt.run_rne_postconstraint = opt__run_rne_postconstraint
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.opt.sleep_tolerance = opt__sleep_tolerance
@@ -3768,6 +3801,7 @@ def _step_shim(
   _m.tree_dofadr = tree_dofadr
   _m.tree_dofnum = tree_dofnum
   _m.tree_sleep_policy = tree_sleep_policy
+  _m.weld_tactile_id = weld_tactile_id
   _m.wrap_geom_adr = wrap_geom_adr
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
@@ -4283,11 +4317,14 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'actuator_biasprm',
           'actuator_cranklength',
           'actuator_ctrlrange',
+          'actuator_delay',
           'actuator_dynprm',
           'actuator_force',
           'actuator_forcerange',
           'actuator_gainprm',
           'actuator_gear',
+          'actuator_history',
+          'actuator_historyadr',
           'actuator_length',
           'actuator_lengthrange',
           'actuator_moment',
@@ -4505,6 +4542,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'qpos0',
           'qpos_spring',
           'qvel',
+          'sensor_delay',
+          'sensor_history',
+          'sensor_historyadr',
+          'sensor_interval',
           'sensordata',
           'site_pos',
           'site_quat',
@@ -4763,6 +4804,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.body_fluid_box_adr,
       m._impl.body_fluid_ellipsoid,
       m._impl.body_fluid_ellipsoid_adr,
+      m._impl.body_freeadr,
       m.body_geomadr,
       m.body_geomnum,
       m.body_gravcomp,
@@ -4911,6 +4953,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.geom_solref,
       m._impl.geom_surfacevel,
       m.geom_type,
+      m._impl.has_1d_flex,
+      m._impl.has_2d_flex,
       m._impl.has_3d_flex,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_selfcollide,
@@ -5006,6 +5050,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.nsensorcontact,
       m._impl.nsensortaxel,
       m.nsite,
+      m._impl.ntactileweld,
       m.ntendon,
       m._impl.ntree,
       m.nu,
@@ -5105,6 +5150,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.tree_dofadr,
       m._impl.tree_dofnum,
       m._impl.tree_sleep_policy,
+      m._impl.weld_tactile_id,
       m._impl.wrap_geom_adr,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,
@@ -5130,6 +5176,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.ls_tolerance,
       m.opt.magnetic,
       m.opt._impl.run_collision_detection,
+      m.opt._impl.run_rne_postconstraint,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       m.opt._impl.sleep_tolerance,

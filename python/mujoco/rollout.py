@@ -219,9 +219,9 @@ class Rollout:
 
     # allocate output if not provided
     if state is None:
-      state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)
+      state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)  # pyrefly: ignore[no-matching-overload]
     if sensordata is None:
-      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)
+      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)  # pyrefly: ignore[no-matching-overload]
 
     # call rollout
     self.rollout_.rollout(

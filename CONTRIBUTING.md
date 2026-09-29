@@ -31,88 +31,93 @@ again.
 
 How to submit a good bug report:
 
-- Use a clear and descriptive title.
+-   Use a clear and descriptive title.
 
-- Make it easy to reproduce the problem. If this requires a model, attach it as
-a zip file to the bug report. The model and steps required to reproduce the
-problem should be *minimal*, in the sense that irrelevant parts are
-removed.
+-   Make it easy to reproduce the problem. If this requires a model, attach it
+    as a zip file to the bug report. The model and steps required to reproduce
+    the problem should be *minimal*, in the sense that irrelevant parts are
+    removed.
 
-- Clearly state what is the expected behavior.
+-   Clearly state what is the expected behavior.
 
-- Include an illustrative screenshot, if relevant.
+-   Include an illustrative screenshot, if relevant.
 
 Try to provide context:
 
-- If the problem is new, see if you can reproduce it in an older version.
-What's the most recent version in which the problem doesn't happen?
+-   If the problem is new, see if you can reproduce it in an older version.
+    What's the most recent version in which the problem doesn't happen?
 
-- Can you reproduce the problem on multiple platforms?
+-   Can you reproduce the problem on multiple platforms?
 
 ### Suggesting enhancements
 
 Before submitting an enhancement suggestion:
 
-- Check if you're using the [latest
-version](https://github.com/google-deepmind/mujoco/releases/latest) of MuJoCo.
+-   Check if you're using the
+    [latest version](https://github.com/google-deepmind/mujoco/releases/latest)
+    of MuJoCo.
 
-- Perform a quick [search](https://github.com/google-deepmind/mujoco/issues) to
-see if the enhancement has already been suggested. If it has, add a comment to
-the existing issue instead of opening a new one.
+-   Perform a quick [search](https://github.com/google-deepmind/mujoco/issues)
+    to see if the enhancement has already been suggested. If it has, add a
+    comment to the existing issue instead of opening a new one.
 
 How to submit a good enhancement suggestion:
 
-- Use a clear and descriptive title.
+-   Use a clear and descriptive title.
 
-- Describe the current behaviour and the behavior which you hope to see instead.
+-   Describe the current behaviour and the behavior which you hope to see
+    instead.
 
-- Explain why this enhancement would be useful.
+-   Explain why this enhancement would be useful.
 
-- Specify the version of MuJoCo and platform/OS you are using.
+-   Specify the version of MuJoCo and platform/OS you are using.
 
 ### Contributing code
 
-- Except for small and straightforward bug fixes, please get in touch with us
-before you start working on a contribution so that we can help and possibly
-guide you. Coordinating up front makes it much easier to avoid frustration later
-on.
+-   Except for small and straightforward bug fixes, please get in touch with us
+    before you start working on a contribution so that we can help and possibly
+    guide you. Coordinating up front makes it much easier to avoid frustration
+    later on.
 
-- All submissions require review. Please use GitHub pull requests for this
-purpose. Please consult
-[GitHub Help](https://help.github.com/articles/about-pull-requests/) for more
-information on pull requests.
+-   All submissions require review. Please use GitHub pull requests for this
+    purpose. Please consult
+    [GitHub Help](https://help.github.com/articles/about-pull-requests/) for
+    more information on pull requests.
 
-- Write tests. MuJoCo uses [googletest](https://github.com/google/googletest)
-for C++ tests, [absltest](https://abseil.io/docs/python/guides/testing) for
-Python binding code and [nunit](https://nunit.org/) for C# code in the Unity
-plugin. In most cases, a pull request will only be accepted if it includes
-tests. MuJoCo's internal codebase is currently lacking in test coverage. If you
-want to modify a function that isn't covered by tests, you'll be expected to
-contribute tests for the existing functionality, not just your modification. In
-fact, writing a test for existing code is a great way to get started with
-contributions.
+-   Write tests. MuJoCo uses [googletest](https://github.com/google/googletest)
+    for C++ tests, [absltest](https://abseil.io/docs/python/guides/testing) for
+    Python binding code and [nunit](https://nunit.org/) for C# code in the Unity
+    plugin. In most cases, a pull request will only be accepted if it includes
+    tests. MuJoCo's internal codebase is currently lacking in test coverage. If
+    you want to modify a function that isn't covered by tests, you'll be
+    expected to contribute tests for the existing functionality, not just your
+    modification. In fact, writing a test for existing code is a great way to
+    get started with contributions.
 
-- Resolve compiler warnings.
+-   Resolve compiler warnings.
 
-- All existing tests must pass.
+-   All tests must pass in **both double and single precision** (with and
+    without `mjUSESINGLE`). When writing or updating tests with floating-point
+    comparisons, use the precision-aware utilities in
+    [`test/fixture.h`](test/fixture.h) (e.g. `MjTol`, `MjNear`), and follow the
+    tolerance calibration workflow documented there using `MJTOL_SCALE=0`.
 
-- Follow the [Style Guide](./STYLEGUIDE.md). In particular, adequately comment
-your code.
+-   Follow the [Style Guide](./STYLEGUIDE.md). In particular, adequately comment
+    your code.
 
-- Make small pull requests. We will likely ask you to split up a large pull
-request into self-contained, smaller ones, especially if the PR is trying to
-achieve multiple things.
+-   Make small pull requests. We will likely ask you to split up a large pull
+    request into self-contained, smaller ones, especially if the PR is trying to
+    achieve multiple things.
 
-- Respond to reviewers. Please be responsive to any questions and comments.
+-   Respond to reviewers. Please be responsive to any questions and comments.
 
-- If you are not concerned with having your contribution attributed to you via
-  Git authorship, please let us know in the PR. It is significantly easier
-  for us to directly incorporate changes rather than going through the
-  full pull request import process. This will get your changes merged more
-  quickly.
+-   If you are not concerned with having your contribution attributed to you via
+    Git authorship, please let us know in the PR. It is significantly easier for
+    us to directly incorporate changes rather than going through the full pull
+    request import process. This will get your changes merged more quickly.
 
-Once you have met all the requirements, your code will be merged.
-Thanks for improving MuJoCo!
+Once you have met all the requirements, your code will be merged. Thanks for
+improving MuJoCo!
 
 ### Community guidelines
 

@@ -193,7 +193,6 @@
     X( nefm0L )             \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
-    X( nflexevpair )        \
     X( nflextexcoord )      \
     X( nJfe )               \
     X( nJfv )               \
@@ -457,7 +456,6 @@
     X   ( mjtNum,  flex_friction,         nflex,         3                    ) \
     X   ( mjtNum,  flex_margin,           nflex,         1                    ) \
     X   ( mjtNum,  flex_gap,              nflex,         1                    ) \
-    X   ( mjtBool, flex_internal,         nflex,         1                    ) \
     X   ( int,     flex_selfcollide,      nflex,         1                    ) \
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
     X   ( int,     flex_passive,          nflex,         1                    ) \
@@ -480,8 +478,6 @@
     X   ( int,     flex_bendingadr,       nflex,         1                    ) \
     X   ( int,     flex_shellnum,         nflex,         1                    ) \
     X   ( int,     flex_shelldataadr,     nflex,         1                    ) \
-    X   ( int,     flex_evpairadr,        nflex,         1                    ) \
-    X   ( int,     flex_evpairnum,        nflex,         1                    ) \
     X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
@@ -495,7 +491,6 @@
     X   ( int,     flex_elemedge,         nflexelemedge, 1                    ) \
     X   ( int,     flex_elemlayer,        nflexelem,     1                    ) \
     X   ( int,     flex_shell,            nflexshelldata,1                    ) \
-    X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vertmetric,       nflexvert,     4                    ) \
@@ -881,11 +876,16 @@
     X   ( mjtNum,    flexvert_xpos,     nflexvert,   3           ) \
     X   ( mjtNum,    flexelem_aabb,     nflexelem,   6           ) \
     X   ( mjtNum,    flexelem_krot,     nflexstiffness, 1        ) \
+    X   ( mjtBool,   flex_hessian_valid, nflex,      1           ) \
+    X   ( mjtNum,    flexvert_hessian,  nflexvert,   6           ) \
+    X   ( mjtNum,    flexedge_hessian,  nflexedge,   9           ) \
     X   ( mjtNum,    flexedge_J,        nJfe,        1           ) \
     X   ( mjtNum,    flexedge_length,   nflexedge,   1           ) \
     X   ( mjtNum,    flexvert_J,        nJfv,        2           ) \
     X   ( mjtNum,    flexvert_length,   nflexvert,   2           ) \
     X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
+    X   ( mjtNum,    flexvert_lambda,   nflexvert,   1           ) \
+    X   ( int,       flexvert_conage,   nflexvert,   1           ) \
     X   ( int,       ten_wrapadr,       ntendon,     1           ) \
     X   ( int,       ten_wrapnum,       ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             nJten,       1           ) \

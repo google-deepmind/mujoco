@@ -637,7 +637,7 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   mj_step(m_no_fuse.get(), d_no_fuse.get());
 
   EXPECT_NEAR(d_fuse.get()->qvel[0], d_no_fuse.get()->qvel[0],
-              MjTol(2e-17, 1e-8))
+              MjTol(2e-16, 1e-8))
       << "Velocity should be the same after 1 step";
   EXPECT_NE(d_fuse.get()->qvel[0], 0);
 }

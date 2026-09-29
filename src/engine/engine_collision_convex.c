@@ -23,6 +23,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -162,13 +163,13 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
 
   // return flex element position
   if (e >= 0) {
-    mji_copy3(res, obj->data.flex.aabb + 6*(obj->data.flex.elemadr[f]+e));
+    mji_copy3(res, obj->data.flex.aabb);
     return;
   }
 
   // return flex vertex position
   if (f >= 0) {
-    mji_copy3(res, obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f]+v));
+    mji_copy3(res, obj->data.flex.vert_xpos + 3*v);
     return;
   }
 }
@@ -484,9 +485,8 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
   // flex element
   if (obj->elem >= 0) {
-    int e = obj->elem;
-    const int* edata = obj->data.flex.elem + obj->data.flex.elemdataadr[f] + e*(dim+1);
-    const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->data.flex.vertadr[f];
+    const int* edata = obj->data.flex.elem;
+    const mjtNum* vert = obj->data.flex.vert_xpos;
 
     // find element vertex with largest projection along dir
     mji_copy3(res, vert+3*edata[0]);
@@ -508,7 +508,7 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 
   // flex vertex
   else {
-    const mjtNum* vert = obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f] + obj->vert);
+    const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->vert;
     mji_addScl3(res, vert, dir, obj->data.flex.xradius[f] + 0.5*obj->margin);
     return;
   }
@@ -528,9 +528,8 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
     // flex element
     if (obj->elem >= 0) {
-      int e = obj->elem;
-      const int* edata = obj->data.flex.elem + obj->data.flex.elemdataadr[f] + e*(dim+1);
-      const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->data.flex.vertadr[f];
+      const int* edata = obj->data.flex.elem;
+      const mjtNum* vert = obj->data.flex.vert_xpos;
 
       // find element vertex with largest projection along dir
       mji_copy3(res, vert+3*edata[0]);
@@ -552,7 +551,7 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
     // flex vertex
     else {
-      const mjtNum* vert = obj->data.flex.vert_xpos + 3*(obj->data.flex.vertadr[f] + obj->vert);
+      const mjtNum* vert = obj->data.flex.vert_xpos + 3*obj->vert;
       mji_addScl3(res, vert, dir, obj->data.flex.xradius[f] + 0.5*obj->margin);
       return;
     }
@@ -816,6 +815,14 @@ static void mjc_setCCDObjFlex(mjCCDObj* obj, int flex, int elem, int vert) {
   obj->flex = flex;
   obj->elem = elem;
   obj->vert = vert;
+  if (flex >= 0) {
+    obj->data.flex.vert_xpos += 3 * obj->data.flex.vertadr[flex];
+    if (elem >= 0) {
+      int dim = obj->data.flex.dim[flex];
+      obj->data.flex.aabb += 6 * (obj->data.flex.elemadr[flex] + elem);
+      obj->data.flex.elem += obj->data.flex.elemdataadr[flex] + elem * (dim + 1);
+    }
+  }
 }
 
 
@@ -1628,34 +1635,27 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   const mjtNum* hsize = m->hfield_size + 4*hid;
   const float* hdata = m->hfield_data + m->hfield_adr[hid];
 
-  // get elem indo
+  // get elem info
   int dim = m->flex_dim[f];
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
-  mjtNum* evert[4] = {NULL, NULL, NULL, NULL};
+  static const int local_edata[4] = {0, 1, 2, 3};
+  mjtNum evert[4][3], ecenter[3];
   for (int i=0; i <= dim; i++) {
-    evert[i] = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+    const mjtNum* v = d->flexvert_xpos + 3*(m->flex_vertadr[f] + edata[i]);
+    mji_sub3(vec, v, hpos);
+    mji_mulMatTVec3(evert[i], hmat, vec);
   }
-  mjtNum* ecenter = d->flexelem_aabb + 6*(m->flex_elemadr[f]+e);
+  mji_sub3(vec, d->flexelem_aabb + 6*(m->flex_elemadr[f] + e), hpos);
+  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // ccd-related
   mjCCDObj obj2;
   mjc_initCCDObj(&obj2, m, d, -1, margin);
   mjc_setCCDObjFlex(&obj2, f, e, -1);
+  obj2.data.flex.elem = local_edata;
+  obj2.data.flex.vert_xpos = (const mjtNum*)evert;
+  obj2.data.flex.aabb = ecenter;
   //------------------------------------- AABB computation, box-box test
-
-  // save elem vertices, transform to hfield frame
-  mjtNum savevert[4][3];
-  for (int i=0; i <= dim; i++) {
-    mji_copy3(savevert[i], evert[i]);
-    mji_sub3(vec, evert[i], hpos);
-    mji_mulMatTVec3(evert[i], hmat, vec);
-  }
-
-  // save elem center, transform to hfield frame
-  mjtNum savecenter[3];
-  mji_copy3(savecenter, ecenter);
-  mji_sub3(vec, ecenter, hpos);
-  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // compute elem bounding box (in hfield frame)
   xmin = xmax = evert[0][0];
@@ -1674,12 +1674,6 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   if ((xmin-margin > hsize[0]) || (xmax+margin < -hsize[0]) ||
       (ymin-margin > hsize[1]) || (ymax+margin < -hsize[1]) ||
       (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
-    // restore vertices and center
-    for (int i=0; i <= dim; i++) {
-      mji_copy3(evert[i], savevert[i]);
-    }
-    mji_copy3(ecenter, savecenter);
-
     return 0;
   }
 
@@ -1744,11 +1738,105 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
     }
   }
 
-  // restore elem vertices and center
-  for (int i=0; i <= dim; i++) {
-    mji_copy3(evert[i], savevert[i]);
-  }
-  mji_copy3(ecenter, savecenter);
-
   return cnt;
+}
+
+
+// returns approximation (lower bound) of directed Hausdorff distance between two
+// compact convex geoms; if distance is positive then g1 is guaranteed to not be enclosed in g2
+mjtNum mjc_hausdorff(const mjModel* m, const mjData* d, int g1, int g2, int nitermax,
+                    mjtNum stepsize, mjtNum tolerance) {
+  if (g1 < 0 || g1 >= m->ngeom || g2 < 0 || g2 >= m->ngeom) {
+    mjERROR("invalid geom ids %d, %d", g1, g2);
+  }
+  mjtGeom type1 = (mjtGeom)m->geom_type[g1];
+  mjtGeom type2 = (mjtGeom)m->geom_type[g2];
+  if (type1 < mjGEOM_SPHERE || type1 > mjGEOM_MESH ||
+      type2 < mjGEOM_SPHERE || type2 > mjGEOM_MESH) {
+    mjERROR("only compact convex geoms are supported, got types %d and %d", type1, type2);
+  }
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj2, m, d, g2, 0);
+
+  mjtNum x_k[6][3], best_x[6][3], best_grad[6][3], best_val[6], step[6];
+  int active[6] = {1, 1, 1, 1, 1, 1};
+
+  // seed with obj2's local axes
+  for (int s = 0; s < 6; s++) {
+    int axis = s / 2;
+    mjtNum sgn = (s % 2) ? -1.0 : 1.0;
+    x_k[s][0] = sgn * obj2.mat[0 + axis];
+    x_k[s][1] = sgn * obj2.mat[3 + axis];
+    x_k[s][2] = sgn * obj2.mat[6 + axis];
+    best_val[s] = -mjMAXVAL;
+    step[s] = stepsize;
+  }
+
+  for (int k = 0; k < nitermax; k++) {
+    int any_active = 0;
+    for (int s = 0; s < 6; s++) {
+      if (!active[s]) {
+        continue;
+      }
+
+      mjtNum v1[3], v2[3], vert[3];
+      obj1.support(v1, &obj1, x_k[s]);
+      obj2.support(v2, &obj2, x_k[s]);
+      mji_sub3(vert, v1, v2);
+      mjtNum val = mju_dot3(vert, x_k[s]);
+
+      // compute tangent gradient on S^2: grad = vert - (val * x_k[s])
+      mjtNum grad[3], scaled_x[3];
+      mju_scl3(scaled_x, x_k[s], val);
+      mju_sub3(grad, vert, scaled_x);
+      mjtNum grad_norm = mju_norm3(grad);
+
+      if (val > best_val[s]) {
+        best_val[s] = val;
+        mju_copy3(best_x[s], x_k[s]);
+
+        // scale-invariant angular convergence check
+        if (grad_norm <= mjMINVAL || grad_norm <= tolerance * mju_abs(val)) {
+          active[s] = 0;
+          continue;
+        }
+        mju_scl3(best_grad[s], grad, 1.0 / grad_norm);
+      } else {
+        // overshot a normal-cone ridge/peak: halve step and average subgradients
+        step[s] *= 0.5;
+        if (step[s] < tolerance) {
+          active[s] = 0;
+          continue;
+        }
+        if (grad_norm > mjMINVAL) {
+          mju_addToScl3(best_grad[s], grad, 1.0 / grad_norm);
+        }
+        mjtNum proj = mju_dot3(best_grad[s], best_x[s]);
+        mju_addToScl3(best_grad[s], best_x[s], -proj);
+        mjtNum avg_norm = mju_norm3(best_grad[s]);
+        if (avg_norm <= tolerance) {
+          active[s] = 0;
+          continue;
+        }
+        mju_scl3(best_grad[s], best_grad[s], 1.0 / avg_norm);
+      }
+
+      // step from best_x[s] in the unit tangent direction and normalize
+      mju_copy3(x_k[s], best_x[s]);
+      mju_addToScl3(x_k[s], best_grad[s], step[s]);
+      mju_normalize3(x_k[s]);
+      any_active = 1;
+    }
+    if (!any_active) {
+      break;
+    }
+  }
+
+  mjtNum max_val = best_val[0];
+  for (int s = 1; s < 6; s++) {
+    max_val = mju_max(max_val, best_val[s]);
+  }
+  return max_val;
 }

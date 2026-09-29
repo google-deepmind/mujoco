@@ -24,6 +24,18 @@
 #include <mujoco/mjmodel.h>
 #include "engine/engine_memory.h"
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#include <immintrin.h>
+static inline void CpuPause() { _mm_pause(); }
+#elif defined(_MSC_VER) && (defined(_M_ARM) || defined(_M_ARM64))
+#include <intrin.h>
+static inline void CpuPause() { __yield(); }
+#elif defined(__aarch64__) || defined(__arm__)
+static inline void CpuPause() { __asm__ __volatile__("yield" ::: "memory"); }
+#else
+static inline void CpuPause() {}
+#endif
+
 // context for thread pool stored on mjData
 class ThreadPoolContext {
  public:
@@ -73,6 +85,11 @@ class ThreadPoolContext {
     // busy wait for rest of workers to finish
     int nthread = threads_.size();
     while (ndone_.load(std::memory_order_acquire) < nthread) {
+      // hint to the CPU that the main thread is in a spin-wait loop to avoid
+      // branch misprediction penalties on exit, reduce memory bus contention,
+      // and yield execution resources to sibling hyperthreads so that workers
+      // finishing tasks on the same physical core are not blocked
+      CpuPause();
     }
   }
 
@@ -116,14 +133,14 @@ class ThreadPoolContext {
   int ntask_;  // total number of tasks for workers to do
 
   // atomic for each worker to grab the next task
-  std::atomic<int> next_{0};
+  alignas(64) std::atomic<int> next_{0};
 
   // atomic counter for number of workers who completed their tasks
   alignas(64) std::atomic<int> ndone_{0};
 
   // alternating signal from -1, 1 to start / halt the worker threads,
   // set to 0 to force all workers to exit
-  std::atomic<int> signal_{1};
+  alignas(64) std::atomic<int> signal_{1};
 
   std::vector<std::thread> threads_;
 };

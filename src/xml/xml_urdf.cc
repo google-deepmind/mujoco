@@ -275,19 +275,6 @@ void mjXURDF::Body(XMLElement* body_elem) {
       }
     }
     if (!inertia_defined) { pbody->fullinertia[0] = mjNAN; }
-
-    // process inertia
-    //  lquat = rotation from specified to default (joint/body) inertial frame
-    double      lquat[4]   = {1, 0, 0, 0};
-    double      tmpquat[4] = {1, 0, 0, 0};
-    const char* altres     = mjuu_fullInertia(lquat, nullptr, pbody->fullinertia);
-
-    // inertias are sometimes 0 in URDF files: ignore error in altres, fix later
-    (void)altres;
-
-    // correct for alignment of full inertia matrix
-    mjuu_mulquat(tmpquat, pbody->iquat, lquat);
-    mjuu_copyvec(pbody->iquat, tmpquat, 4);
   }
 
   // clear body frame; set by joint later
@@ -625,9 +612,11 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
       if (i == meshes[meshname].size()) {
         pmesh = mjs_addMesh(spec, 0);
         meshes[meshname].push_back(pmesh);
-        meshname = meshname + std::to_string(i);
-        newmesh  = true;
+        newmesh = true;
       }
+
+      // if it is not the first mesh with this name, append index
+      if (i > 0) { meshname = meshname + std::to_string(i); }
     }
 
     // set fields

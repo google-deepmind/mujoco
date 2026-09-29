@@ -144,7 +144,7 @@ def _main(argv: Sequence[str]) -> None:
   elif len(argv) > 2:
     raise app.UsageError("Too many command-line arguments.")
 
-  wp.config.quiet = flags.FLAGS["verbosity"].value < 1
+  wp.config.log_level = wp.LOG_WARNING if flags.FLAGS["verbosity"].value < 1 else wp.LOG_INFO
   wp.init()
 
   mjm = cli.load_model(epath.Path(argv[1]))

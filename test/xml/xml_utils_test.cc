@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>  // NOLINT
 #include <map>
 #include <set>
 #include <string>
@@ -38,10 +39,15 @@ TEST_F(MujocoTest, GetXMLDependenciesTest) {
 
   mjStringVec dependencies;
   mju_getXMLDependencies(kModelPaths[0].c_str(), &dependencies);
-  std::set<std::string> dependency_set{dependencies.begin(),
-                                       dependencies.end()};
-  std::set<std::string> expected_dependency_set{kModelPaths.begin(),
-                                                kModelPaths.end()};
+  std::set<std::string> dependency_set;
+  for (const auto& dep : dependencies) {
+    dependency_set.insert(std::filesystem::path(dep).generic_string());
+  }
+  std::set<std::string> expected_dependency_set;
+  for (const auto& path : kModelPaths) {
+    expected_dependency_set.insert(
+        std::filesystem::path(path).generic_string());
+  }
   EXPECT_EQ(dependency_set, expected_dependency_set);
 }
 

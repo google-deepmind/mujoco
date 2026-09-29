@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_util_misc.h"
 #include "user/user_util.h"
@@ -145,11 +146,21 @@ VFS::~VFS() {
 }
 
 mjResource* VFS::Open(const char* dir, const char* name, char* error, size_t nerror) {
+  {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    ++in_flight_open_;
+  }
+
   const std::string path = FilePath(dir, name).Str();
 
   const mjResource* mount = FindMount(path);
   if (!mount || !mount->provider) {
     if (error) { std::snprintf(error, nerror, "No provider found for '%s'", name); }
+
+    {
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      --in_flight_open_;
+    }
     MaybeSelfDestruct();
     return nullptr;
   }
@@ -169,12 +180,17 @@ mjResource* VFS::Open(const char* dir, const char* name, char* error, size_t ner
 
   if (result == 0) {
     res.reset();
+    {
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      --in_flight_open_;
+    }
     MaybeSelfDestruct();
     return nullptr;
   }
 
-  std::lock_guard<std::mutex> lock(mutex_);
-  mjResource*                 res_ptr = res.get();
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  --in_flight_open_;
+  mjResource* res_ptr = res.get();
   open_resources_.emplace(res_ptr, std::move(res));
   return res_ptr;
 }
@@ -182,14 +198,14 @@ mjResource* VFS::Open(const char* dir, const char* name, char* error, size_t ner
 VFS::Status VFS::Mount(const FilePath& path, const mjpResourceProvider* provider) {
   if (!provider) { return kInvalidResourceProvider; }
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (mounts_.contains(path.Str())) { return kRepeatedName; }
   }
 
   ResourcePtr res = CreateResource(path.c_str(), provider);
   provider->mount(res.get());
 
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   mounts_.emplace(path.Str(), std::move(res));
   return kSuccess;
 }
@@ -198,11 +214,11 @@ VFS::Status VFS::Close(mjResource* res) {
   VFS::Status status        = kInvalidResource;
   bool        last_resource = false;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (auto it = open_resources_.find(res); it != open_resources_.end()) {
       if (res->provider->close) { res->provider->close(res); }
       open_resources_.erase(it);
-      last_resource = open_resources_.empty();
+      last_resource = open_resources_.empty() && in_flight_open_ == 0;
       status        = kSuccess;
     }
   }
@@ -212,7 +228,7 @@ VFS::Status VFS::Close(mjResource* res) {
 }
 
 VFS::Status VFS::Unmount(const FilePath& path) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (auto it = mounts_.find(path.Str()); it != mounts_.end()) {
     if (it->second->provider->unmount) { it->second->provider->unmount(it->second.get()); }
     mounts_.erase(it);
@@ -223,15 +239,15 @@ VFS::Status VFS::Unmount(const FilePath& path) {
 
 bool VFS::ContainsBuffer(const char* name) {
   if (name == nullptr) { return false; }
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   return mounts_.contains(name);
 }
 
 bool VFS::ContainsFile(const char* directory, const char* filename) {
   if (filename == nullptr) { return false; }
-  mujoco::user::FilePath      path(directory ? directory : "", filename);
-  std::string                 key = path.StripPath().Lower().Str();
-  std::lock_guard<std::mutex> lock(mutex_);
+  mujoco::user::FilePath                path(directory ? directory : "", filename);
+  std::string                           key = path.StripPath().Lower().Str();
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
   return mounts_.contains(key);
 }
 
@@ -281,12 +297,25 @@ VFS::ResourcePtr VFS::CreateResource(std::string_view name, const mjpResourcePro
 }
 
 mjResource* VFS::FindMount(const std::string& fullpath) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
 
   std::string str = fullpath;
   while (!str.empty()) {
     auto it = mounts_.find(str);
     if (it != mounts_.end()) { return it->second.get(); }
+
+    if (str.size() < fullpath.size() &&
+        (fullpath[str.size()] == '/' || fullpath[str.size()] == '\\')) {
+      const mjpResourceProvider* archive_prov = mjp_findArchiveResourceProvider(str.c_str());
+      if (archive_prov) {
+        ResourcePtr res = CreateResource(str, archive_prov);
+        if (archive_prov->mount(res.get())) {
+          mjResource* res_ptr = res.get();
+          mounts_.emplace(str, std::move(res));
+          return res_ptr;
+        }
+      }
+    }
 
     std::size_t n = str.find_last_of("/\\");
     if (n == std::string::npos) {
@@ -317,6 +346,10 @@ mjResource* VFS::FindMount(const std::string& fullpath) {
 }
 
 void VFS::MaybeSelfDestruct() {
+  {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (in_flight_open_ > 0 || !open_resources_.empty()) { return; }
+  }
   if (destructor_) {
     // Copy the destructor to a local variable so that we can destroy `this`
     // object within the destructor.

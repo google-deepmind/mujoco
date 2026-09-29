@@ -23,12 +23,16 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstring>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <implot.h>
 #include <mujoco/experimental/studio/ux/fonts.h>
 #include <NetImgui_Api.h>
@@ -144,6 +148,31 @@ class HeadlessUi {
       return;
     }
 
+    // Python imgui.Image() calls pass bare integer ImTextureIDs
+    // (leaving ImDrawCmd::TexRef._TexData == nullptr). After ImGui::EndFrame()
+    // finalizes draw lists, resolve each draw command's TexRef to its
+    // registered ImTextureData so NetImgui::EndFrame() can track and transmit
+    // texture updates to the remote client.
+    ImGuiContextHook hook;
+    hook.Type = ImGuiContextHookType_EndFramePost;
+    hook.UserData = this;
+    hook.Callback = [](ImGuiContext* ctx, ImGuiContextHook* h) {
+      auto* self = static_cast<HeadlessUi*>(h->UserData);
+      for (ImGuiWindow* window : ctx->Windows) {
+        if (!window->DrawList) continue;
+        for (ImDrawCmd& cmd : window->DrawList->CmdBuffer) {
+          if (cmd.TexRef._TexData == nullptr) {
+            auto it =
+                self->textures_.find(static_cast<uintptr_t>(cmd.TexRef._TexID));
+            if (it != self->textures_.end() && it->second) {
+              cmd.TexRef = it->second->GetTexRef();
+            }
+          }
+        }
+      }
+    };
+    ImGui::AddContextHook(context_, &hook);
+
     VLOG(1, "Calling ConnectToApp('%s', '127.0.0.1', %d)", title_.c_str(),
          port_);
     bool connect_result =
@@ -154,7 +183,18 @@ class HeadlessUi {
          NetImgui::IsConnectionPending() ? "true" : "false");
   }
 
-  ~HeadlessUi() { Client_Shutdown(context_); }
+  ~HeadlessUi() {
+    if (context_) {
+      ImGui::SetCurrentContext(context_);
+      for (auto& [id, tex] : textures_) {
+        if (tex) {
+          ImGui::UnregisterUserTexture(tex.get());
+        }
+      }
+    }
+    textures_.clear();
+    Client_Shutdown(context_);
+  }
 
   bool NewFrame() {
     py::gil_scoped_release no_gil;
@@ -268,10 +308,30 @@ class HeadlessUi {
 
     py::gil_scoped_release no_gil;
     ImGui::SetCurrentContext(context_);
-    NetImgui::SendDataTexture(
-        static_cast<ImTextureID>(tex_id), const_cast<void*>(upload_data),
-        static_cast<uint16_t>(width), static_cast<uint16_t>(height),
-        NetImgui::eTexFormat::kTexFmtRGBA8);
+
+    std::unique_ptr<ImTextureData>& tex = textures_[tex_id];
+    const size_t rgba_bytes = static_cast<size_t>(width) * height * 4;
+    if (tex && tex->Width == width && tex->Height == height) {
+      std::memcpy(tex->GetPixels(), upload_data, rgba_bytes);
+      tex->UpdateRect = {0, 0, static_cast<uint16_t>(width),
+                         static_cast<uint16_t>(height)};
+      if (tex->Status != ImTextureStatus_WantCreate) {
+        tex->SetStatus(ImTextureStatus_WantUpdates);
+      }
+      return tex_id;
+    }
+
+    if (tex) {
+      ImGui::UnregisterUserTexture(tex.get());
+      textures_.erase(tex_id);
+      tex_id = next_tex_id_++;
+    }
+    auto new_tex = std::make_unique<ImTextureData>();
+    new_tex->Create(ImTextureFormat_RGBA32, width, height);
+    new_tex->SetStatus(ImTextureStatus_WantCreate);
+    std::memcpy(new_tex->GetPixels(), upload_data, rgba_bytes);
+    ImGui::RegisterUserTexture(new_tex.get());
+    textures_[tex_id] = std::move(new_tex);
     return tex_id;
   }
 
@@ -290,6 +350,7 @@ class HeadlessUi {
   int port_;
   ImGuiContext* context_ = nullptr;
   bool is_drawing_remote_ = false;
+  std::unordered_map<uintptr_t, std::unique_ptr<ImTextureData>> textures_;
   std::chrono::steady_clock::time_point last_frame_time_ =
       std::chrono::steady_clock::now();
   static constexpr auto kTargetFrameDuration =

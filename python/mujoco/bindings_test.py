@@ -114,8 +114,10 @@ TEST_XML_TEXTURE = r"""
 @contextlib.contextmanager
 def temporary_callback(setter, callback):
   setter(callback)
-  yield
-  setter(None)
+  try:
+    yield
+  finally:
+    setter(None)
 
 
 class MuJoCoBindingsTest(parameterized.TestCase):
@@ -718,6 +720,49 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertEmpty(self.data.contact)
     self.assertEmpty(self.data.efc_id)
 
+  def test_realloc_con_efc_failure_clears_counts(self):
+    xml = r"""
+<mujoco>
+  <option solver="PGS" integrator="discrete"/>
+  <worldbody>
+    <geom type="plane" size="1 1 .1"/>
+    <body pos="0 0 .099">
+      <joint name="hinge" range="0 1" margin=".01" frictionloss="1"/>
+      <geom size=".1"/>
+    </body>
+  </worldbody>
+  <equality>
+    <joint joint1="hinge"/>
+  </equality>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # counts that size or index the rows and their arena arrays
+    counts = (
+        'ncon',
+        'ne',
+        'nf',
+        'nl',
+        'nefc',
+        'nJ',
+        'nY',
+        'nA',
+        'nisland',
+        'nidof',
+        'efm_active',
+    )
+    for count in counts:
+      self.assertGreater(getattr(data, count), 0, count)
+
+    # the failed reallocation discards all rows: no count may outlive them
+    with self.assertRaises(mujoco.FatalError):
+      mujoco._functions._realloc_con_efc(data, 100000000, 100000000)
+    for count in counts:
+      self.assertEqual(getattr(data, count), 0, count)
+
   def test_realloc_island(self):
     # Test allocation on fresh data (on its own)
     nisland = 2
@@ -760,6 +805,55 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       mujoco._functions._realloc_island(self.data, 100000000, 100000000)
     self.assertEqual(self.data.nisland, 0)
     self.assertEqual(self.data.nidof, 0)
+
+  def test_realloc_island_keeps_dual_and_metric_arrays(self):
+    # a forward pass allocates the dual (PGS) and effective-metric (discrete)
+    # arrays after the island arrays; the margin activates the joint limit
+    xml = """
+<mujoco>
+  <option solver="PGS" integrator="discrete"/>
+  <worldbody>
+    <body>
+      <joint range="0 1" margin=".01"/>
+      <geom size=".1"/>
+    </body>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    for count in ('nisland', 'nY', 'nA', 'efm_active'):
+      self.assertGreater(getattr(data, count), 0, count)
+
+    def span(name):
+      array = getattr(data, name)
+      start = array.__array_interface__['data'][0]
+      return start, start + array.nbytes
+
+    later = {
+        name: span(name)
+        for name in dir(data)
+        if name.startswith(('efc_Y', 'efc_AR', 'efm_')) and name != 'efm_active'
+    }
+
+    # grow the islands: the new island arrays must not overlap the later ones
+    mujoco._functions._realloc_island(
+        data, nisland=data.nisland + 1, nidof=data.nidof
+    )
+    island = (
+        'tree_island island_ntree island_itreeadr map_itree2tree dof_island '
+        'island_nv island_idofadr island_dofadr map_dof2idof map_idof2dof '
+        'ifrc_smooth iacc_smooth iacc efc_island island_ne island_nf '
+        'island_nefc island_iefcadr map_efc2iefc map_iefc2efc iefc_type '
+        'iefc_id iefc_frictionloss iefc_D iefc_R iefc_aref iefc_state '
+        'iefc_force ifrc_constraint'
+    ).split()
+    for name in island:
+      start, end = span(name)
+      for other, (other_start, other_end) in later.items():
+        overlap = start < other_end and other_start < end
+        self.assertFalse(overlap, f'{name} overlaps {other}')
 
   def test_mj_struct_list_equality(self):
     model2 = mujoco.MjModel.from_xml_string(TEST_XML)
@@ -1077,7 +1171,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_OVERRIDE, 1 << 0)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1 << 1)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1 << 2)
-    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 6)
+    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 7)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_PLANE, 0)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_HFIELD, 1)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_SPHERE, 2)
@@ -1281,6 +1375,34 @@ Euler integrator, semi-implicit in velocity.
         TypeError, 'callback is not an Optional[Callable]'
     ):
       mujoco.set_mjcb_time(1)
+
+  def test_mjcb_time_restore_default(self):
+    timer_step = mujoco.mjtTimer.mjTIMER_STEP
+    call_count = 0
+
+    def custom_timer():
+      nonlocal call_count
+      call_count += 1
+      return 0.0
+
+    with temporary_callback(mujoco.set_mjcb_time, custom_timer):
+      mujoco.mj_step(self.model, self.data)
+      # Both of these establish the baseline for the assertions after the
+      # restore: the custom timer is being called, and it keeps the accumulated
+      # duration at exactly zero.
+      self.assertGreater(call_count, 0)
+      self.assertEqual(self.data.timer[timer_step].duration, 0.0)
+
+    # Leaving the context calls set_mjcb_time(None), which must restore the
+    # default timer rather than clear it. No MjData is constructed after the
+    # restore -- self.data already exists -- so nothing can install a timer
+    # lazily on the way past, and a nonzero duration below can only come from
+    # set_mjcb_time(None) itself.
+    self.assertIsNone(mujoco.get_mjcb_time())
+    call_count_at_restore = call_count
+    mujoco.mj_step(self.model, self.data)
+    self.assertEqual(call_count, call_count_at_restore)
+    self.assertGreater(self.data.timer[timer_step].duration, 0.0)
 
   def test_mjcb_sensor(self):
 
@@ -1863,23 +1985,64 @@ Euler integrator, semi-implicit in velocity.
     # delay = 0.01, so:
     #   read_time=0.02 -> lookup at 0.01 -> value 2.0
     #   read_time=0.03 -> lookup at 0.02 -> value 3.0
-    result = mujoco.mj_readCtrl(model, data, 0, 0.02, interp=0)
-    self.assertEqual(result, 2.0)  # ZOH returns value at t=0.01
+    result = np.zeros(1, DTYPE)
+    mujoco.mj_readCtrl(model, data, 0, 0.02, result, interp=0)
+    self.assertEqual(result[0], 2.0)  # ZOH returns value at t=0.01
 
     # Test with times=None (uses existing timestamps)
     new_values = np.array([5.0, 6.0, 7.0, 8.0])
     mujoco.mj_initCtrlHistory(model, data, 0, None, new_values)
     # read_time=0.02 -> lookup at 0.01 -> value 6.0
-    result = mujoco.mj_readCtrl(model, data, 0, 0.02, interp=0)
-    self.assertEqual(result, 6.0)
+    mujoco.mj_readCtrl(model, data, 0, 0.02, result, interp=0)
+    self.assertEqual(result[0], 6.0)
 
-    # Test dimension validation errors
+    # Test dimension and id validation errors
+    with self.assertRaises(IndexError):
+      mujoco.mj_readCtrl(model, data, -1, 0.02, result, interp=0)
+    with self.assertRaises(IndexError):
+      mujoco.mj_readCtrl(model, data, 1, 0.02, result, interp=0)
+    with self.assertRaises(IndexError):
+      mujoco.mj_initCtrlHistory(model, data, -1, times, values)
+    with self.assertRaises(IndexError):
+      mujoco.mj_initCtrlHistory(model, data, 1, times, values)
+    with self.assertRaises(TypeError):
+      # wrong result size
+      mujoco.mj_readCtrl(model, data, 0, 0.02, np.zeros(2), interp=0)
     with self.assertRaises(TypeError):
       # wrong times
       mujoco.mj_initCtrlHistory(model, data, 0, np.zeros(3), values)
     with self.assertRaises(TypeError):
       # wrong values
       mujoco.mj_initCtrlHistory(model, data, 0, times, np.zeros(5))
+
+    # Multi-input actuator (PID with pos, vel, ff -> ctrlnum=3)
+    mimo_xml = r"""
+<mujoco>
+  <worldbody>
+    <body>
+      <geom type="sphere" size="0.1"/>
+      <joint name="hinge" type="hinge"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <pid name="pid" joint="hinge" kp="10" kv="2" input="pos vel ff"
+         delay="0.01" nsample="3"/>
+  </actuator>
+</mujoco>
+"""
+    mimo_model = mujoco.MjModel.from_xml_string(mimo_xml)
+    mimo_data = mujoco.MjData(mimo_model)
+    self.assertEqual(mimo_model.actuator_ctrlnum[0], 3)
+    mimo_times = np.array([0.0, 0.01, 0.02])
+    mimo_values = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=DTYPE)
+    mujoco.mj_initCtrlHistory(mimo_model, mimo_data, 0, mimo_times, mimo_values)
+    mimo_result = np.zeros(3, DTYPE)
+    mujoco.mj_readCtrl(mimo_model, mimo_data, 0, 0.02, mimo_result, interp=0)
+    np.testing.assert_array_equal(mimo_result, [4, 5, 6])
+
+    # Linear interpolation (interp=1) writes directly into mimo_result (ptr == NULL)
+    mujoco.mj_readCtrl(mimo_model, mimo_data, 0, 0.025, mimo_result, interp=1)
+    np.testing.assert_allclose(mimo_result, [5.5, 6.5, 7.5])
 
   def test_mj_read_sensor_and_init_sensor_delay(self):
     xml = r"""

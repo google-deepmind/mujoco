@@ -322,7 +322,10 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
 
     // iterate through dense and sparse
     for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
-      mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+      char error[1024];
+      mjModel* model =
+          mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+      ASSERT_THAT(model, NotNull()) << error;
       model->opt.jacobian = sparsity;
       mjData* data = mj_makeData(model);
 
@@ -338,7 +341,9 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");
 
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // simulate, get diag(A)
@@ -875,7 +880,7 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
         <elasticity young="0" poisson="0.1" damping="0.01"
                     elastic2d="bend" thickness="0.02"/>
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -949,7 +954,7 @@ TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
       <flexcomp name="test" type="grid" count="3 3 3"
                 spacing=".1 .05 .08" radius="0.001"
                 pos="0 0 .5" dof="quadratic" mass="1" dim="3">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
         <edge equality="strain" damping="0.01"/>
       </flexcomp>
     </body>
@@ -1645,6 +1650,63 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
   }
   EXPECT_TRUE(has_nonzero_rot)
       << "Rotational Jacobian should have non-zero entries";
+}
+
+// an arena overflow after the constraint rows are instantiated drops all rows:
+// the per-type row counts must clear with the arrays, which consumers such as
+// mj_Jdotv index by them
+TEST_F(CoreConstraintTest, ArenaOverflowClearsRowCounts) {
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+
+  // 100 contacts under PGS: the dense AR (nefc x nefc) does not fit the arena
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <size memory="512K"/>
+    <option solver="PGS"/>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body name="grid" pos="0 0 .049">
+        <freejoint/>
+        <replicate count="10" offset=".1 0 0">
+          <replicate count="10" offset="0 .1 0">
+            <geom size=".05"/>
+          </replicate>
+        </replicate>
+      </body>
+      <body pos="0 0 1">
+        <joint type="slide" axis="0 0 1" range="-1 -0.1" frictionloss="1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <weld body1="grid"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+
+  // classic integrators consume the rows at the velocity stage, discrete at the
+  // actuation stage
+  for (mjtIntegrator integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m.get(), d.get());
+    mj_step(m.get(), d.get());
+
+    // rows were instantiated, then dropped
+    EXPECT_GT(d->warning[mjWARN_CNSTRFULL].number, 0);
+    EXPECT_GT(d->maxuse_efc, 0);
+    EXPECT_EQ(d->nefc, 0);
+    EXPECT_EQ(d->ne, 0);
+    EXPECT_EQ(d->nf, 0);
+    EXPECT_EQ(d->nl, 0);
+    EXPECT_EQ(d->nidof, 0);
+    if (integrator == mjINT_EULER) {
+      EXPECT_EQ(d->parena, d->ncon * sizeof(mjContact));
+    }
+  }
 }
 
 }  // namespace

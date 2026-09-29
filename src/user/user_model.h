@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -33,8 +34,9 @@
 #include <mujoco/mjtype.h>
 #include "user/user_objects.h"
 
-typedef std::map<std::string, int, std::less<>> mjKeyMap;
-typedef std::array<mjKeyMap, mjNOBJECT>         mjListKeyMap;
+typedef std::map<std::string, int, std::less<>>                    mjKeyMap;
+typedef std::array<mjKeyMap, mjNOBJECT>                            mjListKeyMap;
+typedef std::array<std::unordered_set<std::string>, mjNOBJECT + 1> mjNameSet;
 
 typedef struct mjKeyInfo_ {
   std::string name;
@@ -105,7 +107,6 @@ class mjCModel_ : public mjsElement {
   mjtSize nefm0L;          // number of non-zeros in the bending factor
   mjtSize nflexelemedge;   // number of element edges in all flexes
   mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
-  mjtSize nflexevpair;     // number of element-vertex pairs in all flexes
   mjtSize nflextexcoord;   // number of vertex texture coordinates in all flexes
   mjtSize nJfe;            // number of non-zeros in sparse flex edge constraint Jacobian
   mjtSize nJfv;            // number of non-zeros in sparse flex vertex constraint Jacobian
@@ -199,6 +200,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator=(const mjCModel& other);    // copy other into this, if they are not the same
   mjCModel& operator+=(const mjCModel& other);   // add other into this, even if they are the same
   mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
+  mjCModel& operator-=(const mjCFrame& frame);   // remove frame, its contents and all references
   mjCModel& operator+=(mjCDef& subtree);         // add default tree to this model
   mjCModel& operator-=(const mjCDef& subtree);   // remove default tree from this model
 
@@ -329,6 +331,20 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   void DeleteMaterial(std::vector<T*>& list, std::string_view name = "");
 
+  // temporary state saved across mj_recompile
+  struct mjRecompileState {
+    mjtNum              time = 0;
+    std::vector<mjtNum> userdata;
+
+    std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qfrc_applied;
+    std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qacc_warmstart;
+    std::unordered_map<mjCBody*, std::array<mjtNum, 6>>   xfrc_applied;
+    std::unordered_map<mjCEquality*, mjtByte>             eq_active;
+    std::unordered_map<mjCActuator*, std::vector<mjtNum>> actuator_history;
+    std::unordered_map<mjCSensor*, std::vector<mjtNum>>   sensor_history;
+    std::unordered_map<mjCPlugin*, std::vector<mjtNum>>   plugin_state;
+  };
+
   // save the current state
   template <class T>
   void SaveState(const std::string& state_name,
@@ -338,6 +354,10 @@ class mjCModel : public mjCModel_, private mjSpec {
                  const T*           ctrl,
                  const T*           mpos,
                  const T*           mquat);
+  void SaveState(const std::string& state_name,
+                 const mjModel*     m,
+                 const mjData*      d,
+                 mjRecompileState*  state);
 
   // restore the previously saved state
   template <class T>
@@ -351,6 +371,10 @@ class mjCModel : public mjCModel_, private mjSpec {
                     T*                 ctrl,
                     T*                 mpos,
                     T*                 mquat);
+  void RestoreState(const std::string&      state_name,
+                    const mjModel*          m,
+                    mjData*                 d,
+                    const mjRecompileState* state);
 
   // clear existing data
   void MakeData(const mjModel* m, mjData** dest);
@@ -372,6 +396,12 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
+
+  // check that newname is not used by another element of the same type and update names_
+  void CheckNameChange(mjtObj type, const std::string& oldname, const std::string& newname);
+
+  // clear the compilation signature after a structural change
+  void InvalidateSignature() { spec.element->signature = 0; }
 
   // increment and decrement reference count
   void AddRef() { ++refcount; }
@@ -473,6 +503,18 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   void RemoveFromList(std::vector<T*>& list, const mjCModel& other);
 
+  // remove subtree from the tree, then remove all elements that reference it
+  template <class T>
+  mjCModel& RemoveSubtree(const T& subtree);
+
+  // remove body or frame from the tree, return the elements removed along with it that are not
+  // released with it: the elements inside a frame
+  std::vector<mjCBase*> RemoveFromTree(const mjCBody& subtree);
+  std::vector<mjCBase*> RemoveFromTree(const mjCFrame& frame);
+
+  // return the body that owns the frame, nullptr if the frame is not in the tree
+  mjCBody* FrameOwner(const mjCFrame& frame, mjCBody* body = nullptr);
+
   // create mjCBase lists from children lists
   void CreateObjectLists();
 
@@ -527,6 +569,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void ExpandAllKeyframes();
 
   mjListKeyMap             ids;              // map from object names to ids
+  mjNameSet                names_;           // names in use per element type
   mjCError                 errInfo;          // last error info
   std::vector<std::string> warnings_;        // chronological list of non-fatal warnings
   int  num_attach_warnings_ = 0;             // boundary: [0, n) are attach, [n, size) are compile
@@ -535,6 +578,5 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool                   deepcopy_;          // copy objects when attaching
   bool                   attached_ = false;  // true if model is attached to a parent model
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
-  std::vector<mjCBase*>                           detached_;       // list of detached objects
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

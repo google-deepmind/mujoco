@@ -111,10 +111,10 @@ void StepControlGui(StepControl* step_control, int& speed_index);
 void SetSpeedIndex(StepControl* step_control, int& speed_index,
                    int request_idx);
 
-// Loads history frame `index` into `data`, pausing the simulation. A no-op if
-// the requested frame is empty.
-void LoadHistoryFrame(SimHistory& history, StepControl& step_control,
-                      const mjModel* model, mjData* data, int index);
+// Loads history frame `index` into `data`. A no-op if the requested frame is
+// empty.
+void LoadHistoryFrame(SimHistory& history, const mjModel* model, mjData* data,
+                      int index);
 
 // Persistent state of the timeline scrubber: the time at the head of history,
 // the (monotonically-growing) label box widths, and the current drag.
@@ -126,11 +126,22 @@ struct SimulationTimelineState {
   float scrubber_grab_offset = 0.0f;
 };
 
+// Appends the state in `data` to `history` and moves the head of the timeline
+// to that state. Call whenever the simulation has advanced.
+void RecordHistoryFrame(SimHistory& history, SimulationTimelineState& timeline,
+                        const mjModel* model, const mjData* data);
+
+// Clears `history`, sizes it for `model`, resets the scrubber and records the
+// state in `data` as the first frame. Call on model load and after a reset.
+void ResetHistory(SimHistory& history, SimulationTimelineState& timeline,
+                  const mjModel* model, const mjData* data);
+
 // The timeline scrubber row: a spine with a draggable knob that scrubs through
 // the simulation history. Used by the Simulation panel and the toolbar.
 void TimelineScrubberGui(const mjModel* model, mjData* data,
                          StepControl& step_control, SimHistory& history,
-                         SimulationTimelineState& timeline);
+                         SimulationTimelineState& timeline,
+                         bool load_history_locally = true);
 
 // Everything the Simulation panel reads or drives. All pointers are owned by
 // the caller and edited in place; the callbacks perform application actions the
@@ -145,6 +156,7 @@ struct SimulationGuiContext {
   int* key_idx = nullptr;
   int* nthread = nullptr;
   bool* update_threadpool = nullptr;
+  bool load_history_locally = true;
   std::function<void()> reset;   // reset the physics state
   std::function<void()> reload;  // reload the model
   std::function<void()> align;   // recenter the camera on the model
@@ -167,6 +179,9 @@ bool LabelSelectionGui(mjvOption* opts);
 
 // UX for selecting the visualization frame option.
 bool FrameSelectionGui(mjvOption* opts);
+
+// Get the display name for a keyframe given its index.
+std::string GetKeyframeName(const mjModel* model, int index);
 
 // Get the display name for a camera given its index.
 std::string GetCameraName(const mjModel* model, const mjvCamera& camera,

@@ -15,6 +15,7 @@
 // Tests for xml/xml_api.cc.
 
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -247,6 +248,134 @@ TEST_F(MujocoTest, ReadsJointTypes) {
   }
 }
 
+// ---------------------------- inertial orientation ---------------------------
+
+TEST_F(MujocoTest, UrdfInertialOriginRotation) {
+  // the inertial origin rotation must not be lost during compilation,
+  // for both the default (alignfree) and non-aligned paths
+  static constexpr char urdf[] = R"(
+  <robot name="inertia_frame">
+    <mujoco><compiler fusestatic="false"/></mujoco>
+    <link name="world"/>
+    <link name="body">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 1.5707963267948966"/>
+        <mass value="1"/>
+        <inertia ixx="1" iyy="2" izz="2.5" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+    <joint name="free" type="floating">
+      <parent link="world"/>
+      <child link="body"/>
+    </joint>
+  </robot>
+  )";
+
+  for (bool alignfree : {true, false}) {
+    std::array<char, 1000> error;
+    std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+        mj_parseXMLString(urdf, nullptr, error.data(), error.size()),
+        mj_deleteSpec);
+    ASSERT_THAT(spec.get(), NotNull()) << error.data();
+    spec->compiler.alignfree = alignfree;
+    MjModelPtr model(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec.get());
+
+    int body_id = mj_name2id(model.get(), mjtObj::mjOBJ_BODY, "body");
+
+    // world-frame inertia tensor must be diag(2, 1, 2.5)
+    mjtNum rot_body[9], mat[9], rot_world[9], tensor[9];
+    mju_quat2Mat(rot_body, model->body_iquat + 4 * body_id);
+    mju_quat2Mat(mat, model->body_quat + 4 * body_id);
+    mju_mulMatMat(rot_world, mat, rot_body, 3, 3, 3);
+    for (int r = 0; r < 3; r++) {
+      for (int c = 0; c < 3; c++) {
+        mjtNum sum = 0;
+        for (int k = 0; k < 3; k++) {
+          sum += rot_world[3 * r + k] * rot_world[3 * c + k] *
+                 model->body_inertia[3 * body_id + k];
+        }
+        tensor[3 * r + c] = sum;
+      }
+    }
+    constexpr double diag2[9] = {2, 0, 0, 0, 1, 0, 0, 0, 2.5};
+    for (int i = 0; i < 9; i++) {
+      EXPECT_THAT(tensor[i], MjNear(diag2[i], 1e-7, 1e-5))
+          << "alignfree=" << alignfree;
+    }
+
+    // X torque for 1 rad/s^2 must equal the x principal moment R*D*R'[0][0]
+    MjDataPtr data = MakeData(model);
+    data->qacc[3] = 1.0;
+    mj_inverse(model.get(), data.get());
+    mjtNum expected = 0;
+    for (int k = 0; k < 3; k++) {
+      expected +=
+          rot_body[k] * rot_body[k] * model->body_inertia[3 * body_id + k];
+    }
+    EXPECT_THAT(data->qfrc_inverse[3], MjNear(expected, 1e-7, 1e-5))
+        << "alignfree=" << alignfree;
+  }
+}
+
+TEST_F(MujocoTest, UrdfObliqueInertia) {
+  // q = (1, 2, 3, 4) / sqrt(30), so R = [-10 2 11; 10 -5 10; 5 14 2] / 15.
+  // For I = [4 .3 .2; .3 3 .1; .2 .1 2], these are the exact entries of R I R'.
+  // I is positive definite, with every eigenvalue less than trace(I)/2.
+  constexpr mjtNum expected[9] = {
+      1004.0 / 375, -127.0 / 150, -49.0 / 125, -127.0 / 150, 3,
+      61.0 / 150,   -49.0 / 125,  61.0 / 150,  1246.0 / 375};
+  static constexpr char urdf[] = R"(
+  <robot name="oblique">
+    <mujoco><compiler fusestatic="false"/></mujoco>
+    <link name="world"/>
+    <link name="body">
+      <inertial>
+        <origin rpy="1.4288992721907328 -0.3398369094541219 2.356194490192345"/>
+        <mass value="1"/>
+        <inertia ixx="4" iyy="3" izz="2" ixy="0.3" ixz="0.2" iyz="0.1"/>
+      </inertial>
+    </link>
+    <joint name="free" type="floating">
+      <parent link="world"/>
+      <child link="body"/>
+    </joint>
+  </robot>
+  )";
+
+  // World axes include the frame change made by alignfree.
+  auto check_inertia = [&](const MjModelPtr& model) {
+    int body = mj_name2id(model.get(), mjOBJ_BODY, "body");
+    ASSERT_GE(body, 0);
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    const mjtNum* rot = data->ximat + 9 * body;
+    for (int r = 0; r < 3; ++r) {
+      for (int c = 0; c < 3; ++c) {
+        mjtNum inertia = 0;
+        for (int k = 0; k < 3; ++k) {
+          inertia += rot[3 * r + k] * model->body_inertia[3 * body + k] *
+                     rot[3 * c + k];
+        }
+        EXPECT_THAT(inertia, MjNear(expected[3 * r + c], 1e-7, 1e-5));
+      }
+    }
+  };
+
+  for (bool alignfree : {false, true}) {
+    SCOPED_TRACE(alignfree);
+    std::array<char, 1000> error{};
+    std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+        mj_parseXMLString(urdf, nullptr, error.data(), error.size()),
+        mj_deleteSpec);
+    ASSERT_THAT(spec.get(), NotNull()) << error.data();
+    spec->compiler.alignfree = alignfree;
+    MjModelPtr model(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec.get());
+    check_inertia(model);
+  }
+}
+
 TEST_F(MujocoTest, RepeatedMeshName) {
   static constexpr char urdf[] = R"(
   <robot name="">
@@ -307,6 +436,15 @@ TEST_F(MujocoTest, RepeatedMeshName) {
   EXPECT_STREQ(mjs_getName(mesh->element)->c_str(), "mesh");
   EXPECT_STREQ(mjs_getName(mesh1->element)->c_str(), "mesh1");
   EXPECT_STREQ(mjs_getName(mesh2->element)->c_str(), "mesh2");
+
+  mjsGeom* vis1 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis1"));
+  mjsGeom* vis2 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis2"));
+  mjsGeom* vis3 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis3"));
+  mjsGeom* vis4 = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "vis4"));
+  EXPECT_STREQ(mjs_getString(vis1->meshname), "mesh");
+  EXPECT_STREQ(mjs_getString(vis2->meshname), "mesh1");
+  EXPECT_STREQ(mjs_getString(vis3->meshname), "mesh2");
+  EXPECT_STREQ(mjs_getString(vis4->meshname), "mesh1");
 
   mj_deleteSpec(spec);
 }

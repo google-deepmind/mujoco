@@ -53,6 +53,14 @@ class SceneBridge {
   // Returns the camera used for rendering the scene.
   mjrCamera GetCamera() const;
 
+  // Returns the headlight state of the most recent Update, for the caller to
+  // pass along in its mjrfRenderRequest.
+  bool IsHeadlightEnabled() const { return headlight_enabled_; }
+  const float* GetHeadlightColor() const { return headlight_color_; }
+  float GetHeadlightIntensity() const {
+    return model_lights_->GetHeadlightIntensity();
+  }
+
   SceneBridge(const SceneBridge&) = delete;
   SceneBridge& operator=(const SceneBridge&) = delete;
 
@@ -67,6 +75,8 @@ class SceneBridge {
   std::unique_ptr<ModelObjects> model_objects_;
   std::unique_ptr<SceneObjects> scene_objects_;
   std::unique_ptr<ModelLights> model_lights_;
+  bool headlight_enabled_ = false;
+  float headlight_color_[3] = {0.f, 0.f, 0.f};
   mjrCamera camera_;
   DrawTextAtFn draw_text_callback_;
   std::vector<UniquePtr<mjrfRenderable>> renderables_;

@@ -1400,9 +1400,12 @@ Notes
   for keyframes. Note that saving and loading the state using the :ref:`standard tools<geState>` remains a valid
   operation, merely that sleeping islands will be implicitly woken up.
 
-
 **RK4 integrator**
   The RK4 integrator is not currently supported, due to the subtleties of waking inside the sub-steps.
+
+**Finite-differenced derivatives**
+  :ref:`mjd_transitionFD` and :ref:`mjd_inverseFD` are not supported, since their repeated evaluations change the
+  sleep state.
 
 
 .. _siCoordinate:

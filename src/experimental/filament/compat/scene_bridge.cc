@@ -102,12 +102,6 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
 
   model_lights_->Update();
 
-  mjtNum hpos[3], hfwd[3];
-  float headpos[3], gazedir[3];
-  mjv_cameraInModel(hpos, hfwd, nullptr, scene);
-  mju_n2f(headpos, hpos, 3);
-  mju_n2f(gazedir, hfwd, 3);
-
   camera_ = mjv_averageCamera(scene->camera, scene->camera + 1);
   clip_from_world_ = CalculateClipFromWorld(viewport, camera_);
 
@@ -217,37 +211,22 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
     renderables_.push_back(std::move(renderable));
   }
 
-  mjrfLight* headlight = nullptr;
-  bool headlight_enabled = false;
+  // The headlight is a render request option rather than a scene light; record
+  // its state here for GetHeadlight().
+  headlight_enabled_ = false;
   for (int i = 0; i < scene->nlight; ++i) {
     const mjvLight& scene_light = scene->lights[i];
     if (scene_light.id < 0 && scene_light.headlight) {
-      // The headlight, if it exists, is assigned the id `scene->nlight`.
-      headlight = model_lights_->GetLight(scene->nlight);
-      if (!headlight) {
-        continue;
-      }
-      // We position the headlight slightly behind the camera to avoid some
-      // odd clipping issues.
-      headlight_enabled = true;
-      headpos[0] -= gazedir[0] * 0.05f;
-      headpos[1] -= gazedir[1] * 0.05f;
-      headpos[2] -= gazedir[2] * 0.05f;
-
-      mjrf_setLightColor(headlight, scene_light.diffuse);
-      mjrf_setLightTransform(headlight, headpos, gazedir);
-      continue;
+      headlight_enabled_ = true;
+      headlight_color_[0] = scene_light.diffuse[0];
+      headlight_color_[1] = scene_light.diffuse[1];
+      headlight_color_[2] = scene_light.diffuse[2];
     } else if (mjrfLight* light = model_lights_->GetLight(scene_light.id)) {
       mjrf_setLightColor(light, scene_light.diffuse);
       mjrf_setLightTransform(light, scene_light.pos, scene_light.dir);
     } else {
       mju_error("Unexpected light id: %d", scene_light.id);
     }
-  }
-
-  // Enable/disable the headlight based on whether or not it's in the scene.
-  if (headlight) {
-    mjrf_setLightEnabled(headlight, headlight_enabled);
   }
 }
 

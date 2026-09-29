@@ -822,6 +822,10 @@ def ccd_kernel_builder(
       cutoff = 1.0e32
     else:
       cutoff = gap
+    # Shift origin to geom1 position for translation invariance with numerical precision.
+    origin = geom1.pos
+    geom1.pos = wp.vec3(0.0)
+    geom2.pos = geom2.pos - origin
     needs_epa, dist, ncollision, w1, w2, gjk_result, geom1, geom2 = gjk_phase(
       tolerance,
       cutoff,
@@ -885,8 +889,8 @@ def ccd_kernel_builder(
 
     if wp.static(
       (use_multiccd or (geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX))
-      and (geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH)
-      and (geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH)
+      and (geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH or geomtype1 == GeomType.CYLINDER)
+      and (geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH or geomtype2 == GeomType.CYLINDER)
     ):
       if wp.static(geomtype1 == GeomType.MESH):
         # verify that geom1 mesh data is present for multicontact
@@ -964,7 +968,7 @@ def ccd_kernel_builder(
         naconmax_in,
         i,
         dists[i] if ncollision > 1 else dist,
-        0.5 * (witness1[i] + witness2[i]),
+        0.5 * (witness1[i] + witness2[i]) + origin,
         frame,
         margin,
         gap,
@@ -1238,18 +1242,25 @@ def convex_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table
     nboxbox = 0
   nboxmesh, _ = _pair_count(GeomType.BOX.value, GeomType.MESH.value)
   nmeshmesh, _ = _pair_count(GeomType.MESH.value, GeomType.MESH.value)
+  ncylcyl, _ = _pair_count(GeomType.CYLINDER.value, GeomType.CYLINDER.value)
+  ncylbox, _ = _pair_count(GeomType.CYLINDER.value, GeomType.BOX.value)
+  ncylmesh, _ = _pair_count(GeomType.CYLINDER.value, GeomType.MESH.value)
 
   epa_iterations = 16 if nboxbox == ncollision else m.opt.ccd_iterations
 
   # set to true to enable multiccd
-  use_multiccd = m.opt.disableflags & DisableBit.MULTICCD == 0
+  use_multiccd = (m.opt.disableflags & DisableBit.MULTICCD) == 0
 
+  # note: box<->box multicontact is independent of the use_multiccd flag
   # need at least 4 (square sides) if there's a box collision needing multiccd
   npolygonmax = 4 if nboxbox > 0 else 0
   nmeshdegmax = 3 if nboxbox > 0 else 0
 
-  # need to allocate more memory if there's meshes
-  if use_multiccd and nmeshmesh + nboxmesh > 0:
+  # need to allocate more memory if there are cylinders or meshes
+  if use_multiccd and ncylcyl + ncylbox + ncylmesh > 0:
+    npolygonmax = max(m.npolygonmax, 16)
+    nmeshdegmax = max(m.nmeshdegmax, 3)
+  elif use_multiccd and nmeshmesh + nboxmesh > 0:
     minval = 4 if nboxmesh else npolygonmax
     npolygonmax = max(m.npolygonmax, minval)
     nmeshdegmax = max(m.nmeshdegmax, 3)

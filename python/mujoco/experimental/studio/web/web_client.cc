@@ -118,7 +118,7 @@ class AppCallbacks final : public RemoteUi::Callbacks,
 struct App {
   std::unique_ptr<mujoco::studio::Window> window;
   std::unique_ptr<mujoco::studio::ModelHolder> model_holder;
-  mujoco::studio::Renderer* renderer = nullptr;
+  mujoco::studio::FilamentRenderer* renderer = nullptr;
   mjvPerturb perturb;
   mjvCamera camera;
   mjvOption vis_options;
@@ -374,8 +374,9 @@ void HandleSpectatorCameraInput() {
 
 uintptr_t AppCallbacks::UploadTexture(uintptr_t current, const std::byte* rgba,
                                       uint32_t width, uint32_t height) {
-  return g_app.renderer->UploadImage(current, rgba, width, height,
-                                     rgba ? 4 : 0);
+  // All GUI textures are RGBA8. When rgba is nullptr this is a destruction
+  // request and the format is ignored.
+  return g_app.renderer->UploadImage(current, rgba, width, height, 4);
 }
 
 bool AppCallbacks::GpuReady() { return IsFilamentReady(); }
@@ -541,19 +542,18 @@ void MainLoopImpl() {
     if (local_draw_data) {
       // Save local draw lists.
       ImVector<ImDrawList*> local_lists;
-      local_lists.reserve(local_draw_data->CmdListsCount);
-      for (int i = 0; i < local_draw_data->CmdListsCount; ++i) {
+      local_lists.reserve(local_draw_data->CmdLists.Size);
+      for (int i = 0; i < local_draw_data->CmdLists.Size; ++i) {
         local_lists.push_back(local_draw_data->CmdLists[i]);
       }
 
       // Clear and rebuild: remote first, then local.
       local_draw_data->CmdLists.resize(0);
-      local_draw_data->CmdListsCount = 0;
       local_draw_data->TotalVtxCount = 0;
       local_draw_data->TotalIdxCount = 0;
 
       // Remote draw lists (background).
-      for (int i = 0; i < remote_draw_data->CmdListsCount; ++i) {
+      for (int i = 0; i < remote_draw_data->CmdLists.Size; ++i) {
         local_draw_data->AddDrawList(remote_draw_data->CmdLists[i]);
       }
 
@@ -581,10 +581,11 @@ void MainLoopImpl() {
     int height =
         static_cast<int>(g_app.window->GetHeight() * g_app.window->GetScale());
     if (width > 0 && height > 0) {
-      g_app.renderer->Render(g_app.model_holder->model(),
-                             g_app.model_holder->data(), &g_app.perturb,
-                             &g_app.camera, &g_app.vis_options, width, height,
-                             /*pixels=*/{}, std::span(g_app.extra_geoms));
+      g_app.renderer->Sync(g_app.model_holder->model(),
+                           g_app.model_holder->data(), &g_app.perturb,
+                           &g_app.camera, &g_app.vis_options, width, height,
+                           std::span(g_app.extra_geoms));
+      g_app.renderer->Submit(width, height);
     }
   }
 
@@ -631,6 +632,25 @@ bool ParseModelBufferImpl(const char* data, size_t size) {
                                  size),
       "application/mjb", "model.mjb");
   if (g_app.model_holder && g_app.model_holder->ok()) {
+    mjModel* m = g_app.model_holder->model();
+    if (m && m->name_pluginadr) {
+      for (int i = 0; i < m->nplugin; ++i) {
+        if (m->name_pluginadr[i] < 0) continue;
+        std::string_view iname(m->names + m->name_pluginadr[i]);
+        if (iname.empty()) continue;
+        for (int s = 0; s < mjp_pluginCount(); ++s) {
+          const mjpPlugin* p = mjp_getPluginAtSlot(s);
+          if (!p || !p->name) continue;
+          std::string_view pname(p->name);
+          if (pname == iname ||
+              (pname.size() > iname.size() && pname.ends_with(iname) &&
+               pname[pname.size() - iname.size() - 1] == '.')) {
+            m->plugin[i] = s;
+            break;
+          }
+        }
+      }
+    }
     g_app.session.SetModelCrc32(
         Crc32(reinterpret_cast<const uint8_t*>(data), size));
     LOG(Info, "Model parsed successfully!");
