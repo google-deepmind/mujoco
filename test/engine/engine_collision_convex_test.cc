@@ -15,11 +15,13 @@
 // Tests for engine/engine_collision_convex.c.
 
 #include <string>
+#include <string_view>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_collision_convex.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -198,6 +200,253 @@ TEST_F(MjcConvexTest, PlaneFittedEllipsoid) {
   // plane vs ellipsoid is a single contact, whether or not it was mesh-fitted
   mj_forward(model.get(), data.get());
   EXPECT_EQ(data->ncon, 1);
+}
+
+mjtNum HausdorffDist(const MjModelPtr& m, const MjDataPtr& d,
+                     std::string_view name1, std::string_view name2,
+                     int nitermax = 50, mjtNum stepsize = 0.5,
+                     mjtNum tol = 1e-6) {
+  int g1 = mj_name2id(m.get(), mjOBJ_GEOM, std::string(name1).c_str());
+  int g2 = mj_name2id(m.get(), mjOBJ_GEOM, std::string(name2).c_str());
+  return mjc_hausdorff(m.get(), d.get(), g1, g2, nitermax, stepsize, tol);
+}
+
+int CheckEnclosed(const MjModelPtr& m, const MjDataPtr& d,
+                  std::string_view name1, std::string_view name2,
+                  int nitermax = 50, mjtNum stepsize = 0.5, mjtNum tol = 1e-6) {
+  return HausdorffDist(m, d, name1, name2, nitermax, stepsize, tol) <= 0;
+}
+
+TEST_F(MjcConvexTest, IsEnclosedSpheres) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="outer" type="sphere" pos="0 0 0" size="1.0"/>
+      <geom name="inner_center" type="sphere" pos="0 0 0" size="0.4"/>
+      <geom name="inner_axial" type="sphere" pos="0.59 0 0" size="0.4"/>
+      <geom name="protrude_axial" type="sphere" pos="0.61 0 0" size="0.4"/>
+      <geom name="inner_diag" type="sphere" pos="0.4 0.4 0.4" size="0.3"/>
+      <geom name="protrude_diag" type="sphere" pos="0.42 0.42 0.42" size="0.3"/>
+      <geom name="disjoint" type="sphere" pos="3.0 0 0" size="0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // concentric and identical
+  EXPECT_NEAR(HausdorffDist(model, data, "inner_center", "outer"), -0.6, 1e-5);
+  EXPECT_NEAR(HausdorffDist(model, data, "outer", "inner_center"), 0.6, 1e-5);
+  EXPECT_NEAR(HausdorffDist(model, data, "outer", "outer"), 0.0, 1e-5);
+
+  // offset along X axis: 0.59 + 0.4 - 1.0 = -0.01 vs 0.61 + 0.4 - 1.0 = +0.01
+  EXPECT_NEAR(HausdorffDist(model, data, "inner_axial", "outer"), -0.01, 1e-5);
+  EXPECT_NEAR(HausdorffDist(model, data, "protrude_axial", "outer"), 0.01,
+              1e-5);
+
+  // offset along (1,1,1) diagonal:
+  // inner_diag: 0.4 * sqrt(3) + 0.3 - 1.0 = -0.00717968 (enclosed)
+  // protrude_diag: 0.42 * sqrt(3) + 0.3 - 1.0 = +0.02745626 (protrudes)
+  EXPECT_NEAR(HausdorffDist(model, data, "inner_diag", "outer"),
+              0.4 * mju_sqrt(3.0) - 0.7, 1e-4);
+  EXPECT_NEAR(HausdorffDist(model, data, "protrude_diag", "outer"),
+              0.42 * mju_sqrt(3.0) - 0.7, 1e-4);
+
+  // completely separated: 3.0 + 0.2 - 1.0 = 2.2
+  EXPECT_NEAR(HausdorffDist(model, data, "disjoint", "outer"), 2.2, 1e-5);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedBoxesAndRotations) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="box_outer" type="box" pos="0 0 0" size="1 1 1"/>
+      <geom name="box_inner" type="box" pos="0.2 -0.3 0.1" size="0.5 0.5 0.5"/>
+      <geom name="box_rotated_fit" type="box" pos="0 0 0" euler="35 25 45" size="0.5 0.5 0.5"/>
+      <geom name="box_rotated_poke" type="box" pos="0 0 0" euler="0 0 45" size="0.75 0.75 0.75"/>
+      <body pos="1.5 -2.0 0.5" euler="30 45 60">
+        <geom name="tilted_outer" type="box" size="1.0 0.8 0.6"/>
+        <geom name="tilted_inner" type="box" pos="0.1 0.1 -0.05" euler="15 -20 10" size="0.4 0.3 0.2"/>
+        <geom name="tilted_poke" type="box" pos="0.5 0.0 0.0" euler="0 45 0" size="0.5 0.3 0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // closest face of box_inner is along -Y: 0.3 + 0.5 - 1.0 = -0.2
+  EXPECT_NEAR(HausdorffDist(model, data, "box_inner", "box_outer"), -0.2, 1e-4);
+  EXPECT_GT(HausdorffDist(model, data, "box_outer", "box_inner"), 0.0);
+  EXPECT_EQ(CheckEnclosed(model, data, "box_rotated_fit", "box_outer"), 1);
+
+  // corner reaches 0.75 * sqrt(2) = 1.06066 > 1.0 along X/Y faces
+  EXPECT_NEAR(HausdorffDist(model, data, "box_rotated_poke", "box_outer"),
+              0.75 * mju_sqrt(2.0) - 1.0, 1e-4);
+
+  // arbitrarily rotated outer box container
+  EXPECT_EQ(CheckEnclosed(model, data, "tilted_inner", "tilted_outer"), 1);
+  EXPECT_EQ(CheckEnclosed(model, data, "tilted_outer", "tilted_inner"), 0);
+  EXPECT_EQ(CheckEnclosed(model, data, "tilted_poke", "tilted_outer"), 0);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedBoxInSphereCornerProtrusion) {
+  // stress test for S^2 hill-climbing: a box centered in a unit sphere has
+  // axial extent h < 1.0 (so all 6 k=0 axial checks are negative), but its 8
+  // corners sit at distance h * sqrt(3) along the (+/-1, +/-1, +/-1) diagonals
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="sphere" type="sphere" size="1.0"/>
+      <geom name="box_in" type="box" size="0.57 0.57 0.57"/>
+      <geom name="box_out" type="box" size="0.59 0.59 0.59"/>
+      <geom name="box_rot_in" type="box" euler="23 41 17" size="0.57 0.57 0.57"/>
+      <geom name="box_rot_out" type="box" euler="23 41 17" size="0.59 0.59 0.59"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // 0.57 * sqrt(3) - 1.0 = -0.01273 < 0 -> enclosed
+  EXPECT_NEAR(HausdorffDist(model, data, "box_in", "sphere"),
+              0.57 * mju_sqrt(3.0) - 1.0, 1e-4);
+  EXPECT_NEAR(HausdorffDist(model, data, "box_rot_in", "sphere"),
+              0.57 * mju_sqrt(3.0) - 1.0, 1e-4);
+
+  // 0.59 * sqrt(3) - 1.0 = +0.02191 > 0 -> corners poke out of sphere
+  EXPECT_NEAR(HausdorffDist(model, data, "box_out", "sphere"),
+              0.59 * mju_sqrt(3.0) - 1.0, 1e-4);
+  EXPECT_NEAR(HausdorffDist(model, data, "box_rot_out", "sphere"),
+              0.59 * mju_sqrt(3.0) - 1.0, 1e-4);
+
+  // sphere inside box: protrudes by 1.0 - 0.57 = 0.43 along box face normals
+  EXPECT_NEAR(HausdorffDist(model, data, "sphere", "box_in"), 0.43, 1e-4);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedSmoothAndPolytopeShapes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="ellipsoid" type="ellipsoid" euler="20 -35 50" size="1.2 0.8 0.6"/>
+      <geom name="cap_in" type="capsule" euler="20 -35 50" size="0.2 0.3"/>
+      <geom name="cap_out" type="capsule" euler="20 -35 50" size="0.25 0.4"/>
+      <geom name="cyl_outer" type="cylinder" euler="15 25 -40" size="1.0 1.0"/>
+      <geom name="cyl_inner" type="cylinder" euler="15 25 -40" size="0.7 0.8"/>
+      <geom name="box_in_cyl" type="box" euler="15 25 -40" size="0.69 0.69 0.95"/>
+      <geom name="box_out_cyl" type="box" euler="15 25 -40" size="0.72 0.72 0.95"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  EXPECT_EQ(CheckEnclosed(model, data, "cap_in", "ellipsoid"), 1);
+  EXPECT_NEAR(HausdorffDist(model, data, "cap_out", "ellipsoid"), 0.05, 1e-4);
+  EXPECT_NEAR(HausdorffDist(model, data, "cyl_inner", "cyl_outer"), -0.2, 1e-4);
+  // Rim of cyl_outer (r=1, z=1) to rim of cyl_inner (r=0.7, z=0.8) has
+  // Euclidean Hausdorff distance sqrt(0.3^2 + 0.2^2) = sqrt(0.13)
+  EXPECT_NEAR(HausdorffDist(model, data, "cyl_outer", "cyl_inner"),
+              mju_sqrt(0.3 * 0.3 + 0.2 * 0.2), 1e-4);
+
+  // box in cylinder: radial corner distance 0.69 * sqrt(2) = 0.9758 < 1.0 vs
+  // 0.72 * sqrt(2) = 1.0182 > 1.0
+  EXPECT_EQ(CheckEnclosed(model, data, "box_in_cyl", "cyl_outer"), 1);
+  EXPECT_NEAR(HausdorffDist(model, data, "box_out_cyl", "cyl_outer"),
+              0.72 * mju_sqrt(2.0) - 1.0, 1e-4);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedConvexMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="octa_outer"
+            vertex=" 1  0  0  -1  0  0   0  1  0   0 -1  0   0  0  1   0  0 -1"/>
+      <mesh name="octa_inner"
+            vertex=" 0.8  0  0  -0.8  0  0   0  0.8  0   0 -0.8  0   0  0  0.8   0  0 -0.8"/>
+      <mesh name="cube_in_octa"
+            vertex="-0.32 -0.32 -0.32   0.32 -0.32 -0.32   0.32  0.32 -0.32  -0.32  0.32 -0.32
+                    -0.32 -0.32  0.32   0.32 -0.32  0.32   0.32  0.32  0.32  -0.32  0.32  0.32"/>
+      <mesh name="cube_out_octa"
+            vertex="-0.35 -0.35 -0.35   0.35 -0.35 -0.35   0.35  0.35 -0.35  -0.35  0.35 -0.35
+                    -0.35 -0.35  0.35   0.35 -0.35  0.35   0.35  0.35  0.35  -0.35  0.35  0.35"/>
+    </asset>
+    <worldbody>
+      <geom name="outer" type="mesh" mesh="octa_outer"/>
+      <geom name="inner" type="mesh" mesh="octa_inner"/>
+      <geom name="cube_in" type="mesh" mesh="cube_in_octa"/>
+      <geom name="cube_out" type="mesh" mesh="cube_out_octa"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // octahedron face plane is |x|+|y|+|z| <= 1
+  // (face distance 1/sqrt(3) = 0.57735)
+  EXPECT_EQ(CheckEnclosed(model, data, "inner", "outer"), 1);
+  EXPECT_EQ(CheckEnclosed(model, data, "outer", "inner"), 0);
+
+  // cube with half-side 0.32 has |x|+|y|+|z| = 0.96 < 1.0 (inside octahedron)
+  EXPECT_EQ(CheckEnclosed(model, data, "cube_in", "outer"), 1);
+
+  // cube with half-side 0.35 has |x|+|y|+|z| = 1.05 > 1.0 (corners poke through
+  // the 8 diagonal faces of the octahedron by (1.05 - 1.0) / sqrt(3))
+  EXPECT_NEAR(HausdorffDist(model, data, "cube_out", "outer"),
+              0.05 / mju_sqrt(3.0), 1e-4);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedDisjointInsideWorldAABB) {
+  // verify that non-intersecting objects whose world AABB is strictly inside
+  // obj2's world AABB are rejected without needing GJK first.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="tilted_slab" type="ellipsoid" euler="0 45 0" size="1.0 1.0 0.05"/>
+      <geom name="tucked_sphere" type="sphere" pos="-0.35 0 0.35" size="0.05"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  EXPECT_EQ(CheckEnclosed(model, data, "tucked_sphere", "tilted_slab"), 0);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedScaleInvariance) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="micro_sphere" type="sphere" size="1e-4"/>
+      <geom name="micro_box_in" type="box" size="5.7e-5 5.7e-5 5.7e-5"/>
+      <geom name="micro_box_out" type="box" size="5.9e-5 5.9e-5 5.9e-5"/>
+      <geom name="macro_sphere" type="sphere" size="1e3"/>
+      <geom name="macro_box_in" type="box" size="570 570 570"/>
+      <geom name="macro_box_out" type="box" size="590 590 590"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // micro scale (1e-4 m)
+  EXPECT_NEAR(HausdorffDist(model, data, "micro_box_in", "micro_sphere"),
+              (0.57 * mju_sqrt(3.0) - 1.0) * 1e-4, 1e-8);
+  EXPECT_NEAR(HausdorffDist(model, data, "micro_box_out", "micro_sphere"),
+              (0.59 * mju_sqrt(3.0) - 1.0) * 1e-4, 1e-8);
+
+  // macro scale (1e3 m)
+  EXPECT_NEAR(HausdorffDist(model, data, "macro_box_in", "macro_sphere"),
+              (0.57 * mju_sqrt(3.0) - 1.0) * 1e3, 1e-1);
+  EXPECT_NEAR(HausdorffDist(model, data, "macro_box_out", "macro_sphere"),
+              (0.59 * mju_sqrt(3.0) - 1.0) * 1e3, 1e-1);
 }
 
 }  // namespace
