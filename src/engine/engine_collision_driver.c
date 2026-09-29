@@ -101,19 +101,23 @@ int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
     return 4;
   }
 
+  // geoms with flat faces
+  int hasface1 = (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH || type1 == mjGEOM_CYLINDER);
+  int hasface2 = (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH || type2 == mjGEOM_CYLINDER);
+
+  // geoms with only edges
+  int hasedge1 = (type1 == mjGEOM_CAPSULE);
+  int hasedge2 = (type2 == mjGEOM_CAPSULE);
+
   // the remaining plane cases
   if (type1 == mjGEOM_PLANE || type2 == mjGEOM_PLANE) {
-    int type = (type1 == mjGEOM_PLANE) ? type2 : type1;
-    switch (type) {
-      case mjGEOM_CAPSULE:
-        return 2;
-      case mjGEOM_CYLINDER:
-      case mjGEOM_BOX:
-      case mjGEOM_MESH:
-        return 4;
-      default:
-        return 0;
+    if (hasface1 || hasface2) {
+      return 4;
     }
+    if (hasedge1 || hasedge2) {
+      return 2;
+    }
+    return 0;
   }
 
   int is_multiccd = !mjDISABLED(mjDSBL_MULTICCD);
@@ -121,12 +125,8 @@ int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
     return 1;
   }
 
-  if (type1 == mjGEOM_CAPSULE || type2 == mjGEOM_CAPSULE) {
-    return 5;
-  }
-
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
-    return is_multiccd ? 5 : 1;  // mesh-mesh or mesh-box with libccd
+    return 5;
   }
 
   // check margin from model
@@ -153,8 +153,21 @@ int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
     }
   }
 
-  // 4 contacts for box, cylinder, and mesh collisions without margins, 5 with margins
-  return has_margin ? 5 : 4;
+  if (has_margin) {
+    return 5;
+  }
+
+  // colliding geoms with flat faces
+  if (hasface1 && hasface2) {
+    return 4;
+  }
+
+  // colliding geoms with edges
+  if ((hasedge1 && hasface2) || (hasface1 && hasedge2) || (hasedge1 && hasedge2)) {
+    return 2;
+  }
+
+  return 1;
 }
 
 

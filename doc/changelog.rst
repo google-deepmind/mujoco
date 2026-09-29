@@ -25,6 +25,10 @@ General
   integrator supports these attachments with the CG solver; fixed and independent XYZ-slide attachments retain their
   optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
 
+Engine
+^^^^^^
+- Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
+
 Version 3.14.0 (September 22, 2026)
 -----------------------------------
 

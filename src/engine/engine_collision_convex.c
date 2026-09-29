@@ -861,23 +861,39 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 
 // return number of contacts supported by a single pass of narrowphase
 static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* obj2) {
-  // single pass not supported for margins
-  if (obj1->margin > 0 || obj2->margin > 0) {
+  // single pass not supported for margins nor libccd
+  if (obj1->margin > 0 || obj2->margin > 0 || mjDISABLED(mjDSBL_NATIVECCD)) {
     return 1;
   }
 
-  // can return 8 contacts for box-box collision in one pass
+  // always return up to 8 contacts for box-box collision in one pass
   int type1 = obj1->geom_type;
   int type2 = obj2->geom_type;
   if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
     return 8;
   }
 
-  // reduce geom collisions to 4 contacts max
-  if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH || type1 == mjGEOM_CYLINDER) {
-    if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH || type2 == mjGEOM_CYLINDER) {
-      return mjDISABLED(mjDSBL_MULTICCD) ? 1 : 4;
-    }
+  // multicontact isn't available
+  if (mjDISABLED(mjDSBL_MULTICCD)) {
+    return 1;
+  }
+
+  // geoms with flat faces
+  int hasface1 = (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH || type1 == mjGEOM_CYLINDER);
+  int hasface2 = (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH || type2 == mjGEOM_CYLINDER);
+
+  // geoms with only edges
+  int hasedge1 = (type1 == mjGEOM_CAPSULE);
+  int hasedge2 = (type2 == mjGEOM_CAPSULE);
+
+  // colliding geoms with flat faces
+  if (hasface1 && hasface2) {
+    return 4;
+  }
+
+  // colliding geoms with edges
+  if ((hasedge1 && hasface2) || (hasface1 && hasedge2) || (hasedge1 && hasedge2)) {
+    return 2;
   }
 
   // not supported for other geom types
@@ -893,21 +909,25 @@ int mjc_Convex(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, m
   mjc_initCCDObj(&obj2, m, d, g2, margin);
   int max_contacts = maxContacts(m, &obj1, &obj2);
 
+  // ellipsoid (including sphere) geoms don't require multiple contacts
+  int isellipsoid1 = (obj1.geom_type == mjGEOM_ELLIPSOID || obj1.geom_type == mjGEOM_SPHERE);
+  int isellipsoid2 = (obj2.geom_type == mjGEOM_ELLIPSOID || obj2.geom_type == mjGEOM_SPHERE);
+
   // find initial contact
   int ncon = mjc_penetration(m, d, &obj1, &obj2, con, max_contacts, margin);
+
+  // fix normal for libccd
   if (mjDISABLED(mjDSBL_NATIVECCD) && ncon && g1 >= 0 && g2 >= 0) {
     mjc_fixNormal(m, d, con, g1, g2);
   }
 
   // no additional contacts needed
-  if (!mjDISABLED(mjDSBL_NATIVECCD) && max_contacts > 1) {
+  if (max_contacts > 1 || isellipsoid1 || isellipsoid2) {
     return ncon;
   }
 
   // look for additional contacts
-  if (ncon == 1 && !mjDISABLED(mjDSBL_MULTICCD)
-      && m->geom_type[g1] != mjGEOM_ELLIPSOID && m->geom_type[g1] != mjGEOM_SPHERE
-      && m->geom_type[g2] != mjGEOM_ELLIPSOID && m->geom_type[g2] != mjGEOM_SPHERE) {
+  if (ncon == 1 && !mjDISABLED(mjDSBL_MULTICCD) && !isellipsoid1 && !isellipsoid2) {
     // multiCCD parameters
     const mjtNum relative_tolerance = 1e-3;
     const mjtNum perturbation_angle = 1e-3;

@@ -2013,7 +2013,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
          <div class="line">CCD</div>
          <div class="line">
            <div class="multiccd-off"><strong>1</strong></div>
-           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-native"><strong>2</strong></div>
            <div class="multiccd-legacy"><strong>5</strong></div>
          </div>
 
@@ -2025,7 +2025,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
          <div class="line">CCD</div>
          <div class="line">
            <div class="multiccd-off"><strong>1</strong></div>
-           <div class="multiccd-native"><strong>5</strong></div>
+           <div class="multiccd-native"><strong>2</strong></div>
            <div class="multiccd-legacy"><strong>5</strong></div>
          </div>
 

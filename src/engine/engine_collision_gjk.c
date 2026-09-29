@@ -2006,7 +2006,7 @@ static int boxEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* 
 }
 
 
-// recover edge of a cylinder from collision point
+// recover edge of a cylinder from witness point
 static int cylinderEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* obj,
                                const mjtNum v[9], int v1i) {
   if (dim == 1 || dim == 2) {
@@ -2022,6 +2022,22 @@ static int cylinderEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCD
   return 0;
 }
 
+
+// recover edge of a capsule from witness point
+static int capsuleEdgeNormals(mjtNum res[3], mjtNum endverts[3], mjCCDObj* obj,
+                              mjtNum v[3], const mjtNum w[3]) {
+  res[0] = obj->mat[2];
+  res[1] = obj->mat[5];
+  res[2] = obj->mat[8];
+
+  mjtNum tmp[3];
+  sub3(tmp, w, obj->pos);
+  mjtNum pr = dot3(tmp, res);
+  mjtNum length = obj->size[1];
+  addScl3(v, w, res, -pr - length);
+  addScl3(endverts, w, res, -pr + length);
+  return 1;
+}
 
 // recover face of a cylinder (approximated as a 16-gon) from its index
 static int cylinderFace(mjtNum res[48], mjCCDObj* obj, int idx) {
@@ -2187,6 +2203,10 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, cons
     nmeshdegmax = nmeshdegmax < 3 ? 3 : nmeshdegmax;
     npolygonmax = npolygonmax < 4 ? 4 : npolygonmax;
   }
+  if (obj1->geom_type == mjGEOM_CAPSULE || obj2->geom_type == mjGEOM_CAPSULE) {
+    nmeshdegmax = nmeshdegmax < 2 ? 2 : nmeshdegmax;
+    npolygonmax = npolygonmax < 2 ? 2 : npolygonmax;
+  }
 
   // copy face data from vertex data (hard copy in case buffer is being reused)
   int triface1i[3] = {v1->index1, v2->index1, v3->index1};
@@ -2238,7 +2258,7 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, cons
   int res[2], edgecon1 = 0, edgecon2 = 0;
   if (!alignedFaces(res, n1, nnorms1, n2, nnorms2)) {
     // check if edge-face collision
-    if (nface1 < 3 && nface1 <= nface2) {
+    if (nface1 < 3 && nnorms2 && (nface1 <= nface2 || !nnorms1)) {
       nnorms1 = 0;
       if (obj1->geom_type == mjGEOM_BOX) {
         nnorms1 = boxEdgeNormals(n1, endverts, nface1, obj1, triface1, triface1i[0]);
@@ -2246,6 +2266,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, cons
         nnorms1 = meshEdgeNormals(n1, endverts, nface1, obj1, triface1, triface1i[0]);
       } else if (obj1->geom_type == mjGEOM_CYLINDER) {
         nnorms1 = cylinderEdgeNormals(n1, endverts, nface1, obj1, triface1, triface1i[0]);
+      } else if (obj1->geom_type == mjGEOM_CAPSULE) {
+        nnorms1 = capsuleEdgeNormals(n1, endverts, obj1, triface1, status->x1);
       }
       if (!alignedFaceEdge(res, n1, nnorms1, n2, nnorms2, dir)) return;
       edgecon1 = 1;
@@ -2259,6 +2281,8 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, cons
         nnorms2 = meshEdgeNormals(n2, endverts, nface2, obj2, triface2, triface2i[0]);
       } else if (obj2->geom_type == mjGEOM_CYLINDER) {
         nnorms2 = cylinderEdgeNormals(n2, endverts, nface2, obj2, triface2, triface2i[0]);
+      } else if (obj2->geom_type == mjGEOM_CAPSULE) {
+        nnorms2 = capsuleEdgeNormals(n2, endverts, obj2, triface2, status->x2);
       }
       if (!alignedFaceEdge(res, n2, nnorms2, n1, nnorms1, dir_neg)) return;
       edgecon2 = 1;
@@ -2436,6 +2460,20 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
       inflate(status, full_margin1, full_margin2);
       if (status->dist[0] > status->dist_cutoff) {
         status->dist[0] = mjMAX_LIMIT;
+      } else if (config->max_contacts > 1 && status->dist[0] < 0
+                 && config->buffer && status->nsimplex > 0) {
+        const Vertex* v1 = &status->simplex[0];
+        const Vertex* v2 = &status->simplex[status->nsimplex > 1 ? 1 : 0];
+        const Vertex* v3 = &status->simplex[status->nsimplex > 2 ? 2 : 0];
+        multicontact(config->nmeshdegmax, config->npolygonmax, config->buffer, v1, v2, v3,
+                     status, obj1, obj2);
+        mjtNum min_dist = status->dist[0];
+        for (int i = 1; i < status->nx; i++) {
+          if (status->dist[i] < min_dist) {
+            min_dist = status->dist[i];
+          }
+        }
+        return min_dist;
       }
       return status->dist[0];
     }

@@ -2285,4 +2285,194 @@ TEST_F(MjGjkTest, CorrectFaceMultiCCD) {
   EXPECT_EQ(ncons, 4);
 }
 
+TEST_F(MjGjkTest, CapsuleMeshMultiCCDShallow) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="boxmesh"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.1   1 -1  0.1   1  1  0.1  -1  1  0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="boxmesh"/>
+      <geom name="cap" type="capsule" pos="0 0 0.14" zaxis="1 0 0" size="0.05 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "cap");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 2);
+
+  // depth = 0.01 < radius = 0.05: shallow GJK only
+  EXPECT_EQ(ncons, 2);
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+  EXPECT_EQ(status.epa_iterations, 0);
+}
+
+TEST_F(MjGjkTest, CapsuleMeshMultiCCDEpaFallback) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="boxmesh"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.1   1 -1  0.1   1  1  0.1  -1  1  0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="boxmesh"/>
+      <geom name="cap" type="capsule" pos="0 0 0.08" zaxis="1 0 0" size="0.05 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "cap");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 2);
+
+  // depth = 0.07 > radius = 0.05: EPA fallback
+  EXPECT_EQ(ncons, 2);
+  EXPECT_NEAR(dist, -0.07, kTolerance);
+  EXPECT_GT(status.epa_iterations, 0);
+}
+
+TEST_F(MjGjkTest, CapsuleMeshMultiCCDReversed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="boxmesh"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.1   1 -1  0.1   1  1  0.1  -1  1  0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="boxmesh"/>
+      <geom name="cap" type="capsule" pos="0 0 0.14" zaxis="1 0 0" size="0.05 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "cap");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 2);
+
+  ASSERT_EQ(ncons, 2);
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance),
+                             {-0.2, 0.0, 0.095, 0.2, 0.0, 0.095}));
+}
+
+TEST_F(MjGjkTest, CapsuleCylinderMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="cyl" type="cylinder" size="1.0 0.1"/>
+      <geom name="cap" type="capsule" pos="0 0 0.14" zaxis="1 0 0" size="0.05 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int cyl = mj_name2id(model.get(), mjOBJ_GEOM, "cyl");
+  int cap = mj_name2id(model.get(), mjOBJ_GEOM, "cap");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+
+  // cylinder as obj1, capsule as obj2
+  int ncons1 = Penetration(status, dist, dir, pos, model, data, cyl, cap, 0, 2);
+  EXPECT_EQ(ncons1, 2);
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+
+  // capsule as obj1, cylinder as obj2
+  int ncons2 = Penetration(status, dist, dir, pos, model, data, cap, cyl, 0, 2);
+  EXPECT_EQ(ncons2, 2);
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+}
+
+TEST_F(MjGjkTest, CapsuleMeshMultiCCDClipped) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="boxmesh"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.1   1 -1  0.1   1  1  0.1  -1  1  0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="boxmesh"/>
+      <geom name="cap" type="capsule" pos="0 0 0.14" zaxis="1 0 0" size="0.05 2.0"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "cap");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 2);
+
+  // capsule [-2, 2] clipped to mesh face boundary [-1, 1]
+  ASSERT_EQ(ncons, 2);
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance),
+                             {-1.0, 0.0, 0.095, 1.0, 0.0, 0.095}));
+}
+
+TEST_F(MjGjkTest, CapsuleMeshMultiCCDTilted) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="boxmesh"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.1   1 -1  0.1   1  1  0.1  -1  1  0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="boxmesh"/>
+      <geom name="cap" type="capsule" pos="0 0 0.14" zaxis="1 0 0.2" size="0.05 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "cap");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 2);
+
+  // tilted capsule should only generate 1 contact at the lower end
+  EXPECT_EQ(ncons, 1);
+}
+
 }  // namespace mujoco
