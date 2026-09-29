@@ -15,24 +15,37 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_PICTURE_GUI_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_PICTURE_GUI_H_
 
+#include <string>
 #include <vector>
 
+#include <imgui.h>
 #include <mujoco/mujoco.h>
 #include "experimental/studio/hal/filament_renderer.h"
 
 namespace mujoco::studio {
 
+// Describes a pre-uploaded texture source available for picture-in-picture.
+struct PipSource {
+  std::string name;
+  ImTextureID texture = ImTextureID_Invalid;
+  float aspect_ratio = 1.0f;
+};
+
 // Manages the state of a single picture-in-picture widget.
 struct PipState {
   enum Mode { Color, Depth, Segmentation };
   int camera = 0;
-  int texture = 0;
+  ImTextureID texture = ImTextureID_Invalid;
   Mode mode = Color;
 };
 
 // Renders the GUI for a set of picture-in-picture widgets.
 void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
             FilamentRenderer* renderer, std::vector<PipState>* pips);
+
+// Renders the GUI for a set of picture-in-picture widgets backed by
+// pre-uploaded textures.
+void PipGui(const std::vector<PipSource>& sources, std::vector<PipState>* pips);
 
 }  // namespace mujoco::studio
 

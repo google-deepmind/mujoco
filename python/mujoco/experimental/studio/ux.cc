@@ -27,6 +27,7 @@
 #include <mujoco/experimental/studio/ux/gui.h>
 #include <mujoco/experimental/studio/ux/gui_helpers.h>
 #include <mujoco/experimental/studio/ux/interaction.h>
+#include <mujoco/experimental/studio/ux/picture_gui.h>
 #include "specs_wrapper.h"
 #include "structs.h"
 #include <pybind11/pybind11.h>
@@ -581,4 +582,28 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("data"), py::arg("camera"),
       "Returns an XML string representation of the camera.");
+
+  // Picture-in-picture state and GUI binding for Python viewer plugins.
+  py::class_<mujoco::studio::PipSource>(m, "PipSource")
+      .def(py::init<std::string, ImTextureID, float>(), py::arg("name") = "",
+           py::arg("texture") = ImTextureID_Invalid,
+           py::arg("aspect_ratio") = 1.0f)
+      .def_readwrite("name", &mujoco::studio::PipSource::name)
+      .def_readwrite("texture", &mujoco::studio::PipSource::texture)
+      .def_readwrite("aspect_ratio", &mujoco::studio::PipSource::aspect_ratio);
+
+  py::class_<mujoco::studio::PipState>(m, "PipState")
+      .def(py::init<>())
+      .def_readwrite("camera", &mujoco::studio::PipState::camera)
+      .def_readwrite("texture", &mujoco::studio::PipState::texture);
+
+  m.def(
+      "pip_gui",
+      [](const std::vector<mujoco::studio::PipSource>& sources,
+         std::vector<mujoco::studio::PipState> pips) {
+        py::gil_scoped_release no_gil;
+        mujoco::studio::PipGui(sources, &pips);
+        return pips;
+      },
+      py::arg("sources"), py::arg("pips"));
 }

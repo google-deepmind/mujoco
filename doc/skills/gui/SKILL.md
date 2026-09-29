@@ -325,6 +325,12 @@ locate the corresponding feature implementation:
 
 ## 9. Python Bindings
 
+-   **Thin Binding Layer (No GUI/Application Logic in Bindings)**: Just as GUI
+    code should avoid containing heavy application logic in glue layers,
+    `pybind11` bindings (e.g., `ux.cc`) must remain thin wrappers around C++
+    functions (such as `ux/*.h` and `ux/*.cc`). Do not write multi-widget ImGui
+    layout or application logic directly inside Python binding lambdas;
+    implement the widget or helper in C++ and bind the function instead.
 -   **Add On-Demand (Never Remove)**: Expose new ImGui or ImPlot bindings to
     Python only when they are actually needed and used by an application or
     plugin. Once added, do not remove them.
