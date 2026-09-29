@@ -4599,6 +4599,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (elastic3d == 1 && (dim != 3 || interpolated)) {
     throw mjCError(this, "stable Neo-Hookean elasticity requires a non-interpolated 3d flex");
   }
+  if (elastic3d == 1 && model->option.integrator != mjINT_DISCRETE) {
+    throw mjCError(this, "stable Neo-Hookean elasticity requires integrator='discrete'");
+  }
 
   // set nvert, rigid, centered; check size
   if (vert_.empty()) {

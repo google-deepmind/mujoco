@@ -2534,6 +2534,9 @@ TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
     ASSERT_THAT(spec, NotNull());
     mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"));
     flex->elastic3d = elastic3d;
+    if (elastic3d) {
+      spec->option.integrator = mjINT_DISCRETE;
+    }
     if (dim == 2) {
       flex->dim = 2;
       flex->elastic2d = 2;  // stretching
@@ -2561,9 +2564,10 @@ TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
       return values;
     };
 
-    // Euler with damping disabled needs no Cartesian Hessian.
+    // SNH's discrete solver prepares the cache; StVK with Euler does not need
+    // it.
     mj_forward(m.get(), d.get());
-    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    EXPECT_EQ(d->flex_hessian_valid[0], elastic3d != 0);
     std::vector<mjtNum> spring(d->qfrc_spring, d->qfrc_spring + m->nv);
     mjd_flexStretch_mul(m.get(), d.get(), result.data(), vec.data(), 1, 0);
     ASSERT_TRUE(d->flex_hessian_valid[0]);
@@ -2583,8 +2587,7 @@ TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
     mju_copy(fresh->qpos, d->qpos, m->nq);
     mju_copy(fresh->qvel, d->qvel, m->nv);
     mj_forward(m.get(), fresh.get());
-    // Euler computes damping directly when no cache is already available.
-    EXPECT_FALSE(fresh->flex_hessian_valid[0]);
+    EXPECT_EQ(fresh->flex_hessian_valid[0], elastic3d != 0);
     EXPECT_THAT(AsVector(d->qfrc_spring, m->nv),
                 Pointwise(Eq(), AsVector(fresh->qfrc_spring, m->nv)));
     EXPECT_THAT(
@@ -2613,13 +2616,15 @@ TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
                         0);
     EXPECT_THAT(result, Pointwise(Eq(), expected));
 
-    // Neither explicit integrator constructs the cache for material damping.
-    for (int integrator : {mjINT_EULER, mjINT_RK4}) {
-      m->opt.integrator = integrator;
-      mj_resetData(m.get(), d.get());
-      mju_copy(d->qvel, vec.data(), m->nv);
-      mj_step(m.get(), d.get());
-      EXPECT_FALSE(d->flex_hessian_valid[0]);
+    // StVK still supports explicit integration without constructing the cache.
+    if (!elastic3d) {
+      for (int integrator : {mjINT_EULER, mjINT_RK4}) {
+        m->opt.integrator = integrator;
+        mj_resetData(m.get(), d.get());
+        mju_copy(d->qvel, vec.data(), m->nv);
+        mj_step(m.get(), d.get());
+        EXPECT_FALSE(d->flex_hessian_valid[0]);
+      }
     }
 
     // Reset invalidates even when the remaining derived data is debug-filled.
@@ -2710,15 +2715,6 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
       for (int i = 0; i < nv; i++) {
         EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
       }
-      // The uncached explicit damping path agrees through collapse and
-      // inversion.
-      m->opt.integrator = mjINT_EULER;
-      mj_forward(m.get(), d.get());
-      EXPECT_FALSE(d->flex_hessian_valid[0]);
-      for (int i = 0; i < nv; i++) {
-        EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
-      }
-      m->opt.integrator = mjINT_DISCRETE;
       // Central differences verify the full tangent even at rank zero and under
       // reflection.
       m->flex_damping[0] = 0;
