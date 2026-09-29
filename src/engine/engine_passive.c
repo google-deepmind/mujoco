@@ -539,6 +539,10 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   int dim = m->flex_dim[f];
   int nedge = (dim == 2) ? 3 : 6;
   int snh = dim == 3 && k[21] != 0;
+  // explicit integrators need only one SNH damping product per configuration;
+  // avoid building Cartesian blocks unless the discrete solver needs them or a cache exists
+  int direct_damping = snh && kD && m->opt.integrator != mjINT_DISCRETE &&
+                       !d->flex_hessian_valid[f];
   const int* elem = m->flex_elem + m->flex_elemdataadr[f];
   const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
@@ -575,7 +579,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
     mjtNum grad[4][3], pressure = 0;
     if (snh) {
-      mj_snhCubic(metric, tension, elongation, packed[21], kD != 0);
+      mj_snhCubic(metric, tension, elongation, packed[21], direct_damping);
       pressure = 2*packed[22]*(mj_snhVolume(grad, edgevec, packed)-1);
     }
     if (enbl_spring) {
@@ -588,13 +592,13 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     }
 
     if (snh) {
-      if (kD) {
+      if (direct_damping) {
         mjtNum velocity[4][3], result[4][3];
         for (int v = 0; v < 4; v++) {
           mju_copy3(velocity[v], worldvel + 3*vert[v]);
         }
         mj_snhStiffnessMul(result, metric, tension, edgevec, grad, pressure, packed,
-                           velocity, -m->flex_damping[f]);
+                          velocity, -m->flex_damping[f]);
         for (int v = 0; v < 4; v++) {
           mju_addTo3(dmp + 3*vert[v], result[v]);
         }
@@ -616,6 +620,11 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
       mj_stretchTension(tension, metric, elongation, nedge);
       mj_stretchForce(dmp, vert, tension, edgevec, dim);
     }
+  }
+
+  if (snh && kD && !direct_damping) {
+    mj_flexHessian(m, d, f);
+    mj_flexHessianMul(m, d, f, dmp, worldvel, -m->flex_damping[f]);
   }
 
   // insert forces into qfrc_spring and qfrc_damper

@@ -559,6 +559,9 @@ void mj_flex(const mjModel* m, mjData* d) {
     return;
   }
 
+  // geometry updates invalidate the lazily prepared Cartesian stretch Hessian
+  memset(d->flex_hessian_valid, 0, m->nflex * sizeof(mjtBool));
+
   // compute Cartesian positions of flex vertices
   for (int f=0; f < m->nflex; f++) {
     int vstart = m->flex_vertadr[f];

@@ -1481,6 +1481,108 @@ int mj_effActuatorPossible(const mjModel* m, int i) {
 }
 
 
+//-------------------------- flex elasticity -------------------------------------------------------
+
+// cache the unscaled Cartesian stretch Hessian of a standard 2D or 3D flex
+// StVK retains its tensile geometric term; SNH retains its full, unprojected Hessian
+void mj_flexHessian(const mjModel* m, mjData* d, int f) {
+  if (d->flex_hessian_valid[f]) {
+    return;
+  }
+
+  int va = m->flex_vertadr[f], ea = m->flex_edgeadr[f];
+  mjtNum* diagonal = d->flexvert_hessian + 6*va;
+  mjtNum* offdiag = d->flexedge_hessian + 9*ea;
+  mju_zero(diagonal, 6*m->flex_vertnum[f]);
+  mju_zero(offdiag, 9*m->flex_edgenum[f]);
+  const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+  int dim = m->flex_dim[f];
+  int nedge = dim == 2 ? 3 : 6;
+  int stride = dim == 2 ? 21 : 24;
+  int snh = dim == 3 && k[21] != 0;
+  const int (*edge)[2] = mj_stretchEdges[dim-2];
+  const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+  const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+  const mjtNum* xpos = d->flexvert_xpos + 3*va;
+  const mjtNum* length = d->flexedge_length + ea;
+  const mjtNum* rest = m->flexedge_length0 + ea;
+  for (int t=0; t < m->flex_elemnum[f]; t++) {
+    const int* vert = elem + (dim+1)*t;
+    const mjtNum* packed = k + stride*t;
+    mjtNum edges[6][3], metric[36], tension[6], grad[4][3], pressure = 0;
+    mj_stretchEdgeVectors(edges, xpos, vert, dim);
+    if (snh) {
+      pressure = mj_snhStiffness(metric, tension, grad, edges, packed,
+                                eelem + 6*t, length, rest);
+    } else {
+      mj_stretchStiffness(metric, tension, packed, eelem + nedge*t, length, rest, nedge);
+    }
+    // assemble one block per edge, oriented from its first endpoint to its second
+    // the opposite block is its transpose by Hessian symmetry
+    for (int e=0; e < nedge; e++) {
+      int i = edge[e][0], j = edge[e][1];
+      int id = eelem[nedge*t+e];
+      const int* endpoints = m->flex_edge + 2*(ea+id);
+      if (endpoints[0] != vert[i]) {
+        int swap = i;
+        i = j;
+        j = swap;
+      }
+      mjtNum block[9];
+      if (snh) {
+        mj_snhStiffnessBlock(block, metric, tension, edges, grad, pressure,
+                            packed, i, j, 1);
+      } else {
+        mj_stretchStiffnessBlock(block, metric, tension, edges, dim, i, j, 1);
+      }
+      mju_addTo(offdiag + 9*id, block, 9);
+    }
+  }
+
+  // translation invariance gives H_ii = -sum_{j != i} H_ij
+  // pack each symmetric diagonal block as (00, 01, 02, 11, 12, 22)
+  for (int e=0; e < m->flex_edgenum[f]; e++) {
+    const int* vert = m->flex_edge + 2*(ea+e);
+    const mjtNum* block = offdiag + 9*e;
+    int id = 0;
+    for (int r=0; r < 3; r++) {
+      for (int c=r; c < 3; c++) {
+        diagonal[6*vert[0]+id] -= block[3*r+c];
+        diagonal[6*vert[1]+id] -= block[3*c+r];
+        id++;
+      }
+    }
+  }
+  d->flex_hessian_valid[f] = 1;
+}
+
+
+// add scale * cached Cartesian Hessian * vec to res
+void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
+                      const mjtNum* vec, mjtNum scale) {
+  const mjtNum* diagonal = d->flexvert_hessian + 6*m->flex_vertadr[f];
+  int ea = m->flex_edgeadr[f];
+  const mjtNum* offdiag = d->flexedge_hessian + 9*ea;
+  for (int v=0; v < m->flex_vertnum[f]; v++) {
+    const mjtNum* a = diagonal + 6*v;
+    const mjtNum* x = vec + 3*v;
+    res[3*v]   += scale*(a[0]*x[0] + a[1]*x[1] + a[2]*x[2]);
+    res[3*v+1] += scale*(a[1]*x[0] + a[3]*x[1] + a[4]*x[2]);
+    res[3*v+2] += scale*(a[2]*x[0] + a[4]*x[1] + a[5]*x[2]);
+  }
+  for (int e=0; e < m->flex_edgenum[f]; e++) {
+    const int* v = m->flex_edge + 2*(ea+e);
+    const mjtNum* a = offdiag + 9*e;
+    const mjtNum* x = vec + 3*v[0];
+    const mjtNum* y = vec + 3*v[1];
+    for (int r=0; r < 3; r++) {
+      res[3*v[0]+r] += scale*(a[3*r]*y[0] + a[3*r+1]*y[1] + a[3*r+2]*y[2]);
+      res[3*v[1]+r] += scale*(a[r]*x[0] + a[3+r]*x[1] + a[6+r]*x[2]);
+    }
+  }
+}
+
+
 //-------------------------- Stable Neo-Hookean tetrahedra -----------------------------------------
 
 // cubic Gram determinant P(s) = a*b*c + 2*d*e*f - a*f*f - b*e*e - c*d*d,

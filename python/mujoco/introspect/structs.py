@@ -6164,6 +6164,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexstiffness',),
              ),
              StructFieldDecl(
+                 name='flex_hessian_valid',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtBool'),
+                 ),
+                 doc='Cartesian stretch Hessian cache is current',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
+                 name='flexvert_hessian',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='symmetric diagonal Hessian blocks',
+                 array_extent=('nflexvert', 6),
+             ),
+             StructFieldDecl(
+                 name='flexedge_hessian',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='oriented off-diagonal Hessian blocks',
+                 array_extent=('nflexedge', 9),
+             ),
+             StructFieldDecl(
                  name='flexedge_J',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),

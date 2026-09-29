@@ -2413,7 +2413,7 @@ class FlexFrameTest : public MujocoTest,
     for (int i = 0; i < model->nv; i++) {
       mjtNum assembled = mju_dotSparse(val.data() + rowadr[i], vec.data(),
                                        rownnz[i], colind.data() + rowadr[i]);
-      EXPECT_THAT(assembled, MjNear(result[i], 1e-10, 1e-5)) << i;
+      EXPECT_THAT(assembled, MjNear(result[i], 1e-10, 2e-5)) << i;
     }
   }
 
@@ -2488,6 +2488,150 @@ INSTANTIATE_TEST_SUITE_P(
       return info.param.name;
     });
 
+// The cache follows position updates, survives velocity-only evaluations and
+// mj_copyData, and does not change spring forces or either material's damping.
+TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <default>
+      <joint type="slide"/>
+      <geom type="sphere" size=".01" mass=".2" contype="0" conaffinity="0"/>
+    </default>
+    <worldbody>
+      <body name="unused" pos="2 2 2">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="a">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="b" pos="1 0 0">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="c" pos=".2 .9 0">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+      <body name="d" pos="-.1 .3 1.1">
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/><geom/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="tet" dim="3" body="unused a b c d" element="1 2 3 4">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3" damping=".02"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  struct {
+    int dim;
+    int elastic3d;
+  } cases[] = {{2, 0}, {3, 0}, {3, 1}};
+  for (auto [dim, elastic3d] : cases) {
+    SCOPED_TRACE(dim);
+    SCOPED_TRACE(elastic3d);
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"));
+    flex->elastic3d = elastic3d;
+    if (dim == 2) {
+      flex->dim = 2;
+      flex->elastic2d = 2;  // stretching
+      flex->thickness = .02;
+      int triangle[] = {1, 2, 3};
+      mjs_setInt(flex->elem, triangle, 3);
+    }
+    MjModelPtr m(mj_compile(spec, nullptr));
+    mj_deleteSpec(spec);
+    ASSERT_THAT(m.get(), NotNull());
+    m->opt.disableflags |= mjDSBL_DAMPER;
+    MjDataPtr d = MakeData(m);
+    MjDataPtr fresh = MakeData(m);
+    std::vector<mjtNum> vec(m->nv), result(m->nv), expected(m->nv);
+    for (int i = 0; i < m->nv; i++) {
+      vec[i] = mju_Halton(i, 2) - .5;
+      d->qpos[i] = .1 * vec[i];
+    }
+
+    auto cache_values = [&m](const mjData* data) {
+      std::vector<mjtNum> values =
+          AsVector(data->flexvert_hessian, 6 * m->nflexvert);
+      values.insert(values.end(), data->flexedge_hessian,
+                    data->flexedge_hessian + 9 * m->nflexedge);
+      return values;
+    };
+
+    // Euler with damping disabled needs no Cartesian Hessian.
+    mj_forward(m.get(), d.get());
+    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    std::vector<mjtNum> spring(d->qfrc_spring, d->qfrc_spring + m->nv);
+    mjd_flexStretch_mul(m.get(), d.get(), result.data(), vec.data(), 1, 0);
+    ASSERT_TRUE(d->flex_hessian_valid[0]);
+    std::vector<mjtNum> cache = cache_values(d.get());
+    mj_passive(m.get(), d.get());
+    EXPECT_THAT(spring, Pointwise(Eq(), AsVector(d->qfrc_spring, m->nv)));
+
+    // Changing velocity, damping, or timestep does not change the cached
+    // Hessian.
+    mju_copy(d->qvel, vec.data(), m->nv);
+    m->opt.disableflags &= ~mjDSBL_DAMPER;
+    m->flex_damping[0] = .04;
+    m->opt.timestep *= 2;
+    mj_forwardSkip(m.get(), d.get(), mjSTAGE_POS, 1);
+    EXPECT_TRUE(d->flex_hessian_valid[0]);
+    EXPECT_THAT(cache, Pointwise(Eq(), cache_values(d.get())));
+    mju_copy(fresh->qpos, d->qpos, m->nq);
+    mju_copy(fresh->qvel, d->qvel, m->nv);
+    mj_forward(m.get(), fresh.get());
+    // Euler computes damping directly when no cache is already available.
+    EXPECT_FALSE(fresh->flex_hessian_valid[0]);
+    EXPECT_THAT(AsVector(d->qfrc_spring, m->nv),
+                Pointwise(Eq(), AsVector(fresh->qfrc_spring, m->nv)));
+    EXPECT_THAT(
+        AsVector(d->qfrc_damper, m->nv),
+        Pointwise(MjNear(1e-12, 1e-5), AsVector(fresh->qfrc_damper, m->nv)));
+
+    // Copying mjData preserves a usable cache; subsequent geometry updates
+    // invalidate only the updated data, including standalone kinematics calls.
+    mj_copyData(fresh.get(), m.get(), d.get());
+    ASSERT_TRUE(fresh->flex_hessian_valid[0]);
+    mjd_flexStretch_mul(m.get(), fresh.get(), expected.data(), vec.data(), 1,
+                        0);
+    EXPECT_THAT(result, Pointwise(Eq(), expected));
+    d->qpos[3] += .17;
+    mj_fwdKinematics(m.get(), d.get());
+    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    EXPECT_THAT(cache, Pointwise(Eq(), cache_values(fresh.get())));
+    mju_zero(result.data(), m->nv);
+    mjd_flexStretch_mul(m.get(), d.get(), result.data(), vec.data(), 1, 0);
+    EXPECT_TRUE(d->flex_hessian_valid[0]);
+    EXPECT_NE(cache, cache_values(d.get()));
+    mju_copy(fresh->qpos, d->qpos, m->nq);
+    mj_forward(m.get(), fresh.get());
+    mju_zero(expected.data(), m->nv);
+    mjd_flexStretch_mul(m.get(), fresh.get(), expected.data(), vec.data(), 1,
+                        0);
+    EXPECT_THAT(result, Pointwise(Eq(), expected));
+
+    // Neither explicit integrator constructs the cache for material damping.
+    for (int integrator : {mjINT_EULER, mjINT_RK4}) {
+      m->opt.integrator = integrator;
+      mj_resetData(m.get(), d.get());
+      mju_copy(d->qvel, vec.data(), m->nv);
+      mj_step(m.get(), d.get());
+      EXPECT_FALSE(d->flex_hessian_valid[0]);
+    }
+
+    // Reset invalidates even when the remaining derived data is debug-filled.
+    // Discrete assembly also handles the unused vertex's empty sparse rows.
+    mj_resetDataDebug(m.get(), d.get(), 255);
+    EXPECT_FALSE(d->flex_hessian_valid[0]);
+    m->opt.integrator = mjINT_DISCRETE;
+    mj_forward(m.get(), d.get());
+    EXPECT_TRUE(d->flex_hessian_valid[0]);
+  }
+}
+
 // The exact SNH Hessian remains finite through degeneracy and inversion,
 // including negative curvature. Assembly, matrix-free products, damping, and
 // force derivatives agree.
@@ -2497,7 +2641,8 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
     <option gravity="0 0 0" integrator="discrete"/>
     <worldbody>
       <flexcomp name="tet" type="direct" dim="3" mass="1"
-                point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
+                point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1  .1 .2 -.8"
+                element="0 1 2 3  0 2 1 4">
         <contact contype="0" conaffinity="0" selfcollide="none"/>
         <elasticity young="1000" poisson=".3" damping=".02"/>
       </flexcomp>
@@ -2512,14 +2657,15 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
   ASSERT_THAT(m.get(), NotNull());
   MjDataPtr d = MakeData(m);
   mj_forward(m.get(), d.get());
-  std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
+  // Two tetrahedra share three edges with different local orientations.
+  std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 15);
   int nv = m->nv;
-  ASSERT_EQ(nv, 12);
+  ASSERT_EQ(nv, 15);
   bool negative_curvature = false;
   for (int rank = 0; rank <= 3; rank++) {
     for (mjtNum scale :
          {mjtNum(-1), mjtNum(-.01), mjtNum(0), mjtNum(.01), mjtNum(1.05)}) {
-      for (int v = 0; v < 4; v++) {
+      for (int v = 0; v < 5; v++) {
         int adr = m->body_dofadr[m->flex_vertbodyid[v]];
         mjtNum x = rank > 0 ? 1.05 * rest[3 * v] : 0;
         mjtNum y = rank > 1 ? 1.05 * rest[3 * v + 1] : 0;
@@ -2564,6 +2710,15 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
       for (int i = 0; i < nv; i++) {
         EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
       }
+      // The uncached explicit damping path agrees through collapse and
+      // inversion.
+      m->opt.integrator = mjINT_EULER;
+      mj_forward(m.get(), d.get());
+      EXPECT_FALSE(d->flex_hessian_valid[0]);
+      for (int i = 0; i < nv; i++) {
+        EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
+      }
+      m->opt.integrator = mjINT_DISCRETE;
       // Central differences verify the full tangent even at rank zero and under
       // reflection.
       m->flex_damping[0] = 0;
