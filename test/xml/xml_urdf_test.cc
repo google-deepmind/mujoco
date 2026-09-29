@@ -449,6 +449,59 @@ TEST_F(MujocoTest, RepeatedMeshName) {
   mj_deleteSpec(spec);
 }
 
+// ---------------------------- test strippath ------------------------------
+
+int open_nop(mjResource* resource) { return 1; }
+int read_nop(mjResource* resource, const void** buffer) { return 0; }
+void close_nop(mjResource* resource) {}
+
+TEST_F(MujocoTest, StrippathKeepsResourceProviderNames) {
+  mjpResourceProvider provider = {
+      .prefix = "urdftest",
+      .open = open_nop,
+      .read = read_nop,
+      .close = close_nop,
+  };
+  ASSERT_GT(mjp_registerResourceProvider(&provider), 0);
+
+  static constexpr char urdf[] = R"(
+  <robot name="">
+  <mujoco>
+    <compiler strippath="true"/>
+  </mujoco>
+  <link name="link">
+    <collision>
+      <geometry>
+        <mesh filename="urdftest://pkg/meshes/provided.obj"/>
+      </geometry>
+    </collision>
+    <collision>
+      <geometry>
+        <mesh filename="unregistered://pkg/meshes/stripped.obj"/>
+      </geometry>
+    </collision>
+  </link>
+  </robot>
+  )";
+
+  std::array<char, 1000> error;
+  mjSpec* spec = mj_parseXMLString(urdf, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // a name claimed by a registered provider keeps its scheme and path
+  mjsMesh* provided = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "provided"));
+  ASSERT_THAT(provided, NotNull());
+  EXPECT_STREQ(mjs_getString(provided->file),
+               "urdftest://pkg/meshes/provided.obj");
+
+  // any other name is stripped to its basename
+  mjsMesh* stripped = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "stripped"));
+  ASSERT_THAT(stripped, NotNull());
+  EXPECT_STREQ(mjs_getString(stripped->file), "stripped.obj");
+
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, MimicBecomesJointEquality) {
   // gripper with mirrored fingers: right_joint = -1 * left_joint + 0.02. the
   // target joint is declared after the joint that mimics it, on purpose

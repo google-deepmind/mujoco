@@ -685,7 +685,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
     // remove path from file if necessary
-    if (model->strippath) { file_ = mjuu_strippath(file_); }
+    if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
 
     mjSpec*  owning_spec = model->FindSpec(compiler);
     FilePath filename    = meshdir_ + FilePath(file_);
@@ -2974,7 +2974,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     }
 
     // remove path from file if necessary
-    if (model->strippath) { file_ = mjuu_strippath(file_); }
+    if (model->strippath) { file_ = mjuu_stripLocalPath(file_); }
 
     // load SKN
     std::string ext = mjuu_getext(file_);

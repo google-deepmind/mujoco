@@ -847,6 +847,15 @@ std::string mjuu_strippath(std::string filename) {
 }
 
 
+// strip path from filename, unless a registered resource provider claims the name
+std::string mjuu_stripLocalPath(std::string filename) {
+  // provider names are not filesystem paths: the provider owns their interpretation
+  if (mjp_getResourceProvider(filename.c_str())) { return filename; }
+
+  return mjuu_strippath(filename);
+}
+
+
 // compute frame quat and diagonal inertia from full inertia matrix, return error if any
 const char* mjuu_fullInertia(double quat[4], double inertia[3], const double fullinertia[6]) {
   if (!mjuu_defined(fullinertia[0])) { return nullptr; }

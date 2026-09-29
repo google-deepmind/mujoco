@@ -292,6 +292,14 @@ The plugins in the `sensor/ <https://github.com/google-deepmind/mujoco/tree/main
 custom sensors. Currently the sole sensor plugin is the touch grid sensor, see the `README
 <https://github.com/google-deepmind/mujoco/blob/main/plugin/sensor/README.md>`__ for details.
 
+package_uri
+"""""""""""
+The `package_uri/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/package_uri>`__ directory contains a
+:ref:`resource provider<exProvider>` rather than an engine plugin. It serves ROS-style ``package://<package>/<path>``
+URIs from the OS filesystem by locating the package through the ``AMENT_PREFIX_PATH`` and ``ROS_PACKAGE_PATH``
+environment variables, without depending on ROS, so URDF and MJCF models load with their file names unchanged.
+See the `README <https://github.com/google-deepmind/mujoco/blob/main/plugin/package_uri/README.md>`__ for details.
+
 .. _exSDF:
 
 sdf

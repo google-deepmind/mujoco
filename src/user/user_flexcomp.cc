@@ -1277,7 +1277,7 @@ static T* VecToArray(std::vector<T>& vector, bool clear = true) {
 bool mjCFlexcomp::MakeMesh(
     mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
   // strip path
-  if (!file.empty() && model->spec.strippath) { file = mjuu_strippath(file); }
+  if (!file.empty() && model->spec.strippath) { file = mjuu_stripLocalPath(file); }
 
   // file is required
   if (file.empty()) { return comperr(error, "File is required", error_sz); }
@@ -1391,7 +1391,7 @@ static int findstring(const char* buffer, int buffer_sz, const char* str) {
 bool mjCFlexcomp::MakeGMSH(
     mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
   // strip path
-  if (!file.empty() && model->spec.strippath) { file = mjuu_strippath(file); }
+  if (!file.empty() && model->spec.strippath) { file = mjuu_stripLocalPath(file); }
 
   // file is required
   if (file.empty()) { return comperr(error, "File is required", error_sz); }

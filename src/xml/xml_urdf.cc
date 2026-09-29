@@ -583,7 +583,7 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
         ReadAttrArr<double, 3>(temp, "scale").value_or(default_meshscale);
 
     // strip file name if necessary
-    if (spec->strippath) { meshfile = mjuu_strippath(meshfile); }
+    if (spec->strippath) { meshfile = mjuu_stripLocalPath(meshfile); }
 
     // construct mesh name: always stripped
     std::string meshname = mjuu_strippath(meshfile);
