@@ -26,7 +26,7 @@ mujoco_test(engine_collision_box_fuzz_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_collision_continuous_test)
 
-mujoco_test(engine_collision_convex_test)
+mujoco_test(engine_collision_convex_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_collision_driver_test)
 
