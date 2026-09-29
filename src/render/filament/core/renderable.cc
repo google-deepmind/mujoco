@@ -322,14 +322,14 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
       material.orm_texture = nullptr;
     }
 
+    const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
+    const auto draw_mode = static_cast<mjrDrawMode>(request->draw_mode);
     const bool reflective =
         request->draw_mode == mjDRAW_MODE_DEFAULT &&
         request->enable_reflections &&
         (geom_type_ == mjGEOM_PLANE || geom_type_ == mjGEOM_BOX) &&
         material.reflectance > 0.0;
     if (reflective) {
-      material.reflection_texture = reflection_mgr->Register(
-          this, request->viewport.width, request->viewport.height);
       // The mirror plane normal is the geom's local +Z (transform_[2], whose
       // scale carries the geom size -- normalize it). The reflect shader uses
       // it to apply the reflection only on the front face, so box mirrors don't
@@ -340,18 +340,16 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
           geom_type_ == mjGEOM_PLANE
               ? float3(0.0f, 0.0f, 0.0f)
               : ToFilamentFrame(normalize(transform_[2].xyz));
-      material.reflection_normal[0] = refl_normal.x;
-      material.reflection_normal[1] = refl_normal.y;
-      material.reflection_normal[2] = refl_normal.z;
-      const mat4f view_proj = GetReflectionViewProjectionMatrix(
-          request->camera, request->viewport.width, request->viewport.height);
-      WriteMat4(material.reflection_view_proj, view_proj);
+      reflection_mgr->Register(this, mesh, material, geom_type_, refl_normal,
+                               request);
+
+      // Bind the non-reflective material by default so secondary reflection
+      // bounces are suppressed during reflection passes.
+      material.reflectance = 0.0f;
     }
 
-    const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
     draw_state.material_key = material_mgr_->PrepareMaterialInstance(
-        material, static_cast<mjrDrawMode>(request->draw_mode), geom_type_,
-        mesh);
+        material, draw_mode, geom_type_, mesh);
     draw_queue_.push_back(draw_state);
   }
 }

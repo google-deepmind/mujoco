@@ -121,7 +121,7 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
                      const mjrfSceneParams& params)
     : object_mgr_(object_mgr), material_mgr_(material_mgr) {
   filament::Engine* engine = object_mgr_->GetEngine();
-  reflection_mgr_ = std::make_unique<ReflectionManager>(engine);
+  reflection_mgr_ = std::make_unique<ReflectionManager>(engine, material_mgr);
 
   scene_ = engine->createScene();
   camera_ = engine->createCamera(utils::EntityManager::get().create());
@@ -313,7 +313,8 @@ void SceneView::Render(filament::Renderer* renderer,
     }
   }
 
-  for (int i = 0; i < reflection_mgr_->GetNumRenderables(); ++i) {
+  const int num_reflective = reflection_mgr_->GetNumRenderables();
+  for (int i = 0; i < num_reflective; ++i) {
     Renderable* renderable =
         Renderable::downcast(reflection_mgr_->GetRenderable(i));
     const mat4 transform(renderable->GetTransform());
@@ -357,6 +358,10 @@ void SceneView::Render(filament::Renderer* renderer,
       other->SetLayerMask(mask);
     }
     renderable->SetLayerMask(prev_layer_mask);
+  }
+  for (int i = 0; i < num_reflective; ++i) {
+    Renderable::downcast(reflection_mgr_->GetRenderable(i))
+        ->SetMaterialInstance(reflection_mgr_->GetMaterialKey(i));
   }
 
   filament::RenderTarget* filament_render_target =
