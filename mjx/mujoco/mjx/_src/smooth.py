@@ -1311,7 +1311,7 @@ def transmission(m: Model, d: Data) -> Data:
   # pre-compute values for site transmissions
   has_refsite = m.actuator_trnid[:, 1] != -1
   site_dof_mask = _site_dof_mask(m)
-  site_quat = jax.vmap(math.quat_mul)(m.site_quat, d.xquat[m.site_bodyid])
+  site_quat = jax.vmap(math.quat_mul)(d.xquat[m.site_bodyid], m.site_quat)
 
   length, moment = scan.flat(
       m,

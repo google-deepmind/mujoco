@@ -883,11 +883,13 @@ TEST_F(CoreSmoothTest, RefsiteTracksWindingTarget) {
       <flag contact="disable" gravity="disable"/>
     </option>
     <worldbody>
-      <site name="reference"/>
+      <body quat="1 1 0 0">
+        <site name="reference" quat="1 0 1 0"/>
+      </body>
       <body name="box">
         <freejoint/>
         <geom type="box" size=".05 .07 .03"/>
-        <site name="end_effector"/>
+        <site name="end_effector" quat="1 1 1 1"/>
       </body>
     </worldbody>
     <actuator>
@@ -1068,11 +1070,13 @@ static constexpr char kSO3RefsiteXml[] = R"(
     <flag contact="disable" gravity="disable"/>
   </option>
   <worldbody>
-    <site name="reference"/>
+    <body quat="1 1 0 0">
+      <site name="reference" quat="1 0 1 0"/>
+    </body>
     <body name="box">
       <freejoint/>
       <geom type="box" size=".05 .07 .03"/>
-      <site name="end_effector"/>
+      <site name="end_effector" quat="1 1 1 1"/>
     </body>
   </worldbody>
   <actuator>
@@ -1149,8 +1153,10 @@ TEST_F(CoreSmoothTest, SO3RefsiteMixedAxisEquilibrium) {
                          target[2] * shrink};
   mju_copy3(data->ctrl + uadr, target);
 
-  // place the body exactly at the commanded orientation: force must vanish
-  Expmap2Quat(data->qpos + 3, target);
+  // place the body at the commanded orientation (site quat (1,1,1,1) permutes
+  // site axes (x,y,z) to world axes (y,z,x)): force must vanish
+  mjtNum world_target[3] = {0, 4, 4};
+  Expmap2Quat(data->qpos + 3, world_target);
   mj_forward(model.get(), data);
   for (int k = 0; k < 3; k++) {
     EXPECT_LT(mju_abs(data->actuator_force[oadr + k]), MjTol(1e-10, 1e-6));
