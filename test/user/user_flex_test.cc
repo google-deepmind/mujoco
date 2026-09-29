@@ -67,6 +67,7 @@ TEST_F(UserFlexTest, SNHSpecOnly) {
 
   // Recompilation and spec copying retain the programmatic selection.
   flex->elastic3d = 1;
+  spec->option.integrator = mjINT_DISCRETE;
   SpecPtr copy(mj_copySpec(spec.get()), mj_deleteSpec);
   ASSERT_THAT(copy.get(), NotNull());
   EXPECT_EQ(
@@ -218,6 +219,39 @@ TEST_F(UserFlexTest, SNHRequiresStandard3D) {
                 HasSubstr("requires a non-interpolated 3d flex"));
     mj_deleteSpec(spec);
   }
+}
+
+TEST_F(UserFlexTest, SNHRequiresDiscreteIntegrator) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" dim="3" count="2 2 2">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>)";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->elastic3d = 1;
+  for (int integrator :
+       {mjINT_EULER, mjINT_RK4, mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+    SCOPED_TRACE(integrator);
+    spec->option.integrator = integrator;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(
+        mjs_getError(spec),
+        HasSubstr(
+            "stable Neo-Hookean elasticity requires integrator='discrete'"));
+  }
+  spec->option.integrator = mjINT_DISCRETE;
+  for (int solver : {mjSOL_CG, mjSOL_NEWTON}) {
+    spec->option.solver = solver;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    EXPECT_THAT(m.get(), NotNull()) << mjs_getError(spec);
+  }
+  mj_deleteSpec(spec);
 }
 
 TEST_F(UserFlexTest, ParentMustHaveName) {

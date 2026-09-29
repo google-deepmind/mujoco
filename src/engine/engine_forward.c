@@ -1738,10 +1738,14 @@ void mj_checkDiscrete(const mjModel* m) {
     mjERROR("flag ipc does not support flag sleep");
   }
 
-  // passive flex contact is too stiff for explicit integration: it is carried by the
-  // effective metric, which requires the discrete integrator
+  // SNH and passive flex contact require the discrete integrator's effective metric
   if (!mj_isMetric(m)) {
     for (int f=0; f < m->nflex; f++) {
+      int stiffnessadr = m->flex_stiffnessadr[f];
+      if (!m->flex_interp[f] && m->flex_dim[f] == 3 && stiffnessadr >= 0 &&
+          m->flex_stiffness[stiffnessadr+21] != 0) {
+        mjERROR("stable Neo-Hookean elasticity requires integrator='discrete'");
+      }
       if (mj_effFlexContactPossible(m, f)) {
         mjERROR("passive flex contact requires an integrator with the effective metric: "
                 "set integrator='discrete'");

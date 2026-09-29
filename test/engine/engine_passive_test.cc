@@ -649,6 +649,7 @@ TEST_F(ElasticityTest, SNHEnergySolid) {
   )";
   mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
   ASSERT_THAT(spec, NotNull());
+  spec->option.integrator = mjINT_DISCRETE;
   mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->elastic3d = 1;
   MjModelPtr m(mj_compile(spec, nullptr));
   mj_deleteSpec(spec);
@@ -715,6 +716,7 @@ TEST_F(ElasticityTest, SNHForceThroughInversion) {
     }
     mjSpec* spec = mj_parseXMLString(source.c_str(), nullptr, nullptr, 0);
     ASSERT_THAT(spec, NotNull());
+    spec->option.integrator = mjINT_DISCRETE;
     mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
     MjModelPtr m(mj_compile(spec, nullptr));
     mj_deleteSpec(spec);
