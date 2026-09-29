@@ -585,7 +585,106 @@ void mjCModel::RemovePlugins() {
 }
 
 
-mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
+// return the body that owns the frame, nullptr if the frame is not in the tree
+mjCBody* mjCModel::FrameOwner(const mjCFrame& frame, mjCBody* body) {
+  if (body == nullptr) { body = bodies_[0]; }
+
+  if (std::find(body->frames.begin(), body->frames.end(), &frame) != body->frames.end()) {
+    return body;
+  }
+
+  // recursive call to all child bodies
+  for (mjCBody* child : body->bodies) {
+    mjCBody* owner = FrameOwner(frame, child);
+    if (owner) { return owner; }
+  }
+  return nullptr;
+}
+
+
+// remove the elements of list that are inside frame from the list and return them
+template <class T>
+static std::vector<T*> RemoveFromFrame(std::vector<T*>& list, const mjCFrame& frame) {
+  auto inside = std::stable_partition(list.begin(), list.end(), [&frame](const T* element) {
+    return !frame.IsAncestor(element->frame);
+  });
+  std::vector<T*> removed(inside, list.end());
+  list.erase(inside, list.end());
+  return removed;
+}
+
+
+// remove body from tree, the body and its contents are released by the caller
+std::vector<mjCBase*> mjCModel::RemoveFromTree(const mjCBody& subtree) {
+  mjCBody* world  = bodies_[0];
+  *world         -= subtree;
+  return {};
+}
+
+
+// remove frame from tree together with the elements inside it, which are returned
+std::vector<mjCBase*> mjCModel::RemoveFromTree(const mjCFrame& frame) {
+  mjCBody* body = FrameOwner(frame);
+
+  // the frame is released by the caller, the elements inside it once the lists are rebuilt
+  auto      found = std::find(body->frames.begin(), body->frames.end(), &frame);
+  mjCFrame* self  = *found;
+  body->frames.erase(found);
+  std::vector<mjCBody*>   bodies  = RemoveFromFrame(body->bodies, frame);
+  std::vector<mjCGeom*>   geoms   = RemoveFromFrame(body->geoms, frame);
+  std::vector<mjCFrame*>  frames  = RemoveFromFrame(body->frames, frame);
+  std::vector<mjCJoint*>  joints  = RemoveFromFrame(body->joints, frame);
+  std::vector<mjCSite*>   sites   = RemoveFromFrame(body->sites, frame);
+  std::vector<mjCCamera*> cameras = RemoveFromFrame(body->cameras, frame);
+  std::vector<mjCLight*>  lights  = RemoveFromFrame(body->lights, frame);
+
+  // an inertial element inside the frame is deleted as well
+  if (frame.IsAncestor(body->iframe)) {
+    mjsBody defaults;
+    mjs_defaultBody(&defaults);
+    body->iframe                = nullptr;
+    body->explicitinertial      = defaults.explicitinertial;  // for XML writer
+    body->spec.explicitinertial = defaults.explicitinertial;
+    body->spec.mass             = defaults.mass;
+    body->spec.ialt             = defaults.ialt;
+    mjuu_copyvec(body->spec.ipos, defaults.ipos, 3);
+    mjuu_copyvec(body->spec.iquat, defaults.iquat, 4);
+    mjuu_copyvec(body->spec.inertia, defaults.inertia, 3);
+    mjuu_copyvec(body->spec.fullinertia, defaults.fullinertia, 6);
+  }
+
+  // delete the plugins created by the removed elements
+  for (mjCBody* child : bodies) { DeleteSubtreePlugin(child); }
+  for (mjCGeom* geom : geoms) {
+    if (geom->plugin.active && geom->plugin.name->empty()) { *this -= geom->plugin.element; }
+  }
+
+  // the removed elements no longer have a parent body or a frame
+  self->SetParent(nullptr);
+  self->frame = nullptr;
+  std::vector<mjCBase*> removed;
+
+  auto orphan = [&removed](auto& list) {
+    for (auto* element : list) {
+      element->SetParent(nullptr);
+      element->frame = nullptr;
+      removed.push_back(element);
+    }
+  };
+  orphan(bodies);
+  orphan(geoms);
+  orphan(frames);
+  orphan(joints);
+  orphan(sites);
+  orphan(cameras);
+  orphan(lights);
+  return removed;
+}
+
+
+// remove subtree from the tree, then remove all elements that reference it
+template <class T>
+mjCModel& mjCModel::RemoveSubtree(const T& subtree) {
   mjCModel oldmodel(*this);
 
   // create global lists in the old model if not compiled
@@ -598,9 +697,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   StoreKeyframes(this);
   DeleteAll(keys_);
 
-  // remove body from tree
-  mjCBody* world  = bodies_[0];
-  *world         -= subtree;
+  // remove subtree from tree
+  std::vector<mjCBase*> removed = RemoveFromTree(subtree);
 
   // update global lists
   ResetTreeLists();
@@ -619,7 +717,21 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   // structure changed, the signature is no longer valid
   InvalidateSignature();
 
+  // the lists no longer point to the elements removed along with the subtree
+  for (mjCBase* element : removed) { element->Release(); }
+
   return *this;
+}
+
+
+mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
+  return RemoveSubtree(subtree);
+}
+
+
+mjCModel& mjCModel::operator-=(const mjCFrame& frame) {
+  if (!FrameOwner(frame)) { throw mjCError(nullptr, "frame is not in this model"); }
+  return RemoveSubtree(frame);
 }
 
 
@@ -725,6 +837,12 @@ void mjCModel::operator-=(mjsElement* el) {
     *this         -= *body;
   }
 
+  // throws before anything is modified if the frame is not in the tree
+  if (el->elemtype == mjOBJ_FRAME) {
+    mjCFrame* frame  = static_cast<mjCFrame*>(el);
+    *this           -= *frame;
+  }
+
   ResetTreeLists();
 
   switch (el->elemtype) {
@@ -734,6 +852,9 @@ void mjCModel::operator-=(mjsElement* el) {
       DeleteSubtreePlugin(subtree);
       break;
     }
+
+    case mjOBJ_FRAME:
+      break;  // removed above, frames are meta elements and have no object list
 
     case mjOBJ_DEFAULT:
       MakeTreeLists();  // rebuild lists that were reset at the beginning of the function

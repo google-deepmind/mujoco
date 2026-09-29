@@ -948,6 +948,47 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsite, 10)
     self.assertEqual(model.nsensor, 9)
 
+  def test_delete_frame(self):
+    spec = mujoco.MjSpec.from_string("""
+      <mujoco>
+        <worldbody>
+          <body name="body">
+            <geom name="geom" size=".1"/>
+            <frame name="frame" pos="1 0 0">
+              <geom name="in_frame" size=".1"/>
+              <site name="in_frame"/>
+              <frame name="nested">
+                <body name="in_nested">
+                  <geom name="in_body" size=".1"/>
+                </body>
+              </frame>
+            </frame>
+          </body>
+        </worldbody>
+
+        <sensor>
+          <framepos name="geom" objtype="geom" objname="geom"/>
+          <framepos name="in_frame" objtype="site" objname="in_frame"/>
+        </sensor>
+      </mujoco>
+    """)
+    frame = spec.frame('frame')
+    spec.delete(frame)
+
+    # the frame is deleted together with its contents and their references
+    self.assertEmpty(spec.frames)
+    self.assertEqual([body.name for body in spec.bodies], ['world', 'body'])
+    self.assertEqual([geom.name for geom in spec.geoms], ['geom'])
+    self.assertEmpty(spec.sites)
+    self.assertEqual([sensor.name for sensor in spec.sensors], ['geom'])
+
+    model = spec.compile()
+    self.assertEqual(model.ngeom, 1)
+    np.testing.assert_array_equal(model.geom_pos, [[0, 0, 0]])
+
+    with self.assertRaisesRegex(ValueError, 'frame is not in this model'):
+      spec.delete(frame)
+
   def test_plugin(self):
     spec = mujoco.MjSpec()
     spec.activate_plugin('mujoco.elasticity.cable')
@@ -1351,6 +1392,7 @@ class SpecsTest(absltest.TestCase):
     spec.compile()
     frame = body.to_frame()
     np.testing.assert_array_equal(frame.pos, [1, 2, 3])
+    self.assertEqual(frame.parent, spec.worldbody)
 
   def test_get_frame(self):
     spec = mujoco.MjSpec()

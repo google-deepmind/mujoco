@@ -1792,11 +1792,16 @@ const char* mjs_resolveOrientation(double                quat[4],
 
 // Transform body into a frame.
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
-  mjCBody*  bodyC   = static_cast<mjCBody*>((*body)->element);
-  mjCFrame* frameC  = bodyC->ToFrame();
-  *bodyC->model    -= (*body)->element;
-  *body             = nullptr;
-  return &frameC->spec;
+  mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
+  try {
+    mjCFrame* frameC  = bodyC->ToFrame();
+    *bodyC->model    -= (*body)->element;
+    *body             = nullptr;
+    return &frameC->spec;
+  } catch (mjCError& e) {
+    bodyC->model->SetError(e);
+    return nullptr;
+  }
 }
 
 void mjs_setUserValue(mjsElement* element, const char* key, const void* data) {

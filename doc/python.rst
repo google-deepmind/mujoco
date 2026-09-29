@@ -682,9 +682,9 @@ Lists of all elements in a spec can be accessed using named properties, using th
 Element removal
 ^^^^^^^^^^^^^^^
 The method ``delete()`` removes the corresponding element from the spec, e.g. ``spec.delete(spec.geom('my_geom'))`` will
-remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies
-and defaults), ``delete`` also removes all of their children. When deleting body subtrees, all elements which reference
-elements in the subtree, will also be removed.
+remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies,
+frames and defaults), ``delete`` also removes all of their children. When deleting bodies or frames, all elements which
+reference the deleted children will also be removed.
 
 Tree traversal
 ^^^^^^^^^^^^^^

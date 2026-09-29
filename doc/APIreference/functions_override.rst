@@ -939,6 +939,11 @@ All outputs are optional.
 
 *Nullable:* ``Dquat``, ``Dvel``, ``Dscale``
 
+.. _mjs_delete:
+
+Remove object corresponding to the given element; return 0 on success. Deleting a body or a frame also deletes
+everything inside it, along with all the elements that reference a deleted element.
+
 .. _Resources:
 
 Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.

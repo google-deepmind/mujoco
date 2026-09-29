@@ -129,18 +129,54 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource, LodePNGColorTy
   return image;
 }
 
-// associate all child list elements with a frame and copy them to parent list, clear child list
+// associate all child list elements with a frame and copy them to parent list, clear child list;
+// elements that are already in a frame stay in it
 template <typename T>
 void MapFrame(std::vector<T*>& parent,
               std::vector<T*>& child,
               mjCFrame*        frame,
               mjCBody*         parent_body) {
   std::for_each(child.begin(), child.end(), [frame, parent_body](T* element) {
-    element->SetFrame(frame);
-    element->SetParent(parent_body);
+    element->SetParent(parent_body);  // needs to happen first, SetFrame checks the parent
+    if (!element->frame) { element->SetFrame(frame); }
   });
   parent.insert(parent.end(), child.begin(), child.end());
   child.clear();
+}
+
+// express a pose given in a frame in the coordinates of the body holding the frame, using the
+// specs of the frame and of its ancestors, which need not be compiled
+void FrameToBody(const mjCFrame* frame, double pos[3], double quat[4]) {
+  for (; frame; frame = frame->frame) {
+    double framequat[4];
+    mjuu_copyvec(framequat, frame->spec.quat, 4);
+    const char* err = ResolveOrientation(framequat,
+                                         frame->compiler->degree,
+                                         frame->compiler->eulerseq,
+                                         frame->spec.alt);
+    if (err) { throw mjCError(frame, "orientation specification error '%s' in frame", err); }
+    mjuu_normvec(framequat, 4);
+    mjuu_frameaccumChild(frame->spec.pos, framequat, pos, quat);
+  }
+}
+
+// rotate an inertia matrix, given as (xx, yy, zz, xy, xz, yz)
+void RotateInertia(double res[6], const double inert[6], const double quat[4]) {
+  double mat[9], full[9], rotated[9];
+  full[0] = inert[0];
+  full[4] = inert[1];
+  full[8] = inert[2];
+  full[1] = full[3] = inert[3];
+  full[2] = full[6] = inert[4];
+  full[5] = full[7] = inert[5];
+  mjuu_quat2mat(mat, quat);
+  mjuu_mulRMRT(rotated, mat, full);
+  res[0] = rotated[0];
+  res[1] = rotated[4];
+  res[2] = rotated[8];
+  res[3] = rotated[1];
+  res[4] = rotated[2];
+  res[5] = rotated[5];
 }
 
 }  // namespace
@@ -1981,6 +2017,10 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 // create new frame and add it to body
 mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   mjCFrame* obj = new mjCFrame(model, _frame ? _frame : NULL);
+
+  // set body pointer, add
+  obj->body = this;
+
   frames.push_back(obj);
   model->ResetTreeLists();
   model->MakeTreeLists();
@@ -2114,18 +2154,17 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
 
 // create a frame in the parent body and move all contents of this body into it
 mjCFrame* mjCBody::ToFrame() {
+  if (!parent) { throw mjCError(this, "the world body cannot be converted to a frame"); }
+
+  // merge the inertial into the parent; this can fail, do it before anything is modified
+  if (parent->name != "world" && mjuu_defined(spec.ipos[0]) && spec.mass >= mjMINVAL) {
+    parent->MergeInertial(this);
+  }
+
   mjCFrame* newframe = parent->AddFrame(frame);
   mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
   mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
-  if (parent->name != "world" && mass >= mjMINVAL) {
-    if (!parent->explicitinertial) {
-      parent->MakeInertialExplicit();
-      mjuu_zerovec(parent->spec.ipos, 3);
-      mjuu_zerovec(parent->spec.iquat, 4);
-      mjuu_zerovec(parent->spec.inertia, 3);
-    }
-    parent->AccumulateInertia(&this->spec, &parent->spec);
-  }
+  newframe->spec.alt = spec.alt;
   MapFrame(parent->bodies, bodies, newframe, parent);
   MapFrame(parent->geoms, geoms, newframe, parent);
   MapFrame(parent->joints, joints, newframe, parent);
@@ -2444,11 +2483,94 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
-// accumulate inertia of another body into this body
-void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
-  if (!result) {
-    result = this;  // use the private mjsBody
+// get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
+void mjCBody::SpecInertial(double com[3], double inert[6]) const {
+  double orient[4];
+  double local[6] = {spec.inertia[0], spec.inertia[1], spec.inertia[2], 0, 0, 0};
+  mjuu_copyvec(com, spec.ipos, 3);
+  mjuu_copyvec(orient, spec.iquat, 4);
+  mjuu_normvec(orient, 4);
+
+  // full or diagonal inertia in the inertial frame, same checks as the compiler
+  if (mjuu_defined(spec.fullinertia[0])) {
+    if (spec.ialt.type != mjORIENTATION_QUAT) {
+      throw mjCError(this, "fullinertia and inertial orientation cannot both be specified");
+    }
+    if (spec.inertia[0] || spec.inertia[1] || spec.inertia[2]) {
+      throw mjCError(this, "fullinertia and diagonal inertia cannot both be specified");
+    }
+    mjuu_copyvec(local, spec.fullinertia, 6);
+  } else {
+    const char* err = ResolveOrientation(orient, compiler->degree, compiler->eulerseq, spec.ialt);
+    if (err) { throw mjCError(this, "error '%s' in inertia alternative", err); }
   }
+
+  // frame enclosing the inertial element
+  if (iframe) { FrameToBody(iframe, com, orient); }
+
+  RotateInertia(inert, local, orient);
+}
+
+
+// merge the inertial in the spec of a child body into the inertial in the spec of this body
+void mjCBody::MergeInertial(const mjCBody* child) {
+  // pose of the child in this body
+  double childpos[3], childquat[4];
+  mjuu_copyvec(childpos, child->spec.pos, 3);
+  mjuu_copyvec(childquat, child->spec.quat, 4);
+  mjuu_normvec(childquat, 4);
+  const char* err = ResolveOrientation(childquat,
+                                       child->compiler->degree,
+                                       child->compiler->eulerseq,
+                                       child->spec.alt);
+  if (err) { throw mjCError(child, "error '%s' in frame alternative", err); }
+  FrameToBody(child->frame, childpos, childquat);
+
+  // inertial of this body, if any
+  double masses[2] = {0, child->spec.mass};
+  double coms[2][3], inerts[2][6];
+  mjuu_zerovec(coms[0], 3);
+  mjuu_zerovec(inerts[0], 6);
+  if (mjuu_defined(spec.ipos[0])) {
+    masses[0] = spec.mass;
+    SpecInertial(coms[0], inerts[0]);
+  }
+
+  // inertial of the child, in the coordinates of this body
+  child->SpecInertial(coms[1], inerts[1]);
+  mjuu_rotVecQuat(coms[1], coms[1], childquat);
+  mjuu_addtovec(coms[1], childpos, 3);
+  RotateInertia(inerts[1], inerts[1], childquat);
+
+  // total mass, center of mass and inertia about it
+  double totalmass     = masses[0] + masses[1];
+  double totalcom[3]   = {0, 0, 0};
+  double totalinert[6] = {0, 0, 0, 0, 0, 0};
+  for (int j = 0; j < 2; j++) {
+    for (int k = 0; k < 3; k++) { totalcom[k] += masses[j] * coms[j][k] / totalmass; }
+  }
+  for (int j = 0; j < 2; j++) {
+    double offcenter[6];
+    double dpos[3] = {coms[j][0] - totalcom[0], coms[j][1] - totalcom[1], coms[j][2] - totalcom[2]};
+    mjuu_offcenter(offcenter, masses[j], dpos);
+    for (int k = 0; k < 6; k++) { totalinert[k] += inerts[j][k] + offcenter[k]; }
+  }
+
+  // save as full inertia in body coordinates
+  MakeInertialExplicit();
+  iframe    = nullptr;
+  spec.mass = totalmass;
+  mjuu_copyvec(spec.ipos, totalcom, 3);
+  mjuu_setvec(spec.iquat, 1, 0, 0, 0);
+  mjuu_setvec(spec.inertia, 0, 0, 0);
+  mjuu_copyvec(spec.fullinertia, totalinert, 6);
+  mjs_defaultOrientation(&spec.ialt);
+}
+
+
+// accumulate compiled inertia of another body into this body
+void mjCBody::AccumulateInertia(const mjsBody* other) {
+  mjsBody* result = this;  // the private mjsBody
 
   // body_ipose = body_pose * body_ipose
   double other_ipos[3];

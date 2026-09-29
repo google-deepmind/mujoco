@@ -605,9 +605,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   template <class T>
   const std::vector<T*>& GetList() const;
 
-  // accumulate inertia of another body into this body, if `result` is not nullptr, the accumulated
-  // inertia will be stored in `result`, otherwise the body's private spec will be used.
-  void AccumulateInertia(const mjsBody* other, mjsBody* result = nullptr);
+  // accumulate compiled inertia of another body into this body
+  void AccumulateInertia(const mjsBody* other);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -615,6 +614,12 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void Compile(void);          // compiler
   void InertiaFromGeom(void);  // get inertial info from geoms
+
+  // get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
+  void SpecInertial(double com[3], double inert[6]) const;
+
+  // merge the inertial in the spec of a child body into the inertial in the spec of this body
+  void MergeInertial(const mjCBody* child);
 
   // objects allocated by Add functions
   std::vector<mjCBody*>   bodies;   // child bodies
