@@ -2100,15 +2100,13 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
 void ParseJointEnabled(mjsEquality* eq, const pxr::UsdPhysicsJoint& joint) {
   bool jointEnabled = true;
-  auto mimic_enabled =
-      joint.GetPrim().GetAttribute(NewtonTokens->newtonMimicEnabled);
-  if (eq->type == mjEQ_JOINT && mimic_enabled &&
-      mimic_enabled.HasAuthoredValue()) {
-    // The coupling can be disabled without disabling the follower joint.
-    mimic_enabled.Get(&jointEnabled);
+  if (eq->type == mjEQ_JOINT) {
+    // Mimic activation is independent of the follower joint's enabled state.
+    // An unauthored mimic flag uses the schema default of true.
+    joint.GetPrim()
+        .GetAttribute(NewtonTokens->newtonMimicEnabled)
+        .Get(&jointEnabled);
   } else {
-    // Older assets used jointEnabled for equality activation. Do not let an
-    // unauthored Newton schema default override their explicit state.
     joint.GetJointEnabledAttr().Get(&jointEnabled);
   }
   eq->active = jointEnabled ? 1 : 0;

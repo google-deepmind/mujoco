@@ -180,13 +180,13 @@ TEST_F(UsdMimicTest, LegacyPolynomialKeepsNativeUnits) {
   for (int i = 0; i < 5; ++i) EXPECT_EQ(model->eq_data[i], 0.25 * (i + 1));
 }
 
-// -1 means unauthored, 0 false, 1 true. An explicit mimic flag is independent
-// of the joint's enabled state; the latter is only a legacy fallback.
+// -1 means unauthored, 0 false, 1 true. Mimic activation is independent of
+// the joint's enabled state, including when the mimic flag defaults to true.
 class UsdMimicEnabledTest
     : public UsdMimicTest,
       public testing::WithParamInterface<std::tuple<bool, int, int>> {};
 
-TEST_P(UsdMimicEnabledTest, ExplicitMimicFlagAndLegacyFallback) {
+TEST_P(UsdMimicEnabledTest, MimicFlagAndDefaultIgnoreJointEnabled) {
   const auto [mjc_api, mimic_enabled, joint_enabled] = GetParam();
   auto stage = MakeStage(true, mjc_api);
   auto joint = stage->GetPrimAtPath(pxr::SdfPath("/follower/joint"));
@@ -203,8 +203,7 @@ TEST_P(UsdMimicEnabledTest, ExplicitMimicFlagAndLegacyFallback) {
   auto model = Compile(stage);
   ASSERT_NE(model, nullptr);
   ASSERT_EQ(model->neq, 1);
-  const bool expected =
-      mimic_enabled >= 0 ? mimic_enabled != 0 : joint_enabled != 0;
+  const bool expected = mimic_enabled != 0;
   EXPECT_EQ(model->eq_active0[0], expected);
   // Disabling the equality must preserve its follower joint and DOF.
   EXPECT_EQ(model->njnt, 3);
