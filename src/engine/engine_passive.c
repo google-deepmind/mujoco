@@ -539,10 +539,6 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   int dim = m->flex_dim[f];
   int nedge = (dim == 2) ? 3 : 6;
   int snh = dim == 3 && k[21] != 0;
-  // explicit integrators need only one SNH damping product per configuration;
-  // avoid building Cartesian blocks unless the discrete solver needs them or a cache exists
-  int direct_damping = snh && kD && m->opt.integrator != mjINT_DISCRETE &&
-                       !d->flex_hessian_valid[f];
   const int* elem = m->flex_elem + m->flex_elemdataadr[f];
   const int* edgeelem = m->flex_elemedge + m->flex_elemedgeadr[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
@@ -555,13 +551,6 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   mjtNum* dmp = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
   mju_zero(frc, 3*m->flex_vertnum[f]);
   mju_zero(dmp, 3*m->flex_vertnum[f]);
-
-  // SNH Rayleigh damping uses the exact tangent, which can be indefinite at finite strain
-  mjtNum* worldvel = NULL;
-  if (snh && kD) {
-    worldvel = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
-    mj_flexGather(m, d, f, worldvel, d->qvel);
-  }
 
   // compute forces element-by-element
   int elemnum = m->flex_elemnum[f];
@@ -579,7 +568,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
     mjtNum grad[4][3], pressure = 0;
     if (snh) {
-      mj_snhCubic(metric, tension, elongation, packed[21], direct_damping);
+      mj_snhCubic(metric, tension, elongation, packed[21], 0);
       pressure = 2*packed[22]*(mj_snhVolume(grad, edgevec, packed)-1);
     }
     if (enbl_spring) {
@@ -592,16 +581,16 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     }
 
     if (snh) {
-      if (direct_damping) {
-        mjtNum velocity[4][3], result[4][3];
-        for (int v = 0; v < 4; v++) {
-          mju_copy3(velocity[v], worldvel + 3*vert[v]);
+      if (kD) {
+        // Quadratic dissipation in the rate of the first fundamental form.
+        // The full edge metric couples shear and volume changes and is PSD at any strain.
+        for (int e = 0; e < 6; e++) {
+          int idx = edgeelem[6*t+e];
+          elongation[e] = 2*m->flex_damping[f]*deformed[idx]*vel[idx];
         }
-        mj_snhStiffnessMul(result, metric, tension, edgevec, grad, pressure, packed,
-                           velocity, -m->flex_damping[f]);
-        for (int v = 0; v < 4; v++) {
-          mju_addTo3(dmp + 3*vert[v], result[v]);
-        }
+        mj_snhDampingTension(tension, metric, elongation, packed,
+                             m->flex_vert0 + 3*m->flex_vertadr[f], vert, m->flex_size + 3*f);
+        mj_stretchForce(dmp, vert, tension, edgevec, 3);
       }
       continue;
     }
@@ -620,11 +609,6 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
       mj_stretchTension(tension, metric, elongation, nedge);
       mj_stretchForce(dmp, vert, tension, edgevec, dim);
     }
-  }
-
-  if (snh && kD && !direct_damping) {
-    mj_flexHessian(m, d, f);
-    mj_flexHessianMul(m, d, f, dmp, worldvel, -m->flex_damping[f]);
   }
 
   // insert forces into qfrc_spring and qfrc_damper

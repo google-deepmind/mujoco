@@ -1620,9 +1620,10 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 }
 
 
-// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
-// SNH uses its exact Hessian, which can be indefinite; StVK keeps the material term
-// and tensile geometric stiffness. For articulated attachments the pullback J'KJ
+// compute res += (s1*K_stretch + s2*D_stretch) * vec for standard flexes
+// SNH uses its exact elastic Hessian and a separate PSD strain-rate damping operator;
+// StVK keeps the material term and tensile geometric stiffness.
+// For articulated attachments the pullback J'KJ
 // omits derivatives of the attachment Jacobian.
 static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2, int first, int last) {
@@ -1637,8 +1638,10 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
       continue;
     }
 
-    mjtNum scale = s1 + s2 * m->flex_damping[f];
-    if (!scale) {
+    int snh = m->flex_dim[f] == 3 && m->flex_stiffness[stiffnessadr+21] != 0;
+    mjtNum damping = s2 * m->flex_damping[f];
+    mjtNum scale = snh ? s1 : s1 + damping;
+    if (!scale && !(snh && damping)) {
       continue;
     }
 
@@ -1649,8 +1652,13 @@ static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
     mj_flexGather(m, d, f, wvec, vec);
     mju_zero(wres, 3*nvert);
 
-    mj_flexHessian(m, d, f);
-    mj_flexHessianMul(m, d, f, wres, wvec, scale);
+    if (scale) {
+      mj_flexHessian(m, d, f);
+      mj_flexHessianMul(m, d, f, wres, wvec, scale);
+    }
+    if (snh && damping) {
+      mj_flexDampingMul(m, d, f, wres, wvec, damping);
+    }
     mj_flexScatter(m, d, f, res, wres, 1);
     mj_freeStack(d);
   }
@@ -1826,11 +1834,12 @@ mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjConta
 }
 
 
-// assemble the standard-flex implicit stiffness K = (s1 + s2*damping) * (K_bend + K_stretch)
-// into dof-level CSR (same terms mjd_flexBend_mul / mjd_flexStretch_mul apply matrix-free; the
+// assemble the standard-flex implicit operator s1*K + s2*D into dof-level CSR
+// (same terms mjd_flexBend_mul / mjd_flexStretch_mul apply matrix-free; the
 // matrix is constant during a solve, so assembling once and applying as a sparse matvec avoids
 // re-walking stencils and re-unpacking metrics on every apply). Rows/columns exist only on the
 // dofs of unpinned vertices of standard dim>=2 flexes with bending or stretch stiffness.
+// SNH strain-rate damping D is separate from the elastic stiffness K.
 // Phase 1 (colind == NULL): fill rownnz/rowadr over nv, return total nnz.
 // Phase 2: fill colind and val (rownnz/rowadr must come from phase 1).
 // Interp flexes are assembled iff Krot (the mjd_flexInterp_cacheKrot cache) is non-NULL and
@@ -2109,8 +2118,12 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     if (!flexStiff_active(m, f, flg_bend, flg_stretch)) {
       continue;
     }
-    mjtNum scale = s1 + s2*m->flex_damping[f];
-    if (!scale) {
+    int stiffnessadr = m->flex_stiffnessadr[f];
+    int snh = m->flex_dim[f] == 3 && stiffnessadr >= 0 &&
+              m->flex_stiffness[stiffnessadr+21] != 0;
+    mjtNum damping = s2*m->flex_damping[f];
+    mjtNum scale = s1 + damping;
+    if (snh ? (!s1 && !damping) : !scale) {
       continue;
     }
 
@@ -2155,8 +2168,20 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
 
     if (flg_stretch && m->flex_stiffnessadr[f] >= 0 &&
         m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
-      mj_flexHessian(m, d, f);
+      mjtNum elastic = snh ? s1 : 1;
+      mjtNum blockscale = snh ? 1 : scale;
+      if (elastic) {
+        mj_flexHessian(m, d, f);
+      }
       int va = m->flex_vertadr[f], ea = m->flex_edgeadr[f];
+      mj_markStack(d);
+      mjtNum* dampdiag = NULL;
+      mjtNum* dampedge = NULL;
+      if (snh && damping) {
+        dampdiag = mjSTACKALLOC(d, 6*m->flex_vertnum[f], mjtNum);
+        dampedge = mjSTACKALLOC(d, 9*m->flex_edgenum[f], mjtNum);
+        mj_flexDamping(m, d, f, dampdiag, dampedge);
+      }
       int count = m->flex_vertnum[f] + 2*m->flex_edgenum[f];
       // transform each assembled vertex block into the destination slide axes once
       for (int b=0; b < count; b++) {
@@ -2164,7 +2189,9 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
         mjtNum block[9];
         if (b < m->flex_vertnum[f]) {
           vi = vj = b;
-          const mjtNum* h = d->flexvert_hessian + 6*(va+b);
+          mjtNum h[6] = {0};
+          if (elastic) mju_scl(h, d->flexvert_hessian + 6*(va+b), elastic, 6);
+          if (dampdiag) mju_addToScl(h, dampdiag + 6*b, damping, 6);
           block[0] = h[0];
           block[1] = block[3] = h[1];
           block[2] = block[6] = h[2];
@@ -2175,7 +2202,9 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
           int id = b-m->flex_vertnum[f], e = ea+id/2, transpose = id%2;
           vi = m->flex_edge[2*e+transpose];
           vj = m->flex_edge[2*e+1-transpose];
-          const mjtNum* h = d->flexedge_hessian + 9*e;
+          mjtNum h[9] = {0};
+          if (elastic) mju_scl(h, d->flexedge_hessian + 9*e, elastic, 9);
+          if (dampedge) mju_addToScl(h, dampedge + 9*(e-ea), damping, 9);
           for (int r=0; r < 3; r++) {
             for (int c=0; c < 3; c++) {
               block[3*r+c] = transpose ? h[3*c+r] : h[3*r+c];
@@ -2200,9 +2229,10 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
         int pos;
         FLEXSTIFF_BLOCK(si, sj, pos);
         for (int r=0; r < 3; r++) {
-          mji_addToScl3(val + rowadr[vdof[si]+r] + 3*pos, blkd + 3*r, scale);
+          mji_addToScl3(val + rowadr[vdof[si]+r] + 3*pos, blkd + 3*r, blockscale);
         }
       }
+      mj_freeStack(d);
     }
   }
 
@@ -3225,8 +3255,8 @@ void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
 
 
 //------------------- implicit effective metric Mtilde = M + h*D + h^2*K --------------------------
-// The flex part is K = (h^2 + h*damping) * (K_bend + K_stretch), the PSD implicit flex stiffness,
-// whose h^2 and h*damping parts enter only when the spring and damper forces are enabled;
+// The flex part is h^2*K + h*D; SNH uses separate elastic and strain-rate damping operators.
+// The h^2*K and h*D parts enter only when the spring and damper forces are enabled;
 // the diagonal part holds joint damping and stiffness (h*D + h^2*K per dof, clamped PSD). Built
 // once per step on the arena by mjd_effBuild (under integrator=discrete), then consumed
 // uniformly: the smooth acceleration, the constraint solver and inverse dynamics all see the

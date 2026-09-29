@@ -2633,8 +2633,8 @@ TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
 }
 
 // The exact SNH Hessian remains finite through degeneracy and inversion,
-// including negative curvature. Assembly, matrix-free products, damping, and
-// force derivatives agree.
+// including negative curvature. Assembly, matrix-free products and force
+// derivatives agree; strain-rate damping is checked separately from stiffness.
 TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -2707,6 +2707,7 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
       negative_curvature |= mju_cholFactor(L.data(), nv, 0) < nv;
       std::vector<mjtNum> damp(nv, 0);
       mjd_flexStretch_mul(m.get(), d.get(), damp.data(), d->qvel, 0, 1);
+      EXPECT_GE(mju_dot(d->qvel, damp.data(), nv), -MjTol(1e-10, 1e-3));
       for (int i = 0; i < nv; i++) {
         EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
       }
@@ -2741,6 +2742,164 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
   }
   EXPECT_TRUE(negative_curvature)
       << "the exact Hessian must not silently clamp negative modes";
+}
+
+// Independent continuum dissipation: damping*V0*(mu*tr(Edot^2) +
+// lambda/2*tr(Edot)^2). Reference positions and physical Lame parameters are
+// used directly, without the packed metric.
+static mjtNum SNHDissipation(const mjModel* m, const mjData* d,
+                             const std::vector<mjtNum>& rest, mjtNum poisson) {
+  const int* vert = m->flex_elem;
+  mjtNum edge[3][3], gradient[4][3], velocity[12];
+  for (int i = 0; i < 3; i++) {
+    mju_sub3(edge[i], rest.data() + 3 * vert[i + 1], rest.data() + 3 * vert[0]);
+  }
+  mju_cross(gradient[1], edge[1], edge[2]);
+  mju_cross(gradient[2], edge[2], edge[0]);
+  mju_cross(gradient[3], edge[0], edge[1]);
+  mjtNum det = mju_dot3(edge[0], gradient[1]);
+  mju_zero3(gradient[0]);
+  for (int i = 1; i < 4; i++) {
+    mju_scl3(gradient[i], gradient[i], 1 / det);
+    mju_subFrom3(gradient[0], gradient[i]);
+  }
+  mj_flexGather(m, d, 0, velocity, d->qvel);
+  mjtNum F[9] = {0}, Fdot[9] = {0};
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int v = 0; v < 4; v++) {
+        F[3 * i + j] += d->flexvert_xpos[3 * vert[v] + i] * gradient[v][j];
+        Fdot[3 * i + j] += velocity[3 * vert[v] + i] * gradient[v][j];
+      }
+    }
+  }
+  mjtNum FtFdot[9];
+  mju_mulMatTMat3(FtFdot, F, Fdot);
+  mjtNum norm2 = 0, trace = FtFdot[0] + FtFdot[4] + FtFdot[8];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      mjtNum strainrate = .5 * (FtFdot[3 * i + j] + FtFdot[3 * j + i]);
+      norm2 += strainrate * strainrate;
+    }
+  }
+  mjtNum mu = 1000 / (2 * (1 + poisson));
+  mjtNum lambda = 1000 * poisson / ((1 + poisson) * (1 - 2 * poisson));
+  return m->flex_damping[0] * mju_abs(det) / 6 *
+         (mu * norm2 + .5 * lambda * trace * trace);
+}
+
+TEST_F(DerivativeTest, SNHStrainDamping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" damping=".02"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>)";
+  for (mjtNum poisson : {mjtNum(0), mjtNum(.3), mjtNum(.49)}) {
+    SCOPED_TRACE(poisson);
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"));
+    flex->elastic3d = 1;
+    flex->poisson = poisson;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    mj_deleteSpec(spec);
+    ASSERT_THAT(m.get(), NotNull());
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+    std::vector<mjtNum> rest = AsVector(d->flexvert_xpos, 12);
+    int nv = m->nv;
+    ASSERT_EQ(nv, 12);
+    for (mjtNum stretch : {mjtNum(-1), mjtNum(0), mjtNum(.01), mjtNum(1)}) {
+      SCOPED_TRACE(stretch);
+      for (int v = 0; v < 4; v++) {
+        int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+        d->qpos[adr] = .2 * rest[3 * v + 1];
+        d->qpos[adr + 1] = -.3 * rest[3 * v];
+        d->qpos[adr + 2] = (stretch - 1) * rest[3 * v + 2];
+      }
+      for (int i = 0; i < nv; i++) d->qvel[i] = mju_Halton(i, 2) - .5;
+      mj_forward(m.get(), d.get());
+      EXPECT_FALSE(d->flex_hessian_valid[0]);
+      std::vector<mjtNum> force = AsVector(d->qfrc_damper, nv);
+      mjtNum energy = SNHDissipation(m.get(), d.get(), rest, poisson);
+      EXPECT_NEAR(mju_dot(force.data(), d->qvel, nv), -2 * energy,
+                  MjTol(1e-10, 1e-4) * mju_max(1, energy));
+
+      // Damping force is the negative velocity gradient of the continuum
+      // dissipation.
+      mjtNum eps = MjEps(1e-5, .01);
+      for (int i = 0; i < nv; i++) {
+        mjtNum saved = d->qvel[i];
+        d->qvel[i] = saved + eps;
+        mjtNum plus = SNHDissipation(m.get(), d.get(), rest, poisson);
+        d->qvel[i] = saved - eps;
+        mjtNum minus = SNHDissipation(m.get(), d.get(), rest, poisson);
+        d->qvel[i] = saved;
+        EXPECT_NEAR(force[i], -(plus - minus) / (2 * eps),
+                    MjTol(1e-8, .02) * mju_max(1, mju_abs(force[i])));
+      }
+
+      std::vector<mjtNum> D(nv * nv), K(nv * nv);
+      stretchK_dense(m.get(), d.get(), D.data(), nv, 0, 1);
+      EXPECT_FALSE(d->flex_hessian_valid[0]);
+      stretchK_dense(m.get(), d.get(), K.data(), nv, 1, 0);
+      std::vector<int> rownnz(nv), rowadr(nv);
+      int nnz =
+          mjd_flexStiff_assemble(m.get(), d.get(), rownnz.data(), rowadr.data(),
+                                 nullptr, nullptr, 0, 1, 0, 1, nullptr);
+      std::vector<int> colind(nnz);
+      std::vector<mjtNum> values(nnz);
+      for (mjtNum s1 : {mjtNum(0), mjtNum(.01), -m->flex_damping[0]}) {
+        mjd_flexStiff_assemble(m.get(), d.get(), rownnz.data(), rowadr.data(),
+                               colind.data(), values.data(), s1, 1, 0, 1,
+                               nullptr);
+        for (int i = 0; i < nv; i++) {
+          for (int j = rowadr[i]; j < rowadr[i] + rownnz[i]; j++) {
+            int index = i * nv + colind[j];
+            EXPECT_NEAR(values[j], s1 * K[index] + D[index],
+                        MjTol(1e-10, 1e-4) * mju_max(1, mju_abs(values[j])));
+          }
+        }
+      }
+      for (int i = 0; i < nv; i++) {
+        for (int j = 0; j < nv; j++) {
+          EXPECT_NEAR(D[i * nv + j], D[j * nv + i], MjTol(1e-10, 1e-4));
+        }
+        D[i * nv + i] += MjTol(1e-9, .01);
+      }
+      EXPECT_EQ(mju_cholFactor(D.data(), nv, 0), nv);
+
+      // Dissipation does not depend on timestep or integrator, or on the
+      // elastic cache.
+      for (int integrator : {mjINT_EULER, mjINT_RK4, mjINT_DISCRETE}) {
+        m->opt.integrator = integrator;
+        m->opt.timestep = .001 * (1 + integrator);
+        mj_forward(m.get(), d.get());
+        EXPECT_THAT(force, Pointwise(MjNear(1e-10, 1e-4),
+                                     AsVector(d->qfrc_damper, nv)));
+      }
+
+      // Instantaneous rigid rotation plus translation produces no strain rate,
+      // even inverted.
+      const mjtNum omega[3] = {.2, -.3, .7};
+      for (int v = 0; v < 4; v++) {
+        mjtNum velocity[3];
+        mju_cross(velocity, omega, d->flexvert_xpos + 3 * v);
+        for (int x = 0; x < 3; x++) {
+          d->qvel[m->body_dofadr[m->flex_vertbodyid[v]] + x] = velocity[x] + .1;
+        }
+      }
+      mj_forward(m.get(), d.get());
+      EXPECT_THAT(AsVector(d->qfrc_damper, nv), Each(MjNear(0, 1e-10, 1e-4)));
+      m->opt.integrator = mjINT_EULER;
+    }
+  }
 }
 
 // K_stretch must be the full Hessian of the stretch force, not just its

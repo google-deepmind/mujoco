@@ -72,13 +72,13 @@ MJAPI void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_o
 MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2);
 
-// compute res += scale * K_stretch * vec for standard (non-interp) flex stretch,
-// K_stretch is the PSD world-space stretch Hessian projected through the vertex Jacobians
-//   scale = s1 + s2 * flex_damping[f]  per flex
+// compute res += (s1*K_stretch + s2*D_stretch) * vec for standard flex stretch
+// SNH uses its unprojected elastic Hessian and separate PSD strain-rate damping;
+// StVK uses the same operator for both, with D_stretch = flex_damping[f]*K_stretch
 MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                                mjtNum s1, mjtNum s2);
 
-// assemble the standard-flex implicit stiffness (s1 + s2*damping)*(K_bend + K_stretch) into
+// assemble the standard-flex implicit operator s1*K + s2*D into
 // dof-level CSR; phase 1 (colind==NULL) fills rownnz/rowadr and returns total nnz, phase 2
 // fills colind/val. Interp flexes are assembled iff Krot (mjd_flexInterp_cacheKrot cache) is
 // non-NULL and the centered fast path applies (check mjd_flexInterpAssemblable first).

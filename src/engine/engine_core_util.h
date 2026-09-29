@@ -214,6 +214,14 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f);
 void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
                        const mjtNum* vec, mjtNum scale);
 
+// assemble the unscaled SNH strain-rate damping operator into flex-local Cartesian blocks
+void mj_flexDamping(const mjModel* m, const mjData* d, int f,
+                    mjtNum* diagonal, mjtNum* offdiag);
+
+// add scale * SNH strain-rate damping operator * vec; vectors use flex-local vertex order
+void mj_flexDampingMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
+                       const mjtNum* vec, mjtNum scale);
+
 // element-local geometry, quadratic edge response, and stiffness contractions shared by
 // passive forces and both solver paths; keep the helpers visible to the compiler so the
 // small edge loops can be optimized together with their callers
@@ -385,6 +393,12 @@ static inline void mj_stretchStiffnessBlock(mjtNum block[9], const mjtNum metric
 // collapse or inversion. The nonzero cubic coefficient in [21] identifies SNH
 // without an extra mjModel field.
 
+// apply the positive strain-rate metric K + beta*a*a', where tr(F'F-I) = a'*s;
+// R = damping/4 * sdot' * (K + beta*a*a') * sdot matches the SNH tangent at rest
+void mj_snhDampingTension(mjtNum tension[6], const mjtNum metric[36], const mjtNum rate[6],
+                          const mjtNum k[24], const mjtNum* vert0, const int vert[4],
+                          const mjtNum size[3]);
+
 // add twice the gradient and (optionally) Hessian of gamma P(s) to the edge response
 void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
                  mjtNum gamma, int flg_stiffness);
@@ -424,12 +438,6 @@ static inline mjtNum mj_snhStiffness(mjtNum metric[36], mjtNum tension[6], mjtNu
   mj_snhCubic(metric, tension, elongation, k[21], 1);
   return 2*k[22]*(mj_snhVolume(grad, edgevec, k)-1);
 }
-
-
-// multiply the exact stiffness, including geometric terms, by vertex variations
-void mj_snhStiffnessMul(mjtNum result[4][3], const mjtNum metric[36], const mjtNum tension[6],
-                        mjtNum edgevec[6][3], mjtNum grad[4][3], mjtNum pressure,
-                        const mjtNum k[24], mjtNum vec[4][3], mjtNum scale);
 
 
 // world-space vertex-pair block of the same exact stiffness

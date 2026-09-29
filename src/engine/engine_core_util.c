@@ -1483,17 +1483,34 @@ int mj_effActuatorPossible(const mjModel* m, int i) {
 
 //-------------------------- flex elasticity -------------------------------------------------------
 
-// cache the unscaled Cartesian stretch Hessian of a standard 2D or 3D flex
-// StVK retains its tensile geometric term; SNH retains its full, unprojected Hessian
-void mj_flexHessian(const mjModel* m, mjData* d, int f) {
-  if (d->flex_hessian_valid[f]) {
-    return;
+// Reference coefficients a_e = -grad(N_i) dot grad(N_j), so tr(F'F-I) = a'*s.
+static void snhTrace(mjtNum trace[6], const mjtNum k[24], const mjtNum* vert0,
+                      const int vert[4], const mjtNum size[3]) {
+  mjtNum rest[3][3], gradient[4][3];
+  for (int v=0; v < 3; v++) {
+    for (int x=0; x < 3; x++) {
+      rest[v][x] = 2*size[x]*(vert0[3*vert[v+1]+x]-vert0[3*vert[0]+x]);
+    }
   }
+  mju_cross(gradient[1], rest[1], rest[2]);
+  mju_cross(gradient[2], rest[2], rest[0]);
+  mju_cross(gradient[3], rest[0], rest[1]);
+  mju_zero3(gradient[0]);
+  for (int v=1; v < 4; v++) {
+    mju_scl3(gradient[v], gradient[v], k[23]);
+    mju_subFrom3(gradient[0], gradient[v]);
+  }
+  for (int e=0; e < 6; e++) {
+    trace[e] = -mju_dot3(gradient[mj_stretchEdges[1][e][0]],
+                         gradient[mj_stretchEdges[1][e][1]]);
+  }
+}
 
+
+// assemble Cartesian stretch blocks: elastic Hessian or SNH strain-rate damping
+static void flexHessian(const mjModel* m, const mjData* d, int f,
+                        mjtNum* diagonal, mjtNum* offdiag, int damping) {
   int va = m->flex_vertadr[f], ea = m->flex_edgeadr[f];
-  mjtNum* diagonal = d->flexvert_hessian + 6*va;
-  mjtNum* offdiag = d->flexedge_hessian + 9*ea;
-
   mju_zero(diagonal, 6*m->flex_vertnum[f]);
   mju_zero(offdiag, 9*m->flex_edgenum[f]);
 
@@ -1515,8 +1532,26 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f) {
     const int* vert = elem + (dim+1)*t;
     const mjtNum* packed = k + stride*t;
     mjtNum edges[6][3], metric[36], tension[6], grad[4][3], pressure = 0;
+    mjtNum trace[6], tensor[9], muV = 0, lambdaV = 0;
     mj_stretchEdgeVectors(edges, xpos, vert, dim);
-    if (snh) {
+    if (damping) {
+      // Factor the edge-metric contraction once per element. With a_e = trace[e],
+      // T = sum_e a_e*edge_e*edge_e' and b_i = sum_j a_ij*(x_i-x_j),
+      // the off-diagonal damping block is -muV*a_ij*T + muV*b_j*b_i' + lambdaV*b_i*b_j'.
+      snhTrace(trace, packed, m->flex_vert0 + 3*va, vert, m->flex_size + 3*f);
+      mjtNum volume = 1/(6*mju_abs(packed[23]));
+      muV = -72*packed[21]*volume*volume;
+      lambdaV = 2*packed[22]-2*muV;
+      mju_zero(tensor, 9);
+      mju_zero(grad[0], 12);
+      for (int e=0; e < 6; e++) {
+        mju_addToScl3(grad[edge[e][0]], edges[e], trace[e]);
+        mju_addToScl3(grad[edge[e][1]], edges[e], -trace[e]);
+        for (int r=0; r < 3; r++) {
+          mju_addToScl3(tensor + 3*r, edges[e], trace[e]*edges[e][r]);
+        }
+      }
+    } else if (snh) {
       pressure = mj_snhStiffness(metric, tension, grad, edges, packed,
                                 eelem + 6*t, length, rest);
     } else {
@@ -1534,7 +1569,14 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f) {
         j = swap;
       }
       mjtNum block[9];
-      if (snh) {
+      if (damping) {
+        for (int r=0; r < 3; r++) {
+          for (int c=0; c < 3; c++) {
+            block[3*r+c] = -muV*trace[e]*tensor[3*r+c] + muV*grad[j][r]*grad[i][c]
+                           + lambdaV*grad[i][r]*grad[j][c];
+          }
+        }
+      } else if (snh) {
         mj_snhStiffnessBlock(block, metric, tension, edges, grad, pressure,
                             packed, i, j, 1);
       } else {
@@ -1558,7 +1600,24 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f) {
       }
     }
   }
-  d->flex_hessian_valid[f] = 1;
+}
+
+
+// cache the unscaled Cartesian stretch Hessian of a standard 2D or 3D flex
+// StVK retains its tensile geometric term; SNH retains its full, unprojected Hessian
+void mj_flexHessian(const mjModel* m, mjData* d, int f) {
+  if (!d->flex_hessian_valid[f]) {
+    flexHessian(m, d, f, d->flexvert_hessian + 6*m->flex_vertadr[f],
+                d->flexedge_hessian + 9*m->flex_edgeadr[f], 0);
+    d->flex_hessian_valid[f] = 1;
+  }
+}
+
+
+// assemble the damping operator without changing the elastic Hessian cache
+void mj_flexDamping(const mjModel* m, const mjData* d, int f,
+                    mjtNum* diagonal, mjtNum* offdiag) {
+  flexHessian(m, d, f, diagonal, offdiag, 1);
 }
 
 
@@ -1589,6 +1648,45 @@ void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
 
 
 //-------------------------- Stable Neo-Hookean tetrahedra -----------------------------------------
+
+// Recover the positive small-strain metric from K_SNH by a rank-one correction.
+// With Q = F'F-I, R/damping = V0*(mu/4*tr(Qdot^2) + lambda/8*tr(Qdot)^2).
+// This uses only reference geometry and stays defined at current collapse or inversion.
+void mj_snhDampingTension(mjtNum tension[6], const mjtNum metric[36], const mjtNum rate[6],
+                          const mjtNum k[24], const mjtNum* vert0, const int vert[4],
+                          const mjtNum size[3]) {
+  mjtNum trace[6];
+  snhTrace(trace, k, vert0, vert, size);
+  mj_stretchTension(tension, metric, rate, 6);
+  mju_addToScl(tension, trace, k[22]*mju_dot(trace, rate, 6), 6);
+}
+
+
+// Apply the damping operator directly: no elastic Hessian or Cartesian cache is needed.
+void mj_flexDampingMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
+                       const mjtNum* vec, mjtNum scale) {
+  int va = m->flex_vertadr[f];
+  const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+  const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+  const mjtNum* xpos = d->flexvert_xpos + 3*va;
+  for (int t=0; t < m->flex_elemnum[f]; t++) {
+    const int* vert = elem + 4*t;
+    mjtNum edges[6][3], metric[36], rate[6], tension[6];
+    mj_stretchEdgeVectors(edges, xpos, vert, 3);
+    mj_stretchMetric(metric, k + 24*t, 6);
+    for (int e=0; e < 6; e++) {
+      mjtNum delta[3];
+      mju_sub3(delta, vec + 3*vert[mj_stretchEdges[1][e][0]],
+                      vec + 3*vert[mj_stretchEdges[1][e][1]]);
+      // mj_stretchForce subtracts tension times edge, so negate for a positive operator.
+      rate[e] = -2*scale*mju_dot3(edges[e], delta);
+    }
+    mj_snhDampingTension(tension, metric, rate, k + 24*t, m->flex_vert0 + 3*va,
+                         vert, m->flex_size + 3*f);
+    mj_stretchForce(res, vert, tension, edges, 3);
+  }
+}
+
 
 // cubic Gram determinant P(s) = a*b*c + 2*d*e*f - a*f*f - b*e*e - c*d*d,
 // where D(s) = [[a,d,e], [d,b,f], [e,f,c]] is the Gram difference at vertex 0.
@@ -1625,46 +1723,5 @@ void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
       metric[6*i+j] += value;
       if (i != j) metric[6*j+i] += value;
     }
-  }
-}
-
-
-// exact Hessian-vector product of the quadratic, cubic, and signed-volume energies
-void mj_snhStiffnessMul(mjtNum result[4][3], const mjtNum metric[36], const mjtNum tension[6],
-                        mjtNum edgevec[6][3], mjtNum grad[4][3], mjtNum pressure,
-                        const mjtNum k[24], mjtNum vec[4][3], mjtNum scale) {
-  const int (*edge)[2] = mj_stretchEdges[1];
-  mjtNum delta[6][3], edgeforce[6][3];
-  for (int e = 0; e < 6; e++) {
-    mju_sub3(delta[e], vec[edge[e][0]], vec[edge[e][1]]);
-  }
-  mj_stretchStiffnessMul(edgeforce, metric, tension, edgevec, delta, 6, scale);
-  mju_zero(result[0], 12);
-  for (int e = 0; e < 6; e++) {
-    mju_addTo3(result[edge[e][0]], edgeforce[e]);
-    mju_subFrom3(result[edge[e][1]], edgeforce[e]);
-  }
-
-  // differentiate the three cross products in grad(J), without forming a 12x12 matrix
-  mjtNum dg[4][3], tmp[3];
-  mju_cross(dg[1], delta[4], edgevec[2]);
-  mju_cross(tmp, edgevec[4], delta[2]);
-  mju_addTo3(dg[1], tmp);
-  mju_cross(dg[2], delta[4], edgevec[0]);
-  mju_cross(tmp, edgevec[4], delta[0]);
-  mju_addTo3(dg[2], tmp);
-  mju_cross(dg[3], delta[2], edgevec[0]);
-  mju_cross(tmp, edgevec[2], delta[0]);
-  mju_addTo3(dg[3], tmp);
-  for (int x = 0; x < 3; x++) {
-    dg[0][x] = -dg[1][x]-dg[2][x]-dg[3][x];
-  }
-  mjtNum dJ = 0;
-  for (int v = 0; v < 4; v++) {
-    dJ += mju_dot3(grad[v], vec[v]);
-  }
-  for (int v = 0; v < 4; v++) {
-    mju_addToScl3(result[v], grad[v], 2*scale*k[22]*dJ);
-    mju_addToScl3(result[v], dg[v], scale*pressure*k[23]);
   }
 }
