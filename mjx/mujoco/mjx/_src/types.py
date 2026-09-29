@@ -434,6 +434,7 @@ class SensorType(enum.IntEnum):
   TENDONACTFRC = mujoco.mjtSensor.mjSENS_TENDONACTFRC  # pyrefly: ignore[bad-assignment]
   FRAMELINACC = mujoco.mjtSensor.mjSENS_FRAMELINACC  # pyrefly: ignore[bad-assignment]
   FRAMEANGACC = mujoco.mjtSensor.mjSENS_FRAMEANGACC  # pyrefly: ignore[bad-assignment]
+  TACTILE = mujoco.mjtSensor.mjSENS_TACTILE  # pyrefly: ignore[bad-assignment]
 
 
 class ObjType(PyTreeNode):
