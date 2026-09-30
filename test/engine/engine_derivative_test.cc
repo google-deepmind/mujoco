@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_derivative.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <random>
@@ -2637,9 +2638,149 @@ TEST_F(DerivativeTest, FlexHessianCacheLifetime) {
   }
 }
 
-// The exact SNH Hessian remains finite through degeneracy and inversion,
-// including negative curvature. Assembly, matrix-free products, damping, and
-// force derivatives agree.
+// Independent dense material-Hessian reference. Assemble d2E/dF2 using the
+// Levi-Civita formula for d2(det F), optionally project with a general 9x9
+// eigensolver, then pull back through F = Ds Dm^-1. Rest coordinates are the
+// original Cartesian positions, independent of the engine's normalized ones.
+static std::vector<double> SNHHessianReference(const mjModel* m,
+                                               const mjData* d,
+                                               const std::vector<mjtNum>& rest,
+                                               bool project) {
+  std::vector<double> result(m->nv * m->nv, 0);
+  auto epsilon = [](int a, int b, int c) {
+    return (a - b) * (b - c) * (c - a) / 2;
+  };
+  for (int t = 0; t < m->flex_elemnum[0]; t++) {
+    const int* vert = m->flex_elem + 4 * t;
+    const mjtNum* k = m->flex_stiffness + 24 * t;
+    double Dm[3][3], Ds[3][3], inverse[3][3] = {}, F[3][3] = {};
+    for (int v = 0; v < 3; v++) {
+      for (int x = 0; x < 3; x++) {
+        Dm[x][v] = rest[3 * vert[v + 1] + x] - rest[3 * vert[0] + x];
+        Ds[x][v] = d->flexvert_xpos[3 * vert[v + 1] + x] -
+                   d->flexvert_xpos[3 * vert[0] + x];
+      }
+    }
+    // Invert the actual Cartesian reference tetrahedron.
+    double det = 0;
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        inverse[i][j] =
+            Dm[(j + 1) % 3][(i + 1) % 3] * Dm[(j + 2) % 3][(i + 2) % 3] -
+            Dm[(j + 1) % 3][(i + 2) % 3] * Dm[(j + 2) % 3][(i + 1) % 3];
+      }
+      det += Dm[0][i] * inverse[i][0];
+    }
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        inverse[i][j] /= det;
+      }
+    }
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        for (int l = 0; l < 3; l++) {
+          F[i][j] += Ds[i][l] * inverse[l][j];
+        }
+      }
+    }
+    double cof[9] = {}, H[9][9] = {};
+    for (int i = 0; i < 3; i++) {
+      for (int a = 0; a < 3; a++) {
+        for (int j = 0; j < 3; j++) {
+          for (int b = 0; b < 3; b++) {
+            for (int l = 0; l < 3; l++) {
+              for (int c = 0; c < 3; c++) {
+                double term = epsilon(i, j, l) * epsilon(a, b, c) * F[l][c];
+                H[3 * i + a][3 * j + b] += term;
+                cof[3 * i + a] += .5 * term * F[j][b];
+              }
+            }
+          }
+        }
+      }
+    }
+    double J = F[0][0] * cof[0] + F[0][1] * cof[1] + F[0][2] * cof[2];
+    double volume = std::abs(1 / k[23]) / 6;
+    double muV = -72 * k[21] * volume * volume;
+    double lambdaV = 2 * k[22] - muV;
+    double scale = 0;
+    for (int i = 0; i < 9; i++) {
+      for (int j = 0; j < 9; j++) {
+        H[i][j] = (i == j ? muV : 0) + lambdaV * cof[i] * cof[j] +
+                  (lambdaV * (J - 1) - muV) * H[i][j];
+        scale = std::max(scale, std::abs(H[i][j]));
+      }
+    }
+    if (project) {
+      // Dense cyclic Jacobi reference: no SVD, analytic modes, or engine
+      // eigensolver.
+      double Q[9][9] = {};
+      for (int i = 0; i < 9; i++) Q[i][i] = 1;
+      bool converged = false;
+      for (int sweep = 0; sweep < 100 && !converged; sweep++) {
+        converged = true;
+        for (int p = 0; p < 9; p++) {
+          for (int q = p + 1; q < 9; q++) {
+            if (std::abs(H[p][q]) <= 1e-14 * scale) continue;
+            converged = false;
+            double angle = .5 * std::atan2(2 * H[p][q], H[q][q] - H[p][p]);
+            double c = std::cos(angle), s = std::sin(angle);
+            double pp = H[p][p], pq = H[p][q], qq = H[q][q];
+            H[p][p] = c * c * pp - 2 * c * s * pq + s * s * qq;
+            H[q][q] = s * s * pp + 2 * c * s * pq + c * c * qq;
+            H[p][q] = H[q][p] = 0;
+            for (int r = 0; r < 9; r++) {
+              if (r != p && r != q) {
+                double rp = H[r][p], rq = H[r][q];
+                H[r][p] = H[p][r] = c * rp - s * rq;
+                H[r][q] = H[q][r] = s * rp + c * rq;
+              }
+              double rp = Q[r][p], rq = Q[r][q];
+              Q[r][p] = c * rp - s * rq;
+              Q[r][q] = s * rp + c * rq;
+            }
+          }
+        }
+      }
+      EXPECT_TRUE(converged);
+      double value[9];
+      for (int i = 0; i < 9; i++) value[i] = std::max(0.0, H[i][i]);
+      for (int i = 0; i < 9; i++) {
+        for (int j = 0; j < 9; j++) {
+          H[i][j] = 0;
+          for (int l = 0; l < 9; l++) H[i][j] += value[l] * Q[i][l] * Q[j][l];
+        }
+      }
+    }
+    double gradient[4][3] = {};
+    for (int v = 1; v < 4; v++) {
+      for (int x = 0; x < 3; x++) {
+        gradient[v][x] = inverse[v - 1][x];
+        gradient[0][x] -= gradient[v][x];
+      }
+    }
+    for (int i = 0; i < 4; i++) {
+      int adr_i = m->body_dofadr[m->flex_vertbodyid[vert[i]]];
+      for (int j = 0; j < 4; j++) {
+        int adr_j = m->body_dofadr[m->flex_vertbodyid[vert[j]]];
+        for (int x = 0; x < 3; x++) {
+          for (int y = 0; y < 3; y++) {
+            for (int a = 0; a < 3; a++) {
+              for (int b = 0; b < 3; b++) {
+                result[(adr_i + x) * m->nv + adr_j + y] +=
+                    gradient[i][a] * H[3 * x + a][3 * y + b] * gradient[j][b];
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// Projection precedes assembly across shared edges, remains PSD through
+// degeneracy and inversion, and makes cached damping dissipative.
 TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -2707,16 +2848,34 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
           EXPECT_NEAR(values[j], K[i * nv + colind[j]], MjTol(1e-10, 1e-3));
         }
       }
+      std::vector<double> expected =
+          SNHHessianReference(m.get(), d.get(), rest, true);
+      std::vector<double> exact =
+          SNHHessianReference(m.get(), d.get(), rest, false);
+      double error = 0, norm = 0;
+      for (int i = 0; i < nv * nv; i++) {
+        error += (K[i] - expected[i]) * (K[i] - expected[i]);
+        norm += expected[i] * expected[i];
+      }
+      EXPECT_LT(std::sqrt(error / norm), MjTol(1e-13, 5e-6));
+      std::vector<mjtNum> unprojected(exact.begin(), exact.end());
+      for (int i = 0; i < nv; i++) {
+        unprojected[i * nv + i] += MjEps(1e-8, .01);
+      }
+      negative_curvature |= mju_cholFactor(unprojected.data(), nv, 0) < nv;
       std::vector<mjtNum> L = K;
-      for (int i = 0; i < nv; i++) L[i * nv + i] += MjTol(1e-8, .01);
-      negative_curvature |= mju_cholFactor(L.data(), nv, 0) < nv;
+      for (int i = 0; i < nv; i++) {
+        L[i * nv + i] += MjEps(1e-8, .01);
+      }
+      EXPECT_EQ(mju_cholFactor(L.data(), nv, 0), nv);
       std::vector<mjtNum> damp(nv, 0);
       mjd_flexStretch_mul(m.get(), d.get(), damp.data(), d->qvel, 0, 1);
       for (int i = 0; i < nv; i++) {
         EXPECT_NEAR(damp[i], -d->qfrc_damper[i], MjTol(1e-10, 1e-3));
       }
-      // Central differences verify the full tangent even at rank zero and under
-      // reflection.
+      EXPECT_LE(mju_dot(d->qvel, d->qfrc_damper, nv), MjTol(1e-10, 1e-3));
+      // Central differences still match the unprojected energy Hessian: the
+      // spring force is unchanged, even where the solver metric is projected.
       m->flex_damping[0] = 0;
       mjtNum eps = MjEps(1e-6, 1e-3);
       for (int j = 0; j < nv; j++) {
@@ -2728,7 +2887,7 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
         mj_forward(m.get(), d.get());
         for (int i = 0; i < nv; i++) {
           mjtNum fd = -(plus[i] - d->qfrc_spring[i]) / (2 * eps);
-          EXPECT_NEAR(K[i * nv + j], fd, MjTol(1e-6, .2));
+          EXPECT_NEAR(exact[i * nv + j], fd, MjTol(1e-6, .2));
         }
         d->qpos[j] = saved;
       }
@@ -2736,7 +2895,128 @@ TEST_F(DerivativeTest, SNHStiffnessThroughInversion) {
     }
   }
   EXPECT_TRUE(negative_curvature)
-      << "the exact Hessian must not silently clamp negative modes";
+      << "the test must exercise negative modes that require projection";
+}
+
+// Rotated irregular reference tetrahedra, both windings, material ratios, and
+// length scales. The dense oracle checks the full projection, not only PSD.
+TEST_F(DerivativeTest, SNHProjectionSpectralReference) {
+  struct SpectralCase {
+    mjtNum quat_u[4];
+    mjtNum quat_v[4];
+    mjtNum sigma[3];
+  };
+  const SpectralCase kCases[] = {
+      // Standard positive stretches
+      {{1, 0, 0, 0}, {1, 0, 0, 0}, {1.5, 1.2, 0.8}},
+      {{0.5, 0.5, 0.5, 0.5}, {0.5, -0.5, 0.5, -0.5}, {1.0, 1.0, 1.0}},
+      {{0.6, 0.8, 0, 0}, {0, 0.6, 0.8, 0}, {0.7, 0.7, 0.7}},
+      {{0.5, -0.5, -0.5, 0.5}, {0.6, 0, 0, 0.8}, {2.5, 1.0, 0.4}},
+
+      // Repeated singular values
+      {{0.5, 0.5, 0.5, 0.5}, {1, 0, 0, 0}, {1.2, 1.2, 0.6}},
+      {{0.6, 0, 0.8, 0}, {0.5, 0.5, 0.5, 0.5}, {1.4, 0.8, 0.8}},
+
+      // Inverted / negative determinant
+      {{1, 0, 0, 0}, {0.5, 0.5, 0.5, 0.5}, {1.2, 0.9, -0.5}},
+      {{0.5, -0.5, 0.5, -0.5}, {0.6, 0, 0.8, 0}, {1.0, 1.0, -1.0}},
+      {{0.6, 0.8, 0, 0}, {1, 0, 0, 0}, {2.0, 0.8, -0.6}},
+
+      // Near-zero / transition singular values
+      {{0.6, 0, 0, 0.8},
+       {0.5, -0.5, 0.5, -0.5},
+       {1.0, 0.8, -MjEps(1e-8, 1e-4)}},
+      {{0.5, 0.5, 0.5, 0.5}, {0.6, 0.8, 0, 0}, {1.0, 0.8, MjEps(1e-8, 1e-4)}},
+
+      // Rank deficient / collapsed
+      {{1, 0, 0, 0}, {0.6, 0.8, 0, 0}, {1.2, 0.8, 0.0}},
+      {{0.5, 0.5, 0.5, 0.5}, {1, 0, 0, 0}, {1.5, 0.0, 0.0}},
+      {{1, 0, 0, 0}, {1, 0, 0, 0}, {0.0, 0.0, 0.0}},
+  };
+
+  const mjtNum reference[4][3] = {
+      {0, 0, 0}, {1, 0, 0}, {.2, .9, 0}, {-.1, .3, 1.1}};
+  const mjtNum rotation[9] = {.36, -.48, .8, .8, .6, 0, -.48, .64, .6};
+  for (mjtNum size : {mjtNum(.01), mjtNum(1), mjtNum(100)}) {
+    for (bool reverse : {false, true}) {
+      for (mjtNum poisson : {mjtNum(0), mjtNum(.3), mjtNum(.499)}) {
+        SCOPED_TRACE(size);
+        SCOPED_TRACE(reverse);
+        SCOPED_TRACE(poisson);
+        std::string points;
+        for (int v = 0; v < 4; v++) {
+          mjtNum point[3];
+          mju_mulMatVec3(point, rotation, reference[v]);
+          for (int x = 0; x < 3; x++) {
+            points += std::to_string(size * point[x]) + " ";
+          }
+        }
+        std::string xml =
+            "<mujoco><option gravity='0 0 0' integrator='discrete'/><worldbody>"
+            "<flexcomp name='tet' type='direct' dim='3' mass='1' point='" +
+            points + "' element='" + (reverse ? "0 2 1 3" : "0 1 2 3") +
+            "'>"
+            "<contact contype='0' conaffinity='0' selfcollide='none'/>"
+            "<elasticity young='1000' poisson='" +
+            std::to_string(poisson) + "'/></flexcomp></worldbody></mujoco>";
+        mjSpec* spec = mj_parseXMLString(xml.c_str(), nullptr, nullptr, 0);
+        ASSERT_THAT(spec, NotNull());
+        mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
+        MjModelPtr m(mj_compile(spec, nullptr));
+        mj_deleteSpec(spec);
+        ASSERT_THAT(m.get(), NotNull());
+        MjDataPtr d = MakeData(m);
+        mj_forward(m.get(), d.get());
+        ASSERT_EQ(m->nv, 12);
+        std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
+        int case_idx = 0;
+        for (const auto& c : kCases) {
+          SCOPED_TRACE(case_idx++);
+          mjtNum U[9], V[9];
+          mju_quat2Mat(U, c.quat_u);
+          mju_quat2Mat(V, c.quat_v);
+          mjtNum F[9] = {0};
+          for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+              for (int k = 0; k < 3; k++) {
+                F[3 * i + j] += U[3 * i + k] * c.sigma[k] * V[3 * j + k];
+              }
+            }
+          }
+          for (int v = 0; v < 4; v++) {
+            mjtNum point[3];
+            mju_mulMatVec3(point, F, rest.data() + 3 * v);
+            int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+            for (int x = 0; x < 3; x++) {
+              d->qpos[adr + x] = point[x] - rest[3 * v + x];
+            }
+          }
+          mj_forward(m.get(), d.get());
+          std::vector<mjtNum> K(144);
+          stretchK_dense(m.get(), d.get(), K.data(), 12, 1, 0);
+          std::vector<double> expected =
+              SNHHessianReference(m.get(), d.get(), rest, true);
+          double error = 0, norm = 0;
+          for (int i = 0; i < 144; i++) {
+            ASSERT_TRUE(std::isfinite(K[i]));
+            error += (K[i] - expected[i]) * (K[i] - expected[i]);
+            norm += expected[i] * expected[i];
+          }
+          EXPECT_LT(std::sqrt(error / norm), MjTol(2e-13, 1e-4));
+          for (int row = 0; row < 12; row++) {
+            for (int axis = 0; axis < 3; axis++) {
+              mjtNum translation = 0;
+              for (int v = 0; v < 4; v++) {
+                translation += K[12 * row + 3 * v + axis];
+              }
+              EXPECT_LE(mju_abs(translation) / std::sqrt(norm),
+                        MjTol(2e-15, 1e-6));
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 // K_stretch must be the full Hessian of the stretch force, not just its

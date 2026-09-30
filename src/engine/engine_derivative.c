@@ -1621,7 +1621,7 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 
 
 // compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
-// SNH uses its exact Hessian, which can be indefinite; StVK keeps the material term
+// SNH uses its PSD-projected material Hessian; StVK keeps the material term
 // and tensile geometric stiffness. For articulated attachments the pullback J'KJ
 // omits derivatives of the attachment Jacobian.
 static void flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,

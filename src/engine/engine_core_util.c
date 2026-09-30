@@ -1483,8 +1483,27 @@ int mj_effActuatorPossible(const mjModel* m, int i) {
 
 //-------------------------- flex elasticity -------------------------------------------------------
 
+// temporary spectral representation of one projected material Hessian in the
+// signed SVD frame F = U diag(sigma) V'; only the assembled Cartesian blocks are cached
+typedef struct {
+  mjtNum rotation[9];       // U
+  mjtNum gradient[4][3];    // V' grad(N_i)
+  mjtNum stretch[9];        // projected 3x3 block coupling diagonal variations of F
+  mjtNum symmetric[3];      // projected symmetric off-diagonal modes: (01, 02, 12)
+  mjtNum skew[3];           // projected skew off-diagonal modes: (01, 02, 12)
+} mjSnhHessian;
+
+// project the SNH material Hessian, using existing normalized reference vertices and half sizes
+static void snhProject(mjSnhHessian* hessian, const mjtNum k[24], mjtNum edgevec[6][3],
+                       const mjtNum elongation[6], const mjtNum* vert0, const int vert[4],
+                       const mjtNum size[3]);
+
+// pull the projected material Hessian back to a world-space vertex-pair block
+static void snhProjectedBlock(mjtNum block[9], const mjSnhHessian* hessian, int i, int j);
+
+
 // cache the unscaled Cartesian stretch Hessian of a standard 2D or 3D flex
-// StVK retains its tensile geometric term; SNH retains its full, unprojected Hessian
+// StVK retains its tensile geometric term; SNH projects each element's material Hessian to PSD
 void mj_flexHessian(const mjModel* m, mjData* d, int f) {
   if (d->flex_hessian_valid[f]) {
     return;
@@ -1514,11 +1533,14 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f) {
   for (int t=0; t < m->flex_elemnum[f]; t++) {
     const int* vert = elem + (dim+1)*t;
     const mjtNum* packed = k + stride*t;
-    mjtNum edges[6][3], metric[36], tension[6], grad[4][3], pressure = 0;
+    mjtNum edges[6][3], metric[36], tension[6];
+    mjSnhHessian projected;
     mj_stretchEdgeVectors(edges, xpos, vert, dim);
     if (snh) {
-      pressure = mj_snhStiffness(metric, tension, grad, edges, packed,
-                                eelem + 6*t, length, rest);
+      mjtNum elongation[6];
+      mj_stretchElongation(elongation, eelem + 6*t, length, rest, 6);
+      snhProject(&projected, packed, edges, elongation, m->flex_vert0 + 3*va, vert,
+                 m->flex_size + 3*f);
     } else {
       mj_stretchStiffness(metric, tension, packed, eelem + nedge*t, length, rest, nedge);
     }
@@ -1535,8 +1557,7 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f) {
       }
       mjtNum block[9];
       if (snh) {
-        mj_snhStiffnessBlock(block, metric, tension, edges, grad, pressure,
-                            packed, i, j, 1);
+        snhProjectedBlock(block, &projected, i, j);
       } else {
         mj_stretchStiffnessBlock(block, metric, tension, edges, dim, i, j, 1);
       }
@@ -1590,20 +1611,283 @@ void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
 
 //-------------------------- Stable Neo-Hookean tetrahedra -----------------------------------------
 
-// cubic Gram determinant P(s) = a*b*c + 2*d*e*f - a*f*f - b*e*e - c*d*d,
-// where D(s) = [[a,d,e], [d,b,f], [e,f,c]] is the Gram difference at vertex 0.
-// Add its derivatives to the same edge tension/metric used for the quadratic energy.
-void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
-                 mjtNum gamma, int flg_stiffness) {
+// noniterative symmetric eigensystem: an isolated cubic root, followed by a 2x2 solve
+// selecting the isolated root avoids an ill-conditioned cross product at a repeated pair
+// see Eberly, A Robust Eigensolver for 3x3 Symmetric Matrices, section 5
+static void snhEigen3(mjtNum value[3], mjtNum Q[9], const mjtNum A[9]) {
+  mjtNum scale = 0, D[9];
+  for (int i=0; i < 9; i++) {
+    scale = mju_max(scale, mju_abs(A[i]));
+  }
+  mju_zero(Q, 9);
+  Q[0] = Q[4] = Q[8] = 1;
+  if (!scale) {
+    mju_zero3(value);
+    return;
+  }
+  for (int i=0; i < 9; i++) {
+    D[i] = A[i]/scale;
+  }
+  if (!D[1] && !D[2] && !D[5]) {
+    for (int i=0; i < 3; i++) {
+      value[i] = A[4*i];
+    }
+    return;
+  }
+
+  // shift by trace mean to reduce the cubic to depressed form: det(B - lambda I) = 0
+  mjtNum mean = (D[0]+D[4]+D[8])/3;
+  mjtNum B[9];
+  mju_copy(B, D, 9);
+  for (int i=0; i < 3; i++) {
+    B[4*i] -= mean;
+  }
+  mjtNum bscale = 0;
+  for (int i=0; i < 9; i++) {
+    bscale = mju_max(bscale, mju_abs(B[i]));
+  }
+  for (int i=0; i < 9; i++) {
+    B[i] /= bscale;
+  }
+  mjtNum p = mju_sqrt((B[0]*B[0]+B[4]*B[4]+B[8]*B[8]
+                       +2*(B[1]*B[1]+B[2]*B[2]+B[5]*B[5]))/6);
+  for (int i=0; i < 9; i++) {
+    B[i] /= p;
+  }
+  mjtNum determinant = B[0]*(B[4]*B[8]-B[5]*B[5])
+                       - B[1]*(B[1]*B[8]-B[2]*B[5])
+                       + B[2]*(B[1]*B[5]-B[2]*B[4]);
+  mjtNum r = .5*determinant;
+
+  // solve depressed cubic via trigonometric formula; choose isolated root (extreme eigenvalue)
+  mjtNum root = 2*mju_cos(mju_acos(mju_min(1, mju_abs(r)))/3);
+  if (r < 0) {
+    root = -root;
+  }
+  for (int i=0; i < 3; i++) {
+    B[4*i] -= root;
+  }
+
+  // rows of (B - root*I) are perpendicular to the isolated eigenvector;
+  // the longest row cross product gives the most numerically stable eigenvector
+  mjtNum cross[3][3], norm[3];
+  mju_cross(cross[0], B, B+3);
+  mju_cross(cross[1], B, B+6);
+  mju_cross(cross[2], B+3, B+6);
+  int best = 0;
+  for (int i=0; i < 3; i++) {
+    norm[i] = mju_dot3(cross[i], cross[i]);
+    if (norm[i] > norm[best]) {
+      best = i;
+    }
+  }
+  mjtNum q[3], u[3], v[3];
+  mju_scl3(q, cross[best], 1/mju_sqrt(norm[best]));
+
+  // construct an orthonormal basis {u, v} for the complementary 2D plane
+  if (mju_abs(q[0]) > mju_abs(q[1])) {
+    mjtNum inv = 1/mju_sqrt(q[0]*q[0]+q[2]*q[2]);
+    u[0] = -q[2]*inv;
+    u[1] = 0;
+    u[2] = q[0]*inv;
+  } else {
+    mjtNum inv = 1/mju_sqrt(q[1]*q[1]+q[2]*q[2]);
+    u[0] = 0;
+    u[1] = q[2]*inv;
+    u[2] = -q[1]*inv;
+  }
+  mju_cross(v, q, u);
+  mjtNum Du[3], Dv[3], Dq[3];
+  mji_mulMatVec3(Du, D, u);
+  mji_mulMatVec3(Dv, D, v);
+  mji_mulMatVec3(Dq, D, q);
+
+  // diagonalize the remaining 2x2 symmetric system via a 2D Jacobi rotation
+  mjtNum a = mju_dot3(u, Du), b = mju_dot3(u, Dv), c = mju_dot3(v, Dv);
+  mjtNum cosine = 1, sine = 0, t = 0;
+  if (b) {
+    mjtNum delta = .5*(c-a);
+    mjtNum wscale = mju_max(mju_abs(delta), mju_abs(b));
+    mjtNum x = delta/wscale, y = b/wscale;
+    t = (x >= 0 ? y : -y)/(mju_abs(x)+mju_sqrt(x*x+y*y));
+    cosine = 1/mju_sqrt(1+t*t);
+    sine = t*cosine;
+  }
+  value[0] = mju_dot3(q, Dq)*scale;
+  value[1] = (a-t*b)*scale;
+  value[2] = (c+t*b)*scale;
+  for (int i=0; i < 3; i++) {
+    Q[3*i] = q[i];
+    Q[3*i+1] = cosine*u[i]-sine*v[i];
+    Q[3*i+2] = sine*u[i]+cosine*v[i];
+  }
+}
+
+
+// signed SVD F = U diag(sigma) V', with proper U,V even at collapse or inversion
+static void snhSVD(mjtNum U[9], mjtNum sigma[3], mjtNum V[9], const mjtNum F[9]) {
+  mjtNum scale = 0;
+  for (int i=0; i < 9; i++) {
+    scale = mju_max(scale, mju_abs(F[i]));
+  }
+
+  // one-sided Jacobi rotations on F diagonalize F'F without squaring condition number
+  mjtNum A[9];
+  for (int i=0; i < 9; i++) {
+    A[i] = scale ? F[i]/scale : 0;
+  }
+  mju_zero(V, 9);
+  V[0] = V[4] = V[8] = 1;
+#ifdef mjUSESINGLE
+  const mjtNum reltol = 2e-6f;
+#else
+  const mjtNum reltol = 4e-15;
+#endif
+  for (int sweep=0; sweep < 24; sweep++) {
+    int converged = 1;
+    for (int p=0; p < 2; p++) {
+      for (int q=p+1; q < 3; q++) {
+        mjtNum pp = 0, qq = 0, pq = 0;
+        for (int r=0; r < 3; r++) {
+          pp += A[3*r+p]*A[3*r+p];
+          qq += A[3*r+q]*A[3*r+q];
+          pq += A[3*r+p]*A[3*r+q];
+        }
+        if (mju_abs(pq) <= reltol*mju_sqrt(pp)*mju_sqrt(qq)) {
+          continue;
+        }
+        converged = 0;
+        mjtNum delta = .5*(qq-pp);
+        mjtNum t = (delta >= 0 ? pq : -pq)/(mju_abs(delta)+mju_sqrt(delta*delta+pq*pq));
+        mjtNum c = 1/mju_sqrt(1+t*t), s = t*c;
+        for (int r=0; r < 3; r++) {
+          mjtNum x = A[3*r+p], y = A[3*r+q];
+          A[3*r+p] = c*x-s*y;
+          A[3*r+q] = s*x+c*y;
+          x = V[3*r+p];
+          y = V[3*r+q];
+          V[3*r+p] = c*x-s*y;
+          V[3*r+q] = s*x+c*y;
+        }
+      }
+    }
+    if (converged) {
+      break;
+    }
+  }
+  for (int i=0; i < 3; i++) {
+    sigma[i] = A[i]*A[i]+A[3+i]*A[3+i]+A[6+i]*A[6+i];
+  }
+
+  // sort singular values in descending order
+  for (int i=0; i < 2; i++) {
+    for (int j=i+1; j < 3; j++) {
+      if (sigma[j] > sigma[i]) {
+        mjtNum tmp = sigma[i];
+        sigma[i] = sigma[j];
+        sigma[j] = tmp;
+        for (int r=0; r < 3; r++) {
+          tmp = A[3*r+i];
+          A[3*r+i] = A[3*r+j];
+          A[3*r+j] = tmp;
+          tmp = V[3*r+i];
+          V[3*r+i] = V[3*r+j];
+          V[3*r+j] = tmp;
+        }
+      }
+    }
+  }
+
+  // ensure V is a proper rotation (det(V) = +1); flip third column if reflected
+  mjtNum cross[3], a[3] = {V[0], V[3], V[6]}, b[3] = {V[1], V[4], V[7]};
+  mju_cross(cross, a, b);
+  if (cross[0]*V[2]+cross[1]*V[5]+cross[2]*V[8] < 0) {
+    for (int r=0; r < 3; r++) {
+      V[3*r+2] = -V[3*r+2];
+      A[3*r+2] = -A[3*r+2];
+    }
+  }
+
+  // normalize columns of A to construct left singular vectors U
+  mjtNum u[3][3];
+  for (int i=0; i < 3; i++) {
+    for (int x=0; x < 3; x++) {
+      u[i][x] = A[3*x+i];
+    }
+  }
+  sigma[0] = mju_norm3(u[0]);
+  if (!sigma[0]) {
+    mju_zero(U, 9);
+    U[0] = U[4] = U[8] = 1;
+    mju_zero3(sigma);
+    return;
+  }
+  mju_scl3(u[0], u[0], 1/sigma[0]);
+  mju_addToScl3(u[1], u[0], -mju_dot3(u[0], u[1]));
+  mjtNum norm = mju_norm3(u[1]);
+#ifdef mjUSESINGLE
+  const mjtNum tol = 1e-6f;
+#else
+  const mjtNum tol = 1e-12;
+#endif
+  if (norm > tol*sigma[0]) {
+    mju_scl3(u[1], u[1], 1/norm);
+  } else {
+    // rank one: choose any orthonormal completion of the nonzero column
+    int axis = 0;
+    for (int x=1; x < 3; x++) {
+      if (mju_abs(u[0][x]) < mju_abs(u[0][axis])) {
+        axis = x;
+      }
+    }
+    for (int x=0; x < 3; x++) {
+      u[1][x] = (x == axis)-u[0][axis]*u[0][x];
+    }
+    mju_scl3(u[1], u[1], 1/mju_norm3(u[1]));
+  }
+  mju_cross(u[2], u[0], u[1]);
+  sigma[1] = sigma[2] = 0;
+  for (int x=0; x < 3; x++) {
+    sigma[1] += u[1][x]*A[3*x+1];
+    sigma[2] += u[2][x]*A[3*x+2];
+    for (int i=0; i < 3; i++) {
+      U[3*x+i] = u[i][x];
+    }
+  }
+  mju_scl3(sigma, sigma, scale);
+}
+
+
+// conservative Cholesky check: uncertain pivots fall back to eigendecomposition
+static int snhPositive3(const mjtNum A[9]) {
+  mjtNum scale = 0;
+  for (int i=0; i < 9; i++) {
+    scale = mju_max(scale, mju_abs(A[i]));
+  }
+#ifdef mjUSESINGLE
+  mjtNum tol = 1e-5f*scale;
+#else
+  mjtNum tol = 1e-12*scale;
+#endif
+  if (A[0] <= tol) {
+    return 0;
+  }
+  mjtNum pivot = A[4]-A[1]*(A[1]/A[0]);
+  if (pivot <= tol) {
+    return 0;
+  }
+  mjtNum cross = A[5]-A[1]*(A[2]/A[0]);
+  return A[8]-A[2]*(A[2]/A[0])-cross*(cross/pivot) > tol;
+}
+
+
+// add twice the Hessian of gamma*P(s) to the edge metric; its gradient is evaluated
+// by mj_snhCubic, shared with the force calculation
+static void snhCubicMetric(mjtNum metric[36], const mjtNum s[6], mjtNum gamma) {
   mjtNum a = s[0], b = s[2], c = s[4];
-  mjtNum d = 0.5 * (s[0] + s[2] - s[1]);
-  mjtNum e = 0.5 * (s[0] + s[4] - s[5]);
-  mjtNum f = 0.5 * (s[2] + s[4] - s[3]);
-  mjtNum cof[6] = {b*c-f*f, a*c-e*e, a*b-d*d, e*f-c*d, d*f-b*e, d*e-a*f};
-  mjtNum g[6] = {cof[0]+cof[3]+cof[4], -cof[3], cof[1]+cof[3]+cof[5],
-                 -cof[5], cof[2]+cof[4]+cof[5], -cof[4]};
-  mju_addToScl(tension, g, 2*gamma, 6);
-  if (!flg_stiffness) return;
+  mjtNum d = .5*(s[0]+s[2]-s[1]);
+  mjtNum e = .5*(s[0]+s[4]-s[5]);
+  mjtNum f = .5*(s[2]+s[4]-s[3]);
 
   // columns of the constant map s -> (a,b,c,d,e,f)
   static const mjtNum basis[6][6] = {
@@ -1611,7 +1895,7 @@ void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
     {0, 1, 0, .5, 0, .5}, {0, 0, 0, 0, 0, -.5},
     {0, 0, 1, 0, .5, .5}, {0, 0, 0, 0, -.5, 0}
   };
-  for (int j = 0; j < 6; j++) {
+  for (int j=0; j < 6; j++) {
     const mjtNum* h = basis[j];
     mjtNum dc[6] = {
       h[1]*c+b*h[2]-2*f*h[5], h[0]*c+a*h[2]-2*e*h[4],
@@ -1620,10 +1904,164 @@ void mj_snhCubic(mjtNum metric[36], mjtNum tension[6], const mjtNum s[6],
     };
     mjtNum dg[6] = {dc[0]+dc[3]+dc[4], -dc[3], dc[1]+dc[3]+dc[5],
                     -dc[5], dc[2]+dc[4]+dc[5], -dc[4]};
-    for (int i = 0; i <= j; i++) {
+    for (int i=0; i <= j; i++) {
       mjtNum value = 2*gamma*dg[i];
       metric[6*i+j] += value;
       if (i != j) metric[6*j+i] += value;
     }
   }
+}
+
+
+// project d2E/dF2, not the vertex Hessian: PSD projection and pullback do not commute
+// the signed SVD supplies the principal stretches and frame; contract the edge
+// energy's derivatives into one 3x3 stretch block and six scalar off-diagonal modes
+// (Smith et al., Stable Neo-Hookean Flesh Simulation, Sec. 4)
+static void snhProject(mjSnhHessian* hessian, const mjtNum k[24], mjtNum edgevec[6][3],
+                       const mjtNum elongation[6], const mjtNum* vert0, const int vert[4],
+                       const mjtNum size[3]) {
+  // recover reference shape gradients dN/dX from normalized rest coordinates
+  mjtNum rest[3][3], gradient[3][3];
+  for (int v=0; v < 3; v++) {
+    for (int x=0; x < 3; x++) {
+      rest[v][x] = 2*size[x]*(vert0[3*vert[v+1]+x]-vert0[3*vert[0]+x]);
+    }
+  }
+  mju_cross(gradient[0], rest[1], rest[2]);
+  mju_cross(gradient[1], rest[2], rest[0]);
+  mju_cross(gradient[2], rest[0], rest[1]);
+  for (int v=0; v < 3; v++) {
+    mju_scl3(gradient[v], gradient[v], k[23]);
+  }
+
+  // compute deformation gradient F = sum_e x_e * dN_e' and its signed SVD: F = U * diag(sigma) * V'
+  mjtNum F[9], sigma[3], V[9];
+  for (int x=0; x < 3; x++) {
+    for (int y=0; y < 3; y++) {
+      F[3*x+y] = -edgevec[0][x]*gradient[0][y]+edgevec[2][x]*gradient[1][y]
+                -edgevec[4][x]*gradient[2][y];
+    }
+  }
+  snhSVD(hessian->rotation, sigma, V, F);
+  mju_zero3(hessian->gradient[0]);
+  for (int v=1; v < 4; v++) {
+    mji_mulMatTVec3(hessian->gradient[v], V, gradient[v-1]);
+    mju_subFrom3(hessian->gradient[0], hessian->gradient[v]);
+  }
+
+  // compute 1D edge tension (2*dU/ds) and metric (2*d2U/ds2) for quadratic and cubic energy
+  mjtNum metric[36], tension[6];
+  mj_stretchElasticity(metric, tension, k, elongation, 6);
+  mj_snhCubic(tension, elongation, k[21]);
+  snhCubicMetric(metric, elongation, k[21]);
+
+  // reference edges r_e in the principal frame; a variation D in that frame
+  // changes s_e by 2*(diag(sigma)*r_e)'*D*r_e; its second variation is 2*|D*r_e|^2
+  mjtNum vertex[4][3] = {{0}}, reference[6][3], square[3][6], product[3][6], geo[3];
+  for (int v=1; v < 4; v++) {
+    mji_mulMatTVec3(vertex[v], V, rest[v-1]);
+  }
+  for (int e=0; e < 6; e++) {
+    const int* endpoints = mj_stretchEdges[1][e];
+    mju_sub3(reference[e], vertex[endpoints[0]], vertex[endpoints[1]]);
+    for (int i=0; i < 3; i++) {
+      square[i][e] = reference[e][i]*reference[e][i];
+    }
+  }
+  for (int i=0; i < 3; i++) {
+    mj_stretchTension(product[i], metric, square[i], 6);
+    geo[i] = mju_dot(tension, square[i], 6);
+  }
+
+  // assemble 3x3 stretch block coupling diagonal variations of F, adding volume penalty
+  mjtNum J = sigma[0]*sigma[1]*sigma[2];
+  mjtNum volume_stiffness = 2*k[22], pressure = volume_stiffness*(J-1);
+  mjtNum cof[3] = {sigma[1]*sigma[2], sigma[0]*sigma[2], sigma[0]*sigma[1]};
+  mjtNum A[9];
+  for (int i=0; i < 3; i++) {
+    for (int j=i; j < 3; j++) {
+      mjtNum value = 2*sigma[i]*sigma[j]*mju_dot(square[i], product[j], 6)
+                     + volume_stiffness*cof[i]*cof[j]
+                     + (i == j ? geo[i] : pressure*sigma[3-i-j]);
+      A[3*i+j] = A[3*j+i] = value;
+    }
+  }
+
+  // project 3x3 stretch block to positive semi-definite (PSD) by clamping negative eigenvalues
+  if (snhPositive3(A)) {
+    mju_copy(hessian->stretch, A, 9);
+  } else {
+    mjtNum value[3], Q[9];
+    snhEigen3(value, Q, A);
+    mju_zero(hessian->stretch, 9);
+    for (int e=0; e < 3; e++) {
+      mjtNum weight = mju_max(0, value[e]);
+      for (int i=0; i < 3; i++) {
+        for (int j=0; j < 3; j++) {
+          hessian->stretch[3*i+j] += weight*Q[3*i+e]*Q[3*j+e];
+        }
+      }
+    }
+  }
+
+  // compute and clamp symmetric (shear) and skew (flip) off-diagonal modes to non-negative
+  int mode = 0;
+  for (int i=0; i < 3; i++) {
+    for (int j=i+1; j < 3; j++) {
+      mjtNum direction[6], response[6];
+      for (int e=0; e < 6; e++) {
+        direction[e] = reference[e][i]*reference[e][j];
+      }
+      mj_stretchTension(response, metric, direction, 6);
+      mjtNum material = mju_dot(direction, response, 6);
+      mjtNum geometric = .5*(geo[i]+geo[j]);
+      mjtNum sum = sigma[i]+sigma[j], diff = sigma[i]-sigma[j];
+      mjtNum cross = pressure*sigma[3-i-j];
+      hessian->symmetric[mode] = mju_max(0, sum*sum*material+geometric-cross);
+      hessian->skew[mode] = mju_max(0, diff*diff*material+geometric+cross);
+      mode++;
+    }
+  }
+}
+
+
+// contract in the SVD frame, then rotate the 3x3 block back to Cartesian coordinates
+static void snhProjectedBlock(mjtNum block[9], const mjSnhHessian* hessian, int i, int j) {
+  const mjtNum* a = hessian->gradient[i];
+  const mjtNum* b = hessian->gradient[j];
+  mjtNum local[9], tmp[9];
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      local[3*r+c] = hessian->stretch[3*r+c]*a[r]*b[c];
+    }
+  }
+  int mode = 0;
+  for (int r=0; r < 3; r++) {
+    for (int c=r+1; c < 3; c++) {
+      mjtNum sum = .5*(hessian->symmetric[mode]+hessian->skew[mode]);
+      mjtNum diff = .5*(hessian->symmetric[mode]-hessian->skew[mode]);
+      mode++;
+      local[4*r] += sum*a[c]*b[c];
+      local[4*c] += sum*a[r]*b[r];
+      local[3*r+c] += diff*a[c]*b[r];
+      local[3*c+r] += diff*a[r]*b[c];
+    }
+  }
+  mji_mulMatMat3(tmp, hessian->rotation, local);
+  mju_mulMatMatT3(block, tmp, hessian->rotation);
+}
+
+
+// cubic Gram determinant P(s) = a*b*c + 2*d*e*f - a*f*f - b*e*e - c*d*d,
+// where D(s) = [[a,d,e], [d,b,f], [e,f,c]] is the Gram difference at vertex 0.
+// add its gradient to the same edge tension used for the quadratic energy
+void mj_snhCubic(mjtNum tension[6], const mjtNum s[6], mjtNum gamma) {
+  mjtNum a = s[0], b = s[2], c = s[4];
+  mjtNum d = 0.5 * (s[0] + s[2] - s[1]);
+  mjtNum e = 0.5 * (s[0] + s[4] - s[5]);
+  mjtNum f = 0.5 * (s[2] + s[4] - s[3]);
+  mjtNum cof[6] = {b*c-f*f, a*c-e*e, a*b-d*d, e*f-c*d, d*f-b*e, d*e-a*f};
+  mjtNum g[6] = {cof[0]+cof[3]+cof[4], -cof[3], cof[1]+cof[3]+cof[5],
+                 -cof[5], cof[2]+cof[4]+cof[5], -cof[4]};
+  mju_addToScl(tension, g, 2*gamma, 6);
 }

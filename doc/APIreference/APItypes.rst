@@ -1854,8 +1854,10 @@ The experimental integer ``elastic3d`` selects the material for non-interpolated
 Saint Venant-Kirchhoff (StVK) elasticity, and ``1`` is simplified Stable Neo-Hookean (SNH) elasticity. Other values are rejected.
 SNH requires the :ref:`discrete integrator<option-integrator>`. The setting is available only through :ref:`mjSpec`,
 with no MJCF attribute. Specs with SNH enabled cannot be saved to MJCF; compiled models can be saved to MJB.
-SNH uses the full energy Hessian, including negative curvature. Its energy and forces remain defined through inversion,
-but the unprojected solver tangent and tangent-based Rayleigh damping do not guarantee numerical stability.
+SNH projects each element's material Hessian to positive semidefiniteness before mapping it to vertex coordinates.
+The discrete solver and Rayleigh damping reuse this projected operator. Energy and elastic forces are unchanged and
+remain defined through inversion. Material damping has non-positive instantaneous power, but projection does not
+guarantee inversion-free motion or stability at arbitrary timesteps.
 
 .. mujoco-include:: mjsFlex
 

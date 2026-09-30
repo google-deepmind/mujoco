@@ -568,7 +568,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
 
     mjtNum grad[4][3], pressure = 0;
     if (snh) {
-      mj_snhCubic(metric, tension, elongation, packed[21], 0);
+      mj_snhCubic(tension, elongation, packed[21]);
       pressure = 2*packed[22]*(mj_snhVolume(grad, edgevec, packed)-1);
     }
     if (enbl_spring) {
@@ -601,7 +601,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   }
 
   if (snh && kD) {
-    // SNH Rayleigh damping uses the cached exact tangent, which can be indefinite
+    // SNH Rayleigh damping uses the cached PSD tangent, so its instantaneous power is non-positive
     mjtNum* worldvel = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
     mj_flexGather(m, d, f, worldvel, d->qvel);
     mj_flexHessian(m, d, f);
