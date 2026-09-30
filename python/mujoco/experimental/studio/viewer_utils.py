@@ -58,5 +58,5 @@ def apply_perturb(
 
   mujoco.mj_getState(model, data, xfrc_state, xfrc_sig)
   viewer.send_to_sim(
-      messages.PerturbEvent(state=xfrc_state, state_sig=xfrc_sig)
+      messages.PerturbSnapshot(state=xfrc_state, state_sig=xfrc_sig)
   )

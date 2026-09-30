@@ -221,15 +221,31 @@ class ViewerHandle:
     mujoco.mj_forward(self.model, self.data)
     return True
 
-  @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_state(self, event: messages.StateEvent) -> bool:
+  def _set_state(
+      self,
+      state: np.ndarray,
+      state_sig: int,
+      *,
+      forward: bool = False,
+  ) -> None:
+    """Applies a state array to the sim's data and optionally runs mj_forward."""
     model = self.model
     data = self.data
     if model is not None and data is not None:
-      state_size = mujoco.mj_stateSize(model, event.state_sig)
-      if len(event.state) == state_size:
-        mujoco.mj_setState(model, data, event.state, event.state_sig)
-        mujoco.mj_forward(model, data)
+      state_size = mujoco.mj_stateSize(model, state_sig)
+      if len(state) == state_size:
+        mujoco.mj_setState(model, data, state, state_sig)
+        if forward:
+          mujoco.mj_forward(model, data)
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_state(self, event: messages.StateEvent) -> bool:
+    self._set_state(event.state, event.state_sig, forward=True)
+    return True
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_perturb(self, snapshot: messages.PerturbSnapshot) -> bool:
+    self._set_state(snapshot.state, snapshot.state_sig, forward=False)
     return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)

@@ -110,27 +110,28 @@ class StateSnapshot(Snapshot):
 
 
 @dataclasses.dataclass(frozen=True)
+class PerturbSnapshot(StateSnapshot):
+  """Carries perturbation forces from the viewer to the simulation.
+
+  A distinct StateSnapshot subclass so that snapshot channels track its
+  latest-wins slot independently of other state snapshots, and sim-side
+  handlers can subscribe specifically to perturbation forces (applying
+  mj_setState without running mj_forward).
+  """
+
+
+@dataclasses.dataclass(frozen=True)
 class StateEvent(Event):
   """A reliable event that transports a MuJoCo state.
 
   The receiver applies the state with mj_setState using state_sig. Unlike
   StateSnapshot, events are never dropped and different state edits do not
   overwrite each other, so this is the right carrier for state edits such as GUI
-  joint/control slider changes and perturbation forces.
+  joint/control slider changes.
   """
 
   state: np.ndarray
   state_sig: int
-
-
-@dataclasses.dataclass(frozen=True)
-class PerturbEvent(StateEvent):
-  """Carries perturbation forces from the viewer to the simulation.
-
-  A StateEvent subclass: generic StateEvent handlers receive it via MRO
-  dispatch, while perturbation-specific handlers can subscribe to this type
-  directly.
-  """
 
 
 @dataclasses.dataclass(frozen=True)
