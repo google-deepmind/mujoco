@@ -722,9 +722,72 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
 // ------------------------------------------------------------------------------------------------
 
+// initialize support function and mesh/hfield data for a CCD object
+static void mjc_initCCDObjSupport(mjCCDObj* obj, const mjModel* m, int dataid) {
+  switch ((mjtGeom) obj->geom_type) {
+  case mjGEOM_ELLIPSOID:
+    obj->support = mjc_ellipsoidSupport;
+    break;
+  case mjGEOM_MESH:
+  case mjGEOM_SDF:
+    if (dataid >= 0) {
+      int graphadr = m->mesh_graphadr[dataid];
+      int vertadr = m->mesh_vertadr[dataid];
+      int polyadr = m->mesh_polyadr[dataid];
+      if (graphadr < 0 || m->mesh_vertnum[dataid] < mjMESH_HILLCLIMB_MIN) {
+        obj->data.mesh.graph = NULL;
+        obj->data.mesh.extrema = NULL;
+        obj->support = mjc_meshSupport;
+      } else {
+        obj->data.mesh.graph = m->mesh_graph + graphadr;
+        obj->data.mesh.extrema = m->mesh_extrema + 27 * dataid;
+        obj->support = mjc_hillclimbSupport;
+      }
+      obj->data.mesh.vert = m->mesh_vert + 3*vertadr;
+      obj->data.mesh.nvert = m->mesh_vertnum[dataid];
+      obj->data.mesh.mpolymapadr = m->mesh_polymapadr + vertadr;
+      obj->data.mesh.mpolymapnum = m->mesh_polymapnum + vertadr;
+      obj->data.mesh.polymap = m->mesh_polymap;
+      obj->data.mesh.polynormal = m->mesh_polynormal + 3*polyadr;
+      obj->data.mesh.polyvertadr = m->mesh_polyvertadr + polyadr;
+      obj->data.mesh.polyvertnum = m->mesh_polyvertnum + polyadr;
+      obj->data.mesh.polyvert = m->mesh_polyvert;
+      obj->data.mesh.mesh_polynum = m->mesh_polynum[dataid];
+    } else {
+      obj->support = NULL;
+    }
+    break;
+  case mjGEOM_SPHERE:
+    obj->support = mjc_sphereSupport;
+    break;
+  case mjGEOM_CAPSULE:
+    obj->support = mjc_capsuleSupport;
+    break;
+  case mjGEOM_CYLINDER:
+    obj->support = mjc_cylinderSupport;
+    break;
+  case mjGEOM_BOX:
+    obj->support = mjc_boxSupport;
+    break;
+  case mjGEOM_HFIELD:
+    obj->center = mjc_center;
+    obj->support = mjc_prism_support;
+    if (dataid >= 0) {
+      obj->data.hfield.hfield_nrow = m->hfield_nrow[dataid];
+      obj->data.hfield.hfield_ncol = m->hfield_ncol[dataid];
+      mju_copy(obj->size, m->hfield_size + 4*dataid, 4);
+      obj->data.hfield.hfield_data = m->hfield_data + m->hfield_adr[dataid];
+    }
+    break;
+  default:
+    obj->support = NULL;
+    break;
+  }
+}
+
+
 // initialize a CCD object
 void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjtNum margin) {
-  int graphadr, vertadr, polyadr;
   obj->geom = g;
   obj->margin = margin;
   obj->center = mjc_center;
@@ -740,61 +803,7 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
     mju_copy(obj->pos, d->geom_xpos+3*g, 3);
     mju_copy(obj->mat, d->geom_xmat+9*g, 9);
     obj->geom_type = m->geom_type[g];
-    switch ((mjtGeom) obj->geom_type) {
-    case mjGEOM_ELLIPSOID:
-      obj->support = mjc_ellipsoidSupport;
-      break;
-    case mjGEOM_MESH:
-    case mjGEOM_SDF:
-      graphadr = m->mesh_graphadr[m->geom_dataid[g]];
-      vertadr = m->mesh_vertadr[m->geom_dataid[g]];
-      polyadr = m->mesh_polyadr[m->geom_dataid[g]];
-      if (graphadr < 0 || m->mesh_vertnum[m->geom_dataid[g]] < mjMESH_HILLCLIMB_MIN) {
-        obj->data.mesh.graph = NULL;
-        obj->data.mesh.extrema = NULL;
-        obj->support = mjc_meshSupport;
-      } else {
-        obj->data.mesh.graph = m->mesh_graph + graphadr;
-        obj->data.mesh.extrema = m->mesh_extrema + 27 * m->geom_dataid[g];
-        obj->support = mjc_hillclimbSupport;
-      }
-      obj->data.mesh.vert = m->mesh_vert + 3*vertadr;
-      obj->data.mesh.nvert = m->mesh_vertnum[m->geom_dataid[g]];
-      obj->data.mesh.mpolymapadr = m->mesh_polymapadr + vertadr;
-      obj->data.mesh.mpolymapnum = m->mesh_polymapnum + vertadr;
-      obj->data.mesh.polymap = m->mesh_polymap;
-      obj->data.mesh.polynormal = m->mesh_polynormal + 3*polyadr;
-      obj->data.mesh.polyvertadr = m->mesh_polyvertadr + polyadr;
-      obj->data.mesh.polyvertnum = m->mesh_polyvertnum + polyadr;
-      obj->data.mesh.polyvert = m->mesh_polyvert;
-      obj->data.mesh.mesh_polynum = m->mesh_polynum[m->geom_dataid[g]];
-      break;
-    case mjGEOM_SPHERE:
-      obj->support = mjc_sphereSupport;
-      break;
-    case mjGEOM_CAPSULE:
-      obj->support = mjc_capsuleSupport;
-      break;
-    case mjGEOM_CYLINDER:
-      obj->support = mjc_cylinderSupport;
-      break;
-    case mjGEOM_BOX:
-      obj->support = mjc_boxSupport;
-      break;
-    case mjGEOM_HFIELD:
-      obj->center = mjc_center;
-      obj->support = mjc_prism_support;
-
-      int hid = m->geom_dataid[g];
-      obj->data.hfield.hfield_nrow = m->hfield_nrow[hid];
-      obj->data.hfield.hfield_ncol = m->hfield_ncol[hid];
-      mju_copy(obj->size, m->hfield_size + 4*hid, 4);
-      obj->data.hfield.hfield_data = m->hfield_data + m->hfield_adr[hid];
-      break;
-    default:
-      obj->support = NULL;
-      break;
-    }
+    mjc_initCCDObjSupport(obj, m, m->geom_dataid[g]);
   } else {
     obj->geom_type = mjGEOM_FLEX;
     obj->data.flex.dim = m->flex_dim;
@@ -806,6 +815,38 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
     obj->data.flex.xradius = m->flex_radius;
     obj->data.flex.elemdataadr = m->flex_elemdataadr;
     obj->data.flex.elem = m->flex_elem;
+  }
+}
+
+
+// initialize a CCD object from a site
+void mjc_initCCDObjSite(mjCCDObj* obj, const mjModel* m, const mjData* d, int s, mjtNum margin) {
+  obj->geom = -1;
+  obj->margin = margin;
+  obj->center = mjc_center;
+  obj->vertindex = -1;
+  obj->meshindex = -1;
+  obj->flex = -1;
+  obj->elem = -1;
+  obj->vert = -1;
+  mju_zero4(obj->rotate);
+  obj->rotate[0] = 1;
+  if (s >= 0 && s < m->nsite) {
+    int dataid = m->site_dataid[s];
+    mju_copy(obj->size, m->site_size+3*s, 3);
+    obj->size[3] = 0;
+    mju_copy(obj->pos, d->site_xpos+3*s, 3);
+    mju_copy(obj->mat, d->site_xmat+9*s, 9);
+    obj->geom_type = m->site_type[s];
+    if (obj->geom_type == mjGEOM_MESH && dataid >= 0) {
+      mjtNum meshmat[9], xmat[9];
+      mju_quat2Mat(meshmat, m->mesh_quat+4*dataid);
+      mju_mulMatMat3(xmat, d->site_xmat+9*s, meshmat);
+      mju_mulMatVec3(obj->pos, d->site_xmat+9*s, m->mesh_pos+3*dataid);
+      mju_addTo3(obj->pos, d->site_xpos+3*s);
+      mju_copy9(obj->mat, xmat);
+    }
+    mjc_initCCDObjSupport(obj, m, dataid);
   }
 }
 
@@ -1763,22 +1804,18 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
 
 
 // returns approximation (lower bound) of directed Hausdorff distance between two
-// compact convex geoms; if distance is positive then g1 is guaranteed to not be enclosed in g2
-mjtNum mjc_hausdorff(const mjModel* m, const mjData* d, int g1, int g2, int nitermax,
-                    mjtNum stepsize, mjtNum tolerance) {
-  if (g1 < 0 || g1 >= m->ngeom || g2 < 0 || g2 >= m->ngeom) {
-    mjERROR("invalid geom ids %d, %d", g1, g2);
+// compact convex geoms; if distance is positive then obj1 is guaranteed to not be enclosed in obj2
+mjtNum mjc_hausdorff(mjCCDObj* obj1, mjCCDObj* obj2, int nitermax,
+                     mjtNum stepsize, mjtNum tolerance) {
+  if (!obj1 || !obj2 || !obj1->support || !obj2->support) {
+    mjERROR("invalid ccd object or null support function");
   }
-  mjtGeom type1 = (mjtGeom)m->geom_type[g1];
-  mjtGeom type2 = (mjtGeom)m->geom_type[g2];
+  mjtGeom type1 = (mjtGeom)obj1->geom_type;
+  mjtGeom type2 = (mjtGeom)obj2->geom_type;
   if (type1 < mjGEOM_SPHERE || type1 > mjGEOM_MESH ||
       type2 < mjGEOM_SPHERE || type2 > mjGEOM_MESH) {
-    mjERROR("only compact convex geoms are supported, got types %d and %d", type1, type2);
+    mjERROR("only compact convex shapes are supported, got types %d and %d", type1, type2);
   }
-
-  mjCCDObj obj1, obj2;
-  mjc_initCCDObj(&obj1, m, d, g1, 0);
-  mjc_initCCDObj(&obj2, m, d, g2, 0);
 
   mjtNum x_k[6][3], best_x[6][3], best_grad[6][3], best_val[6], step[6];
   int active[6] = {1, 1, 1, 1, 1, 1};
@@ -1787,9 +1824,9 @@ mjtNum mjc_hausdorff(const mjModel* m, const mjData* d, int g1, int g2, int nite
   for (int s = 0; s < 6; s++) {
     int axis = s / 2;
     mjtNum sgn = (s % 2) ? -1.0 : 1.0;
-    x_k[s][0] = sgn * obj2.mat[0 + axis];
-    x_k[s][1] = sgn * obj2.mat[3 + axis];
-    x_k[s][2] = sgn * obj2.mat[6 + axis];
+    x_k[s][0] = sgn * obj2->mat[0 + axis];
+    x_k[s][1] = sgn * obj2->mat[3 + axis];
+    x_k[s][2] = sgn * obj2->mat[6 + axis];
     best_val[s] = -mjMAXVAL;
     step[s] = stepsize;
   }
@@ -1802,8 +1839,8 @@ mjtNum mjc_hausdorff(const mjModel* m, const mjData* d, int g1, int g2, int nite
       }
 
       mjtNum v1[3], v2[3], vert[3];
-      obj1.support(v1, &obj1, x_k[s]);
-      obj2.support(v2, &obj2, x_k[s]);
+      obj1->support(v1, obj1, x_k[s]);
+      obj2->support(v2, obj2, x_k[s]);
       mji_sub3(vert, v1, v2);
       mjtNum val = mju_dot3(vert, x_k[s]);
 

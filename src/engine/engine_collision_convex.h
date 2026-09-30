@@ -94,6 +94,10 @@ typedef struct _mjCCDObj mjCCDObj;
 // initialize a CCD object
 MJAPI void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjtNum margin);
 
+// initialize a CCD object from a site
+MJAPI void mjc_initCCDObjSite(mjCCDObj* obj, const mjModel* m, const mjData* d, int s,
+                              mjtNum margin);
+
 // center function for convex collision algorithms
 MJAPI void mjc_center(mjtNum res[3], const mjCCDObj *obj);
 
@@ -129,8 +133,8 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjPreContact* con, int g1,
 void mjc_setCCDBuffer(void* buffer);
 
 // returns approximation (lower bound) of directed Hausdorff distance between two
-// compact convex geoms; if distance is positive then g1 is guaranteed to not be enclosed in g2
-MJAPI mjtNum mjc_hausdorff(const mjModel* m, const mjData* d, int g1, int g2, int nitermax,
+// compact convex geoms; if distance is positive then obj1 is guaranteed to not be enclosed in obj2
+MJAPI mjtNum mjc_hausdorff(mjCCDObj* obj1, mjCCDObj* obj2, int nitermax,
                            mjtNum stepsize, mjtNum tolerance);
 
 #ifdef __cplusplus

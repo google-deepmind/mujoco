@@ -8656,19 +8656,31 @@ See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/eng
 .. _sensor-insidesite-objtype:
 
 :at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
-   The type of the object whose position will be queried.
-   See :ref:`framepos<sensor-framepos>`.
+   The type of the object to be queried. When :at:`enclosed` is ``"false"``, this specifies the coordinate frame whose
+   origin is checked (see :ref:`framepos<sensor-framepos>`). When :at:`enclosed` is ``"true"``, ``body`` checks all geoms
+   directly attached to the body, ``xbody`` checks all geoms in the kinematic subtree rooted at the body, and ``camera``
+   is not supported.
 
 .. _sensor-insidesite-objname:
 
 :at:`objname`: :at-val:`string, required`
-   The name of the object whose position will be queried.
+   The name of the object to be queried.
    See :ref:`framepos<sensor-framepos>`.
 
 .. _sensor-insidesite-site:
 
 :at:`site`: :at-val:`string`
    The site defining the volume used for the inside check.
+
+.. _sensor-insidesite-enclosed:
+
+:at:`enclosed`: :at-val:`bool, "false"`
+   If true, checks full geometric enclosure instead of only checking whether the frame origin is inside the site. The
+   sensor measures how much the object juts out of the site (the directed Hausdorff distance): positive values indicate
+   how far the furthest point protrudes outside the site boundary, while zero or negative values indicate the object is
+   fully enclosed (with the magnitude representing clearance to the boundary). Both the site and all queried geoms/sites
+   must be compact convex shapes. For ``objtype="body"`` or ``objtype="xbody"``, the sensor returns the maximum value
+   across all geoms on the body or in its kinematic subtree, respectively (at least one geom must be present).
 
 
 

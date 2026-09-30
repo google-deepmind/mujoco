@@ -911,6 +911,7 @@ inline constexpr mjXAttr kInsidesiteAttrs[] = {
   {"site", mjXAttr::kString, 1, true, true, false, false, (int)offsetof(mjsSensor, refname)},
   {"objtype", mjXAttr::kEnum, 1, true, true, false, false, (int)offsetof(mjsSensor, objtype), frameobj_map, frameobj_sz},
   {"objname", mjXAttr::kString, 1, true, true, false, false, (int)offsetof(mjsSensor, objname)},
+  {"enclosed", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsSensor, intprm), bool_map, 2},
 };
 inline constexpr int kInsidesiteAttrsN = sizeof(kInsidesiteAttrs) / sizeof(kInsidesiteAttrs[0]);
 

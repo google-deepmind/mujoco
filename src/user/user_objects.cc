@@ -7935,6 +7935,55 @@ void mjCSensor::Compile(void) {
         throw mjCError(this, "sensor must be attached to (x)body, geom, site or camera");
       }
       if (reftype != mjOBJ_SITE) { throw mjCError(this, "sensor must be associated with a site"); }
+      if (intprm[0]) {
+        if (objtype == mjOBJ_CAMERA) {
+          throw mjCError(this, "camera is not supported in enclosed insidesite sensor");
+        }
+        datatype  = mjDATATYPE_REAL;
+        int stype = static_cast<mjCSite*>(ref)->spec.type;
+        if (stype < mjGEOM_SPHERE || stype > mjGEOM_MESH) {
+          throw mjCError(this,
+                         "site '%s' in enclosed insidesite sensor must be a compact convex shape",
+                         ref->name.c_str());
+        }
+        if (objtype == mjOBJ_GEOM) {
+          int gtype = static_cast<mjCGeom*>(obj)->Type();
+          if (gtype < mjGEOM_SPHERE || gtype > mjGEOM_MESH) {
+            throw mjCError(this,
+                           "geom '%s' in enclosed insidesite sensor must be a compact convex shape",
+                           obj->name.c_str());
+          }
+        } else if (objtype == mjOBJ_SITE) {
+          int o_stype = static_cast<mjCSite*>(obj)->spec.type;
+          if (o_stype < mjGEOM_SPHERE || o_stype > mjGEOM_MESH) {
+            throw mjCError(this,
+                           "site '%s' in enclosed insidesite sensor must be a compact convex shape",
+                           obj->name.c_str());
+          }
+        } else if (objtype == mjOBJ_BODY || objtype == mjOBJ_XBODY) {
+          std::vector<const mjCBody*> bodies = {static_cast<const mjCBody*>(obj)};
+          int                         ngeom  = 0;
+          for (size_t i = 0; i < bodies.size(); ++i) {
+            for (const mjCGeom* geom : bodies[i]->GetList<mjCGeom>()) {
+              ngeom++;
+              if (geom->Type() < mjGEOM_SPHERE || geom->Type() > mjGEOM_MESH) {
+                throw mjCError(
+                    this,
+                    "geom '%s' in enclosed insidesite sensor must be a compact convex shape",
+                    geom->name.c_str());
+              }
+            }
+            if (objtype == mjOBJ_XBODY) {
+              for (const mjCBody* child : bodies[i]->Bodies()) { bodies.push_back(child); }
+            }
+          }
+          if (ngeom == 0) {
+            throw mjCError(this,
+                           "body '%s' in enclosed insidesite sensor must have at least one geom",
+                           obj->name.c_str());
+          }
+        }
+      }
       break;
 
     case mjSENS_GEOMDIST:

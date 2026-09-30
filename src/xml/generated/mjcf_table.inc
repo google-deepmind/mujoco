@@ -444,7 +444,7 @@ std::vector<const char*> MJCF[] = {
         {"subtreeangmom", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise",
             "user", "body"},
         {"insidesite", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise",
-            "user", "site", "objtype", "objname"},
+            "user", "site", "objtype", "objname", "enclosed"},
         {"distance", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise",
             "user", "geom1", "geom2", "body1", "body2"},
         {"normal", "*", "name", "nsample", "interp", "delay", "interval", "cutoff", "noise",

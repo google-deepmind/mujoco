@@ -446,6 +446,7 @@ static const mjXDefaultEntry kDefaults_mjsSensor[] = {
   {"noise", (int)offsetof(mjsSensor, noise), 0, 1, 0, 0, {0}},
   {"objtype", (int)offsetof(mjsSensor, objtype), 2, 1, 0, 0, {0}},
   {"reftype", (int)offsetof(mjsSensor, reftype), 2, 1, 0, 0, {0}},
+  {"enclosed", (int)offsetof(mjsSensor, intprm), 2, mjNSENS, 1, 0, {0}},
   {"datatype", (int)offsetof(mjsSensor, datatype), 2, 1, 1, 0, {(double)mjDATATYPE_REAL}},
   {"needstage", (int)offsetof(mjsSensor, needstage), 2, 1, 1, 0, {(double)mjSTAGE_ACC}},
   {"dim", (int)offsetof(mjsSensor, dim), 2, 1, 0, 0, {0}},

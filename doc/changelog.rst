@@ -36,6 +36,8 @@ Engine
   integrator supports these attachments with the CG solver; fixed and independent XYZ-slide attachments retain their
   optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
 - Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
+- Added the :ref:`enclosed<sensor-insidesite-enclosed>` attribute to :ref:`insidesite<sensor-insidesite>` sensors,
+  measuring how much an object juts out of a site (using directed Hausdorff distance) and reporting signed clearance/protrusion.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------

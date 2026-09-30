@@ -208,7 +208,10 @@ mjtNum HausdorffDist(const MjModelPtr& m, const MjDataPtr& d,
                      mjtNum tol = 1e-6) {
   int g1 = mj_name2id(m.get(), mjOBJ_GEOM, std::string(name1).c_str());
   int g2 = mj_name2id(m.get(), mjOBJ_GEOM, std::string(name2).c_str());
-  return mjc_hausdorff(m.get(), d.get(), g1, g2, nitermax, stepsize, tol);
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m.get(), d.get(), g1, 0);
+  mjc_initCCDObj(&obj2, m.get(), d.get(), g2, 0);
+  return mjc_hausdorff(&obj1, &obj2, nitermax, stepsize, tol);
 }
 
 int CheckEnclosed(const MjModelPtr& m, const MjDataPtr& d,
@@ -447,6 +450,56 @@ TEST_F(MjcConvexTest, IsEnclosedScaleInvariance) {
               (0.57 * mju_sqrt(3.0) - 1.0) * 1e3, 1e-1);
   EXPECT_NEAR(HausdorffDist(model, data, "macro_box_out", "macro_sphere"),
               (0.59 * mju_sqrt(3.0) - 1.0) * 1e3, 1e-1);
+}
+
+TEST_F(MjcConvexTest, IsEnclosedSite) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="outer_site" type="box" size="1.0 1.0 1.0" pos="0 0 0"/>
+      <site name="inner_site" type="sphere" size="0.8" pos="0.1 0.1 0.1"/>
+      <site name="protrude_site" type="sphere" size="0.8" pos="0.3 0 0"/>
+      <geom name="inner_geom" type="capsule" size="0.2 0.5" pos="0 0 0"/>
+      <geom name="protrude_geom" type="capsule" size="0.2 0.9" pos="0 0 0"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int outer_s = mj_name2id(model.get(), mjOBJ_SITE, "outer_site");
+  int inner_s = mj_name2id(model.get(), mjOBJ_SITE, "inner_site");
+  int protrude_s = mj_name2id(model.get(), mjOBJ_SITE, "protrude_site");
+  int inner_g = mj_name2id(model.get(), mjOBJ_GEOM, "inner_geom");
+  int protrude_g = mj_name2id(model.get(), mjOBJ_GEOM, "protrude_geom");
+
+  mjCCDObj outer_obj, inner_s_obj, protrude_s_obj, inner_g_obj, protrude_g_obj;
+  mjc_initCCDObjSite(&outer_obj, model.get(), data.get(), outer_s, 0);
+  mjc_initCCDObjSite(&inner_s_obj, model.get(), data.get(), inner_s, 0);
+  mjc_initCCDObjSite(&protrude_s_obj, model.get(), data.get(), protrude_s, 0);
+  mjc_initCCDObj(&inner_g_obj, model.get(), data.get(), inner_g, 0);
+  mjc_initCCDObj(&protrude_g_obj, model.get(), data.get(), protrude_g, 0);
+
+  // inner site is completely inside outer box: max dist along axes is 0.1 + 0.8
+  // - 1.0 = -0.1
+  EXPECT_NEAR(mjc_hausdorff(&inner_s_obj, &outer_obj, 50, 0.5, 1e-6), -0.1,
+              1e-5);
+
+  // protrude site extends to x = 0.3 + 0.8 = 1.1, outer box is 1.0 -> dist =
+  // +0.1
+  EXPECT_NEAR(mjc_hausdorff(&protrude_s_obj, &outer_obj, 50, 0.5, 1e-6), 0.1,
+              1e-5);
+
+  // capsule geom inside site: max z is 0.5 + 0.2 = 0.7, box is 1.0 -> dist =
+  // -0.3
+  EXPECT_NEAR(mjc_hausdorff(&inner_g_obj, &outer_obj, 50, 0.5, 1e-6), -0.3,
+              1e-5);
+
+  // capsule geom protruding: max z is 0.9 + 0.2 = 1.1, box is 1.0 -> dist =
+  // +0.1
+  EXPECT_NEAR(mjc_hausdorff(&protrude_g_obj, &outer_obj, 50, 0.5, 1e-6), 0.1,
+              1e-5);
 }
 
 }  // namespace

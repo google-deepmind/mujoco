@@ -22,6 +22,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
+#include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
@@ -735,7 +736,45 @@ static void mj_computeSensorPos(const mjModel* m, mjData* d, int i, mjtNum* sens
     mju_copy3(sensordata, d->subtree_com+3*objid);
     break;
 
-  case mjSENS_INSIDESITE:                             // 1 if object is inside site
+  case mjSENS_INSIDESITE:                             // 1 if object is inside site (or Hausdorff dist if enclosed)
+    if (m->sensor_intprm[i*mjNSENS]) {
+      mjCCDObj obj1, obj2;
+      mjc_initCCDObjSite(&obj2, m, d, refid, 0);
+      int niter = m->opt.ccd_iterations;
+      mjtNum tol = m->opt.ccd_tolerance;
+
+      if (objtype == mjOBJ_GEOM) {
+        mjc_initCCDObj(&obj1, m, d, objid, 0);
+        sensordata[0] = mjc_hausdorff(&obj1, &obj2, niter, 0.5, tol);
+      } else if (objtype == mjOBJ_SITE) {
+        mjc_initCCDObjSite(&obj1, m, d, objid, 0);
+        sensordata[0] = mjc_hausdorff(&obj1, &obj2, niter, 0.5, tol);
+      } else if (objtype == mjOBJ_BODY) {
+        int n1 = m->body_geomnum[objid];
+        int id1 = m->body_geomadr[objid];
+        mjtNum max_dist = -mjMAXVAL;
+        for (int g = id1; g < id1 + n1; g++) {
+          mjc_initCCDObj(&obj1, m, d, g, 0);
+          max_dist = mju_max(max_dist, mjc_hausdorff(&obj1, &obj2, niter, 0.5, tol));
+        }
+        sensordata[0] = max_dist;
+      } else if (objtype == mjOBJ_XBODY) {
+        mjtNum max_dist = -mjMAXVAL;
+        for (int g = 0; g < m->ngeom; g++) {
+          int b = m->geom_bodyid[g];
+          while (b > objid) {
+            b = m->body_parentid[b];
+          }
+          if (b == objid) {
+            mjc_initCCDObj(&obj1, m, d, g, 0);
+            max_dist = mju_max(max_dist, mjc_hausdorff(&obj1, &obj2, niter, 0.5, tol));
+          }
+        }
+        sensordata[0] = max_dist;
+      }
+      break;
+    }
+
     get_xpos_xmat(d, objtype, objid, i, &xpos, &xmat);
 
     // for massless bodies with positive subtree mass (e.g., flex parents),

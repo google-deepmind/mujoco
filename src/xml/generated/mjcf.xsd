@@ -3659,6 +3659,7 @@
     <xs:attribute name="site" type="xs:string" use="required"/>
     <xs:attribute name="objtype" type="kw_frameobj" use="required"/>
     <xs:attribute name="objname" type="xs:string" use="required"/>
+    <xs:attribute name="enclosed" type="kw_bool" default="false"/>
   </xs:complexType>
 
   <xs:complexType name="distance">

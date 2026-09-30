@@ -4799,6 +4799,9 @@
             .. grid-item::
                :ref:`objname<sensor-insidesite-objname>`
 
+            .. grid-item::
+               :ref:`enclosed<sensor-insidesite-enclosed>`
+
 
       .. dropdown:: :ref:`distance<sensor-distance>` |*|
 

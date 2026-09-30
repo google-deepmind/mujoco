@@ -3046,6 +3046,7 @@
             <attribute name="site" type="reference" reference_namespace="site" required="true"/>
             <attribute name="objtype" type="keyword" valid_values="body xbody geom site camera" required="true"/>
             <attribute name="objname" type="reference" reference_namespace="attrib:objtype" required="true"/>
+            <attribute name="enclosed" type="keyword" valid_values="false true" default="false"/>
           </attributes>
         </element>
         <element name="distance" repeated="true" namespace="sensor">

@@ -2044,6 +2044,7 @@ element insidesite : mjsSensor {
   site               : ref<site> (required, field=refname)
   objtype            : enum<frameobj> (required)
   objname            : string (required)
+  enclosed           : bool = false (field=intprm)
 }
 
 element distance : mjsSensor {

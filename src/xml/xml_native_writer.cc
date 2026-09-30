@@ -2134,6 +2134,7 @@ void mjXWriter::Sensor(XMLElement* root) {
         WriteAttrTxt(elem, "objtype", mju_type2Str(sensor->objtype));
         WriteAttrTxt(elem, "objname", sensor->get_objname());
         WriteAttrTxt(elem, "site", sensor->get_refname());
+        if (sensor->intprm[0]) { WriteAttrTxt(elem, "enclosed", "true"); }
         break;
       case mjSENS_GEOMDIST:
         elem = InsertEnd(section, "distance");

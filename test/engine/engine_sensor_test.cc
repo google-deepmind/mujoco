@@ -1236,6 +1236,112 @@ TEST_F(SensorTest, InsideSiteMesh) {
   EXPECT_EQ(data->sensordata[0], 0.0);
 }
 
+TEST_F(SensorTest, InsideSiteEnclosed) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="box_site" type="box" size="1.0 1.0 1.0" pos="0 0 0"/>
+
+      <geom name="inner_sphere" type="sphere" size="0.4" pos="0.5 0 0"/>
+      <geom name="protrude_sphere" type="sphere" size="0.4" pos="0.7 0 0"/>
+
+      <site name="inner_site" type="sphere" size="0.5" pos="0 0 0"/>
+      <site name="protrude_site" type="sphere" size="0.5" pos="0.6 0 0"/>
+
+      <body name="body_enclosed" pos="0 0 0">
+        <geom name="bg1" type="sphere" size="0.2" pos="-0.5 0 0"/>
+        <geom name="bg2" type="sphere" size="0.3" pos="0.5 0 0"/>
+      </body>
+
+      <body name="body_protrude" pos="0 0 0">
+        <geom name="bg3" type="sphere" size="0.2" pos="-0.5 0 0"/>
+        <geom name="bg4" type="sphere" size="0.3" pos="0.8 0 0"/>
+      </body>
+
+      <body name="xbody_parent" pos="0 0 0">
+        <geom name="p_geom" type="sphere" size="0.2" pos="0 0 0"/>
+        <body name="xbody_child" pos="0.9 0 0">
+          <geom name="c_geom" type="sphere" size="0.3" pos="0 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <insidesite name="s_inner_sphere"    site="box_site" objtype="geom"   objname="inner_sphere"    enclosed="true"/>
+      <insidesite name="s_protrude_sphere" site="box_site" objtype="geom"   objname="protrude_sphere" enclosed="true"/>
+      <insidesite name="s_inner_site"      site="box_site" objtype="site"   objname="inner_site"      enclosed="true"/>
+      <insidesite name="s_protrude_site"   site="box_site" objtype="site"   objname="protrude_site"   enclosed="true"/>
+      <insidesite name="s_body_enclosed"   site="box_site" objtype="body"   objname="body_enclosed"   enclosed="true"/>
+      <insidesite name="s_body_protrude"   site="box_site" objtype="body"   objname="body_protrude"   enclosed="true"/>
+      <insidesite name="s_xbody"           site="box_site" objtype="xbody"  objname="xbody_parent"    enclosed="true"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nsensordata, 7);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // inner_sphere: x max = 0.5 + 0.4 = 0.9, box size = 1.0 -> dist = -0.1
+  EXPECT_NEAR(data->sensordata[0], -0.1, 1e-5);
+
+  // protrude_sphere: x max = 0.7 + 0.4 = 1.1, box size = 1.0 -> dist = 0.1
+  EXPECT_NEAR(data->sensordata[1], 0.1, 1e-5);
+
+  // inner_site: radius = 0.5, box size = 1.0 -> dist = -0.5
+  EXPECT_NEAR(data->sensordata[2], -0.5, 1e-5);
+
+  // protrude_site: x max = 0.6 + 0.5 = 1.1, box size = 1.0 -> dist = 0.1
+  EXPECT_NEAR(data->sensordata[3], 0.1, 1e-5);
+
+  // body_enclosed: max(bg1: -0.3, bg2: 0.5+0.3-1.0 = -0.2) = -0.2
+  EXPECT_NEAR(data->sensordata[4], -0.2, 1e-5);
+
+  // body_protrude: max(bg3: -0.3, bg4: 0.8+0.3-1.0 = 0.1) = 0.1
+  EXPECT_NEAR(data->sensordata[5], 0.1, 1e-5);
+
+  // xbody_parent: max(p_geom: -0.8, c_geom: 0.9+0.3-1.0 = 0.2) = 0.2
+  EXPECT_NEAR(data->sensordata[6], 0.2, 1e-5);
+
+  // non-convex geom on body should fail compilation
+  constexpr char bad_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="box_site" type="box" size="1 1 1"/>
+      <body name="b">
+        <geom name="plane_geom" type="plane" size="1 1 1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <insidesite site="box_site" objtype="body" objname="b" enclosed="true"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr bad_model = LoadModelFromString(bad_xml, error, sizeof(error));
+  EXPECT_THAT(bad_model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("compact convex shape"));
+
+  // body with 0 geoms should fail compilation
+  constexpr char empty_body_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="box_site" type="box" size="1 1 1"/>
+      <body name="empty_b"/>
+    </worldbody>
+    <sensor>
+      <insidesite site="box_site" objtype="body" objname="empty_b" enclosed="true"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr empty_body_model =
+      LoadModelFromString(empty_body_xml, error, sizeof(error));
+  EXPECT_THAT(empty_body_model.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("must have at least one geom"));
+}
+
 TEST_F(SensorTest, RangefinderCamera) {
   constexpr char xml[] = R"(
   <mujoco>
