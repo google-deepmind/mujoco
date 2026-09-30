@@ -24,7 +24,6 @@ from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 
 wp.set_module_options({"default_grid_stride": False})
 
@@ -505,33 +504,16 @@ def _compute_actuator_acc0(
 
 
 @wp.kernel
-def _compute_dof_M0(
-  dof_bodyid: wp.array[int],
-  dof_armature: wp.array2d[float],
-  cdof_in: wp.array2d[wp.spatial_vector],
-  crb_in: wp.array2d[vec10],
-  dof_M0_out: wp.array2d[float],
-):
-  worldid, dofid = wp.tid()
-  bodyid = dof_bodyid[dofid]
-  armature = dof_armature[worldid % dof_armature.shape[0], dofid]
-  buf = mjmath.inert_vec(crb_in[worldid, bodyid], cdof_in[worldid, dofid])
-  dof_M0_out[worldid, dofid] = armature + wp.dot(cdof_in[worldid, dofid], buf)
-
-
-@wp.kernel
 def _resolve_dampratio(
+  actid: int,
+  nv: int,
   actuator_biastype: wp.array[int],
   actuator_gainprm: wp.array2d[types.vec10],
-  moment_rownnz_in: wp.array2d[int],
-  moment_rowadr_in: wp.array2d[int],
-  moment_colind_in: wp.array2d[int],
-  actuator_moment_in: wp.array2d[float],
-  dof_M0_in: wp.array2d[float],
-  nv: int,
+  act_moment_vec_in: wp.array2d[float],
+  act_result_vec_in: wp.array2d[float],
   actuator_biasprm: wp.array2d[types.vec10],
 ):
-  worldid, actid = wp.tid()
+  worldid = wp.tid()
   biastype = actuator_biastype[actid]
 
   # only affine bias (position actuators)
@@ -551,16 +533,14 @@ def _resolve_dampratio(
 
   dampratio = biasprm[2]
 
-  # compute reflected mass: sum(dof_M0[j] / moment[i,j]^2) for active DOFs
+  # compute reflected mass: 1 / (J * inv(M) * J')
+  invweight = float(0.0)
+  for i in range(nv):
+    invweight += act_moment_vec_in[worldid, i] * act_result_vec_in[worldid, i]
+
   mass = float(0.0)
-  rownnz = moment_rownnz_in[worldid, actid]
-  rowadr = moment_rowadr_in[worldid, actid]
-  for k in range(rownnz):
-    sparseid = rowadr + k
-    j = moment_colind_in[worldid, sparseid]
-    moment = actuator_moment_in[worldid, sparseid]
-    if wp.abs(moment) > MJ_MINVAL:
-      mass += dof_M0_in[worldid, j] / (moment * moment)
+  if invweight > MJ_MINVAL:
+    mass = 1.0 / invweight
 
   damping = dampratio * 2.0 * wp.sqrt(kp * mass)
 
@@ -789,6 +769,7 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
   )
 
   # actuator_acc0[i] = ||inv(M) * actuator_moment[i]|| - acceleration from unit actuator force
+  # and resolve dampratio using 1 / (J * inv(M) * J')
   if m.nu > 0 and m.nv > 0:
     act_moment_vec = wp.zeros((d.nworld, m.nv), dtype=float)
     act_result_vec = wp.zeros((d.nworld, m.nv), dtype=float)
@@ -804,31 +785,19 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
       wp.launch(
         _compute_actuator_acc0, dim=m.actuator_acc0.shape[0], inputs=[actid, m.nv, act_result_vec], outputs=[m.actuator_acc0]
       )
-
-  # resolve dampratio: compute dof_M0, then convert dampratio to damping
-  if m.nu > 0 and m.nv > 0:
-    dof_M0 = wp.zeros((d.nworld, m.nv), dtype=float)
-    wp.launch(
-      _compute_dof_M0,
-      dim=(d.nworld, m.nv),
-      inputs=[m.dof_bodyid, m.dof_armature, d.cdof, d.crb],
-      outputs=[dof_M0],
-    )
-    wp.launch(
-      _resolve_dampratio,
-      dim=(m.actuator_biasprm.shape[0], m.nu),
-      inputs=[
-        m.actuator_biastype,
-        m.actuator_gainprm,
-        d.moment_rownnz,
-        d.moment_rowadr,
-        d.moment_colind,
-        d.actuator_moment,
-        dof_M0,
-        m.nv,
-      ],
-      outputs=[m.actuator_biasprm],
-    )
+      wp.launch(
+        _resolve_dampratio,
+        dim=m.actuator_biasprm.shape[0],
+        inputs=[
+          actid,
+          m.nv,
+          m.actuator_biastype,
+          m.actuator_gainprm,
+          act_moment_vec,
+          act_result_vec,
+        ],
+        outputs=[m.actuator_biasprm],
+      )
 
   wp.copy(d.qpos, qpos_saved)
 

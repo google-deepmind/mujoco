@@ -6029,11 +6029,13 @@ This element has one custom attribute in addition to the common attributes:
    `damping ratio <https://en.wikipedia.org/wiki/Damping#Damping_ratio_definition>`__.
    A value of 1 corresponds to a *critically damped* oscillator, which often produces desirable behavior.
    Values smaller or larger than 1 correspond to underdamped and overdamped oscillations, respectively.
-   The mass :math:`m` is computed at the reference configuration ``mjModel.qpos0``, taking into account joint
-   :ref:`armature <body-joint-armature>`.
+   The reflected mass :math:`m = (J M^{-1} J^T)^{-1}` is computed at the reference configuration ``mjModel.qpos0`` from
+   the actuator transmission Jacobian :math:`J` and inertia matrix :math:`M` (averaged across force outputs for
+   multi-output actuators), taking into account joint :ref:`armature <body-joint-armature>`, tendon
+   :ref:`armature <tendon-spatial-armature>`, and actuator :ref:`armature <actuator-general-armature>`.
    However, passive :ref:`damping <body-joint-damping>` or :ref:`frictionloss <body-joint-frictionloss>` in the affected
-   joints are not taken into account; if they are non-negligible, :at:`dampratio` values smaller than 1 might be
-   required to achieve desirable motion.
+   joints or tendons are not taken into account; if they are non-negligible, :at:`dampratio` values smaller than 1 might
+   be required to achieve desirable motion.
    When using this attribute, it is recommended to use the implicitfast or implicit :ref:`integrators<geIntegration>`.
 
 .. _actuator-position-timeconst:

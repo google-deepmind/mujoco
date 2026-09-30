@@ -718,5 +718,47 @@ TEST_F(SetConstTest, SimpleBodyLostSameframeError) {
                              "sameframe no longer holds"));
 }
 
+TEST_F(SetConstTest, DampRatioInertia) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="J1" type="slide"/>
+        <geom size=".1" mass="1"/>
+      </body>
+      <body>
+        <joint name="J2" type="slide"/>
+        <geom size=".1" mass="1"/>
+      </body>
+      <body>
+        <joint name="B" type="ball"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="2 4 4"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="T1" armature="3">
+        <joint joint="J1" coef="1"/>
+        <joint joint="J2" coef="1e-6"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position name="tendon" tendon="T1" kp="9" dampratio="1"/>
+      <orientation name="orient" joint="B" kp="3" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  // T1: mass = 1 + 3 (tendon armature) = 4, tiny J2 coef does not blow up
+  // damping = 2 * sqrt(9 * 4) = 12
+  EXPECT_NEAR(m->actuator_biasprm[0 * mjNBIAS + 2], -12, MjTol(1e-6, 1e-4));
+
+  // orient: average invweight = (1/2 + 1/4 + 1/4) / 3 = 1/3, mass = 3
+  // damping = 2 * sqrt(3 * 3) = 6
+  EXPECT_NEAR(m->actuator_biasprm[1 * mjNBIAS + 2], -6, MjTol(1e-10, 1e-6));
+}
+
 }  // namespace
 }  // namespace mujoco

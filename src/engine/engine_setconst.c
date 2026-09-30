@@ -847,6 +847,7 @@ static void set0(mjModel* m, mjData* d) {
   mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* invweight = m->nout ? mjSTACKALLOC(d, m->nout, mjtNum) : NULL;
   int* cammode = 0;
   int* lightmode = 0;
 
@@ -1040,12 +1041,13 @@ static void set0(mjModel* m, mjData* d) {
       m->tendon_invweight0[i] = mju_dot(tmp, tmp+nv, nv);
     }
 
-    // compute actuator_acc0, one per force output (moment row)
+    // compute actuator_acc0 and invweight, one per force output (moment row)
     for (int i=0; i < m->nout; i++) {
       mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
                        d->moment_rowadr + i, d->moment_colind);
       mj_solveM(m, d, tmp, moment, 1);
       m->actuator_acc0[i] = mju_norm(tmp, nv);
+      invweight[i] = mju_dot(moment, tmp, nv);
     }
   } else {
     mju_zero(m->tendon_invweight0, m->ntendon);
@@ -1157,17 +1159,18 @@ static void set0(mjModel* m, mjData* d) {
 
     // === interpret biasprm[2] > 0 as dampratio for position-like actuators
 
-    // "reflected" inertia (inversely scaled by transmission squared)
-    int rownnz = d->moment_rownnz[m->actuator_outadr[i]];
-    int rowadr = d->moment_rowadr[m->actuator_outadr[i]];
-    mjtNum* transmission = d->actuator_moment + rowadr;
+    // "reflected" inertia: 1 / (J * inv(M) * J')
     mjtNum mass = 0;
-    for (int j=0; j < rownnz; j++) {
-      mjtNum trn = mju_abs(transmission[j]);
-      mjtNum trn2 = trn*trn;  // transmission squared
-      if (trn2 > mjMINVAL) {
-        int dof = d->moment_colind[rowadr + j];
-        mass += m->dof_M0[dof] / trn2;
+    if (nv) {
+      int outadr = m->actuator_outadr[i];
+      int outnum = m->actuator_outnum[i];
+      mjtNum w = 0;
+      for (int k=0; k < outnum; k++) {
+        w += invweight[outadr+k];
+      }
+      w /= outnum;
+      if (w > mjMINVAL) {
+        mass = 1 / w;
       }
     }
 
