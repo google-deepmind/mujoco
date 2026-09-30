@@ -1672,6 +1672,9 @@ dedicated section :ref:`therein<MjxPerformance>`.
 5. **Collisions:** If the profiler reports that collision detection takes up a large chunk of the computation
    time, consider the following steps:
 
+   - Enable engine multithreading by creating a thread pool with :ref:`mju_threadpool`. Narrowphase
+     collision detection can run in parallel, which can significantly speed up scenes with many candidate
+     contact pairs.
    - Reduce the number of checked collisions using the
      :ref:`contype<body-geom-contype>` / :ref:`conaffinity<body-geom-conaffinity>` mechanism described in the
      :ref:`Collision detection<Collision>` section.
