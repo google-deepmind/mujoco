@@ -14,7 +14,8 @@ General
    - Removed the deprecated ``internal`` flex collision option and associated ``evpair`` structures.
 
 - Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes, enabled only through
-  ``mjsFlex.elastic3d = 1``. It uses the full energy Hessian and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
+  ``mjsFlex.elastic3d = 1``. It projects the material Hessian to positive semidefiniteness for the solver and Rayleigh
+  damping, and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
   SNH requires the discrete integrator. The setting is not available in MJCF.
 - :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
 - Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
