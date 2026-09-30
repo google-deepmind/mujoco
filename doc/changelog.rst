@@ -2387,7 +2387,7 @@ New features
    The :ref:`flexcomp<body-flexcomp>` element, similar to :ref:`composite<body-composite>` is a convenience macro for
    creating deformables, and supports the GMSH tetrahedral file format.
 
-   - Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`__ passive force plugin,
+   - Added `shell <https://github.com/google-deepmind/mujoco/blob/45fc15b8447b56d3e6f12d3a158e2bc0d4d30dc8/plugin/elasticity/shell.cc>`__ passive force plugin,
      computing bending forces using a constant precomputed Hessian (cotangent operator).
 
    **Note**: This feature is still under development and subject to change. In particular, deformable object
@@ -2986,12 +2986,12 @@ General
    `engine_forward_test.cc <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`__.
 #. :commit:`3b89b0fd` Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified
    geometry and multiple joints. See the two new examples:
-   `particle_free.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free.xml>`__ and
-   `particle_free2d.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free2d.xml>`__.
+   `particle_free.xml <https://github.com/google-deepmind/mujoco/blob/0fcd20f0da67ede7b16ef7e439a28be67505a037/model/composite/particle_free.xml>`__ and
+   `particle_free2d.xml <https://github.com/google-deepmind/mujoco/blob/0fcd20f0da67ede7b16ef7e439a28be67505a037/model/composite/particle_free2d.xml>`__.
 #. :commit:`7b0fbc63` Performance improvements for non-AVX configurations:
 
    - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`__. See `engine_core_smooth_benchmark_test
-     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`__.
+     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/solveLD_benchmark_test.cc>`__.
    - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
      <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`__.
 #. :commit:`d0b1a973` Added new :at:`solid` passive force plugin:
