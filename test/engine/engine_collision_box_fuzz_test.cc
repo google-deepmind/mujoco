@@ -36,6 +36,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -134,8 +135,8 @@ void SetPose(const mjModel* model, mjData* data, const mjtNum pos2[3],
 }
 
 mjtNum DeepestDist(const mjPreContact* con, int n) {
-  mjtNum d = con[0].dist;
-  for (int i = 1; i < n; i++) d = mju_min(d, con[i].dist);
+  mjtNum d = std::numeric_limits<mjtNum>::max();
+  for (int i = 0; i < n; i++) d = mju_min(d, con[i].dist);
   return d;
 }
 
