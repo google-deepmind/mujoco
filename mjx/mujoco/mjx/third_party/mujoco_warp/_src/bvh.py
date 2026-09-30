@@ -208,7 +208,7 @@ def _compute_bvh_bounds(
     lower_bound, upper_bound = _compute_capsule_bounds(pos, rot, size)
   elif type == GeomType.PLANE:
     lower_bound, upper_bound = _compute_plane_bounds(pos, rot, size)
-  elif type == GeomType.MESH:
+  elif type == GeomType.MESH or type == GeomType.SDF:
     did = geom_dataid[worldid % geom_dataid.shape[0], geom_id]
     if did >= 0:
       size = mesh_bounds_size[did]

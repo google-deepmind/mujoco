@@ -84,15 +84,15 @@ def load_model(path: epath.Path) -> mujoco.MjModel:
     path = resource_path
 
   if path.suffix == ".mjb":
-    return mujoco.MjModel.from_binary_path(path.as_posix())
+    mjm = mujoco.MjModel.from_binary_path(path.as_posix())
+  else:
+    spec = mujoco.MjSpec.from_file(path.as_posix())
+    if any(p.plugin_name.startswith("mujoco.sdf") for p in spec.plugins):
+      from mujoco.mjx.third_party.mujoco_warp.test_data.collision_sdf.utils import register_sdf_plugins as register_sdf_plugins
 
-  spec = mujoco.MjSpec.from_file(path.as_posix())
-  if any(p.plugin_name.startswith("mujoco.sdf") for p in spec.plugins):
-    from mujoco.mjx.third_party.mujoco_warp.test_data.collision_sdf.utils import register_sdf_plugins as register_sdf_plugins
+      register_sdf_plugins(mjw)
 
-    register_sdf_plugins(mjw)
-
-  mjm = spec.compile()
+    mjm = spec.compile()
 
   if OVERRIDE.value:
     override_model(mjm, OVERRIDE.value)

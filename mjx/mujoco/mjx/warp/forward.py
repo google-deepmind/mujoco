@@ -167,9 +167,12 @@ def _forward_shim(
     flex_dim: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_edgeadr: wp.array[int],
+    flex_edgedamping: wp.array[float],
     flex_edgeequality: wp.array[int],
     flex_edgeflap: wp.array[wp.vec2i],
+    flex_edgeflexid: wp.array[int],
     flex_edgenum: wp.array[int],
+    flex_edgestiffness: wp.array[float],
     flex_elem: wp.array[int],
     flex_elemadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
@@ -211,6 +214,7 @@ def _forward_shim(
     flexedge_J_rownnz: wp.array[int],
     flexedge_invweight0: wp.array[float],
     flexedge_length0: wp.array[float],
+    flexedge_rigid: wp.array[bool],
     flexstrain_J_colind: wp.array[int],
     flexstrain_J_rowadr: wp.array[int],
     flexstrain_J_rownnz: wp.array[int],
@@ -766,9 +770,12 @@ def _forward_shim(
   _m.flex_dim = flex_dim
   _m.flex_edge = flex_edge
   _m.flex_edgeadr = flex_edgeadr
+  _m.flex_edgedamping = flex_edgedamping
   _m.flex_edgeequality = flex_edgeequality
   _m.flex_edgeflap = flex_edgeflap
+  _m.flex_edgeflexid = flex_edgeflexid
   _m.flex_edgenum = flex_edgenum
+  _m.flex_edgestiffness = flex_edgestiffness
   _m.flex_elem = flex_elem
   _m.flex_elemadr = flex_elemadr
   _m.flex_elemdataadr = flex_elemdataadr
@@ -810,6 +817,7 @@ def _forward_shim(
   _m.flexedge_J_rownnz = flexedge_J_rownnz
   _m.flexedge_invweight0 = flexedge_invweight0
   _m.flexedge_length0 = flexedge_length0
+  _m.flexedge_rigid = flexedge_rigid
   _m.flexstrain_J_colind = flexstrain_J_colind
   _m.flexstrain_J_rowadr = flexstrain_J_rowadr
   _m.flexstrain_J_rownnz = flexstrain_J_rownnz
@@ -2110,9 +2118,12 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_dim,
       m._impl.flex_edge,
       m._impl.flex_edgeadr,
+      m._impl.flex_edgedamping,
       m._impl.flex_edgeequality,
       m._impl.flex_edgeflap,
+      m._impl.flex_edgeflexid,
       m._impl.flex_edgenum,
+      m._impl.flex_edgestiffness,
       m._impl.flex_elem,
       m._impl.flex_elemadr,
       m._impl.flex_elemdataadr,
@@ -2154,6 +2165,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flexedge_J_rownnz,
       m._impl.flexedge_invweight0,
       m._impl.flexedge_length0,
+      m._impl.flexedge_rigid,
       m._impl.flexstrain_J_colind,
       m._impl.flexstrain_J_rowadr,
       m._impl.flexstrain_J_rownnz,
@@ -2884,9 +2896,12 @@ def _step_shim(
     flex_dim: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_edgeadr: wp.array[int],
+    flex_edgedamping: wp.array[float],
     flex_edgeequality: wp.array[int],
     flex_edgeflap: wp.array[wp.vec2i],
+    flex_edgeflexid: wp.array[int],
     flex_edgenum: wp.array[int],
+    flex_edgestiffness: wp.array[float],
     flex_elem: wp.array[int],
     flex_elemadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
@@ -2928,6 +2943,7 @@ def _step_shim(
     flexedge_J_rownnz: wp.array[int],
     flexedge_invweight0: wp.array[float],
     flexedge_length0: wp.array[float],
+    flexedge_rigid: wp.array[bool],
     flexstrain_J_colind: wp.array[int],
     flexstrain_J_rowadr: wp.array[int],
     flexstrain_J_rownnz: wp.array[int],
@@ -3500,9 +3516,12 @@ def _step_shim(
   _m.flex_dim = flex_dim
   _m.flex_edge = flex_edge
   _m.flex_edgeadr = flex_edgeadr
+  _m.flex_edgedamping = flex_edgedamping
   _m.flex_edgeequality = flex_edgeequality
   _m.flex_edgeflap = flex_edgeflap
+  _m.flex_edgeflexid = flex_edgeflexid
   _m.flex_edgenum = flex_edgenum
+  _m.flex_edgestiffness = flex_edgestiffness
   _m.flex_elem = flex_elem
   _m.flex_elemadr = flex_elemadr
   _m.flex_elemdataadr = flex_elemdataadr
@@ -3544,6 +3563,7 @@ def _step_shim(
   _m.flexedge_J_rownnz = flexedge_J_rownnz
   _m.flexedge_invweight0 = flexedge_invweight0
   _m.flexedge_length0 = flexedge_length0
+  _m.flexedge_rigid = flexedge_rigid
   _m.flexstrain_J_colind = flexstrain_J_colind
   _m.flexstrain_J_rowadr = flexstrain_J_rowadr
   _m.flexstrain_J_rownnz = flexstrain_J_rownnz
@@ -4878,9 +4898,12 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_dim,
       m._impl.flex_edge,
       m._impl.flex_edgeadr,
+      m._impl.flex_edgedamping,
       m._impl.flex_edgeequality,
       m._impl.flex_edgeflap,
+      m._impl.flex_edgeflexid,
       m._impl.flex_edgenum,
+      m._impl.flex_edgestiffness,
       m._impl.flex_elem,
       m._impl.flex_elemadr,
       m._impl.flex_elemdataadr,
@@ -4922,6 +4945,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flexedge_J_rownnz,
       m._impl.flexedge_invweight0,
       m._impl.flexedge_length0,
+      m._impl.flexedge_rigid,
       m._impl.flexstrain_J_colind,
       m._impl.flexstrain_J_rowadr,
       m._impl.flexstrain_J_rownnz,

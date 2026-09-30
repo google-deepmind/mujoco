@@ -411,7 +411,11 @@ def ccd_hfield_kernel_builder(
 
     # process all prisms in subgrid
     count = int(0)
+    noverflow = int(0)
     for r in range(rmin, rmax):
+      if noverflow > 0:
+        break
+
       # pre-initialize first 2 vertices
       for init_i in range(2):
         x = dx * float(cmin) - size[0]
@@ -430,18 +434,14 @@ def ccd_hfield_kernel_builder(
         prism[5, 2] = z
 
       for c in range(cmin + 1, cmax + 1):
+        if noverflow > 0:
+          break
+
         # add both triangles from this cell
         for i in range(2):
           if count >= MJ_MAXCONPAIR:
-            if wp.static(bool(warn_overflow & OverflowType.HFIELD)):
-              wp.printf(
-                "height field collision overflow, number of collisions >= %u - please adjust resolution: \n"
-                "decrease the number of hfield rows/cols or modify size of colliding geom\n"
-                "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.HFIELD (or = 0 for all)\n",
-                MJ_MAXCONPAIR,
-              )
-            wp.atomic_or(overflow_out, worldid, OverflowType.HFIELD)
-            continue
+            noverflow = 1
+            break
 
           # add vert
           x = dx * float(c) - size[0]
@@ -490,7 +490,8 @@ def ccd_hfield_kernel_builder(
             overflow_out,
           )
 
-          if ncontact == 0:
+          # skip prisms not in contact: ccd reports ncontact == 1 for separated geoms
+          if ncontact == 0 or dist >= margin + gap:
             continue
 
           # cache contact information
@@ -518,6 +519,21 @@ def ccd_hfield_kernel_builder(
             min_id = count
 
           count += 1
+
+    # warn once per pair rather than once per prism that did not fit
+    if noverflow > 0:
+      if wp.static(bool(warn_overflow & OverflowType.HFIELD)):
+        wp.printf(
+          "height field collision overflow, number of collisions >= %u - please adjust resolution: \n"
+          "decrease the number of hfield rows/cols or modify size of colliding geom\n"
+          "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.HFIELD (or = 0 for all)\n",
+          MJ_MAXCONPAIR,
+        )
+      wp.atomic_or(overflow_out, worldid, OverflowType.HFIELD)
+
+    # skip write when no prisms collide
+    if count == 0:
+      return
 
     # contact 0: minimum distance
     write_contact(
@@ -1000,7 +1016,14 @@ def ccd_kernel_builder(
       )
 
   # runs convex collision on a set of geom pairs to recover contact info (non-heightfield)
-  @wp.kernel(module="unique", enable_backward=False, grid_stride=False, launch_bounds=(block_dim, _CCD_MIN_BLOCKS))
+  # Compile occupancy queries and launches with the same block dimension.
+  @wp.kernel(
+    module="unique",
+    module_options={"block_dim": block_dim},
+    enable_backward=False,
+    grid_stride=False,
+    launch_bounds=(block_dim, _CCD_MIN_BLOCKS),
+  )
   def ccd_kernel(
     # Model:
     opt_ccd_tolerance: wp.array[float],

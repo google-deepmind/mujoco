@@ -18,7 +18,9 @@ from typing import Optional, Union
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import CtrlChart
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
+from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
@@ -393,9 +395,17 @@ def _read_ctrl_delayed_kernel(
     interp = hist[1]
     buf_offset = actuator_historyadr[worldid % actuator_historyadr.shape[0], uid]
     t = time_in[worldid] - delay
-    ctrl_out[worldid, uadr] = _history_read_scalar(history_in, worldid, buf_offset, nsample, t, interp)
-    for j in range(1, ctrlnum):
-      ctrl_out[worldid, uadr + j] = ctrl_in[worldid, uadr + j]
+    _history_read_vector(
+      uadr,
+      history_in,
+      worldid,
+      buf_offset,
+      nsample,
+      ctrlnum,
+      t,
+      interp,
+      ctrl_out,
+    )
 
 
 @wp.kernel
@@ -414,7 +424,8 @@ def _insert_ctrl_history_kernel(
   """Insert current ctrl into history buffers."""
   worldid, uid = wp.tid()
 
-  if actuator_ctrlnum[uid] == 0:
+  ctrlnum = actuator_ctrlnum[uid]
+  if ctrlnum == 0:
     return
 
   hist = actuator_history[worldid % actuator_history.shape[0], uid]
@@ -425,8 +436,7 @@ def _insert_ctrl_history_kernel(
   uadr = actuator_ctrladr[uid]
   buf_offset = actuator_historyadr[worldid % actuator_historyadr.shape[0], uid]
   t = time_in[worldid]
-  value = ctrl_in[worldid, uadr]
-  _history_insert_scalar(worldid, buf_offset, nsample, t, value, history_out)
+  _history_insert_vector(worldid, buf_offset, nsample, ctrlnum, t, ctrl_in, uadr, history_out)
 
 
 @wp.kernel
@@ -548,6 +558,9 @@ def _apply_sensor_delay_kernel(
 def _reset_actuator_history_kernel(
   # Model:
   opt_timestep: wp.array[float],
+  actuator_gaintype: wp.array[int],
+  actuator_ctrlnum: wp.array[int],
+  actuator_ctrlspec: wp.array[int],
   actuator_history: wp.array2d[wp.vec2i],
   actuator_historyadr: wp.array2d[int],
   # In:
@@ -565,6 +578,7 @@ def _reset_actuator_history_kernel(
     return
 
   dt = opt_timestep[worldid % opt_timestep.shape[0]]
+  dim = actuator_ctrlnum[uid]
 
   buf_offset = actuator_historyadr[worldid % actuator_historyadr.shape[0], uid]
   times_offset = buf_offset + 2
@@ -577,7 +591,14 @@ def _reset_actuator_history_kernel(
 
   for j in range(nsample):
     history_out[worldid, times_offset + j] = -float(nsample - j) * dt
-    history_out[worldid, values_offset + j] = 0.0
+
+  total_vals = nsample * dim
+  for k in range(total_vals):
+    history_out[worldid, values_offset + k] = 0.0
+
+  if actuator_gaintype[uid] == GainType.SO3 and actuator_ctrlspec[uid] == CtrlChart.QUAT:
+    for j in range(nsample):
+      history_out[worldid, values_offset + 4 * j] = 1.0
 
 
 @wp.kernel
@@ -654,6 +675,9 @@ def reset_history(
     dim=(d.nworld, m.nactuator),
     inputs=[
       m.opt.timestep,
+      m.actuator_gaintype,
+      m.actuator_ctrlnum,
+      m.actuator_ctrlspec,
       m.actuator_history,
       m.actuator_historyadr,
       reset_in,
@@ -773,6 +797,8 @@ def apply_sensor_delay(m: Model, d: Data, sensorid: wp.array[int]):
 @wp.kernel
 def _read_ctrl_kernel(
   # Model:
+  actuator_ctrladr: wp.array[int],
+  actuator_ctrlnum: wp.array[int],
   actuator_history: wp.array2d[wp.vec2i],
   actuator_historyadr: wp.array2d[int],
   actuator_delay: wp.array2d[float],
@@ -784,16 +810,19 @@ def _read_ctrl_kernel(
   uid: int,
   interp: int,
   # Out:
-  result_out: wp.array[float],
+  result_out: wp.array2d[float],
 ):
   """Read delayed ctrl for 1 actuator across all worlds."""
   worldid = wp.tid()
 
   hist = actuator_history[worldid % actuator_history.shape[0], uid]
   nsample = hist[0]
+  dim = actuator_ctrlnum[uid]
+  adr = actuator_ctrladr[uid]
 
   if nsample == 0:
-    result_out[worldid] = ctrl_in[worldid, uid]
+    for i in range(dim):
+      result_out[worldid, i] = ctrl_in[worldid, adr + i]
   else:
     interp_val = interp
     if interp_val < 0:
@@ -801,7 +830,17 @@ def _read_ctrl_kernel(
     delay = actuator_delay[worldid % actuator_delay.shape[0], uid]
     buf_offset = actuator_historyadr[worldid % actuator_historyadr.shape[0], uid]
     t = time_in[worldid] - delay
-    result_out[worldid] = _history_read_scalar(history_in, worldid, buf_offset, nsample, t, interp_val)
+    _history_read_vector(
+      0,  # write to result_out starting at index 0
+      history_in,
+      worldid,
+      buf_offset,
+      nsample,
+      dim,
+      t,
+      interp_val,
+      result_out,
+    )
 
 
 def read_ctrl(
@@ -810,7 +849,7 @@ def read_ctrl(
   ctrlid: int,
   time: wp.array[float],
   interp: int,
-  result: wp.array[float],
+  result: wp.array,
 ):
   """Read delayed ctrl for 1 actuator across all worlds.
 
@@ -820,12 +859,15 @@ def read_ctrl(
     ctrlid: actuator index.
     time: query time per world (nworld,).
     interp: interpolation mode (-1=model default, 0=ZOH, 1=linear, 2=cubic).
-    result: output buffer (nworld,).
+    result: output buffer (nworld, dim) or (nworld,) if dim == 1.
   """
+  result_out = result.reshape((d.nworld, 1)) if result.ndim == 1 else result
   wp.launch(
     _read_ctrl_kernel,
     dim=(d.nworld,),
     inputs=[
+      m.actuator_ctrladr,
+      m.actuator_ctrlnum,
       m.actuator_history,
       m.actuator_historyadr,
       m.actuator_delay,
@@ -835,7 +877,7 @@ def read_ctrl(
       ctrlid,
       interp,
     ],
-    outputs=[result],
+    outputs=[result_out],
   )
 
 
@@ -928,6 +970,7 @@ def read_sensor(
 @wp.kernel
 def _init_ctrl_history_kernel(
   # Model:
+  actuator_ctrlnum: wp.array[int],
   actuator_history: wp.array2d[wp.vec2i],
   actuator_historyadr: wp.array2d[int],
   # In:
@@ -942,6 +985,7 @@ def _init_ctrl_history_kernel(
   worldid = wp.tid()
 
   nsample = actuator_history[worldid % actuator_history.shape[0], ctrlid][0]
+  dim = actuator_ctrlnum[ctrlid]
   buf_offset = actuator_historyadr[worldid % actuator_historyadr.shape[0], ctrlid]
 
   # preserve user slot
@@ -956,7 +1000,8 @@ def _init_ctrl_history_kernel(
   for i in range(nsample):
     if has_times != 0:
       history_out[worldid, times_offset + i] = times[i]
-    history_out[worldid, values_offset + i] = values[worldid, i]
+    for j in range(dim):
+      history_out[worldid, values_offset + i * dim + j] = values[worldid, i * dim + j]
 
   # restore user slot
   history_out[worldid, buf_offset] = user
@@ -976,7 +1021,7 @@ def init_ctrl_history(
     d: The data object containing the current state and output arrays.
     ctrlid: actuator index.
     times: timestamps or None (nsample,).
-    values: ctrl values (nworld, nsample).
+    values: ctrl values (nworld, nsample * dim) or (nworld, nsample, dim).
 
   Raises:
     ValueError: If times are not strictly increasing.
@@ -988,11 +1033,14 @@ def init_ctrl_history(
   if nsample == 0:
     raise ValueError(f"actuator {ctrlid} has no history buffer allocated")
 
+  dim = int(m.actuator_ctrlnum.numpy()[ctrlid])
   if times is not None and times.shape != (nsample,):
     raise ValueError(f"times must have shape ({nsample},), got {times.shape}")
 
-  expected_val_shape = (d.nworld, nsample)
-  if values.shape != expected_val_shape:
+  expected_val_shape = (d.nworld, nsample * dim)
+  if values.ndim == 3 and values.shape == (d.nworld, nsample, dim):
+    values = values.reshape(expected_val_shape)
+  elif values.shape != expected_val_shape:
     raise ValueError(f"values must have shape {expected_val_shape}, got {values.shape}")
 
   has_times = 0 if times is None else 1
@@ -1008,6 +1056,7 @@ def init_ctrl_history(
     _init_ctrl_history_kernel,
     dim=(d.nworld,),
     inputs=[
+      m.actuator_ctrlnum,
       m.actuator_history,
       m.actuator_historyadr,
       ctrlid,

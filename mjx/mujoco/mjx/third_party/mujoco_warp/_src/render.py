@@ -172,59 +172,322 @@ NO_LIGHT_AMBIENT_FALLBACK = 0.3
 
 
 @wp.func
-def sample_texture(
+def _texture_plane(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  # Evaluate X and Y independently to support mixed finite/infinite planes
+  # (render_context.c lines 211 & 219)
+  u = 0.5 * local[0]
+  rep_u = repeat[0]
+  if size[0] > 0.0:
+    s0 = wp.max(size[0], 1e-6)
+    u = (local[0] + size[0]) / (2.0 * s0)
+    if tex_uniform:
+      rep_u = repeat[0] * size[0]
+
+  v = -0.5 * local[1]
+  rep_v = repeat[1]
+  if size[1] > 0.0:
+    s1 = wp.max(size[1], 1e-6)
+    v = (size[1] - local[1]) / (2.0 * s1)
+    if tex_uniform:
+      rep_v = repeat[1] * size[1]
+
+  off = -0.5 if (size[0] <= 0.0 or size[1] <= 0.0) else 0.0
+  return wp.vec2(u, v), wp.vec2(off, off), wp.vec2(rep_u, rep_v)
+
+
+@wp.func
+def _texture_sphere_ellipsoid(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+  is_sphere: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  radii = size
+  if is_sphere:
+    radii = wp.vec3(size[0], size[0], size[0])
+  rx = wp.max(radii[0], 1e-6)
+  ry = wp.max(radii[1], 1e-6)
+  rz = wp.max(radii[2], 1e-6)
+  pt = wp.vec3(local[0] / rx, local[1] / ry, local[2] / rz)
+  inv_len = 1.0 / wp.max(wp.length(pt), 1e-6)
+  d = pt * inv_len
+
+  azimuth = wp.atan2(d[1], d[0])
+  if azimuth < 0.0:
+    azimuth += wp.static(2.0 * wp.pi)
+  elevation = wp.asin(wp.clamp(d[2], -1.0, 1.0))
+  u = azimuth * wp.static(0.5 / wp.pi)
+  v = 0.5 - elevation * wp.static(1.0 / wp.pi)
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * radii[0], repeat[1] * radii[1])
+  return wp.vec2(u, v), wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_cylinder(
+  # In:
+  local: wp.vec3,
+  local_normal: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  r = wp.max(size[0], 1e-6)
+  h = wp.max(size[1], 1e-6)
+  if wp.abs(local_normal[2]) > 0.7071:
+    # Top and bottom caps match MuJoCo disk(+1) and disk(-1)
+    uv = wp.vec2(0.5 + 0.5 * (local[0] / r), 0.5 + 0.5 * (local[1] / r))
+  else:
+    # Cylindrical body
+    azimuth = wp.atan2(local[1], local[0])
+    if azimuth < 0.0:
+      azimuth += wp.static(2.0 * wp.pi)
+    u = azimuth * wp.static(0.5 / wp.pi)
+    v = (h - local[2]) / (2.0 * h)
+    uv = wp.vec2(u, v)
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[0])
+  return uv, wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_capsule(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  r = wp.max(size[0], 1e-6)
+  h = wp.max(size[1], 1e-6)
+  z = local[2]
+  azimuth = wp.atan2(local[1], local[0])
+  if azimuth < 0.0:
+    azimuth += wp.static(2.0 * wp.pi)
+  u = azimuth * wp.static(0.5 / wp.pi)
+
+  if z > h:
+    dz = wp.clamp((z - h) / r, 0.0, 1.0)
+    v = 1.0 - wp.asin(dz) * wp.static(2.0 / wp.pi)
+  elif z < -h:
+    dz = wp.clamp((-h - z) / r, 0.0, 1.0)
+    v = wp.asin(dz) * wp.static(2.0 / wp.pi)
+  else:
+    v = (h - z) / (2.0 * h)
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[0])
+  return wp.vec2(u, v), wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_box(
+  # In:
+  local: wp.vec3,
+  local_normal: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  sx = wp.max(size[0], 1e-6)
+  sy = wp.max(size[1], 1e-6)
+  sz = wp.max(size[2], 1e-6)
+  ax = wp.abs(local_normal[0])
+  ay = wp.abs(local_normal[1])
+  az = wp.abs(local_normal[2])
+
+  if az >= ax and az >= ay:
+    if local_normal[2] > 0.0:
+      uv = wp.vec2((local[0] + sx) / (2.0 * sx), (sy - local[1]) / (2.0 * sy))
+    else:
+      uv = wp.vec2((local[0] + sx) / (2.0 * sx), (local[1] + sy) / (2.0 * sy))
+  elif ax >= ay and ax >= az:
+    if local_normal[0] > 0.0:
+      uv = wp.vec2((local[1] + sy) / (2.0 * sy), (sz - local[2]) / (2.0 * sz))
+    else:
+      uv = wp.vec2((sy - local[1]) / (2.0 * sy), (sz - local[2]) / (2.0 * sz))
+  else:
+    if local_normal[1] < 0.0:
+      uv = wp.vec2((local[0] + sx) / (2.0 * sx), (sz - local[2]) / (2.0 * sz))
+    else:
+      uv = wp.vec2((sx - local[0]) / (2.0 * sx), (sz - local[2]) / (2.0 * sz))
+
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[1])
+  return uv, wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_hfield(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  # Heightfield horizontal extent is [-size[0], size[0]] x [-size[1], size[1]]
+  # render_context.c lines 465-500
+  s0 = wp.max(size[0], 1e-6)
+  s1 = wp.max(size[1], 1e-6)
+  uv = wp.vec2(
+    (local[0] + size[0]) / (2.0 * s0),
+    (size[1] - local[1]) / (2.0 * s1),
+  )
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[1])
+  return uv, wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_mesh(
   # Model:
-  geom_type: wp.array[int],
   mesh_faceadr: wp.array[int],
   # In:
-  geom_id: int,
-  tex_repeat: wp.vec2,
-  tex: wp.Texture2D,
-  pos: wp.vec3,
-  rot: wp.mat33,
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+  f: int,
+  mesh_id: int,
+  bary_u: float,
+  bary_v: float,
   mesh_facetexcoord: wp.array[wp.vec3i],
   mesh_texcoord: wp.array[wp.vec2],
   mesh_texcoord_offsets: wp.array[int],
-  hit_point: wp.vec3,
-  bary_u: float,
-  bary_v: float,
-  f: int,
-  mesh_id: int,
-) -> wp.vec3:
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  has_uv = False
   uv = wp.vec2(0.0, 0.0)
   offset = wp.vec2(0.0, 0.0)
+  rep = repeat
 
-  if geom_type[geom_id] == GeomType.PLANE:
-    local = wp.transpose(rot) @ (hit_point - pos)
-    # Replicate MuJoCo's OBJECT_PLANE texgen for planes (render_gl3.c settexture):
-    # s = 0.5 * texrepeat_x * x - 0.5, t = -0.5 * texrepeat_y * y - 0.5, with (x, y)
-    # the plane-local hit coordinates. The -0.5 is the texgen w-term, independent of
-    # texrepeat, so it is applied as an offset after the tex_repeat scale below.
-    uv = wp.vec2(0.5 * local[0], -0.5 * local[1])
-    offset = wp.vec2(-0.5, -0.5)
-
-  if geom_type[geom_id] == GeomType.MESH:
-    if f < 0 or mesh_id < 0:
-      return wp.vec3(0.0, 0.0, 0.0)
-
+  if f >= 0 and mesh_id >= 0:
     texcoord_offset = mesh_texcoord_offsets[mesh_id]
     if texcoord_offset >= 0:
-      # Some meshes may have no texcoord. The corresponding elements for these meshes in
-      # mjm.mesh_texcoordadr (passed here as mesh_texcoord_offsets) are marked as -1, in
-      # which case uv stays at its initialized value of (0.0, 0.0).
       face_adr = mesh_faceadr[mesh_id] + f
       coords = mesh_facetexcoord[face_adr]
       uv0 = mesh_texcoord[texcoord_offset + coords[0]]
       uv1 = mesh_texcoord[texcoord_offset + coords[1]]
       uv2 = mesh_texcoord[texcoord_offset + coords[2]]
       uv = uv0 * bary_u + uv1 * bary_v + uv2 * (1.0 - bary_u - bary_v)
+      has_uv = True
 
-  u = uv[0] * tex_repeat[0] + offset[0]
-  v = uv[1] * tex_repeat[1] + offset[1]
-  u = u - wp.floor(u)
-  v = v - wp.floor(v)
-  tex_color = wp.texture_sample(tex, wp.vec2(u, v), dtype=wp.vec4)
-  return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
+  if not has_uv:
+    # Fallback to OBJECT_PLANE texgen for untextured mesh (render_gl3.c:163-200)
+    uv = wp.vec2(0.5 * local[0], -0.5 * local[1])
+    offset = wp.vec2(-0.5, -0.5)
+    if size[0] > 0.0:
+      rep = wp.vec2(rep[0] / size[0], rep[1])
+    if size[1] > 0.0:
+      rep = wp.vec2(rep[0], rep[1] / size[1])
+    if tex_uniform:
+      if size[0] > 0.0:
+        rep = wp.vec2(rep[0] * size[0], rep[1])
+      if size[1] > 0.0:
+        rep = wp.vec2(rep[0], rep[1] * size[1])
+
+  return uv, offset, rep
+
+
+def _make_sample_texture(geom_ray_types: Tuple[int]) -> wp.Function:
+  """Build a texture-sampling func specialized to the geom types present in the scene.
+
+  geom_ray_types is the set of GeomType int values that actually occur, so the
+  per-type texture mapping branches for absent types are eliminated at compile time
+  via wp.static, avoiding the register pressure of unreachable code paths.
+  """
+
+  @wp.func
+  def sample_texture(
+    # Model:
+    geom_type: wp.array[int],
+    mesh_faceadr: wp.array[int],
+    # In:
+    geom_id: int,
+    size: wp.vec3,
+    tex_repeat: wp.vec2,
+    tex_uniform: bool,
+    tex: wp.Texture2D,
+    pos: wp.vec3,
+    rot: wp.mat33,
+    mesh_facetexcoord: wp.array[wp.vec3i],
+    mesh_texcoord: wp.array[wp.vec2],
+    mesh_texcoord_offsets: wp.array[int],
+    hit_point: wp.vec3,
+    normal: wp.vec3,
+    bary_u: float,
+    bary_v: float,
+    f: int,
+    mesh_id: int,
+  ) -> wp.vec3:
+    uv = wp.vec2(0.0, 0.0)
+    offset = wp.vec2(0.0, 0.0)
+    repeat = tex_repeat
+    gtype = geom_type[geom_id]
+
+    local = wp.transpose(rot) @ (hit_point - pos)
+    local_normal = wp.transpose(rot) @ normal
+
+    if wp.static(int(GeomType.PLANE) in geom_ray_types):
+      if gtype == GeomType.PLANE:
+        uv, offset, repeat = _texture_plane(local, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.SPHERE) in geom_ray_types or int(GeomType.ELLIPSOID) in geom_ray_types):
+      if gtype == GeomType.SPHERE or gtype == GeomType.ELLIPSOID:
+        uv, offset, repeat = _texture_sphere_ellipsoid(local, size, repeat, tex_uniform, gtype == GeomType.SPHERE)
+
+    if wp.static(int(GeomType.CYLINDER) in geom_ray_types):
+      if gtype == GeomType.CYLINDER:
+        uv, offset, repeat = _texture_cylinder(local, local_normal, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.CAPSULE) in geom_ray_types):
+      if gtype == GeomType.CAPSULE:
+        uv, offset, repeat = _texture_capsule(local, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.BOX) in geom_ray_types):
+      if gtype == GeomType.BOX:
+        uv, offset, repeat = _texture_box(local, local_normal, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.HFIELD) in geom_ray_types):
+      if gtype == GeomType.HFIELD:
+        uv, offset, repeat = _texture_hfield(local, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.MESH) in geom_ray_types or int(GeomType.SDF) in geom_ray_types):
+      if gtype == GeomType.MESH or gtype == GeomType.SDF:
+        uv, offset, repeat = _texture_mesh(
+          mesh_faceadr,
+          local,
+          size,
+          repeat,
+          tex_uniform,
+          f,
+          mesh_id,
+          bary_u,
+          bary_v,
+          mesh_facetexcoord,
+          mesh_texcoord,
+          mesh_texcoord_offsets,
+        )
+
+    u = uv[0] * repeat[0] + offset[0]
+    v = uv[1] * repeat[1] + offset[1]
+    u = u - wp.floor(u)
+    v = v - wp.floor(v)
+    tex_color = wp.texture_sample(tex, wp.vec2(u, v), dtype=wp.vec4)
+    return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
+
+  return sample_texture
 
 
 @wp.func
@@ -447,8 +710,8 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
             ray_origin_world,
             ray_dir_world,
           )
-      if wp.static(int(GeomType.MESH) in geom_ray_types):
-        if gtype == GeomType.MESH:
+      if wp.static(int(GeomType.MESH) in geom_ray_types or int(GeomType.SDF) in geom_ray_types):
+        if gtype == GeomType.MESH or gtype == GeomType.SDF:
           if wp.static(first_hit):
             hit = ray_mesh_with_bvh_anyhit(
               mesh_bvh_id,
@@ -700,6 +963,7 @@ def _build_megakernel(m: Model, rc: RenderContext):
   cast_ray = _make_cast_ray(geom_ray_types, first_hit=False)
   cast_ray_first_hit = _make_cast_ray(geom_ray_types, first_hit=True)
   compute_lighting = _make_compute_lighting(cast_ray_first_hit)
+  sample_texture = _make_sample_texture(geom_ray_types)
 
   # Static parameters extracted for JAX FFI closure.
   rc_static = {f.name: getattr(rc, f.name) for f in dataclasses.fields(rc) if f.type in (int, wp.uint32, bool, float, wp.vec3)}
@@ -759,6 +1023,7 @@ def _build_megakernel(m: Model, rc: RenderContext):
     mesh_normaladr: wp.array[int],
     mesh_normal: wp.array[wp.vec3],
     mat_texid: wp.array3d[int],
+    mat_texuniform: wp.array2d[bool],
     mat_texrepeat: wp.array2d[wp.vec2],
     mat_emission: wp.array2d[float],
     mat_specular: wp.array2d[float],
@@ -865,6 +1130,11 @@ def _build_megakernel(m: Model, rc: RenderContext):
       ray_origin_world += cam_mat_world @ ray_offset_local_cam
     ray_dir_world = cam_mat_world @ ray_dir_local_cam
 
+    if wp.static(rc_static["zfar"] > 0.0):
+      max_cam_dist = wp.static(rc_static["zfar"]) / wp.max(-ray_dir_local_cam[2], 1e-6)
+    else:
+      max_cam_dist = float(MJ_MAXVAL)
+
     geom_id, dist, normal, u, v, f, mesh_id = cast_ray(
       geom_type,
       geom_dataid,
@@ -889,31 +1159,31 @@ def _build_megakernel(m: Model, rc: RenderContext):
       flex_group_root,
       ray_origin_world,
       ray_dir_world,
-      float(MJ_MAXVAL),
+      max_cam_dist,
       wp.static(rc_static["enable_backface_culling"]),
     )
 
-    if (
-      wp.static(rc_static["enable_vertex_normals"])
-      and geom_id >= 0
-      and mesh_id >= 0
-      and f >= 0
-      and geom_type[geom_id] == int(GeomType.MESH.value)
-    ):
-      mat = geom_xmat_in[worldid, geom_id]
-      face = wp.transpose(mat) @ normal
-      tri = mesh_facenormal[mesh_faceadr[mesh_id] + f]
-      adr = mesh_normaladr[mesh_id]
-      vec = (
-        vertex_normal(mesh_normal[adr + tri[0]], face) * u
-        + vertex_normal(mesh_normal[adr + tri[1]], face) * v
-        + vertex_normal(mesh_normal[adr + tri[2]], face) * (1.0 - u - v)
-      )
-      normal = wp.normalize(mat @ vec)
+    if wp.static(rc_static["zfar"] > 0.0):
+      if geom_id != -1 and (dist * -ray_dir_local_cam[2]) > wp.static(rc_static["zfar"]):
+        geom_id = -1
+
+    if wp.static(rc_static["enable_vertex_normals"]) and geom_id >= 0 and mesh_id >= 0 and f >= 0:
+      gtype = geom_type[geom_id]
+      if gtype == int(GeomType.MESH.value) or gtype == int(GeomType.SDF.value):
+        mat = geom_xmat_in[worldid, geom_id]
+        face = wp.transpose(mat) @ normal
+        tri = mesh_facenormal[mesh_faceadr[mesh_id] + f]
+        adr = mesh_normaladr[mesh_id]
+        vec = (
+          vertex_normal(mesh_normal[adr + tri[0]], face) * u
+          + vertex_normal(mesh_normal[adr + tri[1]], face) * v
+          + vertex_normal(mesh_normal[adr + tri[2]], face) * (1.0 - u - v)
+        )
+        normal = wp.normalize(mat @ vec)
 
     if wp.static(not rc_static["enable_backface_culling"]):
       # Two-sided shading: light a back-facing hit as if it faced the viewer.
-      if geom_id >= 0 and wp.dot(normal, ray_dir_world) > 0.0:
+      if geom_id != -1 and wp.dot(normal, ray_dir_world) > 0.0:
         normal = -normal
 
     splat_color = wp.vec3(0.0)
@@ -990,53 +1260,57 @@ def _build_megakernel(m: Model, rc: RenderContext):
     # Shade the pixel
     hit_point = ray_origin_world + ray_dir_world * dist
 
+    mat_id = -1
     if geom_id == -2:
       # We encode flex_id in mesh_id for flex ray hits during cast_ray
       color = flex_rgba[mesh_id]
-    elif geom_matid[worldid % geom_matid.shape[0], geom_id] == -1:
-      color = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
     else:
-      color = mat_rgba[worldid % mat_rgba.shape[0], geom_matid[worldid % geom_matid.shape[0], geom_id]]
+      g_rgba = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
+      mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
+      is_default_rgba = g_rgba[0] == 0.5 and g_rgba[1] == 0.5 and g_rgba[2] == 0.5 and g_rgba[3] == 1.0
+      if mat_id >= 0 and is_default_rgba:
+        color = mat_rgba[worldid % mat_rgba.shape[0], mat_id]
+      else:
+        color = g_rgba
 
     base_color = wp.vec3(color[0], color[1], color[2])
 
     if wp.static(rc_static["use_textures"]):
-      if geom_id != -2:
-        mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
-        if mat_id >= 0:
-          tex_id = mat_texid[worldid % mat_texid.shape[0], mat_id, 1]
-          if tex_id >= 0:
-            tex_color = sample_texture(
-              geom_type,
-              mesh_faceadr,
-              geom_id,
-              mat_texrepeat[worldid % mat_texrepeat.shape[0], mat_id],
-              textures[tex_id],
-              geom_xpos_in[worldid, geom_id],
-              geom_xmat_in[worldid, geom_id],
-              mesh_facetexcoord,
-              mesh_texcoord,
-              mesh_texcoord_offsets,
-              hit_point,
-              u,
-              v,
-              f,
-              mesh_id,
-            )
-            base_color = wp.cw_mul(base_color, tex_color)
+      if mat_id >= 0:
+        tex_id = mat_texid[worldid % mat_texid.shape[0], mat_id, 1]
+        if tex_id >= 0:
+          tex_color = sample_texture(
+            geom_type,
+            mesh_faceadr,
+            geom_id,
+            geom_size[worldid % geom_size.shape[0], geom_id],
+            mat_texrepeat[worldid % mat_texrepeat.shape[0], mat_id],
+            mat_texuniform[worldid % mat_texuniform.shape[0], mat_id],
+            textures[tex_id],
+            geom_xpos_in[worldid, geom_id],
+            geom_xmat_in[worldid, geom_id],
+            mesh_facetexcoord,
+            mesh_texcoord,
+            mesh_texcoord_offsets,
+            hit_point,
+            normal,
+            u,
+            v,
+            f,
+            mesh_id,
+          )
+          base_color = wp.cw_mul(base_color, tex_color)
 
     mat_spec = DEFAULT_MAT_SPECULAR
     mat_shin_exp = DEFAULT_MAT_SHININESS_EXPONENT
     mat_emis = DEFAULT_MAT_EMISSION
     if wp.static(rc_static["enable_specular_or_emission"]):
-      if geom_id != -2:
-        mat_id_for_spec = geom_matid[worldid % geom_matid.shape[0], geom_id]
-        if mat_id_for_spec >= 0:
-          if wp.static(rc_static["enable_specular"]):
-            mat_spec = mat_specular[worldid % mat_specular.shape[0], mat_id_for_spec]
-            mat_shin_exp = mat_shininess[worldid % mat_shininess.shape[0], mat_id_for_spec] * MAX_SHININESS
-          if wp.static(rc_static["enable_emission"]):
-            mat_emis = mat_emission[worldid % mat_emission.shape[0], mat_id_for_spec]
+      if mat_id >= 0:
+        if wp.static(rc_static["enable_specular"]):
+          mat_spec = mat_specular[worldid % mat_specular.shape[0], mat_id]
+          mat_shin_exp = mat_shininess[worldid % mat_shininess.shape[0], mat_id] * MAX_SHININESS
+        if wp.static(rc_static["enable_emission"]):
+          mat_emis = mat_emission[worldid % mat_emission.shape[0], mat_id]
 
     result = wp.vec3(0.0)
     if wp.static(rc_static["enable_emission"]):
@@ -1224,6 +1498,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         m.mesh_normaladr,
         m.mesh_normal,
         m.mat_texid,
+        m.mat_texuniform,
         m.mat_texrepeat,
         m.mat_emission,
         m.mat_specular,

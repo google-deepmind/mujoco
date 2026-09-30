@@ -363,17 +363,25 @@ def find_oct(
       & int(oct_child[node][6] == -1)
       & int(oct_child[node][7] == -1)
     ) != 0:
-      for j in range(8):
-        if not grad:
+      if not grad:
+        for j in range(8):
           rx[j] = (
             (coord[0] if j & 1 else 1.0 - coord[0])
             * (coord[1] if j & 2 else 1.0 - coord[1])
             * (coord[2] if j & 4 else 1.0 - coord[2])
           )
-        else:
-          rx[j] = (1.0 if j & 1 else -1.0) * (coord[1] if j & 2 else 1.0 - coord[1]) * (coord[2] if j & 4 else 1.0 - coord[2])
-          ry[j] = (coord[0] if j & 1 else 1.0 - coord[0]) * (1.0 if j & 2 else -1.0) * (coord[2] if j & 4 else 1.0 - coord[2])
-          rz[j] = (coord[0] if j & 1 else 1.0 - coord[0]) * (coord[1] if j & 2 else 1.0 - coord[1]) * (1.0 if j & 4 else -1.0)
+      else:
+        # Convert derivatives of cell coordinates to derivatives of physical coordinates.
+        inv_cell = wp.cw_div(wp.vec3(1.0), vmax - vmin)
+        for j in range(8):
+          # fmt: off
+          rx[j] = ((1.0 if j & 1 else -1.0) * (coord[1] if j & 2 else 1.0 - coord[1])
+                   * (coord[2] if j & 4 else 1.0 - coord[2]) * inv_cell[0])
+          ry[j] = ((coord[0] if j & 1 else 1.0 - coord[0]) * (1.0 if j & 2 else -1.0)
+                   * (coord[2] if j & 4 else 1.0 - coord[2]) * inv_cell[1])
+          rz[j] = ((coord[0] if j & 1 else 1.0 - coord[0]) * (coord[1] if j & 2 else 1.0 - coord[1])
+                   * (1.0 if j & 4 else -1.0) * inv_cell[2])
+          # fmt: on
       return node, (rx, ry, rz)
 
     # compute which of 8 children to visit next
@@ -689,7 +697,7 @@ def gradient_step(
       if alpha <= amin or (dist - dist0) <= wolfe:
         break
     if dist > dist0:
-      return dist, x
+      return dist0, x2
   return dist, x
 
 
@@ -890,6 +898,13 @@ def _sdf_narrowphase(
   aabb_intersection = AABB()
   aabb_intersection.min = wp.max(aabb1.min, aabb2.min)
   aabb_intersection.max = wp.min(aabb1.max, aabb2.max)
+  # A broadphase candidate gap can admit pairs with no geometric intersection.
+  if (
+    aabb_intersection.min[0] > aabb_intersection.max[0]
+    or aabb_intersection.min[1] > aabb_intersection.max[1]
+    or aabb_intersection.min[2] > aabb_intersection.max[2]
+  ):
+    return
 
   pos2 = geom2.pos
   rot2 = geom2.rot

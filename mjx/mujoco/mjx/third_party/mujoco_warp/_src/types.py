@@ -402,6 +402,7 @@ class GainType(enum.IntEnum):
   MUSCLE = mujoco.mjtGain.mjGAIN_MUSCLE
   USER = mujoco.mjtGain.mjGAIN_USER
   DCMOTOR = mujoco.mjtGain.mjGAIN_DCMOTOR
+  SO3 = mujoco.mjtGain.mjGAIN_SO3
 
 
 class BiasType(enum.IntEnum):
@@ -438,6 +439,18 @@ class CtrlInput(enum.IntFlag):
   FF = mujoco.mjtCtrlInput.mjINPUT_FF
   VOLTAGE = mujoco.mjtCtrlInput.mjINPUT_VOLTAGE
   NONE = mujoco.mjtCtrlInput.mjINPUT_NONE
+
+
+class CtrlChart(enum.IntEnum):
+  """Orientation chart type for SO(3) actuators.
+
+  Attributes:
+    EXPMAP: exponential-map orientation target (3 controls)
+    QUAT: quaternion orientation target (4 controls)
+  """
+
+  EXPMAP = mujoco.mjtCtrlChart.mjCHART_EXPMAP
+  QUAT = mujoco.mjtCtrlChart.mjCHART_QUAT
 
 
 class JointType(enum.IntEnum):
@@ -1265,7 +1278,10 @@ class Model:
     flex_stiffness: finite element stiffness matrix          (nflexstiffness,)
     flex_bending: bending stiffness                          (nflexbending,)
     flex_damping: Rayleigh's damping coefficient             (nflex,)
+    flex_edgestiffness: edge stiffness                       (nflex,)
+    flex_edgedamping: edge damping                           (nflex,)
     flex_edgeequality: edge equality type (0:none,1:edge,2:vert,3:strain) (nflex,)
+    flexedge_rigid: edge is rigid (e.g. vertices welded to same body) (nflexedge,)
     flex_centered: flex vertices are centered at body origin (nflex,)
     flexedge_J_rownnz: number of nonzeros in Jacobian row    (nflexedge,)
     flexedge_J_rowadr: row start address in colind array     (nflexedge,)
@@ -1298,6 +1314,7 @@ class Model:
     hfield_adr: start address in hfield_data                 (nhfield,)
     hfield_data: elevation data                              (nhfielddata,)
     mat_texid: texture id for rendering                      (*, nmat, mjNTEXROLE)
+    mat_texuniform: texture uniform flag (spatial scaling)   (*, nmat)
     mat_texrepeat: texture repeat for rendering              (*, nmat, 2)
     mat_emission: emission scalar (self-illumination)        (*, nmat)
     mat_specular: specular reflection scalar                 (*, nmat)
@@ -1528,6 +1545,7 @@ class Model:
     flex_elemflexid: maps each element index directly to its flexid         (nflexelem,)
     flex_shellflexid: maps each shell index directly to its flexid          (nflexshelldata,)
     flex_vertflexid: maps each vertex index directly to its flexid          (nflexvert,)
+    flex_edgeflexid: maps each edge index directly to its flexid            (nflexedge,)
     flex_shelladr: maps each flex to its start shell index                  (nflex,)
     flex_faceadr: maps each flex to its start face index                    (nflex,)
     flex_cell_map: precomputed flex cell mapping (nflexintcell,)
@@ -1767,7 +1785,10 @@ class Model:
   flex_stiffness: array("nflexstiffness", float)
   flex_bending: array("nflexbending", float)
   flex_damping: array("nflex", float)
+  flex_edgestiffness: array("nflex", float)
+  flex_edgedamping: array("nflex", float)
   flex_edgeequality: array("nflex", int)
+  flexedge_rigid: array("nflexedge", bool)
   flex_centered: array("nflex", bool)
   flexedge_J_rownnz: array("nflexedge", int)
   flexedge_J_rowadr: array("nflexedge", int)
@@ -1800,6 +1821,7 @@ class Model:
   hfield_adr: array("nhfield", int)
   hfield_data: array("nhfielddata", float)
   mat_texid: array("*", "nmat", 10, int)
+  mat_texuniform: array("*", "nmat", bool)
   mat_texrepeat: array("*", "nmat", wp.vec2)
   mat_emission: array("*", "nmat", float)
   mat_specular: array("*", "nmat", float)
@@ -2021,6 +2043,7 @@ class Model:
   flex_elemflexid: array("nflexelem", int)
   flex_shellflexid: array("nflexshelldata", int)
   flex_vertflexid: array("nflexvert", int)
+  flex_edgeflexid: array("nflexedge", int)
   flex_shelladr: array("nflex", int)
   flex_faceadr: array("nflex", int)
   flex_cell_map: array("nflexintcell", wp.vec4i)
@@ -2557,6 +2580,7 @@ class RenderContext:
     seg_adr: segmentation addresses
     render_seg: per-camera segmentation render flags
     znear: near plane distance
+    zfar: far plane distance
     total_rays: total number of rays
     render_skybox: whether to shade missed rays with a MuJoCo skybox texture
     skybox_tex_id: per-world indices into textures of the skybox
@@ -2673,6 +2697,7 @@ class RenderContext:
   seg_adr: array("ncam", int)
   render_seg: array("ncam", bool)
   znear: float
+  zfar: float
   total_rays: int
   enable_backface_culling: bool
   shadow_light_fraction: float

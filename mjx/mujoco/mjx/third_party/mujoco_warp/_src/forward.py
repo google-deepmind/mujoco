@@ -298,7 +298,7 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
   # advance activations
   wp.launch(
     _next_activation,
-    dim=(d.nworld, m.nu),
+    dim=(d.nworld, m.nactuator),
     inputs=[
       m.opt.timestep,
       m.actuator_dyntype,
@@ -463,7 +463,7 @@ def _rk_perturb_state(
   if m.na and act_t0 is not None:
     wp.launch(
       _next_activation,
-      dim=(d.nworld, m.nu),
+      dim=(d.nworld, m.nactuator),
       inputs=[
         m.opt.timestep,
         m.actuator_dyntype,

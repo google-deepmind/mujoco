@@ -406,6 +406,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       raise NotImplementedError("Flex-HField collision is not implemented.")
     if hasattr(mjm, "flex_internal") and (mjm.flex_internal != 0).any():
       raise NotImplementedError("Flex internal collisions are not implemented.")
+    if (mjm.flex_rigid != 0).any():
+      raise NotImplementedError("Rigid flexes are not implemented.")
   m.nmaxcondim = np.concatenate(condim_arrays).max()
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()
@@ -1048,6 +1050,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   flex_elemflexid = np.zeros(mjm.nflexelem, dtype=np.int32)
   flex_shellflexid = np.zeros(mjm.nflexshelldata, dtype=np.int32)
   flex_vertflexid = np.zeros(mjm.nflexvert, dtype=np.int32)
+  flex_edgeflexid = np.zeros(mjm.nflexedge, dtype=np.int32)
   flex_shelladr = np.zeros(mjm.nflex, dtype=np.int32)
 
   if mjm.nflex > 0:
@@ -1056,6 +1059,10 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       elem_start = mjm.flex_elemadr[fi]
       elem_num = mjm.flex_elemnum[fi]
       flex_elemflexid[elem_start : elem_start + elem_num] = fi
+
+      edge_start = mjm.flex_edgeadr[fi]
+      edge_num = mjm.flex_edgenum[fi]
+      flex_edgeflexid[edge_start : edge_start + edge_num] = fi
 
       flex_shelladr[fi] = shell_offset
       shell_num = mjm.flex_shellnum[fi]
@@ -1069,6 +1076,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.flex_elemflexid = flex_elemflexid
   m.flex_shellflexid = flex_shellflexid
   m.flex_vertflexid = flex_vertflexid
+  m.flex_edgeflexid = flex_edgeflexid
   m.flex_shelladr = flex_shelladr
 
   flex_bend_interp_map = []
@@ -2174,8 +2182,11 @@ def get_data_into(
   nacon = min(d.nacon.numpy()[0], d.naconmax)
   nefc = min(d.nefc.numpy()[world_id], d.njmax)
 
-  ncon_filter = np.zeros_like(d.contact.worldid.numpy(), dtype=bool)
-  ncon_filter[:nacon] = d.contact.worldid.numpy()[:nacon] == world_id
+  contact_worldid = d.contact.worldid.numpy()
+  contact_type = d.contact.type.numpy()
+  ncon_filter = np.zeros_like(contact_worldid, dtype=bool)
+  is_constraint = (contact_type[:nacon] & types.ContactType.CONSTRAINT) != 0
+  ncon_filter[:nacon] = (contact_worldid[:nacon] == world_id) & is_constraint
   ncon = ncon_filter.sum()
 
   if ncon != result.ncon or nefc != result.nefc:
@@ -2206,17 +2217,21 @@ def get_data_into(
     contact_efc_address = d.contact.efc_address.numpy()[ncon_filter]
 
     efc_idx_c = []
-    contact_efc_address_ordered = [ne + nf + nl]
+    contact_efc_address_ordered = []
+    efc_offset = ne + nf + nl
     for i in range(ncon):
+      if contact_efc_address[i, 0] < 0:
+        contact_efc_address_ordered.append(-1)
+        continue
       dim = contact_dim[i]
       if mjm.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
         ndim = np.maximum(1, 2 * (dim - 1))
       else:
         ndim = dim
       efc_idx_c.append(contact_efc_address[i, :ndim])
-      if i < ncon - 1:
-        contact_efc_address_ordered.append(contact_efc_address_ordered[-1] + ndim)
-    efc_idx = np.concatenate((efc_idx_efl, *efc_idx_c))
+      contact_efc_address_ordered.append(efc_offset)
+      efc_offset += ndim
+    efc_idx = np.concatenate((efc_idx_efl, *efc_idx_c)) if efc_idx_c else efc_idx_efl
     contact_efc_address_ordered = np.array(contact_efc_address_ordered)
   else:
     efc_idx = np.array(np.arange(nefc))

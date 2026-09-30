@@ -80,6 +80,7 @@ def _render_shim(
     mat_specular: wp.array2d[float],
     mat_texid: wp.array3d[int],
     mat_texrepeat: wp.array2d[wp.vec2],
+    mat_texuniform: wp.array2d[bool],
     mesh_faceadr: wp.array[int],
     mesh_normal: wp.array[wp.vec3],
     mesh_normaladr: wp.array[int],
@@ -133,6 +134,7 @@ def _render_shim(
   _m.mat_specular = mat_specular
   _m.mat_texid = mat_texid
   _m.mat_texrepeat = mat_texrepeat
+  _m.mat_texuniform = mat_texuniform
   _m.mesh_faceadr = mesh_faceadr
   _m.mesh_normal = mesh_normal
   _m.mesh_normaladr = mesh_normaladr
@@ -195,6 +197,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
           'mat_specular',
           'mat_texid',
           'mat_texrepeat',
+          'mat_texuniform',
       ]),
       stage_out_argnames=set([]),
       graph_mode=m.opt._impl.graph_mode,
@@ -230,6 +233,7 @@ def _render_jax_impl(m: types.Model, d: types.Data, ctx: RenderContextPytree):
       m.mat_specular,
       m.mat_texid,
       m._impl.mat_texrepeat,
+      m._impl.mat_texuniform,
       m.mesh_faceadr,
       m.mesh_normal,
       m.mesh_normaladr,

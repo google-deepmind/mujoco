@@ -236,9 +236,12 @@ class ModelWarp(PyTreeNode):
   flex_dim: np.ndarray
   flex_edge: np.ndarray
   flex_edgeadr: np.ndarray
+  flex_edgedamping: np.ndarray
   flex_edgeequality: np.ndarray
   flex_edgeflap: np.ndarray
+  flex_edgeflexid: np.ndarray
   flex_edgenum: np.ndarray
+  flex_edgestiffness: np.ndarray
   flex_elem: np.ndarray
   flex_elemadr: np.ndarray
   flex_elemdataadr: np.ndarray
@@ -275,6 +278,7 @@ class ModelWarp(PyTreeNode):
   flexedge_J_rownnz: np.ndarray
   flexedge_invweight0: np.ndarray
   flexedge_length0: np.ndarray
+  flexedge_rigid: np.ndarray
   flexstrain_J_colind: np.ndarray
   flexstrain_J_rowadr: np.ndarray
   flexstrain_J_rownnz: np.ndarray
@@ -300,6 +304,7 @@ class ModelWarp(PyTreeNode):
   mapM2D: np.ndarray
   mapM2M: np.ndarray
   mat_texrepeat: jax.Array
+  mat_texuniform: jax.Array
   max_flex_dim: int
   max_ten_J_rownnz: int
   mesh_polyadr: np.ndarray
@@ -947,9 +952,12 @@ _NDIM = {
         'flex_dim': 1,
         'flex_edge': 2,
         'flex_edgeadr': 1,
+        'flex_edgedamping': 1,
         'flex_edgeequality': 1,
         'flex_edgeflap': 2,
+        'flex_edgeflexid': 1,
         'flex_edgenum': 1,
+        'flex_edgestiffness': 1,
         'flex_elem': 1,
         'flex_elemadr': 1,
         'flex_elemdataadr': 1,
@@ -994,6 +1002,7 @@ _NDIM = {
         'flexedge_J_rownnz': 1,
         'flexedge_invweight0': 1,
         'flexedge_length0': 1,
+        'flexedge_rigid': 1,
         'flexstrain_J_colind': 1,
         'flexstrain_J_rowadr': 1,
         'flexstrain_J_rownnz': 1,
@@ -1090,6 +1099,7 @@ _NDIM = {
         'mat_specular': 2,
         'mat_texid': 3,
         'mat_texrepeat': 3,
+        'mat_texuniform': 2,
         'max_flex_dim': 0,
         'max_ten_J_rownnz': 0,
         'mesh_face': 2,
@@ -1695,9 +1705,12 @@ _BATCH_DIM = {
         'flex_dim': False,
         'flex_edge': False,
         'flex_edgeadr': False,
+        'flex_edgedamping': False,
         'flex_edgeequality': False,
         'flex_edgeflap': False,
+        'flex_edgeflexid': False,
         'flex_edgenum': False,
+        'flex_edgestiffness': False,
         'flex_elem': False,
         'flex_elemadr': False,
         'flex_elemdataadr': False,
@@ -1742,6 +1755,7 @@ _BATCH_DIM = {
         'flexedge_J_rownnz': False,
         'flexedge_invweight0': False,
         'flexedge_length0': False,
+        'flexedge_rigid': False,
         'flexstrain_J_colind': False,
         'flexstrain_J_rowadr': False,
         'flexstrain_J_rownnz': False,
@@ -1838,6 +1852,7 @@ _BATCH_DIM = {
         'mat_specular': True,
         'mat_texid': True,
         'mat_texrepeat': True,
+        'mat_texuniform': True,
         'max_flex_dim': False,
         'max_ten_J_rownnz': False,
         'mesh_face': False,
