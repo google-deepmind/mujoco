@@ -961,6 +961,7 @@ void mjXReader::ReadAttrTableCore(XMLElement*    elem,
                            row.attr,
                            row.len);
           }
+          std::memset(base, 0, row.len);
           std::memcpy(base, text.data(), text.size());
           got = true;
         }
