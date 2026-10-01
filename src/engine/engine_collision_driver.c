@@ -712,8 +712,8 @@ void mj_collision(const mjModel* m, mjData* d) {
 
     // process bodyflex pair: all-to-all
     else {
-      int geomadr_end1 = geomadr1 + m->body_geomnum[bf1];
-      int geomadr_end2 = geomadr2 + m->body_geomnum[bf2];
+      int geomadr_end1 = (isbody1 ? geomadr1 + m->body_geomnum[bf1] : -1);
+      int geomadr_end2 = (isbody2 ? geomadr2 + m->body_geomnum[bf2] : -1);
 
       // body : body
       if (isbody1 && isbody2) {
@@ -761,7 +761,9 @@ void mj_collision(const mjModel* m, mjData* d) {
           // collide geom with flex elements
           int elemnum = m->flex_elemnum[f];
           for (int e=0; e < elemnum; e++) {
-            ncandidate = pushGeomElem(d, g, f, e, group, ncandidate);
+            if (mj_isElemActive(m, f, e)) {
+              ncandidate = pushGeomElem(d, g, f, e, group, ncandidate);
+            }
           }
         }
       }
@@ -774,8 +776,12 @@ void mj_collision(const mjModel* m, mjData* d) {
 
         // collide elements of two flexes
         for (int e1=0; e1 < m->flex_elemnum[f1]; e1++) {
-          for (int e2=0; e2 < m->flex_elemnum[f2]; e2++) {
-            ncandidate = pushElemElem(d, f1, e1, f2, e2, group, ncandidate);
+          if (mj_isElemActive(m, f1, e1)) {
+            for (int e2=0; e2 < m->flex_elemnum[f2]; e2++) {
+              if (mj_isElemActive(m, f2, e2)) {
+                ncandidate = pushElemElem(d, f1, e1, f2, e2, group, ncandidate);
+              }
+            }
           }
         }
       }

@@ -478,5 +478,48 @@ TEST_F(MjCollisionTest, MaxContact) {
   EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 4);
 }
 
+TEST_F(MjCollisionTest, Flex3DActiveLayersMidphaseDisabled) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="box" type="box" size="0.15 0.15 0.05" pos="0 0 0"/>
+      <flexcomp name="vol1" type="grid" dim="3" count="4 4 4"
+                spacing="0.06 0.06 0.06" pos="0 0 0.09" radius="0.005" mass="1">
+        <contact selfcollide="none" activelayers="1"/>
+        <edge equality="true"/>
+      </flexcomp>
+      <flexcomp name="vol2" type="grid" dim="3" count="4 4 4"
+                spacing="0.06 0.06 0.06" pos="0 0 0.22" radius="0.005" mass="1">
+        <contact selfcollide="none" activelayers="1"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  MjDataPtr d_bvh = MakeData(m);
+  mj_forward(m.get(), d_bvh.get());
+  EXPECT_GT(d_bvh->ncon, 0);
+
+  m->opt.disableflags |= mjDSBL_MIDPHASE;
+  MjDataPtr d_all = MakeData(m);
+  mj_forward(m.get(), d_all.get());
+  EXPECT_EQ(d_all->ncon, d_bvh->ncon);
+
+  for (int i = 0; i < d_all->ncon; ++i) {
+    for (int k = 0; k < 2; ++k) {
+      int f = d_all->contact[i].flex[k];
+      int e = d_all->contact[i].elem[k];
+      if (f >= 0 && e >= 0) {
+        int layer = m->flex_elemlayer[m->flex_elemadr[f] + e];
+        EXPECT_LT(layer, m->flex_activelayers[f]);
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
