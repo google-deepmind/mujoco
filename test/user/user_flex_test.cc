@@ -1731,6 +1731,34 @@ TEST_F(UserFlexTest, PinBendingAcceptsStaticBody) {
   EXPECT_THAT(m.get(), NotNull()) << error.data();
 }
 
+TEST_F(UserFlexTest, FlatIrregularHingeHasNoRestBendingForce) {
+  // The first triangle traverses the shared edge as 1->0, opposite to the
+  // (min, max) order of flex_edge. The triangles are not mirror images, so
+  // applying the bending coefficients to swapped edge vertices would produce a
+  // nonzero force in the flat rest configuration.
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="direct" dim="2" radius="0.01"
+              point="0 0 0  1 0 0  0.3 0.8 0  0.6 -0.7 0"
+              element="1 0 2  0 1 3">
+      <contact selfcollide="none"/>
+      <elasticity young="1e4" poisson="0" thickness="0.1" elastic2d="bend"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  ASSERT_GE(m->flex_bendingadr[0], 0);
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_NEAR(d->qfrc_spring[i], 0, MjTol(1e-10, 1e-5)) << "dof " << i;
+  }
+}
+
 TEST_F(UserFlexTest, FlexConstraintsAndElasticityError) {
   static constexpr char xml[] = R"(
   <mujoco>

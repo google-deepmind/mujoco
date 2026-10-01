@@ -3555,8 +3555,11 @@ static void CreateFlapStencil(std::vector<StencilFlap>& flaps,
 
       if (inserted) {
         StencilFlap flap;
-        flap.vertices[0] = v[edge[e][0]];
-        flap.vertices[1] = v[edge[e][1]];
+        // store the edge vertices in the same (min, max) order as the edge
+        // pair: the engine applies the bending coefficients, which depend on
+        // this order, to the vertices listed in flex_edge
+        flap.vertices[0] = pair.first;
+        flap.vertices[1] = pair.second;
         flap.vertices[2] = v[(edge[e][1] + 1) % 3];
         flap.vertices[3] = -1;
         flaps.push_back(flap);
