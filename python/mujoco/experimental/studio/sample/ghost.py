@@ -75,7 +75,7 @@ class GhostRenderer:
     self._viewer = event.viewer
 
   @messages.handler
-  def on_model(self, event: messages.ModelEvent) -> None:
+  def on_post_model(self, event: messages.PostModelEvent) -> None:
     """Resets ghost-specific state when the model changes."""
     del event  # Model/data are accessed via self._viewer.
     self._history.clear()

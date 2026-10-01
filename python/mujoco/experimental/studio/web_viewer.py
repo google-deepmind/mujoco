@@ -279,16 +279,14 @@ class WebViewer(viewer_protocol.Viewer):
   # Message handlers.
   # ---------------------------------------------------------------------------
 
-  @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_model(self, event: messages.ModelEvent) -> None:
-    """Loads the new model, then updates the server to serve it.
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_post_model(self, event: messages.PostModelEvent) -> None:
+    """Updates the server to serve the newly loaded model.
 
-    The plugin registry discovers handlers by name, so this override replaces
-    the base Viewer's _on_model and must call it explicitly to load the model
-    before the server serializes it. The browser notices the changed model
-    identity in the state payload and reloads itself to fetch the new /model.
+    The browser notices the changed model identity in the state payload and
+    reloads itself to fetch the new /model.
     """
-    super()._on_model(event)
+    del event
     self._update_model()
     print('Model changed: the browser page reloads automatically.', flush=True)
 

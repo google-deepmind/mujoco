@@ -158,9 +158,10 @@ class ViewerHandle:
   ) -> tuple[mujoco.MjModel | None, mujoco.MjData | None]:
     """Syncs the simulation with the viewer and returns the updated sim state.
 
-    This method processes incoming messages from the viewer, dispatches a
-    ``StepEvent`` so sim-side plugins can advance the simulation, and sends the
-    resulting simulation state to the viewer as a snapshot.
+    This method processes incoming messages from the viewer, dispatches
+    ``PreStepEvent``, ``StepEvent``, and ``PostStepEvent`` so sim-side plugins
+    can prepare, advance, and observe the simulation, and sends the resulting
+    simulation state to the viewer as a snapshot.
 
     Stepping and pacing are plugin responsibilities: pass
     ``step_control.StepControl()`` in ``sim_plugins`` for the standard
@@ -177,9 +178,14 @@ class ViewerHandle:
       after the viewer sends a ModelEvent).
     """
 
-    if model is not None and model is not self.model:
-      self._sim_endpoint.send_to_viewer(messages.ModelEvent(model=model))
+    model_changed = model is not None and model is not self.model
     self.model, self.data = model, data
+    if model_changed:
+      assert self.model is not None and self.data is not None
+      self._sim_endpoint.send_to_viewer(messages.ModelEvent(model=self.model))
+      self._sim_plugins.dispatch(
+          messages.PostModelEvent(model=self.model, data=self.data)
+      )
 
     # Process incoming events from the viewer.
     for event in self._sim_endpoint.get_viewer_events():
@@ -191,9 +197,18 @@ class ViewerHandle:
 
     if self.model is not None:
       assert self.data is not None
-      # Advance the simulation: dispatched locally to sim-side plugins.
+      # Prepare, advance, and observe the simulation: dispatched locally to
+      # sim-side plugins. Each phase re-reads self.model and self.data so a
+      # set_model() call from a PreStepEvent handler (e.g. a hot-reload that
+      # finished compiling in the background) is stepped and snapshotted.
+      self._sim_plugins.dispatch(
+          messages.PreStepEvent(model=self.model, data=self.data)
+      )
       self._sim_plugins.dispatch(
           messages.StepEvent(model=self.model, data=self.data)
+      )
+      self._sim_plugins.dispatch(
+          messages.PostStepEvent(model=self.model, data=self.data)
       )
 
       # Send the simulation state to the viewer process as a snapshot.
@@ -215,11 +230,15 @@ class ViewerHandle:
     return self.model, self.data
 
   @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_model(self, event: messages.ModelEvent) -> bool:
+  def _on_model(self, event: messages.ModelEvent) -> None:
     self.model = event.model
     self.data = mujoco.MjData(event.model)
     mujoco.mj_forward(self.model, self.data)
-    return True
+    self.dispatch(
+        messages.PostModelEvent(
+            model=self.model, data=self.data, path=event.path
+        )
+    )
 
   def _set_state(
       self,

@@ -178,11 +178,16 @@ class Viewer(abc.ABC):
     assert id(self.model) != id(model)
     mujoco.mj_forward(self.model, self.data)
 
-  @messages.handler(priority=messages.Priority.CRITICAL)
+  @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_model(self, event: messages.ModelEvent) -> None:
     """Deep-copies the incoming model so the Viewer owns its data."""
     self.load_model(event.model, event.path)
     self.extra_geoms.clear()
+    self.dispatch(
+        messages.PostModelEvent(
+            model=self.model, data=self.data, path=event.path
+        )
+    )
 
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_state(self, event: messages.StateSnapshot) -> None:

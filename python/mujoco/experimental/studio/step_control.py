@@ -30,12 +30,9 @@ class StepControl:
   def __init__(self) -> None:
     self.step_control = sim.StepControl()
 
-  @messages.handler(priority=messages.Priority.LIBRARY)
-  def _on_model(self, event: messages.ModelEvent) -> None:
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_post_model(self, event: messages.PostModelEvent) -> None:
     del event
-    # Fresh step control so the new model starts time-synchronized. Runs at
-    # LIBRARY priority, before ViewerHandle swaps model/data and consumes the
-    # event at INTERNAL priority.
     self.step_control = sim.StepControl()
 
   @messages.handler(priority=messages.Priority.INTERNAL)
