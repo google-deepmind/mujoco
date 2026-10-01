@@ -27,6 +27,7 @@ on:
   push:
     branches:
       - main
+      - test-windows-python-timing
     paths-ignore:
       - "doc/**"
       - "**/README.md"
@@ -187,7 +188,6 @@ jobs:
       run: bash ../.github/workflows/build_steps.sh make_python_sdist
 
     - name: Build Python bindings
-      if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: python/dist
       env:
@@ -196,7 +196,6 @@ jobs:
       run: bash ../../.github/workflows/build_steps.sh build_python_bindings
 
     - name: Install Python bindings
-      if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: python/dist
       env:
@@ -204,7 +203,6 @@ jobs:
       run: bash ../../.github/workflows/build_steps.sh install_python_bindings
 
     - name: Test Python bindings
-      if: ${{ runner.os != 'Windows' }}
       shell: bash
       env:
         MUJOCO_GL: disable
