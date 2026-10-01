@@ -112,11 +112,12 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     spec: The mjSpec to save to a file.
     file: The path to the file to save to or the file object to write to.
   """
-  files_to_zip = spec.assets
+  files_to_zip = dict(spec.assets)
   files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
   if isinstance(file, str):
     directory = os.path.dirname(file)
-    os.makedirs(directory, exist_ok=True)
+    if directory:
+      os.makedirs(directory, exist_ok=True)
     file = open(file, 'wb')
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
