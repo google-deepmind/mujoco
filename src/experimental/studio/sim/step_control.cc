@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <functional>
 #include <ratio>
+#include <utility>
 
 #include <mujoco/mujoco.h>
 
@@ -34,7 +35,9 @@ static mjtNum Timer() {
 
 
 
-StepControl::StepControl() { mjcb_time = Timer; }
+StepControl::StepControl(ClockFn clock_fn) : clock_fn_(std::move(clock_fn)) {
+  mjcb_time = Timer;
+}
 
 float StepControl::GetSpeedMeasured() const { return speed_measured_; }
 
@@ -100,7 +103,7 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
     single_step_ = false;
   }
 
-  const Clock::time_point start_cpu = Clock::now();
+  const Clock::time_point start_cpu = clock_fn_();
   const double slowdown = 100. / std::clamp<double>(speed_, 0.001, 100.);
   double elapsed_cpu = Seconds(start_cpu - sync_cpu_).count();
   double elapsed_sim = d->time - sync_sim_;
@@ -136,29 +139,36 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
   }
 
   // Stepping loop.
+  bool measured = false;
   while (true) {
-    const Clock::time_point now_cpu = Clock::now();
-    elapsed_cpu = Seconds(now_cpu - sync_cpu_).count();
-    elapsed_sim = d->time - sync_sim_;
+    if (!resync) {
+      const Clock::time_point now_cpu = clock_fn_();
+      elapsed_cpu = Seconds(now_cpu - sync_cpu_).count();
+      elapsed_sim = d->time - sync_sim_;
 
-    // Stop stepping if simulation no longer lags cpu.
-    if (elapsed_sim * slowdown >= elapsed_cpu) {
-      return Status::kOk;
-    }
+      // Stop stepping if simulation no longer lags cpu.
+      if (elapsed_sim * slowdown >= elapsed_cpu) {
+        return Status::kOk;
+      }
 
-    // Stop stepping if simulation is taking too long to catch up.
-    // Note: 12ms == 70% of 1/60 seconds/frame.
-    constexpr Clock::duration kMaxCpuTimeForSim = std::chrono::milliseconds(12);
-    if (now_cpu - start_cpu >= kMaxCpuTimeForSim) {
-      // Note: GetSpeed() and GetSpeedMeasured() will be different in this case.
-      return Status::kOk;
-    }
+      // Stop stepping if simulation is taking too long to catch up.
+      // Note: 12ms == 70% of 1/60 seconds/frame.
+      constexpr Clock::duration kMaxCpuTimeForSim =
+          std::chrono::milliseconds(12);
+      if (now_cpu - start_cpu >= kMaxCpuTimeForSim) {
+        // Note: GetSpeed() and GetSpeedMeasured() will be different in this
+        // case.
+        return Status::kOk;
+      }
 
-    // Measure slowdown here in first viable in-sync step. This update location
-    // is chosen to minimize visual noise caused by changing measurements.
-    if (elapsed_sim > 0) {
-      double measured_slowdown = elapsed_cpu / elapsed_sim;
-      speed_measured_ = 100. / measured_slowdown;
+      // Measure slowdown here in first viable in-sync step. This update
+      // location is chosen to minimize visual noise caused by changing
+      // measurements.
+      if (!measured && elapsed_sim > 0) {
+        double measured_slowdown = elapsed_cpu / elapsed_sim;
+        speed_measured_ = 100. / measured_slowdown;
+        measured = true;
+      }
     }
 
     mjtNum prev_time = d->time;

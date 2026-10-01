@@ -25,12 +25,13 @@ namespace mujoco::studio {
 
 using Seconds = std::chrono::duration<double>;
 using Clock = std::chrono::steady_clock;
+using ClockFn = std::function<Clock::time_point()>;
 using StepFn = std::function<void(mjModel*, mjData*)>;
 
 // State and logic for physics synchronization and stepping.
 class StepControl {
  public:
-  StepControl();
+  explicit StepControl(ClockFn clock_fn = Clock::now);
 
   enum class Status {
     kOk,
@@ -131,6 +132,8 @@ class StepControl {
   // Callbacks that can be invoked before/after physics is stepped.
   StepFn pre_step_ = nullptr;
   StepFn post_step_ = nullptr;
+
+  ClockFn clock_fn_;
 };
 
 }  // namespace mujoco::studio
