@@ -34,9 +34,9 @@ namespace Mujoco {
       Solver = SolverSettings.Default,
     };
 
-    public void FromMjcf(XmlElement mjcf) {
+    public void FromMjcf(XmlElement mjcf, bool springReferenceIsAngular = true) {
       Armature = mjcf.GetFloatAttribute("armature", 0.0f);
-      Spring.FromMjcf(mjcf);
+      Spring.FromMjcf(mjcf, springReferenceIsAngular);
       Solver.FromMjcf(mjcf);
     }
 
@@ -68,11 +68,14 @@ namespace Mujoco {
       mjcf.SetAttribute("stiffness", MjEngineTool.MakeLocaleInvariant($"{Stiffness}"));
     }
 
-    public void FromMjcf(XmlElement mjcf) {
+    public void FromMjcf(XmlElement mjcf, bool referenceIsAngular = true) {
       var springDamper = mjcf.GetVector2Attribute("springdamper", Vector2.zero);
       TimeConstant = springDamper.x;
       DampingRatio = springDamper.y;
-      EquilibriumPose = MjSceneImportSettings.AnglesInDegrees? mjcf.GetFloatAttribute("springref", 0.0f) : mjcf.GetFloatAttribute("springref", 0.0f) * Mathf.Rad2Deg;
+      EquilibriumPose = mjcf.GetFloatAttribute("springref", 0.0f);
+      if (referenceIsAngular && !MjSceneImportSettings.AnglesInDegrees) {
+        EquilibriumPose *= Mathf.Rad2Deg;
+      }
       Damping = mjcf.GetFloatAttribute("damping", 0.0f);
       Stiffness = mjcf.GetFloatAttribute("stiffness", 0.0f);
     }
