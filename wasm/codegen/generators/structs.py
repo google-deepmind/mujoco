@@ -157,7 +157,10 @@ def _generate_field_data(
         and inner_type.name in constants.PRIMITIVE_TYPES
     ):
       ptr_expr = f"ptr_->{f.name}"
-      if len(f.type.extents) > 1:
+      if inner_type.name == "mjtBool":
+        # Embind has no memory_view<bool>, so expose mjtBool as Uint8Array.
+        ptr_expr = f"reinterpret_cast<uint8_t*>({ptr_expr})"
+      elif len(f.type.extents) > 1:
         # for multi-dimensional arrays, we need to cast the field
         # to a pointer, so embind can correctly interpret the memory
         # view

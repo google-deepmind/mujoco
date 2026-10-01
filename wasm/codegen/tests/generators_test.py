@@ -595,6 +595,54 @@ emscripten::val multi_dim_array() const {
         '.property("multi_dim_array", &MjModel::multi_dim_array)',
     )
 
+  def test_pointer_type_field_for_mjtbool_type(self):
+    """Test that a pointer type field for mjtBool is exposed as uint8_t*."""
+    field = ast_nodes.StructFieldDecl(
+        name="jnt_limited",
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name="mjtBool"),
+        ),
+        doc="does joint have limits",
+        array_extent=("njnt",),
+    )
+    wrapped_field_data = structs._generate_field_data(field, "MjModel")
+    self.assertEqual(
+        wrapped_field_data.declaration,
+        """
+emscripten::val jnt_limited() const {
+  return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, reinterpret_cast<uint8_t*>(ptr_->jnt_limited)));
+}
+""".strip(),
+    )
+    self.assertEqual(
+        wrapped_field_data.binding,
+        '.property("jnt_limited", &MjModel::jnt_limited)',
+    )
+
+  def test_array_type_field_for_mjtbool_type(self):
+    """Test that an array type field for mjtBool is exposed as uint8_t*."""
+    field = ast_nodes.StructFieldDecl(
+        name="bool_flags",
+        type=ast_nodes.ArrayType(
+            inner_type=ast_nodes.ValueType(name="mjtBool"),
+            extents=(4,),
+        ),
+        doc="boolean flags",
+    )
+    wrapped_field_data = structs._generate_field_data(field, "MjOption")
+    self.assertEqual(
+        wrapped_field_data.declaration,
+        """
+emscripten::val bool_flags() const {
+  return emscripten::val(emscripten::typed_memory_view(4, reinterpret_cast<uint8_t*>(ptr_->bool_flags)));
+}
+""".strip(),
+    )
+    self.assertEqual(
+        wrapped_field_data.binding,
+        '.property("bool_flags", &MjOption::bool_flags)',
+    )
+
   def test_parse_array_extent(self):
     """Test that parse_array_extent handles various cases correctly."""
     self.assertEqual(
