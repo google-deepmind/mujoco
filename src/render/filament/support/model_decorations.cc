@@ -37,7 +37,7 @@ ModelDecorations::ModelDecorations(mjrfContext* ctx, mjrfScene* scene,
                                    const mjModel* model, int num_geoms)
     : ctx_(ctx), scene_(scene), model_(model) {
   std::memset(&mjv_scene_, 0, sizeof(mjvScene));
-  mjv_makeScene(model_, &mjv_scene_, 2000);
+  mjv_makeScene(model_, &mjv_scene_, num_geoms);
 }
 
 ModelDecorations::~ModelDecorations() {
