@@ -1521,6 +1521,31 @@ TEST_F(SensorTest, RangefinderCameraCutoff) {
   }
 }
 
+TEST_F(SensorTest, RangefinderCameraCutoffWithin) {
+  // camera rangefinder 1m above a plane whose origin is 5m away, cutoff=1.5
+  // the plane must not be culled: the hit at distance 1 is within the cutoff
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="10 10 .1"/>
+      <body pos="5 0 1">
+        <camera name="cam" xyaxes="1 0 0 0 1 0" resolution="1 1" fovy="10"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <rangefinder camera="cam" cutoff="1.5"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  EXPECT_NEAR(data->sensordata[0], 1, MjTol(1e-10, 1e-5));
+}
+
 // ------------------------------- sensor delays -------------------------------
 
 TEST_F(SensorTest, SensorDelay) {
