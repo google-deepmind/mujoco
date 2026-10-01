@@ -1374,7 +1374,7 @@ TEST_F(SensorTest, RFCamera) {
   mj_deleteModel(model);
 }
 
-// ---------------------- rangefinder cutoff (maxdist) --------------------------
+// ----------------------- rangefinder cutoff (maxdist) ------------------------
 
 TEST_F(SensorTest, RangefinderCutoffBeyond) {
   // object at 5m, cutoff=2m: should return -1 (no detection)
