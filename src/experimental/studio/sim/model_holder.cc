@@ -25,22 +25,6 @@
 
 namespace mujoco::studio {
 
-struct BufferProvider : public mjpResourceProvider {
-  BufferProvider(std::span<const std::byte> buffer) : buffer(buffer) {
-    mjp_defaultResourceProvider(this);
-    open = [](mjResource* resource) {
-      return 1;
-    };
-    read = [](mjResource* resource, const void** buffer) {
-      BufferProvider* self = (BufferProvider*)resource->provider;
-      *buffer = self->buffer.data();
-      return static_cast<int>(self->buffer.size());
-    };
-    close = [](mjResource* resource) {};
-  }
-  std::span<const std::byte> buffer;
-};
-
 std::unique_ptr<ModelHolder> ModelHolder::FromSpec(mjSpec* spec) {
   auto mh = std::unique_ptr<ModelHolder>(new ModelHolder());
   mh->InitFromSpec(spec);
@@ -128,13 +112,11 @@ void ModelHolder::InitFromBuffer(std::span<const std::byte> buffer,
   } else if (content_type == "application/mjb") {
     model_ = mj_loadModelBuffer(buffer.data(), buffer.size());
   } else if (content_type == "application/zip") {
-    BufferProvider provider(buffer);
-    mjResource resource;
-    std::memset(&resource, 0, sizeof(mjResource));
-    resource.vfs = &vfs_;
-    resource.provider = &provider;
-    resource.name = const_cast<char*>(filename.data());
-    spec_ = mju_decodeResource(&resource, content_type.data(), &vfs_);
+    std::string name(filename);
+    mj_addBufferVFS(&vfs_, name.c_str(), buffer.data(),
+                    static_cast<int>(buffer.size()));
+    spec_ = mj_parse(name.c_str(), content_type.data(), &vfs_, error_,
+                     sizeof(error_));
   } else {
     SetLoadError(
         "Unknown content type; expected text/xml or application/mjb");

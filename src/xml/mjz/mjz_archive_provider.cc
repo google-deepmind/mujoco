@@ -85,8 +85,11 @@ static int ZipMount(mjResource* resource) {
   handle->name = mujoco::user::FilePath(resource->name).Str();
   std::memset(&handle->archive, 0, sizeof(handle->archive));
 
+  const bool in_vfs =
+      resource->vfs && (mj_containsBufferVFS(resource->vfs, resource->name) == 1 ||
+                        mj_containsFileVFS(resource->vfs, nullptr, resource->name) == 1);
   std::error_code ec;
-  if (std::filesystem::is_regular_file(resource->name, ec)) {
+  if (!in_vfs && std::filesystem::is_regular_file(resource->name, ec)) {
     if (!mz_zip_reader_init_file(&handle->archive, resource->name, 0)) { return 0; }
   } else {
     mjResource* raw_res = mju_openResource("", resource->name, resource->vfs, nullptr, 0);

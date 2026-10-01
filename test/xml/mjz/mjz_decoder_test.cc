@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -175,6 +178,35 @@ TEST_F(MjzTest, ParseBackslashEntryNames) {
   mj_deleteSpec(spec);
   mj_deleteVFS(&vfs);
   std::remove(filepath.c_str());
+}
+
+TEST_F(MjzTest, ParseFromBufferVFS) {
+  std::string filepath = GetTestDataFilePath("testdata/model.mjz");
+  std::ifstream file(filepath, std::ios::binary);
+  ASSERT_TRUE(file.is_open());
+  std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+  ASSERT_FALSE(bytes.empty());
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  ASSERT_EQ(mj_addBufferVFS(&vfs, "model.mjz", bytes.data(),
+                            static_cast<int>(bytes.size())),
+            0);
+
+  char err[1000] = "";
+  mjSpec* spec = mj_parse("model.mjz", nullptr, &vfs, err, sizeof(err));
+  ASSERT_THAT(spec, NotNull()) << err;
+  EXPECT_THAT(err, StrEq(""));
+
+  mjModel* model = mj_compile(spec, &vfs);
+  EXPECT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  EXPECT_EQ(mj_containsBufferVFS(&vfs, "model.mjz"), 1);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(&vfs);
 }
 
 }  // namespace

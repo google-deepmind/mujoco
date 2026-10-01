@@ -127,10 +127,12 @@ class VFS {
   // `this` will be invalidated after this call.
   void MaybeSelfDestruct();
 
-  mjVFS                wrapped_vfs_;
-  std::recursive_mutex mutex_;  // Protects open_resources_, mounts_, and in_flight_open_.
+  mjVFS wrapped_vfs_;
+  std::recursive_mutex
+      mutex_;  // Protects open_resources_, mounts_, archive_mounts_, and in_flight_open_.
   std::unordered_map<mjResource*, ResourcePtr> open_resources_;
   std::unordered_map<std::string, ResourcePtr> mounts_;
+  std::unordered_map<std::string, ResourcePtr> archive_mounts_;
   mjResource                                   default_mount_;
   mjpResourceProvider                          default_provider_;
   std::function<void()>                        destructor_;

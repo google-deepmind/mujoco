@@ -438,5 +438,40 @@ TEST_F(MjzArchiveProviderTest, ConcurrentMemberExtraction) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(MjzArchiveProviderTest, OpenAndReadBufferVFSArchive) {
+  std::string filepath = GetTestDataFilePath("testdata/model.mjz");
+  std::ifstream file(filepath, std::ios::binary);
+  ASSERT_TRUE(file.is_open());
+  std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+  ASSERT_FALSE(bytes.empty());
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  ASSERT_EQ(mj_addBufferVFS(&vfs, "in_memory.mjz", bytes.data(),
+                            static_cast<int>(bytes.size())),
+            0);
+
+  char err[1000] = "";
+  mjResource* res =
+      mju_openResource("", "in_memory.mjz/model.xml", &vfs, err, sizeof(err));
+  ASSERT_THAT(res, NotNull()) << err;
+
+  const void* buffer = nullptr;
+  int size = mju_readResource(res, &buffer);
+  EXPECT_THAT(size, Gt(0));
+  ASSERT_THAT(buffer, NotNull());
+
+  std::string_view xml(static_cast<const char*>(buffer), size);
+  EXPECT_TRUE(xml.find("<mujoco") != std::string_view::npos);
+
+  mju_closeResource(res);
+  EXPECT_EQ(mj_deleteFileVFS(&vfs, "in_memory.mjz"), 0);
+  EXPECT_THAT(mju_openResource("", "in_memory.mjz/model.xml", &vfs, nullptr, 0),
+              IsNull());
+
+  mj_deleteVFS(&vfs);
+}
+
 }  // namespace
 }  // namespace mujoco

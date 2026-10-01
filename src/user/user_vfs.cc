@@ -139,6 +139,11 @@ VFS::~VFS() {
   }
   open_resources_.clear();
 
+  for (auto& [path, res] : archive_mounts_) {
+    if (res->provider->unmount) { res->provider->unmount(res.get()); }
+  }
+  archive_mounts_.clear();
+
   for (auto& [path, res] : mounts_) {
     if (res->provider->unmount) { res->provider->unmount(res.get()); }
   }
@@ -229,7 +234,21 @@ VFS::Status VFS::Close(mjResource* res) {
 
 VFS::Status VFS::Unmount(const FilePath& path) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
-  if (auto it = mounts_.find(path.Str()); it != mounts_.end()) {
+  const std::string                     path_str = path.Str();
+  const std::string                     stripped = StripPathAndLower(path_str);
+  for (auto it = archive_mounts_.begin(); it != archive_mounts_.end();) {
+    const std::string& arch_path = it->first;
+    const bool is_child = arch_path.starts_with(path_str) &&
+                          arch_path.size() > path_str.size() &&
+                          (arch_path[path_str.size()] == '/' || arch_path[path_str.size()] == '\\');
+    if (arch_path == path_str || is_child || StripPathAndLower(arch_path) == stripped) {
+      if (it->second->provider->unmount) { it->second->provider->unmount(it->second.get()); }
+      it = archive_mounts_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  if (auto it = mounts_.find(path_str); it != mounts_.end()) {
     if (it->second->provider->unmount) { it->second->provider->unmount(it->second.get()); }
     mounts_.erase(it);
     return kSuccess;
@@ -301,21 +320,25 @@ mjResource* VFS::FindMount(const std::string& fullpath) {
 
   std::string str = fullpath;
   while (!str.empty()) {
-    auto it = mounts_.find(str);
-    if (it != mounts_.end()) { return it->second.get(); }
-
     if (str.size() < fullpath.size() &&
         (fullpath[str.size()] == '/' || fullpath[str.size()] == '\\')) {
+      if (auto it = archive_mounts_.find(str); it != archive_mounts_.end()) {
+        return it->second.get();
+      }
       const mjpResourceProvider* archive_prov = mjp_findArchiveResourceProvider(str.c_str());
       if (archive_prov) {
         ResourcePtr res = CreateResource(str, archive_prov);
         if (archive_prov->mount(res.get())) {
           mjResource* res_ptr = res.get();
-          mounts_.emplace(str, std::move(res));
+          archive_mounts_.emplace(str, std::move(res));
           return res_ptr;
         }
+        return nullptr;
       }
     }
+
+    auto it = mounts_.find(str);
+    if (it != mounts_.end()) { return it->second.get(); }
 
     std::size_t n = str.find_last_of("/\\");
     if (n == std::string::npos) {
