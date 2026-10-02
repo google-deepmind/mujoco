@@ -17,6 +17,7 @@
 
 from typing import Any
 
+from absl import logging
 import mujoco
 from mujoco.sysid._src.parameter import InertiaType
 from mujoco.sysid._src.parameter import ModifierFn
@@ -60,6 +61,26 @@ def _get_obj_or_raise(spec: mujoco.MjSpec, obj_type: str, obj_name: str) -> Any:
 def apply_param_modifiers_spec(
     params: ParameterDict, spec: mujoco.MjSpec
 ) -> mujoco.MjSpec:
+  # A non-frozen parameter participates in the optimizer's decision vector. If
+  # it has no modifier, applying the parameter set to an MjSpec silently leaves
+  # that decision variable disconnected from the model and produces a zero
+  # gradient. Warn once per ParameterDict so repeated residual evaluations do
+  # not flood the log.
+  if not getattr(params, "_sysid_warned_none_modifier", False):
+    missing = [
+        param.name
+        for param in params.values()
+        if not param.frozen and param.modifier is None
+    ]
+    if missing:
+      logging.warning(
+          "Non-frozen sysid parameters have modifier=None and will not affect "
+          "the MjSpec: %s. Check that modifier factories return their inner "
+          "modifier function.",
+          ", ".join(missing),
+      )
+      setattr(params, "_sysid_warned_none_modifier", True)
+
   for key in params.keys():
     param = params[key]
     if not param.frozen:
