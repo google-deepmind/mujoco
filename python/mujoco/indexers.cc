@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mujoco.h>
 #include "gil.h"
 #include "indexers.h"
 #include "raw.h"
@@ -87,7 +88,7 @@ IDToName MakeIDToName(int count, IntPtr name_offsets, CharPtr names) {
 template <auto MjSize, typename T>
 py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
                          const raw::MjModel& m, py::handle owner) {
-  int offset;
+  mjtSize offset;
   if (MjSize == &raw::MjModel::nq) {
     offset = m.jnt_qposadr[index];
     shape.insert(

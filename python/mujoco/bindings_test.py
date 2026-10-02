@@ -1943,6 +1943,8 @@ Euler integrator, semi-implicit in velocity.
   def test_texture_size(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML_TEXTURE)
     self.assertEqual(model.tex('tex').data.shape, (512, 512, 3))
+    self.assertEqual(model.tex('tex').adr.dtype, np.int64)
+    self.assertTrue(np.shares_memory(model.tex('tex').adr, model.tex_adr))
 
   def test_xml_dependencies(self):
     model_path = str(epath.resource_path("mujoco") / "testdata" / "msh.xml")
