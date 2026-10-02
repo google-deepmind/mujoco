@@ -143,6 +143,7 @@ struct FetchEntry {
   std::string url;
   std::string data;
   std::string filename;
+  int refcount = 0;
 };
 
 // Cache for data fetched via HTTP/HTTPS. Stores downloaded (or pre-primed)
@@ -160,7 +161,11 @@ class FetchCache {
   // returned without touching the network. Returns 0 on fetch failure.
   int Fetch(const char* url) {
     if (auto it = entries_.find(url); it != entries_.end()) {
-      return static_cast<int>(it->second.data.size());
+      int size = static_cast<int>(it->second.data.size());
+      if (size > 0) {
+        ++it->second.refcount;
+      }
+      return size;
     }
     char* buf = nullptr;
     std::int32_t size = 0;
@@ -175,8 +180,12 @@ class FetchCache {
     if (filename_str) std::free(filename_str);
 
     FetchEntry entry{url, std::move(data), std::move(filename)};
-    return static_cast<int>(
-        entries_.emplace(url, std::move(entry)).first->second.data.size());
+    auto& stored = entries_.emplace(url, std::move(entry)).first->second;
+    int stored_size = static_cast<int>(stored.data.size());
+    if (stored_size > 0) {
+      ++stored.refcount;
+    }
+    return stored_size;
   }
 
   const FetchEntry* GetEntry(const char* url) const {
@@ -208,7 +217,15 @@ class FetchCache {
     return static_cast<int>(it->second.data.size());
   }
 
-  void Close(const char* url) { entries_.erase(url); }
+  void Close(const char* url) {
+    auto it = entries_.find(url);
+    if (it == entries_.end()) {
+      return;
+    }
+    if (--it->second.refcount <= 0) {
+      entries_.erase(it);
+    }
+  }
 
  private:
   std::unordered_map<std::string, FetchEntry> entries_;
