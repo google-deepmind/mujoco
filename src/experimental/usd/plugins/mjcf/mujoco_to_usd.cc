@@ -2164,9 +2164,14 @@ class ModelWriter {
                             kTokens->newtonArmature,
                             static_cast<float>(joint->armature));
 
+      // MuJoCo angular damping is per radian; Newton expects per degree.
+      double damping = joint->damping[0];
+      if (joint->type == mjJNT_HINGE) {
+        damping *= std::numbers::pi / 180.0;
+      }
       WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Float,
                             kTokens->newtonDamping,
-                            static_cast<float>(joint->damping[0]));
+                            static_cast<float>(damping));
 
       WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Float,
                             kTokens->newtonFriction,

@@ -41,7 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "kinematic_tree.h"
 #include "material_parsing.h"
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
+#include "newton_tokens.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/matrix4f.h>
@@ -1839,7 +1839,11 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
   } else if (newton_damping_authored) {
     float damping;
     newton_damping_attr.Get(&damping);
-    mj_joint->damping[0] = damping;
+    // Newton angular damping is per degree; MuJoCo damping is per radian,
+    // regardless of the compiler's angle setting.
+    mj_joint->damping[0] = mj_joint->type == mjJNT_HINGE
+                               ? damping * 180.0 / std::numbers::pi
+                               : damping;
   }
 
   if (mjc_frictionloss_authored) {
