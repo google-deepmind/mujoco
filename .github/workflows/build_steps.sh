@@ -122,6 +122,23 @@ configure_mujoco() {
     if [[ "${RUNNER_OS}" == "Windows" ]]; then
         ipo_off=""
     fi
+
+    # Use cached external dependencies from actions/cache.
+    local ext_deps_args=()
+    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
+    if [[ -d "${ext_deps_dir}" ]]; then
+        for dep_path in "${ext_deps_dir}"/*; do
+            if [[ -d "${dep_path}" ]]; then
+                local dep_name
+                dep_name="$(basename "${dep_path}")"
+                local dep_upper
+                dep_upper="$(echo "${dep_name}" | tr '[:lower:]' '[:upper:]')"
+                echo "Using cached ${dep_name} from ${dep_path}"
+                ext_deps_args+=("-DFETCHCONTENT_SOURCE_DIR_${dep_upper}=${dep_path}")
+            fi
+        done
+    fi
+
     mkdir build &&
     cd build &&
     cmake .. \
@@ -130,7 +147,19 @@ configure_mujoco() {
         -DCMAKE_INSTALL_PREFIX:STRING=${TMPDIR}/mujoco_install \
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF \
         ${CCACHE_ARGS} \
-        ${CMAKE_ARGS}
+        ${CMAKE_ARGS} \
+        "${ext_deps_args[@]}" &&
+
+    # Populate any missing external dependency caches.
+    for dep in ${EXTERNAL_DEPS:-eigen3}; do
+        local src="_deps/${dep}-src"
+        local dst="${ext_deps_dir}/${dep}"
+        if [[ -d "${src}" && ! -d "${dst}" ]]; then
+            echo "Populating external dependencies cache for ${dep}..."
+            mkdir -p "${ext_deps_dir}"
+            cp -r "${src}" "${dst}"
+        fi
+    done
 }
 
 
