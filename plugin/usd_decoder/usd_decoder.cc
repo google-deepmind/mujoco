@@ -41,7 +41,7 @@
 #include <mujoco/mujoco.h>
 #include "kinematic_tree.h"
 #include "material_parsing.h"
-#include "third_party/mujoco/plugin/usd_decoder/newton_tokens.h"
+#include "newton_tokens.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/matrix4f.h>
@@ -2100,7 +2100,15 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
 void ParseJointEnabled(mjsEquality* eq, const pxr::UsdPhysicsJoint& joint) {
   bool jointEnabled = true;
-  joint.GetJointEnabledAttr().Get(&jointEnabled);
+  if (eq->type == mjEQ_JOINT) {
+    // Mimic activation is independent of the follower joint's enabled state.
+    // An unauthored mimic flag uses the schema default of true.
+    joint.GetPrim()
+        .GetAttribute(NewtonTokens->newtonMimicEnabled)
+        .Get(&jointEnabled);
+  } else {
+    joint.GetJointEnabledAttr().Get(&jointEnabled);
+  }
   eq->active = jointEnabled ? 1 : 0;
 }
 
@@ -2154,54 +2162,55 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     eq->objtype = mjOBJ_JOINT;
     mjs_setString(eq->name1, prim.GetPath().GetAsString().c_str());
 
-    // Target joint: prefer newton:mimicJoint, fall back to deprecated
-    // mjc:target
+    // Authored MJC aliases take precedence over Newton properties, as for
+    // joint parameters. Schema defaults are not authored overrides.
+    auto mjc_target = prim.GetRelationship(MjcPhysicsTokens->mjcTarget);
+    auto newton_target = prim.GetRelationship(NewtonTokens->newtonMimicJoint);
     pxr::SdfPathVector targets;
-    auto newton_mimic_rel =
-        prim.GetRelationship(NewtonTokens->newtonMimicJoint);
-    if (newton_mimic_rel && newton_mimic_rel.GetTargets(&targets) &&
-        !targets.empty()) {
+    if (mjc_target && mjc_target.HasAuthoredTargets()) {
+      // An explicitly empty target also wins: it constrains joint1 to a
+      // constant rather than introducing a coupling to the Newton target.
+      mjc_target.GetTargets(&targets);
+      mju_warning(
+          "Prim '%s' uses deprecated mjc:target. "
+          "Please migrate to newton:mimicJoint.",
+          prim.GetPath().GetText());
+    } else if (newton_target) {
+      newton_target.GetTargets(&targets);
+    }
+    if (!targets.empty()) {
       mjs_setString(eq->name2, targets[0].GetAsString().c_str());
-    } else {
-      auto mjc_target_rel = prim.GetRelationship(MjcPhysicsTokens->mjcTarget);
-      if (mjc_target_rel && mjc_target_rel.GetTargets(&targets) &&
-          !targets.empty()) {
-        mjs_setString(eq->name2, targets[0].GetAsString().c_str());
-        mju_warning(
-            "Prim '%s' uses deprecated mjc:target. "
-            "Please migrate to newton:mimicJoint.",
-            prim.GetPath().GetText());
-      }
     }
 
-    // Coefficients: prefer Newton, fall back to deprecated MJC
+    auto mjc_coef0 = eq_joint_api.GetCoef0Attr();
+    auto mjc_coef1 = eq_joint_api.GetCoef1Attr();
     auto newton_coef0 = prim.GetAttribute(NewtonTokens->newtonMimicCoef0);
     auto newton_coef1 = prim.GetAttribute(NewtonTokens->newtonMimicCoef1);
-    if (newton_coef0 && newton_coef0.HasAuthoredValue()) {
+    if (mjc_coef0 && mjc_coef0.HasAuthoredValue()) {
+      mjc_coef0.Get(&eq->data[0]);
+      mju_warning(
+          "Prim '%s' uses deprecated mjc:coef0. "
+          "Please migrate to newton:mimicCoef0.",
+          prim.GetPath().GetText());
+    } else if (newton_coef0 && newton_coef0.HasAuthoredValue()) {
       float val;
       newton_coef0.Get(&val);
-      eq->data[0] = val;
-    } else {
-      eq_joint_api.GetCoef0Attr().Get(&eq->data[0]);
-      if (eq_joint_api.GetCoef0Attr().HasAuthoredValue()) {
-        mju_warning(
-            "Prim '%s' uses deprecated mjc:coef0. "
-            "Please migrate to newton:mimicCoef0.",
-            prim.GetPath().GetText());
-      }
+      // USD revolute offsets are degrees. MuJoCo equality coefficients use
+      // radians regardless of compiler.angle; legacy MJC values already do.
+      eq->data[0] = prim.IsA<pxr::UsdPhysicsRevoluteJoint>()
+                        ? val * std::numbers::pi / 180.0
+                        : val;
     }
-    if (newton_coef1 && newton_coef1.HasAuthoredValue()) {
+    if (mjc_coef1 && mjc_coef1.HasAuthoredValue()) {
+      mjc_coef1.Get(&eq->data[1]);
+      mju_warning(
+          "Prim '%s' uses deprecated mjc:coef1. "
+          "Please migrate to newton:mimicCoef1.",
+          prim.GetPath().GetText());
+    } else if (newton_coef1 && newton_coef1.HasAuthoredValue()) {
       float val;
       newton_coef1.Get(&val);
       eq->data[1] = val;
-    } else {
-      eq_joint_api.GetCoef1Attr().Get(&eq->data[1]);
-      if (eq_joint_api.GetCoef1Attr().HasAuthoredValue()) {
-        mju_warning(
-            "Prim '%s' uses deprecated mjc:coef1. "
-            "Please migrate to newton:mimicCoef1.",
-            prim.GetPath().GetText());
-      }
     }
     eq_joint_api.GetCoef2Attr().Get(&eq->data[2]);
     eq_joint_api.GetCoef3Attr().Get(&eq->data[3]);
