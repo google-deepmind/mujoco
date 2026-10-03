@@ -677,7 +677,8 @@ keeps one mjData per simulation instead, and is required for models with :ref:`s
 bookkeeping lives in the mjData rather than in the state.
 
 The batch's threads run across simulations, while those of :ref:`mju_threadpool` run within one simulation. The two are
-not combined, and the batch never installs an engine thread pool.
+not combined, and the batch never installs an engine thread pool. See :ref:`mujoco.batch<PyBatch>` for the Python
+module.
 
 .. _siChange:
 

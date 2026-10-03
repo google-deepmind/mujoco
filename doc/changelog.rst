@@ -246,6 +246,10 @@ Python bindings
 - :ref:`rollout<PyRollout>` raises a ``ValueError`` when given an ``MjData`` with an engine thread pool installed by
   :ref:`mju_threadpool`: rollout parallelizes across simulations, the engine's pool within one, and the two do not
   combine.
+- Added an experimental :ref:`mujoco.batch<PyBatch>` module over the batch API: ``Batch(model, nsim)`` with live
+  ``(nsim, ...)`` arrays from ``bind()`` and named views such as ``joint(name)``, per-simulation model fields from
+  ``expand()``, ``step``, ``forward``, ``reset``, ``set_const`` and ``rollout`` with the GIL released, and ``jac`` and
+  ``ray`` queries.
 - Added ``MjSpec.copy_back(model)``, which writes to the spec what was changed in a model compiled from it; see
   :ref:`mj_copyBack`.
 
