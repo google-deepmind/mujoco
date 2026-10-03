@@ -598,6 +598,15 @@ def solve(m: Model, d: Data) -> Data:
   ctx = Context.create(m, d)
   if m.opt.iterations == 1:
     ctx = body(ctx)
+  elif m.opt.tolerance == 0:
+    # Scan-based loop runs a fixed number of iterations, matching C MuJoCo
+    # semantics when tolerance is 0 (convergence check disabled). Unlike the
+    # while_loop below it is compatible with reverse-mode autodiff, which
+    # cannot transpose a data-dependent while_loop. The while_loop remains
+    # the default because it is faster for forward-mode execution.
+    # Note: m.opt.tolerance is a static (non-traced) field, so this branch
+    # is resolved at trace time and the untaken branch is never differentiated.
+    ctx = _while_loop_scan(cond, body, ctx, m.opt.iterations)
   else:
     ctx = jax.lax.while_loop(cond, body, ctx)
 

@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import solver
@@ -100,6 +101,27 @@ class SolverTest(parameterized.TestCase):
       mj_cost = cost(d.qacc)
       mjx_cost = cost(dx.qacc)
       self.assertLess(mjx_cost, mj_cost * 1.015)
+
+  def test_solver_reverse_mode_grad(self):
+    """Reverse-mode autodiff works through the solver when tolerance is 0."""
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.solver = mujoco.mjtSolver.mjSOL_CG
+    m.opt.iterations = 10
+    m.opt.tolerance = 0  # fixed iteration count: scan loop, grad-compatible
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    def loss(qpos):
+      dx_ = mjx.step(mx, dx.replace(qpos=qpos))
+      return jp.sum(dx_.qacc)
+
+    g = jax.jit(jax.grad(loss))(dx.qpos)
+    g = np.asarray(g)
+    self.assertTrue(np.all(np.isfinite(g)))
+    self.assertGreater(np.abs(g).sum(), 0)
 
   def test_no_warmstart(self):
     """Test no warmstart."""
