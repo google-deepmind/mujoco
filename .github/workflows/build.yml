@@ -109,7 +109,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}
-        max-size: "1.5G"
+        max-size: "500M"
+        save: ${{ github.ref_name == 'main' }}
 
     - name: Cache external dependencies
       uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
@@ -293,7 +294,8 @@ jobs:
       with:
         key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
         restore-keys: ${{ matrix.label }}-filament-
-        max-size: "2.0G"
+        max-size: "500M"
+        save: ${{ github.ref_name == 'main' }}
 
     - name: Configure Studio
       env:
@@ -341,7 +343,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ env.label }}
-        max-size: "1.5G"
+        max-size: "500M"
+        save: ${{ github.ref_name == 'main' }}
 
     # For convenience run multiple build_steps functions in a single step.
     - name: Prepare, Build and Test WASM bindings
@@ -401,7 +404,8 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ubuntu-24.04-clang-18-mjx
-        max-size: "1.0G"
+        max-size: "500M"
+        save: ${{ github.ref_name == 'main' }}
 
     - name: Configure MuJoCo
       run: bash ./.github/workflows/build_steps.sh configure_mujoco
