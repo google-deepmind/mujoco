@@ -1016,7 +1016,8 @@ Therefore, non-increasing time values can be used to detect diverged rollouts.
 The ``rollout`` function is designed to be computationally stateless, so all inputs of the stepping pipeline are set and
 any values already present in the given ``MjData`` instance will have no effect on the output.
 
-``rollout`` threads across rollouts, so an ``MjData`` with a :ref:`mju_threadpool` installed is rejected.
+``rollout`` threads across rollouts, so an ``MjData`` with a :ref:`mju_threadpool` installed is rejected. For
+simulations that persist between calls, see :ref:`batch<PyBatch>`.
 
 By default ``rollout.rollout`` creates a new thread pool every call if ``len(data) > 1``. To reuse the thread pool
 over multiple calls use the ``persistent_pool`` argument. ``rollout.rollout`` is not thread safe when using
@@ -1050,6 +1051,74 @@ Since the Global Interpreter Lock is released, this function can also be threade
 is less efficient than using native threads. See the ``test_threading`` function in
 `rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`__ for an example
 of threaded operation (and for more general usage examples).
+
+.. _PyBatch:
+
+batch
+-----
+``mujoco.batch.Batch`` (experimental) runs many simulations of one model on a thread pool and exposes their fields as
+rows of NumPy arrays. It wraps the :ref:`batch API<Batchedsimulation>`.
+
+.. code-block:: python
+
+   from mujoco import batch
+
+   b = batch.Batch(model, nsim=1024)
+   qpos, ctrl, xpos = b.bind('qpos'), b.bind('ctrl'), b.bind('xpos')
+   for _ in range(1000):
+     ctrl[:] = policy(qpos, xpos)
+     b.step()
+
+Each simulation is its :ref:`integration state<siIntegrationState>`, one row of ``b.state``. A call loads each
+simulation's row into an ``MjData``, runs, and saves the row back, on ``nthread`` threads including the caller's, with
+the Global Interpreter Lock released. Results are bit-identical to a loop over one ``MjData`` per simulation, at any
+thread count.
+
+- ``bind(name)`` returns a live ``nsim x ...`` array over an ``MjData`` field. State fields such as ``qpos``, ``ctrl``
+  and ``mocap_pos`` are views of the rows, and a write is the simulation's state at its next call. Other fields are
+  copied out after every call on a simulation, and are read-only; after ``step`` they lag the state by one substep, as
+  with :ref:`mj_step`.
+  The rows hold :ref:`mjtNum` values, so ``eq_active`` binds as ``mjtNum`` rather than as ``MjData``'s bytes. Fields
+  are also attributes, as on ``MjData``: ``b.xpos`` binds ``xpos``, and ``b.ctrl = u`` writes every simulation's
+  controls. ``mujoco.batch.DATA_FIELDS`` and ``mujoco.batch.MODEL_FIELDS`` name the fields ``bind`` and ``expand``
+  accept.
+- ``joint(name)``, ``body(name)``, ``site(name)``, ``sensor(name)``, ``actuator(name)``, ``geom(name)``,
+  ``tendon(name)``, ``camera(name)`` and ``light(name)`` give one object's columns of the bound and expanded fields,
+  with the attributes of :ref:`named access<PyNamed>` of both ``MjData`` and ``MjModel``: ``b.joint('hinge').qpos`` is
+  ``nsim x 1``, and ``b.body('pole').mass = masses`` writes per-simulation masses, as ``expand`` does.
+- ``get_model(sim)`` and ``get_data(sim)`` materialize one simulation as an ``MjModel`` and ``MjData``, for rendering
+  or for any function; see :ref:`mjb_getModel` and :ref:`mjb_getData`.
+- ``expand(name)`` gives an ``MjModel`` field, or an ``MjOption`` field named ``opt.<name>``, per-simulation values,
+  applied before each call. ``set_const`` runs :ref:`mj_setConst` per simulation, and the fields it derives become
+  per-simulation as well.
+- ``step(ids, nstep)``, ``forward(ids)``, ``reset(ids, keyframe)`` and ``set_const(ids)`` run on the simulations
+  ``ids``, sorted integers or a boolean mask, or on all of them. ``reset`` discards writes made before it, and takes a
+  keyframe for every simulation of the call or one each.
+- ``step(nstep, stage=mujoco.mjtStage.mjSTAGE_VEL)`` makes position- and velocity-dependent fields and sensors describe
+  the new state, as :ref:`mj_step1` does, rather than the state before the last substep. In a persistent batch this
+  costs nothing extra; see :ref:`mjb_step`. ``reset`` and ``forward`` take a ``stage`` too, by default
+  ``mjSTAGE_ACC``: ``reset(ids, stage=mujoco.mjtStage.mjSTAGE_NONE)`` skips the forward pass of a reset that is
+  followed by randomization and ``forward(ids)``.
+- ``rollout(nstep, control, control_spec, record, ids)`` steps as :ref:`rollout<PyRollout>` does, records any ``MjData``
+  fields or state vectors after every substep, and returns them as ``n x nstep x ...`` arrays.
+- ``jac(body, point, ids)`` and ``ray(pnt, vec, ..., normal=False)`` evaluate :ref:`mj_jac` and :ref:`mj_ray` per
+  simulation, with a body per simulation and a body to exclude per ray if given, and the surface normals of the hits on
+  request, leaving
+  its state unchanged.
+
+If MuJoCo raises an error in some simulations, the call raises ``mujoco.batch.SimulationError`` listing them. They keep
+the state they had before the call, and the others run to completion. ``b.status`` and ``b.error(i)`` hold the outcome
+of each simulation's last call.
+
+By default an ``MjData`` serves many simulations, so memory grows with threads rather than simulations, and a field a
+call does not compute, such as ``qfrc_inverse`` after ``step``, holds another simulation's value.
+``Batch(model, nsim, persistent=True)`` keeps one ``MjData`` per simulation instead, and is required for models with
+:ref:`sleep<option-flag-sleep>` or :ref:`IPC<option-flag-ipc>` enabled. Likewise, :ref:`engine plugins<exPlugin>` that keep state outside
+``plugin_state`` share it among the simulations a thread runs, unless the batch is persistent.
+
+The batch's threads run across simulations, while :ref:`mju_threadpool` threads one simulation from within; the two are
+not combined. :ref:`Physics callbacks<glPhysics>` must be C functions, installed through ``ctypes``: with a Python
+function installed as one, the batch's calls raise ``ValueError``.
 
 .. _PyMinimize:
 

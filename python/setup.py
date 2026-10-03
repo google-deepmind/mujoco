@@ -417,6 +417,7 @@ setuptools.setup(
         install_scripts=InstallScripts,
     ),
     ext_modules=[
+        CMakeExtension('mujoco._batch'),
         CMakeExtension('mujoco._callbacks'),
         CMakeExtension('mujoco._constants'),
         CMakeExtension('mujoco._enums'),
