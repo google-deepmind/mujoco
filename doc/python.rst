@@ -966,6 +966,8 @@ Therefore, non-increasing time values can be used to detect diverged rollouts.
 The ``rollout`` function is designed to be computationally stateless, so all inputs of the stepping pipeline are set and
 any values already present in the given ``MjData`` instance will have no effect on the output.
 
+``rollout`` threads across rollouts, so an ``MjData`` with a :ref:`mju_threadpool` installed is rejected.
+
 By default ``rollout.rollout`` creates a new thread pool every call if ``len(data) > 1``. To reuse the thread pool
 over multiple calls use the ``persistent_pool`` argument. ``rollout.rollout`` is not thread safe when using
 a persistent pool. The basic usage form is

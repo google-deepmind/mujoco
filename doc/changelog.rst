@@ -238,6 +238,9 @@ Filament Rendering
 
 Python bindings
 ^^^^^^^^^^^^^^^
+- :ref:`rollout<PyRollout>` raises a ``ValueError`` when given an ``MjData`` with an engine thread pool installed by
+  :ref:`mju_threadpool`: rollout parallelizes across simulations, the engine's pool within one, and the two do not
+  combine.
 - Added ``MjSpec.copy_back(model)``, which writes to the spec what was changed in a model compiled from it; see
   :ref:`mj_copyBack`.
 
