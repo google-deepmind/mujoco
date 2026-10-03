@@ -265,6 +265,12 @@ Filament Rendering
    - Removed ``mjrf_DEBUG_drawImguiEditor`` from the public API; the ImGui scene editor is an internal debugging aid
      for MuJoCo Studio.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- :ref:`rollout<PyRollout>` raises a ``ValueError`` when given an ``MjData`` with an engine thread pool installed by
+  :ref:`mju_threadpool`: rollout parallelizes across simulations, the engine's pool within one, and the two do not
+  combine.
+
 Models
 ^^^^^^
 - Added three `elastic mechanism <https://github.com/google-deepmind/mujoco/tree/main/model/flex/mechanisms/>`__
