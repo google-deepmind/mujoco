@@ -406,6 +406,37 @@ TEST_F(KeyframeTest, BadSize) {
   EXPECT_THAT(error, HasSubstr("invalid qpos size, expected 0, got 1"));
 }
 
+TEST_F(KeyframeTest, JointDefaultOverride) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="cubelet">
+        <joint type="ball"/>
+        <geom type="box" size=".1 .1 .05"/>
+      </default>
+    </default>
+    <worldbody>
+      <body name="cube" pos="0 0 1" childclass="cubelet">
+        <freejoint/>
+        <geom/>
+        <body name="layer">
+          <joint name="turn" type="hinge" axis="1 0 0"/>
+          <geom pos="0 0 .2"/>
+        </body>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qpos="0 0 1 1 0 0 0 0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->nq, 8);
+  EXPECT_MJTNUM_EQ(model->key_qpos[7], 0.5);
+}
+
 // ------------- test relative frame sensor compilation-------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;

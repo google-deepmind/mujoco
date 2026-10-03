@@ -5247,7 +5247,7 @@ void mjCModel::ComputeReference() {
     mjuu_copyvec(body_pos0.data() + 3 * b, body->spec.pos, 3);
     mjuu_copyvec(body_quat0.data() + 4 * b, body->spec.quat, 4);
     for (auto joint : body->joints) {
-      switch (joint->type) {
+      switch (joint->spec.type) {
         case mjJNT_FREE:
           mjuu_copyvec(qpos0.data() + joint->qposadr_, body->spec.pos, 3);
           mjuu_copyvec(qpos0.data() + joint->qposadr_ + 3, body->spec.quat, 4);
