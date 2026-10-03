@@ -1267,6 +1267,11 @@ static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
 
 // add an edge to the horizon
 static inline void addEdge(Polytope* pt, int index, int edge) {
+  // retain one excess edge so epa can detect insufficient capacity for new faces
+  if (pt->horizon.nedges > maxFaces(pt)) {
+    return;
+  }
+
   pt->horizon.edges[pt->horizon.nedges] = edge;
   pt->horizon.indices[pt->horizon.nedges++] = index;
 }
@@ -1422,6 +1427,12 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     pt->horizon.w = w->vert;
     horizon(pt, face);
 
+    // check capacity before interpreting a truncated horizon as a numerical issue
+    if (pt->horizon.nedges > maxFaces(pt)) {
+      mju_warning("EPA: out of memory for faces on expanding polytope");
+      break;
+    }
+
     // unrecoverable numerical issue; at least one face was deleted so nedges is 3 or more
     if (pt->horizon.nedges < 3) {
       face = NULL;
@@ -1430,12 +1441,6 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
 
     // insert w as new vertex and attach faces along the horizon
     int nfaces = pt->nfaces, nedges = pt->horizon.nedges;
-
-    // check if there's enough memory to store new faces
-    if (nedges > maxFaces(pt)) {
-      mju_warning("EPA: out of memory for faces on expanding polytope");
-      break;
-    }
 
     // attach first face
     int hznIndex = pt->horizon.indices[0], hznEdge = pt->horizon.edges[0];
@@ -2382,8 +2387,8 @@ size_t mjc_ccdSize(int npolygonmax, int nmeshdegmax, int iterations) {
   size_t epa_size = align8(sizeof(Vertex) * (5 + iterations))   // vertices in polytope
                   + align8(sizeof(Face) * 6 * iterations)       // faces in polytope
                   + align8(sizeof(Face*) * 6 * iterations)      // map in polytope
-                  + align8(sizeof(int) * 24)                    // horizon indices
-                  + align8(sizeof(int) * 24);                   // horizon edges
+                  + align8(sizeof(int) * 6 * iterations)        // horizon indices
+                  + align8(sizeof(int) * 6 * iterations);       // horizon edges
 
   // allocate room for primitive geoms (multicontact is hardwired for primitive collisions)
   npolygonmax = npolygonmax < 16 ? 16 : npolygonmax;
@@ -2514,7 +2519,7 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     pt.map = (Face**)buffer;
     buffer += align8(sizeof(Face*) * (6 * N));
     pt.horizon.indices = (int*)buffer;
-    buffer += align8(sizeof(int) * 24);
+    buffer += align8(sizeof(int) * (6 * N));
     pt.horizon.edges = (int*)buffer;
 
     int ret;
