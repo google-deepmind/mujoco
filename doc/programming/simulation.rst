@@ -658,7 +658,7 @@ function on each simulation, for queries such as Jacobians.
    int nstate = mjb_nstate(b);
    mjtNum* ctrl = mjb_stateComponent(b, mjSTATE_CTRL, NULL);  // in the first row
    mjtNum* xpos = mjb_output(b, "xpos", NULL, NULL);
-   mjb_reset(b, NULL, 0, -1, mjSTAGE_ACC);
+   mjb_reset(b, NULL, 0, NULL, mjSTAGE_ACC);  // the model's defaults
 
    for (int k=0; k < 1000; k++) {
      for (int i=0; i < 1024; i++) {
@@ -673,11 +673,18 @@ function on each simulation, for queries such as Jacobians.
 
 By default there is one mjData per thread, so memory scales with threads rather than simulations, and a field the call
 does not compute, such as ``qfrc_inverse`` after :ref:`mj_step`, holds another simulation's value. A persistent batch
-keeps one mjData per simulation instead, and is required for models with :ref:`sleep<option-flag-sleep>` enabled, whose
-bookkeeping lives in the mjData rather than in the state.
+keeps one mjData per simulation instead, and is required for models with :ref:`sleep<option-flag-sleep>` or
+:ref:`IPC<option-flag-ipc>` enabled, whose bookkeeping lives in the mjData rather than in the state. Likewise, :ref:`engine plugins<exPlugin>` that keep state
+outside ``plugin_state`` share it among the simulations a thread runs, unless the batch is persistent.
+
+After a step, derived fields describe the state before the last substep, as with :ref:`mj_step`. :ref:`mjb_step` can
+then compute the position and velocity stages at the new state, as :ref:`mj_step1` does, so that observations are
+current; a persistent batch continues its next step from them with :ref:`mj_step2`, at no extra cost.
 
 The batch's threads run across simulations, while those of :ref:`mju_threadpool` run within one simulation. The two are
-not combined, and the batch never installs an engine thread pool.
+not combined, and the batch never installs an engine thread pool. Global callbacks such as :ref:`mjcb_control` run on
+the batch's threads, concurrently, and are not told which simulation they serve; per-simulation work belongs in
+:ref:`mjb_apply`. See :ref:`mujoco.batch<PyBatch>` for the Python module.
 
 .. _siChange:
 
