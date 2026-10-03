@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_collision_gjk.h"
 
+#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -1449,6 +1450,87 @@ TEST_F(MjGjkTest, SmallBoxMesh) {
     EXPECT_NEAR(pos[0], 0, kTolerance);
     EXPECT_NEAR(pos[1], 0, kTolerance);
     EXPECT_NEAR(pos[2], 0, kTolerance);
+  }
+}
+
+TEST_F(MjGjkTest, EpaLargeHorizon) {
+  // regression for #3646: this cylinder/convex hull pair produces a 25-edge
+  // horizon, exceeding the former 24-edge limit
+  static constexpr mjtNum vertices[][3] = {
+      {0.0192857398300826, 0.08690053994462224, 0.12097419707315368},
+      {0.012714724723694176, 0.024107157414530199, 0.19175211498414968},
+      {-0.0011256275721678258, 0.098217887198645215, 0.13850444948548318},
+      {-0.018752134007769285, 0.047234769396963083, 0.1497708359846753},
+      {0.045668230880901071, 0.060743174775825061, 0.17724322946299911},
+      {-0.00086191888731417671, 0.098276507198356525, 0.13782006713140202},
+      {0.038437554497325582, 0.07683494222154949, 0.15185771069290385},
+      {-0.0088588157672199568, 0.08461301881630276, 0.13811505252552111},
+      {-0.00054317638614224083, 0.098314970106874205, 0.13822590811731195},
+      {0.038457417351559331, 0.07679515503857251, 0.15098725571869054},
+      {-0.0013506305534411022, 0.098148803924522465, 0.13815000872258845},
+      {-0.00047056039174176584, 0.098286491262649725, 0.13814422415961058},
+      {-0.00066630751685884358, 0.098348969270490888, 0.13816114891308104},
+      {-0.0011288320212504074, 0.098294459575060361, 0.13817455344055946},
+      {-0.00087141037297690412, 0.098358808413634147, 0.13819917239730145},
+      {-0.0014824987123017736, 0.097991238759218058, 0.13819153473514659},
+      {-0.00073208609848285713, 0.098357791135834483, 0.1381526121045154},
+      {-0.00053817830752837283, 0.0983148928109219, 0.13817846021820618},
+      {0.018721713877566347, 0.087706476588619658, 0.16802865839004705},
+      {-0.00042597771932059714, 0.098264696441667201, 0.13817887563321885},
+      {-0.0010028463054115953, 0.098337468281656709, 0.1381870276042424},
+      {-0.00060152151108238718, 0.09833463399211427, 0.13816978639941105},
+      {-0.00047671920143554231, 0.098289886990783434, 0.13818711084128338},
+      {0.019777916535283324, 0.087124075758308689, 0.12160763180585665},
+  };
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="cylinder" size=".035 .1" pos="0 .1 .1"/>
+      <geom type="ellipsoid" size=".03 .04 .05"
+            pos=".011571280096913501 .056467589149244865 .1562792693240185"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_NE(model, nullptr);
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, model.get(), data.get(), 0, 0);
+  mjc_initCCDObj(&obj2, model.get(), data.get(), 1, 0);
+
+  // retain the initial center, but support the hull directly to preserve vertex
+  // precision and ordering instead of compiling the vertices into a mesh
+  obj2.geom_type = mjGEOM_MESH;
+  obj2.support = [](mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
+    constexpr int nvert = sizeof(vertices) / sizeof(vertices[0]);
+    int best = 0;
+    for (int i = 1; i < nvert; ++i) {
+      if (mju_dot3(vertices[i], dir) > mju_dot3(vertices[best], dir)) {
+        best = i;
+      }
+    }
+    mju_copy3(res, vertices[best]);
+    obj->vertindex = best;
+  };
+
+  mjCCDConfig config = {};
+  config.max_iterations = kMaxIterations;
+  config.tolerance = kTolerance;
+  config.max_contacts = 1;
+  auto buffer = std::vector<std::byte>(mjc_ccdSize(0, 0, kMaxIterations));
+  config.buffer = buffer.data();
+  mjCCDStatus status;
+  mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
+
+  ASSERT_EQ(status.nx, 1);
+  EXPECT_GT(status.epa_iterations, 0);
+  EXPECT_TRUE(std::isfinite(dist));
+  EXPECT_NEAR(dist, -0.03323, MjTol(2e-6, 2e-6));
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_TRUE(std::isfinite(status.x1[i]));
+    EXPECT_TRUE(std::isfinite(status.x2[i]));
   }
 }
 
