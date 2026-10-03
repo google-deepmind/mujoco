@@ -108,7 +108,7 @@ jobs:
       if: ${{ runner.os != 'Windows' }}
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
-        key: ${{ matrix.label }}
+        key: ${{ matrix.label }}-mujoco
         max-size: "500M"
         save: ${{ github.ref_name == 'main' }}
 
