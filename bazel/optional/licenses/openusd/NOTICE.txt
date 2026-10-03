@@ -1,0 +1,10 @@
+Universal Scene Description   
+Copyright 2016 Pixar
+   
+All rights reserved.
+
+   
+
+This product includes software developed at:
+       
+Pixar (http://www.pixar.com/).

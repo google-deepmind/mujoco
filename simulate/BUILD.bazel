@@ -1,0 +1,139 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+load(":defs.bzl", "headers_only", "install_headers")
+
+package(default_visibility = ["//visibility:public"])
+
+_CXXOPTS = select({
+    "@platforms//os:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+headers_only(
+    name = "glfw_headers",
+    library = "@glfw",
+)
+
+_HEADERS = [
+    "array_safety.h",
+    "glfw_adapter.h",
+    "glfw_corevideo.h",
+    "glfw_dispatch.h",
+    "platform_ui_adapter.h",
+    "simulate.h",
+]
+
+_SOURCES = [
+    "glfw_adapter.cc",
+    "glfw_dispatch.cc",
+    "platform_ui_adapter.cc",
+    "simulate.cc",
+]
+
+objc_library(
+    name = "macos_gui",
+    srcs = [
+        "glfw_corevideo.mm",
+        "macos_gui.mm",
+    ],
+    hdrs = _HEADERS,
+    copts = _CXXOPTS + ["-Wno-deprecated-declarations"],
+    sdk_frameworks = [
+        "Cocoa",
+        "CoreVideo",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = [
+        ":glfw_headers",
+        "//:mujoco_shared",
+    ],
+)
+
+cc_library(
+    name = "libsimulate",
+    srcs = _SOURCES,
+    hdrs = _HEADERS,
+    copts = _CXXOPTS,
+    includes = ["."],
+    deps = [
+        "//:mujoco_shared",
+        "@glfw",
+        "@lodepng",
+    ] + select({
+        "@platforms//os:macos": [":macos_gui"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "simulate_dynamic",
+    srcs = _SOURCES,
+    hdrs = _HEADERS,
+    copts = _CXXOPTS,
+    defines = ["mjGLFW_DYNAMIC_SYMBOLS"],
+    includes = ["."],
+    deps = [
+        ":glfw_headers",
+        "//:mujoco_shared",
+        "@lodepng",
+    ] + select({
+        "@platforms//os:macos": [":macos_gui"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_binary(
+    name = "simulate",
+    srcs = ["main.cc"],
+    copts = _CXXOPTS,
+    linkopts = select({
+        "@platforms//os:linux": ["-Wl,-rpath,$$ORIGIN/../lib"],
+        "@platforms//os:macos": ["-Wl,-rpath,@loader_path/../lib"],
+        "//conditions:default": [],
+    }),
+    deps = [":libsimulate"],
+)
+
+cc_static_library(
+    name = "archive/simulate",
+    # `libX11` and `libXext` provide identical `xreallocarray` functions.
+    # Archive consumers extract one implementation, as with separate libraries.
+    features = select({
+        "@platforms//os:linux": ["-symbol_check"],
+        "//conditions:default": [],
+    }),
+    deps = [":libsimulate"],
+)
+
+alias(
+    name = "archive",
+    actual = ":archive/simulate",
+)
+
+filegroup(
+    name = "install_headers",
+    srcs = _HEADERS,
+)
+
+filegroup(
+    name = "archive_linkopts",
+    srcs = [":archive/simulate"],
+    output_group = "linkopts",
+)
+
+filegroup(
+    name = "archive_linkdeps",
+    srcs = [":archive/simulate"],
+    output_group = "linkdeps",
+)
+
+install_headers(
+    name = "glfw_install_headers",
+    library = ":glfw_headers",
+    suffixes = [
+        "/include/GLFW/glfw3.h",
+        "/include/GLFW/glfw3native.h",
+    ],
+)

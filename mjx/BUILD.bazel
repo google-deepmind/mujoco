@@ -1,0 +1,266 @@
+load("@mjx_cuda_pip//:requirements.bzl", cuda_requirement = "requirement")
+load("@mjx_pip//:requirements.bzl", "requirement")
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files([
+    "requirements.txt",
+    "cuda_requirements.txt",
+])
+
+py_library(
+    name = "mjx",
+    srcs = glob(
+        ["mujoco/mjx/**/*.py"],
+        exclude = [
+            "**/*_test.py",
+            "**/conftest.py",
+        ],
+    ),
+    data = glob(["mujoco/mjx/test_data/**"]),
+    imports = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//python:mujoco",
+        requirement("absl-py"),
+        requirement("etils"),
+        requirement("jax"),
+        requirement("jaxlib"),
+        requirement("numpy"),
+        requirement("scipy"),
+        requirement("trimesh"),
+    ],
+)
+
+[
+    py_test(
+        name = source.removeprefix("mujoco/mjx/_src/").removesuffix(".py"),
+        timeout = "long",
+        srcs = [source],
+        env = {"JAX_PLATFORMS": "cpu"},
+        main = source,
+        deps = [":mjx"],
+    )
+    for source in glob(
+        ["mujoco/mjx/_src/*_test.py"],
+        exclude = ["**/render_test.py"],
+    )
+]
+
+py_library(
+    name = "cuda",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mjx",
+        cuda_requirement("jax-cuda12-plugin"),
+        cuda_requirement("jax-cuda12-pjrt"),
+        cuda_requirement("warp-lang"),
+        cuda_requirement("nvidia-cublas-cu12"),
+        cuda_requirement("nvidia-cuda-cupti-cu12"),
+        cuda_requirement("nvidia-cuda-nvcc-cu12"),
+        cuda_requirement("nvidia-cuda-nvrtc-cu12"),
+        cuda_requirement("nvidia-cuda-runtime-cu12"),
+        cuda_requirement("nvidia-cudnn-cu12"),
+        cuda_requirement("nvidia-cufft-cu12"),
+        cuda_requirement("nvidia-cusolver-cu12"),
+        cuda_requirement("nvidia-cusparse-cu12"),
+        cuda_requirement("nvidia-nccl-cu12"),
+        cuda_requirement("nvidia-nvjitlink-cu12"),
+    ],
+)
+
+py_test(
+    name = "cuda_device_test",
+    timeout = "long",
+    srcs = ["cuda_test_main.py"],
+    env = {
+        "JAX_PLATFORMS": "cuda,cpu",
+        "XLA_PYTHON_CLIENT_PREALLOCATE": "false",
+    },
+    main = "cuda_test_main.py",
+    tags = [
+        "exclusive",
+        "local",
+        "manual",
+        "requires-gpu",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "@rules_python//python/runfiles",
+        cuda_requirement("jax"),
+        cuda_requirement("jax-cuda12-plugin"),
+        cuda_requirement("jax-cuda12-pjrt"),
+        cuda_requirement("warp-lang"),
+        cuda_requirement("nvidia-cublas-cu12"),
+        cuda_requirement("nvidia-cuda-cupti-cu12"),
+        cuda_requirement("nvidia-cuda-nvcc-cu12"),
+        cuda_requirement("nvidia-cuda-nvrtc-cu12"),
+        cuda_requirement("nvidia-cuda-runtime-cu12"),
+        cuda_requirement("nvidia-cudnn-cu12"),
+        cuda_requirement("nvidia-cufft-cu12"),
+        cuda_requirement("nvidia-cusolver-cu12"),
+        cuda_requirement("nvidia-cusparse-cu12"),
+        cuda_requirement("nvidia-nccl-cu12"),
+        cuda_requirement("nvidia-nvjitlink-cu12"),
+    ],
+)
+
+test_suite(
+    name = "tests",
+    tests = [
+        ":" + source.removeprefix("mujoco/mjx/_src/").removesuffix(".py")
+        for source in glob(
+            ["mujoco/mjx/_src/*_test.py"],
+            exclude = ["**/render_test.py"],
+        )
+    ],
+    visibility = ["//visibility:public"],
+)
+
+[
+    py_test(
+        name = "warp_" + source.removeprefix("mujoco/mjx/warp/").removesuffix(".py"),
+        timeout = "long",
+        srcs = ["cuda_test_main.py"],
+        args = ["$(rlocationpath " + source + ")"],
+        data = [source],
+        env = {
+            "JAX_PLATFORMS": "cuda,cpu",
+            "MJX_WARP_FORCE_TEST": "1",
+            "XLA_PYTHON_CLIENT_PREALLOCATE": "false",
+        },
+        main = "cuda_test_main.py",
+        tags = [
+            "exclusive",
+            "local",
+            "manual",
+            "requires-gpu",
+        ],
+        deps = [
+            ":cuda",
+            "@rules_python//python/runfiles",
+        ],
+    )
+    for source in glob(["mujoco/mjx/warp/*_test.py"])
+]
+
+py_test(
+    name = "render_test",
+    timeout = "long",
+    srcs = ["cuda_test_main.py"],
+    args = ["$(rlocationpath mujoco/mjx/_src/render_test.py)"],
+    data = ["mujoco/mjx/_src/render_test.py"],
+    env = {
+        "JAX_PLATFORMS": "cuda,cpu",
+        "MJX_WARP_FORCE_TEST": "1",
+        "XLA_PYTHON_CLIENT_PREALLOCATE": "false",
+    },
+    main = "cuda_test_main.py",
+    tags = [
+        "exclusive",
+        "local",
+        "manual",
+        "requires-gpu",
+    ],
+    deps = [
+        ":cuda",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+test_suite(
+    name = "cuda_tests",
+    tags = ["manual"],
+    tests = [
+        ":cuda_device_test",
+        ":render_test",
+    ] + [
+        ":warp_" + source.removeprefix("mujoco/mjx/warp/").removesuffix(".py")
+        for source in glob(["mujoco/mjx/warp/*_test.py"])
+    ],
+    visibility = ["//visibility:public"],
+)
+
+[
+    py_binary(
+        name = name,
+        srcs = ["mujoco/mjx/" + name + ".py"],
+        main = "mujoco/mjx/" + name + ".py",
+        visibility = ["//visibility:public"],
+        deps = [":mjx"],
+    )
+    for name in [
+        "testspeed",
+        "viewer",
+    ]
+]
+
+filegroup(
+    name = "package_sources",
+    srcs = glob(
+        [
+            "mujoco/mjx/**/*.py",
+            "mujoco/mjx/test_data/**",
+        ],
+        exclude = [
+            "**/*_test.py",
+            "**/conftest.py",
+            "**/__pycache__/**",
+        ],
+    ),
+)
+
+py_wheel(
+    name = "wheel",
+    author = "Google DeepMind",
+    author_email = "mujoco@deepmind.com",
+    distribution = "mujoco-mjx",
+    entry_points = {"console_scripts": [
+        "mjx-testspeed = mujoco.mjx.testspeed:main",
+        "mjx-viewer = mujoco.mjx.viewer:main",
+    ]},
+    extra_distinfo_files = {"//:LICENSE": "licenses/LICENSE"},
+    extra_requires = {"warp": ["warp-lang==1.17.0"]},
+    license = "Apache-2.0",
+    python_requires = ">=3.10",
+    requires = [
+        "absl-py",
+        "etils[epath]",
+        "jax",
+        "jaxlib",
+        "mujoco>=3.14.1.dev0",
+        "scipy",
+        "trimesh",
+    ],
+    strip_path_prefixes = ["mjx/"],
+    summary = "MuJoCo XLA (MJX)",
+    twine_binary = None,
+    version = "3.14.1",
+    visibility = ["//visibility:public"],
+    deps = [":package_sources"],
+)
+
+py_test(
+    name = "wheel_install_test",
+    timeout = "long",
+    srcs = ["//python:wheel_install_test.py"],
+    args = [
+        "$(rlocationpath //python:wheel)",
+        "$(rlocationpath :wheel)",
+    ],
+    data = [
+        ":wheel",
+        "//python:wheel",
+    ],
+    env = {"JAX_PLATFORMS": "cpu"},
+    main = "//python:wheel_install_test.py",
+    deps = [
+        ":mjx",
+        "//python:wheel_installer",
+    ],
+)

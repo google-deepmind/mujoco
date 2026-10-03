@@ -22,6 +22,11 @@
 #include <system_error>
 #include <vector>
 
+#ifdef MUJOCO_BAZEL_RUNFILES
+#include <memory>
+#include "rules_cc/cc/runfiles/runfiles.h"
+#endif
+
 #if defined(_WIN32) || defined(__CYGWIN__)
   #include <windows.h>
 #else
@@ -54,6 +59,18 @@ std::string Resolve(std::string_view path) {
   if (std::filesystem::exists(studio_assets)) {
     return (studio_assets / subpath).string();
   }
+#ifdef MUJOCO_BAZEL_RUNFILES
+  using rules_cc::cc::runfiles::Runfiles;
+  static const std::unique_ptr<Runfiles> runfiles(
+      Runfiles::Create("", BAZEL_CURRENT_REPOSITORY));
+  if (runfiles) {
+    std::string resource = runfiles->Rlocation(
+        "mujoco/src/experimental/studio/assets/" + std::string(subpath));
+    if (!resource.empty() && std::filesystem::exists(resource)) {
+      return resource;
+    }
+  }
+#endif
   return (module_dir / "assets" / subpath).string();
 }
 

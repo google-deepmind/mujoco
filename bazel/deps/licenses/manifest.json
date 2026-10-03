@@ -1,0 +1,646 @@
+{
+  "dependencies": [
+    {
+      "module": "glfw",
+      "version": "3.4.0.bcr.3",
+      "registry_source": "https://bcr.bazel.build/modules/glfw/3.4.0.bcr.3/source.json",
+      "source_url": "https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip",
+      "source_integrity": "sha256-tewASycS/Qjohh3CcUKPBId1IAot9xnM9XUUO6dJo+k=",
+      "registry_metadata": {
+        "integrity": "sha256-tewASycS/Qjohh3CcUKPBId1IAot9xnM9XUUO6dJo+k=",
+        "patch_strip": 0,
+        "overlay": {
+          "BUILD.bazel": "sha256-mlLAx3HoUa5PD6BUjrhHAsTv8QTtRCa0io8iRk9R4nw="
+        },
+        "strip_prefix": "glfw-3.4",
+        "url": "https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip"
+      },
+      "notices": [
+        {
+          "repository_path": "LICENSE.md",
+          "path": "glfw/LICENSE.md",
+          "sha256": "149704059b5d0bf551637e50042dd4de9c2cae921021f6636298911e3a5f9462"
+        }
+      ]
+    },
+    {
+      "module": "libffi",
+      "version": "3.4.7.bcr.4",
+      "registry_source": "https://bcr.bazel.build/modules/libffi/3.4.7.bcr.4/source.json",
+      "source_url": "https://github.com/libffi/libffi/releases/download/v3.4.7/libffi-3.4.7.tar.gz",
+      "source_integrity": "sha256-E4YH3uJovezzdK35FEwA6DnjhUH3XySh/PGLeP2kiy0=",
+      "registry_metadata": {
+        "url": "https://github.com/libffi/libffi/releases/download/v3.4.7/libffi-3.4.7.tar.gz",
+        "integrity": "sha256-E4YH3uJovezzdK35FEwA6DnjhUH3XySh/PGLeP2kiy0=",
+        "strip_prefix": "libffi-3.4.7",
+        "overlay": {
+          "BUILD.bazel": "sha256-m9UVOTpivtdlioUzgPUF60TKqjOGg95Vs1IcI3bQzDc=",
+          "MODULE.bazel": "sha256-rezgQSi5W9/ngRol9INBwR/fFwWp5ZyYygB/j8RqCCI=",
+          "fficonfig.h.in": "sha256-6Hq6WAc38lHcHvZLMLNybMgP1fPTo679V9qYjxohxqY=",
+          "libffi.bzl": "sha256-Kzczj+HATmjjWvg6YSNRVshzZH6RrRUZA/l2DzEQuxs="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "LICENSE",
+          "path": "libffi/LICENSE",
+          "sha256": "67894089811f93fca47a76f85e017da6f8582d4ba0905963c6e0f1ad6df7a195"
+        },
+        {
+          "repository_path": "LICENSE-BUILDTOOLS",
+          "path": "libffi/LICENSE-BUILDTOOLS",
+          "sha256": "e67978cd18816c0cb7d29aaaacde7b7447402c2fb321a051698890a8eaedda94"
+        }
+      ]
+    },
+    {
+      "module": "libx11",
+      "version": "1.8.12.bcr.4",
+      "registry_source": "https://bcr.bazel.build/modules/libx11/1.8.12.bcr.4/source.json",
+      "source_url": "https://github.com/wep21/libx11/archive/refs/tags/libX11-1.8.12.tar.gz",
+      "source_integrity": "sha256-6pe+rR6HIdkAIFWXDorWTvee6dzuhZWj2uLPXCGSpH8=",
+      "registry_metadata": {
+        "integrity": "sha256-6pe+rR6HIdkAIFWXDorWTvee6dzuhZWj2uLPXCGSpH8=",
+        "strip_prefix": "libx11-libX11-1.8.12",
+        "url": "https://github.com/wep21/libx11/archive/refs/tags/libX11-1.8.12.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-Xa5mewI9lLbWj+eh88jy2MrOyZ6CrF4xQ37PjNpI1iw=",
+          "MODULE.bazel": "sha256-Lgfan/Mwbg9UTTCc18WdNDKXXlh5CC2OqPBxHEurGqQ=",
+          "src/config.h.in": "sha256-P0kPXA0EDAdj+AcfYWsI9LPKPz11ie7b4WfXawJMJtw="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libx11/COPYING",
+          "sha256": "2e7012a140f000735a7172674a2d314398d79622444fba65d108b029b29ab283"
+        },
+        {
+          "repository_path": "src/reallocarray.c",
+          "path": "libx11/reallocarray.c.LICENSE",
+          "sha256": "77c23abba7addc82e918dbd47dd3aa27aa3b4c9724f8077f2e5d6dde116cf3e0",
+          "selection": "copyright_comment"
+        }
+      ]
+    },
+    {
+      "module": "libxau",
+      "version": "1.0.12.bcr.2",
+      "registry_source": "https://bcr.bazel.build/modules/libxau/1.0.12.bcr.2/source.json",
+      "source_url": "https://github.com/wep21/libxau/archive/refs/tags/libXau-1.0.12.tar.gz",
+      "source_integrity": "sha256-ryYcwbOzSc/np4maSLTkqiV7TRG/LqCE+zGR330V++k=",
+      "registry_metadata": {
+        "integrity": "sha256-ryYcwbOzSc/np4maSLTkqiV7TRG/LqCE+zGR330V++k=",
+        "strip_prefix": "libxau-libXau-1.0.12",
+        "url": "https://github.com/wep21/libxau/archive/refs/tags/libXau-1.0.12.tar.gz",
+        "patch_strip": 0,
+        "overlay": {
+          "BUILD.bazel": "sha256-o2JZT8hqrCKRaxqJJ2jU/ToSD7tx47taYlQ9Dt1w8Gw=",
+          "MODULE.bazel": "sha256-axW3DCMArc5kRJrrMni6xcz5SH0LOPJbxr02J6we4Xw="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxau/COPYING",
+          "sha256": "56abe29bb1d9806a9e04fa9f80fed2c0f18027594df3f098148d814aef6bddfa"
+        }
+      ]
+    },
+    {
+      "module": "libxcb",
+      "version": "1.17.0.bcr.2",
+      "registry_source": "https://bcr.bazel.build/modules/libxcb/1.17.0.bcr.2/source.json",
+      "source_url": "https://github.com/gitlab-freedesktop-mirrors/libxcb/archive/refs/tags/libxcb-1.17.0.tar.gz",
+      "source_integrity": "sha256-ETpvj2FOA3/wPK0hjNy/4wffydkJqEKxcnamlEdu1jk=",
+      "registry_metadata": {
+        "integrity": "sha256-ETpvj2FOA3/wPK0hjNy/4wffydkJqEKxcnamlEdu1jk=",
+        "strip_prefix": "libxcb-libxcb-1.17.0",
+        "url": "https://github.com/gitlab-freedesktop-mirrors/libxcb/archive/refs/tags/libxcb-1.17.0.tar.gz",
+        "patch_strip": 0,
+        "overlay": {
+          "BUILD.bazel": "sha256-m1ZpfzegYMvriuSdDWsxncMvC2n5BfXhVK6l2/DGFQM=",
+          "MODULE.bazel": "sha256-g9Z0CCKiliEMDGDNQpqJKTS9sjf3E16vOVs3DAWvMqU=",
+          "src/config.h.in": "sha256-uyBWngCnRn6xrJlW59dej3tO/9HOhU3K99ScTOKXi2k="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxcb/COPYING",
+          "sha256": "c5ffbfeaa501071ceeb97b7de2c0d703fdaa35de01c0fb6cbac1c28453a3e9fd"
+        }
+      ]
+    },
+    {
+      "module": "libxcursor",
+      "version": "1.2.3",
+      "registry_source": "https://bcr.bazel.build/modules/libxcursor/1.2.3/source.json",
+      "source_url": "https://github.com/wep21/libxcursor/archive/refs/tags/libXcursor-1.2.3.tar.gz",
+      "source_integrity": "sha256-hAKS5c366Ni3lboAvL5iCg3gr2rhhH4ULfCd7IanDtw=",
+      "registry_metadata": {
+        "integrity": "sha256-hAKS5c366Ni3lboAvL5iCg3gr2rhhH4ULfCd7IanDtw=",
+        "strip_prefix": "libxcursor-libXcursor-1.2.3",
+        "url": "https://github.com/wep21/libxcursor/archive/refs/tags/libXcursor-1.2.3.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-t8lyBwiI8Qr3Vs8bCNu2aMLRrpFjQKRVkJ16bQh7ZH8=",
+          "MODULE.bazel": "sha256-CHPrnooxD5kZsSMcpClgmO3j66y8hDOgG+es0f4m9L0=",
+          "src/config.h.in": "sha256-RNcIiaF0dGBhSJQjRvPh2fH2ft62yRWp+vQRlRQPndI="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxcursor/COPYING",
+          "sha256": "ad2e9d279088c5d612fb0e506ea8bb7d9f01b411e7f4b97b64589c3cd48a68f1"
+        }
+      ]
+    },
+    {
+      "module": "libxext",
+      "version": "1.3.6",
+      "registry_source": "https://bcr.bazel.build/modules/libxext/1.3.6/source.json",
+      "source_url": "https://github.com/wep21/libxext/archive/refs/tags/libXext-1.3.6.tar.gz",
+      "source_integrity": "sha256-TkjqJxtfU8M4YBim4CY0VP5YKkE/zgJzreYB+/6eDHI=",
+      "registry_metadata": {
+        "integrity": "sha256-TkjqJxtfU8M4YBim4CY0VP5YKkE/zgJzreYB+/6eDHI=",
+        "strip_prefix": "libxext-libXext-1.3.6",
+        "url": "https://github.com/wep21/libxext/archive/refs/tags/libXext-1.3.6.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-CzlspnJVTlV0OC05HiwwZ0QWxVnyGb2Tbr0XdtPv2nI=",
+          "MODULE.bazel": "sha256-ERykXF4P4VUw9IbOGT2MYTdCqdnbYTPQFVEf/RJj5sQ=",
+          "src/config.h.in": "sha256-m/l7RrmnFCSTEO+IIOmY8Bd5Fs5EECaVFdz4gFIpG+U="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxext/COPYING",
+          "sha256": "fd62910be4b13829d94e76c1447cf840953f0e225c4dc6c79349c84dd0557f22"
+        },
+        {
+          "repository_path": "src/reallocarray.c",
+          "path": "libxext/reallocarray.c.LICENSE",
+          "sha256": "77c23abba7addc82e918dbd47dd3aa27aa3b4c9724f8077f2e5d6dde116cf3e0",
+          "selection": "copyright_comment"
+        }
+      ]
+    },
+    {
+      "module": "libxfixes",
+      "version": "6.0.2",
+      "registry_source": "https://bcr.bazel.build/modules/libxfixes/6.0.2/source.json",
+      "source_url": "https://github.com/wep21/libxfixes/archive/refs/tags/libXfixes-6.0.2.tar.gz",
+      "source_integrity": "sha256-Hn3+LdDrJSj8IcKx22REOw9B4qxiOAmTm+a0AIxC71o=",
+      "registry_metadata": {
+        "integrity": "sha256-Hn3+LdDrJSj8IcKx22REOw9B4qxiOAmTm+a0AIxC71o=",
+        "strip_prefix": "libxfixes-libXfixes-6.0.2",
+        "url": "https://github.com/wep21/libxfixes/archive/refs/tags/libXfixes-6.0.2.tar.gz",
+        "patch_strip": 0,
+        "overlay": {
+          "BUILD.bazel": "sha256-JdgwOb+dvWavKQ1gWRTYIGc0ZGMTtOVX+yxcwIrsib4=",
+          "MODULE.bazel": "sha256-VWQcjCRHyb7ru1HI81MRf8KLbZP/XAOY7Gh7fFxSYM0=",
+          "src/config.h.in": "sha256-9lAXyMQO50smCm9ZIl8Fh18vIqcMBtBo5KW1aRCdTbw="
+        },
+        "patches": {
+          "fix_include.patch": "sha256-EMFhBXK6efAt3vC5RfIQoJW/F+qgh8B36qZk90ntTyc="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxfixes/COPYING",
+          "sha256": "a07d8a5a6972638a745a03983207a1052881c24eea29021fdca7794bea8d7774"
+        }
+      ]
+    },
+    {
+      "module": "libxi",
+      "version": "1.8.2",
+      "registry_source": "https://bcr.bazel.build/modules/libxi/1.8.2/source.json",
+      "source_url": "https://github.com/wep21/libxi/archive/refs/tags/libXi-1.8.2.tar.gz",
+      "source_integrity": "sha256-rkViBxOW1Bo5W4AYGScP/IOtt764CTbpujVA07jqtGk=",
+      "registry_metadata": {
+        "integrity": "sha256-rkViBxOW1Bo5W4AYGScP/IOtt764CTbpujVA07jqtGk=",
+        "strip_prefix": "libxi-libXi-1.8.2",
+        "url": "https://github.com/wep21/libxi/archive/refs/tags/libXi-1.8.2.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-h4V3qAo4w2aHZAp5eCPxwA9YG07Q0qB3li78cuEMLqg=",
+          "MODULE.bazel": "sha256-JOltUF16GF2bqJ4DRSN7SuB9o7wznRLWJyqUhV3KvLU=",
+          "src/config.h.in": "sha256-9RklZxfQfBw8QMT/O8yXRwx/X/yZr6jwR3NWzXsGdOA="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxi/COPYING",
+          "sha256": "9392174bc86e291369fd2f61f3ed325962735a5f5c585ce8d7ebd365e2a5639f"
+        }
+      ]
+    },
+    {
+      "module": "libxinerama",
+      "version": "1.1.5",
+      "registry_source": "https://bcr.bazel.build/modules/libxinerama/1.1.5/source.json",
+      "source_url": "https://github.com/wep21/libxinerama/archive/refs/tags/libXinerama-1.1.5.tar.gz",
+      "source_integrity": "sha256-cczgHKPEtcEocPOa4uT6Y6m8MDgH+bHE517X0SKlYPk=",
+      "registry_metadata": {
+        "integrity": "sha256-cczgHKPEtcEocPOa4uT6Y6m8MDgH+bHE517X0SKlYPk=",
+        "strip_prefix": "libxinerama-libXinerama-1.1.5",
+        "url": "https://github.com/wep21/libxinerama/archive/refs/tags/libXinerama-1.1.5.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-X6qamrRGLLLWG/3tsUZMhtDIoew4oGidaBCjG/P4z7k=",
+          "MODULE.bazel": "sha256-rTQLmqzZzK92reLBPSPErUFVQ1uYAkHqWgx5oKVmqlg=",
+          "src/config.h.in": "sha256-Cc9ETINAa3IJug9LF8TLqNxB27VFrJjzu6WpmPDfKfs="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxinerama/COPYING",
+          "sha256": "f661fd883b6e980b3b118e0fbe230fbf10eef8d4d4a35931355f29ed647ddbe3"
+        }
+      ]
+    },
+    {
+      "module": "libxrandr",
+      "version": "1.5.4",
+      "registry_source": "https://bcr.bazel.build/modules/libxrandr/1.5.4/source.json",
+      "source_url": "https://github.com/wep21/libxrandr/archive/refs/tags/libXrandr-1.5.4.tar.gz",
+      "source_integrity": "sha256-oZCcvp3tlBh7ZCCujDRxU/gniVUmXLgKZM2uVQFDM5Y=",
+      "registry_metadata": {
+        "integrity": "sha256-oZCcvp3tlBh7ZCCujDRxU/gniVUmXLgKZM2uVQFDM5Y=",
+        "strip_prefix": "libxrandr-libXrandr-1.5.4",
+        "url": "https://github.com/wep21/libxrandr/archive/refs/tags/libXrandr-1.5.4.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-mxlM58kiKIqmBzDJSZeoMgAQAyaLAFHz4dP6M+/gQoA=",
+          "MODULE.bazel": "sha256-zFXruO8xaZBOXAHRJSTmVjq+JOxhZnFRFaeT7vuvRRU=",
+          "src/config.h.in": "sha256-cKf7TNdUqWLM0bHG64R6jNcl2GuiYgBmFfBrLS3leRg="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxrandr/COPYING",
+          "sha256": "73777e5be1cef2827d843e4b186803f050c66db472cf8076d88e2b5f71696e67"
+        }
+      ]
+    },
+    {
+      "module": "libxrender",
+      "version": "0.9.12",
+      "registry_source": "https://bcr.bazel.build/modules/libxrender/0.9.12/source.json",
+      "source_url": "https://github.com/wep21/libxrender/archive/refs/tags/libXrender-0.9.12.tar.gz",
+      "source_integrity": "sha256-RwVZ354OTbyB1YVdPTZKF+EiY2AKCCFyMvix9u883b8=",
+      "registry_metadata": {
+        "integrity": "sha256-RwVZ354OTbyB1YVdPTZKF+EiY2AKCCFyMvix9u883b8=",
+        "strip_prefix": "libxrender-libXrender-0.9.12",
+        "url": "https://github.com/wep21/libxrender/archive/refs/tags/libXrender-0.9.12.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-hfpy7lbHxfXNC26OiRPwvTO/imroVbIrojI66BmbL7E=",
+          "MODULE.bazel": "sha256-itNHG2PZUDalOB3VYCohhM0Rvf/EMD0rxwdfpeQE1Rs=",
+          "src/config.h.in": "sha256-rUZQTO/L9Hqddkmlg6iLzoAQQabdzveGs3lgxmNz6xc="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxrender/COPYING",
+          "sha256": "bbe1db89c48816c48248796adac91defd8fbde1141b145f01511781ab87f29a1"
+        }
+      ]
+    },
+    {
+      "module": "wayland",
+      "version": "1.24.0.bcr.1",
+      "registry_source": "https://bcr.bazel.build/modules/wayland/1.24.0.bcr.1/source.json",
+      "source_url": "https://gitlab.freedesktop.org/wayland/wayland/-/archive/1.24.0/wayland-1.24.0.tar.gz",
+      "source_integrity": "sha256-eACFiER1H8cRPX3zZ43GtYsmoFYXamXEmgWXYwRb/9U=",
+      "registry_metadata": {
+        "integrity": "sha256-eACFiER1H8cRPX3zZ43GtYsmoFYXamXEmgWXYwRb/9U=",
+        "strip_prefix": "wayland-1.24.0",
+        "url": "https://gitlab.freedesktop.org/wayland/wayland/-/archive/1.24.0/wayland-1.24.0.tar.gz",
+        "mirror_urls": [
+          "https://github.com/wep21/wayland/archive/refs/tags/1.24.0.tar.gz"
+        ],
+        "overlay": {
+          "BUILD.bazel": "sha256-RjHH5MrCqK56J/Zi/qq2dnYTctJgDrERjoWN2deSH0E=",
+          "config.h": "sha256-PLZEgm9GkpWqw/BcsBi+H2b3kbMvAWvymUSjycTfEEE=",
+          "tests/BUILD.bazel": "sha256-5SpmaxXuw/6K9RXotgIwvyj8CfonK25QlTQVQNuumWE=",
+          "tests/MODULE.bazel": "sha256-0DfKr1Zl5UJvKlbypoAzEfScqHaWG8aNyOO70SasVZ8="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "wayland/COPYING",
+          "sha256": "6eefcb023622a463168a5c20add95fd24a38c7482622a9254a23b99b7c153061"
+        }
+      ]
+    },
+    {
+      "module": "xkbcommon",
+      "version": "1.9.2.bcr.beta.1",
+      "registry_source": "https://bcr.bazel.build/modules/xkbcommon/1.9.2.bcr.beta.1/source.json",
+      "source_url": "https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-1.9.2.tar.gz",
+      "source_integrity": "sha256-jWiotFeW8098rONXufibjJKxWFVydP71iJsDZItV/lk=",
+      "registry_metadata": {
+        "url": "https://github.com/xkbcommon/libxkbcommon/archive/refs/tags/xkbcommon-1.9.2.tar.gz",
+        "integrity": "sha256-jWiotFeW8098rONXufibjJKxWFVydP71iJsDZItV/lk=",
+        "strip_prefix": "libxkbcommon-xkbcommon-1.9.2",
+        "overlay": {
+          "BUILD.bazel": "sha256-ltACJAzT3FaO1de+4np/12iOXs3pP7Tbss7tsE20dMU=",
+          "MODULE.bazel": "sha256-Tpwforb8kht9ZGBWJu+We82tMOjSQ0Lk2nghds7nfdI=",
+          "config.h.in": "sha256-+R1lKwvRPZCgFTxS6BKpXl79+l1idsFFbOmb5q9iD+g=",
+          "xkbcommon_compose_from_buffer_test.cc": "sha256-gNyU8K3m3u7UEhmL76mvHHDicgZq2GCjPhMu6Nlp/pU=",
+          "xkbcommon_config_checks.bzl": "sha256-LRxIXfRWQ7m/yuxe6FrJfdRKyYp89A/DxJvcY84KYEw=",
+          "xkbcommon_consumer_link_test.cc": "sha256-v0rUKITKzdkNjwtXdWHkIObfQZR/hFHv5/0kpWHNQI8=",
+          "xkbcommon_headers_consumer_compile_test.cc": "sha256-864Icb3CFfEZFTn3uh3fFdoblxugPi3gIgApwFuDM9g="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "LICENSE",
+          "path": "xkbcommon/LICENSE",
+          "sha256": "967e97b28658f0037bbe164a237bdfb0c3ec790e67f6c29372ea5b09306f61f3"
+        }
+      ]
+    },
+    {
+      "module": "xorgproto",
+      "version": "2024.1.bcr.1",
+      "registry_source": "https://bcr.bazel.build/modules/xorgproto/2024.1.bcr.1/source.json",
+      "source_url": "https://github.com/wep21/xorgproto/archive/refs/tags/xorgproto-2024.1.tar.gz",
+      "source_integrity": "sha256-ySRmCRZjto2TmX6rTzKdC+URy0SKYbYf50pzjyaYt3w=",
+      "registry_metadata": {
+        "integrity": "sha256-ySRmCRZjto2TmX6rTzKdC+URy0SKYbYf50pzjyaYt3w=",
+        "strip_prefix": "xorgproto-xorgproto-2024.1",
+        "url": "https://github.com/wep21/xorgproto/archive/refs/tags/xorgproto-2024.1.tar.gz",
+        "patch_strip": 0,
+        "overlay": {
+          "BUILD.bazel": "sha256-cO0x8uEEzDvIfkurZ8oqO/J2rotpLXG0hHA0RW1ditY=",
+          "MODULE.bazel": "sha256-1PLJo6plFKEvLUlCPQoFFQqXO0b5Lc5gcDXWXNOz7eE="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING-applewmproto",
+          "path": "xorgproto/COPYING-applewmproto",
+          "sha256": "aacd931f191b610902aee1e526090c2858aabc07969441fa2537ffd3e7049555"
+        },
+        {
+          "repository_path": "COPYING-bigreqsproto",
+          "path": "xorgproto/COPYING-bigreqsproto",
+          "sha256": "dabc025f93129a0eb2d17f37c719dbe5ecbcb5bc8f7bc7f4ce89fe04576cc0c2"
+        },
+        {
+          "repository_path": "COPYING-compositeproto",
+          "path": "xorgproto/COPYING-compositeproto",
+          "sha256": "3e980a770506b448897638632974bbcbdf2da3b99191dd0a03d3770097a46738"
+        },
+        {
+          "repository_path": "COPYING-damageproto",
+          "path": "xorgproto/COPYING-damageproto",
+          "sha256": "f67a18cb46c4c203c5122b4a901cfcc3178b2a62f83f31ca5fef5bdca3966094"
+        },
+        {
+          "repository_path": "COPYING-dmxproto",
+          "path": "xorgproto/COPYING-dmxproto",
+          "sha256": "819e8dcd3dd2a44850c350331aa492230f86bccb0983dd739dec5ba36d7d2b8e"
+        },
+        {
+          "repository_path": "COPYING-dri2proto",
+          "path": "xorgproto/COPYING-dri2proto",
+          "sha256": "0c306691492c4d7a8cda1ec3847668b797887dddcd7e986b4c166ae27619af7d"
+        },
+        {
+          "repository_path": "COPYING-dri3proto",
+          "path": "xorgproto/COPYING-dri3proto",
+          "sha256": "64a579d1a0b3347301d87c94698a58ea7933d0ae6ca7e8fdd702fde2ea376301"
+        },
+        {
+          "repository_path": "COPYING-evieproto",
+          "path": "xorgproto/COPYING-evieproto",
+          "sha256": "9936421f7516f7a17ae560b6989636b493e55c01128b543c7e72441568c3cba4"
+        },
+        {
+          "repository_path": "COPYING-fixesproto",
+          "path": "xorgproto/COPYING-fixesproto",
+          "sha256": "fb361c7c4322e4919ae193c5a20055d5190c23aa50480fd0a41f4d439cae2bc6"
+        },
+        {
+          "repository_path": "COPYING-fontcacheproto",
+          "path": "xorgproto/COPYING-fontcacheproto",
+          "sha256": "1ab381e978bff63d68be2e4f235d51935f3f16f3ba3bebf83afa99a70c0484a2"
+        },
+        {
+          "repository_path": "COPYING-fontsproto",
+          "path": "xorgproto/COPYING-fontsproto",
+          "sha256": "f4af05774b02ae149357cc26f7bf5ef1116c2e09373c2492081a3a1892c58417"
+        },
+        {
+          "repository_path": "COPYING-glproto",
+          "path": "xorgproto/COPYING-glproto",
+          "sha256": "823deb4673d3f26aa8c90e704888299648f00be3262f9363eaeecedcd65b936d"
+        },
+        {
+          "repository_path": "COPYING-inputproto",
+          "path": "xorgproto/COPYING-inputproto",
+          "sha256": "5e083a2ace0215a6084c877c023a6079952ba803d692488203ba4269196debe3"
+        },
+        {
+          "repository_path": "COPYING-kbproto",
+          "path": "xorgproto/COPYING-kbproto",
+          "sha256": "d397a67d4b28e897bc5fce79b2b917df9905b54f961fc3ad1f49c7fe3803f92c"
+        },
+        {
+          "repository_path": "COPYING-lg3dproto",
+          "path": "xorgproto/COPYING-lg3dproto",
+          "sha256": "7a5dd5d4c989c167da50f15879959f42bbda960e06d0a0aea7197f61fe1dc846"
+        },
+        {
+          "repository_path": "COPYING-pmproto",
+          "path": "xorgproto/COPYING-pmproto",
+          "sha256": "8442b5f22f2fb13017a4302a906e7dedc899267b41f613558970941120170128"
+        },
+        {
+          "repository_path": "COPYING-presentproto",
+          "path": "xorgproto/COPYING-presentproto",
+          "sha256": "64a579d1a0b3347301d87c94698a58ea7933d0ae6ca7e8fdd702fde2ea376301"
+        },
+        {
+          "repository_path": "COPYING-printproto",
+          "path": "xorgproto/COPYING-printproto",
+          "sha256": "46f599055002bbf3e6ce244bde8d9ebe5ec24ae7906836db186773a9791d0b75"
+        },
+        {
+          "repository_path": "COPYING-randrproto",
+          "path": "xorgproto/COPYING-randrproto",
+          "sha256": "41c13dcd09147ed2440286f2fb8151df8ebee06deee4ed78ddf094601c216d3d"
+        },
+        {
+          "repository_path": "COPYING-recordproto",
+          "path": "xorgproto/COPYING-recordproto",
+          "sha256": "ee10aee0f1697ffdbe870a39f037361d4f7136f2976bb7919a41b3f66407caee"
+        },
+        {
+          "repository_path": "COPYING-renderproto",
+          "path": "xorgproto/COPYING-renderproto",
+          "sha256": "9e48921a94da36d7a69fe71809223ee0bb46370db9842dccdeeb55b5a9946872"
+        },
+        {
+          "repository_path": "COPYING-resourceproto",
+          "path": "xorgproto/COPYING-resourceproto",
+          "sha256": "403e7be948674530ad40669b1e3a31adeddb656502f3b0ef810d5d3cc35d0b52"
+        },
+        {
+          "repository_path": "COPYING-scrnsaverproto",
+          "path": "xorgproto/COPYING-scrnsaverproto",
+          "sha256": "fcbd3c628bf4d28ee3e6032054bf44bbe58f3b1a944dad856a8d3eb6b37ea412"
+        },
+        {
+          "repository_path": "COPYING-trapproto",
+          "path": "xorgproto/COPYING-trapproto",
+          "sha256": "d6d3513f5a7099748dc387f54498d799380b45f8a444f13aa98aa45a860ae55b"
+        },
+        {
+          "repository_path": "COPYING-videoproto",
+          "path": "xorgproto/COPYING-videoproto",
+          "sha256": "f8f49bbad61967ebc890fb79fff5bfb7cfc1c341aa8f8dee13eb3fb534040b47"
+        },
+        {
+          "repository_path": "COPYING-windowswmproto",
+          "path": "xorgproto/COPYING-windowswmproto",
+          "sha256": "eb183a00c61bb47992f096b6993ed7ec17518bea9c285fe87efff7f622cc6c12"
+        },
+        {
+          "repository_path": "COPYING-x11proto",
+          "path": "xorgproto/COPYING-x11proto",
+          "sha256": "da835951edc6e3b8d168d6afe7447c65d0b9a99937293cf3f288bba8244a9f86"
+        },
+        {
+          "repository_path": "COPYING-xcmiscproto",
+          "path": "xorgproto/COPYING-xcmiscproto",
+          "sha256": "5531d18cfcc944dab39991f63f182cbbce3fe493ba0c7cf08a25c0d01ee84482"
+        },
+        {
+          "repository_path": "COPYING-xextproto",
+          "path": "xorgproto/COPYING-xextproto",
+          "sha256": "fb42146c6c06a200a9b121220eb692ff9101ba0fbd0b224b9e16a016c59ae86a"
+        },
+        {
+          "repository_path": "COPYING-xf86bigfontproto",
+          "path": "xorgproto/COPYING-xf86bigfontproto",
+          "sha256": "3591964e01a9cdfc9cc4149a847a431a3f3d98328cc9e5864c7a7831b29c4058"
+        },
+        {
+          "repository_path": "COPYING-xf86dgaproto",
+          "path": "xorgproto/COPYING-xf86dgaproto",
+          "sha256": "3591964e01a9cdfc9cc4149a847a431a3f3d98328cc9e5864c7a7831b29c4058"
+        },
+        {
+          "repository_path": "COPYING-xf86driproto",
+          "path": "xorgproto/COPYING-xf86driproto",
+          "sha256": "4a05d06752388d9db71ee1006f371d4fb2c316a821fc2fc272db90b3ef978334"
+        },
+        {
+          "repository_path": "COPYING-xf86miscproto",
+          "path": "xorgproto/COPYING-xf86miscproto",
+          "sha256": "3591964e01a9cdfc9cc4149a847a431a3f3d98328cc9e5864c7a7831b29c4058"
+        },
+        {
+          "repository_path": "COPYING-xf86rushproto",
+          "path": "xorgproto/COPYING-xf86rushproto",
+          "sha256": "3591964e01a9cdfc9cc4149a847a431a3f3d98328cc9e5864c7a7831b29c4058"
+        },
+        {
+          "repository_path": "COPYING-xf86vidmodeproto",
+          "path": "xorgproto/COPYING-xf86vidmodeproto",
+          "sha256": "942bb46a3503a708948491699171b00b9e0dfb47818d9268b160bccc5f51a4b9"
+        },
+        {
+          "repository_path": "COPYING-xineramaproto",
+          "path": "xorgproto/COPYING-xineramaproto",
+          "sha256": "b2d8cda803e900915ce10f0ba735ff2c033b39c7cc5a8a436667ca583d4066fa"
+        },
+        {
+          "repository_path": "COPYING-xwaylandproto",
+          "path": "xorgproto/COPYING-xwaylandproto",
+          "sha256": "309bd89bc2b30c6e3d3eb78f5377fa576475499e0ba936a9c3cba50ba5d6375c"
+        }
+      ]
+    },
+    {
+      "module": "libxtrans",
+      "version": "1.5.2.bcr.2",
+      "registry_source": "https://bcr.bazel.build/modules/libxtrans/1.5.2.bcr.2/source.json",
+      "source_url": "https://gitlab.freedesktop.org/xorg/lib/libxtrans/-/archive/xtrans-1.5.2/libxtrans-xtrans-1.5.2.tar.gz",
+      "source_integrity": "sha256-kY9QPGDK52OcxValEofk9pAo+v//pbBNxE74PT/chl8=",
+      "registry_metadata": {
+        "integrity": "sha256-kY9QPGDK52OcxValEofk9pAo+v//pbBNxE74PT/chl8=",
+        "strip_prefix": "libxtrans-xtrans-1.5.2",
+        "url": "https://gitlab.freedesktop.org/xorg/lib/libxtrans/-/archive/xtrans-1.5.2/libxtrans-xtrans-1.5.2.tar.gz",
+        "overlay": {
+          "BUILD.bazel": "sha256-r8pkP0htRBnd2zFAMex0EAoiM1Lor09oM0IJ77BkuxI=",
+          "MODULE.bazel": "sha256-ZQmWvlkpatjaImWxozvv9BCmupuDx7QDHOoHM/fbMaw="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "COPYING",
+          "path": "libxtrans/COPYING",
+          "sha256": "22616bf00b6db85ee3164775a95206894af987b85ff1a7703de55644bc722a39"
+        }
+      ]
+    },
+    {
+      "module": "egl-registry",
+      "version": "0.0.0-20250527",
+      "registry_source": "https://bcr.bazel.build/modules/egl-registry/0.0.0-20250527/source.json",
+      "source_url": "https://github.com/KhronosGroup/EGL-Registry/archive/3ae2b7c48690d2ce13cc6db3db02dfc0572be65e.tar.gz",
+      "source_integrity": "sha256-APbVZW2KB17nLsLMvpuAPSm7VmlbBWIqxM3pXXYKFSg=",
+      "registry_metadata": {
+        "url": "https://github.com/KhronosGroup/EGL-Registry/archive/3ae2b7c48690d2ce13cc6db3db02dfc0572be65e.tar.gz",
+        "integrity": "sha256-APbVZW2KB17nLsLMvpuAPSm7VmlbBWIqxM3pXXYKFSg=",
+        "strip_prefix": "EGL-Registry-3ae2b7c48690d2ce13cc6db3db02dfc0572be65e",
+        "overlay": {
+          "BUILD.bazel": "sha256-fhpI8wmx6rYubzA9eknnXZbpSLEVcB5C+bRnA0+Uxug=",
+          "MODULE.bazel": "sha256-jsl45yen8zTFivVfzoAO3jfeF1+BpurA6phGcOkBHHw="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "api/KHR/khrplatform.h",
+          "path": "egl-registry/khrplatform.h.LICENSE",
+          "sha256": "438187dca092de4032c1a16524aa4c34c71a0f985a71251a675aad54e77ed561",
+          "selection": "copyright_comment"
+        }
+      ]
+    },
+    {
+      "module": "opengl-registry",
+      "version": "0.0.0-20250707",
+      "registry_source": "https://bcr.bazel.build/modules/opengl-registry/0.0.0-20250707/source.json",
+      "source_url": "https://github.com/KhronosGroup/OpenGL-Registry/archive/860ba03f4ed8f474b80a415fde635040fc668abf.tar.gz",
+      "source_integrity": "sha256-awBwXuYHaiRUQ5teADwaYxaTr/wW4ORa6tweM9Lw9jw=",
+      "registry_metadata": {
+        "url": "https://github.com/KhronosGroup/OpenGL-Registry/archive/860ba03f4ed8f474b80a415fde635040fc668abf.tar.gz",
+        "integrity": "sha256-awBwXuYHaiRUQ5teADwaYxaTr/wW4ORa6tweM9Lw9jw=",
+        "strip_prefix": "OpenGL-Registry-860ba03f4ed8f474b80a415fde635040fc668abf",
+        "overlay": {
+          "BUILD.bazel": "sha256-MC6XXoNamegPhMwVgh02NI8npaoyVJvi9YpIXvkveQk=",
+          "MODULE.bazel": "sha256-Q9bAakUM359s9E0i83fgsl9tvrhhSB6nvdKYcDXzNwQ=",
+          "gl.h": "sha256-MM3ZoTAOPL1Bl5t5yA6k8WLqlna4qBXI8cftwnasUhA="
+        }
+      },
+      "notices": [
+        {
+          "repository_path": "gl.h",
+          "path": "opengl-registry/gl.h.LICENSE",
+          "sha256": "fa3a0e12fbb5191e878f786df28e77140949d10185d9bde9e7f53b95c286b19a",
+          "selection": "copyright_comment"
+        }
+      ]
+    }
+  ]
+}

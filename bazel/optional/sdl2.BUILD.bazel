@@ -1,0 +1,102 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "sources",
+    srcs = glob(
+        ["**"],
+        exclude = ["BUILD.bazel"],
+    ),
+)
+
+cmake(
+    name = "sdl2",
+    cache_entries = select({
+        "@platforms//os:linux": {
+            "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+            "CMAKE_C_FLAGS": "-isystem$$EXT_BUILD_DEPS/include",
+            "SDL_SHARED": "OFF",
+            "SDL_STATIC": "ON",
+            "SDL_TEST": "OFF",
+            "SDL_X11_SHARED": "OFF",
+            "X11_LIB": "$$EXT_BUILD_DEPS/lib/libx11.a",
+            "XEXT_LIB": "$$EXT_BUILD_DEPS/lib/libxext.a",
+            "X_INCLUDEDIR": "$$EXT_BUILD_DEPS/include",
+            "CMAKE_C_STANDARD_LIBRARIES": "-L$$EXT_BUILD_DEPS/lib -lxcb -lxau -ldl -lpthread",
+            "CMAKE_TRY_COMPILE_PLATFORM_VARIABLES": "CMAKE_C_STANDARD_LIBRARIES",
+        },
+        "@platforms//os:emscripten": {
+            "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+            "SDL_SHARED": "OFF",
+            "SDL_STATIC": "ON",
+            "SDL_TEST": "OFF",
+            "CMAKE_SYSTEM_NAME": "Emscripten",
+            "EMSCRIPTEN": "ON",
+            "SDL_PTHREADS": "ON",
+        },
+        "//conditions:default": {
+            "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+            "SDL_SHARED": "OFF",
+            "SDL_STATIC": "ON",
+            "SDL_TEST": "OFF",
+        },
+    }),
+    generate_args = ["-GNinja"],
+    lib_source = ":sources",
+    linkopts = select({
+        "@platforms//os:windows": [
+            "kernel32.lib",
+            "user32.lib",
+            "gdi32.lib",
+            "winmm.lib",
+            "imm32.lib",
+            "ole32.lib",
+            "oleaut32.lib",
+            "version.lib",
+            "uuid.lib",
+            "advapi32.lib",
+            "setupapi.lib",
+            "shell32.lib",
+            "dinput8.lib",
+        ],
+        "@platforms//os:macos": [
+            "-liconv",
+            "-Wl,-framework,CoreVideo",
+            "-Wl,-framework,Cocoa",
+            "-Wl,-framework,IOKit",
+            "-Wl,-framework,ForceFeedback",
+            "-Wl,-framework,Carbon",
+            "-Wl,-framework,CoreAudio",
+            "-Wl,-framework,AudioToolbox",
+            "-Wl,-framework,AVFoundation",
+            "-Wl,-framework,Foundation",
+            "-Wl,-weak_framework,GameController",
+            "-Wl,-weak_framework,CoreHaptics",
+            "-Wl,-weak_framework,Metal",
+            "-Wl,-weak_framework,QuartzCore",
+        ],
+        "//conditions:default": [],
+    }),
+    out_include_dir = "include/SDL2",
+    out_static_libs = select({
+        "@platforms//os:windows": ["SDL2-static.lib"],
+        "//conditions:default": ["libSDL2.a"],
+    }),
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@platforms//os:linux": [
+            "@egl-registry//:EGL_headers",
+            "@libx11//:x11",
+            "@libxcb//:xcb",
+            "@libxext",
+            "@mujoco_filament//:glx_headers",
+            "@opengl-registry//:OpenGL_headers",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "licenses",
+    srcs = ["LICENSE.txt"],
+    visibility = ["//visibility:public"],
+)

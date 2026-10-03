@@ -1,0 +1,266 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library", "cc_test")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/optional:shared.bzl", "headers_only", "optional_shared_library")
+
+package(default_visibility = ["//visibility:private"])
+
+# Initialize oneTBB's TLS before USD plugin registration uses the scheduler.
+cc_shared_library(
+    name = "tbb_runtime",
+    shared_lib_name = select({
+        "//bazel:macos": "libmujoco_tbb.dylib",
+        "//conditions:default": "libmujoco_tbb.so",
+    }),
+    user_link_flags = select({
+        "//bazel:macos": ["-Wl,-install_name,@rpath/libmujoco_tbb.dylib"],
+        "//conditions:default": ["-Wl,-soname,libmujoco_tbb.so"],
+    }),
+    visibility = ["//visibility:public"],
+    deps = ["@onetbb//:tbb"],
+)
+
+cc_import(
+    name = "tbb_import",
+    shared_library = ":tbb_runtime",
+)
+
+headers_only(
+    name = "tbb_headers",
+    library = "@onetbb//:tbb",
+)
+
+cc_library(
+    name = "tbb",
+    deps = [
+        ":tbb_headers",
+        ":tbb_import",
+    ],
+)
+
+cc_library(
+    name = "headers",
+    hdrs = ["//:experimental_headers"],
+    strip_include_prefix = "/include",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":tbb",
+        "//:headers",
+        "@openusd//:headers",
+        "@openusd//:pxr_headers",
+    ],
+)
+
+cc_library(
+    name = "implementation",
+    srcs = [
+        "layer_sink.cc",
+        "plugins/mjcf/mujoco_to_usd.cc",
+        "plugins/mjcf/utils.cc",
+        "utils.cc",
+        "writer.cc",
+    ] + glob(["mjcPhysics/*.cpp"]),
+    hdrs = glob(["plugins/mjcf/*.h"]),
+    copts = [
+        "-std=c++20",
+        "-Wno-deprecated",
+    ],
+    includes = ["plugins"],
+    local_defines = ["MJCPHYSICS_EXPORTS"],
+    deps = [
+        ":headers",
+        "//:internal",
+        "//:mujoco_shared",
+        "@openusd",
+    ],
+    alwayslink = True,
+)
+
+optional_shared_library(
+    name = "mjcPhysics",
+    dynamic_deps = [":tbb_runtime"],
+    headers = [":headers"],
+    deps = [":implementation"],
+)
+
+cc_library(
+    name = "mjcf_implementation",
+    srcs = ["plugins/mjcf/mjcf_file_format.cc"],
+    hdrs = glob(["plugins/mjcf/*.h"]),
+    copts = [
+        "-std=c++20",
+        "-Wno-deprecated",
+    ],
+    includes = ["plugins"],
+    deps = [
+        ":mjcPhysics",
+        "//:mujoco_shared",
+        "@mujoco_deps_tinyxml2//:tinyxml2",
+    ],
+    alwayslink = True,
+)
+
+optional_shared_library(
+    name = "usdMjcf",
+    dynamic_deps = [":tbb_runtime"],
+    deps = [":mjcf_implementation"],
+)
+
+[
+    expand_template(
+        name = plugin + "_plugin_info",
+        out = "mujoco-usd-resources/" + plugin + "/plugInfo.json",
+        substitutions = select({
+            "//bazel:macos": {"@PLUG_INFO_LIBRARY_PATH@": "../../lib" + plugin + ".dylib"},
+            "//conditions:default": {"@PLUG_INFO_LIBRARY_PATH@": "../../lib" + plugin + ".so"},
+        }),
+        template = template,
+    )
+    for plugin, template in [
+        ("mjcPhysics", "mjcPhysics/plugInfo.json"),
+        ("usdMjcf", "plugins/mjcf/plugInfo.json"),
+    ]
+]
+
+copy_file(
+    name = "generated_schema",
+    src = "mjcPhysics/generatedSchema.usda",
+    out = "mujoco-usd-resources/mjcPhysics/generatedSchema.usda",
+)
+
+[
+    copy_file(
+        name = "newton_" + name,
+        src = "@mujoco_newton_schemas//:newton_usd_schemas/" + name,
+        out = "mujoco-usd-resources/newton/" + name,
+    )
+    for name in [
+        "plugInfo.json",
+        "generatedSchema.usda",
+    ]
+]
+
+filegroup(
+    name = "resources",
+    srcs = [
+        ":generated_schema",
+        ":mjcPhysics_plugin_info",
+        ":newton_generatedSchema.usda",
+        ":newton_plugInfo.json",
+        ":usdMjcf_plugin_info",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "libraries",
+    srcs = [
+        ":mjcPhysics_binary",
+        ":tbb_runtime",
+        ":usdMjcf_binary",
+    ],
+    prefix = "lib",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "plugin",
+    srcs = ["//plugin/usd_decoder:usd_decoder_plugin_binary"],
+    prefix = "bin/mujoco_plugin",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "plugin_resources",
+    srcs = [":resources"],
+    prefix = "lib",
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_files(
+    name = "openusd_resources",
+    srcs = ["@openusd//:plugin_files"],
+    prefix = "lib/mujoco-usd-resources/openusd",
+    renames = {"@openusd//:plugin_files": "resources"},
+)
+
+pkg_files(
+    name = "openusd_license",
+    srcs = ["@openusd//:LICENSE.txt"],
+    prefix = "share/licenses/mujoco/openusd",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "usd_notices",
+    srcs = ["//bazel/optional:usd_notices"],
+    prefix = "share/licenses/mujoco",
+    strip_prefix = strip_prefix.from_root("bazel/optional/licenses"),
+)
+
+pkg_files(
+    name = "public_headers",
+    srcs = ["//:experimental_headers"],
+    prefix = "include",
+    strip_prefix = strip_prefix.from_root("include"),
+)
+
+pkg_tar(
+    name = "sdk_archive",
+    srcs = [
+        ":libraries",
+        ":openusd_license",
+        ":openusd_resources",
+        ":plugin",
+        ":plugin_resources",
+        ":public_headers",
+        ":usd_notices",
+        "//bazel/package:core_licenses",
+        "//bazel/package:library",
+    ],
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "runtime_test",
+    srcs = ["runtime_test.cc"],
+    args = [
+        "$(rlocationpath @openusd//:plugin_files)",
+        "$(rlocationpath :newton_plugInfo.json)",
+        "$(rlocationpath :mjcPhysics_plugin_info)",
+        "$(rlocationpath :usdMjcf_plugin_info)",
+        "$(rlocationpath //plugin/usd_decoder:usd_decoder_plugin_binary)",
+    ],
+    copts = [
+        "-std=c++20",
+        "-Wno-deprecated",
+    ],
+    data = [
+        ":mjcPhysics_plugin_info",
+        ":newton_plugInfo.json",
+        ":resources",
+        ":usdMjcf_binary",
+        ":usdMjcf_plugin_info",
+        "//plugin/usd_decoder:usd_decoder_plugin_binary",
+        "@openusd//:plugin_files",
+    ],
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":mjcPhysics",
+        "//:mujoco_shared",
+        "@rules_cc//cc/runfiles",
+    ],
+)

@@ -1,0 +1,236 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+
+package(default_visibility = ["//visibility:public"])
+
+expand_template(
+    name = "cmake_config",
+    out = "mujocoConfig.cmake",
+    substitutions = select({
+        "//bazel:windows": {
+            "@LIBRARY@": "bin/mujoco.dll",
+            "@IMPLIB@": "set_target_properties(mujoco::mujoco PROPERTIES IMPORTED_IMPLIB \"${_mujoco_prefix}/lib/mujoco.lib\")",
+            "@SIMULATE@": "simulate.lib",
+            "@SIMULATE_LINKS@": "user32;gdi32;shell32",
+        },
+        "//bazel:macos": {
+            "@LIBRARY@": "lib/libmujoco.3.14.1.dylib",
+            "@IMPLIB@": "",
+            "@SIMULATE@": "libsimulate.a",
+            "@SIMULATE_LINKS@": "-framework Cocoa;-framework CoreVideo;-framework OpenGL;-framework IOKit;-framework CoreFoundation",
+        },
+        "//conditions:default": {
+            "@LIBRARY@": "lib/libmujoco.so.3.14.1",
+            "@IMPLIB@": "",
+            "@SIMULATE@": "libsimulate.a",
+            "@SIMULATE_LINKS@": "dl;m;rt",
+        },
+    }),
+    template = "mujocoConfig.cmake.in",
+)
+
+pkg_files(
+    name = "headers",
+    srcs = ["//:public_headers"],
+    prefix = "include/mujoco",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "library",
+    srcs = ["//:shared_library"],
+    prefix = select({
+        "//bazel:windows": "bin",
+        "//conditions:default": "lib",
+    }),
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "import_library",
+    srcs = select({
+        "//bazel:windows": ["//:windows_import_library"],
+        "//conditions:default": [],
+    }),
+    prefix = "lib",
+    renames = select({
+        "//bazel:windows": {"//:windows_import_library": "mujoco.lib"},
+        "//conditions:default": {},
+    }),
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_mklink(
+    name = "linux_library_link",
+    link_name = "lib/libmujoco.so",
+    target = "libmujoco.so.3.14.1",
+)
+
+pkg_mklink(
+    name = "macos_library_link",
+    link_name = "lib/libmujoco.dylib",
+    target = "libmujoco.3.14.1.dylib",
+)
+
+_LIBRARY_LINKS = select({
+    "//bazel:windows": [],
+    "//bazel:macos": [":macos_library_link"],
+    "//conditions:default": [":linux_library_link"],
+})
+
+pkg_files(
+    name = "cmake",
+    srcs = [
+        "mujocoConfigVersion.cmake",
+        ":cmake_config",
+    ],
+    prefix = "lib/cmake/mujoco",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "license",
+    srcs = ["//:LICENSE"],
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "glfw_license",
+    srcs = ["//bazel/deps:GLFW.LICENSE"],
+    prefix = "share/licenses/mujoco",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "gui_licenses",
+    srcs = ["//bazel/deps/licenses:notices"],
+    prefix = "share/licenses/mujoco/gui",
+    strip_prefix = strip_prefix.from_root("bazel/deps/licenses"),
+)
+
+pkg_files(
+    name = "binaries",
+    srcs = [
+        "//sample:basic",
+        "//sample:compile",
+        "//sample:dependencies",
+        "//sample:record",
+        "//sample:testspeed",
+        "//simulate",
+    ],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "bin",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "models",
+    srcs = ["//model:assets"],
+    prefix = "model",
+    strip_prefix = strip_prefix.from_root("model"),
+)
+
+pkg_files(
+    name = "simulate_headers",
+    srcs = ["//simulate:install_headers"],
+    prefix = "include/mujoco",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "glfw_headers",
+    srcs = ["//simulate:glfw_install_headers"],
+    prefix = "include/GLFW",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "simulate_library",
+    srcs = ["//simulate:archive"],
+    prefix = "lib",
+    renames = select({
+        "//bazel:windows": {"//simulate:archive": "simulate.lib"},
+        "//conditions:default": {"//simulate:archive": "libsimulate.a"},
+    }),
+    strip_prefix = strip_prefix.files_only(),
+)
+
+pkg_files(
+    name = "plugins",
+    srcs = [
+        "//plugin/actuator:shared",
+        "//plugin/elasticity:shared",
+        "//plugin/sdf:shared",
+        "//plugin/sensor:shared",
+    ],
+    prefix = "bin/mujoco_plugin",
+    strip_prefix = strip_prefix.files_only(),
+)
+
+_LICENSES = {
+    "ccd": "@mujoco_deps_ccd//:license",
+    "qhull": "@mujoco_deps_qhull//:license",
+    "tinyxml2": "@mujoco_deps_tinyxml2//:license",
+    "tinyobjloader": "@mujoco_deps_tinyobjloader//:license",
+    "lodepng": "//bazel/deps/licenses:core/lodepng/LICENSE",
+    "miniz": "//bazel/deps/licenses:core/miniz/LICENSE",
+    "marchingcubecpp": "//bazel/deps/licenses:core/marchingcubecpp/README.md",
+}
+
+[
+    pkg_files(
+        name = name + "_license",
+        srcs = [label],
+        prefix = "share/licenses/mujoco/" + name,
+        strip_prefix = strip_prefix.files_only(),
+    )
+    for name, label in _LICENSES.items()
+]
+
+pkg_filegroup(
+    name = "core_licenses",
+    srcs = [":license"] + [":" + name + "_license" for name in _LICENSES],
+)
+
+pkg_tar(
+    name = "sdk",
+    srcs = [
+        ":binaries",
+        ":cmake",
+        ":glfw_headers",
+        ":glfw_license",
+        ":gui_licenses",
+        ":headers",
+        ":import_library",
+        ":library",
+        ":license",
+        ":models",
+        ":plugins",
+        ":simulate_headers",
+        ":simulate_library",
+    ] + [":" + name + "_license" for name in _LICENSES] + _LIBRARY_LINKS,
+    extension = "tar.gz",
+    package_dir = "mujoco-3.14.1",
+)
+
+pkg_zip(
+    name = "sdk_zip",
+    srcs = [
+        ":binaries",
+        ":cmake",
+        ":glfw_headers",
+        ":glfw_license",
+        ":gui_licenses",
+        ":headers",
+        ":import_library",
+        ":library",
+        ":license",
+        ":models",
+        ":plugins",
+        ":simulate_headers",
+        ":simulate_library",
+    ] + [":" + name + "_license" for name in _LICENSES] + _LIBRARY_LINKS,
+    package_dir = "mujoco-3.14.1",
+)

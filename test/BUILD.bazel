@@ -1,0 +1,306 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel:cc.bzl", "angle_includes")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "assets",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "**/*.cc",
+            "**/*.c",
+            "**/*.h",
+            "**/*.py",
+            "**/*.sh",
+            "**/BUILD.bazel",
+        ],
+    ),
+)
+
+cc_library(
+    name = "fixture",
+    srcs = ["fixture.cc"],
+    hdrs = ["fixture.h"],
+    local_defines = ["MUJOCO_BAZEL_RUNFILES"],
+    deps = [
+        ":absl_headers",
+        "//:internal",
+        "//:mujoco",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@googletest//:gtest",
+        "@rules_cc//cc/runfiles",
+    ],
+)
+
+cc_library(
+    name = "compare_model",
+    srcs = ["compare_model.cc"],
+    hdrs = ["compare_model.h"],
+    deps = ["//:mujoco"],
+)
+
+cc_library(
+    name = "boxbox_legacy",
+    srcs = ["engine/boxbox_legacy.c"],
+    hdrs = ["engine/boxbox_legacy.h"],
+    deps = [
+        "//:internal",
+        "//:mujoco",
+    ],
+)
+
+_COMMON_DEPS = [
+    ":absl_headers",
+    ":fixture",
+    "//:internal",
+    "//:mujoco",
+    "//plugin/actuator",
+    "//plugin/elasticity",
+    "//plugin/sdf",
+    "//plugin/sensor",
+    "@abseil-cpp//absl/base:core_headers",
+    "@abseil-cpp//absl/cleanup",
+    "@abseil-cpp//absl/strings",
+    "@abseil-cpp//absl/strings:str_format",
+    "@abseil-cpp//absl/types:span",
+]
+
+_TEST_SOURCES = [
+    "engine/engine_collision_box_fuzz_test.cc",
+    "engine/engine_collision_box_test.cc",
+    "engine/engine_collision_continuous_test.cc",
+    "engine/engine_collision_convex_test.cc",
+    "engine/engine_collision_driver_test.cc",
+    "engine/engine_collision_gjk_test.cc",
+    "engine/engine_core_constraint_test.cc",
+    "engine/engine_core_smooth_test.cc",
+    "engine/engine_core_util_test.cc",
+    "engine/engine_derivative_test.cc",
+    "engine/engine_forward_test.cc",
+    "engine/engine_inverse_test.cc",
+    "engine/engine_io_test.cc",
+    "engine/engine_ipc_test.cc",
+    "engine/engine_island_test.cc",
+    "engine/engine_passive_test.cc",
+    "engine/engine_plugin_test.cc",
+    "engine/engine_print_test.cc",
+    "engine/engine_ray_test.cc",
+    "engine/engine_sensor_test.cc",
+    "engine/engine_setconst_test.cc",
+    "engine/engine_sleep_test.cc",
+    "engine/engine_solver_test.cc",
+    "engine/engine_sort_test.cc",
+    "engine/engine_support_test.cc",
+    "engine/engine_thread_test.cc",
+    "engine/engine_util_blas_test.cc",
+    "engine/engine_util_errmem_test.cc",
+    "engine/engine_util_misc_test.cc",
+    "engine/engine_util_solve_test.cc",
+    "engine/engine_util_sparse_test.cc",
+    "engine/engine_util_spatial_test.cc",
+    "engine/engine_vis_visualize_test.cc",
+    "fixture_test.cc",
+    "header_test.cc",
+    "mjspecmacro_test.cc",
+    "pipeline_test.cc",
+    "plugin/actuator/pid_test.cc",
+    "plugin/elasticity/elasticity_test.cc",
+    "plugin/sensor/sensor_test.cc",
+    "user/user_api_test.cc",
+    "user/user_composite_test.cc",
+    "user/user_flex_test.cc",
+    "user/user_mesh_test.cc",
+    "user/user_model_test.cc",
+    "user/user_objects_test.cc",
+    "user/user_recompile_test.cc",
+    "user/user_resource_test.cc",
+    "user/user_util_test.cc",
+    "user/user_vfs_test.cc",
+    "xml/mjz/mjz_archive_provider_test.cc",
+    "xml/mjz/mjz_decoder_test.cc",
+    "xml/mjz/mjz_encoder_test.cc",
+    "xml/schema_defaults_test.cc",
+    "xml/xml_api_test.cc",
+    "xml/xml_native_reader_test.cc",
+    "xml/xml_native_writer_test.cc",
+    "xml/xml_urdf_test.cc",
+    "xml/xml_utils_test.cc",
+    "xml/xml_write_read_test.cc",
+]
+
+[
+    cc_test(
+        name = src.removesuffix(".cc").replace("/", "_"),
+        size = "large" if src in [
+            "user/user_recompile_test.cc",
+            "xml/xml_write_read_test.cc",
+            "xml/mjz/mjz_encoder_test.cc",
+        ] else "medium",
+        srcs = [src],
+        data = [
+            ":assets",
+            "//model:assets",
+        ],
+        linkstatic = True,
+        deps = _COMMON_DEPS + [
+                   ":compare_model",
+                   "@googletest//:gtest_main",
+               ] + (["@mujoco_deps_ccd//:ccd"] if "collision_box" in src or "collision_gjk" in src else []) +
+               ([":boxbox_legacy"] if src == "engine/engine_collision_box_test.cc" else []) +
+               (["@miniz//:miniz"] if src.startswith("xml/mjz/") else []),
+    )
+    for src in _TEST_SOURCES
+]
+
+_BENCHMARK_SOURCES = [
+    "benchmark/ccd_benchmark_test.cc",
+    "benchmark/cone_benchmark_test.cc",
+    "benchmark/step_benchmark_test.cc",
+    "benchmark/thread_performance_test.cc",
+    "benchmark/parse_benchmark_test.cc",
+    "benchmark/spec_benchmark_test.cc",
+    "benchmark/engine_util_spatial_benchmark_test.cc",
+    "benchmark/factorI_benchmark_test.cc",
+    "benchmark/inertia_benchmark_test.cc",
+    "benchmark/iszero_benchmark_test.cc",
+    "benchmark/solveLD_benchmark_test.cc",
+    "benchmark/lu_benchmark_test.cc",
+    "benchmark/crb_benchmark_test.cc",
+    "benchmark/engine_util_sparse_benchmark_test.cc",
+    "benchmark/chol_benchmark_test.cc",
+]
+
+[
+    cc_test(
+        name = src.removesuffix(".cc").replace("/", "_"),
+        size = "large",
+        srcs = [src],
+        data = [
+            ":assets",
+            "//model:assets",
+        ],
+        linkstatic = True,
+        tags = [
+            "benchmark",
+            "manual",
+        ],
+        deps = _COMMON_DEPS + [
+            "@google_benchmark//:benchmark_main",
+        ] + (["@mujoco_deps_ccd//:ccd"] if "ccd_benchmark" in src else []),
+    )
+    for src in _BENCHMARK_SOURCES
+]
+
+test_suite(
+    name = "native_tests",
+    tests = [src.removesuffix(".cc").replace("/", "_") for src in _TEST_SOURCES] + [
+        ":sample_compile_test",
+        ":sample_testspeed_test",
+        ":shared_plugin_test",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "sample_compile_test",
+    srcs = ["sample/compile_test.sh"],
+    args = [
+        "$(rlocationpath //sample:compile)",
+        "$(rlocationpath //model:humanoid/humanoid100.xml)",
+        "$(rlocationpath //:shared_library)",
+    ],
+    data = [
+        "//:shared_library",
+        "//model:assets",
+        "//model:humanoid/humanoid100.xml",
+        "//sample:compile",
+    ],
+    use_bash_launcher = True,
+)
+
+sh_test(
+    name = "sample_testspeed_test",
+    srcs = ["sample/testspeed_test.sh"],
+    args = [
+        "$(rlocationpath //sample:testspeed)",
+        "$(rlocationpath //model:sleep/dominos.xml)",
+        "$(rlocationpath //:shared_library)",
+    ],
+    data = [
+        "//:shared_library",
+        "//model:assets",
+        "//model:sleep/dominos.xml",
+        "//sample:testspeed",
+    ],
+    use_bash_launcher = True,
+)
+
+cc_test(
+    name = "shared_plugin_test",
+    srcs = ["shared_plugin_test.cc"],
+    args = [
+        "$(rlocationpath //plugin/actuator:shared)",
+        "$(rlocationpath //plugin/elasticity:shared)",
+        "$(rlocationpath //plugin/sensor:shared)",
+        "$(rlocationpath //plugin/sdf:shared)",
+    ],
+    data = [
+        "//plugin/actuator:shared",
+        "//plugin/elasticity:shared",
+        "//plugin/sdf:shared",
+        "//plugin/sensor:shared",
+    ],
+    deps = [
+        "//:mujoco_shared",
+        "@rules_cc//cc/runfiles",
+    ],
+)
+
+angle_includes(
+    name = "absl_headers",
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+[
+    py_test(
+        name = name,
+        srcs = ["doc/" + name + ".py"],
+        data = [
+            "//:doc_inputs",
+            "//:public_headers",
+            "//doc:generated_reference",
+        ],
+        main = "doc/" + name + ".py",
+        deps = ["//doc:generators"],
+    )
+    for name in [
+        "doc_test",
+        "mjcf_schema_test",
+    ]
+]
+
+test_suite(
+    name = "documentation_tests",
+    tests = [
+        ":doc_test",
+        ":mjcf_schema_test",
+    ],
+    visibility = ["//visibility:public"],
+)

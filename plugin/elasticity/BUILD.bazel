@@ -1,0 +1,84 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_CXXOPTS = select({
+    "@platforms//os:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+cc_library(
+    name = "elasticity_static",
+    srcs = [
+        "cable.cc",
+        "elasticity.cc",
+        "register.cc",
+    ],
+    hdrs = [
+        "cable.h",
+        "elasticity.h",
+    ],
+    copts = _CXXOPTS,
+    deps = ["//:mujoco"],
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "libelasticity.so",
+    srcs = [
+        "cable.cc",
+        "cable.h",
+        "elasticity.cc",
+        "elasticity.h",
+        "register.cc",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//:mujoco_shared"],
+)
+
+cc_binary(
+    name = "libelasticity.dylib",
+    srcs = [
+        "cable.cc",
+        "cable.h",
+        "elasticity.cc",
+        "elasticity.h",
+        "register.cc",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = ["//:mujoco_shared"],
+)
+
+cc_binary(
+    name = "elasticity.dll",
+    srcs = [
+        "cable.cc",
+        "cable.h",
+        "elasticity.cc",
+        "elasticity.h",
+        "register.cc",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["//:mujoco_shared"],
+)
+
+alias(
+    name = "shared",
+    actual = select({
+        "@platforms//os:linux": ":libelasticity.so",
+        "@platforms//os:macos": ":libelasticity.dylib",
+        "@platforms//os:windows": ":elasticity.dll",
+    }),
+)
+
+alias(
+    name = "elasticity",
+    actual = ":elasticity_static",
+)

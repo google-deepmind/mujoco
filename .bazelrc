@@ -1,0 +1,20 @@
+common --enable_bzlmod
+build --incompatible_strict_action_env
+build --announce_rc
+build:linux --cxxopt=-std=c++20
+build:linux --host_cxxopt=-std=c++20
+build:macos --cxxopt=-std=c++20
+build:macos --host_cxxopt=-std=c++20
+build:macos --macos_minimum_os=11.0
+test:macos --test_env=PATH=/usr/bin:/bin:/usr/sbin:/sbin
+build:windows --cxxopt=/std:c++20
+build:windows --host_cxxopt=/std:c++20
+build --enable_platform_specific_config
+build --incompatible_default_to_explicit_init_py=true
+test --test_output=errors
+build:release -c opt
+build:debug -c dbg
+build:clang --extra_toolchains=@llvm_toolchain//:all
+build:noavx --//bazel:avx=false
+build:noavx --//bazel:avx_intrinsics=false
+build:harden --//bazel:harden=true

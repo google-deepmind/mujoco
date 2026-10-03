@@ -15,6 +15,7 @@
 #include "test/fixture.h"
 
 #include <array>
+#include <filesystem>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest-spi.h>
@@ -28,6 +29,20 @@ namespace {
 using MujocoTestTest = MujocoTest;
 class MujocoErrorTestGuardTest : public ::testing::Test {};
 using ::testing::IsNull;
+
+TEST_F(MujocoTestTest, TestDataPaths) {
+  EXPECT_TRUE(std::filesystem::is_regular_file(
+      GetTestDataFilePath("engine/testdata/spin_recoil.xml")));
+  EXPECT_TRUE(std::filesystem::is_directory(GetTestDataFilePath(".")));
+}
+
+TEST_F(MujocoTestTest, ModelPaths) {
+  EXPECT_TRUE(
+      std::filesystem::is_regular_file(GetModelPath("humanoid/humanoid.xml")));
+  EXPECT_TRUE(std::filesystem::is_directory(GetModelPath(".")));
+  EXPECT_TRUE(std::filesystem::is_regular_file(
+      GetModelPath("../test/engine/testdata/spin_recoil.xml")));
+}
 
 TEST_F(MujocoTestTest, MjUserWarningFailsTest) {
   EXPECT_NONFATAL_FAILURE(mju_warning("Warning."), "Warning.");

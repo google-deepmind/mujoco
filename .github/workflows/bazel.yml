@@ -1,0 +1,387 @@
+name: bazel
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bazel-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      configurations: ${{ steps.matrix.outputs.configurations }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - id: matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          configurations = []
+          for entry in json.loads(Path('.github/workflows/build_matrix.json').read_text())['include']:
+              if os.environ['EVENT_NAME'] == 'pull_request' and entry['tier'] != 'core':
+                  continue
+              flags = entry.get('cmake_args', '')
+              cc = re.search(r'-DCMAKE_C_COMPILER:STRING=(\S+)', flags)
+              cxx = re.search(r'-DCMAKE_CXX_COMPILER:STRING=(\S+)', flags)
+              configurations.append({
+                  'os': entry['os'],
+                  'label': entry['label'],
+                  'cc': cc.group(1) if cc else '',
+                  'cxx': cxx.group(1) if cxx else '',
+                  'config': 'harden' if '-DMUJOCO_HARDEN:BOOL=ON' in flags else 'release',
+              })
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('configurations=' + json.dumps({'include': configurations}) + '\n')
+          PY
+
+  desktop:
+    needs: matrix
+    name: desktop (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.configurations) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      BAZEL_CONFIG: ${{ matrix.config }}
+      MSYS_NO_PATHCONV: "1"
+      MSYS2_ARG_CONV_EXCL: "*"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+        if: runner.os == 'Windows'
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: Install Linux graphics prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxinerama-dev libxcursor-dev libxkbcommon-dev libxrandr-dev libxi-dev xvfb x11-utils
+      - name: Select compiler
+        if: matrix.cc != ''
+        env:
+          MATRIX_CC: ${{ matrix.cc }}
+          MATRIX_CXX: ${{ matrix.cxx }}
+        run: |
+          echo "CC=$MATRIX_CC" >> "$GITHUB_ENV"
+          echo "CXX=$MATRIX_CXX" >> "$GITHUB_ENV"
+      - name: Check build inputs
+        run: python bazel/check_build_inputs.py
+      - name: Check Python dependency locks
+        run: bazel --nohome_rc test //bazel/python:check_locks
+      - name: Desktop binaries and packages
+        run: bazel --nohome_rc build --config=release --config="$BAZEL_CONFIG" //simulate:simulate //sample:basic //sample:record //bazel/package:sdk //bazel/package:sdk_zip //python:wheel
+      - name: Downstream Bzlmod consumers
+        run: |
+          python bazel/check_consumer.py
+          python bazel/check_consumer.py --archive
+      - name: Extracted SDK
+        run: |
+          BAZEL_BIN="$(bazel --nohome_rc info --config=release --config="$BAZEL_CONFIG" bazel-bin)"
+          python bazel/check_package.py --archive "$BAZEL_BIN/bazel/package/sdk.tar.gz"
+      - name: Python tests and wheel installation
+        run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" //python:tests //python:wheel_install_test
+      - name: Native and documentation tests
+        run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" //test:native_tests //test:documentation_tests
+      - name: Manifest runfiles
+        run: bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --enable_runfiles=no //test:fixture_test //test:shared_plugin_test //test:sample_compile_test //test:sample_testspeed_test
+      - name: Desktop window rendering and shutdown
+        if: runner.os == 'Linux'
+        run: |
+          BAZEL_BIN="$(bazel --nohome_rc info --config=release --config="$BAZEL_CONFIG" bazel-bin)"
+          xvfb-run -a python bazel/gui_smoke.py "$BAZEL_BIN/simulate/simulate" "$BAZEL_BIN/sample/basic"
+      - name: Classic rendering
+        if: runner.os == 'Linux'
+        # Keep the X11 cookie outside the sandbox's private `/tmp`.
+        run: xvfb-run -a --auth-file="$RUNNER_TEMP/mujoco.xauth" bazel --nohome_rc test --config=release --config="$BAZEL_CONFIG" --test_env=DISPLAY --test_env=XAUTHORITY --test_env=MUJOCO_GL=glfw //python:renderer_test //python:render_test
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-${{ matrix.label }}
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+            bazel-bin/bazel/package/sdk.tar.gz
+            bazel-bin/bazel/package/sdk_zip.zip
+            bazel-bin/python/*.whl
+          if-no-files-found: warn
+
+  pinned_llvm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: Native and documentation tests with pinned LLVM
+        run: bazel --nohome_rc test --config=release --config=clang //test:native_tests //test:documentation_tests
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-pinned-llvm
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+          if-no-files-found: warn
+
+  mjx_cpu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: Representative CPU tests
+        if: github.event_name == 'pull_request'
+        run: bazel --nohome_rc test --config=release --test_env=JAX_PLATFORMS=cpu //mjx:math_test //mjx:dataclasses_test //mjx:wheel_install_test
+      - name: CPU suite
+        if: github.event_name != 'pull_request'
+        run: bazel --nohome_rc test --config=release --test_env=JAX_PLATFORMS=cpu //mjx:tests //mjx:wheel_install_test
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-mjx-cpu
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+          if-no-files-found: warn
+
+  wasm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: Node runtime and bindings tests
+        run: bazel --nohome_rc test //wasm:runtime_st_test //wasm:runtime_mt_test //wasm:bindings_st_test //wasm:bindings_mt_test
+      - name: Package WebAssembly modules
+        run: bazel --nohome_rc build //wasm:npm_archive
+      - name: Install Chromium
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Chromium runtime
+        run: |
+          BAZEL_BIN="$(bazel --nohome_rc info bazel-bin)"
+          python wasm/browser_test.py --archive "$BAZEL_BIN/wasm/npm_archive.tgz" > browser.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-wasm
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+            bazel-bin/wasm/npm_archive.tgz
+            browser.json
+          if-no-files-found: warn
+
+  optional_usd:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: USD plugin round trip
+        run: bazel --nohome_rc test --config=release //src/experimental/usd:runtime_test
+      - name: USD SDK
+        run: bazel --nohome_rc build --config=release //src/experimental/usd:sdk_archive
+      - name: Extracted USD SDK
+        run: |
+          BAZEL_BIN="$(bazel --nohome_rc info --config=release bazel-bin)"
+          python3 bazel/check_usd_package.py --archive "$BAZEL_BIN/src/experimental/usd/sdk_archive.tar"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-usd
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+            bazel-bin/src/experimental/usd/sdk_archive.tar
+          if-no-files-found: warn
+
+  optional_studio:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: Install graphics and browser prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libegl1-mesa-dev libvulkan1 mesa-vulkan-drivers xvfb x11-utils
+          python -m pip install playwright==1.55.0 Pillow==11.3.0
+          python -m playwright install --with-deps chromium
+      - name: Studio applications and combined wheel
+        run: |
+          bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" build \
+            --config=release --config=clang --//python:studio=true --//python:studio_web=true \
+            //src/experimental/studio:mujoco_studio //src/experimental/studio:archive \
+            //src/experimental/studio/web:archive //python:wheel
+      - name: Offscreen Filament rendering
+        run: |
+          bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" test \
+            --config=release --config=clang --//python:studio=true --//python:studio_web=true \
+            //src/experimental/studio:render_smoke_test
+      - name: Filament renderer compatibility
+        run: |
+          bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" test \
+            --config=release --config=clang --//bazel:filament_mjr_compat=true \
+            //src/experimental/filament:compat_smoke_test
+      - name: Studio imports, native viewer, and wheel installation
+        run: |
+          xvfb-run -a --auth-file="$RUNNER_TEMP/mujoco.xauth" bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" test \
+            --config=release --config=clang --//python:studio=true --//python:studio_web=true \
+            --test_env=DISPLAY --test_env=XAUTHORITY --test_env=LIBGL_ALWAYS_SOFTWARE=1 --test_env=STUDIO_GFX=vulkan \
+            //python:studio_import_test //python:studio_smoke_test //python:wheel_install_test
+      - name: Native Studio application
+        run: |
+          BAZEL_BIN="$(bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" info \
+            --config=release --config=clang --//python:studio=true --//python:studio_web=true bazel-bin)"
+          mkdir -p "$RUNNER_TEMP/studio-sdk"
+          tar -xf "$BAZEL_BIN/src/experimental/studio/archive.tar" -C "$RUNNER_TEMP/studio-sdk"
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" python bazel/gui_smoke.py \
+            --argument=--gfx=vulkan \
+            "$BAZEL_BIN/src/experimental/studio/mujoco_studio" "$RUNNER_TEMP/studio-sdk/bin/mujoco_studio"
+      - name: Installed Studio browser viewer
+        run: |
+          BAZEL_BIN="$(bazel --batch --nohome_rc --output_base="$RUNNER_TEMP/bazel-studio" info \
+            --config=release --config=clang --//python:studio=true --//python:studio_web=true bazel-bin)"
+          python -m venv "$RUNNER_TEMP/studio-venv"
+          "$RUNNER_TEMP/studio-venv/bin/python" -m pip install --require-hashes -r bazel/python/requirements_lock.txt
+          "$RUNNER_TEMP/studio-venv/bin/python" -m pip install --no-deps "$BAZEL_BIN"/python/*.whl
+          STUDIO_DIST="$("$RUNNER_TEMP/studio-venv/bin/python" -c \
+            'from pathlib import Path; import mujoco; print(Path(mujoco.__file__).parent / "experimental/studio/web/dist")')"
+          python bazel/check_studio_browser.py --python "$RUNNER_TEMP/studio-venv/bin/python" \
+            --dist "$STUDIO_DIST" --model model/humanoid/humanoid.xml --screenshot studio.png
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-studio
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+            bazel-bin/src/experimental/studio/archive.tar
+            bazel-bin/src/experimental/studio/web/archive.tar
+            bazel-bin/python/*.whl
+            studio.png
+          if-no-files-found: warn
+
+  parity:
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc-14
+      CXX: g++-14
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86
+        with:
+          bazelisk-cache: true
+      - name: Install CMake package prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev
+      - name: Build CMake baseline
+        run: |
+          cmake -S . -B "$RUNNER_TEMP/mujoco-cmake" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
+            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG" \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+            -DMUJOCO_BUILD_TESTS=OFF -DMUJOCO_TEST_PYTHON_UTIL=OFF \
+            -DMUJOCO_BUILD_EXAMPLES=OFF -DMUJOCO_BUILD_SIMULATE=OFF \
+            -DMUJOCO_BUILD_STUDIO=OFF -DMUJOCO_USE_FILAMENT=OFF \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/mujoco-install"
+          cmake --build "$RUNNER_TEMP/mujoco-cmake" --parallel 4
+          cmake --install "$RUNNER_TEMP/mujoco-cmake"
+          cmake -S bazel/parity_project -B "$RUNNER_TEMP/mujoco-parity" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG" \
+            -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/mujoco-install"
+          cmake --build "$RUNNER_TEMP/mujoco-parity" --parallel 4
+      - name: Compare simulation states and timings
+        run: |
+          bazel --nohome_rc build --config=release --//bazel:lto=false //bazel:parity
+          BAZEL_BIN="$(bazel --nohome_rc info --config=release --//bazel:lto=false bazel-bin)"
+          python3 bazel/compare_builds.py \
+            --bazel "$BAZEL_BIN/bazel/parity" \
+            --cmake "$RUNNER_TEMP/mujoco-parity/parity" \
+            model/humanoid/humanoid.xml model/flex/flag.xml model/replicate/particle.xml \
+            > parity.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: bazel-cmake-parity
+          path: parity.json
+          if-no-files-found: warn
+
+  required:
+    if: always()
+    needs: [desktop, pinned_llvm, mjx_cpu, wasm, optional_usd, optional_studio, parity]
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+          LLVM_RESULT: ${{ needs.pinned_llvm.result }}
+          MJX_RESULT: ${{ needs.mjx_cpu.result }}
+          WASM_RESULT: ${{ needs.wasm.result }}
+          USD_RESULT: ${{ needs.optional_usd.result }}
+          STUDIO_RESULT: ${{ needs.optional_studio.result }}
+          PARITY_RESULT: ${{ needs.parity.result }}
+        run: |
+          test "$DESKTOP_RESULT" = success
+          test "$LLVM_RESULT" = success
+          test "$MJX_RESULT" = success
+          test "$WASM_RESULT" = success
+          test "$USD_RESULT" = success || test "$USD_RESULT" = skipped
+          test "$STUDIO_RESULT" = success || test "$STUDIO_RESULT" = skipped
+          test "$PARITY_RESULT" = success

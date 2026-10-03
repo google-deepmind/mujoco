@@ -1,0 +1,18 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "notices",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "BUILD.bazel",
+            "core/**",
+        ],
+    ),
+)
+
+# BCR license rules do not expose these source files for packaging.
+# https://bcr.bazel.build/modules/lodepng/0.0.0-20250506-17d08dd/source.json
+# https://bcr.bazel.build/modules/marchingcubecpp/0.0.0-20230911-f03a1b3/source.json
+# https://bcr.bazel.build/modules/miniz/3.1.1/source.json
+exports_files(glob(["core/**"]))

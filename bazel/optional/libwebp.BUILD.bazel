@@ -1,0 +1,42 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "sources",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+cmake(
+    name = "webp",
+    cache_entries = {
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+        "BUILD_SHARED_LIBS": "OFF",
+        "WEBP_BUILD_ANIM_UTILS": "OFF",
+        "WEBP_BUILD_CWEBP": "OFF",
+        "WEBP_BUILD_DWEBP": "OFF",
+        "WEBP_BUILD_GIF2WEBP": "OFF",
+        "WEBP_BUILD_IMG2WEBP": "OFF",
+        "WEBP_BUILD_VWEBP": "OFF",
+        "WEBP_BUILD_WEBPINFO": "OFF",
+        "WEBP_BUILD_WEBPMUX": "OFF",
+        "WEBP_BUILD_EXTRAS": "OFF",
+    },
+    generate_args = ["-GNinja"],
+    lib_source = ":sources",
+    out_static_libs = select({
+        "@platforms//os:windows": [
+            "webp.lib",
+            "sharpyuv.lib",
+        ],
+        "//conditions:default": [
+            "libwebp.a",
+            "libsharpyuv.a",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "licenses",
+    srcs = ['COPYING', 'PATENTS'],
+    visibility = ["//visibility:public"],
+)

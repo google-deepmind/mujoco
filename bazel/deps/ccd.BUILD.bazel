@@ -1,0 +1,43 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+write_file(
+    name = "config",
+    out = "src/ccd/config.h",
+    content = [
+        "#ifndef __CCD_CONFIG_H__",
+        "#define __CCD_CONFIG_H__",
+        "#define CCD_DOUBLE",
+        "#endif",
+    ],
+)
+
+cc_library(
+    name = "ccd",
+    srcs = [
+        "src/ccd.c",
+        "src/mpr.c",
+        "src/polytope.c",
+        "src/support.c",
+        "src/vec3.c",
+    ],
+    hdrs = glob(["src/**/*.h"]) + [":config"],
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-fvisibility=hidden"],
+    }),
+    defines = ["CCD_STATIC_DEFINE"],
+    includes = ["src"],
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-lm"],
+    }),
+    linkstatic = True,
+)
+
+filegroup(
+    name = "license",
+    srcs = ["BSD-LICENSE"],
+)

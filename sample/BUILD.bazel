@@ -1,0 +1,49 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+_CXXOPTS = select({
+    "@platforms//os:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+_RPATH = select({
+    "@platforms//os:linux": ["-Wl,-rpath,$$ORIGIN/../lib"],
+    "@platforms//os:macos": ["-Wl,-rpath,@loader_path/../lib"],
+    "//conditions:default": [],
+})
+
+[
+    cc_binary(
+        name = name,
+        srcs = [name + ".cc"],
+        copts = _CXXOPTS,
+        linkopts = _RPATH,
+        deps = ["//:mujoco_shared"],
+    )
+    for name in [
+        "compile",
+        "dependencies",
+        "testspeed",
+    ]
+]
+
+[
+    cc_binary(
+        name = name,
+        srcs = [
+            name + ".cc",
+            "array_safety.h",
+        ],
+        copts = _CXXOPTS,
+        linkopts = _RPATH,
+        deps = [
+            "//:mujoco_shared",
+            "@glfw",
+        ],
+    )
+    for name in [
+        "basic",
+        "record",
+    ]
+]

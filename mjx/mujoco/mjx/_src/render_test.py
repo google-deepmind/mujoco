@@ -67,7 +67,10 @@ class RenderIntegrationTest(parameterized.TestCase):
     super().setUp()
     if mjxw.WARP_INSTALLED:
       import warp  # pylint: disable=g-import-not-at-top
-      warp.config.kernel_cache_dir = '/tmp/wp_kernel_cache_dir_RenderIntTest'
+      warp.config.kernel_cache_dir = os.path.join(
+          os.environ.get('TEST_TMPDIR', '/tmp'),
+          'wp_kernel_cache_dir_RenderIntTest',
+      )
     np.random.seed(0)
 
   def _maybe_skip(self):

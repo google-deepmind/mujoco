@@ -406,6 +406,19 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertNotEmpty(vis_repr)
     self.assertIn('MjVisual', vis_repr)
 
+  @parameterized.product(
+      member_and_field=[('headlight', 'ambient'), ('rgba', 'fog')],
+      copier=[copy.copy, copy.deepcopy],
+  )
+  def test_mjvisual_member_can_copy(self, member_and_field, copier):
+    member, field = member_and_field
+    original = getattr(self.model.vis, member)
+    getattr(original, field)[:] = 0.25
+    duplicate = copier(original)
+    np.testing.assert_array_equal(getattr(duplicate, field), 0.25)
+    getattr(original, field)[:] = 0.75
+    np.testing.assert_array_equal(getattr(duplicate, field), 0.25)
+
   def test_mjmodel_can_read_and_write_opt(self):
     np.testing.assert_allclose(self.model.opt.timestep, 0.002)
     np.testing.assert_allclose(self.model.opt.gravity, [0, 0, -9.81])
@@ -1345,20 +1358,25 @@ Euler integrator, semi-implicit in velocity.
 
     self.assertIsNone(mujoco.get_mjcb_time())
 
-  def test_mjcb_time_exception(self):
+  @parameterized.named_parameters(
+      ('time', mujoco.set_mjcb_time),
+      ('control', mujoco.set_mjcb_control),
+  )
+  def test_mjcb_exception(self, set_callback):
 
     class TestError(RuntimeError):
       pass
 
-    def raises_exception():
+    def raises_exception(*unused_args):
       raise TestError('string', (1, 2, 3), {'a': 1, 'b': 2})
 
-    with temporary_callback(mujoco.set_mjcb_time, raises_exception):
-      with self.assertRaises(TestError) as e:
-        mujoco.mj_forward(self.model, self.data)
-      self.assertEqual(
-          e.exception.args, ('string', (1, 2, 3), {'a': 1, 'b': 2})
-      )
+    with temporary_callback(set_callback, raises_exception):
+      for _ in range(2):
+        with self.assertRaises(TestError) as e:
+          mujoco.mj_forward(self.model, self.data)
+        self.assertEqual(
+            e.exception.args, ('string', (1, 2, 3), {'a': 1, 'b': 2})
+        )
 
     # Should not raise now that we've cleared the callback.
     mujoco.mj_forward(self.model, self.data)

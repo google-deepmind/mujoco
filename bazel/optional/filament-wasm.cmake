@@ -1,0 +1,18 @@
+set(CMAKE_CXX_LINK_EXECUTABLE
+  "<CMAKE_CXX_COMPILER> --driver-mode=g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+
+if(WASM AND NOT TARGET matc)
+  set(MUJOCO_TOOL_IMPORTS "${CMAKE_BINARY_DIR}/host-tools")
+  file(MAKE_DIRECTORY "${MUJOCO_TOOL_IMPORTS}")
+  file(WRITE "${MUJOCO_TOOL_IMPORTS}/ImportExecutables-Release.cmake"
+    "if(NOT TARGET matc)\n"
+    "add_executable(matc IMPORTED)\n"
+    "set_property(TARGET matc PROPERTY IMPORTED_LOCATION \"$ENV{MUJOCO_HOST_MATC}\")\n"
+    "add_executable(resgen IMPORTED)\n"
+    "set_property(TARGET resgen PROPERTY IMPORTED_LOCATION \"$ENV{MUJOCO_HOST_RESGEN}\")\n"
+    "add_executable(cmgen IMPORTED)\n"
+    "set_property(TARGET cmgen PROPERTY IMPORTED_LOCATION \"$ENV{MUJOCO_HOST_CMGEN}\")\n"
+    "endif()\n")
+  file(RELATIVE_PATH IMPORT_EXECUTABLES_DIR "${CMAKE_SOURCE_DIR}" "${MUJOCO_TOOL_IMPORTS}")
+  set(IMPORT_EXECUTABLES_DIR "${IMPORT_EXECUTABLES_DIR}" CACHE STRING "" FORCE)
+endif()

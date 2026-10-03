@@ -1,0 +1,76 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_CXXOPTS = select({
+    "@platforms//os:windows": ["/std:c++20"],
+    "//conditions:default": ["-std=c++20"],
+})
+
+cc_library(
+    name = "sensor_static",
+    srcs = [
+        "register.cc",
+        "touch_grid.cc",
+    ],
+    hdrs = [
+        "touch_grid.h",
+    ],
+    copts = _CXXOPTS,
+    deps = ["//:mujoco"],
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "libsensor.so",
+    srcs = [
+        "register.cc",
+        "touch_grid.cc",
+        "touch_grid.h",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//:mujoco_shared"],
+)
+
+cc_binary(
+    name = "libsensor.dylib",
+    srcs = [
+        "register.cc",
+        "touch_grid.cc",
+        "touch_grid.h",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = ["//:mujoco_shared"],
+)
+
+cc_binary(
+    name = "sensor.dll",
+    srcs = [
+        "register.cc",
+        "touch_grid.cc",
+        "touch_grid.h",
+    ],
+    copts = _CXXOPTS,
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = ["//:mujoco_shared"],
+)
+
+alias(
+    name = "shared",
+    actual = select({
+        "@platforms//os:linux": ":libsensor.so",
+        "@platforms//os:macos": ":libsensor.dylib",
+        "@platforms//os:windows": ":sensor.dll",
+    }),
+)
+
+alias(
+    name = "sensor",
+    actual = ":sensor_static",
+)

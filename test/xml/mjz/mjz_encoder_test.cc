@@ -34,7 +34,7 @@
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
-#include <miniz.h>
+#include "miniz.h"
 #if defined(__GNUC__) || defined(__clang__)
   #pragma GCC diagnostic pop
 #endif
@@ -63,13 +63,11 @@ static mjSpec* MakeSimpleSpec() {
 }
 
 static std::string SanitizePathForTestName(const std::string& path) {
-  fs::path p(path);
-  std::string name = p.stem().string();
-  std::string full_name = p.string();
-  size_t pos = full_name.find("third_party/mujoco");
-  if (pos != std::string::npos) {
-    full_name = full_name.substr(pos);
-  }
+  const fs::path root = fs::absolute(GetTestDataFilePath("CMakeLists.txt"))
+                            .parent_path()
+                            .parent_path();
+  const std::string full_name =
+      fs::absolute(path).lexically_relative(root).generic_string();
   std::string sanitized;
   for (char c : full_name) {
     if (std::isalnum(c)) {

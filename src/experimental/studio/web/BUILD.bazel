@@ -1,0 +1,119 @@
+load("@emsdk//emscripten_toolchain:wasm_rules.bzl", "wasm_cc_binary")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load(":defs.bzl", "web_dist")
+
+package(default_visibility = ["//visibility:private"])
+
+cc_library(
+    name = "render_noop",
+    srcs = ["//:src/render/noop/render_noop.c"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:emscripten"],
+    deps = ["//:mujoco"],
+)
+
+cc_binary(
+    name = "web_client.js",
+    srcs = ["//python:studio_web_sources"],
+    copts = [
+        "-std=c++20",
+        "-fexceptions",
+    ],
+    linkopts = [
+        "--oformat=js",
+        "--bind",
+        "-sASSERTIONS=0",
+        "-sGL_ASSERTIONS=0",
+        "-sFETCH=1",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sDYNAMIC_EXECUTION=1",
+        "-sUSE_WEBGL2=1",
+        "-sFULL_ES3=1",
+        "-sMIN_WEBGL_VERSION=2",
+        "-sMAX_WEBGL_VERSION=2",
+        "-sSTACK_SIZE=32mb",
+        "-sINITIAL_MEMORY=3072mb",
+        "-sMAXIMUM_MEMORY=4gb",
+        "-fexceptions",
+        "-Wl,--wrap=glGetError",
+    ],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:emscripten"],
+    deps = [
+        ":render_noop",
+        "//:internal",
+        "//:mujoco",
+        "//python:netimgui_wasm",
+        "//src/experimental/studio:platform",
+        "@mujoco_imgui//:imgui",
+        "@mujoco_implot//:implot",
+        "@mujoco_sdl2//:sdl2",
+    ],
+)
+
+wasm_cc_binary(
+    name = "client",
+    cc_target = ":web_client.js",
+    outputs = [
+        "wasm/web_client.js",
+        "wasm/web_client.wasm",
+    ],
+    tags = ["manual"],
+    threads = "emscripten",
+    visibility = ["//visibility:public"],
+)
+
+web_dist(
+    name = "dist",
+    assets = ["//src/experimental/studio:assets"],
+    client = ":client",
+    directory = "dist",
+    icon = "//src/experimental/studio:favicon.ico",
+    index = "//python:studio_web_index",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "package_files",
+    srcs = [":dist"],
+    prefix = "dist",
+    strip_prefix = strip_prefix.from_pkg("dist"),
+    tags = ["manual"],
+)
+
+_LICENSES = {
+    "filament": "@mujoco_filament//:licenses",
+    "imgui": "@mujoco_imgui//:licenses",
+    "implot": "@mujoco_implot//:licenses",
+    "libwebp": "@mujoco_libwebp//:licenses",
+    "sdl2": "@mujoco_sdl2//:licenses",
+    "font_next": "@mujoco_font_next//:OFL.txt",
+    "font_mono": "@mujoco_font_mono//:OFL.txt",
+    "font_awesome": "@mujoco_font_awesome//:README.md",
+    "netimgui": "//python:netimgui_license",
+}
+
+[
+    pkg_files(
+        name = name + "_licenses",
+        srcs = [label],
+        prefix = "share/licenses/mujoco/" + name,
+        strip_prefix = strip_prefix.from_root(),
+        tags = ["manual"],
+    )
+    for name, label in _LICENSES.items()
+]
+
+pkg_tar(
+    name = "archive",
+    srcs = [
+        ":package_files",
+        "//bazel/package:core_licenses",
+        "//wasm:runtime_licenses",
+    ] + [":" + name + "_licenses" for name in _LICENSES],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,4 @@
+exports_files([
+    "ccd-support-emscripten.patch",
+    "qhull-support-emscripten.patch",
+])

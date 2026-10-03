@@ -1,0 +1,41 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "imgui",
+    srcs = [
+        "imgui.cpp",
+        "imgui_demo.cpp",
+        "imgui_draw.cpp",
+        "imgui_tables.cpp",
+        "imgui_widgets.cpp",
+    ],
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+
+cc_library(
+    name = "backends",
+    srcs = [
+        "backends/imgui_impl_opengl3.cpp",
+        "backends/imgui_impl_sdl2.cpp",
+        "misc/cpp/imgui_stdlib.cpp",
+    ],
+    hdrs = [
+        "backends/imgui_impl_opengl3.h",
+        "backends/imgui_impl_opengl3_loader.h",
+        "backends/imgui_impl_sdl2.h",
+        "misc/cpp/imgui_stdlib.h",
+    ],
+    deps = [
+        ":imgui",
+        "@mujoco_sdl2//:sdl2",
+    ],
+)
+
+filegroup(
+    name = "licenses",
+    srcs = ['LICENSE.txt'],
+    visibility = ["//visibility:public"],
+)
