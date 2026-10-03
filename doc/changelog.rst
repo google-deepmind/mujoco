@@ -7,6 +7,11 @@ Upcoming Version (not yet released)
 
 General
 ^^^^^^^
+- Added an experimental :ref:`batch API<Batchedsimulation>` in ``mujoco/experimental/batch.h``: many simulations of one
+  model stepped on a thread pool of its own, each held as its integration state and loaded into an ``mjData`` for each
+  call, so memory scales with threads and results are bit-identical to a plain loop at any thread count. It supports
+  per-simulation model and option fields, recorded trajectories, persistent simulations (required for sleep), and
+  arbitrary per-simulation functions.
 - Added support for building MuJoCo with `Bazel <https://bazel.build/>`__ (initially covers core library, ``simulate``,
   plugins, and samples).
 

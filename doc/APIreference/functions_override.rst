@@ -645,6 +645,80 @@ This produces:
      velocity:   0.000 m/s
      bounces:    47
 
+.. _Batchedsimulation:
+
+Experimental functions for running many simulations of one model on a thread pool, declared in
+``mujoco/experimental/batch.h``; they may change between releases. See :ref:`Batched simulation<siBatch>` for an
+overview and an example.
+
+The functions that run simulations take ``ids``, ``nid`` sorted and unique simulation indices, or ``NULL`` for all
+simulations. They return the number of simulations in which MuJoCo raised an error. Those simulations keep the state
+they had before the call and the others run to completion; :ref:`mjb_status` and :ref:`mjb_error` hold the outcome of
+each simulation's last call.
+
+.. _mjb_makeBatch:
+
+Allocate a batch of ``nsim`` simulations of a copy of ``m`` on ``nthread`` threads including the caller's, or one per
+logical CPU if ``nthread <= 0``, capped at ``nsim``. If ``persistent`` is nonzero, the batch keeps one mjData per
+simulation instead of one per thread; models with :ref:`sleep<option-flag-sleep>` enabled require it. If the model
+cannot be batched, return ``NULL`` and write the reason into ``error``.
+
+.. _mjb_state:
+
+Return the state rows, ``nsim x nstate``: each simulation's :ref:`integration state<siIntegrationState>`, in
+:ref:`mj_getState` order. A row is its simulation's state at that simulation's next call, which overwrites it.
+
+.. _mjb_warning:
+
+Return the warning counters, ``nsim x mjNWARNING``, saved and restored with the state.
+
+.. _mjb_output:
+
+Register mjData array field ``name`` to be copied out of each simulation after every call on it except
+:ref:`mjb_apply`, and return its storage, ``nsim x size`` of the field's element type. Write the number of elements per
+simulation into ``size`` and the element size in bytes into ``elemsize``. The storage is zero until the next call on a
+simulation. In a batch that is not persistent, a field the call does not compute, such as ``qfrc_inverse`` after
+:ref:`mj_step` or quantities computed only for the sensors that need them, holds another simulation's value. Return
+``NULL`` for unknown fields and for the fields of the state row, which :ref:`mjb_state` holds.
+
+.. _mjb_expand:
+
+Give mjModel field ``name`` per-simulation values and return their storage, ``nsim x size`` of the field's element type,
+seeded from the model and applied to a simulation's model before each of its calls. Write the number of elements per
+simulation into ``size`` and the element size in bytes into ``elemsize``. Array fields are named as in :ref:`mjModel`,
+and :ref:`mjOption` fields as ``"opt.<name>"``. Return ``NULL`` for unknown fields and for asset fields (meshes,
+heightfields, textures, skins), which all simulations share.
+
+.. _mjb_reset:
+
+Reset each simulation to the model's defaults if ``key < 0``, or to keyframe ``key``, then run :ref:`mj_forward`. Writes
+to the state rows made before the call are discarded.
+
+.. _mjb_setConst:
+
+Run :ref:`mj_setConst` on each simulation's model. Every model field it changes gets per-simulation values, as with
+:ref:`mjb_expand`, so the derived constants are per-simulation; when a field gains them, every simulation is recomputed
+and counted in the return value. A simulation in which MuJoCo raises an error keeps its constants.
+
+.. _mjb_rollout:
+
+Advance each simulation by ``nstep`` calls to :ref:`mj_step`, as :ref:`rollout<PyRollout>` does. Before each substep,
+set the state components in ``control_spec``, a subset of ``mjSTATE_USER``, from ``control``, which is
+``n x nstep x mj_stateSize(m, control_spec)`` for the ``n`` simulations of the call in call order; if ``control`` is
+``NULL``, leave the inputs as they are. After each substep, copy each of the ``nrecord`` :ref:`mjBatchRecord` |-| s into
+its buffer. A simulation whose warning counters rise stops stepping, and its remaining records repeat its last ones.
+
+.. _mjb_apply:
+
+Run ``func`` on each simulation's model and data, on the batch's threads, and save the state back if ``save`` is
+nonzero. Fields registered with :ref:`mjb_output` are not refreshed; ``func`` returns its results through ``arg``.
+``func`` may call other batches that do not call back into this one; a call on its own batch raises an error in the
+simulation.
+
+.. _mjb_status:
+
+Return the status of each simulation's last call, ``nsim`` values: nonzero if MuJoCo raised an error in it.
+
 .. _Standardmath:
 
 The "functions" in this section are preprocessor macros replaced with the corresponding C standard library math
