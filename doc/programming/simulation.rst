@@ -633,6 +633,52 @@ the center) can be used to warm-start all the other samples. In this setting it 
 different results between nearby samples reflect genuine differences between the samples, and not different warm-start
 or termination of the iterative solver.
 
+.. _siBatch:
+
+Batched simulation
+^^^^^^^^^^^^^^^^^^
+
+The experimental :ref:`batch API<Batchedsimulation>` in ``mujoco/experimental/batch.h`` packages this scheme. An
+:ref:`mjBatch` holds ``nsim`` simulations of one model and runs them on a thread pool of its own. Each simulation is its
+:ref:`integration state<siIntegrationState>`, one row of :ref:`mjb_state`, plus its warning counters. A call loads each
+simulation's row into an mjData, runs, copies out the fields registered with :ref:`mjb_output`, and saves the row back,
+on ``nthread`` threads including the caller's. Results are bit-identical to a serial loop over one mjData per
+simulation, at any thread count.
+
+The rows are the only input storage: a write to ``ctrl``, ``qpos``, ``mocap_pos`` or the applied forces is a write to
+the corresponding part of a row, and becomes that simulation's state at its next call. Model and option fields given
+per-simulation values with :ref:`mjb_expand` are applied before each call, and :ref:`mjb_setConst` makes the constants
+derived from them per-simulation as well. :ref:`mjb_rollout` records trajectories, and :ref:`mjb_apply` runs any
+function on each simulation, for queries such as Jacobians.
+
+.. code-block:: C
+
+   char error[1000];
+   mjBatch* b = mjb_makeBatch(m, 1024, 0, 0, error, sizeof(error));
+   int nstate = mjb_nstate(b);
+   mjtNum* ctrl = mjb_stateComponent(b, mjSTATE_CTRL, NULL);  // in the first row
+   mjtNum* xpos = mjb_output(b, "xpos", NULL, NULL);
+   mjb_reset(b, NULL, 0, -1, mjSTAGE_ACC);
+
+   for (int k=0; k < 1000; k++) {
+     for (int i=0; i < 1024; i++) {
+       policy(xpos + 3*m->nbody*i, ctrl + nstate*i);
+     }
+     if (mjb_step(b, NULL, 0, 1, mjSTAGE_VEL)) {  // xpos of the new state
+       // some simulations failed: see mjb_status(b) and mjb_error(b, i)
+     }
+   }
+
+   mjb_deleteBatch(b);
+
+By default there is one mjData per thread, so memory scales with threads rather than simulations, and a field the call
+does not compute, such as ``qfrc_inverse`` after :ref:`mj_step`, holds another simulation's value. A persistent batch
+keeps one mjData per simulation instead, and is required for models with :ref:`sleep<option-flag-sleep>` enabled, whose
+bookkeeping lives in the mjData rather than in the state.
+
+The batch's threads run across simulations, while those of :ref:`mju_threadpool` run within one simulation. The two are
+not combined, and the batch never installs an engine thread pool.
+
 .. _siChange:
 
 mjModel changes

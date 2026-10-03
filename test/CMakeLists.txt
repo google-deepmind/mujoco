@@ -133,6 +133,7 @@ mujoco_test(mjspecmacro_test)
 
 mujoco_test(pipeline_test)
 
+add_subdirectory(batch)
 add_subdirectory(benchmark)
 add_subdirectory(engine)
 add_subdirectory(sample)
