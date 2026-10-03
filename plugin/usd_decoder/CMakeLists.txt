@@ -19,6 +19,8 @@ set(USD_DECODER_SRCS
     kinematic_tree.h
     material_parsing.cc
     material_parsing.h
+    newton_tokens.cc
+    newton_tokens.h
 )
 
 add_library(usd_decoder_plugin SHARED ${USD_DECODER_SRCS})
