@@ -787,6 +787,13 @@ mjCModel& mjCModel::operator-=(const mjCDef& subtree) {
   std::sort(default_ids_to_remove.begin(), default_ids_to_remove.end(), std::greater<int>());
 
   for (int id : default_ids_to_remove) {
+    for (auto it = def_map.begin(); it != def_map.end(); ) {
+      if (it->second == defaults_[id]) {
+        it = def_map.erase(it);
+      } else {
+        ++it;
+      }
+    }
     defaults_[id]->id = -1;
     defaults_[id]->Release();
     defaults_.erase(defaults_.begin() + id);
