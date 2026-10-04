@@ -904,6 +904,12 @@ int mjc_ipcOwnsFlexGeom(const mjModel* m, int f, int g) {
 }
 
 
+// whether points a and b ride on one body (ptbody is -1 for points without a body)
+static inline int sameBody(const int* ptbody, int a, int b) {
+  return ptbody[a] >= 0 && ptbody[a] == ptbody[b];
+}
+
+
 // build the candidate-contact list: every pair whose gap can enter the detection band along the
 // sweep dfrom -> dto. The reach of each query is the base threshold plus the travel of the points
 // involved, taken per point (|dto - dfrom|) and per queried flex (the largest travel of its points,
@@ -912,7 +918,7 @@ int mjc_ipcOwnsFlexGeom(const mjModel* m, int f, int g) {
 // every query by the fastest vertex anywhere. Flex-flex and geom-feature-vs-flex pairs are found by
 // querying the flex element BVH (bvhBox). The native collision filtering applies: nothing with
 // contact (or constraints) disabled, pairs under the contype/conaffinity rule, self-contact under
-// the flex's selfcollide.
+// the flex's selfcollide, and no flex-flex pair between features with points on one body.
 int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* gv,
                    const mjtNum* ge, const int* gvgeom, const int* gegeom, int ngv, int nge,
                    const mjtNum* radii, mjtNum thresh, mjtNum threshGeom, const mjtNum* dfrom,
@@ -1018,6 +1024,22 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
     }
   }
 
+  // body of each point (-1 for interpolated flexes, whose vertices have no body). Two features
+  // whose points share a body move rigidly together, e.g. a vertex pinned onto another flex's
+  // vertex body or two vertices pinned to one parent: like geoms on one body, they do not collide
+  int npt_all = 0;
+  for (int k=0; k < nfd; k++) {
+    int top = fxadr[k] + m->flex_vertnum[flist[k]];
+    if (top > npt_all) npt_all = top;
+  }
+  int* ptbody = mjSTACKALLOC(d, npt_all > 0 ? npt_all : 1, int);
+  for (int k=0; k < nfd; k++) {
+    int fk = flist[k];
+    for (int lv=0; lv < m->flex_vertnum[fk]; lv++) {
+      ptbody[fxadr[k] + lv] = m->flex_vertbodyid[m->flex_vertadr[fk] + lv];
+    }
+  }
+
   for (int k=0; k < nfd; k++) {  // query flex fk's element BVH
     int fk = flist[k];
     int ne_k = m->flex_elemnum[fk], ea_k = m->flex_edgeadr[fk], off_k = fxadr[k];
@@ -1093,6 +1115,9 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
         int e = outel[i];
         int A = off_k + el_k[3 * e], B = off_k + el_k[3 * e + 1], C = off_k + el_k[3 * e + 2];
         if (kv == k && (v == A || v == B || v == C)) continue;  // skip the self-adjacent triangle
+        if (sameBody(ptbody, v, A) || sameBody(ptbody, v, B) || sameBody(ptbody, v, C)) {
+          continue;  // vertex rides on the body of a triangle vertex
+        }
         mjcFlexPair con = {mjcFLEX_VERT_TRI, {v, A, B, C}, -1};
         addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, cand, &nc, &full);
       }
@@ -1127,6 +1152,10 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
                 b2 = off_k + m->flex_edge[2 * (ea_k + e2) + 1];
             if (a1 == a2 || a1 == b2 || b1 == a2 || b1 == b2)
               continue;  // shared vertex -> adjacent, skip
+            if (sameBody(ptbody, a1, a2) || sameBody(ptbody, a1, b2) ||
+                sameBody(ptbody, b1, a2) || sameBody(ptbody, b1, b2)) {
+              continue;  // endpoints ride on one body
+            }
             mjcFlexPair con = {mjcFLEX_EDGE_EDGE, {a1, b1, a2, b2}, -1};
             addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, cand, &nc, &full);
           }

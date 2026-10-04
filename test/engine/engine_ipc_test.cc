@@ -426,6 +426,73 @@ TEST_F(IpcTest, FreeFall) {
   mj_deleteModel(m);
 }
 
+// two flexes sharing a vertex body (a seam: one flex's vertex attached to
+// another flex's vertex body, here 1.5 mm above the other flex's triangle).
+// Features with points on one body move rigidly together, so they make no
+// contact pair: a pair would push the body against itself, bending the
+// triangle. Both flexes fall freely.
+TEST_F(IpcTest, SharedVertexBodyMakesNoContact) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400">
+      <flag ipc="enable"/>
+    </option>
+    <default>
+      <joint type="slide"/>
+    </default>
+    <worldbody>
+      <body name="a0" pos="0 0 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+      <body name="a1" pos=".04 0 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+      <body name="a2" pos="0 .04 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+      <body name="a3" pos=".04 .04 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+      <body name="b1" pos="-.04 0 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+      <body name="b2" pos="0 -.04 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+      <body name="b3" pos="-.04 -.04 .2">
+        <inertial pos="0 0 0" mass=".01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint axis="1 0 0"/><joint axis="0 1 0"/><joint axis="0 0 1"/></body>
+    </worldbody>
+    <deformable>
+      <flex name="a" dim="2" radius=".004" body="a0 a1 a2 a3" element="0 1 2 1 3 2">
+        <contact selfcollide="none"/>
+      </flex>
+      <flex name="b" dim="2" radius=".004" body="a0 b1 b2 b3" element="0 1 2 1 3 2"
+            vertex=".01 .01 .0015  0 0 0  0 0 0  0 0 0">
+        <contact selfcollide="none"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  mjModel* m = Load(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  for (int s = 0; s < 50; s++) {
+    mj_step(m, d);
+    ASSERT_FALSE(d->warning[mjWARN_BADQACC].number) << "diverged at step " << s;
+  }
+
+  // no contact force: every vertex falls by the same amount
+  mjtNum z0 = d->xpos[3 * mj_name2id(m, mjOBJ_BODY, "a0") + 2];
+  EXPECT_LT(z0, 0.2 - 0.01);
+  for (const char* name : {"a1", "a2", "a3", "b1", "b2", "b3"}) {
+    int b = mj_name2id(m, mjOBJ_BODY, name);
+    EXPECT_NEAR(d->xpos[3 * b + 2], z0, MjTol(1e-9, 1e-5)) << name;
+  }
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 // the intersection-free guarantee: a cloth driven hard at a plane cannot pass
 // through in one step (a single explicit Euler step at this speed would put it
 // far below the plane).
