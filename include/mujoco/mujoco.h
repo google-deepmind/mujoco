@@ -228,7 +228,7 @@ MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
 // Save model to binary MJB file or memory buffer; buffer has precedence when given.
 // Nullable: filename, buffer
-MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
+MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize buffer_sz);
 
 // Load model from binary MJB file.
 // If vfs is not NULL, look up file in vfs before reading from disk.
@@ -236,7 +236,7 @@ MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, in
 MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 
 // Load model from memory buffer.
-MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz);
 
 // Free memory allocation in model.
 MJAPI void mj_deleteModel(mjModel* m);

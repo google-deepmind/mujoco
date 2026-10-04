@@ -93,14 +93,14 @@ static int getnptr(void) {
 
 
 // write to memory buffer
-static void bufwrite(const void* src, int num, mjtSize szbuf, void* buf, mjtSize* ptrbuf) {
+static void bufwrite(const void* src, mjtSize num, mjtSize szbuf, void* buf, mjtSize* ptrbuf) {
   // check pointers
   if (!src || !buf || !ptrbuf) {
     mjERROR("NULL pointer passed to bufwrite");
   }
 
   // check size
-  if (*ptrbuf+num > szbuf) {
+  if (num < 0 || szbuf - *ptrbuf < num) {
     mjERROR("attempting to write outside model buffer");
   }
 
@@ -111,14 +111,14 @@ static void bufwrite(const void* src, int num, mjtSize szbuf, void* buf, mjtSize
 
 
 // read from memory buffer
-static void bufread(void* dest, int num, mjtSize szbuf, const void* buf, mjtSize* ptrbuf) {
+static void bufread(void* dest, mjtSize num, mjtSize szbuf, const void* buf, mjtSize* ptrbuf) {
   // check pointers
   if (!dest || !buf || !ptrbuf) {
     mjERROR("NULL pointer passed to bufread");
   }
 
   // check size
-  if (*ptrbuf+num > szbuf) {
+  if (num < 0 || szbuf - *ptrbuf < num) {
     mjERROR("attempting to read outside model buffer");
   }
 
@@ -510,7 +510,7 @@ void mjv_copyModel(mjModel* dest, const mjModel* src) {
 
 
 // save model to binary file, or memory buffer of szbuf>0
-void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz) {
+void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize buffer_sz) {
   mjtSize ptrbuf = 0;
 
   // standard header
@@ -524,7 +524,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
       mju_warning("Could not allocate buffer for saving model");
       return;
     }
-    mj_saveModel(m, NULL, tmpbuf, (int)sz);
+    mj_saveModel(m, NULL, tmpbuf, sz);
 
     mjtSize written = mju_writeResource(filename, tmpbuf, sz, NULL, NULL, 0);
     if (written != sz) {
@@ -555,7 +555,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 // load binary MJB model
-mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
+mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   mjtSize ptrbuf = 0;
   mjModel *m = 0;
 
@@ -658,7 +658,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
   {
     MJMODEL_POINTERS_PREAMBLE(m)
     #define X(type, name, nr, nc)                                           \
-      if (ptrbuf + sizeof(type) * (m->nr) * (nc) > buffer_sz) {             \
+      if (buffer_sz - ptrbuf < sizeof(type) * (m->nr) * (nc)) {             \
         mju_warning(                                                        \
             "Truncated model file - ran out of data while reading " #name); \
         mj_deleteModel(m);                                                  \

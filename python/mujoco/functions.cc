@@ -144,7 +144,7 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
          std::optional<Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>>
              buffer = std::nullopt) {
         void* buffer_ptr = nullptr;
-        int buffer_sz = 0;
+        mjtSize buffer_sz = 0;
         if (buffer.has_value()) {
           buffer_ptr = buffer->data();
           buffer_sz = buffer->size();

@@ -38,7 +38,10 @@ Engine
   optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
 - Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
 - Added the :ref:`enclosed<sensor-insidesite-enclosed>` attribute to :ref:`insidesite<sensor-insidesite>` sensors,
-  measuring how much an object juts out of a site (using directed Hausdorff distance) and reporting signed clearance/protrusion.
+  measuring how much an object juts out of a site (using directed Hausdorff distance) and reporting signed
+  clearance/protrusion.
+- Fixed 64-bit model size narrowing in binary MJB serialization: :ref:`mj_saveModel` and :ref:`mj_loadModelBuffer` now
+  accept :ref:`mjtSize` for ``buffer_sz``, supporting models larger than 2 GiB.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------

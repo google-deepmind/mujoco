@@ -954,7 +954,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='buffer_sz',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='mjtSize'),
              ),
          ),
          doc='Save model to binary MJB file or memory buffer; buffer has precedence when given.',  # pylint: disable=line-too-long
@@ -997,7 +997,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='buffer_sz',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='mjtSize'),
              ),
          ),
          doc='Load model from memory buffer.',

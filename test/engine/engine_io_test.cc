@@ -17,6 +17,7 @@
 #include "src/engine/engine_io.h"
 
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -67,7 +68,7 @@ TEST_F(EngineIoTest, VerifySizeModel) {
   mj_saveModel(model.get(), temp_file.string().c_str(), NULL, 0);
 
   std::uintmax_t file_size = std::filesystem::file_size(temp_file);
-  int model_size = mj_sizeModel(model.get());
+  mjtSize model_size = mj_sizeModel(model.get());
 
   std::filesystem::remove(temp_file);
 
@@ -903,7 +904,7 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
       << "Failed to load model: " << error.data();
 
   // save model to a buffer
-  int bufsize = mj_sizeModel(model.get());
+  mjtSize bufsize = mj_sizeModel(model.get());
   ASSERT_GT(bufsize, 0);
   std::vector<char> buffer(bufsize);
   mj_saveModel(model.get(), nullptr, buffer.data(), bufsize);
@@ -940,6 +941,20 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
   if (bad_model) {
     mj_deleteModel(bad_model);
   }
+}
+
+TEST_F(EngineIoTest, SaveModelAcceptsLargeBufferSize) {
+  constexpr char xml[] = "<mujoco />";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+
+  mjtSize bufsize = mj_sizeModel(model.get());
+  std::vector<char> buffer(bufsize);
+
+  mjtSize large_bufsize = static_cast<mjtSize>(INT_MAX) + 1024LL;
+  mj_saveModel(model.get(), nullptr, buffer.data(), large_bufsize);
 }
 
 }  // namespace

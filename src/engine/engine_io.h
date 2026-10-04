@@ -74,10 +74,10 @@ MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 MJAPI void mjv_copyModel(mjModel* dest, const mjModel* src);
 
 // save model to binary file
-MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
+MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize buffer_sz);
 
 // load model from binary buffer
-MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz);
 
 // deallocate model
 MJAPI void mj_deleteModel(mjModel* m);

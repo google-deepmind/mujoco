@@ -6823,13 +6823,13 @@ public static unsafe extern void mj_defaultVisual(mjVisual_* vis);
 public static unsafe extern mjModel_* mj_copyModel(mjModel_* dest, mjModel_* src);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_saveModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, void* buffer, int buffer_sz);
+public static unsafe extern void mj_saveModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, void* buffer, UInt64 buffer_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjModel_* mj_loadModel([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjModel_* mj_loadModelBuffer(void* buffer, int buffer_sz);
+public static unsafe extern mjModel_* mj_loadModelBuffer(void* buffer, UInt64 buffer_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteModel(mjModel_* m);
