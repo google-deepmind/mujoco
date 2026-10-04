@@ -760,5 +760,48 @@ TEST_F(SetConstTest, DampRatioInertia) {
   EXPECT_NEAR(m->actuator_biasprm[1 * mjNBIAS + 2], -6, MjTol(1e-10, 1e-6));
 }
 
+// The constant bending factor of M + K_bend is consumed only by bending-only
+// flexes: with stretching present the per-step factor replaces it, so a
+// singular M + K_bend must not be an error.
+TEST_F(SetConstTest, RankDeficientBendingFactor) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option solver="CG" integrator="discrete"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.05 0.05 0.05"
+                radius=".005" dim="2" mass="0.5" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" elastic2d="ELASTIC2D"
+                    thickness="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  for (const char* elastic2d : {"both", "bend"}) {
+    std::string model_xml(xml);
+    model_xml.replace(model_xml.find("ELASTIC2D"), 9, elastic2d);
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(model_xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    ASSERT_GT(m->nefm0dof, 0);
+    MjDataPtr d(mj_makeData(m.get()));
+
+    // vanishing vertex masses make M + K_bend singular (rigid motions)
+    for (int b = 1; b < m->nbody; b++) {
+      m->body_mass[b] = 1e-20;
+      m->body_inertia[3 * b + 0] = 1e-20;
+      m->body_inertia[3 * b + 1] = 1e-20;
+      m->body_inertia[3 * b + 2] = 1e-20;
+    }
+
+    std::string err = MjuErrorMessageFrom(mj_setConst)(m.get(), d.get());
+    if (std::string(elastic2d) == "both") {
+      EXPECT_EQ(err, "");
+    } else {
+      EXPECT_THAT(err, HasSubstr("constant metric factor is rank-deficient"));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
