@@ -4399,8 +4399,7 @@ static void ComputeInterpBending(std::vector<double>&       bending,
   face_cumul[0] = 0;
   for (int f = 1; f < 6; f++) { face_cumul[f] = face_cumul[f - 1] + face_sizes[f - 1]; }
 
-  int face_count0[6];
-  for (int f = 0; f < 6; f++) { face_count0[f] = face_sizes[f] / face_count1[f]; }
+  int face_count0[6] = {cy, cy, cz, cz, cx, cx};
 
   int cells[3] = {cx, cy, cz};
 
