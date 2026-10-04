@@ -4403,5 +4403,33 @@ message {
   mj_deleteSpec(spec);
 }
 
+TEST_F(XMLReaderTest, DeepBodyNesting) {
+  constexpr int kDepth = 100;
+  std::string xml = "<mujoco><worldbody>";
+  for (int i = 0; i < kDepth; ++i) {
+    xml +=
+        "<body pos=\"0 .05 0\"><joint type=\"hinge\" armature=\"0.1\"/>"
+        "<geom type=\"capsule\" size=\"0.01 0.02\"/>";
+  }
+  for (int i = 0; i < kDepth; ++i) {
+    xml += "</body>";
+  }
+  xml += "</worldbody></mujoco>";
+
+  std::array<char, 1024> error;
+  mjSpec* spec =
+      mj_parseXMLString(xml.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->nbody, kDepth + 1);
+  EXPECT_EQ(m->njnt, kDepth);
+  EXPECT_EQ(m->ngeom, kDepth);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

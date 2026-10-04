@@ -21,6 +21,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -1433,7 +1434,8 @@ void mjXReader::OneComposite(XMLElement*       elem,
   int    n;
 
   // create out-of-DOM element
-  mjCComposite comp;
+  auto          comp_ptr = std::make_unique<mjCComposite>();
+  mjCComposite& comp     = *comp_ptr;
 
   // common properties
   ReadAttrTxt(elem, "prefix", comp.prefix);
@@ -1591,8 +1593,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   int    n;
 
   // create out-of-DOM element
-  mjCFlexcomp fcomp;
-  mjsFlex&    dflex = *fcomp.def.spec.flex;
+  auto         fcomp_ptr = std::make_unique<mjCFlexcomp>();
+  mjCFlexcomp& fcomp     = *fcomp_ptr;
+  mjsFlex&     dflex     = *fcomp.def.spec.flex;
 
   // common properties
   ReadAttrTxt(elem, "name", fcomp.name, true);
@@ -2256,10 +2259,9 @@ static const char* stripError(const char* err) {
   return err;
 }
 
-// body/world section parser; recursive
+// body/world section parser
 void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const mjVFS* vfs) {
-  string      text, name;
-  XMLElement* elem;
+  string text, name;
 
   // sanity check
   if (!body) { throw mjXError(section, "null body pointer"); }
@@ -2269,9 +2271,26 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
     throw mjXError(section, "World body cannot have attributes");
   }
 
+  // stack of elements to process
+  struct BodyFrame {
+    XMLElement* elem;
+    mjsBody*    body;
+    mjsFrame*   frame;
+  };
+  vector<BodyFrame> stack;
+  stack.push_back({FirstChildElement(section), body, frame});
+
   // iterate over sub-elements; attributes set while parsing parent body
-  elem = FirstChildElement(section);
-  while (elem) {
+  while (!stack.empty()) {
+    XMLElement* elem = stack.back().elem;
+    if (!elem) {
+      stack.pop_back();
+      continue;
+    }
+    body              = stack.back().body;
+    frame             = stack.back().frame;
+    stack.back().elem = NextSiblingElement(elem);
+
     // get sub-element name
     name = elem->Value();
 
@@ -2404,7 +2423,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       ReadQuat(elem, "quat", pframe->quat, text);
       ReadAlternative(elem, pframe->alt);
 
-      Body(elem, body, pframe, vfs);
+      stack.push_back({FirstChildElement(elem), body, pframe});
     }
 
     // replicate sub-element
@@ -2486,6 +2505,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
 
       // create child body
       mjsBody* child = mjs_addBody(body, childdef);
+      if (!child) { throw mjXError(elem, "null body pointer"); }
       mjs_setString(child->info, string("line " + std::to_string(elem->GetLineNum())).c_str());
 
       // set default from class or childclass
@@ -2505,8 +2525,8 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       // add frame
       mjs_setFrame(child->element, frame);
 
-      // make recursive call
-      Body(elem, child, nullptr, vfs);
+      // push child onto traversal stack
+      stack.push_back({FirstChildElement(elem), child, nullptr});
     }
 
     // attachment
@@ -2597,9 +2617,6 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
     else {
       throw mjXError(elem, "unrecognized model element '%s'", name.c_str());
     }
-
-    // advance to next element
-    elem = NextSiblingElement(elem);
   }
 }
 
