@@ -611,6 +611,16 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
 }
 
 
+// an asset which has a file and no name is named after the file
+static void NameFromFile(XMLElement* elem, mjsElement* asset, const mjString* file) {
+  if (!mjs_getName(asset)->empty() || file->empty()) { return; }
+  std::string name = mjuu_stripext(mjuu_strippath(*file));
+  if (mjs_setName(asset, name.c_str())) {
+    throw mjXError(elem, "%s", mjs_getError(mjs_getSpec(asset)));
+  }
+}
+
+
 // mesh element parser
 void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   int    n;
@@ -622,6 +632,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
   // file, resolved against the mesh directory
   auto file = ReadAttrFile(elem, "file", vfs, MeshDir());
   if (file) { mjs_setString(mesh->file, file->c_str()); }
+  NameFromFile(elem, mesh->element, mesh->file);
 
   // plugin sub-element
   XMLElement* eplugin = FirstChildElement(elem, "plugin");
@@ -658,6 +669,7 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* skin, const mjVFS* vfs) {
   // file, resolved against the asset directory
   auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
   if (file.has_value()) { mjs_setString(skin->file, file->c_str()); }
+  NameFromFile(elem, skin->element, skin->file);
 
   // group with range validation
   ReadAttrInt(elem, "group", &skin->group);
@@ -2131,6 +2143,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       // file, resolved against the texture directory
       auto file = ReadAttrFile(elem, "file", vfs, TextureDir());
       if (file.has_value()) { mjs_setString(texture->file, file->c_str()); }
+      NameFromFile(elem, texture->element, texture->file);
 
       // gridlayout length must equal the gridsize product (value-conditional)
       if (ReadAttrTxt(elem, "gridlayout", text) &&
@@ -2188,6 +2201,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       // file, resolved against the asset directory
       auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
       if (file.has_value()) { mjs_setString(hfield->file, file->c_str()); }
+      NameFromFile(elem, hfield->element, hfield->file);
 
       // allocate buffer for dynamic hfield, copy user data if given
       if (!file.has_value() && hfield->nrow > 0 && hfield->ncol > 0) {

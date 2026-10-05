@@ -1286,6 +1286,50 @@ TEST_F(XMLReaderTest, TendonArmatureGeomWrap) {
 }
 
 // ------------------------ test frame parsing ---------------------------------
+// an asset with a file and no name is named after the file when it is parsed
+TEST_F(XMLReaderTest, AssetNamedAfterFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh file="meshes/cube.obj"/>
+      <mesh name="given" file="meshes/cube.obj"/>
+      <texture type="2d" file="textures/tiles.png"/>
+      <texture type="skybox" builtin="gradient" width="2" height="12"/>
+      <hfield file="terrain.png" size="1 1 1 1"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  auto names = [spec](mjtObj type) {
+    std::vector<std::string> names;
+    for (mjsElement* element = mjs_firstElement(spec, type); element;
+         element = mjs_nextElement(spec, element)) {
+      names.push_back(mjs_getString(mjs_getName(element)));
+    }
+    return names;
+  };
+  EXPECT_THAT(names(mjOBJ_MESH), ElementsAre("cube", "given"));
+  EXPECT_THAT(names(mjOBJ_TEXTURE), ElementsAre("tiles", ""));
+  EXPECT_THAT(names(mjOBJ_HFIELD), ElementsAre("terrain"));
+  mj_deleteSpec(spec);
+
+  // two files with the same name cannot both give it to their mesh
+  static constexpr char xml_repeated[] = R"(
+  <mujoco>
+    <asset>
+      <mesh file="left/cube.obj"/>
+      <mesh file="right/cube.obj"/>
+    </asset>
+  </mujoco>
+  )";
+  spec = mj_parseXMLString(xml_repeated, 0, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("repeated name 'cube' in mesh"));
+}
+
 TEST_F(XMLReaderTest, ParseFrame) {
   static constexpr char xml[] = R"(
   <mujoco>

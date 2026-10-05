@@ -24,7 +24,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
-#include <filesystem>  // NOLINT(build/c++17)
 #include <functional>
 #include <limits>
 #include <mutex>
@@ -299,6 +298,15 @@ template <class T>
 static void resetlist(std::vector<T*>& list) {
   for (auto element : list) { element->id = -1; }
   list.clear();
+}
+
+
+// elements of a list in the order of their ids
+template <class T>
+static std::vector<T*> orderbyid(const std::vector<T*>& list) {
+  std::vector<T*> ordered(list.size());
+  for (T* element : list) { ordered[element->id] = element; }
+  return ordered;
 }
 
 
@@ -1658,10 +1666,6 @@ template <class T>
 mjCBase* mjCModel::FindAsset(std::string_view name, const std::vector<T*>& list) const {
   for (unsigned int i = 0; i < list.size(); i++) {
     if (list[i]->name == name) { return list[i]; }
-    if (list[i]->name.empty() &&
-        std::filesystem::path(list[i]->spec_file_).filename().stem() == name) {
-      return list[i];
-    }
   }
   return nullptr;
 }
@@ -2079,22 +2083,36 @@ void mjCModel::IndexAssets(bool discard) {
 }
 
 
+// error for an asset without a name; only the XML parser names an asset after its file
+static mjCError EmptyName(const mjCBase* asset, const char* type, const std::string& file) {
+  if (file.empty()) { return mjCError(asset, "empty name in %s", type); }
+  std::string msg = std::string(type) +
+                    " with file '" +
+                    file +
+                    "' has no name: an asset is named after its file only by the XML parser, " +
+                    "set its name explicitly";
+  return mjCError(asset, "%s", msg.c_str());
+}
+
+
 // throw error if a name is missing
 void mjCModel::CheckEmptyNames(void) {
   // meshes
   for (int i = 0; i < meshes_.size(); i++) {
-    if (meshes_[i]->name.empty()) { throw mjCError(meshes_[i], "empty name in mesh"); }
+    if (meshes_[i]->name.empty()) { throw EmptyName(meshes_[i], "mesh", meshes_[i]->spec_file_); }
   }
 
   // hfields
   for (int i = 0; i < hfields_.size(); i++) {
-    if (hfields_[i]->name.empty()) { throw mjCError(hfields_[i], "empty name in height field"); }
+    if (hfields_[i]->name.empty()) {
+      throw EmptyName(hfields_[i], "height field", hfields_[i]->spec_file_);
+    }
   }
 
   // textures
   for (int i = 0; i < textures_.size(); i++) {
     if (textures_[i]->name.empty() && textures_[i]->type != mjTEXTURE_SKYBOX) {
-      throw mjCError(textures_[i], "empty name in texture");
+      throw EmptyName(textures_[i], "texture", textures_[i]->spec_file_);
     }
   }
 
@@ -2689,10 +2707,13 @@ void mjCModel::CopyNames(mjModel* m) {
   adr      = namelist(materials_, adr, m->name_matadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE * materials_.size();
 
-  adr      = namelist(pairs_, adr, m->name_pairadr, m->names, map_adr);
-  map_adr += mjLOAD_MULTIPLE * pairs_.size();
+  // the model holds pairs and excludes in the order of their ids, not of the lists
+  std::vector<mjCPair*> pairs  = orderbyid(pairs_);
+  adr                          = namelist(pairs, adr, m->name_pairadr, m->names, map_adr);
+  map_adr                     += mjLOAD_MULTIPLE * pairs_.size();
 
-  adr      = namelist(excludes_, adr, m->name_excludeadr, m->names, map_adr);
+  std::vector<mjCBodyPair*> excludes = orderbyid(excludes_);
+  adr      = namelist(excludes, adr, m->name_excludeadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE * excludes_.size();
 
   adr      = namelist(equalities_, adr, m->name_eqadr, m->names, map_adr);
@@ -3891,23 +3912,26 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->mat_rgba + 4 * i, pmat->rgba, 4);
   }
 
-  // geom pairs to include
-  for (int i = 0; i < npair; i++) {
-    m->pair_dim[i]       = pairs_[i]->condim;
-    m->pair_geom1[i]     = pairs_[i]->geom1->id;
-    m->pair_geom2[i]     = pairs_[i]->geom2->id;
-    m->pair_signature[i] = pairs_[i]->signature;
-    mjuu_copyvec(m->pair_solref + mjNREF * i, pairs_[i]->solref, mjNREF);
-    mjuu_copyvec(m->pair_solreffriction + mjNREF * i, pairs_[i]->solreffriction, mjNREF);
-    mjuu_copyvec(m->pair_solimp + mjNIMP * i, pairs_[i]->solimp, mjNIMP);
-    m->pair_margin[i]   = (mjtNum)pairs_[i]->margin;
-    m->pair_gap[i]      = (mjtNum)pairs_[i]->gap;
-    m->pair_adhesion[i] = (mjtNum)pairs_[i]->adhesion;
-    mjuu_copyvec(m->pair_friction + 5 * i, pairs_[i]->friction, 5);
+  // geom pairs to include, in the order of their ids
+  for (const mjCPair* pair : pairs_) {
+    int i                = pair->id;
+    m->pair_dim[i]       = pair->condim;
+    m->pair_geom1[i]     = pair->geom1->id;
+    m->pair_geom2[i]     = pair->geom2->id;
+    m->pair_signature[i] = pair->signature;
+    mjuu_copyvec(m->pair_solref + mjNREF * i, pair->solref, mjNREF);
+    mjuu_copyvec(m->pair_solreffriction + mjNREF * i, pair->solreffriction, mjNREF);
+    mjuu_copyvec(m->pair_solimp + mjNIMP * i, pair->solimp, mjNIMP);
+    m->pair_margin[i]   = (mjtNum)pair->margin;
+    m->pair_gap[i]      = (mjtNum)pair->gap;
+    m->pair_adhesion[i] = (mjtNum)pair->adhesion;
+    mjuu_copyvec(m->pair_friction + 5 * i, pair->friction, 5);
   }
 
-  // body pairs to exclude
-  for (int i = 0; i < nexclude; i++) { m->exclude_signature[i] = excludes_[i]->signature; }
+  // body pairs to exclude, in the order of their ids
+  for (const mjCBodyPair* exclude : excludes_) {
+    m->exclude_signature[exclude->id] = exclude->signature;
+  }
 
   // equality constraints
   for (int i = 0; i < neq; i++) {
@@ -4906,6 +4930,15 @@ static void reassignid(vector<T*>& list) {
 }
 
 
+// assign ids in sorted order, leaving the order of the list as it is
+template <class T, class Compare>
+static void sortid(const vector<T*>& list, Compare compare) {
+  vector<T*> sorted = list;
+  std::stable_sort(sorted.begin(), sorted.end(), compare);
+  reassignid(sorted);
+}
+
+
 // set object ids, check for repeated names
 void mjCModel::ProcessLists(bool checkrepeat) {
   for (int i = 0; i < mjNOBJECT; i++) {
@@ -4933,7 +4966,9 @@ void mjCModel::ProcessList_(mjListKeyMap& ids, vector<T*>& list, mjtObj type, bo
   if (type < mjNOBJECT) {
     for (size_t i = 0; i < list.size(); i++) {
       // check for incompatible id setting; SHOULD NOT OCCUR
-      if (list[i]->id != -1 && list[i]->id != i) {
+      // pairs and excludes are exempt: once compiled, their ids follow the order of the model
+      bool sorted = type == mjOBJ_PAIR || type == mjOBJ_EXCLUDE;
+      if (!sorted && list[i]->id != -1 && list[i]->id != i) {
         throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
       }
 
@@ -5407,7 +5442,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // clear subtreedofs
   for (int i = 0; i < bodies_.size(); i++) { bodies_[i]->subtreedofs = 0; }
 
-  // fill missing names and check that they are all filled
+  // refresh the working copies of the assets, check that those which need a name have one
   for (const auto& asset : meshes_) asset->CopyFromSpec();
   for (const auto& asset : skins_) asset->CopyFromSpec();
   for (const auto& asset : hfields_) asset->CopyFromSpec();
@@ -5516,11 +5551,10 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // compile def: to enforce userdata length for writer
   for (mjCDef* def : defaults_) { def->Compile(this); }
 
-  // sort pair, exclude in increasing signature order; reassign ids
-  std::stable_sort(pairs_.begin(), pairs_.end(), comparePair);
-  std::stable_sort(excludes_.begin(), excludes_.end(), compareBodyPair);
-  reassignid(pairs_);
-  reassignid(excludes_);
+  // the model holds pairs and excludes in increasing signature order: number them in that order,
+  // while the lists keep the order in which they were authored
+  sortid(pairs_, comparePair);
+  sortid(excludes_, compareBodyPair);
 
   // resolve asset references, compute sizes
   IndexAssets(compiler.discardvisual);
@@ -6199,15 +6233,16 @@ bool mjCModel::CopyBack(const mjModel* m) {
     mjuu_copyvec(materials_[i]->rgba, m->mat_rgba + 4 * i, 4);
   }
 
-  // pairs
-  for (int i = 0; i < npair; i++) {
-    mjuu_copyvec(pairs_[i]->solref, m->pair_solref + mjNREF * i, mjNREF);
-    mjuu_copyvec(pairs_[i]->solreffriction, m->pair_solreffriction + mjNREF * i, mjNREF);
-    mjuu_copyvec(pairs_[i]->solimp, m->pair_solimp + mjNIMP * i, mjNIMP);
-    pairs_[i]->margin   = (double)m->pair_margin[i];
-    pairs_[i]->gap      = (double)m->pair_gap[i];
-    pairs_[i]->adhesion = (double)m->pair_adhesion[i];
-    mjuu_copyvec(pairs_[i]->friction, m->pair_friction + 5 * i, 5);
+  // pairs, which the model holds in the order of their ids
+  for (mjCPair* pair : pairs_) {
+    int i = pair->id;
+    mjuu_copyvec(pair->solref, m->pair_solref + mjNREF * i, mjNREF);
+    mjuu_copyvec(pair->solreffriction, m->pair_solreffriction + mjNREF * i, mjNREF);
+    mjuu_copyvec(pair->solimp, m->pair_solimp + mjNIMP * i, mjNIMP);
+    pair->margin   = (double)m->pair_margin[i];
+    pair->gap      = (double)m->pair_gap[i];
+    pair->adhesion = (double)m->pair_adhesion[i];
+    mjuu_copyvec(pair->friction, m->pair_friction + 5 * i, 5);
   }
 
   // equality constraints

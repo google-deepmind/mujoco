@@ -4665,24 +4665,6 @@ void mjCHField::CopyFromSpec() {
     nrow = 0;
     ncol = 0;
   }
-
-  // use filename if name is missing
-  if (name.empty()) {
-    std::string stripped = mjuu_strippath(file_);
-
-    name = mjuu_stripext(stripped);
-  }
-}
-
-
-void mjCHField::NameSpace(const mjCModel* m) {
-  // use filename if name is missing
-  if (name.empty()) {
-    std::string stripped = mjuu_strippath(spec_file_);
-
-    name = mjuu_stripext(stripped);
-  }
-  mjCBase::NameSpace(m);
 }
 
 
@@ -4934,24 +4916,6 @@ void mjCTexture::CopyFromSpec() {
     // clear precompiled asset. TODO: use asset cache
     data_.clear();
   }
-
-  // use filename if name is missing
-  if (name.empty()) {
-    std::string stripped = mjuu_strippath(file_);
-
-    name = mjuu_stripext(stripped);
-  }
-}
-
-
-void mjCTexture::NameSpace(const mjCModel* m) {
-  // use filename if name is missing
-  if (name.empty()) {
-    std::string stripped = mjuu_strippath(spec_file_);
-
-    name = mjuu_stripext(stripped);
-  }
-  mjCBase::NameSpace(m);
 }
 
 

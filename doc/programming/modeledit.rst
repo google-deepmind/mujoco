@@ -198,6 +198,11 @@ procedurally, default classes are passed in explicitly to element constructors. 
 (used when no default class is passed in) can be inspected in
 `user_init.c <https://github.com/google-deepmind/mujoco/blob/main/src/user/user_init.c>`__.
 
+Elements are referenced by name, and names are set with :ref:`mjs_setName`. Assets are no exception: a mesh, texture or
+height field added with :ref:`mjs_addMesh`, :ref:`mjs_addTexture` or :ref:`mjs_addHField` must be given a name, even
+when it is loaded from a file. Naming an asset after its file when the name is omitted is a convenience of the XML
+parser only.
+
 .. _meMemory:
 
 Memory management

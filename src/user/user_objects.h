@@ -1440,7 +1440,6 @@ class mjCHField : public mjCHField_, private mjsHField {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
-  void NameSpace(const mjCModel* m);
 
   std::string File() const { return file_; }
 
@@ -1487,7 +1486,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   void   CopyFromSpec(void);
   void   PointToLocal(void);
-  void   NameSpace(const mjCModel* m);
   void   Compile(const mjVFS* vfs);
   double texture_time_ = 0;
 

@@ -2,6 +2,26 @@
 Changelog
 =========
 
+Upcoming Version (not yet released)
+-----------------------------------
+
+Compiler
+^^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - An asset added to an :ref:`mjSpec` through the API is no longer named after its ``file`` when the spec is
+     compiled. A mesh, height field or texture which is left without a name is now a compilation error, as it already
+     was for one without a file. MJCF is unaffected: the XML parser still names assets after their files.
+
+     **Migration:** Name the asset when adding it, e.g. ``spec.add_mesh(name='link', file='link.stl')`` in Python or
+     :ref:`mjs_setName` in C.
+
+Bug fixes
+^^^^^^^^^
+- Compiling an :ref:`mjSpec` no longer reorders its contact :ref:`pairs<contact-pair>` and
+  :ref:`excludes<contact-exclude>`; :ref:`mjs_findElement` could then return a different one than the one named.
+
 Version 3.15.0 (October 5, 2026)
 --------------------------------
 

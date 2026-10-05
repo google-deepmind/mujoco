@@ -588,7 +588,7 @@ TEST_F(UserDataTest, DuplicateNames) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
 
   EXPECT_THAT(m, IsNull());
-  EXPECT_STREQ(error.data(), "Error: repeated name 'cube' in mesh");
+  EXPECT_THAT(error.data(), HasSubstr("repeated name 'cube' in mesh"));
 }
 
 // ------------- test fusestatic -----------------------------------------------

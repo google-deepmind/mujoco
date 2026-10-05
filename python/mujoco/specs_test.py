@@ -1248,18 +1248,26 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(ValueError):
       data_array[0] = -1
 
-  def test_find_unnamed_asset(self):
+  def test_asset_not_named_after_file(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')
     texture_name = spec.add_texture(name='name')
     mesh_file = spec.add_mesh(file='file.obj')
     mesh_name = spec.add_mesh(name='mesh')
-    self.assertEqual(spec.texture('file'), texture_file)
     self.assertEqual(spec.texture('name'), texture_name)
-    self.assertEqual(spec.mesh('file'), mesh_file)
     self.assertEqual(spec.mesh('mesh'), mesh_name)
     self.assertIsNone(spec.texture('none'))
     self.assertIsNone(spec.mesh('none'))
+
+    # Only the XML parser names an asset after its file.
+    self.assertEqual(texture_file.name, '')
+    self.assertEqual(mesh_file.name, '')
+    self.assertIsNone(spec.texture('file'))
+    self.assertIsNone(spec.mesh('file'))
+    parsed = mujoco.MjSpec.from_string(
+        '<mujoco><asset><mesh file="file.obj"/></asset></mujoco>'
+    )
+    self.assertEqual(parsed.meshes[0].name, 'file')
 
   def test_texture_gridlayout(self):
     spec = mujoco.MjSpec()
