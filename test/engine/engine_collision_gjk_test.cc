@@ -2475,4 +2475,51 @@ TEST_F(MjGjkTest, CapsuleMeshMultiCCDTilted) {
   EXPECT_EQ(ncons, 1);
 }
 
+TEST_F(MjGjkTest, Polytope3CoplanarSupport) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cone"
+            vertex="1 0 0   0.70710678 0.70710678 0   0 1 0  -0.70710678 0.70710678 0
+                   -1 0 0  -0.70710678 -0.70710678 0  0 -1 0  0.70710678 -0.70710678 0
+                    0 0 0.5"/>
+    </asset>
+    <worldbody>
+      <geom name="g1" type="mesh" mesh="cone" euler="13 27 41"/>
+      <geom name="g2" type="sphere" size="0.1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // get world-space coordinates of base vertices 0, 2, 4 and apex 8
+  auto world_vert = [&](int v, mjtNum out[3]) {
+    mjtNum local[3] = {model->mesh_vert[3 * v + 0], model->mesh_vert[3 * v + 1],
+                       model->mesh_vert[3 * v + 2]};
+    mju_mulMatVec3(out, data->geom_xmat, local);
+    mju_addTo3(out, data->geom_xpos);
+  };
+  mjtNum w0[3], w2[3], w4[3], w8[3];
+  world_vert(0, w0);
+  world_vert(2, w2);
+  world_vert(4, w4);
+  world_vert(8, w8);
+
+  // shrink sphere to a point on the base face (within tolerance of the plane)
+  model->geom_size[3] = 0;
+  for (int k = 0; k < 3; k++) {
+    mjtNum base = 0.2 * w0[k] + 0.24 * w2[k] + 0.56 * w4[k];
+    data->geom_xpos[3 + k] = base + 1e-8 * (w8[k] - base);
+  }
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, 0, 1);
+  EXPECT_EQ(ncons, 0);
+  EXPECT_NE(status.epa_status, mjEPA_SUCCESS);
+}
+
 }  // namespace mujoco

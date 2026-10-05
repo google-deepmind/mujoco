@@ -1124,6 +1124,14 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
     return mjEPA_P3_INVALID_V5;
   }
 
+  // check that v4 and v5 are not coplanar with the 2-simplex
+  mjtNum d4[3], d5[3];
+  sub3(d4, v4, v1);
+  sub3(d5, v5, v1);
+  if (dot3(n, d4) < mjMINEPATOL*n_norm || dot3(n_neg, d5) < mjMINEPATOL*n_norm) {
+    return mjEPA_P3_ORIGIN_ON_FACE;
+  }
+
   // if origin does not lie on simplex then we need to check that the hexahedron contains the
   // origin
   //
