@@ -126,6 +126,19 @@ channels. **Convention:** custom message classes derive from `Snapshot` or
     -   *Canonical example:* `ModelEvent` — transports a compiled `MjModel` (and
         optional path) when a model is initially loaded or recompiled.
 
+**Rule of thumb for GUI controls (sliders, checkboxes, settings):**
+
+-   If the control's *complete* value fits in one message and only the latest
+    value matters, use a `Snapshot` and send it on change (or every frame);
+    latest-wins coalesces redundant updates. Examples: `StepControlSnapshot`
+    (pause state, speed, noise), `MjOptionSnapshot` (`mjOption` fields), or a
+    plugin's own `FooConfigSnapshot` carrying its slider values.
+-   Use an `Event` when distinct edits of the same message type would clobber
+    each other in the per-type latest-wins slot and each must be applied —
+    `StateEvent` for joint/control slider edits, which differ by `state_sig` —
+    and for one-shot requests: `ResetEvent`, `SingleStepEvent`,
+    `RequestPauseEvent`.
+
 ### Lifecycle Events
 
 Lifecycle events are standard framework events dispatched by the runner loops to

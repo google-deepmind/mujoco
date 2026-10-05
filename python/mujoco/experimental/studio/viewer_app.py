@@ -289,6 +289,10 @@ class ViewerApp:
     # Apply perturbation forces from the viewer.
     self.apply_perturb()
 
+    # Forward single-step requests as events (reliable, never dropped).
+    if self.step_control_state.consume_single_step_request():
+      self.viewer.send_to_sim(messages.SingleStepEvent())
+
     # Send viewer-to-sim snapshots (step control, model options) each frame.
     noise_scale, noise_rate = self.step_control_state.get_noise_parameters()
     self.viewer.send_to_sim(

@@ -17,10 +17,13 @@ from mujoco.experimental.studio import messages as vp
 
 
 class ViewerEndpoint:
-  """Viewer endpoint to route Messages to the Sim using the right Channel.
+  """Viewer-side endpoint that routes Messages to/from the Sim.
 
-  The viewer has an outgoing EventChannel but no outgoing SnapshotChannel.
-  The viewer has an incoming EventChannel and SnapshotChannel.
+  Outgoing (viewer-to-sim): EventChannel and SnapshotChannel.
+  Incoming (sim-to-viewer): EventChannel and SnapshotChannel.
+
+  Each direction uses its own channel instances, so a Snapshot type sent in both
+  directions occupies separate per-type slots with no collision.
   """
 
   def __init__(
@@ -71,10 +74,13 @@ class ViewerEndpoint:
 
 
 class SimEndpoint:
-  """Sim endpoint to route Messages to the Viewer using the right Channel.
+  """Sim-side endpoint that routes Messages to/from the Viewer.
 
-  The simulation has an outgoing SnapshotChannel and EventChannel.
-  The simulation has an incoming EventChannel but no incoming SnapshotChannel.
+  Outgoing (sim-to-viewer): EventChannel and SnapshotChannel.
+  Incoming (viewer-to-sim): EventChannel and SnapshotChannel.
+
+  Each direction uses its own channel instances, so a Snapshot type sent in both
+  directions occupies separate per-type slots with no collision.
   """
 
   def __init__(
