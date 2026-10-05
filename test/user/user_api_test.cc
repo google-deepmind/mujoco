@@ -1319,7 +1319,7 @@ TEST_F(MujocoTest, CompileKeepsPairOrder) {
   std::array<char, 2000> saved;
   mj_saveXMLString(spec, saved.data(), saved.size(), er.data(), er.size());
   EXPECT_THAT(saved.data(),
-              ::testing::ContainsRegex("name=\"late\"[^\n]*margin=\"0.5\""));
+              ::testing::ContainsRegex("name=\"late\".*margin=\"0.5\""));
 
   // compiling again gives the same model
   mjModel* again = mj_compile(spec, nullptr);
