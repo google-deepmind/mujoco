@@ -237,6 +237,82 @@ TEST_F(MjCollisionTest, FilterParentDoesntAffectWorldBody) {
               ElementsAre(GeomPair("colliding1", "colliding2")));
 }
 
+TEST_F(MjCollisionTest, FilterStaticFlex) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 .1"/>
+      <body name="static">
+        <geom name="static" size=".1"/>
+      </body>
+      <body name="rigid">
+        <flexcomp name="rigid" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" rigid="true"/>
+      </body>
+      <body name="mocap" mocap="true" pos=".05 .05 .001">
+        <flexcomp name="mocap" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" rigid="true"/>
+      </body>
+      <body name="ball" pos="0 0 .09">
+        <freejoint/>
+        <geom name="ball" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_forward(m.get(), d.get());
+
+  // the floor, the static geom and the two flexes overlap but have no dofs:
+  // they collide only with the ball
+  int ball = mj_name2id(m.get(), mjOBJ_GEOM, "ball");
+  int nflexcon[2] = {0, 0};
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact& con = d->contact[i];
+    EXPECT_TRUE(con.geom[0] == ball || con.geom[1] == ball);
+    if (con.flex[1] >= 0) {
+      nflexcon[con.flex[1]]++;
+    }
+  }
+  EXPECT_GT(nflexcon[0], 0);
+  EXPECT_GT(nflexcon[1], 0);
+}
+
+TEST_F(MjCollisionTest, FilterStaticFlexSelfCollision) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a" pos="-1 0 0"/>
+      <body name="b" pos="1 0 0"/>
+      <body name="c" pos="0 -1 .01"/>
+      <body name="d" pos="0 1 .01"/>
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="rope" dim="1" radius=".01" body="a b c d" element="0 1 2 3">
+        <edge stiffness="1"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_forward(m.get(), d.get());
+
+  // the two elements of the flex cross, but its vertices are in static bodies
+  EXPECT_EQ(d->ncon, 0);
+}
+
 TEST_F(MjCollisionTest, TestOBB) {
   mjtNum bvh1[6] = {-1, -1, -1, 1, 1, 1};
   mjtNum bvh2[6] = {-1, -1, -1, 1, 1, 1};

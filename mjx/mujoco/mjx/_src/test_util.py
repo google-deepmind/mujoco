@@ -443,6 +443,9 @@ def create_mjcf(
   contact = ET.SubElement(mjcf, 'contact')
   geoms = list(mjcf.iter('geom'))
   geom_names = [geom.get('name') for geom in geoms]
+  geom_bodies = {
+      g.get('name'): b for b in [world] + bodies for g in b.findall('geom')
+  }
   n_geoms = len(geoms)
   pairs = set()
   for _ in range(min(max_contact_pairs, n_geoms * (n_geoms - 1) // 2)):
@@ -453,7 +456,7 @@ def create_mjcf(
     if geom1 > geom2:
       geom1, geom2 = geom2, geom1
 
-    if (geom1, geom2) in pairs:
+    if (geom1, geom2) in pairs or geom_bodies[geom1] == geom_bodies[geom2]:
       continue
 
     pairs.add((geom1, geom2))

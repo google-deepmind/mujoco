@@ -1513,6 +1513,19 @@ static int mj_instantiateLimit(const mjModel* m, mjData* d, int count_only, int*
 }
 
 
+// return 1 if all bodies are welded together or have no dofs, 0 otherwise
+static int noDofs(const mjModel* m, const int* body, int n) {
+  int wid0 = m->body_treeid[body[0]] >= 0 ? m->body_weldid[body[0]] : 0;
+  for (int i=1; i < n; i++) {
+    int wid = m->body_treeid[body[i]] >= 0 ? m->body_weldid[body[i]] : 0;
+    if (wid != wid0) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+
 // compute Jacobian for contact, return number of DOFs affected
 int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
                        mjtNum* jacdifp, mjtNum* jacdifr,
@@ -1528,6 +1541,12 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
                   m->geom_bodyid[con->geom[side]] :
                   m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
     }
+
+    // no relative dofs: return 0
+    if (noDofs(m, bid, 2)) {
+      return 0;
+    }
+
     // compute Jacobian differences, skipping common DOFs
     if (dim > 3) {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
@@ -1587,6 +1606,11 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
           nb += mj_vertBodyWeight(m, d, con->flex[side], vid, bid+nb, bweight+nb, vweight, nw);
         }
       }
+    }
+
+    // no relative dofs: return 0
+    if (noDofs(m, bid, nb)) {
+      return 0;
     }
 
     // combine weighted Jacobians
@@ -2699,8 +2723,10 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
                       m->geom_bodyid[con->geom[side]] :
                       m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
         }
-        NV = mj_jacDifPair(m, NULL, chain, bid[0], bid[1], NULL, NULL,
-                           NULL, NULL, NULL, NULL, NULL, NULL, mj_isSparse(m), 1);
+        if (!noDofs(m, bid, 2)) {
+          NV = mj_jacDifPair(m, NULL, chain, bid[0], bid[1], NULL, NULL,
+                             NULL, NULL, NULL, NULL, NULL, NULL, mj_isSparse(m), 1);
+        }
       }
 
       // general case: flex elements involved
@@ -2753,7 +2779,9 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
         }
 
         // count non-zeros in merged chain
-        NV = mj_jacSumCount(m, d, chain, nb, bid);
+        if (!noDofs(m, bid, nb)) {
+          NV = mj_jacSumCount(m, d, chain, nb, bid);
+        }
       }
       if (!NV) {
         continue;
