@@ -200,4 +200,4 @@ qpos_tensor = mjw_data.qpos
 
 ### Source Code Examples
 
--   [MJX Support Tests](../../../python/mujoco/mjx/_src/support_test.py)
+-   [MJX Support Tests](../../../mjx/mujoco/mjx/_src/support_test.py)
