@@ -73,6 +73,11 @@ static void InitImGui(SDL_Window* window, float content_scale,
   io.IniFilename = nullptr;
   io.ConfigDpiScaleFonts = true;
   io.ConfigDpiScaleViewports = true;
+  // Match SDL2's double-click thresholds so trackpad double-taps register;
+  // MouseSingleClickDelay (0.50s default) must exceed MouseDoubleClickTime.
+  io.MouseDoubleClickTime = 0.50f;
+  io.MouseDoubleClickMaxDist = 32.0f * content_scale;
+  io.MouseSingleClickDelay = 0.60f;
 #if defined(__EMSCRIPTEN__)
   if (PlatformIsApple()) {
     io.ConfigMacOSXBehaviors = true;
