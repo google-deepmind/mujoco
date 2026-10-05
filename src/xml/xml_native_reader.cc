@@ -2318,6 +2318,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       // no joints allowed in world body
       if (mjs_getId(body->element) == 0) { throw mjXError(elem, "World body cannot have joints"); }
 
+      // joints would be replicated into the parent body
+      if (elem->Parent() && string(elem->Parent()->Value()) == "replicate") {
+        throw mjXError(elem, "joint cannot be a direct child of replicate");
+      }
+
       // create joint and parse
       mjsJoint* joint = mjs_addJoint(body, def);
       OneJoint(elem, joint);
@@ -2328,6 +2333,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
     else if (name == "freejoint") {
       // no joints allowed in world body
       if (mjs_getId(body->element) == 0) { throw mjXError(elem, "World body cannot have joints"); }
+
+      // joints would be replicated into the parent body
+      if (elem->Parent() && string(elem->Parent()->Value()) == "replicate") {
+        throw mjXError(elem, "joint cannot be a direct child of replicate");
+      }
 
       // create free joint without defaults
       mjsJoint* joint = mjs_addFreeJoint(body);
