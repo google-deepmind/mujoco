@@ -174,6 +174,9 @@ bool ParseStatePayload(const void* data, size_t size, StatePayloadView* out) {
     switch (block.tag) {
       case kTagPhysicsState:
         if (block.size < sizeof(int32_t)) return false;
+        // The state is an array of mjtNum; a block that is not a whole number
+        // of them is corrupt (see StatePayloadView::physics_bytes).
+        if ((block.size - sizeof(int32_t)) % sizeof(mjtNum) != 0) return false;
         memcpy(&out->physics_spec, payload, sizeof(int32_t));
         out->physics = payload + sizeof(int32_t);
         out->physics_bytes = block.size - sizeof(int32_t);

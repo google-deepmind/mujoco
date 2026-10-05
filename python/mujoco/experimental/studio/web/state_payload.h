@@ -112,7 +112,7 @@ struct StatePayloadView {
   uint32_t model_crc32 = 0;
   int32_t physics_spec = 0;
   const std::byte* physics = nullptr;
-  size_t physics_bytes = 0;
+  size_t physics_bytes = 0;  // Always a multiple of sizeof(mjtNum).
   const std::byte* render_state = nullptr;  // kRenderStateSize bytes when non-null
   const std::byte* extra_geoms = nullptr;   // extra_geom_count * sizeof(mjvGeom)
   size_t extra_geom_count = 0;

@@ -285,7 +285,8 @@ void Session::HandleMessage(const uint8_t* data, uint32_t num_bytes) {
     // model is being fetched.
     model_crc32_ = view.model_crc32;
     callbacks_.OnModelChanged();
-    return;
+    // Fall through: this payload already carries the new model's first state
+    // and camera; OnPayload buffers the state while the download runs.
   }
 
   callbacks_.OnPayload(view);
