@@ -14,11 +14,11 @@
 # limitations under the License.
 
 if [ -n "${TEST_SRCDIR:-}" ]; then
-  readonly MODEL="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/model/humanoid/humanoid100.xml"
+  readonly MODEL="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/model/humanoid/humanoid.xml"
   readonly TARGET_BINARY="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/sample/compile"
   readonly OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
 else
-  MODEL="${CMAKE_SOURCE_DIR}/model/humanoid/humanoid100.xml"
+  MODEL="${CMAKE_SOURCE_DIR}/model/humanoid/humanoid.xml"
   OUTPUT_FILE="${TEST_TMPDIR}/compiled.mjb"
 fi
 

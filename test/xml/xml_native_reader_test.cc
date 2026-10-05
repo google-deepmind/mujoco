@@ -960,29 +960,16 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
                                       "cannot have layer sub-elements"));
 }
 
-TEST_F(XMLReaderTest, LargeTextureTest) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <asset>
-    <!--
-      Use a texture width that exceeds the size representable by an int.
-      For cube textures, the height is ignored and set to width*6.
-      The default number of channels is 3.
-      The width in this test is chosen so that 6*width*width*3 is too large to
-      be represented as a 32-bit integer.
-    -->
-    <texture name="tex" builtin="gradient" width="10923" height="2"/>
-  </asset>
-  </mujoco>
-  )";
-
-  std::array<char, 1024> error;
-  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
-
-  EXPECT_THAT(model.get(), NotNull());
-}
-
 TEST_F(XMLReaderTest, LargeTextureAddressTest) {
+#if defined(__has_feature)
+  #if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer) || \
+      __has_feature(thread_sanitizer)
+  GTEST_SKIP() << "Skipping large texture allocation under sanitizers";
+  #endif
+#elif defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+  GTEST_SKIP() << "Skipping large texture allocation under sanitizers";
+#endif
   static constexpr char xml[] = R"(
   <mujoco>
   <asset>

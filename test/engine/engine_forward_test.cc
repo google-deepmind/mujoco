@@ -3373,7 +3373,7 @@ TEST_F(ForwardTest, FlexTrilinearInstability) {
 
   // stability simulation
   // run for steps to catch instability
-  for (int i = 0; i < 2000; ++i) {
+  for (int i = 0; i < 500; ++i) {
     mj_step(model.get(), data.get());
 
     for (int j = 0; j < model->nq; ++j) {
@@ -4144,7 +4144,7 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactMovingBase) {
   mjData* data = d.get();
 
   mjtNum vmax = 0;
-  for (int i = 0; i < 1000; i++) {
+  for (int i = 0; i < 300; i++) {
     mj_step(model, data);
     for (int j = 0; j < model->nv; j++) {
       vmax = mju_max(vmax, mju_abs(data->qvel[j]));

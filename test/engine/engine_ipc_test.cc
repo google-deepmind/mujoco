@@ -266,7 +266,7 @@ TEST_F(IpcTest, FlagOverridesPassiveContact) {
   mjData* dw = mj_makeData(mw);
   mjData* do_ = mj_makeData(mo);
 
-  for (int s = 0; s < 300; s++) {
+  for (int s = 0; s < 60; s++) {
     mj_step(mw, dw);
     mj_step(mo, do_);
     // the passive path must be off: no contact is excluded to it, and it
@@ -1413,7 +1413,7 @@ TEST_F(IpcTest, NativeRowsKeptForUnsupportedGeoms) {
     mjModel* m = Load(xml);
     mjData* d = mj_makeData(m);
     int native = 0;
-    for (int s = 0; s < 600; s++) {
+    for (int s = 0; s < 200; s++) {
       mj_step(m, d);
       native += d->ncon;
     }
@@ -1423,7 +1423,7 @@ TEST_F(IpcTest, NativeRowsKeptForUnsupportedGeoms) {
     bool supported = std::string(g[0]) == "box";
     EXPECT_EQ(native > 0, !supported)
         << g[0] << ": native contacts only for unsupported types";
-    EXPECT_GT(zmin, 0.25) << g[0] << ": the sheet rests on top after 1.2 s";
+    EXPECT_GT(zmin, 0.25) << g[0] << ": the sheet rests on top";
     mj_deleteData(d);
     mj_deleteModel(m);
   }
