@@ -33,6 +33,7 @@
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_api.h"
 #include "test/compare_model.h"
+#include "test/compare_spec.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -40,6 +41,7 @@ namespace {
 
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
@@ -1148,6 +1150,96 @@ TEST_F(MujocoTest, RecompileEditFrame) {
 
   mj_deleteModel(m1);
   mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
+
+// compiling does not change what was authored in the spec
+TEST_F(MujocoTest, CompileLeavesSpecUnchanged) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="degree"/>
+    <default>
+      <default class="arm">
+        <joint damping="1"/>
+        <geom type="capsule" size=".05"/>
+      </default>
+    </default>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <material name="blue" rgba="0 0 1 1"/>
+    </asset>
+    <worldbody>
+      <light pos="0 0 3"/>
+      <camera name="fixed" pos="0 -2 1" xyaxes="1 0 0 0 1 2"/>
+      <geom name="floor" type="plane" size="1 1 .1" material="blue"/>
+      <frame name="base" pos="0 0 1" euler="0 0 30">
+        <body name="upper" childclass="arm">
+          <joint name="shoulder" axis="0 1 0" range="-90 90"/>
+          <geom name="upper" fromto="0 0 0 0 0 -.3"/>
+          <body name="lower" pos="0 0 -.3">
+            <joint name="elbow" axis="0 1 0"/>
+            <geom name="lower" fromto="0 0 0 0 0 -.3"/>
+            <site name="hand" pos="0 0 -.3" zaxis="0 1 1"/>
+          </body>
+        </body>
+      </frame>
+      <body name="free" pos="1 0 1" axisangle="0 0 1 45">
+        <freejoint align="true"/>
+        <geom name="tetra" type="mesh" mesh="tetra" pos=".1 0 0"/>
+        <site name="top" pos="0 0 .2"/>
+      </body>
+    </worldbody>
+    <contact>
+      <exclude body1="upper" body2="lower"/>
+    </contact>
+    <equality>
+      <connect body1="lower" body2="free" anchor="0 0 -.3"/>
+    </equality>
+    <tendon>
+      <spatial name="rope" range="0 1">
+        <site site="hand"/>
+        <site site="top"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <position name="shoulder" joint="shoulder" kp="10"/>
+      <motor name="rope" tendon="rope"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="elbow"/>
+      <framepos objtype="site" objname="hand"/>
+    </sensor>
+    <custom>
+      <numeric name="gain" data="1 2 3"/>
+    </custom>
+    <keyframe>
+      <key name="bent" qpos="45 90 1 0 1 1 0 0 0"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjSpec* authored = mj_copySpec(spec);
+  ASSERT_THAT(CompareSpec(authored, spec), IsEmpty());
+
+  // a compilation, and a second one
+  for (int i = 0; i < 2; i++) {
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    EXPECT_THAT(CompareSpec(authored, spec), IsEmpty());
+    mj_deleteModel(model);
+  }
+
+  // a compilation which fails at its very end, in the keyframes
+  for (mjSpec* s : {spec, authored}) {
+    mjs_asKey(mjs_findElement(s, mjOBJ_KEY, "bent"))->qpos->push_back(0);
+  }
+  EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+  EXPECT_THAT(CompareSpec(authored, spec), IsEmpty());
+
+  mj_deleteSpec(authored);
   mj_deleteSpec(spec);
 }
 

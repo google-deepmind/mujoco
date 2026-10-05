@@ -117,7 +117,15 @@ target_compile_definitions(compare_model PUBLIC MJSTATIC)
 target_link_libraries(compare_model PUBLIC mujoco::mujoco)
 target_include_directories(compare_model PRIVATE ${mujoco_SOURCE_DIR}/include)
 
+add_library(compare_spec STATIC compare_spec.h compare_spec.cc)
+target_include_directories(compare_spec PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_compile_definitions(compare_spec PUBLIC MJSTATIC)
+target_link_libraries(compare_spec PUBLIC mujoco::mujoco)
+target_include_directories(compare_spec PRIVATE ${mujoco_SOURCE_DIR}/include)
+
 mujoco_test(fixture_test)
+
+mujoco_test(compare_spec_test ADDITIONAL_LINK_LIBRARIES compare_spec)
 
 mujoco_test(header_test)
 
