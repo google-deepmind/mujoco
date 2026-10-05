@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(usd_mesh_inertia_test ADDITIONAL_LINK_LIBRARIES usd sdf tf arch)
-add_dependencies(usd_mesh_inertia_test usd_decoder_plugin)
-target_compile_definitions(usd_mesh_inertia_test PRIVATE
+mujoco_test(usd_decoder_test ADDITIONAL_LINK_LIBRARIES usd sdf tf arch)
+add_dependencies(usd_decoder_test usd_decoder_plugin)
+target_compile_definitions(usd_decoder_test PRIVATE
   USD_DECODER_PLUGIN_PATH="$<TARGET_FILE:usd_decoder_plugin>"
 )
