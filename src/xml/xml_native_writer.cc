@@ -1019,6 +1019,9 @@ string mjXWriter::Write(char* error, size_t error_sz) {
 
 // compiler section
 void mjXWriter::Compiler(XMLElement* root) {
+  mjSpec defspec;
+  mjs_defaultSpec(&defspec);
+
   XMLElement* section = InsertEnd(root, "compiler");
 
   // settings
@@ -1033,6 +1036,11 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (model->compiler.boundinertia) {
     WriteAttr(section, "boundinertia", 1, &model->compiler.boundinertia);
   }
+  WriteAttr(section,
+            "inertiagrouprange",
+            2,
+            model->compiler.inertiagrouprange,
+            defspec.compiler.inertiagrouprange);
   if (model->compiler.alignfree) { WriteAttrTxt(section, "alignfree", "true"); }
   if (!model->compiler.autolimits) { WriteAttrTxt(section, "autolimits", "false"); }
   WriteAttrKey(section,

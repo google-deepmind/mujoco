@@ -286,6 +286,31 @@ TEST_F(XMLWriterTest, DropsInertialIfFromGeom) {
   EXPECT_THAT(saved_xml, Not(HasSubstr("inertial")));
 }
 
+TEST_F(XMLWriterTest, KeepsInertiaGroupRange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler inertiagrouprange="0 1"/>
+    <worldbody>
+      <body>
+        <geom size="0.1"/>
+        <geom size="0.2" group="2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("inertiagrouprange=\"0 1\""));
+
+  // the body inertia is inferred from the same geoms
+  MjModelPtr reloaded = LoadModelFromString(saved_xml);
+  ASSERT_THAT(reloaded.get(), NotNull());
+  EXPECT_EQ(reloaded->body_mass[1], model->body_mass[1]);
+  EXPECT_EQ(AsVector(reloaded->body_inertia + 3, 3),
+            AsVector(model->body_inertia + 3, 3));
+}
+
 TEST_F(XMLWriterTest, KeepsAutoLimitsFalse) {
   static constexpr char xml[] = R"(
   <mujoco>
