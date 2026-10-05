@@ -112,7 +112,6 @@ class ViewerApp:
     self.theme = ux.load_theme()
     self.config = config if config is not None else ViewerAppConfig()
     self.status = 'Ready'
-    self.sim_history = sim.SimHistory()
     self._reset_app_state()
 
   @messages.handler(priority=messages.Priority.CRITICAL)
@@ -120,28 +119,12 @@ class ViewerApp:
     self.viewer = event.viewer
     self.theme = ux.load_settings(def_theme=self.theme)
     ux.setup_theme(self.theme)
-    self._setup_history()
     self.viewer.dispatch(ViewerAppInitEvent(viewer_app=self))
 
   def _reset_app_state(self) -> None:
     """Resets ViewerApp-specific state (step control, ux)."""
     self.step_control_state = sim.StepControl()
     self.ux_state = ux.UxState()
-    self._setup_history()
-
-  def _setup_history(self) -> None:
-    """(Re)initialize simulation history recording for the current model."""
-    if (
-        self._viewer is not None
-        and self.model is not None
-        and self.data is not None
-    ):
-      ux.reset_history(
-          self.sim_history,
-          self.ux_state,
-          self.model,
-          self.data,
-      )
 
   def align_camera(self) -> None:
     """Recenter the camera on the model's home camera, else the free camera."""
@@ -244,7 +227,10 @@ class ViewerApp:
       else:
         mujoco.mj_resetData(self.model, self.data)
       mujoco.mj_forward(self.model, self.data)
-      self._setup_history()
+      self.ux_state.sim_head_time = self.data.time
+      # The viewer's mirror of the sim history is stale until the sim reports
+      # its post-reset history. Setting the size to 0 also clamps the index.
+      self.ux_state.history_size = 0
       self.viewer.send_to_sim(messages.ResetEvent(key=key_idx))
       # Discard any pre-reset snapshots so we don't overwrite the reset state.
       self.viewer.get_sim_snapshots()
@@ -421,7 +407,6 @@ class ViewerApp:
           self.model,
           self.data,
           self.step_control_state,
-          self.sim_history,
           self.ux_state,
           self.reset_physics,
           self.reload_model,

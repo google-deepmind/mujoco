@@ -116,14 +116,28 @@ void SetSpeedIndex(StepControl* step_control, int& speed_index,
 void LoadHistoryFrame(SimHistory& history, const mjModel* model, mjData* data,
                       int index);
 
-// Persistent state of the timeline scrubber: the time at the head of history,
+// Per-session state for the timeline scrubber widget: the simulation time at
+// the head of the history buffer, the history buffer size and current offset,
 // the (monotonically-growing) label box widths, and the current drag.
 struct SimulationTimelineState {
   double sim_head_time = 0.0;
+  int history_size = 0;
+  int history_index = 0;
   float lh_width = 0.0f;
   float rh_width = 0.0f;
   bool scrubber_active = false;
   float scrubber_grab_offset = 0.0f;
+
+  void SetHistorySize(int size) {
+    history_size = std::max(0, size);
+    history_index =
+        history_size > 0 ? std::clamp(history_index, 1 - history_size, 0) : 0;
+  }
+
+  void SetHistoryIndex(int index) {
+    history_index =
+        history_size > 0 ? std::clamp(index, 1 - history_size, 0) : 0;
+  }
 };
 
 // Appends the state in `data` to `history` and moves the head of the timeline
@@ -139,9 +153,8 @@ void ResetHistory(SimHistory& history, SimulationTimelineState& timeline,
 // The timeline scrubber row: a spine with a draggable knob that scrubs through
 // the simulation history. Used by the Simulation panel and the toolbar.
 void TimelineScrubberGui(const mjModel* model, mjData* data,
-                         StepControl& step_control, SimHistory& history,
-                         SimulationTimelineState& timeline,
-                         bool load_history_locally = true);
+                         StepControl& step_control,
+                         SimulationTimelineState& timeline);
 
 // Everything the Simulation panel reads or drives. All pointers are owned by
 // the caller and edited in place; the callbacks perform application actions the
@@ -150,13 +163,11 @@ struct SimulationGuiContext {
   mjModel* model = nullptr;  // non-const: saving a keyframe writes to the model
   mjData* data = nullptr;
   StepControl* step_control = nullptr;
-  SimHistory* history = nullptr;
   SimulationTimelineState* timeline = nullptr;
   int* speed_index = nullptr;
   int* key_idx = nullptr;
   int* nthread = nullptr;
   bool* update_threadpool = nullptr;
-  bool load_history_locally = true;
   std::function<void()> reset;   // reset the physics state
   std::function<void()> reload;  // reload the model
   std::function<void()> align;   // recenter the camera on the model

@@ -249,6 +249,9 @@ class App {
   void ApplyWindowStateStorage();
 
   void LoadHistory(int offset);
+  // Loads the frame selected in the timeline GUI if it differs from the frame
+  // the history buffer is currently at. Call after rendering a scrubber.
+  void ApplyTimelineScrub();
 
   void SetSpeedIndex(int idx);
 

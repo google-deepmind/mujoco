@@ -704,6 +704,8 @@ void RecordHistoryFrame(SimHistory& history, SimulationTimelineState& timeline,
   if (!state.empty()) {
     mj_getState(model, data, state.data(), mjSTATE_INTEGRATION);
     timeline.sim_head_time = data->time;
+    timeline.SetHistorySize(history.Size());
+    timeline.SetHistoryIndex(history.GetIndex());
   }
 }
 
@@ -756,23 +758,20 @@ static std::string FormatTimelineTime(double time_in_s) {
 }
 
 void TimelineScrubberGui(const mjModel* model, mjData* data,
-                         StepControl& step_control, SimHistory& history,
-                         SimulationTimelineState& timeline,
-                         bool load_history_locally) {
+                         StepControl& step_control,
+                         SimulationTimelineState& timeline) {
   // Timeline scrubber: spine + sliding knob widget.
   const double max_time = timeline.sim_head_time;
-  const int hist_size = history.Size();
+  const int hist_size = timeline.history_size;
   const int hist_min = 1 - hist_size;  // most negative index (oldest)
   const int hist_max = 0;              // index 0 = most recent
-  int current_index = history.GetIndex();
+  int current_index = timeline.history_index;
   const bool locked = (hist_size <= 1);
 
   // Compute current timestamp for LH label.
+  const double timestep = (model != nullptr) ? model->opt.timestep : 0.002;
   double curr_time =
-      ((data != nullptr) && current_index == history.GetIndex())
-          ? data->time
-          : (max_time + current_index *
-                            ((model != nullptr) ? model->opt.timestep : 0.002));
+      (data != nullptr) ? data->time : (max_time + current_index * timestep);
   if (curr_time < 0.0) curr_time = 0.0;
 
   const int curr_step =
@@ -885,32 +884,26 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
     }
 
     if (new_index != current_index) {
-      if (load_history_locally) {
-        LoadHistoryFrame(history, model, data, new_index);
-      } else {
-        history.SetIndex(new_index);
-      }
+      timeline.SetHistoryIndex(new_index);
       step_control.SetPauseState(StepControl::PauseState::kNormalPaused);
-      current_index = new_index;
+      current_index = timeline.history_index;
       t = static_cast<float>(current_index - hist_min) /
           static_cast<float>(hist_max - hist_min);
-      if ((data != nullptr) && current_index == history.GetIndex()) {
-        curr_time = data->time;
-        if (curr_time < 0.0) curr_time = 0.0;
-        lh_top_str = FormatTimelineTime(curr_time);
-        lh_top_label = lh_top_str.c_str();
-        const int updated_curr_step =
-            ((model != nullptr) && model->opt.timestep > 0)
-                ? static_cast<int>(std::round(curr_time / model->opt.timestep))
-                : 0;
-        lh_bot_str = "(" + std::to_string(updated_curr_step) + ")";
-        lh_bot_label = lh_bot_str.c_str();
-        const float updated_lh_w =
-            std::max({base_label_w, ImGui::CalcTextSize(lh_top_label).x,
-                      ImGui::CalcTextSize(lh_bot_label).x});
-        if (updated_lh_w > timeline.lh_width) {
-          timeline.lh_width = updated_lh_w;
-        }
+      curr_time = max_time + current_index * timestep;
+      if (curr_time < 0.0) curr_time = 0.0;
+      lh_top_str = FormatTimelineTime(curr_time);
+      lh_top_label = lh_top_str.c_str();
+      const int updated_curr_step =
+          ((model != nullptr) && model->opt.timestep > 0)
+              ? static_cast<int>(std::round(curr_time / model->opt.timestep))
+              : 0;
+      lh_bot_str = "(" + std::to_string(updated_curr_step) + ")";
+      lh_bot_label = lh_bot_str.c_str();
+      const float updated_lh_w =
+          std::max({base_label_w, ImGui::CalcTextSize(lh_top_label).x,
+                    ImGui::CalcTextSize(lh_bot_label).x});
+      if (updated_lh_w > timeline.lh_width) {
+        timeline.lh_width = updated_lh_w;
       }
     }
   } else {
@@ -925,19 +918,23 @@ void TimelineScrubberGui(const mjModel* model, mjData* data,
       cursor.x + lh_box_w - ImGui::CalcTextSize(lh_top_label).x;
   ImGui::SetCursorScreenPos(ImVec2(lh_top_x, text_y0));
   ImGui::TextUnformatted(lh_top_label);
+  ImGui::SetItemTooltip("%s", "Current simulation time");
 
   const float lh_bot_x =
       cursor.x + lh_box_w - ImGui::CalcTextSize(lh_bot_label).x;
   ImGui::SetCursorScreenPos(ImVec2(lh_bot_x, text_y1));
   ImGui::TextUnformatted(lh_bot_label);
+  ImGui::SetItemTooltip("%s", "Current simulation step");
 
   // Draw RH labels (two lines, both left-aligned).
   const float rh_x0 = track_x0 + track_w + spacing;
   ImGui::SetCursorScreenPos(ImVec2(rh_x0, text_y0));
   ImGui::TextUnformatted(rh_top_label);
+  ImGui::SetItemTooltip("%s", "Latest recorded time");
 
   ImGui::SetCursorScreenPos(ImVec2(rh_x0, text_y1));
   ImGui::TextUnformatted(rh_bot_label);
+  ImGui::SetItemTooltip("%s", "Latest recorded step");
 
   // Restore window font scale.
   ImGui::SetWindowFontScale(1.0f);
@@ -1095,7 +1092,7 @@ void SimulationGui(const SimulationGuiContext& ctx) {
     }
 
     // History controls (Frame Scrubber).
-    {
+    if (ctx.timeline != nullptr && ctx.timeline->history_size > 0) {
       ImGui::Spacing();
       ImGui::Separator();
       ImGui::Spacing();
@@ -1111,26 +1108,16 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       const float btn_w = (avail - spacing) / 2.0f;
 
       if (ImGui::Button(prev_label, ImVec2(btn_w, 0))) {
-        if (ctx.load_history_locally) {
-          LoadHistoryFrame(*ctx.history, ctx.model, ctx.data,
-                           ctx.history->GetIndex() - 1);
-        } else {
-          ctx.history->SetIndex(ctx.history->GetIndex() - 1);
-        }
+        ctx.timeline->SetHistoryIndex(ctx.timeline->history_index - 1);
         ctx.step_control->SetPauseState(StepControl::PauseState::kNormalPaused);
       }
       ImGui::SetItemTooltip("%s", "Load previous frame from history");
       ImGui::SameLine();
       if (ImGui::Button(next_label, ImVec2(btn_w, 0))) {
-        if (ctx.history->GetIndex() == 0) {
+        if (ctx.timeline->history_index == 0) {
           ctx.step_control->RequestSingleStep();
         } else {
-          if (ctx.load_history_locally) {
-            LoadHistoryFrame(*ctx.history, ctx.model, ctx.data,
-                             ctx.history->GetIndex() + 1);
-          } else {
-            ctx.history->SetIndex(ctx.history->GetIndex() + 1);
-          }
+          ctx.timeline->SetHistoryIndex(ctx.timeline->history_index + 1);
           ctx.step_control->SetPauseState(
               StepControl::PauseState::kNormalPaused);
         }
@@ -1138,8 +1125,8 @@ void SimulationGui(const SimulationGuiContext& ctx) {
       ImGui::SetItemTooltip("%s", "Load next frame from history / Single step");
 
       // Timeline scrubber.
-      TimelineScrubberGui(ctx.model, ctx.data, *ctx.step_control, *ctx.history,
-                          *ctx.timeline, ctx.load_history_locally);
+      TimelineScrubberGui(ctx.model, ctx.data, *ctx.step_control,
+                          *ctx.timeline);
     }
 
     // Keyframe controls.
