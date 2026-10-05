@@ -1489,6 +1489,65 @@ TEST_F(MjCTextureTest, TexturesLoad) {
   ASSERT_THAT(m.get(), NotNull()) << error.data();
 }
 
+TEST_F(MjCTextureTest, BuiltinMustHaveThreeChannels) {
+  for (int nchannel : {1, 4}) {
+    mjSpec* spec = mj_makeSpec();
+    mjsTexture* texture = mjs_addTexture(spec);
+    mjs_setName(texture->element, "texture");
+    texture->type = mjTEXTURE_2D;
+    texture->builtin = mjBUILTIN_FLAT;
+    texture->width = 2;
+    texture->height = 1;
+    texture->nchannel = nchannel;
+    EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+    EXPECT_THAT(mjs_getError(spec),
+                HasSubstr("builtin textures must have 3 channels"));
+    mj_deleteSpec(spec);
+  }
+}
+
+TEST_F(MjCTextureTest, CubeFromFileMustHaveThreeChannels) {
+  // 1 x 1 RGB PNG file
+  static constexpr unsigned char pixel[] = {
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+      0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xf8, 0xdf, 0xc0, 0x00,
+      0x00, 0x04, 0x01, 0x01, 0x80, 0xfb, 0xd7, 0xcb, 0xf1, 0x00, 0x00, 0x00,
+      0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "pixel.png", pixel, sizeof(pixel));
+  mj_addBufferVFS(vfs.get(), "blob.ktx", pixel, 1);
+
+  // a KTX file is loaded as a single-channel blob, whatever nchannel is
+  struct Case {
+    const char* file;
+    int nchannel;
+  };
+  const Case cases[] = {{"pixel.png", 1}, {"pixel.png", 4}, {"blob.ktx", 3}};
+  for (const Case& c : cases) {
+    for (bool separate : {false, true}) {
+      mjSpec* spec = mj_makeSpec();
+      mjsTexture* texture = mjs_addTexture(spec);
+      mjs_setName(texture->element, "texture");
+      texture->type = mjTEXTURE_CUBE;
+      texture->nchannel = c.nchannel;
+      if (separate) {
+        mjs_setInStringVec(texture->cubefiles, 0, c.file);
+      } else {
+        mjs_setString(texture->file, c.file);
+      }
+      EXPECT_THAT(mj_compile(spec, vfs.get()), IsNull());
+      EXPECT_THAT(mjs_getError(spec), HasSubstr("must have 3 channels"));
+      mj_deleteSpec(spec);
+    }
+  }
+  mj_deleteVFS(vfs.get());
+}
+
 // ------------- test quaternion normalization----------------------------------
 
 using QuatNorm = MujocoTest;

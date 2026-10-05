@@ -5383,6 +5383,11 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
   std::vector<std::byte> image;
   LoadFlip(filename, vfs, image, w, h, is_srgb);
 
+  // faces are copied with 3 channels
+  if (nchannel != 3) {
+    throw mjCError(this, "cube and skybox textures loaded from files must have 3 channels");
+  }
+
   if (colorspace == mjCOLORSPACE_AUTO) {
     colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
   }
@@ -5506,6 +5511,11 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
       std::vector<std::byte> image;
       LoadFlip(filename.Str(), vfs, image, w, h, is_srgb);
 
+      // faces are copied with 3 channels
+      if (nchannel != 3) {
+        throw mjCError(this, "cube and skybox textures loaded from files must have 3 channels");
+      }
+
       // assume all faces have the same colorspace
       if (colorspace == mjCOLORSPACE_AUTO) {
         colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
@@ -5593,6 +5603,9 @@ void mjCTexture::Compile(const mjVFS* vfs) {
 
   // builtin
   else if (builtin != mjBUILTIN_NONE) {
+    // builtin textures are generated with 3 channels
+    if (nchannel != 3) { throw mjCError(this, "builtin textures must have 3 channels"); }
+
     // check width
     if (width < 1) { throw mjCError(this, "Invalid width of builtin texture"); }
 

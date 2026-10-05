@@ -1919,7 +1919,8 @@ Only ``image/png`` and ``image/ktx`` are supported.
 
 :at:`nchannel`: :at-val:`int, "3"`
    The number of channels in the texture image file. This allows loading 4-channel textures (RGBA) or single-channel
-   textures (e.g., for Physics-Based Rendering properties such as roughness or metallic).
+   textures (e.g., for Physics-Based Rendering properties such as roughness or metallic). Procedural, cube and skybox
+   textures must have 3 channels.
 
 
 .. _asset-material:
