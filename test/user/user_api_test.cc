@@ -4856,6 +4856,92 @@ TEST_F(MujocoTest, DetachDefault) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, DeleteDefaultCleansUpDefMap) {
+  mjSpec* spec = mj_makeSpec();
+  ASSERT_THAT(spec, NotNull());
+  mjsDefault* def = mjs_addDefault(spec, "cls", mjs_getSpecDefault(spec));
+  ASSERT_THAT(def, NotNull());
+  def->geom->size[0] = 0.3;
+
+  mjsBody* world = mjs_findBody(spec, "world");
+  ASSERT_THAT(world, NotNull());
+  mjsGeom* geom = mjs_addGeom(world, def);
+  ASSERT_THAT(geom, NotNull());
+  geom->size[0] = 0.1;
+
+  mjsBody* body = mjs_addBody(world, nullptr);
+  ASSERT_THAT(body, NotNull());
+  mjs_setDefault(body->element, def);
+
+  EXPECT_EQ(mjs_delete(spec, def->element), 0);
+  EXPECT_THAT(mjs_findDefault(spec, "cls"), IsNull());
+  EXPECT_THAT(mjs_getDefault(geom->element), IsNull());
+
+  // Add geom to body whose childclass was deleted; should fall back to global default
+  mjsGeom* geom2 = mjs_addGeom(body, nullptr);
+  ASSERT_THAT(geom2, NotNull());
+  EXPECT_EQ(geom2->size[0], mjs_getSpecDefault(spec)->geom->size[0]);
+  geom2->size[0] = 0.2;
+
+  mjModel* m = mj_compile(spec, nullptr);
+  EXPECT_THAT(m, NotNull()) << mjs_getError(spec);
+  mj_deleteModel(m);
+
+  char xml[4096];
+  char err[1024];
+  int r = mj_saveXMLString(spec, xml, sizeof(xml), err, sizeof(err));
+  EXPECT_EQ(r, 0) << err;
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, RenameDefaultUpdatesDefMap) {
+  mjSpec* spec = mj_makeSpec();
+  ASSERT_THAT(spec, NotNull());
+  mjsDefault* def = mjs_addDefault(spec, "cls", mjs_getSpecDefault(spec));
+  ASSERT_THAT(def, NotNull());
+  def->geom->size[0] = 0.3;
+
+  mjsBody* world = mjs_findBody(spec, "world");
+  ASSERT_THAT(world, NotNull());
+  mjsGeom* geom = mjs_addGeom(world, def);
+  ASSERT_THAT(geom, NotNull());
+  geom->size[0] = 0.1;
+
+  // Cannot rename global default
+  mjsDefault* main_def = mjs_getSpecDefault(spec);
+  EXPECT_EQ(mjs_setName(main_def->element, "new_main"), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("cannot rename the global default"));
+
+  // Cannot rename to empty name
+  EXPECT_EQ(mjs_setName(def->element, ""), -1);
+
+  // Successfully rename "cls" to "renamed"
+  EXPECT_EQ(mjs_setName(def->element, "renamed"), 0);
+  EXPECT_THAT(mjs_findDefault(spec, "renamed"), NotNull());
+  EXPECT_THAT(mjs_findDefault(spec, "cls"), IsNull());
+
+  mjs_setDefault(geom->element, def);
+  EXPECT_THAT(mjs_getDefault(geom->element), NotNull());
+
+  // Cannot rename to duplicate default name
+  mjsDefault* def2 = mjs_addDefault(spec, "other", mjs_getSpecDefault(spec));
+  ASSERT_THAT(def2, NotNull());
+  EXPECT_EQ(mjs_setName(def2->element, "renamed"), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("repeated default name"));
+
+  mjModel* m = mj_compile(spec, nullptr);
+  EXPECT_THAT(m, NotNull()) << mjs_getError(spec);
+  mj_deleteModel(m);
+
+  char xml[4096];
+  char err[1024];
+  int r = mj_saveXMLString(spec, xml, sizeof(xml), err, sizeof(err));
+  EXPECT_EQ(r, 0) << err;
+
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, ErrorWhenCompilingOrphanedSpec) {
   static constexpr char xml[] = R"(
   <mujoco>

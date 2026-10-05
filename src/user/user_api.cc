@@ -1662,10 +1662,16 @@ mjSpec* mjs_findSpec(const mjSpec* s, const char* name) {
 
 // get default
 mjsDefault* mjs_getDefault(const mjsElement* element) {
-  const mjCModel* model     = static_cast<const mjCBase*>(element)->model;
+  if (!element) {
+    return nullptr;
+  }
+  const mjCModel* model = static_cast<const mjCBase*>(element)->model;
+  if (!model) {
+    return nullptr;
+  }
   std::string     classname = static_cast<const mjCBase*>(element)->classname;
   auto            it        = model->def_map.find(classname);
-  return (it != model->def_map.end()) ? &it->second->spec : nullptr;
+  return (it != model->def_map.end() && it->second != nullptr) ? &it->second->spec : nullptr;
 }
 
 
@@ -2252,9 +2258,35 @@ mjsPlugin* mjs_asPlugin(mjsElement* element) {
 
 // set element name
 int mjs_setName(mjsElement* element, const char* name) {
+  if (!element) {
+    return -1;
+  }
   if (element->elemtype == mjOBJ_DEFAULT) {
     mjCDef* def = static_cast<mjCDef*>(element);
-    def->name   = std::string(name);
+    if (!name || !*name) {
+      if (def->model) {
+        def->model->SetError(mjCError(0, "default name cannot be empty"));
+      }
+      return -1;
+    }
+    if (def->id == 0) {
+      if (def->model) {
+        def->model->SetError(mjCError(0, "cannot rename the global default"));
+      }
+      return -1;
+    }
+    if (def->name != name && def->model) {
+      if (def->model->FindDefault(name)) {
+        def->model->SetError(mjCError(0, "repeated default name '%s'", name));
+        return -1;
+      }
+      auto it = def->model->def_map.find(def->name);
+      if (it != def->model->def_map.end() && it->second == def) {
+        def->model->def_map.erase(it);
+      }
+      def->model->def_map[name] = def;
+    }
+    def->name = std::string(name);
     return 0;
   }
   mjCBase* baseC = static_cast<mjCBase*>(element);

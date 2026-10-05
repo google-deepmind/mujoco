@@ -2055,7 +2055,12 @@ mjCJoint* mjCBody::AddFreeJoint() {
 // create new joint and add it to body
 mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   // create joint
-  mjCJoint* obj = new mjCJoint(model, _def ? _def : model->def_map[classname]);
+  mjCDef* def = _def;
+  if (!def) {
+    auto it = model->def_map.find(classname);
+    def = (it != model->def_map.end() && it->second) ? it->second : model->Default();
+  }
+  mjCJoint* obj = new mjCJoint(model, def);
 
   // set body pointer, add
   obj->body = this;
@@ -2075,7 +2080,12 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
 // create new geom and add it to body
 mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   // create geom
-  mjCGeom* obj = new mjCGeom(model, _def ? _def : model->def_map[classname]);
+  mjCDef* def = _def;
+  if (!def) {
+    auto it = model->def_map.find(classname);
+    def = (it != model->def_map.end() && it->second) ? it->second : model->Default();
+  }
+  mjCGeom* obj = new mjCGeom(model, def);
 
   //  set body pointer, add
   obj->body = this;
@@ -2095,7 +2105,12 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
 // create new site and add it to body
 mjCSite* mjCBody::AddSite(mjCDef* _def) {
   // create site
-  mjCSite* obj = new mjCSite(model, _def ? _def : model->def_map[classname]);
+  mjCDef* def = _def;
+  if (!def) {
+    auto it = model->def_map.find(classname);
+    def = (it != model->def_map.end() && it->second) ? it->second : model->Default();
+  }
+  mjCSite* obj = new mjCSite(model, def);
 
   // set body pointer, add
   obj->body = this;
@@ -2115,7 +2130,12 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
 // create new camera and add it to body
 mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   // create camera
-  mjCCamera* obj = new mjCCamera(model, _def ? _def : model->def_map[classname]);
+  mjCDef* def = _def;
+  if (!def) {
+    auto it = model->def_map.find(classname);
+    def = (it != model->def_map.end() && it->second) ? it->second : model->Default();
+  }
+  mjCCamera* obj = new mjCCamera(model, def);
 
   // set body pointer, add
   obj->body = this;
@@ -2135,7 +2155,12 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
 // create new light and add it to body
 mjCLight* mjCBody::AddLight(mjCDef* _def) {
   // create light
-  mjCLight* obj = new mjCLight(model, _def ? _def : model->def_map[classname]);
+  mjCDef* def = _def;
+  if (!def) {
+    auto it = model->def_map.find(classname);
+    def = (it != model->def_map.end() && it->second) ? it->second : model->Default();
+  }
+  mjCLight* obj = new mjCLight(model, def);
 
   // set body pointer, add
   obj->body = this;
