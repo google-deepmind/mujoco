@@ -2002,9 +2002,8 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 
   bodies.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   obj->parent = this;
 
@@ -2022,8 +2021,8 @@ mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   obj->body = this;
 
   frames.push_back(obj);
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2042,9 +2041,8 @@ mjCJoint* mjCBody::AddFreeJoint() {
 
   joints.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2062,9 +2060,8 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
 
   joints.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2082,9 +2079,8 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
 
   geoms.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2102,9 +2098,8 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
 
   sites.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2122,9 +2117,8 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
 
   cameras.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2142,9 +2136,8 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
 
   lights.push_back(obj);
 
-  // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2176,8 +2169,8 @@ mjCFrame* mjCBody::ToFrame() {
                                       parent->bodies.end(),
                                       [this](mjCBody* body) { return body == this; }),
                        parent->bodies.end());
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  // the tree lists are rebuilt on demand
+  model->InvalidateTreeLists();
   model->InvalidateSignature();
   return newframe;
 }

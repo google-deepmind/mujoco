@@ -326,6 +326,9 @@ void mjCModel::ResetTreeLists() {
 
 // save associated state addresses in related elements
 void mjCModel::SaveDofOffsets(bool computesize) {
+  // sizes and offsets are read from the kinematic tree lists
+  EnsureTreeLists();
+
   int qposadr  = 0;
   int dofadr   = 0;
   int actadr   = 0;
@@ -1459,6 +1462,7 @@ void mjCModel::AppendSpec(mjSpec* spec, const mjsCompiler* compiler_) {
 // get number of objects of specified type
 int mjCModel::NumObjects(mjtObj type) {
   if (!object_lists_[type]) { return 0; }
+  EnsureTreeLists();
   return (int)object_lists_[type]->size();
 }
 
@@ -1759,7 +1763,11 @@ mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
 
 // make lists of objects in tree: bodies, geoms, joints, sites, cameras, lights
 void mjCModel::MakeTreeLists(mjCBody* body) {
-  if (body == nullptr) { body = bodies_[0]; }
+  // a top-level call rebuilds the lists in full
+  if (body == nullptr) {
+    body              = bodies_[0];
+    tree_lists_valid_ = true;
+  }
 
   // add this body if not world
   if (body != bodies_[0]) { bodies_.push_back(body); }
@@ -1774,6 +1782,15 @@ void mjCModel::MakeTreeLists(mjCBody* body) {
 
   // recursive call to all child bodies
   for (mjCBody* body : body->bodies) MakeTreeLists(body);
+}
+
+
+// rebuild the kinematic tree lists if a tree edit has made them stale
+void mjCModel::EnsureTreeLists() {
+  if (!tree_lists_valid_) {
+    ResetTreeLists();
+    MakeTreeLists();
+  }
 }
 
 
@@ -2135,6 +2152,9 @@ static size_t getpathslength(std::vector<T> list) {
 
 // set array sizes
 void mjCModel::SetSizes() {
+  // sizes are the lengths of the kinematic tree lists
+  EnsureTreeLists();
+
   // set from object list sizes
   nbody    = (int)bodies_.size();
   njnt     = (int)joints_.size();
@@ -4262,6 +4282,9 @@ void mjCModel::SaveState(const std::string& state_name,
                          const T*           ctrl,
                          const T*           mpos,
                          const T*           mquat) {
+  // the state is gathered from the kinematic tree lists
+  EnsureTreeLists();
+
   // save qpos and qvel
   for (auto joint : joints_) {
     if (joint->qposadr_ < -1 || joint->dofadr_ < -1) {
@@ -4941,6 +4964,9 @@ static void sortid(const vector<T*>& list, Compare compare) {
 
 // set object ids, check for repeated names
 void mjCModel::ProcessLists(bool checkrepeat) {
+  // ids are positions in the tree lists, which must be current
+  EnsureTreeLists();
+
   for (int i = 0; i < mjNOBJECT; i++) {
     if (i != mjOBJ_XBODY && object_lists_[i]) {
       ids[i].clear();
@@ -5391,6 +5417,9 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
 }
 
 void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
+  // the compiler reads the kinematic tree lists throughout
+  EnsureTreeLists();
+
 #if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
   // The MuJoCo compiler defaults to usethread=1, which causes it to try to
   // create pthreads for compilation. In the single-threaded WASM build, this
@@ -6001,6 +6030,9 @@ bool mjCModel::CheckBodyMassInertia(mjCBody* body) {
 
 // get numeric data back from mjModel
 bool mjCModel::CopyBack(const mjModel* m) {
+  // values are copied back into the kinematic tree lists
+  EnsureTreeLists();
+
   // check for null pointer
   if (!m) {
     errInfo = mjCError(0, "mjModel pointer is null in CopyBack");
