@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(usd_mimic_test ADDITIONAL_LINK_LIBRARIES usd sdf tf arch)
-add_dependencies(usd_mimic_test usd_decoder_plugin)
-target_compile_definitions(usd_mimic_test PRIVATE
+mujoco_test(usd_decoder_test ADDITIONAL_LINK_LIBRARIES usd sdf tf arch)
+add_dependencies(usd_decoder_test usd_decoder_plugin)
+target_compile_definitions(usd_decoder_test PRIVATE
   USD_DECODER_PLUGIN_PATH="$<TARGET_FILE:usd_decoder_plugin>"
 )
