@@ -213,9 +213,10 @@ static void ipc_mergeActiveSet(mjData* d, ipcCon** aset, int* naset, const mjcFl
   }
   const ipcCon* old = *aset;
   // presence hash over the merged set, open addressing keyed by pairHash (0 = empty; a true hash
-  // of 0 would at worst admit one duplicate), per-call scratch on the mjData stack
+  // of 0 would at worst admit one duplicate), per-call scratch on the mjData stack sized by the
+  // merged-set bound: only the old set and the admitted candidates are inserted
   int cap = 1;
-  while (cap < 4 * (*naset + ncand) + 16)
+  while (cap < 2 * bound + 16)
     cap <<= 1;
   mj_markStack(d);
   uint64_t* mkey = mjSTACKALLOC(d, cap, uint64_t);
@@ -974,8 +975,13 @@ void mj_ipc(const mjModel* m, mjData* d) {
         mjtNum* esD = mjSTACKALLOC(d, cap, mjtNum);
         mjtNum* esref = mjSTACKALLOC(d, cap, mjtNum);
         // and, for pinned corners on articulated bodies, the body-chain columns (esxdof, esxval;
-        // esxnum entries from esxadr)
-        int xcap = IPC_NPT * pjmax * cap + 1;
+        // esxnum entries from esxadr), sized by the chains the live pairs' corners actually have
+        int xcap = 1;
+        if (pjmax > 0) {
+          for (int c=0; c < nacon; c++)
+            for (int p=0; p < wcon[c].lniv; p++)
+              xcap += pjnv[wcon[c].liv[p]];
+        }
         int* esxadr = mjSTACKALLOC(d, cap, int);
         int* esxnum = mjSTACKALLOC(d, cap, int);
         int* esxdof = mjSTACKALLOC(d, xcap, int);
