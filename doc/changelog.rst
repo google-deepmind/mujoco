@@ -2,46 +2,48 @@
 Changelog
 =========
 
-Upcoming Version (not yet released)
------------------------------------
+Version 3.15.0 (October 5, 2026)
+--------------------------------
 
 General
 ^^^^^^^
-- :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
-- Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
-  :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI
-  scheme.
+1. :commit:`1aa68e1ca` :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
+2. :commit:`1aa68e1ca` Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now
+   resolve correctly in :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses
+   ``..``, or uses a URI scheme.
 
 Engine
 ^^^^^^
 .. admonition:: Breaking API changes
    :class: attention
 
-   - Actuator :ref:`dampratio<actuator-position-dampratio>` now computes the reflected inertia :math:`m` at
-     ``mjModel.qpos0`` as the operational-space inertia :math:`(J M^{-1} J^T)^{-1}` (averaged across force outputs for
-     multi-output actuators such as :ref:`orientation<actuator-orientation>`), rather than summing
-     :math:`\text{dof\_M0}_j / J_j^2` across degrees of freedom. This accounts for tendon and actuator armature as well
-     as off-diagonal inertial coupling, and avoids extreme damping values when a multi-DOF transmission has small
-     Jacobian entries. In practice, actuators using ``dampratio`` on multi-link kinematic chains may exhibit lower
-     damping than before, while actuators driving tendons or sites that span multiple joints will be damped much more
-     accurately instead of being overdamped.
+   3. :commit:`b3dd9e617` Actuator :ref:`dampratio<actuator-position-dampratio>` now computes the reflected inertia
+      :math:`m` at ``mjModel.qpos0`` as the operational-space inertia :math:`(J M^{-1} J^T)^{-1}` (averaged across force
+      outputs for multi-output actuators such as :ref:`orientation<actuator-orientation>`), rather than summing
+      :math:`\text{dof\_M0}_j / J_j^2` across degrees of freedom. This accounts for tendon and actuator armature as well
+      as off-diagonal inertial coupling, and avoids extreme damping values when a multi-DOF transmission has small
+      Jacobian entries. In practice, actuators using ``dampratio`` on multi-link kinematic chains may exhibit lower
+      damping than before, while actuators driving tendons or sites that span multiple joints will be damped much more
+      accurately instead of being overdamped.
 
-   - Removed the deprecated ``internal`` flex collision option and associated ``evpair`` structures.
+   4. :commit:`5023a4a50` Removed the deprecated ``internal`` flex collision option and associated ``evpair``
+      structures.
 
-- Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes, enabled only through
-  ``mjsFlex.elastic3d = 1``. It projects the material Hessian to positive semidefiniteness for the solver and Rayleigh
-  damping, and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
-  SNH requires the discrete integrator. The setting is not available in MJCF.
-- The cached flex bending factor now retains cross-coordinate couplings between differently oriented vertex bodies.
-- Flex bending and stretching now include the motion and reaction forces of articulated vertex attachments. The discrete
-  integrator supports these attachments with the CG solver; fixed and independent XYZ-slide attachments retain their
-  optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
-- Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
-- Added the :ref:`enclosed<sensor-insidesite-enclosed>` attribute to :ref:`insidesite<sensor-insidesite>` sensors,
-  measuring how much an object juts out of a site (using directed Hausdorff distance) and reporting signed
-  clearance/protrusion.
-- Fixed 64-bit model size narrowing in binary MJB serialization: :ref:`mj_saveModel` and :ref:`mj_loadModelBuffer` now
-  accept :ref:`mjtSize` for ``buffer_sz``, supporting models larger than 2 GiB.
+5. :commit:`1b973add4` Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes,
+   enabled only through ``mjsFlex.elastic3d = 1``. It projects the material Hessian to positive semidefiniteness for the
+   solver and Rayleigh damping, and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
+   SNH requires the discrete integrator. The setting is not available in MJCF.
+6. :commit:`2742de438` The cached flex bending factor now retains cross-coordinate couplings between differently
+   oriented vertex bodies.
+7. :commit:`eed008905` Flex bending and stretching now include the motion and reaction forces of articulated vertex
+   attachments. The discrete integrator supports these attachments with the CG solver; fixed and independent XYZ-slide
+   attachments retain their optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
+8. :commit:`6224e95f6` Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
+9. :commit:`ebfb4662d` Added the :ref:`enclosed<sensor-insidesite-enclosed>` attribute to
+   :ref:`insidesite<sensor-insidesite>` sensors, measuring how much an object juts out of a site (using directed
+   Hausdorff distance) and reporting signed clearance/protrusion.
+10. :commit:`f80ef4244` Fixed 64-bit model size narrowing in binary MJB serialization: :ref:`mj_saveModel` and
+    :ref:`mj_loadModelBuffer` now accept :ref:`mjtSize` for ``buffer_sz``, supporting models larger than 2 GiB.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------
