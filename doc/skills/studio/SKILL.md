@@ -190,7 +190,8 @@ shutdown:
         advance the physics.
     6.  `PostStepEvent` — dispatched by `ViewerHandle.sync` immediately after
         `StepEvent` (before `StateSnapshot` is broadcast) so observer/recorder
-        plugins can inspect or record the resulting simulation state.
+        plugins (such as `SimHistory`) can inspect or record the resulting
+        simulation state.
     7.  `ExitEvent` — dispatched once by `ViewerHandle.close()`, which the
         `with` block calls on every exit path (normal exit, `KeyboardInterrupt`,
         an exception, or the viewer dying). Handle it to release resources.
@@ -308,6 +309,7 @@ All three modules share the same `.run(...)` interface:
 
 ```python
 from mujoco.experimental.studio import launch_web  # Or launch_native / launch_passive
+from mujoco.experimental.studio import sim_history
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
@@ -319,7 +321,7 @@ launch_web.run(
     model=model,
     data=data,
     viewer_plugins=[viewer_app.ViewerApp()],
-    sim_plugins=[step_control.StepControl()],
+    sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
 )
 ```
 
@@ -343,7 +345,7 @@ context manager returning a `ViewerHandle`:
 with launch_web.launch(
     config,
     viewer_plugins=[viewer_app.ViewerApp()],
-    sim_plugins=[step_control.StepControl()],
+    sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
 ) as handle:
   while handle.is_running():
     model, data = handle.sync(model, data)
@@ -577,6 +579,14 @@ As a direct consequence of this principle:
     copies).
 -   The viewer thread should **never directly mutate simulation-side state**
     outside of handling inbound events and sending requests to the sim.
+
+> [!IMPORTANT]
+>
+> **Keep `ViewerHandle` minimal.** It is the framework's sim-side orchestrator
+> and should only own `sync()`, message dispatch, and model/data lifecycle.
+> Domain-specific sim-side behaviours belong in **`sim_plugins`** — for
+> example `StepControl` (stepping/pacing) and `SimHistory` (history,
+> scrubbing). Do not add `ux` or `sim` imports to `viewer_handle.py`.
 
 ### 2. Preserve Simulation Loop Boilerplate (Use Plugins & Events)
 

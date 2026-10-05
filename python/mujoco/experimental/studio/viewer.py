@@ -17,6 +17,7 @@ from absl import app as _app
 from absl import flags as _flags
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import parser
+from mujoco.experimental.studio import sim_history
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
@@ -58,7 +59,7 @@ def main(argv: list[str]) -> None:
       data=data,
       model_path=model_path,
       viewer_plugins=[viewer_app.ViewerApp()],
-      sim_plugins=[step_control.StepControl()],
+      sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
   )
 
 
