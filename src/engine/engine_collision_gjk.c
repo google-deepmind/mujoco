@@ -1597,13 +1597,13 @@ static inline mjtNum witnessOnFace(mjtNum w1[3], mjtNum w2[3], const mjtNum v[3]
 }
 
 
-// clip a polygon against another polygon
-static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
-                        const mjtNum* face2, int nface2, const mjtNum n[3],
-                        const mjtNum dir[3], mjtNum* buffer, int npolygonmax) {
+// clip a polygon against another polygon, return 1 if witness points were written to status
+static int polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
+                       const mjtNum* face2, int nface2, const mjtNum n[3],
+                       const mjtNum dir[3], mjtNum* buffer, int npolygonmax) {
   // clipping face needs to be at least a triangle
   if (nface1 < 3) {
-    return;
+    return 0;
   }
   mjtNum* dist = status->dist;
   mjtNum* polygon = buffer;
@@ -1685,7 +1685,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   }
 
   if (npolygon < 1) {
-    return;
+    return 0;
   }
 
   // copy final clipped polygon to status
@@ -1697,7 +1697,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
       dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*idx[i],
                               face1, n, dir);
     }
-    return;
+    return 1;
   }
 
   // if the face is an edge, remove potential duplicates
@@ -1720,7 +1720,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     dist[0] = witnessOnFace(status->x1, status->x2, polygon + 3*best1, face1, n, dir);
     dist[1] = witnessOnFace(status->x1 + 3, status->x2 + 3, polygon + 3*best2, face1, n, dir);
     status->nx = 2;
-    return;
+    return 1;
   }
 
   // no pruning needed (cap to max contacts)
@@ -1730,6 +1730,7 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
     dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*i, face1, n, dir);
   }
   status->nx = npolygon;
+  return 1;
 }
 
 
@@ -2332,8 +2333,12 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, cons
   // face1 is an edge; clip face1 against face2
   if (edgecon1) {
     scl3(wit_dir, n2 + 3*j, -1.0);
-    polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, wit_dir, polygon, npolygonmax);
-    // x1 and x2 must be flipped as we flipped the faces in polygonClip
+    // x1 and x2 must be flipped as we flipped the faces in polygonClip; if no points survived the
+    // clip, x1 and x2 are still the EPA witness points and must be left as they are
+    if (!polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, wit_dir, polygon,
+                     npolygonmax)) {
+      return;
+    }
     int nx = status->nx;
     for (int k = 0; k < nx; k++) {
       mjtNum tmp[3];
