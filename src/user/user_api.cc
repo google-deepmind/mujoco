@@ -1278,8 +1278,11 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator,
                                  double       dampratio[1],
                                  double       timeconst[1],
                                  double       inheritrange) {
-  mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
-  actuator->dyntype = mjDYN_INTEGRATOR;
+  // inheritrange sets actrange, not ctrlrange: skip the position range check
+  const char* err = mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, 0);
+  if (err[0]) return err;
+  actuator->dyntype      = mjDYN_INTEGRATOR;
+  actuator->inheritrange = inheritrange;
 
   if (inheritrange > 0) {
     if (actuator->actrange[0] || actuator->actrange[1]) {

@@ -484,6 +484,24 @@ TEST_F(MujocoTest, SetToDCMotorLuGre) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, SetToIntVelocityReportsErrors) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // position servo errors are returned; timeconst is not an MJCF attribute
+  double timeconst = -1.0;
+  const char* err =
+      mjs_setToIntVelocity(actuator, 5.0, nullptr, nullptr, &timeconst, 0);
+  EXPECT_STREQ(err, "timeconst cannot be negative");
+
+  // inheritrange sets actrange, so the two are exclusive
+  actuator->actrange[1] = 1.0;
+  err = mjs_setToIntVelocity(actuator, 5.0, nullptr, nullptr, nullptr, 1.0);
+  EXPECT_STREQ(err, "actrange and inheritrange cannot both be defined");
+
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, SetToOrientation) {
   mjSpec* spec = mj_makeSpec();
   mjsActuator* actuator = mjs_addActuator(spec, 0);

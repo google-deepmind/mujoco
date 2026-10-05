@@ -2854,6 +2854,45 @@ TEST_F(ActuatorParseTest, RequirePositiveKv) {
   EXPECT_THAT(error.data(), HasSubstr("line 10"));
 }
 
+TEST_F(ActuatorParseTest, IntvelocityRejectsInvalidDamping) {
+  static constexpr char xml_kv_dampratio[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="jnt" kv="1" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model =
+      LoadModelFromString(xml_kv_dampratio, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("kv and dampratio cannot both be defined"));
+
+  static constexpr char xml_negative_kv[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="jnt" kv="-1"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(xml_negative_kv, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("kv cannot be negative"));
+}
+
 TEST_F(ActuatorParseTest, PositionIntvelocityVelocityDefaultsPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -2999,6 +3038,30 @@ TEST_F(ActuatorParseTest, IntvelocityNoActrangeIsValid) {
   ASSERT_THAT(model.get(), NotNull()) << error.data();
   // actlimited resolves to false when no actrange is provided
   EXPECT_EQ(model->actuator_actlimited[0], 0);
+}
+
+TEST_F(ActuatorParseTest, IntvelocityInheritrangeAllowsCtrlrange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="jnt" type="slide" axis="1 0 0" range="-2 2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity joint="jnt" ctrlrange="-1 1" inheritrange="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->actuator_biastype[0], mjBIAS_AFFINE);
+  EXPECT_EQ(model->actuator_ctrlrange[0], -1.0);
+  EXPECT_EQ(model->actuator_ctrlrange[1], 1.0);
+  EXPECT_EQ(model->actuator_actrange[0], -2.0);
+  EXPECT_EQ(model->actuator_actrange[1], 2.0);
 }
 
 TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
