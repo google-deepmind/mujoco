@@ -24,10 +24,10 @@
     <body name="soft_clamp" pos="0 -0.5 .85">
       <geom type="box" size=".045 .065 .065" material="silver"/>
       <geom class="bolt"/>
-      <flexcomp name="soft" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="trilinear" cellcount="16 1 1" mass=".12" radius=".001" rgba=".2 .75 .7 1">
+      <flexcomp name="soft" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="quadratic" cellcount="2 1 1" mass=".12" radius=".001" rgba=".2 .75 .7 1">
         <elasticity young="8e+06" poisson=".25" damping="0.002"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <pin id="0 1 2 3"/>
+        <pin id="0 1 2 3 4 5 6 7 8"/>
       </flexcomp>
     </body>
     <body name="soft_tip" pos=".9 -0.5 .85">
@@ -38,10 +38,10 @@
     <body name="stiff_clamp" pos="0 0 .85">
       <geom type="box" size=".045 .065 .065" material="silver"/>
       <geom class="bolt"/>
-      <flexcomp name="stiff" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="trilinear" cellcount="16 1 1" mass=".12" radius=".001" rgba=".95 .38 .12 1">
+      <flexcomp name="stiff" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="quadratic" cellcount="2 1 1" mass=".12" radius=".001" rgba=".95 .38 .12 1">
         <elasticity young="1.6e+07" poisson=".25" damping="0.002"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <pin id="0 1 2 3"/>
+        <pin id="0 1 2 3 4 5 6 7 8"/>
       </flexcomp>
     </body>
     <body name="stiff_tip" pos=".9 0 .85">
@@ -52,10 +52,10 @@
     <body name="damped_clamp" pos="0 0.5 .85">
       <geom type="box" size=".045 .065 .065" material="silver"/>
       <geom class="bolt"/>
-      <flexcomp name="damped" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="trilinear" cellcount="16 1 1" mass=".12" radius=".001" rgba=".6 .5 .9 1">
+      <flexcomp name="damped" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="quadratic" cellcount="2 1 1" mass=".12" radius=".001" rgba=".6 .5 .9 1">
         <elasticity young="8e+06" poisson=".25" damping="0.04"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <pin id="0 1 2 3"/>
+        <pin id="0 1 2 3 4 5 6 7 8"/>
       </flexcomp>
     </body>
     <body name="damped_tip" pos=".9 0.5 .85">
@@ -65,17 +65,17 @@
     </body>
   </worldbody>
   <equality>
-    <connect name="soft_0_0_attach" body1="soft_16_0_0" body2="soft_tip" anchor="0 0 0"/>
-    <connect name="soft_0_1_attach" body1="soft_16_0_1" body2="soft_tip" anchor="0 0 0"/>
-    <connect name="soft_1_0_attach" body1="soft_16_1_0" body2="soft_tip" anchor="0 0 0"/>
-    <connect name="soft_1_1_attach" body1="soft_16_1_1" body2="soft_tip" anchor="0 0 0"/>
-    <connect name="stiff_0_0_attach" body1="stiff_16_0_0" body2="stiff_tip" anchor="0 0 0"/>
-    <connect name="stiff_0_1_attach" body1="stiff_16_0_1" body2="stiff_tip" anchor="0 0 0"/>
-    <connect name="stiff_1_0_attach" body1="stiff_16_1_0" body2="stiff_tip" anchor="0 0 0"/>
-    <connect name="stiff_1_1_attach" body1="stiff_16_1_1" body2="stiff_tip" anchor="0 0 0"/>
-    <connect name="damped_0_0_attach" body1="damped_16_0_0" body2="damped_tip" anchor="0 0 0"/>
-    <connect name="damped_0_1_attach" body1="damped_16_0_1" body2="damped_tip" anchor="0 0 0"/>
-    <connect name="damped_1_0_attach" body1="damped_16_1_0" body2="damped_tip" anchor="0 0 0"/>
-    <connect name="damped_1_1_attach" body1="damped_16_1_1" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="soft_0_0_attach" body1="soft_4_0_0" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="soft_0_2_attach" body1="soft_4_0_2" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="soft_2_0_attach" body1="soft_4_2_0" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="soft_2_2_attach" body1="soft_4_2_2" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="stiff_0_0_attach" body1="stiff_4_0_0" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="stiff_0_2_attach" body1="stiff_4_0_2" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="stiff_2_0_attach" body1="stiff_4_2_0" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="stiff_2_2_attach" body1="stiff_4_2_2" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="damped_0_0_attach" body1="damped_4_0_0" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="damped_0_2_attach" body1="damped_4_0_2" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="damped_2_0_attach" body1="damped_4_2_0" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="damped_2_2_attach" body1="damped_4_2_2" body2="damped_tip" anchor="0 0 0"/>
   </equality>
 </mujoco>

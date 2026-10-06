@@ -1,6 +1,6 @@
 # Elastic mechanisms
 
-Mechanisms inspired by [Miles Macklin's Reduced Elastic Links experiments](https://reports.mmacklin.com/newton-reduced/reduced_elastic_links_implementation.html), implemented with MuJoCo's multicell trilinear flexes. The geometry and MJCF are original; no Newton source or external mesh assets are required.
+Mechanisms inspired by [Miles Macklin's Reduced Elastic Links experiments](https://reports.mmacklin.com/newton-reduced/reduced_elastic_links_implementation.html), implemented with MuJoCo's multicell trilinear and quadratic flexes. The geometry and MJCF are original; no Newton source or external mesh assets are required.
 
 <p float="left">
   <a href="https://live.mujoco.org/?model=github:google-deepmind/mujoco/main/model/flex/mechanisms/cantilever.xml" title="Open in live.mujoco.org"><img src="https://www.gstatic.com/mujoco/model/flex/mechanisms/cantilever.png" width="32%"></a>
@@ -12,9 +12,9 @@ Click an image to open the model in the browser viewer at [live.mujoco.org](http
 
 | Model | Mechanism | Interpolation cells | Total DOFs |
 | --- | --- | --- | --- |
-| [`cantilever.xml`](cantilever.xml) | Three beams with different stiffness or damping and directly attached tip masses | 16 × 1 × 1 per beam | 594 |
-| [`slidercrank.xml`](slidercrank.xml) | A crank wheel drives a sliding piston through a flexible connecting rod | 12 × 1 × 1 | 160 |
-| [`dipper.xml`](dipper.xml) | A cylinder-driven flexible arm with a freely swinging tendon-suspended payload | 12 × 1 × 1 | 179 |
+| [`cantilever.xml`](cantilever.xml) | Three beams with different stiffness or damping and directly attached tip masses | 2 × 1 × 1 quadratic per beam | 342 |
+| [`slidercrank.xml`](slidercrank.xml) | A crank wheel drives a sliding piston through a flexible connecting rod | 12 × 1 × 1 trilinear | 160 |
+| [`dipper.xml`](dipper.xml) | A cylinder-driven flexible arm with a freely swinging tendon-suspended payload | 12 × 1 × 1 trilinear | 179 |
 
 The slider-crank motor uses an affine force bias: torque = 50 × (2π/3 − angular velocity). The dipper uses the same velocity feedback with a 2π rad/s target. A visible 7 cm eccentric and connecting rod convert its rotation into piston motion, giving approximately a 1 Hz stroke. Actual speed varies slightly with load. Each `crank` control adds an offset to the target angular velocity in rad/s; setting it to the negative nominal target requests zero speed. The cantilevers move under gravity.
 
@@ -32,7 +32,7 @@ The two soft beams have the same static equilibrium, but different transient dec
 
 ## Attachments and suspension
 
-The fine tetrahedral grid supplies the visible surface; `cellcount` controls the coarser deformation grid. The cantilevers pin the four nodes of their root cross-sections. The moving mechanisms use world-frame flex nodes, which support the discrete integrator's sparse Newton solve.
+The fine tetrahedral grid supplies the visible surface; `cellcount` controls the coarser deformation grid. The cantilevers pin the nine nodes of their root cross-sections. Quadratic cells do not shear-lock in bending, so two cells per beam come within about 10% of Euler–Bernoulli tip deflection. The moving mechanisms use world-frame flex nodes, which support the discrete integrator's sparse Newton solve.
 
 Four point equalities clamp each attached cross-section to a rigid fitting. The fitting can carry an ordinary hinge, as at the connecting rod ends and dipper fulcrum. In the dipper, a base hinge, crank-driven prismatic rod and tip point connection form the drive cylinder. The flex DOFs are passive. The slider joint has 30 N·s/m damping to resist piston motion and load the connecting rod.
 
