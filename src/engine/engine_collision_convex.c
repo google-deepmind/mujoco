@@ -702,6 +702,7 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 
   case mjGEOM_HFIELD:
     mjc_prism_support(res, obj, dir);
+    mji_addToScl3(res, dir, 0.5*obj->margin);
     return;
 
   default:
@@ -1215,7 +1216,7 @@ static inline void addVert(mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
 
 
 // add vertex to prism
-static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, mjtNum dy, mjtNum margin) {
+static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, mjtNum dy) {
   // move old data
   mji_copy3(obj->data.hfield.prism[0], obj->data.hfield.prism[1]);
   mji_copy3(obj->data.hfield.prism[1], obj->data.hfield.prism[2]);
@@ -1228,9 +1229,6 @@ static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, m
   obj->data.hfield.prism[2][0] = obj->data.hfield.prism[5][0] = dx*c - obj->size[0];
   obj->data.hfield.prism[2][1] = obj->data.hfield.prism[5][1] = dy*(r + dr) - obj->size[1];
   obj->data.hfield.prism[5][2] = obj->data.hfield.hfield_data[(r + dr)*obj->data.hfield.hfield_ncol + c]*obj->size[2];
-
-  // factor in margin
-  obj->data.hfield.prism[5][2] += margin;
 }
 
 
@@ -1270,7 +1268,7 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int
 
   // ccd set up
   mjCCDObj obj1, obj2;
-  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj1, m, d, g1, margin);
   mjc_initCCDObj(&obj2, m, d, g2, 0);
 
 
@@ -1319,10 +1317,17 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int
   obj2.support(res, &obj2, local_dir);
   mjtNum zmin = res[2];
 
+  xmin -= margin;
+  xmax += margin;
+  ymin -= margin;
+  ymax += margin;
+  zmin -= margin;
+  zmax += margin;
+
   // AABB box-box test
-  if ((xmin - margin > size0) || (xmax + margin < -size0) ||
-      (ymin - margin > size1) || (ymax + margin < -size1) ||
-      (zmin - margin > size2) || (zmax + margin < -size3)) {
+  if ((xmin > size0) || (xmax < -size0) ||
+      (ymin > size1) || (ymax < -size1) ||
+      (zmin > size2) || (zmax < -size3)) {
     return 0;
   }
 
@@ -1350,12 +1355,12 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int
   // process all prisms in subgrid
   int ncon = 0;
   for (int r=rmin; r < rmax; r++) {
-    addPrismVert(&obj1, r, cmin, 0, dx, dy, margin);
-    addPrismVert(&obj1, r, cmin, 1, dx, dy, margin);
+    addPrismVert(&obj1, r, cmin, 0, dx, dy);
+    addPrismVert(&obj1, r, cmin, 1, dx, dy);
     for (int c=cmin + 1; c <= cmax; c++) {
       for (int i=0; i < 2; i++) {
         // send vertex to prism constructor
-        addPrismVert(&obj1, r, c, i, dx, dy, margin);
+        addPrismVert(&obj1, r, c, i, dx, dy);
 
         // prism height test
         if (prism[3][2] < zmin && prism[4][2] < zmin && prism[5][2] < zmin) {
@@ -1363,7 +1368,7 @@ int mjc_ConvexHField(const mjModel* m, mjData* d, mjPreContact* con, int g1, int
         }
 
         // run penetration function, save contact
-        if (mjc_penetration(m, d, &obj1, &obj2, con + ncon, 1, 0.0)) {
+        if (mjc_penetration(m, d, &obj1, &obj2, con + ncon, 1, margin)) {
           // transform to global coordinates
           mji_copy3(local_dir, con[ncon].normal);
           mji_copy3(local_pos, con[ncon].pos);
@@ -1685,7 +1690,7 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
   mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
   int dr[2], cnt, rmin, rmax, cmin, cmax;
   mjCCDObj obj1;
-  mjc_initCCDObj(&obj1, m, d, g, 0);
+  mjc_initCCDObj(&obj1, m, d, g, margin);
 
   // get hfield info
   int hid = m->geom_dataid[g];
@@ -1731,10 +1736,18 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
     zmax = mju_max(zmax, evert[i][2]);
   }
 
+  mjtNum expand = m->flex_radius[f] + margin;
+  xmin -= expand;
+  xmax += expand;
+  ymin -= expand;
+  ymax += expand;
+  zmin -= expand;
+  zmax += expand;
+
   // box-box test
-  if ((xmin-margin > hsize[0]) || (xmax+margin < -hsize[0]) ||
-      (ymin-margin > hsize[1]) || (ymax+margin < -hsize[1]) ||
-      (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
+  if ((xmin > hsize[0]) || (xmax < -hsize[0]) ||
+      (ymin > hsize[1]) || (ymax < -hsize[1]) ||
+      (zmin > hsize[2]) || (zmax < -hsize[3])) {
     return 0;
   }
 
@@ -1768,7 +1781,7 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
       for (int k=0; k < 2; k++) {
         // send vertex to prism constructor
         addVert(&obj1, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
-                hdata[(r+dr[k])*ncol+c]*hsize[2]+margin);
+                hdata[(r+dr[k])*ncol+c]*hsize[2]);
 
         // check for enough vertices
         if (++nvert > 2) {
@@ -1778,7 +1791,7 @@ int mjc_HFieldElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f,
           }
 
           // run ccd, save contact
-          if (mjc_penetration(m, d, &obj1, &obj2, con + cnt, 1, 0.0)) {
+          if (mjc_penetration(m, d, &obj1, &obj2, con + cnt, 1, margin)) {
             // transform to global coordinates
             mji_zero3(con[cnt].tangent);
             mju_mulMatVec3(con[cnt].normal, hmat, con[cnt].normal);

@@ -14,6 +14,8 @@
 
 // Tests for engine/engine_collision_convex.c.
 
+#include "src/engine/engine_collision_convex.h"
+
 #include <string>
 #include <string_view>
 
@@ -21,7 +23,6 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_collision_convex.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -500,6 +501,41 @@ TEST_F(MjcConvexTest, IsEnclosedSite) {
   // +0.1
   EXPECT_NEAR(mjc_hausdorff(&protrude_g_obj, &outer_obj, 50, 0.5, 1e-6), 0.1,
               1e-5);
+}
+
+TEST_F(MjcConvexTest, HFieldMarginAndGap) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="3" ncol="3" size="1 1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="terrain" type="hfield" hfield="hf" margin="0.02" gap="0.01"/>
+      <body pos="0.1 0.1 0.065">
+        <freejoint/>
+        <geom type="sphere" size="0.05"/>
+      </body>
+      <flexcomp name="flex" type="grid" count="2 2 1" spacing="0.2 0.2 0.2"
+                pos="-0.2 -0.2 0.065" radius="0.05" dim="2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // sphere and flex bottoms are at z = 0.065 - 0.05 = 0.015, within margin
+  // (0.02)
+  int ngeom = 0, nflex = 0;
+  for (int i = 0; i < data->ncon; i++) {
+    if (data->contact[i].geom[1] >= 0) ngeom++;
+    if (data->contact[i].flex[1] >= 0) nflex++;
+    EXPECT_NEAR(data->contact[i].dist, 0.015, MjTol(1e-6, 1e-5));
+    EXPECT_NEAR(data->contact[i].pos[2], 0.0075, MjTol(1e-6, 1e-5));
+  }
+  EXPECT_GT(ngeom, 0);
+  EXPECT_GT(nflex, 0);
 }
 
 }  // namespace
