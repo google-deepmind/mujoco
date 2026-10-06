@@ -239,6 +239,7 @@ jobs:
       working-directory: python/dist
       env:
         TMPDIR: ${{ matrix.tmpdir }}
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ../../.github/workflows/build_steps.sh build_python_bindings
 
@@ -363,7 +364,18 @@ jobs:
         max-size: "500M"
         save: ${{ github.ref_name == 'main' }}
 
+    - name: Cache external dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ runner.temp }}/external_deps
+        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        restore-keys: |
+          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+
     - name: Configure MuJoCo
+      env:
+        EXTERNAL_DEPS: "eigen3"
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
       run: bash ./.github/workflows/build_steps.sh configure_mujoco
 
     - name: Build MuJoCo
@@ -384,6 +396,8 @@ jobs:
 
     - name: Build Python bindings
       working-directory: python/dist
+      env:
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
       run: bash ../../.github/workflows/build_steps.sh build_python_bindings
 
     - name: Install Python bindings
