@@ -1344,7 +1344,10 @@ def _get_data_into_warp(
           value = int(value)
       elif field.name in ('nefc', 'ncon'):
         value = {'nefc': nefc, 'ncon': ncon}[field.name]
-      elif field.name.endswith('xmat') or field.name == 'ximat':
+      elif field.name.endswith('xmat') or field.name in (
+          'ximat',
+          'flexedge_hessian',
+      ):
         value = value.reshape((-1, 9))
       # elif field.name == 'efc_J':  # TODO(btaba): add this back
       # elif field.name.startswith('efc_'):  # TODO(btaba): add this back

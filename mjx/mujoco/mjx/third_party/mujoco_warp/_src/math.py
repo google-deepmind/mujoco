@@ -269,7 +269,10 @@ def normalize_with_norm(x: Any):
 def closest_segment_point(a: wp.vec3, b: wp.vec3, pt: wp.vec3) -> wp.vec3:
   """Returns the closest point on the a-b line segment to a point pt."""
   ab = b - a
-  t = wp.dot(pt - a, ab) / (wp.dot(ab, ab) + 1e-6)
+  length_sq = wp.dot(ab, ab)
+  if length_sq == 0.0:
+    return a
+  t = wp.dot(pt - a, ab) / length_sq
   return a + wp.clamp(t, 0.0, 1.0) * ab
 
 

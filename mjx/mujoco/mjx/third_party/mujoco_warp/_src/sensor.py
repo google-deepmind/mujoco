@@ -171,7 +171,10 @@ def _cam_projection(
 
   denom = v[2]
   if wp.abs(denom) < MJ_MINVAL:
-    denom = wp.clamp(denom, -MJ_MINVAL, MJ_MINVAL)
+    if denom < 0.0:
+      denom = -MJ_MINVAL
+    else:
+      denom = MJ_MINVAL
 
   return wp.vec2(pixel_x, pixel_y) / denom + 0.5 * wp.vec2(float(res[0]), float(res[1]))
 

@@ -505,13 +505,16 @@ def _compute_actuator_acc0(
 
 @wp.kernel
 def _resolve_dampratio(
-  actid: int,
-  nv: int,
+  # Model:
   actuator_biastype: wp.array[int],
   actuator_gainprm: wp.array2d[types.vec10],
+  # In:
+  actid: int,
+  nv: int,
   act_moment_vec_in: wp.array2d[float],
   act_result_vec_in: wp.array2d[float],
-  actuator_biasprm: wp.array2d[types.vec10],
+  # Out:
+  actuator_biasprm_out: wp.array2d[types.vec10],
 ):
   worldid = wp.tid()
   biastype = actuator_biastype[actid]
@@ -521,10 +524,10 @@ def _resolve_dampratio(
     return
 
   gainprm_id = worldid % actuator_gainprm.shape[0]
-  biasprm_id = worldid % actuator_biasprm.shape[0]
+  biasprm_id = worldid % actuator_biasprm_out.shape[0]
   kp = actuator_gainprm[gainprm_id, actid][0]
 
-  biasprm = actuator_biasprm[biasprm_id, actid]
+  biasprm = actuator_biasprm_out[biasprm_id, actid]
   # dampratio condition: gainprm[0] == -biasprm[1] and biasprm[2] > 0
   if wp.abs(kp + biasprm[1]) > MJ_MINVAL:
     return
@@ -545,9 +548,8 @@ def _resolve_dampratio(
   damping = dampratio * 2.0 * wp.sqrt(kp * mass)
 
   # write -damping to biasprm[2]
-  new_biasprm = biasprm
-  new_biasprm[2] = -damping
-  actuator_biasprm[biasprm_id, actid] = new_biasprm
+  biasprm[2] = -damping
+  actuator_biasprm_out[biasprm_id, actid] = biasprm
 
 
 @wp.kernel
@@ -770,11 +772,11 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
 
   # actuator_acc0[i] = ||inv(M) * actuator_moment[i]|| - acceleration from unit actuator force
   # and resolve dampratio using 1 / (J * inv(M) * J')
-  if m.nu > 0 and m.nv > 0:
+  if m.nactuator > 0 and m.nv > 0:
     act_moment_vec = wp.zeros((d.nworld, m.nv), dtype=float)
     act_result_vec = wp.zeros((d.nworld, m.nv), dtype=float)
 
-    for actid in range(m.nu):
+    for actid in range(m.nactuator):
       wp.launch(
         _copy_actuator_moment,
         dim=d.nworld,
@@ -789,10 +791,10 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
         _resolve_dampratio,
         dim=m.actuator_biasprm.shape[0],
         inputs=[
-          actid,
-          m.nv,
           m.actuator_biastype,
           m.actuator_gainprm,
+          actid,
+          m.nv,
           act_moment_vec,
           act_result_vec,
         ],

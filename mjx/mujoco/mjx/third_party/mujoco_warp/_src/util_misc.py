@@ -552,6 +552,122 @@ def muscle_bias(len: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> fl
 
 
 @wp.func
+def muscle_gain_length_deriv(length: float, lmin: float, lmax: float) -> float:
+  """Derivative of muscle_gain_length w.r.t length."""
+  if (lmin > length) or (length > lmax):
+    return 0.0
+
+  a = 0.5 * (lmin + 1.0)
+  b = 0.5 * (1.0 + lmax)
+
+  if length <= a:
+    x = (length - lmin) / wp.max(MJ_MINVAL, a - lmin)
+    return x / wp.max(MJ_MINVAL, a - lmin)
+  elif length <= 1.0:
+    x = (1.0 - length) / wp.max(MJ_MINVAL, 1.0 - a)
+    return x / wp.max(MJ_MINVAL, 1.0 - a)
+  elif length <= b:
+    x = (length - 1.0) / wp.max(MJ_MINVAL, b - 1.0)
+    return -x / wp.max(MJ_MINVAL, b - 1.0)
+  else:
+    x = (lmax - length) / wp.max(MJ_MINVAL, lmax - b)
+    return -x / wp.max(MJ_MINVAL, lmax - b)
+
+
+@wp.func
+def muscle_gain_len_deriv(len: float, vel: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> float:
+  """Derivative of muscle_gain w.r.t length."""
+  range_ = wp.vec2(prm[0], prm[1])
+  force = prm[2]
+  scale = prm[3]
+  lmin = prm[4]
+  lmax = prm[5]
+  vmax = prm[6]
+  fvmax = prm[8]
+
+  if force < 0.0:
+    force = scale / wp.max(MJ_MINVAL, acc0)
+
+  L0 = (lengthrange[1] - lengthrange[0]) / wp.max(MJ_MINVAL, range_[1] - range_[0])
+  L = range_[0] + (len - lengthrange[0]) / wp.max(MJ_MINVAL, L0)
+  V = vel / wp.max(MJ_MINVAL, L0 * vmax)
+
+  dFL = muscle_gain_length_deriv(L, lmin, lmax)
+
+  y = fvmax - 1.0
+  if V <= -1.0:
+    FV = 0.0
+  elif V <= 0.0:
+    FV = (V + 1.0) * (V + 1.0)
+  elif V <= y:
+    FV = fvmax - (y - V) * (y - V) / wp.max(MJ_MINVAL, y)
+  else:
+    FV = fvmax
+
+  return -force * dFL * FV / wp.max(MJ_MINVAL, L0)
+
+
+@wp.func
+def muscle_bias_len_deriv(len: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> float:
+  """Derivative of muscle_bias w.r.t length."""
+  range_ = wp.vec2(prm[0], prm[1])
+  force = prm[2]
+  scale = prm[3]
+  lmax = prm[5]
+  fpmax = prm[7]
+
+  if force < 0.0:
+    force = scale / wp.max(MJ_MINVAL, acc0)
+
+  L0 = (lengthrange[1] - lengthrange[0]) / wp.max(MJ_MINVAL, range_[1] - range_[0])
+  L = range_[0] + (len - lengthrange[0]) / wp.max(MJ_MINVAL, L0)
+
+  b = 0.5 * (1.0 + lmax)
+  if L <= 1.0:
+    dFP = 0.0
+  elif L <= b:
+    x = (L - 1.0) / wp.max(MJ_MINVAL, b - 1.0)
+    dFP = x / wp.max(MJ_MINVAL, b - 1.0)
+  else:
+    dFP = 1.0 / wp.max(MJ_MINVAL, b - 1.0)
+
+  return -force * fpmax * dFP / wp.max(MJ_MINVAL, L0)
+
+
+@wp.func
+def muscle_gain_vel_deriv(len: float, vel: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> float:
+  """Derivative of muscle_gain w.r.t velocity."""
+  range_ = wp.vec2(prm[0], prm[1])
+  force = prm[2]
+  scale = prm[3]
+  lmin = prm[4]
+  lmax = prm[5]
+  vmax = prm[6]
+  fvmax = prm[8]
+
+  if force < 0.0:
+    force = scale / wp.max(MJ_MINVAL, acc0)
+
+  L0 = (lengthrange[1] - lengthrange[0]) / wp.max(MJ_MINVAL, range_[1] - range_[0])
+  L = range_[0] + (len - lengthrange[0]) / wp.max(MJ_MINVAL, L0)
+  V = vel / wp.max(MJ_MINVAL, L0 * vmax)
+
+  FL = muscle_gain_length(L, lmin, lmax)
+
+  y = fvmax - 1.0
+  if V <= -1.0:
+    dFV = 0.0
+  elif V <= 0.0:
+    dFV = 2.0 * V + 2.0
+  elif V <= y:
+    dFV = (-2.0 * V + 2.0 * y) / wp.max(MJ_MINVAL, y)
+  else:
+    dFV = 0.0
+
+  return -force * FL * dFV / wp.max(MJ_MINVAL, L0 * vmax)
+
+
+@wp.func
 def _sigmoid(x: float) -> float:
   """Sigmoid function over 0 <= x <= 1 using quintic polynomial."""
   if x <= 0.0:

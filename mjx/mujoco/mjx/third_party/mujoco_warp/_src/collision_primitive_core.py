@@ -17,12 +17,15 @@ from typing import Tuple
 
 import warp as wp
 
-from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_point
 from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_to_segment_points
 from mujoco.mjx.third_party.mujoco_warp._src.math import normalize_with_norm
 from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat53
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat113
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec11
 
 wp.set_module_options({"enable_backward": False})
 
@@ -109,11 +112,14 @@ def sphere_capsule(
     - Matrix of contact positions (one per row).
     - Matrix of contact normal vectors (one per row).
   """
-  # Calculate capsule segment
-  segment = capsule_axis * capsule_half_length
-
-  # Find closest point on capsule centerline to sphere center
-  pt = closest_segment_point(capsule_pos - segment, capsule_pos + segment, sphere_pos)
+  # Project the sphere center directly onto the capsule centerline.
+  offset = sphere_pos - capsule_pos
+  projection = wp.clamp(
+    wp.dot(capsule_axis, offset),
+    -capsule_half_length,
+    capsule_half_length,
+  )
+  pt = capsule_pos + capsule_axis * projection
 
   # Use sphere-sphere collision between sphere and closest point
   return sphere_sphere(sphere_pos, sphere_radius, pt, capsule_radius)
@@ -1463,6 +1469,7 @@ def sphere_triangle(
   t2: wp.vec3,
   t3: wp.vec3,
   tri_radius: float,
+  margin: float,
 ) -> Tuple[float, wp.vec3, wp.vec3]:
   """Core contact geometry calculation for sphere-triangle collision.
 
@@ -1475,6 +1482,7 @@ def sphere_triangle(
     t2: Triangle vertex positions.
     t3: Triangle vertex positions.
     tri_radius: Triangle (flex element) radius.
+    margin: Collision margin for filtering contacts.
 
   Returns:
     - Contact distance (MJ_MAXVAL if no collision).
@@ -1488,6 +1496,8 @@ def sphere_triangle(
   N = wp.normalize(wp.cross(A, B))
 
   dstS = wp.dot(N, S)
+  if wp.abs(dstS) > margin + sphere_radius + tri_radius:
+    return MJ_MAXVAL, wp.vec3(0.0), wp.vec3(0.0)
 
   P = S - dstS * N
 
@@ -1523,16 +1533,9 @@ def sphere_triangle(
     else:
       X = x2[0] * V1 + x2[1] * V2
 
-  nrm = X - S
-  dst = wp.length(nrm)
-
-  if dst > MJ_MINVAL:
-    nrm = nrm / dst
-  else:
-    nrm = N
-
-  dist = dst - sphere_radius - tri_radius
-  pos = sphere_pos + nrm * (sphere_radius + 0.5 * dist)
+  dist, pos, nrm = sphere_sphere(sphere_pos, sphere_radius, t1 + X, tri_radius)
+  if dist > margin:
+    return MJ_MAXVAL, wp.vec3(0.0), wp.vec3(0.0)
 
   return dist, pos, nrm
 
@@ -1546,7 +1549,8 @@ def box_triangle(
   t2: wp.vec3,
   t3: wp.vec3,
   tri_radius: float,
-) -> Tuple[wp.vec2, mat23f, mat23f]:
+  margin: float,
+) -> Tuple[vec11, mat113, mat113]:
   """Core contact geometry calculation for box-triangle collision.
 
   Port of mjraw_BoxTriangle from engine_collision_primitive.c
@@ -1559,19 +1563,17 @@ def box_triangle(
     t2: Triangle vertex positions.
     t3: Triangle vertex positions.
     tri_radius: Triangle (flex element) radius.
+    margin: Collision margin for filtering contacts.
 
   Returns:
-    - wp.vec2 of distances for up to 2 contacts (MJ_MAXVAL if no collision).
-    - mat23f of contact positions (2 x vec3).
-    - mat23f of contact normals (2 x vec3).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts): triangle
+      vertices 0-2, then box corners 3-10.
+    - Matrix of contact positions (one per row).
+    - Matrix of contact normal vectors (one per row).
   """
-  dist1 = MJ_MAXVAL
-  dist2 = MJ_MAXVAL
-  pos1 = wp.vec3(0.0)
-  pos2 = wp.vec3(0.0)
-  nrm1 = wp.vec3(0.0)
-  nrm2 = wp.vec3(0.0)
-  cnt = 0
+  contact_dist = vec11(MJ_MAXVAL)
+  contact_pos = mat113()
+  contact_normal = mat113()
 
   box_rotT = wp.transpose(box_rot)
 
@@ -1595,39 +1597,25 @@ def box_triangle(
         maxval = val
         maxaxis = j
 
-    inside = True
+    inside = maxval - tri_radius <= margin
     for j in range(3):
-      if wp.abs(local[j]) > box_size[j] + tri_radius:
+      if wp.abs(local[j]) > box_size[j] + margin + tri_radius:
         inside = False
 
-    if inside and cnt < 2:
+    if inside:
       nrm_local = wp.vec3(0.0)
-      if maxaxis == 0:
-        nrm_local = wp.vec3(wp.sign(local[0]), 0.0, 0.0)
-      elif maxaxis == 1:
-        nrm_local = wp.vec3(0.0, wp.sign(local[1]), 0.0)
-      else:
-        nrm_local = wp.vec3(0.0, 0.0, wp.sign(local[2]))
+      nrm_local[maxaxis] = wp.where(local[maxaxis] > 0.0, 1.0, -1.0)
 
       nrm_global = box_rot @ nrm_local
       d = maxval - tri_radius
       offset = tri_radius + d * 0.5
       p = vert - nrm_global * offset
 
-      if cnt == 0:
-        dist1 = d
-        pos1 = p
-        nrm1 = nrm_global
-      else:
-        dist2 = d
-        pos2 = p
-        nrm2 = nrm_global
-      cnt += 1
+      contact_dist[vi] = d
+      contact_pos[vi] = p
+      contact_normal[vi] = nrm_global
 
   for i in range(8):
-    if cnt >= 2:
-      break
-
     vec = wp.vec3(
       wp.where(i & 1, box_size[0], -box_size[0]),
       wp.where(i & 2, box_size[1], -box_size[1]),
@@ -1635,23 +1623,12 @@ def box_triangle(
     )
     corner = box_rot @ vec + box_pos
 
-    d, p, n = sphere_triangle(corner, 0.0, t1, t2, t3, tri_radius)
-    if d < MJ_MAXVAL:
-      if cnt == 0:
-        dist1 = d
-        pos1 = p
-        nrm1 = n
-      elif cnt == 1:
-        dist2 = d
-        pos2 = p
-        nrm2 = n
-      cnt += 1
+    d, p, n = sphere_triangle(corner, 0.0, t1, t2, t3, tri_radius, margin)
+    contact_dist[3 + i] = d
+    contact_pos[3 + i] = p
+    contact_normal[3 + i] = n
 
-  return (
-    wp.vec2(dist1, dist2),
-    mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),
-    mat23f(nrm1[0], nrm1[1], nrm1[2], nrm2[0], nrm2[1], nrm2[2]),
-  )
+  return contact_dist, contact_pos, contact_normal
 
 
 @wp.func
@@ -1664,7 +1641,8 @@ def capsule_triangle(
   t2: wp.vec3,
   t3: wp.vec3,
   tri_radius: float,
-) -> Tuple[wp.vec2, mat23f, mat23f]:
+  margin: float,
+) -> Tuple[vec5, mat53, mat53]:
   """Core contact geometry calculation for capsule-triangle collision.
 
   Port of mjraw_CapsuleTriangle from engine_collision_primitive.c
@@ -1678,49 +1656,36 @@ def capsule_triangle(
     t2: Triangle vertex positions.
     t3: Triangle vertex positions.
     tri_radius: Triangle (flex element) radius.
+    margin: Collision margin for filtering contacts.
 
   Returns:
-    - wp.vec2 of distances for up to 2 contacts (MJ_MAXVAL if no collision).
-    - mat23f of contact positions (2 x vec3).
-    - mat23f of contact normals (2 x vec3).
+    - Vector of contact distances (MJ_MAXVAL for unpopulated contacts): capsule
+      end caps 0-1, then triangle vertices 2-4.
+    - Matrix of contact positions (one per row).
+    - Matrix of contact normal vectors (one per row).
   """
-  dist1 = MJ_MAXVAL
-  dist2 = MJ_MAXVAL
-  pos1 = wp.vec3(0.0)
-  pos2 = wp.vec3(0.0)
-  nrm1 = wp.vec3(0.0)
-  nrm2 = wp.vec3(0.0)
-  cnt = 0
+  contact_dist = vec5(MJ_MAXVAL)
+  contact_pos = mat53()
+  contact_normal = mat53()
 
   p1 = capsule_pos - capsule_axis * capsule_half_length
   p2 = capsule_pos + capsule_axis * capsule_half_length
 
-  d, p, n = sphere_triangle(p1, capsule_radius, t1, t2, t3, tri_radius)
-  if d < MJ_MAXVAL:
-    dist1 = d
-    pos1 = p
-    nrm1 = n
-    cnt = 1
+  d, p, n = sphere_triangle(p1, capsule_radius, t1, t2, t3, tri_radius, margin)
+  contact_dist[0] = d
+  contact_pos[0] = p
+  contact_normal[0] = n
 
-  d, p, n = sphere_triangle(p2, capsule_radius, t1, t2, t3, tri_radius)
-  if d < MJ_MAXVAL and cnt < 2:
-    if cnt == 0:
-      dist1 = d
-      pos1 = p
-      nrm1 = n
-    else:
-      dist2 = d
-      pos2 = p
-      nrm2 = n
-    cnt += 1
+  d, p, n = sphere_triangle(p2, capsule_radius, t1, t2, t3, tri_radius, margin)
+  contact_dist[1] = d
+  contact_pos[1] = p
+  contact_normal[1] = n
 
   ab = p2 - p1
   ab_len_sq = 4.0 * capsule_half_length * capsule_half_length
+  inv_ab_len_sq = 1.0 / wp.max(MJ_MINVAL, ab_len_sq)
 
   for vi in range(3):
-    if cnt >= 2:
-      break
-
     vert = wp.vec3(0.0)
     if vi == 0:
       vert = t1
@@ -1730,33 +1695,17 @@ def capsule_triangle(
       vert = t3
 
     vec = vert - p1
-    t_param = wp.dot(vec, ab) / wp.max(MJ_MINVAL, ab_len_sq)
+    t_param = wp.dot(vec, ab) * inv_ab_len_sq
 
     if t_param > MJ_MINVAL and t_param < 1.0 - MJ_MINVAL:
       closest = p1 + ab * t_param
-      diff = vert - closest
-      dist_raw = wp.length(diff)
+      d, p, n = sphere_sphere(closest, capsule_radius, vert, tri_radius)
+      if d <= margin:
+        contact_dist[2 + vi] = d
+        contact_pos[2 + vi] = p
+        contact_normal[2 + vi] = n
 
-      if dist_raw > MJ_MINVAL:
-        nrm = diff / dist_raw
-        d = dist_raw - capsule_radius - tri_radius
-        p = (closest + vert + nrm * (capsule_radius - tri_radius)) * 0.5
-
-        if cnt == 0:
-          dist1 = d
-          pos1 = p
-          nrm1 = nrm
-        else:
-          dist2 = d
-          pos2 = p
-          nrm2 = nrm
-        cnt += 1
-
-  return (
-    wp.vec2(dist1, dist2),
-    mat23f(pos1[0], pos1[1], pos1[2], pos2[0], pos2[1], pos2[2]),
-    mat23f(nrm1[0], nrm1[1], nrm1[2], nrm2[0], nrm2[1], nrm2[2]),
-  )
+  return contact_dist, contact_pos, contact_normal
 
 
 @wp.func
