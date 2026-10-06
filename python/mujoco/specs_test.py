@@ -1248,6 +1248,40 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(ValueError):
       data_array[0] = -1
 
+  def test_fuse_static(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <worldbody>
+            <body name="moving">
+              <joint/>
+              <geom name="moving" size=".1"/>
+              <body name="static" pos="1 0 0">
+                <geom name="static" size=".1"/>
+              </body>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    self.assertEqual(spec.compile().nbody, 3)
+
+    spec.fuse_static()
+    self.assertIsNone(spec.body('static'))
+    self.assertEqual(spec.geom('static').frame.pos[0], 1)
+    self.assertEqual(spec.geom('static').parent, spec.body('moving'))
+    model = spec.compile()
+    self.assertEqual(model.nbody, 2)
+    np.testing.assert_allclose(model.geom('static').pos, [1, 0, 0])
+
+    # a body whose fuse attribute is false is kept
+    kept = spec.body('moving').add_body(name='kept')
+    kept.add_geom(size=[0.1, 0, 0])
+    kept.fuse = False
+    spec.fuse_static()
+    self.assertIsNotNone(spec.body('kept'))
+    kept.fuse = True
+    spec.fuse_static()
+    self.assertIsNone(spec.body('kept'))
+
   def test_adopt_inertial(self):
     spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
         <mujoco>

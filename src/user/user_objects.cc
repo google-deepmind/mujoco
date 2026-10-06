@@ -2168,11 +2168,11 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
 
 
 // create a frame in the parent body and move all contents of this body into it
-mjCFrame* mjCBody::ToFrame() {
+mjCFrame* mjCBody::ToFrame(bool mergeinertial) {
   if (!parent) { throw mjCError(this, "the world body cannot be converted to a frame"); }
 
   // merge the inertial into the parent; this can fail, do it before anything is modified
-  if (parent->name != "world") {
+  if (mergeinertial && parent->name != "world") {
     // an inertial is either given in the spec, or inferred from geoms when compiling
     bool given         = !InfersInertial() && mjuu_defined(spec.ipos[0]) && spec.mass >= mjMINVAL;
     bool inferred      = InfersInertial() && !geoms.empty();
@@ -2849,6 +2849,7 @@ void mjCBody::Compile(void) {
   }
 
   // check and correct mass and inertia
+  const double unadjusted[4] = {mass, inertia[0], inertia[1], inertia[2]};
   if (id > 0) {
     // fix minimum
     mass       = std::max(mass, compiler->boundmass);
@@ -2872,6 +2873,10 @@ void mjCBody::Compile(void) {
       }
     }
   }
+  inertia_adjusted_ = mass != unadjusted[0] ||
+                      inertia[0] != unadjusted[1] ||
+                      inertia[1] != unadjusted[2] ||
+                      inertia[2] != unadjusted[3];
 
   // the inertial frame as it would be authored: alignment with a free joint changes it below
   mjuu_copyvec(ipos_compiled_, ipos, 3);

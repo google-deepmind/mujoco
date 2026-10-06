@@ -205,9 +205,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   // mjModel, so that what compilation derives from them can be read; if it fails, save the
   // error and return false
   bool Resolve(const mjVFS* vfs = nullptr, bool textures = true);
-  bool CopyBack(const mjModel*);    // DECOMPILER: copy numeric back
-  void FuseStatic();                // fuse static bodies with parent
-  void FuseReindex(mjCBody* body);  // reindex elements during fuse
+  bool CopyBack(const mjModel*);      // DECOMPILER: copy numeric back
+  int  FuseStatic(const mjVFS* vfs);  // fuse static bodies with parent, return number fused
 
   // API for adding model elements
   mjCFlex*     AddFlex();
@@ -582,9 +581,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   // generate a signature for the model
   uint64_t Signature();
 
-  // reassign children of a body to a new parent
-  template <class T>
-  void ReassignChild(std::vector<T*>& dest, std::vector<T*>& list, mjCBody* parent, mjCBody* body);
+  // true if fusing the body would break a reference to it
+  bool IsReferenced(mjCBody* body);
 
   // resolve references in a list of objects
   template <class T>
@@ -593,16 +591,23 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete all plugins created by the subtree
   void DeleteSubtreePlugin(mjCBody* subtree);
 
-  mjListKeyMap             ids;           // map from object names to ids
-  mjNameSet                names_;        // names in use per element type
-  mjCError                 errInfo;       // last error info
-  std::vector<std::string> warnings_;     // chronological list of non-fatal warnings
-  int  num_attach_warnings_ = 0;          // boundary: [0, n) are attach, [n, size) are compile
-  bool compiling_           = false;      // true during Compile()
-  bool deepcopy_;                         // copy objects when attaching
-  bool copying_  = false;                 // true while this model is copied from another
-  bool attached_ = false;                 // true if model is attached to a parent model
-  std::vector<std::string> inplacekeys_;  // stored names of the keyframes which stay in place
+  mjListKeyMap             ids;        // map from object names to ids
+  mjNameSet                names_;     // names in use per element type
+  mjCError                 errInfo;    // last error info
+  std::vector<std::string> warnings_;  // chronological list of non-fatal warnings
+  int  num_attach_warnings_ = 0;       // boundary: [0, n) are attach, [n, size) are compile
+  bool compiling_           = false;   // true during Compile()
+
+  // a compilation which applies operations to the spec compiles the assets once
+  bool                     reuse_assets_      = false;     // true during such a compilation
+  bool                     assets_compiled_   = false;     // the meshes were compiled in it
+  bool                     textures_compiled_ = false;     // and the textures
+  std::string              asset_warnings_;                // the warnings which this gave
+  double                   asset_timer_[mjNCTIMER] = {0};  // and the time it took
+  bool                     deepcopy_;                      // copy objects when attaching
+  bool                     copying_  = false;  // true while this model is copied from another
+  bool                     attached_ = false;  // true if model is attached to a parent model
+  std::vector<std::string> inplacekeys_;       // stored names of the keyframes which stay in place
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

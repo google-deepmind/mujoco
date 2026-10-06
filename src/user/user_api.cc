@@ -1864,6 +1864,23 @@ const char* mjs_resolveOrientation(double                quat[4],
 
 
 // Transform body into a frame.
+// fuse the static bodies of the spec with their parents
+int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsAttached()) {
+    model->SetError(mjCError(nullptr, "Cannot fuse the static bodies of an attached mjSpec."));
+    return -1;
+  }
+  try {
+    model->FuseStatic(vfs);
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
 // make the inertial which compilation infers for a body part of the spec
 int mjs_adoptInertial(mjsBody* bodyspec, const mjVFS* vfs) {
   mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);

@@ -969,6 +969,7 @@ element body : mjsBody {
   gravcomp           : double
   sleep              : enum<bodysleep>
   simple             : enum<FalseAuto> = auto
+  fuse               : enum<FalseAuto> = auto
   user               : double[] (field=userdata)
   child body R    # recursive
   child frame R

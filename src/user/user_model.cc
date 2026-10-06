@@ -5047,19 +5047,6 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
 
 //------------------------------- FUSE STATIC ------------------------------------------------------
 
-// append source to dest, set ids and update the name map of elements whose id has changed
-template <class T>
-static void makelistid(std::vector<T*>& dest, std::vector<T*>& source, mjKeyMap& ids) {
-  for (int i = 0; i < source.size(); i++) {
-    int id = (int)dest.size();
-    if (source[i]->id != id) {
-      source[i]->id        = id;
-      ids[source[i]->name] = id;
-    }
-    dest.push_back(source[i]);
-  }
-}
-
 // change frame to parent body
 static void changeframe(double       childpos[3],
                         double       childquat[4],
@@ -5071,43 +5058,6 @@ static void changeframe(double       childpos[3],
   mjuu_frameaccum(pos, quat, childpos, childquat);
   mjuu_copyvec(childpos, pos, 3);
   mjuu_copyvec(childquat, quat, 4);
-}
-
-
-// reindex elements during fuse
-void mjCModel::FuseReindex(mjCBody* body) {
-  // set parentid and weldid of children
-  for (int i = 0; i < body->bodies.size(); i++) {
-    body->bodies[i]->parent = body;
-    bool weld_root          = !body->bodies[i]->joints.empty() || body->bodies[i]->spec.mocap;
-    body->bodies[i]->weldid = (weld_root ? body->bodies[i]->id : body->weldid);
-  }
-
-  makelistid(joints_, body->joints, ids[mjOBJ_JOINT]);
-  makelistid(geoms_, body->geoms, ids[mjOBJ_GEOM]);
-  makelistid(sites_, body->sites, ids[mjOBJ_SITE]);
-  makelistid(cameras_, body->cameras, ids[mjOBJ_CAMERA]);
-  makelistid(lights_, body->lights, ids[mjOBJ_LIGHT]);
-
-  // process children recursively
-  for (int i = 0; i < body->bodies.size(); i++) { FuseReindex(body->bodies[i]); }
-}
-
-
-template <class T>
-void mjCModel::ReassignChild(std::vector<T*>& dest,
-                             std::vector<T*>& list,
-                             mjCBody*         parent,
-                             mjCBody*         body) {
-  for (int j = 0; j < list.size(); j++) {
-    // assign
-    list[j]->body = parent;
-    dest.push_back(list[j]);
-
-    // change frame
-    changeframe(list[j]->pos, list[j]->quat, body->pos, body->quat);
-  }
-  list.clear();
 }
 
 
@@ -5136,153 +5086,140 @@ void mjCModel::ResolveReferences(std::vector<mjCSensor*>& list, mjCBody* body) {
 }
 
 
-// fuse static bodies with their parent
-void mjCModel::FuseStatic(void) {
+// true if fusing the body would break a reference to it
+bool mjCModel::IsReferenced(mjCBody* body) {
+  bool referenced = false;
+  int  id         = body->id;
+
+  // try to resolve references without the name of this body, taken away from the body and from
+  // the map of names so that no lookup finds it; if it fails the body is referenced. A body used
+  // by a force or torque sensor is kept too
+  std::string name = body->name;
+  body->name.clear();
+  if (!name.empty()) { ids[mjOBJ_BODY].erase(name); }
+  try {
+    if (!name.empty()) {
+      ResolveReferences(cameras_);
+      ResolveReferences(lights_);
+      for (mjCSkin* skin : skins_) { skin->ResolveReferences(this); }
+      ResolveReferences(flexes_);
+      ResolveReferences(pairs_);
+      ResolveReferences(excludes_);
+      ResolveReferences(equalities_);
+      ResolveReferences(tendons_);
+      ResolveReferences(actuators_);
+      ResolveReferences(tuples_);
+    }
+    ResolveReferences(sensors_, body);
+  } catch (mjCError err) { referenced = true; }
+  body->name = name;
+  if (!name.empty()) { ids[mjOBJ_BODY].insert({name, id}); }
+  return referenced;
+}
+
+
+// fuse static bodies with their parents: a fused body becomes a frame in its parent, holding
+// what the body held, in the same coordinates
+int mjCModel::FuseStatic(const mjVFS* vfs) {
+  int nfused = 0;
+
+  // a body can be fused if it has no joints and is not a mocap body, unless it is to be kept;
+  // one with a plugin is kept, its passive forces are specific to the body, and so is one with a
+  // sleep policy, so that it is rejected as it is without fusing
+  auto fusable = [](const mjCBody* body) {
+    return body->joints.empty() &&
+           !body->spec.mocap &&
+           body->spec.fuse &&
+           !body->spec.plugin.active &&
+           body->spec.sleep == mjSLEEP_AUTO;
+  };
+  if (std::none_of(bodies_.begin() + 1, bodies_.end(), fusable)) { return 0; }
+
+  // compile the kinematic tree, for the inertia of the bodies and the references to them
+  if (!Resolve(vfs)) { throw mjCError(errInfo); }
+
+  // a skin which is read from a file refers to the bodies that the file names: read it
+  for (mjCSkin* skin : skins_) { skin->Compile(vfs); }
+
+  // fluid forces are enabled
+  bool fluid = option.density != 0 || option.viscosity != 0;
+
+  // bodies which can be fused, in the order of the tree; whether a body is referenced is found
+  // before anything is fused, since it uses the maps from names to ids
+  std::vector<mjCBody*> candidates;
   for (int i = 1; i < bodies_.size(); i++) {
-    // get body and parent
     mjCBody* body = bodies_[i];
-    mjCBody* par  = body->parent;
-
-    // skip if body has joints or mocap
-    if (!body->joints.empty() || body->mocap) { continue; }
-
-    // check if the body can be fused
-    if (!bodies_[i]->name.empty()) {
-      ids[mjOBJ_BODY].erase(bodies_[i]->name);
-
-      // try to resolve references without the name of this body, if it fails, skip
-      try {
-        ResolveReferences(cameras_);
-        ResolveReferences(lights_);
-        ResolveReferences(skins_);
-        ResolveReferences(pairs_);
-        ResolveReferences(excludes_);
-        ResolveReferences(equalities_);
-        ResolveReferences(tendons_);
-        ResolveReferences(actuators_);
-        ResolveReferences(sensors_, bodies_[i]);
-        ResolveReferences(tuples_);
-      } catch (mjCError err) {
-        ids[mjOBJ_BODY].insert({bodies_[i]->name, i});
-        continue;
-      }
-
-      // put body back the body name in the map
-      ids[mjOBJ_BODY].insert({bodies_[i]->name, i});
-    }
-
-    //------------- add mass and inertia (if parent not world)
-    if (body->parent && body->parent->name != "world" && body->mass >= mjMINVAL) {
-      par->AccumulateInertia(body);
-    }
-
-    //------------- replace body with its children in parent body list
-
-    // change frames of child bodies
-    for (int j = 0; j < body->bodies.size(); j++)
-      changeframe(body->bodies[j]->pos, body->bodies[j]->quat, body->pos, body->quat);
-
-    // find body in parent list, insert children before it
-    bool found = false;
-    for (auto iter = par->bodies.begin(); iter != par->bodies.end(); iter++) {
-      if (*iter == body) {
-        par->bodies.insert(iter, body->bodies.begin(), body->bodies.end());
-        found = true;
-        break;
-      }
-    }
-    if (!found) { mju_error("Internal error: FuseStatic: body not found"); }
-
-    // find body in parent list, erase
-    found = false;
-    for (auto iter = par->bodies.begin(); iter != par->bodies.end(); iter++) {
-      if (*iter == body) {
-        par->bodies.erase(iter);
-        found = true;
-        break;
-      }
-    }
-    if (!found) { mju_error("Internal error: FuseStatic: body not found"); }
-
-    //------------- assign geoms, sites, cameras, lights to parent, change frames
-
-    ReassignChild(par->geoms, body->geoms, par, body);
-    ReassignChild(par->sites, body->sites, par, body);
-    ReassignChild(par->cameras, body->cameras, par, body);
-
-    // lights have dir instead of quat, so handle separately
-    for (int j = 0; j < body->lights.size(); j++) {
-      body->lights[j]->body = par;
-      par->lights.push_back(body->lights[j]);
-
-      // transform pos into parent frame
-      double qunit[4] = {1, 0, 0, 0};
-      changeframe(body->lights[j]->pos, qunit, body->pos, body->quat);
-
-      // rotate dir into parent frame
-      mjuu_rotVecQuat(body->lights[j]->dir, body->lights[j]->dir, body->quat);
-    }
-    body->lights.clear();
-
-    //------------- remove from global body list, reduce global counts
-
-    // find in global and erase
-    found = false;
-    for (auto iter = bodies_.begin(); iter != bodies_.end(); iter++) {
-      if (*iter == body) {
-        bodies_.erase(iter);
-        found = true;
-        break;
-      }
-    }
-    if (!found) { mju_error("Internal error: FuseStatic: body not found"); }
-
-    // reduce counts
-    nbody--;
-    nnames -= ((int)body->name.length() + 1);
-
-    //------------- re-index bodies, joints, geoms, sites
-
-    // remove the fused body from the name maps, update the bodies which follow it
-    ids[mjOBJ_BODY].erase(body->name);
-    names_[mjOBJ_BODY].erase(body->name);
-    for (int j = i; j < bodies_.size(); j++) {
-      bodies_[j]->id                    = j;
-      ids[mjOBJ_BODY][bodies_[j]->name] = j;
-    }
-
-    // everything else
-    joints_.clear();
-    geoms_.clear();
-    sites_.clear();
-    cameras_.clear();
-    lights_.clear();
-    FuseReindex(bodies_[0]);
-
-    // recompute parent contype, conaffinity, and margin
-    par->contype = par->conaffinity = 0;
-    par->margin                     = 0;
-    for (const auto& geom : par->geoms) {
-      par->contype     |= geom->contype;
-      par->conaffinity |= geom->conaffinity;
-      par->margin       = std::max(par->margin, geom->margin + geom->gap);
-    }
-
-    // recompute BVH
-    int nbvhfuse = body->tree.Nbvh() + par->tree.Nbvh();
-    par->ComputeBVH();
-    nbvhstatic += par->tree.Nbvh() - nbvhfuse;
-    nbvh       += par->tree.Nbvh() - nbvhfuse;
-
-    //------------- delete body (without deleting children)
-
-    // delete allocation
-    body->bodies.clear();
-    delete body;
-
-    // check index i again (we have a new body at this index)
-    i--;
+    if (fusable(body) && !IsReferenced(body)) { candidates.push_back(body); }
   }
+
+  for (mjCBody* body : candidates) {
+    mjCBody* par = body->parent;
+
+    // mass is fused with the parent's (if parent not world)
+    bool fusemass = par->name != "world" && body->mass >= mjMINVAL;
+
+    // skip if gravcomp is different, it applies to the mass of each body separately
+    if (fusemass && body->gravcomp != par->gravcomp) { continue; }
+
+    // skip if in a fluid, forces apply to the inertia and ellipsoid geoms of each body separately
+    if (fluid && par->name != "world") {
+      auto ellipsoid = [](const mjCGeom* geom) { return geom->fluid_ellipsoid > 0; };
+      if (fusemass || std::any_of(body->geoms.begin(), body->geoms.end(), ellipsoid)) { continue; }
+    }
+
+    // if both infer their inertia from geoms, the parent has the geoms of both once the body
+    // is fused and infers the sum from them; unless compilation adjusted what either inferred,
+    // or the two count different geoms. The sum is then written to the spec of the parent, as it
+    // is when either inertial is given
+    const int* range    = body->compiler->inertiagrouprange;
+    const int* parrange = par->compiler->inertiagrouprange;
+    bool       reinfers = par->InfersInertial() &&
+                          body->InfersInertial() &&
+                          !par->inertia_adjusted_ &&
+                          !body->inertia_adjusted_ &&
+                          range[0] == parrange[0] &&
+                          range[1] == parrange[1];
+
+    // skip if the sum cannot be written: the inertia of the parent is always inferred
+    if (fusemass && !reinfers && par->compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+      continue;
+    }
+
+    // add mass and inertia to the compiled parent, which may itself be fused later
+    if (fusemass) {
+      par->AccumulateInertia(body);
+      mjuu_copyvec(par->ipos_compiled_, par->ipos, 3);
+      mjuu_copyvec(par->iquat_compiled_, par->iquat, 4);
+      par->inertia_adjusted_ |= body->inertia_adjusted_;
+      if (!reinfers) { par->AdoptInertial(); }
+    }
+
+    // the children of the body become children of its parent: update their compiled frames
+    for (mjCBody* child : body->bodies) {
+      changeframe(child->pos, child->quat, body->pos, body->quat);
+    }
+
+    // replace the body with a frame; its child bodies take its place among those of the parent
+    auto   place = std::find(par->bodies.begin(), par->bodies.end(), body) - par->bodies.begin();
+    size_t nchildren = body->bodies.size();
+    body->ToFrame(/*mergeinertial=*/false);
+    std::rotate(par->bodies.begin() + place, par->bodies.end() - nchildren, par->bodies.end());
+
+    // the body is not referenced by anything: release it, like a deleted element
+    names_[mjOBJ_BODY].erase(body->name);
+    body->SetParent(nullptr);
+    body->frame = nullptr;
+    body->Release();
+    nfused++;
+  }
+  if (!nfused) { return 0; }
+
+  // update the lists and the maps from names to ids
+  ResetTreeLists();
+  MakeTreeLists();
+  ProcessLists(/*checkrepeat=*/false);
+  InvalidateSignature();
+  return nfused;
 }
 
 
@@ -5528,7 +5465,30 @@ static void compilerLogHandler(const mjLogMessage* msg) {
 
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
-  return Compile(vfs, m, /*treeonly=*/false, /*textures=*/true);
+  // the options which restructure the model are operations on the spec, applied before it is
+  // compiled; if one fails, compilation fails. The assets are compiled once: by the first
+  // operation which compiles the kinematic tree, or else by the compilation
+  int nfused       = 0;
+  reuse_assets_    = true;
+  assets_compiled_ = false;
+  try {
+    if (spec.compiler.fusestatic) { nfused = FuseStatic(vfs); }
+  } catch (mjCError err) {
+    if (m && *m) { mj_deleteModel(*m); }
+    Clear();
+    errInfo       = err;
+    reuse_assets_ = false;
+    return nullptr;
+  }
+  mjModel* model = Compile(vfs, m, /*treeonly=*/false, /*textures=*/true);
+  reuse_assets_  = false;
+
+  // an operation which was applied stays applied if compilation then fails
+  if (!model && nfused) {
+    mju::strcat_arr(errInfo.message,
+                    "\nThe static bodies of the spec were fused before this error, and remain so.");
+  }
+  return model;
 }
 
 
@@ -5916,11 +5876,18 @@ void mjCModel::CompileTree(const mjVFS* vfs, bool textures, bool keyframes) {
   // clear subtreedofs
   for (int i = 0; i < bodies_.size(); i++) { bodies_[i]->subtreedofs = 0; }
 
+  // meshes and textures are compiled here, unless an operation which this compilation applied
+  // has compiled them already
+  bool compileassets = !(
+      reuse_assets_ && assets_compiled_ && (!textures || textures_compiled_ || textures_.empty()));
+
   // refresh the working copies of the assets, check that those which need a name have one
-  for (const auto& asset : meshes_) asset->CopyFromSpec();
+  if (compileassets) {
+    for (const auto& asset : meshes_) asset->CopyFromSpec();
+    for (const auto& asset : textures_) asset->CopyFromSpec();
+  }
   for (const auto& asset : skins_) asset->CopyFromSpec();
   for (const auto& asset : hfields_) asset->CopyFromSpec();
-  for (const auto& asset : textures_) asset->CopyFromSpec();
   CheckEmptyNames();
 
   // set object ids, check for repeated names
@@ -5976,10 +5943,22 @@ void mjCModel::CompileTree(const mjVFS* vfs, bool textures, bool keyframes) {
   SetNuser();
 
   // compile meshes and textures (needed for geom compilation)
-  {
+  if (compileassets) {
+    double before[mjNCTIMER];
+    std::copy(timer, timer + mjNCTIMER, before);
     Clock::time_point t0 = Clock::now();
     CompileMeshesAndTextures(vfs, textures);
-    timer[mjCTIMER_ASSETS] = Seconds(Clock::now() - t0).count();
+    timer[mjCTIMER_ASSETS]  = Seconds(Clock::now() - t0).count();
+    before[mjCTIMER_ASSETS] = 0;
+
+    // keep what the rest of this compilation will not produce again
+    assets_compiled_   = true;
+    textures_compiled_ = textures;
+    asset_warnings_    = warningtext;
+    for (int i = 0; i < mjNCTIMER; i++) { asset_timer_[i] = timer[i] - before[i]; }
+  } else {
+    mju::strcpy_arr(warningtext, asset_warnings_.c_str());
+    for (int i = 0; i < mjNCTIMER; i++) { timer[i] += asset_timer_[i]; }
   }
 
   // frames cache their accumulated pose, recompute it in every compile
@@ -6007,13 +5986,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // compile the assets and the kinematic tree
   CompileTree(vfs, /*textures=*/true, /*keyframes=*/true);
-
-  // fuse static if enabled
-  if (compiler.fusestatic) {
-    FuseStatic();
-    for (int i = 0; i < lights_.size(); i++) { lights_[i]->Compile(); }
-    for (int i = 0; i < cameras_.size(); i++) { cameras_[i]->Compile(); }
-  }
 
   // compile all other objects except for keyframes
   for (auto flex : flexes_) flex->Compile(vfs);

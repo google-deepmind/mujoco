@@ -177,7 +177,7 @@ std::vector<const char*> MJCF[] = {
     {">"},
 
     {"body", "R", "name", "childclass", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler",
-        "mocap", "gravcomp", "sleep", "simple", "user"},
+        "mocap", "gravcomp", "sleep", "simple", "fuse", "user"},
     {"<"},
         {"inertial", "?", "pos", "quat", "mass", "diaginertia", "axisangle", "xyaxes", "zaxis",
             "euler", "fullinertia"},

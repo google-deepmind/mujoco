@@ -2701,6 +2701,10 @@ std::optional<MjsElement> mjs_firstElement_wrapper(const MjSpec& s, mjtObj type)
   return MjsElement(result);
 }
 
+int mjs_fuseStatic_wrapper(MjSpec& s, const MjVFS& vfs) {
+  return mjs_fuseStatic(s.get(), vfs.get());
+}
+
 std::optional<MjsCompiler> mjs_getCompiler_wrapper(const MjsElement& element) {
   mjsCompiler* result = mjs_getCompiler(element.get());
   if (result == nullptr) {
@@ -5691,6 +5695,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("element", &MjsBody::element, reference())
     .property("explicitinertial", &MjsBody::explicitinertial, &MjsBody::set_explicitinertial)
     .property("fullinertia", &MjsBody::fullinertia)
+    .property("fuse", &MjsBody::fuse, &MjsBody::set_fuse)
     .property("gravcomp", &MjsBody::gravcomp, &MjsBody::set_gravcomp)
     .property("ialt", &MjsBody::ialt, reference())
     .property("inertia", &MjsBody::inertia)
@@ -6522,6 +6527,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_findSpec", &mjs_findSpec_wrapper);
   function("mjs_firstChild", &mjs_firstChild_wrapper);
   function("mjs_firstElement", &mjs_firstElement_wrapper);
+  function("mjs_fuseStatic", &mjs_fuseStatic_wrapper);
   function("mjs_getCompiler", &mjs_getCompiler_wrapper);
   function("mjs_getDefault", &mjs_getDefault_wrapper);
   function("mjs_getError", &mjs_getError_wrapper);

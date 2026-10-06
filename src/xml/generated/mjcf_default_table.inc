@@ -240,6 +240,7 @@ static const mjXDefaultEntry kDefaults_mjsBody[] = {
   {"gravcomp", (int)offsetof(mjsBody, gravcomp), 0, 1, 0, 0, {0}},
   {"sleep", (int)offsetof(mjsBody, sleep), 2, 1, 0, 0, {0}},
   {"simple", (int)offsetof(mjsBody, simple), 3, 1, 1, 0, {(double)1}},
+  {"fuse", (int)offsetof(mjsBody, fuse), 3, 1, 1, 0, {(double)1}},
   {"pos", (int)offsetof(mjsBody, ipos), 0, 3, 0, 1, {0}},
   {"quat", (int)offsetof(mjsBody, iquat), 0, 4, 4, 0, {1.0, 0.0, 0.0, 0.0}},
   {"mass", (int)offsetof(mjsBody, mass), 0, 1, 0, 0, {0}},

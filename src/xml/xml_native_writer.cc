@@ -1612,6 +1612,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     // simple optimization
     WriteAttrKey(elem, "simple", FalseAuto_map, 2, body->simple, 1);
 
+    // fuse with parent when static
+    WriteAttrKey(elem, "fuse", FalseAuto_map, 2, body->fuse, 1);
+
     // userdata
     WriteVector(elem, "user", body->get_userdata());
 

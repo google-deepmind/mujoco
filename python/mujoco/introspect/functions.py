@@ -12378,6 +12378,27 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Resolve alternative orientations to quat; return error if any.',
      )),
+    ('mjs_fuseStatic',
+     FunctionDecl(
+         name='mjs_fuseStatic',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Fuse the static bodies of the spec with their parents, return 0 on success.',  # pylint: disable=line-too-long
+     )),
     ('mjs_adoptInertial',
      FunctionDecl(
          name='mjs_adoptInertial',

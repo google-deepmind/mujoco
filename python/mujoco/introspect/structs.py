@@ -7781,6 +7781,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='simple body optimization (0: false, 1: auto)',
              ),
              StructFieldDecl(
+                 name='fuse',
+                 type=ValueType(name='mjtByte'),
+                 doc='fuse with parent when static (0: false, 1: auto)',
+             ),
+             StructFieldDecl(
                  name='userdata',
                  type=PointerType(
                      inner_type=ValueType(name='mjDoubleVec'),

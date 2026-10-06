@@ -511,6 +511,9 @@ class mjCBody_ : public mjCBase {
   double ipos_compiled_[3]  = {0, 0, 0};
   double iquat_compiled_[4] = {1, 0, 0, 0};
 
+  // compilation raised the mass or inertia to their bounds, or balanced the inertia
+  bool inertia_adjusted_ = false;
+
   // variables used for temporarily storing the state of the mocap bodies
   std::map<std::string, std::array<mjtNum, 3>> mpos_;   // saved mocap_pos
   std::map<std::string, std::array<mjtNum, 4>> mquat_;  // saved mocap_quat
@@ -591,7 +594,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
 
   // create a frame and move all contents of this body into it
-  mjCFrame* ToFrame();
+  mjCFrame* ToFrame(bool mergeinertial = true);
 
   // get mocap position and quaternion
   mjtNum* mpos(const std::string& state_name);

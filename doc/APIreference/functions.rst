@@ -5952,6 +5952,20 @@ Set element's enclosing frame; return 0 on success.
 
 Resolve alternative orientations to quat; return error if any.
 
+.. _mjs_fuseStatic:
+
+`mjs_fuseStatic <#mjs_fuseStatic>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_fuseStatic
+
+Fuse the static bodies of the spec with their parents. A body without joints is replaced by a :ref:`frame<frame>` in
+its parent, which has the pose of the body and holds its geoms, sites, cameras, lights, frames and child bodies, in the
+same coordinates as before. The inertia of the body is added to that of the parent. The compiled model has the same
+kinematics and dynamics, with fewer bodies. Bodies which cannot be fused without changing the model are kept, see
+:ref:`fusestatic<compiler-fusestatic>`, which applies this function before compiling. Pointers to the bodies which were
+fused are no longer valid. Assets are read as in :ref:`mj_compile`. Returns 0 on success; if it fails, nothing is fused.
+
 .. _mjs_adoptInertial:
 
 `mjs_adoptInertial <#mjs_adoptInertial>`__

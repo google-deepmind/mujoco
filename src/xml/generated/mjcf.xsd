@@ -2082,6 +2082,7 @@
     <xs:attribute name="gravcomp" type="xs:double"/>
     <xs:attribute name="sleep" type="kw_bodysleep"/>
     <xs:attribute name="simple" type="kw_FalseAuto" default="auto"/>
+    <xs:attribute name="fuse" type="kw_FalseAuto" default="auto"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 

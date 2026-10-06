@@ -720,6 +720,9 @@
             :ref:`simple<body-simple>`
 
          .. grid-item::
+            :ref:`fuse<body-fuse>`
+
+         .. grid-item::
             :ref:`user<body-user>`
 
 

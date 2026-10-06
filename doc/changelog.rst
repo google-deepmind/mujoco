@@ -31,6 +31,12 @@ Compiler
      **Migration:** Name the asset when adding it, e.g. ``spec.add_mesh(name='link', file='link.stl')`` in Python or
      :ref:`mjs_setName` in C.
 
+- Added :ref:`mjs_fuseStatic`, which fuses the static bodies of an :ref:`mjSpec` with their parents as an operation on
+  the spec: each fused body becomes a frame in its parent. The :ref:`fusestatic<compiler-fusestatic>` compiler option
+  now applies it and then compiles; previously it fused inside compilation and left the spec inconsistent with the
+  model. Static bodies whose fusing would change the forces on the model (a plugin, a sleep policy, another gravcomp,
+  a fluid), or which a flex or skin refers to, are now kept, and cameras and lights are no longer misplaced.
+- Added the :ref:`fuse<body-fuse>` body attribute: "false" keeps a static body when static bodies are fused.
 - Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
   the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
 

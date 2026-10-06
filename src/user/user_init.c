@@ -86,6 +86,9 @@ void mjs_defaultBody(mjsBody* body) {
 
   // simple optimization: auto
   body->simple = 1;
+
+  // fuse with parent when static: auto
+  body->fuse = 1;
 }
 
 

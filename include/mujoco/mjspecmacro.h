@@ -115,6 +115,7 @@
     X   ( double,          gravcomp,         1 ) \
     X   ( mjtSleepPolicy,  sleep,            1 ) \
     X   ( mjtByte,         simple,           1 ) \
+    X   ( mjtByte,         fuse,             1 ) \
     X   ( mjDoubleVec*,    userdata,         1 ) \
     X   ( mjtBool,         explicitinertial, 1 ) \
     X   ( mjsPlugin,       plugin,           1 ) \

@@ -1216,6 +1216,7 @@
             <attribute name="gravcomp" type="float"/>
             <attribute name="sleep" type="keyword" valid_values="auto never allowed init"/>
             <attribute name="simple" type="keyword" valid_values="false auto" default="auto"/>
+            <attribute name="fuse" type="keyword" valid_values="false auto" default="auto"/>
             <attribute name="user" type="array" array_type="float"/>
           </attributes>
           <children>

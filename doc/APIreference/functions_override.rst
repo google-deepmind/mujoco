@@ -944,6 +944,15 @@ All outputs are optional.
 Remove object corresponding to the given element; return 0 on success. Deleting a body or a frame also deletes
 everything inside it, along with all the elements that reference a deleted element.
 
+.. _mjs_fuseStatic:
+
+Fuse the static bodies of the spec with their parents. A body without joints is replaced by a :ref:`frame<frame>` in
+its parent, which has the pose of the body and holds its geoms, sites, cameras, lights, frames and child bodies, in the
+same coordinates as before. The inertia of the body is added to that of the parent. The compiled model has the same
+kinematics and dynamics, with fewer bodies. Bodies which cannot be fused without changing the model are kept, see
+:ref:`fusestatic<compiler-fusestatic>`, which applies this function before compiling. Pointers to the bodies which were
+fused are no longer valid. Assets are read as in :ref:`mj_compile`. Returns 0 on success; if it fails, nothing is fused.
+
 .. _mjs_adoptInertial:
 
 Make the inertial which compilation infers for a body part of the spec. The mass, inertia and inertial frame which the

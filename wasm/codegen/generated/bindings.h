@@ -6248,6 +6248,12 @@ struct MjsBody {
   void set_simple(mjtByte value) {
     ptr_->simple = value;
   }
+  mjtByte fuse() const {
+    return ptr_->fuse;
+  }
+  void set_fuse(mjtByte value) {
+    ptr_->fuse = value;
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }

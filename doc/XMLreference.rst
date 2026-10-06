@@ -911,6 +911,19 @@ has any effect. The settings here are global and apply to the entire model.
 
    - They are referenced by another element in the model.
    - They contain a site which is referenced by a :ref:`force<sensor-force>` or :ref:`torque<sensor-torque>` sensor.
+   - Their :ref:`fuse<body-fuse>` attribute is "false".
+   - They have a :ref:`plugin<body-plugin>` or a :ref:`sleep<body-sleep>` policy.
+   - They have mass, and either a :ref:`gravcomp<body-gravcomp>` different from that of their parent, or the model is in
+     a fluid (non-zero :ref:`density<option-density>` or :ref:`viscosity<option-viscosity>`); in a fluid, bodies with
+     an ellipsoid-fluid geom are kept too.
+   - :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true" and the compiler adjusted their inertia or their
+     parent's (:ref:`boundmass<compiler-boundmass>`, :ref:`boundinertia<compiler-boundinertia>`,
+     :ref:`balanceinertia<compiler-balanceinertia>`), so that the geoms of both in one body would have a different
+     inertia.
+
+   Fusing is an operation on the model itself, :ref:`mjs_fuseStatic`, which is applied before compiling: each fused
+   body becomes a :ref:`frame<frame>` in its parent. A model which is saved or compiled again afterwards is the fused
+   one.
 
    This optimization is particularly useful when importing URDF models which often have many dummy bodies, but can also
    be used to optimize MJCF models. After optimization, the new model has identical kinematics and dynamics as the
@@ -2224,6 +2237,14 @@ defined. Its body name is automatically defined as "world".
    cannot dynamically lose its simple state at runtime (which would require reallocation of sparse matrix structures),
    any runtime parameter change that violates the simple conditions will trigger a validation error unless
    ``simple="false"`` was explicitly declared in the XML.
+
+.. _body-fuse:
+
+:at:`fuse`: :at-val:`[false, auto], "auto"`
+   Whether this body can be fused with its parent when static bodies are fused, by the
+   :ref:`fusestatic<compiler-fusestatic>` compiler option or by :ref:`mjs_fuseStatic`. With the default :at-val:`auto`
+   a static body is fused unless one of the conditions listed there prevents it. Setting this attribute to
+   :at-val:`false` keeps the body.
 
 .. _body-user:
 

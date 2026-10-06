@@ -307,6 +307,7 @@ inline constexpr mjXAttr kBodyAttrs[] = {
   {"gravcomp", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsBody, gravcomp)},
   {"sleep", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsBody, sleep), bodysleep_map, bodysleep_sz},
   {"simple", mjXAttr::kEnumByte, 1, true, false, false, false, (int)offsetof(mjsBody, simple), FalseAuto_map, FalseAuto_sz},
+  {"fuse", mjXAttr::kEnumByte, 1, true, false, false, false, (int)offsetof(mjsBody, fuse), FalseAuto_map, FalseAuto_sz},
   {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsBody, userdata)},
 };
 inline constexpr int kBodyAttrsN = sizeof(kBodyAttrs) / sizeof(kBodyAttrs[0]);

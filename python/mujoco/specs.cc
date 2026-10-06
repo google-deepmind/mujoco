@@ -510,6 +510,24 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("vfs") = py::none());
   mjSpec.def(
+      "fuse_static",
+      [](MjSpec& self, std::optional<MjVfs*> vfs) {
+        self.FuseStatic(vfs.has_value() ? (*vfs)->get() : nullptr);
+      },
+      py::arg("vfs") = py::none(),
+      R"mydelimiter(
+    Fuses the static bodies of the spec with their parents.
+
+    Each fused body becomes a frame in its parent, holding what the body held.
+    Objects referring to the fused bodies must not be used afterwards. Assets
+    are read as in compile().
+
+    Parameters
+    ----------
+    vfs : MjVfs, optional
+        A VFS to read assets from. Cannot be used with assets.
+    )mydelimiter");
+  mjSpec.def(
       "adopt_inertial",
       [](MjSpec& self, raw::MjsBody* body, std::optional<MjVfs*> vfs) {
         self.AdoptInertial(body, vfs.has_value() ? (*vfs)->get() : nullptr);
