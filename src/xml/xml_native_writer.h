@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjspec.h>
@@ -71,9 +72,17 @@ class mjXWriter : public mjXBase {
   // each bound field is compared against the default at the same offset, so
   // attributes equal to their default are skipped. Strings, files and
   // custom-read attributes remain in the OneX() remnants.
+  // With `given`, obj is a struct of the spec of the model (or a copy of the
+  // one at `field`), and an attribute which the spec records as written is
+  // not skipped when it has its default value.
   template <typename T>
-  void WriteAttrTable(
-      tinyxml2::XMLElement* elem, const T* obj, const T* def, const struct mjXAttr* rows, int nrow);
+  void WriteAttrTable(tinyxml2::XMLElement* elem,
+                      const T*              obj,
+                      const T*              def,
+                      const struct mjXAttr* rows,
+                      int                   nrow,
+                      bool                  given = false,
+                      const T*              field = nullptr);
 
   // single element writers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);
@@ -105,6 +114,10 @@ class mjXWriter : public mjXBase {
   void OneTendon(tinyxml2::XMLElement* elem, const mjCTendon* ptendon, mjCDef* def);
   void OneActuator(tinyxml2::XMLElement* elem, const mjCActuator* pactuator, mjCDef* def);
   void OnePlugin(tinyxml2::XMLElement* elem, const mjsPlugin* plugin);
+  void PluginConfig(tinyxml2::XMLElement* elem,
+                    const mjCPlugin*      instance,
+                    const std::string&    plugin);
+  void FreeJoint(tinyxml2::XMLElement* elem, const mjCJoint* joint);
   tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem,
                                  mjCFrame*             frame,
                                  std::string_view      childclass);
@@ -112,7 +125,58 @@ class mjXWriter : public mjXBase {
   // strip a frame from a compiled pose: pos/quat become relative to the frame
   static void FrameLocal(const mjCFrame* frame, double pos[3], double quat[4]);
 
-  bool writingdefaults;  // true during defaults write
+  // the values of an element which are saved: those which the spec gives, or those which
+  // compilation made of them
+  template <typename S, typename C>
+  const S* Values(const C* element) const {
+    return authored_ ? &element->spec : static_cast<const S*>(element);
+  }
+
+  // an angle of an element, of a joint or of an orientation, in the unit of the saved file
+  double Angle(const mjCBase* element, double angle, bool orientation = false) const;
+
+  // write the position and orientation which the spec gives an element, where they differ from
+  // those of its class: the orientation as it was written, or as a quaternion if the notation is
+  // canonical
+  void WriteSpecPose(tinyxml2::XMLElement* elem,
+                     const mjCBase*        element,
+                     const double          pos[3],
+                     const double          quat[4],
+                     const mjsOrientation& alt,
+                     const double*         defpos  = nullptr,
+                     const double*         defquat = nullptr,
+                     const mjsOrientation* defalt  = nullptr);
+
+  // the quaternion which the spec gives an element (null: an element of a default class)
+  void SpecQuat(double                result[4],
+                const mjCBase*        element,
+                const double          quat[4],
+                const mjsOrientation& alt);
+
+  // write the size and the pose which the spec gives a geom or a site, where they differ from
+  // those of its class
+  template <typename S>
+  void WriteSpecShape(tinyxml2::XMLElement* elem,
+                      const mjCBase*        element,
+                      const S&              given,
+                      const S&              defgiven);
+
+  // write the user data which the spec gives an element, unless it is that of its default class
+  void WriteSpecUser(tinyxml2::XMLElement*      elem,
+                     const std::vector<double>& user,
+                     const std::vector<double>& defuser);
+
+  // write the inertial which the spec gives a body, or the one calculated for it
+  void WriteSpecInertial(tinyxml2::XMLElement* elem, const mjCBody* body);
+
+  // the compiler setting of an attached spec which the saved file cannot give the elements of that
+  // spec, as an error which names an element; empty if there is none
+  std::string AttachedSettings() const;
+
+  bool writingdefaults;     // true during defaults write
+  bool authored_  = false;  // save what the spec gives, not what compilation made of it
+  bool canonical_ = true;   // save quaternions, radians and sizes, not the notation of the spec
+  bool degree_    = false;  // angles in the saved file are in degrees
 };
 
 

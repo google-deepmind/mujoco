@@ -1508,10 +1508,11 @@ void mjCDef::CopyFromSpec() {
 mjCBase::mjCBase() {
   name.clear();
   classname.clear();
-  id    = -1;
-  info  = "";
-  model = 0;
-  frame = nullptr;
+  id       = -1;
+  info     = "";
+  model    = 0;
+  frame    = nullptr;
+  compiler = nullptr;
 }
 
 
@@ -2934,9 +2935,12 @@ void mjCBody::Compile(void) {
                       inertia[1] != unadjusted[2] ||
                       inertia[2] != unadjusted[3];
 
-  // the inertial frame as it would be authored: alignment with a free joint changes it below
+  // the inertial as it would be authored: alignment with a free joint changes its frame below, and
+  // settotalmass scales its mass and inertia once all bodies are compiled
   mjuu_copyvec(ipos_compiled_, ipos, 3);
   mjuu_copyvec(iquat_compiled_, iquat, 4);
+  mass_compiled_ = mass;
+  mjuu_copyvec(inertia_compiled_, inertia, 3);
 
   // frame
   if (frame) { mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat); }

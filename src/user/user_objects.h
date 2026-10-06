@@ -507,9 +507,12 @@ class mjCBody_ : public mjCBase {
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
 
-  // inertial frame in the body frame as compiled, before a free joint is aligned with it
-  double ipos_compiled_[3]  = {0, 0, 0};
-  double iquat_compiled_[4] = {1, 0, 0, 0};
+  // the inertial as compiled, in the body frame before a free joint is aligned with it, and with
+  // the mass and inertia before settotalmass scales those of all bodies
+  double ipos_compiled_[3]    = {0, 0, 0};
+  double iquat_compiled_[4]   = {1, 0, 0, 0};
+  double mass_compiled_       = 0;
+  double inertia_compiled_[3] = {0, 0, 0};
 
   // compilation raised the mass or inertia to their bounds, or balanced the inertia
   bool inertia_adjusted_ = false;

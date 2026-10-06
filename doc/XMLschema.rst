@@ -252,6 +252,12 @@
             :ref:`saveinertial<compiler-saveinertial>`
 
          .. grid-item::
+            :ref:`savecompiled<compiler-savecompiled>`
+
+         .. grid-item::
+            :ref:`savecanonical<compiler-savecanonical>`
+
+         .. grid-item::
             :ref:`assetdir<compiler-assetdir>`
 
          .. grid-item::
@@ -2395,6 +2401,9 @@
 
             .. grid-item::
                :ref:`ffrange<actuator-general-ffrange>`
+
+            .. grid-item::
+               :ref:`inheritrange<actuator-general-inheritrange>`
 
             .. grid-item::
                :ref:`dyntype<actuator-general-dyntype>`
@@ -6070,6 +6079,9 @@
 
             .. grid-item::
                :ref:`ffrange<default-general-ffrange>`
+
+            .. grid-item::
+               :ref:`inheritrange<default-general-inheritrange>`
 
             .. grid-item::
                :ref:`dyntype<default-general-dyntype>`

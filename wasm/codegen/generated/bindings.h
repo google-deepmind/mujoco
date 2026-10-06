@@ -2271,6 +2271,18 @@ struct MjsCompiler {
   void set_saveinertial(mjtBool value) {
     ptr_->saveinertial = value;
   }
+  mjtBool savecompiled() const {
+    return ptr_->savecompiled;
+  }
+  void set_savecompiled(mjtBool value) {
+    ptr_->savecompiled = value;
+  }
+  mjtBool savecanonical() const {
+    return ptr_->savecanonical;
+  }
+  void set_savecanonical(mjtBool value) {
+    ptr_->savecanonical = value;
+  }
   mjtBool alignfree() const {
     return ptr_->alignfree;
   }

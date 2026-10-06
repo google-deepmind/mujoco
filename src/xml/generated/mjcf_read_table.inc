@@ -40,6 +40,8 @@ inline constexpr mjXAttr kCompilerAttrs[] = {
   {"inertiafromgeom", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, inertiafromgeom), FalseTrueAuto_map, FalseTrueAuto_sz},
   {"inertiagrouprange", mjXAttr::kInt, 2, true, false, false, false, (int)offsetof(mjsCompiler, inertiagrouprange)},
   {"saveinertial", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, saveinertial)},
+  {"savecompiled", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, savecompiled)},
+  {"savecanonical", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, savecanonical)},
   {"alignfree", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, alignfree)},
   {"conflict", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, conflict), conflict_map, conflict_sz},
 };
@@ -583,6 +585,7 @@ inline constexpr mjXAttr kGeneralAttrs[] = {
   {"actdim", mjXAttr::kInt, 1, true, false, false, true, (int)offsetof(mjsActuator, actdim)},
   {"velrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, velrange)},
   {"ffrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ffrange)},
+  {"inheritrange", mjXAttr::kDouble, 1, true, false, false, true, (int)offsetof(mjsActuator, inheritrange)},
   {"dyntype", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, dyntype), dyn_map, dyn_sz},
   {"gaintype", mjXAttr::kEnum, 1, true, false, false, true, (int)offsetof(mjsActuator, gaintype), gain_map, gain_sz},
   {"biastype", mjXAttr::kEnum, 1, true, false, false, true, (int)offsetof(mjsActuator, biastype), bias_map, bias_sz},

@@ -7357,6 +7357,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='save explicit inertial clause for all bodies to XML',
              ),
              StructFieldDecl(
+                 name='savecompiled',
+                 type=ValueType(name='mjtBool'),
+                 doc='save values as compiled, not as written in the spec',
+             ),
+             StructFieldDecl(
+                 name='savecanonical',
+                 type=ValueType(name='mjtBool'),
+                 doc='save quaternions and radians, not the notation of the spec',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
                  name='alignfree',
                  type=ValueType(name='mjtBool'),
                  doc='align free joints with inertial frame',

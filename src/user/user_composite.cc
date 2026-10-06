@@ -184,8 +184,10 @@ bool mjCComposite::Make(mjSpec* spec, mjsBody* body, char* error, int error_sz) 
 
   // overwrite plugin name
   if (plugin_instance_name.empty() && plugin.active) {
-    plugin_instance_name                            = "composite" + prefix;
-    (static_cast<mjCPlugin*>(plugin.element))->name = plugin_instance_name;
+    plugin_instance_name = "composite" + prefix;
+    mjCPlugin* instance  = static_cast<mjCPlugin*>(plugin.element);
+    instance->name       = plugin_instance_name;
+    mjs_setString(instance->spec.plugin_name, plugin_name.c_str());
   }
 
   // dispatch

@@ -94,6 +94,32 @@ The output format is selected automatically based on the file extension (case-in
 - **TXT** (``.txt``): Writes a human-readable text dump via :ref:`mj_printModel`. Useful for diffing and debugging.
   Requires a compiled ``model``; does **not** serialize anything from ``spec``.
 
+A spec is saved as MJCF in one of two ways, selected by its compiler attribute
+:ref:`savecompiled<compiler-savecompiled>`:
+
+- "true": the values which the last compilation made of the model, in the canonical notation. For example a body
+  which is :ref:`aligned<body-freejoint-align>` with its free joint is saved with its aligned pose, and a geom which
+  was fitted to a mesh with the size of the fit. The spec must have been compiled.
+- "false": the model as it is written in the spec. Poses are those of the elements in their :ref:`frames<frame>`,
+  attributes which were written with their default values are kept, and every number is saved exactly. Orientations,
+  angles and ``fromto`` are saved in the notation in which they were written, unless
+  :ref:`savecanonical<compiler-savecanonical>` is "true". The spec need not have been compiled.
+
+In both cases the saved file compiles to the same model, except where MJCF cannot say what the spec holds. For example,
+the elements of an attached model are compiled with its own compiler settings, while the saved file has one
+:ref:`compiler<compiler>` element. Saved as written, the angle unit and the Euler sequence of an attached model are
+converted, and a difference in a setting which changes what compilation infers, such as
+:ref:`inertiafromgeom<compiler-inertiafromgeom>`, is an error which says so; saved as compiled values, such a model may
+compile differently. What the parser does not keep in a spec is not saved: comments other than the one at the top of
+the file, the :ref:`include<include>` elements, and the elements which it expands into others, such as
+:ref:`replicate<replicate>`, :ref:`composite<body-composite>`, :ref:`attach<body-attach>` and the actuator shortcuts.
+
+A spec which is saved as written needs a compilation in two cases. The inertials which compilation calculates,
+which :ref:`saveinertial<compiler-saveinertial>` saves, are those of the last compilation, which must follow any
+structural edit (elements added, deleted or attached), as for compiled values. And :ref:`keyframes<keyframe>` which
+await compilation, as they do once :ref:`mjs_attach` or :ref:`mjs_delete` changed the kinematic tree of a spec which
+has keyframes, are saved once compilation has assembled their vectors.
+
 Importantly, saved XML will take into account any defined defaults. This is useful when a model has many repeated
 values, for example if loaded from URDF, which does not support defaults. In such a case one can add default classes,
 set the class of the relevant elements, and save; the resulting XML will use the defaults and be more human-readable.

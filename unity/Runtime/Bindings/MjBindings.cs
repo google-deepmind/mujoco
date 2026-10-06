@@ -5946,6 +5946,8 @@ public unsafe struct mjsCompiler_ {
   public mjtInertiaFromGeom inertiafromgeom;
   public fixed int inertiagrouprange[2];
   public byte saveinertial;
+  public byte savecompiled;
+  public byte savecanonical;
   public byte alignfree;
   public mjtConflict conflict;
   public mjLROpt_ LRopt;

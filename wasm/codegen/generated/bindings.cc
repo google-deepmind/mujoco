@@ -5751,6 +5751,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("inertiafromgeom", &MjsCompiler::inertiafromgeom, &MjsCompiler::set_inertiafromgeom)
     .property("inertiagrouprange", &MjsCompiler::inertiagrouprange)
     .property("meshdir", &MjsCompiler::meshdir, &MjsCompiler::set_meshdir, reference())
+    .property("savecanonical", &MjsCompiler::savecanonical, &MjsCompiler::set_savecanonical)
+    .property("savecompiled", &MjsCompiler::savecompiled, &MjsCompiler::set_savecompiled)
     .property("saveinertial", &MjsCompiler::saveinertial, &MjsCompiler::set_saveinertial)
     .property("settotalmass", &MjsCompiler::settotalmass, &MjsCompiler::set_settotalmass)
     .property("texturedir", &MjsCompiler::texturedir, &MjsCompiler::set_texturedir, reference())

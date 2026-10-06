@@ -551,6 +551,8 @@ element compiler : mjsCompiler {
   inertiafromgeom    : enum<FalseTrueAuto> = auto
   inertiagrouprange  : int[2] = {0, 5}
   saveinertial       : bool
+  savecompiled       : bool = true
+  savecanonical      : bool = true
   assetdir           : string (reading=custom)    # fans out to mesh/texturedir
   alignfree          : bool
   conflict           : enum<conflict>
@@ -1532,6 +1534,7 @@ element general : mjsActuator {
   input              : enum<inputchart> (reading=custom)  # so3 chart keyword, or servo token subset
   velrange           : double[2]
   ffrange            : double[2]
+  inheritrange       : double (writing=custom)  # compiled values have the range in its place
   dyntype            : enum<dyn> = none
   gaintype           : enum<gain> = fixed (writing=custom)  # gain/bias family is not
   biastype           : enum<bias> = none (writing=custom)   # saved for plugin actuators

@@ -44,6 +44,8 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->compiler.inertiafromgeom      = mjINERTIAFROMGEOM_AUTO;
   spec->compiler.inertiagrouprange[1] = mjNGROUP - 1;
   spec->compiler.saveinertial         = 0;
+  spec->compiler.savecompiled         = 1;
+  spec->compiler.savecanonical        = 1;
   mj_defaultLROpt(&spec->compiler.LRopt);
 
   // engine data

@@ -974,6 +974,24 @@ has any effect. The settings here are global and apply to the entire model.
 :at:`saveinertial`: :at-val:`[false, true], "false"`
    If set to "true", the compiler will save explicit :ref:`inertial <body-inertial>` clauses for all bodies.
 
+.. _compiler-savecompiled:
+
+:at:`savecompiled`: :at-val:`[false, true], "true"`
+   This attribute and the next one say how the model is saved as MJCF; like :at:`saveinertial`, they are not saved
+   themselves. If "true", the values which compilation made of the model are saved: for example the size of a geom
+   which was fitted to a mesh, or the pose of a body after :ref:`alignment<compiler-alignfree>` with its free joint.
+   If "false", the model is saved as it is written in the :ref:`mjSpec`, and the saved file compiles to the same
+   model; the spec need not have been compiled.
+
+.. _compiler-savecanonical:
+
+:at:`savecanonical`: :at-val:`[false, true], "true"`
+   If "true", orientations are saved as quaternions, angles in radians, sizes and poses which were given with
+   :at:`fromto` as :at:`size`, :at:`pos` and :at:`quat`, and a :at:`fullinertia` as :at:`diaginertia` and
+   :at:`quat`. If "false", they are saved in the notation in which they were written. This attribute has an effect
+   only if :ref:`savecompiled<compiler-savecompiled>` is "false": compiled values are always saved in the canonical
+   notation.
+
 .. _compiler-conflict:
 
 :at:`conflict`: :at-val:`[warning, merge, error], "warning"`
@@ -5868,6 +5886,16 @@ specify them independently.
 :at:`ffrange`: :at-val:`real(2), "0 0"`
    Range of the feedforward input of a :ref:`pid<actuator-pid>` actuator.
 
+.. _actuator-general-inheritrange:
+
+:at:`inheritrange`: :at-val:`real, "0"`
+   Sets the range of a position servo from the range of its joint or tendon, as described in
+   :ref:`position/inheritrange<actuator-position-inheritrange>`: the :at:`ctrlrange`, or the :at:`actrange` if
+   :at:`dyntype` is "integrator". It has an effect on an actuator with affine bias and either fixed gain, where
+   ``gainprm[0]`` equals ``-biasprm[1]``, or gaintype "pid": the actuators which the
+   :ref:`position<actuator-position>`, :ref:`intvelocity<actuator-intvelocity>` and :ref:`pid<actuator-pid>` shortcuts
+   create.
+
 .. _actuator-general-input:
 
 :at:`input`: :at-val:`string, optional`
@@ -6083,9 +6111,8 @@ This element has one custom attribute in addition to the common attributes:
    :at:`ctrlrange` to :at-val:`[0.1, 0.9]` and :at-val:`[-0.1, 1.1]`, respectively. Values smaller than 1 are useful for
    not hitting the limits; values larger than 1 are useful for maintaining control authority at the limits (being able
    to push on them). This attribute is exclusive with :at:`ctrlrange` and available only for joint and tendon
-   transmissions which have :at:`range` defined. Note that while :at:`inheritrange` is available both as a
-   :ref:`position<actuator-position>` attribute and in the :ref:`default class<default-position-inheritrange>`,
-   saved XMLs always convert it to explicit :at:`ctrlrange` at the actuator.
+   transmissions which have :at:`range` defined. A model which is saved :ref:`as it was compiled
+   <compiler-savecompiled>` has the explicit :at:`ctrlrange` at the actuator in place of this attribute.
 
 .. _actuator-pid:
 
@@ -10332,6 +10359,8 @@ if omitted.
 .. _default-general-velrange:
 
 .. _default-general-ffrange:
+
+.. _default-general-inheritrange:
 
 .. _default-general-input:
 

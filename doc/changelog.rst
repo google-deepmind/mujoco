@@ -47,6 +47,13 @@ Compiler
      **Migration:** Use ``inertiafromgeom="auto"``, the default, under which the inertia is kept as an explicit
      :ref:`inertial<body-inertial>`, or give the visual geoms zero mass.
 
+- Added the compiler attributes :ref:`savecompiled<compiler-savecompiled>` and
+  :ref:`savecanonical<compiler-savecanonical>`, which say how a model is saved as MJCF. With ``savecompiled`` "false"
+  a model is saved as it is written in the :ref:`mjSpec` rather than as compilation made it: with its default
+  classes, frames and notation, and with every number exactly, so that the file which is read back is the same spec.
+  It compiles to the same model, and the spec need not have been compiled. ``savecanonical`` "true" saves
+  orientations, angles and sizes in one notation instead of the one in which they were written; see
+  :ref:`Model Encoding & Saving <meSaving>`. Both attributes are "true" by default, which saves a model as before.
 - :ref:`mj_copyBack` now writes what was changed in the model to the :ref:`mjSpec` itself, as documented, so that
   the changes are in the spec and in the models which are compiled from it afterwards. Previously it wrote to a copy
   which is only read when the spec is saved. Only the values which were changed are written, each as what compiles to
@@ -101,7 +108,14 @@ Bug fixes
 - The ``quat`` of a geom, site or camera is no longer ignored when its :ref:`default class<default>` gives an
   orientation as ``euler``, ``axisangle``, ``xyaxes`` or ``zaxis``.
 - Saving MJCF no longer changes or loses the following: the order of the elements of a body which has
-  :ref:`frames<frame>`, which gave the saved model other ids; and ``class="main"`` inside another ``childclass``.
+  :ref:`frames<frame>`, which gave the saved model other ids; ``class="main"`` inside another ``childclass``; the
+  :ref:`nchannel<asset-texture-nchannel>` of a texture; and the names of energy sensors, which could not be loaded.
+
+Actuation
+^^^^^^^^^
+- Added the :ref:`inheritrange<actuator-general-inheritrange>` attribute to the :ref:`general<actuator-general>`
+  actuator, which so far only the :ref:`position<actuator-position>`, :ref:`intvelocity<actuator-intvelocity>` and
+  :ref:`pid<actuator-pid>` shortcuts had.
 
 Python bindings
 ^^^^^^^^^^^^^^^

@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_XML_XML_NUMERIC_FORMAT_H_
 #define MUJOCO_SRC_XML_XML_NUMERIC_FORMAT_H_
 
+#include <string>
+
 #include <mujoco/mjexport.h>
 
 namespace mujoco {
@@ -30,6 +32,23 @@ class FullFloatPrecision {
   FullFloatPrecision() { _mjPRIVATE__set_xml_precision(17); }
   ~FullFloatPrecision() { _mjPRIVATE__set_xml_precision(6); }
 };
+
+// Exact printing of floating point numbers in saved XMLs, within the scope of this object: each
+// as the shortest text which reads back as the same number. This is precision 0.
+class ExactFloatPrecision {
+ public:
+  ExactFloatPrecision() : previous_(_mjPRIVATE__get_xml_precision()) {
+    _mjPRIVATE__set_xml_precision(0);
+  }
+  ~ExactFloatPrecision() { _mjPRIVATE__set_xml_precision(previous_); }
+
+ private:
+  int previous_;
+};
+
+// The shortest text which reads back as the same number.
+std::string ShortestNumber(double value);
+std::string ShortestNumber(float value);
 
 }  // namespace mujoco
 

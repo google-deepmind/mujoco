@@ -959,7 +959,11 @@ void mjXUtil::Vector2String(string& txt, const vector<float>& vec, int ncol) {
     } else if (i > 0) {
       strm << " ";
     }
-    strm << vec[i];
+    if (mujoco::_mjPRIVATE__get_xml_precision() == 0) {
+      strm << mujoco::ShortestNumber(vec[i]);
+    } else {
+      strm << vec[i];
+    }
   }
 
   txt = strm.str();
@@ -1069,17 +1073,21 @@ void mjXUtil::WriteAttr(
     }
   }
 
-  // skip default attributes
-  if (SameVector(data, def, n)) { return; }
+  // increase precision for testing; precision 0 writes numbers exactly
+  stringstream stream;
+  const int    precision = mujoco::_mjPRIVATE__get_xml_precision();
+  if (precision > 0) { stream.precision(precision); }
 
-  // trim identical trailing default values
-  if (trim) {
-    while (n > 0 && data[n - 1] == def[n - 1]) { n--; }
+  // skip default attributes: values which are the defaults to roundoff, or which are the defaults
+  // if numbers are written exactly
+  if (precision == 0 ? def && std::equal(data, data + n, def) : SameVector(data, def, n)) {
+    return;
   }
 
-  // increase precision for testing
-  stringstream stream;
-  stream.precision(mujoco::_mjPRIVATE__get_xml_precision());
+  // trim identical trailing default values
+  if (trim && def) {
+    while (n > 0 && data[n - 1] == def[n - 1]) { n--; }
+  }
 
   // process all numbers
   for (int i = 0; i < n; i++) {
@@ -1088,6 +1096,12 @@ void mjXUtil::WriteAttr(
 
     // append number
     double doubledata = static_cast<double>(data[i]);
+    if constexpr (std::is_floating_point_v<T>) {
+      if (precision == 0) {
+        stream << mujoco::ShortestNumber(data[i]);
+        continue;
+      }
+    }
     if (doubledata < INT_MAX && doubledata > -INT_MAX && isint(data[i])) {
       stream << Round(data[i]);
     } else {

@@ -119,11 +119,14 @@ saving mechanisms.
 .. _mj_saveXMLString:
 
 Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
-the required size. XML saving automatically compiles the spec before saving.
+the required size. See :ref:`mj_saveXML` for what is saved.
 
 .. _mj_saveXML:
 
-Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
+Save spec to XML file, return 0 on success, -1 otherwise. The compiler attributes
+:ref:`savecompiled<compiler-savecompiled>` and :ref:`savecanonical<compiler-savecanonical>` of the spec say whether
+the model is saved as it was compiled or as it is written in the spec, and in which notation; see
+:ref:`Model Encoding & Saving <meSaving>`. Saving the compiled values requires that the spec first be compiled.
 
 .. _mj_encode:
 

@@ -223,6 +223,67 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   mj_deleteSpec(s_copy3);
 }
 
+// A spec which is saved as it was written reads back as a spec which is saved
+// the same and compiles to the same model, in both notations.
+TEST_P(RecompileCompareTest, SavedAsWritten) {
+  std::string xml = GetParam();
+  std::array<char, 1000> err;
+  mjSpec* s = mj_parseXML(xml.c_str(), 0, err.data(), err.size());
+  if (!s) {
+    GTEST_SKIP() << "Failed to load " << xml << ": " << err.data();
+  }
+
+  // a spec is saved as it was written before it is compiled, unless its
+  // keyframes wait for a compilation to be laid out for the model
+  s->compiler.savecompiled = 0;
+  s->compiler.savecanonical = 0;
+  std::string uncompiled = SaveToString(s);
+
+  mjModel* m = mj_compile(s, nullptr);
+  if (!m) {
+    std::string error_message = mjs_getError(s);
+    mj_deleteSpec(s);
+    GTEST_SKIP() << "Failed to compile " << xml << ": " << error_message;
+  }
+
+  for (bool canonical : {false, true}) {
+    s->compiler.savecanonical = canonical;
+    std::string saved = SaveToString(s);
+    ASSERT_FALSE(saved.empty()) << xml;
+
+    // compiling changes what is saved only by completing keyframes and by
+    // restructuring
+    if (!canonical && !uncompiled.empty() && !m->nkey &&
+        !s->compiler.fusestatic && !s->compiler.discardvisual) {
+      EXPECT_EQ(uncompiled, saved) << xml;
+    }
+
+    // the saved file is read from where the model is, to find its assets
+    mjSpec* r = mj_parseXMLString(saved.c_str(), 0, err.data(), err.size());
+    ASSERT_THAT(r, NotNull()) << xml << ": " << err.data() << '\n' << saved;
+    mjs_setString(r->modelfiledir, mjs_getString(s->modelfiledir));
+    mjModel* m_saved = mj_compile(r, nullptr);
+    ASSERT_THAT(m_saved, NotNull()) << xml << ": " << mjs_getError(r);
+
+    std::string field = "";
+    EXPECT_EQ(CompareModel(m, m_saved, field), 0)
+        << "Model and model saved as written are different!\n"
+        << "Affected file " << xml << '\n'
+        << "Canonical notation: " << canonical << '\n'
+        << "Different field: " << field << '\n';
+
+    r->compiler.savecompiled = 0;
+    r->compiler.savecanonical = canonical;
+    EXPECT_EQ(SaveToString(r), saved) << xml;
+
+    mj_deleteModel(m_saved);
+    mj_deleteSpec(r);
+  }
+
+  mj_deleteModel(m);
+  mj_deleteSpec(s);
+}
+
 INSTANTIATE_TEST_SUITE_P(
     AllModels, RecompileCompareTest,
     ::testing::ValuesIn(GetRecompileTestModels()),

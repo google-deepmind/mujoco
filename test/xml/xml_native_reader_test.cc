@@ -2943,6 +2943,43 @@ TEST_F(ActuatorParseTest, PositionTimeconstInheritrange) {
   ASSERT_THAT(model.get(), NotNull());
 }
 
+// a general actuator which is a position servo inherits its range like the
+// shortcuts which create one
+TEST_F(ActuatorParseTest, GeneralInheritrange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="inherits">
+        <general inheritrange="0.5"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide" range="0 2"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <position joint="slide" inheritrange="2"/>
+      <general joint="slide" inheritrange="2" biastype="affine" biasprm="0 -1"/>
+      <general joint="slide" class="inherits" biastype="affine" biasprm="0 -1"/>
+      <general joint="slide" inheritrange="2" dyntype="integrator" biastype="affine" biasprm="0 -1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_THAT(AsVector(model->actuator_ctrlrange, 8),
+              ElementsAre(-1, 3, -1, 3, 0.5, 1.5, 0, 0));
+  EXPECT_THAT(AsVector(model->actuator_actrange + 6, 2), ElementsAre(-1, 3));
+  EXPECT_THAT(AsVector(model->actuator_ctrllimited, 4),
+              ElementsAre(1, 1, 1, 0));
+  EXPECT_EQ(model->actuator_actlimited[3], 1);
+}
+
 TEST_F(ActuatorParseTest, PositionTimeconstDefault) {
   static constexpr char xml[] = R"(
   <mujoco>
