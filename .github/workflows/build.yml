@@ -10,9 +10,10 @@
 #   * The compiler matrix lives in build_matrix.json. Pull requests build the
 #     representative "core" subset; pushes to main run the full compiler sweep.
 #     (See generate_matrix() in build_steps.sh.)
-#   * Studio/Filament and WASM are NOT built in the main matrix - they are covered
-#     by the dedicated `studio` and `wasm` jobs below. WASM in particular is built
-#     with emcc, which ignores the host compiler, so building it per-compiler added
+#   * Studio/Filament is built in the core matrix jobs (after Build MuJoCo Core
+#     and before Build MuJoCo Tests). WASM is NOT built in the main matrix - it
+#     is covered by the dedicated `wasm` job below because it is built with
+#     emcc, which ignores the host compiler, so building it per-compiler added
 #     no coverage.
 #   * ccache is used to wrap the compiler. PR branches fall back to main's cache, so
 #     the expensive (and pinned) Filament build is restored rather than recompiled.
@@ -259,104 +260,6 @@ jobs:
 
     # MJX (mujoco.mjx) is covered by the dedicated `mjx` job below; it is
     # compiler-independent so it does not need to run in every matrix job.
-
-    - name: Notify team chat
-      if: failure() && github.ref_name == 'main' && github.event_name == 'push'
-      uses: ./.github/actions/notify-chat
-      with:
-        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
-        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
-        space-id: "spaces/AAAAzcCLt1A"
-
-  # This job quickly determines if MuJoCo Studio is broken. It is the only place
-  # Filament is compiled in CI, so ccache here is what keeps the long pole short.
-  studio:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            label: "ubuntu-24.04-clang-18-studio"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-18
-              -DCMAKE_CXX_COMPILER:STRING=clang++-18
-              -DMUJOCO_HARDEN:BOOL=ON
-          # gcc canary: Filament is compiler-dependent and historically finicky on
-          # gcc, so keep one gcc Studio build even though the matrix no longer does.
-          - os: ubuntu-24.04
-            label: "ubuntu-24.04-gcc-14-studio"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-14
-              -DCMAKE_CXX_COMPILER:STRING=g++-14
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
-          - os: windows-2025
-            label: "windows-2025-ninja-studio"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_SYSTEM_VERSION=10.0.26100.0
-          - os: macos-15
-            label: "macos-15-arm64-studio"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_CXX_FLAGS="-Wno-error=deprecated-declarations"
-              -DMUJOCO_HARDEN:BOOL=ON
-
-    name: "${{ matrix.label }}"
-    runs-on: ${{ matrix.os }}
-
-    steps:
-    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      with:
-        persist-credentials: false
-
-    - name: Prepare Windows (setup MSVC)
-      if: ${{ runner.os == 'Windows' }}
-      shell: pwsh
-      run: |
-        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        $vsPath = & $vswhere -products * -latest -prerelease -property installationPath
-        $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvarsall.bat"
-        $before = @{}
-        Get-ChildItem Env: | ForEach-Object { $before[$_.Name] = $_.Value }
-        $lines = cmd.exe /c "`"$vcvars`" x64 >nul && set"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        foreach ($line in $lines) {
-          $idx = $line.IndexOf("=")
-          if ($idx -gt 0) {
-            $name = $line.Substring(0, $idx)
-            $val = $line.Substring($idx + 1)
-            if ($before[$name] -ne $val) {
-              "$name=$val" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            }
-          }
-        }
-
-    - name: Prepare Linux
-      if: ${{ runner.os == 'Linux' }}
-      run: bash ./.github/workflows/build_steps.sh prepare_linux
-
-    # Key the cache on the Filament pin: hashing cmake/third_party_deps/filament.cmake
-    # captures BOTH the pinned commit hash and the FILAMENT_* build flags, so bumping
-    # either starts a fresh cache namespace instead of restoring stale artifacts.
-    # (Correctness does not depend on this: ccache is content-addressed on the full
-    # compiler invocation, so changing any build flag forces a recompile regardless.)
-    - name: Setup ccache
-      if: ${{ runner.os != 'Windows' }}
-      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
-      with:
-        key: ${{ matrix.label }}-filament-${{ hashFiles('cmake/third_party_deps/filament.cmake') }}
-        restore-keys: ${{ matrix.label }}-filament-
-        max-size: "500M"
-        save: ${{ github.ref_name == 'main' }}
-
-    - name: Configure Studio
-      env:
-        CMAKE_ARGS: ${{ matrix.cmake_args }}
-      run: bash ./.github/workflows/build_steps.sh configure_studio
-
-    - name: Build Studio
-      run: bash ./.github/workflows/build_steps.sh build_studio
 
     - name: Notify team chat
       if: failure() && github.ref_name == 'main' && github.event_name == 'push'
