@@ -355,6 +355,38 @@ static void SetFrame(mjsBody* body, mjtObj objtype, mjsFrame* frame) {
 }
 
 
+// check if an element of the list, inside the frame if one is given, is not in the model
+template <class T>
+static bool InOtherModel(const std::vector<T*>& list,
+                         const mjCModel*        model,
+                         const mjCFrame*        frame) {
+  for (const T* element : list) {
+    if ((!frame || frame->IsAncestor(element->frame)) && element->model != model) { return true; }
+  }
+  return false;
+}
+
+
+// check if attaching a body, or the part of it inside a frame if one is given, takes an element
+// which is not in the model of the body: an earlier attachment by reference moved it
+static bool TakesMoved(const mjCBody* body, const mjCFrame* frame = nullptr) {
+  const mjCModel* model = body->model;
+  if (InOtherModel(body->GetList<mjCBody>(), model, frame) ||
+      InOtherModel(body->GetList<mjCFrame>(), model, frame) ||
+      InOtherModel(body->GetList<mjCGeom>(), model, frame) ||
+      InOtherModel(body->GetList<mjCJoint>(), model, frame) ||
+      InOtherModel(body->GetList<mjCSite>(), model, frame) ||
+      InOtherModel(body->GetList<mjCCamera>(), model, frame) ||
+      InOtherModel(body->GetList<mjCLight>(), model, frame)) {
+    return true;
+  }
+  for (const mjCBody* child : body->GetList<mjCBody>()) {
+    if ((!frame || frame->IsAncestor(child->frame)) && TakesMoved(child)) { return true; }
+  }
+  return false;
+}
+
+
 // attach body to a frame of the parent
 static mjsElement* attachBody(mjCFrame*      parent,
                               const mjCBody* child,
@@ -463,6 +495,39 @@ mjsElement* mjs_attach(mjsElement*       parent,
     child_spec = &(static_cast<const mjCModel*>(child)->spec);
   } else {
     child_spec = &(static_cast<const mjCBase*>(child)->model->spec);
+  }
+
+  // the elements of a spec attached by reference are now in the spec it was attached to
+  if (child->elemtype == mjOBJ_MODEL && static_cast<const mjCModel*>(child)->IsAttached()) {
+    model->SetError(mjCError(0,
+                             "Child spec is already attached by reference; enable deep copy to "
+                             "attach a spec more than once."));
+    return nullptr;
+  }
+
+  // attaching by reference moves elements of the child to the parent: an element which is in the
+  // parent, its own or moved there by an earlier attachment, cannot be moved there, and an element
+  // which an earlier attachment moved cannot be moved again with a body or frame which holds it
+  if (!model->GetDeepCopy()) {
+    if (child_spec == &model->spec) {
+      model->SetError(mjCError(0,
+                               "Child element is in the parent spec; enable deep copy to attach "
+                               "a copy of it."));
+      return nullptr;
+    }
+    bool moved = false;
+    if (child->elemtype == mjOBJ_BODY) {
+      moved = TakesMoved(static_cast<const mjCBody*>(child));
+    } else if (child->elemtype == mjOBJ_FRAME) {
+      const mjCFrame* frame = static_cast<const mjCFrame*>(child);
+      moved                 = frame->GetParent() && TakesMoved(frame->GetParent(), frame);
+    }
+    if (moved) {
+      model->SetError(mjCError(0,
+                               "Child element contains elements which are already attached by "
+                               "reference; enable deep copy to attach a copy of it."));
+      return nullptr;
+    }
   }
 
   // handle global attribute conflicts

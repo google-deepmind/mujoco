@@ -261,7 +261,10 @@ corresponding to the :ref:`compiler/angle<compiler-angle>` attribute, specifying
 interpreted. Compiler flags are carried over during attachment, so the child model will be compiled using the child
 flags, while the parent will be compiled using the parent flags.
 
-Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own.
+Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own or attached
+again as a whole. Its bodies and frames which are not attached yet can be attached, if they contain nothing which is
+attached already. An element of the parent, including one attached to it by reference, can be attached to the parent
+only as a copy, see :ref:`mjs_setDeepCopy`.
 
 .. admonition:: Known issues
    :class: note
@@ -270,6 +273,8 @@ Note also that once a child is attached by reference to a parent, the child cann
 
    - All assets from the child model will be copied in, whether they are referenced or not, if the parent and the child
      are not the same mjSpec.
+   - A child attached by reference more than once moves its assets to the parent with the first attachment. The elements
+     of a later attachment find them only if it has the same prefix and suffix.
    - Circular references are not checked for and will lead to infinite loops.
    - When attaching a model with :ref:`keyframes<keyframe>`, its keyframes are added to the parent right away, but
      their vectors, and those of the keyframes of the parent, are assembled for the combined model only by the next

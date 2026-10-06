@@ -239,7 +239,7 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     copying_  = false;
 
     // add keyframes
-    CopyList(keys_, other.keys_);
+    CopyList(keys_, other.keys_, other);
 
     // create new default tree
     mjCDef* subtree = new mjCDef(*other.defaults_[0]);
@@ -260,33 +260,52 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
 
 // copy vector of elements from another model to this model
 template <class T>
-void mjCModel::CopyList(std::vector<T*>& dest, const std::vector<T*>& source) {
+void mjCModel::CopyList(std::vector<T*>&       dest,
+                        const std::vector<T*>& source,
+                        const mjCModel&        other) {
+  // give an element of the other model its name in this model and find the objects it references
+  auto resolve = [this](T* element, mjCModel* source_model) {
+    element->model = this;
+    element->NameSpace(source_model);
+    element->CopyFromSpec();
+    element->ResolveReferences(this);
+  };
+
   // loop over the elements from the other model
   int nsource = (int)source.size();
   for (int i = 0; i < nsource; i++) {
-    T*        candidate    = deepcopy_ ? new T(*source[i]) : source[i];
     mjCModel* source_model = source[i]->model;
+
+    // an element which an earlier attachment moved by reference is no longer the other model's
+    if (!copying_ && source_model != &other) { continue; }
+
+    // try to find the referenced objects in this model on a copy, so that an element moved by
+    // reference stays as it is in the other model if they are not found
+    T* candidate = new T(*source[i]);
     try {
-      // try to find the referenced object in this model
-      candidate->model = this;
-      candidate->NameSpace(source_model);
-      candidate->CopyFromSpec();
-      candidate->ResolveReferences(this);
+      resolve(candidate, source_model);
     } catch (mjCError err) {
       // if not present, skip the element
       // TODO: do not skip elements that contain user errors
-      if (deepcopy_) {
-        candidate->model = nullptr;
-        delete candidate;
-      }
+      candidate->model = nullptr;
+      delete candidate;
       continue;
     }
+    if (!deepcopy_) {
+      candidate->model = nullptr;
+      delete candidate;
+      candidate = source[i];
+      resolve(candidate, source_model);
+    }
+
     // copy the element from the other model to this model; an attached element takes the keyframe
     // values which were stored for it, except those of the keyframes which stay in place
     if (!copying_) { candidate->ForgetKeyframes(source_model->inplacekeys_); }
     if (deepcopy_) {
       if (!copying_) { source[i]->ForgetKeyframes(source_model->inplacekeys_, /*keep=*/true); }
     } else {
+      // a moved element forgets its addresses in the model it comes from
+      candidate->ResetId();
       candidate->AddRef();
     }
     mjSpec* origin = FindSpec(source[i]->compiler);
@@ -395,9 +414,13 @@ void mjCModel::CopyExplicitPlugin(T* obj) {
   }
   mjCPlugin* origin    = static_cast<mjCPlugin*>(obj->spec.plugin.element);
   mjCPlugin* candidate = deepcopy_ ? new mjCPlugin(*origin) : origin;
-  candidate->id        = plugins_.size();
-  candidate->model     = this;
-  if (!deepcopy_) { candidate->AddRef(); }
+  if (!deepcopy_) {
+    // a moved plugin forgets its state address in the model it comes from
+    candidate->ResetId();
+    candidate->AddRef();
+  }
+  candidate->id    = plugins_.size();
+  candidate->model = this;
   plugins_.push_back(candidate);
   obj->spec.plugin.element = candidate;
 }
@@ -468,22 +491,22 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   if (this != &other) {
     // do not copy assets for self-attach
     // TODO: asset should be copied only when referenced
-    CopyList(meshes_, other.meshes_);
-    CopyList(skins_, other.skins_);
-    CopyList(hfields_, other.hfields_);
-    CopyList(textures_, other.textures_);
-    CopyList(materials_, other.materials_);
-    CopyList(numerics_, other.numerics_);
-    CopyList(texts_, other.texts_);
+    CopyList(meshes_, other.meshes_, other);
+    CopyList(skins_, other.skins_, other);
+    CopyList(hfields_, other.hfields_, other);
+    CopyList(textures_, other.textures_, other);
+    CopyList(materials_, other.materials_, other);
+    CopyList(numerics_, other.numerics_, other);
+    CopyList(texts_, other.texts_, other);
   }
-  CopyList(flexes_, other.flexes_);
-  CopyList(pairs_, other.pairs_);
-  CopyList(excludes_, other.excludes_);
-  CopyList(tendons_, other.tendons_);
-  CopyList(equalities_, other.equalities_);
-  CopyList(actuators_, other.actuators_);
-  CopyList(sensors_, other.sensors_);
-  CopyList(tuples_, other.tuples_);
+  CopyList(flexes_, other.flexes_, other);
+  CopyList(pairs_, other.pairs_, other);
+  CopyList(excludes_, other.excludes_, other);
+  CopyList(tendons_, other.tendons_, other);
+  CopyList(equalities_, other.equalities_, other);
+  CopyList(actuators_, other.actuators_, other);
+  CopyList(sensors_, other.sensors_, other);
+  CopyList(tuples_, other.tuples_, other);
 
   // create new plugins and map them
   CopyPlugin(other.plugins_, bodies_);
@@ -4757,6 +4780,43 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
   // it for the tree as it is now: it is laid out by the lists, and so is a keyframe of a copy of a
   // compiled model, whose elements do not have their addresses
   bool laidout = compiled && !keysstored && bodies_[0]->bodyadr_ != -1;
+
+  // an element attached to another model by reference has its addresses in that model, but this
+  // model still lists it: it takes its place in the layout of these keyframes, except in a compiled
+  // layout, which lost it when the element moved, and gets its addresses back on return
+  struct Restore {
+    std::vector<std::pair<int*, int>> saved;
+    ~Restore() {
+      for (auto [adr, value] : saved) { *adr = value; }
+    }
+  } moved;
+  auto keep = [&moved, laidout](int& adr) {
+    moved.saved.emplace_back(&adr, adr);
+    if (laidout) { adr = -1; }
+  };
+  for (mjCJoint* joint : joints_) {
+    if (joint->model != this) {
+      keep(joint->qposadr_);
+      keep(joint->dofadr_);
+    }
+  }
+  for (mjCActuator* actuator : actuators_) {
+    if (actuator->model != this) {
+      keep(actuator->actadr_);
+      keep(actuator->actdim_);
+      keep(actuator->ctrladr_);
+      keep(actuator->outadr_);
+    }
+  }
+  for (mjCBody* body : bodies_) {
+    if (body->model != this) {
+      keep(body->bodyadr_);
+      keep(body->mocapid);
+    }
+  }
+  for (mjCEquality* equality : equalities_) {
+    if (equality->model != this) { keep(equality->eqadr_); }
+  }
 
   // the addresses which are computed for the lists serve this function only, in a compiled model
   std::optional<CompiledLayout> compiledlayout;

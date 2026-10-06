@@ -3957,6 +3957,539 @@ TEST_F(MujocoTest, RecompileAttachKeepsState) {
   mj_deleteSpec(parent);
 }
 
+// the elements of a child attached by reference start from their initial state
+// when the parent is recompiled, as attached copies do
+TEST_F(MujocoTest, RecompileAttachByReference) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="f"/>
+    </worldbody>
+    <equality>
+      <joint joint1="a"/>
+    </equality>
+    <actuator>
+      <general joint="a" dyntype="filter" dynprm="1"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="a" nsample="2" delay="0.01"/>
+    </sensor>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="x">
+        <joint name="x" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <joint joint1="x"/>
+    </equality>
+    <actuator>
+      <general joint="x" dyntype="filter" dynprm="1"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="x" nsample="2" delay="0.01"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  for (bool compiled : {false, true}) {
+    for (bool key : {false, true}) {
+      std::vector<mjtNum> state[2];
+      for (bool deepcopy : {false, true}) {
+        mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+        ASSERT_THAT(parent, NotNull()) << er.data();
+        mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+        ASSERT_THAT(child, NotNull()) << er.data();
+        mjs_setDeepCopy(parent, deepcopy);
+        if (key) {
+          mjsKey* k = mjs_addKey(child);
+          double qpos = 1, ctrl = 2, act = 3;
+          mjs_setDouble(k->qpos, &qpos, 1);
+          mjs_setDouble(k->ctrl, &ctrl, 1);
+          mjs_setDouble(k->act, &act, 1);
+        }
+        if (compiled) {
+          mjModel* m = mj_compile(child, nullptr);
+          ASSERT_THAT(m, NotNull()) << mjs_getError(child);
+          mj_deleteModel(m);
+        }
+
+        mjModel* model = mj_compile(parent, nullptr);
+        ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+        mjData* data = mj_makeData(model);
+        data->qpos[0] = 5;
+        data->ctrl[0] = 7;
+        data->act[0] = 9;
+        data->eq_active[0] = 0;
+        for (int i = 0; i < model->nhistory; i++) {
+          data->history[i] = 10 + i;
+        }
+
+        ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f")->element,
+                               mjs_findBody(child, "x")->element, "c_", ""),
+                    NotNull())
+            << mjs_getError(parent);
+        ASSERT_EQ(mj_recompile(parent, nullptr, model, data), 0)
+            << mjs_getError(parent);
+        EXPECT_THAT(AsVector(data->ctrl, 2), ElementsAreArray({7, 0}));
+        EXPECT_THAT(AsVector(data->act, 2), ElementsAreArray({9, 0}));
+        state[deepcopy].resize(mj_stateSize(model, mjSTATE_INTEGRATION));
+        mj_getState(model, data, state[deepcopy].data(), mjSTATE_INTEGRATION);
+
+        mj_deleteData(data);
+        mj_deleteModel(model);
+        mj_deleteSpec(child);
+        mj_deleteSpec(parent);
+      }
+      EXPECT_EQ(state[0], state[1])
+          << "compiled " << compiled << ", key " << key;
+    }
+  }
+}
+
+// a joint inside a frame attached by reference starts from its initial state
+// when the parent is recompiled
+TEST_F(MujocoTest, RecompileAttachFrameByReference) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint type="hinge" axis="1 0 0"/>
+        <joint type="hinge" axis="0 1 0"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="hinge" axis="1 0 0"/>
+        <geom size=".1"/>
+        <frame name="f">
+          <joint type="hinge" axis="0 0 1"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  for (bool deepcopy : {false, true}) {
+    mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+    ASSERT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjs_setDeepCopy(parent, deepcopy);
+
+    mjModel* model = mj_compile(parent, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+    mjData* data = mj_makeData(model);
+    data->qpos[0] = 5;
+    data->qpos[1] = 6;
+    data->qvel[0] = 50;
+    data->qvel[1] = 60;
+
+    ASSERT_THAT(mjs_attach(mjs_findBody(parent, "A")->element,
+                           mjs_findFrame(child, "f")->element, "c_", ""),
+                NotNull())
+        << mjs_getError(parent);
+    ASSERT_EQ(mj_recompile(parent, nullptr, model, data), 0)
+        << mjs_getError(parent);
+    ASSERT_EQ(model->nq, 3);
+    EXPECT_THAT(AsVector(data->qpos, 3), ElementsAreArray({5, 6, 0}));
+    EXPECT_THAT(AsVector(data->qvel, 3), ElementsAreArray({50, 60, 0}));
+
+    mj_deleteData(data);
+    mj_deleteModel(model);
+    mj_deleteSpec(child);
+    mj_deleteSpec(parent);
+  }
+}
+
+// a child attached by reference again lays out its keyframes with the bodies it
+// attached before, which keep their state in the parent
+TEST_F(MujocoTest, RecompileAttachByReferenceAgain) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body mocap="true"/>
+      <body>
+        <joint type="hinge"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="f1"/>
+      <frame name="f2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="m" mocap="true">
+        <body>
+          <joint type="hinge"/>
+          <geom size=".1"/>
+        </body>
+      </body>
+      <body name="y">
+        <joint type="hinge"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  for (bool compiled : {false, true}) {
+    std::vector<mjtNum> state[2];
+    std::vector<mjtNum> keys[2];
+    for (bool deepcopy : {false, true}) {
+      mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+      ASSERT_THAT(parent, NotNull()) << er.data();
+      mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+      ASSERT_THAT(child, NotNull()) << er.data();
+      mjs_setDeepCopy(parent, deepcopy);
+      if (compiled) {
+        mjModel* m = mj_compile(child, nullptr);
+        ASSERT_THAT(m, NotNull()) << mjs_getError(child);
+        mj_deleteModel(m);
+      }
+
+      ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f1")->element,
+                             mjs_findBody(child, "m")->element, "m_", ""),
+                  NotNull())
+          << mjs_getError(parent);
+      mjModel* model = mj_compile(parent, nullptr);
+      ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+      mjData* data = mj_makeData(model);
+      for (int i = 0; i < model->nq; i++) {
+        data->qpos[i] = 5 + i;
+        data->qvel[i] = 50 + i;
+      }
+      for (int i = 0; i < 6 * model->nbody; i++) {
+        data->xfrc_applied[i] = 100 + i;
+      }
+      for (int i = 0; i < 3 * model->nmocap; i++) {
+        data->mocap_pos[i] = 200 + i;
+      }
+
+      ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f2")->element,
+                             mjs_findBody(child, "y")->element, "y_", ""),
+                  NotNull())
+          << mjs_getError(parent);
+      ASSERT_EQ(mj_recompile(parent, nullptr, model, data), 0)
+          << mjs_getError(parent);
+      ASSERT_EQ(model->nq, 3);
+      EXPECT_THAT(AsVector(data->qpos, 3), ElementsAreArray({5, 6, 0}));
+      state[deepcopy].resize(mj_stateSize(model, mjSTATE_INTEGRATION));
+      mj_getState(model, data, state[deepcopy].data(), mjSTATE_INTEGRATION);
+      keys[deepcopy] = AsVector(model->key_qpos, model->nkey * model->nq);
+
+      mj_deleteData(data);
+      mj_deleteModel(model);
+      mj_deleteSpec(child);
+      mj_deleteSpec(parent);
+    }
+    EXPECT_EQ(state[0], state[1]) << "compiled " << compiled;
+
+    // the place of the body attached before is lost from the compiled layout
+    if (compiled) {
+      EXPECT_EQ(keys[0], keys[1]);
+    }
+  }
+}
+
+// a child attached by reference again gives its elements outside the tree to
+// the attachment whose bodies they refer to, as copies do
+TEST_F(MujocoTest, AttachByReferenceAgain) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="f1"/>
+      <frame name="f2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="x">
+        <joint name="x"/>
+        <geom size=".1"/>
+      </body>
+      <body name="y">
+        <joint name="y"/>
+        <geom name="y1" size=".1"/>
+        <geom name="y2" size=".1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="y1" geom2="y2"/>
+    </contact>
+    <tendon>
+      <fixed name="t">
+        <joint joint="y" coef="1"/>
+      </fixed>
+    </tendon>
+    <equality>
+      <joint joint1="y"/>
+    </equality>
+    <actuator>
+      <general joint="x"/>
+      <general name="u" joint="y"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="y"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjModel* model[2];
+  for (bool deepcopy : {false, true}) {
+    mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+    ASSERT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjs_setDeepCopy(parent, deepcopy);
+    mjsElement* y = mjs_findBody(child, "y")->element;
+    mjsActuator* u =
+        mjs_asActuator(mjs_findElement(child, mjOBJ_ACTUATOR, "u"));
+
+    ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f1")->element,
+                           mjs_findBody(child, "x")->element, "c_", ""),
+                NotNull())
+        << mjs_getError(parent);
+
+    // the actuator of y stays in the child as it is
+    EXPECT_STREQ(mjs_getString(mjs_getName(u->element)), "u");
+    EXPECT_STREQ(mjs_getString(u->target), "y");
+    EXPECT_EQ(mjs_getSpec(u->element), child);
+
+    ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f2")->element, y, "d_", ""),
+                NotNull())
+        << mjs_getError(parent);
+    model[deepcopy] = mj_compile(parent, nullptr);
+    ASSERT_THAT(model[deepcopy], NotNull()) << mjs_getError(parent);
+    mj_deleteSpec(child);
+    mj_deleteSpec(parent);
+  }
+  ASSERT_EQ(model[1]->nu, 2);
+  std::string field;
+  EXPECT_EQ(CompareModel(model[0], model[1], field), 0) << field;
+  mj_deleteModel(model[0]);
+  mj_deleteModel(model[1]);
+}
+
+// attaching a frame by reference leaves the rest of its body in the child
+TEST_F(MujocoTest, AttachFrameByReferenceLeavesChild) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="x">
+        <joint name="x0"/>
+        <geom name="gx" size=".1"/>
+        <frame name="f">
+          <joint name="jx" axis="1 0 0"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjModel* model[2];
+  for (bool deepcopy : {false, true}) {
+    mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+    ASSERT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjs_setDeepCopy(parent, deepcopy);
+    mjsElement* x0 = mjs_findElement(child, mjOBJ_JOINT, "x0");
+    mjsElement* gx = mjs_findElement(child, mjOBJ_GEOM, "gx");
+
+    ASSERT_THAT(mjs_attach(mjs_findBody(parent, "A")->element,
+                           mjs_findFrame(child, "f")->element, "c_", ""),
+                NotNull())
+        << mjs_getError(parent);
+    EXPECT_STREQ(mjs_getString(mjs_getName(x0)), "x0");
+    EXPECT_STREQ(mjs_getString(mjs_getName(gx)), "gx");
+    EXPECT_EQ(mjs_getSpec(x0), child);
+    EXPECT_EQ(mjs_getSpec(gx), child);
+
+    model[deepcopy] = mj_compile(parent, nullptr);
+    ASSERT_THAT(model[deepcopy], NotNull()) << mjs_getError(parent);
+    mj_deleteSpec(child);
+    mj_deleteSpec(parent);
+  }
+  std::string field;
+  EXPECT_EQ(CompareModel(model[0], model[1], field), 0) << field;
+  mj_deleteModel(model[0]);
+  mj_deleteModel(model[1]);
+}
+
+// the elements of a spec attached by reference are in the parent, the spec
+// cannot be attached again as a whole
+TEST_F(MujocoTest, AttachSpecByReferenceAgain) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="f1"/>
+      <frame name="f2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f1")->element, child->element,
+                         "r0/", ""),
+              NotNull())
+      << mjs_getError(parent);
+  EXPECT_THAT(mjs_attach(mjs_findFrame(parent, "f2")->element, child->element,
+                         "r1/", ""),
+              IsNull());
+  EXPECT_THAT(mjs_getError(parent), HasSubstr("already attached by reference"));
+
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
+// attaching by reference an element which is in the parent, its own or one
+// moved there by an earlier attachment, or a body which contains one, fails and
+// leaves the parent as it was; a copy can be attached
+TEST_F(MujocoTest, AttachByReferenceInParent) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint/>
+        <geom size=".1"/>
+      </body>
+      <frame name="f1"/>
+      <frame name="f2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="x">
+        <joint/>
+        <geom size=".1"/>
+        <frame name="fx">
+          <joint axis="1 0 0"/>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr const char* kError[] = {
+      "in the parent spec", "already attached by reference",
+      "in the parent spec", "in the parent spec", "in the parent spec"};
+
+  std::array<char, 1000> er;
+  for (int i = 0; i < 5; i++) {
+    for (bool deepcopy : {false, true}) {
+      mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+      ASSERT_THAT(parent, NotNull()) << er.data();
+      mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+      ASSERT_THAT(child, NotNull()) << er.data();
+      mjsElement* f1 = mjs_findFrame(parent, "f1")->element;
+      mjsElement* f2 = mjs_findFrame(parent, "f2")->element;
+      mjsElement* a = mjs_findBody(parent, "A")->element;
+      mjsElement* x = mjs_findBody(child, "x")->element;
+      mjsElement* fx = mjs_findFrame(child, "fx")->element;
+
+      // parent and child of the first attachment, if any, and of the second
+      mjsElement* attach[5][4] = {
+          {f1, x, f2, x},               // the same body twice
+          {a, fx, f2, x},               // a body after one of its frames
+          {f1, child->element, f2, x},  // a body of a spec attached whole
+          {nullptr, nullptr, f1, a},    // a body of the parent
+          {nullptr, nullptr, a, f2},    // a frame of the parent
+      };
+      if (attach[i][0]) {
+        ASSERT_THAT(mjs_attach(attach[i][0], attach[i][1], "c_", ""), NotNull())
+            << mjs_getError(parent);
+      }
+      mjModel* model = mj_compile(parent, nullptr);
+      ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+
+      mjs_setDeepCopy(parent, deepcopy);
+      mjsElement* attached = mjs_attach(attach[i][2], attach[i][3], "d_", "");
+      if (deepcopy) {
+        EXPECT_THAT(attached, NotNull()) << mjs_getError(parent);
+        mjModel* copied = mj_compile(parent, nullptr);
+        EXPECT_THAT(copied, NotNull()) << mjs_getError(parent);
+        mj_deleteModel(copied);
+      } else {
+        EXPECT_THAT(attached, IsNull()) << i;
+        EXPECT_THAT(mjs_getError(parent), HasSubstr(kError[i]));
+
+        // the parent has each body once, and compiles to the same model
+        int nbody = 0;
+        for (mjsElement* el = mjs_firstElement(parent, mjOBJ_BODY);
+             el && nbody <= model->nbody; el = mjs_nextElement(parent, el)) {
+          nbody++;
+        }
+        EXPECT_EQ(nbody, model->nbody) << i;
+        mjModel* again = mj_compile(parent, nullptr);
+        ASSERT_THAT(again, NotNull()) << mjs_getError(parent);
+        std::string field;
+        EXPECT_EQ(CompareModel(model, again, field), 0) << field;
+        mj_deleteModel(again);
+      }
+
+      mj_deleteModel(model);
+      mj_deleteSpec(child);
+      mj_deleteSpec(parent);
+    }
+  }
+}
+
 TEST_F(MujocoTest, RecompileControlBlocks) {
   std::array<char, 1000> er;
 

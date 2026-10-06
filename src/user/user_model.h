@@ -382,6 +382,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // set deepcopy flag
   void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
 
+  // get deepcopy flag
+  bool GetDeepCopy() const { return deepcopy_; }
+
   // set attached flag
   void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
 
@@ -490,9 +493,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   T* AddObjectDefault(std::vector<T*>& list, std::string type, mjCDef* def);
 
-  // copy vector of elements to this model
+  // copy vector of elements of another model to this model
   template <class T>
-  void CopyList(std::vector<T*>& dest, const std::vector<T*>& sources);
+  void CopyList(std::vector<T*>& dest, const std::vector<T*>& sources, const mjCModel& other);
 
   // copy plugins that are explicitly instantiated by the argument object to this model
   template <class T>

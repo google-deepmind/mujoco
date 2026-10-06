@@ -636,6 +636,9 @@ in the parent and therefore modifying the child will modify the parent. This is 
 :ref:`attach<body-attach>` and :ref:`replicate<replicate>` meta-elements in MJCF, which create deep copies while
 attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attach`` to
 ``True``. In this case, the child spec is copied and the references to the child will not point to the parent.
+Without copying, a child spec can be attached as a whole only once, since its elements move to the parent; its bodies
+and frames which are not attached yet can still be attached, if they contain nothing which is attached already. An
+element of the parent, including one attached to it, can be attached to the parent only as a copy.
 
 .. code-block:: python
 
@@ -647,16 +650,18 @@ attaching. However, it is possible to override the default behavior by setting `
    frame = parent.worldbody.add_frame()
    site = parent.worldbody.add_site()
 
-   # Create the child spec.
+   # Create the child specs.
    child = mujoco.MjSpec()
    child_body = child.worldbody.add_body()
    child_frame = child.worldbody.add_frame()
+   child2 = mujoco.MjSpec()
+   child3 = mujoco.MjSpec()
 
-   # Attach the child to the parent in different ways.
+   # Attach the children to the parent in different ways.
    body_in_frame = frame.attach_body(child_body, 'child-', '')
    frame_in_body = body.attach_frame(child_frame, 'child-', '')
-   worldframe_in_site = parent.attach(child, site=site, prefix='child-')
-   worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
+   worldframe_in_site = parent.attach(child2, site=site, prefix='child2-')
+   worldframe_in_frame = parent.attach(child3, frame=frame, prefix='child3-')
 
 .. _PyEditConvenience:
 

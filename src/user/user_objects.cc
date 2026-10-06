@@ -1746,11 +1746,8 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->model    = model;
   frames.back()->compiler = origin ? &origin->compiler : &model->spec.compiler;
   frames.back()->frame    = other.frame;
-  if (model->deepcopy_) {
-    frames.back()->NameSpace(other_model);
-  } else {
-    frames.back()->AddRef();
-  }
+  frames.back()->NameSpace(other_model);
+  if (!model->deepcopy_) { frames.back()->AddRef(); }
   int i         = frames.size();
   last_attached = &frames.back()->spec;
 
@@ -1772,13 +1769,6 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   CopyList(cameras, subtree->cameras, fmap, &other);
   CopyList(lights, subtree->lights, fmap, &other);
 
-  if (!model->deepcopy_) {
-    std::string name = subtree->name;
-    subtree->SetModel(model);
-    subtree->NameSpace(other_model);
-    subtree->name = name;
-  }
-
   int nbodies = (int)subtree->bodies.size();
   for (int i = 0; i < nbodies; i++) {
     if (!other.IsAncestor(subtree->bodies[i]->frame)) { continue; }
@@ -1791,6 +1781,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
       bodies.back()->SetModel(model);
       bodies.back()->ResetId();
       bodies.back()->AddRef();
+      bodies.back()->NameSpace(other_model);
     }
 
     // the attached body does not take the values of the keyframes which stay in place in the
@@ -1827,8 +1818,9 @@ void mjCBody::CopyList(std::vector<T*>&          dst,
     if (pframe && !pframe->IsAncestor(src[i]->frame)) {
       continue;  // skip if the element is not inside pframe
     }
-    mjSpec* origin  = model->FindSpec(src[i]->compiler);
-    T*      new_obj = model->deepcopy_ ? new T(*src[i]) : src[i];
+    mjSpec*   origin       = model->FindSpec(src[i]->compiler);
+    mjCModel* source_model = src[i]->model;
+    T*        new_obj      = model->deepcopy_ ? new T(*src[i]) : src[i];
 
     // an attached element does not take the values of the keyframes which stay in place
     if (pframe) { new_obj->ForgetKeyframes(src[i]->model->inplacekeys_); }
@@ -1840,11 +1832,15 @@ void mjCBody::CopyList(std::vector<T*>&          dst,
     dst.back()->CopyPlugin();
     dst.back()->classname = src[i]->classname;
 
-    // increment refcount if shallow copy is made
-    if (!model->deepcopy_) { dst.back()->AddRef(); }
+    // increment refcount if shallow copy is made; the moved element forgets its addresses in the
+    // model it comes from
+    if (!model->deepcopy_) {
+      dst.back()->AddRef();
+      dst.back()->ResetId();
+    }
 
-    // set namespace
-    dst.back()->NameSpace(src[i]->model);
+    // set namespace; an element moved by reference was given this model above
+    dst.back()->NameSpace(source_model);
   }
 
   // assign dst frame to src frame
@@ -1923,11 +1919,7 @@ void mjCBody::ResetId() {
   for (auto& body : bodies) { body->ResetId(); }
   for (auto& frame : frames) { frame->id = -1; }
   for (auto& geom : geoms) { geom->id = -1; }
-  for (auto& joint : joints) {
-    joint->id       = -1;
-    joint->qposadr_ = -1;
-    joint->dofadr_  = -1;
-  }
+  for (auto& joint : joints) { joint->ResetId(); }
   for (auto& site : sites) { site->id = -1; }
   for (auto& camera : cameras) { camera->id = -1; }
   for (auto& light : lights) { light->id = -1; }
@@ -3131,6 +3123,13 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
   }
   PointToLocal();
   return *this;
+}
+
+
+void mjCJoint::ResetId() {
+  id       = -1;
+  qposadr_ = -1;
+  dofadr_  = -1;
 }
 
 
@@ -6134,6 +6133,12 @@ mjCEquality& mjCEquality::operator=(const mjCEquality& other) {
 }
 
 
+void mjCEquality::ResetId() {
+  id     = -1;
+  eqadr_ = -1;
+}
+
+
 void mjCEquality::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name1   = &spec_name1_;
@@ -6831,6 +6836,17 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
 }
 
 
+void mjCActuator::ResetId() {
+  id          = -1;
+  actadr_     = -1;
+  actdim_     = -1;
+  ctrladr_    = -1;
+  outadr_     = -1;
+  historyadr_ = -1;
+  historynum_ = 0;
+}
+
+
 void mjCActuator::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
   forgetvalues(act_, names, keep);
   forgetvalues(ctrl_, names, keep);
@@ -7498,6 +7514,13 @@ mjCSensor& mjCSensor::operator=(const mjCSensor& other) {
   }
   PointToLocal();
   return *this;
+}
+
+
+void mjCSensor::ResetId() {
+  id          = -1;
+  historyadr_ = -1;
+  historynum_ = 0;
 }
 
 
@@ -8630,6 +8653,13 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
   }
   PointToLocal();
   return *this;
+}
+
+
+void mjCPlugin::ResetId() {
+  id        = -1;
+  stateadr_ = -1;
+  statenum_ = 0;
 }
 
 

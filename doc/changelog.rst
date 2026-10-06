@@ -39,6 +39,9 @@ Bug fixes
   changes (:ref:`mjs_delete`, :ref:`mjs_attach`) and when the spec is copied; previously the next compilation
   created them again, and values were lost or misplaced in several cases. A vector which is shorter than the model
   is completed with the default configuration of the compiled model.
+- Fixed attaching by reference, the default of :ref:`mjs_attach`: :ref:`mj_recompile` gave the attached elements
+  the state of other elements of the parent, and attaching another body or frame of the same model failed or left
+  out the elements which refer to it. Attaching what the parent already has is now an error.
 
 Models
 ^^^^^^

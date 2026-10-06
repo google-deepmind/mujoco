@@ -415,6 +415,9 @@ class mjCBase : public mjCBase_ {
   // others if keep is true
   virtual void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false) {}
 
+  // forget the id of this element and the addresses of its state in the compiled model
+  virtual void ResetId() { id = -1; }
+
   // increment and decrement reference count
   // release uses the argument to delete the plugin
   // which may be still owned by the source spec during shallow attach
@@ -742,6 +745,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   mjtNum* qpos(const std::string& state_name);
   mjtNum* qvel(const std::string& state_name);
   void    ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
+  void    ResetId();
 
  private:
   int  Compile(void);  // compiler; return dofnum
@@ -1684,6 +1688,7 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
+  void ResetId();
 
  private:
   void Compile(void);  // compiler
@@ -1814,6 +1819,7 @@ class mjCPlugin : public mjCPlugin_ {
   mjCPlugin& operator=(const mjCPlugin& other);
 
   void PointToLocal();
+  void ResetId();
 
   mjsPlugin spec;
   mjCBase*  parent;       // parent object (only used when generating error message)
@@ -1897,6 +1903,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void CopyPlugin();
 
   void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
+  void ResetId();
 
   mjCBase* ptarget;  // transmission target
 };
@@ -1949,6 +1956,7 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
+  void ResetId();
 
   mjCBase* obj;  // sensorized object
   mjCBase* ref;  // sensorized reference
