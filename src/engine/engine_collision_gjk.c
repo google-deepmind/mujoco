@@ -20,7 +20,6 @@
 #include <string.h>
 
 #include <mujoco/mjtype.h>
-#include <mujoco/mjmodel.h>
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -100,6 +99,7 @@ typedef struct {
     int* indices;     // indices of faces on horizon
     int* edges;       // corresponding edge of each face on the horizon
     int nedges;       // number of edges in horizon
+    int maxedges;     // max number of edges in horizon
     const mjtNum* w;  // point where horizon is created
   } horizon;
 } Polytope;
@@ -1273,10 +1273,16 @@ static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
 }
 
 
-// add an edge to the horizon
-static inline void addEdge(Polytope* pt, int index, int edge) {
-  pt->horizon.edges[pt->horizon.nedges] = edge;
-  pt->horizon.indices[pt->horizon.nedges++] = index;
+// add an edge to the horizon; return number of edges added
+static inline int addEdge(Polytope* pt, int index, int edge) {
+  // always increment nedges so we can produce a useful warning if threshold is exceeded
+  int i = pt->horizon.nedges++;
+  if (i < pt->horizon.maxedges) {
+    pt->horizon.edges[i] = edge;
+    pt->horizon.indices[i] = index;
+    return 1;
+  }
+  return 0;
 }
 
 
@@ -1295,6 +1301,7 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
     if (dot3(face->v, pt->horizon.w) - face->dist2 > mjMINVAL) {
       int verts[3] = EPA_VERT_EXPAND(face->verts);
       deleteFace(pt, face);
+      int ret = 1;
 
       // recursively search the adjacent faces on the next two edges
       for (int k = 1; k < 3; k++) {
@@ -1302,42 +1309,34 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
         Face* adjFace = &pt->faces[face->adj[i]];
         if (adjFace->index > -2) {
           int adjEdge = getEdge(adjFace, verts[(i + 1) % 3]);
-          if (!horizonRec(pt, adjFace, adjEdge)) {
-            addEdge(pt, face->adj[i], adjEdge);
+          int r = horizonRec(pt, adjFace, adjEdge);
+          if (r < 0 || (!r && !addEdge(pt, face->adj[i], adjEdge))) {
+            ret = -1;
           }
         }
       }
-      return 1;
+      return ret;
     }
   return 0;
 }
 
 
-// create horizon given the face as starting point
-static void horizon(Polytope* pt, Face* face) {
+// create horizon given the face as starting point; return 0 on success
+static int horizon(Polytope* pt, Face* face) {
   deleteFace(pt, face);
   int verts[3] = EPA_VERT_EXPAND(face->verts);
-
-  // first edge
-  Face* adjFace = &pt->faces[face->adj[0]];
-  int adjEdge = getEdge(adjFace, verts[1]);
-  if (!horizonRec(pt, adjFace, adjEdge)) {
-    addEdge(pt, face->adj[0], adjEdge);
+  int ret = 0;
+  for (int i = 0; i < 3; i++) {
+    Face* adjFace = &pt->faces[face->adj[i]];
+    if (adjFace->index > -2) {
+      int adjEdge = getEdge(adjFace, verts[(i + 1) % 3]);
+      int r = horizonRec(pt, adjFace, adjEdge);
+      if (r < 0 || (!r && !addEdge(pt, face->adj[i], adjEdge))) {
+        ret = -1;
+      }
+    }
   }
-
-  // second edge
-  adjFace = &pt->faces[face->adj[1]];
-  adjEdge = getEdge(adjFace, verts[2]);
-  if (adjFace->index > -2 && !horizonRec(pt, adjFace, adjEdge)) {
-    addEdge(pt, face->adj[1], adjEdge);
-  }
-
-  // third edge
-  adjFace = &pt->faces[face->adj[2]];
-  adjEdge = getEdge(adjFace, verts[0]);
-  if (adjFace->index > -2 && !horizonRec(pt, adjFace, adjEdge)) {
-    addEdge(pt, face->adj[2], adjEdge);
-  }
+  return ret;
 }
 
 
@@ -1428,7 +1427,14 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
     }
 
     pt->horizon.w = w->vert;
-    horizon(pt, face);
+    if (horizon(pt, face) < 0) {
+      mju_warning(
+          "EPA: out of memory for horizon edges on expanding polytope, "
+          "set ccd_iterations to at least %d",
+          pt->horizon.nedges + 11);
+      face = NULL;
+      break;
+    }
 
     // unrecoverable numerical issue; at least one face was deleted so nedges is 3 or more
     if (pt->horizon.nedges < 3) {
@@ -2387,11 +2393,12 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
 
 // return size in bytes of the buffer needed for mjc_ccd for a given number of iterations
 size_t mjc_ccdSize(int npolygonmax, int nmeshdegmax, int iterations) {
+  int maxedges = 24 + (iterations > 35 ? iterations - 35 : 0);
   size_t epa_size = align8(sizeof(Vertex) * (5 + iterations))   // vertices in polytope
                   + align8(sizeof(Face) * 6 * iterations)       // faces in polytope
                   + align8(sizeof(Face*) * 6 * iterations)      // map in polytope
-                  + align8(sizeof(int) * 24)                    // horizon indices
-                  + align8(sizeof(int) * 24);                   // horizon edges
+                  + align8(sizeof(int) * maxedges)              // horizon indices
+                  + align8(sizeof(int) * maxedges);             // horizon edges
 
   // allocate room for primitive geoms (multicontact is hardwired for primitive collisions)
   npolygonmax = npolygonmax < 16 ? 16 : npolygonmax;
@@ -2514,6 +2521,7 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     // allocate memory for polytope
     int N = config->max_iterations;
     pt.maxfaces = 6 * N;
+    pt.horizon.maxedges = 24 + (N > 35 ? N - 35 : 0);
     uint8_t* buffer = config->buffer;
     pt.verts = (Vertex*)buffer;
     buffer += align8(sizeof(Vertex) * (5 + N));
@@ -2522,7 +2530,7 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     pt.map = (Face**)buffer;
     buffer += align8(sizeof(Face*) * (6 * N));
     pt.horizon.indices = (int*)buffer;
-    buffer += align8(sizeof(int) * 24);
+    buffer += align8(sizeof(int) * pt.horizon.maxedges);
     pt.horizon.edges = (int*)buffer;
 
     int ret;

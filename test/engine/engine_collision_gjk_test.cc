@@ -89,7 +89,7 @@ mjtNum GeomDist(const MjModelPtr& m, const MjDataPtr& d, int g1, int g2,
 int Penetration(mjCCDStatus& status, mjtNum& depth, std::vector<mjtNum>& dir,
                 std::vector<mjtNum>& pos, const MjModelPtr& model,
                 const MjDataPtr& data, int g1, int g2, mjtNum margin = 0,
-                int max_contacts = 1) {
+                int max_contacts = 1, int max_iterations = kMaxIterations) {
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, model.get(), data.get(), g1, margin);
   mjc_initCCDObj(&obj2, model.get(), data.get(), g2, margin);
@@ -100,7 +100,7 @@ int Penetration(mjCCDStatus& status, mjtNum& depth, std::vector<mjtNum>& dir,
     CCD_INIT(&ccd);
     ccd.mpr_tolerance = kTolerance;
     ccd.epa_tolerance = kTolerance;
-    ccd.max_iterations = kMaxIterations;
+    ccd.max_iterations = max_iterations;
     ccd.center1 = mjccd_center;
     ccd.center2 = mjccd_center;
     ccd.support1 = mjccd_support;
@@ -125,8 +125,8 @@ int Penetration(mjCCDStatus& status, mjtNum& depth, std::vector<mjtNum>& dir,
 
   // set config
   auto buffer = std::vector<std::byte>(
-      mjc_ccdSize(model->npolygonmax, model->nmeshdegmax, kMaxIterations));
-  config.max_iterations = kMaxIterations;
+      mjc_ccdSize(model->npolygonmax, model->nmeshdegmax, max_iterations));
+  config.max_iterations = max_iterations;
   config.tolerance = kTolerance;
   config.max_contacts = max_contacts;
   config.dist_cutoff = 0;  // no geom distances needed
@@ -2520,6 +2520,44 @@ TEST_F(MjGjkTest, Polytope3CoplanarSupport) {
   int ncons = Penetration(status, dist, dir, pos, model, data, 0, 1);
   EXPECT_EQ(ncons, 0);
   EXPECT_NE(status.epa_status, mjEPA_SUCCESS);
+}
+
+TEST_F(MjGjkTest, EpaLargeHorizon) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cone" scale=".05 .05 .05"
+            vertex="0 0 1  .01 0 1  1 0 0  -.5 .87 0  -.5 -.87 0"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="cylinder" size=".035 .1"
+            pos=".0327 .0274 -.0567" quat="1 .1636 .2291 -.3265"/>
+      <geom name="geom2" type="mesh" mesh="cone"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+
+  // 25-edge horizon exceeds the 24-edge limit at 35 iterations
+  mock_warning_handler.ExpectWarnings(
+      "EPA: out of memory for horizon edges on expanding polytope, "
+      "set ccd_iterations to at least 36");
+  EXPECT_EQ(Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1, 35),
+            0);
+
+  // succeeds when iterations are increased to 36
+  EXPECT_EQ(Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1, 36),
+            1);
+  EXPECT_LT(dist, 0);
 }
 
 }  // namespace mujoco
