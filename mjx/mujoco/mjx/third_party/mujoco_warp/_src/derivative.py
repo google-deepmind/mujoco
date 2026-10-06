@@ -79,8 +79,13 @@ def _qderiv_actuator_passive_vel(
 
   actuator_gainprm_id = worldid % actuator_gainprm.shape[0]
   actuator_biasprm_id = worldid % actuator_biasprm.shape[0]
+  actuator_dynprm_id = worldid % actuator_dynprm.shape[0]
+  opt_timestep_id = worldid % opt_timestep.shape[0]
 
   bias = float(0.0)
+  R_dcmotor = float(0.0)
+  K_dcmotor = float(0.0)
+  te_dcmotor = float(0.0)
 
   if actuator_gaintype[actid] == GainType.AFFINE:
     gain = actuator_gainprm[actuator_gainprm_id, actid][2]
@@ -94,28 +99,27 @@ def _qderiv_actuator_passive_vel(
     )
   elif actuator_gaintype[actid] == GainType.DCMOTOR:
     gain = 0.0
-    dynprm = actuator_dynprm[worldid % actuator_dynprm.shape[0], actid]
+    dynprm = actuator_dynprm[actuator_dynprm_id, actid]
     gainprm = actuator_gainprm[actuator_gainprm_id, actid]
     te = dynprm[0]
+    K = gainprm[1]
 
-    # controller velocity derivative: dV/dω
+    # controller velocity derivative dV/dω using nameplate resistance
     dVdw = 0.0
     if (actuator_ctrlspec[actid] & 7) != 0:
-      R = wp.max(MJ_MINVAL, gainprm[0])
-      K = gainprm[1]
-      dVdw = -gainprm[6] * R / K + K
+      R0 = wp.max(MJ_MINVAL, gainprm[0])
+      dVdw = -gainprm[6] * R0 / K + K
+
+    # winding resistance at current temperature
+    R = util_misc.dcmotor_resistance(act_in, worldid, actuator_actadr[actid], dynprm, gainprm)
 
     if te > 0.0:
       # stateful current with actearly: d(K*next_act)/dω
       # includes both back-EMF (-K) and controller (dVdw) through act_dot
-      R = wp.max(MJ_MINVAL, gainprm[0])
-      K = gainprm[1]
-      s = 1.0 - wp.exp(-opt_timestep[worldid % opt_timestep.shape[0]] / te)
+      s = 1.0 - wp.exp(-opt_timestep[opt_timestep_id] / te)
       bias += K * (dVdw - K) * s / R
     elif dVdw != 0.0:
       # stateless: controller terms only (back-EMF handled in bias block)
-      R = wp.max(MJ_MINVAL, gainprm[0])
-      K = gainprm[1]
       bias += K * dVdw / R
 
     # LuGre: force includes -sigma1*z_dot, z_dot = a*z + v
@@ -123,31 +127,27 @@ def _qderiv_actuator_passive_vel(
     sigma1 = dynprm[6]
     if sigma1 > 0.0:
       bias -= sigma1
+
+    R_dcmotor = R
+    K_dcmotor = K
+    te_dcmotor = te
   else:
     gain = 0.0
 
   if actuator_biastype[actid] == BiasType.AFFINE:
     bias += actuator_biasprm[actuator_biasprm_id, actid][2]
   elif actuator_biastype[actid] == BiasType.DCMOTOR:
-    dynprm = actuator_dynprm[worldid % actuator_dynprm.shape[0], actid]
-    te = dynprm[0]
-    if te <= 0.0:
-      gainprm = actuator_gainprm[actuator_gainprm_id, actid]
-      R = gainprm[0]
-      K = gainprm[1]
-
-      slots = util_misc.dcmotor_slots(dynprm, gainprm)
-      slot_Ta = slots[2]
-
-      if slot_Ta >= 0:
-        adr = actuator_actadr[actid] + slot_Ta
-        T = act_in[worldid, adr]
-        alpha = gainprm[2]
-        T0 = gainprm[3]
-        Ta = dynprm[4]
-        R *= 1.0 + alpha * (T + Ta - T0)
-
-      bias += -K * K / wp.max(MJ_MINVAL, R)
+    if R_dcmotor > 0.0:
+      if te_dcmotor <= 0.0:
+        bias += -K_dcmotor * K_dcmotor / R_dcmotor
+    else:
+      dynprm = actuator_dynprm[actuator_dynprm_id, actid]
+      te = dynprm[0]
+      if te <= 0.0:
+        gainprm = actuator_gainprm[actuator_gainprm_id, actid]
+        K = gainprm[1]
+        R = util_misc.dcmotor_resistance(act_in, worldid, actuator_actadr[actid], dynprm, gainprm)
+        bias += -K * K / R
 
   if bias == 0.0 and gain == 0.0:
     vel_out[worldid, actid] = 0.0
@@ -169,9 +169,9 @@ def _qderiv_actuator_passive_vel(
       # use next activation if actearly is set (matching forward pass)
       if actuator_actearly[actid]:
         act = next_act(
-          opt_timestep[worldid % opt_timestep.shape[0]],
+          opt_timestep[opt_timestep_id],
           actuator_dyntype[actid],
-          actuator_dynprm[worldid % actuator_dynprm.shape[0], actid],
+          actuator_dynprm[actuator_dynprm_id, actid],
           actuator_actrange[worldid % actuator_actrange.shape[0], actid],
           act_in[worldid, act_adr],
           act_dot_in[worldid, act_adr],

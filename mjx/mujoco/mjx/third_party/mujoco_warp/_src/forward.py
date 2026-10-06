@@ -1680,21 +1680,11 @@ def _actuator_force(
     lengthrange = actuator_lengthrange[worldid % actuator_lengthrange.shape[0], uid]
     gain = util_misc.muscle_gain(length, velocity, lengthrange, acc0, gainprm)
   elif gaintype == GainType.DCMOTOR:
-    R = gainprm[0]
     K = gainprm[1]
     te = dynprm[0]
+    R = util_misc.dcmotor_resistance(act_in, worldid, act_first, dynprm, gainprm)
 
-    if na and act_first >= 0:
-      slots = util_misc.dcmotor_slots(dynprm, gainprm)
-      adr = act_first
-      if slots[2] >= 0:
-        T = act_in[worldid, adr + slots[2]]
-        alpha = gainprm[2]
-        T0 = gainprm[3]
-        Ta = dynprm[4]
-        R *= 1.0 + alpha * (T + Ta - T0)
-
-    gain = K if te > 0.0 else K / wp.max(MJ_MINVAL, R)
+    gain = K if te > 0.0 else K / R
 
     if te <= 0.0:
       if ctrlnum == 0:
