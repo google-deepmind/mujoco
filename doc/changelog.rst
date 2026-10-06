@@ -5,6 +5,12 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+Engine
+^^^^^^
+- Corrected the shear contribution to solid and membrane stiffness for interpolated flexes, and the three-point Gauss
+  quadrature used by quadratic flexes. Material parameters now produce the standard isotropic linear-elastic stiffness;
+  existing models using these flexes can change behavior.
+
 Compiler
 ^^^^^^^^
 .. admonition:: Breaking API changes

@@ -3659,8 +3659,8 @@ void quadratureGaussLegendre(
     weights[1] = dpdx;
   } else {
     points[0]  = p0;
-    points[1]  = -dpdx / sqrt(3. / 5.) + p0;
-    points[2]  = dpdx / sqrt(3. / 5.) + p0;
+    points[1]  = -dpdx * sqrt(3. / 5.) + p0;
+    points[2]  = dpdx * sqrt(3. / 5.) + p0;
     weights[0] = 8. / 9. * dpdx;
     weights[1] = 5. / 9. * dpdx;
     weights[2] = 5. / 9. * dpdx;
@@ -3791,7 +3791,7 @@ void inline ComputeLinearStiffness(
         }
 
         // tensor contraction of the gradients of elastic strains
-        // (d(F+F')/dx : d(F+F')/dx)
+        // lambda * div(u) * div(v) + 2*mu * sym(grad(u)) : sym(grad(v))
         for (int i = 0; i < n; i++) {
           for (int j = 0; j < n; j++) {
             Matrix du;
@@ -3807,7 +3807,7 @@ void inline ComputeLinearStiffness(
                 dv[l][1]                           = invJ[1] * F[j][1];
                 dv[l][2]                           = invJ[2] * F[j][2];
                 K[ndof * (3 * i + k) + 3 * j + l] -= la * trace(du) * trace(dv) * dvol;
-                K[ndof * (3 * i + k) + 3 * j + l] -= mu * trace(inner(sym(du), sym(dv))) * dvol;
+                K[ndof * (3 * i + k) + 3 * j + l] -= 2 * mu * trace(inner(sym(du), sym(dv))) * dvol;
                 mjuu_zerovec(du[k].data(), 3);
                 mjuu_zerovec(dv[l].data(), 3);
               }
@@ -3901,8 +3901,7 @@ void inline ComputeLinearStiffness2D(std::vector<double>& K,
               dv[l][axis1] = invJ1 * F[j][1];
 
               K[ndof * (3 * i + k) + 3 * j + l] -= la * trace(du) * trace(dv) * dvol;
-              // mu (not 2*mu): same convention as 3D ComputeLinearStiffness
-              K[ndof * (3 * i + k) + 3 * j + l] -= mu * trace(inner(sym(du), sym(dv))) * dvol;
+              K[ndof * (3 * i + k) + 3 * j + l] -= 2 * mu * trace(inner(sym(du), sym(dv))) * dvol;
               mjuu_zerovec(du[k].data(), 3);
               mjuu_zerovec(dv[l].data(), 3);
             }

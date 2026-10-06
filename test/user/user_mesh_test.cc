@@ -797,6 +797,73 @@ TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
   EXPECT_LE(mju_abs(model->geom_size[2]), 1);
 }
 
+// Check the compiled stiffness against continuum strain energies on a unit
+// cube. Affine fields test the Lamé coefficients; quadratic fields also test
+// quadrature.
+TEST_F(MjCMeshTest, InterpolatedFlexStrainEnergy) {
+  for (bool membrane : {false, true}) {
+    for (bool quadratic : {false, true}) {
+      for (double poisson : {0.0, 0.25}) {
+        SCOPED_TRACE(absl::StrFormat("membrane=%d quadratic=%d poisson=%g",
+                                     membrane, quadratic, poisson));
+        std::string xml =
+            absl::StrFormat(R"(
+          <mujoco>
+            <worldbody>
+              <flexcomp name="f" type="grid" count="3 3 3" spacing=".5 .5 .5" dim="3" dof="%s">
+                <elasticity young="2" poisson="%g" thickness=".1" %s/>
+                <contact selfcollide="none"/>
+              </flexcomp>
+            </worldbody>
+          </mujoco>)",
+                            quadratic ? "quadratic" : "trilinear", poisson,
+                            membrane ? "elastic2d=\"stretch\"" : "");
+        char error[1024];
+        MjModelPtr model =
+            LoadModelFromString(xml.c_str(), error, sizeof(error));
+        ASSERT_THAT(model.get(), testing::NotNull()) << error;
+        int order = quadratic ? 2 : 1;
+        int nbasis = order + 1;
+        int nnode = membrane ? nbasis * nbasis : nbasis * nbasis * nbasis;
+        int ndof = 3 * nnode;
+        double mu = 1 / (1 + poisson);
+        double lambda = membrane
+                            ? 2 * poisson / (1 - poisson * poisson)
+                            : 2 * poisson / ((1 + poisson) * (1 - 2 * poisson));
+        for (int field = 0; field < (quadratic ? 3 : 2); ++field) {
+          SCOPED_TRACE(absl::StrFormat("field=%d", field));
+          // u_x=x, u_y=x, or u_x=x^2/2. For membranes use each face's in-plane
+          // axes.
+          for (int face = 0; face < (membrane ? 6 : 1); ++face) {
+            int axis0 = membrane ? (face / 2 + 1) % 3 : 0;
+            int axis1 = membrane ? (face / 2 + 2) % 3 : 1;
+            std::vector<double> u(ndof, 0);
+            for (int i = 0; i < nnode; ++i) {
+              int ix = i / (membrane ? nbasis : nbasis * nbasis);
+              double x = static_cast<double>(ix) / order - 0.5;
+              u[3 * i + (field == 1 ? axis1 : axis0)] =
+                  field == 2 ? x * x / 2 : x;
+            }
+            const mjtNum* stiffness = model->flex_stiffness +
+                                      model->flex_stiffnessadr[0] +
+                                      face * ndof * ndof;
+            double energy = 0;
+            for (int i = 0; i < ndof; ++i) {
+              for (int j = 0; j < ndof; ++j) {
+                energy -= 0.5 * u[i] * stiffness[i * ndof + j] * u[j];
+              }
+            }
+            double expected = 0.5 * (field == 1 ? mu : lambda + 2 * mu);
+            if (field == 2) expected /= 12;  // integral of x^2 on [-1/2, 1/2]
+            if (membrane) expected *= 0.1;   // thickness
+            EXPECT_NEAR(energy, expected, MjTol(1e-12, 2e-6));
+          }
+        }
+      }
+    }
+  }
+}
+
 TEST_F(MjCMeshTest, Flex2DElasticityRequiresPositiveThickness) {
   static constexpr char xml[] = R"(
   <mujoco>
