@@ -122,6 +122,33 @@ setup_emsdk() {
 }
 
 
+# Populate ext_deps_args with -DFETCHCONTENT_SOURCE_DIR_<DEP>=<path> for each
+# cached dependency in EXTERNAL_DEPS_DIR.
+_setup_ext_deps_args() {
+    ext_deps_args=()
+    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
+    if command -v cygpath >/dev/null 2>&1 && [[ -n "${ext_deps_dir}" ]]; then
+        ext_deps_dir="$(cygpath -m "${ext_deps_dir}")"
+    fi
+    if [[ -d "${ext_deps_dir}" ]]; then
+        for dep_path in "${ext_deps_dir}"/*; do
+            if [[ -d "${dep_path}" ]]; then
+                local dep_name
+                dep_name="$(basename "${dep_path}")"
+                local dep_upper
+                dep_upper="$(echo "${dep_name}" | tr '[:lower:]' '[:upper:]')"
+                echo "Using cached ${dep_name} from ${dep_path}"
+                ext_deps_args+=("-DFETCHCONTENT_SOURCE_DIR_${dep_upper}=${dep_path}")
+                # python/mujoco/CMakeLists.txt declares "eigen" instead of "Eigen3".
+                if [[ "${dep_upper}" == "EIGEN3" ]]; then
+                    ext_deps_args+=("-DFETCHCONTENT_SOURCE_DIR_EIGEN=${dep_path}")
+                fi
+            fi
+        done
+    fi
+}
+
+
 configure_mujoco() {
     echo "Configuring MuJoCo..."
     # Disable IPO/LTO to cut build time. Skip this on Windows MSVC: turning off
@@ -135,18 +162,7 @@ configure_mujoco() {
     # Use cached external dependencies from actions/cache.
     local ext_deps_args=()
     local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
-    if [[ -d "${ext_deps_dir}" ]]; then
-        for dep_path in "${ext_deps_dir}"/*; do
-            if [[ -d "${dep_path}" ]]; then
-                local dep_name
-                dep_name="$(basename "${dep_path}")"
-                local dep_upper
-                dep_upper="$(echo "${dep_name}" | tr '[:lower:]' '[:upper:]')"
-                echo "Using cached ${dep_name} from ${dep_path}"
-                ext_deps_args+=("-DFETCHCONTENT_SOURCE_DIR_${dep_upper}=${dep_path}")
-            fi
-        done
-    fi
+    _setup_ext_deps_args
 
     mkdir build &&
     cd build &&
@@ -337,9 +353,11 @@ build_python_bindings() {
     fi
     export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
+    local ext_deps_args=()
+    _setup_ext_deps_args
     MUJOCO_PATH="${TMPDIR}/mujoco_install" \
     MUJOCO_PLUGIN_PATH="${TMPDIR}/mujoco_install/mujoco_plugin" \
-    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS}" \
+    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
     pip wheel -v --no-deps mujoco-*.tar.gz
 }
 
