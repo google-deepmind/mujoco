@@ -1459,6 +1459,30 @@ TEST_F(MjCMeshTest, MissingTexCoord) {
   EXPECT_THAT(error.data(), HasSubstr("texcoord must be 2*nv"));
 }
 
+TEST_F(MjCMeshTest, ObjIncompleteFaceTexCoord) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" file="mesh.obj"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char obj[] =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
+      "vt 0 0\n"
+      "f 1 3/1 2/1\nf 1/1 2/1 4/1\nf 3/1 1/1 4/1\nf 2/1 3/1 4/1\n";
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "mesh.obj", obj, sizeof(obj) - 1);
+  std::array<char, 1024> error;
+  mock_warning_handler.ExpectWarnings("missing face texture coordinate");
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_texcoordadr[0], -1);
+  EXPECT_EQ(model->nmeshtexcoord, 0);
+  mj_deleteVFS(&vfs);
+}
+
 // ----------------------------- qhull ----------------------------------------
 
 TEST_F(MjCMeshTest, NaNConvexHullDisallowed) {

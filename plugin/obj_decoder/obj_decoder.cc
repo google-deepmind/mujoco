@@ -108,7 +108,16 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
         }
 
         if (!usertexcoord.empty()) {
-          userfacetexcoord.push_back(mesh_index.texcoord_index);
+          if (mesh_index.texcoord_index < 0) {
+            mju_warning(
+                "obj_decoder: missing face texture coordinate in '%s'; "
+                "discarding texture coordinates",
+                resource->name);
+            usertexcoord.clear();
+            userfacetexcoord.clear();
+          } else {
+            userfacetexcoord.push_back(mesh_index.texcoord_index);
+          }
         }
       }
     } else if (!obj_shape.lines.indices.empty()) {
