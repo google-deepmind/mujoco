@@ -158,7 +158,20 @@ jobs:
         path: build/CMakeFiles/CMakeConfigureLog.yaml
         retention-days: 5
 
-    - name: Build MuJoCo
+    - name: Build MuJoCo Core
+      working-directory: build
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../.github/workflows/build_steps.sh build_mujoco_core
+
+    - name: Build MuJoCo Studio
+      if: ${{ contains(matrix.cmake_args, 'MUJOCO_BUILD_STUDIO:BOOL=ON') }}
+      working-directory: build
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../.github/workflows/build_steps.sh build_mujoco_studio
+
+    - name: Build MuJoCo Tests
       working-directory: build
       env:
         CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}

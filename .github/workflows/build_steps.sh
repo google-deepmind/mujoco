@@ -173,6 +173,18 @@ configure_mujoco() {
 }
 
 
+build_mujoco_core() {
+    echo "Building MuJoCo core and plugins..."
+    cmake --build . --config=Release --target mujoco actuator elasticity sensor sdf_plugin ${CMAKE_BUILD_ARGS}
+}
+
+
+build_mujoco_studio() {
+    echo "Building MuJoCo Studio..."
+    cmake --build . --config=Release --target mujoco_studio ${CMAKE_BUILD_ARGS}
+}
+
+
 build_mujoco() {
     echo "Building MuJoCo..."
     cmake --build . --config=Release ${CMAKE_BUILD_ARGS}
