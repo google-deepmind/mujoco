@@ -615,6 +615,17 @@ The ``encode()`` method accepts the target filename, an optional compiled ``mode
 ``vfs`` (:ref:`MjVFS`), and an optional ``content_type``. The target format is automatically determined by the file
 extension (``.xml``, ``.mjb``, ``.txt``, ``.mjz``) or content type.
 
+Values which were changed in a compiled model can be written to the spec itself with ``copy_back()``. They are then in
+the models which are compiled from the spec afterwards and in what it saves; see :ref:`mj_copyBack` for what is copied
+and how:
+
+.. code-block:: python
+
+   model = spec.compile()
+   model.geom('my_geom').size[0] = 2
+   spec.copy_back(model)
+   print(spec.geom('my_geom').size[0])  # 2.0
+
 Attachment
 ----------
 

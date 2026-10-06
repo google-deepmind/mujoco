@@ -16,6 +16,15 @@ Compiler
 .. admonition:: Breaking API changes
    :class: attention
 
+   - :ref:`mj_copyBack` and :ref:`mj_saveLastXML` now fail, with an error which names the element, if a value was
+     changed in the model which the spec cannot express, for example the mass of a body when
+     :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true". Nothing is copied or saved then; previously such a
+     change was left out of the saved file without notice. :ref:`mj_saveLastXML` also fails if it is given a model
+     which was not compiled from the XML that was loaded last, and a save which fails no longer empties the file.
+
+     **Migration:** Undo the change in the model, or change what makes it inexpressible, as listed for
+     :ref:`mj_copyBack`.
+
    - :ref:`Keyframes<keyframe>` in MJCF are no longer copied by :ref:`replicate<replicate>`: a keyframe describes the
      model with all replicas in place, as in a model without replicates. Previously each replica received a copy of
      every keyframe, setting only the joints of that replica, and a keyframe written for the complete model failed to
@@ -38,6 +47,10 @@ Compiler
      **Migration:** Use ``inertiafromgeom="auto"``, the default, under which the inertia is kept as an explicit
      :ref:`inertial<body-inertial>`, or give the visual geoms zero mass.
 
+- :ref:`mj_copyBack` now writes what was changed in the model to the :ref:`mjSpec` itself, as documented, so that
+  the changes are in the spec and in the models which are compiled from it afterwards. Previously it wrote to a copy
+  which is only read when the spec is saved. Only the values which were changed are written, each as what compiles to
+  it, so that everything else in the spec stays as it was written.
 - Added :ref:`mjs_fuseStatic`, which fuses the static bodies of an :ref:`mjSpec` with their parents as an operation on
   the spec: each fused body becomes a frame in its parent. The :ref:`fusestatic<compiler-fusestatic>` compiler option
   now applies it and then compiles; previously it fused inside compilation and left the spec inconsistent with the
@@ -78,6 +91,18 @@ Bug fixes
   saving it no longer crashes, and :ref:`mj_recompile` with the model and data of the original keeps their state.
 - :ref:`mjs_bodyToFrame` no longer loses inertia which is inferred from geoms when only one of the two bodies has
   an explicit inertial.
+- :ref:`mj_copyBack` and :ref:`mj_saveLastXML` no longer lose a change to the reference pose of a free joint in
+  ``mjModel.qpos0``, or write out of bounds for a :ref:`numeric<custom-numeric>` which has less data than its
+  ``size``.
+- :ref:`mj_saveXML` and :ref:`mj_saveXMLString` now save the compiled values of an :ref:`mjSpec` as
+  :ref:`mj_saveLastXML` does, including those which are computed at the end of compilation, such as the damping
+  which :ref:`dampratio<actuator-position-dampratio>` gives, and no longer lose the scaling of
+  :ref:`settotalmass<compiler-settotalmass>`.
+
+Python bindings
+^^^^^^^^^^^^^^^
+- Added ``MjSpec.copy_back(model)``, which writes to the spec what was changed in a model compiled from it; see
+  :ref:`mj_copyBack`.
 
 Models
 ^^^^^^

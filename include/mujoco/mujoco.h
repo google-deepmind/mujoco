@@ -155,7 +155,7 @@ MJAPI mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
-// Copy real-valued arrays from model to spec; return 1 on success.
+// Copy the values which were changed in a model to the spec it was compiled from; return 1 on success.
 MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 
 // Recompile spec to model, preserving the state; return 0 on success.

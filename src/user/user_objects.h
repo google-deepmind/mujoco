@@ -514,6 +514,9 @@ class mjCBody_ : public mjCBase {
   // compilation raised the mass or inertia to their bounds, or balanced the inertia
   bool inertia_adjusted_ = false;
 
+  // compilation moved the frame of the body to its inertial frame, to align it with a free joint
+  bool aligned_ = false;
+
   // variables used for temporarily storing the state of the mocap bodies
   std::map<std::string, std::array<mjtNum, 3>> mpos_;   // saved mocap_pos
   std::map<std::string, std::array<mjtNum, 4>> mquat_;  // saved mocap_quat
@@ -643,6 +646,23 @@ class mjCBody : public mjCBody_, private mjsBody {
   // which is inferred from geoms is taken as compiled, one which is given as it is in the spec
   void MergeInertial(const mjCBody* child);
 
+  // turn a compiled pose of this body into the pose in the spec which compiles to it: before the
+  // alignment with a free joint, and in the frame which the body is in
+  void PoseInSpec(double bodypos[3], double bodyquat[4]) const;
+
+  // the same for a compiled pose of an element of this body, which is in the given frame or in
+  // none. Given the unit quaternion, it returns the rotation which brings a direction of the
+  // element from the body to the spec
+  void ElementPoseInSpec(const mjCFrame* elementframe,
+                         double          elementpos[3],
+                         double          elementquat[4]) const;
+
+  // write to the spec what compiles to the compiled values of this body, for mj_copyBack: the
+  // position and the orientation which are new, so that the other stays as it is written; and
+  // the inertial, or only its mass
+  void PoseToSpec(bool position, bool orientation);
+  void InertialToSpec(bool massonly);
+
   // objects allocated by Add functions
   std::vector<mjCBody*>   bodies;   // child bodies
   std::vector<mjCGeom*>   geoms;    // geoms attached to this body
@@ -701,6 +721,9 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   mjCFrame& operator+=(const mjCBody& other);
 
   bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
+
+  // express in this frame, as compiled, a pose which is given in its body
+  void ToLocal(double childpos[3], double childquat[4]) const;
 
   mjsBody* last_attached;  // last attached body to this frame
 
@@ -769,6 +792,10 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
  private:
   int  Compile(void);  // compiler; return dofnum
   void PointToLocal(void);
+
+  // write to the spec the anchor, the axis or both, which compile to the compiled ones: in the
+  // frame which the joint is in
+  void AnchorToSpec(bool anchor, bool direction);
 
   // variables that should not be copied during copy assignment
   int qposadr_;  // address of dof in data->qpos
@@ -852,6 +879,13 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void   NameSpace(const mjCModel* m);
   void   CopyPlugin();
 
+  // write to the spec what compiles to the compiled values of this geom, for mj_copyBack: the
+  // position and the orientation which are new; and those of size, pose and surface velocity
+  // which are new. A size and pose which the spec gives as fromto, or by fitting to a mesh, are
+  // written in its place
+  void PoseToSpec(bool position, bool orientation);
+  void ShapeToSpec(bool newsize, bool position, bool orientation, bool newvelocity);
+
   // inherited
   using mjCBase::info;
 };
@@ -917,6 +951,10 @@ class mjCSite : public mjCSite_, private mjsSite {
   void CopyFromSpec();  // copy spec into attributes
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+
+  // write to the spec what compiles to the compiled values of this site, as for a geom
+  void PoseToSpec(bool position, bool orientation);
+  void ShapeToSpec(bool newsize, bool position, bool orientation);
 };
 
 
@@ -962,6 +1000,14 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void ResolveReferences(const mjCModel* m);
+
+  // write to the spec the position and the orientation which compile to the compiled ones, each
+  // only if asked
+  void PoseToSpec(bool position, bool orientation);
+
+  // write the compiled intrinsics as focal length and principal point, in units of length: to the
+  // spec, and to the compiled copy, which may have them in pixels
+  void IntrinsicToSpec(bool tospec);
 };
 
 
@@ -1010,6 +1056,10 @@ class mjCLight : public mjCLight_, private mjsLight {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void ResolveReferences(const mjCModel* m);
+
+  // write to the spec the position and the direction which compile to the compiled ones, each
+  // only if asked
+  void PoseToSpec(bool position, bool direction);
 };
 
 

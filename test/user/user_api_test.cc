@@ -15,6 +15,7 @@
 // Tests for user/user_api.cc.
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -22,6 +23,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -31,6 +33,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
+#include "src/user/user_api.h"
 #include "src/xml/xml_api.h"
 #include "test/compare_model.h"
 #include "test/compare_spec.h"
@@ -39,6 +42,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -705,7 +709,7 @@ TEST_F(MujocoTest, AttachExplicitPlugin) {
   sensor->objtype = mjOBJ_SITE;
   sensor->plugin.element = plugin->element;
   sensor->plugin.active = true;
-  std::map<std::string, std::string, std::less<> > config_attribs;
+  std::map<std::string, std::string, std::less<>> config_attribs;
   config_attribs["size"] = "8 12";
   config_attribs["fov"] = "10 13";
   config_attribs["gamma"] = "0";
@@ -7520,9 +7524,9 @@ TEST_F(MujocoTest, MjEncodeNativeFormats) {
                       sizeof(error)),
             -1);
   EXPECT_THAT(error, HasSubstr("No XML model loaded"));
-  EXPECT_TRUE(std::filesystem::exists(xml_path));
-  EXPECT_EQ(std::filesystem::file_size(xml_path), 0);
-  std::filesystem::remove(xml_path);
+
+  // a save which fails does not create the file
+  EXPECT_FALSE(std::filesystem::exists(xml_path));
 
   // MJB Encoding (spec can be null)
   EXPECT_GT(mj_encode(nullptr, model, mjb_path.c_str(), nullptr, nullptr, error,
@@ -7642,6 +7646,978 @@ TEST_F(MujocoTest, DeleteReclaimsMemoryImmediately) {
 
   mj_deleteSpec(spec);
   EXPECT_EQ(cleanup_count, 2);
+}
+
+// ------------------------------- mj_copyBack ---------------------------------
+
+using CopyBackTest = MujocoTest;
+
+// The fields which differ between two specs, each as "geom[0] 'name': field".
+std::vector<std::string> ChangedFields(const mjSpec* before,
+                                       const mjSpec* after) {
+  std::vector<std::string> fields;
+  std::istringstream lines(CompareSpec(before, after, 1000));
+  std::string line;
+  while (std::getline(lines, line)) {
+    fields.push_back(line.substr(0, line.rfind(": ")));
+  }
+  return fields;
+}
+
+// The indices of the arrays, among those given with their lengths, which
+// differ between two models.
+std::vector<int> DifferentArrays(const mjModel* m1, const mjModel* m2,
+                                 std::vector<mjtNum * mjModel::*> arrays,
+                                 std::vector<int> lengths) {
+  std::vector<int> different;
+  for (int i = 0; i < arrays.size(); i++) {
+    for (int j = 0; j < lengths[i]; j++) {
+      mjtNum a = (m1->*arrays[i])[j];
+      mjtNum b = (m2->*arrays[i])[j];
+      if (mju_abs(a - b) > MjTol(1e-13, 1e-5)) {
+        different.push_back(i);
+        break;
+      }
+    }
+  }
+  return different;
+}
+
+// what was changed in the model is written to the spec, where it can be read
+// and from where it is compiled again; nothing else in the spec is touched
+TEST_F(CopyBackTest, WritesChangedValues) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="degree"/>
+    <default>
+      <geom friction=".5 .25 .125"/>
+    </default>
+    <worldbody>
+      <body name="arm" pos="0 0 1" euler="0 0 90">
+        <joint name="hinge" range="-45 45" damping="1"/>
+        <geom name="edited" size=".25" euler="0 90 0"/>
+        <geom name="kept" size=".5" pos="1 0 0" euler="0 90 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="servo" joint="hinge" kp="8"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* authored = mj_copySpec(spec);
+
+  // a model which was not changed changes nothing
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(ChangedFields(authored, spec), IsEmpty());
+
+  model->geom_friction[0] = 0.75;
+  model->geom_rgba[1] = 0.25f;
+  model->dof_damping[0] = 2;
+  model->jnt_range[1] = 0.5;
+  model->actuator_gainprm[0] = 16;
+  model->actuator_biasprm[1] = -16;
+  model->opt.gravity[2] = -5;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  // the changes can be read in the spec, in its units
+  EXPECT_THAT(
+      ChangedFields(authored, spec),
+      ElementsAre("spec: option.gravity[2]", "spec: authored.option",
+                  "joint[0] 'hinge': range[1]", "joint[0] 'hinge': damping[0]",
+                  "geom[0] 'edited': friction[0]", "geom[0] 'edited': rgba[1]",
+                  "actuator[0] 'servo': gainprm[0]",
+                  "actuator[0] 'servo': biasprm[1]"));
+  mjsGeom* edited = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "edited"));
+  mjsJoint* hinge = mjs_asJoint(mjs_findElement(spec, mjOBJ_JOINT, "hinge"));
+  EXPECT_EQ(edited->friction[0], 0.75);
+  EXPECT_EQ(edited->friction[1], 0.25);
+  EXPECT_EQ(edited->alt.type, mjORIENTATION_EULER);
+  EXPECT_EQ(hinge->damping[0], 2);
+  EXPECT_EQ(hinge->range[0], -45);
+  EXPECT_NEAR(hinge->range[1], 0.5 * 180 / mjPI, 1e-12);
+  EXPECT_EQ(spec->option.gravity[2], -5);
+  EXPECT_EQ(mjs_isAuthored(spec, spec->option.gravity), 1);
+
+  // and are in the model which is compiled from it
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_LE(CompareModel(model, again, field), MjTol(1e-14, 1e-6)) << field;
+  EXPECT_EQ(again->opt.gravity[2], -5);
+
+  // copying back again changes nothing
+  mjSpec* copied = mj_copySpec(spec);
+  ASSERT_EQ(mj_copyBack(spec, again), 1) << mjs_getError(spec);
+  EXPECT_THAT(ChangedFields(copied, spec), IsEmpty());
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(copied);
+  mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+}
+
+// a pose is written in the frame which the element is in; an orientation which
+// was not changed stays as it was written
+TEST_F(CopyBackTest, WritesPoses) {
+  static constexpr char cube[] = R"(
+  v 0 0 0
+  v 1 0 0
+  v 0 2 0
+  v 1 2 0
+  v 0 0 4
+  v 1 0 4
+  v 0 2 4
+  v 1 2 4)";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="degree"/>
+    <asset>
+      <mesh name="cube" file="cube.obj"/>
+    </asset>
+    <worldbody>
+      <frame pos="1 0 0" euler="0 0 90">
+        <body name="moved" pos="0 1 0" euler="90 0 0">
+          <joint name="hinge" pos=".25 0 0" axis="0 0 2"/>
+          <frame name="inner" pos="0 0 .5" euler="0 90 0">
+            <geom name="turned" size=".125" pos=".25 0 0" euler="0 0 45"/>
+            <geom name="mesh" type="mesh" mesh="cube" pos="0 .5 0" euler="0 0 45"/>
+            <site name="site" pos="0 .25 0" euler="0 45 0"/>
+            <camera name="camera" pos="0 0 1" euler="45 0 0"/>
+            <light name="light" pos="0 0 2" dir="0 0 -1"/>
+            <joint name="slide" type="slide" pos="0 0 .25" axis="1 0 0"/>
+          </frame>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, vfs.get());
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* authored = mj_copySpec(spec);
+
+  // move everything, and turn the first geom, the light and the hinge
+  const mjtNum turn[4] = {0.8, 0, 0.6, 0};
+  mjtNum turned[4];
+  for (mjtNum* pos : {model->body_pos + 3, model->geom_pos, model->geom_pos + 3,
+                      model->site_pos, model->cam_pos, model->light_pos,
+                      model->jnt_pos, model->jnt_pos + 3}) {
+    pos[0] += 0.5;
+    pos[1] -= 0.25;
+  }
+  mju_mulQuat(turned, model->geom_quat, turn);
+  mju_copy4(model->geom_quat, turned);
+  mju_rotVecQuat(model->light_dir, model->light_dir, turn);
+  mju_rotVecQuat(model->jnt_axis, model->jnt_axis, turn);
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  // only the orientation which was changed is now a quaternion
+  auto orientation = [&](mjtObj type, const char* name) {
+    mjsElement* element = mjs_findElement(spec, type, name);
+    return type == mjOBJ_BODY   ? mjs_asBody(element)->alt.type
+           : type == mjOBJ_GEOM ? mjs_asGeom(element)->alt.type
+           : type == mjOBJ_SITE ? mjs_asSite(element)->alt.type
+                                : mjs_asCamera(element)->alt.type;
+  };
+  EXPECT_EQ(orientation(mjOBJ_GEOM, "turned"), mjORIENTATION_QUAT);
+  EXPECT_EQ(orientation(mjOBJ_BODY, "moved"), mjORIENTATION_EULER);
+  EXPECT_EQ(orientation(mjOBJ_GEOM, "mesh"), mjORIENTATION_EULER);
+  EXPECT_EQ(orientation(mjOBJ_SITE, "site"), mjORIENTATION_EULER);
+  EXPECT_EQ(orientation(mjOBJ_CAMERA, "camera"), mjORIENTATION_EULER);
+  for (const std::string& changed : ChangedFields(authored, spec)) {
+    EXPECT_THAT(changed,
+                testing::AnyOf(HasSubstr(": pos["), HasSubstr(": dir["),
+                               HasSubstr("'hinge': axis["),
+                               HasSubstr("'turned': quat["),
+                               HasSubstr("'turned': alt.")));
+  }
+
+  // the body moved in the frame it is in: by (-.25, -.5, 0) there
+  mjsBody* moved = mjs_findBody(spec, "moved");
+  EXPECT_NEAR(moved->pos[0], -0.25, 1e-12);
+  EXPECT_NEAR(moved->pos[1], 0.5, 1e-12);
+  EXPECT_NEAR(moved->pos[2], 0, 1e-12);
+
+  // the model which is compiled from the spec has the poses of the changed one
+  mjModel* again = mj_compile(spec, vfs.get());
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(DifferentArrays(
+                  model, again,
+                  {&mjModel::body_pos, &mjModel::body_quat, &mjModel::geom_pos,
+                   &mjModel::geom_quat, &mjModel::site_pos, &mjModel::site_quat,
+                   &mjModel::cam_pos, &mjModel::cam_quat, &mjModel::light_pos,
+                   &mjModel::light_dir, &mjModel::jnt_pos, &mjModel::jnt_axis},
+                  {6, 8, 6, 8, 3, 4, 3, 4, 3, 3, 6, 6}),
+              IsEmpty());
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
+}
+
+// a position and an orientation are written each if the model changed it, so
+// that what was written in the spec since stays; a mesh whose frame is offset
+// offsets the position by the orientation, which then gives both. Any other
+// attribute is written whole
+TEST_F(CopyBackTest, WritesPositionAndOrientationApart) {
+  static constexpr char cube[] = R"(
+  v 0 0 0
+  v 1 0 0
+  v 0 2 0
+  v 1 2 0
+  v 0 0 4
+  v 1 0 4
+  v 0 2 4
+  v 1 2 4)";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" file="cube.obj"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom name="geom" size=".25" friction=".5 .25 .125"/>
+        <geom name="mesh" type="mesh" mesh="cube"/>
+        <site name="site"/>
+        <camera name="camera"/>
+        <light name="light" dir="0 0 -1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, vfs.get());
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // positions and a friction coefficient written in the spec since
+  mjsBody* body = mjs_findBody(spec, "body");
+  mjsGeom* geom = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "geom"));
+  mjsGeom* mesh = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "mesh"));
+  mjsSite* site = mjs_asSite(mjs_findElement(spec, mjOBJ_SITE, "site"));
+  mjsCamera* camera =
+      mjs_asCamera(mjs_findElement(spec, mjOBJ_CAMERA, "camera"));
+  mjsLight* light = mjs_asLight(mjs_findElement(spec, mjOBJ_LIGHT, "light"));
+  for (double* pos :
+       {body->pos, geom->pos, mesh->pos, site->pos, camera->pos, light->pos}) {
+    pos[0] = 3;
+  }
+  geom->friction[1] = 0.0625;
+
+  // orientations, a direction and another friction coefficient in the model
+  const mjtNum turn[4] = {0.8, 0, 0.6, 0};
+  for (mjtNum* quat :
+       {model->body_quat + 4, model->geom_quat, model->geom_quat + 4,
+        model->site_quat, model->cam_quat}) {
+    mjtNum turned[4];
+    mju_mulQuat(turned, quat, turn);
+    mju_copy4(quat, turned);
+  }
+  mju_rotVecQuat(model->light_dir, model->light_dir, turn);
+  model->geom_friction[0] = 2;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  // the new orientations, and the positions as they were written
+  for (const double* pos :
+       {body->pos, geom->pos, site->pos, camera->pos, light->pos}) {
+    EXPECT_EQ(pos[0], 3);
+  }
+  for (auto [quat, compiled] :
+       std::vector<std::pair<const double*, const mjtNum*>>{
+           {body->quat, model->body_quat + 4},
+           {geom->quat, model->geom_quat},
+           {site->quat, model->site_quat},
+           {camera->quat, model->cam_quat}}) {
+    for (int i = 0; i < 4; i++) EXPECT_EQ(quat[i], compiled[i]);
+  }
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(light->dir[i], model->light_dir[i], 1e-15);
+  }
+
+  // the position of the mesh geom follows its orientation
+  EXPECT_NE(mesh->pos[0], 3);
+  mjModel* again = mj_compile(spec, vfs.get());
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(again->geom_pos[3 + i], model->geom_pos[3 + i],
+                MjTol(1e-12, 1e-5));
+  }
+  for (int i = 0; i < 4; i++) {
+    EXPECT_NEAR(again->geom_quat[4 + i], model->geom_quat[4 + i],
+                MjTol(1e-12, 1e-6));
+  }
+
+  // friction is one attribute: the model gives all of it
+  EXPECT_EQ(geom->friction[0], 2);
+  EXPECT_EQ(geom->friction[1], model->geom_friction[1]);
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
+}
+
+// a size and pose which were written as fromto, or came from fitting the geom
+// to a mesh, are written in its place
+TEST_F(CopyBackTest, WritesShapes) {
+  static constexpr char cube[] = R"(
+  v 0 0 0
+  v 1 0 0
+  v 0 2 0
+  v 1 2 0
+  v 0 0 4
+  v 1 0 4
+  v 0 2 4
+  v 1 2 4)";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" file="cube.obj"/>
+    </asset>
+    <worldbody>
+      <geom name="thicker" type="capsule" fromto="0 0 0 0 0 1" size=".125"/>
+      <geom name="longer" type="capsule" fromto="1 0 0 1 0 1" size=".125"/>
+      <geom name="fitted" type="box" mesh="cube" pos="2 0 0"/>
+      <geom name="mesh" type="mesh" mesh="cube" pos="4 0 0"/>
+      <site name="longer" type="cylinder" fromto="0 1 0 0 1 1" size=".125"/>
+    </worldbody>
+  </mujoco>
+  )";
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, vfs.get());
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* authored = mj_copySpec(spec);
+
+  model->geom_size[3 * 0] = 0.25;      // the radius, which fromto does not give
+  model->geom_size[3 * 1 + 1] = 0.75;  // the length, which it does
+  model->geom_size[3 * 2] *= 2;
+  model->site_size[1] = 0.75;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  auto geom = [&](const char* name) {
+    return mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, name));
+  };
+  EXPECT_TRUE(std::isnan(geom("longer")->fromto[0]));
+  EXPECT_EQ(geom("thicker")->fromto[5], 1);
+  EXPECT_EQ(geom("thicker")->size[0], 0.25);
+  EXPECT_EQ(geom("longer")->size[1], 0.75);
+  EXPECT_EQ(geom("longer")->pos[2], 0.5);
+  EXPECT_STREQ(mjs_getString(geom("fitted")->meshname), "");
+  EXPECT_STREQ(mjs_getString(geom("mesh")->meshname), "cube");
+  for (const std::string& changed : ChangedFields(authored, spec)) {
+    EXPECT_THAT(changed, testing::Not(HasSubstr("'mesh'")));
+    EXPECT_THAT(changed, testing::Not(HasSubstr("'thicker': fromto")));
+    EXPECT_THAT(changed, testing::Not(HasSubstr("'thicker': pos")));
+  }
+
+  // the model which is compiled from the spec has the sizes and poses of the
+  // changed one
+  mjModel* again = mj_compile(spec, vfs.get());
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(DifferentArrays(model, again,
+                              {&mjModel::geom_size, &mjModel::geom_pos,
+                               &mjModel::geom_quat, &mjModel::site_size,
+                               &mjModel::site_pos, &mjModel::site_quat},
+                              {12, 12, 16, 3, 3, 4}),
+              IsEmpty());
+
+  // the size of a mesh geom is that of its mesh
+  model->geom_size[3 * 3] *= 2;
+  mjSpec* before = mj_copySpec(spec);
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("the size of a mesh geom"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("'mesh'"));
+  EXPECT_THAT(ChangedFields(before, spec), IsEmpty());
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(before);
+  mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
+}
+
+// a mass or inertia which was changed gives the body an inertial of its own
+TEST_F(CopyBackTest, WritesInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler inertiafromgeom="%s" %s/>
+    <worldbody>
+      <body name="inferred">
+        <joint/>
+        <geom name="ball" size=".5" pos="1 0 0"/>
+      </body>
+      <body name="given" pos="0 2 0">
+        <joint/>
+        <inertial pos="0 0 .5" mass="2" fullinertia="2 2 1 .25 0 0"/>
+        <geom size=".5"/>
+      </body>
+      <body name="aligned" pos="0 4 0">
+        <freejoint align="true"/>
+        <geom type="box" size=".5 .25 .125" pos="1 0 0" euler="0 0 30"/>
+      </body>
+      <body name="kept" pos="0 6 0">
+        <joint/>
+        <geom size=".5" pos="1 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  std::string auto_xml = absl::StrFormat(xml, "auto", "");
+  mjSpec* spec = mj_parseXMLString(auto_xml.c_str(), 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* authored = mj_copySpec(spec);
+
+  // the mass of every body but the last, and the inertia of the first
+  for (int i = 1; i < 4; i++) model->body_mass[i] *= 2;
+  for (int i = 0; i < 3; i++) model->body_inertia[3 + i] *= 2;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  // a body which infers its inertial now has one, as the model has it
+  mjsBody* inferred = mjs_findBody(spec, "inferred");
+  EXPECT_TRUE(inferred->explicitinertial);
+  EXPECT_EQ(inferred->mass, static_cast<double>(model->body_mass[1]));
+  EXPECT_EQ(inferred->ipos[0], 1);
+
+  // one which has an inertial keeps it as it was written, but for the mass
+  mjsBody* given = mjs_findBody(spec, "given");
+  EXPECT_EQ(given->mass, 4);
+  EXPECT_EQ(given->fullinertia[3], 0.25);
+
+  // what was not changed still follows its geoms
+  EXPECT_FALSE(mjs_findBody(spec, "kept")->explicitinertial);
+  for (const std::string& changed : ChangedFields(authored, spec)) {
+    EXPECT_THAT(changed, testing::Not(HasSubstr("'kept'")));
+    EXPECT_THAT(changed, testing::Not(HasSubstr("geom[")));
+  }
+
+  // the model which is compiled from the spec has the inertials of the changed
+  // one, and the geoms where they were
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(DifferentArrays(model, again,
+                              {&mjModel::body_mass, &mjModel::body_inertia,
+                               &mjModel::body_ipos, &mjModel::body_iquat,
+                               &mjModel::body_pos, &mjModel::body_quat,
+                               &mjModel::geom_pos, &mjModel::geom_quat},
+                              {5, 15, 15, 20, 15, 20, 12, 16}),
+              IsEmpty());
+
+  // the frame of a body which is aligned with its free joint is the inertial
+  // frame: moving the one would move the other
+  model->body_ipos[3 * 3] = 0.5;
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("aligned with its free joint"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("'aligned'"));
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+
+  // an inertia which is inferred whatever is given, or scaled with all the
+  // others, cannot be given: nothing is copied
+  mock_warning_handler.ExpectWarnings("settotalmass");
+  for (const auto& [inertiafromgeom, totalmass, reason] :
+       {std::array<const char*, 3>{"true", "", "inertiafromgeom"},
+        std::array<const char*, 3>{"auto", "settotalmass='8'",
+                                   "settotalmass"}}) {
+    std::string fixed_xml = absl::StrFormat(xml, inertiafromgeom, totalmass);
+    spec = mj_parseXMLString(fixed_xml.c_str(), 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    authored = mj_copySpec(spec);
+
+    model->geom_friction[0] = 0.25;
+    ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+    model->geom_friction[0] = 0.75;
+    model->body_mass[1] *= 2;
+    mjSpec* before = mj_copySpec(spec);
+    EXPECT_EQ(mj_copyBack(spec, model), 0);
+    EXPECT_THAT(mjs_getError(spec), HasSubstr(reason));
+    EXPECT_THAT(mjs_getError(spec), HasSubstr("'inferred'"));
+    EXPECT_THAT(ChangedFields(before, spec), IsEmpty());
+    EXPECT_THAT(ChangedFields(authored, spec),
+                ElementsAre("geom[0] 'ball': friction[0]"));
+
+    mj_deleteModel(model);
+    mj_deleteSpec(before);
+    mj_deleteSpec(authored);
+    mj_deleteSpec(spec);
+  }
+}
+
+// a range is written in the unit of the spec, and what it is a range of keeps
+// the limited state which it has in the model
+TEST_F(CopyBackTest, WritesRanges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="degree" autolimits="%s"/>
+    <worldbody>
+      <body>
+        <joint name="limited" range="-45 45" %s/>
+        <joint name="free" axis="0 1 0"/>
+        <joint name="slide" type="slide" axis="1 0 0" ref="0.5"/>
+        <geom size=".5"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="limited" joint="limited" ctrlrange="-1 1" %s/>
+      <motor name="free" joint="free"/>
+    </actuator>
+  </mujoco>
+  )";
+  for (bool autolimits : {true, false}) {
+    std::string limits_xml = absl::StrFormat(
+        xml, autolimits ? "true" : "false", autolimits ? "" : "limited='true'",
+        autolimits ? "" : "ctrllimited='true'");
+    std::array<char, 1000> er;
+    mjSpec* spec =
+        mj_parseXMLString(limits_xml.c_str(), 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    ASSERT_EQ(model->jnt_limited[0], 1);
+    ASSERT_EQ(model->jnt_limited[1], 0);
+
+    // give ranges to what is limited and to what is not, and a reference
+    model->jnt_range[1] = 0.5;
+    model->jnt_range[2] = -0.25;
+    model->jnt_range[3] = 0.25;
+    model->actuator_ctrlrange[1] = 2;
+    model->actuator_ctrlrange[2] = -2;
+    model->actuator_ctrlrange[3] = 2;
+    model->qpos0[0] = 0.25;
+    model->qpos0[2] = 0.75;
+    ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+    // angles are in degrees in this spec, where the joint is limited
+    auto joint = [&](const char* name) {
+      return mjs_asJoint(mjs_findElement(spec, mjOBJ_JOINT, name));
+    };
+    EXPECT_NEAR(joint("limited")->range[1], 0.5 * 180 / mjPI, 1e-12);
+    EXPECT_NEAR(joint("limited")->ref, 0.25 * 180 / mjPI, 1e-12);
+    EXPECT_EQ(joint("slide")->ref, 0.75);
+    EXPECT_EQ(joint("free")->range[1], 0.25);
+    EXPECT_EQ(joint("free")->limited, mjLIMITED_FALSE);
+    EXPECT_EQ(joint("limited")->limited,
+              autolimits ? mjLIMITED_AUTO : mjLIMITED_TRUE);
+
+    // the model which is compiled from the spec has the ranges of the changed
+    // one, which limit what they limited
+    mjModel* again = mj_compile(spec, nullptr);
+    ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+    EXPECT_THAT(DifferentArrays(model, again,
+                                {&mjModel::jnt_range, &mjModel::qpos0,
+                                 &mjModel::actuator_ctrlrange},
+                                {6, 3, 4}),
+                IsEmpty());
+    EXPECT_THAT(AsVector(again->jnt_limited, 3), ElementsAre(1, 0, 0));
+    EXPECT_THAT(AsVector(again->actuator_ctrllimited, 2), ElementsAre(1, 0));
+
+    mj_deleteModel(again);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+static constexpr char kCopyBackToCopy[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="arm">
+      <joint name="hinge" range="-45 45"/>
+      <geom name="geom" size=".25"/>
+    </body>
+    <body name="other" pos="1 0 0">
+      <joint/>
+      <geom size=".25"/>
+    </body>
+  </worldbody>
+  <equality>
+    <weld body1="arm" body2="other"/>
+  </equality>
+  <actuator>
+    <position name="servo" joint="hinge" kp="8" dampratio="1"/>
+  </actuator>
+</mujoco>
+)";
+
+// a copy of a compiled spec holds what the compilation gave the model, so it
+// takes what was changed in the model as the original does
+TEST_F(CopyBackTest, CopiesBackToCopy) {
+  std::array<char, 1000> er;
+  mjSpec* spec =
+      mj_parseXMLString(kCopyBackToCopy, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // nothing was changed in the model: the copy stays as it is
+  mjSpec* copy = mj_copySpec(spec);
+  mjSpec* before = mj_copySpec(copy);
+  ASSERT_EQ(mj_copyBack(copy, model), 1) << mjs_getError(copy);
+  EXPECT_THAT(CompareSpec(before, copy, 1000), IsEmpty());
+
+  // a change is copied to the copy, and nothing else is
+  model->geom_size[0] = 0.5;
+  ASSERT_EQ(mj_copyBack(copy, model), 1) << mjs_getError(copy);
+  EXPECT_THAT(ChangedFields(before, copy),
+              ElementsAre("geom[0] 'geom': size[0]"));
+
+  mj_deleteSpec(before);
+  mj_deleteSpec(copy);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// an element of a copy whose references are not found as the compilation named
+// them is taken again from its spec: the copy does not hold what the model was
+// given, so nothing can be told to have changed
+TEST_F(CopyBackTest, RefusesCopyWhichLostCompiledValues) {
+  std::array<char, 1000> er;
+  mjSpec* spec =
+      mj_parseXMLString(kCopyBackToCopy, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // the weld refers to a body which is renamed after the compilation
+  mjs_setName(mjs_findBody(spec, "other")->element, "renamed");
+  mjsEquality* weld = mjs_asEquality(mjs_firstElement(spec, mjOBJ_EQUALITY));
+  mjs_setString(weld->name2, "renamed");
+
+  mjSpec* copy = mj_copySpec(spec);
+  mjSpec* before = mj_copySpec(copy);
+  EXPECT_EQ(mj_copyBack(copy, model), 0);
+  EXPECT_THAT(mjs_getError(copy), HasSubstr("copy"));
+  EXPECT_THAT(CompareSpec(before, copy, 1000), IsEmpty());
+
+  // once the copy is compiled, it takes what was changed in a model of its
+  // structure
+  mjModel* compiled = mj_compile(copy, nullptr);
+  ASSERT_THAT(compiled, NotNull()) << mjs_getError(copy);
+  compiled->geom_size[0] = 0.5;
+  ASSERT_EQ(mj_copyBack(copy, compiled), 1) << mjs_getError(copy);
+  EXPECT_THAT(ChangedFields(before, copy),
+              ElementsAre("geom[0] 'geom': size[0]"));
+
+  mj_deleteModel(compiled);
+  mj_deleteSpec(before);
+  mj_deleteSpec(copy);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// keyframes, custom data and the elevation data of a height field
+TEST_F(CopyBackTest, WritesVectors) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="given" nrow="2" ncol="3" size="1 1 1 1" elevation="0 2 4 4 2 0"/>
+    </asset>
+    <worldbody>
+      <geom type="hfield" hfield="given"/>
+      <body name="free" pos="0 0 2">
+        <freejoint/>
+        <geom size=".5"/>
+      </body>
+    </worldbody>
+    <custom>
+      <numeric name="numeric" data="1 2 3"/>
+    </custom>
+    <keyframe>
+      <key name="rest"/>
+      <key name="up" qpos="0 0 4 1 0 0 0"/>
+    </keyframe>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* authored = mj_copySpec(spec);
+
+  model->key_qpos[2] = 8;
+  model->key_qvel[6 + 1] = 0.5;
+  model->numeric_data[1] = 5;
+  model->hfield_data[1] = 0.25f;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  // a keyframe vector which was changed is given in full
+  mjsKey* rest = mjs_asKey(mjs_findElement(spec, mjOBJ_KEY, "rest"));
+  mjsKey* up = mjs_asKey(mjs_findElement(spec, mjOBJ_KEY, "up"));
+  EXPECT_THAT(*rest->qpos, ElementsAre(0, 0, 8, 1, 0, 0, 0));
+  EXPECT_THAT(*up->qvel, ElementsAre(0, 0.5, 0, 0, 0, 0));
+  EXPECT_THAT(*up->qpos, ElementsAre(0, 0, 4, 1, 0, 0, 0));
+  mjsNumeric* numeric =
+      mjs_asNumeric(mjs_findElement(spec, mjOBJ_NUMERIC, "numeric"));
+  EXPECT_THAT(*numeric->data, ElementsAre(1, 5, 3));
+
+  // elevation data is given as the model holds it, scaled to [0, 1]
+  mjsHField* hfield =
+      mjs_asHField(mjs_findElement(spec, mjOBJ_HFIELD, "given"));
+  EXPECT_THAT(*hfield->userdata, ElementsAre(1, 0.25f, 0, 0, 0.5f, 1));
+
+  // the model which is compiled from the spec is the changed one
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_LE(CompareModel(model, again, field), MjTol(1e-13, 1e-5)) << field;
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+}
+
+// compilation scales elevation data so that its lowest value is 0 and its
+// highest is 1: data which it would scale again cannot be copied back
+TEST_F(CopyBackTest, RefusesHeightFieldWhichIsScaledAgain) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="terrain" nrow="2" ncol="2" size="1 1 1 1" elevation="0 2 4 1"/>
+    </asset>
+    <worldbody>
+      <geom type="hfield" hfield="terrain"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* before = mj_copySpec(spec);
+  const std::vector<float> scaled = AsVector(model->hfield_data, 4);
+
+  // between 0.25 and 0.75
+  for (int i = 0; i < 4; i++) model->hfield_data[i] = 0.25f + 0.5f * scaled[i];
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec),
+              HasSubstr("the elevation data of a height field"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("'terrain'"));
+  EXPECT_THAT(ChangedFields(before, spec), IsEmpty());
+
+  // other data between 0 and 1 is copied, and is what the spec compiles to
+  for (int i = 0; i < 4; i++) model->hfield_data[i] = scaled[i] * scaled[i];
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(again->hfield_data, 4), AsVector(model->hfield_data, 4));
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(before);
+  mj_deleteSpec(spec);
+}
+
+static constexpr char kCopyBackEquality[] = R"(
+<mujoco>
+  <worldbody>
+    <body name="first" pos="0 0 1">
+      <freejoint/>
+      <geom size=".25"/>
+    </body>
+    <body name="second" pos="1 0 1">
+      <freejoint/>
+      <geom size=".25"/>
+    </body>
+  </worldbody>
+  <equality>
+    <connect name="pin" body1="first" body2="second" anchor="0 0 0"/>
+    <weld name="weld" body1="first" body2="second"/>
+  </equality>
+</mujoco>
+)";
+
+// a connect between bodies is given its anchor in the first body, and
+// compilation computes the one in the second body: a change to that one which
+// does not follow from the model cannot be copied back
+TEST_F(CopyBackTest, RefusesComputedAnchorOfConnect) {
+  std::array<char, 1000> er;
+  mjSpec* spec =
+      mj_parseXMLString(kCopyBackEquality, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* before = mj_copySpec(spec);
+  ASSERT_EQ(model->eq_data[3], -1);
+
+  model->eq_data[3] = 0.5;
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec),
+              HasSubstr("the anchor of a connect in its second body"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("'pin'"));
+  EXPECT_THAT(ChangedFields(before, spec), IsEmpty());
+  model->eq_data[3] = -1;
+
+  // the anchor in the first body is copied, and the other one follows from it
+  model->eq_data[0] = 0.25;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(ChangedFields(before, spec),
+              ElementsAre("equality[0] 'pin': data[0]"));
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(again->eq_data[0], 0.25);
+  EXPECT_EQ(again->eq_data[3], -0.75);
+
+  // one which mj_setConst computed, after a body was moved, is accepted
+  mjData* data = mj_makeData(again);
+  again->qpos0[7] = 2;
+  mj_setConst(again, data);
+  ASSERT_EQ(again->eq_data[3], -1.75);
+  ASSERT_EQ(mj_copyBack(spec, again), 1) << mjs_getError(spec);
+  EXPECT_EQ(mjs_findBody(spec, "second")->pos[0], 2);
+  mjModel* moved = mj_compile(spec, nullptr);
+  ASSERT_THAT(moved, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(moved->eq_data[3], -1.75);
+
+  mj_deleteModel(moved);
+  mj_deleteData(data);
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(before);
+  mj_deleteSpec(spec);
+}
+
+// a weld between bodies keeps the relative pose which compilation computes
+// for it, unless that pose is changed in the model or its anchor is
+TEST_F(CopyBackTest, WritesGivenPartsOfWeld) {
+  std::array<char, 1000> er;
+  mjSpec* spec =
+      mj_parseXMLString(kCopyBackEquality, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* before = mj_copySpec(spec);
+  mjtNum* weld = model->eq_data + mjNEQDATA;
+  ASSERT_THAT(AsVector(weld, mjNEQDATA),
+              ElementsAre(0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1));
+
+  // the torque scale: the relative pose stays as it was written, computed
+  weld[10] = 2;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(ChangedFields(before, spec),
+              ElementsAre("equality[1] 'weld': data[10]"));
+
+  // the anchor: the relative pose was computed for the anchor as it was, and
+  // is now given
+  weld[0] = 0.25;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(
+      ChangedFields(before, spec),
+      ElementsAre("equality[1] 'weld': data[0]", "equality[1] 'weld': data[3]",
+                  "equality[1] 'weld': data[6]",
+                  "equality[1] 'weld': data[10]"));
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(again->eq_data + mjNEQDATA, mjNEQDATA),
+            AsVector(weld, mjNEQDATA));
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(before);
+  mj_deleteSpec(spec);
+}
+
+// the spec gives one value to all the degrees of freedom of a ball or a free
+// joint: values which differ between them cannot be copied back
+TEST_F(CopyBackTest, RefusesValuesWhichDifferBetweenDofs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom size=".25"/>
+      </body>
+      <body pos="1 0 0">
+        <freejoint name="free"/>
+        <geom size=".25"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjSpec* before = mj_copySpec(spec);
+
+  struct Case {
+    mjtNum* value;
+    mjtNum changed;
+    const char* what;
+    const char* joint;
+  };
+  const Case cases[] = {
+      {model->dof_damping + 1, 2, "the damping of a joint", "'ball'"},
+      {model->dof_dampingpoly + mjNPOLY * 2, 2, "the damping of a joint",
+       "'ball'"},
+      {model->dof_armature + 3 + 5, 2, "the armature of a joint", "'free'"},
+      {model->dof_frictionloss + 3 + 1, 2, "the friction loss of a joint",
+       "'free'"},
+      {model->dof_solref + mjNREF * 1, 0.5,
+       "the solver parameters of the friction loss of a joint", "'ball'"},
+      {model->dof_solimp + mjNIMP * 2 + 1, 0.5,
+       "the solver parameters of the friction loss of a joint", "'ball'"},
+  };
+  for (const Case& c : cases) {
+    const mjtNum compiled = *c.value;
+    *c.value = c.changed;
+    EXPECT_EQ(mj_copyBack(spec, model), 0) << c.what;
+    EXPECT_THAT(mjs_getError(spec), HasSubstr(c.what));
+    EXPECT_THAT(mjs_getError(spec), HasSubstr(c.joint));
+    EXPECT_THAT(ChangedFields(before, spec), IsEmpty());
+    *c.value = compiled;
+  }
+
+  // the same value in all of them is the value of the joint
+  for (int i = 0; i < 3; i++) model->dof_damping[i] = 2;
+  for (int i = 3; i < 9; i++) model->dof_armature[i] = 0.5;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(
+      ChangedFields(before, spec),
+      ElementsAre("joint[0] 'ball': damping[0]", "joint[1] 'free': armature"));
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(again->dof_damping, 9), AsVector(model->dof_damping, 9));
+  EXPECT_EQ(AsVector(again->dof_armature, 9), AsVector(model->dof_armature, 9));
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(before);
+  mj_deleteSpec(spec);
 }
 }  // namespace
 }  // namespace mujoco

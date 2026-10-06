@@ -2530,6 +2530,62 @@ void mjCBody::AdoptInertial() {
 }
 
 
+// turn a compiled pose of this body into the pose in the spec which compiles to it
+void mjCBody::PoseInSpec(double bodypos[3], double bodyquat[4]) const {
+  // the alignment moved the frame of the body to its inertial frame
+  if (aligned_) { mjuu_frameaccuminv(bodypos, bodyquat, ipos_compiled_, iquat_compiled_); }
+  if (frame) { frame->ToLocal(bodypos, bodyquat); }
+}
+
+
+// turn a compiled pose of an element of this body into the pose in the spec which compiles to it
+void mjCBody::ElementPoseInSpec(const mjCFrame* elementframe,
+                                double          elementpos[3],
+                                double          elementquat[4]) const {
+  // the alignment moved the frames of the body with what they hold, and what is in no frame alone
+  if (elementframe) {
+    elementframe->ToLocal(elementpos, elementquat);
+  } else if (aligned_) {
+    mjuu_frameaccumChild(ipos_compiled_, iquat_compiled_, elementpos, elementquat);
+  }
+}
+
+
+// write to the spec the position and the orientation which compile to the compiled ones: the
+// alignment with a free joint offsets the position by the orientation, which then gives both
+void mjCBody::PoseToSpec(bool position, bool orientation) {
+  double specpos[3], specquat[4];
+  mjuu_copyvec(specpos, pos, 3);
+  mjuu_copyvec(specquat, quat, 4);
+  PoseInSpec(specpos, specquat);
+  const bool offset = aligned_ && (ipos_compiled_[0] || ipos_compiled_[1] || ipos_compiled_[2]);
+  if (position || (orientation && offset)) { mjuu_copyvec(spec.pos, specpos, 3); }
+  if (orientation) {
+    mjuu_copyvec(spec.quat, specquat, 4);
+    mjs_defaultOrientation(&spec.alt);
+  }
+}
+
+
+// write to the spec the inertial which compiles to the compiled one
+void mjCBody::InertialToSpec(bool massonly) {
+  // an inertial which the spec gives stays as it was written if only the mass is new
+  if (massonly && mjuu_defined(spec.ipos[0])) {
+    spec.mass = mass;
+    return;
+  }
+
+  // otherwise all of it is given, as when it is adopted: alignment with a free joint leaves the
+  // inertial frame where the spec has it, and without alignment it is the compiled one
+  if (!aligned_) {
+    mjuu_copyvec(ipos_compiled_, ipos, 3);
+    mjuu_copyvec(iquat_compiled_, iquat, 4);
+  }
+  AdoptInertial();
+  explicitinertial = true;
+}
+
+
 // true if compilation infers the inertial of this body from its geoms
 bool mjCBody::InfersInertial() const {
   return compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE ||
@@ -2901,6 +2957,7 @@ void mjCBody::Compile(void) {
                      (joints[0]->spec.align == 1 ||         // either joint.align="true"
                       (joints[0]->spec.align == 2 &&        // or (joint.align="auto"
                        compiler->alignfree)));              //     and compiler->align="true")
+  aligned_        = align_free;
 
   // free-joint alignment, phase 1 (this body + child geoms)
   double ipos_inverse[3], iquat_inverse[4];
@@ -3117,6 +3174,14 @@ void mjCFrame::PointToLocal() {
   spec.element    = static_cast<mjsElement*>(this);
   spec.childclass = &classname;
   spec.info       = &info;
+}
+
+
+// express in this frame, as compiled, a pose which is given in its body
+void mjCFrame::ToLocal(double childpos[3], double childquat[4]) const {
+  double invpos[3], invquat[4];
+  mjuu_frameinvert(invpos, invquat, pos, quat);
+  mjuu_frameaccumChild(invpos, invquat, childpos, childquat);
 }
 
 
@@ -3380,6 +3445,16 @@ int mjCJoint::Compile(void) {
   } else {
     return 1;
   }
+}
+
+
+// write to the spec the anchor and the axis which compile to the compiled ones
+void mjCJoint::AnchorToSpec(bool anchor, bool direction) {
+  double specpos[3], rotation[4] = {1, 0, 0, 0};
+  mjuu_copyvec(specpos, pos, 3);
+  if (frame) { frame->ToLocal(specpos, rotation); }
+  if (anchor) { mjuu_copyvec(spec.pos, specpos, 3); }
+  if (direction) { mjuu_rotVecQuat(spec.axis, axis, rotation); }
 }
 
 
@@ -4249,6 +4324,75 @@ void mjCGeom::Compile(void) {
 }
 
 
+// write to the spec the position and the orientation which compile to the compiled ones
+void mjCGeom::PoseToSpec(bool position, bool orientation) {
+  double specpos[3], specquat[4];
+  mjuu_copyvec(specpos, pos, 3);
+  mjuu_copyvec(specquat, quat, 4);
+
+  // compilation adds the frame of the mesh to the pose of a mesh geom: an offset mesh offsets
+  // the position by the orientation, which then gives both
+  bool offset = false;
+  if (mesh && (type == mjGEOM_MESH || type == mjGEOM_SDF)) {
+    const double* meshpos = mesh->GetPosPtr();
+    mjuu_frameaccuminv(specpos, specquat, meshpos, mesh->GetQuatPtr());
+    offset = meshpos[0] || meshpos[1] || meshpos[2];
+  }
+  body->ElementPoseInSpec(frame, specpos, specquat);
+  if (position || (orientation && offset)) { mjuu_copyvec(spec.pos, specpos, 3); }
+  if (orientation) {
+    mjuu_copyvec(spec.quat, specquat, 4);
+    mjs_defaultOrientation(&spec.alt);
+  }
+}
+
+
+// write to the spec the size, pose and surface velocity which compile to the compiled ones
+void mjCGeom::ShapeToSpec(bool newsize, bool position, bool orientation, bool newvelocity) {
+  const bool fitted  = type != mjGEOM_MESH && type != mjGEOM_SDF && !spec_meshname_.empty();
+  const bool span    = mjuu_defined(spec.fromto[0]);
+  const bool newpose = position || orientation;
+
+  // fromto does not give the radius of a capsule or cylinder: a new one leaves fromto as it is
+  if (span && !newpose && (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER)) {
+    double vec[3] = {spec.fromto[0] - spec.fromto[3],
+                     spec.fromto[1] - spec.fromto[4],
+                     spec.fromto[2] - spec.fromto[5]};
+    if (size[1] == mjuu_normvec(vec, 3) / 2) {
+      spec.size[0] = size[0];
+      newsize      = false;
+    }
+  }
+
+  // a size and pose which are given by fromto, or by fitting the geom to a mesh, are written in
+  // its place; the surface velocity is then in the compiled frame of the geom
+  if ((span && (newsize || newpose)) || (fitted && (newsize || newpose || newvelocity))) {
+    spec.fromto[0] = mjNAN;
+    if (fitted) {
+      spec_meshname_.clear();
+      newvelocity = true;
+    }
+    newsize = position = orientation = true;
+  }
+
+  if (newsize) { mjuu_copyvec(spec.size, size, 3); }
+  PoseToSpec(position, orientation);
+
+  // compilation expresses the surface velocity of a mesh geom in the frame of the mesh: rotate
+  // both parts back, and move the origin of the angular part back from the mesh position
+  if (newvelocity) {
+    mjuu_copyvec(spec.surfacevel, surfacevel, 6);
+    if (mesh && (type == mjGEOM_MESH || type == mjGEOM_SDF)) {
+      double wxp[3];
+      mjuu_rotVecQuat(spec.surfacevel, surfacevel, mesh->GetQuatPtr());
+      mjuu_rotVecQuat(spec.surfacevel + 3, surfacevel + 3, mesh->GetQuatPtr());
+      mjuu_crossvec(wxp, spec.surfacevel + 3, mesh->GetPosPtr());
+      for (int i = 0; i < 3; i++) { spec.surfacevel[i] -= wxp[i]; }
+    }
+  }
+}
+
+
 //------------------ class mjCSite implementation --------------------------------------------------
 
 // initialize default site
@@ -4421,6 +4565,47 @@ void mjCSite::Compile(void) {
 }
 
 
+// write to the spec the position and the orientation which compile to the compiled ones
+void mjCSite::PoseToSpec(bool position, bool orientation) {
+  double specpos[3], specquat[4];
+  mjuu_copyvec(specpos, pos, 3);
+  mjuu_copyvec(specquat, quat, 4);
+  body->ElementPoseInSpec(frame, specpos, specquat);
+  if (position) { mjuu_copyvec(spec.pos, specpos, 3); }
+  if (orientation) {
+    mjuu_copyvec(spec.quat, specquat, 4);
+    mjs_defaultOrientation(&spec.alt);
+  }
+}
+
+
+// write to the spec the size and pose which compile to the compiled ones
+void mjCSite::ShapeToSpec(bool newsize, bool position, bool orientation) {
+  const bool span    = mjuu_defined(spec.fromto[0]);
+  const bool newpose = position || orientation;
+
+  // fromto does not give the radius of a capsule or cylinder: a new one leaves fromto as it is
+  if (span && !newpose && (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER)) {
+    double vec[3] = {spec.fromto[0] - spec.fromto[3],
+                     spec.fromto[1] - spec.fromto[4],
+                     spec.fromto[2] - spec.fromto[5]};
+    if (size[1] == mjuu_normvec(vec, 3) / 2) {
+      spec.size[0] = size[0];
+      newsize      = false;
+    }
+  }
+
+  // a size and pose which are given by fromto are written in its place
+  if (span && (newsize || newpose)) {
+    spec.fromto[0] = mjNAN;
+    newsize = position = orientation = true;
+  }
+
+  if (newsize) { mjuu_copyvec(spec.size, size, 3); }
+  PoseToSpec(position, orientation);
+}
+
+
 //------------------ class mjCCamera implementation ------------------------------------------------
 
 // initialize defaults
@@ -4583,6 +4768,34 @@ void mjCCamera::Compile(void) {
 }
 
 
+// write to the spec the position and the orientation which compile to the compiled ones
+void mjCCamera::PoseToSpec(bool position, bool orientation) {
+  double specpos[3], specquat[4];
+  mjuu_copyvec(specpos, pos, 3);
+  mjuu_copyvec(specquat, quat, 4);
+  body->ElementPoseInSpec(frame, specpos, specquat);
+  if (position) { mjuu_copyvec(spec.pos, specpos, 3); }
+  if (orientation) {
+    mjuu_copyvec(spec.quat, specquat, 4);
+    mjs_defaultOrientation(&spec.alt);
+  }
+}
+
+
+// write the compiled intrinsics as focal length and principal point, in units of length
+void mjCCamera::IntrinsicToSpec(bool tospec) {
+  for (mjsCamera* camera : {static_cast<mjsCamera*>(this), tospec ? &spec : nullptr}) {
+    if (!camera) { continue; }
+    for (int i = 0; i < 2; i++) {
+      camera->focal_length[i]     = intrinsic[i];
+      camera->principal_length[i] = intrinsic[i + 2];
+      camera->focal_pixel[i]      = 0;
+      camera->principal_pixel[i]  = 0;
+    }
+  }
+}
+
+
 //------------------ class mjCLight implementation -------------------------------------------------
 
 // initialize defaults
@@ -4696,6 +4909,16 @@ void mjCLight::Compile(void) {
 
   // get targetbodyid and texid
   ResolveReferences(model);
+}
+
+
+// write to the spec the position and the direction which compile to the compiled ones
+void mjCLight::PoseToSpec(bool position, bool direction) {
+  double specpos[3], rotation[4] = {1, 0, 0, 0};
+  mjuu_copyvec(specpos, pos, 3);
+  body->ElementPoseInSpec(frame, specpos, rotation);
+  if (position) { mjuu_copyvec(spec.pos, specpos, 3); }
+  if (direction) { mjuu_rotVecQuat(spec.dir, dir, rotation); }
 }
 
 
@@ -8295,6 +8518,9 @@ void mjCNumeric::Compile(void) {
   if (!size) {
     throw mjCError(this, "numeric '%s' (id = %d): size cannot be zero", name.c_str(), id);
   }
+
+  // the model holds the data padded with zeros up to its size
+  data_.resize(size);
 }
 
 

@@ -99,7 +99,49 @@ stays applied if a later one, or the compilation, fails; the error then says so.
 
 .. mujoco-include:: mj_copyBack
 
-Copy real-valued arrays from model to spec; return 1 on success.
+Copy to an :ref:`mjSpec` the values which were changed in the :ref:`mjModel` that was compiled from it. The changes
+can then be read in the spec, are saved with it, and are in the models which are compiled from it afterwards. An
+attribute is copied if the model no longer has what compilation gave it, all of its numbers; everything else in the
+spec is left as it is, including what was written there since it was compiled. The position and the orientation of a
+pose, and the bounds of a range, are separate attributes. Returns 1 on success. Returns 0 if the model was not compiled
+from the spec as it is structured now, or if a value was changed which the spec cannot express; nothing is copied
+then, and the error can be read with :ref:`mjs_getError`. A model can also be copied back to a copy of the spec made
+by :ref:`mj_copySpec`.
+
+The values which are copied are ``mjModel.opt``, ``mjModel.vis`` and ``mjModel.stat``, the real-valued parameters of
+bodies, joints, geoms, sites, cameras, lights, materials, contact pairs, equalities, tendons, actuators and sensors,
+custom numeric and tuple data, keyframes and the elevation data of height fields. Each is written as what compiles to
+it:
+
+- A pose is written in the :ref:`frame<frame>` which the element is in. An orientation which was not changed stays as
+  it was written, for example as Euler angles, and one which was changed is written as a quaternion. Where
+  compilation offsets the position by the orientation, for a mesh geom whose mesh is not centered at its origin and a
+  body which is :ref:`aligned<body-freejoint-align>` with its free joint, a new orientation also writes the position.
+  The reference pose of a body with a free joint is taken from ``mjModel.qpos0`` if that was changed.
+- Angles are written in the :ref:`unit<compiler-angle>` of the spec.
+- The size and pose of a geom or site which were written as ``fromto``, or computed by fitting a geom to a mesh, are
+  written in its place. A new radius of a capsule or cylinder leaves ``fromto`` as it is.
+- A mass or inertia which was changed gives the body an explicit :ref:`inertial<body-inertial>`, which is then no
+  longer inferred from its geoms; a body which has one keeps it as it was written if only the mass was changed. The
+  inertia of the other bodies still follows their geoms, including a size or pose which was copied.
+- A range whose ``limited`` attribute is "auto" keeps the limited state which it has in the model: the attribute is
+  set if the new range would be inferred otherwise.
+- A stiffness or damping of a joint with :ref:`springdamper<body-joint-springdamper>`, and a control or activation
+  range which was inherited with :ref:`inheritrange<actuator-position-inheritrange>`, are written in its place.
+- Elevation data of a height field which was read from a file is written in place of the file.
+- The relative pose of a :ref:`weld<equality-weld>` between bodies which compilation computed stays computed, unless
+  it was changed in the model or the anchor of the weld was; it is then written.
+
+The following changes cannot be expressed in the spec and are errors: the mass or inertia of a body when
+:ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true" or :ref:`settotalmass<compiler-settotalmass>` is set; the
+inertial frame of a body which is :ref:`aligned<body-freejoint-align>` with its free joint; the pose of the world
+body; the anchor or axis of a free joint and the axis of a ball joint; the size of a mesh or height field geom or of a
+mesh site, and the frame of a mesh; the field of view of a camera which has a sensor size, and the intrinsics of one
+which has none; and different control ranges for the inputs of an actuator which has one. So are changes which the
+next compilation would not keep: damping, armature, friction loss or their solver parameters which differ between the
+degrees of freedom of a ball or free joint; elevation data of a height field whose lowest and highest values are not
+0 and 1; and the anchor of a :ref:`connect<equality-connect>` between bodies in its second body, other than the one
+which :ref:`mj_setConst` computes.
 
 .. _mj_recompile:
 

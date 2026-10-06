@@ -559,6 +559,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   // return true if body has valid mass and inertia
   bool CheckBodyMassInertia(mjCBody* body);
 
+  // copy to the elements the values of the model which differ from those they hold, and with
+  // `tospec` to the spec as well; without `write`, only report those which the spec cannot express
+  void BackValues(const mjModel* m, bool tospec, bool write);
+
   // Mark plugin instances mentioned in the list
   template <class T>
   void MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
@@ -596,6 +600,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool                     deepcopy_;                      // copy objects when attaching
   bool                     copying_  = false;  // true while this model is copied from another
   bool                     attached_ = false;  // true if model is attached to a parent model
+  bool                     baseline_ = false;  // the elements hold what compilation gave the model
   std::vector<std::string> inplacekeys_;       // stored names of the keyframes which stay in place
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
 };

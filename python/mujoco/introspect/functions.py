@@ -525,7 +525,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Copy real-valued arrays from model to spec; return 1 on success.',
+         doc='Copy the values which were changed in a model to the spec it was compiled from; return 1 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_recompile',
      FunctionDecl(

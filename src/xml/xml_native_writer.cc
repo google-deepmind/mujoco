@@ -962,10 +962,11 @@ mjXWriter::mjXWriter(void) {
 }
 
 
-// cast model
+// cast model; copy back what was changed in the model, which fails if the model was not compiled
+// from the spec or if the spec cannot express a change
 void mjXWriter::SetModel(mjSpec* _spec, const mjModel* m) {
   if (_spec) { model = static_cast<mjCModel*>(_spec->element); }
-  if (m) { mj_copyBack(&model->spec, m); }
+  if (m && !mj_copyBack(&model->spec, m)) { throw mjXError(0, "%s", mjs_getError(&model->spec)); }
 }
 
 
@@ -1618,8 +1619,9 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     // userdata
     WriteVector(elem, "user", body->get_userdata());
 
-    // write inertial
+    // write inertial: also when the total mass is set, which scales the masses of all bodies
     if (model->compiler.saveinertial ||
+        model->compiler.settotalmass > 0 ||
         (body->explicitinertial && model->compiler.inertiafromgeom != mjINERTIAFROMGEOM_TRUE)) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);

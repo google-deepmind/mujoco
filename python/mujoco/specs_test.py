@@ -1354,6 +1354,44 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'inertiafromgeom'):
       spec.adopt_inertial(body)
 
+  def test_copy_back(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <worldbody>
+            <frame pos="1 0 0">
+              <body name="body" pos="1 0 0">
+                <joint name="joint" range="-90 90"/>
+                <geom name="geom" size="1"/>
+              </body>
+            </frame>
+          </worldbody>
+        </mujoco>
+    """))
+    model = spec.compile()
+    model.body('body').pos[0] = 4
+    model.geom('geom').size[0] = 2
+    model.joint('joint').range[1] /= 2
+    spec.copy_back(model)
+
+    # Each value is written as what compiles to it: the position in the frame
+    # of the body, the limit in degrees.
+    np.testing.assert_array_equal(spec.body('body').pos, [3, 0, 0])
+    self.assertEqual(spec.geom('geom').size[0], 2)
+    np.testing.assert_allclose(spec.joint('joint').range, [-90, 45])
+    recompiled = spec.compile()
+    np.testing.assert_array_equal(recompiled.body('body').pos, [4, 0, 0])
+    np.testing.assert_array_equal(recompiled.geom('geom').size, [2, 0, 0])
+
+    # A change which the spec cannot express is an error, and nothing is
+    # written.
+    spec.compiler.inertiafromgeom = mujoco.mjtInertiaFromGeom.mjINERTIAFROMGEOM_TRUE
+    model = spec.compile()
+    model.body('body').mass[0] = 5
+    model.geom('geom').size[0] = 3
+    with self.assertRaisesRegex(ValueError, 'was changed in the model'):
+      spec.copy_back(model)
+    self.assertEqual(spec.geom('geom').size[0], 2)
+
   def test_asset_not_named_after_file(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')

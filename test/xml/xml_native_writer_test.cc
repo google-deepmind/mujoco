@@ -242,6 +242,53 @@ TEST_F(XMLWriterTest, NotAddsInertial) {
   EXPECT_THAT(saved_xml, Not(HasSubstr("inertial")));
 }
 
+// the masses of a model which sets its total mass are saved as they were
+// scaled, for the bodies with an inertial and for those without
+TEST_F(XMLWriterTest, KeepsTotalMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler settotalmass="8"/>
+    <worldbody>
+      <body name="given">
+        <joint/>
+        <inertial pos="0 0 .5" mass="1" diaginertia=".5 .5 .25"/>
+        <geom size=".25"/>
+      </body>
+      <body name="inferred" pos="1 0 0">
+        <joint/>
+        <geom type="box" size=".25 .25 .5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mock_warning_handler.ExpectWarnings("settotalmass");
+  FullFloatPrecision increase_precision;
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(mj_getTotalmass(model), 8, MjTol(1e-12, 1e-5));
+
+  // saving the spec, or the model after loading the file
+  MjModelPtr loaded = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(loaded.get(), NotNull()) << error.data();
+  for (const std::string& saved :
+       {SaveAndReadXml(spec), SaveAndReadXml(loaded.get())}) {
+    EXPECT_THAT(saved, Not(HasSubstr("settotalmass")));
+    MjModelPtr reloaded =
+        LoadModelFromString(saved.c_str(), error.data(), error.size());
+    ASSERT_THAT(reloaded.get(), NotNull()) << error.data();
+    std::string field;
+    EXPECT_LE(CompareModel(model, reloaded.get(), field), MjTol(1e-12, 1e-5))
+        << field;
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(XMLWriterTest, KeepsBoundMassInertia) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1781,14 +1828,66 @@ TEST_F(DecompilerTest, SaveAndReadXml) {
   EXPECT_THAT(saved_xml2, HasSubstr("geom size=\"0.2\""));
   EXPECT_THAT(saved_xml2, HasSubstr("geom size=\"0.3\""));
 
-  // check that using mjModel as argument writes in the wrong mjSpec
-  std::string saved_xml3 = SaveAndReadXml(m2);
-  EXPECT_THAT(saved_xml3, Not(HasSubstr("geom size=\"0.1\"")));
-  EXPECT_THAT(saved_xml3, Not(HasSubstr("geom size=\"0.2\"")));
-  EXPECT_THAT(saved_xml3, Not(HasSubstr("geom size=\"0.3\"")));
+  // a model which was not compiled from the XML which was loaded last is not
+  // saved with it
+  EXPECT_EQ(mj_saveLastXML(nullptr, m2, error.data(), error.size()), 0);
+  EXPECT_THAT(error.data(), HasSubstr("CopyBack"));
 
   mj_deleteSpec(spec);
   mj_deleteModel(m2);
+}
+
+// the reference pose of a body with a free joint is qpos0, which is where the
+// simulation reads it
+TEST_F(DecompilerTest, FreeJointReferencePose) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="free" pos="1 2 3">
+        <freejoint/>
+        <geom size="1"/>
+      </body>
+      <body name="fixed" pos="5 6 7">
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  model->qpos0[2] = 4;
+  model->body_pos[3 * 2 + 2] = 8;
+  std::string saved = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved, HasSubstr("name=\"free\" pos=\"1 2 4\""));
+  EXPECT_THAT(saved, HasSubstr("name=\"fixed\" pos=\"5 6 8\""));
+
+  // the pose of the body is used if qpos0 was not changed
+  model->body_pos[3 * 1 + 2] = 9;
+  saved = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved, HasSubstr("name=\"free\" pos=\"1 2 9\""));
+}
+
+// a numeric with less data than its size is saved, and copied back, with the
+// zeros which fill it in the model; the XML parser fills it, the API does not
+TEST_F(DecompilerTest, NumericLargerThanData) {
+  mjSpec* spec = mj_makeSpec();
+  mjsNumeric* numeric = mjs_addNumeric(spec);
+  mjs_setName(numeric->element, "padded");
+  numeric->size = 5;
+  const double data[2] = {1, 2};
+  mjs_setDouble(numeric->data, data, 2);
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(SaveAndReadXml(spec), HasSubstr("data=\"1 2 0 0 0\""));
+
+  model->numeric_data[4] = 7;
+  EXPECT_EQ(mj_copyBack(spec, model), 1);
+  EXPECT_THAT(SaveAndReadXml(spec), HasSubstr("data=\"1 2 0 0 7\""));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(DecompilerTest, DoesntSaveInferredStatistics) {

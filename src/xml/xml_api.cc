@@ -74,6 +74,10 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int err
 //  returns 1 if successful, 0 otherwise
 //  error can be NULL; otherwise assumed to have size error_sz
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz) {
+  // the file is opened once there is something to write: a failure leaves it as it was
+  const std::string result = GetGlobalXmlSpec(m, error, error_sz);
+  if (result.empty()) { return 0; }
+
   FILE* fp = stdout;
   if (filename != nullptr && filename[0] != '\0') {
     fp = fopen(filename, "w");
@@ -83,12 +87,10 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
     }
   }
 
-  const std::string result = GetGlobalXmlSpec(m, error, error_sz);
-  if (!result.empty()) { fprintf(fp, "%s", result.c_str()); }
-
+  fprintf(fp, "%s", result.c_str());
   if (fp != stdout) { fclose(fp); }
 
-  return !result.empty();
+  return 1;
 }
 
 

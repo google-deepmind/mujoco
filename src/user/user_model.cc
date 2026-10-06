@@ -27,6 +27,7 @@
 #include <exception>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -45,6 +46,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mjtype.h>
+#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_core_util.h"
@@ -228,6 +230,10 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // unlike an attachment, a copy leaves the original as it is
     copying_ = true;
 
+    // its elements hold what a compilation gave the model if those of the original do, unless
+    // one of them is taken again from its spec
+    baseline_ = other.baseline_;
+
     // the world copy constructor takes care of copying the tree
     mjCBody* world = new mjCBody(*other.bodies_[0], this);
     bodies_.push_back(world);
@@ -284,6 +290,7 @@ void mjCModel::CopyList(std::vector<T*>&       dest,
   auto resolve = [this](T* element, mjCModel* source_model) {
     element->model = this;
     if (copying_ && compiled && resolves(element, this)) { return; }
+    if (copying_) { baseline_ = false; }
     element->NameSpace(source_model);
     element->CopyFromSpec();
     element->ResolveReferences(this);
@@ -5548,6 +5555,7 @@ bool mjCModel::Resolve(const mjVFS* vfs, bool textures) {
 // compile the model, or only its assets and kinematic tree
 mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool textures) {
   if (compiled) { Clear(); }
+  baseline_ = false;
 
   CopyFromSpec();
 
@@ -5620,7 +5628,8 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool te
   _mjPRIVATE_setTlsLogHandler(prev_tls);
   compiling_ = false;
   if (treeonly) { return nullptr; }
-  compiled = true;
+  compiled  = true;
+  baseline_ = true;
 
   // play back compile warnings through the normal handler chain
   for (int i = num_attach_warnings_; i < warnings_.size(); ++i) {
@@ -6404,6 +6413,10 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->opt.enableflags  = enableflags;
   d                   = nullptr;
 
+  // the elements hold what the model was given, also where that was computed after they were
+  // copied to it: by mj_setConst, mj_setLengthRange or the scaling of masses above
+  BackValues(m, /*tospec=*/false, /*write=*/true);
+
   // save signature; the spec may have changed structurally during compilation,
   // and compilation itself may modify topology (fusestatic, discardvisual,
   // pairs, excludes)
@@ -6503,6 +6516,29 @@ bool mjCModel::CheckBodyMassInertia(mjCBody* body) {
 
 //------------------------------- DECOMPILER -------------------------------------------------------
 
+namespace {
+
+// true if the model holds another value than the element
+template <typename T, typename S>
+bool Differs(const T* element, const S* model, int n) {
+  for (int i = 0; i < n; i++) {
+    if (static_cast<S>(element[i]) != model[i]) { return true; }
+  }
+  return false;
+}
+
+// copy to an element the values which differ in the model. An element holds its values in double
+// precision whatever the precision of the model, and the values which are the same keep it
+template <typename T, typename S>
+void Back(T* element, const S* model, int n = 1) {
+  for (int i = 0; i < n; i++) {
+    if (static_cast<S>(element[i]) != model[i]) { element[i] = static_cast<T>(model[i]); }
+  }
+}
+
+}  // namespace
+
+
 // get numeric data back from mjModel
 bool mjCModel::CopyBack(const mjModel* m) {
   // check for null pointer
@@ -6514,6 +6550,14 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // make sure model has been compiled
   if (!compiled) {
     errInfo = mjCError(0, "mjCModel has not been compiled in CopyBack");
+    return false;
+  }
+
+  // a value is copied if it is not the one which the elements hold from the compilation; an
+  // element of a copy whose references were not found is taken again from its spec, so every
+  // value which compilation derives for it would count as changed
+  if (!baseline_) {
+    errInfo = mjCError(0, "copy of mjSpec does not hold what was compiled in CopyBack");
     return false;
   }
 
@@ -6554,7 +6598,20 @@ bool mjCModel::CopyBack(const mjModel* m) {
       nemax != m->nemax ||
       nconmax != m->nconmax ||
       njmax != m->njmax ||
-      npaths != m->npaths) {
+      npaths != m->npaths ||
+      ntuple != m->ntuple ||
+      ntupledata != m->ntupledata ||
+      nkey != m->nkey ||
+      nmocap != m->nmocap ||
+      nhfielddata != m->nhfielddata ||
+      nuser_body != m->nuser_body ||
+      nuser_jnt != m->nuser_jnt ||
+      nuser_geom != m->nuser_geom ||
+      nuser_site != m->nuser_site ||
+      nuser_cam != m->nuser_cam ||
+      nuser_tendon != m->nuser_tendon ||
+      nuser_actuator != m->nuser_actuator ||
+      nuser_sensor != m->nuser_sensor) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
     return false;
   }
@@ -6564,284 +6621,699 @@ bool mjCModel::CopyBack(const mjModel* m) {
     return false;
   }
 
+  // every value which the spec cannot express is reported before anything is written
+  try {
+    BackValues(m, /*tospec=*/true, /*write=*/false);
+  } catch (mjCError err) {
+    errInfo = err;
+    return false;
+  }
+  BackValues(m, /*tospec=*/true, /*write=*/true);
+  return true;
+}
+
+
+// copy to the elements the values of the model which differ from those they hold. Compilation
+// ends with this, so that the elements of a compiled spec hold what the model was given; after
+// that, these are the values which were changed in the model. With `tospec` they are also written
+// to the spec, each as what compiles to it, and a value which the spec cannot express is an
+// error. Without `write` nothing is copied and only the errors are raised
+void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
+  // a value which compilation copies to the model as it is; true if the model changed it
+  auto copy = [&](auto* value, auto* element, const auto* model, int n = 1) {
+    if (!Differs(element, model, n)) { return false; }
+    if (write) {
+      Back(element, model, n);
+      if (tospec) { std::copy_n(element, n, value); }
+    }
+    return true;
+  };
+
+  // the same for values which are held in a vector
+  auto copyvector = [&](auto& value, auto& element, const auto* model, int n) {
+    if (!Differs(element.data(), model, n)) { return false; }
+    if (write) {
+      Back(element.data(), model, n);
+      if (tospec) { value = element; }
+    }
+    return true;
+  };
+
+  // a range, which the spec gives multiplied by `scale`. Whether it limits may be inferred from
+  // the range: the flag is set if the inference would not give what the model has
+  auto copyrange = [&](double*            value,
+                       double*            element,
+                       const mjtNum*      model,
+                       mjtLimited&        valuelimited,
+                       mjtLimited&        elementlimited,
+                       bool               modellimited,
+                       const mjsCompiler* settings,
+                       double             scale = 1) {
+    const bool lower = Differs(element, model, 1);
+    const bool upper = Differs(element + 1, model + 1, 1);
+    if (!lower && !upper) { return false; }
+    if (write && tospec) {
+      Back(element, model, 2);
+      if (lower) { value[0] = scale * element[0]; }
+      if (upper) { value[1] = scale * element[1]; }
+      if (valuelimited == mjLIMITED_AUTO) {
+        bool hasrange = value[0] != 0 || value[1] != 0;
+        if ((!settings->autolimits && hasrange) || (value[0] < value[1]) != modellimited) {
+          valuelimited = elementlimited = modellimited ? mjLIMITED_TRUE : mjLIMITED_FALSE;
+        }
+      }
+    } else if (write) {
+      Back(element, model, 2);
+    }
+    return true;
+  };
+
+  // a value which was changed in the model and which the spec cannot express
+  auto refuse = [&](const mjCBase* element, const std::string& what, const std::string& why) {
+    if (tospec && !write) {
+      throw mjCError(element, "%s", (what + " was changed in the model: " + why).c_str());
+    }
+  };
+
+  // data of the model in its reference configuration, made when it is first needed
+  std::unique_ptr<mjData, void (*)(mjData*)> reference(nullptr, mj_deleteData);
+
+  // the anchor which a connect between bodies has in its second body, as mj_setConst computes it
+  // from the model as it is now
+  auto secondanchor = [&](int i, mjtNum anchor[3]) {
+    if (!reference) {
+      reference.reset(mj_makeData(m));
+      mj_kinematics(m, reference.get());
+    }
+    const mjData* d = reference.get();
+    mjtNum        pos[3];
+    mj_local2Global(reference.get(), pos, 0, m->eq_data + mjNEQDATA * i, 0, m->eq_obj1id[i], 0);
+    mju_subFrom3(pos, d->xpos + 3 * m->eq_obj2id[i]);
+    mju_mulMatTVec3(anchor, d->xmat + 9 * m->eq_obj2id[i], pos);
+  };
+
   // option and visual
-  option = m->opt;
-  visual = m->vis;
-
-  // runtime-modifiable members of mjStatistic, if different from computed values
-  if (m->stat.meaninertia != meaninertia_auto) stat.meaninertia = m->stat.meaninertia;
-  if (m->stat.meanmass != meanmass_auto) stat.meanmass = m->stat.meanmass;
-  if (m->stat.meansize != meansize_auto) stat.meansize = m->stat.meansize;
-  if (m->stat.extent != extent_auto) stat.extent = m->stat.extent;
-  if (m->stat.center[0] != center_auto[0] ||
-      m->stat.center[1] != center_auto[1] ||
-      m->stat.center[2] != center_auto[2]) {
-    mjuu_copyvec(stat.center, m->stat.center, 3);
+#define X(type, name, n)                                                        \
+  if (copy(&spec.option.name, &option.name, &m->opt.name) && tospec && write) { \
+    mjs_setAuthored(&spec, &spec.option.name, 1);                               \
   }
-
-  // qpos0, qpos_spring
-  for (int i = 0; i < njnt; i++) {
-    switch (joints_[i]->type) {
-      case mjJNT_FREE:
-        mjuu_copyvec(bodies_[m->jnt_bodyid[i]]->pos, m->qpos0 + m->jnt_qposadr[i], 3);
-        mjuu_copyvec(bodies_[m->jnt_bodyid[i]]->quat, m->qpos0 + m->jnt_qposadr[i] + 3, 4);
-        break;
-
-      case mjJNT_SLIDE:
-      case mjJNT_HINGE:
-        joints_[i]->ref       = (double)m->qpos0[m->jnt_qposadr[i]];
-        joints_[i]->springref = (double)m->qpos_spring[m->jnt_qposadr[i]];
-        break;
-
-      case mjJNT_BALL:
-        // nothing to do, qpos = unit quaternion always
-        break;
-    }
+#define XVEC(type, name, n)                                                     \
+  if (copy(spec.option.name, option.name, m->opt.name, n) && tospec && write) { \
+    mjs_setAuthored(&spec, spec.option.name, 1);                                \
   }
-  mjuu_copyvec(qpos0.data(), m->qpos0, m->nq);
+  MJOPTION_FIELDS
+#undef X
+#undef XVEC
 
-  // body
-  mjCBody* pb;
-  for (int i = 0; i < nbody; i++) {
-    pb = bodies_[i];
-
-    mjuu_copyvec(pb->pos, m->body_pos + 3 * i, 3);
-    mjuu_copyvec(pb->quat, m->body_quat + 4 * i, 4);
-    mjuu_copyvec(pb->ipos, m->body_ipos + 3 * i, 3);
-    mjuu_copyvec(pb->iquat, m->body_iquat + 4 * i, 4);
-    pb->mass = (double)m->body_mass[i];
-    mjuu_copyvec(pb->inertia, m->body_inertia + 3 * i, 3);
-
-    if (nuser_body) {
-      mjuu_copyvec(pb->userdata_.data(), m->body_user + nuser_body * i, nuser_body);
-    }
+#define mjBACKVISUAL(group, FIELDS)    \
+  {                                    \
+    auto& value   = spec.visual.group; \
+    auto& element = visual.group;      \
+    auto& model   = m->vis.group;      \
+    FIELDS                             \
   }
+#define X(type, name, n)                                                  \
+  if (copy(&value.name, &element.name, &model.name) && tospec && write) { \
+    mjs_setAuthored(&spec, &value.name, 1);                               \
+  }
+#define XVEC(type, name, n)                                               \
+  if (copy(value.name, element.name, model.name, n) && tospec && write) { \
+    mjs_setAuthored(&spec, value.name, 1);                                \
+  }
+  mjBACKVISUAL(global, MJVISUAL_GLOBAL_FIELDS);
+  mjBACKVISUAL(quality, MJVISUAL_QUALITY_FIELDS);
+  mjBACKVISUAL(headlight, MJVISUAL_HEADLIGHT_FIELDS);
+  mjBACKVISUAL(map, MJVISUAL_MAP_FIELDS);
+  mjBACKVISUAL(scale, MJVISUAL_SCALE_FIELDS);
+  mjBACKVISUAL(rgba, MJVISUAL_RGBA_FIELDS);
+#undef X
+#undef XVEC
+#undef mjBACKVISUAL
+
+  // statistics: the model was given the value which is set, or else the one computed for it
+  auto statistic =
+      [&](mjtNum* value, mjtNum* element, const mjtNum* model, const double* computed, int n) {
+        bool isset   = mjuu_defined(element[0]);
+        bool changed = false;
+        for (int i = 0; i < n; i++) {
+          changed |= model[i] != (isset ? element[i] : static_cast<mjtNum>(computed[i]));
+        }
+        if (changed && write) {
+          std::copy_n(model, n, element);
+          if (tospec) { std::copy_n(model, n, value); }
+        }
+      };
+  statistic(&spec.stat.meaninertia, &stat.meaninertia, &m->stat.meaninertia, &meaninertia_auto, 1);
+  statistic(&spec.stat.meanmass, &stat.meanmass, &m->stat.meanmass, &meanmass_auto, 1);
+  statistic(&spec.stat.meansize, &stat.meansize, &m->stat.meansize, &meansize_auto, 1);
+  statistic(&spec.stat.extent, &stat.extent, &m->stat.extent, &extent_auto, 1);
+  statistic(spec.stat.center, stat.center, m->stat.center, center_auto, 3);
 
   // joint and dof
-  mjCJoint* pj;
   for (int i = 0; i < njnt; i++) {
-    pj = joints_[i];
+    mjCJoint* pj      = joints_[i];
+    int       qposadr = m->jnt_qposadr[i];
+    int       dofadr  = m->jnt_dofadr[i];
 
-    // joint data
-    mjuu_copyvec(pj->pos, m->jnt_pos + 3 * i, 3);
-    mjuu_copyvec(pj->axis, m->jnt_axis + 3 * i, 3);
-    pj->stiffness[0] = (double)m->jnt_stiffness[i];
-    mjuu_copyvec(pj->stiffness + 1, m->jnt_stiffnesspoly + mjNPOLY * i, mjNPOLY);
-    mjuu_copyvec(pj->range, m->jnt_range + 2 * i, 2);
-    mjuu_copyvec(pj->solref_limit, m->jnt_solref + mjNREF * i, mjNREF);
-    mjuu_copyvec(pj->solimp_limit, m->jnt_solimp + mjNIMP * i, mjNIMP);
-    pj->margin = (double)m->jnt_margin[i];
+    // an angle is in degrees in a spec which says so
+    const bool   rotates = pj->type == mjJNT_HINGE || pj->type == mjJNT_BALL;
+    const double degrees = pj->compiler->degree ? 180 / mjPI : 1;
 
-    if (nuser_jnt) { mjuu_copyvec(pj->userdata_.data(), m->jnt_user + nuser_jnt * i, nuser_jnt); }
+    // qpos0, qpos_spring: those of a free joint are the pose of its body, below, and those of a
+    // ball joint are the unit quaternion
+    if (pj->type == mjJNT_SLIDE || pj->type == mjJNT_HINGE) {
+      const double scale = pj->type == mjJNT_HINGE ? degrees : 1;
+      if (copy(&pj->spec.ref, &pj->ref, m->qpos0 + qposadr) && tospec && write) {
+        pj->spec.ref = scale * pj->ref;
+      }
+      if (copy(&pj->spec.springref, &pj->springref, m->qpos_spring + qposadr) && tospec && write) {
+        pj->spec.springref = scale * pj->springref;
+      }
+    }
 
-    // dof data
-    int j = m->jnt_dofadr[i];
-    mjuu_copyvec(pj->solref_friction, m->dof_solref + mjNREF * j, mjNREF);
-    mjuu_copyvec(pj->solimp_friction, m->dof_solimp + mjNIMP * j, mjNIMP);
-    pj->armature   = (double)m->dof_armature[j];
-    pj->damping[0] = (double)m->dof_damping[j];
-    mjuu_copyvec(pj->damping + 1, m->dof_dampingpoly + mjNPOLY * j, mjNPOLY);
-    pj->frictionloss = (double)m->dof_frictionloss[j];
+    // anchor and axis: those of a free joint are fixed, as is the axis of a ball joint
+    bool anchor    = Differs(pj->pos, m->jnt_pos + 3 * i, 3);
+    bool direction = Differs(pj->axis, m->jnt_axis + 3 * i, 3);
+    if (anchor || direction) {
+      if (pj->type == mjJNT_FREE) {
+        refuse(pj, "the anchor or axis of a free joint", "they are fixed");
+      } else if (direction && pj->type == mjJNT_BALL) {
+        refuse(pj, "the axis of a ball joint", "it is fixed");
+      }
+      if (write) {
+        Back(pj->pos, m->jnt_pos + 3 * i, 3);
+        Back(pj->axis, m->jnt_axis + 3 * i, 3);
+        if (tospec) { pj->AnchorToSpec(anchor, direction); }
+      }
+    }
+
+    // the spec gives one value to all the degrees of freedom of a ball or a free joint
+    const int ndof   = m->jnt_type[i] == mjJNT_FREE ? 6 : (m->jnt_type[i] == mjJNT_BALL ? 3 : 1);
+    auto      shared = [&](const char* name, const mjtNum* model, int n = 1) {
+      for (int k = n; k < n * ndof; k++) {
+        if (model[n * dofadr + k] != model[n * dofadr + k % n]) {
+          refuse(pj,
+                 name,
+                 "its degrees of freedom have different values, and the spec gives them one");
+          return;
+        }
+      }
+    };
+    shared("the damping of a joint", m->dof_damping);
+    shared("the damping of a joint", m->dof_dampingpoly, mjNPOLY);
+    shared("the armature of a joint", m->dof_armature);
+    shared("the friction loss of a joint", m->dof_frictionloss);
+    shared("the solver parameters of the friction loss of a joint", m->dof_solref, mjNREF);
+    shared("the solver parameters of the friction loss of a joint", m->dof_solimp, mjNIMP);
+
+    // stiffness and damping: springdamper computes both, so a change of either takes its place
+    bool spring = copy(pj->spec.stiffness, pj->stiffness, m->jnt_stiffness + i);
+    bool damper = copy(pj->spec.damping, pj->damping, m->dof_damping + dofadr);
+    if ((spring || damper) &&
+        tospec &&
+        write &&
+        pj->springdamper[0] > 0 &&
+        pj->springdamper[1] > 0) {
+      pj->spec.stiffness[0] = pj->stiffness[0];
+      pj->spec.damping[0]   = pj->damping[0];
+      pj->springdamper[0] = pj->springdamper[1] = 0;
+      pj->spec.springdamper[0] = pj->spec.springdamper[1] = 0;
+    }
+    copy(pj->spec.stiffness + 1, pj->stiffness + 1, m->jnt_stiffnesspoly + mjNPOLY * i, mjNPOLY);
+    copy(pj->spec.damping + 1, pj->damping + 1, m->dof_dampingpoly + mjNPOLY * dofadr, mjNPOLY);
+
+    // range: the limits of a rotation are in the unit of the spec if they limit
+    copyrange(pj->spec.range,
+              pj->range,
+              m->jnt_range + 2 * i,
+              pj->spec.limited,
+              pj->limited,
+              m->jnt_limited[i],
+              pj->compiler,
+              rotates && m->jnt_limited[i] ? degrees : 1);
+
+    // other joint data
+    copy(pj->spec.solref_limit, pj->solref_limit, m->jnt_solref + mjNREF * i, mjNREF);
+    copy(pj->spec.solimp_limit, pj->solimp_limit, m->jnt_solimp + mjNIMP * i, mjNIMP);
+    copy(&pj->spec.margin, &pj->margin, m->jnt_margin + i);
+    copyvector(pj->spec_userdata_, pj->userdata_, m->jnt_user + nuser_jnt * i, nuser_jnt);
+
+    // other dof data
+    copy(pj->spec.solref_friction, pj->solref_friction, m->dof_solref + mjNREF * dofadr, mjNREF);
+    copy(pj->spec.solimp_friction, pj->solimp_friction, m->dof_solimp + mjNIMP * dofadr, mjNIMP);
+    copy(&pj->spec.armature, &pj->armature, m->dof_armature + dofadr);
+    copy(&pj->spec.frictionloss, &pj->frictionloss, m->dof_frictionloss + dofadr);
   }
 
+  // body
+  for (int i = 0; i < nbody; i++) {
+    mjCBody* pb = bodies_[i];
+
+    // pose: the simulation reads that of a body with a free joint from qpos0, so a change there
+    // takes precedence
+    const mjtNum* pose0 = nullptr;
+    for (const mjCJoint* pj : pb->joints) {
+      int qposadr = m->jnt_qposadr[pj->id];
+      if (pj->type == mjJNT_FREE && Differs(qpos0.data() + qposadr, m->qpos0 + qposadr, 7)) {
+        pose0 = m->qpos0 + qposadr;
+      }
+    }
+    const mjtNum* modelpos    = pose0 ? pose0 : m->body_pos + 3 * i;
+    const mjtNum* modelquat   = pose0 ? pose0 + 3 : m->body_quat + 4 * i;
+    bool          position    = Differs(pb->pos, modelpos, 3);
+    bool          orientation = Differs(pb->quat, modelquat, 4);
+    if (position || orientation) {
+      if (i == 0) { refuse(pb, "the pose of the world body", "it is fixed"); }
+      if (write) {
+        Back(pb->pos, modelpos, 3);
+        Back(pb->quat, modelquat, 4);
+        if (tospec && i > 0) { pb->PoseToSpec(position, orientation); }
+      }
+    }
+
+    // inertial: one which is new is given to the body, which then no longer infers it from geoms
+    bool newmass = Differs(&pb->mass, m->body_mass + i, 1);
+    bool newframe =
+        Differs(pb->ipos, m->body_ipos + 3 * i, 3) || Differs(pb->iquat, m->body_iquat + 4 * i, 4);
+    bool newinertia = Differs(pb->inertia, m->body_inertia + 3 * i, 3);
+    if (newmass || newframe || newinertia) {
+      const char* what = "the mass or inertia of a body";
+      if (i == 0) {
+        refuse(pb, what, "the world body has none");
+      } else if (pb->compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+        refuse(pb, what, "inertiafromgeom is 'true', so they are inferred from geoms");
+      } else if (compiler.settotalmass > 0 || spec.compiler.settotalmass > 0) {
+        refuse(pb, what, "settotalmass scales those of all bodies");
+      } else if (newframe && pb->aligned_) {
+        refuse(pb,
+               "the inertial frame of a body",
+               "the body is aligned with its free joint, and its frame would move with it");
+      }
+      if (write) {
+        Back(&pb->mass, m->body_mass + i, 1);
+        Back(pb->ipos, m->body_ipos + 3 * i, 3);
+        Back(pb->iquat, m->body_iquat + 4 * i, 4);
+        Back(pb->inertia, m->body_inertia + 3 * i, 3);
+        if (tospec && i > 0) { pb->InertialToSpec(/*massonly=*/!newframe && !newinertia); }
+      }
+    }
+
+    copyvector(pb->spec_userdata_, pb->userdata_, m->body_user + nuser_body * i, nuser_body);
+  }
+  if (write) { mjuu_copyvec(qpos0.data(), m->qpos0, m->nq); }
+
   // geom
-  mjCGeom* pg;
   for (int i = 0; i < ngeom; i++) {
-    pg = geoms_[i];
+    mjCGeom* pg = geoms_[i];
 
-    mjuu_copyvec(pg->size, m->geom_size + 3 * i, 3);
-    mjuu_copyvec(pg->pos, m->geom_pos + 3 * i, 3);
-    mjuu_copyvec(pg->quat, m->geom_quat + 4 * i, 4);
-    mjuu_copyvec(pg->friction, m->geom_friction + 3 * i, 3);
-    mjuu_copyvec(pg->solref, m->geom_solref + mjNREF * i, mjNREF);
-    mjuu_copyvec(pg->solimp, m->geom_solimp + mjNIMP * i, mjNIMP);
-    mjuu_copyvec(pg->rgba, m->geom_rgba + 4 * i, 4);
-    pg->solmix = (double)m->geom_solmix[i];
-    pg->margin = (double)m->geom_margin[i];
-    pg->gap    = (double)m->geom_gap[i];
-    mjuu_copyvec(pg->surfacevel, m->geom_surfacevel + 6 * i, 6);
-    pg->adhesion = (double)m->geom_adhesion[i];
+    // size, pose and surface velocity: the size of a mesh or height field geom is that of the asset
+    bool newsize     = Differs(pg->size, m->geom_size + 3 * i, 3);
+    bool position    = Differs(pg->pos, m->geom_pos + 3 * i, 3);
+    bool orientation = Differs(pg->quat, m->geom_quat + 4 * i, 4);
+    bool newvelocity = Differs(pg->surfacevel, m->geom_surfacevel + 6 * i, 6);
+    if (newsize || position || orientation || newvelocity) {
+      if (newsize && (pg->type == mjGEOM_MESH || pg->type == mjGEOM_SDF)) {
+        refuse(pg, "the size of a mesh geom", "it is computed from the mesh");
+      } else if (newsize && pg->type == mjGEOM_HFIELD) {
+        refuse(pg, "the size of a height field geom", "it is that of the height field");
+      }
+      if (write) {
+        Back(pg->size, m->geom_size + 3 * i, 3);
+        Back(pg->pos, m->geom_pos + 3 * i, 3);
+        Back(pg->quat, m->geom_quat + 4 * i, 4);
+        Back(pg->surfacevel, m->geom_surfacevel + 6 * i, 6);
+        if (tospec) { pg->ShapeToSpec(newsize, position, orientation, newvelocity); }
+      }
+    }
 
-    if (nuser_geom) {
-      mjuu_copyvec(pg->userdata_.data(), m->geom_user + nuser_geom * i, nuser_geom);
+    copy(pg->spec.friction, pg->friction, m->geom_friction + 3 * i, 3);
+    copy(pg->spec.solref, pg->solref, m->geom_solref + mjNREF * i, mjNREF);
+    copy(pg->spec.solimp, pg->solimp, m->geom_solimp + mjNIMP * i, mjNIMP);
+    copy(pg->spec.rgba, pg->rgba, m->geom_rgba + 4 * i, 4);
+    copy(&pg->spec.solmix, &pg->solmix, m->geom_solmix + i);
+    copy(&pg->spec.margin, &pg->margin, m->geom_margin + i);
+    copy(&pg->spec.gap, &pg->gap, m->geom_gap + i);
+    copy(&pg->spec.adhesion, &pg->adhesion, m->geom_adhesion + i);
+    copyvector(pg->spec_userdata_, pg->userdata_, m->geom_user + nuser_geom * i, nuser_geom);
+  }
+
+  // mesh: the frame which compilation gave it is not something the spec gives
+  for (int i = 0; i < nmesh; i++) {
+    mjCMesh* pm = meshes_[i];
+    if (Differs(pm->GetPosPtr(), m->mesh_pos + 3 * i, 3) ||
+        Differs(pm->GetQuatPtr(), m->mesh_quat + 4 * i, 4)) {
+      refuse(pm, "the frame of a mesh", "it is computed from the mesh");
+      if (write) {
+        Back(pm->GetPosPtr(), m->mesh_pos + 3 * i, 3);
+        Back(pm->GetQuatPtr(), m->mesh_quat + 4 * i, 4);
+      }
     }
   }
 
-  // mesh
-  mjCMesh* pm;
-  for (int i = 0; i < nmesh; i++) {
-    pm = meshes_[i];
-    mjuu_copyvec(pm->GetPosPtr(), m->mesh_pos + 3 * i, 3);
-    mjuu_copyvec(pm->GetQuatPtr(), m->mesh_quat + 4 * i, 4);
-  }
-
-  // heightfield
-  mjCHField* phf;
+  // heightfield: the model holds the elevation data scaled to [0, 1]. Data which the spec gives
+  // stays as it was given unless the model changed it, and data which was read from a file is
+  // then given in place of the file
   for (int i = 0; i < nhfield; i++) {
-    phf      = hfields_[i];
-    int size = phf->get_userdata().size();
-    if (size) {
-      int    nrow      = m->hfield_nrow[i];
-      int    ncol      = m->hfield_ncol[i];
-      float* userdata  = phf->get_userdata().data();
-      float* modeldata = m->hfield_data + m->hfield_adr[i];
-      memcpy(userdata, modeldata, nrow * ncol * sizeof(float));
+    mjCHField*   ph    = hfields_[i];
+    const float* model = m->hfield_data + m->hfield_adr[i];
+    int          n     = m->hfield_nrow[i] * m->hfield_ncol[i];
+    if (!Differs(ph->data.data(), model, n)) { continue; }
+
+    // compilation scales the data again: only data which it leaves as it is can be given
+    float lowest = model[0], highest = model[0];
+    for (int k = 1; k < n; k++) {
+      lowest  = std::min(lowest, model[k]);
+      highest = std::max(highest, model[k]);
+    }
+    if (lowest != 0 || (highest != 1 && highest - lowest > mjEPS)) {
+      refuse(ph,
+             "the elevation data of a height field",
+             "its lowest and highest values are not 0 and 1, to which compilation scales them");
+    }
+    if (write) {
+      Back(ph->data.data(), model, n);
+      if (tospec) {
+        ph->userdata_ = ph->data;
+        ph->file_.clear();
+        ph->content_type_.clear();
+        ph->spec_userdata_ = ph->data;
+        ph->spec_file_.clear();
+        ph->spec_content_type_.clear();
+        ph->spec.nrow = ph->nrow;
+        ph->spec.ncol = ph->ncol;
+      } else if (!ph->userdata_.empty()) {
+        ph->userdata_ = ph->data;
+      }
     }
   }
 
   // sites
   for (int i = 0; i < nsite; i++) {
-    mjuu_copyvec(sites_[i]->size, m->site_size + 3 * i, 3);
-    mjuu_copyvec(sites_[i]->pos, m->site_pos + 3 * i, 3);
-    mjuu_copyvec(sites_[i]->quat, m->site_quat + 4 * i, 4);
-    mjuu_copyvec(sites_[i]->rgba, m->site_rgba + 4 * i, 4);
+    mjCSite* ps = sites_[i];
 
-    if (nuser_site) {
-      mjuu_copyvec(sites_[i]->userdata_.data(), m->site_user + nuser_site * i, nuser_site);
+    // size and pose: the size of a mesh site is that of the mesh
+    bool newsize     = Differs(ps->size, m->site_size + 3 * i, 3);
+    bool position    = Differs(ps->pos, m->site_pos + 3 * i, 3);
+    bool orientation = Differs(ps->quat, m->site_quat + 4 * i, 4);
+    if (newsize || position || orientation) {
+      if (newsize && ps->type == mjGEOM_MESH) {
+        refuse(ps, "the size of a mesh site", "it is computed from the mesh");
+      }
+      if (write) {
+        Back(ps->size, m->site_size + 3 * i, 3);
+        Back(ps->pos, m->site_pos + 3 * i, 3);
+        Back(ps->quat, m->site_quat + 4 * i, 4);
+        if (tospec) { ps->ShapeToSpec(newsize, position, orientation); }
+      }
     }
+
+    copy(ps->spec.rgba, ps->rgba, m->site_rgba + 4 * i, 4);
+    copyvector(ps->spec_userdata_, ps->userdata_, m->site_user + nuser_site * i, nuser_site);
   }
 
   // cameras
   for (int i = 0; i < ncam; i++) {
-    mjuu_copyvec(cameras_[i]->pos, m->cam_pos + 3 * i, 3);
-    mjuu_copyvec(cameras_[i]->quat, m->cam_quat + 4 * i, 4);
-    cameras_[i]->fovy = (double)m->cam_fovy[i];
-    cameras_[i]->ipd  = (double)m->cam_ipd[i];
-    mjuu_copyvec(cameras_[i]->resolution, m->cam_resolution + 2 * i, 2);
-    mjuu_copyvec(cameras_[i]->intrinsic, m->cam_intrinsic + 4 * i, 4);
+    mjCCamera* pc     = cameras_[i];
+    const bool sensor = pc->sensor_size[0] > 0 && pc->sensor_size[1] > 0;
 
-    if (nuser_cam) {
-      mjuu_copyvec(cameras_[i]->userdata_.data(), m->cam_user + nuser_cam * i, nuser_cam);
+    // pose
+    bool position    = Differs(pc->pos, m->cam_pos + 3 * i, 3);
+    bool orientation = Differs(pc->quat, m->cam_quat + 4 * i, 4);
+    if ((position || orientation) && write) {
+      Back(pc->pos, m->cam_pos + 3 * i, 3);
+      Back(pc->quat, m->cam_quat + 4 * i, 4);
+      if (tospec) { pc->PoseToSpec(position, orientation); }
     }
+
+    // field of view: that of a camera with a sensor is computed from the focal length
+    if (Differs(&pc->fovy, m->cam_fovy + i, 1)) {
+      if (sensor) {
+        refuse(pc, "the field of view of a camera", "it is computed from its sensor size");
+      }
+      copy(&pc->spec.fovy, &pc->fovy, m->cam_fovy + i);
+    }
+
+    // intrinsics: the focal length and principal point of a camera with a sensor, which may be
+    // given in pixels of a resolution; otherwise they are computed
+    bool resolution = copy(pc->spec.resolution, pc->resolution, m->cam_resolution + 2 * i, 2);
+    bool intrinsic  = Differs(pc->intrinsic, m->cam_intrinsic + 4 * i, 4);
+    if (intrinsic && !sensor) {
+      refuse(pc, "the intrinsics of a camera", "it has no sensor size, so they are computed");
+    }
+    if ((intrinsic || (resolution && sensor)) && write) {
+      Back(pc->intrinsic, m->cam_intrinsic + 4 * i, 4);
+      if (sensor) { pc->IntrinsicToSpec(tospec); }
+    }
+
+    copy(&pc->spec.ipd, &pc->ipd, m->cam_ipd + i);
+    copyvector(pc->spec_userdata_, pc->userdata_, m->cam_user + nuser_cam * i, nuser_cam);
   }
 
   // lights
   for (int i = 0; i < nlight; i++) {
-    mjuu_copyvec(lights_[i]->pos, m->light_pos + 3 * i, 3);
-    mjuu_copyvec(lights_[i]->dir, m->light_dir + 3 * i, 3);
-    mjuu_copyvec(lights_[i]->attenuation, m->light_attenuation + 3 * i, 3);
-    lights_[i]->cutoff   = m->light_cutoff[i];
-    lights_[i]->exponent = m->light_exponent[i];
-    mjuu_copyvec(lights_[i]->ambient, m->light_ambient + 3 * i, 3);
-    mjuu_copyvec(lights_[i]->diffuse, m->light_diffuse + 3 * i, 3);
-    mjuu_copyvec(lights_[i]->specular, m->light_specular + 3 * i, 3);
+    mjCLight* pl = lights_[i];
+
+    // position and direction
+    bool position  = Differs(pl->pos, m->light_pos + 3 * i, 3);
+    bool direction = Differs(pl->dir, m->light_dir + 3 * i, 3);
+    if ((position || direction) && write) {
+      Back(pl->pos, m->light_pos + 3 * i, 3);
+      Back(pl->dir, m->light_dir + 3 * i, 3);
+      if (tospec) { pl->PoseToSpec(position, direction); }
+    }
+
+    copy(pl->spec.attenuation, pl->attenuation, m->light_attenuation + 3 * i, 3);
+    copy(&pl->spec.cutoff, &pl->cutoff, m->light_cutoff + i);
+    copy(&pl->spec.exponent, &pl->exponent, m->light_exponent + i);
+    copy(pl->spec.ambient, pl->ambient, m->light_ambient + 3 * i, 3);
+    copy(pl->spec.diffuse, pl->diffuse, m->light_diffuse + 3 * i, 3);
+    copy(pl->spec.specular, pl->specular, m->light_specular + 3 * i, 3);
   }
 
   // materials
   for (int i = 0; i < nmat; i++) {
-    mjuu_copyvec(materials_[i]->texrepeat, m->mat_texrepeat + 2 * i, 2);
-    materials_[i]->emission    = m->mat_emission[i];
-    materials_[i]->specular    = m->mat_specular[i];
-    materials_[i]->shininess   = m->mat_shininess[i];
-    materials_[i]->reflectance = m->mat_reflectance[i];
-    mjuu_copyvec(materials_[i]->rgba, m->mat_rgba + 4 * i, 4);
+    mjCMaterial* pm = materials_[i];
+
+    copy(pm->spec.texrepeat, pm->texrepeat, m->mat_texrepeat + 2 * i, 2);
+    copy(&pm->spec.emission, &pm->emission, m->mat_emission + i);
+    copy(&pm->spec.specular, &pm->specular, m->mat_specular + i);
+    copy(&pm->spec.shininess, &pm->shininess, m->mat_shininess + i);
+    copy(&pm->spec.reflectance, &pm->reflectance, m->mat_reflectance + i);
+    copy(pm->spec.rgba, pm->rgba, m->mat_rgba + 4 * i, 4);
   }
 
   // pairs, which the model holds in the order of their ids
   for (mjCPair* pair : pairs_) {
     int i = pair->id;
-    mjuu_copyvec(pair->solref, m->pair_solref + mjNREF * i, mjNREF);
-    mjuu_copyvec(pair->solreffriction, m->pair_solreffriction + mjNREF * i, mjNREF);
-    mjuu_copyvec(pair->solimp, m->pair_solimp + mjNIMP * i, mjNIMP);
-    pair->margin   = (double)m->pair_margin[i];
-    pair->gap      = (double)m->pair_gap[i];
-    pair->adhesion = (double)m->pair_adhesion[i];
-    mjuu_copyvec(pair->friction, m->pair_friction + 5 * i, 5);
+    copy(pair->spec.solref, pair->solref, m->pair_solref + mjNREF * i, mjNREF);
+    copy(pair->spec.solreffriction,
+         pair->solreffriction,
+         m->pair_solreffriction + mjNREF * i,
+         mjNREF);
+    copy(pair->spec.solimp, pair->solimp, m->pair_solimp + mjNIMP * i, mjNIMP);
+    copy(&pair->spec.margin, &pair->margin, m->pair_margin + i);
+    copy(&pair->spec.gap, &pair->gap, m->pair_gap + i);
+    copy(&pair->spec.adhesion, &pair->adhesion, m->pair_adhesion + i);
+    copy(pair->spec.friction, pair->friction, m->pair_friction + 5 * i, 5);
   }
 
   // equality constraints
   for (int i = 0; i < neq; i++) {
-    mjuu_copyvec(equalities_[i]->data, m->eq_data + mjNEQDATA * i, mjNEQDATA);
-    mjuu_copyvec(equalities_[i]->solref, m->eq_solref + mjNREF * i, mjNREF);
-    mjuu_copyvec(equalities_[i]->solimp, m->eq_solimp + mjNIMP * i, mjNIMP);
+    mjCEquality*  pe   = equalities_[i];
+    const mjtNum* data = m->eq_data + mjNEQDATA * i;
+
+    if (pe->type == mjEQ_CONNECT && pe->objtype == mjOBJ_BODY) {
+      // a connect between bodies: the anchor in the first body is given, and the one in the
+      // second body is computed from it in the reference configuration
+      copy(pe->spec.data, pe->data, data, 3);
+      if (Differs(pe->data + 3, data + 3, 3)) {
+        // told apart only where it is reported: compilation ends here too, with this anchor new
+        if (tospec && !write) {
+          mjtNum computed[3];
+          secondanchor(i, computed);
+          if (computed[0] != data[3] || computed[1] != data[4] || computed[2] != data[5]) {
+            refuse(pe,
+                   "the anchor of a connect in its second body",
+                   "it is computed from the anchor in the first body");
+          }
+        }
+        if (write) { Back(pe->data + 3, data + 3, 3); }
+      }
+      copy(pe->spec.data + 6, pe->data + 6, data + 6, mjNEQDATA - 6);
+    } else if (pe->type == mjEQ_WELD && pe->objtype == mjOBJ_BODY) {
+      // a weld between bodies: the anchor and the torque scale are given, and so is the relative
+      // pose unless compilation computes it. One which was computed is given once it is changed
+      // in the model, or once the anchor is: it was computed for the anchor as it was
+      const bool computed =
+          !pe->spec.data[6] && !pe->spec.data[7] && !pe->spec.data[8] && !pe->spec.data[9];
+      const bool anchor = copy(pe->spec.data, pe->data, data, 3);
+      if (Differs(pe->data + 3, data + 3, 7) || (anchor && computed)) {
+        if (write) {
+          Back(pe->data + 3, data + 3, 7);
+          if (tospec) { std::copy_n(pe->data + 3, 7, pe->spec.data + 3); }
+        }
+      }
+      copy(pe->spec.data + 10, pe->data + 10, data + 10);
+    } else {
+      copy(pe->spec.data, pe->data, data, mjNEQDATA);
+    }
+    copy(pe->spec.solref, pe->solref, m->eq_solref + mjNREF * i, mjNREF);
+    copy(pe->spec.solimp, pe->solimp, m->eq_solimp + mjNIMP * i, mjNIMP);
   }
 
   // tendons
   for (int i = 0; i < ntendon; i++) {
-    mjuu_copyvec(tendons_[i]->range, m->tendon_range + 2 * i, 2);
-    mjuu_copyvec(tendons_[i]->actfrcrange, m->tendon_actfrcrange + 2 * i, 2);
-    mjuu_copyvec(tendons_[i]->solref_limit, m->tendon_solref_lim + mjNREF * i, mjNREF);
-    mjuu_copyvec(tendons_[i]->solimp_limit, m->tendon_solimp_lim + mjNIMP * i, mjNIMP);
-    mjuu_copyvec(tendons_[i]->solref_friction, m->tendon_solref_fri + mjNREF * i, mjNREF);
-    mjuu_copyvec(tendons_[i]->solimp_friction, m->tendon_solimp_fri + mjNIMP * i, mjNIMP);
-    mjuu_copyvec(tendons_[i]->rgba, m->tendon_rgba + 4 * i, 4);
-    tendons_[i]->width        = (double)m->tendon_width[i];
-    tendons_[i]->margin       = (double)m->tendon_margin[i];
-    tendons_[i]->stiffness[0] = (double)m->tendon_stiffness[i];
-    mjuu_copyvec(tendons_[i]->stiffness + 1, m->tendon_stiffnesspoly + mjNPOLY * i, mjNPOLY);
-    tendons_[i]->damping[0] = (double)m->tendon_damping[i];
-    mjuu_copyvec(tendons_[i]->damping + 1, m->tendon_dampingpoly + mjNPOLY * i, mjNPOLY);
-    tendons_[i]->armature     = (double)m->tendon_armature[i];
-    tendons_[i]->frictionloss = (double)m->tendon_frictionloss[i];
+    mjCTendon* pt = tendons_[i];
 
-    if (nuser_tendon) {
-      mjuu_copyvec(tendons_[i]->userdata_.data(), m->tendon_user + nuser_tendon * i, nuser_tendon);
-    }
+    copyrange(pt->spec.range,
+              pt->range,
+              m->tendon_range + 2 * i,
+              pt->spec.limited,
+              pt->limited,
+              m->tendon_limited[i],
+              pt->compiler);
+    copyrange(pt->spec.actfrcrange,
+              pt->actfrcrange,
+              m->tendon_actfrcrange + 2 * i,
+              pt->spec.actfrclimited,
+              pt->actfrclimited,
+              m->tendon_actfrclimited[i],
+              pt->compiler);
+    copy(pt->spec.solref_limit, pt->solref_limit, m->tendon_solref_lim + mjNREF * i, mjNREF);
+    copy(pt->spec.solimp_limit, pt->solimp_limit, m->tendon_solimp_lim + mjNIMP * i, mjNIMP);
+    copy(pt->spec.solref_friction, pt->solref_friction, m->tendon_solref_fri + mjNREF * i, mjNREF);
+    copy(pt->spec.solimp_friction, pt->solimp_friction, m->tendon_solimp_fri + mjNIMP * i, mjNIMP);
+    copy(pt->spec.rgba, pt->rgba, m->tendon_rgba + 4 * i, 4);
+    copy(&pt->spec.width, &pt->width, m->tendon_width + i);
+    copy(&pt->spec.margin, &pt->margin, m->tendon_margin + i);
+    copy(pt->spec.stiffness, pt->stiffness, m->tendon_stiffness + i);
+    copy(pt->spec.stiffness + 1, pt->stiffness + 1, m->tendon_stiffnesspoly + mjNPOLY * i, mjNPOLY);
+    copy(pt->spec.damping, pt->damping, m->tendon_damping + i);
+    copy(pt->spec.damping + 1, pt->damping + 1, m->tendon_dampingpoly + mjNPOLY * i, mjNPOLY);
+    copy(&pt->spec.armature, &pt->armature, m->tendon_armature + i);
+    copy(&pt->spec.frictionloss, &pt->frictionloss, m->tendon_frictionloss + i);
+    copyvector(pt->spec_userdata_, pt->userdata_, m->tendon_user + nuser_tendon * i, nuser_tendon);
   }
 
   // actuators
-  mjCActuator* pa;
   for (int i = 0; i < nactuator; i++) {
-    pa = actuators_[i];
+    mjCActuator* pa = actuators_[i];
 
-    mjuu_copyvec(pa->dynprm, m->actuator_dynprm + i * mjNDYN, mjNDYN);
-    mjuu_copyvec(pa->gainprm, m->actuator_gainprm + i * mjNGAIN, mjNGAIN);
-    mjuu_copyvec(pa->biasprm, m->actuator_biasprm + i * mjNBIAS, mjNBIAS);
-    mjuu_copyvec(pa->ctrlrange, m->actuator_ctrlrange + 2 * m->actuator_ctrladr[i], 2);
-    mjuu_copyvec(pa->forcerange, m->actuator_forcerange + 2 * i, 2);
-    mjuu_copyvec(pa->actrange, m->actuator_actrange + 2 * i, 2);
-    mjuu_copyvec(pa->lengthrange, m->actuator_lengthrange + 2 * m->actuator_outadr[i], 2);
-    mjuu_copyvec(pa->gear, m->actuator_gear + 6 * m->actuator_outadr[i], 6);
-    pa->damping[0] = (double)m->actuator_damping[i];
-    mjuu_copyvec(pa->damping + 1, m->actuator_dampingpoly + mjNPOLY * i, mjNPOLY);
-    pa->armature    = (double)m->actuator_armature[i];
-    pa->cranklength = (double)m->actuator_cranklength[i];
+    copy(pa->spec.dynprm, pa->dynprm, m->actuator_dynprm + mjNDYN * i, mjNDYN);
+    copy(pa->spec.gainprm, pa->gainprm, m->actuator_gainprm + mjNGAIN * i, mjNGAIN);
+    copy(pa->spec.biasprm, pa->biasprm, m->actuator_biasprm + mjNBIAS * i, mjNBIAS);
 
-    if (nuser_actuator) {
-      mjuu_copyvec(pa->userdata_.data(), m->actuator_user + nuser_actuator * i, nuser_actuator);
+    // control ranges, one for each input: pid has its own for the velocity and feedforward
+    // inputs, and the other inputs share ctrlrange. A range which is inherited from the target
+    // is given in its place
+    const bool integrates = pa->dyntype == mjDYN_INTEGRATOR;
+    const int  nctrl      = std::min(pa->ctrlnum_, 4);
+    const int  ctrladr    = m->actuator_ctrladr[i];
+    int        velocity = -1, feedforward = -1;
+    if (pa->gaintype == mjGAIN_PID) {
+      int k = pa->ctrlspec_ & mjINPUT_POS ? 1 : 0;
+      if (pa->ctrlspec_ & mjINPUT_VEL) { velocity = k++; }
+      if (pa->ctrlspec_ & mjINPUT_FF) { feedforward = k; }
     }
+    for (int k = 0; k < nctrl; k++) {
+      const mjtNum* model = m->actuator_ctrlrange + 2 * (ctrladr + k);
+      if (!Differs(pa->ctrlranges_[k], model, 2)) { continue; }
+      if (k != velocity && k != feedforward) {
+        for (int j = 0; j < nctrl; j++) {
+          const mjtNum* other = m->actuator_ctrlrange + 2 * (ctrladr + j);
+          if (j != velocity && j != feedforward && (other[0] != model[0] || other[1] != model[1])) {
+            refuse(pa,
+                   "the control range of one input of an actuator",
+                   "its inputs have one control range");
+          }
+        }
+      }
+      if (!write) { continue; }
+      Back(pa->ctrlranges_[k], model, 2);
+      if (k == velocity) {
+        copy(pa->spec.velrange, pa->velrange, model, 2);
+      } else if (k == feedforward) {
+        copy(pa->spec.ffrange, pa->ffrange, model, 2);
+      } else {
+        bool changed = copyrange(pa->spec.ctrlrange,
+                                 pa->ctrlrange,
+                                 model,
+                                 pa->spec.ctrllimited,
+                                 pa->ctrllimited,
+                                 m->actuator_ctrllimited[ctrladr + k],
+                                 pa->compiler);
+        if (changed && tospec && !integrates) { pa->inheritrange = pa->spec.inheritrange = 0; }
+      }
+    }
+
+    copyrange(pa->spec.forcerange,
+              pa->forcerange,
+              m->actuator_forcerange + 2 * i,
+              pa->spec.forcelimited,
+              pa->forcelimited,
+              m->actuator_forcelimited[i],
+              pa->compiler);
+    if (copyrange(pa->spec.actrange,
+                  pa->actrange,
+                  m->actuator_actrange + 2 * i,
+                  pa->spec.actlimited,
+                  pa->actlimited,
+                  m->actuator_actlimited[i],
+                  pa->compiler) &&
+        tospec &&
+        write &&
+        integrates) {
+      pa->inheritrange = pa->spec.inheritrange = 0;
+    }
+
+    // length range and gear, which the outputs of the actuator share
+    const int outadr = m->actuator_outadr[i];
+    copy(pa->spec.lengthrange, pa->lengthrange, m->actuator_lengthrange + 2 * outadr, 2);
+    copy(pa->spec.gear, pa->gear, m->actuator_gear + 6 * outadr, 6);
+
+    copy(pa->spec.damping, pa->damping, m->actuator_damping + i);
+    copy(pa->spec.damping + 1, pa->damping + 1, m->actuator_dampingpoly + mjNPOLY * i, mjNPOLY);
+    copy(&pa->spec.armature, &pa->armature, m->actuator_armature + i);
+    copy(&pa->spec.cranklength, &pa->cranklength, m->actuator_cranklength + i);
+    copyvector(pa->spec_userdata_,
+               pa->userdata_,
+               m->actuator_user + nuser_actuator * i,
+               nuser_actuator);
   }
 
   // sensors
   for (int i = 0; i < nsensor; i++) {
-    sensors_[i]->cutoff = (double)m->sensor_cutoff[i];
-    sensors_[i]->noise  = (double)m->sensor_noise[i];
+    mjCSensor* ps = sensors_[i];
 
-    if (nuser_sensor) {
-      mjuu_copyvec(sensors_[i]->userdata_.data(), m->sensor_user + nuser_sensor * i, nuser_sensor);
-    }
+    copy(&ps->spec.cutoff, &ps->cutoff, m->sensor_cutoff + i);
+    copy(&ps->spec.noise, &ps->noise, m->sensor_noise + i);
+    copyvector(ps->spec_userdata_, ps->userdata_, m->sensor_user + nuser_sensor * i, nuser_sensor);
   }
 
   // numeric data
   for (int i = 0; i < nnumeric; i++) {
-    for (int j = 0; j < m->numeric_size[i]; j++) {
-      numerics_[i]->data_[j] = (double)m->numeric_data[m->numeric_adr[i] + j];
-    }
+    mjCNumeric* pn = numerics_[i];
+    copyvector(pn->spec_data_, pn->data_, m->numeric_data + m->numeric_adr[i], m->numeric_size[i]);
   }
 
   // tuple data
   for (int i = 0; i < ntuple; i++) {
-    for (int j = 0; j < m->tuple_size[i]; j++) {
-      tuples_[i]->objprm_[j] = (double)m->tuple_objprm[m->tuple_adr[i] + j];
-    }
+    mjCTuple* pt = tuples_[i];
+    copyvector(pt->spec_objprm_, pt->objprm_, m->tuple_objprm + m->tuple_adr[i], m->tuple_size[i]);
   }
 
   // keyframes
   for (int i = 0; i < m->nkey; i++) {
     mjCKey* pk = keys_[i];
 
-    pk->time = (double)m->key_time[i];
-    mjuu_copyvec(pk->qpos_.data(), m->key_qpos + i * nq, nq);
-    mjuu_copyvec(pk->qvel_.data(), m->key_qvel + i * nv, nv);
-    if (na) { mjuu_copyvec(pk->act_.data(), m->key_act + i * na, na); }
-    if (nmocap) {
-      mjuu_copyvec(pk->mpos_.data(), m->key_mpos + i * 3 * nmocap, 3 * nmocap);
-      mjuu_copyvec(pk->mquat_.data(), m->key_mquat + i * 4 * nmocap, 4 * nmocap);
-    }
-    if (nu) { mjuu_copyvec(pk->ctrl_.data(), m->key_ctrl + i * nu, nu); }
+    copy(&pk->spec.time, &pk->time, m->key_time + i);
+    copyvector(pk->spec_qpos_, pk->qpos_, m->key_qpos + i * nq, nq);
+    copyvector(pk->spec_qvel_, pk->qvel_, m->key_qvel + i * nv, nv);
+    copyvector(pk->spec_act_, pk->act_, m->key_act + i * na, na);
+    copyvector(pk->spec_mpos_, pk->mpos_, m->key_mpos + i * 3 * nmocap, 3 * nmocap);
+    copyvector(pk->spec_mquat_, pk->mquat_, m->key_mquat + i * 4 * nmocap, 4 * nmocap);
+    copyvector(pk->spec_ctrl_, pk->ctrl_, m->key_ctrl + i * nu, nu);
   }
-
-  return true;
 }
 
 

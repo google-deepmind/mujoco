@@ -82,6 +82,17 @@ std::string WithoutKeyframeCompletion(const std::string& differences) {
   return other;
 }
 
+// The spec as it is saved, empty if it cannot be saved.
+std::string SaveToString(const mjSpec* s) {
+  std::array<char, 1000> err;
+  int size = mj_saveXMLString(s, nullptr, 0, err.data(), err.size());
+  if (size <= 0) return "";
+  std::string xml(size + 1, '\0');
+  mj_saveXMLString(s, xml.data(), size + 1, err.data(), err.size());
+  xml.resize(size);
+  return xml;
+}
+
 class RecompileCompareTest : public MujocoTest,
                              public ::testing::WithParamInterface<std::string> {
  public:
@@ -126,6 +137,23 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
         IsEmpty())
         << xml;
   }
+
+  // the elements of a compiled spec hold what the model was given, so copying
+  // the model back changes nothing in the spec, nor in what is saved
+  std::string unchanged = SaveToString(s);
+  mjSpec* s_before = mj_copySpec(s);
+  EXPECT_EQ(mj_copyBack(s, m_old), 1) << xml << ": " << mjs_getError(s);
+  EXPECT_THAT(CompareSpec(s_before, s, kAllDifferences), IsEmpty()) << xml;
+  EXPECT_EQ(SaveToString(s), unchanged) << xml;
+
+  // and so do the elements of a copy of the spec
+  mjSpec* s_copied = mj_copySpec(s);
+  EXPECT_EQ(mj_copyBack(s_copied, m_old), 1)
+      << xml << ": " << mjs_getError(s_copied);
+  EXPECT_THAT(CompareSpec(s_before, s_copied, kAllDifferences), IsEmpty())
+      << xml;
+  mj_deleteSpec(s_copied);
+  mj_deleteSpec(s_before);
 
   // a spec which was compiled, and restructured if it asks for it, is left as
   // it is by the next compilation

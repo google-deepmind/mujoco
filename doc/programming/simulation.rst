@@ -759,8 +759,9 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      -
 
 Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The functions
-:ref:`mj_saveLastXML` and :ref:`mj_copyBack` do that in a limited sense: they copy all real-valued parameters from
-:ref:`mjModel` back to the :ref:`mjSpec` (the global internal spec in the former case, the user's copy in the latter).
+:ref:`mj_saveLastXML` and :ref:`mj_copyBack` do that in a limited sense: they copy the real-valued parameters which
+were changed in :ref:`mjModel` back to the :ref:`mjSpec` (the global internal spec in the former case, the user's copy
+in the latter), where they are saved and compiled again; see :ref:`mj_copyBack` for what is copied and how.
 This does not cover all possible changes that the user could have made. The only way to guarantee that all changes are
 saved is to save the model as a binary MJB file with the function :ref:`mj_saveModel`, or even better, make the changes
 directly in XML or :ref:`mjSpec`. So in summary, we have reasonable but not perfect mechanisms for saving model changes.

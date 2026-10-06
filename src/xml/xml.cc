@@ -375,9 +375,9 @@ std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
   }
 
   mjXWriter writer;
-  writer.SetModel(spec, m);
 
   try {
+    writer.SetModel(spec, m);
     return writer.Write(error, nerror);
   } catch (mjXError err) {
     mjCopyError(error, err.message, nerror);

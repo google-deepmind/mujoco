@@ -567,6 +567,29 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
     vfs : MjVfs, optional
         A VFS to read assets from. Cannot be used with assets.
     )mydelimiter");
+  mjSpec.def(
+      "copy_back",
+      [](MjSpec& self, py::object model) {
+        auto& wrapper = py::cast<_impl::MjModelWrapper&>(model);
+        if (!mj_copyBack(self.ptr, wrapper.get())) {
+          throw py::value_error(mjs_getError(self.ptr));
+        }
+      },
+      py::arg("model"),
+      R"mydelimiter(
+    Writes to the spec what was changed in a model compiled from it.
+
+    Each value of the model which is not the one that the spec was compiled to
+    is written to the spec as what compiles to it, so that it is in the models
+    which are compiled from the spec afterwards and in the XML which is saved.
+    Raises ValueError, and writes nothing, if a change cannot be expressed in
+    the spec.
+
+    Parameters
+    ----------
+    model : MjModel
+        The model which was last compiled from this spec.
+    )mydelimiter");
   mjSpec.def_property(
       "assets", [](MjSpec& self) -> py::dict { return self.assets; },
       [](MjSpec& self, py::dict& assets) {
