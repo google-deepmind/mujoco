@@ -297,11 +297,6 @@ void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
     Sensor(section);
   }
 
-  for (XMLElement* section = FirstChildElement(root, "keyframe"); section;
-       section             = NextSiblingElement(section, "keyframe")) {
-    Keyframe(section);
-  }
-
   // set deepcopy flag to true to copy child specs during attach calls
   mjs_setDeepCopy(spec, true);
 
@@ -312,6 +307,13 @@ void mjXReader::Parse(XMLElement* root, const mjVFS* vfs) {
 
   // set deepcopy flag to false to disable copying during attach in all future calls
   mjs_setDeepCopy(spec, false);
+
+  // keyframes describe the complete model, so they are parsed after the kinematic tree: the
+  // attachments and deletions which expand a replicate would store and copy them as they go
+  for (XMLElement* section = FirstChildElement(root, "keyframe"); section;
+       section             = NextSiblingElement(section, "keyframe")) {
+    Keyframe(section);
+  }
 }
 
 

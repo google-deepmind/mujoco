@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <csetjmp>
@@ -27,6 +28,7 @@
 #include <functional>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -231,8 +233,10 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     ResetTreeLists();
     MakeTreeLists();
 
-    // add everything else
-    *this += other;
+    // add everything else; unlike an attachment, a copy leaves the original as it is
+    copying_  = true;
+    *this    += other;
+    copying_  = false;
 
     // add keyframes
     CopyList(keys_, other.keys_);
@@ -260,11 +264,11 @@ void mjCModel::CopyList(std::vector<T*>& dest, const std::vector<T*>& source) {
   // loop over the elements from the other model
   int nsource = (int)source.size();
   for (int i = 0; i < nsource; i++) {
-    T* candidate = deepcopy_ ? new T(*source[i]) : source[i];
+    T*        candidate    = deepcopy_ ? new T(*source[i]) : source[i];
+    mjCModel* source_model = source[i]->model;
     try {
       // try to find the referenced object in this model
-      mjCModel* source_model = source[i]->model;
-      candidate->model       = this;
+      candidate->model = this;
       candidate->NameSpace(source_model);
       candidate->CopyFromSpec();
       candidate->ResolveReferences(this);
@@ -277,9 +281,11 @@ void mjCModel::CopyList(std::vector<T*>& dest, const std::vector<T*>& source) {
       }
       continue;
     }
-    // copy the element from the other model to this model
+    // copy the element from the other model to this model; an attached element takes the keyframe
+    // values which were stored for it, except those of the keyframes which stay in place
+    if (!copying_) { candidate->ForgetKeyframes(source_model->inplacekeys_); }
     if (deepcopy_) {
-      source[i]->ForgetKeyframes();
+      if (!copying_) { source[i]->ForgetKeyframes(source_model->inplacekeys_, /*keep=*/true); }
     } else {
       candidate->AddRef();
     }
@@ -467,7 +473,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     CopyList(hfields_, other.hfields_);
     CopyList(textures_, other.textures_);
     CopyList(materials_, other.materials_);
-    for (const auto& key : other.key_pending_) { key_pending_.push_back(key); }
     CopyList(numerics_, other.numerics_);
     CopyList(texts_, other.texts_);
   }
@@ -491,9 +496,6 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
       active_plugins_.emplace_back(std::make_pair(plugin, slot));
     }
   }
-
-  // resize keyframes in the parent model
-  ExpandAllKeyframes();
 
   // update pointers to local elements
   PointToLocal();
@@ -540,14 +542,6 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
     // if any elements were removed, update ids using processlist
     ProcessList_(ids, list, list[0]->elemtype, /*checkrepeat=*/false);
   }
-}
-
-
-template <>
-void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
-  for (mjCKey* element : elements) { element->Release(); }
-  elements.clear();
-  names_[mjOBJ_KEY].clear();
 }
 
 
@@ -701,9 +695,8 @@ mjCModel& mjCModel::RemoveSubtree(const T& subtree) {
   // create global lists in this model if not compiled
   if (!IsCompiled()) { ProcessLists(/*checkrepeat=*/false); }
 
-  // all keyframes are now pending and they will be resized
+  // all keyframes are now pending, the next compilation reassembles them
   StoreKeyframes(this);
-  DeleteAll(keys_);
 
   // remove subtree from tree
   std::vector<mjCBase*> removed = RemoveFromTree(subtree);
@@ -1435,7 +1428,33 @@ mjCTuple* mjCModel::AddTuple() {
 
 // add keyframe
 mjCKey* mjCModel::AddKey() {
-  return AddObject(keys_, "key");
+  mjCKey* key = AddObject(keys_, "key");
+
+  // pending keyframes which do not stay in place are kept last, which is where the compilation
+  // that resolved them used to create them: place the new keyframe before them
+  auto pending = std::find_if(keys_.begin(), keys_.end(), [](const mjCKey* k) {
+    return k->ispending_ && !k->inplace_;
+  });
+  if (pending != keys_.end()) {
+    std::rotate(pending, keys_.end() - 1, keys_.end());
+    for (int i = 0; i < (int)keys_.size(); i++) { keys_[i]->id = i; }
+
+    // the map from names to positions is out of date: names are searched for in the list
+    // until the lists are processed again
+    ids[mjOBJ_KEY].clear();
+  }
+  return key;
+}
+
+
+// add keyframe which is pending, after all others
+mjCKey* mjCModel::AddPendingKey(const std::string& name, const mjKeyInfo& info) {
+  mjCKey* key     = AddObject(keys_, "key");
+  key->name       = name;
+  key->spec.time  = info.time;
+  key->ispending_ = true;
+  key->pending_   = info;
+  return key;
 }
 
 
@@ -4274,7 +4293,12 @@ void mjCModel::SaveState(const std::string& state_name,
                          const T*           act,
                          const T*           ctrl,
                          const T*           mpos,
-                         const T*           mquat) {
+                         const T*           mquat,
+                         bool               partial) {
+  // a component which is not given is forgotten, unless the state is partial: then it stays
+  // as it was saved before
+  if (partial && !qpos && !qvel && !act && !ctrl && !mpos && !mquat) { return; }
+
   // save qpos and qvel
   for (auto joint : joints_) {
     if (joint->qposadr_ < -1 || joint->dofadr_ < -1) {
@@ -4282,12 +4306,12 @@ void mjCModel::SaveState(const std::string& state_name,
     }
     if (qpos && joint->qposadr_ != -1) {
       mjuu_copyvec(joint->qpos(state_name), qpos + joint->qposadr_, joint->nq());
-    } else {
+    } else if (qpos || !partial) {
       joint->qpos(state_name)[0] = mjNAN;
     }
     if (qvel && joint->dofadr_ != -1) {
       mjuu_copyvec(joint->qvel(state_name), qvel + joint->dofadr_, joint->nv());
-    } else {
+    } else if (qvel || !partial) {
       joint->qvel(state_name)[0] = mjNAN;
     }
   }
@@ -4298,7 +4322,7 @@ void mjCModel::SaveState(const std::string& state_name,
     if (actuator->actadr_ != -1 && actuator->actdim_ > 0 && act) {
       actuator->act(state_name).assign(actuator->actdim_, 0);
       mjuu_copyvec(actuator->act(state_name).data(), act + actuator->actadr_, actuator->actdim_);
-    } else {
+    } else if (act || !partial) {
       actuator->act(state_name).clear();
     }
     if (actuator->ctrladr_ != -1 && actuator->ctrlnum_ > 0 && ctrl) {
@@ -4306,7 +4330,7 @@ void mjCModel::SaveState(const std::string& state_name,
       mjuu_copyvec(actuator->ctrl(state_name).data(),
                    ctrl + actuator->ctrladr_,
                    actuator->ctrlnum_);
-    } else {
+    } else if (ctrl || !partial) {
       actuator->ctrl(state_name).clear();
     }
   }
@@ -4314,8 +4338,8 @@ void mjCModel::SaveState(const std::string& state_name,
   // save mocap pos and quat
   for (auto body : bodies_) {
     if (!body->spec.mocap || body->mocapid == -1) {
-      body->mpos(state_name)[0]  = mjNAN;
-      body->mquat(state_name)[0] = mjNAN;
+      if (mpos || !partial) { body->mpos(state_name)[0] = mjNAN; }
+      if (mquat || !partial) { body->mquat(state_name)[0] = mjNAN; }
       continue;
     }
     if (mpos) { mjuu_copyvec(body->mpos(state_name), mpos + 3 * body->mocapid, 3); }
@@ -4592,7 +4616,8 @@ template void mjCModel::SaveState<mjtNum>(const std::string& name,
                                           const mjtNum*      act,
                                           const mjtNum*      ctrl,
                                           const mjtNum*      mpos,
-                                          const mjtNum*      mquat);
+                                          const mjtNum*      mquat,
+                                          bool               partial);
 
 template void mjCModel::RestoreState<mjtNum>(const std::string& name,
                                              const mjtNum*      qpos0,
@@ -4606,85 +4631,335 @@ template void mjCModel::RestoreState<mjtNum>(const std::string& name,
                                              mjtNum*            mquat);
 
 
-// resolve keyframe references
+// check if a keyframe awaits the next compilation
+bool mjCModel::HasPendingKeys() const {
+  for (const mjCKey* key : keys_) {
+    if (key->ispending_) { return true; }
+  }
+  return false;
+}
+
+
+// forget the state saved under a name
+void mjCModel::ForgetState(const std::string& state_name) {
+  for (mjCJoint* joint : joints_) {
+    joint->qpos_.erase(state_name);
+    joint->qvel_.erase(state_name);
+  }
+  for (mjCActuator* actuator : actuators_) {
+    actuator->act_.erase(state_name);
+    actuator->ctrl_.erase(state_name);
+  }
+  for (mjCBody* body : bodies_) {
+    body->mpos_.erase(state_name);
+    body->mquat_.erase(state_name);
+  }
+}
+
+
+// copy the state saved under a name to another name
+void mjCModel::CopyState(const std::string& state_name, const std::string& copy_name) {
+  for (mjCJoint* joint : joints_) {
+    mjuu_copyvec(joint->qpos(copy_name), joint->qpos(state_name), 7);
+    mjuu_copyvec(joint->qvel(copy_name), joint->qvel(state_name), 6);
+  }
+  for (mjCActuator* actuator : actuators_) {
+    actuator->act(copy_name)  = actuator->act(state_name);
+    actuator->ctrl(copy_name) = actuator->ctrl(state_name);
+  }
+  for (mjCBody* body : bodies_) {
+    mjuu_copyvec(body->mpos(copy_name), body->mpos(state_name), 3);
+    mjuu_copyvec(body->mquat(copy_name), body->mquat(state_name), 4);
+  }
+}
+
+
+// name under which the values of a pending keyframe are saved in the elements; it is not the
+// name of the keyframe, which can be changed, and given to another keyframe, while it is pending
+static std::string PendingKeyName() {
+  static std::atomic<uint64_t> count{0};
+  return "pending keyframe " + std::to_string(++count);
+}
+
+
+// complete a keyframe vector which is shorter than the model with the given value
+static void completevec(std::vector<double>& vec, int size, double value) {
+  if (!vec.empty() && vec.size() < size) { vec.resize(size, value); }
+}
+
+
+// store the values of the keyframes in the elements they belong to, ahead of a change to the tree;
+// the keyframes are pending until the next compilation, which reassembles their vectors
 void mjCModel::StoreKeyframes(mjCModel* dest) {
-  if (this != dest && !key_pending_.empty()) {
-    dest->AddWarning(
-        "Child model has pending keyframes. They will not be namespaced "
-        "correctly. "
-        "To prevent this, compile the child model before attaching it again.");
+  // the addresses in the elements, the sizes and the default configuration of a compiled model:
+  // recompiling carries the state of the model over through them, so they are put back when they
+  // are computed here
+  struct CompiledLayout {
+    mjCModel*              model;
+    std::vector<int>       adr;
+    std::array<mjtSize, 7> size;
+    std::vector<mjtNum>    qpos0, body_pos0, body_quat0;
+    explicit CompiledLayout(mjCModel* m)
+        : model(m),
+          size{m->nq, m->nv, m->na, m->nu, m->nactuator, m->nout, m->nmocap},
+          qpos0(m->qpos0),
+          body_pos0(m->body_pos0),
+          body_quat0(m->body_quat0) {
+      for (mjCJoint* joint : m->joints_) {
+        adr.insert(adr.end(), {joint->qposadr_, joint->dofadr_});
+      }
+      for (mjCActuator* actuator : m->actuators_) {
+        adr.insert(adr.end(),
+                   {actuator->actdim_, actuator->actadr_, actuator->ctrladr_, actuator->outadr_});
+      }
+      for (mjCBody* body : m->bodies_) { adr.insert(adr.end(), {body->bodyadr_, body->mocapid}); }
+      for (mjCEquality* equality : m->equalities_) { adr.push_back(equality->eqadr_); }
+    }
+    ~CompiledLayout() {
+      const int* p = adr.data();
+      for (mjCJoint* joint : model->joints_) {
+        joint->qposadr_ = *p++;
+        joint->dofadr_  = *p++;
+      }
+      for (mjCActuator* actuator : model->actuators_) {
+        actuator->actdim_  = *p++;
+        actuator->actadr_  = *p++;
+        actuator->ctrladr_ = *p++;
+        actuator->outadr_  = *p++;
+      }
+      for (mjCBody* body : model->bodies_) {
+        body->bodyadr_ = *p++;
+        body->mocapid  = *p++;
+      }
+      for (mjCEquality* equality : model->equalities_) { equality->eqadr_ = *p++; }
+      model->nq         = size[0];
+      model->nv         = size[1];
+      model->na         = size[2];
+      model->nu         = size[3];
+      model->nactuator  = size[4];
+      model->nout       = size[5];
+      model->nmocap     = size[6];
+      model->qpos0      = std::move(qpos0);
+      model->body_pos0  = std::move(body_pos0);
+      model->body_quat0 = std::move(body_quat0);
+    }
+  };
+
+  // a model to which another one is attached has nothing to store if it has no keyframe; one
+  // which is added to it later is given its vectors for the tree as it is then
+  if (!dest && keys_.empty()) {
+    keysstored = true;
+    return;
   }
 
-  // do not change compilation quantities in case the user wants to recompile preserving the state
-  if (!compiled) {
+  // a keyframe of a compiled model is laid out for the last compilation until the tree changes.
+  // After that, and in a model which is not compiled, a vector which a keyframe has was given to
+  // it for the tree as it is now: it is laid out by the lists, and so is a keyframe of a copy of a
+  // compiled model, whose elements do not have their addresses
+  bool laidout = compiled && !keysstored && bodies_[0]->bodyadr_ != -1;
+
+  // the addresses which are computed for the lists serve this function only, in a compiled model
+  std::optional<CompiledLayout> compiledlayout;
+  if (!laidout) {
+    if (compiled) { compiledlayout.emplace(this); }
     SaveDofOffsets(/*computesize=*/true);
     ComputeReference();
+  } else {
+    // a joint whose type changed since the compilation has no place in its layout, as when the
+    // state is saved for a recompilation
+    for (mjCJoint* joint : joints_) {
+      if (joint->type != joint->spec.type) {
+        joint->qposadr_ = -1;
+        joint->dofadr_  = -1;
+      }
+    }
   }
 
-  // save keyframe info and resize keyframes
-  for (auto& key : keys_) {
-    mjKeyInfo info;
-    info.name  = prefix + key->name + suffix;
-    info.time  = key->spec.time;
-    info.qpos  = !key->spec_qpos_.empty();
-    info.qvel  = !key->spec_qvel_.empty();
-    info.act   = !key->spec_act_.empty();
-    info.ctrl  = !key->spec_ctrl_.empty();
-    info.mpos  = !key->spec_mpos_.empty();
-    info.mquat = !key->spec_mquat_.empty();
-    dest->key_pending_.push_back(info);
-    if (!key->spec_qpos_.empty() && key->spec_qpos_.size() != nq) {
+  // the list grows while it is traversed when a model is attached to itself
+  std::vector<mjCKey*> keys   = keys_;
+  bool                 warned = false;
+  for (mjCKey* key : keys) {
+    // the vectors in the size of the model: one which is shorter gives the leading elements, as
+    // when compiling; the positions it does not give are left undefined, and take the default
+    // configuration when the keyframe is reassembled
+    std::vector<double> vqpos  = key->spec_qpos_;
+    std::vector<double> vqvel  = key->spec_qvel_;
+    std::vector<double> vact   = key->spec_act_;
+    std::vector<double> vctrl  = key->spec_ctrl_;
+    std::vector<double> vmpos  = key->spec_mpos_;
+    std::vector<double> vmquat = key->spec_mquat_;
+    if (!laidout) {
+      // a joint which is given in part takes the rest of its position as authored
+      int nqpos = (int)vqpos.size();
+      completevec(vqpos, nq, mjNAN);
+      for (const mjCJoint* joint : joints_) {
+        if (joint->qposadr_ < nqpos) {
+          for (int i = nqpos; i < joint->qposadr_ + joint->nq(); i++) { vqpos[i] = qpos0[i]; }
+        }
+      }
+      completevec(vqvel, nv, 0);
+      completevec(vact, na, 0);
+      completevec(vctrl, nu, 0);
+
+      // a mocap body which is given in part takes its default pose
+      if (vmpos.size() < 3 * nmocap) { vmpos.resize(3 * (vmpos.size() / 3)); }
+      if (vmquat.size() < 4 * nmocap) { vmquat.resize(4 * (vmquat.size() / 4)); }
+      completevec(vmpos, 3 * nmocap, mjNAN);
+      completevec(vmquat, 4 * nmocap, mjNAN);
+    }
+
+    // a model to which another one is attached leaves a keyframe which does not fit it as it is:
+    // it may be written for the model that is being assembled, and is checked when compiling
+    auto fits = [](const std::vector<double>& vec, int size) {
+      return vec.empty() || vec.size() == size;
+    };
+    bool fit = fits(vqpos, nq) &&
+               fits(vqvel, nv) &&
+               fits(vact, na) &&
+               fits(vctrl, nu) &&
+               fits(vmpos, 3 * nmocap) &&
+               fits(vmquat, 4 * nmocap);
+    if (!dest && !fit) { continue; }
+
+    if (!vqpos.empty() && vqpos.size() != nq) {
       throw mjCError(nullptr,
                      "Keyframe '%s' has invalid qpos size, got %d, should be %d",
                      key->name.c_str(),
                      key->spec_qpos_.size(),
                      nq);
     }
-    if (!key->spec_qvel_.empty() && key->spec_qvel_.size() != nv) {
+    if (!vqvel.empty() && vqvel.size() != nv) {
       throw mjCError(nullptr,
                      "Keyframe %s has invalid qvel size, got %d, should be %d",
                      key->name.c_str(),
                      key->spec_qvel_.size(),
                      nv);
     }
-    if (!key->spec_act_.empty() && key->spec_act_.size() != na) {
+    if (!vact.empty() && vact.size() != na) {
       throw mjCError(nullptr,
                      "Keyframe %s has invalid act size, got %d, should be %d",
                      key->name.c_str(),
                      key->spec_act_.size(),
                      na);
     }
-    if (!key->spec_ctrl_.empty() && key->spec_ctrl_.size() != nu) {
+    if (!vctrl.empty() && vctrl.size() != nu) {
       throw mjCError(nullptr,
                      "Keyframe %s has invalid ctrl size, got %d, should be %d",
                      key->name.c_str(),
                      key->spec_ctrl_.size(),
                      nu);
     }
-    if (!key->spec_mpos_.empty() && key->spec_mpos_.size() != 3 * nmocap) {
+    if (!vmpos.empty() && vmpos.size() != 3 * nmocap) {
       throw mjCError(nullptr,
                      "Keyframe %s has invalid mpos size, got %d, should be %d",
                      key->name.c_str(),
                      key->spec_mpos_.size(),
                      3 * nmocap);
     }
-    if (!key->spec_mquat_.empty() && key->spec_mquat_.size() != 4 * nmocap) {
+    if (!vmquat.empty() && vmquat.size() != 4 * nmocap) {
       throw mjCError(nullptr,
                      "Keyframe %s has invalid mquat size, got %d, should be %d",
                      key->name.c_str(),
                      key->spec_mquat_.size(),
                      4 * nmocap);
     }
-    SaveState(info.name,
-              key->spec_qpos_.data(),
-              key->spec_qvel_.data(),
-              key->spec_act_.data(),
-              key->spec_ctrl_.data(),
-              key->spec_mpos_.data(),
-              key->spec_mquat_.data());
+
+    // the vectors which the keyframe has
+    const double* qpos  = vqpos.empty() ? nullptr : vqpos.data();
+    const double* qvel  = vqvel.empty() ? nullptr : vqvel.data();
+    const double* act   = vact.empty() ? nullptr : vact.data();
+    const double* ctrl  = vctrl.empty() ? nullptr : vctrl.data();
+    const double* mpos  = vmpos.empty() ? nullptr : vmpos.data();
+    const double* mquat = vmquat.empty() ? nullptr : vmquat.data();
+
+    // store the vectors of the keyframe under a new name
+    auto store = [&]() {
+      mjKeyInfo stored;
+      stored.name  = PendingKeyName();
+      stored.time  = key->spec.time;
+      stored.qpos  = qpos != nullptr;
+      stored.qvel  = qvel != nullptr;
+      stored.act   = act != nullptr;
+      stored.ctrl  = ctrl != nullptr;
+      stored.mpos  = mpos != nullptr;
+      stored.mquat = mquat != nullptr;
+      SaveState(stored.name, qpos, qvel, act, ctrl, mpos, mquat);
+      return stored;
+    };
+
+    // a keyframe which is still pending from an earlier change to the tree: the vectors it was
+    // given since then replace what was stored, the others stay as they were stored
+    mjKeyInfo& info = key->pending_;
+    if (key->ispending_) {
+      SaveState(info.name, qpos, qvel, act, ctrl, mpos, mquat, /*partial=*/true);
+      info.qpos  |= qpos != nullptr;
+      info.qvel  |= qvel != nullptr;
+      info.act   |= act != nullptr;
+      info.ctrl  |= ctrl != nullptr;
+      info.mpos  |= mpos != nullptr;
+      info.mquat |= mquat != nullptr;
+      info.time   = key->spec.time;
+    }
+
+    // the model is being attached: a copy of its keyframe is added to the destination, under the
+    // namespace of the attachment
+    bool stays = this == dest && prefix.empty() && suffix.empty();
+    bool last  = key->ispending_ && !key->inplace_;
+    if (dest && !stays && !last) {
+      mjKeyInfo copy = key->ispending_ ? info : store();
+      if (key->ispending_) {
+        copy.name = PendingKeyName();
+        CopyState(info.name, copy.name);
+      }
+      dest->AddPendingKey(prefix + key->name + suffix, copy);
+    } else if (dest && this != dest) {
+      // a pending keyframe which is kept last is not copied, another model takes it as it is
+      if (!warned) {
+        dest->AddWarning(
+            "Child model has pending keyframes. They will not be namespaced "
+            "correctly. "
+            "To prevent this, compile the child model before attaching it again.");
+        warned = true;
+      }
+      dest->AddPendingKey(key->name, info);
+    }
+
+    // the tree of this model is about to change: the keyframe stays in place, without its vectors
+    if (!dest || this == dest) {
+      if (!key->ispending_) {
+        info            = store();
+        key->ispending_ = true;
+        key->inplace_   = true;
+      }
+      key->spec_qpos_.clear();
+      key->spec_qvel_.clear();
+      key->spec_act_.clear();
+      key->spec_ctrl_.clear();
+      key->spec_mpos_.clear();
+      key->spec_mquat_.clear();
+
+      // a deletion moves it to the end of the list, with the keyframes which are kept last
+      if (stays && key->inplace_) {
+        key->inplace_ = false;
+        auto it       = std::find(keys_.begin(), keys_.end(), key);
+        std::rotate(it, it + 1, keys_.end());
+      }
+    }
+  }
+  for (int i = 0; i < (int)keys_.size(); i++) { keys_[i]->id = i; }
+  ids[mjOBJ_KEY].clear();
+
+  // the values of the keyframes which stay in place are not copied along with an attachment
+  inplacekeys_.clear();
+  for (const mjCKey* key : keys_) {
+    if (key->inplace_) { inplacekeys_.push_back(key->pending_.name); }
   }
 
   if (!compiled) { nq = nv = na = nu = nactuator = nout = nmocap = 0; }
+
+  // the tree of this model changes: until it is compiled again, its keyframes are given their
+  // vectors for the tree as it is then
+  if (!dest || this == dest) { keysstored = true; }
 }
 
 
@@ -5323,18 +5598,6 @@ void mjCModel::ComputeReference() {
 }
 
 
-// resize keyframes in the model
-void mjCModel::ExpandAllKeyframes() {
-  if (keys_.empty()) { return; }
-  SaveDofOffsets(/*computesize=*/true);
-  ComputeReference();
-  for (auto* key : keys_) {
-    ExpandKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
-  }
-  nq = nv = na = nu = nactuator = nout = nmocap = 0;
-}
-
-
 // resizes a keyframe, filling in missing values
 void mjCModel::ExpandKeyframe(mjCKey*       key,
                               const mjtNum* qpos0_,
@@ -5375,36 +5638,42 @@ void mjCModel::ExpandKeyframe(mjCKey*       key,
   }
 }
 
-// convert pending keyframes info to actual keyframes
+// vector of a pending keyframe to reassemble, or null if there is none to reassemble; a vector
+// that was set after the change to the tree is left as it is
+static double* pendingvec(bool stored, std::vector<double>& vec, int size) {
+  if (!stored || !vec.empty()) { return nullptr; }
+  vec.assign(size, 0);
+  return vec.data();
+}
+
+
+// reassemble the vectors of the pending keyframes, fill in missing default values
 void mjCModel::ResolveKeyframes(const mjModel* m) {
   // store dof offsets in joints and actuators
   SaveDofOffsets();
+  keysstored = false;
 
-  // create new keyframes, fill in missing default values
-  for (const auto& info : key_pending_) {
-    mjCKey* key    = (mjCKey*)FindObject(mjOBJ_KEY, info.name);
-    key->name      = info.name;
-    key->spec.time = info.time;
-    if (info.qpos) key->spec_qpos_.assign(nq, 0);
-    if (info.qvel) key->spec_qvel_.assign(nv, 0);
-    if (info.act) key->spec_act_.assign(na, 0);
-    if (info.ctrl) key->spec_ctrl_.assign(nu, 0);
-    if (info.mpos) key->spec_mpos_.assign(3 * nmocap, 0);
-    if (info.mquat) key->spec_mquat_.assign(4 * nmocap, 0);
+  std::vector<std::string> resolved;
+  for (mjCKey* key : keys_) {
+    if (!key->ispending_) { continue; }
+    const mjKeyInfo& info = key->pending_;
     RestoreState(info.name,
                  m->qpos0,
                  m->body_pos,
                  m->body_quat,
-                 key->spec_qpos_.data(),
-                 key->spec_qvel_.data(),
-                 key->spec_act_.data(),
-                 key->spec_ctrl_.data(),
-                 key->spec_mpos_.data(),
-                 key->spec_mquat_.data());
+                 pendingvec(info.qpos, key->spec_qpos_, nq),
+                 pendingvec(info.qvel, key->spec_qvel_, nv),
+                 pendingvec(info.act, key->spec_act_, na),
+                 pendingvec(info.ctrl, key->spec_ctrl_, nu),
+                 pendingvec(info.mpos, key->spec_mpos_, 3 * nmocap),
+                 pendingvec(info.mquat, key->spec_mquat_, 4 * nmocap));
+    key->ispending_ = false;
+    key->inplace_   = false;
+    resolved.push_back(info.name);
   }
 
-  // the attached keyframes have been copied into the model
-  key_pending_.clear();
+  // the stored values have served
+  for (const std::string& name : resolved) { ForgetState(name); }
 }
 
 void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
@@ -5455,15 +5724,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (const auto& asset : hfields_) asset->CopyFromSpec();
   for (const auto& asset : textures_) asset->CopyFromSpec();
   CheckEmptyNames();
-
-  // resize keyframes in case the spec was edited after the last attach
-  ExpandAllKeyframes();
-
-  // create pending keyframes
-  for (const auto& info : key_pending_) {
-    mjCKey* key = AddKey();
-    key->name   = info.name;
-  }
 
   // set object ids, check for repeated names
   ProcessLists();
@@ -5686,6 +5946,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
   ResolveKeyframes(m);
+
+  // complete the vectors which are shorter than the model with the default configuration
+  for (mjCKey* key : keys_) { ExpandKeyframe(key, m->qpos0, m->body_pos, m->body_quat); }
 
   for (int i = 0; i < keys_.size(); i++) { keys_[i]->Compile(m); }
 

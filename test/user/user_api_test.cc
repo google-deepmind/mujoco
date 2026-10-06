@@ -3895,6 +3895,68 @@ TEST_F(MujocoTest, RecompileAttach) {
   mj_deleteSpec(parent);
 }
 
+// the state is kept when a model is attached ahead of a joint of a spec which
+// has keyframes
+TEST_F(MujocoTest, RecompileAttachKeepsState) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+        <frame name="fa"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  mjModel* model = mj_compile(parent, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+  mjData* data = mj_makeData(model);
+  data->qpos[0] = 5;
+  data->qpos[1] = 7;
+  data->qvel[0] = 50;
+  data->qvel[1] = 70;
+
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "fa")->element,
+                         mjs_findBody(child, "b")->element, "c_", ""),
+              NotNull())
+      << mjs_getError(parent);
+  ASSERT_EQ(mj_recompile(parent, nullptr, model, data), 0)
+      << mjs_getError(parent);
+  ASSERT_EQ(model->nq, 3);
+  EXPECT_THAT(AsVector(data->qpos, 3), ElementsAreArray({5, 0, 7}));
+  EXPECT_THAT(AsVector(data->qvel, 3), ElementsAreArray({50, 0, 70}));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
 TEST_F(MujocoTest, RecompileControlBlocks) {
   std::array<char, 1000> er;
 
@@ -4258,13 +4320,11 @@ TEST_F(MujocoTest, ReplicateKeyframe) {
   EXPECT_THAT(m->ngeom, 1);
   EXPECT_THAT(m->nbody, 2);
 
-  // check that the keyframe is resized
-  EXPECT_THAT(m->nkey, 2);
+  // check that the keyframe is not replicated
+  EXPECT_THAT(m->nkey, 1);
   EXPECT_THAT(m->nq, 1);
   EXPECT_THAT(m->key_qpos[0], 1);
-  EXPECT_THAT(m->key_qpos[1], 0);
-  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_KEY, 0), "keyframe0");
-  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_KEY, 1), "keyframe");
+  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_KEY, 0), "keyframe");
 }
 
 TEST_F(MujocoTest, AttachUnnamedAssets) {
@@ -4592,6 +4652,353 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
   mj_deleteModel(model_2);
 }
 
+// a keyframe stays in the spec when the tree changes; the next compilation
+// only completes its vectors
+TEST_F(MujocoTest, KeyframesSurviveTreeChanges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <joint name="a"/>
+        <geom size=".1"/>
+      </body>
+      <body name="b">
+        <joint name="b"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="b" joint="b"/>
+    </actuator>
+    <keyframe>
+      <key name="home" qpos="1 2" ctrl="3"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="c">
+        <joint name="c"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="pose" qpos="4"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjsElement* home = mjs_findElement(spec, mjOBJ_KEY, "home");
+  ASSERT_THAT(home, NotNull());
+
+  // deleting a body keeps the keyframe, which is completed when compiling
+  EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "a")->element), 0);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_KEY, "home"), home);
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_KEY, "home"), home);
+  ASSERT_EQ(m1->nkey, 1);
+  EXPECT_EQ(m1->key_qpos[0], 2);
+  EXPECT_EQ(m1->key_ctrl[0], 3);
+
+  // the keyframe of an attached model is in the parent before compiling
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(spec, "world"), nullptr);
+  mjs_attach(frame->element, mjs_findBody(child, "c")->element, "child-", "");
+  mjsElement* pose = mjs_findElement(spec, mjOBJ_KEY, "child-pose");
+  ASSERT_THAT(pose, NotNull());
+  EXPECT_EQ(mjs_nextElement(spec, home), pose);
+
+  // it can be renamed, and a vector which is set meanwhile is kept
+  mjs_setName(pose, "posture");
+  std::vector<double> qvel = {5, 6};
+  mjs_setDouble(mjs_asKey(home)->qvel, qvel.data(), qvel.size());
+
+  // a copy made meanwhile compiles to the same model
+  mjSpec* copy = mj_copySpec(spec);
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  mjModel* m2_copy = mj_compile(copy, nullptr);
+  ASSERT_THAT(m2_copy, NotNull()) << mjs_getError(copy);
+  std::string field;
+  EXPECT_EQ(CompareModel(m2, m2_copy, field), 0) << field;
+
+  ASSERT_EQ(m2->nkey, 2);
+  ASSERT_EQ(m2->nq, 2);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_KEY, "home"), 0);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_KEY, "posture"), 1);
+  EXPECT_THAT(AsVector(m2->key_qpos, 4), ElementsAreArray({2, 0, 0, 4}));
+  EXPECT_THAT(AsVector(m2->key_qvel, 4), ElementsAreArray({5, 6, 0, 0}));
+  EXPECT_THAT(AsVector(m2->key_ctrl, 2), ElementsAreArray({3, 0}));
+
+  // the spec has the completed vectors
+  EXPECT_THAT(*mjs_asKey(pose)->qpos, ElementsAreArray({0, 4}));
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteModel(m2_copy);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
+// a pending keyframe can be found, edited and renamed before it is compiled
+TEST_F(MujocoTest, PendingKeyframeEdits) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <joint/>
+        <geom size=".1"/>
+      </body>
+      <body name="b">
+        <joint/>
+        <geom size=".1"/>
+      </body>
+      <body name="c">
+        <joint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="home" qpos="1 2 3" qvel="4 5 6"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  // the same holds for a spec which was compiled before: a vector given to a
+  // keyframe after the tree changed is laid out for the tree as it is then
+  for (bool compile_first : {false, true}) {
+    SCOPED_TRACE(compile_first ? "compiled first" : "not compiled first");
+    std::array<char, 1000> er;
+    mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    mjModel* model = nullptr;
+    mjData* data = nullptr;
+    if (compile_first) {
+      model = mj_compile(spec, nullptr);
+      ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+      data = mj_makeData(model);
+      data->qpos[0] = 0.25;
+      data->qpos[1] = 0.5;
+      data->qpos[2] = 0.75;
+    }
+    mjsElement* home = mjs_findElement(spec, mjOBJ_KEY, "home");
+    ASSERT_THAT(home, NotNull());
+
+    // the keyframe is pending after a deletion; one which is added then is
+    // placed before it, and each is found by its name
+    EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "a")->element), 0);
+    mjsKey* added = mjs_addKey(spec);
+    mjs_setName(added->element, "added");
+    EXPECT_EQ(mjs_findElement(spec, mjOBJ_KEY, "home"), home);
+    EXPECT_EQ(mjs_findElement(spec, mjOBJ_KEY, "added"), added->element);
+
+    // a vector given to the pending keyframe replaces what was stored of it
+    const std::vector<double> qpos = {20, 30};
+    mjs_setDouble(mjs_asKey(home)->qpos, qpos.data(), qpos.size());
+
+    // it is renamed, and its name is given to another keyframe
+    EXPECT_EQ(mjs_setName(home, "old"), 0);
+    mjsKey* reused = mjs_addKey(spec);
+    EXPECT_EQ(mjs_setName(reused->element, "home"), 0);
+    const std::vector<double> qpos_reused = {200, 300};
+    mjs_setDouble(reused->qpos, qpos_reused.data(), qpos_reused.size());
+
+    // after a second deletion, every keyframe has its own values
+    EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "b")->element), 0)
+        << mjs_getError(spec);
+    if (compile_first) {
+      // recompiling carries the state over: the joint which is left has the
+      // address which the first compilation gave it
+      ASSERT_EQ(mj_recompile(spec, nullptr, model, data), 0)
+          << mjs_getError(spec);
+      EXPECT_EQ(data->qpos[0], 0.75);
+    } else {
+      model = mj_compile(spec, nullptr);
+      ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    }
+    ASSERT_EQ(model->nq, 1);
+    ASSERT_EQ(model->nkey, 3);
+    int old_id = mj_name2id(model, mjOBJ_KEY, "old");
+    int home_id = mj_name2id(model, mjOBJ_KEY, "home");
+    int added_id = mj_name2id(model, mjOBJ_KEY, "added");
+    EXPECT_EQ(model->key_qpos[old_id], 30);
+    EXPECT_EQ(model->key_qvel[old_id], 6);
+    EXPECT_EQ(model->key_qpos[home_id], 300);
+    EXPECT_EQ(model->key_qvel[home_id], 0);
+    EXPECT_EQ(model->key_qpos[added_id], 0);
+
+    mj_deleteData(data);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+// a keyframe which awaits compilation keeps its values when the spec is
+// copied or one of its bodies is deleted
+TEST_F(MujocoTest, PendingKeyframeSurvivesCopy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame"/>
+      <body name="other">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="c">
+        <joint name="c"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="c" dyntype="filter" dynprm="1"/>
+    </actuator>
+    <keyframe>
+      <key name="pose" qpos="1" act="2" ctrl="3"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  // the keyframe of the attached model awaits compilation
+  mjs_attach(mjs_findFrame(spec, "frame")->element,
+             mjs_findBody(child, "c")->element, "child-", "");
+
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "other")->element), 0);
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nkey, 1);
+  EXPECT_EQ(m->key_qpos[0], 1);
+  EXPECT_EQ(m->key_act[0], 2);
+  EXPECT_EQ(m->key_ctrl[0], 3);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
+// a copy of a compiled spec keeps the values of its keyframes when a body is
+// deleted from it, or when it is attached
+TEST_F(MujocoTest, KeyframeOfCopySurvivesTreeChanges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="b">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key" qpos="1 2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_EQ(mjs_delete(copy, mjs_findBody(copy, "a")->element), 0);
+  mjModel* m_copy = mj_compile(copy, nullptr);
+  ASSERT_THAT(m_copy, NotNull()) << mjs_getError(copy);
+  ASSERT_EQ(m_copy->nq, 1);
+  EXPECT_EQ(m_copy->key_qpos[0], 2);
+
+  mjSpec* child = mj_copySpec(spec);
+  mjSpec* parent = mj_makeSpec();
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, mjs_findBody(child, "b")->element,
+                         "child-", ""),
+              NotNull())
+      << mjs_getError(parent);
+  mjModel* m_parent = mj_compile(parent, nullptr);
+  ASSERT_THAT(m_parent, NotNull()) << mjs_getError(parent);
+  ASSERT_EQ(m_parent->nq, 1);
+  EXPECT_EQ(m_parent->key_qpos[0], 2);
+
+  mj_deleteModel(m);
+  mj_deleteModel(m_copy);
+  mj_deleteModel(m_parent);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
+// a joint whose type was changed after compiling has no value in the keyframes
+// which are stored when the tree changes: they take its default configuration
+TEST_F(MujocoTest, KeyframeSkipsJointOfChangedType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <joint name="a"/>
+        <geom size=".1"/>
+      </body>
+      <body name="b">
+        <joint name="b"/>
+        <geom size=".1"/>
+      </body>
+      <body name="c">
+        <joint name="c"/>
+        <geom size=".1"/>
+      </body>
+      <body name="d">
+        <joint name="d"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key" qpos="1 2 3 4"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+
+  mjs_asJoint(mjs_findElement(spec, mjOBJ_JOINT, "a"))->type = mjJNT_BALL;
+  EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "d")->element), 0);
+
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m2->nq, 6);
+  EXPECT_THAT(AsVector(m2->key_qpos, 6), ElementsAreArray({1, 0, 0, 0, 2, 3}));
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, ResizeParentKeyframe) {
   static constexpr char xml_parent[] = R"(
     <mujoco model="MuJoCo Model">
@@ -4661,6 +5068,665 @@ TEST_F(MujocoTest, ResizeParentKeyframe) {
   mj_deleteModel(model);
 }
 
+// the keyframes of a parent keep their values and their places when a model
+// is attached ahead of some of its joints
+TEST_F(MujocoTest, AttachKeepsParentKeyframe) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+        <frame name="fa"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2" qvel="3 4"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // whether or not the parent was compiled before the attachment
+  for (bool compile : {false, true}) {
+    std::array<char, 1000> er;
+    mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+    ASSERT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjModel* m_parent = compile ? mj_compile(parent, nullptr) : nullptr;
+
+    ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "fa")->element,
+                           mjs_findBody(child, "b")->element, "c_", ""),
+                NotNull())
+        << mjs_getError(parent);
+
+    // a keyframe which is added now comes after the one of the parent
+    mjs_setName(mjs_addKey(parent)->element, "added");
+
+    mjModel* m = mj_compile(parent, nullptr);
+    ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+
+    // the attached joint is between the two joints of the parent
+    ASSERT_EQ(m->nq, 3);
+    EXPECT_EQ(mj_name2id(m, mjOBJ_JOINT, "c_j"), 1);
+    ASSERT_EQ(m->nkey, 2);
+    EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "k"), 0);
+    EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "added"), 1);
+    EXPECT_THAT(AsVector(m->key_qpos, 3), ElementsAreArray({1, 0, 2}));
+    EXPECT_THAT(AsVector(m->key_qvel, 3), ElementsAreArray({3, 0, 4}));
+
+    mj_deleteModel(m);
+    mj_deleteModel(m_parent);
+    mj_deleteSpec(child);
+    mj_deleteSpec(parent);
+  }
+}
+
+// a keyframe of a parent which does not fit its model, such as one which is
+// written ahead for the model being assembled, is left as it is
+TEST_F(MujocoTest, AttachLeavesKeyframeWrittenAhead) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+        <frame name="fa"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2"/>
+      <key name="ahead" qpos="3 4 5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "fa")->element,
+                         mjs_findBody(child, "b")->element, "c_", ""),
+              NotNull())
+      << mjs_getError(parent);
+  mjModel* m = mj_compile(parent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+
+  // the keyframe which fits the parent follows its joints, the other does not
+  ASSERT_EQ(m->nq, 3);
+  ASSERT_EQ(m->nkey, 2);
+  EXPECT_THAT(AsVector(m->key_qpos, 3), ElementsAreArray({1, 0, 2}));
+  EXPECT_THAT(AsVector(m->key_qpos + 3, 3), ElementsAreArray({3, 4, 5}));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
+// the keyframes keep their values when a body of the parent is deleted after
+// a model was attached to it, with no compilation in between
+TEST_F(MujocoTest, AttachThenDeleteKeepsKeyframes) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+        <frame name="fa"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="C">
+        <joint name="c" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2 3"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="ck" qpos="4"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  // whether or not the parent was compiled before the attachment
+  for (bool compile : {false, true}) {
+    std::array<char, 1000> er;
+    mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+    ASSERT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjModel* m_parent = compile ? mj_compile(parent, nullptr) : nullptr;
+
+    ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "fa")->element,
+                           mjs_findBody(child, "b")->element, "c_", ""),
+                NotNull())
+        << mjs_getError(parent);
+    ASSERT_EQ(mjs_delete(parent, mjs_findBody(parent, "B")->element), 0)
+        << mjs_getError(parent);
+
+    mjModel* m = mj_compile(parent, nullptr);
+    ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+    ASSERT_EQ(m->nq, 3);
+    EXPECT_EQ(mj_name2id(m, mjOBJ_JOINT, "c_j"), 1);
+
+    // the deletion moves the keyframe of the parent after the attached one
+    ASSERT_EQ(m->nkey, 2);
+    EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "c_ck"), 0);
+    EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "k"), 1);
+    EXPECT_THAT(AsVector(m->key_qpos, 3), ElementsAreArray({0, 4, 0}));
+    EXPECT_THAT(AsVector(m->key_qpos + 3, 3), ElementsAreArray({1, 0, 3}));
+
+    mj_deleteModel(m);
+    mj_deleteModel(m_parent);
+    mj_deleteSpec(child);
+    mj_deleteSpec(parent);
+  }
+}
+
+// a vector which is given to a keyframe between two attachments is laid out
+// for the tree as it is then, also when the parent was compiled before, and
+// recompiling keeps the state of the joints of the parent
+TEST_F(MujocoTest, KeyframeSetBetweenAttachments) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+        <frame name="fa"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="C">
+        <joint name="c" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="x">
+        <joint name="x" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="y">
+        <joint name="y" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // whether the parent was compiled before the first attachment, and whether
+  // it had the keyframe then or it was added after it
+  for (bool compile : {false, true}) {
+    for (bool key_first : {true, false}) {
+      SCOPED_TRACE(std::string(compile ? "compiled" : "not compiled") +
+                   (key_first ? ", keyframe first" : ", keyframe added"));
+      std::array<char, 1000> er;
+      mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+      ASSERT_THAT(parent, NotNull()) << er.data();
+      mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+      ASSERT_THAT(child, NotNull()) << er.data();
+      mjsKey* key = nullptr;
+      if (key_first) {
+        key = mjs_addKey(parent);
+        const std::vector<double> qpos = {1, 2, 3};
+        mjs_setDouble(key->qpos, qpos.data(), qpos.size());
+      }
+      mjModel* model = nullptr;
+      mjData* data = nullptr;
+      if (compile) {
+        model = mj_compile(parent, nullptr);
+        ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+        data = mj_makeData(model);
+        data->qpos[0] = 0.25;
+        data->qpos[1] = 0.5;
+        data->qpos[2] = 0.75;
+        data->qvel[0] = 1.5;
+        data->qvel[1] = 2.5;
+        data->qvel[2] = 3.5;
+      }
+
+      // after the first attachment, the keyframe is given a vector for the
+      // joints a, c_x, b, c
+      ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "fa")->element,
+                             mjs_findBody(child, "x")->element, "c_", ""),
+                  NotNull())
+          << mjs_getError(parent);
+      if (!key_first) {
+        key = mjs_addKey(parent);
+      }
+      const std::vector<double> qpos = {11, 12, 13, 14};
+      mjs_setDouble(key->qpos, qpos.data(), qpos.size());
+
+      // the second attachment puts c_y between c_x and b
+      ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "fa")->element,
+                             mjs_findBody(child, "y")->element, "c_", ""),
+                  NotNull())
+          << mjs_getError(parent);
+      if (compile) {
+        ASSERT_EQ(mj_recompile(parent, nullptr, model, data), 0)
+            << mjs_getError(parent);
+        EXPECT_THAT(AsVector(data->qpos, 5),
+                    ElementsAreArray({0.25, 0.0, 0.0, 0.5, 0.75}));
+        EXPECT_THAT(AsVector(data->qvel, 5),
+                    ElementsAreArray({1.5, 0.0, 0.0, 2.5, 3.5}));
+      } else {
+        model = mj_compile(parent, nullptr);
+        ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+      }
+      ASSERT_EQ(model->nq, 5);
+      EXPECT_EQ(mj_name2id(model, mjOBJ_JOINT, "c_y"), 2);
+      ASSERT_EQ(model->nkey, 1);
+      EXPECT_THAT(AsVector(model->key_qpos, 5),
+                  ElementsAreArray({11, 12, 0, 13, 14}));
+
+      mj_deleteData(data);
+      mj_deleteModel(model);
+      mj_deleteSpec(child);
+      mj_deleteSpec(parent);
+    }
+  }
+}
+
+// once a spec which was changed is compiled again, its keyframes are laid out
+// for the compiled model until the tree changes, as before the first change
+TEST_F(MujocoTest, KeyframeLayoutAfterCompilingChange) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="C">
+        <joint name="c" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2 3"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "A")->element), 0)
+      << mjs_getError(spec);
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+
+  // a joint which is added between b and c has no value in the keyframe
+  mjsBody* c = mjs_findBody(spec, "C");
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "B"), nullptr);
+  mjs_addJoint(body, nullptr)->type = mjJNT_SLIDE;
+  mjs_addGeom(body, nullptr)->size[0] = 0.1;
+  ASSERT_EQ(mjs_delete(spec, c->element), 0) << mjs_getError(spec);
+
+  mjModel* m3 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m3, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m3->nq, 2);
+  EXPECT_THAT(AsVector(m3->key_qpos, 2), ElementsAreArray({2, 0}));
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteModel(m3);
+  mj_deleteSpec(spec);
+}
+
+// a keyframe which a deletion stores after an attachment has the time it was
+// given meanwhile, when its model is attached to another
+TEST_F(MujocoTest, AttachThenDeleteKeepsKeyframeTime) {
+  mock_warning_handler.ExpectWarnings();
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="f"/>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjSpec* grandparent = mj_makeSpec();
+
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f")->element,
+                         mjs_findBody(child, "b")->element, "c_", ""),
+              NotNull())
+      << mjs_getError(parent);
+  mjs_asKey(mjs_findElement(parent, mjOBJ_KEY, "k"))->time = 5;
+  ASSERT_EQ(mjs_delete(parent, mjs_findBody(parent, "B")->element), 0)
+      << mjs_getError(parent);
+
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(grandparent, "world"), nullptr);
+  ASSERT_THAT(
+      mjs_attach(frame->element, mjs_findBody(parent, "A")->element, "p_", ""),
+      NotNull())
+      << mjs_getError(grandparent);
+  mjModel* m = mj_compile(grandparent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(grandparent);
+  ASSERT_EQ(m->nq, 1);
+  ASSERT_EQ(m->nkey, 1);
+  EXPECT_EQ(m->key_time[0], 5);
+  EXPECT_EQ(m->key_qpos[0], 1);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(grandparent);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
+// a keyframe of a parent does not take the values which a copy of the parent
+// holds for it, when a body of that copy is attached to the parent
+TEST_F(MujocoTest, AttachCopyOfParentKeepsKeyframe) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="f1"/>
+      <frame name="f2"/>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  // the keyframe is stored in the parent, then in its copy as well
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f1")->element,
+                         mjs_findBody(child, "b")->element, "c_", ""),
+              NotNull())
+      << mjs_getError(parent);
+  mjSpec* copy = mj_copySpec(parent);
+  ASSERT_THAT(copy, NotNull());
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "f2")->element,
+                         mjs_findBody(copy, "A")->element, "x_", ""),
+              NotNull())
+      << mjs_getError(parent);
+
+  mjModel* m = mj_compile(parent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+  ASSERT_EQ(m->nq, 3);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_JOINT, "x_a"), 2);
+  ASSERT_EQ(m->nkey, 2);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "k"), 0);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "x_k"), 1);
+  EXPECT_THAT(AsVector(m->key_qpos, 3), ElementsAreArray({1, 0, 0}));
+  EXPECT_THAT(AsVector(m->key_qpos + 3, 3), ElementsAreArray({0, 0, 1}));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(child);
+}
+
+// a keyframe keeps its values when a subtree of its model is attached to the
+// model itself, and every attachment adds a copy of it for the new subtree
+TEST_F(MujocoTest, SelfAttachKeepsKeyframe) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+        <frame name="fa"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1 2"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjs_setDeepCopy(spec, true);
+
+  // two copies of B, ahead of B in the tree
+  mjsElement* frame = mjs_findFrame(spec, "fa")->element;
+  const mjsElement* body = mjs_findBody(spec, "B")->element;
+  ASSERT_THAT(mjs_attach(frame, body, "c1_", ""), NotNull())
+      << mjs_getError(spec);
+  ASSERT_THAT(mjs_attach(frame, body, "c2_", ""), NotNull())
+      << mjs_getError(spec);
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nq, 4);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_JOINT, "b"), 3);
+  ASSERT_EQ(m->nkey, 3);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "k"), 0);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "c1_k"), 1);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_KEY, "c2_k"), 2);
+  EXPECT_THAT(AsVector(m->key_qpos, 4), ElementsAreArray({1, 0, 0, 2}));
+  EXPECT_THAT(AsVector(m->key_qpos + 4, 4), ElementsAreArray({1, 2, 0, 0}));
+  EXPECT_THAT(AsVector(m->key_qpos + 8, 4), ElementsAreArray({1, 0, 2, 0}));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// a keyframe of a parent has the default configuration of the joints of a
+// model which is attached to it
+TEST_F(MujocoTest, AttachDefaultsInParentKeyframe) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="frame" pos="0 0 1"/>
+    </worldbody>
+    <keyframe>
+      <key name="k" qpos="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="free" pos="1 0 0">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "frame")->element,
+                         mjs_findBody(child, "free")->element, "c_", ""),
+              NotNull())
+      << mjs_getError(parent);
+  mjModel* m = mj_compile(parent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+
+  // the free body is where the frame it is attached to puts it
+  ASSERT_EQ(m->nq, 8);
+  ASSERT_EQ(m->nkey, 1);
+  EXPECT_THAT(AsVector(m->key_qpos, 8),
+              ElementsAreArray({1, 1, 0, 1, 1, 0, 0, 0}));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
+// a keyframe which is shorter than the model survives a change to the tree:
+// what it does not give takes the default configuration
+TEST_F(MujocoTest, ShortKeyframeSurvivesTreeChanges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="b">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame pos="1 0 0" euler="0 0 90">
+        <body name="c" pos="0 0 1">
+          <freejoint/>
+          <geom size=".1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <keyframe>
+      <key name="short" qpos="2 3"/>
+      <key name="default"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  // delete a body: the free joint is as in the default keyframe
+  EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "a")->element), 0)
+      << mjs_getError(spec);
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m1->nq, 8);
+  ASSERT_EQ(m1->nkey, 2);
+  EXPECT_EQ(m1->key_qpos[0], 3);
+  EXPECT_EQ(AsVector(m1->key_qpos + 1, 7), AsVector(m1->key_qpos + 8 + 1, 7));
+
+  // attach the model: likewise
+  mjSpec* parent = mj_makeSpec();
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child->element, "child-", ""),
+              NotNull())
+      << mjs_getError(parent);
+  mjModel* m2 = mj_compile(parent, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(parent);
+  ASSERT_EQ(m2->nq, 9);
+  ASSERT_EQ(m2->nkey, 2);
+  EXPECT_THAT(AsVector(m2->key_qpos, 2), ElementsAreArray({2, 3}));
+  EXPECT_EQ(AsVector(m2->key_qpos + 2, 7), AsVector(m2->key_qpos + 9 + 2, 7));
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, KeyframeSizeError) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -4675,18 +5741,17 @@ TEST_F(MujocoTest, KeyframeSizeError) {
 
     <keyframe>
       <key name="valid_qpos" qpos="0.5"/>
-      <key name="invalid_qpos" qpos="0.5 0.25"/>
+      <key name="invalid_qpos" qpos="0.5 0.25 0.1"/>
     </keyframe>
   </mujoco>
   )";
 
+  // the size is checked against the model with its replicas in place
   std::array<char, 1000> er;
-  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
-  EXPECT_THAT(spec, IsNull());
-  EXPECT_THAT(
-      er.data(),
-      HasSubstr(
-          "Keyframe 'invalid_qpos' has invalid qpos size, got 2, should be 1"));
+  MjModelPtr model = LoadModelFromString(xml, er.data(), er.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(er.data(), HasSubstr("keyframe 'invalid_qpos': invalid qpos "
+                                   "size, expected 2, got 3"));
 }
 
 TEST_F(MujocoTest, DifferentUnitsAllowed) {

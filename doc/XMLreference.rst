@@ -202,11 +202,10 @@ and namespaced appropriately. Detailed examples of models using replicate can be
 Direct children of replicate are replicated into its parent body. Joints are therefore not allowed as direct children;
 wrap them in a :ref:`body<body>`.
 
-There are some caveats concerning :ref:`keyframes<keyframe>` when using replicate. Since :ref:`mjs_attach` is used to
-self-attach multiple times the enclosed kinematic tree, if this tree contains further :ref:`attach<body-attach>`
-elements, keyframes will not be replicated nor namespaced by :ref:`replicate<replicate>`, but they will be attached and
-namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations discussed in
-:ref:`attachment<meAttachment>`.
+:ref:`Keyframes<keyframe>` are not replicated: a keyframe describes the model with all replicas in place, so its vectors
+follow the layout of the compiled model. If the enclosed tree contains :ref:`attach<body-attach>` elements, the
+keyframes of the attached model are added once, namespaced by the :el:`attach` element only, and set the state of the
+first replica. See the limitations discussed in :ref:`attachment<meAttachment>`.
 
 .. _replicate-count:
 
@@ -4163,9 +4162,6 @@ the saved XML file. Note that this element is a subset of the functionality of t
 
    - All assets from the child model will be copied in, whether they are referenced or not.
    - Circular references are not checked for and will lead to infinite loops.
-   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
-     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
-     lost.
 
 .. _body-attach-model:
 

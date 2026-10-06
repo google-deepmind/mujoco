@@ -38,18 +38,6 @@ typedef std::map<std::string, int, std::less<>>                    mjKeyMap;
 typedef std::array<mjKeyMap, mjNOBJECT>                            mjListKeyMap;
 typedef std::array<std::unordered_set<std::string>, mjNOBJECT + 1> mjNameSet;
 
-typedef struct mjKeyInfo_ {
-  std::string name;
-
-  double time;
-  bool   qpos;
-  bool   qvel;
-  bool   act;
-  bool   ctrl;
-  bool   mpos;
-  bool   mquat;
-} mjKeyInfo;
-
 class mjCModel_ : public mjsElement {
  public:
   // attach namespaces
@@ -58,6 +46,10 @@ class mjCModel_ : public mjsElement {
 
  protected:
   bool compiled;  // already compiled flag
+
+  // the keyframes were stored in the elements since the last compilation, because the tree
+  // changed: a vector which a keyframe has now was given to it for the tree as it is now
+  bool keysstored = false;
 
   // sizes set from object list lengths
   mjtSize nbody;     // number of bodies
@@ -352,7 +344,8 @@ class mjCModel : public mjCModel_, private mjSpec {
                  const T*           act,
                  const T*           ctrl,
                  const T*           mpos,
-                 const T*           mquat);
+                 const T*           mquat,
+                 bool               partial = false);
   void SaveState(const std::string& state_name,
                  const mjModel*     m,
                  const mjData*      d,
@@ -378,7 +371,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear existing data
   void MakeData(const mjModel* m, mjData** dest);
 
-  // resolve keyframe references
+  // store the values of the keyframes in the elements they belong to, ahead of a change to the
+  // tree: a deletion (dest is this model, which has no namespace), the attachment of this model
+  // to dest, or the attachment of another model to this one (dest is null)
   void StoreKeyframes(mjCModel* dest);
 
   // map from default class name to default class pointer
@@ -392,6 +387,15 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // check if model is attached
   bool IsAttached() const { return attached_; }
+
+  // check if a keyframe awaits the next compilation, after a change to the tree
+  bool HasPendingKeys() const;
+
+  // forget the state saved under a name
+  void ForgetState(const std::string& state_name);
+
+  // copy the state saved under a name to another name
+  void CopyState(const std::string& state_name, const std::string& copy_name);
 
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
@@ -533,6 +537,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // convert pending keyframes info to actual keyframes
   void ResolveKeyframes(const mjModel* m);
 
+  // add a keyframe which awaits the next compilation, after all other keyframes
+  mjCKey* AddPendingKey(const std::string& name, const mjKeyInfo& info);
+
   // expand a keyframe, filling in missing values
   void ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
@@ -564,18 +571,16 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete all plugins created by the subtree
   void DeleteSubtreePlugin(mjCBody* subtree);
 
-  // expand all keyframes in the model
-  void ExpandAllKeyframes();
-
-  mjListKeyMap             ids;              // map from object names to ids
-  mjNameSet                names_;           // names in use per element type
-  mjCError                 errInfo;          // last error info
-  std::vector<std::string> warnings_;        // chronological list of non-fatal warnings
-  int  num_attach_warnings_ = 0;             // boundary: [0, n) are attach, [n, size) are compile
-  bool compiling_           = false;         // true during Compile()
-  std::vector<mjKeyInfo> key_pending_;       // attached keyframes
-  bool                   deepcopy_;          // copy objects when attaching
-  bool                   attached_ = false;  // true if model is attached to a parent model
+  mjListKeyMap             ids;           // map from object names to ids
+  mjNameSet                names_;        // names in use per element type
+  mjCError                 errInfo;       // last error info
+  std::vector<std::string> warnings_;     // chronological list of non-fatal warnings
+  int  num_attach_warnings_ = 0;          // boundary: [0, n) are attach, [n, size) are compile
+  bool compiling_           = false;      // true during Compile()
+  bool deepcopy_;                         // copy objects when attaching
+  bool copying_  = false;                 // true while this model is copied from another
+  bool attached_ = false;                 // true if model is attached to a parent model
+  std::vector<std::string> inplacekeys_;  // stored names of the keyframes which stay in place
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

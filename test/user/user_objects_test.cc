@@ -437,6 +437,46 @@ TEST_F(KeyframeTest, JointDefaultOverride) {
   EXPECT_MJTNUM_EQ(model->key_qpos[7], 0.5);
 }
 
+// a vector which is shorter than the model is completed with the default
+// configuration, which for a free joint or a mocap body includes its frame
+TEST_F(KeyframeTest, ShortVectorTakesDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="slider">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="target" mocap="true"/>
+      <frame pos="1 0 0" euler="0 0 90">
+        <body name="floating" pos="0 0 1">
+          <freejoint/>
+          <geom size=".1"/>
+        </body>
+        <body name="marker" mocap="true" pos="0 0 2"/>
+      </frame>
+    </worldbody>
+    <keyframe>
+      <key name="short" qpos="0.5" mpos="3 4 5" mquat="0 1 0 0"/>
+      <key name="default"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nq, 8);
+  ASSERT_EQ(model->nmocap, 2);
+
+  // the free joint and the second mocap body are as in the default keyframe
+  const mjtNum* qpos = model->key_qpos;
+  const mjtNum* mpos = model->key_mpos;
+  const mjtNum* mquat = model->key_mquat;
+  EXPECT_EQ(AsVector(qpos + 1, 7), AsVector(qpos + 8 + 1, 7));
+  EXPECT_EQ(AsVector(mpos + 3, 3), AsVector(mpos + 6 + 3, 3));
+  EXPECT_EQ(AsVector(mquat + 4, 4), AsVector(mquat + 8 + 4, 4));
+}
+
 // ------------- test relative frame sensor compilation-------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;

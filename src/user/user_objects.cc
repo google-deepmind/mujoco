@@ -221,6 +221,19 @@ static bool islimited(int limited, const double range[2]) {
   return false;
 }
 
+// forget the keyframe values which are stored under the given names, or all others if keep is true
+template <class T>
+static void forgetvalues(std::map<std::string, T>&       values,
+                         const std::vector<std::string>& names,
+                         bool                            keep) {
+  std::map<std::string, T> named;
+  for (const std::string& name : names) {
+    auto value = values.find(name);
+    if (value != values.end()) { named.insert(values.extract(value)); }
+  }
+  if (keep) { values = std::move(named); }
+}
+
 //------------------------- class mjCError implementation ------------------------------------------
 
 // constructor
@@ -1707,6 +1720,10 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
     static_cast<mjCModel*>(other.model->spec.element)->AddRef();
   }
 
+  // the tree of this model is about to change: store its keyframes, before the other model lays
+  // out its own, which changes the addresses of the elements they share
+  if (other.model != model) { model->StoreKeyframes(nullptr); }
+
   // create a copy of the subtree that contains the frame
   mjCBody* subtree    = other.body;
   other.model->prefix = other.prefix;
@@ -1768,13 +1785,19 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
     if (model->deepcopy_) {
       mjCBody* newbody(new mjCBody(*subtree->bodies[i], model));  // triggers recursive call
       bodies.push_back(newbody);
-      subtree->bodies[i]->ForgetKeyframes();
       bodies.back()->NameSpace_(other_model, /*propagate=*/false);
     } else {
       bodies.push_back(subtree->bodies[i]);
       bodies.back()->SetModel(model);
       bodies.back()->ResetId();
       bodies.back()->AddRef();
+    }
+
+    // the attached body does not take the values of the keyframes which stay in place in the
+    // other model; a copy leaves them, and only them, in the original
+    bodies.back()->ForgetKeyframes(other_model->inplacekeys_);
+    if (model->deepcopy_) {
+      subtree->bodies[i]->ForgetKeyframes(other_model->inplacekeys_, /*keep=*/true);
     }
     bodies.back()->parent = this;
     bodies.back()->frame =
@@ -1784,9 +1807,6 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // attach referencing elements
   other_model->SetAttached(model->deepcopy_);
   *model += *other_model;
-
-  // leave the source model in a clean state
-  if (other_model != model) { other_model->key_pending_.clear(); }
 
   // clear namespace and return body
   other_model->prefix.clear();
@@ -1809,6 +1829,9 @@ void mjCBody::CopyList(std::vector<T*>&          dst,
     }
     mjSpec* origin  = model->FindSpec(src[i]->compiler);
     T*      new_obj = model->deepcopy_ ? new T(*src[i]) : src[i];
+
+    // an attached element does not take the values of the keyframes which stay in place
+    if (pframe) { new_obj->ForgetKeyframes(src[i]->model->inplacekeys_); }
     dst.push_back(new_obj);
     dst.back()->body     = this;
     dst.back()->model    = model;
@@ -2659,15 +2682,13 @@ void mjCBody::ComputeBVH() {
 }
 
 
-// reset keyframe references for allowing self-attach
-void mjCBody::ForgetKeyframes() const {
-  for (auto joint : joints) {
-    joint->qpos_.clear();
-    joint->qvel_.clear();
-  }
-  ((mjCBody*)this)->mpos_.clear();
-  ((mjCBody*)this)->mquat_.clear();
-  for (auto body : bodies) { body->ForgetKeyframes(); }
+// forget the keyframe values of this body and its subtree which are stored under the given names,
+// or all others if keep is true
+void mjCBody::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
+  forgetvalues(mpos_, names, keep);
+  forgetvalues(mquat_, names, keep);
+  for (mjCJoint* joint : joints) { joint->ForgetKeyframes(names, keep); }
+  for (mjCBody* body : bodies) { body->ForgetKeyframes(names, keep); }
 }
 
 
@@ -2967,6 +2988,10 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
     static_cast<mjCModel*>(other.model->spec.element)->AddRef();
   }
 
+  // the tree of this model is about to change: store its keyframes, before the other model lays
+  // out its own, which changes the addresses of the elements they share
+  if (other.model != model) { model->StoreKeyframes(nullptr); }
+
   // apply namespace and store keyframes in the source model
   other.model->prefix = other.prefix;
   other.model->suffix = other.suffix;
@@ -2977,8 +3002,12 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
 
   // attach or copy the subtree
   mjCBody* subtree = model->deepcopy_ ? new mjCBody(other, model) : (mjCBody*)&other;
+
+  // the attached body does not take the values of the keyframes which stay in place in the other
+  // model; a copy leaves them, and only them, in the original
+  subtree->ForgetKeyframes(other_model->inplacekeys_);
   if (model->deepcopy_) {
-    other.ForgetKeyframes();
+    ((mjCBody*)&other)->ForgetKeyframes(other_model->inplacekeys_, /*keep=*/true);
   } else {
     subtree->SetModel(model);
     subtree->ResetId();
@@ -3004,9 +3033,6 @@ mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   // attach referencing elements
   other_model->SetAttached(model->deepcopy_);
   *model += *other_model;
-
-  // leave the source model in a clean state
-  if (other_model != model) { other_model->key_pending_.clear(); }
 
   // clear suffixes and return
   other_model->suffix.clear();
@@ -3153,6 +3179,12 @@ mjtNum* mjCJoint::qpos(const std::string& state_name) {
 mjtNum* mjCJoint::qvel(const std::string& state_name) {
   if (qvel_.find(state_name) == qvel_.end()) { qvel_[state_name] = {mjNAN, 0, 0, 0, 0, 0}; }
   return qvel_.at(state_name).data();
+}
+
+
+void mjCJoint::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
+  forgetvalues(qpos_, names, keep);
+  forgetvalues(qvel_, names, keep);
 }
 
 
@@ -6799,9 +6831,9 @@ mjCActuator& mjCActuator::operator=(const mjCActuator& other) {
 }
 
 
-void mjCActuator::ForgetKeyframes() {
-  act_.clear();
-  ctrl_.clear();
+void mjCActuator::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
+  forgetvalues(act_, names, keep);
+  forgetvalues(ctrl_, names, keep);
 }
 
 

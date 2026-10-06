@@ -10,6 +10,14 @@ Compiler
 .. admonition:: Breaking API changes
    :class: attention
 
+   - :ref:`Keyframes<keyframe>` in MJCF are no longer copied by :ref:`replicate<replicate>`: a keyframe describes the
+     model with all replicas in place, as in a model without replicates. Previously each replica received a copy of
+     every keyframe, setting only the joints of that replica, and a keyframe written for the complete model failed to
+     load (:issue:`3071`, reported by :github:user:`eholum-nasa`).
+
+     **Migration:** Write the vectors of a keyframe for the complete model. A keyframe which was written for a single
+     replica still loads, as one keyframe whose vectors are completed with the default configuration.
+
    - An asset added to an :ref:`mjSpec` through the API is no longer named after its ``file`` when the spec is
      compiled. A mesh, height field or texture which is left without a name is now a compilation error, as it already
      was for one without a file. MJCF is unaffected: the XML parser still names assets after their files.
@@ -27,6 +35,10 @@ Bug fixes
   :ref:`discardvisual<compiler-discardvisual>`.
 - :ref:`fusestatic<compiler-fusestatic>` no longer binds elements which refer by name to a geom, site, camera or
   light to a different one, and no longer leaves static bodies unfused when another body is referenced by name.
+- :ref:`Keyframes<keyframe>` of an :ref:`mjSpec` now keep their place and their values when its kinematic tree
+  changes (:ref:`mjs_delete`, :ref:`mjs_attach`) and when the spec is copied; previously the next compilation
+  created them again, and values were lost or misplaced in several cases. A vector which is shorter than the model
+  is completed with the default configuration of the compiled model.
 
 Models
 ^^^^^^

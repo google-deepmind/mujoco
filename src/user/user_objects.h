@@ -411,9 +411,9 @@ class mjCBase : public mjCBase_ {
 
   virtual ~mjCBase() = default;  // destructor
 
-  // reset keyframe references for allowing self-attach
-  virtual void ForgetKeyframes() {}
-  virtual void ForgetKeyframes() const {}
+  // forget the keyframe values of this element which are stored under the given names, or all
+  // others if keep is true
+  virtual void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false) {}
 
   // increment and decrement reference count
   // release uses the argument to delete the plugin
@@ -576,8 +576,8 @@ class mjCBody : public mjCBody_, private mjsBody {
                         mjtObj            type      = mjOBJ_UNKNOWN,
                         bool              recursive = false) const;
 
-  // reset keyframe references for allowing self-attach
-  void ForgetKeyframes() const;
+  // forget the keyframe values of this body and its subtree
+  void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
 
   // create a frame and move all contents of this body into it
   mjCFrame* ToFrame();
@@ -741,6 +741,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
   mjtNum* qpos(const std::string& state_name);
   mjtNum* qvel(const std::string& state_name);
+  void    ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
 
  private:
   int  Compile(void);  // compiler; return dofnum
@@ -1895,8 +1896,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
 
-  // reset keyframe references for allowing self-attach
-  void ForgetKeyframes();
+  void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
 
   mjCBase* ptarget;  // transmission target
 };
@@ -2055,8 +2055,31 @@ class mjCTuple : public mjCTuple_, private mjsTuple {
 //------------------------- class mjCKey -----------------------------------------------------------
 // Describes a keyframe
 
+// what a change to the tree stored of a keyframe, to be reassembled by the next compilation
+typedef struct mjKeyInfo_ {
+  std::string name;  // name under which the values are stored in the elements
+
+  double time;
+  bool   qpos;
+  bool   qvel;
+  bool   act;
+  bool   ctrl;
+  bool   mpos;
+  bool   mquat;
+} mjKeyInfo;
+
 class mjCKey_ : public mjCBase {
  protected:
+  // a keyframe is pending from a change to the tree, when its values are stored in the elements
+  // they belong to, until the next compilation reassembles its vectors
+  bool      ispending_ = false;
+  mjKeyInfo pending_;
+
+  // a pending keyframe of a model to which another was attached stays in place: it keeps its
+  // position among the keyframes, and it is still copied when its own model is attached; one
+  // which a deletion stored, or which came with an attached model, is kept last and attached as is
+  bool inplace_ = false;
+
   std::vector<double> qpos_;
   std::vector<double> qvel_;
   std::vector<double> act_;

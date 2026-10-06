@@ -271,9 +271,9 @@ Note also that once a child is attached by reference to a parent, the child cann
    - All assets from the child model will be copied in, whether they are referenced or not, if the parent and the child
      are not the same mjSpec.
    - Circular references are not checked for and will lead to infinite loops.
-   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
-     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
-     lost.
+   - When attaching a model with :ref:`keyframes<keyframe>`, its keyframes are added to the parent right away, but
+     their vectors, and those of the keyframes of the parent, are assembled for the combined model only by the next
+     compilation. Until then they are empty.
 
 .. _meAttributeMerging:
 

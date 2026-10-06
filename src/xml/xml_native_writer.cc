@@ -2266,7 +2266,7 @@ void mjXWriter::Keyframe(XMLElement* root) {
   // create section
   XMLElement* section = InsertEnd(root, "keyframe");
 
-  if (!model->key_pending_.empty()) {
+  if (model->HasPendingKeys()) {
     throw mjXError(0, "Model has pending keyframes. It must be (re)compiled before writing XML.");
   }
 
