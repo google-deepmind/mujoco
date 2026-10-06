@@ -1002,8 +1002,9 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
   string text, name1, name2;
 
   // read type (bad keywords already detected by schema)
-  text           = elem->Value();
-  equality->type = (mjtEq)FindKey(equality_map, equality_sz, text);
+  text     = elem->Value();
+  int type = FindKey(equality_map, equality_sz, text);
+  if (type >= 0) equality->type = (mjtEq)type;
 
   // common attributes
   ReadAttrTable(elem, equality, equality->element, kEqualityBaseAttrs, kEqualityBaseAttrsN);
