@@ -2991,6 +2991,9 @@ TEST_F(MujocoTest, AdoptInertial) {
   mj_defaultVFS(vfs.get());
   mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
 
+  // settotalmass is deprecated
+  mock_warning_handler.ExpectWarnings("settotalmass");
+
   std::array<char, 1000> er;
   mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
   ASSERT_THAT(spec, NotNull()) << er.data();

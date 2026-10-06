@@ -799,11 +799,12 @@ has any effect. The settings here are global and apply to the entire model.
 .. _compiler-settotalmass:
 
 :at:`settotalmass`: :at-val:`real, "-1"`
-   If this value is positive, the compiler will scale the masses and inertias of all bodies in the model, so that the
-   total mass equals the value specified here. The world body has mass 0 and does not participate in any mass-related
-   computations. This scaling is performed last, after all other operations affecting the body mass and inertia. The
-   same scaling operation can be applied at runtime to the compiled mjModel with the function
-   :ref:`mj_setTotalmass`.
+   This attribute is deprecated and will be removed in a future release; compiling a model which sets it gives a
+   warning. If this value is positive, the compiler will scale the masses and inertias of all bodies in the model, so
+   that the total mass equals the value specified here. The world body has mass 0 and does not participate in any
+   mass-related computations. This scaling is performed last, after all other operations affecting the body mass and
+   inertia. The same scaling operation can be applied at runtime to the compiled mjModel with the function
+   :ref:`mj_setTotalmass`, followed by :ref:`mj_setConst`.
 
 .. _compiler-balanceinertia:
 

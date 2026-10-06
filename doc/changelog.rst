@@ -51,6 +51,11 @@ Compiler
   ellipsoid :ref:`fluid model<body-geom-fluidshape>` are kept.
 - Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
   the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
+- The :ref:`settotalmass<compiler-settotalmass>` compiler attribute is deprecated and will be removed in a future
+  release. It still scales the masses, and compiling a model which sets it now gives a warning.
+
+  **Migration:** Scale the masses and densities in the model, or call :ref:`mj_setTotalmass` on the compiled model,
+  followed by :ref:`mj_setConst`.
 
 Bug fixes
 ^^^^^^^^^

@@ -6189,8 +6189,14 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   m->nJmom = nJmom = CountNJmom(m);
 
 
-  // scale mass
-  if (compiler.settotalmass > 0) { mj_setTotalmass(m, compiler.settotalmass); }
+  // scale mass (deprecated)
+  if (compiler.settotalmass > 0) {
+    AddWarning(
+        "compiler attribute 'settotalmass' is deprecated and will be removed in a future "
+        "release: scale the masses and densities in the model, or call mj_setTotalmass "
+        "and mj_setConst on the compiled model");
+    mj_setTotalmass(m, compiler.settotalmass);
+  }
 
   // set arena size into m->narena
   if (memory != -1) {

@@ -314,6 +314,56 @@ TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
   EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
 }
 
+// settotalmass is deprecated: it still scales the masses, with a warning which
+// says what to do instead
+TEST_F(UserModelTest, SetTotalMassDeprecated) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size=".1" pos=".2 0 0"/>
+        <body pos=".4 0 0">
+          <joint axis="0 1 0"/>
+          <inertial pos=".1 0 0" mass="2" diaginertia=".1 .2 .3"/>
+          <geom type="capsule" size=".05" fromto="0 0 0 .3 0 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // without the attribute there is no warning
+  mjModel* unscaled = mj_compile(spec, nullptr);
+  ASSERT_THAT(unscaled, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_numWarnings(spec), 0);
+
+  // with it the masses are scaled as before, and compilation warns
+  mock_warning_handler.ExpectWarnings("settotalmass");
+  spec->compiler.settotalmass = 8;
+  mjModel* scaled = mj_compile(spec, nullptr);
+  ASSERT_THAT(scaled, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(mj_getTotalmass(scaled), 8, MjTol(1e-12, 1e-5));
+  ASSERT_EQ(mjs_numWarnings(spec), 1);
+  EXPECT_THAT(mjs_getWarning(spec, 0), HasSubstr("deprecated"));
+  EXPECT_THAT(mjs_getWarning(spec, 0), HasSubstr("mj_setTotalmass"));
+
+  // what the warning says to do instead gives the same model
+  mj_setTotalmass(unscaled, 8);
+  mjData* data = mj_makeData(unscaled);
+  mj_setConst(unscaled, data);
+  std::string field;
+  EXPECT_LE(CompareModel(scaled, unscaled, field), MjTol(1e-12, 1e-5)) << field;
+
+  mj_deleteData(data);
+  mj_deleteModel(scaled);
+  mj_deleteModel(unscaled);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
   static constexpr char xml[] = R"(
   <mujoco>
