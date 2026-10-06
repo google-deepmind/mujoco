@@ -35,34 +35,35 @@
 // check for intersection of two 2D line segments
 static mjtBool is_intersect(const mjtNum* p1, const mjtNum* p2,
                             const mjtNum* p3, const mjtNum* p4) {
-  mjtNum a, b;
+  mjtNum u[2] = {p2[0] - p1[0], p2[1] - p1[1]};
+  mjtNum v[2] = {p4[0] - p3[0], p4[1] - p3[1]};
 
   // compute determinant, check
-  mjtNum det = (p4[1]-p3[1])*(p2[0]-p1[0]) - (p4[0]-p3[0])*(p2[1]-p1[1]);
+  mjtNum det = v[1]*u[0] - v[0]*u[1];
   if (mju_abs(det) < mjMINVAL) {
     return false;
   }
 
   // compute intersection point on each line
-  a = ((p4[0]-p3[0])*(p1[1]-p3[1]) - (p4[1]-p3[1])*(p1[0]-p3[0])) / det;
-  b = ((p2[0]-p1[0])*(p1[1]-p3[1]) - (p2[1]-p1[1])*(p1[0]-p3[0])) / det;
+  mjtNum s = (det > 0 ? 1 : -1);
+  mjtNum w[2] = {p1[0] - p3[0], p1[1] - p3[1]};
+  mjtNum d[2] = {p2[0] - p4[0], p2[1] - p4[1]};
+  mjtNum a0 = (v[0]*w[1] - v[1]*w[0]) * s;
+  mjtNum a1 = (v[0]*d[1] - v[1]*d[0]) * s;
+  mjtNum b0 = (u[0]*w[1] - u[1]*w[0]) * s;
+  mjtNum b1 = (u[0]*d[1] - u[1]*d[0]) * s;
 
-  return ((a >= 0 && a <= 1 && b >= 0 && b <= 1) ? true : false);
+  return (a0 >= 0 && a1 <= 0 && b0 >= 0 && b1 <= 0);
 }
 
 
 // curve length along circle
 static mjtNum length_circle(const mjtNum* p0, const mjtNum* p1, int ind, mjtNum radius) {
-  mjtNum p0n[2] = {p0[0], p0[1]};
-  mjtNum p1n[2] = {p1[0], p1[1]};
-
   // compute angle between 0 and pi
-  mju_normalize(p0n, 2);
-  mju_normalize(p1n, 2);
-  mjtNum angle = mju_acos(mju_dot(p0n, p1n, 2));
+  mjtNum cross = p0[1]*p1[0] - p0[0]*p1[1];
+  mjtNum angle = mju_atan2(mju_abs(cross), mju_dot(p0, p1, 2));
 
   // flip if necessary
-  mjtNum cross = p0[1]*p1[0]-p0[0]*p1[1];
   if ((cross > 0 && ind) || (cross < 0 && !ind)) {
     angle = 2*mjPI - angle;
   }
@@ -158,7 +159,6 @@ static mjtNum wrap_circle(mjtNum pnt[4], const mjtNum end[4], const mjtNum* side
 static mjtNum wrap_inside(mjtNum pnt[4], const mjtNum end[4], mjtNum radius) {
   // algorithm parameters
   const int maxiter = 20;
-  const mjtNum zinit = 1 - 1e-7;
   const mjtNum tolerance = 1e-6;
 
   // constants
@@ -207,8 +207,9 @@ static mjtNum wrap_inside(mjtNum pnt[4], const mjtNum end[4], mjtNum radius) {
   mjtNum G = mju_acos(cosG);
 
   // init
-  mjtNum z = zinit;
-  mjtNum f = mju_asin(A*z) + mju_asin(B*z) - 2*mju_asin(z) + G;
+  mjtNum phi = mjPI/2;
+  mjtNum z = mju_sin(phi);
+  mjtNum f = mju_asin(A*z) + mju_asin(B*z) - 2*phi + G;
 
   // make sure init is not on the other side
   if (f > 0) {
@@ -219,9 +220,8 @@ static mjtNum wrap_inside(mjtNum pnt[4], const mjtNum end[4], mjtNum radius) {
   int iter;
   for (iter=0; iter < maxiter && mju_abs(f) > tolerance; iter++) {
     // derivative
-    mjtNum df = A/mju_max(mjMINVAL, mju_sqrt(1-z*z*A*A)) +
-                B/mju_max(mjMINVAL, mju_sqrt(1-z*z*B*B)) -
-                2/mju_max(mjMINVAL, mju_sqrt(1-z*z));
+    mjtNum df = mju_cos(phi)*(A/mju_max(mjMINVAL, mju_sqrt(1-z*z*A*A)) +
+                              B/mju_max(mjMINVAL, mju_sqrt(1-z*z*B*B))) - 2;
 
     // check sign; SHOULD NOT OCCUR
     if (df > -mjMINVAL) {
@@ -229,16 +229,17 @@ static mjtNum wrap_inside(mjtNum pnt[4], const mjtNum end[4], mjtNum radius) {
     }
 
     // new point
-    mjtNum z1 = z - f/df;
+    mjtNum phi1 = phi - f/df;
 
     // make sure we are moving to the left; SHOULD NOT OCCUR
-    if (z1 > z) {
+    if (phi1 > phi) {
       return 0;
     }
 
     // update solution
-    z = z1;
-    f = mju_asin(A*z) + mju_asin(B*z) - 2*mju_asin(z) + G;
+    phi = phi1;
+    z = mju_sin(phi);
+    f = mju_asin(A*z) + mju_asin(B*z) - 2*phi + G;
 
     // exit if positive; SHOULD NOT OCCUR
     if (f > tolerance) {
@@ -256,10 +257,10 @@ static mjtNum wrap_inside(mjtNum pnt[4], const mjtNum end[4], mjtNum radius) {
   mjtNum ang;
   if (end[0]*end[3] - end[1]*end[2] > 0) {
     mju_copy(vec, end, 2);
-    ang = mju_asin(z) - mju_asin(A*z);
+    ang = phi - mju_asin(A*z);
   } else {
     mju_copy(vec, end+2, 2);
-    ang = mju_asin(z) - mju_asin(B*z);
+    ang = phi - mju_asin(B*z);
   }
   mju_normalize(vec, 2);
   pnt[0] = radius*(mju_cos(ang)*vec[0] - mju_sin(ang)*vec[1]);

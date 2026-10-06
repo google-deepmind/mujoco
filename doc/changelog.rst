@@ -10,6 +10,10 @@ Engine
 - Corrected the shear contribution to solid and membrane stiffness for interpolated flexes, and the three-point Gauss
   quadrature used by quadratic flexes. Material parameters now produce the standard isotropic linear-elastic stiffness;
   existing models using these flexes can change behavior.
+- Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
+  wrapping near wrap onset and for inside wrapping. Thanks to :github:user:`M-Colley` for reporting and analyzing the
+  issues in :doc:`MJWarp <mjwarp/index>` issues `1713 <https://github.com/google-deepmind/mujoco_warp/issues/1713>`__
+  and `1714 <https://github.com/google-deepmind/mujoco_warp/issues/1714>`__.
 
 Compiler
 ^^^^^^^^
