@@ -72,6 +72,10 @@ jobs:
       with:
         persist-credentials: false
 
+    - name: Prepare Windows (setup MSVC)
+      if: ${{ runner.os == 'Windows' }}
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
       run: bash ./.github/workflows/build_steps.sh prepare_linux
@@ -102,10 +106,10 @@ jobs:
 
     # ccache dramatically speeds up warm rebuilds. The key is the matrix label so
     # each compiler gets its own cache; the action's restore-keys let PR branches
-    # fall back to main's cache. ccache on Windows/MSVC is finicky and Windows
-    # isn't the bottleneck, so we skip it there.
+    # fall back to main's cache. MSVC is skipped because it is finicky with /Zi,
+    # but Windows with Clang uses ccache via Ninja.
     - name: Setup ccache
-      if: ${{ runner.os != 'Windows' }}
+      if: ${{ runner.os != 'Windows' || contains(matrix.label, 'clang') }}
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}-mujoco
@@ -198,7 +202,7 @@ jobs:
       run: bash ../.github/workflows/build_steps.sh make_python_sdist
 
     - name: Build Python bindings
-      if: ${{ runner.os != 'Windows' }}
+      if: ${{ runner.os != 'Windows' || contains(matrix.label, 'clang') }}
       shell: bash
       working-directory: python/dist
       env:
@@ -207,7 +211,7 @@ jobs:
       run: bash ../../.github/workflows/build_steps.sh build_python_bindings
 
     - name: Install Python bindings
-      if: ${{ runner.os != 'Windows' }}
+      if: ${{ runner.os != 'Windows' || contains(matrix.label, 'clang') }}
       shell: bash
       working-directory: python/dist
       env:
@@ -215,7 +219,7 @@ jobs:
       run: bash ../../.github/workflows/build_steps.sh install_python_bindings
 
     - name: Test Python bindings
-      if: ${{ runner.os != 'Windows' }}
+      if: ${{ runner.os != 'Windows' || contains(matrix.label, 'clang') }}
       shell: bash
       env:
         MUJOCO_GL: disable

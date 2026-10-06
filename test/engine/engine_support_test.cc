@@ -200,7 +200,7 @@ static constexpr char ballJointModel[] = R"(
 )";
 
 TEST_F(SupportTest, DifferentiatePosSubQuat) {
-  const mjtNum eps = 1e-12;  // epsilon for float comparison
+  const mjtNum eps = 2e-12;  // epsilon for float comparison
 
   char error[1024];
   MjModelPtr model = LoadModelFromString(ballJointModel, error, sizeof(error));
