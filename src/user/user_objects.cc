@@ -4919,6 +4919,7 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
   if (this != &other) {
     this->spec                       = other.spec;
     *static_cast<mjCTexture_*>(this) = static_cast<const mjCTexture_&>(other);
+    *static_cast<mjsTexture*>(this)  = static_cast<const mjsTexture&>(other);
   }
   PointToLocal();
   return *this;
@@ -5850,8 +5851,12 @@ void mjCPair::ResolveReferences(const mjCModel* m) {
     throw mjCError(this, "geom '%s' not found in collision %d", geomname2_.c_str(), id);
   }
 
-  spec_geomname1_ = geomname1_;
-  spec_geomname2_ = geomname2_;
+  // the names which a namespace gives are those of the spec from now on; without one they are
+  // left as written: those of a compiled pair are in the order of the bodies
+  if (!prefix.empty() || !suffix.empty()) {
+    spec_geomname1_ = geomname1_;
+    spec_geomname2_ = geomname2_;
+  }
   prefix.clear();
   suffix.clear();
 
@@ -6051,8 +6056,12 @@ void mjCBodyPair::ResolveReferences(const mjCModel* m) {
   if (!pb1) { throw mjCError(this, "body '%s' not found in bodypair %d", bodyname1_.c_str(), id); }
   if (!pb2) { throw mjCError(this, "body '%s' not found in bodypair %d", bodyname2_.c_str(), id); }
 
-  spec_bodyname1_ = bodyname1_;
-  spec_bodyname2_ = bodyname2_;
+  // the names which a namespace gives are those of the spec from now on; without one they are
+  // left as written: those of a compiled exclude are in the order of the bodies
+  if (!prefix.empty() || !suffix.empty()) {
+    spec_bodyname1_ = bodyname1_;
+    spec_bodyname2_ = bodyname2_;
+  }
   prefix.clear();
   suffix.clear();
 
@@ -6703,7 +6712,8 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
 
       break;
 
-    case mjWRAP_SPHERE:  // geom (cylinder type set here)
+    case mjWRAP_SPHERE:    // geom (cylinder type set here)
+    case mjWRAP_CYLINDER:  // a geom whose type was set here before
       // find geom by name
       obj = m->FindObject(mjOBJ_GEOM, name);
       if (!obj) {
@@ -6717,7 +6727,9 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
       // set/check geom type, as authored: the geom may not have been compiled
       if (((mjCGeom*)obj)->spec.type == mjGEOM_CYLINDER) {
         spec.type = mjWRAP_CYLINDER;
-      } else if (((mjCGeom*)obj)->spec.type != mjGEOM_SPHERE) {
+      } else if (((mjCGeom*)obj)->spec.type == mjGEOM_SPHERE) {
+        spec.type = mjWRAP_SPHERE;
+      } else {
         throw mjCError(this,
                        "geom '%s' in tendon %d, wrap %d is not sphere or cylinder",
                        name.c_str(),

@@ -167,6 +167,12 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
       << "Affected file " << xml << '\n'
       << "Different field: " << field << '\n';
 
+  // a copy of a compiled spec holds what was authored in the original, and is
+  // saved as the original is, also once the original is deleted
+  std::string saved = SaveAndReadXml(s);
+  mjSpec* s_copy3 = mj_copySpec(s);
+  EXPECT_THAT(CompareSpec(s, s_copy3, kAllDifferences), IsEmpty()) << xml;
+
   mj_deleteModel(m_new);
   mj_deleteModel(m_copy);
   mj_deleteModel(m_copy2);
@@ -174,6 +180,11 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
   mj_deleteSpec(s_copy2);
   mj_deleteSpec(s);
   mj_deleteModel(m_old);
+
+  EXPECT_EQ(SaveAndReadXml(s_copy3), saved)
+      << "Original and copied specs are saved differently!\n"
+      << "Affected file " << xml << '\n';
+  mj_deleteSpec(s_copy3);
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -505,6 +505,18 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   void CopyPlugin(const std::vector<mjCPlugin*>& sources, const std::vector<T*>& list);
 
+  // give a copy of the model what the compilation of the original gave to it
+  void CopyCompiled(const mjCModel& other);
+
+  // give the copy of an element what the compilation gave to the original, which copying an
+  // element resets; for a body, also to the bodies and joints of its subtree
+  void CopyCompiled(mjCBase* dest, const mjCBase* source) {}
+  void CopyCompiled(mjCBody* dest, const mjCBody* source);
+  void CopyCompiled(mjCEquality* dest, const mjCEquality* source);
+  void CopyCompiled(mjCActuator* dest, const mjCActuator* source);
+  void CopyCompiled(mjCSensor* dest, const mjCSensor* source);
+  void CopyCompiled(mjCPlugin* dest, const mjCPlugin* source);
+
   // delete from list the elements that cause an error
   template <class T>
   void RemoveFromList(std::vector<T*>& list, const mjCModel& other);

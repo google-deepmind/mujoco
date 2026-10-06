@@ -225,6 +225,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
       compiler2spec_[&s->compiler] = specs_.back();
     }
 
+    // unlike an attachment, a copy leaves the original as it is
+    copying_ = true;
+
     // the world copy constructor takes care of copying the tree
     mjCBody* world = new mjCBody(*other.bodies_[0], this);
     bodies_.push_back(world);
@@ -233,13 +236,12 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     ResetTreeLists();
     MakeTreeLists();
 
-    // add everything else; unlike an attachment, a copy leaves the original as it is
-    copying_  = true;
-    *this    += other;
-    copying_  = false;
+    // add everything else
+    *this += other;
 
     // add keyframes
     CopyList(keys_, other.keys_, other);
+    copying_ = false;
 
     // create new default tree
     mjCDef* subtree = new mjCDef(*other.defaults_[0]);
@@ -250,6 +252,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     for (int i = 0; i < mjNOBJECT; i++) { ids[i] = other.ids[i]; }
     names_ = other.names_;
 
+    // the copy keeps what the compilation of the original gave to it
+    CopyCompiled(other);
+
     // the copy has the same structure as the original
     spec.element->signature = signature;
   }
@@ -258,14 +263,27 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
 }
 
 
+// return true if the references of an element, as its working copy names them, resolve in a model
+static bool resolves(mjCBase* element, const mjCModel* model) {
+  try {
+    element->ResolveReferences(model);
+  } catch (mjCError err) { return false; }
+  return true;
+}
+
+
 // copy vector of elements from another model to this model
 template <class T>
 void mjCModel::CopyList(std::vector<T*>&       dest,
                         const std::vector<T*>& source,
                         const mjCModel&        other) {
-  // give an element of the other model its name in this model and find the objects it references
+  // give an element of the other model its name in this model and find the objects it references;
+  // a copy of a compiled model keeps an element as the compilation left it, if the references
+  // which the compilation resolved are found in the copy; otherwise the element is taken as its
+  // spec has it
   auto resolve = [this](T* element, mjCModel* source_model) {
     element->model = this;
+    if (copying_ && compiled && resolves(element, this)) { return; }
     element->NameSpace(source_model);
     element->CopyFromSpec();
     element->ResolveReferences(this);
@@ -308,6 +326,9 @@ void mjCModel::CopyList(std::vector<T*>&       dest,
       candidate->ResetId();
       candidate->AddRef();
     }
+
+    // a copy of the model keeps what the compilation gave to the element
+    if (copying_) { CopyCompiled(candidate, source[i]); }
     mjSpec* origin = FindSpec(source[i]->compiler);
     dest.push_back(candidate);
     dest.back()->model    = this;
@@ -421,6 +442,7 @@ void mjCModel::CopyExplicitPlugin(T* obj) {
   }
   candidate->id    = plugins_.size();
   candidate->model = this;
+  if (copying_) { CopyCompiled(candidate, origin); }
   plugins_.push_back(candidate);
   obj->spec.plugin.element = candidate;
 }
@@ -453,6 +475,7 @@ void mjCModel::CopyPlugin(const std::vector<mjCPlugin*>& source, const std::vect
     bool instance_exists =
         std::find_if(plugins_.begin(), plugins_.end(), same_name) != plugins_.end();
     if (referenced && !instance_exists) {
+      if (copying_) { CopyCompiled(candidate, plugin); }
       plugins_.push_back(candidate);
       instances.at(candidate->name)->spec.plugin.element = candidate;
     } else {
@@ -4777,9 +4800,8 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
 
   // a keyframe of a compiled model is laid out for the last compilation until the tree changes.
   // After that, and in a model which is not compiled, a vector which a keyframe has was given to
-  // it for the tree as it is now: it is laid out by the lists, and so is a keyframe of a copy of a
-  // compiled model, whose elements do not have their addresses
-  bool laidout = compiled && !keysstored && bodies_[0]->bodyadr_ != -1;
+  // it for the tree as it is now: it is laid out by the lists
+  bool laidout = compiled && !keysstored;
 
   // an element attached to another model by reference has its addresses in that model, but this
   // model still lists it: it takes its place in the layout of these keyframes, except in a compiled
@@ -5288,6 +5310,99 @@ static void sortid(const vector<T*>& list, Compare compare) {
   vector<T*> sorted = list;
   std::stable_sort(sorted.begin(), sorted.end(), compare);
   reassignid(sorted);
+}
+
+
+// give a copy of the model what the compilation of the original gave to it; the elements outside
+// the tree and the plugins were given theirs as they were copied
+void mjCModel::CopyCompiled(const mjCModel& other) {
+  // the tree is copied whole
+  CopyCompiled(bodies_[0], other.bodies_[0]);
+
+  // geoms and sites refer to the copies of the assets which the compilation resolved for them;
+  // meshes and height fields are copied in order, none is left out
+  std::unordered_map<const mjCBase*, mjCBase*> assets;
+  for (int i = 0; i < meshes_.size(); i++) { assets[other.meshes_[i]] = meshes_[i]; }
+  for (int i = 0; i < hfields_.size(); i++) { assets[other.hfields_[i]] = hfields_[i]; }
+  auto copied = [&assets](const mjCBase* asset) -> mjCBase* {
+    auto it = assets.find(asset);
+    return it == assets.end() ? nullptr : it->second;
+  };
+  for (mjCGeom* geom : geoms_) {
+    geom->mesh   = static_cast<mjCMesh*>(copied(geom->mesh));
+    geom->hfield = static_cast<mjCHField*>(copied(geom->hfield));
+  }
+  for (mjCSite* site : sites_) { site->mesh = static_cast<mjCMesh*>(copied(site->mesh)); }
+
+  // the working copies of the elements point to the strings and the plugins of this model, as they
+  // do after compiling it
+  auto pointplugin = [](auto* element) {
+    element->plugin.element     = element->spec.plugin.element;
+    element->plugin.plugin_name = element->spec.plugin.plugin_name;
+    element->plugin.name        = element->spec.plugin.name;
+  };
+  for (mjCBody* body : bodies_) { pointplugin(body); }
+  for (mjCGeom* geom : geoms_) { pointplugin(geom); }
+  for (mjCMesh* mesh : meshes_) { pointplugin(mesh); }
+  for (mjCActuator* actuator : actuators_) { pointplugin(actuator); }
+  for (mjCSensor* sensor : sensors_) { pointplugin(sensor); }
+  for (mjCEquality* equality : equalities_) {
+    equality->name1 = equality->spec.name1;
+    equality->name2 = equality->spec.name2;
+  }
+  for (mjCTendon* tendon : tendons_) {
+    for (mjCWrap* wrap : tendon->path) { wrap->model = this; }
+  }
+
+  // a copy of a compiled model is compiled: the working copy of its spec points to its own strings,
+  // and its pairs and excludes are numbered in the order of the compiled model
+  if (compiled) {
+    modelname    = spec.modelname;
+    comment      = spec.comment;
+    modelfiledir = spec.modelfiledir;
+    sortid(pairs_, comparePair);
+    sortid(excludes_, compareBodyPair);
+  }
+}
+
+
+void mjCModel::CopyCompiled(mjCBody* dest, const mjCBody* source) {
+  dest->bodyadr_ = source->bodyadr_;
+  dest->mocapid  = source->mocapid;
+  for (int i = 0; i < dest->joints.size(); i++) {
+    dest->joints[i]->qposadr_ = source->joints[i]->qposadr_;
+    dest->joints[i]->dofadr_  = source->joints[i]->dofadr_;
+  }
+  for (int i = 0; i < dest->bodies.size(); i++) {
+    CopyCompiled(dest->bodies[i], source->bodies[i]);
+  }
+}
+
+
+void mjCModel::CopyCompiled(mjCEquality* dest, const mjCEquality* source) {
+  dest->eqadr_ = source->eqadr_;
+}
+
+
+void mjCModel::CopyCompiled(mjCActuator* dest, const mjCActuator* source) {
+  dest->actadr_     = source->actadr_;
+  dest->actdim_     = source->actdim_;
+  dest->ctrladr_    = source->ctrladr_;
+  dest->outadr_     = source->outadr_;
+  dest->historyadr_ = source->historyadr_;
+  dest->historynum_ = source->historynum_;
+}
+
+
+void mjCModel::CopyCompiled(mjCSensor* dest, const mjCSensor* source) {
+  dest->historyadr_ = source->historyadr_;
+  dest->historynum_ = source->historynum_;
+}
+
+
+void mjCModel::CopyCompiled(mjCPlugin* dest, const mjCPlugin* source) {
+  dest->stateadr_ = source->stateadr_;
+  dest->statenum_ = source->statenum_;
 }
 
 

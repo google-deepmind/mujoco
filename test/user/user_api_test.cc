@@ -5484,6 +5484,221 @@ TEST_F(MujocoTest, KeyframeOfCopySurvivesTreeChanges) {
   mj_deleteSpec(spec);
 }
 
+// a copy of a compiled spec is saved as the original is, also once the original
+// is deleted
+TEST_F(MujocoTest, SaveCopyOfCompiledSpec) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="mocap" mocap="true" pos="1 0 0"/>
+      <body pos="0 1 0">
+        <freejoint/>
+        <geom name="tetrahedron" type="mesh" mesh="tetrahedron"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <contact geom1="tetrahedron"/>
+    </sensor>
+    <keyframe>
+      <key qpos="1 0 1 0 1 0 0 0" mpos="2 0 0"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  std::string saved = SaveAndReadXml(spec);
+  ASSERT_FALSE(saved.empty());
+
+  mjSpec* copy = mj_copySpec(spec);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+  EXPECT_EQ(SaveAndReadXml(copy), saved);
+
+  mj_deleteSpec(copy);
+}
+
+// recompiling a copy of a compiled spec with the model and data of the original
+// keeps the state, as recompiling the original does
+TEST_F(MujocoTest, RecompileCopyOfCompiledSpec) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <size nuserdata="1"/>
+    <worldbody>
+      <body name="A">
+        <joint name="a" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="B">
+        <joint name="b" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="mocap" mocap="true"/>
+    </worldbody>
+    <equality>
+      <joint joint1="a" active="false"/>
+    </equality>
+    <actuator>
+      <general joint="b" dyntype="filter" dynprm="1" nsample="2" delay=".01"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="a" nsample="2" delay=".01"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
+
+  data->time = 3;
+  data->qpos[0] = 5;
+  data->qpos[1] = 7;
+  data->qvel[1] = 2;
+  data->act[0] = 4;
+  data->ctrl[0] = 6;
+  data->mocap_pos[0] = 8;
+  data->eq_active[0] = 1;
+  data->userdata[0] = 9;
+  data->qfrc_applied[1] = 10;
+  data->xfrc_applied[6 * 2 + 2] = 11;
+  for (int i = 0; i < model->nhistory; i++) {
+    data->history[i] = 12 + i;
+  }
+  int nstate = mj_stateSize(model, mjSTATE_INTEGRATION);
+  std::vector<mjtNum> state(nstate);
+  mj_getState(model, data, state.data(), mjSTATE_INTEGRATION);
+
+  mjSpec* copy = mj_copySpec(spec);
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(copy, "A"), nullptr);
+  geom->size[0] = 0.1;
+  EXPECT_EQ(mj_recompile(copy, nullptr, model, data), 0) << mjs_getError(copy);
+  ASSERT_EQ(model->ngeom, 3);
+  std::vector<mjtNum> recompiled(nstate);
+  mj_getState(model, data, recompiled.data(), mjSTATE_INTEGRATION);
+  EXPECT_EQ(recompiled, state);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
+// a copy of a compiled spec numbers its pairs and excludes as the compiled
+// model does, rather than in the order in which they were written
+TEST_F(MujocoTest, CopyOfCompiledSpecNumbersPairs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="1">
+        <freejoint/>
+        <geom name="1" size=".1"/>
+      </body>
+      <body name="2">
+        <freejoint/>
+        <geom name="2" size=".1"/>
+      </body>
+      <body name="3">
+        <freejoint/>
+        <geom name="3" size=".1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="2" geom2="3"/>
+      <pair geom1="1" geom2="2"/>
+      <exclude body1="2" body2="3"/>
+      <exclude body1="1" body2="2"/>
+    </contact>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  mjSpec* copy = mj_copySpec(spec);
+  for (mjtObj type : {mjOBJ_PAIR, mjOBJ_EXCLUDE}) {
+    mjsElement* element = mjs_firstElement(spec, type);
+    mjsElement* copied = mjs_firstElement(copy, type);
+    EXPECT_EQ(mjs_getId(element), 1);
+    while (element && copied) {
+      EXPECT_EQ(mjs_getId(copied), mjs_getId(element));
+      element = mjs_nextElement(spec, element);
+      copied = mjs_nextElement(copy, copied);
+    }
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
+// a copy of a compiled spec holds what was authored in the original and is
+// saved as it: a contact pair and an exclude name their geoms and bodies in the
+// order in which they were written, which compilation swaps, and a tendon which
+// wraps a cylinder keeps what the compilation gave it
+TEST_F(MujocoTest, CopyOfCompiledSpecKeepsPairsAndWraps) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <size nuser_tendon="3"/>
+    <worldbody>
+      <geom name="floor" size=".2" contype="0" conaffinity="0"/>
+      <geom name="post" type="cylinder" size=".1 .5" pos=".5 0 .5"/>
+      <site name="start" pos="0 0 1"/>
+      <body name="first" pos="0 0 1">
+        <freejoint/>
+        <geom name="ball" size=".1"/>
+        <site name="end"/>
+      </body>
+      <body name="second" pos="1 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="ball" geom2="floor"/>
+      <exclude body1="second" body2="first"/>
+    </contact>
+    <tendon>
+      <spatial name="rope" user="1">
+        <site site="start"/>
+        <geom geom="post"/>
+        <site site="end"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_THAT(CompareSpec(spec, copy), IsEmpty());
+  EXPECT_EQ(SaveAndReadXml(copy), SaveAndReadXml(spec));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
 // a joint whose type was changed after compiling has no value in the keyframes
 // which are stored when the tree changes: they take its default configuration
 TEST_F(MujocoTest, KeyframeSkipsJointOfChangedType) {

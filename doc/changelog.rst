@@ -48,6 +48,8 @@ Bug fixes
 - Fixed attaching by reference, the default of :ref:`mjs_attach`: :ref:`mj_recompile` gave the attached elements
   the state of other elements of the parent, and attaching another body or frame of the same model failed or left
   out the elements which refer to it. Attaching what the parent already has is now an error.
+- A copy of a compiled :ref:`mjSpec` made with :ref:`mj_copySpec` now holds what the compilation gave the original:
+  saving it no longer crashes, and :ref:`mj_recompile` with the model and data of the original keeps their state.
 
 Models
 ^^^^^^
