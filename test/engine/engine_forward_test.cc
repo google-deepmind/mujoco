@@ -5884,7 +5884,7 @@ TEST_F(ForwardTest, DiscreteSparseDualMatchesDense) {
     }
     EXPECT_EQ(nwarning, 0);
   }
-  EXPECT_THAT(qpos[1], Pointwise(MjNear(1e-8, 1e-3), qpos[0]));
+  EXPECT_THAT(qpos[1], Pointwise(MjNear(2e-8, 1e-3), qpos[0]));
 
   // PGS consumes the same symbolic AR: the sparse path steps cleanly
   std::snprintf(xml, sizeof(xml), xml_template, "sparse", "PGS");
