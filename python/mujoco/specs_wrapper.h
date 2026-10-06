@@ -109,6 +109,9 @@ struct MjSpec {
   // Fuses the static bodies of the spec with their parents.
   void FuseStatic(mjVFS* vfs = nullptr);
 
+  // Discards the visual elements of the spec.
+  void DiscardVisual(mjVFS* vfs = nullptr);
+
   // Returns the VFS which the assets of the spec are read from: the one given,
   // or local_vfs filled with `assets`, which the caller must then delete.
   mjVFS* AssetsVfs(mjVFS* vfs, std::optional<mjVFS>& local_vfs);

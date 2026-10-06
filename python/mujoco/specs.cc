@@ -528,6 +528,26 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         A VFS to read assets from. Cannot be used with assets.
     )mydelimiter");
   mjSpec.def(
+      "discard_visual",
+      [](MjSpec& self, std::optional<MjVfs*> vfs) {
+        self.DiscardVisual(vfs.has_value() ? (*vfs)->get() : nullptr);
+      },
+      py::arg("vfs") = py::none(),
+      R"mydelimiter(
+    Discards the visual elements of the spec.
+
+    All materials and textures are discarded, as are the geoms which do not
+    collide and are not referenced, and the meshes which are then not used.
+    Objects referring to the discarded elements must not be used afterwards.
+    Assets are read as in compile(), and only if body inertia is inferred from
+    a discarded geom.
+
+    Parameters
+    ----------
+    vfs : MjVfs, optional
+        A VFS to read assets from. Cannot be used with assets.
+    )mydelimiter");
+  mjSpec.def(
       "adopt_inertial",
       [](MjSpec& self, raw::MjsBody* body, std::optional<MjVfs*> vfs) {
         self.AdoptInertial(body, vfs.has_value() ? (*vfs)->get() : nullptr);

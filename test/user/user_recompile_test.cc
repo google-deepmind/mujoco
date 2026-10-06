@@ -127,7 +127,15 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
         << xml;
   }
 
+  // a spec which was compiled, and restructured if it asks for it, is left as
+  // it is by the next compilation
+  mjSpec* s_compiled = mj_copySpec(s);
   mjModel* m_new = mj_compile(s, nullptr);
+  EXPECT_THAT(
+      WithoutKeyframeCompletion(CompareSpec(s_compiled, s, kAllDifferences)),
+      IsEmpty())
+      << xml;
+  mj_deleteSpec(s_compiled);
   mjModel* m_copy = mj_compile(s_copy, nullptr);
 
   // compare signature

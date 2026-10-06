@@ -12399,6 +12399,27 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Fuse the static bodies of the spec with their parents, return 0 on success.',  # pylint: disable=line-too-long
      )),
+    ('mjs_discardVisual',
+     FunctionDecl(
+         name='mjs_discardVisual',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Discard the visual elements of the spec, return 0 on success.',
+     )),
     ('mjs_adoptInertial',
      FunctionDecl(
          name='mjs_adoptInertial',

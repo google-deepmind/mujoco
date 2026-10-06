@@ -42,6 +42,13 @@ Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multi
 :ref:`mjModel` instance that takes the edits into account.
 If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
 
+Compilation leaves the spec as it is written, with two exceptions. It completes :ref:`keyframes<keyframe>`: their
+vectors are sized for the model, and keyframes are added up to :ref:`nkey<size-nkey>`. And the compiler attributes
+:ref:`discardvisual<compiler-discardvisual>` and :ref:`fusestatic<compiler-fusestatic>` apply
+:ref:`mjs_discardVisual` and :ref:`mjs_fuseStatic` to the spec before it is compiled, which changes it: pointers to
+the elements which they remove are no longer valid. An operation which fails changes nothing, but one which succeeded
+stays applied if a later one, or the compilation, fails; the error then says so.
+
 .. _mj_recompile:
 
 Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
@@ -952,6 +959,16 @@ same coordinates as before. The inertia of the body is added to that of the pare
 kinematics and dynamics, with fewer bodies. Bodies which cannot be fused without changing the model are kept, see
 :ref:`fusestatic<compiler-fusestatic>`, which applies this function before compiling. Pointers to the bodies which were
 fused are no longer valid. Assets are read as in :ref:`mj_compile`. Returns 0 on success; if it fails, nothing is fused.
+
+.. _mjs_discardVisual:
+
+Discard the elements of the spec which are only visual: materials and textures, the geoms which do not collide, and
+the meshes which are then not used; an element which another refers to by name is kept. If a discarded geom was used for
+inferring the inertia of its body, that inertia becomes the explicit inertial of the body, as in
+:ref:`mjs_adoptInertial`, so the compiled model has the same dynamics. See
+:ref:`discardvisual<compiler-discardvisual>`, which applies this function before compiling. Pointers to the elements
+which were discarded are no longer valid. Assets are read as in :ref:`mj_compile`, and only if inertia is inferred from
+a discarded geom. Returns 0 on success; if it fails, nothing is discarded.
 
 .. _mjs_adoptInertial:
 

@@ -208,7 +208,6 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   needsdf_      = false;
   maxhullvert_  = -1;
   processed_    = false;
-  visual_       = true;
   needreorient_ = true;
 
   // reset to default if given
@@ -656,7 +655,6 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
   bool fromCache = false;
   CopyFromSpec();
-  visual_         = true;
   mjCCache* cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
 
   Clock::time_point t0 = Clock::now();
@@ -870,11 +868,6 @@ void mjCMesh::CopyPolygonNormals(mjtNum* arr) {
     arr[i + 1] = (mjtNum)polygon_normals_[i + 1];
     arr[i + 2] = (mjtNum)polygon_normals_[i + 2];
   }
-}
-
-
-void mjCMesh::DelTexcoord() {
-  texcoord_.clear();
 }
 
 
@@ -4165,11 +4158,6 @@ void mjCFlex::CopyFromSpec() {
 
 bool mjCFlex::HasTexcoord() const {
   return !texcoord_.empty();
-}
-
-
-void mjCFlex::DelTexcoord() {
-  texcoord_.clear();
 }
 
 

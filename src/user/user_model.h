@@ -205,8 +205,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // mjModel, so that what compilation derives from them can be read; if it fails, save the
   // error and return false
   bool Resolve(const mjVFS* vfs = nullptr, bool textures = true);
-  bool CopyBack(const mjModel*);      // DECOMPILER: copy numeric back
-  int  FuseStatic(const mjVFS* vfs);  // fuse static bodies with parent, return number fused
+  bool CopyBack(const mjModel*);         // DECOMPILER: copy numeric back
+  int  FuseStatic(const mjVFS* vfs);     // fuse static bodies with parent, return number fused
+  int  DiscardVisual(const mjVFS* vfs);  // discard visual elements, return number discarded
 
   // API for adding model elements
   mjCFlex*     AddFlex();
@@ -229,14 +230,6 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // append spec to this model, optionally map compiler options to the appended spec
   void AppendSpec(mjSpec* spec, const mjsCompiler* compiler = nullptr);
-
-  // delete elements marked as discard=true
-  template <class T>
-  void Delete(std::vector<T*>& elements, const std::vector<bool>& discard);
-
-  // delete all elements
-  template <class T>
-  void DeleteAll(std::vector<T*>& elements);
 
   // delete object from the corresponding list
   void operator-=(mjsElement* el);
@@ -321,10 +314,6 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // clear objects allocated by Compile
   void Clear();
-
-  // delete material from object
-  template <class T>
-  void DeleteMaterial(std::vector<T*>& list, std::string_view name = "");
 
   // temporary state saved across mj_recompile
   struct mjRecompileState {
@@ -439,7 +428,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void     CompileMeshesAndTextures(const mjVFS* vfs, bool textures = true);
 
   void SetNuser();                      // set nuser fields
-  void IndexAssets(bool discard);       // convert asset names into indices
+  void IndexAssets();                   // convert asset names into indices
   void CheckEmptyNames();               // check empty names
   void SetSizes();                      // compute sizes
   void ComputeSparseSizes();            // compute nM, nD, nB, nC

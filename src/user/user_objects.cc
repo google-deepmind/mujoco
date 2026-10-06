@@ -3390,12 +3390,11 @@ mjCGeom::mjCGeom(mjCModel* _model, mjCDef* _def) {
   mjs_defaultGeom(&spec);
   elemtype = mjOBJ_GEOM;
 
-  mass_   = 0;
-  body    = 0;
-  matid   = -1;
-  mesh    = nullptr;
-  hfield  = nullptr;
-  visual_ = false;
+  mass_  = 0;
+  body   = 0;
+  matid  = -1;
+  mesh   = nullptr;
+  hfield = nullptr;
   mjuu_setvec(inertia, 0, 0, 0);
   inferinertia = true;
   spec_material_.clear();
@@ -4081,9 +4080,6 @@ void mjCGeom::Compile(void) {
     while (weld->id != weld->weldid) { weld = weld->parent; }
     if (!weld->spec.mocap) { throw mjCError(this, "plane only allowed in static bodies"); }
   }
-
-  // check if can collide
-  visual_ = !contype && !conaffinity;
 
   // normalize quaternion
   mjuu_normvec(quat, 4);
@@ -5960,10 +5956,6 @@ void mjCPair::Compile(void) {
   // find geoms
   ResolveReferences(model);
 
-  // mark geoms as not visual
-  geom1->SetNotVisual();
-  geom2->SetNotVisual();
-
   // set undefined margin: max
   if (!mjuu_defined(margin)) { margin = std::max(geom1->margin, geom2->margin); }
 
@@ -6651,8 +6643,6 @@ void mjCTendon::Compile(void) {
                            id);
           }
 
-          // mark geoms as non visual
-          model->Geoms()[path[i]->obj->id]->SetNotVisual();
           break;
 
         case mjWRAP_JOINT:
@@ -7679,10 +7669,6 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
       throw mjCError(this, "unrecognized name '%s' of sensorized object", objname_.c_str());
     }
 
-    // if geom or mesh, mark it as non visual
-    if (objtype == mjOBJ_GEOM) { static_cast<mjCGeom*>(obj)->SetNotVisual(); }
-    if (objtype == mjOBJ_MESH) { static_cast<mjCMesh*>(obj)->SetNotVisual(); }
-
   } else if (type != mjSENS_E_POTENTIAL &&
              type != mjSENS_E_KINETIC &&
              type != mjSENS_CLOCK &&
@@ -7701,10 +7687,6 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
 
     // find name
     if (!ref) { throw mjCError(this, "unrecognized name '%s' of object", refname_.c_str()); }
-
-    // if geom or mesh, mark it as non visual
-    if (reftype == mjOBJ_GEOM) { static_cast<mjCGeom*>(ref)->SetNotVisual(); }
-    if (reftype == mjOBJ_MESH) { static_cast<mjCMesh*>(ref)->SetNotVisual(); }
 
     // must be attached to object with spatial frame
     if (reftype != mjOBJ_BODY &&
@@ -8490,9 +8472,6 @@ void mjCTuple::ResolveReferences(const mjCModel* m) {
     if (!res) {
       throw mjCError(this, "unrecognized object '%s' in tuple %d", objname_[i].c_str(), id);
     }
-
-    // if geom mark it as non visual
-    if (objtype_[i] == mjOBJ_GEOM) { ((mjCGeom*)res)->SetNotVisual(); }
 
     // assign id
     obj[i] = res;

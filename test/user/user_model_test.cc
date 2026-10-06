@@ -1664,6 +1664,347 @@ TEST_F(DiscardVisualTest, FindElementAfterDiscard) {
   mj_deleteSpec(spec);
 }
 
+// discarding is an operation on the spec, which the compiler option applies
+TEST_F(DiscardVisualTest, DiscardVisualOperation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option density="1.2" viscosity="1e-5"/>
+    <asset>
+      <texture name="tex" type="2d" builtin="checker" width="8" height="8"/>
+      <material name="mat" texture="tex"/>
+      <mesh name="visual" vertex="0 0 0  1 0 0  0 1 0  0 0 1" material="mat"/>
+      <mesh name="collision" vertex="0 0 0  1 0 0  0 1 0  0 0 1" material="mat"/>
+      <mesh name="site" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <mesh name="tuple" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <mesh name="unused" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <default>
+      <geom material="mat"/>
+      <site material="mat"/>
+      <default class="visual">
+        <geom contype="0" conaffinity="0"/>
+      </default>
+    </default>
+    <worldbody>
+      <light name="light" texture="tex"/>
+      <site name="s0"/>
+      <geom name="visual_world" class="visual" size=".1"/>
+      <body name="inferred">
+        <joint/>
+        <geom name="collision" type="mesh" mesh="collision"/>
+        <geom name="visual" class="visual" type="mesh" mesh="visual" pos="1 0 0"/>
+        <geom name="visual_massless" class="visual" size=".1" mass="0"/>
+        <geom name="wing" class="visual" type="ellipsoid" size=".3 .2 .01" fluidshape="ellipsoid"/>
+        <site name="s1" type="mesh" mesh="site" pos="0 0 1"/>
+        <body name="explicit" pos="0 0 1">
+          <joint/>
+          <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+          <geom name="visual_explicit" class="visual" size=".1"/>
+          <geom name="sensor" class="visual" size=".1"/>
+          <geom name="pair" class="visual" size=".1"/>
+          <geom name="wrap" class="visual" size=".1" pos="0 .5 0"/>
+        </body>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="collision" geom2="pair"/>
+    </contact>
+    <tendon>
+      <spatial name="tendon" material="mat">
+        <site site="s0"/>
+        <geom geom="wrap"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+    <sensor>
+      <framepos objtype="geom" objname="sensor"/>
+    </sensor>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="mesh" objname="tuple"/>
+      </tuple>
+    </custom>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  std::string field;
+
+  // the model with its visual elements
+  mjSpec* spec_full = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec_full, NotNull()) << error.data();
+  mjModel* m_full = mj_compile(spec_full, nullptr);
+  ASSERT_THAT(m_full, NotNull()) << mjs_getError(spec_full);
+
+  // compiled with the option
+  mjSpec* spec_option = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec_option, NotNull()) << error.data();
+  spec_option->compiler.discardvisual = 1;
+  mjModel* m_option = mj_compile(spec_option, nullptr);
+  ASSERT_THAT(m_option, NotNull()) << mjs_getError(spec_option);
+
+  // the operation followed by a compilation without the option
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(CompareModel(m_option, m, field), 0) << field;
+
+  // materials and textures are gone, with the references to them
+  EXPECT_EQ(m->nmat, 0);
+  EXPECT_EQ(m->ntex, 0);
+  EXPECT_EQ(m->light_texid[0], -1);
+
+  // geoms are kept if they collide, have fluid forces or are referenced
+  for (const char* name : {"collision", "wing", "sensor", "pair", "wrap"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, name), NotNull()) << name;
+  }
+  for (const char* name :
+       {"visual_world", "visual", "visual_massless", "visual_explicit"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, name), IsNull()) << name;
+  }
+
+  // meshes are kept if a remaining geom or a site uses them, or if they are
+  // referenced
+  for (const char* name : {"collision", "site", "tuple"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, name), NotNull()) << name;
+  }
+  for (const char* name : {"visual", "unused"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, name), IsNull()) << name;
+  }
+
+  // inertia which was inferred from a discarded geom is kept, as an explicit
+  // inertial
+  int inferred = mj_name2id(m, mjOBJ_BODY, "inferred");
+  EXPECT_EQ(mjs_findBody(spec, "inferred")->explicitinertial, 1);
+  EXPECT_NEAR(m->body_mass[inferred], m_full->body_mass[inferred],
+              MjTol(1e-12, 1e-6));
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(m->body_inertia[3 * inferred + i],
+                m_full->body_inertia[3 * inferred + i], MjTol(1e-12, 1e-6));
+    EXPECT_NEAR(m->body_ipos[3 * inferred + i],
+                m_full->body_ipos[3 * inferred + i], MjTol(1e-12, 1e-6));
+  }
+
+  // applying it again changes nothing
+  mjSpec* discarded = mj_copySpec(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0);
+  EXPECT_THAT(CompareSpec(discarded, spec), IsEmpty());
+
+  // compiling again and saving reproduce the model
+  mjModel* m_again = mj_compile(spec, nullptr);
+  ASSERT_THAT(m_again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(CompareModel(m, m_again, field), 0) << field;
+  {
+    FullFloatPrecision increase_precision;
+    MjModelPtr saved =
+        LoadModelFromString(SaveAndReadXml(spec), error.data(), error.size());
+    ASSERT_THAT(saved.get(), NotNull()) << error.data();
+    EXPECT_LE(CompareModel(m, saved.get(), field), MjTol(1e-12, 1e-6)) << field;
+  }
+
+  mj_deleteModel(m_again);
+  mj_deleteModel(m);
+  mj_deleteModel(m_option);
+  mj_deleteModel(m_full);
+  mj_deleteSpec(discarded);
+  mj_deleteSpec(spec);
+  mj_deleteSpec(spec_option);
+  mj_deleteSpec(spec_full);
+}
+
+// a material or texture which a sensor or tuple refers to is kept, as an
+// element which nothing renders with
+TEST_F(DiscardVisualTest, DiscardVisualKeepsReferencedAssets) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="discarded" type="2d" builtin="checker" width="8" height="8"/>
+      <texture name="in_material" type="2d" builtin="checker" width="8" height="8"/>
+      <texture name="in_tuple" type="2d" builtin="checker" width="8" height="8"/>
+      <material name="discarded" texture="discarded"/>
+      <material name="in_tuple" texture="in_material"/>
+    </asset>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom name="geom" size=".1" material="in_tuple"/>
+      </body>
+    </worldbody>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="material" objname="in_tuple"/>
+        <element objtype="texture" objname="in_tuple"/>
+      </tuple>
+    </custom>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  // what the tuple refers to is kept, and the tuple refers to it
+  EXPECT_EQ(m->nmat, 1);
+  EXPECT_EQ(m->ntex, 1);
+  EXPECT_EQ(m->tuple_objid[0], mj_name2id(m, mjOBJ_MATERIAL, "in_tuple"));
+  EXPECT_EQ(m->tuple_objid[1], mj_name2id(m, mjOBJ_TEXTURE, "in_tuple"));
+
+  // nothing uses it: the geom has no material, the material no texture
+  EXPECT_EQ(m->geom_matid[0], -1);
+  for (int i = 0; i < mjNTEXROLE; i++) {
+    EXPECT_EQ(m->mat_texid[i], -1) << i;
+  }
+
+  // applying it again changes nothing
+  mjSpec* discarded = mj_copySpec(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0);
+  EXPECT_THAT(CompareSpec(discarded, spec), IsEmpty());
+
+  mj_deleteModel(m);
+  mj_deleteSpec(discarded);
+  mj_deleteSpec(spec);
+}
+
+// with inertiafromgeom "true", inertia which is inferred from a discarded geom
+// cannot be kept
+TEST_F(DiscardVisualTest, DiscardVisualInertiaFromGeomTrue) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler inertiafromgeom="true"/>
+    <asset>
+      <material name="mat"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <joint/>
+        <geom size=".1" material="mat"/>
+        <geom name="visual" size=".2" contype="0" conaffinity="0" %s/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+
+  // the geom has mass: an error, and nothing is discarded
+  std::string xml_mass = absl::StrFormat(xml, "");
+  mjSpec* spec =
+      mj_parseXMLString(xml_mass.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("inertiafromgeom 'true'"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("body"));
+  EXPECT_THAT(CompareSpec(copy, spec), IsEmpty());
+
+  // the same through the compiler option
+  spec->compiler.discardvisual = 1;
+  EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("inertiafromgeom 'true'"));
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), NotNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MATERIAL, "mat"), NotNull());
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+
+  // the geom has no mass: it is discarded
+  std::string xml_massless = absl::StrFormat(xml, R"(mass="0")");
+  spec = mj_parseXMLString(xml_massless.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m_full = mj_compile(spec, nullptr);
+  ASSERT_THAT(m_full, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
+  EXPECT_EQ(mjs_findBody(spec, "body")->explicitinertial, 0);
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->body_mass[1], m_full->body_mass[1]);
+  mj_deleteModel(m);
+  mj_deleteModel(m_full);
+  mj_deleteSpec(spec);
+}
+
+// assets are read only if inertia is inferred from a discarded geom
+TEST_F(DiscardVisualTest, DiscardVisualReadsAssetsIfNeeded) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="visual" file="this_file_does_not_exist.obj"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <joint/>
+        %s
+        <geom size=".1"/>
+        <geom name="visual" type="mesh" mesh="visual" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+
+  // the body has an explicit inertial: the visual mesh is discarded without
+  // being read
+  std::string xml_explicit = absl::StrFormat(
+      xml, R"(<inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>)");
+  mjSpec* spec =
+      mj_parseXMLString(xml_explicit.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->nmesh, 0);
+  EXPECT_EQ(m->ngeom, 1);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // its inertia is inferred: the mesh is needed, so it is an error and nothing
+  // is discarded
+  std::string xml_inferred = absl::StrFormat(xml, "");
+  spec = mj_parseXMLString(xml_inferred.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("this_file_does_not_exist.obj"));
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), NotNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "visual"), NotNull());
+  mj_deleteSpec(spec);
+}
+
+// if compilation fails after the discard, the discard stays and the error says
+// so
+TEST_F(DiscardVisualTest, DiscardVisualThenError) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler discardvisual="true"/>
+    <worldbody>
+      <body name="body">
+        <joint/>
+        <geom size=".1"/>
+        <geom name="visual" size=".2" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key" qpos="1 2 3"/>
+    </keyframe>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("were discarded"));
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
+
+  // the spec is valid once the error is fixed
+  EXPECT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_KEY, "key")), 0);
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->ngeom, 1);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 // ------------- test lengthrange ----------------------------------------------
 
 using LengthRangeTest = MujocoTest;

@@ -1838,109 +1838,6 @@ void mjCModel::MakeTreeLists(mjCBody* body) {
 }
 
 
-// delete material with given name or all materials if the name is omitted
-template <class T>
-void mjCModel::DeleteMaterial(std::vector<T*>& list, std::string_view name) {
-  for (T* plist : list) {
-    if (name.empty() || plist->get_material() == name) { plist->del_material(); }
-  }
-}
-
-
-// delete all textures
-template <class T>
-static void DeleteAllTextures(std::vector<T*>& list) {
-  for (T* plist : list) { plist->del_textures(); }
-}
-
-
-// delete all texture coordinates
-template <class T>
-static void DeleteTexcoord(std::vector<T*>& list) {
-  for (T* plist : list) {
-    if (plist->HasTexcoord()) { plist->DelTexcoord(); }
-  }
-}
-
-
-// returns a vector that stores the reference correction for each entry
-template <class T>
-static void DeleteElements(std::vector<T*>& elements, const std::vector<bool>& discard) {
-  if (elements.empty()) { return; }
-
-  std::vector<int> ndiscard(elements.size(), 0);
-
-  int i = 0;
-  for (int j = 0; j < elements.size(); j++) {
-    if (discard[j]) {
-      elements[j]->Release();
-    } else {
-      elements[i] = elements[j];
-      i++;
-    }
-  }
-
-  // count cumulative discarded elements
-  for (int i = 0; i < elements.size() - 1; i++) { ndiscard[i + 1] = ndiscard[i] + discard[i]; }
-
-  // erase elements from vector
-  if (i < elements.size()) { elements.erase(elements.begin() + i, elements.end()); }
-
-  // update elements
-  for (T* element : elements) {
-    if (element->id > 0) { element->id -= ndiscard[element->id]; }
-  }
-}
-
-
-template <>
-void mjCModel::Delete<mjCGeom>(std::vector<mjCGeom*>& elements, const std::vector<bool>& discard) {
-  // update bodies
-  for (mjCBody* body : bodies_) {
-    body->geoms.erase(std::remove_if(body->geoms.begin(),
-                                     body->geoms.end(),
-                                     [&discard](mjCGeom* geom) { return discard[geom->id]; }),
-                      body->geoms.end());
-  }
-
-  // remove geoms from the main vector, rebuild the name-to-id map
-  DeleteElements(elements, discard);
-  ids[mjOBJ_GEOM].clear();
-  ProcessList_(ids, elements, mjOBJ_GEOM, /*checkrepeat=*/false);
-}
-
-
-template <>
-void mjCModel::Delete<mjCMesh>(std::vector<mjCMesh*>& elements, const std::vector<bool>& discard) {
-  DeleteElements(elements, discard);
-  ids[mjOBJ_MESH].clear();
-  ProcessList_(ids, elements, mjOBJ_MESH, /*checkrepeat=*/false);
-}
-
-
-template <>
-void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
-  DeleteMaterial(geoms_);
-  DeleteMaterial(skins_);
-  DeleteMaterial(sites_);
-  DeleteMaterial(tendons_);
-  for (mjCMaterial* element : elements) { element->Release(); }
-  elements.clear();
-  ids[mjOBJ_MATERIAL].clear();
-  names_[mjOBJ_MATERIAL].clear();
-}
-
-
-template <>
-void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
-  DeleteAllTextures(materials_);
-  for (mjCTexture* element : elements) { element->Release(); }
-  elements.clear();
-  ids[mjOBJ_TEXTURE].clear();
-  names_[mjOBJ_TEXTURE].clear();
-}
-
-
 // set nuser fields
 void mjCModel::SetNuser() {
   if (nuser_body == -1) {
@@ -1994,7 +1891,7 @@ void mjCModel::SetNuser() {
 }
 
 // index assets
-void mjCModel::IndexAssets(bool discard) {
+void mjCModel::IndexAssets() {
   // assets referenced in geoms
   for (int i = 0; i < geoms_.size(); i++) {
     mjCGeom* geom = geoms_[i];
@@ -2008,10 +1905,7 @@ void mjCModel::IndexAssets(bool discard) {
     if (!geom->get_meshname().empty()) {
       mjCMesh* mesh = static_cast<mjCMesh*>(FindObject(mjOBJ_MESH, geom->get_meshname()));
       if (mesh) {
-        if (!geom->visual_) {
-          mesh->SetNotVisual();  // reset to true by mesh->Compile()
-        }
-        geom->mesh = (discard && geom->visual_) ? nullptr : mesh;
+        geom->mesh = mesh;
         if (geom->spec.type == mjGEOM_SDF) { mesh->SetNeedSDF(true); }
       } else {
         throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
@@ -2121,42 +2015,6 @@ void mjCModel::IndexAssets(bool discard) {
         }
       }
     }
-  }
-
-  if (discard) {
-    std::vector<bool> discard_mesh(meshes_.size(), false);
-    std::vector<bool> discard_geom(geoms_.size(), false);
-
-    std::transform(meshes_.begin(), meshes_.end(), discard_mesh.begin(), [](const mjCMesh* mesh) {
-      return mesh->IsVisual();
-    });
-    std::transform(geoms_.begin(), geoms_.end(), discard_geom.begin(), [](const mjCGeom* geom) {
-      return geom->IsVisual();
-    });
-
-    // update inertia in bodies
-    for (auto body : bodies_) {
-      if (body->spec.explicitinertial) { continue; }
-      for (auto geom : body->geoms) {
-        if (geom->IsVisual()) {
-          if (compiler.inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
-            compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
-          }
-          body->explicitinertial      = true;  // for XML writer
-          body->spec.explicitinertial = true;
-          body->spec.mass             = body->mass;
-          body->iframe                = nullptr;  // inertial frame in body coordinates
-          mjuu_copyvec(body->spec.ipos, body->ipos, 3);
-          mjuu_copyvec(body->spec.iquat, body->iquat, 4);
-          mjuu_copyvec(body->spec.inertia, body->inertia, 3);
-          break;
-        }
-      }
-    }
-
-    // discard visual meshes and geoms
-    Delete(meshes_, discard_mesh);
-    Delete(geoms_, discard_geom);
   }
 }
 
@@ -5223,6 +5081,184 @@ int mjCModel::FuseStatic(const mjVFS* vfs) {
 }
 
 
+//------------------------------- DISCARD VISUAL ---------------------------------------------------
+
+// discard what is only visual: materials and textures, the geoms which do not collide, and the
+// meshes which are then not used; an element which another refers to by name is kept. Inertia
+// which a body infers from discarded geoms becomes its explicit inertial. Return the number of
+// elements discarded
+int mjCModel::DiscardVisual(const mjVFS* vfs) {
+  // set ids and the maps from names to ids, for the spec as it is now
+  ProcessLists(/*checkrepeat=*/false);
+
+  std::vector<bool> keepgeom(geoms_.size(), false);
+  std::vector<bool> keepmesh(meshes_.size(), false);
+  std::vector<bool> keepmaterial(materials_.size(), false);
+  std::vector<bool> keeptexture(textures_.size(), false);
+  auto              keep = [&](mjtObj type, const std::string& name) {
+    std::vector<bool>* kept = type == mjOBJ_GEOM       ? &keepgeom
+                              : type == mjOBJ_MESH     ? &keepmesh
+                              : type == mjOBJ_MATERIAL ? &keepmaterial
+                              : type == mjOBJ_TEXTURE  ? &keeptexture
+                                                       : nullptr;
+    mjCBase*           obj  = kept && !name.empty() ? FindObject(type, name) : nullptr;
+    if (obj) { (*kept)[obj->id] = true; }
+  };
+
+  // a geom is kept if it collides or has fluid forces, or if another element refers to it
+  for (const mjCGeom* geom : geoms_) {
+    keepgeom[geom->id] =
+        geom->spec.contype || geom->spec.conaffinity || geom->spec.fluid_ellipsoid > 0;
+  }
+  for (const mjCPair* pair : pairs_) {
+    keep(mjOBJ_GEOM, pair->spec_geomname1_);
+    keep(mjOBJ_GEOM, pair->spec_geomname2_);
+  }
+  for (const mjCTendon* tendon : tendons_) {
+    for (const mjCWrap* wrap : tendon->path) {
+      if (wrap->Type() == mjWRAP_SPHERE || wrap->Type() == mjWRAP_CYLINDER) {
+        keep(mjOBJ_GEOM, wrap->name);
+      }
+    }
+  }
+  for (const mjCSensor* sensor : sensors_) {
+    keep(sensor->spec.objtype, sensor->spec_objname_);
+    keep(sensor->spec.reftype, sensor->spec_refname_);
+  }
+  for (const mjCTuple* tuple : tuples_) {
+    size_t nobj = std::min(tuple->spec_objtype_.size(), tuple->spec_objname_.size());
+    for (size_t i = 0; i < nobj; i++) { keep(tuple->spec_objtype_[i], tuple->spec_objname_[i]); }
+  }
+
+  // a mesh is kept if a geom which is kept or a site uses it, or if another element refers to
+  // it; a material or texture only if a sensor or tuple refers to it, see above
+  for (const mjCGeom* geom : geoms_) {
+    if (keepgeom[geom->id]) { keep(mjOBJ_MESH, geom->get_meshname()); }
+  }
+  for (const mjCSite* site : sites_) { keep(mjOBJ_MESH, site->get_meshname()); }
+
+  // bodies which infer their inertia from geoms and lose a geom which is counted for it
+  auto counted = [&](const mjCBody* body, const mjCGeom* geom) {
+    const int* range = body->compiler->inertiagrouprange;
+    return !keepgeom[geom->id] && geom->spec.group >= range[0] && geom->spec.group <= range[1];
+  };
+  std::vector<mjCBody*> adopt;
+  for (mjCBody* body : bodies_) {
+    if (body->id == 0 || !body->InfersInertial()) { continue; }
+    if (std::any_of(body->geoms.begin(), body->geoms.end(), [&](const mjCGeom* geom) {
+          return counted(body, geom);
+        })) {
+      adopt.push_back(body);
+    }
+  }
+
+  // their inertia is to become explicit: compile the kinematic tree, which calculates it, and
+  // leave the bodies whose discarded geoms have no mass as they are
+  if (!adopt.empty()) {
+    if (!Resolve(vfs, /*textures=*/false)) { throw mjCError(errInfo); }
+    adopt.erase(
+        std::remove_if(
+            adopt.begin(),
+            adopt.end(),
+            [&](const mjCBody* body) {
+              return std::none_of(body->geoms.begin(), body->geoms.end(), [&](const mjCGeom* geom) {
+                return counted(body, geom) && geom->mass_ > mjEPS;
+              });
+            }),
+        adopt.end());
+    for (const mjCBody* body : adopt) {
+      if (body->compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+        throw mjCError(body,
+                       "discarding visual geoms would change the inertia of this body, which "
+                       "inertiafromgeom 'true' infers from its geoms; with inertiafromgeom 'auto' "
+                       "it is kept as an explicit inertial");
+      }
+    }
+  }
+
+  // everything was checked, the spec is changed from here on
+  std::vector<mjCGeom*>     discardgeoms;
+  std::vector<mjCMesh*>     discardmeshes;
+  std::vector<mjCMaterial*> discardmaterials;
+  std::vector<mjCTexture*>  discardtextures;
+  for (mjCGeom* geom : geoms_) {
+    if (!keepgeom[geom->id]) { discardgeoms.push_back(geom); }
+  }
+  for (mjCMesh* mesh : meshes_) {
+    if (!keepmesh[mesh->id]) { discardmeshes.push_back(mesh); }
+  }
+  for (mjCMaterial* material : materials_) {
+    if (!keepmaterial[material->id]) { discardmaterials.push_back(material); }
+  }
+  for (mjCTexture* texture : textures_) {
+    if (!keeptexture[texture->id]) { discardtextures.push_back(texture); }
+  }
+  int ndiscard =
+      discardgeoms.size() + discardmeshes.size() + discardmaterials.size() + discardtextures.size();
+  if (!ndiscard) { return 0; }
+
+  for (mjCBody* body : adopt) { body->AdoptInertial(); }
+
+  // materials and textures, and what uses them: one which a sensor or tuple refers to stays as
+  // an element, which nothing renders with
+  for (mjCGeom* geom : geoms_) { geom->del_material(); }
+  for (mjCSite* site : sites_) { site->del_material(); }
+  for (mjCMesh* mesh : meshes_) { mesh->del_material(); }
+  for (mjCSkin* skin : skins_) { skin->del_material(); }
+  for (mjCFlex* flex : flexes_) { flex->del_material(); }
+  for (mjCTendon* tendon : tendons_) { tendon->del_material(); }
+  for (mjCLight* light : lights_) { light->del_texture(); }
+  for (mjCDef* def : defaults_) {
+    def->Geom().del_material();
+    def->Site().del_material();
+    def->Mesh().del_material();
+    def->Flex().del_material();
+    def->Tendon().del_material();
+    def->Light().del_texture();
+    def->Material().del_textures();
+  }
+  for (mjCMaterial* material : materials_) { material->del_textures(); }
+  for (mjCMaterial* material : discardmaterials) {
+    materials_.erase(std::remove(materials_.begin(), materials_.end(), material), materials_.end());
+    material->Release();
+  }
+  for (mjCTexture* texture : discardtextures) {
+    textures_.erase(std::remove(textures_.begin(), textures_.end(), texture), textures_.end());
+    texture->Release();
+  }
+  for (mjCMaterial* material : materials_) { material->id = -1; }
+  for (mjCTexture* texture : textures_) { texture->id = -1; }
+
+  // the plugin instances which belong to the geoms and meshes, while the lists are whole
+  for (mjCGeom* geom : discardgeoms) {
+    if (geom->plugin.active && geom->plugin.name->empty()) { *this -= geom->plugin.element; }
+  }
+  for (mjCMesh* mesh : discardmeshes) {
+    if (mesh->plugin.active && mesh->plugin.name->empty()) { *this -= mesh->plugin.element; }
+  }
+
+  // geoms and meshes; the lists of the tree hold the geoms, empty them before any is released
+  ResetTreeLists();
+  for (mjCGeom* geom : discardgeoms) {
+    std::vector<mjCGeom*>& geoms = geom->body->geoms;
+    geoms.erase(std::remove(geoms.begin(), geoms.end(), geom), geoms.end());
+    geom->Release();
+  }
+  for (mjCMesh* mesh : discardmeshes) {
+    meshes_.erase(std::remove(meshes_.begin(), meshes_.end(), mesh), meshes_.end());
+    mesh->id = -1;
+    mesh->Release();
+  }
+  for (mjCMesh* mesh : meshes_) { mesh->id = -1; }
+
+  // update the lists and the maps from names to ids
+  MakeTreeLists();
+  ProcessLists(/*checkrepeat=*/false);
+  InvalidateSignature();
+  return ndiscard;
+}
+
+
 //------------------------------- COMPILER ---------------------------------------------------------
 
 // signature comparisons
@@ -5468,22 +5504,33 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   // the options which restructure the model are operations on the spec, applied before it is
   // compiled; if one fails, compilation fails. The assets are compiled once: by the first
   // operation which compiles the kinematic tree, or else by the compilation
-  int nfused       = 0;
+  int ndiscarded = 0, nfused = 0;
   reuse_assets_    = true;
   assets_compiled_ = false;
   try {
+    if (spec.compiler.discardvisual) { ndiscarded = DiscardVisual(vfs); }
     if (spec.compiler.fusestatic) { nfused = FuseStatic(vfs); }
   } catch (mjCError err) {
     if (m && *m) { mj_deleteModel(*m); }
     Clear();
     errInfo       = err;
     reuse_assets_ = false;
+    if (ndiscarded) {
+      mju::strcat_arr(errInfo.message,
+                      "\nThe visual elements of the spec were discarded before this error, and "
+                      "remain so.");
+    }
     return nullptr;
   }
   mjModel* model = Compile(vfs, m, /*treeonly=*/false, /*textures=*/true);
   reuse_assets_  = false;
 
   // an operation which was applied stays applied if compilation then fails
+  if (!model && ndiscarded) {
+    mju::strcat_arr(errInfo.message,
+                    "\nThe visual elements of the spec were discarded before this error, and "
+                    "remain so.");
+  }
   if (!model && nfused) {
     mju::strcat_arr(errInfo.message,
                     "\nThe static bodies of the spec were fused before this error, and remain so.");
@@ -5893,17 +5940,9 @@ void mjCModel::CompileTree(const mjVFS* vfs, bool textures, bool keyframes) {
   // set object ids, check for repeated names
   ProcessLists();
 
-  // delete visual assets
-  if (compiler.discardvisual) {
-    DeleteAll(materials_);
-    DeleteTexcoord(flexes_);
-    DeleteTexcoord(meshes_);
-    DeleteAll(textures_);
-  }
-
   // map names to asset references
   for (mjCMesh* mesh : meshes_) { mesh->SetNeedSDF(false); }
-  IndexAssets(/*discard=*/false);
+  IndexAssets();
 
   // compile pairs for convex hull check
   // TODO(quaglino): Consolidate the two calls to pair->Compile() in TryCompile.
@@ -6013,7 +6052,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   sortid(excludes_, compareBodyPair);
 
   // resolve asset references, compute sizes
-  IndexAssets(compiler.discardvisual);
+  IndexAssets();
   SetSizes();
   SaveDofOffsets(/*computesize=*/false);  // Populate jnt->dofadr_
 

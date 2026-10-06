@@ -784,7 +784,6 @@ class mjCGeom_ : public mjCBase {
   bool inferinertia;  // true if inertia should be computed from geom
 
  protected:
-  bool       visual_;          // true: geom does not collide and is unreferenced
   int        matid;            // id of geom's material
   mjCMesh*   mesh;             // geom's mesh
   mjCHField* hfield;           // geom's hfield
@@ -825,8 +824,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   mjsGeom  spec;               // variables set by user
   double   GetVolume() const;  // compute geom volume
   void     SetInertia(void);   // compute and set geom inertia
-  bool     IsVisual(void) const { return visual_; }
-  void     SetNotVisual(void) { visual_ = false; }
   void     SetParent(mjCBody* _body) { body = _body; }
   mjCBody* GetParent() const { return body; }
   mjtGeom  Type() const { return type; }
@@ -841,7 +838,10 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   const std::string&         get_hfieldname() const { return spec_hfieldname_; }
   const std::string&         get_meshname() const { return spec_meshname_; }
   const std::string&         get_material() const;
-  void                       del_material() { spec_material_.clear(); }
+  void                       del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
  private:
   void   Compile(void);      // compiler
@@ -996,6 +996,10 @@ class mjCLight : public mjCLight_, private mjsLight {
   // used by mjXWriter and mjCModel
   const std::string& get_targetbody() const { return targetbody_; }
   const std::string& get_texture() const { return texture_; }
+  void               del_texture() {
+    spec_texture_.clear();
+    texture_.clear();
+  }
 
   void     SetParent(mjCBody* _body) { body = _body; }
   mjCBody* GetParent() const { return body; }
@@ -1097,7 +1101,10 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   const std::vector<double>&      get_node() const { return node_; }
 
   bool HasTexcoord() const;  // texcoord not null
-  void DelTexcoord();        // delete texcoord
+  void del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
@@ -1161,7 +1168,6 @@ class mjCMesh_ : public mjCBase {
 
   // used by the compiler
   bool                             needreorient_;  // needs reorientation
-  bool                             visual_;        // true: the mesh is only visual
   std::vector<std::pair<int, int>> halfedge_;      // half-edge data
 
   // mesh processed flags
@@ -1279,9 +1285,10 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   double  GetVolumeRef() const;                      // get volume
   void    FitGeom(mjCGeom* geom, double center[3]);  // approximate mesh with simple geom
   bool    HasTexcoord() const;                       // texcoord not null
-  void    DelTexcoord();                             // delete texcoord
-  bool    IsVisual(void) const { return visual_; }   // is geom visual
-  void    SetNotVisual(void) { visual_ = false; }    // mark mesh as not visual
+  void    del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   void CopyVert(float* arr) const;        // copy vert data into array
   void CopyNormal(float* arr) const;      // copy normal data into array
@@ -1422,7 +1429,10 @@ class mjCSkin : public mjCSkin_, private mjsSkin {
   const std::vector<float>&              get_bindquat() const { return bindquat_; }
   const std::vector<std::vector<int>>&   get_vertid() const { return vertid_; }
   const std::vector<std::vector<float>>& get_vertweight() const { return vertweight_; }
-  void                                   del_material() { material_.clear(); }
+  void                                   del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   void CopyFromSpec();
   void PointToLocal();
@@ -1582,6 +1592,7 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
   const std::string& get_texture(int i) const { return textures_[i]; }
   void               del_textures() {
     for (auto& t : textures_) t.clear();
+    for (auto& t : spec_textures_) t.clear();
   }
 
  private:
@@ -1744,7 +1755,10 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
 
   void               set_material(std::string _material) { material_ = _material; }
   const std::string& get_material() const { return material_; }
-  void               del_material() { material_.clear(); }
+  void               del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   // API for adding wrapping objects
   void WrapSite(std::string wrapname, std::string_view wrapinfo = "");                    // site

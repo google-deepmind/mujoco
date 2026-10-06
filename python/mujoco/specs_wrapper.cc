@@ -141,6 +141,18 @@ void MjSpec::FuseStatic(mjVFS* vfs) {
   }
 }
 
+void MjSpec::DiscardVisual(mjVFS* vfs) {
+  std::optional<mjVFS> local_vfs;
+  vfs = AssetsVfs(vfs, local_vfs);
+  const int result = mjs_discardVisual(ptr, vfs);
+  if (local_vfs.has_value()) {
+    mj_deleteVFS(vfs);
+  }
+  if (result) {
+    throw py::value_error(mjs_getError(ptr));
+  }
+}
+
 raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
   std::optional<mjVFS> local_vfs;
   vfs = AssetsVfs(vfs, local_vfs);

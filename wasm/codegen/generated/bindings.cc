@@ -2631,6 +2631,10 @@ void mjs_deleteUserValue_wrapper(MjsElement& element, const String& key) {
   mjs_deleteUserValue(element.get(), key.as<const std::string>().data());
 }
 
+int mjs_discardVisual_wrapper(MjSpec& s, const MjVFS& vfs) {
+  return mjs_discardVisual(s.get(), vfs.get());
+}
+
 std::optional<MjsBody> mjs_findBody_wrapper(const MjSpec& s, const String& name) {
   CHECK_VAL(name);
   mjsBody* result = mjs_findBody(s.get(), name.as<const std::string>().data());
@@ -6519,6 +6523,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_defaultTuple", &mjs_defaultTuple_wrapper);
   function("mjs_delete", &mjs_delete_wrapper);
   function("mjs_deleteUserValue", &mjs_deleteUserValue_wrapper);
+  function("mjs_discardVisual", &mjs_discardVisual_wrapper);
   function("mjs_findBody", &mjs_findBody_wrapper);
   function("mjs_findChild", &mjs_findChild_wrapper);
   function("mjs_findDefault", &mjs_findDefault_wrapper);

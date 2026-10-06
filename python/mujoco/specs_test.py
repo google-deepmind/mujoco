@@ -1282,6 +1282,49 @@ class SpecsTest(absltest.TestCase):
     spec.fuse_static()
     self.assertIsNone(spec.body('kept'))
 
+  def test_discard_visual(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <asset>
+            <material name="mat"/>
+          </asset>
+          <worldbody>
+            <body name="body">
+              <joint/>
+              <geom name="collision" size=".1" material="mat"/>
+              <geom name="visual" size=".2" contype="0" conaffinity="0"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    mass = spec.compile().body('body').mass
+
+    spec.discard_visual()
+    self.assertIsNone(spec.geom('visual'))
+    self.assertIsNone(spec.material('mat'))
+    self.assertEqual(spec.geom('collision').material, '')
+    model = spec.compile()
+    self.assertEqual(model.ngeom, 1)
+    self.assertEqual(model.nmat, 0)
+    np.testing.assert_allclose(model.body('body').mass, mass)
+
+    # inertia inferred from a discarded geom cannot be kept under 'true'
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <compiler inertiafromgeom="true"/>
+          <worldbody>
+            <body>
+              <joint/>
+              <geom size=".1"/>
+              <geom name="visual" size=".2" contype="0" conaffinity="0"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    with self.assertRaisesRegex(ValueError, 'inertiafromgeom'):
+      spec.discard_visual()
+    self.assertIsNotNone(spec.geom('visual'))
+
   def test_adopt_inertial(self):
     spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
         <mujoco>

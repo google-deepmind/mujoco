@@ -1881,6 +1881,23 @@ int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs) {
 }
 
 
+// discard the visual elements of the spec
+int mjs_discardVisual(mjSpec* s, const mjVFS* vfs) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsAttached()) {
+    model->SetError(mjCError(nullptr, "Cannot discard the visual elements of an attached mjSpec."));
+    return -1;
+  }
+  try {
+    model->DiscardVisual(vfs);
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
 // make the inertial which compilation infers for a body part of the spec
 int mjs_adoptInertial(mjsBody* bodyspec, const mjVFS* vfs) {
   mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);

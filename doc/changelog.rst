@@ -31,12 +31,24 @@ Compiler
      **Migration:** Name the asset when adding it, e.g. ``spec.add_mesh(name='link', file='link.stl')`` in Python or
      :ref:`mjs_setName` in C.
 
+   - With :ref:`inertiafromgeom<compiler-inertiafromgeom>` "true", :ref:`discardvisual<compiler-discardvisual>` is now
+     a compilation error if a geom which it discards has mass. Previously the first compilation kept the inertia of
+     the discarded geoms, while compiling the same spec again, or saving it and loading the file, dropped it.
+
+     **Migration:** Use ``inertiafromgeom="auto"``, the default, under which the inertia is kept as an explicit
+     :ref:`inertial<body-inertial>`, or give the visual geoms zero mass.
+
 - Added :ref:`mjs_fuseStatic`, which fuses the static bodies of an :ref:`mjSpec` with their parents as an operation on
   the spec: each fused body becomes a frame in its parent. The :ref:`fusestatic<compiler-fusestatic>` compiler option
   now applies it and then compiles; previously it fused inside compilation and left the spec inconsistent with the
   model. Static bodies whose fusing would change the forces on the model (a plugin, a sleep policy, another gravcomp,
   a fluid), or which a flex or skin refers to, are now kept, and cameras and lights are no longer misplaced.
 - Added the :ref:`fuse<body-fuse>` body attribute: "false" keeps a static body when static bodies are fused.
+- Added :ref:`mjs_discardVisual`, which discards the visual elements of an :ref:`mjSpec` as an operation on the spec.
+  The :ref:`discardvisual<compiler-discardvisual>` compiler option now applies it and then compiles; previously it
+  discarded inside compilation and left references to what it discarded in the spec, so that some models failed to
+  compile. Visual meshes are no longer loaded unless body inertia is inferred from them, and geoms which use the
+  ellipsoid :ref:`fluid model<body-geom-fluidshape>` are kept.
 - Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
   the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
 
