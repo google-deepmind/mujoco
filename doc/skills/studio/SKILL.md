@@ -724,3 +724,8 @@ client maintain continuous heartbeat ping-pongs over `/ui` and `/state`.
 -   **Remedy**: Always offload asset loading or heavy computations to background
     threads, and dispatch completed assets or specs to the simulation side via
     asynchronous `Event` messages.
+
+### 8. Run with `-c opt` for Best Performance
+
+Always build and run Studio targets with `-c opt` so physics stepping, Filament
+rendering, and UI streaming execute with compiler optimizations enabled.
