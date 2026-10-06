@@ -733,6 +733,95 @@ TEST_F(FuseStaticTest, FuseStaticForceSensorReferencedBody) {
   EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
 }
 
+// fusing a body changes the ids of the bodies which follow it
+TEST_F(FuseStaticTest, FuseStaticBodyIdsAfterFuse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body>
+        <geom size=".1"/>
+      </body>
+      <body name="B">
+        <geom size=".1"/>
+      </body>
+      <body name="C">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framepos objtype="body" objname="C"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 2) << "Expecting a world body and the moving body";
+  EXPECT_EQ(m->sensor_objid[0], mj_name2id(m.get(), mjOBJ_BODY, "C"));
+}
+
+// fusing a body which follows a sibling moves its elements ahead of the
+// sibling's; names keep their objects, in the model and in the spec
+TEST_F(FuseStaticTest, FuseStaticElementIdsAfterFuse) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+    <worldbody>
+      <body name="moving">
+        <freejoint/>
+        <geom name="moving" size=".1"/>
+        <site name="moving"/>
+        <camera name="moving"/>
+        <light name="moving"/>
+      </body>
+      <body pos="1 0 0">
+        <geom name="static" size=".2"/>
+        <site name="static"/>
+        <camera name="static"/>
+        <light name="static"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framepos objtype="geom" objname="moving"/>
+      <framepos objtype="site" objname="moving"/>
+      <framepos objtype="camera" objname="moving"/>
+    </sensor>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="light" objname="moving"/>
+      </tuple>
+    </custom>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nbody, 2) << "Static body should be fused";
+
+  // the fused elements precede the elements of the moving body
+  EXPECT_EQ(m->sensor_objid[0], 1);
+  EXPECT_EQ(m->sensor_objid[1], 1);
+  EXPECT_EQ(m->sensor_objid[2], 1);
+  EXPECT_EQ(m->tuple_objid[0], 1);
+
+  for (mjtObj type : {mjOBJ_GEOM, mjOBJ_SITE, mjOBJ_CAMERA, mjOBJ_LIGHT}) {
+    EXPECT_EQ(mj_name2id(m, type, "moving"), 1);
+    for (const char* name : {"moving", "static"}) {
+      mjsElement* element = mjs_findElement(spec, type, name);
+      ASSERT_THAT(element, NotNull());
+      EXPECT_STREQ(mjs_getString(mjs_getName(element)), name);
+      EXPECT_EQ(mjs_getId(element), mj_name2id(m, type, name));
+    }
+  }
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(FuseStaticTest, FuseStaticCameraInBody) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -886,6 +975,67 @@ TEST_F(DiscardVisualTest, DiscardVisualEquivalent) {
   mj_deleteModel(model2);
   mj_deleteData(d1);
   mj_deleteData(d2);
+}
+
+TEST_F(DiscardVisualTest, FindElementAfterDiscard) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler discardvisual="true"/>
+    <asset>
+      <texture name="tex" type="2d" builtin="checker" width="8" height="8"/>
+      <material name="mat" texture="tex"/>
+      <mesh name="vismesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <mesh name="colmesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="b">
+        <joint/>
+        <geom name="vis1" type="mesh" mesh="vismesh" contype="0" conaffinity="0" material="mat"/>
+        <geom name="vis2" size=".2" contype="0" conaffinity="0"/>
+        <geom name="col1" size=".1"/>
+        <geom name="col2" type="mesh" mesh="colmesh"/>
+        <geom name="col3" size=".1" pos="1 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->ngeom, 3);
+  EXPECT_EQ(model->nmesh, 1);
+
+  // discarded elements are not found
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "vis1"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "vis2"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "vismesh"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MATERIAL, "mat"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TEXTURE, "tex"), IsNull());
+
+  // surviving elements are found under their own names, at their new ids
+  for (const char* name : {"col1", "col2", "col3"}) {
+    mjsElement* el = mjs_findElement(spec, mjOBJ_GEOM, name);
+    ASSERT_THAT(el, NotNull()) << name;
+    EXPECT_STREQ(mjs_getString(mjs_getName(el)), name);
+    EXPECT_EQ(mjs_getId(el), mj_name2id(model, mjOBJ_GEOM, name));
+  }
+  mjsElement* colmesh = mjs_findElement(spec, mjOBJ_MESH, "colmesh");
+  ASSERT_THAT(colmesh, NotNull());
+  EXPECT_STREQ(mjs_getString(mjs_getName(colmesh)), "colmesh");
+  EXPECT_EQ(mjs_getId(colmesh), mj_name2id(model, mjOBJ_MESH, "colmesh"));
+
+  // the spec recompiles to the same sizes
+  mjModel* model2 = mj_compile(spec, 0);
+  ASSERT_THAT(model2, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model2->ngeom, 3);
+  EXPECT_EQ(model2->nmesh, 1);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "vis1"), IsNull());
+
+  mj_deleteModel(model2);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 // ------------- test lengthrange ----------------------------------------------

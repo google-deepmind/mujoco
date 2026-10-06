@@ -4393,6 +4393,7 @@ void mjCCamera::CopyFromSpec() {
 
 
 void mjCCamera::ResolveReferences(const mjCModel* m) {
+  targetbodyid = -1;
   if (!targetbody_.empty()) {
     mjCBody* tb = (mjCBody*)m->FindObject(mjOBJ_BODY, targetbody_);
     if (tb) {
@@ -4555,6 +4556,8 @@ void mjCLight::CopyFromSpec() {
 
 
 void mjCLight::ResolveReferences(const mjCModel* m) {
+  targetbodyid = -1;
+  texid        = -1;
   if (!targetbody_.empty()) {
     mjCBody* tb = (mjCBody*)m->FindObject(mjOBJ_BODY, targetbody_);
     if (tb) {
@@ -4866,7 +4869,7 @@ mjCTexture::mjCTexture(mjCModel* _model) {
 
   // clear internal variables
   data_.clear();
-  clear_data_ = false;
+  spec_data_.clear();
 
   // point to local
   PointToLocal();
@@ -4885,7 +4888,6 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
   if (this != &other) {
     this->spec                       = other.spec;
     *static_cast<mjCTexture_*>(this) = static_cast<const mjCTexture_&>(other);
-    clear_data_                      = other.clear_data_;
   }
   PointToLocal();
   return *this;
@@ -4895,7 +4897,7 @@ mjCTexture& mjCTexture::operator=(const mjCTexture& other) {
 void mjCTexture::PointToLocal() {
   spec.element      = static_cast<mjsElement*>(this);
   spec.file         = &spec_file_;
-  spec.data         = &data_;
+  spec.data         = &spec_data_;
   spec.content_type = &spec_content_type_;
   spec.cubefiles    = &spec_cubefiles_;
   spec.info         = &info;
@@ -4912,10 +4914,8 @@ void mjCTexture::CopyFromSpec() {
   content_type_ = spec_content_type_;
   cubefiles_    = spec_cubefiles_;
 
-  if (clear_data_) {
-    // clear precompiled asset. TODO: use asset cache
-    data_.clear();
-  }
+  // the buffer given by the user, if any; otherwise Compile fills the data
+  data_ = spec_data_;
 }
 
 
@@ -5643,9 +5643,6 @@ void mjCTexture::Compile(const mjVFS* vfs) {
   if (data_.empty()) {
     throw mjCError(this, "texture '%s' (id %d) was not specified", name.c_str(), id);
   }
-
-  // if recompiled is called, clear data_ first
-  clear_data_ = true;
 }
 
 
@@ -6680,10 +6677,10 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
                        id);
       }
 
-      // set/check geom type
-      if (((mjCGeom*)obj)->type == mjGEOM_CYLINDER) {
+      // set/check geom type, as authored: the geom may not have been compiled
+      if (((mjCGeom*)obj)->spec.type == mjGEOM_CYLINDER) {
         spec.type = mjWRAP_CYLINDER;
-      } else if (((mjCGeom*)obj)->type != mjGEOM_SPHERE) {
+      } else if (((mjCGeom*)obj)->spec.type != mjGEOM_SPHERE) {
         throw mjCError(this,
                        "geom '%s' in tendon %d, wrap %d is not sphere or cylinder",
                        name.c_str(),
@@ -6876,6 +6873,7 @@ void mjCActuator::CopyPlugin() {
 
 
 void mjCActuator::ResolveReferences(const mjCModel* m) {
+  trnid[0] = trnid[1] = -1;
   switch (trntype) {
     case mjTRN_JOINT:
     case mjTRN_JOINTINPARENT:

@@ -1662,18 +1662,14 @@ static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyM
 }
 
 
-template <class T>
-mjCBase* mjCModel::FindAsset(std::string_view name, const std::vector<T*>& list) const {
-  for (unsigned int i = 0; i < list.size(); i++) {
-    if (list[i]->name == name) { return list[i]; }
+// find object in global lists by searching for its name, without the name maps
+mjCBase* mjCModel::SearchObject(mjtObj type, std::string_view name) const {
+  if (type < 0 || type >= mjNOBJECT || !object_lists_[type]) { return nullptr; }
+  for (mjCBase* object : *object_lists_[type]) {
+    if (object->name == name) { return object; }
   }
   return nullptr;
 }
-
-template mjCBase* mjCModel::FindAsset<mjCTexture>(std::string_view                name,
-                                                  const std::vector<mjCTexture*>& list) const;
-template mjCBase* mjCModel::FindAsset<mjCMesh>(std::string_view             name,
-                                               const std::vector<mjCMesh*>& list) const;
 
 
 // find object in global lists given string type and name
@@ -1842,14 +1838,18 @@ void mjCModel::Delete<mjCGeom>(std::vector<mjCGeom*>& elements, const std::vecto
                       body->geoms.end());
   }
 
-  // remove geoms from the main vector
+  // remove geoms from the main vector, rebuild the name-to-id map
   DeleteElements(elements, discard);
+  ids[mjOBJ_GEOM].clear();
+  ProcessList_(ids, elements, mjOBJ_GEOM, /*checkrepeat=*/false);
 }
 
 
 template <>
 void mjCModel::Delete<mjCMesh>(std::vector<mjCMesh*>& elements, const std::vector<bool>& discard) {
   DeleteElements(elements, discard);
+  ids[mjOBJ_MESH].clear();
+  ProcessList_(ids, elements, mjOBJ_MESH, /*checkrepeat=*/false);
 }
 
 
@@ -1861,6 +1861,8 @@ void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
   DeleteMaterial(tendons_);
   for (mjCMaterial* element : elements) { element->Release(); }
   elements.clear();
+  ids[mjOBJ_MATERIAL].clear();
+  names_[mjOBJ_MATERIAL].clear();
 }
 
 
@@ -1869,6 +1871,8 @@ void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   DeleteAllTextures(materials_);
   for (mjCTexture* element : elements) { element->Release(); }
   elements.clear();
+  ids[mjOBJ_TEXTURE].clear();
+  names_[mjOBJ_TEXTURE].clear();
 }
 
 
@@ -1930,6 +1934,10 @@ void mjCModel::IndexAssets(bool discard) {
   for (int i = 0; i < geoms_.size(); i++) {
     mjCGeom* geom = geoms_[i];
 
+    // a reference which was removed since the last compilation resolves to nothing
+    geom->mesh   = nullptr;
+    geom->hfield = nullptr;
+    geom->matid  = -1;
 
     // find mesh by name
     if (!geom->get_meshname().empty()) {
@@ -1938,8 +1946,8 @@ void mjCModel::IndexAssets(bool discard) {
         if (!geom->visual_) {
           mesh->SetNotVisual();  // reset to true by mesh->Compile()
         }
-        geom->mesh          = (discard && geom->visual_) ? nullptr : mesh;
-        mesh->spec.needsdf |= geom->spec.type == mjGEOM_SDF;
+        geom->mesh = (discard && geom->visual_) ? nullptr : mesh;
+        if (geom->spec.type == mjGEOM_SDF) { mesh->SetNeedSDF(true); }
       } else {
         throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
       }
@@ -1970,6 +1978,7 @@ void mjCModel::IndexAssets(bool discard) {
   // assets referenced in skins
   for (int i = 0; i < skins_.size(); i++) {
     mjCSkin* skin = skins_[i];
+    skin->matid   = -1;
 
     // find material by name
     if (!skin->material_.empty()) {
@@ -1985,6 +1994,8 @@ void mjCModel::IndexAssets(bool discard) {
   // materials and meshes referenced in sites
   for (int i = 0; i < sites_.size(); i++) {
     mjCSite* site = sites_[i];
+    site->mesh    = nullptr;
+    site->matid   = -1;
 
     // find mesh by name
     if (!site->get_meshname().empty()) {
@@ -2010,6 +2021,7 @@ void mjCModel::IndexAssets(bool discard) {
   // materials referenced in tendons
   for (int i = 0; i < tendons_.size(); i++) {
     mjCTendon* tendon = tendons_[i];
+    tendon->matid     = -1;
 
     // find material by name
     if (!tendon->material_.empty()) {
@@ -2031,6 +2043,7 @@ void mjCModel::IndexAssets(bool discard) {
 
     // find textures by name
     for (int j = 0; j < mjNTEXROLE; j++) {
+      material->texid[j] = -1;
       if (!material->textures_[j].empty()) {
         mjCBase* texture = FindObject(mjOBJ_TEXTURE, material->textures_[j]);
         if (texture) {
@@ -4677,10 +4690,15 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
 
 //------------------------------- FUSE STATIC ------------------------------------------------------
 
+// append source to dest, set ids and update the name map of elements whose id has changed
 template <class T>
-static void makelistid(std::vector<T*>& dest, std::vector<T*>& source) {
+static void makelistid(std::vector<T*>& dest, std::vector<T*>& source, mjKeyMap& ids) {
   for (int i = 0; i < source.size(); i++) {
-    source[i]->id = (int)dest.size();
+    int id = (int)dest.size();
+    if (source[i]->id != id) {
+      source[i]->id        = id;
+      ids[source[i]->name] = id;
+    }
     dest.push_back(source[i]);
   }
 }
@@ -4708,11 +4726,11 @@ void mjCModel::FuseReindex(mjCBody* body) {
     body->bodies[i]->weldid = (weld_root ? body->bodies[i]->id : body->weldid);
   }
 
-  makelistid(joints_, body->joints);
-  makelistid(geoms_, body->geoms);
-  makelistid(sites_, body->sites);
-  makelistid(cameras_, body->cameras);
-  makelistid(lights_, body->lights);
+  makelistid(joints_, body->joints, ids[mjOBJ_JOINT]);
+  makelistid(geoms_, body->geoms, ids[mjOBJ_GEOM]);
+  makelistid(sites_, body->sites, ids[mjOBJ_SITE]);
+  makelistid(cameras_, body->cameras, ids[mjOBJ_CAMERA]);
+  makelistid(lights_, body->lights, ids[mjOBJ_LIGHT]);
 
   // process children recursively
   for (int i = 0; i < body->bodies.size(); i++) { FuseReindex(body->bodies[i]); }
@@ -4764,6 +4782,13 @@ void mjCModel::ResolveReferences(std::vector<mjCSensor*>& list, mjCBody* body) {
 // fuse static bodies with their parent
 void mjCModel::FuseStatic(void) {
   for (int i = 1; i < bodies_.size(); i++) {
+    // get body and parent
+    mjCBody* body = bodies_[i];
+    mjCBody* par  = body->parent;
+
+    // skip if body has joints or mocap
+    if (!body->joints.empty() || body->mocap) { continue; }
+
     // check if the body can be fused
     if (!bodies_[i]->name.empty()) {
       ids[mjOBJ_BODY].erase(bodies_[i]->name);
@@ -4788,13 +4813,6 @@ void mjCModel::FuseStatic(void) {
       // put body back the body name in the map
       ids[mjOBJ_BODY].insert({bodies_[i]->name, i});
     }
-
-    // get body and parent
-    mjCBody* body = bodies_[i];
-    mjCBody* par  = body->parent;
-
-    // skip if body has joints or mocap
-    if (!body->joints.empty() || body->mocap) { continue; }
 
     //------------- add mass and inertia (if parent not world)
     if (body->parent && body->parent->name != "world" && body->mass >= mjMINVAL) {
@@ -4868,8 +4886,13 @@ void mjCModel::FuseStatic(void) {
 
     //------------- re-index bodies, joints, geoms, sites
 
-    // body ids
-    for (int j = 0; j < bodies_.size(); j++) { bodies_[j]->id = j; }
+    // remove the fused body from the name maps, update the bodies which follow it
+    ids[mjOBJ_BODY].erase(body->name);
+    names_[mjOBJ_BODY].erase(body->name);
+    for (int j = i; j < bodies_.size(); j++) {
+      bodies_[j]->id                    = j;
+      ids[mjOBJ_BODY][bodies_[j]->name] = j;
+    }
 
     // everything else
     joints_.clear();
@@ -4896,9 +4919,6 @@ void mjCModel::FuseStatic(void) {
 
     //------------- delete body (without deleting children)
 
-    // remove body name from map
-    if (!body->name.empty()) { ids[mjOBJ_BODY].erase(body->name); }
-
     // delete allocation
     body->bodies.clear();
     delete body;
@@ -4906,9 +4926,6 @@ void mjCModel::FuseStatic(void) {
     // check index i again (we have a new body at this index)
     i--;
   }
-
-  // remove empty names
-  ProcessList_(ids, bodies_, mjOBJ_BODY, /*checkrepeat=*/true);
 }
 
 
@@ -5426,16 +5443,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     throw mjCError(0, "number of bodies plus flexes must be less than 65534");
   }
 
-  // append directory separator
-  if (!meshdir_.empty()) {
-    int n = meshdir_.length();
-    if (meshdir_[n - 1] != '/' && meshdir_[n - 1] != '\\') { meshdir_ += '/'; }
-  }
-  if (!texturedir_.empty()) {
-    int n = texturedir_.length();
-    if (texturedir_[n - 1] != '/' && texturedir_[n - 1] != '\\') { texturedir_ += '/'; }
-  }
-
   // add missing keyframes
   for (int i = keys_.size(); i < nkey; i++) { AddKey(); }
 
@@ -5470,6 +5477,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // map names to asset references
+  for (mjCMesh* mesh : meshes_) { mesh->SetNeedSDF(false); }
   IndexAssets(/*discard=*/false);
 
   // compile pairs for convex hull check

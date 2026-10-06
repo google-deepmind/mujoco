@@ -1153,11 +1153,148 @@ TEST_F(MujocoTest, RecompileEditFrame) {
   mj_deleteSpec(spec);
 }
 
+// an element which is added after a compilation is found by its name
+// a reference which is removed after compiling is not in the next model
+TEST_F(MujocoTest, RecompileRemovedReferences) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="tex" type="2d" builtin="checker" width="8" height="8"/>
+      <texture name="tex2" type="2d" builtin="checker" width="8" height="8"/>
+      <material name="mat" %s/>
+      <mesh name="mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <hfield name="hf" nrow="2" ncol="2" size="1 1 1 1"/>
+    </asset>
+    <worldbody>
+      <light name="light" %s/>
+      <camera name="cam" %s/>
+      <geom name="hfgeom" %s size=".2"/>
+      <site name="s0"/>
+      <body name="a">
+        <joint/>
+        <geom size=".1"/>
+      </body>
+      <body name="b" pos="1 0 0">
+        <joint/>
+        <geom name="g" %s size=".1"/>
+        <site name="s" %s/>
+        <site name="s1" pos="0 0 1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="t" %s>
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <general name="act" site="s1" %s/>
+    </actuator>
+  </mujoco>
+  )";
+  std::string with_references = absl::StrFormat(
+      xml, R"(texture="tex")", R"(mode="targetbody" target="b" texture="tex2")",
+      R"(mode="targetbody" target="b")", R"(type="hfield" hfield="hf")",
+      R"(type="mesh" mesh="mesh" material="mat")",
+      R"(type="mesh" mesh="mesh" material="mat")", R"(material="mat")",
+      R"(refsite="s0")");
+  std::string without = absl::StrFormat(xml, "", "", "", "", "", "", "", "");
+
+  std::array<char, 1024> error;
+  mjSpec* spec =
+      mj_parseXMLString(with_references.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m1 = mj_compile(spec, 0);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m1->geom_matid[mj_name2id(m1, mjOBJ_GEOM, "g")], 0);
+  EXPECT_EQ(m1->cam_targetbodyid[0], mj_name2id(m1, mjOBJ_BODY, "b"));
+
+  // remove the references
+  mjsMaterial* material =
+      mjs_asMaterial(mjs_findElement(spec, mjOBJ_MATERIAL, "mat"));
+  mjs_setInStringVec(material->textures, mjTEXROLE_RGB, "");
+  mjsLight* light = mjs_asLight(mjs_findElement(spec, mjOBJ_LIGHT, "light"));
+  light->mode = mjCAMLIGHT_FIXED;
+  mjs_setString(light->targetbody, "");
+  mjs_setString(light->texture, "");
+  mjsCamera* camera = mjs_asCamera(mjs_findElement(spec, mjOBJ_CAMERA, "cam"));
+  camera->mode = mjCAMLIGHT_FIXED;
+  mjs_setString(camera->targetbody, "");
+  mjsGeom* hfgeom = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "hfgeom"));
+  hfgeom->type = mjGEOM_SPHERE;
+  mjs_setString(hfgeom->hfieldname, "");
+  mjsGeom* geom = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "g"));
+  geom->type = mjGEOM_SPHERE;
+  mjs_setString(geom->meshname, "");
+  mjs_setString(geom->material, "");
+  mjsSite* site = mjs_asSite(mjs_findElement(spec, mjOBJ_SITE, "s"));
+  site->type = mjGEOM_SPHERE;
+  mjs_setString(site->meshname, "");
+  mjs_setString(site->material, "");
+  mjsTendon* tendon = mjs_asTendon(mjs_findElement(spec, mjOBJ_TENDON, "t"));
+  mjs_setString(tendon->material, "");
+  mjsActuator* actuator =
+      mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, "act"));
+  mjs_setString(actuator->refsite, "");
+
+  // the model is that of a spec which never had them
+  mjModel* m2 = mj_compile(spec, 0);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  MjModelPtr expected =
+      LoadModelFromString(without, error.data(), error.size());
+  ASSERT_THAT(expected.get(), NotNull()) << error.data();
+  std::string field;
+  EXPECT_EQ(CompareModel(m2, expected.get(), field), 0) << field;
+
+  mj_deleteModel(m2);
+  mj_deleteModel(m1);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, FindElementAddedAfterCompile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <geom name="geom" size=".1"/>
+      </body>
+    </worldbody>
+    <custom>
+      <numeric name="first" data="1"/>
+      <numeric name="second" data="2"/>
+    </custom>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "body"), nullptr);
+  mjs_setName(geom->element, "added");
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_GEOM, "added"), geom->element);
+
+  mjsNumeric* numeric = mjs_addNumeric(spec);
+  mjs_setName(numeric->element, "added");
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_NUMERIC, "added"), numeric->element);
+
+  // a name which was changed since the compilation finds its element too
+  mjsElement* second = mjs_findElement(spec, mjOBJ_NUMERIC, "second");
+  mjs_setName(second, "renamed");
+  EXPECT_EQ(mjs_findElement(spec, mjOBJ_NUMERIC, "renamed"), second);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_NUMERIC, "second"), IsNull());
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 // compiling does not change what was authored in the spec
 TEST_F(MujocoTest, CompileLeavesSpecUnchanged) {
   static constexpr char xml[] = R"(
   <mujoco>
-    <compiler angle="degree"/>
+    <compiler angle="degree" meshdir="meshes" texturedir="textures"/>
     <default>
       <default class="arm">
         <joint damping="1"/>
@@ -1167,7 +1304,8 @@ TEST_F(MujocoTest, CompileLeavesSpecUnchanged) {
     <asset>
       <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
       <mesh file="cube.obj" scale=".1 .1 .1"/>
-      <material name="blue" rgba="0 0 1 1"/>
+      <texture name="grid" type="2d" builtin="checker" width="8" height="8"/>
+      <material name="blue" texture="grid" rgba="0 0 1 1"/>
     </asset>
     <worldbody>
       <light pos="0 0 3"/>
@@ -1180,6 +1318,8 @@ TEST_F(MujocoTest, CompileLeavesSpecUnchanged) {
           <body name="lower" pos="0 0 -.3">
             <joint name="elbow" axis="0 1 0"/>
             <geom name="lower" fromto="0 0 0 0 0 -.3"/>
+            <geom name="pulley" type="cylinder" size=".02 .02" pos=".1 0 -.3"/>
+            <site name="side" pos=".2 0 -.3"/>
             <site name="hand" pos="0 0 -.3" zaxis="0 1 1"/>
           </body>
         </body>
@@ -1203,6 +1343,7 @@ TEST_F(MujocoTest, CompileLeavesSpecUnchanged) {
     <tendon>
       <spatial name="rope" range="0 1">
         <site site="hand"/>
+        <geom geom="pulley" sidesite="side"/>
         <site site="top"/>
       </spatial>
     </tendon>
@@ -1234,7 +1375,7 @@ TEST_F(MujocoTest, CompileLeavesSpecUnchanged) {
   v  1 -1 -1)";
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
-  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+  mj_addBufferVFS(vfs.get(), "meshes/cube.obj", cube, sizeof(cube));
 
   std::array<char, 1000> er;
   mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
@@ -1590,6 +1731,44 @@ TEST_F(MujocoTest, TextureFromBuffer) {
   EXPECT_STREQ(err.data(), "XML Error: no support for buffer textures.");
 
   mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// the buffer of a texture belongs to the user: compiling reads it, and does
+// not fill it for textures made from a file or a builtin
+TEST_F(MujocoTest, TextureBufferIsAuthored) {
+  mjSpec* spec = mj_makeSpec();
+  mjsTexture* texture = mjs_addTexture(spec);
+  mjs_setName(texture->element, "texture");
+  texture->type = mjTEXTURE_2D;
+  texture->width = 2;
+  texture->height = 1;
+
+  // a builtin texture: the pixels are in the model only
+  texture->builtin = mjBUILTIN_FLAT;
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  EXPECT_GT(m1->ntexdata, 0);
+  EXPECT_THAT(*texture->data, IsEmpty());
+
+  // a buffer given after a compilation is used by the next one; a flip is
+  // applied to the model and not to the buffer, however often it is compiled
+  const std::vector<std::byte> pixels = {std::byte{1}, std::byte{2}};
+  texture->builtin = mjBUILTIN_NONE;
+  texture->nchannel = 1;
+  texture->hflip = 1;
+  mjs_setBuffer(texture->data, pixels.data(), pixels.size());
+  for (int i = 0; i < 2; i++) {
+    mjModel* m2 = mj_compile(spec, nullptr);
+    ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+    ASSERT_EQ(m2->ntexdata, 2);
+    EXPECT_EQ(m2->tex_data[0], 2);
+    EXPECT_EQ(m2->tex_data[1], 1);
+    EXPECT_EQ(*texture->data, pixels);
+    mj_deleteModel(m2);
+  }
+
+  mj_deleteModel(m1);
   mj_deleteSpec(spec);
 }
 

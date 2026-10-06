@@ -1155,6 +1155,7 @@ class mjCMesh_ : public mjCBase {
   // size of mesh data to be copied into mjModel
   int  szgraph_ = 0;  // size of graph data in ints
   bool needhull_;     // needs convex hull for collisions
+  bool needsdf_;      // needs signed distance field for an sdf geom
   int  maxhullvert_;  // max vertex count of convex hull
 
   // bounding volume hierarchy tree
@@ -1215,6 +1216,7 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
 
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
+  void SetNeedSDF(bool needsdf) { needsdf_ = needsdf; }
 
   // mesh properties computed by Compile
   const double* aamm() const { return aamm_; }
@@ -1460,7 +1462,8 @@ class mjCHField : public mjCHField_, private mjsHField {
 
 class mjCTexture_ : public mjCBase {
  protected:
-  std::vector<std::byte> data_;  // texture data (rgb, roughness, etc.)
+  std::vector<std::byte> data_;       // texture data (rgb, roughness, etc.)
+  std::vector<std::byte> spec_data_;  // texture data given by the user
 
   std::string              file_;
   std::string              content_type_;
@@ -1522,8 +1525,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
                unsigned int&           w,
                unsigned int&           h,
                bool&                   is_srgb);
-
-  bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };
 
 

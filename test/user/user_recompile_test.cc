@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <filesystem>  // NOLINT
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -30,11 +31,13 @@
 #include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
 #include "test/compare_model.h"
+#include "test/compare_spec.h"
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
 
+using ::testing::IsEmpty;
 using ::testing::NotNull;
 
 std::vector<std::string> GetRecompileTestModels() {
@@ -63,6 +66,22 @@ std::vector<std::string> GetRecompileTestModels() {
   return models;
 }
 
+// Differences between two specs, apart from those of a compilation completing
+// keyframes: it sizes their vectors for the model, and adds keyframes up to
+// the number set by nkey.
+std::string WithoutKeyframeCompletion(const std::string& differences) {
+  std::istringstream lines(differences);
+  std::string line;
+  std::string other;
+  while (std::getline(lines, line)) {
+    bool vector =
+        absl::StartsWith(line, "key[") && absl::StrContains(line, " size: ");
+    bool number = absl::StartsWith(line, "key: count: ");
+    if (!vector && !number) other += line + '\n';
+  }
+  return other;
+}
+
 class RecompileCompareTest : public MujocoTest,
                              public ::testing::WithParamInterface<std::string> {
  public:
@@ -81,8 +100,10 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
     GTEST_SKIP() << "Failed to load " << xml << ": " << err.data();
   }
 
-  // copy spec
+  // copy spec, the copy has what was authored
   mjSpec* s_copy = mj_copySpec(s);
+  const int kAllDifferences = 100000;
+  EXPECT_THAT(CompareSpec(s, s_copy, kAllDifferences), IsEmpty()) << xml;
 
   // an uncompiled spec has no signature
   EXPECT_EQ(s->element->signature, 0) << xml;
@@ -96,6 +117,14 @@ TEST_P(RecompileCompareTest, RecompileCompare) {
     mj_deleteSpec(s_copy);
     mj_deleteSpec(s);
     GTEST_SKIP() << "Failed to compile " << xml << ": " << error_message;
+  }
+
+  // compiling leaves what was authored as it was, unless it restructures
+  if (!s->compiler.fusestatic && !s->compiler.discardvisual) {
+    EXPECT_THAT(
+        WithoutKeyframeCompletion(CompareSpec(s_copy, s, kAllDifferences)),
+        IsEmpty())
+        << xml;
   }
 
   mjModel* m_new = mj_compile(s, nullptr);

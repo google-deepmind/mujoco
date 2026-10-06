@@ -83,7 +83,8 @@ std::string Str(const std::vector<T>& value) {
 
 class Comparer {
  public:
-  Comparer(const mjSpec* s1, const mjSpec* s2) : s1_(s1), s2_(s2) {}
+  Comparer(const mjSpec* s1, const mjSpec* s2, int max_reported)
+      : s1_(s1), s2_(s2), max_reported_(max_reported) {}
 
   std::string Run() {
     where_ = "spec";
@@ -121,20 +122,18 @@ class Comparer {
 
     Defaults();
 
-    if (count_ > kMaxReported) {
-      out_ << "and " << count_ - kMaxReported << " more differences\n";
+    if (count_ > max_reported_) {
+      out_ << "and " << count_ - max_reported_ << " more differences\n";
     }
     return out_.str();
   }
 
  private:
-  static constexpr int kMaxReported = 20;
-
   using PluginAttributes = std::map<std::string, std::string, std::less<>>;
 
   void Report(const std::string& field, const std::string& v1,
               const std::string& v2) {
-    if (++count_ > kMaxReported) return;
+    if (++count_ > max_reported_) return;
     out_ << where_ << ": " << prefix_ << field << ": " << v1 << " != " << v2
          << '\n';
   }
@@ -337,8 +336,14 @@ class Comparer {
       const mjsWrap* w1 = mjs_getWrap(&a, i);
       const mjsWrap* w2 = mjs_getWrap(&b, i);
       prefix_ = prefix + "wrap[" + std::to_string(i) + "].";
-      Fields(*w1, *w2);
-      if (w1->type != w2->type) continue;
+
+      // a wrapped geom is authored as a sphere, compilation finds the cylinders
+      mjsWrap a1 = *w1;
+      mjsWrap a2 = *w2;
+      if (a1.type == mjWRAP_CYLINDER) a1.type = mjWRAP_SPHERE;
+      if (a2.type == mjWRAP_CYLINDER) a2.type = mjWRAP_SPHERE;
+      Fields(a1, a2);
+      if (a1.type != a2.type) continue;
       std::string target1 = Name(mjs_getWrapTarget(w1));
       std::string target2 = Name(mjs_getWrapTarget(w2));
       Field("target", &target1, &target2);
@@ -466,6 +471,7 @@ class Comparer {
 
   const mjSpec* s1_;
   const mjSpec* s2_;
+  int max_reported_;
   std::map<const void*, int> index_;
   std::set<std::string> classes_;
   std::string where_;
@@ -476,8 +482,8 @@ class Comparer {
 
 }  // namespace
 
-std::string CompareSpec(const mjSpec* s1, const mjSpec* s2) {
-  return Comparer(s1, s2).Run();
+std::string CompareSpec(const mjSpec* s1, const mjSpec* s2, int max_reported) {
+  return Comparer(s1, s2, max_reported).Run();
 }
 
 }  // namespace mujoco

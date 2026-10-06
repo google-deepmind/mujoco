@@ -25,9 +25,12 @@ namespace mujoco {
 // every element, and the name, default class, parent body, frame and order of
 // the elements. Default classes are compared if an element or a childclass
 // refers to them. Ids, signatures and anything else that compilation records
-// are not compared.
+// are not compared, such as whether a geom in a tendon path is a cylinder.
 // Returns the differences, one per line, or an empty string if there are none.
-std::string CompareSpec(const mjSpec* s1, const mjSpec* s2);
+// At most max_reported differences are listed, followed by the number of
+// others.
+std::string CompareSpec(const mjSpec* s1, const mjSpec* s2,
+                        int max_reported = 20);
 
 }  // namespace mujoco
 

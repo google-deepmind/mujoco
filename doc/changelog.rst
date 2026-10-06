@@ -20,7 +20,13 @@ Compiler
 Bug fixes
 ^^^^^^^^^
 - Compiling an :ref:`mjSpec` no longer reorders its contact :ref:`pairs<contact-pair>` and
-  :ref:`excludes<contact-exclude>`; :ref:`mjs_findElement` could then return a different one than the one named.
+  :ref:`excludes<contact-exclude>`, writes into authored fields such as the data of a texture, or keeps a reference
+  which was removed from the spec since the last compilation, such as the material of a geom.
+- :ref:`mjs_findElement` now finds an element which was added or renamed after the spec was compiled, and no longer
+  returns a different element than the one named for contact pairs and excludes, or after compiling with
+  :ref:`discardvisual<compiler-discardvisual>`.
+- :ref:`fusestatic<compiler-fusestatic>` no longer binds elements which refer by name to a geom, site, camera or
+  light to a different one, and no longer leaves static bodies unfused when another body is referenced by name.
 
 Models
 ^^^^^^

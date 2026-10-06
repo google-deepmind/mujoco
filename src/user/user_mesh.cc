@@ -205,6 +205,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   center_       = nullptr;
   graph_        = nullptr;
   needhull_     = false;
+  needsdf_      = false;
   maxhullvert_  = -1;
   processed_    = false;
   visual_       = true;
@@ -354,8 +355,10 @@ void mjCMesh::LoadSDF() {
   std::vector<const char*> names(pplugin->nattribute, 0);
   std::vector<const char*> values(pplugin->nattribute, 0);
   for (int i = 0; i < pplugin->nattribute; i++) {
+    // an attribute which is not configured is empty, and is not added to the configuration
     names[i]  = pplugin->attributes[i];
-    values[i] = plugin_instance->config_attribs[names[i]].c_str();
+    auto it   = plugin_instance->config_attribs.find(names[i]);
+    values[i] = it != plugin_instance->config_attribs.end() ? it->second.c_str() : "";
   }
 
   if (pplugin->sdf_attribute) {
@@ -411,6 +414,7 @@ void mjCMesh::LoadSDF() {
 
   needreorient_ = false;
   needsdf       = false;
+  needsdf_      = false;
   normal_       = std::move(usernormal);
   face_         = std::move(userface);
   ProcessVertices(uservert);
@@ -740,7 +744,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     // we need to compute it here. If inversely it has an octree but we *do not*
     // need one, we clear it.
     t0 = Clock::now();
-    if (!needsdf) {
+    if (!needsdf && !needsdf_) {
       octree_.Clear();
     } else if (octree_.NumNodes() == 0) {
       std::vector<double> dvert(vert_.begin(), vert_.end());
@@ -1475,7 +1479,7 @@ void mjCMesh::Process() {
 
   t0 = Clock::now();
   // make octree
-  if (needsdf) {
+  if (needsdf || needsdf_) {
     octree_.SetFace(dvert, face_);
     octree_.SetMaxDepth(spec.octree_maxdepth);
     octree_.CreateOctree(aamm_);
@@ -3007,11 +3011,10 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // resolve material name
   mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
-  if (pmat) {
-    matid = pmat->id;
-  } else if (!material_.empty()) {
+  if (!pmat && !material_.empty()) {
     throw mjCError(this, "unknown material '%s' in skin", material_.c_str());
   }
+  matid = pmat ? pmat->id : -1;
 
   // set total vertex weights to 0
   std::vector<float> vw;
@@ -4641,11 +4644,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // resolve material name
   mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
-  if (pmat) {
-    matid = pmat->id;
-  } else if (!material_.empty()) {
+  if (!pmat && !material_.empty()) {
     throw mjCError(this, "unknown material '%s' in flex", material_.c_str());
   }
+  matid = pmat ? pmat->id : -1;
 
   // resolve body ids
   ResolveReferences(model);

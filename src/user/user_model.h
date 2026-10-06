@@ -283,9 +283,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjSpec*  FindSpec(const mjsCompiler* compiler_) const;            // find spec given mjsCompiler
   void     ActivatePlugin(const mjpPlugin* plugin, int slot);       // activate plugin
 
-  // find asset given name, also before the lists are indexed
-  template <class T>
-  mjCBase* FindAsset(std::string_view name, const std::vector<T*>& list) const;
+  // find object given type and name by searching the list, without the name maps
+  mjCBase* SearchObject(mjtObj type, std::string_view name) const;
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }
