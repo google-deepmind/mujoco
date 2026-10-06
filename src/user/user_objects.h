@@ -507,6 +507,10 @@ class mjCBody_ : public mjCBase {
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
 
+  // inertial frame in the body frame as compiled, before a free joint is aligned with it
+  double ipos_compiled_[3]  = {0, 0, 0};
+  double iquat_compiled_[4] = {1, 0, 0, 0};
+
   // variables used for temporarily storing the state of the mocap bodies
   std::map<std::string, std::array<mjtNum, 3>> mpos_;   // saved mocap_pos
   std::map<std::string, std::array<mjtNum, 4>> mquat_;  // saved mocap_quat
@@ -558,6 +562,10 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // set explicitinertial to true
   void MakeInertialExplicit();
+
+  // make the inertial which compilation calculated for this body part of the spec; the kinematic
+  // tree must have been compiled since the spec was last edited, see mjCModel::Resolve
+  void AdoptInertial();
 
   // compute the bounding volume hierarchy of the body.
   void ComputeBVH();
@@ -618,10 +626,18 @@ class mjCBody : public mjCBody_, private mjsBody {
   void Compile(void);          // compiler
   void InertiaFromGeom(void);  // get inertial info from geoms
 
+  // true if compilation infers the inertial of this body from its geoms
+  bool InfersInertial() const;
+
   // get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
   void SpecInertial(double com[3], double inert[6]) const;
 
-  // merge the inertial in the spec of a child body into the inertial in the spec of this body
+  // get the inertial which compilation calculated, in the same form; the kinematic tree must
+  // have been compiled since the spec was last edited
+  void CompiledInertial(double com[3], double inert[6]) const;
+
+  // merge the inertial of a child body into the inertial in the spec of this body; an inertial
+  // which is inferred from geoms is taken as compiled, one which is given as it is in the spec
   void MergeInertial(const mjCBody* child);
 
   // objects allocated by Add functions

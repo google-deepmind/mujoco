@@ -12378,6 +12378,27 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Resolve alternative orientations to quat; return error if any.',
      )),
+    ('mjs_adoptInertial',
+     FunctionDecl(
+         name='mjs_adoptInertial',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Make the inertial which compilation infers for a body part of the spec, return 0 on success.',  # pylint: disable=line-too-long
+     )),
     ('mjs_bodyToFrame',
      FunctionDecl(
          name='mjs_bodyToFrame',

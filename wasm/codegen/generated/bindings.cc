@@ -2316,6 +2316,10 @@ std::optional<MjsTuple> mjs_addTuple_wrapper(MjSpec& s) {
   return MjsTuple(result);
 }
 
+int mjs_adoptInertial_wrapper(MjsBody& body, const MjVFS& vfs) {
+  return mjs_adoptInertial(body.get(), vfs.get());
+}
+
 std::optional<MjsActuator> mjs_asActuator_wrapper(MjsElement& element) {
   mjsActuator* result = mjs_asActuator(element.get());
   if (result == nullptr) {
@@ -6457,6 +6461,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_addText", &mjs_addText_wrapper);
   function("mjs_addTexture", &mjs_addTexture_wrapper);
   function("mjs_addTuple", &mjs_addTuple_wrapper);
+  function("mjs_adoptInertial", &mjs_adoptInertial_wrapper);
   function("mjs_asActuator", &mjs_asActuator_wrapper);
   function("mjs_asBody", &mjs_asBody_wrapper);
   function("mjs_asCamera", &mjs_asCamera_wrapper);

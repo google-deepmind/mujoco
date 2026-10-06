@@ -509,6 +509,26 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
             reinterpret_cast<uintptr_t>(self.Compile(vfs_ptr)));
       },
       py::arg("vfs") = py::none());
+  mjSpec.def(
+      "adopt_inertial",
+      [](MjSpec& self, raw::MjsBody* body, std::optional<MjVfs*> vfs) {
+        self.AdoptInertial(body, vfs.has_value() ? (*vfs)->get() : nullptr);
+      },
+      py::arg("body"), py::arg("vfs") = py::none(),
+      R"mydelimiter(
+    Makes the inertial which compilation infers for a body part of the spec.
+
+    The mass, inertia and inertial frame calculated from the geoms of the body
+    become its explicit inertial, and no longer follow changes to the geoms.
+    Assets are read as in compile().
+
+    Parameters
+    ----------
+    body : MjsBody
+        A body of this spec.
+    vfs : MjVfs, optional
+        A VFS to read assets from. Cannot be used with assets.
+    )mydelimiter");
   mjSpec.def_property(
       "assets", [](MjSpec& self) -> py::dict { return self.assets; },
       [](MjSpec& self, py::dict& assets) {

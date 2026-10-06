@@ -200,9 +200,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   double timer[mjNCTIMER] = {0};  // compiler timers
 
   mjModel* Compile(const mjVFS* vfs = nullptr, mjModel** m = nullptr);  // construct mjModel
-  bool     CopyBack(const mjModel*);    // DECOMPILER: copy numeric back
-  void     FuseStatic();                // fuse static bodies with parent
-  void     FuseReindex(mjCBody* body);  // reindex elements during fuse
+
+  // compile the assets and the kinematic tree of the spec as it is now, without constructing an
+  // mjModel, so that what compilation derives from them can be read; if it fails, save the
+  // error and return false
+  bool Resolve(const mjVFS* vfs = nullptr, bool textures = true);
+  bool CopyBack(const mjModel*);    // DECOMPILER: copy numeric back
+  void FuseStatic();                // fuse static bodies with parent
+  void FuseReindex(mjCBody* body);  // reindex elements during fuse
 
   // API for adding model elements
   mjCFlex*     AddFlex();
@@ -429,8 +434,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   void MakeTreeLists(mjCBody* body = nullptr);
 
   // compile phases
-  void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
-  void CompileMeshesAndTextures(const mjVFS* vfs);
+  mjModel* Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool textures);
+  void     TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
+  void     CompileTree(const mjVFS* vfs, bool textures, bool keyframes);  // assets, kinematic tree
+  void     CompileMeshesAndTextures(const mjVFS* vfs, bool textures = true);
 
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices

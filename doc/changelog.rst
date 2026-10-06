@@ -31,6 +31,9 @@ Compiler
      **Migration:** Name the asset when adding it, e.g. ``spec.add_mesh(name='link', file='link.stl')`` in Python or
      :ref:`mjs_setName` in C.
 
+- Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
+  the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
+
 Bug fixes
 ^^^^^^^^^
 - Compiling an :ref:`mjSpec` no longer reorders its contact :ref:`pairs<contact-pair>` and
@@ -50,6 +53,8 @@ Bug fixes
   out the elements which refer to it. Attaching what the parent already has is now an error.
 - A copy of a compiled :ref:`mjSpec` made with :ref:`mj_copySpec` now holds what the compilation gave the original:
   saving it no longer crashes, and :ref:`mj_recompile` with the model and data of the original keeps their state.
+- :ref:`mjs_bodyToFrame` no longer loses inertia which is inferred from geoms when only one of the two bodies has
+  an explicit inertial.
 
 Models
 ^^^^^^

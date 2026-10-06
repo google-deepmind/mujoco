@@ -1864,6 +1864,32 @@ const char* mjs_resolveOrientation(double                quat[4],
 
 
 // Transform body into a frame.
+// make the inertial which compilation infers for a body part of the spec
+int mjs_adoptInertial(mjsBody* bodyspec, const mjVFS* vfs) {
+  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
+  mjCModel* model = body->model;
+  try {
+    if (!body->GetParent()) { throw mjCError(body, "the world body has no inertial"); }
+    int inertiafromgeom = mjs_getCompiler(bodyspec->element)->inertiafromgeom;
+    if (inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+      throw mjCError(body,
+                     "an inertial cannot be adopted when inertiafromgeom is 'true', which infers "
+                     "the inertia of every body from its geoms");
+    }
+
+    // nothing is inferred for this body
+    if (inertiafromgeom == mjINERTIAFROMGEOM_FALSE || mjuu_defined(bodyspec->ipos[0])) { return 0; }
+
+    if (!model->Resolve(vfs)) { return -1; }
+    body->AdoptInertial();
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
   try {

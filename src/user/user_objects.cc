@@ -2172,8 +2172,27 @@ mjCFrame* mjCBody::ToFrame() {
   if (!parent) { throw mjCError(this, "the world body cannot be converted to a frame"); }
 
   // merge the inertial into the parent; this can fail, do it before anything is modified
-  if (parent->name != "world" && mjuu_defined(spec.ipos[0]) && spec.mass >= mjMINVAL) {
-    parent->MergeInertial(this);
+  if (parent->name != "world") {
+    // an inertial is either given in the spec, or inferred from geoms when compiling
+    bool given         = !InfersInertial() && mjuu_defined(spec.ipos[0]) && spec.mass >= mjMINVAL;
+    bool inferred      = InfersInertial() && !geoms.empty();
+    bool parent_given  = !parent->InfersInertial() && mjuu_defined(parent->spec.ipos[0]);
+    bool parent_infers = parent->InfersInertial() && !parent->geoms.empty();
+
+    // one is given and the other inferred: compile the tree to know what is inferred; if both
+    // are inferred, the geoms move to the parent and take the inertia with them
+    if ((given && parent_infers) || (inferred && parent_given)) {
+      if (!model->Resolve(nullptr)) {
+        std::string error = model->GetError().message;
+        throw mjCError(this,
+                       "inertia inferred from geoms could not be calculated; if assets are in a "
+                       "VFS, call mjs_adoptInertial first: %s",
+                       error.c_str());
+      }
+      if (given || mass >= mjMINVAL) { parent->MergeInertial(this); }
+    } else if (given) {
+      parent->MergeInertial(this);
+    }
   }
 
   mjCFrame* newframe = parent->AddFrame(frame);
@@ -2498,6 +2517,35 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
+// make the inertial which compilation calculated for this body part of the spec
+void mjCBody::AdoptInertial() {
+  MakeInertialExplicit();
+  iframe    = nullptr;  // the inertial frame is in body coordinates
+  spec.mass = mass;
+  mjuu_copyvec(spec.ipos, ipos_compiled_, 3);
+  mjuu_copyvec(spec.iquat, iquat_compiled_, 4);
+  mjuu_copyvec(spec.inertia, inertia, 3);
+  spec.fullinertia[0] = mjNAN;
+  mjs_defaultOrientation(&spec.ialt);
+}
+
+
+// true if compilation infers the inertial of this body from its geoms
+bool mjCBody::InfersInertial() const {
+  return compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE ||
+         (compiler->inertiafromgeom == mjINERTIAFROMGEOM_AUTO && !mjuu_defined(spec.ipos[0]));
+}
+
+
+// get the inertial which compilation calculated: center of mass in body coordinates and inertia
+// matrix about it
+void mjCBody::CompiledInertial(double com[3], double inert[6]) const {
+  double local[6] = {inertia[0], inertia[1], inertia[2], 0, 0, 0};
+  mjuu_copyvec(com, ipos_compiled_, 3);
+  RotateInertia(inert, local, iquat_compiled_);
+}
+
+
 // get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
 void mjCBody::SpecInertial(double com[3], double inert[6]) const {
   double orient[4];
@@ -2527,7 +2575,7 @@ void mjCBody::SpecInertial(double com[3], double inert[6]) const {
 }
 
 
-// merge the inertial in the spec of a child body into the inertial in the spec of this body
+// merge the inertial of a child body into the inertial in the spec of this body
 void mjCBody::MergeInertial(const mjCBody* child) {
   // pose of the child in this body
   double childpos[3], childquat[4];
@@ -2541,18 +2589,31 @@ void mjCBody::MergeInertial(const mjCBody* child) {
   if (err) { throw mjCError(child, "error '%s' in frame alternative", err); }
   FrameToBody(child->frame, childpos, childquat);
 
-  // inertial of this body, if any
-  double masses[2] = {0, child->spec.mass};
+  // inertial of this body, if any: inferred from its geoms, or given. Without geoms nothing is
+  // inferred, and what an earlier compilation calculated is not read: the caller compiles the
+  // tree only when there are geoms to infer from
+  double masses[2] = {0, 0};
   double coms[2][3], inerts[2][6];
   mjuu_zerovec(coms[0], 3);
   mjuu_zerovec(inerts[0], 6);
-  if (mjuu_defined(spec.ipos[0])) {
+  if (InfersInertial()) {
+    if (!geoms.empty()) {
+      masses[0] = mass;
+      CompiledInertial(coms[0], inerts[0]);
+    }
+  } else if (mjuu_defined(spec.ipos[0])) {
     masses[0] = spec.mass;
     SpecInertial(coms[0], inerts[0]);
   }
 
   // inertial of the child, in the coordinates of this body
-  child->SpecInertial(coms[1], inerts[1]);
+  if (child->InfersInertial()) {
+    masses[1] = child->mass;
+    child->CompiledInertial(coms[1], inerts[1]);
+  } else {
+    masses[1] = child->spec.mass;
+    child->SpecInertial(coms[1], inerts[1]);
+  }
   mjuu_rotVecQuat(coms[1], coms[1], childquat);
   mjuu_addtovec(coms[1], childpos, 3);
   RotateInertia(inerts[1], inerts[1], childquat);
@@ -2811,6 +2872,10 @@ void mjCBody::Compile(void) {
       }
     }
   }
+
+  // the inertial frame as it would be authored: alignment with a free joint changes it below
+  mjuu_copyvec(ipos_compiled_, ipos, 3);
+  mjuu_copyvec(iquat_compiled_, iquat, 4);
 
   // frame
   if (frame) { mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat); }

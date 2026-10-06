@@ -1248,6 +1248,35 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(ValueError):
       data_array[0] = -1
 
+  def test_adopt_inertial(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <worldbody>
+            <body name="body">
+              <joint/>
+              <geom name="geom" size=".1" pos="0 0 .2"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    body = spec.body('body')
+    model = spec.compile()
+    mass = model.body('body').mass[0]
+    self.assertFalse(body.explicitinertial)
+
+    spec.adopt_inertial(body)
+    self.assertTrue(body.explicitinertial)
+    self.assertAlmostEqual(body.mass, mass)
+    np.testing.assert_allclose(body.ipos, [0, 0, 0.2])
+
+    # The adopted inertial no longer follows the geom.
+    spec.geom('geom').size[0] = 0.2
+    self.assertAlmostEqual(spec.compile().body('body').mass[0], mass)
+
+    spec.compiler.inertiafromgeom = mujoco.mjtInertiaFromGeom.mjINERTIAFROMGEOM_TRUE
+    with self.assertRaisesRegex(ValueError, 'inertiafromgeom'):
+      spec.adopt_inertial(body)
+
   def test_asset_not_named_after_file(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')

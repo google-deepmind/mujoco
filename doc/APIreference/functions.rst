@@ -5952,6 +5952,22 @@ Set element's enclosing frame; return 0 on success.
 
 Resolve alternative orientations to quat; return error if any.
 
+.. _mjs_adoptInertial:
+
+`mjs_adoptInertial <#mjs_adoptInertial>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_adoptInertial
+
+Make the inertial which compilation infers for a body part of the spec. The mass, inertia and inertial frame which the
+compiler calculates from the geoms of the body, as the spec is now, are written as the explicit inertial of the body,
+so that later changes to its geoms no longer affect them. Compiling before and after gives the same model: the values
+are those before the scaling of :ref:`settotalmass<compiler-settotalmass>`. Nothing is done if the inertial of the body
+is not inferred. It is an error when :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true", which infers the
+inertia of every body whatever its inertial. Assets are read as in :ref:`mj_compile`. Returns 0 on success.
+
+To read an inferred inertial without adopting it, compile and look it up in :ref:`mjModel` with :ref:`mjs_getId`.
+
 .. _mjs_bodyToFrame:
 
 `mjs_bodyToFrame <#mjs_bodyToFrame>`__

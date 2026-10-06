@@ -5528,6 +5528,18 @@ static void compilerLogHandler(const mjLogMessage* msg) {
 
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
+  return Compile(vfs, m, /*treeonly=*/false, /*textures=*/true);
+}
+
+
+bool mjCModel::Resolve(const mjVFS* vfs, bool textures) {
+  Compile(vfs, nullptr, /*treeonly=*/true, textures);
+  return errInfo.message[0] == 0;
+}
+
+
+// compile the model, or only its assets and kinematic tree
+mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool textures) {
   if (compiled) { Clear(); }
 
   CopyFromSpec();
@@ -5570,7 +5582,12 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
       throw mjCError(0, "engine error: %s", error_msg.c_str());
     }
 
-    TryCompile(*const_cast<mjModel**>(&model), *const_cast<mjData**>(&data), vfs);
+    if (treeonly) {
+      // an operation on the spec leaves the keyframes as they are
+      CompileTree(vfs, textures, /*keyframes=*/false);
+    } else {
+      TryCompile(*const_cast<mjModel**>(&model), *const_cast<mjData**>(&data), vfs);
+    }
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(model);
@@ -5595,7 +5612,8 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   // restore log handler
   _mjPRIVATE_setTlsLogHandler(prev_tls);
   compiling_ = false;
-  compiled   = true;
+  if (treeonly) { return nullptr; }
+  compiled = true;
 
   // play back compile warnings through the normal handler chain
   for (int i = num_attach_warnings_; i < warnings_.size(); ++i) {
@@ -5651,9 +5669,9 @@ static void CompileTexture(mjCTexture*         texture,
 }
 
 // multi-threaded mesh and texture compilation with shared threadpool
-void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs) {
+void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs, bool textures) {
   int nmesh       = meshes_.size();
-  int ntexture    = textures_.size();
+  int ntexture    = textures ? textures_.size() : 0;
   int total_tasks = nmesh + ntexture;
 
   // holds exceptions thrown by worker threads
@@ -5851,28 +5869,31 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
   for (const std::string& name : resolved) { ForgetState(name); }
 }
 
-void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 #if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
-  // The MuJoCo compiler defaults to usethread=1, which causes it to try to
-  // create pthreads for compilation. In the single-threaded WASM build, this
-  // crashes because there is no threading support, so we disable threading on
-  // the internal compiler struct (not the spec) to avoid permanently mutating
-  // the spec (which would cause usethread="false" to appear in a saved XML).
-  struct ScopedDisableThreading {
-    mjtBool& ref;
-    mjtBool  saved;
-    explicit ScopedDisableThreading(mjtBool& r) : ref(r), saved(r) { ref = 0; }
-    ~ScopedDisableThreading() { ref = saved; }
-  } disable_usethread(compiler.usethread);
+// The MuJoCo compiler defaults to usethread=1, which causes it to try to
+// create pthreads for compilation. In the single-threaded WASM build, this
+// crashes because there is no threading support, so we disable threading on
+// the internal compiler struct (not the spec) to avoid permanently mutating
+// the spec (which would cause usethread="false" to appear in a saved XML).
+struct ScopedDisableThreading {
+  mjtBool& ref;
+  mjtBool  saved;
+  explicit ScopedDisableThreading(mjtBool& r) : ref(r), saved(r) { ref = 0; }
+  ~ScopedDisableThreading() { ref = saved; }
+};
 #endif
 
-  // clear compile-phase warnings from previous compile, keep attach warnings
-  ClearCompileWarnings();
+
+// first stage of compilation: the assets and the kinematic tree; keyframes are added and
+// completed only if asked, which a full compilation does and an operation on the spec does not
+void mjCModel::CompileTree(const mjVFS* vfs, bool textures, bool keyframes) {
+#if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
+  ScopedDisableThreading disable_usethread(compiler.usethread);
+#endif
 
   using Clock   = std::chrono::steady_clock;
   using Seconds = std::chrono::duration<double>;
-  for (int i = 0; i < mjNCTIMER; i++) { timer[i] = 0; }
-  Clock::time_point timer_start = Clock::now();
+
   // check if nan test works
   double test = mjNAN;
   if (mjuu_defined(test)) {
@@ -5888,7 +5909,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // add missing keyframes
-  for (int i = keys_.size(); i < nkey; i++) { AddKey(); }
+  if (keyframes) {
+    for (int i = keys_.size(); i < nkey; i++) { AddKey(); }
+  }
 
   // clear subtreedofs
   for (int i = 0; i < bodies_.size(); i++) { bodies_[i]->subtreedofs = 0; }
@@ -5955,7 +5978,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // compile meshes and textures (needed for geom compilation)
   {
     Clock::time_point t0 = Clock::now();
-    CompileMeshesAndTextures(vfs);
+    CompileMeshesAndTextures(vfs, textures);
     timer[mjCTIMER_ASSETS] = Seconds(Clock::now() - t0).count();
   }
 
@@ -5966,6 +5989,24 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (int i = 0; i < bodies_.size(); i++) {
     bodies_[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights, frames
   }
+}
+
+
+void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
+#if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
+  ScopedDisableThreading disable_usethread(compiler.usethread);
+#endif
+
+  // clear compile-phase warnings from previous compile, keep attach warnings
+  ClearCompileWarnings();
+
+  using Clock   = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<double>;
+  for (int i = 0; i < mjNCTIMER; i++) { timer[i] = 0; }
+  Clock::time_point timer_start = Clock::now();
+
+  // compile the assets and the kinematic tree
+  CompileTree(vfs, /*textures=*/true, /*keyframes=*/true);
 
   // fuse static if enabled
   if (compiler.fusestatic) {

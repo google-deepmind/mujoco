@@ -1968,6 +1968,10 @@ MJAPI int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
 
+// Make the inertial which compilation infers for a body part of the spec, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);
+
 // Transform body into a frame.
 MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 

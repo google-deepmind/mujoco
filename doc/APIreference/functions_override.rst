@@ -944,6 +944,17 @@ All outputs are optional.
 Remove object corresponding to the given element; return 0 on success. Deleting a body or a frame also deletes
 everything inside it, along with all the elements that reference a deleted element.
 
+.. _mjs_adoptInertial:
+
+Make the inertial which compilation infers for a body part of the spec. The mass, inertia and inertial frame which the
+compiler calculates from the geoms of the body, as the spec is now, are written as the explicit inertial of the body,
+so that later changes to its geoms no longer affect them. Compiling before and after gives the same model: the values
+are those before the scaling of :ref:`settotalmass<compiler-settotalmass>`. Nothing is done if the inertial of the body
+is not inferred. It is an error when :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true", which infers the
+inertia of every body whatever its inertial. Assets are read as in :ref:`mj_compile`. Returns 0 on success.
+
+To read an inferred inertial without adopting it, compile and look it up in :ref:`mjModel` with :ref:`mjs_getId`.
+
 .. _Resources:
 
 Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.

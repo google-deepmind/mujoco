@@ -2913,6 +2913,146 @@ TEST_F(MujocoTest, AttachFrameToSite) {
   mj_deleteModel(model);
 }
 
+// an operation which fails leaves the spec as it was, keyframes included
+TEST_F(MujocoTest, FailedOperationLeavesKeyframes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <size nkey="3"/>
+    <asset>
+      <mesh name="mesh" file="this_file_does_not_exist.obj"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <joint/>
+        <geom type="mesh" mesh="mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjSpec* copy = mj_copySpec(spec);
+
+  EXPECT_EQ(mjs_adoptInertial(mjs_findBody(spec, "body"), nullptr), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("this_file_does_not_exist.obj"));
+  EXPECT_THAT(mjs_firstElement(spec, mjOBJ_KEY), IsNull());
+  EXPECT_THAT(CompareSpec(copy, spec), IsEmpty());
+
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
+// the inertial which compilation infers for a body can be adopted: it becomes
+// part of the spec and no longer follows the geoms
+TEST_F(MujocoTest, AdoptInertial) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler angle="degree" settotalmass="10"/>
+    <asset>
+      <mesh name="cube" file="cube.obj" scale=".1 .1 .1"/>
+    </asset>
+    <worldbody>
+      <body name="arm" pos="0 0 1">
+        <joint/>
+        <frame pos=".1 0 0" euler="0 0 30">
+          <geom name="capsule" type="capsule" fromto="0 0 0 .3 0 0" size=".05"/>
+        </frame>
+        <geom name="cube" type="mesh" mesh="cube" pos="0 .2 0"/>
+      </body>
+      <body name="free" pos="1 0 1">
+        <freejoint align="true"/>
+        <geom name="box" type="box" size=".1 .2 .3" pos=".1 .2 .3" euler="10 20 30"/>
+        <geom name="ball" size=".1" pos="-.2 0 0"/>
+      </body>
+      <body name="given" pos="2 0 1">
+        <joint/>
+        <inertial pos="0 0 .1" mass="2" fullinertia="1 1 1 0 0 0"/>
+        <geom size=".1"/>
+      </body>
+      <body name="inferred" pos="3 0 1">
+        <joint/>
+        <geom name="inferred" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m0 = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m0, NotNull()) << mjs_getError(spec);
+  mjSpec* authored = mj_copySpec(spec);
+  mjsBody* arm = mjs_findBody(spec, "arm");
+  mjsBody* free = mjs_findBody(spec, "free");
+  mjsBody* given = mjs_findBody(spec, "given");
+  mjsBody* inferred = mjs_findBody(spec, "inferred");
+
+  // assets are read as when compiling: this mesh is in the VFS only
+  EXPECT_EQ(mjs_adoptInertial(arm, nullptr), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("cube.obj"));
+  EXPECT_FALSE(arm->explicitinertial);
+
+  EXPECT_EQ(mjs_adoptInertial(arm, vfs.get()), 0);
+  EXPECT_EQ(mjs_adoptInertial(free, vfs.get()), 0);
+  EXPECT_TRUE(arm->explicitinertial);
+  EXPECT_TRUE(free->explicitinertial);
+
+  // an inertial which was given is left as it was
+  EXPECT_EQ(mjs_adoptInertial(given, vfs.get()), 0);
+  EXPECT_THAT(CompareSpec(authored, spec), testing::Not(HasSubstr("'given'")));
+
+  // the model is the same, whichever bodies were adopted: the values are
+  // those before the total mass is set
+  mjModel* m1 = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_LE(CompareModel(m0, m1, field), MjTol(1e-12, 1e-5)) << field;
+
+  // an adopted inertial does not follow the geoms, an inferred one does
+  spec->compiler.settotalmass = -1;
+  mjModel* m2 = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "capsule"))->size[0] *= 2;
+  mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "inferred"))->size[0] *= 2;
+  mjModel* m3 = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m3, NotNull()) << mjs_getError(spec);
+  int arm_id = mjs_getId(arm->element);
+  int inferred_id = mjs_getId(inferred->element);
+  EXPECT_EQ(m3->body_mass[arm_id], m2->body_mass[arm_id]);
+  EXPECT_NEAR(m3->body_mass[inferred_id], 8 * m2->body_mass[inferred_id],
+              MjTol(1e-10, 1e-3));
+
+  // there is nothing to adopt when every inertia is inferred, whatever is given
+  spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_TRUE;
+  EXPECT_EQ(mjs_adoptInertial(inferred, vfs.get()), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("inertiafromgeom"));
+  EXPECT_FALSE(inferred->explicitinertial);
+  EXPECT_EQ(mjs_adoptInertial(mjs_findBody(spec, "world"), vfs.get()), -1);
+
+  mj_deleteModel(m0);
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteModel(m3);
+  mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
+}
+
 TEST_F(MujocoTest, BodyToFrame) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
@@ -3377,6 +3517,8 @@ TEST_F(MujocoTest, BodyToFrameFullInertia) {
   mj_deleteSpec(spec);
 }
 
+// an inertial which is inferred from geoms is merged like one which is given,
+// whether or not the spec was compiled before
 TEST_F(MujocoTest, BodyToFrameInferredInertia) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3388,61 +3530,178 @@ TEST_F(MujocoTest, BodyToFrameInferredInertia) {
           <geom size=".1"/>
         </body>
       </body>
-      <body name="explicit">
+      <body name="given">
         <joint/>
         <inertial mass="1" pos="0 0 0" diaginertia="2 3 4"/>
         <body name="child2" pos="1 0 0">
           <geom size=".1"/>
         </body>
       </body>
-    </worldbody>
-  </mujoco>)";
-
-  static constexpr char xml_expected[] = R"(
-  <mujoco>
-    <worldbody>
-      <body name="inferred">
+      <body name="geoms">
         <joint/>
         <geom size=".1"/>
-        <frame pos="1 0 0">
-          <geom size=".1"/>
-        </frame>
-      </body>
-      <body name="explicit">
-        <joint/>
-        <inertial mass="1" pos="0 0 0" diaginertia="2 3 4"/>
-        <frame pos="1 0 0">
-          <geom size=".1"/>
-        </frame>
+        <body name="child3" pos="1 0 0">
+          <inertial mass="2" pos="0 0 0" diaginertia="1 1 1"/>
+        </body>
       </body>
     </worldbody>
   </mujoco>)";
 
-  // compile, so that the converted bodies have a compiled mass
-  std::array<char, 1000> er;
-  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
-  ASSERT_THAT(spec, NotNull()) << er.data();
-  mjModel* compiled = mj_compile(spec, 0);
-  ASSERT_THAT(compiled, NotNull()) << mjs_getError(spec);
+  // a sphere: mass and inertia about its center
+  const double ms = 4.0 / 3.0 * mjPI * 1e-3 * 1000;
+  const double is = 0.4 * ms * 1e-2;
 
-  // bodies without an inertial leave the inertial of their parent alone
-  for (const char* name : {"child1", "child2"}) {
-    mjsBody* child = mjs_findBody(spec, name);
-    ASSERT_THAT(child, NotNull());
-    ASSERT_THAT(mjs_bodyToFrame(&child), NotNull()) << mjs_getError(spec);
+  for (bool compile_first : {false, true}) {
+    std::array<char, 1000> er;
+    mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    if (compile_first) {
+      mjModel* compiled = mj_compile(spec, 0);
+      ASSERT_THAT(compiled, NotNull()) << mjs_getError(spec);
+      mj_deleteModel(compiled);
+    }
+    for (const char* name : {"child1", "child2", "child3"}) {
+      mjsBody* child = mjs_findBody(spec, name);
+      ASSERT_THAT(child, NotNull());
+      ASSERT_THAT(mjs_bodyToFrame(&child), NotNull()) << mjs_getError(spec);
+    }
+
+    // two bodies whose inertia is inferred: the parent has both geoms
+    mjsBody* inferred = mjs_findBody(spec, "inferred");
+    EXPECT_FALSE(inferred->explicitinertial);
+
+    mjModel* m = mj_compile(spec, 0);
+    ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+    ASSERT_EQ(m->nbody, 4);
+    mjtNum tol = MjTol(1e-9, 1e-5);
+
+    // total mass, center of mass along x, and inertia about it: xx and yy = zz
+    struct Expected {
+      double mass, com, ixx, iyy;
+    };
+    double c2 = ms / (1 + ms);
+    double c3 = 2 / (ms + 2);
+    Expected expected[3] = {
+        {2 * ms, 0.5, 2 * is, 2 * is + 2 * ms * 0.25},
+        {1 + ms, c2, 2 + is, 3 + is + c2 * c2 + ms * (1 - c2) * (1 - c2)},
+        {ms + 2, c3, is + 1, is + 1 + ms * c3 * c3 + 2 * (1 - c3) * (1 - c3)},
+    };
+    for (int i = 0; i < 3; i++) {
+      int id = i + 1;
+      std::array<mjtNum, 6> inertia = BodyInertia(m, id);
+      EXPECT_NEAR(m->body_mass[id], expected[i].mass, tol) << id;
+      EXPECT_NEAR(m->body_ipos[3 * id], expected[i].com, tol) << id;
+      EXPECT_NEAR(inertia[0], expected[i].ixx, tol) << id;
+      EXPECT_NEAR(inertia[1], expected[i].iyy, tol) << id;
+      EXPECT_NEAR(inertia[2], expected[i].iyy + (i == 1 ? 1 : 0), tol) << id;
+    }
+
+    mj_deleteModel(m);
+    mj_deleteSpec(spec);
   }
-  mjModel* model = mj_compile(spec, 0);
-  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
-  MjModelPtr expected = LoadModelFromString(xml_expected, er.data(), er.size());
-  ASSERT_THAT(expected.get(), NotNull()) << er.data();
-  std::string field = "";
-  EXPECT_LE(CompareModel(model, expected.get(), field), 0)
-      << "Expected and converted models are different!\n"
-      << "Different field: " << field << '\n';
+}
 
+// the inertia which an earlier compilation inferred for the parent is not used
+// once the parent has lost its geoms
+TEST_F(MujocoTest, BodyToFrameStaleInferredInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <joint type="slide"/>
+        <geom name="geom" size=".1" mass="2"/>
+        <body name="child" pos="1 0 0">
+          <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  for (bool compile_first : {false, true}) {
+    SCOPED_TRACE(compile_first ? "compiled first" : "not compiled first");
+    mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+    ASSERT_THAT(spec, NotNull()) << error.data();
+    if (compile_first) {
+      mjModel* m = mj_compile(spec, nullptr);
+      ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+      EXPECT_EQ(m->body_mass[1], 2);
+      mj_deleteModel(m);
+    }
+
+    // the parent loses its geom, then receives the inertial of the child
+    EXPECT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_GEOM, "geom")), 0);
+    mjsBody* child = mjs_findBody(spec, "child");
+    EXPECT_THAT(mjs_bodyToFrame(&child), NotNull()) << mjs_getError(spec);
+    mjModel* m = mj_compile(spec, nullptr);
+    ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+    EXPECT_EQ(m->nbody, 2);
+    EXPECT_EQ(m->body_mass[1], 1);
+    EXPECT_EQ(m->body_ipos[3], 1);
+    mj_deleteModel(m);
+    mj_deleteSpec(spec);
+  }
+}
+
+// inferred inertia needs the assets: without them the conversion fails and
+// says how to proceed
+TEST_F(MujocoTest, BodyToFrameInferredInertiaAssets) {
+  static constexpr char cube[] = R"(
+  v -1 -1  1
+  v  1 -1  1
+  v -1  1  1
+  v  1  1  1
+  v -1  1 -1
+  v  1  1 -1
+  v -1 -1 -1
+  v  1 -1 -1)";
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" file="cube.obj" scale=".1 .1 .1"/>
+    </asset>
+    <worldbody>
+      <body name="parent">
+        <joint/>
+        <inertial mass="1" pos="0 0 0" diaginertia="2 3 4"/>
+        <body name="child" pos="1 0 0">
+          <geom type="mesh" mesh="cube"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "cube.obj", cube, sizeof(cube));
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, vfs.get(), er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjSpec* authored = mj_copySpec(spec);
+  mjModel* m0 = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m0, NotNull()) << mjs_getError(spec);
+
+  // the mesh cannot be read without the VFS: nothing is changed
+  mjsBody* child = mjs_findBody(spec, "child");
+  EXPECT_THAT(mjs_bodyToFrame(&child), IsNull());
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("mjs_adoptInertial"));
+  EXPECT_THAT(CompareSpec(authored, spec), IsEmpty());
+
+  // once the inertial is adopted, the conversion does not need the mesh
+  ASSERT_THAT(child, NotNull());
+  EXPECT_EQ(mjs_adoptInertial(child, vfs.get()), 0);
+  ASSERT_THAT(mjs_bodyToFrame(&child), NotNull()) << mjs_getError(spec);
+  mjModel* m1 = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(m1->body_mass[1], m0->body_mass[1] + m0->body_mass[2],
+              MjTol(1e-12, 1e-6));
+
+  mj_deleteModel(m0);
+  mj_deleteModel(m1);
+  mj_deleteSpec(authored);
   mj_deleteSpec(spec);
-  mj_deleteModel(compiled);
-  mj_deleteModel(model);
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(MujocoTest, BodyToFrameInvalidInertial) {
