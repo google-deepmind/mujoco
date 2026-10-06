@@ -124,12 +124,11 @@ setup_emsdk() {
 
 configure_mujoco() {
     echo "Configuring MuJoCo..."
-    # Disable IPO/LTO to cut build time. Skip this on Windows: turning off MSVC's
-    # whole-program optimization (/GL) exposes a latent heap corruption in
-    # SetConstTest.SleepingNotAllowed (a real bug worth a separate investigation),
-    # and Windows build time is not a CI bottleneck.
+    # Disable IPO/LTO to cut build time. Skip this on Windows MSVC: turning off
+    # MSVC's whole-program optimization (/GL) exposes a latent heap corruption in
+    # SetConstTest.SleepingNotAllowed (a real bug worth a separate investigation).
     local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
-    if [[ "${RUNNER_OS}" == "Windows" ]]; then
+    if [[ "${RUNNER_OS}" == "Windows" && "${CMAKE_ARGS}" != *clang* ]]; then
         ipo_off=""
     fi
 
@@ -316,7 +315,15 @@ build_python_bindings() {
     # layout, producing an ABI-mismatched binding (wrong field offsets, stale
     # mjNENABLE, signature mismatch). The mtime/ctime flags are kept: they handle the
     # temp-dir churn without affecting header content detection.
-    export CCACHE_BASEDIR="${TMPDIR}"
+    # On Windows (Git Bash / MSYS2), TMPDIR is an MSYS path (/c/Temp) that MSYS2
+    # does not auto-convert in custom env vars passed to native Win32 processes,
+    # so convert it to a Windows path (C:/Temp) for ccache.exe.
+    if command -v cygpath >/dev/null 2>&1; then
+        export CCACHE_BASEDIR="$(cygpath -m "${TMPDIR}")"
+    else
+        export CCACHE_BASEDIR="${TMPDIR}"
+    fi
+    export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
     MUJOCO_PATH="${TMPDIR}/mujoco_install" \
     MUJOCO_PLUGIN_PATH="${TMPDIR}/mujoco_install/mujoco_plugin" \
@@ -503,7 +510,12 @@ _build_python_wheel() {
 
     # See build_python_bindings for why CCACHE_BASEDIR/SLOPPINESS are set.
     # ccache is what keeps repeated wheel builds bearable.
-    export CCACHE_BASEDIR="${TMPDIR:-$(pwd)}"
+    if command -v cygpath >/dev/null 2>&1; then
+        export CCACHE_BASEDIR="$(cygpath -m "${TMPDIR:-$(pwd)}")"
+    else
+        export CCACHE_BASEDIR="${TMPDIR:-$(pwd)}"
+    fi
+    export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
     MUJOCO_PATH="${prefix}" \
     MUJOCO_PLUGIN_PATH="${prefix}/mujoco_plugin" \
@@ -748,9 +760,9 @@ build_studio_wasm() {
 build_engine() {
     echo "Building the MuJoCo engine..."
     local prefix="${TMPDIR:-$(pwd)/build}/mujoco_install"
-    # See configure_mujoco for why IPO stays on for Windows.
+    # See configure_mujoco for why IPO stays on for Windows MSVC.
     local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
-    if [[ "${RUNNER_OS}" == "Windows" ]]; then
+    if [[ "${RUNNER_OS}" == "Windows" && "${CMAKE_ARGS}" != *clang* ]]; then
         ipo_off=""
     fi
     cmake -S . -B build -G Ninja \
@@ -784,7 +796,7 @@ build_simulate_app() {
     if [[ ! -f build_simulate/CMakeCache.txt ]]; then
         echo "Configuring the engine + simulate build..."
         local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
-        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+        if [[ "${RUNNER_OS}" == "Windows" && "${CMAKE_ARGS}" != *clang* ]]; then
             ipo_off=""
         fi
         cmake -S . -B build_simulate -G Ninja \
