@@ -530,6 +530,36 @@ TEST_F(XMLReaderTest, AllowsSpaces) {
   ASSERT_THAT(model.get(), NotNull());
 }
 
+TEST_F(XMLReaderTest, QuatReplacesDefaultOrientation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <geom size="1" euler="0 0 90"/>
+      <site euler="0 0 90"/>
+      <camera euler="0 0 90"/>
+    </default>
+
+    <worldbody>
+      <geom name="inherits"/>
+      <geom name="replaces" quat="1 0 0 0"/>
+      <site name="inherits"/>
+      <site name="replaces" quat="1 0 0 0"/>
+      <camera name="inherits"/>
+      <camera name="replaces" quat="1 0 0 0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_NE(model->geom_quat[0], 1);
+  EXPECT_THAT(AsVector(model->geom_quat + 4, 4), ElementsAre(1, 0, 0, 0));
+  EXPECT_NE(model->site_quat[0], 1);
+  EXPECT_THAT(AsVector(model->site_quat + 4, 4), ElementsAre(1, 0, 0, 0));
+  EXPECT_NE(model->cam_quat[0], 1);
+  EXPECT_THAT(AsVector(model->cam_quat + 4, 4), ElementsAre(1, 0, 0, 0));
+}
+
 TEST_F(XMLReaderTest, InvalidDoubleOrientation) {
   std::string prefix = "<mujoco><worldbody><";
   std::string suffix = "/></worldbody></mujoco>";

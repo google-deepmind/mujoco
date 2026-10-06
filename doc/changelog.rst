@@ -98,6 +98,10 @@ Bug fixes
   :ref:`mj_saveLastXML` does, including those which are computed at the end of compilation, such as the damping
   which :ref:`dampratio<actuator-position-dampratio>` gives, and no longer lose the scaling of
   :ref:`settotalmass<compiler-settotalmass>`.
+- The ``quat`` of a geom, site or camera is no longer ignored when its :ref:`default class<default>` gives an
+  orientation as ``euler``, ``axisangle``, ``xyaxes`` or ``zaxis``.
+- Saving MJCF no longer changes or loses the following: the order of the elements of a body which has
+  :ref:`frames<frame>`, which gave the saved model other ids; and ``class="main"`` inside another ``childclass``.
 
 Python bindings
 ^^^^^^^^^^^^^^^

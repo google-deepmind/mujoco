@@ -969,6 +969,96 @@ TEST_F(XMLWriterTest, FramesRoundTrip) {
   mj_deleteSpec(spec);
 }
 
+// elements of one kind keep their order, and so their ids, when frames hold
+// some of them
+TEST_F(XMLWriterTest, KeepsOrderAroundFrames) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="g0" size="1"/>
+      <frame name="outer">
+        <geom name="g1" size="1"/>
+        <body name="b1"/>
+        <body name="b2"/>
+        <frame name="inner">
+          <body name="b3"/>
+          <geom name="g2" size="1"/>
+        </frame>
+        <site name="s0"/>
+      </frame>
+      <geom name="g3" size="1"/>
+      <body name="b4"/>
+      <site name="s1"/>
+      <frame name="last">
+        <site name="s2"/>
+      </frame>
+      <site name="s3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved = SaveAndReadXml(model.get());
+  std::array<char, 1024> error;
+  MjModelPtr reloaded =
+      LoadModelFromString(saved.c_str(), error.data(), error.size());
+  ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+  for (int i = 0; i < 4; i++) {
+    EXPECT_STREQ(mj_id2name(reloaded.get(), mjOBJ_GEOM, i),
+                 ("g" + std::to_string(i)).c_str())
+        << saved;
+    EXPECT_STREQ(mj_id2name(reloaded.get(), mjOBJ_BODY, i + 1),
+                 ("b" + std::to_string(i + 1)).c_str())
+        << saved;
+    EXPECT_STREQ(mj_id2name(reloaded.get(), mjOBJ_SITE, i),
+                 ("s" + std::to_string(i)).c_str())
+        << saved;
+  }
+}
+
+// an element or a body which has the main class inside a body with another
+// childclass is saved with its class
+TEST_F(XMLWriterTest, KeepsMainClassUnderChildclass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <geom size="1"/>
+      <default class="small">
+        <geom size="0.5"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body childclass="small">
+        <geom name="small"/>
+        <geom name="main" class="main"/>
+        <body childclass="main">
+          <geom name="inner"/>
+          <frame childclass="small">
+            <geom name="framed"/>
+            <frame childclass="main">
+              <geom name="nested"/>
+            </frame>
+          </frame>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  EXPECT_THAT(AsVector(model->geom_size, 15),
+              ElementsAre(0.5, 0, 0, 1, 0, 0, 1, 0, 0, 0.5, 0, 0, 1, 0, 0));
+  std::string saved = SaveAndReadXml(model.get());
+  std::array<char, 1024> error;
+  MjModelPtr reloaded =
+      LoadModelFromString(saved.c_str(), error.data(), error.size());
+  ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+  EXPECT_THAT(AsVector(reloaded->geom_size, 15),
+              ElementsAre(0.5, 0, 0, 1, 0, 0, 1, 0, 0, 0.5, 0, 0, 1, 0, 0))
+      << saved;
+}
+
 // quaternion product and pose composition in double precision
 static void MulQuat(double res[4], const double a[4], const double b[4]) {
   double q[4] = {a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],

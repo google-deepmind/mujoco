@@ -14,6 +14,7 @@
 
 #include "xml/xml_native_writer.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdio>
@@ -377,9 +378,7 @@ void mjXWriter::OneJoint(XMLElement*     elem,
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", joint->name);
-    if (classname != joint->classname && joint->classname != "main") {
-      WriteAttrTxt(elem, "class", joint->classname);
-    }
+    if (classname != joint->classname) { WriteAttrTxt(elem, "class", joint->classname); }
   }
 
   // defaults and regular
@@ -426,9 +425,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", geom->name);
-    if (classname != geom->classname && geom->classname != "main") {
-      WriteAttrTxt(elem, "class", geom->classname);
-    }
+    if (classname != geom->classname) { WriteAttrTxt(elem, "class", geom->classname); }
     if (mjGEOMINFO[geom->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[geom->type], geom->size, def->Geom().size);
     }
@@ -496,9 +493,7 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", site->name);
-    if (classname != site->classname && site->classname != "main") {
-      WriteAttrTxt(elem, "class", site->classname);
-    }
+    if (classname != site->classname) { WriteAttrTxt(elem, "class", site->classname); }
     if (mjGEOMINFO[site->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[site->type], site->size, def->Site().size);
     }
@@ -550,9 +545,7 @@ void mjXWriter::OneCamera(XMLElement*      elem,
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", camera->name);
-    if (classname != camera->classname && camera->classname != "main") {
-      WriteAttrTxt(elem, "class", camera->classname);
-    }
+    if (classname != camera->classname) { WriteAttrTxt(elem, "class", camera->classname); }
     WriteAttrTxt(elem, "target", camera->get_targetbody());
     WriteAttr(elem, "quat", 4, local.quat, unitq);
   }
@@ -587,9 +580,7 @@ void mjXWriter::OneLight(XMLElement*     elem,
   // regular
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", light->name);
-    if (classname != light->classname && light->classname != "main") {
-      WriteAttrTxt(elem, "class", light->classname);
-    }
+    if (classname != light->classname) { WriteAttrTxt(elem, "class", light->classname); }
     WriteAttrTxt(elem, "target", light->get_targetbody());
   }
 
@@ -1580,6 +1571,9 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame, string_view c
 void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_view childclass) {
   double unitq[4] = {1, 0, 0, 0};
 
+  // the class which is active around the body or frame
+  const string enclosing = childclass.empty() ? "main" : string(childclass);
+
   if (!body) {
     throw mjXError(0, "missing body in XML write");  // SHOULD NOT OCCUR
   }
@@ -1587,7 +1581,7 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
   // write body attributes and inertial
   else if (!frame && body != model->GetWorld()) {
     WriteAttrTxt(elem, "name", body->name);
-    if (childclass != body->classname && body->classname != "main") {
+    if (!body->classname.empty() && body->classname != enclosing) {
       WriteAttrTxt(elem, "childclass", body->classname);
     }
 
@@ -1631,106 +1625,104 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     }
   }
 
-  // joints in this frame
-  for (int i = 0; i < body->joints.size(); i++) {
-    if (body->joints[i]->frame != frame) { continue; }
-    string classname = body->joints[i]->frame && !body->joints[i]->frame->classname.empty()
-                           ? body->joints[i]->frame->classname
-                           : body->classname;
-    OneJoint(InsertEnd(elem, "joint"),
-             body->joints[i],
-             model->def_map[body->joints[i]->classname],
-             classname.empty() ? childclass : classname);
+  // The elements of the body which are in this frame, and the frames which are in it. Elements
+  // of one kind are numbered in the model in the order of their list in the body, which is the
+  // order in which they are read: so the elements of each kind are written in that order, those
+  // which follow elements inside a frame after that frame.
+
+  // the class which is active for the elements in this frame: its own, or the one around it
+  const string& own    = frame ? frame->classname : body->classname;
+  const string  active = own.empty() ? enclosing : own;
+
+  // write the elements of a list which are in this frame, from where the last call stopped up to
+  // the given index
+  size_t njoint = 0, ngeom = 0, nsite = 0, ncamera = 0, nlight = 0, nbody = 0;
+  auto   joints = [&](size_t stop) {
+    for (; njoint < stop; njoint++) {
+      mjCJoint* joint = body->joints[njoint];
+      if (joint->frame != frame) { continue; }
+      OneJoint(InsertEnd(elem, "joint"), joint, model->def_map[joint->classname], active);
+    }
+  };
+  auto geoms = [&](size_t stop) {
+    for (; ngeom < stop; ngeom++) {
+      mjCGeom* geom = body->geoms[ngeom];
+      if (geom->frame != frame) { continue; }
+      OneGeom(InsertEnd(elem, "geom"), geom, model->def_map[geom->classname], active);
+    }
+  };
+  auto sites = [&](size_t stop) {
+    for (; nsite < stop; nsite++) {
+      mjCSite* site = body->sites[nsite];
+      if (site->frame != frame) { continue; }
+      OneSite(InsertEnd(elem, "site"), site, model->def_map[site->classname], active);
+    }
+  };
+  auto cameras = [&](size_t stop) {
+    for (; ncamera < stop; ncamera++) {
+      mjCCamera* camera = body->cameras[ncamera];
+      if (camera->frame != frame) { continue; }
+      OneCamera(InsertEnd(elem, "camera"), camera, model->def_map[camera->classname], active);
+    }
+  };
+  auto lights = [&](size_t stop) {
+    for (; nlight < stop; nlight++) {
+      mjCLight* light = body->lights[nlight];
+      if (light->frame != frame) { continue; }
+      OneLight(InsertEnd(elem, "light"), light, model->def_map[light->classname], active);
+    }
+  };
+  auto bodies = [&](size_t stop) {
+    for (; nbody < stop; nbody++) {
+      mjCBody* child = body->bodies[nbody];
+      if (child->frame != frame) { continue; }
+      Body(InsertEnd(elem, "body"), child, nullptr, active);
+    }
+  };
+
+  // the frames in this frame, and the position among them of the one which a frame is or is
+  // inside; -1 if it is none of them
+  std::vector<mjCFrame*> inner;
+  for (mjCFrame* child : body->frames) {
+    if (child->frame == frame) { inner.push_back(child); }
+  }
+  auto position = [&](const mjCFrame* at) -> int {
+    while (at && at->frame != frame) { at = at->frame; }
+    auto found = std::find(inner.begin(), inner.end(), at);
+    return found == inner.end() ? -1 : static_cast<int>(found - inner.begin());
+  };
+
+  // index of the first element of a list, from the given one, which is inside one of the frames
+  // from the given position on; the size of the list if there is none
+  auto first = [&](const auto& list, size_t from, int from_position) -> size_t {
+    for (size_t k = from; k < list.size(); k++) {
+      if (list[k]->frame != frame && position(list[k]->frame) >= from_position) { return k; }
+    }
+    return list.size();
+  };
+
+  // each frame after the elements which precede those inside it and inside the frames after it
+  for (int i = 0; i < inner.size(); i++) {
+    joints(first(body->joints, njoint, i));
+    geoms(first(body->geoms, ngeom, i));
+    sites(first(body->sites, nsite, i));
+    cameras(first(body->cameras, ncamera, i));
+    lights(first(body->lights, nlight, i));
+    bodies(first(body->bodies, nbody, i));
+    Body(OneFrame(elem, inner[i], active), body, inner[i], active);
   }
 
-  // geoms in this frame
-  for (int i = 0; i < body->geoms.size(); i++) {
-    if (body->geoms[i]->frame != frame) { continue; }
-    string classname = body->geoms[i]->frame && !body->geoms[i]->frame->classname.empty()
-                           ? body->geoms[i]->frame->classname
-                           : body->classname;
-    OneGeom(InsertEnd(elem, "geom"),
-            body->geoms[i],
-            model->def_map[body->geoms[i]->classname],
-            classname.empty() ? childclass : classname);
-  }
-
-  // sites in this frame
-  for (int i = 0; i < body->sites.size(); i++) {
-    if (body->sites[i]->frame != frame) { continue; }
-    string classname = body->sites[i]->frame && !body->sites[i]->frame->classname.empty()
-                           ? body->sites[i]->frame->classname
-                           : body->classname;
-    OneSite(InsertEnd(elem, "site"),
-            body->sites[i],
-            model->def_map[body->sites[i]->classname],
-            classname.empty() ? childclass : classname);
-  }
-
-  // cameras in this frame
-  for (int i = 0; i < body->cameras.size(); i++) {
-    if (body->cameras[i]->frame != frame) { continue; }
-    string classname = body->cameras[i]->frame && !body->cameras[i]->frame->classname.empty()
-                           ? body->cameras[i]->frame->classname
-                           : body->classname;
-    OneCamera(InsertEnd(elem, "camera"),
-              body->cameras[i],
-              model->def_map[body->cameras[i]->classname],
-              classname.empty() ? childclass : classname);
-  }
-
-  // lights in this frame
-  for (int i = 0; i < body->lights.size(); i++) {
-    if (body->lights[i]->frame != frame) { continue; }
-    string classname = body->lights[i]->frame && !body->lights[i]->frame->classname.empty()
-                           ? body->lights[i]->frame->classname
-                           : body->classname;
-    OneLight(InsertEnd(elem, "light"),
-             body->lights[i],
-             model->def_map[body->lights[i]->classname],
-             classname.empty() ? childclass : classname);
-  }
+  // the elements which follow the last frame
+  joints(body->joints.size());
+  geoms(body->geoms.size());
+  sites(body->sites.size());
+  cameras(body->cameras.size());
+  lights(body->lights.size());
 
   // write plugin, once: not again inside the body's frames
   if (!frame && body->plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &body->plugin); }
 
-  // write children recursively
-  int i = 0, j = 0;
-  while (i < body->bodies.size() || body->bodies.empty()) {
-    mjCFrame* bframe = body->bodies.empty() ? nullptr : body->bodies[i]->frame;
-
-    // write body if its frame matches the current frame, avoid access if there are no bodies
-    if (bframe == frame && !body->bodies.empty()) {
-      string classname = bframe && !bframe->classname.empty() ? bframe->classname : body->classname;
-      Body(InsertEnd(elem, "body"),
-           body->bodies[i],
-           nullptr,
-           classname.empty() ? childclass : classname);
-    }
-
-    i++;
-
-    // do not go to frames until we reach a body with a frame or we are done with bodies
-    if (!bframe && i < body->bodies.size()) { continue; }
-
-    // loop over the remaining frames in the current body
-    while (j < body->frames.size()) {
-      mjCFrame* fframe = body->frames[j++];
-
-      // write frame if its frame matches the current frame
-      if (fframe->frame == frame) {
-        // class active around the new frame: the current frame's, else the body's
-        string classname = frame && !frame->classname.empty() ? frame->classname : body->classname;
-        Body(OneFrame(elem, fframe, classname.empty() ? childclass : classname),
-             body,
-             fframe,
-             childclass);
-      }
-    }
-
-    // if there are no bodies, we only want to run the loop once
-    if (body->bodies.empty()) { break; }
-  }
+  bodies(body->bodies.size());
 }
 
 
