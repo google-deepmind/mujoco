@@ -120,6 +120,7 @@ void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
   } else {
     mju_error("Cannot set mesh for renderable with multiple parts.");
   }
+  curr_state_.wireframe = false;
 }
 
 void Renderable::InitPartEntity(Part& part) {
