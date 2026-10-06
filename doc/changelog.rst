@@ -22,6 +22,13 @@ Bug fixes
 - Compiling an :ref:`mjSpec` no longer reorders its contact :ref:`pairs<contact-pair>` and
   :ref:`excludes<contact-exclude>`; :ref:`mjs_findElement` could then return a different one than the one named.
 
+Models
+^^^^^^
+- Added three `elastic mechanism <https://github.com/google-deepmind/mujoco/tree/main/model/flex/mechanisms/>`__
+  example models using multicell trilinear flexes: a cantilever material comparison, an elastic slider-crank, and a
+  tendon-loaded dipper arm. Inspired by `Miles Macklin's Reduced Elastic Links experiments
+  <https://reports.mmacklin.com/newton-reduced/reduced_elastic_links_implementation.html>`__.
+
 Version 3.15.0 (October 5, 2026)
 --------------------------------
 
