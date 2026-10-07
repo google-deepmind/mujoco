@@ -19,7 +19,7 @@ import dataclasses
 from typing import Any, Protocol
 
 import mujoco
-from mujoco import _render_filament as mjrf
+from mujoco import mjrf
 import numpy as np
 
 

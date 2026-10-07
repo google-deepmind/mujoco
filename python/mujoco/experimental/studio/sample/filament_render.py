@@ -17,7 +17,7 @@ from collections.abc import Sequence
 
 from absl import app
 import mujoco
-import mujoco._render_filament as mjrf
+from mujoco import mjrf
 from mujoco.experimental.studio import window
 from mujoco.rendering.filament import renderer
 import numpy as np
