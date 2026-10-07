@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -303,6 +304,8 @@ class App {
   std::string last_content_type_;
   StepControl::PauseState last_pause_state_ =
       StepControl::PauseState::kNormalPaused;
+  std::chrono::steady_clock::time_point last_frame_time_;
+  double fps_ = 0;
 
   // Pending operations.
   std::optional<std::string> pending_load_;

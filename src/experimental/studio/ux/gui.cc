@@ -2230,7 +2230,8 @@ void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
   }
 }
 
-void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
+void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps,
+             float gpu_ms) {
   const int num_islands = std::clamp(data->nisland, 1, mjNISLAND);
 
   // compute solver error (maximum over islands)
@@ -2266,6 +2267,7 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
   ImGui::Text("CPU");
   ImGui::Text("Solver");
   ImGui::Text("FPS");
+  ImGui::Text("GPU");
   ImGui::Text("Memory");
   if (model->opt.enableflags & mjENBL_ENERGY) {
     ImGui::Text("Energy");
@@ -2283,6 +2285,7 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
   ImGui::Text("%.3f", cpu);
   ImGui::Text("%.1f (%d it)", solver_err, solver_iter);
   ImGui::Text("%0.1f", fps);
+  ImGui::Text("%.2f ms", gpu_ms);
   ImGui::Text("%.1f%% of %s", mempct, memlimit);
   if (model->opt.enableflags & mjENBL_ENERGY) {
     ImGui::Text("%.3f", data->energy[0] + data->energy[1]);

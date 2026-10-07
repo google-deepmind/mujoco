@@ -259,8 +259,10 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler,
                  bool show_iter);
 
 // UX for displaying basic simulation information. Note that the pause state and
-// FPS needs to be tracked by the caller and passed here to be displayed.
-void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps);
+// FPS and GPU frame time need to be tracked by the caller and passed here to be
+// displayed.
+void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps,
+             float gpu_ms);
 
 }  // namespace mujoco::studio
 

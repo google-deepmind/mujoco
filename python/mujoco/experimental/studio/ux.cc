@@ -500,12 +500,13 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
   m.def(
       "info_gui",
       [](const mujoco::python::MjModelWrapper& model,
-         mujoco::python::MjDataWrapper& data, bool paused, float fps) {
+         mujoco::python::MjDataWrapper& data, bool paused, float fps,
+         float gpu_ms) {
         py::gil_scoped_release no_gil;
-        mujoco::studio::InfoGui(model.get(), data.get(), paused, fps);
+        mujoco::studio::InfoGui(model.get(), data.get(), paused, fps, gpu_ms);
       },
       py::arg("model"), py::arg("data"), py::arg("paused"), py::arg("fps"),
-      "Render the simulation info UI.");
+      py::arg("gpu_ms") = 0.0f, "Render the simulation info UI.");
 
   m.attr("FREE_CAMERA_IDX") = mujoco::studio::kFreeCameraIdx;
   m.attr("TUMBLE_CAMERA_IDX") = mujoco::studio::kTumbleCameraIdx;
