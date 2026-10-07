@@ -1615,15 +1615,15 @@ static inline mjtNum witnessOnFace(mjtNum w1[3], mjtNum w2[3], const mjtNum v[3]
 }
 
 
-// clip a polygon against another polygon
-static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
-                        const mjtNum* face2, int nface2, const mjtNum n[3],
-                        const mjtNum dir[3], mjtNum* buffer, int npolygonmax) {
+// clip a polygon against another polygon, return number of contacts written
+static int polygonClip(mjtNum* x1, mjtNum* x2, mjtNum* dist, int nconmax,
+                       const mjtNum* face1, int nface1,
+                       const mjtNum* face2, int nface2, const mjtNum n[3],
+                       const mjtNum dir[3], mjtNum* buffer, int npolygonmax) {
   // clipping face needs to be at least a triangle
   if (nface1 < 3) {
-    return;
+    return 0;
   }
-  mjtNum* dist = status->dist;
   mjtNum* polygon = buffer;
   mjtNum* clipped = polygon + 6 * npolygonmax;
   mjtNum* pn = clipped + 6 * npolygonmax;
@@ -1703,19 +1703,17 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
   }
 
   if (npolygon < 1) {
-    return;
+    return 0;
   }
 
-  // copy final clipped polygon to status
-  if (status->max_contacts < 5 && npolygon > 4) {
-    status->nx = 4;
+  // copy final clipped polygon
+  if (nconmax < 5 && npolygon > 4) {
     int idx[4];
     hull4(idx, polygon, npolygon);
     for (int i = 0; i < 4; i++) {
-      dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*idx[i],
-                              face1, n, dir);
+      dist[i] = witnessOnFace(x1 + 3*i, x2 + 3*i, polygon + 3*idx[i], face1, n, dir);
     }
-    return;
+    return 4;
   }
 
   // if the face is an edge, remove potential duplicates
@@ -1735,19 +1733,17 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
         }
       }
     }
-    dist[0] = witnessOnFace(status->x1, status->x2, polygon + 3*best1, face1, n, dir);
-    dist[1] = witnessOnFace(status->x1 + 3, status->x2 + 3, polygon + 3*best2, face1, n, dir);
-    status->nx = 2;
-    return;
+    dist[0] = witnessOnFace(x1, x2, polygon + 3*best1, face1, n, dir);
+    dist[1] = witnessOnFace(x1 + 3, x2 + 3, polygon + 3*best2, face1, n, dir);
+    return 2;
   }
 
   // no pruning needed (cap to max contacts)
-  int maxcon = sizeof(status->x2) / (3*sizeof(status->x2[0]));
-  npolygon = (npolygon < maxcon) ? npolygon : maxcon;
+  npolygon = (npolygon < nconmax) ? npolygon : nconmax;
   for (int i = 0; i < npolygon; i++) {
-    dist[i] = witnessOnFace(status->x1 + 3*i, status->x2 + 3*i, polygon + 3*i, face1, n, dir);
+    dist[i] = witnessOnFace(x1 + 3*i, x2 + 3*i, polygon + 3*i, face1, n, dir);
   }
-  status->nx = npolygon;
+  return npolygon;
 }
 
 
@@ -2347,31 +2343,30 @@ static void multicontact(int nmeshdegmax, int npolygonmax, uint8_t* buffer, cons
   // normal direction for witness recovery
   mjtNum wit_dir[3];
 
-  // face1 is an edge; clip face1 against face2
+  // save status members
+  int nx, nconmax = status->max_contacts;
+  mjtNum* dist = status->dist, *x1 = status->x1, *x2 = status->x2;
+
   if (edgecon1) {
+    // face1 is an edge; clip face1 against face2
     scl3(wit_dir, n2 + 3*j, -1.0);
-    polygonClip(status, face2, nface2, face1, nface1, n2 + 3*j, wit_dir, polygon, npolygonmax);
-    // x1 and x2 must be flipped as we flipped the faces in polygonClip
-    int nx = status->nx;
-    for (int k = 0; k < nx; k++) {
-      mjtNum tmp[3];
-      copy3(tmp, status->x1 + 3*k);
-      copy3(status->x1 + 3*k, status->x2 + 3*k);
-      copy3(status->x2 + 3*k, tmp);
-    }
-    return;
-  }
-
-  // face2 is an edge; clip face2 against face1
-  if (edgecon2) {
+    nx = polygonClip(x2, x1, dist, nconmax, face2, nface2, face1, nface1, n2 + 3*j, wit_dir,
+                     polygon, npolygonmax);
+  } else if (edgecon2) {
+    // face2 is an edge; clip face2 against face1
     scl3(wit_dir, n1 + 3*j, -1.0);
-    polygonClip(status, face1, nface1, face2, nface2, n1 + 3*j, wit_dir, polygon, npolygonmax);
-    return;
+    nx = polygonClip(x1, x2, dist, nconmax, face1, nface1, face2, nface2, n1 + 3*j, wit_dir,
+                     polygon, npolygonmax);
+  } else {
+    // face-face collision
+    copy3(wit_dir, n2 + 3*j);
+    nx = polygonClip(x1, x2, dist, nconmax, face1, nface1, face2, nface2, n1 + 3*i, wit_dir,
+                     polygon, npolygonmax);
   }
 
-  // face-face collision
-  copy3(wit_dir, n2 + 3*j);
-  polygonClip(status, face1, nface1, face2, nface2, n1 + 3*i, wit_dir, polygon, npolygonmax);
+  if (nx > 0) {
+    status->nx = nx;
+  }
 }
 
 
@@ -2433,7 +2428,8 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   status->epa_status = mjEPA_NOCONTACT;
   status->tolerance = config->tolerance;
   status->max_iterations = config->max_iterations;
-  status->max_contacts = config->max_contacts;
+  int maxcon = sizeof(status->dist) / sizeof(status->dist[0]);
+  status->max_contacts = config->max_contacts < maxcon ? config->max_contacts : maxcon;
   status->dist_cutoff = config->dist_cutoff;
 
   // special handling for sphere and capsule (shrink to point and line respectively)
