@@ -2055,6 +2055,78 @@ TEST_F(DiscardVisualTest, DiscardVisualThenError) {
   mj_deleteSpec(spec);
 }
 
+// discarding visual elements deletes the plugin instances which only they refer
+// to, also in a spec which was never compiled, and keeps those which another
+// element refers to
+TEST_F(DiscardVisualTest, DiscardVisualDeletesPluginInstances) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="shared">
+          <config key="radius1" value="0.35"/>
+          <config key="radius2" value="0.15"/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="shared">
+        <plugin instance="shared"/>
+      </mesh>
+      <mesh name="visual">
+        <plugin plugin="mujoco.sdf.torus">
+          <config key="radius1" value="0.25"/>
+          <config key="radius2" value="0.125"/>
+        </plugin>
+      </mesh>
+    </asset>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        <geom name="collides" type="sdf" mesh="shared">
+          <plugin instance="shared"/>
+        </geom>
+        <geom name="visual" type="sdf" mesh="visual" contype="0" conaffinity="0">
+          <plugin plugin="mujoco.sdf.torus">
+            <config key="radius1" value="0.25"/>
+            <config key="radius2" value="0.125"/>
+          </plugin>
+        </geom>
+        <geom name="shares" type="sdf" mesh="shared" contype="0" conaffinity="0">
+          <plugin instance="shared"/>
+        </geom>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  auto instances = [](mjSpec* spec) {
+    int n = 0;
+    for (mjsElement* plugin = mjs_firstElement(spec, mjOBJ_PLUGIN); plugin;
+         plugin = mjs_nextElement(spec, plugin)) {
+      n++;
+    }
+    return n;
+  };
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  ASSERT_EQ(instances(spec), 3);
+
+  ASSERT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "shares"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "visual"), IsNull());
+  ASSERT_EQ(instances(spec), 1);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_PLUGIN, "shared"), NotNull());
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nplugin, 1);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 // ------------- test lengthrange ----------------------------------------------
 
 using LengthRangeTest = MujocoTest;

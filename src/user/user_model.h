@@ -448,8 +448,12 @@ class mjCModel : public mjCModel_, private mjSpec {
   int  CountNJmom(const mjModel* m);  // compute number of non-zeros in actuator_moment matrix
   int  CountNJten(const mjModel* m);  // compute number of non-zeros in ten_J matrix
 
-  // remove plugins that are not referenced by any object
-  void RemovePlugins();
+  // return the plugin instances that elements or defaults reference by name or point to, including
+  // the elements in the subtree of body, which can be outside the tree
+  std::unordered_set<const mjsElement*> ReferencedPlugins(const mjCBody* body = nullptr);
+
+  // delete the referenced plugin instances that elements and defaults no longer reference
+  void RemovePlugins(const std::unordered_set<const mjsElement*>& referenced);
 
   // objects created here
   std::vector<mjCFlex*>     flexes_;      // list of flexes
@@ -566,11 +570,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // `tospec` to the spec as well; without `write`, only report those which the spec cannot express
   void BackValues(const mjModel* m, bool tospec, bool write);
 
-  // Mark plugin instances mentioned in the list
-  template <class T>
-  void MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
-                          const std::vector<T*>&                 list);
-
   // print the tree of a body
   void PrintTree(std::stringstream& tree, const mjCBody* body, int depth = 0);
 
@@ -583,9 +582,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // resolve references in a list of objects
   template <class T>
   void ResolveReferences(std::vector<T*>& list, mjCBody* body = nullptr);
-
-  // delete all plugins created by the subtree
-  void DeleteSubtreePlugin(mjCBody* subtree);
 
   mjListKeyMap             ids;        // map from object names to ids
   mjNameSet                names_;     // names in use per element type

@@ -598,30 +598,51 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 }
 
 
-template <class T>
-void mjCModel::MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
-                                  const std::vector<T*>&                 list) {
-  for (const auto& element : list) {
-    if (!element->plugin_instance_name.empty()) { instances[element->plugin_instance_name] = true; }
+// return the plugin instances that elements or defaults reference by name or point to, including
+// the elements in the subtree of body, which can be outside the tree
+std::unordered_set<const mjsElement*> mjCModel::ReferencedPlugins(const mjCBody* body) {
+  std::unordered_set<std::string>       names;
+  std::unordered_set<const mjsElement*> pointers;
+
+  auto mark = [&names, &pointers](const auto& element) {
+    if (!element.plugin_instance_name.empty()) { names.insert(element.plugin_instance_name); }
+    if (element.spec.plugin.element) { pointers.insert(element.spec.plugin.element); }
+  };
+
+  // traverse the tree, the tree lists miss the elements added since they were built
+  std::vector<const mjCBody*> bodies = {bodies_[0]};
+  if (body) { bodies.push_back(body); }
+  for (int i = 0; i < bodies.size(); i++) {
+    mark(*bodies[i]);
+    for (const mjCGeom* geom : bodies[i]->geoms) { mark(*geom); }
+    bodies.insert(bodies.end(), bodies[i]->bodies.begin(), bodies[i]->bodies.end());
   }
+  for (const mjCMesh* mesh : meshes_) { mark(*mesh); }
+  for (const mjCActuator* actuator : actuators_) { mark(*actuator); }
+  for (const mjCSensor* sensor : sensors_) { mark(*sensor); }
+  for (mjCDef* def : defaults_) {
+    mark(def->Geom());
+    mark(def->Mesh());
+    mark(def->Actuator());
+  }
+
+  std::unordered_set<const mjsElement*> referenced;
+  for (const mjCPlugin* plugin : plugins_) {
+    if (pointers.count(plugin) || names.count(plugin->name)) { referenced.insert(plugin); }
+  }
+  return referenced;
 }
 
 
-void mjCModel::RemovePlugins() {
-  // store elements that reference a plugin instance
-  std::unordered_map<std::string, bool> instances;
-  MarkPluginInstance(instances, bodies_);
-  MarkPluginInstance(instances, geoms_);
-  MarkPluginInstance(instances, meshes_);
-  MarkPluginInstance(instances, actuators_);
-  MarkPluginInstance(instances, sensors_);
+void mjCModel::RemovePlugins(const std::unordered_set<const mjsElement*>& referenced) {
+  std::unordered_set<const mjsElement*> remaining = ReferencedPlugins();
 
-  // remove plugins that are not referenced
+  // remove plugins that are no longer referenced, keep plugins that were never referenced
   int nlist   = (int)plugins_.size();
   int removed = 0;
   for (int i = 0; i < nlist; i++) {
-    if (plugins_[i]->name.empty()) { continue; }
-    if (instances.find(plugins_[i]->name) == instances.end()) {
+    plugins_[i]->id -= removed;
+    if (referenced.count(plugins_[i]) && !remaining.count(plugins_[i])) {
       ids[plugins_[i]->elemtype].erase(plugins_[i]->name);
       names_[plugins_[i]->elemtype].erase(plugins_[i]->name);
       plugins_[i]->id = -1;
@@ -708,12 +729,6 @@ std::vector<mjCBase*> mjCModel::RemoveFromTree(const mjCFrame& frame) {
     mjuu_copyvec(body->spec.fullinertia, defaults.fullinertia, 6);
   }
 
-  // delete the plugins created by the removed elements
-  for (mjCBody* child : bodies) { DeleteSubtreePlugin(child); }
-  for (mjCGeom* geom : geoms) {
-    if (geom->plugin.active && geom->plugin.name->empty()) { *this -= geom->plugin.element; }
-  }
-
   // the removed elements no longer have a parent body or a frame
   self->SetParent(nullptr);
   self->frame = nullptr;
@@ -766,7 +781,6 @@ mjCModel& mjCModel::RemoveSubtree(const T& subtree) {
   RemoveFromList(equalities_, oldmodel);
   RemoveFromList(actuators_, oldmodel);
   RemoveFromList(sensors_, oldmodel);
-  RemovePlugins();
 
   // structure changed, the signature is no longer valid
   InvalidateSignature();
@@ -866,14 +880,6 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 }
 
 
-// recursively delete all plugins in the subtree
-void mjCModel::DeleteSubtreePlugin(mjCBody* subtree) {
-  mjsPlugin* plugin = &(subtree->spec.plugin);
-  if (plugin->active && plugin->name->empty()) { *this -= plugin->element; }
-  for (auto* body : subtree->Bodies()) { DeleteSubtreePlugin(body); }
-}
-
-
 // remove the element from the model
 void mjCModel::operator-=(mjsElement* el) {
   if (el->elemtype != mjOBJ_DEFAULT) {
@@ -886,10 +892,11 @@ void mjCModel::operator-=(mjsElement* el) {
     }
   }
 
-  if (el->elemtype == mjOBJ_BODY) {
-    mjCBody* body  = static_cast<mjCBody*>(el);
-    *this         -= *body;
-  }
+  // plugin instances referenced before the deletion, mjs_bodyToFrame removes the body from the tree
+  mjCBody* body = el->elemtype == mjOBJ_BODY ? static_cast<mjCBody*>(el) : nullptr;
+  std::unordered_set<const mjsElement*> referenced = ReferencedPlugins(body);
+
+  if (body) { *this -= *body; }
 
   // throws before anything is modified if the frame is not in the tree
   if (el->elemtype == mjOBJ_FRAME) {
@@ -900,12 +907,8 @@ void mjCModel::operator-=(mjsElement* el) {
   ResetTreeLists();
 
   switch (el->elemtype) {
-    case mjOBJ_BODY: {
-      MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
-      mjCBody* subtree = static_cast<mjCBody*>(el);
-      DeleteSubtreePlugin(subtree);
-      break;
-    }
+    case mjOBJ_BODY:
+      break;  // removed above
 
     case mjOBJ_FRAME:
       break;  // removed above, frames are meta elements and have no object list
@@ -915,12 +918,9 @@ void mjCModel::operator-=(mjsElement* el) {
       throw mjCError(nullptr, "defaults cannot be deleted, use detach instead");
       break;
 
-    case mjOBJ_GEOM: {
-      mjCGeom* geom = static_cast<mjCGeom*>(el);
-      if (geom->plugin.active && geom->plugin.name->empty()) { *this -= geom->plugin.element; }
-      deletefromlist(&(geom->body->geoms), el);
+    case mjOBJ_GEOM:
+      deletefromlist(&(static_cast<mjCGeom*>(el)->body->geoms), el);
       break;
-    }
 
     case mjOBJ_SITE:
       deletefromlist(&(static_cast<mjCSite*>(el)->body->sites), el);
@@ -938,39 +938,16 @@ void mjCModel::operator-=(mjsElement* el) {
       deletefromlist(&(static_cast<mjCCamera*>(el)->body->cameras), el);
       break;
 
-    case mjOBJ_MESH: {
-      mjCMesh* mesh = static_cast<mjCMesh*>(el);
-      if (mesh->plugin.active && mesh->plugin.name->empty()) { *this -= mesh->plugin.element; }
-      deletefromlist(object_lists_[mjOBJ_MESH], el);
-      break;
-    }
-
-    case mjOBJ_ACTUATOR: {
-      mjCActuator* actuator = static_cast<mjCActuator*>(el);
-      if (actuator->plugin.active && actuator->plugin.name->empty()) {
-        *this -= actuator->plugin.element;
-      }
-      deletefromlist(object_lists_[mjOBJ_ACTUATOR], el);
-      break;
-    }
-
-    case mjOBJ_SENSOR: {
-      mjCSensor* sensor = static_cast<mjCSensor*>(el);
-      if (sensor->plugin.active && sensor->plugin.name->empty()) {
-        *this -= sensor->plugin.element;
-      }
-      deletefromlist(object_lists_[mjOBJ_SENSOR], el);
-      break;
-    }
-
     default:
       deletefromlist(object_lists_[el->elemtype], el);
       break;
   }
 
-  ResetTreeLists();  // in case of a nested delete
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
+
+  // delete the plugin instances that only the removed elements referenced
+  RemovePlugins(referenced);
 
   // structure changed, the signature is no longer valid
   InvalidateSignature();
@@ -5204,6 +5181,9 @@ int mjCModel::DiscardVisual(const mjVFS* vfs) {
       discardgeoms.size() + discardmeshes.size() + discardmaterials.size() + discardtextures.size();
   if (!ndiscard) { return 0; }
 
+  // the plugin instances which elements refer to, before any of them is discarded
+  const std::unordered_set<const mjsElement*> referenced = ReferencedPlugins();
+
   for (mjCBody* body : adopt) { body->AdoptInertial(); }
 
   // materials and textures, and what uses them: one which a sensor or tuple refers to stays as
@@ -5236,14 +5216,6 @@ int mjCModel::DiscardVisual(const mjVFS* vfs) {
   for (mjCMaterial* material : materials_) { material->id = -1; }
   for (mjCTexture* texture : textures_) { texture->id = -1; }
 
-  // the plugin instances which belong to the geoms and meshes, while the lists are whole
-  for (mjCGeom* geom : discardgeoms) {
-    if (geom->plugin.active && geom->plugin.name->empty()) { *this -= geom->plugin.element; }
-  }
-  for (mjCMesh* mesh : discardmeshes) {
-    if (mesh->plugin.active && mesh->plugin.name->empty()) { *this -= mesh->plugin.element; }
-  }
-
   // geoms and meshes; the lists of the tree hold the geoms, empty them before any is released
   ResetTreeLists();
   for (mjCGeom* geom : discardgeoms) {
@@ -5261,6 +5233,9 @@ int mjCModel::DiscardVisual(const mjVFS* vfs) {
   // update the lists and the maps from names to ids
   MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
+
+  // delete the plugin instances which only the discarded geoms and meshes referenced
+  RemovePlugins(referenced);
   InvalidateSignature();
   return ndiscard;
 }

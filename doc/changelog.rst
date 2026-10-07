@@ -102,6 +102,9 @@ Bug fixes
   saving it no longer crashes, and :ref:`mj_recompile` with the model and data of the original keeps their state.
 - :ref:`mjs_bodyToFrame` no longer loses inertia which is inferred from geoms when only one of the two bodies has
   an explicit inertial.
+- :ref:`mjs_delete` now deletes a :ref:`plugin instance<plugin-instance>` together with the last element that
+  references it, and keeps it otherwise. Previously a deletion could fail, leave an unused instance behind or free
+  one which was still referenced, so that the next compilation failed or crashed.
 - :ref:`mj_copyBack` and :ref:`mj_saveLastXML` no longer lose a change to the reference pose of a free joint in
   ``mjModel.qpos0``, or write out of bounds for a :ref:`numeric<custom-numeric>` which has less data than its
   ``size``.
