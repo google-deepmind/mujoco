@@ -160,10 +160,11 @@ shutdown:
         viewer-plugin state on model changes so `viewer.model` and `viewer.data`
         are already up to date.
     4.  `UpdateEvent` — dispatched every frame (after incoming sim events and
-        snapshots are applied) to update visuals, camera, perturbations, and
-        transient geoms.
+        snapshots are applied) to update visuals, camera, perturbations,
+        transient geoms, and prepare data or upload textures for the GUI.
     5.  `BuildGuiEvent` — dispatched every frame immediately after `UpdateEvent`
-        to construct and lay out Dear ImGui / ImPlot widgets.
+        to construct and lay out Dear ImGui / ImPlot widgets (keep handlers
+        focused on ImGui/ImPlot calls; prepare GUI data in `UpdateEvent`).
     6.  `ExitEvent` — dispatched once when the viewer shuts down, whether the
         exit came from the sim side or from the window being closed. Handle it
         to release resources (threads, pools, GPU handles).
@@ -258,8 +259,9 @@ There is an intentional distinction between **lifecycle phase events** (`Pre*` /
         physics stepper), or `PostStepEvent` (to observe or record the stepped
         state).
     -   **Before / during GUI construction**: Subscribe to `UpdateEvent` for
-        per-frame state updates and `BuildGuiEvent` for Dear ImGui widget
-        submission.
+        per-frame state updates, GUI data preparation, and texture uploads
+        (e.g. `viewer.upload_image`), and `BuildGuiEvent` solely for Dear ImGui
+        / ImPlot widget submission.
 -   **When to use `messages.Priority`**: Reserve `priority=...` strictly for
     cases where multiple handlers target the **exact same event and phase** and
     one handler needs to override or consume (`return True`) the event before a
