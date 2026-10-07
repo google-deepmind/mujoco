@@ -27,7 +27,7 @@ namespace usd {
 //   layer: SdfLayerRefPtr that will be written to.
 //   skip_elems_from_usd: If true, skips over elements in the spec that have a usd_prim_path
 //   custom attribute set.
-bool WriteSpecToData(mjSpec* spec, pxr::SdfLayerRefPtr layer, bool skip_elems_from_usd = false);
+MJAPI bool WriteSpecToData(mjSpec* spec, pxr::SdfLayerRefPtr layer, bool skip_elems_from_usd = false);
 }  // namespace usd
 }  // namespace mujoco
 

@@ -45,6 +45,13 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 TF_DEFINE_PUBLIC_TOKENS(UsdMjcfFileFormatTokens, USD_MJCF_FILE_FORMAT_TOKENS);
 
+#if defined(ARCH_OS_WINDOWS)
+using Arch_ConstructorInit = pxr::Arch_ConstructorInit;
+using Arch_ConstructorEntry = pxr::Arch_ConstructorEntry;
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#endif
+
 TF_REGISTRY_FUNCTION(TfType) {
   SDF_DEFINE_FILE_FORMAT(UsdMjcfFileFormat, SdfFileFormat);
 }
