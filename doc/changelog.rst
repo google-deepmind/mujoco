@@ -98,6 +98,9 @@ Bug fixes
 - Fixed attaching by reference, the default of :ref:`mjs_attach`: :ref:`mj_recompile` gave the attached elements
   the state of other elements of the parent, and attaching another body or frame of the same model failed or left
   out the elements which refer to it. Attaching what the parent already has is now an error.
+- :ref:`mjs_attach` and the :ref:`attach<body-attach>` element now apply the prefix and suffix to the name and
+  material of skins and to the material of tendons and meshes. Attaching a model in which one of these has a
+  material used to fail to compile.
 - A copy of a compiled :ref:`mjSpec` made with :ref:`mj_copySpec` now holds what the compilation gave the original:
   saving it no longer crashes, and :ref:`mj_recompile` with the model and data of the original keeps their state.
 - :ref:`mjs_bodyToFrame` no longer loses inertia which is inferred from geoms when only one of the two bodies has
@@ -105,6 +108,9 @@ Bug fixes
 - :ref:`mjs_delete` now deletes a :ref:`plugin instance<plugin-instance>` together with the last element that
   references it, and keeps it otherwise. Previously a deletion could fail, leave an unused instance behind or free
   one which was still referenced, so that the next compilation failed or crashed.
+- :ref:`mjs_delete` of a body no longer keeps the elements that referenced it (e.g. contact pairs, tendons, sensors)
+  when the spec had been compiled with :ref:`discardvisual<compiler-discardvisual>`, or edited after it was
+  compiled. The next compilation failed.
 - :ref:`mj_copyBack` and :ref:`mj_saveLastXML` no longer lose a change to the reference pose of a free joint in
   ``mjModel.qpos0``, or write out of bounds for a :ref:`numeric<custom-numeric>` which has less data than its
   ``size``.

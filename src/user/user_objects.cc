@@ -6625,6 +6625,9 @@ void mjCTendon::PointToLocal() {
 
 void mjCTendon::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
   prefix = m->prefix;
   suffix = m->suffix;
 }

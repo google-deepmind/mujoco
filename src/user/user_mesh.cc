@@ -283,6 +283,9 @@ void mjCMesh::PointToLocal() {
 
 void mjCMesh::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
   if (!plugin_instance_name.empty()) {
     plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
@@ -2885,7 +2888,11 @@ void mjCSkin::PointToLocal() {
 
 
 void mjCSkin::NameSpace(const mjCModel* m) {
+  mjCBase::NameSpace(m);
   for (auto& name : spec_bodyname_) { name = m->prefix + name + m->suffix; }
+  if (!spec_material_.empty() && model != m) {
+    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  }
 }
 
 

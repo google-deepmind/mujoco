@@ -757,8 +757,8 @@ template <class T>
 mjCModel& mjCModel::RemoveSubtree(const T& subtree) {
   mjCModel oldmodel(*this);
 
-  // create global lists in the old model if not compiled
-  if (!oldmodel.IsCompiled()) { oldmodel.ProcessLists(/*checkrepeat=*/false); }
+  // create global lists in the old model, the name maps copied from a compiled model can be stale
+  oldmodel.ProcessLists(/*checkrepeat=*/false);
 
   // create global lists in this model if not compiled
   if (!IsCompiled()) { ProcessLists(/*checkrepeat=*/false); }

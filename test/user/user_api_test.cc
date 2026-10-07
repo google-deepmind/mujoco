@@ -2983,6 +2983,71 @@ TEST_F(MujocoTest, DetachBody) {
   TestDetachBody(/*compile=*/true);
 }
 
+TEST_F(MujocoTest, DeleteBodyAfterCompile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler discardvisual="true"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 1"/>
+      <site name="site"/>
+      <body>
+        <geom size=".1" contype="0" conaffinity="0"/>
+      </body>
+      <body name="body">
+        <geom name="geom" size=".1"/>
+        <site name="site_body"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="geom" geom2="floor"/>
+    </contact>
+    <tendon>
+      <spatial>
+        <site site="site"/>
+        <geom geom="geom"/>
+        <site site="site_body"/>
+      </spatial>
+    </tendon>
+    <sensor>
+      <framepos objtype="geom" objname="geom"/>
+    </sensor>
+  </mujoco>)";
+
+  std::array<char, 1000> err;
+  mjSpec* spec = mj_parseXMLString(xml, 0, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // the elements that reference the body are deleted with it, also after the
+  // visual geom that precedes it was discarded by the compiler
+  mjsBody* body = mjs_findBody(spec, "body");
+  EXPECT_EQ(mjs_delete(spec, body->element), 0) << mjs_getError(spec);
+  EXPECT_THAT(mjs_firstElement(spec, mjOBJ_PAIR), IsNull());
+  EXPECT_THAT(mjs_firstElement(spec, mjOBJ_TENDON), IsNull());
+  EXPECT_THAT(mjs_firstElement(spec, mjOBJ_SENSOR), IsNull());
+  mjModel* deleted = mj_compile(spec, nullptr);
+  ASSERT_THAT(deleted, NotNull()) << mjs_getError(spec);
+
+  // same for elements added after compiling
+  mjsBody* added = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  mjs_setName(added->element, "added");
+  mjsGeom* geom = mjs_addGeom(added, nullptr);
+  mjs_setName(geom->element, "added");
+  mjsPair* pair = mjs_addPair(spec, nullptr);
+  mjs_setString(pair->geomname1, "added");
+  mjs_setString(pair->geomname2, "floor");
+  EXPECT_EQ(mjs_delete(spec, added->element), 0) << mjs_getError(spec);
+  EXPECT_THAT(mjs_firstElement(spec, mjOBJ_PAIR), IsNull());
+  mjModel* readded = mj_compile(spec, nullptr);
+  EXPECT_THAT(readded, NotNull()) << mjs_getError(spec);
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+  mj_deleteModel(deleted);
+  mj_deleteModel(readded);
+}
+
 void TestDeleteFrame(bool compile) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
@@ -5616,6 +5681,86 @@ TEST_F(MujocoTest, ApiAssetNeedsName) {
   mj_deleteVFS(vfs.get());
   mj_deleteSpec(spec);
   mj_deleteModel(model);
+}
+
+TEST_F(MujocoTest, AttachMaterialReferences) {
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <asset>
+      <material name="material" rgba="1 0 0 1"/>
+      <mesh name="mesh" material="material" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <joint/>
+        <geom type="mesh" mesh="mesh"/>
+        <site name="site0"/>
+        <site name="site1" pos="1 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial material="material">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+    <deformable>
+      <skin name="skin" material="material" vertex="0 0 0 1 0 0 0 1 0" face="0 1 2">
+        <bone body="body" bindpos="0 0 0" bindquat="1 0 0 0" vertid="0 1 2" vertweight="1 1 1"/>
+      </skin>
+    </deformable>
+  </mujoco>)";
+
+  // attach two children whose skin, tendon and mesh reference a material, by
+  // deep copy and by reference
+  std::array<char, 1000> er;
+  std::array<mjModel*, 2> models;
+  for (bool deepcopy : {true, false}) {
+    mjSpec* parent = mj_makeSpec();
+    mjs_setDeepCopy(parent, deepcopy);
+    std::array<mjSpec*, 2> children;
+    for (int i = 0; i < 2; i++) {
+      children[i] = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+      ASSERT_THAT(children[i], NotNull()) << er.data();
+      mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), 0);
+      mjsBody* body = mjs_findBody(children[i], "body");
+      mjsElement* attached =
+          mjs_attach(frame->element, body->element, i ? "b-" : "a-", "");
+      EXPECT_THAT(attached, NotNull()) << mjs_getError(parent);
+    }
+
+    // skin names and material references are namespaced
+    mjModel* model = mj_compile(parent, 0);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+    ASSERT_THAT(model->nskin, 2);
+    ASSERT_THAT(model->ntendon, 2);
+    ASSERT_THAT(model->ngeom, 2);
+    EXPECT_STREQ(mj_id2name(model, mjOBJ_SKIN, 0), "a-skin");
+    EXPECT_STREQ(mj_id2name(model, mjOBJ_SKIN, 1), "b-skin");
+    for (int i = 0; i < 2; i++) {
+      const char* material = i ? "b-material" : "a-material";
+      EXPECT_STREQ(mj_id2name(model, mjOBJ_MATERIAL, model->skin_matid[i]),
+                   material);
+      EXPECT_STREQ(mj_id2name(model, mjOBJ_MATERIAL, model->tendon_matid[i]),
+                   material);
+      EXPECT_STREQ(mj_id2name(model, mjOBJ_MATERIAL, model->geom_matid[i]),
+                   material);
+    }
+    models[deepcopy] = model;
+
+    mj_deleteSpec(parent);
+    for (mjSpec* child : children) {
+      mj_deleteSpec(child);
+    }
+  }
+
+  // deep copy and attachment by reference give the same model
+  std::string field = "";
+  EXPECT_LE(CompareModel(models[0], models[1], field), 0)
+      << "Different field: " << field;
+
+  mj_deleteModel(models[0]);
+  mj_deleteModel(models[1]);
 }
 
 TEST_F(MujocoTest, InitTexture) {
