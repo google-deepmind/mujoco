@@ -8,7 +8,7 @@
   </asset>
 
   <custom>
-    <numeric name="filament.shadows.type" data="1"/>
+    <numeric name="filament.shadows.type" data="3"/>
   </custom>
 
   <worldbody>
@@ -19,19 +19,19 @@
     <light type="spot"  pos="-1.0 0 0.8" dir="0 0 -1" diffuse="0.8 0.5 0.5" cutoff="50" intensity="50000" bulbradius="0" softness="0.05"/>
     <geom type="sphere" pos="-1.0 0 0.4" size="0.16" material="default"/>
 
-    <light type="spot"  pos=" 0.0 0 0.8" dir="0 0 -1" diffuse="0.5 0.8 0.5" cutoff="50" intensity="50000" bulbradius="25" softness="0.35"/>
+    <light type="spot"  pos=" 0.0 0 0.8" dir="0 0 -1" diffuse="0.5 0.8 0.5" cutoff="50" intensity="50000" bulbradius="0.025" softness="0.35"/>
     <geom type="sphere" pos=" 0.0 0 0.4" size="0.16" material="default"/>
 
-    <light type="spot"  pos=" 1.0 0 0.8" dir="0 0 -1" diffuse="0.5 0.5 0.8" cutoff="50" intensity="50000" bulbradius="50" softness="0.75"/>
+    <light type="spot"  pos=" 1.0 0 0.8" dir="0 0 -1" diffuse="0.5 0.5 0.8" cutoff="50" intensity="50000" bulbradius="0.05" softness="0.75"/>
     <geom type="sphere" pos=" 1.0 0 0.4" size="0.16" material="default"/>
 
-    <light type="spot"  pos="-1.0 1 0.8" dir="0 0 -1" diffuse="0.8 0.8 0.5" cutoff="50" intensity="50000" bulbradius="125" softness="0.05"/>
+    <light type="spot"  pos="-1.0 1 0.8" dir="0 0 -1" diffuse="0.8 0.8 0.5" cutoff="50" intensity="50000" bulbradius="0.075" softness="0.05"/>
     <geom type="sphere" pos="-1.0 1 0.4" size="0.16" material="default"/>
 
-    <light type="spot"  pos=" 0.0 1 0.8" dir="0 0 -1" diffuse="0.5 0.8 0.8" cutoff="50" intensity="50000" bulbradius="100" softness="0.35"/>
+    <light type="spot"  pos=" 0.0 1 0.8" dir="0 0 -1" diffuse="0.5 0.8 0.8" cutoff="50" intensity="50000" bulbradius="0.1" softness="0.35"/>
     <geom type="sphere" pos=" 0.0 1 0.4" size="0.16" material="default"/>
 
-    <light type="spot"  pos=" 1.0 1 0.8" dir="0 0 -1" diffuse="0.8 0.5 0.8" cutoff="50" intensity="50000" bulbradius="75" softness="0.75"/>
+    <light type="spot"  pos=" 1.0 1 0.8" dir="0 0 -1" diffuse="0.8 0.5 0.8" cutoff="50" intensity="50000" bulbradius="0.125" softness="0.75"/>
     <geom type="sphere" pos=" 1.0 1 0.4" size="0.16" material="default"/>
 
   </worldbody>
