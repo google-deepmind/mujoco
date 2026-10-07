@@ -63,6 +63,7 @@ jobs:
   mujoco:
     needs: setup
     strategy:
+      fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     name: "${{ matrix.label }}"
