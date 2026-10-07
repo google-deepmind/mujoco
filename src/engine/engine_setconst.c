@@ -1380,7 +1380,7 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   mjtNum h = m->opt.timestep;
 
   // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
-  // (filter matches the compiler's sizing and, for bending, flexStiff_active in
+  // (filter matches the compiler's sizing and, for bending, mjd_flexStiff_active in
   // engine_derivative.c: bending data exists only for dim-2 flexes)
   int* bodyslot = mjSTACKALLOC(d, m->nbody, int);
   for (int b=0; b < m->nbody; b++) {
@@ -1517,7 +1517,7 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
                                    Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, scratch);
   if (rank != nbd) {
     // The factor is consumed only when no per-step flex stiffness is assembled (bending-only
-    // models): with stretch (or assemblable interp) present, mjd_effBuild assembles the full
+    // models): with stretch (or assemblable interp) present, mj_effBuild assembles the full
     // metric every step and the per-step blocks replace this factor, so an indefinite
     // M + K_bend (e.g. curved-rest bending with light vertices) is harmless there.
     if (mjd_flexStiff_any(m, mjd_flexInterpAssemblable(m))) {

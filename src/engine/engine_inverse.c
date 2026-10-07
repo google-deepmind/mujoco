@@ -28,6 +28,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_forward.h"
+#include "engine/engine_metric.h"
 #include "engine/engine_sensor.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -71,7 +72,7 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   TM_ADD(mjTIMER_POS_KINEMATICS);
 
   // implicit effective metric: multiply-only build (no factorization) for the inverse
-  mjd_effBuild(m, d, mj_isMetric(m), /*flg_factor=*/0);
+  mj_effBuild(m, d, mj_isMetric(m), /*flg_factor=*/0);
 
   TM_END1(mjTIMER_POSITION);
 }
@@ -192,7 +193,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
   mj_freeStack(d);
 
   // refresh the metric's velocity-stage values
-  mjd_effShift(m, d);
+  mj_effShift(m, d);
 }
 
 
@@ -259,7 +260,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   // actuation-stage metric refresh: reads ctrl/act from mjData without running actuation.
   // The inverse only multiplies by the metric: the backbone factor is needed only by the
   // exact constraint diagonal
-  mjd_effActuation(m, d, /*flg_factor=*/mjENABLED(mjENBL_DIAGEXACT));
+  mj_effActuation(m, d, /*flg_factor=*/mjENABLED(mjENBL_DIAGEXACT));
   if (mj_isMetric(m)) {
     mj_regularizeConstraint(m, d, /*flg_AR=*/0);
     mj_referenceConstraint(m, d);
@@ -293,7 +294,7 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
   // implicit effective metric (built in mj_invPosition): the forward dynamics solved
   // (M+K)*qacc = qfrc + c + J'*f, so the discrete-consistent inverse adds K*qacc - c
   if (d->efm_active) {
-    mjd_effMulAdd(m, d, Ma, d->qacc, /*flg_contact=*/1);
+    mj_effMulAdd(m, d, Ma, d->qacc, /*flg_contact=*/1);
 
     // decoupled standalone free bodies took the local gyroscopic solve in the forward
     // pass (mj_discreteGyro): mirror it, overwriting their rows with the local product

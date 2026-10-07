@@ -25,10 +25,10 @@
 #include <mujoco/mjtype.h>
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
-#include "engine/engine_derivative.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_metric.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -76,8 +76,8 @@ static void dualFinish(const mjModel* m, mjData* d) {
 
   // compute constrained acceleration in joint space, in the solve metric: under the
   // effective metric, qacc_smooth and the constraint response both live in Mtilde
-  // (mjd_effSolve is the plain M solve when the metric is inactive)
-  mjd_effSolve(m, d, d->qacc, d->qfrc_constraint);
+  // (mj_effSolve is the plain M solve when the metric is inactive)
+  mj_effSolve(m, d, d->qacc, d->qfrc_constraint);
   mju_addTo(d->qacc, d->qacc_smooth, m->nv);
 }
 
@@ -1120,7 +1120,7 @@ typedef struct {
 
 
 // IPC folds the efc rows in their quadratic zone (its contact pairs among them) and the metric's
-// rank-1 classes into a solver-owned copy of the metric blocks (mjd_effPrecFold): monolithic CG
+// rank-1 classes into a solver-owned copy of the metric blocks (mj_effPrecFold): monolithic CG
 // with a live metric
 static int effFoldWanted(const mjModel* m, const mjData* d, int island, int is_elliptic) {
   return d->efm_active && island < 0 && !is_elliptic && mjENABLED(mjENBL_IPC);
@@ -1252,7 +1252,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     int tcap = 0, tlow = 0;
     mjEffRank1Iter it = {0};
     mjEffRank1 e;
-    while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
       if (ctx->island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != ctx->island) {
         continue;
       }
@@ -1355,7 +1355,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 
     // constraint state and Jacobian transpose (sparse)
     // IPC: a solver-owned copy of the metric blocks with the contact class folded in
-    // (mjd_effPrecFold), or none
+    // (mj_effPrecFold), or none
     ctx->epL = NULL;
     if (effFoldWanted(m, d, ctx->island, is_elliptic)) {
       CARVE_NUM(ctx->epL, 9*d->nefmdof);
@@ -1518,9 +1518,9 @@ static void PrimalUpdateGrad(mjPrimalContext* ctx) {
 // the metric preconditioner, against the contact-folded blocks where they were built
 static void PrimalMetricPrecond(mjPrimalContext* ctx, mjtNum* x, const mjtNum* b) {
   if (ctx->epL) {
-    mjd_effPrecBlocks(ctx->fm, ctx->fd, x, b, ctx->epL);
+    mj_effPrecBlocks(ctx->fm, ctx->fd, x, b, ctx->epL);
   } else {
-    mjd_effPrec(ctx->fm, ctx->fd, x, b);
+    mj_effPrec(ctx->fm, ctx->fd, x, b);
   }
 }
 
@@ -1994,9 +1994,9 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
                       ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
   if (ctx->flg_metric) {
     if (ctx->island < 0) {
-      mjd_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search, /*flg_contact=*/1);
+      mj_effMulAdd(ctx->fm, ctx->fd, ctx->Mv, ctx->search, /*flg_contact=*/1);
     } else {
-      mjd_effMulAddIsland(ctx->fm, ctx->fd, ctx->Mv, ctx->search, ctx->island);
+      mj_effMulAddIsland(ctx->fm, ctx->fd, ctx->Mv, ctx->search, ctx->island);
     }
   }
 
@@ -2202,7 +2202,7 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
 
   // count rank-1 entries per (local) row
   it = (mjEffRank1Iter){0};
-  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
     if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
       continue;
     }
@@ -2227,7 +2227,7 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
 
   // fill the buckets
   it = (mjEffRank1Iter){0};
-  while (mjd_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
     if (island >= 0 && d->tree_island[m->dof_treeid[e.colind[0]]] != island) {
       continue;
     }
@@ -2807,9 +2807,9 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
                       ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
   if (ctx.flg_metric) {
     if (ctx.island < 0) {
-      mjd_effMulAdd(m, d, ctx.Ma, ctx.qacc, /*flg_contact=*/1);
+      mj_effMulAdd(m, d, ctx.Ma, ctx.qacc, /*flg_contact=*/1);
     } else {
-      mjd_effMulAddIsland(m, d, ctx.Ma, ctx.qacc, ctx.island);
+      mj_effMulAddIsland(m, d, ctx.Ma, ctx.qacc, ctx.island);
     }
   }
 
@@ -2843,8 +2843,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // IPC: fold the contact class and the efc rows into the solver-owned copy of the metric
   // blocks, so the CG preconditioner sees the contact curvature the operator carries
-  if (ctx.epL && !mjd_effPrecFold(m, d, ctx.epL, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J,
-                                  ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind)) {
+  if (ctx.epL && !mj_effPrecFold(m, d, ctx.epL, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J,
+                                 ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind)) {
     ctx.epL = NULL;
   }
 

@@ -1429,7 +1429,7 @@ int mj_effFlexContactPossible(const mjModel* m, int f) {
 
 
 // does flex f contribute elastic stiffness to the metric. Unlike the assembler gate
-// flexStiff_active (engine_derivative.c), interpolated flexes are included: their
+// mjd_flexStiff_active (engine_derivative.c), interpolated flexes are included: their
 // stiffness is carried matrix-free
 int mj_effFlexStiffPossible(const mjModel* m, int f) {
   // rigid or 1D flexes do not contribute stiffness

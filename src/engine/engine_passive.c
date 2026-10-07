@@ -23,9 +23,9 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_derivative.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_metric.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
@@ -867,7 +867,7 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
     return 0;
   }
 
-  mjd_effContactForce(d, d->qfrc_spring);
+  mj_effContactForce(d, d->qfrc_spring);
   return 1;
 }
 

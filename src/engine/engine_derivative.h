@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -96,14 +97,6 @@ MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const m
 MJAPI mjtNum mjd_flexContactSlack(mjtNum k, mjtNum gap, mjtNum lam);
 MJAPI mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam);
 
-// A published contact row in mjData.efm_con_ind / efm_con_val is a two-slot header and the entries:
-//
-//   ind = [nnz, conid, colind...]      val = [scale, force, val...]
-//
-// scale is the curvature the metric applies, force the pair's force along the row, conid the
-// contact it came from. Apply the published forces: res += force * row over the rows.
-MJAPI void mjd_effContactForce(const mjData* d, mjtNum* res);
-
 // natural frequency of the law: pair stiffness = mjFLEXCONTACT_OMEGA2 * min nonzero vertex mass
 #define mjFLEXCONTACT_OMEGA2 5e7
 
@@ -123,68 +116,46 @@ MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
 // does any flex contribute assemblable implicit stiffness? (existence check)
 MJAPI mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp);
 
-// actuation-stage refresh of the metric: actuator gains, their shift, the backbone (factored
-// if flg_factor)
-void mjd_effActuation(const mjModel* m, mjData* d, int flg_factor);
+//------------------------- helpers shared with engine_metric.c ------------------------------------
 
-// one rank-1 term of the metric: term = scale * val' * val over the sparse row
-typedef struct {
-  const mjtNum* val;   // sparse row values
-  const int* colind;   // sparse row column indices
-  int nnz;             // row nonzeros
-  mjtNum scale;        // rank-1 scale
-} mjEffRank1;
+// per-actuator skip conditions shared by the qDeriv and discrete-metric assemblers:
+// disabled, sleeping, or force-clamped actuators contribute no derivative
+int mjd_actuatorDerivSkip(const mjModel* m, const mjData* d, int i, int sleep_filter);
 
-// iteration cursor over the metric's rank-1 producers (internal layout)
-typedef struct {
-  int cls;             // producer class
-  int i;               // index within class
-  int k;               // sub-row within index (multi-output actuators)
-} mjEffRank1Iter;
+// d(force)/d(length) of actuator i: all gain and bias types
+mjtNum mjd_actuatorLenDeriv(const mjModel* m, const mjData* d, int i);
 
-// yield the next live rank-1 term of the metric; init the cursor to {0}, returns 0 when
-// exhausted. Producers: tendons, then actuator output rows; zero entries are skipped.
-// A new metric class becomes a new case here, invisible to every consumer.
-// flg_contact selects the passive-contact class, for callers that account for contact separately
-int mjd_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it,
-                     mjEffRank1* e, int flg_contact);
+// d(force)/d(velocity) of actuator i: all gain and bias types
+mjtNum mjd_actuatorVelDeriv(const mjModel* m, const mjData* d, int i);
 
-// island-local metric product res += S*vec, vectors in island-local dof coordinates
-void mjd_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res,
-                         const mjtNum* vec, int island);
+// does any flex use the passive contact path? Distinct from elasticity: an empty CSR is valid for
+// elastic models (matrix-free operators) but means "nothing" for a contact-only flex.
+mjtBool mjd_flexPassiveContact_any(const mjModel* m);
 
-// implicit effective metric Mtilde = M + (h^2+h*d)*K: per-step arena object (see mjdata.h efm_*)
-// build (or deactivate, active==0); the gate decision belongs to the caller
-MJAPI void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor);
+// does this standard flex contribute implicit stiffness under the given term flags?
+mjtBool mjd_flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch);
 
-// refresh the metric's smooth-force shift c = h*K*qvel (values only, velocity stage)
-MJAPI void mjd_effShift(const mjModel* m, mjData* d);
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+//   scale = s1 + s2 * flex_damping[f]  per flex
+//   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
+//   for stiffness only:    s1=h,   s2=0  =>  scale = h
+void mjd_flexBend_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                           mjtNum s1, mjtNum s2, int first, int last);
 
-// res += B*vec (the stiffness part of the metric; caller supplies the M part).
-// flg_contact selects the passive-contact class, for callers that account for contact
-// energy separately
-MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
-                         int flg_contact);
+// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
+// SNH uses its PSD-projected material Hessian; StVK keeps the material term
+// and tensile geometric stiffness. For articulated attachments the pullback J'KJ
+// omits derivatives of the attachment Jacobian.
+void mjd_flexStretch_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                              mjtNum s1, mjtNum s2, int first, int last);
 
-// solve (M + B) x = b by PCG preconditioned with mjd_effPrec, to opt.tolerance on the relative
-// residual; x = M^-1 b when the metric is inactive. Warns (mjWARN_INERTIA) if the iteration cap
-// is reached before convergence, in which case x is returned under-converged.
-MJAPI void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+// add d(fluid force)/d(velocity) of body bodyid to res (qDeriv's sparse layout), ellipsoid
+// model; if flg_dragonly, only the dissipative drag terms (the variant the metric uses)
+void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
+                        int flg_dragonly);
 
-// apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
-// Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
-MJAPI void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
-
-// fold the rank-1 classes and the efc rows (quadratic zone) into a copy of the preconditioner
-// blocks L (9*nefmdof), factored; returns 0 if nothing is covered, leaving L untouched
-MJAPI int mjd_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
-                          int nefc, const mjtNum* efc_D, int is_sparse,
-                          const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
-                          const int* J_colind);
-
-// apply the metric preconditioner using caller-supplied factored blocks
-MJAPI void mjd_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
-                             const mjtNum* L);
+// add d(fluid force)/d(velocity) of body i to res (qDeriv's sparse layout), inertia-box model
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* res, int i);
 
 
 #ifdef __cplusplus

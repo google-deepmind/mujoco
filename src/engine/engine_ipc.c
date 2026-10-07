@@ -35,6 +35,7 @@
 #include "engine/engine_derivative.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_metric.h"
 #include "engine/engine_name.h"
 #include "engine/engine_sensor.h"
 #include "engine/engine_support.h"
@@ -282,7 +283,7 @@ static mjtNum ipc_gaussCost(const mjModel* m, mjData* d, const mjtNum* qacc, mjt
   mjtNum* Mda = mjSTACKALLOC(d, nv, mjtNum);
   mju_sub(da, qacc, d->qacc_smooth, nv);
   mj_mulM(m, d, Mda, da);  // M at q_n, as the solve's
-  mjd_effMulAdd(m, d, Mda, da, /*flg_contact=*/1);
+  mj_effMulAdd(m, d, Mda, da, /*flg_contact=*/1);
   mjtNum E = 0.5 * h * h * mju_dot(da, Mda, nv);
   mj_freeStack(d);
   return E;

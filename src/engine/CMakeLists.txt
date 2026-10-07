@@ -60,6 +60,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_macro.h
     engine_memory.c
     engine_memory.h
+    engine_metric.c
+    engine_metric.h
     engine_name.c
     engine_name.h
     engine_passive.c

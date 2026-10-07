@@ -14,6 +14,7 @@ const SRCS = [
   'engine/engine_io.c',
   'engine/engine_island.c',
   'engine/engine_memory.c',
+  'engine/engine_metric.c',
   'engine/engine_name.c',
   'engine/engine_passive.c',
   'engine/engine_plugin.cc',

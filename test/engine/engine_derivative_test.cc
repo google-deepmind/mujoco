@@ -32,6 +32,7 @@
 #include "src/engine/engine_derivative_fd.h"
 #include "src/engine/engine_forward.h"
 #include "src/engine/engine_io.h"
+#include "src/engine/engine_metric.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
@@ -2429,7 +2430,7 @@ class FlexFrameTest : public MujocoTest,
     for (int col = 0; col < nv; col++) {
       mju_zero(rhs.data(), nv);
       rhs[col] = 1;
-      mjd_effPrec(model.get(), data.get(), solution.data(), rhs.data());
+      mj_effPrec(model.get(), data.get(), solution.data(), rhs.data());
       mj_mulM(model.get(), data.get(), product.data(), solution.data());
       mjd_flexBend_mul(model.get(), data.get(), product.data(), solution.data(),
                        h * h, h);
@@ -3513,7 +3514,7 @@ class FlexAttachmentTest
                      h * h, h);
     mjd_flexStretch_mul(model.get(), data.get(), expected.data(), vec.data(),
                         h * h, h);
-    mjd_effMulAdd(model.get(), data.get(), actual.data(), vec.data(), 1);
+    mj_effMulAdd(model.get(), data.get(), actual.data(), vec.data(), 1);
     EXPECT_THAT(actual, Pointwise(MjNear(1e-12, 1e-7), expected));
   }
 
@@ -3585,9 +3586,9 @@ TEST_P(FlexAttachmentTest, EffectiveSolveResidual) {
   Deform();
   auto rhs = Direction(3);
   std::vector<mjtNum> solution(model->nv), product(model->nv);
-  mjd_effSolve(model.get(), data.get(), solution.data(), rhs.data());
+  mj_effSolve(model.get(), data.get(), solution.data(), rhs.data());
   mj_mulM(model.get(), data.get(), product.data(), solution.data());
-  mjd_effMulAdd(model.get(), data.get(), product.data(), solution.data(), 1);
+  mj_effMulAdd(model.get(), data.get(), product.data(), solution.data(), 1);
   EXPECT_THAT(product, Pointwise(MjNear(2e-8, 2e-5), rhs));
 }
 
@@ -3595,8 +3596,8 @@ TEST_P(FlexAttachmentTest, MetricIsSymmetricAndPositive) {
   Deform();
   auto u = Direction(3), v = Direction(5);
   std::vector<mjtNum> Ku(model->nv, 0), Kv(model->nv, 0);
-  mjd_effMulAdd(model.get(), data.get(), Ku.data(), u.data(), 1);
-  mjd_effMulAdd(model.get(), data.get(), Kv.data(), v.data(), 1);
+  mj_effMulAdd(model.get(), data.get(), Ku.data(), u.data(), 1);
+  mj_effMulAdd(model.get(), data.get(), Kv.data(), v.data(), 1);
   EXPECT_THAT(mju_dot(u.data(), Kv.data(), model->nv),
               MjNear(mju_dot(v.data(), Ku.data(), model->nv), 1e-12, 1e-7));
   EXPECT_GE(mju_dot(u.data(), Ku.data(), model->nv), -MjTol(1e-12, 1e-7));
@@ -3634,17 +3635,17 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 TEST_F(DerivativeTest, EffSolve) {
-  // relative residual of (M+K)x - b after mjd_effSolve
+  // relative residual of (M+K)x - b after mj_effSolve
   auto solve_residual = [](const mjModel* m, mjData* d) {
     int nv = m->nv;
     std::vector<mjtNum> b(nv), x(nv), r(nv);
     for (int i = 0; i < nv; i++) {
       b[i] = mju_Halton(i, 3) - 0.5;
     }
-    mjd_effSolve(m, d, x.data(), b.data());
+    mj_effSolve(m, d, x.data(), b.data());
     mju_mulSymVecSparse(r.data(), d->M, x.data(), nv, m->M_rownnz, m->M_rowadr,
                         m->M_colind);
-    mjd_effMulAdd(m, d, r.data(), x.data(), /*flg_contact=*/1);
+    mj_effMulAdd(m, d, r.data(), x.data(), /*flg_contact=*/1);
     mju_subFrom(r.data(), b.data(), nv);
     return mju_norm(r.data(), nv) / mju_norm(b.data(), nv);
   };
@@ -3771,7 +3772,7 @@ static const char* const kStretchCloth = R"(
 </mujoco>
 )";
 
-// A metric too ill-conditioned for the 3x3 blocks exhausts mjd_effSolve's
+// A metric too ill-conditioned for the 3x3 blocks exhausts mj_effSolve's
 // iteration budget; it must report that rather than return an under-converged
 // qacc_smooth silently. Forced by conditioning rather than by an unreachable
 // opt.tolerance, which cannot be expressed in single precision: there the
@@ -3811,7 +3812,7 @@ TEST_F(DerivativeTest, EffSolveCapWarns) {
   testing::Mock::VerifyAndClearExpectations(&warning_handler);
 }
 
-// PCG requires a symmetric preconditioner. mjd_effPrec must satisfy
+// PCG requires a symmetric preconditioner. mj_effPrec must satisfy
 // u.P(v) == v.P(u); it did not when the covered and uncovered dofs shared a
 // kinematic tree, which is what the articulated vertex body here exercises.
 TEST_F(DerivativeTest, EffPrecIsSymmetric) {
@@ -3831,8 +3832,8 @@ TEST_F(DerivativeTest, EffPrecIsSymmetric) {
       u[i] = mju_Halton(i + trial * nv, 2) - 0.5;
       v[i] = mju_Halton(i + trial * nv, 5) - 0.5;
     }
-    mjd_effPrec(model.get(), data.get(), Pu.data(), u.data());
-    mjd_effPrec(model.get(), data.get(), Pv.data(), v.data());
+    mj_effPrec(model.get(), data.get(), Pu.data(), u.data());
+    mj_effPrec(model.get(), data.get(), Pv.data(), v.data());
     mjtNum a = mju_dot(v.data(), Pu.data(), nv);
     mjtNum b = mju_dot(u.data(), Pv.data(), nv);
     EXPECT_THAT(a, MjNear(b, 1e-10, 1e-4))
