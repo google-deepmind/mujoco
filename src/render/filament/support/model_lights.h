@@ -61,7 +61,7 @@ class ModelLights {
   std::vector<UniquePtr<mjrfLight>> lights_;
   int shadowsize_ = 0;
   int shadow_map_size_ = 0;
-  float fallback_head_light_intensity_ = 0.f;
+  float fallback_head_light_intensity_ = 40'000.f;
   float headlight_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
   float fallback_intensity_ = 0.f;
