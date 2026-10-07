@@ -56,6 +56,11 @@ attribute of type id<ns> declares a name in namespace `ns` (e.g. geom name);
 an attribute of type ref<ns> holds the name of an object in that namespace
 (e.g. an actuator's site). Namespaces exist by virtue of id declarations;
 a ref into a namespace nothing declares into is an error.
+
+Dimensions: the `dim` facet of a real-valued attribute gives its physical
+dimension (see parse_dim). The `control` facet of an actuator element and the
+`output` facet of a sensor element give the dimension of the actuator's
+control and of the sensor's output, which attributes refer to as U and Y.
 """
 
 import dataclasses
@@ -67,7 +72,8 @@ from typing import Any, Optional, Union
 # Facets accepted on attributes. Unknown facets are an error: forward
 # compatibility is explicit, not silent.
 KNOWN_FACETS = frozenset({'field', 'required', 'nodefault', 'pattern',
-                          'reading', 'writing', 'min', 'max', 'positive'})
+                          'reading', 'writing', 'min', 'max', 'positive',
+                          'dim'})
 
 # Facets accepted on elements. Element names must be unique, but the same XML
 # tag means different elements in different contexts (joint under body,
@@ -76,8 +82,25 @@ KNOWN_FACETS = frozenset({'field', 'required', 'nodefault', 'pattern',
 # tags validated against another element's row (worldbody, frame, replicate
 # all match body): the MJCF[] emitter skips aliased elements, the XSD emitter
 # declares them fully. 'field' names the sub-struct of the bound spec that
-# this element's attributes live in (the mjVisual sub-sections).
-ELEMENT_FACETS = frozenset({'xml', 'alias', 'field'})
+# this element's attributes live in (the mjVisual sub-sections). 'control' and
+# 'output' give the dimension of an actuator's control and a sensor's output.
+ELEMENT_FACETS = frozenset({'xml', 'alias', 'field', 'control', 'output'})
+
+# Symbols of the dim facet. L, M, T are length, mass and time; A is a plane
+# angle, dimensionless but recorded. The others depend on context: Q is the
+# coordinate of the joint, tendon or transmission (A or L), F the generalized
+# force conjugate to Q (M L^2 T^-2 Q^-1), U the control of an actuator and Y
+# the output of a sensor, given by the element's control and output facets.
+DIM_SYMBOLS = ('L', 'M', 'T', 'A', 'Q', 'F', 'U', 'Y')
+
+# Keyword values of the dim facet: solref is (T, 1) for positive values and
+# (T^-2, T^-1) for negative ones; custom depends on other attributes of the
+# element; opaque is not expressible in these symbols (user data, electrical
+# or photometric quantities) and is never transformed.
+DIM_KEYWORDS = ('solref', 'custom', 'opaque')
+
+# Element facets whose value is a dimension, and the symbol each defines.
+DIM_ELEMENT_FACETS = {'control': 'U', 'output': 'Y'}
 
 # 'file' is a string resolved against asset directories and the VFS
 # (the reader's ReadAttrFile); kept distinct for XSD/tooling and bindings.
@@ -86,6 +109,10 @@ ELEMENT_FACETS = frozenset({'xml', 'alias', 'field'})
 # not space-separated tokens, and must be bounded.
 SCALAR_TYPES = frozenset({'double', 'float', 'int', 'bool', 'string',
                           'file', 'chars'})
+
+# Real-valued types, which carry a dim facet. int attributes are counts,
+# indices and flags, dimensionless by construction.
+REAL_TYPES = frozenset({'double', 'float'})
 
 CARDINALITIES = frozenset({'?', '!', '*', 'R'})
 
@@ -114,6 +141,72 @@ class Arity:
     return self.lo == 1 and self.hi == 1
 
 
+# a product of symbol powers, in source order; () is dimensionless
+DimProduct = tuple[tuple[str, int], ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class Dim:
+  """Physical dimension of an attribute (the dim facet).
+
+  `kind` is 'product' or one of DIM_KEYWORDS. A product has one entry per
+  component of a vector attribute, or a single entry for all of them.
+  """
+  kind: str
+  components: tuple[DimProduct, ...] = ()
+
+  def symbols(self) -> set[str]:
+    return {sym for comp in self.components for sym, _ in comp}
+
+  def __str__(self) -> str:
+    if self.kind != 'product':
+      return self.kind
+    return ', '.join(_product_str(comp) for comp in self.components)
+
+
+def _product_str(comp: DimProduct) -> str:
+  if not comp:
+    return '1'
+  return ' '.join(sym if exp == 1 else f'{sym}^{exp}' for sym, exp in comp)
+
+
+_DIM_FACTOR_RE = re.compile(r'([A-Za-z]+)(?:\^(-?\d+))?$')
+
+
+def parse_dim(text: str) -> Dim:
+  """Parses the value of a dim facet; raises ValueError if malformed.
+
+  Grammar: a keyword (solref, custom, opaque), or comma-separated components,
+  each "1" or space-separated factors SYMBOL or SYMBOL^EXPONENT, e.g. "1, L, L"
+  or "M L^2 T^-2". Exponents are nonzero integers and each symbol appears at
+  most once per component.
+  """
+  text = text.strip()
+  if text in DIM_KEYWORDS:
+    return Dim(kind=text)
+  components = []
+  for part in text.split(','):
+    factors = part.split()
+    if not factors:
+      raise ValueError(f'empty component in {text!r}')
+    if factors == ['1']:
+      components.append(())
+      continue
+    comp = []
+    for factor in factors:
+      match = _DIM_FACTOR_RE.match(factor)
+      if not match or match.group(1) not in DIM_SYMBOLS:
+        raise ValueError(f'unknown dimension factor {factor!r}')
+      sym, exp = match.group(1), int(match.group(2) or 1)
+      if exp == 0:
+        raise ValueError(f'zero exponent in {factor!r}')
+      if sym in (s for s, _ in comp):
+        raise ValueError(f'repeated symbol {sym!r} in {part.strip()!r}')
+      comp.append((sym, exp))
+    components.append(tuple(comp))
+  return Dim(kind='product', components=tuple(components))
+
+
 @dataclasses.dataclass
 class Attr:
   """An attribute declaration in the MJCF schema."""
@@ -125,6 +218,7 @@ class Attr:
   facets: dict[str, Union[bool, str, float]]
   doc: Optional[str]
   line: int
+  dim: Optional[Dim] = None    # parsed dim facet, set by validation
 
 
 @dataclasses.dataclass
@@ -180,6 +274,8 @@ class Element:
   members: list[Union[Attr, Use, Child, Const, Constraint]]
   doc: Optional[str]
   line: int
+  # parsed control and output facets, keyed by the symbol they define (U, Y)
+  dims: dict[str, Dim] = dataclasses.field(default_factory=dict)
 
   def children(self) -> list[Child]:
     return [m for m in self.members if isinstance(m, Child)]
@@ -627,6 +723,16 @@ def _validate(schema: Schema):
             f'(directly or via use)')
       seen_attrs[attr.name] = attr.line
 
+    # control and output facets; U and Y are defined only where declared
+    for facet, sym in DIM_ELEMENT_FACETS.items():
+      if facet in element.facets:
+        dim = _parse_dim_facet(schema, element.facets[facet], element.line,
+                               f'element facet {facet!r}')
+        if dim.kind == 'solref' or dim.symbols() & {'U', 'Y'}:
+          err(element.line, f'element facet {facet!r} must be a product of '
+              f'L M T A Q F, custom or opaque')
+        element.dims[sym] = dim
+
     # constraints reference the element's own (expanded) attributes
     for con in element.constraints():
       for bundle in con.bundles:
@@ -642,6 +748,29 @@ def _validate(schema: Schema):
     for attr in container.members:
       if isinstance(attr, Attr):
         _validate_attr(schema, attr, namespaces)
+
+  # U and Y in an element's attributes need its control and output facets
+  for element in schema.elements.values():
+    for attr in schema.expanded_attrs(element):
+      if attr.dim is None:
+        continue
+      for facet, sym in DIM_ELEMENT_FACETS.items():
+        if sym in attr.dim.symbols() and sym not in element.dims:
+          err(element.line, f'attribute {attr.name!r} has dimension {sym}, '
+              f'element {element.name!r} needs a {facet!r} facet')
+
+
+def _parse_dim_facet(schema: Schema, value: Union[bool, str, float], line: int,
+                     what: str) -> Dim:
+  """Parses a dim-valued facet; the number 1 is the dimensionless value."""
+  if isinstance(value, float) and value == 1:
+    value = '1'
+  if not isinstance(value, str):
+    raise SchemaError(schema.path, line, f'{what} requires a dimension')
+  try:
+    return parse_dim(value)
+  except ValueError as error:
+    raise SchemaError(schema.path, line, f'{what}: {error}') from None
 
 
 def _check_group_cycle(schema: Schema, name: str, stack: list[str], line: int):
@@ -693,6 +822,19 @@ def _validate_attr(schema: Schema, attr: Attr, namespaces: set[str]):
   if attr.facets.get('required') and attr.default is not None:
     err(f'attribute {attr.name!r} is required and has a default')
 
+  # dimension: real-valued attributes only, one component or one per value
+  if 'dim' in attr.facets:
+    if attr.type not in REAL_TYPES:
+      err(f"facet 'dim' requires a real-valued attribute, {attr.name!r} is "
+          f'{attr.type}')
+    attr.dim = _parse_dim_facet(schema, attr.facets['dim'], attr.line,
+                                f'attribute {attr.name!r}')
+    n = len(attr.dim.components)
+    lo, hi = attr.arity.lo, attr.arity.hi
+    if n > 1 and not (n == hi or (isinstance(hi, str) and n >= max(lo, 2))):
+      err(f'attribute {attr.name!r} has {n} dimension components, '
+          f'arity is [{lo}..{hi}]')
+
   # defaults
   if attr.default is None:
     return
@@ -743,6 +885,18 @@ def parse_file(path: str) -> Schema:
   """Parses an MJCF schema from a file path."""
   with open(path, 'r', encoding='utf-8') as file:
     return parse_string(file.read(), path)
+
+
+def missing_dims(schema: Schema) -> list[tuple[str, Attr]]:
+  """Real-valued attributes without a dim facet, with their declaring scope."""
+  missing = []
+  scopes = [('group ' + name, group) for name, group in schema.groups.items()]
+  scopes += list(schema.elements.items())
+  for scope, container in scopes:
+    for attr in container.members:
+      if isinstance(attr, Attr) and attr.type in REAL_TYPES and not attr.dim:
+        missing.append((scope, attr))
+  return missing
 
 
 def main() -> int:

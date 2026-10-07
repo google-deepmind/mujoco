@@ -143,6 +143,11 @@ Models
   tendon-loaded dipper arm. Inspired by `Miles Macklin's Reduced Elastic Links experiments
   <https://reports.mmacklin.com/newton-reduced/reduced_elastic_links_implementation.html>`__.
 
+Documentation
+^^^^^^^^^^^^^
+- The :ref:`XML reference<CDimension>` now gives the physical dimension of every real-valued attribute, declared in the
+  MJCF schema.
+
 Version 3.15.0 (October 5, 2026)
 --------------------------------
 

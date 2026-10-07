@@ -90,6 +90,36 @@ will appear in the reference documentation as
       <p style="display: none"></p>
 
 
+.. _CDimension:
+
+Attribute dimensions
+~~~~~~~~~~~~~~~~~~~~
+
+MuJoCo does not fix a system of units, see :ref:`Units`. The table below gives the physical dimension of every
+real-valued attribute in terms of length :math:`L`, mass :math:`M` and time :math:`T`, and the symbols
+
+============ ===========================================================================================================
+:math:`A`    Plane angle, dimensionless. Orientations and the :at:`range`, :at:`ref` and :at:`springref` of hinge and
+             ball joints are read in the unit set by :ref:`compiler/angle<compiler-angle>`. Other angles are radians,
+             unless their description says otherwise.
+:math:`Q`    The coordinate of the joint, tendon or actuator transmission: an angle for hinge and ball joints, a length
+             for slide joints and spatial tendons. The coordinate of a :ref:`fixed tendon<tendon-fixed>` is
+             :ref:`coef<fixed-joint-coef>` times the coordinates of its joints.
+:math:`F`    The generalized force conjugate to :math:`Q`, of dimension :math:`M\,L^2\,T^{-2}\,Q^{-1}`: a torque when
+             :math:`Q` is an angle, a force when it is a length.
+============ ===========================================================================================================
+
+Integer attributes are counts, indices or flags, and dimensionless. Raw asset data is in the asset's own units:
+mesh :at:`vertex` and :at:`refpos` and flexcomp :at:`point` and :at:`origin` are dimensionless, and :at:`scale`,
+which converts them to lengths, has dimension :math:`L`. A dimension marked *varies* depends on other attributes of the
+element, for example the outputs selected by a sensor's :at:`data`; *other* marks quantities not expressible in these
+terms, such as user data and the electrical parameters of :ref:`dcmotor<actuator-dcmotor>`.
+
+.. collapse:: Dimensions of all attributes
+
+   .. include:: XMLunits.rst
+
+
 .. _CXSD:
 
 XSD schema
@@ -4018,7 +4048,7 @@ saving the XML:
 .. _body-flexcomp-scale:
 
 :at:`scale`: :at-val:`real(3), "1 1 1"`
-   Scaling of all point coordinates, for types that specify coordinates explicitly. Scaling is applied after the pose
+   Scaling of all point coordinates, for types that specify coordinates explicitly. Scaling is applied before the pose
    transformation.
 
 .. _body-flexcomp-radius:

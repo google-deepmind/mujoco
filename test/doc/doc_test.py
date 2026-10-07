@@ -32,6 +32,7 @@ try:
   import generate_mjcf_table  # pyrefly: ignore[missing-import]
   import generate_read_table  # pyrefly: ignore[missing-import]
   import generate_schema  # pyrefly: ignore[missing-import]
+  import generate_units  # pyrefly: ignore[missing-import]
   import generate_xsd  # pyrefly: ignore[missing-import]
   import mjcf_schema  # pyrefly: ignore[missing-import]
 except ImportError:
@@ -307,6 +308,18 @@ class DocTest(googletest.TestCase):
   def test_schema(self):
     """Checks that XMLschema.rst matches the generated output."""
     _check_up_to_date(self, 'doc/XMLschema.rst', generate_schema.generate())
+
+  def test_units(self):
+    """Checks that XMLunits.rst matches the schema-generated output."""
+    _check_up_to_date(self, 'doc/XMLunits.rst', generate_units.generate())
+
+  def test_dims(self):
+    """Checks that every real-valued attribute declares its dimension."""
+    schema = mjcf_schema.parse_file(_get_path('src', 'xml', 'mjcf.schema'))
+    missing = [f'{scope}/{attr.name} (line {attr.line})'
+               for scope, attr in mjcf_schema.missing_dims(schema)]
+    if missing:
+      self.fail('attributes without a dim facet:\n  ' + '\n  '.join(missing))
 
   def test_functions(self):
     """Checks that functions.rst matches the generated output."""
