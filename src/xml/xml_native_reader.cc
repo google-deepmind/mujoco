@@ -2287,6 +2287,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
     throw mjXError(section, "World body cannot have attributes");
   }
 
+  // when parsing the contents of a replicate, body is the temporary subtree
+  // that gets attached into the parent body; anything added directly to it
+  // (including via frames or includes) is replicated into the parent body
+  mjsBody* replicate_body = string(section->Value()) == "replicate" ? body : nullptr;
+
   // stack of elements to process
   struct BodyFrame {
     XMLElement* elem;
@@ -2335,7 +2340,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       if (mjs_getId(body->element) == 0) { throw mjXError(elem, "World body cannot have joints"); }
 
       // joints would be replicated into the parent body
-      if (elem->Parent() && string(elem->Parent()->Value()) == "replicate") {
+      if (replicate_body && body == replicate_body) {
         throw mjXError(elem, "joint cannot be a direct child of replicate");
       }
 
@@ -2351,7 +2356,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       if (mjs_getId(body->element) == 0) { throw mjXError(elem, "World body cannot have joints"); }
 
       // joints would be replicated into the parent body
-      if (elem->Parent() && string(elem->Parent()->Value()) == "replicate") {
+      if (replicate_body && body == replicate_body) {
         throw mjXError(elem, "joint cannot be a direct child of replicate");
       }
 

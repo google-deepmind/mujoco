@@ -1707,6 +1707,127 @@ TEST_F(XMLReaderTest, ReplicateCannotHaveJoints) {
   EXPECT_EQ(model->njnt, 2);
 }
 
+TEST_F(XMLReaderTest, ReplicateCannotHaveJointsInFrame) {
+  static constexpr char joint_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <replicate count="2" offset="2 0 0">
+          <frame pos="0 0 1">
+            <joint type="hinge"/>
+            <geom size=".1"/>
+          </frame>
+        </replicate>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(joint_xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("joint cannot be a direct child of replicate"));
+  EXPECT_THAT(error.data(), HasSubstr("line 7"));
+
+  static constexpr char nested_freejoint_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <replicate count="2" offset="2 0 0">
+          <frame>
+            <frame>
+              <freejoint/>
+              <geom size=".1"/>
+            </frame>
+          </frame>
+        </replicate>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  model = LoadModelFromString(nested_freejoint_xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("joint cannot be a direct child of replicate"));
+  EXPECT_THAT(error.data(), HasSubstr("line 8"));
+
+  // a joint inside a body nested in a frame inside replicate is allowed
+  static constexpr char body_joint_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <replicate count="2" offset="1 0 0">
+        <frame>
+          <body>
+            <joint type="hinge"/>
+            <geom size=".1"/>
+          </body>
+        </frame>
+      </replicate>
+    </worldbody>
+  </mujoco>
+  )";
+  model = LoadModelFromString(body_joint_xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->njnt, 2);
+}
+
+TEST_F(XMLReaderTest, ReplicateCannotHaveJointsFromInclude) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <replicate count="2" offset="2 0 0">
+          <include file="joint.xml"/>
+        </replicate>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char joint_xml[] = R"(
+  <mujoco>
+    <joint type="hinge"/>
+    <geom size=".1"/>
+  </mujoco>)";
+
+  static constexpr char body_xml[] = R"(
+  <mujoco>
+    <body>
+      <joint type="hinge"/>
+      <geom size=".1"/>
+    </body>
+  </mujoco>)";
+
+  static constexpr char body_include_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <replicate count="2" offset="2 0 0">
+        <include file="body.xml"/>
+      </replicate>
+    </worldbody>
+  </mujoco>)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "joint.xml", joint_xml, sizeof(joint_xml));
+  mj_addBufferVFS(vfs.get(), "body.xml", body_xml, sizeof(body_xml));
+
+  std::array<char, 1024> error;
+  MjModelPtr model =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("joint cannot be a direct child of replicate"));
+
+  // a joint inside an included body nested in replicate is allowed
+  model = LoadModelFromString(body_include_xml, error.data(), error.size(),
+                              vfs.get());
+  EXPECT_THAT(model.get(), NotNull()) << error.data();
+  if (model) {
+    EXPECT_EQ(model->njnt, 2);
+  }
+  mj_deleteVFS(vfs.get());
+}
+
 TEST_F(XMLReaderTest, ParseReplicateDefaultPropagate) {
   static constexpr char xml[] = R"(
   <mujoco>
