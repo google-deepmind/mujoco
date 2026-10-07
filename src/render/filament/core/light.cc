@@ -104,10 +104,6 @@ Light::Light(filament::Engine* engine, const mjrfLightParams& params)
       type == filament::LightManager::Type::DIRECTIONAL ? 4 : 1;
   opts.shadowBulbRadius = params.bulb_radius;
   opts.mapSize = params.shadow_map_size;
-  if (params.vsm_blur_width > 0.0f) {
-    opts.vsm.elvsm = true;
-    opts.vsm.blurWidth = params.vsm_blur_width;
-  }
 
   builder.shadowOptions(opts);
 
@@ -216,18 +212,6 @@ void Light::SetBulbRadius(float radius) {
     lm.setShadowOptions(li, opts);
   }
   params_.bulb_radius = radius;
-}
-
-void Light::SetBlurWidth(float blur_width) {
-  if (params_.vsm_blur_width != blur_width && ibl_ == nullptr) {
-    filament::LightManager& lm = engine_->getLightManager();
-    const filament::LightManager::Instance li = lm.getInstance(entity_);
-    filament::LightManager::ShadowOptions opts = lm.getShadowOptions(li);
-    opts.vsm.elvsm = blur_width > 0.0f;
-    opts.vsm.blurWidth = blur_width;
-    lm.setShadowOptions(li, opts);
-  }
-  params_.vsm_blur_width = blur_width;
 }
 
 void Light::SetShadowsEnabled(bool enabled) {

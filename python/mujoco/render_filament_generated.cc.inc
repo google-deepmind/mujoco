@@ -374,8 +374,7 @@ mjrf_light_params.def(py::init([](
   std::optional<float> spot_cone_angle,
   std::optional<float> spot_softness,
   std::optional<int> shadow_map_size,
-  std::optional<float> bulb_radius,
-  std::optional<float> vsm_blur_width
+  std::optional<float> bulb_radius
 ) {
   mjrfLightParams obj;
   Init(obj);
@@ -389,7 +388,6 @@ mjrf_light_params.def(py::init([](
   if (spot_softness) Setter(obj.spot_softness, *spot_softness);
   if (shadow_map_size) Setter(obj.shadow_map_size, *shadow_map_size);
   if (bulb_radius) Setter(obj.bulb_radius, *bulb_radius);
-  if (vsm_blur_width) Setter(obj.vsm_blur_width, *vsm_blur_width);
   return obj;
 })
 , py::arg("type").none(true) = py::none()
@@ -402,7 +400,6 @@ mjrf_light_params.def(py::init([](
 , py::arg("spot_softness").none(true) = py::none()
 , py::arg("shadow_map_size").none(true) = py::none()
 , py::arg("bulb_radius").none(true) = py::none()
-, py::arg("vsm_blur_width").none(true) = py::none()
 );
 DefProperty<mjrLightType>(mjrf_light_params, "type", &mjrfLightParams::type);
 DefProperty<PyTexture>(mjrf_light_params, "texture", &mjrfLightParams::texture);
@@ -414,7 +411,6 @@ DefProperty<float>(mjrf_light_params, "spot_cone_angle", &mjrfLightParams::spot_
 DefProperty<float>(mjrf_light_params, "spot_softness", &mjrfLightParams::spot_softness);
 DefProperty<int>(mjrf_light_params, "shadow_map_size", &mjrfLightParams::shadow_map_size);
 DefProperty<float>(mjrf_light_params, "bulb_radius", &mjrfLightParams::bulb_radius);
-DefProperty<float>(mjrf_light_params, "vsm_blur_width", &mjrfLightParams::vsm_blur_width);
 
 py::class_<mjrfMaterial> mjrf_material(m, "Material", py::module_local());
 mjrf_material.def(py::init([](
@@ -775,15 +771,6 @@ mjrf_light.def("set_bulb_radius", [](
     return mjrf_setLightBulbRadius(light.get(), radius);
 }
 , py::arg("radius")
-);
-
-mjrf_light.def("set_blur_width", [](
-  PyLight& light,
-  float blur_width
-) {
-    return mjrf_setLightBlurWidth(light.get(), blur_width);
-}
-, py::arg("blur_width")
 );
 
 mjrf_light.def("set_transform", [](

@@ -1644,7 +1644,6 @@ typedef struct mjrfLightParams_ {
   float spot_softness;             // spot light edge softness, fraction of cone angle in [0, 1]
   int shadow_map_size;             // size of shadow map texture, 0 to use default size
   float bulb_radius;               // bulb radius, used for soft shadows
-  float vsm_blur_width;            // variance shadow map blur width
 } mjrfLightParams;
 typedef struct mjrfMaterial_ {
   float color[4];               // object color; defaults to white
@@ -3636,7 +3635,6 @@ void mjrf_setLightRange(mjrfLight* light, float range);
 void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff);
 void mjrf_setLightSoftness(mjrfLight* light, float softness);
 void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
-void mjrf_setLightBlurWidth(mjrfLight* light, float blur_width);
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
 void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
 int mjrf_getLightType(const mjrfLight* light);

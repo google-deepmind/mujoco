@@ -63,9 +63,6 @@ class Light : public mjrfLight {
   // Sets the radius of this light's bulb, in meters.
   void SetBulbRadius(float radius);
 
-  // Sets the width of the blur applied to this light's shadow map, in texels.
-  void SetBlurWidth(float blur_width);
-
   // Enables/disables shadows for this light.
   void SetShadowsEnabled(bool enabled);
 

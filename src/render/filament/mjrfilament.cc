@@ -88,7 +88,6 @@ void mjrf_defaultLightParams(mjrfLightParams* params) {
   params->spot_softness = 0.0f;
   params->bulb_radius = 0.0f;
   params->shadow_map_size = 2048;
-  params->vsm_blur_width = 0.0f;
 }
 
 void mjrf_defaultMaterial(mjrfMaterial* material) {
@@ -257,10 +256,6 @@ void mjrf_setLightSoftness(mjrfLight* light, float softness) {
 
 void mjrf_setLightBulbRadius(mjrfLight* light, float radius) {
   mujoco::Light::downcast(light)->SetBulbRadius(radius);
-}
-
-void mjrf_setLightBlurWidth(mjrfLight* light, float blur_width) {
-  mujoco::Light::downcast(light)->SetBlurWidth(blur_width);
 }
 
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size) {

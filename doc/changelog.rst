@@ -131,6 +131,19 @@ Actuation
   actuator, which so far only the :ref:`position<actuator-position>`, :ref:`intvelocity<actuator-intvelocity>` and
   :ref:`pid<actuator-pid>` shortcuts had.
 
+Filament Rendering
+^^^^^^^^^^^^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Removed ``mjrf_setLightBlurWidth`` and ``mjrfLightParams::vsm_blur_width``. This includes the python counterparts
+     ``mjrf.Light.setBlurWidth`` and ``mjrf.LightParams.vsm_blur_width``. This effectively removes the option to specify
+     soft shadows with VSM.
+
+     **Migration:** Users should use PCSS shadows instead of VSM shadows for soft shadows by setting the custom flag
+     ``filament.shadow.type`` to ``pcss``. PCSS shadows provide similar quality shadows, but are more performant.
+
+
 Python bindings
 ^^^^^^^^^^^^^^^
 - Added ``MjSpec.copy_back(model)``, which writes to the spec what was changed in a model compiled from it; see

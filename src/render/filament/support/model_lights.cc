@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <numbers>
 #include <string>
 #include <utility>
 
@@ -105,35 +104,6 @@ ModelLights::~ModelLights() {
   fallback_directional_.reset();
 }
 
-static float ComputeVsmBlurWidth(const mjModel* model, int i, float map_size) {
-  const float bulb_radius = model->light_bulbradius[i];
-  const float3 to_center =
-      ReadFloat3(model->stat.center) - ReadFloat3(model->light_pos0, i);
-  const float distance = std::max(length(to_center), 1e-6f);
-  const float bulb_angle = bulb_radius / distance;
-  float vsm_blur_width = 0.0f;
-  switch ((mjtLightType)model->light_type[i]) {
-    case mjLIGHT_SPOT: {
-      const float fov =
-          2.0f * model->light_cutoff[i] * std::numbers::pi / 180.0f;
-      vsm_blur_width = bulb_angle * map_size / fov;
-      break;
-    }
-    case mjLIGHT_POINT:
-      vsm_blur_width = bulb_angle * map_size / (0.5f * std::numbers::pi);
-      break;
-    case mjLIGHT_DIRECTIONAL: {
-      const float coverage =
-          2.0f * model->vis.map.shadowclip * model->stat.extent;
-      vsm_blur_width = bulb_radius * map_size / coverage;
-      break;
-    }
-    default:
-      break;
-  }
-  return std::min(vsm_blur_width, 125.0f);
-}
-
 void ModelLights::Prepare() {
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
@@ -170,14 +140,7 @@ void ModelLights::Prepare() {
       params.color[2] = model->light_diffuse[2];
       params.type = (mjtLightType)model->light_type[i];
       params.cast_shadows = model->light_castshadow[i];
-      // light_bulbradius is the radius of the emitting surface in meters.
-      // Filament's DPCF/PCSS internally scale shadowBulbRadius from meters
-      // to light-space texels, so we pass it through in meters for all types.
-      // VSM requires a single uniform blur width for the map; we approximate
-      // this using the angular size of the bulb from the scene center.
       params.bulb_radius = model->light_bulbradius[i];
-      params.vsm_blur_width =
-          ComputeVsmBlurWidth(model, i, default_shadow_map_size);
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
       params.shadow_map_size = default_shadow_map_size;
@@ -291,8 +254,6 @@ void ModelLights::Update(const mjData* data) {
     mjrf_setLightCutoffAngle(light, model->light_cutoff[i]);
     mjrf_setLightSoftness(light, model->light_softness[i]);
     mjrf_setLightBulbRadius(light, model->light_bulbradius[i]);
-    mjrf_setLightBlurWidth(
-        light, ComputeVsmBlurWidth(model, i, shadow_map_size_));
     mjrf_setLightShadowsEnabled(light, model->light_castshadow[i]);
   }
 }

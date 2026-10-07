@@ -272,7 +272,6 @@ typedef struct mjrfLightParams_ {
   float spot_softness;             // spot light edge softness, fraction of cone angle in [0, 1]
   int shadow_map_size;             // size of shadow map texture, 0 to use default size
   float bulb_radius;               // bulb radius, used for soft shadows
-  float vsm_blur_width;            // variance shadow map blur width
 } mjrfLightParams;
 
 // Initializes the mjrfLightParams to default values.
@@ -307,9 +306,6 @@ void mjrf_setLightSoftness(mjrfLight* light, float softness);
 
 // Sets the radius of the light bulb.
 void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
-
-// Sets the width of the blur applied to the light's shadow map, in texels.
-void mjrf_setLightBlurWidth(mjrfLight* light, float blur_width);
 
 // Sets the resolution of the light's shadow map, in texels.
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);

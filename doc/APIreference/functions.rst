@@ -3559,15 +3559,6 @@ Sets the softness of the light, in the range [0, 1]. Only used for spot lights.
 
 Sets the radius of the light bulb.
 
-.. _mjrf_setLightBlurWidth:
-
-`mjrf_setLightBlurWidth <#mjrf_setLightBlurWidth>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjrf_setLightBlurWidth
-
-Sets the width of the blur applied to the light's shadow map, in texels.
-
 .. _mjrf_setLightShadowMapSize:
 
 `mjrf_setLightShadowMapSize <#mjrf_setLightShadowMapSize>`__
