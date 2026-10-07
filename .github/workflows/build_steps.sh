@@ -358,7 +358,7 @@ build_python_bindings() {
     MUJOCO_PATH="${TMPDIR}/mujoco_install" \
     MUJOCO_PLUGIN_PATH="${TMPDIR}/mujoco_install/mujoco_plugin" \
     MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
-    pip wheel -v --no-deps mujoco-*.tar.gz
+    pip wheel -v --no-deps --no-build-isolation mujoco-*.tar.gz
 }
 
 
@@ -443,7 +443,7 @@ package_wasm() {
 package_mjx() {
     echo "Packaging MJX..."
     source ${TMPDIR}/venv/bin/activate &&
-    python -m build .
+    python -m build --no-isolation .
 }
 
 
