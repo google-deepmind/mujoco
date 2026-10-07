@@ -182,15 +182,17 @@ static inline mjtNum det3(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v
 // ---------------------------------------- GJK ---------------------------------------------------
 
 
-// return true if both geoms are discrete shapes (i.e. meshes or boxes with no margin)
-static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
+// return true if object is a discrete shape or shrunk to a point/line with no margin
+static int discreteGeom(const mjCCDObj* obj) {
   // non-zero margin makes geoms smooth
-  if (obj1->margin != 0 || obj2->margin != 0) return 0;
+  if (obj->margin != 0) return 0;
 
-  int g1 = obj1->geom_type;
-  int g2 = obj2->geom_type;
-  return (g1 == mjGEOM_MESH || g1 == mjGEOM_BOX || g1 == mjGEOM_HFIELD) &&
-         (g2 == mjGEOM_MESH || g2 == mjGEOM_BOX || g2 == mjGEOM_HFIELD);
+  // point and line supports are discrete
+  if (obj->support == mjc_pointSupport || obj->support == mjc_lineSupport) return 1;
+
+  // mesh, box, and hfield supports are discrete
+  int g = obj->geom_type;
+  return (g == mjGEOM_MESH || g == mjGEOM_BOX || g == mjGEOM_HFIELD);
 }
 
 
@@ -210,10 +212,11 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   status->separated = 0;
 
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
-  mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : 0.5 * tol2;
+  int discrete = discreteGeom(obj1) && discreteGeom(obj2);
+  mjtNum epsilon = discrete ? 0 : 0.5 * tol2;
 
-  // tolerance on norm of x_k
-  mjtNum min_norm = discreteGeoms(obj1, obj2) ? mjMINVAL : status->tolerance;
+  // minimum norm of x_k; resolve distances below tolerance for discrete shapes or distance queries
+  mjtNum min_norm = (discrete || get_dist) ? mjMINVAL : status->tolerance;
 
   // set initial guess
   sub3(x_k, x1_k, x2_k);
@@ -1365,7 +1368,7 @@ static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjt
 static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum upper = mjMAX_LIMIT, upper2 = mjMAX_LIMIT, lower2;
   Face* face = NULL, *pface = NULL;  // face closest to origin
-  int discrete = discreteGeoms(obj1, obj2);
+  int discrete = discreteGeom(obj1) && discreteGeom(obj2);
 
   // discrete geoms return in a finite number of iterations, a non-zero tolerance avoids
   // absurdly small lower and upper bounds
@@ -1409,6 +1412,7 @@ static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* ob
       // terminate without contact when upper < lower on first iteration
       if (k == 0 && upper < lower - 1e-10) {
         face = NULL;
+        status->epa_status = mjEPA_NOCONTACT;
       }
       break;
     }
@@ -2514,6 +2518,7 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
 
   if (status->dist[0] <= config->tolerance && status->nsimplex > 1
       && config->buffer && !status->separated) {
+    mjtNum gjk_dist = status->dist[0];
     status->dist[0] = 0;  // assume touching
     Polytope pt;
     pt.nfaces = pt.nmap = pt.nverts = pt.horizon.nedges = 0;
@@ -2546,11 +2551,19 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
     // simplex not on boundary (objects are penetrating)
     if (!ret) {
       Face* face = epa(status, &pt, obj1, obj2);
+
+      // get multiple contacts if requested
       if (config->max_contacts > 1 && face) {
         int verts[3] = EPA_VERT_EXPAND(face->verts);
         multicontact(config->nmeshdegmax, config->npolygonmax, config->buffer,
                      pt.verts + verts[0], pt.verts + verts[1], pt.verts + verts[2],
                      status, obj1, obj2);
+      }
+
+      // if EPA found no contact during a distance query, restore GJK distance and witness count
+      if (!face && config->dist_cutoff > 0 && status->epa_status == mjEPA_NOCONTACT) {
+        status->nx = 1;
+        status->dist[0] = gjk_dist;
       }
     }
   }

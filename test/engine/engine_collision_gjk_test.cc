@@ -22,15 +22,14 @@
 #include <string_view>
 #include <vector>
 
-#include <ccd/ccd.h>   // IWYU pragma: keep
-#include <ccd/vec3.h>  // IWYU pragma: keep
-
-#include "src/engine/engine_collision_convex.h"
-#include <mujoco/mujoco.h>
-#include <mujoco/mjtype.h>
-#include "test/fixture.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <ccd/ccd.h>   // IWYU pragma: keep
+#include <ccd/vec3.h>  // IWYU pragma: keep
+#include <mujoco/mjtype.h>
+#include <mujoco/mujoco.h>
+#include "src/engine/engine_collision_convex.h"
+#include "test/fixture.h"
 
 // uncomment to run tests with libccd
 // #define TEST_WITH_LIBCCD
@@ -2520,6 +2519,26 @@ TEST_F(MjGjkTest, Polytope3CoplanarSupport) {
   int ncons = Penetration(status, dist, dir, pos, model, data, 0, 1);
   EXPECT_EQ(ncons, 0);
   EXPECT_NE(status.epa_status, mjEPA_SUCCESS);
+}
+
+TEST_F(MjGjkTest, GeomDistanceBelowTolerance) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="g1" type="box" size="0.1 0.1 0.1"/>
+      <geom name="g2" type="ellipsoid" pos="0 0 0.2000005" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum fromto[6] = {0};
+  mjtNum dist = mj_geomDistance(model.get(), data.get(), 0, 1, 1.0, fromto);
+  EXPECT_NEAR(dist, 5e-7, MjTol(1e-9, 5e-6));
+  EXPECT_NEAR(fromto[2], 0.1, MjTol(1e-6, 1e-5));
+  EXPECT_NEAR(fromto[5], 0.1000005, MjTol(1e-6, 1e-5));
 }
 
 }  // namespace mujoco
