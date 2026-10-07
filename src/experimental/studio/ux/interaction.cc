@@ -346,8 +346,10 @@ static PickResult PickGeom(const mjModel* m, const mjData* d,
   result.dist =
       mj_ray(m, d, ray_pos, ray_dir, vis_options->geomgroup,
              vis_options->flags[mjVIS_STATIC], -1, &result.geom, nullptr);
-  mju_addScl3(result.point, ray_pos, ray_dir, result.dist);
-  result.body = m->geom_bodyid[result.geom];
+  if (result.dist >= 0 && result.geom >= 0) {
+    mju_addScl3(result.point, ray_pos, ray_dir, result.dist);
+    result.body = m->geom_bodyid[result.geom];
+  }
   return result;
 }
 
