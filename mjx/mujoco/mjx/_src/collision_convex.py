@@ -71,7 +71,7 @@ def collider(ncon: int):
           infos[i] = hfield_info.replace(pos=infos[i].pos, mat=infos[i].mat)  # pyrefly: ignore[unsupported-operation]
           in_axes[i] = hfield_info.replace(pos=0, mat=0, data=None)  # pyrefly: ignore[unsupported-operation]
           fn = functools.partial(fn, subgrid_size=key.subgrid_size)
-      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)  # pytype: disable=wrong-keyword-args
+      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)
       if ncon > 1:
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
@@ -301,7 +301,7 @@ def _capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
     )
 
   edge = jp.take(convex.vert, convex.edge, axis=0)
-  edge_face_normal = convex.edge_face_normal  # pytype: disable=attribute-error
+  edge_face_normal = convex.edge_face_normal
 
   res = jax.vmap(get_edge_axis)(edge.reshape(-1, 2, 3))
   e_idx = jp.abs(res[0]).argmin()

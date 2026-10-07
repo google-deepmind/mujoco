@@ -160,7 +160,7 @@ def _resolve_impl_and_device(
     impl = _resolve_impl(device)
 
   _check_impl_device_compatibility(impl, device)  # pyrefly: ignore[bad-argument-type]
-  return impl, device  # pytype: disable=bad-return-type
+  return impl, device  # pyrefly: ignore[bad-return]
 
 
 def _strip_weak_type(tree):
@@ -426,7 +426,7 @@ def _put_model_jax(
   for i in mesh_geomid:
     dataid = m.geom_dataid[i]
     if fields_jax['mesh_convex'][dataid] is None:
-      fields_jax['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
+      fields_jax['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pyrefly: ignore[unsupported-operation]
   fields_jax['mesh_convex'] = tuple(fields_jax['mesh_convex'])
 
   jax_impl = types.ModelJAX(**fields_jax)
@@ -513,7 +513,7 @@ def _put_model_cpp(
 
   # get the pointer address
   # we use a 0-d array
-  addr = m._address  # pytype: disable=attribute-error
+  addr = m._address
   # To ensure that we retain the full pointer even if jax.config.enable_x64 is
   # set to True, we store the pointer as two 32-bit values. In the FFI call,
   # we combine the two values into a single pointer value.
@@ -837,7 +837,7 @@ def _make_data_cpp(
   mj_data = mujoco.MjData(mj_model)
 
   # Get the pointer address
-  addr = mj_data._address  # pytype: disable=attribute-error
+  addr = mj_data._address
   pointer_lo = jp.array(addr & 0xFFFFFFFF, dtype=jp.uint32)
   pointer_hi = jp.array(addr >> 32, dtype=jp.uint32)
 
@@ -1839,7 +1839,7 @@ def create_render_context(
     Render context object that is JAX compatible.
   """
   _check_warp_installed()
-  from mujoco.mjx.warp import io as mjxw_io  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+  from mujoco.mjx.warp import io as mjxw_io  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
   return mjxw_io.create_render_context(
       mjm, nworld=nworld, devices=devices, **kwargs  # pyrefly: ignore[bad-argument-type]
   )

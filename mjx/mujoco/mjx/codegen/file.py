@@ -90,7 +90,7 @@ def get_cls_type_annotations(src: str) -> Dict[str, Dict[str, str]]:
       for item in node.body:
         if not isinstance(item, ast.AnnAssign):
           continue
-        field_name = item.target.id  # pytype: disable=attribute-error
+        field_name = item.target.id  # pyrefly: ignore[missing-attribute]
         annotation_str = ast.unparse(item.annotation).strip()
         ret[class_name][field_name] = annotation_str
 

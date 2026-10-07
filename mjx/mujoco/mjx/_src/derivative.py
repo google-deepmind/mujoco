@@ -65,7 +65,7 @@ def deriv_smooth_vel(m: Model, d: Data) -> Optional[jax.Array]:
 
   if not m.opt.disableflags & (DisableBit.DAMPER | DisableBit.SPRING):
     # TODO(robotics-simulation): fluid drag model
-    if m.opt._impl.has_fluid_params:  # pytype: disable=attribute-error
+    if m.opt._impl.has_fluid_params:
       raise NotImplementedError('fluid drag not supported for implicitfast')
 
   # TODO(team): rne derivative

@@ -63,17 +63,17 @@ import numpy as np
 MJTNUM_DTYPE = np.float32 if MJTNUM_BYTES == 4 else np.float64  # pylint: disable=undefined-variable
 
 try:
-  from mujoco._render import *  # pytype: disable=import-error
+  from mujoco._render import *
 except ImportError:
   pass
 
 try:
-  from mujoco.rendering.classic.renderer import Renderer  # pytype: disable=import-error
+  from mujoco.rendering.classic.renderer import Renderer  # pyrefly: ignore[missing-import]
 except ImportError:
   pass
 
 try:
-  from mujoco.rendering.classic.gl_context import *  # pytype: disable=import-error
+  from mujoco.rendering.classic.gl_context import *  # pyrefly: ignore[missing-import]
 except ImportError:
   pass
 

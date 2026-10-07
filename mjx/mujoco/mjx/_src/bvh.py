@@ -26,8 +26,8 @@ import mujoco.mjx.warp as mjxw
 def refit_bvh(m: Model, d: Data, ctx: Any):
   """Refit the scene BVH for the current pose."""
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
-    import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-    from mujoco.mjx.warp import bvh as mjxw_bvh  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    import mujoco.mjx.warp.render_context as mjxw_rc  # pylint: disable=g-import-not-at-top
+    from mujoco.mjx.warp import bvh as mjxw_bvh  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
 
     if not isinstance(ctx, mjxw_rc.RenderContextPytree):
       raise TypeError(

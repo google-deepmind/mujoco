@@ -70,7 +70,7 @@ def inv_constraint(m: Model, d: Data) -> Data:
   """Inverse constraint solver."""
 
   # no constraints
-  if d._impl.efc_J.size == 0:  # pytype: disable=attribute-error
+  if d._impl.efc_J.size == 0:  # pyrefly: ignore[missing-attribute]
     return d.replace(qfrc_constraint=jp.zeros(m.nv))
 
   # update

@@ -43,15 +43,15 @@ def _call_render(
     require_seg: bool = False,
 ) -> tuple[jax.Array, jax.Array, jax.Array, Data]:
   if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
-    from mujoco.mjx.warp import render as mjxw_render  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
-    from mujoco.mjx.warp import render_context  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    from mujoco.mjx.warp import render as mjxw_render  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
+    from mujoco.mjx.warp import render_context  # pylint: disable=g-import-not-at-top
 
     warp_rc = render_context.get(ctx)
     if require_seg:
       _require_segmentation_enabled(warp_rc)
     rgb, depth, seg, token_array = mjxw_render.render(m, d, ctx)
     token = token_array.reshape(
-        d._impl._jax_token.shape  # pytype: disable=attribute-error
+        d._impl._jax_token.shape  # pyrefly: ignore[missing-attribute]
     )
     d = d.tree_replace({'_impl._jax_token': token})  # pyrefly: ignore[bad-assignment]
     return rgb, depth, seg, d
