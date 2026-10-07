@@ -65,6 +65,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d);
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d);
 
+// number of bodies coupled by a contact side: 1 for a geom, the element vertices or
+// interpolation nodes for a flex
+int mj_contactSideNum(const mjModel* m, const mjContact* con, int side);
+
+// j-th body coupled by a contact side, j < mj_contactSideNum
+int mj_contactSideBody(const mjModel* m, const mjContact* con, int side, int j);
+
 // compute Jacobian for contact, return number of DOFs affected
 //
 // Arguments:
