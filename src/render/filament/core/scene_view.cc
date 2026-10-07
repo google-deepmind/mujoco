@@ -407,6 +407,49 @@ ColorGradingOptions SceneView::GetColorGradingOptions() const {
   return color_grading_options_;
 }
 
+static ToneMapperType ToneMapperTypeFromString(std::string_view name) {
+  if (name == "aces") {
+    return ToneMapperType::kACES;
+  } else if (name == "aces_legacy") {
+    return ToneMapperType::kACESLegacy;
+  } else if (name == "filmic") {
+    return ToneMapperType::kFilmic;
+  } else if (name == "linear") {
+    return ToneMapperType::kLinear;
+  } else if (name == "pbr_neutral") {
+    return ToneMapperType::kPBRNeutral;
+  }
+  mju_warning("Unknown tone mapper type: %s", name.data());
+  return ToneMapperType::kPBRNeutral;
+}
+
+static filament::QualityLevel QualityLevelFromString(std::string_view name) {
+  if (name == "low") {
+    return filament::QualityLevel::LOW;
+  } else if (name == "medium") {
+    return filament::QualityLevel::MEDIUM;
+  } else if (name == "high") {
+    return filament::QualityLevel::HIGH;
+  } else if (name == "ultra") {
+    return filament::QualityLevel::ULTRA;
+  }
+  mju_warning("Unknown quality level: %s", name.data());
+  return filament::QualityLevel::MEDIUM;
+}
+
+static filament::ShadowType ShadowTypeFromString(std::string_view name) {
+  if (name == "pcf") {
+    return filament::ShadowType::PCF;
+  } else if (name == "vsm") {
+    return filament::ShadowType::VSM;
+  } else if (name == "pcss") {
+    return filament::ShadowType::PCSS;
+  }
+  mju_warning("Unknown shadow type: %s", name.data());
+  return filament::ShadowType::PCF;
+}
+
+
 void SceneView::Configure(const mjModel* model) {
   auto cg = color_grading_options_;
   cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);
@@ -433,32 +476,20 @@ void SceneView::Configure(const mjModel* model) {
   cg.highlights = ReadElement(model, "filament.cg.highlights", cg.highlights);
   cg.tonal_ranges =
       ReadElement(model, "filament.cg.tonal_ranges", cg.tonal_ranges);
-
-  auto tone_mapping =
-      ReadElement<std::string_view>(model, "filament.cg.tone_mapping");
-  if (tone_mapping == "aces") {
-    cg.tone_mapper = ToneMapperType::kACES;
-  } else if (tone_mapping == "aces_legacy") {
-    cg.tone_mapper = ToneMapperType::kACESLegacy;
-  } else if (tone_mapping == "filmic") {
-    cg.tone_mapper = ToneMapperType::kFilmic;
-  } else if (tone_mapping == "linear") {
-    cg.tone_mapper = ToneMapperType::kLinear;
-  } else if (tone_mapping == "pbr_neutral") {
-    cg.tone_mapper = ToneMapperType::kPBRNeutral;
-  }
+  cg.tone_mapper = ToneMapperTypeFromString(ReadElement<std::string_view>(
+      model, "filament.cg.tone_mapping", "pbr_neutral"));
   SetColorGradingOptions(cg);
 
   auto ao = main_view_->getAmbientOcclusionOptions();
   ao.enabled = ReadElement(model, "filament.ao.enabled", true);
   ao.bentNormals = ReadElement(model, "filament.ao.bent_normals", false);
   ao.ssct.enabled = ReadElement(model, "filament.ao.ssct", ao.ssct.enabled);
-  ao.quality =
-      ReadElement(model, "filament.ao.quality", filament::QualityLevel::ULTRA);
-  ao.lowPassFilter = ReadElement(model, "filament.ao.low_pass_filter",
-                                 filament::QualityLevel::ULTRA);
-  ao.upsampling = ReadElement(model, "filament.ao.upsampling",
-                              filament::QualityLevel::ULTRA);
+  ao.quality = QualityLevelFromString(
+      ReadElement<std::string_view>(model, "filament.ao.quality", "ultra"));
+  ao.lowPassFilter = QualityLevelFromString(ReadElement<std::string_view>(
+      model, "filament.ao.low_pass_filter", "ultra"));
+  ao.upsampling = QualityLevelFromString(
+      ReadElement<std::string_view>(model, "filament.ao.upsampling", "ultra"));
   ao.bilateralThreshold =
       ReadElement(model, "filament.ao.bilateral_threshold", 0.5f);
   main_view_->setAmbientOcclusionOptions(ao);
@@ -468,7 +499,8 @@ void SceneView::Configure(const mjModel* model) {
   main_view_->setMultiSampleAntiAliasingOptions(msaa);
 
   auto shadow_type = main_view_->getShadowType();
-  shadow_type = ReadElement(model, "filament.shadows.type", shadow_type);
+  shadow_type = ShadowTypeFromString(
+      ReadElement<std::string_view>(model, "filament.shadows.type", "pcf"));
   main_view_->setShadowType(shadow_type);
 
   auto fog_opts = main_view_->getFogOptions();
@@ -479,17 +511,17 @@ void SceneView::Configure(const mjModel* model) {
       ReadElement(model, "filament.fog.distance", fog_opts.distance);
   fog_opts.density =
       ReadElement(model, "filament.fog.density", fog_opts.density);
-  fog_opts.cutOffDistance = ReadElement(model, "filament.fog.cutOffDistance",
+  fog_opts.cutOffDistance = ReadElement(model, "filament.fog.cut_off_distance",
                                         fog_opts.cutOffDistance);
-  fog_opts.maximumOpacity = ReadElement(model, "filament.fog.maximumOpacity",
+  fog_opts.maximumOpacity = ReadElement(model, "filament.fog.maximum_opacity",
                                         fog_opts.maximumOpacity);
   fog_opts.height = ReadElement(model, "filament.fog.height", fog_opts.height);
   fog_opts.heightFalloff =
-      ReadElement(model, "filament.fog.heightFalloff", fog_opts.heightFalloff);
+      ReadElement(model, "filament.fog.height_falloff", fog_opts.heightFalloff);
   fog_opts.inScatteringStart = ReadElement(
-      model, "filament.fog.inScatteringStart", fog_opts.inScatteringStart);
+      model, "filament.fog.in_scattering_start", fog_opts.inScatteringStart);
   fog_opts.inScatteringSize = ReadElement(
-      model, "filament.fog.inScatteringSize", fog_opts.inScatteringSize);
+      model, "filament.fog.in_scattering_size", fog_opts.inScatteringSize);
   main_view_->setFogOptions(fog_opts);
 
   auto bloom = main_view_->getBloomOptions();
@@ -498,7 +530,8 @@ void SceneView::Configure(const mjModel* model) {
       ReadElement(model, "filament.bloom.strength", bloom.strength);
   bloom.dirtStrength =
       ReadElement(model, "filament.bloom.dirt_strength", bloom.dirtStrength);
-  bloom.quality = ReadElement(model, "filament.bloom.quality", bloom.quality);
+  bloom.quality = QualityLevelFromString(
+      ReadElement<std::string_view>(model, "filament.bloom.quality", "low"));
   bloom.resolution =
       ReadElement(model, "filament.bloom.resolution", bloom.resolution);
   bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);

@@ -150,6 +150,33 @@ Filament Rendering
      **Migration:** Users should use PCSS shadows instead of VSM shadows for soft shadows by setting the custom flag
      ``filament.shadow.type`` to ``pcss``. PCSS shadows provide similar quality shadows, but are more performant.
 
+   - The following custom flags have been renamed for consistency:
+
+     `filament.clearColor => filament.clear_color`
+
+     `filament.fog.cutOffDistance => filament.fog.cut_off_distance`
+
+     `filament.fog.maximumOpacity => filament.fog.maximum_opacity`
+
+     `filament.fog.heightFalloff => filament.fog.height_falloff`
+
+     `filament.fog.inScatteringStart => filament.fog.in_scattering_start`
+
+     `filament.fog.inScatteringSize => filament.fog.in_scattering_size`
+
+   - The following custom flags now use the strings "low", "medium", "high", or "ultra" instead of integers (0-3):
+
+     `filament.ao.quality`
+
+     `filament.ao.low_pass_filter`
+
+     `filament.ao.upsampling`
+
+     `filament.bloom.quality`
+
+   - The following custom flag now use the strings "pcf", "vsm", or "pcss" instead of integers (0-3):
+
+     `filament.shadows.type`
 
 Python bindings
 ^^^^^^^^^^^^^^^

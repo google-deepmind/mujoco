@@ -289,7 +289,7 @@
     <numeric name="filament.fog.distance" data="10" />
     <numeric name="filament.fog.density" data="0.15" />
     <numeric name="filament.fog.height" data="-1.5" />
-    <numeric name="filament.shadows.type" data="3"/>
+    <text    name="filament.shadows.type" data="pcss"/>
     <numeric name="filament.shadows.map_size" data="1024"/>
     <numeric name="filament.bloom.enabled" data="1"/>
     <numeric name="filament.bloom.strength" data="0.3"/>

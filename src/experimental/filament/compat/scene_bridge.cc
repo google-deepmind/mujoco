@@ -47,7 +47,7 @@ SceneBridge::SceneBridge(mjrfContext* ctx, mjrfScene* scene, const mjModel* mode
 
   mjrf_configureSceneFromModel(scene_, model);
 
-  auto clear_color = ReadElement(model, "filament.clearColor",
+  auto clear_color = ReadElement(model, "filament.clear_color",
                                  filament::math::float4(0, 0, 0, 1));
   mjrf_setClearColor(ctx_, &clear_color[0]);
 

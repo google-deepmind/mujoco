@@ -8,7 +8,7 @@
   </asset>
 
   <custom>
-    <numeric name="filament.shadows.type" data="3"/>
+    <text name="filament.shadows.type" data="pcss"/>
   </custom>
 
   <worldbody>

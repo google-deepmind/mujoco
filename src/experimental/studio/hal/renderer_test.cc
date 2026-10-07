@@ -34,7 +34,7 @@ class RendererTest : public ::testing::Test {
     // Set a clear color.
     const double clear_color[] = {1.0, 1.0, 1.0, 1.0};
     mjsNumeric* numeric = mjs_addNumeric(spec);
-    mjs_setName(numeric->element, "filament.clearColor");
+    mjs_setName(numeric->element, "filament.clear_color");
     numeric->size = 4;
     mjs_setDouble(numeric->data, clear_color, numeric->size);
     holder_ = ModelHolder::FromSpec(spec);

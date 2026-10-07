@@ -14,9 +14,8 @@
     <numeric name="filament.bloom.strength"   data="0.55"/>
     <numeric name="filament.bloom.levels"     data="9"/>
     <numeric name="filament.bloom.resolution" data="384"/>
-    <numeric name="filament.bloom.quality"    data="3"/>
-
-    <numeric name="filament.shadows.type" data="3"/>
+    <text    name="filament.bloom.quality"    data="ultra"/>
+    <text    name="filament.shadows.type"     data="pcss"/>
   </custom>
 
   <worldbody>
