@@ -50,6 +50,7 @@ class ViewerConfig:
   height: int = 800
   gfx: str = ''  # Graphics mode ('web' launches Web Viewer).
   http_port: int = 0  # Web Viewer port (0 picks first free port >= 8080).
+  open_browser: bool = False  # Open Web Viewer URL in a browser tab on launch.
 
 
 # -----------------------------------------------------------------------------
