@@ -1286,7 +1286,7 @@ void App::BuildGui() {
   }
 
   if (tmp_.editor_panel) {
-    if (ImGui::Begin("Editor", &tmp_.editor_panel)) {
+    if (ImGui::Begin("Editor (\xEF\x83\x83)", &tmp_.editor_panel)) {
       SpecEditorGui();
     }
     ImGui::End();
@@ -2206,7 +2206,7 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Inspector", "Shift+Tab", tmp_.inspector_panel)) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }
-      if (ImGui::MenuItem("Editor", nullptr, tmp_.editor_panel)) {
+      if (ImGui::MenuItem("Editor (\xEF\x83\x83)", nullptr, tmp_.editor_panel)) {
         tmp_.editor_panel = !tmp_.editor_panel;
         if (tmp_.editor_panel) {
           tmp_.inspector_panel = true;

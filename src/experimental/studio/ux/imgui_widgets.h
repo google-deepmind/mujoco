@@ -93,6 +93,7 @@ static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
 static constexpr const char ICON_FA_DOWNLOAD[] = "\xEF\x80\x99";
 static constexpr const char ICON_FA_EJECT[] = "\xEF\x81\x92";
 static constexpr const char ICON_FA_FAST_FORWARD[] = "\xEF\x81\x90";
+static constexpr const char ICON_FA_FLASK[] = "\xEF\x83\x83";
 static constexpr const char ICON_FA_MAGIC[] = "\xEF\x83\x90";
 static constexpr const char ICON_FA_MOON[] = "\xEF\x86\x86";
 static constexpr const char ICON_FA_PAUSE[] = "\xEF\x81\x8C";
