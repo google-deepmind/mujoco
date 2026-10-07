@@ -5022,8 +5022,19 @@ int mjCModel::FuseStatic(const mjVFS* vfs) {
                           range[0] == parrange[0] &&
                           range[1] == parrange[1];
 
-    // skip if the sum cannot be written: the inertia of the parent is always inferred
-    if (fusemass && !reinfers && par->compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+    // the mass is not fused but the geoms of the body move to the parent: a parent which infers
+    // its inertia from geoms must not gain theirs, e.g. when the body gives a massless inertial,
+    // so the inertia it has now is written to its spec
+    bool keepinertia = !fusemass &&
+                       !reinfers &&
+                       par->name != "world" &&
+                       par->InfersInertial() &&
+                       !body->geoms.empty();
+
+    // skip if the inertia cannot be written: the inertia of the parent is always inferred
+    if ((fusemass || keepinertia) &&
+        !reinfers &&
+        par->compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
       continue;
     }
 
@@ -5034,6 +5045,8 @@ int mjCModel::FuseStatic(const mjVFS* vfs) {
       mjuu_copyvec(par->iquat_compiled_, par->iquat, 4);
       par->inertia_adjusted_ |= body->inertia_adjusted_;
       if (!reinfers) { par->AdoptInertial(); }
+    } else if (keepinertia) {
+      par->AdoptInertial();
     }
 
     // the children of the body become children of its parent: update their compiled frames

@@ -35,6 +35,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -1354,6 +1355,56 @@ TEST_F(FuseStaticTest, FuseStaticInertia) {
           absl::StrFormat(xml, "false", parent_inertial, child_inertial),
           inferred ? 1e-5 : 0);
     }
+  }
+}
+
+// the geoms of a body which gives a massless inertial do not add their mass to
+// a parent which infers its inertia when the body is fused
+TEST_F(FuseStaticTest, FuseStaticMasslessInertial) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler fusestatic="%s"/>
+    <worldbody>
+      <body name="moving">
+        <freejoint name="free"/>
+        <geom name="moving" type="box" size=".1 .2 .3" pos=".1 0 0"/>
+        <body name="static" pos="1 0 0" euler="10 20 30">
+          <inertial pos="%s" mass="%s" diaginertia="0 0 0"/>
+          <geom name="static" type="box" size=".3 .1 .2" pos="0 .2 0"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  struct Case {
+    const char* pos;
+    const char* mass;
+  };
+  const Case cases[] = {{"0 0 0", "0"}, {".1 .2 .3", "1e-20"}};
+  for (const Case& c : cases) {
+    SCOPED_TRACE(absl::StrFormat("pos '%s' mass '%s'", c.pos, c.mass));
+    std::string fuse_xml = absl::StrFormat(xml, "true", c.pos, c.mass);
+    std::string no_fuse_xml = absl::StrFormat(xml, "false", c.pos, c.mass);
+    MjModelPtr fuse = LoadModelFromString(fuse_xml);
+    MjModelPtr no_fuse = LoadModelFromString(no_fuse_xml);
+    ASSERT_THAT(fuse.get(), NotNull());
+    ASSERT_THAT(no_fuse.get(), NotNull());
+    ASSERT_EQ(fuse->nbody, 2);
+    ASSERT_EQ(no_fuse->nbody, 3);
+
+    int i = mj_name2id(fuse.get(), mjOBJ_BODY, "moving");
+    int j = mj_name2id(no_fuse.get(), mjOBJ_BODY, "moving");
+    ASSERT_GE(i, 0);
+    ASSERT_GE(j, 0);
+    EXPECT_NEAR(fuse->body_mass[i], no_fuse->body_mass[j], 1e-12);
+    EXPECT_NEAR(fuse->body_subtreemass[i], no_fuse->body_subtreemass[j], 1e-12);
+    EXPECT_THAT(AsVector(fuse->body_inertia + 3 * i, 3),
+                Pointwise(DoubleNear(1e-12),
+                          AsVector(no_fuse->body_inertia + 3 * j, 3)));
+    EXPECT_THAT(
+        AsVector(fuse->body_ipos + 3 * i, 3),
+        Pointwise(DoubleNear(1e-12), AsVector(no_fuse->body_ipos + 3 * j, 3)));
+    ExpectCoherentFuse(fuse_xml, no_fuse_xml, 0);
   }
 }
 
