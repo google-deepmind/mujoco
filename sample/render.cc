@@ -41,7 +41,7 @@
 #include "lodepng.h"
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/model_decorations.h"
 #include "render/filament/support/model_lights.h"
 #include "render/filament/support/model_objects.h"

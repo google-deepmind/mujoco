@@ -19,7 +19,7 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_bridge.h"
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 
 // This library implements the entirety of mujoco's mjr API. You can link this
 // library with your application (instead of the "classic" mujoco renderer) to

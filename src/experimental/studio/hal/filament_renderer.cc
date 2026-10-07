@@ -24,7 +24,7 @@
 #include "experimental/studio/hal/graphics_mode.h"
 #include "experimental/studio/ux/imgui_widgets.h"
 #include "experimental/studio/ux/plugin.h"
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/model_decorations.h"
 #include "render/filament/support/model_lights.h"

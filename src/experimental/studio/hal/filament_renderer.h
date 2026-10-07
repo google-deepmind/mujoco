@@ -22,7 +22,7 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "experimental/studio/hal/graphics_mode.h"
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/model_decorations.h"
 #include "render/filament/support/model_lights.h"

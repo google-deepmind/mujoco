@@ -30,7 +30,7 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_sleep.h"
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/filament_util.h"
 #include "render/filament/support/mesh_util.h"
 #include "render/filament/support/model_objects.h"

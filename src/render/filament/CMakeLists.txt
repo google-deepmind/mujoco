@@ -22,7 +22,6 @@ target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
 target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PRIVATE
         mjrfilament.cc
-        mjrfilament_cpp.h
         core/builtins.cc
         core/builtins.h
         core/color_grading_options.cc
@@ -59,6 +58,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         support/imgui_bridge.cc
         support/mesh_util.h
         support/mesh_util.cc
+        support/mjrf_ptr.h
         support/model_decorations.h
         support/model_decorations.cc
         support/model_lights.h
