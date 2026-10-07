@@ -242,9 +242,9 @@ if(NOT EMSCRIPTEN)
           TARGETS
           mujoco_studio
           INSTALL_DIRECTORY
-          "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+          "${CMAKE_INSTALL_FULL_BINDIR}"
           LIB_DIRS
-          "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+          "${CMAKE_INSTALL_FULL_LIBDIR}"
           DEPENDS
           MUJOCO_ENABLE_RPATH
         )
