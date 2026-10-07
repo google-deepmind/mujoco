@@ -424,12 +424,54 @@ aliases defined in the Python API.
 Rendering
 ---------
 
-MuJoCo itself expects users to set up a working OpenGL context before calling any of its ``mjr_`` rendering routine.
-The Python bindings provide a basic class ``mujoco.GLContext`` that helps users set up such a context for offscreen
-rendering. To create a context, call ``ctx = mujoco.GLContext(max_width, max_height)``. Once the context is created,
-it must be made current before MuJoCo rendering functions can be called, which you can do so via ``ctx.make_current()``.
-Note that a context can only be made current on one thread at any given time, and all subsequent rendering calls must be
-made on the same thread.
+MuJoCo provides two rendering APIs: the :ref:`classic rendering<OpenGLrendering>` API (which uses OpenGL 1.5) and the
+:ref:`filament rendering<FilamentRendering>` API (which provides more modern physically-based rendering capabilities).
+
+.. _PyFilamentRender:
+
+Filament Rendering
+------------------
+
+The Python ``mjrf`` module exposes the ``mjrf_`` :ref:`C API<FilamentRenderingApi>` to python. It can be imported using
+``from mujoco import mjrf``. This module also provides the following conveniences around the C library:
+
+- Enums are exposed directly but without the ``mjr`` prefix. So, for example, :ref:`mjrGraphicsApi` becomes
+  ``mjrf.GraphicsApi`` and ``mjGRAPHICS_API_DEFAULT`` becomes ``mjrf.GraphicsApi.GRAPHICS_API_DEFAULT``.
+
+- Tuple/list/numpy array types are automatically converted into the corresponding native C types (e.g. ``float*``).
+
+- ``mjrf`` C structs are treated in two different ways. Basic structs (e.g. :ref:`mjrRect`, ``mjrCamera``, etc.) are
+  considered to be simple POD data types and are bound directly as python types allowing copies to be made as needed.
+
+- ``mjrf`` types that have explicit create/destroy functions in the C API (e.g. :ref:`mjrfContext`, :ref:`mjrfTexture`,
+  etc.) are treated as "Objects". When created in python, their lifetimes are managed by python; calling ``del`` on the
+  objects will destroy the underlying C object. However, when they are returned from an API call, they are returned as
+  references such that python will not manage their lifetimes.
+
+- In cases where the ``mjrf_`` C function takes a pointer to an object as its first argument, we bind the function as a
+  method of the object itself. So, for example, :ref:`mjrf_setLightEnabled(mjrfLight*, bool)<mjrf_setLightEnabled>`
+  becomes ``Light.set_enabled(bool)``.
+
+- Some functions (e.g. ``mjrf.ReadPixelsRequest.set_buffer``) require users to provide a buffer. Users are responsible
+  for ensuring the lifetime of the buffer outlives the request to which it is associated.
+
+Additionally, a `Renderer
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rendering/filament/renderer.py>`__ class is available
+under ``mujoco.rendering.filament``. This class can be used to manage the lifetimes of key objects (such as the
+:ref:`mjrfContext` and :ref:`mjrfScene`) and provides useful functions for controlling the camera and reading pixels.
+
+.. _PyClassicRender:
+
+Classic Rendering
+-----------------
+
+The MuJoCo classic renderer expects users to set up a working OpenGL context before calling any of its ``mjr_``
+:ref:`rendering routines<OpenGLrendering>`. The Python bindings provide a basic class ``mujoco.GLContext`` that helps
+users set up such a context for offscreen rendering. To create a context, call ``ctx = mujoco.GLContext(max_width,
+max_height)``. Once the context is
+created, it must be made current before MuJoCo rendering functions can be called, which you can do so via
+``ctx.make_current()``. Note that a context can only be made current on one thread at any given time, and all subsequent
+rendering calls must be made on the same thread.
 
 The context is freed automatically when the ``ctx`` object is deleted, but in some multi-threaded scenario it may be
 necessary to explicitly free the underlying OpenGL context. To do so, call ``ctx.free()``, after which point it is the
@@ -1144,8 +1186,8 @@ mujoco-py migration
 ===================
 
 In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
-class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
-instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
+class. Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
+instance holds references to an ``mjModel`` instance and its associated ``mjData``. In contrast, the MuJoCo Python
 bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
 library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
 

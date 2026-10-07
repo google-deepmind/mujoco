@@ -64,6 +64,9 @@ struct ColorGradingOptions {
   filament::math::float3 out_red = {1.0f, 0.0f, 0.0f};
   filament::math::float3 out_green = {0.0f, 1.0f, 0.0f};
   filament::math::float3 out_blue = {0.0f, 0.0f, 1.0f};
+  // Note: shadows, midtones, and highlights do not actually match the filament
+  // defaults (which are [1,1,1,0]), but we do not want to change this now as it
+  // will affect the default rendering results for all our users.
   filament::math::float4 shadows = {1.0f, 1.0f, 1.0f, 1.0f};
   filament::math::float4 midtones = {1.0f, 1.0f, 1.0f, 1.0f};
   filament::math::float4 highlights = {1.0f, 1.0f, 1.0f, 1.0f};

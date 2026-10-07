@@ -3,12 +3,14 @@
 Visualization
 -------------
 
-.. admonition:: MuJoCo Studio
+.. admonition:: Filament Rendering
    :class: note
 
-   We are actively developing a new visualizer platform called
-   `MuJoCo Studio <https://github.com/google-deepmind/mujoco/blob/main/src/experimental/studio>`__. We will update this
-   section once it becomes more established.
+   The :ref:`classic rendering<OpenGLrendering>` library described below is now in maintenance mode. Instead, we now
+   recommend using our physically based renderer as described in the :ref:`Filament Rendering<FilamentRendering>`
+   section. Similarly, we have developed a new visualizer called
+   `MuJoCo Studio <https://github.com/google-deepmind/mujoco/blob/main/src/experimental/studio>`__ that is available to
+   use.
 
 MuJoCo has a native 3D visualizer. Its use is illustrated in the :ref:`simulate.cc <saSimulate>` code sample and in
 the simpler :ref:`basic.cc <saBasic>` code sample. While it is not a full-featured rendering engine, it is a
@@ -487,20 +489,14 @@ for OpenGL error checking. They simply call glFinish and glGetError internally. 
 drawing functions above is meant to provide enough functionality so that most users will not need to write OpenGL
 code. Of course we cannot achieve this in all cases, short of providing wrappers for all of OpenGL.
 
+.. _reFilamentCompat:
 
-.. _FilamentRendering:
+Filament Compatibility Mode
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Filament Rendering
-~~~~~~~~~~~~~~~~~~
-
-MuJoCo also provides a `Filament <https://github.com/google/filament>`_ based renderer for 3D visualization of its
-simulations.
-
-Filament is a real-time physically based rendering (PBR) engine developed by Google. It is designed to be as small as
-possible and as efficient as possible, while still providing high-quality results. It works across all major platforms
-(Linux, Windows, macOS, Android, iOS, Web) and supports OpenGL, Vulkan, and Metal.
-
-MuJoCo's current integration with the Filament renderer is done by setting `MUJOCO_USE_FILAMENT` to 1 in the CMake Build
-configuration. This effectively replaces the OpenGL-based `mjr` function implementations with Filament-based ones. It
-also makes the underlying Filament `mjrf` :ref:`types <tyFilamentRenderStructure>` and
-:ref:`functions <FilamentRenderingApi>` available for use.
+It is possible to use Filament rendering with the classic ``mjr`` :ref:`APIs<OpenGLrendering>` by configuring the
+build using the ``MUJOCO_USE_FILAMENT_MJR_COMPAT`` CMake build option (along with the ``MUJOCO_USE_FILAMENT`` build
+option). This option effectively replaces the OpenGL-based ``mjr`` functions with Filament-based implementations.
+This is useful for experimenting with the Filament renderer without having to rewrite application code. However, this
+compatibility mode does not support the full range of customization and effects available in the Filament runtime and
+comes with a slight performance overhead.

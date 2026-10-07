@@ -28,7 +28,7 @@ Thread
 Rendering
    There are two rendering libraries provided by MuJoCo. The :ref:`classic rendering<OpenGLrendering>` library is
    written in C and uses OpenGL 1.5. It provides a simple and efficient way to visualize MuJoCo models. The
-   :ref:`filament rendering<FilamentRendering>` library is written in C++ and uses the externally-devloped Filament
+   :ref:`filament rendering<FilamentRendering>` library is written in C++ and uses the externally-developed Filament
    rendering engine. It provides more modern and feature-rich real-time rendering capabilities.
 Abstract visualizer
    The abstract visualizer is written in C. It generates a list of abstract geometric entities representing the
@@ -277,6 +277,7 @@ Next we list the prefixes corresponding to function definitions. Note that funct
     :hidden:
 
     simulation
+    filament
     visualization
     ui
     modeledit
