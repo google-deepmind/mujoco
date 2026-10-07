@@ -8635,6 +8635,56 @@ TEST_F(CopyBackTest, WritesShapes) {
   mj_deleteVFS(vfs.get());
 }
 
+// a geom fitted to a mesh which has the material of the mesh keeps it when it
+// no longer refers to the mesh
+TEST_F(CopyBackTest, FittedGeomKeepsMaterialOfMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <material name="red" rgba="1 0 0 1"/>
+      <material name="blue" rgba="0 0 1 1"/>
+      <mesh name="cube" material="red"
+            vertex="0 0 0  1 0 0  0 2 0  1 2 0  0 0 4  1 0 4  0 2 4  1 2 4"/>
+    </asset>
+    <worldbody>
+      <geom name="inherited" type="box" mesh="cube"/>
+      <geom name="own" type="box" mesh="cube" material="blue" pos="2 0 0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  int red = mj_name2id(model, mjOBJ_MATERIAL, "red");
+  int blue = mj_name2id(model, mjOBJ_MATERIAL, "blue");
+  ASSERT_EQ(model->geom_matid[0], red);
+  ASSERT_EQ(model->geom_matid[1], blue);
+
+  model->geom_size[3 * 0] *= 2;
+  model->geom_size[3 * 1] *= 2;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+
+  auto geom = [&](const char* name) {
+    return mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, name));
+  };
+  EXPECT_STREQ(mjs_getString(geom("inherited")->meshname), "");
+  EXPECT_STREQ(mjs_getString(geom("inherited")->material), "red");
+  EXPECT_STREQ(mjs_getString(geom("own")->material), "blue");
+
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(again->geom_matid[0], red);
+  EXPECT_EQ(again->geom_matid[1], blue);
+  EXPECT_THAT(DifferentArrays(model, again, {&mjModel::geom_size}, {6}),
+              IsEmpty());
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 // a mass or inertia which was changed gives the body an inertial of its own
 TEST_F(CopyBackTest, WritesInertia) {
   static constexpr char xml[] = R"(

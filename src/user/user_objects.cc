@@ -4381,6 +4381,12 @@ void mjCGeom::ShapeToSpec(bool newsize, bool position, bool orientation, bool ne
   if ((span && (newsize || newpose)) || (fitted && (newsize || newpose || newvelocity))) {
     spec.fromto[0] = mjNAN;
     if (fitted) {
+      // a geom without a material of its own has that of its mesh, which it would lose
+      if (spec_material_.empty()) {
+        const mjCMesh* pmesh =
+            static_cast<const mjCMesh*>(model->FindObject(mjOBJ_MESH, spec_meshname_));
+        if (pmesh) { spec_material_ = pmesh->Material(); }
+      }
       spec_meshname_.clear();
       newvelocity = true;
     }
