@@ -38,7 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 warp = [
-    "warp-lang==1.17.0",
+    "warp-lang==1.18.0",
 ]
 dev = [
     "isort",
