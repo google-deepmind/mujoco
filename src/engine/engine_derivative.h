@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_DERIVATIVE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_DERIVATIVE_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -64,6 +66,9 @@ MJAPI int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt);
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
 MJAPI void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                               mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache);
+
+// stack bytes mjd_flexInterp_mul takes, at most
+size_t mjd_flexInterp_mulBytes(const mjModel* m);
 
 // precompute unscaled K_rot for all elements into cache (same layout as m->flex_stiffness)
 MJAPI void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out);

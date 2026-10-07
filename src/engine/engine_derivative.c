@@ -1252,19 +1252,11 @@ static void addJTBJ_mulSparse(const mjModel* m, mjData* d, mjtNum* res, const mj
 }
 
 
-// shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
-//  res: output vector (res += J'*K*J*vec), or NULL for cache-only mode
-//  vec: input vector, or NULL for cache-only mode
-//  K_rot_cache: if non-NULL, use pre-cached K_rot values instead of computing them
-//  K_rot_out: if non-NULL and K_rot_cache is NULL, store computed K_rot values here
-static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
-                                  mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
-                                  const mjtNum* K_rot_cache, mjtNum* K_rot_out) {
-  int nv = m->nv;
-
-  // compute upper bounds across all interpolated flexes
-  int max_nodenum = 0;
-  int max_npe = 0;  // max nodes per element (3D cell or 2D face)
+// upper bounds across all interpolated flexes: nodes per flex, nodes per element (3D cell or
+// 2D face); max_npe == 0: none
+static void flexInterpBounds(const mjModel* m, int* max_nodenum, int* max_npe) {
+  *max_nodenum = 0;
+  *max_npe = 0;
   for (int f = 0; f < m->nflex; f++) {
     if (!m->flex_interp[f]) continue;
     if (m->flex_rigid[f]) continue;
@@ -1277,9 +1269,46 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
     } else {
       npe = (order+1)*(order+1)*(order+1);
     }
-    if (npe > max_npe) max_npe = npe;
-    if (m->flex_nodenum[f] > max_nodenum) max_nodenum = m->flex_nodenum[f];
+    if (npe > *max_npe) *max_npe = npe;
+    if (m->flex_nodenum[f] > *max_nodenum) *max_nodenum = m->flex_nodenum[f];
   }
+}
+
+
+// stack bytes mjd_flexInterp_mul takes, at most: the kernel's frame below and the nested
+// frame of addJTBJ_mulSparse on one element
+size_t mjd_flexInterp_mulBytes(const mjModel* m) {
+  int max_nodenum, max_npe;
+  flexInterpBounds(m, &max_nodenum, &max_npe);
+  if (max_npe == 0) {
+    return 0;
+  }
+  size_t nv = m->nv, dim = 3*max_npe;
+  size_t an = _Alignof(mjtNum), ai = _Alignof(int), sn = sizeof(mjtNum), si = sizeof(int);
+  size_t frame = mj_stackFrameBytes();
+  return frame +
+         mj_stackBytes(sn*3*max_nodenum, an) + mj_stackBytes(sn*3*max_npe, an) +
+         mj_stackBytes(sn*dim*dim, an) + 2*mj_stackBytes(si*dim, ai) +
+         mj_stackBytes(sn*dim*nv, an) + mj_stackBytes(si*dim*nv, ai) +
+         mj_stackBytes(si*nv, ai) + mj_stackBytes(sn*3*nv, an) + mj_stackBytes(sn*dim, an) +
+         frame + 2*mj_stackBytes(sn*dim, an);
+}
+
+
+// shared kernel for flex interpolation derivatives, scale = s1 + s2*damping
+//  res: output vector (res += J'*K*J*vec), or NULL for cache-only mode
+//  vec: input vector, or NULL for cache-only mode
+//  K_rot_cache: if non-NULL, use pre-cached K_rot values instead of computing them
+//  K_rot_out: if non-NULL and K_rot_cache is NULL, store computed K_rot values here
+// Stack: mjd_flexInterp_mulBytes
+static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
+                                  mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
+                                  const mjtNum* K_rot_cache, mjtNum* K_rot_out) {
+  int nv = m->nv;
+
+  // compute upper bounds across all interpolated flexes
+  int max_nodenum, max_npe;
+  flexInterpBounds(m, &max_nodenum, &max_npe);
 
   // nothing to do
   if (max_npe == 0) {

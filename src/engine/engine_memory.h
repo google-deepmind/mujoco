@@ -66,6 +66,15 @@ MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 // mjData stack allocate for array of ints
 MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
+// free bytes between the arena and the stack
+size_t mj_stackBytesAvailable(const mjData* d);
+
+// stack bytes one allocation of the given size and alignment takes, at most
+MJAPI size_t mj_stackBytes(size_t bytes, size_t alignment);
+
+// stack bytes one mj_markStack frame takes, at most
+size_t mj_stackFrameBytes(void);
+
 // clear arena pointers in mjData
 static inline void mj_clearEfc(mjData* d) {
 #define X(type, name, nr, nc) d->name = NULL;

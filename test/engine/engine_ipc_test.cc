@@ -29,6 +29,8 @@
 
 #include <mujoco/mujoco.h>
 #include <mujoco/mjtype.h>
+#include "src/engine/engine_memory.h"
+#include "src/engine/engine_metric.h"
 #include "test/fixture.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -1424,6 +1426,488 @@ TEST_F(IpcTest, NativeRowsKeptForUnsupportedGeoms) {
     EXPECT_EQ(native > 0, !supported)
         << g[0] << ": native contacts only for unsupported types";
     EXPECT_GT(zmin, 0.25) << g[0] << ": the sheet rests on top";
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+//------------------------ dense uncovered-dof blocks ------------------------
+
+// a stretch-only sheet with the bodies %s before it, and sparse Jacobians
+static constexpr char kStretchSheet[] = R"(
+<mujoco>
+  <option timestep="0.002" integrator="discrete" solver="CG" iterations="400"
+          jacobian="sparse">
+    <flag ipc="enable"/>
+  </option>
+  <worldbody>
+    %s
+    <flexcomp name="sheet" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+              radius=".004" mass=".3" pos="0 0 .5">
+      <contact selfcollide="none"/>
+      <elasticity young="1e5" poisson=".2" thickness="2e-3"
+                  elastic2d="stretch"/>
+      <pin id="0 8"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+// a free body at x
+static std::string FreeBody(mjtNum x) {
+  char body[256];
+  snprintf(body, sizeof(body), R"(
+    <body pos="%g 0 .5">
+      <joint type="free" damping=".01"/>
+      <geom type="box" size=".05 .03 .02" pos=".02 .01 0" mass=".2"/>
+    </body>)",
+           x);
+  return body;
+}
+
+// a hinge body
+static constexpr char kHingeBody[] = R"(
+    <body pos="-1 0 .5">
+      <joint type="hinge" axis="0 1 0" damping=".02"/>
+      <geom type="capsule" fromto="0 0 0 .2 0 0" size=".02" mass=".3"/>
+    </body>)";
+
+// rows to fold into the solver's preconditioner, as CSR
+struct FoldRows {
+  std::vector<mjtNum> D;
+  std::vector<int> rownnz, rowadr, colind;
+  std::vector<mjtNum> J;
+
+  void Add(mjtNum d, const std::vector<int>& cols,
+           const std::vector<mjtNum>& vals) {
+    D.push_back(d);
+    rownnz.push_back(static_cast<int>(cols.size()));
+    rowadr.push_back(static_cast<int>(colind.size()));
+    colind.insert(colind.end(), cols.begin(), cols.end());
+    J.insert(J.end(), vals.begin(), vals.end());
+  }
+};
+
+// a fold's dense-block layout
+struct FoldLayout {
+  int nu = 0, ncomp = 0, nS = 0, partial = 0, S_valid = 0;
+  std::vector<int> U, Uadr, Sadr;
+};
+
+// the solver's preconditioner folded with rows (mj_effPrecFold), its dense
+// blocks sized by mj_effFoldDenseSize, applied to b into x (mj_effPrecBlocks),
+// and into xnull with the same folded blocks but no dense blocks
+static FoldLayout FoldApply(const mjModel* m, mjData* d, const FoldRows& rows,
+                            const mjtNum* b, mjtNum* x, mjtNum* xnull) {
+  FoldLayout f;
+  int nefc = static_cast<int>(rows.D.size());
+  f.nS = mj_effFoldDenseSize(m, d, nefc, rows.D.data(), /*is_sparse=*/1,
+                             rows.rownnz.data(), rows.rowadr.data(),
+                             rows.colind.data(), &f.nu, &f.ncomp);
+  std::vector<mjtNum> L(d->efm_L, d->efm_L + d->nefmL), S(f.nS);
+  f.U.resize(f.nu);
+  f.Uadr.resize(f.ncomp + 1);
+  f.Sadr.resize(f.ncomp + 1);
+  mjEffFold fold = {};
+  fold.L = L.data();
+  fold.nu = f.nu;
+  fold.ncomp = f.ncomp;
+  fold.nS = f.nS;
+  fold.U = f.U.data();
+  fold.Uadr = f.Uadr.data();
+  fold.Sadr = f.Sadr.data();
+  fold.S = S.data();
+  EXPECT_TRUE(mj_effPrecFold(m, d, &fold, nefc, rows.D.data(),
+                             /*is_sparse=*/1, rows.J.data(), rows.rownnz.data(),
+                             rows.rowadr.data(), rows.colind.data()));
+  mj_effPrecBlocks(m, d, x, b, &fold);
+  mjEffFold blocks = {};
+  blocks.L = L.data();
+  mj_effPrecBlocks(m, d, xnull, b, &blocks);
+  f.partial = fold.partial;
+  f.S_valid = fold.S_valid;
+  return f;
+}
+
+// the dense reference S^-1 b on the dofs 0..n-1, one dense block over all of
+// them: S = M + B + J' D J restricted to them, with B's columns (the diagonal,
+// fluid and rank-1 classes, contact included) from mj_effMulAdd
+static std::vector<mjtNum> DenseSolve(const mjModel* m, mjData* d,
+                                      const FoldRows& rows, const mjtNum* b,
+                                      int n) {
+  int nv = m->nv;
+  std::vector<mjtNum> M(nv * nv), S(n * n), x(b, b + n), e(nv), Be(nv);
+  mj_fullM(m, d, M.data());
+  for (int j = 0; j < n; j++) {
+    e[j] = 1;
+    mju_zero(Be.data(), nv);
+    mj_effMulAdd(m, d, Be.data(), e.data(), /*flg_contact=*/1);
+    e[j] = 0;
+    for (int i = 0; i < n; i++) {
+      S[i * n + j] = M[i * nv + j] + Be[i];
+    }
+  }
+  for (int r = 0; r < static_cast<int>(rows.D.size()); r++) {
+    for (int p = rows.rowadr[r]; p < rows.rowadr[r] + rows.rownnz[r]; p++) {
+      for (int q = rows.rowadr[r]; q < rows.rowadr[r] + rows.rownnz[r]; q++) {
+        int i = rows.colind[p], j = rows.colind[q];
+        if (i < n && j < n) {
+          S[i * n + j] += rows.D[r] * rows.J[p] * rows.J[q];
+        }
+      }
+    }
+  }
+  EXPECT_EQ(mju_cholFactor(S.data(), n, mjMINVAL), n);
+  mju_cholSolve(x.data(), S.data(), x.data(), n);
+  return x;
+}
+
+// the uncovered dofs (two free bodies, a hinge and a third free body before
+// the sheet) split into the components of S = M_uu + diag + J_u' D J_u: the
+// bodies a row couples, the hinge, the untouched body. Each gets its own dense
+// factor, which together invert S exactly where the folded blocks alone use the
+// backbone solve, and the sheet keeps the same 3x3 blocks
+TEST_F(IpcTest, FoldDenseComponents) {
+  std::string bodies = FreeBody(1) + FreeBody(1.5) + kHingeBody + FreeBody(2);
+  char xml[4096];
+  snprintf(xml, sizeof(xml), kStretchSheet, bodies.c_str());
+  mjModel* m = Load(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  ASSERT_TRUE(d->efm_active);
+  int nv = m->nv, nb = d->nefmdof;
+  constexpr int nu = 19;
+  ASSERT_EQ(nv, 3 * nb + nu);
+  ASSERT_EQ(d->efm_dofid[0], nu);
+
+  // a row coupling the first two bodies, one on the first alone, one coupling
+  // the hinge to a vertex: only J_u' D J_u reaches S, the vertex part reaches
+  // the 3x3 blocks
+  int a = d->efm_dofid[nb / 2];
+  FoldRows rows;
+  rows.Add(0.03, {1, 4, 7, 10}, {0.5, -0.4, 0.7, 0.2});
+  rows.Add(0.05, {0, 1, 2, 3, 4, 5}, {0.4, -0.3, 0.8, 0.1, -0.2, 0.05});
+  rows.Add(0.02, {12, a, a + 1, a + 2}, {1, -0.6, 0.2, 0.5});
+  int nu0, ncomp0;
+  EXPECT_EQ(mj_effFoldDenseSize(m, d, 3, rows.D.data(), /*is_sparse=*/0,
+                                rows.rownnz.data(), rows.rowadr.data(),
+                                rows.colind.data(), &nu0, &ncomp0),
+            0)
+      << "dense Jacobians fold no dense blocks";
+
+  std::vector<mjtNum> b(nv), x(nv), xnull(nv);
+  for (int i = 0; i < nv; i++) {
+    b[i] = std::cos(0.5 + i);
+  }
+  FoldLayout f = FoldApply(m, d, rows, b.data(), x.data(), xnull.data());
+  EXPECT_EQ(f.nu, nu);
+  EXPECT_EQ(f.ncomp, 3);
+  EXPECT_EQ(f.nS, 12 * 12 + 1 + 6 * 6);
+  EXPECT_EQ(f.Uadr, (std::vector<int>{0, 12, 13, 19}));
+  EXPECT_EQ(f.Sadr, (std::vector<int>{0, 144, 145, 181}));
+  for (int j = 0; j < nu; j++) {
+    EXPECT_EQ(f.U[j], j) << "the components, in the order of their dofs";
+  }
+  EXPECT_FALSE(f.partial);
+  EXPECT_TRUE(f.S_valid) << "the fold must factor the components";
+
+  // S is block diagonal over the components: its one dense inverse is theirs
+  std::vector<mjtNum> xu = DenseSolve(m, d, rows, b.data(), nu);
+  mjtNum scale = 0, diff = 0, backbone = 0;
+  for (int i = 0; i < nu; i++) {
+    scale = mju_max(scale, mju_abs(xu[i]));
+    diff = mju_max(diff, mju_abs(x[i] - xu[i]));
+    backbone = mju_max(backbone, mju_abs(xnull[i] - xu[i]));
+  }
+  EXPECT_LE(diff, MjTol(1e-10, 1e-4) * scale);
+  EXPECT_GT(backbone, 1e-3 * scale) << "the rows must matter";
+  for (int i = nu; i < nv; i++) {
+    EXPECT_EQ(x[i], xnull[i]) << "covered dof " << i;
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// a component over the 600-dof cap (101 free bodies a chain of rows couples)
+// keeps the backbone solve, the hinge's component its dense factor
+TEST_F(IpcTest, FoldDenseComponentOverCap) {
+  constexpr int nbody = 101;
+  std::string bodies = kHingeBody;
+  for (int k = 0; k < nbody; k++) {
+    bodies += FreeBody(1 + 0.2 * k);
+  }
+  std::vector<char> xml(bodies.size() + 2048);
+  snprintf(xml.data(), xml.size(), kStretchSheet, bodies.c_str());
+  mjModel* m = Load(xml.data());
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  ASSERT_TRUE(d->efm_active);
+  int nv = m->nv, nu = 1 + 6 * nbody;
+  ASSERT_EQ(d->efm_dofid[0], nu);
+
+  FoldRows rows;
+  rows.Add(0.04, {0}, {0.7});
+  for (int k = 0; k + 1 < nbody; k++) {
+    rows.Add(0.03, {1 + 6 * k, 7 + 6 * k}, {0.5, -0.4});
+  }
+  std::vector<mjtNum> b(nv), x(nv), xnull(nv);
+  for (int i = 0; i < nv; i++) {
+    b[i] = std::cos(0.5 + i);
+  }
+  FoldLayout f = FoldApply(m, d, rows, b.data(), x.data(), xnull.data());
+  EXPECT_EQ(f.nu, 1);
+  EXPECT_EQ(f.ncomp, 1);
+  EXPECT_EQ(f.nS, 1);
+  EXPECT_TRUE(f.partial);
+  EXPECT_TRUE(f.S_valid);
+
+  std::vector<mjtNum> xu = DenseSolve(m, d, rows, b.data(), 1);
+  EXPECT_NEAR(x[0], xu[0], MjTol(1e-10, 1e-4) * mju_abs(xu[0]));
+  EXPECT_GT(mju_abs(xnull[0] - xu[0]), 1e-3 * mju_abs(xu[0]));
+  for (int i = 1; i < nv; i++) {
+    EXPECT_EQ(x[i], xnull[i]) << "dof " << i << " keeps the backbone solve";
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// a sheet above two pairs of boxes resting on the floor, each pair coupled by a
+// stiff tendon at its rest length, in air: the boxes' contact rows, the
+// tendons and the drag make the uncovered block two coupled components
+static constexpr char kBoxPairs[] = R"(
+<mujoco>
+  <option timestep="0.002" integrator="discrete" solver="CG" iterations="2000"
+          tolerance="1e-12" jacobian="sparse" density="1.2" viscosity="2e-5">
+    <flag ipc="enable"/>
+  </option>
+  <worldbody>
+    <geom type="plane" size="0 0 1"/>
+    <body pos="-.4 0 .019">
+      <freejoint/>
+      <geom type="box" size=".04 .03 .02" mass=".2"/>
+      <site name="a"/>
+    </body>
+    <body pos="-.25 0 .019">
+      <freejoint/>
+      <geom type="box" size=".04 .03 .02" mass=".3"/>
+      <site name="b"/>
+    </body>
+    <body pos=".25 0 .019">
+      <freejoint/>
+      <geom type="box" size=".03 .03 .02" mass=".25"/>
+      <site name="c"/>
+    </body>
+    <body pos=".4 .05 .019">
+      <freejoint/>
+      <geom type="box" size=".03 .04 .02" mass=".15"/>
+      <site name="e"/>
+    </body>
+    <flexcomp name="sheet" type="grid" dim="2" count="7 7 1" spacing=".04 .04 1"
+              radius=".004" mass=".2" pos="0 0 .4">
+      <contact selfcollide="none"/>
+      <elasticity young="1e5" poisson=".2" thickness="2e-3"
+                  elastic2d="stretch"/>
+      <pin id="0 6"/>
+    </flexcomp>
+  </worldbody>
+  <tendon>
+    <spatial stiffness="1e5" damping="2" springlength=".15">
+      <site site="a"/>
+      <site site="b"/>
+    </spatial>
+    <spatial stiffness="1e5" damping="2" springlength=".158113883">
+      <site site="c"/>
+      <site site="e"/>
+    </spatial>
+  </tendon>
+</mujoco>
+)";
+
+// a run of kBoxPairs with an arena of narena bytes (0: the default)
+struct BoxPairsRun {
+  std::vector<mjtNum> qacc, qpos;
+  int niter = 0, nwarning = 0;
+  size_t maxuse = 0, narena = 0;
+};
+
+static BoxPairsRun RunBoxPairs(mjModel* m, size_t narena, int nstep) {
+  size_t narena0 = m->narena;
+  if (narena) {
+    m->narena = narena;
+  }
+  mjData* d = mj_makeData(m);
+  m->narena = narena0;
+  BoxPairsRun run;
+  for (int s = 0; s < nstep; s++) {
+    mj_step(m, d);
+    run.niter += d->solver_niter[0];
+    run.qacc.insert(run.qacc.end(), d->qacc, d->qacc + m->nv);
+  }
+  run.qpos.assign(d->qpos, d->qpos + m->nq);
+  run.nwarning = d->warning[mjWARN_CNSTRFULL].number;
+  run.maxuse = d->maxuse_arena;
+  run.narena = d->narena;
+  mj_deleteData(d);
+  return run;
+}
+
+// the CG solve with the dense blocks matches the solve without them to the
+// solver's tolerance, in fewer iterations. An arena that holds the step without
+// the blocks but not with them drops them, with a warning and no overflow; the
+// budget is exact, an arena a few kB over the run with them keeps them
+TEST_F(IpcTest, FoldDenseBlocksSolveMatches) {
+  mjModel* m = Load(kBoxPairs);
+  ASSERT_THAT(m, NotNull());
+  m->opt.tolerance = MjTol(1e-12, 1e-6);
+  constexpr int nstep = 10;
+
+  // with the blocks: two components of two boxes each
+  BoxPairsRun with = RunBoxPairs(m, 0, nstep);
+  EXPECT_EQ(with.nwarning, 0);
+  constexpr int nS = 2 * 12 * 12;
+  {
+    mjData* d = mj_makeData(m);
+    mj_step(m, d);
+    ASSERT_TRUE(d->efm_active);
+    int nu, ncomp;
+    EXPECT_EQ(mj_effFoldDenseSize(m, d, d->nefc, d->efc_D, /*is_sparse=*/1,
+                                  d->efc_J_rownnz, d->efc_J_rowadr,
+                                  d->efc_J_colind, &nu, &ncomp),
+              nS);
+    EXPECT_EQ(nu, 24);
+    EXPECT_EQ(ncomp, 2);
+
+    // the factors invert S exactly, the tendons and the drag included
+    FoldRows rows;
+    for (int r = 0; r < d->nefc; r++) {
+      int adr = d->efc_J_rowadr[r], nnz = d->efc_J_rownnz[r];
+      rows.Add(
+          d->efc_D[r],
+          std::vector<int>(d->efc_J_colind + adr, d->efc_J_colind + adr + nnz),
+          std::vector<mjtNum>(d->efc_J + adr, d->efc_J + adr + nnz));
+    }
+    int nv = m->nv;
+    std::vector<mjtNum> b(nv), x(nv), xnull(nv);
+    for (int i = 0; i < nv; i++) {
+      b[i] = std::cos(0.5 + i);
+    }
+    FoldLayout f = FoldApply(m, d, rows, b.data(), x.data(), xnull.data());
+    EXPECT_TRUE(f.S_valid);
+    std::vector<mjtNum> xu = DenseSolve(m, d, rows, b.data(), nu);
+    mjtNum scale = 0, diff = 0;
+    for (int i = 0; i < nu; i++) {
+      scale = mju_max(scale, mju_abs(xu[i]));
+      diff = mju_max(diff, mju_abs(x[i] - xu[i]));
+    }
+    EXPECT_LE(diff, MjTol(1e-10, 1e-4) * scale);
+    mj_deleteData(d);
+  }
+
+  // kept: the budget is exact up to alignment, the apply's frame and the
+  // per-allocation overhead of the stack (ASAN's red zones, none otherwise),
+  // which maxuse_arena leaves out, for up to 128 live allocations
+  size_t overhead = mj_stackBytes(1, 1) - 1;
+  size_t keep = with.maxuse + sizeof(mjtNum) * m->nv + 4096 + 128 * overhead;
+  BoxPairsRun kept = RunBoxPairs(m, keep, nstep);
+  ASSERT_EQ(kept.nwarning, 0);
+  EXPECT_EQ(kept.niter, with.niter);
+
+  // the smallest arena that keeps them, to within 64 bytes, in steps below the
+  // 8*nS bytes they take: every arena tried, and the one below, hold the step
+  // without them
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+  for (size_t step : {size_t{1024}, size_t{64}}) {
+    while (RunBoxPairs(m, keep - step, nstep).nwarning == 0) {
+      keep -= step;
+    }
+  }
+
+  // dropped at every step: half the factors short of that arena, which holds
+  // the step without them only
+  BoxPairsRun without = RunBoxPairs(m, keep - sizeof(mjtNum) * nS / 2, nstep);
+  EXPECT_EQ(without.nwarning, nstep);
+  EXPECT_LE(without.maxuse, without.narena);
+  EXPECT_LT(2 * with.niter, without.niter);
+
+  mjtNum scale = 0, diff = 0;
+  for (int i = 0; i < static_cast<int>(with.qacc.size()); i++) {
+    scale = mju_max(scale, mju_abs(with.qacc[i]));
+    diff = mju_max(diff, mju_abs(with.qacc[i] - without.qacc[i]));
+  }
+  EXPECT_LE(diff, MjTol(1e-6, 1e-2) * scale);
+  for (int i = 0; i < m->nq; i++) {
+    EXPECT_NEAR(with.qpos[i], without.qpos[i], MjTol(1e-8, 1e-4)) << i;
+  }
+
+  mj_deleteModel(m);
+}
+
+// mj_effMulAdd's measured stack use stays within mj_effMulAddScratch on both
+// matrix-free fallback paths: a bending-only 2D flex and a 3D trilinear
+// interpolated flex parented to a hinged body, neither assembled into efm_K
+TEST_F(IpcTest, MulAddScratchBounds) {
+  static constexpr char kBendStretch[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG" timestep=".002">
+      <flag ipc="enable"/>
+    </option>
+    <worldbody>
+      <flexcomp name="sheet" type="grid" dim="2" count="4 4 1"
+                spacing=".05 .05 1" radius=".005" mass=".1">
+        <contact selfcollide="none"/>
+        <elasticity young="1e4" thickness="1e-2" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char kInterp[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG" timestep=".002">
+      <flag ipc="enable"/>
+    </option>
+    <worldbody>
+      <body name="root" pos="0 0 .5">
+        <joint type="hinge"/>
+        <geom type="sphere" size=".02" mass=".1"/>
+        <flexcomp name="solid" type="grid" dim="3" dof="trilinear"
+                  count="4 4 4" spacing=".05 .05 .05" radius=".005" mass=".1">
+          <contact selfcollide="none"/>
+          <elasticity young="1e4"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* xml : {kBendStretch, kInterp}) {
+    mjModel* m = Load(xml);
+    ASSERT_THAT(m, NotNull());
+    mjData* d = mj_makeData(m);
+    mj_forward(m, d);
+    ASSERT_TRUE(d->efm_active);
+    EXPECT_EQ(d->nefmK, 0);
+
+    size_t budget = mj_effMulAddScratch(m, d);
+    EXPECT_GT(budget, 0u);
+
+    std::vector<mjtNum> vec(m->nv, 1.0), res(m->nv, 0.0);
+    size_t parena0 = d->parena, maxarena0 = d->maxuse_arena;
+    ASSERT_EQ(d->pstack, 0u);
+    ASSERT_LE(parena0 + budget, d->narena);
+
+    // cap the free stack at budget bytes: any unbudgeted allocation overflows
+    d->parena = d->narena - budget;
+    d->maxuse_stack = 0;
+    mj_effMulAdd(m, d, res.data(), vec.data(), /*flg_contact=*/1);
+    d->parena = parena0;
+    d->maxuse_arena = maxarena0;
+
+    EXPECT_GT(d->maxuse_stack, 0u);
+    EXPECT_LE(d->maxuse_stack, budget);
     mj_deleteData(d);
     mj_deleteModel(m);
   }

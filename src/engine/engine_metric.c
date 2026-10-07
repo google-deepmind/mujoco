@@ -14,6 +14,7 @@
 
 #include "engine/engine_metric.h"
 
+#include <limits.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
@@ -319,11 +320,42 @@ static inline void chol3Solve(mjtNum* x, const mjtNum* L, const mjtNum* b) {
   x[2] = r2;
 }
 
+// x[U] = S \ bu on each component of the fold's dense factors, bu = b[U] gathered by the
+// caller and overwritten
+static void effDenseApply(const mjEffFold* fold, mjtNum* x, mjtNum* bu) {
+  for (int c = 0; c < fold->ncomp; c++) {
+    int adr = fold->Uadr[c], n = fold->Uadr[c+1] - adr;
+    mju_cholSolve(bu + adr, fold->S + fold->Sadr[c], bu + adr, n);
+  }
+  for (int j = 0; j < fold->nu; j++) {
+    x[fold->U[j]] = bu[j];
+  }
+}
+
+// fold: the solver's folded copy (mj_effPrecFold) with L its blocks, or NULL
 static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
-                          const mjtNum* L) {
+                          const mjtNum* L, const mjEffFold* fold) {
   int nv = m->nv;
   int nbd = m->nefm0dof;
   int flg_bend = nbd && !d->nefmdof;
+  int flg_dense = fold && fold->S_valid;
+
+  // the fold's dense factors on all the uncovered dofs, the 3x3 blocks on the rest: no backbone
+  if (flg_dense && !fold->partial) {
+    mj_markStack(d);
+    mjtNum* bu = mjSTACKALLOC(d, fold->nu, mjtNum);
+    for (int j = 0; j < fold->nu; j++) {
+      bu[j] = b[fold->U[j]];   // before the blocks write x: b may alias x
+    }
+    for (int k = 0; k < d->nefmdof; k++) {
+      int i = d->efm_dofid[k];
+      chol3Solve(x + i, L + 9*k, b + i);
+    }
+    effDenseApply(fold, x, bu);
+    mj_freeStack(d);
+    return;
+  }
+
   // every dof a covered triple: the blocks are the whole preconditioner
   if (3*d->nefmdof == nv && !flg_bend) {
     for (int k = 0; k < d->nefmdof; k++) {
@@ -358,6 +390,17 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
   for (int k = 0; k < d->nefmdof; k++) {
     int i = d->efm_dofid[k];
     chol3Solve(x + i, L + 9*k, rhs + i);
+  }
+
+  // the fold's dense factors where some uncovered dofs are in no component: each component is
+  // a union of whole trees, which the backbone solve keeps apart, so overwriting its dofs
+  // leaves the backbone solve on the other trees as it was
+  if (flg_dense) {
+    mjtNum* bu = mjSTACKALLOC(d, fold->nu, mjtNum);
+    for (int j = 0; j < fold->nu; j++) {
+      bu[j] = rhs[fold->U[j]];
+    }
+    effDenseApply(fold, x, bu);
   }
 
   // bending-only: exact (M + K_bend)^-1 on the dofs the constant factor covers
@@ -395,7 +438,7 @@ void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
     flex_any = flex_any || mj_effFlexPossible(m, f);
   }
   if (!d->nefmT && !d->nefmA && !flex_any) {
-    effBlockApply(m, d, x, b, d->efm_L);
+    effBlockApply(m, d, x, b, d->efm_L, NULL);
     return;
   }
   int nv = m->nv;
@@ -418,7 +461,7 @@ void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
 #endif
     mjtNum tol = tolerance*tolerance*bn;
     int capped = 1;   // cleared by either exit below; still set means the cap was reached
-    effBlockApply(m, d, z, r, d->efm_L);
+    effBlockApply(m, d, z, r, d->efm_L, NULL);
     mju_copy(p, z, nv);
     mjtNum rz = mju_dot(r, z, nv);
     for (int it = 0; it < m->opt.iterations; it++) {
@@ -432,7 +475,7 @@ void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
       mju_addToScl(x, p, alpha, nv);
       mju_addToScl(r, Ap, -alpha, nv);
       if (mju_dot(r, r, nv) < tol) { capped = 0; break; }
-      effBlockApply(m, d, z, r, d->efm_L);
+      effBlockApply(m, d, z, r, d->efm_L, NULL);
       mjtNum rznew = mju_dot(r, z, nv);
       mju_addScl(p, z, p, rznew/rz, nv);
       rz = rznew;
@@ -468,7 +511,7 @@ void mj_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
 
   // active metric: the prefactored 3x3 blocks are the preconditioner
   if (d->efm_active) {
-    effBlockApply(m, d, x, b, d->efm_L);
+    effBlockApply(m, d, x, b, d->efm_L, NULL);
     return;
   }
 
@@ -480,10 +523,283 @@ void mj_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
 }
 
 
+//------------- dense uncovered-dof blocks of the CG preconditioner --------------------------------
+// The 3x3 blocks precondition only the flex vertex triples; every other dof (the articulated
+// trees, free bodies) gets the backbone solve of M + diag alone, without the rank-1 classes and
+// the solve's efc rows (dof friction, limits, contacts on the trees), and those stiff rows then
+// set the CG iteration count. The solver's fold therefore also carries dense factors of the
+// uncovered block
+//   S = M_uu + diag + fluid + rank-1 classes + J_u' D J_u   (rows with D > 0),
+// applied as block Jacobi next to the 3x3 blocks; S is SPD whenever the unfolded matrices are.
+// S is block diagonal over its connected components: M and the fluid blocks stay within a
+// tree, so only the efc rows and the rank-1 terms join trees. Each component is factored on its
+// own, which is exact for S at sum(n_c^3)/6 multiply-adds per solve, and the dofs of the
+// components over the cap keep the backbone solve. The metric's own preconditioner has none:
+// the qacc_smooth PCG keeps the backbone solve.
+
+// largest component of the dense blocks: its factorization per solve costs n^3/6 multiply-adds
+// (36M here), which a solve that the block saves iterations on still recovers
+#define EFF_DENSE_MAXNU 600
+
+// union-find root of tree t, halving the path
+static int effRoot(int* par, int t) {
+  while (par[t] != t) {
+    par[t] = par[par[t]];
+    t = par[t];
+  }
+  return t;
+}
+
+
+// join the trees of the uncovered dofs (cov[i] < 0) among the n columns ind
+static void effJoin(const mjModel* m, const int* cov, int* par, const int* ind, int n) {
+  int r0 = -1;
+  for (int a=0; a < n; a++) {
+    if (cov[ind[a]] >= 0) {
+      continue;
+    }
+    int r = effRoot(par, m->dof_treeid[ind[a]]);
+    if (r0 < 0) {
+      r0 = r;
+    } else if (r != r0) {
+      par[r] = r0;
+    }
+  }
+}
+
+
+// the connected components of S over the uncovered dofs (cov[i] < 0): their trees, joined by the
+// efc rows with D > 0 and the rank-1 terms, kept when of at most EFF_DENSE_MAXNU dofs. Sets
+// comp[t], the component of tree t (numbered in the order of their first dof), -1: no uncovered
+// dofs or over the cap. Returns the components, with *nu their dofs, *nS the mjtNums of their
+// packed factors and *partial set if uncovered dofs were left out. par, cnt: ntree ints scratch
+static int effComponents(const mjModel* m, const mjData* d, const int* cov,
+                         int nefc, const mjtNum* efc_D, const int* J_rownnz,
+                         const int* J_rowadr, const int* J_colind,
+                         int* comp, int* par, int* cnt, int* nu, int* nS, int* partial) {
+  int nv = m->nv, ntree = m->ntree;
+  for (int t=0; t < ntree; t++) {
+    par[t] = t;
+    cnt[t] = 0;
+    comp[t] = -1;
+  }
+  for (int i=0; i < nv; i++) {
+    if (cov[i] < 0) {
+      cnt[m->dof_treeid[i]]++;
+    }
+  }
+
+  // join the trees each rank-1 term and efc row couples
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    effJoin(m, cov, par, e.colind, e.nnz);
+  }
+  for (int r=0; r < nefc; r++) {
+    if (efc_D[r] > 0) {
+      effJoin(m, cov, par, J_colind + J_rowadr[r], J_rownnz[r]);
+    }
+  }
+
+  // component sizes, at the roots
+  for (int t=0; t < ntree; t++) {
+    int r = effRoot(par, t);
+    if (r != t) {
+      cnt[r] += cnt[t];
+    }
+  }
+
+  // number the components by their first dof, those within the cap (-2: over it)
+  int ncomp = 0;
+  *nu = *nS = *partial = 0;
+  for (int i=0; i < nv; i++) {
+    if (cov[i] >= 0) {
+      continue;
+    }
+    int r = effRoot(par, m->dof_treeid[i]);
+    if (comp[r] != -1) {
+      continue;
+    }
+    int n = cnt[r];
+    if (n <= EFF_DENSE_MAXNU && *nS <= INT_MAX - n*n) {
+      comp[r] = ncomp++;
+      *nu += n;
+      *nS += n*n;
+    } else {
+      comp[r] = -2;
+      *partial = 1;
+    }
+  }
+  for (int t=0; t < ntree; t++) {
+    int c = comp[effRoot(par, t)];
+    comp[t] = c < 0 ? -1 : c;
+  }
+  return ncomp;
+}
+
+
+// mark the covered dofs: cov[i] = the 3x3 block of dof i, -1: uncovered
+static void effCovered(const mjModel* m, const mjData* d, int* cov) {
+  for (int i=0; i < m->nv; i++) {
+    cov[i] = -1;
+  }
+  for (int k=0; k < d->nefmdof; k++) {
+    for (int c=0; c < 3; c++) {
+      cov[d->efm_dofid[k] + c] = k;
+    }
+  }
+}
+
+
+// size the dense blocks of a fold over the given efc rows, 0: none
+int mj_effFoldDenseSize(const mjModel* m, mjData* d, int nefc, const mjtNum* efc_D,
+                        int is_sparse, const int* J_rownnz, const int* J_rowadr,
+                        const int* J_colind, int* nu, int* ncomp) {
+  *nu = *ncomp = 0;
+  if (!d->nefmdof || !is_sparse || 3*d->nefmdof == m->nv) {
+    return 0;
+  }
+  int ntree = m->ntree, nS, partial;
+  mj_markStack(d);
+  int* cov = mjSTACKALLOC(d, m->nv, int);
+  int* tint = mjSTACKALLOC(d, 3*ntree, int);
+  effCovered(m, d, cov);
+  *ncomp = effComponents(m, d, cov, nefc, efc_D, J_rownnz, J_rowadr, J_colind,
+                         tint, tint + ntree, tint + 2*ntree, nu, &nS, &partial);
+  mj_freeStack(d);
+  return nS;
+}
+
+
+// stack bytes of mj_effPrecFold and mj_effPrecBlocks beyond the fold's arrays, at most: the
+// fold's frame (block additions, covered marks and, with a dense block, the components'
+// scratch, which also bounds mj_effFoldDenseSize) or the apply's (the backbone right-hand side
+// and the dense right-hand side, or the bending-only factor's vectors)
+size_t mj_effFoldScratch(const mjModel* m, const mjData* d, int nu) {
+  size_t frame = mj_stackFrameBytes();
+  size_t sn = sizeof(mjtNum), an = _Alignof(mjtNum), si = sizeof(int), ai = _Alignof(int);
+  size_t fold = frame + mj_stackBytes(sn*9*d->nefmdof, an) + mj_stackBytes(si*m->nv, ai) +
+                (nu ? mj_stackBytes(si*3*m->ntree, ai) : 0);
+  size_t apply = frame + mj_stackBytes(sn*m->nv, an) + mj_stackBytes(sn*nu, an);
+  if (m->nefm0dof && !d->nefmdof) {
+    apply += 2*mj_stackBytes(sn*m->nefm0dof, an);
+  }
+  return mjMAX(fold, apply);
+}
+
+
+// stack bytes of mj_effMulAdd, at most: the frames of the matrix-free flex operators it falls
+// back to, one at a time
+size_t mj_effMulAddScratch(const mjModel* m, const mjData* d) {
+  size_t frame = mj_stackFrameBytes(), bytes = 0;
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) continue;
+    if (!d->nefmK || !mj_flexSimple(m, f)) {
+      // bending and stretch: the gathered vector and result
+      size_t b = frame + 2*mj_stackBytes(sizeof(mjtNum)*3*m->flex_vertnum[f], _Alignof(mjtNum));
+      bytes = mjMAX(bytes, b);
+    }
+  }
+  if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
+    size_t b = mjd_flexInterp_mulBytes(m);
+    bytes = mjMAX(bytes, b);
+  }
+  return bytes;
+}
+
+
+// assemble and factor the dense blocks of the components into fold->S; dof i is at loc[i]
+// within its component comp[dof_treeid[i]], loc[i] = -1 outside the components. The efc rows
+// are in the sparse Jacobian. A component holds every uncovered dof its rows and rank-1 terms
+// reach (they joined its trees), and M and the fluid blocks stay within a tree
+static void effDenseBlock(const mjModel* m, const mjData* d, mjEffFold* fold, const int* loc,
+                          const int* comp, int nefc, const mjtNum* efc_D, const mjtNum* J,
+                          const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
+  mju_zero(fold->S, fold->nS);
+
+  // M_uu (lower rows, ancestors then the diagonal), the diagonal classes and the fluid blocks
+  for (int c=0; c < fold->ncomp; c++) {
+    int n = fold->Uadr[c+1] - fold->Uadr[c];
+    mjtNum* S = fold->S + fold->Sadr[c];
+    for (int j=0; j < n; j++) {
+      int i = fold->U[fold->Uadr[c] + j];
+      for (int a=m->M_rowadr[i]; a < m->M_rowadr[i] + m->M_rownnz[i]; a++) {
+        int cu = loc[m->M_colind[a]];
+        if (cu < 0) {
+          continue;
+        }
+        mjtNum v = d->M[a] + (d->efm_fluid ? d->efm_fluid[a] : 0);
+        S[j*n + cu] += v;
+        if (cu != j) {
+          S[cu*n + j] += v;
+        }
+      }
+      if (d->efm_diag) {
+        S[j*n + j] += d->efm_diag[i];
+      }
+    }
+  }
+
+  // rank-1 classes
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    for (int a=0; a < e.nnz; a++) {
+      int ia = e.colind[a], ua = loc[ia];
+      if (ua < 0) {
+        continue;
+      }
+      int c = comp[m->dof_treeid[ia]], n = fold->Uadr[c+1] - fold->Uadr[c];
+      mjtNum* S = fold->S + fold->Sadr[c];
+      for (int b=0; b < e.nnz; b++) {
+        int ib = e.colind[b], ub = loc[ib];
+        if (ub >= 0 && comp[m->dof_treeid[ib]] == c) {
+          S[ua*n + ub] += e.scale * e.val[a] * e.val[b];
+        }
+      }
+    }
+  }
+
+  // efc rows: J_u' D J_u
+  for (int r=0; r < nefc; r++) {
+    mjtNum D = efc_D[r];
+    if (D <= 0) {
+      continue;
+    }
+    int adr = J_rowadr[r], nnz = J_rownnz[r];
+    for (int a=0; a < nnz; a++) {
+      int ia = J_colind[adr+a], ua = loc[ia];
+      if (ua < 0) {
+        continue;
+      }
+      int c = comp[m->dof_treeid[ia]], n = fold->Uadr[c+1] - fold->Uadr[c];
+      mjtNum* S = fold->S + fold->Sadr[c];
+      mjtNum DJa = D * J[adr+a];
+      for (int b=0; b < nnz; b++) {
+        int ib = J_colind[adr+b], ub = loc[ib];
+        if (ub >= 0 && comp[m->dof_treeid[ib]] == c) {
+          S[ua*n + ub] += DJa * J[adr+b];
+        }
+      }
+    }
+  }
+
+  // factor each component
+  int valid = 1;
+  for (int c=0; c < fold->ncomp; c++) {
+    int n = fold->Uadr[c+1] - fold->Uadr[c];
+    valid = valid && mju_cholFactor(fold->S + fold->Sadr[c], n, mjMINVAL) == n;
+  }
+  fold->S_valid = valid;
+}
+
+
 // fold the metric's rank-1 classes and the efc rows (quadratic zone) into a copy of the
-// preconditioner blocks, factored into L (9*nefmdof); only each term's per-vertex 3x3 diagonal
-// survives, as for the elastic part. Returns 0 when nothing is covered, leaving L untouched.
-int mj_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
+// preconditioner blocks, factored into fold->L (9*nefmdof); only each term's per-vertex 3x3
+// diagonal survives, as for the elastic part. With fold->nu, also the dense blocks of the
+// components of the uncovered dofs (effDenseBlock). Returns 0 when nothing is covered, leaving
+// fold untouched. Stack: one frame (mj_effFoldScratch)
+int mj_effPrecFold(const mjModel* m, mjData* d, mjEffFold* fold,
                    int nefc, const mjtNum* efc_D, int is_sparse,
                    const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
                    const int* J_colind) {
@@ -492,17 +808,11 @@ int mj_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
   }
   mj_markStack(d);
   int nv = m->nv;
+  mjtNum* L = fold->L;
   mjtNum* Badd = mjSTACKALLOC(d, 9*d->nefmdof, mjtNum);
   int* blk = mjSTACKALLOC(d, nv, int);
   mju_zero(Badd, 9*d->nefmdof);
-  for (int i=0; i < nv; i++) {
-    blk[i] = -1;
-  }
-  for (int k=0; k < d->nefmdof; k++) {
-    for (int c=0; c < 3; c++) {
-      blk[d->efm_dofid[k] + c] = k;
-    }
-  }
+  effCovered(m, d, blk);
 
   // rank-1 classes: scale * v v', restricted to each covered block. A term's coupling between
   // DIFFERENT vertices is off-diagonal and cannot be represented here; only its self-terms land
@@ -571,16 +881,60 @@ int mj_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
     mju_addTo(Bk, Badd + 9*k, 9);
     mju_cholFactor(Bk, 3, mjMINVAL);
   }
+
+  // dense blocks of the uncovered dofs: the components of the same rows mj_effFoldDenseSize
+  // sized the fold for (a mismatch leaves the backbone solve), laid out by component in U
+  fold->S_valid = 0;
+  if (fold->nu && is_sparse) {
+    int ntree = m->ntree, nu, nS, partial;
+    int* tint = mjSTACKALLOC(d, 3*ntree, int);
+    int* comp = tint;
+    int* cur = tint + 2*ntree;
+    int ncomp = effComponents(m, d, blk, nefc, efc_D, J_rownnz, J_rowadr, J_colind,
+                              comp, tint + ntree, cur, &nu, &nS, &partial);
+    if (nu == fold->nu && ncomp == fold->ncomp && nS == fold->nS) {
+      // component offsets in U and S
+      for (int c=0; c <= ncomp; c++) {
+        fold->Uadr[c] = 0;
+      }
+      for (int i=0; i < nv; i++) {
+        int c = blk[i] < 0 ? comp[m->dof_treeid[i]] : -1;
+        if (c >= 0) {
+          fold->Uadr[c+1]++;
+        }
+      }
+      fold->Sadr[0] = 0;
+      for (int c=0; c < ncomp; c++) {
+        int n = fold->Uadr[c+1];
+        fold->Uadr[c+1] += fold->Uadr[c];
+        fold->Sadr[c+1] = fold->Sadr[c] + n*n;
+        cur[c] = fold->Uadr[c];
+      }
+
+      // U by component, ascending within each; blk becomes the index within the component
+      for (int i=0; i < nv; i++) {
+        int c = blk[i] < 0 ? comp[m->dof_treeid[i]] : -1;
+        if (c >= 0) {
+          fold->U[cur[c]] = i;
+          blk[i] = cur[c]++ - fold->Uadr[c];
+        } else {
+          blk[i] = -1;
+        }
+      }
+      fold->partial = partial;
+      effDenseBlock(m, d, fold, blk, comp, nefc, efc_D, J, J_rownnz, J_rowadr, J_colind);
+    }
+  }
   mj_freeStack(d);
   return 1;
 }
 
 
-// mj_effPrec against caller-supplied factored blocks instead of the shared d->efm_L
+// mj_effPrec against a solver-owned fold instead of the shared d->efm_L
 void mj_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
-                      const mjtNum* L) {
+                      const mjEffFold* fold) {
   if (d->efm_active) {
-    effBlockApply(m, d, x, b, L);
+    effBlockApply(m, d, x, b, fold->L, fold);
     return;
   }
   mj_effPrec(m, d, x, b);

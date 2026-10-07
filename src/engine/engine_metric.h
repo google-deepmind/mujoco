@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_METRIC_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_METRIC_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -84,16 +86,57 @@ MJAPI void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 // Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
 MJAPI void mj_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 
-// fold the rank-1 classes and the efc rows (quadratic zone) into a copy of the preconditioner
-// blocks L (9*nefmdof), factored; returns 0 if nothing is covered, leaving L untouched
-MJAPI int mj_effPrecFold(const mjModel* m, mjData* d, mjtNum* L,
+// caller-owned copy of the metric preconditioner, with the rank-1 classes and the efc rows
+// folded in (mj_effPrecFold): the covered 3x3 blocks and, optionally, dense factors of the
+// block S of the uncovered (non-flex) dofs, one per connected component of S, which then
+// replace the backbone solve on the dofs they cover. The caller sizes the arrays with
+// mj_effFoldDenseSize and sets nu, ncomp and nS; mj_effPrecFold fills them.
+typedef struct {
+  mjtNum* L;           // covered 3x3 blocks, factored                       (9*nefmdof)
+  int nu;              // uncovered dofs in the components, 0: no dense block
+  int ncomp;           // components
+  int nS;              // mjtNums of the packed factors
+  int* U;              // dofs by component, ascending within each            (nu)
+  int* Uadr;           // component c: U[Uadr[c]] .. U[Uadr[c+1]-1]           (ncomp+1)
+  int* Sadr;           // component c: its factor at S + Sadr[c], row-major   (ncomp+1)
+  mjtNum* S;           // packed dense factors                                (nS)
+  int partial;         // some uncovered dofs are in no component: backbone solve on them
+  int S_valid;         // S holds the factors, set by mj_effPrecFold
+} mjEffFold;
+
+// size the dense blocks of a fold over the given efc rows: the uncovered dofs are partitioned
+// into the connected components of S (trees joined by an efc row with D > 0 or a rank-1 term
+// on uncovered dofs of both), and components of at most 600 dofs are factored. Returns the
+// mjtNums of their packed factors (mjEffFold.nS, the sum of their squared sizes), 0 when there
+// is no block: no covered dofs, a dense Jacobian or no component within the cap. *nu and *ncomp
+// receive the dofs and the components factored. Stack: at most mj_effFoldScratch(m, d, 1)
+MJAPI int mj_effFoldDenseSize(const mjModel* m, mjData* d, int nefc, const mjtNum* efc_D,
+                              int is_sparse, const int* J_rownnz, const int* J_rowadr,
+                              const int* J_colind, int* nu, int* ncomp);
+
+// stack bytes mj_effPrecFold and mj_effPrecBlocks take beyond the fold's own arrays, at most,
+// for a dense block of nu dofs
+MJAPI size_t mj_effFoldScratch(const mjModel* m, const mjData* d, int nu);
+
+// stack bytes mj_effMulAdd takes, at most (the matrix-free flex operators)
+MJAPI size_t mj_effMulAddScratch(const mjModel* m, const mjData* d);
+
+// fold the rank-1 classes and the efc rows (quadratic zone) into fold: the per-vertex 3x3
+// diagonal of each term into a copy of the blocks, factored into fold->L, and when fold->nu > 0
+// (sizes from mj_effFoldDenseSize over the same rows) the dense blocks of the uncovered dofs
+//   S = M_uu + diag + fluid + rank-1 classes + J_u' D J_u   (rows with D > 0)
+// one per component, factored into fold->S, with U, Uadr, Sadr, partial and S_valid set.
+// Returns 0 if nothing is covered, leaving fold untouched
+MJAPI int mj_effPrecFold(const mjModel* m, mjData* d, mjEffFold* fold,
                          int nefc, const mjtNum* efc_D, int is_sparse,
                          const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
                          const int* J_colind);
 
-// apply the metric preconditioner using caller-supplied factored blocks
+// apply the metric preconditioner using a fold from mj_effPrecFold: its 3x3 blocks on the
+// covered dofs, if S_valid its dense factors on their components, the backbone solve on the
+// remaining dofs
 MJAPI void mj_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
-                            const mjtNum* L);
+                            const mjEffFold* fold);
 
 
 #ifdef __cplusplus
