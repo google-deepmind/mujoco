@@ -211,6 +211,26 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="kw_actuatortype">
+    <xs:annotation>
+      <xs:documentation>the element an actuator is written with</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="general"/>
+      <xs:enumeration value="motor"/>
+      <xs:enumeration value="position"/>
+      <xs:enumeration value="velocity"/>
+      <xs:enumeration value="intvelocity"/>
+      <xs:enumeration value="damper"/>
+      <xs:enumeration value="cylinder"/>
+      <xs:enumeration value="muscle"/>
+      <xs:enumeration value="adhesion"/>
+      <xs:enumeration value="pid"/>
+      <xs:enumeration value="orientation"/>
+      <xs:enumeration value="dcmotor"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="kw_dyn">
     <xs:restriction base="xs:string">
       <xs:enumeration value="none"/>

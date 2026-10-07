@@ -3910,6 +3910,19 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjVERTEX_ATTRIBUTE_USAGE_TANGENTS", mjVERTEX_ATTRIBUTE_USAGE_TANGENTS)
     .value("mjVERTEX_ATTRIBUTE_USAGE_UV", mjVERTEX_ATTRIBUTE_USAGE_UV)
     .value("mjVERTEX_ATTRIBUTE_USAGE_COLOR", mjVERTEX_ATTRIBUTE_USAGE_COLOR);
+  enum_<mjtActuator>("mjtActuator")
+    .value("mjACTUATOR_GENERAL", mjACTUATOR_GENERAL)
+    .value("mjACTUATOR_MOTOR", mjACTUATOR_MOTOR)
+    .value("mjACTUATOR_POSITION", mjACTUATOR_POSITION)
+    .value("mjACTUATOR_VELOCITY", mjACTUATOR_VELOCITY)
+    .value("mjACTUATOR_INTVELOCITY", mjACTUATOR_INTVELOCITY)
+    .value("mjACTUATOR_DAMPER", mjACTUATOR_DAMPER)
+    .value("mjACTUATOR_CYLINDER", mjACTUATOR_CYLINDER)
+    .value("mjACTUATOR_MUSCLE", mjACTUATOR_MUSCLE)
+    .value("mjACTUATOR_ADHESION", mjACTUATOR_ADHESION)
+    .value("mjACTUATOR_PID", mjACTUATOR_PID)
+    .value("mjACTUATOR_ORIENTATION", mjACTUATOR_ORIENTATION)
+    .value("mjACTUATOR_DCMOTOR", mjACTUATOR_DCMOTOR);
   enum_<mjtAlignFree>("mjtAlignFree")
     .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
     .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
@@ -5681,6 +5694,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("slidersite", &MjsActuator::slidersite, &MjsActuator::set_slidersite, reference())
     .property("target", &MjsActuator::target, &MjsActuator::set_target, reference())
     .property("trntype", &MjsActuator::trntype, &MjsActuator::set_trntype)
+    .property("type", &MjsActuator::type, &MjsActuator::set_type)
     .property("userdata", &MjsActuator::userdata, reference())
     .property("velrange", &MjsActuator::velrange);
   emscripten::class_<MjsAuthored>("MjsAuthored")

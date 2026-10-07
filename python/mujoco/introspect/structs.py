@@ -9772,6 +9772,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='element type',
              ),
              StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtActuator'),
+                 doc='element the actuator is written with',
+             ),
+             StructFieldDecl(
                  name='gaintype',
                  type=ValueType(name='mjtGain'),
                  doc='gain type',

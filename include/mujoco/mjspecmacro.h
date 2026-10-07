@@ -494,6 +494,7 @@
 
 #define MJSACTUATOR_FIELDS                          \
     X   ( mjsElement*,   element,       1         ) \
+    X   ( mjtActuator,   type,          1         ) \
     X   ( mjtGain,       gaintype,      1         ) \
     XVEC( double,        gainprm,       mjNGAIN   ) \
     X   ( mjtBias,       biastype,      1         ) \

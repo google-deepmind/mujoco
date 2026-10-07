@@ -7685,8 +7685,12 @@ void mjCActuator::Compile(void) {
 
   // check and set actdim
   if (!plugin.active) {
-    if (actdim > 1 && dyntype != mjDYN_USER && dyntype != mjDYN_DCMOTOR && !so3_) {
-      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user' and 'dcmotor'");
+    if (actdim > 1 &&
+        dyntype != mjDYN_USER &&
+        dyntype != mjDYN_DCMOTOR &&
+        dyntype != mjDYN_PID &&
+        !so3_) {
+      throw mjCError(this, "actdim > 1 is only allowed for dyntype 'user', 'dcmotor' and 'pid'");
     }
     if (actdim == 1 && dyntype == mjDYN_NONE) {
       throw mjCError(this, "invalid actdim 1 in stateless actuator");

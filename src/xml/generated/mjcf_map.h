@@ -231,6 +231,23 @@ inline constexpr mjMap mark_map[] = {
 };
 inline constexpr int mark_sz = 4;
 
+// enum actuatortype
+inline constexpr mjMap actuatortype_map[] = {
+  {"general",      mjACTUATOR_GENERAL},
+  {"motor",        mjACTUATOR_MOTOR},
+  {"position",     mjACTUATOR_POSITION},
+  {"velocity",     mjACTUATOR_VELOCITY},
+  {"intvelocity",  mjACTUATOR_INTVELOCITY},
+  {"damper",       mjACTUATOR_DAMPER},
+  {"cylinder",     mjACTUATOR_CYLINDER},
+  {"muscle",       mjACTUATOR_MUSCLE},
+  {"adhesion",     mjACTUATOR_ADHESION},
+  {"pid",          mjACTUATOR_PID},
+  {"orientation",  mjACTUATOR_ORIENTATION},
+  {"dcmotor",      mjACTUATOR_DCMOTOR},
+};
+inline constexpr int actuatortype_sz = 12;
+
 // enum dyn
 inline constexpr mjMap dyn_map[] = {
   {"none",         mjDYN_NONE},

@@ -6021,6 +6021,12 @@ struct MjsActuator {
   explicit MjsActuator(mjsActuator *ptr);
   mjsActuator* get() const;
   void set(mjsActuator* ptr);
+  mjtActuator type() const {
+    return ptr_->type;
+  }
+  void set_type(mjtActuator value) {
+    ptr_->type = value;
+  }
   mjtGain gaintype() const {
     return ptr_->gaintype;
   }

@@ -143,6 +143,16 @@ Actuation
 - Added the :ref:`inheritrange<actuator-general-inheritrange>` attribute to the :ref:`general<actuator-general>`
   actuator, which so far only the :ref:`position<actuator-position>`, :ref:`intvelocity<actuator-intvelocity>` and
   :ref:`pid<actuator-pid>` shortcuts had.
+- Actuator :ref:`shortcuts<CActShortcuts>` now inherit their parameters (``kp``, ``kv``, ``area``, ...) only from a
+  :ref:`default<default>` written with the same shortcut or with :ref:`general<actuator-general>`, looking up the
+  class hierarchy for one, and otherwise use their documented defaults; mechanical attributes like ``ctrlrange`` and
+  ``gear`` are inherited from any default, as before. A :ref:`motor<actuator-motor>` in a class with a
+  :ref:`position<actuator-position>` default used to be a position servo (:issue:`3561`). Every shortcut now sets its
+  full documented table, including its dynamics and activation layout, and a :ref:`pid<actuator-pid>` without ``kp``
+  has the documented gain of 1, not 0. Added ``mjsActuator.type`` (:ref:`mjtActuator`), the element an actuator is
+  written with.
+- A :ref:`pid<actuator-pid>` actuator with both :ref:`ki<actuator-pid-ki>` and :ref:`slewmax<actuator-pid-slewmax>`
+  now compiles; its two activation states were rejected.
 
 Filament Rendering
 ^^^^^^^^^^^^^^^^^^

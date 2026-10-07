@@ -600,6 +600,34 @@ TEST_F(MujocoTest, SetToDeclaresInput) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, SetToOwnsControlModel) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+  EXPECT_EQ(actuator->type, mjACTUATOR_GENERAL);
+
+  // a position servo with damping and filter dynamics
+  double kv = 10, timeconst = 0.1;
+  mjs_setToPosition(actuator, 100, &kv, nullptr, &timeconst, 0);
+  EXPECT_EQ(actuator->type, mjACTUATOR_POSITION);
+  EXPECT_EQ(actuator->dyntype, mjDYN_FILTEREXACT);
+
+  // a motor set afterwards is a plain motor
+  mjs_setToMotor(actuator);
+  EXPECT_EQ(actuator->type, mjACTUATOR_MOTOR);
+  EXPECT_EQ(actuator->gainprm[0], 1);
+  EXPECT_EQ(actuator->biasprm[1], 0);
+  EXPECT_EQ(actuator->biasprm[2], 0);
+  EXPECT_EQ(actuator->biastype, mjBIAS_NONE);
+  EXPECT_EQ(actuator->dyntype, mjDYN_NONE);
+  EXPECT_EQ(actuator->dynprm[0], 1);
+
+  // intvelocity is its own type
+  mjs_setToIntVelocity(actuator, 1, nullptr, nullptr, nullptr, 0);
+  EXPECT_EQ(actuator->type, mjACTUATOR_INTVELOCITY);
+
+  mj_deleteSpec(spec);
+}
+
 static constexpr char xml_plugin_1[] = R"(
   <mujoco model="MuJoCo Model">
     <worldbody>

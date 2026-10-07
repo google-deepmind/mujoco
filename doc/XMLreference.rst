@@ -184,9 +184,8 @@ exceptions:
    objects that the tendon passes through or wraps around.
 -  The order of repeated sections matters when the same attribute is set multiple times to different values. In that
    case the last setting takes effect for the entire model.
--  The order of multiple actuator shortcuts in the same defaults class matters, because each shortcut sets the
-   attributes of the single :ref:`general <actuator-general>` element in that defaults class, overriding the previous
-   settings.
+-  The order of multiple actuator elements in the same defaults class matters, because a class has a single actuator
+   default and each shortcut resets its gain, bias and dynamics parameters; see :ref:`CActShortcuts`.
 
 In the remainder of this chapter we describe all valid MJCF elements and their attributes. Some elements can be used in
 multiple contexts, in which case their meaning depends on the parent element. This is why we always show the parent as a
@@ -10446,9 +10445,11 @@ if omitted.
 :el-prefix:`default/` |-| **motor** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
-:ref:`Actuator shortcuts <CActShortcuts>`. It does not make sense to use more than one such shortcut in the same
-defaults class, because they set the same underlying attributes, replacing any previous settings. All
+This and the following shortcut elements set the single actuator default of the class, see
+:ref:`Actuator shortcuts <CActShortcuts>`. Any actuator in the class inherits its mechanical attributes; the shortcut's
+own parameters are inherited only by actuators written with the same shortcut or with :ref:`general <actuator-general>`.
+Using more than one shortcut in the same defaults class is not useful, because each resets the gain, bias and dynamics
+parameters set by the previous one. All
 :ref:`motor <actuator-motor>` attributes are available here except: name, class, joint, jointinparent, site, refsite,
 tendon, slidersite, cranksite.
 

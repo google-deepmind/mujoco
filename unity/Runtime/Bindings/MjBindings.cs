@@ -610,6 +610,20 @@ public enum mjtConflict : int{
   mjCONFLICT_MERGE = 1,
   mjCONFLICT_ERROR = 2,
 }
+public enum mjtActuator : int{
+  mjACTUATOR_GENERAL = 0,
+  mjACTUATOR_MOTOR = 1,
+  mjACTUATOR_POSITION = 2,
+  mjACTUATOR_VELOCITY = 3,
+  mjACTUATOR_INTVELOCITY = 4,
+  mjACTUATOR_DAMPER = 5,
+  mjACTUATOR_CYLINDER = 6,
+  mjACTUATOR_MUSCLE = 7,
+  mjACTUATOR_ADHESION = 8,
+  mjACTUATOR_PID = 9,
+  mjACTUATOR_ORIENTATION = 10,
+  mjACTUATOR_DCMOTOR = 11,
+}
 public enum mjtCTimer : int{
   mjCTIMER_TOTAL = 0,
   mjCTIMER_ASSETS = 1,

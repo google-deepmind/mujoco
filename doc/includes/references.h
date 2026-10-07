@@ -1743,6 +1743,20 @@ typedef enum mjtConflict {         // conflict resolution for attach
   mjCONFLICT_MERGE,                // merge: min/max/error per field
   mjCONFLICT_ERROR,                // error on any conflict
 } mjtConflict;
+typedef enum mjtActuator {         // actuator element, which owns its shortcut parameters
+  mjACTUATOR_GENERAL = 0,          // general
+  mjACTUATOR_MOTOR,                // motor
+  mjACTUATOR_POSITION,             // position servo
+  mjACTUATOR_VELOCITY,             // velocity servo
+  mjACTUATOR_INTVELOCITY,          // integrated-velocity servo
+  mjACTUATOR_DAMPER,               // damper
+  mjACTUATOR_CYLINDER,             // cylinder
+  mjACTUATOR_MUSCLE,               // muscle
+  mjACTUATOR_ADHESION,             // adhesion
+  mjACTUATOR_PID,                  // pid servo
+  mjACTUATOR_ORIENTATION,          // orientation servo
+  mjACTUATOR_DCMOTOR               // dc motor
+} mjtActuator;
 typedef enum mjtCTimer {           // compiler timing categories
   // top-level timers (wall-clock)
   mjCTIMER_TOTAL = 0,              // total compile time
@@ -2275,6 +2289,7 @@ typedef struct mjsWrap_ {          // wrapping object specification
 } mjsWrap;
 typedef struct mjsActuator_ {      // actuator specification
   mjsElement* element;             // element type
+  mjtActuator type;                // element the actuator is written with
 
   // gain, bias
   mjtGain gaintype;                // gain type

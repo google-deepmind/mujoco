@@ -629,9 +629,9 @@ actuator model with transmission, activation dynamics and force generation compo
 independently. The full functionality can be accessed via the XML element :ref:`general <actuator-general>` which allows
 the user to create a variety of custom actuators. In addition, MJCF provides shortcuts for configuring common actuators.
 This is done via the XML elements :ref:`motor <actuator-motor>`, :ref:`position <actuator-position>`, :ref:`velocity
-<actuator-velocity>`, :ref:`intvelocity <actuator-intvelocity>`, :ref:`damper<actuator-damper>`,
-:ref:`cylinder<actuator-cylinder>`, :ref:`muscle <actuator-muscle>`, :ref:`adhesion <actuator-adhesion>`, and
-:ref:`dcmotor<actuator-dcmotor>`. These are
+<actuator-velocity>`, :ref:`intvelocity <actuator-intvelocity>`, :ref:`orientation<actuator-orientation>`,
+:ref:`pid<actuator-pid>`, :ref:`damper<actuator-damper>`, :ref:`cylinder<actuator-cylinder>`,
+:ref:`muscle <actuator-muscle>`, :ref:`adhesion <actuator-adhesion>`, and :ref:`dcmotor<actuator-dcmotor>`. These are
 *not* separate model elements. Internally MuJoCo supports only one actuator type -which is why when an MJCF model is
 saved all actuators are written as :el:`general`. Shortcuts create general actuators implicitly, set their attributes to
 suitable values, and expose a subset of attributes with possibly different names. For example, :el:`position` creates a
@@ -642,19 +642,20 @@ attributes to certain values as described below.
 
 Actuator shortcuts also interact with defaults. Recall that the :ref:`default setting <CDefault>` mechanism involves
 classes, each of which has a complete collection of dummy elements (one of each element type) used to initialize the
-attributes of the actual model elements. In particular, each defaults class has only one general actuator element.
-What happens if we specify :el:`position` and later :el:`velocity` in the same defaults class? The XML elements are
-processed in order, and the attributes of the single general actuator are set every time an actuator-related element
-is encountered. Thus :el:`velocity` has precedence. If however we specify :el:`general` in the defaults class, it will
-only set the attributes that are given explicitly, and leave the rest unchanged. A similar complication arises when
-creating actual model elements. Suppose the active defaults class specified :el:`position`, and now we create an
-actuator using :el:`general` and omit some of its attributes. The missing attributes will be set to whatever values
-are used to model a position servo, even though this actuator may not be intended as a position servo.
-
-In light of these potential complications, we recommend a simple approach: use the same actuator shortcut in both the
-defaults class and in the creation of actual model elements. If a given model requires different actuators, either
-create multiple defaults classes, or avoid using defaults for actuators and instead specify all their attributes
-explicitly.
+attributes of the actual model elements. In particular, each defaults class has a single actuator default, written with
+:el:`general` or with one of the shortcuts. An actuator inherits all of its class's actuator defaults, including
+mechanical attributes like :at:`ctrlrange` and :at:`gear`. Shortcut parameters (:at:`kp`, :at:`kv`, :at:`area`, ...) are
+inherited from a default written with the same shortcut, or from a :el:`general` default with the shortcut's gain type,
+whose raw gain and bias parameters are read as the shortcut's; they are not inherited from a default written with
+another shortcut. In that case the nearest ancestor class whose default the shortcut can inherit from is used, and if
+there is none, the shortcut's own documented defaults apply. So a :el:`motor` in a class whose default is
+:el:`position` is a plain motor with the class's :at:`ctrlrange`, not a position servo; a :el:`position` in a class
+whose default is :el:`general` with :at:`gainprm` "400" has :at:`kp` 400; and a :el:`position` in a child class whose
+default is :el:`velocity` has the :at:`kp` of the parent class's :el:`position` default. :el:`general` itself inherits
+the raw gain, bias and dynamics parameters of any default, so a :el:`general` which omits these attributes in a class
+with a :el:`position` default is a position servo. If several actuator elements are given in one class they are
+processed in order: each shortcut resets the gain, bias and dynamics parameters and the activation layout, while
+:el:`general` sets only the attributes given explicitly.
 
 .. _CForceRange:
 

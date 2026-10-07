@@ -256,6 +256,21 @@ enum mark : mjtMark {
   random   = mjMARK_RANDOM
 }
 
+enum actuatortype : mjtActuator {   # the element an actuator is written with
+  general       = mjACTUATOR_GENERAL
+  motor         = mjACTUATOR_MOTOR
+  position      = mjACTUATOR_POSITION
+  velocity      = mjACTUATOR_VELOCITY
+  intvelocity   = mjACTUATOR_INTVELOCITY
+  damper        = mjACTUATOR_DAMPER
+  cylinder      = mjACTUATOR_CYLINDER
+  muscle        = mjACTUATOR_MUSCLE
+  adhesion      = mjACTUATOR_ADHESION
+  pid           = mjACTUATOR_PID
+  orientation   = mjACTUATOR_ORIENTATION
+  dcmotor       = mjACTUATOR_DCMOTOR
+}
+
 enum dyn : mjtDyn {
   none          = mjDYN_NONE
   integrator    = mjDYN_INTEGRATOR

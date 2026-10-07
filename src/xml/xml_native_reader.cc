@@ -1149,11 +1149,39 @@ static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
 }
 
 
+// whether a shortcut pre-reads its parameters from a class slot: one written with the same
+// shortcut, or with general and the shortcut's gain type
+static bool ShortcutInherits(const mjsActuator* slot, int type) {
+  if (slot->type == type) { return true; }
+  if (slot->type != mjACTUATOR_GENERAL) { return false; }
+  mjtGain gain = type == mjACTUATOR_DAMPER        ? mjGAIN_AFFINE
+                 : type == mjACTUATOR_MUSCLE      ? mjGAIN_MUSCLE
+                 : type == mjACTUATOR_DCMOTOR     ? mjGAIN_DCMOTOR
+                 : type == mjACTUATOR_PID         ? mjGAIN_PID
+                 : type == mjACTUATOR_ORIENTATION ? mjGAIN_SO3
+                                                  : mjGAIN_FIXED;
+  return slot->gaintype == gain;
+}
+
+
+// the slot a shortcut pre-reads: the class's own, else the nearest ancestor class which the
+// shortcut inherits from; null for the documented defaults; general and plugin read any class
+static const mjsActuator* ShortcutSource(const mjsActuator* slot, const mjsDefault* def, int type) {
+  if (type <= mjACTUATOR_GENERAL || ShortcutInherits(slot, type)) { return slot; }
+  const mjCDef* d = def ? static_cast<const mjCDef*>(def->element)->parent : nullptr;
+  for (; d; d = d->parent) {
+    if (ShortcutInherits(d->spec.actuator, type)) { return d->spec.actuator; }
+  }
+  return nullptr;
+}
+
+
 // actuator element parser
-void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
+void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator, const mjsDefault* def) {
   string text, type, target, slidersite, refsite;
 
-  // input signatures are scoped by gaintype: inherited only from a default with the same gaintype
+  // shortcut parameters are inherited from a default written with the same shortcut or with
+  // general, not from another shortcut; input signatures of <general> are scoped by gaintype
   mjtGain inherited_gaintype = actuator->gaintype;
 
   // mechanical attributes; per-tag legality is enforced by the schema check
@@ -1201,8 +1229,39 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     throw mjXError(elem, "refsite can only be used with site transmission");
   }
 
-  // get predefined type
-  type = elem->Value();
+  // get predefined type, and the class slot the shortcut pre-reads; an ancestor's control model
+  // takes the place of the class's own
+  type                         = elem->Value();
+  int                acttype   = FindKey(actuatortype_map, actuatortype_sz, type);
+  const mjsActuator* src       = ShortcutSource(actuator, def, acttype);
+  bool               inherited = src != nullptr;
+  if (src && src != actuator) {
+    mjuu_copyvec(actuator->gainprm, src->gainprm, mjNGAIN);
+    mjuu_copyvec(actuator->biasprm, src->biasprm, mjNBIAS);
+    mjuu_copyvec(actuator->dynprm, src->dynprm, mjNDYN);
+    actuator->gaintype     = src->gaintype;
+    actuator->biastype     = src->biastype;
+    actuator->dyntype      = src->dyntype;
+    actuator->ctrlspec     = src->ctrlspec;
+    actuator->inheritrange = src->inheritrange;
+  }
+
+  // kv or dampratio: explicit, else inherited from the sign of biasprm[2] (negative: kv)
+  double  kv_data, dampratio_data;
+  double* kv          = nullptr;
+  double* dampratio   = nullptr;
+  auto    ReadDamping = [&]() {
+    bool has_kv        = ReadAttr(elem, "kv", 1, &kv_data, text);
+    bool has_dampratio = ReadAttr(elem, "dampratio", 1, &dampratio_data, text);
+    if (inherited && !has_kv && !has_dampratio) {
+      kv_data        = -actuator->biasprm[2];
+      dampratio_data = actuator->biasprm[2];
+      has_kv         = kv_data > 0;
+      has_dampratio  = dampratio_data > 0;
+    }
+    kv        = has_kv ? &kv_data : nullptr;
+    dampratio = has_dampratio ? &dampratio_data : nullptr;
+  };
 
   // explicit attributes
   string err;
@@ -1210,6 +1269,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     // so3 chart keyword, or input token subset (validated per gaintype by the compiler)
     if (actuator->gaintype != inherited_gaintype) { actuator->ctrlspec = 0; }
     ReadInputSpec(elem, &actuator->ctrlspec);
+    actuator->type = mjACTUATOR_GENERAL;
   }
 
   // direct drive motor
@@ -1219,26 +1279,18 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // position or integrated velocity servo
   else if (type == "position" || type == "intvelocity") {
-    double kp = actuator->gainprm[0];
+    double kp = inherited ? actuator->gainprm[0] : 1;
     ReadAttr(elem, "kp", 1, &kp, text);
+    ReadDamping();
 
-    // read kv
-    double  kv_data;
-    double* kv = &kv_data;
-    if (!ReadAttr(elem, "kv", 1, kv, text)) { kv = nullptr; }
-
-    // read dampratio
-    double  dampratio_data;
-    double* dampratio = &dampratio_data;
-    if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) { dampratio = nullptr; }
-
-    // read timeconst, set dyntype
-    double  timeconst_data;
-    double* timeconst = &timeconst_data;
-    if (!ReadAttr(elem, "timeconst", 1, timeconst, text)) { timeconst = nullptr; }
+    // timeconst: explicit, else inherited from filter dynamics
+    double  timeconst_data = actuator->dynprm[0];
+    double* timeconst      = nullptr;
+    if (inherited && actuator->dyntype == mjDYN_FILTEREXACT) { timeconst = &timeconst_data; }
+    if (ReadAttr(elem, "timeconst", 1, &timeconst_data, text)) { timeconst = &timeconst_data; }
 
     // handle inheritrange
-    double inheritrange = actuator->inheritrange;
+    double inheritrange = inherited ? actuator->inheritrange : 0;
     ReadAttr(elem, "inheritrange", 1, &inheritrange, text);
 
     if (type == "position") {
@@ -1250,19 +1302,12 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // orientation servo: geodesic PD on an SO3 transmission
   else if (type == "orientation") {
-    double kp = actuator->gainprm[0];
+    double kp = inherited ? actuator->gainprm[0] : 1;
     ReadAttr(elem, "kp", 1, &kp, text);
-
-    double  kv_data;
-    double* kv = &kv_data;
-    if (!ReadAttr(elem, "kv", 1, kv, text)) { kv = nullptr; }
-
-    double  dampratio_data;
-    double* dampratio = &dampratio_data;
-    if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) { dampratio = nullptr; }
+    ReadDamping();
 
     // input chart: expmap (default) or quat
-    int ctrlspec = inherited_gaintype == mjGAIN_SO3 ? actuator->ctrlspec : 0;
+    int ctrlspec = inherited ? actuator->ctrlspec : 0;
     ReadInputSpec(elem, &ctrlspec);
 
     err = mjs_setToOrientation(actuator, kp, kv, dampratio, ctrlspec);
@@ -1270,28 +1315,20 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // PID servo: inputs are position and velocity setpoints
   else if (type == "pid") {
-    // kp: default inherited via -biasprm[1]
-    double kp = -actuator->biasprm[1];
+    double kp = inherited ? -actuator->biasprm[1] : 1;
     ReadAttr(elem, "kp", 1, &kp, text);
+    ReadDamping();
 
-    double  kv_data;
-    double* kv = &kv_data;
-    if (!ReadAttr(elem, "kv", 1, kv, text)) { kv = nullptr; }
-
-    double  dampratio_data;
-    double* dampratio = &dampratio_data;
-    if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) { dampratio = nullptr; }
-
-    // controller parameters: ki (gainprm[0]), imax (dynprm[0]), slewmax (dynprm[1]); inherited
-    double ki = actuator->gainprm[0] * (actuator->dyntype == mjDYN_PID);
+    // controller parameters: ki (gainprm[0]), imax (dynprm[0]), slewmax (dynprm[1])
+    double ki = inherited ? actuator->gainprm[0] : 0;
     ReadAttr(elem, "ki", 1, &ki, text);
-    double imax = actuator->dynprm[0] * (actuator->dyntype == mjDYN_PID);
+    double imax = inherited ? actuator->dynprm[0] : 0;
     ReadAttr(elem, "imax", 1, &imax, text);
-    double slewmax = actuator->dynprm[1] * (actuator->dyntype == mjDYN_PID);
+    double slewmax = inherited ? actuator->dynprm[1] : 0;
     ReadAttr(elem, "slewmax", 1, &slewmax, text);
 
     // input subset selection
-    int ctrlspec = inherited_gaintype == mjGAIN_PID ? actuator->ctrlspec : 0;
+    int ctrlspec = inherited ? actuator->ctrlspec : 0;
     ReadInputSpec(elem, &ctrlspec);
 
     // posrange is an alias of ctrlrange (the position-setpoint input);
@@ -1299,7 +1336,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     ReadAttr(elem, "posrange", 2, actuator->ctrlrange, text);
 
     // handle inheritrange
-    double inheritrange = actuator->inheritrange;
+    double inheritrange = inherited ? actuator->inheritrange : 0;
     ReadAttr(elem, "inheritrange", 1, &inheritrange, text);
 
     err = mjs_setToPID(actuator, kp, kv, dampratio, &ki, &imax, &slewmax, inheritrange, ctrlspec);
@@ -1307,25 +1344,25 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // velocity servo
   else if (type == "velocity") {
-    double kv = actuator->gainprm[0];
+    double kv = inherited ? actuator->gainprm[0] : 1;
     ReadAttr(elem, "kv", 1, &kv, text);
     err = mjs_setToVelocity(actuator, kv);
   }
 
   // damper
   else if (type == "damper") {
-    bool   inherited = (actuator->gaintype == mjGAIN_AFFINE);
-    double kv        = inherited ? -actuator->gainprm[2] : 0;
+    double kv = inherited ? -actuator->gainprm[2] : 0;
     ReadAttr(elem, "kv", 1, &kv, text);
     err = mjs_setToDamper(actuator, kv);
   }
 
   // cylinder
   else if (type == "cylinder") {
-    double timeconst = actuator->dynprm[0];
-    double bias[3]   = {actuator->biasprm[0], actuator->biasprm[1], actuator->biasprm[2]};
-    double area      = actuator->gainprm[0];
+    double timeconst = inherited ? actuator->dynprm[0] : 1;
+    double area      = inherited ? actuator->gainprm[0] : 1;
+    double bias[3]   = {0, 0, 0};
     double diameter  = -1;
+    if (inherited) { mjuu_copyvec(bias, actuator->biasprm, 3); }
     ReadAttr(elem, "timeconst", 1, &timeconst, text);
     ReadAttr(elem, "bias", 3, bias, text);
     ReadAttr(elem, "area", 1, &area, text);
@@ -1337,9 +1374,20 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // muscle
   else if (type == "muscle") {
-    double tausmooth = actuator->dynprm[2];
+    double tausmooth = inherited ? actuator->dynprm[2] : 0;
     double force = -1, scale = -1, lmin = -1, lmax = -1, vmax = -1, fpmax = -1, fvmax = -1;
     double range[2] = {-1, -1}, timeconst[2] = {-1, -1};
+    if (inherited) {
+      mjuu_copyvec(timeconst, actuator->dynprm, 2);
+      mjuu_copyvec(range, actuator->gainprm, 2);
+      force = actuator->gainprm[2];
+      scale = actuator->gainprm[3];
+      lmin  = actuator->gainprm[4];
+      lmax  = actuator->gainprm[5];
+      vmax  = actuator->gainprm[6];
+      fpmax = actuator->gainprm[7];
+      fvmax = actuator->gainprm[8];
+    }
     ReadAttr(elem, "timeconst", 2, timeconst, text);
     ReadAttr(elem, "tausmooth", 1, &tausmooth, text);
     ReadAttr(elem, "range", 2, range, text);
@@ -1365,7 +1413,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // adhesion
   else if (type == "adhesion") {
-    double gain = actuator->gainprm[0];
+    double gain = inherited ? actuator->gainprm[0] : 1;
     ReadAttr(elem, "gain", 1, &gain, text);
     ReadAttr(elem, "ctrlrange", 2, actuator->ctrlrange, text);
     err = mjs_setToAdhesion(actuator, gain);
@@ -1373,7 +1421,6 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // DC motor
   else if (type == "dcmotor") {
-    bool   inherited     = (actuator->gaintype == mjGAIN_DCMOTOR);
     double motorconst[2] = {inherited ? actuator->gainprm[1] : 0, 0};
     double resistance    = inherited ? actuator->gainprm[0] : 0;
     double nominal[3]    = {0, 0, 0};
@@ -1425,6 +1472,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   else if (type == "plugin") {
     OnePlugin(elem, &actuator->plugin);
+    actuator->type = mjACTUATOR_GENERAL;
   }
 
   else {  // SHOULD NOT OCCUR
@@ -1813,19 +1861,8 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
       OneTendon(elem, def->tendon);
 
     // read actuator
-    else if (name == "general" ||
-             name == "motor" ||
-             name == "position" ||
-             name == "velocity" ||
-             name == "damper" ||
-             name == "intvelocity" ||
-             name == "orientation" ||
-             name == "pid" ||
-             name == "cylinder" ||
-             name == "muscle" ||
-             name == "adhesion" ||
-             name == "dcmotor") {
-      OneActuator(elem, def->actuator);
+    else if (FindKey(actuatortype_map, actuatortype_sz, name) >= 0) {
+      OneActuator(elem, def->actuator, def);
     }
 
     // advance
@@ -2824,7 +2861,7 @@ void mjXReader::Actuator(XMLElement* section) {
 
     // create actuator and parse
     mjsActuator* actuator = mjs_addActuator(spec, def);
-    OneActuator(elem, actuator);
+    OneActuator(elem, actuator, def);
 
     // advance to next element
     elem = NextSiblingElement(elem);

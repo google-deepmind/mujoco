@@ -3616,35 +3616,272 @@ TEST_F(ActuatorParseTest, DamperInheritsKv) {
   EXPECT_EQ(model->actuator_gainprm[2], -5.0);
 }
 
-// adhesion actuators inherit from general defaults
-TEST_F(ActuatorParseTest, AdhesionInheritsFromGeneral) {
+// a general default is the base of every shortcut with its gain model; a
+// shortcut sets its own dynamics and inherits mechanical attributes
+TEST_F(ActuatorParseTest, ShortcutsInheritFromGeneral) {
   static constexpr char xml[] = R"(
   <mujoco>
     <default>
-      <general dyntype="filter" dynprm="123" gainprm="5"/>
-      <adhesion ctrlrange="0 2"/>
+      <general dyntype="filter" dynprm="123" gainprm="5" ctrlrange="0 2"/>
+      <default class="lift">
+        <general biastype="affine" gainprm="400" biasprm="0 -200 -100" forcerange="-70 70"/>
+      </default>
+      <default class="servo">
+        <position kp="100" kv="10"/>
+        <default class="limited">
+          <general forcerange="-50 50"/>
+        </default>
+        <default class="arm">
+          <velocity kv="20"/>
+        </default>
+      </default>
+      <default class="pid">
+        <pid kp="7" ki="3"/>
+        <default class="pidlimited">
+          <general forcerange="-5 5"/>
+        </default>
+      </default>
     </default>
     <worldbody>
       <body name="sphere">
+        <joint name="hinge"/>
         <geom name="sphere" size="1"/>
       </body>
     </worldbody>
     <actuator>
       <adhesion name="adhere" body="sphere"/>
+      <position name="lift" class="lift" joint="hinge"/>
+      <position name="limited" class="limited" joint="hinge"/>
+      <damper name="damper" joint="hinge"/>
+      <position name="arm" class="arm" joint="hinge"/>
+      <velocity name="armvel" class="arm" joint="hinge"/>
+      <pid name="pid" class="pidlimited" joint="hinge"/>
     </actuator>
   </mujoco>
   )";
 
   std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  auto actuator = [spec](const char* name) {
+    return mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, name));
+  };
+
+  // adhesion: gain from the fixed-gain general default, its own dynamics
+  EXPECT_EQ(actuator("adhere")->gainprm[0], 5);
+  EXPECT_EQ(actuator("adhere")->dynprm[0], 1);
+  EXPECT_EQ(actuator("adhere")->dyntype, mjDYN_NONE);
+  EXPECT_EQ(actuator("adhere")->ctrlrange[1], 2);
+
+  // position: kp and kv from a general default written as a position servo
+  EXPECT_EQ(actuator("lift")->gainprm[0], 400);
+  EXPECT_EQ(actuator("lift")->biasprm[1], -400);
+  EXPECT_EQ(actuator("lift")->biasprm[2], -100);
+  EXPECT_EQ(actuator("lift")->forcerange[1], 70);
+
+  // a general child class which sets only mechanical attributes keeps the
+  // parent's position parameters
+  EXPECT_EQ(actuator("limited")->gainprm[0], 100);
+  EXPECT_EQ(actuator("limited")->biasprm[2], -10);
+  EXPECT_EQ(actuator("limited")->forcerange[1], 50);
+
+  // damper: an affine gain is not found in a fixed-gain general default
+  EXPECT_EQ(actuator("damper")->gainprm[2], 0);
+  EXPECT_EQ(actuator("damper")->ctrlrange[1], 2);
+
+  // a class written with another shortcut is skipped: the position parameters
+  // come from the nearest ancestor written with position (or general), the
+  // velocity parameters from the class itself
+  EXPECT_EQ(actuator("arm")->gainprm[0], 100);
+  EXPECT_EQ(actuator("arm")->biasprm[2], -10);
+  EXPECT_EQ(actuator("armvel")->gainprm[0], 20);
+
+  // pid: a general child class with the pid gain type is inherited from
+  EXPECT_EQ(actuator("pid")->biasprm[1], -7);
+  EXPECT_EQ(actuator("pid")->gainprm[0], 3);
+  EXPECT_EQ(actuator("pid")->forcerange[1], 5);
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// the activation layout of a dcmotor default and the inheritrange of a position
+// default do not carry over to other shortcuts
+TEST_F(ActuatorParseTest, ShortcutsDoNotInheritLayoutOfOtherShortcuts) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="dc">
+        <dcmotor motorconst="0.5" resistance="2" inductance="0.1 0" controller="0 1 0 0 0 0"/>
+      </default>
+      <default class="range">
+        <position inheritrange="1"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="hinge" type="slide" range="0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="motor" class="dc" joint="hinge"/>
+      <position name="position" class="range" joint="hinge"/>
+      <intvelocity name="intvelocity" class="range" joint="hinge" actrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  auto actuator = [spec](const char* name) {
+    return mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, name));
+  };
+  EXPECT_EQ(actuator("motor")->actdim, -1);
+  EXPECT_EQ(actuator("motor")->actearly, 0);
+  EXPECT_EQ(actuator("motor")->actlimited, mjLIMITED_AUTO);
+  EXPECT_EQ(actuator("position")->inheritrange, 1);
+  EXPECT_EQ(actuator("intvelocity")->inheritrange, 0);
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->actuator_actnum[0], 0);
+  EXPECT_EQ(model->actuator_ctrlrange[3], 1);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// github issue #3561: a motor in a class with a position default is a plain
+// motor
+TEST_F(ActuatorParseTest, ShortcutsDoNotInheritFromOtherShortcuts) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <position kp="100" kv="10" timeconst="0.1" ctrlrange="-1 1" gear="2"/>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge"/>
+      <cylinder joint="hinge"/>
+      <pid joint="hinge"/>
+      <position joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model.get(), NotNull()) << error.data();
 
-  // expect that gainprm was inherited from the general default
-  EXPECT_EQ(model->actuator_gainprm[0], 5);
-  // expect that dynprm was inherited from the general default
-  EXPECT_EQ(model->actuator_dynprm[0], 123);
-  // expect that dyntype was inherited from the general default
-  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_FILTER);
+  // motor: documented row, mechanical attributes inherited
+  EXPECT_EQ(model->actuator_gainprm[0], 1);
+  EXPECT_EQ(model->actuator_biasprm[1], 0);
+  EXPECT_EQ(model->actuator_biasprm[2], 0);
+  EXPECT_EQ(model->actuator_biastype[0], mjBIAS_NONE);
+  EXPECT_EQ(model->actuator_dyntype[0], mjDYN_NONE);
+  EXPECT_EQ(model->actuator_ctrlrange[0], -1);
+  EXPECT_EQ(model->actuator_ctrlrange[1], 1);
+  EXPECT_EQ(model->actuator_gear[0], 2);
+
+  // cylinder: documented defaults, no position bias
+  EXPECT_EQ(model->actuator_gainprm[mjNGAIN], 1);
+  EXPECT_EQ(model->actuator_biasprm[mjNBIAS], 0);
+  EXPECT_EQ(model->actuator_biasprm[mjNBIAS + 1], 0);
+  EXPECT_EQ(model->actuator_biasprm[mjNBIAS + 2], 0);
+  EXPECT_EQ(model->actuator_dynprm[mjNDYN], 1);
+
+  // pid: documented defaults
+  EXPECT_EQ(model->actuator_biasprm[2 * mjNBIAS + 1], -1);
+  EXPECT_EQ(model->actuator_biasprm[2 * mjNBIAS + 2], 0);
+  EXPECT_EQ(model->actuator_dyntype[2], mjDYN_NONE);
+
+  // position: inherits kp, kv and timeconst from the position default
+  EXPECT_EQ(model->actuator_gainprm[3 * mjNGAIN], 100);
+  EXPECT_EQ(model->actuator_biasprm[3 * mjNBIAS + 1], -100);
+  EXPECT_EQ(model->actuator_biasprm[3 * mjNBIAS + 2], -10);
+  EXPECT_EQ(model->actuator_dyntype[3], mjDYN_FILTEREXACT);
+  EXPECT_MJTNUM_EQ(model->actuator_dynprm[3 * mjNDYN], 0.1);
+}
+
+TEST_F(ActuatorParseTest, ShortcutParametersInheritedFromSameShortcut) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <position kp="100" dampratio="2"/>
+      <default class="kv">
+        <position kv="10"/>
+      </default>
+      <default class="muscle">
+        <muscle scale="300" lmin="0.3"/>
+      </default>
+      <default class="pid">
+        <pid kp="7" ki="3" imax="5" slewmax="2" input="pos ff"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="hinge" axis="1 0 0"/>
+        <geom size="1"/>
+        <site name="a" pos="0 1 0"/>
+      </body>
+      <site name="b" pos="0 0 1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="tendon">
+        <site site="a"/>
+        <site site="b"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <position name="dampratio" joint="hinge"/>
+      <position name="kv" joint="hinge" kv="1"/>
+      <position name="child" class="kv" joint="hinge"/>
+      <muscle name="muscle" class="muscle" tendon="tendon"/>
+      <pid name="pid" class="pid" joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  auto actuator = [spec](const char* name) {
+    return mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, name));
+  };
+
+  // dampratio is inherited, and replaced by an explicit kv
+  EXPECT_EQ(actuator("dampratio")->type, mjACTUATOR_POSITION);
+  EXPECT_EQ(actuator("dampratio")->biasprm[2], 2);
+  EXPECT_EQ(actuator("kv")->biasprm[2], -1);
+
+  // a child class keeps the parent's kp, its kv replaces the dampratio
+  EXPECT_EQ(actuator("child")->gainprm[0], 100);
+  EXPECT_EQ(actuator("child")->biasprm[2], -10);
+
+  // muscle: only the given parameters differ from the muscle defaults
+  EXPECT_EQ(actuator("muscle")->type, mjACTUATOR_MUSCLE);
+  EXPECT_EQ(actuator("muscle")->gainprm[0], 0.75);
+  EXPECT_EQ(actuator("muscle")->gainprm[3], 300);
+  EXPECT_EQ(actuator("muscle")->gainprm[4], 0.3);
+  EXPECT_EQ(actuator("muscle")->gainprm[5], 1.6);
+
+  // pid: all parameters inherited
+  EXPECT_EQ(actuator("pid")->biasprm[1], -7);
+  EXPECT_EQ(actuator("pid")->gainprm[0], 3);
+  EXPECT_EQ(actuator("pid")->dynprm[0], 5);
+  EXPECT_EQ(actuator("pid")->dynprm[1], 2);
+  EXPECT_EQ(actuator("pid")->ctrlspec, mjINPUT_POS | mjINPUT_FF);
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(ActuatorParseTest, DCMotorBasicParsing) {
