@@ -36,6 +36,9 @@ MJAPI int mj_isPyramidal(const mjModel* m);
 // determine type of constraint Jacobian
 MJAPI int mj_isSparse(const mjModel* m);
 
+// determine type of solver
+MJAPI int mj_isDual(const mjModel* m);
+
 
 //-------------------------- sparse chains ---------------------------------------------------------
 

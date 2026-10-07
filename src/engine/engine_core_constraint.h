@@ -27,9 +27,6 @@ extern "C" {
 
 //-------------------------- Jacobian-related ------------------------------------------------------
 
-// determine type of solver
-MJAPI int mj_isDual(const mjModel* m);
-
 // multiply Jacobian by vector
 MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 

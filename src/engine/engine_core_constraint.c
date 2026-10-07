@@ -162,16 +162,6 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
 }
 
 
-// determine type of solver
-int mj_isDual(const mjModel* m) {
-  if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-
 // assign/clamp contact friction parameters
 void mj_assignFriction(const mjModel* m, mjtNum* target, const mjtNum* source) {
   if (mjENABLED(mjENBL_OVERRIDE)) {

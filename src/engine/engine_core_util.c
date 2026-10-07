@@ -50,6 +50,16 @@ int mj_isPyramidal(const mjModel* m) {
 }
 
 
+// determine type of solver
+int mj_isDual(const mjModel* m) {
+  if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+
 //-------------------------- sparse chains ---------------------------------------------------------
 
 // merge dof chains for two bodies
