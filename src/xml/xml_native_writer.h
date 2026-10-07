@@ -173,6 +173,10 @@ class mjXWriter : public mjXBase {
   // spec, as an error which names an element; empty if there is none
   std::string AttachedSettings() const;
 
+  // true if the saved file gives a body the inertia which compilation gave it, without an
+  // inertial element
+  bool InertialReproduced(const mjCBody* body) const;
+
   bool writingdefaults;     // true during defaults write
   bool authored_  = false;  // save what the spec gives, not what compilation made of it
   bool canonical_ = true;   // save quaternions, radians and sizes, not the notation of the spec

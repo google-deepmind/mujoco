@@ -124,13 +124,8 @@ class mjCFlexcomp {
 
  private:
   // identify empty cells and pin nodes exclusively in empty cells
-  void MarkEmptyCells(mjCFlex*      flex,
-                      const double* points,
-                      int           npnt,
-                      const double  minmax[6],
-                      int           nx,
-                      int           ny,
-                      int           nz);
+  void MarkEmptyCells(
+      mjCFlex* flex, const double* points, const double minmax[6], int nx, int ny, int nz);
 };
 
 #endif  // MUJOCO_SRC_USER_USER_FLEXCOMP_H_

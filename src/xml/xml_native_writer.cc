@@ -151,20 +151,16 @@ const T& Pick(bool authored, const T* given, const T& compiled) {
   return authored ? *given : compiled;
 }
 
-// a vector as text; its numbers exactly if numbers are written so, see ExactFloatPrecision
+// a vector as text; its numbers as attributes write them, see Vector2String
 template <typename T>
 string Numbers(const std::vector<T>& vec) {
   if constexpr (std::is_floating_point_v<T>) {
-    if (mujoco::_mjPRIVATE__get_xml_precision() == 0) {
-      string text;
-      for (T value : vec) {
-        if (!text.empty()) { text += ' '; }
-        text += mujoco::ShortestNumber(value);
-      }
-      return text;
-    }
+    string text;
+    mjXUtil::Vector2String(text, vec);
+    return text;
+  } else {
+    return VectorToString(vec);
   }
-  return VectorToString(vec);
 }
 
 }  // namespace
@@ -381,6 +377,23 @@ void mjXWriter::WriteSpecInertial(XMLElement* elem, const mjCBody* body) {
     WriteAttr(inertial, "mass", 1, &body->mass_compiled_);
     WriteAttr(inertial, "diaginertia", 3, body->inertia_compiled_);
   }
+}
+
+
+// The saved file has the compiler settings of the model: a body without an inertial element infers
+// its inertia from its geoms, or is massless if inertiafromgeom is "false". The last compilation
+// gave the body its inertia by the spec as it was then, and with the settings of its own spec,
+// which differ for a body of an attached spec which has others
+bool mjXWriter::InertialReproduced(const mjCBody* body) const {
+  const mjsCompiler& saved = model->compiler;
+  if (body->inertia_inferred_) {
+    return saved.inertiafromgeom != mjINERTIAFROMGEOM_FALSE &&
+           body->inertia_groups_[0] == saved.inertiagrouprange[0] &&
+           body->inertia_groups_[1] == saved.inertiagrouprange[1];
+  }
+
+  // the inertial which the spec gave, or none
+  return !body->inertia_given_ && saved.inertiafromgeom == mjINERTIAFROMGEOM_FALSE;
 }
 
 
@@ -828,6 +841,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // regular
+  mjsGeom local = *static_cast<const mjsGeom*>(geom);
   if (!writingdefaults) {
     WriteAttrTxt(elem, "name", geom->name);
     if (classname != geom->classname) { WriteAttrTxt(elem, "class", geom->classname); }
@@ -841,7 +855,16 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
     mjuu_copyvec(pos, geom->pos, 3);
     mjuu_copyvec(quat, geom->quat, 4);
     if ((geom->type == mjGEOM_MESH || geom->type == mjGEOM_SDF) && geom->mesh) {
-      mjuu_frameaccuminv(pos, quat, geom->mesh->GetPosPtr(), geom->mesh->GetQuatPtr());
+      const double* meshpos  = geom->mesh->GetPosPtr();
+      const double* meshquat = geom->mesh->GetQuatPtr();
+      mjuu_frameaccuminv(pos, quat, meshpos, meshquat);
+
+      // surfacevel: undo the mesh transformation, angular origin back to the geom frame
+      double pxw[3];
+      mjuu_rotVecQuat(local.surfacevel, local.surfacevel, meshquat);
+      mjuu_rotVecQuat(local.surfacevel + 3, local.surfacevel + 3, meshquat);
+      mjuu_crossvec(pxw, meshpos, local.surfacevel + 3);
+      mjuu_addtovec(local.surfacevel, pxw, 3);
     }
     FrameLocal(geom->frame, pos, quat);
     WriteAttr(elem, "pos", 3, pos, unitq + 1);
@@ -851,11 +874,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // defaults and regular
-  WriteAttrTable(elem,
-                 static_cast<const mjsGeom*>(geom),
-                 &def->Geom().spec,
-                 kGeomAttrs,
-                 kGeomAttrsN);
+  WriteAttrTable(elem, &local, &def->Geom().spec, kGeomAttrs, kGeomAttrsN);
   WriteAttrKey(elem,
                "fluidshape",
                fluidshape_map,
@@ -1469,6 +1488,15 @@ string mjXWriter::Write(char* error, size_t error_sz) {
     return "";
   }
 
+  // what the compilation left in the elements no longer describes the model
+  if (model->StructureChanged() && (!authored_ || settings.saveinertial)) {
+    mjCopyError(error,
+                "XML Write error: Model structure changed after compilation. It must be "
+                "recompiled before writing XML.",
+                error_sz);
+    return "";
+  }
+
   // what the spec gives is compiled with the settings of the one compiler element of the file
   if (authored_) {
     string attached = AttachedSettings();
@@ -1574,6 +1602,9 @@ void mjXWriter::Compiler(XMLElement* root) {
   if (model->compiler.boundmass) { WriteAttr(section, "boundmass", 1, &model->compiler.boundmass); }
   if (model->compiler.boundinertia) {
     WriteAttr(section, "boundinertia", 1, &model->compiler.boundinertia);
+  }
+  if (model->compiler.inertiafromgeom == mjINERTIAFROMGEOM_FALSE) {
+    WriteAttrTxt(section, "inertiafromgeom", "false");
   }
   WriteAttr(section,
             "inertiagrouprange",
@@ -2259,13 +2290,13 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     }
 
     // write inertial: the one which the spec gives is written in the frame which it is in;
-    // the compiled one also when the total mass is set, which scales the masses of all bodies
+    // the compiled one where the saved file would not give it to the body otherwise, and when the
+    // total mass is set, which scales the masses of all bodies
     if (authored_) {
       if (!body->iframe) { WriteSpecInertial(elem, body); }
     } else if (model->compiler.saveinertial ||
                model->compiler.settotalmass > 0 ||
-               (body->explicitinertial &&
-                model->compiler.inertiafromgeom != mjINERTIAFROMGEOM_TRUE)) {
+               !InertialReproduced(body)) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);
       WriteAttr(inertial, "quat", 4, body->iquat, unitq);

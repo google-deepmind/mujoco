@@ -48,15 +48,18 @@ std::vector<std::string> GetRecompileTestModels() {
       if (p.path().extension() == ext) {
         // generic format, so patterns containing '/' also match on Windows
         std::string xml = p.path().generic_string();
-        if (absl::StrContains(xml, "malformed_") ||
+        if (  // intentional parse or compile failure tests
+            absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||
-            absl::StrContains(xml, "touch_grid") ||
+            absl::StrContains(xml, "xml/testdata/parent_") ||
+            // large SDF or benchmark models too slow under sanitizers
             absl::StrContains(xml, "perf") || absl::StrContains(xml, "cow") ||
+            absl::StrContains(xml, "100_humanoids")
 #ifndef MJ_WITH_USD
-            absl::StrContains(xml, "usd.xml") ||
+            // requires optional USD build support
+            || absl::StrContains(xml, "usd.xml")
 #endif
-            // exclude conflict test assets (designed to fail compile)
-            absl::StrContains(xml, "xml/testdata/parent_")) {
+        ) {
           continue;
         }
         models.push_back(xml);

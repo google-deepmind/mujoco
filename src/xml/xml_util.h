@@ -208,8 +208,9 @@ class mjXUtil {
                           int*                  data,
                           bool                  required = false);
 
-  // write vector<float> to string
-  static void Vector2String(std::string& txt, const std::vector<float>& vec, int ncol = 0);
+  // write vector of numbers to string, as WriteAttr writes them
+  template <typename T>
+  static void Vector2String(std::string& txt, const std::vector<T>& vec, int ncol = 0);
 
 
   // find subelement with given name, make sure it is unique

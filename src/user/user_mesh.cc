@@ -4889,7 +4889,24 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // (survives XML round-trips where flexcomp data is lost)
   if (interpolated && !elastic2d && cell_empty.empty()) {
     int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
-    if (cx * cy * cz > 1) { ComputeCellEmpty(vertxpos.data(), elem_.data(), nvert, nelem, dim); }
+    if (cx * cy * cz > 1) {
+      // as in flexcomp: vertices in the frame of the grid, cells dividing the box of the nodes
+      std::vector<double> vertxpos_local(3 * nvert);
+      for (int j = 0; j < nvert; j++) {
+        mjuu_mulvecmat(vertxpos_local.data() + 3 * j, vertxpos.data() + 3 * j, R0);
+      }
+      double minmax[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+      for (int i = 0; i < nnode; i++) {
+        for (int k = 0; k < 3; k++) {
+          minmax[k]     = std::min(minmax[k], nodexpos_local[3 * i + k]);
+          minmax[k + 3] = std::max(minmax[k + 3], nodexpos_local[3 * i + k]);
+        }
+      }
+      ComputeCellEmpty(vertxpos_local.data(), elem_.data(), nelem, dim, minmax);
+
+      // the grid rotation is measured on the first non-empty cell
+      nodexpos_local = ComputeUnrotatedNodePositions(nodexpos, R0);
+    }
   }
 
   // compute linear stiffness for interpolated elements (cached)
@@ -5227,28 +5244,13 @@ std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(const std::vector<dou
 }
 
 
-// identify cells with no mesh content from vertex/element geometry
+// identify cells with no mesh content from vertex/element geometry, minmax: box of the node grid
 void mjCFlex::ComputeCellEmpty(
-    const double* vpos, const int* elems, int nv, int ne, int fdim, const double* bbox) {
+    const double* vpos, const int* elems, int ne, int fdim, const double minmax[6]) {
   int cx     = spec.cellcount[0];
   int cy     = spec.cellcount[1];
   int cz     = spec.cellcount[2];
   int ncells = cx * cy * cz;
-
-  // use precomputed bounding box if provided, otherwise compute from vertices
-  double minmax[6];
-  if (bbox) {
-    for (int j = 0; j < 6; j++) minmax[j] = bbox[j];
-  } else {
-    minmax[0] = minmax[1] = minmax[2] = 1e30;
-    minmax[3] = minmax[4] = minmax[5] = -1e30;
-    for (int i = 0; i < nv; i++) {
-      for (int j = 0; j < 3; j++) {
-        minmax[j + 0] = std::min(minmax[j + 0], vpos[3 * i + j]);
-        minmax[j + 3] = std::max(minmax[j + 3], vpos[3 * i + j]);
-      }
-    }
-  }
 
   double dx = minmax[3] - minmax[0];
   double dy = minmax[4] - minmax[1];

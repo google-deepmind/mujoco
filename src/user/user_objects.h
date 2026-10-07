@@ -517,6 +517,12 @@ class mjCBody_ : public mjCBase {
   // compilation raised the mass or inertia to their bounds, or balanced the inertia
   bool inertia_adjusted_ = false;
 
+  // how compilation gave the body its inertia: inferred from its geoms in the groups which it
+  // counted, as the spec gave it, or none (massless)
+  bool inertia_inferred_  = false;
+  bool inertia_given_     = false;
+  int  inertia_groups_[2] = {0, 0};
+
   // compilation moved the frame of the body to its inertial frame, to align it with a free joint
   bool aligned_ = false;
 
@@ -1169,10 +1175,9 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   void CreateShell(void);          // create shells
   void ComputeCellEmpty(const double* vpos,
                         const int*    elems,  // identify cells
-                        int           nv,
                         int           ne,
-                        int           fdim,             // with no mesh content
-                        const double* bbox = nullptr);  // optional precomputed bbox
+                        int           fdim,        // with no mesh content
+                        const double  minmax[6]);  // bounding box of the node grid
 
   std::vector<double> vert0_;  // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;  // node Cartesian positions

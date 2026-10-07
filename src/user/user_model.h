@@ -402,6 +402,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // clear the compilation signature after a structural change
   void InvalidateSignature() { spec.element->signature = 0; }
 
+  // the model was compiled and its structure changed since
+  bool StructureChanged() const { return compiled && spec.element->signature == 0; }
+
   // increment and decrement reference count
   void AddRef() { ++refcount; }
   int  GetRef() const { return refcount; }

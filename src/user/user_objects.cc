@@ -2570,6 +2570,10 @@ void mjCBody::PoseToSpec(bool position, bool orientation) {
 
 // write to the spec the inertial which compiles to the compiled one
 void mjCBody::InertialToSpec(bool massonly) {
+  // the inertia which the model has is given to the body from now on
+  inertia_inferred_ = false;
+  inertia_given_    = true;
+
   // an inertial which the spec gives stays as it was written if only the mass is new
   if (massonly && mjuu_defined(spec.ipos[0])) {
     spec.mass = mass;
@@ -2893,11 +2897,15 @@ void mjCBody::Compile(void) {
     geoms[i]->Compile();
   }
 
-  // set inertial frame from geoms if necessary
-  if (id > 0 && (compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE ||
-                 (!mjuu_defined(ipos[0]) && compiler->inertiafromgeom == mjINERTIAFROMGEOM_AUTO))) {
-    InertiaFromGeom();
-  }
+  // set inertial frame from geoms if necessary; how the body got its inertia is kept, for saving
+  // the compiled values also once the spec is edited
+  inertia_inferred_ =
+      id > 0 && (compiler->inertiafromgeom == mjINERTIAFROMGEOM_TRUE ||
+                 (!mjuu_defined(ipos[0]) && compiler->inertiafromgeom == mjINERTIAFROMGEOM_AUTO));
+  inertia_given_     = !inertia_inferred_ && mjuu_defined(ipos[0]);
+  inertia_groups_[0] = compiler->inertiagrouprange[0];
+  inertia_groups_[1] = compiler->inertiagrouprange[1];
+  if (inertia_inferred_) { InertiaFromGeom(); }
 
   // ipos undefined: copy body frame into inertial
   if (!mjuu_defined(ipos[0])) {

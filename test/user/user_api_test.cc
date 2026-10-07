@@ -2558,7 +2558,7 @@ void TestDetachBody(bool compile) {
   std::array<char, 1024> s;
   EXPECT_EQ(mj_saveXMLString(child, s.data(), 1024, e.data(), 1024), -1);
   EXPECT_THAT(e.data(), compile
-                            ? HasSubstr("Model has pending keyframes")
+                            ? HasSubstr("must be recompiled")
                             : HasSubstr("Only compiled model can be written"));
 
   // compile new model

@@ -203,7 +203,8 @@ the required size. See :ref:`mj_saveXML` for what is saved.
 Save spec to XML file, return 0 on success, -1 otherwise. The compiler attributes
 :ref:`savecompiled<compiler-savecompiled>` and :ref:`savecanonical<compiler-savecanonical>` of the spec say whether
 the model is saved as it was compiled or as it is written in the spec, and in which notation; see
-:ref:`Model Encoding & Saving <meSaving>`. Saving the compiled values requires that the spec first be compiled.
+:ref:`Model Encoding & Saving <meSaving>`. Saving the compiled values requires that the spec first be compiled, and
+compiled again after it is structurally edited (elements added, deleted or attached).
 
 .. _mju_getXMLDependencies:
 

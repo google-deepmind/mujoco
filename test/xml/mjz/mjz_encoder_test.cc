@@ -89,36 +89,19 @@ std::vector<std::string> GetWriteReadTestModels() {
       if (p.path().extension() == ext) {
         // generic format, so patterns containing '/' also match on Windows
         std::string xml = p.path().generic_string();
-        if (  // if file is meant to fail, skip it
+        if (  // intentional parse or compile failure tests
             absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||
-            // exclude files that are too slow to load
-            absl::StrContains(xml, "cow") || absl::StrContains(xml, "gmsh_") ||
-            absl::StrContains(xml, "shark_") ||
-            absl::StrContains(xml, "perf") ||
-            // exclude files that fail the comparison test
-            absl::StrContains(xml, "rfcamera") ||
-            absl::StrContains(xml, "tactile") ||
-            absl::StrContains(xml, "makemesh") ||
-            absl::StrContains(xml, "carousel") ||
-            absl::StrContains(xml, "many_dependencies") ||
-            absl::StrContains(xml, "usd") ||
-            absl::StrContains(xml, "torus_maxhull") ||
-            absl::StrContains(xml, "fitmesh_") ||
-            absl::StrContains(xml, "lengthrange") ||
-            absl::StrContains(xml, "hfield_xml") ||
-            absl::StrContains(xml, "fromto_convex") ||
-            absl::StrContains(xml, "cube_skin") ||
-            absl::StrContains(xml, "cube_3x3x3") ||
-            absl::StrContains(xml, "arch/gothic") ||
-            absl::StrContains(xml, "arch/roman") ||
-            absl::StrContains(xml, "welcome/welcome") ||
-            // flex_stiffness: stretch amplifies geometry XML rounds on save
-            absl::StrContains(xml, "flex/bag") ||
-            absl::StrContains(xml, "flex/mechanisms/cantilever") ||
-            // exclude conflict test assets (designed to fail compile)
             absl::StrContains(xml, "xml/testdata/parent_") ||
-            // exclude mjz test data with VFS files
+            // large SDF, tetrahedral flex, or benchmark models too slow under
+            // sanitizers
+            absl::StrContains(xml, "cow") || absl::StrContains(xml, "shark_") ||
+            absl::StrContains(xml, "perf") ||
+            absl::StrContains(xml, "100_humanoids") ||
+            // USD assets (.usda) are not MJCF files
+            absl::StrContains(xml, "usd") ||
+            // references in-memory VFS files created only in specific unit
+            // tests
             absl::StrContains(xml, "mixed_test")) {
           continue;
         }

@@ -113,7 +113,14 @@ Bug fixes
   orientation as ``euler``, ``axisangle``, ``xyaxes`` or ``zaxis``.
 - Saving MJCF no longer changes or loses the following: the order of the elements of a body which has
   :ref:`frames<frame>`, which gave the saved model other ids; ``class="main"`` inside another ``childclass``; the
-  :ref:`nchannel<asset-texture-nchannel>` of a texture; and the names of energy sensors, which could not be loaded.
+  :ref:`nchannel<asset-texture-nchannel>` of a texture; the names of energy sensors, which could not be loaded;
+  ``inertiafromgeom="false"``, and the inertia of the bodies of an attached model which has another
+  ``inertiafromgeom``; the frame of the :ref:`surfacevel<body-geom-surfacevel>` of mesh geoms; the precision of
+  mesh, flex, skin and height field data; and the empty cells of a :ref:`flexcomp<body-flexcomp>` with trilinear or
+  quadratic dofs.
+- Saving the compiled values of an :ref:`mjSpec` which was structurally edited since it was compiled (elements
+  added, deleted or attached) is now an error until it is compiled again; it used to crash or save wrong values. A
+  spec which is saved as it is written needs no compilation.
 
 Actuation
 ^^^^^^^^^
