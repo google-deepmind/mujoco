@@ -745,16 +745,16 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
   mjtNum tmin = 0.0, tmax = INFINITY;
 
   // compute min and max
-  mjtNum min[3] = {aabb[0]-aabb[3], aabb[1]-aabb[4], aabb[2]-aabb[5]};
-  mjtNum max[3] = {aabb[0]+aabb[3], aabb[1]+aabb[4], aabb[2]+aabb[5]};
+  mjtNum min[3] = {aabb[0] - aabb[3], aabb[1] - aabb[4], aabb[2] - aabb[5]};
+  mjtNum max[3] = {aabb[0] + aabb[3], aabb[1] + aabb[4], aabb[2] + aabb[5]};
 
   // compute ray in local coordinates
   mjtNum src[3], dir[3];
   ray_map(xpos, xmat, pnt, vec, src, dir);
 
   // check intersections
-  mjtNum invdir[3] = { 1.0 / dir[0], 1.0 / dir[1], 1.0 / dir[2] };
-  for (int d = 0; d < 3; ++d) {
+  mjtNum invdir[3] = {1.0 / dir[0], 1.0 / dir[1], 1.0 / dir[2]};
+  for (int d = 0; d < 3; d++) {
     mjtNum t1 = (min[d] - src[d]) * invdir[d];
     mjtNum t2 = (max[d] - src[d]) * invdir[d];
     mjtNum minval = t1 < t2 ? t1 : t2;
@@ -763,7 +763,7 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
     tmax = tmax < maxval ? tmax : maxval;
   }
 
-  return tmin < tmax;
+  return tmin <= tmax;
 }
 
 

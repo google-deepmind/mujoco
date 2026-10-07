@@ -467,9 +467,6 @@ void _rayMeshTest(const mjModel* m) {
 }
 
 TEST_F(RayTest, RayMeshPruning) {
-#ifdef mjUSESINGLE
-  GTEST_SKIP() << "BVH pruning incorrectly rejects intersections in float32";
-#endif
   char error[1024];
   const string xml_path =
       GetTestDataFilePath("engine/testdata/ray/stanford_bunny.xml");
@@ -481,6 +478,37 @@ TEST_F(RayTest, RayMeshPruning) {
   m = LoadModelFromString(kCubeletModel, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;
   _rayMeshTest(m.get());
+}
+
+TEST_F(RayTest, RayAxisAlignedMesh) {
+  static constexpr char kBoxMeshModel[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box" scale=".025 .025 .025"
+        vertex="-1 -1 -1  1 -1 -1  1  1 -1  1  1  1
+                 1 -1  1 -1  1 -1 -1  1  1 -1 -1  1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom type="mesh" mesh="box"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kBoxMeshModel, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+
+  const mjtNum pnt[3] = {0, 0, 1};
+  const mjtNum vec[3] = {0, 0, -1};
+  int geomid = -1;
+  mjtNum dist =
+      mj_ray(m.get(), d.get(), pnt, vec, nullptr, 1, -1, &geomid, nullptr);
+  EXPECT_EQ(geomid, 0);
+  EXPECT_THAT(dist, MjNear(0.975, 1e-6, 1e-5));
 }
 
 TEST_F(RayTest, RayHfield) {
