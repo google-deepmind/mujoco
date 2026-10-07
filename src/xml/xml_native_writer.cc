@@ -1356,25 +1356,24 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* pactuator, mjCD
   // non-plugins: write actuator parameters
   else {
     WriteAttrKey(elem, "gaintype", gain_map, gain_sz, actuator->gaintype, defact.gaintype);
-    if (actuator->gaintype == mjGAIN_SO3) {
-      WriteAttrKey(elem,
-                   "input",
-                   inputchart_map,
-                   inputchart_sz,
-                   actuator->ctrlspec,
-                   defact.ctrlspec);
-    } else if (actuator->ctrlspec != defact.ctrlspec) {
-      if (actuator->ctrlspec == mjINPUT_NONE) {
-        WriteAttrTxt(elem, "input", "none");
+
+    // input signature, inherited only from a default with the same gaintype; written even when
+    // empty, which restores the gaintype's default signature
+    int defspec = actuator->gaintype == defact.gaintype ? defact.ctrlspec : 0;
+    if (actuator->ctrlspec != defspec) {
+      std::string input;
+      if (actuator->gaintype == mjGAIN_SO3) {
+        input = FindValue(inputchart_map, inputchart_sz, actuator->ctrlspec);
+      } else if (actuator->ctrlspec == mjINPUT_NONE) {
+        input = "none";
       } else {
-        std::string tokens;
         for (int k = 0; k < inputbit_sz; k++) {
           if (actuator->ctrlspec & inputbit_map[k].value) {
-            tokens += std::string(tokens.empty() ? "" : " ") + inputbit_map[k].key;
+            input += std::string(input.empty() ? "" : " ") + inputbit_map[k].key;
           }
         }
-        WriteAttrTxt(elem, "input", tokens);
       }
+      elem->SetAttribute("input", input.c_str());
     }
     WriteAttrKey(elem, "biastype", bias_map, bias_sz, actuator->biastype, defact.biastype);
     WriteAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, defact.gainprm, true);

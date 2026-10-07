@@ -4008,7 +4008,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjINPUT_VEL", mjINPUT_VEL)
     .value("mjINPUT_FF", mjINPUT_FF)
     .value("mjINPUT_VOLTAGE", mjINPUT_VOLTAGE)
-    .value("mjINPUT_NONE", mjINPUT_NONE);
+    .value("mjINPUT_NONE", mjINPUT_NONE)
+    .value("mjINPUT_PRESSURE", mjINPUT_PRESSURE);
   enum_<mjtDataType>("mjtDataType")
     .value("mjDATATYPE_REAL", mjDATATYPE_REAL)
     .value("mjDATATYPE_POSITIVE", mjDATATYPE_POSITIVE)

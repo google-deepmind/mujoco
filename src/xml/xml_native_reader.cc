@@ -1113,8 +1113,8 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
 }
 
 
-// read the "input" attribute: so3 chart keyword, the "none" keyword (empty signature),
-// or a servo input token list, required to be in canonical order [pos, vel, ff, voltage]
+// read the "input" attribute: so3 chart keyword, the "none" keyword (empty signature), or an
+// input token list, required to be in canonical order [pos, vel, ff, voltage, pressure]
 static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
   std::string text;
   if (!mjXUtil::ReadAttrTxt(elem, "input", text)) { return false; }
@@ -1133,13 +1133,14 @@ static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
     return true;
   }
 
-  // servo input tokens; strictly ascending bits = canonical order, no duplicates
+  // input tokens; strictly ascending bits = canonical order, no duplicates
   int bits[inputbit_sz];
   int nbit = mjXUtil::MapValues(elem, "input", bits, inputbit_map, inputbit_sz);
   int spec = 0;
   for (int k = 0; k < nbit; k++) {
     if (bits[k] <= (k ? bits[k - 1] : 0)) {
-      throw mjXError(elem, "inputs must be listed in canonical order [pos, vel, ff, voltage]");
+      throw mjXError(elem,
+                     "inputs must be listed in canonical order [pos, vel, ff, voltage, pressure]");
     }
     spec |= bits[k];
   }
@@ -1151,6 +1152,9 @@ static bool ReadInputSpec(tinyxml2::XMLElement* elem, int* ctrlspec) {
 // actuator element parser
 void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   string text, type, target, slidersite, refsite;
+
+  // input signatures are scoped by gaintype: inherited only from a default with the same gaintype
+  mjtGain inherited_gaintype = actuator->gaintype;
 
   // mechanical attributes; per-tag legality is enforced by the schema check
   ReadAttrTable(elem, actuator, actuator->element, kGeneralAttrs, kGeneralAttrsN);
@@ -1203,7 +1207,8 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   // explicit attributes
   string err;
   if (type == "general") {
-    // so3 chart keyword or servo token subset; dcmotor accepts the voltage keyword
+    // so3 chart keyword, or input token subset (validated per gaintype by the compiler)
+    if (actuator->gaintype != inherited_gaintype) { actuator->ctrlspec = 0; }
     ReadInputSpec(elem, &actuator->ctrlspec);
   }
 
@@ -1257,9 +1262,10 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) { dampratio = nullptr; }
 
     // input chart: expmap (default) or quat
-    ReadInputSpec(elem, &actuator->ctrlspec);
+    int ctrlspec = inherited_gaintype == mjGAIN_SO3 ? actuator->ctrlspec : 0;
+    ReadInputSpec(elem, &ctrlspec);
 
-    err = mjs_setToOrientation(actuator, kp, kv, dampratio, actuator->ctrlspec);
+    err = mjs_setToOrientation(actuator, kp, kv, dampratio, ctrlspec);
   }
 
   // PID servo: inputs are position and velocity setpoints
@@ -1285,7 +1291,8 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     ReadAttr(elem, "slewmax", 1, &slewmax, text);
 
     // input subset selection
-    ReadInputSpec(elem, &actuator->ctrlspec);
+    int ctrlspec = inherited_gaintype == mjGAIN_PID ? actuator->ctrlspec : 0;
+    ReadInputSpec(elem, &ctrlspec);
 
     // posrange is an alias of ctrlrange (the position-setpoint input);
     // velrange and ffrange are read by the shared rows
@@ -1295,15 +1302,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
     double inheritrange = actuator->inheritrange;
     ReadAttr(elem, "inheritrange", 1, &inheritrange, text);
 
-    err = mjs_setToPID(actuator,
-                       kp,
-                       kv,
-                       dampratio,
-                       &ki,
-                       &imax,
-                       &slewmax,
-                       inheritrange,
-                       actuator->ctrlspec);
+    err = mjs_setToPID(actuator, kp, kv, dampratio, &ki, &imax, &slewmax, inheritrange, ctrlspec);
   }
 
   // velocity servo

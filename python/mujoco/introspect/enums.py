@@ -318,6 +318,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjINPUT_FF', 4),
              ('mjINPUT_VOLTAGE', 8),
              ('mjINPUT_NONE', 16),
+             ('mjINPUT_PRESSURE', 32),
          ]),
      )),
     ('mjtObj',

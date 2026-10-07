@@ -271,12 +271,13 @@ inline constexpr int inputchart_sz = 2;
 
 // enum inputbit
 inline constexpr mjMap inputbit_map[] = {
-  {"pos",      mjINPUT_POS},
-  {"vel",      mjINPUT_VEL},
-  {"ff",       mjINPUT_FF},
-  {"voltage",  mjINPUT_VOLTAGE},
+  {"pos",       mjINPUT_POS},
+  {"vel",       mjINPUT_VEL},
+  {"ff",        mjINPUT_FF},
+  {"voltage",   mjINPUT_VOLTAGE},
+  {"pressure",  mjINPUT_PRESSURE},
 };
-inline constexpr int inputbit_sz = 4;
+inline constexpr int inputbit_sz = 5;
 
 // enum bias
 inline constexpr mjMap bias_map[] = {

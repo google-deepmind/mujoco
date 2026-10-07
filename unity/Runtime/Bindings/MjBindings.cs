@@ -309,6 +309,7 @@ public enum mjtCtrlInput : int{
   mjINPUT_FF = 4,
   mjINPUT_VOLTAGE = 8,
   mjINPUT_NONE = 16,
+  mjINPUT_PRESSURE = 32,
 }
 public enum mjtObj : int{
   mjOBJ_UNKNOWN = 0,

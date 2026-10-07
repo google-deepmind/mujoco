@@ -127,6 +127,13 @@ Bug fixes
 
 Actuation
 ^^^^^^^^^
+- Actuators with "fixed" or "affine" :ref:`gaintype<actuator-general-gaintype>` can declare what their control is with
+  :ref:`input<actuator-general-input>`: a position setpoint ("pos"), a velocity setpoint ("vel") or a pressure
+  ("pressure"); without a declaration it is a command. The declaration does not affect the simulation. The
+  :ref:`position<actuator-position>`, :ref:`velocity<actuator-velocity>`, :ref:`intvelocity<actuator-intvelocity>`
+  and :ref:`cylinder<actuator-cylinder>` shortcuts declare their inputs, which are recorded in
+  ``mjModel.actuator_ctrlspec`` and kept when a model is saved; :ref:`mj_actuatorInputName` returns the declaration. An
+  input signature inherited from a default class is now discarded when the gaintype changes.
 - Added the :ref:`inheritrange<actuator-general-inheritrange>` attribute to the :ref:`general<actuator-general>`
   actuator, which so far only the :ref:`position<actuator-position>`, :ref:`intvelocity<actuator-intvelocity>` and
   :ref:`pid<actuator-pid>` shortcuts had.

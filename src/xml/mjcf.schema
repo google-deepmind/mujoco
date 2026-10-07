@@ -291,6 +291,7 @@ enum inputbit : mjtCtrlInput {   # bitflags: tokens combine bitwise, canonical o
   vel      = mjINPUT_VEL
   ff       = mjINPUT_FF
   voltage  = mjINPUT_VOLTAGE
+  pressure = mjINPUT_PRESSURE
 }
 
 enum bias : mjtBias {
@@ -1560,7 +1561,7 @@ element general : mjsActuator (control=custom) {
   use transmission
   body               : ref<body> (nodefault, reading=custom)  # transmission target
   actdim             : int = -1 (writing=custom)  # saved default depends on dyntype
-  input              : enum<inputchart> (reading=custom)  # so3 chart keyword, or servo token subset
+  input              : string (reading=custom)  # so3 chart keyword, input tokens, or none
   velrange           : double[2] (dim="Q T^-1")
   ffrange            : double[2] (dim=F)
   inheritrange       : double (writing=custom, dim=1)  # compiled values have the range in its place

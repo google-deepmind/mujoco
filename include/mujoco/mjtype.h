@@ -285,12 +285,13 @@ typedef enum mjtCtrlChart {       // so3 input signature (actuator_ctrlspec): or
 } mjtCtrlChart;
 
 
-typedef enum mjtCtrlInput {       // servo input signature (actuator_ctrlspec): present-input bits
+typedef enum mjtCtrlInput {       // input signature (actuator_ctrlspec): present/declared inputs
   mjINPUT_POS         = 1,        // position setpoint input
   mjINPUT_VEL         = 2,        // velocity setpoint input
   mjINPUT_FF          = 4,        // feedforward input, in the actuator's output space
   mjINPUT_VOLTAGE     = 8,        // raw terminal voltage input (dcmotor)
-  mjINPUT_NONE        = 16        // explicitly no inputs: purely passive (dcmotor)
+  mjINPUT_NONE        = 16,       // explicitly no inputs: purely passive (dcmotor)
+  mjINPUT_PRESSURE    = 32        // pressure input (cylinder)
 } mjtCtrlInput;
 
 

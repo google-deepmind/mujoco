@@ -7549,11 +7549,28 @@ void mjCActuator::Compile(void) {
                    id);
   }
 
-  // input signature selection is so3-, pid- or dcmotor-only
-  if (ctrlspec && gaintype != mjGAIN_SO3 && gaintype != mjGAIN_PID && gaintype != mjGAIN_DCMOTOR) {
+  // fixed and affine gains: one declared input, pos, vel or pressure; none declared: a command
+  if (gaintype == mjGAIN_FIXED || gaintype == mjGAIN_AFFINE) {
+    if (ctrlspec &&
+        ctrlspec != mjINPUT_POS &&
+        ctrlspec != mjINPUT_VEL &&
+        ctrlspec != mjINPUT_PRESSURE) {
+      throw mjCError(this,
+                     "fixed and affine gains take one input, 'pos', 'vel' or 'pressure', in "
+                     "actuator '%s' (id = %d)",
+                     name.c_str(),
+                     id);
+    }
+    ctrlspec_ = ctrlspec;
+  }
+
+  // muscle and user gains take no input signature
+  else if (ctrlspec &&
+           gaintype != mjGAIN_SO3 &&
+           gaintype != mjGAIN_PID &&
+           gaintype != mjGAIN_DCMOTOR) {
     throw mjCError(this,
-                   "input is only available for so3, pid and dcmotor actuators, "
-                   "actuator '%s' (id = %d)",
+                   "input is not available for muscle and user gains, actuator '%s' (id = %d)",
                    name.c_str(),
                    id);
   }

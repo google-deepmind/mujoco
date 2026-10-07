@@ -4329,6 +4329,131 @@ TEST_F(ActuatorParseTest, DampingArmatureDefaultsPropagate) {
   EXPECT_EQ(model->actuator_armature[0], 0.5);
 }
 
+TEST_F(ActuatorParseTest, DeclaredInputs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="hinge"/>
+      <velocity joint="hinge"/>
+      <intvelocity joint="hinge"/>
+      <cylinder joint="hinge"/>
+      <motor joint="hinge"/>
+      <damper joint="hinge" ctrlrange="0 1"/>
+      <muscle joint="hinge" lengthrange="-1 1"/>
+      <general joint="hinge" input="pos"/>
+      <general joint="hinge" gaintype="affine" input="vel"/>
+      <general joint="hinge" input="pressure"/>
+      <general joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_THAT(
+      AsVector(model->actuator_ctrlspec, model->nactuator),
+      ElementsAre(mjINPUT_POS, mjINPUT_VEL, mjINPUT_VEL, mjINPUT_PRESSURE, 0, 0,
+                  0, mjINPUT_POS, mjINPUT_VEL, mjINPUT_PRESSURE, 0));
+
+  // declared inputs are named, commands are not
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 0, 0), "pos");
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 1, 0), "vel");
+  EXPECT_STREQ(mj_actuatorInputName(model.get(), 3, 0), "pressure");
+  EXPECT_EQ(mj_actuatorInputName(model.get(), 3, 1), nullptr);
+  EXPECT_EQ(mj_actuatorInputName(model.get(), 4, 0), nullptr);
+  EXPECT_EQ(mj_actuatorInputName(model.get(), 10, 0), nullptr);
+}
+
+TEST_F(ActuatorParseTest, DeclaredInputErrors) {
+  std::array<char, 1024> error;
+  auto load = [&error](const string& actuator) {
+    string xml = R"(
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="hinge"/>
+          <geom size="1"/>
+        </body>
+      </worldbody>
+      <actuator>)" +
+                 actuator + R"(</actuator>
+    </mujoco>
+    )";
+    return LoadModelFromString(xml, error.data(), error.size());
+  };
+
+  // fixed and affine gains take one input
+  for (const char* input : {"pos vel", "ff", "voltage", "none"}) {
+    MjModelPtr model =
+        load(string(R"(<general joint="hinge" input=")") + input + R"("/>)");
+    EXPECT_THAT(model.get(), IsNull()) << input;
+    EXPECT_THAT(error.data(),
+                HasSubstr("fixed and affine gains take one input"))
+        << input;
+  }
+
+  // muscle gains take none
+  MjModelPtr model =
+      load(R"(<general joint="hinge" gaintype="muscle" input="pos"/>)");
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("input is not available for muscle and user gains"));
+}
+
+TEST_F(ActuatorParseTest, InputInheritedFromSameGaintype) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="velocity">
+        <velocity kv="1"/>
+      </default>
+      <default class="pid">
+        <pid kp="1" input="pos"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+      </body>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation class="velocity" joint="ball" kp="1"/>
+      <pid class="velocity" joint="hinge"/>
+      <general class="velocity" joint="hinge" gaintype="pid" gainprm="0"/>
+      <general class="velocity" joint="hinge"/>
+      <motor class="velocity" joint="hinge"/>
+      <pid class="pid" joint="hinge"/>
+      <general class="pid" joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+
+  // another gaintype's input is not inherited: expmap chart, default pid inputs
+  EXPECT_EQ(model->actuator_ctrlspec[0], mjCHART_EXPMAP);
+  EXPECT_EQ(model->actuator_ctrlspec[1], mjINPUT_POS | mjINPUT_VEL);
+  EXPECT_EQ(model->actuator_ctrlspec[2], mjINPUT_POS | mjINPUT_VEL);
+
+  // the same gaintype's input is inherited, unless a shortcut sets its own
+  EXPECT_EQ(model->actuator_ctrlspec[3], mjINPUT_VEL);
+  EXPECT_EQ(model->actuator_ctrlspec[4], 0);
+  EXPECT_EQ(model->actuator_ctrlspec[5], mjINPUT_POS);
+  EXPECT_EQ(model->actuator_ctrlspec[6], mjINPUT_POS);
+}
+
 TEST_F(XMLReaderTest, AttachConflictXMLWarning) {
   mock_warning_handler.ExpectWarnings();
   std::array<char, 1024> error;

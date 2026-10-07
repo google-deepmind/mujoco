@@ -261,6 +261,7 @@
       <xs:enumeration value="vel"/>
       <xs:enumeration value="ff"/>
       <xs:enumeration value="voltage"/>
+      <xs:enumeration value="pressure"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="kwlist_inputbit">
@@ -1587,9 +1588,9 @@
         <xs:documentation>saved default depends on dyntype</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="input" type="kw_inputchart">
+    <xs:attribute name="input" type="xs:string">
       <xs:annotation>
-        <xs:documentation>so3 chart keyword, or servo token subset</xs:documentation>
+        <xs:documentation>so3 chart keyword, input tokens, or none</xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="velrange" type="double2"/>
@@ -2680,9 +2681,9 @@
         <xs:documentation>saved default depends on dyntype</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="input" type="kw_inputchart">
+    <xs:attribute name="input" type="xs:string">
       <xs:annotation>
-        <xs:documentation>so3 chart keyword, or servo token subset</xs:documentation>
+        <xs:documentation>so3 chart keyword, input tokens, or none</xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="velrange" type="double2"/>

@@ -1289,6 +1289,7 @@ const char* mjs_setToMotor(mjsActuator* actuator) {
   actuator->gainprm[0] = 1;
 
   // implied parameters
+  actuator->ctrlspec = 0;
   actuator->dyntype  = mjDYN_NONE;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_NONE;
@@ -1330,6 +1331,7 @@ const char* mjs_setToPosition(mjsActuator* actuator,
     }
   }
 
+  actuator->ctrlspec = mjINPUT_POS;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_AFFINE;
   return "";
@@ -1346,6 +1348,7 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator,
   // inheritrange sets actrange, not ctrlrange: skip the position range check
   const char* err = mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, 0);
   if (err[0]) return err;
+  actuator->ctrlspec     = mjINPUT_VEL;
   actuator->dyntype      = mjDYN_INTEGRATOR;
   actuator->inheritrange = inheritrange;
 
@@ -1429,6 +1432,7 @@ const char* mjs_setToVelocity(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->biasprm, mjNBIAS);
   actuator->gainprm[0] = kv;
   actuator->biasprm[2] = -kv;
+  actuator->ctrlspec   = mjINPUT_VEL;
   actuator->dyntype    = mjDYN_NONE;
   actuator->gaintype   = mjGAIN_FIXED;
   actuator->biastype   = mjBIAS_AFFINE;
@@ -1441,6 +1445,7 @@ const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
   mjuu_zerovec(actuator->gainprm, mjNGAIN);
   actuator->gainprm[2]  = -kv;
   actuator->ctrllimited = mjLIMITED_TRUE;
+  actuator->ctrlspec    = 0;
   actuator->dyntype     = mjDYN_NONE;
   actuator->gaintype    = mjGAIN_AFFINE;
   actuator->biastype    = mjBIAS_NONE;
@@ -1460,6 +1465,7 @@ const char* mjs_setToCylinder(
   actuator->biasprm[0] = bias;
   actuator->gainprm[0] = area;
   if (diameter >= 0) { actuator->gainprm[0] = mjPI / 4 * diameter * diameter; }
+  actuator->ctrlspec = mjINPUT_PRESSURE;
   actuator->dyntype  = mjDYN_FILTER;
   actuator->gaintype = mjGAIN_FIXED;
   actuator->biastype = mjBIAS_AFFINE;
@@ -1510,6 +1516,7 @@ const char* mjs_setToMuscle(mjsActuator* actuator,
   // biasprm = gainprm
   for (int n = 0; n < 9; n++) { actuator->biasprm[n] = actuator->gainprm[n]; }
 
+  actuator->ctrlspec = 0;
   actuator->dyntype  = mjDYN_MUSCLE;
   actuator->gaintype = mjGAIN_MUSCLE;
   actuator->biastype = mjBIAS_MUSCLE;
@@ -1521,6 +1528,7 @@ const char* mjs_setToMuscle(mjsActuator* actuator,
 const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
   actuator->gainprm[0]  = gain;
   actuator->ctrllimited = mjLIMITED_TRUE;
+  actuator->ctrlspec    = 0;
   actuator->gaintype    = mjGAIN_FIXED;
   actuator->biastype    = mjBIAS_NONE;
 

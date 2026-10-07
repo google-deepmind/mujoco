@@ -5933,7 +5933,13 @@ specify them independently.
    ``mjModel.actuator_ctrlspec``. For gaintype "so3" it selects the orientation chart: "expmap" (3 controls, the
    default) or "quat" (4 controls); see :ref:`orientation/input<actuator-orientation-input>`. For gaintypes "pid" and
    "dcmotor" it is a token list selecting the input subset; see :ref:`pid/input<actuator-pid-input>` and
-   :ref:`dcmotor/input<actuator-dcmotor-input>`.
+   :ref:`dcmotor/input<actuator-dcmotor-input>`. For gaintypes "fixed" and "affine" it declares what the single control
+   is, and does not affect the simulation: "pos", a position setpoint; "vel", a velocity setpoint; "pressure", a
+   pressure, the gain being an area. Without a declaration the control is a command, scaled by the gain. The
+   :ref:`position<actuator-position>`, :ref:`velocity<actuator-velocity>`, :ref:`intvelocity<actuator-intvelocity>` and
+   :ref:`cylinder<actuator-cylinder>` shortcuts declare "pos", "vel", "vel" and "pressure" respectively, and
+   :ref:`mj_actuatorInputName` returns the declaration. An input signature inherited from a default class is discarded
+   when the gaintype changes; ``input=""`` restores the gaintype's default.
 
 .. _actuator-general-actearly:
 
@@ -6035,6 +6041,7 @@ Attribute Setting             Attribute Setting
 dyntype   none or filterexact dynprm    timeconst 0 0
 gaintype  fixed               gainprm   kp 0 0
 biastype  affine              biasprm   0 -kp -kv
+input     pos
 ========= =================== ========= =============
 
 On purely rotational transmissions, setpoints are interpreted on the circle; see :ref:`gear<actuator-general-gear>`.
@@ -6397,6 +6404,7 @@ Attribute Setting Attribute Setting
 dyntype   none    dynprm    1 0 0
 gaintype  fixed   gainprm   kv 0 0
 biastype  affine  biasprm   0 0 -kv
+input     vel
 ========= ======= ========= =======
 
 This element has one custom attribute in addition to the common attributes:
@@ -6476,6 +6484,7 @@ Attribute Setting     Attribute Setting
 dyntype   integrator  dynprm    1 0 0
 gaintype  fixed       gainprm   kp 0 0
 biastype  affine      biasprm   0 -kp -kv
+input     vel
 ========= =========== ========= =========
 
 Activation clamping is controlled by :at:`actlimited` and :at:`actrange`, like any stateful actuator. On purely
@@ -6653,16 +6662,18 @@ This element has one custom attribute in addition to the common attributes:
 :el-prefix:`actuator/` |-| **cylinder** |*|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element is suitable for modeling pneumatic or hydraulic cylinders. The underlying :el:`general` attributes are
-set as follows:
+This element is suitable for modeling pneumatic or hydraulic cylinders. The control is the commanded pressure; the
+activation is the pressure in the cylinder, which follows the control with time constant :at:`timeconst`, and the force
+is the pressure times :at:`area`, plus the bias. The underlying :el:`general` attributes are set as follows:
 
-========= ======= ========= =============
-Attribute Setting Attribute Setting
-========= ======= ========= =============
-dyntype   filter  dynprm    timeconst 0 0
-gaintype  fixed   gainprm   area 0 0
-biastype  affine  biasprm   bias(3)
-========= ======= ========= =============
+========= ======== ========= =============
+Attribute Setting  Attribute Setting
+========= ======== ========= =============
+dyntype   filter   dynprm    timeconst 0 0
+gaintype  fixed    gainprm   area 0 0
+biastype  affine   biasprm   bias(3)
+input     pressure
+========= ======== ========= =============
 
 
 This element has four custom attributes in addition to the common attributes:

@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -82,6 +83,54 @@ TEST_F(XMLWriterTest, KeepsDCMotorNoInputs) {
   ASSERT_THAT(model2.get(), NotNull());
   EXPECT_EQ(model2->nu, 0);
   EXPECT_EQ(model2->actuator_ctrlnum[0], 0);
+}
+
+TEST_F(XMLWriterTest, KeepsDeclaredInputs) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="servo">
+        <position kp="10"/>
+      </default>
+    </default>
+    <worldbody>
+      <body>
+        <joint name="jnt"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="jnt"/>
+      <velocity joint="jnt"/>
+      <intvelocity joint="jnt"/>
+      <cylinder joint="jnt"/>
+      <motor joint="jnt"/>
+      <position class="servo" joint="jnt"/>
+      <velocity class="servo" joint="jnt"/>
+      <motor class="servo" joint="jnt"/>
+      <damper class="servo" joint="jnt" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::vector<int> ctrlspec =
+      AsVector(model->actuator_ctrlspec, model->nactuator);
+  EXPECT_THAT(ctrlspec,
+              ElementsAre(mjINPUT_POS, mjINPUT_VEL, mjINPUT_VEL,
+                          mjINPUT_PRESSURE, 0, mjINPUT_POS, mjINPUT_VEL, 0, 0));
+
+  // saved as general: the declarations are written and survive reloading
+  std::string saved_xml = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved_xml, HasSubstr("input=\"pos\""));
+  EXPECT_THAT(saved_xml, HasSubstr("input=\"vel\""));
+  EXPECT_THAT(saved_xml, HasSubstr("input=\"pressure\""));
+
+  // the motor in the servo class clears the declaration it would inherit
+  EXPECT_THAT(saved_xml, HasSubstr("input=\"\""));
+  MjModelPtr model2 = LoadModelFromString(saved_xml.c_str());
+  ASSERT_THAT(model2.get(), NotNull());
+  EXPECT_EQ(AsVector(model2->actuator_ctrlspec, model2->nactuator), ctrlspec);
 }
 
 TEST_F(XMLWriterTest, SavesMemory) {
@@ -996,8 +1045,9 @@ TEST_F(XMLWriterTest, WritesActuatorDefaults) {
   ASSERT_THAT(model.get(), NotNull());
   std::string saved_xml = SaveAndReadXml(model.get());
   EXPECT_THAT(saved_xml, Not(HasSubstr("mass")));
-  EXPECT_THAT(saved_xml,
-              HasSubstr("<general biastype=\"affine\" gainprm=\"3\""));
+  EXPECT_THAT(
+      saved_xml,
+      HasSubstr("<general input=\"pos\" biastype=\"affine\" gainprm=\"3\""));
 }
 
 TEST_F(XMLWriterTest, WritesFrameDefaults) {

@@ -573,6 +573,33 @@ TEST_F(MujocoTest, SetToPID) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, SetToDeclaresInput) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+  double timeconst[2] = {-1, -1};
+  double range[2] = {-1, -1};
+
+  // setpoint and pressure shortcuts declare an input, command ones clear it
+  mjs_setToPosition(actuator, 1, nullptr, nullptr, nullptr, 0);
+  EXPECT_EQ(actuator->ctrlspec, mjINPUT_POS);
+  mjs_setToMotor(actuator);
+  EXPECT_EQ(actuator->ctrlspec, 0);
+  mjs_setToVelocity(actuator, 1);
+  EXPECT_EQ(actuator->ctrlspec, mjINPUT_VEL);
+  mjs_setToDamper(actuator, 1);
+  EXPECT_EQ(actuator->ctrlspec, 0);
+  mjs_setToIntVelocity(actuator, 1, nullptr, nullptr, nullptr, 0);
+  EXPECT_EQ(actuator->ctrlspec, mjINPUT_VEL);
+  mjs_setToMuscle(actuator, timeconst, 0, range, -1, -1, -1, -1, -1, -1, -1);
+  EXPECT_EQ(actuator->ctrlspec, 0);
+  mjs_setToCylinder(actuator, 1, 0, 1, -1);
+  EXPECT_EQ(actuator->ctrlspec, mjINPUT_PRESSURE);
+  mjs_setToAdhesion(actuator, 1);
+  EXPECT_EQ(actuator->ctrlspec, 0);
+
+  mj_deleteSpec(spec);
+}
+
 static constexpr char xml_plugin_1[] = R"(
   <mujoco model="MuJoCo Model">
     <worldbody>
