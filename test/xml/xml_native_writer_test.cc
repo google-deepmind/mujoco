@@ -2937,9 +2937,12 @@ TEST_F(AsWrittenTest, SavesInheritedRange) {
   ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
 
   std::string saved = SaveAndReadXml(spec);
-  EXPECT_THAT(saved, HasSubstr(R"(<general inheritrange="0.5")"));
-  EXPECT_THAT(saved, HasSubstr(R"(<general joint="slide" inheritrange="2")"));
-  EXPECT_THAT(saved, HasSubstr(R"(<general class="inherits" joint="slide"/>)"));
+  EXPECT_THAT(saved, HasSubstr(R"(<position inheritrange="0.5")"));
+  EXPECT_THAT(saved, HasSubstr(R"(<position joint="slide" inheritrange="2")"));
+  EXPECT_THAT(saved,
+              HasSubstr(R"(<position class="inherits" joint="slide"/>)"));
+  EXPECT_THAT(saved,
+              HasSubstr(R"(<intvelocity joint="slide" inheritrange="1")"));
   EXPECT_THAT(saved, Not(HasSubstr("ctrlrange")));
   EXPECT_THAT(saved, Not(HasSubstr("actrange")));
 
@@ -2961,6 +2964,326 @@ TEST_F(AsWrittenTest, SavesInheritedRange) {
 
   mj_deleteModel(remodel);
   mj_deleteSpec(reloaded);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// an actuator is saved with the shortcut it was written with, in both modes
+TEST_F(AsWrittenTest, SavesShortcuts) {
+  static constexpr char xml[] = R"(<mujoco model="MuJoCo Model">
+  <worldbody>
+    <body name="b">
+      <joint name="j" type="slide" range="0 2"/>
+      <joint name="ball" type="ball"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor joint="j"/>
+    <position joint="j" kp="3" kv="4"/>
+    <position joint="j" kp="3" dampratio="0.5" timeconst="0.1"/>
+    <velocity joint="j" kv="2"/>
+    <intvelocity joint="j" actrange="-1 1" kp="5"/>
+    <damper joint="j" ctrlrange="0 1" kv="10"/>
+    <cylinder joint="j" timeconst="2" area="3" bias="1 2 3"/>
+    <muscle joint="j" lengthrange="0 1" force="100"/>
+    <adhesion body="b" ctrlrange="0 1" gain="2"/>
+    <pid joint="j" kp="2" ki="1" imax="3"/>
+    <orientation joint="ball" kp="2"/>
+    <dcmotor joint="j" motorconst="0.5" resistance="2"/>
+  </actuator>
+</mujoco>
+)";
+  mjSpec* spec = ParseAsWritten(xml);
+  ASSERT_THAT(spec, NotNull());
+  EXPECT_EQ(SaveAndReadXml(spec), xml);
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(SaveAndReadXml(spec), xml);
+
+  // the canonical notation, which compiled values are always saved in, has
+  // every actuator as general; a damping ratio which compilation resolved into
+  // a gain is written rounded
+  for (bool compiled : {false, true}) {
+    spec->compiler.savecompiled = compiled;
+    spec->compiler.savecanonical = 1;
+    std::string canonical = SaveAndReadXml(spec);
+    for (const char* tag :
+         {"motor", "position", "velocity", "intvelocity", "damper", "cylinder",
+          "muscle", "adhesion", "pid", "orientation", "dcmotor"}) {
+      EXPECT_THAT(canonical, Not(HasSubstr(std::string("<") + tag + " ")))
+          << tag;
+    }
+    EXPECT_THAT(canonical,
+                HasSubstr(R"(<general joint="j" input="pos" biastype="affine" )"
+                          R"(gainprm="3" biasprm="0 -3 -4"/>)"));
+
+    std::array<char, 1024> error;
+    mjSpec* reloaded = mj_parseXMLString(canonical.c_str(), nullptr,
+                                         error.data(), error.size());
+    ASSERT_THAT(reloaded, NotNull()) << error.data() << "\n" << canonical;
+    mjModel* remodel = mj_compile(reloaded, nullptr);
+    ASSERT_THAT(remodel, NotNull()) << mjs_getError(reloaded);
+    std::string field;
+    EXPECT_LE(CompareModel(model, remodel, field), compiled ? 1e-6 : 0)
+        << field;
+    mj_deleteModel(remodel);
+    mj_deleteSpec(reloaded);
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// a class is saved with the shortcut of its actuator default; a child which
+// only repeats the shortcut of its parent is left out
+TEST_F(AsWrittenTest, SavesShortcutDefaults) {
+  static constexpr char xml[] = R"(<mujoco model="MuJoCo Model">
+  <default>
+    <default class="servo">
+      <position kp="5" kv="1"/>
+      <default class="fast">
+        <position kp="50"/>
+      </default>
+      <default class="vel">
+        <velocity kv="2"/>
+      </default>
+      <default class="mot">
+        <motor/>
+      </default>
+      <default class="same">
+        <position/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body>
+      <joint name="j" type="slide" range="0 2"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position class="fast" joint="j"/>
+    <position class="servo" joint="j" kv="0"/>
+    <position class="servo" joint="j" dampratio="1"/>
+    <position class="same" joint="j"/>
+    <velocity class="vel" joint="j"/>
+    <motor class="mot" joint="j"/>
+    <motor class="servo" joint="j"/>
+  </actuator>
+</mujoco>
+)";
+  static constexpr char expected[] = R"(<mujoco model="MuJoCo Model">
+  <default>
+    <default class="servo">
+      <position kp="5" kv="1"/>
+      <default class="fast">
+        <position kp="50"/>
+      </default>
+      <default class="vel">
+        <velocity kv="2"/>
+      </default>
+      <default class="mot">
+        <motor/>
+      </default>
+      <default class="same"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <body>
+      <joint name="j" type="slide" range="0 2"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position class="fast" joint="j"/>
+    <position class="servo" joint="j" kv="0"/>
+    <position class="servo" joint="j" dampratio="1"/>
+    <position class="same" joint="j"/>
+    <velocity class="vel" joint="j"/>
+    <motor class="mot" joint="j"/>
+    <motor class="servo" joint="j"/>
+  </actuator>
+</mujoco>
+)";
+  for (bool savecompiled : {false, true}) {
+    mjSpec* spec = ParseAsWritten(xml);
+    ASSERT_THAT(spec, NotNull());
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    spec->compiler.savecompiled = savecompiled;
+    std::string saved = SaveAndReadXml(spec);
+    if (!savecompiled) {
+      EXPECT_EQ(saved, expected);
+    } else {
+      EXPECT_THAT(saved, Not(HasSubstr("<position")));
+      EXPECT_THAT(saved, Not(HasSubstr("<velocity")));
+      EXPECT_THAT(saved, Not(HasSubstr("<motor")));
+      EXPECT_THAT(saved, HasSubstr(R"(<default class="same"/>)"));
+      EXPECT_THAT(saved, HasSubstr(R"(<general class="servo" joint="j")"));
+    }
+
+    std::array<char, 1024> error;
+    mjSpec* reloaded =
+        mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+    ASSERT_THAT(reloaded, NotNull()) << error.data() << "\n" << saved;
+    mjModel* remodel = mj_compile(reloaded, nullptr);
+    ASSERT_THAT(remodel, NotNull()) << mjs_getError(reloaded);
+    std::string field;
+    EXPECT_LE(CompareModel(model, remodel, field), savecompiled ? 1e-6 : 0)
+        << field << "\n"
+        << saved;
+
+    mj_deleteModel(remodel);
+    mj_deleteSpec(reloaded);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+// a shortcut under a general default with its gain model, or under a general
+// child class of a shortcut default, keeps its tag; an inherited range is
+// written only where it is not already inherited
+TEST_F(AsWrittenTest, SavesShortcutsUnderGeneralDefaults) {
+  static constexpr char xml[] = R"(<mujoco model="MuJoCo Model">
+  <default>
+    <default class="lift">
+      <general forcerange="-70 70" biastype="affine" gainprm="400" biasprm="0 -200 -100"/>
+    </default>
+    <default class="servo">
+      <position kp="100" kv="10"/>
+      <default class="limited">
+        <general forcerange="-50 50"/>
+      </default>
+      <default class="range">
+        <position inheritrange="1"/>
+      </default>
+      <default class="arm">
+        <velocity kv="20"/>
+      </default>
+    </default>
+    <default class="pid">
+      <pid kp="7" ki="3"/>
+      <default class="pidlimited">
+        <general forcerange="-5 5"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body>
+      <joint name="j" type="slide" range="0 2"/>
+      <geom size="1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position class="lift" joint="j"/>
+    <position class="limited" joint="j"/>
+    <position class="range" joint="j"/>
+    <intvelocity class="range" joint="j" actrange="-1 1"/>
+    <position class="arm" joint="j"/>
+    <pid class="pidlimited" joint="j"/>
+  </actuator>
+</mujoco>
+)";
+  for (bool savecompiled : {false, true}) {
+    mjSpec* spec = ParseAsWritten(xml);
+    ASSERT_THAT(spec, NotNull());
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    EXPECT_EQ(model->actuator_gainprm[0], 400);
+    EXPECT_EQ(model->actuator_biasprm[2], -100);
+    EXPECT_EQ(model->actuator_gainprm[mjNGAIN], 100);
+    EXPECT_EQ(model->actuator_ctrlrange[5], 2);
+    EXPECT_EQ(model->actuator_gainprm[4 * mjNGAIN], 100);
+    EXPECT_EQ(model->actuator_biasprm[4 * mjNBIAS + 2], -10);
+    EXPECT_EQ(model->actuator_biasprm[5 * mjNBIAS + 1], -7);
+    EXPECT_EQ(model->actuator_gainprm[5 * mjNGAIN], 3);
+    EXPECT_EQ(model->actuator_forcerange[11], 5);
+    spec->compiler.savecompiled = savecompiled;
+    std::string saved = SaveAndReadXml(spec);
+    if (!savecompiled) {
+      EXPECT_EQ(saved, xml);
+    }
+
+    std::array<char, 1024> error;
+    mjSpec* reloaded =
+        mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+    ASSERT_THAT(reloaded, NotNull()) << error.data() << "\n" << saved;
+    mjModel* remodel = mj_compile(reloaded, nullptr);
+    ASSERT_THAT(remodel, NotNull()) << mjs_getError(reloaded);
+    std::string field;
+    EXPECT_EQ(CompareModel(model, remodel, field), 0) << field << "\n" << saved;
+
+    mj_deleteModel(remodel);
+    mj_deleteSpec(reloaded);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+// an actuator which its shortcut does not give back is saved as general; one
+// which was written as general stays general; compiled values are all general
+TEST_F(AsWrittenTest, SavesGeneralWhenShortcutDoesNotFit) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j" type="slide" range="0 2"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position name="edited" joint="j" kp="3"/>
+      <dcmotor name="asymmetric" joint="j" motorconst="0.5" resistance="2"/>
+      <general name="written" joint="j" biastype="affine" gainprm="3" biasprm="0 -3"/>
+      <position name="kept" joint="j" kp="3"/>
+    </actuator>
+  </mujoco>
+  )";
+  mjSpec* spec = ParseAsWritten(xml);
+  ASSERT_THAT(spec, NotNull());
+  mjsActuator* edited =
+      mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, "edited"));
+  edited->gainprm[1] = 7;
+  mjsActuator* dc =
+      mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, "asymmetric"));
+  dc->forcelimited = mjLIMITED_TRUE;
+  dc->forcerange[0] = -1;
+  dc->forcerange[1] = 2;
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  for (bool savecompiled : {false, true}) {
+    spec->compiler.savecompiled = savecompiled;
+    std::string saved = SaveAndReadXml(spec);
+    EXPECT_THAT(saved, HasSubstr(R"(<general name="edited" joint="j")"));
+    EXPECT_THAT(saved, HasSubstr(R"(gainprm="3 7")"));
+    EXPECT_THAT(saved, HasSubstr(R"(<general name="asymmetric" joint="j")"));
+    EXPECT_THAT(saved, HasSubstr(R"(<general name="written" joint="j")"));
+    EXPECT_THAT(saved,
+                HasSubstr(savecompiled
+                              ? R"(<general name="kept" joint="j")"
+                              : R"(<position name="kept" joint="j" kp="3"/>)"));
+
+    std::array<char, 1024> error;
+    mjSpec* reloaded =
+        mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+    ASSERT_THAT(reloaded, NotNull()) << error.data() << "\n" << saved;
+    mjModel* remodel = mj_compile(reloaded, nullptr);
+    ASSERT_THAT(remodel, NotNull()) << mjs_getError(reloaded);
+    std::string field;
+    EXPECT_EQ(CompareModel(model, remodel, field), 0) << field << "\n" << saved;
+    mj_deleteModel(remodel);
+    mj_deleteSpec(reloaded);
+  }
+
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 }

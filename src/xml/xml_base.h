@@ -84,4 +84,31 @@ struct mjXAttr {
   int          value;      // constant the field takes; kConst only
 };
 
+// the parameters of an actuator shortcut (position, muscle, ...): what its tag's attributes say,
+// in one struct for all shortcuts. Reader and writer share the mapping to and from the general
+// control model, so what a shortcut reads is what the writer gives it back
+struct mjXShortcut {
+  double kp, kv, dampratio, timeconst[2], tausmooth, range[2], force, scale, lmin, lmax, vmax,
+      fpmax, fvmax, bias[3], area, diameter, gain, ki, imax, slewmax, motorconst[2], resistance,
+      nominal[3], saturation[3], inductance[2], cogging[3], controller[6], thermal[6], lugre[5],
+      inheritrange;
+  int  ctrlspec;
+  bool has_kv, has_dampratio, has_timeconst;  // kv/dampratio and timeconst are given or not
+};
+
+// the class slot a shortcut takes its parameters from: the class's own if written with the same
+// shortcut, or with general and the shortcut's gain model, else the nearest such ancestor class;
+// null when the shortcut starts from its documented defaults
+class mjCDef;
+const mjsActuator* mjXShortcutSource(const mjsActuator* slot, const mjCDef* def, mjtActuator type);
+
+// the documented defaults of a shortcut's parameters
+void mjXShortcutDefaults(mjXShortcut* s, mjtActuator type);
+
+// the shortcut parameters of the given type which gave an actuator its control model
+void mjXShortcutFromActuator(mjXShortcut* s, const mjsActuator* actuator, mjtActuator type);
+
+// set an actuator's control model from a shortcut; empty string on success
+const char* mjXSetToShortcut(mjsActuator* actuator, mjtActuator type, const mjXShortcut& s);
+
 #endif  // MUJOCO_SRC_XML_XML_BASE_H_

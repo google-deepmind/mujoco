@@ -174,9 +174,12 @@ class DocTest(googletest.TestCase):
         sources += file.read()
     errors = []
     dispatched = set(generate_read_table.SENSOR_DISPATCH)
+    dispatched |= set(
+        schema.enums[generate_read_table.ACTUATOR_DISPATCH_ENUM].keywords()
+    )
     for name in generate_read_table.table_driven_elements(schema):
       if name in dispatched:
-        continue  # consumed through kSensorDispatch
+        continue  # consumed through kSensorDispatch / kActuatorDispatch
       array = generate_read_table.array_name(name)
       if array not in sources:
         errors.append(
@@ -184,8 +187,9 @@ class DocTest(googletest.TestCase):
             'consumed: migrate its reader to ReadAttrTable or add the '
             'element to NOT_TABLE_DRIVEN'
         )
-    if 'kSensorDispatch' not in sources:
-      errors.append("'kSensorDispatch' is never consumed")
+    for dispatch in ('kSensorDispatch', 'kActuatorDispatch'):
+      if dispatch not in sources:
+        errors.append(f"'{dispatch}' is never consumed")
     for _, array in generate_read_table.EMIT_GROUPS.values():
       if array not in sources:
         errors.append(

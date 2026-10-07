@@ -1602,14 +1602,14 @@ element position : mjsActuator (control=Q) {
   use actuator_base
   ctrllimited        : enum<FalseTrueAuto> = auto
   forcelimited       : enum<FalseTrueAuto> = auto
-  inheritrange       : double (dim=1)
+  inheritrange       : double (reading=custom, writing=custom, dim=1)
   forcerange         : double[2] (dim=F)
   use actuator_dynamics
   use transmission
-  kp                 : double (dim="F Q^-1")
-  kv                 : double (dim="F T Q^-1")
-  dampratio          : double (dim=1)
-  timeconst          : double (dim=T)
+  kp                 : double (reading=custom, dim="F Q^-1")
+  kv                 : double (reading=custom, dim="F T Q^-1")
+  dampratio          : double (reading=custom, dim=1)
+  timeconst          : double (reading=custom, dim=T)
 }
 
 element velocity : mjsActuator (control="Q T^-1") {
@@ -1619,7 +1619,7 @@ element velocity : mjsActuator (control="Q T^-1") {
   forcerange         : double[2] (dim=F)
   use actuator_dynamics
   use transmission
-  kv                 : double (dim="F T Q^-1")
+  kv                 : double (reading=custom, dim="F T Q^-1")
 }
 
 element intvelocity : mjsActuator (control="Q T^-1") {
@@ -1629,45 +1629,45 @@ element intvelocity : mjsActuator (control="Q T^-1") {
   actlimited         : enum<FalseTrueAuto> = auto
   forcerange         : double[2] (dim=F)
   actrange           : double[2] (dim=Q)
-  inheritrange       : double (dim=1)
+  inheritrange       : double (reading=custom, writing=custom, dim=1)
   use actuator_dynamics
   use transmission
-  kp                 : double (dim="F Q^-1")
-  kv                 : double (dim="F T Q^-1")
-  dampratio          : double (dim=1)
+  kp                 : double (reading=custom, dim="F Q^-1")
+  kv                 : double (reading=custom, dim="F T Q^-1")
+  dampratio          : double (reading=custom, dim=1)
 }
 
 element orientation : mjsActuator (control=custom) {
   use actuator_base
   forcelimited       : enum<FalseTrueAuto> = auto
   forcerange         : double[2] (dim=F)
-  joint              : ref<joint> (nodefault)
-  site               : ref<site> (nodefault)
-  refsite            : ref<site> (nodefault)
-  kp                 : double (dim="F Q^-1")
-  kv                 : double (dim="F T Q^-1")
-  dampratio          : double (dim=1)
-  input              : enum<inputchart>
+  joint              : ref<joint> (nodefault, reading=custom)
+  site               : ref<site> (nodefault, reading=custom)
+  refsite            : ref<site> (nodefault, reading=custom)
+  kp                 : double (reading=custom, dim="F Q^-1")
+  kv                 : double (reading=custom, dim="F T Q^-1")
+  dampratio          : double (reading=custom, dim=1)
+  input              : enum<inputchart> (reading=custom)
 }
 
 element pid : mjsActuator (control=custom) {
   use actuator_base
   ctrllimited        : enum<FalseTrueAuto> = auto
   forcelimited       : enum<FalseTrueAuto> = auto
-  posrange           : double[2] (field=ctrlrange, dim=Q)  # alias: the position-setpoint range
+  posrange           : double[2] (field=ctrlrange, reading=custom, dim=Q)  # alias: the position-setpoint range
   velrange           : double[2] (dim="Q T^-1")
   ffrange            : double[2] (dim=F)
   forcerange         : double[2] (dim=F)
-  inheritrange       : double (dim=1)
+  inheritrange       : double (reading=custom, writing=custom, dim=1)
   use actuator_dynamics
   use transmission
-  kp                 : double (dim="F Q^-1")
-  kv                 : double (dim="F T Q^-1")
-  dampratio          : double (dim=1)
-  ki                 : double (dim="F Q^-1 T^-1")
-  imax               : double (dim="Q T")
-  slewmax            : double (dim="Q T^-1")
-  input              : flags<inputbit>
+  kp                 : double (reading=custom, dim="F Q^-1")
+  kv                 : double (reading=custom, dim="F T Q^-1")
+  dampratio          : double (reading=custom, dim=1)
+  ki                 : double (reading=custom, dim="F Q^-1 T^-1")
+  imax               : double (reading=custom, dim="Q T")
+  slewmax            : double (reading=custom, dim="Q T^-1")
+  input              : flags<inputbit> (reading=custom)
 }
 
 element damper : mjsActuator (control=1) {
@@ -1676,7 +1676,7 @@ element damper : mjsActuator (control=1) {
   forcerange         : double[2] (dim=F)
   use actuator_dynamics
   use transmission
-  kv                 : double (dim="F T Q^-1")
+  kv                 : double (reading=custom, dim="F T Q^-1")
 }
 
 element cylinder : mjsActuator (control="F L^-2") {
@@ -1686,10 +1686,10 @@ element cylinder : mjsActuator (control="F L^-2") {
   forcerange         : double[2] (dim=F)
   use actuator_dynamics
   use transmission
-  timeconst          : double (dim=T)
-  area               : double (dim="L^2")
-  diameter           : double (dim=L)
-  bias               : double[3] (dim="F, F Q^-1, F T Q^-1")
+  timeconst          : double (reading=custom, dim=T)
+  area               : double (reading=custom, dim="L^2")
+  diameter           : double (reading=custom, dim=L)
+  bias               : double[3] (reading=custom, dim="F, F Q^-1, F T Q^-1")
 }
 
 element muscle : mjsActuator (control=1) {
@@ -1698,29 +1698,29 @@ element muscle : mjsActuator (control=1) {
   forcelimited       : enum<FalseTrueAuto> = auto
   forcerange         : double[2] (dim=F)
   use actuator_dynamics
-  joint              : ref<joint> (nodefault)
-  jointinparent      : ref<joint> (nodefault)
-  tendon             : ref<tendon> (nodefault)
-  slidersite         : ref<site> (nodefault)
-  cranksite          : ref<site> (nodefault)
-  timeconst          : double[2] (dim=T)
-  tausmooth          : double (nodefault, dim=1)
-  range              : double[2] (dim=1)
-  force              : double (dim=F)
-  scale              : double (dim=custom)
-  lmin               : double (dim=1)
-  lmax               : double (dim=1)
-  vmax               : double (dim="T^-1")
-  fpmax              : double (dim=1)
-  fvmax              : double (dim=1)
+  joint              : ref<joint> (nodefault, reading=custom)
+  jointinparent      : ref<joint> (nodefault, reading=custom)
+  tendon             : ref<tendon> (nodefault, reading=custom)
+  slidersite         : ref<site> (nodefault, reading=custom)
+  cranksite          : ref<site> (nodefault, reading=custom)
+  timeconst          : double[2] (reading=custom, dim=T)
+  tausmooth          : double (nodefault, reading=custom, dim=1)
+  range              : double[2] (reading=custom, dim=1)
+  force              : double (reading=custom, dim=F)
+  scale              : double (reading=custom, dim=custom)
+  lmin               : double (reading=custom, dim=1)
+  lmax               : double (reading=custom, dim=1)
+  vmax               : double (reading=custom, dim="T^-1")
+  fpmax              : double (reading=custom, dim=1)
+  fvmax              : double (reading=custom, dim=1)
 }
 
 element adhesion : mjsActuator (control=1) {
   use actuator_base
   forcelimited       : enum<FalseTrueAuto> = auto
   forcerange         : double[2] (dim="M L T^-2")
-  body               : ref<body> (nodefault)
-  gain               : double (dim="M L T^-2")
+  body               : ref<body> (nodefault, reading=custom)
+  gain               : double (reading=custom, dim="M L T^-2")
 }
 
 element dcmotor : mjsActuator (control=custom) {
@@ -1728,15 +1728,15 @@ element dcmotor : mjsActuator (control=custom) {
   ctrllimited        : enum<FalseTrueAuto> = auto
   use actuator_dynamics
   use transmission
-  motorconst         : double[1..2] (dim=opaque)
-  resistance         : double (dim=opaque)
-  nominal            : double[1..3] (dim=opaque)
-  saturation         : double[1..3] (dim=opaque)
-  inductance         : double[1..2] (dim=opaque)
-  cogging            : double[1..3] (dim="F, 1, A")
-  controller         : double[1..6] (dim=opaque)
-  thermal            : double[1..6] (dim=opaque)
-  lugre              : double[1..5] (dim="F Q^-1, F T Q^-1, F, F, Q T^-1")
+  motorconst         : double[1..2] (reading=custom, dim=opaque)
+  resistance         : double (reading=custom, dim=opaque)
+  nominal            : double[1..3] (reading=custom, dim=opaque)
+  saturation         : double[1..3] (reading=custom, dim=opaque)
+  inductance         : double[1..2] (reading=custom, dim=opaque)
+  cogging            : double[1..3] (reading=custom, dim="F, 1, A")
+  controller         : double[1..6] (reading=custom, dim=opaque)
+  thermal            : double[1..6] (reading=custom, dim=opaque)
+  lugre              : double[1..5] (reading=custom, dim="F Q^-1, F T Q^-1, F, F, Q T^-1")
   input              : flags<inputbit> (reading=custom)  # token subset, or the none keyword
 }
 

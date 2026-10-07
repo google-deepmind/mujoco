@@ -51,9 +51,7 @@ MODEL_H_PATH = str(resource_loader.resolve_path('include/mujoco/mjmodel.h'))
 # If you add a new schema element with a bound spec, either migrate its
 # reader to ReadAttrTable (it will be auto-included) or add it here.
 NOT_TABLE_DRIVEN = {
-    # actuator shorthands: read shared rows + per-tag remappings
-    'motor', 'position', 'velocity', 'intvelocity', 'orientation',
-    'pid', 'damper', 'cylinder', 'muscle', 'adhesion', 'dcmotor',
+    # plugin actuator: shared rows + plugin config
     'actuator_plugin',
     # equality subtypes: read shared equality_base + per-type refs
     'connect', 'weld', 'equality_joint', 'equality_tendon',
@@ -64,6 +62,10 @@ NOT_TABLE_DRIVEN = {
     # other irregulars
     'frame', 'plugin', 'numeric', 'text', 'tuple',
 }
+
+# actuator tags whose mechanical rows are collected into kActuatorDispatch,
+# keyed by the actuatortype enum; shortcut parameters are reading=custom
+ACTUATOR_DISPATCH_ENUM = 'actuatortype'
 
 # sensors whose whole branch derives from the schema (identity constants +
 # references); their arrays are also collected into kSensorDispatch
@@ -402,6 +404,17 @@ def generate():
   out.append('};')
   out.append('inline constexpr int kSensorDispatchN = '
              'sizeof(kSensorDispatch) / sizeof(kSensorDispatch[0]);')
+  out.append('')
+  out.append('// actuator tags and their mechanical rows: dispatch by tag or type')
+  out.append('struct mjXActuatorEntry { const char* tag; int type;'
+             ' const mjXAttr* rows; int n; };')
+  out.append('inline constexpr mjXActuatorEntry kActuatorDispatch[] = {')
+  for tag, const in schema.enums[ACTUATOR_DISPATCH_ENUM].items:
+    array = array_name(tag)
+    out.append(f'  {{"{tag}", {const}, {array}, {array}N}},')
+  out.append('};')
+  out.append('inline constexpr int kActuatorDispatchN = '
+             'sizeof(kActuatorDispatch) / sizeof(kActuatorDispatch[0]);')
   out.append('')
   for gname, (struct, array) in EMIT_GROUPS.items():
     rows = rows_for_group(schema, structs, gname, struct)

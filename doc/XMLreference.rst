@@ -1016,10 +1016,10 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`savecanonical`: :at-val:`[false, true], "true"`
    If "true", orientations are saved as quaternions, angles in radians, sizes and poses which were given with
-   :at:`fromto` as :at:`size`, :at:`pos` and :at:`quat`, and a :at:`fullinertia` as :at:`diaginertia` and
-   :at:`quat`. If "false", they are saved in the notation in which they were written. This attribute has an effect
-   only if :ref:`savecompiled<compiler-savecompiled>` is "false": compiled values are always saved in the canonical
-   notation.
+   :at:`fromto` as :at:`size`, :at:`pos` and :at:`quat`, a :at:`fullinertia` as :at:`diaginertia` and :at:`quat`, and
+   every actuator as :el:`general`. If "false", they are saved in the notation in which they were written. This
+   attribute has an effect only if :ref:`savecompiled<compiler-savecompiled>` is "false": compiled values are always
+   saved in the canonical notation.
 
 .. _compiler-conflict:
 

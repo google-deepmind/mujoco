@@ -151,6 +151,10 @@ Actuation
   full documented table, including its dynamics and activation layout, and a :ref:`pid<actuator-pid>` without ``kp``
   has the documented gain of 1, not 0. Added ``mjsActuator.type`` (:ref:`mjtActuator`), the element an actuator is
   written with.
+- A model saved in the notation it was written in (:ref:`savecanonical<compiler-savecanonical>` "false") now writes
+  each actuator, and each actuator default, with the shortcut it was written with (``<position kp="10"/>``), with its
+  own attributes, whenever reading the shortcut back gives the same actuator; otherwise it is written as
+  :ref:`general<actuator-general>`. The canonical notation writes every actuator as general, as before.
 - A :ref:`pid<actuator-pid>` actuator with both :ref:`ki<actuator-pid-ki>` and :ref:`slewmax<actuator-pid-slewmax>`
   now compiles; its two activation states were rejected.
 

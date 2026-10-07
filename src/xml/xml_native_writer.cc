@@ -163,6 +163,84 @@ string Numbers(const std::vector<T>& vec) {
   }
 }
 
+// the byte size of the field a numeric row binds; 0 for the other kinds
+size_t RowSize(const mjXAttr& row) {
+  switch (row.kind) {
+    case mjXAttr::kInt:
+    case mjXAttr::kEnum:
+    case mjXAttr::kFlags:
+      return row.len * sizeof(int);
+    case mjXAttr::kDouble:
+      return row.len * sizeof(double);
+    case mjXAttr::kNum:
+      return row.len * sizeof(mjtNum);
+    case mjXAttr::kFloat:
+      return row.len * sizeof(float);
+    case mjXAttr::kEnumByte:
+    case mjXAttr::kBool:
+      return sizeof(mjtByte);
+    default:
+      return 0;
+  }
+}
+
+// copy the fields which rows bind from one actuator to another
+void CopyRows(
+    mjsActuator* dst, const mjsActuator* src, const mjXAttr* rows, int nrow, bool skip_nodefault) {
+  for (int i = 0; i < nrow; i++) {
+    if (skip_nodefault && rows[i].nodefault) { continue; }
+    size_t size = RowSize(rows[i]);
+    if (size) { std::memcpy((char*)dst + rows[i].offset, (const char*)src + rows[i].offset, size); }
+  }
+}
+
+// true if two actuators agree on the fields the general rows bind, actdim aside (compilation
+// resolves it from the control model), and on the input signature
+bool SameActuator(const mjsActuator& a, const mjsActuator& b) {
+  const char* pa = (const char*)&a;
+  const char* pb = (const char*)&b;
+  for (int i = 0; i < kGeneralAttrsN; i++) {
+    const mjXAttr& row = kGeneralAttrs[i];
+    if (row.offset == (int)offsetof(mjsActuator, actdim)) { continue; }
+    const char* x = pa + row.offset;
+    const char* y = pb + row.offset;
+    switch (row.kind) {
+      case mjXAttr::kDouble:
+        if (!std::equal((const double*)x, (const double*)x + row.len, (const double*)y)) {
+          return false;
+        }
+        break;
+      case mjXAttr::kInt:
+      case mjXAttr::kEnum:
+      case mjXAttr::kFlags:
+        if (!std::equal((const int*)x, (const int*)x + row.len, (const int*)y)) { return false; }
+        break;
+      case mjXAttr::kEnumByte:
+      case mjXAttr::kBool:
+        if (*(const mjtByte*)x != *(const mjtByte*)y) { return false; }
+        break;
+      default:
+        break;
+    }
+  }
+  return a.ctrlspec == b.ctrlspec;
+}
+
+// the input attribute of a signature: so3 chart keyword, the none keyword, or input tokens
+string InputString(mjtGain gaintype, int ctrlspec) {
+  if (gaintype == mjGAIN_SO3) {
+    return mjXUtil::FindValue(inputchart_map, inputchart_sz, ctrlspec);
+  }
+  if (ctrlspec == mjINPUT_NONE) { return "none"; }
+  string input;
+  for (int k = 0; k < inputbit_sz; k++) {
+    if (ctrlspec & inputbit_map[k].value) {
+      input += string(input.empty() ? "" : " ") + inputbit_map[k].key;
+    }
+  }
+  return input;
+}
+
 }  // namespace
 
 
@@ -1287,11 +1365,62 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* ptendon, mjCDef* de
 }
 
 
+// the shortcut which gives an actuator back when its tag is reloaded over the class default, as
+// an entry of the actuator dispatch; the general entry if there is none, and always in the
+// canonical notation. s and d get the shortcut parameters of the actuator and of the class slot
+// the shortcut pre-reads
+const mjXActuatorEntry* mjXWriter::ShortcutEntry(const mjsActuator* actuator,
+                                                 const mjCDef*      def,
+                                                 mjXShortcut*       s,
+                                                 mjXShortcut*       d) const {
+  const mjXActuatorEntry* general = nullptr;
+  const mjXActuatorEntry* entry   = nullptr;
+  for (int i = 0; i < kActuatorDispatchN; i++) {
+    if (kActuatorDispatch[i].type == mjACTUATOR_GENERAL) { general = kActuatorDispatch + i; }
+    if (kActuatorDispatch[i].type == actuator->type) { entry = kActuatorDispatch + i; }
+  }
+  if (actuator->plugin.active || canonical_ || !entry || entry == general) { return general; }
+  mjtActuator        type   = actuator->type;
+  const mjsActuator& defact = *def->spec.actuator;
+  const mjsActuator* src    = mjXShortcutSource(&defact, def, type);
+  mjXShortcutFromActuator(s, actuator, type);
+  if (src) {
+    mjXShortcutFromActuator(d, src, type);
+  } else {
+    mjXShortcutDefaults(d, type);
+  }
+
+  // what is not given is inherited: a zero kv or timeconst overrides the class, an input
+  // signature cannot be unset
+  if (!s->has_kv && !s->has_dampratio && (d->has_kv || d->has_dampratio)) {
+    s->has_kv = true;
+    s->kv     = 0;
+  }
+  if (d->has_timeconst && !s->has_timeconst) {
+    s->has_timeconst = true;
+    s->timeconst[0]  = 0;
+  }
+  if (!s->ctrlspec) { s->ctrlspec = d->ctrlspec; }
+
+  // reload: the class default, the tag's mechanical attributes, then the shortcut
+  mjsActuator copy = defact;
+  CopyRows(&copy, actuator, entry->rows, entry->n, writingdefaults);
+  if (mjXSetToShortcut(&copy, type, *s)[0]) { return general; }
+  return SameActuator(copy, *actuator) ? entry : general;
+}
+
+
 // write actuator
-void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* pactuator, mjCDef* def) {
+XMLElement* mjXWriter::OneActuator(XMLElement* section, const mjCActuator* pactuator, mjCDef* def) {
   const mjCActuator* base     = pactuator;
   const mjsActuator* actuator = Values<mjsActuator>(pactuator);
   const mjsActuator& defact   = def->Actuator().spec;
+
+  // the tag: a plugin, the shortcut which gives the actuator back, or general
+  mjXShortcut             s = {}, d = {};
+  const mjXActuatorEntry* entry = ShortcutEntry(actuator, def, &s, &d);
+  mjtActuator             type  = (mjtActuator)entry->type;
+  XMLElement* elem = InsertEnd(section, actuator->plugin.active ? "plugin" : entry->tag);
 
   // regular
   if (!writingdefaults) {
@@ -1331,53 +1460,124 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* pactuator, mjCD
     }
   }
 
-  // defaults and regular
-  WriteAttrTable(elem, actuator, &defact, kGeneralAttrs, kGeneralAttrsN);
+  // defaults and regular: the mechanical attributes of the tag
+  WriteAttrTable(elem, actuator, &defact, entry->rows, entry->n);
   WriteAttr(elem, "cranklength", 1, &actuator->cranklength, &defact.cranklength);
 
   // a range which is inherited stays so in what the spec gives; compilation resolves it
-  if (authored_) {
-    WriteAttr(elem, "inheritrange", 1, &actuator->inheritrange, &defact.inheritrange);
-  }
-  // special handling of actdim which has default value of -1
-  if (writingdefaults) {
-    WriteAttrInt(elem, "actdim", actuator->actdim, defact.actdim);
-  } else {
-    // compilation resolves an actdim which was left out; what the spec gives is written as it is
-    int default_actdim = (actuator->dyntype != mjDYN_NONE && actuator->dyntype != mjDYN_DCMOTOR);
-    WriteAttrInt(elem, "actdim", actuator->actdim, authored_ ? -1 : default_actdim);
+  bool has_inheritrange = type == mjACTUATOR_GENERAL ||
+                          type == mjACTUATOR_POSITION ||
+                          type == mjACTUATOR_INTVELOCITY ||
+                          type == mjACTUATOR_PID;
+  if (authored_ && has_inheritrange) {
+    const double* definherit = type == mjACTUATOR_GENERAL ? &defact.inheritrange : &d.inheritrange;
+    WriteAttr(elem, "inheritrange", 1, &actuator->inheritrange, definherit);
   }
 
-  // plugins: write config attributes
-  if (actuator->plugin.active) {
-    OnePlugin(elem, &actuator->plugin);
-  }
-
-  // non-plugins: write actuator parameters
-  else {
-    WriteAttrKey(elem, "gaintype", gain_map, gain_sz, actuator->gaintype, defact.gaintype);
-
-    // input signature, inherited only from a default with the same gaintype; written even when
-    // empty, which restores the gaintype's default signature
-    int defspec = actuator->gaintype == defact.gaintype ? defact.ctrlspec : 0;
-    if (actuator->ctrlspec != defspec) {
-      std::string input;
-      if (actuator->gaintype == mjGAIN_SO3) {
-        input = FindValue(inputchart_map, inputchart_sz, actuator->ctrlspec);
-      } else if (actuator->ctrlspec == mjINPUT_NONE) {
-        input = "none";
-      } else {
-        for (int k = 0; k < inputbit_sz; k++) {
-          if (actuator->ctrlspec & inputbit_map[k].value) {
-            input += std::string(input.empty() ? "" : " ") + inputbit_map[k].key;
-          }
-        }
-      }
-      elem->SetAttribute("input", input.c_str());
+  // shortcut parameters, where they differ from those of the class
+  auto Damping = [&]() {
+    if (s.has_kv) {
+      WriteAttr(elem, "kv", 1, &s.kv, d.has_kv ? &d.kv : nullptr);
+    } else if (s.has_dampratio) {
+      WriteAttr(elem, "dampratio", 1, &s.dampratio, d.has_dampratio ? &d.dampratio : nullptr);
     }
-    WriteAttrKey(elem, "biastype", bias_map, bias_sz, actuator->biastype, defact.biastype);
-    WriteAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, defact.gainprm, true);
-    WriteAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, defact.biasprm, true);
+  };
+  auto Input = [&]() {
+    if (s.ctrlspec != d.ctrlspec) {
+      elem->SetAttribute("input", InputString(actuator->gaintype, s.ctrlspec).c_str());
+    }
+  };
+  switch (type) {
+    case mjACTUATOR_POSITION:
+    case mjACTUATOR_INTVELOCITY:
+      WriteAttr(elem, "kp", 1, &s.kp, &d.kp);
+      Damping();
+      if (s.has_timeconst) {
+        WriteAttr(elem, "timeconst", 1, s.timeconst, d.has_timeconst ? d.timeconst : nullptr);
+      }
+      break;
+    case mjACTUATOR_ORIENTATION:
+      WriteAttr(elem, "kp", 1, &s.kp, &d.kp);
+      Damping();
+      Input();
+      break;
+    case mjACTUATOR_PID:
+      WriteAttr(elem, "kp", 1, &s.kp, &d.kp);
+      Damping();
+      WriteAttr(elem, "ki", 1, &s.ki, &d.ki);
+      WriteAttr(elem, "imax", 1, &s.imax, &d.imax);
+      WriteAttr(elem, "slewmax", 1, &s.slewmax, &d.slewmax);
+      Input();
+      break;
+    case mjACTUATOR_VELOCITY:
+    case mjACTUATOR_DAMPER:
+      WriteAttr(elem, "kv", 1, &s.kv, &d.kv);
+      break;
+    case mjACTUATOR_CYLINDER:
+      WriteAttr(elem, "timeconst", 1, s.timeconst, d.timeconst);
+      WriteAttr(elem, "area", 1, &s.area, &d.area);
+      WriteAttr(elem, "bias", 3, s.bias, d.bias);
+      break;
+    case mjACTUATOR_MUSCLE:
+      WriteAttr(elem, "timeconst", 2, s.timeconst, d.timeconst);
+      WriteAttr(elem, "tausmooth", 1, &s.tausmooth, &d.tausmooth);
+      WriteAttr(elem, "range", 2, s.range, d.range);
+      WriteAttr(elem, "force", 1, &s.force, &d.force);
+      WriteAttr(elem, "scale", 1, &s.scale, &d.scale);
+      WriteAttr(elem, "lmin", 1, &s.lmin, &d.lmin);
+      WriteAttr(elem, "lmax", 1, &s.lmax, &d.lmax);
+      WriteAttr(elem, "vmax", 1, &s.vmax, &d.vmax);
+      WriteAttr(elem, "fpmax", 1, &s.fpmax, &d.fpmax);
+      WriteAttr(elem, "fvmax", 1, &s.fvmax, &d.fvmax);
+      break;
+    case mjACTUATOR_ADHESION:
+      WriteAttr(elem, "gain", 1, &s.gain, &d.gain);
+      break;
+    case mjACTUATOR_DCMOTOR:
+      WriteAttr(elem, "motorconst", 2, s.motorconst, d.motorconst, true);
+      WriteAttr(elem, "resistance", 1, &s.resistance, &d.resistance);
+      WriteAttr(elem, "saturation", 3, s.saturation, d.saturation, true);
+      WriteAttr(elem, "inductance", 2, s.inductance, d.inductance, true);
+      WriteAttr(elem, "cogging", 3, s.cogging, d.cogging, true);
+      WriteAttr(elem, "controller", 6, s.controller, d.controller, true);
+      WriteAttr(elem, "thermal", 6, s.thermal, d.thermal, true);
+      WriteAttr(elem, "lugre", 5, s.lugre, d.lugre, true);
+      Input();
+      break;
+    default:
+      break;
+  }
+
+  // general and plugins
+  if (type == mjACTUATOR_GENERAL) {
+    // special handling of actdim which has default value of -1
+    if (writingdefaults) {
+      WriteAttrInt(elem, "actdim", actuator->actdim, defact.actdim);
+    } else {
+      // compilation resolves an actdim which was left out; what the spec gives is written as it is
+      int default_actdim = (actuator->dyntype != mjDYN_NONE && actuator->dyntype != mjDYN_DCMOTOR);
+      WriteAttrInt(elem, "actdim", actuator->actdim, authored_ ? -1 : default_actdim);
+    }
+
+    // plugins: write config attributes
+    if (actuator->plugin.active) {
+      OnePlugin(elem, &actuator->plugin);
+    }
+
+    // non-plugins: write actuator parameters
+    else {
+      WriteAttrKey(elem, "gaintype", gain_map, gain_sz, actuator->gaintype, defact.gaintype);
+
+      // input signature, inherited only from a default with the same gaintype; written even when
+      // empty, which restores the gaintype's default signature
+      int defspec = actuator->gaintype == defact.gaintype ? defact.ctrlspec : 0;
+      if (actuator->ctrlspec != defspec) {
+        elem->SetAttribute("input", InputString(actuator->gaintype, actuator->ctrlspec).c_str());
+      }
+      WriteAttrKey(elem, "biastype", bias_map, bias_sz, actuator->biastype, defact.biastype);
+      WriteAttr(elem, "gainprm", mjNGAIN, actuator->gainprm, defact.gainprm, true);
+      WriteAttr(elem, "biasprm", mjNBIAS, actuator->biasprm, defact.biasprm, true);
+    }
   }
 
   // userdata
@@ -1390,6 +1590,7 @@ void mjXWriter::OneActuator(XMLElement* elem, const mjCActuator* pactuator, mjCD
   } else {
     WriteVector(elem, "user", user, defuser);
   }
+  return elem;
 }
 
 
@@ -1839,10 +2040,13 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   OneTendon(elem, &def->Tendon(), parent);
   if (!elem->FirstAttribute()) section->DeleteChild(elem);
 
-  // actuator
-  elem = InsertEnd(section, "general");
-  OneActuator(elem, &def->Actuator(), parent);
-  if (!elem->FirstAttribute()) section->DeleteChild(elem);
+  // actuator: an empty element whose tag is the parent's type is a no-op
+  elem      = OneActuator(section, &def->Actuator(), parent);
+  int ptype = canonical_ ? mjACTUATOR_GENERAL : parent->Actuator().spec.type;
+  if (!elem->FirstAttribute() &&
+      FindKey(actuatortype_map, actuatortype_sz, elem->Value()) == ptype) {
+    section->DeleteChild(elem);
+  }
 
   // if top-level class has no members or children, delete it and return
   if (!def->parent && section->NoChildren() && def->child.empty()) {
@@ -2569,13 +2773,7 @@ void mjXWriter::Actuator(XMLElement* root) {
   // write all actuators
   for (int i = 0; i < num; i++) {
     mjCActuator* actuator = (mjCActuator*)model->GetObject(mjOBJ_ACTUATOR, i);
-    XMLElement*  elem;
-    if (Values<mjsActuator>(actuator)->plugin.active) {
-      elem = InsertEnd(section, "plugin");
-    } else {
-      elem = InsertEnd(section, "general");
-    }
-    OneActuator(elem, actuator, model->def_map[actuator->classname]);
+    OneActuator(section, actuator, model->def_map[actuator->classname]);
   }
 }
 

@@ -112,12 +112,14 @@ class mjXWriter : public mjXBase {
   void OnePair(tinyxml2::XMLElement* elem, const mjCPair* ppair, mjCDef* def);
   void OneEquality(tinyxml2::XMLElement* elem, const mjCEquality* pequality, mjCDef* def);
   void OneTendon(tinyxml2::XMLElement* elem, const mjCTendon* ptendon, mjCDef* def);
-  void OneActuator(tinyxml2::XMLElement* elem, const mjCActuator* pactuator, mjCDef* def);
-  void OnePlugin(tinyxml2::XMLElement* elem, const mjsPlugin* plugin);
-  void PluginConfig(tinyxml2::XMLElement* elem,
-                    const mjCPlugin*      instance,
-                    const std::string&    plugin);
-  void FreeJoint(tinyxml2::XMLElement* elem, const mjCJoint* joint);
+  tinyxml2::XMLElement* OneActuator(tinyxml2::XMLElement* section,
+                                    const mjCActuator*    pactuator,
+                                    mjCDef*               def);
+  void                  OnePlugin(tinyxml2::XMLElement* elem, const mjsPlugin* plugin);
+  void                  PluginConfig(tinyxml2::XMLElement* elem,
+                                     const mjCPlugin*      instance,
+                                     const std::string&    plugin);
+  void                  FreeJoint(tinyxml2::XMLElement* elem, const mjCJoint* joint);
   tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem,
                                  mjCFrame*             frame,
                                  std::string_view      childclass);
@@ -176,6 +178,14 @@ class mjXWriter : public mjXBase {
   // true if the saved file gives a body the inertia which compilation gave it, without an
   // inertial element
   bool InertialReproduced(const mjCBody* body) const;
+
+  // the shortcut whose tag gives an actuator back when reloaded over its class default, as an
+  // entry of the generated actuator dispatch, else the general entry; s and d get the shortcut
+  // parameters of the actuator and of the class slot the shortcut pre-reads
+  const struct mjXActuatorEntry* ShortcutEntry(const mjsActuator* actuator,
+                                               const mjCDef*      def,
+                                               mjXShortcut*       s,
+                                               mjXShortcut*       d) const;
 
   bool writingdefaults;     // true during defaults write
   bool authored_  = false;  // save what the spec gives, not what compilation made of it
