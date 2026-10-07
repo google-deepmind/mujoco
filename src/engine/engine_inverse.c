@@ -302,7 +302,6 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
         continue;
       }
       int adr = m->jnt_dofadr[j];
-      // TODO(tassa): engine_metric refactor: add a hand-unrolled mji_mulMatVec6
       mju_mulMatVec(Ma+adr, A, d->qacc+adr, 6, 6);
     }
 
