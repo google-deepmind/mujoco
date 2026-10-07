@@ -1130,9 +1130,10 @@ loading on GPU.
 
 **Why are numerical results from MJWarp and MuJoCo different?**
 
-MJWarp utilizes `float <https://nvidia.github.io/warp/stable/api_reference/_generated/warp.float32.html>`__s in contrast to MuJoCo's
-default double representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection, and small
-friction values may be sensitive to differences in floating point representation.
+MJWarp utilizes single precision `float32
+<https://nvidia.github.io/warp/stable/api_reference/_generated/warp.float32.html>`__ in contrast to MuJoCo's default
+double precision (float64) representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection,
+and small friction values may be sensitive to differences in floating point representation.
 
 If you encounter unexpected results, including NaNs, please open a GitHub issue.
 
