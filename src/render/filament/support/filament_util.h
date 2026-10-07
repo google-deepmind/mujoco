@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_FILAMENT_UTIL_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_FILAMENT_UTIL_H_
 
+#include <string>
 #include <string_view>
 
 #include <math/mat3.h>
@@ -155,6 +156,9 @@ T ReadElement(const mjModel* model, const char* name, T default_value = T()) {
   }
   return default_value;
 }
+
+// Returns the full path to a filament asset based on its file name.
+std::string ResolveFilamentAssetPath(const std::string& filename);
 
 }  // namespace mujoco
 

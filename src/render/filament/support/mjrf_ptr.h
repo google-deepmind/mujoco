@@ -16,7 +16,6 @@
 #define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MJRF_PTR_H_
 
 #include <memory>
-#include <string>
 
 #include <mujoco/mjrfilament.h>
 
@@ -66,8 +65,6 @@ inline UniquePtr<mjrfRenderTarget> CreateRenderTarget(
   mjrfRenderTarget* render_target = mjrf_createRenderTarget(ctx, &config);
   return UniquePtr<mjrfRenderTarget>(render_target, mjrf_destroyRenderTarget);
 }
-
-std::string ResolveFilamentAssetPath(const std::string& filename);
 
 }  // namespace mujoco
 

@@ -15,6 +15,7 @@
 #include "render/filament/support/filament_util.h"
 
 #include <limits>
+#include <string>
 
 #include <math/TMatHelpers.h>
 #include <math/TVecHelpers.h>
@@ -24,6 +25,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mjrender.h>
+#include <mujoco/mujoco.h>
 
 namespace mujoco {
 
@@ -121,6 +123,11 @@ float4 CalculateOrientation(const filament::math::float3& p1,
                             const filament::math::float3& p2,
                             const filament::math::float3& p3) {
   return CalculateOrientation(CalculateNormal(p1, p2, p3));
+}
+
+std::string ResolveFilamentAssetPath(const std::string& filename) {
+  std::string path = "filament:" + filename;
+  return path;
 }
 
 }  // namespace mujoco
