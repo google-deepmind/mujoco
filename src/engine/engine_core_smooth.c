@@ -1773,6 +1773,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
           // mark contact normals in efc_force
           if (!con->exclude) {
+            if (con->efc_address < 0) {
+              continue;
+            }
             counter++;
 
             // condim 1 or elliptic cones: normal is in the first row

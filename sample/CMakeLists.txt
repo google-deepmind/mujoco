@@ -24,7 +24,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco_samples
-  VERSION 3.14.1
+  VERSION 3.15.1
   DESCRIPTION "MuJoCo samples binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -114,7 +114,7 @@ target_link_libraries(
 )
 target_link_options(record PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
-if(MUJOCO_USE_FILAMENT)
+if(MUJOCO_USE_FILAMENT AND NOT SAMPLE_STANDALONE)
   add_executable(render render.cc)
   target_compile_options(render PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -146,7 +146,7 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   embed_in_bundle(dependencies simulate)
   embed_in_bundle(record simulate)
   embed_in_bundle(testspeed simulate)
-  if(MUJOCO_USE_FILAMENT)
+  if(MUJOCO_USE_FILAMENT AND NOT SAMPLE_STANDALONE)
     embed_in_bundle(render simulate)
   endif()
 endif()
@@ -168,7 +168,7 @@ if(_INSTALL_SAMPLES)
       record
       testspeed
   )
-  if(MUJOCO_USE_FILAMENT)
+  if(MUJOCO_USE_FILAMENT AND NOT SAMPLE_STANDALONE)
     list(APPEND MUJOCO_INSTALL_SAMPLES render)
   endif()
 

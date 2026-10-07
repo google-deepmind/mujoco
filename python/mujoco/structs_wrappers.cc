@@ -510,7 +510,7 @@ void CheckInput(const std::istream& input, std::string class_name) {
 void MjModelWrapper::Serialize(std::ostream& output) const {
   WriteChar(output, kSerializationVersion);
 
-  int model_size = mj_sizeModel(get());
+  mjtSize model_size = mj_sizeModel(get());
   WriteInt(output, model_size);
   std::string buffer(model_size, 0);
   mj_saveModel(get(), nullptr, buffer.data(), model_size);

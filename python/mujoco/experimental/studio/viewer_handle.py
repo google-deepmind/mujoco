@@ -268,7 +268,8 @@ class ViewerHandle:
     return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_reset(self, event: messages.ResetEvent) -> bool:
+  def _on_reset(self, event: messages.ResetEvent) -> None:
+    """Resets the sim's data; does not consume the event so plugins observe it."""
     model = self.model
     data = self.data
     if model is not None:
@@ -278,7 +279,6 @@ class ViewerHandle:
       else:
         mujoco.mj_resetData(model, data)
       mujoco.mj_forward(model, data)
-    return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_exit(self, _: messages.ExitEvent) -> None:

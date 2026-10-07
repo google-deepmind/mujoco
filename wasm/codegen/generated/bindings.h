@@ -2271,6 +2271,18 @@ struct MjsCompiler {
   void set_saveinertial(mjtBool value) {
     ptr_->saveinertial = value;
   }
+  mjtBool savecompiled() const {
+    return ptr_->savecompiled;
+  }
+  void set_savecompiled(mjtBool value) {
+    ptr_->savecompiled = value;
+  }
+  mjtBool savecanonical() const {
+    return ptr_->savecanonical;
+  }
+  void set_savecanonical(mjtBool value) {
+    ptr_->savecanonical = value;
+  }
   mjtBool alignfree() const {
     return ptr_->alignfree;
   }
@@ -6247,6 +6259,12 @@ struct MjsBody {
   }
   void set_simple(mjtByte value) {
     ptr_->simple = value;
+  }
+  mjtByte fuse() const {
+    return ptr_->fuse;
+  }
+  void set_fuse(mjtByte value) {
+    ptr_->fuse = value;
   }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);

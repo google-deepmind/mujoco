@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index adeaa12..838b21f 100644
+index a95a747..b941f09 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
@@ -175,7 +175,7 @@ index 32479e0..c6d5d36 100644
  
  target_compile_options(${TARGET} PRIVATE
 diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
-index 0a0c843..04abb73 100644
+index 2cf4db8..8f3a234 100644
 --- a/filament/backend/CMakeLists.txt
 +++ b/filament/backend/CMakeLists.txt
 @@ -542,6 +542,10 @@ else()
@@ -440,10 +440,10 @@ index 4604eb7..fb95fa6 100644
      return *this;
  }
 diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
-index 6bc1229..e4c5ae0 100644
+index 243e93f..e14d564 100644
 --- a/libs/utils/include/utils/compiler.h
 +++ b/libs/utils/include/utils/compiler.h
-@@ -252,7 +252,7 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+@@ -370,7 +370,7 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
  // AND multi-threading is enabled (UTILS_HAS_THREADING is not 0).
  // This prevents compile failures on single-threaded targets or builds where standard
  // annotations are disabled by default in the platform's standard library headers.

@@ -41,20 +41,24 @@ def is_intersect(p1: wp.vec2, p2: wp.vec2, p3: wp.vec2, p4: wp.vec2) -> bool:
   Returns:
     Intersection status of line segments.
   """
-  # compute determinant, check
-  det = (p4[1] - p3[1]) * (p2[0] - p1[0]) - (p4[0] - p3[0]) * (p2[1] - p1[1])
+  u = p2 - p1
+  v = p4 - p3
 
+  # compute determinant, check
+  det = v[1] * u[0] - v[0] * u[1]
   if wp.abs(det) < MJ_MINVAL:
     return False
 
-  # compute intersection point on each line
-  a = ((p4[0] - p3[0]) * (p1[1] - p3[1]) - (p4[1] - p3[1]) * (p1[0] - p3[0])) / det
-  b = ((p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0])) / det
+  # check intersection parameter bounds [0, 1] on each segment without subtracting det
+  s = wp.where(det > 0.0, 1.0, -1.0)
+  w = p1 - p3
+  d = p2 - p4
+  a0 = (v[0] * w[1] - v[1] * w[0]) * s
+  a1 = (v[0] * d[1] - v[1] * d[0]) * s
+  b0 = (u[0] * w[1] - u[1] * w[0]) * s
+  b1 = (u[0] * d[1] - u[1] * d[0]) * s
 
-  if a >= 0 and a <= 1.0 and b >= 0.0 and b <= 1.0:
-    return True
-  else:
-    return False
+  return a0 >= 0.0 and a1 <= 0.0 and b0 >= 0.0 and b1 <= 0.0
 
 
 @wp.func
@@ -88,13 +92,10 @@ def length_circle(p0: wp.vec2, p1: wp.vec2, ind: int, radius: float) -> float:
     Curve length.
   """
   # compute angle between 0 and pi
-  p0n, _ = math.normalize_with_norm(p0)
-  p1n, _ = math.normalize_with_norm(p1)
-
-  angle = wp.acos(wp.dot(p0n, p1n))
+  cross = p0[1] * p1[0] - p0[0] * p1[1]
+  angle = wp.atan2(wp.abs(cross), wp.dot(p0, p1))
 
   # flip if necessary
-  cross = p0[1] * p1[0] - p0[0] * p1[1]
   if (cross > 0.0 and ind != 0) or (cross < 0.0 and ind == 0):
     angle = 2.0 * wp.pi - angle
 
@@ -176,24 +177,26 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
     good1 = -wp.dot(tmp1, tmp1)
 
   # penalize for intersection
-  if is_intersect(end0, sol00, end1, sol01):
+  intersect0 = is_intersect(end0, sol00, end1, sol01)
+  if intersect0:
     good0 = -10000.0
-  if is_intersect(end0, sol10, end1, sol11):
+  intersect1 = is_intersect(end0, sol10, end1, sol11)
+  if intersect1:
     good1 = -10000.0
 
   # select the better solution
   if good0 > good1:
+    if intersect0:
+      return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
     pnt0 = sol00
     pnt1 = sol01
     ind = 0
   else:
+    if intersect1:
+      return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
     pnt0 = sol10
     pnt1 = sol11
     ind = 1
-
-  # check for intersection
-  if is_intersect(end0, pnt0, end1, pnt1):
-    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   # return curve length
   return length_circle(pnt0, pnt1, ind, radius), pnt0, pnt1
@@ -204,23 +207,21 @@ def wrap_inside(
   # In:
   end: wp.vec4,
   radius: float,
-  # TODO(team): update kernel analyzer to allow defaults
-  maxiter: int = 20,  # kernel_analyzer: ignore
-  zinit: float = 1.0 - 1.0e-7,  # kernel_analyzer: ignore
-  tolerance: float = 1.0e-6,  # kernel_analyzer: ignore
 ) -> Tuple[float, wp.vec2, wp.vec2]:
   """2D inside wrap.
 
   Args:
     end: Two 2D points.
     radius: Circle radius.
-    maxiter: Maximum number of solver iterations.
-    zinit: Initialization for solver.
-    tolerance: Solver convergence tolerance.
 
   Returns:
     0.0 if wrap else -1.0, pair of 2D wrap points.
   """
+  # algorithm parameters
+  maxiter = int(20)
+  zinit = float(1.0 - 1.0e-7)
+  tolerance = float(1.0e-6)
+
   end0 = wp.vec2(end[0], end[1])
   end1 = wp.vec2(end[2], end[3])
 
@@ -262,9 +263,12 @@ def wrap_inside(
     return 0.0, pnt, pnt
   G = wp.acos(cosG)
 
-  # init
+  # init: Newton on phi = asin(z) instead of z
   z = zinit
-  f = wp.asin(A * z) + wp.asin(B * z) - 2.0 * wp.asin(z) + G
+  phi = float(wp.static(wp.asin(wp.float64(1.0 - 1.0e-7))))
+  asin_Az = wp.asin(A * z)
+  asin_Bz = wp.asin(B * z)
+  f = asin_Az + asin_Bz - 2.0 * phi + G
 
   # make sure init is not on the other side
   if f > 0.0:
@@ -274,12 +278,11 @@ def wrap_inside(
   iter = int(0)
 
   while (iter < maxiter) and (wp.abs(f) > tolerance):
-    # derivative
+    # derivative with respect to phi
     sq_z = z * z
     df = (
-      A / wp.max(MJ_MINVAL, wp.sqrt(1.0 - sq_z * sq_A))
-      + B / wp.max(MJ_MINVAL, wp.sqrt(1.0 - sq_z * sq_B))
-      - 2.0 / wp.max(MJ_MINVAL, wp.sqrt(1.0 - sq_z))
+      wp.cos(phi) * (A / wp.max(MJ_MINVAL, wp.sqrt(1.0 - sq_z * sq_A)) + B / wp.max(MJ_MINVAL, wp.sqrt(1.0 - sq_z * sq_B)))
+      - 2.0
     )
 
     # check sign; SHOULD NOT OCCUR
@@ -287,15 +290,18 @@ def wrap_inside(
       return 0.0, pnt, pnt
 
     # new point
-    z1 = z - math.safe_div(f, df)
+    phi1 = phi - math.safe_div(f, df)
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
-    if z1 > z:
+    if phi1 > phi:
       return 0.0, pnt, pnt
 
     # update solution
-    z = z1
-    f = wp.asin(A * z) + wp.asin(B * z) - 2.0 * wp.asin(z) + G
+    phi = phi1
+    z = wp.sin(phi)
+    asin_Az = wp.asin(A * z)
+    asin_Bz = wp.asin(B * z)
+    f = asin_Az + asin_Bz - 2.0 * phi + G
 
     # exit if positive: SHOULD NOT OCCUR
     if f > tolerance:
@@ -310,10 +316,10 @@ def wrap_inside(
   # finalize: rotation by ang from vec = a or b, depending on cross(a, b) sign
   if end[0] * end[3] - end[1] * end[2] > 0.0:
     vec = end0
-    ang = wp.asin(z) - wp.asin(A * z)
+    ang = phi - asin_Az
   else:
     vec = end1
-    ang = wp.asin(z) - wp.asin(B * z)
+    ang = phi - asin_Bz
 
   vec, _ = math.normalize_with_norm(vec)
   pnt = wp.vec2(
@@ -552,6 +558,122 @@ def muscle_bias(len: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> fl
 
 
 @wp.func
+def muscle_gain_length_deriv(length: float, lmin: float, lmax: float) -> float:
+  """Derivative of muscle_gain_length w.r.t length."""
+  if (lmin > length) or (length > lmax):
+    return 0.0
+
+  a = 0.5 * (lmin + 1.0)
+  b = 0.5 * (1.0 + lmax)
+
+  if length <= a:
+    x = (length - lmin) / wp.max(MJ_MINVAL, a - lmin)
+    return x / wp.max(MJ_MINVAL, a - lmin)
+  elif length <= 1.0:
+    x = (1.0 - length) / wp.max(MJ_MINVAL, 1.0 - a)
+    return x / wp.max(MJ_MINVAL, 1.0 - a)
+  elif length <= b:
+    x = (length - 1.0) / wp.max(MJ_MINVAL, b - 1.0)
+    return -x / wp.max(MJ_MINVAL, b - 1.0)
+  else:
+    x = (lmax - length) / wp.max(MJ_MINVAL, lmax - b)
+    return -x / wp.max(MJ_MINVAL, lmax - b)
+
+
+@wp.func
+def muscle_gain_len_deriv(len: float, vel: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> float:
+  """Derivative of muscle_gain w.r.t length."""
+  range_ = wp.vec2(prm[0], prm[1])
+  force = prm[2]
+  scale = prm[3]
+  lmin = prm[4]
+  lmax = prm[5]
+  vmax = prm[6]
+  fvmax = prm[8]
+
+  if force < 0.0:
+    force = scale / wp.max(MJ_MINVAL, acc0)
+
+  L0 = (lengthrange[1] - lengthrange[0]) / wp.max(MJ_MINVAL, range_[1] - range_[0])
+  L = range_[0] + (len - lengthrange[0]) / wp.max(MJ_MINVAL, L0)
+  V = vel / wp.max(MJ_MINVAL, L0 * vmax)
+
+  dFL = muscle_gain_length_deriv(L, lmin, lmax)
+
+  y = fvmax - 1.0
+  if V <= -1.0:
+    FV = 0.0
+  elif V <= 0.0:
+    FV = (V + 1.0) * (V + 1.0)
+  elif V <= y:
+    FV = fvmax - (y - V) * (y - V) / wp.max(MJ_MINVAL, y)
+  else:
+    FV = fvmax
+
+  return -force * dFL * FV / wp.max(MJ_MINVAL, L0)
+
+
+@wp.func
+def muscle_bias_len_deriv(len: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> float:
+  """Derivative of muscle_bias w.r.t length."""
+  range_ = wp.vec2(prm[0], prm[1])
+  force = prm[2]
+  scale = prm[3]
+  lmax = prm[5]
+  fpmax = prm[7]
+
+  if force < 0.0:
+    force = scale / wp.max(MJ_MINVAL, acc0)
+
+  L0 = (lengthrange[1] - lengthrange[0]) / wp.max(MJ_MINVAL, range_[1] - range_[0])
+  L = range_[0] + (len - lengthrange[0]) / wp.max(MJ_MINVAL, L0)
+
+  b = 0.5 * (1.0 + lmax)
+  if L <= 1.0:
+    dFP = 0.0
+  elif L <= b:
+    x = (L - 1.0) / wp.max(MJ_MINVAL, b - 1.0)
+    dFP = x / wp.max(MJ_MINVAL, b - 1.0)
+  else:
+    dFP = 1.0 / wp.max(MJ_MINVAL, b - 1.0)
+
+  return -force * fpmax * dFP / wp.max(MJ_MINVAL, L0)
+
+
+@wp.func
+def muscle_gain_vel_deriv(len: float, vel: float, lengthrange: wp.vec2, acc0: float, prm: vec10) -> float:
+  """Derivative of muscle_gain w.r.t velocity."""
+  range_ = wp.vec2(prm[0], prm[1])
+  force = prm[2]
+  scale = prm[3]
+  lmin = prm[4]
+  lmax = prm[5]
+  vmax = prm[6]
+  fvmax = prm[8]
+
+  if force < 0.0:
+    force = scale / wp.max(MJ_MINVAL, acc0)
+
+  L0 = (lengthrange[1] - lengthrange[0]) / wp.max(MJ_MINVAL, range_[1] - range_[0])
+  L = range_[0] + (len - lengthrange[0]) / wp.max(MJ_MINVAL, L0)
+  V = vel / wp.max(MJ_MINVAL, L0 * vmax)
+
+  FL = muscle_gain_length(L, lmin, lmax)
+
+  y = fvmax - 1.0
+  if V <= -1.0:
+    dFV = 0.0
+  elif V <= 0.0:
+    dFV = 2.0 * V + 2.0
+  elif V <= y:
+    dFV = (-2.0 * V + 2.0 * y) / wp.max(MJ_MINVAL, y)
+  else:
+    dFV = 0.0
+
+  return -force * FL * dFV / wp.max(MJ_MINVAL, L0 * vmax)
+
+
+@wp.func
 def _sigmoid(x: float) -> float:
   """Sigmoid function over 0 <= x <= 1 using quintic polynomial."""
   if x <= 0.0:
@@ -638,6 +760,28 @@ def dcmotor_slots(dynprm: types.vec10, gainprm: types.vec10) -> types.vec6i:
     num_slots += 1
   s[5] = num_slots
   return s
+
+
+@wp.func
+def dcmotor_resistance(
+  # Data in:
+  act_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  actadr: int,
+  dynprm: types.vec10,
+  gainprm: types.vec10,
+) -> float:
+  """Compute DC motor winding resistance at operating temperature."""
+  R = gainprm[0]
+  if actadr >= 0 and dynprm[2] > 0.0:
+    slots = dcmotor_slots(dynprm, gainprm)
+    T = act_in[worldid, actadr + slots[2]]
+    alpha = gainprm[2]
+    T0 = gainprm[3]
+    Ta = dynprm[4]
+    R *= 1.0 + alpha * (T + Ta - T0)
+  return wp.max(MJ_MINVAL, R)
 
 
 @wp.func

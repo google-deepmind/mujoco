@@ -27,6 +27,8 @@
         <attribute name="inertiafromgeom" type="keyword" valid_values="false true auto" default="auto"/>
         <attribute name="inertiagrouprange" type="array" array_type="int" array_size="2" default="0 5"/>
         <attribute name="saveinertial" type="keyword" valid_values="false true"/>
+        <attribute name="savecompiled" type="keyword" valid_values="false true" default="true"/>
+        <attribute name="savecanonical" type="keyword" valid_values="false true" default="true"/>
         <attribute name="assetdir" type="basepath" path_namespace="asset" conflict_allowed="true"/>
         <attribute name="alignfree" type="keyword" valid_values="false true"/>
         <attribute name="conflict" type="keyword" valid_values="warning merge error"/>
@@ -467,6 +469,7 @@
                 <attribute name="input" type="keyword" valid_values="expmap quat"/>
                 <attribute name="velrange" type="array" array_type="float" array_size="2"/>
                 <attribute name="ffrange" type="array" array_type="float" array_size="2"/>
+                <attribute name="inheritrange" type="float"/>
                 <attribute name="dyntype" type="keyword" valid_values="none integrator filter filterexact muscle dcmotor pid user" default="none"/>
                 <attribute name="gaintype" type="keyword" valid_values="fixed affine muscle dcmotor so3 pid user" default="fixed"/>
                 <attribute name="biastype" type="keyword" valid_values="none affine muscle dcmotor so3 user" default="none"/>
@@ -864,6 +867,7 @@
             <attribute name="input" type="keyword" valid_values="expmap quat"/>
             <attribute name="velrange" type="array" array_type="float" array_size="2"/>
             <attribute name="ffrange" type="array" array_type="float" array_size="2"/>
+            <attribute name="inheritrange" type="float"/>
             <attribute name="dyntype" type="keyword" valid_values="none integrator filter filterexact muscle dcmotor pid user" default="none"/>
             <attribute name="gaintype" type="keyword" valid_values="fixed affine muscle dcmotor so3 pid user" default="fixed"/>
             <attribute name="biastype" type="keyword" valid_values="none affine muscle dcmotor so3 user" default="none"/>
@@ -1216,6 +1220,7 @@
             <attribute name="gravcomp" type="float"/>
             <attribute name="sleep" type="keyword" valid_values="auto never allowed init"/>
             <attribute name="simple" type="keyword" valid_values="false auto" default="auto"/>
+            <attribute name="fuse" type="keyword" valid_values="false auto" default="auto"/>
             <attribute name="user" type="array" array_type="float"/>
           </attributes>
           <children>
@@ -2208,6 +2213,7 @@
             <attribute name="input" type="keyword" valid_values="expmap quat"/>
             <attribute name="velrange" type="array" array_type="float" array_size="2"/>
             <attribute name="ffrange" type="array" array_type="float" array_size="2"/>
+            <attribute name="inheritrange" type="float"/>
             <attribute name="dyntype" type="keyword" valid_values="none integrator filter filterexact muscle dcmotor pid user" default="none"/>
             <attribute name="gaintype" type="keyword" valid_values="fixed affine muscle dcmotor so3 pid user" default="fixed"/>
             <attribute name="biastype" type="keyword" valid_values="none affine muscle dcmotor so3 user" default="none"/>

@@ -223,6 +223,7 @@ static const mjXDefaultEntry kDefaults_mjsActuator[] = {
   {"actdim", (int)offsetof(mjsActuator, actdim), 2, 1, 1, 0, {-1.0}},
   {"velrange", (int)offsetof(mjsActuator, velrange), 0, 2, 0, 0, {0}},
   {"ffrange", (int)offsetof(mjsActuator, ffrange), 0, 2, 0, 0, {0}},
+  {"inheritrange", (int)offsetof(mjsActuator, inheritrange), 0, 1, 0, 0, {0}},
   {"dyntype", (int)offsetof(mjsActuator, dyntype), 2, 1, 1, 0, {(double)mjDYN_NONE}},
   {"gaintype", (int)offsetof(mjsActuator, gaintype), 2, 1, 1, 0, {(double)mjGAIN_FIXED}},
   {"biastype", (int)offsetof(mjsActuator, biastype), 2, 1, 1, 0, {(double)mjBIAS_NONE}},
@@ -230,7 +231,6 @@ static const mjXDefaultEntry kDefaults_mjsActuator[] = {
   {"gainprm", (int)offsetof(mjsActuator, gainprm), 0, mjNGAIN, 1, 0, {1.0}},
   {"biasprm", (int)offsetof(mjsActuator, biasprm), 0, mjNBIAS, 0, 0, {0}},
   {"actearly", (int)offsetof(mjsActuator, actearly), 3, 1, 0, 0, {0}},
-  {"inheritrange", (int)offsetof(mjsActuator, inheritrange), 0, 1, 0, 0, {0}},
 };
 
 static const mjXDefaultEntry kDefaults_mjsBody[] = {
@@ -240,6 +240,7 @@ static const mjXDefaultEntry kDefaults_mjsBody[] = {
   {"gravcomp", (int)offsetof(mjsBody, gravcomp), 0, 1, 0, 0, {0}},
   {"sleep", (int)offsetof(mjsBody, sleep), 2, 1, 0, 0, {0}},
   {"simple", (int)offsetof(mjsBody, simple), 3, 1, 1, 0, {(double)1}},
+  {"fuse", (int)offsetof(mjsBody, fuse), 3, 1, 1, 0, {(double)1}},
   {"pos", (int)offsetof(mjsBody, ipos), 0, 3, 0, 1, {0}},
   {"quat", (int)offsetof(mjsBody, iquat), 0, 4, 4, 0, {1.0, 0.0, 0.0, 0.0}},
   {"mass", (int)offsetof(mjsBody, mass), 0, 1, 0, 0, {0}},
@@ -276,6 +277,8 @@ static const mjXDefaultEntry kDefaults_mjsCompiler[] = {
   {"inertiafromgeom", (int)offsetof(mjsCompiler, inertiafromgeom), 2, 1, 1, 0, {(double)2}},
   {"inertiagrouprange", (int)offsetof(mjsCompiler, inertiagrouprange), 2, 2, 2, 0, {0.0, 5.0}},
   {"saveinertial", (int)offsetof(mjsCompiler, saveinertial), 3, 1, 0, 0, {0}},
+  {"savecompiled", (int)offsetof(mjsCompiler, savecompiled), 3, 1, 1, 0, {1}},
+  {"savecanonical", (int)offsetof(mjsCompiler, savecanonical), 3, 1, 1, 0, {1}},
   {"alignfree", (int)offsetof(mjsCompiler, alignfree), 3, 1, 0, 0, {0}},
   {"conflict", (int)offsetof(mjsCompiler, conflict), 2, 1, 0, 0, {0}},
 };

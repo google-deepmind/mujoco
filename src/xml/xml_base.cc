@@ -52,6 +52,9 @@ void mjXBase::SetModel(mjSpec* _model, const mjModel* m) {
 int mjXBase::ReadAlternative(XMLElement* elem, mjsOrientation& alt) {
   string text;
   int    numspec = (int)(elem->Attribute("quat") != 0);
+
+  // a quaternion replaces an alternative which the element has from its default class
+  if (numspec) { alt.type = mjORIENTATION_QUAT; }
   if (ReadAttr(elem, "axisangle", 4, alt.axisangle, text)) {
     numspec++;
     alt.type = mjORIENTATION_AXISANGLE;

@@ -38,6 +38,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import primitiv
 from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf_narrowphase as sdf_narrowphase
 from mujoco.mjx.third_party.mujoco_warp._src.constraint import make_constraint as make_constraint
 from mujoco.mjx.third_party.mujoco_warp._src.derivative import deriv_smooth_vel as deriv_smooth_vel
+from mujoco.mjx.third_party.mujoco_warp._src.forward import discrete as discrete
 from mujoco.mjx.third_party.mujoco_warp._src.forward import euler as euler
 from mujoco.mjx.third_party.mujoco_warp._src.forward import forward as forward
 from mujoco.mjx.third_party.mujoco_warp._src.forward import fwd_acceleration as fwd_acceleration

@@ -5,40 +5,191 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+Engine
+^^^^^^
+- Corrected the shear contribution to solid and membrane stiffness for interpolated flexes, and the three-point Gauss
+  quadrature used by quadratic flexes. Material parameters now produce the standard isotropic linear-elastic stiffness;
+  existing models using these flexes can change behavior.
+- Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
+  wrapping near wrap onset and for inside wrapping. Thanks to :github:user:`M-Colley` for reporting and analyzing the
+  issues in :doc:`MJWarp <mjwarp/index>` issues `1713 <https://github.com/google-deepmind/mujoco_warp/issues/1713>`__
+  and `1714 <https://github.com/google-deepmind/mujoco_warp/issues/1714>`__.
+
+Compiler
+^^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :ref:`mj_copyBack` and :ref:`mj_saveLastXML` now fail, with an error which names the element, if a value was
+     changed in the model which the spec cannot express, for example the mass of a body when
+     :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true". Nothing is copied or saved then; previously such a
+     change was left out of the saved file without notice. :ref:`mj_saveLastXML` also fails if it is given a model
+     which was not compiled from the XML that was loaded last, and a save which fails no longer empties the file.
+
+     **Migration:** Undo the change in the model, or change what makes it inexpressible, as listed for
+     :ref:`mj_copyBack`.
+
+   - :ref:`Keyframes<keyframe>` in MJCF are no longer copied by :ref:`replicate<replicate>`: a keyframe describes the
+     model with all replicas in place, as in a model without replicates. Previously each replica received a copy of
+     every keyframe, setting only the joints of that replica, and a keyframe written for the complete model failed to
+     load (:issue:`3071`, reported by :github:user:`eholum-nasa`).
+
+     **Migration:** Write the vectors of a keyframe for the complete model. A keyframe which was written for a single
+     replica still loads, as one keyframe whose vectors are completed with the default configuration.
+
+   - An asset added to an :ref:`mjSpec` through the API is no longer named after its ``file`` when the spec is
+     compiled. A mesh, height field or texture which is left without a name is now a compilation error, as it already
+     was for one without a file. MJCF is unaffected: the XML parser still names assets after their files.
+
+     **Migration:** Name the asset when adding it, e.g. ``spec.add_mesh(name='link', file='link.stl')`` in Python or
+     :ref:`mjs_setName` in C.
+
+   - With :ref:`inertiafromgeom<compiler-inertiafromgeom>` "true", :ref:`discardvisual<compiler-discardvisual>` is now
+     a compilation error if a geom which it discards has mass. Previously the first compilation kept the inertia of
+     the discarded geoms, while compiling the same spec again, or saving it and loading the file, dropped it.
+
+     **Migration:** Use ``inertiafromgeom="auto"``, the default, under which the inertia is kept as an explicit
+     :ref:`inertial<body-inertial>`, or give the visual geoms zero mass.
+
+- Added the compiler attributes :ref:`savecompiled<compiler-savecompiled>` and
+  :ref:`savecanonical<compiler-savecanonical>`, which say how a model is saved as MJCF. With ``savecompiled`` "false"
+  a model is saved as it is written in the :ref:`mjSpec` rather than as compilation made it: with its default
+  classes, frames and notation, and with every number exactly, so that the file which is read back is the same spec.
+  It compiles to the same model, and the spec need not have been compiled. ``savecanonical`` "true" saves
+  orientations, angles and sizes in one notation instead of the one in which they were written; see
+  :ref:`Model Encoding & Saving <meSaving>`. Both attributes are "true" by default, which saves a model as before.
+- :ref:`mj_copyBack` now writes what was changed in the model to the :ref:`mjSpec` itself, as documented, so that
+  the changes are in the spec and in the models which are compiled from it afterwards. Previously it wrote to a copy
+  which is only read when the spec is saved. Only the values which were changed are written, each as what compiles to
+  it, so that everything else in the spec stays as it was written.
+- Added :ref:`mjs_fuseStatic`, which fuses the static bodies of an :ref:`mjSpec` with their parents as an operation on
+  the spec: each fused body becomes a frame in its parent. The :ref:`fusestatic<compiler-fusestatic>` compiler option
+  now applies it and then compiles; previously it fused inside compilation and left the spec inconsistent with the
+  model. Static bodies whose fusing would change the forces on the model (a plugin, a sleep policy, another gravcomp,
+  a fluid), or which a flex or skin refers to, are now kept, and cameras and lights are no longer misplaced.
+- Added the :ref:`fuse<body-fuse>` body attribute: "false" keeps a static body when static bodies are fused.
+- Added :ref:`mjs_discardVisual`, which discards the visual elements of an :ref:`mjSpec` as an operation on the spec.
+  The :ref:`discardvisual<compiler-discardvisual>` compiler option now applies it and then compiles; previously it
+  discarded inside compilation and left references to what it discarded in the spec, so that some models failed to
+  compile. Visual meshes are no longer loaded unless body inertia is inferred from them, and geoms which use the
+  ellipsoid :ref:`fluid model<body-geom-fluidshape>` are kept.
+- Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
+  the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
+- The :ref:`settotalmass<compiler-settotalmass>` compiler attribute is deprecated and will be removed in a future
+  release. It still scales the masses, and compiling a model which sets it now gives a warning.
+
+  **Migration:** Scale the masses and densities in the model, or call :ref:`mj_setTotalmass` on the compiled model,
+  followed by :ref:`mj_setConst`.
+
+Bug fixes
+^^^^^^^^^
+- Compiling an :ref:`mjSpec` no longer reorders its contact :ref:`pairs<contact-pair>` and
+  :ref:`excludes<contact-exclude>`, writes into authored fields such as the data of a texture, or keeps a reference
+  which was removed from the spec since the last compilation, such as the material of a geom.
+- :ref:`mjs_findElement` now finds an element which was added or renamed after the spec was compiled, and no longer
+  returns a different element than the one named for contact pairs and excludes, or after compiling with
+  :ref:`discardvisual<compiler-discardvisual>`.
+- :ref:`fusestatic<compiler-fusestatic>` no longer binds elements which refer by name to a geom, site, camera or
+  light to a different one, and no longer leaves static bodies unfused when another body is referenced by name.
+- :ref:`Keyframes<keyframe>` of an :ref:`mjSpec` now keep their place and their values when its kinematic tree
+  changes (:ref:`mjs_delete`, :ref:`mjs_attach`) and when the spec is copied; previously the next compilation
+  created them again, and values were lost or misplaced in several cases. A vector which is shorter than the model
+  is completed with the default configuration of the compiled model.
+- Fixed attaching by reference, the default of :ref:`mjs_attach`: :ref:`mj_recompile` gave the attached elements
+  the state of other elements of the parent, and attaching another body or frame of the same model failed or left
+  out the elements which refer to it. Attaching what the parent already has is now an error.
+- A copy of a compiled :ref:`mjSpec` made with :ref:`mj_copySpec` now holds what the compilation gave the original:
+  saving it no longer crashes, and :ref:`mj_recompile` with the model and data of the original keeps their state.
+- :ref:`mjs_bodyToFrame` no longer loses inertia which is inferred from geoms when only one of the two bodies has
+  an explicit inertial.
+- :ref:`mjs_delete` now deletes a :ref:`plugin instance<plugin-instance>` together with the last element that
+  references it, and keeps it otherwise. Previously a deletion could fail, leave an unused instance behind or free
+  one which was still referenced, so that the next compilation failed or crashed.
+- :ref:`mj_copyBack` and :ref:`mj_saveLastXML` no longer lose a change to the reference pose of a free joint in
+  ``mjModel.qpos0``, or write out of bounds for a :ref:`numeric<custom-numeric>` which has less data than its
+  ``size``.
+- :ref:`mj_saveXML` and :ref:`mj_saveXMLString` now save the compiled values of an :ref:`mjSpec` as
+  :ref:`mj_saveLastXML` does, including those which are computed at the end of compilation, such as the damping
+  which :ref:`dampratio<actuator-position-dampratio>` gives, and no longer lose the scaling of
+  :ref:`settotalmass<compiler-settotalmass>`.
+- The ``quat`` of a geom, site or camera is no longer ignored when its :ref:`default class<default>` gives an
+  orientation as ``euler``, ``axisangle``, ``xyaxes`` or ``zaxis``.
+- Saving MJCF no longer changes or loses the following: the order of the elements of a body which has
+  :ref:`frames<frame>`, which gave the saved model other ids; ``class="main"`` inside another ``childclass``; the
+  :ref:`nchannel<asset-texture-nchannel>` of a texture; the names of energy sensors, which could not be loaded;
+  ``inertiafromgeom="false"``, and the inertia of the bodies of an attached model which has another
+  ``inertiafromgeom``; the frame of the :ref:`surfacevel<body-geom-surfacevel>` of mesh geoms; the precision of
+  mesh, flex, skin and height field data; and the empty cells of a :ref:`flexcomp<body-flexcomp>` with trilinear or
+  quadratic dofs.
+- Saving the compiled values of an :ref:`mjSpec` which was structurally edited since it was compiled (elements
+  added, deleted or attached) is now an error until it is compiled again; it used to crash or save wrong values. A
+  spec which is saved as it is written needs no compilation.
+
+Actuation
+^^^^^^^^^
+- Added the :ref:`inheritrange<actuator-general-inheritrange>` attribute to the :ref:`general<actuator-general>`
+  actuator, which so far only the :ref:`position<actuator-position>`, :ref:`intvelocity<actuator-intvelocity>` and
+  :ref:`pid<actuator-pid>` shortcuts had.
+
+Python bindings
+^^^^^^^^^^^^^^^
+- Added ``MjSpec.copy_back(model)``, which writes to the spec what was changed in a model compiled from it; see
+  :ref:`mj_copyBack`.
+
+Models
+^^^^^^
+- Added three `elastic mechanism <https://github.com/google-deepmind/mujoco/tree/main/model/flex/mechanisms/>`__
+  example models using multicell trilinear flexes: a cantilever material comparison, an elastic slider-crank, and a
+  tendon-loaded dipper arm. Inspired by `Miles Macklin's Reduced Elastic Links experiments
+  <https://reports.mmacklin.com/newton-reduced/reduced_elastic_links_implementation.html>`__.
+
+Documentation
+^^^^^^^^^^^^^
+- The :ref:`XML reference<CDimension>` now gives the physical dimension of every real-valued attribute, declared in the
+  MJCF schema.
+
+Version 3.15.0 (October 5, 2026)
+--------------------------------
+
 General
 ^^^^^^^
-- :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
-- Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now resolve correctly in
-  :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses ``..``, or uses a URI
-  scheme.
+1. :commit:`1aa68e1ca` :ref:`.mjz <MJZArchives>` archives written on Windows now always use ``/`` separators.
+2. :commit:`1aa68e1ca` Assets in a :ref:`meshdir<compiler-meshdir>` or :ref:`texturedir<compiler-texturedir>` now
+   resolve correctly in :ref:`.mjz <MJZArchives>` archives when rewritten or when the directory path is absolute, uses
+   ``..``, or uses a URI scheme.
 
 Engine
 ^^^^^^
 .. admonition:: Breaking API changes
    :class: attention
 
-   - Actuator :ref:`dampratio<actuator-position-dampratio>` now computes the reflected inertia :math:`m` at
-     ``mjModel.qpos0`` as the operational-space inertia :math:`(J M^{-1} J^T)^{-1}` (averaged across force outputs for
-     multi-output actuators such as :ref:`orientation<actuator-orientation>`), rather than summing
-     :math:`\text{dof\_M0}_j / J_j^2` across degrees of freedom. This accounts for tendon and actuator armature as well
-     as off-diagonal inertial coupling, and avoids extreme damping values when a multi-DOF transmission has small
-     Jacobian entries. In practice, actuators using ``dampratio`` on multi-link kinematic chains may exhibit lower
-     damping than before, while actuators driving tendons or sites that span multiple joints will be damped much more
-     accurately instead of being overdamped.
+   3. :commit:`b3dd9e617` Actuator :ref:`dampratio<actuator-position-dampratio>` now computes the reflected inertia
+      :math:`m` at ``mjModel.qpos0`` as the operational-space inertia :math:`(J M^{-1} J^T)^{-1}` (averaged across force
+      outputs for multi-output actuators such as :ref:`orientation<actuator-orientation>`), rather than summing
+      :math:`\text{dof\_M0}_j / J_j^2` across degrees of freedom. This accounts for tendon and actuator armature as well
+      as off-diagonal inertial coupling, and avoids extreme damping values when a multi-DOF transmission has small
+      Jacobian entries. In practice, actuators using ``dampratio`` on multi-link kinematic chains may exhibit lower
+      damping than before, while actuators driving tendons or sites that span multiple joints will be damped much more
+      accurately instead of being overdamped.
 
-   - Removed the deprecated ``internal`` flex collision option and associated ``evpair`` structures.
+   4. :commit:`5023a4a50` Removed the deprecated ``internal`` flex collision option and associated ``evpair``
+      structures.
 
-- Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes, enabled only through
-  ``mjsFlex.elastic3d = 1``. It projects the material Hessian to positive semidefiniteness for the solver and Rayleigh
-  damping, and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
-  SNH requires the discrete integrator. The setting is not available in MJCF.
-- The cached flex bending factor now retains cross-coordinate couplings between differently oriented vertex bodies.
-- Flex bending and stretching now include the motion and reaction forces of articulated vertex attachments. The discrete
-  integrator supports these attachments with the CG solver; fixed and independent XYZ-slide attachments retain their
-  optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
-- Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
-- Added the :ref:`enclosed<sensor-insidesite-enclosed>` attribute to :ref:`insidesite<sensor-insidesite>` sensors,
-  measuring how much an object juts out of a site (using directed Hausdorff distance) and reporting signed clearance/protrusion.
+5. :commit:`1b973add4` Added experimental simplified Stable Neo-Hookean elasticity for non-interpolated 3D flexes,
+   enabled only through ``mjsFlex.elastic3d = 1``. It projects the material Hessian to positive semidefiniteness for the
+   solver and Rayleigh damping, and preserves the Saint Venant-Kirchhoff (StVK) default (``0``).
+   SNH requires the discrete integrator. The setting is not available in MJCF.
+6. :commit:`2742de438` The cached flex bending factor now retains cross-coordinate couplings between differently
+   oriented vertex bodies.
+7. :commit:`eed008905` Flex bending and stretching now include the motion and reaction forces of articulated vertex
+   attachments. The discrete integrator supports these attachments with the CG solver; fixed and independent XYZ-slide
+   attachments retain their optimized assembly. Elastic flexes attached to mocap bodies produce a compiler error.
+8. :commit:`6224e95f6` Added single-shot :ref:`multicontact<coMultiCCD>` for collisions with capsule geoms.
+9. :commit:`ebfb4662d` Added the :ref:`enclosed<sensor-insidesite-enclosed>` attribute to
+   :ref:`insidesite<sensor-insidesite>` sensors, measuring how much an object juts out of a site (using directed
+   Hausdorff distance) and reporting signed clearance/protrusion.
+10. :commit:`f80ef4244` Fixed 64-bit model size narrowing in binary MJB serialization: :ref:`mj_saveModel` and
+    :ref:`mj_loadModelBuffer` now accept :ref:`mjtSize` for ``buffer_sz``, supporting models larger than 2 GiB.
 
 Version 3.14.0 (September 22, 2026)
 -----------------------------------
@@ -2387,7 +2538,7 @@ New features
    The :ref:`flexcomp<body-flexcomp>` element, similar to :ref:`composite<body-composite>` is a convenience macro for
    creating deformables, and supports the GMSH tetrahedral file format.
 
-   - Added `shell <https://github.com/deepmind/mujoco/blob/main/plugin/elasticity/shell.cc>`__ passive force plugin,
+   - Added `shell <https://github.com/google-deepmind/mujoco/blob/45fc15b8447b56d3e6f12d3a158e2bc0d4d30dc8/plugin/elasticity/shell.cc>`__ passive force plugin,
      computing bending forces using a constant precomputed Hessian (cotangent operator).
 
    **Note**: This feature is still under development and subject to change. In particular, deformable object
@@ -2986,12 +3137,12 @@ General
    `engine_forward_test.cc <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_forward_test.cc>`__.
 #. :commit:`3b89b0fd` Improved particle :ref:`composite<body-composite>` type, which now permits a user-specified
    geometry and multiple joints. See the two new examples:
-   `particle_free.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free.xml>`__ and
-   `particle_free2d.xml <https://github.com/google-deepmind/mujoco/blob/main/model/composite/particle_free2d.xml>`__.
+   `particle_free.xml <https://github.com/google-deepmind/mujoco/blob/0fcd20f0da67ede7b16ef7e439a28be67505a037/model/composite/particle_free.xml>`__ and
+   `particle_free2d.xml <https://github.com/google-deepmind/mujoco/blob/0fcd20f0da67ede7b16ef7e439a28be67505a037/model/composite/particle_free2d.xml>`__.
 #. :commit:`7b0fbc63` Performance improvements for non-AVX configurations:
 
    - 14% faster ``mj_solveLD`` using `restrict <https://en.wikipedia.org/wiki/Restrict>`__. See `engine_core_smooth_benchmark_test
-     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_core_smooth_benchmark_test.cc>`__.
+     <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/solveLD_benchmark_test.cc>`__.
    - 50% faster ``mju_dotSparse`` using manual loop unroll. See `engine_util_sparse_benchmark_test
      <https://github.com/google-deepmind/mujoco/blob/main/test/benchmark/engine_util_sparse_benchmark_test.cc>`__.
 #. :commit:`d0b1a973` Added new :at:`solid` passive force plugin:

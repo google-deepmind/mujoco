@@ -89,6 +89,7 @@ def _contact_kbimp(
   solref: wp.vec2,
   solimp: vec5,
   pos_imp: float,
+  is_discrete: bool,
 ) -> wp.vec3:
   """Computes the constraint (k, b, impedance) from solref/solimp at impedance position pos_imp."""
   timeconst = solref[0]
@@ -100,7 +101,7 @@ def _contact_kbimp(
   mid = solimp[3]
   power = solimp[4]
 
-  if not (opt_disableflags & DisableBit.REFSAFE):
+  if not (opt_disableflags & DisableBit.REFSAFE) and not is_discrete:
     timeconst = wp.max(timeconst, 2.0 * timestep)
 
   dmin = wp.clamp(dmin, types.MJ_MINIMP, types.MJ_MAXIMP)
@@ -166,6 +167,8 @@ def _efc_row(
   frictionloss: float,
   type: int,
   id: int,
+  is_discrete: bool,
+  aref_shift: float,
   # Out:
   type_out: wp.array2d[int],
   id_out: wp.array2d[int],
@@ -177,15 +180,43 @@ def _efc_row(
   frictionloss_out: wp.array2d[float],
 ):
   # calculate kbi
-  kbimp = _contact_kbimp(opt_disableflags, timestep, solref, solimp, pos_imp)
-  k = kbimp[0]
+  kbimp = _contact_kbimp(opt_disableflags, timestep, solref, solimp, pos_imp, is_discrete)
+  k = 0.0 if (type == ConstraintType.FRICTION_DOF or type == ConstraintType.FRICTION_TENDON) else kbimp[0]
   b = kbimp[1]
   imp = kbimp[2]
 
-  # set outputs
-  D_out[worldid, efcid] = _efc_D(invweight, imp)
+  if is_discrete:
+    timestep_sq = timestep * timestep
+    # discrete refsafe: a contact or limit row whose spring the step cannot resolve (h^2*K*I > 1)
+    if (
+      not (opt_disableflags & DisableBit.REFSAFE)
+      and solref[0] > 0.0
+      and k > 0.0
+      and (
+        type == ConstraintType.LIMIT_JOINT
+        or type == ConstraintType.LIMIT_TENDON
+        or type == ConstraintType.CONTACT_FRICTIONLESS
+        or type == ConstraintType.CONTACT_PYRAMIDAL
+        or type == ConstraintType.CONTACT_ELLIPTIC
+      )
+    ):
+      excess = timestep_sq * k * imp
+      if excess > 1.0:
+        fmax = math.safe_div(types.MJ_MAXIMP * (1.0 - imp), imp * (1.0 - types.MJ_MAXIMP))
+        k = 1.0 / (timestep_sq * imp)
+        b = wp.min(b / wp.sqrt(excess), wp.max(0.0, fmax - 2.0) / timestep)
+
+    f = 1.0 + timestep * b + timestep_sq * k * imp
+    R0 = wp.max(types.MJ_MINVAL, (1.0 - imp) * invweight / imp)
+    Rmin = wp.max(types.MJ_MINVAL, (1.0 - types.MJ_MAXIMP) * invweight / types.MJ_MAXIMP)
+    R = wp.max(R0 / f, Rmin)
+    D_out[worldid, efcid] = 1.0 / R
+    aref_out[worldid, efcid] = (-k * imp * pos_aref - (b + timestep * k * imp) * vel - aref_shift) / f
+  else:
+    D_out[worldid, efcid] = _efc_D(invweight, imp)
+    aref_out[worldid, efcid] = -k * imp * pos_aref - b * vel - aref_shift
+
   vel_out[worldid, efcid] = vel
-  aref_out[worldid, efcid] = -k * imp * pos_aref - b * vel
   pos_out[worldid, efcid] = pos_aref + margin
   margin_out[worldid, efcid] = margin
   frictionloss_out[worldid, efcid] = frictionloss
@@ -194,7 +225,7 @@ def _efc_row(
 
 
 @cache_kernel
-def _equality_connect(is_sparse: bool, newton: bool):
+def _equality_connect(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -522,6 +553,8 @@ def _equality_connect(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.EQUALITY,
         eqid,
+        is_discrete,
+        Jdotv[i],
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -532,13 +565,11 @@ def _equality_connect(is_sparse: bool, newton: bool):
         efc_frictionloss_out,
       )
 
-      efc_aref_out[worldid, efcidi] -= Jdotv[i]
-
   return kernel
 
 
 @cache_kernel
-def _equality_joint(is_sparse: bool, newton: bool):
+def _equality_joint(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -666,6 +697,8 @@ def _equality_joint(is_sparse: bool, newton: bool):
       0.0,
       ConstraintType.EQUALITY,
       eqid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -680,7 +713,7 @@ def _equality_joint(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _equality_tendon(is_sparse: bool, newton: bool):
+def _equality_tendon(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -855,6 +888,8 @@ def _equality_tendon(is_sparse: bool, newton: bool):
       0.0,
       ConstraintType.EQUALITY,
       eqid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -869,7 +904,7 @@ def _equality_tendon(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _equality_flex(is_sparse: bool, newton: bool):
+def _equality_flex(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -881,6 +916,7 @@ def _equality_flex(is_sparse: bool, newton: bool):
     flex_edgenum: wp.array[int],
     flexedge_length0: wp.array[float],
     flexedge_invweight0: wp.array[float],
+    flexedge_rigid: wp.array[bool],
     flexedge_J_rownnz: wp.array[int],
     flexedge_J_rowadr: wp.array[int],
     flexedge_J_colind: wp.array[int],
@@ -929,6 +965,9 @@ def _equality_flex(is_sparse: bool, newton: bool):
       return
 
     if edgeid < flex_edgeadr[flexid] or edgeid >= flex_edgeadr[flexid] + flex_edgenum[flexid]:
+      return
+
+    if flexedge_rigid[edgeid]:
       return
 
     wp.atomic_add(ne_out, worldid, 1)
@@ -990,6 +1029,8 @@ def _equality_flex(is_sparse: bool, newton: bool):
       0.0,
       ConstraintType.EQUALITY,
       eqid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -1004,7 +1045,7 @@ def _equality_flex(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _equality_weld(is_sparse: bool, newton: bool):
+def _equality_weld(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -1435,6 +1476,8 @@ def _equality_weld(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.EQUALITY,
         eqid,
+        is_discrete,
+        Jdotv_p[i],
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -1444,8 +1487,6 @@ def _equality_weld(is_sparse: bool, newton: bool):
         efc_aref_out,
         efc_frictionloss_out,
       )
-
-      efc_aref_out[worldid, efcid + i] -= Jdotv_p[i]
 
     invweight_r = body_invweight0[body_invweight0_id, body1][1] + body_invweight0[body_invweight0_id, body2][1]
 
@@ -1465,6 +1506,8 @@ def _equality_weld(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.EQUALITY,
         eqid,
+        is_discrete,
+        Jdotv_r[i],
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -1475,13 +1518,11 @@ def _equality_weld(is_sparse: bool, newton: bool):
         efc_frictionloss_out,
       )
 
-      efc_aref_out[worldid, efcid + 3 + i] -= Jdotv_r[i]
-
   return kernel
 
 
 @cache_kernel
-def _equality_flexstrain(is_sparse: bool, newton: bool):
+def _equality_flexstrain(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -1790,6 +1831,8 @@ def _equality_flexstrain(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.EQUALITY,
         eqid,
+        is_discrete,
+        0.0,
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -1804,7 +1847,7 @@ def _equality_flexstrain(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _friction_dof(is_sparse: bool, newton: bool):
+def _friction_dof(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -1891,6 +1934,8 @@ def _friction_dof(is_sparse: bool, newton: bool):
       dof_frictionloss[dof_frictionloss_id, dofid],
       ConstraintType.FRICTION_DOF,
       dofid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -1905,7 +1950,7 @@ def _friction_dof(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _friction_tendon(is_sparse: bool, newton: bool):
+def _friction_tendon(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -2015,6 +2060,8 @@ def _friction_tendon(is_sparse: bool, newton: bool):
       frictionloss,
       ConstraintType.FRICTION_TENDON,
       tenid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -2029,7 +2076,7 @@ def _friction_tendon(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _limit_slide_hinge(is_sparse: bool, newton: bool):
+def _limit_slide_hinge(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -2131,6 +2178,8 @@ def _limit_slide_hinge(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.LIMIT_JOINT,
         jntid,
+        is_discrete,
+        0.0,
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -2145,7 +2194,7 @@ def _limit_slide_hinge(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _limit_ball(is_sparse: bool, newton: bool):
+def _limit_ball(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -2267,6 +2316,8 @@ def _limit_ball(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.LIMIT_JOINT,
         jntid,
+        is_discrete,
+        0.0,
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -2281,7 +2332,7 @@ def _limit_ball(is_sparse: bool, newton: bool):
 
 
 @cache_kernel
-def _limit_tendon(is_sparse: bool, newton: bool):
+def _limit_tendon(is_sparse: bool, newton: bool, is_discrete: bool = False):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def kernel(
     # Model:
@@ -2400,6 +2451,8 @@ def _limit_tendon(is_sparse: bool, newton: bool):
         0.0,
         ConstraintType.LIMIT_TENDON,
         tenid,
+        is_discrete,
+        0.0,
         efc_type_out,
         efc_id_out,
         efc_pos_out,
@@ -2514,14 +2567,38 @@ def _get_contact_bodies_and_weights(
     # Normalize weights so they sum to 1.0
     w_sum = weights[0] + weights[1] + weights[2] + weights[3]
     if w_sum > 1.0e-5:
-      weights = wp.vec4(weights[0] / w_sum, weights[1] / w_sum, weights[2] / w_sum, weights[3] / w_sum)
+      w_sum_inv = 1.0 / w_sum
+      weights = wp.vec4(weights[0] * w_sum_inv, weights[1] * w_sum_inv, weights[2] * w_sum_inv, weights[3] * w_sum_inv)
 
     return body_ids, weights
 
-  # Element contact: Retrieve local vertices
   dim = flex_dim[flex_id]
 
-  if dim == 2:
+  if dim == 1:
+    elem_data_start = flex_elemdataadr[flex_id] + elem_id * 2
+    v0 = flex_elem[elem_data_start + 0]
+    v1 = flex_elem[elem_data_start + 1]
+
+    x0 = flexvert_xpos_in[worldid, flex_vert_start + v0]
+    x1 = flexvert_xpos_in[worldid, flex_vert_start + v1]
+
+    d0 = wp.length(con_pos - x0)
+    d1 = wp.length(con_pos - x1)
+
+    w0 = math.safe_div(1.0, d0)
+    w1 = math.safe_div(1.0, d1)
+
+    w_sum = w0 + w1
+    w_sum_inv = 1.0 / w_sum
+    w0 = w0 * w_sum_inv
+    w1 = w1 * w_sum_inv
+
+    b0 = flex_vertbodyid[flex_vert_start + v0]
+    b1 = flex_vertbodyid[flex_vert_start + v1]
+
+    return wp.vec4i(b0, b1, -1, -1), wp.vec4(w0, w1, 0.0, 0.0)
+
+  elif dim == 2:
     elem_data_start = flex_elemdataadr[flex_id] + elem_id * 3
     v0 = flex_elem[elem_data_start + 0]
     v1 = flex_elem[elem_data_start + 1]
@@ -2535,14 +2612,15 @@ def _get_contact_bodies_and_weights(
     d1 = wp.length(con_pos - x1)
     d2 = wp.length(con_pos - x2)
 
-    w0 = 1.0 / wp.max(types.MJ_MINVAL, d0)
-    w1 = 1.0 / wp.max(types.MJ_MINVAL, d1)
-    w2 = 1.0 / wp.max(types.MJ_MINVAL, d2)
+    w0 = math.safe_div(1.0, d0)
+    w1 = math.safe_div(1.0, d1)
+    w2 = math.safe_div(1.0, d2)
 
     w_sum = w0 + w1 + w2
-    w0 = w0 / w_sum
-    w1 = w1 / w_sum
-    w2 = w2 / w_sum
+    w_sum_inv = 1.0 / w_sum
+    w0 = w0 * w_sum_inv
+    w1 = w1 * w_sum_inv
+    w2 = w2 * w_sum_inv
 
     b0 = flex_vertbodyid[flex_vert_start + v0]
     b1 = flex_vertbodyid[flex_vert_start + v1]
@@ -2567,16 +2645,17 @@ def _get_contact_bodies_and_weights(
     d2 = wp.length(con_pos - x2)
     d3 = wp.length(con_pos - x3)
 
-    w0 = 1.0 / wp.max(types.MJ_MINVAL, d0)
-    w1 = 1.0 / wp.max(types.MJ_MINVAL, d1)
-    w2 = 1.0 / wp.max(types.MJ_MINVAL, d2)
-    w3 = 1.0 / wp.max(types.MJ_MINVAL, d3)
+    w0 = math.safe_div(1.0, d0)
+    w1 = math.safe_div(1.0, d1)
+    w2 = math.safe_div(1.0, d2)
+    w3 = math.safe_div(1.0, d3)
 
     w_sum = w0 + w1 + w2 + w3
-    w0 = w0 / w_sum
-    w1 = w1 / w_sum
-    w2 = w2 / w_sum
-    w3 = w3 / w_sum
+    w_sum_inv = 1.0 / w_sum
+    w0 = w0 * w_sum_inv
+    w1 = w1 * w_sum_inv
+    w2 = w2 * w_sum_inv
+    w3 = w3 * w_sum_inv
 
     b0 = flex_vertbodyid[flex_vert_start + v0]
     if b0 >= 0:
@@ -2862,12 +2941,12 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
 
     condim = condim_in[conid]
 
+    geom = geom_in[conid]
     includemargin = includemargin_in[conid]
     pos = dist_in[conid] - includemargin
+    active = pos < 0.0
     if wp.static(flg_adhesion):
-      active = (pos < 0.0) or (adhesion_in[conid] != 0.0)
-    else:
-      active = pos < 0.0
+      active = active or (adhesion_in[conid] != 0.0)
 
     if not active:
       return
@@ -4236,7 +4315,7 @@ def _efc_contact_jac_dense_flex(tile_size: int, cone_type: types.ConeType):
 
 
 @cache_kernel
-def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
+def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool, is_discrete: bool = False):
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
 
   @wp.kernel(module="unique", enable_backward=False, grid_stride=True)
@@ -4312,6 +4391,7 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
     body_invweight0_id = worldid % body_invweight0.shape[0]
     invweight = body_invweight0[body_invweight0_id, body1][0] + body_invweight0[body_invweight0_id, body2][0]
 
+    invweight_scale = 1.0
     ref = solref_in[conid]
     pos_aref = pos
 
@@ -4323,14 +4403,14 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
         if solreffriction[0] or solreffriction[1]:
           ref = solreffriction
 
-        invweight = invweight * impratio_invsqrt * impratio_invsqrt
+        invweight_scale = impratio_invsqrt * impratio_invsqrt
         friction = friction_in[conid]
 
         if dimid > 1:
           fri0 = friction[0]
           frii = friction[dimid - 1]
           fri = fri0 * fri0 / (frii * frii)
-          invweight *= fri
+          invweight_scale *= fri
 
         pos_aref = 0.0
     else:
@@ -4355,13 +4435,15 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
       pos_aref,
       pos,
       invweight,
-      ref,
+      solref_in[conid],
       solimp_in[conid],
       includemargin,
       Jqvel,
       0.0,
       efc_type,
       conid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -4371,6 +4453,15 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
       efc_aref_out,
       efc_frictionloss_out,
     )
+
+    if wp.static(IS_ELLIPTIC):
+      if dimid > 0:
+        # Preserve elliptic friction ratios after _efc_row floors normal regularization.
+        efc_D_out[worldid, efcid] /= invweight_scale
+
+        b_fri = _contact_kbimp(opt_disableflags, timestep, ref, solimp_in[conid], pos, is_discrete)[1]
+        f_fri = 1.0 + timestep * b_fri if is_discrete else 1.0
+        efc_aref_out[worldid, efcid] = -b_fri * Jqvel / f_fri
 
     if wp.static(flg_adhesion):
       if adhesion_in[conid] != 0.0 and (dimid == 0 or not wp.static(IS_ELLIPTIC)):
@@ -4385,7 +4476,7 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool):
 
 
 @cache_kernel
-def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = False):
+def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = False, is_discrete: bool = False):
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
 
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
@@ -4743,6 +4834,7 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
 
     invweight = invweight1 + invweight2
 
+    invweight_scale = 1.0
     ref = solref_in[conid]
     pos_aref = pos
 
@@ -4754,14 +4846,14 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
         if solreffriction[0] or solreffriction[1]:
           ref = solreffriction
 
-        invweight = invweight * impratio_invsqrt * impratio_invsqrt
+        invweight_scale = impratio_invsqrt * impratio_invsqrt
         friction = friction_in[conid]
 
         if dimid > 1:
           fri0 = friction[0]
           frii = friction[dimid - 1]
           fri = fri0 * fri0 / (frii * frii)
-          invweight *= fri
+          invweight_scale *= fri
 
         pos_aref = 0.0
     else:
@@ -4786,13 +4878,15 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
       pos_aref,
       pos,
       invweight,
-      ref,
+      solref_in[conid],
       solimp_in[conid],
       includemargin,
       Jqvel,
       0.0,
       efc_type,
       conid,
+      is_discrete,
+      0.0,
       efc_type_out,
       efc_id_out,
       efc_pos_out,
@@ -4802,6 +4896,15 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
       efc_aref_out,
       efc_frictionloss_out,
     )
+
+    if wp.static(IS_ELLIPTIC):
+      if dimid > 0:
+        # Preserve elliptic friction ratios after _efc_row floors normal regularization.
+        efc_D_out[worldid, efcid] /= invweight_scale
+
+        b_fri = _contact_kbimp(opt_disableflags, timestep, ref, solimp_in[conid], pos, is_discrete)[1]
+        f_fri = 1.0 + timestep * b_fri if is_discrete else 1.0
+        efc_aref_out[worldid, efcid] = -b_fri * Jqvel / f_fri
 
     if wp.static(flg_adhesion):
       if adhesion_in[conid] != 0.0 and (dimid == 0 or not wp.static(IS_ELLIPTIC)):
@@ -4939,6 +5042,7 @@ def _add_surface_vel(is_pyramidal: bool):
 def make_constraint(m: types.Model, d: types.Data):
   """Creates constraint jacobians and other supporting data."""
   newton = m.opt.solver == types.SolverType.NEWTON
+  is_discrete = m.opt.integrator == types.IntegratorType.DISCRETE
   efc_nnz = wp.empty((d.nworld,), dtype=int)
 
   wp.launch(
@@ -4950,7 +5054,7 @@ def make_constraint(m: types.Model, d: types.Data):
   if not (m.opt.disableflags & types.DisableBit.CONSTRAINT):
     if not (m.opt.disableflags & types.DisableBit.EQUALITY):
       wp.launch(
-        _equality_connect(m.is_sparse, newton),
+        _equality_connect(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.eq_connect_adr.size),
         inputs=[
           m.nv,
@@ -5012,7 +5116,7 @@ def make_constraint(m: types.Model, d: types.Data):
         ],
       )
       wp.launch(
-        _equality_weld(m.is_sparse, newton),
+        _equality_weld(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.eq_wld_adr.size),
         inputs=[
           m.nv,
@@ -5076,7 +5180,7 @@ def make_constraint(m: types.Model, d: types.Data):
         ],
       )
       wp.launch(
-        _equality_joint(m.is_sparse, newton),
+        _equality_joint(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.eq_jnt_adr.size),
         inputs=[
           m.nv,
@@ -5120,7 +5224,7 @@ def make_constraint(m: types.Model, d: types.Data):
         ],
       )
       wp.launch(
-        _equality_tendon(m.is_sparse, newton),
+        _equality_tendon(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.eq_ten_adr.size),
         inputs=[
           m.nv,
@@ -5168,7 +5272,7 @@ def make_constraint(m: types.Model, d: types.Data):
 
       if m.nflex > 0:
         wp.launch(
-          _equality_flex(m.is_sparse, newton),
+          _equality_flex(m.is_sparse, newton, is_discrete),
           dim=(d.nworld, m.eq_flex_adr.size, m.nflexedge),
           inputs=[
             m.nv,
@@ -5179,6 +5283,7 @@ def make_constraint(m: types.Model, d: types.Data):
             m.flex_edgenum,
             m.flexedge_length0,
             m.flexedge_invweight0,
+            m.flexedge_rigid,
             m.flexedge_J_rownnz,
             m.flexedge_J_rowadr,
             m.flexedge_J_colind,
@@ -5217,7 +5322,7 @@ def make_constraint(m: types.Model, d: types.Data):
 
         if m.eq_flexstrain_adr.size:
           wp.launch(
-            _equality_flexstrain(m.is_sparse, newton),
+            _equality_flexstrain(m.is_sparse, newton, is_discrete),
             dim=(d.nworld, m.eq_flexstrain_adr.size),
             inputs=[
               m.nv,
@@ -5283,7 +5388,7 @@ def make_constraint(m: types.Model, d: types.Data):
 
     if not (m.opt.disableflags & types.DisableBit.FRICTIONLOSS):
       wp.launch(
-        _friction_dof(m.is_sparse, newton),
+        _friction_dof(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.nv),
         inputs=[
           m.nv,
@@ -5320,7 +5425,7 @@ def make_constraint(m: types.Model, d: types.Data):
       )
 
       wp.launch(
-        _friction_tendon(m.is_sparse, newton),
+        _friction_tendon(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.ntendon),
         inputs=[
           m.nv,
@@ -5363,7 +5468,7 @@ def make_constraint(m: types.Model, d: types.Data):
     # limit
     if not (m.opt.disableflags & types.DisableBit.LIMIT):
       wp.launch(
-        _limit_ball(m.is_sparse, newton),
+        _limit_ball(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.jnt_limited_ball_adr.size),
         inputs=[
           m.nv,
@@ -5405,7 +5510,7 @@ def make_constraint(m: types.Model, d: types.Data):
       )
 
       wp.launch(
-        _limit_slide_hinge(m.is_sparse, newton),
+        _limit_slide_hinge(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.jnt_limited_slide_hinge_adr.size),
         inputs=[
           m.nv,
@@ -5447,7 +5552,7 @@ def make_constraint(m: types.Model, d: types.Data):
       )
 
       wp.launch(
-        _limit_tendon(m.is_sparse, newton),
+        _limit_tendon(m.is_sparse, newton, is_discrete),
         dim=(d.nworld, m.tendon_limited_adr.size),
         inputs=[
           m.nv,
@@ -5789,7 +5894,7 @@ def make_constraint(m: types.Model, d: types.Data):
 
       if has_flex:
         wp.launch(
-          _efc_contact_update_flex(m.opt.cone, m.flg_adhesion),
+          _efc_contact_update_flex(m.opt.cone, m.flg_adhesion, is_discrete),
           dim=(d.naconmax, nmaxdim),
           inputs=[
             m.opt.timestep,
@@ -5842,7 +5947,7 @@ def make_constraint(m: types.Model, d: types.Data):
         )
       else:
         wp.launch(
-          _efc_contact_update(m.opt.cone, m.flg_adhesion),
+          _efc_contact_update(m.opt.cone, m.flg_adhesion, is_discrete),
           dim=(d.naconmax, nmaxdim),
           inputs=[
             m.opt.timestep,
@@ -5876,3 +5981,108 @@ def make_constraint(m: types.Model, d: types.Data):
             d.efc.frictionloss,
           ],
         )
+
+
+@cache_kernel
+def _regularize_constraint(is_sparse: bool, flg_adhesion: bool):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    M_rownnz: wp.array[int],
+    M_rowadr: wp.array[int],
+    # Data in:
+    nefc_in: wp.array[int],
+    M_in: wp.array2d[float],
+    qH_in: wp.array2d[float],
+    # In:
+    type_in: wp.array2d[int],
+    id_in: wp.array2d[int],
+    J_rownnz_in: wp.array2d[int],
+    J_rowadr_in: wp.array2d[int],
+    J_colind_in: wp.array3d[int],
+    J_in: wp.array3d[float],
+    condim_in: wp.array[int],
+    efc_address_in: wp.array2d[int],
+    adhesion_in: wp.array[float],
+    # Out:
+    D_out: wp.array2d[float],
+    aref_out: wp.array2d[float],
+  ):
+    worldid, r = wp.tid()
+    if r >= nefc_in[worldid]:
+      return
+
+    etype = type_in[worldid, r]
+    conid = -1
+    r_jac = r
+    if (
+      etype == types.ConstraintType.CONTACT_FRICTIONLESS
+      or etype == types.ConstraintType.CONTACT_PYRAMIDAL
+      or etype == types.ConstraintType.CONTACT_ELLIPTIC
+    ):
+      conid = id_in[worldid, r]
+      r_jac = efc_address_in[conid, 0]
+
+    num = float(0.0)
+    den = float(0.0)
+    rownnz = J_rownnz_in[worldid, r_jac] if wp.static(is_sparse) else nv
+    rowadr = J_rowadr_in[worldid, r_jac] if wp.static(is_sparse) else 0
+    for a in range(rownnz):
+      J = J_in[worldid, 0, rowadr + a] if wp.static(is_sparse) else J_in[worldid, r_jac, a]
+      if J == 0.0:
+        continue
+      c = J_colind_in[worldid, 0, rowadr + a] if wp.static(is_sparse) else a
+      diag_adr = M_rowadr[c] + M_rownnz[c] - 1
+      Mdiag = M_in[worldid, diag_adr]
+      qHdiag = qH_in[worldid, diag_adr]
+      J2 = J * J
+      num += math.safe_div(J2, qHdiag)
+      den += math.safe_div(J2, Mdiag)
+
+    if den > types.MJ_MINVAL:
+      scale = num / den
+      D_old = D_out[worldid, r]
+      D_new = wp.min(math.safe_div(D_old, scale), 1.0 / types.MJ_MINVAL)
+      D_out[worldid, r] = D_new
+
+      if wp.static(flg_adhesion) and conid >= 0 and D_old > types.MJ_MINVAL and D_new > types.MJ_MINVAL:
+        adhesion = adhesion_in[conid]
+        if adhesion != 0.0:
+          if etype == types.ConstraintType.CONTACT_FRICTIONLESS or (
+            etype == types.ConstraintType.CONTACT_ELLIPTIC and r == r_jac
+          ):
+            aref_out[worldid, r] += (1.0 / D_new - 1.0 / D_old) * adhesion
+          elif etype == types.ConstraintType.CONTACT_PYRAMIDAL:
+            condim = condim_in[conid]
+            if condim > 1:
+              aref_out[worldid, r] += (1.0 / D_new - 1.0 / D_old) * (adhesion / float(2 * (condim - 1)))
+
+  return kernel
+
+
+@event_scope
+def regularize_constraint(m: types.Model, d: types.Data):
+  """Regularizes constraints against effective metric (discrete integrator)."""
+  wp.launch(
+    _regularize_constraint(m.is_sparse, m.flg_adhesion),
+    dim=(d.nworld, d.efc.D.shape[1]),
+    inputs=[
+      m.nv,
+      m.M_rownnz,
+      m.M_rowadr,
+      d.nefc,
+      d.M,
+      d.qH,
+      d.efc.type,
+      d.efc.id,
+      d.efc.J_rownnz,
+      d.efc.J_rowadr,
+      d.efc.J_colind,
+      d.efc.J,
+      d.contact.dim,
+      d.contact.efc_address,
+      d.contact.adhesion,
+    ],
+    outputs=[d.efc.D, d.efc.aref],
+  )

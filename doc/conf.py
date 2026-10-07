@@ -127,6 +127,7 @@ exclude_patterns = [
     'APIreference/functions.rst',
     'APIreference/functions_override.rst',
     'XMLschema.rst',
+    'XMLunits.rst',
 ]
 
 redirects = {

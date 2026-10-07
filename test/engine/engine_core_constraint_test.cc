@@ -337,6 +337,79 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
   }
 }
 
+TEST_F(CoreConstraintTest, DoflessContactsExcluded) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 .1"/>
+      <body name="static">
+        <geom name="static" size=".05" pos="-.13 -.13 0"/>
+      </body>
+      <body name="mocap" mocap="true">
+        <geom name="mocap" size=".05" pos="-.13 -.13 .09"/>
+      </body>
+      <flexcomp name="cloth" type="grid" count="5 5 1" spacing=".1 .1 .1" dim="2" mass="1">
+        <pin id="0 1 2 3 4 5 6 7 8 9"/>
+        <edge equality="true"/>
+      </flexcomp>
+      <body name="moving" pos="1 0 0">
+        <freejoint/>
+        <body name="weld1">
+          <geom name="weld1" size=".05" pos="-.13 -.13 0"/>
+        </body>
+        <body name="weld2">
+          <geom name="weld2" size=".05" pos="-.13 -.13 .09"/>
+        </body>
+        <flexcomp name="cloth2" type="grid" count="5 5 1" spacing=".1 .1 .1" dim="2" mass="1">
+          <pin id="0 1 2 3 4 5 6 7 8 9"/>
+          <edge equality="true"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="static" geom2="mocap"/>
+      <pair geom1="weld1" geom2="weld2"/>
+    </contact>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  // contacts which affect no dofs are excluded, in dense and sparse
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+    mj_forward(m.get(), d.get());
+
+    int ngeom = 0, nvert = 0, nelem = 0;
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact& con = d->contact[i];
+      if (con.exclude != 3) {
+        continue;
+      }
+      EXPECT_EQ(con.efc_address, -1);
+      if (con.geom[1] >= 0) {
+        ngeom++;
+      } else if (con.vert[1] >= 0) {
+        nvert++;
+      } else {
+        nelem++;
+      }
+    }
+
+    // the explicit pairs of (static, mocap) and (weld1, weld2) geoms
+    EXPECT_EQ(ngeom, 2);
+
+    // the world-pinned vertices on the floor
+    EXPECT_EQ(nvert, 10);
+
+    // the elements with only pinned vertices touching the static or welded geom
+    EXPECT_EQ(nelem, 6);
+  }
+}
+
 TEST_F(CoreConstraintTest, EqualityBodySite) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");

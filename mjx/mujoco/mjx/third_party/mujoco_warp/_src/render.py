@@ -377,11 +377,13 @@ def _texture_mesh(
     if texcoord_offset >= 0:
       face_adr = mesh_faceadr[mesh_id] + f
       coords = mesh_facetexcoord[face_adr]
-      uv0 = mesh_texcoord[texcoord_offset + coords[0]]
-      uv1 = mesh_texcoord[texcoord_offset + coords[1]]
-      uv2 = mesh_texcoord[texcoord_offset + coords[2]]
-      uv = uv0 * bary_u + uv1 * bary_v + uv2 * (1.0 - bary_u - bary_v)
-      has_uv = True
+      # OBJ faces can omit individual UV indices even when the mesh has texcoords.
+      if coords[0] >= 0 and coords[1] >= 0 and coords[2] >= 0:
+        uv0 = mesh_texcoord[texcoord_offset + coords[0]]
+        uv1 = mesh_texcoord[texcoord_offset + coords[1]]
+        uv2 = mesh_texcoord[texcoord_offset + coords[2]]
+        uv = uv0 * bary_u + uv1 * bary_v + uv2 * (1.0 - bary_u - bary_v)
+        has_uv = True
 
   if not has_uv:
     # Fallback to OBJECT_PLANE texgen for untextured mesh (render_gl3.c:163-200)
@@ -564,6 +566,24 @@ def vertex_normal(n: wp.vec3, face: wp.vec3) -> wp.vec3:
   return n
 
 
+# TODO(team): consider precomputing transparent geom/flex filtering
+@wp.func
+def _geom_rgba(
+  # Model:
+  geom_matid: wp.array2d[int],
+  geom_rgba: wp.array2d[wp.vec4],
+  mat_rgba: wp.array2d[wp.vec4],
+  # In:
+  worldid: int,
+  geom_id: int,
+) -> Tuple[wp.vec4, int]:
+  g_rgba = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
+  mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
+  if mat_id >= 0 and g_rgba[0] == 0.5 and g_rgba[1] == 0.5 and g_rgba[2] == 0.5 and g_rgba[3] == 1.0:
+    return mat_rgba[worldid % mat_rgba.shape[0], mat_id], mat_id
+  return g_rgba, mat_id
+
+
 def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Function:
   """Build a ray-cast func specialized to the geom types present in the scene.
 
@@ -583,10 +603,13 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
     # Model:
     geom_type: wp.array[int],
     geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
     geom_size: wp.array2d[wp.vec3],
+    geom_rgba: wp.array2d[wp.vec4],
     flex_vertadr: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_radius: wp.array[float],
+    mat_rgba: wp.array2d[wp.vec4],
     # Data in:
     geom_xpos_in: wp.array2d[wp.vec3],
     geom_xmat_in: wp.array2d[wp.mat33],
@@ -600,6 +623,7 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
     enabled_geom_ids: wp.array[int],
     mesh_bvh_id: wp.array[wp.uint64],
     hfield_bvh_id: wp.array[wp.uint64],
+    flex_rgba: wp.array[wp.vec4],
     flex_geom_flexid: wp.array[int],
     flex_geom_edgeid: wp.array[int],
     flex_bvh_id: wp.array[wp.uint64],
@@ -638,6 +662,9 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
 
       if local_id < bvh_ngeom:
         gi = enabled_geom_ids[local_id]
+        rgba, _ = _geom_rgba(geom_matid, geom_rgba, mat_rgba, worldid, gi)
+        if rgba[3] == 0.0:
+          continue
         gtype = geom_type[gi]
       else:
         gi = local_id - bvh_ngeom
@@ -738,6 +765,8 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
         if gtype == GeomType.FLEX:
           hit_geom_id = -2
           flexid = flex_geom_flexid[gi]
+          if flex_rgba[flexid][3] == 0.0:
+            continue
           edge_id = flex_geom_edgeid[gi]
 
           if edge_id >= 0:
@@ -808,10 +837,13 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
     # Model:
     geom_type: wp.array[int],
     geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
     geom_size: wp.array2d[wp.vec3],
+    geom_rgba: wp.array2d[wp.vec4],
     flex_vertadr: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_radius: wp.array[float],
+    mat_rgba: wp.array2d[wp.vec4],
     # Data in:
     geom_xpos_in: wp.array2d[wp.vec3],
     geom_xmat_in: wp.array2d[wp.mat33],
@@ -826,6 +858,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
     worldid: int,
     mesh_bvh_id: wp.array[wp.uint64],
     hfield_bvh_id: wp.array[wp.uint64],
+    flex_rgba: wp.array[wp.vec4],
     flex_geom_flexid: wp.array[int],
     flex_geom_edgeid: wp.array[int],
     flex_bvh_id: wp.array[wp.uint64],
@@ -897,10 +930,13 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
       shadow_geom_id, shadow_d, shadow_n, shadow_u, shadow_v, shadow_f, shadow_mesh_id = cast_ray_first_hit(
         geom_type,
         geom_dataid,
+        geom_matid,
         geom_size,
+        geom_rgba,
         flex_vertadr,
         flex_edge,
         flex_radius,
+        mat_rgba,
         geom_xpos_in,
         geom_xmat_in,
         flexvert_xpos_in,
@@ -912,6 +948,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
         enabled_geom_ids,
         mesh_bvh_id,
         hfield_bvh_id,
+        flex_rgba,
         flex_geom_flexid,
         flex_geom_edgeid,
         flex_bvh_id,
@@ -1138,10 +1175,13 @@ def _build_megakernel(m: Model, rc: RenderContext):
     geom_id, dist, normal, u, v, f, mesh_id = cast_ray(
       geom_type,
       geom_dataid,
+      geom_matid,
       geom_size,
+      geom_rgba,
       flex_vertadr,
       flex_edge,
       flex_radius,
+      mat_rgba,
       geom_xpos_in,
       geom_xmat_in,
       flexvert_xpos_in,
@@ -1153,6 +1193,7 @@ def _build_megakernel(m: Model, rc: RenderContext):
       enabled_geom_ids,
       mesh_bvh_id,
       hfield_bvh_id,
+      flex_rgba,
       flex_geom_flexid,
       flex_geom_edgeid,
       flex_bvh_id,
@@ -1265,13 +1306,7 @@ def _build_megakernel(m: Model, rc: RenderContext):
       # We encode flex_id in mesh_id for flex ray hits during cast_ray
       color = flex_rgba[mesh_id]
     else:
-      g_rgba = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
-      mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
-      is_default_rgba = g_rgba[0] == 0.5 and g_rgba[1] == 0.5 and g_rgba[2] == 0.5 and g_rgba[3] == 1.0
-      if mat_id >= 0 and is_default_rgba:
-        color = mat_rgba[worldid % mat_rgba.shape[0], mat_id]
-      else:
-        color = g_rgba
+      color, mat_id = _geom_rgba(geom_matid, geom_rgba, mat_rgba, worldid, geom_id)
 
     base_color = wp.vec3(color[0], color[1], color[2])
 
@@ -1343,10 +1378,13 @@ def _build_megakernel(m: Model, rc: RenderContext):
       diff_rgb, spec_rgb = compute_lighting(
         geom_type,
         geom_dataid,
+        geom_matid,
         geom_size,
+        geom_rgba,
         flex_vertadr,
         flex_edge,
         flex_radius,
+        mat_rgba,
         geom_xpos_in,
         geom_xmat_in,
         flexvert_xpos_in,
@@ -1359,6 +1397,7 @@ def _build_megakernel(m: Model, rc: RenderContext):
         worldid,
         mesh_bvh_id,
         hfield_bvh_id,
+        flex_rgba,
         flex_geom_flexid,
         flex_geom_edgeid,
         flex_bvh_id,
@@ -1393,10 +1432,13 @@ def _build_megakernel(m: Model, rc: RenderContext):
       hl_diff, hl_spec = compute_lighting(
         geom_type,
         geom_dataid,
+        geom_matid,
         geom_size,
+        geom_rgba,
         flex_vertadr,
         flex_edge,
         flex_radius,
+        mat_rgba,
         geom_xpos_in,
         geom_xmat_in,
         flexvert_xpos_in,
@@ -1409,6 +1451,7 @@ def _build_megakernel(m: Model, rc: RenderContext):
         worldid,
         mesh_bvh_id,
         hfield_bvh_id,
+        flex_rgba,
         flex_geom_flexid,
         flex_geom_edgeid,
         flex_bvh_id,

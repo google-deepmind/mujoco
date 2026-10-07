@@ -195,7 +195,7 @@ void FilamentRenderer::Submit(int width, int height,
   mjrfFrameStats stats;
   mjrf_defaultFrameStats(&stats);
   mjrf_getFrameStats(filament_context_.get(), frame, &stats);
-  fps_ = stats.frame_rate;
+  gpu_frame_ms_ = stats.frame_rate > 0 ? 1000.0 / stats.frame_rate : 0;
 }
 
 void FilamentRenderer::RenderToTexture(const mjModel* model, mjData* data,
@@ -234,7 +234,7 @@ int FilamentRenderer::UploadImage(int texture_id, const std::byte* pixels,
       bpp);
 }
 
-double FilamentRenderer::GetFps() { return fps_; }
+double FilamentRenderer::GetGpuFrameMs() { return gpu_frame_ms_; }
 
 void FilamentRenderer::BuildMainRenderRequest(mjrfRenderRequest* request,
                                               const mjVisual& vis,

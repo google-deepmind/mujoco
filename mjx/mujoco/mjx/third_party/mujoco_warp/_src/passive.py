@@ -13,18 +13,26 @@
 # limitations under the License.
 # ==============================================================================
 
+from typing import Optional
+
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import util_misc
+from mujoco.mjx.third_party.mujoco_warp._src.types import FLEX_STIFFNESS_3D
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
+from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat66
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
@@ -94,116 +102,94 @@ def _spring_damper_dof_passive(
   jnttype = jnt_type[jntid]
   stiffness = jnt_stiffness[worldid % jnt_stiffness.shape[0], jntid]
   spoly = jnt_stiffnesspoly[worldid % jnt_stiffnesspoly.shape[0], jntid]
-  damping = dof_damping[worldid % dof_damping.shape[0], dofid]
-  dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofid]
-
   has_stiffness = (stiffness != 0.0 or spoly[0] != 0.0 or spoly[1] != 0.0) and not (opt_disableflags & DisableBit.SPRING)
-  has_damping = (damping != 0.0 or dpoly[0] != 0.0 or dpoly[1] != 0.0) and not (opt_disableflags & DisableBit.DAMPER)
+
+  ndof = 1
+  if jnttype == JointType.FREE:
+    ndof = 6
+  elif jnttype == JointType.BALL:
+    ndof = 3
+  if opt_disableflags & DisableBit.DAMPER:
+    for i in range(ndof):
+      qfrc_damper_out[worldid, dofid + i] = 0.0
+  else:
+    dof_damping_id = worldid % dof_damping.shape[0]
+    dof_dampingpoly_id = worldid % dof_dampingpoly.shape[0]
+    for i in range(ndof):
+      damping = dof_damping[dof_damping_id, dofid + i]
+      dpoly = dof_dampingpoly[dof_dampingpoly_id, dofid + i]
+      if damping != 0.0 or dpoly[0] != 0.0 or dpoly[1] != 0.0:
+        v = qvel_in[worldid, dofid + i]
+        qfrc_damper_out[worldid, dofid + i] = -v * util_misc._poly_force(damping, dpoly, v, 1)
+      else:
+        qfrc_damper_out[worldid, dofid + i] = 0.0
 
   if not has_stiffness:
-    if jnttype == JointType.FREE:
-      for i in range(6):
-        qfrc_spring_out[worldid, dofid + i] = 0.0
-    elif jnttype == JointType.BALL:
-      for i in range(3):
-        qfrc_spring_out[worldid, dofid + i] = 0.0
-    else:
-      qfrc_spring_out[worldid, dofid] = 0.0
-
-  if not has_damping:
-    if jnttype == JointType.FREE:
-      for i in range(6):
-        qfrc_damper_out[worldid, dofid + i] = 0.0
-    elif jnttype == JointType.BALL:
-      for i in range(3):
-        qfrc_damper_out[worldid, dofid + i] = 0.0
-    else:
-      qfrc_damper_out[worldid, dofid] = 0.0
-
-  if not (has_stiffness or has_damping):
+    for i in range(ndof):
+      qfrc_spring_out[worldid, dofid + i] = 0.0
     return
   qposid = jnt_qposadr[jntid]
   qpos_spring_id = worldid % qpos_spring.shape[0]
 
   if jnttype == JointType.FREE:
     # spring
-    if has_stiffness:
-      dif = wp.vec3(
-        qpos_in[worldid, qposid + 0] - qpos_spring[qpos_spring_id, qposid + 0],
-        qpos_in[worldid, qposid + 1] - qpos_spring[qpos_spring_id, qposid + 1],
-        qpos_in[worldid, qposid + 2] - qpos_spring[qpos_spring_id, qposid + 2],
-      )
-      r = wp.length(dif)
-      k = util_misc._poly_force(stiffness, spoly, r, 0)
-      qfrc_spring_out[worldid, dofid + 0] = -k * dif[0]
-      qfrc_spring_out[worldid, dofid + 1] = -k * dif[1]
-      qfrc_spring_out[worldid, dofid + 2] = -k * dif[2]
+    dif = wp.vec3(
+      qpos_in[worldid, qposid + 0] - qpos_spring[qpos_spring_id, qposid + 0],
+      qpos_in[worldid, qposid + 1] - qpos_spring[qpos_spring_id, qposid + 1],
+      qpos_in[worldid, qposid + 2] - qpos_spring[qpos_spring_id, qposid + 2],
+    )
+    r = wp.length(dif)
+    k = util_misc._poly_force(stiffness, spoly, r, 0)
+    qfrc_spring_out[worldid, dofid + 0] = -k * dif[0]
+    qfrc_spring_out[worldid, dofid + 1] = -k * dif[1]
+    qfrc_spring_out[worldid, dofid + 2] = -k * dif[2]
 
-      rot = wp.quat(
-        qpos_in[worldid, qposid + 3],
-        qpos_in[worldid, qposid + 4],
-        qpos_in[worldid, qposid + 5],
-        qpos_in[worldid, qposid + 6],
-      )
-      rot = wp.normalize(rot)
-      ref = wp.quat(
-        qpos_spring[qpos_spring_id, qposid + 3],
-        qpos_spring[qpos_spring_id, qposid + 4],
-        qpos_spring[qpos_spring_id, qposid + 5],
-        qpos_spring[qpos_spring_id, qposid + 6],
-      )
-      dif = math.quat_sub(rot, ref)
-      r_rot = wp.length(dif)
-      k_rot = util_misc._poly_force(stiffness, spoly, r_rot, 0)
-      qfrc_spring_out[worldid, dofid + 3] = -k_rot * dif[0]
-      qfrc_spring_out[worldid, dofid + 4] = -k_rot * dif[1]
-      qfrc_spring_out[worldid, dofid + 5] = -k_rot * dif[2]
-
-    # damper
-    if has_damping:
-      for i in range(6):
-        v = qvel_in[worldid, dofid + i]
-        qfrc_damper_out[worldid, dofid + i] = -v * util_misc._poly_force(damping, dpoly, v, 1)
+    rot = wp.quat(
+      qpos_in[worldid, qposid + 3],
+      qpos_in[worldid, qposid + 4],
+      qpos_in[worldid, qposid + 5],
+      qpos_in[worldid, qposid + 6],
+    )
+    rot = wp.normalize(rot)
+    ref = wp.quat(
+      qpos_spring[qpos_spring_id, qposid + 3],
+      qpos_spring[qpos_spring_id, qposid + 4],
+      qpos_spring[qpos_spring_id, qposid + 5],
+      qpos_spring[qpos_spring_id, qposid + 6],
+    )
+    dif = math.quat_sub(rot, ref)
+    r_rot = wp.length(dif)
+    k_rot = util_misc._poly_force(stiffness, spoly, r_rot, 0)
+    qfrc_spring_out[worldid, dofid + 3] = -k_rot * dif[0]
+    qfrc_spring_out[worldid, dofid + 4] = -k_rot * dif[1]
+    qfrc_spring_out[worldid, dofid + 5] = -k_rot * dif[2]
 
   elif jnttype == JointType.BALL:
     # spring
-    if has_stiffness:
-      rot = wp.quat(
-        qpos_in[worldid, qposid + 0],
-        qpos_in[worldid, qposid + 1],
-        qpos_in[worldid, qposid + 2],
-        qpos_in[worldid, qposid + 3],
-      )
-      rot = wp.normalize(rot)
-      ref = wp.quat(
-        qpos_spring[qpos_spring_id, qposid + 0],
-        qpos_spring[qpos_spring_id, qposid + 1],
-        qpos_spring[qpos_spring_id, qposid + 2],
-        qpos_spring[qpos_spring_id, qposid + 3],
-      )
-      dif = math.quat_sub(rot, ref)
-      r = wp.length(dif)
-      k = util_misc._poly_force(stiffness, spoly, r, 0)
-      qfrc_spring_out[worldid, dofid + 0] = -k * dif[0]
-      qfrc_spring_out[worldid, dofid + 1] = -k * dif[1]
-      qfrc_spring_out[worldid, dofid + 2] = -k * dif[2]
-
-    # damper
-    if has_damping:
-      for i in range(3):
-        v = qvel_in[worldid, dofid + i]
-        qfrc_damper_out[worldid, dofid + i] = -v * util_misc._poly_force(damping, dpoly, v, 1)
+    rot = wp.quat(
+      qpos_in[worldid, qposid + 0],
+      qpos_in[worldid, qposid + 1],
+      qpos_in[worldid, qposid + 2],
+      qpos_in[worldid, qposid + 3],
+    )
+    rot = wp.normalize(rot)
+    ref = wp.quat(
+      qpos_spring[qpos_spring_id, qposid + 0],
+      qpos_spring[qpos_spring_id, qposid + 1],
+      qpos_spring[qpos_spring_id, qposid + 2],
+      qpos_spring[qpos_spring_id, qposid + 3],
+    )
+    dif = math.quat_sub(rot, ref)
+    r = wp.length(dif)
+    k = util_misc._poly_force(stiffness, spoly, r, 0)
+    qfrc_spring_out[worldid, dofid + 0] = -k * dif[0]
+    qfrc_spring_out[worldid, dofid + 1] = -k * dif[1]
+    qfrc_spring_out[worldid, dofid + 2] = -k * dif[2]
 
   else:  # mjJNT_SLIDE, mjJNT_HINGE
     # spring
-    if has_stiffness:
-      fdif = qpos_in[worldid, qposid] - qpos_spring[qpos_spring_id, qposid]
-      qfrc_spring_out[worldid, dofid] = -fdif * util_misc._poly_force(stiffness, spoly, fdif, 0)
-
-    # damper
-    if has_damping:
-      v = qvel_in[worldid, dofid]
-      qfrc_damper_out[worldid, dofid] = -v * util_misc._poly_force(damping, dpoly, v, 1)
+    fdif = qpos_in[worldid, qposid] - qpos_spring[qpos_spring_id, qposid]
+    qfrc_spring_out[worldid, dofid] = -fdif * util_misc._poly_force(stiffness, spoly, fdif, 0)
 
 
 @wp.kernel
@@ -735,16 +721,1629 @@ def _qfrc_passive_kernel(has_fluid: bool, flg_adhesion: bool, gravity_enabled: b
   return kernel
 
 
+@wp.func
+def _snh_cubic(tension: vec6, s: vec6, gamma: float) -> vec6:
+  a = s[0]
+  b = s[2]
+  c = s[4]
+  d = 0.5 * (s[0] + s[2] - s[1])
+  e = 0.5 * (s[0] + s[4] - s[5])
+  f = 0.5 * (s[2] + s[4] - s[3])
+  cof0 = b * c - f * f
+  cof1 = a * c - e * e
+  cof2 = a * b - d * d
+  cof3 = e * f - c * d
+  cof4 = d * f - b * e
+  cof5 = d * e - a * f
+  scale = 2.0 * gamma
+  return vec6(
+    tension[0] + scale * (cof0 + cof3 + cof4),
+    tension[1] - scale * cof3,
+    tension[2] + scale * (cof1 + cof3 + cof5),
+    tension[3] - scale * cof5,
+    tension[4] + scale * (cof2 + cof4 + cof5),
+    tension[5] - scale * cof4,
+  )
+
+
+@wp.func
+def _snh_volume(edgevec: mat63, inv_det_dm: float) -> tuple[float, mat43]:
+  a = -edgevec[0]
+  b = edgevec[2]
+  c = -edgevec[4]
+  bxc = wp.cross(b, c)
+  cxa = wp.cross(c, a)
+  axb = wp.cross(a, b)
+  g1 = bxc * inv_det_dm
+  g2 = cxa * inv_det_dm
+  g3 = axb * inv_det_dm
+  g0 = -(g1 + g2 + g3)
+  grad = mat43()
+  grad[0] = g0
+  grad[1] = g1
+  grad[2] = g2
+  grad[3] = g3
+  return wp.dot(a, bxc) * inv_det_dm, grad
+
+
+@wp.func
+def _snh_cubic_metric(metric: mat66, s: vec6, gamma: float) -> mat66:
+  a = s[0]
+  b = s[2]
+  c = s[4]
+  d = 0.5 * (s[0] + s[2] - s[1])
+  e = 0.5 * (s[0] + s[4] - s[5])
+  f = 0.5 * (s[2] + s[4] - s[3])
+
+  basis = wp.matrix(
+    1.0,
+    0.0,
+    0.0,
+    0.5,
+    0.5,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.5,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.5,
+    0.0,
+    0.5,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.5,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.5,
+    0.5,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.5,
+    0.0,
+    shape=(6, 6),
+    dtype=float,
+  )
+  for j in range(6):
+    h0 = basis[j, 0]
+    h1 = basis[j, 1]
+    h2 = basis[j, 2]
+    h3 = basis[j, 3]
+    h4 = basis[j, 4]
+    h5 = basis[j, 5]
+    dc0 = h1 * c + b * h2 - 2.0 * f * h5
+    dc1 = h0 * c + a * h2 - 2.0 * e * h4
+    dc2 = h0 * b + a * h1 - 2.0 * d * h3
+    dc3 = h4 * f + e * h5 - h2 * d - c * h3
+    dc4 = h3 * f + d * h5 - h1 * e - b * h4
+    dc5 = h3 * e + d * h4 - h0 * f - a * h5
+    dg = vec6(dc0 + dc3 + dc4, -dc3, dc1 + dc3 + dc5, -dc5, dc2 + dc4 + dc5, -dc4)
+    for i in range(j + 1):
+      value = 2.0 * gamma * dg[i]
+      metric[i, j] += value
+      if i != j:
+        metric[j, i] += value
+  return metric
+
+
+@wp.func
+def _snh_positive3(A: wp.mat33) -> bool:
+  scale = float(0.0)
+  for row in range(3):
+    for col in range(3):
+      scale = wp.max(scale, wp.abs(A[row, col]))
+  tol = 1.0e-5 * scale
+  if A[0, 0] <= tol:
+    return False
+  pivot = A[1, 1] - A[0, 1] * (A[0, 1] / A[0, 0])
+  if pivot <= tol:
+    return False
+  cross = A[1, 2] - A[0, 1] * (A[0, 2] / A[0, 0])
+  return A[2, 2] - A[0, 2] * (A[0, 2] / A[0, 0]) - cross * (cross / pivot) > tol
+
+
+@wp.func
+def _snh_eigen3(A: wp.mat33) -> tuple[wp.vec3, wp.mat33]:
+  scale = float(0.0)
+  for row in range(3):
+    for col in range(3):
+      scale = wp.max(scale, wp.abs(A[row, col]))
+  Q = wp.identity(3, dtype=float)
+  if scale == 0.0:
+    return wp.vec3(0.0, 0.0, 0.0), Q
+  D = A * (1.0 / scale)
+  if D[0, 1] == 0.0 and D[0, 2] == 0.0 and D[1, 2] == 0.0:
+    return wp.vec3(A[0, 0], A[1, 1], A[2, 2]), Q
+
+  mean = (D[0, 0] + D[1, 1] + D[2, 2]) * (1.0 / 3.0)
+  B = D
+  B[0, 0] -= mean
+  B[1, 1] -= mean
+  B[2, 2] -= mean
+  bscale = float(0.0)
+  for row in range(3):
+    for col in range(3):
+      bscale = wp.max(bscale, wp.abs(B[row, col]))
+  B = B * (1.0 / bscale)
+  p = wp.sqrt(
+    (
+      B[0, 0] * B[0, 0]
+      + B[1, 1] * B[1, 1]
+      + B[2, 2] * B[2, 2]
+      + 2.0 * (B[0, 1] * B[0, 1] + B[0, 2] * B[0, 2] + B[1, 2] * B[1, 2])
+    )
+    * (1.0 / 6.0)
+  )
+  B = B * (1.0 / p)
+  determinant = (
+    B[0, 0] * (B[1, 1] * B[2, 2] - B[1, 2] * B[1, 2])
+    - B[0, 1] * (B[0, 1] * B[2, 2] - B[0, 2] * B[1, 2])
+    + B[0, 2] * (B[0, 1] * B[1, 2] - B[0, 2] * B[1, 1])
+  )
+  r_val = 0.5 * determinant
+
+  root = 2.0 * wp.cos(wp.acos(wp.min(1.0, wp.abs(r_val))) * (1.0 / 3.0))
+  if r_val < 0.0:
+    root = -root
+  B[0, 0] -= root
+  B[1, 1] -= root
+  B[2, 2] -= root
+
+  row0 = B[0]
+  row1 = B[1]
+  row2 = B[2]
+  cr0 = wp.cross(row0, row1)
+  cr1 = wp.cross(row0, row2)
+  cr2 = wp.cross(row1, row2)
+  n0 = wp.dot(cr0, cr0)
+  n1 = wp.dot(cr1, cr1)
+  n2 = wp.dot(cr2, cr2)
+  best_cr = cr0
+  best_n = n0
+  if n1 > best_n:
+    best_cr = cr1
+    best_n = n1
+  if n2 > best_n:
+    best_cr = cr2
+    best_n = n2
+  q = best_cr * (1.0 / wp.sqrt(best_n))
+
+  if wp.abs(q[0]) > wp.abs(q[1]):
+    inv = 1.0 / wp.sqrt(q[0] * q[0] + q[2] * q[2])
+    u = wp.vec3(-q[2] * inv, 0.0, q[0] * inv)
+  else:
+    inv = 1.0 / wp.sqrt(q[1] * q[1] + q[2] * q[2])
+    u = wp.vec3(0.0, q[2] * inv, -q[1] * inv)
+  v = wp.cross(q, u)
+  Du = D * u
+  Dv = D * v
+  Dq = D * q
+
+  a = wp.dot(u, Du)
+  b = wp.dot(u, Dv)
+  c = wp.dot(v, Dv)
+  cosine = 1.0
+  sine = 0.0
+  t = 0.0
+  if b != 0.0:
+    delta = 0.5 * (c - a)
+    wscale = wp.max(wp.abs(delta), wp.abs(b))
+    x = delta / wscale
+    y = b / wscale
+    t = (y if x >= 0.0 else -y) / (wp.abs(x) + wp.sqrt(x * x + y * y))
+    cosine = 1.0 / wp.sqrt(1.0 + t * t)
+    sine = t * cosine
+
+  value = wp.vec3(wp.dot(q, Dq) * scale, (a - t * b) * scale, (c + t * b) * scale)
+  c1 = cosine * u - sine * v
+  c2 = sine * u + cosine * v
+  Q = wp.mat33(q[0], c1[0], c2[0], q[1], c1[1], c2[1], q[2], c1[2], c2[2])
+  return value, Q
+
+
+@wp.func
+def _snh_jacobi_rot(A: wp.mat33, V: wp.mat33, p: int, q: int) -> tuple[wp.mat33, wp.mat33, bool]:
+  pp = A[0, p] * A[0, p] + A[1, p] * A[1, p] + A[2, p] * A[2, p]
+  qq = A[0, q] * A[0, q] + A[1, q] * A[1, q] + A[2, q] * A[2, q]
+  pq = A[0, p] * A[0, q] + A[1, p] * A[1, q] + A[2, p] * A[2, q]
+  if wp.abs(pq) <= 2.0e-6 * wp.sqrt(pp) * wp.sqrt(qq):
+    return A, V, True
+  delta = 0.5 * (qq - pp)
+  t = (pq if delta >= 0.0 else -pq) / (wp.abs(delta) + wp.sqrt(delta * delta + pq * pq))
+  c = 1.0 / wp.sqrt(1.0 + t * t)
+  s = t * c
+  for row in range(3):
+    arp = A[row, p]
+    arq = A[row, q]
+    A[row, p] = c * arp - s * arq
+    A[row, q] = s * arp + c * arq
+    vrp = V[row, p]
+    vrq = V[row, q]
+    V[row, p] = c * vrp - s * vrq
+    V[row, q] = s * vrp + c * vrq
+  return A, V, False
+
+
+@wp.func
+def _snh_swap_cols(A: wp.mat33, V: wp.mat33, s: wp.vec3, p: int, q: int) -> tuple[wp.mat33, wp.mat33, wp.vec3]:
+  if s[q] > s[p]:
+    sp = s[p]
+    s[p] = s[q]
+    s[q] = sp
+    for row in range(3):
+      arp = A[row, p]
+      A[row, p] = A[row, q]
+      A[row, q] = arp
+      vrp = V[row, p]
+      V[row, p] = V[row, q]
+      V[row, q] = vrp
+  return A, V, s
+
+
+@wp.func
+def _snh_svd(F: wp.mat33) -> tuple[wp.mat33, wp.vec3, wp.mat33]:
+  scale = float(0.0)
+  for row in range(3):
+    for col in range(3):
+      scale = wp.max(scale, wp.abs(F[row, col]))
+  A = F * (1.0 / scale) if scale > 0.0 else wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  V = wp.identity(3, dtype=float)
+  for _ in range(24):
+    A, V, d01 = _snh_jacobi_rot(A, V, 0, 1)
+    A, V, d02 = _snh_jacobi_rot(A, V, 0, 2)
+    A, V, d12 = _snh_jacobi_rot(A, V, 1, 2)
+    if d01 and d02 and d12:
+      break
+
+  s = wp.vec3(
+    A[0, 0] * A[0, 0] + A[1, 0] * A[1, 0] + A[2, 0] * A[2, 0],
+    A[0, 1] * A[0, 1] + A[1, 1] * A[1, 1] + A[2, 1] * A[2, 1],
+    A[0, 2] * A[0, 2] + A[1, 2] * A[1, 2] + A[2, 2] * A[2, 2],
+  )
+  A, V, s = _snh_swap_cols(A, V, s, 0, 1)
+  A, V, s = _snh_swap_cols(A, V, s, 0, 2)
+  A, V, s = _snh_swap_cols(A, V, s, 1, 2)
+
+  if wp.determinant(V) < 0.0:
+    for r in range(3):
+      V[r, 2] = -V[r, 2]
+      A[r, 2] = -A[r, 2]
+
+  u0 = wp.vec3(A[0, 0], A[1, 0], A[2, 0])
+  u1 = wp.vec3(A[0, 1], A[1, 1], A[2, 1])
+  u2 = wp.vec3(A[0, 2], A[1, 2], A[2, 2])
+  s0 = wp.length(u0)
+  if s0 == 0.0:
+    return wp.identity(3, dtype=float), wp.vec3(0.0, 0.0, 0.0), V
+
+  u0 = u0 * (1.0 / s0)
+  u1 = u1 - wp.dot(u0, u1) * u0
+  norm = wp.length(u1)
+  if norm > 1.0e-6 * s0:
+    u1 = u1 * (1.0 / norm)
+  else:
+    axis = int(0)
+    if wp.abs(u0[1]) < wp.abs(u0[axis]):
+      axis = 1
+    if wp.abs(u0[2]) < wp.abs(u0[axis]):
+      axis = 2
+    u1 = wp.vec3(
+      (1.0 if axis == 0 else 0.0) - u0[axis] * u0[0],
+      (1.0 if axis == 1 else 0.0) - u0[axis] * u0[1],
+      (1.0 if axis == 2 else 0.0) - u0[axis] * u0[2],
+    )
+    u1 = wp.normalize(u1)
+
+  u2 = wp.cross(u0, u1)
+  a1 = wp.vec3(A[0, 1], A[1, 1], A[2, 1])
+  a2 = wp.vec3(A[0, 2], A[1, 2], A[2, 2])
+  sigma = wp.vec3(s0, wp.dot(u1, a1), wp.dot(u2, a2)) * scale
+  U = wp.mat33(u0[0], u1[0], u2[0], u0[1], u1[1], u2[1], u0[2], u1[2], u2[2])
+  return U, sigma, V
+
+
+@wp.func
+def stretch_edge_endpoints(dim: int):
+  return wp.where(
+    dim == 3,
+    wp.matrix(0, 1, 1, 2, 2, 0, 2, 3, 0, 3, 1, 3, shape=(6, 2), dtype=int),
+    wp.matrix(1, 2, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, shape=(6, 2), dtype=int),
+  )
+
+
+@wp.func
+def stretch_edge_vectors(vert_xpos: mat43, dim: int) -> mat63:
+  nedge = 3 if dim == 2 else 6
+  edges = stretch_edge_endpoints(dim)
+  edgevec = mat63()
+  for e in range(nedge):
+    edgevec[e] = vert_xpos[edges[e, 0]] - vert_xpos[edges[e, 1]]
+  return edgevec
+
+
+@wp.func
+def stretch_elongation(
+  # Model:
+  flex_elemedge: wp.array[int],
+  flexedge_length0: wp.array[float],
+  # Data in:
+  flexedge_length_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  elemedge_adr: int,
+  edge_adr: int,
+  nedge: int,
+) -> vec6:
+  elongation = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  for e in range(nedge):
+    e_idx = edge_adr + flex_elemedge[elemedge_adr + e]
+    deformed = flexedge_length_in[worldid, e_idx]
+    reference = flexedge_length0[e_idx]
+    elongation[e] = deformed * deformed - reference * reference
+  return elongation
+
+
+@wp.func
+def stretch_metric(
+  # Model:
+  flex_stiffness: wp.array[float],
+  # In:
+  stiffness_adr: int,
+  nedge: int,
+) -> mat66:
+  metric = mat66(0.0)
+  idx = int(0)
+  for e1 in range(nedge):
+    for e2 in range(e1, nedge):
+      val = flex_stiffness[stiffness_adr + idx]
+      metric[e1, e2] = val
+      metric[e2, e1] = val
+      idx += 1
+  return metric
+
+
+@wp.func
+def stretch_tension(metric: mat66, elongation: vec6, nedge: int) -> vec6:
+  tension = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  for e1 in range(nedge):
+    t_val = float(0.0)
+    for e2 in range(nedge):
+      t_val += metric[e1, e2] * elongation[e2]
+    tension[e1] = t_val
+  return tension
+
+
+@wp.func
+def stretch_elasticity(
+  # Model:
+  flex_stiffness: wp.array[float],
+  # In:
+  stiffness_adr: int,
+  elongation: vec6,
+  nedge: int,
+) -> tuple[mat66, vec6]:
+  metric = stretch_metric(flex_stiffness, stiffness_adr, nedge)
+  tension = stretch_tension(metric, elongation, nedge)
+  return metric, tension
+
+
+@wp.func
+def stretch_stiffness(
+  # Model:
+  flex_elemedge: wp.array[int],
+  flexedge_length0: wp.array[float],
+  flex_stiffness: wp.array[float],
+  # Data in:
+  flexedge_length_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  stiffness_adr: int,
+  elemedge_adr: int,
+  edge_adr: int,
+  nedge: int,
+) -> tuple[mat66, vec6]:
+  elongation = stretch_elongation(flex_elemedge, flexedge_length0, flexedge_length_in, worldid, elemedge_adr, edge_adr, nedge)
+  metric, tension = stretch_elasticity(flex_stiffness, stiffness_adr, elongation, nedge)
+  for e in range(nedge):
+    tension[e] = wp.max(tension[e], 0.0)
+  return metric, tension
+
+
+@wp.func
+def stretch_stiffness_block(
+  # In:
+  metric: mat66,
+  tension: vec6,
+  edgevec: mat63,
+  dim: int,
+  i: int,
+  j: int,
+  scale: float,
+) -> wp.mat33:
+  nedge = 3 if dim == 2 else 6
+  edges = stretch_edge_endpoints(dim)
+  blk = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  for a in range(nedge):
+    sa = 1.0 if i == edges[a, 0] else (-1.0 if i == edges[a, 1] else 0.0)
+    if sa == 0.0:
+      continue
+    for b in range(nedge):
+      sb = 1.0 if j == edges[b, 0] else (-1.0 if j == edges[b, 1] else 0.0)
+      if sb == 0.0:
+        continue
+      w = 2.0 * scale * metric[a, b] * sa * sb
+      for r in range(3):
+        for c in range(3):
+          blk[r, c] += w * edgevec[a, r] * edgevec[b, c]
+  geo = float(0.0)
+  for a in range(nedge):
+    sa = 1.0 if i == edges[a, 0] else (-1.0 if i == edges[a, 1] else 0.0)
+    sb = 1.0 if j == edges[a, 0] else (-1.0 if j == edges[a, 1] else 0.0)
+    if sa != 0.0 and sb != 0.0:
+      geo += tension[a] * sa * sb
+  geo *= scale
+  blk[0, 0] += geo
+  blk[1, 1] += geo
+  blk[2, 2] += geo
+  return blk
+
+
+@wp.func
+def snh_project(
+  # Model:
+  flex_vert0: wp.array[wp.vec3],
+  flex_stiffness: wp.array[float],
+  # In:
+  stiffness_adr: int,
+  vbase: int,
+  vert: wp.vec4i,
+  size: wp.vec3,
+  edgevec: mat63,
+  elongation: vec6,
+) -> tuple[bool, wp.mat33, mat43, wp.mat33, wp.vec3, wp.vec3]:
+  v0 = flex_vert0[vbase + vert[0]]
+  v1 = flex_vert0[vbase + vert[1]] - v0
+  v2 = flex_vert0[vbase + vert[2]] - v0
+  v3 = flex_vert0[vbase + vert[3]] - v0
+  rest0 = wp.vec3(2.0 * size[0] * v1[0], 2.0 * size[1] * v1[1], 2.0 * size[2] * v1[2])
+  rest1 = wp.vec3(2.0 * size[0] * v2[0], 2.0 * size[1] * v2[1], 2.0 * size[2] * v2[2])
+  rest2 = wp.vec3(2.0 * size[0] * v3[0], 2.0 * size[1] * v3[1], 2.0 * size[2] * v3[2])
+
+  k21 = flex_stiffness[stiffness_adr + 21]
+  k22 = flex_stiffness[stiffness_adr + 22]
+  k23 = flex_stiffness[stiffness_adr + 23]
+
+  grad0 = wp.cross(rest1, rest2) * k23
+  grad1 = wp.cross(rest2, rest0) * k23
+  grad2 = wp.cross(rest0, rest1) * k23
+
+  F = -wp.outer(edgevec[0], grad0) + wp.outer(edgevec[2], grad1) - wp.outer(edgevec[4], grad2)
+  rotation, sigma, V = _snh_svd(F)
+  VT = wp.transpose(V)
+
+  hg1 = VT * grad0
+  hg2 = VT * grad1
+  hg3 = VT * grad2
+  hg0 = -(hg1 + hg2 + hg3)
+  gradient = mat43()
+  gradient[0] = hg0
+  gradient[1] = hg1
+  gradient[2] = hg2
+  gradient[3] = hg3
+
+  metric, tension = stretch_elasticity(flex_stiffness, stiffness_adr, elongation, 6)
+  tension = _snh_cubic(tension, elongation, k21)
+  metric = _snh_cubic_metric(metric, elongation, k21)
+
+  vertex = mat43()
+  vertex[0] = wp.vec3(0.0, 0.0, 0.0)
+  vertex[1] = VT * rest0
+  vertex[2] = VT * rest1
+  vertex[3] = VT * rest2
+
+  edges = stretch_edge_endpoints(3)
+  reference = mat63()
+  sq0 = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  sq1 = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  sq2 = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  for e in range(6):
+    ref_e = vertex[edges[e, 0]] - vertex[edges[e, 1]]
+    reference[e] = ref_e
+    sq0[e] = ref_e[0] * ref_e[0]
+    sq1[e] = ref_e[1] * ref_e[1]
+    sq2[e] = ref_e[2] * ref_e[2]
+
+  prod0 = metric * sq0
+  prod1 = metric * sq1
+  prod2 = metric * sq2
+  geo = wp.vec3(wp.dot(tension, sq0), wp.dot(tension, sq1), wp.dot(tension, sq2))
+
+  J = sigma[0] * sigma[1] * sigma[2]
+  volume_stiffness = 2.0 * k22
+  pressure = volume_stiffness * (J - 1.0)
+  cof = wp.vec3(sigma[1] * sigma[2], sigma[0] * sigma[2], sigma[0] * sigma[1])
+
+  a00 = 2.0 * sigma[0] * sigma[0] * wp.dot(sq0, prod0) + volume_stiffness * cof[0] * cof[0] + geo[0]
+  a11 = 2.0 * sigma[1] * sigma[1] * wp.dot(sq1, prod1) + volume_stiffness * cof[1] * cof[1] + geo[1]
+  a22 = 2.0 * sigma[2] * sigma[2] * wp.dot(sq2, prod2) + volume_stiffness * cof[2] * cof[2] + geo[2]
+  a01 = 2.0 * sigma[0] * sigma[1] * wp.dot(sq0, prod1) + volume_stiffness * cof[0] * cof[1] + pressure * sigma[2]
+  a02 = 2.0 * sigma[0] * sigma[2] * wp.dot(sq0, prod2) + volume_stiffness * cof[0] * cof[2] + pressure * sigma[1]
+  a12 = 2.0 * sigma[1] * sigma[2] * wp.dot(sq1, prod2) + volume_stiffness * cof[1] * cof[2] + pressure * sigma[0]
+  A = wp.mat33(a00, a01, a02, a01, a11, a12, a02, a12, a22)
+
+  if _snh_positive3(A):
+    stretch = A
+  else:
+    eig, Q = _snh_eigen3(A)
+    ev0 = wp.max(0.0, eig[0])
+    ev1 = wp.max(0.0, eig[1])
+    ev2 = wp.max(0.0, eig[2])
+    QD = wp.mat33(
+      Q[0, 0] * ev0,
+      Q[0, 1] * ev1,
+      Q[0, 2] * ev2,
+      Q[1, 0] * ev0,
+      Q[1, 1] * ev1,
+      Q[1, 2] * ev2,
+      Q[2, 0] * ev0,
+      Q[2, 1] * ev1,
+      Q[2, 2] * ev2,
+    )
+    stretch = QD * wp.transpose(Q)
+
+  symmetric = wp.vec3(0.0, 0.0, 0.0)
+  skew = wp.vec3(0.0, 0.0, 0.0)
+  pair_i = wp.vec3i(0, 0, 1)
+  pair_j = wp.vec3i(1, 2, 2)
+  for mode in range(3):
+    ii = pair_i[mode]
+    jj = pair_j[mode]
+    direction = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    for e in range(6):
+      direction[e] = reference[e, ii] * reference[e, jj]
+    response = metric * direction
+    material = wp.dot(direction, response)
+    geometric = 0.5 * (geo[ii] + geo[jj])
+    sum_s = sigma[ii] + sigma[jj]
+    diff_s = sigma[ii] - sigma[jj]
+    cross_s = pressure * sigma[3 - ii - jj]
+    symmetric[mode] = wp.max(0.0, sum_s * sum_s * material + geometric - cross_s)
+    skew[mode] = wp.max(0.0, diff_s * diff_s * material + geometric + cross_s)
+
+  active = (
+    stretch[0, 0] > 0.0
+    or stretch[1, 1] > 0.0
+    or stretch[2, 2] > 0.0
+    or symmetric[0] > 0.0
+    or symmetric[1] > 0.0
+    or symmetric[2] > 0.0
+    or skew[0] > 0.0
+    or skew[1] > 0.0
+    or skew[2] > 0.0
+  )
+  return active, rotation, gradient, stretch, symmetric, skew
+
+
+@wp.func
+def snh_projected_block(
+  # In:
+  rotation: wp.mat33,
+  gradient: mat43,
+  stretch: wp.mat33,
+  symmetric: wp.vec3,
+  skew: wp.vec3,
+  i: int,
+  j: int,
+) -> wp.mat33:
+  a = gradient[i]
+  b = gradient[j]
+  s0 = 0.5 * (symmetric[0] + skew[0])
+  d0 = 0.5 * (symmetric[0] - skew[0])
+  s1 = 0.5 * (symmetric[1] + skew[1])
+  d1 = 0.5 * (symmetric[1] - skew[1])
+  s2 = 0.5 * (symmetric[2] + skew[2])
+  d2 = 0.5 * (symmetric[2] - skew[2])
+
+  local = wp.mat33(
+    stretch[0, 0] * a[0] * b[0] + s0 * a[1] * b[1] + s1 * a[2] * b[2],
+    stretch[0, 1] * a[0] * b[1] + d0 * a[1] * b[0],
+    stretch[0, 2] * a[0] * b[2] + d1 * a[2] * b[0],
+    stretch[1, 0] * a[1] * b[0] + d0 * a[0] * b[1],
+    stretch[1, 1] * a[1] * b[1] + s0 * a[0] * b[0] + s2 * a[2] * b[2],
+    stretch[1, 2] * a[1] * b[2] + d2 * a[2] * b[1],
+    stretch[2, 0] * a[2] * b[0] + d1 * a[0] * b[2],
+    stretch[2, 1] * a[2] * b[1] + d2 * a[1] * b[2],
+    stretch[2, 2] * a[2] * b[2] + s1 * a[0] * b[0] + s2 * a[1] * b[1],
+  )
+  return rotation * local * wp.transpose(rotation)
+
+
+@wp.func
+def flex_gather_vert(
+  # Model:
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  body_simple: wp.array[int],
+  dof_parentid: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  # Data in:
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  vec_in: wp.array2d[float],
+  worldid: int,
+  gvert: int,
+) -> wp.vec3:
+  res = wp.vec3(0.0, 0.0, 0.0)
+  bodyid = flex_vertbodyid[gvert]
+  if bodyid < 0:
+    return res
+  body = body_weldid[bodyid]
+  dofnum = body_dofnum[body]
+  if dofnum == 0:
+    return res
+  da = body_dofadr[body]
+  if body_simple[body] == 2:
+    for j in range(dofnum):
+      axis = wp.spatial_bottom(cdof_in[worldid, da + j])
+      res += axis * vec_in[worldid, da + j]
+    return res
+  offset = flexvert_xpos_in[worldid, gvert] - subtree_com_in[worldid, body_rootid[body]]
+  i = da + dofnum - 1
+  while i >= 0:
+    cdof = cdof_in[worldid, i]
+    column = wp.spatial_bottom(cdof) + wp.cross(wp.spatial_top(cdof), offset)
+    res += column * vec_in[worldid, i]
+    i = dof_parentid[i]
+  return res
+
+
+@wp.func
+def flex_scatter_vert(
+  # Model:
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  body_simple: wp.array[int],
+  dof_parentid: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  # Data in:
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  worldid: int,
+  gvert: int,
+  f_world: wp.vec3,
+  scale: float,
+  # Out:
+  res_out: wp.array2d[float],
+):
+  if f_world[0] == 0.0 and f_world[1] == 0.0 and f_world[2] == 0.0:
+    return
+  bodyid = flex_vertbodyid[gvert]
+  if bodyid < 0:
+    return
+  body = body_weldid[bodyid]
+  dofnum = body_dofnum[body]
+  if dofnum == 0:
+    return
+  da = body_dofadr[body]
+  if body_simple[body] == 2:
+    for j in range(dofnum):
+      axis = wp.spatial_bottom(cdof_in[worldid, da + j])
+      wp.atomic_add(res_out, worldid, da + j, scale * wp.dot(axis, f_world))
+    return
+  offset = flexvert_xpos_in[worldid, gvert] - subtree_com_in[worldid, body_rootid[body]]
+  i = da + dofnum - 1
+  while i >= 0:
+    cdof = cdof_in[worldid, i]
+    column = wp.spatial_bottom(cdof) + wp.cross(wp.spatial_top(cdof), offset)
+    wp.atomic_add(res_out, worldid, i, scale * wp.dot(column, f_world))
+    i = dof_parentid[i]
+
+
+@cache_kernel
+def _flex_gather_kernel(check_skip: bool):
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
+  def kernel(
+    # Model:
+    body_rootid: wp.array[int],
+    body_weldid: wp.array[int],
+    body_dofnum: wp.array[int],
+    body_dofadr: wp.array[int],
+    body_simple: wp.array[int],
+    dof_parentid: wp.array[int],
+    flex_vertbodyid: wp.array[int],
+    # Data in:
+    subtree_com_in: wp.array2d[wp.vec3],
+    cdof_in: wp.array2d[wp.spatial_vector],
+    flexvert_xpos_in: wp.array2d[wp.vec3],
+    # In:
+    vec_in: wp.array2d[float],
+    skip: wp.array[bool],
+    # Out:
+    res_out: wp.array2d[wp.vec3],
+  ):
+    worldid, gvert = wp.tid()
+    if wp.static(check_skip):
+      if skip[worldid]:
+        return
+    res_out[worldid, gvert] = flex_gather_vert(
+      body_rootid,
+      body_weldid,
+      body_dofnum,
+      body_dofadr,
+      body_simple,
+      dof_parentid,
+      flex_vertbodyid,
+      subtree_com_in,
+      cdof_in,
+      flexvert_xpos_in,
+      vec_in,
+      worldid,
+      gvert,
+    )
+
+  return kernel
+
+
+@cache_kernel
+def _flex_scatter_kernel(check_skip: bool):
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
+  def kernel(
+    # Model:
+    body_rootid: wp.array[int],
+    body_weldid: wp.array[int],
+    body_dofnum: wp.array[int],
+    body_dofadr: wp.array[int],
+    body_simple: wp.array[int],
+    dof_parentid: wp.array[int],
+    flex_vertbodyid: wp.array[int],
+    # Data in:
+    subtree_com_in: wp.array2d[wp.vec3],
+    cdof_in: wp.array2d[wp.spatial_vector],
+    flexvert_xpos_in: wp.array2d[wp.vec3],
+    # In:
+    vec_in: wp.array2d[wp.vec3],
+    scale: float,
+    skip: wp.array[bool],
+    # Out:
+    res_out: wp.array2d[float],
+  ):
+    worldid, gvert = wp.tid()
+    if wp.static(check_skip):
+      if skip[worldid]:
+        return
+    flex_scatter_vert(
+      body_rootid,
+      body_weldid,
+      body_dofnum,
+      body_dofadr,
+      body_simple,
+      dof_parentid,
+      flex_vertbodyid,
+      subtree_com_in,
+      cdof_in,
+      flexvert_xpos_in,
+      worldid,
+      gvert,
+      vec_in[worldid, gvert],
+      scale,
+      res_out,
+    )
+
+  return kernel
+
+
+def flex_gather(
+  m: Model,
+  d: Data,
+  res: wp.array2d[wp.vec3],
+  vec: wp.array2d[float],
+  skip: Optional[wp.array] = None,
+):
+  """Gathers generalized vector into world-space flex vertex coordinates."""
+  if m.nflexvert == 0:
+    return
+  check_skip = skip is not None
+  skip_arr = skip if check_skip else m.body_is_free
+  wp.launch(
+    _flex_gather_kernel(check_skip),
+    dim=(d.nworld, m.nflexvert),
+    inputs=[
+      m.body_rootid,
+      m.body_weldid,
+      m.body_dofnum,
+      m.body_dofadr,
+      m.body_simple,
+      m.dof_parentid,
+      m.flex_vertbodyid,
+      d.subtree_com,
+      d.cdof,
+      d.flexvert_xpos,
+      vec,
+      skip_arr,
+    ],
+    outputs=[res],
+  )
+
+
+def flex_scatter(
+  m: Model,
+  d: Data,
+  res: wp.array2d[float],
+  vec: wp.array2d[wp.vec3],
+  scale: float = 1.0,
+  skip: Optional[wp.array] = None,
+):
+  """Scatters world-space flex vertex forces into generalized coordinates."""
+  if m.nflexvert == 0 or scale == 0.0:
+    return
+  check_skip = skip is not None
+  skip_arr = skip if check_skip else m.body_is_free
+  wp.launch(
+    _flex_scatter_kernel(check_skip),
+    dim=(d.nworld, m.nflexvert),
+    inputs=[
+      m.body_rootid,
+      m.body_weldid,
+      m.body_dofnum,
+      m.body_dofadr,
+      m.body_simple,
+      m.dof_parentid,
+      m.flex_vertbodyid,
+      d.subtree_com,
+      d.cdof,
+      d.flexvert_xpos,
+      vec,
+      scale,
+      skip_arr,
+    ],
+    outputs=[res],
+  )
+
+
+@wp.func
+def _flex_hessian_active(
+  # Model:
+  flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_stiffness: wp.array[float],
+  flex_rigid: wp.array[bool],
+  # In:
+  f: int,
+) -> bool:
+  if f < 0:
+    return False
+  if flex_interp[f] != 0 or flex_rigid[f] or flex_dim[f] < 2:
+    return False
+  stiffness_adr = flex_stiffnessadr[f]
+  if stiffness_adr < 0:
+    return False
+  return flex_stiffness[stiffness_adr] != 0.0
+
+
+@wp.kernel
+def _flex_hessian_clear(
+  # Model:
+  nflexvert: int,
+  nflexedge: int,
+  flex_edgeflexid: wp.array[int],
+  flex_vertflexid: wp.array[int],
+  # Data in:
+  flex_hessian_valid_in: wp.array2d[bool],
+  # Data out:
+  flexvert_hessian_out: wp.array2d[vec6],
+  flexedge_hessian_out: wp.array2d[wp.mat33],
+):
+  worldid, tid = wp.tid()
+  if tid < nflexvert:
+    f_v = flex_vertflexid[tid]
+    if f_v >= 0 and not flex_hessian_valid_in[worldid, f_v]:
+      flexvert_hessian_out[worldid, tid] = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  if tid < nflexedge:
+    f_e = flex_edgeflexid[tid]
+    if f_e >= 0 and not flex_hessian_valid_in[worldid, f_e]:
+      flexedge_hessian_out[worldid, tid] = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+@wp.kernel
+def _flex_hessian_elem(
+  # Model:
+  flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_edgeadr: wp.array[int],
+  flex_elemadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_elemedgeadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_elem: wp.array[int],
+  flex_elemedge: wp.array[int],
+  flex_vert0: wp.array[wp.vec3],
+  flexedge_length0: wp.array[float],
+  flex_size: wp.array[wp.vec3],
+  flex_stiffness: wp.array[float],
+  flex_rigid: wp.array[bool],
+  flex_elemflexid: wp.array[int],
+  # Data in:
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  flex_hessian_valid_in: wp.array2d[bool],
+  flexedge_length_in: wp.array2d[float],
+  # Data out:
+  flexedge_hessian_out: wp.array2d[wp.mat33],
+):
+  worldid, elemid = wp.tid()
+  f = flex_elemflexid[elemid]
+  if flex_hessian_valid_in[worldid, f]:
+    return
+  if not _flex_hessian_active(
+    flex_dim,
+    flex_interp,
+    flex_stiffnessadr,
+    flex_stiffness,
+    flex_rigid,
+    f,
+  ):
+    return
+
+  local_elemid = elemid - flex_elemadr[f]
+  dim = flex_dim[f]
+  nvrt = dim + 1
+  nedge = 3 if dim == 2 else 6
+  elem_data_adr = flex_elemdataadr[f] + local_elemid * nvrt
+  vbase = flex_vertadr[f]
+  ebase = flex_edgeadr[f]
+  ee_base = flex_elemedgeadr[f] + local_elemid * nedge
+  stiffness_adr = flex_stiffnessadr[f] + local_elemid * (FLEX_STIFFNESS_3D if dim == 3 else 21)
+  snh = wp.static(FLEX_STIFFNESS_3D == 24) and dim == 3 and flex_stiffness[stiffness_adr + 21] != 0.0
+
+  elem_verts = wp.vec4i(-1, -1, -1, -1)
+  vert_xpos = mat43()
+  for v in range(nvrt):
+    vert_idx = flex_elem[elem_data_adr + v]
+    elem_verts[v] = vert_idx
+    vert_xpos[v] = flexvert_xpos_in[worldid, vbase + vert_idx]
+
+  edgevec = stretch_edge_vectors(vert_xpos, dim)
+
+  metric = mat66(0.0)
+  tension = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  rotation = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  proj_grad = mat43()
+  stretch = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  symmetric = wp.vec3(0.0, 0.0, 0.0)
+  skew = wp.vec3(0.0, 0.0, 0.0)
+
+  if snh:
+    elongation = stretch_elongation(flex_elemedge, flexedge_length0, flexedge_length_in, worldid, ee_base, ebase, 6)
+    active, rotation, proj_grad, stretch, symmetric, skew = snh_project(
+      flex_vert0,
+      flex_stiffness,
+      stiffness_adr,
+      vbase,
+      elem_verts,
+      flex_size[f],
+      edgevec,
+      elongation,
+    )
+    if not active:
+      return
+  else:
+    metric, tension = stretch_stiffness(
+      flex_elemedge, flexedge_length0, flex_stiffness, flexedge_length_in, worldid, stiffness_adr, ee_base, ebase, nedge
+    )
+
+  edges = stretch_edge_endpoints(dim)
+  for e in range(nedge):
+    i = edges[e, 0]
+    j = edges[e, 1]
+    edge_id = ebase + flex_elemedge[ee_base + e]
+    endpoints = flex_edge[edge_id]
+    if endpoints[0] != elem_verts[i]:
+      swap = i
+      i = j
+      j = swap
+    if snh:
+      block = snh_projected_block(rotation, proj_grad, stretch, symmetric, skew, i, j)
+    else:
+      block = stretch_stiffness_block(metric, tension, edgevec, dim, i, j, 1.0)
+    wp.atomic_add(flexedge_hessian_out, worldid, edge_id, block)
+
+
+@wp.kernel
+def _flex_hessian_diag(
+  # Model:
+  flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_stiffness: wp.array[float],
+  flex_rigid: wp.array[bool],
+  flex_edgeflexid: wp.array[int],
+  # Data in:
+  flex_hessian_valid_in: wp.array2d[bool],
+  flexedge_hessian_in: wp.array2d[wp.mat33],
+  # Data out:
+  flexvert_hessian_out: wp.array2d[vec6],
+):
+  worldid, edgeid = wp.tid()
+  f = flex_edgeflexid[edgeid]
+  if flex_hessian_valid_in[worldid, f]:
+    return
+  if not _flex_hessian_active(
+    flex_dim,
+    flex_interp,
+    flex_stiffnessadr,
+    flex_stiffness,
+    flex_rigid,
+    f,
+  ):
+    return
+
+  va = flex_vertadr[f]
+  vert = flex_edge[edgeid]
+  block = flexedge_hessian_in[worldid, edgeid]
+  d0 = vec6(-block[0, 0], -block[0, 1], -block[0, 2], -block[1, 1], -block[1, 2], -block[2, 2])
+  d1 = vec6(-block[0, 0], -block[1, 0], -block[2, 0], -block[1, 1], -block[2, 1], -block[2, 2])
+  wp.atomic_add(flexvert_hessian_out, worldid, va + vert[0], d0)
+  wp.atomic_add(flexvert_hessian_out, worldid, va + vert[1], d1)
+
+
+def flex_hessian(m: Model, d: Data):
+  """Caches the unscaled Cartesian stretch Hessian for all flexes."""
+  if m.nflex == 0:
+    return
+  nclear = max(m.nflexvert, m.nflexedge)
+  if nclear > 0:
+    wp.launch(
+      _flex_hessian_clear,
+      dim=(d.nworld, nclear),
+      inputs=[
+        m.nflexvert,
+        m.nflexedge,
+        m.flex_edgeflexid,
+        m.flex_vertflexid,
+        d.flex_hessian_valid,
+      ],
+      outputs=[d.flexvert_hessian, d.flexedge_hessian],
+    )
+  if m.nflexelem > 0:
+    wp.launch(
+      _flex_hessian_elem,
+      dim=(d.nworld, m.nflexelem),
+      inputs=[
+        m.flex_dim,
+        m.flex_interp,
+        m.flex_vertadr,
+        m.flex_edgeadr,
+        m.flex_elemadr,
+        m.flex_elemdataadr,
+        m.flex_stiffnessadr,
+        m.flex_elemedgeadr,
+        m.flex_edge,
+        m.flex_elem,
+        m.flex_elemedge,
+        m.flex_vert0,
+        m.flexedge_length0,
+        m.flex_size,
+        m.flex_stiffness,
+        m.flex_rigid,
+        m.flex_elemflexid,
+        d.flexvert_xpos,
+        d.flex_hessian_valid,
+        d.flexedge_length,
+      ],
+      outputs=[d.flexedge_hessian],
+    )
+    wp.launch(
+      _flex_hessian_diag,
+      dim=(d.nworld, m.nflexedge),
+      inputs=[
+        m.flex_dim,
+        m.flex_interp,
+        m.flex_vertadr,
+        m.flex_stiffnessadr,
+        m.flex_edge,
+        m.flex_stiffness,
+        m.flex_rigid,
+        m.flex_edgeflexid,
+        d.flex_hessian_valid,
+        d.flexedge_hessian,
+      ],
+      outputs=[d.flexvert_hessian],
+    )
+  d.flex_hessian_valid.fill_(True)
+
+
+@wp.func
+def _flex_stretch_mul_scale(
+  # Model:
+  opt_timestep: wp.array[float],
+  opt_disableflags: int,
+  flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_stiffness: wp.array[float],
+  flex_damping: wp.array[float],
+  flex_rigid: wp.array[bool],
+  flex_simple: wp.array[bool],
+  # In:
+  worldid: int,
+  f: int,
+  s1_in: float,
+  s2_in: float,
+  use_timestep: bool,
+  non_simple_only: bool,
+  snh_only: bool,
+) -> float:
+  if f < 0:
+    return 0.0
+  if flex_interp[f] != 0 or flex_rigid[f] or flex_dim[f] < 2:
+    return 0.0
+  if non_simple_only and flex_simple[f]:
+    return 0.0
+  stiffness_adr = flex_stiffnessadr[f]
+  if stiffness_adr < 0:
+    return 0.0
+  if flex_stiffness[stiffness_adr] == 0.0:
+    return 0.0
+  if snh_only:
+    if not wp.static(FLEX_STIFFNESS_3D == 24) or flex_dim[f] != 3 or flex_stiffness[stiffness_adr + 21] == 0.0:
+      return 0.0
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+  if use_timestep:
+    if s1_in < 0.0:
+      s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep
+    else:
+      s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep * timestep
+    s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else s2_in * timestep
+    return s1 + s2 * flex_damping[f]
+  if s1_in == 0.0 and timestep <= 0.0:
+    return 0.0
+  return s1_in + s2_in * flex_damping[f]
+
+
+@cache_kernel
+def _flex_hessian_mul_vert(check_skip: bool):
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
+  def kernel(
+    # Model:
+    opt_timestep: wp.array[float],
+    opt_disableflags: int,
+    flex_dim: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_stiffnessadr: wp.array[int],
+    flex_stiffness: wp.array[float],
+    flex_damping: wp.array[float],
+    flex_rigid: wp.array[bool],
+    flex_vertflexid: wp.array[int],
+    flex_simple: wp.array[bool],
+    # Data in:
+    flexvert_hessian_in: wp.array2d[vec6],
+    # In:
+    vec_in: wp.array2d[wp.vec3],
+    skip: wp.array[bool],
+    s1_in: float,
+    s2_in: float,
+    use_timestep: bool,
+    non_simple_only: bool,
+    snh_only: bool,
+    # Out:
+    res_out: wp.array2d[wp.vec3],
+  ):
+    worldid, vertid = wp.tid()
+    if wp.static(check_skip):
+      if skip[worldid]:
+        return
+    f = flex_vertflexid[vertid]
+    scale = _flex_stretch_mul_scale(
+      opt_timestep,
+      opt_disableflags,
+      flex_dim,
+      flex_interp,
+      flex_stiffnessadr,
+      flex_stiffness,
+      flex_damping,
+      flex_rigid,
+      flex_simple,
+      worldid,
+      f,
+      s1_in,
+      s2_in,
+      use_timestep,
+      non_simple_only,
+      snh_only,
+    )
+    if scale == 0.0:
+      res_out[worldid, vertid] = wp.vec3(0.0, 0.0, 0.0)
+      return
+    a = flexvert_hessian_in[worldid, vertid]
+    x = vec_in[worldid, vertid]
+    res_out[worldid, vertid] = scale * wp.vec3(
+      a[0] * x[0] + a[1] * x[1] + a[2] * x[2],
+      a[1] * x[0] + a[3] * x[1] + a[4] * x[2],
+      a[2] * x[0] + a[4] * x[1] + a[5] * x[2],
+    )
+
+  return kernel
+
+
+@cache_kernel
+def _flex_hessian_mul_edge(check_skip: bool):
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
+  def kernel(
+    # Model:
+    opt_timestep: wp.array[float],
+    opt_disableflags: int,
+    flex_dim: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_vertadr: wp.array[int],
+    flex_stiffnessadr: wp.array[int],
+    flex_edge: wp.array[wp.vec2i],
+    flex_stiffness: wp.array[float],
+    flex_damping: wp.array[float],
+    flex_rigid: wp.array[bool],
+    flex_edgeflexid: wp.array[int],
+    flex_simple: wp.array[bool],
+    # Data in:
+    flexedge_hessian_in: wp.array2d[wp.mat33],
+    # In:
+    vec_in: wp.array2d[wp.vec3],
+    skip: wp.array[bool],
+    s1_in: float,
+    s2_in: float,
+    use_timestep: bool,
+    non_simple_only: bool,
+    snh_only: bool,
+    # Out:
+    res_out: wp.array2d[wp.vec3],
+  ):
+    worldid, edgeid = wp.tid()
+    if wp.static(check_skip):
+      if skip[worldid]:
+        return
+    f = flex_edgeflexid[edgeid]
+    scale = _flex_stretch_mul_scale(
+      opt_timestep,
+      opt_disableflags,
+      flex_dim,
+      flex_interp,
+      flex_stiffnessadr,
+      flex_stiffness,
+      flex_damping,
+      flex_rigid,
+      flex_simple,
+      worldid,
+      f,
+      s1_in,
+      s2_in,
+      use_timestep,
+      non_simple_only,
+      snh_only,
+    )
+    if scale == 0.0:
+      return
+    va = flex_vertadr[f]
+    v = flex_edge[edgeid]
+    v0 = va + v[0]
+    v1 = va + v[1]
+    block = flexedge_hessian_in[worldid, edgeid]
+    x = vec_in[worldid, v0]
+    y = vec_in[worldid, v1]
+    wp.atomic_add(res_out, worldid, v0, scale * (block * y))
+    wp.atomic_add(res_out, worldid, v1, scale * (wp.transpose(block) * x))
+
+  return kernel
+
+
+def flex_hessian_mul(
+  m: Model,
+  d: Data,
+  res: wp.array2d[wp.vec3],
+  vec: wp.array2d[wp.vec3],
+  s1_in: float = 1.0,
+  s2_in: float = 0.0,
+  use_timestep: bool = False,
+  non_simple_only: bool = False,
+  snh_only: bool = False,
+  skip: Optional[wp.array] = None,
+):
+  """Computes res = (s1 + s2*flex_damping) * H * vec in world vertex coordinates."""
+  if m.nflexvert == 0:
+    return
+  check_skip = skip is not None
+  skip_arr = skip if check_skip else m.body_is_free
+  wp.launch(
+    _flex_hessian_mul_vert(check_skip),
+    dim=(d.nworld, m.nflexvert),
+    inputs=[
+      m.opt.timestep,
+      m.opt.disableflags,
+      m.flex_dim,
+      m.flex_interp,
+      m.flex_stiffnessadr,
+      m.flex_stiffness,
+      m.flex_damping,
+      m.flex_rigid,
+      m.flex_vertflexid,
+      m.flex_simple,
+      d.flexvert_hessian,
+      vec,
+      skip_arr,
+      s1_in,
+      s2_in,
+      use_timestep,
+      non_simple_only,
+      snh_only,
+    ],
+    outputs=[res],
+  )
+  wp.launch(
+    _flex_hessian_mul_edge(check_skip),
+    dim=(d.nworld, m.nflexedge),
+    inputs=[
+      m.opt.timestep,
+      m.opt.disableflags,
+      m.flex_dim,
+      m.flex_interp,
+      m.flex_vertadr,
+      m.flex_stiffnessadr,
+      m.flex_edge,
+      m.flex_stiffness,
+      m.flex_damping,
+      m.flex_rigid,
+      m.flex_edgeflexid,
+      m.flex_simple,
+      d.flexedge_hessian,
+      vec,
+      skip_arr,
+      s1_in,
+      s2_in,
+      use_timestep,
+      non_simple_only,
+      snh_only,
+    ],
+    outputs=[res],
+  )
+
+
+def flex_stretch_mul(
+  m: Model,
+  d: Data,
+  res: wp.array2d[float],
+  vec: wp.array2d[float],
+  s1_in: float = 1.0,
+  s2_in: float = 0.0,
+  use_timestep: bool = True,
+  non_simple_only: bool = False,
+  snh_only: bool = False,
+  skip: Optional[wp.array] = None,
+):
+  """Adds (s1 + s2*flex_damping) * J^T * K_stretch * J * vec to res."""
+  if m.nflex == 0 or m.nflexvert == 0:
+    return
+  wvec = wp.empty((d.nworld, m.nflexvert), dtype=wp.vec3)
+  wres = wp.empty((d.nworld, m.nflexvert), dtype=wp.vec3)
+  flex_gather(m, d, wvec, vec, skip=skip)
+  flex_hessian_mul(
+    m,
+    d,
+    wres,
+    wvec,
+    s1_in=s1_in,
+    s2_in=s2_in,
+    use_timestep=use_timestep,
+    non_simple_only=non_simple_only,
+    snh_only=snh_only,
+    skip=skip,
+  )
+  flex_scatter(m, d, res, wres, scale=1.0, skip=skip)
+
+
+@cache_kernel
+def _flex_bend_mul(check_skip: bool):
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
+  def kernel(
+    # Model:
+    opt_timestep: wp.array[float],
+    opt_disableflags: int,
+    body_rootid: wp.array[int],
+    body_weldid: wp.array[int],
+    body_dofnum: wp.array[int],
+    body_dofadr: wp.array[int],
+    body_simple: wp.array[int],
+    dof_parentid: wp.array[int],
+    flex_dim: wp.array[int],
+    flex_interp: wp.array[int],
+    flex_vertadr: wp.array[int],
+    flex_edgeadr: wp.array[int],
+    flex_bendingadr: wp.array[int],
+    flex_vertbodyid: wp.array[int],
+    flex_edge: wp.array[wp.vec2i],
+    flex_edgeflap: wp.array[wp.vec2i],
+    flex_bending: wp.array[float],
+    flex_damping: wp.array[float],
+    flex_rigid: wp.array[bool],
+    flex_edgeflexid: wp.array[int],
+    flex_simple: wp.array[bool],
+    # Data in:
+    subtree_com_in: wp.array2d[wp.vec3],
+    cdof_in: wp.array2d[wp.spatial_vector],
+    flexvert_xpos_in: wp.array2d[wp.vec3],
+    # In:
+    vec_in: wp.array2d[float],
+    skip: wp.array[bool],
+    s1_in: float,
+    s2_in: float,
+    use_timestep: bool,
+    non_simple_only: bool,
+    # Out:
+    res_out: wp.array2d[float],
+  ):
+    worldid, edgeid = wp.tid()
+    if wp.static(check_skip):
+      if skip[worldid]:
+        return
+    f = flex_edgeflexid[edgeid]
+    if f < 0:
+      return
+    if flex_interp[f] != 0 or flex_rigid[f] or flex_dim[f] != 2:
+      return
+    if non_simple_only and flex_simple[f]:
+      return
+    bendingadr = flex_bendingadr[f]
+    if bendingadr < 0:
+      return
+
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+    if use_timestep:
+      if s1_in < 0.0:
+        s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep
+      else:
+        s1 = 0.0 if (opt_disableflags & DisableBit.SPRING) else s1_in * timestep * timestep
+      s2 = 0.0 if (opt_disableflags & DisableBit.DAMPER) else s2_in * timestep
+      scale = s1 + s2 * flex_damping[f]
+    else:
+      scale = s1_in + s2_in * flex_damping[f]
+    if scale == 0.0:
+      return
+
+    flap = flex_edgeflap[edgeid]
+    if flap[1] == -1:
+      return
+    edge = flex_edge[edgeid]
+    vbase = flex_vertadr[f]
+    local_edgeid = edgeid - flex_edgeadr[f]
+    bend_offset = bendingadr + 17 * local_edgeid
+    verts = wp.vec4i(edge[0], edge[1], flap[0], flap[1])
+
+    wvec = mat43()
+    for j in range(4):
+      wvec[j] = flex_gather_vert(
+        body_rootid,
+        body_weldid,
+        body_dofnum,
+        body_dofadr,
+        body_simple,
+        dof_parentid,
+        flex_vertbodyid,
+        subtree_com_in,
+        cdof_in,
+        flexvert_xpos_in,
+        vec_in,
+        worldid,
+        vbase + verts[j],
+      )
+
+    for i in range(4):
+      vw = wp.vec3(0.0, 0.0, 0.0)
+      for j in range(4):
+        q = flex_bending[bend_offset + 4 * i + j]
+        vw += q * wvec[j]
+      flex_scatter_vert(
+        body_rootid,
+        body_weldid,
+        body_dofnum,
+        body_dofadr,
+        body_simple,
+        dof_parentid,
+        flex_vertbodyid,
+        subtree_com_in,
+        cdof_in,
+        flexvert_xpos_in,
+        worldid,
+        vbase + verts[i],
+        vw,
+        scale,
+        res_out,
+      )
+
+  return kernel
+
+
+def flex_bend_mul(
+  m: Model,
+  d: Data,
+  res: wp.array2d[float],
+  vec: wp.array2d[float],
+  s1_in: float = 1.0,
+  s2_in: float = 0.0,
+  use_timestep: bool = True,
+  non_simple_only: bool = False,
+  skip: Optional[wp.array] = None,
+):
+  """Adds (s1 + s2*flex_damping) * J^T * K_bend * J * vec to res."""
+  if m.nflex == 0 or m.nflexedge == 0:
+    return
+  check_skip = skip is not None
+  skip_arr = skip if check_skip else m.body_is_free
+  wp.launch(
+    _flex_bend_mul(check_skip),
+    dim=(d.nworld, m.nflexedge),
+    inputs=[
+      m.opt.timestep,
+      m.opt.disableflags,
+      m.body_rootid,
+      m.body_weldid,
+      m.body_dofnum,
+      m.body_dofadr,
+      m.body_simple,
+      m.dof_parentid,
+      m.flex_dim,
+      m.flex_interp,
+      m.flex_vertadr,
+      m.flex_edgeadr,
+      m.flex_bendingadr,
+      m.flex_vertbodyid,
+      m.flex_edge,
+      m.flex_edgeflap,
+      m.flex_bending,
+      m.flex_damping,
+      m.flex_rigid,
+      m.flex_edgeflexid,
+      m.flex_simple,
+      d.subtree_com,
+      d.cdof,
+      d.flexvert_xpos,
+      vec,
+      skip_arr,
+      s1_in,
+      s2_in,
+      use_timestep,
+      non_simple_only,
+    ],
+    outputs=[res],
+  )
+
+
 @wp.kernel
 def _flex_elasticity(
   # Model:
-  nflex: int,
   opt_timestep: wp.array[float],
   flex_dim: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_edgeadr: wp.array[int],
   flex_elemadr: wp.array[int],
-  flex_elemnum: wp.array[int],
   flex_elemdataadr: wp.array[int],
   flex_stiffnessadr: wp.array[int],
   flex_elemedgeadr: wp.array[int],
@@ -754,6 +2353,7 @@ def _flex_elasticity(
   flexedge_length0: wp.array[float],
   flex_stiffness: wp.array[float],
   flex_damping: wp.array[float],
+  flex_elemflexid: wp.array[int],
   # Data in:
   xipos_in: wp.array2d[wp.vec3],
   flexvert_xpos_in: wp.array2d[wp.vec3],
@@ -769,17 +2369,8 @@ def _flex_elasticity(
   worldid, elemid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
-  f = int(0)
-  local_elemid = int(0)
-  elemnum = int(1)
-  for i in range(nflex):
-    locid = elemid - flex_elemadr[i]
-    enum = flex_elemnum[i]
-    if locid >= 0 and locid < enum:
-      f = i
-      local_elemid = locid
-      elemnum = enum
-      break
+  f = flex_elemflexid[elemid]
+  local_elemid = elemid - flex_elemadr[f]
 
   stiffness_adr_base = flex_stiffnessadr[f]
   if stiffness_adr_base < 0:
@@ -796,97 +2387,93 @@ def _flex_elasticity(
 
   dim = flex_dim[f]
   nvert = dim + 1
-  nedge = nvert * (nvert - 1) / 2
+  nedge = 3 if dim == 2 else 6
+
+  stiffness_adr = stiffness_adr_base + local_elemid * (FLEX_STIFFNESS_3D if dim == 3 else 21)
+  snh = wp.static(FLEX_STIFFNESS_3D == 24) and dim == 3 and flex_stiffness[stiffness_adr + 21] != 0.0
+  if snh and dsbl_spring:
+    return
+
   edges = wp.where(
     dim == 1,
     wp.matrix(0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, shape=(6, 2), dtype=int),
-    wp.where(
-      dim == 3,
-      wp.matrix(0, 1, 1, 2, 2, 0, 2, 3, 0, 3, 1, 3, shape=(6, 2), dtype=int),
-      wp.matrix(1, 2, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, shape=(6, 2), dtype=int),
-    ),
+    stretch_edge_endpoints(dim),
   )
 
   elem_data_adr = flex_elemdataadr[f] + local_elemid * (dim + 1)
   vbase = flex_vertadr[f]
 
-  # skip trilinear/interp elements (vertbodyid == -1, no simplex stiffness)
-  vert0_check = flex_elem[elem_data_adr]
-  if flex_vertbodyid[vbase + vert0_check] < 0:
-    return
-  gradient = wp.matrix(0.0, shape=(6, 6))
-  for e in range(nedge):
-    vert0 = flex_elem[elem_data_adr + edges[e, 0]]
-    vert1 = flex_elem[elem_data_adr + edges[e, 1]]
-    xpos0 = flexvert_xpos_in[worldid, vbase + vert0]
-    xpos1 = flexvert_xpos_in[worldid, vbase + vert1]
-    for i in range(3):
-      gradient[e, 0 + i] = xpos0[i] - xpos1[i]
-      gradient[e, 3 + i] = xpos1[i] - xpos0[i]
-
-  elongation_spring = wp.spatial_vectorf(0.0)
-  elongation_damper = wp.spatial_vectorf(0.0)
-  elemedge_adr = flex_elemedgeadr[f] + local_elemid * nedge
-  edge_adr = flex_edgeadr[f]
-  for e in range(nedge):
-    idx = flex_elemedge[elemedge_adr + e]
-    e_idx = edge_adr + idx
-    deformed = flexedge_length_in[worldid, e_idx]
-    if not dsbl_spring:
-      reference = flexedge_length0[e_idx]
-      elongation_spring[e] = deformed * deformed - reference * reference
-    if kD > 0.0:
-      vel = flexedge_velocity_in[worldid, e_idx]
-      dL = vel * timestep
-      elongation_damper[e] = dL * (2.0 * deformed - dL) * kD
-
-  metric = wp.matrix(0.0, shape=(6, 6))
-  stiffness_end = flex_stiffness.shape[0]
-  for i in range(f + 1, nflex):
-    next_adr = flex_stiffnessadr[i]
-    if next_adr >= 0:
-      stiffness_end = next_adr
-      break
-  stiffness_size = int((stiffness_end - stiffness_adr_base) / elemnum)
-  stiffness_adr = stiffness_adr_base + local_elemid * stiffness_size
-  id = int(0)
-  for ed1 in range(nedge):
-    for ed2 in range(ed1, nedge):
-      val = flex_stiffness[stiffness_adr + id]
-      metric[ed1, ed2] = val
-      metric[ed2, ed1] = val
-      id += 1
-
-  force_spring = wp.matrix(0.0, shape=(6, 3))
-  force_damper = wp.matrix(0.0, shape=(6, 3))
-  for ed2 in range(nedge):
-    s_val = float(0.0)
-    d_val = float(0.0)
-    for ed1 in range(nedge):
-      m_val = metric[ed1, ed2]
-      s_val += elongation_spring[ed1] * m_val
-      d_val += elongation_damper[ed1] * m_val
-    for i in range(2):
-      vi = edges[ed2, i]
-      for x in range(3):
-        g_val = gradient[ed2, 3 * i + x]
-        if not dsbl_spring:
-          force_spring[vi, x] -= s_val * g_val
-        if kD > 0.0:
-          force_damper[vi, x] -= d_val * g_val
-
+  vert_body = wp.vec4i(-1, -1, -1, -1)
+  vert_xpos = mat43()
   for v in range(nvert):
     vert = flex_elem[elem_data_adr + v]
     gvert = vbase + vert
     bodyid = flex_vertbodyid[gvert]
-    node_pos = flexvert_xpos_in[worldid, gvert]
+    if v == 0 and bodyid < 0:
+      return
+    vert_body[v] = bodyid
+    vert_xpos[v] = flexvert_xpos_in[worldid, gvert]
+
+  edgevec = mat63()
+  for e in range(nedge):
+    edgevec[e] = vert_xpos[edges[e, 0]] - vert_xpos[edges[e, 1]]
+
+  elemedge_adr = flex_elemedgeadr[f] + local_elemid * nedge
+  edge_adr = flex_edgeadr[f]
+
+  elongation_spring = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  if not dsbl_spring:
+    elongation_spring = stretch_elongation(
+      flex_elemedge, flexedge_length0, flexedge_length_in, worldid, elemedge_adr, edge_adr, nedge
+    )
+
+  metric, tension_spring = stretch_elasticity(flex_stiffness, stiffness_adr, elongation_spring, nedge)
+  if snh:
+    tension_spring = _snh_cubic(tension_spring, elongation_spring, flex_stiffness[stiffness_adr + 21])
+
+  tension_damper = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  if kD > 0.0 and not snh:
+    elongation_damper = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    for e in range(nedge):
+      e_idx = edge_adr + flex_elemedge[elemedge_adr + e]
+      deformed = flexedge_length_in[worldid, e_idx]
+      vel = flexedge_velocity_in[worldid, e_idx]
+      dL = vel * timestep
+      elongation_damper[e] = dL * (2.0 * deformed - dL) * kD
+    tension_damper = stretch_tension(metric, elongation_damper, nedge)
+
+  force_spring = wp.matrix(0.0, shape=(6, 3))
+  force_damper = wp.matrix(0.0, shape=(6, 3))
+  for ed2 in range(nedge):
+    s_val = tension_spring[ed2]
+    d_val = tension_damper[ed2]
+    for i in range(2):
+      vi = edges[ed2, i]
+      for x in range(3):
+        g_val = edgevec[ed2, x] if i == 0 else -edgevec[ed2, x]
+        if not dsbl_spring:
+          force_spring[vi, x] -= s_val * g_val
+        if kD > 0.0 and not snh:
+          force_damper[vi, x] -= d_val * g_val
+
+  if snh and not dsbl_spring:
+    J, vol_grad = _snh_volume(edgevec, flex_stiffness[stiffness_adr + 23])
+    pressure = 2.0 * flex_stiffness[stiffness_adr + 22] * (J - 1.0)
+    for v in range(4):
+      gv = vol_grad[v]
+      for x in range(3):
+        force_spring[v, x] -= pressure * gv[x]
+
+  for v in range(nvert):
+    bodyid = vert_body[v]
+    node_pos = vert_xpos[v]
     body_xipos = xipos_in[worldid, bodyid]
     offset = body_xipos - node_pos
     if not dsbl_spring:
       frc_s = force_spring[v]
       spatial_frc_s = wp.spatial_vector(frc_s, -wp.cross(offset, frc_s))
       wp.atomic_add(flex_spring_body_force_out, worldid, bodyid, spatial_frc_s)
-    if kD > 0.0:
+    if kD > 0.0 and not snh:
       frc_d = force_damper[v]
       spatial_frc_d = wp.spatial_vector(frc_d, -wp.cross(offset, frc_d))
       wp.atomic_add(flex_damper_body_force_out, worldid, bodyid, spatial_frc_d)
@@ -895,20 +2482,20 @@ def _flex_elasticity(
 @wp.kernel
 def _flex_bending(
   # Model:
-  nflex: int,
   body_rootid: wp.array[int],
   body_weldid: wp.array[int],
   body_dofnum: wp.array[int],
   flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_edgeadr: wp.array[int],
-  flex_edgenum: wp.array[int],
   flex_bendingadr: wp.array[int],
   flex_vertbodyid: wp.array[int],
   flex_edge: wp.array[wp.vec2i],
   flex_edgeflap: wp.array[wp.vec2i],
   flex_bending: wp.array[float],
   flex_damping: wp.array[float],
+  flex_edgeflexid: wp.array[int],
   # Data in:
   xipos_in: wp.array2d[wp.vec3],
   subtree_com_in: wp.array2d[wp.vec3],
@@ -923,17 +2510,14 @@ def _flex_bending(
 ):
   worldid, edgeid = wp.tid()
 
-  for i in range(nflex):
-    eid = edgeid - flex_edgeadr[i]
-    if eid >= 0 and eid < flex_edgenum[i]:
-      f = i
-      break
+  f = flex_edgeflexid[edgeid]
+  eid = edgeid - flex_edgeadr[f]
 
   bendingadr = flex_bendingadr[f]
   if bendingadr < 0:
     return
 
-  if flex_dim[f] != 2:
+  if flex_dim[f] != 2 or flex_interp[f] != 0:
     return
 
   flap = flex_edgeflap[edgeid]
@@ -1380,6 +2964,428 @@ def _flex_passive_bend_interp(
   )
 
 
+@wp.func
+def _flex_vert_mass(
+  # Model:
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  # Data in:
+  M_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  gv: int,
+) -> float:
+  b = body_weldid[flex_vertbodyid[gv]]
+  if body_dofnum[b] != 3:
+    return float(0.0)
+  da = body_dofadr[b]
+  diag_idx = M_rowadr[da] + M_rownnz[da] - 1
+  return M_in[worldid, diag_idx]
+
+
+@wp.func
+def _flex_participant_mass(
+  # Model:
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  # Data in:
+  M_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  flex_id: int,
+  elem_id: int,
+  vert_id: int,
+  mmin_in: float,
+) -> float:
+  mmin = mmin_in
+  if flex_id >= 0:
+    if vert_id >= 0:
+      gv = flex_vertadr[flex_id] + vert_id
+      mv = _flex_vert_mass(body_weldid, body_dofnum, body_dofadr, flex_vertbodyid, M_rownnz, M_rowadr, M_in, worldid, gv)
+      if mv > 0.0 and (mmin == 0.0 or mv < mmin):
+        mmin = mv
+    elif elem_id >= 0:
+      dim = flex_dim[flex_id]
+      nvrt = dim + 1
+      base_e = flex_elemdataadr[flex_id] + nvrt * elem_id
+      for j in range(nvrt):
+        gv = flex_vertadr[flex_id] + flex_elem[base_e + j]
+        mv = _flex_vert_mass(body_weldid, body_dofnum, body_dofadr, flex_vertbodyid, M_rownnz, M_rowadr, M_in, worldid, gv)
+        if mv > 0.0 and (mmin == 0.0 or mv < mmin):
+          mmin = mv
+  return mmin
+
+
+@wp.func
+def _flex_contact_stiffness(
+  # Model:
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  # Data in:
+  M_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  flex0: int,
+  flex1: int,
+  elem0: int,
+  elem1: int,
+  vert0: int,
+  vert1: int,
+) -> float:
+  mmin = _flex_participant_mass(
+    body_weldid,
+    body_dofnum,
+    body_dofadr,
+    flex_dim,
+    flex_vertadr,
+    flex_elemdataadr,
+    flex_vertbodyid,
+    flex_elem,
+    M_rownnz,
+    M_rowadr,
+    M_in,
+    worldid,
+    flex0,
+    elem0,
+    vert0,
+    0.0,
+  )
+  mmin = _flex_participant_mass(
+    body_weldid,
+    body_dofnum,
+    body_dofadr,
+    flex_dim,
+    flex_vertadr,
+    flex_elemdataadr,
+    flex_vertbodyid,
+    flex_elem,
+    M_rownnz,
+    M_rowadr,
+    M_in,
+    worldid,
+    flex1,
+    elem1,
+    vert1,
+    mmin,
+  )
+  # 5.0e7 is mjFLEXCONTACT_OMEGA2: squared natural frequency of the passive flex contact law,
+  # scaling the minimum nonzero participant vertex mass to form the pair stiffness.
+  return 5.0e7 * mmin
+
+
+@wp.func
+def _add_con_dof(
+  # In:
+  cid: int,
+  dof: int,
+  val: float,
+  nnz: int,
+  # Out:
+  efm_con_dof_out: wp.array2d[int],
+  efm_con_val_out: wp.array2d[float],
+) -> int:
+  for idx in range(nnz):
+    if efm_con_dof_out[cid, idx] == dof:
+      efm_con_val_out[cid, idx] += val
+      return nnz
+  efm_con_dof_out[cid, nnz] = dof
+  efm_con_val_out[cid, nnz] = val
+  return nnz + 1
+
+
+@wp.kernel
+def _eff_contact_build(
+  # Model:
+  opt_timestep: wp.array[float],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  geom_bodyid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  # Data in:
+  xmat_in: wp.array2d[wp.mat33],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  M_in: wp.array2d[float],
+  contact_dist_in: wp.array[float],
+  contact_pos_in: wp.array[wp.vec3],
+  contact_frame_in: wp.array[wp.mat33],
+  contact_geom_in: wp.array[wp.vec2i],
+  contact_flex_in: wp.array[wp.vec2i],
+  contact_elem_in: wp.array[wp.vec2i],
+  contact_vert_in: wp.array[wp.vec2i],
+  contact_worldid_in: wp.array[int],
+  contact_type_in: wp.array[int],
+  nacon_in: wp.array[int],
+  # Out:
+  efm_con_dof_out: wp.array2d[int],
+  efm_con_val_out: wp.array2d[float],
+  efm_con_scale_out: wp.array[float],
+  efm_con_force_out: wp.array[float],
+  efm_con_nnz_out: wp.array[int],
+):
+  """Builds rank-1 passive flex contact metric terms, normal Jacobians, and forces."""
+  cid = wp.tid()
+  if cid >= nacon_in[0]:
+    return
+
+  if not bool(contact_type_in[cid] & int(ContactType.PASSIVE)):
+    efm_con_nnz_out[cid] = 0
+    efm_con_force_out[cid] = float(0.0)
+    efm_con_scale_out[cid] = float(0.0)
+    return
+
+  worldid = contact_worldid_in[cid]
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+  flex0 = contact_flex_in[cid][0]
+  flex1 = contact_flex_in[cid][1]
+  elem0 = contact_elem_in[cid][0]
+  elem1 = contact_elem_in[cid][1]
+  vert0 = contact_vert_in[cid][0]
+  vert1 = contact_vert_in[cid][1]
+
+  k = _flex_contact_stiffness(
+    body_weldid,
+    body_dofnum,
+    body_dofadr,
+    flex_dim,
+    flex_vertadr,
+    flex_elemdataadr,
+    flex_vertbodyid,
+    flex_elem,
+    M_rownnz,
+    M_rowadr,
+    M_in,
+    worldid,
+    flex0,
+    flex1,
+    elem0,
+    elem1,
+    vert0,
+    vert1,
+  )
+
+  if k <= float(0.0):
+    efm_con_nnz_out[cid] = 0
+    efm_con_force_out[cid] = float(0.0)
+    efm_con_scale_out[cid] = float(0.0)
+    return
+
+  gap = contact_dist_in[cid]
+  pos = contact_pos_in[cid]
+  normal = contact_frame_in[cid][0]
+
+  nnz = int(0)
+
+  # Side 0 (sign = -1.0)
+  if flex0 >= 0:
+    if vert0 >= 0:
+      gv = flex_vertadr[flex0] + vert0
+      b = body_weldid[flex_vertbodyid[gv]]
+      if body_dofnum[b] == 3:
+        da = body_dofadr[b]
+        n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
+        for ax in range(3):
+          nnz = _add_con_dof(cid, da + ax, -n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
+    elif elem0 >= 0:
+      dim0 = flex_dim[flex0]
+      nvrt0 = dim0 + 1
+      base0 = flex_elemdataadr[flex0] + nvrt0 * elem0
+      w0 = wp.vec4(0.0, 0.0, 0.0, 0.0)
+      v0 = wp.vec4i(-1, -1, -1, -1)
+      n0 = int(0)
+      sum_w0 = float(0.0)
+      for j in range(nvrt0):
+        v_local = flex_elem[base0 + j]
+        if vert1 >= 0 and v_local == vert1:
+          continue
+        gv = flex_vertadr[flex0] + v_local
+        v_pos = flexvert_xpos_in[worldid, gv]
+        d = wp.length(pos - v_pos)
+        weight = math.safe_div(1.0, d)
+        w0[n0] = weight
+        v0[n0] = gv
+        sum_w0 += weight
+        n0 += 1
+      if sum_w0 > float(0.0):
+        inv_sum0 = float(1.0) / sum_w0
+        for j in range(n0):
+          wj = w0[j] * inv_sum0
+          gv = v0[j]
+          b = body_weldid[flex_vertbodyid[gv]]
+          if body_dofnum[b] == 3:
+            da = body_dofadr[b]
+            n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
+            for ax in range(3):
+              nnz = _add_con_dof(cid, da + ax, -wj * n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
+
+  # Side 1 (sign = +1.0)
+  if flex1 >= 0:
+    if vert1 >= 0:
+      gv = flex_vertadr[flex1] + vert1
+      b = body_weldid[flex_vertbodyid[gv]]
+      if body_dofnum[b] == 3:
+        da = body_dofadr[b]
+        n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
+        for ax in range(3):
+          nnz = _add_con_dof(cid, da + ax, n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
+    elif elem1 >= 0:
+      dim1 = flex_dim[flex1]
+      nvrt1 = dim1 + 1
+      base1 = flex_elemdataadr[flex1] + nvrt1 * elem1
+      w1 = wp.vec4(0.0, 0.0, 0.0, 0.0)
+      v1 = wp.vec4i(-1, -1, -1, -1)
+      n1 = int(0)
+      sum_w1 = float(0.0)
+      for j in range(nvrt1):
+        v_local = flex_elem[base1 + j]
+        if vert0 >= 0 and v_local == vert0:
+          continue
+        gv = flex_vertadr[flex1] + v_local
+        v_pos = flexvert_xpos_in[worldid, gv]
+        d = wp.length(pos - v_pos)
+        weight = math.safe_div(1.0, d)
+        w1[n1] = weight
+        v1[n1] = gv
+        sum_w1 += weight
+        n1 += 1
+      if sum_w1 > float(0.0):
+        inv_sum1 = float(1.0) / sum_w1
+        for j in range(n1):
+          wj = w1[j] * inv_sum1
+          gv = v1[j]
+          b = body_weldid[flex_vertbodyid[gv]]
+          if body_dofnum[b] == 3:
+            da = body_dofadr[b]
+            n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
+            for ax in range(3):
+              nnz = _add_con_dof(cid, da + ax, wj * n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
+
+  # Compact zero entries
+  real_nnz = int(0)
+  for idx in range(nnz):
+    if wp.abs(efm_con_val_out[cid, idx]) > 1e-12:
+      if real_nnz != idx:
+        efm_con_dof_out[cid, real_nnz] = efm_con_dof_out[cid, idx]
+        efm_con_val_out[cid, real_nnz] = efm_con_val_out[cid, idx]
+      real_nnz += 1
+
+  efm_con_nnz_out[cid] = real_nnz
+  if real_nnz > 0:
+    efm_con_force_out[cid] = -k * wp.min(gap, float(0.0))
+    efm_con_scale_out[cid] = timestep * timestep * k
+  else:
+    efm_con_force_out[cid] = float(0.0)
+    efm_con_scale_out[cid] = float(0.0)
+
+
+def build_efm_contact(
+  m: Model, d: Data, rebuild: bool = True
+) -> tuple[wp.array2d[int], wp.array2d[float], wp.array[float], wp.array[float], wp.array[int]]:
+  """Allocates and builds rank-1 passive flex contact metric terms."""
+  efm_con_dof = wp.zeros((d.naconmax, 24), dtype=int)
+  efm_con_val = wp.zeros((d.naconmax, 24), dtype=float)
+  efm_con_scale = wp.zeros(d.naconmax, dtype=float)
+  efm_con_force = wp.zeros(d.naconmax, dtype=float)
+  efm_con_nnz = wp.zeros(d.naconmax, dtype=int)
+  if (
+    rebuild
+    and m.has_flex_passive
+    and not ((m.opt.disableflags & DisableBit.SPRING) and (m.opt.disableflags & DisableBit.DAMPER))
+  ):
+    wp.launch(
+      _eff_contact_build,
+      dim=d.naconmax,
+      inputs=[
+        m.opt.timestep,
+        m.body_weldid,
+        m.body_dofnum,
+        m.body_dofadr,
+        m.geom_bodyid,
+        m.flex_dim,
+        m.flex_vertadr,
+        m.flex_elemdataadr,
+        m.flex_vertbodyid,
+        m.flex_elem,
+        m.M_rownnz,
+        m.M_rowadr,
+        d.xmat,
+        d.flexvert_xpos,
+        d.M,
+        d.contact.dist,
+        d.contact.pos,
+        d.contact.frame,
+        d.contact.geom,
+        d.contact.flex,
+        d.contact.elem,
+        d.contact.vert,
+        d.contact.worldid,
+        d.contact.type,
+        d.nacon,
+      ],
+      outputs=[
+        efm_con_dof,
+        efm_con_val,
+        efm_con_scale,
+        efm_con_force,
+        efm_con_nnz,
+      ],
+    )
+  return efm_con_dof, efm_con_val, efm_con_scale, efm_con_force, efm_con_nnz
+
+
+@wp.kernel
+def _eff_contact_force(
+  # Data in:
+  contact_worldid_in: wp.array[int],
+  # In:
+  efm_con_dof_in: wp.array2d[int],
+  efm_con_val_in: wp.array2d[float],
+  efm_con_force_in: wp.array[float],
+  efm_con_nnz_in: wp.array[int],
+  # Data out:
+  qfrc_spring_out: wp.array2d[float],
+):
+  """Applies passive contact normal repulsion forces into qfrc_spring."""
+  cid = wp.tid()
+  nnz = efm_con_nnz_in[cid]
+  if nnz == 0:
+    return
+  f = efm_con_force_in[cid]
+  if f == float(0.0):
+    return
+  worldid = contact_worldid_in[cid]
+  for a in range(nnz):
+    dof = efm_con_dof_in[cid, a]
+    val = efm_con_val_in[cid, a]
+    wp.atomic_add(qfrc_spring_out, worldid, dof, f * val)
+
+
 @event_scope
 def passive(m: Model, d: Data):
   """Adds all passive forces."""
@@ -1469,18 +3475,16 @@ def passive(m: Model, d: Data):
     flex_spring_body_force = wp.zeros((d.nworld, m.nbody), dtype=wp.spatial_vector, device=d.qfrc_spring.device)
     flex_damper_body_force = wp.zeros((d.nworld, m.nbody), dtype=wp.spatial_vector, device=d.qfrc_spring.device)
 
-  if not (dsbl_spring and dsbl_damper):
+  if not dsbl_spring or not dsbl_damper:
     wp.launch(
       _flex_elasticity,
       dim=(d.nworld, m.nflexelem),
       inputs=[
-        m.nflex,
         m.opt.timestep,
         m.flex_dim,
         m.flex_vertadr,
         m.flex_edgeadr,
         m.flex_elemadr,
-        m.flex_elemnum,
         m.flex_elemdataadr,
         m.flex_stiffnessadr,
         m.flex_elemedgeadr,
@@ -1490,6 +3494,7 @@ def passive(m: Model, d: Data):
         m.flexedge_length0,
         m.flex_stiffness,
         m.flex_damping,
+        m.flex_elemflexid,
         d.xipos,
         d.flexvert_xpos,
         d.flexedge_length,
@@ -1503,25 +3508,24 @@ def passive(m: Model, d: Data):
       ],
     )
 
-  if not dsbl_spring or not dsbl_damper:
     wp.launch(
       _flex_bending,
       dim=(d.nworld, m.nflexedge),
       inputs=[
-        m.nflex,
         m.body_rootid,
         m.body_weldid,
         m.body_dofnum,
         m.flex_dim,
+        m.flex_interp,
         m.flex_vertadr,
         m.flex_edgeadr,
-        m.flex_edgenum,
         m.flex_bendingadr,
         m.flex_vertbodyid,
         m.flex_edge,
         m.flex_edgeflap,
         m.flex_bending,
         m.flex_damping,
+        m.flex_edgeflexid,
         d.xipos,
         d.subtree_com,
         d.flexvert_xpos,
@@ -1622,6 +3626,23 @@ def passive(m: Model, d: Data):
       support.apply_ft(m, d, flex_spring_body_force, d.qfrc_spring, True)
     if not dsbl_damper:
       support.apply_ft(m, d, flex_damper_body_force, d.qfrc_damper, True)
+    if m.has_flex_snh and not dsbl_damper:
+      flex_hessian(m, d)
+      flex_stretch_mul(m, d, d.qfrc_damper, d.qvel, s1_in=0.0, s2_in=-1.0, use_timestep=False, snh_only=True)
+    if m.opt.integrator == IntegratorType.DISCRETE and m.has_flex_passive:
+      efm_con_dof, efm_con_val, _, efm_con_force, efm_con_nnz = build_efm_contact(m, d, rebuild=True)
+      wp.launch(
+        _eff_contact_force,
+        dim=d.naconmax,
+        inputs=[
+          d.contact.worldid,
+          efm_con_dof,
+          efm_con_val,
+          efm_con_force,
+          efm_con_nnz,
+        ],
+        outputs=[d.qfrc_spring],
+      )
 
   if m.has_fluid:
     _fluid(m, d)

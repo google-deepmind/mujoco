@@ -434,6 +434,76 @@ class ErrorTest(googletest.TestCase):
         'element geom {\n  a : double (min=10, max=5)\n}')
     self.assertIn("facet 'min' cannot be greater than 'max'", message)
 
+  def test_dim_facet(self):
+    schema = mjcf_schema.parse_string(
+        'element geom {\n'
+        '  pos      : double[3] (dim=L)\n'
+        '  friction : double[1..3] (dim="1, L, L")\n'
+        '  solimp   : double[1..mjNIMP] (dim="1, 1, L, 1, 1")\n'
+        '  solref   : double[1..mjNREF] (dim=solref)\n'
+        '  stiff    : double (dim="F Q^-1")\n'
+        '  energy   : float (dim="M L^2 T^-2")\n'
+        '  fluid    : double[5] (dim=1)\n'
+        '  user     : double[] (dim=opaque)\n'
+        '  gain     : double[10] (dim=custom)\n'
+        '  group    : int\n}')
+    attrs = {a.name: a for a in schema.elements['geom'].members}
+    self.assertEqual(attrs['pos'].dim.components, ((('L', 1),),))
+    self.assertEqual(attrs['friction'].dim.components,
+                     ((), (('L', 1),), (('L', 1),)))
+    self.assertEqual(attrs['stiff'].dim.components, ((('F', 1), ('Q', -1)),))
+    self.assertEqual(str(attrs['energy'].dim), 'M L^2 T^-2')
+    self.assertEqual(str(attrs['friction'].dim), '1, L, L')
+    self.assertEqual(str(attrs['fluid'].dim), '1')
+    self.assertEqual(attrs['solref'].dim.kind, 'solref')
+    self.assertEqual(attrs['user'].dim.kind, 'opaque')
+    self.assertEqual(attrs['gain'].dim.kind, 'custom')
+    self.assertIsNone(attrs['group'].dim)
+    self.assertEqual(mjcf_schema.missing_dims(schema), [])
+
+  def test_dim_missing(self):
+    schema = mjcf_schema.parse_string(
+        'group g {\n  a : float\n}\n'
+        'element geom {\n  use g\n  b : double[3]\n  c : int\n}')
+    missing = [(scope, attr.name)
+               for scope, attr in mjcf_schema.missing_dims(schema)]
+    self.assertEqual(missing, [('group g', 'a'), ('geom', 'b')])
+
+  def test_dim_on_int_rejected(self):
+    message = self.error('element geom {\n  a : int (dim=1)\n}')
+    self.assertIn("'dim' requires a real-valued attribute", message)
+
+  def test_dim_malformed(self):
+    for dim, expected in [('"L M^0"', 'zero exponent'),
+                          ('"L L^2"', "repeated symbol 'L'"),
+                          ('"N m"', "unknown dimension factor 'N'"),
+                          ('"L,"', 'empty component'),
+                          ('"L^x"', "unknown dimension factor 'L^x'")]:
+      message = self.error(f'element geom {{\n  a : double (dim={dim})\n}}')
+      self.assertIn(expected, message)
+
+  def test_dim_component_count(self):
+    message = self.error('element geom {\n  a : double[3] (dim="L, L")\n}')
+    self.assertIn('2 dimension components', message)
+    message = self.error('element geom {\n  a : double[] (dim="L, 1")\n}')
+    self.assertIn('2 dimension components', message)
+
+  def test_dim_element_facets(self):
+    schema = mjcf_schema.parse_string(
+        'group base {\n  ctrlrange : double[2] (dim=U)\n}\n'
+        'element position : mjsActuator (control=Q) {\n  use base\n}\n'
+        'element touch : mjsSensor (output="M L T^-2") {\n'
+        '  cutoff : double (dim=Y)\n}')
+    self.assertEqual(str(schema.elements['position'].dims['U']), 'Q')
+    self.assertEqual(str(schema.elements['touch'].dims['Y']), 'M L T^-2')
+
+  def test_dim_needs_element_facet(self):
+    message = self.error('group base {\n  ctrlrange : double[2] (dim=U)\n}\n'
+                         'element motor {\n  use base\n}')
+    self.assertIn("element 'motor' needs a 'control' facet", message)
+    message = self.error('element motor (control=U) {}')
+    self.assertIn("'control' must be a product", message)
+
 
 if __name__ == '__main__':
   googletest.main()

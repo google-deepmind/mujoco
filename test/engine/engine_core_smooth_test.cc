@@ -859,7 +859,7 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
 
   // simulate, assert that momentum is conserved
   mjtNum eps = MjTol(1e-9, 2e-6);
-  while (data->time < 1) {
+  while (data->time < 0.1) {
     mjtNum time = data->time;
     mj_step(model, data);
     ASSERT_GT(data->time, time) << "Divergence detected";

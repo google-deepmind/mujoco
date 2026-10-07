@@ -179,6 +179,20 @@ class SingleStepEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
+class RequestPauseEvent(Event):
+  """Sent to the sim to request a pause state change.
+
+  Any physics plugin should handle this event. This keeps the pause mechanism
+  decoupled from a specific physics implementation.
+
+  Attributes:
+    pause_state: The desired pause state.
+  """
+
+  pause_state: sim.PauseState
+
+
+@dataclasses.dataclass(frozen=True)
 class ResetEvent(Event):
   """An event requesting to reset the simulation.
 

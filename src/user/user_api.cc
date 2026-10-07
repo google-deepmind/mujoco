@@ -355,6 +355,38 @@ static void SetFrame(mjsBody* body, mjtObj objtype, mjsFrame* frame) {
 }
 
 
+// check if an element of the list, inside the frame if one is given, is not in the model
+template <class T>
+static bool InOtherModel(const std::vector<T*>& list,
+                         const mjCModel*        model,
+                         const mjCFrame*        frame) {
+  for (const T* element : list) {
+    if ((!frame || frame->IsAncestor(element->frame)) && element->model != model) { return true; }
+  }
+  return false;
+}
+
+
+// check if attaching a body, or the part of it inside a frame if one is given, takes an element
+// which is not in the model of the body: an earlier attachment by reference moved it
+static bool TakesMoved(const mjCBody* body, const mjCFrame* frame = nullptr) {
+  const mjCModel* model = body->model;
+  if (InOtherModel(body->GetList<mjCBody>(), model, frame) ||
+      InOtherModel(body->GetList<mjCFrame>(), model, frame) ||
+      InOtherModel(body->GetList<mjCGeom>(), model, frame) ||
+      InOtherModel(body->GetList<mjCJoint>(), model, frame) ||
+      InOtherModel(body->GetList<mjCSite>(), model, frame) ||
+      InOtherModel(body->GetList<mjCCamera>(), model, frame) ||
+      InOtherModel(body->GetList<mjCLight>(), model, frame)) {
+    return true;
+  }
+  for (const mjCBody* child : body->GetList<mjCBody>()) {
+    if ((!frame || frame->IsAncestor(child->frame)) && TakesMoved(child)) { return true; }
+  }
+  return false;
+}
+
+
 // attach body to a frame of the parent
 static mjsElement* attachBody(mjCFrame*      parent,
                               const mjCBody* child,
@@ -463,6 +495,39 @@ mjsElement* mjs_attach(mjsElement*       parent,
     child_spec = &(static_cast<const mjCModel*>(child)->spec);
   } else {
     child_spec = &(static_cast<const mjCBase*>(child)->model->spec);
+  }
+
+  // the elements of a spec attached by reference are now in the spec it was attached to
+  if (child->elemtype == mjOBJ_MODEL && static_cast<const mjCModel*>(child)->IsAttached()) {
+    model->SetError(mjCError(0,
+                             "Child spec is already attached by reference; enable deep copy to "
+                             "attach a spec more than once."));
+    return nullptr;
+  }
+
+  // attaching by reference moves elements of the child to the parent: an element which is in the
+  // parent, its own or moved there by an earlier attachment, cannot be moved there, and an element
+  // which an earlier attachment moved cannot be moved again with a body or frame which holds it
+  if (!model->GetDeepCopy()) {
+    if (child_spec == &model->spec) {
+      model->SetError(mjCError(0,
+                               "Child element is in the parent spec; enable deep copy to attach "
+                               "a copy of it."));
+      return nullptr;
+    }
+    bool moved = false;
+    if (child->elemtype == mjOBJ_BODY) {
+      moved = TakesMoved(static_cast<const mjCBody*>(child));
+    } else if (child->elemtype == mjOBJ_FRAME) {
+      const mjCFrame* frame = static_cast<const mjCFrame*>(child);
+      moved                 = frame->GetParent() && TakesMoved(frame->GetParent(), frame);
+    }
+    if (moved) {
+      model->SetError(mjCError(0,
+                               "Child element contains elements which are already attached by "
+                               "reference; enable deep copy to attach a copy of it."));
+      return nullptr;
+    }
   }
 
   // handle global attribute conflicts
@@ -1278,8 +1343,11 @@ const char* mjs_setToIntVelocity(mjsActuator* actuator,
                                  double       dampratio[1],
                                  double       timeconst[1],
                                  double       inheritrange) {
-  mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
-  actuator->dyntype = mjDYN_INTEGRATOR;
+  // inheritrange sets actrange, not ctrlrange: skip the position range check
+  const char* err = mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, 0);
+  if (err[0]) return err;
+  actuator->dyntype      = mjDYN_INTEGRATOR;
+  actuator->inheritrange = inheritrange;
 
   if (inheritrange > 0) {
     if (actuator->actrange[0] || actuator->actrange[1]) {
@@ -1692,9 +1760,18 @@ mjsBody* mjs_findBody(const mjSpec* s, const char* name) {
 // find element in spec by name
 mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
+
+  // fast lookup in the maps from names to positions; they describe the lists as they were last
+  // processed, so an element added, removed or moved since then is searched for instead
   if (model->IsCompiled() && type != mjOBJ_FRAME) {
-    return model->FindObject(type, std::string(name));  // fast lookup
+    try {
+      mjCBase* found = model->FindObject(type, std::string(name));
+      if (found && found->name == name) { return found; }
+    } catch (mjCError&) {
+      // a position which is out of range
+    }
   }
+
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_SITE:
@@ -1704,12 +1781,8 @@ mjsElement* mjs_findElement(const mjSpec* s, mjtObj type, const char* name) {
     case mjOBJ_LIGHT:
     case mjOBJ_FRAME:
       return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
-    case mjOBJ_TEXTURE:
-      return model->FindAsset(std::string(name), model->Textures());  // check filename too
-    case mjOBJ_MESH:
-      return model->FindAsset(std::string(name), model->Meshes());  // check filename too
     default:
-      return model->FindObject(type, std::string(name));  // always available
+      return model->SearchObject(type, name);
   }
 }
 
@@ -1791,6 +1864,66 @@ const char* mjs_resolveOrientation(double                quat[4],
 
 
 // Transform body into a frame.
+// fuse the static bodies of the spec with their parents
+int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsAttached()) {
+    model->SetError(mjCError(nullptr, "Cannot fuse the static bodies of an attached mjSpec."));
+    return -1;
+  }
+  try {
+    model->FuseStatic(vfs);
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
+// discard the visual elements of the spec
+int mjs_discardVisual(mjSpec* s, const mjVFS* vfs) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsAttached()) {
+    model->SetError(mjCError(nullptr, "Cannot discard the visual elements of an attached mjSpec."));
+    return -1;
+  }
+  try {
+    model->DiscardVisual(vfs);
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
+// make the inertial which compilation infers for a body part of the spec
+int mjs_adoptInertial(mjsBody* bodyspec, const mjVFS* vfs) {
+  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
+  mjCModel* model = body->model;
+  try {
+    if (!body->GetParent()) { throw mjCError(body, "the world body has no inertial"); }
+    int inertiafromgeom = mjs_getCompiler(bodyspec->element)->inertiafromgeom;
+    if (inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+      throw mjCError(body,
+                     "an inertial cannot be adopted when inertiafromgeom is 'true', which infers "
+                     "the inertia of every body from its geoms");
+    }
+
+    // nothing is inferred for this body
+    if (inertiafromgeom == mjINERTIAFROMGEOM_FALSE || mjuu_defined(bodyspec->ipos[0])) { return 0; }
+
+    if (!model->Resolve(vfs)) { return -1; }
+    body->AdoptInertial();
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
   try {

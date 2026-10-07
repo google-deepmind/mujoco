@@ -42,6 +42,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
+from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat66
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
@@ -50,6 +51,36 @@ from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False})
+
+
+def check_discrete(m: Model):
+  """Validate model configuration for discrete integrator."""
+  if m.opt.integrator != IntegratorType.DISCRETE:
+    if m.has_flex_snh:
+      raise ValueError("stable Neo-Hookean elasticity requires integrator='discrete'")
+    if m.has_flex_passive:
+      raise ValueError("passive flex contact requires an integrator with the effective metric: set integrator='discrete'")
+    if m.opt.integrator in (IntegratorType.IMPLICIT, IntegratorType.IMPLICITFAST) and (m.nefmK > 0 or m.has_non_simple_flex):
+      raise ValueError(
+        "flex elasticity is no longer integrated implicitly under integrator='implicit' and 'implicitfast': "
+        "set integrator='discrete'"
+      )
+    return
+  if m.has_unsupported_flex_interp:
+    raise NotImplementedError(
+      "Discrete integrator: shell (flex_interp < 0) and quadratic (flex_interp >= 2) interpolated flexes are not supported"
+    )
+  if m.opt.solver == SolverType.NEWTON and m.has_non_simple_flex:
+    raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")
+  if m.opt.solver == SolverType.NEWTON and not m.flex_interp_assemblable:
+    raise ValueError(
+      "Discrete integrator: Newton solver requires interpolated flex nodes to be on 3-DOF slider bodies; use solver='CG'"
+    )
+  if m.opt.enableflags & EnableBit.SLEEP:
+    if m.opt.disableflags & DisableBit.ISLAND:
+      raise ValueError("Discrete integrator: sleep without islands not yet supported")
+    if m.nefmK > 0 or m.has_non_simple_flex or m.has_flex_passive or not m.flex_interp_assemblable:
+      raise ValueError("Discrete integrator: sleep with flex not yet supported")
 
 
 @wp.kernel
@@ -602,7 +633,7 @@ def _implicit_free_body_reset_m(
   body_freeadr: wp.array[int],
   # Data in:
   M_in: wp.array2d[float],
-  # Out:
+  # Data out:
   qH_out: wp.array2d[float],
 ):
   worldid, freeid = wp.tid()
@@ -872,6 +903,7 @@ def _implicit_free_body_solve(
           lin_vel,
           density,
           viscosity,
+          False,
         )
 
         # 3x3 block projection of J^T @ B @ J
@@ -979,6 +1011,235 @@ def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float])
       d.efc.Ma,
     ],
     outputs=[qacc],
+  )
+
+
+@cache_kernel
+def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inverse: bool, is_sparse: bool):
+  @wp.kernel(module="unique")
+  def _discrete_free_gyro(
+    # Model:
+    nactuator: int,
+    ntendon: int,
+    opt_timestep: wp.array[float],
+    opt_enableflags: int,
+    body_dofadr: wp.array[int],
+    body_mass: wp.array2d[float],
+    body_inertia: wp.array2d[wp.vec3],
+    dof_treeid: wp.array[int],
+    ten_J_rownnz: wp.array[int],
+    ten_J_rowadr: wp.array[int],
+    ten_J_colind: wp.array[int],
+    M_rownnz: wp.array[int],
+    M_rowadr: wp.array[int],
+    M_colind: wp.array[int],
+    efm_K_rownnz: wp.array[int],
+    body_freeadr: wp.array[int],
+    # Data in:
+    nefc_in: wp.array[int],
+    qvel_in: wp.array2d[float],
+    qacc_in: wp.array2d[float],
+    xpos_in: wp.array2d[wp.vec3],
+    xmat_in: wp.array2d[wp.mat33],
+    xipos_in: wp.array2d[wp.vec3],
+    ximat_in: wp.array2d[wp.mat33],
+    moment_rownnz_in: wp.array2d[int],
+    moment_rowadr_in: wp.array2d[int],
+    moment_colind_in: wp.array2d[int],
+    M_in: wp.array2d[float],
+    tree_awake_in: wp.array2d[int],
+    qfrc_smooth_in: wp.array2d[float],
+    efm_c_in: wp.array2d[float],
+    efm_diag_in: wp.array2d[float],
+    efm_fluid_in: wp.array2d[float],
+    efm_ca_in: wp.array2d[float],
+    efm_ts_in: wp.array2d[float],
+    efm_as_in: wp.array2d[float],
+    contact_worldid_in: wp.array[int],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    nacon_in: wp.array[int],
+    # In:
+    efm_con_dof_in: wp.array2d[int],
+    efm_con_scale_in: wp.array[float],
+    efm_con_nnz_in: wp.array[int],
+    # Out:
+    out: wp.array2d[float],
+  ):
+    worldid, freeid = wp.tid()
+    bodyid = body_freeadr[freeid]
+    dof_adr = body_dofadr[bodyid]
+
+    # Sleep guard matching mjd_freeMhat: skip if sleeping
+    treeid = dof_treeid[dof_adr]
+    if (opt_enableflags & EnableBit.SLEEP) and (tree_awake_in[worldid, treeid] == 0):
+      return
+
+    # Decoupling guards (mjd_freeGyroPossible): skip if K, constraints, or rank-1 touch DOFs
+    for r in range(6):
+      if efm_K_rownnz[dof_adr + r] != 0:
+        return
+    nefc = nefc_in[worldid]
+    for i in range(nefc):
+      if wp.static(is_sparse):
+        radr = efc_J_rowadr_in[worldid, i]
+        rnnz = efc_J_rownnz_in[worldid, i]
+        for j in range(rnnz):
+          c = efc_J_colind_in[worldid, 0, radr + j]
+          if c >= dof_adr and c < dof_adr + 6:
+            if efc_J_in[worldid, 0, radr + j] != 0.0:
+              return
+      else:
+        for r in range(6):
+          if efc_J_in[worldid, i, dof_adr + r] != 0.0:
+            return
+    for t in range(ntendon):
+      if efm_ts_in[worldid, t] != 0.0:
+        radr = ten_J_rowadr[t]
+        for j in range(ten_J_rownnz[t]):
+          c = ten_J_colind[radr + j]
+          if c >= dof_adr and c < dof_adr + 6:
+            return
+    for a in range(nactuator):
+      if efm_as_in[worldid, a] != 0.0:
+        radr = moment_rowadr_in[worldid, a]
+        for j in range(moment_rownnz_in[worldid, a]):
+          c = moment_colind_in[worldid, radr + j]
+          if c >= dof_adr and c < dof_adr + 6:
+            return
+    if wp.static(has_flex_passive):
+      nacon = nacon_in[0]
+      for cid in range(nacon):
+        if contact_worldid_in[cid] == worldid and efm_con_scale_in[cid] != 0.0:
+          nnz = efm_con_nnz_in[cid]
+          for j in range(nnz):
+            c = efm_con_dof_in[cid, j]
+            if c >= dof_adr and c < dof_adr + 6:
+              return
+
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+    mass = body_mass[worldid % body_mass.shape[0], bodyid]
+    inertia = body_inertia[worldid % body_inertia.shape[0], bodyid]
+    qvel_rot = wp.vec3(
+      qvel_in[worldid, dof_adr + 3],
+      qvel_in[worldid, dof_adr + 4],
+      qvel_in[worldid, dof_adr + 5],
+    )
+
+    A = mat66(0.0)
+    for r in range(6):
+      row = dof_adr + r
+      start = M_rowadr[row]
+      nnz = M_rownnz[row]
+      for k in range(nnz):
+        c = M_colind[start + k] - dof_adr
+        val = M_in[worldid, start + k]
+        A[r, c] = val
+        A[c, r] = val
+      A[r, r] += efm_diag_in[worldid, row]
+
+    if wp.static(has_fluid):
+      for r in range(6):
+        row = dof_adr + r
+        start = M_rowadr[row]
+        nnz = M_rownnz[row]
+        for k in range(nnz):
+          c = M_colind[start + k] - dof_adr
+          val = efm_fluid_in[worldid, start + k]
+          A[r, c] += val
+          if c != r:
+            A[c, r] += val
+
+    s = xipos_in[worldid, bodyid] - xpos_in[worldid, bodyid]
+    lin, rot = math.free_bias_vel_blocks(mass, xmat_in[worldid, bodyid], ximat_in[worldid, bodyid], inertia, s, qvel_rot)
+    h_mass = -timestep * mass
+    for r in range(3):
+      for c in range(3):
+        A[r, 3 + c] += h_mass * lin[r, c]
+        A[3 + r, 3 + c] += timestep * rot[r, c]
+
+    if wp.static(is_inverse):
+      for r in range(6):
+        row_sum = float(0.0)
+        for c in range(6):
+          row_sum += A[r, c] * qacc_in[worldid, dof_adr + c]
+        out[worldid, dof_adr + r] = row_sum
+    else:
+      A_fact, pivot, ok = math.lu_factor_6x6(A)
+      if ok:
+        b_vec = vec6(0.0)
+        for r in range(6):
+          dof = dof_adr + r
+          b_vec[r] = qfrc_smooth_in[worldid, dof] + efm_c_in[worldid, dof] + efm_ca_in[worldid, dof]
+        x_vec = math.lu_solve_6x6(A_fact, pivot, b_vec)
+        for r in range(6):
+          out[worldid, dof_adr + r] = x_vec[r]
+
+  return _discrete_free_gyro
+
+
+def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: wp.array2d[float], is_inverse: bool):
+  if m.opt.integrator != IntegratorType.DISCRETE or not m.flex_interp_assemblable or m.has_non_simple_flex:
+    return
+  has_fluid = m.has_fluid and not ((m.opt.disableflags & DisableBit.SPRING) and (m.opt.disableflags & DisableBit.DAMPER))
+  if m.has_flex_passive and m.body_freeadr.size > 0:
+    efm_con_dof, _, efm_con_scale, _, efm_con_nnz = passive.build_efm_contact(m, d)
+  else:
+    efm_con_dof = wp.empty((0, 0), dtype=int, device=d.qacc.device)
+    efm_con_scale = wp.empty(0, dtype=float, device=d.qacc.device)
+    efm_con_nnz = wp.empty(0, dtype=int, device=d.qacc.device)
+  wp.launch(
+    _discrete_free_gyro_kernel(has_fluid, m.has_flex_passive, is_inverse, m.is_sparse),
+    dim=(d.nworld, m.body_freeadr.size),
+    inputs=[
+      m.nactuator,
+      m.ntendon,
+      m.opt.timestep,
+      m.opt.enableflags,
+      m.body_dofadr,
+      m.body_mass,
+      m.body_inertia,
+      m.dof_treeid,
+      m.ten_J_rownnz,
+      m.ten_J_rowadr,
+      m.ten_J_colind,
+      m.M_rownnz,
+      m.M_rowadr,
+      m.M_colind,
+      m.efm_K_rownnz,
+      m.body_freeadr,
+      d.nefc,
+      d.qvel,
+      qacc,
+      d.xpos,
+      d.xmat,
+      d.xipos,
+      d.ximat,
+      d.moment_rownnz,
+      d.moment_rowadr,
+      d.moment_colind,
+      d.M,
+      d.tree_awake,
+      d.qfrc_smooth,
+      d.efm_c,
+      d.efm_diag,
+      d.efm_fluid,
+      d.efm_ca,
+      d.efm_ts,
+      d.efm_as,
+      d.contact.worldid,
+      d.efc.J_rownnz,
+      d.efc.J_rowadr,
+      d.efc.J_colind,
+      d.efc.J,
+      d.nacon,
+      efm_con_dof,
+      efm_con_scale,
+      efm_con_nnz,
+    ],
+    outputs=[out],
   )
 
 
@@ -1100,6 +1361,8 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   if sleep_enabled:
     island.island(m, d)
   smooth.transmission(m, d)
+  if m.opt.integrator == IntegratorType.DISCRETE:
+    derivative.eff_build(m, d)
 
 
 @wp.kernel
@@ -1176,6 +1439,8 @@ def fwd_velocity(m: Model, d: Data):
   passive.passive(m, d)
   smooth.rne(m, d)
   smooth.tendon_bias(m, d, d.qfrc_bias)
+  if m.opt.integrator == IntegratorType.DISCRETE:
+    derivative.eff_shift(m, d)
 
 
 @wp.kernel
@@ -1415,21 +1680,11 @@ def _actuator_force(
     lengthrange = actuator_lengthrange[worldid % actuator_lengthrange.shape[0], uid]
     gain = util_misc.muscle_gain(length, velocity, lengthrange, acc0, gainprm)
   elif gaintype == GainType.DCMOTOR:
-    R = gainprm[0]
     K = gainprm[1]
     te = dynprm[0]
+    R = util_misc.dcmotor_resistance(act_in, worldid, act_first, dynprm, gainprm)
 
-    if na and act_first >= 0:
-      slots = util_misc.dcmotor_slots(dynprm, gainprm)
-      adr = act_first
-      if slots[2] >= 0:
-        T = act_in[worldid, adr + slots[2]]
-        alpha = gainprm[2]
-        T0 = gainprm[3]
-        Ta = dynprm[4]
-        R *= 1.0 + alpha * (T + Ta - T0)
-
-    gain = K if te > 0.0 else K / wp.max(MJ_MINVAL, R)
+    gain = K if te > 0.0 else K / R
 
     if te <= 0.0:
       if ctrlnum == 0:
@@ -1605,103 +1860,105 @@ def fwd_actuation(m: Model, d: Data):
     d.act_dot.zero_()
     d.qfrc_actuator.zero_()
     d.actuator_force.zero_()
-    return
-
-  # read delayed ctrl (or direct copy if no delay)
-  if m.nhistory > 0:
-    ctrl = wp.empty((d.nworld, m.nu), dtype=float)
-    history.read_ctrl_delayed(m, d, ctrl)
   else:
-    ctrl = d.ctrl
-
-  wp.launch(
-    _actuator_force,
-    dim=(d.nworld, m.nactuator),
-    inputs=[
-      m.na,
-      m.opt.timestep,
-      m.actuator_dyntype,
-      m.actuator_gaintype,
-      m.actuator_biastype,
-      m.actuator_ctrladr,
-      m.actuator_ctrlnum,
-      m.actuator_ctrlspec,
-      m.actuator_actadr,
-      m.actuator_actnum,
-      m.actuator_dynprm,
-      m.actuator_gainprm,
-      m.actuator_biasprm,
-      m.actuator_actlimited,
-      m.actuator_actrange,
-      m.actuator_actearly,
-      m.actuator_forcelimited,
-      m.actuator_forcerange,
-      m.actuator_ctrllimited,
-      m.actuator_ctrlrange,
-      m.actuator_acc0,
-      m.actuator_lengthrange,
-      d.act,
-      ctrl,
-      d.actuator_length,
-      d.actuator_velocity,
-      m.opt.disableflags & DisableBit.CLAMPCTRL,
-    ],
-    outputs=[d.act_dot, d.actuator_force],
-  )
-
-  if m.callback.act_dyn:
-    m.callback.act_dyn(m, d)
-  if m.callback.act_gain:
-    m.callback.act_gain(m, d)
-  if m.callback.act_bias:
-    m.callback.act_bias(m, d)
-
-  if m.ntendon:
-    # total actuator force at tendon
-    ten_actfrc = wp.zeros((d.nworld, m.ntendon), dtype=float)
-    wp.launch(
-      _tendon_actuator_force,
-      dim=(d.nworld, m.nactuator),
-      inputs=[m.actuator_trntype, m.actuator_trnid, d.actuator_force],
-      outputs=[ten_actfrc],
-    )
+    # read delayed ctrl (or direct copy if no delay)
+    if m.nhistory > 0:
+      ctrl = wp.empty((d.nworld, m.nu), dtype=float)
+      history.read_ctrl_delayed(m, d, ctrl)
+    else:
+      ctrl = d.ctrl
 
     wp.launch(
-      _tendon_actuator_force_clamp,
+      _actuator_force,
       dim=(d.nworld, m.nactuator),
-      inputs=[m.tendon_actfrclimited, m.tendon_actfrcrange, m.actuator_trntype, m.actuator_trnid, ten_actfrc],
-      outputs=[d.actuator_force],
+      inputs=[
+        m.na,
+        m.opt.timestep,
+        m.actuator_dyntype,
+        m.actuator_gaintype,
+        m.actuator_biastype,
+        m.actuator_ctrladr,
+        m.actuator_ctrlnum,
+        m.actuator_ctrlspec,
+        m.actuator_actadr,
+        m.actuator_actnum,
+        m.actuator_dynprm,
+        m.actuator_gainprm,
+        m.actuator_biasprm,
+        m.actuator_actlimited,
+        m.actuator_actrange,
+        m.actuator_actearly,
+        m.actuator_forcelimited,
+        m.actuator_forcerange,
+        m.actuator_ctrllimited,
+        m.actuator_ctrlrange,
+        m.actuator_acc0,
+        m.actuator_lengthrange,
+        d.act,
+        ctrl,
+        d.actuator_length,
+        d.actuator_velocity,
+        m.opt.disableflags & DisableBit.CLAMPCTRL,
+      ],
+      outputs=[d.act_dot, d.actuator_force],
     )
 
-  # TODO(team): optimize performance
-  d.qfrc_actuator.zero_()
-  wp.launch(
-    _qfrc_actuator,
-    dim=(d.nworld, m.nactuator),
-    inputs=[
-      d.moment_rownnz,
-      d.moment_rowadr,
-      d.moment_colind,
-      d.actuator_moment,
-      d.actuator_force,
-    ],
-    outputs=[d.qfrc_actuator],
-  )
-  gravity_enabled = not (m.opt.disableflags & DisableBit.GRAVITY)
-  wp.launch(
-    _qfrc_actuator_gravcomp_limits,
-    dim=(d.nworld, m.nv),
-    inputs=[
-      m.jnt_actfrclimited,
-      m.jnt_actgravcomp,
-      m.jnt_actfrcrange,
-      m.dof_jntid,
-      d.qfrc_gravcomp,
-      d.qfrc_actuator,
-      gravity_enabled,
-    ],
-    outputs=[d.qfrc_actuator],
-  )
+    if m.callback.act_dyn:
+      m.callback.act_dyn(m, d)
+    if m.callback.act_gain:
+      m.callback.act_gain(m, d)
+    if m.callback.act_bias:
+      m.callback.act_bias(m, d)
+
+    if m.ntendon:
+      # total actuator force at tendon
+      ten_actfrc = wp.zeros((d.nworld, m.ntendon), dtype=float)
+      wp.launch(
+        _tendon_actuator_force,
+        dim=(d.nworld, m.nactuator),
+        inputs=[m.actuator_trntype, m.actuator_trnid, d.actuator_force],
+        outputs=[ten_actfrc],
+      )
+
+      wp.launch(
+        _tendon_actuator_force_clamp,
+        dim=(d.nworld, m.nactuator),
+        inputs=[m.tendon_actfrclimited, m.tendon_actfrcrange, m.actuator_trntype, m.actuator_trnid, ten_actfrc],
+        outputs=[d.actuator_force],
+      )
+
+    # TODO(team): optimize performance
+    d.qfrc_actuator.zero_()
+    wp.launch(
+      _qfrc_actuator,
+      dim=(d.nworld, m.nactuator),
+      inputs=[
+        d.moment_rownnz,
+        d.moment_rowadr,
+        d.moment_colind,
+        d.actuator_moment,
+        d.actuator_force,
+      ],
+      outputs=[d.qfrc_actuator],
+    )
+    gravity_enabled = not (m.opt.disableflags & DisableBit.GRAVITY)
+    wp.launch(
+      _qfrc_actuator_gravcomp_limits,
+      dim=(d.nworld, m.nv),
+      inputs=[
+        m.jnt_actfrclimited,
+        m.jnt_actgravcomp,
+        m.jnt_actfrcrange,
+        m.dof_jntid,
+        d.qfrc_gravcomp,
+        d.qfrc_actuator,
+        gravity_enabled,
+      ],
+      outputs=[d.qfrc_actuator],
+    )
+  if m.opt.integrator == IntegratorType.DISCRETE:
+    derivative.eff_actuation(m, d)
+    constraint.regularize_constraint(m, d)
 
 
 @cache_kernel
@@ -1765,7 +2022,9 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
   )
   xfrc_accumulate(m, d, d.qfrc_smooth)
 
-  if enable_sleep:
+  if m.opt.integrator == IntegratorType.DISCRETE:
+    derivative.eff_solve(m, d, d.qacc_smooth)
+  elif enable_sleep:
     # update the active-DOF set (needs contacts from fwd_position) and solve
     # the smooth acceleration in compacted dense space.
     island.update_active_dofs(m, d)
@@ -1793,6 +2052,7 @@ def _energy_vel(m: Model, d: Data):
 @event_scope
 def forward(m: Model, d: Data):
   """Forward dynamics."""
+  check_discrete(m)
   sleep_enabled = bool(m.opt.enableflags & EnableBit.SLEEP) and not bool(m.opt.disableflags & DisableBit.ISLAND)
   if sleep_enabled:
     sleep.wake(m, d)
@@ -1814,9 +2074,17 @@ def forward(m: Model, d: Data):
   fwd_acceleration(m, d, factorize=True)
 
   solver.solve(m, d)
+  if m.opt.integrator == IntegratorType.DISCRETE:
+    _launch_discrete_free_gyro(m, d, d.qacc, d.qacc, False)
   if m.opt.run_rne_postconstraint or (not (m.opt.disableflags & DisableBit.SENSOR) and m.sensor_rne_postconstraint):
     smooth.rne_postconstraint(m, d)
   sensor.sensor_acc(m, d, skip_rne_postconstraint=True)
+
+
+@event_scope
+def discrete(m: Model, d: Data):
+  """Advance simulation using discrete integrator."""
+  _advance(m, d, d.qacc)
 
 
 @event_scope
@@ -1830,6 +2098,8 @@ def step(m: Model, d: Data):
     rungekutta4(m, d)
   elif m.opt.integrator in (IntegratorType.IMPLICITFAST, IntegratorType.IMPLICIT):
     implicit(m, d)
+  elif m.opt.integrator == IntegratorType.DISCRETE:
+    discrete(m, d)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
 
@@ -1837,6 +2107,7 @@ def step(m: Model, d: Data):
 @event_scope
 def step1(m: Model, d: Data):
   """Advance simulation in two phases: before input is set by user."""
+  check_discrete(m)
   fwd_position(m, d)
   d.sensordata.zero_()
   sensor.sensor_pos(m, d)
@@ -1859,13 +2130,17 @@ def step2(m: Model, d: Data):
   fwd_actuation(m, d)
   fwd_acceleration(m, d)
   solver.solve(m, d)
+  if m.opt.integrator == IntegratorType.DISCRETE:
+    _launch_discrete_free_gyro(m, d, d.qacc, d.qacc, False)
   if m.opt.run_rne_postconstraint or (not (m.opt.disableflags & DisableBit.SENSOR) and m.sensor_rne_postconstraint):
     smooth.rne_postconstraint(m, d)
   sensor.sensor_acc(m, d, skip_rne_postconstraint=True)
 
-  # integrate with Euler or implicitfast
+  # integrate with Euler, implicitfast, or discrete
   if m.opt.integrator in (IntegratorType.IMPLICITFAST, IntegratorType.IMPLICIT):
     implicit(m, d)
+  elif m.opt.integrator == IntegratorType.DISCRETE:
+    discrete(m, d)
   else:
     # note: RK4 defaults to Euler
     euler(m, d)

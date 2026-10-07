@@ -44,5 +44,15 @@ class StepControl:
     return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_single_step(self, _: messages.SingleStepEvent) -> bool:
+    self.step_control.request_single_step()
+    return True
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_pause(self, event: messages.RequestPauseEvent) -> bool:
+    self.step_control.set_pause_state(event.pause_state)
+    return True
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_step(self, event: messages.StepEvent) -> None:
     self.step_control.advance(event.model, event.data)

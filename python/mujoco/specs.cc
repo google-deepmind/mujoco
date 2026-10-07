@@ -509,6 +509,87 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
             reinterpret_cast<uintptr_t>(self.Compile(vfs_ptr)));
       },
       py::arg("vfs") = py::none());
+  mjSpec.def(
+      "fuse_static",
+      [](MjSpec& self, std::optional<MjVfs*> vfs) {
+        self.FuseStatic(vfs.has_value() ? (*vfs)->get() : nullptr);
+      },
+      py::arg("vfs") = py::none(),
+      R"mydelimiter(
+    Fuses the static bodies of the spec with their parents.
+
+    Each fused body becomes a frame in its parent, holding what the body held.
+    Objects referring to the fused bodies must not be used afterwards. Assets
+    are read as in compile().
+
+    Parameters
+    ----------
+    vfs : MjVfs, optional
+        A VFS to read assets from. Cannot be used with assets.
+    )mydelimiter");
+  mjSpec.def(
+      "discard_visual",
+      [](MjSpec& self, std::optional<MjVfs*> vfs) {
+        self.DiscardVisual(vfs.has_value() ? (*vfs)->get() : nullptr);
+      },
+      py::arg("vfs") = py::none(),
+      R"mydelimiter(
+    Discards the visual elements of the spec.
+
+    All materials and textures are discarded, as are the geoms which do not
+    collide and are not referenced, and the meshes which are then not used.
+    Objects referring to the discarded elements must not be used afterwards.
+    Assets are read as in compile(), and only if body inertia is inferred from
+    a discarded geom.
+
+    Parameters
+    ----------
+    vfs : MjVfs, optional
+        A VFS to read assets from. Cannot be used with assets.
+    )mydelimiter");
+  mjSpec.def(
+      "adopt_inertial",
+      [](MjSpec& self, raw::MjsBody* body, std::optional<MjVfs*> vfs) {
+        self.AdoptInertial(body, vfs.has_value() ? (*vfs)->get() : nullptr);
+      },
+      py::arg("body"), py::arg("vfs") = py::none(),
+      R"mydelimiter(
+    Makes the inertial which compilation infers for a body part of the spec.
+
+    The mass, inertia and inertial frame calculated from the geoms of the body
+    become its explicit inertial, and no longer follow changes to the geoms.
+    Assets are read as in compile().
+
+    Parameters
+    ----------
+    body : MjsBody
+        A body of this spec.
+    vfs : MjVfs, optional
+        A VFS to read assets from. Cannot be used with assets.
+    )mydelimiter");
+  mjSpec.def(
+      "copy_back",
+      [](MjSpec& self, py::object model) {
+        auto& wrapper = py::cast<_impl::MjModelWrapper&>(model);
+        if (!mj_copyBack(self.ptr, wrapper.get())) {
+          throw py::value_error(mjs_getError(self.ptr));
+        }
+      },
+      py::arg("model"),
+      R"mydelimiter(
+    Writes to the spec what was changed in a model compiled from it.
+
+    Each value of the model which is not the one that the spec was compiled to
+    is written to the spec as what compiles to it, so that it is in the models
+    which are compiled from the spec afterwards and in the XML which is saved.
+    Raises ValueError, and writes nothing, if a change cannot be expressed in
+    the spec.
+
+    Parameters
+    ----------
+    model : MjModel
+        The model which was last compiled from this spec.
+    )mydelimiter");
   mjSpec.def_property(
       "assets", [](MjSpec& self) -> py::dict { return self.assets; },
       [](MjSpec& self, py::dict& assets) {

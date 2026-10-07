@@ -1516,6 +1516,14 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
                                    LT_rownnz, LT_rowadr, LT_colind, LT_map,
                                    Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, scratch);
   if (rank != nbd) {
+    // The factor is consumed only when no per-step flex stiffness is assembled (bending-only
+    // models): with stretch (or assemblable interp) present, mjd_effBuild assembles the full
+    // metric every step and the per-step blocks replace this factor, so an indefinite
+    // M + K_bend (e.g. curved-rest bending with light vertices) is harmless there.
+    if (mjd_flexStiff_any(m, mjd_flexInterpAssemblable(m))) {
+      mj_freeStack(d);
+      return;
+    }
     mj_freeStack(d);
     mjERROR("constant metric factor is rank-deficient (%d of %d)", rank, nbd);
   }

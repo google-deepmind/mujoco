@@ -85,6 +85,13 @@ Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multi
 :ref:`mjModel` instance that takes the edits into account.
 If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
 
+Compilation leaves the spec as it is written, with two exceptions. It completes :ref:`keyframes<keyframe>`: their
+vectors are sized for the model, and keyframes are added up to :ref:`nkey<size-nkey>`. And the compiler attributes
+:ref:`discardvisual<compiler-discardvisual>` and :ref:`fusestatic<compiler-fusestatic>` apply
+:ref:`mjs_discardVisual` and :ref:`mjs_fuseStatic` to the spec before it is compiled, which changes it: pointers to
+the elements which they remove are no longer valid. An operation which fails changes nothing, but one which succeeded
+stays applied if a later one, or the compilation, fails; the error then says so.
+
 .. _mj_copyBack:
 
 `mj_copyBack <#mj_copyBack>`__
@@ -92,7 +99,49 @@ If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read 
 
 .. mujoco-include:: mj_copyBack
 
-Copy real-valued arrays from model to spec; return 1 on success.
+Copy to an :ref:`mjSpec` the values which were changed in the :ref:`mjModel` that was compiled from it. The changes
+can then be read in the spec, are saved with it, and are in the models which are compiled from it afterwards. An
+attribute is copied if the model no longer has what compilation gave it, all of its numbers; everything else in the
+spec is left as it is, including what was written there since it was compiled. The position and the orientation of a
+pose, and the bounds of a range, are separate attributes. Returns 1 on success. Returns 0 if the model was not compiled
+from the spec as it is structured now, or if a value was changed which the spec cannot express; nothing is copied
+then, and the error can be read with :ref:`mjs_getError`. A model can also be copied back to a copy of the spec made
+by :ref:`mj_copySpec`.
+
+The values which are copied are ``mjModel.opt``, ``mjModel.vis`` and ``mjModel.stat``, the real-valued parameters of
+bodies, joints, geoms, sites, cameras, lights, materials, contact pairs, equalities, tendons, actuators and sensors,
+custom numeric and tuple data, keyframes and the elevation data of height fields. Each is written as what compiles to
+it:
+
+- A pose is written in the :ref:`frame<frame>` which the element is in. An orientation which was not changed stays as
+  it was written, for example as Euler angles, and one which was changed is written as a quaternion. Where
+  compilation offsets the position by the orientation, for a mesh geom whose mesh is not centered at its origin and a
+  body which is :ref:`aligned<body-freejoint-align>` with its free joint, a new orientation also writes the position.
+  The reference pose of a body with a free joint is taken from ``mjModel.qpos0`` if that was changed.
+- Angles are written in the :ref:`unit<compiler-angle>` of the spec.
+- The size and pose of a geom or site which were written as ``fromto``, or computed by fitting a geom to a mesh, are
+  written in its place. A new radius of a capsule or cylinder leaves ``fromto`` as it is.
+- A mass or inertia which was changed gives the body an explicit :ref:`inertial<body-inertial>`, which is then no
+  longer inferred from its geoms; a body which has one keeps it as it was written if only the mass was changed. The
+  inertia of the other bodies still follows their geoms, including a size or pose which was copied.
+- A range whose ``limited`` attribute is "auto" keeps the limited state which it has in the model: the attribute is
+  set if the new range would be inferred otherwise.
+- A stiffness or damping of a joint with :ref:`springdamper<body-joint-springdamper>`, and a control or activation
+  range which was inherited with :ref:`inheritrange<actuator-position-inheritrange>`, are written in its place.
+- Elevation data of a height field which was read from a file is written in place of the file.
+- The relative pose of a :ref:`weld<equality-weld>` between bodies which compilation computed stays computed, unless
+  it was changed in the model or the anchor of the weld was; it is then written.
+
+The following changes cannot be expressed in the spec and are errors: the mass or inertia of a body when
+:ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true" or :ref:`settotalmass<compiler-settotalmass>` is set; the
+inertial frame of a body which is :ref:`aligned<body-freejoint-align>` with its free joint; the pose of the world
+body; the anchor or axis of a free joint and the axis of a ball joint; the size of a mesh or height field geom or of a
+mesh site, and the frame of a mesh; the field of view of a camera which has a sensor size, and the intrinsics of one
+which has none; and different control ranges for the inputs of an actuator which has one. So are changes which the
+next compilation would not keep: damping, armature, friction loss or their solver parameters which differ between the
+degrees of freedom of a ball or free joint; elevation data of a height field whose lowest and highest values are not
+0 and 1; and the anchor of a :ref:`connect<equality-connect>` between bodies in its second body, other than the one
+which :ref:`mj_setConst` computes.
 
 .. _mj_recompile:
 
@@ -142,7 +191,7 @@ Free last XML model if loaded. Called internally at each load.
 .. mujoco-include:: mj_saveXMLString
 
 Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
-the required size. XML saving automatically compiles the spec before saving.
+the required size. See :ref:`mj_saveXML` for what is saved.
 
 .. _mj_saveXML:
 
@@ -151,7 +200,11 @@ the required size. XML saving automatically compiles the spec before saving.
 
 .. mujoco-include:: mj_saveXML
 
-Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
+Save spec to XML file, return 0 on success, -1 otherwise. The compiler attributes
+:ref:`savecompiled<compiler-savecompiled>` and :ref:`savecanonical<compiler-savecanonical>` of the spec say whether
+the model is saved as it was compiled or as it is written in the spec, and in which notation; see
+:ref:`Model Encoding & Saving <meSaving>`. Saving the compiled values requires that the spec first be compiled, and
+compiled again after it is structurally edited (elements added, deleted or attached).
 
 .. _mju_getXMLDependencies:
 
@@ -5197,7 +5250,8 @@ Add frame to body.
 .. mujoco-include:: mjs_delete
 
 Remove object corresponding to the given element; return 0 on success. Deleting a body or a frame also deletes
-everything inside it, along with all the elements that reference a deleted element.
+everything inside it, along with all the elements that reference a deleted element. A
+:ref:`plugin instance<plugin-instance>` is deleted along with the last element that references it.
 
 .. _AddNonTreeElements:
 
@@ -5951,6 +6005,51 @@ Set element's enclosing frame; return 0 on success.
 .. mujoco-include:: mjs_resolveOrientation
 
 Resolve alternative orientations to quat; return error if any.
+
+.. _mjs_fuseStatic:
+
+`mjs_fuseStatic <#mjs_fuseStatic>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_fuseStatic
+
+Fuse the static bodies of the spec with their parents. A body without joints is replaced by a :ref:`frame<frame>` in
+its parent, which has the pose of the body and holds its geoms, sites, cameras, lights, frames and child bodies, in the
+same coordinates as before. The inertia of the body is added to that of the parent. The compiled model has the same
+kinematics and dynamics, with fewer bodies. Bodies which cannot be fused without changing the model are kept, see
+:ref:`fusestatic<compiler-fusestatic>`, which applies this function before compiling. Pointers to the bodies which were
+fused are no longer valid. Assets are read as in :ref:`mj_compile`. Returns 0 on success; if it fails, nothing is fused.
+
+.. _mjs_discardVisual:
+
+`mjs_discardVisual <#mjs_discardVisual>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_discardVisual
+
+Discard the elements of the spec which are only visual: materials and textures, the geoms which do not collide, and
+the meshes which are then not used; an element which another refers to by name is kept. If a discarded geom was used for
+inferring the inertia of its body, that inertia becomes the explicit inertial of the body, as in
+:ref:`mjs_adoptInertial`, so the compiled model has the same dynamics. See
+:ref:`discardvisual<compiler-discardvisual>`, which applies this function before compiling. Pointers to the elements
+which were discarded are no longer valid. Assets are read as in :ref:`mj_compile`, and only if inertia is inferred from
+a discarded geom. Returns 0 on success; if it fails, nothing is discarded.
+
+.. _mjs_adoptInertial:
+
+`mjs_adoptInertial <#mjs_adoptInertial>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_adoptInertial
+
+Make the inertial which compilation infers for a body part of the spec. The mass, inertia and inertial frame which the
+compiler calculates from the geoms of the body, as the spec is now, are written as the explicit inertial of the body,
+so that later changes to its geoms no longer affect them. Compiling before and after gives the same model: the values
+are those before the scaling of :ref:`settotalmass<compiler-settotalmass>`. Nothing is done if the inertial of the body
+is not inferred. It is an error when :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true", which infers the
+inertia of every body whatever its inertial. Assets are read as in :ref:`mj_compile`. Returns 0 on success.
+
+To read an inferred inertial without adopting it, compile and look it up in :ref:`mjModel` with :ref:`mjs_getId`.
 
 .. _mjs_bodyToFrame:
 

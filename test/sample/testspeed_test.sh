@@ -14,8 +14,8 @@
 # limitations under the License.
 
 if [ -n "${TEST_SRCDIR:-}" ]; then
-  readonly MODEL="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/model/sleep/dominos.xml"
-  readonly TARGET_BINARY="${TEST_SRCDIR}/${TEST_WORKSPACE}/third_party/mujoco/sample/testspeed"
+  readonly MODEL="${TEST_SRCDIR}/${TEST_WORKSPACE}/model/sleep/dominos.xml"
+  readonly TARGET_BINARY="${TEST_SRCDIR}/${TEST_WORKSPACE}/sample/testspeed"
 else
   MODEL="${CMAKE_SOURCE_DIR}/model/sleep/dominos.xml"
 fi
@@ -26,7 +26,7 @@ if [ -z "$TARGET_BINARY" ]; then
   die "Expecting environment variable TARGET_BINARY."
 fi
 
-if [ -z "$MUJOCO_DLL_DIR" ]; then
+if [ -n "$MUJOCO_DLL_DIR" ]; then
   # Extend PATH to include the directory containing the mujoco DLL.
   # This is needed on Windows.
   PATH=$PATH:$MUJOCO_DLL_DIR

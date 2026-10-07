@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_DEP_VERSION_lodepng
-    17d08dd26cac4d63f43af217ebd70318bfb8189c
+    22561883dd63fd1850f18e1f6adac321e4f609b0
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)

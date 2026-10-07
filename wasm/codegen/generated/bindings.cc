@@ -1297,7 +1297,7 @@ std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS&
 void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const val& buffer) {
   UNPACK_NULLABLE_STRING(filename);
   UNPACK_NULLABLE_VALUE(uint8_t, buffer);
-  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
+  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<mjtSize>(buffer_.size()));
 }
 
 std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {
@@ -2316,6 +2316,10 @@ std::optional<MjsTuple> mjs_addTuple_wrapper(MjSpec& s) {
   return MjsTuple(result);
 }
 
+int mjs_adoptInertial_wrapper(MjsBody& body, const MjVFS& vfs) {
+  return mjs_adoptInertial(body.get(), vfs.get());
+}
+
 std::optional<MjsActuator> mjs_asActuator_wrapper(MjsElement& element) {
   mjsActuator* result = mjs_asActuator(element.get());
   if (result == nullptr) {
@@ -2627,6 +2631,10 @@ void mjs_deleteUserValue_wrapper(MjsElement& element, const String& key) {
   mjs_deleteUserValue(element.get(), key.as<const std::string>().data());
 }
 
+int mjs_discardVisual_wrapper(MjSpec& s, const MjVFS& vfs) {
+  return mjs_discardVisual(s.get(), vfs.get());
+}
+
 std::optional<MjsBody> mjs_findBody_wrapper(const MjSpec& s, const String& name) {
   CHECK_VAL(name);
   mjsBody* result = mjs_findBody(s.get(), name.as<const std::string>().data());
@@ -2695,6 +2703,10 @@ std::optional<MjsElement> mjs_firstElement_wrapper(const MjSpec& s, mjtObj type)
     return std::nullopt;
   }
   return MjsElement(result);
+}
+
+int mjs_fuseStatic_wrapper(MjSpec& s, const MjVFS& vfs) {
+  return mjs_fuseStatic(s.get(), vfs.get());
 }
 
 std::optional<MjsCompiler> mjs_getCompiler_wrapper(const MjsElement& element) {
@@ -5687,6 +5699,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("element", &MjsBody::element, reference())
     .property("explicitinertial", &MjsBody::explicitinertial, &MjsBody::set_explicitinertial)
     .property("fullinertia", &MjsBody::fullinertia)
+    .property("fuse", &MjsBody::fuse, &MjsBody::set_fuse)
     .property("gravcomp", &MjsBody::gravcomp, &MjsBody::set_gravcomp)
     .property("ialt", &MjsBody::ialt, reference())
     .property("inertia", &MjsBody::inertia)
@@ -5738,6 +5751,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("inertiafromgeom", &MjsCompiler::inertiafromgeom, &MjsCompiler::set_inertiafromgeom)
     .property("inertiagrouprange", &MjsCompiler::inertiagrouprange)
     .property("meshdir", &MjsCompiler::meshdir, &MjsCompiler::set_meshdir, reference())
+    .property("savecanonical", &MjsCompiler::savecanonical, &MjsCompiler::set_savecanonical)
+    .property("savecompiled", &MjsCompiler::savecompiled, &MjsCompiler::set_savecompiled)
     .property("saveinertial", &MjsCompiler::saveinertial, &MjsCompiler::set_saveinertial)
     .property("settotalmass", &MjsCompiler::settotalmass, &MjsCompiler::set_settotalmass)
     .property("texturedir", &MjsCompiler::texturedir, &MjsCompiler::set_texturedir, reference())
@@ -6457,6 +6472,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_addText", &mjs_addText_wrapper);
   function("mjs_addTexture", &mjs_addTexture_wrapper);
   function("mjs_addTuple", &mjs_addTuple_wrapper);
+  function("mjs_adoptInertial", &mjs_adoptInertial_wrapper);
   function("mjs_asActuator", &mjs_asActuator_wrapper);
   function("mjs_asBody", &mjs_asBody_wrapper);
   function("mjs_asCamera", &mjs_asCamera_wrapper);
@@ -6509,6 +6525,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_defaultTuple", &mjs_defaultTuple_wrapper);
   function("mjs_delete", &mjs_delete_wrapper);
   function("mjs_deleteUserValue", &mjs_deleteUserValue_wrapper);
+  function("mjs_discardVisual", &mjs_discardVisual_wrapper);
   function("mjs_findBody", &mjs_findBody_wrapper);
   function("mjs_findChild", &mjs_findChild_wrapper);
   function("mjs_findDefault", &mjs_findDefault_wrapper);
@@ -6517,6 +6534,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_findSpec", &mjs_findSpec_wrapper);
   function("mjs_firstChild", &mjs_firstChild_wrapper);
   function("mjs_firstElement", &mjs_firstElement_wrapper);
+  function("mjs_fuseStatic", &mjs_fuseStatic_wrapper);
   function("mjs_getCompiler", &mjs_getCompiler_wrapper);
   function("mjs_getDefault", &mjs_getDefault_wrapper);
   function("mjs_getError", &mjs_getError_wrapper);

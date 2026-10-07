@@ -525,7 +525,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Copy real-valued arrays from model to spec; return 1 on success.',
+         doc='Copy the values which were changed in a model to the spec it was compiled from; return 1 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_recompile',
      FunctionDecl(
@@ -954,7 +954,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='buffer_sz',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='mjtSize'),
              ),
          ),
          doc='Save model to binary MJB file or memory buffer; buffer has precedence when given.',  # pylint: disable=line-too-long
@@ -997,7 +997,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='buffer_sz',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='mjtSize'),
              ),
          ),
          doc='Load model from memory buffer.',
@@ -12377,6 +12377,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Resolve alternative orientations to quat; return error if any.',
+     )),
+    ('mjs_fuseStatic',
+     FunctionDecl(
+         name='mjs_fuseStatic',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Fuse the static bodies of the spec with their parents, return 0 on success.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_discardVisual',
+     FunctionDecl(
+         name='mjs_discardVisual',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Discard the visual elements of the spec, return 0 on success.',
+     )),
+    ('mjs_adoptInertial',
+     FunctionDecl(
+         name='mjs_adoptInertial',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Make the inertial which compilation infers for a body part of the spec, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_bodyToFrame',
      FunctionDecl(

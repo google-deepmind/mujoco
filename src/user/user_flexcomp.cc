@@ -98,7 +98,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
 
 // identify empty cells and pin nodes exclusively in empty cells
 void mjCFlexcomp::MarkEmptyCells(
-    mjCFlex* flex, const double* points, int npnt, const double minmax[6], int nx, int ny, int nz) {
+    mjCFlex* flex, const double* points, const double minmax[6], int nx, int ny, int nz) {
   int cx    = flex->spec.cellcount[0];
   int cy    = flex->spec.cellcount[1];
   int cz    = flex->spec.cellcount[2];
@@ -106,7 +106,7 @@ void mjCFlexcomp::MarkEmptyCells(
 
   // delegate cell_empty computation to mjCFlex
   int nelem = element.size() / (flex->spec.dim + 1);
-  flex->ComputeCellEmpty(points, element.data(), npnt, nelem, flex->spec.dim, minmax);
+  flex->ComputeCellEmpty(points, element.data(), nelem, flex->spec.dim, minmax);
 
   // pin nodes that belong exclusively to empty cells
   for (int gi = 0; gi < nx; gi++) {
@@ -619,7 +619,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     int nnode = nx * ny * nz;
 
     // mark empty cells and pin nodes exclusively in empty cells (volume mode only)
-    if (!dflex->elastic2d) { MarkEmptyCells(flex, point.data(), npnt, minmax, nx, ny, nz); }
+    if (!dflex->elastic2d) { MarkEmptyCells(flex, point.data(), minmax, nx, ny, nz); }
 
     // shell mode: pin all interior (non-boundary) nodes
     if (dflex->elastic2d) {

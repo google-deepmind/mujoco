@@ -353,7 +353,7 @@ std::unique_ptr<MjModel> mj_loadXML_wrapper_2(std::string filename, const MjVFS&
 void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const val& buffer) {
   UNPACK_NULLABLE_STRING(filename);
   UNPACK_NULLABLE_VALUE(uint8_t, buffer);
-  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
+  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<mjtSize>(buffer_.size()));
 }
 
 std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {

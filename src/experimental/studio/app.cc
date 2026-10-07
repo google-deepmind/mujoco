@@ -476,10 +476,29 @@ void App::PostStep(const mjModel* m, mjData* d) {
 
 void App::LoadHistory(int offset) {
   LoadHistoryFrame(sim_history_, model(), data(), offset);
+  timeline_.SetHistoryIndex(sim_history_.GetIndex());
   step_control_.SetPauseState(StepControl::PauseState::kNormalPaused);
 }
 
+void App::ApplyTimelineScrub() {
+  // The GUI only edits timeline_.history_index; compare it against the
+  // buffer's own cursor rather than a pre-GUI snapshot. A reset triggered from
+  // inside the GUI (Reset button, keyframe) re-initialises both to index 0, so
+  // this avoids a redundant LoadHistory(0), which would also force a pause.
+  if (timeline_.history_index != sim_history_.GetIndex()) {
+    LoadHistory(timeline_.history_index);
+  }
+}
+
 bool App::Update() {
+  const auto now = std::chrono::steady_clock::now();
+  if (last_frame_time_.time_since_epoch().count() != 0) {
+    const double dt = std::chrono::duration<double>(now - last_frame_time_).count();
+    const double fps = dt > 0 ? 1.0 / dt : 0;
+    fps_ = fps_ > 0 ? 0.9 * fps_ + 0.1 * fps : fps;
+  }
+  last_frame_time_ = now;
+
   const Window::Status status = window_->NewFrame();
 
   std::unique_lock<std::mutex> lock(physics_mutex_);
@@ -1343,10 +1362,9 @@ void App::BuildGui() {
     const float scale = ImGui::GetWindowDpiScale();
     if (BeginOverlay("Info", OverlayPos::kBottomLeft,
                                workspace_rect, 180.0f * scale)) {
-      const float fps = renderer_->GetFps();
-      InfoGui(
-          model(), data(),
-          step_control_.GetPauseState() == PauseState::kNormalPaused, fps);
+      InfoGui(model(), data(),
+              step_control_.GetPauseState() == PauseState::kNormalPaused, fps_,
+              renderer_->GetGpuFrameMs());
     }
     EndOverlay();
   }
@@ -1460,7 +1478,6 @@ void App::ModelOptionsGui() {
       .model = model(),
       .data = data(),
       .step_control = &step_control_,
-      .history = &sim_history_,
       .timeline = &timeline_,
       .speed_index = &tmp_.speed_index,
       .key_idx = &tmp_.key_idx,
@@ -1479,6 +1496,7 @@ void App::ModelOptionsGui() {
           },
   };
   SimulationGui(sim_ctx);
+  ApplyTimelineScrub();
 
   ImGui::BeginChild("PhysicsGui", {0, 0}, child_flags);
   if (SectionHeader("Physics", node_flags, 0.65f)) {
@@ -2034,8 +2052,8 @@ void App::ToolBarGui() {
     StepControlGui(&step_control_, tmp_.speed_index);
 
     ImGui::SameLine(0, separator_width);
-    TimelineScrubberGui(model(), data(), step_control_, sim_history_,
-                                  timeline_);
+    TimelineScrubberGui(model(), data(), step_control_, timeline_);
+    ApplyTimelineScrub();
 
     ImGui::TableNextColumn();
 

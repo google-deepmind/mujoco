@@ -11,7 +11,7 @@
   </asset>
 
   <custom>
-    <numeric name="filament.shadows.type" data="1"/>
+    <numeric name="filament.shadows.type" data="3"/>
   </custom>
 
   <worldbody>
@@ -19,11 +19,11 @@
 
     <light pos="0 0 6" dir="0 0 -1" castshadow="true" directional="true" diffuse="0.5 0.6 0.85" intensity="3000"/>
 
-    <light type="point" pos="-1.6 0 0.6" diffuse="1.0 0.30 0.30" intensity="120000" range="6" castshadow="true" bulbradius="50"/>
-    <light type="point" pos=" 0.0 0.6 0.6" diffuse="0.30 1.0 0.40" intensity="120000" range="6" castshadow="true" bulbradius="50"/>
-    <light type="point" pos=" 1.6 0 0.6" diffuse="0.30 0.55 1.0" intensity="120000" range="6" castshadow="true" bulbradius="50"/>
+    <light type="point" pos="-1.6 0 0.6" diffuse="1.0 0.30 0.30" intensity="120000" range="6" castshadow="true" bulbradius="0.050"/>
+    <light type="point" pos=" 0.0 0.6 0.6" diffuse="0.30 1.0 0.40" intensity="120000" range="6" castshadow="true" bulbradius="0.050"/>
+    <light type="point" pos=" 1.6 0 0.6" diffuse="0.30 0.55 1.0" intensity="120000" range="6" castshadow="true" bulbradius="0.050"/>
 
-    <light type="spot" pos="-2.5 -2.5 2.5" dir="0.6 0.6 -0.55" diffuse="1.0 0.85 0.55" intensity="220000" range="8" castshadow="true" cutoff="22" bulbradius="100"/>
+    <light type="spot" pos="-2.5 -2.5 2.5" dir="0.6 0.6 -0.55" diffuse="1.0 0.85 0.55" intensity="220000" range="8" castshadow="true" cutoff="22" bulbradius="1.00"/>
 
     <geom name="ground" type="plane" size="6 6 0.05" material="floor"/>
     <geom name="wall" type="box" pos="0 1.6 1.0" size="3 0.05 1.0" material="wall"/>

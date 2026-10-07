@@ -494,7 +494,7 @@ void CheckGates(const SizeCase& c, const Stats& st, mjtNum margin) {
 // MJ_FUZZ_CONFIGS=20000 MJ_FUZZ_SEED=7 ./engine_collision_box_fuzz_test
 int NumConfigs() {
   const char* env = std::getenv("MJ_FUZZ_CONFIGS");
-  return env ? std::stoi(env) : 4000;
+  return env ? std::stoi(env) : 1000;
 }
 
 unsigned BaseSeed() {

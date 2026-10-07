@@ -101,28 +101,14 @@ void IncludeXML(mjXReader&                       reader,
                 XMLElement*                      elem,
                 const FilePath&                  dir,
                 const mjVFS*                     vfs,
-                std::unordered_set<std::string>& included) {
-  // capture directory defaults on first pass of XML tree
-  if (!strcasecmp(elem->Value(), "compiler")) {
-    auto assetdir_attr = mjXUtil::ReadAttrStr(elem, "assetdir");
-    if (assetdir_attr.has_value()) { reader.SetAssetDir(assetdir_attr.value()); }
+                std::unordered_set<std::string>& included);
 
-    auto texturedir_attr = mjXUtil::ReadAttrStr(elem, "texturedir");
-    if (texturedir_attr.has_value()) { reader.SetTextureDir(texturedir_attr.value()); }
-
-    auto meshdir_attr = mjXUtil::ReadAttrStr(elem, "meshdir");
-    if (meshdir_attr.has_value()) { reader.SetMeshDir(meshdir_attr.value()); }
-  }
-
-  //  not an include, recursively go through all children
-  if (strcasecmp(elem->Value(), "include")) {
-    XMLElement* child = elem->FirstChildElement();
-    for (; child; child = child->NextSiblingElement()) {
-      IncludeXML(reader, child, dir, vfs, included);
-    }
-    return;
-  }
-
+// load an include element and replace it with the subtree from the xml file
+void ExpandIncludeXML(mjXReader&                       reader,
+                      XMLElement*                      elem,
+                      const FilePath&                  dir,
+                      const mjVFS*                     vfs,
+                      std::unordered_set<std::string>& included) {
   // make sure include has no children
   if (!elem->NoChildren()) { throw mjXError(elem, "Include element cannot have children"); }
 
@@ -130,7 +116,6 @@ void IncludeXML(mjXReader&                       reader,
   auto file_attr = mjXUtil::ReadAttrFile(elem, "file", vfs, reader.ModelFileDir(), true);
   if (!file_attr.has_value()) { throw mjXError(elem, "Include element missing file attribute"); }
   FilePath filename = file_attr.value();
-
 
   // block repeated include files
   if (included.find(filename.Str()) != included.end()) {
@@ -225,6 +210,36 @@ void IncludeXML(mjXReader&                       reader,
   for (; child; child = child->NextSiblingElement()) {
     IncludeXML(reader, child, next_dir, vfs, included);
   }
+}
+
+// find include elements recursively, replace them with subtree from xml file
+void IncludeXML(mjXReader&                       reader,
+                XMLElement*                      elem,
+                const FilePath&                  dir,
+                const mjVFS*                     vfs,
+                std::unordered_set<std::string>& included) {
+  // capture directory defaults on first pass of XML tree
+  if (!strcasecmp(elem->Value(), "compiler")) {
+    auto assetdir_attr = mjXUtil::ReadAttrStr(elem, "assetdir");
+    if (assetdir_attr.has_value()) { reader.SetAssetDir(assetdir_attr.value()); }
+
+    auto texturedir_attr = mjXUtil::ReadAttrStr(elem, "texturedir");
+    if (texturedir_attr.has_value()) { reader.SetTextureDir(texturedir_attr.value()); }
+
+    auto meshdir_attr = mjXUtil::ReadAttrStr(elem, "meshdir");
+    if (meshdir_attr.has_value()) { reader.SetMeshDir(meshdir_attr.value()); }
+  }
+
+  // not an include, recursively go through all children
+  if (strcasecmp(elem->Value(), "include")) {
+    XMLElement* child = elem->FirstChildElement();
+    for (; child; child = child->NextSiblingElement()) {
+      IncludeXML(reader, child, dir, vfs, included);
+    }
+    return;
+  }
+
+  ExpandIncludeXML(reader, elem, dir, vfs, included);
 }
 
 // Main parser function
@@ -360,9 +375,9 @@ std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
   }
 
   mjXWriter writer;
-  writer.SetModel(spec, m);
 
   try {
+    writer.SetModel(spec, m);
     return writer.Write(error, nerror);
   } catch (mjXError err) {
     mjCopyError(error, err.message, nerror);

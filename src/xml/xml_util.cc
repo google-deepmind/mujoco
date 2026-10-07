@@ -949,22 +949,6 @@ bool mjXUtil::ReadAttrInt(XMLElement* elem, const char* attr, int* data, bool re
 }
 
 
-// write vector<float> to string
-void mjXUtil::Vector2String(string& txt, const vector<float>& vec, int ncol) {
-  stringstream strm;
-
-  for (size_t i = 0; i < vec.size(); i++) {
-    if (ncol && (i % ncol) == 0) {
-      strm << "\n            ";
-    } else if (i > 0) {
-      strm << " ";
-    }
-    strm << vec[i];
-  }
-
-  txt = strm.str();
-}
-
 // find subelement with given name, make sure it is unique
 XMLElement* mjXUtil::FindSubElem(XMLElement* elem, string name, bool required) {
   XMLElement* subelem = 0;
@@ -1058,6 +1042,26 @@ static int Round(double x) {
 }
 
 
+// write number: integer without decimal point, otherwise in the precision of the stream;
+// precision 0 writes numbers exactly
+template <typename T>
+static void WriteNumber(stringstream& stream, T number) {
+  const int precision = mujoco::_mjPRIVATE__get_xml_precision();
+  if constexpr (std::is_floating_point_v<T>) {
+    if (precision == 0) {
+      stream << mujoco::ShortestNumber(number);
+      return;
+    }
+  }
+  double doubledata = static_cast<double>(number);
+  if (precision <= 12 && doubledata < INT_MAX && doubledata > -INT_MAX && isint(number)) {
+    stream << Round(number);
+  } else {
+    stream << number;
+  }
+}
+
+
 // write attribute
 template <typename T>
 void mjXUtil::WriteAttr(
@@ -1069,17 +1073,21 @@ void mjXUtil::WriteAttr(
     }
   }
 
-  // skip default attributes
-  if (SameVector(data, def, n)) { return; }
+  // increase precision for testing; precision 0 writes numbers exactly
+  stringstream stream;
+  const int    precision = mujoco::_mjPRIVATE__get_xml_precision();
+  if (precision > 0) { stream.precision(precision); }
 
-  // trim identical trailing default values
-  if (trim) {
-    while (n > 0 && data[n - 1] == def[n - 1]) { n--; }
+  // skip default attributes: values which are the defaults to roundoff, or which are the defaults
+  // if numbers are written exactly
+  if (precision == 0 ? def && std::equal(data, data + n, def) : SameVector(data, def, n)) {
+    return;
   }
 
-  // increase precision for testing
-  stringstream stream;
-  stream.precision(mujoco::_mjPRIVATE__get_xml_precision());
+  // trim identical trailing default values
+  if (trim && def) {
+    while (n > 0 && data[n - 1] == def[n - 1]) { n--; }
+  }
 
   // process all numbers
   for (int i = 0; i < n; i++) {
@@ -1087,12 +1095,7 @@ void mjXUtil::WriteAttr(
     if (i > 0) { stream << " "; }
 
     // append number
-    double doubledata = static_cast<double>(data[i]);
-    if (doubledata < INT_MAX && doubledata > -INT_MAX && isint(data[i])) {
-      stream << Round(data[i]);
-    } else {
-      stream << data[i];
-    }
+    WriteNumber(stream, data[i]);
   }
 
   // set attribute as string
@@ -1115,6 +1118,31 @@ template void mjXUtil::WriteAttr(XMLElement*          elem,
                                  const unsigned char* data,
                                  const unsigned char* def,
                                  bool                 trim);
+
+
+// write vector of numbers to string, as WriteAttr writes them
+template <typename T>
+void mjXUtil::Vector2String(string& txt, const vector<T>& vec, int ncol) {
+  stringstream strm;
+  const int    precision = mujoco::_mjPRIVATE__get_xml_precision();
+  if (precision > 0) { strm.precision(precision); }
+
+  for (size_t i = 0; i < vec.size(); i++) {
+    if (ncol && (i % ncol) == 0) {
+      strm << "\n            ";
+    } else if (i > 0) {
+      strm << " ";
+    }
+    WriteNumber(strm, vec[i]);
+  }
+
+  txt = strm.str();
+}
+
+
+template void mjXUtil::Vector2String(string& txt, const vector<float>& vec, int ncol);
+
+template void mjXUtil::Vector2String(string& txt, const vector<double>& vec, int ncol);
 
 
 // write vector<double> attribute, default = zero array

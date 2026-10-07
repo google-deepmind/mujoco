@@ -735,6 +735,8 @@
     <xs:attribute name="inertiafromgeom" type="kw_FalseTrueAuto" default="auto"/>
     <xs:attribute name="inertiagrouprange" type="int2" default="0 5"/>
     <xs:attribute name="saveinertial" type="kw_bool"/>
+    <xs:attribute name="savecompiled" type="kw_bool" default="true"/>
+    <xs:attribute name="savecanonical" type="kw_bool" default="true"/>
     <xs:attribute name="assetdir" type="xs:string">
       <xs:annotation>
         <xs:documentation>fans out to mesh/texturedir</xs:documentation>
@@ -1592,6 +1594,11 @@
     </xs:attribute>
     <xs:attribute name="velrange" type="double2"/>
     <xs:attribute name="ffrange" type="double2"/>
+    <xs:attribute name="inheritrange" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>compiled values have the range in its place</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="dyntype" type="kw_dyn" default="none"/>
     <xs:attribute name="gaintype" type="kw_gain" default="fixed">
       <xs:annotation>
@@ -2082,6 +2089,7 @@
     <xs:attribute name="gravcomp" type="xs:double"/>
     <xs:attribute name="sleep" type="kw_bodysleep"/>
     <xs:attribute name="simple" type="kw_FalseAuto" default="auto"/>
+    <xs:attribute name="fuse" type="kw_FalseAuto" default="auto"/>
     <xs:attribute name="user" type="doublelist"/>
   </xs:complexType>
 
@@ -2679,6 +2687,11 @@
     </xs:attribute>
     <xs:attribute name="velrange" type="double2"/>
     <xs:attribute name="ffrange" type="double2"/>
+    <xs:attribute name="inheritrange" type="xs:double">
+      <xs:annotation>
+        <xs:documentation>compiled values have the range in its place</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="dyntype" type="kw_dyn" default="none"/>
     <xs:attribute name="gaintype" type="kw_gain" default="fixed">
       <xs:annotation>

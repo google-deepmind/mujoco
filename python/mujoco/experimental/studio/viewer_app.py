@@ -34,6 +34,7 @@ import mujoco
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import sim_history
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_app_events
 from mujoco.experimental.studio import viewer_protocol
@@ -110,9 +111,8 @@ class ViewerApp:
   def __init__(self, config: ViewerAppConfig | None = None) -> None:
     self._viewer: viewer_protocol.Viewer | None = None
     self.theme = ux.load_theme()
-    self.config = config if config is not None else ViewerAppConfig()
+    self.config = config or ViewerAppConfig()
     self.status = 'Ready'
-    self.sim_history = sim.SimHistory()
     self._reset_app_state()
 
   @messages.handler(priority=messages.Priority.CRITICAL)
@@ -120,28 +120,12 @@ class ViewerApp:
     self.viewer = event.viewer
     self.theme = ux.load_settings(def_theme=self.theme)
     ux.setup_theme(self.theme)
-    self._setup_history()
     self.viewer.dispatch(ViewerAppInitEvent(viewer_app=self))
 
   def _reset_app_state(self) -> None:
     """Resets ViewerApp-specific state (step control, ux)."""
     self.step_control_state = sim.StepControl()
     self.ux_state = ux.UxState()
-    self._setup_history()
-
-  def _setup_history(self) -> None:
-    """(Re)initialize simulation history recording for the current model."""
-    if (
-        self._viewer is not None
-        and self.model is not None
-        and self.data is not None
-    ):
-      ux.reset_history(
-          self.sim_history,
-          self.ux_state,
-          self.model,
-          self.data,
-      )
 
   def align_camera(self) -> None:
     """Recenter the camera on the model's home camera, else the free camera."""
@@ -179,6 +163,14 @@ class ViewerApp:
     if viewer_app_events.handle_step_control_keyboard_events(
         self.step_control_state, self.ux_state
     ):
+      return
+
+    history_index = self.ux_state.history_index
+    if viewer_app_events.handle_sim_history_keyboard_events(
+        self.step_control_state, self.ux_state
+    ):
+      if self.ux_state.history_index != history_index:
+        self._send_scrub_to_sim(self.ux_state.history_index)
       return
 
     if viewer_app_events.handle_reset_keyboard_events(self.model, self.data):
@@ -244,7 +236,10 @@ class ViewerApp:
       else:
         mujoco.mj_resetData(self.model, self.data)
       mujoco.mj_forward(self.model, self.data)
-      self._setup_history()
+      self.ux_state.sim_head_time = self.data.time
+      # The viewer's mirror of the sim history is stale until the sim reports
+      # its post-reset history. Setting the size to 0 also clamps the index.
+      self.ux_state.history_size = 0
       self.viewer.send_to_sim(messages.ResetEvent(key=key_idx))
       # Discard any pre-reset snapshots so we don't overwrite the reset state.
       self.viewer.get_sim_snapshots()
@@ -256,6 +251,29 @@ class ViewerApp:
         == sim.PauseState.NORMAL_PAUSED
     )
     viewer_utils.apply_perturb(self.viewer, self.model, self.data, is_paused)
+
+  def _send_step_control(self) -> None:
+    """Sends the viewer's step control settings to the sim thread."""
+    noise_scale, noise_rate = self.step_control_state.get_noise_parameters()
+    self.viewer.send_to_sim(
+        messages.StepControlSnapshot(
+            pause_state=self.step_control_state.get_pause_state(),
+            speed=self.step_control_state.get_speed(),
+            noise_scale=noise_scale,
+            noise_rate=noise_rate,
+        )
+    )
+
+  def _send_scrub_to_sim(self, index: int) -> None:
+    """Asks the sim to load a history frame.
+
+    See ``sim_history.SimHistorySnapshot`` for the request semantics.
+
+    Args:
+      index: History offset to load (0 is most recent, negative is past).
+    """
+    self._send_step_control()
+    self.viewer.send_to_sim(sim_history.SimHistorySnapshot(index=index))
 
   def reset_physics_gui(self) -> None:
     """GUI to Reset the physics i.e., the reset button."""
@@ -303,16 +321,12 @@ class ViewerApp:
     # Apply perturbation forces from the viewer.
     self.apply_perturb()
 
+    # Forward single-step requests as events (reliable, never dropped).
+    if self.step_control_state.consume_single_step_request():
+      self.viewer.send_to_sim(messages.SingleStepEvent())
+
     # Send viewer-to-sim snapshots (step control, model options) each frame.
-    noise_scale, noise_rate = self.step_control_state.get_noise_parameters()
-    self.viewer.send_to_sim(
-        messages.StepControlSnapshot(
-            pause_state=self.step_control_state.get_pause_state(),
-            speed=self.step_control_state.get_speed(),
-            noise_scale=noise_scale,
-            noise_rate=noise_rate,
-        )
-    )
+    self._send_step_control()
     self.viewer.send_to_sim(
         messages.MjOptionSnapshot(opt=copy.deepcopy(self.model.opt))
     )
@@ -416,17 +430,25 @@ class ViewerApp:
       _, self.config.show_options = imgui.Begin(
           'Options', self.config.show_options
       )
-      # The Simulation panel draws its own collapsible section header.
+      # The Simulation panel draws its own collapsible section header. Its
+      # scrubber may change the history index; tell the sim to load the frame.
+      # Reset/Reload/Keyframe inside the panel clear the mirrored history
+      # (size 0, which also clamps the index), which is not a scrub.
+      history_index = self.ux_state.history_index
       ux.simulation_gui(
           self.model,
           self.data,
           self.step_control_state,
-          self.sim_history,
           self.ux_state,
           self.reset_physics,
           self.reload_model,
           self.align_camera,
       )
+      if (
+          self.ux_state.history_size > 0
+          and self.ux_state.history_index != history_index
+      ):
+        self._send_scrub_to_sim(self.ux_state.history_index)
       if imgui.TreeNodeEx('Physics Settings', node_flags):
         ux.physics_gui(self.model)
         imgui.TreePop()
@@ -522,6 +544,15 @@ class ViewerApp:
         imgui.Text(self.status)
       imgui.End()
       imgui.PopStyleVar(3)
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_history(self, event: sim_history.SimHistorySnapshot) -> None:
+    """Mirrors the sim's history metadata into ``ux_state`` for the scrubber."""
+    if self._viewer is None or self.model is None or self.data is None:
+      return
+    self.ux_state.history_size = event.size
+    self.ux_state.history_index = event.index
+    self.ux_state.sim_head_time = event.head_time
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_post_model(self, event: messages.PostModelEvent) -> None:

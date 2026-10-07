@@ -74,8 +74,8 @@ class FilamentRenderer {
   // Rendering flags.
   mjtByte* GetRenderFlags() { return render_flags_; }
 
-  // Returns the current frame rate.
-  double GetFps();
+  // Returns the GPU time of the last rendered frame, in milliseconds.
+  double GetGpuFrameMs();
 
  private:
   // Resets the renderer; no rendering will occur until Init() is called again.
@@ -103,7 +103,7 @@ class FilamentRenderer {
   mjrfRenderRequest render_requests_[2];
   mjtByte render_flags_[mjNRNDFLAG];
   int framebuffer_mode_ = 0;
-  double fps_ = 0;
+  double gpu_frame_ms_ = 0;
 };
 
 }  // namespace mujoco::studio

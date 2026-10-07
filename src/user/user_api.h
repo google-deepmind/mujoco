@@ -504,6 +504,15 @@ MJAPI const char* mjs_resolveOrientation(double                quat[4],
                                          const char*           sequence,
                                          const mjsOrientation* orientation);
 
+// Fuse the static bodies of the spec with their parents, return 0 on success.
+MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
+
+// Discard the visual elements of the spec, return 0 on success.
+MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
+
+// Make the inertial which compilation infers for a body part of the spec, return 0 on success.
+MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);
+
 // Transform body into a frame.
 MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 

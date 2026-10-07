@@ -52,6 +52,7 @@ def _collision_shim(
     # Model
     nworld: int,
     block_dim: mjwp_types.BlockDim,
+    body_weldid: wp.array[int],
     flex_activelayers: wp.array[int],
     flex_conaffinity: wp.array[int],
     flex_condim: wp.array[int],
@@ -64,7 +65,9 @@ def _collision_shim(
     flex_elemlayer: wp.array[int],
     flex_friction: wp.array[wp.vec3],
     flex_gap: wp.array[float],
+    flex_interp: wp.array[int],
     flex_margin: wp.array[float],
+    flex_passive: wp.array[int],
     flex_priority: wp.array[int],
     flex_radius: wp.array[float],
     flex_selfcollide: wp.array[int],
@@ -156,6 +159,7 @@ def _collision_shim(
     opt__disableflags: int,
     opt__enableflags: int,
     opt__graph_conditional: bool,
+    opt__integrator: int,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     opt__warn_overflow: int,
@@ -196,6 +200,7 @@ def _collision_shim(
   _d.efc = _e
   _d.contact = _c
   _m.block_dim = block_dim
+  _m.body_weldid = body_weldid
   _m.flex_activelayers = flex_activelayers
   _m.flex_conaffinity = flex_conaffinity
   _m.flex_condim = flex_condim
@@ -208,7 +213,9 @@ def _collision_shim(
   _m.flex_elemlayer = flex_elemlayer
   _m.flex_friction = flex_friction
   _m.flex_gap = flex_gap
+  _m.flex_interp = flex_interp
   _m.flex_margin = flex_margin
+  _m.flex_passive = flex_passive
   _m.flex_priority = flex_priority
   _m.flex_radius = flex_radius
   _m.flex_selfcollide = flex_selfcollide
@@ -290,6 +297,7 @@ def _collision_shim(
   _m.opt.disableflags = opt__disableflags
   _m.opt.enableflags = opt__enableflags
   _m.opt.graph_conditional = opt__graph_conditional
+  _m.opt.integrator = opt__integrator
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.opt.warn_overflow = opt__warn_overflow
@@ -471,6 +479,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
   out = jf(
       d.qpos.shape[0],
       m._impl.block_dim,
+      m.body_weldid,
       m._impl.flex_activelayers,
       m._impl.flex_conaffinity,
       m._impl.flex_condim,
@@ -483,7 +492,9 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemlayer,
       m._impl.flex_friction,
       m._impl.flex_gap,
+      m.flex_interp,
       m._impl.flex_margin,
+      m._impl.flex_passive,
       m._impl.flex_priority,
       m._impl.flex_radius,
       m._impl.flex_selfcollide,
@@ -575,6 +586,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt.disableflags,
       m.opt.enableflags,
       m.opt._impl.graph_conditional,
+      m.opt.integrator,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       m.opt._impl.warn_overflow,

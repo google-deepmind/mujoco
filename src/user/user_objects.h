@@ -411,9 +411,12 @@ class mjCBase : public mjCBase_ {
 
   virtual ~mjCBase() = default;  // destructor
 
-  // reset keyframe references for allowing self-attach
-  virtual void ForgetKeyframes() {}
-  virtual void ForgetKeyframes() const {}
+  // forget the keyframe values of this element which are stored under the given names, or all
+  // others if keep is true
+  virtual void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false) {}
+
+  // forget the id of this element and the addresses of its state in the compiled model
+  virtual void ResetId() { id = -1; }
 
   // increment and decrement reference count
   // release uses the argument to delete the plugin
@@ -504,6 +507,25 @@ class mjCBody_ : public mjCBase {
   std::vector<double> userdata_;
   std::vector<double> spec_userdata_;
 
+  // the inertial as compiled, in the body frame before a free joint is aligned with it, and with
+  // the mass and inertia before settotalmass scales those of all bodies
+  double ipos_compiled_[3]    = {0, 0, 0};
+  double iquat_compiled_[4]   = {1, 0, 0, 0};
+  double mass_compiled_       = 0;
+  double inertia_compiled_[3] = {0, 0, 0};
+
+  // compilation raised the mass or inertia to their bounds, or balanced the inertia
+  bool inertia_adjusted_ = false;
+
+  // how compilation gave the body its inertia: inferred from its geoms in the groups which it
+  // counted, as the spec gave it, or none (massless)
+  bool inertia_inferred_  = false;
+  bool inertia_given_     = false;
+  int  inertia_groups_[2] = {0, 0};
+
+  // compilation moved the frame of the body to its inertial frame, to align it with a free joint
+  bool aligned_ = false;
+
   // variables used for temporarily storing the state of the mocap bodies
   std::map<std::string, std::array<mjtNum, 3>> mpos_;   // saved mocap_pos
   std::map<std::string, std::array<mjtNum, 4>> mquat_;  // saved mocap_quat
@@ -556,6 +578,10 @@ class mjCBody : public mjCBody_, private mjsBody {
   // set explicitinertial to true
   void MakeInertialExplicit();
 
+  // make the inertial which compilation calculated for this body part of the spec; the kinematic
+  // tree must have been compiled since the spec was last edited, see mjCModel::Resolve
+  void AdoptInertial();
+
   // compute the bounding volume hierarchy of the body.
   void ComputeBVH();
 
@@ -576,11 +602,11 @@ class mjCBody : public mjCBody_, private mjsBody {
                         mjtObj            type      = mjOBJ_UNKNOWN,
                         bool              recursive = false) const;
 
-  // reset keyframe references for allowing self-attach
-  void ForgetKeyframes() const;
+  // forget the keyframe values of this body and its subtree
+  void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
 
   // create a frame and move all contents of this body into it
-  mjCFrame* ToFrame();
+  mjCFrame* ToFrame(bool mergeinertial = true);
 
   // get mocap position and quaternion
   mjtNum* mpos(const std::string& state_name);
@@ -615,11 +641,36 @@ class mjCBody : public mjCBody_, private mjsBody {
   void Compile(void);          // compiler
   void InertiaFromGeom(void);  // get inertial info from geoms
 
+  // true if compilation infers the inertial of this body from its geoms
+  bool InfersInertial() const;
+
   // get the inertial in the spec: center of mass in body coordinates and inertia matrix about it
   void SpecInertial(double com[3], double inert[6]) const;
 
-  // merge the inertial in the spec of a child body into the inertial in the spec of this body
+  // get the inertial which compilation calculated, in the same form; the kinematic tree must
+  // have been compiled since the spec was last edited
+  void CompiledInertial(double com[3], double inert[6]) const;
+
+  // merge the inertial of a child body into the inertial in the spec of this body; an inertial
+  // which is inferred from geoms is taken as compiled, one which is given as it is in the spec
   void MergeInertial(const mjCBody* child);
+
+  // turn a compiled pose of this body into the pose in the spec which compiles to it: before the
+  // alignment with a free joint, and in the frame which the body is in
+  void PoseInSpec(double bodypos[3], double bodyquat[4]) const;
+
+  // the same for a compiled pose of an element of this body, which is in the given frame or in
+  // none. Given the unit quaternion, it returns the rotation which brings a direction of the
+  // element from the body to the spec
+  void ElementPoseInSpec(const mjCFrame* elementframe,
+                         double          elementpos[3],
+                         double          elementquat[4]) const;
+
+  // write to the spec what compiles to the compiled values of this body, for mj_copyBack: the
+  // position and the orientation which are new, so that the other stays as it is written; and
+  // the inertial, or only its mass
+  void PoseToSpec(bool position, bool orientation);
+  void InertialToSpec(bool massonly);
 
   // objects allocated by Add functions
   std::vector<mjCBody*>   bodies;   // child bodies
@@ -679,6 +730,9 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   mjCFrame& operator+=(const mjCBody& other);
 
   bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
+
+  // express in this frame, as compiled, a pose which is given in its body
+  void ToLocal(double childpos[3], double childquat[4]) const;
 
   mjsBody* last_attached;  // last attached body to this frame
 
@@ -741,10 +795,16 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
   mjtNum* qpos(const std::string& state_name);
   mjtNum* qvel(const std::string& state_name);
+  void    ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
+  void    ResetId();
 
  private:
   int  Compile(void);  // compiler; return dofnum
   void PointToLocal(void);
+
+  // write to the spec the anchor, the axis or both, which compile to the compiled ones: in the
+  // frame which the joint is in
+  void AnchorToSpec(bool anchor, bool direction);
 
   // variables that should not be copied during copy assignment
   int qposadr_;  // address of dof in data->qpos
@@ -760,7 +820,6 @@ class mjCGeom_ : public mjCBase {
   bool inferinertia;  // true if inertia should be computed from geom
 
  protected:
-  bool       visual_;          // true: geom does not collide and is unreferenced
   int        matid;            // id of geom's material
   mjCMesh*   mesh;             // geom's mesh
   mjCHField* hfield;           // geom's hfield
@@ -801,8 +860,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   mjsGeom  spec;               // variables set by user
   double   GetVolume() const;  // compute geom volume
   void     SetInertia(void);   // compute and set geom inertia
-  bool     IsVisual(void) const { return visual_; }
-  void     SetNotVisual(void) { visual_ = false; }
   void     SetParent(mjCBody* _body) { body = _body; }
   mjCBody* GetParent() const { return body; }
   mjtGeom  Type() const { return type; }
@@ -817,7 +874,10 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   const std::string&         get_hfieldname() const { return spec_hfieldname_; }
   const std::string&         get_meshname() const { return spec_meshname_; }
   const std::string&         get_material() const;
-  void                       del_material() { spec_material_.clear(); }
+  void                       del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
  private:
   void   Compile(void);      // compiler
@@ -827,6 +887,13 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   void   PointToLocal(void);
   void   NameSpace(const mjCModel* m);
   void   CopyPlugin();
+
+  // write to the spec what compiles to the compiled values of this geom, for mj_copyBack: the
+  // position and the orientation which are new; and those of size, pose and surface velocity
+  // which are new. A size and pose which the spec gives as fromto, or by fitting to a mesh, are
+  // written in its place
+  void PoseToSpec(bool position, bool orientation);
+  void ShapeToSpec(bool newsize, bool position, bool orientation, bool newvelocity);
 
   // inherited
   using mjCBase::info;
@@ -893,6 +960,10 @@ class mjCSite : public mjCSite_, private mjsSite {
   void CopyFromSpec();  // copy spec into attributes
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+
+  // write to the spec what compiles to the compiled values of this site, as for a geom
+  void PoseToSpec(bool position, bool orientation);
+  void ShapeToSpec(bool newsize, bool position, bool orientation);
 };
 
 
@@ -938,6 +1009,14 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void ResolveReferences(const mjCModel* m);
+
+  // write to the spec the position and the orientation which compile to the compiled ones, each
+  // only if asked
+  void PoseToSpec(bool position, bool orientation);
+
+  // write the compiled intrinsics as focal length and principal point, in units of length: to the
+  // spec, and to the compiled copy, which may have them in pixels
+  void IntrinsicToSpec(bool tospec);
 };
 
 
@@ -972,6 +1051,10 @@ class mjCLight : public mjCLight_, private mjsLight {
   // used by mjXWriter and mjCModel
   const std::string& get_targetbody() const { return targetbody_; }
   const std::string& get_texture() const { return texture_; }
+  void               del_texture() {
+    spec_texture_.clear();
+    texture_.clear();
+  }
 
   void     SetParent(mjCBody* _body) { body = _body; }
   mjCBody* GetParent() const { return body; }
@@ -982,6 +1065,10 @@ class mjCLight : public mjCLight_, private mjsLight {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void ResolveReferences(const mjCModel* m);
+
+  // write to the spec the position and the direction which compile to the compiled ones, each
+  // only if asked
+  void PoseToSpec(bool position, bool direction);
 };
 
 
@@ -1073,7 +1160,10 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   const std::vector<double>&      get_node() const { return node_; }
 
   bool HasTexcoord() const;  // texcoord not null
-  void DelTexcoord();        // delete texcoord
+  void del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
@@ -1085,10 +1175,9 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   void CreateShell(void);          // create shells
   void ComputeCellEmpty(const double* vpos,
                         const int*    elems,  // identify cells
-                        int           nv,
                         int           ne,
-                        int           fdim,             // with no mesh content
-                        const double* bbox = nullptr);  // optional precomputed bbox
+                        int           fdim,        // with no mesh content
+                        const double  minmax[6]);  // bounding box of the node grid
 
   std::vector<double> vert0_;  // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;  // node Cartesian positions
@@ -1137,7 +1226,6 @@ class mjCMesh_ : public mjCBase {
 
   // used by the compiler
   bool                             needreorient_;  // needs reorientation
-  bool                             visual_;        // true: the mesh is only visual
   std::vector<std::pair<int, int>> halfedge_;      // half-edge data
 
   // mesh processed flags
@@ -1155,6 +1243,7 @@ class mjCMesh_ : public mjCBase {
   // size of mesh data to be copied into mjModel
   int  szgraph_ = 0;  // size of graph data in ints
   bool needhull_;     // needs convex hull for collisions
+  bool needsdf_;      // needs signed distance field for an sdf geom
   int  maxhullvert_;  // max vertex count of convex hull
 
   // bounding volume hierarchy tree
@@ -1215,6 +1304,7 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
 
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
+  void SetNeedSDF(bool needsdf) { needsdf_ = needsdf; }
 
   // mesh properties computed by Compile
   const double* aamm() const { return aamm_; }
@@ -1253,9 +1343,10 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   double  GetVolumeRef() const;                      // get volume
   void    FitGeom(mjCGeom* geom, double center[3]);  // approximate mesh with simple geom
   bool    HasTexcoord() const;                       // texcoord not null
-  void    DelTexcoord();                             // delete texcoord
-  bool    IsVisual(void) const { return visual_; }   // is geom visual
-  void    SetNotVisual(void) { visual_ = false; }    // mark mesh as not visual
+  void    del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   void CopyVert(float* arr) const;        // copy vert data into array
   void CopyNormal(float* arr) const;      // copy normal data into array
@@ -1396,7 +1487,10 @@ class mjCSkin : public mjCSkin_, private mjsSkin {
   const std::vector<float>&              get_bindquat() const { return bindquat_; }
   const std::vector<std::vector<int>>&   get_vertid() const { return vertid_; }
   const std::vector<std::vector<float>>& get_vertweight() const { return vertweight_; }
-  void                                   del_material() { material_.clear(); }
+  void                                   del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   void CopyFromSpec();
   void PointToLocal();
@@ -1440,7 +1534,6 @@ class mjCHField : public mjCHField_, private mjsHField {
 
   void CopyFromSpec(void);
   void PointToLocal(void);
-  void NameSpace(const mjCModel* m);
 
   std::string File() const { return file_; }
 
@@ -1461,7 +1554,8 @@ class mjCHField : public mjCHField_, private mjsHField {
 
 class mjCTexture_ : public mjCBase {
  protected:
-  std::vector<std::byte> data_;  // texture data (rgb, roughness, etc.)
+  std::vector<std::byte> data_;       // texture data (rgb, roughness, etc.)
+  std::vector<std::byte> spec_data_;  // texture data given by the user
 
   std::string              file_;
   std::string              content_type_;
@@ -1487,7 +1581,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   void   CopyFromSpec(void);
   void   PointToLocal(void);
-  void   NameSpace(const mjCModel* m);
   void   Compile(const mjVFS* vfs);
   double texture_time_ = 0;
 
@@ -1524,8 +1617,6 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
                unsigned int&           w,
                unsigned int&           h,
                bool&                   is_srgb);
-
-  bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };
 
 
@@ -1559,6 +1650,7 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
   const std::string& get_texture(int i) const { return textures_[i]; }
   void               del_textures() {
     for (auto& t : textures_) t.clear();
+    for (auto& t : spec_textures_) t.clear();
   }
 
  private:
@@ -1684,6 +1776,7 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
+  void ResetId();
 
  private:
   void Compile(void);  // compiler
@@ -1720,7 +1813,10 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
 
   void               set_material(std::string _material) { material_ = _material; }
   const std::string& get_material() const { return material_; }
-  void               del_material() { material_.clear(); }
+  void               del_material() {
+    spec_material_.clear();
+    material_.clear();
+  }
 
   // API for adding wrapping objects
   void WrapSite(std::string wrapname, std::string_view wrapinfo = "");                    // site
@@ -1814,6 +1910,7 @@ class mjCPlugin : public mjCPlugin_ {
   mjCPlugin& operator=(const mjCPlugin& other);
 
   void PointToLocal();
+  void ResetId();
 
   mjsPlugin spec;
   mjCBase*  parent;       // parent object (only used when generating error message)
@@ -1896,8 +1993,8 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
 
-  // reset keyframe references for allowing self-attach
-  void ForgetKeyframes();
+  void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
+  void ResetId();
 
   mjCBase* ptarget;  // transmission target
 };
@@ -1950,6 +2047,7 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
+  void ResetId();
 
   mjCBase* obj;  // sensorized object
   mjCBase* ref;  // sensorized reference
@@ -2056,8 +2154,31 @@ class mjCTuple : public mjCTuple_, private mjsTuple {
 //------------------------- class mjCKey -----------------------------------------------------------
 // Describes a keyframe
 
+// what a change to the tree stored of a keyframe, to be reassembled by the next compilation
+typedef struct mjKeyInfo_ {
+  std::string name;  // name under which the values are stored in the elements
+
+  double time;
+  bool   qpos;
+  bool   qvel;
+  bool   act;
+  bool   ctrl;
+  bool   mpos;
+  bool   mquat;
+} mjKeyInfo;
+
 class mjCKey_ : public mjCBase {
  protected:
+  // a keyframe is pending from a change to the tree, when its values are stored in the elements
+  // they belong to, until the next compilation reassembles its vectors
+  bool      ispending_ = false;
+  mjKeyInfo pending_;
+
+  // a pending keyframe of a model to which another was attached stays in place: it keeps its
+  // position among the keyframes, and it is still copied when its own model is attached; one
+  // which a deletion stored, or which came with an attached model, is kept last and attached as is
+  bool inplace_ = false;
+
   std::vector<double> qpos_;
   std::vector<double> qvel_;
   std::vector<double> act_;

@@ -40,6 +40,8 @@
   X(mjtInertiaFromGeom, inertiafromgeom,   1) \
   XVEC(int,             inertiagrouprange, 2) \
   X(mjtBool,            saveinertial,      1) \
+  X(mjtBool,            savecompiled,      1) \
+  X(mjtBool,            savecanonical,     1) \
   X(mjtBool,            alignfree,         1) \
   X(mjtConflict,        conflict,          1) \
   X(mjLROpt,            LRopt,             1) \
@@ -115,6 +117,7 @@
     X   ( double,          gravcomp,         1 ) \
     X   ( mjtSleepPolicy,  sleep,            1 ) \
     X   ( mjtByte,         simple,           1 ) \
+    X   ( mjtByte,         fuse,             1 ) \
     X   ( mjDoubleVec*,    userdata,         1 ) \
     X   ( mjtBool,         explicitinertial, 1 ) \
     X   ( mjsPlugin,       plugin,           1 ) \

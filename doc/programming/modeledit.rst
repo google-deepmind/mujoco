@@ -94,6 +94,32 @@ The output format is selected automatically based on the file extension (case-in
 - **TXT** (``.txt``): Writes a human-readable text dump via :ref:`mj_printModel`. Useful for diffing and debugging.
   Requires a compiled ``model``; does **not** serialize anything from ``spec``.
 
+A spec is saved as MJCF in one of two ways, selected by its compiler attribute
+:ref:`savecompiled<compiler-savecompiled>`:
+
+- "true": the values which the last compilation made of the model, in the canonical notation. For example a body
+  which is :ref:`aligned<body-freejoint-align>` with its free joint is saved with its aligned pose, and a geom which
+  was fitted to a mesh with the size of the fit. The spec must have been compiled.
+- "false": the model as it is written in the spec. Poses are those of the elements in their :ref:`frames<frame>`,
+  attributes which were written with their default values are kept, and every number is saved exactly. Orientations,
+  angles and ``fromto`` are saved in the notation in which they were written, unless
+  :ref:`savecanonical<compiler-savecanonical>` is "true". The spec need not have been compiled.
+
+In both cases the saved file compiles to the same model, except where MJCF cannot say what the spec holds. For example,
+the elements of an attached model are compiled with its own compiler settings, while the saved file has one
+:ref:`compiler<compiler>` element. Saved as written, the angle unit and the Euler sequence of an attached model are
+converted, and a difference in a setting which changes what compilation infers, such as
+:ref:`inertiafromgeom<compiler-inertiafromgeom>`, is an error which says so; saved as compiled values, such a model may
+compile differently. What the parser does not keep in a spec is not saved: comments other than the one at the top of
+the file, the :ref:`include<include>` elements, and the elements which it expands into others, such as
+:ref:`replicate<replicate>`, :ref:`composite<body-composite>`, :ref:`attach<body-attach>` and the actuator shortcuts.
+
+A spec which is saved as written needs a compilation in two cases. The inertials which compilation calculates,
+which :ref:`saveinertial<compiler-saveinertial>` saves, are those of the last compilation, which must follow any
+structural edit (elements added, deleted or attached), as for compiled values. And :ref:`keyframes<keyframe>` which
+await compilation, as they do once :ref:`mjs_attach` or :ref:`mjs_delete` changed the kinematic tree of a spec which
+has keyframes, are saved once compilation has assembled their vectors.
+
 Importantly, saved XML will take into account any defined defaults. This is useful when a model has many repeated
 values, for example if loaded from URDF, which does not support defaults. In such a case one can add default classes,
 set the class of the relevant elements, and save; the resulting XML will use the defaults and be more human-readable.
@@ -198,6 +224,11 @@ procedurally, default classes are passed in explicitly to element constructors. 
 (used when no default class is passed in) can be inspected in
 `user_init.c <https://github.com/google-deepmind/mujoco/blob/main/src/user/user_init.c>`__.
 
+Elements are referenced by name, and names are set with :ref:`mjs_setName`. Assets are no exception: a mesh, texture or
+height field added with :ref:`mjs_addMesh`, :ref:`mjs_addTexture` or :ref:`mjs_addHField` must be given a name, even
+when it is loaded from a file. Naming an asset after its file when the name is omitted is a convenience of the XML
+parser only.
+
 .. _meMemory:
 
 Memory management
@@ -256,7 +287,10 @@ corresponding to the :ref:`compiler/angle<compiler-angle>` attribute, specifying
 interpreted. Compiler flags are carried over during attachment, so the child model will be compiled using the child
 flags, while the parent will be compiled using the parent flags.
 
-Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own.
+Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own or attached
+again as a whole. Its bodies and frames which are not attached yet can be attached, if they contain nothing which is
+attached already. An element of the parent, including one attached to it by reference, can be attached to the parent
+only as a copy, see :ref:`mjs_setDeepCopy`.
 
 .. admonition:: Known issues
    :class: note
@@ -265,10 +299,12 @@ Note also that once a child is attached by reference to a parent, the child cann
 
    - All assets from the child model will be copied in, whether they are referenced or not, if the parent and the child
      are not the same mjSpec.
+   - A child attached by reference more than once moves its assets to the parent with the first attachment. The elements
+     of a later attachment find them only if it has the same prefix and suffix.
    - Circular references are not checked for and will lead to infinite loops.
-   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
-     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
-     lost.
+   - When attaching a model with :ref:`keyframes<keyframe>`, its keyframes are added to the parent right away, but
+     their vectors, and those of the keyframes of the parent, are assembled for the combined model only by the next
+     compilation. Until then they are empty.
 
 .. _meAttributeMerging:
 

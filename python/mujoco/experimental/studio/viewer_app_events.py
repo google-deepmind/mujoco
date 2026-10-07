@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Temporary event handling functions for ViewerApp."""
+"""Temporary input (e.g., keyboard, mouse) handling functions for ViewerApp."""
 
 # TODO(matijak): These free functions implement the keyboard and mouse event
 # handling for Studio. They are separated from the main ViewerApp class to
@@ -174,6 +174,46 @@ def handle_step_control_keyboard_events(
     ux_state.speed_index = ux.set_speed_index(
         step_control, ux_state.speed_index, ux_state.speed_index - 1
     )
+    return True
+
+  return False
+
+
+def handle_sim_history_keyboard_events(
+    step_control: sim.StepControl,
+    ux_state: ux.UxState,
+) -> bool:
+  """Handles keyboard shortcuts for scrubbing the simulation history.
+
+  Left/Right load the previous/next recorded frame while paused; Right at the
+  head of the history requests a single step instead. Matches the C++ Studio
+  app.
+
+  Args:
+    step_control: The simulation step control object.
+    ux_state: The UX state holding the timeline history size and index.
+
+  Returns:
+    True if a key was handled, False otherwise.
+  """
+  if imgui.GetIO().WantCaptureKeyboard or ux_state.history_size <= 0:
+    return False
+
+  # Scrubbing only makes sense while paused: a running sim would immediately
+  # step away from the loaded frame.
+  if step_control.get_pause_state() != sim.PauseState.NORMAL_PAUSED:
+    return False
+
+  pressed = imgui.IsKeyChordPressed
+
+  if pressed(imgui.Key.LeftArrow):
+    ux_state.history_index -= 1
+    return True
+  elif pressed(imgui.Key.RightArrow):
+    if ux_state.history_index == 0:
+      step_control.request_single_step()
+    else:
+      ux_state.history_index += 1
     return True
 
   return False

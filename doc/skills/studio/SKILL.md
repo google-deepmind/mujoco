@@ -126,6 +126,19 @@ channels. **Convention:** custom message classes derive from `Snapshot` or
     -   *Canonical example:* `ModelEvent` — transports a compiled `MjModel` (and
         optional path) when a model is initially loaded or recompiled.
 
+**Rule of thumb for GUI controls (sliders, checkboxes, settings):**
+
+-   If the control's *complete* value fits in one message and only the latest
+    value matters, use a `Snapshot` and send it on change (or every frame);
+    latest-wins coalesces redundant updates. Examples: `StepControlSnapshot`
+    (pause state, speed, noise), `MjOptionSnapshot` (`mjOption` fields), or a
+    plugin's own `FooConfigSnapshot` carrying its slider values.
+-   Use an `Event` when distinct edits of the same message type would clobber
+    each other in the per-type latest-wins slot and each must be applied —
+    `StateEvent` for joint/control slider edits, which differ by `state_sig` —
+    and for one-shot requests: `ResetEvent`, `SingleStepEvent`,
+    `RequestPauseEvent`.
+
 ### Lifecycle Events
 
 Lifecycle events are standard framework events dispatched by the runner loops to
@@ -147,10 +160,11 @@ shutdown:
         viewer-plugin state on model changes so `viewer.model` and `viewer.data`
         are already up to date.
     4.  `UpdateEvent` — dispatched every frame (after incoming sim events and
-        snapshots are applied) to update visuals, camera, perturbations, and
-        transient geoms.
+        snapshots are applied) to update visuals, camera, perturbations,
+        transient geoms, and prepare data or upload textures for the GUI.
     5.  `BuildGuiEvent` — dispatched every frame immediately after `UpdateEvent`
-        to construct and lay out Dear ImGui / ImPlot widgets.
+        to construct and lay out Dear ImGui / ImPlot widgets (keep handlers
+        focused on ImGui/ImPlot calls; prepare GUI data in `UpdateEvent`).
     6.  `ExitEvent` — dispatched once when the viewer shuts down, whether the
         exit came from the sim side or from the window being closed. Handle it
         to release resources (threads, pools, GPU handles).
@@ -177,7 +191,8 @@ shutdown:
         advance the physics.
     6.  `PostStepEvent` — dispatched by `ViewerHandle.sync` immediately after
         `StepEvent` (before `StateSnapshot` is broadcast) so observer/recorder
-        plugins can inspect or record the resulting simulation state.
+        plugins (such as `SimHistory`) can inspect or record the resulting
+        simulation state.
     7.  `ExitEvent` — dispatched once by `ViewerHandle.close()`, which the
         `with` block calls on every exit path (normal exit, `KeyboardInterrupt`,
         an exception, or the viewer dying). Handle it to release resources.
@@ -244,8 +259,9 @@ There is an intentional distinction between **lifecycle phase events** (`Pre*` /
         physics stepper), or `PostStepEvent` (to observe or record the stepped
         state).
     -   **Before / during GUI construction**: Subscribe to `UpdateEvent` for
-        per-frame state updates and `BuildGuiEvent` for Dear ImGui widget
-        submission.
+        per-frame state updates, GUI data preparation, and texture uploads
+        (e.g. `viewer.upload_image`), and `BuildGuiEvent` solely for Dear ImGui
+        / ImPlot widget submission.
 -   **When to use `messages.Priority`**: Reserve `priority=...` strictly for
     cases where multiple handlers target the **exact same event and phase** and
     one handler needs to override or consume (`return True`) the event before a
@@ -295,6 +311,7 @@ All three modules share the same `.run(...)` interface:
 
 ```python
 from mujoco.experimental.studio import launch_web  # Or launch_native / launch_passive
+from mujoco.experimental.studio import sim_history
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
@@ -306,7 +323,7 @@ launch_web.run(
     model=model,
     data=data,
     viewer_plugins=[viewer_app.ViewerApp()],
-    sim_plugins=[step_control.StepControl()],
+    sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
 )
 ```
 
@@ -330,7 +347,7 @@ context manager returning a `ViewerHandle`:
 with launch_web.launch(
     config,
     viewer_plugins=[viewer_app.ViewerApp()],
-    sim_plugins=[step_control.StepControl()],
+    sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
 ) as handle:
   while handle.is_running():
     model, data = handle.sync(model, data)
@@ -565,6 +582,14 @@ As a direct consequence of this principle:
 -   The viewer thread should **never directly mutate simulation-side state**
     outside of handling inbound events and sending requests to the sim.
 
+> [!IMPORTANT]
+>
+> **Keep `ViewerHandle` minimal.** It is the framework's sim-side orchestrator
+> and should only own `sync()`, message dispatch, and model/data lifecycle.
+> Domain-specific sim-side behaviours belong in **`sim_plugins`** — for
+> example `StepControl` (stepping/pacing) and `SimHistory` (history,
+> scrubbing). Do not add `ux` or `sim` imports to `viewer_handle.py`.
+
 ### 2. Preserve Simulation Loop Boilerplate (Use Plugins & Events)
 
 The outer simulation runner loop:
@@ -701,3 +726,8 @@ client maintain continuous heartbeat ping-pongs over `/ui` and `/state`.
 -   **Remedy**: Always offload asset loading or heavy computations to background
     threads, and dispatch completed assets or specs to the simulation side via
     asynchronous `Event` messages.
+
+### 8. Run with `-c opt` for Best Performance
+
+Always build and run Studio targets with `-c opt` so physics stepping, Filament
+rendering, and UI streaming execute with compiler optimizations enabled.

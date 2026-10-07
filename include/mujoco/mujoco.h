@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3014001
+#define mjVERSION_HEADER 3015001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -155,7 +155,7 @@ MJAPI mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
-// Copy real-valued arrays from model to spec; return 1 on success.
+// Copy the values which were changed in a model to the spec it was compiled from; return 1 on success.
 MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 
 // Recompile spec to model, preserving the state; return 0 on success.
@@ -228,7 +228,7 @@ MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
 // Save model to binary MJB file or memory buffer; buffer has precedence when given.
 // Nullable: filename, buffer
-MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
+MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize buffer_sz);
 
 // Load model from binary MJB file.
 // If vfs is not NULL, look up file in vfs before reading from disk.
@@ -236,7 +236,7 @@ MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, in
 MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 
 // Load model from memory buffer.
-MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz);
 
 // Free memory allocation in model.
 MJAPI void mj_deleteModel(mjModel* m);
@@ -1967,6 +1967,18 @@ MJAPI int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 // Resolve alternative orientations to quat; return error if any.
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
+
+// Fuse the static bodies of the spec with their parents, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
+
+// Discard the visual elements of the spec, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
+
+// Make the inertial which compilation infers for a body part of the spec, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);
 
 // Transform body into a frame.
 MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);

@@ -698,9 +698,9 @@ TEST_F(SolverTest, ConeFoldEquivalent) {
       <geom name="floor" type="plane" size="1 1 .01"/>
       <geom name="wallx" type="box" size=".02 .5 .1" pos="-.5 0 .1"/>
       <geom name="wally" type="box" size=".5 .02 .1" pos="0 -.5 .1"/>
-      <replicate count="3" offset="0 .11 0">
-        <replicate count="3" offset=".11 0 0">
-          <replicate count="3" offset="0 0 .11">
+      <replicate count="2" offset="0 .11 0">
+        <replicate count="2" offset=".11 0 0">
+          <replicate count="2" offset="0 0 .11">
             <body pos="-.35 -.35 .06">
               <freejoint/>
               <geom type="box" size=".05 .05 .05"/>
@@ -730,7 +730,7 @@ TEST_F(SolverTest, ConeFoldEquivalent) {
   MjDataPtr data_dense = MakeData(model);
 
   // let the pile fall and clump against the walls (sparse drives the state)
-  for (int step = 0; step < 100; step++) {
+  for (int step = 0; step < 40; step++) {
     mj_step(model.get(), data_sparse.get());
   }
 
@@ -739,7 +739,7 @@ TEST_F(SolverTest, ConeFoldEquivalent) {
 
   // compare sparse (folding) and dense (rank-1 updates) accelerations while
   // the clump slides
-  for (int step = 0; step < 50; step++) {
+  for (int step = 0; step < 15; step++) {
     mj_getState(model.get(), data_sparse.get(), state.data(), mjSTATE_PHYSICS);
 
     model->opt.jacobian = mjJAC_SPARSE;

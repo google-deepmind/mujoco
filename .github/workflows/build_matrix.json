@@ -4,7 +4,7 @@
     {
       "os": "ubuntu-24.04",
       "label": "ubuntu-24.04-gcc-14",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-14 -DCMAKE_CXX_COMPILER:STRING=g++-14 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=gcc-14 -DCMAKE_CXX_COMPILER:STRING=g++-14 -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF",
       "tmpdir": "/tmp",
       "tier": "core"
     },
@@ -23,9 +23,16 @@
       "tier": "core"
     },
     {
+      "os": "ubuntu-24.04-arm",
+      "label": "ubuntu-24.04-arm64-clang-18",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-18 -DCMAKE_CXX_COMPILER:STRING=clang++-18 -DMUJOCO_HARDEN:BOOL=ON -DCMAKE_SHARED_LINKER_FLAGS:STRING=-rtlib=compiler-rt -DCMAKE_EXE_LINKER_FLAGS:STRING=-rtlib=compiler-rt",
+      "tmpdir": "/tmp",
+      "tier": "core"
+    },
+    {
       "os": "ubuntu-24.04",
       "label": "ubuntu-24.04-clang-18",
-      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-18 -DCMAKE_CXX_COMPILER:STRING=clang++-18 -DMUJOCO_HARDEN:BOOL=ON",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-18 -DCMAKE_CXX_COMPILER:STRING=clang++-18 -DMUJOCO_HARDEN:BOOL=ON -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF",
       "tmpdir": "/tmp",
       "tier": "core"
     },
@@ -53,15 +60,22 @@
     {
       "os": "macos-15",
       "label": "macos-15-arm64",
-      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON",
+      "cmake_args": "-G Ninja -DMUJOCO_HARDEN:BOOL=ON -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF -DCMAKE_CXX_FLAGS=\"-Wno-error=deprecated-declarations\"",
       "tmpdir": "/tmp",
       "tier": "core"
     },
     {
       "os": "windows-2025",
-      "label": "windows-2025",
+      "label": "windows-2025-msvc",
       "cmake_args": "-DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\"",
       "cmake_build_args": "-- -m",
+      "tmpdir": "C:/Temp",
+      "tier": "core"
+    },
+    {
+      "os": "windows-2025",
+      "label": "windows-2025-clang",
+      "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-cl -DCMAKE_CXX_COMPILER:STRING=clang-cl -DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\" -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF",
       "tmpdir": "C:/Temp",
       "tier": "core"
     }

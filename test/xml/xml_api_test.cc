@@ -214,6 +214,210 @@ TEST_F(MujocoTest, SaveXmlWithDefaultMesh) {
   mj_deleteModel(saved_model);
 }
 
+TEST_F(MujocoTest, SaveXmlAfterAttachNeedsRecompile) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco model="parent">
+    <worldbody>
+      <body name="p">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco model="child">
+    <worldbody>
+      <body name="c">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, error.data(), error.size());
+  ASSERT_THAT(parent, NotNull()) << error.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, error.data(), error.size());
+  ASSERT_THAT(child, NotNull()) << error.data();
+  mjModel* model = mj_compile(parent, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+
+  // attach to the compiled parent
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  mjsBody* body = mjs_findBody(child, "c");
+  ASSERT_THAT(mjs_attach(frame->element, body->element, "c-", ""), NotNull());
+
+  // saving as written needs no new compilation, saving compiled values does
+  std::array<char, 2048> out;
+  parent->compiler.savecompiled = 0;
+  ASSERT_EQ(mj_saveXMLString(parent, out.data(), out.size(), error.data(),
+                             error.size()),
+            0)
+      << error.data();
+  EXPECT_THAT(LoadModelFromString(out.data(), error.data(), error.size()),
+              NotNull())
+      << error.data();
+  parent->compiler.savecompiled = 1;
+  EXPECT_EQ(mj_saveXMLString(parent, out.data(), out.size(), error.data(),
+                             error.size()),
+            -1);
+  EXPECT_THAT(error.data(), HasSubstr("must be recompiled"));
+
+  // after it, the saved model has the attached body
+  mjModel* recompiled = mj_compile(parent, 0);
+  ASSERT_THAT(recompiled, NotNull()) << mjs_getError(parent);
+  ASSERT_EQ(mj_saveXMLString(parent, out.data(), out.size(), error.data(),
+                             error.size()),
+            0)
+      << error.data();
+  MjModelPtr saved =
+      LoadModelFromString(out.data(), error.data(), error.size());
+  ASSERT_THAT(saved.get(), NotNull()) << error.data();
+  EXPECT_EQ(saved->nbody, 3);
+
+  mj_deleteModel(recompiled);
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
+TEST_F(MujocoTest, SaveXmlAfterDeleteNeedsRecompile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <freejoint/>
+        <geom name="ga" size=".1"/>
+      </body>
+      <body name="b">
+        <freejoint/>
+        <geom name="gb" size=".1"/>
+      </body>
+      <body name="c">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <contact geom1="ga" geom2="gb"/>
+    </sensor>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // delete a body of the compiled spec
+  ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "c")->element), 0);
+
+  // saving as written needs no new compilation, saving compiled values does
+  std::array<char, 2048> out;
+  spec->compiler.savecompiled = 0;
+  ASSERT_EQ(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                             error.size()),
+            0)
+      << error.data();
+  EXPECT_THAT(LoadModelFromString(out.data(), error.data(), error.size()),
+              NotNull())
+      << error.data();
+  spec->compiler.savecompiled = 1;
+  EXPECT_EQ(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                             error.size()),
+            -1);
+  EXPECT_THAT(error.data(), HasSubstr("must be recompiled"));
+
+  // after it, the saved model loads and has the sensor
+  mjModel* recompiled = mj_compile(spec, 0);
+  ASSERT_THAT(recompiled, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                             error.size()),
+            0)
+      << error.data();
+  MjModelPtr saved =
+      LoadModelFromString(out.data(), error.data(), error.size());
+  ASSERT_THAT(saved.get(), NotNull()) << error.data();
+  EXPECT_EQ(saved->nsensor, 1);
+
+  mj_deleteModel(recompiled);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SaveXmlAfterAddNeedsRecompile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <freejoint/>
+        <geom size=".1"/>
+        <site name="s"/>
+      </body>
+      <body name="b">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  // add elements to the compiled spec
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  body->pos[2] = 1;
+  mjsGeom* geom = mjs_addGeom(body, nullptr);
+  geom->size[0] = 0.25;
+  mjsExclude* exclude = mjs_addExclude(spec);
+  mjs_setString(exclude->bodyname1, "a");
+  mjs_setString(exclude->bodyname2, "b");
+  mjsSensor* sensor = mjs_addSensor(spec);
+  sensor->type = mjSENS_ACCELEROMETER;
+  sensor->objtype = mjOBJ_SITE;
+  mjs_setString(sensor->objname, "s");
+
+  // saving as written needs no new compilation, saving compiled values does
+  std::array<char, 2048> out;
+  spec->compiler.savecompiled = 0;
+  ASSERT_EQ(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                             error.size()),
+            0)
+      << error.data();
+  EXPECT_THAT(LoadModelFromString(out.data(), error.data(), error.size()),
+              NotNull())
+      << error.data();
+  spec->compiler.savecompiled = 1;
+  EXPECT_EQ(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                             error.size()),
+            -1);
+  EXPECT_THAT(error.data(), HasSubstr("must be recompiled"));
+
+  // after it, the saved model has the added elements
+  mjModel* recompiled = mj_compile(spec, 0);
+  ASSERT_THAT(recompiled, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(mj_saveXMLString(spec, out.data(), out.size(), error.data(),
+                             error.size()),
+            0)
+      << error.data();
+  MjModelPtr saved =
+      LoadModelFromString(out.data(), error.data(), error.size());
+  ASSERT_THAT(saved.get(), NotNull()) << error.data();
+  EXPECT_EQ(saved->body_pos[3 * 3 + 2], 1);
+  EXPECT_EQ(saved->geom_size[3 * 2], 0.25);
+  EXPECT_EQ(saved->nexclude, 1);
+  ASSERT_EQ(saved->nsensor, 1);
+  EXPECT_EQ(saved->sensor_type[0], mjSENS_ACCELEROMETER);
+
+  mj_deleteModel(recompiled);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, FreeLastXml) {
   static constexpr char xml[] = "<mujoco/>";
   MjModelPtr model = LoadModelFromString(xml, 0, 0);

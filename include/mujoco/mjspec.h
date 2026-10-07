@@ -164,7 +164,7 @@ typedef struct mjsCompiler_ {      // compiler options
   mjtBool autolimits;              // infer "limited" attribute based on range
   double boundmass;                // enforce minimum body mass
   double boundinertia;             // enforce minimum body diagonal inertia
-  double settotalmass;             // rescale masses and inertias; <=0: ignore
+  double settotalmass;             // (deprecated) rescale masses and inertias; <=0: ignore
   mjtBool balanceinertia;          // automatically impose A + B >= C rule
   mjtBool fitaabb;                 // meshfit to aabb instead of inertia box
   mjtBool degree;                  // angles in radians or degrees
@@ -175,6 +175,8 @@ typedef struct mjsCompiler_ {      // compiler options
   mjtInertiaFromGeom inertiafromgeom; // use geom inertias
   int inertiagrouprange[2];        // range of geom groups used to compute inertia
   mjtBool saveinertial;            // save explicit inertial clause for all bodies to XML
+  mjtBool savecompiled;            // save values as compiled, not as written in the spec
+  mjtBool savecanonical;           // save quaternions and radians, not the notation of the spec
   mjtBool alignfree;               // align free joints with inertial frame
   mjtConflict conflict;            // conflict resolution for attach
   mjLROpt LRopt;                   // options for lengthrange computation
@@ -280,6 +282,7 @@ typedef struct mjsBody_ {          // body specification
   double gravcomp;                 // gravity compensation
   mjtSleepPolicy sleep;            // sleep policy
   mjtByte simple;                  // simple body optimization (0: false, 1: auto)
+  mjtByte fuse;                    // fuse with parent when static (0: false, 1: auto)
   mjDoubleVec* userdata;           // user data
   mjtBool explicitinertial;        // whether to save the body with explicit inertial clause
   mjsPlugin plugin;                // passive force plugin
