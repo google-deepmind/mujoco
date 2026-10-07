@@ -123,8 +123,9 @@ MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
 // does any flex contribute assemblable implicit stiffness? (existence check)
 MJAPI mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp);
 
-// actuation-stage refresh of the metric: actuator gains, their shift, the backbone factor
-void mjd_effActuation(const mjModel* m, mjData* d);
+// actuation-stage refresh of the metric: actuator gains, their shift, the backbone (factored
+// if flg_factor)
+void mjd_effActuation(const mjModel* m, mjData* d, int flg_factor);
 
 // one rank-1 term of the metric: term = scale * val' * val over the sparse row
 typedef struct {

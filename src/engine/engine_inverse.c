@@ -256,8 +256,10 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
     }
   }
 
-  // actuation-stage metric refresh: reads ctrl/act from mjData without running actuation
-  mjd_effActuation(m, d);
+  // actuation-stage metric refresh: reads ctrl/act from mjData without running actuation.
+  // The inverse only multiplies by the metric: the backbone factor is needed only by the
+  // exact constraint diagonal
+  mjd_effActuation(m, d, /*flg_factor=*/mjENABLED(mjENBL_DIAGEXACT));
   if (mj_isMetric(m)) {
     mj_regularizeConstraint(m, d, /*flg_AR=*/0);
     mj_referenceConstraint(m, d);

@@ -4002,8 +4002,10 @@ void mjd_effShift(const mjModel* m, mjData* d) {
 // solvers ever see (mj_makeY). Idempotent: actuation-stage objects are rebuilt from
 // scratch, so re-running the stage (mj_forwardSkip) is safe. Under sleep, rows of sleeping
 // trees may hold stale M values: harmless, M and its factor are block-diagonal by tree and
-// only awake rows are ever gathered or solved
-void mjd_effActuation(const mjModel* m, mjData* d) {
+// only awake rows are ever gathered or solved. If flg_factor is 0 the backbone is assembled
+// (efm_sdiag reads its diagonal) but not factored, leaving qH unfactored: inverse dynamics
+// only multiplies by the metric, and needs the factor only for the exact constraint diagonal
+void mjd_effActuation(const mjModel* m, mjData* d, int flg_factor) {
   if (!d->efm_active) {
     return;
   }
@@ -4086,7 +4088,9 @@ void mjd_effActuation(const mjModel* m, mjData* d) {
       int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
       d->efm_sdiag[i] = d->qH[diag] - d->M[diag];
     }
-    mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+    if (flg_factor) {
+      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+    }
   }
 }
 

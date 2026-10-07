@@ -6654,17 +6654,31 @@ TEST_F(ForwardTest, DiscreteActuatorInverseConsistency) {
   }
   data->qvel[0] = 0.1;
 
-  mj_forward(model.get(), data.get());
-  ASSERT_GT(data->ncon, 0);
-  mj_inverse(model.get(), data.get());
+  for (int diagexact = 0; diagexact < 2; diagexact++) {
+    if (diagexact) {
+      model->opt.enableflags |= mjENBL_DIAGEXACT;
+    } else {
+      model->opt.enableflags &= ~mjENBL_DIAGEXACT;
+    }
+    mj_forward(model.get(), data.get());
+    ASSERT_GT(data->ncon, 0);
 
-  // qfrc_inverse is the force that must be applied: here, the actuator's
-  mjtNum scale = mju_norm(data->qfrc_actuator, nv) +
-                 mju_norm(data->qfrc_constraint, nv) +
-                 mju_norm(data->qfrc_bias, nv);
-  std::vector<mjtNum> diff(nv);
-  mju_sub(diff.data(), data->qfrc_inverse, data->qfrc_actuator, nv);
-  EXPECT_LT(mju_norm(diff.data(), nv), 1e-6 * scale);
+    // the inverse only multiplies by the metric: it factors the backbone only
+    // when the exact constraint diagonal asks for it
+    mjtNum factored = data->qHDiagInv[0];
+    data->qHDiagInv[0] = -1;
+    mj_inverse(model.get(), data.get());
+    EXPECT_EQ(data->qHDiagInv[0], diagexact ? factored : -1);
+
+    // qfrc_inverse is the force that must be applied: here, the actuator's
+    mjtNum scale = mju_norm(data->qfrc_actuator, nv) +
+                   mju_norm(data->qfrc_constraint, nv) +
+                   mju_norm(data->qfrc_bias, nv);
+    std::vector<mjtNum> diff(nv);
+    mju_sub(diff.data(), data->qfrc_inverse, data->qfrc_actuator, nv);
+    EXPECT_LT(mju_norm(diff.data(), nv), 1e-6 * scale)
+        << "diagexact " << diagexact;
+  }
 }
 
 // tendon spring-damper in contact: native discrete inverse dynamics recovers
