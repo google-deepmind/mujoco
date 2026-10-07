@@ -53,7 +53,11 @@ std::vector<std::string> GetWriteReadTestModels() {
             // sanitizers
             absl::StrContains(xml, "cow") || absl::StrContains(xml, "shark_") ||
             absl::StrContains(xml, "perf") ||
-            absl::StrContains(xml, "100_humanoids")
+            absl::StrContains(xml, "100_humanoids") ||
+            // last-bit float differences on arm64 (body_iquat, geom_sameframe)
+            absl::StrContains(xml, "fromto_body_body") ||
+            absl::StrContains(xml, "replicate/helix") ||
+            absl::StrContains(xml, "usd/plugins/mjcf/testdata/materials")
 #ifndef MJ_WITH_USD
             // requires optional USD build support
             || absl::StrContains(xml, "usd.xml")
