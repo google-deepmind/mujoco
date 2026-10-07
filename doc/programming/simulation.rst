@@ -709,7 +709,9 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - Safe with :ref:`mj_setConst`.
      - Note that mass and inertia are usually scaled together, since inertia is :math:`\sum m r^2`. Scaling them
        separately is legitimate, but implies a changing of the spatial mass distribution. Also note that diagonal
-       inertias must obey the triangle inequality.
+       inertias must obey the triangle inequality. If changes to ``body_ipos`` or ``body_iquat`` invalidate the
+       simple-body assumptions, compile the affected body with :ref:`simple="false"<body-simple>` first.
+       :ref:`mj_setConst` recomputes frame-alignment flags, but cannot change the compiled mass-matrix sparsity.
    * - ``body_pos`` |br| ``body_quat``
      - Safe with :ref:`mj_setConst`.
      - Unsafe for static bodies, invalidates the midphase collision structures (BVH).

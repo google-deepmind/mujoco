@@ -542,6 +542,89 @@ TEST_F(SetConstTest, DofLength) {
   EXPECT_NEAR(model->dof_length[10], 5, tol);
 }
 
+TEST_F(SetConstTest, InertialParametersMatchRecompiledModel) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body simple="false">
+        <freejoint/>
+        <inertial pos="IPOS" quat="IQUAT" mass="MASS" diaginertia="INERTIA"/>
+      </body>
+      <body pos="1 0 0">
+        <joint type="hinge" axis="0 1 0" armature="ARMATURE"/>
+        <inertial pos="0 0 .2" mass="1" diaginertia=".1 .2 .2"/>
+        <body pos="0 0 .5">
+          <joint type="hinge" axis="1 0 0"/>
+          <inertial pos=".1 0 0" mass=".5" diaginertia=".03 .04 .05"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  const char* fields[] = {"IPOS", "IQUAT", "MASS", "INERTIA", "ARMATURE"};
+  const char* values[2][5] = {{"0 0 0", "1 0 0 0", "2", ".2 .3 .4", ".1"},
+                              {".1 -.2 .3", "1 2 3 4", "3", ".3 .5 .6", ".2"}};
+  MjModelPtr reference[2];
+  char error[1024];
+  for (int i = 0; i < 2; ++i) {
+    string model_xml = xml;
+    for (int j = 0; j < 5; ++j) {
+      model_xml.replace(model_xml.find(fields[j]), string(fields[j]).size(),
+                        values[i][j]);
+    }
+    reference[i] = LoadModelFromString(model_xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(reference[i].get(), NotNull()) << error;
+  }
+
+  MjModelPtr m(mj_copyModel(nullptr, reference[0].get()));
+  MjDataPtr d(mj_makeData(m.get()));
+  const mjtNum tol = MjTol(1e-12, 1e-5);
+
+  // reuse the same model and scratch data for initial, changed, unchanged, and
+  // restored inputs
+  const int sequence[] = {0, 1, 1, 0};
+  for (int step = 0; step < 4; ++step) {
+    SCOPED_TRACE(step);
+    const mjModel* ref = reference[sequence[step]].get();
+    mju_copy(m->body_mass, ref->body_mass, m->nbody);
+    mju_copy(m->body_inertia, ref->body_inertia, 3 * m->nbody);
+    mju_copy(m->body_ipos, ref->body_ipos, 3 * m->nbody);
+    mju_copy(m->body_iquat, ref->body_iquat, 4 * m->nbody);
+    mju_copy(m->dof_armature, ref->dof_armature, m->nv);
+    mj_setConst(m.get(), d.get());
+
+    // compare derived constants, including both translational and rotational
+    // inverse weights
+    for (int b = 0; b < m->nbody; ++b) {
+      EXPECT_NEAR(m->body_subtreemass[b], ref->body_subtreemass[b], tol) << b;
+      for (int j = 0; j < 2; ++j) {
+        EXPECT_NEAR(m->body_invweight0[2 * b + j],
+                    ref->body_invweight0[2 * b + j], tol)
+            << b << ", " << j;
+      }
+    }
+    for (int i = 0; i < m->nv; ++i) {
+      EXPECT_NEAR(m->dof_invweight0[i], ref->dof_invweight0[i], tol) << i;
+    }
+
+    // compare dynamics away from qpos0 and leave nonzero scratch data for the
+    // next recomputation
+    MjDataPtr expected(mj_makeData(ref));
+    mj_resetData(m.get(), d.get());
+    for (int i = 0; i < m->nv; ++i) {
+      d->qvel[i] = expected->qvel[i] = .1 * (i + 1);
+      d->qfrc_applied[i] = expected->qfrc_applied[i] = .2 * (i + 1);
+    }
+    mj_integratePos(m.get(), d->qpos, d->qvel, .1);
+    mju_copy(expected->qpos, d->qpos, m->nq);
+    mj_forward(m.get(), d.get());
+    mj_forward(ref, expected.get());
+    for (int i = 0; i < m->nv; ++i) {
+      EXPECT_NEAR(d->qacc[i], expected->qacc[i], tol) << i;
+    }
+  }
+}
+
 TEST_F(SetConstTest, BodySameframeRecomputed) {
   constexpr char xml[] = R"(
   <mujoco>
