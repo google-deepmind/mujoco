@@ -7687,6 +7687,55 @@ TEST_F(MujocoTest, DetachDefault) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, DeleteForeignDefault) {
+  mjSpec* owner = mj_makeSpec();
+  mjSpec* other = mj_makeSpec();
+  mjsDefault* foreign = mjs_addDefault(owner, "foreign", nullptr);
+  EXPECT_THAT(mjs_addDefault(other, "mine", nullptr), NotNull());
+
+  // deleting a default owned by another spec fails
+  EXPECT_EQ(mjs_delete(other, foreign->element), -1);
+  EXPECT_THAT(mjs_getError(other), HasSubstr("default is not in this model"));
+
+  // neither spec is modified
+  EXPECT_THAT(mjs_findDefault(owner, "foreign"), NotNull());
+  EXPECT_THAT(mjs_findDefault(other, "mine"), NotNull());
+
+  // both default trees are intact, saving traverses them
+  for (mjSpec* spec : {owner, other}) {
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    mj_deleteModel(model);
+  }
+  EXPECT_THAT(SaveAndReadXml(owner), HasSubstr("class=\"foreign\""));
+  EXPECT_THAT(SaveAndReadXml(other), HasSubstr("class=\"mine\""));
+
+  mj_deleteSpec(other);
+  mj_deleteSpec(owner);
+}
+
+TEST_F(MujocoTest, DeleteForeignElement) {
+  mjSpec* owner = mj_makeSpec();
+  mjSpec* other = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(owner, "world"), nullptr);
+  mjsGeom* geom = mjs_addGeom(body, nullptr);
+  geom->size[0] = 1;
+
+  // deleting an element owned by another spec fails
+  EXPECT_EQ(mjs_delete(other, body->element), -1);
+  EXPECT_THAT(mjs_getError(other), HasSubstr("element is not in this model"));
+
+  // the owner still compiles with the element
+  mjModel* model = mj_compile(owner, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(owner);
+  EXPECT_EQ(model->nbody, 2);
+  EXPECT_EQ(model->ngeom, 1);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(other);
+  mj_deleteSpec(owner);
+}
+
 TEST_F(MujocoTest, ErrorWhenCompilingOrphanedSpec) {
   static constexpr char xml[] = R"(
   <mujoco>

@@ -824,6 +824,9 @@ mjCModel& mjCModel::operator+=(mjCDef& subtree) {
 
 // remove default class from array
 mjCModel& mjCModel::operator-=(const mjCDef& subtree) {
+  // check that the default belongs to this model before modifying anything
+  if (subtree.model != this) { throw mjCError(nullptr, "default is not in this model"); }
+
   // check we aren't trying to remove the 'main' default
   if (subtree.id == 0) { throw mjCError(0, "cannot remove the global default ('main')"); }
 
