@@ -131,6 +131,9 @@ Bug fixes
 - Saving the compiled values of an :ref:`mjSpec` which was structurally edited since it was compiled (elements
   added, deleted or attached) is now an error until it is compiled again; it used to crash or save wrong values. A
   spec which is saved as it is written needs no compilation.
+- :ref:`mj_parse` now parses an XML file whose name has no ``.xml`` extension when the resource provider which opens it
+  identifies it as XML, e.g. by adding the extension to the resource's name. Such files used to fail with "could not
+  decode content".
 
 Actuation
 ^^^^^^^^^

@@ -104,6 +104,15 @@ mjSpec* mj_parse(
   // or that are fetched on a need-be basis via URI.
   if (resource) {
     cleanup += [resource]() { mju_closeResource(resource); };
+
+    // A resource provider may only determine the content's format when it
+    // opens the resource, and record it as the extension of the resource's
+    // name (e.g. mjdb://kind/origin/uid becomes mjdb://kind/origin/uid.xml).
+    // XML has no decoder, so hand such resources to the XML parser.
+    auto resolved = mujoco::user::FilePath(resource->name);
+    if (resolved.Ext() == ".xml" || resolved.Ext() == ".urdf") {
+      return mj_parseXML(filename, vfs, error, error_sz);
+    }
   } else {
     resource  = (mjResource*)mju_malloc(sizeof(mjResource));
     cleanup  += [resource]() {
