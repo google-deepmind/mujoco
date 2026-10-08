@@ -108,10 +108,12 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
         }
 
         if (!usertexcoord.empty()) {
-          if (mesh_index.texcoord_index < 0) {
+          if (mesh_index.texcoord_index < 0 ||
+              mesh_index.texcoord_index >=
+                  static_cast<int>(usertexcoord.size() / 2)) {
             mju_warning(
-                "obj_decoder: missing face texture coordinate in '%s'; "
-                "discarding texture coordinates",
+                "obj_decoder: invalid or missing face texture coordinate in "
+                "'%s'; discarding texture coordinates",
                 resource->name);
             usertexcoord.clear();
             userfacetexcoord.clear();

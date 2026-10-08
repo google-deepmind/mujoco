@@ -1483,6 +1483,30 @@ TEST_F(MjCMeshTest, ObjIncompleteFaceTexCoord) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(MjCMeshTest, ObjOutOfRangeFaceTexCoord) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" file="mesh.obj"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char obj[] =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
+      "vt \n"
+      "f 1/1 3/3 2/2\nf 1/1 2/2 4/4\nf 3/3 1/1 4/4\nf 2/2 3/3 4/4\n";
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "mesh.obj", obj, sizeof(obj) - 1);
+  std::array<char, 1024> error;
+  mock_warning_handler.ExpectWarnings("invalid or missing face texture");
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_texcoordadr[0], -1);
+  EXPECT_EQ(model->nmeshtexcoord, 0);
+  mj_deleteVFS(&vfs);
+}
+
 // ----------------------------- qhull ----------------------------------------
 
 TEST_F(MjCMeshTest, NaNConvexHullDisallowed) {

@@ -1964,6 +1964,9 @@ const char* mj_validateReferences(const mjModel* m) {
       if (adrsmax > m->ntarget || adrsmin < -1) {             \
         return "Invalid model: " #adrarray " out of bounds."; \
       }                                                       \
+      if (nums && adrsmin == -1 && num > 0) {                 \
+        return "Invalid model: " #adrarray " out of bounds."; \
+      }                                                       \
     }                                                         \
   }
 
@@ -2034,6 +2037,62 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: tex_adr out of bounds.";
     }
   }
+
+  // mesh index arrays: mesh-local indices, read verbatim from MJB files
+  for (int i=0; i < m->nmesh; i++) {
+    int vertnum = m->mesh_vertnum[i];
+    int polynum = m->mesh_polynum[i];
+    int normalnum = m->mesh_normalnum[i];
+    int texcoordnum = m->mesh_texcoordnum[i];
+    int has_texcoord = (m->mesh_texcoordadr[i] >= 0);
+
+    // face vertex, normal and texcoord indices (texcoords only used if present)
+    int faceadr = m->mesh_faceadr[i];
+    for (int f=0; f < m->mesh_facenum[i]; f++) {
+      for (int k=0; k < 3; k++) {
+        int j = 3*(faceadr + f) + k;
+        int v = m->mesh_face[j];
+        if (v < 0 || v >= vertnum) {
+          return "Invalid model: mesh_face vertex index out of bounds.";
+        }
+        int n = m->mesh_facenormal[j];
+        if (n < 0 || n >= normalnum) {
+          return "Invalid model: mesh_facenormal normal index out of bounds.";
+        }
+        if (has_texcoord) {
+          int t = m->mesh_facetexcoord[j];
+          if (t < 0 || t >= texcoordnum) {
+            return "Invalid model: mesh_facetexcoord texcoord index out of bounds.";
+          }
+        }
+      }
+    }
+
+    // polygon vertex indices
+    int polyadr = m->mesh_polyadr[i];
+    for (int p=0; p < polynum; p++) {
+      int pvadr = m->mesh_polyvertadr[polyadr+p];
+      for (int j=0; j < m->mesh_polyvertnum[polyadr+p]; j++) {
+        int v = m->mesh_polyvert[pvadr+j];
+        if (v < 0 || v >= vertnum) {
+          return "Invalid model: mesh_polyvert vertex index out of bounds.";
+        }
+      }
+    }
+
+    // vertex-to-polygon map indices
+    int vertadr = m->mesh_vertadr[i];
+    for (int v=0; v < vertnum; v++) {
+      int pmadr = m->mesh_polymapadr[vertadr+v];
+      for (int j=0; j < m->mesh_polymapnum[vertadr+v]; j++) {
+        int p = m->mesh_polymap[pmadr+j];
+        if (p < 0 || p >= polynum) {
+          return "Invalid model: mesh_polymap polygon index out of bounds.";
+        }
+      }
+    }
+  }
+
   for (int i=0; i < m->npair; i++) {
     int pair_body1 = (m->pair_signature[i] & 0xFFFF);
     if (pair_body1 >= m->nbody || pair_body1 < 0) {
