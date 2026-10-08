@@ -209,16 +209,8 @@ test_mujoco() {
     echo "Testing MuJoCo..."
     # ctest defaults to serial. The suite is ~1650 independent tests that use
     # unique temp files (mkstemp / testing::TempDir) and declare no RUN_SERIAL /
-    # RESOURCE_LOCK, so running them in parallel is safe and ~2x faster on POSIX.
-    # Windows is kept serial conservatively: parallel-safety on the Windows file
-    # system is unverified and its test time is not a CI bottleneck.
-    if [[ "${RUNNER_OS}" == "Windows" ]]; then
-        ctest -C Release --output-on-failure .
-    else
-        local ncpu
-        ncpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo "${NUMBER_OF_PROCESSORS:-2}")"
-        ctest -C Release --output-on-failure --parallel "${ncpu}" .
-    fi
+    # RESOURCE_LOCK, so running them in parallel is safe.
+    ctest -C Release --output-on-failure --parallel "${NJOBS}" .
 }
 
 
