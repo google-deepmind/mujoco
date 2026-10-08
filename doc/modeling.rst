@@ -180,7 +180,9 @@ specified by the user, the frame is not rotated.
 :at:`quat`: :at-val:`real(4), "1 0 0 0"`
    If the quaternion is known, this is the preferred was to specify the frame orientation because it does not involve
    conversions. Instead it is normalized to unit length and copied into mjModel during compilation. When a model is
-   saved as MJCF, all frame orientations are expressed as quaternions using this attribute.
+   saved as MJCF in the canonical notation (:ref:`savecanonical<compiler-savecanonical>`), or with the values which
+   compilation made (:ref:`savecompiled<compiler-savecompiled>`), all frame orientations are expressed as quaternions
+   using this attribute; otherwise each is saved as it was written.
 :at:`axisangle`: :at-val:`real(4), optional`
    These are the quantities :math:`(x, y, z, a)` mentioned above. The last number is the angle of rotation, in degrees
    or radians as specified by the :at:`angle` attribute of :ref:`compiler <compiler>`. The first three numbers determine
@@ -723,10 +725,12 @@ rest of this section. There are many options here, controlled with the XML eleme
 :ref:`lengthrange <compiler-lengthrange>`.
 
 Automatic computation of actuator length ranges is done at compile time, and the results are stored in
-mjModel.actuator_lengthrange of the compiled model. If the model is then saved (either as XML or MJB), the computation
-does not need to be repeated at the next load. This is important because the computation can slow down the model
-compiler with large musculo-skeletal models. Indeed we have made the compiler multi-threaded just to speed up this
-operation (different actuators are processed in parallel in different threads).
+mjModel.actuator_lengthrange of the compiled model. If the model is then saved as MJB, or as XML with the values which
+compilation made (:ref:`savecompiled<compiler-savecompiled>`), the computation does not need to be repeated at the next
+load; saved as it is written, the model keeps the settings which compute the ranges, and computes them again. This is
+important because the computation can slow down the model compiler with large musculo-skeletal models. Indeed we have
+made the compiler multi-threaded just to speed up this operation (different actuators are processed in parallel in
+different threads).
 
 Automatic computation relies on modified physics simulation. For each actuator we apply force (negative when computing
 the minimum, positive when computing the maximum) through the actuator's transmission, advance the simulation in a

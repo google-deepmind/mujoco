@@ -1066,7 +1066,8 @@ disable length range computations altogether, include this element and set mode=
    value will be used and the automatic computation will be skipped. The range is considered defined if the first number
    is smaller than the second number. The only reason to set this attribute to "false" is to force re-computation of
    actuator length ranges - which is needed when the model geometry is modified. Note that the automatic computation
-   relies on simulation and can be slow, so saving the model and using the existing values when possible is recommended.
+   relies on simulation and can be slow, so saving the model with the values which compilation made
+   (:ref:`savecompiled<compiler-savecompiled>`) and using the existing values when possible is recommended.
 
 .. _compiler-lengthrange-uselimit:
 
@@ -2312,8 +2313,10 @@ defined. Its body name is automatically defined as "world".
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies the mass and inertial properties of the body. If this element is not included in a given body,
-the inertial properties are inferred from the geoms attached to the body. When a compiled MJCF model is saved, the XML
-writer saves the inertial properties explicitly using this element, even if they were inferred from geoms. The inertial
+the inertial properties are inferred from the geoms attached to the body. A saved model has this element where it was
+written; the inferred properties are saved with it as well when :ref:`saveinertial<compiler-saveinertial>` is set, and
+in a model saved with the values which compilation made (:ref:`savecompiled<compiler-savecompiled>`, the default) also
+when :ref:`settotalmass<compiler-settotalmass>` scaled them or the saved file would not infer them again. The inertial
 frame is such that its center coincides with the center of mass of the body, and its axes coincide with the principal
 axes of inertia of the body. Thus the inertia matrix is diagonal in this frame.
 
@@ -2606,7 +2609,8 @@ an XML shortcut for
 While this joint can evidently be created with the :ref:`joint <body-joint>` element, default joint settings could
 affect it. This is usually undesirable as physical free bodies do not have nonzero stiffness, damping, friction or
 armature. To avoid this complication, the :el:`freejoint` element was introduced, ensuring joint defaults are *not
-inherited*. If the XML model is saved, it will appear as a regular joint of type :at:`free`.
+inherited*. In a model which is saved :ref:`as it was compiled<compiler-savecompiled>` it appears as a regular joint
+of type :at:`free`.
 
 
 .. _body-freejoint-name:
@@ -2632,8 +2636,9 @@ inherited*. If the XML model is saved, it will appear as a regular joint of type
    more stable simulation. While this behaviour is a strict improvement, it modifies the semantics of the free joint,
    making ``qpos`` and ``qvel`` values saved in older versions (for example, in :ref:`keyframes<keyframe>`) invalid.
 
-   Note that the :at:`align` attribute is never saved to XML. Instead, the pose of simple free bodies and their children
-   will be modified such that the body frame and inertial frame are aligned.
+   Note that when the values which compilation made are saved (:ref:`savecompiled<compiler-savecompiled>`), the
+   :at:`align` attribute is not saved. Instead, the pose of simple free bodies and their children will be modified such
+   that the body frame and inertial frame are aligned.
 
 .. _body-geom:
 

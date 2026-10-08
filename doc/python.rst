@@ -619,7 +619,11 @@ For reference, the deprecated ``assets`` dictionary approach looked like this:
 Save to XML
 -----------
 
-Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` method:
+``MjSpec`` objects can be saved to an XML string with the ``to_xml()`` method. By default the values which
+compilation made of the model are saved; set ``spec.compiler.savecompiled = False`` to save the model as it is written
+in the spec instead, see :ref:`Model Encoding & Saving <meSaving>`. Unlike :ref:`mj_saveXMLString`, ``to_xml()``
+compiles the spec before it saves it: the spec must compile, with its assets, and the compilation changes it as
+:ref:`mj_compile` says, for example by applying :ref:`fusestatic<compiler-fusestatic>`.
 
 .. code-block:: python
 

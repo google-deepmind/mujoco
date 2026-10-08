@@ -97,9 +97,9 @@ The output format is selected automatically based on the file extension (case-in
 A spec is saved as MJCF in one of two ways, selected by its compiler attribute
 :ref:`savecompiled<compiler-savecompiled>`:
 
-- "true": the values which the last compilation made of the model, in the canonical notation. For example a body
-  which is :ref:`aligned<body-freejoint-align>` with its free joint is saved with its aligned pose, and a geom which
-  was fitted to a mesh with the size of the fit. The spec must have been compiled.
+- "true", the default: the values which the last compilation made of the model, in the canonical notation. For
+  example a body which is :ref:`aligned<body-freejoint-align>` with its free joint is saved with its aligned pose, and
+  a geom which was fitted to a mesh with the size of the fit. The spec must have been compiled.
 - "false": the model as it is written in the spec. Poses are those of the elements in their :ref:`frames<frame>`,
   attributes which were written with their default values are kept, and every number is saved exactly. Orientations,
   angles and ``fromto`` are saved in the notation in which they were written, unless

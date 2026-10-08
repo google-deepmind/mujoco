@@ -393,8 +393,11 @@ Windows power plan so that the minimum processor state is 100%.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This code sample invokes the built-in parser and compiler. It implements all possible model conversions from (MJCF,
-URDF, MJB) format to (MJCF, MJB, TXT) format. Models saved as MJCF use a canonical subset of our format as described in
-the :doc:`../modeling` chapter, and therefore MJCF-to-MJCF conversion will generally result in a different file.
+URDF, MJB) format to (MJCF, MJB, TXT) format. Models are saved as MJCF as :ref:`Model Encoding & Saving <meSaving>`
+describes: by default with the values which compilation made of them, in a canonical subset of the format, so that
+MJCF-to-MJCF conversion will generally result in a different file; with :ref:`savecompiled<compiler-savecompiled>`
+"false", as they are written, which keeps their notation but not their comments, :ref:`include<include>` elements and
+the elements which the parser expands.
 The TXT format is a human-readable road-map to the model. It cannot be loaded by MuJoCo, but can be a very useful aid
 during model development. It is in one-to-one correspondence with the compiled mjModel. Note also that one can use the
 function :ref:`mj_printData` to create a text file which is in one-to-one correspondence
