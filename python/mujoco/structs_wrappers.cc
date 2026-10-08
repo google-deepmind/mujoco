@@ -978,7 +978,9 @@ MjDataWrapper MjDataWrapper::Deserialize(std::istream& input) {
     throw py::value_error("Invalid serialized mjData.");
   }
 
-  return MjDataWrapper(m_wrapper.release(), d);
+  // Let Python own the model, since MjDataWrapper only keeps a reference to it.
+  py::object model_ref = py::cast(std::move(m_wrapper));
+  return MjDataWrapper(model_ref.cast<MjModelWrapper*>(), d);
 }
 
 raw::MjData* MjDataWrapper::Copy() const {

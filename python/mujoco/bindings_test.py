@@ -17,9 +17,11 @@
 import contextlib
 import copy
 from etils import epath
+import gc
 import os
 import pickle
 import sys
+import weakref
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -1816,6 +1818,55 @@ Euler integrator, semi-implicit in velocity.
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = ('time', 'qpos', 'qvel', 'mocap_pos')
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
+
+  def test_pickle_mjdata_releases_owned_model(self):
+    data2 = pickle.loads(pickle.dumps(self.data))
+    # A leaked native wrapper keeps this array alive.
+    model_array_ref = weakref.ref(data2.model.body_mass)
+    del data2
+    gc.collect()
+    self.assertIsNone(model_array_ref())
+
+  def test_pickle_mjdata_retains_external_model_reference(self):
+    data2 = pickle.loads(pickle.dumps(self.data))
+    model2 = data2.model
+    model_array_ref = weakref.ref(model2.body_mass)
+    del data2
+    gc.collect()
+    self.assertIsNotNone(model_array_ref())
+    data3 = mujoco.MjData(model2)
+    mujoco.mj_step(model2, data3)
+    del data3, model2
+    gc.collect()
+    self.assertIsNone(model_array_ref())
+
+  @parameterized.parameters('model', 'data')
+  def test_pickle_mjdata_retains_array_views(self, owner):
+    data2 = pickle.loads(pickle.dumps(self.data))
+    view = data2.model.body_mass if owner == 'model' else data2.qpos
+    reference = view.copy()
+    array_ref = weakref.ref(view)
+    del data2
+    gc.collect()
+    np.testing.assert_array_equal(view, reference)
+    view[:] = reference + 1
+    np.testing.assert_array_equal(view, reference + 1)
+    del view
+    gc.collect()
+    self.assertIsNone(array_ref())
+
+  @parameterized.parameters(copy.copy, copy.deepcopy)
+  def test_copy_unpickled_mjdata_retains_model(self, copier):
+    data2 = pickle.loads(pickle.dumps(self.data))
+    data3 = copier(data2)
+    model_array_ref = weakref.ref(data3.model.body_mass)
+    del data2
+    gc.collect()
+    self.assertIsNotNone(model_array_ref())
+    mujoco.mj_step(data3.model, data3)
+    del data3
+    gc.collect()
+    self.assertIsNone(model_array_ref())
 
   def test_pickle_mjdata(self):
     mujoco.mj_step(self.model, self.data)
