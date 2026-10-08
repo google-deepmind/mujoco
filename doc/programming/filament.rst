@@ -86,294 +86,301 @@ stabilizes, important flags will be promoted to first-class MJCF attributes.
 
 Most flags correspond directly to Filament's `rendering options
 <https://github.com/google/filament/blob/main/filament/include/filament/Options.h>`__. Boolean flags are numerics taking
-values 0 or 1. Enum flags (e.g. ``filament.ao.quality``) take string values that correspond to the underlying enum's
-name identifier. Flags not specified in the model use the defaults listed below.
+values 0 or 1. Enum flags (e.g. ``filament.ao.quality``) take string values that correspond to the underlying enum's name
+identifier. Flags not specified in the model use the defaults listed below. All flag names begin with ``filament.``
 
-Screen-space ambient occlusion:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+.. rubric:: Screen-space ambient occlusion:
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.ao.enabled``
-      - bool
-      - 1 (true)
-      - Enable screen-space ambient occlusion.
-    * - ``filament.ao.quality``
-      - string
-      - "ultra"
-      - Sampling quality; "low", "medium", "high", or "ultra".
-    * - ``filament.ao.low_pass_filter``
-      - string
-      - "ultra"
-      - Quality of the depth-aware blur filter; "low", "medium", "high", or "ultra".
-    * - ``filament.ao.upsampling``
-      - string
-      - "ultra"
-      - Quality of the occlusion buffer upsampling; "low", "medium", "high", or "ultra".
-    * - ``filament.ao.bent_normals``
-      - bool
-      - 0 (false)
-      - Compute bent normals for specular occlusion.
-    * - ``filament.ao.ssct``
-      - bool
-      - 0 (false)
-      - Enable screen-space cone tracing.
-    * - ``filament.ao.bilateral_threshold``
-      - real
-      - [filament default]
-      - Depth difference treated as an edge by the blur filter.
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
 
-Bloom:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``ao.enabled``
+     - bool
+     - 1 (true)
+     - Enable screen-space ambient occlusion.
+   * - ``ao.quality``
+     - string
+     - "ultra"
+     - Sampling quality; "low", "medium", "high", or "ultra".
+   * - ``ao.low_pass_filter``
+     - string
+     - "ultra"
+     - Quality of the depth-aware blur filter; "low", "medium", "high", or "ultra".
+   * - ``ao.upsampling``
+     - string
+     - "ultra"
+     - Quality of the occlusion buffer upsampling; "low", "medium", "high", or "ultra".
+   * - ``ao.bent_normals``
+     - bool
+     - 0 (false)
+     - Compute bent normals for specular occlusion.
+   * - ``ao.ssct``
+     - bool
+     - 0 (false)
+     - Enable screen-space cone tracing.
+   * - ``ao.bilateral_threshold``
+     - real
+     - [filament default]
+     - Depth difference treated as an edge by the blur filter.
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.bloom.enabled``
-      - bool
-      - 0 (false)
-      - Enable bloom.
-    * - ``filament.bloom.strength``
-      - real
-      - [filament default]
-      - Strength of the bloom effect, between 0 and 1.
-    * - ``filament.bloom.dirt_strength``
-      - real
-      - [filament default]
-      - Strength of the lens-dirt effect.
-    * - ``filament.bloom.quality``
-      - string
-      - "low"
-      - Quality of the bloom passes; "low", "medium", "high", or "ultra".
-    * - ``filament.bloom.resolution``
-      - int
-      - [filament default]
-      - Resolution of the bloom's minor axis, in pixels.
-    * - ``filament.bloom.levels``
-      - int
-      - [filament default]
-      - Number of blur levels.
+.. rubric:: Bloom
 
-`Color grading <https://github.com/google/filament/blob/main/filament/include/filament/ColorGrading.h>`__:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.cg.exposure``
-      - real
-      - 0
-      - Exposure adjustment, in stops.
-    * - ``filament.cg.temperature``
-      - real
-      - 0
-      - White balance temperature, between -1 (cool) and 1 (warm).
-    * - ``filament.cg.tint``
-      - real
-      - 0
-      - White balance tint, between -1 (green) and 1 (magenta).
-    * - ``filament.cg.slope``
-      - real(3)
-      - 1 1 1
-      - `ASC CDL <https://en.wikipedia.org/wiki/ASC_CDL>`__ slope.
-    * - ``filament.cg.offset``
-      - real(3)
-      - 0 0 0
-      - `ASC CDL <https://en.wikipedia.org/wiki/ASC_CDL>`__ offset.
-    * - ``filament.cg.power``
-      - real(3)
-      - 1 1 1
-      - `ASC CDL <https://en.wikipedia.org/wiki/ASC_CDL>`__ power.
-    * - ``filament.cg.shadows``
-      - real(4)
-      - 1 1 1 1
-      - Shadow color shift; the fourth component shifts luminance.
-    * - ``filament.cg.midtones``
-      - real(4)
-      - 1 1 1 1
-      - Midtone color shift; the fourth component shifts luminance.
-    * - ``filament.cg.highlights``
-      - real(4)
-      - 1 1 1 1
-      - Highlight color shift; the fourth component shifts luminance.
-    * - ``filament.cg.tonal_ranges``
-      - real(4)
-      - 0 0.333 0.55 1
-      - Boundaries of the shadow and highlight tonal ranges.
-    * - ``filament.cg.shadow_gamma``
-      - real(3)
-      - 1 1 1
-      - Gamma adjustment of shadows.
-    * - ``filament.cg.mid_point``
-      - real(3)
-      - 1 1 1
-      - Boundary between shadows and highlights.
-    * - ``filament.cg.highlight_scale``
-      - real(3)
-      - 1 1 1
-      - Scale of highlights.
-    * - ``filament.cg.contrast``
-      - real
-      - 1
-      - Contrast, between 0 and 2.
-    * - ``filament.cg.vibrance``
-      - real
-      - 1
-      - Vibrance, between 0 and 2.
-    * - ``filament.cg.saturation``
-      - real
-      - 1
-      - Saturation, between 0 and 2.
-    * - ``filament.cg.tone_mapping``
-      - string
-      - "pbr_neutral"
-      - Tone mapping operator; "aces", "aces_legacy", "filmic", "linear", or "pbr_neutral".
-    * - ``filament.cg.luminance_scaling``
-      - bool
-      - 0
-      - Scale luminance to desaturate very bright highlights.
-    * - ``filament.cg.gamut_mapping``
-      - bool
-      - 0
-      - Map out-of-gamut colors into the output gamut.
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``bloom.enabled``
+     - bool
+     - 0 (false)
+     - Enable bloom.
+   * - ``bloom.strength``
+     - real
+     - [filament default]
+     - Strength of the bloom effect, between 0 and 1.
+   * - ``bloom.dirt_strength``
+     - real
+     - [filament default]
+     - Strength of the lens-dirt effect.
+   * - ``bloom.quality``
+     - string
+     - "low"
+     - Quality of the bloom passes; "low", "medium", "high", or "ultra".
+   * - ``bloom.resolution``
+     - int
+     - [filament default]
+     - Resolution of the bloom's minor axis, in pixels.
+   * - ``bloom.levels``
+     - int
+     - [filament default]
+     - Number of blur levels.
 
-Exponential height fog:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+.. rubric:: `Color grading <https://github.com/google/filament/blob/main/filament/include/filament/ColorGrading.h>`__:
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.fog.enabled``
-      - bool
-      - 0 (false)
-      - Enable fog.
-    * - ``filament.fog.color``
-      - real(3)
-      - [filament default]
-      - Fog color.
-    * - ``filament.fog.distance``
-      - real
-      - [filament default]
-      - Distance from the camera at which the fog starts.
-    * - ``filament.fog.density``
-      - real
-      - [filament default]
-      - Fog density.
-    * - ``filament.fog.cut_off_distance``
-      - real
-      - [filament default]
-      - Distance beyond which fog is not applied.
-    * - ``filament.fog.maximum_opacity``
-      - real
-      - [filament default]
-      - Maximum opacity of the fog, between 0 and 1.
-    * - ``filament.fog.height``
-      - real
-      - [filament default]
-      - Height above which the fog density decreases.
-    * - ``filament.fog.height_falloff``
-      - real
-      - [filament default]
-      - Falloff of fog density with height.
-    * - ``filament.fog.in_scattering_start``
-      - real
-      - [filament default]
-      - Distance at which light in-scattering starts.
-    * - ``filament.fog.in_scattering_size``
-      - real
-      - [filament default]
-      - Size of the light in-scattering halo (>0 to activate).
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
 
-Vignette:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``cg.exposure``
+     - real
+     - 0
+     - Exposure adjustment, in stops.
+   * - ``cg.temperature``
+     - real
+     - 0
+     - White balance temperature, between -1 (cool) and 1 (warm).
+   * - ``cg.tint``
+     - real
+     - 0
+     - White balance tint, between -1 (green) and 1 (magenta).
+   * - ``cg.slope``
+     - real(3)
+     - 1 1 1
+     - `ASC CDL <https://en.wikipedia.org/wiki/ASC_CDL>`__ slope.
+   * - ``cg.offset``
+     - real(3)
+     - 0 0 0
+     - `ASC CDL <https://en.wikipedia.org/wiki/ASC_CDL>`__ offset.
+   * - ``cg.power``
+     - real(3)
+     - 1 1 1
+     - `ASC CDL <https://en.wikipedia.org/wiki/ASC_CDL>`__ power.
+   * - ``cg.shadows``
+     - real(4)
+     - 1 1 1 1
+     - Shadow color shift; the fourth component shifts luminance.
+   * - ``cg.midtones``
+     - real(4)
+     - 1 1 1 1
+     - Midtone color shift; the fourth component shifts luminance.
+   * - ``cg.highlights``
+     - real(4)
+     - 1 1 1 1
+     - Highlight color shift; the fourth component shifts luminance.
+   * - ``cg.tonal_ranges``
+     - real(4)
+     - 0 0.33 0.55 1
+     - Boundaries of the shadow and highlight tonal ranges.
+   * - ``cg.shadow_gamma``
+     - real(3)
+     - 1 1 1
+     - Gamma adjustment of shadows.
+   * - ``cg.mid_point``
+     - real(3)
+     - 1 1 1
+     - Boundary between shadows and highlights.
+   * - ``cg.highlight_scale``
+     - real(3)
+     - 1 1 1
+     - Scale of highlights.
+   * - ``cg.contrast``
+     - real
+     - 1
+     - Contrast, between 0 and 2.
+   * - ``cg.vibrance``
+     - real
+     - 1
+     - Vibrance, between 0 and 2.
+   * - ``cg.saturation``
+     - real
+     - 1
+     - Saturation, between 0 and 2.
+   * - ``cg.tone_mapping``
+     - string
+     - "pbr_neutral"
+     - Tone mapping operator; "aces", "aces_legacy", "filmic", "linear", or "pbr_neutral".
+   * - ``cg.luminance_scaling``
+     - bool
+     - 0
+     - Scale luminance to desaturate very bright highlights.
+   * - ``cg.gamut_mapping``
+     - bool
+     - 0
+     - Map out-of-gamut colors into the output gamut.
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.vignette.enabled``
-      - bool
-      - 0 (false)
-      - Enable vignette.
-    * - ``filament.vignette.midpoint``
-      - real
-      - [filament default]
-      - How close to the corners the vignette is restricted, between 0 and 1.
+.. rubric:: Exponential height fog:
 
-Shadows and anti-aliasing:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.shadows.type``
-      - string
-      - "pcf"
-      - `Shadow algorithm <https://github.com/google/filament/blob/main/filament/include/filament/Options.h>`__; "pcf", "vsm", or "pcss".
-    * - ``filament.shadows.map_size``
-      - int
-      - min(:ref:`shadowsize<visual-quality-shadowsize>`, 2048)
-      - Shadow map resolution, in texels.
-    * - ``filament.msaa.enabled``
-      - bool
-      - 1 (true)
-      - Enable multi-sample anti-aliasing.
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``fog.enabled``
+     - bool
+     - 0 (false)
+     - Enable fog.
+   * - ``fog.color``
+     - real(3)
+     - [filament default]
+     - Fog color.
+   * - ``fog.distance``
+     - real
+     - [filament default]
+     - Distance from the camera at which the fog starts.
+   * - ``fog.density``
+     - real
+     - [filament default]
+     - Fog density.
+   * - ``fog.cut_off_distance``
+     - real
+     - [filament default]
+     - Distance beyond which fog is not applied.
+   * - ``fog.maximum_opacity``
+     - real
+     - [filament default]
+     - Maximum opacity of the fog, between 0 and 1.
+   * - ``fog.height``
+     - real
+     - [filament default]
+     - Height above which the fog density decreases.
+   * - ``fog.height_falloff``
+     - real
+     - [filament default]
+     - Falloff of fog density with height.
+   * - ``fog.in_scattering_start``
+     - real
+     - [filament default]
+     - Distance at which light in-scattering starts.
+   * - ``fog.in_scattering_size``
+     - real
+     - [filament default]
+     - Size of the light in-scattering halo (>0 to activate).
 
-Scene, fallback lighting, and legacy materials:
- .. list-table::
-    :widths: 32 10 12 46
-    :header-rows: 1
+.. rubric:: Vignette:
 
-    * - Flag
-      - Type
-      - Default
-      - Description
-    * - ``filament.clear_color``
-      - real(4)
-      - 0 0 0 1
-      - Background color (see also :ref:`mjrf_setClearColor` as well as the note below).
-    * - ``filament.fallback.environment_light_intensity``
-      - real
-      - 5000
-      - Intensity of the fallback environment light.
-    * - ``filament.fallback.scene_light_intensity``
-      - real
-      - 80000
-      - Total intensity distributed among the model's lights.
-    * - ``filament.fallback.head_light_intensity``
-      - real
-      - 40000
-      - Intensity of the :ref:`headlight<visual-headlight>`.
-    * - ``filament.phong.specular_multiplier``
-      - real
-      - 0.2
-      - Multiplier applied to legacy (Phong) material :ref:`specular<asset-material-specular>`.
-    * - ``filament.phong.shininess_multiplier``
-      - real
-      - 0.1
-      - Multiplier applied to legacy (Phong) material :ref:`shininess<asset-material-shininess>`.
-    * - ``filament.phong.emissive_multiplier``
-      - real
-      - 0.3
-      - Multiplier applied to legacy (Phong) material :ref:`emission<asset-material-emission>`.
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
+
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``vignette.enabled``
+     - bool
+     - 0 (false)
+     - Enable vignette.
+   * - ``vignette.midpoint``
+     - real
+     - [filament default]
+     - How close to the corners the vignette is restricted, between 0 and 1.
+
+.. rubric:: Shadows and anti-aliasing:
+
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
+
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``shadows.type``
+     - string
+     - "pcf"
+     - `Shadow algorithm <https://github.com/google/filament/blob/main/filament/include/filament/Options.h>`__; "pcf", "vsm", or "pcss".
+   * - ``shadows.map_size``
+     - int
+     - min( :ref:`shadowsize<visual-quality-shadowsize>`, 2048)
+     - Shadow map resolution, in texels.
+   * - ``msaa.enabled``
+     - bool
+     - 1 (true)
+     - Enable multi-sample anti-aliasing.
+
+.. rubric:: Scene, fallback lighting, and legacy materials:
+
+.. list-table::
+   :widths: 32 10 12 46
+   :header-rows: 1
+
+   * - Name (``filament.<name>``)
+     - Type
+     - Default
+     - Description
+   * - ``clear_color``
+     - real(4)
+     - 0 0 0 1
+     - Background color (see also :ref:`mjrf_setClearColor` as well as the note below).
+   * - ``fallback.environment_light_intensity``
+     - real
+     - 5000
+     - Intensity of the fallback environment light.
+   * - ``fallback.scene_light_intensity``
+     - real
+     - 80000
+     - Total intensity distributed among the model's lights.
+   * - ``fallback.head_light_intensity``
+     - real
+     - 40000
+     - Intensity of the :ref:`headlight<visual-headlight>`.
+   * - ``phong.specular_multiplier``
+     - real
+     - 0.2
+     - Multiplier applied to legacy (Phong) material :ref:`specular<asset-material-specular>`.
+   * - ``phong.shininess_multiplier``
+     - real
+     - 0.1
+     - Multiplier applied to legacy (Phong) material :ref:`shininess<asset-material-shininess>`.
+   * - ``phong.emissive_multiplier``
+     - real
+     - 0.3
+     - Multiplier applied to legacy (Phong) material :ref:`emission<asset-material-emission>`.
 
 .. admonition:: clear_color
   :class: note
