@@ -921,6 +921,13 @@ void ParseUsdPhysicsMassAPIForGeom(mjsGeom* geom,
 }
 
 void ParseNewtonMassAPIForGeom(mjsGeom* geom, const pxr::UsdPrim& prim) {
+  // Mesh inertia belongs to the mesh asset. Setting shell inertia on its geom
+  // is invalid in MuJoCo; ParseMjcPhysicsMeshCollisionAPI handles the mass
+  // model.
+  if (prim.IsA<pxr::UsdGeomMesh>()) {
+    return;
+  }
+
   auto shell_inertia_attr =
       prim.GetAttribute(MjcPhysicsTokens->mjcShellinertia);
   auto newton_mass_model_attr =
@@ -1981,7 +1988,10 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
     mjsMesh* mesh = ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
-    if (mesh != nullptr && (gprim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>())) {
+    if (mesh != nullptr &&
+        (gprim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>() ||
+         gprim.HasAPI(NewtonTokens->NewtonMeshCollisionAPI) ||
+         gprim.HasAPI(NewtonTokens->NewtonMassAPI))) {
       ParseMjcPhysicsMeshCollisionAPI(mesh,
                                       pxr::MjcPhysicsMeshCollisionAPI(gprim));
     }
