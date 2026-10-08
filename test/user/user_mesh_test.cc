@@ -1521,6 +1521,22 @@ TEST_F(MjCMeshTest, InvalidIndexInFace) {
   EXPECT_THAT(error, HasSubstr("in face 0, vertex index 6 does not exist"));
 }
 
+TEST_F(MjCMeshTest, CacheRespectsSmoothNormal) {
+  constexpr char xml[] = R"(
+    <mujoco>
+      <asset><mesh name="cube" file="%s" smoothnormal="%s"/></asset>
+      <worldbody><geom type="mesh" mesh="cube"/></worldbody>
+    </mujoco>)";
+  std::string path = GetTestDataFilePath("user/testdata/cube.stl");
+  MjModelPtr hard = LoadModelFromString(absl::StrFormat(xml, path, "false"));
+  MjModelPtr smooth = LoadModelFromString(absl::StrFormat(xml, path, "true"));
+  ASSERT_THAT(hard.get(), NotNull());
+  ASSERT_THAT(smooth.get(), NotNull());
+  EXPECT_GT(mj_getCacheSize(mj_getCache()), 0);
+  EXPECT_NE(AsVector(hard->mesh_normal, 3 * hard->nmeshnormal),
+            AsVector(smooth->mesh_normal, 3 * smooth->nmeshnormal));
+}
+
 TEST_F(MjCMeshTest, QhullCache) {
   static constexpr char xml1[] = R"(
     <mujoco>
