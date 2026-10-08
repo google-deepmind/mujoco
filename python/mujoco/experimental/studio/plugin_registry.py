@@ -14,7 +14,9 @@
 """Plugin registry, handler discovery, and runtime dispatching."""
 
 import collections
+import logging
 from typing import Any, Callable
+
 from mujoco.experimental.studio import messages
 
 
@@ -47,7 +49,7 @@ class PluginRegistry:
         self.handlers[info.message_type].append((info.priority, bound_method))
 
   def dispatch(self, message: Any) -> None:
-    """Dispatches a message to registered handlers in priority order."""
+    """Dispatches in priority order, logging and propagating handler exceptions."""
     # Collect all matching handlers for the given message class and all its
     # ancestors/superclasses.
     message_handlers = []
@@ -57,6 +59,15 @@ class PluginRegistry:
     # Sort by priority; higher values execute first.
     message_handlers.sort(key=lambda item: item[0], reverse=True)
     for _, handler in message_handlers:
-      if handler(message):
-        # Handler returned True to consume the message; stop dispatching.
-        return
+      try:
+        if handler(message):
+          # Handler returned True to consume the message; stop dispatching.
+          return
+      except Exception:  # pylint: disable=broad-exception-caught
+        # Log before a native callback boundary can obscure the traceback.
+        logging.exception(
+            'Plugin handler %r failed handling %s',
+            handler,
+            type(message).__name__,
+        )
+        raise
