@@ -94,17 +94,32 @@ def launch_thread(
   """Launches a viewer target function in a daemon thread and returns a ViewerHandle."""
   viewer_endpoint, sim_endpoint = make_thread_endpoints()
 
-  thread = threading.Thread(
-      target=target_fn,
-      args=(viewer_endpoint,),
-      daemon=True,
-  )
+  # An exception escaping target_fn would otherwise only reach the threading
+  # excepthook; keep it so the handle can re-raise it on the sim side (see
+  # ViewerHandle.close), the way a Future surfaces a worker's exception.
+  error: BaseException | None = None
+
+  def run() -> None:
+    nonlocal error
+    try:
+      target_fn(viewer_endpoint)
+    except BaseException as e:  # pylint: disable=broad-exception-caught
+      error = e
+
+  def forward_error() -> None:
+    nonlocal error
+    if error is not None:
+      e, error = error, None  # Raised once; close() is idempotent.
+      raise e
+
+  thread = threading.Thread(target=run, daemon=True)
   thread.start()
 
   handle = viewer_handle.ViewerHandle(
       sim_endpoint,
       is_alive_fn=thread.is_alive,
       shutdown_fn=thread.join,
+      forward_error_fn=forward_error,
       sim_plugins=sim_plugins,
   )
   return handle

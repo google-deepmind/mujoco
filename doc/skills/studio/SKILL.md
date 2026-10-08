@@ -166,8 +166,10 @@ shutdown:
         to construct and lay out Dear ImGui / ImPlot widgets (keep handlers
         focused on ImGui/ImPlot calls; prepare GUI data in `UpdateEvent`).
     6.  `ExitEvent` — dispatched once when the viewer shuts down, whether the
-        exit came from the sim side or from the window being closed. Handle it
-        to release resources (threads, pools, GPU handles).
+        exit came from the sim side, from the window being closed, or from a
+        viewer plugin handler raising (the exception is then re-raised on the
+        sim side by `ViewerHandle.close()`). Handle it to release resources
+        (threads, pools, GPU handles).
 -   **Simulation Lifecycle Events** (dispatched on the sim side to
     `sim_plugins`):
     1.  `SimInitEvent` (`viewer_handle.SimInitEvent`) — dispatched once by

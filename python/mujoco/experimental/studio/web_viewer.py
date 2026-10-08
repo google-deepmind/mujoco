@@ -248,7 +248,11 @@ class WebViewer(viewer_protocol.Viewer):
       _open_browser(self._http_port)
 
     # Dispatch lifecycle event so handlers can cache the viewer reference.
-    self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+    try:
+      self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+    except BaseException:
+      self.close()  # The server is already up; nothing else will stop it.
+      raise
 
   # ---------------------------------------------------------------------------
   # Server lifecycle.

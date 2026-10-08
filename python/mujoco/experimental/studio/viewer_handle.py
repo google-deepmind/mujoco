@@ -30,6 +30,10 @@ IsAliveFn = Callable[[], bool]
 # viewer release its resources before the interpreter tears itself down.
 ShutdownFn = Callable[[float], None]
 
+# Launcher-owned error forwarder: raises any unhandled exception that
+# terminated the viewer thread.
+ForwardErrorFn = Callable[[], None]
+
 
 @dataclasses.dataclass(frozen=True)
 class SimInitEvent(messages.Event):
@@ -64,6 +68,7 @@ class ViewerHandle:
       sim_plugins: list[Any] | None = None,
       is_alive_fn: IsAliveFn | None = None,
       shutdown_fn: ShutdownFn | None = None,
+      forward_error_fn: ForwardErrorFn | None = None,
   ) -> None:
     """Initializes the ViewerHandle.
 
@@ -74,12 +79,15 @@ class ViewerHandle:
       is_alive_fn: Optional liveness check; without one the viewer is assumed to
         be running until ``close()`` is called.
       shutdown_fn: Optional launcher-owned shutdown hook, called by ``close()``.
+      forward_error_fn: Optional hook that raises any unhandled exception from
+        the viewer thread.
     """
 
     self._sim_endpoint = sim_endpoint
     self._is_running = True
     self._is_alive_fn = is_alive_fn
     self._shutdown_fn = shutdown_fn
+    self._forward_error_fn = forward_error_fn
     self.model: mujoco.MjModel | None = None
     self.data: mujoco.MjData | None = None
 
@@ -103,18 +111,26 @@ class ViewerHandle:
       raise
 
   def close(self) -> None:
-    """Signals the viewer to exit and waits for it to shut down."""
-    if self._is_running:
-      self._is_running = False
-      self.dispatch(messages.ExitEvent())
+    """Signals the viewer to exit and waits for it to shut down.
+
+    Re-raises any unhandled exception that terminated the viewer thread, so a
+    viewer-side failure surfaces on the sim side rather than being lost.
+    """
     try:
-      self.send_to_viewer(messages.ExitEvent())
-    except Exception:  # pylint: disable=broad-exception-caught
-      pass  # Ignore exceptions, the viewer may have already closed.
-    if self._shutdown_fn is not None:
-      self._shutdown_fn(5.0)
-      self._shutdown_fn = None
-    self._sim_endpoint.close()
+      if self._is_running:
+        self._is_running = False
+        self.dispatch(messages.ExitEvent())
+    finally:  # Finish the teardown even if an ExitEvent handler raised.
+      try:
+        self.send_to_viewer(messages.ExitEvent())
+      except Exception:  # pylint: disable=broad-exception-caught
+        pass  # Ignore exceptions, the viewer may have already closed.
+      if self._shutdown_fn is not None:
+        self._shutdown_fn(5.0)
+        self._shutdown_fn = None
+      self._sim_endpoint.close()
+      if self._forward_error_fn is not None:
+        self._forward_error_fn()
 
   def __enter__(self) -> 'ViewerHandle':
     return self
@@ -128,8 +144,14 @@ class ViewerHandle:
     self.close()
 
   def is_running(self) -> bool:
-    """Returns True while the viewer is open."""
-    if self._is_alive_fn is not None and not self._is_alive_fn():
+    """Returns True while the viewer is open.
+
+    Closes the handle once the viewer has gone away, so this is also where an
+    unhandled viewer-thread exception is re-raised (see ``close()``).
+    """
+    if not self._is_running or (
+        self._is_alive_fn is not None and not self._is_alive_fn()
+    ):
       self.close()
     return self._is_running
 
@@ -177,6 +199,10 @@ class ViewerHandle:
       The updated model and data; rebind both, they may be new objects (e.g.
       after the viewer sends a ModelEvent).
     """
+    # Read the viewer's queues before dispatching anything: a handler may close
+    # the handle, and with it the endpoint (see close()).
+    events = self._sim_endpoint.get_viewer_events()
+    snapshots = self._sim_endpoint.get_viewer_snapshots()
 
     model_changed = model is not None and model is not self.model
     self.model, self.data = model, data
@@ -188,28 +214,28 @@ class ViewerHandle:
       )
 
     # Process incoming events from the viewer.
-    for event in self._sim_endpoint.get_viewer_events():
+    for event in events:
       self._sim_plugins.dispatch(event)
 
     # Process incoming snapshots from the viewer.
-    for snapshot in self._sim_endpoint.get_viewer_snapshots():
+    for snapshot in snapshots:
       self._sim_plugins.dispatch(snapshot)
 
-    if self.model is not None:
+    # Nothing left to step for once a handler has closed the handle.
+    if self.model is not None and self._is_running:
       assert self.data is not None
       # Prepare, advance, and observe the simulation: dispatched locally to
       # sim-side plugins. Each phase re-reads self.model and self.data so a
       # set_model() call from a PreStepEvent handler (e.g. a hot-reload that
       # finished compiling in the background) is stepped and snapshotted.
-      self._sim_plugins.dispatch(
-          messages.PreStepEvent(model=self.model, data=self.data)
-      )
-      self._sim_plugins.dispatch(
-          messages.StepEvent(model=self.model, data=self.data)
-      )
-      self._sim_plugins.dispatch(
-          messages.PostStepEvent(model=self.model, data=self.data)
-      )
+      for event_cls in (
+          messages.PreStepEvent,
+          messages.StepEvent,
+          messages.PostStepEvent,
+      ):
+        self._sim_plugins.dispatch(event_cls(model=self.model, data=self.data))
+        if not self._is_running:  # A step handler closed the handle.
+          return self.model, self.data
 
       # Send the simulation state to the viewer process as a snapshot.
       integration_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)

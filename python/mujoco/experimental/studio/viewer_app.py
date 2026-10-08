@@ -140,18 +140,19 @@ class ViewerApp:
   def reload_model(self) -> None:
     """Reload the current model from its file."""
     if self.model_path:
+      # Only a bad model file is tolerated; a raising plugin handler propagates.
       try:
         data = parser.parse(self.model_path)
-        if data is not None:
-          self.viewer.send_to_sim(
-              messages.ModelEvent(model=data.model, path=self.model_path)
-          )
-          self.viewer.dispatch(
-              messages.ModelEvent(model=data.model, path=self.model_path)
-          )
-          self.viewer.get_sim_snapshots()
       except Exception as ex:  # pylint: disable=broad-except
         print(f'Error reloading model from {self.model_path!r}: {ex}')
+        return
+      self.viewer.send_to_sim(
+          messages.ModelEvent(model=data.model, path=self.model_path)
+      )
+      self.viewer.dispatch(
+          messages.ModelEvent(model=data.model, path=self.model_path)
+      )
+      self.viewer.get_sim_snapshots()
 
   def close(self) -> None:
     self.viewer.dispatch(messages.ExitEvent())
@@ -298,21 +299,22 @@ class ViewerApp:
     drop_file = self.viewer.get_drop_file()
     # Handle file drop: update viewer model/data, reset app state, notify sim.
     if drop_file:
+      # Only a bad model file is tolerated; a raising plugin handler propagates.
       try:
         data = parser.parse(drop_file)
-        if data is not None:
-          # Notify all handlers on the sim side
-          self.viewer.send_to_sim(
-              messages.ModelEvent(model=data.model, path=drop_file)
-          )
-          # Notify all handlers on the viewer side.
-          self.viewer.dispatch(
-              messages.ModelEvent(model=data.model, path=drop_file)
-          )
-          # Discard all snapshots, including any stale state snapshots
-          self.viewer.get_sim_snapshots()
       except Exception as ex:  # pylint: disable=broad-except
         print(f'Error loading model from {drop_file!r}: {ex}')
+      else:
+        # Notify all handlers on the sim side
+        self.viewer.send_to_sim(
+            messages.ModelEvent(model=data.model, path=drop_file)
+        )
+        # Notify all handlers on the viewer side.
+        self.viewer.dispatch(
+            messages.ModelEvent(model=data.model, path=drop_file)
+        )
+        # Discard all snapshots, including any stale state snapshots
+        self.viewer.get_sim_snapshots()
 
     # Handle user input.
     self.handle_mouse_events()

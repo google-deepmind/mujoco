@@ -47,8 +47,8 @@ import socket
 import struct
 import sys
 import threading
-import urllib.parse
 from typing import Any, Awaitable, Callable, cast
+import urllib.parse
 
 from websockets.asyncio.server import serve
 from websockets.asyncio.server import ServerConnection
@@ -319,7 +319,6 @@ def _session_id(ws: ServerConnection) -> str:
   return f"anon-{id(ws)}"
 
 
-
 def _find_static_files_dir() -> str | None:
   """Locate the web viewer static files.
 
@@ -353,11 +352,11 @@ def _run_cancellable(main_loop_func: Callable[[], Awaitable[None]]) -> None:
     pass
   except Exception as e:  # pylint: disable=broad-exception-caught
     func_name = getattr(main_loop_func, "__name__", "main_loop_func")
-    logger.error("[%s] Unexpected error: %s", func_name, e)
+    logger.error("[%s] Unexpected error: %s", func_name, e, exc_info=True)
 
 
 def _run_server(
-    server: 'WebServer',
+    server: "WebServer",
     stop_event: threading.Event,
 ) -> None:
   """The server thread: HTTP + /ui + /state on one port, one event loop."""
@@ -385,7 +384,7 @@ def _run_server(
   def _serve_http(path: str) -> Response:
     """Builds the HTTP response for a non-WebSocket GET request."""
     if path == "/model":
-      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model().
+      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model()
       if not mjb_data:
         return Response(404, "Not Found", Headers(), b"no model\n")
       # The model changes on hot-swap; never serve a cached copy.
@@ -884,7 +883,7 @@ def _run_server(
       # Full model endpoint: the client fetches /model in a single request
       #
       #   GET /model  -> full model bytes
-      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model().
+      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model()
       if path == "/model" and mjb_data and query_string:
         params = urllib.parse.parse_qs(query_string)
         if "total_bytes" in params or query_string == "total_bytes":

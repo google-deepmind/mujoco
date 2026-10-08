@@ -91,7 +91,11 @@ class NativeViewer(viewer_protocol.Viewer):
     implot.set_implot_context(self._viewer.GetImPlotContext())
 
     # Dispatch lifecycle event so handlers can cache the viewer reference.
-    self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+    try:
+      self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+    except BaseException:
+      self.close()  # Release the C++ viewer on this thread, see close().
+      raise
 
   def _sync_renderer(self, model: mujoco.MjModel) -> None:
     """Re-initializes the renderer if the model object has changed."""
@@ -127,13 +131,16 @@ class NativeViewer(viewer_protocol.Viewer):
     thread affinity.  Without this override the pybind11 prevent object would
     be garbage-collected on the main thread, triggering a SIGABRT.
     """
-    if self._is_running:
-      self._is_running = False
-      self.dispatch(messages.ExitEvent())
-    # Destroy the C++ viewer *before* closing the endpoint so that the
-    # FilamentRenderer destructor runs on the daemon/viewer thread.
-    self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
-    super().close()
+    try:
+      if self._is_running:
+        self._is_running = False
+        self.dispatch(messages.ExitEvent())
+    finally:
+      # Destroy the C++ viewer *before* closing the endpoint so that the
+      # FilamentRenderer destructor runs on the daemon/viewer thread, even if
+      # an ExitEvent handler raised.
+      self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
+      super().close()
 
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""

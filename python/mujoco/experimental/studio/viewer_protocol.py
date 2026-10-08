@@ -17,6 +17,7 @@ import abc
 import copy
 import dataclasses
 import enum
+import logging
 from typing import Any
 import mujoco
 from mujoco.experimental.studio import endpoints
@@ -24,6 +25,7 @@ from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin_registry
 from mujoco.experimental.studio import ux
 
+logger = logging.getLogger(__name__)
 
 GFX_MODES = (
     'opengl',
@@ -137,14 +139,16 @@ class Viewer(abc.ABC):
 
   def close(self) -> None:
     """Closes the viewer, sends an exit event and shuts down the endpoint."""
-    if self._is_running:
-      self._is_running = False
-      self.dispatch(messages.ExitEvent())
     try:
-      self.send_to_sim(messages.ExitEvent())
-    except Exception:  # pylint: disable=broad-exception-caught
-      pass  # Ignore exceptions, the sim may have already closed.
-    self._endpoint.close()
+      if self._is_running:
+        self._is_running = False
+        self.dispatch(messages.ExitEvent())
+    finally:  # Finish the teardown even if an ExitEvent handler raised.
+      try:
+        self.send_to_sim(messages.ExitEvent())
+      except Exception:  # pylint: disable=broad-exception-caught
+        pass  # Ignore exceptions, the sim may have already closed.
+      self._endpoint.close()
 
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_exit(self, _: messages.ExitEvent) -> None:
@@ -228,35 +232,49 @@ def run_viewer_loop(viewer: Viewer) -> None:
   """Minimal viewer loop: process sim messages, dispatch lifecycle events, sync.
 
   Runs until the viewer window is closed or an exit event is received.
-  On exit, closes the viewer (which sends an ExitEvent to the sim side).
+  On exit, closes the viewer (which sends an ExitEvent to the sim side). The
+  viewer is closed even if a plugin handler raises, so its resources are
+  released on this thread and the sim side is told to exit before the
+  exception propagates.
+
+  An unhandled exception is also logged here, on the viewer thread, as soon as
+  it happens: the sim side only re-raises it the next time it touches the
+  handle, which may be much later or never (e.g. a notebook cell that has
+  already returned).
 
   Args:
     viewer: A Viewer that owns the endpoint and plugin registry.
   """
-  while True:
-    # Get the next frame; this also gets the frame's mouse/keyboard events.
-    frame = viewer.prepare_next_frame()
+  try:
+    while True:
+      # Get the next frame; this also gets the frame's mouse/keyboard events.
+      frame = viewer.prepare_next_frame()
 
-    # Process incoming simulation events.
-    for event in viewer.get_sim_events():
-      viewer.dispatch(event)
+      # Process incoming simulation events.
+      for event in viewer.get_sim_events():
+        viewer.dispatch(event)
 
-    # Stop the loop if the viewer is not running (endpoint will be closed).
-    if not viewer.is_running():
-      break
+      # Stop the loop if the viewer is not running (endpoint will be closed).
+      if not viewer.is_running():
+        break
 
-    # Process incoming simulation snapshots.
-    for snapshot in viewer.get_sim_snapshots():
-      viewer.dispatch(snapshot)
+      # Process incoming simulation snapshots.
+      for snapshot in viewer.get_sim_snapshots():
+        viewer.dispatch(snapshot)
 
-    # Skip rendering when prepare_next_frame returned no active frame.
-    # e.g., no browser is connected to the web viewer.
-    if frame:
-      # Dispatch lifecycle events.
-      viewer.dispatch(messages.UpdateEvent())
-      viewer.dispatch(messages.BuildGuiEvent())
+      # Skip rendering when prepare_next_frame returned no active frame.
+      # e.g., no browser is connected to the web viewer.
+      if frame:
+        # Dispatch lifecycle events.
+        viewer.dispatch(messages.UpdateEvent())
+        viewer.dispatch(messages.BuildGuiEvent())
 
-      # Render the scene.
-      viewer.sync()
-
-  viewer.close()
+        # Render the scene.
+        viewer.sync()
+  except Exception:
+    logger.exception(
+        'Unhandled exception on the viewer thread; the viewer is closing.'
+    )
+    raise
+  finally:
+    viewer.close()
