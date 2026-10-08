@@ -150,7 +150,7 @@ def passive(m: Model, d: Data) -> Data:
     # add gravcomp unless added via actuators
     qfrc_passive += qfrc_gravcomp * (1 - m.jnt_actgravcomp[m.dof_jntid])
 
-  if m.opt._impl.has_fluid_params:  # pytype: disable=attribute-error
+  if m.opt._impl.has_fluid_params:
     qfrc_passive += _fluid(m, d)
 
   d = d.replace(qfrc_passive=qfrc_passive, qfrc_gravcomp=qfrc_gravcomp)

@@ -93,14 +93,14 @@ static int getnptr(void) {
 
 
 // write to memory buffer
-static void bufwrite(const void* src, int num, mjtSize szbuf, void* buf, mjtSize* ptrbuf) {
+static void bufwrite(const void* src, mjtSize num, mjtSize szbuf, void* buf, mjtSize* ptrbuf) {
   // check pointers
   if (!src || !buf || !ptrbuf) {
     mjERROR("NULL pointer passed to bufwrite");
   }
 
   // check size
-  if (*ptrbuf+num > szbuf) {
+  if (num < 0 || szbuf - *ptrbuf < num) {
     mjERROR("attempting to write outside model buffer");
   }
 
@@ -111,14 +111,14 @@ static void bufwrite(const void* src, int num, mjtSize szbuf, void* buf, mjtSize
 
 
 // read from memory buffer
-static void bufread(void* dest, int num, mjtSize szbuf, const void* buf, mjtSize* ptrbuf) {
+static void bufread(void* dest, mjtSize num, mjtSize szbuf, const void* buf, mjtSize* ptrbuf) {
   // check pointers
   if (!dest || !buf || !ptrbuf) {
     mjERROR("NULL pointer passed to bufread");
   }
 
   // check size
-  if (*ptrbuf+num > szbuf) {
+  if (num < 0 || szbuf - *ptrbuf < num) {
     mjERROR("attempting to read outside model buffer");
   }
 
@@ -232,7 +232,7 @@ void mj_makeModel(mjModel** dest,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
     mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
     mjtSize nefm0dof, mjtSize nefm0L, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflexevpair, mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv,
+    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv,
     mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
     mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
     mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
@@ -329,7 +329,6 @@ void mj_makeModel(mjModel** dest,
   m->nefm0L = nefm0L;
   m->nflexelemedge = nflexelemedge;
   m->nflexshelldata = nflexshelldata;
-  m->nflexevpair = nflexevpair;
   m->nflextexcoord = nflextexcoord;
   m->nJfe = nJfe;
   m->nJfv = nJfv;
@@ -439,7 +438,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
         src->nbvhdynamic, src->noct, src->njnt, src->ntree, src->nM, src->nB, src->nC, src->nD,
         src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
         src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
-        src->nflexbending, src->nefm0dof, src->nefm0L, src->nflexelemedge, src->nflexshelldata, src->nflexevpair,
+        src->nflexbending, src->nefm0dof, src->nefm0L, src->nflexelemedge, src->nflexshelldata,
         src->nflextexcoord, src->nJfe, src->nJfv, src->nmesh, src->nmeshvert, src->nmeshnormal,
         src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
         src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
@@ -511,7 +510,7 @@ void mjv_copyModel(mjModel* dest, const mjModel* src) {
 
 
 // save model to binary file, or memory buffer of szbuf>0
-void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz) {
+void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize buffer_sz) {
   mjtSize ptrbuf = 0;
 
   // standard header
@@ -525,7 +524,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
       mju_warning("Could not allocate buffer for saving model");
       return;
     }
-    mj_saveModel(m, NULL, tmpbuf, (int)sz);
+    mj_saveModel(m, NULL, tmpbuf, sz);
 
     mjtSize written = mju_writeResource(filename, tmpbuf, sz, NULL, NULL, 0);
     if (written != sz) {
@@ -556,7 +555,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 
 // load binary MJB model
-mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
+mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   mjtSize ptrbuf = 0;
   mjModel *m = 0;
 
@@ -621,7 +620,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
                sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
                sizes[77], sizes[78], sizes[79], sizes[80], sizes[81],
-               sizes[82], sizes[83]);
+               sizes[82]);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -659,7 +658,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
   {
     MJMODEL_POINTERS_PREAMBLE(m)
     #define X(type, name, nr, nc)                                           \
-      if (ptrbuf + sizeof(type) * (m->nr) * (nc) > buffer_sz) {             \
+      if (buffer_sz - ptrbuf < sizeof(type) * (m->nr) * (nc)) {             \
         mju_warning(                                                        \
             "Truncated model file - ran out of data while reading " #name); \
         mj_deleteModel(m);                                                  \
@@ -1355,6 +1354,9 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nidof = 0;
   d->efm_active = 0;
   d->nefmK = 0;
+  d->nefmcon = 0;
+  d->nefmT = 0;
+  d->nefmA = 0;
   d->nefmdof = 0;
   d->nefmL = 0;
 
@@ -1400,6 +1402,9 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->userdata, m->nuserdata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
+  mju_zero(d->flexvert_lambda, m->nflexvert);
+  mju_zeroInt(d->flexvert_conage, m->nflexvert);
+  memset(d->flex_hessian_valid, 0, m->nflex * sizeof(mjtBool));
 
   // initialize ctrl history buffers: timestamps at [-n*dt, ..., -dt]
   for (int i = 0; i < m->nactuator; i++) {
@@ -1413,9 +1418,15 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
         times[j] = -(n-j)*dt;
       }
 
-      // clear values
+      // clear values (or set identity quaternion for quat inputs)
       mjtNum* values = buf + 2 + n;
-      mju_zero(values, n);
+      int dim = m->actuator_ctrlnum[i];
+      mju_zero(values, n*dim);
+      if (m->actuator_gaintype[i] == mjGAIN_SO3 && m->actuator_ctrlspec[i] == mjCHART_QUAT) {
+        for (int j = 0; j < n; j++) {
+          values[4*j] = 1;
+        }
+      }
     }
   }
 
@@ -1880,7 +1891,6 @@ const char* mj_validateReferences(const mjModel* m) {
   X(flex_vertadr,       nflex,          nflexvert     , m->flex_vertnum        ) \
   X(flex_edgeadr,       nflex,          nflexedge     , m->flex_edgenum        ) \
   X(flex_elemadr,       nflex,          nflexelem     , m->flex_elemnum        ) \
-  X(flex_evpairadr,     nflex,          nflexevpair   , m->flex_evpairnum      ) \
   X(flex_texcoordadr,   nflex,          nflextexcoord , 0                      ) \
   X(flex_elemdataadr,   nflex,          nflexelemdata , 0                      ) \
   X(flex_elemedgeadr,   nflex,          nflexelemedge , 0                      ) \
@@ -2005,6 +2015,13 @@ const char* mj_validateReferences(const mjModel* m) {
       }
     }
   }
+  for (int i=0; i < m->nsite; i++) {
+    if (m->site_type[i] == mjGEOM_MESH) {
+      if (m->site_dataid[i] >= m->nmesh || m->site_dataid[i] < -1) {
+        return "Invalid model: site_dataid out of bounds.";
+      }
+    }
+  }
   for (int i=0; i < m->nhfield; i++) {
     mjtSize hfield_adr = m->hfield_adr[i] + ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
@@ -2022,7 +2039,9 @@ const char* mj_validateReferences(const mjModel* m) {
     if (pair_body1 >= m->nbody || pair_body1 < 0) {
       return "Invalid model: pair_body1 out of bounds.";
     }
-    int pair_body2 = (m->pair_signature[i] >> 16);
+
+    // unsigned shift: a signed >> sign-extends signatures whose high id is >= 0x8000
+    int pair_body2 = (int)((unsigned int)m->pair_signature[i] >> 16);
     if (pair_body2 >= m->nbody || pair_body2 < 0) {
       return "Invalid model: pair_body2 out of bounds.";
     }
@@ -2220,7 +2239,8 @@ const char* mj_validateReferences(const mjModel* m) {
     if (exclude_body1 >= m->nbody || exclude_body1 < 0) {
       return "Invalid model: exclude_body1 out of bounds.";
     }
-    int exclude_body2 = (m->exclude_signature[i] >> 16);
+    // unsigned shift: a signed >> sign-extends signatures whose high id is >= 0x8000
+    int exclude_body2 = (int)((unsigned int)m->exclude_signature[i] >> 16);
     if (exclude_body2 >= m->nbody || exclude_body2 < 0) {
       return "Invalid model: exclude_body2 out of bounds.";
     }

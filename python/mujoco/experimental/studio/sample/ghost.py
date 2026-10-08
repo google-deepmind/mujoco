@@ -27,9 +27,9 @@ import mujoco
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
-from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import studio_app_events
+from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import ux
+from mujoco.experimental.studio import viewer_app_events
 from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
 import numpy as np
@@ -75,12 +75,11 @@ class GhostRenderer:
     self._viewer = event.viewer
 
   @messages.handler
-  def on_model(self, event: messages.ModelEvent) -> bool:
+  def on_post_model(self, event: messages.PostModelEvent) -> None:
     """Resets ghost-specific state when the model changes."""
     del event  # Model/data are accessed via self._viewer.
     self._history.clear()
     self._last_time = None
-    return False
 
   @messages.handler
   def on_build_gui(self, _: messages.BuildGuiEvent) -> None:
@@ -104,7 +103,7 @@ class GhostRenderer:
     model = self._viewer.model
     data = self._viewer.data
 
-    studio_app_events.handle_mouse_events(
+    viewer_app_events.handle_mouse_events(
         model,
         data,
         self._viewer.camera,
@@ -185,20 +184,13 @@ def main(argv: list[str]) -> None:
 
   ghost_renderer = GhostRenderer()
 
-  with launch_passive.launch_passive(
+  launch_passive.run(
       config,
+      model=model,
+      data=data,
       viewer_plugins=[ghost_renderer],
-  ) as handle:
-    handle.send_to_viewer(messages.ModelEvent(model=model))
-
-    step_control = sim.StepControl()
-    try:
-      while handle.is_running():
-        step_control.advance(model, data)
-        model, data, step_control = handle.sync(model, data, step_control)
-    except KeyboardInterrupt:
-      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
-      print('\nShutting down.', flush=True)
+      sim_plugins=[step_control.StepControl()],
+  )
 
 
 if __name__ == '__main__':

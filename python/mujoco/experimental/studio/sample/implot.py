@@ -30,7 +30,7 @@ import mujoco
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
-from mujoco.experimental.studio import sim
+from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
 import numpy as np
@@ -125,6 +125,14 @@ class BodyInspector:
     """Caches the ViewerApp reference on startup."""
     assert isinstance(event.viewer_app, viewer_app.ViewerApp)
     self._app = event.viewer_app
+
+  @messages.handler
+  def on_post_model(self, event: messages.PostModelEvent) -> None:
+    """Resets plotted history and body selection when the model changes."""
+    del event
+    self._centroid = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self._euler = [np.zeros(3) for _ in range(_N_HISTORY)]
+    self._body_id = -1
 
   @messages.handler
   def inspect_body(self, _: messages.BuildGuiEvent) -> None:
@@ -236,20 +244,13 @@ def main(argv: list[str]) -> None:
       http_port=_PORT.value,
   )
 
-  with launch_passive.launch_passive(
+  launch_passive.run(
       config,
+      model=model,
+      data=data,
       viewer_plugins=[viewer_app.ViewerApp(), BodyInspector()],
-  ) as handle:
-    handle.send_to_viewer(messages.ModelEvent(model=model))
-
-    step_control = sim.StepControl()
-    try:
-      while handle.is_running():
-        step_control.advance(model, data)
-        model, data, step_control = handle.sync(model, data, step_control)
-    except KeyboardInterrupt:
-      # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
-      print('\nShutting down.', flush=True)
+      sim_plugins=[step_control.StepControl()],
+  )
 
 
 if __name__ == '__main__':

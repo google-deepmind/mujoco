@@ -22,10 +22,12 @@
 //-------------------------------- utility macros --------------------------------------------------
 
 // thread local macro
-#ifdef _MSC_VER
-  #define mjTHREADLOCAL __declspec(thread)
-#else
-  #define mjTHREADLOCAL _Thread_local
+#if !defined(mjTHREADLOCAL)
+  #ifdef _MSC_VER
+    #define mjTHREADLOCAL __declspec(thread)
+  #else
+    #define mjTHREADLOCAL _Thread_local
+  #endif
 #endif
 
 

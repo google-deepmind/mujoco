@@ -20,14 +20,17 @@ mjXSchema validator: rows of {name, cardinality, attributes...} with
 test/doc/doc_test.py, which regenerates it from the schema and diffs.
 """
 
+import os
 import sys
 
-import os
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import mjcf_schema
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
 
 _HEADER = '''\
 // Copyright 2026 DeepMind Technologies Limited

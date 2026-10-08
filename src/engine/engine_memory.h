@@ -44,8 +44,8 @@ MJAPI void mj_freeStack(mjData* d);
 
 #else
 
-void mj__markStack(mjData* d) __attribute__((noinline));
-void mj__freeStack(mjData* d) __attribute__((noinline));
+MJAPI void mj__markStack(mjData* d) __attribute__((noinline));
+MJAPI void mj__freeStack(mjData* d) __attribute__((noinline));
 
 #endif  // ADDRESS_SANITIZER
 
@@ -66,20 +66,45 @@ MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
 // mjData stack allocate for array of ints
 MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
 
+// free bytes between the arena and the stack
+size_t mj_stackBytesAvailable(const mjData* d);
+
+// stack bytes one allocation of the given size and alignment takes, at most
+MJAPI size_t mj_stackBytes(size_t bytes, size_t alignment);
+
+// stack bytes one mj_markStack frame takes, at most
+size_t mj_stackFrameBytes(void);
+
 // clear arena pointers in mjData
 static inline void mj_clearEfc(mjData* d) {
 #define X(type, name, nr, nc) d->name = NULL;
   MJDATA_ARENA_POINTERS
 #undef X
-  d->nefc = 0;
-  d->nisland = 0;
+
+  // sizes of the cleared arrays, including the per-type row counts consumers loop over
+  d->ne = d->nf = d->nl = d->nefc = 0;
+  d->nisland = d->nidof = 0;
   d->nJ = d->nY = d->nA = 0;
+
+  // deactivate the effective metric: its arena pointers were cleared above, so the
+  // activity flag and counts consumers gate on must clear with them
+  d->efm_active = 0;
+  d->nefmT = d->nefmA = d->nefmK = d->nefmL = d->nefmdof = d->nefmcon = 0;
   d->contact = (mjContact*) d->arena;
 
   // if any contacts are allocated, clear their efc_address
   for (int i=0; i < d->ncon; i++) {
     d->contact[i].efc_address = -1;
   }
+
+  // reset arena pointer to end of contact array
+  d->parena = d->ncon * sizeof(mjContact);
+#ifdef mjUSEASAN
+  if (d->arena) {
+    ASAN_POISON_MEMORY_REGION(
+      (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
+  }
+#endif
 }
 
 #ifdef __cplusplus

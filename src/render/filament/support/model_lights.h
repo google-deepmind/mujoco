@@ -19,7 +19,7 @@
 
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/model_objects.h"
 
 namespace mujoco {
@@ -33,9 +33,13 @@ class ModelLights {
   // Updates the state of the lights in the scene.
   void Update(const mjData* data = nullptr);
 
-  // Returns the light with the given index in the mjModel. Note that an extra
-  // headlight is assigned of the index `nlight`.
+  // Returns the light with the given index in the mjModel.
   mjrfLight* GetLight(int index);
+
+  // Returns the intensity the headlight should be given, in lux. The headlight
+  // is a render request option rather than a scene light, so callers pass this
+  // to mjrfRenderRequest. Non-zero only for models with no physical lights.
+  float GetHeadlightIntensity() const { return headlight_intensity_; }
 
   ModelLights(const ModelLights&) = delete;
   ModelLights& operator=(const ModelLights&) = delete;
@@ -56,8 +60,11 @@ class ModelLights {
   UniquePtr<mjrfTexture> fallback_ibl_texture_{nullptr, nullptr};
   std::vector<UniquePtr<mjrfLight>> lights_;
   int shadowsize_ = 0;
-  float fallback_head_light_intensity_ = 0.f;
+  int shadow_map_size_ = 0;
+  float fallback_head_light_intensity_ = 40'000.f;
+  float headlight_intensity_ = 0.f;
   float fallback_scene_light_intensity_ = 80'000.f;
+  float fallback_intensity_ = 0.f;
   float fallback_environment_light_intensity_ = 5'000.f;
 };
 

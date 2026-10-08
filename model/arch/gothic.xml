@@ -1,0 +1,93 @@
+<mujoco model="Gothic arch">
+  <visual>
+    <global azimuth="140" elevation="-20"/>
+  </visual>
+
+  <!-- Frictional stability requires elliptic cones and large impratio. The
+       discrete integrator treats the contact rows implicitly, so the
+       authored contact stiffness is honored at an 8 ms timestep and the
+       settled arch stays quiet (implicitfast needs 2 ms for the same drift).
+       noslip_iterations=2 removes the slow frictional creep. -->
+  <option timestep="8e-3" integrator="discrete" cone="elliptic" impratio="10" noslip_iterations="2"/>
+
+  <!-- Equilateral pointed arch: two 2m-radius arcs, each centered at the
+       opposite springing. Each flank is one static springer and 4 replicated
+       voussoir pairs; the keystone spans both arcs at the apex. Wedge faces
+       are shrunk so neighboring voussoirs sit 0.05mm apart. The base poses
+       and the replicate step are the arch as settled under load (the exact
+       120/11 degree pattern with its joint gaps closed), so it loads at rest. -->
+  <asset>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".25 .3 .45" rgb2=".55 .5 .45" width="32" height="32"/>
+    <texture type="skybox" builtin="gradient" rgb1=".12 .16 .28" rgb2=".5 .45 .4" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="100" height="100"/>
+    <material name="grid" texture="grid" texrepeat="8 8" texuniform="true" reflectance="0.06"/>
+
+    <mesh name="voussoir" vertex="-0.15 -0.0891990 -0.1271229
+                                  -0.15  0.0891990 -0.1271229
+                                  -0.15 -0.1010922  0.1225941
+                                  -0.15  0.1010922  0.1225941
+                                   0.15 -0.0891990 -0.1271229
+                                   0.15  0.0891990 -0.1271229
+                                   0.15 -0.1010922  0.1225941
+                                   0.15  0.1010922  0.1225941"/>
+    <mesh name="keystone" vertex="-0.15 -0.414478  0.082401
+                                  -0.15         0  0.364576
+                                  -0.15  0.414478  0.082401
+                                  -0.15  0.162361 -0.208560
+                                  -0.15         0     -0.23
+                                  -0.15 -0.162361 -0.208560
+                                   0.15 -0.414478  0.082401
+                                   0.15         0  0.364576
+                                   0.15  0.414478  0.082401
+                                   0.15  0.162361 -0.208560
+                                   0.15         0     -0.23
+                                   0.15 -0.162361 -0.208560"/>
+  </asset>
+
+  <default>
+    <geom type="mesh" density="2500" solref="0.005 1" solimp="0.95 0.99 1e-4"/>
+  </default>
+
+  <worldbody>
+    <light name="key" pos="-1.35 -2.7 5.4" dir=".3 .6 -1" cutoff="25" softness="1" range="30" ambient=".15 .15 .15" specular=".15 .15 .15" intensity="3000000"/>
+    <light type="image" texture="ibl" intensity="7500"/>
+    <camera name="front" pos="3.6 0 1.1" xyaxes="0 1 0 0 0 1"/>
+
+    <geom name="floor" type="plane" size="4 4 .01" material="grid"/>
+
+    <!-- Left flank: arc centered at the right springing. -->
+    <frame pos="0 1 0">
+      <geom name="springer_left" mesh="voussoir" pos="0 -1.9977348 0.0951706" euler="87.27273 0 0" rgba=".45 .44 .46 1"/>
+      <replicate count="4" euler="-10.89287 0 0">
+        <body name="left_a" pos="0 -1.981148 0.28557" euler="82.19661 0 0">
+          <freejoint/>
+          <geom mesh="voussoir" rgba=".71 .71 .73 1"/>
+        </body>
+        <body name="left_b" pos="0 -1.944908 0.4723266" euler="76.74274 0 0">
+          <freejoint/>
+          <geom mesh="voussoir" rgba=".80 .80 .82 1"/>
+        </body>
+      </replicate>
+    </frame>
+
+    <!-- Right flank: arc centered at the left springing. -->
+    <frame pos="0 -1 0">
+      <geom name="springer_right" mesh="voussoir" pos="0 1.9977348 0.0951706" euler="-87.27273 0 0" rgba=".45 .44 .46 1"/>
+      <replicate count="4" euler="10.89287 0 0">
+        <body name="right_a" pos="0 1.981148 0.28557" euler="-82.19661 0 0">
+          <freejoint/>
+          <geom mesh="voussoir" rgba=".71 .71 .73 1"/>
+        </body>
+        <body name="right_b" pos="0 1.944908 0.4723266" euler="-76.74274 0 0">
+          <freejoint/>
+          <geom mesh="voussoir" rgba=".80 .80 .82 1"/>
+        </body>
+      </replicate>
+    </frame>
+
+    <body name="keystone" pos="0 0 1.549614">
+      <freejoint/>
+      <geom mesh="keystone" rgba=".87 .79 .63 1"/>
+    </body>
+  </worldbody>
+</mujoco>

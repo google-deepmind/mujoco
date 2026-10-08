@@ -362,7 +362,8 @@ Orientation input charts of so3 actuators. These values are used in ``m->actuato
 mjtCtrlInput
 ~~~~~~~~~~~~
 
-Input bitflags of servo-family (pd, dcmotor) actuators. These values are used in ``m->actuator_ctrlspec``.
+Input bitflags of actuators: the input subset of pid and dcmotor actuators, and the declared input of actuators with
+fixed or affine gain. These values are used in ``m->actuator_ctrlspec``.
 
 .. mujoco-include:: mjtCtrlInput
 
@@ -587,6 +588,8 @@ mjtLogTopic
 Topic identifiers for informational messages. Used with :ref:`mju_info` for topic-based filtering.
 Topic 0 (``mjTOPIC_NONE``) always passes through the default handler's filter. Other topics must be enabled in
 the :ref:`mjLogConfig` bitmask. Since topics are 1-indexed, the bitmask for topic ``t`` is ``(1 << (t - 1))``.
+The number of filterable topics is given by ``mjNTOPIC``, which is also the length of the string array
+:ref:`mjTOPICSTRING`.
 
 .. mujoco-include:: mjtLogTopic
 
@@ -649,6 +652,7 @@ mjtLabel
 ~~~~~~~~
 
 These are the abstract visualization elements that can have text labels. Used in ``mjvOption.label``.
+The corresponding string array is :ref:`mjLABELSTRING`.
 
 .. mujoco-include:: mjtLabel
 
@@ -659,6 +663,7 @@ mjtFrame
 ~~~~~~~~
 
 These are the MuJoCo objects whose spatial frames can be rendered. Used in ``mjvOption.frame``.
+The corresponding string array is :ref:`mjFRAMESTRING`.
 
 .. mujoco-include:: mjtFrame
 
@@ -669,7 +674,7 @@ mjtVisFlag
 ~~~~~~~~~~
 
 These are indices in the array ``mjvOption.flags``, whose elements enable/disable the visualization of the
-corresponding model or decoration element.
+corresponding model or decoration element. The corresponding string array is :ref:`mjVISSTRING`.
 
 .. mujoco-include:: mjtVisFlag
 
@@ -680,6 +685,7 @@ mjtRndFlag
 ~~~~~~~~~~
 
 These are indices in the array ``mjvScene.flags``, whose elements enable/disable OpenGL rendering effects.
+The corresponding string array is :ref:`mjRNDSTRING`.
 
 .. mujoco-include:: mjtRndFlag
 
@@ -975,6 +981,17 @@ mjtConflict
 Conflict resolution mode for attach.
 
 .. mujoco-include:: mjtConflict
+
+.. _mjtActuator:
+
+mjtActuator
+~~~~~~~~~~~
+
+The :ref:`actuator element<actuator>` an actuator is written with: :ref:`general<actuator-general>` or one of its
+:ref:`shortcuts<CActShortcuts>`. Set by the ``mjs_setTo*`` functions and by the parser; shortcut parameters are inherited
+only from a default written with the same shortcut.
+
+.. mujoco-include:: mjtActuator
 
 
 .. _mjtCTimer:
@@ -1844,6 +1861,15 @@ mjsFlex
 ~~~~~~~
 
 Flex specification.
+
+The experimental integer ``elastic3d`` selects the material for non-interpolated 3D flexes: ``0`` (the default) is
+Saint Venant-Kirchhoff (StVK) elasticity, and ``1`` is simplified Stable Neo-Hookean (SNH) elasticity. Other values are rejected.
+SNH requires the :ref:`discrete integrator<option-integrator>`. The setting is available only through :ref:`mjSpec`,
+with no MJCF attribute. Specs with SNH enabled cannot be saved to MJCF; compiled models can be saved to MJB.
+SNH projects each element's material Hessian to positive semidefiniteness before mapping it to vertex coordinates.
+The discrete solver and Rayleigh damping reuse this projected operator. Energy and elastic forces are unchanged and
+remain defined through inversion. Material damping has non-positive instantaneous power, but projection does not
+guarantee inversion-free motion or stability at arbitrary timesteps.
 
 .. mujoco-include:: mjsFlex
 

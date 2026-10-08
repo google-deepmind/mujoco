@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <mujoco/experimental/platform/hal/filament_renderer.h>
-
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -21,7 +19,9 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/platform/hal/graphics_mode.h>
+#include <mujoco/experimental/studio/hal/filament_renderer.h>
+#include <mujoco/experimental/studio/hal/graphics_mode.h>
+#include <mujoco/experimental/studio/io/resources.h>
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
@@ -32,12 +32,13 @@ namespace mujoco::python {
 
 class Renderer {
  public:
-  using RendererImpl = mujoco::platform::FilamentRenderer;
-  using GraphicsMode = mujoco::platform::GraphicsMode;
+  using RendererImpl = mujoco::studio::FilamentRenderer;
+  using GraphicsMode = mujoco::studio::GraphicsMode;
 
   Renderer(const std::string& graphics_mode_str) {
     py::gil_scoped_release no_gil;
-    const GraphicsMode mode = mujoco::platform::GraphicsModeFromString(
+    mujoco::studio::RegisterResourceProviders();
+    const GraphicsMode mode = mujoco::studio::GraphicsModeFromString(
         graphics_mode_str, GraphicsMode::FilamentOpenGl);
     impl_ = std::make_unique<RendererImpl>(nullptr, mode);
   }
@@ -55,11 +56,12 @@ class Renderer {
     std::vector<std::byte> pixels(width * height * 3);
     {
       py::gil_scoped_release no_gil;
-      impl_->Render(model.get(), data.get(),
+      impl_->Sync(model.get(), data.get(),
                     perturb ? perturb.value().get() : nullptr,
                     camera ? camera.value().get() : nullptr,
                     vis_option ? vis_option.value().get() : nullptr, width,
-                    height, pixels);
+                    height);
+      impl_->Submit(width, height, pixels);
     }
     return pybind11::bytes((const char*)pixels.data(), pixels.size());
   }

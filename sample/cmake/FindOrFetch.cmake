@@ -134,12 +134,17 @@ if(NOT COMMAND FindOrFetch)
             PATCH_COMMAND ${_WRAPPED_PATCH_COMMAND}
           )
         else()
+          find_package(Git REQUIRED)
           message(STATUS "mujoco::FindOrFetch: Using FetchContent for ${_ARGS_LIBRARY_NAME}: ${_ARGS_GIT_REPO}")
           FetchContent_Declare(
             ${_ARGS_LIBRARY_NAME}
-            GIT_REPOSITORY ${_ARGS_GIT_REPO}
-            GIT_TAG ${_ARGS_GIT_TAG}
-            GIT_SHALLOW FALSE
+            DOWNLOAD_COMMAND
+              ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
+              COMMAND ${GIT_EXECUTABLE} init <SOURCE_DIR>
+              COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> remote add origin ${_ARGS_GIT_REPO}
+              COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> fetch --depth 1 origin ${_ARGS_GIT_TAG}
+              COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> -c advice.detachedHead=false checkout FETCH_HEAD
+              COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> submodule update --init --recursive --depth 1
             PATCH_COMMAND ${_WRAPPED_PATCH_COMMAND}
             UPDATE_DISCONNECTED TRUE
           )

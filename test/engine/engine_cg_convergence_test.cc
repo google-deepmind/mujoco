@@ -44,12 +44,10 @@ mjtNum gettm(void) {
 using CgConvergenceTest = MujocoTest;
 
 TEST_F(CgConvergenceTest, CGConvergence) {
-  static const char* const kPath =
-      "engine/testdata/island/2humanoid100.xml";
+  static const char* const kPath = "engine/testdata/island/2humanoid100.xml";
   const std::string xml_path = GetTestDataFilePath(kPath);
   char error[1024];
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
   // disable islands: monolithic solver makes statistics simpler
@@ -82,15 +80,15 @@ TEST_F(CgConvergenceTest, CGConvergence) {
 
   for (int i = 0; i < kNumSteps; i++) {
     // save pre-step state
-    mju_copy(all_qpos.data() + i*nq, data->qpos, nq);
-    mju_copy(all_qvel.data() + i*nv, data->qvel, nv);
-    mju_copy(all_warmstart.data() + i*nv, data->qacc_warmstart, nv);
+    mju_copy(all_qpos.data() + i * nq, data->qpos, nq);
+    mju_copy(all_qvel.data() + i * nv, data->qvel, nv);
+    mju_copy(all_warmstart.data() + i * nv, data->qacc_warmstart, nv);
 
     // step with Newton
     mj_step(model, data);
 
     // save qacc (set by mj_forward inside mj_step)
-    mju_copy(all_qacc.data() + i*nv, data->qacc, nv);
+    mju_copy(all_qacc.data() + i * nv, data->qacc, nv);
   }
 
   // evaluation points: 100 evenly spaced
@@ -103,15 +101,14 @@ TEST_F(CgConvergenceTest, CGConvergence) {
 
   // print header
   std::printf("\nCG Convergence: 2humanoid100.xml\n");
-  std::printf("  %d Newton steps, %d evaluation points\n",
-              kNumSteps, kNumEval);
+  std::printf("  %d Newton steps, %d evaluation points\n", kNumSteps, kNumEval);
   std::printf("  nv = %d, nq = %d\n", nv, nq);
   std::printf("  metric: ||qacc_cg - qacc_newton|| / ||qacc_newton||\n");
 
   // table header
   std::printf("\n  Warmstart (tolerance = 0):\n");
-  std::printf("  %6s | %11s | %11s | %10s | %8s\n",
-              "Iters", "Mean Err", "Max Err", "Mean Iters", "LS evals");
+  std::printf("  %6s | %11s | %11s | %10s | %8s\n", "Iters", "Mean Err",
+              "Max Err", "Mean Iters", "LS evals");
   std::printf("  %s\n",
               "-------+-------------+-------------+------------+---------");
 
@@ -132,9 +129,9 @@ TEST_F(CgConvergenceTest, CGConvergence) {
       int idx = e * kStride;
 
       // restore state
-      mju_copy(data->qpos, all_qpos.data() + idx*nq, nq);
-      mju_copy(data->qvel, all_qvel.data() + idx*nv, nv);
-      mju_copy(data->qacc_warmstart, all_warmstart.data() + idx*nv, nv);
+      mju_copy(data->qpos, all_qpos.data() + idx * nq, nq);
+      mju_copy(data->qvel, all_qvel.data() + idx * nv, nv);
+      mju_copy(data->qacc_warmstart, all_warmstart.data() + idx * nv, nv);
 
       // run CG forward
       mj_forward(model, data);
@@ -145,10 +142,10 @@ TEST_F(CgConvergenceTest, CGConvergence) {
       }
 
       // compute relative error
-      mjtNum newton_norm = mju_norm(all_qacc.data() + idx*nv, nv);
+      mjtNum newton_norm = mju_norm(all_qacc.data() + idx * nv, nv);
       mjtNum err = 0;
       for (int j = 0; j < nv; j++) {
-        mjtNum diff = data->qacc[j] - all_qacc[idx*nv + j];
+        mjtNum diff = data->qacc[j] - all_qacc[idx * nv + j];
         err += diff * diff;
       }
       mjtNum rel_err = mju_sqrt(err) / mju_max(newton_norm, 1e-10);
@@ -159,9 +156,8 @@ TEST_F(CgConvergenceTest, CGConvergence) {
     }
 
     mjtNum mean_iters = static_cast<mjtNum>(total_iters) / kNumEval;
-    std::printf("  %6d | %11.4e | %11.4e | %10.2f | %8d\n",
-                kIterCounts[c], sum_rel_err / kNumEval, max_rel_err,
-                mean_iters, total_neval);
+    std::printf("  %6d | %11.4e | %11.4e | %10.2f | %8d\n", kIterCounts[c],
+                sum_rel_err / kNumEval, max_rel_err, mean_iters, total_neval);
   }
 
   std::printf("  %s\n",
@@ -169,8 +165,8 @@ TEST_F(CgConvergenceTest, CGConvergence) {
 
   // --- no warmstart (tolerance = 0) ---
   std::printf("\n  No warmstart (tolerance = 0):\n");
-  std::printf("  %6s | %11s | %11s | %10s | %8s\n",
-              "Iters", "Mean Err", "Max Err", "Mean Iters", "LS evals");
+  std::printf("  %6s | %11s | %11s | %10s | %8s\n", "Iters", "Mean Err",
+              "Max Err", "Mean Iters", "LS evals");
   std::printf("  %s\n",
               "-------+-------------+-------------+------------+---------");
 
@@ -187,8 +183,8 @@ TEST_F(CgConvergenceTest, CGConvergence) {
     for (int e = 0; e < kNumEval; e++) {
       int idx = e * kStride;
 
-      mju_copy(data->qpos, all_qpos.data() + idx*nq, nq);
-      mju_copy(data->qvel, all_qvel.data() + idx*nv, nv);
+      mju_copy(data->qpos, all_qpos.data() + idx * nq, nq);
+      mju_copy(data->qvel, all_qvel.data() + idx * nv, nv);
 
       mj_forward(model, data);
       int niter = data->solver_niter[0];
@@ -197,10 +193,10 @@ TEST_F(CgConvergenceTest, CGConvergence) {
         total_neval += data->solver[j].neval;
       }
 
-      mjtNum newton_norm = mju_norm(all_qacc.data() + idx*nv, nv);
+      mjtNum newton_norm = mju_norm(all_qacc.data() + idx * nv, nv);
       mjtNum err = 0;
       for (int j = 0; j < nv; j++) {
-        mjtNum diff = data->qacc[j] - all_qacc[idx*nv + j];
+        mjtNum diff = data->qacc[j] - all_qacc[idx * nv + j];
         err += diff * diff;
       }
       mjtNum rel_err = mju_sqrt(err) / mju_max(newton_norm, 1e-10);
@@ -211,9 +207,8 @@ TEST_F(CgConvergenceTest, CGConvergence) {
     }
 
     mjtNum mean_iters = static_cast<mjtNum>(total_iters) / kNumEval;
-    std::printf("  %6d | %11.4e | %11.4e | %10.2f | %8d\n",
-                kIterCounts[c], sum_rel_err / kNumEval, max_rel_err,
-                mean_iters, total_neval);
+    std::printf("  %6d | %11.4e | %11.4e | %10.2f | %8d\n", kIterCounts[c],
+                sum_rel_err / kNumEval, max_rel_err, mean_iters, total_neval);
   }
 
   std::printf("  %s\n",
@@ -221,9 +216,9 @@ TEST_F(CgConvergenceTest, CGConvergence) {
 
   // --- tolerance sweep (iterations = 100, warmstart) ---
   std::printf("\n  Tolerance sweep (iterations = 100, warmstart):\n");
-  std::printf("  %10s | %11s | %11s | %9s | %10s | %11s | %8s\n",
-              "Tol", "Mean Err", "Max Err", "Mean Iters", "Max Iters",
-              "Solver us", "LS evals");
+  std::printf("  %10s | %11s | %11s | %9s | %10s | %11s | %8s\n", "Tol",
+              "Mean Err", "Max Err", "Mean Iters", "Max Iters", "Solver us",
+              "LS evals");
   std::printf("  %s\n",
               "-----------+-------------+-------------+"
               "------------+------------+-------------+---------");
@@ -255,9 +250,9 @@ TEST_F(CgConvergenceTest, CGConvergence) {
     for (int e = 0; e < kNumEval; e++) {
       int idx = e * kStride;
 
-      mju_copy(data->qpos, all_qpos.data() + idx*nq, nq);
-      mju_copy(data->qvel, all_qvel.data() + idx*nv, nv);
-      mju_copy(data->qacc_warmstart, all_warmstart.data() + idx*nv, nv);
+      mju_copy(data->qpos, all_qpos.data() + idx * nq, nq);
+      mju_copy(data->qvel, all_qvel.data() + idx * nv, nv);
+      mju_copy(data->qacc_warmstart, all_warmstart.data() + idx * nv, nv);
 
       mj_forward(model, data);
       int niter = data->solver_niter[0];
@@ -269,10 +264,10 @@ TEST_F(CgConvergenceTest, CGConvergence) {
         total_neval += data->solver[j].neval;
       }
 
-      mjtNum newton_norm = mju_norm(all_qacc.data() + idx*nv, nv);
+      mjtNum newton_norm = mju_norm(all_qacc.data() + idx * nv, nv);
       mjtNum err = 0;
       for (int j = 0; j < nv; j++) {
-        mjtNum diff = data->qacc[j] - all_qacc[idx*nv + j];
+        mjtNum diff = data->qacc[j] - all_qacc[idx * nv + j];
         err += diff * diff;
       }
       mjtNum rel_err = mju_sqrt(err) / mju_max(newton_norm, 1e-10);
@@ -288,20 +283,18 @@ TEST_F(CgConvergenceTest, CGConvergence) {
 
     mjtNum mean_iters = static_cast<mjtNum>(total_iters) / kNumEval;
     if (kTolValues[c] > 0) {
-      std::printf(
-          "  %10.0e | %11.4e | %11.4e | %10.2f | %10d | %11.2f | %8d\n",
-          kTolValues[c], sum_rel_err / kNumEval, max_rel_err,
-          mean_iters, max_iters, solver_time, total_neval);
+      std::printf("  %10.0e | %11.4e | %11.4e | %10.2f | %10d | %11.2f | %8d\n",
+                  kTolValues[c], sum_rel_err / kNumEval, max_rel_err,
+                  mean_iters, max_iters, solver_time, total_neval);
     } else {
-      std::printf(
-          "  %10s | %11.4e | %11.4e | %10.2f | %10d | %11.2f | %8d\n",
-          "0", sum_rel_err / kNumEval, max_rel_err,
-          mean_iters, max_iters, solver_time, total_neval);
+      std::printf("  %10s | %11.4e | %11.4e | %10.2f | %10d | %11.2f | %8d\n",
+                  "0", sum_rel_err / kNumEval, max_rel_err, mean_iters,
+                  max_iters, solver_time, total_neval);
     }
   }
 
-  mjtNum overall_avg = grand_total_iters > 0
-      ? total_solver_time / grand_total_iters : 0.0;
+  mjtNum overall_avg =
+      grand_total_iters > 0 ? total_solver_time / grand_total_iters : 0.0;
   std::printf("  %s\n",
               "-----------+-------------+-------------+"
               "------------+------------+-------------+---------");
@@ -343,26 +336,26 @@ TEST_F(CgConvergenceTest, CGConvergence) {
   mjtNum pipe_step = data->timer[mjTIMER_STEP].duration;
   int pipe_step_count = data->timer[mjTIMER_STEP].number;
   mjtNum us_per_step = pipe_step_count > 0 ? pipe_step / pipe_step_count : 0;
-  mjtNum constraint_per_step = pipe_step_count > 0
-      ? pipe_constraint / pipe_step_count : 0;
-  mjtNum iters_per_step = pipe_step_count > 0
-      ? static_cast<mjtNum>(pipe_total_iters) / pipe_step_count : 0;
+  mjtNum constraint_per_step =
+      pipe_step_count > 0 ? pipe_constraint / pipe_step_count : 0;
+  mjtNum iters_per_step =
+      pipe_step_count > 0
+          ? static_cast<mjtNum>(pipe_total_iters) / pipe_step_count
+          : 0;
   mjtNum steps_per_sec = us_per_step > 0 ? 1e6 / us_per_step : 0;
 
   std::printf("  %d steps, nv = %d\n", kPipeSteps, nv);
   std::printf("  Steps/s          : %.0f\n", steps_per_sec);
   std::printf("  us/step (total)  : %.1f\n", us_per_step);
-  std::printf("  us/step (constr) : %.1f  (%.1f%%)\n",
-              constraint_per_step,
-              us_per_step > 0 ? 100*constraint_per_step/us_per_step : 0.0);
+  std::printf("  us/step (constr) : %.1f  (%.1f%%)\n", constraint_per_step,
+              us_per_step > 0 ? 100 * constraint_per_step / us_per_step : 0.0);
   std::printf("  CG iters/step    : %.2f\n", iters_per_step);
   std::printf("  LS evals/step    : %.2f\n",
               pipe_step_count > 0
                   ? static_cast<mjtNum>(pipe_total_neval) / pipe_step_count
                   : 0.0);
   std::printf("  us/iter          : %.2f\n",
-              pipe_total_iters > 0
-                  ? pipe_constraint / pipe_total_iters : 0.0);
+              pipe_total_iters > 0 ? pipe_constraint / pipe_total_iters : 0.0);
 
   std::printf("\n");
   mjcb_time = nullptr;

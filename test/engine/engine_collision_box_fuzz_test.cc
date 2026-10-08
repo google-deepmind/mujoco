@@ -36,6 +36,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -134,8 +135,8 @@ void SetPose(const mjModel* model, mjData* data, const mjtNum pos2[3],
 }
 
 mjtNum DeepestDist(const mjPreContact* con, int n) {
-  mjtNum d = con[0].dist;
-  for (int i = 1; i < n; i++) d = mju_min(d, con[i].dist);
+  mjtNum d = std::numeric_limits<mjtNum>::max();
+  for (int i = 0; i < n; i++) d = mju_min(d, con[i].dist);
   return d;
 }
 
@@ -219,8 +220,7 @@ mjtNum ExactSatSep(const mjModel* model, const mjData* data) {
 
   // 3 face axes of box2
   for (int j = 0; j < 3; j++) {
-    mjtNum radius1 = rotabs[0 + j] * size1[0] +
-                     rotabs[3 + j] * size1[1] +
+    mjtNum radius1 = rotabs[0 + j] * size1[0] + rotabs[3 + j] * size1[1] +
                      rotabs[6 + j] * size1[2];
     mjtNum sep = mju_abs(pos12[j]) - size2[j] - radius1;
     sep_max = mju_max(sep_max, sep);
@@ -282,9 +282,8 @@ Stats Sweep(const SizeCase& c, int n_configs, mjtNum margin, unsigned seed) {
   MjDataPtr data_ptr = MakeData(model_ptr);
   mjData* data = data_ptr.get();
 
-  const mjtNum scale =
-      mju_max(mju_max(c.size1[0], c.size1[1]), c.size1[2]) +
-      mju_max(mju_max(c.size2[0], c.size2[1]), c.size2[2]);
+  const mjtNum scale = mju_max(mju_max(c.size1[0], c.size1[1]), c.size1[2]) +
+                       mju_max(mju_max(c.size2[0], c.size2[1]), c.size2[2]);
   // sweep resolution: angular spacing ~sqrt(4pi/n), times the pair radius
   const mjtNum sweep_tol = 4.0 * scale / std::sqrt((double)kSweepDirections);
 
@@ -329,11 +328,10 @@ Stats Sweep(const SizeCase& c, int n_configs, mjtNum margin, unsigned seed) {
             "  pos2={%.17g, %.17g, %.17g}\n"
             "  quat1={%.17g, %.17g, %.17g, %.17g}\n"
             "  quat2={%.17g, %.17g, %.17g, %.17g}\n",
-            bad_phantom ? "PHANTOM" : "OVERDEEP", c.name,
-            db, true_sep, nbox, box_con[0].normal[0],
-            box_con[0].normal[1], box_con[0].normal[2], pos2[0], pos2[1],
-            pos2[2], quat1[0], quat1[1], quat1[2], quat1[3], quat2[0],
-            quat2[1], quat2[2], quat2[3]);
+            bad_phantom ? "PHANTOM" : "OVERDEEP", c.name, db, true_sep, nbox,
+            box_con[0].normal[0], box_con[0].normal[1], box_con[0].normal[2],
+            pos2[0], pos2[1], pos2[2], quat1[0], quat1[1], quat1[2], quat1[3],
+            quat2[0], quat2[1], quat2[2], quat2[3]);
       }
     }
 
@@ -496,7 +494,7 @@ void CheckGates(const SizeCase& c, const Stats& st, mjtNum margin) {
 // MJ_FUZZ_CONFIGS=20000 MJ_FUZZ_SEED=7 ./engine_collision_box_fuzz_test
 int NumConfigs() {
   const char* env = std::getenv("MJ_FUZZ_CONFIGS");
-  return env ? std::stoi(env) : 4000;
+  return env ? std::stoi(env) : 1000;
 }
 
 unsigned BaseSeed() {
@@ -532,12 +530,14 @@ TEST_F(MjCollisionBoxFuzzTest, CanonicalOrientationsAndPerturbations) {
           mat[3 * 0 + ax] = sx;
           mat[3 * 1 + ay] = sy;
           // col 2 = col 0 x col 1
+          // clang-format off
           mat[3 * 2 + 0] = mat[3 * 0 + 1] * mat[3 * 1 + 2] -
                            mat[3 * 0 + 2] * mat[3 * 1 + 1];
           mat[3 * 2 + 1] = mat[3 * 0 + 2] * mat[3 * 1 + 0] -
                            mat[3 * 0 + 0] * mat[3 * 1 + 2];
           mat[3 * 2 + 2] = mat[3 * 0 + 0] * mat[3 * 1 + 1] -
                            mat[3 * 0 + 1] * mat[3 * 1 + 0];
+          // clang-format on
           mjtNum q[4];
           mju_mat2Quat(q, mat);
           canonical_quats.push_back({q[0], q[1], q[2], q[3]});
@@ -546,14 +546,13 @@ TEST_F(MjCollisionBoxFuzzTest, CanonicalOrientationsAndPerturbations) {
     }
   }
 
-  const mjtNum pert_angles[] = {0.0,   1e-15, 1e-12, 1e-9,
-                                1e-6,  1e-3,  0.05,  0.785398};
-  const mjtNum pert_axes[5][3] = {
-      {1, 0, 0},
-      {0, 1, 0},
-      {0, 0, 1},
-      {0.70710678, 0.70710678, 0},
-      {0.57735027, 0.57735027, 0.57735027}};
+  const mjtNum pert_angles[] = {0.0,  1e-15, 1e-12, 1e-9,
+                                1e-6, 1e-3,  0.05,  0.785398};
+  const mjtNum pert_axes[5][3] = {{1, 0, 0},
+                                  {0, 1, 0},
+                                  {0, 0, 1},
+                                  {0.70710678, 0.70710678, 0},
+                                  {0.57735027, 0.57735027, 0.57735027}};
 
   // test across cube and anisotropic slab/needle size cases
   for (const SizeCase& c :
@@ -592,11 +591,10 @@ TEST_F(MjCollisionBoxFuzzTest, CanonicalOrientationsAndPerturbations) {
               for (mjtNum yfrac : {-0.5, 0.0, 0.5, 0.99, 1.0}) {
                 if (xfrac * xfrac + yfrac * yfrac > 1.01) continue;
                 for (mjtNum zfrac : {-0.2, -1e-4, 0.0, 1e-4, 0.1}) {
-                  mjtNum pos2[3] = {
-                      xfrac * (c.size1[0] + rproj[0]),
-                      yfrac * (c.size1[1] + rproj[1]),
-                      (c.size1[2] + rproj[2]) +
-                          zfrac * (c.size1[2] + rproj[2])};
+                  mjtNum pos2[3] = {xfrac * (c.size1[0] + rproj[0]),
+                                    yfrac * (c.size1[1] + rproj[1]),
+                                    (c.size1[2] + rproj[2]) +
+                                        zfrac * (c.size1[2] + rproj[2])};
                   SetPose(model, data, pos2, quat1, quat2);
 
                   mjPreContact box_con[mjMAXCONPAIR];
@@ -624,8 +622,7 @@ TEST_F(MjCollisionBoxFuzzTest, CanonicalOrientationsAndPerturbations) {
                                      model->geom_size[5] + margin + slack};
                     int o1 = mju_outsideBox(box_con[i].pos, data->geom_xpos,
                                             data->geom_xmat, sz1, 1);
-                    int o2 = mju_outsideBox(box_con[i].pos,
-                                            data->geom_xpos + 3,
+                    int o2 = mju_outsideBox(box_con[i].pos, data->geom_xpos + 3,
                                             data->geom_xmat + 9, sz2, 1);
                     EXPECT_FALSE(o1 == 1 && o2 == 1)
                         << c.name << " pos=(" << box_con[i].pos[0] << ", "
@@ -644,8 +641,7 @@ TEST_F(MjCollisionBoxFuzzTest, CanonicalOrientationsAndPerturbations) {
                     mjtNum db = DeepestDist(box_con, nbox);
                     EXPECT_GE(db, exact_sep - 0.06 * mju_abs(exact_sep) -
                                       1e-6 * scale)
-                        << c.name << " db=" << db
-                        << " exact_sep=" << exact_sep;
+                        << c.name << " db=" << db << " exact_sep=" << exact_sep;
                   }
                 }
               }

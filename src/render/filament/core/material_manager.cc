@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <string_view>
 
 #include <filament/Color.h>
 #include <filament/Material.h>
@@ -127,36 +126,48 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
   if (material.decor_ux) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
+    } else if (material.color[3] < 1.0f) {
+      return ObjectManager::kDecorFade;
     } else {
       return ObjectManager::kDecor;
     }
   } else if (material.orm_texture) {
-    if (material.opacity_texture) {
+    if (material.opacity_texture || material.color[3] < 1.0f) {
       return ObjectManager::kPbrPackedTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrPackedReflect;
     } else {
       return ObjectManager::kPbrPacked;
     }
   } else if (material.metallic_texture) {
-    if (material.opacity_texture) {
-      return ObjectManager::kPbrPackedTransparent;
+    if (material.opacity_texture || material.color[3] < 1.0f) {
+      return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
   } else if (material.roughness_texture) {
-    if (material.color[3] < 1.0f) {
+    if (material.opacity_texture || material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
   } else if (material.metallic >= 0) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
   } else if (material.roughness >= 0) {
     if (material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
+    } else if (material.reflectance > 0) {
+      return ObjectManager::kPbrReflect;
     } else {
       return ObjectManager::kPbr;
     }
@@ -301,12 +312,24 @@ void MaterialManager::UpdateMaterialInstance(
   if (fmaterial->hasParameter("Reflectance")) {
     instance->setParameter("Reflectance", material.reflectance);
   }
+  if (fmaterial->hasParameter("ReflectionNormal")) {
+    instance->setParameter("ReflectionNormal",
+                           ReadFloat3(material.reflection_normal));
+  }
+  if (fmaterial->hasParameter("ReflectionViewProj")) {
+    instance->setParameter("ReflectionViewProj",
+                           ReadMat4(material.reflection_view_proj));
+  }
 
-  // All textures use the same default sampler.
+  // Use CLAMP_TO_EDGE for UI/ImGui textures so opposite borders do not bleed
+  // across UV 0/1 boundaries under bilinear magnification.
+  const auto wrap_mode = material.decor_ux
+                             ? filament::TextureSampler::WrapMode::CLAMP_TO_EDGE
+                             : filament::TextureSampler::WrapMode::REPEAT;
   filament::TextureSampler sampler;
-  sampler.setWrapModeR(filament::TextureSampler::WrapMode::REPEAT);
-  sampler.setWrapModeS(filament::TextureSampler::WrapMode::REPEAT);
-  sampler.setWrapModeT(filament::TextureSampler::WrapMode::REPEAT);
+  sampler.setWrapModeR(wrap_mode);
+  sampler.setWrapModeS(wrap_mode);
+  sampler.setWrapModeT(wrap_mode);
   sampler.setMagFilter(filament::TextureSampler::MagFilter::LINEAR);
   sampler.setMinFilter(
       filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);

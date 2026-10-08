@@ -30,8 +30,8 @@ namespace {
 static mjtNum distance(const mjtNum p[3], const mjtNum attributes[1]) {
   // see https://www.shadertoy.com/view/XtffzX
   mjtNum screw = 12;
-  mjtNum radius = mju_sqrt(p[0]*p[0]+p[1]*p[1]) - attributes[0];
-  mjtNum sqrt12 = mju_sqrt(2.)/2.;
+  mjtNum radius = mju_sqrt(p[0] * p[0] + p[1] * p[1]) - attributes[0];
+  mjtNum sqrt12 = mju_sqrt(2.) / 2.;
 
   // a triangle wave spun around Oy, offset by the angle between x and z
   mjtNum azimuth = mju_atan2(p[1], p[0]);
@@ -65,8 +65,7 @@ static mjtNum distance(const mjtNum p[3], const mjtNum attributes[1]) {
 }  // namespace
 
 // factory function
-std::optional<Bolt> Bolt::Create(
-  const mjModel* m, mjData* d, int instance) {
+std::optional<Bolt> Bolt::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("radius", m, instance)) {
     return Bolt(m, d, instance);
   } else {
@@ -79,7 +78,7 @@ std::optional<Bolt> Bolt::Create(
 Bolt::Bolt(const mjModel* m, mjData* d, int instance) {
   SdfDefault<BoltAttribute> defattribute;
 
-  for (int i=0; i < BoltAttribute::nattribute; i++) {
+  for (int i = 0; i < BoltAttribute::nattribute; i++) {
     attribute[i] = defattribute.GetDefault(
         BoltAttribute::names[i],
         mj_getPluginConfig(m, instance, BoltAttribute::names[i]));
@@ -92,9 +91,7 @@ void Bolt::Compute(const mjModel* m, mjData* d, int instance) {
 }
 
 // reset visualization counter
-void Bolt::Reset() {
-  visualizer_.Reset();
-}
+void Bolt::Reset() { visualizer_.Reset(); }
 
 // plugin visualization
 void Bolt::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
@@ -111,11 +108,11 @@ mjtNum Bolt::Distance(const mjtNum point[3]) const {
 void Bolt::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
   mjtNum eps = 1e-8;
   mjtNum dist0 = distance(point, attribute);
-  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum pointX[3] = {point[0] + eps, point[1], point[2]};
   mjtNum distX = distance(pointX, attribute);
-  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum pointY[3] = {point[0], point[1] + eps, point[2]};
   mjtNum distY = distance(pointY, attribute);
-  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum pointZ[3] = {point[0], point[1], point[2] + eps};
   mjtNum distZ = distance(pointZ, attribute);
 
   grad[0] = (distX - dist0) / eps;
@@ -140,8 +137,8 @@ void Bolt::RegisterPlugin() {
     if (!sdf_or_null.has_value()) {
       return -1;
     }
-    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(
-        new Bolt(std::move(*sdf_or_null)));
+    d->plugin_data[instance] =
+        reinterpret_cast<uintptr_t>(new Bolt(std::move(*sdf_or_null)));
     return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
@@ -169,7 +166,7 @@ void Bolt::RegisterPlugin() {
         return sdf->Distance(point);
       };
   plugin.sdf_gradient = +[](mjtNum gradient[3], const mjtNum point[3],
-                        const mjData* d, int instance) {
+                            const mjData* d, int instance) {
     auto* sdf = reinterpret_cast<Bolt*>(d->plugin_data[instance]);
     sdf->visualizer_.AddPoint(point);
     sdf->Gradient(gradient, point);
@@ -178,12 +175,11 @@ void Bolt::RegisterPlugin() {
       +[](const mjtNum point[3], const mjtNum* attributes) {
         return distance(point, attributes);
       };
-  plugin.sdf_aabb =
-      +[](mjtNum aabb[6], const mjtNum* attributes) {
-        aabb[0] = aabb[1] = aabb[2] = 0;
-        aabb[3] = aabb[4] = .6;
-        aabb[5] = 1;
-      };
+  plugin.sdf_aabb = +[](mjtNum aabb[6], const mjtNum* attributes) {
+    aabb[0] = aabb[1] = aabb[2] = 0;
+    aabb[3] = aabb[4] = .6;
+    aabb[5] = 1;
+  };
   plugin.sdf_attribute =
       +[](mjtNum attribute[], const char* name[], const char* value[]) {
         SdfDefault<BoltAttribute> defattribute;

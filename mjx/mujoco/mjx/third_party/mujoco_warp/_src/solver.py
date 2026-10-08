@@ -19,6 +19,7 @@ from typing import Any
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import derivative
 from mujoco.mjx.third_party.mujoco_warp._src import island
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
@@ -29,6 +30,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.block_cholesky import create_blocke
 from mujoco.mjx.third_party.mujoco_warp._src.block_cholesky import create_blocked_cholesky_solve_newton_func
 from mujoco.mjx.third_party.mujoco_warp._src.block_cholesky import solve_search_sums
 from mujoco.mjx.third_party.mujoco_warp._src.types import InverseContext
+from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverContext
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
@@ -62,7 +64,10 @@ def create_inverse_context(m: types.Model, d: types.Data) -> InverseContext:
   )
 
 
-def _create_solver_context(m: types.Model, d: types.Data) -> SolverContext:
+def _create_solver_context(
+  m: types.Model,
+  d: types.Data,
+) -> SolverContext:
   """Create a SolverContext with allocated workspace arrays.
 
   Args:
@@ -102,13 +107,32 @@ def _create_solver_context(m: types.Model, d: types.Data) -> SolverContext:
     prev_grad=wp.empty((nworld, nv), dtype=float) if alloc_mgrad else wp.empty((nworld, 0), dtype=float),
     prev_Mgrad=wp.empty((nworld, nv), dtype=float) if alloc_mgrad else wp.empty((nworld, 0), dtype=float),
     beta=wp.empty((nworld,), dtype=float) if alloc_mgrad else wp.empty((0,), dtype=float),
-    beta_den=wp.empty((nworld,), dtype=float) if alloc_mgrad else wp.empty((0,), dtype=float),
     h=wp.empty((nworld, nv_pad, nv_pad), dtype=float) if alloc_h else wp.empty((nworld, 0, 0), dtype=float),
     hfactor=wp.empty((nworld, nv_pad, nv_pad), dtype=float) if alloc_hfactor else wp.empty((nworld, 0, 0), dtype=float),
     quad_changed_ids=wp.empty((nworld, njmax), dtype=int) if alloc_incremental else wp.empty((nworld, 0), dtype=int),
     quad_changed_count=wp.empty((nworld,), dtype=int) if alloc_incremental else wp.empty((0,), dtype=int),
     state_changed_count=wp.empty((nworld,), dtype=int) if alloc_incremental else wp.empty((0,), dtype=int),
   )
+
+
+@wp.kernel
+def _add_qfrc_smooth_eff(
+  # Model:
+  opt_enableflags: int,
+  dof_treeid: wp.array[int],
+  # Data in:
+  tree_awake_in: wp.array2d[int],
+  qfrc_smooth_in: wp.array2d[float],
+  efm_c_in: wp.array2d[float],
+  efm_ca_in: wp.array2d[float],
+  # Out:
+  qfrc_smooth_eff_out: wp.array2d[float],
+):
+  worldid, dofid = wp.tid()
+  if (opt_enableflags & types.EnableBit.SLEEP) and tree_awake_in[worldid, dof_treeid[dofid]] == 0:
+    qfrc_smooth_eff_out[worldid, dofid] = 0.0
+    return
+  qfrc_smooth_eff_out[worldid, dofid] = qfrc_smooth_in[worldid, dofid] + efm_c_in[worldid, dofid] + efm_ca_in[worldid, dofid]
 
 
 @wp.func
@@ -402,6 +426,25 @@ def _eval_elliptic_shifted(
 
 
 @wp.func
+def _eval_elliptic_middle(
+  # In:
+  N: float,
+  T: float,
+  D0: float,
+  mu: float,
+  ufrictionj: float,
+  is_normal: bool,
+) -> wp.vec2:
+  """Computes the elliptic-cone middle-zone (force, cost) for one row (cost 0 on tangent rows)."""
+  dm = math.safe_div(D0, mu * mu * (1.0 + mu * mu))
+  nmt = N - mu * T
+  force_normal = -dm * nmt * mu
+  if is_normal:
+    return wp.vec2(force_normal, 0.5 * dm * nmt * nmt)
+  return wp.vec2(-math.safe_div(force_normal, T) * ufrictionj, 0.0)
+
+
+@wp.func
 def _eval_constraint(
   # In:
   is_equality: bool,
@@ -447,16 +490,9 @@ def _eval_constraint(
       return wp.vec3(-D * jaref, float(types.ConstraintState.QUADRATIC.value), 0.5 * D * jaref * jaref)
     # Middle zone
     else:
-      dm = math.safe_div(D0, mu * mu * (1.0 + mu * mu))
-      nmt = N - mu * T
-      force_normal = -dm * nmt * mu
-
-      if efcid == efcid0:
-        return wp.vec3(force_normal, float(types.ConstraintState.CONE.value), 0.5 * dm * nmt * nmt)
-      else:
-        force_tangent = -math.safe_div(force_normal, T) * ufrictionj
-
-      return wp.vec3(force_tangent, float(types.ConstraintState.CONE.value), 0.0)
+      is_normal = efcid == efcid0
+      fc = _eval_elliptic_middle(N, T, D0, mu, ufrictionj, is_normal)
+      return wp.vec3(fc[0], float(types.ConstraintState.CONE.value), fc[1])
 
   if jaref >= 0.0:
     return wp.vec3(0.0, float(types.ConstraintState.SATISFIED.value), 0.0)
@@ -821,7 +857,12 @@ def _compute_efc_eval_pt_3alphas_elliptic(
 
 @cache_kernel
 def _linesearch_iterative_kernel(
-  ls_iterations: int, cone_type: types.ConeType, fuse_jv: bool, is_sparse: bool, incremental: bool
+  ls_iterations: int,
+  cone_type: types.ConeType,
+  fuse_jv: bool,
+  is_sparse: bool,
+  incremental: bool,
+  warn_overflow: int,
 ):
   """Factory for iterative linesearch kernel.
 
@@ -830,7 +871,8 @@ def _linesearch_iterative_kernel(
     cone_type: Friction cone type (PYRAMIDAL or ELLIPTIC) for compile-time optimization.
     fuse_jv: Whether to compute jv = J @ search in-kernel (efficient for small nv).
     is_sparse: Use sparse matrix representation for constraint Jacobian.
-    incremental: State changes are tracked: flag exhausted rays, reuse jv on unchanged search.
+    incremental: Use incremental linesearch updates.
+    warn_overflow: Overflow warning bitmask.
   """
   LS_ITERATIONS = ls_iterations
   IS_ELLIPTIC = cone_type == types.ConeType.ELLIPTIC
@@ -891,6 +933,7 @@ def _linesearch_iterative_kernel(
     # Data out:
     qacc_out: wp.array2d[float],
     efc_Ma_out: wp.array2d[float],
+    overflow_out: wp.array[int],
     # Out:
     ctx_Jaref_out: wp.array2d[float],
     ctx_jv_out: wp.array2d[float],
@@ -1002,9 +1045,31 @@ def _linesearch_iterative_kernel(
     scale = meaninertia * wp.float(nv)
     gtol = wp.max(tolerance * ls_tolerance * snorm * scale, 1e-6)
 
-    # p0 via parallel reduction
+    # quad_gauss = [0, search.T @ Ma - search.T @ qfrc_smooth, 0.5 * search.T @ mv] + equality
+    local_gauss = wp.vec2(0.0)
+    for dofid in range(tid, nv, wp.block_dim()):
+      search = ctx_search_in[worldid, dofid]
+      local_gauss += wp.vec2(
+        search * (efc_Ma_out[worldid, dofid] - qfrc_smooth_in[worldid, dofid]),
+        0.5 * search * ctx_mv_in[worldid, dofid],
+      )
+
+    for efcid in range(tid, ne, wp.block_dim()):
+      jv = ctx_jv_in[worldid, efcid]
+      jvD = jv * efc_D_in[worldid, efcid]
+      local_gauss += wp.vec2(
+        jvD * ctx_Jaref_in[worldid, efcid],
+        0.5 * jv * jvD,
+      )
+
+    gauss_tile = wp.tile(local_gauss, preserve_type=True)
+    gauss_sum = wp.tile_reduce(wp.add, gauss_tile)
+    gauss_reduced = gauss_sum[0]
+    ctx_quad_gauss = wp.vec3(0.0, gauss_reduced[0], gauss_reduced[1])
+
+    # p0 via parallel reduction over non-equality constraints
     local_p0 = wp.vec3(0.0)
-    for efcid in range(tid, nefc, wp.block_dim()):
+    for efcid in range(ne + tid, nefc, wp.block_dim()):
       if wp.static(IS_ELLIPTIC):
         efc_type = efc_type_in[worldid, efcid]
         efc_id = 0
@@ -1058,20 +1123,6 @@ def _linesearch_iterative_kernel(
     p0_tile = wp.tile(local_p0, preserve_type=True)
     p0_sum = wp.tile_reduce(wp.add, p0_tile)
 
-    # quad_gauss = [0, search.T @ Ma - search.T @ qfrc_smooth, 0.5 * search.T @ mv]
-    local_gauss = wp.vec2(0.0)
-    for dofid in range(tid, nv, wp.block_dim()):
-      search = ctx_search_in[worldid, dofid]
-      local_gauss += wp.vec2(
-        search * (efc_Ma_out[worldid, dofid] - qfrc_smooth_in[worldid, dofid]),
-        0.5 * search * ctx_mv_in[worldid, dofid],
-      )
-
-    gauss_tile = wp.tile(local_gauss, preserve_type=True)
-    gauss_sum = wp.tile_reduce(wp.add, gauss_tile)
-    gauss_reduced = gauss_sum[0]
-    ctx_quad_gauss = wp.vec3(0.0, gauss_reduced[0], gauss_reduced[1])
-
     # add quad_gauss contribution to p0
     p0 = wp.vec3(ctx_quad_gauss[0], ctx_quad_gauss[1], 2.0 * ctx_quad_gauss[2]) + p0_sum[0]
     p0_delta = wp.vec3(0.0, p0[1], p0[2])
@@ -1084,17 +1135,21 @@ def _linesearch_iterative_kernel(
     # so Cauchy-Schwarz bounds the row total by sums already reduced for p0; the
     # smooth term is added exactly. Friction linear rows fall outside the bound,
     # which only lowers the floor toward the fixed 8-ulp base.
+    rows = p0_sum[0]
+    q1_abs = wp.sqrt(2.0 * wp.max(rows[0], 0.0) * wp.max(rows[2], 0.0)) + wp.abs(ctx_quad_gauss[1])
+
+    # set acceptance tolerance to avoid exceeding gtol in f32
+    gtol_accept = wp.max(gtol, _ALPHA_NOISE_EPS * q1_abs)
+
     noise_floor = float(0.0)
     if wp.static(INCREMENTAL):
-      rows = p0_sum[0]
-      q1_abs = wp.sqrt(2.0 * wp.max(rows[0], 0.0) * wp.max(rows[2], 0.0)) + wp.abs(ctx_quad_gauss[1])
       noise_floor = _ALPHA_NOISE_EPS * wp.max(1.0, math.safe_div(q1_abs, p0[2]))
 
     # lo_in at lo_alpha_in = -p0[1] / p0[2]
     lo_alpha_in = -math.safe_div(p0[1], p0[2])
 
     local_lo_in = wp.vec3(0.0)
-    for efcid in range(tid, nefc, wp.block_dim()):
+    for efcid in range(ne + tid, nefc, wp.block_dim()):
       if wp.static(IS_ELLIPTIC):
         efc_type = efc_type_in[worldid, efcid]
         efc_id = 0
@@ -1149,7 +1204,8 @@ def _linesearch_iterative_kernel(
     lo_in = _eval_pt(ctx_quad_gauss, lo_alpha_in) + lo_in_sum[0]
 
     # accept Newton step if derivative is small and cost improved
-    initial_converged = wp.abs(lo_in[1]) < gtol and lo_in[0] < 0.0
+    initial_converged = wp.abs(lo_in[1]) < gtol_accept and lo_in[0] < 0.0
+    ls_converged = initial_converged
 
     # main iterative loop - skip if already converged
     if not initial_converged:
@@ -1172,7 +1228,7 @@ def _linesearch_iterative_kernel(
         local_hi = wp.vec3(0.0)
         local_mid = wp.vec3(0.0)
 
-        for efcid in range(tid, nefc, wp.block_dim()):
+        for efcid in range(ne + tid, nefc, wp.block_dim()):
           if wp.static(IS_ELLIPTIC):
             efc_type = efc_type_in[worldid, efcid]
             efc_id = 0
@@ -1254,34 +1310,61 @@ def _linesearch_iterative_kernel(
         hi_next = gauss_hi + wp.vec3(result[0, 1], result[1, 1], result[2, 1])
         mid = gauss_mid + wp.vec3(result[0, 2], result[1, 2], result[2, 2])
 
-        # bracket swapping
-        # swap lo:
-        swap_lo_lo_next = _in_bracket(lo, lo_next)
-        lo = wp.where(swap_lo_lo_next, lo_next, lo)
-        lo_alpha = wp.where(swap_lo_lo_next, lo_next_alpha, lo_alpha)
-        swap_lo_mid = _in_bracket(lo, mid)
-        lo = wp.where(swap_lo_mid, mid, lo)
-        lo_alpha = wp.where(swap_lo_mid, mid_alpha, lo_alpha)
-        swap_lo_hi_next = _in_bracket(lo, hi_next)
-        lo = wp.where(swap_lo_hi_next, hi_next, lo)
-        lo_alpha = wp.where(swap_lo_hi_next, hi_next_alpha, lo_alpha)
-        swap_lo = swap_lo_lo_next or swap_lo_mid or swap_lo_hi_next
+        # accept the lowest-cost converged candidate regardless of the sign of its derivative
+        conv_lo = wp.abs(lo_next[1]) < gtol_accept and lo_next[0] < 0.0
+        conv_hi = wp.abs(hi_next[1]) < gtol_accept and hi_next[0] < 0.0
+        conv_mid = wp.abs(mid[1]) < gtol_accept and mid[0] < 0.0
+        converged = conv_lo or conv_hi or conv_mid
+        swap_lo = False
+        swap_hi = False
+        if converged:
+          conv_pt = wp.vec3(types.MJ_MAXVAL, 0.0, 0.0)
+          conv_alpha = float(0.0)
+          if conv_lo and lo_next[0] < conv_pt[0]:
+            conv_pt = lo_next
+            conv_alpha = lo_next_alpha
+          if conv_hi and hi_next[0] < conv_pt[0]:
+            conv_pt = hi_next
+            conv_alpha = hi_next_alpha
+          if conv_mid and mid[0] < conv_pt[0]:
+            conv_pt = mid
+            conv_alpha = mid_alpha
+          lo = conv_pt
+          lo_alpha = conv_alpha
+          hi = conv_pt
+          hi_alpha = conv_alpha
+        else:
+          # bracket swapping
+          # swap lo:
+          swap_lo_lo_next = _in_bracket(lo, lo_next)
+          lo = wp.where(swap_lo_lo_next, lo_next, lo)
+          lo_alpha = wp.where(swap_lo_lo_next, lo_next_alpha, lo_alpha)
+          swap_lo_mid = _in_bracket(lo, mid)
+          lo = wp.where(swap_lo_mid, mid, lo)
+          lo_alpha = wp.where(swap_lo_mid, mid_alpha, lo_alpha)
+          swap_lo_hi_next = _in_bracket(lo, hi_next)
+          lo = wp.where(swap_lo_hi_next, hi_next, lo)
+          lo_alpha = wp.where(swap_lo_hi_next, hi_next_alpha, lo_alpha)
+          swap_lo = swap_lo_lo_next or swap_lo_mid or swap_lo_hi_next
 
-        # swap hi:
-        swap_hi_hi_next = _in_bracket(hi, hi_next)
-        hi = wp.where(swap_hi_hi_next, hi_next, hi)
-        hi_alpha = wp.where(swap_hi_hi_next, hi_next_alpha, hi_alpha)
-        swap_hi_mid = _in_bracket(hi, mid)
-        hi = wp.where(swap_hi_mid, mid, hi)
-        hi_alpha = wp.where(swap_hi_mid, mid_alpha, hi_alpha)
-        swap_hi_lo_next = _in_bracket(hi, lo_next)
-        hi = wp.where(swap_hi_lo_next, lo_next, hi)
-        hi_alpha = wp.where(swap_hi_lo_next, lo_next_alpha, hi_alpha)
-        swap_hi = swap_hi_hi_next or swap_hi_mid or swap_hi_lo_next
+          # swap hi:
+          # also accept a Newton step that crosses the minimizer from an undershooting hi,
+          # turning the one-sided search into an opposite-sign bracket
+          swap_hi_hi_next = _in_bracket(hi, hi_next) or (hi[1] < 0.0 and hi_next[1] > 0.0)
+          hi = wp.where(swap_hi_hi_next, hi_next, hi)
+          hi_alpha = wp.where(swap_hi_hi_next, hi_next_alpha, hi_alpha)
+          swap_hi_mid = _in_bracket(hi, mid)
+          hi = wp.where(swap_hi_mid, mid, hi)
+          hi_alpha = wp.where(swap_hi_mid, mid_alpha, hi_alpha)
+          swap_hi_lo_next = _in_bracket(hi, lo_next)
+          hi = wp.where(swap_hi_lo_next, lo_next, hi)
+          hi_alpha = wp.where(swap_hi_lo_next, lo_next_alpha, hi_alpha)
+          swap_hi = swap_hi_hi_next or swap_hi_mid or swap_hi_lo_next
 
         # check for convergence
         ls_done = (
-          (not swap_lo and not swap_hi)
+          converged
+          or (not swap_lo and not swap_hi)
           or (lo[0] < 0.0 and lo[1] < 0.0 and lo[1] > -gtol)
           or (hi[0] < 0.0 and hi[1] > 0.0 and hi[1] < gtol)
         )
@@ -1295,6 +1378,7 @@ def _linesearch_iterative_kernel(
         improvement = wp.where(improved, -best_delta, improvement)
 
         if ls_done:
+          ls_converged = True
           break
     else:
       alpha = lo_alpha_in
@@ -1314,6 +1398,14 @@ def _linesearch_iterative_kernel(
       ctx_alpha_out[worldid] = alpha
       if wp.static(INCREMENTAL):
         ctx_ls_exhausted_out[worldid] = wp.abs(alpha) < noise_floor
+      if not ls_converged:
+        if wp.static(bool(warn_overflow & OverflowType.LS_ITERATIONS)):
+          wp.printf(
+            "linesearch iterations limit reached - please increase ls_iterations beyond %u\n"
+            "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.LS_ITERATIONS (or = 0 for all)\n",
+            wp.static(LS_ITERATIONS),
+          )
+        wp.atomic_or(overflow_out, worldid, wp.static(OverflowType.LS_ITERATIONS))
 
   return kernel
 
@@ -1328,7 +1420,14 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
     fuse_jv: Whether jv is computed in-kernel (True) or pre-computed (False).
   """
   wp.launch_tiled(
-    _linesearch_iterative_kernel(m.opt.ls_iterations, m.opt.cone, fuse_jv, m.is_sparse, _use_incremental(m)),
+    _linesearch_iterative_kernel(
+      m.opt.ls_iterations,
+      m.opt.cone,
+      fuse_jv,
+      m.is_sparse,
+      _use_incremental(m),
+      int(m.opt.warn_overflow),
+    ),
     dim=d.nworld,
     inputs=[
       m.nv,
@@ -1362,7 +1461,17 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
       ctx.quad,
       ctx.done,
     ],
-    outputs=[d.qacc, d.efc.Ma, ctx.Jaref, ctx.jv, ctx.quad, ctx.improvement, ctx.alpha, ctx.ls_exhausted],
+    outputs=[
+      d.qacc,
+      d.efc.Ma,
+      d.overflow,
+      ctx.Jaref,
+      ctx.jv,
+      ctx.quad,
+      ctx.improvement,
+      ctx.alpha,
+      ctx.ls_exhausted,
+    ],
     block_dim=m.block_dim.linesearch_iterative,
   )
 
@@ -1534,7 +1643,10 @@ def _solve_init_dof(warmstart: bool, sparse: bool):
     worldid, dofid = wp.tid()
 
     if wp.static(WARMSTART):
-      qacc_out[worldid, dofid] = qacc_warmstart_in[worldid, dofid]
+      if nefc_in[worldid] > 0:
+        qacc_out[worldid, dofid] = qacc_warmstart_in[worldid, dofid]
+      else:
+        qacc_out[worldid, dofid] = qacc_smooth_in[worldid, dofid]
     else:
       qacc_out[worldid, dofid] = qacc_smooth_in[worldid, dofid]
 
@@ -1619,6 +1731,8 @@ def _solve_init_jaref_kernel(is_sparse: bool, nv: int, dofs_per_thread: int, com
 def _solve_init_search_cg_tiled(
   # Model:
   nv: int,
+  opt_tolerance: wp.array[float],
+  stat_meaninertia: wp.array[float],
   # In:
   ctx_grad_in: wp.array2d[float],
   ctx_Mgrad_in: wp.array2d[float],
@@ -1627,26 +1741,40 @@ def _solve_init_search_cg_tiled(
   ctx_search_dot_out: wp.array[float],
   ctx_prev_grad_out: wp.array2d[float],
   ctx_prev_Mgrad_out: wp.array2d[float],
+  ctx_done_out: wp.array[bool],
+  nsolving_out: wp.array[int],
 ):
   worldid, tid = wp.tid()
 
   local_search_dot = float(0.0)
+  local_grad_mgrad = float(0.0)
   BLOCK_DIM = wp.block_dim()
 
   for dofid in range(tid, nv, BLOCK_DIM):
+    grad = ctx_grad_in[worldid, dofid]
     mgrad = ctx_Mgrad_in[worldid, dofid]
     search = -1.0 * mgrad
     ctx_search_out[worldid, dofid] = search
     local_search_dot += search * search
+    local_grad_mgrad += grad * mgrad
 
-    ctx_prev_grad_out[worldid, dofid] = ctx_grad_in[worldid, dofid]
+    ctx_prev_grad_out[worldid, dofid] = grad
     ctx_prev_Mgrad_out[worldid, dofid] = mgrad
 
   search_dot_tile = wp.tile(local_search_dot, preserve_type=True)
   search_dot_sum = wp.tile_reduce(wp.add, search_dot_tile)
+  grad_mgrad_tile = wp.tile(local_grad_mgrad, preserve_type=True)
+  grad_mgrad_sum = wp.tile_reduce(wp.add, grad_mgrad_tile)
 
   if tid == 0:
     ctx_search_dot_out[worldid] = search_dot_sum[0]
+    if not ctx_done_out[worldid]:
+      meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+      tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
+      scale = 1.0 / (meaninertia * float(wp.max(1, nv)))
+      if wp.max(0.0, 0.5 * scale * grad_mgrad_sum[0]) < tolerance:
+        ctx_done_out[worldid] = True
+        wp.atomic_sub(nsolving_out, 0, 1)
 
 
 @cache_kernel
@@ -2068,6 +2196,13 @@ def _update_constraint(
       inputs=[d.nefc, d.efc.J, d.efc.force, d.njmax, changed, ctx.done],
       outputs=[d.qfrc_constraint],
     )
+  if m.opt.integrator == types.IntegratorType.DISCRETE and (m.opt.enableflags & types.EnableBit.SLEEP):
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, m.nv),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[d.qfrc_constraint],
+    )
 
 
 @cache_kernel
@@ -2237,6 +2372,125 @@ def _update_gradient_init_h_sparse(compact: bool):
   return kernel
 
 
+@wp.kernel(module="unique", enable_backward=False)
+def _add_tendon_metric_dense(
+  # Model:
+  ten_J_rownnz: wp.array[int],
+  ten_J_rowadr: wp.array[int],
+  ten_J_colind: wp.array[int],
+  # Data in:
+  ten_J_in: wp.array2d[float],
+  efm_ts_in: wp.array2d[float],
+  # In:
+  ctx_done_in: wp.array[bool],
+  # Out:
+  h_out: wp.array3d[float],
+):
+  worldid, t = wp.tid()
+  if ctx_done_in[worldid]:
+    return
+  ts = efm_ts_in[worldid, t]
+  if ts != 0.0:
+    radr = ten_J_rowadr[t]
+    rnnz = ten_J_rownnz[t]
+    for i in range(rnnz):
+      c1 = ten_J_colind[radr + i]
+      v1 = ten_J_in[worldid, radr + i]
+      ts_v1 = ts * v1
+      for j in range(rnnz):
+        c2 = ten_J_colind[radr + j]
+        if c2 > c1:
+          v2 = ten_J_in[worldid, radr + j]
+          wp.atomic_add(h_out, worldid, c1, c2, ts_v1 * v2)
+
+
+@wp.kernel(module="unique", enable_backward=False)
+def _add_actuator_metric_dense(
+  # Data in:
+  moment_rownnz_in: wp.array2d[int],
+  moment_rowadr_in: wp.array2d[int],
+  moment_colind_in: wp.array2d[int],
+  actuator_moment_in: wp.array2d[float],
+  efm_as_in: wp.array2d[float],
+  # In:
+  ctx_done_in: wp.array[bool],
+  # Out:
+  h_out: wp.array3d[float],
+):
+  worldid, a = wp.tid()
+  if ctx_done_in[worldid]:
+    return
+  as_val = efm_as_in[worldid, a]
+  if as_val != 0.0:
+    radr = moment_rowadr_in[worldid, a]
+    rnnz = moment_rownnz_in[worldid, a]
+    for i in range(rnnz):
+      c1 = moment_colind_in[worldid, radr + i]
+      v1 = actuator_moment_in[worldid, radr + i]
+      as_v1 = as_val * v1
+      for j in range(rnnz):
+        c2 = moment_colind_in[worldid, radr + j]
+        if c2 > c1:
+          v2 = actuator_moment_in[worldid, radr + j]
+          wp.atomic_add(h_out, worldid, c1, c2, as_v1 * v2)
+
+
+@wp.kernel(module="unique", enable_backward=False)
+def _add_efmK_metric_dense(
+  # Model:
+  efm_K_rownnz: wp.array[int],
+  efm_K_rowadr: wp.array[int],
+  efm_K_colind: wp.array[int],
+  # Data in:
+  efm_K_val_in: wp.array2d[float],
+  # In:
+  ctx_done_in: wp.array[bool],
+  # Out:
+  h_out: wp.array3d[float],
+):
+  worldid, r = wp.tid()
+  if ctx_done_in[worldid]:
+    return
+  radr = efm_K_rowadr[r]
+  rnnz = efm_K_rownnz[r]
+  for k in range(rnnz):
+    c = efm_K_colind[radr + k]
+    if c >= r:
+      wp.atomic_add(h_out, worldid, r, c, efm_K_val_in[worldid, radr + k])
+
+
+@wp.kernel(module="unique", enable_backward=False)
+def _add_flexcon_metric_dense(
+  # Data in:
+  contact_worldid_in: wp.array[int],
+  nacon_in: wp.array[int],
+  # In:
+  efm_con_dof_in: wp.array2d[int],
+  efm_con_val_in: wp.array2d[float],
+  efm_con_scale_in: wp.array[float],
+  efm_con_nnz_in: wp.array[int],
+  ctx_done_in: wp.array[bool],
+  # Out:
+  h_out: wp.array3d[float],
+):
+  cid = wp.tid()
+  if cid >= nacon_in[0]:
+    return
+  worldid = contact_worldid_in[cid]
+  if ctx_done_in[worldid]:
+    return
+  scale = efm_con_scale_in[cid]
+  nnz = efm_con_nnz_in[cid]
+  if scale != 0.0 and nnz > 0:
+    for i in range(nnz):
+      c1 = efm_con_dof_in[cid, i]
+      s_v1 = scale * efm_con_val_in[cid, i]
+      for j in range(nnz):
+        c2 = efm_con_dof_in[cid, j]
+        if c2 >= c1:
+          wp.atomic_add(h_out, worldid, c1, c2, s_v1 * efm_con_val_in[cid, j])
+
+
 @wp.func
 def _state_check(D: float, state: int) -> float:
   if state == types.ConstraintState.QUADRATIC.value:
@@ -2398,8 +2652,8 @@ def _update_gradient_JTDAJ_dense_tiled(nv_pad: int, tile_size: int, njmax: int, 
 def _elliptic_hessian_entry_from_projections(
   # In:
   dm: float,
-  mu_over_t: float,
-  mu_n_over_ttt: float,
+  mu: float,
+  mu_n_over_t: float,
   tangent_diag: float,
   z01: float,
   z02: float,
@@ -2410,8 +2664,8 @@ def _elliptic_hessian_entry_from_projections(
   # Contract the diagonal-plus-rank-one curvature without materializing the cone Hessian.
   return dm * (
     z01 * z02
-    - mu_over_t * (z01 * projection2 + z02 * projection1)
-    + mu_n_over_ttt * projection1 * projection2
+    - mu * (z01 * projection2 + z02 * projection1)
+    + mu_n_over_t * projection1 * projection2
     + tangent_diag * tangent_dot
   )
 
@@ -2501,17 +2755,17 @@ def _update_gradient_JTCJ_dense(
         tangent_dot += z1 * z2
 
     t = wp.max(wp.sqrt(tt), types.MJ_MINVAL)
-    ttt = wp.max(t * t * t, types.MJ_MINVAL)
-    mu_tinv = math.safe_div(mu, t)
+    inv_t = math.safe_div(1.0, t)
+    mu_n_over_t = mu * n * inv_t
     h = _elliptic_hessian_entry_from_projections(
       dm,
-      mu_tinv,
-      mu * math.safe_div(n, ttt),
-      mu2 - n * mu_tinv,
+      mu,
+      mu_n_over_t,
+      mu2 - mu_n_over_t,
       z01,
       z02,
-      projection1,
-      projection2,
+      projection1 * inv_t,
+      projection2 * inv_t,
       tangent_dot,
     )
 
@@ -2791,15 +3045,17 @@ def _JTDACJ_sparse(compact: bool, cone_type: types.ConeType, max_condim: int):
           tt += u * u
 
       t = wp.max(wp.sqrt(tt), types.MJ_MINVAL)
-      ttt = wp.max(t * t * t, types.MJ_MINVAL)
-      mu_over_t = math.safe_div(mu, t)
-      mu_n_over_ttt = mu * math.safe_div(n, ttt)
-      tangent_diag = mu2 - n * mu_over_t
+      inv_t = math.safe_div(1.0, t)
+      for dim in range(1, wp.static(condim)):
+        terms[dim] = terms[dim] * inv_t
 
-      # Layout: tangent u[1:6], scales[6:12], dm, mu/t, mu*n/t^3, tangent diagonal.
+      mu_n_over_t = mu * n * inv_t
+      tangent_diag = mu2 - mu_n_over_t
+
+      # Layout: normalized tangent u/t[1:6], scales[6:12], dm, mu, mu*n/t, tangent diagonal.
       terms[12] = dm
-      terms[13] = mu_over_t
-      terms[14] = mu_n_over_ttt
+      terms[13] = mu
+      terms[14] = mu_n_over_t
       terms[15] = tangent_diag
       return terms
 
@@ -3012,91 +3268,6 @@ def _jtdaj_groups_per_world(nworld: int, njmax: int) -> int:
   return max(1, min(njmax, _JTDAJ_OVERSUBSCRIBE_WAVES * device_warps // nworld))
 
 
-@wp.kernel
-def _diag_precond_build(
-  # Model:
-  body_simple: wp.array[int],
-  dof_bodyid: wp.array[int],
-  M_rownnz: wp.array[int],
-  M_rowadr: wp.array[int],
-  # Data in:
-  M_in: wp.array2d[float],
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  diag_out: wp.array2d[float],
-):
-  """Initialize diagonal with M_ii + regularization for flex DOFs only."""
-  worldid, dofid = wp.tid()
-  if ctx_done_in[worldid]:
-    return
-  if body_simple[dof_bodyid[dofid]] != 2:
-    return
-  madr_ii = M_rowadr[dofid] + M_rownnz[dofid] - 1
-  diag_out[worldid, dofid] = M_in[worldid, madr_ii] + float(1.0e-12)
-
-
-@wp.kernel
-def _diag_precond_add_JTDJ(
-  # Model:
-  body_simple: wp.array[int],
-  dof_bodyid: wp.array[int],
-  # Data in:
-  nefc_in: wp.array[int],
-  efc_J_rownnz_in: wp.array2d[int],
-  efc_J_rowadr_in: wp.array2d[int],
-  efc_J_colind_in: wp.array3d[int],
-  efc_J_in: wp.array3d[float],
-  efc_D_in: wp.array2d[float],
-  # In:
-  ctx_done_in: wp.array[bool],
-  # Out:
-  diag_out: wp.array2d[float],
-):
-  """Add diagonal of J^T D J for flex DOFs only."""
-  worldid, efcid = wp.tid()
-  if ctx_done_in[worldid]:
-    return
-  if efcid >= nefc_in[worldid]:
-    return
-  D = efc_D_in[worldid, efcid]
-  if D == 0.0:
-    return
-  rownnz = efc_J_rownnz_in[worldid, efcid]
-  rowadr = efc_J_rowadr_in[worldid, efcid]
-  for i in range(rownnz):
-    col = efc_J_colind_in[worldid, 0, rowadr + i]
-    if body_simple[dof_bodyid[col]] != 2:
-      continue
-    Jval = efc_J_in[worldid, 0, rowadr + i]
-    if Jval != 0.0:
-      wp.atomic_add(diag_out, worldid, col, D * Jval * Jval)
-
-
-@wp.kernel
-def _diag_precond_apply(
-  # Model:
-  body_simple: wp.array[int],
-  dof_bodyid: wp.array[int],
-  # Data in:
-  qLDiagInv_in: wp.array2d[float],
-  # In:
-  diag_in: wp.array2d[float],
-  grad_in: wp.array2d[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  Mgrad_out: wp.array2d[float],
-):
-  """Apply preconditioner: flex DOFs use diag(M+JTDJ), others use M diagonal."""
-  worldid, dofid = wp.tid()
-  if ctx_done_in[worldid]:
-    return
-  if body_simple[dof_bodyid[dofid]] == 2:
-    Mgrad_out[worldid, dofid] = grad_in[worldid, dofid] / diag_in[worldid, dofid]
-  else:
-    Mgrad_out[worldid, dofid] = qLDiagInv_in[worldid, dofid] * grad_in[worldid, dofid]
-
-
 def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = False):
   # grad = Ma - qfrc_smooth - qfrc_constraint
   if m.opt.solver == types.SolverType.CG:
@@ -3121,14 +3292,13 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
       outputs=[ctx.grad, ctx.grad_dot],
     )
 
+  is_discrete = m.opt.integrator == types.IntegratorType.DISCRETE
   if m.opt.solver == types.SolverType.CG:
-    if m.is_sparse and m.nflex > 0:
-      wp.launch(
-        _diag_precond_apply,
-        dim=(d.nworld, m.nv),
-        inputs=[m.body_simple, m.dof_bodyid, d.qLDiagInv, ctx.diag_precond, ctx.grad, ctx.done],
-        outputs=[ctx.Mgrad],
-      )
+    if is_discrete:
+      if m.nefmK > 0 or m.efm0_active or (m.opt.enableflags & types.EnableBit.SLEEP):
+        derivative.eff_prec(m, d, ctx.Mgrad, ctx.grad)
+      else:
+        smooth.solve_LD(m, d, d.qHLD, d.qHDiagInv, ctx.Mgrad, ctx.grad)
     else:
       smooth.solve_m(m, d, ctx.Mgrad, ctx.grad)
   elif m.opt.solver == types.SolverType.NEWTON:
@@ -3137,10 +3307,11 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
     if m.is_sparse or sc:
       mj = ctx.compact_m_full if sc else m
       dj = ctx.compact_d_full if sc else d
+      m_mat = dj.qH if is_discrete else dj.M
       wp.launch(
         _update_gradient_init_h_sparse(sc),
         dim=(d.nworld, m.nv_pad, m.nv_pad),
-        inputs=[mj.nv, mj.M_elemid, dj.M, dj.cdof_dof, ctx.done],
+        inputs=[mj.nv, mj.M_elemid, m_mat, dj.cdof_dof, ctx.done],
         outputs=[ctx.h],
       )
 
@@ -3179,6 +3350,7 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
         block_dim=block_dim,
       )
     else:
+      m_mat = d.qH if is_discrete else d.M
       if compact:
         # compact path: d.M is the dense 3D compact inertia block (nworld, nv_pad, nv_pad)
         wp.launch_tiled(
@@ -3186,7 +3358,7 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
           dim=d.nworld,
           inputs=[
             d.nefc,
-            d.M,
+            m_mat,
             d.efc.J,
             d.efc.D,
             d.efc.state,
@@ -3203,7 +3375,7 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
             m.M_colind,
             m.M_hinit_i,
             d.nefc,
-            d.M,
+            m_mat,
             d.efc.J,
             d.efc.D,
             d.efc.state,
@@ -3211,6 +3383,43 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
           ],
           outputs=[ctx.h],
           block_dim=m.block_dim.update_gradient_JTDAJ_dense,
+        )
+
+    if is_discrete:
+      wp.launch(
+        _add_tendon_metric_dense,
+        dim=(d.nworld, m.ntendon),
+        inputs=[m.ten_J_rownnz, m.ten_J_rowadr, m.ten_J_colind, d.ten_J, d.efm_ts, ctx.done],
+        outputs=[ctx.h],
+      )
+      wp.launch(
+        _add_actuator_metric_dense,
+        dim=(d.nworld, m.nactuator),
+        inputs=[d.moment_rownnz, d.moment_rowadr, d.moment_colind, d.actuator_moment, d.efm_as, ctx.done],
+        outputs=[ctx.h],
+      )
+      if m.nefmK > 0:
+        wp.launch(
+          _add_efmK_metric_dense,
+          dim=(d.nworld, m.nv),
+          inputs=[m.efm_K_rownnz, m.efm_K_rowadr, m.efm_K_colind, d.efm_K_val, ctx.done],
+          outputs=[ctx.h],
+        )
+      if m.has_flex_passive:
+        efm_con_dof, efm_con_val, efm_con_scale, _, efm_con_nnz = derivative.build_efm_contact(m, d)
+        wp.launch(
+          _add_flexcon_metric_dense,
+          dim=d.naconmax,
+          inputs=[
+            d.contact.worldid,
+            d.nacon,
+            efm_con_dof,
+            efm_con_val,
+            efm_con_scale,
+            efm_con_nnz,
+            ctx.done,
+          ],
+          outputs=[ctx.h],
         )
 
     if m.opt.cone == types.ConeType.ELLIPTIC and not (m.is_sparse or sc):
@@ -3264,6 +3473,20 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
     _cholesky_factorize_solve(m, d, ctx)
   else:
     raise ValueError(f"Unknown solver type: {m.opt.solver}")
+
+  if is_discrete and (m.opt.enableflags & types.EnableBit.SLEEP):
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, ctx.Mgrad.shape[1]),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[ctx.Mgrad],
+    )
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, m.nv),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[ctx.search],
+    )
 
 
 def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverContext, stable_fast: bool = False):
@@ -3325,82 +3548,19 @@ def _update_gradient_incremental(m: types.Model, d: types.Data, ctx: SolverConte
     )
 
   _cholesky_factorize_solve(m, d, ctx, skip_unchanged=True, skip_noflip=stable_fast)
-
-
-@wp.kernel
-def _solve_beta_zero(
-  # Out:
-  ctx_beta_num_out: wp.array[float],
-  ctx_beta_den_out: wp.array[float],
-):
-  worldid = wp.tid()
-  ctx_beta_num_out[worldid] = 0.0
-  ctx_beta_den_out[worldid] = 0.0
-
-
-@wp.kernel
-def _solve_beta_accumulate_tiled(
-  # Model:
-  nv: int,
-  # In:
-  ctx_grad_in: wp.array2d[float],
-  ctx_Mgrad_in: wp.array2d[float],
-  ctx_prev_grad_in: wp.array2d[float],
-  ctx_prev_Mgrad_in: wp.array2d[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_beta_num_out: wp.array[float],
-  ctx_beta_den_out: wp.array[float],
-):
-  worldid, tid = wp.tid()
-
-  if ctx_done_in[worldid]:
-    return
-
-  local_num = float(0.0)
-  local_den = float(0.0)
-  BLOCK_DIM = wp.block_dim()
-
-  for dofid in range(tid, nv, BLOCK_DIM):
-    prev_Mgrad = ctx_prev_Mgrad_in[worldid, dofid]
-    num = ctx_grad_in[worldid, dofid] * (ctx_Mgrad_in[worldid, dofid] - prev_Mgrad)
-    den = ctx_prev_grad_in[worldid, dofid] * prev_Mgrad
-    local_num += num
-    local_den += den
-
-  num_tile = wp.tile(local_num, preserve_type=True)
-  num_sum = wp.tile_reduce(wp.add, num_tile)
-
-  den_tile = wp.tile(local_den, preserve_type=True)
-  den_sum = wp.tile_reduce(wp.add, den_tile)
-
-  if tid == 0:
-    ctx_beta_num_out[worldid] = num_sum[0]
-    ctx_beta_den_out[worldid] = den_sum[0]
-
-
-@wp.kernel
-def _solve_beta_accumulate(
-  # In:
-  ctx_grad_in: wp.array2d[float],
-  ctx_Mgrad_in: wp.array2d[float],
-  ctx_prev_grad_in: wp.array2d[float],
-  ctx_prev_Mgrad_in: wp.array2d[float],
-  ctx_done_in: wp.array[bool],
-  # Out:
-  ctx_beta_num_out: wp.array[float],
-  ctx_beta_den_out: wp.array[float],
-):
-  worldid, dofid = wp.tid()
-
-  if ctx_done_in[worldid]:
-    return
-
-  prev_Mgrad = ctx_prev_Mgrad_in[worldid, dofid]
-  num = ctx_grad_in[worldid, dofid] * (ctx_Mgrad_in[worldid, dofid] - prev_Mgrad)
-  den = ctx_prev_grad_in[worldid, dofid] * prev_Mgrad
-  wp.atomic_add(ctx_beta_num_out, worldid, num)
-  wp.atomic_add(ctx_beta_den_out, worldid, den)
+  if m.opt.integrator == types.IntegratorType.DISCRETE and (m.opt.enableflags & types.EnableBit.SLEEP):
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, ctx.Mgrad.shape[1]),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[ctx.Mgrad],
+    )
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, m.nv),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[ctx.search],
+    )
 
 
 @wp.kernel
@@ -3445,85 +3605,138 @@ def _solve_search_update_cg_tiled(
     ctx_search_dot_out[worldid] = search_dot_sum[0]
 
 
-@wp.kernel
-def _solve_cg_finalize(
-  # Model:
-  nv: int,
-  opt_tolerance: wp.array[float],
-  opt_iterations: int,
-  stat_meaninertia: wp.array[float],
-  # In:
-  ctx_beta_num_in: wp.array[float],
-  ctx_beta_den_in: wp.array[float],
-  ctx_improvement_in: wp.array[float],
-  ctx_done_in: wp.array[bool],
-  ctx_grad_dot_in: wp.array[float],
-  # Data out:
-  solver_niter_out: wp.array[int],
-  # Out:
-  ctx_beta_out: wp.array[float],
-  nsolving_out: wp.array[int],
-  ctx_done_out: wp.array[bool],
-):
-  worldid = wp.tid()
+@cache_kernel
+def _solve_beta_finalize_tiled(warn_overflow: int):
+  WARN_OVERFLOW = warn_overflow
 
-  if ctx_done_in[worldid]:
-    return
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    opt_tolerance: wp.array[float],
+    opt_iterations: int,
+    stat_meaninertia: wp.array[float],
+    # In:
+    ctx_grad_in: wp.array2d[float],
+    ctx_Mgrad_in: wp.array2d[float],
+    ctx_prev_grad_in: wp.array2d[float],
+    ctx_prev_Mgrad_in: wp.array2d[float],
+    ctx_improvement_in: wp.array[float],
+    ctx_grad_dot_in: wp.array[float],
+    ctx_alpha_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
+    # Data out:
+    solver_niter_out: wp.array[int],
+    overflow_out: wp.array[int],
+    # Out:
+    ctx_beta_out: wp.array[float],
+    nsolving_out: wp.array[int],
+    ctx_done_out: wp.array[bool],
+  ):
+    worldid, tid = wp.tid()
 
-  # 1. solve_beta_finalize
-  ctx_beta_out[worldid] = wp.max(0.0, ctx_beta_num_in[worldid] / wp.max(types.MJ_MINVAL, ctx_beta_den_in[worldid]))
+    if ctx_done_in[worldid]:
+      return
 
-  # 2. solve_done
-  solver_niter_out[worldid] += 1
-  tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-  meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    local_num = float(0.0)
+    local_den = float(0.0)
+    BLOCK_DIM = wp.block_dim()
 
-  grad_dot = ctx_grad_dot_in[worldid]
+    for dofid in range(tid, nv, BLOCK_DIM):
+      prev_Mgrad = ctx_prev_Mgrad_in[worldid, dofid]
+      num = ctx_grad_in[worldid, dofid] * (ctx_Mgrad_in[worldid, dofid] - prev_Mgrad)
+      den = ctx_prev_grad_in[worldid, dofid] * prev_Mgrad
+      local_num += num
+      local_den += den
 
-  improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-  gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
-  done = (improvement < tolerance) or (gradient < tolerance)
-  if done or solver_niter_out[worldid] == opt_iterations:
-    ctx_done_out[worldid] = True
-    wp.atomic_add(nsolving_out, 0, -1)
+    beta_tile = wp.tile(wp.vec2(local_num, local_den), preserve_type=True)
+    beta_sum = wp.tile_reduce(wp.add, beta_tile)
+    reduced_beta = beta_sum[0]
+
+    if tid == 0:
+      ctx_beta_out[worldid] = wp.max(0.0, reduced_beta[0] / wp.max(types.MJ_MINVAL, reduced_beta[1]))
+
+      solver_niter_out[worldid] += 1
+      tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
+      meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+
+      grad_dot = ctx_grad_dot_in[worldid]
+
+      alpha = ctx_alpha_in[worldid]
+      improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
+      gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
+      done = (alpha == 0.0) or (improvement > 0.0 and improvement < tolerance) or (gradient < tolerance)
+      if done or solver_niter_out[worldid] == opt_iterations:
+        if not done and solver_niter_out[worldid] == opt_iterations:
+          if wp.static(bool(WARN_OVERFLOW & OverflowType.ITERATIONS)):
+            wp.printf(
+              "solver iterations limit reached - please increase iterations beyond %u\n"
+              "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.ITERATIONS (or = 0 for all)\n",
+              opt_iterations,
+            )
+          overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
+        ctx_done_out[worldid] = True
+        wp.atomic_add(nsolving_out, 0, -1)
+
+  return kernel
 
 
-@wp.kernel
-def _solve_done(
-  # Model:
-  nv: int,
-  opt_tolerance: wp.array[float],
-  opt_iterations: int,
-  stat_meaninertia: wp.array[float],
-  # In:
-  ctx_grad_dot_in: wp.array[float],
-  ctx_newton_decrement_in: wp.array[float],
-  ctx_improvement_in: wp.array[float],
-  ctx_done_in: wp.array[bool],
-  # Data out:
-  solver_niter_out: wp.array[int],
-  # Out:
-  nsolving_out: wp.array[int],
-  ctx_done_out: wp.array[bool],
-):
-  worldid = wp.tid()
+@cache_kernel
+def _solve_done(warn_overflow: int):
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    opt_tolerance: wp.array[float],
+    opt_iterations: int,
+    stat_meaninertia: wp.array[float],
+    # In:
+    ctx_grad_dot_in: wp.array[float],
+    ctx_newton_decrement_in: wp.array[float],
+    ctx_improvement_in: wp.array[float],
+    ctx_alpha_in: wp.array[float],
+    ctx_done_in: wp.array[bool],
+    # Data out:
+    solver_niter_out: wp.array[int],
+    overflow_out: wp.array[int],
+    # Out:
+    nsolving_out: wp.array[int],
+    ctx_done_out: wp.array[bool],
+  ):
+    worldid = wp.tid()
 
-  if ctx_done_in[worldid]:
-    return
+    if ctx_done_in[worldid]:
+      return
 
-  solver_niter_out[worldid] += 1
-  tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-  meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    solver_niter_out[worldid] += 1
+    tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
+    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
 
-  improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-  gradient = _rescale(nv, meaninertia, wp.sqrt(ctx_grad_dot_in[worldid]))
-  model_improvement = _rescale(nv, meaninertia, 0.5 * ctx_newton_decrement_in[worldid])
-  done = (improvement < tolerance) or (gradient < tolerance) or (model_improvement < tolerance)
-  if done or solver_niter_out[worldid] == opt_iterations:
-    # if the solver has converged or the maximum number of iterations has been reached then
-    # mark this world as done and remove it from the number of unconverged worlds
-    ctx_done_out[worldid] = True
-    wp.atomic_add(nsolving_out, 0, -1)
+    alpha = ctx_alpha_in[worldid]
+    improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
+    gradient = _rescale(nv, meaninertia, wp.sqrt(ctx_grad_dot_in[worldid]))
+    model_improvement = _rescale(nv, meaninertia, 0.5 * ctx_newton_decrement_in[worldid])
+    done = (
+      (alpha == 0.0)
+      or (improvement > 0.0 and improvement < tolerance)
+      or (gradient < tolerance)
+      or (model_improvement < tolerance)
+    )
+    if done or solver_niter_out[worldid] == opt_iterations:
+      # if the solver has converged or the maximum number of iterations has been reached then
+      # mark this world as done and remove it from the number of unconverged worlds
+      if not done and solver_niter_out[worldid] == opt_iterations:
+        if wp.static(bool(warn_overflow & OverflowType.ITERATIONS)):
+          wp.printf(
+            "solver iterations limit reached - please increase iterations beyond %u\n"
+            "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.ITERATIONS (or = 0 for all)\n",
+            opt_iterations,
+          )
+        overflow_out[worldid] = overflow_out[worldid] | OverflowType.ITERATIONS
+      ctx_done_out[worldid] = True
+      wp.atomic_add(nsolving_out, 0, -1)
+
+  return kernel
 
 
 # The linesearch runs in ray units anchored at the last gradient rebuild, and
@@ -3588,38 +3801,31 @@ def _solver_iteration(
 
   # polak-ribiere
   if m.opt.solver == types.SolverType.CG:
-    wp.launch(
-      _solve_beta_zero,
-      dim=d.nworld,
-      outputs=[ctx.beta, ctx.beta_den],
-    )
     wp.launch_tiled(
-      _solve_beta_accumulate_tiled,
-      dim=d.nworld,
-      inputs=[m.nv, ctx.grad, ctx.Mgrad, ctx.prev_grad, ctx.prev_Mgrad, ctx.done],
-      outputs=[ctx.beta, ctx.beta_den],
-      block_dim=m.block_dim.solve_beta_accumulate,
-    )
-    wp.launch(
-      _solve_cg_finalize,
+      _solve_beta_finalize_tiled(int(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,
         m.opt.tolerance,
         m.opt.iterations,
         m.stat.meaninertia,
-        ctx.beta,
-        ctx.beta_den,
+        ctx.grad,
+        ctx.Mgrad,
+        ctx.prev_grad,
+        ctx.prev_Mgrad,
         ctx.improvement,
-        ctx.done,
         ctx.grad_dot,
+        ctx.alpha,
+        ctx.done,
       ],
       outputs=[
         d.solver_niter,
+        d.overflow,
         ctx.beta,
         nsolving,
         ctx.done,
       ],
+      block_dim=m.block_dim.solve_beta_accumulate,
     )
     wp.launch_tiled(
       _solve_search_update_cg_tiled,
@@ -3631,7 +3837,7 @@ def _solver_iteration(
 
   else:
     wp.launch(
-      _solve_done,
+      _solve_done(int(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
         m.nv,
@@ -3641,13 +3847,27 @@ def _solver_iteration(
         ctx.grad_dot,
         ctx.newton_decrement,
         ctx.improvement,
+        ctx.alpha,
         ctx.done,
       ],
-      outputs=[d.solver_niter, nsolving, ctx.done],
+      outputs=[d.solver_niter, d.overflow, nsolving, ctx.done],
     )
 
 
 def init_context(m: types.Model, d: types.Data, ctx: SolverContext | InverseContext, grad: bool = True, compact: bool = False):
+  if m.opt.integrator == types.IntegratorType.DISCRETE:
+    if m.nefmdof > 0 and m.opt.solver == types.SolverType.CG:
+      derivative.eff_prec_fold(m, d, out=d.efm_L)
+    if grad:
+      qfrc_smooth_eff = wp.zeros((d.nworld, m.nv_pad), dtype=float, device=d.qacc.device)
+      wp.launch(
+        _add_qfrc_smooth_eff,
+        dim=(d.nworld, m.nv),
+        inputs=[m.opt.enableflags, m.dof_treeid, d.tree_awake, d.qfrc_smooth, d.efm_c, d.efm_ca],
+        outputs=[qfrc_smooth_eff],
+      )
+      d = dataclasses.replace(d, qfrc_smooth=qfrc_smooth_eff)
+
   # initialize some efc arrays
   wp.launch(
     _solve_init_efc,
@@ -3691,22 +3911,6 @@ def init_context(m: types.Model, d: types.Data, ctx: SolverContext | InverseCont
 
   _update_constraint(m, d, ctx)
 
-  # Build diagonal preconditioner (once per step).
-  if m.is_sparse and m.nflex > 0:
-    ctx.diag_precond = wp.empty(shape=(d.nworld, m.nv), dtype=float)
-    wp.launch(
-      _diag_precond_build,
-      dim=(d.nworld, m.nv),
-      inputs=[m.body_simple, m.dof_bodyid, m.M_rownnz, m.M_rowadr, d.M, ctx.done],
-      outputs=[ctx.diag_precond],
-    )
-    wp.launch(
-      _diag_precond_add_JTDJ,
-      dim=(d.nworld, d.njmax),
-      inputs=[m.body_simple, m.dof_bodyid, d.nefc, d.efc.J_rownnz, d.efc.J_rowadr, d.efc.J_colind, d.efc.J, d.efc.D, ctx.done],
-      outputs=[ctx.diag_precond],
-    )
-
   if grad:
     _update_gradient(m, d, ctx, compact=compact)
 
@@ -3714,13 +3918,12 @@ def init_context(m: types.Model, d: types.Data, ctx: SolverContext | InverseCont
 @event_scope
 def solve(m: types.Model, d: types.Data):
   if m.opt.enableflags & types.EnableBit.SLEEP:
-    # Self-contained like the island branch below: rebuild the active-DOF mapping from
-    # tree_awake so solve() works when called directly (not only via fwd_acceleration).
     island.update_active_dofs(m, d)
-    solve_compact(m, d)
-    if m.ntree > 1:
-      island.compute_island_mapping(m, d)
-    return
+    if m.opt.integrator != types.IntegratorType.DISCRETE:
+      solve_compact(m, d)
+      if m.ntree > 1:
+        island.compute_island_mapping(m, d)
+      return
 
   if d.njmax == 0 or m.nv == 0:
     wp.copy(d.qacc, d.qacc_smooth)
@@ -3729,9 +3932,22 @@ def solve(m: types.Model, d: types.Data):
     ctx = _create_solver_context(m, d)
     _solve(m, d, ctx)
 
+  if (m.opt.enableflags & types.EnableBit.SLEEP) and m.opt.integrator == types.IntegratorType.DISCRETE and m.ntree > 1:
+    island.compute_island_mapping(m, d)
+
 
 def _solve(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = False):
   """Finds forces that satisfy constraints."""
+  if m.opt.integrator == types.IntegratorType.DISCRETE:
+    qfrc_smooth_eff = wp.zeros((d.nworld, m.nv_pad), dtype=float, device=d.qacc.device)
+    wp.launch(
+      _add_qfrc_smooth_eff,
+      dim=(d.nworld, m.nv),
+      inputs=[m.opt.enableflags, m.dof_treeid, d.tree_awake, d.qfrc_smooth, d.efm_c, d.efm_ca],
+      outputs=[qfrc_smooth_eff],
+    )
+    d = dataclasses.replace(d, qfrc_smooth=qfrc_smooth_eff)
+
   warmstart = not (m.opt.disableflags & types.DisableBit.WARMSTART)
   wp.launch(
     _solve_init_dof(warmstart, m.is_sparse),
@@ -3739,26 +3955,34 @@ def _solve(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = Fa
     inputs=[d.nefc, d.qacc_warmstart, d.qacc_smooth],
     outputs=[d.qacc, d.qfrc_constraint],
   )
+  if m.opt.integrator == types.IntegratorType.DISCRETE and (m.opt.enableflags & types.EnableBit.SLEEP):
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, m.nv),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[d.qacc],
+    )
 
   #  context
-  init_context(m, d, ctx, grad=True, compact=compact)
+  init_context(m, d, ctx, grad=False, compact=compact)
+  _update_gradient(m, d, ctx, compact=compact)
 
   if _use_incremental(m):
     # A new solve computes a new search direction: invalidate the mv/jv reuse
     # left over from the previous solve.
     ctx.search_unchanged.zero_()
 
+  nsolving = wp.full(shape=(1,), value=d.nworld, dtype=int)
+
   # CG search = -Mgrad
   if m.opt.solver == types.SolverType.CG:
     wp.launch_tiled(
       _solve_init_search_cg_tiled,
       dim=d.nworld,
-      inputs=[m.nv, ctx.grad, ctx.Mgrad],
-      outputs=[ctx.search, ctx.search_dot, ctx.prev_grad, ctx.prev_Mgrad],
+      inputs=[m.nv, m.opt.tolerance, m.stat.meaninertia, ctx.grad, ctx.Mgrad],
+      outputs=[ctx.search, ctx.search_dot, ctx.prev_grad, ctx.prev_Mgrad, ctx.done, nsolving],
       block_dim=m.block_dim.solve_init_search_cg,
     )
-
-  nsolving = wp.full(shape=(1,), value=d.nworld, dtype=int)
   if m.opt.iterations != 0 and m.opt.graph_conditional:
     # Note: the iteration kernel (indicated by while_body) is repeatedly launched
     # as long as condition_iteration is not zero.
@@ -3783,6 +4007,19 @@ def _solve(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = Fa
       _qfrc_constraint_from_grad,
       dim=(d.nworld, m.nv),
       inputs=[d.qfrc_smooth, d.efc.Ma, ctx.grad, ctx.grad_scale],
+      outputs=[d.qfrc_constraint],
+    )
+  if m.opt.integrator == types.IntegratorType.DISCRETE and (m.opt.enableflags & types.EnableBit.SLEEP):
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, m.nv),
+      inputs=[m.dof_treeid, d.tree_awake],
+      outputs=[d.qacc],
+    )
+    wp.launch(
+      derivative._zero_sleeping_dofs,
+      dim=(d.nworld, m.nv),
+      inputs=[m.dof_treeid, d.tree_awake],
       outputs=[d.qfrc_constraint],
     )
 
@@ -3857,6 +4094,9 @@ def _sparse_compact(ctx: SolverContext | InverseContext) -> bool:
 
 def _mul_m_compact_aware(m: types.Model, d: types.Data, ctx: SolverContext | InverseContext, res, vec, skip):
   """M @ vec: full-coordinate sparse walk under compact, support.mul_m natively."""
+  if m.opt.integrator == types.IntegratorType.DISCRETE:
+    derivative.eff_mul_m(m, d, res, vec, skip=skip)
+    return
   dfull = ctx.compact_d_full
   if dfull is not None:
     mfull = ctx.compact_m_full

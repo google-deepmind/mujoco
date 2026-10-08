@@ -342,19 +342,22 @@ static void setFixed(mjModel* m, mjData* d) {
 
   // actuators: trees with any actuated joint, site, body, or tendon do not auto-sleep
   for (int i=0; i < m->nactuator; i++) {
-    int bodyid = -1;
+    int bodyid = -1, bodyid2 = -1;
     int tid = m->actuator_trnid[2*i];
+    int tid2 = m->actuator_trnid[2*i+1];
     switch ((mjtTrn)m->actuator_trntype[i]) {
     case mjTRN_JOINT:
     case mjTRN_JOINTINPARENT:
       bodyid = m->jnt_bodyid[tid];
       break;
     case mjTRN_SO3:
-      bodyid = m->actuator_trnid[2*i+1] >= 0 ? m->site_bodyid[tid] : m->jnt_bodyid[tid];
+      bodyid = tid2 >= 0 ? m->site_bodyid[tid] : m->jnt_bodyid[tid];
+      bodyid2 = tid2 >= 0 ? m->site_bodyid[tid2] : -1;
       break;
     case mjTRN_SITE:
     case mjTRN_SLIDERCRANK:
       bodyid = m->site_bodyid[tid];
+      bodyid2 = tid2 >= 0 ? m->site_bodyid[tid2] : -1;
       break;
     case mjTRN_BODY:
       bodyid = tid;
@@ -379,6 +382,12 @@ static void setFixed(mjModel* m, mjData* d) {
         m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
       }
     }
+    if (bodyid2 != -1) {
+      int treeid = m->body_treeid[bodyid2];
+      if (treeid != -1 && m->tree_sleep_policy[treeid] == mjSLEEP_AUTO) {
+        m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+      }
+    }
   }
 
   // trees with inter-tree tendons that have non-zero stiffness or damping do not auto-sleep
@@ -392,10 +401,7 @@ static void setFixed(mjModel* m, mjData* d) {
     }
 
     // tendon spans 2 trees and has no stiffness or damping: skip
-    if (treenum == 2 &&
-        m->tendon_stiffness[i] == 0 && mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY) &&
-        m->tendon_damping[i] == 0   && mju_isZero(m->tendon_dampingpoly+mjNPOLY*i, mjNPOLY) &&
-        m->tendon_actuatorid[i] == -1) {
+    if (treenum == 2 && !mj_tendonHasStiffness(m, i) && !mj_tendonHasDamping(m, i)) {
       continue;
     }
 
@@ -841,6 +847,7 @@ static void set0(mjModel* m, mjData* d) {
   mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* invweight = m->nout ? mjSTACKALLOC(d, m->nout, mjtNum) : NULL;
   int* cammode = 0;
   int* lightmode = 0;
 
@@ -1034,12 +1041,13 @@ static void set0(mjModel* m, mjData* d) {
       m->tendon_invweight0[i] = mju_dot(tmp, tmp+nv, nv);
     }
 
-    // compute actuator_acc0, one per force output (moment row)
+    // compute actuator_acc0 and invweight, one per force output (moment row)
     for (int i=0; i < m->nout; i++) {
       mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
                        d->moment_rowadr + i, d->moment_colind);
       mj_solveM(m, d, tmp, moment, 1);
       m->actuator_acc0[i] = mju_norm(tmp, nv);
+      invweight[i] = mju_dot(moment, tmp, nv);
     }
   } else {
     mju_zero(m->tendon_invweight0, m->ntendon);
@@ -1151,17 +1159,18 @@ static void set0(mjModel* m, mjData* d) {
 
     // === interpret biasprm[2] > 0 as dampratio for position-like actuators
 
-    // "reflected" inertia (inversely scaled by transmission squared)
-    int rownnz = d->moment_rownnz[m->actuator_outadr[i]];
-    int rowadr = d->moment_rowadr[m->actuator_outadr[i]];
-    mjtNum* transmission = d->actuator_moment + rowadr;
+    // "reflected" inertia: 1 / (J * inv(M) * J')
     mjtNum mass = 0;
-    for (int j=0; j < rownnz; j++) {
-      mjtNum trn = mju_abs(transmission[j]);
-      mjtNum trn2 = trn*trn;  // transmission squared
-      if (trn2 > mjMINVAL) {
-        int dof = d->moment_colind[rowadr + j];
-        mass += m->dof_M0[dof] / trn2;
+    if (nv) {
+      int outadr = m->actuator_outadr[i];
+      int outnum = m->actuator_outnum[i];
+      mjtNum w = 0;
+      for (int k=0; k < outnum; k++) {
+        w += invweight[outadr+k];
+      }
+      w /= outnum;
+      if (w > mjMINVAL) {
+        mass = 1 / w;
       }
     }
 
@@ -1358,10 +1367,9 @@ static void setSpring(mjModel* m, mjData* d) {
 // constant part of the implicit effective metric factor (currently dim-2 bending): sparse
 // reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
 // the dofs of unpinned vertices of standard dim-2 flexes with bending. The matrix is constant
-// (flat-rest bending stiffness, point masses), so the factor is computed here once and reused
-// by the implicit-flex constraint solve every step. Bending couples only same-coordinate dofs,
-// so the pattern is three interleaved copies of the vertex flap adjacency. Row order (flex
-// order, vertex order, coordinate fastest) and the resulting fill count must match the
+// (flat-rest bending stiffness, independent point masses), so it is computed here once and reused
+// by the implicit-flex constraint solve every step. Bending couples full 3x3 blocks when vertex
+// frames differ. Row order (body order, coordinate fastest) and the fill count must match the
 // compiler's symbolic sizing (checked below).
 static void setEfm0Factor(mjModel* m, mjData* d) {
   int nbd = m->nefm0dof;
@@ -1372,23 +1380,33 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   mjtNum h = m->opt.timestep;
 
   // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
-  // (filter matches the compiler's sizing and, for bending, flexStiff_active in
+  // (filter matches the compiler's sizing and, for bending, mjd_flexStiff_active in
   // engine_derivative.c: bending data exists only for dim-2 flexes)
-  int* vslot = mjSTACKALLOC(d, m->nflexvert > 0 ? m->nflexvert : 1, int);
-  for (int i=0; i < m->nflexvert; i++) {
-    vslot[i] = -1;
+  int* bodyslot = mjSTACKALLOC(d, m->nbody, int);
+  for (int b=0; b < m->nbody; b++) {
+    bodyslot[b] = -1;
   }
-  int nfree = 0;
   for (int f=0; f < m->nflex; f++) {
     if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] != 2 ||
-        m->flex_bendingadr[f] < 0) {
+        m->flex_bendingadr[f] < 0 || !mj_flexSimple(m, f)) {
       continue;
     }
     for (int lv=0; lv < m->flex_vertnum[f]; lv++) {
       int gv = m->flex_vertadr[f] + lv;
-      if (m->body_dofnum[m->flex_vertbodyid[gv]] == 3) {
-        vslot[gv] = nfree;
-        nfree++;
+      int wid = m->body_weldid[m->flex_vertbodyid[gv]];
+      if (m->body_dofnum[wid] == 3) {
+        bodyslot[wid] = 1;
+      }
+    }
+  }
+  int nfree = 0;
+  for (int b=0; b < m->nbody; b++) {
+    if (bodyslot[b] > 0) {
+      int s = nfree++;
+      bodyslot[b] = s;
+      int da = m->body_dofadr[b];
+      for (int k=0; k < 3; k++) {
+        m->efm0_dofid[3*s + k] = da + k;
       }
     }
   }
@@ -1398,29 +1416,20 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
             nbd, 3*nfree);
   }
 
-  // fill row -> dof address (row 3*slot + k, coordinate fastest)
-  for (int gv=0; gv < m->nflexvert; gv++) {
-    if (vslot[gv] >= 0) {
-      int da = m->body_dofadr[m->flex_vertbodyid[gv]];
-      for (int k=0; k < 3; k++) {
-        m->efm0_dofid[3*vslot[gv] + k] = da + k;
-      }
-    }
-  }
-
   // assemble the bending-only stiffness K = (h^2 + h*damping)*K_bend over all dofs with the
-  // shared stencil walker from engine_derivative: bending values are configuration-independent
-  // and stretch/interp are gated off, so the call is valid at set-constants time (d is used
-  // for stack scratch only)
+  // shared stencil walker from engine_derivative. Only fixed-frame attachments participate;
+  // their orientations were computed by setSpring. As in the per-step metric, the h^2 and
+  // h*damping parts enter only when the spring and damper forces are enabled.
+  mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+  mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
   int nv = m->nv;
   int* K_rownnz = mjSTACKALLOC(d, nv, int);
   int* K_rowadr = mjSTACKALLOC(d, nv, int);
-  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, h*h, h,
-                                  /*flg_bend=*/1, /*flg_stretch=*/0, /*flg_contact=*/0,
-                                  NULL);
+  int nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, s1, s2,
+                                  /*flg_bend=*/1, /*flg_stretch=*/0, NULL);
   int* K_colind = mjSTACKALLOC(d, nK > 0 ? nK : 1, int);
   mjtNum* K_val = mjSTACKALLOC(d, nK > 0 ? nK : 1, mjtNum);
-  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, h*h, h, 1, 0, 0, NULL);
+  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, K_val, s1, s2, 1, 0, NULL);
 
   // inverse map: dof address -> compact factor row (monotone: slots follow dof order)
   int* dofrow = mjSTACKALLOC(d, nv, int);
@@ -1431,16 +1440,16 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     dofrow[m->efm0_dofid[r]] = r;
   }
 
-  // compact B to covered rows, keeping same-coordinate entries only: bending blocks are
-  // isotropic (q * I3), so the off-coordinate entries of assemble's 3x3 block pattern are
-  // structurally zero and dropping them preserves the pattern the compiler sized.
+  // Compact K_bend to covered rows, retaining full off-diagonal blocks Q_ij * R_i^T * R_j.
+  // Only same-body blocks are diagonal, even when several vertices share a weld parent.
+  // Keep structural zeros between bodies so the pattern is independent of their orientations.
   // H = M + (h^2+h*d)*K_bend in compact dof indices: lower CSR (values) + upper CSR (pattern)
   int nHl = 0, nHu = 0;
   for (int r=0; r < nbd; r++) {
     int dof = m->efm0_dofid[r];
     for (int c=0; c < K_rownnz[dof]; c++) {
       int rc = dofrow[K_colind[K_rowadr[dof] + c]];
-      if (rc < 0 || (rc - r) % 3 != 0) continue;  // uncovered or off-coordinate
+      if (rc < 0 || (rc != r && rc/3 == r/3)) continue;
       if (rc < r) nHl++;
       else if (rc > r) nHu++;
     }
@@ -1464,7 +1473,7 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
     for (int c=0; c < K_rownnz[dof]; c++) {
       int adr = K_rowadr[dof] + c;
       int rc = dofrow[K_colind[adr]];
-      if (rc < 0 || (rc - r) % 3 != 0) continue;
+      if (rc < 0 || (rc != r && rc/3 == r/3)) continue;
       if (rc < r) {
         Hl_colind[ladr] = rc;
         Hl_val[ladr++] = K_val[adr];
@@ -1474,9 +1483,9 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
         diag = K_val[adr];
       }
     }
-    // diagonal last: point mass + armature + bending diagonal
+    // diagonal last: composite point mass + armature + bending diagonal
     Hl_colind[ladr] = r;
-    Hl_val[ladr++] = m->body_mass[m->dof_bodyid[dof]] + m->dof_armature[dof] + diag;
+    Hl_val[ladr++] = m->dof_M0[dof] + diag;
     Hl_rownnz[r] = ladr - Hl_rowadr[r];
     Hu_rownnz[r] = uadr - Hu_rowadr[r];
   }
@@ -1501,11 +1510,20 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
                          Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
 
   // numeric factorization
+  mjtNum* scratch = mjSTACKALLOC(d, nbd, mjtNum);
   int rank = mju_cholFactorNumeric(m->efm0_L, nbd, mjMINVAL,
                                    m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind,
                                    LT_rownnz, LT_rowadr, LT_colind, LT_map,
-                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, d);
+                                   Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, scratch);
   if (rank != nbd) {
+    // The factor is consumed only when no per-step flex stiffness is assembled (bending-only
+    // models): with stretch (or assemblable interp) present, mj_effBuild assembles the full
+    // metric every step and the per-step blocks replace this factor, so an indefinite
+    // M + K_bend (e.g. curved-rest bending with light vertices) is harmless there.
+    if (mjd_flexStiff_any(m, mjd_flexInterpAssemblable(m))) {
+      mj_freeStack(d);
+      return;
+    }
     mj_freeStack(d);
     mjERROR("constant metric factor is rank-deficient (%d of %d)", rank, nbd);
   }

@@ -413,6 +413,7 @@ static void init2D(void) {
   glDisable(GL_LIGHTING);
   glDisable(GL_COLOR_MATERIAL);
   glDisable(GL_BLEND);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 

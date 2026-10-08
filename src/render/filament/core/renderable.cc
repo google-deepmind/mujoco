@@ -120,6 +120,7 @@ void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
   } else {
     mju_error("Cannot set mesh for renderable with multiple parts.");
   }
+  curr_state_.wireframe = false;
 }
 
 void Renderable::InitPartEntity(Part& part) {
@@ -220,6 +221,7 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
   if (assigned_scene_ != scene) {
     mju_error("Attempting to remove renderable from wrong scene.");
   }
+  SetMaterialInstance(0);
   for (Part& part : parts_) {
     scene->remove(part.entity);
   }
@@ -227,14 +229,14 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
 }
 
 void Renderable::UpdateMaterial(const mjrfMaterial& material) {
-  uint8_t layer_mask_ = kLayerMask_Object;
+  uint8_t layer_mask = kLayerMask_Object;
   if (material.decor_ux) {
-    layer_mask_ = kLayerMask_Decor;
+    layer_mask = kLayerMask_Decor;
   }
   if (material.selected) {
-    layer_mask_ |= kLayerMask_Outline;
+    layer_mask |= kLayerMask_Outline;
   }
-  SetLayerMask(layer_mask_);
+  SetLayerMask(layer_mask);
   material_ = material;
 }
 
@@ -249,7 +251,6 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
   // the same order. As such, we'll just store the draw state in a deque rather
   // than trying to perform any kind of matching with the requests.
   draw_queue_.clear();
-  curr_state_ = DrawState();
 
   for (const mjrfRenderRequest* request : requests) {
     DrawState draw_state;
@@ -322,18 +323,34 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
       material.orm_texture = nullptr;
     }
 
-    const bool reflective = request->draw_mode == mjDRAW_MODE_DEFAULT &&
-                            request->enable_reflections &&
-                            material.reflectance > 0.0;
+    const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
+    const auto draw_mode = static_cast<mjrDrawMode>(request->draw_mode);
+    const bool reflective =
+        request->draw_mode == mjDRAW_MODE_DEFAULT &&
+        request->enable_reflections &&
+        (geom_type_ == mjGEOM_PLANE || geom_type_ == mjGEOM_BOX) &&
+        material.reflectance > 0.0;
     if (reflective) {
-      material.reflection_texture = reflection_mgr->Register(
-          this, request->viewport.width, request->viewport.height);
+      // The mirror plane normal is the geom's local +Z (transform_[2], whose
+      // scale carries the geom size -- normalize it). The reflect shader uses
+      // it to apply the reflection only on the front face, so box mirrors don't
+      // show the reflection on their back/side faces. The shader gates on
+      // getWorldGeometricNormalVector(), which is expressed in filament's Y-up
+      // frame, so rotate this normal out of mujoco's Z-up frame to match
+      const float3 refl_normal =
+          geom_type_ == mjGEOM_PLANE
+              ? float3(0.0f, 0.0f, 0.0f)
+              : ToFilamentFrame(normalize(transform_[2].xyz));
+      reflection_mgr->Register(this, mesh, material, geom_type_, refl_normal,
+                               request);
+
+      // Bind the non-reflective material by default so secondary reflection
+      // bounces are suppressed during reflection passes.
+      material.reflectance = 0.0f;
     }
 
-    const Mesh* mesh = !parts_.empty() ? parts_[0].mesh : nullptr;
     draw_state.material_key = material_mgr_->PrepareMaterialInstance(
-        material, static_cast<mjrDrawMode>(request->draw_mode), geom_type_,
-        mesh);
+        material, draw_mode, geom_type_, mesh);
     draw_queue_.push_back(draw_state);
   }
 }
@@ -352,10 +369,9 @@ void Renderable::BindMaterialInstance(const mjrfRenderRequest& request) {
   draw_queue_.pop_front();
 }
 
-MaterialManager::MaterialKey Renderable::SetMaterialInstance(
-    MaterialManager::MaterialKey key) {
-  MaterialManager::MaterialKey prev = curr_state_.material_key;
+void Renderable::SetMaterialInstance(MaterialManager::MaterialKey key) {
   if (key != curr_state_.material_key) {
+    curr_state_.material_key = key;
     const filament::MaterialInstance* instance =
         material_mgr_->GetInstance(key);
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
@@ -364,7 +380,6 @@ MaterialManager::MaterialKey Renderable::SetMaterialInstance(
       rm.setMaterialInstanceAt(ri, 0, instance);
     }
   }
-  return prev;
 }
 
 std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {

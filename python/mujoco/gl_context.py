@@ -16,6 +16,6 @@
 
 
 try:
-  from mujoco.rendering.classic.gl_context import *  # pytype: disable=import-error
+  from mujoco.rendering.classic.gl_context import *  # pyrefly: ignore[missing-import]
 except ImportError:
   pass

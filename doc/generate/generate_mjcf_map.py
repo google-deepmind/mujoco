@@ -21,17 +21,29 @@ maintain. It is checked in and gated by test/doc/doc_test.py, which
 regenerates it from the schema and diffs.
 """
 
-import os  # pylint: disable=unused-import
+import os
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import mjcf_schema
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
-_GUARD = 'MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_'
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
 
-_INCLUDES = '''\
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
+
+if resource_loader.is_monorepo():
+  _GUARD = 'THIRD_PARTY_MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_'
+  _INCLUDES = '''\
+#include "third_party/mujoco/include/mjspec.h"
+#include "third_party/mujoco/include/mjtype.h"
+#include "third_party/mujoco/src/user/user_composite.h"
+#include "third_party/mujoco/src/user/user_flexcomp.h"
+#include "third_party/mujoco/src/xml/xml_util.h"'''
+else:
+  _GUARD = 'MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_'
+  _INCLUDES = '''\
 #include <mujoco/mjspec.h>
 #include <mujoco/mjtype.h>
 #include "user/user_composite.h"

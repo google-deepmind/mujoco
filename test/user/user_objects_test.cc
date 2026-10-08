@@ -406,6 +406,77 @@ TEST_F(KeyframeTest, BadSize) {
   EXPECT_THAT(error, HasSubstr("invalid qpos size, expected 0, got 1"));
 }
 
+TEST_F(KeyframeTest, JointDefaultOverride) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="cubelet">
+        <joint type="ball"/>
+        <geom type="box" size=".1 .1 .05"/>
+      </default>
+    </default>
+    <worldbody>
+      <body name="cube" pos="0 0 1" childclass="cubelet">
+        <freejoint/>
+        <geom/>
+        <body name="layer">
+          <joint name="turn" type="hinge" axis="1 0 0"/>
+          <geom pos="0 0 .2"/>
+        </body>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key qpos="0 0 1 1 0 0 0 0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->nq, 8);
+  EXPECT_MJTNUM_EQ(model->key_qpos[7], 0.5);
+}
+
+// a vector which is shorter than the model is completed with the default
+// configuration, which for a free joint or a mocap body includes its frame
+TEST_F(KeyframeTest, ShortVectorTakesDefaults) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="slider">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body name="target" mocap="true"/>
+      <frame pos="1 0 0" euler="0 0 90">
+        <body name="floating" pos="0 0 1">
+          <freejoint/>
+          <geom size=".1"/>
+        </body>
+        <body name="marker" mocap="true" pos="0 0 2"/>
+      </frame>
+    </worldbody>
+    <keyframe>
+      <key name="short" qpos="0.5" mpos="3 4 5" mquat="0 1 0 0"/>
+      <key name="default"/>
+    </keyframe>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nq, 8);
+  ASSERT_EQ(model->nmocap, 2);
+
+  // the free joint and the second mocap body are as in the default keyframe
+  const mjtNum* qpos = model->key_qpos;
+  const mjtNum* mpos = model->key_mpos;
+  const mjtNum* mquat = model->key_mquat;
+  EXPECT_EQ(AsVector(qpos + 1, 7), AsVector(qpos + 8 + 1, 7));
+  EXPECT_EQ(AsVector(mpos + 3, 3), AsVector(mpos + 6 + 3, 3));
+  EXPECT_EQ(AsVector(mquat + 4, 4), AsVector(mquat + 8 + 4, 4));
+}
+
 // ------------- test relative frame sensor compilation-------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;
@@ -1153,6 +1224,140 @@ TEST_F(MjCGeomTest, BadMeshZeroMassDensityDoesntError) {
   EXPECT_EQ(model->body_mass[2], 0);
 }
 
+using MjCSiteTest = MujocoTest;
+
+TEST_F(MjCSiteTest, MeshSiteValid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh" vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="box_mesh" pos="1 2 3"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->site_type[0], mjGEOM_MESH);
+  EXPECT_EQ(model->site_dataid[0], 0);
+}
+
+TEST_F(MjCSiteTest, MeshSiteMissingMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="nonexistent_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("not found in site"));
+}
+
+TEST_F(MjCSiteTest, MeshSiteFromtoDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh" vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="box_mesh" fromto="0 0 0 1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("fromto requires capsule, cylinder, box or ellipsoid"));
+}
+
+TEST_F(MjCSiteTest, NonMeshSiteWithMeshDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh"
+            vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="sphere_site" type="sphere" mesh="box_mesh" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("mesh can only be specified for mesh sites"));
+}
+
+TEST_F(MjCSiteTest, MeshSiteMaterialInheritance) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <material name="mat" rgba="1 0 0 1"/>
+      <mesh name="box_mesh" material="mat"
+            vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  0.1 0.1 -0.1  -0.1 0.1 -0.1  -0.1 -0.1 0.1  0.1 -0.1 0.1  0.1 0.1 0.1  -0.1 0.1 0.1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <site name="mesh_site" type="mesh" mesh="box_mesh"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->site_matid[0], 0);
+}
+
+TEST_F(MjCGeomTest, FittedPrimitiveHasNoMeshDataid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="blob"
+        vertex="0 0 .3  .2 0 0  0 .2 0  -.2 0 0  0 -.2 0  0 0 -.3"
+        face="0 1 2  0 2 3  0 3 4  0 4 1  5 2 1  5 3 2  5 4 3  5 1 4"/>
+    </asset>
+    <worldbody>
+      <body><geom type="sphere" mesh="blob"/></body>
+      <body><geom type="capsule" mesh="blob"/></body>
+      <body><geom type="ellipsoid" mesh="blob"/></body>
+      <body><geom type="cylinder" mesh="blob"/></body>
+      <body><geom type="box" mesh="blob"/></body>
+      <body><geom type="mesh" mesh="blob"/></body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  ASSERT_EQ(model->ngeom, 6);
+
+  // fitted primitives must not reference the mesh they were fitted to
+  for (int i = 0; i < 5; i++) {
+    EXPECT_NE(model->geom_type[i], mjGEOM_MESH);
+    EXPECT_EQ(model->geom_dataid[i], -1) << "geom " << i;
+  }
+
+  // an actual mesh geom still references its mesh
+  EXPECT_EQ(model->geom_type[5], mjGEOM_MESH);
+  EXPECT_EQ(model->geom_dataid[5], 0);
+}
+
 // ------------- test joints --------------------------------------------------
 
 using MjCJointTest = MujocoTest;
@@ -1274,9 +1479,9 @@ TEST_F(MjCJointTest, BodySimpleFalse) {
   d->qpos[0] = d_ns->qpos[0] = 0.5;
   mj_forward(m.get(), d.get());
   mj_forward(m_ns.get(), d_ns.get());
-  EXPECT_THAT(d_ns->xpos[3*b+0], MjNear(d->xpos[3*b+0], 1e-10, 1e-6));
-  EXPECT_THAT(d_ns->xpos[3*b+1], MjNear(d->xpos[3*b+1], 1e-10, 1e-6));
-  EXPECT_THAT(d_ns->xpos[3*b+2], MjNear(d->xpos[3*b+2], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 0], MjNear(d->xpos[3 * b + 0], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 1], MjNear(d->xpos[3 * b + 1], 1e-10, 1e-6));
+  EXPECT_THAT(d_ns->xpos[3 * b + 2], MjNear(d->xpos[3 * b + 2], 1e-10, 1e-6));
 }
 
 // ------------- test height fields --------------------------------------------
@@ -1322,6 +1527,65 @@ TEST_F(MjCTextureTest, TexturesLoad) {
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(m.get(), NotNull()) << error.data();
+}
+
+TEST_F(MjCTextureTest, BuiltinMustHaveThreeChannels) {
+  for (int nchannel : {1, 4}) {
+    mjSpec* spec = mj_makeSpec();
+    mjsTexture* texture = mjs_addTexture(spec);
+    mjs_setName(texture->element, "texture");
+    texture->type = mjTEXTURE_2D;
+    texture->builtin = mjBUILTIN_FLAT;
+    texture->width = 2;
+    texture->height = 1;
+    texture->nchannel = nchannel;
+    EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+    EXPECT_THAT(mjs_getError(spec),
+                HasSubstr("builtin textures must have 3 channels"));
+    mj_deleteSpec(spec);
+  }
+}
+
+TEST_F(MjCTextureTest, CubeFromFileMustHaveThreeChannels) {
+  // 1 x 1 RGB PNG file
+  static constexpr unsigned char pixel[] = {
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+      0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xf8, 0xdf, 0xc0, 0x00,
+      0x00, 0x04, 0x01, 0x01, 0x80, 0xfb, 0xd7, 0xcb, 0xf1, 0x00, 0x00, 0x00,
+      0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+
+  // load VFS on the heap
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "pixel.png", pixel, sizeof(pixel));
+  mj_addBufferVFS(vfs.get(), "blob.ktx", pixel, 1);
+
+  // a KTX file is loaded as a single-channel blob, whatever nchannel is
+  struct Case {
+    const char* file;
+    int nchannel;
+  };
+  const Case cases[] = {{"pixel.png", 1}, {"pixel.png", 4}, {"blob.ktx", 3}};
+  for (const Case& c : cases) {
+    for (bool separate : {false, true}) {
+      mjSpec* spec = mj_makeSpec();
+      mjsTexture* texture = mjs_addTexture(spec);
+      mjs_setName(texture->element, "texture");
+      texture->type = mjTEXTURE_CUBE;
+      texture->nchannel = c.nchannel;
+      if (separate) {
+        mjs_setInStringVec(texture->cubefiles, 0, c.file);
+      } else {
+        mjs_setString(texture->file, c.file);
+      }
+      EXPECT_THAT(mj_compile(spec, vfs.get()), IsNull());
+      EXPECT_THAT(mjs_getError(spec), HasSubstr("must have 3 channels"));
+      mj_deleteSpec(spec);
+    }
+  }
+  mj_deleteVFS(vfs.get());
 }
 
 // ------------- test quaternion normalization----------------------------------
@@ -2056,6 +2320,25 @@ TEST_F(LimitedTest, ErrorIfForceLimitedMissingOnActuator) {
   EXPECT_THAT(error.data(), HasSubstr("line 11"));
 }
 
+TEST_F(LimitedTest, ErrorIfActuatorForceLimitedMissingOnJoint) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <body>
+        <joint user="1" actuatorfrcrange="0 1"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actuatorfrclimited"));
+  EXPECT_THAT(error.data(), HasSubstr("line 6"));
+}
+
 // ------------- tests for tendon ----------------------------------------------
 
 using TendonTest = MujocoTest;
@@ -2127,6 +2410,51 @@ TEST_F(TendonTest, ActuatorForceRangeNotAllowed) {
   MjModelPtr m2 = LoadModelFromString(xml2.c_str(), error.data(), error.size());
   EXPECT_THAT(m2.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+}
+
+TEST_F(TendonTest, ActuatorForceRangeAutoLimited) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrcrange="-1 1">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->tendon_actfrclimited[0], 1);
+}
+
+TEST_F(TendonTest, ErrorIfActuatorForceLimitedMissing) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler autolimits="false"/>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrcrange="-1 1">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("actuatorfrclimited"));
+  EXPECT_THAT(error.data(), HasSubstr("tendon"));
+  EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
 
 // ------------- tests for tendon springrange ----------------------------------

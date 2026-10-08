@@ -103,15 +103,40 @@ class EventChannel(Protocol):
 
 @dataclasses.dataclass(frozen=True)
 class StateSnapshot(Snapshot):
-  """A snapshot message that transports a MuJoCo state."""
+  """A snapshot message that transports a MuJoCo state.
+
+  Attributes:
+    state: The state vector, see mj_getState.
+    state_sig: The mjtState signature of `state`.
+  """
 
   state: np.ndarray
   state_sig: int
 
 
 @dataclasses.dataclass(frozen=True)
-class ResetEvent(Event):
-  """An event requesting to reset the simulation."""
+class PerturbSnapshot(StateSnapshot):
+  """Carries perturbation forces from the viewer to the simulation.
+
+  A distinct StateSnapshot subclass so that snapshot channels track its
+  latest-wins slot independently of other state snapshots, and sim-side
+  handlers can subscribe specifically to perturbation forces (applying
+  mj_setState without running mj_forward).
+  """
+
+
+@dataclasses.dataclass(frozen=True)
+class StateEvent(Event):
+  """A reliable event that transports a MuJoCo state.
+
+  The receiver applies the state with mj_setState using state_sig. Unlike
+  StateSnapshot, events are never dropped and different state edits do not
+  overwrite each other, so this is the right carrier for state edits such as GUI
+  joint/control slider changes.
+  """
+
+  state: np.ndarray
+  state_sig: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -128,8 +153,109 @@ class ModelEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
-class BuildGuiEvent(Event):
-  """Lifecycle event dispatched on every frame on the viewer side to build ImGui elements."""
+class PostModelEvent(Event):
+  """Lifecycle event dispatched locally after a new model and data are loaded.
+
+  Dispatched on the sim side (by ViewerHandle) and on the viewer side (by
+  Viewer) after ModelEvent has replaced model/data and run mj_forward.
+  Handlers for this event can rely on model and data (as well as
+  handle.model/handle.data or viewer.model/viewer.data) already holding the
+  newly initialized simulation state. Never crosses a channel.
+
+  Attributes:
+    model: The newly loaded model (sim-side MjModel or viewer's deep copy).
+    data: The newly created and forwarded MjData for the model.
+    path: Optional file path the model was loaded from.
+  """
+
+  model: mujoco.MjModel
+  data: mujoco.MjData
+  path: str = ''
+
+
+@dataclasses.dataclass(frozen=True)
+class SingleStepEvent(Event):
+  """Sent from viewer to sim when the user requests a single simulation step."""
+
+
+@dataclasses.dataclass(frozen=True)
+class RequestPauseEvent(Event):
+  """Sent to the sim to request a pause state change.
+
+  Any physics plugin should handle this event. This keeps the pause mechanism
+  decoupled from a specific physics implementation.
+
+  Attributes:
+    pause_state: The desired pause state.
+  """
+
+  pause_state: sim.PauseState
+
+
+@dataclasses.dataclass(frozen=True)
+class ResetEvent(Event):
+  """An event requesting to reset the simulation.
+
+  Attributes:
+    key: Optional keyframe index to load. If None or negative, resets to the
+      default initial state.
+  """
+
+  key: int | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class PreStepEvent(Event):
+  """Lifecycle event dispatched by ViewerHandle.sync before StepEvent.
+
+  Dispatched locally to sim-side plugins after incoming viewer messages are
+  applied and before ``StepEvent`` advances the simulation. Handlers use this
+  phase to prepare for the step (e.g. writing actuator controls, applying
+  external forces, or loading a new model via ``handle.set_model``). Never
+  crosses a channel.
+
+  Attributes:
+    model: The current sim-side model.
+    data: The current sim-side data.
+  """
+
+  model: mujoco.MjModel
+  data: mujoco.MjData
+
+
+@dataclasses.dataclass(frozen=True)
+class StepEvent(Event):
+  """Lifecycle event dispatched by ViewerHandle.sync after PreStepEvent.
+
+  Handlers for this event advance the simulation, e.g. the default StepControl
+  plugin steps CPU physics with real-time pacing; a custom plugin can step
+  differently (e.g. on the GPU). Dispatched locally to sim-side plugins; never
+  crosses a channel.
+
+  Attributes:
+    model: The sim-side model to step.
+    data: The sim-side data to step.
+  """
+
+  model: mujoco.MjModel
+  data: mujoco.MjData
+
+
+@dataclasses.dataclass(frozen=True)
+class PostStepEvent(Event):
+  """Lifecycle event dispatched by ViewerHandle.sync after StepEvent.
+
+  Handlers for this event observe or record the simulation state after stepping
+  plugins have advanced physics and before StateSnapshot is broadcast to the
+  viewer. Dispatched locally to sim-side plugins; never crosses a channel.
+
+  Attributes:
+    model: The current sim-side model.
+    data: The current sim-side data.
+  """
+
+  model: mujoco.MjModel
+  data: mujoco.MjData
 
 
 @dataclasses.dataclass(frozen=True)
@@ -138,18 +264,15 @@ class UpdateEvent(Event):
 
 
 @dataclasses.dataclass(frozen=True)
+class BuildGuiEvent(Event):
+  """Lifecycle event dispatched on every frame on the viewer side to build ImGui elements."""
+
+
+@dataclasses.dataclass(frozen=True)
 class MjOptionSnapshot(Snapshot):
   """A snapshot sending mjOption state from viewer to sim each frame."""
 
   opt: mujoco.MjOption
-
-
-@dataclasses.dataclass(frozen=True)
-class PerturbEvent(Event):
-  """Carries perturbation forces from the viewer to the simulation."""
-
-  state: np.ndarray
-  state_sig: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -201,7 +324,7 @@ def handler(
   """Decorator to mark a class method as a message handler.
 
   The class method must accept exactly two arguments: self and a message event.
-  e.g., ``@handler`` or ``@handler(priority=...)``.
+  e.g., @handler or @handler(priority=...).
 
   Args:
     fn: The method to stamp with handler metadata.

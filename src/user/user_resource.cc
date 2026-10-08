@@ -30,12 +30,9 @@
 #include "user/user_util.h"
 #include "user/user_vfs.h"
 
-static mjResource* openResourceInternal(const char* dir, const char* name,
-                                        const mjVFS* vfs, char* error,
-                                        size_t nerror) {
-  if (error && nerror > 0) {
-    error[0] = '\0';
-  }
+static mjResource* openResourceInternal(
+    const char* dir, const char* name, const mjVFS* vfs, char* error, size_t nerror) {
+  if (error && nerror > 0) { error[0] = '\0'; }
 
   // TODO: Update API to use non-const pointer. Unfortunately, while this is
   // ABI stable, it will cause compiler errors in user code that is const
@@ -57,8 +54,8 @@ static mjResource* openResourceInternal(const char* dir, const char* name,
     non_const_vfs = local_vfs;
   }
 
-  mjResource* resource = mujoco::user::VFS::Upcast(non_const_vfs)
-                             ->Open(dir ? dir : "", name, error, nerror);
+  mjResource* resource =
+      mujoco::user::VFS::Upcast(non_const_vfs)->Open(dir ? dir : "", name, error, nerror);
 
   if (error && nerror > 0 && !resource && error[0] == '\0') {
     std::snprintf(error, nerror, "Error opening file '%s'", name);
@@ -67,15 +64,13 @@ static mjResource* openResourceInternal(const char* dir, const char* name,
   return resource;
 }
 
-mjResource* mju_openResource(const char* dir, const char* name,
-                             const mjVFS* vfs, char* error, size_t nerror) {
+mjResource* mju_openResource(
+    const char* dir, const char* name, const mjVFS* vfs, char* error, size_t nerror) {
   return openResourceInternal(dir, name, vfs, error, nerror);
 }
 
 void mju_closeResource(mjResource* resource) {
-  if (resource && resource->vfs) {
-    mujoco::user::VFS::Upcast(resource->vfs)->Close(resource);
-  }
+  if (resource && resource->vfs) { mujoco::user::VFS::Upcast(resource->vfs)->Close(resource); }
 }
 
 int mju_readResource(mjResource* resource, const void** buffer) {
@@ -85,24 +80,24 @@ int mju_readResource(mjResource* resource, const void** buffer) {
   return -1;  // default (error reading bytes)
 }
 
-mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
-                          const mjVFS* vfs, char* error, size_t nerror) {
-  if (error && nerror > 0) {
-    error[0] = '\0';
-  }
+mjtSize mju_writeResource(const char*  name,
+                          const void*  buffer,
+                          mjtSize      nbytes,
+                          const mjVFS* vfs,
+                          char*        error,
+                          size_t       nerror) {
+  if (error && nerror > 0) { error[0] = '\0'; }
 
   if (!name) {
-    if (error && nerror > 0) {
-      std::snprintf(error, nerror, "Resource name is NULL");
-    }
+    if (error && nerror > 0) { std::snprintf(error, nerror, "Resource name is NULL"); }
     return -1;
   }
 
   mjResource resource = {};
-  resource.name = const_cast<char*>(name);
+  resource.name       = const_cast<char*>(name);
 
-  mjVFS* non_const_vfs = const_cast<mjVFS*>(vfs);
-  bool local_vfs_created = false;
+  mjVFS* non_const_vfs     = const_cast<mjVFS*>(vfs);
+  bool   local_vfs_created = false;
   if (non_const_vfs == nullptr) {
     non_const_vfs = (mjVFS*)mju_malloc(sizeof(mjVFS));
     mj_defaultVFS(non_const_vfs);
@@ -126,24 +121,21 @@ mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
 }
 
 void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
-  *dir = nullptr;
+  *dir  = nullptr;
   *ndir = 0;
 
   if (resource && resource->name) {
     // ensure prefix is included even if there is no separator in the
     // resource name
     int prefix_len = 0;
-    const mjpResourceProvider* provider = resource->provider;
-    if (provider && provider->prefix) {
-      prefix_len = strlen(provider->prefix) + 1;
-    }
 
-    *dir = resource->name;
+    const mjpResourceProvider* provider = resource->provider;
+    if (provider && provider->prefix) { prefix_len = strlen(provider->prefix) + 1; }
+
+    *dir  = resource->name;
     *ndir = prefix_len;
     for (int i = prefix_len; resource->name[i]; ++i) {
-      if (resource->name[i] == '/' || resource->name[i] == '\\') {
-        *ndir = i + 1;
-      }
+      if (resource->name[i] == '/' || resource->name[i] == '\\') { *ndir = i + 1; }
     }
   }
 }

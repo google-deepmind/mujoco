@@ -69,7 +69,11 @@ mjtNum boxProjection(mjtNum point[3], const mjtNum box[6]) {
 static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
                    const int* oct_child, const mjtNum p[3]) {
   int stack = 0;
+#ifdef mjUSESINGLE
+  mjtNum eps = 1e-5;
+#else
   mjtNum eps = 1e-8;
+#endif
   int niter = 100;
 
   while (niter-- > 0) {
@@ -102,6 +106,9 @@ static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
         oct_child[8*node+2] == -1 && oct_child[8*node+3] == -1 &&
         oct_child[8*node+4] == -1 && oct_child[8*node+5] == -1 &&
         oct_child[8*node+6] == -1 && oct_child[8*node+7] == -1) {
+      mjtNum inv_cell[3] = {1.0 / (vmax[0] - vmin[0]),
+                            1.0 / (vmax[1] - vmin[1]),
+                            1.0 / (vmax[2] - vmin[2])};
       for (int j = 0; j < 8; j++) {
         if (w) {
           w[j] = (j & 1 ? coord[0] : 1 - coord[0]) *
@@ -111,13 +118,13 @@ static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
         if (dw) {
           dw[j][0] = (j & 1 ? 1 : -1) *
                      (j & 2 ? coord[1] : 1 - coord[1]) *
-                     (j & 4 ? coord[2] : 1 - coord[2]);
+                     (j & 4 ? coord[2] : 1 - coord[2]) * inv_cell[0];
           dw[j][1] = (j & 1 ? coord[0] : 1 - coord[0]) *
                      (j & 2 ? 1 : -1) *
-                     (j & 4 ? coord[2] : 1 - coord[2]);
+                     (j & 4 ? coord[2] : 1 - coord[2]) * inv_cell[1];
           dw[j][2] = (j & 1 ? coord[0] : 1 - coord[0]) *
                      (j & 2 ? coord[1] : 1 - coord[1]) *
-                     (j & 4 ? 1 : -1);
+                     (j & 4 ? 1 : -1) * inv_cell[2];
         }
       }
       return node;
@@ -571,7 +578,8 @@ static int addPreContact(mjtNum* points, mjPreContact* con, const mjtNum x[3],
   // construct contact
   con->dist = dist;
   mju_rotVecQuat(con->normal, norm, quat2);
-  mju_scl3(vec, con->normal, - 0.5 * dist);
+  mjtNum scl = flipNormal ? -0.5 * dist : 0.5 * dist;
+  mju_scl3(vec, con->normal, scl);
   mju_rotVecQuat(con->pos, x, quat2);
   mju_zero3(con->tangent);
   mju_addTo3(con->pos, pos2);
@@ -651,7 +659,8 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
 
     // if no improvement, early stop
     if (dist0 < dist) {
-      return dist;
+      mju_copy3(x, x0);
+      return dist0;
     }
   }
 
@@ -1168,9 +1177,8 @@ int mjc_SDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtN
     sdf.type = mjSDFTYPE_MIDSURFACE;
     cnt = addPreContact(contacts, con + cnt, x, pos2, quat2, dist2, cnt, m, &sdf, d, 0);
 
-    // SHOULD NOT OCCUR
-    if (cnt > mjMAXCONPAIR) {
-      mjERROR("too many contact points");
+    if (cnt >= mjMAXCONPAIR) {
+      break;
     }
   }
 

@@ -71,7 +71,7 @@ def collider(ncon: int):
           infos[i] = hfield_info.replace(pos=infos[i].pos, mat=infos[i].mat)  # pyrefly: ignore[unsupported-operation]
           in_axes[i] = hfield_info.replace(pos=0, mat=0, data=None)  # pyrefly: ignore[unsupported-operation]
           fn = functools.partial(fn, subgrid_size=key.subgrid_size)
-      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)  # pytype: disable=wrong-keyword-args
+      dist, pos, frame = jax.vmap(fn, in_axes=in_axes)(*infos)
       if ncon > 1:
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
@@ -301,7 +301,7 @@ def _capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
     )
 
   edge = jp.take(convex.vert, convex.edge, axis=0)
-  edge_face_normal = convex.edge_face_normal  # pytype: disable=attribute-error
+  edge_face_normal = convex.edge_face_normal
 
   res = jax.vmap(get_edge_axis)(edge.reshape(-1, 2, 3))
   e_idx = jp.abs(res[0]).argmin()
@@ -963,9 +963,9 @@ def _hfield_collision(
   xmin = obj_pos[0] - obj_rbound
   ymin = obj_pos[1] - obj_rbound
   cmin = jp.floor((xmin + h.size[0]) / (2 * h.size[0]) * (h.ncol - 1))
-  cmin = cmin.astype(int)
+  cmin = jp.clip(cmin, -(h.ncol - 1), h.ncol - 1).astype(int)
   rmin = jp.floor((ymin + h.size[1]) / (2 * h.size[1]) * (h.nrow - 1))
-  rmin = rmin.astype(int)
+  rmin = jp.clip(rmin, -(h.nrow - 1), h.nrow - 1).astype(int)
 
   # compute real-valued grid step
   dx = 2.0 * h.size[0] / (h.ncol - 1)

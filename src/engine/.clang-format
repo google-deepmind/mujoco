@@ -1,4 +1,0 @@
----
-# disable clang-format for engine source files
-DisableFormat: true
-...

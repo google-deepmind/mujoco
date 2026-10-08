@@ -185,7 +185,7 @@ TEST_F(CoreConstraintTest, SurfaceVelocityNormalProjected) {
   }
 
   // box rests as if the floor were plain
-  for (int i=0; i < 6; i++) {
+  for (int i = 0; i < 6; i++) {
     EXPECT_NEAR(data->qvel[i], 0.0, 1e-6);
   }
 }
@@ -280,8 +280,8 @@ TEST_F(CoreConstraintTest, SurfaceVelocityMeshFrame) {
   // recovers the authored world-frame spin (0, 0, .4)
   int carousel = mj_name2id(model.get(), mjOBJ_GEOM, "carousel");
   mjtNum w_world[3];
-  mju_mulMatVec3(w_world, data->geom_xmat + 9*carousel,
-                 model->geom_surfacevel + 6*carousel + 3);
+  mju_mulMatVec3(w_world, data->geom_xmat + 9 * carousel,
+                 model->geom_surfacevel + 6 * carousel + 3);
   EXPECT_NEAR(w_world[0], 0.0, MjTol(1e-10, 1e-6));
   EXPECT_NEAR(w_world[1], 0.0, MjTol(1e-10, 1e-6));
   EXPECT_NEAR(w_world[2], 0.4, MjTol(1e-10, 1e-6));
@@ -291,10 +291,10 @@ TEST_F(CoreConstraintTest, SurfaceVelocityMeshFrame) {
     mj_step(model.get(), data.get());
   }
   mjtNum x = data->qpos[0], y = data->qpos[1];
-  mjtNum r = mju_sqrt(x*x + y*y);
+  mjtNum r = mju_sqrt(x * x + y * y);
   mjtNum speed =
       mju_sqrt(data->qvel[0] * data->qvel[0] + data->qvel[1] * data->qvel[1]);
-  EXPECT_NEAR(speed, 0.4*r, 5e-3);
+  EXPECT_NEAR(speed, 0.4 * r, 5e-3);
 }
 
 static const char* const kDoflessContactPath =
@@ -322,7 +322,10 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
 
     // iterate through dense and sparse
     for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
-      mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+      char error[1024];
+      mjModel* model =
+          mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+      ASSERT_THAT(model, NotNull()) << error;
       model->opt.jacobian = sparsity;
       mjData* data = mj_makeData(model);
 
@@ -334,11 +337,86 @@ TEST_F(CoreConstraintTest, JacobianPreAllocate) {
   }
 }
 
+TEST_F(CoreConstraintTest, DoflessContactsExcluded) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 .1"/>
+      <body name="static">
+        <geom name="static" size=".05" pos="-.13 -.13 0"/>
+      </body>
+      <body name="mocap" mocap="true">
+        <geom name="mocap" size=".05" pos="-.13 -.13 .09"/>
+      </body>
+      <flexcomp name="cloth" type="grid" count="5 5 1" spacing=".1 .1 .1" dim="2" mass="1">
+        <pin id="0 1 2 3 4 5 6 7 8 9"/>
+        <edge equality="true"/>
+      </flexcomp>
+      <body name="moving" pos="1 0 0">
+        <freejoint/>
+        <body name="weld1">
+          <geom name="weld1" size=".05" pos="-.13 -.13 0"/>
+        </body>
+        <body name="weld2">
+          <geom name="weld2" size=".05" pos="-.13 -.13 .09"/>
+        </body>
+        <flexcomp name="cloth2" type="grid" count="5 5 1" spacing=".1 .1 .1" dim="2" mass="1">
+          <pin id="0 1 2 3 4 5 6 7 8 9"/>
+          <edge equality="true"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="static" geom2="mocap"/>
+      <pair geom1="weld1" geom2="weld2"/>
+    </contact>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  // contacts which affect no dofs are excluded, in dense and sparse
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+    mj_forward(m.get(), d.get());
+
+    int ngeom = 0, nvert = 0, nelem = 0;
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact& con = d->contact[i];
+      if (con.exclude != 3) {
+        continue;
+      }
+      EXPECT_EQ(con.efc_address, -1);
+      if (con.geom[1] >= 0) {
+        ngeom++;
+      } else if (con.vert[1] >= 0) {
+        nvert++;
+      } else {
+        nelem++;
+      }
+    }
+
+    // the explicit pairs of (static, mocap) and (weld1, weld2) geoms
+    EXPECT_EQ(ngeom, 2);
+
+    // the world-pinned vertices on the floor
+    EXPECT_EQ(nvert, 10);
+
+    // the elements with only pinned vertices touching the static or welded geom
+    EXPECT_EQ(nelem, 6);
+  }
+}
+
 TEST_F(CoreConstraintTest, EqualityBodySite) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/equality_site_body_compare.xml");
 
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // simulate, get diag(A)
@@ -563,7 +641,7 @@ TEST_F(CoreConstraintTest, BoxShellPinnedParentWithFreejoint) {
 #endif
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense" gravity="0 0 0"/>
+  <option integrator="discrete" jacobian="dense" gravity="0 0 0"/>
   <worldbody>
     <geom type="plane" size="10 10 1" pos="0 0 -.1"/>
     <body>
@@ -726,7 +804,7 @@ TEST_F(CoreConstraintTest, BoxShellPinnedParentWithFreejoint) {
 TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense"/>
+  <option integrator="discrete" jacobian="dense"/>
   <worldbody>
     <body name="parent">
       <joint type="free"/>
@@ -810,7 +888,7 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
 TEST_F(CoreConstraintTest, StrainConstraintQuadratic) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense"/>
+  <option integrator="discrete" jacobian="dense"/>
   <worldbody>
     <body name="parent">
       <joint type="free"/>
@@ -875,7 +953,7 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
         <elasticity young="0" poisson="0.1" damping="0.01"
                     elastic2d="bend" thickness="0.02"/>
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -906,7 +984,7 @@ TEST_F(CoreConstraintTest, ShellModeBendZeroForceAtRest) {
 TEST_F(CoreConstraintTest, QuadraticPassiveForceStability) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" solver="CG" tolerance="1e-6"/>
+  <option integrator="discrete" solver="CG" tolerance="1e-6"/>
   <worldbody>
     <geom type="plane" size="10 10 1"/>
     <flexcomp name="test" type="grid" count="3 3 3"
@@ -939,7 +1017,7 @@ TEST_F(CoreConstraintTest, QuadraticPassiveForceStability) {
 TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
   static constexpr char xml[] = R"(
   <mujoco>
-  <option integrator="implicitfast" solver="CG" tolerance="1e-6"/>
+  <option integrator="discrete" solver="CG" tolerance="1e-6"/>
   <size memory="50M"/>
   <worldbody>
     <geom type="plane" size="10 10 1"/>
@@ -949,7 +1027,7 @@ TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
       <flexcomp name="test" type="grid" count="3 3 3"
                 spacing=".1 .05 .08" radius="0.001"
                 pos="0 0 .5" dof="quadratic" mass="1" dim="3">
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
         <edge equality="strain" damping="0.01"/>
       </flexcomp>
     </body>
@@ -1137,7 +1215,7 @@ TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
   auto param = GetParam();
   std::string xml = R"(
   <mujoco>
-  <option integrator="implicitfast" jacobian="dense" gravity="0 0 0"/>
+  <option integrator="discrete" jacobian="dense" gravity="0 0 0"/>
   <worldbody>
     <body name="parent" )";
 
@@ -1201,6 +1279,7 @@ TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
   }
 }
 
+// clang-format off
 INSTANTIATE_TEST_SUITE_P(
   StrainConstraintRotatedTests, StrainConstraintRotatedTest,
   testing::ValuesIn<StrainConstraintTestCase>({
@@ -1251,6 +1330,7 @@ INSTANTIATE_TEST_SUITE_P(
     return info.param.test_name;
   }
 );
+// clang-format on
 
 TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
   constexpr char xml[] = R"(
@@ -1304,8 +1384,8 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
   // buffer for Jacobian
   std::vector<mjtNum> jacdif(3 * model->nv, 0.0);
 
-  mj_contactJacobian(model.get(), data.get(), &con, 1, jacdif.data(),
-                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+  mj_contactJacobian(model.get(), data.get(), &con, 1, jacdif.data(), nullptr,
+                     nullptr, nullptr, nullptr, nullptr, nullptr);
 
   // check that boundary nodes have non-zero entries, and central node has zero
 
@@ -1346,7 +1426,6 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
       << "Interior nodes should not receive contact force";
 }
 
-
 // ------------------------------- adhesion ------------------------------------
 
 static const char* kAdhereCeiling = R"(
@@ -1376,14 +1455,14 @@ TEST_F(CoreConstraintTest, AdhesionPulloff) {
   EXPECT_GT(data->qpos[2], 0.9);
 
   // holds a load below 4*delta - mg
-  data->xfrc_applied[6*1 + 2] = -60;
+  data->xfrc_applied[6 * 1 + 2] = -60;
   while (data->time < 4) {
     mj_step(model.get(), data.get());
   }
   EXPECT_GT(data->qpos[2], 0.9);
 
   // detaches above 4*delta
-  data->xfrc_applied[6*1 + 2] = -85;
+  data->xfrc_applied[6 * 1 + 2] = -85;
   while (data->time < 5) {
     mj_step(model.get(), data.get());
   }
@@ -1398,8 +1477,8 @@ TEST_F(CoreConstraintTest, AdhesionTether) {
   MjDataPtr data = MakeData(model);
 
   mjtNum dist[2];
-  for (int k=0; k < 2; k++) {
-    data->xfrc_applied[6*1 + 2] = k ? -50 : 0;
+  for (int k = 0; k < 2; k++) {
+    data->xfrc_applied[6 * 1 + 2] = k ? -50 : 0;
     mjtNum tend = data->time + 3;
     while (data->time < tend) {
       mj_step(model.get(), data.get());
@@ -1407,8 +1486,8 @@ TEST_F(CoreConstraintTest, AdhesionTether) {
     ASSERT_GT(data->ncon, 0);
     dist[k] = data->contact[0].dist;
   }
-  EXPECT_GT(dist[0], 0);         // hanging in tension at positive separation
-  EXPECT_GT(dist[1], dist[0]);   // separation grows with load
+  EXPECT_GT(dist[0], 0);        // hanging in tension at positive separation
+  EXPECT_GT(dist[1], dist[0]);  // separation grows with load
 }
 
 // a box released inside the adhesion band is captured into steady contact
@@ -1430,8 +1509,8 @@ TEST_F(CoreConstraintTest, AdhesionCapture) {
     zmin = mju_min(zmin, data->qpos[2]);
     zmax = mju_max(zmax, data->qpos[2]);
   }
-  EXPECT_GT(zmax, 0.928);         // captured up to the ceiling
-  EXPECT_LT(zmax - zmin, 1e-4);   // and steady
+  EXPECT_GT(zmax, 0.928);        // captured up to the ceiling
+  EXPECT_LT(zmax - zmin, 1e-4);  // and steady
 }
 
 // resting penetration is independent of adhesion (the R*delta correction)
@@ -1449,7 +1528,7 @@ TEST_F(CoreConstraintTest, AdhesionRestingPenetration) {
   )";
   char error[1024];
   mjtNum depth[2];
-  for (int k=0; k < 2; k++) {
+  for (int k = 0; k < 2; k++) {
     std::string xml2 = xml;
     size_t pos = xml2.find("ADH");
     xml2.replace(pos, 3, k ? "50" : "0");
@@ -1465,7 +1544,7 @@ TEST_F(CoreConstraintTest, AdhesionRestingPenetration) {
     // net reported force sums to the weight
     if (k) {
       mjtNum total = 0, f[6];
-      for (int i=0; i < data->ncon; i++) {
+      for (int i = 0; i < data->ncon; i++) {
         mj_contactForce(model.get(), data.get(), i, f);
         total += f[0];
       }
@@ -1575,7 +1654,7 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
     con.vert[0] = -1;
     con.vert[1] = -1;
     con.geom[0] = plane_geom_id;  // plane geom (world body)
-    con.geom[1] = -1;  // trigger flex branch in mj_contactJacobian
+    con.geom[1] = -1;             // trigger flex branch in mj_contactJacobian
     con.flex[1] = 0;
     con.vert[1] = vert_idx;
     con.dim = 6;  // full frictional contact: exercises rotational Jacobian
@@ -1592,9 +1671,8 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
     std::vector<int> chain(nv, 0);
 
     int NV = mj_contactJacobian(model.get(), data.get(), &con, con.dim,
-                                jacdifp.data(), jacdifr.data(),
-                                nullptr, nullptr, nullptr, nullptr,
-                                chain.data());
+                                jacdifp.data(), jacdifr.data(), nullptr,
+                                nullptr, nullptr, nullptr, chain.data());
     ASSERT_GT(NV, 0);
 
     // for sparse: unpack to dense using chain indices
@@ -1645,6 +1723,63 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
   }
   EXPECT_TRUE(has_nonzero_rot)
       << "Rotational Jacobian should have non-zero entries";
+}
+
+// an arena overflow after the constraint rows are instantiated drops all rows:
+// the per-type row counts must clear with the arrays, which consumers such as
+// mj_Jdotv index by them
+TEST_F(CoreConstraintTest, ArenaOverflowClearsRowCounts) {
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+
+  // 100 contacts under PGS: the dense AR (nefc x nefc) does not fit the arena
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <size memory="512K"/>
+    <option solver="PGS"/>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body name="grid" pos="0 0 .049">
+        <freejoint/>
+        <replicate count="10" offset=".1 0 0">
+          <replicate count="10" offset="0 .1 0">
+            <geom size=".05"/>
+          </replicate>
+        </replicate>
+      </body>
+      <body pos="0 0 1">
+        <joint type="slide" axis="0 0 1" range="-1 -0.1" frictionloss="1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <weld body1="grid"/>
+    </equality>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+
+  // classic integrators consume the rows at the velocity stage, discrete at the
+  // actuation stage
+  for (mjtIntegrator integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m.get(), d.get());
+    mj_step(m.get(), d.get());
+
+    // rows were instantiated, then dropped
+    EXPECT_GT(d->warning[mjWARN_CNSTRFULL].number, 0);
+    EXPECT_GT(d->maxuse_efc, 0);
+    EXPECT_EQ(d->nefc, 0);
+    EXPECT_EQ(d->ne, 0);
+    EXPECT_EQ(d->nf, 0);
+    EXPECT_EQ(d->nl, 0);
+    EXPECT_EQ(d->nidof, 0);
+    if (integrator == mjINT_EULER) {
+      EXPECT_EQ(d->parena, d->ncon * sizeof(mjContact));
+    }
+  }
 }
 
 }  // namespace

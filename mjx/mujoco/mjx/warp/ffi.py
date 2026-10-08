@@ -25,13 +25,12 @@ import jax
 from jax import numpy as jp
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
 
 from mujoco.mjx._src.types import tree_path_to_attr_str
 from mujoco.mjx.warp import types as mjx_warp_types
 
 
-# ``warp_ffi.jax_callable`` keys its registry by wrapper function and
+# ``wp.jax_callable`` keys its registry by wrapper function and
 # configuration. Cache generated wrappers here by the original shim and MJX's
 # flattened call structure so equivalent retraces reuse the same Warp entry.
 _JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY: dict[
@@ -109,7 +108,7 @@ def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
 def jax_callable_variadic_tuple(
     func: Callable,  # pylint: disable=g-bare-generic
     num_outputs: int = 1,
-    graph_mode: warp_ffi.JaxCallableGraphMode = warp_ffi.JaxCallableGraphMode.WARP,
+    graph_mode: wp.JaxCallableGraphMode = wp.JaxCallableGraphMode.WARP,
     vmap_method: Optional[str] = None,
     output_dims: Optional[dict[str, tuple[int, ...]]] = None,
     in_out_argnames: Optional[Sequence[str]] = None,
@@ -189,7 +188,7 @@ def jax_callable_variadic_tuple(
           )
 
         # Constructing the callable registers its FFI target.
-        my_callable = warp_ffi.jax_callable(
+        my_callable = wp.jax_callable(
             func_wrapper,
             num_outputs=num_outputs,
             graph_mode=graph_mode,

@@ -15,7 +15,6 @@
 #ifndef MUJOCO_PLUGIN_SENSOR_TOUCH_GRID_H_
 #define MUJOCO_PLUGIN_SENSOR_TOUCH_GRID_H_
 
-#include <optional>
 #include <vector>
 
 #include <mujoco/mjdata.h>
@@ -57,10 +56,10 @@ class TouchGrid {
 
   static void RegisterPlugin();
 
-  int nchannel_;           // number of channels (1-6)
-  int size_[2];            // horizontal and vertical resolution
-  mjtNum fov_[2];          // horizontal and vertical field of view, in degrees
-  mjtNum gamma_;           // foveal deformation
+  int nchannel_;   // number of channels (1-6)
+  int size_[2];    // horizontal and vertical resolution
+  mjtNum fov_[2];  // horizontal and vertical field of view, in degrees
+  mjtNum gamma_;   // foveal deformation
 
  private:
   TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel, int* size,

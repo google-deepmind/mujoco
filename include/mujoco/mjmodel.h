@@ -21,8 +21,6 @@
 #include <mujoco/mjtype.h>
 
 // global constants
-#define mjPI            3.14159265358979323846
-#define mjMAXVAL        1E+10     // maximum value in qpos, qvel, qacc
 #define mjMINMU         1E-5      // minimum friction coefficient
 #define mjMINIMP        0.0001    // minimum constraint impedance
 #define mjMAXIMP        0.9999    // maximum constraint impedance
@@ -276,7 +274,6 @@ typedef struct mjModel_ {
   mjtSize nefm0L;                 // number of non-zeros in the constant metric factor
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
-  mjtSize nflexevpair;            // number of element-vertex pairs in all flexes
   mjtSize nflextexcoord;          // number of vertices with texture coordinates
   mjtSize nJfe;                   // number of non-zeros in sparse flexedge Jacobian matrix
   mjtSize nJfv;                   // number of non-zeros in sparse flexvert Jacobian matrix
@@ -487,6 +484,7 @@ typedef struct mjModel_ {
   // sites
   int*      site_type;            // geom type for rendering (mjtGeom)        (nsite x 1)
   int*      site_bodyid;          // id of site's body                        (nsite x 1)
+  int*      site_dataid;          // id of site's mesh; -1: none              (nsite x 1)
   int*      site_matid;           // material id for rendering; -1: none      (nsite x 1)
   int*      site_group;           // group for visibility                     (nsite x 1)
   mjtByte*  site_sameframe;       // same frame as body (mjtSameframe)        (nsite x 1)
@@ -549,7 +547,6 @@ typedef struct mjModel_ {
   mjtNum*   flex_friction;        // friction for (slide, spin, roll)         (nflex x 3)
   mjtNum*   flex_margin;          // geometric inflation for contact          (nflex x 1)
   mjtNum*   flex_gap;             // additional contact detection buffer      (nflex x 1)
-  mjtBool*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
   int*      flex_passive;         // passive collisions enabled               (nflex x 1)
@@ -574,8 +571,6 @@ typedef struct mjModel_ {
   int*      flex_bendingadr;      // first bending data address               (nflex x 1)
   int*      flex_shellnum;        // number of shells                         (nflex x 1)
   int*      flex_shelldataadr;    // first shell data address                 (nflex x 1)
-  int*      flex_evpairadr;       // first evpair address                     (nflex x 1)
-  int*      flex_evpairnum;       // number of evpairs                        (nflex x 1)
   int*      flex_texcoordadr;     // address in flex_texcoord; -1: none       (nflex x 1)
   int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
@@ -589,7 +584,6 @@ typedef struct mjModel_ {
   int*      flex_elemedge;        // element edge ids                         (nflexelemedge x 1)
   int*      flex_elemlayer;       // element distance from surface, 3D only   (nflexelem x 1)
   int*      flex_shell;           // shell fragment vertex ids (dim per frag) (nflexshelldata x 1)
-  int*      flex_evpair;          // (element, vertex) collision pairs        (nflexevpair x 2)
   mjtNum*   flex_vert;            // vertex positions in local body frames    (nflexvert x 3)
   mjtNum*   flex_vert0;           // vertex positions in qpos0 on [0, 1]^d    (nflexvert x 3)
   mjtNum*   flex_vertmetric;      // inverse of reference shape matrix        (nflexvert x 4)

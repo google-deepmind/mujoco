@@ -130,9 +130,9 @@ class Rollout:
       raise ValueError('control_spec can only contain bits in mjSTATE_USER')
 
     # check types
-    if nstep and not isinstance(nstep, int):
+    if nstep and not isinstance(nstep, (int, np.integer)):
       raise ValueError('nstep must be an integer')
-    if chunk_size and not isinstance(chunk_size, int):
+    if chunk_size and not isinstance(chunk_size, (int, np.integer)):
       raise ValueError('chunk_size must be an integer')
     _check_must_be_numeric(
         initial_state=initial_state,
@@ -219,9 +219,9 @@ class Rollout:
 
     # allocate output if not provided
     if state is None:
-      state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)
+      state = np.empty((nbatch, nstep, nstate), dtype=mujoco.MJTNUM_DTYPE)  # pyrefly: ignore[no-matching-overload]
     if sensordata is None:
-      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)
+      sensordata = np.empty((nbatch, nstep, nsensordata), dtype=mujoco.MJTNUM_DTYPE)  # pyrefly: ignore[no-matching-overload]
 
     # call rollout
     self.rollout_.rollout(

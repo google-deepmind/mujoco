@@ -1,0 +1,81 @@
+<!-- Copyright 2026 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Cantilever comparison">
+  <include file="scene.xml"/>
+  <option iterations="1000"/>
+  <statistic center=".4 0 .5" extent="2"/>
+  <worldbody>
+    <camera name="overview" pos="1.65 -2.35 2.35" xyaxes="0.88287239 0.46961297 -0 -0.26306772 0.49456731 0.82837102"/>
+    <geom type="box" pos="-.08 0 .08" size=".21 .8 .08"/>
+    <geom type="box" pos="-.08 0 .48" size=".055 .72 .32"/>
+    <body name="soft_clamp" pos="0 -0.5 .85">
+      <geom type="box" size=".045 .065 .065" material="silver"/>
+      <geom class="bolt"/>
+      <flexcomp name="soft" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="quadratic" cellcount="2 1 1" mass=".12" radius=".001" rgba=".2 .75 .7 1">
+        <elasticity young="8e+06" poisson=".25" damping="0.002"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <pin id="0 1 2 3 4 5 6 7 8"/>
+      </flexcomp>
+    </body>
+    <body name="soft_tip" pos=".9 -0.5 .85">
+      <freejoint/>
+      <geom type="box" size=".035 .065 .04" mass=".2" material="load"/>
+      <site name="soft_tip_site" size=".004" rgba=".2 .75 .7 1"/>
+    </body>
+    <body name="stiff_clamp" pos="0 0 .85">
+      <geom type="box" size=".045 .065 .065" material="silver"/>
+      <geom class="bolt"/>
+      <flexcomp name="stiff" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="quadratic" cellcount="2 1 1" mass=".12" radius=".001" rgba=".95 .38 .12 1">
+        <elasticity young="1.6e+07" poisson=".25" damping="0.002"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <pin id="0 1 2 3 4 5 6 7 8"/>
+      </flexcomp>
+    </body>
+    <body name="stiff_tip" pos=".9 0 .85">
+      <freejoint/>
+      <geom type="box" size=".035 .065 .04" mass=".2" material="load"/>
+      <site name="stiff_tip_site" size=".004" rgba=".95 .38 .12 1"/>
+    </body>
+    <body name="damped_clamp" pos="0 0.5 .85">
+      <geom type="box" size=".045 .065 .065" material="silver"/>
+      <geom class="bolt"/>
+      <flexcomp name="damped" type="grid" count="49 3 3" spacing=".01875 .035 .0275" pos=".45 0 0" dim="3" dof="quadratic" cellcount="2 1 1" mass=".12" radius=".001" rgba=".6 .5 .9 1">
+        <elasticity young="8e+06" poisson=".25" damping="0.04"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <pin id="0 1 2 3 4 5 6 7 8"/>
+      </flexcomp>
+    </body>
+    <body name="damped_tip" pos=".9 0.5 .85">
+      <freejoint/>
+      <geom type="box" size=".035 .065 .04" mass=".2" material="load"/>
+      <site name="damped_tip_site" size=".004" rgba=".6 .5 .9 1"/>
+    </body>
+  </worldbody>
+  <equality>
+    <connect name="soft_0_0_attach" body1="soft_4_0_0" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="soft_0_2_attach" body1="soft_4_0_2" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="soft_2_0_attach" body1="soft_4_2_0" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="soft_2_2_attach" body1="soft_4_2_2" body2="soft_tip" anchor="0 0 0"/>
+    <connect name="stiff_0_0_attach" body1="stiff_4_0_0" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="stiff_0_2_attach" body1="stiff_4_0_2" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="stiff_2_0_attach" body1="stiff_4_2_0" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="stiff_2_2_attach" body1="stiff_4_2_2" body2="stiff_tip" anchor="0 0 0"/>
+    <connect name="damped_0_0_attach" body1="damped_4_0_0" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="damped_0_2_attach" body1="damped_4_0_2" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="damped_2_0_attach" body1="damped_4_2_0" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="damped_2_2_attach" body1="damped_4_2_2" body2="damped_tip" anchor="0 0 0"/>
+  </equality>
+</mujoco>

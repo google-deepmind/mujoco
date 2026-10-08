@@ -12,13 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(mjz_api_test)
+mujoco_test(
+  mjz_archive_provider_test
+  ADDITIONAL_LINK_LIBRARIES miniz
+)
 
 mujoco_test(
   mjz_decoder_test
+  ADDITIONAL_LINK_LIBRARIES
+  miniz
 )
 
 mujoco_test(
   mjz_encoder_test
-  ADDITIONAL_LINK_LIBRARIES compare_model
+  ADDITIONAL_LINK_LIBRARIES
+  compare_model
+  miniz
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
 )

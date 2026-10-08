@@ -40,6 +40,8 @@
   X(mjtInertiaFromGeom, inertiafromgeom,   1) \
   XVEC(int,             inertiagrouprange, 2) \
   X(mjtBool,            saveinertial,      1) \
+  X(mjtBool,            savecompiled,      1) \
+  X(mjtBool,            savecanonical,     1) \
   X(mjtBool,            alignfree,         1) \
   X(mjtConflict,        conflict,          1) \
   X(mjLROpt,            LRopt,             1) \
@@ -115,6 +117,7 @@
     X   ( double,          gravcomp,         1 ) \
     X   ( mjtSleepPolicy,  sleep,            1 ) \
     X   ( mjtByte,         simple,           1 ) \
+    X   ( mjtByte,         fuse,             1 ) \
     X   ( mjDoubleVec*,    userdata,         1 ) \
     X   ( mjtBool,         explicitinertial, 1 ) \
     X   ( mjsPlugin,       plugin,           1 ) \
@@ -213,6 +216,7 @@
     X   ( mjString*,      material, 1 ) \
     X   ( int,            group,    1 ) \
     XVEC( float,          rgba,     4 ) \
+    X   ( mjString*,      meshname, 1 ) \
     X   ( mjDoubleVec*,   userdata, 1 ) \
     X   ( mjString*,      info,     1 )
 
@@ -283,7 +287,6 @@
     X   ( int,           dim,           1      ) \
     X   ( double,        radius,        1      ) \
     XVEC( double,        size,          3      ) \
-    X   ( mjtBool,       internal,      1      ) \
     X   ( mjtBool,       flatskin,      1      ) \
     X   ( mjtFlexSelf,   selfcollide,   1      ) \
     X   ( int,           passive,       1      ) \
@@ -298,6 +301,7 @@
     X   ( double,        damping,       1      ) \
     X   ( double,        thickness,     1      ) \
     X   ( int,           elastic2d,     1      ) \
+    X   ( int,           elastic3d,     1      ) \
     XVEC( int,           cellcount,     3      ) \
     X   ( int,           order,         1      ) \
     X   ( mjStringVec*,  nodebody,      1      ) \
@@ -490,6 +494,7 @@
 
 #define MJSACTUATOR_FIELDS                          \
     X   ( mjsElement*,   element,       1         ) \
+    X   ( mjtActuator,   type,          1         ) \
     X   ( mjtGain,       gaintype,      1         ) \
     XVEC( double,        gainprm,       mjNGAIN   ) \
     X   ( mjtBias,       biastype,      1         ) \

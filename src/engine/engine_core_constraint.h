@@ -27,9 +27,6 @@ extern "C" {
 
 //-------------------------- Jacobian-related ------------------------------------------------------
 
-// determine type of solver
-MJAPI int mj_isDual(const mjModel* m);
-
 // multiply Jacobian by vector
 MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
@@ -81,7 +78,7 @@ void mj_instantiateContact(const mjModel* m, mjData* d);
 //   chain:   list of DOF indices affecting contact [NV], unused if dense
 //
 // Returns:
-//   number of DOFs affected (NV for sparse, nv for dense)
+//   number of DOFs affected (NV for sparse, nv for dense), 0 if contact affects no DOFs
 MJAPI int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
                              mjtNum* jacdifp, mjtNum* jacdifr,
                              mjtNum* jac1p, mjtNum* jac2p,
@@ -105,8 +102,14 @@ MJAPI void mj_makeConstraint(const mjModel* m, mjData* d);
 // compute efc_AR
 MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 
+// compute efc_vel
+void mj_velocityConstraint(const mjModel* m, mjData* d);
+
 // compute efc_vel, efc_aref
 MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
+
+// compute efc_diagA (approximate or exact), efc_R, efc_D, efc_KBIP in the solve metric
+void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR);
 
 // compute efc_state, efc_force
 //  optional: cost(qacc) = s_hat(jar); cone Hessians

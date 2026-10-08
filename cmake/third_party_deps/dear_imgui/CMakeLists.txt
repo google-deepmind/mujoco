@@ -19,7 +19,7 @@ target_include_directories(dear_imgui
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
 )
 target_sources(dear_imgui
-  PUBLIC
+  PRIVATE
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui.h
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui.cpp
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_internal.h
@@ -40,7 +40,7 @@ function(mujoco_add_dear_imgui_sdl2_backend)
       ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
   )
   target_sources(dear_imgui_SDL2
-    PUBLIC
+    PRIVATE
       ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
   )
   target_link_libraries(dear_imgui_SDL2
@@ -59,7 +59,7 @@ target_include_directories(dear_imgui_OpenGL3
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
 )
 target_sources(dear_imgui_OpenGL3
-  PUBLIC
+  PRIVATE
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.h
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
@@ -71,7 +71,7 @@ target_include_directories(dear_imgui_stdlib
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}
 )
 target_sources(dear_imgui_stdlib
-  PUBLIC
+  PRIVATE
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/misc/cpp/imgui_stdlib.h
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
 )

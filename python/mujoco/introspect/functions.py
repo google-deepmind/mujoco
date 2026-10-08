@@ -525,7 +525,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Copy real-valued arrays from model to spec; return 1 on success.',
+         doc='Copy the values which were changed in a model to the spec it was compiled from; return 1 on success.',  # pylint: disable=line-too-long
      )),
     ('mj_recompile',
      FunctionDecl(
@@ -954,7 +954,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='buffer_sz',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='mjtSize'),
              ),
          ),
          doc='Save model to binary MJB file or memory buffer; buffer has precedence when given.',  # pylint: disable=line-too-long
@@ -997,7 +997,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='buffer_sz',
-                 type=ValueType(name='int'),
+                 type=ValueType(name='mjtSize'),
              ),
          ),
          doc='Load model from memory buffer.',
@@ -2782,7 +2782,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_readCtrl',
      FunctionDecl(
          name='mj_readCtrl',
-         return_type=ValueType(name='mjtNum'),
+         return_type=PointerType(
+             inner_type=ValueType(name='mjtNum', is_const=True),
+         ),
          parameters=(
              FunctionParameterDecl(
                  name='m',
@@ -2805,11 +2807,17 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='mjtNum'),
              ),
              FunctionParameterDecl(
+                 name='result',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
                  name='interp',
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Read ctrl value for actuator at given time. Returns d->ctrl[id] if no history, otherwise reads from history buffer. interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
+         doc='Read ctrl value for actuator at given time. Returns pointer to ctrl (no history) or history buffer (exact match), or NULL if interpolation performed (writes to result). interp: 0=zero-order-hold, 1=linear, 2=cubic spline.',  # pylint: disable=line-too-long
      )),
     ('mj_readSensor',
      FunctionDecl(
@@ -3818,6 +3826,37 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Return smallest signed distance between two geoms and optionally segment from geom1 to geom2.',  # pylint: disable=line-too-long
+     )),
+    ('mj_insideSite',
+     FunctionDecl(
+         name='mj_insideSite',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='siteid',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='point',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+         ),
+         doc='Return 1 if point is inside a site (convex hull for meshes), 0 otherwise.',  # pylint: disable=line-too-long
      )),
     ('mj_contactForce',
      FunctionDecl(
@@ -9944,6 +9983,43 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return the encoder that matches against the content type or filename extension. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
+    ('mjp_registerArchiveResourceProvider',
+     FunctionDecl(
+         name='mjp_registerArchiveResourceProvider',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='provider',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpResourceProvider', is_const=True),  # pylint: disable=line-too-long
+                 ),
+             ),
+         ),
+         doc='Globally register an archive resource provider. This function is thread-safe. provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).',  # pylint: disable=line-too-long
+     )),
+    ('mjp_findArchiveResourceProvider',
+     FunctionDecl(
+         name='mjp_findArchiveResourceProvider',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpResourceProvider', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource_name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the archive resource provider that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_archiveResourceProviderCount',
+     FunctionDecl(
+         name='mjp_archiveResourceProviderCount',
+         return_type=ValueType(name='int'),
+         parameters=(),
+         doc='Return the number of globally registered archive resource providers.',  # pylint: disable=line-too-long
+     )),
     ('mju_openResource',
      FunctionDecl(
          name='mju_openResource',
@@ -12301,6 +12377,69 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Resolve alternative orientations to quat; return error if any.',
+     )),
+    ('mjs_fuseStatic',
+     FunctionDecl(
+         name='mjs_fuseStatic',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Fuse the static bodies of the spec with their parents, return 0 on success.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_discardVisual',
+     FunctionDecl(
+         name='mjs_discardVisual',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Discard the visual elements of the spec, return 0 on success.',
+     )),
+    ('mjs_adoptInertial',
+     FunctionDecl(
+         name='mjs_adoptInertial',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='body',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsBody'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc='Make the inertial which compilation infers for a body part of the spec, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_bodyToFrame',
      FunctionDecl(

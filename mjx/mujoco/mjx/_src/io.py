@@ -160,7 +160,7 @@ def _resolve_impl_and_device(
     impl = _resolve_impl(device)
 
   _check_impl_device_compatibility(impl, device)  # pyrefly: ignore[bad-argument-type]
-  return impl, device  # pytype: disable=bad-return-type
+  return impl, device  # pyrefly: ignore[bad-return]
 
 
 def _strip_weak_type(tree):
@@ -426,7 +426,7 @@ def _put_model_jax(
   for i in mesh_geomid:
     dataid = m.geom_dataid[i]
     if fields_jax['mesh_convex'][dataid] is None:
-      fields_jax['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
+      fields_jax['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pyrefly: ignore[unsupported-operation]
   fields_jax['mesh_convex'] = tuple(fields_jax['mesh_convex'])
 
   jax_impl = types.ModelJAX(**fields_jax)
@@ -513,7 +513,7 @@ def _put_model_cpp(
 
   # get the pointer address
   # we use a 0-d array
-  addr = m._address  # pytype: disable=attribute-error
+  addr = m._address
   # To ensure that we retain the full pointer even if jax.config.enable_x64 is
   # set to True, we store the pointer as two 32-bit values. In the FFI call,
   # we combine the two values into a single pointer value.
@@ -549,7 +549,7 @@ def put_model(
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
     graph_mode: CUDA graph capture mode (for Warp only). Use GraphMode enum from
-      warp._src.jax.ffi.GraphMode.WARP is the default mode.
+      warp.JaxCallableGraphMode.WARP is the default mode.
     keepalive_refs: optional dict to store references to underlying MuJoCo
       objects, preventing them from being garbage collected. Required for CPP
       impl to keep the model alive.
@@ -837,7 +837,7 @@ def _make_data_cpp(
   mj_data = mujoco.MjData(mj_model)
 
   # Get the pointer address
-  addr = mj_data._address  # pytype: disable=attribute-error
+  addr = mj_data._address
   pointer_lo = jp.array(addr & 0xFFFFFFFF, dtype=jp.uint32)
   pointer_hi = jp.array(addr >> 32, dtype=jp.uint32)
 
@@ -1316,8 +1316,8 @@ def _get_data_into_warp(
         else d
     )
     result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
-    ncon = d_i._impl.nacon[0]
-    nefc = int(d_i._impl.nefc)
+    ncon = d_i._impl.nacon[0]  # pyrefly: ignore[missing-attribute]
+    nefc = int(d_i._impl.nefc)  # pyrefly: ignore[missing-attribute]
     # nj = int(d_i._impl.nj[0])
     nj = 0  # TODO(btaba): add nj back
 
@@ -1344,7 +1344,10 @@ def _get_data_into_warp(
           value = int(value)
       elif field.name in ('nefc', 'ncon'):
         value = {'nefc': nefc, 'ncon': ncon}[field.name]
-      elif field.name.endswith('xmat') or field.name == 'ximat':
+      elif field.name.endswith('xmat') or field.name in (
+          'ximat',
+          'flexedge_hessian',
+      ):
         value = value.reshape((-1, 9))
       # elif field.name == 'efc_J':  # TODO(btaba): add this back
       # elif field.name.startswith('efc_'):  # TODO(btaba): add this back
@@ -1397,10 +1400,10 @@ def _get_data_into(
   for i in range(batch_size):
     d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
     result_i = result[i] if batched else result  # pyrefly: ignore[bad-index]
-    ncon = (d_i._impl.contact.dist <= 0).sum()
-    efc_active = (d_i._impl.efc_J != 0).any(axis=1)
+    ncon = (d_i._impl.contact.dist <= 0).sum()  # pyrefly: ignore[missing-attribute]
+    efc_active = (d_i._impl.efc_J != 0).any(axis=1)  # pyrefly: ignore[missing-attribute]
     nefc = int(efc_active.sum())
-    nj = (d_i._impl.efc_J != 0).sum() if support.is_sparse(m) else nefc * m.nv
+    nj = (d_i._impl.efc_J != 0).sum() if support.is_sparse(m) else nefc * m.nv  # pyrefly: ignore[missing-attribute]
 
     if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:  # pyrefly: ignore[missing-attribute]
       mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access  # pyrefly: ignore[bad-argument-type]
@@ -1433,13 +1436,13 @@ def _get_data_into(
           if d_i.impl == types.Impl.JAX:
             mujoco.mju_dense2sparse(
                 actuator_moment,
-                d_i._impl.actuator_moment,
+                d_i._impl.actuator_moment,  # pyrefly: ignore[missing-attribute]
                 moment_rownnz,
                 moment_rowadr,
                 moment_colind,
             )
           else:
-            actuator_moment = d_i._impl.actuator_moment
+            actuator_moment = d_i._impl.actuator_moment  # pyrefly: ignore[missing-attribute]
         result_i.moment_rownnz[:] = moment_rownnz  # pyrefly: ignore[missing-attribute]
         result_i.moment_rowadr[:] = moment_rowadr  # pyrefly: ignore[missing-attribute]
         result_i.moment_colind[:] = moment_colind  # pyrefly: ignore[missing-attribute]
@@ -1456,13 +1459,13 @@ def _get_data_into(
           if d_i.impl == types.Impl.JAX:
             mujoco.mju_dense2sparse(
                 ten_j,
-                d_i._impl.ten_J,
+                d_i._impl.ten_J,  # pyrefly: ignore[missing-attribute]
                 ten_j_rownnz,
                 ten_j_rowadr,
                 ten_j_colind,
             )
           else:
-            ten_j = d_i._impl.ten_J
+            ten_j = d_i._impl.ten_J  # pyrefly: ignore[missing-attribute]
         result_i.ten_J[:] = ten_j  # pyrefly: ignore[missing-attribute]
         continue
 
@@ -1836,7 +1839,7 @@ def create_render_context(
     Render context object that is JAX compatible.
   """
   _check_warp_installed()
-  from mujoco.mjx.warp import io as mjxw_io  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+  from mujoco.mjx.warp import io as mjxw_io  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
   return mjxw_io.create_render_context(
       mjm, nworld=nworld, devices=devices, **kwargs  # pyrefly: ignore[bad-argument-type]
   )

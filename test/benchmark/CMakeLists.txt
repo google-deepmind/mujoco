@@ -20,6 +20,12 @@ mujoco_test(
 )
 
 mujoco_test(
+  cone_benchmark_test
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
+)
+
+mujoco_test(
   step_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
@@ -33,6 +39,12 @@ mujoco_test(
 
 mujoco_test(
   parse_benchmark_test
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
+)
+
+mujoco_test(
+  spec_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
@@ -81,6 +93,12 @@ mujoco_test(
 
 mujoco_test(
   engine_util_sparse_benchmark_test
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
+)
+
+mujoco_test(
+  chol_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )

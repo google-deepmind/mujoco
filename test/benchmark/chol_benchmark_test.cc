@@ -287,6 +287,7 @@ static void BM_chol_numeric(benchmark::State& state) {
   std::vector<int> LT_rowadr_work(hd.nv);
   std::vector<int> LT_colind_work(hd.nL);
   std::vector<int> LT_pos_work(hd.nL);
+  std::vector<mjtNum> scratch(hd.nv);
 
   // symbolic setup (not benchmarked)
   mju_cholFactorSymbolic(L_colind_work.data(), hd.L_rownnz.data(),
@@ -300,7 +301,8 @@ static void BM_chol_numeric(benchmark::State& state) {
         L_work.data(), hd.nv, mjMINVAL, hd.L_rownnz.data(), hd.L_rowadr.data(),
         L_colind_work.data(), LT_rownnz_work.data(), LT_rowadr_work.data(),
         LT_colind_work.data(), LT_pos_work.data(), hd.H.data(),
-        hd.H_rownnz.data(), hd.H_rowadr.data(), hd.H_colind.data(), d);
+        hd.H_rownnz.data(), hd.H_rowadr.data(), hd.H_colind.data(),
+        scratch.data());
   }
 
   mj_deleteData(d);
@@ -347,6 +349,52 @@ BENCHMARK(BM_numeric_XL);
 
 constexpr int kNumUpdateVectors = 25;
 
+// local copy of the engine's mju_combineSparseInc, which is not exported from
+// the shared library; copying it here keeps that symbol internal and freezes
+// the behavior the old implementation below is benchmarked against
+static void combineSparseInc_local(mjtNum* dst, const mjtNum* src, int n,
+                                   mjtNum a, mjtNum b, int dst_nnz,
+                                   int src_nnz, const int* dst_ind,
+                                   const int* src_ind) {
+  // check for identical pattern
+  if (dst_nnz == src_nnz) {
+    if (mju_compare(dst_ind, src_ind, dst_nnz)) {
+      // combine mjtNum data directly
+      mju_addToSclScl(dst, src, a, b, dst_nnz);
+      return;
+    }
+  }
+
+  // scale dst by a
+  if (a != 1) {
+    mju_scl(dst, dst, a, dst_nnz);
+  }
+
+  // prepare to merge
+  int di = 0, si = 0;
+  int dadr = di < dst_nnz ? dst_ind[di] : n + 1;
+  int sadr = si < src_nnz ? src_ind[si] : n + 1;
+
+  // add src*b at common indices
+  while (di < dst_nnz) {
+    // both
+    if (dadr == sadr) {
+      dst[di++] += b * src[si++];
+
+      dadr = di < dst_nnz ? dst_ind[di] : n + 1;
+      sadr = si < src_nnz ? src_ind[si] : n + 1;
+    } else if (dadr < sadr) {
+      // dst only
+      di++;
+      dadr = di < dst_nnz ? dst_ind[di] : n + 1;
+    } else {
+      // src only
+      si++;
+      sadr = si < src_nnz ? src_ind[si] : n + 1;
+    }
+  }
+}
+
 // old implementation using sparse merge
 int ABSL_ATTRIBUTE_NOINLINE mju_cholUpdateSparse_old(
     mjtNum* mat, mjtNum* x, int n, int flg_plus, const int* rownnz,
@@ -364,8 +412,8 @@ int ABSL_ATTRIBUTE_NOINLINE mju_cholUpdateSparse_old(
     mjtNum c = r / mat[adr + nnz - 1];
     mjtNum s = x[i] / mat[adr + nnz - 1];
     mat[adr + nnz - 1] = r;
-    mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
-                         nnz - 1, i, colind + adr, x_ind);
+    combineSparseInc_local(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
+                           nnz - 1, i, colind + adr, x_ind);
     int new_x_nnz = mju_combineSparse(x, mat + adr, c, -s, i, nnz - 1, x_ind,
                                       colind + adr);
     i = i - 1 + (new_x_nnz - i);
@@ -455,6 +503,7 @@ static void BM_update_new(benchmark::State& state) {
   std::vector<int> LT_rowadr_work(nv);
   std::vector<int> LT_colind_work(hd.nL);
   std::vector<int> LT_pos_work(hd.nL);
+  std::vector<mjtNum> scratch(nv);
 
   mju_cholFactorSymbolic(L_colind_work.data(), hd.L_rownnz.data(),
                          hd.L_rowadr.data(), LT_colind_work.data(),
@@ -465,7 +514,8 @@ static void BM_update_new(benchmark::State& state) {
       L_work.data(), nv, mjMINVAL, hd.L_rownnz.data(), hd.L_rowadr.data(),
       L_colind_work.data(), LT_rownnz_work.data(), LT_rowadr_work.data(),
       LT_colind_work.data(), LT_pos_work.data(), hd.H.data(),
-      hd.H_rownnz.data(), hd.H_rowadr.data(), hd.H_colind.data(), d);
+      hd.H_rownnz.data(), hd.H_rowadr.data(), hd.H_colind.data(),
+      scratch.data());
 
   // prepare update vectors: pick kNumUpdateVectors rows from J (constraint
   // rows) Each J row has DoF indices which is correct for updating L (nv x nv)
@@ -490,7 +540,7 @@ static void BM_update_new(benchmark::State& state) {
     mju_cholUpdateSparse(L_work.data(), update_vecs[vec_idx].data(), nv, 1,
                          hd.L_rownnz.data(), hd.L_rowadr.data(),
                          L_colind_work.data(), nnz, update_inds[vec_idx].data(),
-                         d);
+                         scratch.data());
     vec_idx = (vec_idx + 1) % kNumUpdateVectors;
   }
 

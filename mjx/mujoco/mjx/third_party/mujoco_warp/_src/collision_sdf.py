@@ -363,17 +363,25 @@ def find_oct(
       & int(oct_child[node][6] == -1)
       & int(oct_child[node][7] == -1)
     ) != 0:
-      for j in range(8):
-        if not grad:
+      if not grad:
+        for j in range(8):
           rx[j] = (
             (coord[0] if j & 1 else 1.0 - coord[0])
             * (coord[1] if j & 2 else 1.0 - coord[1])
             * (coord[2] if j & 4 else 1.0 - coord[2])
           )
-        else:
-          rx[j] = (1.0 if j & 1 else -1.0) * (coord[1] if j & 2 else 1.0 - coord[1]) * (coord[2] if j & 4 else 1.0 - coord[2])
-          ry[j] = (coord[0] if j & 1 else 1.0 - coord[0]) * (1.0 if j & 2 else -1.0) * (coord[2] if j & 4 else 1.0 - coord[2])
-          rz[j] = (coord[0] if j & 1 else 1.0 - coord[0]) * (coord[1] if j & 2 else 1.0 - coord[1]) * (1.0 if j & 4 else -1.0)
+      else:
+        # Convert derivatives of cell coordinates to derivatives of physical coordinates.
+        inv_cell = wp.cw_div(wp.vec3(1.0), vmax - vmin)
+        for j in range(8):
+          # fmt: off
+          rx[j] = ((1.0 if j & 1 else -1.0) * (coord[1] if j & 2 else 1.0 - coord[1])
+                   * (coord[2] if j & 4 else 1.0 - coord[2]) * inv_cell[0])
+          ry[j] = ((coord[0] if j & 1 else 1.0 - coord[0]) * (1.0 if j & 2 else -1.0)
+                   * (coord[2] if j & 4 else 1.0 - coord[2]) * inv_cell[1])
+          rz[j] = ((coord[0] if j & 1 else 1.0 - coord[0]) * (coord[1] if j & 2 else 1.0 - coord[1])
+                   * (1.0 if j & 4 else -1.0) * inv_cell[2])
+          # fmt: on
       return node, (rx, ry, rz)
 
     # compute which of 8 children to visit next
@@ -689,7 +697,7 @@ def gradient_step(
       if alpha <= amin or (dist - dist0) <= wolfe:
         break
     if dist > dist0:
-      return dist, x
+      return dist0, x2
   return dist, x
 
 
@@ -754,6 +762,7 @@ def _sdf_narrowphase(
   geom_friction: wp.array2d[wp.vec3],
   geom_margin: wp.array2d[float],
   geom_gap: wp.array2d[float],
+  geom_adhesion: wp.array2d[float],
   mesh_vertadr: wp.array[int],
   mesh_vertnum: wp.array[int],
   mesh_faceadr: wp.array[int],
@@ -777,6 +786,7 @@ def _sdf_narrowphase(
   pair_solimp: wp.array2d[vec5],
   pair_margin: wp.array2d[float],
   pair_gap: wp.array2d[float],
+  pair_adhesion: wp.array2d[float],
   pair_friction: wp.array2d[vec5],
   plugin: wp.array[int],
   plugin_attr: wp.array[vec_pluginattr],
@@ -807,6 +817,7 @@ def _sdf_narrowphase(
   contact_worldid_out: wp.array[int],
   contact_type_out: wp.array[int],
   contact_geomcollisionid_out: wp.array[int],
+  contact_adhesion_out: wp.array[float],
   nacon_out: wp.array[int],
 ):
   i, contact_tid = wp.tid()
@@ -820,7 +831,7 @@ def _sdf_narrowphase(
   if type2 != GeomType.SDF:
     return
   worldid = collision_worldid_in[contact_tid]
-  _, margin, gap, condim, friction, solref, solreffriction, solimp = contact_params(
+  _, margin, gap, condim, friction, solref, solreffriction, solimp, adhesion = contact_params(
     geom_condim,
     geom_priority,
     geom_solmix,
@@ -829,12 +840,14 @@ def _sdf_narrowphase(
     geom_friction,
     geom_margin,
     geom_gap,
+    geom_adhesion,
     pair_dim,
     pair_solref,
     pair_solreffriction,
     pair_solimp,
     pair_margin,
     pair_gap,
+    pair_adhesion,
     pair_friction,
     collision_pair_in,
     collision_pairid_in,
@@ -885,6 +898,13 @@ def _sdf_narrowphase(
   aabb_intersection = AABB()
   aabb_intersection.min = wp.max(aabb1.min, aabb2.min)
   aabb_intersection.max = wp.min(aabb1.max, aabb2.max)
+  # A broadphase candidate gap can admit pairs with no geometric intersection.
+  if (
+    aabb_intersection.min[0] > aabb_intersection.max[0]
+    or aabb_intersection.min[1] > aabb_intersection.max[1]
+    or aabb_intersection.min[2] > aabb_intersection.max[2]
+  ):
+    return
 
   pos2 = geom2.pos
   rot2 = geom2.rot
@@ -982,6 +1002,7 @@ def _sdf_narrowphase(
     solref,
     solreffriction,
     solimp,
+    adhesion,
     geoms,
     collision_pairid_in[contact_tid],
     worldid,
@@ -999,6 +1020,7 @@ def _sdf_narrowphase(
     contact_worldid_out,
     contact_type_out,
     contact_geomcollisionid_out,
+    contact_adhesion_out,
     nacon_out,
   )
 
@@ -1025,6 +1047,7 @@ def sdf_narrowphase(m: Model, d: Data, ctx: CollisionContext):
       m.geom_friction,
       m.geom_margin,
       m.geom_gap,
+      m.geom_adhesion,
       m.mesh_vertadr,
       m.mesh_vertnum,
       m.mesh_faceadr,
@@ -1048,6 +1071,7 @@ def sdf_narrowphase(m: Model, d: Data, ctx: CollisionContext):
       m.pair_solimp,
       m.pair_margin,
       m.pair_gap,
+      m.pair_adhesion,
       m.pair_friction,
       m.plugin,
       m.plugin_attr,
@@ -1077,6 +1101,7 @@ def sdf_narrowphase(m: Model, d: Data, ctx: CollisionContext):
       d.contact.worldid,
       d.contact.type,
       d.contact.geomcollisionid,
+      d.contact.adhesion,
       d.nacon,
     ],
   )

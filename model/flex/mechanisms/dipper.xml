@@ -1,0 +1,101 @@
+<!-- Copyright 2026 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Flexible dipper arm">
+  <include file="scene.xml"/>
+  <statistic center=".25 0 .9" extent="2.5"/>
+  <worldbody>
+    <camera name="overview" pos="1.4 -2.65 1.7" xyaxes="0.92604713 0.37740789 -0 -0.11322929 0.27783112 0.95393344"/>
+    <geom type="box" pos="-.05 0 .09" size=".65 .27 .09"/>
+    <geom type="box" pos="0 .085 .68" size=".06 .055 .5"/>
+    <geom type="box" pos="0 -.085 .68" size=".06 .055 .5"/>
+    <body name="cylinder_barrel" pos="-.48 0 .2" euler="0 .0798299857 0">
+      <joint name="cylinder_pivot" axis="0 1 0" damping=".05"/>
+      <geom type="capsule" fromto="0 0 0 0 0 .58" size=".032" mass=".12"/>
+      <geom class="bolt"/>
+      <geom type="cylinder" pos="0 0 .56" size=".04 .025" mass=".02" material="silver"/>
+      <!-- An eccentric and connecting rod drive the piston without a controller. -->
+      <body name="eccentric" pos="0 -.09 .3">
+        <joint name="eccentric_drive" axis="0 1 0" damping=".1"/>
+        <geom type="cylinder" size=".08 .018" euler="1.57079632679 0 0" mass=".1" material="brass"/>
+        <geom type="capsule" fromto="0 -.02 0 .07 -.02 0" size=".008" mass=".01" material="silver"/>
+        <body name="connecting_rod" pos=".07 0 0">
+          <joint axis="0 1 0" damping=".1"/>
+          <geom type="capsule" fromto="0 0 0 -.07 0 .25" size=".009" mass=".04" material="silver"/>
+          <site name="piston_pin" pos="-.07 0 .25" size=".004"/>
+        </body>
+      </body>
+      <body name="cylinder_rod" pos="0 0 .55">
+        <site name="piston" pos="0 -.09 0" size=".004"/>
+        <joint name="stroke" type="slide" axis="0 0 1" range="-.13 .13" damping=".1"/>
+        <geom type="capsule" fromto="0 0 0 0 0 .453194896" size=".014" mass=".06" material="silver"/>
+        <site name="rod_tip" pos="0 0 .453194896" size=".005" rgba="0 0 0 0"/>
+      </body>
+    </body>
+    <body name="fulcrum" pos="0 0 1.2">
+      <joint name="arm" axis="0 1 0" range="-.45 .45" damping="1"/>
+      <geom class="bolt" size=".04 .15"/>
+      <geom type="box" size=".045 .065 .05" mass=".15" material="silver"/>
+    </body>
+    <body name="rear_fitting" pos="-.4 0 1.2">
+      <freejoint/>
+      <geom type="box" size=".035 .065 .05" mass=".12" material="silver"/>
+      <geom class="bolt"/>
+      <site name="cylinder_tip" size=".015" rgba=".65 .72 .76 1"/>
+    </body>
+    <body name="tip_fitting" pos="1.2 0 1.2">
+      <freejoint/>
+      <geom type="box" size=".04 .065 .05" mass=".1" material="silver"/>
+      <site name="hook" size=".005" rgba="1 .8 .3 1" pos="0 0 -.045"/>
+    </body>
+    <body name="flex_frame" pos="0 0 1.2">
+      <flexcomp name="arm_flex" type="grid" count="37 3 3" spacing="0.0444444444 0.0375 0.0325" pos="0.4 0 0" dim="3" dof="trilinear" cellcount="12 1 1" mass="0.35" radius=".001" rgba=".95 .38 .12 1">
+        <elasticity young="14000000.0" poisson=".25" damping=".015"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+      </flexcomp>
+    </body>
+    <body name="payload" pos="1.2 0 .675">
+      <freejoint/>
+      <geom type="box" size=".095 .085 .06" mass=".5" material="load"/>
+      <site name="sling" pos="0 0 .06" size=".01" rgba=".95 .62 .18 1"/>
+    </body>
+  </worldbody>
+  <equality>
+    <connect name="eccentric_pin" site1="piston_pin" site2="piston"/>
+    <connect name="cylinder_pin" site1="rod_tip" site2="cylinder_tip"/>
+    <connect name="arm_flex_3_0_0_attach" body1="arm_flex_3_0_0" body2="fulcrum" anchor="0 0 0"/>
+    <connect name="arm_flex_3_0_1_attach" body1="arm_flex_3_0_1" body2="fulcrum" anchor="0 0 0"/>
+    <connect name="arm_flex_3_1_0_attach" body1="arm_flex_3_1_0" body2="fulcrum" anchor="0 0 0"/>
+    <connect name="arm_flex_3_1_1_attach" body1="arm_flex_3_1_1" body2="fulcrum" anchor="0 0 0"/>
+    <connect name="arm_flex_0_0_0_attach" body1="arm_flex_0_0_0" body2="rear_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_0_0_1_attach" body1="arm_flex_0_0_1" body2="rear_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_0_1_0_attach" body1="arm_flex_0_1_0" body2="rear_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_0_1_1_attach" body1="arm_flex_0_1_1" body2="rear_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_12_0_0_attach" body1="arm_flex_12_0_0" body2="tip_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_12_0_1_attach" body1="arm_flex_12_0_1" body2="tip_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_12_1_0_attach" body1="arm_flex_12_1_0" body2="tip_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_12_1_1_attach" body1="arm_flex_12_1_1" body2="tip_fitting" anchor="0 0 0"/>
+  </equality>
+  <tendon>
+    <spatial name="suspension" limited="true" range="0 .42" width=".004" rgba=".93 .83 .55 1" solreflimit=".003 1" solimplimit=".99 .999 .001">
+      <site site="hook"/>
+      <site site="sling"/>
+    </spatial>
+  </tendon>
+  <actuator>
+    <!-- Torque = 50 * (2*pi - angular velocity), even with zero control. -->
+    <general name="crank" joint="eccentric_drive" biastype="affine" gainprm="50" biasprm="314.15926536 0 -50"/>
+  </actuator>
+</mujoco>

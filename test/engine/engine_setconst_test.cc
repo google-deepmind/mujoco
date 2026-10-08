@@ -31,7 +31,6 @@ using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
-
 using SetConstTest = MujocoTest;
 
 TEST_F(SetConstTest, AwakeActuatedJoint) {
@@ -101,6 +100,90 @@ TEST_F(SetConstTest, AwakeActuatedSite) {
 
   EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
   EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
+}
+
+TEST_F(SetConstTest, AwakeActuatedMultiSite) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint name="J1" type="slide"/>
+        <geom size=".1"/>
+        <site name="S1"/>
+      </body>
+      <body name="B2">
+        <joint name="J2" type="slide"/>
+        <geom size=".1"/>
+        <site name="S2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general site="S1" refsite="S2" gear="1 0 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+}
+
+TEST_F(SetConstTest, AwakeActuatedSliderCrank) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint name="J1" type="slide"/>
+        <geom size=".1"/>
+        <site name="S1"/>
+      </body>
+      <body name="B2">
+        <joint name="J2" type="slide"/>
+        <geom size=".1"/>
+        <site name="S2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general cranksite="S1" slidersite="S2" cranklength="0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+}
+
+TEST_F(SetConstTest, AwakeActuatedSO3Refsite) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="B1">
+        <joint name="J1" type="ball"/>
+        <geom size=".1"/>
+        <site name="S1"/>
+      </body>
+      <body name="B2">
+        <joint name="J2" type="ball"/>
+        <geom size=".1"/>
+        <site name="S2"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <intvelocity site="S1" refsite="S2"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  EXPECT_EQ(model->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(model->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
 }
 
 TEST_F(SetConstTest, AwakeActuatedBody) {
@@ -338,24 +421,24 @@ TEST_F(SetConstTest, TendonTreeId) {
 
   // Tendon 1: Not associated with any tree
   EXPECT_EQ(model->tendon_treenum[t_static_id], 0);
-  EXPECT_EQ(model->tendon_treeid[2*t_static_id], -1);
-  EXPECT_EQ(model->tendon_treeid[2*t_static_id+1], -1);
+  EXPECT_EQ(model->tendon_treeid[2 * t_static_id], -1);
+  EXPECT_EQ(model->tendon_treeid[2 * t_static_id + 1], -1);
 
   // Tendon 2: Should be in Tree 1
   EXPECT_EQ(model->tendon_treenum[t_tree1_id], 1);
-  EXPECT_EQ(model->tendon_treeid[2*t_tree1_id], b1_1_treeid);
-  EXPECT_EQ(model->tendon_treeid[2*t_tree1_id+1], -1);
-  EXPECT_GE(model->tendon_treeid[2*t_tree1_id], 0);
+  EXPECT_EQ(model->tendon_treeid[2 * t_tree1_id], b1_1_treeid);
+  EXPECT_EQ(model->tendon_treeid[2 * t_tree1_id + 1], -1);
+  EXPECT_GE(model->tendon_treeid[2 * t_tree1_id], 0);
 
   // Tendon 3: Spans two trees (Tree 1 and Tree 2)
   EXPECT_EQ(model->tendon_treenum[t_intertree12_id], 2);
-  EXPECT_EQ(model->tendon_treeid[2*t_intertree12_id], b1_1_treeid);
-  EXPECT_EQ(model->tendon_treeid[2*t_intertree12_id+1], b2_1_treeid);
+  EXPECT_EQ(model->tendon_treeid[2 * t_intertree12_id], b1_1_treeid);
+  EXPECT_EQ(model->tendon_treeid[2 * t_intertree12_id + 1], b2_1_treeid);
 
   // Tendon 4: Spans three trees (Tree 1, 2 and 3)
   EXPECT_EQ(model->tendon_treenum[t_intertree123_id], 3);
-  EXPECT_EQ(model->tendon_treeid[2*t_intertree123_id], b1_1_treeid);
-  EXPECT_EQ(model->tendon_treeid[2*t_intertree123_id+1], b2_1_treeid);
+  EXPECT_EQ(model->tendon_treeid[2 * t_intertree123_id], b1_1_treeid);
+  EXPECT_EQ(model->tendon_treeid[2 * t_intertree123_id + 1], b2_1_treeid);
   // The third tree ID is not stored in tendon_treeid
 }
 
@@ -404,11 +487,11 @@ TEST_F(SetConstTest, SleepingNotAllowed) {
   char error[1024];
   MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   EXPECT_THAT(model.get(), IsNull()) << error;
-  EXPECT_THAT(string(error), HasSubstr(
-              "tree 1 connected to tendon 0 which spans more than 2 trees, "
-              "sleeping not allowed"));
+  EXPECT_THAT(
+      string(error),
+      HasSubstr("tree 1 connected to tendon 0 which spans more than 2 trees, "
+                "sleeping not allowed"));
 }
-
 
 TEST_F(SetConstTest, DofLength) {
   constexpr char xml[] = R"(
@@ -481,24 +564,24 @@ TEST_F(SetConstTest, BodySameframeRecomputed) {
   EXPECT_EQ(m->body_sameframe[b], mjSAMEFRAME_BODY);
 
   // perturb body_ipos, call mj_setConst
-  m->body_ipos[3*b+0] = 1.0;
+  m->body_ipos[3 * b + 0] = 1.0;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->body_sameframe[b], mjSAMEFRAME_BODYROT);
 
   // also perturb body_iquat
-  m->body_iquat[4*b+0] = 0.5;
-  m->body_iquat[4*b+1] = 0.5;
-  m->body_iquat[4*b+2] = 0.5;
-  m->body_iquat[4*b+3] = 0.5;
+  m->body_iquat[4 * b + 0] = 0.5;
+  m->body_iquat[4 * b + 1] = 0.5;
+  m->body_iquat[4 * b + 2] = 0.5;
+  m->body_iquat[4 * b + 3] = 0.5;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->body_sameframe[b], mjSAMEFRAME_NONE);
 
   // restore to identity, should go back to BODY
-  m->body_ipos[3*b+0] = 0;
-  m->body_iquat[4*b+0] = 1;
-  m->body_iquat[4*b+1] = 0;
-  m->body_iquat[4*b+2] = 0;
-  m->body_iquat[4*b+3] = 0;
+  m->body_ipos[3 * b + 0] = 0;
+  m->body_iquat[4 * b + 0] = 1;
+  m->body_iquat[4 * b + 1] = 0;
+  m->body_iquat[4 * b + 2] = 0;
+  m->body_iquat[4 * b + 3] = 0;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->body_sameframe[b], mjSAMEFRAME_BODY);
 }
@@ -525,12 +608,12 @@ TEST_F(SetConstTest, GeomSameframeRecomputed) {
   EXPECT_EQ(m->geom_sameframe[g], mjSAMEFRAME_BODY);
 
   // perturb geom_pos
-  m->geom_pos[3*g+1] = 0.5;
+  m->geom_pos[3 * g + 1] = 0.5;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->geom_sameframe[g], mjSAMEFRAME_BODYROT);
 
   // restore, should go back to BODY
-  m->geom_pos[3*g+1] = 0;
+  m->geom_pos[3 * g + 1] = 0;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->geom_sameframe[g], mjSAMEFRAME_BODY);
 }
@@ -558,12 +641,12 @@ TEST_F(SetConstTest, SiteSameframeRecomputed) {
   EXPECT_EQ(m->site_sameframe[s], mjSAMEFRAME_BODY);
 
   // perturb site_pos
-  m->site_pos[3*s+2] = 0.3;
+  m->site_pos[3 * s + 2] = 0.3;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->site_sameframe[s], mjSAMEFRAME_BODYROT);
 
   // restore
-  m->site_pos[3*s+2] = 0;
+  m->site_pos[3 * s + 2] = 0;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->site_sameframe[s], mjSAMEFRAME_BODY);
 }
@@ -589,21 +672,21 @@ TEST_F(SetConstTest, SameframeKinematicsCorrect) {
   int g = mj_name2id(m.get(), mjOBJ_GEOM, "G1");
 
   // perturb body inertial offset, breaking sameframe
-  m->body_ipos[3*b+1] = 0.5;
+  m->body_ipos[3 * b + 1] = 0.5;
   mj_setConst(m.get(), d.get());
   EXPECT_EQ(m->body_sameframe[b], mjSAMEFRAME_BODYROT);
 
   // run forward kinematics, check that xipos != xpos
   mj_forward(m.get(), d.get());
-  EXPECT_NEAR(d->xipos[3*b+1], 0.5, MjTol(1e-10, 1e-6));
-  EXPECT_NEAR(d->xpos[3*b+1], 0.0, MjTol(1e-10, 1e-6));
+  EXPECT_NEAR(d->xipos[3 * b + 1], 0.5, MjTol(1e-10, 1e-6));
+  EXPECT_NEAR(d->xpos[3 * b + 1], 0.0, MjTol(1e-10, 1e-6));
 
   // perturb geom_pos, check geom global position
-  m->geom_pos[3*g+2] = 0.3;
+  m->geom_pos[3 * g + 2] = 0.3;
   mj_setConst(m.get(), d.get());
   EXPECT_NE(m->geom_sameframe[g], mjSAMEFRAME_BODY);
   mj_forward(m.get(), d.get());
-  EXPECT_NEAR(d->geom_xpos[3*g+2], 0.3, MjTol(1e-10, 1e-6));
+  EXPECT_NEAR(d->geom_xpos[3 * g + 2], 0.3, MjTol(1e-10, 1e-6));
 }
 
 TEST_F(SetConstTest, SimpleBodyLostSameframeError) {
@@ -628,11 +711,96 @@ TEST_F(SetConstTest, SimpleBodyLostSameframeError) {
   EXPECT_GT(m->body_simple[b], 0);
 
   // perturb body_ipos, breaking sameframe; calling mj_setConst should fail
-  m->body_ipos[3*b+0] = 1.0;
+  m->body_ipos[3 * b + 0] = 1.0;
 
   std::string err = MjuErrorMessageFrom(mj_setConst)(m.get(), d.get());
   EXPECT_THAT(err, HasSubstr("body 1 is compiled as simple but "
                              "sameframe no longer holds"));
+}
+
+TEST_F(SetConstTest, DampRatioInertia) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="J1" type="slide"/>
+        <geom size=".1" mass="1"/>
+      </body>
+      <body>
+        <joint name="J2" type="slide"/>
+        <geom size=".1" mass="1"/>
+      </body>
+      <body>
+        <joint name="B" type="ball"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="2 4 4"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed name="T1" armature="3">
+        <joint joint="J1" coef="1"/>
+        <joint joint="J2" coef="1e-6"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position name="tendon" tendon="T1" kp="9" dampratio="1"/>
+      <orientation name="orient" joint="B" kp="3" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  // T1: mass = 1 + 3 (tendon armature) = 4, tiny J2 coef does not blow up
+  // damping = 2 * sqrt(9 * 4) = 12
+  EXPECT_NEAR(m->actuator_biasprm[0 * mjNBIAS + 2], -12, MjTol(1e-6, 1e-4));
+
+  // orient: average invweight = (1/2 + 1/4 + 1/4) / 3 = 1/3, mass = 3
+  // damping = 2 * sqrt(3 * 3) = 6
+  EXPECT_NEAR(m->actuator_biasprm[1 * mjNBIAS + 2], -6, MjTol(1e-10, 1e-6));
+}
+
+// The constant bending factor of M + K_bend is consumed only by bending-only
+// flexes: with stretching present the per-step factor replaces it, so a
+// singular M + K_bend must not be an error.
+TEST_F(SetConstTest, RankDeficientBendingFactor) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option solver="CG" integrator="discrete"/>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="4 4 1" spacing="0.05 0.05 0.05"
+                radius=".005" dim="2" mass="0.5" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" elastic2d="ELASTIC2D"
+                    thickness="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  for (const char* elastic2d : {"both", "bend"}) {
+    std::string model_xml(xml);
+    model_xml.replace(model_xml.find("ELASTIC2D"), 9, elastic2d);
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(model_xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    ASSERT_GT(m->nefm0dof, 0);
+    MjDataPtr d(mj_makeData(m.get()));
+
+    // vanishing vertex masses make M + K_bend singular (rigid motions)
+    for (int b = 1; b < m->nbody; b++) {
+      m->body_mass[b] = 1e-20;
+      m->body_inertia[3 * b + 0] = 1e-20;
+      m->body_inertia[3 * b + 1] = 1e-20;
+      m->body_inertia[3 * b + 2] = 1e-20;
+    }
+
+    std::string err = MjuErrorMessageFrom(mj_setConst)(m.get(), d.get());
+    if (std::string(elastic2d) == "both") {
+      EXPECT_EQ(err, "");
+    } else {
+      EXPECT_THAT(err, HasSubstr("constant metric factor is rank-deficient"));
+    }
+  }
 }
 
 }  // namespace

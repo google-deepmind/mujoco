@@ -68,6 +68,7 @@ PYBIND11_MODULE(dear_imgui, m) {
       .def_readonly("Framerate", &ImGuiIO::Framerate)
       .def_readonly("WantCaptureMouse", &ImGuiIO::WantCaptureMouse)
       .def_readonly("WantCaptureKeyboard", &ImGuiIO::WantCaptureKeyboard)
+      .def_readwrite("WantSaveIniSettings", &ImGuiIO::WantSaveIniSettings)
       .def_readonly("KeyShift", &ImGuiIO::KeyShift)
       .def_readonly("KeyCtrl", &ImGuiIO::KeyCtrl)
       .def_readonly("KeyAlt", &ImGuiIO::KeyAlt)
@@ -184,7 +185,7 @@ PYBIND11_MODULE(dear_imgui, m) {
       .value("FramePadding", ImGuiTreeNodeFlags_FramePadding)
       .value("SpanAvailWidth", ImGuiTreeNodeFlags_SpanAvailWidth)
       .value("SpanFullWidth", ImGuiTreeNodeFlags_SpanFullWidth)
-      .value("SpanTextWidth", ImGuiTreeNodeFlags_SpanTextWidth)
+      .value("SpanLabelWidth", ImGuiTreeNodeFlags_SpanLabelWidth)
       .value("SpanAllColumns", ImGuiTreeNodeFlags_SpanAllColumns)
       .value("NavLeftJumpsBackHere", ImGuiTreeNodeFlags_NavLeftJumpsBackHere)
       .value("CollapsingHeader", ImGuiTreeNodeFlags_CollapsingHeader);

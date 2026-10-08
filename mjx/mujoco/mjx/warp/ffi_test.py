@@ -52,7 +52,7 @@ class FfiTest(absltest.TestCase):
 
     with mock.patch.object(ffi, '_JAX_CALLABLE_VARIADIC_TUPLE_REGISTRY', {}):
       with mock.patch.object(
-          ffi.warp_ffi, 'jax_callable', side_effect=create_callable
+          ffi.wp, 'jax_callable', side_effect=create_callable
       ) as jax_callable:
         wrapper_a = ffi.jax_callable_variadic_tuple(func_a)
         wrapper_a_again = ffi.jax_callable_variadic_tuple(func_a)

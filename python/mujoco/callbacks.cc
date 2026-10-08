@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>  // NOLINT(build/c++11)
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -23,16 +24,16 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "gil.h"
-#include "structs.h"
 #include "raw.h"
+#include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 
 namespace mujoco::python {
 namespace {
-namespace py = ::pybind11;
 
+namespace py = ::pybind11;
 
 [[noreturn]] static void EscapeWithPythonException() {
   mju_error("Python exception raised");
@@ -396,6 +397,28 @@ void SetCallback(py::handle h, CFuncPtr py_trampoline,
   Py_XDECREF(old);
 }
 
+// Default timer callback (seconds).
+static mjtNum DefaultTimer() {
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<mjtNum>;
+  static const Clock::time_point tm_start = Clock::now();
+  return Seconds(Clock::now() - tm_start).count();
+}
+
+static void InstallDefaultTimer() {
+  // Warm up static tm_start during single-threaded module initialization to
+  // avoid later thread contention on the static guard mutex.
+  static_cast<void>(DefaultTimer());
+
+  PyObject* old = nullptr;
+  {
+    MutexLockIfGilDisabled lock(GetCallbackMutex());
+    old = std::exchange(py_mjcb_time, nullptr);
+    ::mjcb_time = DefaultTimer;
+  }
+  Py_XDECREF(old);
+}
+
 py::object GetCallback(PyObject** py_callback) {
   MutexLockIfGilDisabled lock(GetCallbackMutex());
   if (!*py_callback) {
@@ -405,6 +428,8 @@ py::object GetCallback(PyObject** py_callback) {
 }
 
 PYBIND11_MODULE(_callbacks, pymodule, pybind11::mod_gil_not_used()) {
+  InstallDefaultTimer();
+
   // Setters
   pymodule.def("set_mju_user_warning", [](py::handle h) {
     SetCallback(h, PyMjuUserWarning, &py_mju_user_warning,
@@ -470,7 +495,16 @@ PYBIND11_MODULE(_callbacks, pymodule, pybind11::mod_gil_not_used()) {
     SetCallback(h, PyMjcbSensor, &py_mjcb_sensor, &::mjcb_sensor);
   });
   pymodule.def("set_mjcb_time", [](py::handle h) {
-    SetCallback(h, PyMjcbTime, &py_mjcb_time, &::mjcb_time);
+    // Passing None restores DefaultTimer (rather than setting ::mjcb_time
+    // to null). This preserves the idiomatic Python save/restore pattern
+    // (get_mjcb_time() returning None -> set_mjcb_time(None)), and matches
+    // historical bindings behavior where MjData construction ensured a timer
+    // was present.
+    if (h.is_none()) {
+      InstallDefaultTimer();
+    } else {
+      SetCallback(h, PyMjcbTime, &py_mjcb_time, &::mjcb_time);
+    }
   });
   pymodule.def("set_mjcb_act_dyn", [](py::handle h) {
     SetCallback(h, PyMjcbActDyn, &py_mjcb_act_dyn, &::mjcb_act_dyn);
@@ -517,5 +551,6 @@ PYBIND11_MODULE(_callbacks, pymodule, pybind11::mod_gil_not_used()) {
     return GetCallback(&py_mjcb_act_bias);
   });
 }  // PYBIND11_MODULE
+
 }  // namespace
 }  // namespace mujoco::python

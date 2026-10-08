@@ -8,7 +8,7 @@
     <geom type="plane" size="2 2 .1"/>
 
     <site name="0a" pos="0 0 1"/>
-    <geom name="0g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos="0 0 0.5"/>
+    <geom name="0g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos="0 0 0.5" rgba=".5 .5 .5 .5"/>
     <body pos="0 0 .1">
       <freejoint/>
       <geom size=".05"/>
@@ -16,7 +16,7 @@
     </body>
 
     <site name="1a" pos=".4 0 1"/>
-    <geom name="1g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos=".4 0 0.5"/>
+    <geom name="1g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos=".4 0 0.5" rgba=".5 .5 .5 .5"/>
     <site name="1s" pos=".52 0 .5"/>
     <body pos=".4 0 .1">
       <freejoint/>
@@ -25,7 +25,7 @@
     </body>
 
     <site name="2a" pos="-.4 0 1"/>
-    <geom name="2g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos="-.4 0 0.5"/>
+    <geom name="2g" type="cylinder" size=".05 .2" zaxis="0 1 .2" pos="-.4 0 0.5" rgba=".5 .5 .5 .5"/>
     <site name="2s" pos="-.44 0 .5"/>
     <body pos="-.4 0 .1">
       <freejoint/>

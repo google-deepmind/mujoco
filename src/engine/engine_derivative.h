@@ -15,9 +15,12 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_DERIVATIVE_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_DERIVATIVE_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,21 +46,29 @@ MJAPI void mjd_passive_vel(const mjModel* m, mjData* d);
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
 MJAPI void mjd_rne_vel_dense(const mjModel* m, mjData* d);
 
-// return 1 if body is a standalone free body: a free joint with no children
+// return 1 if body is the root of a free rigid subtree: a free joint with fixed descendants
 mjtBool mj_isFreeBody(const mjModel* m, int body);
 
-// 6x6 block B = d qfrc_bias / d qvel for the free joint of a standalone body
+// 6x6 block B = d qfrc_bias / d qvel for the free joint of a rigid subtree
+//   requires valid d->crb, computed by mj_crb
 MJAPI void mjd_freeBias_vel(const mjModel* m, const mjData* d, int jnt, mjtNum B[36]);
 
-// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a standalone body
-//   returns 1 and writes A if jnt is the free joint of a standalone awake body, 0 otherwise
+// 6x6 block A = M - h * (d qfrc_smooth / d qvel) for the free joint of a rigid subtree
+//   returns 1 and writes A if jnt is the free joint of an awake rigid subtree, 0 otherwise
 //   requires valid d->qDeriv rows for the block, computed with flg_bias = 0
-MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36]);
+MJAPI int mjd_freeMhat(const mjModel* m, const mjData* d, int jnt, mjtNum h, mjtNum A[36],
+                       int flg_discrete);
+
+// can this free rigid subtree take the local gyroscopic treatment under discrete
+MJAPI int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt);
 
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
 MJAPI void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                               mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache);
+
+// stack bytes mjd_flexInterp_mul takes, at most
+size_t mjd_flexInterp_mulBytes(const mjModel* m);
 
 // precompute unscaled K_rot for all elements into cache (same layout as m->flex_stiffness)
 MJAPI void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out);
@@ -68,7 +79,7 @@ MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtN
                             mjtNum s1, mjtNum s2);
 
 // compute res += scale * K_stretch * vec for standard (non-interp) flex stretch,
-// K_stretch the Gauss-Newton Hessian of the passive stretch force at the current state
+// K_stretch is the PSD world-space stretch Hessian projected through the vertex Jacobians
 //   scale = s1 + s2 * flex_damping[f]  per flex
 MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                                mjtNum s1, mjtNum s2);
@@ -77,16 +88,32 @@ MJAPI void mjd_flexStretch_mul(const mjModel* m, mjData* d, mjtNum* res, const m
 // dof-level CSR; phase 1 (colind==NULL) fills rownnz/rowadr and returns total nnz, phase 2
 // fills colind/val. Interp flexes are assembled iff Krot (mjd_flexInterp_cacheKrot cache) is
 // non-NULL and the centered fast path applies (check mjd_flexInterpAssemblable first).
-// Passive contact stiffness (omega^2 * m_min); force and Hessian must use the same value.
-// res += scale * K_contact * vec (shift counterpart of the contact stiffness in the metric).
-MJAPI void mjd_flexContact_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
-                               mjtNum scale);
+// The flex-contact law, shared by the passive penalty and the IPC contact mode. A pair with
+// normal row `row` and stiffness `scale` costs
+//
+//   0.5 * scale * d^2,   d = gap - s - lam/k,   s = max(0, gap - lam/k)
+//
+// giving a force -scale*d along the row and a curvature scale*row'row in the metric. `gap` is the
+// pair's signed distance in the producer's own convention (surface distance for the penalty,
+// midsurface distance less the standoff for IPC), `lam` the augmented-Lagrangian multiplier and
+// `k` the stiffness it is defined against. The passive penalty is the case lam = 0, scale = k.
+// The slack is frozen across an inner solve: computed once per outer iteration, passed back in.
+// Convention: scale*row'row must equal h^2 * k * J'J, however the producer splits the factors.
+MJAPI mjtNum mjd_flexContactSlack(mjtNum k, mjtNum gap, mjtNum lam);
+MJAPI mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam);
 
+// natural frequency of the law: pair stiffness = mjFLEXCONTACT_OMEGA2 * min nonzero vertex mass
+#define mjFLEXCONTACT_OMEGA2 5e7
+
+// point mass of global flex vertex gv, 0 when it has no 3-dof body of its own (pinned)
+MJAPI mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv);
+
+// passive contact stiffness of a pair; force and Hessian must use the same value
 MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con);
 
 MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
                                  int* colind, mjtNum* val, mjtNum s1, mjtNum s2,
-                                 int flg_bend, int flg_stretch, int flg_contact, const mjtNum* Krot);
+                                 int flg_bend, int flg_stretch, const mjtNum* Krot);
 
 // can all interp flexes be assembled to dof-level CSR? (centered fast path everywhere)
 MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
@@ -94,24 +121,46 @@ MJAPI mjtBool mjd_flexInterpAssemblable(const mjModel* m);
 // does any flex contribute assemblable implicit stiffness? (existence check)
 MJAPI mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp);
 
-// implicit effective metric Mtilde = M + (h^2+h*d)*K: per-step arena object (see mjdata.h efm_*)
-// build (or deactivate, active==0); the gate decision belongs to the caller
-MJAPI void mjd_effBuild(const mjModel* m, mjData* d, int active, int flg_factor);
+//------------------------- helpers shared with engine_metric.c ------------------------------------
 
-// refresh the metric's smooth-force shift c = h*K*qvel (values only, velocity stage)
-MJAPI void mjd_effShift(const mjModel* m, mjData* d);
+// per-actuator skip conditions shared by the qDeriv and discrete-metric assemblers:
+// disabled, sleeping, or force-clamped actuators contribute no derivative
+int mjd_actuatorDerivSkip(const mjModel* m, const mjData* d, int i, int sleep_filter);
 
-// res += B*vec (the stiffness part of the metric; caller supplies the M part)
-MJAPI void mjd_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec);
+// d(force)/d(length) of actuator i: all gain and bias types
+mjtNum mjd_actuatorLenDeriv(const mjModel* m, const mjData* d, int i);
 
-// solve (M + B) x = b by PCG preconditioned with mjd_effPrec, to opt.tolerance on the relative
-// residual; x = M^-1 b when the metric is inactive. Warns (mjWARN_INERTIA) if the iteration cap
-// is reached before convergence, in which case x is returned under-converged.
-MJAPI void mjd_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+// d(force)/d(velocity) of actuator i: all gain and bias types
+mjtNum mjd_actuatorVelDeriv(const mjModel* m, const mjData* d, int i);
 
-// apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
-// Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
-MJAPI void mjd_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+// does any flex use the passive contact path? Distinct from elasticity: an empty CSR is valid for
+// elastic models (matrix-free operators) but means "nothing" for a contact-only flex.
+mjtBool mjd_flexPassiveContact_any(const mjModel* m);
+
+// does this standard flex contribute implicit stiffness under the given term flags?
+mjtBool mjd_flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch);
+
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+//   scale = s1 + s2 * flex_damping[f]  per flex
+//   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
+//   for stiffness only:    s1=h,   s2=0  =>  scale = h
+void mjd_flexBend_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                           mjtNum s1, mjtNum s2, int first, int last);
+
+// compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
+// SNH uses its PSD-projected material Hessian; StVK keeps the material term
+// and tensile geometric stiffness. For articulated attachments the pullback J'KJ
+// omits derivatives of the attachment Jacobian.
+void mjd_flexStretch_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                              mjtNum s1, mjtNum s2, int first, int last);
+
+// add d(fluid force)/d(velocity) of body bodyid to res (qDeriv's sparse layout), ellipsoid
+// model; if flg_dragonly, only the dissipative drag terms (the variant the metric uses)
+void mjd_ellipsoidFluid(const mjModel* m, mjData* d, mjtNum* res, int bodyid,
+                        int flg_dragonly);
+
+// add d(fluid force)/d(velocity) of body i to res (qDeriv's sparse layout), inertia-box model
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, mjtNum* res, int i);
 
 
 #ifdef __cplusplus

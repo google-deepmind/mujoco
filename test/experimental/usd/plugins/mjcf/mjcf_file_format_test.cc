@@ -704,14 +704,14 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimTimestep) {
   )");
 
   // newton:timeStepsPerSecond = round(1/0.005) = 200
-  ExpectAttributeEqual(
-      stage,
-      kPhysicsScenePrimPath.AppendProperty(pxr::_tokens->newtonTimeStepsPerSecond),
-      200);
+  ExpectAttributeEqual(stage,
+                       kPhysicsScenePrimPath.AppendProperty(
+                           pxr::_tokens->newtonTimeStepsPerSecond),
+                       200);
   // deprecated mjc:option:timestep should not be authored
   EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
-      stage,
-      kPhysicsScenePrimPath.AppendProperty(MjcPhysicsTokens->mjcOptionTimestep));
+      stage, kPhysicsScenePrimPath.AppendProperty(
+                 MjcPhysicsTokens->mjcOptionTimestep));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCone) {
@@ -947,9 +947,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimIterations) {
                            pxr::_tokens->newtonMaxSolverIterations),
                        10);
   EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(
-      stage,
-      kPhysicsScenePrimPath.AppendProperty(
-          MjcPhysicsTokens->mjcOptionIterations));
+      stage, kPhysicsScenePrimPath.AppendProperty(
+                 MjcPhysicsTokens->mjcOptionIterations));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimLSIterations) {
@@ -1213,7 +1212,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestArticulationRootAppliedOnce) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);;
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  ;
 
   // This test is particular in the sense that the authoring mistake, which is
   // made on the SdfLayer level, would disappear when we access the COMPOSED
@@ -2240,6 +2240,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsKeyframe) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestCompilerOptions) {
+  // settotalmass is deprecated
+  mock_warning_handler.ExpectWarnings("settotalmass");
+
   static constexpr char xml[] = R"(
 <mujoco model="test">
   <compiler

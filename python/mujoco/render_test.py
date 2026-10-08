@@ -83,6 +83,63 @@ class MuJoCoRenderTest(absltest.TestCase):
     np.testing.assert_array_equal(upside_down_image, expected_upside_down_image)
     context.free()
 
+  def test_figure_renders_after_hidden_skin(self):
+    xml = """
+    <mujoco>
+      <worldbody>
+        <body name="box" pos="0 0 1">
+          <freejoint/>
+          <geom type="sphere" size="0.1"/>
+        </body>
+      </worldbody>
+      <deformable>
+        <skin name="triangle" group="3"
+              vertex="0 0 0  0.2 0 0  0 0.2 0" face="0 1 2">
+          <bone body="box" bindpos="0 0 0" bindquat="1 0 0 0"
+                vertid="0 1 2" vertweight="1 1 1"/>
+        </skin>
+      </deformable>
+    </mujoco>
+    """
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    scene = mujoco.MjvScene(model, maxgeom=10)
+    mujoco.mjv_updateScene(
+        model,
+        data,
+        mujoco.MjvOption(),
+        None,
+        mujoco.MjvCamera(),
+        mujoco.mjtCatBit.mjCAT_ALL,
+        scene,
+    )
+
+    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+    full_rect = mujoco.MjrRect(0, 0, 640, 480)
+    mujoco.mjr_render(full_rect, scene, context)
+
+    figure = mujoco.MjvFigure()
+    mujoco.mjv_defaultFigure(figure)
+    figure.flg_legend = 0
+    figure.flg_extend = 0
+    figure.range[0][:] = (-1.0, 1.0)
+    figure.range[1][:] = (-1.0, 1.0)
+    figure.linergb[0] = (1.0, 0.0, 1.0)
+    figure.linedata[0][0:4] = (-1.0, -1.0, 1.0, 1.0)
+    figure.linepnt[0] = 2
+    mujoco.mjr_figure(full_rect, figure, context)
+
+    image = np.empty((480, 640, 3), dtype=np.uint8)
+    mujoco.mjr_readPixels(image, None, full_rect, context)
+    magenta = (image[:, :, 0] > 200) & (image[:, :, 1] < 100) & (
+        image[:, :, 2] > 200
+    )
+    self.assertGreater(np.count_nonzero(magenta), 0)
+    context.free()
+
   def test_safe_to_free_context_twice(self):
     self.model = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
     self.data = mujoco.MjData(self.model)

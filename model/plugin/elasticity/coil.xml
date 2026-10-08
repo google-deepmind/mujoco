@@ -76,7 +76,7 @@
       <geom type="capsule" size=".005" rgba=".8 .2 .1 1"/>
     </composite>
     <composite prefix="actuated" type="cable" curve="cos(s) sin(s) s" count="41 1 1"
-      size="0.251327412 .1 4" offset="0.25 0 .05" initial="fixed">
+      size="0.251327412 .1 4" offset="0.25 0 .05" initial="none">
       <plugin plugin="mujoco.elasticity.cable">
         <!--Units are in Pa (SI)-->
         <config key="twist" value="5e8"/>

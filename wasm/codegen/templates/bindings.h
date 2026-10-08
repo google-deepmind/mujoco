@@ -122,6 +122,18 @@ std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
 std::string IndexErrorMessage(int index, int count,
                               std::string_view accessor_name);
 
+template <typename T>
+inline val ToInt32Array(const T* data, int size) {
+  if (!data || size <= 0) {
+    return val::global("Int32Array").new_(0);
+  }
+  std::vector<int> buf(size);
+  for (int i = 0; i < size; ++i) {
+    buf[i] = static_cast<int>(data[i]);
+  }
+  return val::global("Int32Array").new_(typed_memory_view(size, buf.data()));
+}
+
 // {{ ANONYMOUS_STRUCT_TYPEDEFS }}
 
 #undef MJ_M

@@ -188,6 +188,9 @@
             .. grid-item::
                :ref:`diagexact<option-flag-diagexact>`
 
+            .. grid-item::
+               :ref:`ipc<option-flag-ipc>`
+
 
    .. dropdown:: :ref:`compiler<compiler>` |*|
 
@@ -247,6 +250,12 @@
 
          .. grid-item::
             :ref:`saveinertial<compiler-saveinertial>`
+
+         .. grid-item::
+            :ref:`savecompiled<compiler-savecompiled>`
+
+         .. grid-item::
+            :ref:`savecanonical<compiler-savecanonical>`
 
          .. grid-item::
             :ref:`assetdir<compiler-assetdir>`
@@ -717,6 +726,9 @@
             :ref:`simple<body-simple>`
 
          .. grid-item::
+            :ref:`fuse<body-fuse>`
+
+         .. grid-item::
             :ref:`user<body-user>`
 
 
@@ -1036,6 +1048,9 @@
 
             .. grid-item::
                :ref:`material<body-site-material>`
+
+            .. grid-item::
+               :ref:`mesh<body-site-mesh>`
 
             .. grid-item::
                :ref:`size<body-site-size>`
@@ -1406,6 +1421,9 @@
                .. grid-item::
                   :ref:`rgba<composite-site-rgba>`
 
+               .. grid-item::
+                  :ref:`mesh<composite-site-mesh>`
+
 
          .. dropdown:: :ref:`plugin<composite-plugin>` |*|
 
@@ -1596,9 +1614,6 @@
                   :ref:`gap<flexcomp-contact-gap>`
 
                .. grid-item::
-                  :ref:`internal<flexcomp-contact-internal>`
-
-               .. grid-item::
                   :ref:`selfcollide<flexcomp-contact-selfcollide>`
 
                .. grid-item::
@@ -1741,9 +1756,6 @@
 
                .. grid-item::
                   :ref:`gap<flex-contact-gap>`
-
-               .. grid-item::
-                  :ref:`internal<flex-contact-internal>`
 
                .. grid-item::
                   :ref:`selfcollide<flex-contact-selfcollide>`
@@ -2389,6 +2401,9 @@
 
             .. grid-item::
                :ref:`ffrange<actuator-general-ffrange>`
+
+            .. grid-item::
+               :ref:`inheritrange<actuator-general-inheritrange>`
 
             .. grid-item::
                :ref:`dyntype<actuator-general-dyntype>`
@@ -4796,6 +4811,9 @@
             .. grid-item::
                :ref:`objname<sensor-insidesite-objname>`
 
+            .. grid-item::
+               :ref:`enclosed<sensor-insidesite-enclosed>`
+
 
       .. dropdown:: :ref:`distance<sensor-distance>` |*|
 
@@ -5098,6 +5116,9 @@
 
             .. grid-item::
                :ref:`interval<sensor-tactile-interval>`
+
+            .. grid-item::
+               :ref:`cutoff<sensor-tactile-cutoff>`
 
             .. grid-item::
                :ref:`user<sensor-tactile-user>`
@@ -5766,6 +5787,9 @@
                :ref:`material<default-site-material>`
 
             .. grid-item::
+               :ref:`mesh<default-site-mesh>`
+
+            .. grid-item::
                :ref:`size<default-site-size>`
 
             .. grid-item::
@@ -6055,6 +6079,9 @@
 
             .. grid-item::
                :ref:`ffrange<default-general-ffrange>`
+
+            .. grid-item::
+               :ref:`inheritrange<default-general-inheritrange>`
 
             .. grid-item::
                :ref:`dyntype<default-general-dyntype>`

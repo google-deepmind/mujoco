@@ -14,9 +14,9 @@
 # ==============================================================================
 """Tests for sensor functions."""
 
+import itertools
 from absl.testing import absltest
 from absl.testing import parameterized
-import itertools
 import jax
 from jax import numpy as jp
 import mujoco
@@ -82,6 +82,28 @@ class SensorTest(parameterized.TestCase):
     dx = jax.jit(mjx.sensor_acc)(mx, dx)
 
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
+  def test_touch_sensor_nested_vmap(self):
+    """Tests touch sensors compose under nested vmap."""
+    m = test_util.load_test_file('sensor/sensor.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 10)
+    mx = mjx.put_model(m)
+    dx = mjx.forward(mx, mjx.put_data(m, d))
+
+    def sensor_fn(offset):
+      data = jax.tree.map(
+          lambda x: x + offset * jp.zeros_like(x)
+          if isinstance(x, jax.Array) and jp.issubdtype(x.dtype, jp.floating)
+          else x,
+          dx,
+      )
+      return mjx.sensor_acc(mx, data).sensordata
+
+    offsets = jp.zeros((2, 4))
+    actual = jax.jit(jax.vmap(jax.vmap(sensor_fn)))(offsets)
+    expected = np.asarray(dx.sensordata)
+    _assert_eq(actual, np.broadcast_to(expected, actual.shape), 'sensordata')
 
   def test_disable_sensor(self):
     """Tests disabling sensor."""

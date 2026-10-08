@@ -30,17 +30,20 @@ compile errors, and the field's C type (parsed from mjspec.h) selects the row
 kind, so mjtNum vs double is decided by the struct, not by the schema.
 """
 
-import os  # pylint: disable=unused-import
+import os
 import re
 import sys
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _SCRIPT_DIR)
-import mjcf_schema
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-SCHEMA_PATH = os.path.join(_REPO_ROOT, 'src', 'xml', 'mjcf.schema')
-SPEC_H_PATH = os.path.join(_REPO_ROOT, 'include', 'mujoco', 'mjspec.h')
-MODEL_H_PATH = os.path.join(_REPO_ROOT, 'include', 'mujoco', 'mjmodel.h')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import mjcf_schema  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
+
+SCHEMA_PATH = str(resource_loader.resolve_path('src/xml/mjcf.schema'))
+SPEC_H_PATH = str(resource_loader.resolve_path('include/mujoco/mjspec.h'))
+MODEL_H_PATH = str(resource_loader.resolve_path('include/mujoco/mjmodel.h'))
 
 # elements with a bound spec whose OneX() reader is NOT table-driven;
 # their rows are not emitted. These are the genuinely irregular elements
@@ -48,9 +51,7 @@ MODEL_H_PATH = os.path.join(_REPO_ROOT, 'include', 'mujoco', 'mjmodel.h')
 # If you add a new schema element with a bound spec, either migrate its
 # reader to ReadAttrTable (it will be auto-included) or add it here.
 NOT_TABLE_DRIVEN = {
-    # actuator shorthands: read shared rows + per-tag remappings
-    'motor', 'position', 'velocity', 'intvelocity', 'orientation',
-    'pid', 'damper', 'cylinder', 'muscle', 'adhesion', 'dcmotor',
+    # plugin actuator: shared rows + plugin config
     'actuator_plugin',
     # equality subtypes: read shared equality_base + per-type refs
     'connect', 'weld', 'equality_joint', 'equality_tendon',
@@ -61,6 +62,10 @@ NOT_TABLE_DRIVEN = {
     # other irregulars
     'frame', 'plugin', 'numeric', 'text', 'tuple',
 }
+
+# actuator tags whose mechanical rows are collected into kActuatorDispatch,
+# keyed by the actuatortype enum; shortcut parameters are reading=custom
+ACTUATOR_DISPATCH_ENUM = 'actuatortype'
 
 # sensors whose whole branch derives from the schema (identity constants +
 # references); their arrays are also collected into kSensorDispatch
@@ -399,6 +404,17 @@ def generate():
   out.append('};')
   out.append('inline constexpr int kSensorDispatchN = '
              'sizeof(kSensorDispatch) / sizeof(kSensorDispatch[0]);')
+  out.append('')
+  out.append('// actuator tags and their mechanical rows: dispatch by tag or type')
+  out.append('struct mjXActuatorEntry { const char* tag; int type;'
+             ' const mjXAttr* rows; int n; };')
+  out.append('inline constexpr mjXActuatorEntry kActuatorDispatch[] = {')
+  for tag, const in schema.enums[ACTUATOR_DISPATCH_ENUM].items:
+    array = array_name(tag)
+    out.append(f'  {{"{tag}", {const}, {array}, {array}N}},')
+  out.append('};')
+  out.append('inline constexpr int kActuatorDispatchN = '
+             'sizeof(kActuatorDispatch) / sizeof(kActuatorDispatch[0]);')
   out.append('')
   for gname, (struct, array) in EMIT_GROUPS.items():
     rows = rows_for_group(schema, structs, gname, struct)

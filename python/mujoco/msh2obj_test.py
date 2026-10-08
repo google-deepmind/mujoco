@@ -14,9 +14,10 @@
 # ==============================================================================
 """Tests for msh2obj.py."""
 
-import pathlib
+import tempfile
 
 from absl.testing import absltest
+from absl.testing import parameterized
 from etils import epath
 import numpy as np
 
@@ -53,37 +54,100 @@ _XML = """
 """
 
 
-class MshTest(absltest.TestCase):
+class MshTest(parameterized.TestCase):
 
-  def test_rejects_truncated_header(self) -> None:
-    for header in ([], [1, 0]):
-      with self.subTest(header=header):
-        msh_path = pathlib.Path(self.create_tempfile().full_path)
-        np.asarray(header, dtype=np.int32).tofile(msh_path)
+  @parameterized.named_parameters(
+      ("vertices_only", False, False, "f 1 3 2"),
+      ("with_normals", True, False, "f 1//1 3//3 2//2"),
+      ("with_texcoords", False, True, "f 1/1 3/3 2/2"),
+      ("with_both", True, True, "f 1/1/1 3/3/3 2/2/2"),
+  )
+  def test_optional_vertex_attributes(
+      self, has_normals, has_texcoords, expected_face
+  ):
+    vertices = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32
+    )
+    normals = np.array(
+        [[-1, -1, -1], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32
+    )
+    normals[0] /= np.sqrt(3)
+    if not has_normals:
+      normals = normals[:0]
+    texcoords = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
+    if not has_texcoords:
+      texcoords = texcoords[:0]
+    faces = np.array(
+        [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]], dtype=np.int32
+    )
+    header = np.array([4, len(normals), len(texcoords), 4], dtype=np.int32)
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "tetra.msh"
+      with msh_path.open("wb") as f:
+        for array in (header, vertices, normals, texcoords, faces):
+          f.write(array.tobytes())
+      msh_bytes = msh_path.read_bytes()
+      obj = msh2obj.msh_to_obj(msh_path)
 
-        with self.assertRaisesRegex(
-            ValueError,
-            f"Invalid MSH header: expected 4 counts, got {len(header)}.",
-        ):
-          msh2obj.Msh.create(msh_path)
+    lines = obj.splitlines()
+    self.assertLen(
+        [line for line in lines if line.startswith("vn ")], len(normals)
+    )
+    self.assertLen(
+        [line for line in lines if line.startswith("vt ")], len(texcoords)
+    )
+    self.assertEqual(
+        [line for line in lines if line.startswith("f ")][0], expected_face
+    )
 
-  def test_rejects_negative_count(self) -> None:
-    msh_path = pathlib.Path(self.create_tempfile().full_path)
-    np.asarray([-1, 0, 0, 0], dtype=np.int32).tofile(msh_path)
-
-    with self.assertRaisesRegex(
-        ValueError, "Invalid MSH header: counts must be nonnegative"
+    for extension, data in (
+        ("msh", msh_bytes),
+        ("obj", obj.encode()),
     ):
-      msh2obj.Msh.create(msh_path)
+      filename = f"tetra.{extension}"
+      model = mujoco.MjModel.from_xml_string(
+          '<mujoco><asset><mesh name="tetra"'
+          f' file="{filename}"/></asset></mujoco>',
+          {filename: data},
+      )
+      self.assertEqual(model.nmesh, 1)
+      self.assertEqual(model.mesh_vertnum[0], 4)
+      self.assertEqual(model.mesh_facenum[0], 4)
+
+  @parameterized.parameters(0, 1, 2, 3)
+  def test_rejects_truncated_header(self, count) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "truncated.msh"
+      np.zeros(count, dtype=np.int32).tofile(msh_path)
+
+      with self.assertRaisesRegex(
+          ValueError,
+          rf"Invalid MSH header: expected 4 counts, got {count}\.",
+      ):
+        msh2obj.Msh.create(msh_path)
+
+  @parameterized.parameters(0, 1, 2, 3)
+  def test_rejects_negative_count(self, count_index) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "negative.msh"
+      header = np.zeros(4, dtype=np.int32)
+      header[count_index] = -1
+      header.tofile(msh_path)
+
+      with self.assertRaisesRegex(
+          ValueError, "Invalid MSH header: counts must be nonnegative"
+      ):
+        msh2obj.Msh.create(msh_path)
 
   def test_reports_texcoord_count(self) -> None:
-    msh_path = pathlib.Path(self.create_tempfile().full_path)
-    np.asarray([0, 0, 1, 0], dtype=np.int32).tofile(msh_path)
+    with tempfile.TemporaryDirectory() as tmpdir:
+      msh_path = epath.Path(tmpdir) / "texcoords.msh"
+      np.asarray([0, 0, 1, 0], dtype=np.int32).tofile(msh_path)
 
-    with self.assertRaisesRegex(
-        ValueError, r"Invalid number of texcoords: 0 != 2\*1\."
-    ):
-      msh2obj.Msh.create(msh_path)
+      with self.assertRaisesRegex(
+          ValueError, r"Invalid number of texcoords: 0 != 2\*1\."
+      ):
+        msh2obj.Msh.create(msh_path)
 
   def test_obj_model_matches_msh_model(self) -> None:
     test_path = epath.resource_path("mujoco") / "testdata"

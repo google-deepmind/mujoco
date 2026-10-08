@@ -106,20 +106,20 @@ def benchmark(
 
 
 def efc_order(m: mujoco.MjModel, d: mujoco.MjData, dx: Data) -> np.ndarray:
-  """Returns a sort order such that dx.efc_*[order][:d._impl.nefc] == d.efc_*."""  # pytype: disable=attribute-error
+  """Returns a sort order such that dx.efc_*[order][:d._impl.nefc] == d.efc_*."""
   # reorder efc rows to skip inactive constraints and match contact order
-  efl = dx._impl.ne + dx._impl.nf + dx._impl.nl  # pytype: disable=attribute-error
+  efl = dx._impl.ne + dx._impl.nf + dx._impl.nl  # pyrefly: ignore[missing-attribute]
   order = np.arange(efl)
-  order[(dx._impl.efc_J[:efl] == 0).all(axis=1)] = 2**16  # move empty rows to end  # pytype: disable=attribute-error
-  for i in range(dx._impl.ncon):  # pytype: disable=attribute-error
-    num_rows = dx._impl.contact.dim[i]  # pytype: disable=attribute-error
-    if dx._impl.contact.dim[i] > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:  # pytype: disable=attribute-error
-      num_rows = (dx._impl.contact.dim[i] - 1) * 2  # pytype: disable=attribute-error
-    if dx._impl.contact.dist[i] > 0:  # move empty contacts to end  # pytype: disable=attribute-error
+  order[(dx._impl.efc_J[:efl] == 0).all(axis=1)] = 2**16  # move empty rows to end  # pyrefly: ignore[missing-attribute]
+  for i in range(dx._impl.ncon):  # pyrefly: ignore[missing-attribute]
+    num_rows = dx._impl.contact.dim[i]  # pyrefly: ignore[missing-attribute]
+    if dx._impl.contact.dim[i] > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:  # pyrefly: ignore[missing-attribute]
+      num_rows = (dx._impl.contact.dim[i] - 1) * 2  # pyrefly: ignore[missing-attribute]
+    if dx._impl.contact.dist[i] > 0:  # move empty contacts to end  # pyrefly: ignore[missing-attribute]
       order = np.append(order, np.repeat(2**16, num_rows))
       continue
-    contact_match = (d.contact.geom == dx._impl.contact.geom[i]).all(axis=-1)  # pytype: disable=attribute-error
-    contact_match &= (d.contact.pos == dx._impl.contact.pos[i]).all(axis=-1)  # pytype: disable=attribute-error
+    contact_match = (d.contact.geom == dx._impl.contact.geom[i]).all(axis=-1)  # pyrefly: ignore[missing-attribute]
+    contact_match &= (d.contact.pos == dx._impl.contact.pos[i]).all(axis=-1)  # pyrefly: ignore[missing-attribute]
     assert contact_match.any(), f'contact {i} not found'
     contact_id = np.nonzero(contact_match)[0][0]
     order = np.append(order, np.repeat(efl + contact_id, num_rows))
@@ -443,6 +443,9 @@ def create_mjcf(
   contact = ET.SubElement(mjcf, 'contact')
   geoms = list(mjcf.iter('geom'))
   geom_names = [geom.get('name') for geom in geoms]
+  geom_bodies = {
+      g.get('name'): b for b in [world] + bodies for g in b.findall('geom')
+  }
   n_geoms = len(geoms)
   pairs = set()
   for _ in range(min(max_contact_pairs, n_geoms * (n_geoms - 1) // 2)):
@@ -453,7 +456,7 @@ def create_mjcf(
     if geom1 > geom2:
       geom1, geom2 = geom2, geom1
 
-    if (geom1, geom2) in pairs:
+    if (geom1, geom2) in pairs or geom_bodies[geom1] == geom_bodies[geom2]:
       continue
 
     pairs.add((geom1, geom2))

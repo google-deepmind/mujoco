@@ -23,6 +23,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_collision_convex.h
     engine_collision_driver.c
     engine_collision_driver.h
+    engine_collision_flex.c
+    engine_collision_flex.h
     engine_collision_gjk.c
     engine_collision_gjk.h
     engine_collision_primitive.c
@@ -46,6 +48,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_global_table.h
     engine_inverse.c
     engine_inverse.h
+    engine_ipc.c
+    engine_ipc.h
     engine_init.c
     engine_init.h
     engine_inline.h
@@ -56,6 +60,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_macro.h
     engine_memory.c
     engine_memory.h
+    engine_metric.c
+    engine_metric.h
     engine_name.c
     engine_name.h
     engine_passive.c

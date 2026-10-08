@@ -31,8 +31,8 @@
 #include <unistd.h>
 #endif
 
+#include <mujoco/mjexport.h>
 #include "engine/engine_crossplatform.h"  // IWYU pragma: keep
-#include "engine/engine_macro.h"
 
 //------------------------- cross-platform aligned malloc/free -------------------------------------
 
@@ -43,8 +43,8 @@ static void mju_defaultLogHandler(const mjLogMessage* msg);
 //------------------------------ malloc and free ---------------------------------------------------
 
 // user memory handlers
-void* (*mju_user_malloc) (size_t) = 0;
-void (*mju_user_free) (void*) = 0;
+MJAPI void* (*mju_user_malloc) (size_t) = 0;
+MJAPI void (*mju_user_free) (void*) = 0;
 
 // cross-platform aligned malloc
 static inline void* mju_alignedMalloc(size_t size, size_t align) {
@@ -102,8 +102,8 @@ void mju_free(void* ptr) {
 static mjfLogHandler global_log_handler = mju_defaultLogHandler;
 
 // legacy error/warning handlers (deprecated)
-void (*mju_user_error) (const char*) = 0;
-void (*mju_user_warning) (const char*) = 0;
+MJAPI void (*mju_user_error) (const char*) = 0;
+MJAPI void (*mju_user_warning) (const char*) = 0;
 
 // default handler configuration
 static mjLogConfig log_config = {.logto_console = true,
@@ -218,7 +218,7 @@ static void mju_localTimeStr(char* buf, int buf_sz) {
   struct tm timeinfo;
   time(&rawtime);
 
-#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__) || defined(__EMSCRIPTEN__)
+#if defined(_POSIX_C_SOURCE) || defined(__APPLE__) || defined(__STDC_VERSION_TIME_H__) || defined(__EMSCRIPTEN__) || defined(__linux__)
   localtime_r(&rawtime, &timeinfo);
 #elif defined(_WIN32)
   localtime_s(&timeinfo, &rawtime);

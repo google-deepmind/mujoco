@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3012001
+#define mjVERSION_HEADER 3015001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -155,7 +155,7 @@ MJAPI mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
-// Copy real-valued arrays from model to spec; return 1 on success.
+// Copy the values which were changed in a model to the spec it was compiled from; return 1 on success.
 MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 
 // Recompile spec to model, preserving the state; return 0 on success.
@@ -228,7 +228,7 @@ MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
 // Save model to binary MJB file or memory buffer; buffer has precedence when given.
 // Nullable: filename, buffer
-MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
+MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize buffer_sz);
 
 // Load model from binary MJB file.
 // If vfs is not NULL, look up file in vfs before reading from disk.
@@ -236,7 +236,7 @@ MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, in
 MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 
 // Load model from memory buffer.
-MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz);
 
 // Free memory allocation in model.
 MJAPI void mj_deleteModel(mjModel* m);
@@ -518,9 +518,11 @@ MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig
 MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
 // Read ctrl value for actuator at given time.
-// Returns d->ctrl[id] if no history, otherwise reads from history buffer.
+// Returns pointer to ctrl (no history) or history buffer (exact match),
+// or NULL if interpolation performed (writes to result).
 // interp: 0=zero-order-hold, 1=linear, 2=cubic spline.
-MJAPI mjtNum mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time, int interp);
+MJAPI const mjtNum* mj_readCtrl(const mjModel* m, const mjData* d, int id, mjtNum time,
+                                mjtNum* result, int interp);
 
 // Read sensor value from history buffer at given time.
 // Returns pointer to sensordata (no history) or history buffer (exact match),
@@ -639,6 +641,9 @@ MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
 // Nullable: fromto
 MJAPI mjtNum mj_geomDistance(const mjModel* m, mjData* d, int geom1, int geom2, mjtNum distmax,
                              mjtNum fromto[6]);
+
+// Return 1 if point is inside a site (convex hull for meshes), 0 otherwise.
+MJAPI int mj_insideSite(const mjModel* m, const mjData* d, int siteid, const mjtNum point[3]);
 
 // Extract 6D force:torque given contact id, in the contact frame.
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
@@ -1587,6 +1592,16 @@ MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
 // If no match, return NULL.
 MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
 
+// Globally register an archive resource provider. This function is thread-safe.
+// provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
+MJAPI void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+
+// Return the archive resource provider that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+
+// Return the number of globally registered archive resource providers.
+MJAPI int mjp_archiveResourceProviderCount(void);
 
 
 //---------------------------------- Resources -----------------------------------------------------
@@ -1952,6 +1967,18 @@ MJAPI int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 // Resolve alternative orientations to quat; return error if any.
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
+
+// Fuse the static bodies of the spec with their parents, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
+
+// Discard the visual elements of the spec, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
+
+// Make the inertial which compilation infers for a body part of the spec, return 0 on success.
+// Nullable: vfs
+MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);
 
 // Transform body into a frame.
 MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);

@@ -29,7 +29,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.12.1
+  VERSION 3.15.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -165,15 +165,19 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
+
+add_subdirectory(src/render/noop)
+
 if(NOT EMSCRIPTEN AND NOT MUJOCO_USE_FILAMENT_MJR_COMPAT)
   add_subdirectory(src/render/classic)
   add_subdirectory(src/ui)
 endif()
-add_subdirectory(src/render/noop)
 
 if(MUJOCO_USE_FILAMENT)
   add_subdirectory(src/render/filament)
-  add_subdirectory(src/experimental/filament)
+  if(MUJOCO_USE_FILAMENT_MJR_COMPAT)
+    add_subdirectory(src/experimental/filament)
+  endif()
 endif()
 
 if(EMSCRIPTEN)
@@ -216,6 +220,14 @@ endif()
 set_target_properties(
   mujoco PROPERTIES VERSION "${mujoco_VERSION}" PUBLIC_HEADER "${MUJOCO_HEADERS}"
 )
+
+if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND MUJOCO_ENABLE_LTO)
+  # Keep whole-program optimization (/GL + /LTCG) on the core mujoco DLL even
+  # when global CMAKE_INTERPROCEDURAL_OPTIMIZATION is disabled in CI: turning
+  # off /GL on mujoco exposes an MSVC /EHsc + longjmp stack-unwinding crash in
+  # SetConstTest.SleepingNotAllowed.
+  set_target_properties(mujoco PROPERTIES INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
 
 # CMake's built-in FRAMEWORK option doesn't give us control over the dylib name inside the
 # Framework. We instead make our own Framework here.
@@ -268,7 +280,6 @@ if(MUJOCO_BUILD_SIMULATE)
 endif()
 
 if(MUJOCO_BUILD_STUDIO)
-  add_subdirectory(src/experimental/platform)
   add_subdirectory(src/experimental/studio)
 endif()
 
@@ -355,4 +366,16 @@ if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
     DESTINATION "${CMAKE_INSTALL_DATADIR}/mujoco"
     PATTERN "CMakeLists.txt" EXCLUDE
   )
+endif()
+
+if(MUJOCO_REQUIRED_TARGETS)
+  foreach(target IN LISTS MUJOCO_REQUIRED_TARGETS)
+    if(NOT TARGET ${target})
+      message(
+        FATAL_ERROR
+        "Required target '${target}' is not defined. "
+        "This target is required by the internal packaging workflow."
+      )
+    endif()
+  endforeach()
 endif()

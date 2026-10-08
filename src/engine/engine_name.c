@@ -312,5 +312,14 @@ const char* mj_actuatorInputName(const mjModel* m, int id, int input) {
     }
   }
 
+  // fixed and affine gains: the declared input, if any
+  if (m->actuator_gaintype[id] == mjGAIN_FIXED || m->actuator_gaintype[id] == mjGAIN_AFFINE) {
+    switch (m->actuator_ctrlspec[id]) {
+    case mjINPUT_POS:      return "pos";
+    case mjINPUT_VEL:      return "vel";
+    case mjINPUT_PRESSURE: return "pressure";
+    }
+  }
+
   return NULL;
 }

@@ -40,6 +40,8 @@ inline constexpr mjXAttr kCompilerAttrs[] = {
   {"inertiafromgeom", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, inertiafromgeom), FalseTrueAuto_map, FalseTrueAuto_sz},
   {"inertiagrouprange", mjXAttr::kInt, 2, true, false, false, false, (int)offsetof(mjsCompiler, inertiagrouprange)},
   {"saveinertial", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, saveinertial)},
+  {"savecompiled", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, savecompiled)},
+  {"savecanonical", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, savecanonical)},
   {"alignfree", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, alignfree)},
   {"conflict", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, conflict), conflict_map, conflict_sz},
 };
@@ -307,6 +309,7 @@ inline constexpr mjXAttr kBodyAttrs[] = {
   {"gravcomp", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsBody, gravcomp)},
   {"sleep", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsBody, sleep), bodysleep_map, bodysleep_sz},
   {"simple", mjXAttr::kEnumByte, 1, true, false, false, false, (int)offsetof(mjsBody, simple), FalseAuto_map, FalseAuto_sz},
+  {"fuse", mjXAttr::kEnumByte, 1, true, false, false, false, (int)offsetof(mjsBody, fuse), FalseAuto_map, FalseAuto_sz},
   {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsBody, userdata)},
 };
 inline constexpr int kBodyAttrsN = sizeof(kBodyAttrs) / sizeof(kBodyAttrs[0]);
@@ -385,8 +388,9 @@ inline constexpr mjXAttr kSiteAttrs[] = {
   {"name", mjXAttr::kName, 1, true, false, true, false, -1},
   {"type", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsSite, type), geomtype_map, geomtype_sz},
   {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsSite, group)},
-  {"pos", mjXAttr::kDouble, 3, true, false, false, false, (int)offsetof(mjsSite, pos)},
+  {"pos", mjXAttr::kDouble, 3, true, false, false, true, (int)offsetof(mjsSite, pos)},
   {"material", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsSite, material)},
+  {"mesh", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsSite, meshname)},
   {"size", mjXAttr::kDouble, 3, false, false, false, true, (int)offsetof(mjsSite, size)},
   {"fromto", mjXAttr::kDouble, 6, true, false, false, true, (int)offsetof(mjsSite, fromto)},
   {"rgba", mjXAttr::kFloat, 4, true, false, false, false, (int)offsetof(mjsSite, rgba)},
@@ -459,7 +463,6 @@ inline constexpr mjXAttr kFlexcomp_contactAttrs[] = {
   {"solimp", mjXAttr::kNum, mjNIMP, false, false, false, false, (int)offsetof(mjsFlex, solimp)},
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, margin)},
   {"gap", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, gap)},
-  {"internal", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsFlex, internal)},
   {"selfcollide", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, selfcollide), flexself_map, flexself_sz},
   {"activelayers", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsFlex, activelayers)},
   {"passive", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, passive), bool_map, 2},
@@ -582,6 +585,7 @@ inline constexpr mjXAttr kGeneralAttrs[] = {
   {"actdim", mjXAttr::kInt, 1, true, false, false, true, (int)offsetof(mjsActuator, actdim)},
   {"velrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, velrange)},
   {"ffrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ffrange)},
+  {"inheritrange", mjXAttr::kDouble, 1, true, false, false, true, (int)offsetof(mjsActuator, inheritrange)},
   {"dyntype", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, dyntype), dyn_map, dyn_sz},
   {"gaintype", mjXAttr::kEnum, 1, true, false, false, true, (int)offsetof(mjsActuator, gaintype), gain_map, gain_sz},
   {"biastype", mjXAttr::kEnum, 1, true, false, false, true, (int)offsetof(mjsActuator, biastype), bias_map, bias_sz},
@@ -591,6 +595,206 @@ inline constexpr mjXAttr kGeneralAttrs[] = {
   {"actearly", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsActuator, actearly)},
 };
 inline constexpr int kGeneralAttrsN = sizeof(kGeneralAttrs) / sizeof(kGeneralAttrs[0]);
+
+// motor (mjsActuator)
+inline constexpr mjXAttr kMotorAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kMotorAttrsN = sizeof(kMotorAttrs) / sizeof(kMotorAttrs[0]);
+
+// position (mjsActuator)
+inline constexpr mjXAttr kPositionAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kPositionAttrsN = sizeof(kPositionAttrs) / sizeof(kPositionAttrs[0]);
+
+// velocity (mjsActuator)
+inline constexpr mjXAttr kVelocityAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kVelocityAttrsN = sizeof(kVelocityAttrs) / sizeof(kVelocityAttrs[0]);
+
+// intvelocity (mjsActuator)
+inline constexpr mjXAttr kIntvelocityAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"actlimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, actlimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"actrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, actrange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kIntvelocityAttrsN = sizeof(kIntvelocityAttrs) / sizeof(kIntvelocityAttrs[0]);
+
+// orientation (mjsActuator)
+inline constexpr mjXAttr kOrientationAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+};
+inline constexpr int kOrientationAttrsN = sizeof(kOrientationAttrs) / sizeof(kOrientationAttrs[0]);
+
+// pid (mjsActuator)
+inline constexpr mjXAttr kPidAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"velrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, velrange)},
+  {"ffrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ffrange)},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kPidAttrsN = sizeof(kPidAttrs) / sizeof(kPidAttrs[0]);
+
+// damper (mjsActuator)
+inline constexpr mjXAttr kDamperAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kDamperAttrsN = sizeof(kDamperAttrs) / sizeof(kDamperAttrs[0]);
+
+// cylinder (mjsActuator)
+inline constexpr mjXAttr kCylinderAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kCylinderAttrsN = sizeof(kCylinderAttrs) / sizeof(kCylinderAttrs[0]);
+
+// muscle (mjsActuator)
+inline constexpr mjXAttr kMuscleAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kMuscleAttrsN = sizeof(kMuscleAttrs) / sizeof(kMuscleAttrs[0]);
+
+// adhesion (mjsActuator)
+inline constexpr mjXAttr kAdhesionAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"forcelimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, forcelimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"forcerange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, forcerange)},
+};
+inline constexpr int kAdhesionAttrsN = sizeof(kAdhesionAttrs) / sizeof(kAdhesionAttrs[0]);
+
+// dcmotor (mjsActuator)
+inline constexpr mjXAttr kDcmotorAttrs[] = {
+  {"name", mjXAttr::kName, 1, true, false, true, false, -1},
+  {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, group)},
+  {"nsample", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsActuator, nsample)},
+  {"interp", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, interp), interp_map, interp_sz},
+  {"delay", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, delay)},
+  {"ctrlrange", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsActuator, ctrlrange)},
+  {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsActuator, userdata)},
+  {"ctrllimited", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsActuator, ctrllimited), FalseTrueAuto_map, FalseTrueAuto_sz},
+  {"lengthrange", mjXAttr::kDouble, 2, true, false, true, false, (int)offsetof(mjsActuator, lengthrange)},
+  {"gear", mjXAttr::kDouble, 6, false, false, false, false, (int)offsetof(mjsActuator, gear)},
+  {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsActuator, damping)},
+  {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsActuator, armature)},
+};
+inline constexpr int kDcmotorAttrsN = sizeof(kDcmotorAttrs) / sizeof(kDcmotorAttrs[0]);
 
 // touch (mjsSensor)
 inline constexpr mjXAttr kTouchAttrs[] = {
@@ -911,6 +1115,7 @@ inline constexpr mjXAttr kInsidesiteAttrs[] = {
   {"site", mjXAttr::kString, 1, true, true, false, false, (int)offsetof(mjsSensor, refname)},
   {"objtype", mjXAttr::kEnum, 1, true, true, false, false, (int)offsetof(mjsSensor, objtype), frameobj_map, frameobj_sz},
   {"objname", mjXAttr::kString, 1, true, true, false, false, (int)offsetof(mjsSensor, objname)},
+  {"enclosed", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsSensor, intprm), bool_map, 2},
 };
 inline constexpr int kInsidesiteAttrsN = sizeof(kInsidesiteAttrs) / sizeof(kInsidesiteAttrs[0]);
 
@@ -993,6 +1198,24 @@ inline constexpr mjXSensorEntry kSensorDispatch[] = {
   {"clock", kClockAttrs, kClockAttrsN},
 };
 inline constexpr int kSensorDispatchN = sizeof(kSensorDispatch) / sizeof(kSensorDispatch[0]);
+
+// actuator tags and their mechanical rows: dispatch by tag or type
+struct mjXActuatorEntry { const char* tag; int type; const mjXAttr* rows; int n; };
+inline constexpr mjXActuatorEntry kActuatorDispatch[] = {
+  {"general", mjACTUATOR_GENERAL, kGeneralAttrs, kGeneralAttrsN},
+  {"motor", mjACTUATOR_MOTOR, kMotorAttrs, kMotorAttrsN},
+  {"position", mjACTUATOR_POSITION, kPositionAttrs, kPositionAttrsN},
+  {"velocity", mjACTUATOR_VELOCITY, kVelocityAttrs, kVelocityAttrsN},
+  {"intvelocity", mjACTUATOR_INTVELOCITY, kIntvelocityAttrs, kIntvelocityAttrsN},
+  {"damper", mjACTUATOR_DAMPER, kDamperAttrs, kDamperAttrsN},
+  {"cylinder", mjACTUATOR_CYLINDER, kCylinderAttrs, kCylinderAttrsN},
+  {"muscle", mjACTUATOR_MUSCLE, kMuscleAttrs, kMuscleAttrsN},
+  {"adhesion", mjACTUATOR_ADHESION, kAdhesionAttrs, kAdhesionAttrsN},
+  {"pid", mjACTUATOR_PID, kPidAttrs, kPidAttrsN},
+  {"orientation", mjACTUATOR_ORIENTATION, kOrientationAttrs, kOrientationAttrsN},
+  {"dcmotor", mjACTUATOR_DCMOTOR, kDcmotorAttrs, kDcmotorAttrsN},
+};
+inline constexpr int kActuatorDispatchN = sizeof(kActuatorDispatch) / sizeof(kActuatorDispatch[0]);
 
 // group equality_base (mjsEquality)
 inline constexpr mjXAttr kEqualityBaseAttrs[] = {

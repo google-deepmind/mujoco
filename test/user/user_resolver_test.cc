@@ -832,7 +832,6 @@ TEST_F(MujocoTest, AttachWarningBoundaryAndPreservation) {
         <body name="parent">
           <flexcomp name="grid" type="grid" count="3 3 1" spacing="0.1 0.1 0.1"
                     dim="2" radius="0.01">
-            <contact internal="false"/>
           </flexcomp>
         </body>
       </worldbody>
@@ -951,10 +950,9 @@ TEST_F(MujocoTest, AttachConflictWarningZFarDefaultMessage) {
   // we warning-log and state that the parent has the default value.
   EXPECT_TRUE(mjs_isWarning(parent));
   EXPECT_EQ(mjs_numWarnings(parent), 1);
-  EXPECT_THAT(
-      mjs_getWarning(parent, 0),
-      HasSubstr("zfar: parent has 50 (default), child has "
-                "30, keeping parent value"));
+  EXPECT_THAT(mjs_getWarning(parent, 0),
+              HasSubstr("zfar: parent has 50 (default), child has "
+                        "30, keeping parent value"));
 
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
@@ -962,4 +960,3 @@ TEST_F(MujocoTest, AttachConflictWarningZFarDefaultMessage) {
 
 }  // namespace
 }  // namespace mujoco
-

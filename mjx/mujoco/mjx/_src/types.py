@@ -88,11 +88,14 @@ class EnableBit(enum.IntFlag):
 
   Attributes:
     INVDISCRETE: discrete-time inverse dynamics
+    SLEEP: sleeping
+    IPC: IPC flex contact mode of the discrete integrator
   """
 
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND
+  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND, DIAGEXACT
   SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
+  IPC = mujoco.mjtEnableBit.mjENBL_IPC
 
 
 class JointType(enum.IntEnum):
@@ -124,11 +127,13 @@ class IntegratorType(enum.IntEnum):
     EULER: semi-implicit Euler
     RK4: 4th-order Runge Kutta
     IMPLICITFAST: implicit in velocity, no rne derivative
+    DISCRETE: discrete step map
   """
 
   EULER = mujoco.mjtIntegrator.mjINT_EULER  # pyrefly: ignore[bad-assignment]
   RK4 = mujoco.mjtIntegrator.mjINT_RK4  # pyrefly: ignore[bad-assignment]
   IMPLICITFAST = mujoco.mjtIntegrator.mjINT_IMPLICITFAST  # pyrefly: ignore[bad-assignment]
+  DISCRETE = mujoco.mjtIntegrator.mjINT_DISCRETE  # pyrefly: ignore[bad-assignment]
   # unsupported: IMPLICIT
 
 
@@ -429,6 +434,7 @@ class SensorType(enum.IntEnum):
   TENDONACTFRC = mujoco.mjtSensor.mjSENS_TENDONACTFRC  # pyrefly: ignore[bad-assignment]
   FRAMELINACC = mujoco.mjtSensor.mjSENS_FRAMELINACC  # pyrefly: ignore[bad-assignment]
   FRAMEANGACC = mujoco.mjtSensor.mjSENS_FRAMEANGACC  # pyrefly: ignore[bad-assignment]
+  TACTILE = mujoco.mjtSensor.mjSENS_TACTILE  # pyrefly: ignore[bad-assignment]
 
 
 class ObjType(PyTreeNode):

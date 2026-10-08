@@ -51,6 +51,21 @@ class Light : public mjrfLight {
   // Sets the intensity of this light, in candela.
   void SetIntensity(float intensity);
 
+  // Sets the range of this light, in meters.
+  void SetRange(float range);
+
+  // Sets the cutoff angle of this light, in degrees.
+  void SetCutoffAngle(float cutoff);
+
+  // Sets the softness of this light, in the range [0, 1].
+  void SetSoftness(float softness);
+
+  // Sets the radius of this light's bulb, in meters.
+  void SetBulbRadius(float radius);
+
+  // Enables/disables shadows for this light.
+  void SetShadowsEnabled(bool enabled);
+
   // Sets the resolution of this light's shadow map, in texels.
   void SetShadowMapSize(int map_size);
 

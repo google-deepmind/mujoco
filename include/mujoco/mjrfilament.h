@@ -86,6 +86,13 @@ typedef struct mjrfRenderRequest_ {
   mjtBool enable_post_processing;    // enable post processing, enabled by default
   mjtBool enable_reflections;        // enable reflections, enabled by default
   mjtBool enable_shadows;            // enable shadows, enabled by default
+
+  // The headlight is a directional light aligned with this request's camera. It
+  // is a property of the request rather than of the scene, so that a scene
+  // rendered from several cameras is not lit by any one of them.
+  mjtBool enable_headlight;          // enable the headlight, disabled by default
+  float headlight_color[3];          // headlight color, RGB
+  float headlight_intensity;         // headlight intensity, in lux
 } mjrfRenderRequest;
 
 // Initializes the mjrfRenderRequest to default values.
@@ -223,6 +230,7 @@ void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
 
 // Parameters for creating a scene (mjrfScene).
 typedef struct mjrfSceneParams_ {
+  char unused;  // ensure min size of 1 for C/C++ compatibility
 } mjrfSceneParams;
 
 // Initializes the mjrfSceneParams to default values.
@@ -264,7 +272,6 @@ typedef struct mjrfLightParams_ {
   float spot_softness;             // spot light edge softness, fraction of cone angle in [0, 1]
   int shadow_map_size;             // size of shadow map texture, 0 to use default size
   float bulb_radius;               // bulb radius, used for soft shadows
-  float vsm_blur_width;            // variance shadow map blur width
 } mjrfLightParams;
 
 // Initializes the mjrfLightParams to default values.
@@ -279,14 +286,29 @@ void mjrf_destroyLight(mjrfLight* light);
 // Enables or disables the light.
 void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
 
-// Sets the intensity of the light, in candela.
-void mjrf_setLightIntensity(mjrfLight* light, float intensity);
-
-// Sets the resolution of the light's shadow map, in texels.
-void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
+// Enables or disables whether or not the light casts shadows.
+void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled);
 
 // Sets the RGB color of the light.
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
+
+// Sets the intensity of the light, in candela.
+void mjrf_setLightIntensity(mjrfLight* light, float intensity);
+
+// Sets the effective range of the light, in meters.
+void mjrf_setLightRange(mjrfLight* light, float range);
+
+// Sets the cutoff angle of the light, in degrees. Only used for spot lights.
+void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff);
+
+// Sets the softness of the light, in the range [0, 1]. Only used for spot lights.
+void mjrf_setLightSoftness(mjrfLight* light, float softness);
+
+// Sets the radius of the light bulb.
+void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
+
+// Sets the resolution of the light's shadow map, in texels.
+void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
 
 // Sets the position and direction of the light.
 void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
@@ -320,6 +342,8 @@ typedef struct mjrfMaterial_ {
   const mjrfTexture* orm_texture;         // occlusion/roughness/metallic texture (RGB8)
   const mjrfTexture* emissive_texture;    // emissive texture (RGB8)
   const mjrfTexture* reflection_texture;  // reflection texture, for internal use only
+  float reflection_normal[3];      // mirror normal, gates reflection to front face (internal)
+  float reflection_view_proj[16];  // main camera view-proj for reflection UV mapping (internal)
 } mjrfMaterial;
 
 // Initializes the mjrfMaterial to default values.

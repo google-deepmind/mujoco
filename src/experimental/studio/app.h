@@ -15,30 +15,34 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/hal/graphics_mode.h"
-#include "experimental/platform/hal/renderer.h"
-#include "experimental/platform/hal/window.h"
-#include "experimental/platform/sim/model_holder.h"
-#include "experimental/platform/sim/sim_history.h"
-#include "experimental/platform/sim/sim_profiler.h"
-#include "experimental/platform/sim/step_control.h"
-#include "experimental/platform/ux/gui.h"
-#include "experimental/platform/ux/gui_spec.h"
-#include "experimental/platform/ux/imgui_widgets.h"
-#include "experimental/platform/ux/interaction.h"
-#include "experimental/platform/ux/picture_gui.h"
-#include "experimental/platform/ux/spec_editor.h"
+#include "experimental/studio/hal/graphics_mode.h"
+#include "experimental/studio/hal/filament_renderer.h"
+#include "experimental/studio/hal/window.h"
+#include "experimental/studio/sim/model_holder.h"
+#include "experimental/studio/sim/sim_history.h"
+#include "experimental/studio/sim/sim_profiler.h"
+#include "experimental/studio/sim/step_control.h"
+#include "experimental/studio/ux/gui.h"
+#include "experimental/studio/ux/imgui_widgets.h"
+#include "experimental/studio/ux/interaction.h"
+#include "experimental/studio/ux/picture_gui.h"
+#include "experimental/studio/ux/spec_editor.h"
 
 namespace mujoco::studio {
 
@@ -55,10 +59,10 @@ class App {
     std::string ini_path;
 
     // The graphics configuration used for initializing the window.
-    platform::GraphicsMode gfx_mode = platform::GraphicsMode::FilamentVulkan;
+    GraphicsMode gfx_mode = GraphicsMode::FilamentVulkan;
 
     // The initial GUI theme. If set, overrides the default (kLight).
-    std::optional<platform::GuiTheme> initial_theme;
+    std::optional<GuiTheme> initial_theme;
 
     // The application title shown in the window title bar.
     std::string title = "MuJoCo Studio";
@@ -82,6 +86,10 @@ class App {
                            std::string_view content_type,
                            std::string_view name);
 
+  // Selects and loads a keyframe by name or numerical index. If invalid,
+  // silently ignores it.
+  void LoadKeyframe(std::string_view keyframe);
+
   // Processes window events and advances the state of the simulation.
   bool Update();
 
@@ -100,6 +108,31 @@ class App {
     kModelFromBuffer,
   };
 
+  // Information for building a new empty model.
+  struct EmptyModel {};
+
+  // Information needed for building a model from a file.
+  struct FileModel {
+    std::string_view filepath;
+  };
+
+  // Information needed for building a model from a memory buffer.
+  struct BufferModel {
+    std::span<const std::byte> buffer;
+    std::string_view content_type;
+    std::string_view name;
+  };
+
+  // Information needed for recompiling the model.
+  struct RecompileModel {};
+
+  // Information needed for recompiling the model from the spec editor.
+  struct RecompileFromSpec {};
+
+  // The different ways in which the model can be built.
+  using BuildModelInfo = std::variant<EmptyModel, FileModel, BufferModel,
+                                      RecompileModel, RecompileFromSpec>;
+
   enum class SpecPropertiesMode {
     kSpec,
     kModel,
@@ -108,11 +141,7 @@ class App {
 
   // UI state that is persisted across application runs
   struct UiState {
-    char watch_field[1000] = "qpos";
-    int watch_index = 0;
-    int camera_idx = platform::kTumbleCameraIdx;
-    int key_idx = 0;
-    platform::GuiTheme theme = platform::GuiTheme::kDark;
+    GuiTheme theme = GuiTheme::kDark;
     float font_scale = 1.0f;
     int window_width = 0;
     int window_height = 0;
@@ -126,7 +155,6 @@ class App {
   // UI state that is transient and only needed while the application runs
   struct UiTempState {
     bool should_exit = false;
-    bool first_frame = true;
     bool update_threadpool = false;
 
     // Windows.
@@ -147,26 +175,27 @@ class App {
     float editor_split = -1;
     float explorer_split = -1;
 
+    int camera_idx = kTumbleCameraIdx;
+    int key_idx = -1;
+
     // Controls.
-    bool perturb_active = false;
     int speed_index = 0;
     float cam_speed = 0.0f;
-
-    // Cached data.
-    float expected_label_width = 0;
-    std::vector<std::string> camera_names;
-    std::vector<std::string> speed_names;
 
     // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;
     mjsElement* curr_element = nullptr;
+
+    // Watch.
+    char watch_field[1000] = "qpos";
+    int watch_index = 0;
 
     // State.
     int state_sig = 0;
     std::vector<mjtNum> state;
 
     // Picture-in-Picture.
-    std::vector<platform::PipState> pips;
+    std::vector<PipState> pips;
 
     // File dialogs.
     enum FileDialog {
@@ -190,14 +219,23 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // Recompiles the spec, updating the model and data.
-  void Recompile();
+  // (Re)builds the model based on the given configmration.
+  void BuildModel(const BuildModelInfo& info);
 
   // Updates the currently loaded model to the given model. If model is null,
   // then compile the spec to a model.
-  void OnModelLoaded(std::string filename, ModelKind model_kind);
+  void OnModelLoaded(std::string_view filename, ModelKind model_kind);
 
-  void SwitchGraphicsMode(int width, int height, platform::GraphicsMode mode);
+  struct KeyframeSelection {
+    bool is_reload = false;
+    int key_idx = -1;
+    std::string key_name;
+    std::vector<std::string> all_old_names;
+  };
+  KeyframeSelection CaptureKeyframeSelection(bool is_reload) const;
+  void RestoreKeyframeSelection(const KeyframeSelection& saved);
+
+  void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
 
   void SetLoadError(std::string error);
   void UpdateFilePaths(const std::string& resolved_path);
@@ -212,6 +250,9 @@ class App {
   void ApplyWindowStateStorage();
 
   void LoadHistory(int offset);
+  // Loads the frame selected in the timeline GUI if it differs from the frame
+  // the history buffer is currently at. Call after rendering a scrubber.
+  void ApplyTimelineScrub();
 
   void SetSpeedIndex(int idx);
 
@@ -220,8 +261,6 @@ class App {
   void HandleKeyboardEvents();
 
   void ProcessPendingLoads();
-
-  void SetupTheme(platform::GuiTheme theme);
 
   void MainMenuGui();
   void ToolBarGui();
@@ -240,42 +279,59 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
+  std::unique_ptr<Window> window_;
+  std::unique_ptr<FilamentRenderer> renderer_;
+  std::unique_ptr<ModelHolder> model_holder_;
+
+  mutable std::mutex physics_mutex_;
+#ifndef __EMSCRIPTEN__
+  void PhysicsThreadLoop();
+  std::thread physics_thread_;
+  std::atomic<bool> stop_physics_thread_{false};
+#endif
+
   std::string app_title_;
   std::string ini_path_;
-  // Window state storage (e.g. collapsing header open/closed state), keyed
-  // "<window name>/<id>", which ImGui does not serialize. Entries stay
-  // pending until their window is first created.
-  platform::KeyValues window_state_storage_;
-  std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
+
+  ModelKind model_kind_ = kEmptyModel;
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
   std::string edit_error_;
-  platform::StepControl::PauseState last_pause_state_ =
-      platform::StepControl::PauseState::kNormalPaused;
 
+  // Cached previous state.
+  std::vector<std::byte> last_buffer_;
+  std::string last_content_type_;
+  StepControl::PauseState last_pause_state_ =
+      StepControl::PauseState::kNormalPaused;
+  std::chrono::steady_clock::time_point last_frame_time_;
+  double fps_ = 0;
+
+  // Pending operations.
   std::optional<std::string> pending_load_;
+  bool pending_reload_ = false;
+  bool recompile_spec_ = false;
   std::function<void()> pending_op_;
   bool preserve_camera_on_load_ = false;
-  ModelKind model_kind_ = kEmptyModel;
-  platform::GraphicsMode gfx_mode_ = platform::GraphicsMode::FilamentVulkan;
 
-  std::unique_ptr<platform::Window> window_;
-  std::unique_ptr<platform::Renderer> renderer_;
-  std::unique_ptr<platform::ModelHolder> model_holder_;
-
-  platform::StepControl step_control_;
-  platform::SimProfiler profiler_;
-  platform::SimHistory sim_history_;
-  platform::SimulationTimelineState timeline_;
-  platform::SpecEditor spec_editor_;
-  std::vector<std::string> search_paths_;
-  std::vector<std::byte> pixels_;
+  // Studio components.
+  StepControl step_control_;
+  SimProfiler profiler_;
+  SimHistory sim_history_;
+  SimulationTimelineState timeline_;
+  SpecEditor spec_editor_;
+  // Window state storage (e.g. collapsing header open/closed state), keyed
+  // "<window name>/<id>", which ImGui does not serialize. Entries stay
+  // pending until their window is first created.
+  KeyValues window_state_storage_;
 
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
   mjvScene plugin_scene_;
+
+  std::vector<std::string> search_paths_;
+  std::vector<std::byte> pixels_;
 
   UiState ui_;
   UiTempState tmp_;

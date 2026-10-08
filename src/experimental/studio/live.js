@@ -12,6 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// --- Default model redirect ---
+// When no ?model= parameter is present, redirect to the same page with the
+// default model URL. This fires before WASM starts loading, so no time is
+// wasted. Uses replace() to avoid polluting browser history.
+// Visit ?model= (empty) to explicitly get an empty scene without redirect.
+{
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('model')) {
+    const defaultModel =
+        'github:google-deepmind/mujoco/main/model/welcome/welcome.xml';
+    // Construct the query string manually instead of using URLSearchParams.toString()
+    // or encodeURIComponent() so that ':' and '/' in defaultModel remain unencoded
+    // and human-readable in the browser's address bar.
+    const existing = window.location.search.replace(/^\?/, '');
+    const query = (existing ? existing + '&' : '') + 'model=' + defaultModel;
+    window.location.replace(
+        window.location.pathname + '?' + query + window.location.hash);
+    // Stop all further execution while the browser navigates.
+    throw new Error('Redirecting to default model');
+  }
+}
+
 // --- Loading overlay (shown while model is compiling) ---
 const loadingOverlay = document.getElementById('loadingOverlay');
 function showLoading() {
@@ -20,6 +42,16 @@ function showLoading() {
 function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
+
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// iOS WebKit has a substantially lower WebAssembly memory ceiling than
+// desktop browsers. Select the single-threaded, lower-memory build before the
+// Emscripten runtime creates its WebAssembly.Memory object.
+const wasmRuntimeDirectory = isIOSDevice() ? 'bin/ios' : 'bin';
 
 // ---------------------------------------------------------------------------
 // Parallel asset prefetcher.
@@ -93,18 +125,29 @@ async function prefetchModelAssets(rootUrl, onProgress) {
     throw new Error(`could not fetch root model ${rootHttp}`);
   }
 
-  // Step 2: ask MuJoCo for the transitive dependency list. The call is
-  // async because reading recursively included XMLs may suspend on
-  // ASYNCIFY fetches; those XMLs end up in FetchCache as a side effect.
-  // The result is an embind mjStringVec we copy out and release.
-  const depsVec = await Module.getXMLDependencies(rootUrl);
-  const deps = [];
-  for (let i = 0; i < depsVec.size(); ++i) deps.push(depsVec.get(i));
-  depsVec.delete();
-
-  // Step 3: fetch every dependency in parallel, deduped against URLs
-  // already primed in step 1 (and earlier deps within this batch).
-  await Promise.all(deps.map((depUrl) => fetchAndPrime(resolveScheme(depUrl))));
+  // Step 2: ask MuJoCo for the transitive dependency list.
+  // When rootUrl points to a plain MJCF XML, mju_getXMLDependencies parses the
+  // XML text to find external dependencies (meshes, textures, includes) so they
+  // can be pre-fetched in parallel.
+  // If rootUrl is a binary archive (.mjz, .zip, or an extensionless HTTP asset),
+  // getXMLDependencies cannot parse the binary payload as XML and may throw or
+  // fail. Since binary archives are completely self-contained, no external URL
+  // prefetching is needed, and we safely catch the error and continue.
+  try {
+    const depsVec = await Module.getXMLDependencies(rootUrl);
+    if (depsVec) {
+      const deps = [];
+      for (let i = 0; i < depsVec.size(); ++i) deps.push(depsVec.get(i));
+      depsVec.delete();
+      // Step 3: fetch every dependency in parallel, deduped against URLs
+      // already primed in step 1 (and earlier deps within this batch).
+      await Promise.all(deps.map((depUrl) => fetchAndPrime(resolveScheme(depUrl))));
+    }
+  } catch (e) {
+    // Binary archives (.mjz, .zip) have self-contained dependencies and do not
+    // require XML dependency prefetching.
+    console.log('[prefetch] Self-contained archive or non-XML root model:', rootUrl);
+  }
   return stats;
 }
 
@@ -113,7 +156,7 @@ var Module = {
   postRun: [],
   locateFile: function (path) {
     const baseURL = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"));
-    return baseURL + "/bin/" + path;
+    return baseURL + "/" + wasmRuntimeDirectory + "/" + path;
   },
   print: console.log,
   printErr: text => {
@@ -164,6 +207,7 @@ var Module = {
       "assets/outline_flatten.filamat",
       "assets/outline_jumpflood.filamat",
       "assets/decor.filamat",
+      "assets/decor_fade.filamat",
       "assets/unlit_depth.filamat",
       "assets/unlit_segmentation.filamat",
       "assets/unlit_ui.filamat"
@@ -192,9 +236,10 @@ var Module = {
           const prefersDark = true;
           Module.init("MuJoCo Live", prefersDark);
 
-          // Check for a ?model= URL parameter and load from URL.
+          // Check for ?model= and ?keyframe= URL parameters and load from URL.
           const params = new URLSearchParams(window.location.search);
           const modelUrl = params.get('model');
+          const keyframe = params.get('keyframe');
           if (modelUrl) {
             // loadUrl uses ASYNCIFY (via EM_ASYNC_JS fetch), which
             // suspends the WASM module. We must not start the animation
@@ -216,6 +261,9 @@ var Module = {
                 try {
                   await prefetchModelAssets(modelUrl, onProgress);
                   await Module.loadUrl(modelUrl);
+                  if (keyframe !== null) {
+                    Module.loadKeyframe(keyframe);
+                  }
                 } catch (error) {
                   console.error('Failed to load model from URL:', error);
                 } finally {
@@ -316,3 +364,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+const wasmRuntimeScript = document.createElement('script');
+wasmRuntimeScript.async = true;
+wasmRuntimeScript.src = Module.locateFile('mujoco_studio.js');
+wasmRuntimeScript.onerror = () => {
+  hideLoading();
+  console.error('Failed to load MuJoCo Live runtime:', wasmRuntimeScript.src);
+};
+document.body.appendChild(wasmRuntimeScript);

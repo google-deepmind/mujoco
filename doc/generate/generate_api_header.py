@@ -14,15 +14,16 @@
 # ==============================================================================
 """Generates API for APIReference.rst."""
 
+import os
 import sys
 from typing import Dict
 
-import os
-import sys
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
-sys.path.insert(0, os.path.join(_REPO_ROOT, 'doc', 'ext'))
-import header_reader
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+  import resource_loader  # pyrefly: ignore[missing-import]
+  import header_reader  # pyrefly: ignore[missing-import]
+except ImportError:
+  raise
 
 _HEADER_FILES = [
     'include/mujoco/mjassert.h',
@@ -40,6 +41,10 @@ _HEADER_FILES = [
     'include/mujoco/mjvisualize.h',
     'include/mujoco/mjxmacro.h',
     'include/mujoco/mujoco.h',
+]
+_SOURCE_FILES = [
+    'src/engine/engine_support.c',
+    'src/engine/engine_vis_init.c',
 ]
 
 
@@ -67,7 +72,15 @@ def generate_reference_header(
 // NOLINTBEGIN\n\n""".lstrip()
 
   for value in api.values():
-    if value.c_type != 'FUNCTION':
+    if value.c_type not in ('FUNCTION', 'ARRAY'):
+      source = f'{source}{value.code}'
+
+  source = f"""{source}
+//----------------------------- STRING CONSTANTS -------------------------------
+"""
+
+  for value in api.values():
+    if value.c_type == 'ARRAY':
       source = f'{source}{value.code}'
 
   source = f"""{source}
@@ -82,14 +95,16 @@ def generate_reference_header(
 
 
 def read_headers() -> Dict[str, header_reader.ApiDefinition]:
-  """Reads API header files and generates a mapping between C tokens and C header definitions."""
-
+  """Reads API header and source files and generates a mapping between C tokens and C definitions."""
   api = {}
-
   for header in _HEADER_FILES:
-    filepath = os.path.join(_REPO_ROOT, header)
-    with open(filepath, 'r', encoding='utf-8') as file:
-      api.update(header_reader.read(file.readlines()))
+    lines = resource_loader.read_text(header).splitlines(keepends=True)
+    api.update(header_reader.read(lines))
+
+  for source in _SOURCE_FILES:
+    lines = resource_loader.read_text(source).splitlines(keepends=True)
+    api.update(header_reader.read(lines, parse_functions=False))
+
   return api
 
 
@@ -97,7 +112,9 @@ def main() -> None:
   if len(sys.argv) > 1:
     sys.exit('Too many command-line arguments.')
 
-  sys.stdout.buffer.write(generate_reference_header(read_headers()).encode('utf-8'))
+  sys.stdout.buffer.write(
+      generate_reference_header(read_headers()).encode('utf-8')
+  )
 
 
 if __name__ == '__main__':

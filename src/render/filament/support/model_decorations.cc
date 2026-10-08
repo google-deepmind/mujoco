@@ -25,7 +25,7 @@
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/mjrfilament_cpp.h"
+#include "render/filament/support/mjrf_ptr.h"
 
 namespace mujoco {
 
@@ -37,10 +37,13 @@ ModelDecorations::ModelDecorations(mjrfContext* ctx, mjrfScene* scene,
                                    const mjModel* model, int num_geoms)
     : ctx_(ctx), scene_(scene), model_(model) {
   std::memset(&mjv_scene_, 0, sizeof(mjvScene));
-  mjv_makeScene(model_, &mjv_scene_, 2000);
+  mjv_makeScene(model_, &mjv_scene_, num_geoms);
 }
 
-ModelDecorations::~ModelDecorations() { mjv_freeScene(&mjv_scene_); }
+ModelDecorations::~ModelDecorations() {
+  Clear();
+  mjv_freeScene(&mjv_scene_);
+}
 
 void ModelDecorations::Clear() {
   for (auto& iter : decorations_) {

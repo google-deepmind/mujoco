@@ -266,7 +266,7 @@ def _write_class_in_file(
   new_class_def = ast.ClassDef(
       name=target_cls_name,
       bases=[ast.Name(id=target_base_name, ctx=ast.Load())],
-      body=new_body_ast,  # pytype: disable=wrong-arg-types
+      body=new_body_ast,  # pyrefly: ignore[bad-argument-type]
       decorator_list=[],
       keywords=[],
       type_params=[],
@@ -305,11 +305,11 @@ if typing.TYPE_CHECKING:
     pass
 else:
   try:
-    from mujoco.mjx.third_party.warp._src.jax import ffi as warp_ffi
-    GraphMode = warp_ffi.JaxCallableGraphMode
+    import warp as wp
+    GraphMode = wp.JaxCallableGraphMode
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
     Callback = mjwp_types.Callback
-  except ImportError:
+  except (ImportError, AttributeError):
     GraphMode = int  # Fallback when warp not installed.
     Callback = None
 
@@ -416,7 +416,7 @@ def write_core_cls(
   """Writes a core API class (e.g. Model/Data/Option/Statistic)."""
   cls = _CLS_MAP[cls_name]
 
-  annotations = dict(cls.__annotations__)  # pytype: disable=attribute-error
+  annotations = dict(cls.__annotations__)
   if flatten_fields:
     annotations = _get_annotations_recursive(annotations)
 
@@ -449,7 +449,7 @@ def write_core_cls(
     shape_property = _DATA_SHAPE_PROPERTY_FIELD
 
   new_class_body = _build_new_class_body_ast(
-      keys,  # pyrefly: ignore[bad-argument-type]
+      keys,
       cls_name,
       annotations,
       defaults=defaults,

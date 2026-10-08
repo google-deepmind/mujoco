@@ -13,6 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_MJZ_SRCS
+    mjz_archive_provider.cc
     mjz_decoder.cc
     mjz_encoder.cc
 )

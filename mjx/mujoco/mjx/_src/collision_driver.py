@@ -233,7 +233,7 @@ def _geom_groups(
     if int(types[0]) == int(mujoco.mjtGeom.mjGEOM_HFIELD):
       # add static grid bounds to the grouping key for hfield collisions
       geom_rbound_hfield = (
-          m._impl.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound  # pytype: disable=attribute-error
+          m._impl.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound  # pyrefly: ignore[missing-attribute]
       )
       nrow, ncol = m.hfield_nrow[data_ids[0]], m.hfield_ncol[data_ids[0]]
       xsize, ysize = m.hfield_size[data_ids[0]][:2]
@@ -328,11 +328,11 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
         solref=solref,
         solreffriction=solreffriction,
         solimp=solimp,
-        dim=d._impl.contact.dim,  # pytype: disable=attribute-error
+        dim=d._impl.contact.dim,  # pyrefly: ignore[missing-attribute]
         geom1=jp.array(geom[:, 0]),
         geom2=jp.array(geom[:, 1]),
         geom=jp.array(geom[:, :2]),
-        efc_address=d._impl.contact.efc_address,  # pytype: disable=attribute-error
+        efc_address=d._impl.contact.efc_address,  # pyrefly: ignore[missing-attribute]
     )
 
   return groups
@@ -386,7 +386,7 @@ def make_condim(
     else:
       func = _COLLISION_FUNC.get(k.types, None)  # pyrefly: ignore[no-matching-overload]
       if func is not None:
-        ncon = func.ncon  # pytype: disable=attribute-error
+        ncon = func.ncon
       else:
         raise ValueError(
             f'Collision function not found for geom types {k.types[0]},',
@@ -407,7 +407,7 @@ def collision(m: Model, d: Data) -> Data:
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('collision requires JAX backend implementation.')
 
-  if d._impl.ncon == 0:  # pytype: disable=attribute-error
+  if d._impl.ncon == 0:
     return d
 
   max_geom_pairs = _numeric(m, 'max_geom_pairs')
@@ -431,7 +431,7 @@ def collision(m: Model, d: Data) -> Data:
 
     # run the collision function specified by the grouping key
     func = _COLLISION_FUNC[key.types]  # pyrefly: ignore[bad-index]
-    ncon = func.ncon  # pytype: disable=attribute-error
+    ncon = func.ncon
 
     dist, pos, frame = func(m, d, key, contact.geom)
     if ncon > 1:

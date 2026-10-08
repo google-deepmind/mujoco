@@ -55,7 +55,9 @@ static std::vector<GeomPair> colliding_pairs(const mjModel* model,
 TEST_F(MjCollisionTest, AllCollisions) {
   static const char* const kModelFilePath = "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // mjCOL_ALL is the default
@@ -81,7 +83,9 @@ TEST_F(MjCollisionTest, EmptyModel) {
 TEST_F(MjCollisionTest, ZeroedHessian) {
   static const char* const kModelFilePath = "engine/testdata/collisions.xml";
   const std::string xml_path = GetTestDataFilePath(kModelFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mj_fwdPosition(model, data);
@@ -231,6 +235,82 @@ TEST_F(MjCollisionTest, FilterParentDoesntAffectWorldBody) {
   // they collide because colliding1 is in <worldbody>
   EXPECT_THAT(colliding_pairs(m.get(), d.get()),
               ElementsAre(GeomPair("colliding1", "colliding2")));
+}
+
+TEST_F(MjCollisionTest, FilterStaticFlex) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 .1"/>
+      <body name="static">
+        <geom name="static" size=".1"/>
+      </body>
+      <body name="rigid">
+        <flexcomp name="rigid" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" rigid="true"/>
+      </body>
+      <body name="mocap" mocap="true" pos=".05 .05 .001">
+        <flexcomp name="mocap" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" rigid="true"/>
+      </body>
+      <body name="ball" pos="0 0 .09">
+        <freejoint/>
+        <geom name="ball" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_forward(m.get(), d.get());
+
+  // the floor, the static geom and the two flexes overlap but have no dofs:
+  // they collide only with the ball
+  int ball = mj_name2id(m.get(), mjOBJ_GEOM, "ball");
+  int nflexcon[2] = {0, 0};
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact& con = d->contact[i];
+    EXPECT_TRUE(con.geom[0] == ball || con.geom[1] == ball);
+    if (con.flex[1] >= 0) {
+      nflexcon[con.flex[1]]++;
+    }
+  }
+  EXPECT_GT(nflexcon[0], 0);
+  EXPECT_GT(nflexcon[1], 0);
+}
+
+TEST_F(MjCollisionTest, FilterStaticFlexSelfCollision) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a" pos="-1 0 0"/>
+      <body name="b" pos="1 0 0"/>
+      <body name="c" pos="0 -1 .01"/>
+      <body name="d" pos="0 1 .01"/>
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="rope" dim="1" radius=".01" body="a b c d" element="0 1 2 3">
+        <edge stiffness="1"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_forward(m.get(), d.get());
+
+  // the two elements of the flex cross, but its vertices are in static bodies
+  EXPECT_EQ(d->ncon, 0);
 }
 
 TEST_F(MjCollisionTest, TestOBB) {
@@ -447,7 +527,7 @@ TEST_F(MjCollisionTest, MaxContact) {
   int cylinder = mj_name2id(m.get(), mjOBJ_GEOM, "cylinder");
 
   EXPECT_EQ(mj_maxContact(m.get(), mesh, box, -1), 4);
-  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 3);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, plane, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), box, plane, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), mesh, mesh, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), box, box, -1), 8);
@@ -467,11 +547,54 @@ TEST_F(MjCollisionTest, MaxContact) {
   EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, plane, -1), 1);
   EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, cylinder, -1), 1);
   EXPECT_EQ(mj_maxContact(m.get(), ellipsoid, capsule, -1), 1);
-  EXPECT_EQ(mj_maxContact(m.get(), capsule, cylinder, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), capsule, mesh, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), cylinder, cylinder, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, -1), 5);
-  EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 5);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, cylinder, -1), 2);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, mesh, -1), 2);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, cylinder, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 4);
+}
+
+TEST_F(MjCollisionTest, Flex3DActiveLayersMidphaseDisabled) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="box" type="box" size="0.15 0.15 0.05" pos="0 0 0"/>
+      <flexcomp name="vol1" type="grid" dim="3" count="4 4 4"
+                spacing="0.06 0.06 0.06" pos="0 0 0.09" radius="0.005" mass="1">
+        <contact selfcollide="none" activelayers="1"/>
+        <edge equality="true"/>
+      </flexcomp>
+      <flexcomp name="vol2" type="grid" dim="3" count="4 4 4"
+                spacing="0.06 0.06 0.06" pos="0 0 0.22" radius="0.005" mass="1">
+        <contact selfcollide="none" activelayers="1"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  MjDataPtr d_bvh = MakeData(m);
+  mj_forward(m.get(), d_bvh.get());
+  EXPECT_GT(d_bvh->ncon, 0);
+
+  m->opt.disableflags |= mjDSBL_MIDPHASE;
+  MjDataPtr d_all = MakeData(m);
+  mj_forward(m.get(), d_all.get());
+  EXPECT_EQ(d_all->ncon, d_bvh->ncon);
+
+  for (int i = 0; i < d_all->ncon; ++i) {
+    for (int k = 0; k < 2; ++k) {
+      int f = d_all->contact[i].flex[k];
+      int e = d_all->contact[i].elem[k];
+      if (f >= 0 && e >= 0) {
+        int layer = m->flex_elemlayer[m->flex_elemadr[f] + e];
+        EXPECT_LT(layer, m->flex_activelayers[f]);
+      }
+    }
+  }
 }
 
 }  // namespace

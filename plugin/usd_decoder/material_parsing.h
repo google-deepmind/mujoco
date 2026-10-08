@@ -18,6 +18,6 @@
 #include <mujoco/mujoco.h>
 #include <pxr/usd/usdShade/material.h>
 
-mjsMaterial* ParseMaterial(mjSpec* spec, const pxr::UsdShadeMaterial &material);
+mjsMaterial* ParseMaterial(mjSpec* spec, const pxr::UsdShadeMaterial& material);
 
 #endif  // MUJOCO_PLUGIN_USD_DECODER_MATERIAL_PARSING_H_

@@ -335,17 +335,29 @@ def _broadphase_filter(opt_broadphase_filter: int, ngeom_aabb: int, ngeom_rbound
 
 
 @wp.func
-def _add_geom_pair(
+def _mesh_missing(
   # Model:
-  geom_type: wp.array[int],
-  nxn_pairid: wp.array[wp.vec2i],
+  geom_dataid: wp.array2d[int],
+  # In:
+  geom: int,
+  geomtype: int,
+  dataid_id: int,
+) -> bool:
+  # with per-world meshes (batched geom_dataid), a mesh geom with dataid -1 is absent from a world
+  return (geomtype == GeomType.MESH) and (geom_dataid[dataid_id, geom] < 0)  # kernel_analyzer: ignore
+
+
+@wp.func
+def _add_geom_pair(
   # Data in:
   naconmax_in: int,
   # In:
   geom1: int,
   geom2: int,
+  type1: int,
+  type2: int,
   worldid: int,
-  nxnid: int,
+  pairid: wp.vec2i,
   # Data out:
   ncollision_out: wp.array[int],
   # Out:
@@ -353,30 +365,29 @@ def _add_geom_pair(
   collision_pairid_out: wp.array[wp.vec2i],
   collision_worldid_out: wp.array[int],
 ):
-  pairid = wp.atomic_add(ncollision_out, 0, 1)
+  cid = wp.atomic_add(ncollision_out, 0, 1)
 
-  if pairid >= naconmax_in:
+  if cid >= naconmax_in:
     return
-
-  type1 = geom_type[geom1]
-  type2 = geom_type[geom2]
 
   if type1 > type2:
     pair = wp.vec2i(geom2, geom1)
   else:
     pair = wp.vec2i(geom1, geom2)
 
-  collision_pair_out[pairid] = pair
-  collision_pairid_out[pairid] = nxn_pairid[nxnid]
-  collision_worldid_out[pairid] = worldid
+  collision_pair_out[cid] = pair
+  collision_pairid_out[cid] = pairid
+  collision_worldid_out[cid] = worldid
 
 
 @cache_kernel
-def _sap_project(opt_broadphase: int):
+def _sap_project(opt_broadphase: int, ngeom_dataid: int):
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def sap_project(
     # Model:
     ngeom: int,
+    geom_type: wp.array[int],
+    geom_dataid: wp.array2d[int],
     geom_rbound: wp.array2d[float],
     geom_margin: wp.array2d[float],
     geom_gap: wp.array2d[float],
@@ -393,6 +404,20 @@ def _sap_project(opt_broadphase: int):
   ):
     worldid, geomid = wp.tid()
 
+    sort_index_out[worldid, geomid] = geomid
+    if wp.static(opt_broadphase == BroadphaseType.SAP_SEGMENTED):
+      if geomid == 0:
+        segmented_index_out[worldid] = worldid * ngeom
+        if worldid == nworld_in - 1:
+          segmented_index_out[nworld_in] = nworld_in * ngeom
+
+    if wp.static(ngeom_dataid > 1):
+      # an inverted interval at the end of the axis: no bounded geom sweeps over a missing mesh
+      if _mesh_missing(geom_dataid, geomid, geom_type[geomid], worldid % ngeom_dataid):
+        projection_lower_out[worldid, geomid] = MJ_MAXVAL
+        projection_upper_out[worldid, geomid] = -MJ_MAXVAL
+        return
+
     xpos = geom_xpos_in[worldid, geomid]
     rbound = geom_rbound[worldid % geom_rbound.shape[0], geomid]
 
@@ -403,19 +428,12 @@ def _sap_project(opt_broadphase: int):
     radius = rbound + geom_margin[worldid % geom_margin.shape[0], geomid] + geom_gap[worldid % geom_gap.shape[0], geomid]
     center = wp.dot(direction_in, xpos)
 
-    sort_index_out[worldid, geomid] = geomid
     if not wp.isnan(center):
       projection_lower_out[worldid, geomid] = center - radius
       projection_upper_out[worldid, geomid] = center + radius
     else:
       projection_lower_out[worldid, geomid] = MJ_MAXVAL
       projection_upper_out[worldid, geomid] = MJ_MAXVAL
-
-    if wp.static(opt_broadphase == BroadphaseType.SAP_SEGMENTED):
-      if geomid == 0:
-        segmented_index_out[worldid] = worldid * ngeom
-        if worldid == nworld_in - 1:
-          segmented_index_out[nworld_in] = nworld_in * ngeom
 
   return sap_project
 
@@ -427,6 +445,7 @@ def _sap_broadphase(
   ngeom_rbound: int,
   ngeom_margin: int,
   ngeom_gap: int,
+  ngeom_dataid: int,
   enable_sleep: bool = False,
   incremental: bool = False,
 ):
@@ -436,6 +455,7 @@ def _sap_broadphase(
     ngeom: int,
     geom_type: wp.array[int],
     geom_bodyid: wp.array[int],
+    geom_dataid: wp.array2d[int],
     geom_aabb: wp.array3d[wp.vec3],
     geom_rbound: wp.array2d[float],
     geom_margin: wp.array2d[float],
@@ -491,6 +511,14 @@ def _sap_broadphase(
       if pairid[0] < -1 and pairid[1] < 0:
         continue
 
+      type1 = geom_type[geom1]
+      type2 = geom_type[geom2]
+
+      if wp.static(ngeom_dataid > 1):
+        dataid_id = worldid % ngeom_dataid
+        if _mesh_missing(geom_dataid, geom1, type1, dataid_id) or _mesh_missing(geom_dataid, geom2, type2, dataid_id):
+          continue
+
       if wp.static(enable_sleep):
         b1 = geom_bodyid[geom1]
         b2 = geom_bodyid[geom2]
@@ -520,13 +548,13 @@ def _sap_broadphase(
         or pairid[1] >= 0
       ):
         _add_geom_pair(
-          geom_type,
-          nxn_pairid,
           naconmax_in,
           geom1,
           geom2,
+          type1,
+          type2,
           worldid,
-          idx,
+          pairid,
           ncollision_out,
           collision_pair_out,
           collision_pairid_out,
@@ -610,9 +638,9 @@ def sap_broadphase(
   segmented_index = wp.empty(d.nworld + 1 if m.opt.broadphase == BroadphaseType.SAP_SEGMENTED else 0, dtype=int)
 
   wp.launch(
-    kernel=_sap_project(m.opt.broadphase),
+    kernel=_sap_project(m.opt.broadphase, m.geom_dataid.shape[0]),
     dim=(d.nworld, m.ngeom),
-    inputs=[m.ngeom, m.geom_rbound, m.geom_margin, m.geom_gap, d.geom_xpos, d.nworld, direction],
+    inputs=[m.ngeom, m.geom_type, m.geom_dataid, m.geom_rbound, m.geom_margin, m.geom_gap, d.geom_xpos, d.nworld, direction],
     outputs=[
       projection_lower.reshape((-1, m.ngeom)),
       projection_upper,
@@ -654,6 +682,7 @@ def sap_broadphase(
       m.geom_rbound.shape[0],
       m.geom_margin.shape[0],
       m.geom_gap.shape[0],
+      m.geom_dataid.shape[0],
       enable_sleep,
       incremental,
     ),
@@ -662,6 +691,7 @@ def sap_broadphase(
       m.ngeom,
       m.geom_type,
       m.geom_bodyid,
+      m.geom_dataid,
       m.geom_aabb,
       m.geom_rbound,
       m.geom_margin,
@@ -688,6 +718,7 @@ def _nxn_broadphase(
   ngeom_rbound: int,
   ngeom_margin: int,
   ngeom_gap: int,
+  ngeom_dataid: int,
   enable_sleep: bool = False,
   incremental: bool = False,
 ):
@@ -696,6 +727,7 @@ def _nxn_broadphase(
     # Model:
     geom_type: wp.array[int],
     geom_bodyid: wp.array[int],
+    geom_dataid: wp.array2d[int],
     geom_aabb: wp.array3d[wp.vec3],
     geom_rbound: wp.array2d[float],
     geom_margin: wp.array2d[float],
@@ -721,6 +753,13 @@ def _nxn_broadphase(
     geom = nxn_geom_pair[elementid]
     geom1 = geom[0]
     geom2 = geom[1]
+    type1 = geom_type[geom1]
+    type2 = geom_type[geom2]
+
+    if wp.static(ngeom_dataid > 1):
+      dataid_id = worldid % ngeom_dataid
+      if _mesh_missing(geom_dataid, geom1, type1, dataid_id) or _mesh_missing(geom_dataid, geom2, type2, dataid_id):
+        return
 
     if wp.static(enable_sleep):
       b1 = geom_bodyid[geom1]
@@ -747,20 +786,21 @@ def _nxn_broadphase(
         if not skipped_pass1:
           return
 
+    pairid = nxn_pairid[elementid]
     if (
       wp.static(_broadphase_filter(opt_broadphase_filter, ngeom_aabb, ngeom_rbound, ngeom_margin, ngeom_gap))(
         geom_aabb, geom_rbound, geom_margin, geom_gap, geom_xpos_in, geom_xmat_in, geom1, geom2, worldid
       )
-      or nxn_pairid[elementid][1] >= 0
+      or pairid[1] >= 0
     ):
       _add_geom_pair(
-        geom_type,
-        nxn_pairid,
         naconmax_in,
         geom1,
         geom2,
+        type1,
+        type2,
         worldid,
-        elementid,
+        pairid,
         ncollision_out,
         collision_pair_out,
         collision_pairid_out,
@@ -830,6 +870,7 @@ def nxn_broadphase(
         m.geom_rbound.shape[0],
         m.geom_margin.shape[0],
         m.geom_gap.shape[0],
+        m.geom_dataid.shape[0],
         enable_sleep,
         incremental,
       ),
@@ -837,6 +878,7 @@ def nxn_broadphase(
       inputs=[
         m.geom_type,
         m.geom_bodyid,
+        m.geom_dataid,
         m.geom_aabb,
         m.geom_rbound,
         m.geom_margin,

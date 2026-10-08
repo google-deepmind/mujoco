@@ -24,7 +24,7 @@
 #include "test/fixture.h"
 
 #ifdef MEMORY_SANITIZER
-#include <sanitizer/msan_interface.h>
+  #include <sanitizer/msan_interface.h>
 #endif
 
 namespace mujoco {

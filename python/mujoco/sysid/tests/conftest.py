@@ -12,14 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Shared fixtures for mujoco.sysid tests."""
-
-import mujoco
-from mujoco.sysid._src import parameter
-from mujoco.sysid._src import timeseries
-from mujoco.sysid._src.model_modifier import _infer_inertial
-import numpy as np
 import pytest
+
+# TODO: Remove when all upstream sysid packages (e.g. matplotlib) release Python 3.15 wheels.
+try:
+  import colorama  # pylint: disable=unused-import
+  import scipy  # pylint: disable=unused-import
+
+  import mujoco
+  from mujoco.sysid._src import parameter
+  from mujoco.sysid._src import timeseries
+  from mujoco.sysid._src.model_modifier import _infer_inertial
+  import numpy as np
+except ImportError:
+  collect_ignore_glob = ["test_*.py"]
 
 # ---------------------------------------------------------------------------
 # Inline model XML strings — no external file dependencies

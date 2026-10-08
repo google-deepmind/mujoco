@@ -18,6 +18,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <string>
@@ -583,10 +585,10 @@ void CheckTetrahedronWasRescaled(mjModel* model) {
   // with vertices (0, 0, 0), (1, 0, 0), (0, 2, 0), (0, 0, 3)
   // after mesh preprocessing is performed
   std::vector<mjtNum> vert = {
-      -0.51610732078552246, -0.57402724027633667, -0.5283237099647522,
-      0.42337465286254883,  -0.90627568960189819, -0.61189728975296021,
-      0.065528042614459991, 1.2306677103042603,   -1.1645441055297852,
-      0.027204651385545731, 0.24963514506816864,  2.3047652244567871};
+      -0.51610732078552246, -0.57402682304382324, -0.52832412719726562,
+      0.42337465286254883,  -0.90627527236938477, -0.61189794540405273,
+      0.065528050065040588, 1.2306685447692871,   -1.1645431518554688,
+      0.027204651385545731, 0.24963347613811493,  2.3047652244567871};
   mjtNum tolerance = std::numeric_limits<float>::epsilon();
   for (int i = 0; i < 12; ++i) {
     EXPECT_NEAR(model->mesh_vert[i], vert[i], tolerance);
@@ -793,6 +795,73 @@ TEST_F(MjCMeshTest, VolumeSmallAllowedShell) {
   EXPECT_LE(mju_abs(model->geom_size[0]), 1);
   EXPECT_LE(mju_abs(model->geom_size[1]), 1);
   EXPECT_LE(mju_abs(model->geom_size[2]), 1);
+}
+
+// Check the compiled stiffness against continuum strain energies on a unit
+// cube. Affine fields test the Lamé coefficients; quadratic fields also test
+// quadrature.
+TEST_F(MjCMeshTest, InterpolatedFlexStrainEnergy) {
+  for (bool membrane : {false, true}) {
+    for (bool quadratic : {false, true}) {
+      for (double poisson : {0.0, 0.25}) {
+        SCOPED_TRACE(absl::StrFormat("membrane=%d quadratic=%d poisson=%g",
+                                     membrane, quadratic, poisson));
+        std::string xml =
+            absl::StrFormat(R"(
+          <mujoco>
+            <worldbody>
+              <flexcomp name="f" type="grid" count="3 3 3" spacing=".5 .5 .5" dim="3" dof="%s">
+                <elasticity young="2" poisson="%g" thickness=".1" %s/>
+                <contact selfcollide="none"/>
+              </flexcomp>
+            </worldbody>
+          </mujoco>)",
+                            quadratic ? "quadratic" : "trilinear", poisson,
+                            membrane ? "elastic2d=\"stretch\"" : "");
+        char error[1024];
+        MjModelPtr model =
+            LoadModelFromString(xml.c_str(), error, sizeof(error));
+        ASSERT_THAT(model.get(), testing::NotNull()) << error;
+        int order = quadratic ? 2 : 1;
+        int nbasis = order + 1;
+        int nnode = membrane ? nbasis * nbasis : nbasis * nbasis * nbasis;
+        int ndof = 3 * nnode;
+        double mu = 1 / (1 + poisson);
+        double lambda = membrane
+                            ? 2 * poisson / (1 - poisson * poisson)
+                            : 2 * poisson / ((1 + poisson) * (1 - 2 * poisson));
+        for (int field = 0; field < (quadratic ? 3 : 2); ++field) {
+          SCOPED_TRACE(absl::StrFormat("field=%d", field));
+          // u_x=x, u_y=x, or u_x=x^2/2. For membranes use each face's in-plane
+          // axes.
+          for (int face = 0; face < (membrane ? 6 : 1); ++face) {
+            int axis0 = membrane ? (face / 2 + 1) % 3 : 0;
+            int axis1 = membrane ? (face / 2 + 2) % 3 : 1;
+            std::vector<double> u(ndof, 0);
+            for (int i = 0; i < nnode; ++i) {
+              int ix = i / (membrane ? nbasis : nbasis * nbasis);
+              double x = static_cast<double>(ix) / order - 0.5;
+              u[3 * i + (field == 1 ? axis1 : axis0)] =
+                  field == 2 ? x * x / 2 : x;
+            }
+            const mjtNum* stiffness = model->flex_stiffness +
+                                      model->flex_stiffnessadr[0] +
+                                      face * ndof * ndof;
+            double energy = 0;
+            for (int i = 0; i < ndof; ++i) {
+              for (int j = 0; j < ndof; ++j) {
+                energy -= 0.5 * u[i] * stiffness[i * ndof + j] * u[j];
+              }
+            }
+            double expected = 0.5 * (field == 1 ? mu : lambda + 2 * mu);
+            if (field == 2) expected /= 12;  // integral of x^2 on [-1/2, 1/2]
+            if (membrane) expected *= 0.1;   // thickness
+            EXPECT_NEAR(energy, expected, MjTol(1e-12, 2e-6));
+          }
+        }
+      }
+    }
+  }
 }
 
 TEST_F(MjCMeshTest, Flex2DElasticityRequiresPositiveThickness) {
@@ -1162,23 +1231,23 @@ TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
   ASSERT_THAT(model, NotNull()) << error;
   const mjModel* m = model.get();
   int mid = 0;
-  const mjtNum* mq = m->mesh_quat + 4*mid;
-  const mjtNum* mp = m->mesh_pos + 3*mid;
+  const mjtNum* mq = m->mesh_quat + 4 * mid;
+  const mjtNum* mp = m->mesh_pos + 3 * mid;
   double scale[3] = {.2, .1, .1};
   int va = m->mesh_vertadr[mid];
   int na = m->mesh_normaladr[mid];
   int fa = m->mesh_faceadr[mid];
-  for (int i = 0; i < 3*m->mesh_facenum[mid]; i++) {
-    int vid = m->mesh_face[3*fa + i];
-    int nid = m->mesh_facenormal[3*fa + i];
+  for (int i = 0; i < 3 * m->mesh_facenum[mid]; i++) {
+    int vid = m->mesh_face[3 * fa + i];
+    int nid = m->mesh_facenormal[3 * fa + i];
 
     // rotate vertex and normal back to the authored frame
-    mjtNum vm[3] = {m->mesh_vert[3*(va+vid)+0],
-                    m->mesh_vert[3*(va+vid)+1],
-                    m->mesh_vert[3*(va+vid)+2]};
-    mjtNum nm[3] = {m->mesh_normal[3*(na+nid)+0],
-                    m->mesh_normal[3*(na+nid)+1],
-                    m->mesh_normal[3*(na+nid)+2]};
+    mjtNum vm[3] = {m->mesh_vert[3 * (va + vid) + 0],
+                    m->mesh_vert[3 * (va + vid) + 1],
+                    m->mesh_vert[3 * (va + vid) + 2]};
+    mjtNum nm[3] = {m->mesh_normal[3 * (na + nid) + 0],
+                    m->mesh_normal[3 * (na + nid) + 1],
+                    m->mesh_normal[3 * (na + nid) + 2]};
     mjtNum v[3], n[3];
     mju_rotVecQuat(v, vm, mq);
     mju_addTo3(v, mp);
@@ -1194,6 +1263,58 @@ TEST_F(MjCMeshTest, UserNormalsAnisotropicScale) {
   }
 }
 
+TEST_F(MjCMeshTest, NegativeScaleConvexPolygons) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="normal"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1 1  1 -1 1  1 1 1  -1 1 1"/>
+      <mesh name="mirrored" scale="1 -1 1" inertia="convex"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1 1  1 -1 1  1 1 1  -1 1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="normal"/>
+      <geom type="mesh" mesh="mirrored"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  auto check_normals = [&](const char* name) {
+    int mesh_id = mj_name2id(model.get(), mjOBJ_MESH, name);
+    int start = model->mesh_vertadr[mesh_id];
+    int poly_start = model->mesh_polyadr[mesh_id];
+    int poly_num = model->mesh_polynum[mesh_id];
+    ASSERT_EQ(poly_num, 6);
+
+    for (int p = 0; p < poly_num; p++) {
+      int a = model->mesh_polyvertadr[poly_start + p];
+      int num_polyvert = model->mesh_polyvertnum[poly_start + p];
+      mjtNum outward[3] = {0, 0, 0};
+
+      for (int i = 0; i < num_polyvert; i++) {
+        int v_id = start + model->mesh_polyvert[a + i];
+        outward[0] += model->mesh_vert[3 * v_id + 0];
+        outward[1] += model->mesh_vert[3 * v_id + 1];
+        outward[2] += model->mesh_vert[3 * v_id + 2];
+      }
+
+      int normal_idx = 3 * (poly_start + p);
+      mjtNum dot = outward[0] * model->mesh_polynormal[normal_idx + 0] +
+                   outward[1] * model->mesh_polynormal[normal_idx + 1] +
+                   outward[2] * model->mesh_polynormal[normal_idx + 2];
+      EXPECT_GT(dot, 0.0) << "Normal is inward for mesh " << name;
+    }
+  };
+
+  check_normals("normal");
+  check_normals("mirrored");
+}
+
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -1201,9 +1322,13 @@ TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
       <mesh name="example_mesh" scale="-1 1 1" inertia="exact"
         vertex="0 0 0  1 0 0  0 1 0  0 0 1"
         face="0 2 1  0 3 2  1 3 0  1 2 3" />
+      <mesh name="convex_mesh" scale="-1 1 1" inertia="convex"
+        vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        face="0 2 1  0 3 2  1 3 0  1 2 3" />
     </asset>
     <worldbody>
       <geom type="mesh" mesh="example_mesh"/>
+      <geom type="mesh" mesh="convex_mesh"/>
     </worldbody>
   </mujoco>
   )";
@@ -1332,6 +1457,30 @@ TEST_F(MjCMeshTest, MissingTexCoord) {
   MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(model.get(), testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("texcoord must be 2*nv"));
+}
+
+TEST_F(MjCMeshTest, ObjIncompleteFaceTexCoord) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" file="mesh.obj"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char obj[] =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
+      "vt 0 0\n"
+      "f 1 3/1 2/1\nf 1/1 2/1 4/1\nf 3/1 1/1 4/1\nf 2/1 3/1 4/1\n";
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "mesh.obj", obj, sizeof(obj) - 1);
+  std::array<char, 1024> error;
+  mock_warning_handler.ExpectWarnings("missing face texture coordinate");
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size(), &vfs);
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_texcoordadr[0], -1);
+  EXPECT_EQ(model->nmeshtexcoord, 0);
+  mj_deleteVFS(&vfs);
 }
 
 // ----------------------------- qhull ----------------------------------------
@@ -1482,6 +1631,110 @@ TEST_F(MjCMeshTest, LoadSkin) {
   EXPECT_THAT(m2, NotNull());
   mj_deleteModel(m2);
   mj_deleteSpec(spec);
+}
+
+TEST_F(MjCMeshTest, LoadSKNMalformed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <skin name="skin" file="test.skn"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom type="box" size="1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // Test 1: Integer overflow in ntexcoord (b/511889379)
+  {
+    uint32_t evil_skn[7] = {1, 0x20000000, 0, 0, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("too large sizes in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 2: Integer overflow in nvert
+  {
+    uint32_t evil_skn[4] = {0x20000000, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("too large sizes in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 3: Insufficient data in buffer
+  {
+    uint32_t evil_skn[7] = {10, 0, 0, 0, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("insufficient data in SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 4: Negative size in header
+  {
+    int evil_skn[4] = {-1, 0, 0, 0};
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn, sizeof(evil_skn));
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(error.data(),
+                HasSubstr("negative size in header of SKN file 'test.skn'"));
+    mj_deleteVFS(&vfs);
+  }
+
+  // Test 5: Integer overflow in bone vertex count (vcount)
+  {
+    // Header: nvert=0, ntexcoord=0, nface=0, nbone=1 (16 bytes)
+    // Bone: name[40] (40B), bindpos[3] (12B), bindquat[4] (16B),
+    // vcount=0x40000000 (4B) Total size = 16 + 72 = 88 bytes
+    std::vector<uint8_t> evil_skn(88, 0);
+    uint32_t header[4] = {0, 0, 0, 1};
+    std::memcpy(evil_skn.data(), header, sizeof(header));
+    uint32_t vcount = 0x40000000;
+    std::memcpy(evil_skn.data() + 16 + 40 + 12 + 16, &vcount, sizeof(vcount));
+
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    mj_addBufferVFS(&vfs, "test.skn", evil_skn.data(), evil_skn.size());
+
+    std::array<char, 1024> error;
+    MjModelPtr model =
+        LoadModelFromString(xml, error.data(), error.size(), &vfs);
+    EXPECT_THAT(model.get(), IsNull());
+    EXPECT_THAT(
+        error.data(),
+        HasSubstr("insufficient vertex data in SKN file 'test.skn', bone 0"));
+    mj_deleteVFS(&vfs);
+  }
 }
 
 // ------------- test octree ---------------------------------------------------

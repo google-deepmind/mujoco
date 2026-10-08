@@ -87,6 +87,68 @@ TEST_F(UtilMiscTest, Sigmoid) {
   EXPECT_NEAR(dy_dx_0p5, expected, fd_tol);
 }
 
+TEST_F(UtilMiscTest, SpringDamperDampingRegimes) {
+  constexpr mjtNum pos0 = 1;
+  constexpr mjtNum vel0 = 0;
+  constexpr mjtNum stiffness = 1;
+  constexpr mjtNum dt = 1;
+  const mjtNum tol = MjTol(1e-14, 1e-5);
+
+  EXPECT_NEAR(mju_springDamper(pos0, vel0, stiffness, 3, dt),
+              0.7866455993033682, tol);  // overdamped
+  EXPECT_NEAR(mju_springDamper(pos0, vel0, stiffness, 2, dt),
+              0.7357588823428847, tol);  // critically damped
+  EXPECT_NEAR(mju_springDamper(pos0, vel0, stiffness, 1, dt),
+              0.6597001533917017, tol);  // underdamped
+}
+
+TEST_F(UtilMiscTest, SpringDamperInvariantToTimeUnits) {
+  constexpr mjtNum pos0 = 1;
+  constexpr mjtNum vel0 = 0.5;
+  constexpr mjtNum stiffness = 1;
+  constexpr mjtNum dt = 1;
+  constexpr mjtNum time_scale = 1e-8;
+
+  for (mjtNum damping : {3, 2, 1}) {
+    mjtNum expected = mju_springDamper(pos0, vel0, stiffness, damping, dt);
+    mjtNum scaled = mju_springDamper(pos0, time_scale * vel0,
+                                     time_scale * time_scale * stiffness,
+                                     time_scale * damping, dt / time_scale);
+    EXPECT_NEAR(scaled, expected, MjTol(1e-14, 1e-5)) << "damping=" << damping;
+  }
+}
+
+TEST_F(UtilMiscTest, SpringDamperStrongOverdamping) {
+  constexpr mjtNum damping = 1e9;
+  const mjtNum tol = MjTol(1e-14, 1e-6);
+
+  // At t = damping with k = 1, the fast mode has decayed and the slow mode
+  // contributes exp(-1) to within O(1/damping^2) for either initial condition.
+  EXPECT_NEAR(mju_springDamper(1, 0, 1, damping, damping), mju_exp(-1), tol);
+  EXPECT_NEAR(mju_springDamper(0, damping, 1, damping, damping), mju_exp(-1),
+              tol);
+}
+
+TEST_F(UtilMiscTest, SpringDamperZeroStiffness) {
+  constexpr mjtNum pos0 = 1;
+  constexpr mjtNum vel0 = 0.5;
+  constexpr mjtNum dt = 0.5;
+
+  for (mjtNum damping : {-3, 3}) {
+    mjtNum expected = pos0 + vel0 * (1 - mju_exp(-damping * dt)) / damping;
+    EXPECT_NEAR(mju_springDamper(pos0, vel0, 0, damping, dt), expected,
+                MjTol(1e-14, 1e-6));
+  }
+}
+
+TEST_F(UtilMiscTest, SpringDamperNonpositiveDamping) {
+  // Roots 1 and 2: x(0) = x'(0) = 1 selects exp(t).
+  EXPECT_NEAR(mju_springDamper(1, 1, 2, -3, 1), mju_exp(1), MjTol(1e-14, 1e-6));
+
+  // Roots -1 and 1: the same initial conditions select exp(t).
+  EXPECT_NEAR(mju_springDamper(1, 1, -1, 0, 1), mju_exp(1), MjTol(1e-14, 1e-6));
+}
+
 TEST_F(UtilMiscTest, SphereWrap) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -144,6 +206,66 @@ TEST_F(UtilMiscTest, SphereWrap) {
   // difference should be small
   mjtNum diff = ten_length1 - ten_length0;
   EXPECT_LT(mju_abs(diff), 1e-3);
+}
+
+TEST_F(UtilMiscTest, WrapInside) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum side[3] = {0, 0, 0};
+  const mjtNum radius = 0.5;
+
+  struct Case {
+    mjtNum end[4];
+    mjtNum pnt[2];
+  };
+  const Case cases[] = {
+      {{2.0, 0.0, -0.7, 0.7}, {0.12578591002669121, 0.48391931645549874}},
+      {{2.0, 0.0, -0.7, -0.7}, {0.12578591002669121, -0.48391931645549874}},
+      {{1.0, 0.0, -1.4, 1.4}, {0.25140493009239173, 0.43219852050329788}},
+      {{1.666667, 0.0, -2.185531, 1.213859},
+       {0.1502227865088118, 0.47689948040811281}},
+      {{1.0, 0.0, -1.425755, 1.402577},
+       {0.25020009696447665, 0.43289711419570182}},
+  };
+
+  for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+    for (const Case& c : cases) {
+      const mjtNum x0[3] = {c.end[0], c.end[1], 0};
+      const mjtNum x1[3] = {c.end[2], c.end[3], 0};
+      mjtNum wpnt[6] = {0};
+      mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, radius, type, side);
+      EXPECT_EQ(wlen, 0);
+      EXPECT_NEAR(wpnt[0], c.pnt[0], MjTol(1e-6, 1e-6));
+      EXPECT_NEAR(wpnt[1], c.pnt[1], MjTol(1e-6, 1e-6));
+      EXPECT_EQ(wpnt[2], 0);
+      EXPECT_NEAR(wpnt[3], c.pnt[0], MjTol(1e-6, 1e-6));
+      EXPECT_NEAR(wpnt[4], c.pnt[1], MjTol(1e-6, 1e-6));
+      EXPECT_EQ(wpnt[5], 0);
+    }
+  }
+}
+
+TEST_F(UtilMiscTest, WrapCircleOnset) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum x0[3] = {0.158835, -0.02149, 0};
+  const mjtNum x1[3] = {-0.190895, 0.059719, 0};
+  const mjtNum side_pos[3] = {0, 0.015, 0};
+  const mjtNum radius = 0.015;
+
+  for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+    for (const mjtNum* side : {static_cast<const mjtNum*>(nullptr), side_pos}) {
+      mjtNum wpnt[6] = {0};
+      mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, radius, type, side);
+      EXPECT_NEAR(wlen, 1.1253506488708159e-6, MjTol(1e-15, 1e-8));
+      EXPECT_NEAR(wpnt[0], 0.0033934139554204273, MjTol(1e-15, 1e-8));
+      EXPECT_NEAR(wpnt[1], 0.014611117059525527, MjTol(1e-15, 1e-8));
+      EXPECT_EQ(wpnt[2], 0);
+      EXPECT_NEAR(wpnt[3], 0.0033923177705339506, MjTol(1e-15, 1e-8));
+      EXPECT_NEAR(wpnt[4], 0.014611371603779007, MjTol(1e-15, 1e-8));
+      EXPECT_EQ(wpnt[5], 0);
+    }
+  }
 }
 
 // compute time constant as in Millard et al. (2013)

@@ -223,6 +223,7 @@ static const mjXDefaultEntry kDefaults_mjsActuator[] = {
   {"actdim", (int)offsetof(mjsActuator, actdim), 2, 1, 1, 0, {-1.0}},
   {"velrange", (int)offsetof(mjsActuator, velrange), 0, 2, 0, 0, {0}},
   {"ffrange", (int)offsetof(mjsActuator, ffrange), 0, 2, 0, 0, {0}},
+  {"inheritrange", (int)offsetof(mjsActuator, inheritrange), 0, 1, 0, 0, {0}},
   {"dyntype", (int)offsetof(mjsActuator, dyntype), 2, 1, 1, 0, {(double)mjDYN_NONE}},
   {"gaintype", (int)offsetof(mjsActuator, gaintype), 2, 1, 1, 0, {(double)mjGAIN_FIXED}},
   {"biastype", (int)offsetof(mjsActuator, biastype), 2, 1, 1, 0, {(double)mjBIAS_NONE}},
@@ -230,7 +231,6 @@ static const mjXDefaultEntry kDefaults_mjsActuator[] = {
   {"gainprm", (int)offsetof(mjsActuator, gainprm), 0, mjNGAIN, 1, 0, {1.0}},
   {"biasprm", (int)offsetof(mjsActuator, biasprm), 0, mjNBIAS, 0, 0, {0}},
   {"actearly", (int)offsetof(mjsActuator, actearly), 3, 1, 0, 0, {0}},
-  {"inheritrange", (int)offsetof(mjsActuator, inheritrange), 0, 1, 0, 0, {0}},
 };
 
 static const mjXDefaultEntry kDefaults_mjsBody[] = {
@@ -240,6 +240,7 @@ static const mjXDefaultEntry kDefaults_mjsBody[] = {
   {"gravcomp", (int)offsetof(mjsBody, gravcomp), 0, 1, 0, 0, {0}},
   {"sleep", (int)offsetof(mjsBody, sleep), 2, 1, 0, 0, {0}},
   {"simple", (int)offsetof(mjsBody, simple), 3, 1, 1, 0, {(double)1}},
+  {"fuse", (int)offsetof(mjsBody, fuse), 3, 1, 1, 0, {(double)1}},
   {"pos", (int)offsetof(mjsBody, ipos), 0, 3, 0, 1, {0}},
   {"quat", (int)offsetof(mjsBody, iquat), 0, 4, 4, 0, {1.0, 0.0, 0.0, 0.0}},
   {"mass", (int)offsetof(mjsBody, mass), 0, 1, 0, 0, {0}},
@@ -276,6 +277,8 @@ static const mjXDefaultEntry kDefaults_mjsCompiler[] = {
   {"inertiafromgeom", (int)offsetof(mjsCompiler, inertiafromgeom), 2, 1, 1, 0, {(double)2}},
   {"inertiagrouprange", (int)offsetof(mjsCompiler, inertiagrouprange), 2, 2, 2, 0, {0.0, 5.0}},
   {"saveinertial", (int)offsetof(mjsCompiler, saveinertial), 3, 1, 0, 0, {0}},
+  {"savecompiled", (int)offsetof(mjsCompiler, savecompiled), 3, 1, 1, 0, {1}},
+  {"savecanonical", (int)offsetof(mjsCompiler, savecanonical), 3, 1, 1, 0, {1}},
   {"alignfree", (int)offsetof(mjsCompiler, alignfree), 3, 1, 0, 0, {0}},
   {"conflict", (int)offsetof(mjsCompiler, conflict), 2, 1, 0, 0, {0}},
 };
@@ -302,7 +305,6 @@ static const mjXDefaultEntry kDefaults_mjsFlex[] = {
   {"solimp", (int)offsetof(mjsFlex, solimp), 4, mjNIMP, 5, 0, {0.9, 0.95, 0.001, 0.5, 2.0}},
   {"margin", (int)offsetof(mjsFlex, margin), 0, 1, 0, 0, {0}},
   {"gap", (int)offsetof(mjsFlex, gap), 0, 1, 0, 0, {0}},
-  {"internal", (int)offsetof(mjsFlex, internal), 3, 1, 0, 0, {0}},
   {"selfcollide", (int)offsetof(mjsFlex, selfcollide), 2, 1, 1, 0, {(double)mjFLEXSELF_AUTO}},
   {"activelayers", (int)offsetof(mjsFlex, activelayers), 2, 1, 1, 0, {1.0}},
   {"passive", (int)offsetof(mjsFlex, passive), 2, 1, 0, 0, {0}},
@@ -447,6 +449,7 @@ static const mjXDefaultEntry kDefaults_mjsSensor[] = {
   {"noise", (int)offsetof(mjsSensor, noise), 0, 1, 0, 0, {0}},
   {"objtype", (int)offsetof(mjsSensor, objtype), 2, 1, 0, 0, {0}},
   {"reftype", (int)offsetof(mjsSensor, reftype), 2, 1, 0, 0, {0}},
+  {"enclosed", (int)offsetof(mjsSensor, intprm), 2, mjNSENS, 1, 0, {0}},
   {"datatype", (int)offsetof(mjsSensor, datatype), 2, 1, 1, 0, {(double)mjDATATYPE_REAL}},
   {"needstage", (int)offsetof(mjsSensor, needstage), 2, 1, 1, 0, {(double)mjSTAGE_ACC}},
   {"dim", (int)offsetof(mjsSensor, dim), 2, 1, 0, 0, {0}},
@@ -471,7 +474,7 @@ static const mjXDefaultEntry kDefaults_mjsSkin[] = {
 static const mjXDefaultEntry kDefaults_mjsTendon[] = {
   {"group", (int)offsetof(mjsTendon, group), 2, 1, 0, 0, {0}},
   {"limited", (int)offsetof(mjsTendon, limited), 2, 1, 1, 0, {(double)2}},
-  {"actuatorfrclimited", (int)offsetof(mjsTendon, actfrclimited), 2, 1, 0, 0, {0}},
+  {"actuatorfrclimited", (int)offsetof(mjsTendon, actfrclimited), 2, 1, 1, 0, {(double)2}},
   {"range", (int)offsetof(mjsTendon, range), 0, 2, 0, 0, {0}},
   {"actuatorfrcrange", (int)offsetof(mjsTendon, actfrcrange), 0, 2, 0, 0, {0}},
   {"solreflimit", (int)offsetof(mjsTendon, solref_limit), 4, mjNREF, 2, 0, {0.02, 1.0}},

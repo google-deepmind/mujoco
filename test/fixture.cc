@@ -149,16 +149,54 @@ MujocoErrorTestGuard::~MujocoErrorTestGuard() {
   }
 }
 
+namespace {
+std::string GetRunfilesPrefix(std::string_view subpath) {
+  const char* test_srcdir = std::getenv("TEST_SRCDIR");
+  if (test_srcdir && test_srcdir[0] != '\0') {
+    const char* workspace = std::getenv("TEST_WORKSPACE");
+    if (workspace && workspace[0] != '\0') {
+      std::string ws_path = absl::StrCat(test_srcdir, "/", workspace);
+      if (std::filesystem::exists(ws_path)) {
+        return absl::StrCat(ws_path, "/", subpath);
+      }
+    }
+    if (std::filesystem::exists(test_srcdir)) {
+      return absl::StrCat(test_srcdir, "/", subpath);
+    }
+  }
+  if (std::filesystem::exists(subpath)) {
+    return std::string(subpath);
+  }
+  return "";
+}
+}  // namespace
+
 const std::string GetTestDataFilePath(std::string_view path) {  // NOLINT
-  return std::string(path);
+  std::string prefix = GetRunfilesPrefix("third_party/mujoco/test/");
+  if (prefix.empty()) {
+    return std::string(path);
+  }
+  return absl::StrCat(prefix, path);
 }
 
 const std::string GetModelPath(std::string_view path) {  // NOLINT
-  return absl::StrCat("../model/", path);
+  std::string prefix = GetRunfilesPrefix("third_party/mujoco/model/");
+  if (prefix.empty()) {
+    return absl::StrCat("../model/", path);
+  }
+  return absl::StrCat(prefix, path);
+}
+
+std::string GetMenagerieModelPath(std::string_view path) {
+  std::string prefix = GetRunfilesPrefix("third_party/mujoco_menagerie/");
+  if (prefix.empty()) {
+    return absl::StrCat("../../mujoco_menagerie/", path);
+  }
+  return absl::StrCat(prefix, path);
 }
 
 MjModelPtr LoadModelFromString(std::string_view xml, char* error,
-                             int error_size, mjVFS* vfs) {
+                               int error_size, mjVFS* vfs) {
   if (error) {
     error[0] = '\0';
   }
@@ -205,15 +243,15 @@ MjDataPtr MakeData(const MjModelPtr& model) {
 }
 
 static void AssertModelNotNull(mjModel* model,
-                                  const std::array<char, 1024>& error) {
+                               const std::array<char, 1024>& error) {
   ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
 }
 
 mjModel* LoadModelFromPath(const char* model_path) {
   const std::string xml_path = GetModelPath(model_path);
   std::array<char, 1024> error;
-  mjModel* model = mj_loadXML(
-    xml_path.c_str(), nullptr, error.data(), error.size());
+  mjModel* model =
+      mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
   AssertModelNotNull(model, error);
   return model;
 }
@@ -271,7 +309,7 @@ std::string SaveAndReadXml(const mjSpec* spec) {
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise) {
   std::vector<mjtNum> ctrl;
-  for (int step=0; step < nsteps; step++) {
+  for (int step = 0; step < nsteps; step++) {
     for (int i = 0; i < m->nu; i++) {
       mjtNum center = 0.0;
       mjtNum radius = 1.0;
@@ -281,12 +319,11 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
         radius = (range[1] - range[0]) / 2;
       }
       radius *= ctrlnoise;
-      ctrl.push_back(center + radius * (2 * mju_Halton(step, i+2) - 1));
+      ctrl.push_back(center + radius * (2 * mju_Halton(step, i + 2) - 1));
     }
   }
   return ctrl;
 }
-
 
 MockFilesystem::MockFilesystem(std::string unit_test_name) {
   prefix_ = absl::StrCat("MjMock.", unit_test_name);
@@ -298,18 +335,18 @@ MockFilesystem::MockFilesystem(std::string unit_test_name) {
   mjpResourceProvider resourceProvider;
   mjp_defaultResourceProvider(&resourceProvider);
   resourceProvider.prefix = prefix_.c_str();
-  resourceProvider.data = (void *) this;
+  resourceProvider.data = (void*)this;
 
   resourceProvider.open = +[](mjResource* resource) {
-    MockFilesystem *fs = static_cast<MockFilesystem*>(resource->provider->data);
+    MockFilesystem* fs = static_cast<MockFilesystem*>(resource->provider->data);
     std::string filename = fs->StripPrefix(resource->name);
     return fs->FileExists(filename) ? 1 : 0;
   };
 
-  resourceProvider.read =+[](mjResource* resource, const void** buffer) {
-    MockFilesystem *fs = static_cast<MockFilesystem*>(resource->provider->data);
+  resourceProvider.read = +[](mjResource* resource, const void** buffer) {
+    MockFilesystem* fs = static_cast<MockFilesystem*>(resource->provider->data);
     std::string filename = fs->StripPrefix(resource->name);
-    return (int) fs->GetFile(filename, (const unsigned char**) buffer);
+    return (int)fs->GetFile(filename, (const unsigned char**)buffer);
   };
 
   resourceProvider.close = +[](mjResource* resource) {};
@@ -317,7 +354,7 @@ MockFilesystem::MockFilesystem(std::string unit_test_name) {
 }
 
 bool MockFilesystem::AddFile(std::string filename, const unsigned char* data,
-                         std::size_t ndata) {
+                             std::size_t ndata) {
   std::string fullfilename = PathReduce(dir_, filename);
   auto [it, inserted] = filenames_.insert(fullfilename);
   if (inserted) {
@@ -332,7 +369,7 @@ bool MockFilesystem::FileExists(const std::string& filename) {
 }
 
 std::size_t MockFilesystem::GetFile(const std::string& filename,
-                                const unsigned char** buffer) const {
+                                    const unsigned char** buffer) const {
   std::string fullfilename = PathReduce(dir_, filename);
   auto it = data_.find(fullfilename);
   if (it == data_.end()) {

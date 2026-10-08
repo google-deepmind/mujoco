@@ -424,12 +424,54 @@ aliases defined in the Python API.
 Rendering
 ---------
 
-MuJoCo itself expects users to set up a working OpenGL context before calling any of its ``mjr_`` rendering routine.
-The Python bindings provide a basic class ``mujoco.GLContext`` that helps users set up such a context for offscreen
-rendering. To create a context, call ``ctx = mujoco.GLContext(max_width, max_height)``. Once the context is created,
-it must be made current before MuJoCo rendering functions can be called, which you can do so via ``ctx.make_current()``.
-Note that a context can only be made current on one thread at any given time, and all subsequent rendering calls must be
-made on the same thread.
+MuJoCo provides two rendering APIs: the :ref:`classic rendering<OpenGLrendering>` API (which uses OpenGL 1.5) and the
+:ref:`filament rendering<FilamentRendering>` API (which provides more modern physically-based rendering capabilities).
+
+.. _PyFilamentRender:
+
+Filament Rendering
+------------------
+
+The Python ``mjrf`` module exposes the ``mjrf_`` :ref:`C API<FilamentRenderingApi>` to python. It can be imported using
+``from mujoco import mjrf``. This module also provides the following conveniences around the C library:
+
+- Enums are exposed directly but without the ``mjr`` prefix. So, for example, :ref:`mjrGraphicsApi` becomes
+  ``mjrf.GraphicsApi`` and ``mjGRAPHICS_API_DEFAULT`` becomes ``mjrf.GraphicsApi.GRAPHICS_API_DEFAULT``.
+
+- Tuple/list/numpy array types are automatically converted into the corresponding native C types (e.g. ``float*``).
+
+- ``mjrf`` C structs are treated in two different ways. Basic structs (e.g. :ref:`mjrRect`, ``mjrCamera``, etc.) are
+  considered to be simple POD data types and are bound directly as python types allowing copies to be made as needed.
+
+- ``mjrf`` types that have explicit create/destroy functions in the C API (e.g. :ref:`mjrfContext`, :ref:`mjrfTexture`,
+  etc.) are treated as "Objects". When created in python, their lifetimes are managed by python; calling ``del`` on the
+  objects will destroy the underlying C object. However, when they are returned from an API call, they are returned as
+  references such that python will not manage their lifetimes.
+
+- In cases where the ``mjrf_`` C function takes a pointer to an object as its first argument, we bind the function as a
+  method of the object itself. So, for example, :ref:`mjrf_setLightEnabled(mjrfLight*, bool)<mjrf_setLightEnabled>`
+  becomes ``Light.set_enabled(bool)``.
+
+- Some functions (e.g. ``mjrf.ReadPixelsRequest.set_buffer``) require users to provide a buffer. Users are responsible
+  for ensuring the lifetime of the buffer outlives the request to which it is associated.
+
+Additionally, a `Renderer
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rendering/filament/renderer.py>`__ class is available
+under ``mujoco.rendering.filament``. This class can be used to manage the lifetimes of key objects (such as the
+:ref:`mjrfContext` and :ref:`mjrfScene`) and provides useful functions for controlling the camera and reading pixels.
+
+.. _PyClassicRender:
+
+Classic Rendering
+-----------------
+
+The MuJoCo classic renderer expects users to set up a working OpenGL context before calling any of its ``mjr_``
+:ref:`rendering routines<OpenGLrendering>`. The Python bindings provide a basic class ``mujoco.GLContext`` that helps
+users set up such a context for offscreen rendering. To create a context, call ``ctx = mujoco.GLContext(max_width,
+max_height)``. Once the context is
+created, it must be made current before MuJoCo rendering functions can be called, which you can do so via
+``ctx.make_current()``. Note that a context can only be made current on one thread at any given time, and all subsequent
+rendering calls must be made on the same thread.
 
 The context is freed automatically when the ``ctx`` object is deleted, but in some multi-threaded scenario it may be
 necessary to explicitly free the underlying OpenGL context. To do so, call ``ctx.free()``, after which point it is the
@@ -522,9 +564,7 @@ Assets
 ^^^^^^
 
 MuJoCo optionally uses a :ref:`Virtual File System <Virtualfilesystem>` (VFS) to load assets (like meshes and textures)
-from memory. Some :ref:`decoders<exDecoder>` may also choose to leverage the VFS as a way to load assets on
-demand, such as when addressing files in an archive format. This requires the same VFS to be used when parsing and
-compiling a spec (and all attached specs) into a model.
+from memory.
 
 The Python bindings provide the ``mujoco.MjVfs`` as a wrapper around the :ref:`mjVFS` C struct.
 
@@ -579,7 +619,11 @@ For reference, the deprecated ``assets`` dictionary approach looked like this:
 Save to XML
 -----------
 
-Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` method:
+``MjSpec`` objects can be saved to an XML string with the ``to_xml()`` method. By default the values which
+compilation made of the model are saved; set ``spec.compiler.savecompiled = False`` to save the model as it is written
+in the spec instead, see :ref:`Model Encoding & Saving <meSaving>`. Unlike :ref:`mj_saveXMLString`, ``to_xml()``
+compiles the spec before it saves it: the spec must compile, with its assets, and the compilation changes it as
+:ref:`mj_compile` says, for example by applying :ref:`fusestatic<compiler-fusestatic>`.
 
 .. code-block:: python
 
@@ -617,6 +661,17 @@ The ``encode()`` method accepts the target filename, an optional compiled ``mode
 ``vfs`` (:ref:`MjVFS`), and an optional ``content_type``. The target format is automatically determined by the file
 extension (``.xml``, ``.mjb``, ``.txt``, ``.mjz``) or content type.
 
+Values which were changed in a compiled model can be written to the spec itself with ``copy_back()``. They are then in
+the models which are compiled from the spec afterwards and in what it saves; see :ref:`mj_copyBack` for what is copied
+and how:
+
+.. code-block:: python
+
+   model = spec.compile()
+   model.geom('my_geom').size[0] = 2
+   spec.copy_back(model)
+   print(spec.geom('my_geom').size[0])  # 2.0
+
 Attachment
 ----------
 
@@ -638,6 +693,9 @@ in the parent and therefore modifying the child will modify the parent. This is 
 :ref:`attach<body-attach>` and :ref:`replicate<replicate>` meta-elements in MJCF, which create deep copies while
 attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attach`` to
 ``True``. In this case, the child spec is copied and the references to the child will not point to the parent.
+Without copying, a child spec can be attached as a whole only once, since its elements move to the parent; its bodies
+and frames which are not attached yet can still be attached, if they contain nothing which is attached already. An
+element of the parent, including one attached to it, can be attached to the parent only as a copy.
 
 .. code-block:: python
 
@@ -649,16 +707,18 @@ attaching. However, it is possible to override the default behavior by setting `
    frame = parent.worldbody.add_frame()
    site = parent.worldbody.add_site()
 
-   # Create the child spec.
+   # Create the child specs.
    child = mujoco.MjSpec()
    child_body = child.worldbody.add_body()
    child_frame = child.worldbody.add_frame()
+   child2 = mujoco.MjSpec()
+   child3 = mujoco.MjSpec()
 
-   # Attach the child to the parent in different ways.
+   # Attach the children to the parent in different ways.
    body_in_frame = frame.attach_body(child_body, 'child-', '')
    frame_in_body = body.attach_frame(child_frame, 'child-', '')
-   worldframe_in_site = parent.attach(child, site=site, prefix='child-')
-   worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
+   worldframe_in_site = parent.attach(child2, site=site, prefix='child2-')
+   worldframe_in_frame = parent.attach(child3, frame=frame, prefix='child3-')
 
 .. _PyEditConvenience:
 
@@ -684,9 +744,9 @@ Lists of all elements in a spec can be accessed using named properties, using th
 Element removal
 ^^^^^^^^^^^^^^^
 The method ``delete()`` removes the corresponding element from the spec, e.g. ``spec.delete(spec.geom('my_geom'))`` will
-remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies
-and defaults), ``delete`` also removes all of their children. When deleting body subtrees, all elements which reference
-elements in the subtree, will also be removed.
+remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies,
+frames and defaults), ``delete`` also removes all of their children. When deleting bodies or frames, all elements which
+reference the deleted children will also be removed.
 
 Tree traversal
 ^^^^^^^^^^^^^^
@@ -750,7 +810,7 @@ For users familiar with ``PyMJCF``, the ``MjSpec`` object is conceptually simila
 Model Editing
 `colab notebook <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb>`__
 includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
-`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
+`tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/tutorial.ipynb>`__.
 
 ``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
 In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to
@@ -1130,8 +1190,8 @@ mujoco-py migration
 ===================
 
 In mujoco-py, the main entry point is the `MjSim <https://github.com/openai/mujoco-py/blob/master/mujoco_py/mjsim.pyx>`_
-class.  Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
-instance holds references to an ``mjModel`` instance and its associated ``mjData``.  In contrast, the MuJoCo Python
+class. Users construct a stateful ``MjSim`` instance from an MJCF model (similar to ``dm_control.Physics``), and this
+instance holds references to an ``mjModel`` instance and its associated ``mjData``. In contrast, the MuJoCo Python
 bindings (``mujoco``) take a more low-level approach, as explained above: following the design principle of the C
 library, the ``mujoco`` module itself is stateless, and merely wraps the underlying native structs and functions.
 

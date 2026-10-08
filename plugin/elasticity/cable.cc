@@ -13,9 +13,13 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <cstddef>
-#include <sstream>
+#include <cctype>
+#include <cmath>
+#include <cstdint>
+#include <cstdlib>
 #include <optional>
+#include <string>
+#include <utility>
 
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjtype.h>
@@ -77,10 +81,9 @@ void QuatDiff(mjtNum* quat, const mjtNum body_quat[4],
 //     scl         - scaling of the force
 //   outputs:
 //     stress      - local stress contribution
-void LocalStress(mjtNum stress[3],
-                const mjtNum stiffness[4],
-                const mjtNum quat[4], const mjtNum omega0[3],
-                bool pullback = false) {
+void LocalStress(mjtNum stress[3], const mjtNum stiffness[4],
+                 const mjtNum quat[4], const mjtNum omega0[3],
+                 bool pullback = false) {
   mjtNum omega[3];
 
   // compute curvature
@@ -88,9 +91,9 @@ void LocalStress(mjtNum stress[3],
 
   // subtract omega0 in reference configuration
   mjtNum tmp[] = {
-      - stiffness[0]*(omega[0] - omega0[0]) / stiffness[3],
-      - stiffness[1]*(omega[1] - omega0[1]) / stiffness[3],
-      - stiffness[2]*(omega[2] - omega0[2]) / stiffness[3],
+      -stiffness[0] * (omega[0] - omega0[0]) / stiffness[3],
+      -stiffness[1] * (omega[1] - omega0[1]) / stiffness[3],
+      -stiffness[2] * (omega[2] - omega0[2]) / stiffness[3],
   };
 
 
@@ -106,7 +109,7 @@ void LocalStress(mjtNum stress[3],
 
 // reads numeric attributes
 bool CheckAttr(const char* name, const mjModel* m, int instance) {
-  char *end;
+  char* end;
   std::string value = mj_getPluginConfig(m, instance, name);
   value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
   strtod(value.c_str(), &end);
@@ -117,8 +120,7 @@ bool CheckAttr(const char* name, const mjModel* m, int instance) {
 
 
 // factory function
-std::optional<Cable> Cable::Create(
-  const mjModel* m, mjData* d, int instance) {
+std::optional<Cable> Cable::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("twist", m, instance) && CheckAttr("bend", m, instance)) {
     return Cable(m, d, instance);
   } else {
@@ -145,14 +147,14 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   }
 
   // allocate arrays
-  prev.assign(n, 0);         // index of previous body
-  next.assign(n, 0);         // index of next body
-  omega0.assign(3*n, 0);     // reference curvature
-  stress.assign(3*n, 0);     // mechanical stress
-  stiffness.assign(4*n, 0);  // material parameters
+  prev.assign(n, 0);           // index of previous body
+  next.assign(n, 0);           // index of next body
+  omega0.assign(3 * n, 0);     // reference curvature
+  stress.assign(3 * n, 0);     // mechanical stress
+  stiffness.assign(4 * n, 0);  // material parameters
 
   // run forward kinematics to populate xquat (mjData not yet initialized)
-  mju_zero(d->mocap_quat, 4*m->nmocap);
+  mju_zero(d->mocap_quat, 4 * m->nmocap);
   mju_copy(d->qpos, m->qpos0, m->nq);
   mj_kinematics(m, d);
 
@@ -162,16 +164,16 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
     if (m->body_plugin[i] != instance) {
       mju_error("This body does not have the requested plugin instance");
     }
-    bool first = (b == 0), last = (b == n-1);
+    bool first = (b == 0), last = (b == n - 1);
     prev[b] = first ? 0 : -1;
-    next[b] =  last ? 0 : +1;
+    next[b] = last ? 0 : +1;
 
     // compute omega0: curvature at equilibrium
     if (prev[b] && flat != "true") {
-      int qadr = m->jnt_qposadr[m->body_jntadr[i]] + m->body_dofnum[i]-3;
-      mju_subQuat(omega0.data()+3*b, m->body_quat+4*i, d->qpos+qadr);
+      int qadr = m->jnt_qposadr[m->body_jntadr[i]] + m->body_dofnum[i] - 3;
+      mju_subQuat(omega0.data() + 3 * b, m->body_quat + 4 * i, d->qpos + qadr);
     } else {
-      mju_zero3(omega0.data()+3*b);
+      mju_zero3(omega0.data() + 3 * b);
     }
 
     // compute physical parameters
@@ -181,38 +183,40 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
         m->geom_type[geom_i] == mjGEOM_CAPSULE) {
       // https://en.wikipedia.org/wiki/Torsion_constant#Circle
       // https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-      J = mjPI * pow(m->geom_size[3*geom_i+0], 4) / 2;
-      Iy = Iz = mjPI * pow(m->geom_size[3*geom_i+0], 4) / 4.;
+      J = mjPI * pow(m->geom_size[3 * geom_i + 0], 4) / 2;
+      Iy = Iz = mjPI * pow(m->geom_size[3 * geom_i + 0], 4) / 4.;
     } else if (m->geom_type[geom_i] == mjGEOM_BOX) {
       // https://en.wikipedia.org/wiki/Torsion_constant#Rectangle
       // https://en.wikipedia.org/wiki/List_of_second_moments_of_area
-      mjtNum h = m->geom_size[3*geom_i+1];
-      mjtNum w = m->geom_size[3*geom_i+2];
+      mjtNum h = m->geom_size[3 * geom_i + 1];
+      mjtNum w = m->geom_size[3 * geom_i + 2];
       mjtNum a = std::max(h, w);
       mjtNum b = std::min(h, w);
-      J = a*pow(b, 3)*(16./3.-3.36*b/a*(1-pow(b, 4)/pow(a, 4)/12));
+      J = a * pow(b, 3) *
+          (16. / 3. - 3.36 * b / a * (1 - pow(b, 4) / pow(a, 4) / 12));
       Iy = pow(2 * w, 3) * 2 * h / 12.;
       Iz = pow(2 * h, 3) * 2 * w / 12.;
     }
-    stiffness[4*b+0] = J * G;
-    stiffness[4*b+1] = Iy * E;
-    stiffness[4*b+2] = Iz * E;
-    stiffness[4*b+3] =
-      prev[b] ? mju_dist3(d->xpos+3*i, d->xpos+3*(i+prev[b])) : 0;
+    stiffness[4 * b + 0] = J * G;
+    stiffness[4 * b + 1] = Iy * E;
+    stiffness[4 * b + 2] = Iz * E;
+    stiffness[4 * b + 3] =
+        prev[b] ? mju_dist3(d->xpos + 3 * i, d->xpos + 3 * (i + prev[b])) : 0;
   }
 }
 
 void Cable::Compute(const mjModel* m, mjData* d, int instance) {
-  for (int b = 0; b < n; b++)  {
+  for (int b = 0; b < n; b++) {
     // index into body array
     int i = i0 + b;
     if (m->body_plugin[i] != instance) {
       mju_error(
-        "This body is not associated with the requested plugin instance");
+          "This body is not associated with the requested plugin instance");
     }
 
     // if no stiffness, skip body
-    if (!stiffness[b*4+0] && !stiffness[b*4+1] && !stiffness[b*4+2]) {
+    if (!stiffness[b * 4 + 0] && !stiffness[b * 4 + 1] &&
+        !stiffness[b * 4 + 2]) {
       continue;
     }
 
@@ -222,8 +226,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
 
     // local orientation
     if (prev[b]) {
-      int qadr = m->jnt_qposadr[m->body_jntadr[i]] + m->body_dofnum[i]-3;
-      QuatDiff(quat, m->body_quat+4*i, d->qpos+qadr);
+      int qadr = m->jnt_qposadr[m->body_jntadr[i]] + m->body_dofnum[i] - 3;
+      QuatDiff(quat, m->body_quat + 4 * i, d->qpos + qadr);
 
       // contribution of orientation i-1 to xfrc i
       LocalStress(stress.data() + 3 * b, stiffness.data() + 4 * b, quat,
@@ -236,8 +240,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
       int in = i + next[b];
 
       // local orientation
-      int qadr = m->jnt_qposadr[m->body_jntadr[in]] + m->body_dofnum[in]-3;
-      QuatDiff(quat, m->body_quat+4*in, d->qpos+qadr);
+      int qadr = m->jnt_qposadr[m->body_jntadr[in]] + m->body_dofnum[in] - 3;
+      QuatDiff(quat, m->body_quat + 4 * in, d->qpos + qadr);
 
       // contribution of orientation i+1 to xfrc i
       LocalStress(stress.data() + 3 * bn, stiffness.data() + 4 * bn, quat,
@@ -247,8 +251,8 @@ void Cable::Compute(const mjModel* m, mjData* d, int instance) {
 
     // convert from global coordinates and apply torque to com
     mjtNum xfrc[3] = {0};
-    mju_rotVecQuat(xfrc, lfrc, d->xquat+4*i);
-    mj_applyFT(m, d, 0, xfrc, d->xpos+3*i, i, d->qfrc_passive);
+    mju_rotVecQuat(xfrc, lfrc, d->xquat + 4 * i);
+    mj_applyFT(m, d, 0, xfrc, d->xpos + 3 * i, i, d->qfrc_passive);
   }
 }
 
@@ -258,17 +262,17 @@ void Cable::Visualize(const mjModel* m, mjData* d, mjvScene* scn,
     return;
   }
 
-  for (int b = 0; b < n; b++)  {
+  for (int b = 0; b < n; b++) {
     int i = i0 + b;
     int bn = b + next[b];
 
     // set geometry color based on stress norm
     mjtNum stress_m[3] = {0};
-    mjtNum *stress_l = prev[b] ? stress.data()+3*b : stress.data()+3*bn;
-    mjtNum *stress_r = next[b] ? stress.data()+3*bn : stress.data()+3*b;
+    mjtNum* stress_l = prev[b] ? stress.data() + 3 * b : stress.data() + 3 * bn;
+    mjtNum* stress_r = next[b] ? stress.data() + 3 * bn : stress.data() + 3 * b;
     mju_add3(stress_m, stress_l, stress_r);
     mju_scl3(stress_m, stress_m, 0.5);
-    scalar2rgba(m->geom_rgba + 4*m->body_geomadr[i], stress_m, 0, vmax);
+    scalar2rgba(m->geom_rgba + 4 * m->body_geomadr[i], stress_m, 0, vmax);
   }
 }
 
@@ -289,9 +293,9 @@ void Cable::RegisterPlugin() {
     if (!elasticity_or_null.has_value()) {
       return -1;
     }
-    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(
-        new Cable(std::move(*elasticity_or_null)));
-return 0;
+    d->plugin_data[instance] =
+        reinterpret_cast<uintptr_t>(new Cable(std::move(*elasticity_or_null)));
+    return 0;
   };
   plugin.destroy = +[](mjData* d, int instance) {
     delete reinterpret_cast<Cable*>(d->plugin_data[instance]);
@@ -302,8 +306,8 @@ return 0;
         auto* elasticity = reinterpret_cast<Cable*>(d->plugin_data[instance]);
         elasticity->Compute(m, d, instance);
       };
-  plugin.visualize = +[](const mjModel* m, mjData* d, const mjvOption* opt, mjvScene* scn,
-                         int instance) {
+  plugin.visualize = +[](const mjModel* m, mjData* d, const mjvOption* opt,
+                         mjvScene* scn, int instance) {
     auto* elasticity = reinterpret_cast<Cable*>(d->plugin_data[instance]);
     elasticity->Visualize(m, d, scn, instance);
   };

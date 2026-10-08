@@ -19,6 +19,9 @@ from typing import Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
+from mujoco.mjx.third_party.mujoco_warp._src.bvh import SPLAT_MIN_RESPONSE
+from mujoco.mjx.third_party.mujoco_warp._src.ray import RAY_TOL_ABS
+from mujoco.mjx.third_party.mujoco_warp._src.ray import RAY_TOL_REL
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_box
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_capsule
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray_cylinder
@@ -41,6 +44,117 @@ from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 
+# Limit each BVH traversal pass so splat compositing uses bounded local storage.
+_MAX_SPLAT_HITS = 32
+# Stop compositing once remaining light cannot affect an 8-bit output pixel.
+_MIN_SPLAT_TRANSMITTANCE = 0.005
+# Cull splats whose alpha contribution rounds to zero in the 8-bit framebuffer.
+_MIN_SPLAT_ALPHA = 1.0 / 255.0
+
+
+@wp.func
+def ray_splat(
+  # In:
+  position: wp.vec3,
+  rotation: wp.quat,
+  scale: wp.vec3,
+  opacity: float,
+  pnt: wp.vec3,
+  vec: wp.vec3,
+  min_distance: float,
+  max_distance: float,
+) -> Tuple[float, float]:
+  """Returns the distance and alpha at which a ray intersects a splat."""
+  inverse_rotation = math.quat_inv(rotation)
+  lpnt = wp.cw_div(math.rot_vec_quat(pnt - position, inverse_rotation), scale)
+  lvec = wp.cw_div(math.rot_vec_quat(vec, inverse_rotation), scale)
+
+  distance = -wp.dot(lpnt, lvec) / wp.dot(lvec, lvec)
+  if distance <= min_distance or distance >= max_distance:
+    return -1.0, 0.0
+
+  delta = lpnt + lvec * distance
+  response = wp.exp(-0.5 * wp.dot(delta, delta))
+  alpha = wp.min(response * opacity, 1.0)
+  if alpha < wp.static(SPLAT_MIN_RESPONSE) or alpha < wp.static(_MIN_SPLAT_ALPHA):
+    return -1.0, 0.0
+  return distance, alpha
+
+
+@wp.func
+def shade_splats(
+  # In:
+  splat_position: wp.array[wp.vec3],
+  splat_rotation: wp.array[wp.quat],
+  splat_scale: wp.array[wp.vec3],
+  splat_rgba: wp.array[wp.vec4],
+  bvh_id: wp.uint64,
+  group_root: int,
+  ray_origin: wp.vec3,
+  ray_direction: wp.vec3,
+  max_distance: float,
+) -> tuple[wp.vec3, float, float]:
+  min_distance = float(0.0)
+  transmittance = float(1.0)
+  color = wp.vec3(0.0)
+  depth = float(-1.0)
+
+  hit_distances = wp.vector(MJ_MAXVAL, length=_MAX_SPLAT_HITS, dtype=float)
+  hit_indices = wp.vector(-1, length=_MAX_SPLAT_HITS, dtype=int)
+  hit_alphas = wp.vector(0.0, length=_MAX_SPLAT_HITS, dtype=float)
+
+  while transmittance > wp.static(_MIN_SPLAT_TRANSMITTANCE):
+    num_hits = int(0)
+    for i in range(wp.static(_MAX_SPLAT_HITS)):
+      hit_distances[i] = max_distance
+      hit_indices[i] = -1
+      hit_alphas[i] = 0.0
+
+    index = int(0)
+    query = wp.bvh_query_ray(bvh_id, ray_origin, ray_direction, group_root)
+    while wp.bvh_query_next(query, index, hit_distances[_MAX_SPLAT_HITS - 1]):
+      distance, alpha = ray_splat(
+        splat_position[index],
+        splat_rotation[index],
+        splat_scale[index],
+        splat_rgba[index][3],
+        ray_origin,
+        ray_direction,
+        min_distance,
+        max_distance,
+      )
+      if distance > 0.0:
+        if num_hits < wp.static(_MAX_SPLAT_HITS):
+          num_hits += 1
+        for i in range(num_hits):
+          if distance < hit_distances[i]:
+            for j in range(num_hits - 1, i, -1):
+              hit_distances[j] = hit_distances[j - 1]
+              hit_indices[j] = hit_indices[j - 1]
+              hit_alphas[j] = hit_alphas[j - 1]
+            hit_distances[i] = distance
+            hit_indices[i] = index
+            hit_alphas[i] = alpha
+            break
+
+    if num_hits == 0:
+      break
+
+    for i in range(num_hits):
+      index = hit_indices[i]
+      alpha = hit_alphas[i]
+      color += wp.vec3(splat_rgba[index][0], splat_rgba[index][1], splat_rgba[index][2]) * alpha * transmittance
+      transmittance *= 1.0 - alpha
+      if depth < 0.0 and transmittance < wp.static(_MIN_SPLAT_TRANSMITTANCE):
+        depth = hit_distances[i]
+
+    if num_hits < wp.static(_MAX_SPLAT_HITS):
+      break
+    min_distance = hit_distances[_MAX_SPLAT_HITS - 1] + 1.0e-6
+
+  return color, transmittance, depth
+
+
 # Default value for mat_shininess in MuJoCo is 0.5
 # With an 8 bit image format, the maximum value is 255.0
 # So max shininess value for the Phong lighting model is 128.0
@@ -58,53 +172,324 @@ NO_LIGHT_AMBIENT_FALLBACK = 0.3
 
 
 @wp.func
-def sample_texture(
+def _texture_plane(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  # Evaluate X and Y independently to support mixed finite/infinite planes
+  # (render_context.c lines 211 & 219)
+  u = 0.5 * local[0]
+  rep_u = repeat[0]
+  if size[0] > 0.0:
+    s0 = wp.max(size[0], 1e-6)
+    u = (local[0] + size[0]) / (2.0 * s0)
+    if tex_uniform:
+      rep_u = repeat[0] * size[0]
+
+  v = -0.5 * local[1]
+  rep_v = repeat[1]
+  if size[1] > 0.0:
+    s1 = wp.max(size[1], 1e-6)
+    v = (size[1] - local[1]) / (2.0 * s1)
+    if tex_uniform:
+      rep_v = repeat[1] * size[1]
+
+  off = -0.5 if (size[0] <= 0.0 or size[1] <= 0.0) else 0.0
+  return wp.vec2(u, v), wp.vec2(off, off), wp.vec2(rep_u, rep_v)
+
+
+@wp.func
+def _texture_sphere_ellipsoid(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+  is_sphere: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  radii = size
+  if is_sphere:
+    radii = wp.vec3(size[0], size[0], size[0])
+  rx = wp.max(radii[0], 1e-6)
+  ry = wp.max(radii[1], 1e-6)
+  rz = wp.max(radii[2], 1e-6)
+  pt = wp.vec3(local[0] / rx, local[1] / ry, local[2] / rz)
+  inv_len = 1.0 / wp.max(wp.length(pt), 1e-6)
+  d = pt * inv_len
+
+  azimuth = wp.atan2(d[1], d[0])
+  if azimuth < 0.0:
+    azimuth += wp.static(2.0 * wp.pi)
+  elevation = wp.asin(wp.clamp(d[2], -1.0, 1.0))
+  u = azimuth * wp.static(0.5 / wp.pi)
+  v = 0.5 - elevation * wp.static(1.0 / wp.pi)
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * radii[0], repeat[1] * radii[1])
+  return wp.vec2(u, v), wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_cylinder(
+  # In:
+  local: wp.vec3,
+  local_normal: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  r = wp.max(size[0], 1e-6)
+  h = wp.max(size[1], 1e-6)
+  if wp.abs(local_normal[2]) > 0.7071:
+    # Top and bottom caps match MuJoCo disk(+1) and disk(-1)
+    uv = wp.vec2(0.5 + 0.5 * (local[0] / r), 0.5 + 0.5 * (local[1] / r))
+  else:
+    # Cylindrical body
+    azimuth = wp.atan2(local[1], local[0])
+    if azimuth < 0.0:
+      azimuth += wp.static(2.0 * wp.pi)
+    u = azimuth * wp.static(0.5 / wp.pi)
+    v = (h - local[2]) / (2.0 * h)
+    uv = wp.vec2(u, v)
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[0])
+  return uv, wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_capsule(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  r = wp.max(size[0], 1e-6)
+  h = wp.max(size[1], 1e-6)
+  z = local[2]
+  azimuth = wp.atan2(local[1], local[0])
+  if azimuth < 0.0:
+    azimuth += wp.static(2.0 * wp.pi)
+  u = azimuth * wp.static(0.5 / wp.pi)
+
+  if z > h:
+    dz = wp.clamp((z - h) / r, 0.0, 1.0)
+    v = 1.0 - wp.asin(dz) * wp.static(2.0 / wp.pi)
+  elif z < -h:
+    dz = wp.clamp((-h - z) / r, 0.0, 1.0)
+    v = wp.asin(dz) * wp.static(2.0 / wp.pi)
+  else:
+    v = (h - z) / (2.0 * h)
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[0])
+  return wp.vec2(u, v), wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_box(
+  # In:
+  local: wp.vec3,
+  local_normal: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  sx = wp.max(size[0], 1e-6)
+  sy = wp.max(size[1], 1e-6)
+  sz = wp.max(size[2], 1e-6)
+  ax = wp.abs(local_normal[0])
+  ay = wp.abs(local_normal[1])
+  az = wp.abs(local_normal[2])
+
+  if az >= ax and az >= ay:
+    if local_normal[2] > 0.0:
+      uv = wp.vec2((local[0] + sx) / (2.0 * sx), (sy - local[1]) / (2.0 * sy))
+    else:
+      uv = wp.vec2((local[0] + sx) / (2.0 * sx), (local[1] + sy) / (2.0 * sy))
+  elif ax >= ay and ax >= az:
+    if local_normal[0] > 0.0:
+      uv = wp.vec2((local[1] + sy) / (2.0 * sy), (sz - local[2]) / (2.0 * sz))
+    else:
+      uv = wp.vec2((sy - local[1]) / (2.0 * sy), (sz - local[2]) / (2.0 * sz))
+  else:
+    if local_normal[1] < 0.0:
+      uv = wp.vec2((local[0] + sx) / (2.0 * sx), (sz - local[2]) / (2.0 * sz))
+    else:
+      uv = wp.vec2((sx - local[0]) / (2.0 * sx), (sz - local[2]) / (2.0 * sz))
+
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[1])
+  return uv, wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_hfield(
+  # In:
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  # Heightfield horizontal extent is [-size[0], size[0]] x [-size[1], size[1]]
+  # render_context.c lines 465-500
+  s0 = wp.max(size[0], 1e-6)
+  s1 = wp.max(size[1], 1e-6)
+  uv = wp.vec2(
+    (local[0] + size[0]) / (2.0 * s0),
+    (size[1] - local[1]) / (2.0 * s1),
+  )
+  rep = repeat
+  if tex_uniform:
+    rep = wp.vec2(repeat[0] * size[0], repeat[1] * size[1])
+  return uv, wp.vec2(0.0, 0.0), rep
+
+
+@wp.func
+def _texture_mesh(
   # Model:
-  geom_type: wp.array[int],
   mesh_faceadr: wp.array[int],
   # In:
-  geom_id: int,
-  tex_repeat: wp.vec2,
-  tex: wp.Texture2D,
-  pos: wp.vec3,
-  rot: wp.mat33,
+  local: wp.vec3,
+  size: wp.vec3,
+  repeat: wp.vec2,
+  tex_uniform: bool,
+  f: int,
+  mesh_id: int,
+  bary_u: float,
+  bary_v: float,
   mesh_facetexcoord: wp.array[wp.vec3i],
   mesh_texcoord: wp.array[wp.vec2],
   mesh_texcoord_offsets: wp.array[int],
-  hit_point: wp.vec3,
-  bary_u: float,
-  bary_v: float,
-  f: int,
-  mesh_id: int,
-) -> wp.vec3:
+) -> Tuple[wp.vec2, wp.vec2, wp.vec2]:
+  has_uv = False
   uv = wp.vec2(0.0, 0.0)
   offset = wp.vec2(0.0, 0.0)
+  rep = repeat
 
-  if geom_type[geom_id] == GeomType.PLANE:
-    local = wp.transpose(rot) @ (hit_point - pos)
-    # Replicate MuJoCo's OBJECT_PLANE texgen for planes (render_gl3.c settexture):
-    # s = 0.5 * texrepeat_x * x - 0.5, t = -0.5 * texrepeat_y * y - 0.5, with (x, y)
-    # the plane-local hit coordinates. The -0.5 is the texgen w-term, independent of
-    # texrepeat, so it is applied as an offset after the tex_repeat scale below.
+  if f >= 0 and mesh_id >= 0:
+    texcoord_offset = mesh_texcoord_offsets[mesh_id]
+    if texcoord_offset >= 0:
+      face_adr = mesh_faceadr[mesh_id] + f
+      coords = mesh_facetexcoord[face_adr]
+      # OBJ faces can omit individual UV indices even when the mesh has texcoords.
+      if coords[0] >= 0 and coords[1] >= 0 and coords[2] >= 0:
+        uv0 = mesh_texcoord[texcoord_offset + coords[0]]
+        uv1 = mesh_texcoord[texcoord_offset + coords[1]]
+        uv2 = mesh_texcoord[texcoord_offset + coords[2]]
+        uv = uv0 * bary_u + uv1 * bary_v + uv2 * (1.0 - bary_u - bary_v)
+        has_uv = True
+
+  if not has_uv:
+    # Fallback to OBJECT_PLANE texgen for untextured mesh (render_gl3.c:163-200)
     uv = wp.vec2(0.5 * local[0], -0.5 * local[1])
     offset = wp.vec2(-0.5, -0.5)
+    if size[0] > 0.0:
+      rep = wp.vec2(rep[0] / size[0], rep[1])
+    if size[1] > 0.0:
+      rep = wp.vec2(rep[0], rep[1] / size[1])
+    if tex_uniform:
+      if size[0] > 0.0:
+        rep = wp.vec2(rep[0] * size[0], rep[1])
+      if size[1] > 0.0:
+        rep = wp.vec2(rep[0], rep[1] * size[1])
 
-  if geom_type[geom_id] == GeomType.MESH:
-    if f < 0 or mesh_id < 0:
-      return wp.vec3(0.0, 0.0, 0.0)
+  return uv, offset, rep
 
-    face_adr = mesh_faceadr[mesh_id] + f
-    uv0 = mesh_texcoord[mesh_texcoord_offsets[mesh_id] + mesh_facetexcoord[face_adr][0]]
-    uv1 = mesh_texcoord[mesh_texcoord_offsets[mesh_id] + mesh_facetexcoord[face_adr][1]]
-    uv2 = mesh_texcoord[mesh_texcoord_offsets[mesh_id] + mesh_facetexcoord[face_adr][2]]
-    uv = uv0 * bary_u + uv1 * bary_v + uv2 * (1.0 - bary_u - bary_v)
 
-  u = uv[0] * tex_repeat[0] + offset[0]
-  v = uv[1] * tex_repeat[1] + offset[1]
-  u = u - wp.floor(u)
-  v = v - wp.floor(v)
-  tex_color = wp.texture_sample(tex, wp.vec2(u, v), dtype=wp.vec4)
-  return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
+def _make_sample_texture(geom_ray_types: Tuple[int]) -> wp.Function:
+  """Build a texture-sampling func specialized to the geom types present in the scene.
+
+  geom_ray_types is the set of GeomType int values that actually occur, so the
+  per-type texture mapping branches for absent types are eliminated at compile time
+  via wp.static, avoiding the register pressure of unreachable code paths.
+  """
+
+  @wp.func
+  def sample_texture(
+    # Model:
+    geom_type: wp.array[int],
+    mesh_faceadr: wp.array[int],
+    # In:
+    geom_id: int,
+    size: wp.vec3,
+    tex_repeat: wp.vec2,
+    tex_uniform: bool,
+    tex: wp.Texture2D,
+    pos: wp.vec3,
+    rot: wp.mat33,
+    mesh_facetexcoord: wp.array[wp.vec3i],
+    mesh_texcoord: wp.array[wp.vec2],
+    mesh_texcoord_offsets: wp.array[int],
+    hit_point: wp.vec3,
+    normal: wp.vec3,
+    bary_u: float,
+    bary_v: float,
+    f: int,
+    mesh_id: int,
+  ) -> wp.vec3:
+    uv = wp.vec2(0.0, 0.0)
+    offset = wp.vec2(0.0, 0.0)
+    repeat = tex_repeat
+    gtype = geom_type[geom_id]
+
+    local = wp.transpose(rot) @ (hit_point - pos)
+    local_normal = wp.transpose(rot) @ normal
+
+    if wp.static(int(GeomType.PLANE) in geom_ray_types):
+      if gtype == GeomType.PLANE:
+        uv, offset, repeat = _texture_plane(local, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.SPHERE) in geom_ray_types or int(GeomType.ELLIPSOID) in geom_ray_types):
+      if gtype == GeomType.SPHERE or gtype == GeomType.ELLIPSOID:
+        uv, offset, repeat = _texture_sphere_ellipsoid(local, size, repeat, tex_uniform, gtype == GeomType.SPHERE)
+
+    if wp.static(int(GeomType.CYLINDER) in geom_ray_types):
+      if gtype == GeomType.CYLINDER:
+        uv, offset, repeat = _texture_cylinder(local, local_normal, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.CAPSULE) in geom_ray_types):
+      if gtype == GeomType.CAPSULE:
+        uv, offset, repeat = _texture_capsule(local, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.BOX) in geom_ray_types):
+      if gtype == GeomType.BOX:
+        uv, offset, repeat = _texture_box(local, local_normal, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.HFIELD) in geom_ray_types):
+      if gtype == GeomType.HFIELD:
+        uv, offset, repeat = _texture_hfield(local, size, repeat, tex_uniform)
+
+    if wp.static(int(GeomType.MESH) in geom_ray_types or int(GeomType.SDF) in geom_ray_types):
+      if gtype == GeomType.MESH or gtype == GeomType.SDF:
+        uv, offset, repeat = _texture_mesh(
+          mesh_faceadr,
+          local,
+          size,
+          repeat,
+          tex_uniform,
+          f,
+          mesh_id,
+          bary_u,
+          bary_v,
+          mesh_facetexcoord,
+          mesh_texcoord,
+          mesh_texcoord_offsets,
+        )
+
+    u = uv[0] * repeat[0] + offset[0]
+    v = uv[1] * repeat[1] + offset[1]
+    u = u - wp.floor(u)
+    v = v - wp.floor(v)
+    tex_color = wp.texture_sample(tex, wp.vec2(u, v), dtype=wp.vec4)
+    return wp.vec3(tex_color[0], tex_color[1], tex_color[2])
+
+  return sample_texture
 
 
 @wp.func
@@ -173,6 +558,32 @@ def sample_skybox(
   return wp.vec3(color[0], color[1], color[2])
 
 
+@wp.func
+def vertex_normal(n: wp.vec3, face: wp.vec3) -> wp.vec3:
+  # Matches mjr_uploadMesh: a vertex normal more than ~37 degrees off the face is unusable.
+  if wp.dot(n, face) < 0.8:
+    return face
+  return n
+
+
+# TODO(team): consider precomputing transparent geom/flex filtering
+@wp.func
+def _geom_rgba(
+  # Model:
+  geom_matid: wp.array2d[int],
+  geom_rgba: wp.array2d[wp.vec4],
+  mat_rgba: wp.array2d[wp.vec4],
+  # In:
+  worldid: int,
+  geom_id: int,
+) -> Tuple[wp.vec4, int]:
+  g_rgba = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
+  mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
+  if mat_id >= 0 and g_rgba[0] == 0.5 and g_rgba[1] == 0.5 and g_rgba[2] == 0.5 and g_rgba[3] == 1.0:
+    return mat_rgba[worldid % mat_rgba.shape[0], mat_id], mat_id
+  return g_rgba, mat_id
+
+
 def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Function:
   """Build a ray-cast func specialized to the geom types present in the scene.
 
@@ -192,10 +603,13 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
     # Model:
     geom_type: wp.array[int],
     geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
     geom_size: wp.array2d[wp.vec3],
+    geom_rgba: wp.array2d[wp.vec4],
     flex_vertadr: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_radius: wp.array[float],
+    mat_rgba: wp.array2d[wp.vec4],
     # Data in:
     geom_xpos_in: wp.array2d[wp.vec3],
     geom_xmat_in: wp.array2d[wp.mat33],
@@ -209,6 +623,7 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
     enabled_geom_ids: wp.array[int],
     mesh_bvh_id: wp.array[wp.uint64],
     hfield_bvh_id: wp.array[wp.uint64],
+    flex_rgba: wp.array[wp.vec4],
     flex_geom_flexid: wp.array[int],
     flex_geom_edgeid: wp.array[int],
     flex_bvh_id: wp.array[wp.uint64],
@@ -230,9 +645,12 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
     bounds_nr = int(0)
     ngeom = bvh_ngeom + flex_bvh_ngeom
 
-    while wp.bvh_query_next(query, bounds_nr, dist):
+    # max_t is exclusive: widen so coincident hits reach the tie-break below.
+    while wp.bvh_query_next(query, bounds_nr, dist * (1.0 + RAY_TOL_REL) + RAY_TOL_ABS):
       gi_global = bounds_nr
       local_id = gi_global - (worldid * ngeom)
+
+      query_dist = dist * (1.0 + RAY_TOL_REL) + RAY_TOL_ABS
 
       d = float(-1.0)
       hit_mesh_id = int(-1)
@@ -244,6 +662,9 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
 
       if local_id < bvh_ngeom:
         gi = enabled_geom_ids[local_id]
+        rgba, _ = _geom_rgba(geom_matid, geom_rgba, mat_rgba, worldid, gi)
+        if rgba[3] == 0.0:
+          continue
         gtype = geom_type[gi]
       else:
         gi = local_id - bvh_ngeom
@@ -269,7 +690,7 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
             geom_xmat_in[worldid, gi],
             ray_origin_world,
             ray_dir_world,
-            dist,
+            query_dist,
             cull_backfaces,
           )
       if wp.static(int(GeomType.SPHERE) in geom_ray_types):
@@ -316,8 +737,8 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
             ray_origin_world,
             ray_dir_world,
           )
-      if wp.static(int(GeomType.MESH) in geom_ray_types):
-        if gtype == GeomType.MESH:
+      if wp.static(int(GeomType.MESH) in geom_ray_types or int(GeomType.SDF) in geom_ray_types):
+        if gtype == GeomType.MESH or gtype == GeomType.SDF:
           if wp.static(first_hit):
             hit = ray_mesh_with_bvh_anyhit(
               mesh_bvh_id,
@@ -337,13 +758,15 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
               geom_xmat_in[worldid, gi],
               ray_origin_world,
               ray_dir_world,
-              dist,
+              query_dist,
               cull_backfaces,
             )
       if wp.static(int(GeomType.FLEX) in geom_ray_types):
         if gtype == GeomType.FLEX:
           hit_geom_id = -2
           flexid = flex_geom_flexid[gi]
+          if flex_rgba[flexid][3] == 0.0:
+            continue
           edge_id = flex_geom_edgeid[gi]
 
           if edge_id >= 0:
@@ -374,7 +797,7 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
               d = 0.0 if hit else -1.0
             else:
               flex_gr = flex_group_root[worldid, flexid]
-              d, n, u, v, f = ray_flex_with_bvh(flex_bvh_id, flexid, flex_gr, ray_origin_world, ray_dir_world, dist)
+              d, n, u, v, f = ray_flex_with_bvh(flex_bvh_id, flexid, flex_gr, ray_origin_world, ray_dir_world, query_dist)
               if d >= 0.0:
                 hit_mesh_id = flexid
 
@@ -389,7 +812,10 @@ def _make_cast_ray(geom_ray_types: Tuple[int], first_hit: bool = False) -> wp.Fu
         if d >= 0.0 and d < dist:
           return hit_geom_id, d, n, u, v, f, hit_mesh_id
       else:
-        if d >= 0.0 and d < dist:
+        # Ties go to the higher geom index, like MuJoCo's GL depth test.
+        tol = RAY_TOL_REL * wp.max(dist, 1.0)
+        closer = (d < dist - tol) or (wp.abs(d - dist) <= tol and (geom_id < 0 or hit_geom_id > geom_id))
+        if d >= 0.0 and closer:
           dist = d
           normal = n
           geom_id = hit_geom_id
@@ -411,10 +837,13 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
     # Model:
     geom_type: wp.array[int],
     geom_dataid: wp.array2d[int],
+    geom_matid: wp.array2d[int],
     geom_size: wp.array2d[wp.vec3],
+    geom_rgba: wp.array2d[wp.vec4],
     flex_vertadr: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_radius: wp.array[float],
+    mat_rgba: wp.array2d[wp.vec4],
     # Data in:
     geom_xpos_in: wp.array2d[wp.vec3],
     geom_xmat_in: wp.array2d[wp.mat33],
@@ -429,6 +858,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
     worldid: int,
     mesh_bvh_id: wp.array[wp.uint64],
     hfield_bvh_id: wp.array[wp.uint64],
+    flex_rgba: wp.array[wp.vec4],
     flex_geom_flexid: wp.array[int],
     flex_geom_edgeid: wp.array[int],
     flex_bvh_id: wp.array[wp.uint64],
@@ -449,6 +879,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
     mat_spec: float,
     mat_shin_exp: float,
     cull_backfaces: bool,
+    shadow_light_fraction: float,
     enable_specular: bool,
     default_attenuation: bool,
     has_spot: bool,
@@ -499,10 +930,13 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
       shadow_geom_id, shadow_d, shadow_n, shadow_u, shadow_v, shadow_f, shadow_mesh_id = cast_ray_first_hit(
         geom_type,
         geom_dataid,
+        geom_matid,
         geom_size,
+        geom_rgba,
         flex_vertadr,
         flex_edge,
         flex_radius,
+        mat_rgba,
         geom_xpos_in,
         geom_xmat_in,
         flexvert_xpos_in,
@@ -514,6 +948,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
         enabled_geom_ids,
         mesh_bvh_id,
         hfield_bvh_id,
+        flex_rgba,
         flex_geom_flexid,
         flex_geom_edgeid,
         flex_bvh_id,
@@ -525,7 +960,7 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
       )
 
       if shadow_geom_id != -1:
-        visible = NO_LIGHT_AMBIENT_FALLBACK
+        visible = shadow_light_fraction
 
     weight = attenuation * visible
     diff_rgb = lightdiff * (ndotl * weight)
@@ -540,18 +975,24 @@ def _make_compute_lighting(cast_ray_first_hit: wp.Function) -> wp.Function:
   return compute_lighting
 
 
-@event_scope
-def render(m: Model, d: Data, rc: RenderContext):
-  """Render the current frame.
+@wp.kernel
+def _aa_resolve(
+  # In:
+  accum: wp.array2d[wp.vec3],
+  inv_n: float,
+  # Out:
+  rgb_out: wp.array2d[wp.uint32],
+):
+  worldid, i = wp.tid()
+  c = accum[worldid, i] * inv_n
+  rgb_out[worldid, i] = pack_rgba_to_uint32(
+    wp.clamp(c[0], 0.0, 255.0), wp.clamp(c[1], 0.0, 255.0), wp.clamp(c[2], 0.0, 255.0), 255.0
+  )
 
-  Outputs are stored in buffers within the render context.
 
-  Args:
-    m: The model on device.
-    d: The data on device.
-    rc: The render context on device.
-  """
-  rc.seg_data.fill_(wp.vec2i(-1, -1))
+def _build_megakernel(m: Model, rc: RenderContext):
+  """Construct the specialised megakernel for this context."""
+  has_splats = rc.splat_count > 0
 
   # Specialize the ray-cast helpers to the geom types present in the scene so the
   # compiler eliminates intersection branches for absent types.
@@ -559,11 +1000,37 @@ def render(m: Model, d: Data, rc: RenderContext):
   cast_ray = _make_cast_ray(geom_ray_types, first_hit=False)
   cast_ray_first_hit = _make_cast_ray(geom_ray_types, first_hit=True)
   compute_lighting = _make_compute_lighting(cast_ray_first_hit)
+  sample_texture = _make_sample_texture(geom_ray_types)
 
   # Static parameters extracted for JAX FFI closure.
   rc_static = {f.name: getattr(rc, f.name) for f in dataclasses.fields(rc) if f.type in (int, wp.uint32, bool, float, wp.vec3)}
   rc_static["enable_specular_or_emission"] = rc.enable_specular or rc.enable_emission
+  bg = int(rc.background_color)
+  rc_static["background_color_vec3"] = wp.vec3(
+    float((bg >> 16) & 0xFF) / 255.0,
+    float((bg >> 8) & 0xFF) / 255.0,
+    float(bg & 0xFF) / 255.0,
+  )
   M_NLIGHT = m.nlight
+
+  aa = rc.samples_per_pixel * rc.samples_per_pixel > 1
+
+  @wp.func
+  def store_pixel(
+    # In:
+    worldid: int,
+    adr: int,
+    color: wp.vec3,
+    # Out:
+    rgb_out: wp.array2d[wp.uint32],
+    aa_accum_out: wp.array2d[wp.vec3],
+  ):
+    # Supersampling sums in float here rather than re-reading the packed byte
+    # image, so the passes neither round-trip through memory nor quantise early.
+    if wp.static(aa):
+      aa_accum_out[worldid, adr] += color * 255.0
+    else:
+      rgb_out[worldid, adr] = pack_rgba_to_uint32(color[0] * 255.0, color[1] * 255.0, color[2] * 255.0, 255.0)
 
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False, module_options={"fast_math": rc.use_fast_math})
   def _render_megakernel(
@@ -590,7 +1057,10 @@ def render(m: Model, d: Data, rc: RenderContext):
     flex_edge: wp.array[wp.vec2i],
     flex_radius: wp.array[float],
     mesh_faceadr: wp.array[int],
+    mesh_normaladr: wp.array[int],
+    mesh_normal: wp.array[wp.vec3],
     mat_texid: wp.array3d[int],
+    mat_texuniform: wp.array2d[bool],
     mat_texrepeat: wp.array2d[wp.vec2],
     mat_emission: wp.array2d[float],
     mat_specular: wp.array2d[float],
@@ -612,6 +1082,8 @@ def render(m: Model, d: Data, rc: RenderContext):
     cam_res: wp.array[wp.vec2i],
     cam_id_map: wp.array[int],
     ray: wp.array[wp.vec3],
+    ray_offset: wp.array[wp.vec3],
+    ray_base: int,
     rgb_adr: wp.array[int],
     depth_adr: wp.array[int],
     seg_adr: wp.array[int],
@@ -625,6 +1097,7 @@ def render(m: Model, d: Data, rc: RenderContext):
     enabled_geom_ids: wp.array[int],
     mesh_bvh_id: wp.array[wp.uint64],
     mesh_facetexcoord: wp.array[wp.vec3i],
+    mesh_facenormal: wp.array[wp.vec3i],
     mesh_texcoord: wp.array[wp.vec2],
     mesh_texcoord_offsets: wp.array[int],
     hfield_bvh_id: wp.array[wp.uint64],
@@ -634,8 +1107,15 @@ def render(m: Model, d: Data, rc: RenderContext):
     skybox_tex_id: wp.array[int],
     skybox_face_width: wp.array[int],
     textures: wp.array[wp.Texture2D],
+    splat_position: wp.array[wp.vec3],
+    splat_rotation: wp.array[wp.quat],
+    splat_scale: wp.array[wp.vec3],
+    splat_rgba: wp.array[wp.vec4],
+    splat_bvh_id: wp.uint64,
+    splat_group_root: wp.array[int],
     # Out:
     rgb_out: wp.array2d[wp.uint32],
+    aa_accum_out: wp.array2d[wp.vec3],
     depth_out: wp.array2d[float],
     seg_out: wp.array2d[wp.vec2i],
   ):
@@ -662,13 +1142,14 @@ def render(m: Model, d: Data, rc: RenderContext):
     mujoco_cam_id = cam_id_map[camid]
 
     if wp.static(rc_static["use_precomputed_rays"]):
-      ray_dir_local_cam = ray[rayid]
+      ray_dir_local_cam = ray[ray_base + rayid]
+      ray_offset_local_cam = ray_offset[ray_base + rayid]
     else:
       img_w = cam_res[camid][0]
       img_h = cam_res[camid][1]
       px = rayid_local % img_w
       py = rayid_local // img_w
-      ray_dir_local_cam = compute_ray(
+      ray_dir_local_cam, ray_offset_local_cam = compute_ray(
         cam_projection[mujoco_cam_id],
         cam_fovy[worldid % cam_fovy.shape[0], mujoco_cam_id],
         cam_sensorsize[mujoco_cam_id],
@@ -680,17 +1161,27 @@ def render(m: Model, d: Data, rc: RenderContext):
         wp.static(rc_static["znear"]),
       )
 
-    ray_origin_world = cam_xpos_in[worldid, mujoco_cam_id]
     cam_mat_world = cam_xmat_in[worldid, mujoco_cam_id]
+    ray_origin_world = cam_xpos_in[worldid, mujoco_cam_id]
+    if wp.static(rc_static["has_orthographic_camera"]):
+      ray_origin_world += cam_mat_world @ ray_offset_local_cam
     ray_dir_world = cam_mat_world @ ray_dir_local_cam
+
+    if wp.static(rc_static["zfar"] > 0.0):
+      max_cam_dist = wp.static(rc_static["zfar"]) / wp.max(-ray_dir_local_cam[2], 1e-6)
+    else:
+      max_cam_dist = float(MJ_MAXVAL)
 
     geom_id, dist, normal, u, v, f, mesh_id = cast_ray(
       geom_type,
       geom_dataid,
+      geom_matid,
       geom_size,
+      geom_rgba,
       flex_vertadr,
       flex_edge,
       flex_radius,
+      mat_rgba,
       geom_xpos_in,
       geom_xmat_in,
       flexvert_xpos_in,
@@ -702,17 +1193,58 @@ def render(m: Model, d: Data, rc: RenderContext):
       enabled_geom_ids,
       mesh_bvh_id,
       hfield_bvh_id,
+      flex_rgba,
       flex_geom_flexid,
       flex_geom_edgeid,
       flex_bvh_id,
       flex_group_root,
       ray_origin_world,
       ray_dir_world,
-      float(MJ_MAXVAL),
+      max_cam_dist,
       wp.static(rc_static["enable_backface_culling"]),
     )
 
-    if render_seg[camid] and geom_id != -1:
+    if wp.static(rc_static["zfar"] > 0.0):
+      if geom_id != -1 and (dist * -ray_dir_local_cam[2]) > wp.static(rc_static["zfar"]):
+        geom_id = -1
+
+    if wp.static(rc_static["enable_vertex_normals"]) and geom_id >= 0 and mesh_id >= 0 and f >= 0:
+      gtype = geom_type[geom_id]
+      if gtype == int(GeomType.MESH.value) or gtype == int(GeomType.SDF.value):
+        mat = geom_xmat_in[worldid, geom_id]
+        face = wp.transpose(mat) @ normal
+        tri = mesh_facenormal[mesh_faceadr[mesh_id] + f]
+        adr = mesh_normaladr[mesh_id]
+        vec = (
+          vertex_normal(mesh_normal[adr + tri[0]], face) * u
+          + vertex_normal(mesh_normal[adr + tri[1]], face) * v
+          + vertex_normal(mesh_normal[adr + tri[2]], face) * (1.0 - u - v)
+        )
+        normal = wp.normalize(mat @ vec)
+
+    if wp.static(not rc_static["enable_backface_culling"]):
+      # Two-sided shading: light a back-facing hit as if it faced the viewer.
+      if geom_id != -1 and wp.dot(normal, ray_dir_world) > 0.0:
+        normal = -normal
+
+    splat_color = wp.vec3(0.0)
+    splat_transmittance = float(1.0)
+    splat_depth = float(-1.0)
+    if wp.static(has_splats):
+      splat_color, splat_transmittance, splat_depth = shade_splats(
+        splat_position,
+        splat_rotation,
+        splat_scale,
+        splat_rgba,
+        splat_bvh_id,
+        splat_group_root[worldid],
+        ray_origin_world,
+        ray_dir_world,
+        dist,
+      )
+
+    # Depth and seg are single-sample outputs: only the first pass writes them.
+    if ray_base == 0 and render_seg[camid] and geom_id != -1:
       if geom_id == -2:
         seg_out[worldid, seg_adr[camid] + rayid_local] = wp.vec2i(mesh_id, int(ObjType.FLEX))
       else:
@@ -720,8 +1252,12 @@ def render(m: Model, d: Data, rc: RenderContext):
 
     # Early Out
     if geom_id == -1:
-      if render_depth[camid]:
-        depth_out[worldid, depth_adr[camid] + rayid_local] = 0.0
+      if ray_base == 0 and render_depth[camid]:
+        depth = 0.0
+        if wp.static(has_splats):
+          if splat_depth > 0.0:
+            depth = splat_depth * -ray_dir_local_cam[2]
+        depth_out[worldid, depth_adr[camid] + rayid_local] = depth
       if wp.static(rc_static["render_skybox"]) and render_rgb[camid]:
         skybox_id = skybox_tex_id[worldid % skybox_tex_id.shape[0]]
         skybox_color = sample_skybox(
@@ -729,22 +1265,35 @@ def render(m: Model, d: Data, rc: RenderContext):
           1.0 / float(skybox_face_width[worldid % skybox_face_width.shape[0]]),
           ray_dir_world,
         )
-        rgb_out[worldid, rgb_adr[camid] + rayid_local] = pack_rgba_to_uint32(
-          skybox_color[0] * 255.0,
-          skybox_color[1] * 255.0,
-          skybox_color[2] * 255.0,
-          255.0,
-        )
+        if wp.static(has_splats):
+          skybox_color = splat_color + skybox_color * splat_transmittance
+        store_pixel(worldid, rgb_adr[camid] + rayid_local, skybox_color, rgb_out, aa_accum_out)
       elif render_rgb[camid]:
-        rgb_out[worldid, rgb_adr[camid] + rayid_local] = wp.static(rc_static["background_color"])
+        if wp.static(has_splats):
+          pixel_color = splat_color + wp.static(rc_static["background_color_vec3"]) * splat_transmittance
+          store_pixel(worldid, rgb_adr[camid] + rayid_local, pixel_color, rgb_out, aa_accum_out)
+        elif wp.static(aa):
+          store_pixel(
+            worldid,
+            rgb_adr[camid] + rayid_local,
+            wp.static(rc_static["background_color_vec3"]),
+            rgb_out,
+            aa_accum_out,
+          )
+        else:
+          rgb_out[worldid, rgb_adr[camid] + rayid_local] = wp.static(rc_static["background_color"])
       return
 
-    if render_depth[camid]:
+    if ray_base == 0 and render_depth[camid]:
       # Planar depth: project Euclidean distance onto the camera's optical axis.
       # In camera-local coordinates, the optical axis is -Z. The Z-component of the
       # normalized ray direction is negative, so -ray_dir_local_cam[2] gives cos(θ)
       # between the ray and the optical axis.
-      depth_out[worldid, depth_adr[camid] + rayid_local] = dist * (-ray_dir_local_cam[2])
+      depth = dist
+      if wp.static(has_splats):
+        if splat_depth > 0.0:
+          depth = splat_depth
+      depth_out[worldid, depth_adr[camid] + rayid_local] = depth * -ray_dir_local_cam[2]
 
     if not render_rgb[camid]:
       return
@@ -752,53 +1301,51 @@ def render(m: Model, d: Data, rc: RenderContext):
     # Shade the pixel
     hit_point = ray_origin_world + ray_dir_world * dist
 
+    mat_id = -1
     if geom_id == -2:
       # We encode flex_id in mesh_id for flex ray hits during cast_ray
       color = flex_rgba[mesh_id]
-    elif geom_matid[worldid % geom_matid.shape[0], geom_id] == -1:
-      color = geom_rgba[worldid % geom_rgba.shape[0], geom_id]
     else:
-      color = mat_rgba[worldid % mat_rgba.shape[0], geom_matid[worldid % geom_matid.shape[0], geom_id]]
+      color, mat_id = _geom_rgba(geom_matid, geom_rgba, mat_rgba, worldid, geom_id)
 
     base_color = wp.vec3(color[0], color[1], color[2])
 
     if wp.static(rc_static["use_textures"]):
-      if geom_id != -2:
-        mat_id = geom_matid[worldid % geom_matid.shape[0], geom_id]
-        if mat_id >= 0:
-          tex_id = mat_texid[worldid % mat_texid.shape[0], mat_id, 1]
-          if tex_id >= 0:
-            tex_color = sample_texture(
-              geom_type,
-              mesh_faceadr,
-              geom_id,
-              mat_texrepeat[worldid % mat_texrepeat.shape[0], mat_id],
-              textures[tex_id],
-              geom_xpos_in[worldid, geom_id],
-              geom_xmat_in[worldid, geom_id],
-              mesh_facetexcoord,
-              mesh_texcoord,
-              mesh_texcoord_offsets,
-              hit_point,
-              u,
-              v,
-              f,
-              mesh_id,
-            )
-            base_color = wp.cw_mul(base_color, tex_color)
+      if mat_id >= 0:
+        tex_id = mat_texid[worldid % mat_texid.shape[0], mat_id, 1]
+        if tex_id >= 0:
+          tex_color = sample_texture(
+            geom_type,
+            mesh_faceadr,
+            geom_id,
+            geom_size[worldid % geom_size.shape[0], geom_id],
+            mat_texrepeat[worldid % mat_texrepeat.shape[0], mat_id],
+            mat_texuniform[worldid % mat_texuniform.shape[0], mat_id],
+            textures[tex_id],
+            geom_xpos_in[worldid, geom_id],
+            geom_xmat_in[worldid, geom_id],
+            mesh_facetexcoord,
+            mesh_texcoord,
+            mesh_texcoord_offsets,
+            hit_point,
+            normal,
+            u,
+            v,
+            f,
+            mesh_id,
+          )
+          base_color = wp.cw_mul(base_color, tex_color)
 
     mat_spec = DEFAULT_MAT_SPECULAR
     mat_shin_exp = DEFAULT_MAT_SHININESS_EXPONENT
     mat_emis = DEFAULT_MAT_EMISSION
     if wp.static(rc_static["enable_specular_or_emission"]):
-      if geom_id != -2:
-        mat_id_for_spec = geom_matid[worldid % geom_matid.shape[0], geom_id]
-        if mat_id_for_spec >= 0:
-          if wp.static(rc_static["enable_specular"]):
-            mat_spec = mat_specular[worldid % mat_specular.shape[0], mat_id_for_spec]
-            mat_shin_exp = mat_shininess[worldid % mat_shininess.shape[0], mat_id_for_spec] * MAX_SHININESS
-          if wp.static(rc_static["enable_emission"]):
-            mat_emis = mat_emission[worldid % mat_emission.shape[0], mat_id_for_spec]
+      if mat_id >= 0:
+        if wp.static(rc_static["enable_specular"]):
+          mat_spec = mat_specular[worldid % mat_specular.shape[0], mat_id]
+          mat_shin_exp = mat_shininess[worldid % mat_shininess.shape[0], mat_id] * MAX_SHININESS
+        if wp.static(rc_static["enable_emission"]):
+          mat_emis = mat_emission[worldid % mat_emission.shape[0], mat_id]
 
     result = wp.vec3(0.0)
     if wp.static(rc_static["enable_emission"]):
@@ -831,10 +1378,13 @@ def render(m: Model, d: Data, rc: RenderContext):
       diff_rgb, spec_rgb = compute_lighting(
         geom_type,
         geom_dataid,
+        geom_matid,
         geom_size,
+        geom_rgba,
         flex_vertadr,
         flex_edge,
         flex_radius,
+        mat_rgba,
         geom_xpos_in,
         geom_xmat_in,
         flexvert_xpos_in,
@@ -847,6 +1397,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         worldid,
         mesh_bvh_id,
         hfield_bvh_id,
+        flex_rgba,
         flex_geom_flexid,
         flex_geom_edgeid,
         flex_bvh_id,
@@ -867,6 +1418,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         mat_spec,
         mat_shin_exp,
         wp.static(rc_static["enable_backface_culling"]),
+        wp.static(rc_static["shadow_light_fraction"]),
         wp.static(rc_static["enable_specular"]),
         wp.static(rc_static["light_attenuation_is_default"]),
         wp.static(rc_static["has_spot_lights"]),
@@ -880,10 +1432,13 @@ def render(m: Model, d: Data, rc: RenderContext):
       hl_diff, hl_spec = compute_lighting(
         geom_type,
         geom_dataid,
+        geom_matid,
         geom_size,
+        geom_rgba,
         flex_vertadr,
         flex_edge,
         flex_radius,
+        mat_rgba,
         geom_xpos_in,
         geom_xmat_in,
         flexvert_xpos_in,
@@ -896,6 +1451,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         worldid,
         mesh_bvh_id,
         hfield_bvh_id,
+        flex_rgba,
         flex_geom_flexid,
         flex_geom_edgeid,
         flex_bvh_id,
@@ -916,6 +1472,7 @@ def render(m: Model, d: Data, rc: RenderContext):
         mat_spec,
         mat_shin_exp,
         wp.static(rc_static["enable_backface_culling"]),
+        wp.static(rc_static["shadow_light_fraction"]),
         wp.static(rc_static["enable_specular"]),
         True,
         False,
@@ -924,87 +1481,126 @@ def render(m: Model, d: Data, rc: RenderContext):
 
     hit_color = wp.min(result, wp.vec3(1.0, 1.0, 1.0))
     hit_color = wp.max(hit_color, wp.vec3(0.0, 0.0, 0.0))
+    if wp.static(has_splats):
+      hit_color = splat_color + hit_color * splat_transmittance
 
-    rgb_out[worldid, rgb_adr[camid] + rayid_local] = pack_rgba_to_uint32(
-      hit_color[0] * 255.0,
-      hit_color[1] * 255.0,
-      hit_color[2] * 255.0,
-      255.0,
+    store_pixel(worldid, rgb_adr[camid] + rayid_local, hit_color, rgb_out, aa_accum_out)
+
+  return _render_megakernel
+
+
+@event_scope
+def render(m: Model, d: Data, rc: RenderContext):
+  """Render the current frame.
+
+  Outputs are stored in buffers within the render context.
+
+  Args:
+    m: The model on device.
+    d: The data on device.
+    rc: The render context on device.
+  """
+  rc.seg_data.fill_(wp.vec2i(-1, -1))
+  # Specialising the megakernel costs more than launching it, so keep it on the
+  # context: the static configuration it closes over is fixed at creation.
+  if rc._megakernel is None:
+    rc._megakernel = _build_megakernel(m, rc)
+  _render_megakernel = rc._megakernel
+
+  nsamples = rc.samples_per_pixel * rc.samples_per_pixel
+  if nsamples > 1:
+    rc.aa_accum.zero_()
+
+  for sample in range(nsamples):
+    wp.launch(
+      kernel=_render_megakernel,
+      dim=(d.nworld, rc.total_rays),
+      inputs=[
+        m.geom_type,
+        m.geom_dataid,
+        m.geom_matid,
+        m.geom_size,
+        m.geom_rgba,
+        m.cam_projection,
+        m.cam_fovy,
+        m.cam_sensorsize,
+        m.cam_intrinsic,
+        m.light_type,
+        m.light_castshadow,
+        m.light_active,
+        m.light_attenuation,
+        m.light_cutoff,
+        m.light_exponent,
+        m.light_ambient,
+        m.light_diffuse,
+        m.light_specular,
+        m.flex_vertadr,
+        m.flex_edge,
+        m.flex_radius,
+        m.mesh_faceadr,
+        m.mesh_normaladr,
+        m.mesh_normal,
+        m.mat_texid,
+        m.mat_texuniform,
+        m.mat_texrepeat,
+        m.mat_emission,
+        m.mat_specular,
+        m.mat_shininess,
+        m.mat_rgba,
+        d.geom_xpos,
+        d.geom_xmat,
+        d.cam_xpos,
+        d.cam_xmat,
+        d.light_xpos,
+        d.light_xdir,
+        d.flexvert_xpos,
+        rc.nrender,
+        rc.use_shadows,
+        rc.bvh_ngeom,
+        rc.bvh_nflexgeom,
+        rc.cam_res,
+        rc.cam_id_map,
+        rc.ray,
+        rc.ray_offset,
+        sample * rc.total_rays,
+        rc.rgb_adr,
+        rc.depth_adr,
+        rc.seg_adr,
+        rc.render_rgb,
+        rc.render_depth,
+        rc.render_seg,
+        rc.bvh_id,
+        rc.group_root,
+        rc.flex_bvh_id,
+        rc.flex_group_root,
+        rc.enabled_geom_ids,
+        rc.mesh_bvh_id,
+        rc.mesh_facetexcoord,
+        rc.mesh_facenormal,
+        rc.mesh_texcoord,
+        rc.mesh_texcoord_offsets,
+        rc.hfield_bvh_id,
+        rc.flex_rgba,
+        rc.flex_geom_flexid,
+        rc.flex_geom_edgeid,
+        rc.skybox_tex_id,
+        rc.skybox_face_width,
+        rc.textures,
+        rc.splat_position,
+        rc.splat_rotation,
+        rc.splat_scale,
+        rc.splat_rgba,
+        rc.splat_bvh_id,
+        rc.splat_group_root,
+      ],
+      outputs=[
+        rc.rgb_data,
+        rc.aa_accum,
+        rc.depth_data,
+        rc.seg_data,
+      ],
+      block_dim=m.block_dim.render,
     )
 
-  wp.launch(
-    kernel=_render_megakernel,
-    dim=(d.nworld, rc.total_rays),
-    inputs=[
-      m.geom_type,
-      m.geom_dataid,
-      m.geom_matid,
-      m.geom_size,
-      m.geom_rgba,
-      m.cam_projection,
-      m.cam_fovy,
-      m.cam_sensorsize,
-      m.cam_intrinsic,
-      m.light_type,
-      m.light_castshadow,
-      m.light_active,
-      m.light_attenuation,
-      m.light_cutoff,
-      m.light_exponent,
-      m.light_ambient,
-      m.light_diffuse,
-      m.light_specular,
-      m.flex_vertadr,
-      m.flex_edge,
-      m.flex_radius,
-      m.mesh_faceadr,
-      m.mat_texid,
-      m.mat_texrepeat,
-      m.mat_emission,
-      m.mat_specular,
-      m.mat_shininess,
-      m.mat_rgba,
-      d.geom_xpos,
-      d.geom_xmat,
-      d.cam_xpos,
-      d.cam_xmat,
-      d.light_xpos,
-      d.light_xdir,
-      d.flexvert_xpos,
-      rc.nrender,
-      rc.use_shadows,
-      rc.bvh_ngeom,
-      rc.bvh_nflexgeom,
-      rc.cam_res,
-      rc.cam_id_map,
-      rc.ray,
-      rc.rgb_adr,
-      rc.depth_adr,
-      rc.seg_adr,
-      rc.render_rgb,
-      rc.render_depth,
-      rc.render_seg,
-      rc.bvh_id,
-      rc.group_root,
-      rc.flex_bvh_id,
-      rc.flex_group_root,
-      rc.enabled_geom_ids,
-      rc.mesh_bvh_id,
-      rc.mesh_facetexcoord,
-      rc.mesh_texcoord,
-      rc.mesh_texcoord_offsets,
-      rc.hfield_bvh_id,
-      rc.flex_rgba,
-      rc.flex_geom_flexid,
-      rc.flex_geom_edgeid,
-      rc.skybox_tex_id,
-      rc.skybox_face_width,
-      rc.textures,
-    ],
-    outputs=[
-      rc.rgb_data,
-      rc.depth_data,
-      rc.seg_data,
-    ],
-    block_dim=m.block_dim.render,
-  )
+  if nsamples > 1:
+    wp.launch(_aa_resolve, dim=rc.rgb_data.shape, inputs=[rc.aa_accum, 1.0 / float(nsamples)], outputs=[rc.rgb_data])

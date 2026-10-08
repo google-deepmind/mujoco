@@ -1,0 +1,36 @@
+<mujoco>
+  <!--
+  Same as spring_free.xml, but the mass is held by the friction loss of the tendon, which exceeds
+  its weight.
+  -->
+  <option gravity="0 0 -1"/>
+
+  <worldbody>
+    <body name="fixed">
+      <body name="fixedend">
+        <site name="fixedend"/>
+      </body>
+    </body>
+    <body name="mass" pos="0 0 -0.5">
+      <freejoint/>
+      <geom type="box" size="0.05 0.05 0.05" mass="1"/>
+      <site name="mass"/>
+      <body name="massend">
+        <site name="massend"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial name="rope" frictionloss="2">
+      <site site="fixedend"/>
+      <site site="massend"/>
+    </spatial>
+  </tendon>
+
+  <sensor>
+    <force site="fixedend" user="0 0 1"/>
+    <force site="massend" user="0 0 -1"/>
+    <force site="mass" user="0 0 0"/>
+  </sensor>
+</mujoco>

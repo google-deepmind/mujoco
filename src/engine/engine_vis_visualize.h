@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+#define mjMAXCURVE 64  // maximum number of points along a curve (catenary or geodesic)
+
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
 MJAPI void mjv_connector(mjvGeom* geom, int type, mjtNum width,
@@ -71,6 +73,10 @@ MJAPI int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* lengt
 // computes points along a catenary curve
 MJAPI int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3],
                        mjtNum length, mjtNum* catenary, int ncatenary);
+
+// computes points along a wrapped geodesic curve on a sphere or cylinder
+MJAPI int mjv_geodesic(mjtNum* pts, int npts, const mjtNum xpos[3], const mjtNum xmat[9],
+                       mjtNum radius, int type, const mjtNum wpnt[12]);
 
 // convert HSV to RGB
 MJAPI void hsv2rgb(float *RGB, float H, float S, float V);

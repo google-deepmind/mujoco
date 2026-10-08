@@ -34,10 +34,12 @@ import mujoco
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import studio_app_events
+from mujoco.experimental.studio import sim_history
 from mujoco.experimental.studio import ux
+from mujoco.experimental.studio import viewer_app_events
 from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
+import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
@@ -51,6 +53,23 @@ class ViewerAppInitEvent(messages.Event):
   """
 
   viewer_app: 'ViewerApp'
+
+
+@dataclasses.dataclass
+class ViewerAppConfig:
+  """Configures the ViewerApp.
+
+  Pass an instance to ViewerApp to choose what is visible on startup. The
+  ViewerApp keeps the instance as its live UI state, so the View menu and the
+  keyboard shortcuts toggle these same fields.
+  """
+
+  show_info: bool = False
+  show_profiler: bool = False
+  show_options: bool = True
+  show_toolbar: bool = False
+  show_status_bar: bool = False
+  show_inspector: bool = True
 
 
 class ViewerApp:
@@ -89,17 +108,18 @@ class ViewerApp:
   def data(self, value: mujoco.MjData) -> None:
     self.viewer.data = value
 
-  def __init__(self) -> None:
+  def __init__(self, config: ViewerAppConfig | None = None) -> None:
     self._viewer: viewer_protocol.Viewer | None = None
-    self.theme = ux.GuiTheme.LIGHT
-    self.show_stats = False
-    self.show_solver = False
+    self.theme = ux.load_theme()
+    self.config = config or ViewerAppConfig()
     self.status = 'Ready'
     self._reset_app_state()
 
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_viewer_init(self, event: viewer_protocol.ViewerInitEvent) -> None:
     self.viewer = event.viewer
+    self.theme = ux.load_settings(def_theme=self.theme)
+    ux.setup_theme(self.theme)
     self.viewer.dispatch(ViewerAppInitEvent(viewer_app=self))
 
   def _reset_app_state(self) -> None:
@@ -107,35 +127,73 @@ class ViewerApp:
     self.step_control_state = sim.StepControl()
     self.ux_state = ux.UxState()
 
+  def align_camera(self) -> None:
+    """Recenter the camera on the model's home camera, else the free camera."""
+    cam_id = self.model.vis.global_.cameraid
+    if 0 <= cam_id < self.model.ncam:
+      self.ux_state.camera_index = ux.set_camera(
+          self.model, self.viewer.camera, cam_id
+      )
+    else:
+      mujoco.mjv_defaultFreeCamera(self.model, self.viewer.camera)
+
+  def reload_model(self) -> None:
+    """Reload the current model from its file."""
+    if self.model_path:
+      # Only a bad model file is tolerated; a raising plugin handler propagates.
+      try:
+        data = parser.parse(self.model_path)
+      except Exception as ex:  # pylint: disable=broad-except
+        print(f'Error reloading model from {self.model_path!r}: {ex}')
+        return
+      self.viewer.send_to_sim(
+          messages.ModelEvent(model=data.model, path=self.model_path)
+      )
+      self.viewer.dispatch(
+          messages.ModelEvent(model=data.model, path=self.model_path)
+      )
+      self.viewer.get_sim_snapshots()
+
   def close(self) -> None:
-    self.viewer.close()
+    self.viewer.dispatch(messages.ExitEvent())
 
   def handle_keyboard_events(self) -> None:
     """Handles keyboard events."""
 
     is_freecam_wasd = self.ux_state.camera_index == ux.FREE_CAMERA_IDX
-    if studio_app_events.handle_step_control_keyboard_events(
+    if viewer_app_events.handle_step_control_keyboard_events(
         self.step_control_state, self.ux_state
     ):
       return
 
-    if studio_app_events.handle_reset_keyboard_events(self.model, self.data):
+    history_index = self.ux_state.history_index
+    if viewer_app_events.handle_sim_history_keyboard_events(
+        self.step_control_state, self.ux_state
+    ):
+      if self.ux_state.history_index != history_index:
+        self._send_scrub_to_sim(self.ux_state.history_index)
+      return
+
+    if viewer_app_events.handle_reset_keyboard_events(self.model, self.data):
       self.reset_physics()
       return
 
-    if studio_app_events.handle_camera_select_keyboard_events(
+    if viewer_app_events.handle_camera_select_keyboard_events(
         self.model, self.viewer.camera, self.ux_state
     ):
       return
 
-    if studio_app_events.handle_vis_options_keyboard_events(
+    if viewer_app_events.handle_vis_options_keyboard_events(
         self.viewer.vis_options, is_freecam_wasd
     ):
       return
 
+    if viewer_app_events.handle_miscellaneous_keyboard_events(self):
+      return
+
     if is_freecam_wasd:
       handled, cam_speed = (
-          studio_app_events.handle_freecam_wasd_keyboard_events(
+          viewer_app_events.handle_freecam_wasd_keyboard_events(
               self.model, self.data, self.viewer.camera, self.viewer.cam_speed
           )
       )
@@ -145,7 +203,7 @@ class ViewerApp:
 
   def handle_camera_tracking_mouse_events(self) -> None:
     """Handles mouse events for camera tracking."""
-    return studio_app_events.handle_camera_tracking_mouse_events(
+    return viewer_app_events.handle_camera_tracking_mouse_events(
         self.model,
         self.data,
         self.viewer.camera,
@@ -157,7 +215,7 @@ class ViewerApp:
       self,
   ) -> None:
     """Handles mouse events."""
-    return studio_app_events.handle_mouse_events(
+    return viewer_app_events.handle_mouse_events(
         self.model,
         self.data,
         self.viewer.camera,
@@ -168,11 +226,24 @@ class ViewerApp:
 
   def reset_physics(self) -> None:
     """Reset the physics."""
-    mujoco.mj_resetData(self.model, self.data)
-    mujoco.mj_forward(self.model, self.data)
-    self.viewer.send_to_sim(messages.ResetEvent())
-    # Discard any pre-reset snapshots so we don't overwrite the reset state.
-    self.viewer.get_sim_snapshots()
+    if self.model is not None and self.data is not None:
+      key_idx = self.ux_state.key_idx
+      if key_idx >= self.model.nkey or key_idx < -1:
+        key_idx = -1
+        self.ux_state.key_idx = -1
+
+      if key_idx >= 0:
+        mujoco.mj_resetDataKeyframe(self.model, self.data, key_idx)
+      else:
+        mujoco.mj_resetData(self.model, self.data)
+      mujoco.mj_forward(self.model, self.data)
+      self.ux_state.sim_head_time = self.data.time
+      # The viewer's mirror of the sim history is stale until the sim reports
+      # its post-reset history. Setting the size to 0 also clamps the index.
+      self.ux_state.history_size = 0
+      self.viewer.send_to_sim(messages.ResetEvent(key=key_idx))
+      # Discard any pre-reset snapshots so we don't overwrite the reset state.
+      self.viewer.get_sim_snapshots()
 
   def apply_perturb(self) -> None:
     """Apply perturbation the model."""
@@ -181,6 +252,29 @@ class ViewerApp:
         == sim.PauseState.NORMAL_PAUSED
     )
     viewer_utils.apply_perturb(self.viewer, self.model, self.data, is_paused)
+
+  def _send_step_control(self) -> None:
+    """Sends the viewer's step control settings to the sim thread."""
+    noise_scale, noise_rate = self.step_control_state.get_noise_parameters()
+    self.viewer.send_to_sim(
+        messages.StepControlSnapshot(
+            pause_state=self.step_control_state.get_pause_state(),
+            speed=self.step_control_state.get_speed(),
+            noise_scale=noise_scale,
+            noise_rate=noise_rate,
+        )
+    )
+
+  def _send_scrub_to_sim(self, index: int) -> None:
+    """Asks the sim to load a history frame.
+
+    See ``sim_history.SimHistorySnapshot`` for the request semantics.
+
+    Args:
+      index: History offset to load (0 is most recent, negative is past).
+    """
+    self._send_step_control()
+    self.viewer.send_to_sim(sim_history.SimHistorySnapshot(index=index))
 
   def reset_physics_gui(self) -> None:
     """GUI to Reset the physics i.e., the reset button."""
@@ -205,21 +299,22 @@ class ViewerApp:
     drop_file = self.viewer.get_drop_file()
     # Handle file drop: update viewer model/data, reset app state, notify sim.
     if drop_file:
+      # Only a bad model file is tolerated; a raising plugin handler propagates.
       try:
         data = parser.parse(drop_file)
-        if data is not None:
-          # Notify all handlers on the sim side
-          self.viewer.send_to_sim(
-              messages.ModelEvent(model=data.model, path=drop_file)
-          )
-          # Notify all handlers on the viewer side.
-          self.viewer.dispatch(
-              messages.ModelEvent(model=data.model, path=drop_file)
-          )
-          # Discard all snapshots, including any stale state snapshots
-          self.viewer.get_sim_snapshots()
       except Exception as ex:  # pylint: disable=broad-except
         print(f'Error loading model from {drop_file!r}: {ex}')
+      else:
+        # Notify all handlers on the sim side
+        self.viewer.send_to_sim(
+            messages.ModelEvent(model=data.model, path=drop_file)
+        )
+        # Notify all handlers on the viewer side.
+        self.viewer.dispatch(
+            messages.ModelEvent(model=data.model, path=drop_file)
+        )
+        # Discard all snapshots, including any stale state snapshots
+        self.viewer.get_sim_snapshots()
 
     # Handle user input.
     self.handle_mouse_events()
@@ -228,24 +323,32 @@ class ViewerApp:
     # Apply perturbation forces from the viewer.
     self.apply_perturb()
 
+    # Forward single-step requests as events (reliable, never dropped).
+    if self.step_control_state.consume_single_step_request():
+      self.viewer.send_to_sim(messages.SingleStepEvent())
+
     # Send viewer-to-sim snapshots (step control, model options) each frame.
-    noise_scale, noise_rate = self.step_control_state.get_noise_parameters()
-    self.viewer.send_to_sim(
-        messages.StepControlSnapshot(
-            pause_state=self.step_control_state.get_pause_state(),
-            speed=self.step_control_state.get_speed(),
-            noise_scale=noise_scale,
-            noise_rate=noise_rate,
-        )
-    )
+    self._send_step_control()
     self.viewer.send_to_sim(
         messages.MjOptionSnapshot(opt=copy.deepcopy(self.model.opt))
     )
 
   def build_gui(self) -> None:
     """Emit full Studio UI."""
+    # TODO(matijak): Consider adding a PreBuildGuiEvent and moving the theme and
+    # dockspace setup below into a handler for it. That would guarantee the
+    # dockspace exists before any plugin's BuildGuiEvent handler submits
+    # windows, instead of relying on ViewerApp's Priority.CRITICAL.
     ux.setup_theme(self.theme)
-    ux.configure_docking_layout()
+    ux.configure_docking_layout(
+        show_toolbar=self.config.show_toolbar,
+        show_status_bar=self.config.show_status_bar,
+    )
+
+    io = imgui.GetIO()
+    if io.WantSaveIniSettings:
+      ux.save_settings(self.theme)
+      io.WantSaveIniSettings = False
 
     # -- Main menu bar --------------------------------------------------------
     if imgui.BeginMainMenuBar():
@@ -255,118 +358,179 @@ class ViewerApp:
         imgui.EndMenu()
       if imgui.BeginMenu('Simulation'):
         imgui.EndMenu()
-      if imgui.BeginMenu('Charts'):
-        if imgui.MenuItem('Solver', '', self.show_solver):
-          self.show_solver = not self.show_solver
-        if imgui.MenuItem('Stats', '', self.show_stats):
-          self.show_stats = not self.show_stats
+      if imgui.BeginMenu('View'):
+        if imgui.MenuItem('Save Config'):
+          ux.save_settings(self.theme)
+        if imgui.MenuItem('Reset Config'):
+          ux.reset_config()
+          self.theme = ux.load_settings(def_theme=ux.GuiTheme.LIGHT)
+          ux.setup_theme(self.theme)
+        imgui.Separator()
+        if imgui.MenuItem('Options', 'Tab', self.config.show_options):
+          self.config.show_options = not self.config.show_options
+        if imgui.MenuItem('Inspector', 'Shift+Tab', self.config.show_inspector):
+          self.config.show_inspector = not self.config.show_inspector
+        if imgui.MenuItem('Toolbar', '', self.config.show_toolbar):
+          self.config.show_toolbar = not self.config.show_toolbar
+        if imgui.MenuItem('Status Bar', '', self.config.show_status_bar):
+          self.config.show_status_bar = not self.config.show_status_bar
+        imgui.Separator()
+        if imgui.MenuItem('Info', 'F2', self.config.show_info):
+          self.config.show_info = not self.config.show_info
+        if imgui.MenuItem('Profiler', 'F3', self.config.show_profiler):
+          self.config.show_profiler = not self.config.show_profiler
+        imgui.Separator()
+        changed, self.theme = ux.theme_menu_gui(self.theme)
+        if changed:
+          ux.setup_theme(self.theme)
+          ux.save_settings(self.theme)
         imgui.EndMenu()
       if imgui.BeginMenu('Help'):
-        if imgui.MenuItem('Stats', '', self.show_stats):
-          self.show_stats = not self.show_stats
-        imgui.Separator()
         version = f'Version {mujoco.mj_versionString()}'
         imgui.MenuItem(version)
         imgui.EndMenu()
       imgui.EndMainMenuBar()
 
     # -- Tool Bar -------------------------------------------------------------
-    if imgui.Begin('ToolBar'):
-      imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
-      if imgui.BeginTable('##ToolBarTable', 2):
-        imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthStretch))
-        imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthFixed))
+    if self.config.show_toolbar:
+      if imgui.Begin('ToolBar'):
+        imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
+        if imgui.BeginTable('##ToolBarTable', 2):
+          imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthStretch))
+          imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthFixed))
 
-        imgui.TableNextColumn()
-        self.reset_physics_gui()
+          imgui.TableNextColumn()
+          self.reset_physics_gui()
 
-        imgui.SameLine()
-        ux.step_control_gui(self.step_control_state, self.ux_state)
+          imgui.SameLine()
+          ux.step_control_gui(self.step_control_state, self.ux_state)
 
-        imgui.TableNextColumn()
-        ux.camera_selection_gui(
-            self.model,
-            self.data,
-            self.viewer.camera,
-            self.ux_state,
-        )
+          imgui.TableNextColumn()
+          ux.camera_selection_gui(
+              self.model,
+              self.data,
+              self.viewer.camera,
+              self.ux_state,
+          )
 
-        imgui.SameLine()
-        ux.label_selection_gui(self.viewer.vis_options)
+          imgui.SameLine()
+          ux.label_selection_gui(self.viewer.vis_options)
 
-        imgui.SameLine()
-        ux.frame_selection_gui(self.viewer.vis_options)
+          imgui.SameLine()
+          ux.frame_selection_gui(self.viewer.vis_options)
 
-        imgui.SameLine()
-        changed, self.theme = ux.theme_select_gui(self.theme)
-        if changed:
-          ux.setup_theme(self.theme)
-
-        imgui.EndTable()
-      imgui.PopStyleVar()
-    imgui.End()
+          imgui.EndTable()
+        imgui.PopStyleVar()
+      imgui.End()
 
     # -- Left pane: Options ---------------------------------------------------
     node_flags = int(imgui.TreeNodeFlags.SpanAvailWidth) | int(
         imgui.TreeNodeFlags.Framed
     )
 
-    imgui.Begin('Options')
-    if imgui.TreeNodeEx('Physics Settings', node_flags):
-      ux.physics_gui(self.model)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Rendering Settings', node_flags):
-      ux.rendering_gui(
-          self.model,
-          self.viewer.vis_options,
-          self.viewer.render_flags,
+    if self.config.show_options:
+      _, self.config.show_options = imgui.Begin(
+          'Options', self.config.show_options
       )
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Visibility Groups', node_flags):
-      ux.groups_gui(self.model, self.viewer.vis_options)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Visualization', node_flags):
-      ux.visualization_gui(
+      # The Simulation panel draws its own collapsible section header. Its
+      # scrubber may change the history index; tell the sim to load the frame.
+      # Reset/Reload/Keyframe inside the panel clear the mirrored history
+      # (size 0, which also clamps the index), which is not a scrub.
+      history_index = self.ux_state.history_index
+      ux.simulation_gui(
           self.model,
-          self.viewer.vis_options,
-          self.viewer.camera,
+          self.data,
+          self.step_control_state,
+          self.ux_state,
+          self.reset_physics,
+          self.reload_model,
+          self.align_camera,
       )
-      imgui.TreePop()
-    imgui.End()
+      if (
+          self.ux_state.history_size > 0
+          and self.ux_state.history_index != history_index
+      ):
+        self._send_scrub_to_sim(self.ux_state.history_index)
+      if imgui.TreeNodeEx('Physics Settings', node_flags):
+        ux.physics_gui(self.model)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Rendering Settings', node_flags):
+        ux.rendering_gui(
+            self.model,
+            self.viewer.vis_options,
+            self.viewer.render_flags,
+        )
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Visibility Groups', node_flags):
+        ux.groups_gui(self.model, self.viewer.vis_options)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Visualization', node_flags):
+        ux.visualization_gui(
+            self.model,
+            self.viewer.vis_options,
+            self.viewer.camera,
+        )
+        imgui.TreePop()
+      imgui.End()
 
     # -- Right pane: Inspector ------------------------------------------------
-    imgui.Begin('Inspector')
-    if imgui.TreeNodeEx('Noise', node_flags):
-      ux.noise_gui(self.step_control_state)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Joints', node_flags):
-      ux.joints_gui(self.model, self.data, self.viewer.vis_options)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Controls', node_flags):
-      ux.controls_gui(self.model, self.data, self.viewer.vis_options)
-      imgui.TreePop()
-    if imgui.TreeNodeEx(
-        'Sensors', node_flags | int(imgui.TreeNodeFlags.DefaultOpen)
-    ):
-      ux.sensor_gui(self.model, self.data)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('Watch', node_flags):
-      ux.watch_gui(self.model, self.data, self.ux_state)
-      imgui.TreePop()
-    if imgui.TreeNodeEx('State', node_flags):
-      ux.state_gui(self.model, self.data, self.ux_state)
-      imgui.TreePop()
-    imgui.End()
+    if self.config.show_inspector:
+      _, self.config.show_inspector = imgui.Begin(
+          'Inspector', self.config.show_inspector
+      )
+      if imgui.TreeNodeEx('Noise', node_flags):
+        ux.noise_gui(self.step_control_state)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Joints', node_flags):
+        # The GUI edits the viewer's local data.qpos; forward any change to the
+        # sim, else the next incoming StateSnapshot reverts it.
+        qpos_before = self.data.qpos.copy()
+        ux.joints_gui(self.model, self.data, self.viewer.vis_options)
+        if not np.array_equal(qpos_before, self.data.qpos):
+          viewer_utils.send_state(
+              self.viewer,
+              self.model,
+              self.data,
+              int(mujoco.mjtState.mjSTATE_QPOS),
+          )
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Controls', node_flags):
+        # The GUI edits the viewer's local data.ctrl; forward any change to the
+        # sim, else the next incoming StateSnapshot reverts it.
+        ctrl_before = self.data.ctrl.copy()
+        ux.controls_gui(self.model, self.data, self.viewer.vis_options)
+        if not np.array_equal(ctrl_before, self.data.ctrl):
+          viewer_utils.send_state(
+              self.viewer,
+              self.model,
+              self.data,
+              int(mujoco.mjtState.mjSTATE_CTRL),
+          )
+        imgui.TreePop()
+      if imgui.TreeNodeEx(
+          'Sensors', node_flags | int(imgui.TreeNodeFlags.DefaultOpen)
+      ):
+        ux.sensor_gui(self.model, self.data)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('Watch', node_flags):
+        ux.watch_gui(self.model, self.data, self.ux_state)
+        imgui.TreePop()
+      if imgui.TreeNodeEx('State', node_flags):
+        ux.state_gui(self.model, self.data, self.ux_state)
+        imgui.TreePop()
+      imgui.End()
 
     # -- Floating windows -----------------------------------------------------
-    if self.show_solver:
-      _, self.show_solver = imgui.Begin('Solver', self.show_solver)
+    if self.config.show_profiler:
+      _, self.config.show_profiler = imgui.Begin(
+          'Profiler', self.config.show_profiler
+      )
       ux.counts_gui(self.model, self.data)
       ux.convergence_gui(self.model, self.data)
       imgui.End()
 
-    if self.show_stats:
-      _, self.show_stats = imgui.Begin('Stats', self.show_stats)
+    if self.config.show_info:
+      _, self.config.show_info = imgui.Begin('Info', self.config.show_info)
       paused = (
           self.step_control_state.get_pause_state() != sim.PauseState.UNPAUSED
       )
@@ -374,29 +538,37 @@ class ViewerApp:
       imgui.End()
 
     # -- Status bar -----------------------------------------------------------
-    imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
-    imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(0, 0))
-    imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0, 0))
-    if imgui.Begin('StatusBar'):
-      imgui.Text(self.status)
-    imgui.End()
-    imgui.PopStyleVar(3)
-
-  @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_model(self, event: messages.ModelEvent) -> bool:
-    del event  # Model/data are owned by the Viewer.
-    self._reset_app_state()
-    return False  # Do not consume to allow other handlers to receive the event.
+    if self.config.show_status_bar:
+      imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
+      imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(0, 0))
+      imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0, 0))
+      if imgui.Begin('StatusBar'):
+        imgui.Text(self.status)
+      imgui.End()
+      imgui.PopStyleVar(3)
 
   @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_exit(self, _: messages.ExitEvent) -> bool:
-    self.close()
-    return True
+  def _on_history(self, event: sim_history.SimHistorySnapshot) -> None:
+    """Mirrors the sim's history metadata into ``ux_state`` for the scrubber."""
+    if self._viewer is None or self.model is None or self.data is None:
+      return
+    self.ux_state.history_size = event.size
+    self.ux_state.history_index = event.index
+    self.ux_state.sim_head_time = event.head_time
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_post_model(self, event: messages.PostModelEvent) -> None:
+    del event  # Model/data are owned by the Viewer.
+    self._reset_app_state()
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_exit(self, _: messages.ExitEvent) -> None:
+    ux.save_settings(self.theme)
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_update(self, _: messages.UpdateEvent) -> None:
     self.update()
 
-  @messages.handler(priority=messages.Priority.INTERNAL)
+  @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_build_gui(self, _: messages.BuildGuiEvent) -> None:
     self.build_gui()

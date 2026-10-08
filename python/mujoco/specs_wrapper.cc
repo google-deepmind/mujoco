@@ -89,12 +89,11 @@ MjSpec& MjSpec::operator=(MjSpec&& other) {
 
 MjSpec::~MjSpec() { mj_deleteSpec(ptr); }
 
-raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
+mjVFS* MjSpec::AssetsVfs(mjVFS* vfs, std::optional<mjVFS>& local_vfs) {
   if (vfs != nullptr && !assets.empty()) {
     throw py::value_error("Cannot specify both 'vfs' and 'assets'.");
   }
 
-  std::optional<mjVFS> local_vfs;
   if (vfs == nullptr) {
     vfs = &local_vfs.emplace();
     mj_defaultVFS(vfs);
@@ -115,6 +114,48 @@ raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
       }
     }
   }
+  return vfs;
+}
+
+void MjSpec::AdoptInertial(raw::MjsBody* body, mjVFS* vfs) {
+  std::optional<mjVFS> local_vfs;
+  vfs = AssetsVfs(vfs, local_vfs);
+  const int result = mjs_adoptInertial(body, vfs);
+  if (local_vfs.has_value()) {
+    mj_deleteVFS(vfs);
+  }
+  if (result) {
+    throw py::value_error(mjs_getError(ptr));
+  }
+}
+
+void MjSpec::FuseStatic(mjVFS* vfs) {
+  std::optional<mjVFS> local_vfs;
+  vfs = AssetsVfs(vfs, local_vfs);
+  const int result = mjs_fuseStatic(ptr, vfs);
+  if (local_vfs.has_value()) {
+    mj_deleteVFS(vfs);
+  }
+  if (result) {
+    throw py::value_error(mjs_getError(ptr));
+  }
+}
+
+void MjSpec::DiscardVisual(mjVFS* vfs) {
+  std::optional<mjVFS> local_vfs;
+  vfs = AssetsVfs(vfs, local_vfs);
+  const int result = mjs_discardVisual(ptr, vfs);
+  if (local_vfs.has_value()) {
+    mj_deleteVFS(vfs);
+  }
+  if (result) {
+    throw py::value_error(mjs_getError(ptr));
+  }
+}
+
+raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
+  std::optional<mjVFS> local_vfs;
+  vfs = AssetsVfs(vfs, local_vfs);
 
   raw::MjModel* m;
   {

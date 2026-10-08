@@ -20,7 +20,7 @@ target_include_directories(implot
 )
 
 target_sources(implot
-  PUBLIC
+  PRIVATE
     ${implot_SOURCE_DIR}/implot.h
     ${implot_SOURCE_DIR}/implot_internal.h
     ${implot_SOURCE_DIR}/implot.cpp

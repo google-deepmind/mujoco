@@ -157,8 +157,9 @@ inline constexpr mjMap integrator_map[] = {
   {"RK4",           mjINT_RK4},
   {"implicit",      mjINT_IMPLICIT},
   {"implicitfast",  mjINT_IMPLICITFAST},
+  {"discrete",      mjINT_DISCRETE},
 };
-inline constexpr int integrator_sz = 4;
+inline constexpr int integrator_sz = 5;
 
 // enum cone
 inline constexpr mjMap cone_map[] = {
@@ -230,6 +231,23 @@ inline constexpr mjMap mark_map[] = {
 };
 inline constexpr int mark_sz = 4;
 
+// enum actuatortype
+inline constexpr mjMap actuatortype_map[] = {
+  {"general",      mjACTUATOR_GENERAL},
+  {"motor",        mjACTUATOR_MOTOR},
+  {"position",     mjACTUATOR_POSITION},
+  {"velocity",     mjACTUATOR_VELOCITY},
+  {"intvelocity",  mjACTUATOR_INTVELOCITY},
+  {"damper",       mjACTUATOR_DAMPER},
+  {"cylinder",     mjACTUATOR_CYLINDER},
+  {"muscle",       mjACTUATOR_MUSCLE},
+  {"adhesion",     mjACTUATOR_ADHESION},
+  {"pid",          mjACTUATOR_PID},
+  {"orientation",  mjACTUATOR_ORIENTATION},
+  {"dcmotor",      mjACTUATOR_DCMOTOR},
+};
+inline constexpr int actuatortype_sz = 12;
+
 // enum dyn
 inline constexpr mjMap dyn_map[] = {
   {"none",         mjDYN_NONE},
@@ -270,12 +288,13 @@ inline constexpr int inputchart_sz = 2;
 
 // enum inputbit
 inline constexpr mjMap inputbit_map[] = {
-  {"pos",      mjINPUT_POS},
-  {"vel",      mjINPUT_VEL},
-  {"ff",       mjINPUT_FF},
-  {"voltage",  mjINPUT_VOLTAGE},
+  {"pos",       mjINPUT_POS},
+  {"vel",       mjINPUT_VEL},
+  {"ff",        mjINPUT_FF},
+  {"voltage",   mjINPUT_VOLTAGE},
+  {"pressure",  mjINPUT_PRESSURE},
 };
-inline constexpr int inputbit_sz = 4;
+inline constexpr int inputbit_sz = 5;
 
 // enum bias
 inline constexpr mjMap bias_map[] = {
@@ -399,6 +418,14 @@ inline constexpr mjMap jkind_map[] = {
   {"main",  mjCOMPKIND_JOINT},
 };
 inline constexpr int jkind_sz = 1;
+
+// enum initial
+inline constexpr mjMap initial_map[] = {
+  {"none",  0},
+  {"free",  1},
+  {"ball",  2},
+};
+inline constexpr int initial_sz = 3;
 
 // enum shape
 inline constexpr mjMap shape_map[] = {

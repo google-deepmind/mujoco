@@ -193,7 +193,6 @@
     X( nefm0L )             \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
-    X( nflexevpair )        \
     X( nflextexcoord )      \
     X( nJfe )               \
     X( nJfv )               \
@@ -394,6 +393,7 @@
 #define MJMODEL_POINTERS_SITE                                                   \
     X   ( int,     site_type,             nsite,         1                    ) \
     X   ( int,     site_bodyid,           nsite,         1                    ) \
+    X   ( int,     site_dataid,           nsite,         1                    ) \
     X   ( int,     site_matid,            nsite,         1                    ) \
     X   ( int,     site_group,            nsite,         1                    ) \
     X   ( mjtByte, site_sameframe,        nsite,         1                    ) \
@@ -456,7 +456,6 @@
     X   ( mjtNum,  flex_friction,         nflex,         3                    ) \
     X   ( mjtNum,  flex_margin,           nflex,         1                    ) \
     X   ( mjtNum,  flex_gap,              nflex,         1                    ) \
-    X   ( mjtBool, flex_internal,         nflex,         1                    ) \
     X   ( int,     flex_selfcollide,      nflex,         1                    ) \
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
     X   ( int,     flex_passive,          nflex,         1                    ) \
@@ -479,8 +478,6 @@
     X   ( int,     flex_bendingadr,       nflex,         1                    ) \
     X   ( int,     flex_shellnum,         nflex,         1                    ) \
     X   ( int,     flex_shelldataadr,     nflex,         1                    ) \
-    X   ( int,     flex_evpairadr,        nflex,         1                    ) \
-    X   ( int,     flex_evpairnum,        nflex,         1                    ) \
     X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
@@ -494,7 +491,6 @@
     X   ( int,     flex_elemedge,         nflexelemedge, 1                    ) \
     X   ( int,     flex_elemlayer,        nflexelem,     1                    ) \
     X   ( int,     flex_shell,            nflexshelldata,1                    ) \
-    X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vertmetric,       nflexvert,     4                    ) \
@@ -880,11 +876,16 @@
     X   ( mjtNum,    flexvert_xpos,     nflexvert,   3           ) \
     X   ( mjtNum,    flexelem_aabb,     nflexelem,   6           ) \
     X   ( mjtNum,    flexelem_krot,     nflexstiffness, 1        ) \
+    X   ( mjtBool,   flex_hessian_valid, nflex,      1           ) \
+    X   ( mjtNum,    flexvert_hessian,  nflexvert,   6           ) \
+    X   ( mjtNum,    flexedge_hessian,  nflexedge,   9           ) \
     X   ( mjtNum,    flexedge_J,        nJfe,        1           ) \
     X   ( mjtNum,    flexedge_length,   nflexedge,   1           ) \
     X   ( mjtNum,    flexvert_J,        nJfv,        2           ) \
     X   ( mjtNum,    flexvert_length,   nflexvert,   2           ) \
     X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
+    X   ( mjtNum,    flexvert_lambda,   nflexvert,   1           ) \
+    X   ( int,       flexvert_conage,   nflexvert,   1           ) \
     X   ( int,       ten_wrapadr,       ntendon,     1           ) \
     X   ( int,       ten_wrapnum,       ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             nJten,       1           ) \
@@ -1012,11 +1013,24 @@
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS_EFM                        \
     X  ( mjtNum,   efm_c,             MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_diag,          MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_ck,            MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_sdiag,         MJ_M(nv),          1 ) \
+    X  ( mjtNum,   efm_fluid,         MJ_M(nC),          1 ) \
+    X  ( int,      efm_tid,           MJ_M(ntendon),     1 ) \
+    X  ( mjtNum,   efm_ts,            MJ_M(ntendon),     1 ) \
+    X  ( mjtNum,   efm_tk,            MJ_M(ntendon),     1 ) \
+    X  ( int,      efm_aid,           MJ_M(nactuator),   1 ) \
+    X  ( mjtNum,   efm_as,            MJ_M(nactuator),   1 ) \
+    X  ( mjtNum,   efm_ak,            MJ_M(nactuator),   1 ) \
+    X  ( mjtNum,   efm_ca,            MJ_M(nv),          1 ) \
     X  ( int,      efm_K_rownnz,      MJ_M(nv),          1 ) \
     X  ( int,      efm_K_rowadr,      MJ_M(nv),          1 ) \
     X  ( int,      efm_K_colind,      MJ_D(nefmK),       1 ) \
     X  ( mjtNum,   efm_K_val,         MJ_D(nefmK),       1 ) \
     X  ( int,      efm_dofid,         MJ_D(nefmdof),     1 ) \
+    X  ( int,      efm_con_ind,       MJ_D(nefmcon),     1 ) \
+    X  ( mjtNum,   efm_con_val,       MJ_D(nefmcon),     1 ) \
     X  ( mjtNum,   efm_L,             MJ_D(nefmL),       1 )
 
 
@@ -1049,6 +1063,9 @@
     X( int,       nJ                 ) \
     X( int,       efm_active         ) \
     X( int,       nefmK              ) \
+    X( int,       nefmcon            ) \
+    X( int,       nefmT              ) \
+    X( int,       nefmA              ) \
     X( int,       nefmdof            ) \
     X( int,       nefmL              ) \
     X( int,       nY                 ) \

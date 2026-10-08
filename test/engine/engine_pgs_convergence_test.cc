@@ -17,7 +17,6 @@
 // Rolls out Newton ground truth on 2humanoid100.xml, then evaluates PGS with
 // and without Nesterov momentum at various iteration budgets.
 
-
 #include <chrono>  // NOLINT
 #include <cstdio>
 #include <ratio>  // NOLINT
@@ -60,13 +59,12 @@ void run_benchmark(mjModel* model, mjData* data,
                    const std::vector<mjtNum>& all_qpos,
                    const std::vector<mjtNum>& all_qvel,
                    const std::vector<mjtNum>& all_warmstart,
-                   const std::vector<mjtNum>& all_qacc,
-                   int nq, int nv, int kStride, int kNumEval,
-                   const int* kIterCounts, int kNumIter,
-                   const char* label) {
+                   const std::vector<mjtNum>& all_qacc, int nq, int nv,
+                   int kStride, int kNumEval, const int* kIterCounts,
+                   int kNumIter, const char* label) {
   std::printf("\n  %s:\n", label);
-  std::printf("  %6s | %11s | %11s | %10s | %11s\n",
-              "Iters", "Mean Err", "Max Err", "Mean Iters", "Solver us");
+  std::printf("  %6s | %11s | %11s | %10s | %11s\n", "Iters", "Mean Err",
+              "Max Err", "Mean Iters", "Solver us");
   std::printf("  %s\n",
               "-------+-------------+-------------+------------+-----------");
 
@@ -85,17 +83,17 @@ void run_benchmark(mjModel* model, mjData* data,
     for (int e = 0; e < kNumEval; e++) {
       int idx = e * kStride;
 
-      mju_copy(data->qpos, all_qpos.data() + idx*nq, nq);
-      mju_copy(data->qvel, all_qvel.data() + idx*nv, nv);
-      mju_copy(data->qacc_warmstart, all_warmstart.data() + idx*nv, nv);
+      mju_copy(data->qpos, all_qpos.data() + idx * nq, nq);
+      mju_copy(data->qvel, all_qvel.data() + idx * nv, nv);
+      mju_copy(data->qacc_warmstart, all_warmstart.data() + idx * nv, nv);
 
       mj_forward(model, data);
       total_iters += get_total_solver_iters(data);
 
-      mjtNum newton_norm = mju_norm(all_qacc.data() + idx*nv, nv);
+      mjtNum newton_norm = mju_norm(all_qacc.data() + idx * nv, nv);
       mjtNum err = 0;
       for (int j = 0; j < nv; j++) {
-        mjtNum diff = data->qacc[j] - all_qacc[idx*nv + j];
+        mjtNum diff = data->qacc[j] - all_qacc[idx * nv + j];
         err += diff * diff;
       }
       mjtNum rel_err = mju_sqrt(err) / mju_max(newton_norm, 1e-10);
@@ -107,9 +105,8 @@ void run_benchmark(mjModel* model, mjData* data,
 
     mjtNum solver_time = data->timer[mjTIMER_CONSTRAINT].duration;
     mjtNum mean_iters = static_cast<mjtNum>(total_iters) / kNumEval;
-    std::printf("  %6d | %11.4e | %11.4e | %10.2f | %11.2f\n",
-                kIterCounts[c], sum_rel_err / kNumEval, max_rel_err,
-                mean_iters, solver_time);
+    std::printf("  %6d | %11.4e | %11.4e | %10.2f | %11.2f\n", kIterCounts[c],
+                sum_rel_err / kNumEval, max_rel_err, mean_iters, solver_time);
   }
   std::printf("  %s\n",
               "-------+-------------+-------------+------------+-----------");
@@ -144,8 +141,8 @@ void run_pipeline(mjModel* model, mjData* data, int kNumSteps,
               pipe_step_count > 0 ? pipe_constraint / pipe_step_count : 0.0);
   std::printf("  Iters/step       : %.2f\n",
               pipe_step_count > 0
-                ? static_cast<mjtNum>(pipe_total_iters) / pipe_step_count
-                : 0.0);
+                  ? static_cast<mjtNum>(pipe_total_iters) / pipe_step_count
+                  : 0.0);
 }
 
 TEST_F(PgsConvergenceTest, PGSConvergence) {
@@ -153,8 +150,7 @@ TEST_F(PgsConvergenceTest, PGSConvergence) {
       "engine/testdata/forward/perf/2humanoid100_PGS.xml";
   const std::string xml_path = GetTestDataFilePath(kPath);
   char error[1024];
-  mjModel* model =
-      mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
   // disable islands: monolithic solver makes statistics simpler
@@ -187,13 +183,13 @@ TEST_F(PgsConvergenceTest, PGSConvergence) {
 
   std::printf("Rolling out ground truth Newton steps...\n");
   for (int i = 0; i < kNumSteps; i++) {
-    mju_copy(all_qpos.data() + i*nq, data->qpos, nq);
-    mju_copy(all_qvel.data() + i*nv, data->qvel, nv);
-    mju_copy(all_warmstart.data() + i*nv, data->qacc_warmstart, nv);
+    mju_copy(all_qpos.data() + i * nq, data->qpos, nq);
+    mju_copy(all_qvel.data() + i * nv, data->qvel, nv);
+    mju_copy(all_warmstart.data() + i * nv, data->qacc_warmstart, nv);
 
     mj_step(model, data);
 
-    mju_copy(all_qacc.data() + i*nv, data->qacc, nv);
+    mju_copy(all_qacc.data() + i * nv, data->qacc, nv);
   }
 
   // evaluation points
@@ -205,8 +201,7 @@ TEST_F(PgsConvergenceTest, PGSConvergence) {
   constexpr int kNumIter = sizeof(kIterCounts) / sizeof(kIterCounts[0]);
 
   std::printf("\nPGS vs Nesterov PGS: 2humanoid100_PGS.xml\n");
-  std::printf("  %d Newton steps, %d evaluation points\n",
-              kNumSteps, kNumEval);
+  std::printf("  %d Newton steps, %d evaluation points\n", kNumSteps, kNumEval);
   std::printf("  nv = %d, nq = %d, nefc = %d\n", nv, nq, data->nefc);
 
   // switch to PGS
@@ -216,14 +211,14 @@ TEST_F(PgsConvergenceTest, PGSConvergence) {
 
   // 1. Row PGS (default)
   mj_nesterov_momentum = 0;
-  run_benchmark(model, data, all_qpos, all_qvel, all_warmstart, all_qacc,
-                nq, nv, kStride, kNumEval, kIterCounts, kNumIter,
+  run_benchmark(model, data, all_qpos, all_qvel, all_warmstart, all_qacc, nq,
+                nv, kStride, kNumEval, kIterCounts, kNumIter,
                 "Row PGS (Warmstart, tolerance = 0)");
 
   // 2. Nesterov PGS (via REFSAFE hack)
   mj_nesterov_momentum = 1;
-  run_benchmark(model, data, all_qpos, all_qvel, all_warmstart, all_qacc,
-                nq, nv, kStride, kNumEval, kIterCounts, kNumIter,
+  run_benchmark(model, data, all_qpos, all_qvel, all_warmstart, all_qacc, nq,
+                nv, kStride, kNumEval, kIterCounts, kNumIter,
                 "Nesterov PGS (Warmstart, tolerance = 0)");
 
   // 3. Pipeline: Row PGS

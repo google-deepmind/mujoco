@@ -91,12 +91,12 @@ class ReentrantWriteLock {
   }
 };
 
-template<typename T>
+template<typename T, typename Tag = void>
 class GlobalTable {
  public:
-  static GlobalTable<T>& GetSingleton() {
-    static_assert(std::is_trivially_destructible_v<GlobalTable<T>>);
-    static GlobalTable<T> global;
+  static GlobalTable<T, Tag>& GetSingleton() {
+    static_assert(std::is_trivially_destructible_v<GlobalTable<T, Tag>>);
+    static GlobalTable<T, Tag> global;
     return global;
   }
 

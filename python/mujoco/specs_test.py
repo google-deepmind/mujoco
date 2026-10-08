@@ -948,6 +948,47 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsite, 10)
     self.assertEqual(model.nsensor, 9)
 
+  def test_delete_frame(self):
+    spec = mujoco.MjSpec.from_string("""
+      <mujoco>
+        <worldbody>
+          <body name="body">
+            <geom name="geom" size=".1"/>
+            <frame name="frame" pos="1 0 0">
+              <geom name="in_frame" size=".1"/>
+              <site name="in_frame"/>
+              <frame name="nested">
+                <body name="in_nested">
+                  <geom name="in_body" size=".1"/>
+                </body>
+              </frame>
+            </frame>
+          </body>
+        </worldbody>
+
+        <sensor>
+          <framepos name="geom" objtype="geom" objname="geom"/>
+          <framepos name="in_frame" objtype="site" objname="in_frame"/>
+        </sensor>
+      </mujoco>
+    """)
+    frame = spec.frame('frame')
+    spec.delete(frame)
+
+    # the frame is deleted together with its contents and their references
+    self.assertEmpty(spec.frames)
+    self.assertEqual([body.name for body in spec.bodies], ['world', 'body'])
+    self.assertEqual([geom.name for geom in spec.geoms], ['geom'])
+    self.assertEmpty(spec.sites)
+    self.assertEqual([sensor.name for sensor in spec.sensors], ['geom'])
+
+    model = spec.compile()
+    self.assertEqual(model.ngeom, 1)
+    np.testing.assert_array_equal(model.geom_pos, [[0, 0, 0]])
+
+    with self.assertRaisesRegex(ValueError, 'frame is not in this model'):
+      spec.delete(frame)
+
   def test_plugin(self):
     spec = mujoco.MjSpec()
     spec.activate_plugin('mujoco.elasticity.cable')
@@ -1207,18 +1248,170 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaises(ValueError):
       data_array[0] = -1
 
-  def test_find_unnamed_asset(self):
+  def test_fuse_static(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <worldbody>
+            <body name="moving">
+              <joint/>
+              <geom name="moving" size=".1"/>
+              <body name="static" pos="1 0 0">
+                <geom name="static" size=".1"/>
+              </body>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    self.assertEqual(spec.compile().nbody, 3)
+
+    spec.fuse_static()
+    self.assertIsNone(spec.body('static'))
+    self.assertEqual(spec.geom('static').frame.pos[0], 1)
+    self.assertEqual(spec.geom('static').parent, spec.body('moving'))
+    model = spec.compile()
+    self.assertEqual(model.nbody, 2)
+    np.testing.assert_allclose(model.geom('static').pos, [1, 0, 0])
+
+    # a body whose fuse attribute is false is kept
+    kept = spec.body('moving').add_body(name='kept')
+    kept.add_geom(size=[0.1, 0, 0])
+    kept.fuse = False
+    spec.fuse_static()
+    self.assertIsNotNone(spec.body('kept'))
+    kept.fuse = True
+    spec.fuse_static()
+    self.assertIsNone(spec.body('kept'))
+
+  def test_discard_visual(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <asset>
+            <material name="mat"/>
+          </asset>
+          <worldbody>
+            <body name="body">
+              <joint/>
+              <geom name="collision" size=".1" material="mat"/>
+              <geom name="visual" size=".2" contype="0" conaffinity="0"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    mass = spec.compile().body('body').mass
+
+    spec.discard_visual()
+    self.assertIsNone(spec.geom('visual'))
+    self.assertIsNone(spec.material('mat'))
+    self.assertEqual(spec.geom('collision').material, '')
+    model = spec.compile()
+    self.assertEqual(model.ngeom, 1)
+    self.assertEqual(model.nmat, 0)
+    np.testing.assert_allclose(model.body('body').mass, mass)
+
+    # inertia inferred from a discarded geom cannot be kept under 'true'
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <compiler inertiafromgeom="true"/>
+          <worldbody>
+            <body>
+              <joint/>
+              <geom size=".1"/>
+              <geom name="visual" size=".2" contype="0" conaffinity="0"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    with self.assertRaisesRegex(ValueError, 'inertiafromgeom'):
+      spec.discard_visual()
+    self.assertIsNotNone(spec.geom('visual'))
+
+  def test_adopt_inertial(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <worldbody>
+            <body name="body">
+              <joint/>
+              <geom name="geom" size=".1" pos="0 0 .2"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """))
+    body = spec.body('body')
+    model = spec.compile()
+    mass = model.body('body').mass[0]
+    self.assertFalse(body.explicitinertial)
+
+    spec.adopt_inertial(body)
+    self.assertTrue(body.explicitinertial)
+    self.assertAlmostEqual(body.mass, mass)
+    np.testing.assert_allclose(body.ipos, [0, 0, 0.2])
+
+    # The adopted inertial no longer follows the geom.
+    spec.geom('geom').size[0] = 0.2
+    self.assertAlmostEqual(spec.compile().body('body').mass[0], mass)
+
+    spec.compiler.inertiafromgeom = mujoco.mjtInertiaFromGeom.mjINERTIAFROMGEOM_TRUE
+    with self.assertRaisesRegex(ValueError, 'inertiafromgeom'):
+      spec.adopt_inertial(body)
+
+  def test_copy_back(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <worldbody>
+            <frame pos="1 0 0">
+              <body name="body" pos="1 0 0">
+                <joint name="joint" range="-90 90"/>
+                <geom name="geom" size="1"/>
+              </body>
+            </frame>
+          </worldbody>
+        </mujoco>
+    """))
+    model = spec.compile()
+    model.body('body').pos[0] = 4
+    model.geom('geom').size[0] = 2
+    model.joint('joint').range[1] /= 2
+    spec.copy_back(model)
+
+    # Each value is written as what compiles to it: the position in the frame
+    # of the body, the limit in degrees.
+    np.testing.assert_array_equal(spec.body('body').pos, [3, 0, 0])
+    self.assertEqual(spec.geom('geom').size[0], 2)
+    np.testing.assert_allclose(spec.joint('joint').range, [-90, 45])
+    recompiled = spec.compile()
+    np.testing.assert_array_equal(recompiled.body('body').pos, [4, 0, 0])
+    np.testing.assert_array_equal(recompiled.geom('geom').size, [2, 0, 0])
+
+    # A change which the spec cannot express is an error, and nothing is
+    # written.
+    spec.compiler.inertiafromgeom = mujoco.mjtInertiaFromGeom.mjINERTIAFROMGEOM_TRUE
+    model = spec.compile()
+    model.body('body').mass[0] = 5
+    model.geom('geom').size[0] = 3
+    with self.assertRaisesRegex(ValueError, 'was changed in the model'):
+      spec.copy_back(model)
+    self.assertEqual(spec.geom('geom').size[0], 2)
+
+  def test_asset_not_named_after_file(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')
     texture_name = spec.add_texture(name='name')
     mesh_file = spec.add_mesh(file='file.obj')
     mesh_name = spec.add_mesh(name='mesh')
-    self.assertEqual(spec.texture('file'), texture_file)
     self.assertEqual(spec.texture('name'), texture_name)
-    self.assertEqual(spec.mesh('file'), mesh_file)
     self.assertEqual(spec.mesh('mesh'), mesh_name)
     self.assertIsNone(spec.texture('none'))
     self.assertIsNone(spec.mesh('none'))
+
+    # Only the XML parser names an asset after its file.
+    self.assertEqual(texture_file.name, '')
+    self.assertEqual(mesh_file.name, '')
+    self.assertIsNone(spec.texture('file'))
+    self.assertIsNone(spec.mesh('file'))
+    parsed = mujoco.MjSpec.from_string(
+        '<mujoco><asset><mesh file="file.obj"/></asset></mujoco>'
+    )
+    self.assertEqual(parsed.meshes[0].name, 'file')
 
   def test_texture_gridlayout(self):
     spec = mujoco.MjSpec()
@@ -1351,6 +1544,7 @@ class SpecsTest(absltest.TestCase):
     spec.compile()
     frame = body.to_frame()
     np.testing.assert_array_equal(frame.pos, [1, 2, 3])
+    self.assertEqual(frame.parent, spec.worldbody)
 
   def test_get_frame(self):
     spec = mujoco.MjSpec()
@@ -2127,7 +2321,7 @@ class SpecsTest(absltest.TestCase):
         cellcount=[2, 2, 1],
         mass=0.5,
         equality=3,  # strain
-        elastic2d=2,  # bend
+        elastic2d=1,  # bend
     )
     flex2.young = 1e3
     flex2.thickness = 0.01
@@ -2358,6 +2552,85 @@ class SpecsTest(absltest.TestCase):
           parent_xml,
           include={'child.xml': child_xml.encode()},
       )
+
+  def test_bind_rejects_stale_model_after_first_equality(self):
+    spec = mujoco.MjSpec()
+    for name in ('a', 'b'):
+      body = spec.worldbody.add_body(name=name)
+      body.add_geom(size=[1, 0, 0])
+      body.add_freejoint()
+    model = spec.compile()
+
+    # the first equality must invalidate the compiled model for bind
+    equality = spec.add_equality(
+        type=mujoco.mjtEq.mjEQ_WELD,
+        objtype=mujoco.mjtObj.mjOBJ_BODY,
+        name1='a',
+        name2='b',
+    )
+    with self.assertRaisesRegex(ValueError, 'does not match'):
+      model.bind(equality)
+
+    model = spec.compile()
+    self.assertEqual(model.bind(equality).id, 0)
+
+  def test_delete_reclaims_memory_and_invalidates_bind(self):
+    spec = mujoco.MjSpec()
+    for i in range(100):
+      body = spec.worldbody.add_body(name=f'body_{i}')
+      joint = body.add_joint(
+          name=f'joint_{i}', type=mujoco.mjtJoint.mjJNT_HINGE
+      )
+      body.add_geom(size=[0.1, 0.1, 0.1])
+      act = spec.add_actuator(
+          name=f'act_{i}',
+          target=f'joint_{i}',
+          trntype=mujoco.mjtTrn.mjTRN_JOINT,
+      )
+      spec.delete(body)
+
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    self.assertEqual(model.nbody, 1)
+    self.assertEqual(model.nu, 0)
+
+    # A Python reference to a deleted body or implicitly deleted actuator
+    # remains memory-safe for attribute access and raises IndexError on bind.
+    self.assertEqual(body.name, 'body_99')
+    self.assertIsNone(body.parent)
+    self.assertEqual(joint.name, 'joint_99')
+    self.assertEqual(act.name, 'act_99')
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(body)
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(joint)
+    with self.assertRaisesRegex(IndexError, 'Invalid index -1'):
+      data.bind(act)
+
+    # A child obtained via spec.joints (whose reference_internal parent is spec,
+    # not the body) stays alive with parent cleared to None once its body is
+    # deleted and freed.
+    spec.worldbody.add_body(name='temp_body').add_joint(name='orphan_joint')
+    orphan = spec.joints[-1]
+    spec.delete(spec.bodies[-1])
+    self.assertEqual(orphan.name, 'orphan_joint')
+    self.assertIsNone(orphan.parent)
+
+  def test_signature_tracks_edits(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    body.add_geom(size=[1, 0, 0])
+    model = spec.compile()
+    self.assertEqual(body.signature, model.signature)
+
+    geom = body.add_geom(size=[1, 0, 0])
+    self.assertNotEqual(geom.signature, model.signature)
+    with self.assertRaisesRegex(ValueError, 'does not match'):
+      model.bind(geom)
+
+    model = spec.compile()
+    self.assertEqual(geom.signature, model.signature)
+    self.assertEqual(model.bind(geom).id, 1)
 
 
 if __name__ == '__main__':

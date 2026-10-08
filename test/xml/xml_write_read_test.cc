@@ -43,32 +43,26 @@ std::vector<std::string> GetWriteReadTestModels() {
   for (const auto& path : {GetTestDataFilePath("."), GetModelPath(".")}) {
     for (const auto& p : std::filesystem::recursive_directory_iterator(path)) {
       if (p.path().extension() == ext) {
-        std::string xml = p.path().string();
-        if (  // if file is meant to fail, skip it
+        // generic format, so patterns containing '/' also match on Windows
+        std::string xml = p.path().generic_string();
+        if (  // intentional parse or compile failure tests
             absl::StrContains(xml, "malformed_") ||
             absl::StrContains(xml, "_fail") ||
-            // exclude files that are too slow to load
-            absl::StrContains(xml, "cow") || absl::StrContains(xml, "gmsh_") ||
-            absl::StrContains(xml, "shark_") ||
+            absl::StrContains(xml, "xml/testdata/parent_") ||
+            // large SDF, tetrahedral flex, or benchmark models too slow under
+            // sanitizers
+            absl::StrContains(xml, "cow") || absl::StrContains(xml, "shark_") ||
             absl::StrContains(xml, "perf") ||
-            // exclude files that fail the comparison test
-            absl::StrContains(xml, "rfcamera") ||
-            absl::StrContains(xml, "tactile") ||
-            absl::StrContains(xml, "makemesh") ||
-            absl::StrContains(xml, "carousel") ||
-            absl::StrContains(xml, "many_dependencies") ||
-            absl::StrContains(xml, "usd") ||
-            absl::StrContains(xml, "torus_maxhull") ||
-            absl::StrContains(xml, "fitmesh_") ||
-            absl::StrContains(xml, "lengthrange") ||
-            absl::StrContains(xml, "hfield_xml") ||
-            absl::StrContains(xml, "fromto_convex") ||
-            absl::StrContains(xml, "cube_skin") ||
-            absl::StrContains(xml, "cube_3x3x3") ||
-            // flex_stiffness: stretch amplifies geometry XML rounds on save
-            absl::StrContains(xml, "flex/bag") ||
-            // exclude conflict tests (known option conflict warnings/errors)
-            absl::StrContains(xml, "xml/testdata/parent_")) {
+            absl::StrContains(xml, "100_humanoids") ||
+            // last-bit float differences on arm64 (body_iquat, geom_sameframe)
+            absl::StrContains(xml, "fromto_body_body") ||
+            absl::StrContains(xml, "replicate/helix") ||
+            absl::StrContains(xml, "usd/plugins/mjcf/testdata/materials")
+#ifndef MJ_WITH_USD
+            // requires optional USD build support
+            || absl::StrContains(xml, "usd.xml")
+#endif
+        ) {
           continue;
         }
         models.push_back(xml);
@@ -90,16 +84,17 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
 
   // load model
   std::array<char, 1000> error;
-  mjSpec* s =
-      mj_parseXML(xml.c_str(), nullptr, error.data(), error.size());
+  mjSpec* s = mj_parseXML(xml.c_str(), nullptr, error.data(), error.size());
   if (!s) {
     GTEST_SKIP() << "Failed to load " << xml.c_str() << ": " << error.data();
   }
 
   mjModel* m = mj_compile(s, nullptr);
   if (!m) {
+    std::string error_message = mjs_getError(s);
     mj_deleteSpec(s);
-    GTEST_SKIP() << "Failed to compile " << xml.c_str() << ": " << error.data();
+    GTEST_SKIP() << "Failed to compile " << xml.c_str() << ": "
+                 << error_message;
   }
 
   // make data
@@ -116,7 +111,8 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
                 abs_path.remove_filename().string().c_str());
   mjModel* mtemp = mj_compile(stemp, nullptr);
 
-  ASSERT_THAT(mtemp, NotNull()) << error.data() << " from " << xml.c_str();
+  ASSERT_THAT(mtemp, NotNull())
+      << mjs_getError(stemp) << " from " << xml.c_str();
 
   mjtNum tol = 0;
 
@@ -136,8 +132,8 @@ TEST_P(WriteReadCompareTest, WriteReadCompare) {
 
   // check for stack memory leak
   mj_step(m, d);
-  EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " <<
-      xml << '\n';
+  EXPECT_EQ(d->pstack, 0) << "mjData stack memory leak detected in " << xml
+                          << '\n';
 
   // delete data
   mj_deleteData(d);
@@ -180,8 +176,8 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<std::string>& info) {
       std::string name = std::filesystem::path(info.param).filename().string();
       std::replace_if(
-          name.begin(), name.end(),
-          [](char c) { return !std::isalnum(c); }, '_');
+          name.begin(), name.end(), [](char c) { return !std::isalnum(c); },
+          '_');
       return name + "_" + std::to_string(info.index);
     });
 

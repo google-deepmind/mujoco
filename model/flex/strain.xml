@@ -28,7 +28,7 @@
       <flexcomp type="box" pos="-.24 0 .1" dim="3" spacing=".03 .01 .01"
                 radius=".001" rgba="0 .7 .7 1" mass=".5" name="left" dof="trilinear">
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false" friction="3"/>
+        <contact selfcollide="none" friction="3"/>
         <pin id="4 5 6 7"/>
       </flexcomp>
     </body>
@@ -37,7 +37,7 @@
       <flexcomp type="box" pos="-.24 0 .1" dim="3" spacing=".03 .01 .01"
                 radius=".001" rgba="0 .7 .7 1" mass=".5" name="right" dof="trilinear">
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false" friction="3"/>
+        <contact selfcollide="none" friction="3"/>
         <pin id="4 5 6 7"/>
       </flexcomp>
     </body>
@@ -46,7 +46,7 @@
       <flexcomp type="box" pos=".24 0 .1" dim="3" spacing=".03 .01 .01"
                 radius=".001" rgba="0 .7 .7 1" mass=".5" name="bottom" dof="trilinear">
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false" friction="3"/>
+        <contact selfcollide="none" friction="3"/>
         <pin id="0 1 2 3"/>
       </flexcomp>
     </body>
@@ -55,7 +55,7 @@
       <flexcomp type="box" pos=".24 0 .1" dim="3" spacing=".03 .01 .01"
                 radius=".001" rgba="0 .7 .7 1" mass=".5" name="top" dof="trilinear">
         <edge equality="strain"/>
-        <contact selfcollide="none" internal="false" friction="3"/>
+        <contact selfcollide="none" friction="3"/>
         <pin id="0 1 2 3"/>
       </flexcomp>
     </body>

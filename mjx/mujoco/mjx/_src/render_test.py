@@ -16,6 +16,7 @@
 
 import functools
 import os
+import tempfile
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -27,6 +28,7 @@ from mujoco.mjx._src import forward
 from mujoco.mjx._src import io
 import mujoco.mjx.warp as mjxw
 from mujoco.mjx.warp import test_util as tu
+from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
 import numpy as np
 
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
@@ -63,11 +65,21 @@ def _setup(batch_size):
 class RenderIntegrationTest(parameterized.TestCase):
   """Tests the full render → unpack pipeline."""
 
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    if mjxw.WARP_INSTALLED:
+      cls.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = cls.tempdir.name
+
+  @classmethod
+  def tearDownClass(cls):
+    super().tearDownClass()
+    if hasattr(cls, 'tempdir'):
+      cls.tempdir.cleanup()
+
   def setUp(self):
     super().setUp()
-    if mjxw.WARP_INSTALLED:
-      import warp  # pylint: disable=g-import-not-at-top
-      warp.config.kernel_cache_dir = '/tmp/wp_kernel_cache_dir_RenderIntTest'
     np.random.seed(0)
 
   def _maybe_skip(self):

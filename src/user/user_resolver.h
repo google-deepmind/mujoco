@@ -25,9 +25,12 @@ namespace mujoco {
 // Returns true on success (no errors). If errors are found, mutations are not
 // applied, and 'error_msg' will contain the summary. If warnings are generated
 // during resolution, 'warning_subject' and 'warning_body' will be populated.
-bool ResolveConflicts(mjSpec* parent, const mjSpec* child, mjtConflict mode,
-                      std::string* error_msg, std::string* warning_subject,
-                      std::string* warning_body);
+bool ResolveConflicts(mjSpec*       parent,
+                      const mjSpec* child,
+                      mjtConflict   mode,
+                      std::string*  error_msg,
+                      std::string*  warning_subject,
+                      std::string*  warning_body);
 
 }  // namespace mujoco
 

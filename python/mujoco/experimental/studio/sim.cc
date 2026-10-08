@@ -17,14 +17,14 @@
 #include <tuple>
 
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/platform/sim/sim_history.h>
-#include <mujoco/experimental/platform/sim/step_control.h>
+#include <mujoco/experimental/studio/sim/sim_history.h>
+#include <mujoco/experimental/studio/sim/step_control.h>
 #include "structs.h"
 #include <pybind11/pybind11.h>
 
 namespace py = pybind11;
 
-using StepControl = mujoco::platform::StepControl;
+using StepControl = mujoco::studio::StepControl;
 
 PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
   py::module_::import("mujoco._structs");
@@ -72,6 +72,9 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
            "Returns the current pause state.")
       .def("request_single_step", &StepControl::RequestSingleStep,
            "Request a single step if paused.")
+      .def("consume_single_step_request",
+           &StepControl::ConsumeSingleStepRequest,
+           "Returns whether a single step is pending, clearing the request.")
       .def(
           "get_noise_parameters",
           [](const StepControl& self) {
@@ -84,7 +87,7 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
            py::arg("noise_scale"), py::arg("noise_rate"),
            "Sets the noise parameters.");
 
-  using SimHistory = mujoco::platform::SimHistory;
+  using SimHistory = mujoco::studio::SimHistory;
   constexpr int max_history = 2048;
   constexpr int max_bytes = 128 * 1024 * 1024;  // 128 MiB
   py::class_<SimHistory>(m, "SimHistory")
@@ -96,6 +99,14 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
            "mjtNum states.")
       .def("get_index", &SimHistory::GetIndex,
            "Returns the current history offset (0 is the most recent state).")
+      .def(
+          "set_index",
+          [](SimHistory& self, int offset) { self.SetIndex(offset); },
+          py::arg("offset"),
+          "Sets the history offset (0 is the most recent state)."
+      )
       .def("size", &SimHistory::Size,
-           "Returns the number of recorded states.");
+           "Returns the number of recorded states.")
+      .def("set_size", &SimHistory::SetSize, py::arg("size"),
+           "Sets the number of recorded states.");
 }

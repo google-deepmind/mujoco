@@ -170,14 +170,14 @@ class SmoothTest(absltest.TestCase):
         <mujoco>
         <compiler autolimits="true"/>
         <worldbody>
-          <body>
+          <body quat="1 1 0 0">
             <joint type="free"/>
             <geom type="box" size=".05 .05 .05" mass="1"/>
-            <site name="site1"/>
-            <body>
+            <site name="site1" quat="1 0 1 0"/>
+            <body quat="1 0 0 1">
               <joint type="hinge"/>
               <geom size="0.1" mass="1"/>
-              <site name="site2" pos="0.1 0.2 0.3"/>
+              <site name="site2" pos="0.1 0.2 0.3" quat="0 1 1 0"/>
             </body>
           </body>
           <body pos="1 0 0">

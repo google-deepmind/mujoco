@@ -30,7 +30,7 @@
     <flexcomp type="ellipsoid" count="8 8 8" spacing=".07 .07 .07" pos="-.5 0 1" dim="3"
               radius=".001" rgba="0 .7 .7 1" mass="5" name="slow">
       <edge equality="true"/>
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
 </mujoco>

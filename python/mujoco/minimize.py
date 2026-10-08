@@ -508,10 +508,14 @@ def jacobian_fd(
     eps_vec = eps * np.ones((n, 1))
   else:
     mid = 0.5 * bounds[0] + 0.5 * bounds[1]
-    eps_vec = np.where(x > mid, -eps, eps)
+    # The midpoint can round to the upper bound for adjacent floats.
+    eps_vec = np.where((x > mid) | (x == bounds[1]), -eps, eps)
   eps_vec *= np.maximum(1.0, np.abs(x))
-  eps_vec = (eps_vec + x) - x
   xh = x + np.diag(eps_vec.flatten())
+  if bounds is not None:
+    np.clip(xh, bounds[0], bounds[1], out=xh)
+  # Use the actual step after rounding and clipping the evaluation points.
+  eps_vec = xh.diagonal()[:, None] - x
   rh = residual(xh)
   jac = (rh - r) / eps_vec.T
   return jac, n_res + n

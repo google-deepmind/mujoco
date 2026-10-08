@@ -29,17 +29,16 @@ namespace {
 
 static const char* const kDefaultModel = "testdata/model.xml";
 
-using ::testing::Pointwise;
 using ::testing::NotNull;
+using ::testing::Pointwise;
 using PipelineTest = MujocoTest;
-
 
 // sparse and dense pipelines should produce the same results, for all solvers
 TEST_F(PipelineTest, SparseDenseEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
   char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
-  ASSERT_THAT(model, NotNull())  << error;
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   const mjtNum tol = MjTol(1e-11, 1e-4);
@@ -127,7 +126,6 @@ TEST_F(PipelineTest, DeterministicNoWarmstart) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
-
 
 }  // namespace
 }  // namespace mujoco

@@ -92,7 +92,7 @@ public struct MjcfOptionFlag {
     Override = EnableDisableFlag.disable,
     Energy = EnableDisableFlag.disable,
     FwdInv = EnableDisableFlag.disable,
-    MultiCCD = EnableDisableFlag.disable
+    MultiCCD = EnableDisableFlag.enable
   };
 
   public void FromMjcf(XmlElement mjcf) {

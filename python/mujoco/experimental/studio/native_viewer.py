@@ -21,6 +21,7 @@ from typing import Any
 
 import mujoco
 from mujoco.experimental.studio import endpoints
+from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
@@ -90,7 +91,11 @@ class NativeViewer(viewer_protocol.Viewer):
     implot.set_implot_context(self._viewer.GetImPlotContext())
 
     # Dispatch lifecycle event so handlers can cache the viewer reference.
-    self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+    try:
+      self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+    except BaseException:
+      self.close()  # Release the C++ viewer on this thread, see close().
+      raise
 
   def _sync_renderer(self, model: mujoco.MjModel) -> None:
     """Re-initializes the renderer if the model object has changed."""
@@ -101,7 +106,7 @@ class NativeViewer(viewer_protocol.Viewer):
   def prepare_next_frame(self) -> bool:
     """Advances to the next frame; returns False when the window is closed."""
     if not self._viewer.NewFrame():
-      self._is_running = False
+      self.dispatch(messages.ExitEvent())
       return False
     return True
 
@@ -118,10 +123,24 @@ class NativeViewer(viewer_protocol.Viewer):
         self.extra_geoms,
     )
 
-  # TODO(matijak): Remove stop() and rename callers to close().
-  def stop(self) -> None:
-    """Stop the viewer."""
-    self.close()
+  def close(self) -> None:
+    """Close the viewer and explicitly destroy the renderer.
+
+    The C++ Viewer (and its FilamentRenderer) must be destroyed on the same
+    thread that created it, because Filament's FEngine::destroy() asserts
+    thread affinity.  Without this override the pybind11 prevent object would
+    be garbage-collected on the main thread, triggering a SIGABRT.
+    """
+    try:
+      if self._is_running:
+        self._is_running = False
+        self.dispatch(messages.ExitEvent())
+    finally:
+      # Destroy the C++ viewer *before* closing the endpoint so that the
+      # FilamentRenderer destructor runs on the daemon/viewer thread, even if
+      # an ExitEvent handler raised.
+      self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
+      super().close()
 
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""

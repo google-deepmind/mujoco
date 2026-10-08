@@ -36,8 +36,6 @@ public const bool MJAPI = true;
 public const bool MJLOCAL = true;
 public const bool THIRD_PARTY_MUJOCO_MJMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJMODEL_H_ = true;
-public const double mjPI = 3.141592653589793;
-public const double mjMAXVAL = 10000000000.0;
 public const double mjMINMU = 1e-05;
 public const double mjMINIMP = 0.0001;
 public const double mjMAXIMP = 0.9999;
@@ -71,6 +69,8 @@ public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJSPEC_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJSPECMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJTYPE_H_ = true;
 public const double mjMINVAL = 1e-15;
+public const double mjMAXVAL = 10000000000.0;
+public const double mjPI = 3.141592653589793;
 public const bool THIRD_PARTY_MUJOCO_MJUI_H_ = true;
 public const int mjMAXUISECT = 10;
 public const int mjMAXUIITEM = 200;
@@ -118,7 +118,7 @@ public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3012001;
+public const int mjVERSION_HEADER = 3015001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -152,7 +152,8 @@ public enum mjtEnableBit : int{
   mjENBL_INVDISCRETE = 8,
   mjENBL_SLEEP = 16,
   mjENBL_DIAGEXACT = 32,
-  mjNENABLE = 6,
+  mjENBL_IPC = 64,
+  mjNENABLE = 7,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -227,6 +228,7 @@ public enum mjtIntegrator : int{
   mjINT_RK4 = 1,
   mjINT_IMPLICIT = 2,
   mjINT_IMPLICITFAST = 3,
+  mjINT_DISCRETE = 4,
 }
 public enum mjtCone : int{
   mjCONE_PYRAMIDAL = 0,
@@ -307,6 +309,7 @@ public enum mjtCtrlInput : int{
   mjINPUT_FF = 4,
   mjINPUT_VOLTAGE = 8,
   mjINPUT_NONE = 16,
+  mjINPUT_PRESSURE = 32,
 }
 public enum mjtObj : int{
   mjOBJ_UNKNOWN = 0,
@@ -606,6 +609,20 @@ public enum mjtConflict : int{
   mjCONFLICT_WARNING = 0,
   mjCONFLICT_MERGE = 1,
   mjCONFLICT_ERROR = 2,
+}
+public enum mjtActuator : int{
+  mjACTUATOR_GENERAL = 0,
+  mjACTUATOR_MOTOR = 1,
+  mjACTUATOR_POSITION = 2,
+  mjACTUATOR_VELOCITY = 3,
+  mjACTUATOR_INTVELOCITY = 4,
+  mjACTUATOR_DAMPER = 5,
+  mjACTUATOR_CYLINDER = 6,
+  mjACTUATOR_MUSCLE = 7,
+  mjACTUATOR_ADHESION = 8,
+  mjACTUATOR_PID = 9,
+  mjACTUATOR_ORIENTATION = 10,
+  mjACTUATOR_DCMOTOR = 11,
 }
 public enum mjtCTimer : int{
   mjCTIMER_TOTAL = 0,
@@ -1069,7 +1086,6 @@ public unsafe struct mjModel_ {
   public UInt64 nefm0L;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
-  public UInt64 nflexevpair;
   public UInt64 nflextexcoord;
   public UInt64 nJfe;
   public UInt64 nJfv;
@@ -1248,6 +1264,7 @@ public unsafe struct mjModel_ {
   public float* geom_rgba;
   public int* site_type;
   public int* site_bodyid;
+  public int* site_dataid;
   public int* site_matid;
   public int* site_group;
   public byte* site_sameframe;
@@ -1304,7 +1321,6 @@ public unsafe struct mjModel_ {
   public double* flex_friction;
   public double* flex_margin;
   public double* flex_gap;
-  public byte* flex_internal;
   public int* flex_selfcollide;
   public int* flex_activelayers;
   public int* flex_passive;
@@ -1327,8 +1343,6 @@ public unsafe struct mjModel_ {
   public int* flex_bendingadr;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
-  public int* flex_evpairadr;
-  public int* flex_evpairnum;
   public int* flex_texcoordadr;
   public int* flex_nodebodyid;
   public int* flex_vertbodyid;
@@ -1342,7 +1356,6 @@ public unsafe struct mjModel_ {
   public int* flex_elemedge;
   public int* flex_elemlayer;
   public int* flex_shell;
-  public int* flex_evpair;
   public double* flex_vert;
   public double* flex_vert0;
   public double* flex_vertmetric;
@@ -5732,6 +5745,9 @@ public unsafe struct mjData_ {
   public int nJ;
   public int efm_active;
   public int nefmK;
+  public int nefmcon;
+  public int nefmT;
+  public int nefmA;
   public int nefmdof;
   public int nefmL;
   public int nY;
@@ -5790,11 +5806,16 @@ public unsafe struct mjData_ {
   public double* flexvert_xpos;
   public double* flexelem_aabb;
   public double* flexelem_krot;
+  public byte* flex_hessian_valid;
+  public double* flexvert_hessian;
+  public double* flexedge_hessian;
   public double* flexedge_J;
   public double* flexedge_length;
   public double* flexvert_J;
   public double* flexvert_length;
   public double* bvh_aabb_dyn;
+  public double* flexvert_lambda;
+  public int* flexvert_conage;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public double* ten_J;
@@ -5895,11 +5916,24 @@ public unsafe struct mjData_ {
   public double* efc_vel;
   public double* efc_aref;
   public double* efm_c;
+  public double* efm_diag;
+  public double* efm_ck;
+  public double* efm_sdiag;
+  public double* efm_fluid;
+  public int* efm_tid;
+  public double* efm_ts;
+  public double* efm_tk;
+  public int* efm_aid;
+  public double* efm_as;
+  public double* efm_ak;
+  public double* efm_ca;
   public int* efm_K_rownnz;
   public int* efm_K_rowadr;
   public int* efm_K_colind;
   public double* efm_K_val;
   public int* efm_dofid;
+  public int* efm_con_ind;
+  public double* efm_con_val;
   public double* efm_L;
   public double* efc_b;
   public double* iefc_aref;
@@ -5927,6 +5961,8 @@ public unsafe struct mjsCompiler_ {
   public mjtInertiaFromGeom inertiafromgeom;
   public fixed int inertiagrouprange[2];
   public byte saveinertial;
+  public byte savecompiled;
+  public byte savecanonical;
   public byte alignfree;
   public mjtConflict conflict;
   public mjLROpt_ LRopt;
@@ -6804,13 +6840,13 @@ public static unsafe extern void mj_defaultVisual(mjVisual_* vis);
 public static unsafe extern mjModel_* mj_copyModel(mjModel_* dest, mjModel_* src);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_saveModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, void* buffer, int buffer_sz);
+public static unsafe extern void mj_saveModel(mjModel_* m, [MarshalAs(UnmanagedType.LPStr)]string filename, void* buffer, UInt64 buffer_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjModel_* mj_loadModel([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern mjModel_* mj_loadModelBuffer(void* buffer, int buffer_sz);
+public static unsafe extern mjModel_* mj_loadModelBuffer(void* buffer, UInt64 buffer_sz);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteModel(mjModel_* m);
@@ -7041,7 +7077,7 @@ public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* st
 public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_readCtrl(mjModel_* m, mjData_* d, int id, double time, int interp);
+public static unsafe extern double* mj_readCtrl(mjModel_* m, mjData_* d, int id, double time, double* result, int interp);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double* mj_readSensor(mjModel_* m, mjData_* d, int id, double time, double* result, int interp);
@@ -7132,6 +7168,9 @@ public static unsafe extern void mj_objectAcceleration(mjModel_* m, mjData_* d, 
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mj_geomDistance(mjModel_* m, mjData_* d, int geom1, int geom2, double distmax, double* fromto);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mj_insideSite(mjModel_* m, mjData_* d, int siteid, double* point);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_contactForce(mjModel_* m, mjData_* d, int id, double* result);

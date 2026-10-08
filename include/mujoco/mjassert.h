@@ -102,6 +102,7 @@ MJ_ASSERT_SIZE(mjtLimited, 4);
 MJ_ASSERT_SIZE(mjtAlignFree, 4);
 MJ_ASSERT_SIZE(mjtInertiaFromGeom, 4);
 MJ_ASSERT_SIZE(mjtOrientation, 4);
+MJ_ASSERT_SIZE(mjtActuator, 4);
 
 // mjvisualize.h
 MJ_ASSERT_SIZE(mjtCatBit, 4);

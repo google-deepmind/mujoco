@@ -17,6 +17,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -319,6 +320,41 @@ TEST_F(EllipsoidFluidTest, DefaultsPropagate) {
               ElementsAre(1, 2, 3, 4, 5, 6));
 }
 
+TEST_F(EllipsoidFluidTest, KuttaLiftLowSpeedScaling) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option density="1.225"/>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="ellipsoid" size=".025 .01 .001" euler="0 -30 0"
+              fluidshape="ellipsoid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // reference lift/v^2 at v = 10 m/s
+  d->qvel[0] = 10.0;
+  mj_forward(m.get(), d.get());
+  const mjtNum ref_lift_coeff = d->qfrc_fluid[2] / (10.0 * 10.0);
+  EXPECT_GT(ref_lift_coeff, 0.0);
+
+  // verify exact v^2 scaling at low speeds (1 m/s, 0.1 m/s, 1 cm/s, 1 mm/s)
+  for (mjtNum v : {1.0, 0.1, 0.01, 0.001}) {
+    mj_resetData(m.get(), d.get());
+    d->qvel[0] = v;
+    mj_forward(m.get(), d.get());
+    EXPECT_NEAR(d->qfrc_fluid[2] / (v * v), ref_lift_coeff,
+                MjTol(1e-12, 1e-5) * ref_lift_coeff);
+  }
+}
+
 // ------------------------------ tendons --------------------------------------
 
 using TendonTest = MujocoTest;
@@ -327,8 +363,9 @@ using TendonTest = MujocoTest;
 TEST_F(TendonTest, SpringrangeDeadband) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/tendon_springlength.xml");
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // initial state outside deadband: spring is active
@@ -347,6 +384,9 @@ TEST_F(TendonTest, SpringrangeDeadband) {
 }
 
 // -------------------------------- flex ------------------------------------
+
+constexpr int kFlexStiffnessStride2D = 21;
+constexpr int kFlexStiffnessStride3D = 24;
 
 using ElasticityTest = MujocoTest;
 
@@ -462,6 +502,7 @@ TEST_F(ElasticityTest, CurvedShell) {
   ASSERT_THAT(m.get(), testing::NotNull()) << error;
   MjDataPtr d = MakeData(m);
   mj_kinematics(m.get(), d.get());
+  mj_comPos(m.get(), d.get());
   mj_flex(m.get(), d.get());
   mj_passive(m.get(), d.get());
 
@@ -499,7 +540,8 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
 
   mj_kinematics(m.get(), d.get());
   mj_flex(m.get(), d.get());
-  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
+  mjtNum* metric =
+      m->flex_stiffness + kFlexStiffnessStride2D * m->flex_elemadr[0];
 
   // check that if the entire geometry is rescaled by a factor "scale", then
   // trace(strain^2) = 2*scale^2
@@ -517,8 +559,8 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
           mjtNum elong2 =
               scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy +=
-              metric[21 * t + idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
+          energy += metric[kFlexStiffnessStride2D * t + idx++] * elong1 *
+                    elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
       const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-5);
@@ -548,7 +590,7 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
 
   mj_kinematics(m.get(), d.get());
   mj_flex(m.get(), d.get());
-  mjtNum* metric = m->flex_stiffness + 21 * m->flex_elemadr[0];
+  mjtNum* metric = m->flex_stiffness + m->flex_stiffnessadr[0];
 
   // check that if the entire geometry is rescaled by a factor "scale", then
   // trace(strain^2) = 3*scale^2
@@ -566,12 +608,216 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
               scale * m->flexedge_length0[idx1] * m->flexedge_length0[idx1];
           mjtNum elong2 =
               scale * m->flexedge_length0[idx2] * m->flexedge_length0[idx2];
-          energy +=
-              metric[21 * t + idx++] * elong1 * elong2 * (e1 == e2 ? 1. : 2.);
+          energy += metric[kFlexStiffnessStride3D * t + idx++] * elong1 *
+                    elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
       const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
       EXPECT_NEAR(energy / volume, 3 * scale * scale, tol);
+    }
+  }
+}
+
+// Evaluate the expanded energy independently of the engine's derivative
+// helpers.
+static mjtNum SNHElementEnergy(const mjtNum* k, const mjtNum s[6], mjtNum J) {
+  mjtNum energy = k[22] * (J - 1) * (J - 1);
+  int index = 0;
+  for (int i = 0; i < 6; i++) {
+    for (int j = i; j < 6; j++) {
+      energy += (i == j ? .25 : .5) * k[index++] * s[i] * s[j];
+    }
+  }
+  mjtNum a = s[0], b = s[2], c = s[4];
+  mjtNum d = 0.5 * (a + b - s[1]), e = 0.5 * (a + c - s[5]);
+  mjtNum f = 0.5 * (b + c - s[3]);
+  return energy + k[21] * (a * b * c + 2 * d * e * f - a * f * f - b * e * e -
+                           c * d * d);
+}
+
+// Every tetrahedral record reproduces the compact SNH energy under signed
+// dilation.
+TEST_F(ElasticityTest, SNHEnergySolid) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp type="grid" count="3 3 3" spacing="1 1 1" name="test" dim="3">
+        <elasticity young="2" poisson="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  spec->option.integrator = mjINT_DISCRETE;
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "test"))->elastic3d = 1;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
+  ASSERT_THAT(m.get(), NotNull());
+  EXPECT_EQ(m->nflexstiffness, kFlexStiffnessStride3D * m->nflexelem);
+  for (mjtNum scale :
+       {mjtNum(-1), mjtNum(0), mjtNum(.3), mjtNum(1), mjtNum(2)}) {
+    mjtNum scale2 = scale * scale;
+    mjtNum J = scale2 * scale;
+    mjtNum expected =
+        (1.5 * (scale2 - 1) - (J - 1) + .5 * (J - 1) * (J - 1)) / 6;
+    for (int t = 0; t < m->nflexelem; t++) {
+      const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[0] +
+                        kFlexStiffnessStride3D * t;
+      mjtNum s[6];
+      for (int e = 0; e < 6; e++) {
+        int idx = m->flex_elemedge[m->flex_elemedgeadr[0] + 6 * t + e];
+        mjtNum length = m->flexedge_length0[m->flex_edgeadr[0] + idx];
+        s[e] = length * length * (scale2 - 1);
+      }
+      EXPECT_NEAR(SNHElementEnergy(k, s, J), expected, MjTol(1e-12, 1e-5));
+    }
+  }
+}
+
+// Independent deformation-gradient evaluation on an irregular reference
+// tetrahedron.
+static mjtNum SNHEnergy(const mjData* d) {
+  const mjtNum* p = d->flexvert_xpos;
+  mjtNum F[9];
+  for (int x = 0; x < 3; x++) {
+    F[3 * x] = p[3 + x] - p[x];
+    F[3 * x + 1] = (p[6 + x] - p[x] - .2 * F[3 * x]) / .9;
+    F[3 * x + 2] = (p[9 + x] - p[x] + .1 * F[3 * x] - .3 * F[3 * x + 1]) / 1.1;
+  }
+  mjtNum J = F[0] * (F[4] * F[8] - F[5] * F[7]) -
+             F[1] * (F[3] * F[8] - F[5] * F[6]) +
+             F[2] * (F[3] * F[7] - F[4] * F[6]);
+  mjtNum mu = 1000 / (2 * 1.3), lambda = 1000 * .3 / (1.3 * .4);
+  return (.9 * 1.1 / 6) * (.5 * mu * (mju_dot(F, F, 9) - 3) - mu * (J - 1) +
+                           .5 * (lambda + mu) * (J - 1) * (J - 1));
+}
+
+TEST_F(ElasticityTest, SNHForceThroughInversion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  .2 .9 0  -.1 .3 1.1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  for (bool reverse : {false, true}) {
+    SCOPED_TRACE(reverse);
+    std::string source = xml;
+    if (reverse) {
+      source.replace(source.find("element=\"0 1 2 3\""),
+                     std::string("element=\"0 1 2 3\"").size(),
+                     "element=\"0 2 1 3\"");
+    }
+    mjSpec* spec = mj_parseXMLString(source.c_str(), nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    spec->option.integrator = mjINT_DISCRETE;
+    mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
+    MjModelPtr m(mj_compile(spec, nullptr));
+    mj_deleteSpec(spec);
+    ASSERT_THAT(m.get(), NotNull());
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+    std::vector<mjtNum> rest(d->flexvert_xpos, d->flexvert_xpos + 12);
+    // Full rank, reflected, flat, rank one, and rank zero, with a nontrivial
+    // rotation.
+    for (mjtNum scale :
+         {mjtNum(1), mjtNum(.1), mjtNum(0), mjtNum(-.1), mjtNum(-1)}) {
+      for (int rank = 1; rank <= 3; rank++) {
+        for (int v = 0; v < 4; v++) {
+          int adr = m->body_dofadr[m->flex_vertbodyid[v]];
+          mjtNum x = rank > 1 ? rest[3 * v] + .3 * rest[3 * v + 1] : 0;
+          mjtNum y = rank > 2 ? rest[3 * v + 1] : 0;
+          mjtNum z = scale * rest[3 * v + 2];
+          d->qpos[adr] = .8 * x - .6 * y - rest[3 * v];
+          d->qpos[adr + 1] = .6 * x + .8 * y - rest[3 * v + 1];
+          d->qpos[adr + 2] = z - rest[3 * v + 2];
+        }
+        mj_forward(m.get(), d.get());
+        mjtNum s[6], a[3], b[3], c[3], cross[3];
+        for (int e = 0; e < 6; e++) {
+          int idx = m->flex_elemedge[e];
+          s[e] = d->flexedge_length[idx] * d->flexedge_length[idx] -
+                 m->flexedge_length0[idx] * m->flexedge_length0[idx];
+        }
+        const int* vert = m->flex_elem;
+        mju_sub3(a, d->flexvert_xpos + 3 * vert[1],
+                 d->flexvert_xpos + 3 * vert[0]);
+        mju_sub3(b, d->flexvert_xpos + 3 * vert[2],
+                 d->flexvert_xpos + 3 * vert[0]);
+        mju_sub3(c, d->flexvert_xpos + 3 * vert[3],
+                 d->flexvert_xpos + 3 * vert[0]);
+        mju_cross(cross, b, c);
+        mjtNum J = m->flex_stiffness[23] * mju_dot3(a, cross);
+        EXPECT_NEAR(SNHElementEnergy(m->flex_stiffness, s, J),
+                    SNHEnergy(d.get()), MjTol(1e-10, 1e-3));
+        std::vector<mjtNum> force(d->qfrc_spring, d->qfrc_spring + m->nv);
+        mjtNum eps = MjEps(1e-6, 1e-3);
+        for (int i = 0; i < m->nv; i++) {
+          mjtNum saved = d->qpos[i];
+          d->qpos[i] = saved + eps;
+          mj_forward(m.get(), d.get());
+          mjtNum plus = SNHEnergy(d.get());
+          d->qpos[i] = saved - eps;
+          mj_forward(m.get(), d.get());
+          mjtNum minus = SNHEnergy(d.get());
+          d->qpos[i] = saved;
+          mjtNum fd = -(plus - minus) / (2 * eps);
+          EXPECT_TRUE(std::isfinite(force[i]));
+          EXPECT_NEAR(force[i], fd, MjTol(1e-6, .2));
+        }
+      }
+    }
+  }
+}
+
+// An inverted tetrahedron must recover without internal contacts, for both the
+// assembled (Newton) and matrix-free (CG) discrete integration paths.
+TEST_F(ElasticityTest, SNHInversionRecovery) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" tolerance="1e-10"/>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson=".3" damping=".03"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"))->elastic3d = 1;
+  MjModelPtr m(mj_compile(spec, nullptr));
+  mj_deleteSpec(spec);
+  ASSERT_THAT(m.get(), NotNull());
+  ASSERT_EQ(m->nv, 3);
+  MjDataPtr d = MakeData(m);
+  for (int solver : {mjSOL_CG, mjSOL_NEWTON}) {
+    m->opt.solver = solver;
+    for (mjtNum timestep : {mjtNum(.001), mjtNum(.01), mjtNum(.03)}) {
+      m->opt.timestep = timestep;
+      mj_resetData(m.get(), d.get());
+      // vertex 3 rest z is 1, so displacement qpos[2] = -1.5 places it at
+      // z = -0.5, giving J = V/V0 = -0.5 (inverted)
+      d->qpos[2] = -1.5;
+      for (int i = 0; i < 2000; i++) {
+        mj_step(m.get(), d.get());
+        ASSERT_TRUE(std::isfinite(d->qpos[2]));
+        ASSERT_LT(mju_abs(d->qpos[2]), 3);
+      }
+      EXPECT_NEAR(d->qpos[2], 0, MjTol(1e-6, 1e-4));
+      for (int warning = 0; warning < mjNWARNING; warning++) {
+        EXPECT_EQ(d->warning[warning].number, 0);
+      }
+      EXPECT_EQ(d->ncon, 0);
     }
   }
 }
@@ -801,7 +1047,7 @@ TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
                 mass="5" name="softbody" dof="trilinear">
         <elasticity young="1e4" poisson="0.1" damping="0.01"
                     elastic2d="stretch" thickness="0.02"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -821,6 +1067,112 @@ TEST_F(ElasticityTest, ShellModeZeroForceAtRest) {
   }
 }
 
+// flex stretch damping must exert exactly no force at zero velocity
+TEST_F(ElasticityTest, StretchDampingZeroVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp type="grid" count="3 3 3" spacing=".1 .1 .1" radius=".01" dim="3" mass="1" name="solid">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="10"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // deform at zero velocity
+  for (int i = 0; i < m->nv; i++) {
+    d->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> damped(d->qfrc_passive, d->qfrc_passive + m->nv);
+  EXPECT_GT(mju_norm(damped.data(), m->nv), 1)
+      << "test should exercise a nontrivial stretch force";
+
+  // the same state without damping must give bitwise the same force
+  m->flex_damping[0] = 0;
+  mj_forward(m.get(), d.get());
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_EQ(d->qfrc_passive[i], damped[i]) << "damping force at DOF " << i;
+  }
+}
+
+// the spring and damper flags each disable their part of the flex stretch
+// force, and its Rayleigh damping is booked in qfrc_damper. The solid's
+// vertices are simple bodies; the cloth's, under a moving parent and with a
+// pinned vertex, are not.
+TEST_F(ElasticityTest, StretchDisableFlags) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="3 3 3" spacing=".1 .1 .1" radius=".01" dim="3" mass="1" name="solid">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="10"/>
+      </flexcomp>
+      <body name="parent" pos="1 0 0">
+        <joint type="slide" axis="1 0 0"/>
+        <geom size=".01" mass="1" contype="0" conaffinity="0"/>
+        <flexcomp type="grid" count="3 3 1" spacing=".1 .1 .1" radius=".01" dim="2" mass="1" name="cloth">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e4" poisson="0.3" thickness="1e-2" elastic2d="stretch" damping="10"/>
+          <pin id="0"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  int nv = m->nv;
+
+  // deform, with nonzero velocity
+  for (int i = 0; i < nv; i++) {
+    d->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+    d->qvel[i] = 1e-3 * (mju_Halton(i, 3) - 0.5);
+  }
+
+  // stretch spring force: the same state without damping
+  std::vector<mjtNum> damping(m->flex_damping, m->flex_damping + m->nflex);
+  for (int f = 0; f < m->nflex; f++) {
+    m->flex_damping[f] = 0;
+  }
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> spring = AsVector(d->qfrc_spring, nv);
+  EXPECT_GT(mju_norm(spring.data(), nv), 1)
+      << "test should exercise a nontrivial stretch force";
+
+  // both enabled: the damping is booked in qfrc_damper
+  for (int f = 0; f < m->nflex; f++) {
+    m->flex_damping[f] = damping[f];
+  }
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> damper = AsVector(d->qfrc_damper, nv);
+  EXPECT_GT(mju_norm(damper.data(), nv), 1)
+      << "test should exercise a nontrivial damping force";
+  EXPECT_EQ(AsVector(d->qfrc_spring, nv), spring);
+
+  // spring disabled: only the damping remains
+  std::vector<mjtNum> zero(nv, 0);
+  m->opt.disableflags = mjDSBL_SPRING;
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(AsVector(d->qfrc_spring, nv), zero);
+  EXPECT_EQ(AsVector(d->qfrc_damper, nv), damper);
+
+  // damper disabled: only the spring remains
+  m->opt.disableflags = mjDSBL_DAMPER;
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(AsVector(d->qfrc_spring, nv), spring);
+  EXPECT_EQ(AsVector(d->qfrc_damper, nv), zero);
+}
 // interpolated shell bending must produce zero spring forces at rest
 TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
   static constexpr char xml[] = R"(
@@ -832,7 +1184,7 @@ TEST_F(ElasticityTest, InterpBendingZeroForceAtRest) {
                 mass="5" name="softbody" dof="trilinear">
         <elasticity young="1e4" poisson="0.1" damping="0"
                     elastic2d="bend" thickness="0.02"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -895,7 +1247,7 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
                 mass="5" name="softbody" dof="trilinear">
         <elasticity young="1e5" poisson="0.3" damping="0"
                     elastic2d="bend" thickness="0.03"/>
-        <contact selfcollide="none" internal="false"/>
+        <contact selfcollide="none"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -966,7 +1318,6 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   }
 }
 
-
 // verify that a pinned vertex (on a static body) gets zero bending force
 // while its free neighbors get nonzero bending force
 TEST_F(ElasticityTest, PinnedVertexBendingForce) {
@@ -1015,14 +1366,14 @@ TEST_F(ElasticityTest, PinnedVertexBendingForce) {
 TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   static constexpr char rotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.0005" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0" quat="0.7071 0 0.7071 0">
         <flexcomp type="grid" count="3 3 3" spacing=".05 .05 .05"
                   dim="3" radius=".001" mass=".005" name="soft" dof="trilinear">
           <elasticity young="1e4" poisson="0.1" damping="0.1"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1030,14 +1381,14 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   )";
   static constexpr char nonrotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.0005" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0">
         <flexcomp type="grid" count="3 3 3" spacing=".05 .05 .05"
                   dim="3" radius=".001" mass=".005" name="soft" dof="trilinear">
           <elasticity young="1e4" poisson="0.1" damping="0.1"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1062,7 +1413,8 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   mj_forward(m_rot.get(), d_rot.get());
   mj_forward(m_non.get(), d_non.get());
 
-  // check force sign on the displaced DOF: positive qpos -> negative qfrc (restoring)
+  // check force sign on the displaced DOF: positive qpos -> negative qfrc
+  // (restoring)
   EXPECT_LT(d_rot->qfrc_passive[0], 0)
       << "rotated model: expected restoring force on displaced DOF 0";
   EXPECT_LT(d_non->qfrc_passive[0], 0)
@@ -1093,7 +1445,6 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
   EXPECT_LT(max_qacc, 1e4);
 }
 
-
 // A dim=2 flexcomp with bending elasticity inside a parent body with a
 // non-identity quaternion. The implicit metric assembles the bending
 // stiffness from world-space vertex positions, but the vertex bodies' slide
@@ -1104,7 +1455,7 @@ TEST_F(ElasticityTest, TrilinearParentBodyRotation) {
 TEST_F(ElasticityTest, BendParentBodyRotation) {
   static constexpr char rotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0" quat="0.7071 0.7071 0 0">
@@ -1112,7 +1463,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-2"
                       elastic2d="bend"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1120,7 +1471,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
   )";
   static constexpr char nonrotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0">
@@ -1128,7 +1479,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-2"
                       elastic2d="bend"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1191,7 +1542,7 @@ TEST_F(ElasticityTest, BendParentBodyRotation) {
 TEST_F(ElasticityTest, StretchParentBodyRotation) {
   static constexpr char rotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0" quat="0.7071 0.7071 0 0">
@@ -1199,7 +1550,7 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-3"
                       elastic2d="stretch"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -1207,7 +1558,7 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
   )";
   static constexpr char nonrotated_xml[] = R"(
   <mujoco>
-    <option gravity="0 0 0" integrator="implicitfast"
+    <option gravity="0 0 0" integrator="discrete"
             timestep="0.001" solver="CG"/>
     <worldbody>
       <body name="base" pos="0 0 0">
@@ -1215,7 +1566,7 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
                   dim="2" radius=".001" mass=".01" name="sheet">
           <elasticity young="1e5" poisson="0" thickness="1e-3"
                       elastic2d="stretch"/>
-          <contact selfcollide="none" internal="false"/>
+          <contact selfcollide="none"/>
         </flexcomp>
       </body>
     </worldbody>

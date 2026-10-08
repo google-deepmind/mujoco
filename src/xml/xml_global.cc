@@ -37,11 +37,10 @@ class GlobalModel {
  private:
   // using raw pointers as GlobalModel needs to be trivially destructible
   std::mutex* mutex_ = new std::mutex();
-  mjSpec* spec_ = nullptr;
+  mjSpec*     spec_  = nullptr;
 };
 
-std::string GlobalModel::ToXML(const mjModel* m, char* error,
-                                              int error_sz) {
+std::string GlobalModel::ToXML(const mjModel* m, char* error, int error_sz) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (!spec_) {
     mjCopyError(error, "No XML model loaded", error_sz);
@@ -54,14 +53,10 @@ GlobalModel& GetGlobalModel();
 
 void GlobalModel::Set(mjSpec* spec) {
   static std::once_flag atexit_once;
-  std::call_once(atexit_once, []() {
-    std::atexit([]() { GetGlobalModel().Set(nullptr); });
-  });
+  std::call_once(atexit_once, []() { std::atexit([]() { GetGlobalModel().Set(nullptr); }); });
 
   std::lock_guard<std::mutex> lock(*mutex_);
-  if (spec_ != nullptr) {
-    mj_deleteSpec(spec_);
-  }
+  if (spec_ != nullptr) { mj_deleteSpec(spec_); }
   spec_ = spec;
 }
 

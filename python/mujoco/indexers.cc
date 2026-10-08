@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mujoco.h>
 #include "gil.h"
 #include "indexers.h"
 #include "raw.h"
@@ -87,7 +88,7 @@ IDToName MakeIDToName(int count, IntPtr name_offsets, CharPtr names) {
 template <auto MjSize, typename T>
 py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
                          const raw::MjModel& m, py::handle owner) {
-  int offset;
+  mjtSize offset;
   if (MjSize == &raw::MjModel::nq) {
     offset = m.jnt_qposadr[index];
     shape.insert(
@@ -149,7 +150,7 @@ NameToIDMappings::NameToIDMappings(const raw::MjModel& m)
       exclude(MakeNameToID(m.nexclude, m.name_excludeadr, m.names)),
       eq(MakeNameToID(m.neq, m.name_eqadr, m.names)),
       tendon(MakeNameToID(m.ntendon, m.name_tendonadr, m.names)),
-      actuator(MakeNameToID(m.nu, m.name_actuatoradr, m.names)),
+      actuator(MakeNameToID(m.nactuator, m.name_actuatoradr, m.names)),
       sensor(MakeNameToID(m.nsensor, m.name_sensoradr, m.names)),
       numeric(MakeNameToID(m.nnumeric, m.name_numericadr, m.names)),
       text(MakeNameToID(m.ntext, m.name_textadr, m.names)),
@@ -172,7 +173,7 @@ IDToNameMappings::IDToNameMappings(const raw::MjModel& m)
       exclude(MakeIDToName(m.nexclude, m.name_excludeadr, m.names)),
       eq(MakeIDToName(m.neq, m.name_eqadr, m.names)),
       tendon(MakeIDToName(m.ntendon, m.name_tendonadr, m.names)),
-      actuator(MakeIDToName(m.nu, m.name_actuatoradr, m.names)),
+      actuator(MakeIDToName(m.nactuator, m.name_actuatoradr, m.names)),
       sensor(MakeIDToName(m.nsensor, m.name_sensoradr, m.names)),
       numeric(MakeIDToName(m.nnumeric, m.name_numericadr, m.names)),
       text(MakeIDToName(m.ntext, m.name_textadr, m.names)),

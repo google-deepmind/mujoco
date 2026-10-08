@@ -25,12 +25,11 @@
 
 namespace mujoco::plugin::elasticity {
 
-struct PairHash
-{
-    template <class T1, class T2>
-    std::size_t operator() (const std::pair<T1, T2>& pair) const {
-        return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
-    }
+struct PairHash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2>& pair) const {
+    return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+  }
 };
 
 struct Stencil2D {
@@ -50,8 +49,8 @@ struct Stencil3D {
   static constexpr int kNumFaces = 3;
   static constexpr int edge[kNumEdges][2] = {{0, 1}, {1, 2}, {2, 0},
                                              {2, 3}, {0, 3}, {1, 3}};
-  static constexpr int face[kNumVerts][3] = {{2, 1, 0}, {0, 1, 3},
-                                             {1, 2, 3}, {2, 0, 3}};
+  static constexpr int face[kNumVerts][3] = {
+      {2, 1, 0}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3}};
   static constexpr int edge2face[kNumEdges][2] = {{2, 3}, {1, 3}, {2, 1},
                                                   {1, 0}, {0, 2}, {0, 3}};
   int vertices[kNumVerts];
