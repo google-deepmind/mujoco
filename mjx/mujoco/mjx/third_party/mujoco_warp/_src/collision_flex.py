@@ -24,6 +24,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_core import sap_binary_se
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import sap_range
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import ccd
 from mujoco.mjx.third_party.mujoco_warp._src.math import make_frame
+from mujoco.mjx.third_party.mujoco_warp._src.math import orthogonals
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAFACES
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAX_EPAHORIZON
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
@@ -421,6 +422,113 @@ def _write_candidate(
     cand_elem_out[candid] = wp.vec2i(-1, elemid)
     cand_vert_out[candid] = wp.vec2i(vertid, -1)
   cand_worldid_out[candid] = worldid
+
+
+@wp.func
+def _collide_geom_capsule_detect(
+  # In:
+  max_candidates: int,
+  gtype: int,
+  pos: wp.vec3,
+  rot: wp.mat33,
+  size_val: wp.vec3,
+  cap_pos: wp.vec3,
+  cap_axis: wp.vec3,
+  cap_radius: float,
+  cap_half_len: float,
+  margin: float,
+  geomid: int,
+  flexid: int,
+  elemid: int,
+  vertex_id: int,
+  worldid: int,
+  warn_overflow: bool,
+  # Data out:
+  overflow_out: wp.array[int],
+  # Out:
+  cand_dist_out: wp.array[float],
+  cand_pos_out: wp.array[wp.vec3],
+  cand_nrm_out: wp.array[wp.vec3],
+  cand_geom_out: wp.array[wp.vec2i],
+  cand_flex_out: wp.array[wp.vec2i],
+  cand_elem_out: wp.array[wp.vec2i],
+  cand_vert_out: wp.array[wp.vec2i],
+  cand_worldid_out: wp.array[int],
+  ncand_out: wp.array[int],
+):
+  if gtype == int(GeomType.SPHERE):
+    sphere_radius = size_val[0]
+    dist, contact_pos, nrm = collision_primitive_core.sphere_capsule(
+      pos, sphere_radius, cap_pos, cap_axis, cap_radius, cap_half_len
+    )
+    if dist < margin:
+      _write_candidate(
+        max_candidates,
+        dist,
+        contact_pos,
+        nrm,
+        geomid,
+        -1,
+        flexid,
+        elemid,
+        vertex_id,
+        worldid,
+        warn_overflow,
+        overflow_out,
+        cand_dist_out,
+        cand_pos_out,
+        cand_nrm_out,
+        cand_geom_out,
+        cand_flex_out,
+        cand_elem_out,
+        cand_vert_out,
+        cand_worldid_out,
+        ncand_out,
+      )
+    return
+
+  dists = wp.vec2(collision_primitive_core.MJ_MAXVAL, collision_primitive_core.MJ_MAXVAL)
+  poss = collision_primitive_core.mat23f(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  nrms = collision_primitive_core.mat23f(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+  if gtype == int(GeomType.CAPSULE):
+    g_radius = size_val[0]
+    g_half_len = size_val[1]
+    g_axis = wp.vec3(rot[0, 2], rot[1, 2], rot[2, 2])
+    dists, poss, nrms = collision_primitive_core.capsule_capsule(
+      pos, g_axis, g_radius, g_half_len, cap_pos, cap_axis, cap_radius, cap_half_len, margin
+    )
+  elif gtype == int(GeomType.BOX):
+    dists, poss, box_nrms = collision_primitive_core.capsule_box(
+      cap_pos, cap_axis, cap_radius, cap_half_len, pos, rot, size_val
+    )
+    nrms = -box_nrms
+
+  for i in range(2):
+    if dists[i] < margin:
+      _write_candidate(
+        max_candidates,
+        dists[i],
+        poss[i],
+        nrms[i],
+        geomid,
+        -1,
+        flexid,
+        elemid,
+        vertex_id,
+        worldid,
+        warn_overflow,
+        overflow_out,
+        cand_dist_out,
+        cand_pos_out,
+        cand_nrm_out,
+        cand_geom_out,
+        cand_flex_out,
+        cand_elem_out,
+        cand_vert_out,
+        cand_worldid_out,
+        ncand_out,
+      )
 
 
 @wp.func
@@ -862,351 +970,6 @@ def _flex_plane_narrowphase(warn_overflow: int):
           cand_worldid_out,
           ncand_out,
         )
-
-  return kernel
-
-
-@cache_kernel
-def _flex_geom_vertex_narrowphase_detect(warn_overflow: int):
-  @wp.kernel(module="unique", enable_backward=False)
-  def kernel(
-    # Model:
-    ngeom: int,
-    opt_ccd_tolerance: wp.array[float],
-    geom_type: wp.array[int],
-    geom_contype: wp.array[int],
-    geom_conaffinity: wp.array[int],
-    geom_bodyid: wp.array[int],
-    geom_dataid: wp.array2d[int],
-    geom_size: wp.array2d[wp.vec3],
-    geom_aabb: wp.array3d[wp.vec3],
-    geom_margin: wp.array2d[float],
-    flex_contype: wp.array[int],
-    flex_conaffinity: wp.array[int],
-    flex_margin: wp.array[float],
-    flex_dim: wp.array[int],
-    flex_vertadr: wp.array[int],
-    flex_vertbodyid: wp.array[int],
-    flex_radius: wp.array[float],
-    mesh_vertadr: wp.array[int],
-    mesh_vertnum: wp.array[int],
-    mesh_graphadr: wp.array[int],
-    mesh_vert: wp.array[wp.vec3],
-    mesh_graph: wp.array[int],
-    mesh_pos: wp.array[wp.vec3],
-    mesh_polynormal: wp.array[wp.vec3],
-    mesh_polyvertadr: wp.array[int],
-    mesh_polyvert: wp.array[int],
-    mesh_polymapadr: wp.array[int],
-    mesh_polymapnum: wp.array[int],
-    mesh_polymap: wp.array[int],
-    flex_vertflexid: wp.array[int],
-    # Data in:
-    geom_xpos_in: wp.array2d[wp.vec3],
-    geom_xmat_in: wp.array2d[wp.mat33],
-    flexvert_xpos_in: wp.array2d[wp.vec3],
-    naccdmax_in: int,
-    flex_aabb_min_in: wp.array2d[wp.vec3],
-    flex_aabb_max_in: wp.array2d[wp.vec3],
-    # In:
-    epa_vert: wp.array2d[wp.vec3],
-    epa_vert_index: wp.array2d[int],
-    epa_face: wp.array2d[int],
-    epa_pr: wp.array2d[wp.vec3],
-    epa_norm2: wp.array2d[float],
-    epa_horizon: wp.array2d[int],
-    nccd: wp.array[int],
-    ccd_iterations: int,
-    max_candidates: int,
-    # Data out:
-    overflow_out: wp.array[int],
-    # Out:
-    cand_dist_out: wp.array[float],
-    cand_pos_out: wp.array[wp.vec3],
-    cand_nrm_out: wp.array[wp.vec3],
-    cand_geom_out: wp.array[wp.vec2i],
-    cand_flex_out: wp.array[wp.vec2i],
-    cand_elem_out: wp.array[wp.vec2i],
-    cand_vert_out: wp.array[wp.vec2i],
-    cand_worldid_out: wp.array[int],
-    ncand_out: wp.array[int],
-  ):
-    worldid, vertid = wp.tid()
-
-    flexid = flex_vertflexid[vertid]
-    if flex_dim[flexid] >= 2:
-      return
-
-    radius = flex_radius[flexid]
-    flex_margin_val = flex_margin[flexid]
-    local_vertid = vertid - flex_vertadr[flexid]
-
-    v_pos = flexvert_xpos_in[worldid, vertid]
-    flex_aabb_min_val = flex_aabb_min_in[worldid, flexid]
-    flex_aabb_max_val = flex_aabb_max_in[worldid, flexid]
-
-    for geomid in range(ngeom):
-      gtype = geom_type[geomid]
-      if (
-        gtype != int(GeomType.SPHERE)
-        and gtype != int(GeomType.CAPSULE)
-        and gtype != int(GeomType.BOX)
-        and gtype != int(GeomType.CYLINDER)
-        and gtype != int(GeomType.ELLIPSOID)
-        and gtype != int(GeomType.MESH)
-      ):
-        continue
-
-      g_contype = geom_contype[geomid]
-      g_conaffinity = geom_conaffinity[geomid]
-      f_contype = flex_contype[flexid]
-      f_conaffinity = flex_conaffinity[flexid]
-      if not ((g_contype & f_conaffinity) or (f_contype & g_conaffinity)):
-        continue
-
-      # skip if vertex is on same body as geom
-      b = geom_bodyid[geomid]
-      if b >= 0 and b == flex_vertbodyid[vertid]:
-        continue
-
-      geom_margin_val = geom_margin[worldid % geom_margin.shape[0], geomid]
-      margin = geom_margin_val + flex_margin_val
-
-      geom_pos = geom_xpos_in[worldid, geomid]
-      geom_rot = geom_xmat_in[worldid, geomid]
-      geom_size_val = geom_size[worldid % geom_size.shape[0], geomid]
-
-      # Stage 1: Coarse flex object AABB vs Geom world AABB check
-      aabb_id = worldid % geom_aabb.shape[0]
-      geom_center_local = geom_aabb[aabb_id, geomid, 0]
-      geom_half_size_local = geom_aabb[aabb_id, geomid, 1]
-      geom_center_global = geom_rot @ geom_center_local + geom_pos
-      geom_half_size_global = wp.vec3(
-        wp.abs(geom_rot[0, 0]) * geom_half_size_local[0]
-        + wp.abs(geom_rot[0, 1]) * geom_half_size_local[1]
-        + wp.abs(geom_rot[0, 2]) * geom_half_size_local[2],
-        wp.abs(geom_rot[1, 0]) * geom_half_size_local[0]
-        + wp.abs(geom_rot[1, 1]) * geom_half_size_local[1]
-        + wp.abs(geom_rot[1, 2]) * geom_half_size_local[2],
-        wp.abs(geom_rot[2, 0]) * geom_half_size_local[0]
-        + wp.abs(geom_rot[2, 1]) * geom_half_size_local[1]
-        + wp.abs(geom_rot[2, 2]) * geom_half_size_local[2],
-      )
-      inflate = wp.vec3(margin, margin, margin)
-      geom_box_min = geom_center_global - geom_half_size_global - inflate
-      geom_box_max = geom_center_global + geom_half_size_global + inflate
-
-      if _flex_element_aabb_filter(geom_box_min, geom_box_max, flex_aabb_min_val, flex_aabb_max_val):
-        continue
-
-      # Stage 2 Filter: Vertex AABB vs Geom world AABB check
-      v_inflate = wp.vec3(radius, radius, radius)
-      if _flex_element_aabb_filter(geom_box_min, geom_box_max, v_pos - v_inflate, v_pos + v_inflate):
-        continue
-
-      if gtype == int(GeomType.MESH):
-        ccdid = wp.atomic_add(nccd, 0, 1)
-        if ccdid >= naccdmax_in:
-          if wp.static(bool(warn_overflow & OverflowType.CCD)):
-            wp.printf(
-              "CCD overflow in flex narrowphase - please increase naccdmax beyond %u\n"
-              "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.CCD (or = 0 for all)\n",
-              naccdmax_in,
-            )
-          wp.atomic_or(overflow_out, worldid, wp.static(OverflowType.CCD))
-          continue
-
-        did = geom_dataid[worldid % geom_dataid.shape[0], geomid]
-        tolerance = opt_ccd_tolerance[worldid % opt_ccd_tolerance.shape[0]]
-
-        geom2 = Geom()
-        geom2.pos = v_pos
-        geom2.rot = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-        geom2.size = wp.vec3(radius, 0.0, 0.0)
-        geom2.margin = 0.0
-        geom2.index = -1
-
-        _collide_mesh_convex(
-          mesh_vertadr,
-          mesh_vertnum,
-          mesh_graphadr,
-          mesh_vert,
-          mesh_graph,
-          mesh_pos,
-          mesh_polynormal,
-          mesh_polyvertadr,
-          mesh_polyvert,
-          mesh_polymapadr,
-          mesh_polymapnum,
-          mesh_polymap,
-          max_candidates,
-          geom_pos,
-          geom_rot,
-          geom_size_val,
-          did,
-          geom2,
-          int(GeomType.SPHERE),
-          v_pos,
-          radius,
-          0.0,
-          margin,
-          geomid,
-          flexid,
-          -1,
-          local_vertid,
-          worldid,
-          epa_vert[ccdid],
-          epa_vert_index[ccdid],
-          epa_face[ccdid],
-          epa_pr[ccdid],
-          epa_norm2[ccdid],
-          epa_horizon[ccdid],
-          tolerance,
-          ccd_iterations,
-          wp.static(bool(warn_overflow & OverflowType.EPA_HORIZON)),
-          overflow_out,
-          cand_dist_out,
-          cand_pos_out,
-          cand_nrm_out,
-          cand_geom_out,
-          cand_flex_out,
-          cand_elem_out,
-          cand_vert_out,
-          cand_worldid_out,
-          ncand_out,
-        )
-      elif gtype == int(GeomType.ELLIPSOID):
-        ccdid = wp.atomic_add(nccd, 0, 1)
-        if ccdid >= naccdmax_in:
-          if wp.static(bool(warn_overflow & OverflowType.CCD)):
-            wp.printf(
-              "CCD overflow in flex narrowphase - please increase naccdmax beyond %u\n"
-              "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.CCD (or = 0 for all)\n",
-              naccdmax_in,
-            )
-          wp.atomic_or(overflow_out, worldid, wp.static(OverflowType.CCD))
-          continue
-
-        tolerance = opt_ccd_tolerance[worldid % opt_ccd_tolerance.shape[0]]
-
-        geom1 = Geom()
-        geom1.pos = geom_pos
-        geom1.rot = geom_rot
-        geom1.size = geom_size_val
-        geom1.margin = 0.0
-        geom1.index = -1
-
-        geom2 = Geom()
-        geom2.pos = v_pos
-        geom2.rot = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-        geom2.size = wp.vec3(radius, 0.0, 0.0)
-        geom2.margin = 0.0
-        geom2.index = -1
-
-        r_geom = wp.length(geom_size_val)
-        if wp.length(v_pos - geom_pos) <= r_geom + radius + margin + 0.04:
-          dist, ncontact, w1, w2, idx = ccd(
-            tolerance,
-            margin + radius,
-            ccd_iterations,
-            ccd_iterations,
-            geom1,
-            geom2,
-            int(GeomType.ELLIPSOID),
-            int(GeomType.SPHERE),
-            geom_pos,
-            v_pos,
-            epa_vert[ccdid],
-            epa_vert_index[ccdid],
-            epa_face[ccdid],
-            epa_pr[ccdid],
-            epa_norm2[ccdid],
-            epa_horizon[ccdid],
-            wp.static(bool(warn_overflow & OverflowType.EPA_HORIZON)),
-            worldid,
-            overflow_out,
-          )
-
-          if ncontact > 0 and dist < margin:
-            if dist < 0.0:
-              normal = wp.normalize(w1 - w2)
-            else:
-              normal = wp.normalize(w2 - w1)
-
-            contact_pos = 0.5 * (w1 + w2)
-
-            _write_candidate(
-              max_candidates,
-              dist,
-              contact_pos,
-              normal,
-              geomid,
-              -1,
-              flexid,
-              -1,
-              local_vertid,
-              worldid,
-              wp.static(bool(warn_overflow & OverflowType.NARROWPHASE)),
-              overflow_out,
-              cand_dist_out,
-              cand_pos_out,
-              cand_nrm_out,
-              cand_geom_out,
-              cand_flex_out,
-              cand_elem_out,
-              cand_vert_out,
-              cand_worldid_out,
-              ncand_out,
-            )
-      else:
-        dist = collision_primitive_core.MJ_MAXVAL
-        contact_pos = wp.vec3(0.0)
-        nrm = wp.vec3(0.0)
-
-        if gtype == int(GeomType.SPHERE):
-          sphere_radius = geom_size_val[0]
-          dist, contact_pos, nrm = collision_primitive_core.sphere_sphere(v_pos, radius, geom_pos, sphere_radius)
-        elif gtype == int(GeomType.CAPSULE):
-          cap_radius = geom_size_val[0]
-          cap_half_len = geom_size_val[1]
-          cap_axis = wp.vec3(geom_rot[0, 2], geom_rot[1, 2], geom_rot[2, 2])
-          dist, contact_pos, nrm = collision_primitive_core.sphere_capsule(
-            v_pos, radius, geom_pos, cap_axis, cap_radius, cap_half_len
-          )
-        elif gtype == int(GeomType.BOX):
-          dist, contact_pos, nrm = collision_primitive_core.sphere_box(v_pos, radius, geom_pos, geom_rot, geom_size_val)
-        elif gtype == int(GeomType.CYLINDER):
-          cyl_radius = geom_size_val[0]
-          cyl_half_height = geom_size_val[1]
-          cyl_axis = wp.vec3(geom_rot[0, 2], geom_rot[1, 2], geom_rot[2, 2])
-          dist, contact_pos, nrm = collision_primitive_core.sphere_cylinder(
-            v_pos, radius, geom_pos, cyl_axis, cyl_radius, cyl_half_height
-          )
-
-        if dist < margin:
-          _write_candidate(
-            max_candidates,
-            dist,
-            contact_pos,
-            nrm,
-            geomid,
-            -1,
-            flexid,
-            -1,
-            local_vertid,
-            worldid,
-            wp.static(bool(warn_overflow & OverflowType.NARROWPHASE)),
-            overflow_out,
-            cand_dist_out,
-            cand_pos_out,
-            cand_nrm_out,
-            cand_geom_out,
-            cand_flex_out,
-            cand_elem_out,
-            cand_vert_out,
-            cand_worldid_out,
-            ncand_out,
-          )
 
   return kernel
 
@@ -1830,12 +1593,14 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
     flex_contype: wp.array[int],
     flex_conaffinity: wp.array[int],
     flex_margin: wp.array[float],
+    flex_activelayers: wp.array[int],
     flex_dim: wp.array[int],
     flex_vertadr: wp.array[int],
     flex_elemadr: wp.array[int],
     flex_elemdataadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
+    flex_elemlayer: wp.array[int],
     flex_radius: wp.array[float],
     mesh_vertadr: wp.array[int],
     mesh_vertnum: wp.array[int],
@@ -1883,14 +1648,16 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
     worldid, elemid = wp.tid()
 
     flexid = flex_elemflexid[elemid]
-    if flex_dim[flexid] < 2:
+    f_dim = flex_dim[flexid]
+
+    # skip inactive elements of 3D flexes, see mj_isElemActive
+    if f_dim == 3 and flex_elemlayer[elemid] >= flex_activelayers[flexid]:
       return
 
-    f_dim = flex_dim[flexid]
+    local_elemid = elemid - flex_elemadr[flexid]
     vert_adr = flex_vertadr[flexid]
     elem_radius = flex_radius[flexid]
     elem_margin = flex_margin[flexid]
-    local_elemid = elemid - flex_elemadr[flexid]
 
     geom2 = Geom()
     geom2.pos = wp.vec3(0.0, 0.0, 0.0)
@@ -1900,6 +1667,7 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
 
     centroid = wp.vec3(0.0, 0.0, 0.0)
     r_elem = float(0.0)
+    cap_axis = wp.vec3(0.0, 0.0, 1.0)
     geom2_type = int(GeomType.TRIANGLE)
     elem_min = wp.vec3(0.0, 0.0, 0.0)
     elem_max = wp.vec3(0.0, 0.0, 0.0)
@@ -1911,7 +1679,30 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
     v2 = int(-1)
     v3 = int(-1)
 
-    if f_dim == 2:
+    if f_dim == 1:
+      edata_idx = flex_elemdataadr[flexid] + local_elemid * 2
+      v0 = flex_elem[edata_idx]
+      v1 = flex_elem[edata_idx + 1]
+
+      t1 = flexvert_xpos_in[worldid, vert_adr + v0]
+      t2 = flexvert_xpos_in[worldid, vert_adr + v1]
+
+      centroid = 0.5 * (t1 + t2)
+      seg = t1 - t2
+      seg_len = wp.length(seg)
+      r_elem = 0.5 * seg_len
+      if seg_len > MJ_MINVAL:
+        cap_axis = seg / seg_len
+      b_ax, c_ax = orthogonals(cap_axis)
+
+      geom2.pos = centroid
+      geom2.rot = wp.matrix_from_cols(b_ax, c_ax, cap_axis)
+      geom2.size = wp.vec3(elem_radius, r_elem, 0.0)
+      geom2_type = int(GeomType.CAPSULE)
+
+      elem_min = wp.min(t1, t2) - wp.vec3(elem_radius, elem_radius, elem_radius)
+      elem_max = wp.max(t1, t2) + wp.vec3(elem_radius, elem_radius, elem_radius)
+    elif f_dim == 2:
       edata_idx = flex_elemdataadr[flexid] + local_elemid * 3
       v0 = flex_elem[edata_idx]
       v1 = flex_elem[edata_idx + 1]
@@ -1979,6 +1770,17 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
     else:
       return
 
+    b0 = flex_vertbodyid[vert_adr + v0]
+    b1 = flex_vertbodyid[vert_adr + v1]
+    b2 = int(-1)
+    b3 = int(-1)
+    if f_dim >= 2:
+      b2 = flex_vertbodyid[vert_adr + v2]
+    if f_dim == 3:
+      b3 = flex_vertbodyid[vert_adr + v3]
+
+    f_contype = flex_contype[flexid]
+    f_conaffinity = flex_conaffinity[flexid]
     flex_aabb_min_val = flex_aabb_min_in[worldid, flexid]
     flex_aabb_max_val = flex_aabb_max_in[worldid, flexid]
 
@@ -1996,21 +1798,13 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
 
       g_contype = geom_contype[geomid]
       g_conaffinity = geom_conaffinity[geomid]
-      f_contype = flex_contype[flexid]
-      f_conaffinity = flex_conaffinity[flexid]
       if not ((g_contype & f_conaffinity) or (f_contype & g_conaffinity)):
         continue
 
       # skip if element has vertices on the same body as geom
       b = geom_bodyid[geomid]
-      if b >= 0:
-        b0 = flex_vertbodyid[vert_adr + v0]
-        b1 = flex_vertbodyid[vert_adr + v1]
-        b2 = flex_vertbodyid[vert_adr + v2]
-        if b == b0 or b == b1 or b == b2:
-          continue
-        if f_dim == 3 and b == flex_vertbodyid[vert_adr + v3]:
-          continue
+      if b >= 0 and (b == b0 or b == b1 or b == b2 or b == b3):
+        continue
 
       geom_margin_val = geom_margin[worldid % geom_margin.shape[0], geomid]
       margin = geom_margin_val + elem_margin
@@ -2061,7 +1855,8 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
         did = geom_dataid[worldid % geom_dataid.shape[0], geomid]
         tolerance = opt_ccd_tolerance[worldid % opt_ccd_tolerance.shape[0]]
 
-        geom2_r = 0.0 if f_dim == 3 else elem_radius
+        geom2_r = elem_radius if f_dim == 2 else 0.0
+        geom2_rbound = r_elem if f_dim == 2 else (r_elem + elem_radius)
         _collide_mesh_convex(
           mesh_vertadr,
           mesh_vertnum,
@@ -2083,7 +1878,7 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
           geom2,
           geom2_type,
           centroid,
-          r_elem,
+          geom2_rbound,
           geom2_r,
           margin,
           geomid,
@@ -2100,6 +1895,36 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
           tolerance,
           ccd_iterations,
           wp.static(bool(warn_overflow & OverflowType.EPA_HORIZON)),
+          overflow_out,
+          cand_dist_out,
+          cand_pos_out,
+          cand_nrm_out,
+          cand_geom_out,
+          cand_flex_out,
+          cand_elem_out,
+          cand_vert_out,
+          cand_worldid_out,
+          ncand_out,
+        )
+
+      elif f_dim == 1 and (gtype == int(GeomType.SPHERE) or gtype == int(GeomType.CAPSULE) or gtype == int(GeomType.BOX)):
+        _collide_geom_capsule_detect(
+          max_candidates,
+          gtype,
+          geom_pos,
+          geom_rot,
+          geom_size_val,
+          centroid,
+          cap_axis,
+          elem_radius,
+          r_elem,
+          margin,
+          geomid,
+          flexid,
+          local_elemid,
+          -1,
+          worldid,
+          wp.static(bool(warn_overflow & OverflowType.NARROWPHASE)),
           overflow_out,
           cand_dist_out,
           cand_pos_out,
@@ -2170,7 +1995,7 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
 
         r_geom = wp.length(geom_size_val)
         if wp.length(centroid - geom_pos) <= r_geom + r_elem + margin + elem_radius + 0.04:
-          ccd_cutoff = margin if f_dim == 3 else (margin + elem_radius)
+          ccd_cutoff = (margin + elem_radius) if f_dim == 2 else margin
           dist, ncontact, w1, w2, idx = ccd(
             tolerance,
             ccd_cutoff,
@@ -2193,7 +2018,7 @@ def _flex_narrowphase_elem_detect(warn_overflow: int):
             overflow_out,
           )
 
-          cand_dist = dist if f_dim == 3 else (dist - elem_radius)
+          cand_dist = (dist - elem_radius) if f_dim == 2 else dist
           if ncontact > 0 and cand_dist < margin:
             diff = (w1 - w2) if dist < 0.0 else (w2 - w1)
             normal = wp.normalize(diff)
@@ -3051,10 +2876,10 @@ class FlexWorkspace:
 
 def _allocate_flex_workspace(m: Model, d: Data) -> FlexWorkspace:
   epa_iterations = m.opt.ccd_iterations
-  has_epa = m.nmesh > 0 or m.has_ellipsoid_geom or m.has_flex_selfcollide or m.nflex > 1 or m.has_3d_flex
+  has_epa = m.nmesh > 0 or m.has_ellipsoid_geom or m.has_flex_selfcollide or m.nflex > 1 or m.has_1d_flex or m.has_3d_flex
   capacity = d.naccdmax if has_epa else 1
 
-  needs_nccd = m.nmesh > 0 or m.has_ellipsoid_geom or m.has_3d_flex
+  needs_nccd = m.nmesh > 0 or m.has_ellipsoid_geom or m.has_1d_flex or m.has_3d_flex
   nccd = wp.zeros(1, dtype=int) if needs_nccd else None
 
   has_fps = m.has_flex_selfcollide or m.nflex > 1
@@ -3451,90 +3276,12 @@ def _detect_plane_flex_candidates(
   )
 
 
-def _detect_1d_geom_candidates(
-  m: Model,
-  d: Data,
-  ws: FlexWorkspace,
-):
-  """Detect candidates between 1D flex rope vertices and geoms."""
-  if m.nflexvert == 0 or not m.has_1d_flex:
-    return
-
-  epa_iterations = m.opt.ccd_iterations
-  wp.launch(
-    _flex_geom_vertex_narrowphase_detect(int(m.opt.warn_overflow)),
-    dim=(d.nworld, m.nflexvert),
-    inputs=[
-      m.ngeom,
-      m.opt.ccd_tolerance,
-      m.geom_type,
-      m.geom_contype,
-      m.geom_conaffinity,
-      m.geom_bodyid,
-      m.geom_dataid,
-      m.geom_size,
-      m.geom_aabb,
-      m.geom_margin,
-      m.flex_contype,
-      m.flex_conaffinity,
-      m.flex_margin,
-      m.flex_dim,
-      m.flex_vertadr,
-      m.flex_vertbodyid,
-      m.flex_radius,
-      m.mesh_vertadr,
-      m.mesh_vertnum,
-      m.mesh_graphadr,
-      m.mesh_vert,
-      m.mesh_graph,
-      m.mesh_pos,
-      m.mesh_polynormal,
-      m.mesh_polyvertadr,
-      m.mesh_polyvert,
-      m.mesh_polymapadr,
-      m.mesh_polymapnum,
-      m.mesh_polymap,
-      m.flex_vertflexid,
-      d.geom_xpos,
-      d.geom_xmat,
-      d.flexvert_xpos,
-      d.naccdmax,
-      d.flex_aabb_min,
-      d.flex_aabb_max,
-      ws.epa_vert,
-      ws.epa_vert_index,
-      ws.epa_face,
-      ws.epa_pr,
-      ws.epa_norm2,
-      ws.epa_horizon,
-      ws.nccd,
-      epa_iterations,
-      d.naconmax,
-    ],
-    outputs=[
-      d.overflow,
-      ws.dist,
-      ws.pos,
-      ws.nrm,
-      ws.geom,
-      ws.flex,
-      ws.elem,
-      ws.vert,
-      ws.worldid,
-      ws.ncand,
-    ],
-  )
-
-
 def _detect_elem_geom_candidates(
   m: Model,
   d: Data,
   ws: FlexWorkspace,
 ):
-  """Detect candidates between 2D/3D flex elements and geoms."""
-  if m.nflexelem == 0 or not (m.has_2d_flex or m.has_3d_flex):
-    return
-
+  """Detect candidates between 1D/2D/3D flex elements and geoms."""
   epa_iterations = m.opt.ccd_iterations
   wp.launch(
     _flex_narrowphase_elem_detect(int(m.opt.warn_overflow)),
@@ -3553,12 +3300,14 @@ def _detect_elem_geom_candidates(
       m.flex_contype,
       m.flex_conaffinity,
       m.flex_margin,
+      m.flex_activelayers,
       m.flex_dim,
       m.flex_vertadr,
       m.flex_elemadr,
       m.flex_elemdataadr,
       m.flex_vertbodyid,
       m.flex_elem,
+      m.flex_elemlayer,
       m.flex_radius,
       m.mesh_vertadr,
       m.mesh_vertnum,
@@ -3758,16 +3507,13 @@ def _flex_geom_collision(
   if ws.flex_num_groups is not None:
     ws.flex_num_groups.zero_()
 
-  # 1. Plane collisions (flex vertices vs infinite planes)
+  # Plane collisions (flex vertices vs infinite planes)
   _detect_plane_flex_candidates(m, d, ws)
 
-  # 2. 1D rope vertex collisions (vertices vs rigid geoms)
-  _detect_1d_geom_candidates(m, d, ws)
-
-  # 3. 2D cloth and 3D softbody element collisions (elements vs rigid geoms)
+  # 1D cable, 2D cloth, and 3D softbody element collisions (elements vs rigid geoms)
   _detect_elem_geom_candidates(m, d, ws)
 
-  # 4. Contact writing pass
+  # Contact writing pass
   _filter_and_write_contacts(m, d, ws, enable_fps=False)
 
 

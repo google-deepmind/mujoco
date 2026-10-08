@@ -1199,13 +1199,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     elemid = np.where(elemid >= 0, elemid, mjm.nC)
     tile.elemid = wp.array(elemid.reshape(-1).astype(np.int32), dtype=int)
 
-  upper_j, upper_i = np.triu_indices(mjm.nv)
-  upper_elemid = M_elemid[upper_i, upper_j]
-  valid_mask = upper_elemid != -1
-  m.M_fullm_upper_i = upper_j[valid_mask].tolist()
-  m.M_fullm_upper_j = upper_i[valid_mask].tolist()
-  m.M_fullm_upper_elemid = upper_elemid[valid_mask].tolist()
-
   # indices for sparse qD_fullm (used in RNE derivatives)
   # D-structure is the full square sparsity pattern (both upper and lower triangle)
   m.qD_fullm_i, m.qD_fullm_j = [], []
@@ -1373,7 +1366,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       "nqLD_all_updates": len(m.qLD_all_updates),
       "nqLD_level_offsets": len(m.qLD_level_offsets),
       "nM_fullm": len(m.M_fullm_i),
-      "nM_fullm_upper": len(m.M_fullm_upper_i),
       "nqD_fullm": len(m.qD_fullm_i),
       "nv_plus_1": len(m.M_mulm_rowadr),
       "nM_mulm": len(m.M_mulm_col),

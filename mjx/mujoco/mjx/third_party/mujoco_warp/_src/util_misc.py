@@ -219,7 +219,6 @@ def wrap_inside(
   """
   # algorithm parameters
   maxiter = int(20)
-  zinit = float(1.0 - 1.0e-7)
   tolerance = float(1.0e-6)
 
   end0 = wp.vec2(end[0], end[1])
@@ -264,11 +263,11 @@ def wrap_inside(
   G = wp.acos(cosG)
 
   # init: Newton on phi = asin(z) instead of z
-  z = zinit
-  phi = float(wp.static(wp.asin(wp.float64(1.0 - 1.0e-7))))
-  asin_Az = wp.asin(A * z)
-  asin_Bz = wp.asin(B * z)
-  f = asin_Az + asin_Bz - 2.0 * phi + G
+  phi = float(wp.static(0.5 * wp.pi))
+  z = float(1.0)
+  asin_Az = wp.asin(A)
+  asin_Bz = wp.asin(B)
+  f = asin_Az + asin_Bz - wp.pi + G
 
   # make sure init is not on the other side
   if f > 0.0:

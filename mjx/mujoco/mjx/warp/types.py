@@ -187,9 +187,6 @@ class ModelWarp(PyTreeNode):
   M_elemid: np.ndarray
   M_fullm_i: np.ndarray
   M_fullm_j: np.ndarray
-  M_fullm_upper_elemid: np.ndarray
-  M_fullm_upper_i: np.ndarray
-  M_fullm_upper_j: np.ndarray
   M_hinit_i: np.ndarray
   M_mulm_col: np.ndarray
   M_mulm_madr: np.ndarray
@@ -858,9 +855,6 @@ _NDIM = {
         'M_elemid': 2,
         'M_fullm_i': 1,
         'M_fullm_j': 1,
-        'M_fullm_upper_elemid': 1,
-        'M_fullm_upper_i': 1,
-        'M_fullm_upper_j': 1,
         'M_hinit_i': 1,
         'M_mulm_col': 1,
         'M_mulm_madr': 1,
@@ -1654,9 +1648,6 @@ _BATCH_DIM = {
         'M_elemid': False,
         'M_fullm_i': False,
         'M_fullm_j': False,
-        'M_fullm_upper_elemid': False,
-        'M_fullm_upper_i': False,
-        'M_fullm_upper_j': False,
         'M_hinit_i': False,
         'M_mulm_col': False,
         'M_mulm_madr': False,

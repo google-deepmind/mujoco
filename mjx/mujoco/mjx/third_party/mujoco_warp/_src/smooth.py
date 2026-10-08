@@ -2968,8 +2968,8 @@ def _transmission(
 
       if rotational_transmission:
         # get site and refsite quats from parent bodies (avoid converting matrix to quat)
-        quat = math.mul_quat(site_quat[site_quat_id, siteid], xquat_in[worldid, bodyid])
-        refquat = math.mul_quat(site_quat[site_quat_id, refid], xquat_in[worldid, bodyrefid])
+        quat = math.mul_quat(xquat_in[worldid, bodyid], site_quat[site_quat_id, siteid])
+        refquat = math.mul_quat(xquat_in[worldid, bodyrefid], site_quat[site_quat_id, refid])
 
         # convert difference to expmap (axis-angle)
         vec = math.quat_sub(quat, refquat)
