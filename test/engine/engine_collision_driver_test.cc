@@ -554,6 +554,123 @@ TEST_F(MjCollisionTest, MaxContact) {
   EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 4);
 }
 
+// flex lying on a plane and on 16 spheres of the world body
+std::string FlexOnGeoms(const std::string& flex) {
+  return R"(
+  <mujoco>
+    <worldbody>
+      <geom name="plane" type="plane" size="0 0 1" pos="0 0 .05"/>
+      <replicate count="4" offset=".2 0 0">
+        <replicate count="4" offset="0 .2 0">
+          <geom size=".05" pos="-.3 -.3 0"/>
+        </replicate>
+      </replicate>
+      )" +
+         flex + R"(
+    </worldbody>
+  </mujoco>
+  )";
+}
+
+// contacts with the plane, all contacts, maximum contacts with one sphere
+struct FlexContacts {
+  int nplane = 0;
+  int ncon = 0;
+  int maxsphere = 0;
+};
+
+FlexContacts CountFlexContacts(const mjModel* m, mjData* d) {
+  mj_fwdPosition(m, d);
+  int plane = mj_name2id(m, mjOBJ_GEOM, "plane");
+  std::vector<int> ngeom(m->ngeom, 0);
+  FlexContacts count;
+  count.ncon = d->ncon;
+  for (int i = 0; i < d->ncon; i++) {
+    int g = d->contact[i].geom[0] >= 0 ? d->contact[i].geom[0]
+                                       : d->contact[i].geom[1];
+    ngeom[g]++;
+  }
+  for (int g = 0; g < m->ngeom; g++) {
+    if (g == plane) {
+      count.nplane = ngeom[g];
+    } else if (m->geom_type[g] == mjGEOM_SPHERE) {
+      count.maxsphere = std::max(count.maxsphere, ngeom[g]);
+    }
+  }
+  return count;
+}
+
+TEST_F(MjCollisionTest, VertexFlexContactsAreNotLimited) {
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(FlexOnGeoms(R"(
+      <flexcomp name="cloth" type="grid" count="15 15 1" spacing=".05 .05 .05" dim="2"
+                pos="0 0 .053" radius=".005">
+        <edge equality="true"/>
+        <contact selfcollide="none"/>
+      </flexcomp>)"),
+                                     error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->flex_rigid[0], 0);
+  ASSERT_EQ(m->flex_interp[0], 0);
+
+  MjDataPtr d_bvh = MakeData(m);
+  FlexContacts bvh = CountFlexContacts(m.get(), d_bvh.get());
+
+  // every vertex touches the plane, all contacts are kept
+  EXPECT_EQ(bvh.nplane, m->flex_vertnum[0]);
+  EXPECT_GT(bvh.ncon - bvh.nplane, 0);
+
+  // same contacts without midphase
+  m->opt.disableflags |= mjDSBL_MIDPHASE;
+  MjDataPtr d_all = MakeData(m);
+  FlexContacts all = CountFlexContacts(m.get(), d_all.get());
+  EXPECT_EQ(all.nplane, bvh.nplane);
+  EXPECT_EQ(all.ncon, bvh.ncon);
+}
+
+TEST_F(MjCollisionTest, ReducibleFlexContactLimitIsPerGeom) {
+  // rigid cloth in a free body, trilinear soft box with its bottom layer on the
+  // geoms
+  const char* rigid = R"(
+      <body name="cloth" pos="0 0 .053">
+        <freejoint/>
+        <inertial pos="0 0 0" mass="1" diaginertia=".1 .1 .1"/>
+        <flexcomp name="cloth" type="grid" count="15 15 1" spacing=".05 .05 .05" dim="2"
+                  radius=".005" rigid="true">
+          <contact selfcollide="none"/>
+        </flexcomp>
+      </body>)";
+  const char* trilinear = R"(
+      <flexcomp name="box" type="grid" count="15 15 2" spacing=".05 .05 .05" dim="3"
+                pos="0 0 .078" radius=".005" mass="1" dof="trilinear">
+        <contact selfcollide="none"/>
+      </flexcomp>)";
+  for (const char* attrib : {rigid, trilinear}) {
+    char error[1024];
+    MjModelPtr m =
+        LoadModelFromString(FlexOnGeoms(attrib), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << attrib << ": " << error;
+    ASSERT_TRUE(m->flex_rigid[0] || m->flex_interp[0]) << attrib;
+
+    MjDataPtr d_bvh = MakeData(m);
+    FlexContacts bvh = CountFlexContacts(m.get(), d_bvh.get());
+
+    // every vertex touches the plane, mjMAXCONPAIR contacts are kept
+    EXPECT_EQ(bvh.nplane, mjMAXCONPAIR) << attrib;
+
+    // the spheres have more contacts, each sphere at most mjMAXCONPAIR
+    EXPECT_GT(bvh.ncon - bvh.nplane, mjMAXCONPAIR) << attrib;
+    EXPECT_LE(bvh.maxsphere, mjMAXCONPAIR) << attrib;
+
+    // same contacts without midphase
+    m->opt.disableflags |= mjDSBL_MIDPHASE;
+    MjDataPtr d_all = MakeData(m);
+    FlexContacts all = CountFlexContacts(m.get(), d_all.get());
+    EXPECT_EQ(all.nplane, bvh.nplane) << attrib;
+    EXPECT_EQ(all.ncon, bvh.ncon) << attrib;
+  }
+}
+
 TEST_F(MjCollisionTest, Flex3DActiveLayersMidphaseDisabled) {
   constexpr char xml[] = R"(
   <mujoco>

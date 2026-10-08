@@ -14,6 +14,10 @@ Engine
   wrapping near wrap onset and for inside wrapping. Thanks to :github:user:`M-Colley` for reporting and analyzing the
   issues in :doc:`MJWarp <mjwarp/index>` issues `1713 <https://github.com/google-deepmind/mujoco_warp/issues/1713>`__
   and `1714 <https://github.com/google-deepmind/mujoco_warp/issues/1714>`__.
+- Flex contacts are now reduced to ``mjMAXCONPAIR`` per geom only for rigid and interpolated flexes, which have few
+  degrees of freedom. Other flexes keep all their contacts. Since version 3.6.0 the contacts of every flex were reduced,
+  and in the midphase for all geoms of a body together, so a cloth dropped on a plane or on many static geoms in the
+  world body was held by at most 50 contacts and fell through.
 
 General
 ^^^^^^^
