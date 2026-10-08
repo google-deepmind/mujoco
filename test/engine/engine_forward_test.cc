@@ -7687,5 +7687,51 @@ TEST_F(ForwardTest, DiscreteLimitVelocitySensors) {
   EXPECT_EQ(data_fwd->sensordata[1], expected_tendon_vel);
 }
 
+TEST_F(ForwardTest, CheckWarningCount) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint type="slide"/>
+        <joint type="slide"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  const mjtNum nan = std::numeric_limits<mjtNum>::quiet_NaN();
+  mock_warning_handler.ExpectWarnings();
+
+  for (int disable_autoreset : {0, 1}) {
+    if (disable_autoreset) {
+      model->opt.disableflags |= mjDSBL_AUTORESET;
+    } else {
+      model->opt.disableflags &= ~mjDSBL_AUTORESET;
+    }
+
+    mj_resetData(model.get(), data.get());
+    data->qpos[1] = nan;
+    mj_checkPos(model.get(), data.get());
+    EXPECT_EQ(data->warning[mjWARN_BADQPOS].number, 1);
+    EXPECT_EQ(data->warning[mjWARN_BADQPOS].lastinfo, 1);
+
+    mj_resetData(model.get(), data.get());
+    data->qvel[1] = nan;
+    mj_checkVel(model.get(), data.get());
+    EXPECT_EQ(data->warning[mjWARN_BADQVEL].number, 1);
+    EXPECT_EQ(data->warning[mjWARN_BADQVEL].lastinfo, 1);
+
+    mj_resetData(model.get(), data.get());
+    data->qacc[1] = nan;
+    mj_checkAcc(model.get(), data.get());
+    EXPECT_EQ(data->warning[mjWARN_BADQACC].number, 1);
+    EXPECT_EQ(data->warning[mjWARN_BADQACC].lastinfo, 1);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

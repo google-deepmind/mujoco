@@ -62,9 +62,9 @@ void mj_checkPos(const mjModel* m, mjData* d) {
       mj_warning(d, mjWARN_BADQPOS, i);
       if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_resetData(m, d);
+        d->warning[mjWARN_BADQPOS].number++;
+        d->warning[mjWARN_BADQPOS].lastinfo = i;
       }
-      d->warning[mjWARN_BADQPOS].number++;
-      d->warning[mjWARN_BADQPOS].lastinfo = i;
       return;
     }
   }
@@ -83,9 +83,9 @@ void mj_checkVel(const mjModel* m, mjData* d) {
       mj_warning(d, mjWARN_BADQVEL, i);
       if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_resetData(m, d);
+        d->warning[mjWARN_BADQVEL].number++;
+        d->warning[mjWARN_BADQVEL].lastinfo = i;
       }
-      d->warning[mjWARN_BADQVEL].number++;
-      d->warning[mjWARN_BADQVEL].lastinfo = i;
       return;
     }
   }
@@ -104,10 +104,8 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
       mj_warning(d, mjWARN_BADQACC, i);
       if (!mjDISABLED(mjDSBL_AUTORESET)) {
         mj_resetData(m, d);
-      }
-      d->warning[mjWARN_BADQACC].number++;
-      d->warning[mjWARN_BADQACC].lastinfo = i;
-      if (!mjDISABLED(mjDSBL_AUTORESET)) {
+        d->warning[mjWARN_BADQACC].number++;
+        d->warning[mjWARN_BADQACC].lastinfo = i;
         mj_forward(m, d);
       }
       return;
