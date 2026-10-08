@@ -1148,6 +1148,140 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
       return 0;
     }
 
+    case mjMESH_BUILTIN_GRID: {
+      if (nparams != 6 && nparams != 7) {
+        m->SetError(
+            mjCError(0, "Grid mesh type requires 6 or 7 parameters (count[3], spacing[3], [dim])"));
+        return -1;
+      }
+      int    count[3]   = {static_cast<int>(params[0]),
+                           static_cast<int>(params[1]),
+                           static_cast<int>(params[2])};
+      double spacing[3] = {params[3], params[4], params[5]};
+      int    dim        = (nparams == 7) ? static_cast<int>(params[6]) : 3;
+      if (dim < 1 || dim > 3) {
+        m->SetError(mjCError(0, "Grid dim must be 1, 2, or 3"));
+        return -1;
+      }
+      for (int i = 0; i < dim; i++) {
+        if (count[i] < 1) {
+          m->SetError(mjCError(0, "Grid count must be positive"));
+          return -1;
+        }
+      }
+      for (int i = dim; i < 3; i++) {
+        if (count[i] != 1) {
+          m->SetError(mjCError(0, "Grid count must be 1 along dimensions beyond dim"));
+          return -1;
+        }
+      }
+      meshC->MakeGrid(count, spacing, dim, false);
+      if (dim > 1 && (dim == 3 ? mesh->usertet : mesh->userface)->empty()) {
+        m->SetError(mjCError(0, "Failed to create grid mesh"));
+        return -1;
+      }
+      if (dim < 3 && mesh->inertia == mjMESH_INERTIA_LEGACY) {
+        mesh->inertia = mjMESH_INERTIA_SHELL;
+      }
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_BOX:
+    case mjMESH_BUILTIN_CYLINDER:
+    case mjMESH_BUILTIN_ELLIPSOID: {
+      if (nparams != 6 && nparams != 7) {
+        m->SetError(mjCError(0,
+                             "Box/cylinder/ellipsoid mesh type requires 6 or 7 parameters "
+                             "(count[3], spacing[3], [dim])"));
+        return -1;
+      }
+      int    count[3]   = {static_cast<int>(params[0]),
+                           static_cast<int>(params[1]),
+                           static_cast<int>(params[2])};
+      double spacing[3] = {params[3], params[4], params[5]};
+      int    dim        = (nparams == 7) ? static_cast<int>(params[6]) : 3;
+      if (dim < 2 || dim > 3) {
+        m->SetError(mjCError(0, "Mesh dim must be 2 or 3 for box/cylinder/ellipsoid"));
+        return -1;
+      }
+      for (int i = 0; i < 3; i++) {
+        if (count[i] < 2) {
+          m->SetError(mjCError(0, "Box/cylinder/ellipsoid count must be at least 2"));
+          return -1;
+        }
+      }
+      if (builtin == mjMESH_BUILTIN_BOX) {
+        meshC->MakeBox(count, spacing, dim, false, true);
+      } else if (builtin == mjMESH_BUILTIN_CYLINDER) {
+        meshC->MakeCylinder(count, spacing, dim, false, true);
+      } else {
+        meshC->MakeEllipsoid(count, spacing, dim, false, true);
+      }
+      if ((dim == 3 ? mesh->usertet : mesh->userface)->empty()) {
+        m->SetError(mjCError(0, "Failed to create box/cylinder/ellipsoid mesh"));
+        return -1;
+      }
+      if (dim < 3 && mesh->inertia == mjMESH_INERTIA_LEGACY) {
+        mesh->inertia = mjMESH_INERTIA_SHELL;
+      }
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_SQUARE:
+    case mjMESH_BUILTIN_DISC: {
+      if (nparams != 6) {
+        m->SetError(
+            mjCError(0, "Square/disc mesh type requires 6 parameters (count[3], spacing[3])"));
+        return -1;
+      }
+      int    count[3]   = {static_cast<int>(params[0]),
+                           static_cast<int>(params[1]),
+                           static_cast<int>(params[2])};
+      double spacing[3] = {params[3], params[4], params[5]};
+      for (int i = 0; i < 2; i++) {
+        if (count[i] < 1) {
+          m->SetError(mjCError(0, "Count must be positive"));
+          return -1;
+        }
+      }
+      if (count[2] != 1) {
+        m->SetError(mjCError(0, "Square/disc count[2] must be 1"));
+        return -1;
+      }
+      if (builtin == mjMESH_BUILTIN_SQUARE) {
+        meshC->MakeGrid(count, spacing, 2, false);
+      } else {
+        meshC->MakeDisc(count, spacing, false);
+      }
+      if (mesh->userface->empty()) {
+        m->SetError(mjCError(0, "Failed to create square/disc mesh"));
+        return -1;
+      }
+      if (mesh->inertia == mjMESH_INERTIA_LEGACY) { mesh->inertia = mjMESH_INERTIA_SHELL; }
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_CIRCLE: {
+      if (nparams != 6) {
+        m->SetError(mjCError(0, "Circle mesh type requires 6 parameters (count[3], spacing[3])"));
+        return -1;
+      }
+      int    count[3]   = {static_cast<int>(params[0]),
+                           static_cast<int>(params[1]),
+                           static_cast<int>(params[2])};
+      double spacing[3] = {params[3], params[4], params[5]};
+      if (count[0] < 4) {
+        m->SetError(mjCError(0, "Circle count must be at least 4 (3 nodes)"));
+        return -1;
+      }
+      meshC->MakeCircle(count, spacing);
+      if (mesh->usernode->empty()) {
+        m->SetError(mjCError(0, "Failed to create circle mesh"));
+        return -1;
+      }
+      return 0;
+    }
+
     default:
       m->SetError(mjCError(0, "Unsupported mesh type"));
       return 1;

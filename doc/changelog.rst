@@ -98,6 +98,10 @@ Compiler
   ellipsoid :ref:`fluid model<body-geom-fluidshape>` are kept.
 - Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
   the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
+- Added procedural mesh types ``grid``, ``box``, ``cylinder``, ``ellipsoid``, ``square``, ``disc`` and ``circle`` to
+  :ref:`mesh/builtin<asset-mesh-builtin>` and :ref:`mjs_makeMesh`, generating the same shapes as the corresponding
+  :ref:`flexcomp<body-flexcomp>` types. The ``circle`` and 1D ``grid`` types only contain nodes. Types without volume
+  change a ``legacy`` mesh inertia to ``shell``.
 
 Bug fixes
 ^^^^^^^^^

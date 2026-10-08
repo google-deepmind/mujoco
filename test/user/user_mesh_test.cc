@@ -32,7 +32,6 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
-#include "src/user/user_objects.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -2161,48 +2160,60 @@ TEST_F(MjCMeshTest, MeshMaterial) {
   EXPECT_EQ(model->geom_matid[1], 0);
 }
 
+// generate a procedural mesh in a new spec using the public API
+static mjsMesh* MakeBuiltinMesh(mjSpec* spec, mjtMeshBuiltin builtin,
+                                std::vector<double> params) {
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+  if (mjs_makeMesh(mesh, builtin, params.data(), params.size())) {
+    return nullptr;
+  }
+  return mesh;
+}
+
 TEST_F(MjCMeshTest, MakeGrid1D) {
-  mjCMesh mesh;
-  int count[3] = {5, 1, 1};
-  double spacing[3] = {0.1, 0, 0};
-  mesh.MakeGrid(count, spacing, 1, /*needtex=*/false);
-  const std::vector<double>& node = mesh.UserNode();
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_GRID, {5, 1, 1, 0.1, 0, 0, 1});
+  ASSERT_THAT(mesh, NotNull());
+  const std::vector<double>& node = *mesh->usernode;
   ASSERT_EQ(node.size(), 5 * 3);
   // 1D grids only have nodes, connectivity is implicit
-  EXPECT_TRUE(mesh.UserFace().empty());
-  EXPECT_TRUE(mesh.UserTet().empty());
+  EXPECT_TRUE(mesh->uservert->empty());
+  EXPECT_TRUE(mesh->userface->empty());
+  EXPECT_TRUE(mesh->usertet->empty());
   EXPECT_THAT(std::vector<double>(node.begin(), node.begin() + 6),
               ElementsAre(0.1 * -2.0, 0, 0, 0.1 * -1.0, 0, 0));
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MjCMeshTest, MakeCircle) {
-  mjCMesh mesh;
-  int count[3] = {5, 1, 1};
-  double spacing[3] = {1, 0, 0};
-  mesh.MakeCircle(count, spacing);
-  const std::vector<double>& node = mesh.UserNode();
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_CIRCLE, {5, 1, 1, 1, 0, 0});
+  ASSERT_THAT(mesh, NotNull());
+  const std::vector<double>& node = *mesh->usernode;
   ASSERT_EQ(node.size(), 4 * 3);  // last grid point coincides with the first
-  EXPECT_TRUE(mesh.UserFace().empty());
-  EXPECT_TRUE(mesh.UserTet().empty());
+  EXPECT_TRUE(mesh->userface->empty());
+  EXPECT_TRUE(mesh->usertet->empty());
   // square inscribed in a circle, consecutive nodes at distance spacing[0]
   double radius = std::sqrt(0.5);
   EXPECT_DOUBLE_EQ(node[0], radius);
   EXPECT_DOUBLE_EQ(node[1], 0);
   EXPECT_NEAR(node[3], 0, 1e-15);
   EXPECT_DOUBLE_EQ(node[4], radius);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MjCMeshTest, MakeGrid2D) {
-  mjCMesh mesh;
-  int count[3] = {3, 4, 1};
-  double spacing[3] = {0.1, 0.2, 0};
-  mesh.MakeGrid(count, spacing, 2, /*needtex=*/true);
-  const std::vector<double>& node = mesh.UserNode();
-  const std::vector<int>& face = mesh.UserFace();
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_GRID, {3, 4, 1, 0.1, 0.2, 0, 2});
+  ASSERT_THAT(mesh, NotNull());
+  const std::vector<double>& node = *mesh->usernode;
+  const std::vector<int>& face = *mesh->userface;
   ASSERT_EQ(node.size(), 3 * 4 * 3);
   ASSERT_EQ(face.size(), 2 * 3 * 2 * 3);  // 2*3 quads * 2 tris * 3 verts
-  EXPECT_EQ(mesh.UserTexcoord().size(), 3 * 4 * 2);
-  EXPECT_TRUE(mesh.UserTet().empty());
+  EXPECT_TRUE(mesh->usertet->empty());
 
   // nodes are stored in double precision, ordered with x outermost
   EXPECT_EQ(node[0], 0.1 * -1.0);
@@ -2214,31 +2225,33 @@ TEST_F(MjCMeshTest, MakeGrid2D) {
   // first quad (ix=0, iy=0) has vertices {0, 4, 5, 1}
   EXPECT_THAT(std::vector<int>(face.begin(), face.begin() + 6),
               ElementsAre(0, 4, 5, 0, 5, 1));
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MjCMeshTest, MakeGrid3D) {
-  mjCMesh mesh;
-  int count[3] = {2, 2, 2};
-  double spacing[3] = {1, 1, 1};
-  mesh.MakeGrid(count, spacing, 3, /*needtex=*/false);
-  const std::vector<double>& node = mesh.UserNode();
-  const std::vector<int>& tet = mesh.UserTet();
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_GRID, {2, 2, 2, 1, 1, 1, 3});
+  ASSERT_THAT(mesh, NotNull());
+  const std::vector<double>& node = *mesh->usernode;
+  const std::vector<int>& tet = *mesh->usertet;
   ASSERT_EQ(node.size(), 8 * 3);
   ASSERT_EQ(tet.size(), 6 * 4);  // 1 cube = 6 tets * 4 indices
-  EXPECT_TRUE(mesh.UserFace().empty());
+  EXPECT_TRUE(mesh->userface->empty());
   EXPECT_THAT(std::vector<double>(node.begin(), node.begin() + 6),
               ElementsAre(-0.5, -0.5, -0.5, -0.5, -0.5, 0.5));
   EXPECT_THAT(std::vector<int>(tet.begin(), tet.begin() + 8),
               ElementsAre(0, 2, 4, 3, 0, 4, 1, 3));
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MjCMeshTest, MakeDisc) {
-  mjCMesh mesh;
-  int count[3] = {3, 3, 1};
-  double spacing[3] = {1, 1, 0};
-  mesh.MakeDisc(count, spacing, /*needtex=*/false);
-  const std::vector<double>& node = mesh.UserNode();
-  const std::vector<int>& face = mesh.UserFace();
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_DISC, {3, 3, 1, 1, 1, 0});
+  ASSERT_THAT(mesh, NotNull());
+  const std::vector<double>& node = *mesh->usernode;
+  const std::vector<int>& face = *mesh->userface;
   ASSERT_EQ(node.size(), 9 * 3);
   ASSERT_EQ(face.size(), 2 * 2 * 2 * 3);
 
@@ -2255,27 +2268,29 @@ TEST_F(MjCMeshTest, MakeDisc) {
   // quad (0, 0) is not flipped, quad (0, 1) is flipped
   EXPECT_THAT(std::vector<int>(face.begin(), face.begin() + 12),
               ElementsAre(0, 3, 4, 0, 4, 1, 1, 4, 2, 4, 5, 2));
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MjCMeshTest, MakeBoxCylinderEllipsoid) {
-  int count[3] = {3, 3, 3};
-  double spacing[3] = {0.5, 0.5, 0.5};
+  mjSpec* spec = mj_makeSpec();
+  std::vector<double> params3d = {3, 3, 3, 0.5, 0.5, 0.5, 3};
 
-  mjCMesh box2d;
-  box2d.MakeBox(count, spacing, 2, /*needtex=*/false, /*open=*/false);
-  EXPECT_FALSE(box2d.UserFace().empty());
-  EXPECT_TRUE(box2d.UserTet().empty());
+  mjsMesh* box2d =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_BOX, {3, 3, 3, 0.5, 0.5, 0.5, 2});
+  ASSERT_THAT(box2d, NotNull());
+  EXPECT_FALSE(box2d->userface->empty());
+  EXPECT_TRUE(box2d->usertet->empty());
   // no center node for surfaces
-  EXPECT_THAT(std::vector<double>(box2d.UserNode().begin(),
-                                  box2d.UserNode().begin() + 3),
+  EXPECT_THAT(std::vector<double>(box2d->usernode->begin(),
+                                  box2d->usernode->begin() + 3),
               ElementsAre(-0.5, -0.5, -0.5));
 
-  mjCMesh box3d;
-  box3d.MakeBox(count, spacing, 3, /*needtex=*/false, /*open=*/false);
-  const std::vector<double>& node = box3d.UserNode();
-  const std::vector<int>& tet = box3d.UserTet();
+  mjsMesh* box3d = MakeBuiltinMesh(spec, mjMESH_BUILTIN_BOX, params3d);
+  ASSERT_THAT(box3d, NotNull());
+  const std::vector<double>& node = *box3d->usernode;
+  const std::vector<int>& tet = *box3d->usertet;
   ASSERT_FALSE(tet.empty());
-  EXPECT_TRUE(box3d.UserFace().empty());
+  EXPECT_TRUE(box3d->userface->empty());
   // center node followed by the first corner
   EXPECT_THAT(std::vector<double>(node.begin(), node.begin() + 6),
               ElementsAre(0, 0, 0, -0.5, -0.5, -0.5));
@@ -2283,57 +2298,93 @@ TEST_F(MjCMeshTest, MakeBoxCylinderEllipsoid) {
   EXPECT_THAT(std::vector<int>(tet.begin(), tet.begin() + 4),
               ElementsAre(0, 1, 4, 5));
 
-  mjCMesh cyl;
-  cyl.MakeCylinder(count, spacing, 3, /*needtex=*/false, /*open=*/false);
-  EXPECT_EQ(cyl.UserTet(), tet);
-  EXPECT_DOUBLE_EQ(cyl.UserNode()[3], -0.5 * std::sqrt(0.5));
-  EXPECT_DOUBLE_EQ(cyl.UserNode()[4], -0.5 * std::sqrt(0.5));
-  EXPECT_DOUBLE_EQ(cyl.UserNode()[5], -0.5);
+  mjsMesh* cyl = MakeBuiltinMesh(spec, mjMESH_BUILTIN_CYLINDER, params3d);
+  ASSERT_THAT(cyl, NotNull());
+  EXPECT_EQ(*cyl->usertet, tet);
+  EXPECT_DOUBLE_EQ((*cyl->usernode)[3], -0.5 * std::sqrt(0.5));
+  EXPECT_DOUBLE_EQ((*cyl->usernode)[4], -0.5 * std::sqrt(0.5));
+  EXPECT_DOUBLE_EQ((*cyl->usernode)[5], -0.5);
 
-  mjCMesh ell;
-  ell.MakeEllipsoid(count, spacing, 3, /*needtex=*/false, /*open=*/false);
-  EXPECT_EQ(ell.UserTet(), tet);
-  EXPECT_DOUBLE_EQ(ell.UserNode()[3], -0.5 / std::sqrt(3.0));
-  EXPECT_DOUBLE_EQ(ell.UserNode()[4], -0.5 / std::sqrt(3.0));
-  EXPECT_DOUBLE_EQ(ell.UserNode()[5], -0.5 / std::sqrt(3.0));
+  mjsMesh* ell = MakeBuiltinMesh(spec, mjMESH_BUILTIN_ELLIPSOID, params3d);
+  ASSERT_THAT(ell, NotNull());
+  EXPECT_EQ(*ell->usertet, tet);
+  EXPECT_DOUBLE_EQ((*ell->usernode)[3], -0.5 / std::sqrt(3.0));
+  EXPECT_DOUBLE_EQ((*ell->usernode)[4], -0.5 / std::sqrt(3.0));
+  EXPECT_DOUBLE_EQ((*ell->usernode)[5], -0.5 / std::sqrt(3.0));
+  mj_deleteSpec(spec);
 }
 
-TEST_F(MjCMeshTest, MakeBoxTexcoord) {
-  int count[3] = {3, 3, 3};
-  double spacing[3] = {0.5, 0.5, 0.5};
-
-  // one texcoord per node, the center node only exists in 3D
-  for (int dim : {2, 3}) {
-    mjCMesh box;
-    box.MakeBox(count, spacing, dim, /*needtex=*/true, /*open=*/false);
-    EXPECT_EQ(box.UserTexcoord().size() / 2, box.UserNode().size() / 3);
+TEST_F(MjCMeshTest, MakeBuiltinInvalidParams) {
+  struct Case {
+    mjtMeshBuiltin builtin;
+    std::vector<double> params;
+    const char* error;
+  };
+  std::vector<Case> cases = {
+      // wrong number of parameters
+      {mjMESH_BUILTIN_GRID, {3, 3, 3, 1, 1}, "requires 6 or 7 parameters"},
+      {mjMESH_BUILTIN_BOX, {3, 3, 3, 1, 1}, "requires 6 or 7 parameters"},
+      {mjMESH_BUILTIN_CIRCLE, {3}, "requires 6 parameters"},
+      {mjMESH_BUILTIN_CIRCLE, {5, 1, 1, 1, 0, 0, 1}, "requires 6 parameters"},
+      {mjMESH_BUILTIN_SQUARE, {3, 3, 1, 1, 1, 0, 2}, "requires 6 parameters"},
+      // invalid dim
+      {mjMESH_BUILTIN_GRID, {3, 3, 3, 1, 1, 1, 4}, "dim must be 1, 2, or 3"},
+      {mjMESH_BUILTIN_BOX, {3, 3, 3, 1, 1, 1, 1}, "dim must be 2 or 3"},
+      // grid counts must be positive and 1 beyond dim
+      {mjMESH_BUILTIN_GRID, {0, 3, 3, 1, 1, 1, 3}, "count must be positive"},
+      {mjMESH_BUILTIN_GRID, {3, 3, 2, 1, 1, 1, 2}, "beyond dim"},
+      {mjMESH_BUILTIN_GRID, {3, 3, 1, 1, 1, 1, 1}, "beyond dim"},
+      // square and disc are 2D
+      {mjMESH_BUILTIN_SQUARE, {3, 3, 0, 1, 1, 1}, "count[2] must be 1"},
+      {mjMESH_BUILTIN_DISC, {3, 3, 2, 1, 1, 1}, "count[2] must be 1"},
+      // boxes need at least two points per side
+      {mjMESH_BUILTIN_BOX, {3, 1, 3, 1, 1, 1, 3}, "at least 2"},
+      {mjMESH_BUILTIN_CYLINDER, {3, 3, 1, 1, 1, 1, 2}, "at least 2"},
+      // circles need at least three nodes
+      {mjMESH_BUILTIN_CIRCLE, {3, 1, 1, 1, 1, 1}, "at least 4"},
+  };
+  for (const Case& c : cases) {
+    mjSpec* spec = mj_makeSpec();
+    EXPECT_THAT(MakeBuiltinMesh(spec, c.builtin, c.params), IsNull())
+        << c.error;
+    EXPECT_THAT(mjs_getError(spec), HasSubstr(c.error));
+    mj_deleteSpec(spec);
   }
 }
 
-TEST_F(MjCMeshTest, MakeProceduralSmallCount) {
-  double spacing[3] = {1, 1, 1};
-
-  // boxes need at least two points per side
-  int box_count[3] = {3, 1, 3};
-  mjCMesh box;
-  box.MakeBox(box_count, spacing, 3, /*needtex=*/false, /*open=*/false);
-  EXPECT_TRUE(box.UserNode().empty());
-  EXPECT_TRUE(box.UserTet().empty());
-
-  // circles need at least three nodes
-  int circle_count[3] = {3, 1, 1};
-  mjCMesh circle;
-  circle.MakeCircle(circle_count, spacing);
-  EXPECT_TRUE(circle.UserNode().empty());
+TEST_F(MjCMeshTest, MakeBuiltinShellInertia) {
+  mjSpec* spec = mj_makeSpec();
+  // surfaces have no volume, legacy inertia is changed to shell
+  mjsMesh* square =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_SQUARE, {3, 3, 1, 1, 1, 0});
+  ASSERT_THAT(square, NotNull());
+  EXPECT_EQ(square->inertia, mjMESH_INERTIA_SHELL);
+  // volumes keep the default inertia
+  mjsMesh* box =
+      MakeBuiltinMesh(spec, mjMESH_BUILTIN_BOX, {3, 3, 3, 1, 1, 1, 3});
+  ASSERT_THAT(box, NotNull());
+  EXPECT_EQ(box->inertia, mjMESH_INERTIA_LEGACY);
+  mj_deleteSpec(spec);
 }
 
-TEST_F(MjCMeshTest, MakeGrid1DNoVert) {
-  int count[3] = {4, 1, 1};
-  double spacing[3] = {1, 1, 1};
-  mjCMesh mesh;
-  mesh.MakeGrid(count, spacing, 1, /*needtex=*/false);
-  EXPECT_EQ(mesh.UserNode().size(), 4 * 3);
-  EXPECT_TRUE(mesh.UserVert().empty());
+TEST_F(MjCMeshTest, BuiltinProceduralXML) {
+  static constexpr char xml[] = R"(
+  <mujoco model="procedural_mesh">
+    <asset>
+      <mesh name="m_grid3d" builtin="grid" params="3 3 3 0.1 0.1 0.1 3"/>
+      <mesh name="m_grid2d" builtin="grid" params="3 3 1 0.1 0.1 0 2"/>
+      <mesh name="m_box" builtin="box" params="3 3 3 0.1 0.1 0.1 3"/>
+      <mesh name="m_cylinder" builtin="cylinder" params="3 3 3 0.1 0.1 0.1 3"/>
+      <mesh name="m_ellipsoid" builtin="ellipsoid" params="3 3 3 0.1 0.1 0.1 3"/>
+      <mesh name="m_square" builtin="square" params="3 3 1 0.1 0.1 0"/>
+      <mesh name="m_disc" builtin="disc" params="3 3 1 0.1 0.1 0"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull()) << error.data();
+  EXPECT_EQ(model->nmesh, 7);
 }
 
 }  // namespace

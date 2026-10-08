@@ -471,6 +471,13 @@
       <xs:enumeration value="supersphere"/>
       <xs:enumeration value="wedge"/>
       <xs:enumeration value="plate"/>
+      <xs:enumeration value="grid"/>
+      <xs:enumeration value="box"/>
+      <xs:enumeration value="cylinder"/>
+      <xs:enumeration value="ellipsoid"/>
+      <xs:enumeration value="square"/>
+      <xs:enumeration value="disc"/>
+      <xs:enumeration value="circle"/>
     </xs:restriction>
   </xs:simpleType>
 

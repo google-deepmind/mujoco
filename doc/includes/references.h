@@ -1703,6 +1703,13 @@ typedef enum mjtMeshBuiltin {      // type of built-in procedural mesh
   mjMESH_BUILTIN_SUPERTORUS,       // supertorus
   mjMESH_BUILTIN_WEDGE,            // wedge
   mjMESH_BUILTIN_PLATE,            // plate
+  mjMESH_BUILTIN_GRID,             // grid (1D, 2D, or 3D)
+  mjMESH_BUILTIN_BOX,              // box
+  mjMESH_BUILTIN_CYLINDER,         // cylinder
+  mjMESH_BUILTIN_ELLIPSOID,        // ellipsoid
+  mjMESH_BUILTIN_SQUARE,           // square
+  mjMESH_BUILTIN_DISC,             // disc
+  mjMESH_BUILTIN_CIRCLE            // circle
 } mjtMeshBuiltin;
 typedef enum mjtBuiltin {          // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture

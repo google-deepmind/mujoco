@@ -1612,11 +1612,66 @@ The full list of processing steps applied by the compiler to each mesh is as fol
       **res_x**: integer > 0: The horizontal resolution of the plate.
       |br| **res_y**: integer > 0: The vertical resolution of the plate.
 
+   :at-val:`grid` (count[3], spacing[3], [dim])
+      A regular grid of vertices. If ``dim`` is 3 (default), creates a volumetric tetrahedral mesh. If ``dim`` is 2,
+      creates a triangulated 2D surface mesh. If ``dim`` is 1, creates ordered nodes only, which can be used by
+      flexcomp but not by geoms.
+
+      **count**: 3 integers > 0: Number of vertices along each axis; must be 1 along the axes beyond ``dim``.
+      |br| **spacing**: 3 reals: Spacing between grid points along each axis.
+      |br| **dim**: optional integer in [1, 3] (default 3): Mesh dimensionality.
+
+   :at-val:`box` (count[3], spacing[3], [dim])
+      A procedural box mesh. If ``dim`` is 3 (default), creates a volumetric tetrahedral mesh. If ``dim`` is 2,
+      creates a triangular surface mesh.
+
+      **count**: 3 integers >= 2: Grid resolution along each axis.
+      |br| **spacing**: 3 reals: Spacing along each axis.
+      |br| **dim**: optional integer in [2, 3] (default 3): Mesh dimensionality.
+
+   :at-val:`cylinder` (count[3], spacing[3], [dim])
+      A procedural cylinder mesh. If ``dim`` is 3 (default), creates a volumetric tetrahedral mesh. If ``dim`` is 2,
+      creates a triangular surface mesh.
+
+      **count**: 3 integers >= 2: Grid resolution along each axis.
+      |br| **spacing**: 3 reals: Spacing along each axis.
+      |br| **dim**: optional integer in [2, 3] (default 3): Mesh dimensionality.
+
+   :at-val:`ellipsoid` (count[3], spacing[3], [dim])
+      A procedural ellipsoid mesh. If ``dim`` is 3 (default), creates a volumetric tetrahedral mesh. If ``dim`` is 2,
+      creates a triangular surface mesh.
+
+      **count**: 3 integers >= 2: Grid resolution along each axis.
+      |br| **spacing**: 3 reals: Spacing along each axis.
+      |br| **dim**: optional integer in [2, 3] (default 3): Mesh dimensionality.
+
+   :at-val:`square` (count[3], spacing[3])
+      A 2D triangulated square surface mesh.
+
+      **count**: 3 integers (first 2 must be > 0, last must be 1): Number of vertices along the x and y axes.
+      |br| **spacing**: 3 reals: Spacing along each axis.
+
+   :at-val:`disc` (count[3], spacing[3])
+      A 2D triangulated disc surface mesh.
+
+      **count**: 3 integers (first 2 must be > 0, last must be 1): Number of vertices along the radial and angular
+      directions.
+      |br| **spacing**: 3 reals: Spacing along each axis.
+
+   :at-val:`circle` (count[3], spacing[3])
+      A 1D circular mesh of ordered nodes, which can be used by flexcomp but not by geoms.
+
+      **count**: 3 integers (first must be >= 4): Number of grid points around the circle; the last point coincides
+      with the first, so ``count[0] - 1`` nodes are created.
+      |br| **spacing**: 3 reals: Spacing along each axis.
+
 .. _asset-mesh-params:
 
 :at:`params`: :at-val:`real(nparam), optional`
    The parameters used to generate a builtin mesh. The number and type of parameters and their semantic depends on the
-   mesh type. See :ref:`mesh/builtin<asset-mesh-builtin>` for details.
+   mesh type. See :ref:`mesh/builtin<asset-mesh-builtin>` for details. The ``square`` and ``disc`` types, and the
+   ``grid``, ``box``, ``cylinder`` and ``ellipsoid`` types with ``dim`` < 3, change a :at-val:`legacy`
+   :ref:`inertia<asset-mesh-inertia>` (including an explicit one) to :at-val:`shell`, since they have no volume.
 
 .. _asset-mesh-material:
 
