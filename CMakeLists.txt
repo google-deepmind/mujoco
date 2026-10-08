@@ -158,6 +158,7 @@ if(NOT EMSCRIPTEN)
   add_subdirectory(plugin/sensor)
   add_subdirectory(plugin/sdf)
 endif()
+add_subdirectory(plugin/gmsh_decoder)
 add_subdirectory(plugin/obj_decoder)
 add_subdirectory(plugin/stl_decoder)
 

@@ -266,6 +266,8 @@ void mjCMesh::PointToLocal() {
   spec.userfacenormal     = &spec_facenormal_;
   spec.usertexcoord       = &spec_texcoord_;
   spec.userfacetexcoord   = &spec_facetexcoord_;
+  spec.usernode           = &spec_node_;
+  spec.usertet            = &spec_tet_;
   spec.material           = &spec_material_;
   spec.plugin.plugin_name = &plugin_name;
   spec.plugin.name        = &plugin_instance_name;
@@ -278,6 +280,8 @@ void mjCMesh::PointToLocal() {
   userfacenormal          = nullptr;
   usertexcoord            = nullptr;
   userfacetexcoord        = nullptr;
+  usernode                = nullptr;
+  usertet                 = nullptr;
 }
 
 
@@ -299,6 +303,8 @@ void mjCMesh::CopyFromSpec() {
   content_type_ = spec_content_type_;
   normal_       = spec_normal_;
   face_         = spec_face_;
+  node_         = spec_node_;
+  tet_          = spec_tet_;
   material_     = spec_material_;
   ProcessVertices(spec_vert_);
   texcoord_          = spec_texcoord_;
@@ -615,6 +621,10 @@ void mjCMesh::LoadFromDecoder(mjResource* resource, bool remove_repeated) {
       face_.assign(src_mesh->userface->begin(), src_mesh->userface->end());
       facenormal_.assign(src_mesh->userfacenormal->begin(), src_mesh->userfacenormal->end());
       facetexcoord_.assign(src_mesh->userfacetexcoord->begin(), src_mesh->userfacetexcoord->end());
+      if (src_mesh->usernode) {
+        node_.assign(src_mesh->usernode->begin(), src_mesh->usernode->end());
+      }
+      if (src_mesh->usertet) { tet_.assign(src_mesh->usertet->begin(), src_mesh->usertet->end()); }
 
 
       std::vector<float> vert(src_mesh->uservert->begin(), src_mesh->uservert->end());

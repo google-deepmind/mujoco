@@ -554,6 +554,8 @@ typedef struct mjsMesh_ {          // mesh specification
   mjIntVec* userface;              // user vertex indices
   mjIntVec* userfacenormal;        // user face normal indices
   mjIntVec* userfacetexcoord;      // user texcoord indices
+  mjDoubleVec* usernode;           // user volume node coordinates
+  mjIntVec* usertet;               // user tetrahedral cell indices
   mjsPlugin plugin;                // sdf plugin
   mjString* material;              // name of material
   int octree_maxdepth;             // max octree depth

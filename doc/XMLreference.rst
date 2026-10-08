@@ -3951,7 +3951,7 @@ saving the XML:
    and `format 2.2 <https://gmsh.info//doc/texinfo/gmsh.html#MSH-file-format-version-2-_0028Legacy_0029>`__
    (ascii or binary). The file extension can be anything; the parser recognizes the format by examining
    the file header. This is a very rich file format, allowing all kinds of elements with different dimensionality and
-   topology. MuJoCo only supports GMSH element types 1, 2, 4 which happen to correspond to our 1D, 2D and 3D flexes and
+   topology. MuJoCo only supports GMSH element types 2 and 4 which happen to correspond to our 2D and 3D flexes and
    assumes that the nodes are specified in a single block. Only the Nodes and Elements sections of the GMHS file are
    processed, and used to populate the point and element data of the flexcomp. The parser will generate an error if the
    GMSH file contains meshes that are not supported by MuJoCo. :at:`dim` is automatically set to the dimensionality

@@ -1203,26 +1203,30 @@ class mjCMesh_ : public mjCBase {
   std::string plugin_name;
   std::string plugin_instance_name;
 
-  std::string        content_type_ = "";   // content type of file
-  std::string        file_;                // mesh file
-  mjResource*        resource_ = nullptr;  // resource for mesh file
-  std::vector<float> vert_;                // vertex data
-  std::vector<float> normal_;              // normal data
-  std::vector<float> texcoord_;            // texcoord data
-  std::vector<int>   face_;                // vertex indices
-  std::vector<int>   facenormal_;          // normal indices
-  std::vector<int>   facetexcoord_;        // texcoord indices
-  std::string        material_;            // mesh fallback material
+  std::string         content_type_ = "";   // content type of file
+  std::string         file_;                // mesh file
+  mjResource*         resource_ = nullptr;  // resource for mesh file
+  std::vector<float>  vert_;                // vertex data
+  std::vector<float>  normal_;              // normal data
+  std::vector<float>  texcoord_;            // texcoord data
+  std::vector<int>    face_;                // vertex indices
+  std::vector<int>    facenormal_;          // normal indices
+  std::vector<int>    facetexcoord_;        // texcoord indices
+  std::vector<double> node_;                // volume nodes
+  std::vector<int>    tet_;                 // tetrahedral cells
+  std::string         material_;            // mesh fallback material
 
-  std::string        spec_content_type_;
-  std::string        spec_file_;
-  std::vector<float> spec_vert_;
-  std::vector<float> spec_normal_;
-  std::vector<float> spec_texcoord_;
-  std::vector<int>   spec_face_;
-  std::vector<int>   spec_facenormal_;
-  std::vector<int>   spec_facetexcoord_;
-  std::string        spec_material_;
+  std::string         spec_content_type_;
+  std::string         spec_file_;
+  std::vector<float>  spec_vert_;
+  std::vector<float>  spec_normal_;
+  std::vector<float>  spec_texcoord_;
+  std::vector<int>    spec_face_;
+  std::vector<int>    spec_facenormal_;
+  std::vector<int>    spec_facetexcoord_;
+  std::vector<double> spec_node_;
+  std::vector<int>    spec_tet_;
+  std::string         spec_material_;
 
   // used by the compiler
   bool                             needreorient_;  // needs reorientation
@@ -1283,24 +1287,29 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void MakeCone(int nedge, double radius);
 
   // accessors
-  const mjsPlugin&          Plugin() const { return plugin; }
-  const std::string&        ContentType() const { return content_type_; }
-  const std::string&        File() const { return file_; }
-  const double*             Refpos() const { return refpos; }
-  const double*             Refquat() const { return refquat; }
-  const double*             Scale() const { return scale; }
-  bool                      SmoothNormal() const { return smoothnormal; }
-  const std::vector<float>& Vert() const { return vert_; }
-  float                     Vert(int i) const { return vert_[i]; }
-  const std::vector<float>& UserVert() const { return spec_vert_; }
-  const std::vector<float>& UserNormal() const { return spec_normal_; }
-  const std::vector<float>& Texcoord() const { return texcoord_; }
-  const std::vector<int>&   FaceTexcoord() const { return facetexcoord_; }
-  const std::vector<float>& UserTexcoord() const { return spec_texcoord_; }
-  const std::vector<int>&   Face() const { return face_; }
-  const std::vector<int>&   UserFace() const { return spec_face_; }
-  mjtMeshInertia            Inertia() const { return spec.inertia; }
-  const std::string&        Material() const { return material_; }
+  const mjsPlugin&           Plugin() const { return plugin; }
+  const std::string&         ContentType() const { return content_type_; }
+  const std::string&         File() const { return file_; }
+  const double*              Refpos() const { return refpos; }
+  const double*              Refquat() const { return refquat; }
+  const double*              Scale() const { return scale; }
+  bool                       SmoothNormal() const { return smoothnormal; }
+  const std::vector<float>&  Vert() const { return vert_; }
+  float                      Vert(int i) const { return vert_[i]; }
+  const std::vector<float>&  UserVert() const { return spec_vert_; }
+  const std::vector<float>&  UserNormal() const { return spec_normal_; }
+  const std::vector<float>&  Texcoord() const { return texcoord_; }
+  const std::vector<int>&    FaceTexcoord() const { return facetexcoord_; }
+  const std::vector<float>&  UserTexcoord() const { return spec_texcoord_; }
+  const std::vector<int>&    Face() const { return face_; }
+  const std::vector<int>&    UserFace() const { return spec_face_; }
+  const std::vector<double>& Node() const { return node_; }
+  const std::vector<double>& UserNode() const { return spec_node_; }
+  std::vector<double>&       UserNode() { return spec_node_; }
+  const std::vector<int>&    Tet() const { return tet_; }
+  const std::vector<int>&    UserTet() const { return spec_tet_; }
+  mjtMeshInertia             Inertia() const { return spec.inertia; }
+  const std::string&         Material() const { return material_; }
 
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
@@ -1314,6 +1323,8 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   int nnormal() const { return normal_.size() / 3; }
   int ntexcoord() const { return texcoord_.size() / 2; }
   int nface() const { return face_.size() / 3; }
+  int nnode() const { return node_.size() / 3; }
+  int ntet() const { return tet_.size() / 4; }
   int npolygon() const { return polygons_.size(); }
   int npolygonvert() const {
     int acc = 0;

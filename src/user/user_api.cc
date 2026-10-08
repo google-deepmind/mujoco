@@ -909,6 +909,7 @@ mjsFlex* mjs_makeFlex(mjsBody*     body,
   }
 
   // physics
+  fcomp.has_dim               = (dim > 0);
   fcomp.def.spec.flex->dim    = dim;
   fcomp.def.spec.flex->radius = radius;
   if (mass > 0) fcomp.mass = mass;

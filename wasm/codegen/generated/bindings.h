@@ -6540,6 +6540,12 @@ struct MjsMesh {
   mjIntVec &userfacetexcoord() const {
     return *(ptr_->userfacetexcoord);
   }
+  mjDoubleVec &usernode() const {
+    return *(ptr_->usernode);
+  }
+  mjIntVec &usertet() const {
+    return *(ptr_->usertet);
+  }
   mjString material() const {
     return (ptr_ && ptr_->material) ? *(ptr_->material) : "";
   }

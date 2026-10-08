@@ -941,8 +941,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_41_MissingNodeHeader_Fail) {
       "user/testdata/malformed_cube_41_ascii_missing_node_header.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(),
-              HasSubstr("XML Error: Error: All nodes must be in single block"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("All nodes must be in single block"));
   mj_deleteModel(m);
 }
 
@@ -951,8 +951,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_41_MissingNodeIndex_Fail) {
       "user/testdata/malformed_cube_41_ascii_missing_node_index.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(),
-              HasSubstr("XML Error: Error: Node tags must be sequential"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Node tags must be sequential"));
   mj_deleteModel(m);
 }
 
@@ -961,9 +961,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElementHeader_Fail) {
       "user/testdata/malformed_cube_41_ascii_missing_element_header.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("XML Error: Error: All elements must be in single block"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("All elements must be in single block"));
   mj_deleteModel(m);
 }
 
@@ -972,8 +971,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElement_Fail) {
       "user/testdata/malformed_cube_41_ascii_missing_element.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(),
-              HasSubstr("XML Error: Error: Error reading Elements"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Error reading Elements"));
   mj_deleteModel(m);
 }
 
@@ -985,21 +984,21 @@ TEST_F(UserFlexTest,
       "xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("XML Error: Error: Maximum number of nodes must be equal to "
-                "number of nodes in a block\nElement 'flexcomp', line 22\n"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Maximum number of nodes must be equal "
+                                      "to number of nodes in a block"));
   mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumNodes_Fail) {
+  // TODO(b/347277884): Assert on warning message. Error message differs on
+  // Windows in GH Actions.
   const std::string xml_path = GetTestDataFilePath(
       "user/testdata/malformed_cube_22_ascii_missing_num_nodes.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  // TODO(mohammadhamid): Replace with an assertion about the error message. For
-  // some reason, on Windows the error message is different on GH Actions
   EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("XML Error: GMSH decoder: "));
   mj_deleteModel(m);
 }
 
@@ -1008,8 +1007,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNode_Fail) {
       "user/testdata/malformed_cube_22_ascii_missing_node.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(),
-              HasSubstr("XML Error: Error: Error reading node tags"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Error reading node tags"));
   mj_deleteModel(m);
 }
 
@@ -1029,8 +1028,8 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingElement_Fail) {
       "user/testdata/malformed_cube_22_ascii_missing_element.xml");
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  EXPECT_THAT(error.data(),
-              HasSubstr("XML Error: Error: Error reading Elements"));
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Error reading Elements"));
   mj_deleteModel(m);
 }
 
@@ -1156,6 +1155,54 @@ TEST_F(UserFlexTest, LoadMSHASCII_dim_missing_in_xml) {
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   EXPECT_EQ(m->flex_dim[0], 3);
   mj_deleteModel(m);
+}
+
+TEST_F(UserFlexTest, LoadMSHVolumetric_dim_mismatch_fails) {
+  // cube_22_ascii_vol_gmshApp.msh is a 3D volumetric mesh.
+  // Specifying dim="2" must fail compilation without silent fallback.
+  const std::string dir = GetTestDataFilePath("user/testdata");
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler meshdir="%s"/>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="2" radius=".001"
+                file="cube_22_ascii_vol_gmshApp.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> xml_buf;
+  snprintf(xml_buf.data(), xml_buf.size(), xml, dir.c_str());
+  std::array<char, 1024> error;
+  MjModelPtr m =
+      LoadModelFromString(xml_buf.data(), error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("flexcomp dim does not match GMSH mesh dimensionality"));
+}
+
+TEST_F(UserFlexTest, LoadMSHSurface_dim_mismatch_fails) {
+  // cube_22_ascii_surf_gmshApp.msh is a 2D surface mesh.
+  // Specifying dim="3" must fail compilation.
+  const std::string dir = GetTestDataFilePath("user/testdata");
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler meshdir="%s"/>
+    <worldbody>
+      <flexcomp name="test" type="gmsh" dim="3" radius=".001"
+                file="cube_22_ascii_surf_gmshApp.msh"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> xml_buf;
+  snprintf(xml_buf.data(), xml_buf.size(), xml, dir.c_str());
+  std::array<char, 1024> error;
+  MjModelPtr m =
+      LoadModelFromString(xml_buf.data(), error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("flexcomp dim does not match GMSH mesh dimensionality"));
 }
 
 TEST_F(UserFlexTest, TrilinearUnusedVertices_Crash) {

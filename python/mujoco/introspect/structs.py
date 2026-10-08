@@ -8975,6 +8975,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='user texcoord indices',
              ),
              StructFieldDecl(
+                 name='usernode',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjDoubleVec'),
+                 ),
+                 doc='user volume node coordinates',
+             ),
+             StructFieldDecl(
+                 name='usertet',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjIntVec'),
+                 ),
+                 doc='user tetrahedral cell indices',
+             ),
+             StructFieldDecl(
                  name='plugin',
                  type=ValueType(name='mjsPlugin'),
                  doc='sdf plugin',

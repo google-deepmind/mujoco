@@ -1048,6 +1048,20 @@ class SpecsTest(absltest.TestCase):
       ):
         s.compile()
 
+  def test_mesh_volumetric_fields(self):
+    """Test that mesh.usernode and mesh.usertet are accessible and modifiable."""
+    spec = mujoco.MjSpec()
+    mesh = spec.add_mesh(name='test_mesh')
+    self.assertTrue(hasattr(mesh, 'usernode'))
+    self.assertTrue(hasattr(mesh, 'usertet'))
+    mesh.usernode = [
+        0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0
+    ]
+    mesh.usertet = [0, 1, 2, 3]
+    self.assertLen(mesh.usernode, 12)
+    self.assertLen(mesh.usertet, 4)
+    self.assertEqual(list(mesh.usertet), [0, 1, 2, 3])
+
   def test_geom_and_mesh_plugin(self):
     """Test that geom.plugin and mesh.plugin are accessible."""
     spec = mujoco.MjSpec()

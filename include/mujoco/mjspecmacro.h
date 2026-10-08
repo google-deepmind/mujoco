@@ -333,6 +333,8 @@
     X   ( mjIntVec*,       userface,         1 ) \
     X   ( mjIntVec*,       userfacenormal,   1 ) \
     X   ( mjIntVec*,       userfacetexcoord, 1 ) \
+    X   ( mjDoubleVec*,    usernode,         1 ) \
+    X   ( mjIntVec*,       usertet,          1 ) \
     X   ( mjsPlugin,       plugin,           1 ) \
     X   ( mjString*,       material,         1 ) \
     X   ( int,             octree_maxdepth,  1 ) \

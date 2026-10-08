@@ -5983,7 +5983,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("userface", &MjsMesh::userface, reference())
     .property("userfacenormal", &MjsMesh::userfacenormal, reference())
     .property("userfacetexcoord", &MjsMesh::userfacetexcoord, reference())
+    .property("usernode", &MjsMesh::usernode, reference())
     .property("usernormal", &MjsMesh::usernormal, reference())
+    .property("usertet", &MjsMesh::usertet, reference())
     .property("usertexcoord", &MjsMesh::usertexcoord, reference())
     .property("uservert", &MjsMesh::uservert, reference());
   emscripten::class_<MjsNumeric>("MjsNumeric")

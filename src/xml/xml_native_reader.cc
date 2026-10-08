@@ -1504,7 +1504,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   if (ReadAttrTxt(elem, "material", material)) { mjs_setString(dflex.material, material.c_str()); }
   ReadAttr(elem, "rgba", 4, dflex.rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) { dflex.flatskin = (n == 1); }
-  ReadAttrInt(elem, "dim", &dflex.dim);
+  if (ReadAttrInt(elem, "dim", &dflex.dim)) { fcomp.has_dim = true; }
   ReadAttr(elem, "radius", 1, &dflex.radius, text);
   ReadAttrInt(elem, "group", &dflex.group);
   if (!ReadAttr(elem, "origin", 3, fcomp.origin, text) &&
