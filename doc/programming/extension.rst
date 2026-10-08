@@ -383,7 +383,10 @@ A decoder is described by the :ref:`mjpDecoder` struct, which has the following 
   A callback of type :ref:`mjfDecode` that performs the actual decoding. It receives an :ref:`mjResource` and
   returns a newly allocated :ref:`mjSpec` containing the decoded asset data. The caller takes
   ownership of the returned spec and is responsible for freeing it with :ref:`mj_deleteSpec`. Returns ``NULL`` on
-  failure.
+  failure, in which case the decoder should write a human-readable reason into the ``error`` buffer of size
+  ``error_sz``, if ``error`` is not ``NULL``. This message is propagated to the user, e.g. via the ``error``
+  argument of :ref:`mj_parse` or as a compiler error for mesh assets. Non-fatal issues can be reported with
+  :ref:`mju_warning`.
 
 When a decoder is invoked for a mesh asset, the compiler will reference the first mesh element in the spec returned
 by the ``decode`` callback.
@@ -423,13 +426,14 @@ Below is a minimal decoder that reads a hypothetical binary mesh format:
 
 .. code-block:: C
 
+   #include <stdio.h>
    #include <mujoco.h>
 
-   static mjSpec* MyDecode(mjResource* resource, const mjVFS* vfs) {
+   static mjSpec* MyDecode(mjResource* resource, const mjVFS* vfs, char* error, int error_sz) {
      const void* bytes = NULL;
      int nbytes = mju_readResource(resource, &bytes);
      if (nbytes < 0) {
-       mju_warning("failed to read resource '%s'", resource->name);
+       if (error) snprintf(error, error_sz, "failed to read resource '%s'", resource->name);
        return NULL;
      }
 

@@ -2381,12 +2381,13 @@ mjfDecode
 
 .. code-block:: C
 
-   typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs);
+   typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs, char* error, int error_sz);
 
 
 This callback is given an opened resource, and is responsible for decoding it into a :ref:`mjSpec`.
 Ownership of the resource and the returned spec is responsibility of the caller.
-When decoding fails, the callback should return NULL.
+When decoding fails, the callback should return NULL and, if ``error`` is not NULL, write a description of the
+failure into ``error`` (of size ``error_sz``).
 
 .. _mjfCanDecode:
 

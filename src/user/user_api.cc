@@ -148,9 +148,9 @@ mjSpec* mj_parse(
     memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
   }
 
-  mjSpec* spec = mju_decodeResource(resource, content_type, vfs);
+  mjSpec* spec = mju_decodeResource(resource, content_type, vfs, error, error_sz);
   if (spec == nullptr) {
-    if (error) {
+    if (error && error_sz > 0 && !error[0]) {
       strncpy(error, "could not decode content", error_sz);
       error[error_sz - 1] = '\0';
     }

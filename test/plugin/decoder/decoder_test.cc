@@ -16,6 +16,7 @@
 
 #include <string.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string_view>
@@ -43,7 +44,8 @@ static mjSpec* MakeSimpleSpec() {
 }
 
 // Always returns a simple mjSpec, ignoring the resource.
-mjSpec* FakeDecode(mjResource* resource, const mjVFS* vfs) {
+mjSpec* FakeDecode(mjResource* resource, const mjVFS* vfs, char* error,
+                   int error_sz) {
   return MakeSimpleSpec();
 }
 
@@ -123,8 +125,8 @@ TEST_F(DecoderPluginTest, CanDecode) {
 }
 
 TEST_F(DecoderPluginTest, DecodeWithResourceArgs) {
-  static auto decode_args_fn =
-      +[](mjResource* resource, const mjVFS* vfs) -> mjSpec* {
+  static auto decode_args_fn = +[](mjResource* resource, const mjVFS* vfs,
+                                   char* error, int error_sz) -> mjSpec* {
     mjSpec* s = MakeSimpleSpec();
     if (resource && resource->args) {
       std::string_view args_view(resource->args);
@@ -144,7 +146,9 @@ TEST_F(DecoderPluginTest, DecodeWithResourceArgs) {
   mjp_defaultDecoder(&decoder);
   decoder.content_type = "model/argsformat";
   decoder.extension = ".argsformat";
-  decoder.can_decode = +[](const mjResource* r) -> int { return 1; };
+  decoder.can_decode = +[](const mjResource* r) -> int {
+    return std::string_view(r->name).ends_with(".argsformat");
+  };
   decoder.decode = decode_args_fn;
   mjp_registerDecoder(&decoder);
 
@@ -153,13 +157,99 @@ TEST_F(DecoderPluginTest, DecodeWithResourceArgs) {
   resource.name = const_cast<char*>("test.argsformat");
   resource.args = "size=42.0&foo=bar";
 
-  mjSpec* spec = mju_decodeResource(&resource, "model/argsformat", nullptr);
+  mjSpec* spec =
+      mju_decodeResource(&resource, "model/argsformat", nullptr, nullptr, 0);
   ASSERT_THAT(spec, testing::NotNull());
   mjsElement* elem = mjs_firstElement(spec, mjOBJ_GEOM);
   mjsGeom* geom = mjs_asGeom(elem);
   ASSERT_THAT(geom, testing::NotNull());
   EXPECT_DOUBLE_EQ(geom->size[0], 42.0);
   mj_deleteSpec(spec);
+}
+
+// Always fails with a descriptive error.
+mjSpec* FailDecode(mjResource* resource, const mjVFS* vfs, char* error,
+                   int error_sz) {
+  if (error && error_sz > 0) {
+    std::snprintf(error, error_sz, "failformat: bad thing in '%s'",
+                  resource->name);
+  }
+  return nullptr;
+}
+
+mjpDecoder FailDecoder() {
+  mjpDecoder decoder;
+  mjp_defaultDecoder(&decoder);
+  decoder.content_type = "model/failformat";
+  decoder.extension = ".failformat";
+  decoder.can_decode = +[](const mjResource* r) -> int {
+    return std::string_view(r->name).ends_with(".failformat");
+  };
+  decoder.decode = FailDecode;
+  return decoder;
+}
+
+TEST_F(DecoderPluginTest, DecodeErrorReachesCaller) {
+  mjpDecoder decoder = FailDecoder();
+  mjp_registerDecoder(&decoder);
+
+  // mju_decodeResource forwards the decoder's error
+  mjResource resource;
+  std::memset(&resource, 0, sizeof(resource));
+  resource.name = const_cast<char*>("test.failformat");
+  char error[1024] = "";
+  mjSpec* spec = mju_decodeResource(&resource, "model/failformat", nullptr,
+                                    error, sizeof(error));
+  EXPECT_THAT(spec, testing::IsNull());
+  EXPECT_STREQ(error, "failformat: bad thing in 'test.failformat'");
+
+  // a null error buffer is allowed
+  spec = mju_decodeResource(&resource, "model/failformat", nullptr, nullptr, 0);
+  EXPECT_THAT(spec, testing::IsNull());
+
+  // missing decoder is reported through the error buffer
+  resource.name = const_cast<char*>("test.nosuchformat");
+  spec = mju_decodeResource(&resource, "model/nosuchformat", nullptr, error,
+                            sizeof(error));
+  EXPECT_THAT(spec, testing::IsNull());
+  EXPECT_THAT(error, testing::HasSubstr("could not find decoder"));
+
+  // mj_parse reports the decoder's error instead of a generic message
+  spec = mj_parse("test.failformat", "model/failformat", nullptr, error,
+                  sizeof(error));
+  EXPECT_THAT(spec, testing::IsNull());
+  EXPECT_STREQ(error, "failformat: bad thing in 'test.failformat'");
+}
+
+TEST_F(DecoderPluginTest, MeshDecodeErrorReachesCompiler) {
+  mjpDecoder decoder = FailDecoder();
+  mjp_registerDecoder(&decoder);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  const char contents[] = "garbage";
+  mj_addBufferVFS(&vfs, "bad.failformat", contents, sizeof(contents));
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="bad" file="bad.failformat" content_type="model/failformat"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="bad"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = "";
+  mjSpec* spec = mj_parseXMLString(xml, &vfs, error, sizeof(error));
+  ASSERT_THAT(spec, testing::NotNull()) << error;
+  mjModel* model = mj_compile(spec, &vfs);
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(mjs_getError(spec),
+              testing::HasSubstr("failformat: bad thing in 'bad.failformat'"));
+  mj_deleteSpec(spec);
+  mj_deleteVFS(&vfs);
 }
 
 }  // namespace

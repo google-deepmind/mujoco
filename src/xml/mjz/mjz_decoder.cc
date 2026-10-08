@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -30,7 +31,8 @@ mjPLUGIN_LIB_INIT(mjz_decoder) {
     const char* ext = strrchr(resource->name, '.');
     return ext ? (!strcmp(ext, ".mjz") || !strcmp(ext, ".zip")) : 0;
   };
-  decoder.decode = +[](mjResource* resource, const mjVFS* vfs) -> mjSpec* {
+  decoder.decode =
+      +[](mjResource* resource, const mjVFS* vfs, char* error, int error_sz) -> mjSpec* {
     if (!resource || !resource->name) { return nullptr; }
 
     mujoco::user::FilePath path(resource->name);
@@ -64,14 +66,14 @@ mjPLUGIN_LIB_INIT(mjz_decoder) {
       }
     }
 
-    mjSpec* spec = nullptr;
-    if (found_candidate) {
-      char error[1024] = "";
-      spec             = mj_parseXML(found_candidate->c_str(), vfs, error, sizeof(error));
-      if (!spec && error[0]) { mju_warning("%s", error); }
+    if (!found_candidate) {
+      if (error && error_sz > 0) {
+        snprintf(error, error_sz, "mjz: no model XML found in archive '%s'", resource->name);
+      }
+      return nullptr;
     }
 
-    return spec;
+    return mj_parseXML(found_candidate->c_str(), vfs, error, error_sz);
   };
   mjp_registerDecoder(&decoder);
 }

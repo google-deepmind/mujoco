@@ -10213,8 +10213,19 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
                  nullable=True,
              ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error_sz',
+                 type=ValueType(name='int'),
+             ),
          ),
-         doc='Find the decoder for a resource and return the decoded spec. The caller takes ownership of the spec and is responsible for cleaning it up.',  # pylint: disable=line-too-long
+         doc='Find the decoder for a resource and return the decoded spec. The caller takes ownership of the spec and is responsible for cleaning it up. On failure, return NULL and write the reason to error.',  # pylint: disable=line-too-long
      )),
     ('mju_threadpool',
      FunctionDecl(

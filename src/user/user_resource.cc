@@ -147,7 +147,9 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
   return 1;  // default (assume modified)
 }
 
-mjSpec* mju_decodeResource(mjResource* resource, const char* content_type, const mjVFS* vfs) {
+mjSpec* mju_decodeResource(
+    mjResource* resource, const char* content_type, const mjVFS* vfs, char* error, int error_sz) {
+  if (error && error_sz > 0) { error[0] = '\0'; }
   const mjpDecoder* decoder = nullptr;
   if (content_type) {
     decoder = mjp_findDecoder(resource, content_type);
@@ -155,8 +157,10 @@ mjSpec* mju_decodeResource(mjResource* resource, const char* content_type, const
     decoder = mjp_findDecoder(resource, mjuu_extToContentType(resource->name).c_str());
   }
   if (!decoder) {
-    mju_warning("Could not find decoder for resource '%s'", resource->name);
+    if (error && error_sz > 0) {
+      snprintf(error, error_sz, "could not find decoder for resource '%s'", resource->name);
+    }
     return nullptr;
   }
-  return decoder->decode(resource, vfs);
+  return decoder->decode(resource, vfs, error, error_sz);
 }

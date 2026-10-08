@@ -81,7 +81,8 @@ typedef struct mjpResourceProvider {
 
 // function pointer types
 // return an mjSpec representing the decoded resource.
-typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs);
+// on failure, return NULL and write the reason to error (if not NULL).
+typedef mjSpec* (*mjfDecode)(mjResource* resource, const mjVFS* vfs, char* error, int error_sz);
 // return true if the given resource can be decoded.
 typedef int (*mjfCanDecode)(const mjResource* resource);
 

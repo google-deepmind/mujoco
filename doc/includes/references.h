@@ -4158,7 +4158,7 @@ mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
 void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir);
 int mju_isModifiedResource(const mjResource* resource, const char* timestamp);
 mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
-                           const mjVFS* vfs);
+                           const mjVFS* vfs, char* error, int error_sz);
 void mju_threadpool(mjData* d, int nthread);
 mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                        const char* prefix, const char* suffix);

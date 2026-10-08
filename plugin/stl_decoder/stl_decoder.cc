@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <cmath>
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <string_view>
@@ -46,29 +48,42 @@ Vec3Key FloatToKey(const float v[3]) {
   return {x, y, z};
 }
 
-mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
+void SetError(char* error, int error_sz, const char* format, ...) {
+  if (!error || error_sz <= 0) return;
+  va_list args;
+  va_start(args, format);
+  vsnprintf(error, error_sz, format, args);
+  va_end(args);
+}
+
+mjSpec* Decode(mjResource* resource, const mjVFS* vfs, char* error,
+               int error_sz) {
   const void* bytes = nullptr;
   int buffer_sz = mju_readResource(resource, &bytes);
   if (buffer_sz < 0) {
-    mju_warning("stl_decoder: could not read STL file '%s'", resource->name);
+    SetError(error, error_sz, "stl_decoder: could not read STL file '%s'",
+             resource->name);
     return nullptr;
   }
   if (!buffer_sz) {
-    mju_warning("stl_decoder: STL file '%s' is empty", resource->name);
+    SetError(error, error_sz, "stl_decoder: STL file '%s' is empty",
+             resource->name);
     return nullptr;
   }
 
   const char* buffer = static_cast<const char*>(bytes);
 
   if (buffer_sz < 84) {
-    mju_warning("stl_decoder: invalid header in STL file '%s'", resource->name);
+    SetError(error, error_sz, "stl_decoder: invalid header in STL file '%s'",
+             resource->name);
     return nullptr;
   }
 
   int nfaces = 0;
   ReadFromBuffer(&nfaces, buffer + 80);
   if (nfaces < 1 || nfaces > 200000) {
-    mju_warning(
+    SetError(
+        error, error_sz,
         "stl_decoder: number of faces should be between 1 and 200000 in STL "
         "file '%s'; perhaps this is an ASCII file?",
         resource->name);
@@ -76,7 +91,8 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
   }
 
   if (nfaces * 50 != buffer_sz - 84) {
-    mju_warning(
+    SetError(
+        error, error_sz,
         "stl_decoder: STL file '%s' has wrong size; perhaps this is an ASCII "
         "file?",
         resource->name);
@@ -97,10 +113,10 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
       if (std::fabs(v[0]) > std::pow(2, 30) ||
           std::fabs(v[1]) > std::pow(2, 30) ||
           std::fabs(v[2]) > std::pow(2, 30)) {
-        mju_warning(
-            "stl_decoder: vertex in STL file '%s' "
-            "exceeds maximum bounds",
-            resource->name);
+        SetError(error, error_sz,
+                 "stl_decoder: vertex in STL file '%s' "
+                 "exceeds maximum bounds",
+                 resource->name);
         return nullptr;
       }
 

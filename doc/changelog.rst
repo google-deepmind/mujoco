@@ -15,6 +15,19 @@ Engine
   issues in :doc:`MJWarp <mjwarp/index>` issues `1713 <https://github.com/google-deepmind/mujoco_warp/issues/1713>`__
   and `1714 <https://github.com/google-deepmind/mujoco_warp/issues/1714>`__.
 
+General
+^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :ref:`mjfDecode`, the ``decode`` callback of :ref:`mjpDecoder` plugins, and :ref:`mju_decodeResource` now take
+     ``char* error, int error_sz`` arguments. A decoder which fails writes its reason into ``error``, which is then
+     reported by :ref:`mj_parse` and in mesh compilation errors, rather than only as a warning with a generic error.
+
+     **Migration:** Add the two arguments to custom decoders and write failure messages into ``error`` (if not
+     ``NULL``) instead of calling :ref:`mju_warning`. Pass an error buffer, or ``NULL, 0``, to
+     :ref:`mju_decodeResource`.
+
 Compiler
 ^^^^^^^^
 .. admonition:: Breaking API changes

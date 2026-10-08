@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <map>
 #include <memory>
 #include <numbers>
@@ -2796,8 +2797,16 @@ mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
 
 namespace {
 // load 2D
-mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
+mjSpec* Decode(mjResource* resource, const mjVFS* vfs, char* error,
+               int error_sz) {
   auto stage = pxr::UsdStage::Open(resource->name);
+  if (!stage) {
+    if (error && error_sz > 0) {
+      snprintf(error, error_sz, "usd_decoder: could not open USD stage '%s'",
+               resource->name);
+    }
+    return nullptr;
+  }
   return ParseStage(stage);
 }
 

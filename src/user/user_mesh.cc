@@ -600,8 +600,12 @@ bool mjCMesh::IsMSH() const {
 void mjCMesh::LoadFromDecoder(mjResource* resource, bool remove_repeated) {
   const mjpDecoder* decoder = mjp_findDecoder(resource, content_type_.c_str());
   if (!decoder) { throw mjCError(this, "no decoder found for mesh file '%s'", resource->name); }
-  mjSpec* mesh_spec = decoder->decode(resource, nullptr);
-  if (!mesh_spec) { throw mjCError(this, "decoder failed for mesh file '%s'", resource->name); }
+  char    error[1024] = "";
+  mjSpec* mesh_spec   = decoder->decode(resource, nullptr, error, sizeof(error));
+  if (!mesh_spec) {
+    if (error[0]) { throw mjCError(this, "%s", error); }
+    throw mjCError(this, "decoder failed for mesh file '%s'", resource->name);
+  }
   mjsElement* elem = mjs_firstElement(mesh_spec, mjOBJ_MESH);
   if (elem) {
     mjsMesh* src_mesh = mjs_asMesh(elem);

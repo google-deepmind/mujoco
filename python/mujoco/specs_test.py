@@ -849,6 +849,25 @@ class SpecsTest(absltest.TestCase):
       geom = spec.worldbody.next_geom(geom)
       i += 1
 
+  def test_decoder_errors(self):
+    bad_stl = b'too short for an stl header'
+
+    # decoder error surfaces from mj_parse
+    with self.assertRaisesRegex(ValueError, 'stl_decoder: invalid header'):
+      mujoco.MjSpec.from_file('bad.stl', include={'bad.stl': bad_stl})
+
+    # decoder error surfaces from mesh compilation
+    spec = mujoco.MjSpec()
+    mesh = spec.add_mesh()
+    mesh.name = 'bad'
+    mesh.file = 'bad.stl'
+    geom = spec.worldbody.add_geom()
+    geom.type = mujoco.mjtGeom.mjGEOM_MESH
+    geom.meshname = 'bad'
+    spec.assets = {'bad.stl': bad_stl}
+    with self.assertRaisesRegex(ValueError, 'stl_decoder: invalid header'):
+      spec.compile()
+
   def test_assets(self):
     cube = """
       v -1 -1  1

@@ -1633,9 +1633,10 @@ MJAPI int mju_isModifiedResource(const mjResource* resource, const char* timesta
 
 // Find the decoder for a resource and return the decoded spec.
 // The caller takes ownership of the spec and is responsible for cleaning it up.
-// Nullable: vfs
+// On failure, return NULL and write the reason to error.
+// Nullable: vfs, error
 MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
-                                 const mjVFS* vfs);
+                                 const mjVFS* vfs, char* error, int error_sz);
 
 
 //---------------------------------- Threads -------------------------------------------------------

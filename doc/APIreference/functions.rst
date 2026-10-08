@@ -1760,7 +1760,9 @@ Find the decoder for a resource and return the decoded spec.
 
 The caller takes ownership of the spec and is responsible for cleaning it up.
 
-*Nullable:* ``vfs``
+On failure, return NULL and write the reason to error.
+
+*Nullable:* ``vfs``, ``error``
 
 .. _Initialization:
 
