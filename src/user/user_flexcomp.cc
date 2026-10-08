@@ -800,131 +800,43 @@ int mjCFlexcomp::GridID(int ix, int iy, int iz) {
 }
 
 
+// append points, elements and texcoords of a procedural mesh spec; 1D meshes
+// only have nodes, consecutive nodes are connected and closed loops wrap around
+static void AppendMeshSpec(const mjsMesh&       mesh,
+                           int                  dim,
+                           bool                 closed,
+                           std::vector<double>& point,
+                           std::vector<int>&    element,
+                           std::vector<float>&  texcoord) {
+  point.insert(point.end(), mesh.usernode->begin(), mesh.usernode->end());
+  texcoord.insert(texcoord.end(), mesh.usertexcoord->begin(), mesh.usertexcoord->end());
+  if (dim == 1) {
+    int n     = mesh.usernode->size() / 3;
+    int nedge = closed ? n : n - 1;
+    for (int i = 0; i < nedge; i++) {
+      element.push_back(i);
+      element.push_back((i + 1) % n);
+    }
+  } else {
+    const std::vector<int>& elem = dim == 3 ? *mesh.usertet : *mesh.userface;
+    element.insert(element.end(), elem.begin(), elem.end());
+  }
+}
+
+
 // make grid
 bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   int  dim     = def.Flex().spec.dim;
   bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
+  bool circle  = dim == 1 && type == mjFCOMPTYPE_CIRCLE;
 
-  // 1D
-  if (dim == 1) {
-    for (int ix = 0; ix < count[0]; ix++) {
-      if (type == mjFCOMPTYPE_CIRCLE) {
-        if (ix >= count[0] - 1) { continue; }
-
-        // add point
-        double theta  = 2 * mjPI / (count[0] - 1);
-        double radius = spacing[0] / std::sin(theta / 2) / 2;
-        point.push_back(radius * std::cos(theta * ix));
-        point.push_back(radius * std::sin(theta * ix));
-        point.push_back(0);
-
-        // add element
-        element.push_back(ix);
-        element.push_back(ix == count[0] - 2 ? 0 : ix + 1);
-      } else {
-        // add point
-        point.push_back(spacing[0] * (ix - 0.5 * (count[0] - 1)));
-        point.push_back(0);
-        point.push_back(0);
-
-        // add element
-        if (ix < count[0] - 1) {
-          element.push_back(ix);
-          element.push_back(ix + 1);
-        }
-      }
-    }
+  mjCMesh mesh;
+  if (circle) {
+    mesh.MakeCircle(count, spacing);
+  } else {
+    mesh.MakeGrid(count, spacing, dim, needtex);
   }
-
-  // 2D
-  else if (dim == 2) {
-    for (int ix = 0; ix < count[0]; ix++) {
-      for (int iy = 0; iy < count[1]; iy++) {
-        int quad2tri[2][3] = {
-            {0, 1, 2},
-            {0, 2, 3}
-        };
-
-        // add point
-        double pos[2] = {spacing[0] * (ix - 0.5 * (count[0] - 1)),
-                         spacing[1] * (iy - 0.5 * (count[1] - 1))};
-        point.push_back(pos[0]);
-        point.push_back(pos[1]);
-        point.push_back(0);
-
-        // add texture coordinates, if not specified explicitly
-        if (needtex) {
-          texcoord.push_back(ix / (double)std::max(count[0] - 1, 1));
-          texcoord.push_back(iy / (double)std::max(count[1] - 1, 1));
-        }
-
-        // flip triangles if radial projection is requested
-        if (((pos[0] < -mjEPS && pos[1] > -mjEPS) || (pos[0] > -mjEPS && pos[1] < -mjEPS)) &&
-            type == mjFCOMPTYPE_DISC) {
-          quad2tri[0][2] = 3;
-          quad2tri[1][0] = 1;
-        }
-
-        // add elements
-        if (ix < count[0] - 1 && iy < count[1] - 1) {
-          int vert[4] = {
-              count[2] * count[1] * (ix + 0) + count[2] * (iy + 0),
-              count[2] * count[1] * (ix + 1) + count[2] * (iy + 0),
-              count[2] * count[1] * (ix + 1) + count[2] * (iy + 1),
-              count[2] * count[1] * (ix + 0) + count[2] * (iy + 1),
-          };
-          for (int s = 0; s < 2; s++) {
-            for (int v = 0; v < 3; v++) { element.push_back(vert[quad2tri[s][v]]); }
-          }
-        }
-      }
-    }
-  }
-
-  // 3D
-  else {
-    int cube2tets[6][4] = {
-        {0, 3, 1, 7},
-        {0, 1, 4, 7},
-        {1, 3, 2, 7},
-        {1, 2, 6, 7},
-        {1, 5, 4, 7},
-        {1, 6, 5, 7}
-    };
-    for (int ix = 0; ix < count[0]; ix++) {
-      for (int iy = 0; iy < count[1]; iy++) {
-        for (int iz = 0; iz < count[2]; iz++) {
-          // add point
-          point.push_back(spacing[0] * (ix - 0.5 * (count[0] - 1)));
-          point.push_back(spacing[1] * (iy - 0.5 * (count[1] - 1)));
-          point.push_back(spacing[2] * (iz - 0.5 * (count[2] - 1)));
-
-          // add texture coordinates, if not specified explicitly
-          if (needtex) {
-            texcoord.push_back(ix / (float)std::max(count[0] - 1, 1));
-            texcoord.push_back(iy / (float)std::max(count[1] - 1, 1));
-          }
-
-          // add elements
-          if (ix < count[0] - 1 && iy < count[1] - 1 && iz < count[2] - 1) {
-            int vert[8] = {
-                count[2] * count[1] * (ix + 0) + count[2] * (iy + 0) + iz + 0,
-                count[2] * count[1] * (ix + 1) + count[2] * (iy + 0) + iz + 0,
-                count[2] * count[1] * (ix + 1) + count[2] * (iy + 1) + iz + 0,
-                count[2] * count[1] * (ix + 0) + count[2] * (iy + 1) + iz + 0,
-                count[2] * count[1] * (ix + 0) + count[2] * (iy + 0) + iz + 1,
-                count[2] * count[1] * (ix + 1) + count[2] * (iy + 0) + iz + 1,
-                count[2] * count[1] * (ix + 1) + count[2] * (iy + 1) + iz + 1,
-                count[2] * count[1] * (ix + 0) + count[2] * (iy + 1) + iz + 1,
-            };
-            for (int s = 0; s < 6; s++) {
-              for (int v = 0; v < 4; v++) { element.push_back(vert[cube2tets[s][v]]); }
-            }
-          }
-        }
-      }
-    }
-  }
+  AppendMeshSpec(mesh.spec, dim, circle, point, element, texcoord);
 
   // check elements
   if (element.empty()) { return comperr(error, "No elements were created in grid", error_sz); }
@@ -933,309 +845,46 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 }
 
 
-// get point id from box coordinates and side
-int mjCFlexcomp::BoxID(int ix, int iy, int iz) {
-  // side iz=0
-  if (iz == 0) {
-    return ix * count[1] + iy + 1;
-  }
-
-  // side iz=max
-  else if (iz == count[2] - 1) {
-    return count[0] * count[1] + ix * count[1] + iy + 1;
-  }
-
-  // side iy=0
-  else if (iy == 0) {
-    return 2 * count[0] * count[1] + ix * (count[2] - 2) + iz - 1 + 1;
-  }
-
-  // side iy=max
-  else if (iy == count[1] - 1) {
-    return 2 * count[0] * count[1] + count[0] * (count[2] - 2) + ix * (count[2] - 2) + iz - 1 + 1;
-  }
-
-  // side ix=0
-  else if (ix == 0) {
-    return 2 * count[0] * count[1] +
-           2 * count[0] * (count[2] - 2) +
-           (iy - 1) * (count[2] - 2) +
-           iz -
-           1 +
-           1;
-  }
-
-  // side ix=max
-  else {
-    return 2 * count[0] * count[1] +
-           2 * count[0] * (count[2] - 2) +
-           (count[1] - 2) * (count[2] - 2) +
-           (iy - 1) * (count[2] - 2) +
-           iz -
-           1 +
-           1;
-  }
-}
-
-
-// project from box to other shape
-void mjCFlexcomp::BoxProject(double* pos, int ix, int iy, int iz) {
-  // init point
-  pos[0] = 2.0 * ix / (count[0] - 1) - 1;
-  pos[1] = 2.0 * iy / (count[1] - 1) - 1;
-  pos[2] = 2.0 * iz / (count[2] - 1) - 1;
-
-  // determine sizes
-  double size[3] = {0.5 * spacing[0] * (count[0] - 1),
-                    0.5 * spacing[1] * (count[1] - 1),
-                    0.5 * spacing[2] * (count[2] - 1)};
-
-  // box
-  if (type == mjFCOMPTYPE_BOX) {
-    pos[0] *= size[0];
-    pos[1] *= size[1];
-    pos[2] *= size[2];
-  }
-
-  // cylinder
-  else if (type == mjFCOMPTYPE_CYLINDER) {
-    double L0 = std::max(std::abs(pos[0]), std::abs(pos[1]));
-    mjuu_normvec(pos, 2);
-    pos[0] *= size[0] * L0;
-    pos[1] *= size[1] * L0;
-    pos[2] *= size[2];
-  }
-
-  // ellipsoid
-  else if (type == mjFCOMPTYPE_ELLIPSOID) {
-    mjuu_normvec(pos, 3);
-    pos[0] *= size[0];
-    pos[1] *= size[1];
-    pos[2] *= size[2];
-  }
-}
-
-
 // make 2d square or disc
 bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
   // set 2D
   def.spec.flex->dim = 2;
+  bool needtex       = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
 
-  // create square
-  if (!MakeGrid(error, error_sz)) { return false; }
-
-  // do projection
+  mjCMesh mesh;
   if (type == mjFCOMPTYPE_DISC) {
-    double size[2] = {
-        0.5 * spacing[0] * (count[0] - 1),
-        0.5 * spacing[1] * (count[1] - 1),
-    };
-
-    for (int i = 0; i < point.size() / 3; i++) {
-      double* pos = point.data() + i * 3;
-      double  L0  = std::max(std::abs(pos[0]), std::abs(pos[1]));
-      mjuu_normvec(pos, 2);
-      pos[0] *= size[0] * L0;
-      pos[1] *= size[1] * L0;
-    }
+    mesh.MakeDisc(count, spacing, needtex);
+  } else {
+    mesh.MakeGrid(count, spacing, 2, needtex);
   }
+  AppendMeshSpec(mesh.spec, 2, /*closed=*/false, point, element, texcoord);
+
+  // check elements
+  if (element.empty()) { return comperr(error, "No elements were created in grid", error_sz); }
 
   return true;
 }
 
 
-static int mat2lin(int ix, int iy, int iz, const int count[3]) {
-  return ix * count[1] * count[2] + iy * count[2] + iz;
-}
-
-
 // make 3d box, ellipsoid or cylinder
 bool mjCFlexcomp::MakeBox(char* error, int error_sz, int dim, bool open) {
-  double pos[3];
-  bool   needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
+  bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
 
   // set dimension
   def.spec.flex->dim = dim;
 
-  // add center point
-  if (dim == 3) {
-    point.push_back(0);
-    point.push_back(0);
-    point.push_back(0);
+  mjCMesh mesh;
+  if (type == mjFCOMPTYPE_CYLINDER) {
+    mesh.MakeCylinder(count, spacing, dim, needtex, open);
+  } else if (type == mjFCOMPTYPE_ELLIPSOID) {
+    mesh.MakeEllipsoid(count, spacing, dim, needtex, open);
+  } else {
+    mesh.MakeBox(count, spacing, dim, needtex, open);
   }
+  AppendMeshSpec(mesh.spec, dim, /*closed=*/false, point, element, texcoord);
 
-  // add texture coordinates, if not specified explicitly
-  if (needtex) {
-    texcoord.push_back(0);
-    texcoord.push_back(0);
-  }
-
-  // add points
-  int              n = 0;
-  std::vector<int> idx(count[0] * count[1] * count[2]);
-
-  // iz=0/max
-  for (int iz = 0; iz < count[2]; iz += count[2] - 1) {
-    for (int ix = 0; ix < count[0]; ix++) {
-      for (int iy = 0; iy < count[1]; iy++) {
-        if (open && dim == 2 && iz != 0) { continue; }
-
-        // add point
-        BoxProject(pos, ix, iy, iz);
-        point.push_back(pos[0]);
-        point.push_back(pos[1]);
-        point.push_back(pos[2]);
-        idx[mat2lin(ix, iy, iz, count)] = n++;
-
-        // add texture coordinates, if not specified explicitly
-        if (needtex) {
-          texcoord.push_back(ix / (float)std::max(count[0] - 1, 1));
-          texcoord.push_back(iy / (float)std::max(count[1] - 1, 1));
-        }
-      }
-    }
-  }
-
-  // iy=0/max
-  for (int iy = 0; iy < count[1]; iy += count[1] - 1) {
-    for (int ix = 0; ix < count[0]; ix++) {
-      for (int iz = 0; iz < count[2]; iz++) {
-        // add point
-        if (iz > 0 && ((open && dim == 2) || (iz < count[2] - 1))) {
-          BoxProject(pos, ix, iy, iz);
-          point.push_back(pos[0]);
-          point.push_back(pos[1]);
-          point.push_back(pos[2]);
-          idx[mat2lin(ix, iy, iz, count)] = n++;
-
-          // add texture coordinates
-          if (needtex) {
-            texcoord.push_back(ix / (float)std::max(count[0] - 1, 1));
-            texcoord.push_back(iz / (float)std::max(count[2] - 1, 1));
-          }
-        }
-      }
-    }
-  }
-
-  // ix=0/max
-  for (int ix = 0; ix < count[0]; ix += count[0] - 1) {
-    for (int iy = 0; iy < count[1]; iy++) {
-      for (int iz = 0; iz < count[2]; iz++) {
-        // add point
-        if (iz > 0 && ((open && dim == 2) || (iz < count[2] - 1)) && iy > 0 && iy < count[1] - 1) {
-          BoxProject(pos, ix, iy, iz);
-          point.push_back(pos[0]);
-          point.push_back(pos[1]);
-          point.push_back(pos[2]);
-          idx[mat2lin(ix, iy, iz, count)] = n++;
-
-          // add texture coordinates
-          if (needtex) {
-            texcoord.push_back(iy / (float)std::max(count[1] - 1, 1));
-            texcoord.push_back(iz / (float)std::max(count[2] - 1, 1));
-          }
-        }
-      }
-    }
-  }
-
-  // add elements
-
-  // iz=0/max
-  for (int iz = 0; iz < count[2]; iz += count[2] - 1) {
-    for (int ix = 0; ix < count[0]; ix++) {
-      for (int iy = 0; iy < count[1]; iy++) {
-        if (open && dim == 2 && iz != 0) { continue; }
-
-        if (ix < count[0] - 1 && iy < count[1] - 1) {
-          if (dim == 3) {
-            element.push_back(0);
-            element.push_back(BoxID(ix, iy, iz));
-            element.push_back(BoxID(ix + 1, iy, iz));
-            element.push_back(BoxID(ix + 1, iy + 1, iz));
-
-            element.push_back(0);
-            element.push_back(BoxID(ix, iy, iz));
-            element.push_back(BoxID(ix, iy + 1, iz));
-            element.push_back(BoxID(ix + 1, iy + 1, iz));
-          } else {
-            int step1 = iz == 0 ? 1 : 0;
-            int step2 = iz == 0 ? 0 : 1;
-            element.push_back(idx[mat2lin(ix, iy, iz, count)]);
-            element.push_back(idx[mat2lin(ix + 1, iy + step1, iz, count)]);
-            element.push_back(idx[mat2lin(ix + 1, iy + step2, iz, count)]);
-
-            element.push_back(idx[mat2lin(ix, iy, iz, count)]);
-            element.push_back(idx[mat2lin(ix + step2, iy + 1, iz, count)]);
-            element.push_back(idx[mat2lin(ix + step1, iy + 1, iz, count)]);
-          }
-        }
-      }
-    }
-  }
-
-  // iy=0/max
-  for (int iy = 0; iy < count[1]; iy += count[1] - 1) {
-    for (int ix = 0; ix < count[0]; ix++) {
-      for (int iz = 0; iz < count[2]; iz++) {
-        if (ix < count[0] - 1 && iz < count[2] - 1) {
-          if (dim == 3) {
-            element.push_back(0);
-            element.push_back(BoxID(ix, iy, iz));
-            element.push_back(BoxID(ix + 1, iy, iz));
-            element.push_back(BoxID(ix + 1, iy, iz + 1));
-
-            element.push_back(0);
-            element.push_back(BoxID(ix, iy, iz));
-            element.push_back(BoxID(ix, iy, iz + 1));
-            element.push_back(BoxID(ix + 1, iy, iz + 1));
-          } else {
-            int ix0 = iy == 0 ? ix : ix + 1;
-            int dx  = iy == 0 ? 1 : -1;
-            element.push_back(idx[mat2lin(ix0, iy, iz, count)]);
-            element.push_back(idx[mat2lin(ix0 + dx, iy, iz, count)]);
-            element.push_back(idx[mat2lin(ix0 + dx, iy, iz + 1, count)]);
-
-            element.push_back(idx[mat2lin(ix0, iy, iz, count)]);
-            element.push_back(idx[mat2lin(ix0 + dx, iy, iz + 1, count)]);
-            element.push_back(idx[mat2lin(ix0, iy, iz + 1, count)]);
-          }
-        }
-      }
-    }
-  }
-
-  // ix=0/max
-  for (int ix = 0; ix < count[0]; ix += count[0] - 1) {
-    for (int iy = 0; iy < count[1]; iy++) {
-      for (int iz = 0; iz < count[2]; iz++) {
-        if (iy < count[1] - 1 && iz < count[2] - 1) {
-          if (dim == 3) {
-            element.push_back(0);
-            element.push_back(BoxID(ix, iy, iz));
-            element.push_back(BoxID(ix, iy + 1, iz));
-            element.push_back(BoxID(ix, iy + 1, iz + 1));
-
-            element.push_back(0);
-            element.push_back(BoxID(ix, iy, iz));
-            element.push_back(BoxID(ix, iy, iz + 1));
-            element.push_back(BoxID(ix, iy + 1, iz + 1));
-          } else {
-            int iy0 = ix != 0 ? iy : iy + 1;
-            int dy  = ix != 0 ? 1 : -1;
-            element.push_back(idx[mat2lin(ix, iy0, iz, count)]);
-            element.push_back(idx[mat2lin(ix, iy0 + dy, iz, count)]);
-            element.push_back(idx[mat2lin(ix, iy0 + dy, iz + 1, count)]);
-
-            element.push_back(idx[mat2lin(ix, iy0, iz, count)]);
-            element.push_back(idx[mat2lin(ix, iy0 + dy, iz + 1, count)]);
-            element.push_back(idx[mat2lin(ix, iy0, iz + 1, count)]);
-          }
-        }
-      }
-    }
-  }
+  // check elements
+  if (element.empty()) { return comperr(error, "No elements were created in box", error_sz); }
 
   return true;
 }

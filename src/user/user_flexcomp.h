@@ -71,10 +71,8 @@ class mjCFlexcomp {
                 const mjVFS* vfs = nullptr);
 
 
-  int  GridID(int ix, int iy);
-  int  GridID(int ix, int iy, int iz);
-  int  BoxID(int ix, int iy, int iz);
-  void BoxProject(double* pos, int ix, int iy, int iz);
+  int GridID(int ix, int iy);
+  int GridID(int ix, int iy, int iz);
 
   // common properties set by user
   std::string  name;          // flex name

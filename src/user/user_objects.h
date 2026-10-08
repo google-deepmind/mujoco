@@ -1285,6 +1285,12 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void MakeWedge(int resolution[2], double fov[2], double gamma);
   void MakeRect(int resolution[2]);
   void MakeCone(int nedge, double radius);
+  void MakeGrid(const int count[3], const double spacing[3], int dim, bool needtex);
+  void MakeCircle(const int count[3], const double spacing[3]);
+  void MakeDisc(const int count[3], const double spacing[3], bool needtex);
+  void MakeBox(const int count[3], const double spacing[3], int dim, bool needtex, bool open);
+  void MakeCylinder(const int count[3], const double spacing[3], int dim, bool needtex, bool open);
+  void MakeEllipsoid(const int count[3], const double spacing[3], int dim, bool needtex, bool open);
 
   // accessors
   const mjsPlugin&           Plugin() const { return plugin; }
