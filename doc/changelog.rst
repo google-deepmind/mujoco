@@ -21,6 +21,10 @@ Engine
 - Fixed floating-point cancellation in capsule-capsule collision detection for parallel and near-parallel axes. Thanks
   to :github:user:`ayonga` for reporting the issue in :doc:`MJWarp <mjwarp/index>` issue
   `1758 <https://github.com/google-deepmind/mujoco_warp/issues/1758>`__.
+- Fixed "mjModel buffer size mismatch" and "mjData buffer size mismatch" errors when an allocator installed with
+  :ref:`mju_user_malloc` returns memory that is not 64-byte aligned, as ``malloc`` often does. ``mjModel.nbuffer`` and
+  ``mjData.nbuffer`` now include up to 63 bytes of leading padding, so arrays are 64-byte aligned regardless of the
+  buffer address.
 
 General
 ^^^^^^^

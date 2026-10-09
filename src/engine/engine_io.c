@@ -128,11 +128,14 @@ static void bufread(void* dest, mjtSize num, mjtSize szbuf, const void* buf, mjt
 }
 
 
-// number of bytes to be skipped to achieve 64-byte alignment
+// alignment of the arrays in the mjModel and mjData buffers
+#define BUFFER_ALIGN 64
+
+
+// number of bytes to be skipped to achieve BUFFER_ALIGN-byte alignment
 static inline unsigned int SKIP(intptr_t offset) {
-  const unsigned int align = 64;
   // compute skipped bytes
-  return (align - (offset % align)) % align;
+  return (BUFFER_ALIGN - (offset % BUFFER_ALIGN)) % BUFFER_ALIGN;
 }
 
 
@@ -154,14 +157,17 @@ static void mj_setPtrModel(mjModel* m) {
   MJMODEL_POINTERS
 #undef X
 
-  // check size
-  ptrdiff_t sz = ptr - (char*)m->buffer;
+  // check size, nbuffer includes the largest possible padding before the first array
+  ptrdiff_t sz = ptr - (char*)m->buffer - SKIP((intptr_t)m->buffer) + BUFFER_ALIGN - 1;
   if (m->nbuffer != sz) {
     mjERROR(
         "mjModel buffer size mismatch, "
         "expected size: %" PRIu64 ",  actual size: %td",
         m->nbuffer, sz);
   }
+
+  // poison unused bytes at the end of the buffer
+  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF((char*)m->buffer + m->nbuffer, ptr));
 }
 
 
@@ -390,8 +396,8 @@ void mj_makeModel(mjModel** dest,
   m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
   m->npaths = npaths;
 
-  // compute buffer size
-  m->nbuffer = 0;
+  // compute buffer size, including padding to align the first array at any buffer address
+  m->nbuffer = BUFFER_ALIGN - 1;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &m->nbuffer, sizeof(type), m->nr, nc)) { \
     if (allocate) mju_free(m);                                               \
@@ -1001,14 +1007,17 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   MJDATA_POINTERS
 #undef X
 
-  // check size
-  ptrdiff_t sz = ptr - (char*)d->buffer;
+  // check size, nbuffer includes the largest possible padding before the first array
+  ptrdiff_t sz = ptr - (char*)d->buffer - SKIP((intptr_t)d->buffer) + BUFFER_ALIGN - 1;
   if (d->nbuffer != sz) {
     mjERROR(
         "mjData buffer size mismatch, "
         "expected size: %" PRIu64 ",  actual size: %td",
         d->nbuffer, sz);
   }
+
+  // poison unused bytes at the end of the buffer
+  ASAN_POISON_MEMORY_REGION(ptr, PTRDIFF((char*)d->buffer + d->nbuffer, ptr));
 
   // zero-initialize arena pointers
 #define X(type, name, nr, nc) d->name = NULL;
@@ -1075,8 +1084,8 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
   // prevent spurious timing print from mj_resetData before _resetData zeroes the struct
   d->timer[mjTIMER_STEP].number = 0;
 
-  // compute buffer size
-  d->nbuffer = 0;
+  // compute buffer size, including padding to align the first array at any buffer address
+  d->nbuffer = BUFFER_ALIGN - 1;
   d->buffer = d->arena = NULL;
 #define X(type, name, nr, nc)                                                \
   if (!safeAddToBufferSize(&offset, &d->nbuffer, sizeof(type), m->nr, nc)) { \
