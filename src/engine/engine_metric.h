@@ -112,7 +112,7 @@ typedef struct {
 } mjEffFold;
 
 // the model's vertex ordering of the sparse factor, into efmC_perm (from mj_setConst)
-void mj_effCholSetConst(mjModel* m, mjData* d);
+MJAPI void mj_effCholSetConst(mjModel* m, mjData* d);
 
 // length of a fold's copy of the sparse factor (mjEffFold.F), 0 when the step has none
 MJAPI int mj_effCholFoldSize(const mjData* d);
