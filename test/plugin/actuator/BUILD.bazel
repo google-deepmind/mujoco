@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//:build_defs.bzl", "MJ_ROOT")
+load("//google/mjapi_check:mjapi_check.bzl", "mjapi_check")
 
 licenses(["notice"])
 
@@ -25,3 +26,5 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+mjapi_check()

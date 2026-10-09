@@ -4,6 +4,7 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//:build_defs.bzl", "MJ_ROOT")
+load("//google/mjapi_check:mjapi_check.bzl", "mjapi_check")
 
 licenses(["notice"])
 
@@ -803,5 +804,13 @@ cc_test(
         "//:mujoco",
         "//test:fixture",
         "@googletest//:gtest_main",
+    ],
+)
+
+mjapi_check(
+    exclude = [
+        "engine_cg_convergence_test",
+        "engine_collision_sdf_test",
+        "engine_pgs_convergence_test",
     ],
 )
