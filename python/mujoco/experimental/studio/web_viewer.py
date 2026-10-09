@@ -293,7 +293,7 @@ class WebViewer(viewer_protocol.Viewer):
 
   def _stop_server(self) -> None:
     if self._web_server is not None:
-      self._web_server.stop()
+      self._web_server.stop(reason=self.exit_reason)
       self._web_server = None
 
   # ---------------------------------------------------------------------------

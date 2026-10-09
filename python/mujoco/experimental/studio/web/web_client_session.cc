@@ -49,6 +49,7 @@ EM_BOOL Session::OnWsMessage(int event_type,
                              void* user_data) {
   auto* session = static_cast<Session*>(user_data);
   session->server_close_code_ = 0;  // Accepted; hide the disconnect notice.
+  session->server_close_reason_.clear();
   if (event->isText) {
     // Text frames carry session metadata; emscripten null-terminates them.
     session->OnSessionText(reinterpret_cast<const char*>(event->data));
@@ -91,11 +92,15 @@ EM_BOOL Session::OnWsClose(int event_type,
 
   // Codes 4xxx are deliberate server-side closes (e.g. kWsCloseSessionFull).
   // These conditions pass, so the GUI shows a notice while the reconnect loop
-  // retries at a slower pace.
+  // retries at a slower pace. The reason is shown too: for kWsCloseViewerError
+  // it names the exception that stopped the viewer.
   if (event->code >= 4000 && event->code <= 4999) {
     session->server_close_code_ = event->code;
-    LOG(Info, "Server ended this connection (code=%d); retrying slowly.",
-        event->code);
+    session->server_close_reason_ = event->reason;  // Null-terminated.
+    LOG(Info,
+        "Server ended this connection (code=%d, reason=\"%s\"); retrying "
+        "slowly.",
+        event->code, event->reason);
   }
 
   // Free the handle; without this, every closed socket (including each failed

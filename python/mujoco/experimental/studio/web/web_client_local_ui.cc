@@ -36,7 +36,7 @@ const ImVec4 kControllingColor(0.3f, 0.9f, 0.4f, 1.0f);
 const ImVec4 kQueueColor(1.0f, 0.62f, 0.15f, 1.0f);
 const ImVec4 kConnectingColor(0.6f, 0.6f, 0.6f, 1.0f);
 
-// Draws one screen-centered DISCONNECTED window.
+// Draws one screen-centered DISCONNECTED window; empty lines are skipped.
 void DrawDisconnectWindow(const char* window_id,
                           std::initializer_list<const char*> lines) {
   const ImGuiIO& io = ImGui::GetIO();
@@ -48,7 +48,7 @@ void DrawDisconnectWindow(const char* window_id,
                    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
   CenteredBanner("DISCONNECTED", ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
   for (const char* line : lines) {
-    CenteredLine(line, nullptr);
+    if (line[0] != '\0') CenteredLine(line, nullptr);
   }
   ImGui::End();
 }
@@ -56,17 +56,22 @@ void DrawDisconnectWindow(const char* window_id,
 }  // namespace
 
 void DisconnectNotice::Draw(int server_close_code,
+                            const char* server_close_reason,
                             double seconds_since_last_payload,
                             bool is_downloading) {
   if (server_close_code != 0) {
-    const char* reason = "Disconnected by the viewer.";
+    const char* what = "Disconnected by the viewer.";
+    const char* detail = "";
     if (server_close_code == kWsCloseSessionFull) {
-      reason = "Session is full: too many viewers connected.";
+      what = "Session is full: too many viewers connected.";
     } else if (server_close_code == kWsCloseInactive) {
-      reason = "Disconnected after inactivity.";
+      what = "Disconnected after inactivity.";
+    } else if (server_close_code == kWsCloseViewerError) {
+      what = "The viewer stopped with an error (see terminal for traceback):";
+      detail = server_close_reason;  // E.g. "RuntimeError: broken handler".
     }
     DrawDisconnectWindow("##disconnected_by_server",
-                         {reason, "Retrying; reconnects automatically."});
+                         {what, detail, "Retrying; reconnects automatically."});
   }
 
   // The silence notice keys on state-stream staleness rather than socket

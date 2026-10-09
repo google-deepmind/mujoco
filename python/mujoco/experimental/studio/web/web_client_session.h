@@ -44,6 +44,8 @@ constexpr int kWsCloseSessionFull = 4002;      // /state: spectator limit hit.
 constexpr int kWsCloseInactive = 4003;         // /state: hidden tab kicked.
 constexpr int kWsCloseNotController = 4004;    // /drop: only controller may
                                                //   load models.
+constexpr int kWsCloseViewerError = 4005;      // /state: the viewer stopped
+                                               //   with an error (the reason).
 
 // The page's role in the collaborative session. Every page starts by
 // claiming the controller slot; the claim either succeeds (kControlling)
@@ -152,6 +154,11 @@ class Session : public SessionActions {
   // and retries slowly; the code clears when a connection opens again.
   int ServerCloseCode() const { return server_close_code_; }
 
+  // The reason text sent with ServerCloseCode(): for kWsCloseViewerError, the
+  // exception that stopped the viewer (e.g. "RuntimeError: boom"). Empty when
+  // ServerCloseCode() is 0.
+  const std::string& ServerCloseReason() const { return server_close_reason_; }
+
   // Returns the bytes received since the last call and resets the counter.
   uint64_t ConsumeByteCount() {
     uint64_t bytes = bytes_accum_;
@@ -230,6 +237,7 @@ class Session : public SessionActions {
   std::optional<uint32_t> model_crc32_;
 
   int server_close_code_ = 0;
+  std::string server_close_reason_;
 
   uint64_t bytes_accum_ = 0;
   double last_message_time_ = 0;

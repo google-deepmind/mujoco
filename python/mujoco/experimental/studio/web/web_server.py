@@ -65,6 +65,10 @@ _WS_CLOSE_CONTROLLER_TAKEN = 4001  # /ui:    another browser is controlling.
 _WS_CLOSE_SESSION_FULL = 4002  # /state: the spectator limit is reached.
 _WS_CLOSE_INACTIVE = 4003  # /state: hidden tab kicked to free a slot.
 _WS_CLOSE_NOT_CONTROLLER = 4004  # /drop: only the controller may load models.
+_WS_CLOSE_VIEWER_ERROR = 4005  # /state: the viewer stopped with an error.
+
+# A WebSocket close frame carries at most 123 bytes of reason text.
+_WS_CLOSE_REASON_MAX_BYTES = 123
 
 # Upper bound on the runtime-editable spectator limit.
 _MAX_SPECTATOR_HARD_CAP = 32
@@ -317,6 +321,11 @@ def _session_id(ws: ServerConnection) -> str:
     if part.startswith("sid="):
       return part[4:]
   return f"anon-{id(ws)}"
+
+
+def _close_reason(text: str) -> str:
+  """Fits text into a close frame's reason, cutting at a character boundary."""
+  return text.encode()[:_WS_CLOSE_REASON_MAX_BYTES].decode(errors="ignore")
 
 
 def _find_static_files_dir() -> str | None:
@@ -1059,6 +1068,24 @@ def _run_server(
       await watch_stop()
     finally:
       enforcer.cancel()
+      if server.stop_reason:
+        # Tell the browsers why the viewer stopped, so the page can show it;
+        # ws_server.close() below only says "going away". Bounded: a browser
+        # that never answers the close handshake must not hold up teardown.
+        reason = _close_reason(server.stop_reason)
+        try:
+          await asyncio.wait_for(
+              asyncio.gather(
+                  *(
+                      ws.close(_WS_CLOSE_VIEWER_ERROR, reason)
+                      for ws in list(state_clients.values())
+                  ),
+                  return_exceptions=True,
+              ),
+              timeout=1.0,
+          )
+        except asyncio.TimeoutError:
+          pass
       # Close listeners explicitly to prevent hanging on open client sockets.
       ws_server.close()
       tcp_server.close()
@@ -1117,6 +1144,9 @@ class WebServer:
 
     self._stop_event = threading.Event()
     self._thread: threading.Thread | None = None
+    # Why the viewer stopped, when not normally (see stop()); read by the
+    # server thread as it shuts down.
+    self.stop_reason = ""
 
   def update_state(self, payload: bytes) -> None:
     """Publishes the latest state payload. Called from the viewer thread."""
@@ -1144,8 +1174,15 @@ class WebServer:
     )
     self._thread.start()
 
-  def stop(self) -> None:
-    """Stops the server thread."""
+  def stop(self, reason: str = "") -> None:
+    """Stops the server thread.
+
+    Args:
+      reason: Why the viewer stopped, when this is not a normal exit: a one-line
+        summary of the exception that ended it. Sent to the connected browsers,
+        which show it on the page.
+    """
+    self.stop_reason = reason
     self._stop_event.set()
     if self._thread is not None:
       self._thread.join(timeout=5.0)

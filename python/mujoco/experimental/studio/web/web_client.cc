@@ -422,8 +422,9 @@ void BuildBrowserGui() {
   const double last_msg = g_app.session.LastMessageTime();
   const double stale_sec =
       last_msg > 0 ? emscripten_get_now() / 1000.0 - last_msg : -1.0;
-  g_app.disconnect_notice.Draw(g_app.session.ServerCloseCode(), stale_sec,
-                               g_app.download_status.is_downloading);
+  g_app.disconnect_notice.Draw(g_app.session.ServerCloseCode(),
+                               g_app.session.ServerCloseReason().c_str(),
+                               stale_sec, g_app.download_status.is_downloading);
 
   SessionView view;
   g_app.session.FillView(&view);
@@ -469,8 +470,8 @@ void MainLoopImpl() {
 
   // Reconnect the state WebSocket if it dropped. Receiving a payload with a
   // different model identity then triggers a page reload (Session). Deliberate
-  // server closes (session full, inactivity) are transient; retry them too,
-  // using a gentler pace.
+  // server closes (session full, inactivity, the viewer stopped with an error)
+  // are transient; retry them too, using a gentler pace.
   const int state_retry_interval =
       g_app.session.ServerCloseCode() != 0 ? 300 : 60;
   if (!g_app.session.HasSocket() && g_app.model_holder &&

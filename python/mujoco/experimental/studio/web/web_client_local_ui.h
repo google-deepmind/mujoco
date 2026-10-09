@@ -28,13 +28,15 @@ namespace mujoco::studio {
 
 // The screen-centered DISCONNECTED notices: a big red banner over white
 // explanation lines, shown for deliberate server closes (session full,
-// inactivity) and for server silence. The two never show at the same time:
-// a close code suppresses the silence notice.
+// inactivity, the viewer stopped with an error) and for server silence. The
+// two never show at the same time: a close code suppresses the silence notice.
 class DisconnectNotice {
  public:
-  // seconds_since_last_payload is negative before the first payload.
-  void Draw(int server_close_code, double seconds_since_last_payload,
-            bool is_downloading);
+  // server_close_reason is the close frame's reason text (shown for
+  // kWsCloseViewerError); seconds_since_last_payload is negative before the
+  // first payload.
+  void Draw(int server_close_code, const char* server_close_reason,
+            double seconds_since_last_payload, bool is_downloading);
 
  private:
   // How long the state stream (~60Hz while the Python side is alive) may go
