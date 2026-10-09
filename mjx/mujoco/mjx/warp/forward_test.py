@@ -438,6 +438,39 @@ class StepTest(parameterized.TestCase):
         out._impl.contact__type.shape, (data_template._impl.naconmax,)
     )
 
+  def test_step_x64(self):
+    """Tests that MJX-Warp works with jax_enable_x64 (e.g.
+
+    set by other code).
+    """
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option density="1.2" viscosity="1e-5" wind="0.1 0 0"/>
+        <worldbody>
+          <body>
+            <freejoint/>
+            <geom type="box" size=".1 .1 .1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    # jax.enable_x64 is a thread-local context manager, so this doesn't affect
+    # other tests.
+    with jax.enable_x64(True):
+      mx = mjx.put_model(m, impl='warp')
+      for k in ('density', 'viscosity', 'wind', 'timestep', 'gravity'):
+        self.assertEqual(getattr(mx.opt, k).dtype, np.float32, k)
+      dx = mjx.make_data(m, impl='warp', naconmax=16, njmax=64)
+      dx = jax.jit(forward.step)(mx, dx)
+      mujoco.mj_step(m, d)
+    np.testing.assert_allclose(dx.qpos, d.qpos, atol=1e-5)
 
 
 if __name__ == '__main__':
