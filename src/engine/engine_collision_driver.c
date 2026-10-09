@@ -2118,37 +2118,24 @@ static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* pre
 
 
 // filter precontacts across a group of collision pairs down to mjMAXCONPAIR
+// the pairs of a group are contiguous, the first one is at start
 // removes unselected precontacts in-place, resets group to -1, and updates nconbuffer
 static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, int group) {
+  // find the end of the group, reset group and count precontacts
+  int end = start;
   int count = 0;
-  int num_pairs = 0;
-  for (int k = start; k < arg->npair; k++) {
-    if (arg->pairbuffer[k].group == group) {
-      count += arg->nconbuffer[k];
-      num_pairs++;
-    }
+  while (end < arg->npair && arg->pairbuffer[end].group == group) {
+    arg->pairbuffer[end].group = -1;
+    count += arg->nconbuffer[end];
+    end++;
   }
 
-  // if total contacts <= mjMAXCONPAIR, reset group on all pairs and return
+  // if total contacts <= mjMAXCONPAIR, return
   if (count <= mjMAXCONPAIR) {
-    for (int k = start; k < arg->npair; k++) {
-      if (arg->pairbuffer[k].group == group) {
-        arg->pairbuffer[k].group = -1;
-      }
-    }
     return;
   }
 
   mj_markStack(d);
-  int* pair_idx = mjSTACKALLOC(d, num_pairs, int);
-  int num_collected = 0;
-  for (int k = start; k < arg->npair; k++) {
-    if (arg->pairbuffer[k].group == group) {
-      pair_idx[num_collected++] = k;
-      arg->pairbuffer[k].group = -1;
-    }
-  }
-
   mjtByte* selected = mjSTACKALLOC(d, count, mjtByte);
   mjtNum* min_dist = mjSTACKALLOC(d, count, mjtNum);
   memset(selected, 0, count);
@@ -2160,8 +2147,7 @@ static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, in
   int best = -1, best_k = -1, best_c = -1;
   mjtNum bestdist = -mjMAXVAL;
   int idx = 0;
-  for (int p = 0; p < num_pairs; p++) {
-    int k = pair_idx[p];
+  for (int k = start; k < end; k++) {
     int conpos = arg->pairbuffer[k].conpos;
     for (int c = 0; c < arg->nconbuffer[k]; c++, idx++) {
       mjtNum dist = -arg->conbuffer[conpos + c].dist;
@@ -2183,8 +2169,7 @@ static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, in
     int nextbest = -1, nextbest_k = -1, nextbest_c = -1;
     mjtNum nextbestdist = -1;
     idx = 0;
-    for (int p = 0; p < num_pairs; p++) {
-      int k = pair_idx[p];
+    for (int k = start; k < end; k++) {
       int conpos = arg->pairbuffer[k].conpos;
       for (int c = 0; c < arg->nconbuffer[k]; c++, idx++) {
         if (selected[idx]) {
@@ -2216,8 +2201,7 @@ static inline void filterPreContacts(mjData* d, mjContactArg* arg, int start, in
 
   // compact selected precontacts in-place and update nconbuffer
   idx = 0;
-  for (int p = 0; p < num_pairs; p++) {
-    int k = pair_idx[p];
+  for (int k = start; k < end; k++) {
     int conpos = arg->pairbuffer[k].conpos;
     int new_ncon = 0;
     for (int c = 0; c < arg->nconbuffer[k]; c++, idx++) {
@@ -2290,8 +2274,14 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
   }
 
   // fill in contact data
+  int lastgroup = -1;
   for (int i = 0; i < npair; i++) {
     if (pairbuffer[i].group >= 0) {
+      // groups are contiguous and increasing: SHOULD NOT OCCUR
+      if (pairbuffer[i].group <= lastgroup) {
+        mjERROR("filter group %d is not contiguous", pairbuffer[i].group);
+      }
+      lastgroup = pairbuffer[i].group;
       filterPreContacts(d, &arg, i, pairbuffer[i].group);
     }
 
