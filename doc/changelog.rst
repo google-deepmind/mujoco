@@ -1417,36 +1417,38 @@ General
    2. :commit:`192da874` Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
    3. :commit:`b56cf98e` ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
       ``nconmax`` will be deprecated in favor of ``naconmax`` in a future release.
+   4. :commit:`401bf431` The ``Simulate::InjectNoise`` method needs to set the target of exponential decay to a value
+      from ``key_ctrl`` if a valid key is provided as input, else -1.
 
 
-4. :commit:`fe8384b6` Joint decorators and spatial tendons which have limits defined and whose current value (angle or
+5. :commit:`fe8384b6` Joint decorators and spatial tendons which have limits defined and whose current value (angle or
    length) exceeds the limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the
    existing color with :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization
    aid is active only if no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is
    default.
-5. :commit:`6320b959` Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF
+6. :commit:`6320b959` Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF
    file.
-6. :commit:`e4704cd2` Added the code sample ``dependencies`` which provides command line utility for printing the result
+7. :commit:`e4704cd2` Added the code sample ``dependencies`` which provides command line utility for printing the result
    of :ref:`mju_getXMLDependencies`.
-7. :commit:`bd68f0c6` The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within
+8. :commit:`bd68f0c6` The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within
    Google since 2023 but the CMake update was forgotten.
 
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   8. :commit:`431f9657` The attribute ``mjOption.apirate`` was unused and has been removed.
-   9. :commit:`b56cf98e` MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of
-      -1.
+   9. :commit:`431f9657` The attribute ``mjOption.apirate`` was unused and has been removed.
+   10. :commit:`b56cf98e` MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of
+       -1.
 
 MJX
 ^^^
-10. :commit:`6ae9cc80` Fix :issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
-11. :commit:`b56cf98e` Pull in MuJoCo Warp update to ``io.py``, and use ``naconmax`` instead of ``nconmax`` to set the
+11. :commit:`6ae9cc80` Fix :issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
+12. :commit:`b56cf98e` Pull in MuJoCo Warp update to ``io.py``, and use ``naconmax`` instead of ``nconmax`` to set the
     maximum number of contacts over all environments.
 
 Bug fixes
 ^^^^^^^^^
-12. :commit:`98682ae2` Fix :issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
+13. :commit:`98682ae2` Fix :issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
     transformation. Also, unify the meaning of fitting a geom to a mesh AABB: it now means to find the smallest geom
     such that its AABB contains the mesh AABB.
 
