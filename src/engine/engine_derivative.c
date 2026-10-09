@@ -1580,7 +1580,16 @@ void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out) {
 }
 
 
-// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+// Edge bending stencil s*c*c' (s = cos(theta)*stiffness, Wardetzky cotangent vector c):
+// negative semidefinite at rest creases sharper than 90 degrees (s < 0). Keep only convex
+// stencils (trace s*|c|^2 >= 0) in the solver metric so it stays SPD.
+static inline int flexBendConvex(const mjtNum* stencil) {
+  return stencil[0] + stencil[5] + stencil[10] + stencil[15] >= 0;
+}
+
+
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
+// stencils (flexBendConvex)
 //   scale = s1 + s2 * flex_damping[f]  per flex
 //   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
 //   for stiffness only:    s1=h,   s2=0  =>  scale = h
@@ -1619,8 +1628,8 @@ void mjd_flexBend_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNu
       const int* flap = m->flex_edgeflap + 2*(e + edgeadr);
       int v[4] = {edge[0], edge[1], flap[0], flap[1]};
 
-      // skip boundary edges (no second flap vertex)
-      if (v[3] == -1) {
+      // skip boundary edges (no second flap vertex) and concave stencils
+      if (v[3] == -1 || !flexBendConvex(b + 17*e)) {
         continue;
       }
 
@@ -2155,6 +2164,7 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
         const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
         const int* flap = m->flex_edgeflap + 2*(e + m->flex_edgeadr[f]);
         if (flap[1] == -1) continue;
+        if (!flexBendConvex(b + 17*e)) continue;   // values only: the pattern keeps the stencil
         int v[4] = {edge[0], edge[1], flap[0], flap[1]};
         for (int i = 0; i < 4; i++) {
           int si = vslot[m->flex_vertadr[f] + v[i]];

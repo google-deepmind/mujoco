@@ -2276,6 +2276,155 @@ TEST_F(DerivativeTest, FlexBendDerivativesRotated) {
   mj_deleteData(perturbed);
 }
 
+// A rest crease sharper than 90 degrees gives a negative bending stencil (cos
+// theta < 0 in the Cubic Shells energy). The solver metric keeps only the
+// convex stencils, so the bending operator and its assembly stay PSD, while the
+// passive force keeps every stencil.
+TEST_F(DerivativeTest, FlexBendMetricDropsConcaveStencils) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option timestep="0.005" integrator="discrete" solver="CG"/>
+    <worldbody>
+      <flexcomp name="crease" type="direct" dim="2" mass="1e-4" radius=".01"
+                point="0 0 0  1 0 0  .5 1 0  .5 .7071 .7071" element="0 1 2  1 0 3">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01" elastic2d="bend" damping="0"/>
+      </flexcomp>
+      <flexcomp name="flat" type="direct" dim="2" mass="1" radius=".01"
+                point="3 0 0  4 0 0  3.5 1 0  3.5 -1 0" element="0 1 2  1 0 3">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01" elastic2d="bend" damping="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nflex, 2);
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // the interior edge's stencil: negative on the crease, positive on the flat
+  // flex
+  for (int f = 0; f < 2; f++) {
+    int interior = 0;
+    for (int e = 0; e < model->flex_edgenum[f]; e++) {
+      int adr = model->flex_edgeadr[f] + e;
+      if (model->flex_edgeflap[2 * adr + 1] < 0) continue;
+      const mjtNum* b =
+          model->flex_bending + model->flex_bendingadr[f] + 17 * e;
+      mjtNum trace = b[0] + b[5] + b[10] + b[15];
+      if (f == 0) {
+        EXPECT_LT(trace, 0);
+      } else {
+        EXPECT_GT(trace, 0);
+      }
+      interior++;
+    }
+    EXPECT_EQ(interior, 1);
+  }
+
+  // dense bending operator
+  std::vector<mjtNum> B(nv * nv, 0), col(nv), e_i(nv);
+  for (int i = 0; i < nv; i++) {
+    mju_zero(e_i.data(), nv);
+    e_i[i] = 1;
+    mju_zero(col.data(), nv);
+    mjd_flexBend_mul(model.get(), data.get(), col.data(), e_i.data(), 1, 0);
+    for (int j = 0; j < nv; j++) {
+      B[j * nv + i] = col[j];
+    }
+  }
+
+  // the crease's dofs carry no metric bending, the flat flex's do
+  auto dofs = [&](int f, int* first, int* last) {
+    int b0 = model->flex_vertbodyid[model->flex_vertadr[f]];
+    int b1 = model->flex_vertbodyid[model->flex_vertadr[f] +
+                                    model->flex_vertnum[f] - 1];
+    *first = model->body_dofadr[b0];
+    *last = model->body_dofadr[b1] + model->body_dofnum[b1];
+  };
+  int c0, c1, f0, f1;
+  dofs(0, &c0, &c1);
+  dofs(1, &f0, &f1);
+  mjtNum crease = 0, flat = 0;
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < nv; j++) {
+      if (i >= c0 && i < c1) crease = mju_max(crease, mju_abs(B[i * nv + j]));
+      if (i >= f0 && i < f1) flat = mju_max(flat, mju_abs(B[i * nv + j]));
+    }
+  }
+  EXPECT_EQ(crease, 0);
+  EXPECT_GT(flat, 0);
+
+  // PSD along any direction, and the assembly agrees
+  std::vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                                   rowadr.data(), nullptr, nullptr, 1, 0, 1, 0,
+                                   nullptr);
+  std::vector<int> colind(nnz);
+  std::vector<mjtNum> val(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), 1, 0, 1, 0, nullptr);
+  for (int k = 0; k < 20; k++) {
+    std::vector<mjtNum> vec(nv), Bv(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(k * nv + i + 1, 3) - 0.5;
+    }
+    mjd_flexBend_mul(model.get(), data.get(), Bv.data(), vec.data(), 1, 0);
+    EXPECT_GE(mju_dot(vec.data(), Bv.data(), nv), -1e-12 * flat);
+    for (int i = 0; i < nv; i++) {
+      mjtNum assembled = mju_dotSparse(val.data() + rowadr[i], vec.data(),
+                                       rownnz[i], colind.data() + rowadr[i]);
+      EXPECT_THAT(assembled, MjNear(Bv[i], 1e-10, 1e-8)) << i;
+    }
+  }
+
+  // the passive force keeps the crease's stencil
+  for (int i = c0; i < c1; i++) {
+    data->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+  mjtNum force = 0;
+  for (int i = c0; i < c1; i++) {
+    force = mju_max(force, mju_abs(data->qfrc_spring[i]));
+  }
+  EXPECT_GT(force, 0);
+
+  // stepping stays finite for both bending-only (efm0_L) and bending+stretching
+  for (int step = 0; step < 10; step++) {
+    mj_step(model.get(), data.get());
+  }
+  EXPECT_EQ(data->warning[mjWARN_BADQACC].number, 0);
+  for (int i = 0; i < nv; i++) {
+    EXPECT_FALSE(mju_isBad(data->qacc[i])) << i;
+    EXPECT_FALSE(mju_isBad(data->qpos[i])) << i;
+  }
+
+  std::string both_xml = kXml;
+  for (size_t pos = 0;
+       (pos = both_xml.find("elastic2d=\"bend\"", pos)) != std::string::npos;) {
+    both_xml.replace(pos, 16, "elastic2d=\"both\"");
+  }
+  MjModelPtr both_model =
+      LoadModelFromString(both_xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(both_model.get(), NotNull()) << error;
+  MjDataPtr both_data = MakeData(both_model);
+  for (int i = c0; i < c1; i++) {
+    both_data->qpos[i] += 1e-3 * (mju_Halton(i, 2) - 0.5);
+  }
+  for (int step = 0; step < 10; step++) {
+    mj_step(both_model.get(), both_data.get());
+  }
+  EXPECT_EQ(both_data->warning[mjWARN_BADQACC].number, 0);
+  for (int i = 0; i < nv; i++) {
+    EXPECT_FALSE(mju_isBad(both_data->qacc[i])) << i;
+    EXPECT_FALSE(mju_isBad(both_data->qpos[i])) << i;
+  }
+}
+
 struct FlexFrameCase {
   const char* name;
   bool welded;

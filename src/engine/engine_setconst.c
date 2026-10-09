@@ -1519,8 +1519,8 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   if (rank != nbd) {
     // The factor is consumed only when no per-step flex stiffness is assembled (bending-only
     // models): with stretch (or assemblable interp) present, mj_effBuild assembles the full
-    // metric every step and the per-step blocks replace this factor, so an indefinite
-    // M + K_bend (e.g. curved-rest bending with light vertices) is harmless there.
+    // metric every step and the per-step blocks replace this factor, so a singular
+    // M + K_bend (e.g. vanishing vertex masses) is harmless there.
     if (mjd_flexStiff_any(m, mjd_flexInterpAssemblable(m))) {
       mj_freeStack(d);
       return;

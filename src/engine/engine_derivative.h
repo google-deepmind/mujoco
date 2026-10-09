@@ -73,7 +73,8 @@ size_t mjd_flexInterp_mulBytes(const mjModel* m);
 // precompute unscaled K_rot for all elements into cache (same layout as m->flex_stiffness)
 MJAPI void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out);
 
-// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
+// stencils
 //   scale = s1 + s2 * flex_damping[f]  per flex
 MJAPI void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                             mjtNum s1, mjtNum s2);
@@ -144,7 +145,8 @@ mjtBool mjd_flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stre
 // is this interpolated flex processed by mjd_flexInterp_mul?
 mjtBool mjd_flexInterp_processed(const mjModel* m, int f);
 
-// compute res += scale * K_bend * vec for standard (non-interp) flex bending
+// compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
+// stencils
 //   scale = s1 + s2 * flex_damping[f]  per flex
 //   for stiffness+damping: s1=h^2, s2=h  =>  scale = h^2 + h*damping
 //   for stiffness only:    s1=h,   s2=0  =>  scale = h
