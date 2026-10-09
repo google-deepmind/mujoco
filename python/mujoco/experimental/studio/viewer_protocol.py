@@ -111,6 +111,7 @@ class Viewer(abc.ABC):
     self.config = config
     self._endpoint = endpoint
     self._is_running = True
+    self.exit_reason = ''
 
     # Viewer-owned model and data.
     if model is None:
@@ -139,21 +140,28 @@ class Viewer(abc.ABC):
 
   def close(self) -> None:
     """Closes the viewer, sends an exit event and shuts down the endpoint."""
+    # Only attach exit_reason when the exit originated on the viewer side; if
+    # _on_exit already handled an ExitEvent from the sim, do not echo the sim's
+    # reason back to it.
+    reason = self.exit_reason if self._is_running else ''
+    exit_event = messages.ExitEvent(reason=reason)
     try:
       if self._is_running:
         self._is_running = False
-        self.dispatch(messages.ExitEvent())
+        self.dispatch(exit_event)
     finally:  # Finish the teardown even if an ExitEvent handler raised.
       try:
-        self.send_to_sim(messages.ExitEvent())
+        self.send_to_sim(exit_event)
       except Exception:  # pylint: disable=broad-exception-caught
         pass  # Ignore exceptions, the sim may have already closed.
       self._endpoint.close()
 
   @messages.handler(priority=messages.Priority.CRITICAL)
-  def _on_exit(self, _: messages.ExitEvent) -> None:
+  def _on_exit(self, event: messages.ExitEvent) -> None:
     """Stops the viewer loop when the sim side requests an exit."""
     self._is_running = False
+    if event.reason:
+      self.exit_reason = event.reason
 
   def is_running(self) -> bool:
     """Returns True while the viewer has not been closed."""
@@ -271,7 +279,8 @@ def run_viewer_loop(viewer: Viewer) -> None:
 
         # Render the scene.
         viewer.sync()
-  except Exception:
+  except Exception as ex:
+    viewer.exit_reason = messages.describe_exception(ex)
     logger.exception(
         'Unhandled exception on the viewer thread; the viewer is closing.'
     )

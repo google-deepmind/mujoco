@@ -100,29 +100,34 @@ class ViewerHandle:
     # plugin's handler sees a fully constructed handle.
     try:
       self._sim_plugins.dispatch(SimInitEvent(handle=self))
-    except BaseException:  # pylint: disable=broad-exception-caught
+    except BaseException as ex:  # pylint: disable=broad-exception-caught
       # Launchers start the viewer before they construct the handle, so one is
       # already running. Raising out of __init__ means the caller never gets a
       # handle and never enters the ``with`` block, so nothing else will ever
       # call close(): shut the viewer down here or it is left running with no
       # way to stop it.
       self._is_running = False
-      self.close()
+      self.close(reason=messages.describe_exception(ex))
       raise
 
-  def close(self) -> None:
+  def close(self, reason: str = '') -> None:
     """Signals the viewer to exit and waits for it to shut down.
 
     Re-raises any unhandled exception that terminated the viewer thread, so a
     viewer-side failure surfaces on the sim side rather than being lost.
+
+    Args:
+      reason: Why the viewer is being closed, when this is not a normal exit
+        (see ExitEvent.reason). The web viewer shows it in the browser.
     """
+    exit_event = messages.ExitEvent(reason=reason)
     try:
       if self._is_running:
         self._is_running = False
-        self.dispatch(messages.ExitEvent())
+        self.dispatch(exit_event)
     finally:  # Finish the teardown even if an ExitEvent handler raised.
       try:
-        self.send_to_viewer(messages.ExitEvent())
+        self.send_to_viewer(exit_event)
       except Exception:  # pylint: disable=broad-exception-caught
         pass  # Ignore exceptions, the viewer may have already closed.
       if self._shutdown_fn is not None:
@@ -141,7 +146,9 @@ class ViewerHandle:
       exc_val: BaseException | None,
       exc_tb: Any,
   ) -> None:
-    self.close()
+    # An exception leaving the ``with`` block ends the session: tell the viewer
+    # which one, so the browser can show it when the page goes dead.
+    self.close(reason=messages.describe_exception(exc_val))
 
   def is_running(self) -> bool:
     """Returns True while the viewer is open.

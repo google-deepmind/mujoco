@@ -287,7 +287,27 @@ class StepControlSnapshot(Snapshot):
 
 @dataclasses.dataclass(frozen=True)
 class ExitEvent(Event):
-  """An event requesting to exit."""
+  """An event requesting to exit.
+
+  Attributes:
+    reason: A one-line summary of the exception that ended the sending side
+      (see describe_exception), or empty for a normal exit.
+  """
+
+  reason: str = ''
+
+
+def describe_exception(ex: BaseException | None) -> str:
+  """Formats an error exception as a single line.
+
+  For example, `"ValueError: Invalid actuator id 'wrist_roll'"`.
+  Returns `''` for `None` and for non-error exits such as `KeyboardInterrupt`
+  and `SystemExit`.
+  """
+  if not isinstance(ex, Exception):
+    return ''
+  text = f'{type(ex).__name__}: {ex}' if str(ex) else type(ex).__name__
+  return ' '.join(text.split())
 
 
 # ---------------------------------------------------------------------------
