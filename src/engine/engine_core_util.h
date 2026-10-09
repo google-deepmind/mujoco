@@ -45,7 +45,7 @@ MJAPI int mj_isDual(const mjModel* m);
 // merge dof chains for two bodies
 int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcommon);
 
-// merge dof chains for two simple bodies
+// merge dof chains for two different simple bodies
 int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
 
 // get body chain

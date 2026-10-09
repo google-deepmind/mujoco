@@ -106,7 +106,7 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
 }
 
 
-// merge dof chains for two simple bodies
+// merge dof chains for two different simple bodies
 int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2) {
   // swap bodies if wrong order
   if (b1 > b2) {
@@ -450,7 +450,8 @@ int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                   mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
                   mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr,
                   int issparse, int flg_skipcommon) {
-  int issimple = (m->body_simple[b1] && m->body_simple[b2]);
+  // simple path concatenates the dofs of two simple bodies, so they must differ
+  int issimple = (b1 != b2 && m->body_simple[b1] && m->body_simple[b2]);
   int NV = m->nv;
 
   // skip if no DOFs

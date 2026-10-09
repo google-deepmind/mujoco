@@ -764,5 +764,67 @@ TEST_F(JacobianTest, WeldRotJacobian) {
               Pointwise(MjNear(eps, 1e-3), AsVector(jacdif, 3 * nv)));
 }
 
+// Jacobian difference of two points on one simple body
+TEST_F(JacobianTest, JacDifPairSameSimpleBody) {
+  // flex edge 0 joins two points of body A, edge 1 joins A to the world
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A" pos="0 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="tri" dim="1" radius=".01" body="A A world" vertex="0 0 0  .2 0 0  .5 0 1" element="0 1 1 2">
+        <edge stiffness="10"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  int body = mj_name2id(model.get(), mjOBJ_BODY, "A");
+  ASSERT_TRUE(model->body_simple[body]);
+  MjDataPtr data = MakeData(model);
+
+  for (int i = 0; i < 100; i++) {
+    mj_step(model.get(), data.get());
+  }
+
+  // edge 0 has each dof once, zero Jacobian since its length is constant
+  int rowadr = model->flexedge_J_rowadr[0];
+  ASSERT_EQ(model->flexedge_J_rownnz[0], nv);
+  for (int i = 0; i < nv; i++) {
+    EXPECT_EQ(model->flexedge_J_colind[rowadr + i], i);
+    EXPECT_THAT(data->flexedge_J[rowadr + i], MjNear(0, 1e-15, 1e-6));
+  }
+
+  // sparse Jacobian difference of the vertices matches dense, is nonzero
+  const mjtNum* pos = data->flexvert_xpos;
+  std::vector<int> chain(nv);
+  std::vector<mjtNum> jac1(3 * nv), jac2(3 * nv);
+  std::vector<mjtNum> jacdif(3 * nv), jacdif_dense(3 * nv);
+  ASSERT_EQ(mj_jacDifPair(model.get(), data.get(), chain.data(), body, body,
+                          pos, pos + 3, jac1.data(), jac2.data(), jacdif.data(),
+                          nullptr, nullptr, nullptr, /*issparse=*/1,
+                          /*flg_skipcommon=*/0),
+            nv);
+  mj_jacDifPair(model.get(), data.get(), nullptr, body, body, pos, pos + 3,
+                jac1.data(), jac2.data(), jacdif_dense.data(), nullptr, nullptr,
+                nullptr, /*issparse=*/0, /*flg_skipcommon=*/0);
+  EXPECT_EQ(jacdif, jacdif_dense);
+  EXPECT_GT(mju_norm(jacdif_dense.data(), 3 * nv), 0);
+
+  // skipping common dofs leaves none
+  EXPECT_EQ(mj_jacDifPair(model.get(), data.get(), chain.data(), body, body,
+                          pos, pos + 3, nullptr, nullptr, nullptr, nullptr,
+                          nullptr, nullptr, /*issparse=*/1,
+                          /*flg_skipcommon=*/1),
+            0);
+}
+
 }  // namespace
 }  // namespace mujoco
