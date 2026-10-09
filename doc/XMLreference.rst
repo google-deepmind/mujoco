@@ -9046,8 +9046,9 @@ input to learning-based agents and in environment logic.
 
 Unlike the purely geometric :ref:`collision-sensors` that act independently of the dynamics pipeline, the contact
 sensor reports information that was discovered during the collision and constraint steps, extracting data
-from ``mjData.{contact, efc_force}``, ignoring contacts that were filtered out by the :ref:`standard<coSelection>`
-mechanism and produce no force.
+from ``mjData.{contact, efc_force}``. Contacts in ``mjData.contact`` that are excluded from constraint force
+computation (for example, within the :ref:`gap<body-geom-gap>` zone) are still matched and reported, with zero
+force and torque.
 
 Contact sensor output involves three stages: **matching**, **reduction**, and **extraction**.
 

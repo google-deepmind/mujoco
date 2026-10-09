@@ -1502,6 +1502,75 @@ def sensor_vel(m: Model, d: Data):
     ],
   )
 
+  if m.nsensortaxel:
+    weld_geom_count = wp.zeros((d.nworld, m.ntactileweld), dtype=int)
+    weld_geom_list = wp.full((d.nworld, m.ntactileweld, MJ_MAXCONPAIR), -1, dtype=int)
+    nwords = (m.ngeom + 31) // 32
+    weld_geom_seen = wp.zeros((d.nworld, m.ntactileweld, nwords), dtype=wp.uint32)
+    wp.launch(
+      _preprocess_tactile_contacts_kernel(int(m.opt.warn_overflow)),
+      dim=d.naconmax,
+      inputs=[
+        m.body_weldid,
+        m.geom_bodyid,
+        m.weld_tactile_id,
+        d.contact.geom,
+        d.contact.worldid,
+        d.nacon,
+      ],
+      outputs=[
+        d.overflow,
+        weld_geom_seen,
+        weld_geom_count,
+        weld_geom_list,
+      ],
+    )
+
+    wp.launch(
+      _sensor_tactile,
+      dim=(d.nworld, m.nsensortaxel),
+      inputs=[
+        m.body_rootid,
+        m.body_weldid,
+        m.oct_child,
+        m.oct_aabb,
+        m.oct_coeff,
+        m.geom_type,
+        m.geom_bodyid,
+        m.geom_dataid,
+        m.geom_size,
+        m.mesh_vertadr,
+        m.mesh_vertnum,
+        m.mesh_octadr,
+        m.mesh_normaladr,
+        m.mesh_normalnum,
+        m.mesh_vert,
+        m.mesh_normal,
+        m.mesh_pos,
+        m.mesh_quat,
+        m.sensor_objid,
+        m.sensor_refid,
+        m.sensor_dim,
+        m.sensor_adr,
+        m.sensor_cutoff,
+        m.plugin,
+        m.plugin_attr,
+        m.geom_plugin_index,
+        m.weld_tactile_id,
+        m.taxel_vertadr,
+        m.taxel_sensorid,
+        d.geom_xpos,
+        d.geom_xmat,
+        d.subtree_com,
+        d.cvel,
+        weld_geom_count,
+        weld_geom_list,
+      ],
+      outputs=[
+        d.sensordata,
+      ],
+    )
+
   # apply sensor delay/interval for velocity sensors
   history.apply_sensor_delay(m, d, m.sensor_vel_adr)
   history.apply_sensor_delay(m, d, m.sensor_limitvel_adr)
@@ -1859,6 +1928,11 @@ def _sensor_acc(
     nmatch = sensor_contact_nmatch_in[worldid, contactsensorid]
 
     if reduce == 3:  # netforce
+      if nmatch == 0:
+        for i in range(dim):
+          out[adr + i] = 0.0
+        return
+
       # Single-pass computation: first compute centroid, then wrench about centroid
       # Pass 1: compute force-weighted centroid of contact positions
       net_pos = wp.vec3(0.0)
@@ -1947,6 +2021,10 @@ def _sensor_acc(
         out[adr_slot + 0] = 0.0
         out[adr_slot + 1] = 1.0
         out[adr_slot + 2] = 0.0
+
+      # zero remaining slots
+      for i in range(size, dim):
+        out[adr + i] = 0.0
     else:
       nslots = wp.min(nmatch, num)
       for i in range(nslots):
@@ -2612,75 +2690,6 @@ def sensor_acc(m: Model, d: Data, skip_rne_postconstraint: bool = False):
       d.sensordata,
     ],
   )
-
-  if m.nsensortaxel:
-    weld_geom_count = wp.zeros((d.nworld, m.ntactileweld), dtype=int)
-    weld_geom_list = wp.full((d.nworld, m.ntactileweld, MJ_MAXCONPAIR), -1, dtype=int)
-    nwords = (m.ngeom + 31) // 32
-    weld_geom_seen = wp.zeros((d.nworld, m.ntactileweld, nwords), dtype=wp.uint32)
-    wp.launch(
-      _preprocess_tactile_contacts_kernel(int(m.opt.warn_overflow)),
-      dim=d.naconmax,
-      inputs=[
-        m.body_weldid,
-        m.geom_bodyid,
-        m.weld_tactile_id,
-        d.contact.geom,
-        d.contact.worldid,
-        d.nacon,
-      ],
-      outputs=[
-        d.overflow,
-        weld_geom_seen,
-        weld_geom_count,
-        weld_geom_list,
-      ],
-    )
-
-    wp.launch(
-      _sensor_tactile,
-      dim=(d.nworld, m.nsensortaxel),
-      inputs=[
-        m.body_rootid,
-        m.body_weldid,
-        m.oct_child,
-        m.oct_aabb,
-        m.oct_coeff,
-        m.geom_type,
-        m.geom_bodyid,
-        m.geom_dataid,
-        m.geom_size,
-        m.mesh_vertadr,
-        m.mesh_vertnum,
-        m.mesh_octadr,
-        m.mesh_normaladr,
-        m.mesh_normalnum,
-        m.mesh_vert,
-        m.mesh_normal,
-        m.mesh_pos,
-        m.mesh_quat,
-        m.sensor_objid,
-        m.sensor_refid,
-        m.sensor_dim,
-        m.sensor_adr,
-        m.sensor_cutoff,
-        m.plugin,
-        m.plugin_attr,
-        m.geom_plugin_index,
-        m.weld_tactile_id,
-        m.taxel_vertadr,
-        m.taxel_sensorid,
-        d.geom_xpos,
-        d.geom_xmat,
-        d.subtree_com,
-        d.cvel,
-        weld_geom_count,
-        weld_geom_list,
-      ],
-      outputs=[
-        d.sensordata,
-      ],
-    )
 
   sensor_contact_nmatch = wp.empty((d.nworld, m.nsensorcontact), dtype=int)
   sensor_contact_matchid = wp.empty((d.nworld, m.nsensorcontact, m.opt.contact_sensor_maxmatch), dtype=int)

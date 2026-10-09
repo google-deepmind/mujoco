@@ -980,6 +980,99 @@ static void mj_computeSensorVel(const mjModel* m, mjData* d, int i, mjtNum* sens
     mju_copy3(sensordata, d->subtree_angmom+3*objid);
     break;
 
+  case mjSENS_TACTILE:                                // tactile
+    {
+      mj_markStack(d);
+
+      // get parent weld id
+      int mesh_id = m->sensor_objid[i];
+      int geom_id = m->sensor_refid[i];
+      int parent_body = m->geom_bodyid[geom_id];
+      int parent_weld = m->body_weldid[parent_body];
+      int nchannel = m->sensor_dim[i] / m->mesh_vertnum[mesh_id];
+
+      // clear sensordata and distance matrix
+      mju_zero(sensordata, m->sensor_dim[i]);
+
+      // deduplicate colliding geoms using a stack-allocated byte mask
+      char* seen_geom = mjSTACKALLOC(d, m->ngeom, char);
+      memset(seen_geom, 0, m->ngeom);
+      int* contact_geom_ids = mj_stackAllocInt(d, mju_min(2 * d->ncon, m->ngeom));
+      int ncontact = 0;
+      for (int k = 0; k < d->ncon; k++) {
+        int g1 = d->contact[k].geom1;
+        int g2 = d->contact[k].geom2;
+        int body1 = (g1 >= 0)
+            ? m->body_weldid[m->geom_bodyid[g1]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 0)];
+        int body2 = (g2 >= 0)
+            ? m->body_weldid[m->geom_bodyid[g2]]
+            : m->body_weldid[mj_flexBody(m, &d->contact[k], 1)];
+        if (body1 == parent_weld && g2 >= 0 && g2 < m->ngeom && g2 != geom_id && !seen_geom[g2]) {
+          seen_geom[g2] = 1;
+          contact_geom_ids[ncontact++] = g2;
+        }
+        if (body2 == parent_weld && g1 >= 0 && g1 < m->ngeom && g1 != geom_id && !seen_geom[g1]) {
+          seen_geom[g1] = 1;
+          contact_geom_ids[ncontact++] = g1;
+        }
+      }
+
+      // no contacts, return
+      if (ncontact == 0) {
+        mj_freeStack(d);
+        break;
+      }
+
+      // all of the quadrature points are contact points
+      int ncon = m->mesh_vertnum[mesh_id];
+
+      // threshold for parallelization (taxel count below which sequential is faster)
+      const int kTactileParallelThreshold = 1000;
+
+      // parallel path: use mj_batch to process taxel batches
+      int nthread = mju_numThread(d);
+      if (nthread > 0 && ncon >= kTactileParallelThreshold) {
+        int batch_size = (ncon + nthread - 1) / nthread;
+        int ntask = (ncon + batch_size - 1) / batch_size;
+
+        mjTactileTaskArgs* task_args = mjSTACKALLOC(d, ntask, mjTactileTaskArgs);
+
+        for (int t = 0; t < ntask; t++) {
+          task_args[t].sensor_id = i;
+          task_args[t].mesh_id = mesh_id;
+          task_args[t].geom_id = geom_id;
+          task_args[t].parent_weld = parent_weld;
+          task_args[t].ncontact = ncontact;
+          task_args[t].nchannel = nchannel;
+          task_args[t].contact_geom_ids = contact_geom_ids;
+          task_args[t].start_taxel = t * batch_size;
+          task_args[t].end_taxel = mju_min((t+1) * batch_size, ncon);
+          task_args[t].sensordata = sensordata;
+        }
+
+        mju_dispatch(m, d, tactileTask, task_args, ntask);
+      }
+      // sequential path: call tactile_taxel_batch with full range
+      else {
+        mjTactileTaskArgs args;
+        args.sensor_id = i;
+        args.mesh_id = mesh_id;
+        args.geom_id = geom_id;
+        args.parent_weld = parent_weld;
+        args.ncontact = ncontact;
+        args.nchannel = nchannel;
+        args.contact_geom_ids = contact_geom_ids;
+        args.start_taxel = 0;
+        args.end_taxel = ncon;
+        args.sensordata = sensordata;
+        tactile_taxel_batch(m, d, &args);
+      }
+
+      mj_freeStack(d);
+    }
+    break;
+
   default:
     mjERROR("invalid type in VEL stage, sensor %d", i);
   }
@@ -1126,6 +1219,11 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
 
       // netforce reduction
       else if (reduce == REDUCE_NETFORCE) {
+        if (!nmatch) {
+          mj_freeStack(d);
+          break;
+        }
+
         mjtNum *wrench = mjSTACKALLOC(d, nmatch * 6, mjtNum);
         mjtNum *pos = mjSTACKALLOC(d, nmatch * 3, mjtNum);
         mjtNum *frame = mjSTACKALLOC(d, nmatch * 9, mjtNum);
@@ -1175,99 +1273,6 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
         for (int k=0; k < mjNCONDATA; k++) {
           if (data[k]) data[k] += size;
         }
-      }
-
-      mj_freeStack(d);
-    }
-    break;
-
-  case mjSENS_TACTILE:                                // tactile
-    {
-      mj_markStack(d);
-
-      // get parent weld id
-      int mesh_id = m->sensor_objid[i];
-      int geom_id = m->sensor_refid[i];
-      int parent_body = m->geom_bodyid[geom_id];
-      int parent_weld = m->body_weldid[parent_body];
-      int nchannel = m->sensor_dim[i] / m->mesh_vertnum[mesh_id];
-
-      // clear sensordata and distance matrix
-      mju_zero(sensordata, m->sensor_dim[i]);
-
-      // deduplicate colliding geoms using a stack-allocated byte mask
-      char* seen_geom = mjSTACKALLOC(d, m->ngeom, char);
-      memset(seen_geom, 0, m->ngeom);
-      int* contact_geom_ids = mj_stackAllocInt(d, mju_min(2 * d->ncon, m->ngeom));
-      int ncontact = 0;
-      for (int k = 0; k < d->ncon; k++) {
-        int g1 = d->contact[k].geom1;
-        int g2 = d->contact[k].geom2;
-        int body1 = (g1 >= 0)
-            ? m->body_weldid[m->geom_bodyid[g1]]
-            : m->body_weldid[mj_flexBody(m, &d->contact[k], 0)];
-        int body2 = (g2 >= 0)
-            ? m->body_weldid[m->geom_bodyid[g2]]
-            : m->body_weldid[mj_flexBody(m, &d->contact[k], 1)];
-        if (body1 == parent_weld && g2 >= 0 && g2 < m->ngeom && g2 != geom_id && !seen_geom[g2]) {
-          seen_geom[g2] = 1;
-          contact_geom_ids[ncontact++] = g2;
-        }
-        if (body2 == parent_weld && g1 >= 0 && g1 < m->ngeom && g1 != geom_id && !seen_geom[g1]) {
-          seen_geom[g1] = 1;
-          contact_geom_ids[ncontact++] = g1;
-        }
-      }
-
-      // no contacts, return
-      if (ncontact == 0) {
-        mj_freeStack(d);
-        break;
-      }
-
-      // all of the quadrature points are contact points
-      int ncon = m->mesh_vertnum[mesh_id];
-
-      // threshold for parallelization (taxel count below which sequential is faster)
-      const int kTactileParallelThreshold = 1000;
-
-      // parallel path: use mj_batch to process taxel batches
-      int nthread = mju_numThread(d);
-      if (nthread > 0 && ncon >= kTactileParallelThreshold) {
-        int batch_size = (ncon + nthread - 1) / nthread;
-        int ntask = (ncon + batch_size - 1) / batch_size;
-
-        mjTactileTaskArgs* task_args = mjSTACKALLOC(d, ntask, mjTactileTaskArgs);
-
-        for (int t = 0; t < ntask; t++) {
-          task_args[t].sensor_id = i;
-          task_args[t].mesh_id = mesh_id;
-          task_args[t].geom_id = geom_id;
-          task_args[t].parent_weld = parent_weld;
-          task_args[t].ncontact = ncontact;
-          task_args[t].nchannel = nchannel;
-          task_args[t].contact_geom_ids = contact_geom_ids;
-          task_args[t].start_taxel = t * batch_size;
-          task_args[t].end_taxel = mju_min((t+1) * batch_size, ncon);
-          task_args[t].sensordata = sensordata;
-        }
-
-        mju_dispatch(m, d, tactileTask, task_args, ntask);
-      }
-      // sequential path: call tactile_taxel_batch with full range
-      else {
-        mjTactileTaskArgs args;
-        args.sensor_id = i;
-        args.mesh_id = mesh_id;
-        args.geom_id = geom_id;
-        args.parent_weld = parent_weld;
-        args.ncontact = ncontact;
-        args.nchannel = nchannel;
-        args.contact_geom_ids = contact_geom_ids;
-        args.start_taxel = 0;
-        args.end_taxel = ncon;
-        args.sensordata = sensordata;
-        tactile_taxel_batch(m, d, &args);
       }
 
       mj_freeStack(d);

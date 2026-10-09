@@ -956,6 +956,35 @@ TEST_F(SensorTest, ContactNet) {
   mj_deleteModel(model);
 }
 
+TEST_F(SensorTest, ContactNetEmpty) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b1" pos="0 0 1">
+        <freejoint/>
+        <geom type="sphere" size="0.1"/>
+      </body>
+      <body name="b2" pos="0 0 5">
+        <freejoint/>
+        <geom type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <contact body1="b1" body2="b2" reduce="netforce"
+               data="found force torque dist pos normal tangent"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->ncon, 0);
+  EXPECT_THAT(GetSensor(model.get(), data.get(), 0),
+              ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+}
+
 TEST_F(SensorTest, CameraProjection) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -1916,10 +1945,13 @@ TEST_F(SensorTest, TactileSkipTangents) {
   MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
   ASSERT_GT(model->nsensordata, 0) << "No sensor data allocated";
+  EXPECT_EQ(model->sensor_needstage[0], mjSTAGE_VEL);
   MjDataPtr data = MakeData(model);
 
-  // Use mj_forward to compute collisions and sensors at t=0
-  mj_forward(model.get(), data.get());
+  // Compute position and velocity stages only (no mj_sensorAcc needed)
+  mj_fwdPosition(model.get(), data.get());
+  mj_fwdVelocity(model.get(), data.get());
+  mj_sensorVel(model.get(), data.get());
 
   // Verify initial state
   EXPECT_EQ(data->time, 0.0);
