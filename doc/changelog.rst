@@ -5,6 +5,22 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- Added support for building MuJoCo with `Bazel <https://bazel.build/>`__ (initially covers core library, ``simulate``,
+  plugins, and samples).
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :ref:`mjfDecode`, the ``decode`` callback of :ref:`mjpDecoder` plugins, and :ref:`mju_decodeResource` now take
+     ``char* error, int error_sz`` arguments. A decoder which fails writes its reason into ``error``, which is then
+     reported by :ref:`mj_parse` and in mesh compilation errors, rather than only as a warning with a generic error.
+
+     **Migration:** Add the two arguments to custom decoders and write failure messages into ``error`` (if not
+     ``NULL``) instead of calling :ref:`mju_warning`. Pass an error buffer, or ``NULL, 0``, to
+     :ref:`mju_decodeResource`.
+
 Engine
 ^^^^^^
 - Corrected the shear contribution to solid and membrane stiffness for interpolated flexes, and the three-point Gauss
@@ -25,19 +41,6 @@ Engine
   :ref:`mju_user_malloc` returns memory that is not 64-byte aligned, as ``malloc`` often does. ``mjModel.nbuffer`` and
   ``mjData.nbuffer`` now include up to 63 bytes of leading padding, so arrays are 64-byte aligned regardless of the
   buffer address.
-
-General
-^^^^^^^
-.. admonition:: Breaking API changes
-   :class: attention
-
-   - :ref:`mjfDecode`, the ``decode`` callback of :ref:`mjpDecoder` plugins, and :ref:`mju_decodeResource` now take
-     ``char* error, int error_sz`` arguments. A decoder which fails writes its reason into ``error``, which is then
-     reported by :ref:`mj_parse` and in mesh compilation errors, rather than only as a warning with a generic error.
-
-     **Migration:** Add the two arguments to custom decoders and write failure messages into ``error`` (if not
-     ``NULL``) instead of calling :ref:`mju_warning`. Pass an error buffer, or ``NULL, 0``, to
-     :ref:`mju_decodeResource`.
 
 Compiler
 ^^^^^^^^
