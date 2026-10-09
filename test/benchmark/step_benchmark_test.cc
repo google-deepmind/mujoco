@@ -17,7 +17,7 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
-#include <absl/base/attributes.h>
+#include "absl/base/attributes.h"
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>

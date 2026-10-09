@@ -1,0 +1,10 @@
+# Description:
+#   Tactile sensor example model
+
+licenses(["notice"])
+
+filegroup(
+    name = "tactile",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

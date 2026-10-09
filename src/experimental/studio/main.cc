@@ -14,8 +14,8 @@
 
 #include <string>
 
-#include <absl/flags/flag.h>
-#include <absl/flags/parse.h>
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
 #include "experimental/studio/launcher.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");

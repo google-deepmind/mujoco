@@ -15,7 +15,7 @@
 // A benchmark for comparing different implementations of mj_solveLD.
 
 #include <benchmark/benchmark.h>
-#include <absl/base/attributes.h>
+#include "absl/base/attributes.h"
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_smooth.h"

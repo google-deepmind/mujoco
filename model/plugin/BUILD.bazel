@@ -1,0 +1,11 @@
+licenses(["notice"])
+
+filegroup(
+    name = "plugin",
+    srcs = glob([
+        "**/*.xml",
+        "**/*.png",
+        "**/asset/**",
+    ]),
+    visibility = ["//:visibility"],
+)

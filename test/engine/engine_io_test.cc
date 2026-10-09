@@ -28,7 +28,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest-spi.h>  // IWYU pragma: keep
 #include <gtest/gtest.h>
-#include <absl/strings/str_format.h>
+#include "absl/strings/str_format.h"
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_memory.h"

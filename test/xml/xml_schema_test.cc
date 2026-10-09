@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 #include "src/xml/xml_native_reader.h"
 #include "test/fixture.h"
-#include <absl/strings/str_format.h>
+#include "absl/strings/str_format.h"
 
 namespace mujoco {
 namespace {

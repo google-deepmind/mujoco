@@ -1,0 +1,13 @@
+# Description:
+#   MuJoCo humanoid model.
+
+licenses(["notice"])
+
+filegroup(
+    name = "humanoid",
+    srcs = glob([
+        "**/*.xml",
+        "**/*.png",
+    ]),
+    visibility = ["//:visibility"],
+)

@@ -20,9 +20,9 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/cleanup/cleanup.h>
-#include <absl/strings/str_replace.h>
-#include <absl/strings/string_view.h>
+#include "absl/cleanup/cleanup.h"
+#include "absl/strings/str_replace.h"
+#include "absl/strings/string_view.h"
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 

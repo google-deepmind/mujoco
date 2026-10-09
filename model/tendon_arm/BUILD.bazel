@@ -1,0 +1,10 @@
+# Description:
+#   Planar 2-DoF arm with 6 tendons.
+
+licenses(["notice"])
+
+filegroup(
+    name = "tendon_arm",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

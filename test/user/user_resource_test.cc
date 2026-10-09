@@ -27,7 +27,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/str_format.h>
+#include "absl/strings/str_format.h"
 #include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_plugin.h"

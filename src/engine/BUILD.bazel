@@ -1,0 +1,1138 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+package_group(
+    name = "_impl_visibility",
+    packages =
+        [
+            "//src/render/classic/...",
+            "//src/user/...",
+            "//src/xml/...",
+            "//test/...",
+        ],
+)
+
+package_group(
+    name = "_api_visibility",
+    packages =
+        [
+            "//...",
+        ],
+)
+
+package(default_visibility = [":_impl_visibility"])
+
+exports_files(
+    [
+        "engine_support.c",
+        "engine_vis_init.c",
+    ],
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+config_setting(
+    name = "optimized_build",
+    values = {"compilation_mode": "opt"},
+)
+
+alias(
+    name = "ccd_deps",
+    actual = select({
+        "//:single_precision_config": "@ccd//:ccd_single",
+        "//conditions:default": "@ccd",
+    }),
+)
+
+cc_library(
+    name = "engine",
+    srcs = [
+        "engine_derivative_fd.c",
+        "engine_setconst.c",
+    ],
+    hdrs = [
+        "engine_derivative_fd.h",
+        "engine_setconst.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    visibility = [":_api_visibility"],
+    deps = [
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_derivative",
+        ":engine_forward",
+        ":engine_io",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_print",  # buildcleaner: keep
+        ":engine_support",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        ":engine_vis",  # buildcleaner: keep
+        ":engine_vis_init",  # buildcleaner: keep
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_forward",
+    srcs = [
+        "engine_forward.c",
+        "engine_inverse.c",
+        "engine_ipc.c",
+    ],
+    hdrs = [
+        "engine_forward.h",
+        "engine_inverse.h",
+        "engine_ipc.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_callback",
+        ":engine_collision",
+        ":engine_collision_continuous",
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_derivative",
+        ":engine_inline",
+        ":engine_io_hdrs",
+        ":engine_island",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_name",
+        ":engine_plugin",
+        ":engine_sensor",
+        ":engine_sleep",
+        ":engine_solver",
+        ":engine_support",
+        ":engine_thread",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",
+        ":engine_util_sparse",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_solver",
+    srcs = ["engine_solver.c"],
+    hdrs = ["engine_solver.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_derivative",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",
+        ":engine_util_sparse",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_print",
+    srcs = ["engine_print.c"],
+    hdrs = ["engine_print.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_io",
+        ":engine_macro",
+        ":engine_name",
+        ":engine_support",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_vis_init",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_derivative",
+    srcs = [
+        "engine_derivative.c",
+        "engine_metric.c",
+        "engine_passive.c",
+    ],
+    hdrs = [
+        "engine_derivative.h",
+        "engine_metric.h",
+        "engine_passive.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_callback",
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_crossplatform",
+        ":engine_inline",
+        ":engine_memory",
+        ":engine_plugin",
+        ":engine_sleep",
+        ":engine_support",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_sensor",
+    srcs = ["engine_sensor.c"],
+    hdrs = ["engine_sensor.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_callback",
+        ":engine_collision_convex",
+        ":engine_collision_raysdf",
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_crossplatform",
+        ":engine_memory",
+        ":engine_plugin",
+        ":engine_sleep",
+        ":engine_sort",
+        ":engine_support",
+        ":engine_thread",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_array_safety",
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    textual_hdrs = ["engine_array_safety.h"],
+    visibility = ["//src:__subpackages__"],
+)
+
+cc_library(
+    name = "engine_callback",
+    srcs = ["engine_callback.c"],
+    hdrs = ["engine_callback.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_raysdf",
+    srcs = [
+        "engine_collision_sdf.c",
+        "engine_ray.c",
+    ],
+    hdrs = [
+        "engine_collision_sdf.h",
+        "engine_ray.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_memory",
+        ":engine_plugin",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision",
+    srcs = [
+        "engine_collision_driver.c",
+    ],
+    hdrs = [
+        "engine_collision_driver.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_callback",
+        ":engine_collision_box",  # buildcleaner: keep
+        ":engine_collision_continuous",
+        ":engine_collision_convex",
+        ":engine_collision_flex",
+        ":engine_collision_primitive",
+        ":engine_collision_raysdf",
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_inline",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_sleep",
+        ":engine_sort",
+        ":engine_thread",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+# buildifier: disable=no-hdrs-no-alwayslink
+cc_library(
+    name = "engine_collision_box",
+    srcs = [
+        "engine_collision_box.c",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_collision_primitive",
+        ":engine_inline",
+        ":engine_util_blas",
+        ":engine_util_misc",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_convex",
+    srcs = [
+        "engine_collision_convex.c",
+        "engine_collision_gjk.c",
+    ],
+    hdrs = [
+        "engine_collision_convex.h",
+        "engine_collision_gjk.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":ccd_deps",
+        ":engine_inline",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_primitive",
+    srcs = ["engine_collision_primitive.c"],
+    hdrs = ["engine_collision_primitive.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_inline",
+        ":engine_util_blas",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_flex",
+    srcs = ["engine_collision_flex.c"],
+    hdrs = ["engine_collision_flex.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_collision_convex",
+        ":engine_collision_primitive",
+        ":engine_util_blas",
+        ":engine_util_spatial",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_collision_continuous",
+    srcs = ["engine_collision_continuous.c"],
+    hdrs = ["engine_collision_continuous.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_crossplatform",
+    srcs = ["engine_crossplatform.cc"],
+    hdrs = ["engine_crossplatform.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+)
+
+cc_library(
+    name = "engine_core_util",
+    srcs = ["engine_core_util.c"],
+    hdrs = ["engine_core_util.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_inline",
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_core",
+    srcs = [
+        "engine_core_constraint.c",
+        "engine_core_smooth.c",
+    ],
+    hdrs = [
+        "engine_core_constraint.h",
+        "engine_core_smooth.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    deps = [
+        ":engine_core_util",
+        ":engine_crossplatform",
+        ":engine_init",
+        ":engine_inline",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_sleep",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_island",
+    srcs = ["engine_island.c"],
+    hdrs = ["engine_island.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_core_util",
+        ":engine_memory",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_sparse",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_support",
+    srcs = ["engine_support.c"],
+    hdrs = ["engine_support.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_collision",
+        ":engine_collision_convex",
+        ":engine_collision_primitive",
+        ":engine_core_util",
+        ":engine_crossplatform",
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_vis",
+    srcs = [
+        "engine_vis_interact.c",
+        "engine_vis_visualize.c",
+    ],
+    hdrs = [
+        "engine_vis_interact.h",
+        "engine_vis_visualize.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_array_safety",
+        ":engine_collision_raysdf",
+        ":engine_core",
+        ":engine_core_util",
+        ":engine_memory",
+        ":engine_name",
+        ":engine_plugin",
+        ":engine_sleep",
+        ":engine_support",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_spatial",
+        ":engine_vis_init",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_vis_init",
+    srcs = ["engine_vis_init.c"],
+    hdrs = ["engine_vis_init.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [":_api_visibility"],
+    deps = [
+        ":engine_array_safety",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_init",
+    srcs = ["engine_init.c"],
+    hdrs = ["engine_init.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_util_blas",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_io_hdrs",
+    hdrs = ["engine_io.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_io",
+    srcs = ["engine_io.c"],
+    hdrs = ["engine_io.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_core",
+        ":engine_forward",
+        ":engine_init",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_plugin",
+        ":engine_sleep",
+        ":engine_thread",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_macro",
+    hdrs = ["engine_macro.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_callback",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_memory",
+    srcs = ["engine_memory.c"],
+    hdrs = ["engine_memory.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_crossplatform",
+        ":engine_util_errmem",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_name",
+    srcs = ["engine_name.c"],
+    hdrs = ["engine_name.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_crossplatform",
+        ":engine_io_hdrs",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_plugin",
+    srcs = ["engine_plugin.cc"],
+    hdrs = [
+        "engine_global_table.h",
+        "engine_plugin.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    linkopts = ["-ldl"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_util_errmem",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_sleep",
+    srcs = ["engine_sleep.c"],
+    hdrs = ["engine_sleep.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_core_util",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_sort",
+    hdrs = ["engine_sort.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+)
+
+cc_library(
+    name = "engine_util_blas",
+    srcs = ["engine_util_blas.c"],
+    hdrs = [
+        "engine_util_blas.h",
+        "engine_util_blas_avx.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    deps = [
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_errmem",
+    srcs = ["engine_util_errmem.c"],
+    hdrs = ["engine_util_errmem.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [
+        ":_impl_visibility",
+        "//robotics/api/developer/robot_sim/frontend:__subpackages__",
+        "//third_party/py/mujoco:__pkg__",
+    ],
+    deps = [
+        ":engine_crossplatform",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_misc",
+    srcs = ["engine_util_misc.c"],
+    hdrs = ["engine_util_misc.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_array_safety",
+        ":engine_crossplatform",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_spatial",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_sparse",
+    srcs = [
+        "engine_util_sparse.c",
+    ],
+    hdrs = [
+        "engine_util_sparse.h",
+        "engine_util_sparse_avx.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    deps = [
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_misc",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_spatial",
+    srcs = ["engine_util_spatial.c"],
+    hdrs = ["engine_util_spatial.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_inline",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_util_solve",
+    srcs = ["engine_util_solve.c"],
+    hdrs = ["engine_util_solve.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_inline",
+        ":engine_memory",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_sparse",
+        ":engine_util_spatial",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_inline",
+    hdrs = ["engine_inline.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_util_blas",
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "engine_thread",
+    srcs = ["engine_thread.cc"],
+    hdrs = ["engine_thread.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        ":engine_memory",
+        "//:mjdata_hdrs",
+        "//:mjmodel_hdrs",
+        "//:mjtype_hdrs",
+    ],
+)

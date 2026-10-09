@@ -1,0 +1,10 @@
+# Description:
+#   MuJoCo mug.
+
+licenses(["notice"])
+
+filegroup(
+    name = "mug",
+    srcs = glob(["mug.*"]),
+    visibility = ["//:visibility"],
+)

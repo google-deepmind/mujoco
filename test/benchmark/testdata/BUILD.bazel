@@ -1,0 +1,74 @@
+load("//:build_defs.bzl", "MJ_ROOT", "mj_models_filegroup")
+
+licenses(["notice"])
+
+filegroup(
+    name = "flag",
+    srcs = ["flag.xml"],
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "humanoid200",
+    srcs = [
+        "humanoid200.xml",
+        "humanoid_body.xml",
+    ],
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "2humanoid100",
+    srcs = [
+        "2humanoid100.xml",
+        "humanoid.xml",
+    ],
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "chol",
+    srcs = [
+        "100_humanoids_chol.xml",
+        "2humanoid100_chol.xml",
+    ],
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "inertia",
+    srcs = ["inertia.xml"],
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "2humanociwid100",
+    srcs = [
+        "2humanoid100.xml",
+        "humanoid.xml",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+filegroup(
+    name = "boxpile",
+    srcs = ["boxpile.xml"],
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "cache_hits",
+    srcs = [
+        "cache_hits.xml",
+        "highres_sphere.obj",
+        "noise.png",
+    ],
+    visibility = ["//:visibility"],
+)
+
+mj_models_filegroup(
+    name = "test_mjcf",
+    extra_srcs = [
+        ":flag",
+    ],
+)

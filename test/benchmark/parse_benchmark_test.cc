@@ -21,8 +21,8 @@
 #include <benchmark/benchmark.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/base/attributes.h>
-#include <absl/strings/str_format.h>
+#include "absl/base/attributes.h"
+#include "absl/strings/str_format.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"

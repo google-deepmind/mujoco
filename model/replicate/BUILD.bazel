@@ -1,0 +1,14 @@
+# Description:
+#   MuJoCo replicate models.
+
+licenses(["notice"])
+
+filegroup(
+    name = "replicate",
+    srcs = glob([
+        "**/*.xml",
+        "*.obj",
+        "asset/*.png",
+    ]),
+    visibility = ["//:visibility"],
+)

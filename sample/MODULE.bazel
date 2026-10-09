@@ -1,0 +1,11 @@
+module(name = "mujoco_samples")
+
+bazel_dep(name = "apple_support", version = "1.24.5")
+bazel_dep(name = "glfw", version = "3.4.0.bcr.3")
+bazel_dep(name = "mujoco")
+bazel_dep(name = "rules_cc", version = "0.2.22")
+
+local_path_override(
+    module_name = "mujoco",
+    path = "..",
+)

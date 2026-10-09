@@ -46,7 +46,7 @@
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
-#include <MC.h>
+#include "MC.h"
 #if defined(__clang__)
   #pragma clang diagnostic pop
 #elif defined(__GNUC__)
@@ -67,7 +67,7 @@
 #include "user/user_util.h"
 
 extern "C" {
-#include "qhull_ra.h"
+#include "libqhull_r/qhull_ra.h"
 }
 
 namespace {

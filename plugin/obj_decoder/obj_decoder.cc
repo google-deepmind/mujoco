@@ -22,7 +22,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
-#include <tiny_obj_loader.h>
+#include "tiny_obj_loader.h"
 
 namespace {
 

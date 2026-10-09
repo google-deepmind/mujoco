@@ -20,7 +20,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/str_format.h>
+#include "absl/strings/str_format.h"
 #include "src/cc/array_safety.h"
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>

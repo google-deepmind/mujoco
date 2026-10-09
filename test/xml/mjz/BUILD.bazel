@@ -1,0 +1,87 @@
+# Description:
+#   Tests for mujoco/src/xml/mjz
+
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//:visibility"],
+)
+
+cc_test(
+    name = "mjz_archive_provider_test",
+    srcs = ["mjz_archive_provider_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/testdata:model",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+        "@miniz",
+    ],
+)
+
+cc_test(
+    name = "mjz_decoder_test",
+    srcs = ["mjz_decoder_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/testdata:model",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+        "@miniz",
+    ],
+)
+
+cc_test(
+    name = "mjz_encoder_test",
+    srcs = ["mjz_encoder_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        ":testdata",
+        "//model:all_models",
+        "//test:all_test_models",
+    ],
+    shard_count = 5,
+    deps = [
+        "//:libmujoco_hdrs",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+        "//src/xml:xml_numeric_format",
+        "//test:compare_model",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@miniz",
+    ],
+)

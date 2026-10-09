@@ -1,0 +1,11 @@
+load("//:build_defs.bzl", "MJ_ROOT")
+
+# Test data for mjStage.
+package(default_visibility = [
+    "//:__subpackages__",
+])
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["**"]),
+)

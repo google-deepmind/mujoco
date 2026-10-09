@@ -1,0 +1,29 @@
+# Description:
+#   Rubik's cube.
+
+licenses(["notice"])
+
+filegroup(
+    name = "cube_3x3x3",
+    srcs = glob([
+        "**/*.xml",
+        "assets/*.png",
+    ]),
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "assets",
+    srcs = glob([
+        "assets/*.png",
+    ]),
+    visibility = ["//:visibility"],
+)
+
+filegroup(
+    name = "mjcf",
+    srcs = glob([
+        "*.xml",
+    ]),
+    visibility = ["//:visibility"],
+)

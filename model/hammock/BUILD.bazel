@@ -1,0 +1,10 @@
+# Description:
+#   MuJoCo humanoid on a hammock.
+
+licenses(["notice"])
+
+filegroup(
+    name = "hammock",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

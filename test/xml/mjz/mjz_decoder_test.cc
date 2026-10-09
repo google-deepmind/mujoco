@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -25,14 +26,16 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 // Disable unused function warnings for miniz.
+// NOLINTBEGIN(misc-include-cleaner) - Disable clang-tidy for miniz.
 #if defined(__GNUC__) || defined(__clang__)
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
-#include <miniz.h>
+#include "miniz.h"
 #if defined(__GNUC__) || defined(__clang__)
   #pragma GCC diagnostic pop
 #endif
+// NOLINTEND(misc-include-cleaner) - End clang-tidy disable for miniz.
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -149,6 +152,7 @@ TEST_F(MjzTest, ParseBackslashEntryNames) {
       "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
       "f 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n";
 
+  // NOLINTBEGIN(misc-include-cleaner) - Disable clang-tidy for miniz.
   mz_zip_archive zip;
   std::memset(&zip, 0, sizeof(zip));
   ASSERT_TRUE(mz_zip_writer_init_heap(&zip, 0, 0));
@@ -161,6 +165,7 @@ TEST_F(MjzTest, ParseBackslashEntryNames) {
   ASSERT_TRUE(
       mz_zip_writer_finalize_heap_archive(&zip, &archive, &archive_size));
   mz_zip_writer_end(&zip);
+  // NOLINTEND(misc-include-cleaner) - End clang-tidy disable for miniz.
 
   const std::string filepath = testing::TempDir() + "/backslash_entries.mjz";
   std::ofstream(filepath, std::ios::binary)

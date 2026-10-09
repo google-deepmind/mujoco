@@ -1,0 +1,10 @@
+# Description:
+#   Sleep models.
+
+licenses(["notice"])
+
+filegroup(
+    name = "sleep",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

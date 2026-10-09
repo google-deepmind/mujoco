@@ -1,0 +1,13 @@
+# Description:
+#   Falling cards.
+
+licenses(["notice"])
+
+filegroup(
+    name = "cards",
+    srcs = glob([
+        "**/*.xml",
+        "assets/**",
+    ]),
+    visibility = ["//:visibility"],
+)

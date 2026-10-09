@@ -22,22 +22,25 @@
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/match.h>
+#include "absl/strings/match.h"
 
 // Disable unused function warnings for miniz.
+// NOLINTBEGIN(misc-include-cleaner) - Disable clang-tidy for miniz.
 #if defined(__GNUC__) || defined(__clang__)
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
-#include <miniz.h>
+#include "miniz.h"
 #if defined(__GNUC__) || defined(__clang__)
   #pragma GCC diagnostic pop
 #endif
+// NOLINTEND(misc-include-cleaner) - End clang-tidy disable for miniz.
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjspec.h>
@@ -66,9 +69,12 @@ static std::string SanitizePathForTestName(const std::string& path) {
   fs::path p(path);
   std::string name = p.stem().string();
   std::string full_name = p.string();
-  size_t pos = full_name.find("third_party/mujoco");
-  if (pos != std::string::npos) {
-    full_name = full_name.substr(pos);
+  for (std::string_view marker : {"third_party/mujoco/", "_main/"}) {
+    size_t pos = full_name.find(marker);
+    if (pos != std::string::npos) {
+      full_name = full_name.substr(pos + marker.size());
+      break;
+    }
   }
   std::string sanitized;
   for (char c : full_name) {
@@ -155,6 +161,7 @@ TEST_F(MjzEncoderTest, RootFileInArchiveIsNamedModelXml) {
   ASSERT_GT(nbytes, 0);
   ASSERT_THAT(resource.data, testing::NotNull());
 
+  // NOLINTBEGIN(misc-include-cleaner) - Disable clang-tidy for miniz.
   mz_zip_archive zip;
   std::memset(&zip, 0, sizeof(zip));
   ASSERT_TRUE(mz_zip_reader_init_mem(&zip, resource.data, nbytes, 0));
@@ -176,6 +183,7 @@ TEST_F(MjzEncoderTest, RootFileInArchiveIsNamedModelXml) {
 
   std::free(xml_data);
   mz_zip_reader_end(&zip);
+  // NOLINTEND(misc-include-cleaner) - End clang-tidy disable for miniz.
   std::free(resource.data);
   mj_deleteModel(model);
   mj_deleteSpec(spec);

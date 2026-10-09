@@ -25,7 +25,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/match.h>
+#include "absl/strings/match.h"
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
 #include "src/xml/xml_api.h"

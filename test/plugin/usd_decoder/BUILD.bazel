@@ -1,0 +1,38 @@
+# Description:
+#   Tests for mujoco/plugin/usd_decoder
+
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+cc_test(
+    name = "usd_decoder_test",
+    srcs = ["usd_decoder_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    tags = [
+        "noasan",
+        "nomsan",
+        "notsan",
+    ],
+    deps = [
+        # USD has a flaky memory leak with SdfPathNodes for
+        # variants. Disable heap checking to avoid test failures.
+        "@googletest//:gtest_main_no_heapcheck",
+        "//:_usd",  # build_cleaner: keep
+        "//:libmujoco_hdrs",
+        "//plugin/usd_decoder",  # build_cleaner: keep
+        "//test:fixture",
+        "//third_party/usd/v26:arch",
+        "//third_party/usd/v26:sdf",
+        "//third_party/usd/v26:tf",
+        "//third_party/usd/v26:usd",
+        "//third_party/usd/v26/google/plugin_registration:plugin_registration_module",
+    ],
+)

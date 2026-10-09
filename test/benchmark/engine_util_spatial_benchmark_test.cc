@@ -17,7 +17,7 @@
 #include <benchmark/benchmark.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/base/attributes.h>
+#include "absl/base/attributes.h"
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_blas.h"

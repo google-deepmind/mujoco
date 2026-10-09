@@ -1,0 +1,216 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+exports_files([".clang-format"])
+
+cc_library(
+    name = "user_composite",
+    srcs = ["user_composite.cc"],
+    hdrs = ["user_composite.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-fexceptions",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = ["//src:__subpackages__"],
+    deps = [
+        ":user_model",
+        ":user_util",
+        "//:libmujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_errmem",
+        "//src/engine:engine_util_misc",
+    ],
+)
+
+cc_library(
+    name = "user_model",
+    srcs = [
+        "user_api.cc",
+        "user_flexcomp.cc",
+        "user_init.c",
+        "user_mesh.cc",
+        "user_model.cc",
+        "user_objects.cc",
+        "user_resolver.cc",
+    ],
+    hdrs = [
+        "user_api.h",
+        "user_flexcomp.h",
+        "user_model.h",
+        "user_objects.h",
+        "user_resolver.h",
+    ],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-fexceptions",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "MC_IMPLEM_ENABLE",
+    ],
+    visibility = [
+        "//plugin:__subpackages__",
+        "//src:__subpackages__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        ":user_cache",
+        ":user_resource",
+        ":user_threadpool",
+        ":user_util",
+        "//:libmujoco_hdrs",
+        "//src/cc:array_safety",
+        "//src/engine",
+        "//src/engine:engine_core_util",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_derivative",
+        "//src/engine:engine_forward",
+        "//src/engine:engine_init",
+        "//src/engine:engine_io",
+        "//src/engine:engine_name",
+        "//src/engine:engine_plugin",
+        "//src/engine:engine_support",
+        "//src/engine:engine_util_errmem",
+        "//src/engine:engine_util_misc",
+        "//src/engine:engine_util_solve",
+        "@lodepng",
+        "@marchingcubecpp",
+        "@qhull//:libqhull_r",
+    ],
+)
+
+cc_library(
+    name = "user_threadpool",
+    srcs = ["user_threadpool.cc"],
+    hdrs = ["user_threadpool.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//test:__subpackages__",
+    ],
+)
+
+cc_library(
+    name = "user_util",
+    srcs = ["user_util.cc"],
+    hdrs = ["user_util.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-fexceptions",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_crossplatform",
+    ],
+)
+
+cc_library(
+    name = "user_cache",
+    srcs = ["user_cache.cc"],
+    hdrs = ["user_cache.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        ":user_resource",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "user_resource",
+    srcs = ["user_resource.cc"],
+    hdrs = ["user_resource.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        ":user_util",
+        ":user_vfs",
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_plugin",
+    ],
+)
+
+cc_library(
+    name = "user_vfs",
+    srcs = ["user_vfs.cc"],
+    hdrs = ["user_vfs.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-fexceptions",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = [
+        "//src:__subpackages__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        ":user_util",
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_util_misc",
+    ],
+)

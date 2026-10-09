@@ -24,7 +24,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/match.h>
+#include "absl/strings/match.h"
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "src/xml/xml_numeric_format.h"

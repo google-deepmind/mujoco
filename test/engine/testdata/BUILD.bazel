@@ -1,0 +1,28 @@
+load("//:build_defs.bzl", "MJ_ROOT", "mj_models_filegroup")
+
+licenses(["notice"])
+
+package(
+    default_testonly = True,
+    default_visibility = ["//test:__subpackages__"],
+)
+
+mj_models_filegroup(
+    name = "test_mjcf",
+    extra_srcs = [
+        "//test/engine/testdata/collision_box:test_mjcf",
+        "//test/engine/testdata/collision_convex:test_mjcf",
+        "//test/engine/testdata/core_constraint:test_mjcf",
+        "//test/engine/testdata/core_smooth:test_mjcf",
+        "//test/engine/testdata/island:test_mjcf",
+        "//test/engine/testdata/ray:test_mjcf",
+        "//test/engine/testdata/sensor:test_mjcf",
+        "//test/engine/testdata/sleep:test_mjcf",
+        "//test/engine/testdata/solver:test_mjcf",
+        "//test/engine/testdata/vis_visualize:test_mjcf",
+    ],
+)
+
+exports_files(
+    srcs = glob(["**/*.xml"]),
+)
