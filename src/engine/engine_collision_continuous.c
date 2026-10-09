@@ -798,6 +798,32 @@ static void addCand(mjcFlexPair con, const mjModel* m, mjData* d, const mjtNum* 
                     const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, mjcFlexPair** base,
                     int* nc, int* full) {
   if (*full) return;
+  // flex-flex pre-test: the distance between the two features' bounding boxes bounds their
+  // (midsurface) gap from below, so a pair whose boxes are beyond the detection threshold below
+  // fails it in any case. The margin keeps the test clear of the exact distance's round-off
+  if (con.type <= mjcFLEX_EDGE_EDGE) {
+    int n1 = con.type == mjcFLEX_EDGE_EDGE ? 2 : 1;
+    mjtNum lim = bandOffset(&con, radii) + thresh;
+    lim += 1e-9 * (lim > 0 ? lim : -lim) + 1e-12;
+    mjtNum dist2 = 0;
+    for (int c=0; c < 3; c++) {
+      mjtNum lo1 = x[3 * con.idx[0] + c], hi1 = lo1;
+      for (int q=1; q < n1; q++) {
+        mjtNum v = x[3 * con.idx[q] + c];
+        if (v < lo1) lo1 = v;
+        if (v > hi1) hi1 = v;
+      }
+      mjtNum lo2 = x[3 * con.idx[n1] + c], hi2 = lo2;
+      for (int q=n1+1; q < 4; q++) {
+        mjtNum v = x[3 * con.idx[q] + c];
+        if (v < lo2) lo2 = v;
+        if (v > hi2) hi2 = v;
+      }
+      mjtNum gap = lo2 - hi1 > lo1 - hi2 ? lo2 - hi1 : lo1 - hi2;
+      if (gap > 0) dist2 += gap * gap;
+    }
+    if (lim > 0 && dist2 > lim * lim) return;
+  }
   mjtNum n[3], cw[4];
   int idv[4], nidx;
   mjtNum g = mjc_pairGap(&con, m, d, x, gv, ge, radii, n, idv, cw, &nidx, thresh);
@@ -949,6 +975,21 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
     if (dl[v] > fsweep[k]) fsweep[k] = dl[v];
     if (stale > fstale[k]) fstale[k] = stale;
   }
+  // the points that meet the static geoms: their bounding box and largest margin (padded), so a
+  // geom whose box misses the padded point box has no candidate
+  mjtNum pglo[3] = {0, 0, 0}, pghi[3] = {0, 0, 0}, pgmarg = 0;
+  int npg = 0;
+  for (int v=0; v < nfv; v++) {
+    if (fidx[v] < 0 && !(pjnv && pjnv[v] > 0)) continue;
+    mjtNum marg = thresh + dl[v] + radii[v];
+    if (!npg || marg > pgmarg) pgmarg = marg;
+    for (int k=0; k < 3; k++) {
+      if (!npg || x[3 * v + k] < pglo[k]) pglo[k] = x[3 * v + k];
+      if (!npg || x[3 * v + k] > pghi[k]) pghi[k] = x[3 * v + k];
+    }
+    npg++;
+  }
+  pgmarg += 1e-9 * mju_abs(pgmarg) + 1e-9;
   for (int gi=0; gi < m->ngeom; gi++) {  // free point (flex vert) vs STATIC geom
     if (m->geom_contype[gi] == 0 && m->geom_conaffinity[gi] == 0) continue;  // skip non-colliding
     if (!mjc_GeomSupported(m->geom_type[gi])) continue;  // its native rows are kept instead
@@ -970,7 +1011,13 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
       for (int k=0; k < 3; k++)
         wh[k] = mju_abs(gR[3 * k]) * la[3] + mju_abs(gR[3 * k + 1]) * la[4] +
                 mju_abs(gR[3 * k + 2]) * la[5];
+      int miss = 0;
+      for (int k=0; k < 3; k++) {
+        if (wc[k] - wh[k] - pgmarg > pghi[k] || wc[k] + wh[k] + pgmarg < pglo[k]) miss = 1;
+      }
+      if (miss) continue;
     }
+    if (!npg) continue;
     for (int v=0; v < nfv; v++) {  // free points and points riding a moving body
       if (fidx[v] < 0 && !(pjnv && pjnv[v] > 0)) continue;
       int f = flist[pt2flex[v]];
