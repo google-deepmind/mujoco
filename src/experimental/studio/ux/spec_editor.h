@@ -117,6 +117,8 @@ class SpecEditor {
   // then "resolve" an element from a spec based on its key.
   class ElementKeyMap {
    public:
+    void Clear();
+
     int Append(mjtObj type, ElementKey key);
 
     int Remove(ElementKey key);

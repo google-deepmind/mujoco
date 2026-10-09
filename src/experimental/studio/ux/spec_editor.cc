@@ -25,14 +25,20 @@ namespace mujoco::studio {
 SpecEditor::SpecEditor(int history_size) : capacity_(history_size) {}
 
 void SpecEditor::Reset() {
+  history_.clear();
   ref_spec_.reset();
   active_spec_.reset();
+  active_map_.Clear();
+  ref_map_.Clear();
+  active_element_ = nullptr;
+  ref_element_ = nullptr;
+  active_element_key_ = kInvalidElementKey;
+  next_element_key_ = 1;
+  cursor_ = 0;
 }
 
 void SpecEditor::Reset(const mjSpec& spec) {
-  active_element_key_ = kInvalidElementKey;
-  active_element_ = nullptr;
-  ref_element_ = nullptr;
+  Reset();
 
   ref_spec_ = Copy(&spec);
   active_spec_ = Copy(&spec);
@@ -49,14 +55,13 @@ void SpecEditor::Reset(const mjSpec& spec) {
   active_map_ = ref_map_;
 
   // Seed the history buffer with the initial spec.
-  history_.clear();
   history_.push_back(HistoryEntry{
       .spec = Copy(ref_spec_.get()),
       .op = kInitialize,
       .key = kInvalidElementKey,
       .type_index = kInvalidTypeIndex,
   });
-  cursor_ = 1;
+  cursor_ = 0;
 }
 
 std::unique_ptr<ModelHolder> SpecEditor::Compile(mjVFS* vfs) {
@@ -68,6 +73,7 @@ std::unique_ptr<ModelHolder> SpecEditor::Compile(mjVFS* vfs) {
   if (holder->ok()) {
     ref_spec_ = Copy(active_spec_.get());
     ref_map_ = active_map_;
+    UpdateReferenceElement();
   }
   return holder;
 }
@@ -227,15 +233,17 @@ void SpecEditor::CommitChanges(mjsElement* element) {
 
 void SpecEditor::Undo() {
   if (CanUndo()) {
+    const auto& undone = history_[cursor_];
+    if (undone.op == kAdd) {
+      active_map_.Remove(undone.key);
+    } else if (undone.op == kDelete) {
+      active_map_.Insert(undone.key, undone.type_index);
+    }
+
     --cursor_;
 
     auto& entry = history_[cursor_];
     active_spec_ = Copy(entry.spec.get());
-    if (entry.op == kAdd) {
-      active_map_.Remove(entry.key);
-    } else if (entry.op == kDelete) {
-      active_map_.Insert(entry.key, entry.type_index);
-    }
 
     active_element_ =
         active_map_.Resolve(active_spec_.get(), active_element_key_);
@@ -263,7 +271,9 @@ void SpecEditor::Redo() {
   }
 }
 
-bool SpecEditor::CanRedo() const { return cursor_ < history_.size() - 1; }
+bool SpecEditor::CanRedo() const {
+  return cursor_ + 1 < static_cast<int>(history_.size());
+}
 
 void SpecEditor::AppendHistory(HistoryEntry entry) {
   if (!active_spec_) {
@@ -271,13 +281,19 @@ void SpecEditor::AppendHistory(HistoryEntry entry) {
   }
 
   ++cursor_;
-  while (history_.size() > cursor_) {
+  while (static_cast<int>(history_.size()) > cursor_) {
     history_.pop_back();
   }
   history_.push_back(std::move(entry));
-  if (cursor_ > capacity_) {
+  if (static_cast<int>(history_.size()) > capacity_) {
     history_.pop_front();
     --cursor_;
+  }
+}
+
+void SpecEditor::ElementKeyMap::Clear() {
+  for (auto& list : keys_) {
+    list.clear();
   }
 }
 
