@@ -3,7 +3,6 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//:build_defs.bzl", "MJ_ROOT", "mujoco_test_tags")
-load("//google/mjapi_check:mjapi_check.bzl", "mjapi_check")
 
 licenses(["notice"])
 
@@ -186,5 +185,3 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
-
-mjapi_check()
