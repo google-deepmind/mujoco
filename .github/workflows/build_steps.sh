@@ -867,6 +867,17 @@ build_wheel() {
 }
 
 
+test_bazel() {
+    echo "Building and testing MuJoCo with Bazel..."
+    bazel test --test_output=errors //...
+
+    echo "Building standalone sample Bzlmod module..."
+    pushd sample > /dev/null
+    bazel build //...
+    popd > /dev/null
+}
+
+
 # Discover functions defined in this script by finding identifiers followed by
 # "()" and capturing the identifier as a valid function name.
 VALID_FUNCTIONS=()

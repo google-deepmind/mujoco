@@ -154,7 +154,7 @@ jobs:
 
     - name: Upload CMake Configure Log
       if: always()
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: cmake-configure-log-${{ matrix.label }}
         path: build/CMakeFiles/CMakeConfigureLog.yaml
@@ -416,6 +416,44 @@ jobs:
     - name: Test MJX
       working-directory: mjx
       run: bash ../.github/workflows/build_steps.sh test_mjx
+
+    - name: Notify team chat
+      if: failure() && github.ref_name == 'main' && github.event_name == 'push'
+      uses: ./.github/actions/notify-chat
+      with:
+        service-account-key: ${{ secrets.CHAT_SERVICE_ACCOUNT_KEY }}
+        user-id-map: ${{ secrets.CHAT_USER_ID_MAP }}
+        space-id: "spaces/AAAAzcCLt1A"
+
+
+  bazel:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: ubuntu-24.04-bazel
+          - os: macos-15
+            label: macos-15-arm64-bazel
+    name: "${{ matrix.label }}"
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
+
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Setup Bazel
+      uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+      with:
+        bazelisk-cache: true
+        repository-cache: true
+
+    - name: Build and Test with Bazel
+      run: bash ./.github/workflows/build_steps.sh test_bazel
 
     - name: Notify team chat
       if: failure() && github.ref_name == 'main' && github.event_name == 'push'
