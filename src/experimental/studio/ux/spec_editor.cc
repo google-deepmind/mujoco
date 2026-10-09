@@ -59,12 +59,12 @@ void SpecEditor::Reset(const mjSpec& spec) {
   cursor_ = 1;
 }
 
-std::unique_ptr<ModelHolder> SpecEditor::Compile() {
+std::unique_ptr<ModelHolder> SpecEditor::Compile(mjVFS* vfs) {
   if (!active_spec_) {
     return nullptr;
   }
 
-  auto holder = ModelHolder::FromSpec(mj_copySpec(active_spec_.get()));
+  auto holder = ModelHolder::FromSpec(mj_copySpec(active_spec_.get()), vfs);
   if (holder->ok()) {
     ref_spec_ = Copy(active_spec_.get());
     ref_map_ = active_map_;

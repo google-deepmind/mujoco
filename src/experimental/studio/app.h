@@ -325,6 +325,7 @@ class App {
   // pending until their window is first created.
   KeyValues window_state_storage_;
 
+  mjVFS vfs_;
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;

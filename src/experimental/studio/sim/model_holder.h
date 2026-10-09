@@ -26,7 +26,7 @@
 namespace mujoco::studio {
 
 // Container for storing an mjModel as well as its associated mjData. Also, if
-// applicable, stores the mjSpec and mjVFS from which the model was constructed.
+// applicable, stores the mjSpec from which the model was constructed.
 class ModelHolder {
  public:
   ModelHolder(const ModelHolder&) = delete;
@@ -34,19 +34,23 @@ class ModelHolder {
   ~ModelHolder();
 
   // Creates an mjModel from an existing mjSpec. This class takes ownership of
-  // the spec and will `mj_deleteSpec` it on destruction.
-  static std::unique_ptr<ModelHolder> FromSpec(mjSpec* spec);
+  // the spec and will `mj_deleteSpec` it on destruction. If a VFS is provided,
+  // its lifetime must outlive this object.
+  static std::unique_ptr<ModelHolder> FromSpec(mjSpec* spec,
+                                               mjVFS* vfs = nullptr);
 
-  // Creates an mjModel by attempting to open and parse the give file.
-  static std::unique_ptr<ModelHolder> FromFile(std::string_view filepath);
+  // Creates an mjModel by attempting to open and parse the give file.  If a VFS
+  // is provided, its lifetime must outlive this object.
+  static std::unique_ptr<ModelHolder> FromFile(std::string_view filepath,
+                                               mjVFS* vfs = nullptr);
 
-  // Creates an mjModel by attempting to decode the given buffer.
+  // Creates an mjModel by attempting to decode the given buffer. If a VFS is
+  // provided, its lifetime must outlive this object.
   static std::unique_ptr<ModelHolder> FromBuffer(
       std::span<const std::byte> buffer, std::string_view content_type,
-      std::string_view filename);
+      std::string_view filename, mjVFS* vfs = nullptr);
 
   // Accessors to the MuJoCo structures managed by this object.
-  mjVFS* vfs() { return &vfs_; }
   mjSpec* spec() { return spec_; }
   mjData* data() { return data_; }
   mjModel* model() { return model_; }
@@ -73,7 +77,7 @@ class ModelHolder {
   mjModel* ReleaseModel();
 
  private:
-  ModelHolder();
+  explicit ModelHolder(mjVFS* vfs);
   void InitFromSpec(mjSpec* spec);
   void InitFromFile(std::string_view filepath);
   void InitFromBuffer(std::span<const std::byte> buffer,
@@ -82,7 +86,8 @@ class ModelHolder {
   void PostInit();
   void SetLoadError(std::string_view error);
 
-  mjVFS vfs_;
+  mjVFS* vfs_ = nullptr;
+  mjVFS local_vfs_ = {nullptr};
   mjSpec* spec_ = nullptr;
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;

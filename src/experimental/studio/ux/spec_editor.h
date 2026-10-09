@@ -48,7 +48,7 @@ class SpecEditor {
   // Attempts to compile the active spec, returning a ModelHolder. If the
   // compilation was successfully, it will also update the reference spec to be
   // the source spec.
-  std::unique_ptr<ModelHolder> Compile();
+  std::unique_ptr<ModelHolder> Compile(mjVFS* vfs);
 
   // Returns the active spec being edited. That said, users should not directly
   // modify this spec. Instead, they should use the add/delete operations below.

@@ -158,6 +158,7 @@ App::App(Config config)
   }
 
   ImPlot::CreateContext();
+  mj_defaultVFS(&vfs_);
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
@@ -191,6 +192,8 @@ App::~App() {
   // and outlives this body.
   SaveSettings();
   mjv_freeScene(&plugin_scene_);
+  model_holder_.reset();
+  mj_deleteVFS(&vfs_);
 }
 
 #ifndef __EMSCRIPTEN__
@@ -567,7 +570,7 @@ void App::BuildModel(const BuildModelInfo& info) {
   if (std::holds_alternative<RecompileFromSpec>(info)) {
     const KeyframeSelection saved_key =
         CaptureKeyframeSelection(/*is_reload=*/true);
-    auto tmp_holder = spec_editor_.Compile();
+    auto tmp_holder = spec_editor_.Compile(&vfs_);
     if (tmp_holder->ok()) {
       preserve_camera_on_load_ = true;
       model_holder_ = std::move(tmp_holder);
@@ -590,7 +593,10 @@ void App::BuildModel(const BuildModelInfo& info) {
     ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
                   has_data() ? data() : nullptr);
   } else if (std::holds_alternative<EmptyModel>(info)) {
-    model_holder_ = ModelHolder::FromSpec(mj_makeSpec());
+    model_holder_.reset();
+    mj_deleteVFS(&vfs_);
+    mj_defaultVFS(&vfs_);
+    model_holder_ = ModelHolder::FromSpec(mj_makeSpec(), &vfs_);
     tmp_.key_idx = -1;
     last_buffer_.clear();
     last_content_type_.clear();
@@ -601,7 +607,10 @@ void App::BuildModel(const BuildModelInfo& info) {
     const std::string resolved_file = ResolveFile(load.filepath, search_paths_);
     const KeyframeSelection saved_key =
         CaptureKeyframeSelection(preserve_camera_on_load_);
-    model_holder_ = ModelHolder::FromFile(resolved_file);
+    model_holder_.reset();
+    mj_deleteVFS(&vfs_);
+    mj_defaultVFS(&vfs_);
+    model_holder_ = ModelHolder::FromFile(resolved_file, &vfs_);
     if (model_holder_->ok()) {
       last_buffer_.clear();
       last_content_type_.clear();
@@ -630,8 +639,11 @@ void App::BuildModel(const BuildModelInfo& info) {
     auto& load = std::get<BufferModel>(info);
     const KeyframeSelection saved_key =
         CaptureKeyframeSelection(preserve_camera_on_load_);
-    model_holder_ =
-        ModelHolder::FromBuffer(load.buffer, load.content_type, load.name);
+    model_holder_.reset();
+    mj_deleteVFS(&vfs_);
+    mj_defaultVFS(&vfs_);
+    model_holder_ = ModelHolder::FromBuffer(load.buffer, load.content_type,
+                                            load.name, &vfs_);
     if (model_holder_->ok()) {
       last_buffer_.assign(load.buffer.begin(), load.buffer.end());
       last_content_type_ = std::string(load.content_type);
