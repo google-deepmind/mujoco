@@ -115,6 +115,28 @@ class SolverTest(parameterized.TestCase):
     # even without warmstart, newton converges quickly
     _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force', tol=2e-4)
 
+  @parameterized.parameters(*ConeType)
+  def test_single_iteration(self, cone):
+    """Test one Newton iteration matches MuJoCo C on a perturbed state."""
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.cone = cone
+    m.opt.iterations = 1
+    m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_ISLAND
+    mx = mjx.put_model(m)
+    d = mujoco.MjData(m)
+    solve = jax.jit(mjx.solve)
+    free = 7 if m.jnt_type[0] == mujoco.mjtJoint.mjJNT_FREE else 0
+    mujoco.mj_resetDataKeyframe(m, d, 1)
+    d.qpos[free:] += 0.05 * np.sin(248 * np.arange(m.nq - free))
+    d.qvel += 0.5 * np.cos(152 * np.arange(m.nv))
+    # step to generate warmstart
+    mujoco.mj_step(m, d)
+    mujoco.mj_forward(m, d)
+    dx = solve(mx, mjx.put_data(m, d))
+    # linesearch must accept a converged candidate
+    # regardless of its derivative's sign
+    _assert_eq(d.qacc, dx.qacc, 'qacc')
+
   def test_sparse(self):
     """Test solver works with sparse mass matrices."""
     m = test_util.load_test_file('constraints.xml')
