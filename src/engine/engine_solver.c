@@ -1305,20 +1305,36 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     }
   }
 
+  // CG also folds the sparse factor of the covered dofs, when the metric has one
+  int nF = flg_fold && !flg_Newton ? mj_effCholFoldSize(d) : 0;
+
   for (int pass = 0; pass < 2; pass++) {
     if (pass) {
-      // keep the dense blocks only if the stack holds both blocks with them and the deepest
-      // frame the solve takes on top while they are alive: the fold, the preconditioner apply
-      // or the metric product. Else drop them, with a warning: the backbone solve then
-      // preconditions their dofs
-      if (nu) {
+      // keep the sparse factor's copy and the dense blocks only if the stack holds them with the
+      // other arrays and the deepest frame the solve takes on top while they are alive: the fold,
+      // the preconditioner apply or the metric product. Else drop the copy, then the blocks, with
+      // a warning: the 3x3 blocks then precondition the covered dofs, the backbone solve the
+      // uncovered ones
+      if (nu || nF) {
         size_t fold = mj_effFoldScratch(m, d, nu), mul = mj_effMulAddScratch(m, d);
+        size_t avail = mj_stackBytesAvailable(d), scratch = mjMAX(fold, mul);
         size_t need = mj_stackBytes(sizeof(mjtNum)*nNum, _Alignof(mjtNum)) +
-                      mj_stackBytes(sizeof(int)*nInt, _Alignof(int)) + mjMAX(fold, mul);
-        if (need > mj_stackBytesAvailable(d)) {
+                      mj_stackBytes(sizeof(int)*nInt, _Alignof(int)) + scratch;
+        int dropped = 0;
+        if (nF && need > avail) {
+          nNum -= nF;
+          nF = 0;
+          dropped = 1;
+          need = mj_stackBytes(sizeof(mjtNum)*nNum, _Alignof(mjtNum)) +
+                 mj_stackBytes(sizeof(int)*nInt, _Alignof(int)) + scratch;
+        }
+        if (nu && need > avail) {
           nNum -= nS;
           nInt -= nu + 2*(ncomp + 1);
           nu = ncomp = nS = 0;
+          dropped = 1;
+        }
+        if (dropped) {
           mj_warning(d, mjWARN_CNSTRFULL, d->narena);
         }
       }
@@ -1384,7 +1400,8 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 
     // constraint state and Jacobian transpose (sparse)
     // IPC: a solver-owned copy of the metric blocks with the contact class folded in
-    // (mj_effPrecFold), or none; CG also folds the dense uncovered-dof blocks when they fit
+    // (mj_effPrecFold), or none; CG also folds the sparse factor's copy and the dense
+    // uncovered-dof blocks when they fit
     ctx->ep = NULL;
     if (flg_fold) {
       ctx->ep = &ctx->epfold;
@@ -1393,11 +1410,18 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       CARVE_INT(ctx->ep->U,    nu);
       CARVE_INT(ctx->ep->Uadr, nu ? ncomp + 1 : 0);
       CARVE_INT(ctx->ep->Sadr, nu ? ncomp + 1 : 0);
+      CARVE_NUM(ctx->ep->F,    nF);
       ctx->ep->nu = nu;
       ctx->ep->ncomp = ncomp;
       ctx->ep->nS = nS;
       ctx->ep->partial = 0;
       ctx->ep->S_valid = 0;
+      ctx->ep->factor = NULL;
+      if (!nF) {
+        ctx->ep->F = NULL;
+      } else if (pass) {
+        ctx->ep->F[0] = 0;
+      }
     }
 
     CARVE_INT(ctx->oldstate, nefc);
@@ -2914,6 +2938,10 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
     // (gradient-gated like the certificate: H^-1 suppresses stiff-direction force errors)
     flg_done = flg_gradient &&
                mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+  } else if (!flg_done && ctx.ep && ctx.ep->F) {
+    ctx.ep->factor = mj_effCholFoldFactor(m, d, ctx.ep, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J,
+                                          ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind);
+    PrimalUpdateMgrad(&ctx, /*flg_Newton=*/0);
   }
 
   // start both with preconditioned gradient

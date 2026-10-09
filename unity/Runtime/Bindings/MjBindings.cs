@@ -1091,6 +1091,7 @@ public unsafe struct mjModel_ {
   public UInt64 nflexbending;
   public UInt64 nefm0dof;
   public UInt64 nefm0L;
+  public UInt64 nefmCvert;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
   public UInt64 nflextexcoord;
@@ -1379,6 +1380,7 @@ public unsafe struct mjModel_ {
   public int* efm0_L_rowadr;
   public int* efm0_L_colind;
   public double* efm0_L;
+  public int* efmC_perm;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;

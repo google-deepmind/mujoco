@@ -27,6 +27,7 @@
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_metric.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_solve.h"
@@ -1569,6 +1570,9 @@ void mj_setConst(mjModel* m, mjData* d) {
 
   // precompute the constant part of the implicit effective metric factor
   setEfm0Factor(m, d);
+
+  // the vertex ordering of the metric's sparse factor
+  mj_effCholSetConst(m, d);
 }
 
 

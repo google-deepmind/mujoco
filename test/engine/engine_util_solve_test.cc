@@ -1149,6 +1149,81 @@ TEST_F(EngineUtilSolveTest, CholFactorNumericClampDecouples) {
 
 // ----------------------------- dense LU --------------------------------------
 
+// mju_cholFactorSymbolicBlocked on a block pattern computes the same arrays,
+// entry for entry, as mju_cholFactorSymbolic on the expanded dof pattern
+TEST_F(EngineUtilSolveTest, CholFactorSymbolicBlocked) {
+  std::mt19937 rng(7);
+  for (int bs = 1; bs <= 3; bs++) {
+    for (int trial = 0; trial < 20; trial++) {
+      int nb = 1 + trial;
+      std::uniform_real_distribution<double> unif(0, 1);
+      double density = trial % 2 ? 0.15 : 0.4;
+
+      // a random symmetric block pattern, columns ascending, diagonal listed
+      // on odd trials only
+      vector<vector<int>> rows(nb);
+      vector<vector<bool>> adj(nb, vector<bool>(nb, false));
+      for (int p = 0; p < nb; p++) {
+        for (int q = p + 1; q < nb; q++) {
+          if (unif(rng) < density) adj[p][q] = adj[q][p] = true;
+        }
+      }
+      vector<int> rownnz(nb), rowadr(nb), colind;
+      for (int p = 0; p < nb; p++) {
+        rowadr[p] = colind.size();
+        for (int q = 0; q < nb; q++) {
+          if (adj[p][q] || (q == p && trial % 2)) colind.push_back(q);
+        }
+        rownnz[p] = colind.size() - rowadr[p];
+      }
+
+      // the expanded dof pattern: dense blocks, dense diagonal blocks
+      int n = bs * nb;
+      vector<int> drownnz(n), drowadr(n), dcolind;
+      for (int r = 0; r < n; r++) {
+        drowadr[r] = dcolind.size();
+        for (int c = 0; c < n; c++) {
+          if (r / bs == c / bs || adj[r / bs][c / bs]) dcolind.push_back(c);
+        }
+        drownnz[r] = dcolind.size() - drowadr[r];
+      }
+
+      // counting
+      vector<int> L_rownnz(n), L_rowadr(n), LT_rownnz(n), LT_rowadr(n);
+      vector<int> bL_rownnz(n), bL_rowadr(n), bLT_rownnz(n), bLT_rowadr(n);
+      vector<int> scratch(3 * nb);
+      int nnz = mju_cholFactorSymbolic(
+          nullptr, L_rownnz.data(), L_rowadr.data(), nullptr, LT_rownnz.data(),
+          LT_rowadr.data(), nullptr, drownnz.data(), drowadr.data(),
+          dcolind.data(), n, nullptr);
+      int bnnz = mju_cholFactorSymbolicBlocked(
+          nullptr, bL_rownnz.data(), bL_rowadr.data(), nullptr,
+          bLT_rownnz.data(), bLT_rowadr.data(), nullptr, rownnz.data(),
+          rowadr.data(), colind.data(), nb, bs, scratch.data());
+      ASSERT_EQ(bnnz, nnz) << "bs " << bs << " trial " << trial;
+      EXPECT_EQ(bL_rownnz, L_rownnz);
+      EXPECT_EQ(bL_rowadr, L_rowadr);
+      EXPECT_EQ(bLT_rownnz, LT_rownnz);
+      EXPECT_EQ(bLT_rowadr, LT_rowadr);
+
+      // filling
+      vector<int> L_colind(nnz), LT_colind(nnz), LT_map(nnz);
+      vector<int> bL_colind(nnz), bLT_colind(nnz), bLT_map(nnz);
+      mju_cholFactorSymbolic(L_colind.data(), L_rownnz.data(), L_rowadr.data(),
+                             LT_colind.data(), LT_rownnz.data(),
+                             LT_rowadr.data(), LT_map.data(), drownnz.data(),
+                             drowadr.data(), dcolind.data(), n, nullptr);
+      mju_cholFactorSymbolicBlocked(
+          bL_colind.data(), L_rownnz.data(), L_rowadr.data(), bLT_colind.data(),
+          LT_rownnz.data(), LT_rowadr.data(), bLT_map.data(), rownnz.data(),
+          rowadr.data(), colind.data(), nb, bs, scratch.data());
+      EXPECT_EQ(bL_colind, L_colind) << "bs " << bs << " trial " << trial;
+      EXPECT_EQ(bLT_colind, LT_colind) << "bs " << bs << " trial " << trial;
+      EXPECT_EQ(bLT_map, LT_map) << "bs " << bs << " trial " << trial;
+    }
+  }
+}
+
 using DenseLUTest = MujocoTest;
 
 // factor identity, solve recovers b exactly

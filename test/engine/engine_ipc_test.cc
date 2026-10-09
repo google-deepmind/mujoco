@@ -24,7 +24,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -1433,7 +1435,8 @@ TEST_F(IpcTest, NativeRowsKeptForUnsupportedGeoms) {
 
 //------------------------ dense uncovered-dof blocks ------------------------
 
-// a stretch-only sheet with the bodies %s before it, and sparse Jacobians
+// a stretch-only sheet, whose efm_K couples flex edges only (no dropped pairs),
+// with the bodies %s before it, and sparse Jacobians
 static constexpr char kStretchSheet[] = R"(
 <mujoco>
   <option timestep="0.002" integrator="discrete" solver="CG" iterations="400"
@@ -1485,6 +1488,19 @@ struct FoldRows {
     rowadr.push_back(static_cast<int>(colind.size()));
     colind.insert(colind.end(), cols.begin(), cols.end());
     J.insert(J.end(), vals.begin(), vals.end());
+  }
+
+  // res += J' D J vec
+  void MulAdd(mjtNum* res, const mjtNum* vec) const {
+    for (int r = 0; r < static_cast<int>(D.size()); r++) {
+      mjtNum jv = 0;
+      for (int k = rowadr[r]; k < rowadr[r] + rownnz[r]; k++) {
+        jv += J[k] * vec[colind[k]];
+      }
+      for (int k = rowadr[r]; k < rowadr[r] + rownnz[r]; k++) {
+        res[colind[k]] += D[r] * J[k] * jv;
+      }
+    }
   }
 };
 
@@ -1765,6 +1781,12 @@ TEST_F(IpcTest, FoldDenseBlocksSolveMatches) {
   m->opt.tolerance = MjTol(1e-12, 1e-6);
   constexpr int nstep = 10;
 
+  // the 3x3 blocks on the sheet, not the sparse factor: the dense blocks alone
+  // are the optional arrays the arena sizes below drop or keep
+  for (int t = 0; t < m->nefmCvert; t++) {
+    m->efmC_perm[t] = -1;
+  }
+
   // with the blocks: two components of two boxes each
   BoxPairsRun with = RunBoxPairs(m, 0, nstep);
   EXPECT_EQ(with.nwarning, 0);
@@ -1909,6 +1931,650 @@ TEST_F(IpcTest, MulAddScratchBounds) {
     EXPECT_GT(d->maxuse_stack, 0u);
     EXPECT_LE(d->maxuse_stack, budget);
     mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+//--------------------------- sparse metric factor ----------------------------
+
+// two 2D sheets that collide (the lower one pinned), under the IPC step
+static constexpr char kSheets[] = R"(
+<mujoco>
+  <option timestep="0.002" integrator="discrete" solver="CG" iterations="400">
+    <flag ipc="enable"/>
+  </option>
+  <worldbody>
+    <flexcomp name="lower" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+              radius=".004" mass=".3" pos="0 0 .2">
+      <contact selfcollide="auto"/>
+      <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      <pin id="0 8 72 80"/>
+    </flexcomp>
+    <flexcomp name="upper" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+              radius=".004" mass=".1" pos="0 0 .27">
+      <contact selfcollide="auto"/>
+      <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+// one pinned sheet with no contact
+static constexpr char kHanging[] = R"(
+<mujoco>
+  <option timestep="0.002" integrator="discrete" solver="CG" iterations="400">
+    <flag ipc="enable"/>
+  </option>
+  <worldbody>
+    <flexcomp name="sheet" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
+              radius=".004" mass=".3" pos="0 0 .5">
+      <contact selfcollide="none"/>
+      <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both" damping="1e-4"/>
+      <pin id="0 8"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+// the last step analysed, reserved and factored the sparse metric factor
+static bool FactorUsed(const mjData* d) {
+  mjtSize nb = d->nefmdof;
+  return nb && d->nefmL > 9 * nb && d->efm_L[9 * nb] == 1;
+}
+
+// the last step used the 3x3 blocks only
+static bool BlocksUsed(const mjData* d) {
+  return d->nefmdof && d->nefmL == 9 * d->nefmdof;
+}
+
+// the vertices in the model's ordering
+static int OrderedVertices(const mjModel* m) {
+  int n = 0;
+  for (int t = 0; t < m->nefmCvert; t++) {
+    n += m->efmC_perm[t] >= 0;
+  }
+  return n;
+}
+
+// a copy of m without the ordering, as mj_setConst leaves it when it cannot
+// order: steps use the blocks
+static mjModel* BlocksCopy(const mjModel* m) {
+  mjModel* mb = mj_copyModel(nullptr, m);
+  for (int t = 0; t < mb->nefmCvert; t++) {
+    mb->efmC_perm[t] = -1;
+  }
+  return mb;
+}
+
+static bool SameState(const mjModel* m, const mjData* a, const mjData* b) {
+  return !memcmp(a->qpos, b->qpos, sizeof(mjtNum) * m->nq) &&
+         !memcmp(a->qvel, b->qvel, sizeof(mjtNum) * m->nv) &&
+         !memcmp(a->qacc, b->qacc, sizeof(mjtNum) * m->nv);
+}
+
+// the sparse factor and the 3x3 blocks precondition the same solves: from the
+// same state, one step gives the same accelerations up to the solver tolerances
+TEST_F(IpcTest, SparseFactorMatchesBlocks) {
+  // converge the constraint solve rather than cap it
+  std::string xml(kSheets);
+  size_t pos = xml.find("iterations=\"400\"");
+  xml.replace(pos, std::string("iterations=\"400\"").size(),
+              "iterations=\"4000\" tolerance=\"1e-12\"");
+  mjModel* m = Load(xml.c_str());
+  ASSERT_THAT(m, NotNull());
+  ASSERT_GT(OrderedVertices(m), 0);
+  mjModel* mb = BlocksCopy(m);
+  mjData* d = mj_makeData(m);
+  mjData* db = mj_makeData(mb);
+
+  bool contact = false;
+  mjtNum rel = 0, rel_smooth = 0;
+  for (int s = 0; s < 150; s++) {
+    mj_copyData(db, mb, d);
+    mj_step(m, d);
+    mj_step(mb, db);
+    ASSERT_TRUE(FactorUsed(d)) << "step " << s;
+    ASSERT_TRUE(BlocksUsed(db)) << "step " << s;
+    contact = contact || mju_norm(d->qfrc_constraint, m->nv) > 0;
+
+    mjtNum scale = 0, diff = 0, scale_s = 0, diff_s = 0;
+    for (int i = 0; i < m->nv; i++) {
+      scale = mju_max(scale, mju_abs(db->qacc[i]));
+      diff = mju_max(diff, mju_abs(d->qacc[i] - db->qacc[i]));
+      scale_s = mju_max(scale_s, mju_abs(db->qacc_smooth[i]));
+      diff_s = mju_max(diff_s, mju_abs(d->qacc_smooth[i] - db->qacc_smooth[i]));
+    }
+    rel = mju_max(rel, diff / scale);
+    rel_smooth = mju_max(rel_smooth, diff_s / scale_s);
+  }
+  EXPECT_LE(rel_smooth, MjTol(2e-11, 2e-4)) << "qacc_smooth";
+  EXPECT_LE(rel, MjTol(1e-4, 2e-4)) << "qacc";
+  EXPECT_TRUE(contact) << "the sheets must collide";
+
+  mj_deleteData(db);
+  mj_deleteData(d);
+  mj_deleteModel(mb);
+  mj_deleteModel(m);
+}
+
+// the factor applies under the run-time IPC flag only: clearing the flag
+// switches to the blocks, setting it again switches back
+TEST_F(IpcTest, SparseFactorFollowsIpcFlag) {
+  mjModel* m = Load(kHanging);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+
+  mj_step(m, d);
+  EXPECT_TRUE(FactorUsed(d));
+  m->opt.enableflags &= ~mjENBL_IPC;
+  mj_step(m, d);
+  EXPECT_TRUE(BlocksUsed(d));
+  m->opt.enableflags |= mjENBL_IPC;
+  mj_step(m, d);
+  EXPECT_TRUE(FactorUsed(d));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// the ordering survives a binary save and load
+TEST_F(IpcTest, SparseFactorSaveLoad) {
+  mjModel* m = Load(kSheets);
+  ASSERT_THAT(m, NotNull());
+  ASSERT_GT(OrderedVertices(m), 0);
+  std::vector<char> buffer(mj_sizeModel(m));
+  mj_saveModel(m, nullptr, buffer.data(), buffer.size());
+  mjModel* ml = mj_loadModelBuffer(buffer.data(), buffer.size());
+  ASSERT_THAT(ml, NotNull());
+  EXPECT_EQ(ml->nefmCvert, m->nefmCvert);
+  EXPECT_EQ(memcmp(ml->efmC_perm, m->efmC_perm, sizeof(int) * m->nefmCvert), 0);
+
+  mjData* d = mj_makeData(m);
+  mjData* dl = mj_makeData(ml);
+  for (int s = 0; s < 50; s++) {
+    mj_step(m, d);
+    mj_step(ml, dl);
+  }
+  EXPECT_TRUE(FactorUsed(dl));
+  EXPECT_TRUE(SameState(m, d, dl));
+
+  mj_deleteData(dl);
+  mj_deleteData(d);
+  mj_deleteModel(ml);
+  mj_deleteModel(m);
+}
+
+// a model without the compile-time IPC flag has no ordering: enabling the flag
+// at run time uses the blocks
+TEST_F(IpcTest, SparseFactorNeedsCompileTimeIpc) {
+  std::string xml(kHanging);
+  xml.erase(xml.find("<flag ipc=\"enable\"/>"),
+            std::string("<flag ipc=\"enable\"/>").size());
+  mjModel* m = Load(xml.c_str());
+  ASSERT_THAT(m, NotNull());
+  EXPECT_EQ(m->nefmCvert, 0);
+  m->opt.enableflags |= mjENBL_IPC;
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  EXPECT_TRUE(BlocksUsed(d));
+  EXPECT_FALSE(d->warning[mjWARN_BADQACC].number);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// each model carries its own ordering: two models step interleaved, and a copy
+// outlives its source, each matching a freshly compiled reference bitwise
+TEST_F(IpcTest, SparseFactorModelCopies) {
+  mjModel* a = Load(kSheets);
+  mjModel* b = Load(kHanging);
+  ASSERT_THAT(a, NotNull());
+  ASSERT_THAT(b, NotNull());
+  ASSERT_GT(OrderedVertices(a), 0);
+  ASSERT_GT(OrderedVertices(b), 0);
+  mjModel* c = mj_copyModel(nullptr, a);
+
+  // the copy owns an equal ordering
+  EXPECT_EQ(c->nefmCvert, a->nefmCvert);
+  EXPECT_NE(c->efmC_perm, a->efmC_perm);
+  EXPECT_EQ(memcmp(c->efmC_perm, a->efmC_perm, sizeof(int) * a->nefmCvert), 0);
+  mj_deleteModel(a);
+
+  mjModel* ra = Load(kSheets);
+  mjModel* rb = Load(kHanging);
+  mjData* dc = mj_makeData(c);
+  mjData* db = mj_makeData(b);
+  mjData* dra = mj_makeData(ra);
+  mjData* drb = mj_makeData(rb);
+  for (int s = 0; s < 100; s++) {
+    mj_step(c, dc);
+    mj_step(b, db);
+  }
+  for (int s = 0; s < 100; s++) {
+    mj_step(ra, dra);
+  }
+  for (int s = 0; s < 100; s++) {
+    mj_step(rb, drb);
+  }
+  EXPECT_TRUE(FactorUsed(dc));
+  EXPECT_TRUE(FactorUsed(db));
+  EXPECT_TRUE(SameState(c, dc, dra));
+  EXPECT_TRUE(SameState(b, db, drb));
+
+  mj_deleteData(drb);
+  mj_deleteData(dra);
+  mj_deleteData(db);
+  mj_deleteData(dc);
+  mj_deleteModel(rb);
+  mj_deleteModel(ra);
+  mj_deleteModel(c);
+  mj_deleteModel(b);
+}
+
+// an arena too small for the factor, but large enough for the blocks: the
+// blocks, with a warning, and the blocks' results
+TEST_F(IpcTest, SparseFactorSmallArena) {
+  // a larger sheet: the factor's arena use grows faster than the blocks'
+  std::string xml(kHanging);
+  xml.replace(xml.find("count=\"9 9 1\""),
+              std::string("count=\"9 9 1\"").size(), "count=\"15 15 1\"");
+  xml.replace(xml.find("<pin id=\"0 8\"/>"),
+              std::string("<pin id=\"0 8\"/>").size(), "<pin id=\"0 14\"/>");
+  mjModel* m = Load(xml.c_str());
+  ASSERT_THAT(m, NotNull());
+  ASSERT_GT(OrderedVertices(m), 0);
+  mjModel* mb = BlocksCopy(m);
+
+  // peak arena use of each path (without the ASAN red zones)
+  auto peak = [](const mjModel* model, bool factor) {
+    mjData* data = mj_makeData(model);
+    for (int s = 0; s < 20; s++) {
+      mj_step(model, data);
+    }
+    EXPECT_TRUE(factor ? FactorUsed(data) : BlocksUsed(data));
+    size_t maxuse = data->maxuse_arena;
+    mj_deleteData(data);
+    return maxuse;
+  };
+  size_t blocks = peak(mb, false);
+  size_t factor = peak(m, true);
+  ASSERT_GT(factor, blocks);
+
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+  m->narena = mb->narena = blocks + (factor - blocks) / 3;
+  mjData* d = mj_makeData(m);
+  mjData* db = mj_makeData(mb);
+  for (int s = 0; s < 20; s++) {
+    mj_step(m, d);
+    mj_step(mb, db);
+    ASSERT_TRUE(BlocksUsed(d)) << "step " << s;
+  }
+  EXPECT_GT(d->warning[mjWARN_CNSTRFULL].number, 0);
+  EXPECT_FALSE(db->warning[mjWARN_CNSTRFULL].number);
+  EXPECT_TRUE(SameState(m, d, db));
+
+  mj_deleteData(db);
+  mj_deleteData(d);
+  mj_deleteModel(mb);
+  mj_deleteModel(m);
+}
+
+// threads stepping their own mjData on one model match a serial run
+TEST_F(IpcTest, SparseFactorThreads) {
+  mjModel* m = Load(kSheets);
+  ASSERT_THAT(m, NotNull());
+  constexpr int kThreads = 4;
+  constexpr int kSteps = 60;
+
+  mjData* ref = mj_makeData(m);
+  for (int s = 0; s < kSteps; s++) {
+    mj_step(m, ref);
+  }
+
+  std::vector<mjData*> d(kThreads);
+  for (int t = 0; t < kThreads; t++) {
+    d[t] = mj_makeData(m);
+  }
+  std::vector<std::thread> threads;
+  for (int t = 0; t < kThreads; t++) {
+    threads.emplace_back([m, dt = d[t]]() {
+      for (int s = 0; s < kSteps; s++) {
+        mj_step(m, dt);
+      }
+    });
+  }
+  for (std::thread& th : threads) {
+    th.join();
+  }
+  for (int t = 0; t < kThreads; t++) {
+    EXPECT_TRUE(FactorUsed(d[t])) << "thread " << t;
+    EXPECT_TRUE(SameState(m, d[t], ref)) << "thread " << t;
+    mj_deleteData(d[t]);
+  }
+
+  mj_deleteData(ref);
+  mj_deleteModel(m);
+}
+
+// a stiffness edited at run time changes the efm_K pattern: the next step
+// analyses the new pattern under the model's ordering, restricted to the
+// remaining vertices, silently
+TEST_F(IpcTest, SparseFactorPatternChange) {
+  // the upper sheet's stencils are its stretch elements only
+  std::string xml(kSheets);
+  size_t upper = xml.find("name=\"upper\"");
+  size_t pos = xml.find("elastic2d=\"both\"", upper);
+  xml.replace(pos, std::string("elastic2d=\"both\"").size(),
+              "elastic2d=\"stretch\"");
+  mjModel* m = Load(xml.c_str());
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  ASSERT_TRUE(FactorUsed(d));
+  int nb = d->nefmdof;
+
+  // without its stretch stiffness, the upper sheet leaves efm_K
+  m->flex_stiffness[m->flex_stiffnessadr[1]] = 0;
+  for (int s = 0; s < 3; s++) {
+    mj_step(m, d);
+    EXPECT_TRUE(FactorUsed(d)) << "step " << s;
+    EXPECT_LT(d->nefmdof, nb);
+  }
+  int nw = 0;
+  for (int i = 0; i < mjNWARNING; i++) {
+    nw += d->warning[i].number;
+  }
+  EXPECT_EQ(nw, 0);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// the coverage rules: the compiler sizes the ordering for models with IPC and a
+// 2D flex, mj_setConst orders the vertices of the engine's own stencils, and
+// models with a covered non-2D flex, or without IPC, use the blocks
+TEST_F(IpcTest, SparseFactorCoverage) {
+  static constexpr char kTemplate[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400">
+      %s
+    </option>
+    <worldbody>
+      %s
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char kIpc[] = R"(<flag ipc="enable"/>)";
+  static constexpr char kSheet[] = R"(
+      <flexcomp name="sheet" type="grid" dim="2" count="7 6 1" spacing=".04 .04 1"
+                radius=".004" mass=".3" pos="0 0 .5">
+        <contact selfcollide="none"/>
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="%s"/>
+        %s
+      </flexcomp>)";
+  static constexpr char kSecond[] = R"(
+      <flexcomp name="second" type="grid" dim="2" count="4 5 1" spacing=".04 .04 1"
+                radius=".004" mass=".1" pos="1 0 .5">
+        <contact selfcollide="none"/>
+        <elasticity young="1e4" poisson=".3" thickness="2e-3"/>
+      </flexcomp>)";
+  static constexpr char kCable[] = R"(
+      <flexcomp name="cable" type="grid" dim="1" count="8 1 1" spacing=".04 1 1"
+                radius=".004" mass=".1" pos="0 1 .5">
+        <contact selfcollide="none"/>
+        <elasticity young="1e5" poisson=".2"/>
+      </flexcomp>)";
+  static constexpr char kSolid[] = R"(
+      <flexcomp name="solid" type="grid" dim="3" count="3 3 3" spacing=".04 .04 .04"
+                radius=".004" mass=".1" pos="0 -1 .5">
+        <contact selfcollide="none"/>
+        <elasticity young="1e4" poisson=".2"/>
+      </flexcomp>)";
+  static constexpr char kHinge[] = R"(
+      <body pos="0 2 1"><joint type="hinge"/><geom size=".05"/></body>)";
+
+  auto sheet = [&](const char* elastic2d, const char* pin) {
+    char buf[1024];
+    snprintf(buf, sizeof(buf), kSheet, elastic2d, pin);
+    return std::string(buf);
+  };
+  struct Case {
+    std::string name;
+    std::string option;
+    std::string bodies;
+    bool sized;  // the model has ordering slots
+    bool used;   // the CG step uses the factor (efm_K is assembled)
+  };
+  std::vector<Case> cases = {
+      {"stretch and bending", kIpc, sheet("both", ""), true, true},
+      {"pins", kIpc, sheet("both", R"(<pin id="0 6 35 41"/>)"), true, true},
+      {"stretch only", kIpc, sheet("stretch", ""), true, true},
+      {"bending only", kIpc, sheet("bend", ""), true, false},
+      {"two sheets", kIpc, sheet("both", "") + kSecond, true, true},
+      {"joint before the sheet", kIpc, std::string(kHinge) + sheet("both", ""),
+       true, true},
+      {"sheet and cable", kIpc, sheet("both", "") + kCable, true, true},
+      {"sheet and solid", kIpc, sheet("both", "") + kSolid, true, false},
+      {"solid", kIpc, kSolid, false, false},
+      {"no IPC", "", sheet("both", ""), false, false},
+  };
+  for (const Case& c : cases) {
+    SCOPED_TRACE(c.name);
+    char xml[4096];
+    snprintf(xml, sizeof(xml), kTemplate, c.option.c_str(), c.bodies.c_str());
+    mjModel* m = Load(xml);
+    ASSERT_THAT(m, NotNull());
+    EXPECT_EQ(m->nefmCvert > 0, c.sized);
+    mjData* d = mj_makeData(m);
+    for (int s = 0; s < 3; s++) {
+      mj_step(m, d);
+    }
+    if (c.used) {
+      EXPECT_TRUE(FactorUsed(d));
+      // the model's ordering holds exactly the step's covered vertices
+      EXPECT_EQ(OrderedVertices(m), d->nefmdof);
+      // the factor holds at least the covered matrix's lower block triangles
+      EXPECT_GE(d->nefmL, 9 * d->nefmdof + 6 * d->nefmdof);
+    } else {
+      EXPECT_FALSE(FactorUsed(d));
+    }
+    EXPECT_FALSE(d->warning[mjWARN_BADQACC].number);
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+// the solver's preconditioner folded with rows (mj_effPrecFold) with a copy of
+// the sparse factor (mjEffFold.F), applied to b into x (mj_effPrecBlocks);
+// returns whether the fold made this solve's contact-adaptive factor
+static bool SparseFoldApply(const mjModel* m, mjData* d, const FoldRows& rows,
+                            const mjtNum* b, mjtNum* x) {
+  std::vector<mjtNum> L(9 * d->nefmdof), F(mj_effCholFoldSize(d));
+  mjEffFold fold = {};
+  fold.L = L.data();
+  fold.F = F.empty() ? nullptr : F.data();
+  mj_markStack(d);
+  int nefc = static_cast<int>(rows.D.size());
+  fold.factor = mj_effCholFoldFactor(
+      m, d, &fold, nefc, nefc ? rows.D.data() : nullptr,
+      /*is_sparse=*/1, nefc ? rows.J.data() : nullptr,
+      nefc ? rows.rownnz.data() : nullptr, nefc ? rows.rowadr.data() : nullptr,
+      nefc ? rows.colind.data() : nullptr);
+  size_t pstack0 = d->pstack;
+  bool folded = mj_effPrecFold(
+      m, d, &fold, nefc, nefc ? rows.D.data() : nullptr,
+      /*is_sparse=*/1, nefc ? rows.J.data() : nullptr,
+      nefc ? rows.rownnz.data() : nullptr, nefc ? rows.rowadr.data() : nullptr,
+      nefc ? rows.colind.data() : nullptr);
+  EXPECT_TRUE(folded);
+  EXPECT_EQ(d->pstack, pstack0);
+  mj_effPrecBlocks(m, d, x, b, &fold);
+  mj_freeStack(d);
+  return fold.factor != nullptr;
+}
+
+// a solve's contact-adaptive factor holds the vertex pairs its terms couple: a
+// row coupling two vertices that share no flex edge, folded on a sheet without
+// dropped pairs, adds exactly J' D J to the factored matrix W of the fold
+// without rows: x = (W + J' D J)^-1 b satisfies x + W^-1 J' D J x = W^-1 b. On
+// the step's pattern the pair would be replaced by its rank-1 complement
+TEST_F(IpcTest, SparseFactorContactPattern) {
+  char xml[2048];
+  snprintf(xml, sizeof(xml), kStretchSheet, "");
+  mjModel* m = Load(xml);
+  ASSERT_THAT(m, NotNull());
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  ASSERT_TRUE(FactorUsed(d));
+  int nv = m->nv, nb = d->nefmdof;
+  ASSERT_EQ(nv, 3 * nb);
+
+  // the first and the last vertex, opposite corners of the sheet
+  int a0 = d->efm_dofid[0], a1 = d->efm_dofid[nb - 1];
+  FoldRows rows;
+  rows.Add(0.01, {a0, a0 + 1, a0 + 2, a1, a1 + 1, a1 + 2},
+           {0.3, -0.7, 1, -0.5, 0.2, 0.9});
+  std::vector<mjtNum> b(nv), x(nv), w(nv), cx(nv, 0), wcx(nv);
+  for (int i = 0; i < nv; i++) {
+    b[i] = std::sin(1.0 + i);
+  }
+  EXPECT_TRUE(SparseFoldApply(m, d, rows, b.data(), x.data()))
+      << "the fold must analyse the solve's own pattern";
+
+  // W^-1 b and W^-1 J' D J x, without rows: the step's analysis, exact
+  FoldRows none;
+  EXPECT_FALSE(SparseFoldApply(m, d, none, b.data(), w.data()));
+  rows.MulAdd(cx.data(), x.data());
+  SparseFoldApply(m, d, none, cx.data(), wcx.data());
+  mjtNum scale = 0, diff = 0, coupling = 0;
+  for (int i = 0; i < nv; i++) {
+    scale = mju_max(scale, mju_abs(w[i]));
+    diff = mju_max(diff, mju_abs(x[i] + wcx[i] - w[i]));
+    coupling = mju_max(coupling, mju_abs(wcx[i]));
+  }
+  EXPECT_GT(coupling, 1e-3 * scale) << "the row must matter";
+  EXPECT_LE(diff, MjTol(1e-10, 1e-4) * scale);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// each budgeted frame (mj_effCholSetConst, effCholReserve/effCholEnsure, and
+// mj_effCholFoldFactor + mj_effPrecFold + mj_effPrecBlocks + mj_effMulAdd) fits
+// within the exact narena where its avail >= need gate first passes
+TEST_F(IpcTest, SparseFactorScratchBounds) {
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+  auto min_arena = [](mjModel* m, size_t lo, auto passes) {
+    size_t orig = m->narena;
+    size_t hi = orig;
+    while (lo < hi) {
+      size_t mid = lo + (hi - lo) / 2;
+      m->narena = mid;
+      mjData* d = mj_makeData(m);
+      bool ok = passes(m, d);
+      EXPECT_LE(d->maxuse_arena, d->narena);
+      mj_deleteData(d);
+      if (ok) {
+        hi = mid;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    m->narena = lo;
+    mjData* d = mj_makeData(m);
+    EXPECT_TRUE(passes(m, d));
+    EXPECT_EQ(d->warning[mjWARN_CNSTRFULL].number, 0);
+    EXPECT_LE(d->maxuse_arena, d->narena);
+    mj_deleteData(d);
+    m->narena = orig;
+  };
+
+  for (const char* xml : {kSheets, kHanging}) {
+    mjModel* m = Load(xml);
+    ASSERT_THAT(m, NotNull());
+    mjModel* mb = BlocksCopy(m);
+    mjData* db = mj_makeData(mb);
+    for (int s = 0; s < 15; s++) {
+      mj_step(mb, db);
+    }
+    size_t blocks_peak = db->maxuse_arena;
+    mj_deleteData(db);
+    mj_deleteModel(mb);
+
+    // 1. mj_effCholSetConst: exact minimum arena for ordering the stencils
+    min_arena(m, 64, [](mjModel* model, mjData* d) {
+      std::fill_n(model->efmC_perm, model->nefmCvert, -1);
+      mj_effCholSetConst(model, d);
+      return OrderedVertices(model) > 0 &&
+             d->warning[mjWARN_CNSTRFULL].number == 0;
+    });
+
+    // 2. effCholReserve + effCholEnsure + effCholApply: exact minimum arena
+    // for reserving, factoring, and applying the step's sparse factor
+    min_arena(m, blocks_peak, [](mjModel* model, mjData* d) {
+      mj_forward(model, d);
+      if (!FactorUsed(d) || d->warning[mjWARN_CNSTRFULL].number) {
+        return false;
+      }
+      std::vector<mjtNum> b(model->nv, 1), x(model->nv, 0);
+      mj_effPrec(model, d, x.data(), b.data());
+      return d->efm_L[9 * d->nefmdof] == 1 &&
+             d->warning[mjWARN_CNSTRFULL].number == 0;
+    });
+
+    // 3. mj_effCholFoldFactor + mj_effPrecFold + mj_effPrecBlocks +
+    // mj_effMulAdd on a state with contact rows
+    mjData* ref = mj_makeData(m);
+    for (int s = 0; s < 15; s++) {
+      mj_step(m, ref);
+    }
+    ASSERT_TRUE(FactorUsed(ref));
+    int nv = m->nv, nb = ref->nefmdof;
+    int a0 = ref->efm_dofid[0], a1 = ref->efm_dofid[nb - 1];
+    FoldRows rows;
+    rows.Add(0.01, {a0, a0 + 1, a0 + 2, a1, a1 + 1, a1 + 2},
+             {0.3, -0.7, 1, -0.5, 0.2, 0.9});
+    if (nb > 2) {
+      int a2 = ref->efm_dofid[nb / 2];
+      rows.Add(0.02, {a0, a0 + 1, a0 + 2, a2, a2 + 1, a2 + 2},
+               {0.4, 0.2, -0.8, -0.4, -0.2, 0.8});
+    }
+    min_arena(m, blocks_peak, [&](mjModel* model, mjData* d) {
+      mju_copy(d->qpos, ref->qpos, model->nq);
+      mju_copy(d->qvel, ref->qvel, model->nv);
+      mj_forward(model, d);
+      if (!FactorUsed(d) || d->warning[mjWARN_CNSTRFULL].number) {
+        return false;
+      }
+      std::vector<mjtNum> b(nv, 1), x(nv, 0), y(nv, 0);
+      bool used = SparseFoldApply(model, d, rows, b.data(), x.data());
+      mj_effMulAdd(model, d, y.data(), x.data(), /*flg_contact=*/1);
+      return used && d->warning[mjWARN_CNSTRFULL].number == 0;
+    });
+
+    // 4. sweep narena across the full mj_step solve path from blocks_peak up to
+    // the sparse-factor peak: warnings are expected, but no arena overflow
+    mjData* ds = mj_makeData(m);
+    for (int s = 0; s < 15; s++) {
+      mj_step(m, ds);
+    }
+    size_t overhead = mj_stackBytes(1, 1) - 1;
+    size_t lo_step = blocks_peak + 128 * overhead;
+    size_t hi_step = ds->maxuse_arena + 128 * overhead;
+    mj_deleteData(ds);
+    size_t orig = m->narena;
+    for (int k = 0; k <= 32; k++) {
+      m->narena =
+          lo_step + (hi_step > lo_step ? ((hi_step - lo_step) * k) / 32 : 0);
+      mjData* d = mj_makeData(m);
+      mju_copy(d->qpos, ref->qpos, m->nq);
+      mju_copy(d->qvel, ref->qvel, m->nv);
+      mj_step(m, d);
+      EXPECT_LE(d->maxuse_arena, d->narena);
+      mj_deleteData(d);
+    }
+    m->narena = orig;
+
+    mj_deleteData(ref);
     mj_deleteModel(m);
   }
 }

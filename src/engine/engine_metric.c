@@ -16,6 +16,9 @@
 
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -264,40 +267,1143 @@ static void effBlockRaw(const mjModel* m, const mjData* d, int i, mjtNum* Bk) {
 }
 
 
+//------------------ sparse Cholesky metric preconditioner ----------------------------------------
+// Under mjENBL_IPC, when every covered flex is 2D (effChol2D), the covered block of M + K is
+// factored by a reverse-order sparse Cholesky, blocked by vertex, rather than by its 3x3 diagonal
+// blocks only.
+// The ordering is the model's: mj_setConst orders the vertices of the model's efm_K pattern by
+// minimum degree (mj_effCholSetConst, into efmC_perm). The symbolic factorization depends only on
+// the efm_K pattern: each step analyses the pattern it assembled under that ordering
+// (effCholReserve), on the vertex graph (mju_cholFactorSymbolicBlocked), and packs the analysis
+// into the metric's buffer efm_L, next to the factor it describes:
+//   [9*nb 3x3 blocks][status][the analysis (effPackLayout)][nL factor values]
+// so the blocks remain the fallback whenever the factor is unusable. The numeric factorization
+// runs lazily for the metric's copy (effCholEnsure) and per constraint solve for the solver's
+// folded copy (mj_effCholFoldFactor): each solve analyses the pattern extended by the vertex
+// pairs the contact terms couple, with its own minimum-degree ordering, and factors it on the
+// stack of d in the solve's frame (mjEffFactor, mjEffFold.factor). When the arena cannot hold
+// that factor, the copy uses the step's analysis in mjEffFold.F, with the pairs off its pattern
+// complemented on the diagonal.
+
+#define EFF_HDR 1
+#define EFF_CHOL_PENDING 2
+#define EFF_CHOL_MAXVERT 8192
+#define EFF_CHOL_PIVOT 1e-12
+
+typedef struct {
+  int nefc;
+  const mjtNum* D;
+  int is_sparse;
+  const mjtNum* J;
+  const int *rownnz, *rowadr, *colind;
+} mjEffConRows;
+
+typedef struct {
+  int nb, n, nL, ne;
+  const int* dofid;
+  int *perm, *L_rownnz, *L_rowadr, *L_colind, *LT_rownnz, *LT_rowadr, *LT_colind, *LT_map;
+  int *eadr, *enbr;
+} mjEffChol;
+
+struct mjEffFactor_ {
+  mjEffChol c;
+  mjtNum* F;
+};
+
+static size_t effIntBytes(size_t n) {
+  return mj_stackBytes(sizeof(int)*(n > 0 ? n : 1), _Alignof(int));
+}
+
+static size_t effNumBytes(size_t n) {
+  return mj_stackBytes(sizeof(mjtNum)*n, _Alignof(mjtNum));
+}
+
+static size_t effBitBytes(size_t n) {
+  return mj_stackBytes(sizeof(uint64_t)*(n > 0 ? n : 1), _Alignof(uint64_t));
+}
+
+static int* effInts(mjData* d, size_t n) {
+  return mjSTACKALLOC(d, n > 0 ? n : 1, int);
+}
+
+static uint64_t* effBits(mjData* d, size_t n) {
+  return mjSTACKALLOC(d, n > 0 ? n : 1, uint64_t);
+}
+
+static int effPopcount(uint64_t x) {
+#if defined(__GNUC__) || defined(__clang__)
+  return __builtin_popcountll(x);
+#else
+  x = x - ((x >> 1) & 0x5555555555555555ULL);
+  x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+  x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
+  return (int)((x * 0x0101010101010101ULL) >> 56);
+#endif
+}
+
+static int effCtz64(uint64_t x) {
+#if defined(__GNUC__) || defined(__clang__)
+  return __builtin_ctzll(x);
+#else
+  int b = 0;
+  while (!((x >> b) & 1ULL)) b++;
+  return b;
+#endif
+}
+
+// the step's analysis, packed into efm_L before the factor values: nL, ne, then perm (nb),
+// L_rownnz, L_rowadr (n), L_colind (nL), LT_rownnz, LT_rowadr (n), LT_colind, LT_map (nL),
+// eadr (nb+1), enbr (ne). Holds no pointer, so mj_copyData carries it with efm_L
+static void effPackLayout(int* A, int nb, const int* dofid, mjEffChol* c) {
+  int n = 3*nb;
+  c->nb = nb;
+  c->n = n;
+  c->nL = A[0];
+  c->ne = A[1];
+  c->dofid = dofid;
+  int* p = A + 2;
+  c->perm = p;       p += nb;
+  c->L_rownnz = p;   p += n;
+  c->L_rowadr = p;   p += n;
+  c->L_colind = p;   p += c->nL;
+  c->LT_rownnz = p;  p += n;
+  c->LT_rowadr = p;  p += n;
+  c->LT_colind = p;  p += c->nL;
+  c->LT_map = p;     p += c->nL;
+  c->eadr = p;       p += nb + 1;
+  c->enbr = p;
+}
+
+static size_t effPackNums(int nb, int nL, int ne) {
+  size_t ints = 3 + 14*(size_t)nb + 3*(size_t)nL + (size_t)ne;
+  return (sizeof(int)*ints + sizeof(mjtNum) - 1) / sizeof(mjtNum);
+}
+
+static void effCholStep(const mjData* d, mjEffChol* c) {
+  int nb = d->nefmdof;
+  effPackLayout((int*)(d->efm_L + 9*nb + EFF_HDR), nb, d->efm_dofid, c);
+}
+
+static int effCholReserved(const mjData* d) {
+  int nb = d->nefmdof;
+  return nb && d->nefmL > 9*nb;
+}
+
+static mjtNum* effCholStepValues(const mjData* d, const mjEffChol* c) {
+  return d->efm_L + 9*c->nb + EFF_HDR + effPackNums(c->nb, c->nL, c->ne);
+}
+
+// the covered blocks of a K pattern with row sizes rownnz (nv rows): each nonzero row starts a
+// vertex triple, its 3 consecutive dofs
+static int effCoveredBlocks(int nv, const int* rownnz, int* dofid) {
+  int nb = 0;
+  for (int i=0; i < nv; ) {
+    if (rownnz[i]) {
+      if (dofid) dofid[nb] = i;
+      nb++;
+      i += 3;
+    } else {
+      i++;
+    }
+  }
+  return nb;
+}
+
+static void effCovered(int nv, int nb, const int* dofid, int* cov) {
+  for (int i=0; i < nv; i++) cov[i] = -1;
+  for (int k=0; k < nb; k++) {
+    for (int a=0; a < 3; a++) cov[dofid[k]+a] = k;
+  }
+}
+
+// greedy minimum-degree elimination on the vertex graph (symmetric CSR adr/cnt/nbr), with dense
+// bitset adjacency; the first eliminated vertex goes last (reverse-order Cholesky)
+static void effCholMinDegree(mjData* d, int nb, const int* adr, const int* cnt, const int* nbr,
+                             int* perm) {
+  int words = (nb + 63) / 64;
+  uint64_t* adj = effBits(d, (size_t)nb*words);
+  uint64_t* alive = effBits(d, words);
+  int* deg = effInts(d, nb);
+  memset(adj, 0, sizeof(uint64_t)*(size_t)nb*words);
+  memset(alive, 0, sizeof(uint64_t)*words);
+  for (int k=0; k < nb; k++) {
+    alive[k/64] |= 1ULL << (k%64);
+    for (int j=0; j < cnt[k]; j++) {
+      int q = nbr[adr[k]+j];
+      adj[(size_t)k*words+q/64] |= 1ULL << (q%64);
+      adj[(size_t)q*words+k/64] |= 1ULL << (k%64);
+    }
+  }
+  for (int k=0; k < nb; k++) {
+    adj[(size_t)k*words+k/64] &= ~(1ULL << (k%64));
+    int dg = 0;
+    for (int w=0; w < words; w++) dg += effPopcount(adj[(size_t)k*words+w]);
+    deg[k] = dg;
+  }
+  for (int step=0; step < nb; step++) {
+    int v = -1;
+    for (int w=0; w < words; w++) {
+      uint64_t aw = alive[w];
+      while (aw) {
+        int b = effCtz64(aw);
+        aw &= aw - 1;
+        int k = 64*w + b;
+        if (v < 0 || deg[k] < deg[v]) v = k;
+      }
+    }
+    perm[v] = nb - 1 - step;
+    alive[v/64] &= ~(1ULL << (v%64));
+    uint64_t* av = adj + (size_t)v*words;
+    for (int w=0; w < words; w++) {
+      uint64_t bits = av[w] & alive[w];
+      while (bits) {
+        int b = effCtz64(bits);
+        bits &= bits - 1;
+        int u = 64*w + b;
+        uint64_t* au = adj + (size_t)u*words;
+        int dg = 0;
+        for (int x=0; x < words; x++) {
+          au[x] |= av[x];
+          if (x == u/64) au[x] &= ~(1ULL << (u%64));
+          dg += effPopcount(au[x] & alive[x]);
+        }
+        deg[u] = dg;
+      }
+    }
+  }
+}
+
+static int effCholFind(const int* L_rownnz, const int* L_rowadr, const int* L_colind, int r,
+                       int col) {
+  int adr = L_rowadr[r], nnz = L_rownnz[r];
+  if (col == r) {
+    return adr + nnz - 1;
+  }
+  int lo = 0, hi = nnz - 2;
+  while (lo <= hi) {
+    int mid = (lo + hi) / 2;
+    int cm = L_colind[adr+mid];
+    if (cm == col) return adr + mid;
+    if (cm < col) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return -1;
+}
+
+static void effAllow(int* amark, const int* eadr, const int* enbr, int k) {
+  for (int j=eadr[k]; j < eadr[k+1]; j++) {
+    amark[enbr[j]] = k;
+  }
+}
+
+static int effAllowed(const int* amark, int ne, int k, int q) {
+  return !ne || amark[q] == k;
+}
+
+static int effPairCompare(const void* a, const void* b) {
+  const int* x = (const int*)a;
+  const int* y = (const int*)b;
+  if (x[0] != y[0]) return x[0] < y[0] ? -1 : 1;
+  if (x[1] != y[1]) return x[1] < y[1] ? -1 : 1;
+  return 0;
+}
+
+// build the K vertex graph (kadr/knbr) and the allowed edge CSR (eadr/enbr: flex edges between
+// covered vertices plus the nx extra pairs xpair, both ways, sorted and deduplicated)
+static int effCholGraph(mjData* d, const mjModel* m, int nb, const int* dofid, const int* blk,
+                        const int* K_rownnz, const int* K_rowadr, const int* K_colind,
+                        const int* xpair, int nx, int** kadr, int** knbr, int** eadr,
+                        int** enbr) {
+  size_t kcap = 0;
+  for (int k=0; k < nb; k++) kcap += K_rownnz[dofid[k]];
+  int* ka = *kadr = effInts(d, nb + 1);
+  int* kn = *knbr = effInts(d, kcap);
+  ka[0] = 0;
+  for (int k=0; k < nb; k++) {
+    int i = dofid[k];
+    ka[k+1] = ka[k];
+    for (int j=K_rowadr[i]; j < K_rowadr[i] + K_rownnz[i]; j++) {
+      int col = K_colind[j], q = blk[col];
+      if (q >= 0 && q != k && col == dofid[q]) kn[ka[k+1]++] = q;
+    }
+  }
+  int np = 0;
+  int* apair = effInts(d, 2*((size_t)m->nflexedge + nx));
+  for (int f=0; f < m->nflex; f++) {
+    for (int e=0; e < m->flex_edgenum[f]; e++) {
+      int ke[2];
+      for (int s=0; s < 2; s++) {
+        int v = m->flex_edge[2*(m->flex_edgeadr[f]+e)+s];
+        int b = m->flex_vertbodyid[m->flex_vertadr[f]+v];
+        int da = (b >= 0 && m->body_dofnum[b] == 3) ? m->body_dofadr[b] : -1;
+        ke[s] = (da >= 0 && blk[da] >= 0 && dofid[blk[da]] == da) ? blk[da] : -1;
+      }
+      if (ke[0] >= 0 && ke[1] >= 0 && ke[0] != ke[1]) {
+        apair[2*np] = ke[0];
+        apair[2*np+1] = ke[1];
+        np++;
+      }
+    }
+  }
+  int nfe = 2*np;
+  for (int x=0; x < nx; x++) {
+    apair[2*np] = xpair[2*x];
+    apair[2*np+1] = xpair[2*x+1];
+    np++;
+  }
+  int* ea = *eadr = effInts(d, nb + 1);
+  int* en = *enbr = effInts(d, 2*(size_t)np);
+  int* cur = effInts(d, nb);
+  for (int k=0; k <= nb; k++) ea[k] = 0;
+  for (int x=0; x < 2*np; x++) ea[apair[x]+1]++;
+  for (int k=0; k < nb; k++) {
+    ea[k+1] += ea[k];
+    cur[k] = ea[k];
+  }
+  for (int x=0; x < np; x++) {
+    en[cur[apair[2*x]]++] = apair[2*x+1];
+    en[cur[apair[2*x+1]]++] = apair[2*x];
+  }
+  int ne = 0, start = 0;
+  for (int k=0; k < nb; k++) {
+    int end = ea[k+1];
+    for (int x=start+1; x < end; x++) {
+      int v = en[x], y = x;
+      for (; y > start && en[y-1] > v; y--) en[y] = en[y-1];
+      en[y] = v;
+    }
+    ea[k] = ne;
+    for (int x=start; x < end; x++) {
+      if (x == start || en[x] != en[x-1]) en[ne++] = en[x];
+    }
+    start = end;
+  }
+  ea[nb] = ne;
+  return nfe;
+}
+
+// single-pass symbolic analysis on the stack: builds the vertex graph, runs minimum-degree
+// ordering if order != 0, and computes the blocked symbolic Cholesky counts
+typedef struct {
+  int nb, nL, ne, nfe;
+  int *eadr, *enbr, *rownnz, *rowadr, *colind, *scratch;
+  int *L_rownnz, *L_rowadr, *LT_rownnz, *LT_rowadr;
+} mjEffCholPass;
+
+static int effCholBegin(const mjModel* m, mjData* d, int nb, const int* dofid, const int* blk,
+                        const int* K_rownnz, const int* K_rowadr, const int* K_colind,
+                        const int* xpair, int nx, int order, int* perm, mjEffCholPass* p) {
+  if (nb <= 0 || nb > EFF_CHOL_MAXVERT) {
+    return 0;
+  }
+  int n = 3*nb, *kadr, *knbr;
+  p->nb = nb;
+  p->nfe = effCholGraph(d, m, nb, dofid, blk, K_rownnz, K_rowadr, K_colind, xpair, nx,
+                        &kadr, &knbr, &p->eadr, &p->enbr);
+  p->ne = p->eadr[nb];
+  int* amark = effInts(d, nb);
+  int* mark = effInts(d, nb);
+  int* adr = effInts(d, nb);
+  int* cnt = effInts(d, nb);
+  int* nbr = effInts(d, (size_t)kadr[nb] + p->ne);
+  for (int k=0; k < nb; k++) amark[k] = mark[k] = -1;
+  int tot = 0;
+  for (int k=0; k < nb; k++) {
+    adr[k] = tot;
+    mark[k] = k;
+    effAllow(amark, p->eadr, p->enbr, k);
+    for (int j=kadr[k]; j < kadr[k+1]; j++) {
+      int q = knbr[j];
+      if (effAllowed(amark, p->ne, k, q) && mark[q] != k) {
+        mark[q] = k;
+        nbr[tot++] = q;
+      }
+    }
+    for (int j=p->eadr[k]; j < p->eadr[k+1]; j++) {
+      int q = p->enbr[j];
+      if (mark[q] != k) {
+        mark[q] = k;
+        nbr[tot++] = q;
+      }
+    }
+    cnt[k] = tot - adr[k];
+  }
+  if (order) {
+    effCholMinDegree(d, nb, adr, cnt, nbr, perm);
+  }
+  p->rownnz = effInts(d, nb);
+  p->rowadr = effInts(d, nb);
+  p->colind = effInts(d, (size_t)kadr[nb] + p->ne);
+  p->scratch = effInts(d, 3*(size_t)nb);
+  for (int k=0; k < nb; k++) p->rownnz[perm[k]] = cnt[k];
+  for (int pos=0, a=0; pos < nb; pos++) {
+    p->rowadr[pos] = a;
+    a += p->rownnz[pos];
+  }
+  for (int k=0; k < nb; k++) {
+    int* row = p->colind + p->rowadr[perm[k]];
+    for (int j=0; j < cnt[k]; j++) {
+      int v = perm[nbr[adr[k]+j]], y = j;
+      for (; y > 0 && row[y-1] > v; y--) row[y] = row[y-1];
+      row[y] = v;
+    }
+  }
+  p->L_rownnz = effInts(d, n);
+  p->L_rowadr = effInts(d, n);
+  p->LT_rownnz = effInts(d, n);
+  p->LT_rowadr = effInts(d, n);
+  p->nL = mju_cholFactorSymbolicBlocked(NULL, p->L_rownnz, p->L_rowadr, NULL,
+                                        p->LT_rownnz, p->LT_rowadr, NULL,
+                                        p->rownnz, p->rowadr, p->colind, nb, 3, p->scratch);
+  return 1;
+}
+
+static void effCholFinish(const mjEffCholPass* p, mjEffChol* c) {
+  int nb = p->nb, n = 3*nb;
+  memcpy(c->L_rownnz, p->L_rownnz, sizeof(int)*n);
+  memcpy(c->L_rowadr, p->L_rowadr, sizeof(int)*n);
+  memcpy(c->LT_rownnz, p->LT_rownnz, sizeof(int)*n);
+  memcpy(c->LT_rowadr, p->LT_rowadr, sizeof(int)*n);
+  memcpy(c->eadr, p->eadr, sizeof(int)*(nb + 1));
+  if (p->ne) {
+    memcpy(c->enbr, p->enbr, sizeof(int)*p->ne);
+  }
+  mju_cholFactorSymbolicBlocked(c->L_colind, c->L_rownnz, c->L_rowadr, c->LT_colind, c->LT_rownnz,
+                                c->LT_rowadr, c->LT_map, p->rownnz, p->rowadr, p->colind,
+                                nb, 3, p->scratch);
+}
+
+static int effChol2D(const mjModel* m) {
+  for (int f=0; f < m->nflex; f++) {
+    int covered = mjd_flexStiff_active(m, f, /*flg_bend=*/1, /*flg_stretch=*/1) ||
+                  mjd_flexInterp_processed(m, f) || mj_effFlexContactPossible(m, f);
+    if (covered && m->flex_dim[f] != 2) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int effCholApplies(const mjModel* m, int nb, const int* dofid) {
+  if (!nb || nb > EFF_CHOL_MAXVERT || !m->nefmCvert || m->efmC_perm[0] < 0 ||
+      !mjENABLED(mjENBL_IPC) || !effChol2D(m)) {
+    return 0;
+  }
+  if (mjd_flexInterpAssemblable(m)) {
+    for (int f=0; f < m->nflex; f++) {
+      if (mjd_flexInterp_processed(m, f)) {
+        return 0;
+      }
+    }
+  }
+  return dofid[nb-1] + 3 <= m->nv;
+}
+
+static size_t effCholKcap(const mjData* d, int nb, const int* dofid) {
+  size_t cap = 0;
+  for (int k=0; k < nb; k++) cap += d->efm_K_rownnz[dofid[k]];
+  return cap;
+}
+
+static size_t effCholAnalysisBytes(const mjModel* m, size_t nb, size_t kcap, size_t nx) {
+  size_t ne = (size_t)m->nflexedge + nx;
+  size_t nnbr = kcap + 2*ne;
+  size_t words = (nb + 63) / 64;
+  return mj_stackFrameBytes() + 2*effIntBytes(nb + 1) + effIntBytes(kcap) + 2*effIntBytes(2*ne) +
+         effIntBytes(nb) + 4*effIntBytes(nb) + effIntBytes(nnbr) + effBitBytes(nb*words) +
+         effBitBytes(words) + effIntBytes(nb) + 2*effIntBytes(nb) + effIntBytes(nnbr) +
+         effIntBytes(3*nb) + 4*effIntBytes(3*nb);
+}
+
+static size_t effFillBytes(size_t nb, size_t nv) {
+  return mj_stackFrameBytes() + effNumBytes(9*nb) + effIntBytes(nv) + 4*effIntBytes(nb);
+}
+
+static size_t effCholFillBytes(const mjEffChol* c, int nv) {
+  return effNumBytes(c->nL) + effFillBytes(c->nb, nv);
+}
+
+static size_t effConScratchBytes(size_t nb) {
+  return 2*effIntBytes(nb) + effNumBytes(3*nb);
+}
+
+static size_t effCholReserveBytes(int nb, int nv, int nL, size_t npack) {
+  return effNumBytes(EFF_HDR + npack + (size_t)nL) + effNumBytes(EFF_HDR + (size_t)nL) +
+         effConScratchBytes(nb) + effNumBytes(nL) + effFillBytes(nb, nv);
+}
+
+// compute the model's minimum-degree vertex ordering for 2D flex metric stencils
+void mj_effCholSetConst(mjModel* m, mjData* d) {
+  int ncap = m->nefmCvert, nv = m->nv;
+  if (!ncap) {
+    return;
+  }
+  for (int t=0; t < ncap; t++) m->efmC_perm[t] = -1;
+  if (!effChol2D(m)) {
+    return;
+  }
+  mj_markStack(d);
+  size_t avail = mj_stackBytesAvailable(d);
+  size_t need = mj_stackFrameBytes() + 3*effIntBytes(nv) + effIntBytes(ncap + 1);
+  int nb = 0, nK = 0, *K_rownnz = NULL, *K_rowadr = NULL, *blk = NULL, *dofid = NULL;
+  size_t kcap = 0;
+  if (avail >= need) {
+    K_rownnz = effInts(d, nv);
+    K_rowadr = effInts(d, nv);
+    blk = effInts(d, nv);
+    dofid = effInts(d, ncap + 1);
+    nK = mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, NULL, NULL, 0, 0, 1, 1, NULL);
+    nb = effCoveredBlocks(nv, K_rownnz, dofid);
+    if (!nb || nb > ncap || nb > EFF_CHOL_MAXVERT || dofid[nb-1] + 3 > nv) {
+      mj_freeStack(d);
+      return;
+    }
+    for (int k=0; k < nb; k++) kcap += K_rownnz[dofid[k]];
+    need += effIntBytes(nK) + effIntBytes(nb) + effCholAnalysisBytes(m, nb, kcap, 0);
+  }
+  if (avail < need) {
+    mj_freeStack(d);
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+    return;
+  }
+  int* K_colind = effInts(d, nK);
+  int* perm = effInts(d, nb);
+  mjd_flexStiff_assemble(m, d, K_rownnz, K_rowadr, K_colind, NULL, 0, 0, 1, 1, NULL);
+  effCovered(nv, nb, dofid, blk);
+  mjEffCholPass pass;
+  if (effCholBegin(m, d, nb, dofid, blk, K_rownnz, K_rowadr, K_colind, NULL, 0, 1, perm, &pass)) {
+    for (int k=0; k < nb; k++) m->efmC_perm[perm[k]] = dofid[k];
+  }
+  mj_freeStack(d);
+}
+
+// numeric factorization by 3x3 vertex blocks: H = L'L backward elimination
+static int effCholNumericBlocked(const mjEffChol* c, mjtNum* L, const mjtNum* H, mjtNum mindiag,
+                                 mjtNum* dense) {
+  int nb = c->nb, rank = c->n;
+  const int *rowadr = c->L_rowadr, *rownnz = c->L_rownnz, *colind = c->L_colind;
+  for (int p=nb-1; p >= 0; p--) {
+    int r0 = 3*p, nob = rownnz[r0] - 1;
+    const int* ci = colind + rowadr[r0];
+    for (int a=0; a < 3; a++) {
+      const mjtNum* Ha = H + rowadr[r0+a];
+      for (int i=0; i < nob; i++) dense[3*ci[i]+a] = Ha[i];
+      for (int b=0; b <= a; b++) dense[3*(r0+b)+a] = Ha[nob+b];
+    }
+    int ltadr = c->LT_rowadr[r0], ltnnz = c->LT_rownnz[r0];
+    for (int k=0; k < ltnnz; k++) {
+      int qrow = c->LT_colind[ltadr+k];
+      if (qrow < r0 + 3 || qrow % 3) continue;
+      int off = c->LT_map[ltadr+k] - rowadr[qrow];
+      const mjtNum *Q0 = L + rowadr[qrow], *Q1 = L + rowadr[qrow+1], *Q2 = L + rowadr[qrow+2];
+      const int* qci = colind + rowadr[qrow];
+      mjtNum l00 = Q0[off], l01 = Q0[off+1], l02 = Q0[off+2];
+      mjtNum l10 = Q1[off], l11 = Q1[off+1], l12 = Q1[off+2];
+      mjtNum l20 = Q2[off], l21 = Q2[off+1], l22 = Q2[off+2];
+      for (int i=0; i <= off; i++) {
+        mjtNum y0 = Q0[i], y1 = Q1[i], y2 = Q2[i];
+        mjtNum* dd = dense + 3*qci[i];
+        dd[0] -= l00*y0 + l10*y1 + l20*y2;
+        dd[1] -= l01*y0 + l11*y1 + l21*y2;
+        dd[2] -= l02*y0 + l12*y1 + l22*y2;
+      }
+      mjtNum y0 = Q0[off+1], y1 = Q1[off+1], y2 = Q2[off+1];
+      mjtNum* dd = dense + 3*(r0 + 1);
+      dd[1] -= l01*y0 + l11*y1 + l21*y2;
+      dd[2] -= l02*y0 + l12*y1 + l22*y2;
+      y0 = Q0[off+2];
+      y1 = Q1[off+2];
+      y2 = Q2[off+2];
+      dense[3*(r0+2)+2] -= l02*y0 + l12*y1 + l22*y2;
+    }
+    for (int a=2; a >= 0; a--) {
+      int r = r0 + a;
+      mjtNum* La = L + rowadr[r];
+      mjtNum diag = dense[3*r+a];
+      int deficient = diag < mindiag;
+      if (deficient) {
+        diag = mindiag;
+        rank--;
+      }
+      mjtNum Lrr = mju_sqrt(diag), inv = 1.0 / Lrr;
+      if (deficient) {
+        mju_zero(La, nob + a);
+      } else {
+        for (int i=0; i < nob; i++) La[i] = dense[3*ci[i]+a] * inv;
+        for (int b=0; b < a; b++) La[nob+b] = dense[3*(r0+b)+a] * inv;
+      }
+      La[nob+a] = Lrr;
+      for (int e=0; e < a; e++) {
+        mjtNum le = La[nob+e];
+        if (!le) continue;
+        for (int i=0; i < nob; i++) dense[3*ci[i]+e] -= le * La[i];
+        for (int b=0; b <= e; b++) dense[3*(r0+b)+e] -= le * La[nob+b];
+      }
+    }
+    for (int i=0; i < nob; i++) {
+      mjtNum* dd = dense + 3*ci[i];
+      dd[0] = dd[1] = dd[2] = 0;
+    }
+    for (int b=0; b < 9; b++) dense[3*r0+b] = 0;
+  }
+  return rank;
+}
+
+// assemble and factor the covered block of M + K (plus H if pre-initialized with contact terms);
+// each dropped off-pattern K block B_kq is replaced by ||B_kq||_F * I on both diagonal blocks
+static void effCholFill(const mjModel* m, mjData* d, const mjEffChol* c, mjtNum* status,
+                        mjtNum* values, mjtNum* H) {
+  int nb = c->nb, n = c->n, nL = c->nL, ne = c->ne, nv = m->nv;
+  *status = 0;
+  mj_markStack(d);
+  if (!H) {
+    H = mjSTACKALLOC(d, nL, mjtNum);
+    mju_zero(H, nL);
+  }
+  mjtNum* scratch = mjSTACKALLOC(d, 3*n, mjtNum);
+  mju_zero(scratch, 3*n);
+  int* blk = effInts(d, nv);
+  int* sc = effInts(d, 4*(size_t)nb);
+  int *amark = sc, *slot = sc + nb, *qmark = sc + 2*nb, *qlist = sc + 3*nb;
+  effCovered(nv, nb, c->dofid, blk);
+  for (int k=0; k < nb; k++) amark[k] = slot[k] = qmark[k] = -1;
+
+  for (int k=0; k < nb; k++) {
+    int p = c->perm[k], i0 = c->dofid[k];
+    const int* vc = c->L_colind + c->L_rowadr[3*p];
+    int nvc = (c->L_rownnz[3*p] - 1) / 3, nq = 0;
+    for (int i=0; i < nvc; i++) slot[vc[3*i]/3] = i;
+    effAllow(amark, c->eadr, c->enbr, k);
+    for (int a=0; a < 3; a++) {
+      int i = i0 + a, ra = c->L_rowadr[3*p+a], da = ra + 3*nvc;
+      for (int j=d->efm_K_rowadr[i]; j < d->efm_K_rowadr[i] + d->efm_K_rownnz[i]; j++) {
+        int col = d->efm_K_colind[j], q = blk[col];
+        if (q < 0) continue;
+        mjtNum v = d->efm_K_val[j];
+        int b = col - c->dofid[q];
+        if (q == k) {
+          if (b <= a) H[da+b] += v;
+        } else if (effAllowed(amark, ne, k, q)) {
+          int pq = c->perm[q];
+          if (pq < p) H[ra + 3*slot[pq] + b] += v;
+        } else if (q > k) {
+          if (qmark[q] != k) {
+            qmark[q] = k;
+            qlist[nq] = q;
+            scratch[nq++] = 0;
+          }
+          for (int idx=nq-1; idx >= 0; idx--) {
+            if (qlist[idx] == q) {
+              scratch[idx] += v * v;
+              break;
+            }
+          }
+        }
+      }
+      for (int j=m->M_rowadr[i]; j < m->M_rowadr[i] + m->M_rownnz[i]; j++) {
+        int col = m->M_colind[j];
+        if (col >= i0) H[da+col-i0] += d->M[j];
+      }
+    }
+    for (int i=0; i < nvc; i++) slot[vc[3*i]/3] = -1;
+    for (int idx=0; idx < nq; idx++) {
+      mjtNum f = mju_sqrt(scratch[idx]);
+      scratch[idx] = 0;
+      int pk = 3*p, pq = 3*c->perm[qlist[idx]];
+      for (int a=0; a < 3; a++) {
+        H[c->L_rowadr[pk+a] + c->L_rownnz[pk+a] - 1] += f;
+        H[c->L_rowadr[pq+a] + c->L_rownnz[pq+a] - 1] += f;
+      }
+    }
+  }
+  mjtNum maxdiag = 0;
+  for (int r=0; r < n; r++) {
+    maxdiag = mju_max(maxdiag, H[c->L_rowadr[r]+c->L_rownnz[r]-1]);
+  }
+  if (effCholNumericBlocked(c, values, H, mju_max(mjMINVAL, EFF_CHOL_PIVOT*maxdiag),
+                            scratch) == n) {
+    *status = 1;
+  }
+  mj_freeStack(d);
+}
+
+static void effCholEnsure(const mjModel* m, mjData* d) {
+  int nb = d->nefmdof;
+  if (!effCholReserved(d) || d->efm_L[9*nb] != EFF_CHOL_PENDING) {
+    return;
+  }
+  d->efm_L[9*nb] = 0;
+  mjEffChol c;
+  effCholStep(d, &c);
+  if (mj_stackBytesAvailable(d) >= effCholFillBytes(&c, m->nv)) {
+    effCholFill(m, d, &c, d->efm_L + 9*nb, effCholStepValues(d, &c), NULL);
+  }
+}
+
+static void effCholSolveBlocked(mjtNum* res, const mjtNum* L, const mjtNum* vec,
+                                const mjEffChol* c) {
+  int nb = c->nb;
+  const int *rowadr = c->L_rowadr, *rownnz = c->L_rownnz, *colind = c->L_colind;
+  mju_copy(res, vec, 3*nb);
+  for (int p=nb-1; p >= 0; p--) {
+    int nob = rownnz[3*p] - 1;
+    const mjtNum *L0 = L + rowadr[3*p], *L1 = L + rowadr[3*p+1], *L2 = L + rowadr[3*p+2];
+    mjtNum* r = res + 3*p;
+    mjtNum x2 = r[2] / L2[nob+2];
+    mjtNum x1 = (r[1] - L2[nob+1]*x2) / L1[nob+1];
+    mjtNum x0 = (r[0] - L2[nob]*x2 - L1[nob]*x1) / L0[nob];
+    r[0] = x0;
+    r[1] = x1;
+    r[2] = x2;
+    const int* ci = colind + rowadr[3*p];
+    for (int j=0; j < nob; j += 3) {
+      mjtNum* rq = res + ci[j];
+      rq[0] -= L0[j]*x0 + L1[j]*x1 + L2[j]*x2;
+      rq[1] -= L0[j+1]*x0 + L1[j+1]*x1 + L2[j+1]*x2;
+      rq[2] -= L0[j+2]*x0 + L1[j+2]*x1 + L2[j+2]*x2;
+    }
+  }
+  for (int p=0; p < nb; p++) {
+    int nob = rownnz[3*p] - 1;
+    const mjtNum *L0 = L + rowadr[3*p], *L1 = L + rowadr[3*p+1], *L2 = L + rowadr[3*p+2];
+    const int* ci = colind + rowadr[3*p];
+    mjtNum s0 = 0, s1 = 0, s2 = 0;
+    for (int j=0; j < nob; j += 3) {
+      const mjtNum* rq = res + ci[j];
+      mjtNum y0 = rq[0], y1 = rq[1], y2 = rq[2];
+      s0 += L0[j]*y0 + L0[j+1]*y1 + L0[j+2]*y2;
+      s1 += L1[j]*y0 + L1[j+1]*y1 + L1[j+2]*y2;
+      s2 += L2[j]*y0 + L2[j+1]*y1 + L2[j+2]*y2;
+    }
+    mjtNum* r = res + 3*p;
+    mjtNum x0 = (r[0] - s0) / L0[nob];
+    mjtNum x1 = (r[1] - s1 - L1[nob]*x0) / L1[nob+1];
+    mjtNum x2 = (r[2] - s2 - L2[nob]*x0 - L2[nob+1]*x1) / L2[nob+2];
+    r[0] = x0;
+    r[1] = x1;
+    r[2] = x2;
+  }
+}
+
+static void effCholApply(mjData* d, const mjEffChol* c, mjtNum* x, const mjtNum* rhs,
+                         const mjtNum* Ls) {
+  int nb = c->nb, n = c->n;
+  mj_markStack(d);
+  mjtNum* bc = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* xc = mjSTACKALLOC(d, n, mjtNum);
+  for (int k=0; k < nb; k++) {
+    int i = c->dofid[k], p = 3*c->perm[k];
+    bc[p] = rhs[i];
+    bc[p+1] = rhs[i+1];
+    bc[p+2] = rhs[i+2];
+  }
+  effCholSolveBlocked(xc, Ls, bc, c);
+  for (int k=0; k < nb; k++) {
+    int i = c->dofid[k], p = 3*c->perm[k];
+    x[i] = xc[p];
+    x[i+1] = xc[p+1];
+    x[i+2] = xc[p+2];
+  }
+  mj_freeStack(d);
+}
+
+enum { EFF_CON_COUNT, EFF_CON_COLLECT, EFF_CON_FOLD };
+
+typedef struct {
+  int op;
+  const mjEffChol* c;
+  const int* blk;
+  int *slot, *vk, *pair;
+  mjtNum *v, *H;
+  size_t npair, maxpair, ntotal, ndiag;
+} mjEffConFold;
+
+static int effConPair(const mjEffChol* c, int k, int q, int* pos) {
+  int pk = c->perm[k], pq = c->perm[q];
+  int lo_p = pk > pq ? pk : pq, hi_p = pk > pq ? pq : pk;
+  int j = effCholFind(c->L_rownnz, c->L_rowadr, c->L_colind, 3*lo_p, 3*hi_p);
+  if (j < 0) {
+    return 0;
+  }
+  int off = j - c->L_rowadr[3*lo_p];
+  for (int a=0; a < 3; a++) {
+    for (int b=0; b < 3; b++) {
+      int s = pk > pq ? a : b, t = pk > pq ? b : a;
+      pos[3*a+b] = c->L_rowadr[3*lo_p+s] + off + t;
+    }
+  }
+  return 1;
+}
+
+static void effConTerm(mjEffConFold* f, mjtNum s, int nnz, const int* colind,
+                       const mjtNum* val) {
+  if (s <= 0) {
+    return;
+  }
+  const mjEffChol* c = f->c;
+  int ns = 0;
+  for (int a=0; a < nnz; a++) {
+    int i = colind ? colind[a] : a;
+    int k = f->blk[i];
+    if (k < 0 || !val[a]) continue;
+    int sl = f->slot[k];
+    if (sl < 0) {
+      sl = f->slot[k] = ns;
+      f->vk[ns++] = k;
+      mju_zero3(f->v + 3*sl);
+    }
+    f->v[3*sl+i-c->dofid[k]] += val[a];
+  }
+  if (f->op == EFF_CON_COUNT) {
+    f->ndiag += ns;
+    f->ntotal += (size_t)ns * (ns - 1) / 2;
+    for (int i=0; i < ns; i++) f->slot[f->vk[i]] = -1;
+    return;
+  }
+  if (f->op == EFF_CON_FOLD) {
+    for (int i=0; i < ns; i++) {
+      int pk = 3*c->perm[f->vk[i]];
+      const mjtNum* vk = f->v + 3*i;
+      for (int a=0; a < 3; a++) {
+        int dk = c->L_rowadr[pk+a] + c->L_rownnz[pk+a] - 1 - a;
+        for (int b=0; b <= a; b++) {
+          f->H[dk+b] += s * vk[a] * vk[b];
+        }
+      }
+    }
+  }
+  int pos[9];
+  for (int i=0; i < ns; i++) {
+    for (int j=i+1; j < ns; j++) {
+      int k = f->vk[i], q = f->vk[j];
+      if (f->op == EFF_CON_COLLECT) {
+        if (f->npair < f->maxpair) {
+          f->pair[2*f->npair] = k < q ? k : q;
+          f->pair[2*f->npair+1] = k < q ? q : k;
+          f->npair++;
+        }
+      } else {
+        const mjtNum *vk = f->v + 3*i, *vq = f->v + 3*j;
+        if (effConPair(c, k, q, pos)) {
+          for (int a=0; a < 3; a++) {
+            for (int b=0; b < 3; b++) f->H[pos[3*a+b]] += s * vk[a] * vq[b];
+          }
+        } else {
+          int pk = 3*c->perm[k], pq = 3*c->perm[q];
+          for (int a=0; a < 3; a++) {
+            int dk = c->L_rowadr[pk+a] + c->L_rownnz[pk+a] - 1 - a;
+            int dq = c->L_rowadr[pq+a] + c->L_rownnz[pq+a] - 1 - a;
+            for (int b=0; b <= a; b++) {
+              f->H[dk+b] += s * vk[a] * vk[b];
+              f->H[dq+b] += s * vq[a] * vq[b];
+            }
+          }
+        }
+      }
+    }
+  }
+  for (int i=0; i < ns; i++) f->slot[f->vk[i]] = -1;
+}
+
+static void effConTerms(const mjModel* m, const mjData* d, mjEffConFold* f, int op,
+                        const mjEffConRows* rows) {
+  f->op = op;
+  mjEffRank1Iter it = {0};
+  mjEffRank1 e;
+  while (mj_effRank1Next(m, d, &it, &e, /*flg_contact=*/1)) {
+    effConTerm(f, e.scale, e.nnz, e.colind, e.val);
+  }
+  for (int r=0; r < rows->nefc; r++) {
+    if (!rows->D[r]) continue;
+    if (rows->is_sparse) {
+      int adr = rows->rowadr[r];
+      effConTerm(f, rows->D[r], rows->rownnz[r], rows->colind + adr, rows->J + adr);
+    } else {
+      effConTerm(f, rows->D[r], m->nv, NULL, rows->J + (size_t)r*m->nv);
+    }
+  }
+}
+
+static void effConScratch(mjData* d, int nb, mjEffConFold* f) {
+  f->slot = effInts(d, nb);
+  f->vk = effInts(d, nb);
+  f->v = mjSTACKALLOC(d, 3*nb, mjtNum);
+  for (int k=0; k < nb; k++) f->slot[k] = -1;
+}
+
+// allocate on the stack of d, symbolically analyse, and factor this solve's contact-adaptive
+// sparse factor (or fall back to the step's pattern in fold->F)
+mjEffFactor* mj_effCholFoldFactor(const mjModel* m, mjData* d, const mjEffFold* fold,
+                                  int nefc, const mjtNum* efc_D, int is_sparse,
+                                  const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
+                                  const int* J_colind) {
+  if (!fold || !fold->F) {
+    return NULL;
+  }
+  fold->F[0] = 0;
+  if (!effCholReserved(d)) {
+    return NULL;
+  }
+  int nb = d->nefmdof, nv = m->nv;
+  mjEffChol cs;
+  effCholStep(d, &cs);
+  size_t avail = mj_stackBytesAvailable(d);
+  size_t con_bytes = effConScratchBytes(nb);
+  if (avail < mj_stackFrameBytes() + effIntBytes(nv) + con_bytes) {
+    return NULL;
+  }
+  mjEffConRows rows = {nefc, efc_D, is_sparse, J, J_rownnz, J_rowadr, J_colind};
+  mj_markStack(d);
+  int* blk = effInts(d, nv);
+  effCovered(nv, nb, cs.dofid, blk);
+  mjEffConFold con = {.c = &cs, .blk = blk};
+  effConScratch(d, nb, &con);
+  effConTerms(m, d, &con, EFF_CON_COUNT, &rows);
+  mj_freeStack(d);
+
+  size_t ntotal = con.ntotal, ndiag = con.ndiag;
+  if (!ntotal && !ndiag) {
+    fold->F[0] = EFF_CHOL_PENDING;
+    return NULL;
+  }
+
+  mjEffFactor* dyn = NULL;
+  if (ntotal > 0 && ntotal <= INT_MAX/2) {
+    size_t kcap = effCholKcap(d, nb, cs.dofid);
+    size_t ints_bytes = effIntBytes(nv) + effIntBytes(nb) + effIntBytes(2*ntotal);
+    size_t sym_bytes = mj_stackFrameBytes() + con_bytes + effCholAnalysisBytes(m, nb, kcap, ntotal);
+    size_t apply_bytes = (fold->nu ? effIntBytes(3*(size_t)m->ntree) : 0) +
+                         mj_effFoldScratch(m, d, fold->nu);
+    size_t mul_bytes = mj_effMulAddScratch(m, d);
+    size_t tail = apply_bytes > mul_bytes ? apply_bytes : mul_bytes;
+    if (avail < ints_bytes + (sym_bytes > tail ? sym_bytes : tail)) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+    } else {
+      blk = effInts(d, nv);
+      int* perm = effInts(d, nb);
+      int* pair = effInts(d, 2*ntotal);
+      effCovered(nv, nb, cs.dofid, blk);
+      mj_markStack(d);
+      con.blk = blk;
+      effConScratch(d, nb, &con);
+      con.pair = pair;
+      con.maxpair = ntotal;
+      con.npair = 0;
+      effConTerms(m, d, &con, EFF_CON_COLLECT, &rows);
+      qsort(pair, con.npair, 2*sizeof(int), effPairCompare);
+      int nx = 0;
+      for (size_t x=0; x < con.npair; x++) {
+        if (nx && pair[2*x] == pair[2*nx-2] && pair[2*x+1] == pair[2*nx-1]) continue;
+        pair[2*nx] = pair[2*x];
+        pair[2*nx+1] = pair[2*x+1];
+        nx++;
+      }
+      mjEffCholPass pass;
+      int ok = effCholBegin(m, d, nb, cs.dofid, blk, d->efm_K_rownnz, d->efm_K_rowadr,
+                            d->efm_K_colind, pair, nx, /*order=*/1, perm, &pass) && pass.nfe;
+      mj_freeStack(d);
+      if (ok) {
+        size_t npack = effPackNums(nb, pass.nL, pass.ne);
+        size_t dyn_bytes = mj_stackBytes(sizeof(mjEffFactor), _Alignof(mjEffFactor)) +
+                           effNumBytes(EFF_HDR + npack + (size_t)pass.nL);
+        size_t pass2_bytes = effCholAnalysisBytes(m, nb, kcap, nx);
+        size_t fill_bytes = mj_stackFrameBytes() + effIntBytes(nv) + con_bytes +
+                            effCholFillBytes(&(mjEffChol){.nb = nb, .nL = pass.nL}, nv);
+        size_t rest = pass2_bytes > fill_bytes ? pass2_bytes : fill_bytes;
+        if (rest < tail) rest = tail;
+        if (mj_stackBytesAvailable(d) < dyn_bytes + rest) {
+          mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+        } else {
+          dyn = mjSTACKALLOC(d, 1, mjEffFactor);
+          dyn->F = mjSTACKALLOC(d, EFF_HDR + npack + pass.nL, mjtNum);
+          dyn->F[0] = 0;
+          int* A = (int*)(dyn->F + EFF_HDR);
+          A[0] = pass.nL;
+          A[1] = pass.ne;
+          effPackLayout(A, nb, cs.dofid, &dyn->c);
+          memcpy(dyn->c.perm, perm, sizeof(int)*nb);
+          mj_markStack(d);
+          effCholBegin(m, d, nb, cs.dofid, blk, d->efm_K_rownnz, d->efm_K_rowadr,
+                       d->efm_K_colind, pair, nx, /*order=*/0, dyn->c.perm, &pass);
+          effCholFinish(&pass, &dyn->c);
+          mj_freeStack(d);
+        }
+      }
+    }
+  }
+
+  mj_markStack(d);
+  const mjEffChol* cf = NULL;
+  mjtNum *F = NULL, *Fval = NULL;
+  if (dyn && mj_stackBytesAvailable(d) >= effIntBytes(nv) + con_bytes +
+                                          effCholFillBytes(&dyn->c, nv)) {
+    cf = &dyn->c;
+    F = dyn->F;
+    Fval = dyn->F + EFF_HDR + effPackNums(nb, dyn->c.nL, dyn->c.ne);
+  } else if (mj_stackBytesAvailable(d) >= effIntBytes(nv) + con_bytes +
+                                          effCholFillBytes(&cs, nv)) {
+    dyn = NULL;
+    cf = &cs;
+    F = fold->F;
+    Fval = fold->F + EFF_HDR;
+  }
+  if (cf) {
+    blk = effInts(d, nv);
+    effCovered(nv, nb, cs.dofid, blk);
+    con.blk = blk;
+    effConScratch(d, nb, &con);
+    con.c = cf;
+    con.H = mjSTACKALLOC(d, cf->nL, mjtNum);
+    mju_zero(con.H, cf->nL);
+    effConTerms(m, d, &con, EFF_CON_FOLD, &rows);
+    effCholFill(m, d, cf, F, Fval, con.H);
+  }
+  mj_freeStack(d);
+  return (dyn && dyn->F[0] == 1) ? dyn : NULL;
+}
+
+// analyse the step's efm_K pattern and allocate d->efm_L with the analysis and the factor tail
+static mjtNum* effCholReserve(const mjModel* m, mjData* d, int nb, const int* dofid, int* ntail) {
+  *ntail = 0;
+  if (!effCholApplies(m, nb, dofid)) {
+    return NULL;
+  }
+  int nv = m->nv;
+  size_t kcap = effCholKcap(d, nb, dofid);
+  size_t blocks_bytes = mj_stackBytes(sizeof(mjtNum)*9*nb, _Alignof(mjtNum));
+  size_t avail = mj_stackBytesAvailable(d);
+  size_t sym_bytes = mj_stackFrameBytes() + effIntBytes(nv) + effIntBytes(nb) +
+                     effCholAnalysisBytes(m, nb, kcap, 0);
+  if (avail < blocks_bytes + sym_bytes) {
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+    return NULL;
+  }
+  mj_markStack(d);
+  int* blk = effInts(d, nv);
+  int* perm = effInts(d, nb);
+  effCovered(nv, nb, dofid, blk);
+  int pos = 0;
+  for (int t=0; t < m->nefmCvert && m->efmC_perm[t] >= 0; t++) {
+    int k = m->efmC_perm[t] < nv ? blk[m->efmC_perm[t]] : -1;
+    if (k >= 0 && dofid[k] == m->efmC_perm[t]) {
+      perm[k] = pos++;
+    }
+  }
+  mjEffCholPass pass;
+  int ok = (pos == nb) &&
+           effCholBegin(m, d, nb, dofid, blk, d->efm_K_rownnz, d->efm_K_rowadr, d->efm_K_colind,
+                        NULL, 0, /*order=*/0, perm, &pass) &&
+           pass.nfe;
+  if (!ok) {
+    mj_freeStack(d);
+    return NULL;
+  }
+  size_t npack = effPackNums(nb, pass.nL, pass.ne);
+  if (avail < blocks_bytes + effCholReserveBytes(nb, nv, pass.nL, npack)) {
+    mj_freeStack(d);
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+    return NULL;
+  }
+  int tail = EFF_HDR + (int)npack + pass.nL;
+  mjtNum* B = (mjtNum*)effAlloc(d, sizeof(mjtNum)*(9*(size_t)nb + tail), _Alignof(mjtNum));
+  if (!B) {
+    mj_freeStack(d);
+    return NULL;
+  }
+  B[9*nb] = EFF_CHOL_PENDING;
+  int* A = (int*)(B + 9*nb + EFF_HDR);
+  A[0] = pass.nL;
+  A[1] = pass.ne;
+  mjEffChol c;
+  effPackLayout(A, nb, dofid, &c);
+  memcpy(c.perm, perm, sizeof(int)*nb);
+  effCholFinish(&pass, &c);
+  mj_freeStack(d);
+  *ntail = tail;
+  return B;
+}
+
+static int effCholSolve(const mjModel* m, mjData* d, const mjEffFold* fold, mjtNum* x,
+                        const mjtNum* b) {
+  int nb = d->nefmdof;
+  if (!effCholReserved(d)) {
+    return 0;
+  }
+  mjEffChol cs;
+  const mjEffChol* c = &cs;
+  const mjtNum* Ls = NULL;
+  if (fold) {
+    if (fold->factor && fold->factor->F[0] == 1) {
+      c = &fold->factor->c;
+      Ls = fold->factor->F + EFF_HDR + effPackNums(nb, c->nL, c->ne);
+    } else if (fold->F && fold->F[0] == 1) {
+      effCholStep(d, &cs);
+      Ls = fold->F + EFF_HDR;
+    } else if (!fold->F || fold->F[0] != EFF_CHOL_PENDING) {
+      return 0;
+    }
+  }
+  if (!Ls) {
+    effCholEnsure(m, d);
+    if (d->efm_L[9*nb] != 1) {
+      return 0;
+    }
+    effCholStep(d, &cs);
+    Ls = effCholStepValues(d, &cs);
+  }
+  effCholApply(d, c, x, b, Ls);
+  return 1;
+}
+
+int mj_effCholFoldSize(const mjData* d) {
+  if (!effCholReserved(d)) {
+    return 0;
+  }
+  mjEffChol c;
+  effCholStep(d, &c);
+  return EFF_HDR + c.nL;
+}
+
+static size_t effCholApplyScratch(const mjData* d) {
+  if (!effCholReserved(d)) {
+    return 0;
+  }
+  mjEffChol c;
+  effCholStep(d, &c);
+  return mj_stackFrameBytes() + 2*effNumBytes(c.n) + effCholFillBytes(&c, c.n);
+}
+
+
 // Build and factor the per-vertex 3x3 diagonal blocks of the flex part of (M + K), stored in
 // d->efm_L, 9 numbers per covered vertex: O(n) to build and apply, approximate where the sparse
 // factorization it replaces was exact. Both consumers use the blocks as a preconditioner: the CG
 // constraint solver (Mgrad = Mtilde \ grad) and the qacc_smooth PCG in mj_effSolve, which
-// supplies the accuracy.
+// supplies the accuracy. Under IPC the buffer can also hold a sparse factor of the covered
+// block, which then replaces the blocks (effCholReserve).
 static void effBlocks(const mjModel* m, mjData* d) {
   int nv = m->nv;
 
   // covered dofs come in contiguous triples (the 3 slide dofs of one flex point), but the first
   // one need not be at a multiple of 3: any joint declared before the flex shifts them. Walk the
   // covered rows rather than striding the dof index, which would straddle point boundaries.
-  int nb = 0;
-  for (int i = 0; i < nv; ) {
-    if (d->efm_K_rownnz[i]) { nb++; i += 3; } else { i++; }
-  }
+  int nb = effCoveredBlocks(nv, d->efm_K_rownnz, NULL);
   d->nefmdof = 0;
-  mjtNum* B = (mjtNum*) effAlloc(d, sizeof(mjtNum)*9*(nb > 0 ? nb : 1), _Alignof(mjtNum));
   int* adr = (int*) effAlloc(d, sizeof(int)*(nb > 0 ? nb : 1), _Alignof(int));
-  int k = 0;
-  for (int i = 0; i < nv; ) {
-    if (!d->efm_K_rownnz[i]) {
-      i++;
-      continue;
-    }
+  effCoveredBlocks(nv, d->efm_K_rownnz, adr);
+  int ntail = 0;
+  mjtNum* B = effCholReserve(m, d, nb, adr, &ntail);
+  if (!B) {
+    B = (mjtNum*) effAlloc(d, sizeof(mjtNum)*9*(nb > 0 ? nb : 1), _Alignof(mjtNum));
+  }
+  for (int k = 0; k < nb; k++) {
     mjtNum* Bk = B + 9*k;
-    effBlockRaw(m, d, i, Bk);
+    effBlockRaw(m, d, adr[k], Bk);
     mju_cholFactor(Bk, 3, mjMINVAL);
-    adr[k++] = i;
-    i += 3;
   }
   d->efm_L = B;
   d->efm_dofid = adr;
   d->nefmdof = nb;
-  d->nefmL = 9*nb;
+  d->nefmL = 9*nb + ntail;
 }
 
 // Apply the metric preconditioner: the per-step 3x3 blocks when they exist, else the constant
@@ -332,6 +1438,19 @@ static void effDenseApply(const mjEffFold* fold, mjtNum* x, mjtNum* bu) {
   }
 }
 
+// x = (M + K)_covered \ b on the covered dofs: the sparse factor of fold (or of the metric, when
+// fold is NULL) if valid, else the 3x3 blocks L; b may alias x
+static void effCovSolve(const mjModel* m, mjData* d, const mjtNum* L, const mjEffFold* fold,
+                        mjtNum* x, const mjtNum* b) {
+  if (effCholSolve(m, d, fold, x, b)) {
+    return;
+  }
+  for (int k = 0; k < d->nefmdof; k++) {
+    int i = d->efm_dofid[k];
+    chol3Solve(x + i, L + 9*k, b + i);
+  }
+}
+
 // fold: the solver's folded copy (mj_effPrecFold) with L its blocks, or NULL
 static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
                           const mjtNum* L, const mjEffFold* fold) {
@@ -340,17 +1459,15 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
   int flg_bend = nbd && !d->nefmdof;
   int flg_dense = fold && fold->S_valid;
 
-  // the fold's dense factors on all the uncovered dofs, the 3x3 blocks on the rest: no backbone
+  // the fold's dense factors on all the uncovered dofs, the sparse factor or the 3x3 blocks on the
+  // rest: no backbone
   if (flg_dense && !fold->partial) {
     mj_markStack(d);
     mjtNum* bu = mjSTACKALLOC(d, fold->nu, mjtNum);
     for (int j = 0; j < fold->nu; j++) {
-      bu[j] = b[fold->U[j]];   // before the blocks write x: b may alias x
+      bu[j] = b[fold->U[j]];   // before the covered solve writes x: b may alias x
     }
-    for (int k = 0; k < d->nefmdof; k++) {
-      int i = d->efm_dofid[k];
-      chol3Solve(x + i, L + 9*k, b + i);
-    }
+    effCovSolve(m, d, L, fold, x, b);
     effDenseApply(fold, x, bu);
     mj_freeStack(d);
     return;
@@ -358,10 +1475,7 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
 
   // every dof a covered triple: the blocks are the whole preconditioner
   if (3*d->nefmdof == nv && !flg_bend) {
-    for (int k = 0; k < d->nefmdof; k++) {
-      int i = d->efm_dofid[k];
-      chol3Solve(x + i, L + 9*k, b + i);
-    }
+    effCovSolve(m, d, L, fold, x, b);
     return;
   }
   mj_markStack(d);
@@ -386,11 +1500,8 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
     mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
   }
 
-  // per-step stiffness: 3x3 blocks
-  for (int k = 0; k < d->nefmdof; k++) {
-    int i = d->efm_dofid[k];
-    chol3Solve(x + i, L + 9*k, rhs + i);
-  }
+  // per-step stiffness: the sparse factor or the 3x3 blocks
+  effCovSolve(m, d, L, fold, x, rhs);
 
   // the fold's dense factors where some uncovered dofs are in no component: each component is
   // a union of whole trees, which the backbone solve keeps apart, so overwriting its dofs
@@ -638,19 +1749,6 @@ static int effComponents(const mjModel* m, const mjData* d, const int* cov,
 }
 
 
-// mark the covered dofs: cov[i] = the 3x3 block of dof i, -1: uncovered
-static void effCovered(const mjModel* m, const mjData* d, int* cov) {
-  for (int i=0; i < m->nv; i++) {
-    cov[i] = -1;
-  }
-  for (int k=0; k < d->nefmdof; k++) {
-    for (int c=0; c < 3; c++) {
-      cov[d->efm_dofid[k] + c] = k;
-    }
-  }
-}
-
-
 // size the dense blocks of a fold over the given efc rows, 0: none
 int mj_effFoldDenseSize(const mjModel* m, mjData* d, int nefc, const mjtNum* efc_D,
                         int is_sparse, const int* J_rownnz, const int* J_rowadr,
@@ -663,7 +1761,7 @@ int mj_effFoldDenseSize(const mjModel* m, mjData* d, int nefc, const mjtNum* efc
   mj_markStack(d);
   int* cov = mjSTACKALLOC(d, m->nv, int);
   int* tint = mjSTACKALLOC(d, 3*ntree, int);
-  effCovered(m, d, cov);
+  effCovered(m->nv, d->nefmdof, d->efm_dofid, cov);
   *ncomp = effComponents(m, d, cov, nefc, efc_D, J_rownnz, J_rowadr, J_colind,
                          tint, tint + ntree, tint + 2*ntree, nu, &nS, &partial);
   mj_freeStack(d);
@@ -680,7 +1778,8 @@ size_t mj_effFoldScratch(const mjModel* m, const mjData* d, int nu) {
   size_t sn = sizeof(mjtNum), an = _Alignof(mjtNum), si = sizeof(int), ai = _Alignof(int);
   size_t fold = frame + mj_stackBytes(sn*9*d->nefmdof, an) + mj_stackBytes(si*m->nv, ai) +
                 (nu ? mj_stackBytes(si*3*m->ntree, ai) : 0);
-  size_t apply = frame + mj_stackBytes(sn*m->nv, an) + mj_stackBytes(sn*nu, an);
+  size_t apply = frame + mj_stackBytes(sn*m->nv, an) + mj_stackBytes(sn*nu, an) +
+                 effCholApplyScratch(d);
   if (m->nefm0dof && !d->nefmdof) {
     apply += 2*mj_stackBytes(sn*m->nefm0dof, an);
   }
@@ -812,7 +1911,7 @@ int mj_effPrecFold(const mjModel* m, mjData* d, mjEffFold* fold,
   mjtNum* Badd = mjSTACKALLOC(d, 9*d->nefmdof, mjtNum);
   int* blk = mjSTACKALLOC(d, nv, int);
   mju_zero(Badd, 9*d->nefmdof);
-  effCovered(m, d, blk);
+  effCovered(nv, d->nefmdof, d->efm_dofid, blk);
 
   // rank-1 classes: scale * v v', restricted to each covered block. A term's coupling between
   // DIFFERENT vertices is off-diagonal and cannot be represented here; only its self-terms land

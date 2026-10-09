@@ -86,11 +86,16 @@ MJAPI void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 // Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
 MJAPI void mj_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 
+// a constraint solve's contact-adaptive sparse factor
+typedef struct mjEffFactor_ mjEffFactor;
+
 // caller-owned copy of the metric preconditioner, with the rank-1 classes and the efc rows
-// folded in (mj_effPrecFold): the covered 3x3 blocks and, optionally, dense factors of the
-// block S of the uncovered (non-flex) dofs, one per connected component of S, which then
-// replace the backbone solve on the dofs they cover. The caller sizes the arrays with
-// mj_effFoldDenseSize and sets nu, ncomp and nS; mj_effPrecFold fills them.
+// folded in (mj_effPrecFold): the covered 3x3 blocks, optionally a copy of the sparse factor of
+// the covered dofs, which then replaces the blocks, and optionally dense factors of the block S
+// of the uncovered (non-flex) dofs, one per connected component of S, which then replace the
+// backbone solve on the dofs they cover. The caller sizes the arrays with mj_effFoldDenseSize
+// and mj_effCholFoldSize, sets nu, ncomp, nS and optionally factor (mj_effCholFoldFactor);
+// mj_effPrecFold fills them.
 typedef struct {
   mjtNum* L;           // covered 3x3 blocks, factored                       (9*nefmdof)
   int nu;              // uncovered dofs in the components, 0: no dense block
@@ -102,7 +107,23 @@ typedef struct {
   mjtNum* S;           // packed dense factors                                (nS)
   int partial;         // some uncovered dofs are in no component: backbone solve on them
   int S_valid;         // S holds the factors, set by mj_effPrecFold
+  mjtNum* F;           // sparse factor: status, values, or NULL       (mj_effCholFoldSize)
+  mjEffFactor* factor;  // this solve's sparse factor (mj_effCholFoldFactor), or NULL
 } mjEffFold;
+
+// the model's vertex ordering of the sparse factor, into efmC_perm (from mj_setConst)
+void mj_effCholSetConst(mjModel* m, mjData* d);
+
+// length of a fold's copy of the sparse factor (mjEffFold.F), 0 when the step has none
+MJAPI int mj_effCholFoldSize(const mjData* d);
+
+// analyse and factor this solve's contact-adaptive sparse factor, allocated on the stack of d in
+// the caller's frame (it lives until the solve ends); falls back to the step's pattern in
+// fold->F and returns NULL when not needed or the arena cannot hold the contact-adaptive factor
+MJAPI mjEffFactor* mj_effCholFoldFactor(const mjModel* m, mjData* d, const mjEffFold* fold,
+                                        int nefc, const mjtNum* efc_D, int is_sparse,
+                                        const mjtNum* J, const int* J_rownnz,
+                                        const int* J_rowadr, const int* J_colind);
 
 // size the dense blocks of a fold over the given efc rows: the uncovered dofs are partitioned
 // into the connected components of S (trees joined by an efc row with D > 0 or a rank-1 term
@@ -115,7 +136,8 @@ MJAPI int mj_effFoldDenseSize(const mjModel* m, mjData* d, int nefc, const mjtNu
                               const int* J_colind, int* nu, int* ncomp);
 
 // stack bytes mj_effPrecFold and mj_effPrecBlocks take beyond the fold's own arrays, at most,
-// for a dense block of nu dofs
+// for a dense block of nu dofs (the sparse factor's optional scratch is checked where it is
+// taken)
 MJAPI size_t mj_effFoldScratch(const mjModel* m, const mjData* d, int nu);
 
 // stack bytes mj_effMulAdd takes, at most (the matrix-free flex operators)
@@ -132,9 +154,9 @@ MJAPI int mj_effPrecFold(const mjModel* m, mjData* d, mjEffFold* fold,
                          const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
                          const int* J_colind);
 
-// apply the metric preconditioner using a fold from mj_effPrecFold: its 3x3 blocks on the
-// covered dofs, if S_valid its dense factors on their components, the backbone solve on the
-// remaining dofs
+// apply the metric preconditioner using a fold from mj_effPrecFold: its sparse factor, else its
+// 3x3 blocks, on the covered dofs, if S_valid its dense factors on their components, the backbone
+// solve on the remaining dofs
 MJAPI void mj_effPrecBlocks(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
                             const mjEffFold* fold);
 

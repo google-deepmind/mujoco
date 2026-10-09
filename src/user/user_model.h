@@ -97,6 +97,7 @@ class mjCModel_ : public mjsElement {
   mjtSize nflexbending;    // number of bending parameters in all flexes
   mjtSize nefm0dof;        // number of dofs covered by the bending factor
   mjtSize nefm0L;          // number of non-zeros in the bending factor
+  mjtSize nefmCvert;       // number of sparse metric factor ordering slots
   mjtSize nflexelemedge;   // number of element edges in all flexes
   mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
   mjtSize nflextexcoord;   // number of vertex texture coordinates in all flexes

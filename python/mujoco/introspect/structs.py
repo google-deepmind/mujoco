@@ -1089,6 +1089,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in the constant metric factor',
              ),
              StructFieldDecl(
+                 name='nefmCvert',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of sparse metric factor ordering slots',
+             ),
+             StructFieldDecl(
                  name='nflexelemedge',
                  type=ValueType(name='mjtSize'),
                  doc='number of element edge ids in all flexes',
@@ -3174,6 +3179,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='factor of M + (dt^2+dt*d)*K_bend',
                  array_extent=('nefm0L',),
+             ),
+             StructFieldDecl(
+                 name='efmC_perm',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='sparse factor order: vertex dof or -1',
+                 array_extent=('nefmCvert',),
              ),
              StructFieldDecl(
                  name='flex_damping',

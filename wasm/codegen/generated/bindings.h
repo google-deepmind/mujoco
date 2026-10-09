@@ -3962,6 +3962,12 @@ struct MjModel {
   void set_nefm0L(int value) {
     ptr_->nefm0L = static_cast<mjtSize>(value);
   }
+  int nefmCvert() const {
+    return static_cast<int>(ptr_->nefmCvert);
+  }
+  void set_nefmCvert(int value) {
+    ptr_->nefmCvert = static_cast<mjtSize>(value);
+  }
   int nflexelemedge() const {
     return static_cast<int>(ptr_->nflexelemedge);
   }
@@ -5023,6 +5029,9 @@ struct MjModel {
   }
   emscripten::val efm0_L() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefm0L, ptr_->efm0_L));
+  }
+  emscripten::val efmC_perm() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmCvert, ptr_->efmC_perm));
   }
   emscripten::val flex_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_damping));

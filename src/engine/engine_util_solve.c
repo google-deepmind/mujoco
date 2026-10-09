@@ -306,6 +306,137 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
   return nnz;
 }
 
+// block p is reached by block column q at slot i of its block columns: rows bs*p .. bs*p+bs-1
+// hold columns bs*q .. bs*q+bs-1 there
+static inline void blockReach(int* L_colind, const int* L_rowadr, int bs, int p, int i, int q) {
+  for (int c = 0; c < bs; c++) {
+    int* col = L_colind + L_rowadr[bs*p + c] + bs*i;
+    for (int b = 0; b < bs; b++) {
+      col[b] = bs*q + b;
+    }
+  }
+}
+
+// row r, of the block reached by block column q at slot i, is the x-th row that column q reaches
+// after its own rows: the transpose rows bs*q .. bs*q+bs-1 list it
+static inline void blockEmit(int* LT_colind, int* LT_map, const int* LT_rowadr,
+                             const int* L_rowadr, int bs, int q, int x, int r, int i) {
+  for (int a = 0; a < bs; a++) {
+    int e = LT_rowadr[bs*q + a] + bs - a + x;
+    LT_colind[e] = r;
+    LT_map[e] = L_rowadr[r] + bs*i + a;
+  }
+}
+
+// symbolic reverse-Cholesky of a matrix of dense bs x bs blocks, from its block pattern
+//   mju_cholFactorSymbolic on the expanded pattern walks the dofs of each block together: the
+//   rows of a block share their block columns, and the dof elimination tree is the block
+//   elimination tree with each block a chain (the parent of dof bs*p+c is bs*p+c-1, that of dof
+//   bs*p is the last dof of the parent block). So the walks run on the blocks, and each visit
+//   expands to its dofs in the order the dof walk visits them: the first dof of a column's
+//   neighbour, then the dofs of each ancestor added, last first, then the neighbour's other dofs
+int mju_cholFactorSymbolicBlocked(int* restrict L_colind, int* restrict L_rownnz,
+                                  int* restrict L_rowadr, int* restrict LT_colind,
+                                  int* restrict LT_rownnz, int* restrict LT_rowadr,
+                                  int* restrict LT_map, const int* rownnz, const int* rowadr,
+                                  const int* colind, int nb, int bs, int* scratch) {
+  int* restrict parent = scratch;          // block elimination tree
+  int* restrict flag = scratch + nb;       // the last block column whose walk reached the block
+  int* restrict count = scratch + 2*nb;    // counting: block columns of the block's rows
+                                           // filling: those still to fill, right to left
+
+  // counting phase: the block walks, then the dof row sizes and addresses
+  if (!L_colind) {
+    for (int p = 0; p < nb; p++) {
+      count[p] = 0;
+    }
+    for (int q = nb - 1; q >= 0; q--) {
+      parent[q] = -1;
+      flag[q] = q;
+      int ncol = 0;
+      for (int j = rowadr[q]; j < rowadr[q] + rownnz[q]; j++) {
+        for (int p = colind[j]; p > q && flag[p] != q; p = parent[p]) {
+          if (parent[p] == -1) {
+            parent[p] = q;
+          }
+          flag[p] = q;
+          count[p]++;
+          ncol++;
+        }
+      }
+      LT_rownnz[bs*q] = ncol;   // block rows its column reaches, expanded below
+    }
+    int nnz = 0, nnzT = 0;
+    for (int p = 0; p < nb; p++) {
+      int ncol = LT_rownnz[bs*p];
+      for (int a = 0; a < bs; a++) {
+        int r = bs*p + a;
+        L_rownnz[r] = bs*count[p] + a + 1;
+        L_rowadr[r] = nnz;
+        nnz += L_rownnz[r];
+        LT_rownnz[r] = bs*ncol + bs - a;
+        LT_rowadr[r] = nnzT;
+        nnzT += LT_rownnz[r];
+      }
+    }
+    return nnz;
+  }
+
+  // filling phase: the diagonal blocks, at the end of the rows of L and the head of the
+  // transpose rows
+  for (int p = 0; p < nb; p++) {
+    count[p] = (L_rownnz[bs*p] - 1) / bs;
+    int off = bs*count[p];
+    for (int c = 0; c < bs; c++) {
+      for (int b = 0; b <= c; b++) {
+        L_colind[L_rowadr[bs*p + c] + off + b] = bs*p + b;
+      }
+    }
+    for (int a = 0; a < bs; a++) {
+      for (int e = a; e < bs; e++) {
+        int x = LT_rowadr[bs*p + a] + e - a;
+        LT_colind[x] = bs*p + e;
+        LT_map[x] = L_rowadr[bs*p + e] + off + a;
+      }
+    }
+  }
+
+  // the walks again, each visit filling its block slot, right to left
+  for (int q = nb - 1; q >= 0; q--) {
+    int x = 0;
+    parent[q] = -1;
+    flag[q] = q;
+    for (int j = rowadr[q]; j < rowadr[q] + rownnz[q]; j++) {
+      int p = colind[j];
+      if (p <= q || flag[p] == q) {
+        continue;
+      }
+      int ip = --count[p];
+      blockReach(L_colind, L_rowadr, bs, p, ip, q);
+      blockEmit(LT_colind, LT_map, LT_rowadr, L_rowadr, bs, q, x++, bs*p, ip);
+      if (parent[p] == -1) {
+        parent[p] = q;
+      }
+      flag[p] = q;
+      for (int u = parent[p]; flag[u] != q; u = parent[u]) {
+        if (parent[u] == -1) {
+          parent[u] = q;
+        }
+        flag[u] = q;
+        int iu = --count[u];
+        blockReach(L_colind, L_rowadr, bs, u, iu, q);
+        for (int c = bs - 1; c >= 0; c--) {
+          blockEmit(LT_colind, LT_map, LT_rowadr, L_rowadr, bs, q, x++, bs*u + c, iu);
+        }
+      }
+      for (int c = 1; c < bs; c++) {
+        blockEmit(LT_colind, LT_map, LT_rowadr, L_rowadr, bs, q, x++, bs*p + c, ip);
+      }
+    }
+  }
+  return 0;
+}
+
 // numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
 //  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
 //  LT_map[k] gives index in L for LT_colind[k]

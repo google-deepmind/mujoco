@@ -191,6 +191,7 @@
     X( nflexbending )       \
     X( nefm0dof )           \
     X( nefm0L )             \
+    X( nefmCvert )          \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
     X( nflextexcoord )      \
@@ -507,6 +508,7 @@
     X   ( int,     efm0_L_rowadr,         nefm0dof,      1                    ) \
     X   ( int,     efm0_L_colind,         nefm0L,        1                    ) \
     X   ( mjtNum,  efm0_L,                nefm0L,        1                    ) \
+    X   ( int,     efmC_perm,             nefmCvert,     1                    ) \
     X   ( mjtNum,  flex_damping,          nflex,         1                    ) \
     X   ( mjtNum,  flex_edgestiffness,    nflex,         1                    ) \
     X   ( mjtNum,  flex_edgedamping,      nflex,         1                    ) \
