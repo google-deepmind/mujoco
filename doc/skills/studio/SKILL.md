@@ -566,6 +566,16 @@ C++):
 -   **No Display Forwarding**: No need for X11 forwarding, VNC, or remote
     desktop setups.
 
+> [!WARNING]
+>
+> **Trust Model (Local & Trusted Networks Only):**
+> `WebViewer` has no authentication or encryption (plain HTTP and WebSockets)
+> and listens on all network interfaces, so anyone who can reach its port can
+> connect. Connected browsers can see host-side information such as model file
+> paths, exception messages, and logs. Use it locally, on trusted networks, or
+> through an authenticated tunnel, and do not expose the port to untrusted
+> networks. The startup banner repeats this as a short warning.
+
 ## 8. Common Gotchas & Best Practices
 
 ### 1. Explicit Message Passing & Thread Boundaries (Python)

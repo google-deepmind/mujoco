@@ -84,9 +84,16 @@ def _print_url_banner(host: str, port: int) -> None:
   rows.append(('Local:', f'http://localhost:{port}/'))
 
   label_width = max(len(label) for label, _ in rows)
+  footer = [
+      '',
+      'Ctrl+C to quit',
+      '',
+      'Warning: No authentication or encryption. Anyone who can reach this',
+      '         port can connect and see your logs and file paths.',
+  ]
   lines_plain = ['MuJoCo Web Viewer running at:', '']
   lines_plain += [f'  {label.ljust(label_width)}  {url}' for label, url in rows]
-  lines_plain += ['', 'Ctrl+C to quit']
+  lines_plain += footer
 
   width = max(len(line) for line in lines_plain)
 
@@ -97,7 +104,7 @@ def _print_url_banner(host: str, port: int) -> None:
   lines_formatted += [
       f'  {label.ljust(label_width)}  {_hyperlink(url)}' for label, url in rows
   ]
-  lines_formatted += ['', 'Ctrl+C to quit']
+  lines_formatted += footer
 
   banner = ['+' + '-' * (width + 2) + '+']
   for plain, formatted in zip(lines_plain, lines_formatted):
@@ -204,6 +211,9 @@ class WebViewer(viewer_protocol.Viewer):
         extra_geoms=extra_geoms,
     )
 
+    # TODO(matijak): Consider binding to loopback by default, with an opt-in
+    # (e.g. a ViewerConfig.host field and a --host flag) for all interfaces, so
+    # that the viewer is not reachable from the network by default.
     self._host = '::'
     # Bind both listening sockets up front, in this process: bind conflicts
     # surface here as one clear error, and the loopback port is OS-assigned so
