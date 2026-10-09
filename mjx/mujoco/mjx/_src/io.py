@@ -209,6 +209,14 @@ def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
     return wp_field.numpy()
 
   # static
+  if isinstance(wp_field, (float, np.floating)):
+    return np.float32(wp_field)
+  if isinstance(wp_field, np.ndarray):
+    return (
+        wp_field.astype(np.float32)
+        if np.issubdtype(wp_field.dtype, np.floating)
+        else wp_field
+    )
   static_types = (bool, int, float, np.bool, np.int32, np.int64,
                   np.float32, np.float64)  # fmt: skip
   is_static = lambda x: isinstance(x, static_types)
@@ -298,8 +306,8 @@ def _put_option(
     impl_fields['has_fluid_params'] = has_fluid_params
     return types.Option(**fields, _impl=types.OptionJAX(**impl_fields))
 
-
   if impl == types.Impl.WARP:
+    fields = {k: _wp_to_np_type(v, k) for k, v in fields.items()}
     impl_fields = {
         k: (
             v_np.reshape(v_np.shape[1:])
@@ -320,7 +328,8 @@ def _put_statistic(
   """Puts mujoco.MjStatistic onto a device, resulting in mjx.Statistic."""
   if impl == types.Impl.WARP:
     fields = {
-        f.name: getattr(s, f.name, None) for f in types.StatisticWarp.fields()
+        f.name: _wp_to_np_type(getattr(s, f.name, None), f.name)
+        for f in types.StatisticWarp.fields()
     }
     return types.StatisticWarp(**fields)
   return types.Statistic(
