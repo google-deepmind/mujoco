@@ -24,6 +24,7 @@
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_sdf.h"
+#include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
@@ -392,8 +393,8 @@ static int matchContact(const mjModel* m, const mjData* d, int conid,
 
 // fill in output data for contact sensor for all fields
 //   if flg_flip > 0, normal/tangent rotate 180 about frame[2]
-//   force/torque flip-z s.t. force is equal-and-opposite in new contact frame
-static void copySensorData(const mjModel* m, const mjData* d,
+//   force/torque/linvel/angvel flip-z s.t. values are equal-and-opposite in new contact frame
+static void copySensorData(const mjModel* m, mjData* d,
                            mjtNum* data[mjNCONDATA], int id, int flg_flip, int nfound) {
   // found flag
   if (data[mjCONDATA_FOUND]) *data[mjCONDATA_FOUND] = nfound;
@@ -432,6 +433,65 @@ static void copySensorData(const mjModel* m, const mjData* d,
   if (data[mjCONDATA_TANGENT]) {
     mju_copy3(data[mjCONDATA_TANGENT], d->contact[id].frame+3);
     if (flg_flip) mju_scl3(data[mjCONDATA_TANGENT], data[mjCONDATA_TANGENT], -1);
+  }
+
+  // contact linear and angular velocity
+  if (data[mjCONDATA_LINVEL] || data[mjCONDATA_ANGVEL]) {
+    const mjContact* con = d->contact + id;
+    mjtNum linvel[3] = {0}, angvel[3] = {0};
+
+    // single body on each side: compute from cvel
+    if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0)) &&
+        (con->geom[1] >= 0 || (con->vert[1] >= 0 && m->flex_interp[con->flex[1]] == 0))) {
+      int bid[2];
+      mjtNum vel[2][6];
+      for (int s=0; s < 2; s++) {
+        bid[s] = (con->geom[s] >= 0) ?
+                 m->geom_bodyid[con->geom[s]] :
+                 m->flex_vertbodyid[m->flex_vertadr[con->flex[s]] + con->vert[s]];
+        mju_transformSpatial(vel[s], d->cvel + 6*bid[s], 0, con->pos,
+                             d->subtree_com + 3*m->body_rootid[bid[s]], NULL);
+      }
+      mju_sub3(angvel, vel[1], vel[0]);
+      mju_sub3(linvel, vel[1]+3, vel[0]+3);
+    }
+
+    // general flex case: compute via contact Jacobian
+    else if (m->nv) {
+      int nv = m->nv, issparse = mj_isSparse(m);
+      int need_ang = (data[mjCONDATA_ANGVEL] != NULL);
+      mj_markStack(d);
+      mjtNum* jacdifp = mjSTACKALLOC(d, 3*nv, mjtNum);
+      mjtNum* jacdifr = need_ang ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
+      int* chain = issparse ? mjSTACKALLOC(d, nv, int) : NULL;
+      int NV = mj_contactJacobian(m, d, con, need_ang ? 6 : 3, jacdifp, jacdifr,
+                                  NULL, NULL, NULL, NULL, chain);
+      if (NV) {
+        if (issparse) {
+          for (int j=0; j < NV; j++) {
+            mjtNum qv = d->qvel[chain[j]];
+            for (int k=0; k < 3; k++) {
+              linvel[k] += jacdifp[k*NV+j] * qv;
+              if (need_ang) angvel[k] += jacdifr[k*NV+j] * qv;
+            }
+          }
+        } else {
+          mju_mulMatVec(linvel, jacdifp, d->qvel, 3, nv);
+          if (need_ang) mju_mulMatVec(angvel, jacdifr, d->qvel, 3, nv);
+        }
+      }
+      mj_freeStack(d);
+    }
+
+    // rotate to contact frame and apply flip
+    if (data[mjCONDATA_LINVEL]) {
+      mju_mulMatVec3(data[mjCONDATA_LINVEL], con->frame, linvel);
+      if (flg_flip) data[mjCONDATA_LINVEL][2] *= -1;
+    }
+    if (data[mjCONDATA_ANGVEL]) {
+      mju_mulMatVec3(data[mjCONDATA_ANGVEL], con->frame, angvel);
+      if (flg_flip) data[mjCONDATA_ANGVEL][2] *= -1;
+    }
   }
 }
 
@@ -1114,6 +1174,10 @@ static void mj_computeSensorVel(const mjModel* m, mjData* d, int i, mjtNum* sens
 
   case mjSENS_SUBTREEANGMOM:                          // subtree angular momentum
     mju_copy3(sensordata, d->subtree_angmom+3*objid);
+    break;
+
+  case mjSENS_CONTACT:                                // contact
+    compute_contact_sensor(m, d, i, sensordata);
     break;
 
   case mjSENS_TACTILE:                                // tactile

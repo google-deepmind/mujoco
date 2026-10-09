@@ -414,7 +414,9 @@ public enum mjtConDataField : int{
   mjCONDATA_POS = 4,
   mjCONDATA_NORMAL = 5,
   mjCONDATA_TANGENT = 6,
-  mjNCONDATA = 7,
+  mjCONDATA_LINVEL = 7,
+  mjCONDATA_ANGVEL = 8,
+  mjNCONDATA = 9,
 }
 public enum mjtRayDataField : int{
   mjRAYDATA_DIST = 0,

@@ -8428,7 +8428,11 @@ void mjCSensor::Compile(void) {
                       (dataspec & (1 << mjCONDATA_TORQUE)) ||
                       reduce == 2 ||
                       reduce == 3;
-      needstage     = need_acc ? mjSTAGE_ACC : mjSTAGE_POS;
+      bool need_vel = (dataspec & (1 << mjCONDATA_LINVEL)) || (dataspec & (1 << mjCONDATA_ANGVEL));
+      if (reduce == 3 && need_vel) {
+        throw mjCError(this, "netforce reduction is incompatible with linvel or angvel");
+      }
+      needstage = need_acc ? mjSTAGE_ACC : (need_vel ? mjSTAGE_VEL : mjSTAGE_POS);
     } break;
 
     case mjSENS_E_POTENTIAL:

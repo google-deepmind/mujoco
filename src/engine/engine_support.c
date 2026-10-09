@@ -119,7 +119,9 @@ const int mjCONDATA_SIZE[mjNCONDATA] = {
   1,  // mjCONDATA_DIST
   3,  // mjCONDATA_POS
   3,  // mjCONDATA_NORMAL
-  3   // mjCONDATA_TANGENT
+  3,  // mjCONDATA_TANGENT
+  3,  // mjCONDATA_LINVEL
+  3   // mjCONDATA_ANGVEL
 };
 
 

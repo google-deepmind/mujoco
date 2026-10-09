@@ -196,6 +196,52 @@ class SensorTest(parameterized.TestCase):
 
     _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
 
+  def test_sensor_contact_velocity(self):
+    """Tests contact sensor linvel and angvel with nonzero velocities."""
+    contact_sensors = ''
+    for data in ['linvel', 'angvel', 'found linvel angvel', 'dist linvel']:
+      for match in [
+          '',
+          'geom1="plane"',
+          'geom1="sphere1"',
+          'geom1="sphere1" geom2="sphere2"',
+          'geom1="sphere2" geom2="sphere1"',
+      ]:
+        for reduce in ['mindist', 'maxforce']:
+          contact_sensors += (
+              f'<contact {match} num="2" data="{data}" reduce="{reduce}"/>\n'
+          )
+
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <geom name="plane" type="plane" size="10 10 .001"/>
+          <body pos="0 0 .09">
+            <freejoint/>
+            <geom name="sphere1" type="sphere" size=".1"/>
+          </body>
+          <body pos=".02 0 .27">
+            <freejoint/>
+            <geom name="sphere2" type="sphere" size=".1"/>
+          </body>
+        </worldbody>
+        <sensor>
+          {contact_sensors}
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.qvel = [.3, -.2, .1, .5, -.4, .7, -.1, .4, -.3, -.6, .2, .8]
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.forward)(mx, dx)
+
+    self.assertTrue(np.any(d.sensordata != 0))
+    _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
+
   def test_unsupported_sensor(self):
     """Tests unsupported sensor raises error."""
     m = mujoco.MjModel.from_xml_string("""

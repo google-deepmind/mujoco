@@ -354,6 +354,8 @@ enum condata : mjtConDataField {   # bitflags: keywords combine bitwise
   pos       = mjCONDATA_POS
   normal    = mjCONDATA_NORMAL
   tangent   = mjCONDATA_TANGENT
+  linvel    = mjCONDATA_LINVEL
+  angvel    = mjCONDATA_ANGVEL
 }
 
 enum raydata : mjtRayDataField {   # bitflags: keywords combine bitwise

@@ -360,6 +360,11 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   if (mjm.sensor_plugin != -1).any():
     raise NotImplementedError("Sensor plugins not supported.")
 
+  # TODO(team): contact sensor linvel and angvel (mjSTAGE_VEL)
+  contact_dataspec = mjm.sensor_intprm[mjm.sensor_type == mujoco.mjtSensor.mjSENS_CONTACT, 0]
+  if (contact_dataspec & ((1 << 7) | (1 << 8))).any():
+    raise NotImplementedError("Contact sensor linvel and angvel not supported.")
+
   if mjm.nflex > 0:
     for fi in range(mjm.nflex):
       if abs(mjm.flex_interp[fi]) == 2:

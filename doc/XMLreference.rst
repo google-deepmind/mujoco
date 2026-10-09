@@ -9105,7 +9105,7 @@ Extraction
 
 .. _sensor-contact-data:
 
-:at:`data`: :at-val:`[found, force, torque, dist, pos, normal, tangent], "found"`
+:at:`data`: :at-val:`[found, force, torque, dist, pos, normal, tangent, linvel, angvel], "found"`
    Specification of which data field(s) to report from the selected contacts.
 
    - :at-val:`found` **real(1)**: This field serves two purposes. First, it indicates whether a contact was found in
@@ -9119,6 +9119,11 @@ Extraction
    - :at-val:`normal`: **real(3)**: The contact normal direction, in the global frame.
    - :at-val:`tangent`: **real(3)**: The first tangent direction, in the global frame.
      In order to complete the full 3x3 contact frame, use tangent2 = cross(normal, tangent).
+   - :at-val:`linvel`: **real(3)**: The relative linear velocity of the second contacting body with respect to the first
+     at the contact position, expressed in the contact frame. Positive normal velocity (first component) corresponds to
+     separation. Cannot be combined with ``reduce="netforce"``.
+   - :at-val:`angvel`: **real(3)**: The relative angular velocity of the second contacting body with respect to the
+     first, expressed in the contact frame. Cannot be combined with ``reduce="netforce"``.
 
    Importantly, the :at:`data` attribute can contain **multiple sequential data types**, as long as the relative
    order---as listed above---is maintained. For example, :at:`data` = :at-val:`"found force dist"` will return 5 numbers
@@ -9152,8 +9157,9 @@ Extraction
    Computation stage
       The computation stage (``sensor_needstage``) of a contact sensor depends on the requested :at:`data` fields and
       :ref:`reduce<sensor-contact-reduce>` criterion. If :at:`data` includes ``force`` or ``torque``, or if
-      :at:`reduce` is ``maxforce`` or ``netforce``, the sensor is evaluated at ``mjSTAGE_ACC``; otherwise it is
-      evaluated at ``mjSTAGE_POS``.
+      :at:`reduce` is ``maxforce`` or ``netforce``, the sensor is evaluated at ``mjSTAGE_ACC``; otherwise, if
+      :at:`data` includes ``linvel`` or ``angvel``, it is evaluated at ``mjSTAGE_VEL``; otherwise it is evaluated at
+      ``mjSTAGE_POS``.
 
 .. _sensor-contact-reduce:
 

@@ -800,9 +800,9 @@ TEST_F(SupportTest, SetKeyframe) {
 TEST_F(SupportTest, ContactSensorDim) {
   int dataSpec = 1 << mjCONDATA_FOUND | 1 << mjCONDATA_FORCE |
                  1 << mjCONDATA_DIST | 1 << mjCONDATA_POS |
-                 1 << mjCONDATA_TANGENT;
+                 1 << mjCONDATA_TANGENT | 1 << mjCONDATA_LINVEL;
 
-  EXPECT_EQ(mju_condataSize(dataSpec), 1 + 3 + 1 + 3 + 3);
+  EXPECT_EQ(mju_condataSize(dataSpec), 1 + 3 + 1 + 3 + 3 + 3);
 }
 
 // ------------------------------ ctrl delays --------------------------------

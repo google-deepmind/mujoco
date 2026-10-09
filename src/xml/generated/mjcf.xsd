@@ -350,6 +350,8 @@
       <xs:enumeration value="pos"/>
       <xs:enumeration value="normal"/>
       <xs:enumeration value="tangent"/>
+      <xs:enumeration value="linvel"/>
+      <xs:enumeration value="angvel"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="kwlist_condata">

@@ -3990,6 +3990,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjCONDATA_POS", mjCONDATA_POS)
     .value("mjCONDATA_NORMAL", mjCONDATA_NORMAL)
     .value("mjCONDATA_TANGENT", mjCONDATA_TANGENT)
+    .value("mjCONDATA_LINVEL", mjCONDATA_LINVEL)
+    .value("mjCONDATA_ANGVEL", mjCONDATA_ANGVEL)
     .value("mjNCONDATA", mjNCONDATA);
   enum_<mjtCone>("mjtCone")
     .value("mjCONE_PYRAMIDAL", mjCONE_PYRAMIDAL)

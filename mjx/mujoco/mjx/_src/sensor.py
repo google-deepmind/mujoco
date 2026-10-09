@@ -94,9 +94,9 @@ def _sensor_contact(
   # number of data elements per slot
   def nslotdata(dataspec):
     size = 0
-    # found, force, torque, dist, pos, normal, tangent
+    # found, force, torque, dist, pos, normal, tangent, linvel, angvel
     # TODO(taylorhowell): get sizes from mjCONDATA_SIZE
-    for i, size_i in enumerate([1, 3, 3, 1, 3, 3, 3]):
+    for i, size_i in enumerate([1, 3, 3, 1, 3, 3, 3, 3, 3]):
       if dataspec & (1 << i):
         size += size_i
     return size
@@ -213,6 +213,29 @@ def _sensor_contact(
 
     if dataspec & (1 << 6):  # tangent
       slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])  # pyrefly: ignore[missing-attribute]
+
+    if dataspec & ((1 << 7) | (1 << 8)):  # linvel or angvel
+      con_pos = d._impl.contact.pos[cid]  # pyrefly: ignore[missing-attribute]
+      con_frame = d._impl.contact.frame[cid]  # pyrefly: ignore[missing-attribute]
+      con_geom = d._impl.contact.geom[cid]  # pyrefly: ignore[missing-attribute]
+      bid0 = jp.array(m.geom_bodyid)[con_geom[:, 0]]
+      bid1 = jp.array(m.geom_bodyid)[con_geom[:, 1]]
+      cvel0 = d.cvel[bid0]
+      cvel1 = d.cvel[bid1]
+
+      if dataspec & (1 << 7):  # linvel
+        root0 = jp.array(m.body_rootid)[bid0]
+        root1 = jp.array(m.body_rootid)[bid1]
+        v0 = cvel0[:, 3:] - jp.cross(con_pos - d.subtree_com[root0], cvel0[:, :3])
+        v1 = cvel1[:, 3:] - jp.cross(con_pos - d.subtree_com[root1], cvel1[:, :3])
+        linvel = jax.vmap(lambda f, v: f @ v)(con_frame, v1 - v0)
+        slot.append(flip * linvel)
+
+      if dataspec & (1 << 8):  # angvel
+        angvel = jax.vmap(lambda f, w: f @ w)(
+            con_frame, cvel1[:, :3] - cvel0[:, :3]
+        )
+        slot.append(flip * angvel)
 
     found = jp.tile(jp.arange(num), nsensor) < jp.repeat(nfound, num)
     sensors.append((found[:, None] * jp.hstack(slot)).reshape(-1))
@@ -586,6 +609,11 @@ def sensor_vel(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.SUBTREEANGMOM:
       sensor = d._impl.subtree_angmom[objid]  # pyrefly: ignore[missing-attribute]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
+    elif sensor_type == SensorType.CONTACT:
+      s, a = _sensor_contact(m, d, idx)
+      sensors.extend(s)
+      adrs.extend(a)
+      continue
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type

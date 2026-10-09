@@ -432,6 +432,8 @@ typedef enum mjtConDataField {    // data fields returned by contact sensors
   mjCONDATA_POS,                  // contact position
   mjCONDATA_NORMAL,               // contact frame normal
   mjCONDATA_TANGENT,              // contact frame first tangent
+  mjCONDATA_LINVEL,               // contact linear velocity
+  mjCONDATA_ANGVEL,               // contact angular velocity
 
   mjNCONDATA                      // number of contact sensor data fields
 } mjtConDataField;

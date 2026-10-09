@@ -352,8 +352,10 @@ inline constexpr mjMap condata_map[] = {
   {"pos",      mjCONDATA_POS},
   {"normal",   mjCONDATA_NORMAL},
   {"tangent",  mjCONDATA_TANGENT},
+  {"linvel",   mjCONDATA_LINVEL},
+  {"angvel",   mjCONDATA_ANGVEL},
 };
-inline constexpr int condata_sz = 7;
+inline constexpr int condata_sz = 9;
 
 // enum raydata
 inline constexpr mjMap raydata_map[] = {
