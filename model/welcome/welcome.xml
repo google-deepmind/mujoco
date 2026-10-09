@@ -203,7 +203,7 @@
       <geom name="o2_o_30" class="letter_collision" mesh="o_30" />
       <geom name="o2_o_31" class="letter_collision" mesh="o_31" />
     </body>
-    <frame pos="-0.6300 0 0.000" euler="0 10 180">
+    <frame pos="-0.6500 0 0.000" euler="0 10 180">
       <body name="torso" pos="0 0 1.282" childclass="body">
         <camera name="back" pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom" />
         <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom" />
