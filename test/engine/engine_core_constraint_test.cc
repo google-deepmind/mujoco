@@ -1725,6 +1725,68 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
       << "Rotational Jacobian should have non-zero entries";
 }
 
+// rows touching some but not all dofs of a simple body (friction loss on a free
+// joint, a limit and an equality on a second slide): simple dofs have diagonal
+// rows in M, so the sparse Y follows M's pattern rather than the dof tree, and
+// matches the dense Y
+TEST_F(CoreConstraintTest, SparseYSimpleBodyMatchesDense) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <option solver="PGS" jacobian="%s"/>
+    <worldbody>
+      <body>
+        <joint type="free" frictionloss=".01"/>
+        <geom size=".1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint axis="0 1 0"/>
+        <geom type="capsule" size=".05" fromto="0 0 0 .3 0 0"/>
+        <body pos=".3 0 0">
+          <joint name="hinge" axis="0 1 0"/>
+          <geom type="capsule" size=".05" fromto="0 0 0 .3 0 0"/>
+        </body>
+      </body>
+      <body pos="0 1 0">
+        <joint type="slide" axis="1 0 0"/>
+        <joint name="slide" type="slide" axis="0 1 0" range=".05 .1"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <joint joint1="slide" joint2="hinge"/>
+    </equality>
+  </mujoco>
+  )";
+  char error[1024];
+  char xml[2048];
+
+  // Y in dense layout, from the dense and sparse Jacobian paths
+  std::vector<mjtNum> Y[2];
+  for (int s = 0; s < 2; s++) {
+    std::snprintf(xml, sizeof(xml), xml_template, s ? "sparse" : "dense");
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    int nv = model->nv;
+    int nefc = data->nefc;
+
+    // one equality, six friction rows, one limit
+    ASSERT_EQ(data->ne, 1);
+    ASSERT_EQ(data->nf, 6);
+    ASSERT_EQ(data->nl, 1);
+
+    Y[s].resize(nefc * nv);
+    if (s) {
+      mju_sparse2dense(Y[s].data(), data->efc_Y, nefc, nv, data->efc_Y_rownnz,
+                       data->efc_Y_rowadr, data->efc_Y_colind);
+    } else {
+      mju_copy(Y[s].data(), data->efc_Y, nefc * nv);
+    }
+  }
+  EXPECT_THAT(Y[1], Pointwise(MjNear(1e-12, 1e-6), Y[0]));
+}
+
 // an arena overflow after the constraint rows are instantiated drops all rows:
 // the per-type row counts must clear with the arrays, which consumers such as
 // mj_Jdotv index by them

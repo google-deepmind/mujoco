@@ -2848,12 +2848,13 @@ static int computeY_precount(int* Y_rownnz, int* Y_rowadr, int nefc, int nv,
 }
 
 
-// fill Y column indices and values from J, chaining up the kinematic tree;
-// with Y == NULL, fill only the column indices (pattern-only)
+// fill Y column indices and values from J, chaining up the pattern of M counted by
+// computeY_precount; with Y == NULL, fill only the column indices (pattern-only)
 static void computeY_fill(mjtNum* Y, int* Y_colind,
                           const int* Y_rownnz, const int* Y_rowadr, int nefc,
                           const mjtNum* J, const int* J_rownnz, const int* J_rowadr,
-                          const int* J_colind, const int* dof_parentid) {
+                          const int* J_colind,
+                          const int* M_rownnz, const int* M_rowadr, const int* M_colind) {
   for (int r=0; r < nefc; r++) {
     // init row
     int end = Y_rowadr[r] + Y_rownnz[r];
@@ -2863,9 +2864,16 @@ static void computeY_fill(mjtNum* Y, int* Y_colind,
 
     // complete chain in reverse
     while (1) {
-      // get previous dof in src and dst
+      // get previous dof in src and dst: the parent of the last added dof is the entry before
+      // the diagonal in its row of M, none for simple dofs (diagonal rows)
       int prev_src = (remainJ > 0 ? J_colind[adrJ + remainJ - 1] : -1);
-      int prev_dst = (nnzY > 0 ? dof_parentid[Y_colind[end - nnzY]] : -1);
+      int prev_dst = -1;
+      if (nnzY > 0) {
+        int j = Y_colind[end - nnzY];
+        if (M_rownnz[j] > 1) {
+          prev_dst = M_colind[M_rowadr[j] + M_rownnz[j] - 2];
+        }
+      }
 
       // both finished: break
       if (prev_src < 0 && prev_dst < 0) {
@@ -3066,7 +3074,7 @@ static void mj_makeYSymbolic(const mjModel* m, mjData* d) {
     if (mj_isMetric(m)) {
       computeY_fill(NULL, d->efc_Y_colind, d->efc_Y_rownnz, d->efc_Y_rowadr, nefc,
                     NULL, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                    m->dof_parentid);
+                    m->M_rownnz, m->M_rowadr, m->M_colind);
     }
   }
 
@@ -3117,7 +3125,7 @@ static void mj_makeYNumeric(const mjModel* m, mjData* d, int flg_diagexact) {
     // fill in Y column indices, copy values from J (reconstructs every slot: re-entrant)
     computeY_fill(d->efc_Y, d->efc_Y_colind, d->efc_Y_rownnz, d->efc_Y_rowadr, nefc,
                   d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-                  m->dof_parentid);
+                  m->M_rownnz, m->M_rowadr, m->M_colind);
 
     // in-place sparse back-substitution:  Y <- Y * M^-1/2
     computeY_backsub(d->efc_Y, d->efc_Y_rownnz, d->efc_Y_rowadr,
