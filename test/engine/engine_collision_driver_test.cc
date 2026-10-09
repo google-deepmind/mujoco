@@ -714,5 +714,63 @@ TEST_F(MjCollisionTest, Flex3DActiveLayersMidphaseDisabled) {
   }
 }
 
+TEST_F(MjCollisionTest, ParallelCapsuleCapsule) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body euler="30 45 60">
+        <geom name="a" type="capsule" size="0.01 2.0" pos="0 0.005 0"/>
+      </body>
+      <body euler="30 0 0">
+        <body euler="0 45 60">
+          <geom name="b" type="capsule" size="0.01 1.5" pos="0 -0.005 0.3"/>
+          <geom name="c" type="capsule" size="0.01 1.5" pos="0 -0.095 0.3"/>
+          <geom name="d" type="capsule" size="0.01 1.5" pos="0 -0.095 0.3" euler="0 0.1 0"/>
+          <geom name="e" type="capsule" size="0.01 1.5" pos="0 -0.015 0.3" euler="0 0.01 0"/>
+        </body>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="a" geom2="b"/>
+    </contact>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  mj_forward(m.get(), d.get());
+
+  // Penetrating rotated parallel capsules (a, b) should generate 2 contacts.
+  ASSERT_EQ(d->ncon, 2);
+  EXPECT_THAT(d->contact[0].dist, MjNear(-0.01, 1e-12, 1e-5));
+  EXPECT_THAT(d->contact[1].dist, MjNear(-0.01, 1e-12, 1e-5));
+
+  // Separated rotated parallel capsules (a, c) have surface distance 0.08.
+  int a = mj_name2id(m.get(), mjOBJ_GEOM, "a");
+  int c = mj_name2id(m.get(), mjOBJ_GEOM, "c");
+  EXPECT_THAT(mj_geomDistance(m.get(), d.get(), a, c, 0.2, nullptr),
+              MjNear(0.08, 1e-12, 1e-5));
+
+  // Near-parallel (0.1 deg) capsules (a, d): surface distance 0.08, closest
+  // point on d is at its center cross-section (distance 0.01 from d's xpos).
+  int d_id = mj_name2id(m.get(), mjOBJ_GEOM, "d");
+  mjtNum fromto[6];
+  EXPECT_THAT(mj_geomDistance(m.get(), d.get(), a, d_id, 0.2, fromto),
+              MjNear(0.08, 1e-12, 1e-5));
+  EXPECT_THAT(mju_dist3(fromto + 3, d->geom_xpos + 3 * d_id),
+              MjNear(0.01, 1e-12, 1e-2));
+
+  // Near-parallel (0.01 deg) capsules (a, e): surface distance 0.0, closest
+  // point on e is at its center cross-section (distance 0.01 from e's xpos).
+  int e_id = mj_name2id(m.get(), mjOBJ_GEOM, "e");
+  EXPECT_THAT(mj_geomDistance(m.get(), d.get(), a, e_id, 0.2, fromto),
+              MjNear(0.0, 1e-12, 1e-5));
+  EXPECT_THAT(mju_dist3(fromto + 3, d->geom_xpos + 3 * e_id),
+              MjNear(0.01, 1e-12, 1e-1));
+}
+
 }  // namespace
 }  // namespace mujoco

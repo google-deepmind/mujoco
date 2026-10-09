@@ -18,6 +18,9 @@ Engine
   degrees of freedom. Other flexes keep all their contacts. Since version 3.6.0 the contacts of every flex were reduced,
   and in the midphase for all geoms of a body together, so a cloth dropped on a plane or on many static geoms in the
   world body was held by at most 50 contacts and fell through.
+- Fixed floating-point cancellation in capsule-capsule collision detection for parallel and near-parallel axes. Thanks
+  to :github:user:`ayonga` for reporting the issue in :doc:`MJWarp <mjwarp/index>` issue
+  `1758 <https://github.com/google-deepmind/mujoco_warp/issues/1758>`__.
 
 General
 ^^^^^^^

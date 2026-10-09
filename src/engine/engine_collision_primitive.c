@@ -430,33 +430,30 @@ int mjraw_CapsuleCapsule(mjPreContact* con, mjtNum margin,
   mjtNum axis2[3] = {mat2[2] * size2[1], mat2[5] * size2[1], mat2[8] * size2[1]};
   mjtNum dif[3] = {pos1[0] - pos2[0], pos1[1] - pos2[1], pos1[2] - pos2[2]};
 
-  // compute matrix coefficients and determinant
+  // compute matrix coefficients
   mjtNum ma =  mju_dot3(axis1, axis1);
   mjtNum mb = -mju_dot3(axis1, axis2);
   mjtNum mc =  mju_dot3(axis2, axis2);
   mjtNum u  = -mju_dot3(axis1, dif);
   mjtNum v  =  mju_dot3(axis2, dif);
-  mjtNum det = ma*mc - mb*mb;
+
+  // determinant via cross product to avoid cancellation for parallel axes
+  mjtNum cross[3];
+  mji_cross(cross, axis1, axis2);
+  mjtNum det = mju_dot3(cross, cross);
 
   // general configuration (non-parallel axes)
-  if (mju_abs(det) >= mjMINVAL) {
-    // find projections, clip to segments
-    mjtNum x1 = (mc*u - mb*v) / det;
-    mjtNum x2 = (ma*v - mb*u) / det;
-
-    if (x1 > 1) {
-      x1 = 1;
-      x2 = (v - mb) / mc;
-    } else if (x1 < -1) {
-      x1 = -1;
-      x2 = (v + mb) / mc;
-    }
-    if (x2 > 1) {
-      x2 = 1;
-      x1 = mju_clip((u - mb) / ma, -1, 1);
-    } else if (x2 < -1) {
-      x2 = -1;
-      x1 = mju_clip((u + mb) / ma, -1, 1);
+  const mjtNum sin2 = 1e-8;  // sin^2(0.006 deg)
+  if (det > sin2*ma*mc) {
+    // find projections, clip to segments (Ericson, Real-Time Collision Detection, 5.1.8)
+    // Binet-Cauchy identity: mc*u - mb*v = (axis1 x axis2)' * (axis2 x dif)
+    mjtNum cross_dif[3];
+    mji_cross(cross_dif, axis2, dif);
+    mjtNum x1 = mju_clip(mju_dot3(cross, cross_dif) / det, -1, 1);
+    mjtNum x2 = (v - mb*x1) / mc;
+    if (x2 > 1 || x2 < -1) {
+      x2 = mju_clip(x2, -1, 1);
+      x1 = mju_clip((u - mb*x2) / ma, -1, 1);
     }
 
     // find nearest points, do sphere-sphere test
