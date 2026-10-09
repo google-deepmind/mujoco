@@ -49,9 +49,9 @@ class ModelRenderables {
   mjrfRenderable* GetRenderable(mjtObj obj_type, int obj_index,
                                 int sub_index = -1);
 
-  // Returns the material for the given object as defined in the mjModel/mjData.
-  mjrfMaterial GetMaterial(mjtObj obj_type, int obj_index,
-                           const mjData* data = nullptr);
+  // Returns the object type and index corresponding to the given
+  // segmentation ID.
+  std::pair<mjtObj, int> GetObjectFromSegmentationId(int segmentation_id) const;
 
   // Marks the given object as "selected", unmarking any previously selected
   // object.
@@ -64,13 +64,6 @@ class ModelRenderables {
   //   mjVIS_TENDON, and mjVIS_ACTUATOR flags
   // - switches meshes to convex hull mode if mjVIS_CONVEXHULL is enabled
   void SetOptions(const mjvOption& opt);
-
-  // Returns the object type and index corresponding to the given
-  // segmentation ID.
-  std::pair<mjtObj, int> GetObjectFromSegmentationId(int segmentation_id) const;
-
-  // Returns the current visualization options.
-  const mjvOption& GetOptions() const { return vopts_; }
 
   ModelRenderables(const ModelRenderables&) = delete;
   ModelRenderables& operator=(const ModelRenderables&) = delete;
@@ -90,6 +83,9 @@ class ModelRenderables {
   int GetSegmentationId(mjtObj obj_type, int obj_index);
 
   void SetVisibility(mjtObj obj_type, int idx, bool visible);
+
+  mjrfMaterial GetMaterial(mjtObj obj_type, int obj_index,
+                           const mjData* data = nullptr);
 
   mjrfScene* scene_;
   ModelObjects* model_objects_;
