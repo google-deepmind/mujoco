@@ -207,22 +207,22 @@ mjtNum mj_assignMargin(const mjModel* m, mjtNum source) {
 }
 
 
-// compute element bodies and weights for given contact point, return #bodies
+// compute element vertices and weights for given contact point, return #vertices
 // if v is one of the element vertices, reduce element to fragment
-static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, int v,
-                             const mjtNum point[3], int* body, mjtNum* weight) {
+static int mj_elemVertWeight(const mjModel* m, const mjData* d, int f, int e, int v,
+                             const mjtNum point[3], int* vertid, mjtNum* weight) {
   // get flex info
   int dim = m->flex_dim[f];
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
   const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
   // compute inverse distances from contact point to element vertices
-  // save body ids, find vertex v in element
+  // save vertex ids, find vertex v in element
   int vid = -1;
   for (int i=0; i <= dim; i++) {
     mjtNum dist = mju_dist3(point, vert+3*edata[i]);
     weight[i] = 1.0/(mju_max(mjMINVAL, dist));
-    body[i] = m->flex_vertadr[f] + edata[i];
+    vertid[i] = m->flex_vertadr[f] + edata[i];
 
     // check if element vertex matches v
     if (edata[i] == v) {
@@ -234,7 +234,7 @@ static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, in
   if (vid >= 0) {
     while (vid < dim) {
       weight[vid] = weight[vid+1];
-      body[vid] = body[vid+1];
+      vertid[vid] = vertid[vid+1];
       vid++;
     }
     dim--;
@@ -257,13 +257,10 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
     return 0;
   }
 
-  // determine sign: vweight may be negative for side-0 of a contact pair
-  mjtNum sign = vweight[0] < 0 ? -1 : 1;
-
-  // compute parametric coordinates using absolute weights
+  // compute parametric coordinates
   mjtNum coord[3] = {0, 0, 0};
   for (int i = 0; i < nw; i++) {
-    mju_addToScl3(coord, m->flex_vert0 + 3*v[i], mju_abs(vweight[i]));
+    mju_addToScl3(coord, m->flex_vert0 + 3*v[i], vweight[i]);
   }
 
   int interp = m->flex_interp[f];
@@ -308,7 +305,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
         int i_idx = rest / ny;
 
         if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
-          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, w, &nb, body, bweight, m->flex_nodebodyid, nstart);
           continue;
         }
       }
@@ -318,13 +315,13 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
       int found = 0;
       for (int k = 0; k < nb; k++) {
         if (body[k] == b) {
-          if (bweight) bweight[k] += sign * w;
+          if (bweight) bweight[k] += w;
           found = 1;
           break;
         }
       }
       if (!found) {
-        if (bweight) bweight[nb] = sign * w;
+        if (bweight) bweight[nb] = w;
         body[nb++] = b;
       }
     }
@@ -348,7 +345,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
         int i_idx = rest / ny;
 
         if (i_idx > 0 && i_idx < nx-1 && j_idx > 0 && j_idx < ny-1 && k_idx > 0 && k_idx < nz-1) {
-          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, sign * w, &nb, body, bweight, m->flex_nodebodyid, nstart);
+          mju_shellTFIWeights(nx, ny, nz, i_idx, j_idx, k_idx, w, &nb, body, bweight, m->flex_nodebodyid, nstart);
           continue;
         }
       }
@@ -358,13 +355,13 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
       int found = 0;
       for (int k = 0; k < nb; k++) {
         if (body[k] == b) {
-          if (bweight) bweight[k] += sign * w;
+          if (bweight) bweight[k] += w;
           found = 1;
           break;
         }
       }
       if (!found) {
-        if (bweight) bweight[nb] = sign * w;
+        if (bweight) bweight[nb] = w;
         body[nb++] = b;
       }
     }
@@ -372,6 +369,49 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 
 
   return nb;
+}
+
+
+// compute bodies and weights of one side of a contact, return #bodies
+//   the weights interpolate the side at the contact point; weight can be NULL
+static int mj_contactBodyWeight(const mjModel* m, const mjData* d, const mjContact* con,
+                                int side, int* body, mjtNum* weight) {
+  // geom
+  if (con->geom[side] >= 0) {
+    body[0] = m->geom_bodyid[con->geom[side]];
+    if (weight) {
+      weight[0] = 1;
+    }
+    return 1;
+  }
+
+  // flex vertex or element
+  int f = con->flex[side];
+  int nw;
+  int vid[4];
+  mjtNum vweight[4];
+  if (con->vert[side] >= 0) {
+    vid[0] = m->flex_vertadr[f] + con->vert[side];
+    vweight[0] = 1;
+    nw = 1;
+  } else {
+    int v = (con->flex[1-side] == f ? con->vert[1-side] : -1);
+    nw = mj_elemVertWeight(m, d, f, con->elem[side], v, con->pos, vid, vweight);
+  }
+
+  // interpolated flex: node bodies
+  if (m->flex_interp[f]) {
+    return mj_vertBodyWeight(m, d, f, vid, body, weight, vweight, nw);
+  }
+
+  // vertex bodies
+  for (int k=0; k < nw; k++) {
+    body[k] = m->flex_vertbodyid[vid[k]];
+    if (weight) {
+      weight[k] = vweight[k];
+    }
+  }
+  return nw;
 }
 
 
@@ -1549,54 +1589,12 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
 
   // general case: flex elements involved
   else {
-    // get bodies and weights
-    int nb = 0;
+    // get bodies and weights, negative sign for first side of contact
     int bid[729];  // 729 = 27*27
     mjtNum bweight[729];
-    for (int side=0; side < 2; side++) {
-      // geom
-      if (con->geom[side] >= 0) {
-        bid[nb] = m->geom_bodyid[con->geom[side]];
-        bweight[nb] = side ? +1 : -1;
-        nb++;
-      }
-
-      // flex
-      else {
-        int nw = 0;
-        int vid[4];
-        mjtNum vweight[4];
-
-        // vert
-        if (con->vert[side] >= 0) {
-          vid[0] = m->flex_vertadr[con->flex[side]] + con->vert[side];
-          vweight[0] = side ? +1 : -1;
-          nw = 1;
-        }
-
-        // elem
-        else {
-          nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                con->vert[1-side], con->pos, vid, vweight);
-
-          // negative sign for first side of contact
-          if (side == 0) {
-            mju_scl(vweight, vweight, -1, nw);
-          }
-        }
-
-        // get body or node ids and weights
-        if (m->flex_interp[con->flex[side]] == 0) {
-          for (int k=0; k < nw; k++) {
-            bid[nb] = m->flex_vertbodyid[vid[k]];
-            bweight[nb] = vweight[k];
-            nb++;
-          }
-        } else {
-          nb += mj_vertBodyWeight(m, d, con->flex[side], vid, bid+nb, bweight+nb, vweight, nw);
-        }
-      }
-    }
+    int nb = mj_contactBodyWeight(m, d, con, 0, bid, bweight);
+    mju_scl(bweight, bweight, -1, nb);
+    nb += mj_contactBodyWeight(m, d, con, 1, bid+nb, bweight+nb);
 
     // no relative dofs: return 0
     if (noDofs(m, bid, nb)) {
@@ -1891,46 +1889,9 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
       tran = rot = 0;
       for (int side=0; side < 2; side++) {
         // get bodies and weights
-        int nb = 0, bid[729];
+        int bid[729];
         mjtNum bweight[729];
-
-        // geom
-        if (con->geom[side] >= 0) {
-          bid[0] = m->geom_bodyid[con->geom[side]];
-          bweight[0] = 1;
-          nb = 1;
-        }
-
-        // flex
-        else {
-          int nw = 0;
-          int vid[4];
-          mjtNum vweight[4];
-
-          // vert
-          if (con->vert[side] >= 0) {
-            vid[0] = m->flex_vertadr[con->flex[side]] + con->vert[side];
-            vweight[0] = 1;
-            nw = 1;
-          }
-
-          // elem
-          else {
-            nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                  con->vert[1-side], con->pos, vid, vweight);
-          }
-
-          // convert verted ids and weights to body ids and weights
-          if (m->flex_interp[con->flex[side]] == 0) {
-            for (int k=0; k < nw; k++) {
-              bid[k] = m->flex_vertbodyid[vid[k]];
-              bweight[k] = vweight[k];
-              nb++;
-            }
-          } else {
-            nb += mj_vertBodyWeight(m, d, con->flex[side], vid, bid, bweight, vweight, nw);
-          }
-        }
+        int nb = mj_contactBodyWeight(m, d, con, side, bid, bweight);
 
         // add weighted average over bodies
         for (int k=0; k < nb; k++) {
@@ -2722,51 +2683,9 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
       // general case: flex elements involved
       else {
         // get bodies
-        int nb = 0, bid[729];
-        for (int side=0; side < 2; side++) {
-          // geom
-          if (con->geom[side] >= 0) {
-            bid[nb++] = m->geom_bodyid[con->geom[side]];
-          }
-
-          // flex
-          else {
-            int nw = 0;
-            int vid[4];
-            mjtNum vweight[4];
-
-            // flex vert
-            if (con->vert[side] >= 0) {
-              vid[nw++] = m->flex_vertadr[con->flex[side]] + con->vert[side];
-              vweight[0] = 1;
-            }
-
-            // flex elem
-            else {
-              int f = con->flex[side];
-              int fdim = m->flex_dim[f];
-              const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(fdim+1);
-              for (int k=0; k <= fdim; k++) {
-                vid[nw++] = m->flex_vertadr[f] + edata[k];
-              }
-
-              if (m->flex_interp[f]) {
-                nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                       con->vert[1-side], con->pos, vid, vweight);
-              }
-            }
-
-            // get body or node ids and weights
-            if (m->flex_interp[con->flex[side]] == 0) {
-              for (int k=0; k < nw; k++) {
-                bid[nb] = m->flex_vertbodyid[vid[k]];
-                nb++;
-              }
-            } else {
-              nb += mj_vertBodyWeight(m, d, con->flex[side], vid, bid+nb, NULL, vweight, nw);
-            }
-          }
-        }
+        int bid[729];
+        int nb = mj_contactBodyWeight(m, d, con, 0, bid, NULL);
+        nb += mj_contactBodyWeight(m, d, con, 1, bid+nb, NULL);
 
         // count non-zeros in merged chain
         if (!noDofs(m, bid, nb)) {
