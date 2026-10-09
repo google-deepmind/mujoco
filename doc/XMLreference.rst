@@ -9149,6 +9149,12 @@ Extraction
       when both subtrees are the same, the normal direction is the same as it is in ``mjData.contact``, where the normal
       points from the first to the second geom, and the two geoms are sorted according to their order in :ref:`mjtGeom`.
 
+   Computation stage
+      The computation stage (``sensor_needstage``) of a contact sensor depends on the requested :at:`data` fields and
+      :ref:`reduce<sensor-contact-reduce>` criterion. If :at:`data` includes ``force`` or ``torque``, or if
+      :at:`reduce` is ``maxforce`` or ``netforce``, the sensor is evaluated at ``mjSTAGE_ACC``; otherwise it is
+      evaluated at ``mjSTAGE_POS``.
+
 .. _sensor-contact-reduce:
 
 :at:`reduce`: :at-val:`[none, mindist, maxforce, netforce], "none"`

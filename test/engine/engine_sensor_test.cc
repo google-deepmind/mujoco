@@ -985,6 +985,48 @@ TEST_F(SensorTest, ContactNetEmpty) {
               ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
 }
 
+TEST_F(SensorTest, ContactStage) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 1"/>
+      <body name="b" pos="0 0 0.08">
+        <freejoint/>
+        <geom name="sphere" type="sphere" size="0.1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <contact name="pos_found" data="found dist pos normal tangent" reduce="mindist"/>
+      <contact name="acc_force" data="found force"/>
+      <contact name="acc_torque" data="torque"/>
+      <contact name="acc_maxforce" data="found dist" reduce="maxforce"/>
+      <contact name="acc_netforce" data="found dist" reduce="netforce"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mju_zero(data->sensordata, model->nsensordata);
+
+  EXPECT_EQ(model->sensor_needstage[0], mjSTAGE_POS);
+  EXPECT_EQ(model->sensor_needstage[1], mjSTAGE_ACC);
+  EXPECT_EQ(model->sensor_needstage[2], mjSTAGE_ACC);
+  EXPECT_EQ(model->sensor_needstage[3], mjSTAGE_ACC);
+  EXPECT_EQ(model->sensor_needstage[4], mjSTAGE_ACC);
+
+  // mj_fwdPosition + mj_sensorPos should populate the POS-stage contact sensor
+  mj_fwdPosition(model.get(), data.get());
+  mj_sensorPos(model.get(), data.get());
+  EXPECT_THAT(
+      GetSensor(model.get(), data.get(), "pos_found"),
+      Pointwise(MjNear(1e-6, 1e-5),
+                vector<mjtNum>{1, -0.02, 0, 0, -0.01, 0, 0, 1, 0, 1, 0}));
+  // ACC-stage sensors have not been evaluated yet
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "acc_force"),
+              ElementsAre(0, 0, 0, 0));
+}
+
 TEST_F(SensorTest, CameraProjection) {
   constexpr char xml[] = R"(
   <mujoco>

@@ -370,7 +370,6 @@ class ModelWarp(PyTreeNode):
   npolygonmax: int
   nrangefinder: int
   nsensorcollision: int
-  nsensorcontact: int
   nsensortaxel: int
   ntactileweld: int
   ntree: int
@@ -394,9 +393,9 @@ class ModelWarp(PyTreeNode):
   qLD_updates: Tuple[np.ndarray, ...]
   rangefinder_sensor_adr: np.ndarray
   sensor_acc_adr: np.ndarray
-  sensor_adr_to_contact_adr: np.ndarray
   sensor_collision_start_adr: np.ndarray
-  sensor_contact_adr: np.ndarray
+  sensor_contact_acc_adr: np.ndarray
+  sensor_contact_pos_adr: np.ndarray
   sensor_delay: jax.Array
   sensor_e_kinetic: bool
   sensor_e_potential: bool
@@ -1263,7 +1262,6 @@ _NDIM = {
         'nrangefinder': 0,
         'nsensor': 0,
         'nsensorcollision': 0,
-        'nsensorcontact': 0,
         'nsensordata': 0,
         'nsensortaxel': 0,
         'nsite': 0,
@@ -1332,9 +1330,9 @@ _NDIM = {
         'rangefinder_sensor_adr': 1,
         'sensor_acc_adr': 1,
         'sensor_adr': 1,
-        'sensor_adr_to_contact_adr': 1,
         'sensor_collision_start_adr': 1,
-        'sensor_contact_adr': 1,
+        'sensor_contact_acc_adr': 1,
+        'sensor_contact_pos_adr': 1,
         'sensor_cutoff': 1,
         'sensor_datatype': 1,
         'sensor_delay': 2,
@@ -2056,7 +2054,6 @@ _BATCH_DIM = {
         'nrangefinder': False,
         'nsensor': False,
         'nsensorcollision': False,
-        'nsensorcontact': False,
         'nsensordata': False,
         'nsensortaxel': False,
         'nsite': False,
@@ -2125,9 +2122,9 @@ _BATCH_DIM = {
         'rangefinder_sensor_adr': False,
         'sensor_acc_adr': False,
         'sensor_adr': False,
-        'sensor_adr_to_contact_adr': False,
         'sensor_collision_start_adr': False,
-        'sensor_contact_adr': False,
+        'sensor_contact_acc_adr': False,
+        'sensor_contact_pos_adr': False,
         'sensor_cutoff': False,
         'sensor_datatype': False,
         'sensor_delay': True,

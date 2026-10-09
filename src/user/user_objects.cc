@@ -8422,6 +8422,13 @@ void mjCSensor::Compile(void) {
                        nullptr,
                        intprm[2]);
       }
+
+      // set needstage from requested data and reduction criterion
+      bool need_acc = (dataspec & (1 << mjCONDATA_FORCE)) ||
+                      (dataspec & (1 << mjCONDATA_TORQUE)) ||
+                      reduce == 2 ||
+                      reduce == 3;
+      needstage     = need_acc ? mjSTAGE_ACC : mjSTAGE_POS;
     } break;
 
     case mjSENS_E_POTENTIAL:

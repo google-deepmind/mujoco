@@ -17,6 +17,7 @@
 import jax
 from jax import numpy as jp
 import mujoco
+
 # pylint: disable=g-importing-member
 from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
@@ -30,6 +31,7 @@ from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
 from mujoco.mjx._src.types import TrnType
+
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -49,6 +51,176 @@ def _apply_cutoff(
       return sensor
 
   return fn(sensor, cutoff)
+
+
+def _sensor_contact(
+    m: Model,
+    d: Data,
+    idx: np.ndarray,
+    contact_force: jax.Array | None = None,
+) -> tuple[list[jax.Array], list[np.ndarray]]:
+  """Compute contact sensors matching idx mask."""
+  sensors, adrs = [], []
+  objid = m.sensor_objid[idx]
+  adr = m.sensor_adr[idx]
+
+  # maximum number of contacts
+  ncon = d._impl.ncon  # pyrefly: ignore[missing-attribute]
+
+  # active contacts
+  dist = d._impl.contact.dist  # pyrefly: ignore[missing-attribute]
+  pos = dist - d._impl.contact.includemargin  # pyrefly: ignore[missing-attribute]
+  is_contact = pos < 0
+
+  contact_intprm = m.sensor_intprm[idx]
+  contact_maxforce = (contact_intprm[:, 1] == 2).any()
+
+  # reduction criteria
+  if contact_maxforce:
+    # compute force magnitude for each contact
+    force_mag = jax.vmap(
+        lambda forcetorque: jp.dot(forcetorque[:3], forcetorque[:3])
+    )(
+        contact_force
+    )  # pyrefly: ignore[unbound-name]
+
+  def _reduce(reduction, mask):
+    if reduction == 1:  # mindist
+      return jp.argsort(pos * mask, descending=False)
+    if reduction == 2:  # maxforce
+      return jp.argsort(force_mag * mask, descending=True)  # pyrefly: ignore[unbound-name]
+    return jp.arange(mask.size)
+
+  # number of data elements per slot
+  def nslotdata(dataspec):
+    size = 0
+    # found, force, torque, dist, pos, normal, tangent
+    # TODO(taylorhowell): get sizes from mjCONDATA_SIZE
+    for i, size_i in enumerate([1, 3, 3, 1, 3, 3, 3]):
+      if dataspec & (1 << i):
+        size += size_i
+    return size
+
+  dataspecs, reduces, _ = m.sensor_intprm[idx].T
+  dims = m.sensor_dim[idx]
+  objtypes = m.sensor_objtype[idx]
+  refid = m.sensor_refid[idx]
+  reftypes = m.sensor_reftype[idx]
+
+  for dataspec, reduce, objtype, reftype, dim in set(
+      zip(dataspecs, reduces, objtypes, reftypes, dims)
+  ):
+    idx_ds = (
+        (dataspec == dataspecs)
+        & (reduce == reduces)
+        & (objtype == objtypes)
+        & (reftype == reftypes)
+        & (dim == dims)
+    )
+
+    # TODO(taylorhowell): site filter
+
+    size = nslotdata(dataspec)
+    num = np.minimum(int(dim / size), ncon)
+    nsensor = idx_ds.sum()
+
+    if objtype == ObjType.UNKNOWN and reftype == ObjType.UNKNOWN:
+      # all contacts match
+      match = np.ones(ncon, dtype=np.bool)
+
+      # matched and reduced contact ids
+      sort = _reduce(reduce, match)
+      cid = sort[:num]
+
+      # number of contacts per sensor
+      nfound = sum(is_contact)
+
+      # if duplicate sensor
+      cid = jp.tile(cid, (nsensor,))
+      nfound = jp.tile(nfound, (nsensor,))
+      flip = jp.ones((cid.size, 3))
+    elif objtype == ObjType.GEOM or reftype == ObjType.GEOM:
+      sensorid1 = objid[idx_ds]
+      sensorid2 = refid[idx_ds]
+      geomid0 = d._impl.contact.geom[:, 0]  # pyrefly: ignore[missing-attribute]
+      geomid1 = d._impl.contact.geom[:, 1]  # pyrefly: ignore[missing-attribute]
+
+      # match sensor ids and contact geom ids
+      geom0id1 = geomid0 == sensorid1[:, None]
+      geom0id2 = geomid0 == sensorid2[:, None]
+      geom1id1 = geomid1 == sensorid1[:, None]
+      geom1id2 = geomid1 == sensorid2[:, None]
+
+      if objtype == ObjType.GEOM and reftype == ObjType.UNKNOWN:  # geom1
+        mask12 = geom0id1
+        mask21 = geom1id1
+      elif objtype == ObjType.UNKNOWN and reftype == ObjType.GEOM:  # geom2
+        mask12 = geom0id2
+        mask21 = geom1id2
+      else:  # geom1, geom2
+        mask12 = geom0id1 & geom1id2
+        mask21 = geom0id2 & geom1id1
+
+      match = mask12 | mask21
+
+      # matched and reduced contact ids
+      cid = jax.vmap(lambda x: _reduce(reduce, x))(match)[:, :num]
+      cid = cid.reshape(-1)
+
+      # flip direction for force, torque, normal, tangent
+      if reftype == ObjType.UNKNOWN:  # geom1
+        is_flip = (geomid1[cid] == np.repeat(sensorid1, num))[:, None]
+      elif objtype == ObjType.UNKNOWN:  # geom2
+        is_flip = (geomid0[cid] == np.repeat(sensorid2, num))[:, None]
+      else:  # geom1, geom2
+        is_flip = np.repeat(sensorid1 > sensorid2, num)[:, None]
+
+      flip = jp.where(
+          is_flip,
+          jp.array([[1, 1, -1]]),
+          jp.array([[1, 1, 1]]),
+      )
+
+      # number of contacts per sensor
+      nfound = (match * is_contact[None, :]).sum(axis=1)
+
+    # TODO(taylorhowell): matching criteria: body, subtree
+
+    else:
+      raise NotImplementedError(
+          f'Unsupported contact sensor semantics: {objtype} {reftype}.'
+      )
+
+    slot = []
+
+    if dataspec & (1 << 0):  # found
+      slot.append(jp.repeat(nfound, num)[:, None])
+
+    if dataspec & (1 << 1):  # force
+      slot.append(flip * contact_force[cid, :3])  # pyrefly: ignore[index-error, unsupported-operation]
+
+    if dataspec & (1 << 2):  # torque
+      slot.append(flip * contact_force[cid, 3:])  # pyrefly: ignore[index-error, unsupported-operation]
+
+    if dataspec & (1 << 3):  # dist
+      slot.append(dist[cid, None])
+
+    if dataspec & (1 << 4):  # pos
+      slot.append(d._impl.contact.pos[cid])  # pyrefly: ignore[missing-attribute]
+
+    if dataspec & (1 << 5):  # normal
+      slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 0])  # pyrefly: ignore[missing-attribute]
+
+    if dataspec & (1 << 6):  # tangent
+      slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])  # pyrefly: ignore[missing-attribute]
+
+    found = jp.tile(jp.arange(num), nsensor) < jp.repeat(nfound, num)
+    sensors.append((found[:, None] * jp.hstack(slot)).reshape(-1))
+    adrs.append(
+        (adr[idx_ds][:, None] + np.arange(num * size)[None]).reshape(-1)
+    )
+
+  return sensors, adrs
 
 
 def sensor_pos(m: Model, d: Data) -> Data:
@@ -83,7 +255,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
   sensors, adrs = [], []
 
   for sensor_type in set(m.sensor_type[stage_pos]):
-    idx = m.sensor_type == sensor_type
+    idx = (m.sensor_type == sensor_type) & stage_pos
     objid = m.sensor_objid[idx]
     objtype = m.sensor_objtype[idx]
     refid = m.sensor_refid[idx]
@@ -268,6 +440,11 @@ def sensor_pos(m: Model, d: Data) -> Data:
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.CLOCK:
       sensor = jp.repeat(d.time, sum(idx))
+    elif sensor_type == SensorType.CONTACT:
+      s, a = _sensor_contact(m, d, idx)
+      sensors.extend(s)
+      adrs.extend(a)
+      continue
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
@@ -315,7 +492,7 @@ def sensor_vel(m: Model, d: Data) -> Data:
 
   sensors, adrs = [], []
   for sensor_type in sensor_types:
-    idx = m.sensor_type == sensor_type
+    idx = (m.sensor_type == sensor_type) & stage_vel
     objid = m.sensor_objid[idx]
     adr = m.sensor_adr[idx]
     cutoff = m.sensor_cutoff[idx]
@@ -456,12 +633,13 @@ def sensor_acc(m: Model, d: Data) -> Data:
   }:
     d = smooth.rne_postconstraint(m, d)
 
-  contact_intprm = m.sensor_intprm[m.sensor_type == SensorType.CONTACT]
+  contact_acc = (m.sensor_type == SensorType.CONTACT) & stage_acc
+  contact_intprm = m.sensor_intprm[contact_acc]
   contact_maxforce = (contact_intprm[:, 1] == 2).any()
   contact_dataforce = (contact_intprm[:, 0] & (1 << 1)).any()
   contact_datatorque = (contact_intprm[:, 0] & (1 << 2)).any()
   if (m.sensor_type[stage_acc] == int(SensorType.TOUCH)).any() | (
-      (m.sensor_type[stage_acc] == int(SensorType.CONTACT)).any()
+      contact_acc.any()
       and (contact_maxforce | contact_dataforce | contact_datatorque)
   ):
     # compute contact forces
@@ -478,7 +656,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
   sensors, adrs = [], []
 
   for sensor_type in sensor_types:
-    idx = m.sensor_type == sensor_type
+    idx = (m.sensor_type == sensor_type) & stage_acc
     objid = m.sensor_objid[idx]
     adr = m.sensor_adr[idx]
     cutoff = m.sensor_cutoff[idx]
@@ -503,7 +681,9 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # compute conray, flip if second body
       conray = jax.vmap(
           lambda frame, force: math.normalize(frame[0] * force[0])
-      )(d._impl.contact.frame, contact_force)  # pyrefly: ignore[missing-attribute, unbound-name]
+      )(
+          d._impl.contact.frame, contact_force  # pyrefly: ignore[missing-attribute, unbound-name]
+      )
       conray = jp.where(conbody1[..., None], -conray, conray)
 
       # compute distance, mapping over sites and contacts
@@ -534,159 +714,12 @@ def sensor_acc(m: Model, d: Data) -> Data:
       dist = jp.vstack(dist)[np.argsort(np.concatenate(dist_id))]
 
       # accumulate normal forces for each site
-      sensor = jp.dot((dist > 0) & contacts, contact_force[:, 0])
+      sensor = jp.dot((dist > 0) & contacts, contact_force[:, 0])  # pyrefly: ignore[index-error]
     elif sensor_type == SensorType.CONTACT:
-      # maximum number of contacts
-      ncon = d._impl.ncon  # pyrefly: ignore[missing-attribute]
-
-      # active contacts
-      dist = d._impl.contact.dist  # pyrefly: ignore[missing-attribute]
-      pos = dist - d._impl.contact.includemargin  # pyrefly: ignore[missing-attribute]
-      is_contact = pos < 0
-
-      # reduction criteria
-      if contact_maxforce:
-        # compute force magnitude for each contact
-        force_mag = jax.vmap(
-            lambda forcetorque: jp.dot(forcetorque[:3], forcetorque[:3])
-        )(contact_force)  # pyrefly: ignore[unbound-name]
-
-      def _reduce(reduction, mask):
-        if reduction == 1:  # mindist
-          return jp.argsort(pos * mask, descending=False)
-        if reduction == 2:  # maxforce
-          return jp.argsort(force_mag * mask, descending=True)
-        return jp.arange(mask.size)
-
-      # number of data elements per slot
-      def nslotdata(dataspec):
-        size = 0
-        # found, force, torque, dist, pos, normal, tangent
-        # TODO(taylorhowell): get sizes from mjCONDATA_SIZE
-        for i, size_i in enumerate([1, 3, 3, 1, 3, 3, 3]):
-          if dataspec & (1 << i):
-            size += size_i
-        return size
-
-      dataspecs, reduces, _ = m.sensor_intprm[idx].T
-      dims = m.sensor_dim[idx]
-      objtypes = m.sensor_objtype[idx]
-      refid = m.sensor_refid[idx]
-      reftypes = m.sensor_reftype[idx]
-
-      for dataspec, reduce, objtype, reftype, dim in set(
-          zip(dataspecs, reduces, objtypes, reftypes, dims)
-      ):
-        idx_ds = (
-            (dataspec == dataspecs)
-            & (reduce == reduces)
-            & (objtype == objtypes)
-            & (reftype == reftypes)
-            & (dim == dims)
-        )
-
-        # TODO(taylorhowell): site filter
-
-        size = nslotdata(dataspec)
-        num = np.minimum(int(dim / size), ncon)
-        nsensor = idx_ds.sum()
-
-        if objtype == ObjType.UNKNOWN and reftype == ObjType.UNKNOWN:
-          # all contacts match
-          match = np.ones(ncon, dtype=np.bool)
-
-          # matched and reduced contact ids
-          sort = _reduce(reduce, match)
-          cid = sort[:num]
-
-          # number of contacts per sensor
-          nfound = sum(is_contact)
-
-          # if duplicate sensor
-          cid = jp.tile(cid, (nsensor,))
-          nfound = jp.tile(nfound, (nsensor,))
-          flip = jp.ones((cid.size, 3))
-        elif objtype == ObjType.GEOM or reftype == ObjType.GEOM:
-          sensorid1 = objid[idx_ds]
-          sensorid2 = refid[idx_ds]
-          geomid0 = d._impl.contact.geom[:, 0]  # pyrefly: ignore[missing-attribute]
-          geomid1 = d._impl.contact.geom[:, 1]  # pyrefly: ignore[missing-attribute]
-
-          # match sensor ids and contact geom ids
-          geom0id1 = geomid0 == sensorid1[:, None]
-          geom0id2 = geomid0 == sensorid2[:, None]
-          geom1id1 = geomid1 == sensorid1[:, None]
-          geom1id2 = geomid1 == sensorid2[:, None]
-
-          if objtype == ObjType.GEOM and reftype == ObjType.UNKNOWN:  # geom1
-            mask12 = geom0id1
-            mask21 = geom1id1
-          elif objtype == ObjType.UNKNOWN and reftype == ObjType.GEOM:  # geom2
-            mask12 = geom0id2
-            mask21 = geom1id2
-          else:  # geom1, geom2
-            mask12 = geom0id1 & geom1id2
-            mask21 = geom0id2 & geom1id1
-
-          match = mask12 | mask21
-
-          # matched and reduced contact ids
-          cid = jax.vmap(lambda x: _reduce(reduce, x))(match)[:, :num]
-          cid = cid.reshape(-1)
-
-          # flip direction for force, torque, normal, tangent
-          if reftype == ObjType.UNKNOWN:  # geom1
-            is_flip = (geomid1[cid] == np.repeat(sensorid1, num))[:, None]
-          elif objtype == ObjType.UNKNOWN:  # geom2
-            is_flip = (geomid0[cid] == np.repeat(sensorid2, num))[:, None]
-          else:  # geom1, geom2
-            is_flip = np.repeat(sensorid1 > sensorid2, num)[:, None]
-
-          flip = jp.where(
-              is_flip,
-              jp.array([[1, 1, -1]]),
-              jp.array([[1, 1, 1]]),
-          )
-
-          # number of contacts per sensor
-          nfound = (match * is_contact[None, :]).sum(axis=1)
-
-        # TODO(taylorhowell): matching criteria: body, subtree
-
-        else:
-          raise NotImplementedError(
-              f'Unsupported contact sensor semantics: {objtype} {reftype}.'
-          )
-
-        slot = []
-
-        if dataspec & (1 << 0):  # found
-          slot.append(jp.repeat(nfound, num)[:, None])
-
-        if dataspec & (1 << 1):  # force
-          slot.append(flip * contact_force[cid, :3])  # pyrefly: ignore[unbound-name]
-
-        if dataspec & (1 << 2):  # torque
-          slot.append(flip * contact_force[cid, 3:])
-
-        if dataspec & (1 << 3):  # dist
-          slot.append(dist[cid, None])
-
-        if dataspec & (1 << 4):  # pos
-          slot.append(d._impl.contact.pos[cid])  # pyrefly: ignore[missing-attribute]
-
-        if dataspec & (1 << 5):  # normal
-          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 0])  # pyrefly: ignore[missing-attribute]
-
-        if dataspec & (1 << 6):  # tangent
-          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])  # pyrefly: ignore[missing-attribute]
-
-        found = jp.tile(jp.arange(num), nsensor) < jp.repeat(nfound, num)
-        sensors.append((found[:, None] * jp.hstack(slot)).reshape(-1))
-        adrs.append(
-            (adr[idx_ds][:, None] + np.arange(num * size)[None]).reshape(-1)
-        )
-      continue  # avoid adding to sensors/adrs list a second time
+      s, a = _sensor_contact(m, d, idx, contact_force)  # pyrefly: ignore[unbound-name]
+      sensors.extend(s)
+      adrs.extend(a)
+      continue
 
     elif sensor_type == SensorType.ACCELEROMETER:
 

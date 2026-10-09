@@ -369,7 +369,6 @@ def _forward_shim(
     npolygonmax: int,
     nrangefinder: int,
     nsensorcollision: int,
-    nsensorcontact: int,
     nsensortaxel: int,
     nsite: int,
     ntactileweld: int,
@@ -405,8 +404,8 @@ def _forward_shim(
     rangefinder_sensor_adr: wp.array[int],
     sensor_acc_adr: wp.array[int],
     sensor_adr: wp.array[int],
-    sensor_adr_to_contact_adr: wp.array[int],
-    sensor_contact_adr: wp.array[int],
+    sensor_contact_acc_adr: wp.array[int],
+    sensor_contact_pos_adr: wp.array[int],
     sensor_cutoff: wp.array[float],
     sensor_datatype: wp.array[int],
     sensor_delay: wp.array2d[float],
@@ -1019,7 +1018,6 @@ def _forward_shim(
   _m.npolygonmax = npolygonmax
   _m.nrangefinder = nrangefinder
   _m.nsensorcollision = nsensorcollision
-  _m.nsensorcontact = nsensorcontact
   _m.nsensortaxel = nsensortaxel
   _m.nsite = nsite
   _m.ntactileweld = ntactileweld
@@ -1082,8 +1080,8 @@ def _forward_shim(
   _m.rangefinder_sensor_adr = rangefinder_sensor_adr
   _m.sensor_acc_adr = sensor_acc_adr
   _m.sensor_adr = sensor_adr
-  _m.sensor_adr_to_contact_adr = sensor_adr_to_contact_adr
-  _m.sensor_contact_adr = sensor_contact_adr
+  _m.sensor_contact_acc_adr = sensor_contact_acc_adr
+  _m.sensor_contact_pos_adr = sensor_contact_pos_adr
   _m.sensor_cutoff = sensor_cutoff
   _m.sensor_datatype = sensor_datatype
   _m.sensor_delay = sensor_delay
@@ -2467,7 +2465,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.npolygonmax,
       m._impl.nrangefinder,
       m._impl.nsensorcollision,
-      m._impl.nsensorcontact,
       m._impl.nsensortaxel,
       m.nsite,
       m._impl.ntactileweld,
@@ -2503,8 +2500,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.rangefinder_sensor_adr,
       m._impl.sensor_acc_adr,
       m.sensor_adr,
-      m._impl.sensor_adr_to_contact_adr,
-      m._impl.sensor_contact_adr,
+      m._impl.sensor_contact_acc_adr,
+      m._impl.sensor_contact_pos_adr,
       m.sensor_cutoff,
       m.sensor_datatype,
       m._impl.sensor_delay,
@@ -3302,7 +3299,6 @@ def _step_shim(
     npolygonmax: int,
     nrangefinder: int,
     nsensorcollision: int,
-    nsensorcontact: int,
     nsensortaxel: int,
     nsite: int,
     ntactileweld: int,
@@ -3340,8 +3336,8 @@ def _step_shim(
     rangefinder_sensor_adr: wp.array[int],
     sensor_acc_adr: wp.array[int],
     sensor_adr: wp.array[int],
-    sensor_adr_to_contact_adr: wp.array[int],
-    sensor_contact_adr: wp.array[int],
+    sensor_contact_acc_adr: wp.array[int],
+    sensor_contact_pos_adr: wp.array[int],
     sensor_cutoff: wp.array[float],
     sensor_datatype: wp.array[int],
     sensor_delay: wp.array2d[float],
@@ -3962,7 +3958,6 @@ def _step_shim(
   _m.npolygonmax = npolygonmax
   _m.nrangefinder = nrangefinder
   _m.nsensorcollision = nsensorcollision
-  _m.nsensorcontact = nsensorcontact
   _m.nsensortaxel = nsensortaxel
   _m.nsite = nsite
   _m.ntactileweld = ntactileweld
@@ -4028,8 +4023,8 @@ def _step_shim(
   _m.rangefinder_sensor_adr = rangefinder_sensor_adr
   _m.sensor_acc_adr = sensor_acc_adr
   _m.sensor_adr = sensor_adr
-  _m.sensor_adr_to_contact_adr = sensor_adr_to_contact_adr
-  _m.sensor_contact_adr = sensor_contact_adr
+  _m.sensor_contact_acc_adr = sensor_contact_acc_adr
+  _m.sensor_contact_pos_adr = sensor_contact_pos_adr
   _m.sensor_cutoff = sensor_cutoff
   _m.sensor_datatype = sensor_datatype
   _m.sensor_delay = sensor_delay
@@ -5437,7 +5432,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.npolygonmax,
       m._impl.nrangefinder,
       m._impl.nsensorcollision,
-      m._impl.nsensorcontact,
       m._impl.nsensortaxel,
       m.nsite,
       m._impl.ntactileweld,
@@ -5475,8 +5469,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.rangefinder_sensor_adr,
       m._impl.sensor_acc_adr,
       m.sensor_adr,
-      m._impl.sensor_adr_to_contact_adr,
-      m._impl.sensor_contact_adr,
+      m._impl.sensor_contact_acc_adr,
+      m._impl.sensor_contact_pos_adr,
       m.sensor_cutoff,
       m.sensor_datatype,
       m._impl.sensor_delay,

@@ -462,6 +462,138 @@ static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3
 }
 
 
+// compute contact sensor value, write to data buffer
+static void compute_contact_sensor(const mjModel* m, mjData* d, int i, mjtNum* sensordata) {
+  // local reduce enum for readability
+  enum {
+    REDUCE_NONE     = 0,
+    REDUCE_MINDIST  = 1,
+    REDUCE_MAXFORCE = 2,
+    REDUCE_NETFORCE = 3,
+  };
+
+  // prepare sizes and indices
+  int objtype = m->sensor_objtype[i];
+  int objid = m->sensor_objid[i];
+  int dataspec = m->sensor_intprm[i*mjNSENS];
+  int size = mju_condataSize(dataspec);  // size of each slot
+  int dim = m->sensor_dim[i];            // total sensor array dimension
+  int num = dim / size;                  // number of slots
+  int reftype = m->sensor_reftype[i];
+  int refid = m->sensor_refid[i];
+  int reduce = m->sensor_intprm[i*mjNSENS+1];
+
+  // clear all outputs, prepare data pointers
+  mju_zero(sensordata, dim);
+  mjtNum* data[mjNCONDATA] = {NULL};
+  for (int j=0; j < mjNCONDATA; j++) {
+    if (dataspec & (1 << j)) {
+      data[j] = sensordata;
+      sensordata += mjCONDATA_SIZE[j];
+    }
+  }
+
+  // prepare for matching loop
+  int nmatch = 0;
+  mj_markStack(d);
+  ContactInfo *match = mjSTACKALLOC(d, d->ncon, ContactInfo);
+
+  // find matching contacts
+  for (int j=0; j < d->ncon; j++) {
+    // check match condition
+    int match_j = matchContact(m, d, j, objtype, objid, reftype, refid);
+    if (!match_j) {
+      continue;
+    }
+
+    // save id and flip flag
+    match[nmatch].id = j;
+    match[nmatch].flip = match_j < 0;
+
+    // save sorting criterion, if required
+    if (reduce == REDUCE_MINDIST) {
+      match[nmatch].criterion = d->contact[j].dist;
+    } else if (reduce == REDUCE_MAXFORCE) {
+      mjtNum forcetorque[6];
+      mj_contactForce(m, d, j, forcetorque);
+      match[nmatch].criterion = -mju_dot3(forcetorque, forcetorque);
+    }
+
+    // increment number of matching contacts
+    nmatch++;
+  }
+
+  // number of slots to be filled
+  int nslot = mjMIN(num, nmatch);
+
+  // partial sort to get bottom nslot contacts if sorted reduction
+  if (reduce == REDUCE_MINDIST || reduce == REDUCE_MAXFORCE) {
+    ContactInfo *heap = mjSTACKALLOC(d, nslot, ContactInfo);
+    ContactSelect(match, heap, nmatch, nslot, NULL);
+  }
+
+  // netforce reduction
+  else if (reduce == REDUCE_NETFORCE) {
+    if (!nmatch) {
+      mj_freeStack(d);
+      return;
+    }
+
+    mjtNum *wrench = mjSTACKALLOC(d, nmatch * 6, mjtNum);
+    mjtNum *pos = mjSTACKALLOC(d, nmatch * 3, mjtNum);
+    mjtNum *frame = mjSTACKALLOC(d, nmatch * 9, mjtNum);
+
+    // precompute wrenches, positions, and frames, maybe flip wrench
+    for (int j=0; j < nmatch; j++) {
+      int conid = match[j].id;
+      mj_contactForce(m, d, conid, wrench + 6*j);
+      mju_copy3(pos + 3*j, d->contact[conid].pos);
+      mju_copy9(frame + 9*j, d->contact[conid].frame);
+      if (match[j].flip) {
+        mju_scl(wrench + 6*j, wrench + 6*j, -1, 6);
+      }
+    }
+
+    // compute point: force-weighted centroid of contact positions
+    mjtNum point[3] = {0};
+    mjtNum total_force = 0;
+    for (int j=0; j < nmatch; j++) {
+      mjtNum weight = mju_norm3(wrench + 6*j);
+      mju_addToScl3(point, pos + 3*j, weight);
+      total_force += weight;
+    }
+    mju_scl3(point, point, 1.0 / mjMAX(total_force, mjMINVAL));
+
+    // compute total wrench about point, in the global frame
+    mjtNum force[3], torque[3];
+    total_wrench(force, torque, point, nmatch, wrench, pos, frame);
+
+    // write data to slot 0
+    if (data[mjCONDATA_FOUND])   *data[mjCONDATA_FOUND] = nmatch;
+    if (data[mjCONDATA_FORCE])   mju_copy3(data[mjCONDATA_FORCE], force);
+    if (data[mjCONDATA_TORQUE])  mju_copy3(data[mjCONDATA_TORQUE], torque);
+    if (data[mjCONDATA_DIST])    *data[mjCONDATA_DIST] = 0;
+    if (data[mjCONDATA_POS])     mju_copy3(data[mjCONDATA_POS], point);
+    if (data[mjCONDATA_NORMAL])  data[mjCONDATA_NORMAL][0] = 1;
+    if (data[mjCONDATA_TANGENT]) data[mjCONDATA_TANGENT][1] = 1;
+
+    // done with this sensor
+    mj_freeStack(d);
+    return;
+  }
+
+  // copy data into slots, increment pointers
+  for (int j=0; j < nslot; j++) {
+    copySensorData(m, d, data, match[j].id, match[j].flip, nmatch);
+    for (int k=0; k < mjNCONDATA; k++) {
+      if (data[k]) data[k] += size;
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+
 //-------------------------------- sensor ----------------------------------------------------------
 
 // fill one pixel's worth of rangefinder data, advance ptr
@@ -861,6 +993,10 @@ static void mj_computeSensorPos(const mjModel* m, mjData* d, int i, mjtNum* sens
     sensordata[0] = d->time;
     break;
 
+  case mjSENS_CONTACT:                                // contact
+    compute_contact_sensor(m, d, i, sensordata);
+    break;
+
   default:
     mjERROR("invalid sensor type in POS stage, sensor %d", i);
   }
@@ -1150,133 +1286,7 @@ static void mj_computeSensorAcc(const mjModel* m, mjData* d, int i, mjtNum* sens
     break;
 
   case mjSENS_CONTACT:                                // contact
-    {
-      // local reduce enum for readability
-      enum {
-        REDUCE_NONE     = 0,
-        REDUCE_MINDIST  = 1,
-        REDUCE_MAXFORCE = 2,
-        REDUCE_NETFORCE = 3,
-      };
-
-      // prepare sizes and indices
-      int dataspec = m->sensor_intprm[i*mjNSENS];
-      int size = mju_condataSize(dataspec);  // size of each slot
-      int dim = m->sensor_dim[i];            // total sensor array dimension
-      int num = dim / size;                  // number of slots
-      int reftype = m->sensor_reftype[i];
-      int refid = m->sensor_refid[i];
-      int reduce = m->sensor_intprm[i*mjNSENS+1];
-
-      // clear all outputs, prepare data pointers
-      mju_zero(sensordata, dim);
-      mjtNum* data[mjNCONDATA] = {NULL};
-      for (int j=0; j < mjNCONDATA; j++) {
-        if (dataspec & (1 << j)) {
-          data[j] = sensordata;
-          sensordata += mjCONDATA_SIZE[j];
-        }
-      }
-
-      // prepare for matching loop
-      int nmatch = 0;
-      mj_markStack(d);
-      ContactInfo *match = mjSTACKALLOC(d, d->ncon, ContactInfo);
-
-      // find matching contacts
-      for (int j=0; j < d->ncon; j++) {
-        // check match condition
-        int match_j = matchContact(m, d, j, objtype, objid, reftype, refid);
-        if (!match_j) {
-          continue;
-        }
-
-        // save id and flip flag
-        match[nmatch].id = j;
-        match[nmatch].flip = match_j < 0;
-
-        // save sorting criterion, if required
-        if (reduce == REDUCE_MINDIST) {
-          match[nmatch].criterion = d->contact[j].dist;
-        } else if (reduce == REDUCE_MAXFORCE) {
-          mjtNum forcetorque[6];
-          mj_contactForce(m, d, j, forcetorque);
-          match[nmatch].criterion = -mju_dot3(forcetorque, forcetorque);
-        }
-
-        // increment number of matching contacts
-        nmatch++;
-      }
-
-      // number of slots to be filled
-      int nslot = mjMIN(num, nmatch);
-
-      // partial sort to get bottom nslot contacts if sorted reduction
-      if (reduce == REDUCE_MINDIST || reduce == REDUCE_MAXFORCE) {
-        ContactInfo *heap = mjSTACKALLOC(d, nslot, ContactInfo);
-        ContactSelect(match, heap, nmatch, nslot, NULL);
-      }
-
-      // netforce reduction
-      else if (reduce == REDUCE_NETFORCE) {
-        if (!nmatch) {
-          mj_freeStack(d);
-          break;
-        }
-
-        mjtNum *wrench = mjSTACKALLOC(d, nmatch * 6, mjtNum);
-        mjtNum *pos = mjSTACKALLOC(d, nmatch * 3, mjtNum);
-        mjtNum *frame = mjSTACKALLOC(d, nmatch * 9, mjtNum);
-
-        // precompute wrenches, positions, and frames, maybe flip wrench
-        for (int j=0; j < nmatch; j++) {
-          int conid = match[j].id;
-          mj_contactForce(m, d, conid, wrench + 6*j);
-          mju_copy3(pos + 3*j, d->contact[conid].pos);
-          mju_copy9(frame + 9*j, d->contact[conid].frame);
-          if (match[j].flip) {
-            mju_scl(wrench + 6*j , wrench + 6*j, -1, 6);
-          }
-        }
-
-        // compute point: force-weighted centroid of contact positions
-        mjtNum point[3] = {0};
-        mjtNum total_force = 0;
-        for (int j=0; j < nmatch; j++) {
-          mjtNum weight = mju_norm3(wrench + 6*j);
-          mju_addToScl3(point, pos + 3*j, weight);
-          total_force += weight;
-        }
-        mju_scl3(point, point, 1.0 / mjMAX(total_force, mjMINVAL));
-
-        // compute total wrench about point, in the global frame
-        mjtNum force[3], torque[3];
-        total_wrench(force, torque, point, nmatch, wrench, pos, frame);
-
-        // write data to slot 0
-        if (data[mjCONDATA_FOUND])   *data[mjCONDATA_FOUND] = nmatch;
-        if (data[mjCONDATA_FORCE])   mju_copy3(data[mjCONDATA_FORCE], force);
-        if (data[mjCONDATA_TORQUE])  mju_copy3(data[mjCONDATA_TORQUE], torque);
-        if (data[mjCONDATA_DIST])    *data[mjCONDATA_DIST] = 0;
-        if (data[mjCONDATA_POS])     mju_copy3(data[mjCONDATA_POS], point);
-        if (data[mjCONDATA_NORMAL])  data[mjCONDATA_NORMAL][0] = 1;
-        if (data[mjCONDATA_TANGENT]) data[mjCONDATA_TANGENT][1] = 1;
-
-        // done with this sensor
-        mj_freeStack(d);
-        break;
-      }
-
-      // copy data into slots, increment pointers
-      for (int j=0; j < nslot; j++) {
-        copySensorData(m, d, data, match[j].id, match[j].flip, nmatch);
-        for (int k=0; k < mjNCONDATA; k++) {
-          if (data[k]) data[k] += size;
-        }
-      }
-
-      mj_freeStack(d);
-    }
+    compute_contact_sensor(m, d, i, sensordata);
     break;
 
   case mjSENS_ACCELEROMETER:                          // accelerometer
