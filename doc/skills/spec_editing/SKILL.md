@@ -47,11 +47,15 @@ In C++:
 #include <mujoco/mujoco.h>
 
 mjSpec* spec = mj_makeSpec();
-mjbBody* body = mj_addBody(spec, nullptr);
+mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
 body->pos[2] = 1.0;
-mj_addGeom(body, mjGEOM_SPHERE, 0.1, 0, 0);
+mjs_addFreeJoint(body);
+mjsGeom* geom = mjs_addGeom(body, nullptr);
+geom->type = mjGEOM_SPHERE;
+geom->size[0] = 0.1;
 
-mjModel* model = mj_compile(spec, nullptr, 0);
+mjModel* model = mj_compile(spec, nullptr);
+if (!model) printf("%s\n", mjs_getError(spec));
 mj_deleteSpec(spec);
 ```
 
@@ -103,10 +107,13 @@ cam = body.add_camera(name='tool_cam', pos=[0, -0.5, 0.25], xyaxes=[1, 0, 0, 0, 
 
 Only **one** orientation specification can be used at a time:
 -   `quat=[w, x, y, z]` (native representation)
--   `euler=[roll, pitch, yaw]` (degrees by default)
--   `axisangle=[x, y, z, angle_rad]`
+-   `euler=[a1, a2, a3]` (sequence set by `spec.compiler.eulerseq`, default `'xyz'`)
+-   `axisangle=[x, y, z, angle]`
 -   `xyaxes=[x_x, x_y, x_z, y_x, y_y, y_z]`
 -   `zaxis=[x, y, z]`
+
+Angles in `euler` and `axisangle` are in degrees unless
+`spec.compiler.degree = False`.
 
 ## 3. Sub-model Composition & Attachments
 
@@ -132,26 +139,36 @@ attach both children to the common parent first, then declare constraints on the
 parent spec:
 
 ```python
-parent.attach(arm1_spec, prefix='left_')
-parent.attach(arm2_spec, prefix='right_')
+left_mount = parent.worldbody.add_frame(pos=[0, 0.3, 0])
+right_mount = parent.worldbody.add_frame(pos=[0, -0.3, 0])
+parent.attach(arm1_spec, frame=left_mount, prefix='left_')
+parent.attach(arm2_spec, frame=right_mount, prefix='right_')
 
-parent.add_equality(
+eq = parent.add_equality(
     type=mujoco.mjtEq.mjEQ_CONNECT,
+    objtype=mujoco.mjtObj.mjOBJ_BODY,
     name1='left_hand',
     name2='right_hand',
-    anchor=[0, 0, 0],
 )
+eq.data[0:3] = [0, 0, 0]  # connect anchor, in name1's body frame
 ```
+
+> [!NOTE]
+>
+> `attach()` requires exactly one of `frame=` or `site=`; omitting both raises
+> `ValueError`.
 
 ## 4. Deleting & Dynamically Modifying Elements
 
 ### Deleting Elements
 
+Pass the element object to `spec.delete()`; deleting a body removes its subtree:
+
 ```python
-spec.delete_body('unwanted_body')
-spec.delete_geom('old_geom')
-spec.delete_joint('redundant_joint')
-spec.delete_actuator('motor')
+spec.delete(spec.body('unwanted_body'))
+spec.delete(spec.geom('old_geom'))
+spec.delete(spec.joint('redundant_joint'))
+spec.delete(spec.actuator('motor'))
 ```
 
 ### State-Preserving Recompilation
@@ -265,9 +282,10 @@ finger.add_geom(
 ### Procedural Meshes
 
 ```python
-vertices = np.array([[-0.5, -0.5, 0], [0.5, -0.5, 0], [0, 0.5, 0]], dtype=np.float32)
-faces = np.array([[0, 1, 2]], dtype=np.int32)
-mesh = spec.add_mesh(name='triangle', vertex=vertices, face=faces)
+vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32)
+faces = np.array([[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]], dtype=np.int32)
+mesh = spec.add_mesh(name='tetra', uservert=vertices.flatten(), userface=faces.flatten())
+body.add_geom(type=mujoco.mjtGeom.mjGEOM_MESH, meshname='tetra')
 ```
 
 ### Procedural Sensors

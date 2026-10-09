@@ -82,14 +82,19 @@ model, data = spec.recompile(model, data)  # Always reassign return values
 ```cpp
 #include <mujoco/mujoco.h>
 
-// 1. Create or load spec
+// 1. Create or load spec (or: mj_parseXML(filename, nullptr, error, sizeof(error)))
 mjSpec* spec = mj_makeSpec();
-mjbBody* body = mj_addBody(spec, nullptr);
-mj_addGeom(body, mjGEOM_SPHERE, 0.1, 0, 0);
+mjsBody* world = mjs_findBody(spec, "world");
+mjsBody* body = mjs_addBody(world, nullptr);
+mjsGeom* geom = mjs_addGeom(body, nullptr);
+geom->type = mjGEOM_SPHERE;
+geom->size[0] = 0.1;
 
 // 2. Compile to model and create data
-char error[1000] = {0};
-mjModel* model = mj_compile(spec, error, sizeof(error));
+mjModel* model = mj_compile(spec, nullptr);
+if (!model) {
+  printf("%s\n", mjs_getError(spec));
+}
 mjData* data = mj_makeData(model);
 
 // 3. Step or evaluate
@@ -245,13 +250,26 @@ if (key_id >= 0) {
 ### Integrators & Numerical Stability
 
 Configured via `model.opt.integrator`:
--   `mjINT_EULER` (default in earlier models): Standard semi-implicit Euler. Fast
-    but can suffer from instability with stiff springs or damping.
--   `mjINT_RK4`: 4th-order Runge-Kutta. Highly accurate for smooth, passive
-    systems without contacts; not suitable for contact-rich scenes.
--   `mjINT_IMPLICIT` / `mjINT_IMPLICITFAST`: Backward Euler with analytical or
-    finite-difference derivatives. Provides superior numerical stability for
-    stiff tendons, actuators, and complex contact manifolds.
+-   `mjINT_EULER` (default, kept for compatibility): Semi-implicit Euler; only
+    joint damping is integrated implicitly.
+-   `mjINT_IMPLICITFAST` (recommended): Implicit in velocity, i.e. one Newton
+    step linearized in velocity using analytical derivatives of velocity-dependent
+    forces (joint/tendon/actuator damping including `kv`, fluid drag, gyroscopic
+    forces of free bodies). Skips Coriolis/centripetal derivatives and
+    symmetrizes the derivative so it can use Cholesky; cost is similar to Euler.
+-   `mjINT_IMPLICIT`: Like `implicitfast` but also includes Coriolis/centripetal
+    derivatives (LU factorization). Helps rapidly spinning multi-link chains.
+-   `mjINT_RK4`: 4th-order Runge-Kutta. Most accurate for smooth,
+    energy-conserving systems; costs four force evaluations per step.
+-   `mjINT_DISCRETE` (experimental): The only integrator that is also implicit
+    in position, so stiff springs and position servos are treated implicitly,
+    including their interaction with contacts.
+
+> [!NOTE]
+>
+> `implicit`/`implicitfast` are not full backward Euler: they are not implicit
+> in position (stiffness) and do not differentiate constraint/contact forces.
+> Their stability benefit is for large velocity-dependent forces.
 
 ## 4. Contact & Force Sensing: Declarative Sensors
 
@@ -333,8 +351,8 @@ res = np.zeros(3)
 mujoco.mju_rotVecQuat(res, vec, quat)         # Rotate vector by quaternion
 
 quat = np.zeros(4)
-mujoco.mju_mat2Quat(quat, mat3x3)             # 3x3 rotation matrix → quaternion
-mujoco.mju_quat2Mat(mat, quat)                # Quaternion → 3x3 matrix
+mujoco.mju_mat2Quat(quat, mat9)               # Flat (9,) rotation matrix → quaternion
+mujoco.mju_quat2Mat(mat9, quat)               # Quaternion → flat (9,) matrix
 mujoco.mju_axisAngle2Quat(quat, axis, angle)  # Axis-angle → quaternion
 mujoco.mju_euler2Quat(quat, euler, 'xyz')     # Euler angles → quaternion
 mujoco.mju_mulQuat(res_q, q1, q2)             # Compose quaternions (q1 * q2)
@@ -372,7 +390,8 @@ total_energy = potential_energy + kinetic_energy
 
 In passive, unforced, undamped systems, `total_energy` must remain constant.
 Growing energy indicates numerical integration instability (requiring smaller
-timesteps or implicit integrators).
+timesteps, or `implicitfast` if large damping or other velocity-dependent forces
+are the cause).
 
 ## 7. Compute Backend Selection
 

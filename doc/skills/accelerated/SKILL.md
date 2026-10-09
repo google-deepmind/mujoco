@@ -3,8 +3,8 @@ name: mujoco-accelerated
 description: >-
   GPU and TPU batch simulation, MJX (JAX), MJWarp (CUDA), parallel rollouts
   (jax.vmap), trajectory scan (jax.lax.scan), differentiability, device memory
-  (put_model, put_data), njmax contact pre-allocation, float32 precision, XLA
-  compilation caching.
+  (put_model, put_data), static contact sizing (max_contact_points,
+  max_geom_pairs, nconmax, njmax), float32 precision, XLA compilation caching.
   Use for RL environment batches, GPU rollouts, differentiable physics.
   Do NOT use for CPU simulation, noslip/PGS solvers (mujoco-python), rendering (mujoco-rendering), or GUI (mujoco-gui).
 ---
@@ -22,7 +22,7 @@ description: >-
 
 > [!IMPORTANT]
 >
-> MJX and MJWarp are **Python-only** GPU acceleration backends. Standard CPU
+> MJX and MJWarp are **Python-only** accelerated backends. Standard CPU
 > simulation runs in full `float64` via `import mujoco`.
 
 ## 1. Backend Comparison: C++ vs MJX vs MJWarp
@@ -30,12 +30,12 @@ description: >-
 | Feature | C++ Engine (Default) | MJX (JAX) | MJWarp (CUDA) |
 | :--- | :--- | :--- | :--- |
 | **Import** | `import mujoco` | `from mujoco import mjx` | `import mujoco_warp as mjw` |
-| **Hardware** | CPU | GPU / TPU | NVIDIA GPU |
+| **Hardware** | CPU | CPU / GPU / TPU | NVIDIA GPU |
 | **Precision** | float64 | float32 | float32 |
 | **Differentiable** | ❌ No | ✅ Yes (JAX gradients) | ❌ No |
 | **Batch Stepping** | ❌ Serial / multi-threaded | ✅ `jax.vmap` | ✅ Native CUDA batches |
 | **Solvers** | Newton, CG, PGS, **noslip** | Newton, CG | Newton, CG |
-| **Constraint Islands**| ✅ Yes | ❌ No | ❌ No |
+| **Constraint Islands**| ✅ Yes | ❌ No | ✅ Yes |
 | **Plugins** | All engine plugins | ❌ No | SDF plugins only |
 
 ## 2. MJX Workflow (JAX)
@@ -52,9 +52,8 @@ model = mujoco.MjModel.from_xml_path('scene.xml')
 data = mujoco.MjData(model)
 
 # 2. Transfer to device (GPU/TPU)
-# ALWAYS specify njmax when contacts are present
 mjx_model = mjx.put_model(model)
-mjx_data = mjx.put_data(model, data, njmax=500)
+mjx_data = mjx.put_data(model, data)
 
 # 3. Step on device (functional paradigm returns new data)
 mjx_data = mjx.step(mjx_model, mjx_data)
@@ -95,21 +94,46 @@ def rollout(model: mjx.Model, init_data: mjx.Data, ctrl_sequence: jax.Array):
   return final_data, trajectory
 ```
 
-## 4. Contact Pre-allocation (The `njmax` Gotcha)
+## 4. Static Contact and Constraint Sizing
 
-> [!CAUTION]
->
-> `mjx.put_data()` pre-allocates GPU memory for contacts based on `data.ncon`.
-> On a newly initialized `MjData`, **`data.ncon` is 0**. If `njmax` is omitted,
-> the device contact buffer size is 0 and **contacts will be silently ignored**.
+JAX requires static array shapes, so contact and constraint buffers are sized
+when the device data is created, not per step.
 
-Always provide `njmax`:
-```python
-# ✅ RIGHT — allocates capacity for up to 500 contacts
-mjx_data = mjx.put_data(model, data, njmax=500)
+### MJX (default JAX implementation)
+
+The contact buffer is sized **from the model**, not from `data.ncon`: every geom
+pair that can collide (after `contype`/`conaffinity`, `exclude` and `pair`
+filtering) gets a fixed number of contact slots, which is why large scenes
+produce large `efc_*` arrays and slow compilation. `put_data` raises a
+`ValueError` if the CPU `MjData` already holds more contacts than this capacity.
+The `njmax` argument of `mjx.put_data` is ignored here.
+
+To shrink the buffer, cap it with custom numerics in the MJCF:
+
+```xml
+<custom>
+  <!-- keep only the N closest geom pairs (bounding spheres) per geom-type pair -->
+  <numeric name="max_geom_pairs" data="16"/>
+  <!-- keep only the N deepest contacts per condim group -->
+  <numeric name="max_contact_points" data="32"/>
+</custom>
 ```
 
-A standard rule of thumb is 2× to 5× the expected peak number of contacts.
+Also reduce the number of candidate pairs with `contype`/`conaffinity` and
+`<exclude>`, and prefer primitive geoms over meshes.
+
+### MJWarp (and `mjx.put_data(..., impl='warp')`)
+
+Buffers are sized by explicit arguments; omitted values fall back to defaults
+derived from the model:
+
+-   `nconmax`: contacts per world (MJWarp `put_data`/`make_data`).
+-   `naconmax`: contacts across all worlds.
+-   `njmax`: constraint rows (`efc`) **per world**, a hard cap per world.
+
+`put_data` raises if the input `MjData` exceeds a capacity. During stepping,
+excess contacts/constraints are dropped, a warning is printed, and the per-world
+`d.overflow` bitmask (`mjw.OverflowType`) is set, so size for the peak.
 
 ## 5. MJX Named Access & `bind()`
 
@@ -121,7 +145,7 @@ model = spec.compile()
 data = mujoco.MjData(model)
 
 mx = mjx.put_model(model)
-dx = mjx.put_data(model, data, njmax=500)
+dx = mjx.put_data(model, data)
 
 # Read body positions from JAX device arrays
 torso_pos = dx.bind(mx, spec.body('torso')).xpos
@@ -140,17 +164,21 @@ import mujoco
 import mujoco_warp as mjw
 
 model = mujoco.MjModel.from_xml_path('scene.xml')
-batch_size = 4096
+data = mujoco.MjData(model)
 
-# Transfer batch to CUDA
+# Transfer to CUDA: one model, nworld copies of the data
 mjw_model = mjw.put_model(model)
-mjw_data = mjw.put_data(model, batch_size)
+mjw_data = mjw.put_data(model, data, nworld=4096, nconmax=64, njmax=256)
+# or allocate fresh: mjw.make_data(model, nworld=4096, nconmax=64, njmax=256)
 
-# Advance all 4096 environments in parallel
+# Advance all 4096 environments in parallel (in place)
 mjw.step(mjw_model, mjw_data)
 
-# Extract states directly into GPU tensors or NumPy arrays
-qpos_tensor = mjw_data.qpos
+# Fields are Warp arrays with a leading world dimension
+qpos = mjw_data.qpos.numpy()  # (4096, nq)
+
+# Copy one world back to CPU MjData
+mjw.get_data_into(data, model, mjw_data, world_id=0)
 ```
 
 ## 7. Supported Geometries & Feature Gaps
@@ -172,7 +200,8 @@ qpos_tensor = mjw_data.qpos
 -   **noslip solver**: Available only in C++ engine. If exact frictional stick
     conditions without sliding drift are required, use CPU.
 -   **PGS solver**: Not available on GPU backends.
--   **Constraint Islands**: Handled monolithically on GPU.
+-   **Constraint Islands**: Not used by MJX (solved monolithically); supported
+    by MJWarp.
 
 ## 8. Common Gotchas & Numerical Stability
 
