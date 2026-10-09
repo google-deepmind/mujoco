@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -1793,6 +1794,26 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsSliderCrankActuator) {
   ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:crankLength", 1.23);
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, NewtonDampingUnits) {
+  for (const char* angle : {"degree", "radian"}) {
+    for (const char* type : {"hinge", "slide"}) {
+      SCOPED_TRACE(angle);
+      SCOPED_TRACE(type);
+      const std::string xml =
+          std::string("<mujoco model='test'><compiler angle='") + angle +
+          "'/><worldbody><body name='body'><joint name='joint' type='" + type +
+          "' damping='0.7'/><geom type='sphere' size='1'/></body>"
+          "</worldbody></mujoco>";
+      auto stage = OpenStage(xml);
+      const float expected =
+          std::string(type) == "hinge" ? 0.7 * std::numbers::pi / 180.0 : 0.7;
+      ExpectAttributeEqual(stage, "/test/body/joint.newton:damping", expected);
+      EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(stage,
+                                             "/test/body/joint.mjc:damping");
+    }
+  }
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
   static constexpr char xml[] = R"(
   <mujoco model="test">
@@ -1862,7 +1883,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.newton:armature",
                        2.1f);
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.newton:damping",
-                       2.2f);
+                       static_cast<float>(2.2 * std::numbers::pi / 180.0));
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.newton:friction",
                        2.3f);
 }
