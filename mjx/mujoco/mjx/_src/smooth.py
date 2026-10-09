@@ -139,6 +139,10 @@ def kinematics(m: Model, d: Data) -> Data:
 
 def com_pos(m: Model, d: Data) -> Data:
   """Maps inertias and motion dofs to global frame centered at subtree-CoM."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pyrefly: ignore[missing-module-attribute]
+
+    return mjxw_smooth.com_pos(m, d)
 
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('com_pos requires JAX backend implementation.')

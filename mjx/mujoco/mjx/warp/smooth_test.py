@@ -131,6 +131,36 @@ class SmoothTest(parameterized.TestCase):
     tu.assert_attr_eq(d, dx, 'cdof')
     tu.assert_eq(d.cinert, dx._impl.cinert, 'cinert')
 
+  def test_com_pos_public_api(self):
+    """Tests that mjx.com_pos dispatches to the Warp implementation."""
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    m = tu.load_test_file('pendula.xml')
+
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m, impl='warp')
+
+    rng = jax.random.PRNGKey(0)
+    dx = mjx.make_data(m, impl='warp')
+    _, key = jax.random.split(rng)
+    qpos = jax.random.uniform(key, (m.nq,))
+    dx = dx.replace(qpos=qpos)
+
+    dx = jax.jit(mjx.kinematics)(mx, dx)
+    dx = jax.jit(mjx.com_pos)(mx, dx)
+
+    d.qpos[:] = qpos
+    mujoco.mj_kinematics(m, d)
+    mujoco.mj_comPos(m, d)
+
+    tu.assert_attr_eq(d, dx, 'subtree_com')
+    tu.assert_attr_eq(d, dx, 'cdof')
+    tu.assert_eq(d.cinert, dx._impl.cinert, 'cinert')
+
   def test_kinematics_vmap(self):
     """Tests kinematics with batched data."""
     if not _FORCE_TEST:
