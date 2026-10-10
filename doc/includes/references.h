@@ -3487,6 +3487,12 @@ typedef struct mjvFigure_ {       // abstract 2D figure passed to OpenGL rendere
   float   xaxisdata[2];           // range of x-axis in data units
   float   yaxisdata[2];           // range of y-axis in data units
 } mjvFigure;
+typedef struct mjBatch_ mjBatch;
+typedef struct mjBatchRecord_ {  // mjData field or state recorded by mjb_rollout
+  const char* field;             // mjData array field, NULL: record a state
+  int spec;                      // mjtState bits of the recorded state
+  void* buf;                     // output (n x nstep x size), of the field's type
+} mjBatchRecord;
 
 //----------------------------- STRING CONSTANTS -------------------------------
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -4339,4 +4345,26 @@ mjsSkin* mjs_asSkin(mjsElement* element);
 mjsTexture* mjs_asTexture(mjsElement* element);
 mjsMaterial* mjs_asMaterial(mjsElement* element);
 mjsPlugin* mjs_asPlugin(mjsElement* element);
+mjBatch* mjb_makeBatch(const mjModel* m, int nsim, int nthread, int persistent,
+                       char* error, int error_sz);
+void mjb_deleteBatch(mjBatch* b);
+int mjb_nsim(const mjBatch* b);
+int mjb_nthread(const mjBatch* b);
+int mjb_persistent(const mjBatch* b);
+const mjModel* mjb_model(const mjBatch* b);
+int mjb_nstate(const mjBatch* b);
+mjtNum* mjb_state(mjBatch* b);
+mjWarningStat* mjb_warning(mjBatch* b);
+void* mjb_output(mjBatch* b, const char* name, int* size, int* elemsize);
+void* mjb_expand(mjBatch* b, const char* name, int* size, int* elemsize);
+int mjb_step(mjBatch* b, const int* ids, int nid, int nstep);
+int mjb_forward(mjBatch* b, const int* ids, int nid);
+int mjb_reset(mjBatch* b, const int* ids, int nid, int key);
+int mjb_setConst(mjBatch* b, const int* ids, int nid);
+int mjb_rollout(mjBatch* b, const int* ids, int nid, int nstep, const mjtNum* control,
+                int control_spec, const mjBatchRecord* record, int nrecord);
+int mjb_apply(mjBatch* b, const int* ids, int nid, mjfBatchFunc func, void* arg,
+              int save);
+const int* mjb_status(const mjBatch* b);
+const char* mjb_error(const mjBatch* b, int sim);
 // NOLINTEND

@@ -7,6 +7,11 @@ Upcoming Version (not yet released)
 
 General
 ^^^^^^^
+- Added an experimental :ref:`batch API<Batchedsimulation>` in ``mujoco/experimental/batch.h``: many simulations of one
+  model stepped on a thread pool of its own, each held as its integration state and loaded into an ``mjData`` for each
+  call, so memory scales with threads and results are bit-identical to a plain loop at any thread count. It supports
+  per-simulation model and option fields, recorded trajectories, persistent simulations (required for sleep), and
+  arbitrary per-simulation functions.
 - Added support for building MuJoCo with `Bazel <https://bazel.build/>`__ (initially covers core library, ``simulate``,
   plugins, and samples).
 
@@ -238,6 +243,13 @@ Filament Rendering
 
 Python bindings
 ^^^^^^^^^^^^^^^
+- :ref:`rollout<PyRollout>` raises a ``ValueError`` when given an ``MjData`` with an engine thread pool installed by
+  :ref:`mju_threadpool`: rollout parallelizes across simulations, the engine's pool within one, and the two do not
+  combine.
+- Added an experimental :ref:`mujoco.batch<PyBatch>` module over the batch API: ``Batch(model, nsim)`` with live
+  ``(nsim, ...)`` arrays from ``bind()`` and named views such as ``joint(name)``, per-simulation model fields from
+  ``expand()``, ``step``, ``forward``, ``reset``, ``set_const`` and ``rollout`` with the GIL released, and ``jac`` and
+  ``ray`` queries.
 - Added ``MjSpec.copy_back(model)``, which writes to the spec what was changed in a model compiled from it; see
   :ref:`mj_copyBack`.
 
