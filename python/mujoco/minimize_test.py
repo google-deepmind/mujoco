@@ -56,6 +56,49 @@ class MinimizeTest(absltest.TestCase):
     np.testing.assert_array_equal(x, np.array([1.0]))
     self.assertIn('norm(dx) < tol', out.getvalue())
 
+  def test_nonfinite_trial_recovers(self) -> None:
+    for analytic_jacobian in (False, True):
+      with self.subTest(analytic_jacobian=analytic_jacobian):
+        evaluated = []
+
+        def residual(x):
+          evaluated.append(x.copy())
+          with np.errstate(invalid='ignore'):
+            return np.log(x)
+
+        def jacobian(x, r):
+          del r
+          return 1 / x
+
+        x, trace = minimize.least_squares(
+            np.array([10.0]),
+            residual,
+            jacobian=jacobian if analytic_jacobian else None,
+            output=io.StringIO(),
+        )
+
+        self.assertTrue(any(np.any(point < 0) for point in evaluated))
+        np.testing.assert_allclose(x, [1.0], atol=1e-7)
+        self.assertTrue(all(np.isfinite(log.objective) for log in trace))
+        self.assertTrue(all(np.all(log.candidate > 0) for log in trace))
+
+  def test_nonfinite_trials_keep_last_candidate(self) -> None:
+    for invalid_value in (np.nan, np.inf, -np.inf):
+      with self.subTest(invalid_value=invalid_value):
+
+        def residual(x):
+          return np.where(x >= 0, x + 1, invalid_value)
+
+        out = io.StringIO()
+        x, trace = minimize.least_squares(
+            np.array([0.0]), residual, mu_max=1e-3, output=out
+        )
+
+        np.testing.assert_array_equal(x, [0.0])
+        self.assertLen(trace, 1)
+        self.assertEqual(trace[0].objective, 0.5)
+        self.assertIn('insufficient reduction', out.getvalue())
+
   def test_jac_callback(self) -> None:
     def residual(x):
       return np.stack([1 - x[0, :], 10 * (x[1, :] - x[0, :] ** 2)])
