@@ -69,7 +69,7 @@ namespace Mujoco {
 
       Configuration = mjcf.GetFloatAttribute("ref", 0.0f);
 
-      Settings.FromMjcf(mjcf);
+      Settings.FromMjcf(mjcf, springReferenceIsAngular: false);
     }
 
     protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
