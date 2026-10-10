@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_DEP_VERSION_sdl2
-    98d1f3a45aae568ccd6ed5fec179330f47d4d356
+    e64034952b2a8f8356895b56aa06645382395a18
     CACHE STRING "Version of `SDL2` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_sdl2)
