@@ -492,6 +492,7 @@ def handle_camera_tracking_mouse_events(
         aspect_ratio,
         vis_options,
     )
+    camera.lookat[:] = picked.point
     if picked.body > 0 and io.KeyCtrl:
       # Switch camera to tracking mode and track the selected body.
       camera.type = int(mujoco.mjtCamera.mjCAMERA_TRACKING)
