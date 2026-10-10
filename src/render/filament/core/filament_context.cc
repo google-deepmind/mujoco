@@ -83,6 +83,7 @@ FilamentContext::FilamentContext(const mjrfContextConfig* config)
 }
 
 FilamentContext::~FilamentContext() {
+  engine_->flushAndWait();
   material_manager_.reset();
   object_manager_.reset();
   engine_->destroy(renderer_);
