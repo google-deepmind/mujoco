@@ -810,5 +810,60 @@ TEST_F(SolverTest, NewtonHessianSurvivesLostPivot) {
   }
 }
 
+// Cone-zone boundaries make the line-search objective piecewise smooth. If a
+// Newton line search spends its fixed budget bisecting across those boundaries,
+// it can return a non-stationary acceleration which warmstart then accepts.
+TEST_F(SolverTest, NewtonLineSearchCrossesEllipticConeBoundaries) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.0025" cone="elliptic" impratio="10"
+            integrator="implicitfast" solver="Newton" iterations="100" tolerance="1e-8"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <body pos="0 0 .3">
+        <freejoint/>
+        <geom type="box" size=".2 .1 .05" mass="5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  constexpr mjtNum qpos[] = {-0.38228398123211904, -1.5617372196006747,
+                             0.14420735808017446,  -0.3039178177313174,
+                             0.6782960782869877,   -0.6545711847046525,
+                             -0.1381483058176044};
+  constexpr mjtNum qvel[] = {-2.5320433011146646, 0.4435273997725518,
+                             -3.833483970428372,  20.58784610158961,
+                             -4.891237201965733,  -1.521169201653485};
+  constexpr mjtNum warmstart[] = {196.2178511861834,  185.09984762860262,
+                                  456.16231234940415, -2622.9781161564592,
+                                  1990.857671015227,  -729.4643685817738};
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  auto solve = [&](int ls_iterations, const mjtNum* initial) {
+    model->opt.ls_iterations = ls_iterations;
+    MjDataPtr data = MakeData(model);
+    mju_copy(data->qpos, qpos, model->nq);
+    mju_copy(data->qvel, qvel, model->nv);
+    mju_copy(data->qacc_warmstart, initial, model->nv);
+    mj_forward(model.get(), data.get());
+    return data;
+  };
+
+  MjDataPtr reference = solve(200, warmstart);
+  MjDataPtr limited = solve(20, warmstart);
+  MjDataPtr restarted = solve(20, limited->qacc);
+
+  EXPECT_GT(limited->solver_niter[0], 2);
+  for (int i = 0; i < model->nv; i++) {
+    EXPECT_NEAR(limited->qacc[i], reference->qacc[i], MjTol(1e-10, 5e-3))
+        << "dof " << i;
+    EXPECT_NEAR(restarted->qacc[i], reference->qacc[i], MjTol(1e-10, 5e-3))
+        << "dof " << i;
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
