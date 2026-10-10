@@ -25,7 +25,7 @@ build:
         UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH \
         uv pip install \
           -r doc/requirements.txt \
-          pip setuptools absl-py
+          pip setuptools
       # generate and install doc-only mujoco stubs (no C build required)
       - python doc/make_mujoco_stubs.py python/mujoco_doc
       - |
