@@ -557,6 +557,20 @@ TEST(TimingDiagnosticsTest, EmitsOnReset) {
   EXPECT_FALSE(tmsg->body.empty());
   EXPECT_NE(tmsg->body.find("total"), std::string::npos);
 
+  // mj_resetDataKeyframe also emits diagnostics
+  d->timer[mjTIMER_STEP].number = 50;
+  d->timer[mjTIMER_STEP].duration = 0.005;
+  mj_resetDataKeyframe(m, d, -1);
+  int ntiming = 0;
+  for (const auto& msg : cap.msgs()) {
+    if (msg.level == mjLOG_INFO && msg.topic == mjTOPIC_TIME_STP) {
+      ntiming++;
+      tmsg = &msg;
+    }
+  }
+  EXPECT_EQ(ntiming, 2);
+  EXPECT_NE(tmsg->subject.find("50 steps"), std::string::npos);
+
   mj_deleteData(d);
   mj_deleteModel(m);
   mj_freeLastXML();

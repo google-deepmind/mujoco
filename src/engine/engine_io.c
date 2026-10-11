@@ -1689,6 +1689,9 @@ void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value) {
 
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
+  // emit step timing diagnostics before timers are cleared
+  mj_logTimingDiagnostics(d);
+
   _resetData(m, d, 0);
 
   // copy keyframe data if key is valid

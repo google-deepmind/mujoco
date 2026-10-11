@@ -15,6 +15,7 @@
 #include "experimental/studio/sim/sim_profiler.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -29,8 +30,13 @@ namespace mujoco::studio {
 
 SimProfiler::SimProfiler() { Clear(); }
 
+void SimProfiler::ResetTimers() {
+  timer_prev_ = {};
+}
+
 void SimProfiler::Clear() {
   constexpr int kProfilerMaxFrames = 200;
+  ResetTimers();
   cpu_total_.clear();
   cpu_collision_.clear();
   cpu_prepare_.clear();
@@ -57,12 +63,20 @@ void SimProfiler::Clear() {
 }
 
 void SimProfiler::Update(const mjModel* model, const mjData* data) {
-  // CPU timers.
-  mjtNum total = data->timer[mjTIMER_STEP].duration;
-  mjtNum number = static_cast<mjtNum>(data->timer[mjTIMER_STEP].number);
+  // CPU timers, relative to the previous update.
+  const mjTimerStat* timer = data->timer;
+  if (timer[mjTIMER_STEP].number < timer_prev_[mjTIMER_STEP].number ||
+      timer[mjTIMER_FORWARD].number < timer_prev_[mjTIMER_FORWARD].number) {
+    timer_prev_ = {};
+  }
+  const std::array<mjTimerStat, mjNTIMER> prev = timer_prev_;
+  std::copy_n(timer, mjNTIMER, timer_prev_.begin());
+
+  mjtNum total = timer[mjTIMER_STEP].duration - prev[mjTIMER_STEP].duration;
+  mjtNum number = timer[mjTIMER_STEP].number - prev[mjTIMER_STEP].number;
   if (number == 0.0) {
-    total = data->timer[mjTIMER_FORWARD].duration;
-    number = static_cast<mjtNum>(data->timer[mjTIMER_FORWARD].number);
+    total = timer[mjTIMER_FORWARD].duration - prev[mjTIMER_FORWARD].duration;
+    number = timer[mjTIMER_FORWARD].number - prev[mjTIMER_FORWARD].number;
   }
   if (number == 0.0) {
     // This can happen if the simulation is paused.
@@ -73,16 +87,20 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   cpu_total_.erase(cpu_total_.begin());
   cpu_total_.push_back(avg_total);
 
-  mjtNum collision = 1000.0 * data->timer[mjTIMER_POS_COLLISION].duration / number;
+  auto get_duration = [&](int type) {
+    return timer[type].duration - prev[type].duration;
+  };
+
+  mjtNum collision = 1000.0 * get_duration(mjTIMER_POS_COLLISION) / number;
   cpu_collision_.erase(cpu_collision_.begin());
   cpu_collision_.push_back(collision);
 
-  mjtNum prepare = 1000.0 * ((data->timer[mjTIMER_POS_MAKE].duration / number) +
-                             (data->timer[mjTIMER_POS_PROJECT].duration / number));
+  mjtNum prepare = 1000.0 * ((get_duration(mjTIMER_POS_MAKE) / number) +
+                             (get_duration(mjTIMER_POS_PROJECT) / number));
   cpu_prepare_.erase(cpu_prepare_.begin());
   cpu_prepare_.push_back(prepare);
 
-  mjtNum solve = 1000.0 * data->timer[mjTIMER_CONSTRAINT].duration / number;
+  mjtNum solve = 1000.0 * get_duration(mjTIMER_CONSTRAINT) / number;
   cpu_solve_.erase(cpu_solve_.begin());
   cpu_solve_.push_back(solve);
 

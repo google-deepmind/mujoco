@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_SIM_SIM_PROFILER_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_SIM_SIM_PROFILER_H_
 
+#include <array>
 #include <vector>
 
 #include <imgui.h>
@@ -30,6 +31,9 @@ class SimProfiler {
   // Clears all captured profiling data.
   void Clear();
 
+  // Resets the timer reference used to compute per-update deltas.
+  void ResetTimers();
+
   // Updates the profiling data with the latest simulation data.
   void Update(const mjModel* model, const mjData* data);
 
@@ -38,6 +42,7 @@ class SimProfiler {
   void DimensionsGraph(ImVec2 plot_size = ImVec2(-1, 0));
 
  private:
+  std::array<mjTimerStat, mjNTIMER> timer_prev_ = {};
   std::vector<float> cpu_total_;
   std::vector<float> cpu_collision_;
   std::vector<float> cpu_prepare_;

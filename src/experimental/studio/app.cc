@@ -386,6 +386,8 @@ void App::ResetPhysics() {
                has_data() ? data() : nullptr);
   step_error_ = "";
   edit_error_ = "";
+  timer_prev_ = {};
+  profiler_.ResetTimers();
 }
 
 void App::UpdatePhysics() {
@@ -415,13 +417,6 @@ void App::UpdatePhysics() {
       mjv_applyPerturbForce(model(), data(), &perturb_);
     } else {
       mjv_applyPerturbPose(model(), data(), &perturb_, 1);
-    }
-
-    if (has_data()) {
-      for (int i = 0; i < mjNTIMER; i++) {
-        data()->timer[i].duration = 0;
-        data()->timer[i].number = 0;
-      }
     }
 
     StepControl::Status status =
@@ -519,13 +514,6 @@ bool App::Update() {
 
   ProcessPendingLoads();
 
-  if (has_data()) {
-    for (int i = 0; i < mjNTIMER; i++) {
-      data()->timer[i].duration = 0;
-      data()->timer[i].number = 0;
-    }
-  }
-
   PauseState current_pause = step_control_.GetPauseState();
   if (current_pause != last_pause_state_) {
     load_error_ = "";
@@ -592,6 +580,8 @@ void App::BuildModel(const BuildModelInfo& info) {
     renderer_->Init(model());
     ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
                   has_data() ? data() : nullptr);
+    timer_prev_ = {};
+    profiler_.ResetTimers();
   } else if (std::holds_alternative<EmptyModel>(info)) {
     model_holder_.reset();
     mj_deleteVFS(&vfs_);
@@ -664,6 +654,9 @@ void App::OnModelLoaded(std::string_view filename, ModelKind model_kind) {
   load_error_ = "";
   step_error_ = "";
   edit_error_ = "";
+
+  timer_prev_ = {};
+  profiler_.Clear();
 
   if (!model_holder_->warning().empty()) {
     load_error_ = model_holder_->warning();
@@ -1376,9 +1369,12 @@ void App::BuildGui() {
                                workspace_rect, 180.0f * scale)) {
       InfoGui(model(), data(),
               step_control_.GetPauseState() == PauseState::kNormalPaused, fps_,
-              renderer_->GetGpuFrameMs());
+              renderer_->GetGpuFrameMs(), timer_prev_.data());
     }
     EndOverlay();
+  }
+  if (has_data()) {
+    std::copy_n(data()->timer, mjNTIMER, timer_prev_.begin());
   }
 
   // pause overlay

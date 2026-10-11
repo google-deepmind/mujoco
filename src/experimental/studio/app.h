@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -334,6 +335,7 @@ class App {
   std::vector<std::string> search_paths_;
   std::vector<std::byte> pixels_;
 
+  std::array<mjTimerStat, mjNTIMER> timer_prev_ = {};
   UiState ui_;
   UiTempState tmp_;
 };

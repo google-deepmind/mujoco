@@ -2239,7 +2239,7 @@ void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
 }
 
 void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps,
-             float gpu_ms) {
+             float gpu_ms, const mjTimerStat* timer_prev) {
   const int num_islands = std::clamp(data->nisland, 1, mjNISLAND);
 
   // compute solver error (maximum over islands)
@@ -2262,7 +2262,13 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps,
   solver_err = mju_log10(mju_max(mjMINVAL, solver_err));
 
   auto type = paused ? mjTIMER_FORWARD : mjTIMER_STEP;
-  auto cpu = data->timer[type].duration / mjMAX(1, data->timer[type].number);
+  mjtNum duration = data->timer[type].duration;
+  int number = data->timer[type].number;
+  if (timer_prev) {
+    duration -= timer_prev[type].duration;
+    number -= timer_prev[type].number;
+  }
+  auto cpu = duration / mjMAX(1, number);
   auto mempct = 100 * data->maxuse_arena / (double)(data->narena);
   auto memlimit = mju_writeNumBytes(data->narena);
 

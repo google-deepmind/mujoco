@@ -262,7 +262,7 @@ void ProfilerGui(const mjModel* model, mjData* data, SimProfiler* profiler,
 // FPS and GPU frame time need to be tracked by the caller and passed here to be
 // displayed.
 void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps,
-             float gpu_ms);
+             float gpu_ms, const mjTimerStat* timer_prev = nullptr);
 
 }  // namespace mujoco::studio
 
