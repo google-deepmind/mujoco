@@ -498,6 +498,7 @@ mjsElement* mjs_attach(mjsElement*       parent,
     mju_error("child element is null");
     return nullptr;
   }
+  try {
   mjCModel*     model      = static_cast<mjCModel*>(mjs_getSpec(parent)->element);
   const mjSpec* child_spec = nullptr;
   if (child->elemtype == mjOBJ_MODEL) {
@@ -635,6 +636,9 @@ mjsElement* mjs_attach(mjsElement*       parent,
   // mark all warnings accumulated so far as attach-phase
   if (result) { model->SetAttachWarningBoundary(); }
   return result;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
@@ -749,70 +753,102 @@ int mjs_delete(mjSpec* s, mjsElement* element) {
 
 // add child body to body, return child spec
 mjsBody* mjs_addBody(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element)->AddBody(def);
-  return &body->spec;
+  try {
+    mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCBody* body = static_cast<mjCBody*>(bodyspec->element)->AddBody(def);
+    return &body->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add site to body, return site spec
 mjsSite* mjs_addSite(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
-  mjCSite* site = body->AddSite(def);
-  return &site->spec;
+  try {
+    mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+    mjCSite* site = body->AddSite(def);
+    return &site->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add joint to body
 mjsJoint* mjs_addJoint(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef*   def   = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
-  mjCJoint* joint = body->AddJoint(def);
-  return &joint->spec;
+  try {
+    mjCDef*   def   = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
+    mjCJoint* joint = body->AddJoint(def);
+    return &joint->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add free joint to body
 mjsJoint* mjs_addFreeJoint(mjsBody* bodyspec) {
-  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
-  mjCJoint* joint = body->AddFreeJoint();
-  return &joint->spec;
+  try {
+    mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
+    mjCJoint* joint = body->AddFreeJoint();
+    return &joint->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add geom to body
 mjsGeom* mjs_addGeom(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
-  mjCGeom* geom = body->AddGeom(def);
-  return &geom->spec;
+  try {
+    mjCDef*  def  = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCBody* body = static_cast<mjCBody*>(bodyspec->element);
+    mjCGeom* geom = body->AddGeom(def);
+    return &geom->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add camera to body
 mjsCamera* mjs_addCamera(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef*    def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody*   body   = static_cast<mjCBody*>(bodyspec->element);
-  mjCCamera* camera = body->AddCamera(def);
-  return &camera->spec;
+  try {
+    mjCDef*    def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCBody*   body   = static_cast<mjCBody*>(bodyspec->element);
+    mjCCamera* camera = body->AddCamera(def);
+    return &camera->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add light to body
 mjsLight* mjs_addLight(mjsBody* bodyspec, const mjsDefault* defspec) {
-  mjCDef*   def   = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
-  mjCLight* light = body->AddLight(def);
-  return &light->spec;
+  try {
+    mjCDef*   def   = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCBody*  body  = static_cast<mjCBody*>(bodyspec->element);
+    mjCLight* light = body->AddLight(def);
+    return &light->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add flex to model
 mjsFlex* mjs_addFlex(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCFlex*  flex   = modelC->AddFlex();
-  return &flex->spec;
+  try {
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCFlex*  flex   = modelC->AddFlex();
+    return &flex->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
@@ -873,6 +909,7 @@ mjsFlex* mjs_makeFlex(mjsBody*     body,
     return nullptr;
   }
 
+  try {
   mjCModel* model = static_cast<mjCBody*>(body->element)->model;
 
   // create temporary flexcomp with defaults
@@ -946,59 +983,86 @@ mjsFlex* mjs_makeFlex(mjsBody*     body,
   // return the flex that was created (last flex in model)
   mjCFlex* flex = model->Flexes().back();
   return &flex->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add frame to body
 mjsFrame* mjs_addFrame(mjsBody* bodyspec, mjsFrame* parentframe) {
-  mjCFrame* parentframeC = 0;
-  if (parentframe) { parentframeC = static_cast<mjCFrame*>(parentframe->element); }
-  mjCBody*  body   = static_cast<mjCBody*>(bodyspec->element);
-  mjCFrame* frameC = body->AddFrame(parentframeC);
-  frameC->SetParent(body);
-  return &frameC->spec;
+  try {
+    mjCFrame* parentframeC = 0;
+    if (parentframe) { parentframeC = static_cast<mjCFrame*>(parentframe->element); }
+    mjCBody*  body   = static_cast<mjCBody*>(bodyspec->element);
+    mjCFrame* frameC = body->AddFrame(parentframeC);
+    frameC->SetParent(body);
+    return &frameC->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add mesh to model
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* defspec) {
-  mjCDef*   def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCMesh*  mesh   = modelC->AddMesh(def);
-  return &mesh->spec;
+  try {
+    mjCDef*   def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCMesh*  mesh   = modelC->AddMesh(def);
+    return &mesh->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add height field to model
 mjsHField* mjs_addHField(mjSpec* s) {
-  mjCModel*  modelC      = static_cast<mjCModel*>(s->element);
-  mjCHField* heightField = modelC->AddHField();
-  return &heightField->spec;
+  try {
+    mjCModel*  modelC      = static_cast<mjCModel*>(s->element);
+    mjCHField* heightField = modelC->AddHField();
+    return &heightField->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add skin to model
 mjsSkin* mjs_addSkin(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCSkin*  skin   = modelC->AddSkin();
-  return &skin->spec;
+  try {
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCSkin*  skin   = modelC->AddSkin();
+    return &skin->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add texture to model
 mjsTexture* mjs_addTexture(mjSpec* s) {
-  mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
-  mjCTexture* texture = modelC->AddTexture();
-  return &texture->spec;
+  try {
+    mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
+    mjCTexture* texture = modelC->AddTexture();
+    return &texture->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add material to model
 mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
-  mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCMaterial* material = modelC->AddMaterial(def);
-  return &material->spec;
+  try {
+    mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+    mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCMaterial* material = modelC->AddMaterial(def);
+    return &material->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 // Sets the vertices and normals of a mesh.
@@ -1290,138 +1354,202 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
 
 // add pair to model
 mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCDef*   def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCPair*  pair   = modelC->AddPair(def);
-  return &pair->spec;
+  try {
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCDef*   def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCPair*  pair   = modelC->AddPair(def);
+    return &pair->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add pair exclusion to model
 mjsExclude* mjs_addExclude(mjSpec* s) {
-  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
-  mjCBodyPair* bodypair = modelC->AddExclude();
-  return &bodypair->spec;
+  try {
+    mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+    mjCBodyPair* bodypair = modelC->AddExclude();
+    return &bodypair->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add equality to model
 mjsEquality* mjs_addEquality(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
-  mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCEquality* equality = modelC->AddEquality(def);
-  return &equality->spec;
+  try {
+    mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+    mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCEquality* equality = modelC->AddEquality(def);
+    return &equality->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add tendon to model
 mjsTendon* mjs_addTendon(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel*  modelC = static_cast<mjCModel*>(s->element);
-  mjCDef*    def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCTendon* tendon = modelC->AddTendon(def);
-  return &tendon->spec;
+  try {
+    mjCModel*  modelC = static_cast<mjCModel*>(s->element);
+    mjCDef*    def    = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCTendon* tendon = modelC->AddTendon(def);
+    return &tendon->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // wrap site using tendon
 mjsWrap* mjs_wrapSite(mjsTendon* tendonspec, const char* name) {
-  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
-  tendon->WrapSite(name);
-  return &tendon->path.back()->spec;
+  try {
+    mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+    tendon->WrapSite(name);
+    return &tendon->path.back()->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // wrap geom using tendon
 mjsWrap* mjs_wrapGeom(mjsTendon* tendonspec, const char* name, const char* sidesite) {
-  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
-  tendon->WrapGeom(name, sidesite);
-  return &tendon->path.back()->spec;
+  try {
+    mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+    tendon->WrapGeom(name, sidesite);
+    return &tendon->path.back()->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // wrap joint using tendon
 mjsWrap* mjs_wrapJoint(mjsTendon* tendonspec, const char* name, double coef) {
-  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
-  tendon->WrapJoint(name, coef);
-  return &tendon->path.back()->spec;
+  try {
+    mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+    tendon->WrapJoint(name, coef);
+    return &tendon->path.back()->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // wrap pulley using tendon
 mjsWrap* mjs_wrapPulley(mjsTendon* tendonspec, double divisor) {
-  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
-  tendon->WrapPulley(divisor);
-  return &tendon->path.back()->spec;
+  try {
+    mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+    tendon->WrapPulley(divisor);
+    return &tendon->path.back()->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add actuator to model
 mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* defspec) {
-  mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
-  mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
-  mjCActuator* actuator = modelC->AddActuator(def);
-  return &actuator->spec;
+  try {
+    mjCModel*    modelC   = static_cast<mjCModel*>(s->element);
+    mjCDef*      def      = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+    mjCActuator* actuator = modelC->AddActuator(def);
+    return &actuator->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add sensor to model
 mjsSensor* mjs_addSensor(mjSpec* s) {
-  mjCModel*  modelC = static_cast<mjCModel*>(s->element);
-  mjCSensor* sensor = modelC->AddSensor();
-  return &sensor->spec;
+  try {
+    mjCModel*  modelC = static_cast<mjCModel*>(s->element);
+    mjCSensor* sensor = modelC->AddSensor();
+    return &sensor->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add numeric to model
 mjsNumeric* mjs_addNumeric(mjSpec* s) {
-  mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
-  mjCNumeric* numeric = modelC->AddNumeric();
-  return &numeric->spec;
+  try {
+    mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
+    mjCNumeric* numeric = modelC->AddNumeric();
+    return &numeric->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add text to model
 mjsText* mjs_addText(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCText*  text   = modelC->AddText();
-  return &text->spec;
+  try {
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCText*  text   = modelC->AddText();
+    return &text->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add tuple to model
 mjsTuple* mjs_addTuple(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCTuple* tuple  = modelC->AddTuple();
-  return &tuple->spec;
+  try {
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCTuple* tuple  = modelC->AddTuple();
+    return &tuple->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add keyframe to model
 mjsKey* mjs_addKey(mjSpec* s) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  mjCKey*   key    = modelC->AddKey();
-  return &key->spec;
+  try {
+    mjCModel* modelC = static_cast<mjCModel*>(s->element);
+    mjCKey*   key    = modelC->AddKey();
+    return &key->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add plugin to model
 mjsPlugin* mjs_addPlugin(mjSpec* s) {
-  mjCModel*  modelC    = static_cast<mjCModel*>(s->element);
-  mjCPlugin* plugin    = modelC->AddPlugin();
-  plugin->spec.element = static_cast<mjsElement*>(plugin);
-  return &plugin->spec;
+  try {
+    mjCModel*  modelC    = static_cast<mjCModel*>(s->element);
+    mjCPlugin* plugin    = modelC->AddPlugin();
+    plugin->spec.element = static_cast<mjsElement*>(plugin);
+    return &plugin->spec;
+  } catch (const std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 
 // add default to model
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent) {
-  mjCModel* modelC  = static_cast<mjCModel*>(s->element);
-  mjCDef*   parentC = parent ? static_cast<mjCDef*>(parent->element)
-                             : static_cast<mjCModel*>(s->element)->Default();
-  mjCDef*   def     = modelC->AddDefault(classname, parentC);
-  if (def) {
-    return &def->spec;
-  } else {
+  try {
+    mjCModel* modelC  = static_cast<mjCModel*>(s->element);
+    mjCDef*   parentC = parent ? static_cast<mjCDef*>(parent->element)
+                               : static_cast<mjCModel*>(s->element)->Default();
+    mjCDef*   def     = modelC->AddDefault(classname, parentC);
+    if (def) {
+      return &def->spec;
+    } else {
+      return nullptr;
+    }
+  } catch (const std::bad_alloc&) {
     return nullptr;
   }
 }
