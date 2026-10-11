@@ -1,133 +1,43 @@
 .. _Visualization:
+.. _Abstract:
 
 Visualization
 -------------
 
-.. admonition:: Filament Rendering
-   :class: note
+MuJoCo has a native 3D visualization layer that is independent of any graphics library. It provides interactive camera
+control, object picking via raycasting, mouse-driven force and pose perturbations, visualization options, and automatic
+generation of decorative and diagnostic geometry such as contact points and forces, equivalent inertia boxes, convex
+hulls, kinematic trees, constraint violations, spatial frames, and text labels. These elements provide insight into the
+physics simulation and help fine-tune models across both interactive viewers (`MuJoCo Studio
+<https://github.com/google-deepmind/mujoco/blob/main/src/experimental/studio>`__, :ref:`simulate.cc <saSimulate>`) and
+offscreen rendering pipelines (:ref:`render.cc <saRender>`, :ref:`record.cc <saRecord>`).
 
-   The :ref:`classic rendering<OpenGLrendering>` library described below is now in maintenance mode. Instead, we now
-   recommend using our physically based renderer as described in the :ref:`Filament Rendering<FilamentRendering>`
-   section. Similarly, we have developed a new visualizer called
-   `MuJoCo Studio <https://github.com/google-deepmind/mujoco/blob/main/src/experimental/studio>`__ that is available to
-   use.
+All data structures and functions in the abstract visualization layer have the prefix ``mjv`` and are declared in
+``mjvisualize.h``:
 
-MuJoCo has a native 3D visualizer. Its use is illustrated in the :ref:`simulate.cc <saSimulate>` code sample and in
-the simpler :ref:`basic.cc <saBasic>` code sample. While it is not a full-featured rendering engine, it is a
-convenient, efficient and reasonably good-looking visualizer that facilitates research and development. It renders not
-only the simulation state but also decorative elements such as contact points and forces, equivalent inertia boxes,
-convex hulls, kinematic trees, constraint violations, spatial frames, and text labels; these can provide insight into
-the physics simulation and help fine-tune the model.
+- :ref:`mjvCamera` and :ref:`mjvGLCamera` represent high-level interactive cameras and low-level frustum cameras.
+- :ref:`mjvOption` controls which element categories, geom groups, and diagnostic overlays are visible.
+- :ref:`mjvPerturb` tracks interactive object selection and mouse-applied forces and torques.
+- :ref:`mjvScene` and :ref:`mjvGeom` hold a complete per-frame geometric description of the 3D scene and its decorations.
 
-The visualizer is tightly integrated with the simulator and supports both onscreen and offscreen rendering, as
-illustrated in the :ref:`record.cc <saRecord>` code sample. This makes it suitable for synthetic computer vision and
-machine learning applications, especially in cloud environments. VR integration is also available, facilitating
-applications that utilize head-mounted displays.
-
-Visualization in MuJoCo is a two-stage process:
-
-Abstract visualization and interaction
-   This stage populates the :ref:`mjvScene` data structure with a list of geometric objects, lights, cameras, and
-   everything else needed to produce a 3D rendering. It also provides abstract keyboard and mouse hooks for user
-   interaction. The relevant data structure and function names have the prefix ``mjv``.
-OpenGL rendering
-   This stage takes the mjvScene data structure populated in the abstract visualization stage, and renders it. It also
-   provides basic 2D drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
-   The relevant data structure and function names have the prefix ``mjr``.
-
-There are several reasons for this separation. First, the two stages are conceptually different and separating them is
-good software design. Second, they have different dependencies, both internally and in terms of additional libraries;
-in particular, abstract visualization does not require any graphics libraries. Third, users who wish to integrate
-another rendering engine with MuJoCo can bypass the native OpenGL renderer but still take advantage of the abstract
-visualizer.
-
-Below is a mixture of C code and pseudo-code in comments, illustrating the structure of a MuJoCo application which
-does both simulation and rendering. This is a short version of the :ref:`basic.cc <saBasic>` code sample. For
-concreteness we assume that GLFW is used, although it can be replaced with a different window library such as GLUT or
-one of its derivatives.
-
-.. code-block:: C
-
-   // MuJoCo data structures
-   mjModel* m = NULL;                  // MuJoCo model
-   mjData* d = NULL;                   // MuJoCo data
-   mjvCamera cam;                      // abstract camera
-   mjvOption opt;                      // visualization options
-   mjvScene scn;                       // abstract scene
-   mjrContext con;                     // custom GPU context
-
-   // ... load model and data
-
-   // init GLFW, create window, make OpenGL context current, request v-sync
-   glfwInit();
-   GLFWwindow* window = glfwCreateWindow(1200, 900, "Demo", NULL, NULL);
-   glfwMakeContextCurrent(window);
-   glfwSwapInterval(1);
-
-   // initialize visualization data structures
-   mjv_defaultCamera(&cam);
-   mjv_defaultPerturb(&pert);
-   mjv_defaultOption(&opt);
-   mjr_defaultContext(&con);
-
-   // create scene and context
-   mjv_makeScene(m, &scn, 1000);
-   mjr_makeContext(m, &con, mjFONTSCALE_100);
-
-   // ... install GLFW keyboard and mouse callbacks
-
-   // run main loop, target real-time simulation and 60 fps rendering
-   while( !glfwWindowShouldClose(window) ) {
-     // advance interactive simulation for 1/60 sec
-     //  Assuming MuJoCo can simulate faster than real-time, which it usually can,
-     //  this loop will finish on time for the next frame to be rendered at 60 fps.
-     //  Otherwise add a cpu timer and exit this loop when it is time to render.
-     mjtNum simstart = d->time;
-     while( d->time - simstart < 1.0/60.0 )
-         mj_step(m, d);
-
-     // get framebuffer viewport
-     mjrRect viewport = {0, 0, 0, 0};
-     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
-
-     // update scene and render
-     mjv_updateScene(m, d, &opt, NULL, &cam, mjCAT_ALL, &scn);
-     mjr_render(viewport, &scn, &con);
-
-     // swap OpenGL buffers (blocking call due to v-sync)
-     glfwSwapBuffers(window);
-
-     // process pending GUI events, call GLFW callbacks
-     glfwPollEvents();
-   }
-
-   // close GLFW, free visualization storage
-   glfwTerminate();
-   mjv_freeScene(&scn);
-   mjr_freeContext(&con);
-
-   // ... free MuJoCo model and data
-
-.. _Abstract:
-
-Abstract visualization and interaction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This stage populates the :ref:`mjvScene` data structure with a list of geometric objects,
-lights, cameras, and everything else needed to produce a 3D rendering. It also provides abstract keyboard and mouse
-hooks for user interaction.
+Separating abstract visualization from :ref:`rendering <Rendering>` keeps interaction and scene logic independent of
+graphics APIs and allows multiple rendering backends to share the same camera, selection, perturbation, and option
+mechanisms. The :ref:`classic OpenGL renderer <ClassicRendering>` consumes the entire :ref:`mjvScene` on every frame,
+while the :ref:`Filament renderer <FilamentRendering>` updates its own persistent scene from :ref:`mjData` and uses
+``mjvScene`` only for transient decorations; see the :ref:`Rendering <Rendering>` chapter for a side-by-side comparison.
+Third-party renderers can also consume ``mjvScene`` directly.
 
 .. _viCamera:
 
 Cameras
-'''''''
+~~~~~~~
 
 There are two types of camera objects: an abstract camera represented with the stand-alone data structure
-:ref:`mjvCamera`, and a low-level OpenGL camera represented with the data structure
-:ref:`mjvGLCamera` which is embedded in mjvScene. When present, the abstract camera is
-used during scene update to automatically compute the OpenGL camera parameters, which are then used by the OpenGL
-renderer. Alternatively, the user can bypass the abstract camera mechanism and set the OpenGL camera parameters
-directly, as discussed in the Virtual Reality section below.
+:ref:`mjvCamera`, and a low-level camera represented with the data structure :ref:`mjvGLCamera` (also aliased as
+``mjrCamera``) which is embedded in :ref:`mjvScene` or computed directly via :ref:`mjv_camera2GLCamera`. When present,
+the abstract camera is used to automatically compute the low-level camera parameters consumed by the renderer.
+Alternatively, the user can bypass the abstract camera mechanism and set the low-level camera parameters directly, as
+discussed in the :ref:`Virtual reality <viVR>` section below.
 
 The abstract camera can represent three different camera types as determined by mjvCamera.type. The possible settings
 are defined by the enum mjtCamera:
@@ -169,7 +79,7 @@ enabled, as determined by mjvScene.stereo, the camera data for the two eyes are 
 .. _viSelect:
 
 Selection
-'''''''''
+~~~~~~~~~
 
 In many applications we need to click on a point and determine the 3D object to which this point/pixel belongs. This is
 done with the function :ref:`mjv_select`, which uses :ref:`ray collisions <Raycollisions>`. Ray collisions functionality
@@ -187,7 +97,7 @@ use the hand-held controller as a "laser pointer" that can select objects.
 .. _viPerturb:
 
 Perturbations
-'''''''''''''
+~~~~~~~~~~~~~
 
 Interactive perturbations have proven very useful in exploring the model dynamics as well as probing closed-loop control
 systems. The user is free to implement any perturbation mechanism of their choice by setting ``mjData.qfrc_applied`` or
@@ -214,28 +124,55 @@ rendered. This is done by adding a visual string to denote the positional differ
 the reference orientation of the selected body. The perturbation forces themselves can also be rendered when the
 corresponding visualization flag in :ref:`mjvOption` is enabled.
 
+.. _viOption:
+
+Visualization options
+~~~~~~~~~~~~~~~~~~~~~
+
+The data structure :ref:`mjvOption` controls what is shown, independently of how it is rendered. It is consumed by
+:ref:`mjv_updateScene` when populating ``mjvScene`` and read directly by the :ref:`Filament renderer
+<FilamentRendering>` to set the visibility of its persistent objects. Its fields are:
+
+- ``flags``, indexed by :ref:`mjtVisFlag`, enable the decorative and diagnostic elements: contact points and forces,
+  joint and actuator axes, constraint violations, inertia boxes, convex hulls, skins, tendons, perturbation forces,
+  and so on.
+- ``geomgroup``, ``sitegroup``, ``jointgroup``, ``tendongroup``, ``actuatorgroup``, ``flexgroup`` and ``skingroup``
+  toggle the visibility of model elements by their :ref:`group<body-geom-group>` attribute.
+- ``label`` (:ref:`mjtLabel`) and ``frame`` (:ref:`mjtFrame`) select which category of objects is labeled with text and
+  which spatial frames are drawn.
+- ``bvh_depth`` and ``flex_layer`` select which level of the bounding volume hierarchy and which layer of 3D flex
+  elements are shown, respectively.
+
+The function :ref:`mjv_defaultOption` sets all fields to their defaults, in which groups 0, 1 and 2 are visible and
+flags take the defaults listed in :ref:`mjVISSTRING`.
+
 .. _viUpdate:
 
 Scene update
-''''''''''''
+~~~~~~~~~~~~
 
-Finally, we bring all of the above elements together and explain how mjvScene is updated before being passed to the
-OpenGL rendering stage. This can be done with a single call to the function :ref:`mjv_updateScene` at each frame.
+Finally, we bring all of the above elements together and explain how :ref:`mjvScene` is updated. In immediate-mode
+renderers such as the classic :ref:`OpenGL renderer <ClassicRendering>`, ``mjvScene`` is the primary input to the
+rendering stage; in retained-mode renderers such as :ref:`Filament <FilamentRendering>`, model geometry is updated
+directly from ``mjData`` and ``mjvScene`` is used only for decorative elements (``mjCAT_DECOR``).
+
+Updating ``mjvScene`` can be done with a single call to the function :ref:`mjv_updateScene` at each frame.
 mjvCamera and mjvPerturb are arguments to this function, or they can be NULL pointers in which case the corresponding
 functionality is disabled. In VR applications the parameters of mjvScene.camera[n], n=0,1 must also be set at each
 frame; this is done by user code outside mjv_updateScene. The function mjv_updateScene examines mjModel and mjData,
 constructs all geoms that need to be rendered (according to the specified visualization options), and populates the
-array mjvScene.geom with :ref:`mjvGeom` objects. Note that mjvGeom is an abstract geom, and is not in one-to-one
+array mjvScene.geoms with :ref:`mjvGeom` objects. Note that mjvGeom is an abstract geom, and is not in one-to-one
 correspondence with the simulation geoms in mjModel and mjData. In particular, mjvGeom contains the geom pose, scale,
 shape (primitive or mesh index in mjModel), material properties, textures (index in mjModel), labeling, and everything
-else needed for specify how rendering should be done. mjvScene also contains up to eight OpenGL lights which are
-copied from the model, as well as a headlight which is in light position 0 when present.
+else needed to specify how rendering should be done. mjvScene also contains up to ``mjMAXLIGHT`` lights copied from the
+model, as well as a headlight which is in light position 0 when present.
 
 The above procedure is the most common approach, and it updates the entire scene at each frame. In addition, we
 provide two functions for finer control. :ref:`mjv_updateCamera` updates only the camera (i.e., maps the abstract
-mjvCamera to the low-level mjvGLCamera) but does not touch the geoms or lights. This is useful when the user is moving
-the camera rapidly but the simulation state has not changed - in that case there is no point in re-creating the lists
-of geoms and lights.
+mjvCamera to the low-level mjvGLCamera) but does not touch the geoms or lights; alternatively,
+:ref:`mjv_camera2GLCamera` returns a single ``mjvGLCamera`` directly without requiring an ``mjvScene``. This is useful
+when the user is moving the camera rapidly while the simulation is paused, or when using the Filament renderer where
+camera parameters are passed via :ref:`mjrfRenderRequest`.
 
 More advanced rendering effects can be achieved by manipulating the list of abstract geoms. For example, the user can
 add custom geoms at the end of the list. Sometimes it is desirable to render a sequence of simulation states (i.e., a
@@ -256,7 +193,7 @@ mjCAT_ALL
    This selects all of the above categories.
 
 The main update function mjv_updateScene would normally be called with mjCAT_ALL. It clears the geom list and calls
-mjv_addGeom to add only the geoms for the current model state. If we want to render a trajectory, we have to be careful
+mjv_addGeoms to add only the geoms for the current model state. If we want to render a trajectory, we have to be careful
 to avoid visual clutter. So it makes sense to render one of the frames with mjCAT_ALL (usually the first or the last
 depending on the use case), and all other frames with mjCAT_DYNAMIC. Since the static/world objects are not moving,
 rendering them in each frame will only slow down the GPU and create visual aliasing. As for the decor elements, there
@@ -267,7 +204,7 @@ main use cases, but the user can also make programmatic changes as needed.
 .. _viVR:
 
 Virtual reality
-'''''''''''''''
+~~~~~~~~~~~~~~~
 
 In desktop applications it is convenient to use an abstract mjvCamera allowing intuitive mouse control, and then
 automatically map it to mjvGLCamera used for rendering. In VR applications the situation is very different. In that
@@ -303,200 +240,3 @@ integration in user code.
    dynamic filtering and avoids contacts involving bodies that behave as if they are infinitely heavy. The
    time-varying positions and orientations of the mocap bodies are stored in ``mjData.mocap_pos`` and
    ``mjData.mocap_quat``.
-
-.. _Rendering:
-
-OpenGL Rendering
-~~~~~~~~~~~~~~~~
-
-This stage takes the mjvScene data structure populated in the abstract visualization stage, and renders it. It also
-provides basic 2D drawing and framebuffer access, so that most applications would not need to call OpenGL directly.
-
-.. _reOpenGL:
-
-Using OpenGL
-'''''''''''''
-
-MuJoCo uses OpenGL 1.5 in the compatibility profile with the ``ARB_framebuffer_object`` and ``ARB_vertex_buffer_object``
-extensions. OpenGL symbols are loaded via `GLAD <https://github.com/Dav1dde/glad>`_ the first time the
-:ref:`mjr_makeContext` function is called. This means that the MuJoCo library itself does not have an explicit
-dependency on OpenGL and can be used on systems without OpenGL support, as long as ``mjr_`` functions are not called.
-
-Applications that use MuJoCo's built-in rendering functionalities are responsible for linking against an appropriate
-OpenGL context creation library and for ensuring that there is an OpenGL context that is made current on the running
-thread. On Windows and macOS, there is a canonical OpenGL library provided by the operating system. On Linux, MuJoCo
-currently supports GLX for rendering to an X11 window, OSMesa for headless software rendering, and EGL for hardware
-accelerated headless rendering.
-
-
-.. _reContext:
-
-Context and GPU resources
-'''''''''''''''''''''''''
-
-The first step in the rendering process is to create the model-specific GPU context :ref:`mjrContext`. This is done by
-first clearing the data structure with the function :ref:`mjr_defaultContext`, and then calling the function
-:ref:`mjr_makeContext`. This was already illustrated earlier; the relevant code is:
-
-.. code-block:: C
-
-   mjModel* m;
-   mjrContext con;
-
-   // clear mjrContext only once before first use
-   mjr_defaultContext(&con);
-
-   // create window with OpenGL context, make it current
-   GLFWwindow* window = glfwCreateWindow(1200, 900, "Demo", NULL, NULL);
-   glfwMakeContextCurrent(window);
-
-   // ... load MuJoCo model
-
-   // make model-specific mjrContext
-   mjr_makeContext(m, &con, mjFONTSCALE_100);
-
-   // ... load another MuJoCo model
-
-   // make mjrContext for new model (old context freed automatically)
-   mjr_makeContext(m, &con, mjFONTSCALE_100);
-
-   // free context when done
-   mjr_freeContext(&con);
-
-How is mjrContext related to an OpenGL context? An OpenGL context is what enables the application to talk to the video
-driver and send rendering commands. It must exist and must be current in the calling thread before mjr_makeContext is
-called. GLFW and related libraries provide the necessary functions as shown above.
-
-mjrContext is specific to MuJoCo. After creation, it contains references (called "names" in OpenGL) to all the
-resources that were uploaded to the GPU by mjr_makeContext. These include model-specific resources such as meshes and
-textures, as well as generic resources such as font bitmaps for the specified font scale, framebuffer objects for
-shadow mapping and offscreen rendering, and associated renderbuffers. It also contains OpenGL-related options copied
-from ``mjModel.vis``, capabilities of the default window framebuffer that are discovered automatically, and the
-currently active buffer for rendering; see :ref:`buffers <reBuffer>` below. Note that even though MuJoCo uses
-fixed-function OpenGL, it avoids immediate mode rendering and instead uploads all resources to the GPU upfront. This
-makes it as efficient as a modern shader, and possibly more efficient, because fixed-function OpenGL is now implemented
-via internal shaders that have been written by the video driver developers and tuned extensively.
-
-Most of the fields of mjrContext remain constant after the call to mjr_makeContext. The only exception is
-mjrContext.currentBuffer which changes whenever the active buffer changes. Some of the GPU resources may also change
-because the user can upload modified resources with the functions :ref:`mjr_uploadTexture`, :ref:`mjr_uploadMesh`,
-:ref:`mjr_uploadHField`. This can be used to achieve dynamic effects such as inserting a video feed into the
-rendering, or modulating a terrain map. Such modifications affect the resources residing on the GPU, but their OpenGL
-names are reused; thus, the change is not actually visible in mjrContext.
-
-The user should **never** make changes to mjrContext directly. MuJoCo's renderer assumes that only it can manage
-mjrContext. In fact this kind of object would normally be opaque and its internal structure would not be exposed to
-the user. We are exposing it because MuJoCo has an open design and also because users may want to interleave their own
-OpenGL code with MuJoCo's renderer, in which case they may need read access to some fields of mjrContext. For example
-in VR applications the user needs to blit from MuJoCo's offscreen buffer to a texture provided by a VR SDK.
-
-When a different MuJoCo model is loaded, mjr_makeContext must be called again. There is also the function
-:ref:`mjr_freeContext` which frees the GPU resources while preserving the initialization and capabilities flags. This
-function should be called when the application is about to exit. It is called automatically from within
-mjr_makeContext, so you do not need to call it directly when a different model is loaded, although it is not an error
-to do so. The function mjr_defaultContext must be called once before rendering starts, to clear the memory allocated
-for the data structure mjrContext. If you call it after calling mjr_makeContext, it will wipe out any record that GPU
-resources were allocated without freeing those resources, so don't do that.
-
-.. _reBuffer:
-
-Buffers for rendering
-'''''''''''''''''''''
-
-In addition to the default window framebuffer, OpenGL can support unlimited framebuffer objects (FBOs) for custom
-rendering. In MuJoCo we provide systematic support for two framebuffers: the default window framebuffer, and one
-offscreen framebuffer. They are referred to by the constants in the enum type :ref:`mjtFramebuffer`, namely
-mjFB_WINDOW and mjFB_OFFSCREEN. At any time, one of these two buffers is active for the purposes of MuJoCo rendering,
-meaning that all subsequent commands are directed to it. There are two additional framebuffer objects referenced in
-mjrContext, needed for shadow mapping and resolving multi-sample buffers, but these are used internally and the user
-should not attempt to access them directly.
-
-The active buffer is set with the function :ref:`mjr_setBuffer`. This sets the value of mjrContext.activeBuffer and
-configures the OpenGL state accordingly. When mjr_makeContext is called, internally it calls mjr_setBuffer with
-argument mjFB_WINDOW, so that rendering starts in the window buffer by default. If the specified buffer does not
-exist, mjr_setBuffer automatically defaults to the other buffer (note that when using headless rendering on Linux,
-there may be no window framebuffer).
-
-From the perspective of OpenGL, there are important differences between the window framebuffer and offscreen
-framebuffer, and these differences affect how the MuJoCo user interacts with the renderer. The window framebuffer is
-created and managed by the operating system and not by OpenGL. As a result, properties such as resolution,
-double-buffering, quad-buffered stereo, multi-samples, v-sync are set outside OpenGL; this is done by GLFW calls in our
-code samples. All OpenGL can do is detect these properties; we do this in mjr_makeContext and record the results in the
-various window capabilities fields of mjrContext. This is why such properties are not part of the MuJoCo model; they are
-session/software-specific and not model-specific. In contrast, the offscreen framebuffer is managed entirely by OpenGL,
-and so we can create that buffer with whatever properties we want, namely with the resolution and multi-sample
-properties specified in ``mjModel.vis``.
-
-The user can directly access the pixels in the two buffers. This is done with the functions :ref:`mjr_readPixels`,
-:ref:`mjr_drawPixels` and :ref:`mjr_blitBuffer`. Read/draw transfer pixels from/to the active buffer to/from the CPU.
-Blit transfers pixels between the two buffers on the GPU and is therefore much faster. The direction is from the
-active buffer to the buffer that is not active. Note that mjr_blitBuffer has source and destination viewports that can
-have different size, allowing the image to be scaled in the process.
-
-.. _reDraw:
-
-Drawing pixels
-''''''''''''''
-
-The main rendering function is :ref:`mjr_render`. Its arguments are a rectangular viewport for rendering, the mjvScene
-which was populated by the abstract visualizer, and the mjrContext which was created by mjr_makeContext. The viewport
-can be the entire active buffer, or part of it for custom effects. A viewport corresponding to the entire buffer can
-be obtained with the function :ref:`mjr_maxViewport`. Note that while the offscreen buffer size does not change, the
-window buffer size changes whenever the user resizes or maximizes the window. Therefore user code should not assume
-fixed viewport size. In the code sample :ref:`simulate.cc <saSimulate>` we use a callback which is triggered whenever
-the window size changes, while in :ref:`basic.cc <saBasic>` we simply check the window size every time we render. On
-certain scaled displays (notably on MacOS) the window size and framebuffer size can be different. So if you are
-getting the size with GLFW functions, use glfwGetFramebufferSize rather than glfwGetWindowSize. On the other hand,
-mouse coordinates are returned by the operating system in window rather than framebuffer units; thus the mouse
-interaction functions discussed earlier should use glfwGetWindowSize to obtain the window height needed to normalize
-the mouse displacement data.
-
-mjr_render renders all mjvGeoms from the list mjvScene.geom. The abstract visualization options mjvOption are no
-longer relevant here; they are used by mjv_updateScene to determine which geoms to add, and as far as mjr_render is
-concerned these options are already baked-in. There is however another set of rendering options that are embedded in
-mjvScene, and these affect the OpenGL rendering process. The array mjvScene.flags contains flags indexed by the enum
-type :ref:`mjtRndFlag` and include options for enabling and disabling wireframe mode, shadows, reflections, skyboxes
-and fog. Shadows and reflections involve additional rendering passes. MuJoCo's renderer is very efficient, but
-depending on the model complexity and available GPU, it may be necessary to disable one or both of these effects in
-some cases.
-
-The parameter mjvScene.stereo determines the stereo mode. The possible values are given by the enum type
-:ref:`mjtStereo` and are as follows:
-
-mjSTEREO_NONE
-   Stereo rendering is disabled. The average of the two OpenGL cameras in mjvScene is used. Note that the renderer
-   always expects both cameras to be properly defined, even if stereo is not used.
-mjSTEREO_QUADBUFFERED
-   This mode works only when the active buffer is the window, and the window supports quad-buffered OpenGL. This
-   requires a professional video card. The code sample :ref:`simulate.cc <saSimulate>` attempts to open such a window.
-   In this mode MuJoCo's renderer uses the GL_BACK_LEFT and GL_BACK_RIGHT buffers to render the two views (as determined
-   by the two OpenGL cameras in mjvScene) when the window is double-buffered, and GL_FRONT_LEFT and GL_FRONT_RIGHT
-   otherwise. If the window does not support quad-buffered OpenGL or the active buffer is the offscreen buffer, the
-   renderer reverts to the side-by-side mode described next.
-mjSTEREO_SIDEBYSIDE
-   This stereo mode does not require special hardware and is always available. The viewport given to mjr_render is split
-   in two equal rectangles side-by-side. The left view is rendered on the left side and the right view on the right
-   side. In principle users can cross their eyes and see stereo on a regular monitor, but the goal here is to show it in
-   a stereoscopic device. Most head-mounted displays support this stereo mode.
-
-In addition to the main mjr_render function, we provide several functions for "decorating" the image. These are 2D
-rendering functions and include :ref:`mjr_overlay`, :ref:`mjr_text`, :ref:`mjr_rectangle`, and :ref:`mjr_figure`. The
-user can draw additional decorations with their own OpenGL code. This should be done after mjr_render, because
-mjr_render clears the viewport.
-
-We also provide the functions :ref:`mjr_finish` and :ref:`mjr_getError` for explicit synchronization with the GPU and
-for OpenGL error checking. They simply call glFinish and glGetError internally. This together with the basic 2d
-drawing functions above is meant to provide enough functionality so that most users will not need to write OpenGL
-code. Of course we cannot achieve this in all cases, short of providing wrappers for all of OpenGL.
-
-.. _reFilamentCompat:
-
-Filament Compatibility Mode
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-It is possible to use Filament rendering with the classic ``mjr`` :ref:`APIs<OpenGLrendering>` by configuring the
-build using the ``MUJOCO_USE_FILAMENT_MJR_COMPAT`` CMake build option (along with the ``MUJOCO_USE_FILAMENT`` build
-option). This option effectively replaces the OpenGL-based ``mjr`` functions with Filament-based implementations.
-This is useful for experimenting with the Filament renderer without having to rewrite application code. However, this
-compatibility mode does not support the full range of customization and effects available in the Filament runtime and
-comes with a slight performance overhead.

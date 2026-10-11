@@ -198,6 +198,8 @@ Actuation
 
 Filament Rendering
 ^^^^^^^^^^^^^^^^^^
+- Added documentation for :ref:`Filament rendering <FilamentRendering>`.
+
 .. admonition:: Breaking API changes
    :class: attention
 

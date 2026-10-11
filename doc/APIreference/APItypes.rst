@@ -1585,7 +1585,7 @@ depending on the values of the material properties. There there are three lighti
 metallic-roughness workflows.
 
 2. Specular-glossiness (non-PBR): this is a legacy model designed to be compatible with classic
-:ref:`mjr<Rendering>` renderer, though it is not 100% identical.
+:ref:`mjr<ClassicRendering>` renderer, though it is not 100% identical.
 
 3. Unlit: this model ignores lighting and is used for rendering UX or decorative elements like
 contact forces and labels.

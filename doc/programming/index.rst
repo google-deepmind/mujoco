@@ -25,15 +25,15 @@ Compiler
 Thread
    The threading framework is written in C++ and exposed in C. It provides a thread pool interface
    to process tasks asynchronously. To enable use in MuJoCo, call ``mju_threadpool``.
+Abstract visualizer
+   The abstract visualizer is written in C and is independent of any graphics library. It provides abstract mouse
+   hooks for camera and perturbation control, object selection, visualization options, and generates a list of
+   abstract geometric entities representing the simulation state and its decorations. It is shared by both renderers.
 Rendering
-   There are two rendering libraries provided by MuJoCo. The :ref:`classic rendering<OpenGLrendering>` library is
+   There are two rendering libraries provided by MuJoCo. The :ref:`classic rendering<ClassicRendering>` library is
    written in C and uses OpenGL 1.5. It provides a simple and efficient way to visualize MuJoCo models. The
    :ref:`filament rendering<FilamentRendering>` library is written in C++ and uses the externally-developed Filament
    rendering engine. It provides more modern and feature-rich real-time rendering capabilities.
-Abstract visualizer
-   The abstract visualizer is written in C. It generates a list of abstract geometric entities representing the
-   simulation state, with all information needed for rendering with the Classic renderer. It also provides abstract
-   mouse hooks for camera and perturbation control.
 UI framework
    The UI framework is written in C and is designed to work with the :ref:`classic OpenGL renderer<OpenGLrendering>`.
    UI elements are rendered in OpenGL. It has its own event mechanism and abstract hooks for keyboard and mouse input.
@@ -277,8 +277,8 @@ Next we list the prefixes corresponding to function definitions. Note that funct
     :hidden:
 
     simulation
-    filament
     visualization
+    rendering
     ui
     modeledit
     samples
