@@ -237,8 +237,8 @@ class BuildCMakeExtension(build_ext.build_ext):
 
         # Reconstruct destination path preserving structure
         # Strip leading 'mujoco/' if present to avoid duplicate 'mujoco/mujoco/'
-        if rel_file_path.startswith('mujoco/'):
-          target_rel_path = rel_file_path[len('mujoco/') :]
+        if rel_file_path.startswith('mujoco' + os.sep):
+          target_rel_path = rel_file_path[len('mujoco' + os.sep) :]
         else:
           target_rel_path = rel_file_path
 
