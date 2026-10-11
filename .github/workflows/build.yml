@@ -281,7 +281,6 @@ jobs:
       matrix:
         python: ["3.12", "3.13"]
     env:
-      MUJOCO_ARM64_WORK: ${{ runner.temp }}/mujoco-arm64
       CMAKE_BUILD_PARALLEL_LEVEL: "3"
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -291,6 +290,9 @@ jobs:
       with:
         python-version: ${{ matrix.python }}
         architecture: arm64
+    - name: Select isolated native build workspace
+      shell: pwsh
+      run: '"MUJOCO_ARM64_WORK=$env:RUNNER_TEMP/mujoco-arm64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
     - name: Configure native ARM64 MSVC and Windows SDK
       shell: pwsh
       run: |
