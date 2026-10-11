@@ -61,7 +61,9 @@ Renderable::Renderable(filament::Engine* engine,
   mjrf_defaultMaterial(&material_);
 }
 
-Renderable::~Renderable() noexcept {
+Renderable::~Renderable() noexcept { ClearParts(); }
+
+void Renderable::ClearParts() {
   filament::Engine* engine = GetEngine();
   utils::EntityManager& em = utils::EntityManager::get();
   for (Part& part : parts_) {
@@ -71,6 +73,9 @@ Renderable::~Renderable() noexcept {
     engine->destroy(part.entity);
     em.destroy(part.entity);
   }
+  parts_.clear();
+  get_transform_fn_ = nullptr;
+  curr_state_ = DrawState{};
 }
 
 void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
@@ -144,6 +149,9 @@ void Renderable::InitPartEntity(Part& part) {
   builder.receiveShadows(params_.receive_shadows);
   builder.blendOrder(0, params_.blend_order);
   builder.screenSpaceContactShadows(true);
+  if (layer_mask_ != 0) {
+    builder.layerMask(0xff, layer_mask_);
+  }
 
   builder.build(*GetEngine(), part.entity);
   if (assigned_scene_) {
@@ -463,6 +471,7 @@ void Renderable::SetWireframe(bool wireframe) {
 }
 
 void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
+  ClearParts();
   Builtins* builtins =
       material_mgr_->GetObjectManager()->GetBuiltins(nstack, nslice, nquad);
   geom_type_ = type;
@@ -661,6 +670,7 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
       mju_error("Unsupported geom type: %d", type);
       break;
   }
+  UpdateTransform();
 }
 
 filament::Engine* Renderable::GetEngine() { return material_mgr_->GetEngine(); }

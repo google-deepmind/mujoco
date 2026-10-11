@@ -1792,6 +1792,13 @@ void VisualizationGui(mjModel* model, mjvOption* vis_options, mjvCamera* camera,
     ImGui_ButtonToggle("BVH active", &vis.global.bvactive);
     ImGui::TreePop();
   }
+  if (SectionHeader("Quality")) {
+    ImGui_LogStepper("Shadow size", &vis.quality.shadowsize, {.min = 8});
+    ImGui_Input("Slices", &vis.quality.numslices, {.min = 1});
+    ImGui_Input("Stacks", &vis.quality.numstacks, {.min = 1});
+    ImGui_Input("Quads", &vis.quality.numquads, {.min = 1});
+    ImGui::TreePop();
+  }
   if (SectionHeader("Mapping")) {
     ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.3f);
     ImGui_Input("Stiffness", &vis.map.stiffness);

@@ -165,6 +165,7 @@ class Renderable : public mjrfRenderable {
   // transform offset based on the transform of the Renderable itself.
   using GetTransformFn = std::function<filament::math::mat4f(int, const Trs&)>;
 
+  void ClearParts();
   void AppendMesh(const Mesh* mesh);
   void InitPartEntity(Part& part);
   void UpdateTransform();

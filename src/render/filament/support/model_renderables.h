@@ -75,6 +75,7 @@ class ModelRenderables {
   void AddSkinGeoms();
   void AddSliderCrankGeoms();
 
+  void UpdateQuality();
   void UpdateSpatialTendons(const mjData* data, int tendon_id);
   void AppendSegmentToTendon(int tendon_id);
   void RemoveSegmentFromTendon(int tendon_id);
@@ -91,6 +92,9 @@ class ModelRenderables {
   ModelObjects* model_objects_;
 
   mjvOption vopts_;
+  int numstacks_ = 0;
+  int numslices_ = 0;
+  int numquads_ = 0;
   mjtObj selected_obj_type_ = mjOBJ_UNKNOWN;
   int selected_obj_index_ = -1;
 

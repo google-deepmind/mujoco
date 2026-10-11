@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_IMGUI_WIDGETS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_IMGUI_WIDGETS_H_
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -570,9 +571,11 @@ bool ImGui_InputN(const char* name, T* value, int num, ImGuiOpts<T> opts = {}) {
   if constexpr (std::is_same_v<T, int>) {
     const int step = opts.step.value_or(1);
     const int step_fast = opts.step_fast.value_or(100);
+    const int* pstep = step > 0 ? &step : nullptr;
+    const int* pstep_fast = step_fast > 0 ? &step_fast : nullptr;
     const char* format = opts.format;
-    res = ImGui::InputScalarN(name, ImGuiDataType_S32, value, num, &step,
-                              &step_fast, format);
+    res = ImGui::InputScalarN(name, ImGuiDataType_S32, value, num, pstep,
+                              pstep_fast, format);
 
   } else if constexpr (std::is_same_v<T, float>) {
     const float step = opts.step.value_or(0.f);
@@ -629,6 +632,21 @@ bool ImGui_LogStepper(const char* name, T* value, ImGuiOpts<T> opts = {}) {
     if (opts.max && v > *opts.max) v = *opts.max;
     return v;
   };
+  auto step_fn = [&](T v, int dir) -> T {
+    if constexpr (std::is_integral_v<T>) {
+      double cur = static_cast<double>(v);
+      for (int i = 0; i < 4; ++i) {
+        cur = WellTemperedStep(cur, dir, zero_below);
+        T next = static_cast<T>(std::lround(cur));
+        if (next != v || cur == 0.0) {
+          return next;
+        }
+      }
+      return v;
+    } else {
+      return static_cast<T>(WellTemperedStep(v, dir, zero_below));
+    }
+  };
 
   bool changed = false;
   ImGui::PushID(name);
@@ -636,20 +654,20 @@ bool ImGui_LogStepper(const char* name, T* value, ImGuiOpts<T> opts = {}) {
   // Lay out like ImGui's own InputScalar stepper: the field, then the - / +
   // buttons to its right, then the label.
   ImGuiOpts<T> field = opts;
-  field.step = std::nullopt;  // suppress ImGui's own linear step buttons
-  field.step_fast = std::nullopt;
+  field.step = std::is_integral_v<T> ? std::optional<T>(0) : std::nullopt;
+  field.step_fast = std::is_integral_v<T> ? std::optional<T>(0) : std::nullopt;
   field.width = input_width;
   if (ImGui_InputN("##value", value, 1, field)) changed = true;
 
   ImGui::PushButtonRepeat(true);
   ImGui::SameLine(0, spacing);
   if (ImGui::Button("-", ImVec2(button, button))) {
-    *value = clamp(static_cast<T>(WellTemperedStep(*value, -1, zero_below)));
+    *value = clamp(step_fn(*value, -1));
     changed = true;
   }
   ImGui::SameLine(0, spacing);
   if (ImGui::Button("+", ImVec2(button, button))) {
-    *value = clamp(static_cast<T>(WellTemperedStep(*value, +1, zero_below)));
+    *value = clamp(step_fn(*value, +1));
     changed = true;
   }
   ImGui::PopButtonRepeat();

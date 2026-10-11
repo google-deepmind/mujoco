@@ -167,6 +167,11 @@ ModelRenderables::ModelRenderables(mjrfScene* scene,
     : scene_(scene), model_objects_(model_objects) {
   mjv_defaultOption(&vopts_);
 
+  const mjModel* model = model_objects_->GetModel();
+  numstacks_ = model->vis.quality.numstacks;
+  numslices_ = model->vis.quality.numslices;
+  numquads_ = model->vis.quality.numquads;
+
   AddGeomGeoms();
   AddSiteGeoms();
   AddFlexGeoms();
@@ -174,7 +179,7 @@ ModelRenderables::ModelRenderables(mjrfScene* scene,
   AddSliderCrankGeoms();
   // A tendon is composed of a collection of renderables which are managed
   // every frame. For now, all we do is reserve space for the collections.
-  tendons_.resize(model_objects_->GetModel()->ntendon);
+  tendons_.resize(model->ntendon);
 }
 
 ModelRenderables::~ModelRenderables() {
@@ -204,7 +209,48 @@ ModelRenderables::~ModelRenderables() {
   }
 }
 
+void ModelRenderables::UpdateQuality() {
+  const mjModel* model = model_objects_->GetModel();
+  const int nstack = model->vis.quality.numstacks;
+  const int nslice = model->vis.quality.numslices;
+  const int nquad = model->vis.quality.numquads;
+  if (nstack == numstacks_ && nslice == numslices_ && nquad == numquads_) {
+    return;
+  }
+
+  if (nquad != numquads_) {
+    for (int i = 0; i < model->nhfield; ++i) {
+      model_objects_->UploadHeightField(model, i);
+    }
+  }
+
+  numstacks_ = nstack;
+  numslices_ = nslice;
+  numquads_ = nquad;
+
+  for (int i = 0; i < model->ngeom; ++i) {
+    const mjtGeom type = (mjtGeom)model->geom_type[i];
+    if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
+      SetGeomMesh(geoms_[i].get(), model_objects_, type, model->geom_dataid[i]);
+    }
+  }
+  for (int i = 0; i < model->nsite; ++i) {
+    const mjtGeom type = (mjtGeom)model->site_type[i];
+    if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
+      SetGeomMesh(sites_[i].get(), model_objects_, type, model->site_dataid[i]);
+    }
+  }
+  for (auto& [_, pair] : slider_cranks_) {
+    mjrf_setRenderableGeomMesh(pair[0].get(), mjGEOM_CYLINDER, nstack, nslice,
+                               nquad);
+    mjrf_setRenderableGeomMesh(pair[1].get(), mjGEOM_CAPSULE, nstack, nslice,
+                               nquad);
+  }
+}
+
 void ModelRenderables::Update(const mjData* data) {
+  UpdateQuality();
+
   mjrfContext* ctx = model_objects_->GetContext();
   const mjModel* model = model_objects_->GetModel();
 
