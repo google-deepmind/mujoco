@@ -23,6 +23,8 @@ namespace Mujoco {
     public MjBaseBody Body1;
     public MjBaseBody Body2;
     public Transform WeldOffset;
+    public float Torquescale;
+    public float[] Relpose;
     protected override string _constraintName => "weld";
 
     protected override unsafe void OnBindToRuntime(MujocoLib.mjModel_* model, MujocoLib.mjData_* data) {
@@ -36,10 +38,13 @@ namespace Mujoco {
     protected override void FromMjcf(XmlElement mjcf) {
       Body1 = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body1");
       Body2 = mjcf.GetObjectReferenceAttribute<MjBaseBody>("body2");
-      var relpose = mjcf.GetStringAttribute("relpose");
-      if (relpose != null) {
+      Torquescale = mjcf.GetFloatAttribute("torquescale");
+      Relpose = mjcf.GetFloatArrayAttribute("relpose", new [] {0, 1, 0, 0, 0, 0, 0f});
+
+      var weldOffset = mjcf.GetStringAttribute("weldoffset");
+      if (weldOffset != null) {
         Debug.Log(
-            $"relpose {relpose} in weld {name} ignored. Set WeldOffset in the editor.");
+            $"Weldoffset {weldOffset} in weld {name} ignored. Set WeldOffset in the editor.");
       }
     }
 
@@ -50,6 +55,8 @@ namespace Mujoco {
 
       mjcf.SetAttribute("body1", Body1.MujocoName);
       mjcf.SetAttribute("body2", Body2.MujocoName);
+      mjcf.SetAttribute("relpose", MjEngineTool.ArrayToMjcf(Relpose));
+      mjcf.SetAttribute("torquescale", MjEngineTool.MakeLocaleInvariant($"{Torquescale}"));
     }
 
     public void OnValidate() {

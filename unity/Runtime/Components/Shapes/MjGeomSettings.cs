@@ -57,16 +57,16 @@ public struct MjGeomSettings {
 
   public void FromMjcf(XmlElement mjcf) {
 
-    Priority = (int) mjcf.GetFloatAttribute("priority", 0);
+    Priority = mjcf.GetIntAttribute("priority", 0);
 
     // Contact filtering settings.
-    Filtering.Contype = (int)mjcf.GetFloatAttribute("contype", CollisionFiltering.Default.Contype);
-    Filtering.Conaffinity = (int)mjcf.GetFloatAttribute(
+    Filtering.Contype = mjcf.GetIntAttribute("contype", CollisionFiltering.Default.Contype);
+    Filtering.Conaffinity = mjcf.GetIntAttribute(
         "conaffinity", CollisionFiltering.Default.Conaffinity);
-    Filtering.Group = (int)mjcf.GetFloatAttribute("group", CollisionFiltering.Default.Group);
+    Filtering.Group = mjcf.GetIntAttribute("group", CollisionFiltering.Default.Group);
 
     // Solver settings.
-    Solver.ConDim = (int)mjcf.GetFloatAttribute("condim", GeomSolver.Default.ConDim);
+    Solver.ConDim = mjcf.GetIntAttribute("condim", GeomSolver.Default.ConDim);
     Solver.SolMix = mjcf.GetFloatAttribute("solmix", GeomSolver.Default.SolMix);
     var solref = mjcf.GetFloatArrayAttribute(
         "solref", new float[] { GeomSolver.Default.SolRef.TimeConst,
