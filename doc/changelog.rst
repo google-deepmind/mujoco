@@ -210,19 +210,23 @@ Filament Rendering
      **Migration:** Users should use PCSS shadows instead of VSM shadows for soft shadows by setting the custom flag
      ``filament.shadow.type`` to ``pcss``. PCSS shadows provide similar quality shadows, but are more performant.
 
+   - Removed the ``filament.msaa.enabled`` custom flag; multi-sample anti-aliasing is now controlled by
+     :ref:`visual/quality/@offsamples<visual-quality-offsamples>` (``<= 1`` disables MSAA) and can be changed at
+     runtime with :ref:`mjrf_setSceneMsaa`.
+
    - The following custom flags have been renamed for consistency:
 
-     `filament.clearColor => filament.clear_color`
+     `filament.clearColor → filament.clear_color`
 
-     `filament.fog.cutOffDistance => filament.fog.cut_off_distance`
+     `filament.fog.cutOffDistance → filament.fog.cut_off_distance`
 
-     `filament.fog.maximumOpacity => filament.fog.maximum_opacity`
+     `filament.fog.maximumOpacity → filament.fog.maximum_opacity`
 
-     `filament.fog.heightFalloff => filament.fog.height_falloff`
+     `filament.fog.heightFalloff → filament.fog.height_falloff`
 
-     `filament.fog.inScatteringStart => filament.fog.in_scattering_start`
+     `filament.fog.inScatteringStart → filament.fog.in_scattering_start`
 
-     `filament.fog.inScatteringSize => filament.fog.in_scattering_size`
+     `filament.fog.inScatteringSize → filament.fog.in_scattering_size`
 
    - The following custom flags now use the strings "low", "medium", "high", or "ultra" instead of integers (0-3):
 

@@ -103,6 +103,7 @@ class FilamentRenderer {
   mjrfRenderRequest render_requests_[2];
   mjtByte render_flags_[mjNRNDFLAG];
   int framebuffer_mode_ = 0;
+  int offsamples_ = -1;
   double gpu_frame_ms_ = 0;
 };
 

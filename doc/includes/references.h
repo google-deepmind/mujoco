@@ -3653,6 +3653,7 @@ void mjrf_addRenderableToScene(mjrfScene* scene, mjrfRenderable* renderable);
 void mjrf_removeRenderableFromScene(mjrfScene* scene, mjrfRenderable* renderable);
 void mjrf_setSceneSkybox(mjrfScene* scene, const mjrfTexture* texture);
 void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model);
+void mjrf_setSceneMsaa(mjrfScene* scene, int samples);
 void mjrf_defaultLightParams(mjrfLightParams* params);
 mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
 void mjrf_destroyLight(mjrfLight* light);

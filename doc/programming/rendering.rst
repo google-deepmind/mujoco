@@ -380,7 +380,7 @@ Most flags correspond directly to Filament's `rendering options
 ``filament.ao.quality``) take string values that correspond to the underlying enum's name identifier. Flags not
 specified in the model use the defaults listed below. All flag names begin with ``filament.``
 
-.. collapse:: Shadows and anti-aliasing
+.. collapse:: Shadows
 
    .. list-table::
       :widths: 32 10 12 46
@@ -398,10 +398,6 @@ specified in the model use the defaults listed below. All flag names begin with 
         - int
         - min( :ref:`shadowsize<visual-quality-shadowsize>`, 2048)
         - Shadow map resolution, in texels.
-      * - ``msaa.enabled``
-        - bool
-        - 1 (true)
-        - Enable multi-sample anti-aliasing.
 
 .. collapse:: Screen-space ambient occlusion
 

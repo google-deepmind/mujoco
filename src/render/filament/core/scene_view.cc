@@ -14,6 +14,7 @@
 
 #include "render/filament/core/scene_view.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -450,7 +451,17 @@ static filament::ShadowType ShadowTypeFromString(std::string_view name) {
 }
 
 
+void SceneView::SetMsaa(int samples) {
+  samples = std::clamp(samples, 1, 255);
+  auto msaa = main_view_->getMultiSampleAntiAliasingOptions();
+  msaa.enabled = samples > 1;
+  msaa.sampleCount = static_cast<uint8_t>(samples);
+  main_view_->setMultiSampleAntiAliasingOptions(msaa);
+}
+
 void SceneView::Configure(const mjModel* model) {
+  SetMsaa(model->vis.quality.offsamples);
+
   auto cg = color_grading_options_;
   cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);
   cg.contrast = ReadElement(model, "filament.cg.contrast", cg.contrast);
@@ -493,10 +504,6 @@ void SceneView::Configure(const mjModel* model) {
   ao.bilateralThreshold =
       ReadElement(model, "filament.ao.bilateral_threshold", 0.5f);
   main_view_->setAmbientOcclusionOptions(ao);
-
-  auto msaa = main_view_->getMultiSampleAntiAliasingOptions();
-  msaa.enabled = ReadElement(model, "filament.msaa.enabled", true);
-  main_view_->setMultiSampleAntiAliasingOptions(msaa);
 
   auto shadow_type = main_view_->getShadowType();
   shadow_type = ShadowTypeFromString(

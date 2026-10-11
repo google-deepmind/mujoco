@@ -9620,10 +9620,12 @@ visualization should somehow be simplified.
 .. _visual-quality-offsamples:
 
 :at:`offsamples`: :at-val:`int, "4"`
-   This attribute specifies the number of multi-samples for offscreen rendering. Larger values produce better
-   anti-aliasing but can slow down the GPU. Set this to 0 to disable multi-sampling. Note that this attribute only
-   affects offscreen rendering. For regular window rendering, multi-sampling is specified in an OS-dependent way when
-   the OpenGL context for the window is first created, and cannot be changed from within MuJoCo.
+   This attribute specifies the number of multi-samples for anti-aliasing. Larger values produce better
+   anti-aliasing but can slow down the GPU. Values less than or equal to 1 disable multi-sampling. In the
+   :ref:`Filament renderer<FilamentRendering>`, this attribute controls multi-sampling for window rendering and can be
+   changed at runtime. In the classic OpenGL renderer, it only affects offscreen rendering; for window rendering,
+   multi-sampling is specified in an OS-dependent way when the OpenGL context is first created, and cannot be changed
+   from within MuJoCo.
    |br| When rendering segmentation images, multi-sampling is automatically disabled so as not to average segmentation
    indices. However, some rendering backends ignore the automatic disabling. If your segmentation images contain bad
    indices, try manually setting this attribute to 0.

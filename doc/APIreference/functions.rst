@@ -3462,6 +3462,15 @@ Sets the skybox (cube texture) for the scene.
 
 Configures the scene based on the parameters in an mjModel.
 
+.. _mjrf_setSceneMsaa:
+
+`mjrf_setSceneMsaa <#mjrf_setSceneMsaa>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setSceneMsaa
+
+Sets the number of multi-sample anti-aliasing samples; values <= 1 disable MSAA.
+
 .. _mjrf_defaultLightParams:
 
 `mjrf_defaultLightParams <#mjrf_defaultLightParams>`__

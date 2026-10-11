@@ -82,6 +82,9 @@ class SceneView : public mjrfScene {
   // scene view accordingly.
   void Configure(const mjModel* model);
 
+  // Sets the number of multi-sample anti-aliasing samples; <= 1 disables MSAA.
+  void SetMsaa(int samples);
+
   static SceneView* downcast(mjrfScene* scene) {
     return static_cast<SceneView*>(scene);
   }

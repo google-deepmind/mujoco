@@ -691,6 +691,15 @@ mjrf_scene.def("set_skybox", [](
 , py::arg("texture")
 );
 
+mjrf_scene.def("set_msaa", [](
+  PyScene& scene,
+  int samples
+) {
+    return mjrf_setSceneMsaa(scene.get(), samples);
+}
+, py::arg("samples")
+);
+
 mjrf_light.def("set_enabled", [](
   PyLight& light,
   bool enabled

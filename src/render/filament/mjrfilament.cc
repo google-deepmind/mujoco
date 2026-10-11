@@ -340,6 +340,10 @@ void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model) {
   mujoco::SceneView::downcast(scene)->Configure(model);
 }
 
+void mjrf_setSceneMsaa(mjrfScene* scene, int samples) {
+  mujoco::SceneView::downcast(scene)->SetMsaa(samples);
+}
+
 void mjrf_resizeRenderTarget(mjrfRenderTarget* render_target, int width,
                              int height) {
   mujoco::RenderTarget::downcast(render_target)->Prepare(width, height);

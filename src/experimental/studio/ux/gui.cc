@@ -1794,6 +1794,7 @@ void VisualizationGui(mjModel* model, mjvOption* vis_options, mjvCamera* camera,
   }
   if (SectionHeader("Quality")) {
     ImGui_LogStepper("Shadow size", &vis.quality.shadowsize, {.min = 8});
+    ImGui_Input("Offsamples", &vis.quality.offsamples, {.min = 0});
     ImGui_Input("Slices", &vis.quality.numslices, {.min = 1});
     ImGui_Input("Stacks", &vis.quality.numstacks, {.min = 1});
     ImGui_Input("Quads", &vis.quality.numquads, {.min = 1});

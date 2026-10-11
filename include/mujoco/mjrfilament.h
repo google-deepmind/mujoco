@@ -260,6 +260,9 @@ void mjrf_setSceneSkybox(mjrfScene* scene, const mjrfTexture* texture);
 // Configures the scene based on the parameters in an mjModel.
 void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model);
 
+// Sets the number of multi-sample anti-aliasing samples; values <= 1 disable MSAA.
+void mjrf_setSceneMsaa(mjrfScene* scene, int samples);
+
 // Parameters for creating a light (mjrfLight).
 typedef struct mjrfLightParams_ {
   int type;                        // type of light (e.g. spot, point, image, etc.) [mjrLightType]

@@ -95,6 +95,7 @@ void FilamentRenderer::Init(const mjModel* model) {
 
     main_scene_ = CreateScene(filament_context_.get(), {});
     mjrf_configureSceneFromModel(main_scene_.get(), model);
+    offsamples_ = model->vis.quality.offsamples;
     model_objects_ =
         std::make_unique<ModelObjects>(model, filament_context_.get());
     model_lights_ =
@@ -137,6 +138,11 @@ void FilamentRenderer::Sync(const mjModel* model, mjData* data,
   const mjrCamera gl_camera = mjv_camera2GLCamera(model, data, camera);
 
   model_lights_->Update(data);
+
+  if (model->vis.quality.offsamples != offsamples_) {
+    offsamples_ = model->vis.quality.offsamples;
+    mjrf_setSceneMsaa(main_scene_.get(), offsamples_);
+  }
 
   if (vis_option) {
     model_renderables_->SetOptions(*vis_option);
