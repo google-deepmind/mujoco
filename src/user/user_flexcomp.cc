@@ -14,17 +14,14 @@
 
 #include <algorithm>
 #include <array>
-#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <queue>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -33,12 +30,12 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjtype.h>
 #include "cc/array_safety.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
-#include <mujoco/mjspec.h>
+#include "engine/engine_util_misc.h"
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_flexcomp.h"
@@ -71,15 +68,18 @@ mjCFlexcomp::mjCFlexcomp(void) {
   cellcount[0] = cellcount[1] = cellcount[2] = -1;
   mjuu_setvec(spacing, 0.02, 0.02, 0.02);
   mjuu_setvec(scale, 1, 1, 1);
+  mjuu_setvec(origin, 0, 0, 0);
   mass       = 1;
   inertiabox = 0.005;
   equality   = 0;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(quat, 1, 0, 0, 0);
-  rigid    = false;
-  centered = false;
-  doftype  = mjFCOMPDOF_FULL;
-  has_dim  = false;
+  rigid        = false;
+  centered     = false;
+  doftype      = mjFCOMPDOF_FULL;
+  has_dim      = false;
+  has_origin   = false;
+  file_or_mesh = false;
 
   mjs_defaultPlugin(&plugin);
   mjs_defaultOrientation(&alt);
@@ -135,6 +135,11 @@ void mjCFlexcomp::MarkEmptyCells(
 
 // make flexcomp object
 bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vfs) {
+  // a mesh asset can only be used by mesh and gmsh flexcomps
+  if (!mesh.empty() && type != mjFCOMPTYPE_MESH && type != mjFCOMPTYPE_GMSH) {
+    return comperr(error, "mesh asset can only be used with flexcomp type mesh or gmsh", error_sz);
+  }
+
   mjCModel*    model    = static_cast<mjCBody*>(body->element)->model;
   mjsCompiler* compiler = static_cast<mjCBody*>(body->element)->compiler;
   mjsFlex*     dflex    = def.spec.flex;
@@ -916,63 +921,139 @@ static T* VecToArray(std::vector<T>& vector, bool clear = true) {
 }
 
 
+// map points of a compiled mesh from its inertial frame back to the asset frame, i.e. undo the
+// translation to the center of mass and the rotation to the principal axes; the user
+// transformations (scale, refpos, refquat) remain applied, as for geoms
+static void ToAssetFrame(std::vector<double>& point, const double pos[3], const double quat[4]) {
+  double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
+  double mat[9];
+  mjuu_quat2mat(mat, neg);
+  for (size_t i = 0; i + 2 < point.size(); i += 3) {
+    mjuu_mulvecmatT(&point[i], &point[i], mat);
+    for (int j = 0; j < 3; j++) { point[i + j] += pos[j]; }
+  }
+}
+
+
 // make mesh
 bool mjCFlexcomp::MakeMesh(
     mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
-  // strip path
-  if (!file.empty() && model->spec.strippath) { file = mjuu_strippath(file); }
+  mjCMesh  local_mesh;
+  mjCMesh* cmesh = nullptr;
 
-  // file is required
-  if (file.empty()) { return comperr(error, "File is required", error_sz); }
+  if (!mesh.empty()) {
+    // use mesh asset
+    cmesh = static_cast<mjCMesh*>(model->FindObject(mjOBJ_MESH, mesh));
+    if (!cmesh) {
+      snprintf(error, error_sz, "mesh '%s' not found", mesh.c_str());
+      return false;
+    }
+
+    try {
+      cmesh->Compile(vfs);
+    } catch (mjCError err) { return comperr(error, err.message, error_sz); }
+  } else {
+    // strip path
+    if (!file.empty() && model->spec.strippath) { file = mjuu_strippath(file); }
+
+    // file is required
+    if (file.empty()) { return comperr(error, "File is required", error_sz); }
+
+    // load resource
+    std::string filename = mjuu_combinePaths(mjs_getString(compiler->meshdir), file);
+    mjResource* resource = nullptr;
+
+    if (type == mjFCOMPTYPE_GMSH) {
+      mjs_setString(local_mesh.spec.content_type, "model/vnd.gmsh");
+      local_mesh.CopyFromSpec();
+    } else if (mjCMesh::IsMSH(filename)) {
+      return comperr(error, "legacy MSH files are not supported in flexcomp", error_sz);
+    }
+
+    try {
+      resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir), filename, vfs);
+    } catch (mjCError err) {
+      if (file_or_mesh) {
+        std::string msg = "'" + file + "' is neither a mesh asset nor a file: " + err.message;
+        return comperr(error, msg.c_str(), error_sz);
+      }
+      return comperr(error, err.message, error_sz);
+    }
+
+    // load mesh
+    try {
+      local_mesh.LoadFromResource(resource, true);
+      mju_closeResource(resource);
+    } catch (mjCError err) {
+      mju_closeResource(resource);
+      return comperr(error, err.message, error_sz);
+    }
+    cmesh = &local_mesh;
+  }
+
+  // volumetric mesh (e.g. from GMSH)
+  if (!cmesh->Tet().empty()) {
+    if (has_dim && def.spec.flex->dim != 3) {
+      return comperr(error,
+                     type == mjFCOMPTYPE_GMSH
+                         ? "flexcomp dim does not match GMSH mesh dimensionality"
+                         : "flexcomp dim does not match mesh dimensionality",
+                     error_sz);
+    }
+    def.spec.flex->dim = 3;
+
+    if (cmesh->Node().empty()) {
+      return comperr(error,
+                     type == mjFCOMPTYPE_GMSH ? "GMSH mesh has no nodes" : "mesh has no nodes",
+                     error_sz);
+    }
+    point.assign(cmesh->Node().begin(), cmesh->Node().end());
+    if (!mesh.empty()) { ToAssetFrame(point, cmesh->GetPosPtr(), cmesh->GetQuatPtr()); }
+    element.assign(cmesh->Tet().begin(), cmesh->Tet().end());
+
+    // face texcoord indices refer to surface faces, not to tetrahedra: only keep
+    // texcoords given per node
+    if (cmesh->HasTexcoord() && cmesh->Texcoord().size() == 2 * (point.size() / 3)) {
+      texcoord = cmesh->Texcoord();
+    }
+    return true;
+  }
+
+  if (type == mjFCOMPTYPE_GMSH) {
+    if (has_dim && def.spec.flex->dim != 2) {
+      return comperr(error, "flexcomp dim does not match GMSH mesh dimensionality", error_sz);
+    }
+    def.spec.flex->dim = 2;
+  }
 
   // check dim
   if (def.spec.flex->dim < 1) {
     return comperr(error, "Flex dim must be at least 1 for mesh", error_sz);
   }
 
-  // load resource
-  std::string filename = mjuu_combinePaths(mjs_getString(compiler->meshdir), file);
-  mjResource* resource = nullptr;
-
-
-  if (mjCMesh::IsMSH(filename)) {
-    return comperr(error, "legacy MSH files are not supported in flexcomp", error_sz);
-  }
-
-  try {
-    resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir), filename, vfs);
-  } catch (mjCError err) { return comperr(error, err.message, error_sz); }
-
-
-  // load mesh
-  mjCMesh mesh;
-  try {
-    mesh.LoadFromResource(resource, true);
-    mju_closeResource(resource);
-  } catch (mjCError err) {
-    mju_closeResource(resource);
-    return comperr(error, err.message, error_sz);
-  }
-
   // check sizes
-  if (mesh.Vert().empty() || mesh.Face().empty()) {
+  if (cmesh->Vert().empty() || cmesh->Face().empty()) {
+    if (type == mjFCOMPTYPE_GMSH) {
+      return comperr(error, "unsupported GMSH mesh dimensionality", error_sz);
+    }
     return comperr(error, "Vertex and face data required", error_sz);
   }
 
-  // copy vertices
-  point.assign(mesh.Vert().begin(), mesh.Vert().end());
+  // copy vertices; faces index the vertices, which may have been deduplicated, not the nodes
+  point.assign(cmesh->Vert().begin(), cmesh->Vert().end());
+  if (!mesh.empty()) { ToAssetFrame(point, cmesh->GetPosPtr(), cmesh->GetQuatPtr()); }
 
-  if (mesh.HasTexcoord()) {
-    texcoord     = mesh.Texcoord();
-    elemtexcoord = mesh.FaceTexcoord();
+  if (cmesh->HasTexcoord()) {
+    texcoord     = cmesh->Texcoord();
+    elemtexcoord = cmesh->FaceTexcoord();
   }
 
   // copy faces or create 3D mesh
   if (def.spec.flex->dim == 2) {
-    element = mesh.Face();
+    element = cmesh->Face();
   } else if (def.spec.flex->dim == 1) {
     // extract edge pairs from degenerate triangles (i1, i2, i2)
-    const std::vector<int>& face = mesh.Face();
+    const std::vector<int>& face = cmesh->Face();
     element.clear();
     element.reserve(face.size() * 2 / 3);
     for (size_t i = 0; i < face.size(); i += 3) {
@@ -980,12 +1061,16 @@ bool mjCFlexcomp::MakeMesh(
       element.push_back(face[i + 1]);
     }
   } else {
+    if (!has_origin) {
+      return comperr(error, "origin must be specified for mesh flexcomps if dim=3", error_sz);
+    }
     point.insert(point.begin() + 0, origin[0]);
     point.insert(point.begin() + 1, origin[1]);
     point.insert(point.begin() + 2, origin[2]);
-    for (int i = 0; i < mesh.Face().size(); i += 3) {
+    const std::vector<int>& face = cmesh->Face();
+    for (int i = 0; i < face.size(); i += 3) {
       // only add tetrahedra with positive volume
-      int    tet[3] = {mesh.Face()[i + 0] + 1, mesh.Face()[i + 1] + 1, mesh.Face()[i + 2] + 1};
+      int    tet[3] = {face[i + 0] + 1, face[i + 1] + 1, face[i + 2] + 1};
       double edge1[3], edge2[3], edge3[3];
       for (int i = 0; i < 3; i++) {
         edge1[i] = point[3 * tet[0] + i] - origin[i];
@@ -1009,81 +1094,8 @@ bool mjCFlexcomp::MakeMesh(
 // load points and elements from GMSH file
 bool mjCFlexcomp::MakeGMSH(
     mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
-  // strip path
-  if (!file.empty() && model->spec.strippath) { file = mjuu_strippath(file); }
-
-  // file is required
-  if (file.empty()) { return comperr(error, "File is required", error_sz); }
-
-  // open resource
-  mjResource* resource = nullptr;
-  try {
-    std::string filename = mjuu_combinePaths(mjs_getString(compiler->meshdir), file);
-    resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir), filename, vfs);
-  } catch (mjCError err) { return comperr(error, err.message, error_sz); }
-
-  const mjpDecoder* decoder = mjp_findDecoder(resource, "model/vnd.gmsh");
-  if (!decoder) { decoder = mjp_findDecoder(resource, ""); }
-  if (!decoder) {
-    mju_closeResource(resource);
-    return comperr(error, "no decoder found for GMSH file", error_sz);
-  }
-
-  mjSpec* spec              = nullptr;
-  char    decode_error[500] = "";
-  try {
-    spec = decoder->decode(resource, vfs, decode_error, sizeof(decode_error));
-    mju_closeResource(resource);
-  } catch (...) {
-    mju_closeResource(resource);
-    return comperr(error, "exception while reading GMSH file", error_sz);
-  }
-
-  if (!spec) {
-    return comperr(error, decode_error[0] ? decode_error : "failed to decode GMSH file", error_sz);
-  }
-
-  mjsElement* mesh_elem = mjs_firstElement(spec, mjOBJ_MESH);
-  mjsMesh*    mesh      = mjs_asMesh(mesh_elem);
-  if (!mesh) {
-    mj_deleteSpec(spec);
-    return comperr(error, "invalid GMSH spec decoded", error_sz);
-  }
-
-  int mesh_dim = 0;
-  if (mesh->usertet && !mesh->usertet->empty()) {
-    mesh_dim = 3;
-  } else if (mesh->userface && !mesh->userface->empty()) {
-    mesh_dim = 2;
-  }
-
-  if (mesh_dim == 0) {
-    mj_deleteSpec(spec);
-    return comperr(error, "unsupported GMSH mesh dimensionality", error_sz);
-  }
-
-  if (has_dim && def.spec.flex->dim != mesh_dim) {
-    mj_deleteSpec(spec);
-    return comperr(error, "flexcomp dim does not match GMSH mesh dimensionality", error_sz);
-  }
-  def.spec.flex->dim = mesh_dim;
-
-  const mjDoubleVec* nodes = mesh->usernode;
-  if (!nodes || nodes->empty()) {
-    mj_deleteSpec(spec);
-    return comperr(error, "GMSH mesh has no nodes", error_sz);
-  }
-  point.assign(nodes->begin(), nodes->end());
-
-  if (mesh_dim == 3) {
-    element.assign(mesh->usertet->begin(), mesh->usertet->end());
-  } else {
-    element.assign(mesh->userface->begin(), mesh->userface->end());
-  }
-
-  mj_deleteSpec(spec);
-
-  return true;
+  type = mjFCOMPTYPE_GMSH;
+  return MakeMesh(model, compiler, error, error_sz, vfs);
 }
 
 

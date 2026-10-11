@@ -479,7 +479,6 @@
       <xs:enumeration value="ellipsoid"/>
       <xs:enumeration value="square"/>
       <xs:enumeration value="disc"/>
-      <xs:enumeration value="circle"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -2409,6 +2408,7 @@
     <xs:attribute name="inertiabox" type="xs:double"/>
     <xs:attribute name="scale" type="double3"/>
     <xs:attribute name="file" type="xs:string"/>
+    <xs:attribute name="mesh" type="xs:string"/>
     <xs:attribute name="point" type="doublelist"/>
     <xs:attribute name="element" type="doublelist"/>
     <xs:attribute name="texcoord" type="doublelist"/>

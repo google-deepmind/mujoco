@@ -463,9 +463,8 @@ inline constexpr mjMap meshbuiltin_map[] = {
   {"ellipsoid",    mjMESH_BUILTIN_ELLIPSOID},
   {"square",       mjMESH_BUILTIN_SQUARE},
   {"disc",         mjMESH_BUILTIN_DISC},
-  {"circle",       mjMESH_BUILTIN_CIRCLE},
 };
-inline constexpr int meshbuiltin_sz = 15;
+inline constexpr int meshbuiltin_sz = 14;
 
 // enum fcomp
 inline constexpr mjMap fcomp_map[] = {

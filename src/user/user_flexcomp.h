@@ -86,8 +86,11 @@ class mjCFlexcomp {
   double       inertiabox;    // size of inertia box for each body
   int          equality;      // create equality constraint, 0:none, 1:edge, 2:vert, 3:strain
   std::string  file;          // mesh/gmsh file name
+  std::string  mesh;          // referenced mesh asset name
   mjtDof       doftype;       // dof type, all vertices or trilinear interpolation
   bool         has_dim;       // whether dim was explicitly specified
+  bool         has_origin;    // whether origin was explicitly specified
+  bool         file_or_mesh;  // file could also have been a mesh name (mjs_makeFlex)
 
   // pin specifications
   std::vector<int> pinid;         // ids of points to pin

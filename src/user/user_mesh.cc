@@ -75,7 +75,6 @@ using mujoco::user::FilePath;
 using mujoco::user::PairHash;
 using std::cos;
 using std::max;
-using std::min;
 using std::pow;
 using std::sin;
 
@@ -449,6 +448,8 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   mesh->face_         = face_;
   mesh->facenormal_   = facenormal_;
   mesh->facetexcoord_ = facetexcoord_;
+  mesh->node_         = node_;
+  mesh->tet_          = tet_;
   mesh->halfedge_     = halfedge_;
   mesh->szgraph_      = szgraph_;
   if (szgraph_) {
@@ -625,7 +626,6 @@ void mjCMesh::LoadFromDecoder(mjResource* resource, bool remove_repeated) {
       }
       if (src_mesh->usertet) { tet_.assign(src_mesh->usertet->begin(), src_mesh->usertet->end()); }
 
-
       std::vector<float> vert(src_mesh->uservert->begin(), src_mesh->uservert->end());
       mj_deleteSpec(mesh_spec);
       ProcessVertices(vert, remove_repeated);
@@ -684,6 +684,8 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     texcoord_.clear();
     facenormal_.clear();
     facetexcoord_.clear();
+    node_.clear();
+    tet_.clear();
     if (resource_ != nullptr) {
       mju_closeResource(resource_);
       resource_ = nullptr;
@@ -694,7 +696,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
     // remove path from file if necessary
-    if (model->strippath) { file_ = mjuu_strippath(file_); }
+    if (model->spec.strippath) { file_ = mjuu_strippath(file_); }
 
     mjSpec*  owning_spec = model->FindSpec(compiler);
     FilePath filename    = meshdir_ + FilePath(file_);
@@ -740,6 +742,16 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
         throw mjCError(this, "repeated facetexcoord specification");
       } else if (facetexcoord_.empty()) {
         facetexcoord_ = spec_facetexcoord_;
+      }
+      if (!node_.empty() && !spec_node_.empty()) {
+        throw mjCError(this, "repeated node specification");
+      } else if (node_.empty()) {
+        node_ = spec_node_;
+      }
+      if (!tet_.empty() && !spec_tet_.empty()) {
+        throw mjCError(this, "repeated tet specification");
+      } else if (tet_.empty()) {
+        tet_ = spec_tet_;
       }
     }
   } else if (plugin.active) {
@@ -993,6 +1005,8 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
     face_         = mesh->face_;
     facenormal_   = mesh->facenormal_;
     facetexcoord_ = mesh->facetexcoord_;
+    node_         = mesh->node_;
+    tet_          = mesh->tet_;
     halfedge_     = mesh->halfedge_;
 
     // only copy graph if needed
@@ -1268,6 +1282,27 @@ void mjCMesh::ApplyTransformations(double* dvert) {
 }
 
 
+// apply user transformations, then translate by -pos and rotate by quat^-1 (as for vertices)
+void mjCMesh::TransformNodes(const double pos[3], const double quat[4]) {
+  if (node_.empty()) { return; }
+
+  double refmat[9], mat[9];
+  double rquat[4] = {refquat[0], refquat[1], refquat[2], refquat[3]};
+  mjuu_normvec(rquat, 4);
+  mjuu_quat2mat(refmat, rquat);
+  double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
+  mjuu_quat2mat(mat, neg);
+
+  for (int i = 0; i < nnode(); i++) {
+    double* p = &node_[3 * i];
+    for (int j = 0; j < 3; j++) { p[j] -= refpos[j]; }
+    mjuu_mulvecmatT(p, p, refmat);
+    for (int j = 0; j < 3; j++) { p[j] = p[j] * scale[j] - pos[j]; }
+    mjuu_mulvecmat(p, p, mat);
+  }
+}
+
+
 // find centroid of faces, return total area
 double mjCMesh::ComputeFaceCentroid(double facecen[3], const double* dvert) const {
   double total_area = 0;
@@ -1470,6 +1505,9 @@ void mjCMesh::Process() {
   mjuu_copyvec(pos_, CoM, 3);
   mjuu_copyvec(quat_, quattmp, 4);
 
+  // nodes (e.g. volumetric meshes) follow the same transformation as vertices
+  TransformNodes(CoM, quattmp);
+
   processed_ = true;
 
   // no radii: make
@@ -1649,6 +1687,7 @@ double mjCMesh::GetVolumeRef() const {
 
 
 // make graph describing convex hull
+// NOLINTBEGIN(misc-include-cleaner)
 void mjCMesh::MakeGraph(const double* dvert) {
   int      adr, ok, curlong, totlong, exitcode;
   facetT * facet, **facetp;
@@ -1892,6 +1931,7 @@ void mjCMesh::MakeGraph(const double* dvert) {
     throw mjCError(this, "qhull error");
   }
 }
+// NOLINTEND(misc-include-cleaner)
 
 
 // copy graph into face data
@@ -3480,7 +3520,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     }
 
     // remove path from file if necessary
-    if (model->strippath) { file_ = mjuu_strippath(file_); }
+    if (model && model->spec.strippath) { file_ = mjuu_strippath(file_); }
 
     // load SKN
     std::string ext = mjuu_getext(file_);

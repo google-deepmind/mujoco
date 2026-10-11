@@ -1614,12 +1614,11 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
    :at-val:`grid` (count[3], spacing[3], [dim])
       A regular grid of vertices. If ``dim`` is 3 (default), creates a volumetric tetrahedral mesh. If ``dim`` is 2,
-      creates a triangulated 2D surface mesh. If ``dim`` is 1, creates ordered nodes only, which can be used by
-      flexcomp but not by geoms.
+      creates a triangulated 2D surface mesh.
 
       **count**: 3 integers > 0: Number of vertices along each axis; must be 1 along the axes beyond ``dim``.
       |br| **spacing**: 3 reals: Spacing between grid points along each axis.
-      |br| **dim**: optional integer in [1, 3] (default 3): Mesh dimensionality.
+      |br| **dim**: optional integer in [2, 3] (default 3): Mesh dimensionality.
 
    :at-val:`box` (count[3], spacing[3], [dim])
       A procedural box mesh. If ``dim`` is 3 (default), creates a volumetric tetrahedral mesh. If ``dim`` is 2,
@@ -1656,13 +1655,6 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
       **count**: 3 integers (first 2 must be > 0, last must be 1): Number of vertices along the radial and angular
       directions.
-      |br| **spacing**: 3 reals: Spacing along each axis.
-
-   :at-val:`circle` (count[3], spacing[3])
-      A 1D circular mesh of ordered nodes, which can be used by flexcomp but not by geoms.
-
-      **count**: 3 integers (first must be >= 4): Number of grid points around the circle; the last point coincides
-      with the first, so ``count[0] - 1`` nodes are created.
       |br| **spacing**: 3 reals: Spacing along each axis.
 
 .. _asset-mesh-params:
@@ -4077,6 +4069,18 @@ saving the XML:
    surface meshes, the file extension is used to determine the file format. Supported formats are GMSH and the formats
    specified in :ref:`mesh assets<asset-mesh>`, excluding the legacy .msh format. Volumetric meshes are supported only
    in GMSH format. See :ref:`here<gmsh-file-docs>` for more information on GMSH files.
+
+.. _body-flexcomp-mesh:
+
+:at:`mesh`: :at-val:`string, optional`
+   The name of a :ref:`mesh asset<asset-mesh>` from which a **surface** (triangular) or **volumetric** (tetrahedral)
+   mesh is referenced. Can be used in place of :at:`file`. If specified without an explicit :at:`type`, the flexcomp
+   type defaults to ``mesh``; any type other than ``mesh`` or ``gmsh`` is an error. The asset's :at:`scale`,
+   :at:`refpos` and :at:`refquat` are applied to the vertices and volumetric nodes, which are otherwise expressed in the
+   frame of the asset, so that the flex coincides with a geom using the same mesh at the same position. In contrast,
+   :at:`file` uses the raw file coordinates. For :at:`dim` = 3, :at:`origin` is expressed in the same frame. The mesh
+   asset is read when the flexcomp is expanded, i.e. when the model is parsed or :ref:`mjs_makeFlex` is called, so later
+   changes to the mesh asset do not affect the flex.
 
 .. _body-flexcomp-rigid:
 

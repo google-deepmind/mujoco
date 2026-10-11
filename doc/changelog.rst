@@ -111,10 +111,15 @@ Compiler
   ellipsoid :ref:`fluid model<body-geom-fluidshape>` are kept.
 - Added :ref:`mjs_adoptInertial`, which makes the inertial that compilation infers from the geoms of a body part of
   the :ref:`mjSpec`, so that it no longer follows later changes to the geoms.
-- Added procedural mesh types ``grid``, ``box``, ``cylinder``, ``ellipsoid``, ``square``, ``disc`` and ``circle`` to
+- :ref:`flexcomp<body-flexcomp>` can now reference a :ref:`mesh asset<asset-mesh>` directly using the
+  :ref:`mesh<body-flexcomp-mesh>` attribute, in place of :at:`file`. Volumetric meshes (e.g. from GMSH) supply nodes
+  and tetrahedra directly; surface meshes can create 1D or 2D flexes or extrude to volumetric tetrahedra using
+  :at:`origin`. Added the ``mesh`` parameter to Python
+  ``body.make_flex``; in :ref:`mjs_makeFlex`, the ``file`` parameter can also be the name of a mesh asset.
+- Added procedural mesh types ``grid``, ``box``, ``cylinder``, ``ellipsoid``, ``square`` and ``disc`` to
   :ref:`mesh/builtin<asset-mesh-builtin>` and :ref:`mjs_makeMesh`, generating the same shapes as the corresponding
-  :ref:`flexcomp<body-flexcomp>` types. The ``circle`` and 1D ``grid`` types only contain nodes. Types without volume
-  change a ``legacy`` mesh inertia to ``shell``.
+  :ref:`flexcomp<body-flexcomp>` types. Types without volume change a ``legacy`` mesh inertia to ``shell``.
+- Procedural mesh assets can be consumed directly by :ref:`flexcomp<body-flexcomp>` or geoms. Added Python convenience methods ``mjsMesh.make_*``.
 
 Bug fixes
 ^^^^^^^^^

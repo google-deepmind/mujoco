@@ -1094,7 +1094,7 @@
             <attribute name="smoothnormal" type="keyword" valid_values="false true"/>
             <attribute name="maxhullvert" type="int" default="-1"/>
             <attribute name="inertia" type="keyword" valid_values="convex legacy exact shell" default="legacy"/>
-            <attribute name="builtin" type="keyword" valid_values="none sphere hemisphere cone supertorus supersphere wedge plate grid box cylinder ellipsoid square disc circle"/>
+            <attribute name="builtin" type="keyword" valid_values="none sphere hemisphere cone supertorus supersphere wedge plate grid box cylinder ellipsoid square disc"/>
             <attribute name="params" type="array" array_type="float"/>
             <attribute name="material" type="reference" reference_namespace="material"/>
           </attributes>
@@ -1519,6 +1519,7 @@
                 <attribute name="inertiabox" type="float"/>
                 <attribute name="scale" type="array" array_type="float" array_size="3"/>
                 <attribute name="file" type="file"/>
+                <attribute name="mesh" type="reference" reference_namespace="mesh"/>
                 <attribute name="point" type="array" array_type="float"/>
                 <attribute name="element" type="array" array_type="float"/>
                 <attribute name="texcoord" type="array" array_type="float"/>
@@ -1828,6 +1829,7 @@
             <attribute name="inertiabox" type="float"/>
             <attribute name="scale" type="array" array_type="float" array_size="3"/>
             <attribute name="file" type="file"/>
+            <attribute name="mesh" type="reference" reference_namespace="mesh"/>
             <attribute name="point" type="array" array_type="float"/>
             <attribute name="element" type="array" array_type="float"/>
             <attribute name="texcoord" type="array" array_type="float"/>

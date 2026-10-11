@@ -2170,40 +2170,6 @@ static mjsMesh* MakeBuiltinMesh(mjSpec* spec, mjtMeshBuiltin builtin,
   return mesh;
 }
 
-TEST_F(MjCMeshTest, MakeGrid1D) {
-  mjSpec* spec = mj_makeSpec();
-  mjsMesh* mesh =
-      MakeBuiltinMesh(spec, mjMESH_BUILTIN_GRID, {5, 1, 1, 0.1, 0, 0, 1});
-  ASSERT_THAT(mesh, NotNull());
-  const std::vector<double>& node = *mesh->usernode;
-  ASSERT_EQ(node.size(), 5 * 3);
-  // 1D grids only have nodes, connectivity is implicit
-  EXPECT_TRUE(mesh->uservert->empty());
-  EXPECT_TRUE(mesh->userface->empty());
-  EXPECT_TRUE(mesh->usertet->empty());
-  EXPECT_THAT(std::vector<double>(node.begin(), node.begin() + 6),
-              ElementsAre(0.1 * -2.0, 0, 0, 0.1 * -1.0, 0, 0));
-  mj_deleteSpec(spec);
-}
-
-TEST_F(MjCMeshTest, MakeCircle) {
-  mjSpec* spec = mj_makeSpec();
-  mjsMesh* mesh =
-      MakeBuiltinMesh(spec, mjMESH_BUILTIN_CIRCLE, {5, 1, 1, 1, 0, 0});
-  ASSERT_THAT(mesh, NotNull());
-  const std::vector<double>& node = *mesh->usernode;
-  ASSERT_EQ(node.size(), 4 * 3);  // last grid point coincides with the first
-  EXPECT_TRUE(mesh->userface->empty());
-  EXPECT_TRUE(mesh->usertet->empty());
-  // square inscribed in a circle, consecutive nodes at distance spacing[0]
-  double radius = std::sqrt(0.5);
-  EXPECT_DOUBLE_EQ(node[0], radius);
-  EXPECT_DOUBLE_EQ(node[1], 0);
-  EXPECT_NEAR(node[3], 0, 1e-15);
-  EXPECT_DOUBLE_EQ(node[4], radius);
-  mj_deleteSpec(spec);
-}
-
 TEST_F(MjCMeshTest, MakeGrid2D) {
   mjSpec* spec = mj_makeSpec();
   mjsMesh* mesh =
@@ -2324,24 +2290,20 @@ TEST_F(MjCMeshTest, MakeBuiltinInvalidParams) {
       // wrong number of parameters
       {mjMESH_BUILTIN_GRID, {3, 3, 3, 1, 1}, "requires 6 or 7 parameters"},
       {mjMESH_BUILTIN_BOX, {3, 3, 3, 1, 1}, "requires 6 or 7 parameters"},
-      {mjMESH_BUILTIN_CIRCLE, {3}, "requires 6 parameters"},
-      {mjMESH_BUILTIN_CIRCLE, {5, 1, 1, 1, 0, 0, 1}, "requires 6 parameters"},
       {mjMESH_BUILTIN_SQUARE, {3, 3, 1, 1, 1, 0, 2}, "requires 6 parameters"},
       // invalid dim
-      {mjMESH_BUILTIN_GRID, {3, 3, 3, 1, 1, 1, 4}, "dim must be 1, 2, or 3"},
+      {mjMESH_BUILTIN_GRID, {3, 3, 3, 1, 1, 1, 4}, "dim must be 2 or 3"},
+      {mjMESH_BUILTIN_GRID, {5, 1, 1, 1, 0, 0, 1}, "dim must be 2 or 3"},
       {mjMESH_BUILTIN_BOX, {3, 3, 3, 1, 1, 1, 1}, "dim must be 2 or 3"},
       // grid counts must be positive and 1 beyond dim
       {mjMESH_BUILTIN_GRID, {0, 3, 3, 1, 1, 1, 3}, "count must be positive"},
       {mjMESH_BUILTIN_GRID, {3, 3, 2, 1, 1, 1, 2}, "beyond dim"},
-      {mjMESH_BUILTIN_GRID, {3, 3, 1, 1, 1, 1, 1}, "beyond dim"},
       // square and disc are 2D
       {mjMESH_BUILTIN_SQUARE, {3, 3, 0, 1, 1, 1}, "count[2] must be 1"},
       {mjMESH_BUILTIN_DISC, {3, 3, 2, 1, 1, 1}, "count[2] must be 1"},
       // boxes need at least two points per side
       {mjMESH_BUILTIN_BOX, {3, 1, 3, 1, 1, 1, 3}, "at least 2"},
       {mjMESH_BUILTIN_CYLINDER, {3, 3, 1, 1, 1, 1, 2}, "at least 2"},
-      // circles need at least three nodes
-      {mjMESH_BUILTIN_CIRCLE, {3, 1, 1, 1, 1, 1}, "at least 4"},
   };
   for (const Case& c : cases) {
     mjSpec* spec = mj_makeSpec();

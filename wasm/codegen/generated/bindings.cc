@@ -16,6 +16,7 @@
 
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
+// NOLINTBEGIN(misc-include-cleaner)
 
 #include "wasm/codegen/generated/bindings.h"
 
@@ -4263,8 +4264,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjMESH_BUILTIN_CYLINDER", mjMESH_BUILTIN_CYLINDER)
     .value("mjMESH_BUILTIN_ELLIPSOID", mjMESH_BUILTIN_ELLIPSOID)
     .value("mjMESH_BUILTIN_SQUARE", mjMESH_BUILTIN_SQUARE)
-    .value("mjMESH_BUILTIN_DISC", mjMESH_BUILTIN_DISC)
-    .value("mjMESH_BUILTIN_CIRCLE", mjMESH_BUILTIN_CIRCLE);
+    .value("mjMESH_BUILTIN_DISC", mjMESH_BUILTIN_DISC);
   enum_<mjtMeshInertia>("mjtMeshInertia")
     .value("mjMESH_INERTIA_CONVEX", mjMESH_INERTIA_CONVEX)
     .value("mjMESH_INERTIA_EXACT", mjMESH_INERTIA_EXACT)
@@ -6871,5 +6871,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 }
 
 }  // namespace mujoco::wasm
+// NOLINTEND(misc-include-cleaner)
 // NOLINTEND(whitespace/semicolon)
 // NOLINTEND(whitespace/line_length)

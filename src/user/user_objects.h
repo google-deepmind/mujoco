@@ -1421,6 +1421,7 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void   MakeCenter(const double* dvert);      // compute face circumcircle data
   void   Process();                            // compute inertial properties
   void   ApplyTransformations(double* dvert);  // apply user transformations
+  void   TransformNodes(const double pos[3], const double quat[4]);  // transform nodes like verts
   double ComputeFaceCentroid(double[3], const double* dvert) const;
   void   CheckInitialMesh() const;  // check if initial mesh is valid
   void   CopyPlugin();

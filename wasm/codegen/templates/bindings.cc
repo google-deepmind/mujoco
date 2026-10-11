@@ -14,6 +14,7 @@
 
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
+// NOLINTBEGIN(misc-include-cleaner)
 
 #include "wasm/codegen/generated/bindings.h"
 
@@ -649,5 +650,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 }
 
 }  // namespace mujoco::wasm
+// NOLINTEND(misc-include-cleaner)
 // NOLINTEND(whitespace/semicolon)
 // NOLINTEND(whitespace/line_length)

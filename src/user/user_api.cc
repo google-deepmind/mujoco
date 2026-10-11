@@ -903,9 +903,10 @@ mjsFlex* mjs_makeFlex(mjsBody*     body,
     fcomp.scale[2] = scale[2];
   }
   if (origin) {
-    fcomp.origin[0] = origin[0];
-    fcomp.origin[1] = origin[1];
-    fcomp.origin[2] = origin[2];
+    fcomp.has_origin = true;
+    fcomp.origin[0]  = origin[0];
+    fcomp.origin[1]  = origin[1];
+    fcomp.origin[2]  = origin[2];
   }
 
   // physics
@@ -933,8 +934,16 @@ mjsFlex* mjs_makeFlex(mjsBody*     body,
     fcomp.quat[3] = quat[3];
   }
 
-  // file
-  if (file) { fcomp.file = file; }
+  // file is the name of a mesh asset if one exists, otherwise a file name
+  if (file) {
+    if (model->FindObject(mjOBJ_MESH, file)) {
+      fcomp.mesh = file;
+      if (!type) { fcomp.type = mjFCOMPTYPE_MESH; }
+    } else {
+      fcomp.file         = file;
+      fcomp.file_or_mesh = true;
+    }
+  }
 
   // call Make
   char error[500] = "";
@@ -1159,8 +1168,8 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
                            static_cast<int>(params[2])};
       double spacing[3] = {params[3], params[4], params[5]};
       int    dim        = (nparams == 7) ? static_cast<int>(params[6]) : 3;
-      if (dim < 1 || dim > 3) {
-        m->SetError(mjCError(0, "Grid dim must be 1, 2, or 3"));
+      if (dim < 2 || dim > 3) {
+        m->SetError(mjCError(0, "Grid dim must be 2 or 3"));
         return -1;
       }
       for (int i = 0; i < dim; i++) {
@@ -1176,7 +1185,7 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
         }
       }
       meshC->MakeGrid(count, spacing, dim, false);
-      if (dim > 1 && (dim == 3 ? mesh->usertet : mesh->userface)->empty()) {
+      if ((dim == 3 ? mesh->usertet : mesh->userface)->empty()) {
         m->SetError(mjCError(0, "Failed to create grid mesh"));
         return -1;
       }
@@ -1258,27 +1267,6 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
         return -1;
       }
       if (mesh->inertia == mjMESH_INERTIA_LEGACY) { mesh->inertia = mjMESH_INERTIA_SHELL; }
-      return 0;
-    }
-
-    case mjMESH_BUILTIN_CIRCLE: {
-      if (nparams != 6) {
-        m->SetError(mjCError(0, "Circle mesh type requires 6 parameters (count[3], spacing[3])"));
-        return -1;
-      }
-      int    count[3]   = {static_cast<int>(params[0]),
-                           static_cast<int>(params[1]),
-                           static_cast<int>(params[2])};
-      double spacing[3] = {params[3], params[4], params[5]};
-      if (count[0] < 4) {
-        m->SetError(mjCError(0, "Circle count must be at least 4 (3 nodes)"));
-        return -1;
-      }
-      meshC->MakeCircle(count, spacing);
-      if (mesh->usernode->empty()) {
-        m->SetError(mjCError(0, "Failed to create circle mesh"));
-        return -1;
-      }
       return 0;
     }
 

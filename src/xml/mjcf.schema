@@ -443,7 +443,6 @@ enum meshbuiltin : mjtMeshBuiltin {
   ellipsoid     = mjMESH_BUILTIN_ELLIPSOID
   square        = mjMESH_BUILTIN_SQUARE
   disc          = mjMESH_BUILTIN_DISC
-  circle        = mjMESH_BUILTIN_CIRCLE
 }
 
 enum fcomp {
@@ -1284,6 +1283,7 @@ element flexcomp {
   inertiabox         : double (dim=L)
   scale              : double[3] (dim=L)
   file               : file
+  mesh               : ref<mesh>
   point              : double[] (dim=1)
   element            : double[] (dim=1)
   texcoord           : double[] (dim=1)

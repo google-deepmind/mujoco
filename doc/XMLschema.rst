@@ -1497,6 +1497,9 @@
                :ref:`file<body-flexcomp-file>`
 
             .. grid-item::
+               :ref:`mesh<body-flexcomp-mesh>`
+
+            .. grid-item::
                :ref:`point<body-flexcomp-point>`
 
             .. grid-item::

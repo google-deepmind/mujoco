@@ -5295,9 +5295,10 @@ Add flex.
 
 .. mujoco-include:: mjs_makeFlex
 
-Add flexcomp: create flex with auto-generated bodies/joints, return flex spec.
-
-*Nullable:* ``type``, ``dof``, ``count``, ``cellcount``, ``spacing``, ``scale``, ``pos``, ``quat``, ``origin``, ``file``, ``vfs``
+Create a :ref:`flexcomp<body-flexcomp>` in ``body`` and return the resulting flex; the arguments correspond to the
+flexcomp attributes. If ``file`` is the name of an existing :ref:`mesh asset<asset-mesh>`, the flexcomp uses that mesh as
+with the :ref:`mesh<body-flexcomp-mesh>` attribute, otherwise ``file`` is the name of a mesh file. The flexcomp is
+expanded immediately, so later changes to the mesh asset do not affect the created flex.
 
 .. _mjs_addPair:
 
@@ -5605,17 +5606,15 @@ attribute. The procedural types below generate the same shapes as the correspond
 types; their nodes are stored in double precision in ``usernode``.
 
 - ``mjMESH_BUILTIN_GRID`` (count[3], spacing[3], [dim]): A regular grid with ``count[i] > 0`` points along each axis,
-  separated by ``spacing[i]``. ``dim`` (default 3) creates tetrahedra (3), triangles (2) or ordered nodes only (1);
+  separated by ``spacing[i]``. ``dim`` (default 3) creates tetrahedra (3) or triangles (2);
   ``count`` must be 1 along the axes beyond ``dim``.
 - ``mjMESH_BUILTIN_BOX``, ``mjMESH_BUILTIN_CYLINDER``, ``mjMESH_BUILTIN_ELLIPSOID`` (count[3], spacing[3], [dim]): The
   surface of a box grid with ``count[i] >= 2`` points along each axis, projected onto the shape. ``dim`` (default 3)
   creates tetrahedra connecting the surface to the center (3) or surface triangles (2).
 - ``mjMESH_BUILTIN_SQUARE``, ``mjMESH_BUILTIN_DISC`` (count[3], spacing[3]): A triangulated square, or a disc obtained by
   radial projection of the square; ``count[2]`` must be 1.
-- ``mjMESH_BUILTIN_CIRCLE`` (count[3], spacing[3]): ``count[0] - 1`` ordered nodes on a circle, with ``spacing[0]``
-  between consecutive nodes; ``count[0]`` must be at least 4.
 
-Meshes with only ordered nodes (circle and 1D grid) cannot be used by geoms. Types without volume (square, disc, and
+Types without volume (square, disc, and
 grid, box, cylinder and ellipsoid with ``dim`` < 3) change a ``legacy`` :ref:`inertia<asset-mesh-inertia>` to
 ``shell``.
 

@@ -579,7 +579,37 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.mesh_vertnum[3], 2 * (4 + 1) * (4 + 2) + 2)
     self.assertEqual(model.mesh_vertnum[4], 2 + 10 * 4**2)
     self.assertEqual(model.mesh_vertnum[5], 100)
-    self.assertEqual(model.mesh_vertnum[6], 20 * (20 -1) + 2)
+    self.assertEqual(model.mesh_vertnum[6], 20 * (20 - 1) + 2)
+
+  def test_make_mesh_procedural(self):
+    spec = mujoco.MjSpec()
+
+    mesh_grid = spec.add_mesh(name='grid')
+    mesh_grid.make_grid(count=[4, 4, 4], spacing=[0.05, 0.05, 0.05], dim=3)
+
+    mesh_grid2d = spec.add_mesh(name='grid2d')
+    mesh_grid2d.make_grid(count=[4, 4, 1], spacing=[0.05, 0.05, 0], dim=2)
+
+    mesh_box = spec.add_mesh(name='box')
+    mesh_box.make_box(count=[3, 3, 3], spacing=[0.05, 0.05, 0.05], dim=3)
+
+    mesh_cyl = spec.add_mesh(name='cylinder')
+    mesh_cyl.make_cylinder(count=[3, 3, 3], spacing=[0.05, 0.05, 0.05], dim=3)
+
+    mesh_ell = spec.add_mesh(name='ellipsoid')
+    mesh_ell.make_ellipsoid(count=[3, 3, 3], spacing=[0.05, 0.05, 0.05], dim=3)
+
+    mesh_sq = spec.add_mesh(name='square')
+    mesh_sq.make_square(count=[4, 4, 1], spacing=[0.05, 0.05, 0])
+
+    mesh_disc = spec.add_mesh(name='disc')
+    mesh_disc.make_disc(count=[5, 5, 1], spacing=[0.05, 0.05, 0])
+
+    spec.worldbody.make_flex(name='flex_grid', mesh='grid')
+
+    model = spec.compile()
+    self.assertEqual(model.nmesh, 7)
+    self.assertEqual(model.nflex, 1)
 
   def test_compile_errors_with_line_info(self):
     spec = mujoco.MjSpec()
@@ -2391,6 +2421,36 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(flex)
     model = spec.compile()
     self.assertIsNotNone(model)
+
+  def test_make_flex_mesh(self):
+    # Create a spec with flexcomp consuming a mesh asset.
+    spec = mujoco.MjSpec()
+    mesh = spec.add_mesh(name='test_mesh')
+    mesh.usernode = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    mesh.usertet = [0, 1, 2, 3]
+    mesh.uservert = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    mesh.userface = [0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3]
+    body = spec.worldbody.add_body(name='flex_body')
+    flex = body.make_flex(
+        name='mesh_flex',
+        mesh='test_mesh',
+    )
+    self.assertIsNotNone(flex)
+    model = spec.compile()
+    self.assertIsNotNone(model)
+    self.assertEqual(model.nflex, 1)
+    self.assertEqual(model.flex_dim[0], 3)
+
+  def test_make_flex_mesh_errors(self):
+    spec = mujoco.MjSpec()
+    spec.add_mesh(name='test_mesh').make_grid(
+        count=[3, 3, 1], spacing=[0.1, 0.1, 0], dim=2
+    )
+    body = spec.worldbody.add_body(name='flex_body')
+    with self.assertRaisesRegex(ValueError, "mesh 'tset_mesh' not found"):
+      body.make_flex(name='typo', mesh='tset_mesh')
+    with self.assertRaisesRegex(ValueError, "both 'file' and 'mesh'"):
+      body.make_flex(name='both', mesh='test_mesh', file='test_mesh.obj')
 
   def test_authored_struct(self):
     spec = mujoco.MjSpec()

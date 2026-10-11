@@ -15,6 +15,7 @@
 // Tests for user/user_model.cc.
 
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -29,6 +30,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -998,7 +1000,7 @@ TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumNodes_Fail) {
   std::array<char, 1024> error;
   mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("XML Error: GMSH decoder: "));
+  EXPECT_THAT(error.data(), HasSubstr("GMSH decoder: "));
   mj_deleteModel(m);
 }
 
@@ -2083,6 +2085,634 @@ INSTANTIATE_TEST_SUITE_P(
     [](const testing::TestParamInfo<BendingAttachmentCase>& info) {
       return info.param.name;
     });
+
+// ---------------- flexcomp consuming mesh asset tests ------------------------
+
+static constexpr char kTetrahedronMsh[] =
+    "$MeshFormat\n"
+    "2.2 0 8\n"
+    "$EndMeshFormat\n"
+    "$Nodes\n"
+    "4\n"
+    "1 0 0 0\n"
+    "2 1 0 0\n"
+    "3 0 1 0\n"
+    "4 0 0 1\n"
+    "$EndNodes\n"
+    "$Elements\n"
+    "1\n"
+    "1 4 0 1 2 3 4\n"
+    "$EndElements\n";
+
+static constexpr char kTetrahedronObj[] =
+    "v 0 0 0\n"
+    "v 1 0 0\n"
+    "v 0 1 0\n"
+    "v 0 0 1\n"
+    "f 1 3 2\n"
+    "f 1 2 4\n"
+    "f 2 3 4\n"
+    "f 3 1 4\n";
+
+TEST_F(UserFlexTest, FlexcompMeshAssetVolumetric) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetmesh" content_type="model/vnd.gmsh" file="tetrahedron.msh"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tetmesh"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.msh", kTetrahedronMsh,
+                  sizeof(kTetrahedronMsh) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 3);
+  EXPECT_EQ(model->nflexvert, 4);
+  EXPECT_EQ(model->nflexelem, 1);
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetDimMismatch) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetmesh" content_type="model/vnd.gmsh" file="tetrahedron.msh"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tetmesh" dim="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.msh", kTetrahedronMsh,
+                  sizeof(kTetrahedronMsh) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("dimensionality"));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetSurface2D) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet_surface" file="tetrahedron.obj"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tet_surface" dim="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.obj", kTetrahedronObj,
+                  sizeof(kTetrahedronObj) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 2);
+  EXPECT_EQ(model->nflexvert, 4);
+  EXPECT_EQ(model->nflexelem, 4);
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetSurface3DWithOrigin) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet_surface" file="tetrahedron.obj"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tet_surface" dim="3" origin=".25 .25 .25"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.obj", kTetrahedronObj,
+                  sizeof(kTetrahedronObj) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 3);
+  EXPECT_EQ(model->nflexvert, 5);  // 4 mesh vertices + origin
+  EXPECT_EQ(model->nflexelem, 4);  // 4 extruded tetrahedra
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetSurface3DWithoutOriginFails) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet_surface" file="tetrahedron.obj"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tet_surface" dim="3"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.obj", kTetrahedronObj,
+                  sizeof(kTetrahedronObj) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("origin must be specified"));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetNotFound) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="soft" mesh="nonexistent"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("mesh 'nonexistent' not found"));
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAndFileMutuallyExclusive) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="trimesh" file="triangle.obj"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="trimesh" file="triangle.obj"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("both 'file' and 'mesh' specified"));
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetBuiltinGrid3D) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="grid_mesh" builtin="grid" params="4 4 4  0.02 0.02 0.02  3"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="grid_mesh" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 3);
+  EXPECT_EQ(model->flex_vertnum[0], 64);
+  EXPECT_EQ(model->flex_elemnum[0], 162);  // 3*3*3 * 6 tets
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetBuiltinGrid2D) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="grid_2d" builtin="grid" params="5 5 1  0.02 0.02 0  2"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft2d" mesh="grid_2d" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 2);
+  EXPECT_EQ(model->flex_vertnum[0], 25);
+  EXPECT_EQ(model->flex_elemnum[0], 32);  // 4*4 * 2 triangles
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetBuiltinBox) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box_mesh" builtin="box" params="3 3 3  0.05 0.05 0.05  3"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="softbox" mesh="box_mesh" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 3);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetBuiltinDisc) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="disc_mesh" builtin="disc" params="5 5 1  0.02 0.02 0"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="softdisc" mesh="disc_mesh" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->nflex, 1);
+  EXPECT_EQ(model->flex_dim[0], 2);
+}
+
+TEST_F(UserFlexTest, FlexcompBoxTexcoord) {
+  // one generated texcoord per vertex, the center vertex only exists in 3D
+  for (int dim : {2, 3}) {
+    std::string xml = R"(
+    <mujoco>
+      <asset>
+        <material name="mat"/>
+      </asset>
+      <worldbody>
+        <flexcomp name="box" type="box" count="3 3 3" spacing=".1 .1 .1"
+                  radius=".001" material="mat" dim=")";
+    xml += std::to_string(dim);
+    xml += R"("/>
+      </worldbody>
+    </mujoco>
+    )";
+    char error[1024] = {0};
+    MjModelPtr model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
+    EXPECT_EQ(model->nflextexcoord, model->flex_vertnum[0]);
+  }
+}
+
+// flex vertex positions of flex f, after kinematics
+static std::vector<double> FlexVertPos(const mjModel* m, const mjData* d,
+                                       int f) {
+  const mjtNum* x = d->flexvert_xpos + 3 * m->flex_vertadr[f];
+  return std::vector<double>(x, x + 3 * m->flex_vertnum[f]);
+}
+
+// positions of the vertices of mesh geom g, after kinematics
+static std::vector<double> GeomMeshVertPos(const mjModel* m, const mjData* d,
+                                           int g) {
+  int mesh = m->geom_dataid[g];
+  std::vector<double> pos;
+  for (int v = 0; v < m->mesh_vertnum[mesh]; v++) {
+    const float* vert = m->mesh_vert + 3 * (m->mesh_vertadr[mesh] + v);
+    mjtNum local[3] = {vert[0], vert[1], vert[2]}, global[3];
+    mju_mulMatVec3(global, d->geom_xmat + 9 * g, local);
+    for (int j = 0; j < 3; j++) {
+      pos.push_back(global[j] + d->geom_xpos[3 * g + j]);
+    }
+  }
+  return pos;
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetAppliesMeshTransforms) {
+  // mesh= applies scale, refpos and refquat in the asset frame, and coincides
+  // with a geom using the same mesh; file= uses the raw file coordinates
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="surface" file="tetrahedron.obj" scale="2 2 2"
+            refpos="0.5 0 0" refquat="0.7071067811865476 0 0 0.7071067811865476"/>
+      <mesh name="volume" content_type="model/vnd.gmsh" file="tetrahedron.msh"
+            scale="2 2 2" refpos="0.5 0 0"
+            refquat="0.7071067811865476 0 0 0.7071067811865476"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="surface" contype="0" conaffinity="0"/>
+      <flexcomp name="from_mesh" mesh="surface" dim="2" radius=".001"/>
+      <flexcomp name="from_file" type="mesh" file="tetrahedron.obj" dim="2"
+                radius=".001"/>
+      <flexcomp name="from_gmsh" mesh="volume" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.obj", kTetrahedronObj,
+                  sizeof(kTetrahedronObj) - 1);
+  mj_addBufferVFS(&vfs, "tetrahedron.msh", kTetrahedronMsh,
+                  sizeof(kTetrahedronMsh) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
+
+  // 2 * R^T (v - refpos), where R is the rotation by 90 degrees about z
+  std::vector<double> expected = {0, 1, 0, 0, -1, 0, 2, 1, 0, 0, 1, 2};
+  EXPECT_THAT(FlexVertPos(m.get(), d.get(), 0),
+              Pointwise(DoubleNear(1e-6), expected));
+  EXPECT_THAT(
+      FlexVertPos(m.get(), d.get(), 0),
+      Pointwise(DoubleNear(1e-6), GeomMeshVertPos(m.get(), d.get(), 0)));
+
+  std::vector<double> raw = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+  EXPECT_THAT(FlexVertPos(m.get(), d.get(), 1),
+              Pointwise(DoubleNear(1e-6), raw));
+
+  // volumetric nodes follow the same transformation as the surface vertices
+  EXPECT_THAT(FlexVertPos(m.get(), d.get(), 2),
+              Pointwise(DoubleNear(1e-6), expected));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetGrid2DStaysInPlane) {
+  // the principal axes of a flat mesh are not aligned with its plane, the flex
+  // must stay in the frame of the asset
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="grid" builtin="grid" params="3 3 1  0.1 0.1 0  2"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="cloth" mesh="grid" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
+
+  std::vector<double> pos = FlexVertPos(m.get(), d.get(), 0);
+  ASSERT_EQ(pos.size(), 9 * 3);
+  for (int v = 0; v < 9; v++) {
+    EXPECT_NEAR(std::abs(pos[3 * v + 0]), v / 3 == 1 ? 0 : 0.1, 1e-6);
+    EXPECT_NEAR(std::abs(pos[3 * v + 1]), v % 3 == 1 ? 0 : 0.1, 1e-6);
+    EXPECT_NEAR(pos[3 * v + 2], 0, 1e-6);
+  }
+}
+
+TEST_F(UserFlexTest, MeshAssetNodeOnlyBuiltinsRejected) {
+  // mesh assets must have faces or tetrahedra, use flexcomp type="circle" or
+  // type="grid" with dim=1 for 1D flexes
+  static constexpr char circle_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="circle_mesh" builtin="circle" params="9 1 1  0.02 0 0"/>
+    </asset>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(circle_xml, error, sizeof(error));
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("circle"));
+
+  static constexpr char line_xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="line" builtin="grid" params="5 1 1  0.02 0 0  1"/>
+    </asset>
+  </mujoco>
+  )";
+  model = LoadModelFromString(line_xml, error, sizeof(error));
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("dim must be 2 or 3"));
+}
+
+// tetrahedron surface in GMSH 2.2 format (4 nodes, 4 triangles, element type 2)
+static constexpr char kTetrahedronSurfaceMsh[] =
+    "$MeshFormat\n"
+    "2.2 0 8\n"
+    "$EndMeshFormat\n"
+    "$Nodes\n"
+    "4\n"
+    "1 0 0 0\n"
+    "2 1 0 0\n"
+    "3 0 1 0\n"
+    "4 0 0 1\n"
+    "$EndNodes\n"
+    "$Elements\n"
+    "4\n"
+    "1 2 0 1 3 2\n"
+    "2 2 0 1 2 4\n"
+    "3 2 0 2 3 4\n"
+    "4 2 0 3 1 4\n"
+    "$EndElements\n";
+
+TEST_F(UserFlexTest, FlexcompMeshAssetGmshSurface) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="surf" content_type="model/vnd.gmsh" file="surface.msh"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="surf" dim="2" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "surface.msh", kTetrahedronSurfaceMsh,
+                  sizeof(kTetrahedronSurfaceMsh) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  ASSERT_THAT(model, NotNull()) << error;
+  EXPECT_EQ(model->flex_dim[0], 2);
+  EXPECT_EQ(model->flex_vertnum[0], 4);
+  EXPECT_EQ(model->flex_elemnum[0], 4);
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompGmshDecoderErrorIsForwarded) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="soft" type="gmsh" file="bad.msh" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char kBadMsh[] =
+      "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n$Nodes\nnot_a_number\n";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "bad.msh", kBadMsh, sizeof(kBadMsh) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("GMSH decoder: GMSH file missing $Elements"));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, MeshAssetSharedByGeomAndFlexcomp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" file="tetrahedron.obj"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tet"/>
+      <flexcomp name="soft" mesh="tet" dim="2" radius=".001" pos="0 0 2"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.obj", kTetrahedronObj,
+                  sizeof(kTetrahedronObj) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  ASSERT_THAT(m, NotNull()) << error;
+  EXPECT_EQ(m->nmesh, 1);
+  EXPECT_EQ(m->mesh_vertnum[0], 4);
+  ASSERT_EQ(m->flex_vertnum[0], 4);
+
+  // the flex coincides with the geom, offset by the flexcomp position
+  MjDataPtr d = MakeData(m);
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
+  std::vector<double> expected = GeomMeshVertPos(m.get(), d.get(), 0);
+  for (int i = 0; i < 4; i++) {
+    expected[3 * i + 2] += 2;
+  }
+  EXPECT_THAT(FlexVertPos(m.get(), d.get(), 0),
+              Pointwise(DoubleNear(1e-6), expected));
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetCacheHit) {
+  // the second load reads the volumetric mesh (nodes and tets) from the cache
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetmesh" content_type="model/vnd.gmsh" file="cached_tet.msh"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tetmesh" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "cached_tet.msh", kTetrahedronMsh,
+                  sizeof(kTetrahedronMsh) - 1);
+
+  // the nodes are in the frame of the asset, i.e. as in the file
+  std::vector<double> nodes = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+  for (int k = 0; k < 2; k++) {
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml, error, sizeof(error), &vfs);
+    ASSERT_THAT(m, NotNull()) << error;
+    EXPECT_EQ(m->flex_dim[0], 3);
+    EXPECT_EQ(m->flex_elemnum[0], 1);
+    MjDataPtr d = MakeData(m);
+    mj_kinematics(m.get(), d.get());
+    mj_flex(m.get(), d.get());
+    EXPECT_THAT(FlexVertPos(m.get(), d.get(), 0),
+                Pointwise(DoubleNear(1e-6), nodes))
+        << "load " << k;
+  }
+
+  mj_deleteVFS(&vfs);
+}
+
+TEST_F(UserFlexTest, MakeFlexFileOrMeshName) {
+  mjSpec* spec = mj_makeSpec();
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+  mjs_setName(mesh->element, "grid");
+  double params[7] = {3, 3, 1, 0.1, 0.1, 0, 2};
+  ASSERT_EQ(mjs_makeMesh(mesh, mjMESH_BUILTIN_GRID, params, 7), 0);
+
+  // file is the name of a mesh asset
+  mjsFlex* flex =
+      mjs_makeFlex(mjs_findBody(spec, "world"), "from_mesh", "mesh", 2, nullptr,
+                   nullptr, nullptr, nullptr, nullptr, 0.001, 1, 0, 0, 0, 0, 0,
+                   nullptr, nullptr, nullptr, "grid", nullptr);
+  ASSERT_THAT(flex, NotNull()) << mjs_getError(spec);
+
+  // typo: neither a mesh nor a file
+  flex = mjs_makeFlex(mjs_findBody(spec, "world"), "typo", "mesh", 2, nullptr,
+                      nullptr, nullptr, nullptr, nullptr, 0.001, 1, 0, 0, 0, 0,
+                      0, nullptr, nullptr, nullptr, "gird", nullptr);
+  EXPECT_THAT(flex, IsNull());
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("neither a mesh asset nor a file"));
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(UserFlexTest, FlexcompMeshAssetWrongType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" file="tetrahedron.obj"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" type="grid" mesh="tet" dim="2" radius=".001"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "tetrahedron.obj", kTetrahedronObj,
+                  sizeof(kTetrahedronObj) - 1);
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error), &vfs);
+  EXPECT_THAT(model, IsNull());
+  EXPECT_THAT(error, HasSubstr("only be used with flexcomp type mesh or gmsh"));
+
+  mj_deleteVFS(&vfs);
+}
 
 }  // namespace
 }  // namespace mujoco

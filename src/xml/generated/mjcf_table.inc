@@ -227,7 +227,7 @@ std::vector<const char*> MJCF[] = {
             {">"},
         {">"},
         {"flexcomp", "*", "name", "type", "group", "dim", "dof", "count", "cellcount", "spacing",
-            "radius", "rigid", "mass", "inertiabox", "scale", "file", "point", "element",
+            "radius", "rigid", "mass", "inertiabox", "scale", "file", "mesh", "point", "element",
             "texcoord", "material", "rgba", "flatskin", "pos", "quat", "axisangle", "xyaxes",
             "zaxis", "euler", "origin"},
         {"<"},
