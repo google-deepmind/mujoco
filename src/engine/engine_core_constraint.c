@@ -1556,6 +1556,47 @@ static int noDofs(const mjModel* m, const int* body, int n) {
 }
 
 
+// number of bodies coupled by a flex contact side: the element's vertices, or all nodes of an
+// interpolated flex; the contact's constraint row spans all of them
+static int flexSideNum(const mjModel* m, const mjContact* con, int side) {
+  int f = con->flex[side];
+  if (m->flex_interp[f]) {
+    return m->flex_nodenum[f];
+  }
+  if (con->vert[side] >= 0) {
+    return 1;
+  }
+  return m->flex_dim[f] + 1;
+}
+
+
+// j-th body coupled by a flex contact side, j < flexSideNum
+static int flexSideBody(const mjModel* m, const mjContact* con, int side, int j) {
+  int f = con->flex[side];
+  if (m->flex_interp[f]) {
+    return m->flex_nodebodyid[m->flex_nodeadr[f] + j];
+  }
+  if (con->vert[side] >= 0) {
+    return m->flex_vertbodyid[m->flex_vertadr[f] + con->vert[side]];
+  }
+  int dim = m->flex_dim[f];
+  const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(dim+1);
+  return m->flex_vertbodyid[m->flex_vertadr[f] + edata[j]];
+}
+
+
+// number of bodies coupled by a contact side, 1 for a geom
+int mj_contactSideNum(const mjModel* m, const mjContact* con, int side) {
+  return con->geom[side] >= 0 ? 1 : flexSideNum(m, con, side);
+}
+
+
+// j-th body coupled by a contact side, j < mj_contactSideNum
+int mj_contactSideBody(const mjModel* m, const mjContact* con, int side, int j) {
+  return con->geom[side] >= 0 ? m->geom_bodyid[con->geom[side]] : flexSideBody(m, con, side, j);
+}
+
+
 // compute Jacobian for contact, return number of DOFs affected
 int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
                        mjtNum* jacdifp, mjtNum* jacdifr,
@@ -2637,26 +2678,15 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
       continue;
     }
 
-    // check for contact with sleeping tree; SHOULD NOT OCCUR
+    // check every body coupled by the contact for sleep; SHOULD NOT OCCUR
     if (sleep_filter) {
-      int g1 = con->geom[0];
-      int g2 = con->geom[1];
-      if (g1 >= 0 && g2 >= 0) {
-        int b1 = m->body_weldid[m->geom_bodyid[g1]];
-        int b2 = m->body_weldid[m->geom_bodyid[g2]];
-        int asleep1 = d->body_awake[b1] == mjS_ASLEEP;
-        int asleep2 = d->body_awake[b2] == mjS_ASLEEP;
-        if (asleep1 || asleep2) {
-          mjERROR("contact %d involves sleeping geom %d", i, asleep1 ? g1 : g2);
-        }
-      }
-
-      // check flex contact sides
-      for (int side = 0; side < 2; side++) {
-        if (con->geom[side] >= 0) continue;
-        int b = mj_flexBody(m, con, side);
-        if (d->body_awake[m->body_weldid[b]] == mjS_ASLEEP) {
-          mjERROR("contact %d involves sleeping flex %d", i, con->flex[side]);
+      for (int side=0; side < 2; side++) {
+        int num = mj_contactSideNum(m, con, side);
+        for (int j=0; j < num; j++) {
+          int b = mj_contactSideBody(m, con, side, j);
+          if (d->body_awake[b] == mjS_ASLEEP) {
+            mjERROR("contact %d involves sleeping body %d", i, b);
+          }
         }
       }
     }

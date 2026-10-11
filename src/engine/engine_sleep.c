@@ -19,6 +19,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -326,40 +327,56 @@ int mj_wakeCollision(const mjModel* m, mjData* d) {
   for (int i=0; i < ncon; i++) {
     const mjContact* con = d->contact + i;
 
-    // resolve body on each side
-    int b1 = con->geom[0] >= 0 ? m->geom_bodyid[con->geom[0]] : mj_flexBody(m, con, 0);
-    int b2 = con->geom[1] >= 0 ? m->geom_bodyid[con->geom[1]] : mj_flexBody(m, con, 1);
-
-    int tree1 = m->body_treeid[b1];
-    int tree2 = m->body_treeid[b2];
-
-    // contact with a dof-less body: wake if it is marked awake (mocap), otherwise nothing to do
-    if (tree1 < 0 || tree2 < 0) {
-      int tree = tree1 < 0 ? tree2 : tree1;
-      int b = tree1 < 0 ? b1 : b2;
-      if (tree >= 0 && !d->tree_awake[tree] && d->body_awake[b] == mjS_AWAKE) {
-        nwoke += mj_wakeIsland(d->tree_asleep, ntree, tree, kAwake, "mocap contact with", d->time);
+    // wake value: the smallest tree_asleep over the awake trees of both sides (an awake
+    // mocap body counts as kAwake); 0 means no awake partner
+    // also note whether a static (dof-less, non-mocap) body is involved
+    int wakeval = 0, has_static = 0;
+    for (int side=0; side < 2; side++) {
+      int num = mj_contactSideNum(m, con, side);
+      for (int j=0; j < num; j++) {
+        int b = mj_contactSideBody(m, con, side, j);
+        int tree = m->body_treeid[b];
+        if (tree < 0) {
+          if (d->body_awake[b] == mjS_AWAKE) {
+            wakeval = mjMIN(wakeval, kAwake);
+          } else {
+            has_static = 1;
+          }
+        } else if (d->tree_awake[tree]) {
+          wakeval = mjMIN(wakeval, d->tree_asleep[tree]);
+        }
       }
-      continue;
     }
 
-    int awake1 = d->tree_awake[tree1];
-    int awake2 = d->tree_awake[tree2];
+    // no awake partner
+    if (wakeval == 0) {
+      // sleeping tree resting on a static body: nothing to do
+      if (has_static) {
+        continue;
+      }
 
-    // both trees awake, nothing to do
-    if (awake1 && awake2) {
-      continue;
+      // geom-geom: the broadphase filters asleep-asleep body pairs; SHOULD NOT OCCUR
+      if (con->geom[0] >= 0 && con->geom[1] >= 0) {
+        mjERROR("contact between sleeping bodies %d and %d",
+                m->geom_bodyid[con->geom[0]], m->geom_bodyid[con->geom[1]]);
+      }
+
+      // flex: the broadphase filters a flex by its first dynamic vertex, so a sleeping
+      // element of a flex whose first vertex is awake can reach a sleeping partner here;
+      // wake both sides
+      wakeval = kAwake;
     }
 
-    // both trees asleep; SHOULD NOT OCCUR
-    if (!awake1 && !awake2) {
-      mjERROR("contact between sleeping bodies %d and %d", b1, b2);
+    // wake every sleeping tree on both sides (mj_wakeIsland is a no-op on awake trees)
+    for (int side=0; side < 2; side++) {
+      int num = mj_contactSideNum(m, con, side);
+      for (int j=0; j < num; j++) {
+        int tree = m->body_treeid[mj_contactSideBody(m, con, side, j)];
+        if (tree >= 0 && !d->tree_awake[tree]) {
+          nwoke += mj_wakeIsland(d->tree_asleep, ntree, tree, wakeval, "contact", d->time);
+        }
+      }
     }
-
-    // wake sleeping tree
-    int sleeping_tree = awake1 ? tree2 : tree1;
-    int wakeval = awake1 ? d->tree_asleep[tree1] : d->tree_asleep[tree2];
-    nwoke += mj_wakeIsland(d->tree_asleep, ntree, sleeping_tree, wakeval, "contact", d->time);
   }
 
   return nwoke;
