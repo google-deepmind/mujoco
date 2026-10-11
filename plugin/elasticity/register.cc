@@ -14,13 +14,9 @@
 
 #include <mujoco/mjplugin.h>
 #include "cable.h"
-#include "shell.h"
 
 namespace mujoco::plugin::elasticity {
 
-mjPLUGIN_LIB_INIT {
-  Cable::RegisterPlugin();
-  Shell::RegisterPlugin();
-}
+mjPLUGIN_LIB_INIT(elasticity) { Cable::RegisterPlugin(); }
 
 }  // namespace mujoco::plugin::elasticity

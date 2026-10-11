@@ -22,8 +22,8 @@ public static class ConvertMj2Rca {
   private static MjActuator[] _actuators;
   private static MjExclude[] _excludes;
   public static GameObject ConvertTree(MjBody mjRoot) {
-    _excludes = GameObject.FindObjectsOfType<MjExclude>();
-    _actuators = GameObject.FindObjectsOfType<MjActuator>();
+    _excludes = GameObject.FindObjectsByType<MjExclude>(FindObjectsSortMode.None);
+    _actuators = GameObject.FindObjectsByType<MjActuator>(FindObjectsSortMode.None);
     // does it have joints with its parent?
     bool jointFound = false;
     foreach (Transform mjChild in mjRoot.transform) {
@@ -283,7 +283,7 @@ public static class ConvertMj2Rca {
         }
 
         // The list of available ArticulationBodies changes as the recursion advances
-        foreach (var rcOther in GameObject.FindObjectsOfType<ArticulationBody>()) {
+        foreach (var rcOther in GameObject.FindObjectsByType<ArticulationBody>(FindObjectsSortMode.None)) {
           // don't add explicit exclusion to immediate parent (no children yet)
           if (rcParentParent != rcOther && rcOther.gameObject.name == other) {
             // MISSING: Physics.IgnoreCollision statements between all colliders of rcParent

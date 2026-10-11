@@ -28,7 +28,7 @@ else
   readonly tmp_dir="$(mktemp -d)"
 fi
 
-python -m pip install --upgrade --require-hashes \
+python -m pip install --no-build-isolation --upgrade --require-hashes \
     -r ${package_dir}/make_sdist_requirements.txt
 pushd ${tmp_dir}
 cp -r "${package_dir}"/* .
@@ -52,13 +52,13 @@ export PYTHONPATH="${old_pythonpath}"
 cp "${package_dir}"/../LICENSE .
 
 # Copy over CMake scripts.
-mkdir mujoco/cmake
-cp "${package_dir}"/../cmake/*.cmake mujoco/cmake
+mkdir -p mujoco/cmake
+cp -r "${package_dir}"/../cmake/* mujoco/cmake
 
 # Copy over Simulate source code.
 cp -r "${package_dir}"/../simulate mujoco
 
-python -m build . --sdist
+python -m build --no-isolation . --sdist
 tar -tf dist/mujoco-*.tar.gz
 popd
 

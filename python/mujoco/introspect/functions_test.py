@@ -57,7 +57,7 @@ class FunctionsTest(absltest.TestCase):
              name='oldpos', type=type_parsing.parse_type('const mjtNum[3]')),
          ast_nodes.FunctionParameterDecl(
              name='rotnew2old',
-             type=type_parsing.parse_type('const mjtNum[9]'))))
+             type=type_parsing.parse_type('const mjtNum[9]'), nullable=True)))
     self.assertEqual(
         func_decl.doc, 'Coordinate transform of 6D motion or force vector in ' +
         'rotation:translation format. rotnew2old is 3-by-3, ' +

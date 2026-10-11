@@ -1,0 +1,29 @@
+<mujoco>
+  <option>
+   <flag contact="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 -1 1"/>
+
+    <!-- body 1: pendulum on world hinge, horizontal pointing right -->
+    <body name="upper" pos="0 0 1">
+      <joint name="hinge1" type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.03" fromto="0 0 0 0.5 0 0"/>
+      <site name="tip1" pos="0.5 0 0"/>
+    </body>
+
+    <!-- body 2: planar free body (slide x, slide z, hinge y) -->
+    <body name="lower" pos="0.5 0 1" euler="0 -90 0">
+      <joint type="slide" axis="1 0 0"/>
+      <joint type="slide" axis="0 0 1"/>
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.04" fromto="0 0 0 0.4 0 0"/>
+      <site name="tip2" pos="0 0 0"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <connect body1="upper" body2="lower" anchor="0.5 0 0"/>
+  </equality>
+</mujoco>

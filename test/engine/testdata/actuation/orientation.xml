@@ -1,0 +1,78 @@
+<mujoco>
+  <compiler autolimits="true"/>
+
+  <option integrator="implicitfast">
+    <flag contact="disable" gravity="disable"/>
+  </option>
+
+  <statistic meansize=".05" extent=".9" center="0 0 .15"/>
+
+  <visual>
+    <headlight diffuse=".1 .1 .1" ambient=".15 .15 .15"/>
+  </visual>
+
+  <!--
+  Three identical ball-jointed boxes, illustrating the three rotational setpoint semantics.
+  The "per-axis" box has three independent position servos: each setpoint is interpreted on
+  its own circle (wrapped), exact for rotations about a single gear axis. The "expmap" and
+  "quat" boxes each have a single orientation actuator: the setpoints are interpreted
+  jointly as an orientation on SO(3), exact for any combination of axes, commanded in the
+  exponential-map and quaternion charts respectively.
+  -->
+
+  <asset>
+    <texture name="checker" type="cube" builtin="checker" rgb1=".75 .55 .28" rgb2=".22 .18 .14" width="32" height="32"/>
+    <material name="checker" texture="checker"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <geom type="box" size=".07 .09 .05" material="checker"/>
+    <position kp="5" dampratio="1"/>
+    <default class="angle">
+      <position ctrlrange="-6.2832 6.2832" ctrllimited="false"/>
+    </default>
+    <default class="quat">
+      <position ctrlrange="-1 1" ctrllimited="true"/>
+    </default>
+    <site size="1e-5"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 10" type="point" diffuse=".75 .72 .65" intensity="1200000" range="20" attenuation="1 0 .04"/>
+    <light pos="-.3 -.4 1.3" dir="0 .34 -.94" diffuse=".75 .72 .65" intensity="100000" range="4" cutoff="13" attenuation="1 0 0" exponent="60"/>
+    <light pos="0 -.4 1.3" dir="0 .34 -.94" diffuse=".75 .72 .65" intensity="100000" range="4" cutoff="16" exponent="60" attenuation="1 0 .5"/>
+    <light pos=".3 -.4 1.3" dir="0 .34 -.94" diffuse=".75 .72 .65" intensity="100000" range="4" cutoff="16" exponent="60" attenuation="1 0 .5"/>
+
+    <light type="point" pos="0 -1.5 2" diffuse=".3 .35 .45" intensity="15000" range="8" castshadow="false" attenuation="1 0 .3"/>
+
+    <geom name="floor" type="plane" size="2 2 .025" material="grid"/>
+
+    <site name="per-axis" pos="-.3 0 .4"/>
+    <body name="peraxis" pos="-.3 0 .2">
+      <joint name="peraxis" type="ball"/>
+      <geom/>
+    </body>
+
+    <site name="expmap" pos="0 0 .4"/>
+    <body name="expmap" pos="0 0 .2">
+      <joint name="expmap" type="ball"/>
+      <geom/>
+    </body>
+
+    <site name="quat" pos=".3 0 .4"/>
+    <body name="quat" pos=".3 0 .2">
+      <joint name="quat" type="ball"/>
+      <geom/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="rx_peraxis" joint="peraxis" gear="1 0 0" class="angle"/>
+    <position name="ry_peraxis" joint="peraxis" gear="0 1 0" class="angle"/>
+    <position name="rz_peraxis" joint="peraxis" gear="0 0 1" class="angle"/>
+    <orientation name="expmap" joint="expmap" kp="1" dampratio="1" class="angle"/>
+    <orientation name="quat" joint="quat" input="quat" kp="1" dampratio="1" class="quat"/>
+  </actuator>
+</mujoco>

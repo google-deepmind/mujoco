@@ -15,12 +15,15 @@
 #ifndef MUJOCO_PYTHON_ERRORS_H_
 #define MUJOCO_PYTHON_ERRORS_H_
 
+#include <array>
 #include <csetjmp>
+#include <cstdio>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 
-#include <mujoco/mjexport.h>
+#include <mujoco/mjtype.h>
 #include "private.h"
 #include "util/crossplatform.h"
 #include "util/func_wrap.h"
@@ -102,11 +105,30 @@ class ErrorBase : public pybind11::builtin_exception {
 // Instead, we call setjmp before entering MuJoCo, and do a longjmp from
 // mju_user_error back to C++ to throw an exception.
 static thread_local std::jmp_buf mju_error_jmp_buf;
-static thread_local std::array<char, 1024> mju_error_msg{0};
+static thread_local std::array<char, 2048> mju_error_msg{0};
 
-static inline void MjErrorHandler(const char* msg) {
-  std::strncpy(mju_error_msg.data(), msg, mju_error_msg.size() - 1);
-  mju_error_msg.data()[mju_error_msg.size() - 1] = '\0';
+// The handler to forward non-error messages to.  Set by WrapFunc before each
+// call into MuJoCo C code, pointing to either the previously installed TLS
+// handler or the active global handler.
+static thread_local mjfLogHandler mju_forward_handler = nullptr;
+
+static inline void MjErrorHandler(const mjLogMessage* msg) {
+  if (msg->level != mjLOG_ERROR) {
+    // Forward warnings, info, and debug messages to the previous handler so
+    // that legacy mju_user_warning callbacks and console output continue to
+    // work.
+    if (mju_forward_handler != nullptr) {
+      mju_forward_handler(msg);
+    }
+    return;
+  }
+  if (msg->func != nullptr) {
+    std::snprintf(mju_error_msg.data(), mju_error_msg.size(), "%s: %s",
+                  msg->func, msg->subject);
+  } else {
+    std::snprintf(mju_error_msg.data(), mju_error_msg.size(), "%s",
+                  msg->subject);
+  }
   std::longjmp(mju_error_jmp_buf, 1);
 }
 
@@ -121,7 +143,17 @@ struct MjErrorIntercepter {
 #else
     return [callable](Args... args) MUJOCO_ALWAYS_INLINE_LAMBDA_MUTABLE {
 #endif
-      _mjPRIVATE__set_tls_error_fn(&MjErrorHandler);
+      mjfLogHandler prev_handler = _mjPRIVATE_setTlsLogHandler(&MjErrorHandler);
+
+      // Determine the handler to forward non-error messages to.
+      // If there was a previously installed TLS handler, forward to it.
+      // Otherwise, probe the global handler via mju_setLogHandler.
+      mjfLogHandler old_forward = mju_forward_handler;
+      if (prev_handler != nullptr) {
+        mju_forward_handler = prev_handler;
+      } else {
+        mju_forward_handler = _mjPRIVATE_getGlobalLogHandler();
+      }
 
       // DON'T MIX RAII WITH SETJMP!
       // From https://en.cppreference.com/w/cpp/utility/program/longjmp:
@@ -131,16 +163,19 @@ struct MjErrorIntercepter {
       if (setjmp(mju_error_jmp_buf) == 0) {
         if constexpr (std::is_void_v<decltype(callable(args...))>) {
           callable(args...);
-          _mjPRIVATE__set_tls_error_fn(nullptr);
+          mju_forward_handler = old_forward;
+          _mjPRIVATE_setTlsLogHandler(prev_handler);
         } else {
           auto ret = callable(args...);
           static_assert(std::is_trivially_destructible_v<decltype(ret)>);
-          _mjPRIVATE__set_tls_error_fn(nullptr);
+          mju_forward_handler = old_forward;
+          _mjPRIVATE_setTlsLogHandler(prev_handler);
           return ret;
         }
       } else {
         // This branch is entered via a longjmp back from our mju_error handler.
-        _mjPRIVATE__set_tls_error_fn(nullptr);
+        mju_forward_handler = old_forward;
+        _mjPRIVATE_setTlsLogHandler(prev_handler);
         {
           // Check if a Python callback has thrown an exception.
           // We cannot use a py::gil_scoped_acquire here: on Windows its

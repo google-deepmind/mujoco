@@ -1,0 +1,187 @@
+# Tests for mujoco. Subdirectories mirror the structure in mujoco/src.
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT", "mujoco_test_tags")
+
+licenses(["notice"])
+
+exports_files([".clang-format"])
+
+filegroup(
+    name = "all_test_models",
+    testonly = True,
+    srcs = [
+        "//test/benchmark/testdata:test_mjcf",
+        "//test/engine/testdata:test_mjcf",
+        "//test/experimental/usd/plugins/mjcf/testdata",
+        "//test/plugin/sensor/testdata:test_mjcf",
+        "//test/render/testdata:test_mjcf",
+        "//test/testdata:test_mjcf",
+        "//test/user/testdata:test_mjcf",
+        "//test/xml/mjz:testdata",
+        "//test/xml/testdata:test_mjcf",
+    ],
+    visibility = ["//:visibility"],
+)
+
+cc_library(
+    name = "fixture",
+    testonly = True,
+    srcs = ["fixture.cc"],
+    hdrs = ["fixture.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    visibility = [
+        "//test:__subpackages__",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/xml:xml_global",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "compare_model",
+    testonly = True,
+    srcs = ["compare_model.cc"],
+    hdrs = ["compare_model.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    visibility = [
+        "//test:__subpackages__",
+    ],
+    deps = [
+        "//:mujoco",
+    ],
+)
+
+cc_library(
+    name = "compare_spec",
+    testonly = True,
+    srcs = ["compare_spec.cc"],
+    hdrs = ["compare_spec.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    visibility = [
+        "//test:__subpackages__",
+    ],
+    deps = [
+        "//:mujoco",
+    ],
+)
+
+cc_test(
+    name = "compare_spec_test",
+    srcs = ["compare_spec_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    tags = mujoco_test_tags,
+    deps = [
+        ":compare_spec",
+        ":fixture",
+        "//:mujoco",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "fixture_test",
+    srcs = ["fixture_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    tags = mujoco_test_tags,
+    deps = [
+        ":fixture",
+        "//:mujoco",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "header_test",
+    srcs = ["header_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    tags = mujoco_test_tags,
+    deps = [
+        ":fixture",
+        "//:mujoco",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "mjspecmacro_test",
+    srcs = ["mjspecmacro_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    tags = mujoco_test_tags,
+    deps = [
+        "//:mujoco",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "pipeline_test",
+    srcs = ["pipeline_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/testdata:model",
+    ],
+    tags = mujoco_test_tags,
+    deps = [
+        ":fixture",
+        "//:mujoco",
+        "//src/engine:engine_io",
+        "@googletest//:gtest_main",
+    ],
+)

@@ -1,0 +1,40 @@
+<mujoco>
+  <option viscosity="30" integrator="implicit">
+    <flag gravity="disable" constraint="disable" contact="disable" energy="enable" sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <replicate offset="0 0 2.5" count="7">
+      <replicate offset="4 0 0" count="7">
+        <replicate offset="0 2 0" count="7">
+          <body sleep="init">
+            <geom size=".4"/>
+            <freejoint/>
+            <body pos="-.4 0 0">
+              <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+              <joint type="slide" axis="0 0 1" springref="0.2" stiffness="1000" damping="100"/>
+            </body>
+          </body>
+
+          <body pos="1 0 0" sleep="init">
+            <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+            <joint axis="1 0 0" stiffness="300" damping="30"/>
+            <body pos="0 0 1">
+              <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+              <joint axis="1 0 0" springref="45" stiffness="300" damping="30"/>
+            </body>
+          </body>
+
+          <body pos="2 0 0" sleep="init">
+            <geom type="box" size=".2 .2 .2"/>
+            <joint type="ball" stiffness="300" damping="30"/>
+            <body pos=".2 0 0">
+              <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+              <joint type="slide" axis="0 0 1" springref="0.2" stiffness="1000" damping="100"/>
+            </body>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

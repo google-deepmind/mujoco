@@ -1,0 +1,8 @@
+<mujoco model="transitive_test">
+  <include file="child.xml"/>
+  <worldbody>
+    <body name="parent_body" pos="0 0 1">
+      <geom type="sphere" size="0.1"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -22,8 +22,6 @@ set(MUJOCO_ELASTICITY_SRCS
     elasticity.cc
     elasticity.h
     register.cc
-    shell.cc
-    shell.h
 )
 
 add_library(elasticity SHARED)

@@ -16,7 +16,7 @@
 <mujoco model="Trilinear">
   <include file="scene.xml"/>
 
-  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
+  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="Euler"/>
 
   <size memory="10M"/>
 
@@ -32,7 +32,7 @@
     <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1" dim="3"
               radius=".001" rgba="0 .7 .7 1" mass="5" name="softbody" dof="trilinear">
       <elasticity young="1e4" poisson="0.1" damping="0.01"/>
-      <contact selfcollide="none" internal="false"/>
+      <contact selfcollide="none"/>
     </flexcomp>
   </worldbody>
 </mujoco>

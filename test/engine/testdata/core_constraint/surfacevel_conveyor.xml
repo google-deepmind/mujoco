@@ -1,0 +1,55 @@
+<mujoco model="surfacevel conveyor">
+  <!-- two opposed conveyor belts made of static geoms with surfacevel:
+       objects ride the blue belt +x, the red belt returns them -x -->
+
+  <visual>
+    <headlight diffuse=".8 .8 .8" ambient=".2 .2 .2"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="300" height="300"/>
+    <material name="grid" texture="grid" texrepeat="8 8" reflectance=".2"/>
+    <material name="beltplus" rgba=".3 .5 .8 1"/>
+    <material name="beltminus" rgba=".8 .4 .3 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="4 4 .1" material="grid"/>
+
+    <!-- belt running +x, top surface at z=0.2 -->
+    <geom name="belt1" type="box" size="2 .3 .1" pos="0 -.4 .1" material="beltplus" surfacevel=".8 0 0  0 0 0"/>
+
+    <geom name="seperator" type="box" size="2 .1 .1" pos="0 0 .1" condim="1" priority="1"/>
+
+    <!-- belt running -x, top surface at z=0.2 -->
+    <geom name="belt2" type="box" size="2 .3 .1" pos="0 .4 .1" material="beltminus" surfacevel="-.8 0 0  0 0 0"/>
+
+    <!-- guard rails on the outer edges -->
+    <geom name="rail1" type="box" size="2 .02 .05" pos="0 -.72 .25" rgba=".5 .5 .5 1"/>
+    <geom name="rail2" type="box" size="2 .02 .05" pos="0 .72 .25" rgba=".5 .5 .5 1"/>
+
+    <!-- deflectors: kick objects from one belt to the other at each end -->
+    <geom name="turn1" type="box" size=".02 .45 .06" pos="1.6 -.2 .26" euler="0 0 -45" rgba=".6 .6 .6 1"/>
+    <geom name="turn2" type="box" size=".02 .45 .06" pos="-1.6 .2 .26" euler="0 0 -45" rgba=".6 .6 .6 1"/>
+
+    <!-- cargo -->
+    <body name="box1" pos="-1.5 -.4 .3">
+      <freejoint/>
+      <geom type="box" size=".08 .08 .08" rgba=".9 .8 .2 1" mass=".3"/>
+    </body>
+    <body name="box2" pos="-.8 -.4 .3">
+      <freejoint/>
+      <geom type="box" size=".06 .1 .06" rgba=".2 .8 .4 1" mass=".3"/>
+    </body>
+    <body name="ball" pos="0 -.4 .3">
+      <freejoint/>
+      <geom type="sphere" size=".07" rgba=".9 .3 .7 1" mass=".3"/>
+    </body>
+    <body name="pill" pos=".8 -.4 .3">
+      <freejoint/>
+      <geom type="capsule" size=".05 .06" rgba=".4 .7 .9 1" mass=".3"/>
+    </body>
+  </worldbody>
+</mujoco>

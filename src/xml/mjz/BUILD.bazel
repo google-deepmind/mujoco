@@ -1,0 +1,77 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+cc_library(
+    name = "mjz_decoder",
+    srcs = ["mjz_decoder.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = ["//:visibility"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine",  # buildcleaner: keep
+        "//src/user:user_model",  # buildcleaner: keep
+        "//src/user:user_util",
+        "//src/xml:xml_api",  # buildcleaner: keep
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "mjz_archive_provider",
+    srcs = ["mjz_archive_provider.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = ["//:visibility"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine",  # buildcleaner: keep
+        "//src/user:user_resource",
+        "//src/user:user_util",
+        "@miniz",
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "mjz_encoder",
+    srcs = ["mjz_encoder.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    visibility = ["//:visibility"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine",  # buildcleaner: keep
+        "//src/user:user_model",  # buildcleaner: keep
+        "//src/xml:xml_api",  # buildcleaner: keep
+        "@miniz",
+        "@tinyxml2",
+    ],
+    alwayslink = 1,
+)

@@ -1,0 +1,20 @@
+<mujoco>
+  <option integrator="RK4">
+    <flag energy="enable"/>
+  </option>
+
+  <default>
+    <geom rgba="0.8 0.6 .4 1"/>
+    <site rgba="0.4 0.8 .6 .5"/>
+  </default>
+
+  <worldbody>
+    <site name="decoration" type="cylinder" zaxis="0 -1 0" size="1 .02" pos="0 .1 0"/>
+    <body>
+      <inertial pos="1 0 0" mass="1" diaginertia="1e-8 1e-8 1e-8"/>
+      <joint name="hinge" axis="0 -1 0"/>
+      <joint name="slide" type="slide" axis="1 0 0" springref="-.5" stiffness="100" armature="5"/>
+      <geom name="query" type="sphere" size=".1" pos="1 0 0"/>
+    </body>
+  </worldbody>
+</mujoco>

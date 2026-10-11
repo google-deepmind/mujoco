@@ -1,0 +1,24 @@
+# Tests for third_party/mujoco/sample
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+sh_test(
+    name = "compile_test",
+    srcs = ["compile_test.sh"],
+    data = [
+        "//model/humanoid",
+        "//sample:compile",
+    ],
+)
+
+sh_test(
+    name = "testspeed_test",
+    srcs = ["testspeed_test.sh"],
+    data = [
+        "//model/sleep",
+        "//sample:testspeed",
+    ],
+)

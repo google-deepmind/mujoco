@@ -20,6 +20,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjvisualize.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,14 @@ MJAPI void mj_printData(const mjModel* m, const mjData* d, const char* filename)
 // print sparse matrix structure
 MJAPI void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const int* diag,
                             const int* rownnz, const int* rowsuper, const int* colind, FILE* fp);
+
+// print scene to text file
+MJAPI void mj_printScene(const mjvScene* s, const char* filename);
+
+// print scene to text file, specifying format
+// float_format must be a valid printf-style format string for a single float value
+MJAPI void mj_printFormattedScene(const mjvScene* s, const char* filename,
+                                  const char* float_format);
 
 #ifdef __cplusplus
 }

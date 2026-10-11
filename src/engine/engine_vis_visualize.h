@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+#define mjMAXCURVE 64  // maximum number of points along a curve (catenary or geodesic)
+
 // set (type, size, pos, mat) connector-type geom between given points
 //  assume that mjv_initGeom was already called to set all other properties
 MJAPI void mjv_connector(mjvGeom* geom, int type, mjtNum width,
@@ -54,10 +56,30 @@ MJAPI void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, cons
 MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
 
 // update visible skins only
-MJAPI void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, const mjvOption* opt);
+MJAPI void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn,
+                                const mjvOption* opt);
 
-int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
-                 mjtNum* catenary, int ncatenary);
+// computes the camera position, forward, up, and right vectors
+MJAPI void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                           const mjData* d, const mjvCamera* cam);
+
+// computes the camera frustums, i.e. vertical, horizontal, and clip planes
+MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
+                             const mjvCamera* cam);
+
+// determines if tendon should be rendered as a catenary curve and, if so, computes its length
+MJAPI int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length);
+
+// computes points along a catenary curve
+MJAPI int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3],
+                       mjtNum length, mjtNum* catenary, int ncatenary);
+
+// computes points along a wrapped geodesic curve on a sphere or cylinder
+MJAPI int mjv_geodesic(mjtNum* pts, int npts, const mjtNum xpos[3], const mjtNum xmat[9],
+                       mjtNum radius, int type, const mjtNum wpnt[12]);
+
+// convert HSV to RGB
+MJAPI void hsv2rgb(float *RGB, float H, float S, float V);
 
 #ifdef __cplusplus
 }

@@ -27,7 +27,6 @@ from PIL import Image as im
 from PIL import ImageOps
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
-# pytype: disable=module-attr
 from pxr import Sdf
 from pxr import Usd
 from pxr import UsdGeom
@@ -185,16 +184,16 @@ class USDExporter:
       )
 
     # Render camera.
-    camera = mujoco.MjvCamera()
-    camera.fixedcamid = camera_id
+    camera = mujoco.MjvCamera()  # pyrefly: ignore[bad-assignment]
+    camera.fixedcamid = camera_id  # pyrefly: ignore[missing-attribute]
 
     # Defaults to mjCAMERA_FREE, otherwise mjCAMERA_FIXED refers to a
     # camera explicitly defined in the model.
     if camera_id == -1:
-      camera.type = mujoco.mjtCamera.mjCAMERA_FREE
-      mujoco.mjv_defaultFreeCamera(self.model, camera)
+      camera.type = mujoco.mjtCamera.mjCAMERA_FREE  # pyrefly: ignore[missing-attribute]
+      mujoco.mjv_defaultFreeCamera(self.model, camera)  # pyrefly: ignore[bad-argument-type]
     else:
-      camera.type = mujoco.mjtCamera.mjCAMERA_FIXED
+      camera.type = mujoco.mjtCamera.mjCAMERA_FIXED  # pyrefly: ignore[missing-attribute]
 
     scene_option = scene_option or self._scene_option
     mujoco.mjv_updateScene(
@@ -202,7 +201,7 @@ class USDExporter:
         data,
         scene_option,
         None,
-        camera,
+        camera,  # pyrefly: ignore[bad-argument-type]
         mujoco.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )
@@ -411,7 +410,7 @@ class USDExporter:
     """
     for i in range(len(self.usd_cameras)):
       camera = self.usd_cameras[i]
-      camera_name = self.camera_names[i]
+      camera_name = self.camera_names[i]  # pyrefly: ignore[unsupported-operation]
 
       self._update_scene(
           data,
@@ -456,15 +455,15 @@ class USDExporter:
     """
     if light_type == "sphere":
       new_light = light_module.USDSphereLight(
-          stage=self.stage, obj_name=obj_name, radius=radius
+          stage=self.stage, obj_name=obj_name, radius=radius  # pyrefly: ignore[bad-argument-type]
       )
 
       new_light.update(
-          pos=np.array(pos), intensity=intensity, color=color, frame=0
+          pos=np.array(pos), intensity=intensity, color=color, frame=0  # pyrefly: ignore[bad-argument-type]
       )
     elif light_type == "dome":
-      new_light = light_module.USDDomeLight(stage=self.stage, obj_name=obj_name)
-      new_light.update(intensity=intensity, color=color)
+      new_light = light_module.USDDomeLight(stage=self.stage, obj_name=obj_name)  # pyrefly: ignore[bad-argument-type]
+      new_light.update(intensity=intensity, color=color)  # pyrefly: ignore[bad-argument-type]
 
   def add_camera(
       self,
@@ -480,7 +479,7 @@ class USDExporter:
         obj_name: name associated with the camera.
     """
     new_camera = camera_module.USDCamera(
-        stage=self.stage, obj_name=obj_name)
+        stage=self.stage, obj_name=obj_name)  # pyrefly: ignore[bad-argument-type]
 
     rotation = np.zeros(9)
     quat = np.zeros(4)

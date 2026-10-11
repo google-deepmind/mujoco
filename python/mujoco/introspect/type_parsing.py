@@ -57,7 +57,7 @@ def _parse_maybe_array(
         int(s.strip()) for s in ARRAY_N_PATTERN.findall(array_match.group(0)))
     inner_type_str = type_name[:array_match.start()]
     return ast_nodes.ArrayType(
-        inner_type=_parse_maybe_pointer(inner_type_str.strip(), innermost_type),
+        inner_type=_parse_maybe_pointer(inner_type_str.strip(), innermost_type),  # pyrefly: ignore[bad-argument-type]
         extents=extents)
   else:
     return _parse_maybe_pointer(type_name, innermost_type)
@@ -140,7 +140,7 @@ def parse_type(
   result = None
   while type_str_stack:
     try:
-      result = _parse_maybe_array(type_str_stack.pop(), result)
+      result = _parse_maybe_array(type_str_stack.pop(), result)  # pyrefly: ignore[bad-argument-type]
     except AssertionError as e:
       raise ValueError(f'invalid type name {type_name!r}') from e
 

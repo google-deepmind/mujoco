@@ -31,7 +31,7 @@
       <geom size=".1" contype="0" conaffinity="0" group="4"/>
       <flexcomp name="softbox" type="box" count="7 7 7" spacing=".04 .04 .04"
                 radius="0.01" dim="3" material="matsponge" dof="radial">
-        <contact internal="false" selfcollide="none"/>
+        <contact selfcollide="none"/>
         <edge equality="true"/>
       </flexcomp>
     </body>

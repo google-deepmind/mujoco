@@ -1,0 +1,13 @@
+<mujoco model="meshdir_rewrite_test">
+  <compiler meshdir="assets"/>
+  <asset>
+    <mesh name="outside" file="../mesh.obj"/>
+    <mesh name="outside_again" file="../mesh.obj"/>
+    <mesh name="inside" file="mesh.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="outside"/>
+    <geom type="mesh" mesh="outside_again"/>
+    <geom type="mesh" mesh="inside"/>
+  </worldbody>
+</mujoco>

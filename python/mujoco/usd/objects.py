@@ -25,7 +25,6 @@ import numpy as np
 
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
-# pytype: disable=module-attr
 from pxr import Gf
 from pxr import Sdf
 from pxr import Usd
@@ -120,7 +119,7 @@ class USDObject(abc.ABC):
     # setting the image texture attributes
     image_shader.CreateIdAttr("UsdUVTexture")
     image_shader.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
-        self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value][0]
+        self.geom_textures[mujoco.mjtTextureRole.mjTEXROLE_RGB.value][0]  # pyrefly: ignore[unsupported-operation]
     )
     image_shader.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set(
         "sRGB"
@@ -381,7 +380,7 @@ class USDPrimitiveMesh(USDObject):
     mesh_texcoord = np.array(self.prim_mesh.triangle_uvs)
     mesh_facetexcoord = np.asarray(self.prim_mesh.triangles)
     tex_role = mujoco.mjtTextureRole
-    geom_rgb_texture = self.geom_textures[tex_role.mjTEXROLE_RGB.value][1]
+    geom_rgb_texture = self.geom_textures[tex_role.mjTEXROLE_RGB.value][1]  # pyrefly: ignore[unsupported-operation]
 
     if geom_rgb_texture == mujoco.mjtTexture.mjTEXTURE_2D:
       s_scale, t_scale = self.model.mat_texrepeat[self.geom.matid]
@@ -535,10 +534,10 @@ class USDTendon(USDObject):
     super().update(pos, mat, visible, frame, scale)
     for name in self.tendon_parts:
       if "left" in name:
-        translate = [0, 0, -scale[2] - (scale[0] / 2)]
+        translate = [0, 0, -scale[2] - (scale[0] / 2)]  # pyrefly: ignore[unsupported-operation]
         self.usd_refs[name]["translate_op"].Set(Gf.Vec3f(translate), frame)
       elif "right" in name:
-        translate = [0, 0, scale[2] + (scale[0] / 2)]
+        translate = [0, 0, scale[2] + (scale[0] / 2)]  # pyrefly: ignore[unsupported-operation]
         self.usd_refs[name]["translate_op"].Set(Gf.Vec3f(translate), frame)
 
   def update_scale(self, scale: np.ndarray, frame: int):

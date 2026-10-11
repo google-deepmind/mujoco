@@ -25,6 +25,9 @@ extern "C" {
 
 //-------------------------------- sensors ---------------------------------------------------------
 
+// compute value for one sensor, write to sensordata, apply cutoff
+void mj_computeSensor(const mjModel* m, mjData* d, int i, mjtNum* sensordata);
+
 // position-dependent sensors
 MJAPI void mj_sensorPos(const mjModel* m, mjData* d);
 

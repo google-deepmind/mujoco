@@ -1,0 +1,9 @@
+<mujoco>
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <body pos=".001 .002 .003" euler="10 -20 30" mocap="true">
+      <geom type="ellipsoid" size=".3 .5 .7"/>
+    </body>
+  </worldbody>
+</mujoco>

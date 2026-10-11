@@ -1,0 +1,10 @@
+{
+  "extension": {
+    "karma": {
+      "client": {
+        "pingTimeout": 300000
+      },
+      "browserDisconnectTimeout": 300000
+    }
+  }
+}

@@ -6,7 +6,7 @@
   <worldbody>
     <light pos="0 0 10"/>
     <site name="a" size=".02"/>
-    <replicate offset="0 .1 0" count="17">
+    <replicate offset="0 .1 0" count="4">
       <body pos="1 0 1">
         <joint axis="0 -1 0" range="0 90"/>
         <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>

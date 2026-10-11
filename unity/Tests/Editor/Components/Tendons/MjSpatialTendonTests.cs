@@ -48,9 +48,56 @@ namespace Mujoco {
       _doc.LoadXml("<spatial>" + "<site site='site1'/>" +
                    "<site site='site2'/>" + "</spatial>");
       _tendon.ParseMjcf(_doc.GetElementsByTagName("spatial")[0] as XmlElement);
+      Assert.That(_tendon.SpringLengthLower, Is.EqualTo(-1.0f));
+      Assert.That(_tendon.SpringLengthUpper, Is.EqualTo(-1.0f));
       Assert.That(_tendon.ViapointsList.Count, Is.EqualTo(2));
       Assert.That(_tendon.ViapointsList[0].Site, Is.EqualTo(_site1));
       Assert.That(_tendon.ViapointsList[1].Site, Is.EqualTo(_site2));
+    }
+
+    [Test]
+    public void ParseSingleElementSpringLength() {
+      _doc.LoadXml("<spatial springlength='0.5'>" + "<site site='site1'/>" +
+                   "<site site='site2'/>" + "</spatial>");
+      _tendon.ParseMjcf(_doc.GetElementsByTagName("spatial")[0] as XmlElement);
+      Assert.That(_tendon.SpringLengthLower, Is.EqualTo(0.5f));
+      Assert.That(_tendon.SpringLengthUpper, Is.EqualTo(0.5f));
+    }
+
+    [Test]
+    public void ParseTwoElementSpringLength() {
+      _doc.LoadXml("<spatial springlength='0.1 0.5'>" + "<site site='site1'/>" +
+                   "<site site='site2'/>" + "</spatial>");
+      _tendon.ParseMjcf(_doc.GetElementsByTagName("spatial")[0] as XmlElement);
+      Assert.That(_tendon.SpringLengthLower, Is.EqualTo(0.1f));
+      Assert.That(_tendon.SpringLengthUpper, Is.EqualTo(0.5f));
+    }
+
+    [Test]
+    public void ParseInvalidSpringLengthThrows() {
+      _doc.LoadXml("<spatial springlength='0.1 0.5 1.0'>" + "<site site='site1'/>" +
+                   "<site site='site2'/>" + "</spatial>");
+      var element = _doc.GetElementsByTagName("spatial")[0] as XmlElement;
+      Assert.That(() => { _tendon.ParseMjcf(element); }, Throws.TypeOf<ArgumentException>());
+    }
+
+    [Test]
+    public void GenerateMjcfWithSpringLength() {
+      _tendon.ViapointsList.Add(new SpatialTendonEntry { Site = _site1 });
+      _tendon.ViapointsList.Add(new SpatialTendonEntry { Site = _site2 });
+      _tendon.SpringLengthLower = 0.1f;
+      _tendon.SpringLengthUpper = 0.5f;
+      var element = _tendon.GenerateMjcf("test_tendon", _doc);
+      Assert.That(element.GetAttribute("springlength"), Is.EqualTo("0.1 0.5"));
+    }
+
+    [Test]
+    public void GenerateMjcfWithInvalidSpringLengthThrows() {
+      _tendon.ViapointsList.Add(new SpatialTendonEntry { Site = _site1 });
+      _tendon.ViapointsList.Add(new SpatialTendonEntry { Site = _site2 });
+      _tendon.SpringLengthLower = 0.5f;
+      _tendon.SpringLengthUpper = 0.1f;
+      Assert.That(() => { _tendon.GenerateMjcf("test_tendon", _doc); }, Throws.TypeOf<ArgumentException>());
     }
   }
 }

@@ -32,7 +32,9 @@ from mujoco.mjx._src.collision_types import Collision
 from mujoco.mjx._src.collision_types import GeomInfo
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 # pylint: enable=g-importing-member
 
 # the SDF function takes position in, and returns a distance or objective
@@ -52,7 +54,7 @@ def collider(ncon: int):
         return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
       return dist, pos, frame
 
-    collide.ncon = ncon
+    collide.ncon = ncon  # pyrefly: ignore[missing-attribute]
     return collide
 
   return wrapper

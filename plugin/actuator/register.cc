@@ -17,6 +17,6 @@
 
 namespace mujoco::plugin::actuator {
 
-mjPLUGIN_LIB_INIT { Pid::RegisterPlugin(); }
+mjPLUGIN_LIB_INIT(actuator) { Pid::RegisterPlugin(); }
 
 }  // namespace mujoco::plugin::actuator

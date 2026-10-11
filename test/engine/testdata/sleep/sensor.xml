@@ -1,0 +1,64 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="2.0"/>
+  </custom>
+
+  <option>
+    <flag sleep="enable" warmstart="disable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 -1 3"/>
+    <geom name="floor" type="plane" size="1 1 .01"/>
+     <site name="inside" type="box" size=".5 .5 .5" rgba="0 0 0 0"/>
+
+    <body name="force_static" pos="0 0 .025">
+      <geom name="0" type="box" size=".15 .15 .025"/>
+      <site name="force_static"/>
+    </body>
+
+    <body name="1" pos="0 0 .15">
+      <freejoint/>
+      <geom name="1" type="box" size=".1 .1 .05" pos="0 0 .05"/>
+      <body name="force_dynamic" pos="0 0 -.05">
+        <geom name="1_bottom" type="box" size=".1 .1 .05"/>
+        <site name="force_dynamic"/>
+      </body>
+    </body>
+
+    <body name="2" pos="0 0 .35">
+      <freejoint/>
+      <geom name="2" type="box" size=".1 .1 .1"/>
+      <site name="2" type="box" size=".11 .11 .11" rgba=".5 .7 .5 .2"/>
+    </body>
+
+    <body name="3" pos="0 0 1.2" euler="10 20 30">
+      <freejoint/>
+      <geom name="3" type="box" size=".1 .1 .1"/>
+      <site name="rf" type="cylinder" size=".01 .03" pos="0 0 -.11" zaxis="0 0 -1"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <!-- for most sensors, expect match between sleep enabled/disabled -->
+    <contact subtree1="1" geom2="2"/>
+    <contact subtree1="1" geom2="2" reduce="maxforce" data="force"/>
+    <contact subtree1="1" geom2="floor"/>
+    <contact subtree1="1"/>
+    <contact subtree1="1" reduce="maxforce" data="force"/>
+    <insidesite name="insidesite" site="inside" objtype="body" objname="3"/>
+    <framelinvel objtype="body" objname="3"/>
+    <framelinvel objtype="body" objname="3" reftype="body" refname="2"/>
+    <gyro name="gyro" site="2"/>
+    <touch name="touch" site="2"/>
+    <clock name="clock"/>
+    <rangefinder site="rf"/>
+    <force site="force_dynamic"/>
+
+    <!-- sensors marked with user="1": expect mismatch between sleep enabled/disabled -->
+    <contact user="1" reduce="maxforce" data="force"/>
+    <contact user="1" geom1="floor"/>
+    <contact user="1" site="2"/>
+    <force   user="1" site="force_static"/>
+  </sensor>
+</mujoco>

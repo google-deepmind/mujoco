@@ -15,6 +15,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Xml;
 using NUnit.Framework;
 using UnityEngine;
@@ -69,6 +70,19 @@ public class MjHingeJointTests {
   }
 
   [Test]
+  public void GenerateReferenceUsesInvariantCulture() {
+    var previousCulture = CultureInfo.CurrentCulture;
+    CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
+    try {
+      _joint.Configuration = 1.5f;
+      var element = _joint.GenerateMjcf("name", _doc);
+      Assert.That(element.GetAttribute("ref"), Is.EqualTo("1.5"));
+    } finally {
+      CultureInfo.CurrentCulture = previousCulture;
+    }
+  }
+
+  [Test]
   public void ParsingPosition() {
     var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
     jointElement.SetAttribute("pos", "1 2 3");
@@ -97,6 +111,29 @@ public class MjHingeJointTests {
     _joint.ParseMjcf(jointElement);
     Assert.That(_joint.RangeLower, Is.EqualTo(expectedLow));
     Assert.That(_joint.RangeUpper, Is.EqualTo(expectedHigh));
+  }
+
+  [Test]
+  public void ParseMissingAxisUsesMuJoCoDefaultZ() {
+    var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
+    _joint.ParseMjcf(jointElement);
+    var element = _joint.GenerateMjcf("name", _doc);
+    Assert.That(element.GetVector3Attribute("axis", Vector3.zero),
+                Is.EqualTo(MjEngineTool.MjVector3Up).Using(_comparer));
+  }
+
+  [Test]
+  public void ParsingReferenceConvertsRadiansToDegrees() {
+    var previous = MjSceneImportSettings.AnglesInDegrees;
+    MjSceneImportSettings.AnglesInDegrees = false;
+    try {
+      var jointElement = (XmlElement)_doc.AppendChild(_doc.CreateElement("joint"));
+      jointElement.SetAttribute("ref", "1.57079632679");
+      _joint.ParseMjcf(jointElement);
+      Assert.That(_joint.Configuration, Is.EqualTo(90.0f).Within(1e-3f));
+    } finally {
+      MjSceneImportSettings.AnglesInDegrees = previous;
+    }
   }
 }
 }

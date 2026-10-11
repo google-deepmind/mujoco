@@ -1,0 +1,295 @@
+# Description:
+#   Tests for mujoco/src/engine
+
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+cc_test(
+    name = "user_objects_test",
+    srcs = ["user_objects_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = ["//test/user/testdata:test_mjcf"],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_mesh_test",
+    srcs = ["user_mesh_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = ["//test/user/testdata:test_mjcf"],
+    deps = [
+        "//:mujoco",
+        "//plugin/obj_decoder",
+        "//plugin/stl_decoder",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_model_test",
+    srcs = ["user_model_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = ["//test/user/testdata:test_mjcf"],
+    deps = [
+        "//:mujoco",
+        "//plugin/actuator:register",
+        "//plugin/sdf:register",
+        "//src/xml:xml_numeric_format",
+        "//test:compare_model",
+        "//test:compare_spec",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_api_test",
+    srcs = ["user_api_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+        "//src/user:user_model",
+        "//src/xml:xml_api",
+        "//test:compare_model",
+        "//test:compare_spec",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_resolver_test",
+    srcs = ["user_resolver_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+        "//src/xml:xml_api",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_recompile_test",
+    timeout = "long",
+    srcs = ["user_recompile_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//model:all_models",
+        "//test:all_test_models",
+    ],
+    shard_count = 30,
+    deps = [
+        "//:mujoco",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+        "//src/xml:xml_api",
+        "//src/xml:xml_numeric_format",
+        "//test:compare_model",
+        "//test:compare_spec",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_composite_test",
+    srcs = ["user_composite_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/cc:array_safety",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_flex_test",
+    timeout = "long",
+    srcs = ["user_flex_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//model/flex",
+        "//test/user/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_cache_test",
+    srcs = ["user_cache_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/user:user_cache",
+        "//src/user:user_resource",
+        "//src/user:user_vfs",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_resource_test",
+    srcs = ["user_resource_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata/collision_box:test_mjcf",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_plugin",
+        "//src/engine:engine_util_misc",
+        "//src/user:user_resource",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_util_test",
+    srcs = ["user_util_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//src/user:user_util",
+        "//test:fixture",  # buildcleaner: keep
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_vfs_test",
+    srcs = ["user_vfs_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:actuation/activation.xml",
+        "//test/engine/testdata:actuation/damper.xml",
+        "//test/engine/testdata:actuation/refsite.xml",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/user:user_resource",
+        "//src/user:user_vfs",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "user_threadpool_test",
+    srcs = ["user_threadpool_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-fexceptions",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//src/user:user_threadpool",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)

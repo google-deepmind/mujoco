@@ -1,0 +1,13 @@
+<div class="row-section">
+    {% if description %}
+    <p class="section-description" style="color: var(--text-muted); margin-bottom: 1rem;">{{ description | safe }}</p>
+    {% endif %}
+    <div class="row-content"
+        style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 1rem; justify-content: space-around;">
+        {% for child in child_sections %}
+        <div class="row-item" style="flex: 1; min-width: 300px;">
+            {{ child.content | safe }}
+        </div>
+        {% endfor %}
+    </div>
+</div>

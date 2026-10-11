@@ -72,7 +72,7 @@ public static class MjHierarchyTool {
 
   // Finds a single component that matches both the type and the name criteria.
   public static T FindComponentOfTypeAndName<T>(string name) where T : MjComponent {
-    var components = UnityEngine.Object.FindObjectsOfType<T>().Where(
+    var components = UnityEngine.Object.FindObjectsByType<T>(FindObjectsSortMode.None).Where(
         component => component.gameObject.name == name);
     var numComponents = components.Count();
     if (components == null || numComponents == 0) {

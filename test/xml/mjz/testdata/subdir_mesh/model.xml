@@ -1,0 +1,10 @@
+<mujoco model="subdir_mesh">
+  <asset>
+    <mesh name="box" file="meshes/box.obj"/>
+  </asset>
+  <worldbody>
+    <body name="b1">
+      <geom type="mesh" mesh="box"/>
+    </body>
+  </worldbody>
+</mujoco>

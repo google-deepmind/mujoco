@@ -31,7 +31,7 @@ def generate_usd_trajectory(local_args):
   # create an instance of the USDExporter
   exp = exporter.USDExporter(
       model=m,
-      output_directory_name=pathlib.Path(local_args.model_path).stem,
+      output_directory_name=pathlib.Path(local_args.model_path).stem,  # pyrefly: ignore[unexpected-keyword]
       output_directory_root=local_args.output_directory_root,
       camera_names=local_args.camera_names,
   )
@@ -42,7 +42,7 @@ def generate_usd_trajectory(local_args):
     if exp.frame_count < d.time * local_args.framerate:
       exp.update_scene(data=d)
 
-  exp.add_light(pos=(0, 0, 0),
+  exp.add_light(pos=(0, 0, 0),  # pyrefly: ignore[bad-argument-type]
                 intensity=2000,
                 light_type='dome')
 

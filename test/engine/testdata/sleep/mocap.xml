@@ -1,0 +1,28 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="0.1"/>
+  </custom>
+
+  <option>
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <geom size="1"/>
+
+    <body name="mocap_static" pos="-5 0 0.01" mocap="true">
+      <geom size="1" rgba="1 0 0 1"/>
+      <body pos="0 0 1">
+        <geom size="1" rgba="0 0 1 1"/>
+      </body>
+    </body>
+
+    <body name="mocap_dynamic" pos="5 0 0.01" mocap="true">
+      <geom size="1" rgba="1 0 0 1"/>
+      <body pos="0 0 2">
+        <joint type="slide"/>
+        <geom size="1" rgba="0 0 1 1"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>

@@ -53,6 +53,8 @@ running on Google Colab:
 
  - The **introductory** tutorial teaches MuJoCo basics:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - The **Model Editing** tutorial shows how to create and edit models procedurally:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb)
  - The **rollout** tutorial shows how to use the multithreaded `rollout` module:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb)
  - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a
@@ -82,7 +84,7 @@ Users who wish to build MuJoCo from source should consult the [build from
 source] section of the documentation. However, note that the commit at
 the tip of the `main` branch may be unstable.
 
-### Python (>= 3.9)
+### Python (>= 3.10)
 
 The native Python bindings, which come pre-packaged with a copy of MuJoCo, can
 be installed from [PyPI] via:
@@ -95,6 +97,12 @@ Note that Pre-built Linux wheels target `manylinux2014`, see
 [here](https://github.com/pypa/manylinux) for compatible distributions. For more
 information such as building the bindings from source, see the [Python bindings]
 section of the documentation.
+
+## Versioning
+
+We aim to release MuJoCo in the first week of each month. Our versioning
+standards changed to modified Semantic Versioning in 3.5.0,
+see [versioning](VERSIONING.md) for details.
 
 ## Contributing
 
@@ -129,20 +137,18 @@ These packages give users of various languages access to MuJoCo functionality:
     DeepMind's related environment stack, includes
     [PyMJCF](https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
     a module for procedural manipulation of MuJoCo models.
+- [JavaScript bindings and WebAssembly support](/wasm/README.md) (inspired [stillonearth](https://github.com/stillonearth) and [zalo](https://github.com/zalo)'s community projects; [mjswan](https://github.com/ttktjmt/mjswan) extends these with real-time policy control, interactive force
+application, and more).
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
 #### Third-party bindings:
 
-- **WebAssembly**: [mujoco_wasm](https://github.com/zalo/mujoco_wasm) by [@zalo](https://github.com/zalo) with contributions by
-  [@kevinzakka](https://github.com/kevinzakka), based on the [emscripten build](https://github.com/stillonearth/MuJoCo-WASM) by
-  [@stillonearth](https://github.com/stillonearth).
-
-  :arrow_right: [Click here](https://zalo.github.io/mujoco_wasm/) for a live demo of MuJoCo running in your browser.
 - **MATLAB Simulink**: [Simulink Blockset for MuJoCo Simulator](https://github.com/mathworks-robotics/mujoco-simulink-blockset)
   by [Manoj Velmurugan](https://github.com/vmanoj1996).
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
 - **Julia**: [MuJoCo.jl](https://github.com/JamieMair/MuJoCo.jl)
+- **Rust**: [MuJoCo-rs](https://github.com/davidhozic/mujoco-rs)
 
 ### Converters
 
@@ -188,7 +194,7 @@ copy of the License at https://www.apache.org/licenses/LICENSE-2.0.
 
 This is not an officially supported Google product.
 
-[build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-mujoco-from-source
+[build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-from-source
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
 [Unity]: https://unity.com/
 [releases page]: https://github.com/google-deepmind/mujoco/releases

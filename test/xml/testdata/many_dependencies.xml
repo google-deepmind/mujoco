@@ -1,0 +1,21 @@
+<mujoco>
+  <include file="child.xml"/>
+
+  <compiler meshdir="meshes"/>
+  <asset>
+    <model name="other" file="parent_model.xml"/>
+    <mesh name="mesh1" file="mesh1.obj"/>
+  </asset>
+  <worldbody>
+    <body name="my_parent">
+      <geom name="my_geom" size="2"/>
+      <flexcomp type="mesh" file="flex.obj" name="flex" rigid="true"/>
+    </body>
+    <body name="box">
+      <geom type="box" mesh="mesh1"/>
+    </body>
+  </worldbody>
+  <deformable>
+    <skin name="skin" file="cube.skn"/>
+  </deformable>
+</mujoco>

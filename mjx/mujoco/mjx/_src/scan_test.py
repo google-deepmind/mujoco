@@ -61,10 +61,7 @@ class ScanTest(absltest.TestCase):
       return body_id + 1
 
     b_in = jp.array([1])
-    b_expect = jp.array([2])
-    b_out = scan.flat(m, fn, 'b', 'b', b_in)
-
-    np.testing.assert_equal(np.array(b_out), np.array(b_expect))
+    self.assertRaises(ValueError, scan.flat, m, fn, 'b', 'b', b_in)
 
   def test_flat_joints(self):
     """Tests scanning over bodies with joints of different types."""

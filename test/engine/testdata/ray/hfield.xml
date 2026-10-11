@@ -1,0 +1,18 @@
+<mujoco>
+  <asset>
+    <hfield name="hfield" nrow="5" ncol="5" size=".8 .8 .8 .3"
+            elevation="1 0 1 1 0
+                       0 1 1 0 1
+                       1 .5 1 0 1
+                       0 1 0 0 1
+                       0 1 0 0 1"/>
+  </asset>
+
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <body pos="-.5 .002 0" euler="10 50 -40" mocap="true">
+      <geom type="hfield" hfield="hfield"/>
+    </body>
+  </worldbody>
+</mujoco>

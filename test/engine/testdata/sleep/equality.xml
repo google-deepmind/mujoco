@@ -1,0 +1,60 @@
+<mujoco>
+  <option>
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 -1 4"/>
+    <geom type="plane" size="1.5 1.5 .01"/>
+
+    <body pos=".3 0 .8">
+      <joint name="1" axis="1 0 0" damping=".1"/>
+      <geom type="box" size=".03 .1 .1"/>
+    </body>
+
+    <body pos=".7 0 .8">
+      <joint name="2" axis="1 0 0" damping=".1"/>
+      <geom type="box" size=".03 .1 .1"/>
+    </body>
+
+    <body pos=".5 0 .5">
+      <geom type="box" size=".1 .1 .1"/>
+      <site name="1" pos="-.1 0 0" size=".01" rgba="1 0 0 1"/>
+    </body>
+
+    <body pos="-.3 -.4 .5" euler="10 20 30">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+      <site name="2" pos="0 0 .1" size=".01" rgba="1 0 0 1" euler="0 -90 0"/>
+      <site name="3" pos="0 -.1 0" size=".01" rgba="1 0 0 1" euler="0 0 -90"/>
+    </body>
+
+    <body pos=".7 -.3 .5">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+      <site name="4" pos="-.1 0 0" size=".01" rgba="1 0 0 1"/>
+    </body>
+
+    <body pos="-.3 0 .7">
+      <joint axis="0 1 0" springdamper=".03 1"/>
+      <geom type="capsule" size=".03" fromto="0 0 0 .2 0 0"/>
+      <site name="5" pos=".1 0 .03" size=".01" rgba="1 0 0 1"/>
+      <body pos=".2 0 0">
+        <joint axis="0 1 0" springdamper=".03 1"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 0 0 .2"/>
+        <body pos="0 0 .2">
+          <joint axis="0 1 0" springdamper=".03 1"/>
+          <geom type="capsule" size=".03" fromto="0 0 0 -.15 0 0"/>
+          <site name="6" pos="-.18 0 0" size=".01" rgba="1 0 0 1"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld active="false" name="stat/dyn" site1="1" site2="2"/>
+    <weld active="false" name="dyn/dyn" site1="3" site2="4"/>
+    <connect active="false" name="self" site1="5" site2="6"/>
+    <joint name="joint" joint1="1" joint2="2" polycoef="0 -2"/>
+  </equality>
+</mujoco>

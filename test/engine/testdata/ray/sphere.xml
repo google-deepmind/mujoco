@@ -1,0 +1,7 @@
+<mujoco>
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <geom type="sphere" size=".7" pos=".001 .002 .003"/>
+  </worldbody>
+</mujoco>

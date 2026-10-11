@@ -1,0 +1,77 @@
+<mujoco>
+  <!-- this is an example of a "bad" model where the tendon spans multiple branches of the tree -->
+  <option integrator="RK4">
+    <flag contact="disable" gravity="disable" energy="enable"/>
+  </option>
+
+  <default>
+    <geom rgba="0.8 0.6 .4 1"/>
+    <site rgba="0.4 0.8 .6 .5"/>
+  </default>
+
+  <worldbody>
+    <body name="distractor1">
+      <freejoint/>
+      <geom size=".1"/>
+      <site name="a"/>
+    </body>
+
+    <body>
+      <site name="0" type="box" size=".03 .03 .03" pos=".1 0 -.3"/>
+      <joint type="hinge" axis="0 -1 0"/>
+      <geom type="capsule" size=".04" fromto="0 0 0 0 0 -1"/>
+      <site name="1" type="box" size=".03 .03 .03" pos=".05 -.08 -1.1"/>
+      <body pos="0 0 -1">
+        <joint axis="0 -1 0" damping="0" stiffness="20" springref="90"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 -.6 0 0"/>
+        <body pos="-.6 0 0">
+          <joint type="ball" stiffness="20" armature=".6"/>
+          <site name="2" type="box" size=".03 .03 .03" pos=".03 .1 .15"/>
+          <geom type="box" size=".03 .1 .15" pos="0 0 -.05"/>
+        </body>
+      </body>
+    </body>
+
+    <body name="distractor2" pos="0 0 1">
+      <freejoint/>
+      <geom size=".1"/>
+      <site name="b"/>
+    </body>
+
+    <body pos="1 0 0">
+      <site name="3" type="box" size=".03 .03 .03" pos=".1 0 -.3"/>
+      <joint type="hinge" axis="0 -1 0"/>
+      <geom type="capsule" size=".04" fromto="0 0 0 0 0 -1"/>
+      <site name="4" type="box" size=".03 .03 .03" pos=".05 -.08 -1.1"/>
+      <body pos="0 0 -1">
+        <joint axis="0 -1 0" damping="0" stiffness="20" springref="90"/>
+        <geom type="capsule" size=".03" fromto="0 0 0 -.6 0 0"/>
+        <body pos="-.6 0 0">
+          <joint type="ball" stiffness="20" armature=".2"/>
+          <site name="5" type="box" size=".03 .03 .03" pos=".03 .1 .15"/>
+          <geom type="box" size=".03 .1 .15" pos="0 0 -.05"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial armature="4">
+      <site site="b"/>
+      <site site="a"/>
+    </spatial>
+    <spatial width=".01" rgba=".2 .2 1 1" armature="10" stiffness="10">
+      <site site="2"/>
+      <site site="1"/>
+      <site site="0"/>
+      <site site="3"/>
+      <site site="4"/>
+      <site site="5"/>
+    </spatial>
+    <spatial width=".01" rgba=".2 .2 1 1" armature="10" stiffness="10">
+      <site site="0"/>
+      <site site="2"/>
+      <site site="1"/>
+    </spatial>
+  </tendon>
+</mujoco>

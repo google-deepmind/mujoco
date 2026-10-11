@@ -16,5 +16,8 @@ if(MUJOCO_BUILD_EXAMPLES)
   include(ShellTests)
 
   add_mujoco_shell_test(compile_test compile)
+  if(MUJOCO_USE_FILAMENT)
+    add_mujoco_shell_test(render_test render)
+  endif()
   add_mujoco_shell_test(testspeed_test testspeed)
 endif()

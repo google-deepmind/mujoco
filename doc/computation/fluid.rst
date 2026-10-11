@@ -72,7 +72,7 @@ body coordinates are
    g_{V, i} = \quad &- 8 \beta \pi r_{eq}^3 \omega_i \\
    \end{aligned}
 
-One can also affect these forces by specifing a non-zero :ref:`wind<option-wind>`, which is a 3D vector subtracted
+One can also affect these forces by specifying a non-zero :ref:`wind<option-wind>`, which is a 3D vector subtracted
 from the body linear velocity in the fluid dynamics computation.
 
 .. _flEllipsoid:
@@ -357,7 +357,7 @@ of symmetry because under this assumption the kinetic energy greatly simplifies 
 
 .. math::
    2 \mathcal{T} = m_{A, x} v_x^2 + m_{A, y} v_y^2 + m_{A, z} v_z^2 +
-                 I_{A, x} \omega_x^2 + I_ {A, y} \omega_y^2 + I_{A, y} \omega_z^2
+                 I_{A, x} \omega_x^2 + I_ {A, y} \omega_y^2 + I_{A, z} \omega_z^2
 
 
 For convenience we introduce the added-mass vector :math:`\mathbf{m}_A = \{m_{A, x}, m_{A, y}, m_{A, z}\}` and added-moment of
@@ -429,7 +429,7 @@ bagheri2016`. See screen capture of the
 We derive a formula for :math:`\mathbf{f}_\text{D}` based on two surfaces :math:`A^\text{proj}_\mathbf{v}` and
 :math:`A_\text{max}`. The first, :math:`A^\text{proj}_\mathbf{v}`, is the cylindrical projection of the body onto a
 plane normal to the velocity :math:`\mathbf{v}`. The second is the maximum projected surface
-:math:`A_\text{max} = 4 \pi r_{max} r_{min}`.
+:math:`A_\text{max} = \pi r_{max} r_{mid}`.
 
 .. math::
    \mathbf{f}_\text{D} = - \rho~ \big[  C_{D, \text{blunt}} ~ A^\text{proj}_\mathbf{v} ~ +
@@ -541,7 +541,7 @@ onto the surface. The lift force per unit length can be computed with the Kuttaâ
 :math:`\mathbf{f}_K / L = \rho \Gamma_\text{K} \times \mathbf{v}`.
 
 In order to extend the lift force equation to three-dimensional motions, we consider the normal
-:math:`\mathbf{n}_{s, \mathbf{v}} = \{\frac{r_y r_z}{r_x}v_x, \frac{r_z r_x}{r_y}v_y, \frac{r_x r_x}{r_z}v_z\}`
+:math:`\mathbf{n}_{s, \mathbf{v}} = \{\frac{r_y r_z}{r_x}v_x, \frac{r_z r_x}{r_y}v_y, \frac{r_x r_y}{r_z}v_z\}`
 to the cross-section of the body which generates the body's projection :math:`A^\text{proj}_\mathbf{v}` onto a plane
 normal to the velocity given in the :ref:`lemma<flProjection>` above and the corresponding unit vector
 :math:`\hat{\mathbf{n}}_{s, \mathbf{v}}`.

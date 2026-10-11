@@ -1,0 +1,54 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="6.5"/>
+  </custom>
+
+  <option viscosity="60" gravity="0 0 -1">
+    <flag energy="enable" sleep="enable" constraint="disable" contact="disable"/>
+  </option>
+
+  <worldbody>
+    <body gravcomp="1">
+      <geom type="box" size=".2 .2 .2"/>
+      <freejoint/>
+      <body pos="-.4 0 0" gravcomp="1">
+        <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+        <joint type="slide" axis="0 0 1" springref="0.2" springdamper="0.1 1"/>
+      </body>
+    </body>
+
+    <body pos="1 0 0">
+      <geom type="box" size=".2 .2 .2"/>
+      <body>
+        <joint axis="1 0 0" springdamper="0.1 1"/>
+        <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+        <site name="1" pos="0 -.1 .5" size=".03" rgba="1 0 0 1"/>
+        <body pos="0 0 1">
+          <joint axis="1 0 0" springref="45" springdamper="0.1 1"/>
+          <geom type="capsule" size="0.1" fromto="0 0 0 0 0 1"/>
+          <site name="2" pos="0 -.1 .5" size=".03" rgba="1 0 0 1"/>
+        </body>
+      </body>
+    </body>
+
+    <body pos="2 0 0">
+      <geom size=".3"/>
+      <joint type="ball" stiffness="300" damping="30"/>
+      <body name="angmom" pos=".2 0 0">
+        <geom type="cylinder" size="0.1" fromto="0 0 0 0 0 1"/>
+        <joint type="slide" axis="0 0 1" springref="0.2" stiffness="1000" damping="100"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial width="0.01" armature="1">
+      <site site="1"/>
+      <site site="2"/>
+    </spatial>
+  </tendon>
+
+  <sensor>
+    <subtreeangmom body="angmom"/>
+  </sensor>
+</mujoco>

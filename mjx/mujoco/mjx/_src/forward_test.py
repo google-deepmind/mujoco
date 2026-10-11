@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
@@ -48,6 +49,9 @@ class ForwardTest(absltest.TestCase):
     d.xfrc_applied[0, 2] = 0.1  # torque
     d.xfrc_applied[1, 4] = 0.3  # linear force
     mujoco.mj_step(m, d, 20)  # get some dynamics going
+    # scale down velocities to minimize Jdotv effect (not in MJX)
+    # TODO(team): remove this change when mjx supports this feature
+    d.qvel[:] *= 1e-2
     mujoco.mj_forward(m, d)
 
     mx = mjx.put_model(m)
@@ -77,9 +81,49 @@ class ForwardTest(absltest.TestCase):
 
     # implicitfast
     m.opt.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    # TODO(team): remove this override when the mjx feature matches mujoco
+    m.opt.enableflags |= mujoco.mjtEnableBit.mjENBL_INVDISCRETE
     dx = jax.jit(mjx.implicit)(mx, mjx.put_data(m, d))
     mujoco.mj_implicit(m, d)
     _assert_attr_eq(d, dx, 'qpos')
+
+  def test_rotational_setpoint_wrapping(self):
+    xml = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="ball" type="ball"/>
+          <geom type="sphere" size=".1"/>
+          <site name="s1"/>
+        </body>
+        <site name="s0"/>
+      </worldbody>
+      <actuator>
+        <position joint="ball" kp="100" gear="1.5 0 0"/>
+        <general site="s1" refsite="s0" gaintype="fixed" biastype="affine" gainprm="50" biasprm="0 -50 0" gear="0 0 0 1.2 0 0"/>
+        <general joint="ball" dyntype="integrator" gaintype="fixed" biastype="affine" gainprm="40" biasprm="0 -40 0" gear="2 0 0"/>
+      </actuator>
+      <keyframe>
+        <key qpos="1 0 0 0" ctrl="10 -15 8" act="12"/>
+      </keyframe>
+    </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = jax.jit(mjx.fwd_actuation)(mx, dx)
+    _assert_attr_eq(d, dx, 'qfrc_actuator')
+    _assert_attr_eq(d, dx, 'actuator_force')
+
+    # next activations and step
+    mujoco.mj_step(m, d)
+    dx = jax.jit(mjx.step)(mx, dx)
+    _assert_attr_eq(d, dx, 'act')
 
   def test_step(self):
     m = test_util.load_test_file('constraints.xml')
@@ -89,6 +133,9 @@ class ForwardTest(absltest.TestCase):
     d.xfrc_applied[0, 2] = 0.1  # torque
     d.xfrc_applied[1, 4] = 0.3  # linear force
     mujoco.mj_step(m, d, 20)  # get some dynamics going
+    # scale down velocities to minimize Jdotv effect (not in MJX)
+    # TODO(team): remove this change when mjx supports this feature
+    d.qvel[:] *= 1e-2
 
     dx = jax.jit(mjx.step)(mjx.put_model(m), mjx.put_data(m, d))
     mujoco.mj_step(m, d)
@@ -130,6 +177,7 @@ class ForwardTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'qpos')
     _assert_attr_eq(d, dx, 'act')
     _assert_attr_eq(d, dx, 'time')
+    _assert_attr_eq(d, dx, 'xpos')
 
   def test_eulerdamp(self):
     m = test_util.load_test_file('pendula.xml')
@@ -167,6 +215,50 @@ class ForwardTest(absltest.TestCase):
 
     np.testing.assert_allclose(dx.qvel, 1 + m.opt.timestep)
 
+  def test_where(self):
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <worldbody>
+            <body>
+              <joint type="slide" axis="1 0 0"/>
+              <geom size="0.1"/>
+            </body>
+          </worldbody>
+        </mujoco>
+        """)
+    d_template = mjx.make_data(m)
+
+    d1 = d_template.replace(qpos=jp.array([1.0]))
+    d2 = d_template.replace(qpos=jp.array([2.0]))
+
+    # Test scalar condition (outside vmap)
+    out_true = d1.where(True, d2)
+    np.testing.assert_allclose(out_true.qpos, d2.qpos)
+
+    out_false = d1.where(False, d2)
+    np.testing.assert_allclose(out_false.qpos, d1.qpos)
+
+    # Test batched condition (inside vmap)
+    @jax.vmap
+    def merge_batched(done, r, s):
+      return s.where(done, r)
+
+    done_batch = jp.array([True, False])
+    r_batch = jax.vmap(lambda x: d_template.replace(qpos=jp.array([x])))(
+        jp.array([2.0, 3.0])
+    )
+    s_batch = jax.vmap(lambda x: d_template.replace(qpos=jp.array([x])))(
+        jp.array([1.0, 1.0])
+    )
+
+    merged = merge_batched(done_batch, r_batch, s_batch)
+
+    # env 0: done=True -> r -> qpos=2.0
+    # env 1: done=False -> s -> qpos=1.0
+    np.testing.assert_allclose(merged.qpos, jp.array([[2.0], [1.0]]))
+
+
+
 
 class ActuatorTest(parameterized.TestCase):
 
@@ -194,6 +286,27 @@ class ActuatorTest(parameterized.TestCase):
     mujoco.mj_Euler(m, d)
     dx = jax.jit(mjx.euler)(mx, dx)
     _assert_attr_eq(d, dx, 'act')
+
+  def test_tendon_force_clamp(self):
+    m = test_util.load_test_file('actuator/tendon_force_clamp.xml')
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = dx.replace(ctrl=jp.array([1.0, 1.0, 1.0, -4.0, 1.0, -20.0, 5.0, -5.0]))
+    dx = mjx.forward(mx, dx)
+
+    _assert_eq(
+        dx.actuator_force,
+        jp.array([1.0, 1.0, 1.0, -4.0 / 3.0, 1.0 / 3.0, -10.0, 5.0, -5.0]),
+        'actuator_force',
+    )
+
+    _assert_eq(
+        dx.sensordata,
+        jp.array([3.0, -1.0, -10.0, 0.0]),
+        'sensordata',
+    )
 
 
 if __name__ == '__main__':

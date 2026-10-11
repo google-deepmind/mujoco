@@ -1,0 +1,9 @@
+# Example models for actuator plugins
+
+licenses(["notice"])
+
+filegroup(
+    name = "actuator",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

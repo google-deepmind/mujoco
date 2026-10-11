@@ -1,0 +1,4 @@
+---
+# Disable clang-format by default. Subdirectories opt in with their own .clang-format.
+DisableFormat: true
+...

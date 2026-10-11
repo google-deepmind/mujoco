@@ -1,0 +1,4 @@
+---
+# disable clang-format for generated files
+DisableFormat: true
+...

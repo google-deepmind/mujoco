@@ -1,0 +1,10 @@
+# Description:
+#   Example of active adhesion actuators.
+
+licenses(["notice"])
+
+filegroup(
+    name = "adhesion",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

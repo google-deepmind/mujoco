@@ -23,7 +23,7 @@
   #endif
 #endif
 
-#include <cstdlib>
+#include <cstdlib>  // IWYU pragma: keep
 #include <iostream>
 
 namespace mujoco {
@@ -42,7 +42,7 @@ const struct Glfw& Glfw(void* dlhandle) {
     }
   }
 
-  // make and intialize dispatch table
+  // make and initialize dispatch table
   static const struct Glfw glfw = [&]() {  // create and call constructor
     // allocate
     struct Glfw glfw;
@@ -55,8 +55,8 @@ const struct Glfw& Glfw(void* dlhandle) {
       std::cerr << "cannot obtain a shared object handle\n";
       abort();
     }
-    #define mjGLFW_RESOLVE_SYMBOL(func)                   \
-      glfw.func = reinterpret_cast<decltype(glfw.func)>(  \
+    #define mjGLFW_RESOLVE_SYMBOL(func)                  \
+      glfw.func = reinterpret_cast<decltype(glfw.func)>( \
           GetProcAddress(reinterpret_cast<HMODULE>(dlhandle), #func))
   #else
     if (!dlhandle) dlhandle = dlopen("nullptr", RTLD_GLOBAL | RTLD_NOW);
@@ -72,11 +72,11 @@ const struct Glfw& Glfw(void* dlhandle) {
 #endif
 
     // set pointers in dispatch table
-#define mjGLFW_INITIALIZE_SYMBOL(func)                  \
-    if (!(mjGLFW_RESOLVE_SYMBOL(func))) {               \
-      std::cerr << "cannot dlsym " #func "\n";          \
-      abort();                                          \
-    }
+#define mjGLFW_INITIALIZE_SYMBOL(func)       \
+  if (!(mjGLFW_RESOLVE_SYMBOL(func))) {      \
+    std::cerr << "cannot dlsym " #func "\n"; \
+    abort();                                 \
+  }
 
     // go/keep-sorted start
     mjGLFW_INITIALIZE_SYMBOL(glfwCreateWindow);
@@ -116,6 +116,10 @@ const struct Glfw& Glfw(void* dlhandle) {
 
 #ifdef __APPLE__
     mjGLFW_INITIALIZE_SYMBOL(glfwGetNSGLContext);
+#endif
+
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+    mjGLFW_RESOLVE_SYMBOL(glfwGetPlatform);
 #endif
 
 #undef mjGLFW_INITIALIZE_SYMBOL

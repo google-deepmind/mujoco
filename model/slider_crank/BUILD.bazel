@@ -1,0 +1,10 @@
+# Description:
+#   Slider-crank example model
+
+licenses(["notice"])
+
+filegroup(
+    name = "slider_crank",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

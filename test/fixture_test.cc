@@ -29,9 +29,15 @@ using MujocoTestTest = MujocoTest;
 class MujocoErrorTestGuardTest : public ::testing::Test {};
 using ::testing::IsNull;
 
-
 TEST_F(MujocoTestTest, MjUserWarningFailsTest) {
   EXPECT_NONFATAL_FAILURE(mju_warning("Warning."), "Warning.");
+}
+
+TEST_F(MujocoTestTest, BenignWarningDoesNotFailTest) {
+  // Warnings in the benign list should not trigger test failures
+  mju_warning(
+      "flex 'soft' is not rigid and has no equality constraints "
+      "or passive forces");
 }
 
 TEST_F(MujocoTestTest, MjUserErrorFailsTest) {

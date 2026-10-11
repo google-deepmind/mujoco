@@ -1,0 +1,22 @@
+<mujoco model="contact sorted">
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom name="floor" type="plane" size=".5 1 .01"/>
+
+    <body name="spheres">
+      <joint axis="0 -1 0"/>
+      <geom size=".1" pos="-.1 0 0" rgba=".8 .2 .1 1"/>
+      <geom size=".1" pos=".1 0 0" rgba=".8 .2 .1 1"/>
+      <geom size=".1" pos="-.2 0 0" rgba=".8 .2 .1 1"/>
+      <geom size=".1" pos=".3 0 0" rgba=".8 .2 .1 1"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <contact name="unsorted" body1="spheres" num="4" data="dist"/>
+    <contact name="sorted dist" body1="spheres" num="4" data="dist" reduce="mindist"/>
+    <contact name="sorted force" body1="spheres" num="4" data="force" reduce="maxforce"/>
+    <contact name="smallest dist" body1="spheres" num="1" data="dist" reduce="mindist"/>
+    <contact name="largest force" body1="spheres" num="1" data="force" reduce="maxforce"/>
+  </sensor>
+</mujoco>

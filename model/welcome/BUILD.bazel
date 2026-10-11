@@ -1,0 +1,10 @@
+# Description:
+#   MuJoCo welcome scene.
+
+licenses(["notice"])
+
+filegroup(
+    name = "welcome",
+    srcs = glob(["**/*.xml"]),
+    visibility = ["//:visibility"],
+)

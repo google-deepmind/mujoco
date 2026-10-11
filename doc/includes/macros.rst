@@ -31,3 +31,24 @@
 
 .. |-| unicode:: U+2060
    :trim:
+
+..
+   Macro for icon for required element, can appear only once.
+
+.. |!| replace:: :octicon:`star`
+
+..
+   Macro for icon for optional element, can appear only once.
+
+.. |?| replace:: :octicon:`dot`
+
+..
+   Macro for icon for optional element, can appear multiple times (no icon).
+
+.. |*| unicode:: U+200B
+   :trim:
+
+..
+   Macro for icon for optional element that can appear recursively.
+
+.. |@| replace:: :octicon:`sync`

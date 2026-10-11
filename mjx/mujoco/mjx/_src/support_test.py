@@ -64,7 +64,7 @@ class SupportTest(parameterized.TestCase):
     dx = mjx.put_data(m, d)
     mjx_full_m = jax.jit(support.full_m)(mx, dx)
     mj_full_m = np.zeros((m.nv, m.nv), dtype=np.float64)
-    mujoco.mj_fullM(m, mj_full_m, d.qM)
+    mujoco.mju_sym2dense(mj_full_m, d.M, m.M_rownnz, m.M_rowadr, m.M_colind)
     np.testing.assert_allclose(mjx_full_m, mj_full_m, atol=5e-5, rtol=5e-5)
 
   @parameterized.parameters('constraints.xml', 'pendula.xml')
@@ -84,6 +84,29 @@ class SupportTest(parameterized.TestCase):
     mujoco.mj_jac(m, d, jacp_expected, jacr_expected, point, body)
     np.testing.assert_almost_equal(jacp, jacp_expected.T, 6)
     np.testing.assert_almost_equal(jacr, jacr_expected.T, 6)
+
+  @parameterized.parameters('constraints.xml', 'pendula.xml')
+  def test_jac_dot(self, fname):
+    np.random.seed(0)
+
+    m = test_util.load_test_file(fname)
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-zero velocities
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    point = np.random.randn(3)
+    jac_dot = jax.jit(support.jac_dot)
+
+    for body in range(m.nbody):
+      jacp, jacr = jac_dot(mx, dx, point, body)
+
+      jacp_expected, jacr_expected = np.zeros((3, m.nv)), np.zeros((3, m.nv))
+      mujoco.mj_jacDot(m, d, jacp_expected, jacr_expected, point, body)
+      np.testing.assert_allclose(jacp, jacp_expected.T, atol=5e-5, rtol=5e-5)
+      np.testing.assert_allclose(jacr, jacr_expected.T, atol=5e-5, rtol=5e-5)
 
   def test_xfrc_accumulate(self):
     """Tests that xfrc_accumulate ouput matches mj_xfrcAccumulate."""
@@ -173,18 +196,20 @@ class SupportTest(parameterized.TestCase):
             <joint axis="0 0 1" type="slide" name="joint3"/>
             <geom size="7 8 9" type="box" name="geom3"/>
           </body>
+          <body pos="100 110 120" name="body4" mocap="true"/>
+          <body pos="130 140 150" name="body5" mocap="true"/>
         </worldbody>
 
         <actuator>
-          <motor name="actuator1" joint="joint1"/>
-          <motor name="actuator2" joint="joint2"/>
-          <motor name="actuator3" joint="joint3"/>
+          <motor joint="joint1"/>
+          <motor joint="joint2"/>
+          <motor joint="joint3"/>
         </actuator>
 
         <sensor>
-          <framepos name="sensor1" objtype="body" objname="body1"/>
-          <framepos name="sensor2" objtype="body" objname="body2"/>
-          <framepos name="sensor3" objtype="body" objname="body3"/>
+          <framepos objtype="body" objname="body1"/>
+          <framepos objtype="body" objname="body2"/>
+          <framepos objtype="body" objname="body3"/>
         </sensor>
     </mujoco>
     """
@@ -247,6 +272,11 @@ class SupportTest(parameterized.TestCase):
           dx.bind(mx, s.joints[i]).qacc,
           d.qacc[m.jnt_dofadr[i]:m.jnt_dofadr[i] + dofnum[i]], decimal=6
       )
+      np.testing.assert_array_almost_equal(
+          dx.bind(mx, s.joints[i]).qfrc_actuator,
+          d.qfrc_actuator[m.jnt_dofadr[i] : m.jnt_dofadr[i] + dofnum[i]],
+          decimal=6,
+      )
 
     np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
     for i in range(m.nu):
@@ -287,6 +317,10 @@ class SupportTest(parameterized.TestCase):
     dx6 = dx.bind(mx, s.joints[::2]).set('qpos', [1, 0, 0, 0, 8])
     np.testing.assert_array_equal(dx6.bind(mx, s.joints).qpos, qpos_desired)
     np.testing.assert_array_almost_equal(dx.bind(mx, s.joints).qpos, d.qpos)
+    dx6a = dx.bind(mx, s.joints[0]).set('qpos', qpos_desired[:4])
+    np.testing.assert_array_equal(
+        dx6a.bind(mx, s.joints[0]).qpos, qpos_desired[:4]
+    )
     dx7 = dx.bind(mx, s.joints[::2]).set('qvel', [2.0, -1.2, 0.5, 0.3])
     np.testing.assert_array_almost_equal(
         dx7.bind(mx, s.joints).qvel, [2.0, -1.2, 0.5, 0.0, 0.3], decimal=6
@@ -304,30 +338,49 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_array_equal(
           dx7.bind(mx, body).xfrc_applied, [0, 0, 0, 0, 0, 0]
       )
+    dx10 = dx.bind(mx, s.bodies[0:2]).set(
+        'xfrc_applied',
+        np.array([np.array([1, 1, 1, 1, 1, 1]), np.array([2, 2, 2, 2, 2, 2])]),
+    )
+    np.testing.assert_array_equal(
+        dx10.bind(mx, s.bodies[0]).xfrc_applied, [1, 1, 1, 1, 1, 1]
+    )
+    np.testing.assert_array_equal(
+        dx10.bind(mx, s.bodies[1]).xfrc_applied, [2, 2, 2, 2, 2, 2]
+    )
+    dx11 = dx.bind(mx, s.bodies[-1]).set(
+        'mocap_pos',
+        [1, 2, 3],
+    )
+    np.testing.assert_array_equal(
+        dx11.bind(mx, s.bodies[-2]).mocap_pos, [100, 110, 120]
+    )
+    np.testing.assert_array_equal(
+        dx11.bind(mx, s.bodies[-1]).mocap_pos, [1, 2, 3]
+    )
 
-    # test invalid name
-    with self.assertRaises(
-        AttributeError, msg='ctrl is not available for this type'
+    # test attribute and type mismatches
+    with self.assertRaisesRegex(
+        AttributeError, 'ctrl is not available for this type'
     ):
       print(dx.bind(mx, s.geoms).ctrl)
-    with self.assertRaises(
-        KeyError, msg='actuator_actuator_ctrl'
-    ):
+    with self.assertRaises(KeyError):
       print(dx.bind(mx, s.actuators).actuator_ctrl)
-    with self.assertRaises(
-        AttributeError, msg='actuator_actuator_ctrl'
+    with self.assertRaisesRegex(
+        AttributeError,
+        "'Data' object has no attribute 'actuator_actuator_ctrl'",
     ):
       print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
-    with self.assertRaises(
-        AttributeError, msg='qpos, qvel, qacc are not available for this type'
+    with self.assertRaisesRegex(
+        AttributeError, 'qpos, qvel, qacc, qfrc are not available for this type'
     ):
       print(dx.bind(mx, s.geoms).qpos)
-    with self.assertRaises(KeyError, msg='invalid name: invalid_actuator_name'):
-      s.actuators[0].name = 'invalid_actuator_name'
-      print(dx.bind(mx, s.actuators).set('ctrl', [1, 2, 3]))
-    with self.assertRaises(KeyError, msg='invalid name: invalid_geom_name'):
-      s.geoms[0].name = 'invalid_geom_name'
-      print(mx.bind(s.geoms).pos)
+
+    # test that modified names do not raise an error
+    s.actuators[0].name = 'modified_actuator_name'
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
+    s.geoms[0].name = 'modified_geom_name'
+    np.testing.assert_array_equal(mx.bind(s.geoms[0]).pos, m.geom_pos[0, :])
 
     # test batched data
     batch_size = 16
@@ -339,12 +392,28 @@ class SupportTest(parameterized.TestCase):
           vdx.bind(mx, s.bodies[i]).xpos, [d.xpos[i, :]] * batch_size
       )
 
-    # test emtpy name
+    # test that adding a body requires recompilation
     s.worldbody.add_body()
-    m = s.compile()
-    mx = mjx.put_model(m)
-    with self.assertRaises(KeyError, msg='cannot bind spec with empty name'):
+    with self.assertRaises(ValueError) as e:
       mx.bind(s.bodies)
+    self.assertEqual(
+        str(e.exception),
+        'mjSpec signature does not match mjx.Model signature:'
+        ' 0 != 2785811613804955188',
+    )
+
+    # what happens when we bind to an actuator that was removed?
+    bygone_actuators = []
+    for act in s.actuators:
+      bygone_actuators.append(act)
+      s.delete(act)
+    m = s.compile()
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    dx = mjx.step(mx, dx)
+    with self.assertRaisesRegex(KeyError, 'invalid id: -1'):
+      dx.bind(mx, bygone_actuators)
 
   _CONTACTS = """
     <mujoco>
@@ -379,7 +448,7 @@ class SupportTest(parameterized.TestCase):
 
     # map MJX contacts to MJ ones
     def _find(g):
-      val = (g == dx.contact.geom).sum(axis=1)
+      val = (g == dx._impl.contact.geom).sum(axis=1)
       return np.where(val == 2)[0][0]
 
     contact_id_map = {i: _find(d.contact.geom[i]) for i in range(d.ncon)}
@@ -393,7 +462,7 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
       # check for zeros after first condim elements
-      condim = dx.contact.dim[j]
+      condim = dx._impl.contact.dim[j]
       if condim < 6:
         np.testing.assert_allclose(force[condim:], 0, rtol=1e-5, atol=1e-5)
 
@@ -406,8 +475,8 @@ class SupportTest(parameterized.TestCase):
           ),
       )(mx, dx, j, True)
       # back to contact frame
-      force = force.at[:3].set(dx.contact.frame[j] @ force[:3])
-      force = force.at[3:].set(dx.contact.frame[j] @ force[3:])
+      force = force.at[:3].set(dx._impl.contact.frame[j] @ force[:3])
+      force = force.at[3:].set(dx._impl.contact.frame[j] @ force[3:])
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
   def test_wrap_inside(self):

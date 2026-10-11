@@ -1,0 +1,49 @@
+<!-- Copyright 2026 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco>
+  <compiler angle="radian"/>
+  <option timestep=".001" integrator="discrete" solver="Newton" tolerance="1e-7" iterations="250"/>
+  <visual>
+    <global offwidth="1280" offheight="720"/>
+    <quality shadowsize="4096"/>
+    <headlight ambient=".25 .25 .25" diffuse=".4 .4 .4" specular=".2 .2 .2"/>
+    <rgba haze=".12 .16 .20 1"/>
+  </visual>
+  <default>
+    <!-- These mechanism examples isolate elastic loading; contact is disabled. -->
+    <geom contype="0" conaffinity="0" material="steel"/>
+    <equality solref=".003 1" solimp=".99 .999 .001"/>
+    <default class="bolt">
+      <geom type="cylinder" size=".025 .055" euler="1.57079632679 0 0" material="brass" mass=".02"/>
+    </default>
+  </default>
+  <asset>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".25 .3 .45" rgb2=".55 .5 .45" width="32" height="32"/>
+    <texture type="skybox" builtin="gradient" rgb1=".12 .16 .28" rgb2=".5 .45 .4" width="32" height="512"/>
+    <texture name="floor" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="512" height="512"/>
+    <material name="ground" texture="floor" texrepeat="1 1" texuniform="true" reflectance=".08"/>
+    <material name="steel" rgba=".28 .36 .42 1" specular=".65" shininess=".5" metallic=".35" roughness=".35"/>
+    <material name="silver" rgba=".72 .78 .82 1" specular=".8" shininess=".7" metallic=".6" roughness=".25"/>
+    <material name="brass" rgba=".95 .65 .22 1" specular=".7" shininess=".5" metallic=".65" roughness=".25"/>
+    <material name="load" rgba=".36 .48 .52 1" specular=".5" shininess=".35" metallic=".25" roughness=".4"/>
+  </asset>
+  <worldbody>
+    <light pos="1.5 -2.5 4.5" dir="-.3 .5 -1" cutoff="30" softness="1" range="25" diffuse=".9 .85 .75" intensity="2500000"/>
+    <light pos="-1.5 2 3.5" dir=".3 -.4 -1" cutoff="45" softness="1" range="25" diffuse=".5 .65 .8" intensity="600000" castshadow="false"/>
+    <light type="image" texture="ibl" intensity="3000"/>
+    <geom type="plane" size="0 0 .1" material="ground"/>
+  </worldbody>
+</mujoco>

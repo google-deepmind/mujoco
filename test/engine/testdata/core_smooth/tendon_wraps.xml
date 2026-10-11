@@ -1,0 +1,74 @@
+<mujoco model="tendon_wraps">
+  <statistic center="-.02 -.02 .2" extent=".75"/>
+
+  <visual>
+    <global offwidth="1159" offheight="682" elevation="-40"/>
+    <quality shadowsize="4096" offsamples="8" numslices="32" numstacks="24"/>
+    <headlight ambient=".22 .22 .22" diffuse=".45 .45 .45" specular=".35 .35 .35"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512"
+             rgb1=".18 .26 .36" rgb2=".09 .14 .20" mark="edge" markrgb=".85 .85 .85"/>
+    <material name="grid" texture="grid" texrepeat="2 2" texuniform="true" reflectance=".25"/>
+  </asset>
+
+  <default>
+    <site type="sphere" size=".023" rgba=".65 .65 .65 1"/>
+    <tendon width=".015" rgba=".85 .33 .12 1"/>
+    <default class="sidesite">
+      <site group="3" rgba=".2 .8 .9 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="-.2 -.8 1.8" dir=".1 .3 -1" diffuse=".7 .7 .7" specular=".35 .35 .35"/>
+
+    <geom type="plane" size="2 2 .1" material="grid"/>
+
+    <!-- Sphere on left -->
+    <geom name="sphere" type="sphere" pos="-.40 -.02 .22" size=".165" rgba=".05 .85 .45 1"/>
+    <!-- Outer wrap around front-left of sphere -->
+    <site name="s_out1" pos="-.56 .24 .35"/>
+    <site name="s_out2" pos="-.22 -.34 .07"/>
+    <site name="s_outside" class="sidesite" pos="-.62 -.12 .20"/>
+    <!-- Inside wrap on right side of sphere -->
+    <site name="s_in1" pos="-.28 .36 .38"/>
+    <site name="s_in2" pos="-.13 -.08 .22"/>
+    <site name="s_inside" class="sidesite" pos="-.28 .05 .25"/>
+
+    <!-- Cylinder on right -->
+    <geom name="cylinder" type="cylinder" pos=".36 -.03 .25" size=".145 .185" rgba=".05 .85 .45 1"/>
+    <!-- Outer helical wrap around front-right of cylinder -->
+    <site name="c_out1" pos=".53 .22 .45"/>
+    <site name="c_out2" pos=".12 -.34 .14"/>
+    <site name="c_outside" class="sidesite" pos=".58 -.15 .24"/>
+    <!-- Inside wrap on left side of cylinder -->
+    <site name="c_in1" pos=".05 .18 .38"/>
+    <site name="c_in2" pos=".10 -.14 .16"/>
+    <site name="c_inside" class="sidesite" pos=".25 -.02 .22"/>
+  </worldbody>
+
+  <tendon>
+    <spatial>
+      <site site="s_out1"/>
+      <geom geom="sphere" sidesite="s_outside"/>
+      <site site="s_out2"/>
+    </spatial>
+    <spatial>
+      <site site="s_in1"/>
+      <geom geom="sphere" sidesite="s_inside"/>
+      <site site="s_in2"/>
+    </spatial>
+    <spatial>
+      <site site="c_out1"/>
+      <geom geom="cylinder" sidesite="c_outside"/>
+      <site site="c_out2"/>
+    </spatial>
+    <spatial>
+      <site site="c_in1"/>
+      <geom geom="cylinder" sidesite="c_inside"/>
+      <site site="c_in2"/>
+    </spatial>
+  </tendon>
+</mujoco>

@@ -1,0 +1,89 @@
+<mujoco model="Polynomial Stiffness">
+<!--
+  Four boxes hanging from spatial tendons, demonstrating polynomial stiffness.
+  Each tendon has a different stiffness profile:
+    1. Linear:       k(q) = a*q                 (stiffness="100  0    0")
+    2. Quadratic:    k(q) = b*q^2               (stiffness="0    200  0")
+    3. Cubic:        k(q) = c*q^3               (stiffness="0    0    300")
+    4. Combination:  k(q) = a*q + b*q^2 + c*q^3 (stiffness="100 -400  400")
+-->
+
+  <visual>
+    <map force="0.1" zfar="30"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global offwidth="1280" offheight="720" elevation="-10"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="32" height="32"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 .15 .2" width="512" height="512"/>
+    <material name="grid" reflectance="0.3" texture="grid" texrepeat="5 5" texuniform="true"/>
+  </asset>
+
+  <default>
+    <geom condim="3"/>
+    <site rgba="0 .8 0 .5" size=".03"/>
+    <tendon width=".01" rgba=".9 .9 .9 1" springlength="0 .3"/>
+    <default class="box">
+      <geom type="box" size=".2 .2 .2" mass="5"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom type="plane" size="3 3 .01" material="grid"/>
+    <light directional="true" diffuse=".4 .4 .4" specular="0 0 0" pos="0 0 5" dir="0 0 -1" castshadow="false"/>
+    <light directional="false" diffuse=".8 .8 .8" specular=".3 .3 .3" pos="0 -2 4" dir="0 .5 -1"/>
+
+    <!-- anchor sites -->
+    <site name="anchor_linear"    pos="-1.5 0 2"/>
+    <site name="anchor_quadratic" pos="-.5  0 2"/>
+    <site name="anchor_cubic"     pos=".5   0 2"/>
+    <site name="anchor_combi"     pos="1.5  0 2"/>
+
+    <body name="linear" pos="-1.5 0 1.5">
+      <freejoint/>
+      <geom class="box" rgba=".2 .6 1 1"/>
+      <site name="hook_linear" pos="0 0 .2"/>
+    </body>
+
+    <body name="quadratic" pos="-.5 0 1.5">
+      <freejoint/>
+      <geom class="box" rgba="1 .4 .1 1"/>
+      <site name="hook_quadratic" pos="0 0 .2"/>
+    </body>
+
+    <body name="cubic" pos=".5 0 1.5">
+      <freejoint/>
+      <geom class="box" rgba=".2 .8 .2 1"/>
+      <site name="hook_cubic" pos="0 0 .2"/>
+    </body>
+
+    <body name="combi" pos="1.5 0 1.5">
+      <freejoint/>
+      <geom class="box" rgba=".8 .2 .8 1"/>
+      <site name="hook_combi" pos="0 0 .2"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial name="linear" stiffness="100">
+      <site site="anchor_linear"/>
+      <site site="hook_linear"/>
+    </spatial>
+
+    <spatial name="quadratic" stiffness="0 200">
+      <site site="anchor_quadratic"/>
+      <site site="hook_quadratic"/>
+    </spatial>
+
+    <spatial name="cubic" stiffness="0 0 300">
+      <site site="anchor_cubic"/>
+      <site site="hook_cubic"/>
+    </spatial>
+
+    <spatial name="combination" stiffness="100 -400 400">
+      <site site="anchor_combi"/>
+      <site site="hook_combi"/>
+    </spatial>
+  </tendon>
+</mujoco>

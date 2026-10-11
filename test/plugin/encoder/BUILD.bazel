@@ -1,0 +1,25 @@
+# Description:
+#   Tests for mujoco/plugin/decoder
+
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+cc_test(
+    name = "encoder_test",
+    srcs = ["encoder_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//test:fixture",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

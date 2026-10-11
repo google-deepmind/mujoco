@@ -92,7 +92,8 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"frictionloss="));
     Assert.That(_doc.OuterXml, Does.Contain(@"limit="));
     Assert.That(_doc.OuterXml, Does.Contain(@"contact="));
-    Assert.That(_doc.OuterXml, Does.Contain(@"passive="));
+    Assert.That(_doc.OuterXml, Does.Contain(@"spring="));
+    Assert.That(_doc.OuterXml, Does.Contain(@"damper="));
     Assert.That(_doc.OuterXml, Does.Contain(@"clampctrl="));
     Assert.That(_doc.OuterXml, Does.Contain(@"warmstart="));
     Assert.That(_doc.OuterXml, Does.Contain(@"filterparent="));
@@ -101,6 +102,7 @@ public class MjGlobalSettingsGenerationTests {
     Assert.That(_doc.OuterXml, Does.Contain(@"override="));
     Assert.That(_doc.OuterXml, Does.Contain(@"energy="));
     Assert.That(_doc.OuterXml, Does.Contain(@"fwdinv="));
+    Assert.That(_doc.OuterXml, Does.Contain(@"multiccd="));
   }
 }
 

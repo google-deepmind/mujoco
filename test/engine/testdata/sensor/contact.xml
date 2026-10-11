@@ -1,0 +1,35 @@
+<mujoco model="contact">
+  <option gravity="4 0 -3"/>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom name="floor" type="plane" size=".5 1 .01"/>
+    <geom name="wall" type="plane" size=".25 1 .05" zaxis="-1 0 0" pos=".5 0 .25"/>
+    <site name="site" type="box" size=".15 .15 .15" pos=".5 0 0" rgba=".5 .7 .5 .3"/>
+
+    <body name="b1" pos="0 0 .2">
+      <freejoint/>
+      <geom name="g1" size=".1" rgba=".8 .2 .1 1" mass="1"/>
+    </body>
+
+    <body name="b2" pos="-.3 0 .2">
+      <freejoint/>
+      <geom name="g2" size=".1" rgba=".8 .2 .1 1" mass="1"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <contact name="all"/>
+    <contact name="world" body1="world"/>
+    <contact name="b1" body1="b1"/>
+    <contact name="g1" geom1="g1"/>
+    <contact name="b1:g2" body1="b1" geom2="g2"/>
+    <contact name="b1:world" body1="b1" body2="world"/>
+    <contact name="site" site="site"/>
+    <contact name="site:wall" site="site" geom2="wall"/>
+    <contact name="wall" geom1="wall" num="2" data="found force normal"/>
+    <contact name="b2"         body1="b2" data="force normal" num="2"/>
+    <contact name="b2_flipped" body2="b2" data="force normal" num="2"/>
+    <contact name="b2_reduced" body2="b2" data="force normal" reduce="maxforce"/>
+  </sensor>
+</mujoco>

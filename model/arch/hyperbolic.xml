@@ -1,0 +1,127 @@
+<mujoco model="Hyperbolic arch">
+  <visual>
+    <global azimuth="140" elevation="-20"/>
+  </visual>
+
+  <!-- Frictional stability requires elliptic cones and large impratio. The
+       discrete integrator treats the contact rows implicitly, so the
+       authored contact stiffness is honored at an 8 ms timestep and the
+       settled arch rests with no measurable creep; noslip would topple it at
+       this timestep. -->
+  <option timestep="8e-3" integrator="discrete" cone="elliptic" impratio="100"/>
+
+  <!-- Catenary-family arch after the Rigid-IPC / FBF design: 29 voussoirs
+       with joints normal to the centerline (a funicular arch carries pure
+       compression, no joint shear) and cross-sections tapering 2:1 from
+       springing to crown, where the axial force is lowest. The centerline is
+       the weighted catenary: the funicular of the tapered self-weight, so the
+       thrust line stays at mid-section. One flank is authored; replicate
+       mirrors it about the vertical axis; the voussoir positions are the arch
+       as settled under load, within 0.1 mm of the funicular, so it loads at
+       rest. Bed faces carry a 0.4 mm
+       small-on-large inset, invisible but enough to keep the contact
+       manifold determinate: as quiet as a coarser inset, and 50x quieter than
+       perfectly-fitting voussoirs, whose degenerate edge-edge joints ring. -->
+  <asset>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".25 .3 .45" rgb2=".55 .5 .45" width="32" height="32"/>
+    <texture type="skybox" builtin="gradient" rgb1=".12 .16 .28" rgb2=".5 .45 .4" width="32" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="100" height="100"/>
+    <material name="grid" texture="grid" texrepeat="8 8" texuniform="true" reflectance="0.06"/>
+
+    <mesh name="v00" vertex="-0.20569 -0.131759 -0.0879717 -0.20569 0.155609 -0.0361707 -0.201811 0.128197 0.0907539 -0.201811 -0.152047 0.0333886 0.20569 -0.131759 -0.0879717 0.20569 0.155609 -0.0361707 0.201811 0.128197 0.0907539 0.201811 -0.152047 0.0333886"/>
+    <mesh name="v01" vertex="-0.200948 -0.126174 -0.0905321 -0.200948 0.153287 -0.0333273 -0.19319 0.120672 0.0933429 -0.19319 -0.147785 0.0305162 0.200948 -0.126174 -0.0905321 0.200948 0.153287 -0.0333273 0.19319 0.120672 0.0933429 0.19319 -0.147785 0.0305162"/>
+    <mesh name="v02" vertex="-0.192327 -0.118353 -0.0929636 -0.192327 0.149325 -0.0303193 -0.184569 0.112623 0.0961836 -0.184569 -0.143593 0.0271001 0.192327 -0.118353 -0.0929636 0.192327 0.149325 -0.0303193 0.184569 0.112623 0.0961836 0.184569 -0.143593 0.0271001"/>
+    <mesh name="v03" vertex="-0.183707 -0.109946 -0.0955828 -0.183707 0.145496 -0.0267074 -0.175949 0.103899 0.0992792 -0.175949 -0.139449 0.0230106 0.183707 -0.109946 -0.0955828 0.183707 0.145496 -0.0267074 0.175949 0.103899 0.0992792 0.175949 -0.139449 0.0230106"/>
+    <mesh name="v04" vertex="-0.175086 -0.100794 -0.0983718 -0.175086 0.141792 -0.0223424 -0.167328 0.0943086 0.102618 -0.167328 -0.135306 0.0180999 0.175086 -0.100794 -0.0983718 0.175086 0.141792 -0.0223424 0.167328 0.0943086 0.102618 0.167328 -0.135306 0.0180999"/>
+    <mesh name="v05" vertex="-0.166465 -0.090691 -0.10129 -0.166465 0.138173 -0.017048 -0.158707 0.0835952 0.106141 -0.158707 -0.131079 0.0121939 0.166465 -0.090691 -0.10129 0.166465 0.138173 -0.017048 0.158707 0.0835952 0.106141 0.158707 -0.131079 0.0121939"/>
+    <mesh name="v06" vertex="-0.157845 -0.0793789 -0.104236 -0.157845 0.134563 -0.0106098 -0.150087 0.0714412 0.109716 -0.150087 -0.126624 0.0051224 0.157845 -0.0793789 -0.104236 0.157845 0.134563 -0.0106098 0.150087 0.0714412 0.109716 0.150087 -0.126624 0.0051224"/>
+    <mesh name="v07" vertex="-0.149224 -0.0665566 -0.107021 -0.149224 0.130802 -0.00280121 -0.141466 0.0574773 0.113073 -0.141466 -0.121722 -0.00324638 0.149224 -0.0665566 -0.107021 0.149224 0.130802 -0.00280121 0.141466 0.0574773 0.113073 0.141466 -0.121722 -0.00324638"/>
+    <mesh name="v08" vertex="-0.140603 -0.0519156 -0.109309 -0.140603 0.126613 0.00657509 -0.132845 0.0413655 0.115685 -0.132845 -0.116063 -0.0129455 0.140603 -0.0519156 -0.109309 0.140603 0.126613 0.00657509 0.132845 0.0413655 0.115685 0.132845 -0.116063 -0.0129455"/>
+    <mesh name="v09" vertex="-0.131982 -0.0352559 -0.110522 -0.131982 0.121553 0.0176025 -0.124224 0.0229884 0.116696 -0.124224 -0.109286 -0.0237812 0.131982 -0.0352559 -0.110522 0.131982 0.121553 0.0176025 0.124224 0.0229884 0.116696 0.124224 -0.109286 -0.0237812"/>
+    <mesh name="v10" vertex="-0.123362 -0.0166952 -0.10985 -0.123362 0.115031 0.0300446 -0.115604 0.00277935 0.11499 -0.115604 -0.101114 -0.0351814 0.123362 -0.0166952 -0.10985 0.123362 0.115031 0.0300446 0.115604 0.00277935 0.11499 0.115604 -0.101114 -0.0351814"/>
+    <mesh name="v11" vertex="-0.114741 0.00306088 -0.106422 -0.114741 0.106499 0.0430913 -0.106983 -0.0179785 0.109536 -0.106983 -0.0915825 -0.046209 0.114741 0.00306088 -0.106422 0.114741 0.106499 0.0430913 0.106983 -0.0179785 0.109536 0.106983 -0.0915825 -0.046209"/>
+    <mesh name="v12" vertex="-0.10612 0.0226163 -0.0996675 -0.10612 0.0958786 0.0553545 -0.0983619 -0.0372776 0.100079 -0.0983619 -0.081216 -0.0557621 0.10612 0.0226163 -0.0996675 0.10612 0.0958786 0.0553545 0.0983619 -0.0372776 0.100079 0.0983619 -0.081216 -0.0557621"/>
+    <mesh name="v13" vertex="-0.0974998 0.0401997 -0.0897868 -0.0974998 0.0839209 0.0652848 -0.0987414 -0.0516557 0.10047 -0.0987414 -0.0724657 -0.0759797 0.0974998 0.0401997 -0.0897868 0.0974998 0.0839209 0.0652848 0.0987414 -0.0516557 0.10047 0.0987414 -0.0724657 -0.0759797"/>
+    <mesh name="keystone" vertex="-0.0998793 0.0524045 -0.0907034 -0.0998793 0.0738001 0.0907116 -0.0998793 -0.0738001 0.0907116 -0.0998793 -0.0524045 -0.0907034 0.0998793 0.0524045 -0.0907034 0.0998793 0.0738001 0.0907116 0.0998793 -0.0738001 0.0907116 0.0998793 -0.0524045 -0.0907034"/>
+    <mesh name="abutment" vertex="-0.23 -0.187621 0.14839  -0.23 0.107621 0.20161  -0.23 0.287621 -0.175  -0.23 -0.207621 -0.175  0.23 -0.187621 0.14839  0.23 0.107621 0.20161  0.23 0.287621 -0.175  0.23 -0.207621 -0.175"/>
+  </asset>
+
+  <default>
+    <geom type="mesh" density="2500" solref="0.005 2" solimp="0.95 0.99 1e-4"/>
+  </default>
+
+  <worldbody>
+    <light name="key" pos="-1.35 -2.7 5.4" dir=".3 .6 -1" cutoff="25" softness="1" range="30" ambient=".15 .15 .15" specular=".15 .15 .15" intensity="3000000"/>
+    <light type="image" texture="ibl" intensity="7500"/>
+    <camera name="front" pos="3.6 0 1.1" xyaxes="0 1 0 0 0 1"/>
+
+    <geom name="floor" type="plane" size="4 4 .01" material="grid"/>
+
+    <geom name="abutment_right" mesh="abutment" pos="0 1.04 0.175" rgba="0.45 0.44 0.46 1"/>
+    <geom name="abutment_left" mesh="abutment" pos="0 -1.04 0.175" euler="0 0 180" rgba="0.45 0.44 0.46 1"/>
+
+    <replicate count="2" euler="0 0 180">
+      <body name="v00" pos="0 0.9880659 0.4120204">
+        <freejoint/>
+        <geom mesh="v00" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v01" pos="0 0.962557 0.5359529">
+        <freejoint/>
+        <geom mesh="v01" rgba="0.80 0.80 0.82 1"/>
+      </body>
+      <body name="v02" pos="0 0.9334682 0.6594529">
+        <freejoint/>
+        <geom mesh="v02" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v03" pos="0 0.9004446 0.7822464">
+        <freejoint/>
+        <geom mesh="v03" rgba="0.80 0.80 0.82 1"/>
+      </body>
+      <body name="v04" pos="0 0.8624368 0.9037773">
+        <freejoint/>
+        <geom mesh="v04" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v05" pos="0 0.8187968 1.023474">
+        <freejoint/>
+        <geom mesh="v05" rgba="0.80 0.80 0.82 1"/>
+      </body>
+      <body name="v06" pos="0 0.7673017 1.139942">
+        <freejoint/>
+        <geom mesh="v06" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v07" pos="0 0.7074239 1.252132">
+        <freejoint/>
+        <geom mesh="v07" rgba="0.80 0.80 0.82 1"/>
+      </body>
+      <body name="v08" pos="0 0.637765 1.358233">
+        <freejoint/>
+        <geom mesh="v08" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v09" pos="0 0.5572592 1.45599">
+        <freejoint/>
+        <geom mesh="v09" rgba="0.80 0.80 0.82 1"/>
+      </body>
+      <body name="v10" pos="0 0.4648028 1.542125">
+        <freejoint/>
+        <geom mesh="v10" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v11" pos="0 0.3607404 1.613435">
+        <freejoint/>
+        <geom mesh="v11" rgba="0.80 0.80 0.82 1"/>
+      </body>
+      <body name="v12" pos="0 0.2466329 1.66697">
+        <freejoint/>
+        <geom mesh="v12" rgba="0.71 0.71 0.73 1"/>
+      </body>
+      <body name="v13" pos="0 0.1252833 1.701088">
+        <freejoint/>
+        <geom mesh="v13" rgba="0.80 0.80 0.82 1"/>
+      </body>
+    </replicate>
+
+    <body name="keystone" pos="0 0 1.713209">
+      <freejoint/>
+      <geom mesh="keystone" rgba="0.90 0.84 0.60 1"/>
+    </body>
+  </worldbody>
+</mujoco>

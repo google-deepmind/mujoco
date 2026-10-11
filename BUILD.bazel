@@ -1,0 +1,213 @@
+# Description:
+#   MuJoCo physics engine
+
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:private"])
+
+licenses(["notice"])
+
+exports_files([
+    ".clang-format",
+    "LICENSE",
+])
+
+package_group(
+    name = "visibility",
+    packages = [
+        "public",
+    ],
+)
+
+cc_library(
+    name = "mujoco",
+    hdrs = [":mujoco_headers"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    includes = ["include"],
+    visibility = ["//:visibility"],
+    deps = [
+        ":_core",  # buildcleaner: keep
+        ":_io_plugins",  # buildcleaner: keep
+        ":graphics_native",
+    ],
+)
+
+cc_library(
+    name = "graphics",
+    hdrs = [":mujoco_headers"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    includes = ["include"],
+    visibility = ["//:visibility"],
+    deps = [":graphics_native"],
+)
+
+cc_library(
+    name = "graphics_native",
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//:visibility"],
+    deps = [
+        "//src/render/classic",
+        "//src/ui:ui_main",
+    ],
+)
+
+alias(
+    name = "mujoco_renderer",
+    actual = ":graphics",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "simulate",
+    actual = "//simulate:simulate",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "simulate_lib",
+    actual = "//simulate:lib",
+    visibility = ["//visibility:public"],
+)
+
+# Enable a float32 build of MuJoCo. To use this, add --//:single_precision to
+# your bazel command.
+bool_flag(
+    name = "single_precision",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "single_precision_config",
+    flag_values = {":single_precision": "True"},
+)
+
+cc_library(
+    name = "mjtype_hdrs",
+    hdrs = [
+        "include/mujoco/mjexport.h",
+        "include/mujoco/mjmacro.h",
+        "include/mujoco/mjtype.h",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    # Avoid unresolved symbol linker errors when statically linking on Windows.
+    defines = [
+        "MJ_STATIC",
+    ] + select({
+        ":single_precision_config": ["mjUSESINGLE"],
+        "//conditions:default": [],
+    }),
+    includes = ["include"],
+    visibility = ["//:visibility"],
+)
+
+cc_library(
+    name = "mjmodel_hdrs",
+    hdrs = [
+        "include/mujoco/mjmodel.h",
+        "include/mujoco/mjxmacro.h",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    includes = ["include"],
+    visibility = ["//:visibility"],
+    deps = [":mjtype_hdrs"],
+)
+
+cc_library(
+    name = "mjdata_hdrs",
+    hdrs = [
+        "include/mujoco/mjdata.h",
+        "include/mujoco/mjsan.h",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    includes = ["include"],
+    visibility = ["//:visibility"],
+    deps = [
+        ":mjmodel_hdrs",
+        ":mjtype_hdrs",
+    ],
+)
+
+cc_library(
+    name = "libmujoco_hdrs",
+    hdrs = [":mujoco_headers"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    defines = select({
+        ":single_precision_config": ["mjUSESINGLE"],
+        "//conditions:default": [],
+    }),
+    includes = ["include"],
+    visibility = ["//:visibility"],
+    deps = [
+        ":mjdata_hdrs",
+    ],
+)
+
+# Internal targets.
+cc_library(
+    name = "_core",
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = [
+        "//:__subpackages__",
+    ],
+    deps = [
+        "//src/engine",
+        "//src/xml:xml_api",
+    ],
+)
+
+cc_library(
+    name = "_io_plugins",
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//plugin/gmsh_decoder",
+        "//plugin/obj_decoder",
+        "//plugin/stl_decoder",
+        "//src/xml/mjz:mjz_archive_provider",
+        "//src/xml/mjz:mjz_decoder",
+        "//src/xml/mjz:mjz_encoder",
+    ],
+)
+
+# Packages that depend on public headers as a filegroup
+# DO NOT ADD NEW PACKAGES TO THIS LIST WITHOUT CONSULTING robotics-simulation@ FIRST!
+package_group(
+    name = "headers_filegroup_users",
+    packages = [
+        "//...",
+    ],
+)
+
+# The headers are needed to generate ctypes Python bindings.
+filegroup(
+    name = "mujoco_headers",
+    srcs = [
+        "include/mujoco/mjassert.h",
+        "include/mujoco/mjdata.h",
+        "include/mujoco/mjexport.h",
+        "include/mujoco/mjmacro.h",
+        "include/mujoco/mjmodel.h",
+        "include/mujoco/mjplugin.h",
+        "include/mujoco/mjrender.h",
+        "include/mujoco/mjrfilament.h",
+        "include/mujoco/mjsan.h",
+        "include/mujoco/mjspec.h",
+        "include/mujoco/mjspecmacro.h",
+        "include/mujoco/mjtype.h",
+        "include/mujoco/mjui.h",
+        "include/mujoco/mjvisualize.h",
+        "include/mujoco/mjxmacro.h",
+        "include/mujoco/mujoco.h",
+    ],
+    visibility = ["//:headers_filegroup_users"],
+)

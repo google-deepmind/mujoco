@@ -1,0 +1,147 @@
+#loadingOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 50%, #092057 0%, #090f23 100%);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+#loadingOverlay::before {
+  /* 3D Ground Grid */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(123, 147, 232, 0.2) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(123, 147, 232, 0.2) 0.5px, transparent 0.5px);
+  background-size: 50px 50px;
+  background-position: center center;
+  transform: perspective(500px) rotateX(60deg) scale(2.5);
+  transform-origin: center center;
+  opacity: 0.8;
+  pointer-events: none;
+  animation: grid-drift 60s linear infinite;
+}
+@keyframes grid-drift {
+  0% {
+    background-position: center 0;
+  }
+  100% {
+    background-position: center 1000px;
+  }
+}
+.loading-container {
+  color: #fff;
+  font-size: 24px;
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
+  text-align: center;
+}
+.loading-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.wireframe-cage {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  transform-origin: center center;
+  animation: spin-cage 25s linear infinite;
+  opacity: 0.65;
+  z-index: 0;
+  pointer-events: none;
+}
+@keyframes spin-cage {
+  0% {
+    transform: rotate(0deg) scale(0.9);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.04);
+  }
+  100% {
+    transform: rotate(360deg) scale(0.9);
+  }
+}
+.logo-container-svg {
+  position: relative;
+  width: 300px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.brand-logo-svg {
+  width: 100%;
+  height: auto;
+}
+.loading-title {
+  font-size: 26px;
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
+  font-weight: 700;
+  margin-top: 120px; /* Push down below the bottom vertices of the rotating cube. */
+  color: rgba(255, 255, 255, 0.75);
+}
+.loading-download {
+  display: none;
+  margin-top: 16px;
+  opacity: 0.6;
+}
+.loading-download-label {
+  font-size: 16px;
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
+  font-weight: 400;
+}
+.loading-download-file {
+  font-size: 16px;
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
+  font-weight: 400;
+}
+#dropOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 9999;
+  display: none;
+  pointer-events: none;
+  align-items: center;
+  justify-content: center;
+}
+.drop-message {
+  color: #fff;
+  font-size: 24px;
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
+  padding: 32px 48px;
+  border: 3px dashed #fff;
+  border-radius: 16px;
+}
+#commitHash {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 1;
+  font-family: monospace;
+  font-size: 7pt;
+  color: #fff;
+  mix-blend-mode: difference;
+  user-select: all;
+}
+#canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}

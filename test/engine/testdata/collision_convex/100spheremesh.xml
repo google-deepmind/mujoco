@@ -1,0 +1,18 @@
+<mujoco model="100 sphere meshes in a box">
+  <option solver="CG" iterations="10"/>
+  <asset>
+    <mesh name="sphere" file="sphere.obj" scale=".1 .1 .1"/>
+  </asset>
+  <worldbody>
+    <geom name="ground" type="plane" size=".5 .5 .01" condim="1"/>
+    <replicate count="4" euler="0 0 90">
+      <geom type="plane" size=".1 .5 .01" zaxis="1 0 0"  pos="-.5 0 .1"/>
+    </replicate>
+    <replicate count="100" offset="0 0 .5">
+      <body pos="0 0 1">
+        <freejoint/>
+        <geom type="mesh" mesh="sphere"/>
+      </body>
+    </replicate>
+  </worldbody>
+</mujoco>

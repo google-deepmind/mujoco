@@ -52,7 +52,7 @@
               radius="0.04" dim="2">
       <pin id="0 8 90 98"/>
       <edge equality="true" damping="10" solimp=".95 .99"/>
-      <contact selfcollide="none" internal="false" solimp=".99 .999 .00001"/>
+      <contact selfcollide="none" solimp=".99 .999 .00001"/>
     </flexcomp>
     <frame euler="0 180 0" pos="-.4 -.2 2">
       <attach model="humanoid" body="torso" prefix="humanoid_"/>

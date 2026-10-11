@@ -1,0 +1,8 @@
+diff --git a/cmake/cpu.cmake b/cmake/cpu.cmake
+--- a/cmake/cpu.cmake
++++ b/cmake/cpu.cmake
+@@ -121,3 +121,3 @@
+     # Explicitly disable SIMD.
+-    if(SIMD_DISABLE_FLAGS)
++    if(SIMD_DISABLE_FLAGS AND NOT APPLE)
+       list(GET SIMD_DISABLE_FLAGS ${I_SIMD} SIMD_COMPILE_FLAG)

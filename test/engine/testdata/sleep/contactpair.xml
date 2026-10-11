@@ -1,0 +1,39 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="1.0"/>
+  </custom>
+
+  <default>
+    <default class="domino">
+      <geom type="box" size=".008 .044 .089" rgba=".9 .9 .9 1" mass="0.09"/>
+    </default>
+  </default>
+
+  <visual>
+    <global realtime="0.2"/>
+  </visual>
+
+  <option cone="elliptic" impratio="10">
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom name="floor" type="plane" size="1 1 .01" pos="0 0 1e-6"/>
+
+    <body pos="-.1 0 .089" euler="0 7 0">
+      <freejoint/>
+      <geom name="1" type="box" class="domino"/>
+    </body>
+
+    <body pos="0 0 .089">
+      <freejoint/>
+      <geom name="2" type="box" class="domino" contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <pair geom1="1" geom2="2"/>
+    <pair geom1="2" geom2="floor"/>
+  </contact>
+</mujoco>

@@ -14,6 +14,7 @@
 # ==============================================================================
 """Tests for sensor functions."""
 
+import itertools
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -41,6 +42,10 @@ def _assert_attr_eq(a, b, attr):
 
 class SensorTest(parameterized.TestCase):
 
+  def setUp(self):
+    super().setUp()
+    np.random.seed(314)
+
   @parameterized.product(
       filename=['sensor/model.xml', 'sensor/sensor.xml'],
       cone_type=list(ConeType),
@@ -64,19 +69,41 @@ class SensorTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
 
     mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d).replace(
-        sensordata=jp.zeros_like(d.sensordata),
-        subtree_linvel=jp.zeros_like(d.subtree_linvel),
-        subtree_angmom=jp.zeros_like(d.subtree_angmom),
-        cacc=jp.zeros_like(d.cacc),
-        cfrc_int=jp.zeros_like(d.cfrc_int),
-        cfrc_ext=jp.zeros_like(d.cfrc_ext),
-    )
+    dx = mjx.put_data(m, d).tree_replace({
+        'sensordata': jp.zeros_like(d.sensordata),
+        '_impl.subtree_linvel': jp.zeros_like(d.subtree_linvel),
+        '_impl.subtree_angmom': jp.zeros_like(d.subtree_angmom),
+        '_impl.cacc': jp.zeros_like(d.cacc),
+        '_impl.cfrc_int': jp.zeros_like(d.cfrc_int),
+        '_impl.cfrc_ext': jp.zeros_like(d.cfrc_ext),
+    })
     dx = jax.jit(mjx.sensor_pos)(mx, dx)
     dx = jax.jit(mjx.sensor_vel)(mx, dx)
     dx = jax.jit(mjx.sensor_acc)(mx, dx)
 
     _assert_eq(d.sensordata, dx.sensordata, 'sensordata')
+
+  def test_touch_sensor_nested_vmap(self):
+    """Tests touch sensors compose under nested vmap."""
+    m = test_util.load_test_file('sensor/sensor.xml')
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 10)
+    mx = mjx.put_model(m)
+    dx = mjx.forward(mx, mjx.put_data(m, d))
+
+    def sensor_fn(offset):
+      data = jax.tree.map(
+          lambda x: x + offset * jp.zeros_like(x)
+          if isinstance(x, jax.Array) and jp.issubdtype(x.dtype, jp.floating)
+          else x,
+          dx,
+      )
+      return mjx.sensor_acc(mx, data).sensordata
+
+    offsets = jp.zeros((2, 4))
+    actual = jax.jit(jax.vmap(jax.vmap(sensor_fn)))(offsets)
+    expected = np.asarray(dx.sensordata)
+    _assert_eq(actual, np.broadcast_to(expected, actual.shape), 'sensordata')
 
   def test_disable_sensor(self):
     """Tests disabling sensor."""
@@ -96,6 +123,124 @@ class SensorTest(parameterized.TestCase):
     dx = jax.jit(mjx.forward)(mx, dx)
     # sensor values
     _assert_eq(random_sensor, dx.sensordata, 'sensordata')
+
+  @parameterized.parameters(
+      'type="sphere" size=".1"',
+      'type="sphere" size=".05" margin=".045"',
+      'type="capsule" size=".1 .1" euler="0 89 89"',
+      'type="box" size=".1 .1 .1" euler=".05 .075 .1"',
+  )
+  def test_sensor_contact(self, geom):
+    """Tests contact sensor."""
+
+    field = ['found', 'force', 'torque', 'dist', 'pos', 'normal', 'tangent']
+    datas = itertools.chain.from_iterable(
+        itertools.combinations(field, i) for i in range(len(field) + 1)
+    )
+    datas = list(datas)
+
+    contact_sensors = ''
+    for num in [1, 2, 4, 5]:
+      for data in datas:
+        data = ' '.join(data)
+        for reduce in ['mindist', 'maxforce']:
+          for match in [
+              '',
+              'geom1="plane"',
+              'geom1="geom1"',
+              'geom1="sphere2"',
+              'geom2="plane"',
+              'geom2="geom1"',
+              'geom2="sphere2"',
+              'geom1="plane" geom2="geom1"',
+              'geom1="geom1" geom2="plane"',
+              'geom1="plane" geom2="sphere2"',
+              'geom1="geom1" geom2="sphere2"',
+          ]:
+            contact_sensors += (
+                f'<contact {match} num="{num}" data="{data}"'
+                f' reduce="{reduce}"/>\n'
+            )
+
+    _MJCF = f"""
+      <mujoco>
+        <compiler angle="degree"/>
+        <worldbody>
+          <geom name="plane" type="plane" size="10 10 .001"/>
+          <body>
+            <geom name="geom1" {geom}/>
+            <joint type="slide" axis="0 0 1"/>
+          </body>
+          <body>
+            <geom name="sphere2" type="sphere" size=".1"/>
+            <joint type="slide" axis="0 0 1"/>
+          </body>
+        </worldbody>
+        <sensor>
+          {contact_sensors}
+        </sensor>
+        <keyframe>
+          <key qpos=".09 1"/>
+        </keyframe>
+      </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(_MJCF)
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mujoco.mj_forward(m, d)
+    dx = mjx.forward(mx, dx)
+
+    _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
+
+  def test_sensor_contact_velocity(self):
+    """Tests contact sensor linvel and angvel with nonzero velocities."""
+    contact_sensors = ''
+    for data in ['linvel', 'angvel', 'found linvel angvel', 'dist linvel']:
+      for match in [
+          '',
+          'geom1="plane"',
+          'geom1="sphere1"',
+          'geom1="sphere1" geom2="sphere2"',
+          'geom1="sphere2" geom2="sphere1"',
+      ]:
+        for reduce in ['mindist', 'maxforce']:
+          contact_sensors += (
+              f'<contact {match} num="2" data="{data}" reduce="{reduce}"/>\n'
+          )
+
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <geom name="plane" type="plane" size="10 10 .001"/>
+          <body pos="0 0 .09">
+            <freejoint/>
+            <geom name="sphere1" type="sphere" size=".1"/>
+          </body>
+          <body pos=".02 0 .27">
+            <freejoint/>
+            <geom name="sphere2" type="sphere" size=".1"/>
+          </body>
+        </worldbody>
+        <sensor>
+          {contact_sensors}
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.qvel = [.3, -.2, .1, .5, -.4, .7, -.1, .4, -.3, -.6, .2, .8]
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    mujoco.mj_forward(m, d)
+    dx = jax.jit(mjx.forward)(mx, dx)
+
+    self.assertTrue(np.any(d.sensordata != 0))
+    _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
 
   def test_unsupported_sensor(self):
     """Tests unsupported sensor raises error."""

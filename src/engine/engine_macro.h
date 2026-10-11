@@ -17,16 +17,17 @@
 
 #include <stdint.h>
 
-#include <mujoco/mjmacro.h>
 #include "engine/engine_callback.h"  // IWYU pragma: export
 
 //-------------------------------- utility macros --------------------------------------------------
 
 // thread local macro
-#ifdef _MSC_VER
-  #define mjTHREADLOCAL __declspec(thread)
-#else
-  #define mjTHREADLOCAL _Thread_local
+#if !defined(mjTHREADLOCAL)
+  #ifdef _MSC_VER
+    #define mjTHREADLOCAL __declspec(thread)
+  #else
+    #define mjTHREADLOCAL _Thread_local
+  #endif
 #endif
 
 

@@ -1,0 +1,22 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 1407080..b4dea44 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -49,9 +49,14 @@ target_include_directories(ccd PUBLIC
+   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+ 
+ if(NOT WIN32)
+-  find_library(LIBM_LIBRARY NAMES m)
+-  if(NOT LIBM_LIBRARY)
+-    message(FATAL_ERROR "Could NOT find required library LibM")
++  if (EMSCRIPTEN)
++    set(LIBM_LIBRARY "-lm")
++    message("Subtitute LibM with emscripten -lm")
++  else()
++    find_library(LIBM_LIBRARY NAMES m)
++    if(NOT LIBM_LIBRARY)
++      message(FATAL_ERROR "Could NOT find required library LibM")
++    endif()
+   endif()
+   target_link_libraries(ccd "${LIBM_LIBRARY}")
+   if(BUILD_SHARED_LIBS)

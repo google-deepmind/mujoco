@@ -1,0 +1,207 @@
+<mujoco model="makemesh">
+  <statistic meansize="1"/>
+
+  <visual>
+    <global offheight="2000" offwidth="2000"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat=".5 .5" texuniform="true" reflectance=".2"/>
+  </asset>
+
+  <default>
+    <geom type="mesh"/>
+    <camera xyaxes="1 0 0 0 2.7 1" fovy="27"/>
+
+    <default class="s">
+      <geom euler="0 0 -40"/>
+    </default>
+
+    <default class="h">
+      <geom euler="-30 -50 20"/>
+    </default>
+
+    <default class="c">
+      <geom euler="-20 -20 40"/>
+      <mesh scale=".6 .6 .7"/>
+    </default>
+
+    <default class="ss">
+      <geom euler="-30 -40 0"/>
+      <mesh scale=".7 .7 .7"/>
+    </default>
+
+    <default class="st">
+      <geom euler="20 -30 0"/>
+      <mesh scale=".5 .5 .5"/>
+    </default>
+
+    <default class="w">
+      <geom euler="-135 -60 0"/>
+      <mesh scale=".7 .7 .7"/>
+    </default>
+  </default>
+
+  <asset>
+    <mesh name="s0" builtin="sphere" params="0"/>
+    <mesh name="s1" builtin="sphere" params="1"/>
+    <mesh name="s2" builtin="sphere" params="2"/>
+
+    <mesh name="h0" builtin="hemisphere" params="0"/>
+    <mesh name="h2" builtin="hemisphere" params="2"/>
+    <mesh name="h4" builtin="hemisphere" params="4"/>
+
+    <mesh name="c0" builtin="cone" params="3  1" class="c"/>
+    <mesh name="c1" builtin="cone" params="5  1" class="c"/>
+    <mesh name="c2" builtin="cone" params="7  1" class="c"/>
+    <mesh name="c3" builtin="cone" params="3 .5" class="c"/>
+    <mesh name="c4" builtin="cone" params="5 .5" class="c"/>
+    <mesh name="c5" builtin="cone" params="7 .5" class="c"/>
+    <mesh name="c6" builtin="cone" params="3  0" class="c"/>
+    <mesh name="c7" builtin="cone" params="5  0" class="c"/>
+    <mesh name="c8" builtin="cone" params="7  0" class="c"/>
+
+    <mesh name="ss0" builtin="supersphere" params="30 .4 .4" class="ss"/>
+    <mesh name="ss1" builtin="supersphere" params="30 .4  1" class="ss"/>
+    <mesh name="ss2" builtin="supersphere" params="30 .4  2" class="ss"/>
+    <mesh name="ss3" builtin="supersphere" params="30  1 .4" class="ss"/>
+    <mesh name="ss4" builtin="supersphere" params="30  1  1" class="ss"/>
+    <mesh name="ss5" builtin="supersphere" params="30  1  2" class="ss"/>
+    <mesh name="ss6" builtin="supersphere" params="30  2 .4" class="ss"/>
+    <mesh name="ss7" builtin="supersphere" params="30  2  1" class="ss"/>
+    <mesh name="ss8" builtin="supersphere" params="30  2  2" class="ss"/>
+
+    <mesh name="st0" builtin="supertorus" params="30 .5 .4 .4" class="st"/>
+    <mesh name="st1" builtin="supertorus" params="30 .5 .4  1" class="st"/>
+    <mesh name="st2" builtin="supertorus" params="30 .5 .4  2" class="st"/>
+    <mesh name="st3" builtin="supertorus" params="30 .5  1 .4" class="st"/>
+    <mesh name="st4" builtin="supertorus" params="30 .5  1  1" class="st"/>
+    <mesh name="st5" builtin="supertorus" params="30 .5  1  2" class="st"/>
+    <mesh name="st6" builtin="supertorus" params="30 .5  2 .4" class="st"/>
+    <mesh name="st7" builtin="supertorus" params="30 .5  2  1" class="st"/>
+    <mesh name="st8" builtin="supertorus" params="30 .5  2  2" class="st"/>
+
+    <mesh name="w0" builtin="wedge" params="30 30 45  20 0" class="w"/>
+    <mesh name="w1" builtin="wedge" params="30 30 45  45 0" class="w"/>
+    <mesh name="w2" builtin="wedge" params="30 30 45  90 0" class="w"/>
+    <mesh name="w3" builtin="wedge" params="30 30 90  20 0" class="w"/>
+    <mesh name="w4" builtin="wedge" params="30 30 90  45 0" class="w"/>
+    <mesh name="w5" builtin="wedge" params="30 30 90  90 0" class="w"/>
+    <mesh name="w6" builtin="wedge" params="30 30 180 20 0" class="w"/>
+    <mesh name="w7" builtin="wedge" params="30 30 180 45 0" class="w"/>
+    <mesh name="w8" builtin="wedge" params="30 30 180 90 0" class="w"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" size="26 6 .05" type="plane" material="grid"/>
+
+    <light pos="-21 1 10"/>
+    <camera pos="-21 -5 15"/>
+    <geom pos="-23  3 1" mesh="s0" class="s"/>
+    <geom pos="-21  1 1" mesh="s1" class="s"/>
+    <geom pos="-19 -1 1" mesh="s2" class="s"/>
+    <site pos="-23  2 0" name="0"/>
+    <site pos="-21  0 0" name="1"/>
+    <site pos="-19 -2 0" name="2"/>
+    <site pos="-22 -3 1" name="sphere"/>
+
+    <light pos="-13 1 10"/>
+    <camera pos="-13 -5 15"/>
+    <geom pos="-15  3 1" mesh="h0" class="h"/>
+    <geom pos="-13  1 1" mesh="h2" class="h"/>
+    <geom pos="-11 -1 1" mesh="h4" class="h"/>
+    <site pos="-15  2 0" name=" 0"/>
+    <site pos="-13  0 0" name=" 2"/>
+    <site pos="-11 -2 0" name=" 4"/>
+    <site pos="-14 -3 1" name="hemisphere"/>
+
+    <light pos="-5 1 10"/>
+    <camera pos="-5 -5 15"/>
+    <geom pos="-7  3 1" mesh="c0" class="c"/>
+    <geom pos="-5  3 1" mesh="c1" class="c"/>
+    <geom pos="-3  3 1" mesh="c2" class="c"/>
+    <geom pos="-7  1 1" mesh="c3" class="c"/>
+    <geom pos="-5  1 1" mesh="c4" class="c"/>
+    <geom pos="-3  1 1" mesh="c5" class="c"/>
+    <geom pos="-7 -1 1" mesh="c6" class="c"/>
+    <geom pos="-5 -1 1" mesh="c7" class="c"/>
+    <geom pos="-3 -1 1" mesh="c7" class="c"/>
+    <site pos="-7  2 0" name="3  1"/>
+    <site pos="-5  2 0" name="5  1"/>
+    <site pos="-3  2 0" name="7  1"/>
+    <site pos="-7  0 0" name="3  .5"/>
+    <site pos="-5  0 0" name="5  .5"/>
+    <site pos="-3  0 0" name="7  .5"/>
+    <site pos="-7 -2 0" name="3  0"/>
+    <site pos="-5 -2 0" name="5  0"/>
+    <site pos="-3 -2 0" name="7  0"/>
+    <site pos="-6 -3 1" name="cone"/>
+
+    <light pos="3 1 10"/>
+    <camera pos="3 -5 15"/>
+    <geom pos="1  3 1" mesh="ss0" class="ss"/>
+    <geom pos="3  3 1" mesh="ss1" class="ss"/>
+    <geom pos="5  3 1" mesh="ss2" class="ss"/>
+    <geom pos="1  1 1" mesh="ss3" class="ss"/>
+    <geom pos="3  1 1" mesh="ss4" class="ss"/>
+    <geom pos="5  1 1" mesh="ss5" class="ss"/>
+    <geom pos="1 -1 1" mesh="ss6" class="ss"/>
+    <geom pos="3 -1 1" mesh="ss7" class="ss"/>
+    <geom pos="5 -1 1" mesh="ss8" class="ss"/>
+    <site pos="1  2 0" name=".4  .4"/>
+    <site pos="3  2 0" name=".4   1"/>
+    <site pos="5  2 0" name=".4   2"/>
+    <site pos="1  0 0" name=" 1  .4"/>
+    <site pos="3  0 0" name=" 1   1"/>
+    <site pos="5  0 0" name=" 1   2"/>
+    <site pos="1 -2 0" name=" 2  .4"/>
+    <site pos="3 -2 0" name=" 2   1"/>
+    <site pos="5 -2 0" name=" 2   2"/>
+    <site pos="2 -3 1" name="supersphere"/>
+
+    <light pos="11 1 10"/>
+    <camera pos="11 -5 15"/>
+    <geom pos="9   3 1" mesh="st0" class="st"/>
+    <geom pos="11  3 1" mesh="st1" class="st"/>
+    <geom pos="13  3 1" mesh="st2" class="st"/>
+    <geom pos="9   1 1" mesh="st3" class="st"/>
+    <geom pos="11  1 1" mesh="st4" class="st"/>
+    <geom pos="13  1 1" mesh="st5" class="st"/>
+    <geom pos="9  -1 1" mesh="st6" class="st"/>
+    <geom pos="11 -1 1" mesh="st7" class="st"/>
+    <geom pos="13 -1 1" mesh="st8" class="st"/>
+    <site pos="9   2 0" name=" .4  .4"/>
+    <site pos="11  2 0" name=" .4   1"/>
+    <site pos="13  2 0" name=" .4   2"/>
+    <site pos="9   0 0" name="  1  .4"/>
+    <site pos="11  0 0" name="  1   1"/>
+    <site pos="13  0 0" name="  1   2"/>
+    <site pos="9  -2 0" name="  2  .4"/>
+    <site pos="11 -2 0" name="  2   1"/>
+    <site pos="13 -2 0" name="  2   2"/>
+    <site pos="10 -3 1" name="supertorus"/>
+
+    <light pos="19 1 10"/>
+    <camera pos="19 -5 15"/>
+    <geom pos="17  3 1" mesh="w0" class="w"/>
+    <geom pos="19  3 1" mesh="w1" class="w"/>
+    <geom pos="21  3 1" mesh="w2" class="w"/>
+    <geom pos="17  1 1" mesh="w3" class="w"/>
+    <geom pos="19  1 1" mesh="w4" class="w"/>
+    <geom pos="21  1 1" mesh="w5" class="w"/>
+    <geom pos="17 -1 1" mesh="w6" class="w"/>
+    <geom pos="19 -1 1" mesh="w7" class="w"/>
+    <geom pos="21 -1 1" mesh="w8" class="w"/>
+    <site pos="17  2 0" name="45  20"/>
+    <site pos="19  2 0" name="45  45"/>
+    <site pos="21  2 0" name="45  90"/>
+    <site pos="17  0 0" name="90  20"/>
+    <site pos="19  0 0" name="90  45"/>
+    <site pos="21  0 0" name="90  90"/>
+    <site pos="17 -2 0" name="180 20"/>
+    <site pos="19 -2 0" name="180 45"/>
+    <site pos="21 -2 0" name="180 90"/>
+    <site pos="18 -3 1" name="wedge"/>
+  </worldbody>
+</mujoco>

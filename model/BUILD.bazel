@@ -1,0 +1,26 @@
+# Description:
+#   All MuJoCo models.
+
+licenses(["notice"])
+
+filegroup(
+    name = "all_models",
+    srcs = glob(["**/*.xml"]) + [
+        "//model/adhesion",
+        "//model/cards",
+        "//model/cube:cube_3x3x3",
+        "//model/flex",
+        "//model/hammock",
+        "//model/humanoid",
+        "//model/mug",
+        "//model/plugin",
+        "//model/plugin/actuator",
+        "//model/replicate",
+        "//model/sleep",
+        "//model/slider_crank",
+        "//model/tactile",
+        "//model/tendon_arm",
+        "//model/welcome",
+    ],
+    visibility = ["//:visibility"],
+)

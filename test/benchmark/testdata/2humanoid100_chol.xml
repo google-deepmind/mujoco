@@ -1,0 +1,829 @@
+<mujoco model="2 Humanoids and 100 objects">
+  <compiler angle="radian"/>
+
+  <option timestep="0.005" gravity="-1 -1 -10">
+    <flag island="disable"/>
+  </option>
+
+  <size memory="100M" nkey="8"/>
+
+  <visual>
+    <quality offsamples="8"/>
+    <map force="0.05" znear="0.1"/>
+  </visual>
+
+  <statistic extent="4"/>
+
+  <default>
+    <geom solimp="0.9 0.9 0.01"/>
+    <default class="capsule">
+      <geom size="0.1 0.05 0" type="capsule" material="capsule"/>
+    </default>
+    <default class="ellipsoid">
+      <geom size="0.15 0.1 0.07" type="ellipsoid" material="ellipsoid"/>
+    </default>
+    <default class="box">
+      <geom size="0.15 0.1 0.05" type="box" material="box"/>
+    </default>
+    <default class="cylinder">
+      <geom size="0.1 0.05 0" type="cylinder" condim="4" friction="1 0.01 0.01" material="cylinder"/>
+    </default>
+    <default class="sphere">
+      <geom size="0.1 0 0" material="sphere"/>
+    </default>
+    <default class="border">
+      <geom size="0.4 0 0" type="capsule" rgba="0.4 0.4 0.4 1"/>
+    </default>
+    <default class="borderpost">
+      <geom size="0.41 0.41 0.41" type="box" rgba="0.55 0.55 0.55 1"/>
+    </default>
+    <default class="1_main">
+      <geom solimp="0.9 0.95 0.001"/>
+      <general ctrllimited="true" ctrlrange="-1 1"/>
+      <default class="1_body">
+        <joint solimplimit="0 0.99 0.01" stiffness="1" limited="true" armature="0.01" damping="0.2"/>
+        <geom type="capsule" condim="1" group="1" friction="0.7" solref="0.015" solimp="0.9 0.99 0.003" material="body"/>
+        <default class="1_thigh">
+          <geom size="0.06 0 0"/>
+        </default>
+        <default class="1_shin">
+          <geom size="0.049 0 0"/>
+        </default>
+        <default class="1_foot">
+          <geom size="0.027 0 0"/>
+          <default class="1_foot1"/>
+          <default class="1_foot2"/>
+        </default>
+        <default class="1_arm_upper">
+          <geom size="0.04 0 0"/>
+        </default>
+        <default class="1_arm_lower">
+          <geom size="0.031 0 0"/>
+        </default>
+        <default class="1_hand">
+          <geom size="0.04 0 0" type="sphere"/>
+        </default>
+        <default class="1_joint_big">
+          <joint stiffness="10" damping="5"/>
+          <default class="1_hip_x">
+            <joint range="-30 10"/>
+          </default>
+          <default class="1_hip_z">
+            <joint range="-60 35"/>
+          </default>
+          <default class="1_hip_y">
+            <joint range="-150 20"/>
+          </default>
+          <default class="1_joint_big_stiff">
+            <joint stiffness="20"/>
+          </default>
+        </default>
+        <default class="1_knee">
+          <joint range="-160 2"/>
+        </default>
+        <default class="1_ankle">
+          <joint range="-50 50"/>
+          <default class="1_ankle_y">
+            <joint stiffness="6"/>
+          </default>
+          <default class="1_ankle_x">
+            <joint stiffness="3"/>
+          </default>
+        </default>
+        <default class="1_shoulder">
+          <joint range="-85 60"/>
+        </default>
+        <default class="1_elbow">
+          <joint stiffness="0" range="-100 50"/>
+        </default>
+      </default>
+    </default>
+    <default class="2_main">
+      <geom solimp="0.9 0.95 0.001"/>
+      <general ctrllimited="true" ctrlrange="-1 1"/>
+      <default class="2_body">
+        <joint solimplimit="0 0.99 0.01" stiffness="1" limited="true" armature="0.01" damping="0.2"/>
+        <geom type="capsule" condim="1" group="1" friction="0.7" solref="0.015" solimp="0.9 0.99 0.003" material="body"/>
+        <default class="2_thigh">
+          <geom size="0.06 0 0"/>
+        </default>
+        <default class="2_shin">
+          <geom size="0.049 0 0"/>
+        </default>
+        <default class="2_foot">
+          <geom size="0.027 0 0"/>
+          <default class="2_foot1"/>
+          <default class="2_foot2"/>
+        </default>
+        <default class="2_arm_upper">
+          <geom size="0.04 0 0"/>
+        </default>
+        <default class="2_arm_lower">
+          <geom size="0.031 0 0"/>
+        </default>
+        <default class="2_hand">
+          <geom size="0.04 0 0" type="sphere"/>
+        </default>
+        <default class="2_joint_big">
+          <joint stiffness="10" damping="5"/>
+          <default class="2_hip_x">
+            <joint range="-30 10"/>
+          </default>
+          <default class="2_hip_z">
+            <joint range="-60 35"/>
+          </default>
+          <default class="2_hip_y">
+            <joint range="-150 20"/>
+          </default>
+          <default class="2_joint_big_stiff">
+            <joint stiffness="20"/>
+          </default>
+        </default>
+        <default class="2_knee">
+          <joint range="-160 2"/>
+        </default>
+        <default class="2_ankle">
+          <joint range="-50 50"/>
+          <default class="2_ankle_y">
+            <joint stiffness="6"/>
+          </default>
+          <default class="2_ankle_x">
+            <joint stiffness="3"/>
+          </default>
+        </default>
+        <default class="2_shoulder">
+          <joint range="-85 60"/>
+        </default>
+        <default class="2_elbow">
+          <joint stiffness="0" range="-100 50"/>
+        </default>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="skybox" colorspace="auto" builtin="gradient" rgb1="0.4 0.6 0.8" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="cube" colorspace="auto" name="texgeom" builtin="flat" mark="cross" rgb1="0.6 0.6 0.6" rgb2="0.6 0.6 0.6" markrgb="1 1 1" width="128" height="768"/>
+    <texture type="2d" colorspace="auto" name="texplane" builtin="checker" rgb1="0.4 0.4 0.4" rgb2="0.6 0.6 0.6" width="512" height="512"/>
+    <texture type="skybox" colorspace="auto" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="32" height="192"/>
+    <texture type="cube" colorspace="auto" name="1_body" builtin="flat" mark="cross" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" width="128" height="768"/>
+    <texture type="2d" colorspace="auto" name="1_grid" builtin="checker" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4" width="512" height="512"/>
+    <texture type="skybox" colorspace="auto" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="32" height="192"/>
+    <texture type="cube" colorspace="auto" name="2_body" builtin="flat" mark="cross" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" width="128" height="768"/>
+    <texture type="2d" colorspace="auto" name="2_grid" builtin="checker" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4" width="512" height="512"/>
+    <material name="MatPlane" texture="texplane" texuniform="true" reflectance="0.3" rgba="0.7 0.7 0.7 1"/>
+    <material name="capsule" texture="texgeom" texuniform="true" rgba="0.4 0.9 0.6 1"/>
+    <material name="ellipsoid" texture="texgeom" texuniform="true" rgba="0.4 0.6 0.9 1"/>
+    <material name="box" texture="texgeom" texuniform="true" rgba="0.4 0.9 0.9 1"/>
+    <material name="cylinder" texture="texgeom" texuniform="true" rgba="0.8 0.6 0.8 1"/>
+    <material name="sphere" texture="texgeom" texuniform="true" rgba="0.9 0.1 0.1 1"/>
+    <material name="1_body" texture="1_body" texuniform="true" rgba="0.8 0.6 0.4 1"/>
+    <material name="1_grid" texture="1_grid" texuniform="true" reflectance="0.2"/>
+    <material name="2_body" texture="2_body" texuniform="true" rgba="0.8 0.6 0.4 1"/>
+    <material name="2_grid" texture="2_grid" texuniform="true" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" size="3 3 0.5" type="plane" material="MatPlane"/>
+    <geom class="border" size="0.4 3" pos="0 3 0" quat="0.707107 0 -0.707107 0"/>
+    <geom class="border" size="0.4 3" pos="0 -3 0" quat="0.707107 0 -0.707107 0"/>
+    <geom class="border" size="0.4 3" pos="3 0 0" quat="0.707107 -0.707107 0 0"/>
+    <geom class="border" size="0.4 3" pos="-3 0 0" quat="0.707107 -0.707107 0 0"/>
+    <geom class="borderpost" pos="3 3 0"/>
+    <geom class="borderpost" pos="-3 3 0"/>
+    <geom class="borderpost" pos="3 -3 0"/>
+    <geom class="borderpost" pos="-3 -3 0"/>
+    <light pos="0 0 10" dir="0 0 -1" type="directional" diffuse="0.8 0.8 0.8"/>
+    <geom size="0.5 3 0.05" pos="-3 0 0.4" quat="0.707107 0 0.707107 0" type="plane"/>
+    <geom size="0.5 3 0.05" pos="0 -3 0.4" quat="0.5 -0.5 0.5 0.5" type="plane"/>
+    <geom size="0.5 3 0.05" pos="3 0 0.4" quat="0 -0.707107 0 0.707107" type="plane"/>
+    <geom size="0.5 3 0.05" pos="0 3 0.4" quat="-0.5 -0.5 -0.5 0.5" type="plane"/>
+    <body pos="-2 0 0.5" quat="0.907673 0.24321 0.330366 0.0885213">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1.87939 -0.68404 0.7" quat="0.878512 0.182148 0.36758 0.244792">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1.53209 -1.28558 0.9" quat="0.822658 0.115551 0.393625 0.393625">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1 -1.73205 1.1" quat="0.741808 0.0454433 0.407711 0.530498">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-0.347296 -1.96962 1.3" quat="0.638418 -0.0260453 0.409408 0.651252">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="0.347296 -1.96962 1.5" quat="0.51563 -0.0967425 0.398665 0.752219">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="1 -1.73205 1.7" quat="0.377175 -0.1645 0.375809 0.830329">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="1.53209 -1.28558 1.9" quat="0.22726 -0.22726 0.341535 0.88321">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="1.87939 -0.68404 2.1" quat="0.0704393 -0.283114 0.296883 0.909255">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="2 0 2.3" quat="-0.0885213 -0.330366 0.24321 0.907673">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="1.87939 0.68404 2.5" quat="-0.244792 -0.36758 0.182148 0.878512">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="1.53209 1.28558 2.7" quat="-0.393625 -0.393625 0.115551 0.822658">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="1 1.73205 2.9" quat="-0.530498 -0.407711 0.0454433 0.741808">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="0.347296 1.96962 3.1" quat="-0.651252 -0.409408 -0.0260453 0.638418">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-0.347296 1.96962 3.3" quat="-0.752219 -0.398665 -0.0967425 0.51563">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1 1.73205 3.5" quat="-0.830329 -0.375809 -0.1645 0.377175">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1.53209 1.28558 3.7" quat="-0.88321 -0.341535 -0.22726 0.22726">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1.87939 0.68404 3.9" quat="-0.909255 -0.296883 -0.283114 0.0704393">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-2 0 4.1" quat="-0.907673 -0.24321 -0.330366 -0.0885213">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body pos="-1.87939 -0.68404 4.3" quat="-0.878512 -0.182148 -0.36758 -0.244792">
+      <joint type="free"/>
+      <geom class="capsule"/>
+    </body>
+    <body name="1_torso" childclass="1_body" pos="0 0 1.282">
+      <joint name="1_root" type="free" solimplimit="0.9 0.95 0.001" stiffness="0" armature="0" damping="0"/>
+      <geom name="1_torso" size="0.07 0.07" quat="0.707107 0.707107 0 0" material="1_body"/>
+      <geom name="1_waist_upper" size="0.06 0.06" pos="-0.01 0 -0.12" quat="0.707107 0.707107 0 0" material="1_body"/>
+      <camera name="1_back" pos="-3 0 1" quat="0.601501 0.371748 -0.371748 -0.601501" mode="trackcom"/>
+      <camera name="1_side" pos="0 -3 1" quat="0.850651 0.525731 0 0" mode="trackcom"/>
+      <body name="1_head" pos="0 0 0.19">
+        <geom name="1_head" size="0.09" type="sphere" material="1_body"/>
+        <camera name="1_egocentric" pos="0.09 0 0" quat="0.524286 0.474472 -0.474472 -0.524286" fovy="80"/>
+      </body>
+      <body name="1_waist_lower" pos="-0.01 0 -0.26">
+        <joint name="1_abdomen_z" class="1_joint_big_stiff" pos="0 0 0.065" axis="0 0 1" range="-0.785398 0.785398"/>
+        <joint name="1_abdomen_y" class="1_joint_big" pos="0 0 0.065" axis="0 1 0" range="-1.309 0.523599"/>
+        <geom name="1_waist_lower" size="0.06 0.06" quat="0.707107 0.707107 0 0" material="1_body"/>
+        <body name="1_pelvis" pos="0 0 -0.165">
+          <joint name="1_abdomen_x" class="1_joint_big" pos="0 0 0.1" axis="1 0 0" range="-0.610865 0.610865"/>
+          <geom name="1_butt" size="0.09 0.07" pos="-0.02 0 0" quat="0.707107 0.707107 0 0" material="1_body"/>
+          <body name="1_thigh_right" pos="0 -0.1 -0.04">
+            <joint name="1_hip_x_right" class="1_hip_x" pos="0 0 0" axis="1 0 0" range="-0.523599 0.174533"/>
+            <joint name="1_hip_z_right" class="1_hip_z" pos="0 0 0" axis="0 0 1" range="-1.0472 0.610865"/>
+            <joint name="1_hip_y_right" class="1_hip_y" pos="0 0 0" axis="0 1 0" range="-2.61799 0.349066"/>
+            <geom name="1_thigh_right" class="1_thigh" size="0.06 0.170074" pos="0 0.005 -0.17" quat="0.999892 0.0147011 0 0" material="1_body"/>
+            <body name="1_shin_right" pos="0 0.01 -0.4">
+              <joint name="1_knee_right" class="1_knee" pos="0 0 0.02" axis="0 -1 0" range="-2.79253 0.0349066"/>
+              <geom name="1_shin_right" class="1_shin" size="0.049 0.15" pos="0 0 -0.15" material="1_body"/>
+              <body name="1_foot_right" pos="0 0 -0.39">
+                <joint name="1_ankle_y_right" class="1_ankle_y" pos="0 0 0.08" axis="0 1 0" range="-0.872665 0.872665"/>
+                <joint name="1_ankle_x_right" class="1_ankle_x" pos="0 0 0.04" axis="0.894427 0 0.447214" range="-0.872665 0.872665"/>
+                <geom name="1_foot1_right" class="1_foot1" size="0.027 0.105475" pos="0.035 -0.02 0" quat="0.707107 -0.0670402 -0.703922 0" material="1_body"/>
+                <geom name="1_foot2_right" class="1_foot2" size="0.027 0.105475" pos="0.035 0.02 0" quat="0.707107 0.0670402 -0.703922 0" material="1_body"/>
+              </body>
+            </body>
+          </body>
+          <body name="1_thigh_left" pos="0 0.1 -0.04">
+            <joint name="1_hip_x_left" class="1_hip_x" pos="0 0 0" axis="-1 0 0" range="-0.523599 0.174533"/>
+            <joint name="1_hip_z_left" class="1_hip_z" pos="0 0 0" axis="0 0 -1" range="-1.0472 0.610865"/>
+            <joint name="1_hip_y_left" class="1_hip_y" pos="0 0 0" axis="0 1 0" range="-2.61799 0.349066"/>
+            <geom name="1_thigh_left" class="1_thigh" size="0.06 0.170074" pos="0 -0.005 -0.17" quat="0.999892 -0.0147011 0 0" material="1_body"/>
+            <body name="1_shin_left" pos="0 -0.01 -0.4">
+              <joint name="1_knee_left" class="1_knee" pos="0 0 0.02" axis="0 -1 0" range="-2.79253 0.0349066"/>
+              <geom name="1_shin_left" class="1_shin" size="0.049 0.15" pos="0 0 -0.15" material="1_body"/>
+              <body name="1_foot_left" pos="0 0 -0.39">
+                <joint name="1_ankle_y_left" class="1_ankle_y" pos="0 0 0.08" axis="0 1 0" range="-0.872665 0.872665"/>
+                <joint name="1_ankle_x_left" class="1_ankle_x" pos="0 0 0.04" axis="-0.894427 0 -0.447214" range="-0.872665 0.872665"/>
+                <geom name="1_foot1_left" class="1_foot1" size="0.027 0.105475" pos="0.035 -0.02 0" quat="0.707107 -0.0670402 -0.703922 0" material="1_body"/>
+                <geom name="1_foot2_left" class="1_foot2" size="0.027 0.105475" pos="0.035 0.02 0" quat="0.707107 0.0670402 -0.703922 0" material="1_body"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="1_upper_arm_right" pos="0 -0.17 0.06">
+        <joint name="1_shoulder1_right" class="1_shoulder" pos="0 0 0" axis="0.816497 0.408248 0.408248" range="-1.48353 1.0472"/>
+        <joint name="1_shoulder2_right" class="1_shoulder" pos="0 0 0" axis="0 -0.707107 0.707107" range="-1.48353 1.0472"/>
+        <geom name="1_upper_arm_right" class="1_arm_upper" size="0.04 0.138564" pos="0.08 -0.08 -0.08" quat="0.888074 -0.325058 -0.325058 0" material="1_body"/>
+        <body name="1_lower_arm_right" pos="0.18 -0.18 -0.18">
+          <joint name="1_elbow_right" class="1_elbow" pos="0 0 0" axis="0 -0.707107 0.707107" range="-1.74533 0.872665"/>
+          <geom name="1_lower_arm_right" class="1_arm_lower" size="0.031 0.138564" pos="0.09 0.09 0.09" quat="0.459701 0.627963 -0.627963 0" material="1_body"/>
+          <body name="1_hand_right" pos="0.18 0.18 0.18">
+            <geom name="1_hand_right" class="1_hand" quat="0.888074 -0.325058 0.325058 0" material="1_body"/>
+          </body>
+        </body>
+      </body>
+      <body name="1_upper_arm_left" pos="0 0.17 0.06">
+        <joint name="1_shoulder1_left" class="1_shoulder" pos="0 0 0" axis="-0.816497 0.408248 -0.408248" range="-1.48353 1.0472"/>
+        <joint name="1_shoulder2_left" class="1_shoulder" pos="0 0 0" axis="0 -0.707107 -0.707107" range="-1.48353 1.0472"/>
+        <geom name="1_upper_arm_left" class="1_arm_upper" size="0.04 0.138564" pos="0.08 0.08 -0.08" quat="0.888074 0.325058 -0.325058 0" material="1_body"/>
+        <body name="1_lower_arm_left" pos="0.18 0.18 -0.18">
+          <joint name="1_elbow_left" class="1_elbow" pos="0 0 0" axis="0 -0.707107 -0.707107" range="-1.74533 0.872665"/>
+          <geom name="1_lower_arm_left" class="1_arm_lower" size="0.031 0.138564" pos="0.09 -0.09 0.09" quat="0.459701 -0.627963 -0.627963 0" material="1_body"/>
+          <body name="1_hand_left" pos="0.18 -0.18 0.18">
+            <geom name="1_hand_left" class="1_hand" quat="0.888074 0.325058 0.325058 0" material="1_body"/>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body pos="-0.618034 -1.90211 0.5" quat="0.322144 0.127074 0.352035 0.869567">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="0.069799 -1.99878 0.7" quat="0.166252 0.0640135 0.368753 0.912296">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="0.749213 -1.85437 0.9" quat="0.0053073 -0.000992425 0.374267 0.927305">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.33826 -1.48629 1.1" quat="-0.155798 -0.0659681 0.368409 0.914139">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.7659 -0.938943 1.3" quat="-0.31217 -0.128939 0.351357 0.873197">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.98054 -0.278346 1.5" quat="-0.459056 -0.187993 0.323629 0.805724">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.9563 0.415823 1.7" quat="-0.591995 -0.241334 0.286067 0.713768">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.6961 1.05984 1.9" quat="-0.706946 -0.287343 0.239814 0.600126">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.23132 1.57602 2.1" quat="-0.800416 -0.324621 0.186274 0.468249">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="0.618034 1.90211 2.3" quat="-0.869567 -0.352035 0.127074 0.322144">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-0.069799 1.99878 2.5" quat="-0.912296 -0.368753 0.0640135 0.166252">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-0.749213 1.85437 2.7" quat="-0.927305 -0.374267 -0.000992425 0.0053073">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-1.33826 1.48629 2.9" quat="-0.914139 -0.368409 -0.0659681 -0.155798">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-1.7659 0.938943 3.1" quat="-0.873197 -0.351357 -0.128939 -0.31217">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-1.98054 0.278346 3.3" quat="-0.805724 -0.323629 -0.187993 -0.459056">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-1.9563 -0.415823 3.5" quat="-0.713768 -0.286067 -0.241334 -0.591995">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-1.6961 -1.05984 3.7" quat="-0.600126 -0.239814 -0.287343 -0.706946">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-1.23132 -1.57602 3.9" quat="-0.468249 -0.186274 -0.324621 -0.800416">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="-0.618034 -1.90211 4.1" quat="-0.322144 -0.127074 -0.352035 -0.869567">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="0.069799 -1.99878 4.3" quat="-0.166252 -0.0640135 -0.368753 -0.912296">
+      <joint type="free"/>
+      <geom class="ellipsoid"/>
+    </body>
+    <body pos="1.61803 -1.17557 0.5" quat="-0.59474 0.0407649 0.59181 0.542572">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.92252 -0.551275 0.7" quat="-0.679921 -0.0626212 0.589898 0.431053">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.99513 0.139513 0.9" quat="-0.744443 -0.164105 0.570062 0.306438">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.82709 0.813473 1.1" quat="-0.786345 -0.260602 0.532905 0.172511">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.43868 1.38932 1.3" quat="-0.804355 -0.34918 0.479556 0.0333426">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="0.876742 1.79759 1.5" quat="-0.797925 -0.42715 0.411636 -0.106839">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="0.209057 1.98904 1.7" quat="-0.767251 -0.49214 0.331208 -0.243774">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-0.483844 1.94059 1.9" quat="-0.713263 -0.542177 0.240717 -0.373302">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-1.11839 1.65808 2.1" quat="-0.637604 -0.57574 0.142912 -0.491488">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-1.61803 1.17557 2.3" quat="-0.542572 -0.59181 0.0407649 -0.59474">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-1.92252 0.551275 2.5" quat="-0.431053 -0.589898 -0.0626212 -0.679921">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-1.99513 -0.139513 2.7" quat="-0.306438 -0.570062 -0.164105 -0.744443">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-1.82709 -0.813473 2.9" quat="-0.172511 -0.532905 -0.260602 -0.786345">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-1.43868 -1.38932 3.1" quat="-0.0333426 -0.479556 -0.34918 -0.804355">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-0.876742 -1.79759 3.3" quat="0.106839 -0.411636 -0.42715 -0.797925">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="-0.209057 -1.98904 3.5" quat="0.243774 -0.331208 -0.49214 -0.767251">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="0.483844 -1.94059 3.7" quat="0.373302 -0.240717 -0.542177 -0.713263">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.11839 -1.65808 3.9" quat="0.491488 -0.142912 -0.57574 -0.637604">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.61803 -1.17557 4.1" quat="0.59474 -0.0407649 -0.59181 -0.542572">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body pos="1.92252 -0.551275 4.3" quat="0.679921 0.0626212 -0.589898 -0.431053">
+      <joint type="free"/>
+      <geom class="box"/>
+    </body>
+    <body name="2_torso" childclass="2_body" pos="1 1 1.282" quat="0.309017 0 0 0.951057">
+      <joint name="2_root" type="free" solimplimit="0.9 0.95 0.001" stiffness="0" armature="0" damping="0"/>
+      <geom name="2_torso" size="0.07 0.07" quat="0.707107 0.707107 0 0" material="2_body"/>
+      <geom name="2_waist_upper" size="0.06 0.06" pos="-0.01 0 -0.12" quat="0.707107 0.707107 0 0" material="2_body"/>
+      <camera name="2_back" pos="-3 0 1" quat="0.601501 0.371748 -0.371748 -0.601501" mode="trackcom"/>
+      <camera name="2_side" pos="0 -3 1" quat="0.850651 0.525731 0 0" mode="trackcom"/>
+      <body name="2_head" pos="0 0 0.19">
+        <geom name="2_head" size="0.09" type="sphere" material="2_body"/>
+        <camera name="2_egocentric" pos="0.09 0 0" quat="0.524286 0.474472 -0.474472 -0.524286" fovy="80"/>
+      </body>
+      <body name="2_waist_lower" pos="-0.01 0 -0.26">
+        <joint name="2_abdomen_z" class="2_joint_big_stiff" pos="0 0 0.065" axis="0 0 1" range="-0.785398 0.785398"/>
+        <joint name="2_abdomen_y" class="2_joint_big" pos="0 0 0.065" axis="0 1 0" range="-1.309 0.523599"/>
+        <geom name="2_waist_lower" size="0.06 0.06" quat="0.707107 0.707107 0 0" material="2_body"/>
+        <body name="2_pelvis" pos="0 0 -0.165">
+          <joint name="2_abdomen_x" class="2_joint_big" pos="0 0 0.1" axis="1 0 0" range="-0.610865 0.610865"/>
+          <geom name="2_butt" size="0.09 0.07" pos="-0.02 0 0" quat="0.707107 0.707107 0 0" material="2_body"/>
+          <body name="2_thigh_right" pos="0 -0.1 -0.04">
+            <joint name="2_hip_x_right" class="2_hip_x" pos="0 0 0" axis="1 0 0" range="-0.523599 0.174533"/>
+            <joint name="2_hip_z_right" class="2_hip_z" pos="0 0 0" axis="0 0 1" range="-1.0472 0.610865"/>
+            <joint name="2_hip_y_right" class="2_hip_y" pos="0 0 0" axis="0 1 0" range="-2.61799 0.349066"/>
+            <geom name="2_thigh_right" class="2_thigh" size="0.06 0.170074" pos="0 0.005 -0.17" quat="0.999892 0.0147011 0 0" material="2_body"/>
+            <body name="2_shin_right" pos="0 0.01 -0.4">
+              <joint name="2_knee_right" class="2_knee" pos="0 0 0.02" axis="0 -1 0" range="-2.79253 0.0349066"/>
+              <geom name="2_shin_right" class="2_shin" size="0.049 0.15" pos="0 0 -0.15" material="2_body"/>
+              <body name="2_foot_right" pos="0 0 -0.39">
+                <joint name="2_ankle_y_right" class="2_ankle_y" pos="0 0 0.08" axis="0 1 0" range="-0.872665 0.872665"/>
+                <joint name="2_ankle_x_right" class="2_ankle_x" pos="0 0 0.04" axis="0.894427 0 0.447214" range="-0.872665 0.872665"/>
+                <geom name="2_foot1_right" class="2_foot1" size="0.027 0.105475" pos="0.035 -0.02 0" quat="0.707107 -0.0670402 -0.703922 0" material="2_body"/>
+                <geom name="2_foot2_right" class="2_foot2" size="0.027 0.105475" pos="0.035 0.02 0" quat="0.707107 0.0670402 -0.703922 0" material="2_body"/>
+              </body>
+            </body>
+          </body>
+          <body name="2_thigh_left" pos="0 0.1 -0.04">
+            <joint name="2_hip_x_left" class="2_hip_x" pos="0 0 0" axis="-1 0 0" range="-0.523599 0.174533"/>
+            <joint name="2_hip_z_left" class="2_hip_z" pos="0 0 0" axis="0 0 -1" range="-1.0472 0.610865"/>
+            <joint name="2_hip_y_left" class="2_hip_y" pos="0 0 0" axis="0 1 0" range="-2.61799 0.349066"/>
+            <geom name="2_thigh_left" class="2_thigh" size="0.06 0.170074" pos="0 -0.005 -0.17" quat="0.999892 -0.0147011 0 0" material="2_body"/>
+            <body name="2_shin_left" pos="0 -0.01 -0.4">
+              <joint name="2_knee_left" class="2_knee" pos="0 0 0.02" axis="0 -1 0" range="-2.79253 0.0349066"/>
+              <geom name="2_shin_left" class="2_shin" size="0.049 0.15" pos="0 0 -0.15" material="2_body"/>
+              <body name="2_foot_left" pos="0 0 -0.39">
+                <joint name="2_ankle_y_left" class="2_ankle_y" pos="0 0 0.08" axis="0 1 0" range="-0.872665 0.872665"/>
+                <joint name="2_ankle_x_left" class="2_ankle_x" pos="0 0 0.04" axis="-0.894427 0 -0.447214" range="-0.872665 0.872665"/>
+                <geom name="2_foot1_left" class="2_foot1" size="0.027 0.105475" pos="0.035 -0.02 0" quat="0.707107 -0.0670402 -0.703922 0" material="2_body"/>
+                <geom name="2_foot2_left" class="2_foot2" size="0.027 0.105475" pos="0.035 0.02 0" quat="0.707107 0.0670402 -0.703922 0" material="2_body"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="2_upper_arm_right" pos="0 -0.17 0.06">
+        <joint name="2_shoulder1_right" class="2_shoulder" pos="0 0 0" axis="0.816497 0.408248 0.408248" range="-1.48353 1.0472"/>
+        <joint name="2_shoulder2_right" class="2_shoulder" pos="0 0 0" axis="0 -0.707107 0.707107" range="-1.48353 1.0472"/>
+        <geom name="2_upper_arm_right" class="2_arm_upper" size="0.04 0.138564" pos="0.08 -0.08 -0.08" quat="0.888074 -0.325058 -0.325058 0" material="2_body"/>
+        <body name="2_lower_arm_right" pos="0.18 -0.18 -0.18">
+          <joint name="2_elbow_right" class="2_elbow" pos="0 0 0" axis="0 -0.707107 0.707107" range="-1.74533 0.872665"/>
+          <geom name="2_lower_arm_right" class="2_arm_lower" size="0.031 0.138564" pos="0.09 0.09 0.09" quat="0.459701 0.627963 -0.627963 0" material="2_body"/>
+          <body name="2_hand_right" pos="0.18 0.18 0.18">
+            <geom name="2_hand_right" class="2_hand" quat="0.888074 -0.325058 0.325058 0" material="2_body"/>
+          </body>
+        </body>
+      </body>
+      <body name="2_upper_arm_left" pos="0 0.17 0.06">
+        <joint name="2_shoulder1_left" class="2_shoulder" pos="0 0 0" axis="-0.816497 0.408248 -0.408248" range="-1.48353 1.0472"/>
+        <joint name="2_shoulder2_left" class="2_shoulder" pos="0 0 0" axis="0 -0.707107 -0.707107" range="-1.48353 1.0472"/>
+        <geom name="2_upper_arm_left" class="2_arm_upper" size="0.04 0.138564" pos="0.08 0.08 -0.08" quat="0.888074 0.325058 -0.325058 0" material="2_body"/>
+        <body name="2_lower_arm_left" pos="0.18 0.18 -0.18">
+          <joint name="2_elbow_left" class="2_elbow" pos="0 0 0" axis="0 -0.707107 -0.707107" range="-1.74533 0.872665"/>
+          <geom name="2_lower_arm_left" class="2_arm_lower" size="0.031 0.138564" pos="0.09 -0.09 0.09" quat="0.459701 -0.627963 -0.627963 0" material="2_body"/>
+          <body name="2_hand_left" pos="0.18 -0.18 0.18">
+            <geom name="2_hand_left" class="2_hand" quat="0.888074 0.325058 0.325058 0" material="2_body"/>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body pos="1.61803 1.17557 0.5" quat="-0.381574 -0.362417 0.390061 0.755585">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.11839 1.65808 0.7" quat="-0.506982 -0.424645 0.321202 0.677846">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="0.483844 1.94059 0.9" quat="-0.616987 -0.473969 0.242583 0.579511">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-0.209057 1.98904 1.1" quat="-0.708245 -0.508893 0.156594 0.463569">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-0.876742 1.79759 1.3" quat="-0.777983 -0.528354 0.0658466 0.333541">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-1.43868 1.38932 1.5" quat="-0.824082 -0.531761 -0.0269015 0.193378">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-1.82709 0.813473 1.7" quat="-0.845142 -0.519011 -0.118832 0.0473399">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-1.99513 0.139513 1.9" quat="-0.840523 -0.490491 -0.207152 -0.100137">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-1.92252 -0.551275 2.1" quat="-0.810365 -0.447068 -0.289178 -0.244571">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-1.61803 -1.17557 2.3" quat="-0.755585 -0.390061 -0.362417 -0.381574">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-1.11839 -1.65808 2.5" quat="-0.677846 -0.321202 -0.424645 -0.506982">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-0.483844 -1.94059 2.7" quat="-0.579511 -0.242583 -0.473969 -0.616987">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="0.209057 -1.98904 2.9" quat="-0.463569 -0.156594 -0.508893 -0.708245">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="0.876742 -1.79759 3.1" quat="-0.333541 -0.0658466 -0.528354 -0.777983">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.43868 -1.38932 3.3" quat="-0.193378 0.0269015 -0.531761 -0.824082">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.82709 -0.813473 3.5" quat="-0.0473399 0.118832 -0.519011 -0.845142">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.99513 -0.139513 3.7" quat="0.100137 0.207152 -0.490491 -0.840523">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.92252 0.551275 3.9" quat="0.244571 0.289178 -0.447068 -0.810365">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.61803 1.17557 4.1" quat="0.381574 0.362417 -0.390061 -0.755585">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="1.11839 1.65808 4.3" quat="0.506982 0.424645 -0.321202 -0.677846">
+      <joint type="free"/>
+      <geom class="cylinder"/>
+    </body>
+    <body pos="-0.618034 1.90211 0.5" quat="-0.752821 -0.522474 0.102542 0.386997">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.23132 1.57602 0.7" quat="-0.808585 -0.532342 0.0102578 0.250392">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.6961 1.05984 0.9" quat="-0.839781 -0.526036 -0.0823383 0.106179">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.9563 0.415823 1.1" quat="-0.845461 -0.503747 -0.172433 -0.0412608">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.98054 -0.278346 1.3" quat="-0.825451 -0.466151 -0.257288 -0.187447">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.7659 -0.938943 1.5" quat="-0.780361 -0.414392 -0.334325 -0.327937">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.33826 -1.48629 1.7" quat="-0.71156 -0.350041 -0.401204 -0.458463">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-0.749213 -1.85437 1.9" quat="-0.621139 -0.275055 -0.455893 -0.575059">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-0.069799 -1.99878 2.1" quat="-0.511844 -0.191711 -0.49673 -0.674182">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="0.618034 -1.90211 2.3" quat="-0.386997 -0.102542 -0.522474 -0.752821">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="1.23132 -1.57602 2.5" quat="-0.250392 -0.0102578 -0.532342 -0.808585">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="1.6961 -1.05984 2.7" quat="-0.106179 0.0823383 -0.526036 -0.839781">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="1.9563 -0.415823 2.9" quat="0.0412608 0.172433 -0.503747 -0.845461">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="1.98054 0.278346 3.1" quat="0.187447 0.257288 -0.466151 -0.825451">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="1.7659 0.938943 3.3" quat="0.327937 0.334325 -0.414392 -0.780361">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="1.33826 1.48629 3.5" quat="0.458463 0.401204 -0.350041 -0.71156">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="0.749213 1.85437 3.7" quat="0.575059 0.455893 -0.275055 -0.621139">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="0.069799 1.99878 3.9" quat="0.674182 0.49673 -0.191711 -0.511844">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-0.618034 1.90211 4.1" quat="0.752821 0.522474 -0.102542 -0.386997">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+    <body pos="-1.23132 1.57602 4.3" quat="0.808585 0.532342 -0.0102578 -0.250392">
+      <joint type="free"/>
+      <geom class="sphere"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="1_waist_lower" body2="1_thigh_right"/>
+    <exclude body1="1_waist_lower" body2="1_thigh_left"/>
+    <exclude body1="2_waist_lower" body2="2_thigh_right"/>
+    <exclude body1="2_waist_lower" body2="2_thigh_left"/>
+  </contact>
+
+  <tendon>
+    <fixed name="1_hamstring_right" limited="true" range="-0.3 2">
+      <joint joint="1_hip_y_right" coef="0.5"/>
+      <joint joint="1_knee_right" coef="-0.5"/>
+    </fixed>
+    <fixed name="1_hamstring_left" limited="true" range="-0.3 2">
+      <joint joint="1_hip_y_left" coef="0.5"/>
+      <joint joint="1_knee_left" coef="-0.5"/>
+    </fixed>
+    <fixed name="2_hamstring_right" limited="true" range="-0.3 2">
+      <joint joint="2_hip_y_right" coef="0.5"/>
+      <joint joint="2_knee_right" coef="-0.5"/>
+    </fixed>
+    <fixed name="2_hamstring_left" limited="true" range="-0.3 2">
+      <joint joint="2_hip_y_left" coef="0.5"/>
+      <joint joint="2_knee_left" coef="-0.5"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <general name="1_abdomen_z" joint="1_abdomen_z" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_abdomen_y" joint="1_abdomen_y" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_abdomen_x" joint="1_abdomen_x" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_hip_x_right" joint="1_hip_x_right" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_hip_z_right" joint="1_hip_z_right" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_hip_y_right" joint="1_hip_y_right" ctrllimited="true" ctrlrange="-1 1" gear="120 0 0 0 0 0"/>
+    <general name="1_knee_right" joint="1_knee_right" ctrllimited="true" ctrlrange="-1 1" gear="80 0 0 0 0 0"/>
+    <general name="1_ankle_y_right" joint="1_ankle_y_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_ankle_x_right" joint="1_ankle_x_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_hip_x_left" joint="1_hip_x_left" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_hip_z_left" joint="1_hip_z_left" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_hip_y_left" joint="1_hip_y_left" ctrllimited="true" ctrlrange="-1 1" gear="120 0 0 0 0 0"/>
+    <general name="1_knee_left" joint="1_knee_left" ctrllimited="true" ctrlrange="-1 1" gear="80 0 0 0 0 0"/>
+    <general name="1_ankle_y_left" joint="1_ankle_y_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_ankle_x_left" joint="1_ankle_x_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_shoulder1_right" joint="1_shoulder1_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_shoulder2_right" joint="1_shoulder2_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_elbow_right" joint="1_elbow_right" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="1_shoulder1_left" joint="1_shoulder1_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_shoulder2_left" joint="1_shoulder2_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="1_elbow_left" joint="1_elbow_left" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_abdomen_z" joint="2_abdomen_z" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_abdomen_y" joint="2_abdomen_y" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_abdomen_x" joint="2_abdomen_x" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_hip_x_right" joint="2_hip_x_right" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_hip_z_right" joint="2_hip_z_right" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_hip_y_right" joint="2_hip_y_right" ctrllimited="true" ctrlrange="-1 1" gear="120 0 0 0 0 0"/>
+    <general name="2_knee_right" joint="2_knee_right" ctrllimited="true" ctrlrange="-1 1" gear="80 0 0 0 0 0"/>
+    <general name="2_ankle_y_right" joint="2_ankle_y_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_ankle_x_right" joint="2_ankle_x_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_hip_x_left" joint="2_hip_x_left" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_hip_z_left" joint="2_hip_z_left" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_hip_y_left" joint="2_hip_y_left" ctrllimited="true" ctrlrange="-1 1" gear="120 0 0 0 0 0"/>
+    <general name="2_knee_left" joint="2_knee_left" ctrllimited="true" ctrlrange="-1 1" gear="80 0 0 0 0 0"/>
+    <general name="2_ankle_y_left" joint="2_ankle_y_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_ankle_x_left" joint="2_ankle_x_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_shoulder1_right" joint="2_shoulder1_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_shoulder2_right" joint="2_shoulder2_right" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_elbow_right" joint="2_elbow_right" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+    <general name="2_shoulder1_left" joint="2_shoulder1_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_shoulder2_left" joint="2_shoulder2_left" ctrllimited="true" ctrlrange="-1 1" gear="20 0 0 0 0 0"/>
+    <general name="2_elbow_left" joint="2_elbow_left" ctrllimited="true" ctrlrange="-1 1" gear="40 0 0 0 0 0"/>
+  </actuator>
+
+  <keyframe>
+    <key time="3.59" qpos="-2.18313 -0.501358 0.0998398 -0.527306 0.196591 -0.678857 0.47165 -1.96896 -1.56563 0.0998065 -0.38962 -0.705531 -0.0455886 -0.590206 -1.54078 -1.62192 0.0998041 0.358199 0.616671 -0.345832 0.609763 -1.32571 -1.72934 0.0997456 0.55031 0.42067 -0.568908 0.443328 -1.10861 -1.57663 0.110678 -0.623853 0.73727 -0.258092 -0.0250827 -1.03713 -2.11631 0.116925 -0.0670985 -0.746068 0.340435 0.568318 -0.554682 -1.86957 0.117402 0.758951 -0.13301 0.551809 0.319076 -0.0477925 -2.17534 0.121887 0.618263 0.00179819 -0.527589 -0.582578 -0.754187 -1.66277 0.119596 -0.645398 0.542217 -0.0786839 0.532232 -0.629938 -1.43293 0.0997769 0.342457 -0.562071 -0.428654 0.618914 -0.0226415 -1.43004 0.147171 0.463592 0.0183819 -0.162669 -0.870795 0.118319 -0.0935342 0.129937 -0.588388 0.332157 0.294854 0.675672 0.668035 0.896809 0.110602 0.0794512 0.729372 -0.277634 -0.62018 -0.759791 -0.0436632 0.142552 0.114721 -0.939949 0.210975 -0.242538 -2.19076 0.24848 0.126386 -0.463459 -0.138536 0.866991 0.11975 -1.94176 -1.23289 0.101203 0.0620856 -0.451646 -0.531386 -0.713996 -1.37643 -1.44301 0.11294 -0.388784 0.279805 0.745173 0.463975 -2.4304 -0.103353 0.116375 0.159182 -0.511397 0.637865 0.553411 -2.22306 -0.74772 0.0997657 0.67898 -0.243624 0.663574 0.19825 -2.28038 -2.08785 0.0997342 -0.618003 -0.652476 -0.27001 -0.345603 -0.71001 -0.52138 0.0907274 0.657875 0.440599 -0.555098 0.254832 -0.467754 -0.896754 -0.617877 -0.0910629 -0.137478 -0.812392 -2.63527 -0.502001 0.0856574 0.181339 -0.024405 0.197449 -1.80814 -0.0205577 -0.840147 -0.103854 -0.381064 -1.75306 0.629199 -1.07366 -1.41502 -1.29177 -2.52645 0.094915 0.0590814 0.017906 0.525147 -0.84877 -0.262691 -2.49551 0.0747575 -0.123293 0.0313871 0.199384 -0.971627 0.460618 -2.43734 0.0717051 0.850629 0.104247 -0.0666079 -0.511004 1.28735 -2.49572 0.0698321 -0.97485 0.0284531 0.0219245 0.219947 1.40037 -2.32904 0.0842594 -0.19464 -0.181827 0.0322705 -0.963334 0.559955 -1.91915 0.0845646 -0.19043 -0.868477 -0.398834 -0.224533 2.26314 -0.544988 0.097508 -0.474189 -0.774357 0.307698 0.284321 1.437 -0.0769364 0.0971227 0.439333 -0.598945 -0.545571 0.388077 0.102008 0.923217 0.0907525 -0.212125 0.200033 -0.952812 -0.084488 -0.298961 1.66321 0.111687 -0.510102 -0.775724 -0.0838749 -0.361957 -0.304007 1.85059 0.0744756 -0.151152 0.915522 0.372503 0.0146183 -2.34103 1.53319 0.0929665 -0.163565 -0.672885 -0.595745 -0.406891 -2.46522 1.79855 0.107896 0.0272299 0.198331 0.771293 -0.604177 -2.54079 1.24257 0.142219 0.699797 -0.223547 -0.67377 0.0796512 -2.55586 -0.0363818 0.230758 0.740196 -0.188348 -0.118227 0.634553 -2.45125 -0.843711 0.0767307 -0.880585 -0.151752 0.1426 0.425684 -2.45452 -2.37619 0.095334 -0.0466266 -0.00206983 -0.844223 0.533957 -2.475 -2.53441 0.108163 -0.238203 0.214276 0.373861 0.870387 -1.34389 -2.33713 0.06967 0.317003 -0.0140302 -0.00466023 0.948309 -0.420621 -2.56027 0.181897 -0.888699 0.426598 0.158137 0.0567561 1.29038 -1.305 0.0499 2.54796e-05 -0.706151 0.708061 -9.78364e-06 1.79893 -0.762146 0.0999 -0.407921 -0.408053 0.577594 0.577476 1.85813 -0.0930714 0.0999 -0.506407 -0.506637 0.493482 0.493301 1.85922 0.58671 0.0499 -0.791896 -2.90011e-05 1.2368e-05 0.610656 1.29037 0.984436 0.0499 2.50319e-05 -0.695385 0.718637 -9.38668e-06 0.376804 1.41433 0.0498989 1.82998e-05 -0.255583 0.966787 1.87012e-05 -0.192286 2.0163 0.0998922 -0.24891 0.248966 0.661908 -0.661769 -0.368326 1.29379 0.0498989 2.59928e-06 -0.831052 -0.556195 -2.27104e-05 -0.744827 0.875542 0.0499 1.15588e-05 0.649054 0.760743 2.77466e-05 -2.04663 1.42109 0.0499 -0.854374 1.23681e-06 1.82825e-05 -0.519658 -2.39965 0.584103 0.0499 -0.404597 1.35969e-05 3.25822e-05 -0.914495 -2.50633 -0.391986 0.150412 -0.851265 0.0905445 -0.367693 -0.363253 -2.39785 -1.44646 0.0498962 0.806317 -1.64839e-05 -7.48572e-05 0.591483 -1.92764 -1.87417 0.0499003 0.362923 5.24939e-05 7.40104e-05 -0.931819 -1.59686 -2.31136 0.049876 -0.510747 -0.000200471 0.00024176 -0.859731 -0.683935 -2.49957 0.0498826 -0.00146271 -6.7461e-06 4.88411e-05 -0.999999 -0.0668132 -2.61461 0.232626 0.174573 0.321981 0.818138 -0.443286 0.824453 -2.44751 0.106826 0.214888 -0.499351 0.770896 -0.33195 1.0226 -1.54294 0.0499 -1.74563e-05 0.492001 -0.870594 -8.36712e-08 1.51268 -1.09621 0.0499 0.725863 2.63014e-05 -1.04724e-05 -0.68784 -0.000850088 0.10181 0.198498 0.14294 -0.416924 -0.538432 0.718216 -0.257389 -0.218061 0.00489366 0.180885 -0.304714 0.353736 -0.677333 0.0266655 -0.582658 0.0855526 0.198688 -0.353004 -1.39729 -0.0266889 0.139159 0.909332 0.0727887 -1.75141 0.925519 -0.878809 -0.261314 1.12611 0.654383 0.0970588 -0.654113 -0.26729 -0.115599 -0.69809 0.647096 1.46852 0.0998694 0.55732 -0.533921 -0.463476 -0.435331 -0.267176 1.49815 0.0998543 -0.46574 0.403232 -0.586019 -0.526377 -0.53217 1.79505 0.0498765 0.000337194 -0.800932 0.598755 0.0001762 -1.19025 1.57235 0.0499111 6.26992e-05 -0.754959 0.655771 -4.40836e-06 -2.20213 -0.0895911 0.0997375 0.372222 -0.279594 0.650707 -0.599882 -2.08295 -0.181472 0.0497378 0.166368 0.000778987 -0.00109202 -0.986063 -2.30387 -0.2624 0.111415 -0.160725 -0.797805 0.296657 -0.499669 -2.49844 -1.05398 0.0499476 0.0499712 -0.000257437 -0.000213554 0.998751 -2.07311 -1.73634 0.0499055 0.0002081 -0.814482 0.580188 2.09484e-05 -2.26426 -2.49414 0.108718 -0.896907 -0.192237 -0.380585 -0.117293 -1.044 -2.47619 0.0498897 0.762846 0.000765027 0.000569274 -0.646579 -0.188666 -2.31372 0.0498716 -0.53055 0.000309009 6.77681e-05 -0.847653 0.169402 -2.50011 0.04991 -0.000168454 0.851795 0.523876 0.000177142 0.64935 -2.44942 0.0998698 -0.705578 -0.211243 -0.674702 0.0481088 1.64553 -2.04933 0.0998521 -0.580144 0.64026 0.299888 -0.404434 0.181658 -2.12896 0.110726 0.805723 -0.419472 0.216282 0.357877 1.26357 -0.0981991 0.0499013 -0.000100618 0.999534 0.0305356 0.00015788 0.0225391 -1.9791 0.0998158 -0.640444 -0.597452 -0.377344 -0.300822 -0.0260799 0.582705 0.0499111 6.24454e-05 -0.622023 0.782999 7.15445e-06 -1.7155 1.53163 0.0996 -0.158703 0.448827 0.19677 -0.857117 -2.51054 1.63847 0.100035 0.0976633 -0.108293 -0.957166 -0.250135 -2.49504 1.43416 0.100547 0.0930661 -0.0746049 0.186569 0.975174 -2.51006 0.134241 0.0995766 0.367618 0.742704 0.514443 0.220447 -2.35862 -1.19686 0.0996175 0.308952 0.575542 -0.513971 -0.555998 -2.25059 -1.64431 0.0996089 0.710434 -0.275766 -0.581868 -0.284018 -1.68822 -1.76566 0.0995836 -0.402692 -0.207929 0.742794 -0.49281 -1.49138 -2.0881 0.100016 0.725875 0.425651 -0.518282 -0.152676 -1.13013 -2.29585 0.0995687 -0.38196 0.0281292 -0.814238 0.436271 -0.0162521 -2.42351 0.0994761 -0.094863 0.240407 0.889498 0.376828 -0.518225 -2.24664 0.0996 0.23551 -0.367313 -0.198243 0.877676 0.161253 -2.30041 0.0995811 -0.779734 0.0879248 -0.472225 0.401607 -1.31834 -1.98968 0.0995062 0.793396 -0.318243 -0.502465 -0.129513 -0.415964 -2.03826 0.0995802 0.873031 0.418492 0.0572842 0.24372 -0.524726 -1.64504 0.099556 0.0682648 0.226828 -0.889318 -0.391154 0.632806 1.10803 0.0995988 -0.0712133 -0.166464 0.151681 0.971705 -0.761777 -0.239317 0.0995544 0.565471 0.616817 -0.236629 -0.493747 -2.07369 -1.07978 0.100714 0.740096 -0.40475 -0.471018 -0.258026 -1.63698 0.825259 0.0996 0.582008 -0.810995 0.0335655 -0.0492669 -2.28508 0.055264 0.099615 0.326058 -0.188719 -0.884182 -0.276214" qvel="-0.0142695 -0.0282894 2.80366e-06 -0.0336764 -0.0589617 0.316113 -0.00158715 -0.00199037 -7.69166e-08 -0.00244544 -0.00182066 0.02191 -0.00121168 -0.000984766 -2.44002e-05 0.00781318 -0.00384246 0.0114022 -0.00163167 -0.0033559 -8.79285e-05 -0.0275861 0.00872021 0.000691652 -0.0413805 0.0559949 0.0172189 -0.485753 -0.285349 -0.893005 -0.00628722 0.100237 0.0113415 -1.55795 1.27283 -0.80637 -0.0166267 0.0133282 -4.90463e-05 1.01397 -0.168136 -1.16383 -0.0113868 0.00921574 -0.00635623 0.143702 -0.0650695 0.0347076 -0.00821175 -0.00502806 0.00110066 -0.051809 0.132933 -0.157929 -0.00462623 -0.00543837 0.000715454 -0.0438836 0.0130666 -0.0454885 -0.378917 -0.58571 0.0316848 -0.469019 3.63826 -5.69812 -0.0681744 -0.0301834 0.0104888 -0.0627868 0.27139 -0.872868 0.00226465 0.00177834 -0.00219802 -0.0192009 -0.0387027 0.0338486 -0.0203544 -0.00258715 -0.00401738 0.0937716 0.128782 -0.0243179 0.134861 0.0802927 -0.0308248 1.37687 1.70984 -1.29682 -0.27668 -0.0982017 0.124344 -0.314436 1.98525 -1.8107 -0.381327 -0.104951 0.0102585 1.29914 0.466961 -5.18552 -0.00155416 -0.00724966 -0.003181 -0.00289587 -0.0790796 -0.0184235 0.0302348 -0.0414999 -0.000198111 0.0536195 0.00411243 0.508663 -0.18741 -0.253857 0.00112762 0.101183 -0.0521827 3.14456 -0.00169211 -0.0012612 -0.000186976 -0.00790127 -0.0017677 -0.000418528 -0.00807086 -0.0201049 0.000897468 0.0273932 0.0167529 0.0592638 0.0374085 0.0836055 0.0226892 -0.00374877 -0.000242254 0.0460371 0.0319619 0.0900716 0.00840068 -0.00173339 0.00191035 0.000102991 -0.0382219 -0.0128317 -0.0126086 0.0333089 0.0108335 -0.00743716 0.191798 0.0962235 -0.411306 -0.00422268 -0.000721237 -0.00102933 0.0431866 0.00523958 -0.0261537 0.0200073 0.0974476 -0.0155215 -0.936437 -0.91122 0.507941 -0.0840374 -0.057616 0.00959215 1.42391 -0.781654 0.683638 0.135353 -0.0594096 0.127137 -3.55184 -1.85734 -1.98892 -0.223751 0.88487 -0.113202 -3.59937 -0.866865 -8.18478 -0.634475 -0.425013 -0.147902 8.39838 -0.741783 1.00105 -0.00407335 0.0031031 -0.00100551 -0.0567066 -0.115985 0.0175092 0.28097 -0.0165226 -0.211823 -2.29875 2.83657 0.319402 -0.0165858 -0.0170114 0.0116597 -0.397146 -0.334541 0.195684 -0.00216828 0.000651564 -0.000961796 -0.0699102 -0.0258706 0.00721249 -0.367902 -0.50683 0.785347 -6.5371 5.88879 2.88486 0.0420905 -0.504492 0.124525 -5.06861 4.60711 0.245853 -0.0447815 -0.130716 0.0449903 1.18202 -0.412798 -1.03346 0.000479379 -0.00467203 0.000344754 -0.0109735 0.024075 -0.0238294 0.00545226 -0.00665031 -0.00319887 -0.0682512 0.0325267 -0.136207 -0.000750253 0.000494975 -0.000630456 -0.0230171 0.0057639 -0.0129164 0.000312329 0.00026772 -0.000847171 0.000109561 0.00583839 -0.0148501 -0.0108881 -0.00980547 0.000275688 -0.285595 -0.0259694 0.467794 -0.00279215 0.000242138 -2.14129e-05 0.0275877 0.0103406 0.00541704 -0.0005 -0.0005 0 0 0 -2.13613e-08 -0.0005 -0.0005 0 2.52676e-10 5.54463e-07 -1.20404e-10 -0.0005 -0.0005 0 2.47741e-10 7.12943e-07 -2.61109e-10 -0.0005 -0.0005 0 0 0 1.8601e-08 -0.0005 -0.0005 0 0 0 -2.13154e-08 -0.000715948 -0.00061644 -8.90149e-10 -5.84232e-08 -1.62345e-08 0.000625931 -0.000286315 -6.16843e-06 -6.18965e-06 -0.00133353 -0.000561374 6.21744e-06 -0.000502264 -0.000477237 3.71399e-05 -0.000211409 -0.000396064 -1.24517e-08 -0.0005 -0.0005 0 -1.05686e-12 0 -2.03023e-08 -0.000500408 -0.00049974 1.5194e-06 -9.45343e-06 8.58408e-07 1.21218e-08 -0.0005 -0.0005 0 0 0 2.03387e-09 -0.000950275 0.00286624 -0.00198485 -0.11048 0.0768576 -0.0107988 -0.00117818 -0.00125493 2.23681e-06 0.000130482 -9.08567e-05 -0.00321805 -0.00108468 -0.00171855 -2.36814e-05 -7.33424e-05 -0.000373071 -0.00250552 -0.00573432 -0.00326054 0.0015719 -0.01194 0.0257314 0.00244638 -0.00124991 -0.000120553 -3.16453e-07 -2.48492e-06 -1.57645e-06 0.000795734 -0.00051155 0.0015658 -0.00349071 0.028174 -0.0261219 -0.00648649 -0.000357184 0.00039877 -0.000208259 -0.0073184 -0.00109846 -0.00143049 -0.0005 -0.0005 0 0 0 -9.99205e-09 -0.0005 -0.0005 0 0 0 2.12381e-08 -0.0122844 0.0044158 -0.0052207 -0.00535231 0.0274552 0.015176 0.0232299 -0.00921819 0.00452605 0.00408237 -0.0276689 -0.0108875 0.0216003 0.0144734 0.0297182 -0.00148921 0.0391009 -0.00434645 0.0220773 0.0336312 -0.00430466 -0.0069949 0.00172336 0.00236097 0.000137656 0.0010258 -0.000400906 -0.00290447 -0.0144474 0.000578527 -0.097026 -0.256425 0.00546808 -0.000794512 -0.000587298 2.27496e-09 0.000825392 -0.000161506 -0.00620612 -0.00894262 -0.00274531 0.00577173 -0.587191 0.0413304 -0.335018 -0.00225546 0.000526831 0.00100626 -0.00289368 0.0228058 -0.00103468 -0.000666667 -0.000666667 0 -1.09953e-11 8.31034e-12 0 -0.00346291 -0.00125801 0.00309297 0.0357609 -0.0264388 0.0248836 0.00250903 -0.00414271 0.00594043 -0.0844976 -0.0363089 8.7622e-06 -0.00194363 -0.00389252 -0.000309665 -0.0259065 0.0631967 0.050104 -0.00614104 -0.00592217 0.000263603 -0.00129007 0.00163195 0.0141284 -0.00148263 -0.00203424 -2.63539e-06 -3.52998e-05 0.000130084 -0.00521719 0.000274727 -0.000580539 -0.000371489 -0.0216352 -0.00340707 -0.0036559 -0.0197185 -0.0109276 -0.0115001 -0.121812 -0.232431 0.168775 -0.00388465 -5.79429e-05 -2.87894e-05 0.000922933 -0.00140069 0.00727425 -0.000722798 6.47876e-05 6.88974e-05 -0.000274062 0.000233873 -0.00337085 -0.0360415 -0.0909772 -0.00010901 0.000178201 8.04456e-05 0.974856 -0.728445 -1.25622 0.000500758 -0.0174848 0.00277076 -14.528 0.0146546 0.00123095 -0.000236027 0.474528 0.410071 -0.1604 -0.00234033 -0.00116527 -4.53509e-07 -5.75251e-06 4.53264e-05 0.00552097 -0.000215369 0.00439674 4.79687e-06 0.00700136 -0.0720006 -0.00614144 -0.000666667 -0.000666667 0 -1.54783e-11 2.45999e-11 0 -0.928291 -0.585038 0 -9.42898 6.15337 -1.5488 -0.0448835 -0.102194 0.110969 0.0881764 -1.65004 0.300923 -0.162723 -0.128937 0.112325 0.271231 -0.211341 -0.25707 0.00239468 -0.00407812 -0.000215494 0.0376228 0.0020699 0.0309371 -0.00141065 -0.00123873 -2.44116e-05 0.000634857 0.0240474 -0.0144016 -0.00249797 -0.00394935 1.05299e-06 -0.000873748 0.0157408 -0.0438903 -0.00115268 -0.00118806 -2.61997e-05 -0.00233825 -0.00453092 -0.00146071 -0.130373 0.240247 -0.0123883 1.65956 1.79894 2.98394 0.0250325 -0.00464822 0.00246434 0.731678 1.20018 0.317844 -0.00361478 0.00414485 1.29172e-05 0.0218781 0.00877792 -0.101484 -0.742864 -0.426001 5.12569e-09 -7.63371 4.09668 -0.857194 -0.0137723 0.000134714 -0.000484434 0.0158703 -0.150091 0.0897791 0.0137517 0.0510444 -0.00322069 -4.69646 1.71185 -1.11542 -0.454905 -0.560003 0.000712467 2.24366 -8.21156 1.78668 -0.0044415 -0.0159933 0.000621601 -0.178558 0.635697 -0.758003 -0.430915 0.0364202 4.20579e-05 -0.024081 5.28743 2.48597 -0.00602047 -0.00354149 -0.000144023 0.0259295 0.0677522 0.0176089 -0.725869 -0.699083 0.0638942 7.77811 2.04038 -8.6153 -1.25047 -0.638834 0 8.02548 -2.36031 -13.1633 0.00377968 -0.00827153 0.000391221 -0.0487225 0.0739992 -0.00299365"/>
+  </keyframe>
+</mujoco>

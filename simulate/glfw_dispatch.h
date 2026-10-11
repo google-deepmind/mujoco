@@ -18,8 +18,8 @@
 #include <GLFW/glfw3.h>
 
 #ifdef __APPLE__
-#define GLFW_EXPOSE_NATIVE_NSGL
-#include <GLFW/glfw3native.h>
+  #define GLFW_EXPOSE_NATIVE_NSGL
+  #include <GLFW/glfw3native.h>
 #endif
 
 namespace mujoco {
@@ -66,6 +66,10 @@ struct Glfw {
 
 #ifdef __APPLE__
   mjGLFW_DECLARE_SYMBOL(glfwGetNSGLContext);
+#endif
+
+#if GLFW_VERSION_MAJOR > 3 || (GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 4)
+  mjGLFW_DECLARE_SYMBOL(glfwGetPlatform);
 #endif
 
 #undef mjGLFW_DECLARE_SYMBOL

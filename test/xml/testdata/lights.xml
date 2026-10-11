@@ -1,0 +1,12 @@
+<mujoco>
+  <asset>
+    <texture name="texture1" type="2d" file="hfield.png"/>
+  </asset>
+  <worldbody>
+    <light name="light1" type="spot" pos="1 2 3" dir="0 0 1" diffuse="0.1 0.2 0.3" ambient="0.4 0.5 0.6" specular="0.7 0.8 0.95"/>
+    <light name="light2" type="spot" attenuation="0.1 0.2 0.3" cutoff="0.4" exponent="0.5"/>
+    <light name="light3" type="point" range="2" intensity="300" bulbradius="0.5"/>
+    <light name="light4" type="directional" dir="1 0 0" active="false" castshadow="false"/>
+    <light name="light5" type="image" texture="texture1"/>
+  </worldbody>
+</mujoco>

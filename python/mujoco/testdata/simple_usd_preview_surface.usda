@@ -1,0 +1,81 @@
+#usda 1.0
+(
+    endTimeCode = 1
+    framesPerSecond = 24
+    metersPerUnit = 1
+    startTimeCode = 1
+    timeCodesPerSecond = 24
+    upAxis = "Y"
+)
+
+def Xform "World"
+{
+    def Cube "Cube" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+        rel material:binding = </materials/simple_usd_preview_surface>
+        double size = 2
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+
+    def Cube "Cube2" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+        rel material:binding = </materials/simple_usd_texture>
+        double size = 2
+        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) )
+        matrix4d xformOp:transform:transform1 = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, -2.9009591341018677, 0, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform", "xformOp:transform:transform1"]
+    }
+}
+
+def Scope "materials"
+{
+    def Material "simple_usd_preview_surface" (
+        prepend inherits = </__class_mtl__/simple_usd_preview_surface>
+    )
+    {
+        token outputs:surface.connect = </materials/simple_usd_preview_surface/usdpreviewsurface.outputs:surface>
+
+        def Shader "usdpreviewsurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.1, 0.2, 0.3)
+            color3f inputs:emissiveColor = (0.4, 0.5, 0.6)
+            float inputs:metallic = 0.123
+            float inputs:roughness = 0.456
+            token outputs:surface
+        }
+    }
+
+    def Material "simple_usd_texture" (
+        prepend inherits = </__class_mtl__/simple_usd_texture>
+    )
+    {
+        token outputs:surface.connect = </materials/simple_usd_texture/usdpreviewsurface.outputs:surface>
+
+        def Shader "usdpreviewsurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.1, 0.2, 0.3)
+            color3f inputs:diffuseColor.connect = </materials/simple_usd_texture/usduvtexture1.outputs:rgb>
+            color3f inputs:emissiveColor = (0.4, 0.5, 0.6)
+            float inputs:metallic = 0.123
+            float inputs:roughness = 0.456
+            token outputs:surface
+        }
+
+        def Shader "usduvtexture1"
+        {
+            uniform token info:id = "UsdUVTexture"
+            asset inputs:file = @./checkerboard.png@
+            vector3f outputs:rgb
+        }
+    }
+}
+

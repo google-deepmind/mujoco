@@ -1,0 +1,10 @@
+load("//:build_defs.bzl", "MJ_ROOT", "mj_models_filegroup")
+
+licenses(["notice"])
+
+mj_models_filegroup(
+    name = "test_mjcf",
+    extra_srcs = [
+        "//test/engine/testdata/collision_convex/perf:test_mjcf",
+    ],
+)

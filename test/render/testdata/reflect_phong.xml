@@ -1,0 +1,28 @@
+<mujoco model="Reflection: phong color + textured">
+  <!-- Minimal planar-reflection bed for two non-PBR reflect paths:
+         floor  -> phong_2d_uv_reflect (uv0 texture on a plane)
+         mirror -> phong_color_reflect (untextured tint)
+       See reflection.xml for the full integration scene. -->
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1=".18 .22 .30" rgb2=".55 .58 .62" width="32" height="512"/>
+    <texture name="ibl" type="cube" builtin="gradient" rgb1=".32 .35 .40" rgb2=".58 .56 .52" width="32" height="32"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".05 .06 .09" rgb2=".42 .45 .50" width="300" height="300"/>
+    <material name="floor"  texture="grid" texrepeat="3 3" texuniform="true" reflectance=".5"/>
+    <material name="mirror" rgba=".04 .05 .07 1" reflectance=".85"/>
+    <material name="post"   rgba=".82 .16 .16 1"/>
+    <material name="ball"   rgba=".20 .68 .30 1"/>
+  </asset>
+
+  <worldbody>
+    <camera name="view" pos="2.997 -1.006 2.846" xyaxes="0.250 0.968 0.000 -0.455 0.118 0.882"/>
+    <light pos="1.5 0.6 2.6" dir="-0.6 -0.2 -2" cutoff="55" range="20" intensity="800000"
+           castshadow="true" ambient=".1 .1 .12" type="spot"/>
+    <light type="image" texture="ibl" intensity="8000"/>
+
+    <geom name="floor"  type="plane" size="3 3 .1" material="floor"/>
+    <geom name="mirror" type="box"   size="1.0 0.7 0.02" material="mirror" pos="-1.2 0 0.7" euler="0 80 0"/>
+    <geom name="post"   type="box"    material="post" size=".05 .05 .5" pos="0 0 0.5"/>
+    <geom name="ball"   type="sphere" material="ball" size=".22" pos="0.4 -0.5 0.22"/>
+  </worldbody>
+</mujoco>

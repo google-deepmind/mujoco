@@ -1,0 +1,807 @@
+# Description:
+#   Tests for mujoco/src/engine
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("//:build_defs.bzl", "MJ_ROOT")
+
+licenses(["notice"])
+
+cc_library(
+    name = "boxbox_legacy",
+    testonly = True,
+    srcs = ["boxbox_legacy.c"],
+    hdrs = ["boxbox_legacy.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_inline",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_misc",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_box_test",
+    srcs = ["engine_collision_box_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata/collision_box:test_mjcf",
+    ],
+    deps = [
+        ":boxbox_legacy",
+        "//:mujoco",
+        "//src/engine:engine_collision",
+        "//src/engine:engine_collision_convex",
+        "//src/engine:engine_collision_primitive",
+        "//src/engine:engine_util_misc",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_box_fuzz_test",
+    srcs = ["engine_collision_box_fuzz_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_collision_convex",
+        "//src/engine:engine_collision_primitive",
+        "//src/engine:engine_util_misc",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_continuous_test",
+    srcs = ["engine_collision_continuous_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_collision_continuous",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_convex_test",
+    srcs = ["engine_collision_convex_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = ["//test/engine/testdata/collision_convex:test_mjcf"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_collision_convex",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_gjk_test",
+    srcs = ["engine_collision_gjk_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:ccd_deps",
+        "//src/engine:engine_collision_convex",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_driver_test",
+    srcs = ["engine_collision_driver_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:collisions.xml",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_collision",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_collision_sdf_test",
+    srcs = ["engine_collision_sdf_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:collisions.xml",
+    ],
+    deps = [
+        "//:mujoco",
+        "//plugin/sdf:register",
+        "//src/engine:engine_collision_raysdf",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_core_constraint_test",
+    srcs = ["engine_core_constraint_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:equality_site_body_compare.xml",
+        "//test/engine/testdata/core_constraint:test_mjcf",
+        "//test/engine/testdata/island:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_core",
+        "//src/engine:engine_core_util",
+        "//src/engine:engine_support",
+        "//src/engine:engine_util_misc",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_core_smooth_test",
+    srcs = ["engine_core_smooth_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:actuation/orientation.xml",
+        "//test/engine/testdata:actuation/refsite.xml",
+        "//test/engine/testdata:actuation/refsite_free.xml",
+        "//test/engine/testdata:equality_site_body_compare.xml",
+        "//test/engine/testdata:inertia.xml",
+        "//test/engine/testdata:tendon_springlength.xml",
+        "//test/engine/testdata/core_smooth:test_mjcf",
+        "//test/engine/testdata/island:test_mjcf",
+        "//test/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_core",
+        "//src/engine:engine_util_misc",
+        "//src/engine:engine_util_sparse",
+        "//test:fixture",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_derivative_test",
+    srcs = ["engine_derivative_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:test_mjcf",
+        "//test/engine/testdata/sleep:test_mjcf",
+        "//test/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine",
+        "//src/engine:engine_core",
+        "//src/engine:engine_core_util",
+        "//src/engine:engine_derivative",
+        "//src/engine:engine_forward",
+        "//src/engine:engine_io",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_sparse",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_forward_test",
+    srcs = ["engine_forward_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:actuation/actearly.xml",
+        "//test/engine/testdata:actuation/joint_force_clamp.xml",
+        "//test/engine/testdata:actuation/refsite.xml",
+        "//test/engine/testdata:actuation/tendon_dampratio.xml",
+        "//test/engine/testdata:actuation/tendon_force_clamp.xml",
+        "//test/engine/testdata:armature_equivalence.xml",
+        "//test/engine/testdata:derivative/damped_actuators.xml",
+        "//test/engine/testdata:derivative/damped_pendulum.xml",
+        "//test/engine/testdata:derivative/energy_conserving_pendulum.xml",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_callback",
+        "//src/engine:engine_core_util",
+        "//src/engine:engine_derivative",
+        "//src/engine:engine_forward",
+        "//src/engine:engine_io",
+        "//src/engine:engine_memory",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_inverse_test",
+    srcs = ["engine_inverse_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_forward",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_island_test",
+    timeout = "long",
+    srcs = ["engine_island_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//model/humanoid",
+        "//test/engine/testdata/island:test_mjcf",
+        "//test/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_island",
+        "//src/engine:engine_util_sparse",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_io_test",
+    srcs = ["engine_io_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_io",
+        "//src/engine:engine_memory",
+        "//src/engine:engine_thread",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_ipc_test",
+    srcs = ["engine_ipc_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_collision_continuous",
+        "//src/engine:engine_derivative",
+        "//src/engine:engine_memory",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_plugin_test",
+    srcs = ["engine_plugin_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+        "//src/engine:engine_plugin",
+        "//test:fixture",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_passive_test",
+    srcs = ["engine_passive_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:tendon_springlength.xml",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_print_test",
+    srcs = ["engine_print_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_print",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_ray_test",
+    srcs = ["engine_ray_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = ["//test/engine/testdata/ray:test_mjcf"],
+    deps = [
+        "//:mujoco",
+        "//plugin/sdf:register",
+        "//src/engine:engine_collision_raysdf",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_sensor_test",
+    srcs = ["engine_sensor_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = ["//test/engine/testdata/sensor:test_mjcf"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_support",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_spatial",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_setconst_test",
+    srcs = ["engine_setconst_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_sleep_test",
+    srcs = ["engine_sleep_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata/sleep:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_sleep",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_solver_test",
+    srcs = ["engine_solver_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata/island:test_mjcf",
+        "//test/engine/testdata/solver:test_mjcf",
+        "//test/testdata:model",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_cg_convergence_test",
+    srcs = ["engine_cg_convergence_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata/island:test_mjcf",
+    ],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_sort_test",
+    srcs = ["engine_sort_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//src/engine:engine_sort",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_support_test",
+    srcs = ["engine_support_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//model/humanoid",
+        "//test/engine/testdata:inertia.xml",
+        "//test/engine/testdata/island:test_mjcf",
+        "//test/testdata:model",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_support",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_thread_test",
+    srcs = ["engine_thread_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//model/humanoid",
+        "//test/engine/testdata/island:test_mjcf",
+    ],
+    shard_count = 2,
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_thread",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_util_errmem_test",
+    srcs = ["engine_util_errmem_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_util_errmem",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_util_blas_test",
+    srcs = ["engine_util_blas_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_util_blas",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_util_sparse_test",
+    srcs = ["engine_util_sparse_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_util_sparse",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_util_solve_test",
+    srcs = ["engine_util_solve_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_misc",
+        "//src/engine:engine_util_solve",
+        "//src/engine:engine_util_sparse",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_util_spatial_test",
+    srcs = ["engine_util_spatial_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_util_blas",
+        "//src/engine:engine_util_spatial",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_util_misc_test",
+    srcs = ["engine_util_misc_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_util_misc",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_core_util_test",
+    srcs = ["engine_core_util_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//src/engine:engine_core_util",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_vis_visualize_test",
+    srcs = ["engine_vis_visualize_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//plugin/elasticity:register",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_pgs_convergence_test",
+    srcs = ["engine_pgs_convergence_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/engine/testdata:test_mjcf",
+    ],
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = [
+        "//:mujoco",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)

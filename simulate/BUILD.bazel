@@ -1,0 +1,137 @@
+# Description:
+#   Simulate GUI application shipped with MuJoCo.
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+
+licenses(["notice"])
+
+exports_files([".clang-format"])
+
+cc_library(
+    name = "platform_ui_adapter",
+    srcs = ["platform_ui_adapter.cc"],
+    hdrs = ["platform_ui_adapter.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:libmujoco_hdrs",
+    ],
+)
+
+cc_library(
+    name = "glfw_adapter",
+    srcs = ["glfw_adapter.cc"],
+    hdrs = ["glfw_adapter.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":glfw_dispatch",
+        ":platform_ui_adapter",
+        "//:libmujoco_hdrs",
+        "//src/render/classic",
+        "//src/ui:ui_main",
+        "@glfw",
+    ] + select({
+        "@platforms//os:macos": [":glfw_corevideo"],
+        "//conditions:default": [],
+    }),
+)
+
+objc_library(
+    name = "glfw_corevideo",
+    srcs = select({
+        "@platforms//os:macos": [
+            "glfw_corevideo.mm",
+            "macos_gui.mm",
+        ],
+        "//conditions:default": [],
+    }),
+    hdrs = [
+        "glfw_adapter.h",
+        "glfw_corevideo.h",
+    ],
+    copts = [
+        "-fno-objc-arc",
+        "-std=c++20",
+    ],
+    sdk_frameworks = [
+        "Cocoa",
+        "CoreVideo",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+    deps = select({
+        "@platforms//os:macos": [
+            ":glfw_dispatch",
+            ":platform_ui_adapter",
+            "//:libmujoco_hdrs",
+            "@glfw",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "glfw_dispatch",
+    srcs = ["glfw_dispatch.cc"],
+    hdrs = ["glfw_dispatch.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "@glfw",
+    ],
+)
+
+cc_library(
+    name = "lib",
+    srcs = [
+        "array_safety.h",
+        "simulate.cc",
+    ],
+    hdrs = ["simulate.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":platform_ui_adapter",
+        "//:libmujoco_hdrs",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+        "//src/cc:array_safety",
+        "@lodepng",
+    ],
+)
+
+cc_binary(
+    name = "simulate",
+    srcs = [
+        "array_safety.h",
+        "main.cc",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":glfw_adapter",
+        ":lib",
+        "//:mujoco",
+        "//src/cc:array_safety",
+        "//src/render/classic",
+        "//src/ui:ui_main",
+    ],
+)
+
+exports_files(
+    srcs = [
+        "glfw_corevideo.h",
+        "glfw_corevideo.mm",
+        "macos_gui.mm",
+    ],
+)
