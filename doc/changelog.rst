@@ -9,6 +9,9 @@ General
 ^^^^^^^
 - Added support for building MuJoCo with `Bazel <https://bazel.build/>`__ (initially covers core library, ``simulate``,
   plugins, and samples).
+- Added a first-party :ref:`resource provider<exProvider>` plugin, ``plugin/package_uri``, that serves ROS-style
+  ``package://`` URIs by locating packages through ``AMENT_PREFIX_PATH`` and ``ROS_PACKAGE_PATH`` without depending on
+  ROS. Load the library to reference ROS package assets from URDF and MJCF models unchanged.
 
 .. admonition:: Breaking API changes
    :class: attention
@@ -134,6 +137,9 @@ Compiler
   :ref:`mesh/builtin<asset-mesh-builtin>` and :ref:`mjs_makeMesh`, generating the same shapes as the corresponding
   :ref:`flexcomp<body-flexcomp>` types. Types without volume change a ``legacy`` mesh inertia to ``shell``.
 - Procedural mesh assets can be consumed directly by :ref:`flexcomp<body-flexcomp>` or geoms. Added Python convenience methods ``mjsMesh.make_*``.
+- :ref:`strippath<compiler-strippath>` no longer strips file names that match a registered
+  :ref:`resource provider<exProvider>`, such as ``package://`` URIs. These names are not filesystem paths, and the
+  compiler already treats them as absolute when combining them with :ref:`meshdir<compiler-meshdir>`.
 
 Bug fixes
 ^^^^^^^^^
