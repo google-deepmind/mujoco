@@ -31,6 +31,13 @@ from collections.abc import Iterator
 import contextlib
 import copy
 import dataclasses
+import logging
+import re
+import sys
+import threading
+import traceback
+from typing import Any
+import warnings
 
 import mujoco
 from mujoco.experimental.studio import messages
@@ -43,6 +50,144 @@ from mujoco.experimental.studio import viewer_protocol
 from mujoco.experimental.studio import viewer_utils
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
+
+logger = logging.getLogger(__name__)
+
+
+class _StudioLogHandler(logging.Handler):
+  """Adds Python log records from any thread to the Studio Console.
+
+  The records are only added to the console. Python's other logging handlers
+  still print them, or logging.lastResort if there are none.
+  """
+
+  def emit(self, record: logging.LogRecord) -> None:
+    try:
+      msg = self.format(record)
+      if record.levelno >= logging.ERROR:
+        level = int(mujoco.mjtLogLevel.mjLOG_ERROR)
+      elif record.levelno >= logging.WARNING:
+        level = int(mujoco.mjtLogLevel.mjLOG_WARNING)
+      elif record.levelno >= logging.INFO:
+        level = int(mujoco.mjtLogLevel.mjLOG_INFO)
+      else:
+        level = int(mujoco.mjtLogLevel.mjLOG_DEBUG)
+      ux.add_console_message(level, msg)
+      # Python prints records that reach no handler with logging.lastResort.
+      # This handler counts as one, so print records that reach no other
+      # handler here, whatever their level, as they are in the console.
+      last_resort = logging.lastResort
+      if last_resort is not None and not self._reaches_other_handler(record):
+        last_resort.handle(record)
+    except Exception:  # pylint: disable=broad-exception-caught
+      self.handleError(record)
+
+  def _reaches_other_handler(self, record: logging.LogRecord) -> bool:
+    """Returns whether the record also reaches a handler other than this one."""
+    logger: logging.Logger | None = logging.getLogger(record.name)
+    while logger is not None:
+      if any(handler is not self for handler in logger.handlers):
+        return True
+      logger = logger.parent if logger.propagate else None
+    return False
+
+
+class _ConsoleHooks:
+  """Adds Python warnings and uncaught exceptions to the Studio Console.
+
+  Each hook adds the warning or exception to the console and then calls the
+  hook it replaced, which prints it as before.
+  """
+
+  def __init__(self) -> None:
+    self.orig_showwarning = warnings.showwarning
+    self.orig_threading_excepthook = threading.excepthook
+    self.orig_sys_excepthook = sys.excepthook
+
+  def showwarning(
+      self,
+      message: Warning | str,
+      category: type[Warning],
+      filename: str,
+      lineno: int,
+      file: Any = None,
+      line: str | None = None,
+  ) -> None:
+    if file is None or file is sys.stderr:
+      ux.add_console_message(
+          int(mujoco.mjtLogLevel.mjLOG_WARNING),
+          f'{filename}:{lineno}: {category.__name__}: {message}'.rstrip('\n'),
+      )
+    self.orig_showwarning(message, category, filename, lineno, file, line)
+
+  def threading_excepthook(self, args: threading.ExceptHookArgs) -> None:
+    if args.exc_type is not SystemExit:
+      thread_name = args.thread.name if args.thread else 'unknown'
+      tb = ''.join(
+          traceback.format_exception(
+              args.exc_type, args.exc_value, args.exc_traceback
+          )
+      ).rstrip('\n')
+      ux.add_console_message(
+          int(mujoco.mjtLogLevel.mjLOG_ERROR),
+          f'Unhandled exception in thread {thread_name!r}:\n{tb}',
+      )
+    self.orig_threading_excepthook(args)
+
+  def sys_excepthook(
+      self,
+      exc_type: type[BaseException],
+      exc_value: BaseException,
+      exc_traceback: Any,
+  ) -> None:
+    if not issubclass(exc_type, KeyboardInterrupt):
+      tb = ''.join(
+          traceback.format_exception(exc_type, exc_value, exc_traceback)
+      ).rstrip('\n')
+      ux.add_console_message(int(mujoco.mjtLogLevel.mjLOG_ERROR), tb)
+    self.orig_sys_excepthook(exc_type, exc_value, exc_traceback)
+
+
+_STUDIO_LOG_HANDLER = _StudioLogHandler()
+_HOOKS_LOCK = threading.Lock()
+_hooks: _ConsoleHooks | None = None
+
+
+def install_console_hooks() -> None:
+  """Adds logs, warnings, and uncaught exceptions to the Studio Console.
+
+  Installs the MuJoCo log handler (see ux.init_console), adds a handler for
+  Python log records, and hooks warnings.showwarning, threading.excepthook, and
+  sys.excepthook. Each hook adds to the console and then calls what it replaced
+  (falling back to logging.lastResort for log records that reach no other
+  handler), leaving terminal and file output unchanged. Only the first call
+  installs these; later calls only check again how logging is configured, e.g.
+  whether web_server has configured its logger since.
+  """
+  global _hooks
+  with _HOOKS_LOCK:
+    if _hooks is None:
+      ux.init_console()
+      logging.getLogger().addHandler(_STUDIO_LOG_HANDLER)
+      # MjSpec.compile() reports compiler warnings with warnings.warn(), which
+      # attributes them to the parser. Show them on every load, not just the
+      # first time, so that reloading a model shows its warnings again.
+      warnings.filterwarnings(
+          'always', category=UserWarning, module=re.escape(parser.__name__)
+      )
+      _hooks = _ConsoleHooks()
+      warnings.showwarning = _hooks.showwarning
+      threading.excepthook = _hooks.threading_excepthook
+      sys.excepthook = _hooks.sys_excepthook
+
+    # When web_server configures its logger, it stops it propagating to the
+    # root logger, so that logger needs the handler too.
+    web_logger = logging.getLogger('WebServer')
+    if (
+        not web_logger.propagate
+        and _STUDIO_LOG_HANDLER not in web_logger.handlers
+    ):
+      web_logger.addHandler(_STUDIO_LOG_HANDLER)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,9 +212,10 @@ class ViewerAppConfig:
 
   show_info: bool = False
   show_profiler: bool = False
+  show_console: bool = False
   show_options: bool = True
   show_toolbar: bool = False
-  show_status_bar: bool = False
+  show_status_bar: bool = True
   show_inspector: bool = True
 
 
@@ -110,6 +256,7 @@ class ViewerApp:
     self.viewer.data = value
 
   def __init__(self, config: ViewerAppConfig | None = None) -> None:
+    install_console_hooks()
     self._viewer: viewer_protocol.Viewer | None = None
     self.theme = ux.load_theme()
     self.config = config or ViewerAppConfig()
@@ -119,6 +266,8 @@ class ViewerApp:
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_viewer_init(self, event: viewer_protocol.ViewerInitEvent) -> None:
     self.viewer = event.viewer
+    # Creating the web viewer configures the web server's logger.
+    install_console_hooks()
     self.theme = ux.load_settings(def_theme=self.theme)
     ux.setup_theme(self.theme)
     self.viewer.dispatch(ViewerAppInitEvent(viewer_app=self))
@@ -151,22 +300,30 @@ class ViewerApp:
     else:
       mujoco.mjv_defaultFreeCamera(self.model, self.viewer.camera)
 
+  def _load_model(self, path: str) -> None:
+    """Loads a model file and sends it to the sim side and viewer plugins.
+
+    If the file cannot be loaded, logs an error and does nothing else.
+
+    Args:
+      path: The model file to load.
+    """
+    try:
+      data = parser.parse(path)
+    except Exception as ex:  # pylint: disable=broad-except
+      logger.error('Could not load model %r: %s', path, ex)
+      return
+    # Notify all handlers on the sim side.
+    self.viewer.send_to_sim(messages.ModelEvent(model=data.model, path=path))
+    # Notify all handlers on the viewer side.
+    self.viewer.dispatch(messages.ModelEvent(model=data.model, path=path))
+    # Discard all snapshots, including any stale state snapshots.
+    self.viewer.get_sim_snapshots()
+
   def reload_model(self) -> None:
     """Reload the current model from its file."""
     if self.model_path:
-      # Only a bad model file is tolerated; a raising plugin handler propagates.
-      try:
-        data = parser.parse(self.model_path)
-      except Exception as ex:  # pylint: disable=broad-except
-        print(f'Error reloading model from {self.model_path!r}: {ex}')
-        return
-      self.viewer.send_to_sim(
-          messages.ModelEvent(model=data.model, path=self.model_path)
-      )
-      self.viewer.dispatch(
-          messages.ModelEvent(model=data.model, path=self.model_path)
-      )
-      self.viewer.get_sim_snapshots()
+      self._load_model(self.model_path)
 
   def close(self) -> None:
     self.viewer.dispatch(messages.ExitEvent())
@@ -302,22 +459,7 @@ class ViewerApp:
     drop_file = self.viewer.get_drop_file()
     # Handle file drop: update viewer model/data, reset app state, notify sim.
     if drop_file:
-      # Only a bad model file is tolerated; a raising plugin handler propagates.
-      try:
-        data = parser.parse(drop_file)
-      except Exception as ex:  # pylint: disable=broad-except
-        print(f'Error loading model from {drop_file!r}: {ex}')
-      else:
-        # Notify all handlers on the sim side
-        self.viewer.send_to_sim(
-            messages.ModelEvent(model=data.model, path=drop_file)
-        )
-        # Notify all handlers on the viewer side.
-        self.viewer.dispatch(
-            messages.ModelEvent(model=data.model, path=drop_file)
-        )
-        # Discard all snapshots, including any stale state snapshots
-        self.viewer.get_sim_snapshots()
+      self._load_model(drop_file)
 
     with self._send_if_changes():
       # Handle user input.
@@ -379,6 +521,8 @@ class ViewerApp:
             self.config.show_info = not self.config.show_info
           if imgui.MenuItem('Profiler', 'F3', self.config.show_profiler):
             self.config.show_profiler = not self.config.show_profiler
+          if imgui.MenuItem('Console', '', self.config.show_console):
+            self.config.show_console = not self.config.show_console
           imgui.Separator()
           changed, self.theme = ux.theme_menu_gui(self.theme)
           if changed:
@@ -518,6 +662,17 @@ class ViewerApp:
         ux.convergence_gui(self.model, self.data)
         imgui.End()
 
+      if self.config.show_console:
+        expanded, self.config.show_console = imgui.Begin(
+            'Console', self.config.show_console
+        )
+        if expanded:
+          ux.console_gui()
+        elif imgui.IsWindowCollapsed():
+          imgui.SetWindowCollapsed(False)
+          self.config.show_console = False
+        imgui.End()
+
       if self.config.show_info:
         _, self.config.show_info = imgui.Begin('Info', self.config.show_info)
         paused = (
@@ -532,7 +687,16 @@ class ViewerApp:
         imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(0, 0))
         imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0, 0))
         if imgui.Begin('StatusBar'):
-          imgui.Text(self.status)
+          if imgui.BeginTable('##StatusBarTable', 2):
+            imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthStretch))
+            imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthFixed))
+            imgui.TableNextColumn()
+            imgui.TextUnformatted(self.status)
+            imgui.TableNextColumn()
+            self.config.show_console = ux.console_status_gui(
+                self.config.show_console
+            )
+            imgui.EndTable()
         imgui.End()
         imgui.PopStyleVar(3)
 

@@ -781,3 +781,26 @@ client maintain continuous heartbeat ping-pongs over `/ui` and `/state`.
 
 Always build and run Studio targets with `-c opt` so physics stepping, Filament
 rendering, and UI streaming execute with compiler optimizations enabled.
+
+### 9. Debugging: Terminal, Studio Console & Browser Console
+
+Host and browser logs end up in different places:
+
+1.  **Host logs (Python and the MuJoCo engine)**: Once a `ViewerApp` exists
+    (and in the C++ Studio app), MuJoCo log messages (`mju_warning`,
+    `mju_message`, ...) and Python `logging` records, `warnings.warn` calls,
+    and uncaught exceptions from any thread are added to the Studio Console
+    (`ux.console_gui` / `Console::WindowGui`). Each hook still passes messages
+    to the existing handlers (falling back to `logging.lastResort` when no other
+    Python handler is configured), so errors and warnings still appear in the
+    terminal. The status bar shows the message, warning, and error counts;
+    click it to toggle the Console. Right-click the Console to clear it, copy
+    all lines, or change the engine's log config (`mju_setLogConfig`): whether
+    it prints to the terminal, writes `MUJOCO_LOG.TXT`, and which info topics
+    are on; the Console itself captures regardless. Tests and scripts can read
+    the Console with `ux.get_console_lines()` and `ux.get_console_counts()`.
+2.  **Browser logs (WebViewer rendering, WASM, or WebSocket issues)**: These are
+    only in the browser console. Read them with the `chrome-devtools` MCP
+    (`list_console_messages`) if available, or run headless Chrome with
+    `--remote-debugging-port=9222` and subscribe to the DevTools Protocol's
+    `Runtime.consoleAPICalled` and `Runtime.exceptionThrown` events.
