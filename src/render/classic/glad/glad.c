@@ -175,6 +175,24 @@ static int mjGlad_open_gl(void* get_proc_address) {
   // may already be present. We go through all supported GetProcAddress functions until we find one.
   void* handle = dlopen(NULL, RTLD_NOW | RTLD_GLOBAL);
   if (handle) {
+    // If MUJOCO_GL environment variable is set, honor user's explicit preference first.
+    const char* gl_env = getenv("MUJOCO_GL");
+    if (gl_env) {
+      if (strcmp(gl_env, "osmesa") == 0) {
+        mjGladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)dlsym(handle,
+            "OSMesaGetProcAddress");
+        if (mjGladGetProcAddressPtr) { return 1; }
+      } else if (strcmp(gl_env, "egl") == 0) {
+        mjGladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)dlsym(handle,
+            "eglGetProcAddress");
+        if (mjGladGetProcAddressPtr) { return 1; }
+      } else if (strcmp(gl_env, "glx") == 0 || strcmp(gl_env, "glfw") == 0) {
+        mjGladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)dlsym(handle,
+            "glXGetProcAddressARB");
+        if (mjGladGetProcAddressPtr) { return 1; }
+      }
+    }
+
     // Try EGL.
     mjGladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)dlsym(handle,
         "eglGetProcAddress");
