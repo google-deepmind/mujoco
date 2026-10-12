@@ -160,7 +160,7 @@ these components fit together for offscreen rendering:
    request.camera              = mjv_camera2GLCamera(m, d, &cam);
    request.viewport            = viewport;
    request.target              = render_target.get();
-   request.enable_headlight    = m->vis.headlight.active;
+   request.headlight    = m->vis.headlight.active;
    request.headlight_intensity = model_lights->GetHeadlightIntensity();
 
    mjrfReadRequest read_request;
@@ -180,10 +180,13 @@ these components fit together for offscreen rendering:
 Core concepts
 '''''''''''''
 
-The ``mjrf`` C API revolves around seven opaque object types, each created with an ``mjrf_create*`` function (configured
-via a struct initialized by ``mjrf_default*``) and freed with ``mjrf_destroy*``: :ref:`mjrfContext`, :ref:`mjrfScene`,
-:ref:`mjrfMesh`, :ref:`mjrfTexture`, :ref:`mjrfRenderable`, :ref:`mjrfLight`, and :ref:`mjrfRenderTarget`. Plain structs
-such as :ref:`mjrfMaterial` and :ref:`mjrfRenderRequest` describe how these objects are configured and drawn.
+The ``mjrf`` C API revolves around seven opaque object types, each created with an ``mjrf_create*`` function and freed
+with ``mjrf_destroy*``: :ref:`mjrfContext`, :ref:`mjrfScene`, :ref:`mjrfMesh`, :ref:`mjrfTexture`,
+:ref:`mjrfRenderable`, :ref:`mjrfLight`, and :ref:`mjrfRenderTarget`. Creation takes a struct initialized by
+``mjrf_default*``, whose name encodes a rule: a ``*Config`` (context, texture, mesh, render target) is fixed for the
+lifetime of the object, while ``*Params`` (scene, light, renderable) are initial values that can later be changed with
+``mjrf_set*`` functions. Plain structs such as :ref:`mjrfMaterial` and :ref:`mjrfRenderRequest` describe how these
+objects are configured and drawn.
 
 **Context and scene** (:ref:`mjrfContext`, :ref:`mjrfScene`)
    :ref:`mjrfContext` is the entry point to the Filament renderer. Unlike the classic :ref:`mjrContext`, it manages its

@@ -49,7 +49,7 @@ typedef enum mjrGraphicsApi_ {
 // Parameters for creating filament graphics context (mjrfContext).
 typedef struct mjrfContextConfig_ {
   int graphics_api;                  // rendering graphics API [mjrGraphicsApi]
-  mjtBool force_software_rendering;  // force backend to use software rendering
+  mjtBool software_rendering;        // force backend to use software rendering
   void* native_window;               // platform-dependent window handle (or nullptr for windowless)
 } mjrfContextConfig;
 
@@ -83,14 +83,14 @@ typedef struct mjrfRenderRequest_ {
   mjrRect viewport;                  // viewport (rect area) into which to render
   mjrfRenderTarget* target;          // target used for rendering (or nullptr for window rendering)
   int draw_mode;                     // method to use for drawing objects [mjrDrawMode]
-  mjtBool enable_post_processing;    // enable post processing, enabled by default
-  mjtBool enable_reflections;        // enable reflections, enabled by default
-  mjtBool enable_shadows;            // enable shadows, enabled by default
+  mjtBool post_processing;           // enable post processing, enabled by default
+  mjtBool reflections;               // enable reflections, enabled by default
+  mjtBool shadows;                   // enable shadows, enabled by default
 
   // The headlight is a directional light aligned with this request's camera. It
   // is a property of the request rather than of the scene, so that a scene
   // rendered from several cameras is not lit by any one of them.
-  mjtBool enable_headlight;          // enable the headlight, disabled by default
+  mjtBool headlight;                 // enable the headlight, disabled by default
   float headlight_color[3];          // headlight color, RGB
   float headlight_intensity;         // headlight intensity, in lux
 } mjrfRenderRequest;
@@ -269,10 +269,10 @@ typedef struct mjrfLightParams_ {
   const mjrfTexture* texture;      // texture; only for image lights
   float color[3];                  // RGB color
   float intensity;                 // light intensity, in candela
-  mjtBool cast_shadows;            // if true, cast shadows
+  mjtBool cast_shadow;             // if true, cast shadows
   float range;                     // effective range of light, in meters
-  float spot_cone_angle;           // spot light cone angle, in degrees
-  float spot_softness;             // spot light edge softness, fraction of cone angle in [0, 1]
+  float cutoff;                    // spot light cone angle, in degrees
+  float softness;                  // spot light edge softness, fraction of cone angle in [0, 1]
   int shadow_map_size;             // size of shadow map texture, 0 to use default size
   float bulb_radius;               // bulb radius, used for soft shadows
 } mjrfLightParams;
@@ -354,8 +354,8 @@ void mjrf_defaultMaterial(mjrfMaterial* material);
 
 // Parameters for creating a renderable (mjrfRenderable).
 typedef struct mjrfRenderableParams_ {
-  mjtBool cast_shadows;                 // if true, casts shadows
-  mjtBool receive_shadows;              // if true, receives shadows
+  mjtBool cast_shadow;                  // if true, casts shadows
+  mjtBool receive_shadow;               // if true, receives shadows
   uint16_t blend_order;                 // controls draw order for transparent objects [0, 8]
 } mjrfRenderableParams;
 
@@ -402,7 +402,7 @@ typedef struct mjrfRenderTargetConfig_ {
   int depth_format;                       // pixel format for depth buffer [mjrPixelFormat]
 } mjrfRenderTargetConfig;
 
-// Initializes the RenderTargetConfig to default values.
+// Initializes the mjrfRenderTargetConfig to default values.
 void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config);
 
 // Creates a render target for the filament renderer.
@@ -413,9 +413,6 @@ void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target);
 
 // Resizes the render target to the given width and height.
 void mjrf_resizeRenderTarget(mjrfRenderTarget* render_target, int width, int height);
-
-// Draws an ImGui editor for the given scene, exposing filament-specific settings.
-void mjrf_DEBUG_drawImguiEditor(mjrfScene* scene);
 
 #if defined(__cplusplus)
 }  // extern "C"

@@ -43,7 +43,7 @@ class CompatContext {
 
   // The headlight is a render request option; fill it in from the bridge.
   void SetHeadlight(mjrfRenderRequest* req) const {
-    req->enable_headlight = scene_bridge_->IsHeadlightEnabled();
+    req->headlight = scene_bridge_->IsHeadlightEnabled();
     const float* color = scene_bridge_->GetHeadlightColor();
     req->headlight_color[0] = color[0];
     req->headlight_color[1] = color[1];

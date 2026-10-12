@@ -82,10 +82,10 @@ void mjrf_defaultLightParams(mjrfLightParams* params) {
   params->color[1] = 0;
   params->color[2] = 0;
   params->intensity = 0.0f;
-  params->cast_shadows = true;
+  params->cast_shadow = true;
   params->range = 10.0f;
-  params->spot_cone_angle = 180.f;
-  params->spot_softness = 0.0f;
+  params->cutoff = 180.f;
+  params->softness = 0.0f;
   params->bulb_radius = 0.0f;
   params->shadow_map_size = 2048;
 }
@@ -105,8 +105,8 @@ void mjrf_defaultMaterial(mjrfMaterial* material) {
 
 void mjrf_defaultRenderableParams(mjrfRenderableParams* params) {
   memset(params, 0, sizeof(mjrfRenderableParams));
-  params->cast_shadows = true;
-  params->receive_shadows = true;
+  params->cast_shadow = true;
+  params->receive_shadow = true;
   params->blend_order = 0;
 }
 
@@ -118,9 +118,9 @@ void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config) {
 
 void mjrf_defaultRenderRequest(mjrfRenderRequest* request) {
   memset(request, 0, sizeof(mjrfRenderRequest));
-  request->enable_post_processing = true;
-  request->enable_reflections = true;
-  request->enable_shadows = true;
+  request->post_processing = true;
+  request->reflections = true;
+  request->shadows = true;
 }
 
 void mjrf_defaultReadRequest(mjrfReadRequest* request) {

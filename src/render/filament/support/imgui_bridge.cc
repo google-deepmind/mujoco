@@ -297,8 +297,8 @@ void ImguiBridge::PrepareRenderables(int count) {
   while (renderables_.size() < count) {
     mjrfRenderableParams params;
     mjrf_defaultRenderableParams(&params);
-    params.cast_shadows = false;
-    params.receive_shadows = false;
+    params.cast_shadow = false;
+    params.receive_shadow = false;
     params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);
     auto& renderable =
         renderables_.emplace_back(CreateRenderable(ctx_, params));

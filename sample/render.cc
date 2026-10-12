@@ -532,7 +532,7 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
   request.camera              = mjv_camera2GLCamera(m, d, &cam);
   request.viewport            = viewport;
   request.target              = render_target.get();
-  request.enable_headlight    = m->vis.headlight.active;
+  request.headlight    = m->vis.headlight.active;
   request.headlight_color[0]  = m->vis.headlight.diffuse[0];
   request.headlight_color[1]  = m->vis.headlight.diffuse[1];
   request.headlight_color[2]  = m->vis.headlight.diffuse[2];
@@ -552,9 +552,9 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
   } else if (opt.flags[mjVIS_ISLAND]) {
     request.draw_mode = mjDRAW_MODE_ISLANDS;
   }
-  if (rnd_flags[mjRND_SHADOW] >= 0) { request.enable_shadows = rnd_flags[mjRND_SHADOW]; }
+  if (rnd_flags[mjRND_SHADOW] >= 0) { request.shadows = rnd_flags[mjRND_SHADOW]; }
   if (rnd_flags[mjRND_REFLECTION] >= 0) {
-    request.enable_reflections = rnd_flags[mjRND_REFLECTION];
+    request.reflections = rnd_flags[mjRND_REFLECTION];
   }
 
   // prepare output buffer

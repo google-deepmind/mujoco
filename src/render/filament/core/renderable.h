@@ -90,10 +90,10 @@ class Renderable : public mjrfRenderable {
   std::uint16_t SetBlendOrder(std::uint16_t blend_order);
 
   // Disables this renderable from casting shadows.
-  void SetCastShadows(bool cast_shadows);
+  void SetCastShadows(bool cast_shadow);
 
   // Disables this renderable from receiving shadows.
-  void SetReceiveShadows(bool receive_shadows);
+  void SetReceiveShadows(bool receive_shadow);
 
   // If true, forces this renderable to use wireframe rendering.
   void SetWireframe(bool wireframe);
@@ -135,8 +135,8 @@ class Renderable : public mjrfRenderable {
   // request.
   struct DrawState {
     MaterialManager::MaterialKey material_key = 0;
-    bool cast_shadows = true;
-    bool receive_shadows = true;
+    bool cast_shadow = true;
+    bool receive_shadow = true;
     bool wireframe = false;
   };
 

@@ -3699,7 +3699,7 @@ the scale. However, for some geom-based renderables, the size scale is not appli
 
 .. mujoco-include:: mjrf_defaultRenderTargetConfig
 
-Initializes the RenderTargetConfig to default values.
+Initializes the mjrfRenderTargetConfig to default values.
 
 .. _mjrf_createRenderTarget:
 

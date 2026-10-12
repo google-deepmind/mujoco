@@ -89,10 +89,10 @@ Light::Light(filament::Engine* engine, const mjrfLightParams& params)
   filament::LightManager::Builder builder(type);
   builder.color(ReadFloat3(params.color));
   builder.intensityCandela(params.intensity);
-  builder.castShadows(params.cast_shadows);
+  builder.castShadows(params.cast_shadow);
   if (type == filament::LightManager::Type::SPOT) {
-    auto angles = GetSpotLightConeAngles(params.spot_cone_angle,
-                                         params.spot_softness);
+    auto angles = GetSpotLightConeAngles(params.cutoff,
+                                         params.softness);
     builder.spotLightCone(angles.first, angles.second);
   }
   if (type != filament::LightManager::Type::DIRECTIONAL) {
@@ -184,23 +184,23 @@ void Light::SetRange(float range) {
 }
 
 void Light::SetCutoffAngle(float cutoff) {
-  if (params_.spot_cone_angle != cutoff && ibl_ == nullptr) {
-    auto angles = GetSpotLightConeAngles(cutoff, params_.spot_softness);
+  if (params_.cutoff != cutoff && ibl_ == nullptr) {
+    auto angles = GetSpotLightConeAngles(cutoff, params_.softness);
     filament::LightManager& lm = engine_->getLightManager();
     const filament::LightManager::Instance li = lm.getInstance(entity_);
     lm.setSpotLightCone(li, angles.first, angles.second);
   }
-  params_.spot_cone_angle = cutoff;
+  params_.cutoff = cutoff;
 }
 
 void Light::SetSoftness(float softness) {
-  if (params_.spot_softness != softness && ibl_ == nullptr) {
-    auto angles = GetSpotLightConeAngles(params_.spot_cone_angle, softness);
+  if (params_.softness != softness && ibl_ == nullptr) {
+    auto angles = GetSpotLightConeAngles(params_.cutoff, softness);
     filament::LightManager& lm = engine_->getLightManager();
     const filament::LightManager::Instance li = lm.getInstance(entity_);
     lm.setSpotLightCone(li, angles.first, angles.second);
   }
-  params_.spot_softness = softness;
+  params_.softness = softness;
 }
 
 void Light::SetBulbRadius(float radius) {
@@ -215,12 +215,12 @@ void Light::SetBulbRadius(float radius) {
 }
 
 void Light::SetShadowsEnabled(bool enabled) {
-  if (params_.cast_shadows != enabled && ibl_ == nullptr) {
+  if (params_.cast_shadow != enabled && ibl_ == nullptr) {
     filament::LightManager& lm = engine_->getLightManager();
     const filament::LightManager::Instance li = lm.getInstance(entity_);
     lm.setShadowCaster(li, enabled);
   }
-  params_.cast_shadows = enabled;
+  params_.cast_shadow = enabled;
 }
 
 void Light::SetShadowMapSize(int map_size) {

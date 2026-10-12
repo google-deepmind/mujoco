@@ -34,6 +34,7 @@
 #include <math/vec3.h>
 #include <mujoco/mjrfilament.h>
 #include "render/filament/core/color_grading_options.h"
+#include "render/filament/core/imgui_editor.h"
 #include "render/filament/core/scene_view.h"
 
 namespace mujoco {
@@ -654,12 +655,8 @@ void DrawLightGui(filament::LightManager& lm,
   }
 }
 
-}  // namespace mujoco
-
-extern "C" {
-
-void mjrf_DEBUG_drawImguiEditor(mjrfScene* scene) {
-  mujoco::SceneView* scene_view = mujoco::SceneView::downcast(scene);
+void DrawSceneEditor(mjrfScene* scene) {
+  SceneView* scene_view = SceneView::downcast(scene);
   filament::View* view = scene_view->GetDefaultRenderView();
   filament::Engine* engine = scene_view->GetEngine();
   filament::LightManager& lm = engine->getLightManager();
@@ -748,4 +745,4 @@ void mjrf_DEBUG_drawImguiEditor(mjrfScene* scene) {
   }
 }
 
-}  // extern "C"
+}  // namespace mujoco

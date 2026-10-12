@@ -30,6 +30,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         core/filament_context.h
         core/filament_platform_factory.cc
         core/filament_platform_factory.h
+        core/imgui_editor.h
         core/imgui_editor.cc
         core/light.cc
         core/light.h

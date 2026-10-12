@@ -168,22 +168,22 @@ DefProperty<mjrVertexAttributeType>(mjr_vertex_attribute, "type", &mjrVertexAttr
 py::class_<mjrfContextConfig> mjrf_context_config(m, "ContextConfig", py::module_local());
 mjrf_context_config.def(py::init([](
   std::optional<mjrGraphicsApi> graphics_api,
-  std::optional<bool> force_software_rendering,
+  std::optional<bool> software_rendering,
   std::optional<uint64_t> native_window
 ) {
   mjrfContextConfig obj;
   Init(obj);
   if (graphics_api) Setter(obj.graphics_api, *graphics_api);
-  if (force_software_rendering) Setter(obj.force_software_rendering, *force_software_rendering);
+  if (software_rendering) Setter(obj.software_rendering, *software_rendering);
   if (native_window) Setter(obj.native_window, *native_window);
   return obj;
 })
 , py::arg("graphics_api").none(true) = py::none()
-, py::arg("force_software_rendering").none(true) = py::none()
+, py::arg("software_rendering").none(true) = py::none()
 , py::arg("native_window").none(true) = py::none()
 );
 DefProperty<mjrGraphicsApi>(mjrf_context_config, "graphics_api", &mjrfContextConfig::graphics_api);
-DefProperty<bool>(mjrf_context_config, "force_software_rendering", &mjrfContextConfig::force_software_rendering);
+DefProperty<bool>(mjrf_context_config, "software_rendering", &mjrfContextConfig::software_rendering);
 DefProperty<uint64_t>(mjrf_context_config, "native_window", &mjrfContextConfig::native_window);
 
 py::class_<mjrfRenderRequest> mjrf_render_request(m, "RenderRequest", py::module_local());
@@ -193,9 +193,9 @@ mjrf_render_request.def(py::init([](
   std::optional<mjrRect> viewport,
   PyRenderTarget* target,
   std::optional<mjrDrawMode> draw_mode,
-  std::optional<bool> enable_post_processing,
-  std::optional<bool> enable_reflections,
-  std::optional<bool> enable_shadows
+  std::optional<bool> post_processing,
+  std::optional<bool> reflections,
+  std::optional<bool> shadows
 ) {
   mjrfRenderRequest obj;
   Init(obj);
@@ -204,9 +204,9 @@ mjrf_render_request.def(py::init([](
   if (viewport) Setter(obj.viewport, *viewport);
   if (target) Setter(obj.target, *target);
   if (draw_mode) Setter(obj.draw_mode, *draw_mode);
-  if (enable_post_processing) Setter(obj.enable_post_processing, *enable_post_processing);
-  if (enable_reflections) Setter(obj.enable_reflections, *enable_reflections);
-  if (enable_shadows) Setter(obj.enable_shadows, *enable_shadows);
+  if (post_processing) Setter(obj.post_processing, *post_processing);
+  if (reflections) Setter(obj.reflections, *reflections);
+  if (shadows) Setter(obj.shadows, *shadows);
   return obj;
 })
 , py::arg("scene").none(true) = py::none()
@@ -214,18 +214,18 @@ mjrf_render_request.def(py::init([](
 , py::arg("viewport").none(true) = py::none()
 , py::arg("target").none(true) = py::none()
 , py::arg("draw_mode").none(true) = py::none()
-, py::arg("enable_post_processing").none(true) = py::none()
-, py::arg("enable_reflections").none(true) = py::none()
-, py::arg("enable_shadows").none(true) = py::none()
+, py::arg("post_processing").none(true) = py::none()
+, py::arg("reflections").none(true) = py::none()
+, py::arg("shadows").none(true) = py::none()
 );
 DefProperty<PyScene>(mjrf_render_request, "scene", &mjrfRenderRequest::scene);
 DefProperty<mjrCamera>(mjrf_render_request, "camera", &mjrfRenderRequest::camera);
 DefProperty<mjrRect>(mjrf_render_request, "viewport", &mjrfRenderRequest::viewport);
 DefProperty<PyRenderTarget>(mjrf_render_request, "target", &mjrfRenderRequest::target);
 DefProperty<mjrDrawMode>(mjrf_render_request, "draw_mode", &mjrfRenderRequest::draw_mode);
-DefProperty<bool>(mjrf_render_request, "enable_post_processing", &mjrfRenderRequest::enable_post_processing);
-DefProperty<bool>(mjrf_render_request, "enable_reflections", &mjrfRenderRequest::enable_reflections);
-DefProperty<bool>(mjrf_render_request, "enable_shadows", &mjrfRenderRequest::enable_shadows);
+DefProperty<bool>(mjrf_render_request, "post_processing", &mjrfRenderRequest::post_processing);
+DefProperty<bool>(mjrf_render_request, "reflections", &mjrfRenderRequest::reflections);
+DefProperty<bool>(mjrf_render_request, "shadows", &mjrfRenderRequest::shadows);
 
 py::class_<mjrfReadRequest> mjrf_read_request(m, "ReadRequest", py::module_local());
 mjrf_read_request.def(py::init([](
@@ -369,10 +369,10 @@ mjrf_light_params.def(py::init([](
   PyTexture* texture,
   std::optional<Float3::Ref> color,
   std::optional<float> intensity,
-  std::optional<bool> cast_shadows,
+  std::optional<bool> cast_shadow,
   std::optional<float> range,
-  std::optional<float> spot_cone_angle,
-  std::optional<float> spot_softness,
+  std::optional<float> cutoff,
+  std::optional<float> softness,
   std::optional<int> shadow_map_size,
   std::optional<float> bulb_radius
 ) {
@@ -382,10 +382,10 @@ mjrf_light_params.def(py::init([](
   if (texture) Setter(obj.texture, *texture);
   if (color) Setter(obj.color, *color);
   if (intensity) Setter(obj.intensity, *intensity);
-  if (cast_shadows) Setter(obj.cast_shadows, *cast_shadows);
+  if (cast_shadow) Setter(obj.cast_shadow, *cast_shadow);
   if (range) Setter(obj.range, *range);
-  if (spot_cone_angle) Setter(obj.spot_cone_angle, *spot_cone_angle);
-  if (spot_softness) Setter(obj.spot_softness, *spot_softness);
+  if (cutoff) Setter(obj.cutoff, *cutoff);
+  if (softness) Setter(obj.softness, *softness);
   if (shadow_map_size) Setter(obj.shadow_map_size, *shadow_map_size);
   if (bulb_radius) Setter(obj.bulb_radius, *bulb_radius);
   return obj;
@@ -394,10 +394,10 @@ mjrf_light_params.def(py::init([](
 , py::arg("texture").none(true) = py::none()
 , py::arg("color").none(true) = py::none()
 , py::arg("intensity").none(true) = py::none()
-, py::arg("cast_shadows").none(true) = py::none()
+, py::arg("cast_shadow").none(true) = py::none()
 , py::arg("range").none(true) = py::none()
-, py::arg("spot_cone_angle").none(true) = py::none()
-, py::arg("spot_softness").none(true) = py::none()
+, py::arg("cutoff").none(true) = py::none()
+, py::arg("softness").none(true) = py::none()
 , py::arg("shadow_map_size").none(true) = py::none()
 , py::arg("bulb_radius").none(true) = py::none()
 );
@@ -405,10 +405,10 @@ DefProperty<mjrLightType>(mjrf_light_params, "type", &mjrfLightParams::type);
 DefProperty<PyTexture>(mjrf_light_params, "texture", &mjrfLightParams::texture);
 DefProperty<Float3>(mjrf_light_params, "color", &mjrfLightParams::color);
 DefProperty<float>(mjrf_light_params, "intensity", &mjrfLightParams::intensity);
-DefProperty<bool>(mjrf_light_params, "cast_shadows", &mjrfLightParams::cast_shadows);
+DefProperty<bool>(mjrf_light_params, "cast_shadow", &mjrfLightParams::cast_shadow);
 DefProperty<float>(mjrf_light_params, "range", &mjrfLightParams::range);
-DefProperty<float>(mjrf_light_params, "spot_cone_angle", &mjrfLightParams::spot_cone_angle);
-DefProperty<float>(mjrf_light_params, "spot_softness", &mjrfLightParams::spot_softness);
+DefProperty<float>(mjrf_light_params, "cutoff", &mjrfLightParams::cutoff);
+DefProperty<float>(mjrf_light_params, "softness", &mjrfLightParams::softness);
 DefProperty<int>(mjrf_light_params, "shadow_map_size", &mjrfLightParams::shadow_map_size);
 DefProperty<float>(mjrf_light_params, "bulb_radius", &mjrfLightParams::bulb_radius);
 
@@ -519,23 +519,23 @@ DefProperty<PyTexture>(mjrf_material, "reflection_texture", &mjrfMaterial::refle
 
 py::class_<mjrfRenderableParams> mjrf_renderable_params(m, "RenderableParams", py::module_local());
 mjrf_renderable_params.def(py::init([](
-  std::optional<bool> cast_shadows,
-  std::optional<bool> receive_shadows,
+  std::optional<bool> cast_shadow,
+  std::optional<bool> receive_shadow,
   std::optional<uint16_t> blend_order
 ) {
   mjrfRenderableParams obj;
   Init(obj);
-  if (cast_shadows) Setter(obj.cast_shadows, *cast_shadows);
-  if (receive_shadows) Setter(obj.receive_shadows, *receive_shadows);
+  if (cast_shadow) Setter(obj.cast_shadow, *cast_shadow);
+  if (receive_shadow) Setter(obj.receive_shadow, *receive_shadow);
   if (blend_order) Setter(obj.blend_order, *blend_order);
   return obj;
 })
-, py::arg("cast_shadows").none(true) = py::none()
-, py::arg("receive_shadows").none(true) = py::none()
+, py::arg("cast_shadow").none(true) = py::none()
+, py::arg("receive_shadow").none(true) = py::none()
 , py::arg("blend_order").none(true) = py::none()
 );
-DefProperty<bool>(mjrf_renderable_params, "cast_shadows", &mjrfRenderableParams::cast_shadows);
-DefProperty<bool>(mjrf_renderable_params, "receive_shadows", &mjrfRenderableParams::receive_shadows);
+DefProperty<bool>(mjrf_renderable_params, "cast_shadow", &mjrfRenderableParams::cast_shadow);
+DefProperty<bool>(mjrf_renderable_params, "receive_shadow", &mjrfRenderableParams::receive_shadow);
 DefProperty<uint16_t>(mjrf_renderable_params, "blend_order", &mjrfRenderableParams::blend_order);
 
 py::class_<mjrfRenderTargetConfig> mjrf_render_target_config(m, "RenderTargetConfig", py::module_local());

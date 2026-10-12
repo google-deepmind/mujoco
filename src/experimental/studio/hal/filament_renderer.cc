@@ -25,6 +25,7 @@
 #include "experimental/studio/ux/imgui_widgets.h"
 #include "experimental/studio/ux/plugin.h"
 #include "render/filament/support/mjrf_ptr.h"
+#include "render/filament/core/imgui_editor.h"
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/model_decorations.h"
 #include "render/filament/support/model_lights.h"
@@ -44,7 +45,7 @@ FilamentRenderer::FilamentRenderer(void* native_window, GraphicsMode gfx)
     : native_window_(native_window), gfx_(gfx) {
   g_update_gui_callback = [this]() {
     if (main_scene_) {
-      mjrf_DEBUG_drawImguiEditor(main_scene_.get());
+      DrawSceneEditor(main_scene_.get());
     }
   };
 
@@ -55,7 +56,7 @@ FilamentRenderer::FilamentRenderer(void* native_window, GraphicsMode gfx)
   mjrfContextConfig cfg;
   mjrf_defaultContextConfig(&cfg);
   cfg.native_window = native_window_;
-  cfg.force_software_rendering = IsSoftware(gfx_);
+  cfg.software_rendering = IsSoftware(gfx_);
   cfg.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_) ? mjGRAPHICS_API_OPENGL
                                                       : mjGRAPHICS_API_VULKAN;
   filament_context_ = CreateContext(cfg);
@@ -267,9 +268,9 @@ void FilamentRenderer::BuildMainRenderRequest(mjrfRenderRequest* request,
   request->draw_mode = draw_mode;
   request->camera = camera;
   request->viewport = viewport;
-  request->enable_shadows = render_flags_[mjRND_SHADOW];
-  request->enable_reflections = render_flags_[mjRND_REFLECTION];
-  request->enable_headlight = vis.headlight.active;
+  request->shadows = render_flags_[mjRND_SHADOW];
+  request->reflections = render_flags_[mjRND_REFLECTION];
+  request->headlight = vis.headlight.active;
   request->headlight_color[0] = vis.headlight.diffuse[0];
   request->headlight_color[1] = vis.headlight.diffuse[1];
   request->headlight_color[2] = vis.headlight.diffuse[2];
@@ -283,9 +284,9 @@ void FilamentRenderer::BuildUxRenderRequest(mjrfRenderRequest* request,
   request->draw_mode = mjDRAW_MODE_DEFAULT;
   request->camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
   request->viewport = viewport;
-  request->enable_shadows = false;
-  request->enable_reflections = false;
-  request->enable_post_processing = false;
+  request->shadows = false;
+  request->reflections = false;
+  request->post_processing = false;
 }
 }  // namespace mujoco::studio
 

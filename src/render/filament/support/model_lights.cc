@@ -139,14 +139,14 @@ void ModelLights::Prepare() {
       params.color[1] = model->light_diffuse[1];
       params.color[2] = model->light_diffuse[2];
       params.type = (mjtLightType)model->light_type[i];
-      params.cast_shadows = model->light_castshadow[i];
+      params.cast_shadow = model->light_castshadow[i];
       params.bulb_radius = model->light_bulbradius[i];
       params.range = model->light_range[i];
       params.intensity = model->light_intensity[i];
       params.shadow_map_size = default_shadow_map_size;
       if (params.type == mjLIGHT_SPOT) {
-        params.spot_cone_angle = model->light_cutoff[i];
-        params.spot_softness = model->light_softness[i];
+        params.cutoff = model->light_cutoff[i];
+        params.softness = model->light_softness[i];
       }
 
       auto light_obj = CreateLight(ctx, params);
@@ -166,7 +166,7 @@ void ModelLights::Prepare() {
     mjrfLightParams params;
     mjrf_defaultLightParams(&params);
     params.type = mjLIGHT_DIRECTIONAL;
-    params.cast_shadows = 0;
+    params.cast_shadow = 0;
     params.intensity = 0.0f;
     fallback_directional_ = CreateLight(ctx, params);
     mjrf_addSceneLight(scene_, fallback_directional_.get());
