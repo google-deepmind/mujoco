@@ -64,7 +64,7 @@ bool IsAbsolutePath(const std::string &path) {
 
   // path is scheme:filename which we consider an absolute path
   // e.g. file URI's are always absolute paths
-  if (mjp_getResourceProvider(path.c_str()) != nullptr) {
+  if (mjp_findProvider(path.c_str()) != nullptr) {
     return true;
   }
 

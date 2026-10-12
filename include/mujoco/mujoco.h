@@ -81,11 +81,11 @@ MJAPI extern const char* mjTOPICSTRING[mjNTOPIC];
 // Initialize an empty VFS, mj_deleteVFS must be called to deallocate the VFS.
 MJAPI void mj_defaultVFS(mjVFS* vfs);
 
-// Mount a ResourceProvider to handle file operations under the given path; return 0: success,
-// 2: repeated name, -1: invalid resource provider.
+// Mount a provider to handle file operations under the given path; return 0: success,
+// 2: repeated name, -1: invalid provider.
 MJAPI int mj_mountVFS(mjVFS* vfs, const char* filepath, const mjpResourceProvider* provider);
 
-// Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.
+// Unmount a previously mounted provider; return 0: success, -1: not found in VFS.
 MJAPI int mj_unmountVFS(mjVFS* vfs, const char* filename);
 
 // Add file to VFS; return 0: success, 2: repeated name, -1: failed to load.
@@ -1549,24 +1549,24 @@ MJAPI const mjpPlugin* mjp_getPlugin(const char* name, int* slot);
 // Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
 MJAPI const mjpPlugin* mjp_getPluginAtSlot(int slot);
 
-// Set default resource provider definition.
-MJAPI void mjp_defaultResourceProvider(mjpResourceProvider* provider);
+// Set default provider definition.
+MJAPI void mjp_defaultProvider(mjpResourceProvider* provider);
 
-// Globally register a resource provider in a thread-safe manner. The provider must have a prefix
+// Globally register a provider in a thread-safe manner. The provider must have a prefix
 // that is not a sub-prefix or super-prefix of any current registered providers.
 // Return a slot number >= 0 on success, -1 on failure.
-MJAPI int mjp_registerResourceProvider(const mjpResourceProvider* provider);
+MJAPI int mjp_registerProvider(const mjpResourceProvider* provider);
 
-// Return the number of globally registered resource providers.
-MJAPI int mjp_resourceProviderCount(void);
+// Return the number of globally registered providers.
+MJAPI int mjp_providerCount(void);
 
-// Return the resource provider with the prefix that matches against the resource name.
+// Return the provider with the prefix that matches against the resource name.
 // If no match, return NULL.
-MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
+MJAPI const mjpResourceProvider* mjp_findProvider(const char* resource_name);
 
-// Look up a resource provider by slot number returned by mjp_registerResourceProvider.
+// Look up a provider by slot number returned by mjp_registerProvider.
 // If invalid slot number, return NULL.
-MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
+MJAPI const mjpResourceProvider* mjp_getProviderAtSlot(int slot);
 
 // Globally register a decoder. This function is thread-safe.
 // If an identical mjpDecoder is already registered, this function does nothing.
@@ -1576,7 +1576,7 @@ MJAPI void mjp_registerDecoder(const mjpDecoder* decoder);
 // Set default resource decoder definition.
 MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
 
-// Return the resource provider with the prefix that matches against the resource name.
+// Return the decoder that matches against the resource or content type.
 // If no match, return NULL.
 MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 
@@ -1592,21 +1592,21 @@ MJAPI void mjp_defaultEncoder(mjpEncoder* encoder);
 // If no match, return NULL.
 MJAPI const mjpEncoder* mjp_findEncoder(const char* filename, const char* content_type);
 
-// Globally register an archive resource provider. This function is thread-safe.
+// Globally register an archive provider. This function is thread-safe.
 // provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
-MJAPI void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider);
+MJAPI void mjp_registerArchiveProvider(const mjpResourceProvider* provider);
 
-// Return the archive resource provider that matches against the resource name.
+// Return the archive provider that matches against the resource name.
 // If no match, return NULL.
-MJAPI const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name);
+MJAPI const mjpResourceProvider* mjp_findArchiveProvider(const char* resource_name);
 
-// Return the number of globally registered archive resource providers.
-MJAPI int mjp_archiveResourceProviderCount(void);
+// Return the number of globally registered archive providers.
+MJAPI int mjp_archiveProviderCount(void);
 
 
 //---------------------------------- Resources -----------------------------------------------------
 
-// Open a resource; if the name doesn't have a prefix matching a registered resource provider,
+// Open a resource; if the name doesn't have a prefix matching a registered provider,
 // then the OS filesystem is used.
 // Nullable: dir, vfs, error
 MJAPI mjResource* mju_openResource(const char* dir, const char* name,
@@ -1619,7 +1619,7 @@ MJAPI void mju_closeResource(mjResource* resource);
 // return negative value if error.
 MJAPI int mju_readResource(mjResource* resource, const void** buffer);
 
-// Write resource data via its resource provider, return bytes written or -1 on error.
+// Write resource data via its provider, return bytes written or -1 on error.
 // Nullable: vfs, error
 MJAPI mjtSize mju_writeResource(const char* name, const void* buffer, mjtSize nbytes,
                                 const mjVFS* vfs, char* error, size_t nerror);

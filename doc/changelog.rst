@@ -21,6 +21,20 @@ General
      ``NULL``) instead of calling :ref:`mju_warning`. Pass an error buffer, or ``NULL, 0``, to
      :ref:`mju_decodeResource`.
 
+   - Shortened the names of :ref:`mjpResourceProvider` functions. ``mjp_getResourceProvider`` is renamed to
+     :ref:`mjp_findProvider`, consistent with other prefix and extension lookups.
+
+     **Migration:** Rename as follows:
+
+     - ``mjp_defaultResourceProvider`` → :ref:`mjp_defaultProvider`
+     - ``mjp_registerResourceProvider`` → :ref:`mjp_registerProvider`
+     - ``mjp_resourceProviderCount`` → :ref:`mjp_providerCount`
+     - ``mjp_getResourceProvider`` → :ref:`mjp_findProvider`
+     - ``mjp_getResourceProviderAtSlot`` → :ref:`mjp_getProviderAtSlot`
+     - ``mjp_registerArchiveResourceProvider`` → :ref:`mjp_registerArchiveProvider`
+     - ``mjp_findArchiveResourceProvider`` → :ref:`mjp_findArchiveProvider`
+     - ``mjp_archiveResourceProviderCount`` → :ref:`mjp_archiveProviderCount`
+
 Engine
 ^^^^^^
 - Corrected the shear contribution to solid and membrane stiffness for interpolated flexes, and the three-point Gauss
@@ -342,7 +356,7 @@ General
    solver, while ``elastic2d`` elasticity is integrated implicitly through the effective metric. The contacts the mode
    resolves are frictionless. The mode keeps contact multipliers across steps that no state specification covers, so
    ``mj_getState``/``mj_setState`` do not capture its full state and exact replay is not supported.
-2. :commit:`2fec92237` Introduced :ref:`archive resource providers<mjp_registerArchiveResourceProvider>`
+2. :commit:`2fec92237` Introduced :ref:`archive resource providers<mjp_registerArchiveProvider>`
    (``mjp_registerArchiveResourceProvider``). Archive providers use the
    :ref:`mjpResourceProvider` interface to mount and read archive containers (such as
    ``.mjz``/``.zip``), decoupling container handling from format decoders and enabling

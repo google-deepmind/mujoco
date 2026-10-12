@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+// NOLINTBEGIN(misc-include-cleaner) - Disable clang-tidy for miniz.
 #if defined(__clang__)
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wunused-function"
@@ -193,6 +194,7 @@ static int ZipRead(mjResource* resource, const void** buffer) {
   *buffer = ctx->buffer.data();
   return static_cast<int>(ctx->buffer.size());
 }
+// NOLINTEND(misc-include-cleaner) - End clang-tidy disable for miniz.
 
 static void ZipClose(mjResource* resource) {
   if (!resource || !resource->data) { return; }
@@ -213,12 +215,12 @@ static int ZipUnmount(mjResource* resource) {
 
 mjPLUGIN_LIB_INIT(mjz_archive_provider) {
   mjpResourceProvider provider;
-  mjp_defaultResourceProvider(&provider);
+  mjp_defaultProvider(&provider);
   provider.prefix  = ".mjz|.zip";
   provider.open    = ZipOpen;
   provider.read    = ZipRead;
   provider.close   = ZipClose;
   provider.mount   = ZipMount;
   provider.unmount = ZipUnmount;
-  mjp_registerArchiveResourceProvider(&provider);
+  mjp_registerArchiveProvider(&provider);
 }

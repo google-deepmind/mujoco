@@ -79,9 +79,9 @@ TEST_F(ResourceTest, RegisterProviderSuccess) {
       .close = close_nop,
   };
 
-  int count1 = mjp_resourceProviderCount();
-  int i = mjp_registerResourceProvider(&provider);
-  int count2 = mjp_resourceProviderCount();
+  int count1 = mjp_providerCount();
+  int i = mjp_registerProvider(&provider);
+  int count2 = mjp_providerCount();
 
   EXPECT_GT(i, 0);
   EXPECT_EQ(count2 - count1, 1);
@@ -109,11 +109,11 @@ TEST_F(ResourceTest, RegisterProviderMultipleSuccess) {
       .close = close_nop,
   };
 
-  int count1 = mjp_resourceProviderCount();
-  int i = mjp_registerResourceProvider(&provider);
-  int i2 = mjp_registerResourceProvider(&provider2);
-  int i3 = mjp_registerResourceProvider(&provider3);
-  int count2 = mjp_resourceProviderCount();
+  int count1 = mjp_providerCount();
+  int i = mjp_registerProvider(&provider);
+  int i2 = mjp_registerProvider(&provider2);
+  int i3 = mjp_registerProvider(&provider3);
+  int count2 = mjp_providerCount();
 
   EXPECT_GT(i, 0);
   EXPECT_GT(i2, 0);
@@ -129,7 +129,7 @@ TEST_F(ResourceTest, RegisterProviderMissingCallbacks) {
   MockWarningHandler warning_handler;
   warning_handler.ExpectWarnings("callback");
 
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_LT(i, 1);
 }
 
@@ -144,7 +144,7 @@ TEST_F(ResourceTest, RegisterProviderMissingPrefix) {
   MockWarningHandler warning_handler;
   warning_handler.ExpectWarnings("prefix");
 
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_LT(i, 1);
 }
 
@@ -159,7 +159,7 @@ TEST_F(ResourceTest, RegisterProviderInvalidPrefix1) {
   MockWarningHandler warning_handler;
   warning_handler.ExpectWarnings("prefix");
 
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_LT(i, 1);
 }
 
@@ -174,7 +174,7 @@ TEST_F(ResourceTest, RegisterProviderInvalidPrefix2) {
   MockWarningHandler warning_handler;
   warning_handler.ExpectWarnings("prefix");
 
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_LT(i, 1);
 }
 
@@ -193,11 +193,11 @@ TEST_F(ResourceTest, RegisterProviderSame) {
       .close = close_nop,
   };
 
-  int i1 = mjp_registerResourceProvider(&provider);
-  int count1 = mjp_resourceProviderCount();
+  int i1 = mjp_registerProvider(&provider);
+  int count1 = mjp_providerCount();
 
-  int i2 = mjp_registerResourceProvider(&provider2);
-  int count2 = mjp_resourceProviderCount();
+  int i2 = mjp_registerProvider(&provider2);
+  int count2 = mjp_providerCount();
 
   EXPECT_EQ(i1, i2);
   EXPECT_EQ(count1, count2);
@@ -218,11 +218,11 @@ TEST_F(ResourceTest, RegisterProviderSameCase) {
       .close = close_nop,
   };
 
-  int i1 = mjp_registerResourceProvider(&provider);
-  int count1 = mjp_resourceProviderCount();
+  int i1 = mjp_registerProvider(&provider);
+  int count1 = mjp_providerCount();
 
-  int i2 = mjp_registerResourceProvider(&provider2);
-  int count2 = mjp_resourceProviderCount();
+  int i2 = mjp_registerProvider(&provider2);
+  int count2 = mjp_providerCount();
 
   EXPECT_EQ(i1, i2);
   EXPECT_EQ(count1, count2);
@@ -237,7 +237,7 @@ TEST_F(ResourceTest, GeneralTest) {
   };
 
   // register resource provider
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_GT(i, 0);
 
   // open resource
@@ -261,7 +261,7 @@ TEST_F(ResourceTest, GeneralFailureTest) {
   };
 
   // register resource provider
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_GT(i, 0);
 
   static std::array<char, 1024> error;
@@ -283,7 +283,7 @@ TEST_F(ResourceTest, NameWithValidPrefix) {
   };
 
   // register resource provider
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_GT(i, 0);
 
   MockWarningHandler warning_handler;
@@ -304,7 +304,7 @@ TEST_F(ResourceTest, NameWithUpperCasePrefix) {
   };
 
   // register resource provider
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_GT(i, 0);
 
   MockWarningHandler warning_handler;
@@ -325,7 +325,7 @@ TEST_F(ResourceTest, NameWithInvalidPrefix) {
   };
 
   // register resource provider
-  int i = mjp_registerResourceProvider(&provider);
+  int i = mjp_registerProvider(&provider);
   EXPECT_GT(i, 0);
 
   MockWarningHandler warning_handler;
@@ -474,7 +474,7 @@ TEST_F(ResourceTest, WriteResourceWithProvider) {
       .write = write_capture,
   };
 
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
 
   // Write some data
   const char* data = "Hello, Resource Writer!";
@@ -534,7 +534,7 @@ TEST_F(ResourceTest, WriteResourceNoWriteCallback) {
       .close = close_nop,
   };
 
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
 
   const char* data = "data";
   mjtSize written =

@@ -777,11 +777,11 @@ TEST_F(EnginePluginTest, RecompileAttachByReference) {
   }
 }
 
-TEST_F(EnginePluginTest, ArchiveResourceProviderRegistration) {
-  int initial_count = mjp_archiveResourceProviderCount();
+TEST_F(EnginePluginTest, ArchiveProviderRegistration) {
+  int initial_count = mjp_archiveProviderCount();
 
   mjpResourceProvider provider;
-  mjp_defaultResourceProvider(&provider);
+  mjp_defaultProvider(&provider);
   provider.prefix = ".testarchive|.alsoarchive";
   provider.open = [](mjResource* res) {
     res->data = const_cast<char*>("test_handle");
@@ -794,17 +794,17 @@ TEST_F(EnginePluginTest, ArchiveResourceProviderRegistration) {
   };
   provider.close = [](mjResource* res) {};
 
-  mjp_registerArchiveResourceProvider(&provider);
+  mjp_registerArchiveProvider(&provider);
 
-  EXPECT_GT(mjp_archiveResourceProviderCount(), initial_count);
+  EXPECT_GT(mjp_archiveProviderCount(), initial_count);
 
   const mjpResourceProvider* found1 =
-      mjp_findArchiveResourceProvider("model.testarchive");
+      mjp_findArchiveProvider("model.testarchive");
   ASSERT_THAT(found1, NotNull());
   EXPECT_TRUE(found1->open != nullptr);
 
   const mjpResourceProvider* found2 =
-      mjp_findArchiveResourceProvider("model.alsoarchive");
+      mjp_findArchiveProvider("model.alsoarchive");
   ASSERT_THAT(found2, NotNull());
 }
 

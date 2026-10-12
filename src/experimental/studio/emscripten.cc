@@ -266,7 +266,7 @@ void Init(const std::string& title, bool dark_theme) {
   const std::string ini_path = "";
 
   mjpResourceProvider resource_provider;
-  mjp_defaultResourceProvider(&resource_provider);
+  mjp_defaultProvider(&resource_provider);
 
   resource_provider.open = [](mjResource* resource) {
     AssetRegistry& r = AssetRegistry::Instance();
@@ -281,15 +281,15 @@ void Init(const std::string& title, bool dark_theme) {
   resource_provider.close = [](mjResource* resource) {};
 
   resource_provider.prefix = "font";
-  mjp_registerResourceProvider(&resource_provider);
+  mjp_registerProvider(&resource_provider);
   resource_provider.prefix = "filament";
-  mjp_registerResourceProvider(&resource_provider);
+  mjp_registerProvider(&resource_provider);
 
   // Register HTTP/HTTPS resource providers so that models loaded from URLs
   // can automatically fetch referenced assets (meshes, textures, etc.) over
   // the network.
   mjpResourceProvider http_provider;
-  mjp_defaultResourceProvider(&http_provider);
+  mjp_defaultProvider(&http_provider);
 
   http_provider.open = [](mjResource* resource) {
     int size = FetchCache::Instance().Fetch(resource->name);
@@ -347,15 +347,15 @@ void Init(const std::string& title, bool dark_theme) {
   };
 
   http_provider.prefix = "http";
-  mjp_registerResourceProvider(&http_provider);
+  mjp_registerProvider(&http_provider);
   http_provider.prefix = "https";
-  mjp_registerResourceProvider(&http_provider);
+  mjp_registerProvider(&http_provider);
 
   // Register a "github:" resource provider that resolves
   // github:org/repo/branch/path/to/file.xml to
   // https://raw.githubusercontent.com/org/repo/branch/path/to/file.xml
   mjpResourceProvider github_provider;
-  mjp_defaultResourceProvider(&github_provider);
+  mjp_defaultProvider(&github_provider);
 
   github_provider.open = [](mjResource* resource) {
     std::string name(resource->name);
@@ -404,7 +404,7 @@ void Init(const std::string& title, bool dark_theme) {
   };
 
   github_provider.prefix = "github";
-  mjp_registerResourceProvider(&github_provider);
+  mjp_registerProvider(&github_provider);
 
   mujoco::studio::App::Config config;
   config.width = width;

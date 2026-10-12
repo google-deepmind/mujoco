@@ -37,7 +37,7 @@ class Renderer {
 
   Renderer(const std::string& graphics_mode_str) {
     py::gil_scoped_release no_gil;
-    mujoco::studio::RegisterResourceProviders();
+    mujoco::studio::RegisterProviders();
     const GraphicsMode mode = mujoco::studio::GraphicsModeFromString(
         graphics_mode_str, GraphicsMode::FilamentOpenGl);
     impl_ = std::make_unique<RendererImpl>(nullptr, mode);

@@ -23,7 +23,7 @@ namespace mujoco::studio {
 std::string GetModuleDir(void* addr);
 
 // Registers MuJoCo resource providers for font and filament assets.
-void RegisterResourceProviders();
+void RegisterProviders();
 
 }  // namespace mujoco::studio
 

@@ -535,9 +535,10 @@ plugin library is loaded.
 Resource providers
 ~~~~~~~~~~~~~~~~~~
 
-Resource providers extend MuJoCo to load assets (XML files, meshes, textures, and etc.) that don't necessarily come from
-the OS filesystem or the Virtual File System (:ref:`mjVFS`). For example, downloading assets from the Internet could be
-implemented as a resource provider. These extensions are handled abstractly in MuJoCo via the :ref:`mjResource` struct.
+Resource providers (:ref:`mjpResourceProvider`) extend MuJoCo to load assets (XML files, meshes, textures, and etc.)
+that don't necessarily come from the OS filesystem or the Virtual File System (:ref:`mjVFS`). For example, downloading
+assets from the Internet could be implemented as a resource provider. These extensions are handled abstractly in MuJoCo
+via the :ref:`mjResource` struct.
 
 .. _exProviderStructure:
 
@@ -545,8 +546,8 @@ Overview
 ^^^^^^^^
 
 Creating a new resource provider works by registering a :ref:`mjpResourceProvider` struct via
-:ref:`mjp_registerResourceProvider` in a global table. Once a resource provider is registered it can be used by all
-loading functions. The :ref:`mjpResourceProvider` struct stores three types of fields:
+:ref:`mjp_registerProvider` in a global table. Once a resource provider is registered it can be used by all loading
+functions. The :ref:`mjpResourceProvider` struct stores three types of fields:
 
 .. _Uniform Resource Identifier: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
 
@@ -636,7 +637,7 @@ Next we create the resource provider and register it with MuJoCo:
 
 .. code-block:: C
 
-   mjpResourceProvider resourceProvider = {
+   mjpResourceProvider provider = {
      .prefix = "data",
      .open = str_open_callback,
      .read = str_read_callback,
@@ -644,7 +645,7 @@ Next we create the resource provider and register it with MuJoCo:
    };
 
    // return positive number on success
-   if (!mjp_registerResourceProvider(&resourceProvider)) {
+   if (!mjp_registerProvider(&provider)) {
      // ...
      // return failure
    }

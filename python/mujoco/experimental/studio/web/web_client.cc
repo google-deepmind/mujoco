@@ -784,7 +784,7 @@ void RegisterAsset(std::string filename, emscripten::val contents) {
 // resolve from the AssetRegistry populated by registerAsset().
 static void RegisterAssetProviders() {
   mjpResourceProvider resource_provider;
-  mjp_defaultResourceProvider(&resource_provider);
+  mjp_defaultProvider(&resource_provider);
 
   resource_provider.open = [](mjResource* resource) {
     AssetRegistry& r = AssetRegistry::Instance();
@@ -799,7 +799,7 @@ static void RegisterAssetProviders() {
   resource_provider.close = [](mjResource* resource) {};
   for (const char* prefix : {"filament", "font"}) {
     resource_provider.prefix = prefix;
-    mjp_registerResourceProvider(&resource_provider);
+    mjp_registerProvider(&resource_provider);
   }
 }
 

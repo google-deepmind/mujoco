@@ -105,7 +105,7 @@ namespace mujoco::user {
 
 VFS::VFS(mjVFS* vfs) {
   wrapped_vfs_.impl_ = this;
-  mjp_defaultResourceProvider(&default_provider_);
+  mjp_defaultProvider(&default_provider_);
   default_provider_.open = [](mjResource* res) { return OpenFile(res->name, res); };
   default_provider_.read = [](mjResource* res, const void** buffer) {
     return ReadFile(res->name, res, buffer);
@@ -201,7 +201,7 @@ mjResource* VFS::Open(const char* dir, const char* name, char* error, size_t ner
 }
 
 VFS::Status VFS::Mount(const FilePath& path, const mjpResourceProvider* provider) {
-  if (!provider) { return kInvalidResourceProvider; }
+  if (!provider) { return kInvalidProvider; }
   {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (mounts_.contains(path.Str())) { return kRepeatedName; }
@@ -253,7 +253,7 @@ VFS::Status VFS::Unmount(const FilePath& path) {
     mounts_.erase(it);
     return kSuccess;
   }
-  return kInvalidResourceProvider;
+  return kInvalidProvider;
 }
 
 bool VFS::ContainsBuffer(const char* name) {
@@ -325,7 +325,7 @@ mjResource* VFS::FindMount(const std::string& fullpath) {
       if (auto it = archive_mounts_.find(str); it != archive_mounts_.end()) {
         return it->second.get();
       }
-      const mjpResourceProvider* archive_prov = mjp_findArchiveResourceProvider(str.c_str());
+      const mjpResourceProvider* archive_prov = mjp_findArchiveProvider(str.c_str());
       if (archive_prov) {
         ResourcePtr res = CreateResource(str, archive_prov);
         if (archive_prov->mount(res.get())) {
@@ -348,7 +348,7 @@ mjResource* VFS::FindMount(const std::string& fullpath) {
     }
   }
 
-  const mjpResourceProvider* provider = mjp_getResourceProvider(fullpath.c_str());
+  const mjpResourceProvider* provider = mjp_findProvider(fullpath.c_str());
   if (provider) {
     if (auto it = mounts_.find(provider->prefix); it != mounts_.end()) { return it->second.get(); }
 
@@ -485,7 +485,7 @@ class BufferProvider : public mjpResourceProvider {
 
  private:
   BufferProvider(const char* dir, const char* filename) {
-    mjp_defaultResourceProvider(this);
+    mjp_defaultProvider(this);
 
     mujoco::user::FilePath file_path(dir ? dir : "", filename);
     path_     = file_path.StripPath().Lower();
@@ -501,7 +501,7 @@ class BufferProvider : public mjpResourceProvider {
   }
 
   BufferProvider(const char* name, const void* src, size_t n) {
-    mjp_defaultResourceProvider(this);
+    mjp_defaultProvider(this);
     path_ = mujoco::user::FilePath(name);
 
     static constexpr std::uint64_t prime = 0x100000001b3;

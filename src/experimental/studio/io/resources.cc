@@ -123,17 +123,17 @@ std::string GetModuleDir(void* addr) {
 #endif
 }
 
-void RegisterResourceProviders() {
+void RegisterProviders() {
   // Every executable and extension module links its own copy of this
   // library, but the engine's provider table is per process and
   // registering a prefix twice is an error: the first caller's providers
   // serve everyone.
-  if (mjp_getResourceProvider("font:") != nullptr) {
+  if (mjp_findProvider("font:") != nullptr) {
     return;
   }
 
   mjpResourceProvider resource_provider;
-  mjp_defaultResourceProvider(&resource_provider);
+  mjp_defaultProvider(&resource_provider);
 
   resource_provider.open = [](mjResource* resource) {
     const std::string resolved_path = Resolve(resource->name);
@@ -155,9 +155,9 @@ void RegisterResourceProviders() {
   };
 
   resource_provider.prefix = "font";
-  mjp_registerResourceProvider(&resource_provider);
+  mjp_registerProvider(&resource_provider);
   resource_provider.prefix = "filament";
-  mjp_registerResourceProvider(&resource_provider);
+  mjp_registerProvider(&resource_provider);
 }
 
 }  // namespace mujoco::studio

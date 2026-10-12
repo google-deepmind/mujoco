@@ -51,7 +51,7 @@ struct TestProvider : public mjpResourceProvider {
   };
 
   explicit TestProvider(int* addr) {
-    mjp_defaultResourceProvider(this);
+    mjp_defaultProvider(this);
     prefix = "test";
     data = addr;
 
@@ -358,7 +358,7 @@ TEST_F(UserVfsTest, AutoMountProviders) {
   int expect = 0;
 
   TestProvider provider(&test);
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
 
   mjVFS vfs;
   mj_defaultVFS(&vfs);

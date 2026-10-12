@@ -30,7 +30,7 @@ namespace mujoco::studio {
 int LaunchStudio(int argc, char** argv, LauncherConfig config) {
   const std::string ini_path = GetDefaultIniPath();
 
-  mujoco::studio::RegisterResourceProviders();
+  mujoco::studio::RegisterProviders();
 
   if (config.gfx_mode.empty()) {
     const char* display = std::getenv("DISPLAY");

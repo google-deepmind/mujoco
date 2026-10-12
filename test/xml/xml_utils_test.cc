@@ -70,7 +70,7 @@ void Close(mjResource* resource) {}
 
 // Verifies mju_getXMLDependencies works against a non-filesystem resource
 // provider (the case the WASM/HTTP build relies on).
-TEST_F(MujocoTest, GetXMLDependenciesViaResourceProvider) {
+TEST_F(MujocoTest, GetXMLDependenciesViaProvider) {
   const std::map<std::string, std::string> files = {
       {"memxml:/scene.xml",
        "<mujoco>\n"
@@ -95,7 +95,7 @@ TEST_F(MujocoTest, GetXMLDependenciesViaResourceProvider) {
       .read = memxml::Read,
       .close = memxml::Close,
   };
-  ASSERT_GT(mjp_registerResourceProvider(&provider), 0);
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
 
   mjStringVec dependencies;
   mju_getXMLDependencies("memxml:/scene.xml", &dependencies);

@@ -64,7 +64,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Mount a ResourceProvider to handle file operations under the given path; return 0: success, 2: repeated name, -1: invalid resource provider.',  # pylint: disable=line-too-long
+         doc='Mount a provider to handle file operations under the given path; return 0: success, 2: repeated name, -1: invalid provider.',  # pylint: disable=line-too-long
      )),
     ('mj_unmountVFS',
      FunctionDecl(
@@ -84,7 +84,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.',  # pylint: disable=line-too-long
+         doc='Unmount a previously mounted provider; return 0: success, -1: not found in VFS.',  # pylint: disable=line-too-long
      )),
     ('mj_addFileVFS',
      FunctionDecl(
@@ -9818,9 +9818,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.',  # pylint: disable=line-too-long
      )),
-    ('mjp_defaultResourceProvider',
+    ('mjp_defaultProvider',
      FunctionDecl(
-         name='mjp_defaultResourceProvider',
+         name='mjp_defaultProvider',
          return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
@@ -9830,11 +9830,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Set default resource provider definition.',
+         doc='Set default provider definition.',
      )),
-    ('mjp_registerResourceProvider',
+    ('mjp_registerProvider',
      FunctionDecl(
-         name='mjp_registerResourceProvider',
+         name='mjp_registerProvider',
          return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
@@ -9844,18 +9844,18 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Globally register a resource provider in a thread-safe manner. The provider must have a prefix that is not a sub-prefix or super-prefix of any current registered providers. Return a slot number >= 0 on success, -1 on failure.',  # pylint: disable=line-too-long
+         doc='Globally register a provider in a thread-safe manner. The provider must have a prefix that is not a sub-prefix or super-prefix of any current registered providers. Return a slot number >= 0 on success, -1 on failure.',  # pylint: disable=line-too-long
      )),
-    ('mjp_resourceProviderCount',
+    ('mjp_providerCount',
      FunctionDecl(
-         name='mjp_resourceProviderCount',
+         name='mjp_providerCount',
          return_type=ValueType(name='int'),
          parameters=(),
-         doc='Return the number of globally registered resource providers.',
+         doc='Return the number of globally registered providers.',
      )),
-    ('mjp_getResourceProvider',
+    ('mjp_findProvider',
      FunctionDecl(
-         name='mjp_getResourceProvider',
+         name='mjp_findProvider',
          return_type=PointerType(
              inner_type=ValueType(name='mjpResourceProvider', is_const=True),
          ),
@@ -9867,11 +9867,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+         doc='Return the provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
-    ('mjp_getResourceProviderAtSlot',
+    ('mjp_getProviderAtSlot',
      FunctionDecl(
-         name='mjp_getResourceProviderAtSlot',
+         name='mjp_getProviderAtSlot',
          return_type=PointerType(
              inner_type=ValueType(name='mjpResourceProvider', is_const=True),
          ),
@@ -9881,7 +9881,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Look up a resource provider by slot number returned by mjp_registerResourceProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
+         doc='Look up a provider by slot number returned by mjp_registerProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
      )),
     ('mjp_registerDecoder',
      FunctionDecl(
@@ -9931,7 +9931,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+         doc='Return the decoder that matches against the resource or content type. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
     ('mjp_registerEncoder',
      FunctionDecl(
@@ -9983,9 +9983,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Return the encoder that matches against the content type or filename extension. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
-    ('mjp_registerArchiveResourceProvider',
+    ('mjp_registerArchiveProvider',
      FunctionDecl(
-         name='mjp_registerArchiveResourceProvider',
+         name='mjp_registerArchiveProvider',
          return_type=ValueType(name='void'),
          parameters=(
              FunctionParameterDecl(
@@ -9995,11 +9995,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Globally register an archive resource provider. This function is thread-safe. provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).',  # pylint: disable=line-too-long
+         doc='Globally register an archive provider. This function is thread-safe. provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).',  # pylint: disable=line-too-long
      )),
-    ('mjp_findArchiveResourceProvider',
+    ('mjp_findArchiveProvider',
      FunctionDecl(
-         name='mjp_findArchiveResourceProvider',
+         name='mjp_findArchiveProvider',
          return_type=PointerType(
              inner_type=ValueType(name='mjpResourceProvider', is_const=True),
          ),
@@ -10011,14 +10011,14 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Return the archive resource provider that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+         doc='Return the archive provider that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
      )),
-    ('mjp_archiveResourceProviderCount',
+    ('mjp_archiveProviderCount',
      FunctionDecl(
-         name='mjp_archiveResourceProviderCount',
+         name='mjp_archiveProviderCount',
          return_type=ValueType(name='int'),
          parameters=(),
-         doc='Return the number of globally registered archive resource providers.',  # pylint: disable=line-too-long
+         doc='Return the number of globally registered archive providers.',
      )),
     ('mju_openResource',
      FunctionDecl(
@@ -10059,7 +10059,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc="Open a resource; if the name doesn't have a prefix matching a registered resource provider, then the OS filesystem is used.",  # pylint: disable=line-too-long
+         doc="Open a resource; if the name doesn't have a prefix matching a registered provider, then the OS filesystem is used.",  # pylint: disable=line-too-long
      )),
     ('mju_closeResource',
      FunctionDecl(
@@ -10137,7 +10137,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='size_t'),
              ),
          ),
-         doc='Write resource data via its resource provider, return bytes written or -1 on error.',  # pylint: disable=line-too-long
+         doc='Write resource data via its provider, return bytes written or -1 on error.',  # pylint: disable=line-too-long
      )),
     ('mju_getResourceDir',
      FunctionDecl(

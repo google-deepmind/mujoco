@@ -328,12 +328,12 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
 MockFilesystem::MockFilesystem(std::string unit_test_name) {
   prefix_ = absl::StrCat("MjMock.", unit_test_name);
   dir_ = "/";
-  if (mjp_getResourceProvider(prefix_.c_str()) != nullptr) {
+  if (mjp_findProvider(prefix_.c_str()) != nullptr) {
     return;
   }
 
   mjpResourceProvider resourceProvider;
-  mjp_defaultResourceProvider(&resourceProvider);
+  mjp_defaultProvider(&resourceProvider);
   resourceProvider.prefix = prefix_.c_str();
   resourceProvider.data = (void*)this;
 
@@ -350,7 +350,7 @@ MockFilesystem::MockFilesystem(std::string unit_test_name) {
   };
 
   resourceProvider.close = +[](mjResource* resource) {};
-  mjp_registerResourceProvider(&resourceProvider);
+  mjp_registerProvider(&resourceProvider);
 }
 
 bool MockFilesystem::AddFile(std::string filename, const unsigned char* data,

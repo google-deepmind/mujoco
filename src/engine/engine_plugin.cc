@@ -144,11 +144,11 @@ void ForEachPipeSeparated(std::string_view str, Fn&& fn) {
 struct ArchiveTag {};
 
 // resource provider helpers
-std::string_view ResourceProviderKey(const mjpResourceProvider& provider) {
+std::string_view ProviderKey(const mjpResourceProvider& provider) {
   return std::string_view(provider.prefix, strklen(provider.prefix));
 }
 
-bool ResourceProviderEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
+bool ProviderEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
   return (mujoco::CaseInsensitiveEqual(p1.prefix, p2.prefix) &&
           p1.open == p2.open &&
           p1.read == p2.read &&
@@ -160,8 +160,7 @@ bool ResourceProviderEqual(const mjpResourceProvider& p1, const mjpResourceProvi
           p1.data == p2.data);
 }
 
-bool ResourceProviderCopy(mjpResourceProvider& dst, const mjpResourceProvider& src,
-                          char (&err)[512]) {
+bool ProviderCopy(mjpResourceProvider& dst, const mjpResourceProvider& src, char (&err)[512]) {
   std::unique_ptr<char[]> prefix = CopyName(src.prefix);
   if (!prefix) {
     if (strklen(src.prefix) == -1) {
@@ -297,18 +296,18 @@ const char* GlobalTable<mjpResourceProvider>::HumanReadableTypeName() {
 
 template <>
 std::string_view GlobalTable<mjpResourceProvider>::ObjectKey(const mjpResourceProvider& plugin) {
-  return ResourceProviderKey(plugin);
+  return ProviderKey(plugin);
 }
 
 // check if two resource providers are identical
 template <>
 bool GlobalTable<mjpResourceProvider>::ObjectEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
-  return ResourceProviderEqual(p1, p2);
+  return ProviderEqual(p1, p2);
 }
 
 template <>
 bool GlobalTable<mjpResourceProvider>::CopyObject(mjpResourceProvider& dst, const mjpResourceProvider& src, ErrorMessage& err) {
-  return ResourceProviderCopy(dst, src, err);
+  return ProviderCopy(dst, src, err);
 }
 
 // Archive resource provider table specialization
@@ -319,17 +318,17 @@ const char* GlobalTable<mjpResourceProvider, ArchiveTag>::HumanReadableTypeName(
 
 template <>
 std::string_view GlobalTable<mjpResourceProvider, ArchiveTag>::ObjectKey(const mjpResourceProvider& plugin) {
-  return ResourceProviderKey(plugin);
+  return ProviderKey(plugin);
 }
 
 template <>
 bool GlobalTable<mjpResourceProvider, ArchiveTag>::ObjectEqual(const mjpResourceProvider& p1, const mjpResourceProvider& p2) {
-  return ResourceProviderEqual(p1, p2);
+  return ProviderEqual(p1, p2);
 }
 
 template <>
 bool GlobalTable<mjpResourceProvider, ArchiveTag>::CopyObject(mjpResourceProvider& dst, const mjpResourceProvider& src, ErrorMessage& err) {
-  return ResourceProviderCopy(dst, src, err);
+  return ProviderCopy(dst, src, err);
 }
 
 template <>
@@ -558,12 +557,12 @@ const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attr
 }
 
 // set default resource provider definition
-void mjp_defaultResourceProvider(mjpResourceProvider* provider) {
+void mjp_defaultProvider(mjpResourceProvider* provider) {
   std::memset(provider, 0, sizeof(*provider));
 }
 
 // globally register a resource provider (thread-safe), return new slot id
-int mjp_registerResourceProvider(const mjpResourceProvider* provider) {
+int mjp_registerProvider(const mjpResourceProvider* provider) {
   // check if prefix is valid URI scheme format
   if (!IsValidURISchemeFormat(provider->prefix)) {
     mju_warning("provider->prefix is '%s' which is not a valid URI scheme format",
@@ -580,12 +579,12 @@ int mjp_registerResourceProvider(const mjpResourceProvider* provider) {
 }
 
 // return the number of globally registered resource providers
-int mjp_resourceProviderCount() {
+int mjp_providerCount() {
   return GlobalTable<mjpResourceProvider>::GetSingleton().count();
 }
 
 // look up a resource provider that matches its prefix against the given resource scheme
-const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name) {
+const mjpResourceProvider* mjp_findProvider(const char* resource_name) {
   if (!resource_name || !resource_name[0]) {
     return nullptr;
   }
@@ -607,7 +606,7 @@ const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name) {
 }
 
 // look up a resource provider by slot number
-const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot) {
+const mjpResourceProvider* mjp_getProviderAtSlot(int slot) {
   // shift slot to be zero-indexed
   return GlobalTable<mjpResourceProvider>::GetSingleton().GetAtSlot(slot - 1);
 }
@@ -737,7 +736,7 @@ const mjpEncoder* mjp_findEncoder(const char* filename,
 }
 
 // registers an archive resource provider
-void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider) {
+void mjp_registerArchiveProvider(const mjpResourceProvider* provider) {
   if (!provider || !provider->open || !provider->read || !provider->close) {
     mju_error("archive provider must provide open, read, and close callbacks.");
     return;
@@ -761,7 +760,7 @@ void mjp_registerArchiveResourceProvider(const mjpResourceProvider* provider) {
 }
 
 // find an archive resource provider that matches a given resource or content type
-const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_name) {
+const mjpResourceProvider* mjp_findArchiveProvider(const char* resource_name) {
   std::string extension = resource_name ? getext(resource_name) : "";
   if (extension.empty()) {
     return nullptr;
@@ -772,7 +771,7 @@ const mjpResourceProvider* mjp_findArchiveResourceProvider(const char* resource_
 }
 
 // return the number of globally registered archive resource providers
-int mjp_archiveResourceProviderCount() {
+int mjp_archiveProviderCount() {
   return GlobalTable<mjpResourceProvider, ArchiveTag>::GetSingleton().count();
 }
 

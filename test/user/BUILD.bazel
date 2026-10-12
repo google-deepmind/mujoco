@@ -246,6 +246,7 @@ cc_test(
     ],
     cxxopts = ["-std=c++20"],
     deps = [
+        "//:libmujoco_hdrs",  # buildcleaner: keep
         "//src/user:user_util",
         "//test:fixture",  # buildcleaner: keep
         "@googletest//:gtest_main",

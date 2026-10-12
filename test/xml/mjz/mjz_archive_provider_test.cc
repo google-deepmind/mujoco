@@ -41,7 +41,7 @@ using ::testing::NotNull;
 
 TEST_F(MjzArchiveProviderTest, ProviderIsRegistered) {
   const mjpResourceProvider* prov_mjz =
-      mjp_findArchiveResourceProvider("model.mjz");
+      mjp_findArchiveProvider("model.mjz");
   ASSERT_THAT(prov_mjz, NotNull());
   EXPECT_THAT(prov_mjz->open, NotNull());
   EXPECT_THAT(prov_mjz->read, NotNull());
@@ -50,11 +50,11 @@ TEST_F(MjzArchiveProviderTest, ProviderIsRegistered) {
   EXPECT_THAT(prov_mjz->unmount, NotNull());
 
   const mjpResourceProvider* prov_zip =
-      mjp_findArchiveResourceProvider("robot.zip");
+      mjp_findArchiveProvider("robot.zip");
   ASSERT_THAT(prov_zip, NotNull());
 
   const mjpResourceProvider* prov_xml =
-      mjp_findArchiveResourceProvider("model.xml");
+      mjp_findArchiveProvider("model.xml");
   EXPECT_THAT(prov_xml, IsNull());
 }
 
@@ -104,7 +104,7 @@ TEST_F(MjzArchiveProviderTest, OpenAndReadNonDiskArchive) {
   provider_data.archive_bytes = std::move(bytes);
 
   mjpResourceProvider custom_provider;
-  mjp_defaultResourceProvider(&custom_provider);
+  mjp_defaultProvider(&custom_provider);
   custom_provider.prefix = "mockprovider";
   custom_provider.data = &provider_data;
   custom_provider.open = [](mjResource* res) -> int {
@@ -123,7 +123,7 @@ TEST_F(MjzArchiveProviderTest, OpenAndReadNonDiskArchive) {
   };
   custom_provider.close = [](mjResource* res) { res->data = nullptr; };
 
-  mjp_registerResourceProvider(&custom_provider);
+  mjp_registerProvider(&custom_provider);
 
   char err[1000] = "";
   std::string member_uri = "mockprovider://data/archive.mjz/model.xml";
@@ -182,7 +182,7 @@ TEST_F(MjzArchiveProviderTest, DotsInDirectoryName) {
   dotted_data.archive_bytes = std::move(bytes);
 
   mjpResourceProvider dotted_provider;
-  mjp_defaultResourceProvider(&dotted_provider);
+  mjp_defaultProvider(&dotted_provider);
   dotted_provider.prefix = "dottedprovider";
   dotted_provider.data = &dotted_data;
   dotted_provider.open = [](mjResource* res) -> int {
@@ -201,7 +201,7 @@ TEST_F(MjzArchiveProviderTest, DotsInDirectoryName) {
   };
   dotted_provider.close = [](mjResource* res) { res->data = nullptr; };
 
-  mjp_registerResourceProvider(&dotted_provider);
+  mjp_registerProvider(&dotted_provider);
 
   char err[1000] = "";
   // Directory with dots "v1.2.3.folder/assets.dir"
@@ -219,11 +219,11 @@ TEST_F(MjzArchiveProviderTest, DotsInDirectoryName) {
 
 TEST_F(MjzArchiveProviderTest, CaseInsensitiveExtension) {
   const mjpResourceProvider* prov_upper =
-      mjp_findArchiveResourceProvider("model.MJZ");
+      mjp_findArchiveProvider("model.MJZ");
   EXPECT_THAT(prov_upper, NotNull());
 
   const mjpResourceProvider* prov_mixed =
-      mjp_findArchiveResourceProvider("model.Zip");
+      mjp_findArchiveProvider("model.Zip");
   EXPECT_THAT(prov_mixed, NotNull());
 }
 
@@ -311,7 +311,7 @@ TEST_F(MjzArchiveProviderTest, NestedArchiveMembers) {
   nested_data.bytes = std::move(zip_bytes);
 
   mjpResourceProvider nested_provider;
-  mjp_defaultResourceProvider(&nested_provider);
+  mjp_defaultProvider(&nested_provider);
   nested_provider.prefix = "nestedprovider";
   nested_provider.data = &nested_data;
   nested_provider.open = [](mjResource* res) -> int {
@@ -330,7 +330,7 @@ TEST_F(MjzArchiveProviderTest, NestedArchiveMembers) {
   };
   nested_provider.close = [](mjResource* res) { res->data = nullptr; };
 
-  mjp_registerResourceProvider(&nested_provider);
+  mjp_registerProvider(&nested_provider);
 
   // Read nested child
   char err[1000] = "";

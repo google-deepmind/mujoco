@@ -85,7 +85,7 @@ class Viewer {
     py::gil_scoped_release no_gil;
     // Register resource providers for font and filament assets.
     mjpResourceProvider resource_provider;
-    mjp_defaultResourceProvider(&resource_provider);
+    mjp_defaultProvider(&resource_provider);
 
     resource_provider.open = [](mjResource* resource) {
       auto* data = new ResourceData();
@@ -107,9 +107,9 @@ class Viewer {
       resource->data = nullptr;
     };
     resource_provider.prefix = "font";
-    mjp_registerResourceProvider(&resource_provider);
+    mjp_registerProvider(&resource_provider);
     resource_provider.prefix = "filament";
-    mjp_registerResourceProvider(&resource_provider);
+    mjp_registerProvider(&resource_provider);
 
     mujoco::studio::Window::Config config;
     using GraphicsMode = mujoco::studio::GraphicsMode;

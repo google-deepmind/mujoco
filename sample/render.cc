@@ -446,7 +446,7 @@ class FileResource {
 static void RegisterFilamentAssetProvider() {
 
   mjpResourceProvider provider;  // NOLINT
-  mjp_defaultResourceProvider(&provider);
+  mjp_defaultProvider(&provider);
   provider.open = [](mjResource* resource) {
     FileResource* f = new FileResource(ResolveAsset(resource->name));
     if (f->Size() == 0) {
@@ -464,7 +464,7 @@ static void RegisterFilamentAssetProvider() {
     resource->data = nullptr;
   };
   provider.prefix = "filament";
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
 }
 
 

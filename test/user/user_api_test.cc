@@ -276,7 +276,7 @@ TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
       .close = close_mock,
   };
 
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
 
   std::array<char, 1024> err;
   mjSpec* parent_spec =

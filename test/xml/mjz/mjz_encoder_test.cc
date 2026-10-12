@@ -844,12 +844,12 @@ static void EnsureFakeProviderRegistered() {
   static bool registered = false;
   if (registered) return;
   mjpResourceProvider provider = {};
-  mjp_defaultResourceProvider(&provider);
+  mjp_defaultProvider(&provider);
   provider.prefix = "testmjzenc";
   provider.open = FakeUriOpen;
   provider.read = FakeUriRead;
   provider.close = FakeUriClose;
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
   registered = true;
 }
 

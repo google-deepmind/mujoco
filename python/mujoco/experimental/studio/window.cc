@@ -57,7 +57,7 @@ class Window {
          std::string graphics_mode_str) {
     pybind11::gil_scoped_release no_gil;
 
-    mujoco::studio::RegisterResourceProviders();
+    mujoco::studio::RegisterProviders();
 
     mujoco::studio::Window::Config config;
     config.gfx_mode = mujoco::studio::GraphicsModeFromString(
@@ -99,7 +99,7 @@ class Window {
 };
 
 PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {
-  mujoco::studio::RegisterResourceProviders();
+  mujoco::studio::RegisterProviders();
 
   m.def("IsCrd", &IsCrd);
   m.def("IsCuda", &IsCuda);

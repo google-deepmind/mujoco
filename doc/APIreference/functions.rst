@@ -1558,8 +1558,8 @@ Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VF
 
 .. mujoco-include:: mj_mountVFS
 
-Mount a ResourceProvider to handle file operations under the given path; return 0: success,
-2: repeated name, -1: invalid resource provider.
+Mount a provider to handle file operations under the given path; return 0: success,
+2: repeated name, -1: invalid provider.
 
 .. _mj_unmountVFS:
 
@@ -1568,7 +1568,7 @@ Mount a ResourceProvider to handle file operations under the given path; return 
 
 .. mujoco-include:: mj_unmountVFS
 
-Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.
+Unmount a previously mounted provider; return 0: success, -1: not found in VFS.
 
 .. _mj_addFileVFS:
 
@@ -1694,7 +1694,7 @@ These functions provide the means to query the resource provider and obtain reso
 
 .. mujoco-include:: mju_openResource
 
-Open a resource; if the name doesn't have a prefix matching a registered resource provider,
+Open a resource; if the name doesn't have a prefix matching a registered provider,
 then the OS filesystem is used.
 
 *Nullable:* ``dir``, ``vfs``, ``error``
@@ -1725,7 +1725,7 @@ return negative value if error.
 
 .. mujoco-include:: mju_writeResource
 
-Write resource data via its resource provider, return bytes written or -1 on error.
+Write resource data via its provider, return bytes written or -1 on error.
 
 *Nullable:* ``vfs``, ``error``
 
@@ -4058,55 +4058,55 @@ Look up a plugin by name. If slot is not NULL, also write its registered slot nu
 
 Look up a plugin by the registered slot number that was returned by mjp_registerPlugin.
 
-.. _mjp_defaultResourceProvider:
+.. _mjp_defaultProvider:
 
-`mjp_defaultResourceProvider <#mjp_defaultResourceProvider>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_defaultProvider <#mjp_defaultProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_defaultResourceProvider
+.. mujoco-include:: mjp_defaultProvider
 
-Set default resource provider definition.
+Set default provider definition.
 
-.. _mjp_registerResourceProvider:
+.. _mjp_registerProvider:
 
-`mjp_registerResourceProvider <#mjp_registerResourceProvider>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_registerProvider <#mjp_registerProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_registerResourceProvider
+.. mujoco-include:: mjp_registerProvider
 
-Globally register a resource provider in a thread-safe manner. The provider must have a prefix
+Globally register a provider in a thread-safe manner. The provider must have a prefix
 that is not a sub-prefix or super-prefix of any current registered providers.
 
 Return a slot number >= 0 on success, -1 on failure.
 
-.. _mjp_resourceProviderCount:
+.. _mjp_providerCount:
 
-`mjp_resourceProviderCount <#mjp_resourceProviderCount>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_providerCount <#mjp_providerCount>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_resourceProviderCount
+.. mujoco-include:: mjp_providerCount
 
-Return the number of globally registered resource providers.
+Return the number of globally registered providers.
 
-.. _mjp_getResourceProvider:
+.. _mjp_findProvider:
 
-`mjp_getResourceProvider <#mjp_getResourceProvider>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_findProvider <#mjp_findProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_getResourceProvider
+.. mujoco-include:: mjp_findProvider
 
-Return the resource provider with the prefix that matches against the resource name.
+Return the provider with the prefix that matches against the resource name.
 
 If no match, return NULL.
 
-.. _mjp_getResourceProviderAtSlot:
+.. _mjp_getProviderAtSlot:
 
-`mjp_getResourceProviderAtSlot <#mjp_getResourceProviderAtSlot>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_getProviderAtSlot <#mjp_getProviderAtSlot>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_getResourceProviderAtSlot
+.. mujoco-include:: mjp_getProviderAtSlot
 
-Look up a resource provider by slot number returned by mjp_registerResourceProvider.
+Look up a provider by slot number returned by mjp_registerProvider.
 
 If invalid slot number, return NULL.
 
@@ -4139,7 +4139,7 @@ Set default resource decoder definition.
 
 .. mujoco-include:: mjp_findDecoder
 
-Return the resource provider with the prefix that matches against the resource name.
+Return the decoder that matches against the resource or content type.
 
 If no match, return NULL.
 
@@ -4176,35 +4176,35 @@ Return the encoder that matches against the content type or filename extension.
 
 If no match, return NULL.
 
-.. _mjp_registerArchiveResourceProvider:
+.. _mjp_registerArchiveProvider:
 
-`mjp_registerArchiveResourceProvider <#mjp_registerArchiveResourceProvider>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_registerArchiveProvider <#mjp_registerArchiveProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_registerArchiveResourceProvider
+.. mujoco-include:: mjp_registerArchiveProvider
 
-Globally register an archive resource provider. This function is thread-safe.
+Globally register an archive provider. This function is thread-safe.
 provider->prefix specifies the filename extension(s) (e.g. .mjz|.zip).
 
-.. _mjp_findArchiveResourceProvider:
+.. _mjp_findArchiveProvider:
 
-`mjp_findArchiveResourceProvider <#mjp_findArchiveResourceProvider>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_findArchiveProvider <#mjp_findArchiveProvider>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_findArchiveResourceProvider
+.. mujoco-include:: mjp_findArchiveProvider
 
-Return the archive resource provider that matches against the resource name.
+Return the archive provider that matches against the resource name.
 
 If no match, return NULL.
 
-.. _mjp_archiveResourceProviderCount:
+.. _mjp_archiveProviderCount:
 
-`mjp_archiveResourceProviderCount <#mjp_archiveResourceProviderCount>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjp_archiveProviderCount <#mjp_archiveProviderCount>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjp_archiveResourceProviderCount
+.. mujoco-include:: mjp_archiveProviderCount
 
-Return the number of globally registered archive resource providers.
+Return the number of globally registered archive providers.
 
 .. _Thread:
 

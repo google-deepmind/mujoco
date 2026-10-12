@@ -25,6 +25,7 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -66,14 +67,14 @@ TEST_F(UserUtilTest, PathReduceRepeatedSeparators) {
   EXPECT_EQ(FilePath("C:\\\\hello\\\\..\\\\world").Str(), "C:\\world");
 }
 
-TEST_F(UserUtilTest, PathReduceResourceProvider) {
+TEST_F(UserUtilTest, PathReduceProvider) {
   mjpResourceProvider provider = {
       .prefix = "testuserutil",
       .open = +[](mjResource*) { return 0; },
       .read = +[](mjResource*, const void**) { return 0; },
       .close = +[](mjResource*) {},
   };
-  mjp_registerResourceProvider(&provider);
+  mjp_registerProvider(&provider);
 
   EXPECT_EQ(FilePath("testuserutil:faces/right.png").Str(),
             "testuserutil:faces/right.png");

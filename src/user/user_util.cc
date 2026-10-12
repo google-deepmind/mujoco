@@ -32,7 +32,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "engine/engine_crossplatform.h"
+#include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 
 
 // workaround with locale bug on some MacOS machines
@@ -903,7 +903,7 @@ bool mjuu_isabspath(std::string path) {
 
   // path is scheme:filename which we consider an absolute path
   // e.g. file URI's are always absolute paths
-  if (mjp_getResourceProvider(path.c_str()) != nullptr) { return true; }
+  if (mjp_findProvider(path.c_str()) != nullptr) { return true; }
 
   // check first char
   const char* str = path.c_str();
@@ -1082,7 +1082,7 @@ std::string FilePath::AbsPrefix(const std::string& str) {
 
   // path is scheme:filename which we consider an absolute path
   // e.g. file URI's are always absolute paths
-  const mjpResourceProvider* provider = mjp_getResourceProvider(str.c_str());
+  const mjpResourceProvider* provider = mjp_findProvider(str.c_str());
   if (provider != nullptr) {
     std::size_t n = std::strlen(provider->prefix);
     std::size_t j = n + 1;
