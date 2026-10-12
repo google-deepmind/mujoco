@@ -552,6 +552,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize 
   bufwrite((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
   bufwrite(&m->flg_gravcomp, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
   bufwrite(&m->flg_surfacevel, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
+  bufwrite(&m->flg_adhesion, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
   {
     MJMODEL_POINTERS_PREAMBLE(m)
     #define X(type, name, nr, nc)  \
@@ -653,7 +654,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
 
   // read options and buffer
   if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) +
-      sizeof(mjtBool) * 2 > buffer_sz) {
+      sizeof(mjtBool) * 3 > buffer_sz) {
     mju_warning("Truncated model file - ran out of data while reading structs");
     return NULL;
   }
@@ -662,6 +663,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   bufread((void*)&m->stat, sizeof(mjStatistic), buffer_sz, buffer, &ptrbuf);
   bufread(&m->flg_gravcomp, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
   bufread(&m->flg_surfacevel, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
+  bufread(&m->flg_adhesion, sizeof(mjtBool), buffer_sz, buffer, &ptrbuf);
   {
     MJMODEL_POINTERS_PREAMBLE(m)
     #define X(type, name, nr, nc)                                           \
@@ -712,7 +714,7 @@ mjtSize mj_sizeModel(const mjModel* m) {
     + sizeof(mjOption)
     + sizeof(mjVisual)
     + sizeof(mjStatistic)
-    + sizeof(mjtBool)*2);
+    + sizeof(mjtBool)*3);
 
   MJMODEL_POINTERS_PREAMBLE(m)
 #define X(type, name, nr, nc)         \
