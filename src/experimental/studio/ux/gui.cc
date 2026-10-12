@@ -1173,7 +1173,7 @@ void SimulationGui(const SimulationGuiContext& ctx) {
 
         ImGui::BeginDisabled(*ctx.key_idx < 0 || *ctx.key_idx >= ctx.model->nkey);
         if (ImGui::Button(save_label, ImVec2(btn_w, 0))) {
-          mj_setKeyframe(ctx.model, ctx.data, (*ctx.key_idx));
+          ctx.save_keyframe();
         }
         ImGui::SetItemTooltip("%s", "Save active state to selected keyframe");
         ImGui::EndDisabled();

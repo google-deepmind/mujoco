@@ -26,10 +26,9 @@ def send_state(
     state_sig: int,
 ) -> None:
   """Sends the selected components of the viewer's state to the sim thread."""
-  size = mujoco.mj_stateSize(model, state_sig)
-  state = np.empty(size, np.float64)
-  mujoco.mj_getState(model, data, state, state_sig)
-  viewer.send_to_sim(messages.StateEvent(state=state, state_sig=state_sig))
+  event = messages.StateEvent.from_data(model, data, state_sig)
+  if event is not None:
+    viewer.send_to_sim(event)
 
 
 def apply_perturb(
@@ -50,7 +49,17 @@ def apply_perturb(
     mujoco.mjv_applyPerturbPose(model, data, perturb, 0)
     mujoco.mjv_applyPerturbForce(model, data, perturb)
   else:
-    mujoco.mjv_applyPerturbPose(model, data, perturb, 1)
+    # Paused: the pose edit only moves the viewer's local data; send it to the
+    # sim, else the next StateSnapshot reverts it when the drag ends.
+    pose_sig = (
+        mujoco.mjtState.mjSTATE_QPOS.value
+        | mujoco.mjtState.mjSTATE_MOCAP_POS.value
+        | mujoco.mjtState.mjSTATE_MOCAP_QUAT.value
+    )
+    with viewer.send_if_changes(
+        lambda: messages.StateEvent.from_data(model, data, pose_sig)
+    ):
+      mujoco.mjv_applyPerturbPose(model, data, perturb, 1)
 
   xfrc_sig: int = int(mujoco.mjtState.mjSTATE_XFRC_APPLIED)
   xfrc_size: int = mujoco.mj_stateSize(model, xfrc_sig)

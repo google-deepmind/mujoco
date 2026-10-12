@@ -1502,6 +1502,8 @@ void App::ModelOptionsGui() {
               mjv_defaultFreeCamera(model(), &camera_);
             }
           },
+      .save_keyframe =
+          [this] { mj_setKeyframe(model(), data(), tmp_.key_idx); },
   };
   SimulationGui(sim_ctx);
   ApplyTimelineScrub();

@@ -59,18 +59,24 @@ class SimHistorySnapshot(messages.Snapshot):
     space.
 
   Attributes:
-    size: Total number of frames stored in the sim's history.  Left at 0 in
-      the viewer-to-sim direction (the sim ignores it).
-    index: History offset in the sim's index space; 0 is the most recent
-      state, negative values go further into the past.
-    head_time: Simulation timestamp at the head of the history buffer
-      (index 0). Left at 0.0 in the viewer-to-sim direction (the sim ignores
-      it).
+    size: Total number of frames stored in the sim's history.  Left at 0 in the
+      viewer-to-sim direction (the sim ignores it).
+    index: History offset in the sim's index space; 0 is the most recent state,
+      negative values go further into the past.
+    head_time: Simulation timestamp at the head of the history buffer (index 0).
+      Left at 0.0 in the viewer-to-sim direction (the sim ignores it).
   """
 
   size: int = 0
   index: int = 0
   head_time: float = 0.0
+
+  @classmethod
+  def from_ux_state(cls, ux_state: ux.UxState) -> 'SimHistorySnapshot | None':
+    """Packs the current scrub index of ``ux_state`` into a snapshot."""
+    if ux_state.history_size <= 0:
+      return None
+    return cls(index=ux_state.history_index)
 
 
 class SimHistory:

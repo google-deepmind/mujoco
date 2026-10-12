@@ -207,7 +207,8 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       "simulation_gui",
       [](py::object model_obj, py::object data_obj,
          mujoco::studio::StepControl* step_control, UxState& ux_state,
-         py::function reset, py::function reload, py::function align) {
+         py::function reset, py::function reload, py::function align,
+         py::function save_keyframe) {
         mjModel* model =
             py::cast<mujoco::python::MjModelWrapper&>(model_obj).get();
         mjData* data = py::cast<mujoco::python::MjDataWrapper&>(data_obj).get();
@@ -224,13 +225,14 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
         ctx.reset = [&reset]() { reset(); };
         ctx.reload = [&reload]() { reload(); };
         ctx.align = [&align]() { align(); };
+        ctx.save_keyframe = [&save_keyframe]() { save_keyframe(); };
         mujoco::studio::SimulationGui(ctx);
       },
       py::arg("model"), py::arg("data"), py::arg("step_control"),
       py::arg("ux_state"), py::arg("reset"), py::arg("reload"),
-      py::arg("align"),
+      py::arg("align"), py::arg("save_keyframe"),
       "Render the full Simulation panel: reset/reload/align, run/pause, speed, "
-      "the history scrubber, keyframes and thread count. The three callbacks "
+      "the history scrubber, keyframes and thread count. The four callbacks "
       "are invoked for the corresponding buttons.");
 
   m.def(

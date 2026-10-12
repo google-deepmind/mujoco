@@ -139,6 +139,32 @@ channels. **Convention:** custom message classes derive from `Snapshot` or
     and for one-shot requests: `ResetEvent`, `SingleStepEvent`,
     `RequestPauseEvent`.
 
+### Send Only What Changed (`send_if_changes`)
+
+Bidirectional snapshots (`MjOptionSnapshot`, `StepControlSnapshot`) are sent
+only by the side that changed the value; if either side sent its full value
+every frame, it would overwrite the other side's edits. Both sides use the same
+helper, `messages.send_if_changes(send_fn, *make_messages, should_send=...)`:
+a context manager that calls each `make_message()` (pass lambdas, so they are
+re-read) on entering and on leaving the `with` block and sends the messages
+that differ.
+
+-   **Viewer**: `viewer.send_if_changes(...)` wraps the blocks in which the UI
+    edits state (`ViewerApp.update()` and `build_gui()`, the Inspector panels).
+    Incoming sim snapshots are applied outside those blocks, so they never echo
+    back.
+-   **Sim**: `ViewerHandle.sync()` wraps the dispatch of `PreStepEvent`,
+    `StepEvent` and `PostStepEvent` for `model.opt`, and a plugin that owns
+    state the viewer mirrors wraps its own edits in `handle.send_if_changes`
+    (`StepControl` does so around `advance()` and `RequestPauseEvent`).
+    Incoming viewer snapshots are applied outside those blocks, so they never
+    echo back either.
+
+The pattern only sees edits made inside a wrapped block. So edit `model.opt`
+from a step-event handler, never from the launcher loop between `sync()` calls,
+and change another plugin's state by dispatching an event it handles (e.g.
+`RequestPauseEvent` for `StepControl`) rather than by reaching into it.
+
 ### Lifecycle Events
 
 Lifecycle events are standard framework events dispatched by the runner loops to
@@ -352,6 +378,8 @@ with launch_web.launch(
     sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
 ) as handle:
   while handle.is_running():
+    # Do NOT edit model, data or plugin state here; do it in step-event
+    # handlers, or sync() cannot send the change to the viewer (see §8.2).
     model, data = handle.sync(model, data)
 ```
 
@@ -620,6 +648,16 @@ stepping, perturbation forces, sensor logging, or RL resets):
     subscribing to `StepEvent` or custom messages.
 -   **Event Dispatch**: Dispatch an `Event` to the simulation thread rather than
     mutating state directly in the outer loop.
+-   **Edit `model` and `data` only from step-event handlers**: `sync()` sends
+    `model.opt` when it changed across its `PreStepEvent` / `StepEvent` /
+    `PostStepEvent` dispatch (see
+    [Send Only What Changed](#send-only-what-changed-send_if_changes)), so an
+    `opt` edit made in this loop is never sent and the viewer's next snapshot
+    overwrites it; other model fields are not synced at all, so publish the
+    model again with `handle.set_model()` after editing them. `data` is sent
+    after every step, but `sync()` applies the viewer's resets, slider edits
+    and perturbations before `PreStepEvent`, so controls or forces written in
+    this loop can be overwritten in the same `sync()`.
 -   **Always Reassign `model, data = handle.sync(model, data)`**: Unlike legacy
     `mujoco.viewer.Handle.sync()` (which took no arguments and returned `None`),
     Studio's `ViewerHandle.sync(model, data)` expects the current model/data and

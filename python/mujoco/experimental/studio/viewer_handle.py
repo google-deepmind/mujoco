@@ -13,12 +13,15 @@
 # limitations under the License.
 """Viewer handle and event handlers for the simulation side."""
 
+import contextlib
+import copy
 import dataclasses
 from typing import Any, Callable
 import mujoco
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin_registry
+from mujoco.experimental.studio import struct_utils
 import numpy as np
 
 # Launcher-owned liveness check: returns True while the viewer is still alive.
@@ -170,6 +173,22 @@ class ViewerHandle:
     """
     self._sim_endpoint.send_to_viewer(message)
 
+  def send_if_changes(
+      self, *make_messages: messages.MakeMessage
+  ) -> contextlib.AbstractContextManager[None]:
+    """Sends the messages that change during the ``with`` block to the viewer.
+
+    Calls each ``make_message()`` on entering and on leaving the block and
+    sends those that differ. Nothing is sent if the handle is closed or its
+    model is replaced during the block.
+    """
+    model = self.model
+    return messages.send_if_changes(
+        self.send_to_viewer,
+        *make_messages,
+        should_send=lambda: self._is_running and self.model is model,
+    )
+
   def dispatch(self, message: messages.Message) -> None:
     """Dispatches a message to registered sim-side handlers in priority order."""
     self._sim_plugins.dispatch(message)
@@ -196,7 +215,12 @@ class ViewerHandle:
     ``step_control.StepControl()`` in ``sim_plugins`` for the standard
     real-time-paced CPU stepping, or your own plugin to step differently.
     Without a stepping plugin nothing advances and ``sync`` never sleeps, so
-    the calling loop must pace itself to avoid busy-spinning.
+    the calling loop must pace itself to avoid busy-spinning; even then, keep
+    edits out of the loop.
+
+    Sim-side edits belong in handlers of those three events: ``sync`` compares
+    ``model.opt`` before ``PreStepEvent`` and after ``PostStepEvent`` and sends
+    an ``MjOptionSnapshot`` to the viewer when it changed.
 
     Args:
       model: The current model.
@@ -235,14 +259,21 @@ class ViewerHandle:
       # sim-side plugins. Each phase re-reads self.model and self.data so a
       # set_model() call from a PreStepEvent handler (e.g. a hot-reload that
       # finished compiling in the background) is stepped and snapshotted.
-      for event_cls in (
-          messages.PreStepEvent,
-          messages.StepEvent,
-          messages.PostStepEvent,
+      # Sim-side edits to model.opt happen in these handlers, so compare it
+      # around the three dispatches and send it to the viewer if it changed.
+      with self.send_if_changes(
+          lambda: messages.MjOptionSnapshot(opt=copy.deepcopy(self.model.opt))
       ):
-        self._sim_plugins.dispatch(event_cls(model=self.model, data=self.data))
-        if not self._is_running:  # A step handler closed the handle.
-          return self.model, self.data
+        for event_cls in (
+            messages.PreStepEvent,
+            messages.StepEvent,
+            messages.PostStepEvent,
+        ):
+          self._sim_plugins.dispatch(
+              event_cls(model=self.model, data=self.data)
+          )
+          if not self._is_running:  # A step handler closed the handle.
+            return self.model, self.data
 
       # Send the simulation state to the viewer process as a snapshot.
       integration_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)
@@ -281,14 +312,12 @@ class ViewerHandle:
       forward: bool = False,
   ) -> None:
     """Applies a state array to the sim's data and optionally runs mj_forward."""
-    model = self.model
-    data = self.data
-    if model is not None and data is not None:
-      state_size = mujoco.mj_stateSize(model, state_sig)
+    if self.model is not None and self.data is not None:
+      state_size = mujoco.mj_stateSize(self.model, state_sig)
       if len(state) == state_size:
-        mujoco.mj_setState(model, data, state, state_sig)
+        mujoco.mj_setState(self.model, self.data, state, state_sig)
         if forward:
-          mujoco.mj_forward(model, data)
+          mujoco.mj_forward(self.model, self.data)
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_state(self, event: messages.StateEvent) -> bool:
@@ -303,15 +332,13 @@ class ViewerHandle:
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_reset(self, event: messages.ResetEvent) -> None:
     """Resets the sim's data; does not consume the event so plugins observe it."""
-    model = self.model
-    data = self.data
-    if model is not None:
-      assert data is not None
+    if self.model is not None:
+      assert self.data is not None
       if event.key is not None:
-        mujoco.mj_resetDataKeyframe(model, data, event.key)
+        mujoco.mj_resetDataKeyframe(self.model, self.data, event.key)
       else:
-        mujoco.mj_resetData(model, data)
-      mujoco.mj_forward(model, data)
+        mujoco.mj_resetData(self.model, self.data)
+      mujoco.mj_forward(self.model, self.data)
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_exit(self, _: messages.ExitEvent) -> None:
@@ -319,14 +346,28 @@ class ViewerHandle:
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_mjoption(self, event: messages.MjOptionSnapshot) -> bool:
-    model = self.model
-    if model is not None:
-      for field in model.opt._all_fields:  # pylint: disable=protected-access
-        val = getattr(event.opt, field)
-        try:
-          getattr(model.opt, field)[:] = val
-        except (TypeError, AttributeError):
-          setattr(model.opt, field, val)
+    if self.model is not None:
+      struct_utils.copy_struct(event.opt, self.model.opt)
+    return True
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_keyframe(self, event: messages.KeyframeEvent) -> bool:
+    if self.model is None or not 0 <= event.key < self.model.nkey:
+      return True
+    # Drop events built for a different model, e.g. sent before a reload.
+    sig = messages.KEYFRAME_STATE_SIG
+    if len(event.state) != mujoco.mj_stateSize(self.model, sig):
+      return True
+
+    data = mujoco.MjData(self.model)
+    mujoco.mj_setState(self.model, data, event.state, sig)
+    mujoco.mj_setKeyframe(self.model, data, event.key)
+    return True
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_threadpool(self, event: messages.ThreadPoolEvent) -> bool:
+    if self.data is not None:
+      mujoco.mju_threadpool(self.data, event.nthread)
     return True
 
 
@@ -340,6 +381,13 @@ def run_sim_loop(
   if model is not None:
     handle.set_model(model, path=model_path or '')
   try:
+    # This loop is framework boilerplate, identical in every launcher. It is
+    # important NOT to step physics or edit model, data or plugin state here,
+    # nor in a loop of your own around sync(): sim-side behaviour belongs in
+    # sim_plugins handling PreStepEvent, StepEvent and PostStepEvent, which
+    # sync() dispatches inside its change detection. An edit made between
+    # sync() calls is never sent to the viewer, and the viewer's next snapshot
+    # overwrites it.
     while handle.is_running():
       model, data = handle.sync(model, data)
   except KeyboardInterrupt:
