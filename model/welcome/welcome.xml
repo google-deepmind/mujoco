@@ -1,5 +1,5 @@
 <mujoco model="welcome">
-  <option timestep="0.02" />
+  <option timestep="0.01" integrator="implicitfast"/>
   <default>
     <motor ctrlrange="-1 1" ctrllimited="true" />
     <default class="body">
