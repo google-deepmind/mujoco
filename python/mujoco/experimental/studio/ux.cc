@@ -24,6 +24,7 @@
 #include <mujoco/mujoco.h>
 #include <mujoco/experimental/studio/sim/sim_history.h>
 #include <mujoco/experimental/studio/sim/step_control.h>
+#include <mujoco/experimental/studio/ux/console.h>
 #include <mujoco/experimental/studio/ux/gui.h>
 #include <mujoco/experimental/studio/ux/gui_helpers.h>
 #include <mujoco/experimental/studio/ux/interaction.h>
@@ -509,6 +510,78 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("model"), py::arg("data"), py::arg("paused"), py::arg("fps"),
       py::arg("gpu_ms") = 0.0f, "Render the simulation info UI.");
+
+  m.def(
+      "init_console",
+      []() {
+        py::gil_scoped_release no_gil;
+        mujoco::studio::Console::Init();
+      },
+      "Installs a MuJoCo log handler that adds messages to the Studio "
+      "Console and passes them on to the previous handler. Only the first "
+      "call installs it.");
+
+  m.def(
+      "clear_console",
+      []() {
+        py::gil_scoped_release no_gil;
+        mujoco::studio::Console::Get().Clear();
+      },
+      "Clears all messages and resets counts in the Studio Console.");
+
+  m.def(
+      "add_console_message",
+      [](int level, const std::string& message) {
+        py::gil_scoped_release no_gil;
+        mujoco::studio::Console::Get().Add(static_cast<mjtLogLevel>(level),
+                                           message);
+      },
+      py::arg("level"), py::arg("message"),
+      "Adds a message at the given mjtLogLevel to the Studio Console (not "
+      "printed).");
+
+  py::class_<mujoco::studio::ConsoleCounts>(m, "ConsoleCounts")
+      .def_readonly("messages", &mujoco::studio::ConsoleCounts::messages)
+      .def_readonly("warnings", &mujoco::studio::ConsoleCounts::warnings)
+      .def_readonly("errors", &mujoco::studio::ConsoleCounts::errors);
+
+  m.def(
+      "get_console_counts",
+      []() {
+        py::gil_scoped_release no_gil;
+        return mujoco::studio::Console::Get().GetCounts();
+      },
+      "Returns ConsoleCounts (messages, warnings, errors) for the Studio "
+      "Console.");
+
+  m.def(
+      "get_console_lines",
+      []() {
+        py::gil_scoped_release no_gil;
+        return mujoco::studio::Console::Get().GetLines();
+      },
+      "Returns a list of log lines currently in the Studio Console. It "
+      "copies every line, so call it on demand, e.g. in tests and scripts, "
+      "rather than every frame.");
+
+  m.def(
+      "console_gui",
+      []() {
+        py::gil_scoped_release no_gil;
+        mujoco::studio::Console::Get().WindowGui();
+      },
+      "Renders the Studio Console table.");
+
+  m.def(
+      "console_status_gui",
+      [](bool show_console) {
+        py::gil_scoped_release no_gil;
+        mujoco::studio::Console::Get().StatusGui(&show_console);
+        return show_console;
+      },
+      py::arg("show_console"),
+      "Renders the Studio Console status bar summary. Returns updated "
+      "show_console state.");
 
   m.attr("FREE_CAMERA_IDX") = mujoco::studio::kFreeCameraIdx;
   m.attr("TUMBLE_CAMERA_IDX") = mujoco::studio::kTumbleCameraIdx;

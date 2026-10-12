@@ -51,6 +51,7 @@
 #include "experimental/studio/hal/window.h"
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/sim/step_control.h"
+#include "experimental/studio/ux/console.h"
 #include "experimental/studio/ux/file_dialog.h"
 #include "experimental/studio/ux/gui.h"
 #include "experimental/studio/ux/gui_helpers.h"
@@ -151,6 +152,7 @@ static constexpr const char* ICON_REDO_SPEC = ICON_FA_REPEAT;
 App::App(Config config)
     : app_title_(std::move(config.title)),
       ini_path_(std::move(config.ini_path)) {
+  Console::Init();
   SwitchGraphicsMode(config.width, config.height, config.gfx_mode);
 
   if (config.initial_theme.has_value()) {
@@ -369,9 +371,14 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
 
 void App::SetLoadError(std::string error) {
   BuildModel(EmptyModel{});
-  load_error_ = std::move(error);
-  step_error_ = "";
-  edit_error_ = "";
+  RecordLoadError(error);
+}
+
+void App::RecordLoadError(std::string_view error) {
+  load_error_ = error;
+  if (!load_error_.empty()) {
+    Console::Get().Log(mjLOG_ERROR, load_error_);
+  }
 }
 
 void App::ResetPhysics() {
@@ -384,8 +391,6 @@ void App::ResetPhysics() {
   }
   ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
                has_data() ? data() : nullptr);
-  step_error_ = "";
-  edit_error_ = "";
   timer_prev_ = {};
   profiler_.ResetTimers();
 }
@@ -425,17 +430,12 @@ void App::UpdatePhysics() {
       profiler_.Update(model(), data());
     } else if (status == StepControl::Status::kOk) {
       stepped = true;
-      // If we are adding to the history we didn't have a divergence error
-      step_error_ = "";
     } else if (status == StepControl::Status::kAutoReset) {
       ResetPhysics();
     } else if (status == StepControl::Status::kDiverged) {
+      // The engine reported the divergence with mju_warning, which adds it to
+      // the Console.
       stepped = true;
-      for (mjtWarning w : StepControl::kDivergedWarnings) {
-        if (data()->warning[w].number > 0) {
-          step_error_ = mju_warningText(w, data()->warning[w].lastinfo);
-        }
-      }
     }
   }
 
@@ -565,7 +565,7 @@ void App::BuildModel(const BuildModelInfo& info) {
       RestoreKeyframeSelection(saved_key);
       OnModelLoaded("", model_kind_);
     } else {
-      load_error_ = std::move(tmp_holder->error());
+      RecordLoadError(tmp_holder->error());
     }
   } else if (std::holds_alternative<RecompileModel>(info)) {
     const KeyframeSelection saved_key =
@@ -652,8 +652,6 @@ void App::BuildModel(const BuildModelInfo& info) {
 
 void App::OnModelLoaded(std::string_view filename, ModelKind model_kind) {
   load_error_ = "";
-  step_error_ = "";
-  edit_error_ = "";
 
   timer_prev_ = {};
   profiler_.Clear();
@@ -1303,6 +1301,16 @@ void App::BuildGui() {
                          ImGuiWindowFlags_NoScrollWithMouse)) {
       ProfilerGui(model(), data(), &profiler_,
                             tmp_.profiler_show_iter);
+    }
+    ImGui::End();
+  }
+
+  if (tmp_.console) {
+    if (ImGui::Begin("Console", &tmp_.console)) {
+      Console::Get().WindowGui();
+    } else if (ImGui::IsWindowCollapsed()) {
+      ImGui::SetWindowCollapsed(false);
+      tmp_.console = false;
     }
     ImGui::End();
   }
@@ -2081,7 +2089,9 @@ void App::ToolBarGui() {
 }
 
 void App::StatusBarGui() {
-  if (ImGui::BeginTable("##StatusBarTable", 1)) {
+  if (ImGui::BeginTable("##StatusBarTable", 2)) {
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableNextColumn();
 
     if (!has_model()) {
@@ -2092,13 +2102,8 @@ void App::StatusBarGui() {
       ImGui::Text("Running");
     }
 
-    if (!step_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Step Error: %s", step_error_.c_str());
-    } else if (!edit_error_.empty()) {
-      ImGui::SameLine();
-      ImGui::Text(" | Edit Error: %s", edit_error_.c_str());
-    }
+    ImGui::TableNextColumn();
+    Console::Get().StatusGui(&tmp_.console);
 
     ImGui::EndTable();
   }
@@ -2245,6 +2250,9 @@ void App::MainMenuGui() {
         } else {
           tmp_.profiler = false;
         }
+      }
+      if (ImGui::MenuItem("Console", nullptr, tmp_.console)) {
+        ToggleWindow(tmp_.console);
       }
       ImGui::Separator();
 

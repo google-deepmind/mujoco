@@ -166,7 +166,8 @@ class App {
     bool picture_in_picture = false;
     bool options_panel = true;
     bool toolbar = false;
-    bool status_bar = false;
+    bool status_bar = true;
+    bool console = false;
     bool inspector_panel = true;
     bool editor_panel = false;
     bool full_screen = false;
@@ -239,6 +240,7 @@ class App {
   void SwitchGraphicsMode(int width, int height, GraphicsMode mode);
 
   void SetLoadError(std::string error);
+  void RecordLoadError(std::string_view error);
   void UpdateFilePaths(const std::string& resolved_path);
 
   void ResetPhysics();
@@ -297,8 +299,6 @@ class App {
   ModelKind model_kind_ = kEmptyModel;
   std::string model_path_;
   std::string load_error_;
-  std::string step_error_;
-  std::string edit_error_;
 
   // Cached previous state.
   std::vector<std::byte> last_buffer_;

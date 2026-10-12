@@ -228,6 +228,8 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_TabDimmed] = ImVec4(0.14, 0.15, 0.17, 1.00);
     c[ImGuiCol_TabDimmedSelected] = ImVec4(0.20, 0.21, 0.24, 1.00);
     c[ImGuiCol_DockingPreview] = ImVec4(0.36, 0.41, 0.48, 0.40);
+    c[ImGuiCol_TableRowBg] = ImVec4(0.16, 0.17, 0.19, 1.00);
+    c[ImGuiCol_TableRowBgAlt] = ImVec4(0.20, 0.21, 0.24, 1.00);
   } else if (theme == GuiTheme::kLight) {
     ImGui::StyleColorsLight(&s);
 
@@ -299,6 +301,8 @@ void SetupTheme(GuiTheme theme) {
     c[ImGuiCol_DragDropTarget] = accent;
     c[ImGuiCol_NavCursor] = accent;
     c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.00, 0.00, 0.00, 0.30);
+    c[ImGuiCol_TableRowBg] = surface;
+    c[ImGuiCol_TableRowBgAlt] = ImVec4(0.92, 0.92, 0.94, 1.00);
   } else {
     ImGui::StyleColorsDark(&s);
     ImVec4 black = ImVec4(0.00, 0.00, 0.00, 1.0);
@@ -506,6 +510,9 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
     ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kPropertiesRelHeight,
                                 &properties, &inspector);
 
+    ImGuiID console = 0;
+    ImGui::DockBuilderSplitNode(main, ImGuiDir_Down, 0.25f, &console, &main);
+
     ImGuiID profiler = 0;
     ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, 0.42f, &profiler, &main);
 
@@ -515,6 +522,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
     ImGui::DockBuilderDockWindow("Editor", inspector);
     ImGui::DockBuilderDockWindow("Inspector", inspector);
     ImGui::DockBuilderDockWindow("Properties", properties);
+    ImGui::DockBuilderDockWindow("Console", console);
     ImGui::DockBuilderDockWindow("Profiler", profiler);
     ImGui::DockBuilderFinish(root);
   }
