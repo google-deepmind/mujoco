@@ -831,5 +831,40 @@ TEST_F(MjCollisionBoxTest, CanonicalFaceAndEdgeAlignments) {
   }
 }
 
+TEST_F(MjCollisionBoxTest, CapsuleBoxLargeMarginDistance) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="box" type="box" size="0.1 0.1 0.1"/>
+      <geom name="capsule" type="capsule" size="0.1 0.2" pos="0 0 3.5"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  mjtNum distmax = 5.0;
+  mjtNum fromto[6];
+
+  // Face-closest capsule-box pair separated by 3.1 (< distmax = 5.0)
+  mjtNum dist_face =
+      mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto);
+  EXPECT_NEAR(dist_face, 3.1, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(fromto[2], 0.1, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(fromto[5], 3.2, MjTol(1e-12, 1e-5));
+
+  // Edge-closest capsule-box pair separated by 2.4*sqrt(2) - 0.1 (< distmax)
+  data->geom_xpos[3] = 2.5;
+  data->geom_xpos[4] = 2.5;
+  data->geom_xpos[5] = 0.0;
+  mjtNum expected_edge = 2.4 * std::sqrt(2.0) - 0.1;
+  mjtNum dist_edge =
+      mj_geomDistance(model.get(), data.get(), 0, 1, distmax, fromto);
+  EXPECT_NEAR(dist_edge, expected_edge, MjTol(1e-12, 1e-5));
+}
+
 }  // namespace
 }  // namespace mujoco

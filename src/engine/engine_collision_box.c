@@ -169,6 +169,7 @@ int mjraw_CapsuleBox(mjPreContact* con, mjtNum margin,
 
   bestdistmax = margin + 2 * (size1[0] + halflength + size2[0] + size2[1] +
                               size2[2]);  // initialize bestdist
+  bestdistmax *= bestdistmax;  // compared against squared distances
   bestdist = bestdistmax;
   bestsegmentpos = 0;
 
