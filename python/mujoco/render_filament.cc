@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -502,6 +503,19 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
           self.SetOptions(*opt.get());
         },
         py::arg("opt"));
+    cls.def(
+        "get_renderable",
+        [](ModelRenderables& self, mjtObj obj_type, int obj_index,
+           int sub_index) -> std::optional<PyRenderable> {
+          mjrfRenderable* renderable =
+              self.GetRenderable(obj_type, obj_index, sub_index);
+          if (renderable) {
+            return PyRenderable(renderable);
+          } else {
+            return std::nullopt;
+          }
+        },
+        py::arg("obj_type"), py::arg("obj_index"), py::arg("sub_index") = -1);
   }
 
   {
@@ -517,6 +531,17 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       self.Update(data.get());
     },
     py::arg("data"));
+    cls.def(
+        "get_light",
+        [](ModelLights& self, int index) -> std::optional<PyLight> {
+          mjrfLight* light = self.GetLight(index);
+          if (light) {
+            return PyLight(light);
+          } else {
+            return std::nullopt;
+          }
+        },
+        py::arg("index"));
   }
 
   {
