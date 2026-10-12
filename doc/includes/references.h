@@ -1661,7 +1661,7 @@ typedef struct mjrfMaterial_ {
   float glossiness;             // glossiness factor [0, 1]; disabled if < 0
   float emissive;               // emissive/glow factor [0, 1]; disabled if < 0
   float reflectance;            // blend factor for reflective surfaces [0, 1]; applies only to planes
-  mjtBool decor_ux;             // for ux elements, does not apply any lighting
+  mjtBool decor;                // ux/decor element: unlit, drawn on the decor layer, no shadows
   mjtBool selected;             // for "selected" ux elements, adds additional styling
   const mjrfTexture* color_texture;       // color/albedo texture (RGB8)
   const mjrfTexture* opacity_texture;     // opacity texture (A8)
@@ -3634,7 +3634,7 @@ void mjrf_defaultTextureConfig(mjrfTextureConfig* config);
 mjrfTexture* mjrf_createTexture(mjrfContext* ctx, const mjrfTextureConfig* config);
 void mjrf_destroyTexture(mjrfTexture* texture);
 void mjrf_defaultTextureData(mjrfTextureData* data);
-void mjrf_setTextureData(mjrfTexture* texture, const mjrfTextureData* data);
+void mjrf_uploadTexture(mjrfTexture* texture, const mjrfTextureData* data);
 int mjrf_getTextureWidth(const mjrfTexture* texture);
 int mjrf_getTextureHeight(const mjrfTexture* texture);
 int mjrf_getTextureSamplerType(const mjrfTexture* texture);
@@ -3642,7 +3642,7 @@ void mjrf_defaultMeshConfig(mjrfMeshConfig* config);
 mjrfMesh* mjrf_createMesh(mjrfContext* ctx, const mjrfMeshConfig* config);
 void mjrf_destroyMesh(mjrfMesh* mesh);
 void mjrf_defaultMeshData(mjrfMeshData* data);
-void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
+void mjrf_uploadMesh(mjrfMesh* mesh, const mjrfMeshData* data);
 void mjrf_defaultSceneParams(mjrfSceneParams* params);
 mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params);
 void mjrf_destroyScene(mjrfScene* scene);
@@ -3656,7 +3656,7 @@ void mjrf_setSceneMsaa(mjrfScene* scene, int samples);
 void mjrf_defaultLightParams(mjrfLightParams* params);
 mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
 void mjrf_destroyLight(mjrfLight* light);
-void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
+void mjrf_setLightActive(mjrfLight* light, mjtBool active);
 void mjrf_setLightCastShadow(mjrfLight* light, mjtBool enabled);
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
 void mjrf_setLightIntensity(mjrfLight* light, float intensity);
@@ -3665,7 +3665,7 @@ void mjrf_setLightCutoff(mjrfLight* light, float cutoff);
 void mjrf_setLightSoftness(mjrfLight* light, float softness);
 void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
-void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
+void mjrf_setLightPose(mjrfLight* light, const float position[3], const float direction[3]);
 int mjrf_getLightType(const mjrfLight* light);
 void mjrf_defaultMaterial(mjrfMaterial* material);
 void mjrf_defaultRenderableParams(mjrfRenderableParams* params);
@@ -3677,8 +3677,8 @@ void mjrf_setRenderableGeomMesh(mjrfRenderable* renderable, int type, int nstack
                           int nquad);
 void mjrf_setRenderableMaterial(mjrfRenderable* renderable, const mjrfMaterial* material);
 void mjrf_getRenderableMaterial(mjrfRenderable* renderable, mjrfMaterial* material);
-void mjrf_setRenderableTransform(mjrfRenderable* renderable, const float position[3],
-                           const float rotation[9]);
+void mjrf_setRenderablePose(mjrfRenderable* renderable, const float position[3],
+                      const float rotation[9]);
 void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]);
 void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config);
 mjrfRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx, const mjrfRenderTargetConfig* config);

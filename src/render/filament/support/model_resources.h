@@ -25,9 +25,9 @@
 namespace mujoco {
 
 // Creates and owns meshes and textures read from an mjModel.
-class ModelObjects {
+class ModelResources {
  public:
-  ModelObjects(const mjModel* model, mjrfContext* ctx);
+  ModelResources(const mjModel* model, mjrfContext* ctx);
 
   // Uploads a new mesh from the model with the given id.
   void UploadMesh(const mjModel* model, int id);
@@ -55,7 +55,7 @@ class ModelObjects {
   // Returns the skybox texture in the mjModel.
   const mjrfTexture* GetSkyboxTexture() const;
 
-  // Returns the mjrfContext used by the ModelObjects.
+  // Returns the mjrfContext used by the ModelResources.
   mjrfContext* GetContext() const { return ctx_; }
 
   // Returns the mjModel from which the Model Objects are created.
@@ -67,8 +67,8 @@ class ModelObjects {
   float GetShininessMultiplier() const { return shininess_multiplier_; }
   float GetEmissiveMultiplier() const { return emissive_multiplier_; }
 
-  ModelObjects(const ModelObjects&) = delete;
-  ModelObjects& operator=(const ModelObjects&) = delete;
+  ModelResources(const ModelResources&) = delete;
+  ModelResources& operator=(const ModelResources&) = delete;
 
  private:
   const mjModel* model_ = nullptr;

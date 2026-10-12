@@ -24,12 +24,12 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/support/mjrf_ptr.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 namespace mujoco {
 
 static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
-                              ModelObjects* model_objs,
+                              ModelResources* model_objs,
                               SceneObjects* scene_objs) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
@@ -128,18 +128,18 @@ static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
       break;
   }
 
-  mjrf_setRenderableTransform(renderable, position, rotation);
+  mjrf_setRenderablePose(renderable, position, rotation);
 }
 
 static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
-                               ModelObjects* model_objs) {
+                               ModelResources* model_objs) {
   const mjModel* model = model_objs->GetModel();
 
   mjrfMaterial material;
   mjrf_defaultMaterial(&material);
 
   if (geom.category == mjCAT_DECOR) {
-    material.decor_ux = true;
+    material.decor = true;
   }
 
   material.color[0] = geom.rgba[0];
@@ -254,7 +254,7 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
 
 UniquePtr<mjrfRenderable> CreateGeomRenderable(const mjvGeom& geom,
                                                mjrfContext* ctx,
-                                               ModelObjects* model_objs,
+                                               ModelResources* model_objs,
                                                SceneObjects* scene_objs) {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);

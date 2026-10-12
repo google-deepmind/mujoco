@@ -427,7 +427,7 @@ mjrf_material.def(py::init([](
   std::optional<float> glossiness,
   std::optional<float> emissive,
   std::optional<float> reflectance,
-  std::optional<bool> decor_ux,
+  std::optional<bool> decor,
   std::optional<bool> selected,
   PyTexture* color_texture,
   PyTexture* opacity_texture,
@@ -454,7 +454,7 @@ mjrf_material.def(py::init([](
   if (glossiness) Setter(obj.glossiness, *glossiness);
   if (emissive) Setter(obj.emissive, *emissive);
   if (reflectance) Setter(obj.reflectance, *reflectance);
-  if (decor_ux) Setter(obj.decor_ux, *decor_ux);
+  if (decor) Setter(obj.decor, *decor);
   if (selected) Setter(obj.selected, *selected);
   if (color_texture) Setter(obj.color_texture, *color_texture);
   if (opacity_texture) Setter(obj.opacity_texture, *opacity_texture);
@@ -480,7 +480,7 @@ mjrf_material.def(py::init([](
 , py::arg("glossiness").none(true) = py::none()
 , py::arg("emissive").none(true) = py::none()
 , py::arg("reflectance").none(true) = py::none()
-, py::arg("decor_ux").none(true) = py::none()
+, py::arg("decor").none(true) = py::none()
 , py::arg("selected").none(true) = py::none()
 , py::arg("color_texture").none(true) = py::none()
 , py::arg("opacity_texture").none(true) = py::none()
@@ -505,7 +505,7 @@ DefProperty<float>(mjrf_material, "specular", &mjrfMaterial::specular);
 DefProperty<float>(mjrf_material, "glossiness", &mjrfMaterial::glossiness);
 DefProperty<float>(mjrf_material, "emissive", &mjrfMaterial::emissive);
 DefProperty<float>(mjrf_material, "reflectance", &mjrfMaterial::reflectance);
-DefProperty<bool>(mjrf_material, "decor_ux", &mjrfMaterial::decor_ux);
+DefProperty<bool>(mjrf_material, "decor", &mjrfMaterial::decor);
 DefProperty<bool>(mjrf_material, "selected", &mjrfMaterial::selected);
 DefProperty<PyTexture>(mjrf_material, "color_texture", &mjrfMaterial::color_texture);
 DefProperty<PyTexture>(mjrf_material, "opacity_texture", &mjrfMaterial::opacity_texture);
@@ -607,11 +607,11 @@ mjrf_context.def("get_frame_stats", [](
 , py::arg("stats_out")
 );
 
-mjrf_texture.def("set_data", [](
+mjrf_texture.def("upload", [](
   PyTexture& texture,
   const mjrfTextureData * data
 ) {
-    return mjrf_setTextureData(texture.get(), data);
+    return mjrf_uploadTexture(texture.get(), data);
 }
 , py::arg("data")
 );
@@ -637,11 +637,11 @@ mjrf_texture.def("get_sampler_type", [](
 }
 );
 
-mjrf_mesh.def("set_data", [](
+mjrf_mesh.def("upload", [](
   PyMesh& mesh,
   const mjrfMeshData* data
 ) {
-    return mjrf_setMeshData(mesh.get(), data);
+    return mjrf_uploadMesh(mesh.get(), data);
 }
 , py::arg("data")
 );
@@ -700,11 +700,11 @@ mjrf_scene.def("set_msaa", [](
 , py::arg("samples")
 );
 
-mjrf_light.def("set_enabled", [](
+mjrf_light.def("set_active", [](
   PyLight& light,
   bool enabled
 ) {
-    return mjrf_setLightEnabled(light.get(), enabled);
+    return mjrf_setLightActive(light.get(), enabled);
 }
 , py::arg("enabled")
 );
@@ -782,12 +782,12 @@ mjrf_light.def("set_bulb_radius", [](
 , py::arg("radius")
 );
 
-mjrf_light.def("set_transform", [](
+mjrf_light.def("set_pose", [](
   PyLight& light,
   Float3::Ref& position,
   Float3::Ref& direction
 ) {
-    return mjrf_setLightTransform(light.get(), position.data(), direction.data());
+    return mjrf_setLightPose(light.get(), position.data(), direction.data());
 }
 , py::arg("position")
 , py::arg("direction")
@@ -837,12 +837,12 @@ mjrf_renderable.def("set_material", [](
 , py::arg("material")
 );
 
-mjrf_renderable.def("set_transform", [](
+mjrf_renderable.def("set_pose", [](
   PyRenderable& renderable,
   Float3::Ref& position,
   Float9::Ref& rotation
 ) {
-    return mjrf_setRenderableTransform(renderable.get(), position.data(), rotation.data());
+    return mjrf_setRenderablePose(renderable.get(), position.data(), rotation.data());
 }
 , py::arg("position")
 , py::arg("rotation")

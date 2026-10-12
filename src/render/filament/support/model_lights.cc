@@ -28,7 +28,7 @@
 #include <mujoco/mujoco.h>
 #include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/filament_util.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 namespace mujoco {
 
@@ -69,13 +69,13 @@ static UniquePtr<mjrfTexture> CreateFallbackIndirectLightTexture(
       +[](void* user_data) { mju_closeResource((mjResource*)user_data); };
   payload.user_data = resource;
 
-  mjrf_setTextureData(texture.get(), &payload);
+  mjrf_uploadTexture(texture.get(), &payload);
   return texture;
 }
 
-ModelLights::ModelLights(mjrfScene* scene, ModelObjects* model_objects)
-    : scene_(scene), model_objects_(model_objects) {
-  const mjModel* model = model_objects->GetModel();
+ModelLights::ModelLights(mjrfScene* scene, ModelResources* model_resources)
+    : scene_(scene), model_resources_(model_resources) {
+  const mjModel* model = model_resources->GetModel();
   shadowsize_ = model->vis.quality.shadowsize;
   fallback_head_light_intensity_ =
       ReadElement(model, "filament.fallback.head_light_intensity",
@@ -105,8 +105,8 @@ ModelLights::~ModelLights() {
 }
 
 void ModelLights::Prepare() {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   // Default to the shadow map resolution in mjVisual, like the classic
   // renderer. Filament clamps shadow map sizes to 2048.
@@ -126,7 +126,7 @@ void ModelLights::Prepare() {
       mjrfLightParams params;
       mjrf_defaultLightParams(&params);
       params.type = mjLIGHT_IMAGE;
-      params.texture = model_objects_->GetTexture(model->light_texid[i]);
+      params.texture = model_resources_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
       auto light_obj = CreateLight(ctx, params);
       mjrf_addSceneLight(scene_, light_obj.get());
@@ -213,11 +213,11 @@ void ModelLights::Prepare() {
     }
   }
 
-  mjrf_setSceneSkybox(scene_, model_objects_->GetSkyboxTexture());
+  mjrf_setSceneSkybox(scene_, model_resources_->GetSkyboxTexture());
 }
 
 void ModelLights::UpdateShadowMapSize() {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
   if (model->vis.quality.shadowsize != shadowsize_) {
     shadowsize_ = model->vis.quality.shadowsize;
     shadow_map_size_ = std::min(shadowsize_, 2048);
@@ -232,7 +232,7 @@ void ModelLights::Update(const mjData* data) {
   if (data == nullptr) {
     return;
   }
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
   float total_light_intensity = 0.0f;
   for (int i = 0; i < model->nlight; ++i) {
     total_light_intensity += model->light_intensity[i];
@@ -242,10 +242,10 @@ void ModelLights::Update(const mjData* data) {
     mjrfLight* light = lights_[i].get();
     const float3 pos = ReadFloat3(data->light_xpos, i);
     const float3 dir = ReadFloat3(data->light_xdir, i);
-    mjrf_setLightTransform(light, pos.v, dir.v);
+    mjrf_setLightPose(light, pos.v, dir.v);
 
     const float3 color = ReadFloat3(model->light_diffuse, i);
-    mjrf_setLightEnabled(light, model->light_active[i]);
+    mjrf_setLightActive(light, model->light_active[i]);
     mjrf_setLightColor(light, color.v);
     mjrf_setLightIntensity(light, total_light_intensity > 0.0f
                                       ? model->light_intensity[i]

@@ -106,7 +106,7 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   texture_data.release = callback;
 
   std::memcpy(bytes, pixels, num_bytes);
-  mjrf_setTextureData(texture, &texture_data);
+  mjrf_uploadTexture(texture, &texture_data);
   return tex_id;
 }
 
@@ -141,7 +141,7 @@ void ImguiBridge::UpdateTexture(ImTextureData* data) {
   texture_data.num_bytes = data->Width * data->Height * 4;
   texture_data.user_data = nullptr;
   texture_data.release = nullptr;
-  mjrf_setTextureData(iter->second.get(), &texture_data);
+  mjrf_uploadTexture(iter->second.get(), &texture_data);
   data->SetStatus(ImTextureStatus_OK);
 }
 
@@ -245,7 +245,7 @@ void ImguiBridge::Update() {
     data.vertices[2] = cmds->VtxBuffer.Data + sizeof(float) * 4;
     data.num_indices = cmds->IdxBuffer.Size;
     data.indices = cmds->IdxBuffer.Data;
-    mjrf_setMeshData(mesh, &data);
+    mjrf_uploadMesh(mesh, &data);
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
@@ -260,7 +260,7 @@ void ImguiBridge::Update() {
       mjrf_defaultMaterial(&material);
       material.color_texture = GetTexture(command.GetTexID());
 
-      material.decor_ux = true;
+      material.decor = true;
       // Scale clip rects to physical pixels here instead of using
       // ScaleClipRects, which previously caused flickering and clipping bugs:
       // it mutates draw data in place, so draw lists that are re-rendered

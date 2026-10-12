@@ -449,7 +449,7 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
   SetBounds(&mesh_data, min_pt, max_pt);
 
   auto mesh = CreateMesh(ctx, mesh_config);
-  mjrf_setMeshData(mesh.get(), &mesh_data);
+  mjrf_uploadMesh(mesh.get(), &mesh_data);
   return mesh;
 }
 
@@ -477,7 +477,7 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
   SetBounds(&mesh_data, min_pt, max_pt);
 
   auto mesh = CreateMesh(ctx, mesh_config);
-  mjrf_setMeshData(mesh.get(), &mesh_data);
+  mjrf_uploadMesh(mesh.get(), &mesh_data);
   return mesh;
 }
 

@@ -449,8 +449,8 @@ The Python ``mjrf`` module exposes the ``mjrf_`` :ref:`C API<FilamentRenderingAp
   references such that python will not manage their lifetimes.
 
 - In cases where the ``mjrf_`` C function takes a pointer to an object as its first argument, we bind the function as a
-  method of the object itself. So, for example, :ref:`mjrf_setLightEnabled(mjrfLight*, bool)<mjrf_setLightEnabled>`
-  becomes ``Light.set_enabled(bool)``.
+  method of the object itself. So, for example, :ref:`mjrf_setLightActive(mjrfLight*, bool)<mjrf_setLightActive>`
+  becomes ``Light.set_active(bool)``.
 
 - Some functions (e.g. ``mjrf.ReadRequest.set_buffer``) require users to provide a buffer. Users are responsible
   for ensuring the lifetime of the buffer outlives the request to which it is associated.

@@ -202,11 +202,11 @@ void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target) {
   delete mujoco::RenderTarget::downcast(render_target);
 }
 
-void mjrf_setTextureData(mjrfTexture* texture, const mjrfTextureData* data) {
+void mjrf_uploadTexture(mjrfTexture* texture, const mjrfTextureData* data) {
   mujoco::Texture::downcast(texture)->Upload(*data);
 }
 
-void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data) {
+void mjrf_uploadMesh(mjrfMesh* mesh, const mjrfMeshData* data) {
   mujoco::Mesh::downcast(mesh)->Upload(*data);
 }
 
@@ -222,8 +222,8 @@ int mjrf_getTextureSamplerType(const mjrfTexture* texture) {
   return mujoco::Texture::downcast(texture)->GetSamplerType();
 }
 
-void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled) {
-  if (enabled) {
+void mjrf_setLightActive(mjrfLight* light, mjtBool active) {
+  if (active) {
     mujoco::Light::downcast(light)->Enable();
   } else {
     mujoco::Light::downcast(light)->Disable();
@@ -262,7 +262,7 @@ void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size) {
   mujoco::Light::downcast(light)->SetShadowMapSize(map_size);
 }
 
-void mjrf_setLightTransform(mjrfLight* light, const float position[3],
+void mjrf_setLightPose(mjrfLight* light, const float position[3],
                             const float direction[3]) {
   mujoco::Light::downcast(light)->SetTransform(
       {position[0], position[1], position[2]},
@@ -295,9 +295,9 @@ void mjrf_getRenderableMaterial(mjrfRenderable* renderable,
   *material = mujoco::Renderable::downcast(renderable)->GetMaterial();
 }
 
-void mjrf_setRenderableTransform(mjrfRenderable* renderable,
-                                 const float position[3],
-                                 const float rotation[9]) {
+void mjrf_setRenderablePose(mjrfRenderable* renderable,
+                            const float position[3],
+                            const float rotation[9]) {
   const filament::math::float3 fposition{position[0], position[1], position[2]};
   const filament::math::mat3f frotation{rotation[0], rotation[3], rotation[6],
                                         rotation[1], rotation[4], rotation[7],

@@ -26,7 +26,7 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/support/mjrf_ptr.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 namespace mujoco {
 
@@ -34,7 +34,7 @@ namespace mujoco {
 class ModelRenderables {
  public:
   // Populates the mjrScene with the renderables from the model.
-  ModelRenderables(mjrfScene* scene, ModelObjects* model_objects);
+  ModelRenderables(mjrfScene* scene, ModelResources* model_resources);
   ~ModelRenderables();
 
   // Updates the state of the renderables in the scene.
@@ -89,7 +89,7 @@ class ModelRenderables {
                            const mjData* data = nullptr);
 
   mjrfScene* scene_;
-  ModelObjects* model_objects_;
+  ModelResources* model_resources_;
 
   mjvOption vopts_;
   int numstacks_ = 0;

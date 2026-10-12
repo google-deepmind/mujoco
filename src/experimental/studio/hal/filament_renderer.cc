@@ -28,7 +28,7 @@
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/model_decorations.h"
 #include "render/filament/support/model_lights.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 #include "render/filament/support/model_renderables.h"
 
 namespace mujoco::studio {
@@ -79,7 +79,7 @@ void FilamentRenderer::Init(const mjModel* model) {
   model_decorations_.reset();
   model_renderables_.reset();
   model_lights_.reset();
-  model_objects_.reset();
+  model_resources_.reset();
   main_scene_.reset();
 
   if (model) {
@@ -96,12 +96,12 @@ void FilamentRenderer::Init(const mjModel* model) {
     main_scene_ = CreateScene(filament_context_.get(), {});
     mjrf_configureSceneFromModel(main_scene_.get(), model);
     offsamples_ = model->vis.quality.offsamples;
-    model_objects_ =
-        std::make_unique<ModelObjects>(model, filament_context_.get());
+    model_resources_ =
+        std::make_unique<ModelResources>(model, filament_context_.get());
     model_lights_ =
-        std::make_unique<ModelLights>(main_scene_.get(), model_objects_.get());
+        std::make_unique<ModelLights>(main_scene_.get(), model_resources_.get());
     model_renderables_ = std::make_unique<ModelRenderables>(
-        main_scene_.get(), model_objects_.get());
+        main_scene_.get(), model_resources_.get());
     model_decorations_ = std::make_unique<ModelDecorations>(
         filament_context_.get(), main_scene_.get(), model);
   }

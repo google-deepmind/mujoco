@@ -20,14 +20,14 @@
 #include <mujoco/mujoco.h>
 #include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/support/mjrf_ptr.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 namespace mujoco {
 
 // Creates a Renderable from the given mjvGeom.
 UniquePtr<mjrfRenderable> CreateGeomRenderable(const mjvGeom& geom,
                                                mjrfContext* ctx,
-                                               ModelObjects* model_objs,
+                                               ModelResources* model_objs,
                                                SceneObjects* scene_objs);
 
 }  // namespace mujoco

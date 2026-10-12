@@ -35,7 +35,7 @@ decorative overlays (``mjCAT_DECOR``). The table below maps the main concepts of
      - :ref:`mjrfContext`, owns its graphics context (OpenGL or Vulkan, windowed or headless)
    * - Model resources
      - Uploaded by :ref:`mjr_makeContext`
-     - :ref:`mjrfMesh` and :ref:`mjrfTexture`, created by the ``ModelObjects`` :ref:`support class <reSupport>`
+     - :ref:`mjrfMesh` and :ref:`mjrfTexture`, created by the ``ModelResources`` :ref:`support class <reSupport>`
    * - Per-frame scene
      - :ref:`mjv_updateScene` fills :ref:`mjvScene`
      - ``ModelRenderables::Update`` updates persistent :ref:`mjrfRenderable` objects in place; :ref:`mjvScene` only
@@ -132,9 +132,9 @@ these components fit together for offscreen rendering:
    mjrf_configureSceneFromModel(scene.get(), m);
 
    // create retained model components and decoration helper
-   auto model_objects     = std::make_unique<ModelObjects>(m, ctx.get());
-   auto model_lights      = std::make_unique<ModelLights>(scene.get(), model_objects.get());
-   auto model_renderables = std::make_unique<ModelRenderables>(scene.get(), model_objects.get());
+   auto model_resources   = std::make_unique<ModelResources>(m, ctx.get());
+   auto model_lights      = std::make_unique<ModelLights>(scene.get(), model_resources.get());
+   auto model_renderables = std::make_unique<ModelRenderables>(scene.get(), model_resources.get());
    auto model_decorations = std::make_unique<ModelDecorations>(ctx.get(), scene.get(), m);
 
    // create offscreen render target
@@ -194,9 +194,9 @@ such as :ref:`mjrfMaterial` and :ref:`mjrfRenderRequest` describe how these obje
 
 **Meshes and textures** (:ref:`mjrfMesh`, :ref:`mjrfTexture`)
    GPU geometry and image assets are created once and retained across frames. :ref:`mjrfMesh` stores vertex attributes
-   (positions, packed tangent-frame orientations, UVs) and indices uploaded via :ref:`mjrf_setMeshData`, along with
+   (positions, packed tangent-frame orientations, UVs) and indices uploaded via :ref:`mjrf_uploadMesh`, along with
    bounding boxes used for frustum culling. :ref:`mjrfTexture` stores 2D, cubemap, or KTX-compressed image data uploaded
-   via :ref:`mjrf_setTextureData`. Both upload functions accept an optional completion callback for freeing host memory
+   via :ref:`mjrf_uploadTexture`. Both upload functions accept an optional completion callback for freeing host memory
    once the asynchronous GPU transfer finishes.
 
 **Renderables and materials** (:ref:`mjrfRenderable`, :ref:`mjrfMaterial`)
@@ -208,11 +208,12 @@ such as :ref:`mjrfMaterial` and :ref:`mjrfRenderRequest` describe how these obje
      :ref:`mjrf_setRenderableGeomMesh`, which caches and shares underlying mesh buffers across renderables with matching
      quality parameters).
    - **Material**: :ref:`mjrf_setRenderableMaterial` applies an :ref:`mjrfMaterial` struct, which selects between three
-     shading models: metallic-roughness PBR, legacy specular-glossiness (Phong), or unlit UI/decoration rendering
-     (``decor_ux``). The material also carries texture bindings (color, normal, metallic, roughness, occlusion, packed
+     shading models: metallic-roughness PBR, legacy specular-glossiness (Phong), or unlit rendering for UI and
+     decorative overlays (``decor``, which also places the object on the decor layer and disables shadows). The
+     material also carries texture bindings (color, normal, metallic, roughness, occlusion, packed
      ORM, emissive), UV scale/offset, selection highlighting (``selected``), and object/island IDs for segmentation and
      solver-island visualization.
-   - **Pose and size**: On each frame, :ref:`mjrf_setRenderableTransform` updates the renderable's 3D position and
+   - **Pose and size**: On each frame, :ref:`mjrf_setRenderablePose` updates the renderable's 3D position and
      rotation matrix in place, and :ref:`mjrf_setRenderableSize` updates its scale (handling non-uniform primitive
      scaling such as keeping capsule end-caps spherical). Renderables are added to or removed from a scene with
      :ref:`mjrf_addSceneRenderable` and :ref:`mjrf_removeSceneRenderable`.
@@ -245,8 +246,8 @@ While applications can manage low-level ``mjrf`` objects directly, most MuJoCo a
 `support/mjrf_ptr.h <https://github.com/google-deepmind/mujoco/blob/main/src/render/filament/support/mjrf_ptr.h>`__ for
 RAII ``UniquePtr`` wrappers), which is also exposed in Python under ``mujoco.mjrf``:
 
-- ``ModelObjects``: Creates and owns all :ref:`mjrfMesh` (meshes, convex hulls, and heightfields) and :ref:`mjrfTexture`
-  assets from an :ref:`mjModel`, and supports re-uploading modified assets dynamically.
+- ``ModelResources``: Creates and owns all :ref:`mjrfMesh` (meshes, convex hulls, and heightfields) and
+  :ref:`mjrfTexture` resources from an :ref:`mjModel`, and supports re-uploading modified assets dynamically.
 - ``ModelLights``: Populates and updates the scene's :ref:`mjrfLight` instances from :ref:`mjModel` and :ref:`mjData`,
   and automatically configures fallback environment and directional lighting when a model does not define photometric
   light intensities. Since the headlight belongs to the render request, ``GetHeadlightIntensity()`` reports the
@@ -259,7 +260,7 @@ RAII ``UniquePtr`` wrappers), which is also exposed in Python under ``mujoco.mjr
   (contact force arrows, inertia boxes, joint/actuator axes, perturbation tethers, text labels) are generated
   procedurally each frame rather than stored as persistent model elements, ``ModelDecorations`` internally calls
   :ref:`mjv_updateScene` and converts only the ``mjCAT_DECOR`` geoms (and non-skin flex debug wireframes) into temporary
-  unlit renderables. The Filament renderer has no 2D text API; text labels are instead reported to an optional callback
+  decor renderables. The Filament renderer has no 2D text API; text labels are instead reported to an optional callback
   passed to ``Update()``, and the application is responsible for drawing them (see ``DrawBitmapText()`` in
   :ref:`render.cc <saRender>`).
 

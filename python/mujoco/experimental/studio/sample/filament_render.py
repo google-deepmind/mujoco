@@ -53,13 +53,13 @@ def main(argv: Sequence[str]) -> None:
   r = renderer.Renderer(ctx)
 
   # create GPU objects (textures, meshes, etc.) from the model
-  model_objects = mjrf.ModelObjects(ctx, model)
+  model_resources = mjrf.ModelResources(ctx, model)
 
   # add model lights and renderables to a scene
   scene = r.scene("scn")
   scene.configure_from_model(model)
-  model_lights = mjrf.ModelLights(scene, model_objects)
-  model_renderables = mjrf.ModelRenderables(scene, model_objects)
+  model_lights = mjrf.ModelLights(scene, model_resources)
+  model_renderables = mjrf.ModelRenderables(scene, model_resources)
 
   vcam = mujoco.MjvCamera()
   mujoco.mjv_defaultFreeCamera(model, vcam)

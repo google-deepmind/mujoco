@@ -162,7 +162,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
 
       mjrfMaterial material;
       mjrf_defaultMaterial(&material);
-      material.decor_ux = true;
+      material.decor = true;
       material.color[0] = model_->flex_rgba[4 * geom.objid + 0];
       material.color[1] = model_->flex_rgba[4 * geom.objid + 1];
       material.color[2] = model_->flex_rgba[4 * geom.objid + 2];
@@ -184,7 +184,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
           mjrf_setRenderableGeomMesh(vertex.get(), mjGEOM_SPHERE, 8, 8, 1);
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
-          mjrf_setRenderableTransform(vertex.get(), mjv_scene_.flexvert + 3 * v,
+          mjrf_setRenderablePose(vertex.get(), mjv_scene_.flexvert + 3 * v,
                                       rot);
           mjrf_addSceneRenderable(scene_, vertex.get());
           decorations_.push_back(std::move(vertex));
@@ -228,7 +228,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
           mjrf_setRenderableGeomMesh(vertex.get(), mjGEOM_CYLINDER, 1, 8, 1);
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
-          mjrf_setRenderableTransform(vertex.get(), pos, rot);
+          mjrf_setRenderablePose(vertex.get(), pos, rot);
           mjrf_addSceneRenderable(scene_, vertex.get());
           decorations_.push_back(std::move(vertex));
         }
@@ -269,7 +269,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
         data.user_data = nullptr;
 
         auto mesh = CreateMesh(ctx_, config);
-        mjrf_setMeshData(mesh.get(), &data);
+        mjrf_uploadMesh(mesh.get(), &data);
         meshes_.push_back(std::move(mesh));
 
         auto renderable = CreateRenderable(ctx_, params);
@@ -287,7 +287,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
 
     mjrf_setRenderableGeomMesh(renderable.get(), geom_type, nstack, nslice,
                                nquad);
-    mjrf_setRenderableTransform(renderable.get(), geom.pos, geom.mat);
+    mjrf_setRenderablePose(renderable.get(), geom.pos, geom.mat);
     if (geom_type == mjGEOM_PLANE) {
       // Planes only define an xy size, so set the z-dimension to 1.0f.
       const float size[3] = {geom.size[0], geom.size[1], 1.0f};
@@ -298,7 +298,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
 
     mjrfMaterial material;
     mjrf_defaultMaterial(&material);
-    material.decor_ux = true;
+    material.decor = true;
     material.color[0] = geom.rgba[0];
     material.color[1] = geom.rgba[1];
     material.color[2] = geom.rgba[2];

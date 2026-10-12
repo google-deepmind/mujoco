@@ -153,13 +153,13 @@ bool SceneObjects::CreateSkinFlexMesh(const mjvScene* scene,
     if (iter == flexes_.end()) {
       iter = flexes_.insert({geom.objid, CreateMesh(ctx_, config)}).first;
     }
-    mjrf_setMeshData(iter->second.get(), &data);
+    mjrf_uploadMesh(iter->second.get(), &data);
   } else if (geom.type == mjGEOM_SKIN) {
     auto iter = skins_.find(geom.objid);
     if (iter == skins_.end()) {
       iter = skins_.insert({geom.objid, CreateMesh(ctx_, config)}).first;
     }
-    mjrf_setMeshData(iter->second.get(), &data);
+    mjrf_uploadMesh(iter->second.get(), &data);
   } else {
     mju_error("Unsupported dynamic mesh type: %d", geom.type);
   }

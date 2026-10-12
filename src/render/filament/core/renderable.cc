@@ -238,7 +238,7 @@ void Renderable::RemoveFromScene(filament::Scene* scene) {
 
 void Renderable::UpdateMaterial(const mjrfMaterial& material) {
   uint8_t layer_mask = kLayerMask_Object;
-  if (material.decor_ux) {
+  if (material.decor) {
     layer_mask = kLayerMask_Decor;
   }
   if (material.selected) {
@@ -269,7 +269,7 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
     material.selected = false;
 
     draw_state.wireframe = (request->draw_mode == mjDRAW_MODE_WIREFRAME);
-    if (material.decor_ux) {
+    if (material.decor) {
       draw_state.cast_shadows = false;
       draw_state.receive_shadows = false;
     }

@@ -156,7 +156,7 @@ typedef struct mjrfTextureConfig_ {
 void mjrf_defaultTextureConfig(mjrfTextureConfig* config);
 
 // Creates a filament texture. Note that the texture will not be created on the GPU until
-// `mjrf_setTextureData()` is called.
+// `mjrf_uploadTexture()` is called.
 mjrfTexture* mjrf_createTexture(mjrfContext* ctx, const mjrfTextureConfig* config);
 
 // Destroys the texture.
@@ -174,7 +174,7 @@ typedef struct mjrfTextureData_ {
 void mjrf_defaultTextureData(mjrfTextureData* data);
 
 // Uploads the given texture data to the texture.
-void mjrf_setTextureData(mjrfTexture* texture, const mjrfTextureData* data);
+void mjrf_uploadTexture(mjrfTexture* texture, const mjrfTextureData* data);
 
 // Returns the width of the texture.
 int mjrf_getTextureWidth(const mjrfTexture* texture);
@@ -226,7 +226,7 @@ typedef struct mjrfMeshData_ {
 void mjrf_defaultMeshData(mjrfMeshData* data);
 
 // Uploads the given mesh data to the mesh.
-void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
+void mjrf_uploadMesh(mjrfMesh* mesh, const mjrfMeshData* data);
 
 // Parameters for creating a scene (mjrfScene).
 typedef struct mjrfSceneParams_ {
@@ -286,8 +286,8 @@ mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
 // Destroys the light.
 void mjrf_destroyLight(mjrfLight* light);
 
-// Enables or disables the light.
-void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
+// Activates or deactivates the light.
+void mjrf_setLightActive(mjrfLight* light, mjtBool active);
 
 // Enables or disables whether or not the light casts shadows.
 void mjrf_setLightCastShadow(mjrfLight* light, mjtBool enabled);
@@ -314,7 +314,7 @@ void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);
 
 // Sets the position and direction of the light.
-void mjrf_setLightTransform(mjrfLight* light, const float position[3], const float direction[3]);
+void mjrf_setLightPose(mjrfLight* light, const float position[3], const float direction[3]);
 
 // Returns the type of the light (mjrLightType).
 int mjrf_getLightType(const mjrfLight* light);
@@ -334,7 +334,7 @@ typedef struct mjrfMaterial_ {
   float glossiness;             // glossiness factor [0, 1]; disabled if < 0
   float emissive;               // emissive/glow factor [0, 1]; disabled if < 0
   float reflectance;            // blend factor for reflective surfaces [0, 1]; applies only to planes
-  mjtBool decor_ux;             // for ux elements, does not apply any lighting
+  mjtBool decor;                // ux/decor element: unlit, drawn on the decor layer, no shadows
   mjtBool selected;             // for "selected" ux elements, adds additional styling
   const mjrfTexture* color_texture;       // color/albedo texture (RGB8)
   const mjrfTexture* opacity_texture;     // opacity texture (A8)
@@ -385,9 +385,9 @@ void mjrf_setRenderableMaterial(mjrfRenderable* renderable, const mjrfMaterial* 
 // Copies the material properties of the renderable into the given mjrfMaterial.
 void mjrf_getRenderableMaterial(mjrfRenderable* renderable, mjrfMaterial* material);
 
-// Sets the transform position and rotation of the renderable.
-void mjrf_setRenderableTransform(mjrfRenderable* renderable, const float position[3],
-                                 const float rotation[9]);
+// Sets the position and rotation of the renderable.
+void mjrf_setRenderablePose(mjrfRenderable* renderable, const float position[3],
+                            const float rotation[9]);
 
 // Sets the size of the renderable. Note that, for most renderables, this is equivalent to setting
 // the scale. However, for some geom-based renderables, the size scale is not applied uniformly

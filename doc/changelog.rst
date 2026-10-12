@@ -254,6 +254,20 @@ Filament Rendering
      ``Light.set_cutoff_angle → Light.set_cutoff``,
      ``Light.set_shadows_enabled → Light.set_cast_shadow``.
 
+   - The following ``mjrf`` names have been aligned with existing MuJoCo vocabulary:
+
+     ``mjrf_setMeshData → mjrf_uploadMesh`` and ``mjrf_setTextureData → mjrf_uploadTexture`` (cf. ``mjr_uploadMesh``)
+
+     ``mjrf_setRenderableTransform → mjrf_setRenderablePose`` and ``mjrf_setLightTransform → mjrf_setLightPose``
+
+     ``mjrf_setLightEnabled → mjrf_setLightActive`` (cf. ``mjModel.light_active``)
+
+     ``mjrfMaterial.decor_ux → mjrfMaterial.decor``
+
+     The ``ModelObjects`` support class is now ``ModelResources``. The Python counterparts changed accordingly:
+     ``Mesh.set_data``/``Texture.set_data → upload``, ``set_transform → set_pose``, ``Light.set_enabled → set_active``,
+     ``Material.decor_ux → decor``, ``mjrf.ModelObjects → mjrf.ModelResources``.
+
    - The following custom flags have been renamed for consistency:
 
      `filament.clearColor → filament.clear_color`
@@ -764,7 +778,7 @@ Engine
    13. :commit:`fa36015b` Removed unneeded `mjvScene` argument from :ref:`mjv_moveCamera`.
    14. :commit:`ba9a6503` Split up :ref:`mjrfMeshData` into `mjrfMeshData` and `mjrfMeshConfig` to allow reuploading of
        mesh data without having to recreate the mesh object. Introduces :ref:`mjrf_defaultMeshConfig` and
-       :ref:`mjrf_setMeshData` functions.
+       ``mjrf_setMeshData`` functions.
    15. :commit:`ba9a6503` Removed `bytes` field from :ref:`mjrVertexAttribute`.
 
 .. admonition:: Breaking ABI changes

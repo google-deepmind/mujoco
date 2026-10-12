@@ -30,7 +30,7 @@ class ModelData:
   name: str
   model: mujoco.MjModel
   data: mujoco.MjData
-  objects: mjrf.ModelObjects | None = None
+  objects: mjrf.ModelResources | None = None
   lights: mjrf.ModelLights | None = None
   renderables: mjrf.ModelRenderables | None = None
 
@@ -82,7 +82,7 @@ def main(argv: Sequence[str]) -> None:
   dx = 1.0 / float(nx)
   dy = 1.0 / float(ny)
   for md in models:
-    md.objects = mjrf.ModelObjects(ctx, md.model)
+    md.objects = mjrf.ModelResources(ctx, md.model)
     md.lights = mjrf.ModelLights(r.scene(md.name), md.objects)
     md.renderables = mjrf.ModelRenderables(r.scene(md.name), md.objects)
 

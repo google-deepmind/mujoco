@@ -28,7 +28,7 @@
 #include "experimental/filament/compat/scene_objects.h"
 #include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/model_lights.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 namespace mujoco {
 
@@ -72,7 +72,7 @@ class SceneBridge {
 
   mjrfContext* ctx_ = nullptr;
   mjrfScene* scene_ = nullptr;
-  std::unique_ptr<ModelObjects> model_objects_;
+  std::unique_ptr<ModelResources> model_resources_;
   std::unique_ptr<SceneObjects> scene_objects_;
   std::unique_ptr<ModelLights> model_lights_;
   bool headlight_enabled_ = false;

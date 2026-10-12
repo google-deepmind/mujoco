@@ -33,7 +33,7 @@
 #include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/filament_util.h"
 #include "render/filament/support/mesh_util.h"
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 namespace mujoco {
 
@@ -68,7 +68,7 @@ static void Connect(mjrfRenderable* renderable, const float3 p0,
   const quatf rot =
       quatf::fromDirectedRotation(normalize(vec), float3{0, 0, 1});
   const mat3f mat = mat3f(rot);
-  mjrf_setRenderableTransform(renderable, pos.v, mat.asArray());
+  mjrf_setRenderablePose(renderable, pos.v, mat.asArray());
   mjrf_setRenderableSize(renderable, size.v);
 }
 
@@ -113,7 +113,7 @@ static bool GetSize(const mjModel* model, mjtGeom type, const mjtNum* size,
   }
 }
 
-static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
+static void SetGeomMesh(mjrfRenderable* renderable, ModelResources* model_objs,
                         mjtGeom type, int data_id = -1) {
   const mjModel* model = model_objs->GetModel();
   const int nstack = model->vis.quality.numstacks;
@@ -163,11 +163,11 @@ static void SetGeomMesh(mjrfRenderable* renderable, ModelObjects* model_objs,
 }
 
 ModelRenderables::ModelRenderables(mjrfScene* scene,
-                                   ModelObjects* model_objects)
-    : scene_(scene), model_objects_(model_objects) {
+                                   ModelResources* model_resources)
+    : scene_(scene), model_resources_(model_resources) {
   mjv_defaultOption(&vopts_);
 
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
   numstacks_ = model->vis.quality.numstacks;
   numslices_ = model->vis.quality.numslices;
   numquads_ = model->vis.quality.numquads;
@@ -210,7 +210,7 @@ ModelRenderables::~ModelRenderables() {
 }
 
 void ModelRenderables::UpdateQuality() {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
   const int nquad = model->vis.quality.numquads;
@@ -220,7 +220,7 @@ void ModelRenderables::UpdateQuality() {
 
   if (nquad != numquads_) {
     for (int i = 0; i < model->nhfield; ++i) {
-      model_objects_->UploadHeightField(model, i);
+      model_resources_->UploadHeightField(model, i);
     }
   }
 
@@ -231,13 +231,13 @@ void ModelRenderables::UpdateQuality() {
   for (int i = 0; i < model->ngeom; ++i) {
     const mjtGeom type = (mjtGeom)model->geom_type[i];
     if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
-      SetGeomMesh(geoms_[i].get(), model_objects_, type, model->geom_dataid[i]);
+      SetGeomMesh(geoms_[i].get(), model_resources_, type, model->geom_dataid[i]);
     }
   }
   for (int i = 0; i < model->nsite; ++i) {
     const mjtGeom type = (mjtGeom)model->site_type[i];
     if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
-      SetGeomMesh(sites_[i].get(), model_objects_, type, model->site_dataid[i]);
+      SetGeomMesh(sites_[i].get(), model_resources_, type, model->site_dataid[i]);
     }
   }
   for (auto& [_, pair] : slider_cranks_) {
@@ -251,13 +251,13 @@ void ModelRenderables::UpdateQuality() {
 void ModelRenderables::Update(const mjData* data) {
   UpdateQuality();
 
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   for (int i = 0; i < model->ngeom; ++i) {
     const float3 pos = ReadFloat3(data->geom_xpos, i);
     const mat3f mat = ReadMat3(data->geom_xmat, i);
-    mjrf_setRenderableTransform(geoms_[i].get(), pos.v, mat.asArray());
+    mjrf_setRenderablePose(geoms_[i].get(), pos.v, mat.asArray());
 
     mjrfMaterial material = GetMaterial(mjOBJ_GEOM, i, data);
     mjrf_setRenderableMaterial(geoms_[i].get(), &material);
@@ -276,7 +276,7 @@ void ModelRenderables::Update(const mjData* data) {
       pos = ReadFloat3(meshpos);
       mat = ReadMat3(meshmat);
     }
-    mjrf_setRenderableTransform(sites_[i].get(), pos.v, mat.asArray());
+    mjrf_setRenderablePose(sites_[i].get(), pos.v, mat.asArray());
 
     mjrfMaterial material = GetMaterial(mjOBJ_SITE, i, data);
     mjrf_setRenderableMaterial(sites_[i].get(), &material);
@@ -374,7 +374,7 @@ mjrfRenderable* ModelRenderables::GetRenderable(mjtObj obj_type, int obj_index,
       }
       break;
     case mjOBJ_BODY: {
-      const mjModel* model = model_objects_->GetModel();
+      const mjModel* model = model_resources_->GetModel();
       for (int i = 0; i < model->ngeom; ++i) {
         if (model->geom_bodyid[i] == obj_index) {
           return geoms_[i].get();
@@ -394,8 +394,8 @@ mjrfRenderable* ModelRenderables::GetRenderable(mjtObj obj_type, int obj_index,
 }
 
 void ModelRenderables::AddGeomGeoms() {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   geoms_.reserve(model->ngeom);
   for (int i = 0; i < model->ngeom; ++i) {
@@ -405,7 +405,7 @@ void ModelRenderables::AddGeomGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    SetGeomMesh(renderable.get(), model_objects_, type,
+    SetGeomMesh(renderable.get(), model_resources_, type,
                 model->geom_dataid[i]);
 
     mjrfMaterial material = GetMaterial(mjOBJ_GEOM, i);
@@ -424,8 +424,8 @@ void ModelRenderables::AddGeomGeoms() {
 }
 
 void ModelRenderables::AddSiteGeoms() {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   sites_.reserve(model->nsite);
   for (int i = 0; i < model->nsite; ++i) {
@@ -435,7 +435,7 @@ void ModelRenderables::AddSiteGeoms() {
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx, params);
 
-    SetGeomMesh(renderable.get(), model_objects_, type,
+    SetGeomMesh(renderable.get(), model_resources_, type,
                 model->site_dataid[i]);
 
     mjrfMaterial material = GetMaterial(mjOBJ_SITE, i);
@@ -454,8 +454,8 @@ void ModelRenderables::AddSiteGeoms() {
 }
 
 void ModelRenderables::AddFlexGeoms() {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   flexes_.reserve(model->nflex);
   flex_meshes_.reserve(model->nflex);
@@ -495,8 +495,8 @@ void ModelRenderables::AddFlexGeoms() {
 }
 
 void ModelRenderables::AddSkinGeoms() {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   skins_.reserve(model->nskin);
   skin_meshes_.reserve(model->nskin);
@@ -517,8 +517,8 @@ void ModelRenderables::AddSkinGeoms() {
 }
 
 void ModelRenderables::AddSliderCrankGeoms() {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
   const int nquad = model->vis.quality.numquads;
@@ -555,7 +555,7 @@ void ModelRenderables::UpdateSliderCranks(const mjData* data, int actuator_id) {
     return;
   }
 
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
   const float scale = model->stat.meansize;
   const float slider_width = scale * model->vis.scale.slidercrank;
   const float crank_width = scale * model->vis.scale.slidercrank / 2.0;
@@ -599,8 +599,8 @@ void ModelRenderables::UpdateSliderCranks(const mjData* data, int actuator_id) {
 }
 
 void ModelRenderables::AppendSegmentToTendon(int tendon_id) {
-  mjrfContext* ctx = model_objects_->GetContext();
-  const mjModel* model = model_objects_->GetModel();
+  mjrfContext* ctx = model_resources_->GetContext();
+  const mjModel* model = model_resources_->GetModel();
 
   const int nstack = model->vis.quality.numstacks;
   const int nslice = model->vis.quality.numslices;
@@ -627,7 +627,7 @@ void ModelRenderables::RemoveSegmentFromTendon(int tendon_id) {
 }
 
 void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
 
   // Gather the points that define the tendon. We'll use a simple cache to avoid
   // excessive reallocations.
@@ -691,7 +691,7 @@ std::pair<mjtObj, int> ModelRenderables::GetObjectFromSegmentationId(
     return std::make_pair(mjOBJ_UNKNOWN, -1);
   }
 
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
   segmentation_id -= 1;
 
   if (segmentation_id < model->ngeom) {
@@ -729,7 +729,7 @@ std::pair<mjtObj, int> ModelRenderables::GetObjectFromSegmentationId(
 }
 
 int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
 
   int id = 1;
   if (obj_type == mjOBJ_GEOM) {
@@ -768,7 +768,7 @@ int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
 
 mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
                                            const mjData* data) {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
 
   mjrfMaterial material;
   mjrf_defaultMaterial(&material);
@@ -827,7 +827,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
   if (matid >= 0 && matid < model->nmat) {
     auto get_texture = [&](int role) -> const mjrfTexture* {
       const int tex_id = model->mat_texid[matid * mjNTEXROLE + role];
-      return tex_id >= 0 ? model_objects_->GetTexture(tex_id) : nullptr;
+      return tex_id >= 0 ? model_resources_->GetTexture(tex_id) : nullptr;
     };
     material.color_texture = get_texture(mjTEXROLE_RGB);
     material.normal_texture = get_texture(mjTEXROLE_NORMAL);
@@ -958,9 +958,9 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
   }
 
   // Apply material multipliers from the model.
-  material.emissive *= model_objects_->GetEmissiveMultiplier();
-  material.specular *= model_objects_->GetSpecularMultiplier();
-  material.glossiness *= model_objects_->GetShininessMultiplier();
+  material.emissive *= model_resources_->GetEmissiveMultiplier();
+  material.specular *= model_resources_->GetSpecularMultiplier();
+  material.glossiness *= model_resources_->GetShininessMultiplier();
 
   material.segmentation_id = GetSegmentationId(obj_type, obj_index);
 
@@ -1095,7 +1095,7 @@ static void ApplyVisibility(VisibilityOp* ops, int group, mjrfScene* scene,
 }
 
 void ModelRenderables::SetVisibility(mjtObj obj_type, int idx, bool visible) {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
 
   VisibilityOp ops[mjNGROUP] = {kNoop};
   switch (obj_type) {
@@ -1150,7 +1150,7 @@ void ModelRenderables::SetVisibility(mjtObj obj_type, int idx, bool visible) {
 }
 
 void ModelRenderables::SetOptions(const mjvOption& opt) {
-  const mjModel* model = model_objects_->GetModel();
+  const mjModel* model = model_resources_->GetModel();
 
   for (int i = 0; i < mjNGROUP; ++i) {
     if (vopts_.geomgroup[i] != opt.geomgroup[i]) {
@@ -1192,7 +1192,7 @@ void ModelRenderables::SetOptions(const mjvOption& opt) {
         mjrfRenderable* renderable = geoms_[i].get();
         const int mesh_id =
             model->geom_dataid[i] * 2 + (opt.flags[mjVIS_CONVEXHULL] ? 1 : 0);
-        const mjrfMesh* mesh = model_objects_->GetMesh(mesh_id);
+        const mjrfMesh* mesh = model_resources_->GetMesh(mesh_id);
         if (mesh) {
           mjrf_setRenderableMesh(renderable, mesh, 0, 0);
         }

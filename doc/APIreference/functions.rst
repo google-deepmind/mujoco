@@ -3279,7 +3279,7 @@ Initializes the mjrfTextureConfig to default values.
 .. mujoco-include:: mjrf_createTexture
 
 Creates a filament texture. Note that the texture will not be created on the GPU until
-`mjrf_setTextureData()` is called.
+`mjrf_uploadTexture()` is called.
 
 .. _mjrf_destroyTexture:
 
@@ -3299,12 +3299,12 @@ Destroys the texture.
 
 Initializes the mjrfTextureData to default values.
 
-.. _mjrf_setTextureData:
+.. _mjrf_uploadTexture:
 
-`mjrf_setTextureData <#mjrf_setTextureData>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_uploadTexture <#mjrf_uploadTexture>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setTextureData
+.. mujoco-include:: mjrf_uploadTexture
 
 Uploads the given texture data to the texture.
 
@@ -3372,12 +3372,12 @@ Destroys the mesh.
 
 Initializes the mjrfMeshData to default values.
 
-.. _mjrf_setMeshData:
+.. _mjrf_uploadMesh:
 
-`mjrf_setMeshData <#mjrf_setMeshData>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_uploadMesh <#mjrf_uploadMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setMeshData
+.. mujoco-include:: mjrf_uploadMesh
 
 Uploads the given mesh data to the mesh.
 
@@ -3498,14 +3498,14 @@ Creates a light for the filament renderer.
 
 Destroys the light.
 
-.. _mjrf_setLightEnabled:
+.. _mjrf_setLightActive:
 
-`mjrf_setLightEnabled <#mjrf_setLightEnabled>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setLightActive <#mjrf_setLightActive>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setLightEnabled
+.. mujoco-include:: mjrf_setLightActive
 
-Enables or disables the light.
+Activates or deactivates the light.
 
 .. _mjrf_setLightCastShadow:
 
@@ -3579,12 +3579,12 @@ Sets the radius of the light bulb.
 
 Sets the resolution of the light's shadow map, in texels.
 
-.. _mjrf_setLightTransform:
+.. _mjrf_setLightPose:
 
-`mjrf_setLightTransform <#mjrf_setLightTransform>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setLightPose <#mjrf_setLightPose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setLightTransform
+.. mujoco-include:: mjrf_setLightPose
 
 Sets the position and direction of the light.
 
@@ -3672,14 +3672,14 @@ Sets the material properties and textures of the renderable.
 
 Copies the material properties of the renderable into the given mjrfMaterial.
 
-.. _mjrf_setRenderableTransform:
+.. _mjrf_setRenderablePose:
 
-`mjrf_setRenderableTransform <#mjrf_setRenderableTransform>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setRenderablePose <#mjrf_setRenderablePose>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setRenderableTransform
+.. mujoco-include:: mjrf_setRenderablePose
 
-Sets the transform position and rotation of the renderable.
+Sets the position and rotation of the renderable.
 
 .. _mjrf_setRenderableSize:
 

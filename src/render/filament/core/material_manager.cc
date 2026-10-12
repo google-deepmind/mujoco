@@ -123,7 +123,7 @@ static MaterialManager::MaterialKey BuildMaterialKey(
 
 MaterialManager::MaterialType MaterialManager::GetMaterialType(
     const mjrfMaterial& material, const Mesh* mesh) {
-  if (material.decor_ux) {
+  if (material.decor) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
     } else if (material.color[3] < 1.0f) {
@@ -323,7 +323,7 @@ void MaterialManager::UpdateMaterialInstance(
 
   // Use CLAMP_TO_EDGE for UI/ImGui textures so opposite borders do not bleed
   // across UV 0/1 boundaries under bilinear magnification.
-  const auto wrap_mode = material.decor_ux
+  const auto wrap_mode = material.decor
                              ? filament::TextureSampler::WrapMode::CLAMP_TO_EDGE
                              : filament::TextureSampler::WrapMode::REPEAT;
   filament::TextureSampler sampler;

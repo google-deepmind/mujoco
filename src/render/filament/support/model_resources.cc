@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "render/filament/support/model_objects.h"
+#include "render/filament/support/model_resources.h"
 
 #include <algorithm>
 #include <cfloat>
@@ -442,7 +442,7 @@ static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
   data->bounds_max[2] = builder->bounds_max.z;
 }
 
-ModelObjects::ModelObjects(const mjModel* model, mjrfContext* ctx)
+ModelResources::ModelResources(const mjModel* model, mjrfContext* ctx)
     : model_(model), ctx_(ctx) {
 
   for (int i = 0; i < model_->ntex; ++i) {
@@ -463,7 +463,7 @@ ModelObjects::ModelObjects(const mjModel* model, mjrfContext* ctx)
       model_, "filament.phong.emissive_multiplier", emissive_multiplier_);
 }
 
-void ModelObjects::UploadMesh(const mjModel* model, int id) {
+void ModelResources::UploadMesh(const mjModel* model, int id) {
   if (model != model_) {
     mju_error("Model mismatch.");
   }
@@ -480,7 +480,7 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
   UpdateMeshData(&config, &data, model, id, MeshType::kNormal);
 
   auto mesh = CreateMesh(ctx_, config);
-  mjrf_setMeshData(mesh.get(), &data);
+  mjrf_uploadMesh(mesh.get(), &data);
   meshes_.insert_or_assign(id, std::move(mesh));
 
   if (model->mesh_graphadr[id] >= 0) {
@@ -492,12 +492,12 @@ void ModelObjects::UploadMesh(const mjModel* model, int id) {
                    MeshType::kConvexHull);
 
     auto convex_hull = CreateMesh(ctx_, convex_hull_config);
-    mjrf_setMeshData(convex_hull.get(), &convex_hull_data);
+    mjrf_uploadMesh(convex_hull.get(), &convex_hull_data);
     convex_hulls_.insert_or_assign(id, std::move(convex_hull));
   }
 }
 
-void ModelObjects::UploadTexture(const mjModel* model, int id) {
+void ModelResources::UploadTexture(const mjModel* model, int id) {
   if (model != model_) {
     mju_error("Model mismatch.");
   }
@@ -539,11 +539,11 @@ void ModelObjects::UploadTexture(const mjModel* model, int id) {
   payload.release = nullptr;
 
   auto texture = CreateTexture(ctx_, config);
-  mjrf_setTextureData(texture.get(), &payload);
+  mjrf_uploadTexture(texture.get(), &payload);
   textures_.insert_or_assign(id, std::move(texture));
 }
 
-void ModelObjects::UploadHeightField(const mjModel* model, int id) {
+void ModelResources::UploadHeightField(const mjModel* model, int id) {
   if (model != model_) {
     mju_error("Model mismatch.");
   }
@@ -560,11 +560,11 @@ void ModelObjects::UploadHeightField(const mjModel* model, int id) {
   UpdateMeshData(&config, &data, model, id, MeshType::kHeightField);
 
   auto mesh = CreateMesh(ctx_, config);
-  mjrf_setMeshData(mesh.get(), &data);
+  mjrf_uploadMesh(mesh.get(), &data);
   height_fields_.insert_or_assign(id, std::move(mesh));
 }
 
-const mjrfMesh* ModelObjects::GetMesh(int data_id) const {
+const mjrfMesh* ModelResources::GetMesh(int data_id) const {
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
@@ -578,7 +578,7 @@ const mjrfMesh* ModelObjects::GetMesh(int data_id) const {
   }
 }
 
-const mjrfMesh* ModelObjects::GetHeightField(int hfield_id) const {
+const mjrfMesh* ModelResources::GetHeightField(int hfield_id) const {
   if (auto it = height_fields_.find(hfield_id); it != height_fields_.end()) {
     return it->second.get();
   }
@@ -586,7 +586,7 @@ const mjrfMesh* ModelObjects::GetHeightField(int hfield_id) const {
   return nullptr;
 }
 
-const mjrfTexture* ModelObjects::GetTexture(int tex_id) const {
+const mjrfTexture* ModelResources::GetTexture(int tex_id) const {
   if (auto it = textures_.find(tex_id); it != textures_.end()) {
     return it->second.get();
   }
@@ -594,7 +594,7 @@ const mjrfTexture* ModelObjects::GetTexture(int tex_id) const {
   return nullptr;
 }
 
-const mjrfTexture* ModelObjects::GetSkyboxTexture() const {
+const mjrfTexture* ModelResources::GetSkyboxTexture() const {
   for (auto& iter : textures_) {
     if (model_->tex_type[iter.first] == mjTEXTURE_SKYBOX) {
       return iter.second.get();
