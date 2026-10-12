@@ -166,6 +166,7 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
+add_subdirectory(src/batch)
 
 add_subdirectory(src/render/noop)
 
@@ -252,6 +253,9 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
     POST_BUILD
     COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Headers
     COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && cp ${MUJOCO_HEADERS} $<TARGET_FILE_DIR:mujoco>/Headers
+    COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Headers/experimental
+    COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/include/mujoco/experimental/batch.h
+            $<TARGET_FILE_DIR:mujoco>/Headers/experimental
     COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Modules
     COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/dist/module.modulemap $<TARGET_FILE_DIR:mujoco>/Modules
     COMMAND mkdir -p $<TARGET_FILE_DIR:mujoco>/Resources
@@ -321,6 +325,12 @@ endif()
 
 if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
   set(MUJOCO_TARGETS mujoco)
+
+  install(
+    FILES include/mujoco/experimental/batch.h
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/mujoco/experimental"
+    COMPONENT dev
+  )
 
   # Install the libraries.
   install(

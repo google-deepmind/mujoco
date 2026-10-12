@@ -41,6 +41,7 @@ _HEADER_FILES = [
     'include/mujoco/mjvisualize.h',
     'include/mujoco/mjxmacro.h',
     'include/mujoco/mujoco.h',
+    'include/mujoco/experimental/batch.h',
 ]
 _SOURCE_FILES = [
     'src/engine/engine_support.c',

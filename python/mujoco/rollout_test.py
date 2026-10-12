@@ -748,6 +748,17 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     ):
       rollout.rollout(model, data, initial_state, control)
 
+  def test_threadpool_rejected(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = [mujoco.MjData(model) for _ in range(2)]
+    mujoco.mju_threadpool(data[1], 2)
+    initial_state = zeros(4, nstate)
+    with self.assertRaisesRegex(ValueError, r'data\[1\] has a thread pool'):
+      rollout.rollout(model, data, initial_state)
+    with self.assertRaisesRegex(ValueError, r'data\[0\] has a thread pool'):
+      rollout.rollout(model, data[1], initial_state)
+
   def test_bad_sizes(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
