@@ -455,10 +455,60 @@ The Python ``mjrf`` module exposes the ``mjrf_`` :ref:`C API<FilamentRenderingAp
 - Some functions (e.g. ``mjrf.ReadRequest.set_buffer``) require users to provide a buffer. Users are responsible
   for ensuring the lifetime of the buffer outlives the request to which it is associated.
 
-Additionally, a `Renderer
-<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rendering/filament/renderer.py>`__ class is available
-under ``mujoco.rendering.filament``. This class can be used to manage the lifetimes of key objects (such as the
+We also provide a `ModelScene
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rendering/filament/model_scene.py>`__ helper class
+under ``mujoco.rendering.filament``. This class can be used to add and update :ref:`mjrfRenderable` and :ref:`mjrfLight`
+objects in an :ref:`mjrfScene` based on the contents of an :ref:`mjModel` and :ref:`mjData`.
+
+Similarly, we also provide a `Renderer
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rendering/filament/renderer.py>`__ class under
+``mujoco.rendering.filament``. This class can be used to manage the lifetimes of key objects (such as the
 :ref:`mjrfContext` and :ref:`mjrfScene`) and provides useful functions for controlling the camera and reading pixels.
+
+Here is a mimimal example for rendering an mjModel with the filament renderer:
+
+.. code-block:: python
+
+   import mujoco
+   from mujoco import mjrf
+   from mujoco.rendering.filament import model_scene
+   from mujoco.rendering.filament import renderer
+   import numpy as np
+
+   def render(model: mujoco.MjModel, data: MjData, width: int, height: int) -> np.ndarray:
+     # create the rendering context
+     ctx = mjrf.Context(mjrf.ContextConfig())
+
+     # create a renderer
+     r = renderer.Renderer(ctx)
+
+     # add lights and renderables defined in the model to a scene in the renderer
+     ms = model_scene.ModelScene(ctx, model, r.scene("scn"))
+
+     # create the pixel buffer into which we'll render the image
+     pixels = np.empty((height, width, 3), dtype=np.uint8)
+
+     # associate the pixel buffer with a render target
+     r.target("out", pixels)
+
+     # define a view that connects the scene we want to render to an output target
+     r.view("v1", scene="scn", target="out")
+
+     # define the camera for the view we want to render
+     vcam = mujoco.MjvCamera()
+     mujoco.mjv_defaultFreeCamera(model, vcam)
+     vcam.type = int(mujoco.mjtCamera.mjCAMERA_FIXED)
+     vcam.fixedcamid = 0
+     r.update_camera("v1", mujoco.mjv_camera2GLCamera(model, data, vcam))
+
+     # update the lights and renderables with the current `data` state
+     ms.update(data)
+
+     # render the scene; blocks until the render has completed writing to the render target
+     r.render()
+
+     # return the pixels
+     return pixels
 
 .. _PyClassicRender:
 
