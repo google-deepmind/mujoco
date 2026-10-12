@@ -105,10 +105,10 @@ typedef struct mjrfReadPixelsRequest_ {
   mjtSize num_bytes;                     // size of output buffer
   mjrfCallback read_completed;           // callback when read is complete; can use to free output
   void* user_data;                       // user data for read_completed_callback
-} mjrfReadPixelsRequest;
+} mjrfReadRequest;
 
-// Initializes the mjrfReadPixelsRequest to default values.
-void mjrf_defaultReadPixelsRequest(mjrfReadPixelsRequest* request);
+// Initializes the mjrfReadRequest to default values.
+void mjrf_defaultReadRequest(mjrfReadRequest* request);
 
 // Unique handle assigned to each render request; used to block until request is completed or query
 // the status of the request.
@@ -123,7 +123,7 @@ typedef uint64_t mjrfFrameHandle;
 // Callbacks will be invoked from within this function, though there is no guarantee on which
 // invocation of this function it will be done.
 mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req, int nreq,
-                            const mjrfReadPixelsRequest* read_req, int nread_req);
+                            const mjrfReadRequest* read_req, int nread_req);
 
 // Waits for all rendering operations to complete for the given frame handle, triggering any
 // callbacks as needed.
@@ -243,16 +243,16 @@ mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params);
 void mjrf_destroyScene(mjrfScene* scene);
 
 // Adds a light to the scene.
-void mjrf_addLightToScene(mjrfScene* scene, mjrfLight* light);
+void mjrf_addSceneLight(mjrfScene* scene, mjrfLight* light);
 
 // Removes the light from the scene.
-void mjrf_removeLightFromScene(mjrfScene* scene, mjrfLight* light);
+void mjrf_removeSceneLight(mjrfScene* scene, mjrfLight* light);
 
 // Adds a renderable to the scene.
-void mjrf_addRenderableToScene(mjrfScene* scene, mjrfRenderable* renderable);
+void mjrf_addSceneRenderable(mjrfScene* scene, mjrfRenderable* renderable);
 
 // Removes the renderable from the scene.
-void mjrf_removeRenderableFromScene(mjrfScene* scene, mjrfRenderable* renderable);
+void mjrf_removeSceneRenderable(mjrfScene* scene, mjrfRenderable* renderable);
 
 // Sets the skybox (cube texture) for the scene.
 void mjrf_setSceneSkybox(mjrfScene* scene, const mjrfTexture* texture);
@@ -290,7 +290,7 @@ void mjrf_destroyLight(mjrfLight* light);
 void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
 
 // Enables or disables whether or not the light casts shadows.
-void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled);
+void mjrf_setLightCastShadow(mjrfLight* light, mjtBool enabled);
 
 // Sets the RGB color of the light.
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
@@ -302,7 +302,7 @@ void mjrf_setLightIntensity(mjrfLight* light, float intensity);
 void mjrf_setLightRange(mjrfLight* light, float range);
 
 // Sets the cutoff angle of the light, in degrees. Only used for spot lights.
-void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff);
+void mjrf_setLightCutoff(mjrfLight* light, float cutoff);
 
 // Sets the softness of the light, in the range [0, 1]. Only used for spot lights.
 void mjrf_setLightSoftness(mjrfLight* light, float softness);

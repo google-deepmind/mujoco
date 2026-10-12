@@ -184,27 +184,27 @@ ModelRenderables::ModelRenderables(mjrfScene* scene,
 
 ModelRenderables::~ModelRenderables() {
   for (auto& renderable : geoms_) {
-    mjrf_removeRenderableFromScene(scene_, renderable.get());
+    mjrf_removeSceneRenderable(scene_, renderable.get());
   }
   for (auto& renderable : sites_) {
-    mjrf_removeRenderableFromScene(scene_, renderable.get());
+    mjrf_removeSceneRenderable(scene_, renderable.get());
   }
   for (auto& parts : flexes_) {
     for (auto& renderable : parts) {
-      mjrf_removeRenderableFromScene(scene_, renderable.get());
+      mjrf_removeSceneRenderable(scene_, renderable.get());
     }
   }
   for (auto& renderable : skins_) {
-    mjrf_removeRenderableFromScene(scene_, renderable.get());
+    mjrf_removeSceneRenderable(scene_, renderable.get());
   }
   for (auto& segments : tendons_) {
     for (auto& renderable : segments) {
-      mjrf_removeRenderableFromScene(scene_, renderable.get());
+      mjrf_removeSceneRenderable(scene_, renderable.get());
     }
   }
   for (auto& [_, renderables] : slider_cranks_) {
     for (auto& renderable : renderables) {
-      mjrf_removeRenderableFromScene(scene_, renderable.get());
+      mjrf_removeSceneRenderable(scene_, renderable.get());
     }
   }
 }
@@ -417,7 +417,7 @@ void ModelRenderables::AddGeomGeoms() {
     }
 
     if (vopts_.geomgroup[model->geom_group[i]]) {
-      mjrf_addRenderableToScene(scene_, renderable.get());
+      mjrf_addSceneRenderable(scene_, renderable.get());
     }
     geoms_.emplace_back(std::move(renderable));
   }
@@ -447,7 +447,7 @@ void ModelRenderables::AddSiteGeoms() {
     }
 
     if (vopts_.sitegroup[model->site_group[i]]) {
-      mjrf_addRenderableToScene(scene_, renderable.get());
+      mjrf_addSceneRenderable(scene_, renderable.get());
     }
     sites_.push_back(std::move(renderable));
   }
@@ -488,7 +488,7 @@ void ModelRenderables::AddFlexGeoms() {
 
     if (vopts_.flexgroup[model->flex_group[i]]) {
       for (auto& renderable : parts) {
-        mjrf_addRenderableToScene(scene_, renderable.get());
+        mjrf_addSceneRenderable(scene_, renderable.get());
       }
     }
   }
@@ -509,7 +509,7 @@ void ModelRenderables::AddSkinGeoms() {
     mjrf_setRenderableMaterial(renderable.get(), &material);
 
     if (vopts_.skingroup[model->skin_group[i]]) {
-      mjrf_addRenderableToScene(scene_, renderable.get());
+      mjrf_addSceneRenderable(scene_, renderable.get());
     }
     skins_.emplace_back(std::move(renderable));
     skin_meshes_.emplace_back(nullptr, nullptr);
@@ -535,12 +535,12 @@ void ModelRenderables::AddSliderCrankGeoms() {
     auto slider = CreateRenderable(ctx, params);
     mjrf_setRenderableGeomMesh(slider.get(), mjGEOM_CYLINDER, nstack, nslice,
                                nquad);
-    mjrf_addRenderableToScene(scene_, slider.get());
+    mjrf_addSceneRenderable(scene_, slider.get());
 
     auto crank = CreateRenderable(ctx, params);
     mjrf_setRenderableGeomMesh(crank.get(), mjGEOM_CAPSULE, nstack, nslice,
                                nquad);
-    mjrf_addRenderableToScene(scene_, crank.get());
+    mjrf_addSceneRenderable(scene_, crank.get());
 
     std::array<UniquePtr<mjrfRenderable>, 2> pair{std::move(slider),
                                                   std::move(crank)};
@@ -612,7 +612,7 @@ void ModelRenderables::AppendSegmentToTendon(int tendon_id) {
   mjrf_setRenderableGeomMesh(renderable.get(), mjGEOM_CAPSULE, nstack, nslice,
                              nquad);
   if (vopts_.tendongroup[model->tendon_group[tendon_id]]) {
-    mjrf_addRenderableToScene(scene_, renderable.get());
+    mjrf_addSceneRenderable(scene_, renderable.get());
   }
 
   auto& segments = tendons_[tendon_id];
@@ -622,7 +622,7 @@ void ModelRenderables::AppendSegmentToTendon(int tendon_id) {
 void ModelRenderables::RemoveSegmentFromTendon(int tendon_id) {
   auto& segments = tendons_[tendon_id];
   mjrfRenderable* renderable = segments.back().get();
-  mjrf_removeRenderableFromScene(scene_, renderable);
+  mjrf_removeSceneRenderable(scene_, renderable);
   segments.pop_back();
 }
 
@@ -1085,11 +1085,11 @@ static void ApplyVisibility(VisibilityOp* ops, int group, mjrfScene* scene,
   const VisibilityOp op = ops[group];
   if (op == kShow) {
     for (auto& renderable : renderables) {
-      mjrf_addRenderableToScene(scene, renderable.get());
+      mjrf_addSceneRenderable(scene, renderable.get());
     }
   } else if (op == kHide) {
     for (auto& renderable : renderables) {
-      mjrf_removeRenderableFromScene(scene, renderable.get());
+      mjrf_removeSceneRenderable(scene, renderable.get());
     }
   }
 }

@@ -3200,14 +3200,14 @@ Gets active renderer information for the given filament context.
 
 Initializes the mjrfRenderRequest to default values.
 
-.. _mjrf_defaultReadPixelsRequest:
+.. _mjrf_defaultReadRequest:
 
-`mjrf_defaultReadPixelsRequest <#mjrf_defaultReadPixelsRequest>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_defaultReadRequest <#mjrf_defaultReadRequest>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_defaultReadPixelsRequest
+.. mujoco-include:: mjrf_defaultReadRequest
 
-Initializes the mjrfReadPixelsRequest to default values.
+Initializes the mjrfReadRequest to default values.
 
 .. _mjrf_render:
 
@@ -3408,39 +3408,39 @@ Creates a scene with the given parameters.
 
 Destroys the scene.
 
-.. _mjrf_addLightToScene:
+.. _mjrf_addSceneLight:
 
-`mjrf_addLightToScene <#mjrf_addLightToScene>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_addSceneLight <#mjrf_addSceneLight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_addLightToScene
+.. mujoco-include:: mjrf_addSceneLight
 
 Adds a light to the scene.
 
-.. _mjrf_removeLightFromScene:
+.. _mjrf_removeSceneLight:
 
-`mjrf_removeLightFromScene <#mjrf_removeLightFromScene>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_removeSceneLight <#mjrf_removeSceneLight>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_removeLightFromScene
+.. mujoco-include:: mjrf_removeSceneLight
 
 Removes the light from the scene.
 
-.. _mjrf_addRenderableToScene:
+.. _mjrf_addSceneRenderable:
 
-`mjrf_addRenderableToScene <#mjrf_addRenderableToScene>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_addSceneRenderable <#mjrf_addSceneRenderable>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_addRenderableToScene
+.. mujoco-include:: mjrf_addSceneRenderable
 
 Adds a renderable to the scene.
 
-.. _mjrf_removeRenderableFromScene:
+.. _mjrf_removeSceneRenderable:
 
-`mjrf_removeRenderableFromScene <#mjrf_removeRenderableFromScene>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_removeSceneRenderable <#mjrf_removeSceneRenderable>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_removeRenderableFromScene
+.. mujoco-include:: mjrf_removeSceneRenderable
 
 Removes the renderable from the scene.
 
@@ -3507,12 +3507,12 @@ Destroys the light.
 
 Enables or disables the light.
 
-.. _mjrf_setLightShadowsEnabled:
+.. _mjrf_setLightCastShadow:
 
-`mjrf_setLightShadowsEnabled <#mjrf_setLightShadowsEnabled>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setLightCastShadow <#mjrf_setLightCastShadow>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setLightShadowsEnabled
+.. mujoco-include:: mjrf_setLightCastShadow
 
 Enables or disables whether or not the light casts shadows.
 
@@ -3543,12 +3543,12 @@ Sets the intensity of the light, in candela.
 
 Sets the effective range of the light, in meters.
 
-.. _mjrf_setLightCutoffAngle:
+.. _mjrf_setLightCutoff:
 
-`mjrf_setLightCutoffAngle <#mjrf_setLightCutoffAngle>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjrf_setLightCutoff <#mjrf_setLightCutoff>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjrf_setLightCutoffAngle
+.. mujoco-include:: mjrf_setLightCutoff
 
 Sets the cutoff angle of the light, in degrees. Only used for spot lights.
 

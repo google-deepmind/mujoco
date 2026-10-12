@@ -452,7 +452,7 @@ The Python ``mjrf`` module exposes the ``mjrf_`` :ref:`C API<FilamentRenderingAp
   method of the object itself. So, for example, :ref:`mjrf_setLightEnabled(mjrfLight*, bool)<mjrf_setLightEnabled>`
   becomes ``Light.set_enabled(bool)``.
 
-- Some functions (e.g. ``mjrf.ReadPixelsRequest.set_buffer``) require users to provide a buffer. Users are responsible
+- Some functions (e.g. ``mjrf.ReadRequest.set_buffer``) require users to provide a buffer. Users are responsible
   for ensuring the lifetime of the buffer outlives the request to which it is associated.
 
 Additionally, a `Renderer

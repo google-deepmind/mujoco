@@ -46,7 +46,7 @@ class FilamentContext : public mjrfContext {
   // rendering is complete.
   mjrfFrameHandle Render(
       std::span<const mjrfRenderRequest> render_requests,
-      std::span<const mjrfReadPixelsRequest> read_requests = {});
+      std::span<const mjrfReadRequest> read_requests = {});
 
   // Blocks until the given frame has completed rendering.
   void WaitForFrame(mjrfFrameHandle frame_handle);

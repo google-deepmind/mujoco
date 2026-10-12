@@ -144,8 +144,8 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     req.target = color_target_.get();
     SetHeadlight(&req);
 
-    mjrfReadPixelsRequest read_req;
-    mjrf_defaultReadPixelsRequest(&read_req);
+    mjrfReadRequest read_req;
+    mjrf_defaultReadRequest(&read_req);
     read_req.target = color_target_.get();
     read_req.output = rgb;
     read_req.num_bytes = viewport.width * viewport.height * 3;
@@ -172,8 +172,8 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     req.viewport = viewport;
     req.target = depth_target_.get();
 
-    mjrfReadPixelsRequest read_req;
-    mjrf_defaultReadPixelsRequest(&read_req);
+    mjrfReadRequest read_req;
+    mjrf_defaultReadRequest(&read_req);
     read_req.target = depth_target_.get();
     read_req.output = reinterpret_cast<uint8_t*>(depth);
     read_req.num_bytes = viewport.width * viewport.height * sizeof(float);

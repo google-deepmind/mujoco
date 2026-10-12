@@ -47,7 +47,7 @@ ModelDecorations::~ModelDecorations() {
 
 void ModelDecorations::Clear() {
   for (auto& iter : decorations_) {
-    mjrf_removeRenderableFromScene(scene_, iter.get());
+    mjrf_removeSceneRenderable(scene_, iter.get());
   }
   decorations_.clear();
   meshes_.clear();
@@ -186,7 +186,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderableTransform(vertex.get(), mjv_scene_.flexvert + 3 * v,
                                       rot);
-          mjrf_addRenderableToScene(scene_, vertex.get());
+          mjrf_addSceneRenderable(scene_, vertex.get());
           decorations_.push_back(std::move(vertex));
         }
       }
@@ -229,7 +229,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderableTransform(vertex.get(), pos, rot);
-          mjrf_addRenderableToScene(scene_, vertex.get());
+          mjrf_addSceneRenderable(scene_, vertex.get());
           decorations_.push_back(std::move(vertex));
         }
       }
@@ -275,7 +275,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
         auto renderable = CreateRenderable(ctx_, params);
         mjrf_setRenderableMesh(renderable.get(), meshes_.back().get(), 0, 0);
         mjrf_setRenderableMaterial(renderable.get(), &material);
-        mjrf_addRenderableToScene(scene_, renderable.get());
+        mjrf_addSceneRenderable(scene_, renderable.get());
         decorations_.push_back(std::move(renderable));
       }
       continue;
@@ -305,7 +305,7 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
     material.color[3] = geom.rgba[3];
     mjrf_setRenderableMaterial(renderable.get(), &material);
 
-    mjrf_addRenderableToScene(scene_, renderable.get());
+    mjrf_addSceneRenderable(scene_, renderable.get());
     decorations_.push_back(std::move(renderable));
   }
 }

@@ -152,7 +152,7 @@ class Renderer:
       r = self._Read(
           size=size,
           format=pixel_format,
-          request=mjrf.ReadPixelsRequest(),
+          request=mjrf.ReadRequest(),
           buffer=(buffer, raw_buffer),
       )
       r.request.target = target
@@ -258,8 +258,8 @@ class Renderer:
 
   @dataclasses.dataclass
   class _Read:
-    """Internal wrapper around mjrf.ReadPixelsRequest."""
+    """Internal wrapper around mjrf.ReadRequest."""
     size: tuple[int, int]
     format: mjrf.PixelFormat
-    request: mjrf.ReadPixelsRequest
+    request: mjrf.ReadRequest
     buffer: tuple[BufferType, Buffer]

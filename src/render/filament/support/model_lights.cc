@@ -91,15 +91,15 @@ ModelLights::ModelLights(mjrfScene* scene, ModelObjects* model_objects)
 
 ModelLights::~ModelLights() {
   for (auto& iter : lights_) {
-    mjrf_removeLightFromScene(scene_, iter.get());
+    mjrf_removeSceneLight(scene_, iter.get());
   }
   lights_.clear();
   if (fallback_ibl_) {
-    mjrf_removeLightFromScene(scene_, fallback_ibl_.get());
+    mjrf_removeSceneLight(scene_, fallback_ibl_.get());
   }
   fallback_ibl_.reset();
   if (fallback_directional_) {
-    mjrf_removeLightFromScene(scene_, fallback_directional_.get());
+    mjrf_removeSceneLight(scene_, fallback_directional_.get());
   }
   fallback_directional_.reset();
 }
@@ -129,7 +129,7 @@ void ModelLights::Prepare() {
       params.texture = model_objects_->GetTexture(model->light_texid[i]);
       params.intensity = model->light_intensity[i];
       auto light_obj = CreateLight(ctx, params);
-      mjrf_addLightToScene(scene_, light_obj.get());
+      mjrf_addSceneLight(scene_, light_obj.get());
       lights_.emplace_back(std::move(light_obj));
       has_image_based_light = true;
     } else {
@@ -150,7 +150,7 @@ void ModelLights::Prepare() {
       }
 
       auto light_obj = CreateLight(ctx, params);
-      mjrf_addLightToScene(scene_, light_obj.get());
+      mjrf_addSceneLight(scene_, light_obj.get());
       lights_.emplace_back(std::move(light_obj));
     }
   }
@@ -169,7 +169,7 @@ void ModelLights::Prepare() {
     params.cast_shadows = 0;
     params.intensity = 0.0f;
     fallback_directional_ = CreateLight(ctx, params);
-    mjrf_addLightToScene(scene_, fallback_directional_.get());
+    mjrf_addSceneLight(scene_, fallback_directional_.get());
   }
 
   if (!has_image_based_light && total_light_intensity > 0.0f) {
@@ -180,7 +180,7 @@ void ModelLights::Prepare() {
     params.type = mjLIGHT_IMAGE;
     params.intensity = 10.0f;
     fallback_ibl_ = CreateLight(ctx, params);
-    mjrf_addLightToScene(scene_, fallback_ibl_.get());
+    mjrf_addSceneLight(scene_, fallback_ibl_.get());
   }
 
   // There are no "physical" lights in the scene which means we're likely
@@ -196,7 +196,7 @@ void ModelLights::Prepare() {
     params.texture = fallback_ibl_texture_.get();
     params.intensity = fallback_environment_light_intensity_;
     fallback_ibl_ = CreateLight(ctx, params);
-    mjrf_addLightToScene(scene_, fallback_ibl_.get());
+    mjrf_addSceneLight(scene_, fallback_ibl_.get());
 
     // The headlight is a render request option, not a scene light; publish its
     // intensity for the renderer to pass along.
@@ -251,10 +251,10 @@ void ModelLights::Update(const mjData* data) {
                                       ? model->light_intensity[i]
                                       : fallback_intensity_);
     mjrf_setLightRange(light, model->light_range[i]);
-    mjrf_setLightCutoffAngle(light, model->light_cutoff[i]);
+    mjrf_setLightCutoff(light, model->light_cutoff[i]);
     mjrf_setLightSoftness(light, model->light_softness[i]);
     mjrf_setLightBulbRadius(light, model->light_bulbradius[i]);
-    mjrf_setLightShadowsEnabled(light, model->light_castshadow[i]);
+    mjrf_setLightCastShadow(light, model->light_castshadow[i]);
   }
 }
 

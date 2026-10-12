@@ -57,7 +57,7 @@ SceneBridge::SceneBridge(mjrfContext* ctx, mjrfScene* scene, const mjModel* mode
 SceneBridge::~SceneBridge() {
   model_lights_.reset();
   for (auto& iter : renderables_) {
-    mjrf_removeRenderableFromScene(scene_, iter.get());
+    mjrf_removeSceneRenderable(scene_, iter.get());
   }
   renderables_.clear();
 }
@@ -107,7 +107,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
 
   // Remove all drawables from previous render and prepare new ones.
   for (auto& iter : renderables_) {
-    mjrf_removeRenderableFromScene(scene_, iter.get());
+    mjrf_removeSceneRenderable(scene_, iter.get());
   }
   renderables_.clear();
   for (int i = 0; i < scene->ngeom; ++i) {
@@ -146,7 +146,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderableTransform(vertex.get(), scene->flexvert + 3*v, rot);
-          mjrf_addRenderableToScene(scene_, vertex.get());
+          mjrf_addSceneRenderable(scene_, vertex.get());
           renderables_.push_back(std::move(vertex));
         }
       }
@@ -191,7 +191,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
           mjrf_setRenderableMaterial(vertex.get(), &material);
           mjrf_setRenderableSize(vertex.get(), size);
           mjrf_setRenderableTransform(vertex.get(), pos, rot);
-          mjrf_addRenderableToScene(scene_, vertex.get());
+          mjrf_addSceneRenderable(scene_, vertex.get());
           renderables_.push_back(std::move(vertex));
         }
       }
@@ -207,7 +207,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
     UniquePtr<mjrfRenderable> renderable = CreateGeomRenderable(
         *geom, ctx_, model_objects_.get(), scene_objects_.get());
 
-    mjrf_addRenderableToScene(scene_, renderable.get());
+    mjrf_addSceneRenderable(scene_, renderable.get());
     renderables_.push_back(std::move(renderable));
   }
 

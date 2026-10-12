@@ -561,8 +561,8 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
   vector<unsigned char> rgb(width * height * 3);
 
   // prepare read pixels request
-  mjrfReadPixelsRequest read_request;
-  mjrf_defaultReadPixelsRequest(&read_request);
+  mjrfReadRequest read_request;
+  mjrf_defaultReadRequest(&read_request);
   read_request.target    = render_target.get();
   read_request.output    = rgb.data();
   read_request.num_bytes = width * height * 3;

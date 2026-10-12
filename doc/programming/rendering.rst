@@ -45,7 +45,7 @@ decorative overlays (``mjCAT_DECOR``). The table below maps the main concepts of
      - :ref:`mjrfRenderTarget`, any size and format
    * - Pixel readback
      - :ref:`mjr_readPixels`
-     - :ref:`mjrfReadPixelsRequest`, submitted together with the render request
+     - :ref:`mjrfReadRequest`, submitted together with the render request
    * - Modes and effects
      - ``mjvScene.flags`` (:ref:`mjtRndFlag`) and ``mjvScene.stereo``
      - :ref:`mjrDrawMode` and per-request flags in :ref:`mjrfRenderRequest`; stereo is two requests with
@@ -163,8 +163,8 @@ these components fit together for offscreen rendering:
    request.enable_headlight    = m->vis.headlight.active;
    request.headlight_intensity = model_lights->GetHeadlightIntensity();
 
-   mjrfReadPixelsRequest read_request;
-   mjrf_defaultReadPixelsRequest(&read_request);
+   mjrfReadRequest read_request;
+   mjrf_defaultReadRequest(&read_request);
    read_request.target    = render_target.get();
    read_request.output    = rgb.data();
    read_request.num_bytes = width * height * 3;
@@ -215,23 +215,23 @@ such as :ref:`mjrfMaterial` and :ref:`mjrfRenderRequest` describe how these obje
    - **Pose and size**: On each frame, :ref:`mjrf_setRenderableTransform` updates the renderable's 3D position and
      rotation matrix in place, and :ref:`mjrf_setRenderableSize` updates its scale (handling non-uniform primitive
      scaling such as keeping capsule end-caps spherical). Renderables are added to or removed from a scene with
-     :ref:`mjrf_addRenderableToScene` and :ref:`mjrf_removeRenderableFromScene`.
+     :ref:`mjrf_addSceneRenderable` and :ref:`mjrf_removeSceneRenderable`.
 
 **Lights** (:ref:`mjrfLight`)
    :ref:`mjrfLight` represents directional, spot, point, or image-based (IBL environment cubemap) light sources added to
-   a scene via :ref:`mjrf_addLightToScene`. Their poses, intensities (in candela), colors, and shadow map resolutions
+   a scene via :ref:`mjrf_addSceneLight`. Their poses, intensities (in candela), colors, and shadow map resolutions
    can be updated dynamically. Note that the camera-aligned **headlight** is specified on :ref:`mjrfRenderRequest`
    (with intensity in lux) rather than as a scene light, so rendering the same scene from multiple cameras does not
    cross-illuminate views.
 
-**Render targets, requests, and frame handles** (:ref:`mjrfRenderTarget`, :ref:`mjrfRenderRequest`, :ref:`mjrfReadPixelsRequest`)
+**Render targets, requests, and frame handles** (:ref:`mjrfRenderTarget`, :ref:`mjrfRenderRequest`, :ref:`mjrfReadRequest`)
    Rendering is submitted in batches via :ref:`mjrf_render`. Each :ref:`mjrfRenderRequest` pairs an :ref:`mjrfScene`
    with a camera (``mjrCamera``), viewport, optional offscreen :ref:`mjrfRenderTarget` (or ``NULL`` for the native
    window), draw mode (:ref:`mjrDrawMode`: default, no-textures, wireframe, depth, solver islands, or segmentation by
    ID/color), and per-view flags (shadows, reflections, post-processing, headlight). Because camera and draw mode belong
    to the request rather than the scene, a single retained :ref:`mjrfScene` can be rendered from multiple cameras or in
    multiple draw modes in one call. Offscreen pixel readbacks are requested alongside render requests via
-   :ref:`mjrfReadPixelsRequest`. :ref:`mjrf_render` dispatches work to a dedicated render thread and returns an
+   :ref:`mjrfReadRequest`. :ref:`mjrf_render` dispatches work to a dedicated render thread and returns an
    ``mjrfFrameHandle``, which the caller synchronizes on with :ref:`mjrf_waitForFrame`. Despite using an internal render
    thread, the ``mjrf`` API is not thread-safe and all calls must be made from a single thread.
 

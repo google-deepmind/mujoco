@@ -227,20 +227,20 @@ DefProperty<bool>(mjrf_render_request, "enable_post_processing", &mjrfRenderRequ
 DefProperty<bool>(mjrf_render_request, "enable_reflections", &mjrfRenderRequest::enable_reflections);
 DefProperty<bool>(mjrf_render_request, "enable_shadows", &mjrfRenderRequest::enable_shadows);
 
-py::class_<mjrfReadPixelsRequest> mjrf_read_pixels_request(m, "ReadPixelsRequest", py::module_local());
-mjrf_read_pixels_request.def(py::init([](
+py::class_<mjrfReadRequest> mjrf_read_request(m, "ReadRequest", py::module_local());
+mjrf_read_request.def(py::init([](
   PyRenderTarget* target
 ) {
-  mjrfReadPixelsRequest obj;
+  mjrfReadRequest obj;
   Init(obj);
   if (target) Setter(obj.target, *target);
   return obj;
 })
 , py::arg("target").none(true) = py::none()
 );
-mjrf_read_pixels_request.def("__del__", [](mjrfReadPixelsRequest& obj) { Free(obj); });
-mjrf_read_pixels_request.def("free", [](mjrfReadPixelsRequest& obj) { Free(obj); });
-DefProperty<PyRenderTarget>(mjrf_read_pixels_request, "target", &mjrfReadPixelsRequest::target);
+mjrf_read_request.def("__del__", [](mjrfReadRequest& obj) { Free(obj); });
+mjrf_read_request.def("free", [](mjrfReadRequest& obj) { Free(obj); });
+DefProperty<PyRenderTarget>(mjrf_read_request, "target", &mjrfReadRequest::target);
 
 py::class_<mjrfFrameStats> mjrf_frame_stats(m, "FrameStats", py::module_local());
 mjrf_frame_stats.def(py::init([](
@@ -650,7 +650,7 @@ mjrf_scene.def("add_light", [](
   PyScene& scene,
   PyLight& light
 ) {
-    return mjrf_addLightToScene(scene.get(), light.get());
+    return mjrf_addSceneLight(scene.get(), light.get());
 }
 , py::arg("light")
 );
@@ -659,7 +659,7 @@ mjrf_scene.def("remove_light", [](
   PyScene& scene,
   PyLight& light
 ) {
-    return mjrf_removeLightFromScene(scene.get(), light.get());
+    return mjrf_removeSceneLight(scene.get(), light.get());
 }
 , py::arg("light")
 );
@@ -668,7 +668,7 @@ mjrf_scene.def("add_renderable", [](
   PyScene& scene,
   PyRenderable& renderable
 ) {
-    return mjrf_addRenderableToScene(scene.get(), renderable.get());
+    return mjrf_addSceneRenderable(scene.get(), renderable.get());
 }
 , py::arg("renderable")
 );
@@ -677,7 +677,7 @@ mjrf_scene.def("remove_renderable", [](
   PyScene& scene,
   PyRenderable& renderable
 ) {
-    return mjrf_removeRenderableFromScene(scene.get(), renderable.get());
+    return mjrf_removeSceneRenderable(scene.get(), renderable.get());
 }
 , py::arg("renderable")
 );
@@ -709,11 +709,11 @@ mjrf_light.def("set_enabled", [](
 , py::arg("enabled")
 );
 
-mjrf_light.def("set_shadows_enabled", [](
+mjrf_light.def("set_cast_shadow", [](
   PyLight& light,
   bool enabled
 ) {
-    return mjrf_setLightShadowsEnabled(light.get(), enabled);
+    return mjrf_setLightCastShadow(light.get(), enabled);
 }
 , py::arg("enabled")
 );
@@ -755,11 +755,11 @@ mjrf_light.def("set_range", [](
 , py::arg("range")
 );
 
-mjrf_light.def("set_cutoff_angle", [](
+mjrf_light.def("set_cutoff", [](
   PyLight& light,
   float cutoff
 ) {
-    return mjrf_setLightCutoffAngle(light.get(), cutoff);
+    return mjrf_setLightCutoff(light.get(), cutoff);
 }
 , py::arg("cutoff")
 );

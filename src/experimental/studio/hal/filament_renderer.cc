@@ -186,8 +186,8 @@ void FilamentRenderer::Submit(int width, int height,
     render_requests_[0].target = render_target_.get();
     render_requests_[1].target = render_target_.get();
 
-    mjrfReadPixelsRequest read_request;
-    mjrf_defaultReadPixelsRequest(&read_request);
+    mjrfReadRequest read_request;
+    mjrf_defaultReadRequest(&read_request);
     read_request.target = render_target_.get();
     read_request.output = pixels.data();
     read_request.num_bytes = viewport.width * viewport.height * 3;
@@ -222,8 +222,8 @@ void FilamentRenderer::RenderToTexture(const mjModel* model, mjData* data,
                          mjv_camera2GLCamera(model, data, camera));
   request.target = render_target_.get();
 
-  mjrfReadPixelsRequest read_request;
-  mjrf_defaultReadPixelsRequest(&read_request);
+  mjrfReadRequest read_request;
+  mjrf_defaultReadRequest(&read_request);
   read_request.target = render_target_.get();
   read_request.output = output;
   read_request.num_bytes = width * height * 3;

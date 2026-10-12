@@ -302,10 +302,10 @@ void ImguiBridge::PrepareRenderables(int count) {
     params.blend_order = static_cast<std::uint16_t>(renderables_.size() + 1);
     auto& renderable =
         renderables_.emplace_back(CreateRenderable(ctx_, params));
-    mjrf_addRenderableToScene(scene_, renderable.get());
+    mjrf_addSceneRenderable(scene_, renderable.get());
   }
   while (renderables_.size() > count) {
-    mjrf_removeRenderableFromScene(scene_, renderables_.back().get());
+    mjrf_removeSceneRenderable(scene_, renderables_.back().get());
     renderables_.pop_back();
   }
 }

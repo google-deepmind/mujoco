@@ -1622,14 +1622,14 @@ A single rendering operation.
 .. mujoco-include:: mjrfRenderRequest
 
 
-.. _mjrfReadPixelsRequest:
+.. _mjrfReadRequest:
 
-mjrfReadPixelsRequest
+mjrfReadRequest
 ~~~~~~~~~~~~~~~~~~~~~
 
 A single pixel read operation.
 
-.. mujoco-include:: mjrfReadPixelsRequest
+.. mujoco-include:: mjrfReadRequest
 
 
 .. _mjrfFrameStats:

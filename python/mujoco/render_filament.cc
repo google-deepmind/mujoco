@@ -109,7 +109,7 @@ void Init(mjrfLightParams& obj)        { mjrf_defaultLightParams(&obj); }
 void Init(mjrfMaterial& obj)           { mjrf_defaultMaterial(&obj); }
 void Init(mjrfMeshConfig& obj)         { mjrf_defaultMeshConfig(&obj); }
 void Init(mjrfMeshData& obj)           { mjrf_defaultMeshData(&obj); }
-void Init(mjrfReadPixelsRequest& obj)  { mjrf_defaultReadPixelsRequest(&obj); }
+void Init(mjrfReadRequest& obj)        { mjrf_defaultReadRequest(&obj); }
 void Init(mjrfRenderableParams& obj)   { mjrf_defaultRenderableParams(&obj); }
 void Init(mjrfRenderRequest& obj)      { mjrf_defaultRenderRequest(&obj); }
 void Init(mjrfRenderTargetConfig& obj) { mjrf_defaultRenderTargetConfig(&obj); }
@@ -178,7 +178,7 @@ template <> struct is_num_array<Float3> : std::true_type {};
 template <> struct is_num_array<Float4> : std::true_type {};
 template <> struct is_num_array<Float9> : std::true_type {};
 
-void Free(mjrfReadPixelsRequest& data) {
+void Free(mjrfReadRequest& data) {
   data.output = nullptr;
   data.num_bytes = 0;
 }
@@ -320,11 +320,11 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       py::arg("params"), py::keep_alive<0, 1>());
 
   // memory management
-  // Note: ReadPixelsRequest stores a raw pointer to `buffer`; the caller must
+  // Note: ReadRequest stores a raw pointer to `buffer`; the caller must
   // keep the underlying Python buffer object alive until rendering finishes.
-  mjrf_read_pixels_request.def(
+  mjrf_read_request.def(
       "set_buffer",
-      [](mjrfReadPixelsRequest& req, py::buffer b) {
+      [](mjrfReadRequest& req, py::buffer b) {
         py::buffer_info info = b.request(true);
         if (!PyBuffer_IsContiguous(info.view(), 'C')) {
           throw py::value_error("Buffer must be C-contiguous.");
@@ -460,7 +460,7 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
 
   mjrf_context.def("render",
     [](PyContext& ctx, const std::vector<mjrfRenderRequest>& req,
-        const std::vector<mjrfReadPixelsRequest>& read) {
+        const std::vector<mjrfReadRequest>& read) {
       return mjrf_render(ctx.get(), req.data(), req.size(), read.data(),
                           read.size());
     },

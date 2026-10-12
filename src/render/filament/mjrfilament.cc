@@ -123,8 +123,8 @@ void mjrf_defaultRenderRequest(mjrfRenderRequest* request) {
   request->enable_shadows = true;
 }
 
-void mjrf_defaultReadPixelsRequest(mjrfReadPixelsRequest* request) {
-  memset(request, 0, sizeof(mjrfReadPixelsRequest));
+void mjrf_defaultReadRequest(mjrfReadRequest* request) {
+  memset(request, 0, sizeof(mjrfReadRequest));
 }
 
 void mjrf_defaultFrameStats(mjrfFrameStats* stats) {
@@ -230,7 +230,7 @@ void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled) {
   }
 }
 
-void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled) {
+void mjrf_setLightCastShadow(mjrfLight* light, mjtBool enabled) {
   mujoco::Light::downcast(light)->SetShadowsEnabled(enabled);
 }
 
@@ -246,7 +246,7 @@ void mjrf_setLightRange(mjrfLight* light, float range) {
   mujoco::Light::downcast(light)->SetRange(range);
 }
 
-void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff) {
+void mjrf_setLightCutoff(mjrfLight* light, float cutoff) {
   mujoco::Light::downcast(light)->SetCutoffAngle(cutoff);
 }
 
@@ -310,22 +310,22 @@ void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]) {
   mujoco::Renderable::downcast(renderable)->SetSize(fsize);
 }
 
-void mjrf_addLightToScene(mjrfScene* scene, mjrfLight* light) {
+void mjrf_addSceneLight(mjrfScene* scene, mjrfLight* light) {
   mujoco::SceneView::downcast(scene)->AddToScene(
       mujoco::Light::downcast(light));
 }
 
-void mjrf_removeLightFromScene(mjrfScene* scene, mjrfLight* light) {
+void mjrf_removeSceneLight(mjrfScene* scene, mjrfLight* light) {
   mujoco::SceneView::downcast(scene)->RemoveFromScene(
       mujoco::Light::downcast(light));
 }
 
-void mjrf_addRenderableToScene(mjrfScene* scene, mjrfRenderable* renderable) {
+void mjrf_addSceneRenderable(mjrfScene* scene, mjrfRenderable* renderable) {
   mujoco::SceneView::downcast(scene)->AddToScene(
       mujoco::Renderable::downcast(renderable));
 }
 
-void mjrf_removeRenderableFromScene(mjrfScene* scene,
+void mjrf_removeSceneRenderable(mjrfScene* scene,
                                     mjrfRenderable* renderable) {
   mujoco::SceneView::downcast(scene)->RemoveFromScene(
       mujoco::Renderable::downcast(renderable));
@@ -350,7 +350,7 @@ void mjrf_resizeRenderTarget(mjrfRenderTarget* render_target, int width,
 }
 
 mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req,
-                            int nreq, const mjrfReadPixelsRequest* read_req,
+                            int nreq, const mjrfReadRequest* read_req,
                             int nread_req) {
   return mujoco::FilamentContext::downcast(ctx)->Render(
       {req, static_cast<size_t>(nreq)},

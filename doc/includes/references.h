@@ -1595,7 +1595,7 @@ typedef struct mjrfReadPixelsRequest_ {
   mjtSize num_bytes;                     // size of output buffer
   mjrfCallback read_completed;           // callback when read is complete; can use to free output
   void* user_data;                       // user data for read_completed_callback
-} mjrfReadPixelsRequest;
+} mjrfReadRequest;
 typedef struct mjrfFrameStats_ {
   double frame_rate;              // frame rate, in frames per second
 } mjrfFrameStats;
@@ -3623,9 +3623,9 @@ mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
 void mjrf_destroyContext(mjrfContext* ctx);
 void mjrf_getRendererInfo(mjrfContext* ctx, mjrRendererInfo* info);
 void mjrf_defaultRenderRequest(mjrfRenderRequest* request);
-void mjrf_defaultReadPixelsRequest(mjrfReadPixelsRequest* request);
+void mjrf_defaultReadRequest(mjrfReadRequest* request);
 mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req, int nreq,
-                      const mjrfReadPixelsRequest* read_req, int nread_req);
+                      const mjrfReadRequest* read_req, int nread_req);
 void mjrf_waitForFrame(mjrfContext* ctx, mjrfFrameHandle frame);
 void mjrf_setClearColor(mjrfContext* ctx, const float color[3]);
 void mjrf_defaultFrameStats(mjrfFrameStats* stats);
@@ -3646,10 +3646,10 @@ void mjrf_setMeshData(mjrfMesh* mesh, const mjrfMeshData* data);
 void mjrf_defaultSceneParams(mjrfSceneParams* params);
 mjrfScene* mjrf_createScene(mjrfContext* ctx, const mjrfSceneParams* params);
 void mjrf_destroyScene(mjrfScene* scene);
-void mjrf_addLightToScene(mjrfScene* scene, mjrfLight* light);
-void mjrf_removeLightFromScene(mjrfScene* scene, mjrfLight* light);
-void mjrf_addRenderableToScene(mjrfScene* scene, mjrfRenderable* renderable);
-void mjrf_removeRenderableFromScene(mjrfScene* scene, mjrfRenderable* renderable);
+void mjrf_addSceneLight(mjrfScene* scene, mjrfLight* light);
+void mjrf_removeSceneLight(mjrfScene* scene, mjrfLight* light);
+void mjrf_addSceneRenderable(mjrfScene* scene, mjrfRenderable* renderable);
+void mjrf_removeSceneRenderable(mjrfScene* scene, mjrfRenderable* renderable);
 void mjrf_setSceneSkybox(mjrfScene* scene, const mjrfTexture* texture);
 void mjrf_configureSceneFromModel(mjrfScene* scene, const mjModel* model);
 void mjrf_setSceneMsaa(mjrfScene* scene, int samples);
@@ -3657,11 +3657,11 @@ void mjrf_defaultLightParams(mjrfLightParams* params);
 mjrfLight* mjrf_createLight(mjrfContext* ctx, const mjrfLightParams* params);
 void mjrf_destroyLight(mjrfLight* light);
 void mjrf_setLightEnabled(mjrfLight* light, mjtBool enabled);
-void mjrf_setLightShadowsEnabled(mjrfLight* light, mjtBool enabled);
+void mjrf_setLightCastShadow(mjrfLight* light, mjtBool enabled);
 void mjrf_setLightColor(mjrfLight* light, const float color[3]);
 void mjrf_setLightIntensity(mjrfLight* light, float intensity);
 void mjrf_setLightRange(mjrfLight* light, float range);
-void mjrf_setLightCutoffAngle(mjrfLight* light, float cutoff);
+void mjrf_setLightCutoff(mjrfLight* light, float cutoff);
 void mjrf_setLightSoftness(mjrfLight* light, float softness);
 void mjrf_setLightBulbRadius(mjrfLight* light, float radius);
 void mjrf_setLightShadowMapSize(mjrfLight* light, int map_size);

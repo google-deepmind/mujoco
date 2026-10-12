@@ -219,6 +219,27 @@ Filament Rendering
      :ref:`visual/quality/@offsamples<visual-quality-offsamples>` (``<= 1`` disables MSAA) and can be changed at
      runtime with :ref:`mjrf_setSceneMsaa`.
 
+   - The following ``mjrf`` functions and types have been renamed so that the owning object consistently appears
+     first (``mjrf_<verb><Owner><Thing>``) and light setters match MJCF attribute names:
+
+     ``mjrf_addRenderableToScene → mjrf_addSceneRenderable``
+
+     ``mjrf_removeRenderableFromScene → mjrf_removeSceneRenderable``
+
+     ``mjrf_addLightToScene → mjrf_addSceneLight``
+
+     ``mjrf_removeLightFromScene → mjrf_removeSceneLight``
+
+     ``mjrf_setLightCutoffAngle → mjrf_setLightCutoff``
+
+     ``mjrf_setLightShadowsEnabled → mjrf_setLightCastShadow``
+
+     ``mjrfReadPixelsRequest → mjrfReadRequest``
+
+     The Python counterparts changed accordingly: ``mjrf.ReadPixelsRequest → mjrf.ReadRequest``,
+     ``Light.set_cutoff_angle → Light.set_cutoff``,
+     ``Light.set_shadows_enabled → Light.set_cast_shadow``.
+
    - The following custom flags have been renamed for consistency:
 
      `filament.clearColor → filament.clear_color`
