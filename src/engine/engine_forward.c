@@ -147,13 +147,18 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   // collision, timed internally (POS_COLLISION)
   mj_collision(m, d);
 
-  if (mj_wakeCollision(m, d)) {
+  // wake sources feed each other (a contact wakes one flex vertex, the flex equality wakes
+  // the rest, only then do the flex's other contacts count) and waking exposes contacts the
+  // broadphase skipped between sleeping trees: iterate wake and recollision to a fixed point
+  for (int round=0; round < m->ntree; round++) {
+    int nwoke = mj_wakeCollision(m, d);
+    nwoke += mj_wakeEquality(m, d);
+    nwoke += mj_wakeTendon(m, d);
+    if (!nwoke) {
+      break;
+    }
     mj_updateSleep(m, d);
     mj_collision(m, d);
-  }
-
-  if (mj_wakeEquality(m, d)) {
-    mj_updateSleep(m, d);
   }
 
   TM_RESTART;

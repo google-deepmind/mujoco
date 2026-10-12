@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_sleep.h"
 
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -929,6 +930,421 @@ TEST_F(SleepTest, MocapWeldEqualityWakes) {
   d->eq_active[mj_name2id(m.get(), mjOBJ_EQUALITY, "grab")] = 1;
   mj_step(m.get(), d.get());
   EXPECT_EQ(d->ntree_awake, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Flex contacts and the island invariant (sleeping trees never in an island).
+//
+// A flex element contact's constraint row spans every vertex of the element.
+// The wake sweep must therefore treat a flex contact side as all of those
+// bodies, and the wake sources (contacts, equalities, recollision) must be
+// iterated to a fixed point: a contact wakes one vertex, the flex's edge
+// equalities wake the rest, and only then do the flex's other contacts
+// (with bodies that were asleep under it, invisible to the broadphase while
+// both slept) count and wake those bodies.
+// ---------------------------------------------------------------------------
+
+// 3x3 sheet lying on the floor, first row pinned to the world: 18 of its 48
+// triangles have a pinned FIRST vertex
+static constexpr char kPinnedSheet[] = R"(
+<mujoco>
+  <option timestep="0.002"><flag sleep="enable"/></option>
+  <worldbody>
+    <geom type="plane" size="2 2 .1"/>
+    <flexcomp name="sheet" type="grid" count="3 3 1" spacing=".1 .1 .1"
+              pos="0 0 .006" radius=".005" dim="2" mass="0.2">
+      <pin id="0 1 2"/>
+      <edge equality="true" damping="20"/>
+    </flexcomp>
+    <body name="box" pos="1 1 .05">
+      <freejoint/>
+      <geom type="box" size=".02 .02 .02" mass=".05"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// the pinned sheet with a small box resting on it, far from the drop point
+static constexpr char kPinnedSheetWithRester[] = R"(
+<mujoco>
+  <option timestep="0.002"><flag sleep="enable"/></option>
+  <worldbody>
+    <geom type="plane" size="2 2 .1"/>
+    <flexcomp name="sheet" type="grid" count="3 3 1" spacing=".1 .1 .1"
+              pos="0 0 .006" radius=".005" dim="2" mass="0.2">
+      <pin id="0 1 2"/>
+      <edge equality="true" damping="20"/>
+    </flexcomp>
+    <body name="rester" pos="0.08 0.08 .04">
+      <freejoint/>
+      <geom type="box" size=".015 .015 .015" mass=".02"/>
+    </body>
+    <body name="box" pos="1 1 .05">
+      <freejoint/>
+      <geom type="box" size=".02 .02 .02" mass=".05"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// quadratic interpolated flex: 27 node bodies drive 64 vertices; any contact
+// with one of its elements couples all 27 nodes
+static constexpr char kInterpolatedCube[] = R"(
+<mujoco>
+  <option timestep="0.002"><flag sleep="enable"/></option>
+  <worldbody>
+    <geom type="plane" size="2 2 .1"/>
+    <flexcomp name="cube" type="grid" count="4 4 4" spacing=".05 .05 .05"
+              pos="0 0 .08" radius=".005" dim="3" mass="0.5" dof="quadratic">
+      <pin id="0 1 2 3"/>
+      <edge equality="true" damping="20"/>
+      <contact selfcollide="none"/>
+    </flexcomp>
+    <body name="box" pos="1 1 .05">
+      <freejoint/>
+      <geom type="box" size=".02 .02 .02" mass=".05"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// 6 s: the flex is asleep long before
+static constexpr int kSettleSteps = 3000;
+
+// 1.2 s: covers a 0.4 m fall and the landing
+static constexpr int kDropSteps = 600;
+
+// m above the target; the flex re-sleeps during the fall
+static constexpr mjtNum kDropHeight = 0.4;
+
+// teleport the free body `body` to `pos` at rest through mj_setState (which
+// wakes it)
+static void TeleportFreeBody(const mjModel* m, mjData* d, int body,
+                             const mjtNum pos[3]) {
+  int qpos_adr = m->jnt_qposadr[m->body_jntadr[body]];
+  int dof_adr = m->jnt_dofadr[m->body_jntadr[body]];
+  int spec = mjSTATE_FULLPHYSICS;
+  std::vector<mjtNum> state(mj_stateSize(m, spec));
+  mj_getState(m, d, state.data(), spec);
+  // FULLPHYSICS = time, qpos, qvel, act
+  for (int i = 0; i < 3; i++) state[1 + qpos_adr + i] = pos[i];
+  for (int i = 0; i < 6; i++) state[1 + m->nq + dof_adr + i] = 0;
+  mj_setState(m, d, state.data(), spec);
+}
+
+// is every dynamic tree of flex f asleep
+static bool FlexAsleep(const mjModel* m, const mjData* d, int f) {
+  int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
+  const int* bodyid = m->flex_interp[f]
+                          ? m->flex_nodebodyid + m->flex_nodeadr[f]
+                          : m->flex_vertbodyid + m->flex_vertadr[f];
+  for (int j = 0; j < num; j++) {
+    int tree = m->body_treeid[bodyid[j]];
+    if (tree >= 0 && d->tree_asleep[tree] < 0) return false;
+  }
+  return true;
+}
+
+// is every dynamic tree of flex f awake
+static bool FlexAwake(const mjModel* m, const mjData* d, int f) {
+  int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
+  const int* bodyid = m->flex_interp[f]
+                          ? m->flex_nodebodyid + m->flex_nodeadr[f]
+                          : m->flex_vertbodyid + m->flex_vertadr[f];
+  for (int j = 0; j < num; j++) {
+    int tree = m->body_treeid[bodyid[j]];
+    if (tree >= 0 && d->tree_asleep[tree] >= 0) return false;
+  }
+  return true;
+}
+
+// centroid of element e of (non-interpolated) flex f
+static void ElementCentroid(const mjModel* m, const mjData* d, int f, int e,
+                            mjtNum out[3]) {
+  int dim = m->flex_dim[f];
+  const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e * (dim + 1);
+  mju_zero3(out);
+  for (int k = 0; k <= dim; k++) {
+    mju_addTo3(out, d->flexvert_xpos + 3 * (m->flex_vertadr[f] + edata[k]));
+  }
+  mju_scl3(out, out, 1.0 / (dim + 1));
+}
+
+// first element of flex f whose first vertex is pinned (world-attached) and
+// that has a dynamic vertex, or -1
+static int PinnedFirstVertexElement(const mjModel* m, int f) {
+  int dim = m->flex_dim[f];
+  for (int e = 0; e < m->flex_elemnum[f]; e++) {
+    const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e * (dim + 1);
+    if (m->body_treeid[m->flex_vertbodyid[m->flex_vertadr[f] + edata[0]]] >= 0)
+      continue;
+    for (int k = 1; k <= dim; k++) {
+      if (m->body_treeid[m->flex_vertbodyid[m->flex_vertadr[f] + edata[k]]] >=
+          0)
+        return e;
+    }
+  }
+  return -1;
+}
+
+// a box landing on an element whose first vertex is pinned wakes the sheet
+TEST_F(SleepTest, FlexPinnedFirstVertexContactWakes) {
+  char error[1024];
+  mjModel* m =
+      LoadModelFromString(kPinnedSheet, error, sizeof(error)).release();
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  int f = mj_name2id(m, mjOBJ_FLEX, "sheet");
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  ASSERT_GE(f, 0);
+  ASSERT_GE(box, 0);
+
+  for (int step = 0; step < kSettleSteps; step++) mj_step(m, d);
+  ASSERT_TRUE(FlexAsleep(m, d, f)) << "sheet did not fall asleep";
+
+  int e = PinnedFirstVertexElement(m, f);
+  ASSERT_GE(e, 0) << "the sheet has no element with a pinned first vertex";
+  mjtNum pos[3];
+  ElementCentroid(m, d, f, e, pos);
+  pos[2] += kDropHeight;
+  TeleportFreeBody(m, d, box, pos);
+
+  // the sheet is asleep when the box lands; the landing wakes it
+  bool slept_before_landing = false, woke = false;
+  for (int step = 0; step < kDropSteps; step++) {
+    bool asleep = FlexAsleep(m, d, f);
+    mj_step(m, d);
+    slept_before_landing |= (asleep && d->ncon == 0);
+    woke |= (asleep && d->ncon > 0 && !FlexAsleep(m, d, f));
+  }
+  EXPECT_TRUE(slept_before_landing) << "sheet was awake when the box landed";
+  EXPECT_TRUE(woke) << "landing box did not wake the sheet";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// a body asleep ON a sleeping flex wakes in the same step as the flex when a
+// contact elsewhere wakes the flex: contact -> one vertex, edge equalities ->
+// the flex, recollision -> the body under it (the wake fixed point)
+TEST_F(SleepTest, FlexWakeChainReachesBodyRestingOnIt) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kPinnedSheetWithRester, error, sizeof(error))
+                   .release();
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  int f = mj_name2id(m, mjOBJ_FLEX, "sheet");
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  int rester = mj_name2id(m, mjOBJ_BODY, "rester");
+  ASSERT_GE(f, 0);
+  ASSERT_GE(box, 0);
+  ASSERT_GE(rester, 0);
+  int rester_tree = m->body_treeid[rester];
+
+  for (int step = 0; step < kSettleSteps; step++) mj_step(m, d);
+  ASSERT_TRUE(FlexAsleep(m, d, f)) << "sheet did not fall asleep";
+  ASSERT_GE(d->tree_asleep[rester_tree], 0) << "rester did not fall asleep";
+  EXPECT_GT(d->xpos[3 * rester + 2], 0.02)
+      << "rester is not resting on the sheet";
+
+  // drop the box on the element farthest from the rester (element 0, at -x -y)
+  mjtNum pos[3];
+  ElementCentroid(m, d, f, 0, pos);
+  pos[2] += kDropHeight;
+  TeleportFreeBody(m, d, box, pos);
+
+  bool chain = false;
+  for (int step = 0; step < kDropSteps; step++) {
+    bool sheet_asleep = FlexAsleep(m, d, f);
+    bool rester_asleep = d->tree_asleep[rester_tree] >= 0;
+    mj_step(m, d);
+    if (sheet_asleep && rester_asleep && !FlexAsleep(m, d, f)) {
+      // the step that woke the sheet must have woken the rester with it
+      EXPECT_LT(d->tree_asleep[rester_tree], 0)
+          << "rester stayed asleep in the step the sheet woke";
+      chain = true;
+    }
+  }
+  EXPECT_TRUE(chain)
+      << "the sheet never slept-then-woke with the rester asleep on it";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// a contact with an interpolated flex couples all of its nodes (27 here): all
+// of them wake, and the wake sweep must not assume a small fixed number of
+// bodies
+TEST_F(SleepTest, InterpolatedFlexContactWakesAllNodes) {
+  char error[1024];
+  mjModel* m =
+      LoadModelFromString(kInterpolatedCube, error, sizeof(error)).release();
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  int f = mj_name2id(m, mjOBJ_FLEX, "cube");
+  int box = mj_name2id(m, mjOBJ_BODY, "box");
+  ASSERT_GE(f, 0);
+  ASSERT_GE(box, 0);
+  ASSERT_TRUE(m->flex_interp[f]);
+  ASSERT_EQ(m->flex_nodenum[f], 27);
+
+  for (int step = 0; step < kSettleSteps; step++) mj_step(m, d);
+  ASSERT_TRUE(FlexAsleep(m, d, f)) << "cube did not fall asleep";
+
+  // drop the box onto the top of the cube
+  mjtNum top = -1;
+  for (int v = 0; v < m->flex_vertnum[f]; v++) {
+    top = mju_max(top, d->flexvert_xpos[3 * (m->flex_vertadr[f] + v) + 2]);
+  }
+  mjtNum pos[3] = {0, 0, top + kDropHeight};
+  TeleportFreeBody(m, d, box, pos);
+
+  bool woke_all = false;
+  for (int step = 0; step < kDropSteps; step++) {
+    bool asleep = FlexAsleep(m, d, f);
+    mj_step(m, d);
+    woke_all |= (asleep && d->ncon > 0 && FlexAwake(m, d, f));
+  }
+  EXPECT_TRUE(woke_all)
+      << "the landing box did not wake every node of the cube";
+  for (int i = 0; i < m->nq; i++) EXPECT_TRUE(std::isfinite(d->qpos[i]));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// ---------------------------------------------------------------------------
+// mj_setState under sleep: the rollout pattern (one warm mjData per thread,
+// mj_setState(m[r], d, state0[r]) with possibly different models m[r]).
+// ---------------------------------------------------------------------------
+
+// two boxes resting on the floor, far apart
+static constexpr char kTwoBoxes[] = R"(
+<mujoco>
+  <option timestep="0.002"><flag sleep="enable"/></option>
+  <worldbody>
+    <geom type="plane" size="2 2 .1"/>
+    <body name="a" pos="0 0 .05">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" mass=".1"/>
+    </body>
+    <body name="b" pos="1 0 .05">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" mass=".1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// kTwoBoxes with the floor raised: same sizes, different static geometry
+static constexpr char kTwoBoxesRaisedFloor[] = R"(
+<mujoco>
+  <option timestep="0.002"><flag sleep="enable"/></option>
+  <worldbody>
+    <geom type="plane" pos="0 0 .3" size="2 2 .1"/>
+    <body name="a" pos="0 0 .35">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" mass=".1"/>
+    </body>
+    <body name="b" pos="1 0 .35">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05" mass=".1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr mjtNum kBoxHalfSize = 0.05;
+static constexpr mjtNum kRaisedFloorHeight = 0.3;
+
+// 0.8 s: covers a 0.25 m fall and the landing
+static constexpr int kLandSteps = 400;
+
+// teleporting a sleeping body through mj_setState wakes it immediately and
+// leaves sleeping trees whose qpos did not change asleep
+TEST_F(SleepTest, SetStateTeleportWakesOnlyMovedTree) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kTwoBoxes, error, sizeof(error)).release();
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  int a = mj_name2id(m, mjOBJ_BODY, "a");
+  int b = mj_name2id(m, mjOBJ_BODY, "b");
+  int tree_a = m->body_treeid[a];
+  int tree_b = m->body_treeid[b];
+
+  for (int step = 0; step < kSettleSteps; step++) mj_step(m, d);
+  ASSERT_GE(d->tree_asleep[tree_a], 0) << "a did not fall asleep";
+  ASSERT_GE(d->tree_asleep[tree_b], 0) << "b did not fall asleep";
+
+  // teleport a to just above b, at rest
+  static constexpr mjtNum kGap = 0.1;
+  mjtNum pos[3] = {d->xpos[3 * b], d->xpos[3 * b + 1],
+                   d->xpos[3 * b + 2] + 2 * kBoxHalfSize + kGap};
+  TeleportFreeBody(m, d, a, pos);
+  EXPECT_LT(d->tree_asleep[tree_a], 0)
+      << "teleported a is still asleep after mj_setState";
+  EXPECT_GE(d->tree_asleep[tree_b], 0)
+      << "unchanged b was woken by mj_setState";
+  EXPECT_EQ(d->xpos[3 * a + 2], pos[2])
+      << "kinematics of a not refreshed by mj_setState";
+
+  // a lands on b and wakes it
+  bool woke_b = false;
+  for (int step = 0; step < kLandSteps; step++) {
+    mj_step(m, d);
+    woke_b |= d->tree_asleep[tree_b] < 0;
+  }
+  EXPECT_TRUE(woke_b) << "b never woke from a landing on it";
+  EXPECT_NEAR(d->xpos[3 * a + 2], 3 * kBoxHalfSize, 0.01)
+      << "a did not come to rest on b";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// a warm mjData reused with a model whose static geometry differs (rollout with
+// a list of models) sees the new static poses after mj_setState, not the ones
+// baked in by mj_resetData
+TEST_F(SleepTest, SetStateRefreshesStaticPosesOfDifferingModel) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kTwoBoxes, error, sizeof(error)).release();
+  ASSERT_THAT(m, NotNull()) << error;
+  mjModel* m_raised =
+      LoadModelFromString(kTwoBoxesRaisedFloor, error, sizeof(error)).release();
+  ASSERT_THAT(m_raised, NotNull()) << error;
+  ASSERT_EQ(mj_stateSize(m, mjSTATE_FULLPHYSICS),
+            mj_stateSize(m_raised, mjSTATE_FULLPHYSICS));
+  int a = mj_name2id(m, mjOBJ_BODY, "a");
+  int b = mj_name2id(m, mjOBJ_BODY, "b");
+  int floor = 0;  // the plane is the only geom on the world body
+  ASSERT_EQ(m->geom_bodyid[floor], 0);
+  ASSERT_EQ(m_raised->geom_pos[3 * floor + 2], kRaisedFloorHeight);
+
+  // warm data: made and settled with the low floor, both boxes asleep on it
+  mjData* d = mj_makeData(m);
+  for (int step = 0; step < kSettleSteps; step++) mj_step(m, d);
+  ASSERT_GE(d->tree_asleep[m->body_treeid[a]], 0);
+  ASSERT_GE(d->tree_asleep[m->body_treeid[b]], 0);
+  ASSERT_EQ(d->geom_xpos[3 * floor + 2], 0);
+
+  // next rollout: the raised-floor model with its initial state, both boxes
+  // above its floor
+  std::vector<mjtNum> state(mj_stateSize(m_raised, mjSTATE_FULLPHYSICS));
+  mjData* d_raised = mj_makeData(m_raised);
+  mj_getState(m_raised, d_raised, state.data(), mjSTATE_FULLPHYSICS);
+  mj_deleteData(d_raised);
+  mj_setState(m_raised, d, state.data(), mjSTATE_FULLPHYSICS);
+  EXPECT_EQ(d->geom_xpos[3 * floor + 2], kRaisedFloorHeight)
+      << "static floor pose not refreshed";
+
+  // the boxes come to rest on the raised floor, not on the stale low one
+  for (int step = 0; step < kLandSteps; step++) mj_step(m_raised, d);
+  EXPECT_NEAR(d->xpos[3 * a + 2], kRaisedFloorHeight + kBoxHalfSize, 0.01);
+  EXPECT_NEAR(d->xpos[3 * b + 2], kRaisedFloorHeight + kBoxHalfSize, 0.01);
+
+  mj_deleteData(d);
+  mj_deleteModel(m_raised);
+  mj_deleteModel(m);
 }
 
 }  // namespace

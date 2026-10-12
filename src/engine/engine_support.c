@@ -18,16 +18,18 @@
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_driver.h"
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_core_smooth.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
-#include "engine/engine_memory.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -314,6 +316,31 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig) {
         adr += size;
       }
     }
+  }
+
+  // sleep enabled and qpos injected: run the position stage mj_resetData runs, with static
+  // bodies treated as awake
+  if ((sig & mjSTATE_QPOS) && mjENABLED(mjENBL_SLEEP)) {
+    // static poses are computed once by mj_resetData and then skipped by mj_kinematics while
+    // marked mjS_STATIC; they are a function of the model only, so they go stale when the
+    // data is reused with a model that places its static bodies differently (one mjData per
+    // thread across heterogeneous models in rollout); this cannot be detected from the state,
+    // so refresh unconditionally
+    mj_updateSleepInit(m, d, /*flg_staticawake*/ 1);
+
+    // mj_kinematics1 marks sleeping trees whose bodies moved in d->tree_awake, and recomputes
+    // the static poses since statics are marked awake above; mj_updateSleep would revert the
+    // statics to mjS_STATIC, so run the remaining position stage first (nothing in it writes
+    // tree_awake), then wake the marked trees and update the sleep arrays last
+    mj_kinematics1(m, d);
+    mj_kinematics2(m, d);
+    mj_comPos(m, d);
+    mj_camlight(m, d);
+    mj_tendon(m, d);
+
+    // wake marked trees (qpos teleport) and trees with nonzero velocity or applied force
+    mj_wake(m, d);
+    mj_updateSleep(m, d);
   }
 }
 
