@@ -12,7 +12,11 @@ import sys
 import tarfile
 import urllib.request
 
-import zstandard
+try:
+  from compression import zstd  # Python 3.14+
+except ImportError:
+  zstd = None
+  import zstandard
 
 
 SOURCE = pathlib.Path(__file__).resolve().parents[2]
@@ -39,9 +43,15 @@ def main():
   llvm = WORK / 'llvm' / 'clang+llvm-23.1.3-aarch64-pc-windows-msvc'
   if not (llvm / 'bin' / 'clang-cl.exe').exists():
     with archive.open('rb') as compressed:
-      with zstandard.ZstdDecompressor(max_window_size=2147483648).stream_reader(
-          compressed
-      ) as stream:
+      if zstd:
+        stream = zstd.ZstdFile(
+            compressed, options={zstd.DecompressionParameter.window_log_max: 31}
+        )
+      else:
+        stream = zstandard.ZstdDecompressor(
+            max_window_size=2147483648
+        ).stream_reader(compressed)
+      with stream:
         with tarfile.open(fileobj=stream, mode='r|') as files:
           for member in files:
             parts = pathlib.PurePosixPath(member.name).parts
