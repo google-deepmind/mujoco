@@ -166,6 +166,68 @@ def _resolve_tendon_lengthspring(
 
 
 @wp.kernel
+def _compute_geom_bound(
+  # Model:
+  geom_type: wp.array[int],
+  geom_dataid: wp.array2d[int],
+  hfield_size: wp.array[wp.vec4],
+  # Out:
+  geom_size_out: wp.array2d[wp.vec3],
+  geom_aabb_out: wp.array3d[wp.vec3],
+  geom_rbound_out: wp.array2d[float],
+):
+  """Compute the bounding box and sphere of geoms whose bounds follow from their size.
+
+  The size of a height field geom follows its height field. Mesh and SDF geoms keep the bounds of
+  their mesh.
+  """
+  worldid, geomid = wp.tid()
+  gtype = geom_type[geomid]
+  if gtype == int(types.GeomType.MESH.value) or gtype == int(types.GeomType.SDF.value):
+    return
+
+  geom_size_id = worldid % geom_size_out.shape[0]
+  size = geom_size_out[geom_size_id, geomid]
+  lo = wp.vec3(0.0)
+  hi = wp.vec3(0.0)
+  rbound = float(0.0)
+
+  if gtype == int(types.GeomType.HFIELD.value):
+    hsize = hfield_size[geom_dataid[worldid % geom_dataid.shape[0], geomid]]
+    geom_size_out[geom_size_id, geomid] = wp.vec3(hsize[0], hsize[1], 0.25 * hsize[2] + 0.5 * hsize[3])
+    lo = wp.vec3(-hsize[0], -hsize[1], -hsize[3])
+    hi = wp.vec3(hsize[0], hsize[1], hsize[2])
+    rbound = wp.sqrt(hsize[0] * hsize[0] + hsize[1] * hsize[1] + wp.max(hsize[2] * hsize[2], hsize[3] * hsize[3]))
+  elif gtype == int(types.GeomType.PLANE.value):
+    lo = wp.vec3(-types.MJ_MAXVAL)
+    hi = wp.vec3(types.MJ_MAXVAL, types.MJ_MAXVAL, 0.0)
+  else:
+    if gtype == int(types.GeomType.SPHERE.value):
+      hi = wp.vec3(size[0])
+      rbound = size[0]
+    elif gtype == int(types.GeomType.CAPSULE.value):
+      hi = wp.vec3(size[0], size[0], size[0] + size[1])
+      rbound = size[0] + size[1]
+    elif gtype == int(types.GeomType.CYLINDER.value):
+      hi = wp.vec3(size[0], size[0], size[1])
+      rbound = wp.sqrt(size[0] * size[0] + size[1] * size[1])
+    elif gtype == int(types.GeomType.ELLIPSOID.value):
+      hi = size
+      rbound = wp.max(wp.max(size[0], size[1]), size[2])
+    elif gtype == int(types.GeomType.BOX.value):
+      hi = size
+      rbound = wp.length(size)
+    else:
+      hi = size
+    lo = -hi
+
+  geom_aabb_id = worldid % geom_aabb_out.shape[0]
+  geom_aabb_out[geom_aabb_id, geomid, 0] = 0.5 * (hi + lo)
+  geom_aabb_out[geom_aabb_id, geomid, 1] = 0.5 * (hi - lo)
+  geom_rbound_out[worldid % geom_rbound_out.shape[0], geomid] = rbound
+
+
+@wp.kernel
 def _compute_meaninertia(
   nv: int,
   M_rownnz_in: wp.array[int],
@@ -597,6 +659,9 @@ def set_const_fixed(m: types.Model, d: types.Data):
 
   Computes:
     - body_subtreemass: mass of body and all descendants (depends on body_mass)
+    - geom_aabb, geom_rbound: bounding box and sphere of primitive and height
+      field geoms (depends on geom_size and hfield_size)
+    - geom_size of height field geoms (depends on hfield_size)
 
   Args:
     m: The model containing kinematic and dynamic information (device).
@@ -611,6 +676,14 @@ def set_const_fixed(m: types.Model, d: types.Data):
       dim=(nworld_subtreemass, body_tree.size),
       inputs=[m.body_parentid, m.body_subtreemass, body_tree],
     )
+
+  nworld_geom = np.max([m.geom_dataid.shape[0], m.geom_size.shape[0], m.geom_aabb.shape[0], m.geom_rbound.shape[0]])
+  wp.launch(
+    _compute_geom_bound,
+    dim=(nworld_geom, m.ngeom),
+    inputs=[m.geom_type, m.geom_dataid, m.hfield_size],
+    outputs=[m.geom_size, m.geom_aabb, m.geom_rbound],
+  )
 
 
 def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
@@ -868,7 +941,7 @@ def set_const(m: types.Model, d: types.Data, restore: bool = True):
   body_gravcomp                       If changing from 0 to >0 bodies, required.
   dof_armature
   eq_data                             For connect/weld, offsets computed if not set.
-  hfield_size
+  geom_size, hfield_size              Bounds of primitive and height field geoms.
   tendon_stiffness, tendon_damping    Only if changing from/to zero.
   actuator_gainprm, actuator_biasprm  For position actuators with dampratio.
   ==================================  ==============================================
@@ -880,6 +953,7 @@ def set_const(m: types.Model, d: types.Data, restore: bool = True):
   ==============  ===============
   body_mass       set_const
   body_gravcomp   set_const_fixed
+  geom_size       set_const_fixed
   body_inertia    set_const_0
   qpos0           set_const_0
   ==============  ===============
@@ -887,6 +961,7 @@ def set_const(m: types.Model, d: types.Data, restore: bool = True):
   Computes:
     - Fixed quantities (via set_const_fixed):
       - body_subtreemass: mass of body and all descendants
+      - geom_aabb, geom_rbound: bounds of primitive and height field geoms
     - qpos0-dependent quantities (via set_const_0):
       - tendon_length0: tendon resting lengths
       - dof_invweight0: inverse inertia for DOFs

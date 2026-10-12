@@ -42,7 +42,6 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
-#include "engine/engine_passive.h"
 #include "user/user_api.h"
 #include "user/user_cache.h"
 #include "user/user_model.h"
@@ -1609,9 +1608,6 @@ mjCBody::mjCBody(mjCModel* _model) {
   dofnum      = 0;
   lastdof     = -1;
   subtreedofs = 0;
-  contype     = 0;
-  conaffinity = 0;
-  margin      = 0;
   mjuu_zerovec(xpos0, 3);
   mjuu_setvec(xquat0, 1, 0, 0, 0);
   last_attached = nullptr;
@@ -2953,15 +2949,6 @@ void mjCBody::Compile(void) {
   // frame
   if (frame) { mjuu_frameaccumChild(frame->pos, frame->quat, pos, quat); }
 
-  // accumulate rbound, contype, conaffinity over geoms
-  contype = conaffinity = 0;
-  margin                = 0;
-  for (int i = 0; i < geoms.size(); i++) {
-    contype     |= geoms[i]->contype;
-    conaffinity |= geoms[i]->conaffinity;
-    margin       = std::max(margin, geoms[i]->margin + geoms[i]->gap);
-  }
-
   // check conditions for free-joint alignment
   bool align_free = (joints.size() == 1 &&                  // only one joint AND
                      joints[0]->spec.type == mjJNT_FREE &&  // it is a free joint AND
@@ -3876,198 +3863,15 @@ void mjCGeom::SetInertia(void) {
 }
 
 
-// compute radius of bounding sphere
+// radius of the bounding sphere of a mesh or SDF geom, zero for other geoms, whose radius
+// mj_setConst computes from their size
 double mjCGeom::GetRBound(void) {
-  const double *aamm, *hsize;
-  double        haabb[3] = {0};
-
-  switch (type) {
-    case mjGEOM_HFIELD:
-      hsize = hfield->size;
-      return sqrt(hsize[0] * hsize[0] +
-                  hsize[1] * hsize[1] +
-                  std::max(hsize[2] * hsize[2], hsize[3] * hsize[3]));
-
-    case mjGEOM_SPHERE:
-      return size[0];
-
-    case mjGEOM_CAPSULE:
-      return size[0] + size[1];
-
-    case mjGEOM_CYLINDER:
-      return sqrt(size[0] * size[0] + size[1] * size[1]);
-
-    case mjGEOM_ELLIPSOID:
-      return std::max(std::max(size[0], size[1]), size[2]);
-
-    case mjGEOM_BOX:
-      return sqrt(size[0] * size[0] + size[1] * size[1] + size[2] * size[2]);
-
-    case mjGEOM_MESH:
-    case mjGEOM_SDF:
-      aamm     = mesh->aamm();
-      haabb[0] = std::max(std::abs(aamm[0]), std::abs(aamm[3]));
-      haabb[1] = std::max(std::abs(aamm[1]), std::abs(aamm[4]));
-      haabb[2] = std::max(std::abs(aamm[2]), std::abs(aamm[5]));
-      return sqrt(haabb[0] * haabb[0] + haabb[1] * haabb[1] + haabb[2] * haabb[2]);
-
-    default:
-      return 0;
-  }
-}
-
-
-// Compute the coefficients of the added inertia due to the surrounding fluid.
-double mjCGeom::GetAddedMassKappa(double dx, double dy, double dz) {
-  // Integration by Gauss–Kronrod quadrature on interval l in [0, infinity] of
-  // f(l) = dx*dy*dz / np.sqrt((dx*dx+ l)**3 * (dy*dy+ l) * (dz*dz+ l))
-  // 15-point Gauss–Kronrod quadrature (K15) points x in [0, 1].
-
-  // static constexpr mjtNum kronrod_x[15] = [     // unused, left in comment for completeness
-  //   0.00427231, 0.02544604, 0.06756779, 0.12923441, 0.20695638,
-  //   0.29707742, 0.39610752, 0.50000000, 0.60389248, 0.70292258,
-  //   0.79304362, 0.87076559, 0.93243221, 0.97455396, 0.99572769];
-  // 15-point Gauss–Kronrod quadrature (K15) weights.
-  static constexpr double kronrod_w[15] = {0.01146766,
-                                           0.03154605,
-                                           0.05239501,
-                                           0.07032663,
-                                           0.08450236,
-                                           0.09517529,
-                                           0.10221647,
-                                           0.10474107,
-                                           0.10221647,
-                                           0.09517529,
-                                           0.08450236,
-                                           0.07032663,
-                                           0.05239501,
-                                           0.03154605,
-                                           0.01146766};
-  // Integrate from 0 to inf by change of variables:
-  // l = x^3 / (1-x)^2. Exponents 3 and 2 found to minimize error.
-  static constexpr double kronrod_l[15] = {7.865151709349917e-08,
-                                           1.7347976913907274e-05,
-                                           0.0003548008144506193,
-                                           0.002846636252924549,
-                                           0.014094260903596077,
-                                           0.053063261727396636,
-                                           0.17041978741317773,
-                                           0.5,
-                                           1.4036301548686991,
-                                           3.9353484827022642,
-                                           11.644841677041734,
-                                           39.53187807410903,
-                                           177.5711362220801,
-                                           1429.4772912937397,
-                                           54087.416549217705};
-  // dl = dl/dx dx. The following are dl/dx(x).
-  static constexpr double kronrod_d[15] = {5.538677720489877e-05,
-                                           0.002080868285293228,
-                                           0.016514126520723166,
-                                           0.07261900344370877,
-                                           0.23985243401862602,
-                                           0.6868318249020725,
-                                           1.8551129519182894,
-                                           5.0,
-                                           14.060031152313941,
-                                           43.28941239611009,
-                                           156.58546376397112,
-                                           747.9826085305024,
-                                           5827.4042950027115,
-                                           116754.0197944512,
-                                           25482945.327264845};
-
-  const double invdx2 = 1.0 / (dx * dx);
-  const double invdy2 = 1.0 / (dy * dy);
-  const double invdz2 = 1.0 / (dz * dz);
-
-  // for added numerical stability we non-dimensionalize x by scale
-  // because 1 + l/d^2 in denom, l should be scaled by d^2
-  const double scale = std::pow(dx * dx * dx * dy * dz, 0.4);  // ** (2/5)
-  double       kappa = 0.0;
-  for (int i = 0; i < 15; ++i) {
-    const double lambda = scale * kronrod_l[i];
-    const double denom =
-        (1 + lambda * invdx2) *
-        std::sqrt((1 + lambda * invdx2) * (1 + lambda * invdy2) * (1 + lambda * invdz2));
-    kappa += scale * kronrod_d[i] / denom * kronrod_w[i];
-  }
-  return kappa * invdx2;
-}
-
-
-// Compute the kappa coefs of the added inertia due to the surrounding fluid.
-void mjCGeom::SetFluidCoefs(void) {
-  double dx, dy, dz;
-
-  // get semiaxes
-  switch (type) {
-    case mjGEOM_SPHERE:
-      dx = size[0];
-      dy = size[0];
-      dz = size[0];
-      break;
-
-    case mjGEOM_CAPSULE:
-      dx = size[0];
-      dy = size[0];
-      dz = size[1] + size[0];
-      break;
-
-    case mjGEOM_CYLINDER:
-      dx = size[0];
-      dy = size[0];
-      dz = size[1];
-      break;
-
-    default:
-      dx = size[0];
-      dy = size[1];
-      dz = size[2];
-  }
-
-  // volume of equivalent ellipsoid
-  const double volume = 4.0 / 3.0 * mjPI * dx * dy * dz;
-
-  // GetAddedMassKappa is invariant to permutation of last two arguments
-  const double kx = GetAddedMassKappa(dx, dy, dz);
-  const double ky = GetAddedMassKappa(dy, dz, dx);
-  const double kz = GetAddedMassKappa(dz, dx, dy);
-
-  // coefficients of virtual moment of inertia. Note: if (kz-ky) in numerator
-  // is negative, also the denom is negative. Abs both and clip to MINVAL
-  const auto   pow2 = [](const double val) { return val * val; };
-  const double Ixfac =
-      pow2(dy * dy - dz * dz) *
-      std::abs(kz - ky) /
-      std::max(mjEPS, std::abs(2 * (dy * dy - dz * dz) + (dy * dy + dz * dz) * (ky - kz)));
-  const double Iyfac =
-      pow2(dz * dz - dx * dx) *
-      std::abs(kx - kz) /
-      std::max(mjEPS, std::abs(2 * (dz * dz - dx * dx) + (dz * dz + dx * dx) * (kz - kx)));
-  const double Izfac =
-      pow2(dx * dx - dy * dy) *
-      std::abs(ky - kx) /
-      std::max(mjEPS, std::abs(2 * (dx * dx - dy * dy) + (dx * dx + dy * dy) * (kx - ky)));
-
-  mjtNum virtual_mass[3];
-  virtual_mass[0] = volume * kx / std::max(mjEPS, 2 - kx);
-  virtual_mass[1] = volume * ky / std::max(mjEPS, 2 - ky);
-  virtual_mass[2] = volume * kz / std::max(mjEPS, 2 - kz);
-  mjtNum virtual_inertia[3];
-  virtual_inertia[0] = volume * Ixfac / 5;
-  virtual_inertia[1] = volume * Iyfac / 5;
-  virtual_inertia[2] = volume * Izfac / 5;
-
-  writeFluidGeomInteraction(fluid,
-                            &fluid_ellipsoid,
-                            &fluid_coefs[0],
-                            &fluid_coefs[1],
-                            &fluid_coefs[2],
-                            &fluid_coefs[3],
-                            &fluid_coefs[4],
-                            virtual_mass,
-                            virtual_inertia);
+  if (type != mjGEOM_MESH && type != mjGEOM_SDF) { return 0; }
+  const double* aamm     = mesh->aamm();
+  double        haabb[3] = {std::max(std::abs(aamm[0]), std::abs(aamm[3])),
+                            std::max(std::abs(aamm[1]), std::abs(aamm[4])),
+                            std::max(std::abs(aamm[2]), std::abs(aamm[5]))};
+  return sqrt(haabb[0] * haabb[0] + haabb[1] * haabb[1] + haabb[2] * haabb[2]);
 }
 
 
@@ -4313,8 +4117,12 @@ void mjCGeom::Compile(void) {
       throw mjCError(this, "mass, inertia or density are negative in geom");
   }
 
-  // fluid-interaction coefficients, requires computed inertia and mass
-  if (fluid_ellipsoid > 0) { SetFluidCoefs(); }
+  // fluid-interaction coefficients; mj_setConst computes the added mass and inertia from the size
+  for (int i = 0; i < mjNFLUID; i++) { fluid[i] = 0; }
+  if (fluid_ellipsoid > 0) {
+    fluid[0] = fluid_ellipsoid;
+    for (int i = 0; i < 5; i++) { fluid[i + 1] = fluid_coefs[i]; }
+  }
 
   // plugin
   if (plugin.active) {

@@ -2740,17 +2740,10 @@ void mjCModel::CopyTree(mjModel* m) {
     m->body_gravcomp[i] = pb->gravcomp;
     mjuu_copyvec(m->body_user + nuser_body * i, pb->get_userdata().data(), nuser_body);
 
-    m->body_contype[i]     = pb->contype;
-    m->body_conaffinity[i] = pb->conaffinity;
-    m->body_margin[i]      = (mjtNum)pb->margin;
-
     // bounding volume hierarchy
     m->body_bvhadr[i] = pb->tree.Nbvh() ? bvh_adr : -1;
     m->body_bvhnum[i] = pb->tree.Nbvh();
     if (pb->tree.Nbvh()) {
-      memcpy(m->bvh_aabb + 6 * bvh_adr,
-             pb->tree.Bvh().data(),
-             6 * pb->tree.Nbvh() * sizeof(mjtNum));
       memcpy(m->bvh_child + 2 * bvh_adr,
              pb->tree.Child().data(),
              2 * pb->tree.Nbvh() * sizeof(int));
@@ -2963,7 +2956,7 @@ void mjCModel::CopyTree(mjModel* m) {
       }
       m->geom_sameframe[gid] = sameframe;
 
-      // compute rbound
+      // bounding sphere of a mesh or SDF geom, mj_setConst computes those of other geoms
       m->geom_rbound[gid] = (mjtNum)pg->GetRBound();
     }
 

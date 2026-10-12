@@ -77,7 +77,6 @@ cc_library(
         "//src/engine",
         "//src/engine:engine_core_util",
         "//src/engine:engine_crossplatform",
-        "//src/engine:engine_derivative",
         "//src/engine:engine_forward",
         "//src/engine:engine_init",
         "//src/engine:engine_io",

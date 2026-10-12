@@ -1339,32 +1339,3 @@ void readFluidGeomInteraction(const mjtNum* geom_fluid_coefs,
     mjERROR("wrong number of entries.");
   }
 }
-
-
-// write components into geom_fluid_coefs array
-void writeFluidGeomInteraction (mjtNum* geom_fluid_coefs,
-                                const mjtNum* geom_fluid_coef,
-                                const mjtNum* blunt_drag_coef,
-                                const mjtNum* slender_drag_coef,
-                                const mjtNum* ang_drag_coef,
-                                const mjtNum* kutta_lift_coef,
-                                const mjtNum* magnus_lift_coef,
-                                const mjtNum virtual_mass[3],
-                                const mjtNum virtual_inertia[3]) {
-  int i = 0;
-  geom_fluid_coefs[i++] = geom_fluid_coef[0];
-  geom_fluid_coefs[i++] = blunt_drag_coef[0];
-  geom_fluid_coefs[i++] = slender_drag_coef[0];
-  geom_fluid_coefs[i++] = ang_drag_coef[0];
-  geom_fluid_coefs[i++] = kutta_lift_coef[0];
-  geom_fluid_coefs[i++] = magnus_lift_coef[0];
-  geom_fluid_coefs[i++] = virtual_mass[0];
-  geom_fluid_coefs[i++] = virtual_mass[1];
-  geom_fluid_coefs[i++] = virtual_mass[2];
-  geom_fluid_coefs[i++] = virtual_inertia[0];
-  geom_fluid_coefs[i++] = virtual_inertia[1];
-  geom_fluid_coefs[i++] = virtual_inertia[2];
-  if (i != mjNFLUID) {
-    mjERROR("wrong number of entries.");
-  }
-}

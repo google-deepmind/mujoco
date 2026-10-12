@@ -721,9 +721,18 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
    * - ``dof_armature``
      - Safe with :ref:`mj_setConst`.
      -
-   * - ``geom_pos`` |br| ``geom_quat`` |br| ``geom_size`` |br| ``geom_rbound`` |br| ``geom_aabb``
-     - Unsafe.
+   * - ``geom_pos`` |br| ``geom_quat`` |br| ``geom_size``
+     - Safe with :ref:`mj_setConst`.
+     - The bounding volumes of geoms and bodies follow, and so does the added mass of geoms in the ellipsoid
+       :ref:`fluid model<flEllipsoid>`; masses and inertias inferred from geoms do not. The bounds of mesh and SDF geoms
+       follow from their mesh, not their size.
+   * - ``geom_margin`` |br| ``geom_gap``
+     - Safe with :ref:`mj_setConst`.
      -
+   * - ``geom_contype`` |br| ``geom_conaffinity``
+     - Safe with :ref:`mj_setConst`.
+     - A geom which did not collide when the model was compiled, in a body whose other geoms did, cannot be made to
+       collide.
    * - ``geom_surfacevel``
      - Safe.
      - If passing from a state where all geoms have zero surface velocity to a state where some geoms have

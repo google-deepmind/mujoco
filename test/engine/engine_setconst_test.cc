@@ -27,6 +27,8 @@ namespace mujoco {
 namespace {
 
 using ::std::string;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -801,6 +803,265 @@ TEST_F(SetConstTest, RankDeficientBendingFactor) {
       EXPECT_THAT(err, HasSubstr("constant metric factor is rank-deficient"));
     }
   }
+}
+
+// The bounds of a geom follow its size, so that its contacts are found.
+TEST_F(SetConstTest, GeomSizeBounds) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <body pos="0 0 .5">
+        <freejoint/>
+        <geom name="ball" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  int g = mj_name2id(m.get(), mjOBJ_GEOM, "ball");
+
+  // the grown ball reaches the plane
+  m->geom_size[3 * g] = 0.75;
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->geom_rbound[g], 0.75);
+  EXPECT_EQ(m->geom_aabb[6 * g + 3], 0.75);
+  mj_resetData(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(d->ncon, 1);
+}
+
+// The bounds of a height field geom follow the size of the height field.
+TEST_F(SetConstTest, HeightFieldSizeBounds) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="terrain" nrow="2" ncol="2" size="1 1 .5 .1"/>
+    </asset>
+    <worldbody>
+      <geom name="terrain" type="hfield" hfield="terrain"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+
+  // radius sqrt(2^2 + 2^2 + 1^2), box from depth -0.2 to height 1
+  for (int k = 0; k < 4; k++) m->hfield_size[k] *= 2;
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->geom_rbound[0], 3);
+  EXPECT_THAT(AsVector(m->geom_aabb, 6),
+              ElementsAre(0, 0, 0.4, 2, 2, MjNear(0.6, 1e-15, 1e-7)));
+}
+
+// The bounding volume hierarchy of a body is in its inertial frame and follows
+// it, so that midphase finds the contacts it would find without it.
+TEST_F(SetConstTest, InertialFrameBoundingVolumes) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1" pos="-.3 0 0"/>
+        <geom size=".1" pos=".3 0 0"/>
+      </body>
+      <body name="moved" pos=".5 0 0">
+        <freejoint/>
+        <geom size=".1" pos="-.15 0 0"/>
+        <geom size=".1" pos=".3 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  int b = mj_name2id(m.get(), mjOBJ_BODY, "moved");
+
+  // move the center of mass away from the geoms
+  m->body_ipos[3 * b] = 5;
+  mj_setConst(m.get(), d.get());
+  for (bool midphase : {true, false}) {
+    m->opt.disableflags = midphase ? 0 : mjDSBL_MIDPHASE;
+    mj_resetData(m.get(), d.get());
+    mj_forward(m.get(), d.get());
+    EXPECT_EQ(d->ncon, 1) << "midphase: " << midphase;
+  }
+}
+
+// The collision masks and margin of a body accumulate those of its geoms.
+TEST_F(SetConstTest, BodyMasksAndMargin) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <freejoint/>
+        <geom size=".1" margin=".25"/>
+        <geom size=".1" margin=".5" gap=".125" contype="2" conaffinity="4"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  int b = mj_name2id(m.get(), mjOBJ_BODY, "body");
+  EXPECT_EQ(m->body_contype[b], 3);
+  EXPECT_EQ(m->body_conaffinity[b], 5);
+  EXPECT_EQ(m->body_margin[b], 0.625);
+
+  m->geom_margin[0] = 1;
+  m->geom_contype[0] = m->geom_conaffinity[0] = 0;
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->body_contype[b], 2);
+  EXPECT_EQ(m->body_conaffinity[b], 4);
+  EXPECT_EQ(m->body_margin[b], 1);
+}
+
+// A geom which collides must be in the bounding volume hierarchy of its body.
+TEST_F(SetConstTest, CollidingGeomOutsideBoundingVolumes) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1"/>
+        <geom size=".1" contype="0" conaffinity="0"/>
+      </body>
+      <body>
+        <freejoint/>
+        <geom size=".1" contype="0" conaffinity="0"/>
+        <geom size=".1" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+
+  // a body without a hierarchy collides all of its geoms
+  m->geom_contype[2] = 1;
+  EXPECT_EQ(MjuErrorMessageFrom(mj_setConst)(m.get(), d.get()), "");
+
+  // a body with a hierarchy does not
+  m->geom_contype[1] = 1;
+  EXPECT_THAT(MjuErrorMessageFrom(mj_setConst)(m.get(), d.get()),
+              HasSubstr("geom 1 collides"));
+}
+
+// The added mass and inertia of a geom in the ellipsoid fluid model follow its
+// size.
+TEST_F(SetConstTest, FluidAddedMass) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option density="1000"/>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="ellipsoid" size="SIZE" fluidshape="ellipsoid"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  std::string small(xml), large(xml);
+  small.replace(small.find("SIZE"), 4, ".1 .2 .3");
+  large.replace(large.find("SIZE"), 4, ".2 .4 .6");
+  MjModelPtr m = LoadModelFromString(small.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjModelPtr expected =
+      LoadModelFromString(large.c_str(), error, sizeof(error));
+  ASSERT_THAT(expected.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+
+  for (int k = 0; k < 3; k++) m->geom_size[k] *= 2;
+  mj_setConst(m.get(), d.get());
+  EXPECT_THAT(AsVector(m->geom_fluid, mjNFLUID),
+              ElementsAreArray(AsVector(expected->geom_fluid, mjNFLUID)));
+}
+
+// The automatic sleep policy of a tree is resolved anew.
+TEST_F(SetConstTest, SleepPolicyResolvedAnew) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size=".1"/>
+        <site name="s1"/>
+      </body>
+      <body pos="1 0 0">
+        <freejoint/>
+        <geom size=".1"/>
+        <site name="s2"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial stiffness="1">
+        <site site="s1"/>
+        <site site="s2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  EXPECT_EQ(m->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(m->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+
+  m->tendon_stiffness[0] = 0;
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->tree_sleep_policy[0], mjSLEEP_AUTO_ALLOWED);
+  EXPECT_EQ(m->tree_sleep_policy[1], mjSLEEP_AUTO_ALLOWED);
+
+  m->tendon_stiffness[0] = 1;
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->tree_sleep_policy[0], mjSLEEP_AUTO_NEVER);
+  EXPECT_EQ(m->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
+}
+
+// Constants are computed for sleeping trees as for awake ones.
+TEST_F(SetConstTest, SleepingTrees) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body sleep="init">
+        <joint name="hinge" axis="0 1 0"/>
+        <geom type="capsule" size=".1" fromto="0 0 0 1 0 0"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  ASSERT_EQ(d->ntree_awake, 0);
+  mjtNum acc0 = m->actuator_acc0[0];
+  mjtNum invweight0 = m->dof_invweight0[0];
+  EXPECT_GT(acc0, 0);
+
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->actuator_acc0[0], acc0);
+  EXPECT_EQ(m->dof_invweight0[0], invweight0);
+  EXPECT_EQ(m->opt.enableflags, mjENBL_SLEEP);
 }
 
 }  // namespace

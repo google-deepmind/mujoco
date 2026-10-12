@@ -489,11 +489,8 @@ class mjCBody_ : public mjCBase {
   int mocapid;   // mocap id, -1: not mocap
   int bodyadr_;  // address of body in model, -1: not compiled
 
-  int    contype;      // OR over geom contypes
-  int    conaffinity;  // OR over geom conaffinities
-  double margin;       // MAX over geom margins
-  double xpos0[3];     // global position in qpos0
-  double xquat0[4];    // global orientation in qpos0
+  double xpos0[3];   // global position in qpos0
+  double xquat0[4];  // global orientation in qpos0
 
   // used internally by compiler
   int lastdof;      // id of last dof
@@ -864,11 +861,6 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   mjCBody* GetParent() const { return body; }
   mjtGeom  Type() const { return type; }
 
-  // Compute all coefs modeling the interaction with the surrounding fluid.
-  void SetFluidCoefs(void);
-  // Compute the kappa coefs of the added inertia due to the surrounding fluid.
-  double GetAddedMassKappa(double dx, double dy, double dz);
-
   // used by mjXWriter and mjCModel
   const std::vector<double>& get_userdata() const { return userdata_; }
   const std::string&         get_hfieldname() const { return spec_hfieldname_; }
@@ -881,7 +873,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
 
  private:
   void   Compile(void);      // compiler
-  double GetRBound(void);    // compute bounding sphere radius
+  double GetRBound(void);    // bounding sphere radius of a mesh or SDF geom
   void   ComputeAABB(void);  // compute axis-aligned bounding box
   void   CopyFromSpec(void);
   void   PointToLocal(void);

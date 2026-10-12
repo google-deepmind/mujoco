@@ -58,6 +58,11 @@ Engine
   :ref:`mju_user_malloc` returns memory that is not 64-byte aligned, as ``malloc`` often does. ``mjModel.nbuffer`` and
   ``mjData.nbuffer`` now include up to 63 bytes of leading padding, so arrays are 64-byte aligned regardless of the
   buffer address.
+- :ref:`mj_setConst` now computes the bounding volumes of geoms and bodies, the collision masks and margins of bodies,
+  and the added mass of geoms in the ellipsoid :ref:`fluid model<flEllipsoid>`. Changes to the size, pose, margin and
+  gap of geoms, to the inertial frames of bodies and to the size of height fields are then safe; previously contacts
+  could be missed. :ref:`mj_setConst` also computes the constants of sleeping bodies, which it skipped, and resolves the
+  automatic :ref:`sleep policy<body-sleep>` of trees anew.
 
 Compiler
 ^^^^^^^^
