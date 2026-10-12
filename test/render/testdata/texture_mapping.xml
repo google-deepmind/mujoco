@@ -1,0 +1,95 @@
+<mujoco>
+  <asset>
+    <mesh file="bunny.obj" scale="20 20 20"/>
+    <texture file="test-pattern.png" type="2d"/>
+    <texture name="white" type="2d" builtin="flat" rgb1="1 1 1" width="2" height="2"/>
+    <texture name="gray" type="2d"  builtin="flat" rgb1="0.5 0.5 0.5" width="2" height="2"/>
+
+    <material name="phong-f-1-1" texture="test-pattern" texuniform="false" texrepeat="1 1"/>
+    <material name="pbr-f-1-1"                          texuniform="false" texrepeat="1 1">
+      <layer role="rgb" texture="test-pattern"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+
+    <material name="phong-f-2-2.2" texture="test-pattern" texuniform="false" texrepeat="2 2.2"/>
+    <material name="pbr-f-2-2.2"                          texuniform="false" texrepeat="2 2.2">
+      <layer role="rgb" texture="test-pattern"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+
+    <material name="phong-f-0.5-0.7" texture="test-pattern" texuniform="false" texrepeat="0.5 0.7"/>
+    <material name="pbr-f-0.5-0.7"                          texuniform="false" texrepeat="0.5 0.7">
+      <layer role="rgb" texture="test-pattern"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+
+    <material name="phong-t-1-1" texture="test-pattern" texuniform="true" texrepeat="1 1"/>
+    <material name="pbr-t-1-1"                          texuniform="true" texrepeat="1 1">
+      <layer role="rgb" texture="test-pattern"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+
+    <material name="phong-t-2-2.2" texture="test-pattern" texuniform="true" texrepeat="2 2.2"/>
+    <material name="pbr-t-2-2.2"                          texuniform="true" texrepeat="2 2.2">
+      <layer role="rgb" texture="test-pattern"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+
+    <material name="phong-t-0.5-0.7" texture="test-pattern" texuniform="true" texrepeat="0.5 0.7"/>
+    <material name="pbr-t-0.5-0.7"                          texuniform="true" texrepeat="0.5 0.7">
+      <layer role="rgb" texture="test-pattern"/>
+      <layer role="metallic" texture="white"/>
+      <layer role="roughness" texture="white"/>
+    </material>
+  </asset>
+
+  <custom>
+    <numeric name="filament.fallback.environment_light_intensity" data="10000"/>
+  </custom>
+
+  <worldbody>
+    <camera name="default" pos="0.343 -12.795 16.452" xyaxes="1.000 -0.002 0.000 0.002 0.814 0.581"/>
+
+    <geom type="box" size="0.7 1.0 1.2"  material="phong-t-1-1"     pos="-2 -4.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"  material="pbr-t-1-1"       pos="-2 -1.5 0"/>
+
+    <geom type="box" size="0.7 1.0 1.2"  material="phong-t-2-2.2"     pos="-5 -4.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"  material="pbr-t-2-2.2"       pos="-5 -1.5 0"/>
+
+    <geom type="box" size="0.7 1.0 1.2"  material="phong-t-0.5-0.7" pos="-8 -4.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"  material="pbr-t-0.5-0.7"   pos="-8 -1.5 0"/>
+
+    <geom type="box" size="0.7 1.0 1.2"  material="phong-f-1-1"     pos="-2  1.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"  material="pbr-f-1-1"       pos="-2  4.5 0"/>
+
+    <geom type="box" size="0.7 1.0 1.2"  material="phong-f-2-2.2"     pos="-5  1.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"  material="pbr-f-2-2.2"       pos="-5  4.5 0"/>
+
+    <geom type="box" size="0.7 1.0 1.2"  material="phong-f-0.5-0.7" pos="-8  1.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"  material="pbr-f-0.5-0.7"   pos="-8  4.5 0"/>
+
+    <geom type="mesh" mesh="bunny" material="phong-t-1-1"           pos="2 -4.5 -1.5" euler="90 0 0"/>
+    <geom type="mesh" mesh="bunny" material="pbr-t-1-1"             pos="2 -1.5 -1.5" euler="90 0 0"/>
+
+    <geom type="mesh" mesh="bunny" material="phong-t-2-2.2"           pos="5 -4.5 -1.5" euler="90 0 0"/>
+    <geom type="mesh" mesh="bunny" material="pbr-t-2-2.2"             pos="5 -1.5 -1.5" euler="90 0 0"/>
+
+    <geom type="mesh" mesh="bunny" material="phong-t-0.5-0.7"       pos="8 -4.5 -1.5" euler="90 0 0"/>
+    <geom type="mesh" mesh="bunny" material="pbr-t-0.5-0.7"         pos="8 -1.5 -1.5" euler="90 0 0"/>
+
+    <geom type="mesh" mesh="bunny" material="phong-f-1-1"           pos="2  1.5 -1.5" euler="90 0 0"/>
+    <geom type="mesh" mesh="bunny" material="pbr-f-1-1"             pos="2  4.5 -1.5" euler="90 0 0"/>
+
+    <geom type="mesh" mesh="bunny" material="phong-f-2-2.2"           pos="5  1.5 -1.5" euler="90 0 0"/>
+    <geom type="mesh" mesh="bunny" material="pbr-f-2-2.2"             pos="5  4.5 -1.5" euler="90 0 0"/>
+
+    <geom type="mesh" mesh="bunny" material="phong-f-0.5-0.7"       pos="8  1.5 -1.5" euler="90 0 0"/>
+    <geom type="mesh" mesh="bunny" material="pbr-f-0.5-0.7"         pos="8  4.5 -1.5" euler="90 0 0"/>
+
+  </worldbody>
+</mujoco>
