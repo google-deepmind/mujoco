@@ -306,10 +306,11 @@ def bind_loopback_socket(port: int = 0) -> socket.socket:
     port: A specific port, or 0 to take the first free port.
 
   Returns:
-    The bound socket.
+    The bound, listening socket.
   """
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   sock.bind(("127.0.0.1", port))
+  sock.listen()
   return sock
 
 
