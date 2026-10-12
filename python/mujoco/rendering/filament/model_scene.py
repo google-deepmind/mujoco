@@ -27,11 +27,11 @@ class ModelScene:
       model: mujoco.MjModel,
       scene: mjrf.Scene | None = None,
   ):
-    self._objects = mjrf.ModelObjects(ctx, model)
+    self._resources = mjrf.ModelResources(ctx, model)
     self._scene = scene or ctx.create_scene(mjrf.SceneParams())
     self._scene.configure_from_model(model)
-    self._lights = mjrf.ModelLights(self._scene, self._objects)
-    self._renderables = mjrf.ModelRenderables(self._scene, self._objects)
+    self._lights = mjrf.ModelLights(self._scene, self._resources)
+    self._renderables = mjrf.ModelRenderables(self._scene, self._resources)
 
   def update(self, data: mujoco.MjData):
     """Updates the lights and renderables in the scene from the mjData."""
