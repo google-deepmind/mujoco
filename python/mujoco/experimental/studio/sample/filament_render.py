@@ -19,18 +19,9 @@ from absl import app
 import mujoco
 from mujoco import mjrf
 from mujoco.experimental.studio import window
+from mujoco.rendering.filament import model_scene
 from mujoco.rendering.filament import renderer
 import numpy as np
-
-
-def _update_target(
-    r: renderer.Renderer, win: window.Window, buf: np.ndarray
-) -> np.ndarray:
-  w, h = win.GetWidth(), win.GetHeight()
-  if buf.shape != (h, w, 3):
-    buf = np.empty((h, w, 3), dtype=np.uint8)
-    r.target("out", buf)
-  return buf
 
 
 def main(argv: Sequence[str]) -> None:
@@ -52,41 +43,34 @@ def main(argv: Sequence[str]) -> None:
   # create a renderer
   r = renderer.Renderer(ctx)
 
-  # create GPU objects (textures, meshes, etc.) from the model
-  model_resources = mjrf.ModelResources(ctx, model)
+  # add lights and renderables defined in the model to a scene
+  scene = model_scene.ModelScene(ctx, model, r.scene("scn"))
 
-  # add model lights and renderables to a scene
-  scene = r.scene("scn")
-  scene.configure_from_model(model)
-  model_lights = mjrf.ModelLights(scene, model_resources)
-  model_renderables = mjrf.ModelRenderables(scene, model_resources)
-
+  # setup a camera
   vcam = mujoco.MjvCamera()
   mujoco.mjv_defaultFreeCamera(model, vcam)
   vcam.type = int(mujoco.mjtCamera.mjCAMERA_FIXED)
   vcam.fixedcamid = 0
 
   # define a single view that connects a scene and camera to an output
-  r.view(
-      "v1",
-      scene="scn",
-      target="out",
-  )
+  r.view("v1", scene="scn", target="out")
 
   buf = np.empty((0, 0, 3), dtype=np.uint8)
   while win.NewFrame():
     # simulate one step
     mujoco.mj_step(model, data)
 
-    # update the lights and renderables
-    model_lights.update(data)
-    model_renderables.update(data)
+    # update the lights and renderables with the current `data` state
+    scene.update(data)
 
     # update the camera
     r.update_camera("v1", mujoco.mjv_camera2GLCamera(model, data, vcam))
 
     # ensure output buffer is of right size (in case of window resize)
-    buf = _update_target(r, win, buf)
+    w, h = win.GetWidth(), win.GetHeight()
+    if buf.shape != (h, w, 3):
+      buf = np.empty((h, w, 3), dtype=np.uint8)
+      r.target("out", buf)
 
     # render the scene
     r.render()
