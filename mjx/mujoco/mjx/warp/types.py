@@ -171,6 +171,8 @@ class OptionWarp(PyTreeNode):
   graph_conditional: bool
   graph_mode: GraphMode
   impratio_invsqrt: jax.Array
+  noslip_iterations: int
+  noslip_tolerance: jax.Array
   run_collision_detection: bool
   run_rne_postconstraint: bool
   sdf_initpoints: int
@@ -1295,6 +1297,8 @@ _NDIM = {
         'opt__ls_iterations': 0,
         'opt__ls_tolerance': 1,
         'opt__magnetic': 2,
+        'opt__noslip_iterations': 0,
+        'opt__noslip_tolerance': 1,
         'opt__run_collision_detection': 0,
         'opt__run_rne_postconstraint': 0,
         'opt__sdf_initpoints': 0,
@@ -1426,6 +1430,8 @@ _NDIM = {
         'ls_iterations': 0,
         'ls_tolerance': 1,
         'magnetic': 2,
+        'noslip_iterations': 0,
+        'noslip_tolerance': 1,
         'run_collision_detection': 0,
         'run_rne_postconstraint': 0,
         'sdf_initpoints': 0,
@@ -2087,6 +2093,8 @@ _BATCH_DIM = {
         'opt__ls_iterations': False,
         'opt__ls_tolerance': True,
         'opt__magnetic': True,
+        'opt__noslip_iterations': False,
+        'opt__noslip_tolerance': True,
         'opt__run_collision_detection': False,
         'opt__run_rne_postconstraint': False,
         'opt__sdf_initpoints': False,
@@ -2218,6 +2226,8 @@ _BATCH_DIM = {
         'ls_iterations': False,
         'ls_tolerance': True,
         'magnetic': True,
+        'noslip_iterations': False,
+        'noslip_tolerance': True,
         'run_collision_detection': False,
         'run_rne_postconstraint': False,
         'sdf_initpoints': False,

@@ -871,6 +871,10 @@ class mat63f(wp.types.matrix(shape=(6, 3), dtype=float)):
   pass
 
 
+class mat55f(wp.types.matrix(shape=(5, 5), dtype=float)):
+  pass
+
+
 class mat66f(wp.types.matrix(shape=(6, 6), dtype=float)):
   pass
 
@@ -890,6 +894,7 @@ mat23 = mat23f
 mat43 = mat43f
 mat53 = mat53f
 mat63 = mat63f
+mat55 = mat55f
 mat66 = mat66f
 mat113 = mat113f
 
@@ -916,6 +921,7 @@ class Option:
     timestep: simulation timestep
     tolerance: main solver tolerance
     ls_tolerance: CG/Newton linesearch tolerance
+    noslip_tolerance: noslip solver tolerance
     ccd_tolerance: convex collision detection tolerance
     sleep_tolerance: sleep velocity tolerance
     gravity: gravitational acceleration
@@ -928,6 +934,7 @@ class Option:
     solver: solver algorithm (SolverType)
     iterations: number of main solver iterations
     ls_iterations: maximum number of CG/Newton linesearch iterations
+    noslip_iterations: maximum number of noslip solver iterations
     ccd_iterations: number of iterations in convex collision detection
     disableflags: bit flags for disabling standard features
     enableflags: bit flags for enabling optional features
@@ -952,6 +959,7 @@ class Option:
   timestep: array("*", float)
   tolerance: array("*", float)
   ls_tolerance: array("*", float)
+  noslip_tolerance: array("*", float)
   ccd_tolerance: array("*", float)
   sleep_tolerance: array("*", float)
   gravity: array("*", wp.vec3)
@@ -964,6 +972,7 @@ class Option:
   solver: int
   iterations: int
   ls_iterations: int
+  noslip_iterations: int
   ccd_iterations: int
   disableflags: int
   enableflags: int

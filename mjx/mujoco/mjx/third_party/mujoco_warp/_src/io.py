@@ -349,7 +349,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     raise NotImplementedError("Flex equality constraints are not supported with sleeping enabled.")
 
   if mjm.opt.noslip_iterations > 0:
-    raise NotImplementedError(f"noslip solver not implemented.")
+    if mjm.opt.integrator == mujoco.mjtIntegrator.mjINT_DISCRETE:
+      raise NotImplementedError("noslip solver not implemented for the discrete integrator.")
 
   if (mjm.body_plugin != -1).any():
     raise NotImplementedError("Body plugins not supported.")

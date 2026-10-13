@@ -494,6 +494,8 @@ def _forward_shim(
     opt__ls_iterations: int,
     opt__ls_tolerance: wp.array[float],
     opt__magnetic: wp.array[wp.vec3],
+    opt__noslip_iterations: int,
+    opt__noslip_tolerance: wp.array[float],
     opt__run_collision_detection: bool,
     opt__run_rne_postconstraint: bool,
     opt__sdf_initpoints: int,
@@ -1050,6 +1052,8 @@ def _forward_shim(
   _m.opt.ls_iterations = opt__ls_iterations
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
+  _m.opt.noslip_iterations = opt__noslip_iterations
+  _m.opt.noslip_tolerance = opt__noslip_tolerance
   _m.opt.run_collision_detection = opt__run_collision_detection
   _m.opt.run_rne_postconstraint = opt__run_rne_postconstraint
   _m.opt.sdf_initpoints = opt__sdf_initpoints
@@ -1893,6 +1897,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'opt__impratio_invsqrt',
           'opt__ls_tolerance',
           'opt__magnetic',
+          'opt__noslip_tolerance',
           'opt__timestep',
           'opt__tolerance',
           'opt__viscosity',
@@ -2590,6 +2595,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.ls_iterations,
       m.opt.ls_tolerance,
       m.opt.magnetic,
+      m.opt._impl.noslip_iterations,
+      m.opt._impl.noslip_tolerance,
       m.opt._impl.run_collision_detection,
       m.opt._impl.run_rne_postconstraint,
       m.opt._impl.sdf_initpoints,
@@ -3426,6 +3433,8 @@ def _step_shim(
     opt__ls_iterations: int,
     opt__ls_tolerance: wp.array[float],
     opt__magnetic: wp.array[wp.vec3],
+    opt__noslip_iterations: int,
+    opt__noslip_tolerance: wp.array[float],
     opt__run_collision_detection: bool,
     opt__run_rne_postconstraint: bool,
     opt__sdf_initpoints: int,
@@ -3990,6 +3999,8 @@ def _step_shim(
   _m.opt.ls_iterations = opt__ls_iterations
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
+  _m.opt.noslip_iterations = opt__noslip_iterations
+  _m.opt.noslip_tolerance = opt__noslip_tolerance
   _m.opt.run_collision_detection = opt__run_collision_detection
   _m.opt.run_rne_postconstraint = opt__run_rne_postconstraint
   _m.opt.sdf_initpoints = opt__sdf_initpoints
@@ -4847,6 +4858,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'opt__impratio_invsqrt',
           'opt__ls_tolerance',
           'opt__magnetic',
+          'opt__noslip_tolerance',
           'opt__sleep_tolerance',
           'opt__timestep',
           'opt__tolerance',
@@ -5559,6 +5571,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.ls_iterations,
       m.opt.ls_tolerance,
       m.opt.magnetic,
+      m.opt._impl.noslip_iterations,
+      m.opt._impl.noslip_tolerance,
       m.opt._impl.run_collision_detection,
       m.opt._impl.run_rne_postconstraint,
       m.opt._impl.sdf_initpoints,

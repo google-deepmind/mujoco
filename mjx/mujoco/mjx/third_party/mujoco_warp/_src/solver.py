@@ -3922,6 +3922,8 @@ def solve(m: types.Model, d: types.Data):
     island.update_active_dofs(m, d)
     if m.opt.integrator != types.IntegratorType.DISCRETE:
       solve_compact(m, d)
+      if m.opt.noslip_iterations > 0:
+        noslip(m, d)
       if m.ntree > 1:
         island.compute_island_mapping(m, d)
       return
@@ -3932,6 +3934,8 @@ def solve(m: types.Model, d: types.Data):
   else:
     ctx = _create_solver_context(m, d)
     _solve(m, d, ctx)
+    if m.opt.noslip_iterations > 0:
+      noslip(m, d)
 
   if (m.opt.enableflags & types.EnableBit.SLEEP) and m.opt.integrator == types.IntegratorType.DISCRETE and m.ntree > 1:
     island.compute_island_mapping(m, d)
@@ -4405,4 +4409,1122 @@ def _compact_scatter(m: types.Model, d: types.Data):
   # Refresh full d.efc.Ma = M @ qacc. The integrators (Euler/implicit damping) use Ma as
   # the RHS; the compact solve only populated the compacted Ma, so recompute it in full
   # space. Inactive DOFs have qacc=0 so their Ma is 0 and they stay frozen.
+  support.mul_m(m, d, d.efc.Ma, d.qacc)
+
+
+@cache_kernel
+def _noslip_factor_m(sleep: bool):
+  SLEEP = sleep
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    M_rownnz: wp.array[int],
+    M_rowadr: wp.array[int],
+    M_colind: wp.array[int],
+    # Data in:
+    nefc_in: wp.array[int],
+    M_in: wp.array2d[float],
+    dof_cdof_in: wp.array2d[int],
+    # Out:
+    noslip_L_out: wp.array3d[float],
+  ):
+    """Dense lower Cholesky factor of the inertia matrix, M = L L'."""
+    worldid = wp.tid()
+
+    if nefc_in[worldid] == 0:
+      return
+
+    # densify lower triangle, M_colind is lower triangular and trees are decoupled in M
+    for i in range(nv):
+      for j in range(i + 1):
+        noslip_L_out[worldid, i, j] = 0.0
+
+      # inactive (sleeping) dofs: identity
+      if wp.static(SLEEP):
+        if dof_cdof_in[worldid, i] < 0:
+          noslip_L_out[worldid, i, i] = 1.0
+          continue
+
+      rowadr = M_rowadr[i]
+      for k in range(M_rownnz[i]):
+        sparseid = rowadr + k
+        noslip_L_out[worldid, i, M_colind[sparseid]] = M_in[worldid, sparseid]
+
+    # in-place Cholesky, bounded by the first dof of the kinematic tree (M_colind[M_rowadr[j]])
+    for j in range(nv):
+      jstart = M_colind[M_rowadr[j]]
+      diag = noslip_L_out[worldid, j, j]
+      for k in range(jstart, j):
+        diag -= noslip_L_out[worldid, j, k] * noslip_L_out[worldid, j, k]
+      diag = wp.sqrt(wp.max(diag, types.MJ_MINVAL))
+      noslip_L_out[worldid, j, j] = diag
+      diaginv = 1.0 / diag
+
+      # rows i > j in the same tree
+      i = j + 1
+      while i < nv:
+        if M_colind[M_rowadr[i]] > j:
+          break
+        val = noslip_L_out[worldid, i, j]
+        for k in range(jstart, j):
+          val -= noslip_L_out[worldid, i, k] * noslip_L_out[worldid, j, k]
+        noslip_L_out[worldid, i, j] = val * diaginv
+        i += 1
+
+  return kernel
+
+
+@cache_kernel
+def _noslip_minv_jt(is_sparse: bool, sleep: bool):
+  IS_SPARSE = is_sparse
+  SLEEP = sleep
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    M_rowadr: wp.array[int],
+    M_colind: wp.array[int],
+    # Data in:
+    nefc_in: wp.array[int],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    dof_cdof_in: wp.array2d[int],
+    # In:
+    noslip_L_in: wp.array3d[float],
+    # Out:
+    noslip_Y_out: wp.array3d[float],
+  ):
+    """Y[efcid] = M^-1 J[efcid]'."""
+    worldid, efcid = wp.tid()
+
+    if efcid >= nefc_in[worldid]:
+      return
+
+    # load row of J, inactive (sleeping) dofs are frozen
+    if wp.static(IS_SPARSE):
+      for k in range(nv):
+        noslip_Y_out[worldid, efcid, k] = 0.0
+      rowadr = efc_J_rowadr_in[worldid, efcid]
+      for k in range(efc_J_rownnz_in[worldid, efcid]):
+        sparseid = rowadr + k
+        colind = efc_J_colind_in[worldid, 0, sparseid]
+        if wp.static(SLEEP):
+          if dof_cdof_in[worldid, colind] < 0:
+            continue
+        noslip_Y_out[worldid, efcid, colind] = efc_J_in[worldid, 0, sparseid]
+    else:
+      for k in range(nv):
+        if wp.static(SLEEP):
+          if dof_cdof_in[worldid, k] < 0:
+            noslip_Y_out[worldid, efcid, k] = 0.0
+            continue
+        noslip_Y_out[worldid, efcid, k] = efc_J_in[worldid, efcid, k]
+
+    # forward substitution: L z = J', bounded by the first dof of the kinematic tree
+    for i in range(nv):
+      val = noslip_Y_out[worldid, efcid, i]
+      for k in range(M_colind[M_rowadr[i]], i):
+        val -= noslip_L_in[worldid, i, k] * noslip_Y_out[worldid, efcid, k]
+      noslip_Y_out[worldid, efcid, i] = val / noslip_L_in[worldid, i, i]
+
+    # backward substitution: L' y = z, rows k > i in the same tree
+    for ii in range(nv):
+      i = nv - 1 - ii
+      val = noslip_Y_out[worldid, efcid, i]
+      k = i + 1
+      while k < nv:
+        if M_colind[M_rowadr[k]] > i:
+          break
+        val -= noslip_L_in[worldid, k, i] * noslip_Y_out[worldid, efcid, k]
+        k += 1
+      noslip_Y_out[worldid, efcid, i] = val / noslip_L_in[worldid, i, i]
+
+  return kernel
+
+
+@wp.func
+def _noslip_dot(
+  # Model:
+  nv: int,
+  is_sparse: bool,
+  # Data in:
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  # In:
+  worldid: int,
+  efcid: int,
+  vec_in: wp.array[float],
+) -> float:
+  """Returns J[efcid] * vec."""
+  res = float(0.0)
+  if is_sparse:
+    rowadr = efc_J_rowadr_in[worldid, efcid]
+    for k in range(efc_J_rownnz_in[worldid, efcid]):
+      sparseid = rowadr + k
+      res += efc_J_in[worldid, 0, sparseid] * vec_in[efc_J_colind_in[worldid, 0, sparseid]]
+  else:
+    for k in range(nv):
+      res += efc_J_in[worldid, efcid, k] * vec_in[k]
+  return res
+
+
+@wp.func
+def _noslip_add(nv: int, vec_in: wp.array[float], scale: float, vec_out: wp.array[float]):
+  """Adds scale * vec_in to vec_out."""
+  if scale != 0.0:
+    for k in range(nv):
+      vec_out[k] += scale * vec_in[k]
+
+
+@wp.func
+def _qcqp2(Ain: types.mat55, bin: types.vec5, d: types.vec5, r: float):
+  """Solves min 0.5 x' A x + x' b s.t.
+
+  sum (x_i / d_i)^2 <= r^2 in 2 dimensions (mju_QCQP2).
+  """
+  # scale A, b so that constraint becomes x' x <= r^2
+  b1 = bin[0] * d[0]
+  b2 = bin[1] * d[1]
+  A11 = Ain[0, 0] * d[0] * d[0]
+  A22 = Ain[1, 1] * d[1] * d[1]
+  A12 = Ain[0, 1] * d[0] * d[1]
+
+  # Newton iteration
+  la = float(0.0)
+  v1 = float(0.0)
+  v2 = float(0.0)
+  for _ in range(20):
+    # det(A + la)
+    det = (A11 + la) * (A22 + la) - A12 * A12
+
+    # check SPD, with 1e-10 threshold
+    if det < 1.0e-10:
+      return types.vec5(0.0), False
+
+    # P = inv(A + la)
+    detinv = 1.0 / det
+    P11 = (A22 + la) * detinv
+    P22 = (A11 + la) * detinv
+    P12 = -A12 * detinv
+
+    # v = -P b
+    v1 = -P11 * b1 - P12 * b2
+    v2 = -P12 * b1 - P22 * b2
+
+    # check for convergence, or initial solution inside constraint set
+    val = v1 * v1 + v2 * v2 - r * r
+    if val < 1.0e-10:
+      break
+
+    # deriv = -2 v' P v
+    deriv = -2.0 * (P11 * v1 * v1 + 2.0 * P12 * v1 * v2 + P22 * v2 * v2)
+
+    # compute update, exit if too small
+    delta = -val / deriv
+    if delta < 1.0e-10:
+      break
+
+    la += delta
+
+  # undo scaling
+  return types.vec5(v1 * d[0], v2 * d[1], 0.0, 0.0, 0.0), la != 0.0
+
+
+@wp.func
+def _qcqp3(Ain: types.mat55, bin: types.vec5, d: types.vec5, r: float):
+  """Solves min 0.5 x' A x + x' b s.t.
+
+  sum (x_i / d_i)^2 <= r^2 in 3 dimensions (mju_QCQP3).
+  """
+  # scale A, b so that constraint becomes x' x <= r^2
+  b1 = bin[0] * d[0]
+  b2 = bin[1] * d[1]
+  b3 = bin[2] * d[2]
+  A11 = Ain[0, 0] * d[0] * d[0]
+  A22 = Ain[1, 1] * d[1] * d[1]
+  A33 = Ain[2, 2] * d[2] * d[2]
+  A12 = Ain[0, 1] * d[0] * d[1]
+  A13 = Ain[0, 2] * d[0] * d[2]
+  A23 = Ain[1, 2] * d[1] * d[2]
+
+  # Newton iteration
+  la = float(0.0)
+  v1 = float(0.0)
+  v2 = float(0.0)
+  v3 = float(0.0)
+  for _ in range(20):
+    # unscaled P
+    P11 = (A22 + la) * (A33 + la) - A23 * A23
+    P22 = (A11 + la) * (A33 + la) - A13 * A13
+    P33 = (A11 + la) * (A22 + la) - A12 * A12
+    P12 = A13 * A23 - A12 * (A33 + la)
+    P13 = A12 * A23 - A13 * (A22 + la)
+    P23 = A12 * A13 - A23 * (A11 + la)
+
+    # det(A + la)
+    det = (A11 + la) * P11 + A12 * P12 + A13 * P13
+
+    # check SPD, with 1e-10 threshold
+    if det < 1.0e-10:
+      return types.vec5(0.0), False
+
+    # final P
+    detinv = 1.0 / det
+    P11 *= detinv
+    P22 *= detinv
+    P33 *= detinv
+    P12 *= detinv
+    P13 *= detinv
+    P23 *= detinv
+
+    # v = -P b
+    v1 = -P11 * b1 - P12 * b2 - P13 * b3
+    v2 = -P12 * b1 - P22 * b2 - P23 * b3
+    v3 = -P13 * b1 - P23 * b2 - P33 * b3
+
+    # check for convergence, or initial solution inside constraint set
+    val = v1 * v1 + v2 * v2 + v3 * v3 - r * r
+    if val < 1.0e-10:
+      break
+
+    # deriv = -2 v' P v
+    deriv = -2.0 * (P11 * v1 * v1 + P22 * v2 * v2 + P33 * v3 * v3) - 4.0 * (P12 * v1 * v2 + P13 * v1 * v3 + P23 * v2 * v3)
+
+    # compute update, exit if too small
+    delta = -val / deriv
+    if delta < 1.0e-10:
+      break
+
+    la += delta
+
+  # undo scaling
+  return types.vec5(v1 * d[0], v2 * d[1], v3 * d[2], 0.0, 0.0), la != 0.0
+
+
+@wp.func
+def _chol_solve5(L: types.mat55, b: types.vec5, n: int) -> types.vec5:
+  """Solves L L' x = b for the leading n x n block (mju_cholSolve)."""
+  x = types.vec5(0.0)
+  for i in range(n):
+    val = b[i]
+    for k in range(i):
+      val -= L[i, k] * x[k]
+    x[i] = val / L[i, i]
+  for ii in range(n):
+    i = n - 1 - ii
+    val = x[i]
+    for k in range(i + 1, n):
+      val -= L[k, i] * x[k]
+    x[i] = val / L[i, i]
+  return x
+
+
+@wp.func
+def _qcqp(Ain: types.mat55, bin: types.vec5, d: types.vec5, r: float, n: int):
+  """Solves min 0.5 x' A x + x' b s.t.
+
+  sum (x_i / d_i)^2 <= r^2 in n <= 5 dimensions (mju_QCQP).
+  """
+  # scale A, b so that constraint becomes x' x <= r^2
+  A = types.mat55()
+  b = types.vec5(0.0)
+  for i in range(n):
+    b[i] = bin[i] * d[i]
+    for j in range(n):
+      A[i, j] = Ain[i, j] * d[i] * d[j]
+
+  # Newton iteration
+  res = types.vec5(0.0)
+  la = float(0.0)
+  for _ in range(20):
+    # make A + la
+    Ala = types.mat55()
+    for i in range(n):
+      for j in range(n):
+        Ala[i, j] = A[i, j]
+      Ala[i, i] = A[i, i] + la
+
+    # factorize, check rank with 1e-10 threshold (mju_cholFactor)
+    for j in range(n):
+      diag = Ala[j, j]
+      for k in range(j):
+        diag -= Ala[j, k] * Ala[j, k]
+      if diag < 1.0e-10:
+        return types.vec5(0.0), False
+      diag = wp.sqrt(diag)
+      Ala[j, j] = diag
+      for i in range(j + 1, n):
+        val = Ala[i, j]
+        for k in range(j):
+          val -= Ala[i, k] * Ala[j, k]
+        Ala[i, j] = val / diag
+
+    # res = -Ala \ b
+    res = -_chol_solve5(Ala, b, n)
+
+    # val = b' Ala^-2 b - r^2
+    val = wp.dot(res, res) - r * r
+
+    # check for convergence, or initial solution inside constraint set
+    if val < 1.0e-10:
+      break
+
+    # deriv = -2 b' Ala^-3 b
+    tmp = _chol_solve5(Ala, res, n)
+    deriv = -2.0 * wp.dot(res, tmp)
+
+    # compute update, exit if too small
+    delta = -val / deriv
+    if delta < 1.0e-10:
+      break
+
+    la += delta
+
+  # undo scaling
+  for i in range(n):
+    res[i] = res[i] * d[i]
+
+  return res, la != 0.0
+
+
+@wp.func
+def _noslip_pyramidal(
+  # Model:
+  nv: int,
+  is_sparse: bool,
+  # Data in:
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  efc_aref_in: wp.array2d[float],
+  # In:
+  sleep: bool,
+  worldid: int,
+  efcid: int,
+  noslip_Y_in: wp.array2d[float],
+  noslip_A_in: wp.array2d[types.vec5],
+  # Data out:
+  qacc_out: wp.array2d[float],
+  efc_force_out: wp.array2d[float],
+) -> float:
+  """Updates a pair of opposing pyramid edges, returns the cost change."""
+  efcid1 = efcid + 1
+
+  # A submatrix
+  A0 = noslip_A_in[worldid, efcid]
+  A00 = A0[0]
+  A01 = A0[1]
+  A11 = noslip_A_in[worldid, efcid1][0]
+
+  # rows without active (awake) dofs
+  if sleep and A00 == 0.0 and A11 == 0.0:
+    return 0.0
+
+  # clamp diagonal
+  A00 = wp.max(1.0e-10, A00)
+  A11 = wp.max(1.0e-10, A11)
+
+  # residual
+  qacc = qacc_out[worldid]
+  res0 = (
+    _noslip_dot(nv, is_sparse, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid, qacc)
+    - efc_aref_in[worldid, efcid]
+  )
+  res1 = (
+    _noslip_dot(nv, is_sparse, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid1, qacc)
+    - efc_aref_in[worldid, efcid1]
+  )
+
+  oldforce0 = efc_force_out[worldid, efcid]
+  oldforce1 = efc_force_out[worldid, efcid1]
+
+  # b subvector + A_rest f_rest
+  bc0 = res0 - (A00 * oldforce0 + A01 * oldforce1)
+  bc1 = res1 - (A01 * oldforce0 + A11 * oldforce1)
+
+  # f0 = mid + y, f1 = mid - y
+  mid = 0.5 * (oldforce0 + oldforce1)
+
+  # K1 = A00 + A11 - 2 A01, K0 = mid (A00 - A11) + b0 - b1
+  K1 = A00 + A11 - A01 - A01
+  K0 = mid * (A00 - A11) + bc0 - bc1
+
+  force0 = float(mid)
+  force1 = float(mid)
+
+  # guard against A == 0, otherwise minimize over y in [-mid, mid]
+  if K1 >= types.MJ_MINVAL:
+    y = -K0 / K1
+    if y < -mid:
+      force0 = 0.0
+      force1 = 2.0 * mid
+    elif y > mid:
+      force0 = 2.0 * mid
+      force1 = 0.0
+    else:
+      force0 = mid + y
+      force1 = mid - y
+
+  # cost change, restore force if positive
+  delta0 = force0 - oldforce0
+  delta1 = force1 - oldforce1
+  change = 0.5 * (delta0 * (A00 * delta0 + A01 * delta1) + delta1 * (A01 * delta0 + A11 * delta1))
+  change += delta0 * res0 + delta1 * res1
+  if change > 1.0e-10:
+    return 0.0
+
+  efc_force_out[worldid, efcid] = force0
+  efc_force_out[worldid, efcid1] = force1
+  if delta0 != 0.0 or delta1 != 0.0:
+    Y0 = noslip_Y_in[efcid]
+    Y1 = noslip_Y_in[efcid1]
+    for k in range(nv):
+      qacc[k] += delta0 * Y0[k] + delta1 * Y1[k]
+
+  return change
+
+
+@wp.func
+def _noslip_elliptic(
+  # Model:
+  nv: int,
+  is_sparse: bool,
+  # Data in:
+  efc_J_rownnz_in: wp.array2d[int],
+  efc_J_rowadr_in: wp.array2d[int],
+  efc_J_colind_in: wp.array3d[int],
+  efc_J_in: wp.array3d[float],
+  efc_aref_in: wp.array2d[float],
+  # In:
+  sleep: bool,
+  worldid: int,
+  efcid: int,
+  dim: int,
+  friction: types.vec5,
+  noslip_Y_in: wp.array2d[float],
+  noslip_A_in: wp.array2d[types.vec5],
+  # Data out:
+  qacc_out: wp.array2d[float],
+  efc_force_out: wp.array2d[float],
+) -> float:
+  """Updates the frictional rows of an elliptic contact, returns the cost change."""
+  n = dim - 1
+
+  # A submatrix (upper triangle is precomputed)
+  Ac = types.mat55()
+  Adiag = float(0.0)
+  for k in range(n):
+    Ak = noslip_A_in[worldid, efcid + 1 + k]
+    Adiag += Ak[k]
+    for l in range(k, n):
+      Ac[k, l] = Ak[l]
+      Ac[l, k] = Ak[l]
+
+  # rows without active (awake) dofs
+  if sleep and Adiag == 0.0:
+    return 0.0
+
+  # residual, old force, clamp diagonal
+  qacc = qacc_out[worldid]
+  res = types.vec5(0.0)
+  oldforce = types.vec5(0.0)
+  for k in range(n):
+    rowk = efcid + 1 + k
+    res[k] = (
+      _noslip_dot(nv, is_sparse, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, rowk, qacc)
+      - efc_aref_in[worldid, rowk]
+    )
+    oldforce[k] = efc_force_out[worldid, rowk]
+    Ac[k, k] = wp.max(1.0e-10, Ac[k, k])
+
+  # b subvector + A_rest f_rest
+  bc = types.vec5(0.0)
+  for k in range(n):
+    val = res[k]
+    for l in range(n):
+      val -= Ac[k, l] * oldforce[l]
+    bc[k] = val
+
+  # guard for normal force == 0, otherwise QCQP
+  normal = efc_force_out[worldid, efcid]
+  force = types.vec5(0.0)
+  if normal >= types.MJ_MINVAL:
+    active = bool(False)
+    if n == 2:
+      force, active = _qcqp2(Ac, bc, friction, normal)
+    elif n == 3:
+      force, active = _qcqp3(Ac, bc, friction, normal)
+    else:
+      force, active = _qcqp(Ac, bc, friction, normal, n)
+
+    # on constraint: put force on ellipsoid, in case QCQP is approximate
+    if active:
+      s = float(0.0)
+      for k in range(n):
+        fk = math.safe_div(force[k], friction[k])
+        s += fk * fk
+      scl = wp.sqrt(normal * normal / wp.max(types.MJ_MINVAL, s))
+      for k in range(n):
+        force[k] = force[k] * scl
+
+  # cost change, restore force if positive
+  delta = types.vec5(0.0)
+  for k in range(n):
+    delta[k] = force[k] - oldforce[k]
+  change = float(0.0)
+  for k in range(n):
+    Adelta = float(0.0)
+    for l in range(n):
+      Adelta += Ac[k, l] * delta[l]
+    change += 0.5 * delta[k] * Adelta + delta[k] * res[k]
+  if change > 1.0e-10:
+    return 0.0
+
+  for k in range(n):
+    efc_force_out[worldid, efcid + 1 + k] = force[k]
+  for i in range(nv):
+    dqacc = float(0.0)
+    for k in range(n):
+      dqacc += delta[k] * noslip_Y_in[efcid + 1 + k, i]
+    qacc[i] += dqacc
+
+  return change
+
+
+@cache_kernel
+def _noslip_delassus(is_sparse: bool):
+  IS_SPARSE = is_sparse
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    # Data in:
+    nefc_in: wp.array[int],
+    contact_dim_in: wp.array[int],
+    contact_efc_address_in: wp.array2d[int],
+    efc_type_in: wp.array2d[int],
+    efc_id_in: wp.array2d[int],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    # In:
+    noslip_Y_in: wp.array3d[float],
+    # Out:
+    noslip_A_out: wp.array2d[types.vec5],
+  ):
+    """Diagonal blocks of A = J M^-1 J' for the frictional rows.
+
+    Dry friction: A[efcid][0] = A_ii. Pyramidal: A[efcid][0] = A_ii and, for the first edge of a
+    pair of opposing edges, A[efcid][1] = A_i,i+1. Elliptic: for frictional row k of a contact,
+    A[efcid][l] = A_kl for l >= k.
+    """
+    worldid, efcid = wp.tid()
+    nefc = wp.min(nefc_in[worldid], noslip_Y_in.shape[1])
+
+    if efcid >= nefc:
+      return
+
+    efc_type = efc_type_in[worldid, efcid]
+    Y = noslip_Y_in[worldid]
+    A = types.vec5(0.0)
+
+    if efc_type == int(types.ConstraintType.FRICTION_DOF) or efc_type == int(types.ConstraintType.FRICTION_TENDON):
+      A[0] = _noslip_dot(nv, IS_SPARSE, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid, Y[efcid])
+    elif efc_type == int(types.ConstraintType.CONTACT_PYRAMIDAL):
+      A[0] = _noslip_dot(nv, IS_SPARSE, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid, Y[efcid])
+      conid = efc_id_in[worldid, efcid]
+      if (efcid - contact_efc_address_in[conid, 0]) % 2 == 0 and efcid + 1 < nefc:
+        Y1 = Y[efcid + 1]
+        A[1] = _noslip_dot(nv, IS_SPARSE, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid, Y1)
+    elif efc_type == int(types.ConstraintType.CONTACT_ELLIPTIC):
+      conid = efc_id_in[worldid, efcid]
+      adr = contact_efc_address_in[conid, 0]
+      n = contact_dim_in[conid] - 1
+      k = efcid - adr - 1
+
+      # skip the normal row and contacts that do not fit
+      if k < 0 or adr + n >= nefc:
+        return
+
+      for l in range(k, n):
+        Yl = Y[adr + 1 + l]
+        A[l] = _noslip_dot(nv, IS_SPARSE, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid, Yl)
+    else:
+      return
+
+    noslip_A_out[worldid, efcid] = A
+
+  return kernel
+
+
+@cache_kernel
+def _noslip_qacc_init(sleep: bool):
+  SLEEP = sleep
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Data in:
+    nefc_in: wp.array[int],
+    qacc_smooth_in: wp.array2d[float],
+    efc_force_in: wp.array2d[float],
+    dof_cdof_in: wp.array2d[int],
+    njmax_in: int,
+    # In:
+    noslip_Y_in: wp.array3d[float],
+    # Data out:
+    qacc_out: wp.array2d[float],
+  ):
+    """Computes qacc = qacc_smooth + M^-1 J' force, the residual is A force + b = J qacc - aref."""
+    worldid, dofid = wp.tid()
+    nefc = wp.min(nefc_in[worldid], njmax_in)
+
+    if nefc == 0:
+      return
+
+    # inactive (sleeping) dofs are frozen
+    if wp.static(SLEEP):
+      if dof_cdof_in[worldid, dofid] < 0:
+        qacc_out[worldid, dofid] = 0.0
+        return
+
+    qacc = qacc_smooth_in[worldid, dofid]
+    for efcid in range(nefc):
+      qacc += noslip_Y_in[worldid, efcid, dofid] * efc_force_in[worldid, efcid]
+    qacc_out[worldid, dofid] = qacc
+
+  return kernel
+
+
+@cache_kernel
+def _noslip_solve(is_sparse: bool, sleep: bool):
+  IS_SPARSE = is_sparse
+  SLEEP = sleep
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    nv: int,
+    opt_noslip_tolerance: wp.array[float],
+    opt_noslip_iterations: int,
+    stat_meaninertia: wp.array[float],
+    # Data in:
+    nefc_in: wp.array[int],
+    contact_friction_in: wp.array[types.vec5],
+    contact_dim_in: wp.array[int],
+    efc_type_in: wp.array2d[int],
+    efc_id_in: wp.array2d[int],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    efc_D_in: wp.array2d[float],
+    efc_aref_in: wp.array2d[float],
+    efc_frictionloss_in: wp.array2d[float],
+    njmax_in: int,
+    # In:
+    noslip_Y_in: wp.array3d[float],
+    noslip_A_in: wp.array2d[types.vec5],
+    # Data out:
+    solver_niter_out: wp.array[int],
+    qacc_out: wp.array2d[float],
+    efc_force_out: wp.array2d[float],
+  ):
+    """Projected Gauss-Seidel sweeps over the frictional constraint rows."""
+    worldid = wp.tid()
+    nefc = wp.min(nefc_in[worldid], njmax_in)
+
+    if nefc == 0:
+      return
+
+    noslip_Y = noslip_Y_in[worldid]
+    qacc = qacc_out[worldid]
+    efc_force = efc_force_out[worldid]
+
+    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    scale = 1.0 / (meaninertia * float(wp.max(1, nv)))
+    tolerance = opt_noslip_tolerance[worldid % opt_noslip_tolerance.shape[0]]
+
+    # main iteration
+    niter = int(0)
+    while niter < opt_noslip_iterations:
+      improvement = float(0.0)
+
+      # correct for cost change at iter 0
+      if niter == 0:
+        for efcid in range(nefc):
+          efc_D = efc_D_in[worldid, efcid]
+          if efc_D > 0.0:
+            force = efc_force[efcid]
+            improvement += 0.5 * force * force / efc_D
+
+      # perform one sweep: dry friction
+      for efcid in range(nefc):
+        efc_type = efc_type_in[worldid, efcid]
+        if efc_type != int(types.ConstraintType.FRICTION_DOF) and efc_type != int(types.ConstraintType.FRICTION_TENDON):
+          continue
+
+        # diagonal of A
+        Adiag = noslip_A_in[worldid, efcid][0]
+
+        # rows without active (awake) dofs
+        if wp.static(SLEEP):
+          if Adiag == 0.0:
+            continue
+
+        # residual
+        res = _noslip_dot(nv, IS_SPARSE, efc_J_rownnz_in, efc_J_rowadr_in, efc_J_colind_in, efc_J_in, worldid, efcid, qacc)
+        res -= efc_aref_in[worldid, efcid]
+
+        Adiag = wp.max(types.MJ_MINVAL, Adiag)
+
+        # unconstrained minimum, impose interval constraints
+        oldforce = efc_force[efcid]
+        frictionloss = efc_frictionloss_in[worldid, efcid]
+        force = wp.clamp(oldforce - res / Adiag, -frictionloss, frictionloss)
+
+        # add to improvement
+        delta = force - oldforce
+        improvement -= 0.5 * delta * delta * Adiag + delta * res
+
+        efc_force[efcid] = force
+        _noslip_add(nv, noslip_Y[efcid], delta, qacc)
+
+      # perform one sweep: contact friction
+      rowid = int(0)
+      while rowid < nefc:
+        efc_type = efc_type_in[worldid, rowid]
+        if efc_type == int(types.ConstraintType.CONTACT_PYRAMIDAL):
+          conid = efc_id_in[worldid, rowid]
+          nrow = 2 * (contact_dim_in[conid] - 1)
+          if rowid + nrow > nefc:
+            break
+
+          # loop over pairs of opposing pyramid edges
+          for j in range(rowid, rowid + nrow, 2):
+            improvement -= _noslip_pyramidal(
+              nv,
+              IS_SPARSE,
+              efc_J_rownnz_in,
+              efc_J_rowadr_in,
+              efc_J_colind_in,
+              efc_J_in,
+              efc_aref_in,
+              SLEEP,
+              worldid,
+              j,
+              noslip_Y,
+              noslip_A_in,
+              qacc_out,
+              efc_force_out,
+            )
+          rowid += nrow
+        elif efc_type == int(types.ConstraintType.CONTACT_ELLIPTIC):
+          conid = efc_id_in[worldid, rowid]
+          dim = contact_dim_in[conid]
+          if rowid + dim > nefc:
+            break
+
+          improvement -= _noslip_elliptic(
+            nv,
+            IS_SPARSE,
+            efc_J_rownnz_in,
+            efc_J_rowadr_in,
+            efc_J_colind_in,
+            efc_J_in,
+            efc_aref_in,
+            SLEEP,
+            worldid,
+            rowid,
+            dim,
+            contact_friction_in[conid],
+            noslip_Y,
+            noslip_A_in,
+            qacc_out,
+            efc_force_out,
+          )
+          rowid += dim
+        else:
+          rowid += 1
+
+      # scale improvement, increment iteration count
+      improvement *= scale
+      niter += 1
+
+      # terminate
+      if improvement < tolerance:
+        break
+
+    solver_niter_out[worldid] += niter
+
+  return kernel
+
+
+@cache_kernel
+def _noslip_qacc_qfrc(is_sparse: bool, sleep: bool):
+  IS_SPARSE = is_sparse
+  SLEEP = sleep
+
+  @wp.kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Data in:
+    nefc_in: wp.array[int],
+    qacc_smooth_in: wp.array2d[float],
+    efc_J_rownnz_in: wp.array2d[int],
+    efc_J_rowadr_in: wp.array2d[int],
+    efc_J_colind_in: wp.array3d[int],
+    efc_J_in: wp.array3d[float],
+    efc_force_in: wp.array2d[float],
+    dof_cdof_in: wp.array2d[int],
+    njmax_in: int,
+    # In:
+    noslip_Y_in: wp.array3d[float],
+    # Data out:
+    qacc_out: wp.array2d[float],
+    qfrc_constraint_out: wp.array2d[float],
+  ):
+    """Computes qacc = qacc_smooth + M^-1 J' force and qfrc_constraint = J' force."""
+    worldid, dofid = wp.tid()
+    nefc = wp.min(nefc_in[worldid], njmax_in)
+
+    if nefc == 0:
+      return
+
+    # inactive (sleeping) dofs are frozen
+    if wp.static(SLEEP):
+      if dof_cdof_in[worldid, dofid] < 0:
+        qacc_out[worldid, dofid] = 0.0
+        qfrc_constraint_out[worldid, dofid] = 0.0
+        return
+
+    qacc = qacc_smooth_in[worldid, dofid]
+    qfrc = float(0.0)
+    for efcid in range(nefc):
+      force = efc_force_in[worldid, efcid]
+      if force == 0.0:
+        continue
+      qacc += noslip_Y_in[worldid, efcid, dofid] * force
+      if wp.static(IS_SPARSE):
+        rowadr = efc_J_rowadr_in[worldid, efcid]
+        for k in range(efc_J_rownnz_in[worldid, efcid]):
+          sparseid = rowadr + k
+          if efc_J_colind_in[worldid, 0, sparseid] == dofid:
+            qfrc += efc_J_in[worldid, 0, sparseid] * force
+            break
+      else:
+        qfrc += efc_J_in[worldid, efcid, dofid] * force
+
+    qacc_out[worldid, dofid] = qacc
+    qfrc_constraint_out[worldid, dofid] = qfrc
+
+  return kernel
+
+
+@wp.kernel
+def _noslip_state(
+  # Model:
+  opt_impratio_invsqrt: wp.array[float],
+  # Data in:
+  nefc_in: wp.array[int],
+  contact_friction_in: wp.array[types.vec5],
+  contact_dim_in: wp.array[int],
+  contact_efc_address_in: wp.array2d[int],
+  efc_type_in: wp.array2d[int],
+  efc_id_in: wp.array2d[int],
+  efc_frictionloss_in: wp.array2d[float],
+  efc_force_in: wp.array2d[float],
+  njmax_in: int,
+  # Data out:
+  efc_state_out: wp.array2d[int],
+):
+  """Dual constraint state."""
+  worldid, efcid = wp.tid()
+  nefc = wp.min(nefc_in[worldid], njmax_in)
+
+  if efcid >= nefc:
+    return
+
+  efc_type = efc_type_in[worldid, efcid]
+  force = efc_force_in[worldid, efcid]
+
+  state = int(types.ConstraintState.QUADRATIC)
+  if efc_type == int(types.ConstraintType.EQUALITY):
+    state = int(types.ConstraintState.QUADRATIC)
+  elif efc_type == int(types.ConstraintType.FRICTION_DOF) or efc_type == int(types.ConstraintType.FRICTION_TENDON):
+    frictionloss = efc_frictionloss_in[worldid, efcid]
+    if force <= -frictionloss:
+      state = int(types.ConstraintState.LINEARPOS)
+    elif force >= frictionloss:
+      state = int(types.ConstraintState.LINEARNEG)
+  elif efc_type == int(types.ConstraintType.CONTACT_ELLIPTIC):
+    conid = efc_id_in[worldid, efcid]
+    adr = contact_efc_address_in[conid, 0]
+    dim = contact_dim_in[conid]
+    friction = contact_friction_in[conid]
+    mu = friction[0] * opt_impratio_invsqrt[worldid % opt_impratio_invsqrt.shape[0]]
+
+    # map force to regular-cone space, N = normal, T = norm of tangent vector
+    N = math.safe_div(efc_force_in[worldid, adr], mu)
+    T = float(0.0)
+    for j in range(1, dim):
+      if adr + j < nefc:
+        fj = math.safe_div(efc_force_in[worldid, adr + j], friction[j - 1])
+        T += fj * fj
+    T = wp.sqrt(T)
+
+    state = int(types.ConstraintState.CONE)
+    if mu * N >= T:
+      state = int(types.ConstraintState.SATISFIED)
+    elif N + mu * T <= 0.0:
+      state = int(types.ConstraintState.QUADRATIC)
+  elif force <= 0.0:
+    state = int(types.ConstraintState.SATISFIED)
+
+  efc_state_out[worldid, efcid] = state
+
+
+@event_scope
+def noslip(m: types.Model, d: types.Data):
+  """Noslip solver: projected Gauss-Seidel over the frictional constraints.
+
+  Post-processes the main solver result, keeping the non-frictional constraint forces fixed
+  and re-solving the dof/tendon friction loss and contact friction forces with the
+  unregularized Delassus operator J M^-1 J'. Updates efc.force, efc.state, qacc,
+  qfrc_constraint, and efc.Ma. With sleeping enabled, inactive dofs stay frozen and
+  constraint rows without active dofs are left unchanged.
+
+  Args:
+    m: The model containing kinematic and dynamic information (device).
+    d: The data object containing the current state and output arrays (device).
+  """
+  if m.opt.integrator == types.IntegratorType.DISCRETE:
+    raise NotImplementedError("noslip solver not implemented for the discrete integrator.")
+
+  if d.njmax == 0 or m.nv == 0:
+    return
+
+  noslip_L = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
+  noslip_Y = wp.empty((d.nworld, d.njmax, m.nv), dtype=float)
+  noslip_A = wp.empty((d.nworld, d.njmax), dtype=types.vec5)
+
+  sleep = bool(m.opt.enableflags & types.EnableBit.SLEEP)
+
+  wp.launch(
+    _noslip_factor_m(sleep),
+    dim=d.nworld,
+    inputs=[m.nv, m.M_rownnz, m.M_rowadr, m.M_colind, d.nefc, d.M, d.dof_cdof],
+    outputs=[noslip_L],
+  )
+  wp.launch(
+    _noslip_minv_jt(m.is_sparse, sleep),
+    dim=(d.nworld, d.njmax),
+    inputs=[
+      m.nv,
+      m.M_rowadr,
+      m.M_colind,
+      d.nefc,
+      d.efc.J_rownnz,
+      d.efc.J_rowadr,
+      d.efc.J_colind,
+      d.efc.J,
+      d.dof_cdof,
+      noslip_L,
+    ],
+    outputs=[noslip_Y],
+  )
+  wp.launch(
+    _noslip_delassus(m.is_sparse),
+    dim=(d.nworld, d.njmax),
+    inputs=[
+      m.nv,
+      d.nefc,
+      d.contact.dim,
+      d.contact.efc_address,
+      d.efc.type,
+      d.efc.id,
+      d.efc.J_rownnz,
+      d.efc.J_rowadr,
+      d.efc.J_colind,
+      d.efc.J,
+      noslip_Y,
+    ],
+    outputs=[noslip_A],
+  )
+  wp.launch(
+    _noslip_qacc_init(sleep),
+    dim=(d.nworld, m.nv),
+    inputs=[d.nefc, d.qacc_smooth, d.efc.force, d.dof_cdof, d.njmax, noslip_Y],
+    outputs=[d.qacc],
+  )
+  wp.launch(
+    _noslip_solve(m.is_sparse, sleep),
+    dim=d.nworld,
+    inputs=[
+      m.nv,
+      m.opt.noslip_tolerance,
+      m.opt.noslip_iterations,
+      m.stat.meaninertia,
+      d.nefc,
+      d.contact.friction,
+      d.contact.dim,
+      d.efc.type,
+      d.efc.id,
+      d.efc.J_rownnz,
+      d.efc.J_rowadr,
+      d.efc.J_colind,
+      d.efc.J,
+      d.efc.D,
+      d.efc.aref,
+      d.efc.frictionloss,
+      d.njmax,
+      noslip_Y,
+      noslip_A,
+    ],
+    outputs=[d.solver_niter, d.qacc, d.efc.force],
+  )
+  wp.launch(
+    _noslip_qacc_qfrc(m.is_sparse, sleep),
+    dim=(d.nworld, m.nv),
+    inputs=[
+      d.nefc,
+      d.qacc_smooth,
+      d.efc.J_rownnz,
+      d.efc.J_rowadr,
+      d.efc.J_colind,
+      d.efc.J,
+      d.efc.force,
+      d.dof_cdof,
+      d.njmax,
+      noslip_Y,
+    ],
+    outputs=[d.qacc, d.qfrc_constraint],
+  )
+  wp.launch(
+    _noslip_state,
+    dim=(d.nworld, d.njmax),
+    inputs=[
+      m.opt.impratio_invsqrt,
+      d.nefc,
+      d.contact.friction,
+      d.contact.dim,
+      d.contact.efc_address,
+      d.efc.type,
+      d.efc.id,
+      d.efc.frictionloss,
+      d.efc.force,
+      d.njmax,
+    ],
+    outputs=[d.efc.state],
+  )
+
+  # efc.Ma = M @ qacc is the right-hand side for the integrators
   support.mul_m(m, d, d.efc.Ma, d.qacc)
