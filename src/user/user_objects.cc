@@ -159,6 +159,39 @@ void FrameToBody(const mjCFrame* frame, double pos[3], double quat[4]) {
   }
 }
 
+// orientation which a spec gives, its alternative resolved; errors are reported by compilation
+static void SpecQuat(double                res[4],
+                     const double          quat[4],
+                     const mjsOrientation& alt,
+                     const mjsCompiler*    compiler) {
+  mjuu_copyvec(res, quat, 4);
+  if (alt.type != mjORIENTATION_QUAT) {
+    ResolveOrientation(res, compiler->degree, compiler->eulerseq, alt);
+  }
+  mjuu_normvec(res, 4);
+}
+
+// orientation of a geom or site which its spec gives, and the type whose size rules apply: fromto
+// gives the axis, and a box or ellipsoid given by fromto is round across it
+static int SpecShape(double                quat[4],
+                     int                   type,
+                     const double          fromto[6],
+                     const double          specquat[4],
+                     const mjsOrientation& alt,
+                     const mjsCompiler*    compiler) {
+  if (!mjuu_defined(fromto[0])) {
+    SpecQuat(quat, specquat, alt, compiler);
+    return type;
+  }
+  double vec[3] = {fromto[0] - fromto[3], fromto[1] - fromto[4], fromto[2] - fromto[5]};
+  if (mjuu_normvec(vec, 3) < mjEPS) {
+    mjuu_setvec(quat, 1, 0, 0, 0);
+  } else {
+    mjuu_z2quat(quat, vec);
+  }
+  return type == mjGEOM_BOX || type == mjGEOM_ELLIPSOID ? mjGEOM_CYLINDER : type;
+}
+
 // rotate an inertia matrix, given as (xx, yy, zz, xy, xz, yz)
 void RotateInertia(double res[6], const double inert[6], const double quat[4]) {
   double mat[9], full[9], rotated[9];
@@ -1577,14 +1610,51 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
 }
 
 
+// sine of the largest angle by which a scaled axis may turn and still count as aligned
+static constexpr double kAlignTol = 0.0349;
+
+
+// product of 3x3 matrices
+static void MulMat3(double res[9], const double a[9], const double b[9]) {
+  double tmp[9];
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      tmp[3 * i + j] = a[3 * i] * b[j] + a[3 * i + 1] * b[3 + j] + a[3 * i + 2] * b[6 + j];
+    }
+  }
+  mjuu_copyvec(res, tmp, 9);
+}
+
+
+// rotation matrix of a quaternion, which need not be normalized
+static void QuatMat(double mat[9], const double quat[4]) {
+  double q[4] = {quat[0], quat[1], quat[2], quat[3]};
+  mjuu_normvec(q, 4);
+  mjuu_quat2mat(mat, q);
+}
+
+
+// R^T M R
+static void Conjugate(double res[9], const double M[9], const double R[9]) {
+  double RT[9] = {R[0], R[3], R[6], R[1], R[4], R[7], R[2], R[5], R[8]}, tmp[9];
+  MulMat3(tmp, RT, M);
+  MulMat3(res, tmp, R);
+}
+
+
 // gauge of a frame scale: a change of length and mass units, or of shape and inertia only; lengths
 // without a direction take the geometric mean of the three
 mjCGauge mjCGauge::Of(const double scale[3], mjtScaling scaling, double massscale) {
-  bool   uniform = scale[0] == scale[1] && scale[1] == scale[2];
-  double s       = uniform ? scale[0] : std::cbrt(scale[0] * scale[1] * scale[2]);
-  double m       = massscale > 0 ? massscale : scale[0] * scale[1] * scale[2];
-  if (scaling == mjSCALING_GEOMETRY) { return {s, 1, 1, m}; }
-  return {s, s, m, m};
+  mjCGauge g;
+  g.uniform = scale[0] == scale[1] && scale[1] == scale[2];
+  g.shape   = g.uniform ? scale[0] : std::cbrt(scale[0] * scale[1] * scale[2]);
+  g.inertia = massscale > 0 ? massscale : scale[0] * scale[1] * scale[2];
+  if (scaling != mjSCALING_GEOMETRY) {
+    g.length = g.shape;
+    g.mass   = g.inertia;
+  }
+  for (int i = 0; i < 3; i++) { g.map[4 * i] = scale[i]; }
+  return g;
 }
 
 
@@ -1602,44 +1672,223 @@ double mjCGauge::Force(double a, double b) const {
 
 // scale a position or displacement
 void mjCGauge::Point(double x[3]) const {
-  for (int i = 0; i < 3; i++) { x[i] *= shape; }
+  if (uniform) {
+    for (int i = 0; i < 3; i++) { x[i] *= shape; }
+  } else {
+    mjuu_mulvecmat(x, x, map);
+  }
 }
 
 
 // length factor along a direction
 double mjCGauge::Stretch(const double dir[3]) const {
-  return shape;
+  if (uniform) { return shape; }
+  double v[3];
+  mjuu_mulvecmat(v, dir, map);
+  return std::sqrt(mjuu_dot3(v, v) / mjuu_dot3(dir, dir));
 }
 
 
-// scale the first n sizes of a primitive aligned with the axes of the gauge
-void mjCGauge::Size(double size[3], int n) const {
-  for (int i = 0; i < n; i++) { size[i] *= shape; }
+// true if the map keeps a direction, within the alignment tolerance
+bool mjCGauge::Aligned(const double dir[3]) const {
+  if (uniform) { return true; }
+  double v[3], c[3];
+  mjuu_mulvecmat(v, dir, map);
+  mjuu_crossvec(c, v, dir);
+  return std::sqrt(mjuu_dot3(c, c)) <= kAlignTol * std::sqrt(mjuu_dot3(v, v) * mjuu_dot3(dir, dir));
 }
 
 
-// scale a mass, the diagonal inertia and, if defined, the full inertia
-void mjCGauge::Inertia(double& mass_, double inertia[3], double fullinertia[6]) const {
-  mass_ *= Shape(0, 1);
-  for (int i = 0; i < 3; i++) { inertia[i] *= Shape(2, 1); }
-  if (mjuu_defined(fullinertia[0])) {
-    for (int i = 0; i < 6; i++) { fullinertia[i] *= Shape(2, 1); }
+// scale the size of a geom or site of the given type and orientation; returns an error message if
+// its shape cannot represent its scaled self; sites instead stretch along their own axes, and
+// sphere sites take the mean factor
+const char* mjCGauge::Size(double size[3], int type, const double quat[4], bool site) const {
+  int n = type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3;
+  if (uniform) {
+    for (int i = 0; i < n; i++) { size[i] *= shape; }
+    return nullptr;
+  }
+  if (type == mjGEOM_MESH || type == mjGEOM_SDF) { return nullptr; }
+  if (type == mjGEOM_SPHERE && site) {
+    size[0] *= shape;
+    return nullptr;
+  }
+
+  // the map in the frame of the shape: the factor and the alignment of each of its axes
+  double R[9], local[9], f[3];
+  bool   aligned[3];
+  QuatMat(R, quat);
+  Conjugate(local, map, R);
+  for (int i = 0; i < 3; i++) {
+    double off = 0;
+    for (int j = 0; j < 3; j++) { off += j == i ? 0 : local[3 * j + i] * local[3 * j + i]; }
+    f[i]       = off ? std::sqrt(off + local[4 * i] * local[4 * i]) : local[4 * i];
+    aligned[i] = std::sqrt(off) <= kAlignTol * f[i];
+  }
+  auto equal = [](double a, double b) { return std::abs(a - b) <= kAlignTol * std::max(a, b); };
+
+  switch (type) {
+    case mjGEOM_SPHERE:
+      if (!aligned[0] || !aligned[1] || !aligned[2] || !equal(f[0], f[1]) || !equal(f[1], f[2])) {
+        return aligned[0] && aligned[1] && aligned[2]
+                   ? "a sphere can only be scaled uniformly; use an ellipsoid instead"
+                   : "a sphere can only be scaled uniformly";
+      }
+      size[0] *= std::cbrt(f[0] * f[1] * f[2]);
+      return nullptr;
+
+    case mjGEOM_CAPSULE:
+    case mjGEOM_CYLINDER:
+      if (!site && !aligned[2]) {
+        return "the axis of this shape is not aligned with the axes of the scale";
+      }
+      if (!site && (!aligned[0] || !aligned[1] || !equal(f[0], f[1]))) {
+        return "this shape can only be scaled equally across its axis";
+      }
+      size[0] *= std::sqrt(f[0] * f[1]);
+      size[1] *= f[2];
+      return nullptr;
+
+    case mjGEOM_PLANE:
+      if (!aligned[0] || !aligned[1]) {
+        return "a plane is not aligned with the axes of the scale";
+      }
+      size[0] *= f[0];
+      size[1] *= f[1];
+      size[2] *= shape;
+      return nullptr;
+
+    default:
+      if (!site && (!aligned[0] || !aligned[1] || !aligned[2])) {
+        return "this shape is not aligned with the axes of the scale";
+      }
+      for (int i = 0; i < n; i++) { size[i] *= f[i]; }
+      return nullptr;
   }
 }
 
 
-// composition of gauges along an ancestry
-mjCGauge mjCGauge::operator*(const mjCGauge& other) const {
-  return {shape * other.shape, length * other.length, mass * other.mass, inertia * other.inertia};
+// scale a mass and the diagonal or, if defined, the full inertia, given in the frame of iquat; a
+// map which is not uniform gives the full inertia
+void mjCGauge::Inertia(double&      mass_,
+                       double       inertia_[3],
+                       double       fullinertia[6],
+                       const double iquat[4]) const {
+  bool full = mjuu_defined(fullinertia[0]);
+  if (uniform) {
+    mass_ *= Shape(0, 1);
+    for (int i = 0; i < 3; i++) { inertia_[i] *= Shape(2, 1); }
+    if (full) {
+      for (int i = 0; i < 6; i++) { fullinertia[i] *= Shape(2, 1); }
+    }
+    return;
+  }
+
+  // inertia tensor in the frame of iquat
+  double I[9] = {0};
+  if (full) {
+    I[0] = fullinertia[0];
+    I[4] = fullinertia[1];
+    I[8] = fullinertia[2];
+    I[1] = I[3] = fullinertia[3];
+    I[2] = I[6] = fullinertia[4];
+    I[5] = I[7] = fullinertia[5];
+  } else {
+    for (int i = 0; i < 3; i++) { I[4 * i] = inertia_[i]; }
+  }
+  mass_ *= Shape(0, 1);
+  if (!full && !inertia_[0] && !inertia_[1] && !inertia_[2]) { return; }
+
+  // the second moments of the mass, Sigma = tr(I)/2 - I, are mapped as A Sigma A^T
+  double R[9], A[9], AT[9], sigma[9], tmp[9];
+  QuatMat(R, iquat);
+  Conjugate(A, map, R);
+  double half = (I[0] + I[4] + I[8]) / 2;
+  for (int i = 0; i < 9; i++) { sigma[i] = (i % 4 ? 0 : half) - I[i]; }
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) { AT[3 * i + j] = A[3 * j + i]; }
+  }
+  MulMat3(tmp, A, sigma);
+  MulMat3(sigma, tmp, AT);
+  double trace = (sigma[0] + sigma[4] + sigma[8]) * Shape(0, 1);
+  for (int i = 0; i < 9; i++) { I[i] = (i % 4 ? 0 : trace) - sigma[i] * Shape(0, 1); }
+  fullinertia[0] = I[0];
+  fullinertia[1] = I[4];
+  fullinertia[2] = I[8];
+  fullinertia[3] = (I[1] + I[3]) / 2;
+  fullinertia[4] = (I[2] + I[6]) / 2;
+  fullinertia[5] = (I[5] + I[7]) / 2;
+  inertia_[0] = inertia_[1] = inertia_[2] = 0;
 }
 
 
-// geometric mean of the gauges of two participants
+// the gauge in the coordinates of a frame with the given orientation
+mjCGauge mjCGauge::Rotated(const double quat[4]) const {
+  if (uniform) { return *this; }
+  mjCGauge res = *this;
+  double   R[9];
+  QuatMat(R, quat);
+  Conjugate(res.map, map, R);
+  return res;
+}
+
+
+// inverse gauge, which scales back
+mjCGauge mjCGauge::Inverse() const {
+  mjCGauge res;
+  res.shape   = 1 / shape;
+  res.length  = 1 / length;
+  res.mass    = 1 / mass;
+  res.inertia = 1 / inertia;
+  res.uniform = uniform;
+  if (uniform) {
+    for (int i = 0; i < 3; i++) { res.map[4 * i] = res.shape; }
+    return res;
+  }
+  const double* m   = map;
+  double        det = m[0] * (m[4] * m[8] - m[5] * m[7]) -
+                      m[1] * (m[3] * m[8] - m[5] * m[6]) +
+                      m[2] * (m[3] * m[7] - m[4] * m[6]);
+  res.map[0]        = (m[4] * m[8] - m[5] * m[7]) / det;
+  res.map[1]        = (m[2] * m[7] - m[1] * m[8]) / det;
+  res.map[2]        = (m[1] * m[5] - m[2] * m[4]) / det;
+  res.map[3]        = (m[5] * m[6] - m[3] * m[8]) / det;
+  res.map[4]        = (m[0] * m[8] - m[2] * m[6]) / det;
+  res.map[5]        = (m[2] * m[3] - m[0] * m[5]) / det;
+  res.map[6]        = (m[3] * m[7] - m[4] * m[6]) / det;
+  res.map[7]        = (m[1] * m[6] - m[0] * m[7]) / det;
+  res.map[8]        = (m[0] * m[4] - m[1] * m[3]) / det;
+  return res;
+}
+
+
+// composition of gauges along an ancestry: this one, of the enclosing frame or body, after the
+// other
+mjCGauge mjCGauge::operator*(const mjCGauge& other) const {
+  mjCGauge res;
+  res.shape   = shape * other.shape;
+  res.length  = length * other.length;
+  res.mass    = mass * other.mass;
+  res.inertia = inertia * other.inertia;
+  res.uniform = uniform && other.uniform;
+  if (res.uniform) {
+    for (int i = 0; i < 3; i++) { res.map[4 * i] = res.shape; }
+  } else {
+    MulMat3(res.map, map, other.map);
+  }
+  return res;
+}
+
+
+// geometric mean of the gauges of two participants, for quantities without a direction
 mjCGauge mjCGauge::Mean(const mjCGauge& a, const mjCGauge& b) {
-  return {std::sqrt(a.shape * b.shape),
-          std::sqrt(a.length * b.length),
-          std::sqrt(a.mass * b.mass),
-          std::sqrt(a.inertia * b.inertia)};
+  mjCGauge res;
+  res.shape   = std::sqrt(a.shape * b.shape);
+  res.length  = std::sqrt(a.length * b.length);
+  res.mass    = std::sqrt(a.mass * b.mass);
+  res.inertia = std::sqrt(a.inertia * b.inertia);
+  for (int i = 0; i < 3; i++) { res.map[4 * i] = res.shape; }
+  return res;
 }
 
 
@@ -2627,7 +2876,7 @@ void mjCBody::AdoptInertial() {
   mjs_defaultOrientation(&spec.ialt);
   const mjCGauge g = ContentGauge().Inverse();
   g.Point(spec.ipos);
-  g.Inertia(spec.mass, spec.inertia, spec.fullinertia);
+  g.Inertia(spec.mass, spec.inertia, spec.fullinertia, spec.iquat);
 }
 
 
@@ -2811,9 +3060,9 @@ void mjCBody::MergeInertial(const mjCBody* child) {
     for (int k = 0; k < 6; k++) { totalinert[k] += inerts[j][k] + offcenter[k]; }
   }
   if (scaled) {
-    double diag[3] = {0, 0, 0};
+    double diag[3] = {0, 0, 0}, unitq[4] = {1, 0, 0, 0};
     ContentGauge().Inverse().Point(totalcom);
-    ContentGauge().Inverse().Inertia(totalmass, diag, totalinert);
+    ContentGauge().Inverse().Inertia(totalmass, diag, totalinert, unitq);
   }
 
   // save as full inertia in body coordinates
@@ -2950,7 +3199,22 @@ void mjCBody::ApplyGauge() {
 
   g.Point(pos);
   if (mjuu_defined(ipos[0])) { gi.Point(ipos); }
-  gi.Inertia(mass, inertia, fullinertia);
+  if (!gi.uniform && ialt.type != mjORIENTATION_QUAT) {
+    const char* err = ResolveOrientation(iquat, compiler->degree, compiler->eulerseq, ialt);
+    if (err) { throw mjCError(this, "error '%s' in inertia alternative", err); }
+    mjs_defaultOrientation(&ialt);
+  }
+  gi.Inertia(mass, inertia, fullinertia, iquat);
+}
+
+
+// gauge of what this body contains, in its coordinates
+mjCGauge mjCBody::ContentGauge() const {
+  mjCGauge g = Gauge();
+  if (g.uniform) { return g; }
+  double quat[4];
+  SpecQuat(quat, spec.quat, spec.alt, compiler);
+  return g.Rotated(quat);
 }
 
 
@@ -3345,8 +3609,8 @@ void mjCFrame::Compile() {
       throw mjCError(this, "frame scale must be finite and positive");
     }
   }
-  if (scale[0] != scale[1] || scale[1] != scale[2]) {
-    throw mjCError(this, "frame scale must be uniform");
+  if ((scale[0] != scale[1] || scale[1] != scale[2]) && scaling != mjSCALING_GEOMETRY) {
+    throw mjCError(this, "an anisotropic frame scale requires scaling 'geometry'");
   }
   if (!std::isfinite(massscale) || massscale < 0) {
     throw mjCError(this, "frame massscale must be finite and non-negative");
@@ -3372,9 +3636,15 @@ void mjCFrame::ApplyGauge() {
 }
 
 
-// gauge of what this frame contains: its own composed with its scale
+// gauge of what this frame contains, in its coordinates: the one around it composed with its scale
 mjCGauge mjCFrame::ContentGauge() const {
-  return Gauge() * mjCGauge::Of(spec.scale, spec.scaling, spec.massscale);
+  mjCGauge g = Gauge();
+  if (!g.uniform) {
+    double quat[4];
+    SpecQuat(quat, spec.quat, spec.alt, compiler);
+    g = g.Rotated(quat);
+  }
+  return g * mjCGauge::Of(spec.scale, spec.scaling, spec.massscale);
 }
 
 
@@ -3536,6 +3806,9 @@ void mjCJoint::ApplyGauge(bool inverse) {
   if (g.IsIdentity()) { return; }
   g.Point(pos);
   if (type == mjJNT_FREE) { return; }
+  if (type != mjJNT_BALL && !g.Aligned(axis)) {
+    throw mjCError(this, "the axis of this joint is not aligned with the axes of the scale");
+  }
 
   // coordinate: shape class, the stretch along the axis of a slide
   const int    q      = type == mjJNT_SLIDE ? 1 : 0;
@@ -4162,17 +4435,37 @@ const std::string& mjCGeom::get_material() const {
 }
 
 
+// map of the gauge in the frame of this geom, which its mesh or height field instance takes
+std::array<double, 9> mjCGeom::ShapeMap() const {
+  mjCGauge g = Gauge();
+  if (!g.uniform) {
+    double quat_[4];
+    SpecShape(quat_, spec.type, spec.fromto, spec.quat, spec.alt, compiler);
+    g = g.Rotated(quat_);
+  }
+  std::array<double, 9> map;
+  std::copy(g.map, g.map + 9, map.begin());
+  return map;
+}
+
+
 // scale the compiled copy by the gauge, or back; density is M L^-3, or M L^-2 for a shell
 void mjCGeom::ApplyGauge(bool inverse) {
   const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   if (plugin.active) { throw mjCError(this, "a geom with a plugin cannot be scaled"); }
 
-  // shape class
+  // shape class; a primitive fitted to a mesh takes the shape of the mesh instance
   const double fl = g.Shape(1);
+  double       quat_[4];
+  const int    shape  = SpecShape(quat_, type, spec.fromto, spec.quat, spec.alt, compiler);
+  const bool   fitted = mesh && type != mjGEOM_MESH && type != mjGEOM_SDF;
   g.Point(pos);
-  g.Point(surfacevel);
-  g.Size(size, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+  g.Rotated(quat_).Point(surfacevel);
+  if (!fitted || g.uniform) {
+    const char* err = g.Size(size, shape, quat_);
+    if (err) { throw mjCError(this, "%s", err); }
+  }
   if (mjuu_defined(fromto[0])) {
     g.Point(fromto);
     g.Point(fromto + 3);
@@ -4432,17 +4725,20 @@ void mjCGeom::ShapeToSpec(bool newsize, bool position, bool orientation, bool ne
   const bool span    = mjuu_defined(spec.fromto[0]);
   const bool newpose = position || orientation;
 
-  // the size in the units of the spec
-  double specsize[3];
+  // the size in the units of the spec, by the rule of its type, which applies once fromto is
+  // replaced
+  const mjCGauge g = Gauge();
+  double         specsize[3], specquat[4];
   mjuu_copyvec(specsize, size, 3);
-  Gauge().Inverse().Size(specsize, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+  SpecShape(specquat, type, spec.fromto, spec.quat, spec.alt, compiler);
+  g.Inverse().Size(specsize, type, specquat);
 
   // fromto does not give the radius of a capsule or cylinder: a new one leaves fromto as it is
   if (span && !newpose && (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER)) {
     double ends[6];
     mjuu_copyvec(ends, spec.fromto, 6);
-    Gauge().Point(ends);
-    Gauge().Point(ends + 3);
+    g.Point(ends);
+    g.Point(ends + 3);
     double vec[3] = {ends[0] - ends[3], ends[1] - ends[4], ends[2] - ends[5]};
     if (size[1] == mjuu_normvec(vec, 3) / 2) {
       spec.size[0] = specsize[0];
@@ -4572,11 +4868,28 @@ const std::string& mjCSite::get_material() const {
 
 
 // scale the compiled copy by the gauge, or back
+// map of the gauge in the frame of this site, which its mesh instance takes
+std::array<double, 9> mjCSite::ShapeMap() const {
+  mjCGauge g = Gauge();
+  if (!g.uniform) {
+    double quat_[4];
+    SpecShape(quat_, spec.type, spec.fromto, spec.quat, spec.alt, compiler);
+    g = g.Rotated(quat_);
+  }
+  std::array<double, 9> map;
+  std::copy(g.map, g.map + 9, map.begin());
+  return map;
+}
+
+
 void mjCSite::ApplyGauge(bool inverse) {
   const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
+  double      quat_[4];
+  const int   shape = SpecShape(quat_, type, spec.fromto, spec.quat, spec.alt, compiler);
+  const char* err   = g.Size(size, shape, quat_, /*site=*/true);
+  if (err) { throw mjCError(this, "%s", err); }
   g.Point(pos);
-  g.Size(size, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
   if (mjuu_defined(fromto[0])) {
     g.Point(fromto);
     g.Point(fromto + 3);
@@ -4691,17 +5004,20 @@ void mjCSite::ShapeToSpec(bool newsize, bool position, bool orientation) {
   const bool span    = mjuu_defined(spec.fromto[0]);
   const bool newpose = position || orientation;
 
-  // the size in the units of the spec
-  double specsize[3];
-  mjuu_copyvec(specsize, size, 3);
-  Gauge().Inverse().Size(specsize, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+  // the size in the units of the spec, by the rule of its type, which applies once fromto is
+  // replaced; dividing by the stretch inverts it when it is approximate
+  const mjCGauge g = Gauge();
+  double         specsize[3], specquat[4], f[3] = {1, 1, 1};
+  SpecShape(specquat, type, spec.fromto, spec.quat, spec.alt, compiler);
+  g.Size(f, type, specquat, /*site=*/true);
+  for (int i = 0; i < 3; i++) { specsize[i] = size[i] / f[i]; }
 
   // fromto does not give the radius of a capsule or cylinder: a new one leaves fromto as it is
   if (span && !newpose && (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER)) {
     double ends[6];
     mjuu_copyvec(ends, spec.fromto, 6);
-    Gauge().Point(ends);
-    Gauge().Point(ends + 3);
+    g.Point(ends);
+    g.Point(ends + 3);
     double vec[3] = {ends[0] - ends[3], ends[1] - ends[4], ends[2] - ends[5]};
     if (size[1] == mjuu_normvec(vec, 3) / 2) {
       spec.size[0] = specsize[0];
@@ -5123,7 +5439,13 @@ void mjCHField::PointToLocal() {
 
 void mjCHField::CopyFromSpec() {
   *static_cast<mjsHField*>(this) = spec;
-  for (int i = 0; i < 4; i++) { size[i] *= instancescale_; }
+  const auto& m                  = instancemap_;
+  for (int i = 0; i < 4; i++) {
+    int    j   = std::min(i, 2);
+    double off = 0;
+    for (int k = 0; k < 3; k++) { off += k == j ? 0 : m[3 * k + j] * m[3 * k + j]; }
+    size[i] *= off ? std::sqrt(off + m[4 * j] * m[4 * j]) : m[4 * j];
+  }
 
   file_         = spec_file_;
   content_type_ = spec_content_type_;

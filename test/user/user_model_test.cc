@@ -38,6 +38,7 @@ namespace {
 
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
+using ::testing::FloatNear;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
@@ -3974,6 +3975,442 @@ TEST_F(FrameScaleTest, Inertials) {
   mj_deleteModel(saved);
   mj_deleteModel(m);
   mj_deleteSpec(spec);
+}
+
+// ------------------------- anisotropic frame scale ---------------------------
+
+// an anisotropic scale requires the geometry policy
+TEST_F(FrameScaleTest, AnisotropicPolicy) {
+  for (const char* scaling : {"similar", "geometry"}) {
+    std::string xml = absl::StrFormat(R"(
+    <mujoco>
+      <worldbody>
+        <frame scale="1 2 3" scaling="%s">
+          <geom type="box" size="0.1 0.1 0.1"/>
+        </frame>
+      </worldbody>
+    </mujoco>
+    )",
+                                      scaling);
+    std::array<char, 1024> error;
+    MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+    if (std::string(scaling) == "similar") {
+      EXPECT_THAT(m.get(), IsNull());
+      EXPECT_THAT(error.data(), HasSubstr("requires scaling 'geometry'"));
+    } else {
+      EXPECT_THAT(m.get(), NotNull()) << error.data();
+    }
+  }
+}
+
+// shapes aligned with the axes of the scale take its factors along their own
+// axes; a sphere site takes the geometric mean, and other sites stretch along
+// their own axes even when they are not aligned
+TEST_F(FrameScaleTest, AnisotropicShapes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="2 3 4" scaling="geometry">
+        <body name="b" pos="1 1 1">
+          <geom name="box" type="box" size="0.1 0.2 0.3"/>
+          <geom name="ellipsoid" type="ellipsoid" size="0.1 0.2 0.3"/>
+          <geom name="turned" type="box" size="0.1 0.2 0.3" euler="0 0 90"/>
+          <geom name="tilted" type="box" size="0.1 0.2 0.3" euler="0 0 1"/>
+          <site name="ball" size="0.1"/>
+          <site name="tiltedsite" type="box" size="0.1 0.2 0.3" euler="0 0 45"/>
+          <site name="capsulesite" type="capsule" size="0.1 0.2"/>
+        </body>
+      </frame>
+      <frame scale="2 2 3" scaling="geometry">
+        <body>
+          <geom name="capsule" type="capsule" size="0.1 0.2"/>
+          <geom name="cylinder" type="cylinder" size="0.1 0.2"/>
+        </body>
+      </frame>
+      <frame scale="3 2 2" scaling="geometry">
+        <body>
+          <geom name="fromto" type="capsule" fromto="0 0 0 1 0 0" size="0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  auto size = [&](const char* name) {
+    return GetRow(m->geom_size, 3, mj_name2id(m.get(), mjOBJ_GEOM, name));
+  };
+  EXPECT_THAT(GetRow(m->body_pos, 3, 1), Pointwise(DoubleNear(tol), {2, 3, 4}));
+  EXPECT_THAT(size("box"), Pointwise(DoubleNear(tol), {0.2, 0.6, 1.2}));
+  EXPECT_THAT(size("ellipsoid"), Pointwise(DoubleNear(tol), {0.2, 0.6, 1.2}));
+  EXPECT_THAT(size("turned"), Pointwise(DoubleNear(tol), {0.3, 0.4, 1.2}));
+  EXPECT_THAT(size("tilted"), Pointwise(DoubleNear(1e-3), {0.2, 0.6, 1.2}));
+  EXPECT_NEAR(m->site_size[0], 0.1 * std::cbrt(24), tol);
+  auto sitesize = [&](const char* name) {
+    return GetRow(m->site_size, 3, mj_name2id(m.get(), mjOBJ_SITE, name));
+  };
+  const double f = std::sqrt(6.5);
+  EXPECT_THAT(sitesize("tiltedsite"),
+              Pointwise(DoubleNear(tol), {0.1 * f, 0.2 * f, 1.2}));
+  EXPECT_THAT(GetRow(sitesize("capsulesite").data(), 2, 0),
+              Pointwise(DoubleNear(tol), {0.1 * std::sqrt(6.0), 0.8}));
+  EXPECT_THAT(GetRow(size("capsule").data(), 2, 0),
+              Pointwise(DoubleNear(tol), {0.2, 0.6}));
+  EXPECT_THAT(GetRow(size("cylinder").data(), 2, 0),
+              Pointwise(DoubleNear(tol), {0.2, 0.6}));
+  EXPECT_THAT(GetRow(size("fromto").data(), 2, 0),
+              Pointwise(DoubleNear(tol), {0.2, 1.5}));
+}
+
+// shapes which cannot represent their scaled selves are errors
+TEST_F(FrameScaleTest, AnisotropicErrors) {
+  constexpr std::array<std::array<const char*, 3>, 6> kCases = {{
+      {"1 2 1", R"(<geom type="box" size="0.1 0.2 0.3" euler="0 0 45"/>)",
+       "not aligned with the axes of the scale"},
+      {"2 3 4", R"(<geom type="box" size="0.1 0.2 0.3" euler="0 0 5"/>)",
+       "not aligned with the axes of the scale"},
+      {"1 2 1", R"(<geom size="0.1"/>)", "use an ellipsoid instead"},
+      {"1 2 3", R"(<geom type="capsule" size="0.1 0.2"/>)",
+       "scaled equally across its axis"},
+      {"1 2 1",
+       R"(<body><joint axis="1 1 0"/><geom type="box" size="0.1 0.1 0.1"/></body>)",
+       "axis of this joint is not aligned"},
+      {"1 2 1",
+       R"(<body><joint axis="1 0.0524 0"/><geom type="box" size="0.1 0.1 0.1"/></body>)",
+       "axis of this joint is not aligned"},
+  }};
+  for (const auto& [scale, element, message] : kCases) {
+    std::string xml = absl::StrFormat(R"(
+    <mujoco>
+      <worldbody>
+        <frame scale="%s" scaling="geometry">%s</frame>
+      </worldbody>
+    </mujoco>
+    )",
+                                      scale, element);
+    std::array<char, 1024> error;
+    MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+    EXPECT_THAT(m.get(), IsNull()) << element;
+    EXPECT_THAT(error.data(), HasSubstr(message)) << element;
+  }
+}
+
+// a joint along an axis of the scale takes its factor; one within the
+// alignment tolerance is accepted
+TEST_F(FrameScaleTest, AnisotropicJoints) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="2 3 4" scaling="geometry">
+        <body>
+          <joint name="slide" type="slide" axis="0 1 0" range="-1 1"/>
+          <joint name="hinge" axis="1 0 0" range="-30 30"/>
+          <joint name="tilted" axis="1 0.0175 0"/>
+          <geom type="box" size="0.1 0.1 0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <actuator>
+      <position joint="slide" kp="10" ctrlrange="-0.5 0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  EXPECT_THAT(GetRow(m->jnt_range, 2, 0), Pointwise(DoubleNear(tol), {-3, 3}));
+  EXPECT_NEAR(m->jnt_range[3], 30 * mjPI / 180, tol);
+  EXPECT_THAT(GetRow(m->actuator_ctrlrange, 2, 0),
+              Pointwise(DoubleNear(tol), {-1.5, 1.5}));
+}
+
+// the first mesh, body and geom of two models are the same, up to the order of
+// the vertices; vertices are compared in the body frame, since the sign of each
+// axis of the mesh frame is arbitrary
+static void ExpectSameMeshBody(const mjModel* a, const mjModel* b) {
+  const mjtNum tol = MjTol(1e-6, 1e-5);
+  ASSERT_EQ(a->mesh_vertnum[0], b->mesh_vertnum[0]);
+  auto sorted = [](const mjModel* m) {
+    std::vector<std::array<mjtNum, 3>> v(m->mesh_vertnum[0]);
+    for (int i = 0; i < v.size(); i++) {
+      mjtNum vert[3];
+      for (int k = 0; k < 3; k++) {
+        vert[k] = m->mesh_vert[3 * (m->mesh_vertadr[0] + i) + k];
+      }
+      mju_rotVecQuat(v[i].data(), vert, m->geom_quat);
+      for (int k = 0; k < 3; k++) v[i][k] += m->geom_pos[k];
+    }
+    std::sort(v.begin(), v.end());
+    return v;
+  };
+  auto va = sorted(a), vb = sorted(b);
+  for (int i = 0; i < va.size(); i++) {
+    for (int k = 0; k < 3; k++) {
+      EXPECT_NEAR(va[i][k], vb[i][k], MjTol(1e-5, 1e-4)) << i;
+    }
+  }
+  EXPECT_NEAR(a->body_mass[1], b->body_mass[1], tol * b->body_mass[1]);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(a->body_inertia[3 + i], b->body_inertia[3 + i],
+                tol * b->body_inertia[3 + i]);
+  }
+  EXPECT_THAT(GetRow(a->geom_size, 3, 0),
+              Pointwise(DoubleNear(tol), GetRow(b->geom_size, 3, 0)));
+  EXPECT_NEAR(a->geom_rbound[0], b->geom_rbound[0], tol);
+}
+
+// a mesh in a body which is rotated relative to the axes of the scale is
+// sheared in its own coordinates, and compiles like the sheared mesh; the same
+// mesh in an aligned body is another instance
+TEST_F(FrameScaleTest, AnisotropicMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"
+            face="0 2 1 0 1 3 0 3 2 1 2 3" texcoord="0 0 1 0 0 1 1 1"/>
+    </asset>
+    <worldbody>
+      <frame scale="1 2 1" scaling="geometry">
+        <body name="body" euler="0 0 45">
+          <freejoint/>
+          <geom type="mesh" mesh="tetra"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  // the map in the coordinates of the body: R^T diag(1, 2, 1) R for a turn of
+  // 45 degrees about z
+  static constexpr char reference[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1.5 0.5 0 0.5 1.5 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="body" euler="0 0 45">
+        <freejoint/>
+        <geom type="mesh" mesh="tetra"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjModelPtr ref = LoadModelFromString(reference, error.data(), error.size());
+  ASSERT_THAT(ref.get(), NotNull()) << error.data();
+  ExpectSameMeshBody(m.get(), ref.get());
+
+  // saved compiled, the sheared instance reloads to the same model
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* compiled = mj_compile(spec, nullptr);
+  ASSERT_THAT(compiled, NotNull()) << mjs_getError(spec);
+  std::string saved = SaveAndReadXml(spec);
+  MjModelPtr reloaded = LoadModelFromString(saved);
+  ASSERT_THAT(reloaded.get(), NotNull()) << saved;
+  ExpectSameMeshBody(compiled, reloaded.get());
+  ASSERT_EQ(compiled->mesh_texcoordnum[0], 4);
+  ASSERT_EQ(reloaded->mesh_texcoordnum[0], 4);
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(reloaded->mesh_texcoord[i], compiled->mesh_texcoord[i]) << i;
+  }
+  mj_deleteModel(compiled);
+  mj_deleteSpec(spec);
+}
+
+// full inertia tensor of a body in its coordinates
+static std::array<mjtNum, 9> FullInertia(const mjModel* m, int body) {
+  mjtNum mat[9], res[9], tmp[9];
+  mju_quat2Mat(mat, m->body_iquat + 4 * body);
+  mjtNum diag[9] = {0};
+  for (int i = 0; i < 3; i++) diag[4 * i] = m->body_inertia[3 * body + i];
+  mju_mulMatMat(tmp, mat, diag, 3, 3, 3);
+  mju_mulMatMatT(res, tmp, mat, 3, 3, 3);
+  std::array<mjtNum, 9> out;
+  for (int i = 0; i < 9; i++) out[i] = res[i];
+  return out;
+}
+
+// an explicit inertial transforms exactly: it equals the inertia which the
+// scaled geometry gives
+TEST_F(FrameScaleTest, AnisotropicInertia) {
+  static constexpr char geometry[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <frame scale="%s" scaling="geometry">
+        <body euler="0 0 30">
+          <geom type="mesh" mesh="tetra" euler="10 20 0"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m0 = LoadModelFromString(absl::StrFormat(geometry, "1"));
+  ASSERT_THAT(m0.get(), NotNull());
+  std::string explicit_xml = absl::StrFormat(
+      R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="1 2 1.5" scaling="geometry">
+        <body euler="0 0 30">
+          <inertial pos="%.17g %.17g %.17g" quat="%.17g %.17g %.17g %.17g"
+                    mass="%.17g" diaginertia="%.17g %.17g %.17g"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )",
+      m0->body_ipos[3], m0->body_ipos[4], m0->body_ipos[5], m0->body_iquat[4],
+      m0->body_iquat[5], m0->body_iquat[6], m0->body_iquat[7], m0->body_mass[1],
+      m0->body_inertia[3], m0->body_inertia[4], m0->body_inertia[5]);
+  std::array<char, 1024> error;
+  MjModelPtr inferred = LoadModelFromString(
+      absl::StrFormat(geometry, "1 2 1.5"), error.data(), error.size());
+  ASSERT_THAT(inferred.get(), NotNull()) << error.data();
+  MjModelPtr given =
+      LoadModelFromString(explicit_xml, error.data(), error.size());
+  ASSERT_THAT(given.get(), NotNull()) << error.data();
+  const mjtNum tol = MjTol(1e-6, 1e-4);
+  EXPECT_NEAR(given->body_mass[1], inferred->body_mass[1], tol);
+  EXPECT_NEAR(given->body_mass[1], 3 * m0->body_mass[1], tol);
+  EXPECT_THAT(GetRow(given->body_ipos, 3, 1),
+              Pointwise(DoubleNear(tol), GetRow(inferred->body_ipos, 3, 1)));
+  EXPECT_THAT(FullInertia(given.get(), 1),
+              Pointwise(DoubleNear(tol), FullInertia(inferred.get(), 1)));
+}
+
+// a box given by fromto whose size is edited is written with the size rule of a
+// box, which applies once fromto is replaced
+TEST_F(FrameScaleTest, AnisotropicFromtoCopyBack) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="3 2 2" scaling="geometry">
+        <body pos="0.1 0.2 0.3">
+          <geom name="g" type="box" fromto="0 0 0 1 0 0" size="0.1"/>
+          <site name="s" type="box" fromto="0 0 0 1 0 0" size="0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  EXPECT_THAT(GetRow(m->geom_size, 3, 0),
+              Pointwise(DoubleNear(tol), {0.2, 0.2, 1.5}));
+  m->geom_size[1] = 0.4;
+  m->site_size[1] = 0.4;
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  EXPECT_TRUE(std::isnan(
+      mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "g"))->fromto[0]));
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  auto expect = [&](const mjtNum* a, const mjtNum* b, int n) {
+    EXPECT_THAT(GetRow(a, n, 0), Pointwise(DoubleNear(tol), GetRow(b, n, 0)));
+  };
+  expect(m->geom_size, m2->geom_size, 3);
+  expect(m->geom_pos, m2->geom_pos, 3);
+  expect(m->geom_quat, m2->geom_quat, 4);
+  expect(m->site_size, m2->site_size, 3);
+  expect(m->site_pos, m2->site_pos, 3);
+  expect(m->site_quat, m2->site_quat, 4);
+  mj_deleteModel(m2);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// copy-back, saving as written and recompiling after a change of scale
+TEST_F(FrameScaleTest, AnisotropicRoundTrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <frame name="frame" scale="1 2 1.5" scaling="geometry">
+        <body name="arm" pos="0.1 0.2 0.3" euler="0 0 30">
+          <joint type="slide" axis="0 0 1" range="-1 1"/>
+          <geom type="box" size="0.1 0.2 0.3" euler="0 0 -30"/>
+          <geom type="mesh" mesh="tetra"/>
+          <inertial pos="0 0 0" mass="1" diaginertia="2 3 4"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  // copy-back of unchanged values leaves the spec as it is
+  mjSpec* copy = mj_copySpec(spec);
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  EXPECT_THAT(CompareSpec(copy, spec), IsEmpty());
+  mj_deleteSpec(copy);
+
+  // saved as written, the model reloads to the same compiled model
+  spec->compiler.savecompiled = 0;
+  std::string written = SaveAndReadXml(spec);
+  MjModelPtr rewritten = LoadModelFromString(written);
+  ASSERT_THAT(rewritten.get(), NotNull()) << written;
+  std::string field;
+  EXPECT_EQ(CompareModel(m, rewritten.get(), field), 0) << field;
+
+  // recompiling after a change of scale gives what compiling afresh gives
+  mjsFrame* frame = mjs_findFrame(spec, "frame");
+  frame->scale[2] = 3;
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  std::string changed = xml;
+  changed.replace(changed.find("1 2 1.5"), 7, "1 2 3");
+  MjModelPtr fresh = LoadModelFromString(changed);
+  ASSERT_THAT(fresh.get(), NotNull());
+  EXPECT_EQ(CompareModel(m2, fresh.get(), field), 0) << field;
+
+  mj_deleteModel(m2);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// a skin whose bones share one map in its coordinates is mapped by it
+TEST_F(FrameScaleTest, AnisotropicSkin) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="2 3 4" scaling="geometry">
+        <body name="b0" pos="0 0 1"/>
+        <body name="b1" pos="1 0 1" euler="0 0 90"/>
+      </frame>
+    </worldbody>
+    <deformable>
+      <skin name="skin" vertex="0 0 1 1 0 1 0 1 1" face="0 1 2">
+        <bone body="b0" bindpos="0 0 1" bindquat="1 0 0 0" vertid="0 2"
+              vertweight="1 1"/>
+        <bone body="b1" bindpos="1 0 1" bindquat="0.70710678 0 0 0.70710678"
+              vertid="1" vertweight="1"/>
+      </skin>
+    </deformable>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_THAT(AsVector(m->skin_vert, 9),
+              Pointwise(FloatNear(1e-5), {0, 0, 4, 2, 0, 4, 0, 3, 4}));
+  EXPECT_THAT(AsVector(m->skin_bonebindpos, 6),
+              Pointwise(FloatNear(1e-5), {0, 0, 4, 2, 0, 4}));
 }
 
 }  // namespace

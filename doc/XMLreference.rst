@@ -4395,13 +4395,36 @@ transformation they encode is accumulated in their direct children; frames are p
         - ``massscale="k" scaling="geometry"``
       * - a change of the units of length and mass
         - ``scale="s" massscale="k"``
+      * - a body stretched along the frame's axes, see below
+        - ``scale="sx sy sz" scaling="geometry"``
 
    Scales of nested frames compose by multiplication. A single value applies to all three axes. Values must be finite
-   and positive, and the three values must currently be equal: anisotropic scaling is not yet supported.
+   and positive.
+
+   Three different values stretch the contents along the frame's axes, which requires :at:`scaling` "geometry".
+   Positions are mapped exactly and orientations are kept, so each shape inside is stretched in its own coordinates,
+   which only some shapes can represent:
+
+   - meshes always, with an instance of the mesh for each distinct stretch;
+   - boxes, ellipsoids, planes and height fields aligned with the frame's axes;
+   - capsules and cylinders aligned with the frame's axes and stretched equally across their own axis. The caps of a
+     capsule stay hemispherical: with :math:`a` the factor across its axis and :math:`c` the factor along it, its
+     radius :math:`r` becomes :math:`a r` and its half-length :math:`h` becomes :math:`c h`, so that its total length
+     is :math:`2 (c h + a r)` rather than :math:`2 c (h + r)`;
+   - spheres only when scaled uniformly; use an ellipsoid otherwise.
+
+   Hinge and slide joints must also be aligned with the frame's axes. Anything else is a compile error; alignment is
+   checked to within about 2 degrees. Sites are never an error: a site box, ellipsoid, capsule or cylinder is stretched
+   by the factor along each of its own axes, with the radius of a capsule or cylinder taking the geometric mean of the
+   two factors across it, which is approximate when the site is not aligned. Explicit inertias transform exactly.
+   Sphere sites, and lengths without a direction like margins, contact widths and tendon widths, take the geometric mean
+   of the three factors.
 
    A mesh or height field used at several scales compiles to an instance per scale; the first keeps its name and the
-   others are named ``name@1``, ``name@2``, ... The bones of a skin must have the same scale, and elements with
-   plugins and tactile sensors cannot be scaled.
+   others are named ``name@1``, ``name@2``, ... A model saved compiled writes a mesh instance which is not stretched
+   along its own axes as vertices and faces; its texture coordinates are kept only if they are given per vertex, and its
+   normals are recomputed. The bones of a skin must have the same scale, and elements with plugins and tactile sensors
+   cannot be scaled.
 
 .. _frame-scaling:
 

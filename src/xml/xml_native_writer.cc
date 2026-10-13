@@ -455,12 +455,16 @@ void mjXWriter::WriteSpecInertial(XMLElement* elem, const mjCBody* body) {
     mjuu_copyvec(pos, body->ipos_compiled_, 3);
     mjuu_copyvec(inertia, body->inertia_compiled_, 3);
     g.Point(pos);
-    g.Inertia(mass, inertia, full);
+    g.Inertia(mass, inertia, full, body->iquat_compiled_);
     XMLElement* inertial = InsertEnd(elem, "inertial");
     WriteAttr(inertial, "pos", 3, pos);
     WriteAttr(inertial, "quat", 4, body->iquat_compiled_, unitq);
     WriteAttr(inertial, "mass", 1, &mass);
-    WriteAttr(inertial, "diaginertia", 3, inertia);
+    if (mjuu_defined(full[0])) {
+      WriteAttr(inertial, "fullinertia", 6, full);
+    } else {
+      WriteAttr(inertial, "diaginertia", 3, inertia);
+    }
   }
 }
 
@@ -644,10 +648,35 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
 
 // write mesh
 void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
-  string text;
+  string         text;
+  const mjsMesh* values = Values<mjsMesh>(mesh);
+
+  // an instance whose map does not multiply the scale is saved compiled with its vertices in the
+  // coordinates of its geoms, which the frame of the compiled mesh gives
+  mjsMesh baked;
+  if (!writingdefaults && !authored_ && !mesh->InstanceDiagonal()) {
+    baked = *values;
+    mjuu_zerovec(baked.refpos, 3);
+    mjuu_setvec(baked.refquat, 1, 0, 0, 0);
+    mjuu_setvec(baked.scale, 1, 1, 1);
+    values = &baked;
+    std::vector<float> vert(mesh->Vert().size());
+    for (int i = 0; i < mesh->nvert(); i++) {
+      double v[3] = {mesh->Vert(3 * i), mesh->Vert(3 * i + 1), mesh->Vert(3 * i + 2)};
+      mjuu_rotVecQuat(v, v, mesh->Quat());
+      for (int k = 0; k < 3; k++) { vert[3 * i + k] = (float)(v[k] + mesh->Pos()[k]); }
+    }
+    WriteAttrTxt(elem, "name", mesh->name);
+    if (mesh->classname != "main") { WriteAttrTxt(elem, "class", mesh->classname); }
+    WriteAttrTxt(elem, "vertex", Numbers(vert));
+    if (mesh->ntexcoord() == mesh->nvert() && mesh->FaceTexcoord() == mesh->Face()) {
+      WriteAttrTxt(elem, "texcoord", Numbers(mesh->Texcoord()));
+    }
+    WriteAttrTxt(elem, "face", Numbers(mesh->Face()));
+  }
 
   // regular
-  if (!writingdefaults) {
+  else if (!writingdefaults) {
     WriteAttrTxt(elem, "name", mesh->name);
     if (mesh->classname != "main") { WriteAttrTxt(elem, "class", mesh->classname); }
     WriteAttrTxt(elem,
@@ -681,11 +710,8 @@ void mjXWriter::OneMesh(XMLElement* elem, const mjCMesh* mesh, mjCDef* def) {
   }
 
   // defaults and regular
-  WriteAttrTable(elem, Values<mjsMesh>(mesh), &def->Mesh().spec, kMeshAttrs, kMeshAttrsN);
-  WriteAttrInt(elem,
-               "maxhullvert",
-               Values<mjsMesh>(mesh)->maxhullvert,
-               def->Mesh().spec.maxhullvert);
+  WriteAttrTable(elem, values, &def->Mesh().spec, kMeshAttrs, kMeshAttrsN);
+  WriteAttrInt(elem, "maxhullvert", values->maxhullvert, def->Mesh().spec.maxhullvert);
   const string& material = Pick(authored_, mesh->spec.material, mesh->Material());
   if (material != Pick(authored_, def->Mesh().spec.material, def->Mesh().Material())) {
     WriteAttrTxt(elem, "material", material);
@@ -698,7 +724,7 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
   string         text;
   mjCSkin        defskin;
   const mjsSkin* values = Values<mjsSkin>(skin);
-  const bool     scaled = !authored_ && skin->scale_ != 1;
+  const bool     scaled = !authored_ && skin->scaled_;
   const string   file   = scaled ? "" : Pick(authored_, skin->spec.file, skin->File());
 
   // write attributes

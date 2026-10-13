@@ -950,12 +950,12 @@ bool mjCFlexcomp::MakeMesh(
       return false;
     }
 
-    if (cmesh->instancescale_ != 1) {
-      unscaled                 = std::make_unique<mjCMesh>(*cmesh);
-      unscaled->model          = cmesh->model;
-      unscaled->compiler       = cmesh->compiler;
-      unscaled->instancescale_ = 1;
-      cmesh                    = unscaled.get();
+    if (cmesh->instancemap_ != decltype(cmesh->instancemap_){1, 0, 0, 0, 1, 0, 0, 0, 1}) {
+      unscaled               = std::make_unique<mjCMesh>(*cmesh);
+      unscaled->model        = cmesh->model;
+      unscaled->compiler     = cmesh->compiler;
+      unscaled->instancemap_ = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+      cmesh                  = unscaled.get();
     }
 
     try {

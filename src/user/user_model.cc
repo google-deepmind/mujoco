@@ -2050,23 +2050,25 @@ std::vector<mjCHField*> mjCModel::CompiledHFields() const {
 
 // give each use of an asset the instance of the asset at the scale of the use: the asset itself at
 // the scale of its first use, and instances named after it at the others
+using InstanceMap = std::array<double, 9>;
+
 template <class T>
-static void Instantiate(const mjCModel*                            model,
-                        mjtObj                                     type,
-                        std::vector<T*>&                           assets,
-                        std::vector<T*>&                           instances,
-                        const std::vector<std::pair<T**, double>>& uses,
-                        bool                                       reuse) {
+static void Instantiate(const mjCModel*                                 model,
+                        mjtObj                                          type,
+                        std::vector<T*>&                                assets,
+                        std::vector<T*>&                                instances,
+                        const std::vector<std::pair<T**, InstanceMap>>& uses,
+                        bool                                            reuse) {
   if (!reuse) {
     for (T* instance : instances) { delete instance; }
     instances.clear();
-    std::unordered_map<const T*, double> first;
+    std::unordered_map<const T*, InstanceMap> first;
     for (const auto& [use, scale] : uses) { first.emplace(*use, scale); }
     for (T* asset : assets) {
-      auto   it    = first.find(asset);
-      double scale = it == first.end() ? 1 : it->second;
-      if (asset->instancescale_ != scale) {
-        asset->instancescale_ = scale;
+      auto        it    = first.find(asset);
+      InstanceMap scale = it == first.end() ? InstanceMap{1, 0, 0, 0, 1, 0, 0, 0, 1} : it->second;
+      if (asset->instancemap_ != scale) {
+        asset->instancemap_ = scale;
         asset->CopyFromSpec();
       }
     }
@@ -2074,9 +2076,9 @@ static void Instantiate(const mjCModel*                            model,
 
   for (const auto& [use, scale] : uses) {
     T* asset = *use;
-    if (asset->instancescale_ == scale) { continue; }
-    auto same = [asset, scale](const T* instance) {
-      return instance->primary_ == asset && instance->instancescale_ == scale;
+    if (asset->instancemap_ == scale) { continue; }
+    auto same = [asset, &scale](const T* instance) {
+      return instance->primary_ == asset && instance->instancemap_ == scale;
     };
     auto it = std::find_if(instances.begin(), instances.end(), same);
     if (it == instances.end()) {
@@ -2088,13 +2090,13 @@ static void Instantiate(const mjCModel*                            model,
       if (model->FindObject(type, name)) {
         throw mjCError(asset, "the name '%s' of an instance of this asset is taken", name.c_str());
       }
-      T* instance              = new T(*asset);
-      instance->model          = asset->model;
-      instance->compiler       = asset->compiler;
-      instance->name           = name;
-      instance->primary_       = asset;
-      instance->instancescale_ = scale;
-      instance->id             = assets.size() + instances.size();
+      T* instance            = new T(*asset);
+      instance->model        = asset->model;
+      instance->compiler     = asset->compiler;
+      instance->name         = name;
+      instance->primary_     = asset;
+      instance->instancemap_ = scale;
+      instance->id           = assets.size() + instances.size();
       instance->CopyFromSpec();
       instances.push_back(instance);
       it = instances.end() - 1;
@@ -2122,14 +2124,14 @@ static void Instantiate(const mjCModel*                            model,
 // give the geoms and sites which use a mesh or a height field the instance of the asset at the
 // scale of their use, in the order of their ids, made again unless the assets are reused
 void mjCModel::MakeInstances(bool reuse) {
-  std::vector<std::pair<mjCMesh**, double>>   meshuses;
-  std::vector<std::pair<mjCHField**, double>> hfielduses;
+  std::vector<std::pair<mjCMesh**, InstanceMap>>   meshuses;
+  std::vector<std::pair<mjCHField**, InstanceMap>> hfielduses;
   for (mjCGeom* geom : geoms_) {
-    if (geom->mesh) { meshuses.emplace_back(&geom->mesh, geom->Gauge().shape); }
-    if (geom->hfield) { hfielduses.emplace_back(&geom->hfield, geom->Gauge().shape); }
+    if (geom->mesh) { meshuses.emplace_back(&geom->mesh, geom->ShapeMap()); }
+    if (geom->hfield) { hfielduses.emplace_back(&geom->hfield, geom->ShapeMap()); }
   }
   for (mjCSite* site : sites_) {
-    if (site->mesh) { meshuses.emplace_back(&site->mesh, site->Gauge().shape); }
+    if (site->mesh) { meshuses.emplace_back(&site->mesh, site->ShapeMap()); }
   }
   Instantiate(this, mjOBJ_MESH, meshes_, meshinstances_, meshuses, reuse);
   Instantiate(this, mjOBJ_HFIELD, hfields_, hfieldinstances_, hfielduses, reuse);

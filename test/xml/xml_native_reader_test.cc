@@ -1473,7 +1473,8 @@ TEST_F(XMLReaderTest, InvalidFrameScale) {
       {R"(<frame scaling="material"/>)", "invalid keyword"},
       {R"(<frame scale="0"/>)", "frame scale must be finite and positive"},
       {R"(<frame scale="1 -1 1"/>)", "frame scale must be finite and positive"},
-      {R"(<frame scale="1 2 1"/>)", "frame scale must be uniform"},
+      {R"(<frame scale="1 2 1"/>)",
+       "anisotropic frame scale requires scaling 'geometry'"},
       {R"(<frame massscale="-1"/>)",
        "frame massscale must be finite and non-negative"},
   };

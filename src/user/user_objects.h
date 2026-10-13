@@ -359,13 +359,16 @@ class mjCOctree : public mjCOctree_ {
 // Generic functionality for all derived classes
 
 // accumulated scale of an element, composed along its ancestry, in the coordinates in which the
-// element is posed: the length factor of its shape, the length and mass factors of its forces, and
-// the factor of its masses and inertias
+// element is posed: the linear map of its shape and the geometric mean of its length factors, the
+// length and mass factors of its forces, and the factor of its masses and inertias. A uniform map
+// is the identity times the shape factor
 struct mjCGauge {
   double shape   = 1;
   double length  = 1;
   double mass    = 1;
   double inertia = 1;
+  bool   uniform = true;
+  double map[9]  = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
   // gauge of a frame scale under the given policy, with the given mass factor (0: ratio of volumes)
   static mjCGauge Of(const double scale[3], mjtScaling scaling, double massscale);
@@ -382,18 +385,29 @@ struct mjCGauge {
   // length factor along a direction
   double Stretch(const double dir[3]) const;
 
-  // scale the first n sizes of a primitive aligned with the axes of the gauge
-  void Size(double size[3], int n) const;
+  // true if the map keeps a direction, within the alignment tolerance
+  bool Aligned(const double dir[3]) const;
 
-  // scale a mass, the diagonal inertia and, if defined, the full inertia
-  void Inertia(double& mass, double inertia[3], double fullinertia[6]) const;
+  // scale the size of a geom or site of the given type and orientation; returns an error message if
+  // its shape cannot represent its scaled self; sites instead stretch along their own axes, and
+  // sphere sites take the mean factor
+  const char* Size(double size[3], int type, const double quat[4], bool site = false) const;
 
-  // geometric mean of the gauges of two participants
+  // scale a mass and the diagonal or, if defined, the full inertia, given in the frame of iquat; a
+  // map which is not uniform gives the full inertia
+  void Inertia(double& mass, double inertia[3], double fullinertia[6], const double iquat[4]) const;
+
+  // the gauge in the coordinates of a frame with the given orientation
+  mjCGauge Rotated(const double quat[4]) const;
+
+  // geometric mean of the gauges of two participants, for quantities without a direction
   static mjCGauge Mean(const mjCGauge& a, const mjCGauge& b);
 
-  bool     IsIdentity() const { return shape == 1 && length == 1 && mass == 1 && inertia == 1; }
+  bool IsIdentity() const {
+    return uniform && shape == 1 && length == 1 && mass == 1 && inertia == 1;
+  }
   bool     IsForceIdentity() const { return length == 1 && mass == 1; }
-  mjCGauge Inverse() const { return {1 / shape, 1 / length, 1 / mass, 1 / inertia}; }
+  mjCGauge Inverse() const;
   mjCGauge operator*(const mjCGauge& other) const;
 };
 
@@ -680,6 +694,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   // accumulate compiled inertia of another body into this body
   void AccumulateInertia(const mjsBody* other);
 
+  // gauge of what this body contains, in its coordinates
+  mjCGauge ContentGauge() const override;
+
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment
@@ -948,6 +965,9 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   // scale the compiled copy by the gauge, or back
   void ApplyGauge(bool inverse = false);
 
+  // map of the gauge in the frame of this geom, which its mesh or height field instance takes
+  std::array<double, 9> ShapeMap() const;
+
   // write to the spec what compiles to the compiled values of this geom, for mj_copyBack: the
   // position and the orientation which are new; and those of size, pose and surface velocity
   // which are new. A size and pose which the spec gives as fromto, or by fitting to a mesh, are
@@ -1023,6 +1043,9 @@ class mjCSite : public mjCSite_, private mjsSite {
 
   // scale the compiled copy by the gauge, or back
   void ApplyGauge(bool inverse = false);
+
+  // map of the gauge in the frame of this site, which its mesh instance takes
+  std::array<double, 9> ShapeMap() const;
 
   // write to the spec what compiles to the compiled values of this site, as for a geom
   void PoseToSpec(bool position, bool orientation);
@@ -1335,9 +1358,9 @@ class mjCMesh_ : public mjCBase {
 
  public:
   // the asset of the spec which this instance repeats at another scale, if compilation made it,
-  // and the factor of the scale at which geoms and sites use this instance
-  const mjCMesh* primary_       = nullptr;
-  double         instancescale_ = 1;
+  // and the linear map, in the frame of the geoms and sites which use this instance, of that scale
+  const mjCMesh*        primary_     = nullptr;
+  std::array<double, 9> instancemap_ = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 };
 
 class mjCMesh : public mjCMesh_, private mjsMesh {
@@ -1397,6 +1420,13 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   const std::vector<int>&    UserTet() const { return spec_tet_; }
   mjtMeshInertia             Inertia() const { return spec.inertia; }
   const std::string&         Material() const { return material_; }
+
+  // the frame of the compiled mesh in the coordinates of its geoms
+  const double* Pos() const { return pos_; }
+  const double* Quat() const { return quat_; }
+
+  // true if the map of this instance is diagonal, which then multiplies the scale of the mesh
+  bool InstanceDiagonal() const;
 
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
@@ -1490,6 +1520,7 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   // scale
   std::string CacheId(const mjResource* resource) const;
 
+
   // convert vertices to double precision and remove repeated vertices if requested
   void ProcessVertices(const std::vector<float>& vert, bool remove_repeated = false);
 
@@ -1566,8 +1597,8 @@ class mjCSkin_ : public mjCBase {
   int              matid;   // material id
   std::vector<int> bodyid;  // body ids
 
-  // factor of the shape of the bones, which compilation applied to the vertices and the bind pose
-  double scale_ = 1;
+  // compilation scaled the vertices and the bind poses with the bones
+  bool scaled_ = false;
 };
 
 class mjCSkin : public mjCSkin_, private mjsSkin {
@@ -1628,9 +1659,9 @@ class mjCHField_ : public mjCBase {
 
  public:
   // the asset of the spec which this instance repeats at another scale, if compilation made it,
-  // and the factor of the scale at which geoms use this instance
-  const mjCHField* primary_       = nullptr;
-  double           instancescale_ = 1;
+  // and the linear map, in the frame of the geoms which use this instance, of that scale
+  const mjCHField*      primary_     = nullptr;
+  std::array<double, 9> instancemap_ = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
