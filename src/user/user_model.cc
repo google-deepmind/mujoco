@@ -3914,7 +3914,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     for (int j = 0; j < (int)pte->path.size(); j++) {
       m->wrap_type[adr + j]  = pte->path[j]->Type();
       m->wrap_objid[adr + j] = pte->path[j]->obj ? pte->path[j]->obj->id : -1;
-      m->wrap_prm[adr + j]   = (mjtNum)pte->path[j]->prm;
+      m->wrap_prm[adr + j]   = (mjtNum)(pte->path[j]->prm * pte->path[j]->prmscale);
       if (pte->path[j]->Type() == mjWRAP_SPHERE || pte->path[j]->Type() == mjWRAP_CYLINDER) {
         m->wrap_prm[adr + j] = (mjtNum)pte->path[j]->sideid;
       }
@@ -6039,8 +6039,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (auto material : materials_) material->Compile();
   for (auto pair : pairs_) pair->Compile();
   for (auto exclude : excludes_) exclude->Compile();
-  for (auto equality : equalities_) equality->Compile();
   for (auto tendon : tendons_) tendon->Compile();
+  for (auto equality : equalities_) equality->Compile();
   for (auto actuator : actuators_) actuator->Compile();
   for (auto sensor : sensors_) sensor->Compile();
   for (auto numeric : numerics_) numeric->Compile();

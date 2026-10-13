@@ -10,9 +10,10 @@ Significant new features
 - Frames can now resize their contents at compile time, without modifying the spec, using the new
   :ref:`scale<frame-scale>`, :ref:`scaling<frame-scaling>` and :ref:`massscale<frame-massscale>` attributes. Under the
   default ``similar`` policy a scaled model moves like the original in proportionally scaled gravity; under ``geometry``
-  only shapes and inertias change. Masses follow volumes unless ``massscale`` sets their factor. Currently the scale
-  applies to bodies, frames, joints, geoms, sites, cameras and lights; mesh and height field geoms, and
-  :ref:`mj_copyBack` into scaled frames, are not yet supported. See :ref:`frame/scale<frame-scale>` for details.
+  only shapes and inertias change. Masses follow volumes unless ``massscale`` sets their factor. Elements outside the
+  kinematic tree, like actuators, tendons, equalities, contact pairs and sensors, take the scale of the elements they
+  refer to. Mesh and height field geoms, flexes, skins, keyframes and :ref:`mj_copyBack` into scaled frames are not yet
+  supported. See :ref:`frame/scale<frame-scale>` for details.
 - Models can now be saved as written. With the new :ref:`savecompiled<compiler-savecompiled>` compiler attribute set to
   "false", a model is saved as it is in the :ref:`mjSpec`, with its default classes, frames and exact numbers, and reads
   back as the same spec. With :ref:`savecanonical<compiler-savecanonical>` "false" it also keeps the notation it was

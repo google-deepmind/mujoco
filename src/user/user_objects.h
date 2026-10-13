@@ -388,7 +388,11 @@ struct mjCGauge {
   // scale a mass, the diagonal inertia and, if defined, the full inertia
   void Inertia(double& mass, double inertia[3], double fullinertia[6]) const;
 
+  // geometric mean of the gauges of two participants
+  static mjCGauge Mean(const mjCGauge& a, const mjCGauge& b);
+
   bool     IsIdentity() const { return shape == 1 && length == 1 && mass == 1 && inertia == 1; }
+  bool     IsForceIdentity() const { return length == 1 && mass == 1; }
   mjCGauge operator*(const mjCGauge& other) const;
 };
 
@@ -1756,6 +1760,7 @@ class mjCPair : public mjCPair_, private mjsPair {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
 
   mjCGeom* geom1;  // geom1
   mjCGeom* geom2;  // geom2
@@ -1840,6 +1845,7 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
 };
 
 
@@ -1902,8 +1908,13 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   bool is_limited() const;
   bool is_actfrclimited() const;
 
+  // gauge of the lowest frame or body containing the path, and 1 if the length is a length
+  mjCGauge PathGauge() const;
+  int      Linear() const;
+
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
 };
 
 
@@ -1915,6 +1926,8 @@ class mjCWrap_ : public mjCBase {
   int         sideid;    // side site id; -1 if not applicable
   double      prm;       // parameter: divisor, coefficient
   std::string sidesite;  // name of side site
+
+  double prmscale = 1;  // factor of the parameter in the compiled model
 };
 
 class mjCWrap : public mjCWrap_, private mjsWrap {
@@ -2002,6 +2015,12 @@ class mjCActuator_ : public mjCBase {
   double  ctrlranges_[4][2];  // resolved per-input control ranges
   mjtByte ctrllimiteds_[4];   // resolved per-input limited flags
 
+  // gauge of the transmission target, and what it makes of the transmission and the control
+  mjCGauge gauge_;
+  int      linear_    = 0;  // 1 if the transmission length is a length
+  double   ctrlscale_ = 1;  // factor of the control
+  double   actscale_  = 1;  // factor of the activation
+
   std::map<std::string, std::vector<mjtNum>> act_;   // act at the previous step
   std::map<std::string, std::vector<mjtNum>> ctrl_;  // ctrl at the previous step
 
@@ -2047,6 +2066,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec();
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
@@ -2102,6 +2122,7 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec();
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);

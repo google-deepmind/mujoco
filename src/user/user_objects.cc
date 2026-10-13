@@ -1634,6 +1634,37 @@ mjCGauge mjCGauge::operator*(const mjCGauge& other) const {
 }
 
 
+// geometric mean of the gauges of two participants
+mjCGauge mjCGauge::Mean(const mjCGauge& a, const mjCGauge& b) {
+  return {std::sqrt(a.shape * b.shape),
+          std::sqrt(a.length * b.length),
+          std::sqrt(a.mass * b.mass),
+          std::sqrt(a.inertia * b.inertia)};
+}
+
+
+// the frame or body which directly contains an element or a container
+static const mjCBase* Container(const mjCBase* element) {
+  return element->frame ? element->frame : element->GetParent();
+}
+
+
+// gauge in force inside the lowest frame or body which contains all the given elements
+static mjCGauge LowestContainerGauge(const std::vector<const mjCBase*>& elements) {
+  if (elements.empty()) { return mjCGauge(); }
+  for (const mjCBase* c = Container(elements[0]); c; c = Container(c)) {
+    bool all = true;
+    for (int i = 1; i < elements.size() && all; i++) {
+      const mjCBase* d = Container(elements[i]);
+      while (d && d != c) { d = Container(d); }
+      all = d == c;
+    }
+    if (all) { return c->ContentGauge(); }
+  }
+  return mjCGauge();
+}
+
+
 // gauge of an element: that of the contents of its innermost frame or else its parent
 mjCGauge mjCBase::Gauge() const {
   if (frame) { return frame->ContentGauge(); }
@@ -6222,6 +6253,22 @@ void mjCPair::ResolveReferences(const mjCModel* m) {
 
 
 // compiler
+// scale the compiled copy by the mean gauge of the two geoms; undefined values are inherited from
+// the geoms, which are scaled already
+void mjCPair::ApplyGauge() {
+  const mjCGauge g = mjCGauge::Mean(geom1->Gauge(), geom2->Gauge());
+  if (g.IsIdentity()) { return; }
+  const double fl = g.Shape(1);
+  if (mjuu_defined(margin)) { margin *= fl; }
+  if (mjuu_defined(gap)) { gap *= fl; }
+  if (mjuu_defined(solimp[0])) { solimp[2] *= fl; }
+  if (mjuu_defined(friction[0])) {
+    for (int i = 2; i < 5; i++) { friction[i] *= fl; }
+  }
+  adhesion *= g.Force(1, 1);
+}
+
+
 void mjCPair::Compile(void) {
   CopyFromSpec();
 
@@ -6232,6 +6279,7 @@ void mjCPair::Compile(void) {
 
   // find geoms
   ResolveReferences(model);
+  ApplyGauge();
 
   // set undefined margin: max
   if (!mjuu_defined(margin)) { margin = std::max(geom1->margin, geom2->margin); }
@@ -6575,12 +6623,58 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
 }
 
 
+// scale the compiled copy by the gauges of the constrained objects: an anchor by that of the body
+// in which it is given, a coupling by those of its coordinates, and the impedance width by the
+// dimension of the residual
+void mjCEquality::ApplyGauge() {
+  double width = 1;
+  if (type == mjEQ_CONNECT || type == mjEQ_WELD) {
+    const bool     body = objtype == mjOBJ_BODY;
+    const mjCBase* o1   = model->FindObject(objtype, name1_);
+    const mjCBase* o2 =
+        name2_.empty() ? (body ? model->Bodies()[0] : nullptr) : model->FindObject(objtype, name2_);
+    mjCGauge g1 = body ? o1->ContentGauge() : o1->Gauge();
+    mjCGauge g2 = o2 ? (body ? o2->ContentGauge() : o2->Gauge()) : mjCGauge();
+    if (g1.IsIdentity() && g2.IsIdentity()) { return; }
+    const mjCGauge mean = mjCGauge::Mean(g1, g2);
+    width               = mean.Shape(1);
+    if (body && type == mjEQ_CONNECT) {
+      g1.Point(data);
+      width = g1.Shape(1);
+    } else if (body) {
+      g2.Point(data);
+      g1.Point(data + 3);
+      data[10] *= mean.Shape(1);
+    }
+  } else if (type == mjEQ_JOINT || type == mjEQ_TENDON) {
+    // factor of the coordinate of a joint or tendon
+    auto coordinate = [&](const std::string& name) -> double {
+      if (name.empty()) { return 1; }
+      if (type == mjEQ_JOINT) {
+        const mjCJoint* joint = static_cast<const mjCJoint*>(model->FindObject(mjOBJ_JOINT, name));
+        return joint->spec.type == mjJNT_SLIDE ? joint->Gauge().Stretch(joint->spec.axis) : 1;
+      }
+      const mjCTendon* tendon =
+          static_cast<const mjCTendon*>(model->FindObject(mjOBJ_TENDON, name));
+      return tendon->Linear() ? tendon->PathGauge().Shape(1) : 1;
+    };
+    const double q1 = coordinate(name1_);
+    const double q2 = coordinate(name2_);
+    if (q1 == 1 && q2 == 1) { return; }
+    for (int k = 0; k < 5; k++) { data[k] *= q1 / std::pow(q2, k); }
+    width = q1;
+  }
+  solimp[2] *= width;
+}
+
+
 // compiler
 void mjCEquality::Compile(void) {
   CopyFromSpec();
 
   // find objects
   ResolveReferences(model);
+  ApplyGauge();
 
   // make sure flex is not rigid, and has no conflicting stretch forces
   if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
@@ -6804,6 +6898,68 @@ void mjCTendon::ResolveReferences(const mjCModel* m) {
 }
 
 
+// gauge of the lowest frame or body containing the path
+mjCGauge mjCTendon::PathGauge() const {
+  std::vector<const mjCBase*> elements;
+  for (const mjCWrap* wrap : path) {
+    if (wrap->Type() != mjWRAP_PULLEY && wrap->obj) { elements.push_back(wrap->obj); }
+  }
+  return LowestContainerGauge(elements);
+}
+
+
+// 1 if the length of the tendon is a length: spatial, or fixed with a slide joint
+int mjCTendon::Linear() const {
+  for (const mjCWrap* wrap : path) {
+    if (wrap->Type() != mjWRAP_JOINT) { return 1; }
+    const mjCJoint* joint = static_cast<const mjCJoint*>(wrap->obj);
+    if (joint && joint->spec.type == mjJNT_SLIDE) { return 1; }
+  }
+  return 0;
+}
+
+
+// scale the compiled copy by the gauge of the path; the coefficient of a joint converts its
+// coordinate to the length of the tendon, so it takes the ratio of their factors
+void mjCTendon::ApplyGauge() {
+  const mjCGauge g  = PathGauge();
+  const int      q  = Linear();
+  const double   fq = q ? g.Shape(1) : 1;
+  for (mjCWrap* wrap : path) {
+    wrap->prmscale = 1;
+    if (wrap->Type() == mjWRAP_JOINT && wrap->obj) {
+      const mjCJoint* joint = static_cast<const mjCJoint*>(wrap->obj);
+      bool            slide = joint->spec.type == mjJNT_SLIDE;
+      wrap->prmscale        = fq / (slide ? joint->Gauge().Stretch(joint->spec.axis) : 1);
+    }
+  }
+  if (g.IsIdentity()) { return; }
+
+  // length: shape class
+  if (springlength[0] != -1 || springlength[1] != -1) {
+    springlength[0] *= fq;
+    springlength[1] *= fq;
+  }
+  range[0]           *= fq;
+  range[1]           *= fq;
+  margin             *= fq;
+  solimp_limit[2]    *= fq;
+  solimp_friction[2] *= fq;
+  width              *= g.Shape(1);
+
+  // springs, dampers, armature and forces: force class
+  const int a = 2 - q;
+  for (int n = 0; n <= mjNPOLY; n++) {
+    stiffness[n] *= g.Force(a - (n + 1) * q, 1);
+    damping[n]   *= g.Force(a - (n + 1) * q, 1);
+  }
+  armature       *= g.Force(a - q, 1);
+  frictionloss   *= g.Force(a, 1);
+  actfrcrange[0] *= g.Force(a, 1);
+  actfrcrange[1] *= g.Force(a, 1);
+}
+
+
 // compiler
 void mjCTendon::Compile(void) {
   // compile all wraps in the path
@@ -6841,6 +6997,7 @@ void mjCTendon::Compile(void) {
 
   // compile objects in path
   ResolveReferences(model);
+  ApplyGauge();
 
   // check path
   for (int i = 0; i < sz; i++) {
@@ -7350,6 +7507,157 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
 }
 
 
+// scale the compiled copy by the gauge of the transmission target. Q is the coordinate of the
+// transmission, L^q, and G the generalized force, M L^(2-q) T^-2; gains and biases are force class
+// whatever their dimension, and a control follows its declared input
+void mjCActuator::ApplyGauge() {
+  // transmission target, and whether its coordinate is a length
+  const bool linear6 = gear[0] || gear[1] || gear[2];
+  gauge_             = mjCGauge();
+  linear_            = 0;
+  double fq          = 1;
+  switch (trntype) {
+    case mjTRN_JOINT:
+    case mjTRN_JOINTINPARENT: {
+      const mjCJoint* joint = static_cast<const mjCJoint*>(ptarget);
+      gauge_                = joint->Gauge();
+      if (joint->spec.type == mjJNT_SLIDE) {
+        linear_ = 1;
+        fq      = gauge_.Stretch(joint->spec.axis);
+      } else if (joint->spec.type == mjJNT_FREE && linear6) {
+        linear_ = 1;
+        fq      = gauge_.Shape(1);
+      }
+      break;
+    }
+    case mjTRN_TENDON:
+      gauge_  = static_cast<const mjCTendon*>(ptarget)->PathGauge();
+      linear_ = static_cast<const mjCTendon*>(ptarget)->Linear();
+      fq      = linear_ ? gauge_.Shape(1) : 1;
+      break;
+    case mjTRN_SITE:
+      gauge_  = ptarget->Gauge();
+      linear_ = linear6;
+      fq      = linear_ ? gauge_.Shape(1) : 1;
+      break;
+    case mjTRN_SLIDERCRANK:
+      gauge_ =
+          mjCGauge::Mean(ptarget->Gauge(), model->FindObject(mjOBJ_SITE, slidersite_)->Gauge());
+      linear_ = 1;
+      fq      = gauge_.Shape(1);
+      break;
+    case mjTRN_BODY:
+      gauge_  = ptarget->ContentGauge();
+      linear_ = 1;
+      fq      = gauge_.Shape(1);
+      break;
+    default:
+      break;
+  }
+  ctrlscale_ = actscale_ = 1;
+  const mjCGauge& g      = gauge_;
+  if (g.IsIdentity()) { return; }
+
+  // parameters which the gauge cannot interpret
+  if (!g.IsForceIdentity() && (plugin.active ||
+                               gaintype == mjGAIN_USER ||
+                               biastype == mjBIAS_USER ||
+                               dyntype == mjDYN_USER ||
+                               gaintype == mjGAIN_DCMOTOR ||
+                               dyntype == mjDYN_DCMOTOR)) {
+    throw mjCError(this,
+                   "the parameters of this actuator cannot be scaled; use scaling 'geometry'");
+  }
+
+  // transmission: shape class
+  const int  q      = linear_;
+  const bool tofree = (trntype == mjTRN_JOINT || trntype == mjTRN_JOINTINPARENT) &&
+                      static_cast<const mjCJoint*>(ptarget)->spec.type == mjJNT_FREE;
+  if ((trntype == mjTRN_SITE || tofree) && linear6) {
+    for (int i = 3; i < 6; i++) { gear[i] *= g.Shape(1); }
+  }
+  cranklength    *= g.Shape(1);
+  lengthrange[0] *= fq;
+  lengthrange[1] *= fq;
+
+  // forces, dampers and armature: force class
+  const int a    = 2 - q;
+  forcerange[0] *= g.Force(a, 1);
+  forcerange[1] *= g.Force(a, 1);
+  for (int n = 0; n <= mjNPOLY; n++) { damping[n] *= g.Force(a - (n + 1) * q, 1); }
+  armature *= g.Force(a - q, 1);
+
+  // affine bias: G, G/Q, and G T/Q if negative; positive biasprm[2] is a damping ratio
+  auto affinebias = [&]() {
+    biasprm[0] *= g.Force(a, 1);
+    biasprm[1] *= g.Force(a - q, 1);
+    if (biasprm[2] < 0) { biasprm[2] *= g.Force(a - q, 1); }
+  };
+
+  // fixed or affine gain: the gain multiplies the declared input, or a command
+  if (gaintype == mjGAIN_FIXED || gaintype == mjGAIN_AFFINE) {
+    int    uL = 0, uM = 0;
+    double fu = 1;
+    if (ctrlspec == mjINPUT_POS || ctrlspec == mjINPUT_VEL) {
+      uL = q;
+      fu = fq;
+    } else if (ctrlspec == mjINPUT_PRESSURE) {
+      uL = -1;
+      uM = 1;
+      fu = g.Force(-1, 1);
+    }
+    gainprm[0] *= g.Force(a - uL, 1 - uM);
+    if (gaintype == mjGAIN_AFFINE) {
+      gainprm[1] *= g.Force(a - uL - q, 1 - uM);
+      gainprm[2] *= g.Force(a - uL - q, 1 - uM);
+    }
+    if (biastype == mjBIAS_AFFINE) { affinebias(); }
+    ctrlscale_ = fu;
+    if (dyntype == mjDYN_INTEGRATOR || dyntype == mjDYN_FILTER || dyntype == mjDYN_FILTEREXACT) {
+      actscale_ = fu;
+    }
+  }
+
+  // muscle: peak force if given; the rest is in units of the optimal length and of time
+  else if (gaintype == mjGAIN_MUSCLE) {
+    if (gainprm[2] > 0) { gainprm[2] *= g.Force(a, 1); }
+    if (biastype == mjBIAS_MUSCLE && biasprm[2] > 0) { biasprm[2] *= g.Force(a, 1); }
+  }
+
+  // pid: inputs pos, vel and ff; ki is G/(Q T), the integral and slew limits are Q
+  else if (gaintype == mjGAIN_PID) {
+    gainprm[0] *= g.Force(a - q, 1);
+    affinebias();
+    dynprm[0]   *= fq;
+    dynprm[1]   *= fq;
+    velrange[0] *= fq;
+    velrange[1] *= fq;
+    ffrange[0]  *= g.Force(a, 1);
+    ffrange[1]  *= g.Force(a, 1);
+    ctrlscale_   = fq;
+  }
+
+  // orientation servo: an angle or quaternion controls a torque
+  else if (gaintype == mjGAIN_SO3) {
+    gainprm[0] *= g.Force(2, 1);
+    biasprm[1] *= g.Force(2, 1);
+    if (biasprm[2] < 0) { biasprm[2] *= g.Force(2, 1); }
+  }
+
+  // dc motor under geometry: only position and velocity inputs change
+  else if (gaintype == mjGAIN_DCMOTOR) {
+    velrange[0] *= fq;
+    velrange[1] *= fq;
+    if (ctrlspec & mjINPUT_POS) { ctrlscale_ = fq; }
+  }
+
+  ctrlrange[0] *= ctrlscale_;
+  ctrlrange[1] *= ctrlscale_;
+  actrange[0]  *= actscale_;
+  actrange[1]  *= actscale_;
+}
+
+
 // compiler
 void mjCActuator::Compile(void) {
   CopyFromSpec();
@@ -7619,6 +7927,8 @@ void mjCActuator::Compile(void) {
                    name.c_str(),
                    id);
   }
+
+  ApplyGauge();
 
   // check damping/armature only valid for joint and tendon transmission
   bool has_damping = false;
@@ -8133,6 +8443,101 @@ mjtStage sensorNeedstage(mjtSensor type) {
 }
 
 // compiler
+// scale the cutoff and noise by the dimension of the output, in the gauge of the sensorized object;
+// the reference only chooses coordinates, except for distances which average both gauges
+void mjCSensor::ApplyGauge() {
+  if (!obj) { return; }
+
+  // gauge of the object, and the factor of its coordinate
+  mjCGauge g;
+  int      q  = 0;
+  double   fq = 1;
+  switch (objtype) {
+    case mjOBJ_JOINT: {
+      const mjCJoint* joint = static_cast<const mjCJoint*>(obj);
+      g                     = joint->Gauge();
+      q                     = joint->spec.type == mjJNT_SLIDE;
+      fq                    = q ? g.Stretch(joint->spec.axis) : 1;
+      break;
+    }
+    case mjOBJ_TENDON:
+      g  = static_cast<const mjCTendon*>(obj)->PathGauge();
+      q  = static_cast<const mjCTendon*>(obj)->Linear();
+      fq = q ? g.Shape(1) : 1;
+      break;
+    case mjOBJ_ACTUATOR: {
+      const mjCActuator* actuator = static_cast<const mjCActuator*>(obj);
+      g                           = actuator->gauge_;
+      q                           = actuator->linear_;
+      fq                          = q ? g.Shape(1) : 1;
+      break;
+    }
+    case mjOBJ_BODY:
+    case mjOBJ_XBODY:
+      g = obj->ContentGauge();
+      break;
+    default:
+      g = obj->Gauge();
+  }
+  if ((type == mjSENS_GEOMDIST || type == mjSENS_GEOMFROMTO) && ref) {
+    bool body = reftype == mjOBJ_BODY || reftype == mjOBJ_XBODY;
+    g         = mjCGauge::Mean(g, body ? ref->ContentGauge() : ref->Gauge());
+  }
+  if (type == mjSENS_TACTILE && ref) { g = ref->Gauge(); }
+  if (g.IsIdentity()) { return; }
+  if (type == mjSENS_PLUGIN) { throw mjCError(this, "a plugin sensor cannot be scaled"); }
+  if (type == mjSENS_TACTILE) { throw mjCError(this, "a tactile sensor cannot be scaled"); }
+
+  // factor of the output
+  double f = 1;
+  switch (type) {
+    case mjSENS_TOUCH:
+    case mjSENS_FORCE:
+      f = g.Force(1, 1);
+      break;
+    case mjSENS_TORQUE:
+    case mjSENS_SUBTREEANGMOM:
+      f = g.Force(2, 1);
+      break;
+    case mjSENS_ACCELEROMETER:
+    case mjSENS_VELOCIMETER:
+    case mjSENS_RANGEFINDER:
+    case mjSENS_GEOMDIST:
+    case mjSENS_GEOMFROMTO:
+    case mjSENS_FRAMEPOS:
+    case mjSENS_FRAMELINVEL:
+    case mjSENS_FRAMELINACC:
+    case mjSENS_SUBTREECOM:
+    case mjSENS_SUBTREELINVEL:
+      f = g.Shape(1);
+      break;
+    case mjSENS_JOINTPOS:
+    case mjSENS_JOINTVEL:
+    case mjSENS_TENDONPOS:
+    case mjSENS_TENDONVEL:
+    case mjSENS_ACTUATORPOS:
+    case mjSENS_ACTUATORVEL:
+    case mjSENS_JOINTLIMITPOS:
+    case mjSENS_JOINTLIMITVEL:
+    case mjSENS_TENDONLIMITPOS:
+    case mjSENS_TENDONLIMITVEL:
+      f = fq;
+      break;
+    case mjSENS_ACTUATORFRC:
+    case mjSENS_JOINTACTFRC:
+    case mjSENS_TENDONACTFRC:
+    case mjSENS_JOINTLIMITFRC:
+    case mjSENS_TENDONLIMITFRC:
+      f = g.Force(2 - q, 1);
+      break;
+    default:
+      break;
+  }
+  cutoff *= f;
+  noise  *= f;
+}
+
+
 void mjCSensor::Compile(void) {
   CopyFromSpec();
 
@@ -8171,6 +8576,7 @@ void mjCSensor::Compile(void) {
 
   // Find referenced object
   ResolveReferences(model);
+  ApplyGauge();
 
   // set datatype for non-user sensors
   if (type != mjSENS_USER) { datatype = sensorDatatype(type); }

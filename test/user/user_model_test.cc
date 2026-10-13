@@ -2815,5 +2815,268 @@ TEST_F(FrameScaleTest, MassScaleSimilarity) {
   }
 }
 
+// the actuators of the design: a position servo and a motor, on a hinge and a
+// slide, under both policies
+TEST_F(FrameScaleTest, Actuators) {
+  auto model = [](const char* frame) {
+    return absl::StrFormat(R"(
+    <mujoco>
+      <worldbody>
+        <frame %s>
+          <body pos="0 0 1">
+            <joint name="hinge" axis="0 1 0"/>
+            <joint name="slide" type="slide" range="0 0.2"/>
+            <geom size="0.1"/>
+          </body>
+        </frame>
+      </worldbody>
+      <actuator>
+        <position joint="hinge" kp="100" kv="10" ctrlrange="-1 1"
+                  forcerange="-50 50"/>
+        <position joint="slide" kp="300" ctrlrange="0 0.2"
+                  forcerange="-40 40"/>
+        <motor joint="slide" gear="50" ctrlrange="-1 1"/>
+        <motor joint="hinge" gear="1 0 0 1 1 1"/>
+      </actuator>
+    </mujoco>
+    )",
+                           frame);
+  };
+  MjModelPtr similar = LoadModelFromString(model(R"(scale="2")"));
+  MjModelPtr geometry =
+      LoadModelFromString(model(R"(scale="2" scaling="geometry")"));
+  ASSERT_THAT(similar.get(), NotNull());
+  ASSERT_THAT(geometry.get(), NotNull());
+  const mjtNum tol = MjTol(1e-12, 1e-5);
+
+  // hinge servo: kp and kv are torques, the control an angle
+  EXPECT_NEAR(similar->actuator_gainprm[0], 3200, 3200 * tol);
+  EXPECT_NEAR(similar->actuator_biasprm[1], -3200, 3200 * tol);
+  EXPECT_NEAR(similar->actuator_biasprm[2], -320, 320 * tol);
+  EXPECT_NEAR(similar->actuator_forcerange[1], 1600, 1600 * tol);
+  EXPECT_EQ(similar->actuator_ctrlrange[1], 1);
+  EXPECT_EQ(geometry->actuator_gainprm[0], 100);
+  EXPECT_EQ(geometry->actuator_forcerange[1], 50);
+
+  // slide servo: the control is a position, kp a force per length
+  EXPECT_NEAR(similar->actuator_ctrlrange[3], 0.4, tol);
+  EXPECT_NEAR(similar->actuator_gainprm[mjNGAIN], 2400, 2400 * tol);
+  EXPECT_NEAR(similar->actuator_forcerange[3], 640, 640 * tol);
+  EXPECT_NEAR(geometry->actuator_ctrlrange[3], 0.4, tol);
+  EXPECT_EQ(geometry->actuator_gainprm[mjNGAIN], 300);
+
+  // motor: the control is a command, which the gain absorbs under similar
+  EXPECT_EQ(similar->actuator_ctrlrange[5], 1);
+  EXPECT_EQ(similar->actuator_gear[12], 50);
+  EXPECT_NEAR(similar->actuator_gainprm[2 * mjNGAIN], 16, 16 * tol);
+  EXPECT_EQ(geometry->actuator_gainprm[2 * mjNGAIN], 1);
+
+  // the gear of a joint is a scalar, its other entries are not scaled
+  EXPECT_THAT(GetRow(similar->actuator_gear, 6, 3),
+              ElementsAre(1, 0, 0, 1, 1, 1));
+}
+
+// elements outside the tree take the gauge of the elements they refer to: the
+// boundary of the design, an arm scaled by 2 in an unscaled world
+TEST_F(FrameScaleTest, Boundary) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="plane" size="5 5 0.1"/>
+      <site name="hook" pos="0 0 3"/>
+      <frame scale="2">
+        <body name="arm" pos="0 0 1">
+          <joint axis="0 1 0"/>
+          <geom name="hand" size="0.1"/>
+          <site name="tip" pos="0 0 -0.5"/>
+          <site name="tip2" pos="0.1 0 -0.5"/>
+        </body>
+      </frame>
+    </worldbody>
+    <contact>
+      <pair geom1="hand" geom2="floor" margin="0.01"
+            friction="1 1 0.005 0.0001 0.0001"/>
+    </contact>
+    <tendon>
+      <spatial springlength="0.3" stiffness="100">
+        <site site="tip"/>
+        <site site="tip2"/>
+      </spatial>
+      <spatial springlength="0.8" stiffness="100">
+        <site site="tip"/>
+        <site site="hook"/>
+      </spatial>
+    </tendon>
+    <equality>
+      <connect body1="arm" body2="world" anchor="0 0 0.2"/>
+    </equality>
+    <sensor>
+      <framepos objtype="site" objname="tip" reftype="site" refname="hook"
+                cutoff="4"/>
+      <touch site="tip" cutoff="10"/>
+      <rangefinder site="tip" cutoff="1"/>
+      <distance geom1="hand" geom2="floor" cutoff="1"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+
+  // a pair takes the geometric mean of the gauges of its geoms
+  EXPECT_NEAR(m->pair_margin[0], 0.01 * std::sqrt(2.0), tol);
+  EXPECT_NEAR(m->pair_friction[2], 0.005 * std::sqrt(2.0), tol);
+
+  // a tendon takes the gauge of the lowest frame or body containing its path
+  EXPECT_NEAR(m->tendon_lengthspring[0], 0.6, tol);
+  EXPECT_NEAR(m->tendon_stiffness[0], 800, 800 * tol);
+  EXPECT_NEAR(m->tendon_lengthspring[2], 0.8, tol);
+  EXPECT_NEAR(m->tendon_stiffness[1], 100, 100 * tol);
+
+  // a connect anchor is in the coordinates of its first body
+  EXPECT_NEAR(m->eq_data[2], 0.4, tol);
+
+  // a sensor takes the gauge of its object, not of its reference; a distance
+  // between two objects takes the geometric mean of their gauges
+  EXPECT_NEAR(m->sensor_cutoff[0], 8, tol);
+  EXPECT_NEAR(m->sensor_cutoff[1], 160, 160 * tol);
+  EXPECT_NEAR(m->sensor_cutoff[2], 2, tol);
+  EXPECT_NEAR(m->sensor_cutoff[3], std::sqrt(2.0), tol);
+}
+
+// a model with actuators, tendons, an equality, a contact pair and sensors, all
+// in a frame of the given scale, in the given gravity
+static std::string Mechanism(double scale, double gravity) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <option gravity="0 0 %.17g" tolerance="0" iterations="30"/>
+    <worldbody>
+      <frame scale="%.17g">
+        <geom name="floor" type="plane" size="5 5 0.1"/>
+        <site name="anchor" pos="0.5 0 1.5"/>
+        <body pos="0 0 1">
+          <joint name="hinge" axis="0 1 0" damping="0.3" armature="0.01"
+                 range="-30 30"/>
+          <geom type="capsule" fromto="0 0 0 0.3 0 -0.5" size="0.05"/>
+          <site name="elbow" pos="0.3 0 -0.5"/>
+          <body pos="0.3 0 -0.5">
+            <joint name="slide" type="slide" axis="1 0 0" damping="1"
+                   range="-0.05 0.05" frictionloss="0.1"/>
+            <geom type="box" size="0.1 0.05 0.05" mass="0.5"/>
+          </body>
+        </body>
+        <body name="link" pos="-1 0 1">
+          <joint type="ball" damping="0.1"/>
+          <geom type="capsule" fromto="0 0 0 0.2 0 -0.4" size="0.04"/>
+        </body>
+        <body pos="1 0 0.3">
+          <freejoint/>
+          <geom name="sphere" type="sphere" size="0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <contact>
+      <pair geom1="sphere" geom2="floor" margin="0.01"/>
+    </contact>
+    <tendon>
+      <fixed stiffness="5" springlength="0.01">
+        <joint joint="hinge" coef="0.1"/>
+        <joint joint="slide" coef="1"/>
+      </fixed>
+      <spatial name="bungee" stiffness="20" damping="0.5" range="0.1 2">
+        <site site="anchor"/>
+        <site site="elbow"/>
+      </spatial>
+    </tendon>
+    <equality>
+      <connect body1="link" anchor="0.2 0 -0.4"/>
+    </equality>
+    <actuator>
+      <position joint="slide" kp="300" kv="5" ctrlrange="-0.04 0.04"
+                forcerange="-40 40"/>
+      <motor joint="hinge" gear="2" ctrlrange="-1 1"/>
+      <motor tendon="bungee" ctrlrange="-1 1"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="slide"/>
+      <framepos objtype="site" objname="elbow"/>
+    </sensor>
+  </mujoco>
+  )",
+                         gravity, scale);
+}
+
+// the statement of the design, with the elements outside the tree: controls
+// declared as positions are lengths, commands are unchanged
+TEST_F(FrameScaleTest, SimilarityWithActuators) {
+  constexpr double s = 1.7;
+  constexpr double g = -9.81;
+  std::array<char, 1024> error;
+  MjModelPtr m0 =
+      LoadModelFromString(Mechanism(1, g / s), error.data(), error.size());
+  ASSERT_THAT(m0.get(), NotNull()) << error.data();
+  MjModelPtr m1 = LoadModelFromString(Mechanism(s, g));
+  ASSERT_THAT(m1.get(), NotNull());
+  MjDataPtr d0 = MakeData(m0);
+  MjDataPtr d1 = MakeData(m1);
+
+  // factors: slide, free position; the servo control; slide and site positions
+  std::vector<mjtNum> qfactor(m0->nq, 1);
+  qfactor[1] = s;
+  for (int i = 6; i < 9; i++) qfactor[i] = s;
+  const mjtNum ufactor[3] = {s, 1, 1};
+  const mjtNum sfactor[4] = {s, s, s, s};
+
+  for (int step = 0; step < 500; step++) {
+    for (int i = 0; i < 3; i++) {
+      d0->ctrl[i] = 0.03 * std::sin(0.02 * step + i);
+      d1->ctrl[i] = ufactor[i] * d0->ctrl[i];
+    }
+    mj_step(m0.get(), d0.get());
+    mj_step(m1.get(), d1.get());
+    for (int i = 0; i < m0->nq; i++) {
+      EXPECT_NEAR(d1->qpos[i] / qfactor[i], d0->qpos[i], MjTol(1e-10, 1e-4))
+          << "step " << step << ", qpos " << i;
+    }
+    for (int i = 0; i < 4; i++) {
+      EXPECT_NEAR(d1->sensordata[i] / sfactor[i], d0->sensordata[i],
+                  MjTol(1e-10, 1e-4))
+          << "step " << step << ", sensor " << i;
+    }
+    if (HasFailure()) break;
+  }
+}
+
+// actuator parameters which the gauge cannot interpret are an error under a
+// force gauge, and compile under geometry
+TEST_F(FrameScaleTest, UserActuator) {
+  auto model = [](const char* scaling) {
+    return absl::StrFormat(R"(
+    <mujoco>
+      <worldbody>
+        <frame scale="2" scaling="%s">
+          <body>
+            <joint name="hinge"/>
+            <geom size="0.1"/>
+          </body>
+        </frame>
+      </worldbody>
+      <actuator>
+        <general joint="hinge" gaintype="user" biastype="user"/>
+      </actuator>
+    </mujoco>
+    )",
+                           scaling);
+  };
+  std::array<char, 1024> error;
+  MjModelPtr m =
+      LoadModelFromString(model("similar"), error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cannot be scaled"));
+  m = LoadModelFromString(model("geometry"), error.data(), error.size());
+  EXPECT_THAT(m.get(), NotNull()) << error.data();
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -2536,6 +2536,15 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // resolve body ids
   ResolveReferences(model);
 
+  // a flex is not scaled yet
+  for (const std::vector<std::string>* names : {&vertbody_, &nodebody_}) {
+    for (const std::string& name : *names) {
+      if (!model->FindObject(mjOBJ_BODY, name)->ContentGauge().IsIdentity()) {
+        throw mjCError(this, "a flex on a scaled body cannot be compiled");
+      }
+    }
+  }
+
   // process elements
   for (int e = 0; e < (int)elem_.size() / (dim + 1); e++) {
     // make sorted copy of element

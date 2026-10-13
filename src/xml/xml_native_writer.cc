@@ -2742,11 +2742,13 @@ void mjXWriter::Tendon(XMLElement* root) {
     for (int j = 0; j < tendon->NumWraps(); j++) {
       const mjCWrap* wrap = tendon->GetWrap(j);
       switch (wrap->Type()) {
-        case mjWRAP_JOINT:
+        case mjWRAP_JOINT: {
           wrapelem = InsertEnd(elem, "joint");
           WriteAttrTxt(wrapelem, "joint", authored_ ? wrap->name : wrap->obj->name);
-          WriteAttr(wrapelem, "coef", 1, &wrap->prm);
+          double coef = authored_ ? wrap->prm : wrap->prm * wrap->prmscale;
+          WriteAttr(wrapelem, "coef", 1, &coef);
           break;
+        }
 
         case mjWRAP_SITE:
           wrapelem = InsertEnd(elem, "site");

@@ -3496,6 +3496,9 @@ void mjCSkin::ResolveReferences(const mjCModel* m) {
   for (int i = 0; i < nbone; i++) {
     mjCBase* pbody = m->FindObject(mjOBJ_BODY, bodyname_[i]);
     if (!pbody) { throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str()); }
+    if (!pbody->ContentGauge().IsIdentity()) {
+      throw mjCError(this, "a skin on a scaled body cannot be compiled");
+    }
     bodyid[i] = pbody->id;
   }
 }
