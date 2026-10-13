@@ -366,7 +366,8 @@ class WebViewer(viewer_protocol.Viewer):
     written to a temporary directory here, preserving names and relative
     paths — a dropped folder's asset references resolve, and the mjz/zip
     decoder can locate an archive's root XML by the archive's own name —
-    and the regular drop-loading flow (ViewerApp -> parser.parse) applies.
+    and the regular drop-loading flow applies (ViewerApp sends a
+    LoadModelEvent; the sim thread parses the file).
     """
     try:
       files = self._drop_queue.get_nowait()

@@ -16,15 +16,19 @@
 import mujoco
 
 
-def parse(filepath: str) -> mujoco.MjData:
+def load(filepath: str) -> mujoco.MjModel:
+  """Loads and compiles a model file: XML, URDF, MJB, or MJZ/ZIP."""
   if filepath.endswith('.mjb'):
-    model = mujoco.MjModel.from_binary_path(filepath)
-  elif filepath.endswith(('.mjz', '.zip')):
+    return mujoco.MjModel.from_binary_path(filepath)
+  if filepath.endswith(('.mjz', '.zip')):
     # .mjz archives mount assets into a VFS during parsing; the same VFS must
     # be passed to compile() so the assets remain accessible.
     with mujoco.MjVfs() as vfs:
       spec = mujoco.MjSpec.from_file(filepath, vfs=vfs)
-      model = spec.compile(vfs=vfs)
-  else:
-    model = mujoco.MjSpec.from_file(filepath).compile()
-  return mujoco.MjData(model)
+      return spec.compile(vfs=vfs)
+  return mujoco.MjSpec.from_file(filepath).compile()
+
+
+def parse(filepath: str) -> mujoco.MjData:
+  """Loads a model file and returns a fresh ``MjData`` for it."""
+  return mujoco.MjData(load(filepath))

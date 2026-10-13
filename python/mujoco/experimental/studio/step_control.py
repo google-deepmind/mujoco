@@ -26,13 +26,15 @@ class StepControl:
   Pass your own plugin instead to step differently (e.g. a GPU simulation).
 
   Pacing: this plugin owns real-time pacing. It steps as much sim time as fits
-  the wall-clock budget of one loop iteration. A sim loop without a stepping
-  plugin must pace itself: a bare while handle.is_running() and handle.sync(...)
-  loop busy-spins, since sync itself never sleeps.
+  the wall-clock budget of one loop iteration. Without a plugin handling
+  StepEvent that at minimum paces each iteration, a bare while
+  handle.is_running() and handle.sync(...) loop busy-spins, since sync itself
+  never sleeps.
   """
 
   def __init__(self) -> None:
     self._handle: viewer_handle.ViewerHandle | None = None
+    self._model_path: str = ''
     self.step_control = sim.StepControl()
 
   def _send_if_changes(self) -> contextlib.AbstractContextManager[None]:
@@ -50,8 +52,13 @@ class StepControl:
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_post_model(self, event: messages.PostModelEvent) -> None:
-    del event
-    self.step_control = sim.StepControl()
+    same_scene = bool(event.path and event.path == self._model_path)
+    self._model_path = event.path
+    if same_scene:
+      # Same scene reloaded: keep pause, speed, and noise; only resync pacing.
+      self.step_control.force_sync()
+    else:
+      self.step_control = sim.StepControl()
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_step_control(self, event: messages.StepControlSnapshot) -> bool:

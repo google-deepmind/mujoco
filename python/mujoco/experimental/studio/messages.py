@@ -239,10 +239,30 @@ class ModelEvent(Event):
 
   Attributes:
     model: The compiled MuJoCo model.
-    path: Optional file path the model was loaded from.
+    path: The file that produced ``model`` (e.g. via ``LoadModelEvent``), or
+      empty for an in-memory model. Reloading the same ``path`` preserves
+      viewer UI state (such as camera and pause); a different ``path`` (or
+      empty) resets it.
   """
 
   model: mujoco.MjModel
+  path: str = ''
+
+
+@dataclasses.dataclass(frozen=True)
+class LoadModelEvent(Event):
+  """Asks ``ViewerHandle`` to load a model file and publish a ``ModelEvent``.
+
+  Sent from viewer to sim or dispatched on the sim thread. Without a ``path``
+  this is **Reload**, which re-creates the current model from its ``path``.
+  With a ``path`` it loads that model file (e.g. provided on startup or
+  drag-dropped in the viewer) and makes it the current model.
+
+  Attributes:
+    path: The model file to load, or empty to reload the current model; see
+      ``ModelEvent.path``.
+  """
+
   path: str = ''
 
 
@@ -259,7 +279,7 @@ class PostModelEvent(Event):
   Attributes:
     model: The newly loaded model (sim-side MjModel or viewer's deep copy).
     data: The newly created and forwarded MjData for the model.
-    path: Optional file path the model was loaded from.
+    path: The file that produced ``model``, or empty; see ``ModelEvent.path``.
   """
 
   model: mujoco.MjModel

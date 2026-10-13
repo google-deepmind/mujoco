@@ -16,12 +16,17 @@
 import contextlib
 import copy
 import dataclasses
+import logging
+import os
 from typing import Any, Callable
 import mujoco
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import plugin_registry
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Launcher-owned liveness check: returns True while the viewer is still alive.
 # This enables the handle to notice a viewer died without sending ExitEvent.
@@ -92,6 +97,7 @@ class ViewerHandle:
     self._forward_error_fn = forward_error_fn
     self.model: mujoco.MjModel | None = None
     self.data: mujoco.MjData | None = None
+    self.model_path: str = ''
 
     # Instantiate handlers from user plugins + framework defaults.
     all_sim_plugins: list[Any] = list(sim_plugins or [])
@@ -205,8 +211,10 @@ class ViewerHandle:
       path: The file that produced ``model``, if any; see ``ModelEvent.path``.
       data: The data for ``model``; a fresh ``MjData`` is created when None.
     """
+    path = os.path.abspath(path) if path else ''
     self.model = model
     self.data = mujoco.MjData(model) if data is None else data
+    self.model_path = path
     mujoco.mj_forward(self.model, self.data)
     event = messages.ModelEvent(model=model, path=path)
     self.dispatch(event)
@@ -239,7 +247,8 @@ class ViewerHandle:
 
     Args:
       model: Optional model owned by the caller's loop. If None, keeps
-        simulating the model already on the handle (from ``set_model``).
+        simulating the model already on the handle (from ``set_model`` or
+        ``LoadModelEvent``).
       data: The data for ``model``; ignored when ``model`` is None.
 
     Returns:
@@ -255,7 +264,9 @@ class ViewerHandle:
       model_changed = model is not self.model
       self.model, self.data = model, data
       if model_changed:
+        # Model passed directly to sync() has no file path to reload from.
         assert self.model is not None and self.data is not None
+        self.model_path = ''
         self._sim_endpoint.send_to_viewer(messages.ModelEvent(model=self.model))
         self._sim_plugins.dispatch(
             messages.PostModelEvent(model=self.model, data=self.data)
@@ -316,6 +327,7 @@ class ViewerHandle:
       # Only needed when ModelEvent is dispatched without calling set_model().
       self.model = event.model
       self.data = mujoco.MjData(event.model)
+      self.model_path = event.path
       mujoco.mj_forward(self.model, self.data)
     assert self.model is not None and self.data is not None
     self.dispatch(
@@ -323,6 +335,23 @@ class ViewerHandle:
             model=self.model, data=self.data, path=event.path
         )
     )
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_load_model(self, event: messages.LoadModelEvent) -> None:
+    # Normalize so relative and absolute paths to a file match.
+    path = os.path.abspath(event.path) if event.path else self.model_path
+    if not path:
+      return
+    if self.model is None:
+      # Record path before loading so Reload can retry a broken initial file.
+      self.model_path = path
+    try:
+      model = parser.load(path)
+    except Exception:  # pylint: disable=broad-exception-caught
+      # A broken file must not take down the running viewer.
+      logger.exception('Loading %r failed; keeping the previous model.', path)
+      return
+    self.set_model(model, path=path)
 
   def _set_state(
       self,
@@ -394,8 +423,9 @@ class ViewerHandle:
 def run_sim_loop(handle: ViewerHandle) -> None:
   """Runs the standard simulation sync loop until the viewer closes.
 
-  Publish a model before calling this (``handle.set_model``), or include a sim
-  plugin that does; until one arrives the viewer shows an empty scene.
+  Publish a model before calling this (``handle.set_model`` or a
+  ``LoadModelEvent``), or include a sim plugin that does; until one arrives the
+  viewer shows an empty scene.
 
   With this loop, all sim-side behavior—stepping, pacing, and edits to
   ``model``, ``data``, or plugin state—belongs in ``sim_plugins`` handling

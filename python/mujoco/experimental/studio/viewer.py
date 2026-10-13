@@ -16,7 +16,6 @@
 from absl import app as _app
 from absl import flags as _flags
 from mujoco.experimental.studio import launch_passive
-from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import sim_history
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
@@ -45,18 +44,11 @@ def main(argv: list[str]) -> None:
 
   # Resolve model path, if provided.
   model_path = _MODEL.value or (
-      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
+      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else ''
   )
-
-  # Load model if path was provided.
-  data, model = None, None
-  if model_path and (data := parser.parse(model_path)):
-    model = data.model
 
   launch_passive.run(
       config,
-      model=model,
-      data=data,
       model_path=model_path,
       viewer_plugins=[viewer_app.ViewerApp()],
       sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],

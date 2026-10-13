@@ -18,6 +18,7 @@ from typing import Any
 import mujoco
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import launch_thread
+from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
@@ -78,17 +79,24 @@ def run(
 
   Args:
     config: Optional ViewerConfig (defaults to standard ViewerConfig()).
-    model: A model to publish before the loop starts.
+    model_path: Model file to load.
+    model: In-memory model to publish instead.
     data: The data for ``model``; a fresh one is created when None.
-    model_path: The file ``model`` came from, if any, for viewer reloads.
     viewer_plugins: Optional list of viewer-side plugin instances.
     sim_plugins: Optional list of sim-side plugin instances.
+
+  Raises:
+    ValueError: If both ``model`` and ``model_path`` are given.
   """
+  if model is not None and model_path:
+    raise ValueError('Pass either model_path or model, not both.')
   with launch(
       config,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   ) as handle:
     if model is not None:
-      handle.set_model(model, path=model_path or '', data=data)
+      handle.set_model(model, data=data)
+    elif model_path:
+      handle.dispatch(messages.LoadModelEvent(path=model_path))
     viewer_handle.run_sim_loop(handle)

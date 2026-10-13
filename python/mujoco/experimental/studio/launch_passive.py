@@ -20,6 +20,7 @@ that the calling thread uses to push simulation state into the viewer.
 from typing import Any
 
 import mujoco
+from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
@@ -41,9 +42,9 @@ def launch(
     viewer_plugins: Optional list of viewer-side plugin instances, which are
       classes with methods decorated with ``@handler``.
     sim_plugins: Optional list of sim-side plugin instances, which are classes
-      with methods decorated with ``@handler``. Include a stepping plugin
-      (e.g. ``step_control.StepControl()``) to advance the physics on each
-      ``sync``; without one nothing steps and the sim loop must pace itself.
+      with methods decorated with ``@handler``. Include a plugin that handles
+      ``StepEvent`` (e.g. ``step_control.StepControl()``) to advance the
+      physics and, at minimum, pace each ``sync`` call.
 
   Returns:
     A ViewerHandle for interacting with the viewer.
@@ -78,17 +79,24 @@ def run(
 
   Args:
     config: Viewer window configuration.
-    model: A model to publish before the loop starts.
+    model_path: Model file to load.
+    model: In-memory model to publish instead.
     data: The data for ``model``; a fresh one is created when None.
-    model_path: The file ``model`` came from, if any, for viewer reloads.
     viewer_plugins: Optional list of viewer-side plugin instances.
     sim_plugins: Optional list of sim-side plugin instances.
+
+  Raises:
+    ValueError: If both ``model`` and ``model_path`` are given.
   """
+  if model is not None and model_path:
+    raise ValueError('Pass either model_path or model, not both.')
   with launch(
       config,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   ) as handle:
     if model is not None:
-      handle.set_model(model, path=model_path or '', data=data)
+      handle.set_model(model, data=data)
+    elif model_path:
+      handle.dispatch(messages.LoadModelEvent(path=model_path))
     viewer_handle.run_sim_loop(handle)

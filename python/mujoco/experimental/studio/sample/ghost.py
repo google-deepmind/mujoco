@@ -26,7 +26,6 @@ from absl import flags as _flags
 import mujoco
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
-from mujoco.experimental.studio import parser
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_app_events
@@ -165,15 +164,6 @@ def main(argv: list[str]) -> None:
         'Please provide a model path argument or --model flag.'
     )
 
-  data = None
-  try:
-    if (data := parser.parse(model_path)) is None:
-      raise ValueError('parser returned None')
-  except Exception as ex:  # pylint: disable=broad-except
-    print(f'Failed to load model from {model_path!r}: {ex}')
-    sys.exit(1)
-  model = data.model
-
   config = viewer_protocol.ViewerConfig(
       title=os.path.basename(sys.argv[0]),
       width=_WIDTH.value,
@@ -186,8 +176,7 @@ def main(argv: list[str]) -> None:
 
   launch_passive.run(
       config,
-      model=model,
-      data=data,
+      model_path=model_path,
       viewer_plugins=[ghost_renderer],
       sim_plugins=[step_control.StepControl()],
   )
