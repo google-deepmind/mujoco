@@ -1491,6 +1491,7 @@ class Model:
     has_fluid: True if wind, density, or viscosity are non-zero at put_model time
     flg_surfacevel: whether model has non-zero surfacevel
     has_sdf_geom: whether the model contains SDF geoms
+    has_boxbox_margin: whether any box-box contact pair has a non-zero margin
     has_flex_selfcollide: whether any flex has self-collision enabled
     has_flex_passive: whether any flex has passive contact enabled
     has_flex_snh: whether any flex uses 3D SNH elasticity
@@ -2019,6 +2020,7 @@ class Model:
   has_fluid: bool
   flg_surfacevel: bool
   has_sdf_geom: bool
+  has_boxbox_margin: bool
   has_flex_selfcollide: bool
   has_flex_passive: bool
   has_flex_snh: bool
