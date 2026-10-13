@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a95a747..b941f09 100644
+index 02c889f..446da78 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
@@ -16,7 +16,7 @@ index a95a747..b941f09 100644
  
  # ==================================================================================================
  # Toolchain configuration
-@@ -267,57 +262,59 @@ if (WIN32)
+@@ -271,57 +266,59 @@ if (WIN32)
      # __declspec(dllexport) in front of each functions).
      set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
  
@@ -126,7 +126,7 @@ index a95a747..b941f09 100644
      endif()
  
      if (MSVC)
-@@ -364,7 +361,7 @@ endif()
+@@ -368,7 +365,7 @@ endif()
  # Detect use of the clang-cl.exe frontend, which does not support all of clangs normal options
  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
      if ("${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
@@ -135,7 +135,7 @@ index a95a747..b941f09 100644
      endif()
  endif()
  
-@@ -396,7 +393,7 @@ if (APPLE AND NOT IOS)
+@@ -400,7 +397,7 @@ if (APPLE AND NOT IOS)
  endif()
  
  set(CXX_STANDARD "-std=c++20")
@@ -144,7 +144,7 @@ index a95a747..b941f09 100644
      set(CXX_STANDARD "/std:c++20")
  endif()
  
-@@ -790,9 +787,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
+@@ -794,9 +791,14 @@ function(combine_static_libs TARGET OUTPUT DEPS)
      endforeach()
  
      if (WIN32)
@@ -161,10 +161,10 @@ index a95a747..b941f09 100644
              COMMENT "Combining ${target} dependencies into single shared library"
              VERBATIM
 diff --git a/filament/CMakeLists.txt b/filament/CMakeLists.txt
-index 32479e0..c6d5d36 100644
+index b3fac7b..de14c8a 100644
 --- a/filament/CMakeLists.txt
 +++ b/filament/CMakeLists.txt
-@@ -808,6 +808,9 @@ else()
+@@ -809,6 +809,9 @@ else()
              -Wover-aligned
              -Werror
      )
@@ -175,7 +175,7 @@ index 32479e0..c6d5d36 100644
  
  target_compile_options(${TARGET} PRIVATE
 diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
-index 2cf4db8..8f3a234 100644
+index e18f9bd..658c73f 100644
 --- a/filament/backend/CMakeLists.txt
 +++ b/filament/backend/CMakeLists.txt
 @@ -542,6 +542,10 @@ else()
@@ -440,7 +440,7 @@ index 4604eb7..fb95fa6 100644
      return *this;
  }
 diff --git a/libs/utils/include/utils/compiler.h b/libs/utils/include/utils/compiler.h
-index 243e93f..e14d564 100644
+index 7d33e70..f9e664c 100644
 --- a/libs/utils/include/utils/compiler.h
 +++ b/libs/utils/include/utils/compiler.h
 @@ -370,7 +370,7 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
