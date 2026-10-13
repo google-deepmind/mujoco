@@ -5,11 +5,25 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
-General
-^^^^^^^
+Significant new features
+^^^^^^^^^^^^^^^^^^^^^^^^
+- Frames can now resize their contents at compile time, without modifying the spec, using the new
+  :ref:`scale<frame-scale>`, :ref:`scaling<frame-scaling>` and :ref:`massscale<frame-massscale>` attributes. Under the
+  default ``similar`` policy a scaled model moves like the original in proportionally scaled gravity; under ``geometry``
+  only shapes and inertias change. Masses follow volumes unless ``massscale`` sets their factor. Currently the scale
+  applies to bodies, frames, joints, geoms, sites, cameras and lights; mesh and height field geoms, and
+  :ref:`mj_copyBack` into scaled frames, are not yet supported. See :ref:`frame/scale<frame-scale>` for details.
+- Models can now be saved as written. With the new :ref:`savecompiled<compiler-savecompiled>` compiler attribute set to
+  "false", a model is saved as it is in the :ref:`mjSpec`, with its default classes, frames and exact numbers, and reads
+  back as the same spec. With :ref:`savecanonical<compiler-savecanonical>` "false" it also keeps the notation it was
+  written in, such as orientations, angles, sizes and actuator shortcuts; see :ref:`Model Encoding & Saving <meSaving>`.
+  Both attributes default to "true", which saves models as before. :ref:`mj_copyBack` (``MjSpec.copy_back`` in Python)
+  now writes changes made to the model into the spec itself, leaving everything else as written.
 - Added support for building MuJoCo with `Bazel <https://bazel.build/>`__ (initially covers core library, ``simulate``,
   plugins, and samples).
 
+General
+^^^^^^^
 .. admonition:: Breaking API changes
    :class: attention
 
@@ -94,15 +108,6 @@ Compiler
      **Migration:** Use ``inertiafromgeom="auto"``, the default, under which the inertia is kept as an explicit
      :ref:`inertial<body-inertial>`, or give the visual geoms zero mass.
 
-- Added the compiler attributes :ref:`savecompiled<compiler-savecompiled>` and
-  :ref:`savecanonical<compiler-savecanonical>`, which say how a model is saved as MJCF. With ``savecompiled`` "false"
-  a model is saved as it is written in the :ref:`mjSpec` rather than as compilation made it: with its default
-  classes, frames and notation, and with every number exactly, so that the file which is read back is the same spec.
-  It compiles to the same model, and the spec need not have been compiled. ``savecanonical`` "true" saves
-  orientations, angles and sizes in one notation instead of the one in which they were written; see
-  :ref:`Model Encoding & Saving <meSaving>`. Both attributes are "true" by default, which saves a model as before.
-  With ``savecanonical`` "false", actuators are written with the shortcut they were written with (e.g.
-  ``<position kp="10"/>``) whenever it reads back as the same actuator.
 - :ref:`flexcomp<body-flexcomp>` can now reference a :ref:`mesh asset<asset-mesh>` directly using the
   :ref:`mesh<body-flexcomp-mesh>` attribute, in place of :at:`file`. Volumetric meshes (e.g. from GMSH) supply nodes
   and tetrahedra directly; surface meshes can create 1D or 2D flexes or extrude to volumetric tetrahedra using
@@ -112,11 +117,6 @@ Compiler
   :ref:`mesh/builtin<asset-mesh-builtin>` and :ref:`mjs_makeMesh`, generating the same shapes as the corresponding
   :ref:`flexcomp<body-flexcomp>` types, which flexcomp and geoms can use directly. Types without volume change a
   ``legacy`` mesh inertia to ``shell``. Added Python convenience methods ``mjsMesh.make_*``.
-- :ref:`mj_copyBack` now writes what was changed in the model to the :ref:`mjSpec` itself, as documented, so that
-  the changes are in the spec and in the models which are compiled from it afterwards. Previously it wrote to a copy
-  which is only read when the spec is saved. Only the values which were changed are written, each as what compiles to
-  it, so that everything else in the spec stays as it was written. Added the Python counterpart
-  ``MjSpec.copy_back(model)``.
 - Added :ref:`mjs_fuseStatic`, which fuses the static bodies of an :ref:`mjSpec` with their parents as an operation on
   the spec: each fused body becomes a frame in its parent. The :ref:`fusestatic<compiler-fusestatic>` compiler option
   now applies it and then compiles; previously it fused inside compilation and left the spec inconsistent with the

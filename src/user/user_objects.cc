@@ -1576,6 +1576,72 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
   frame = _frame;
 }
 
+
+// gauge of a frame scale: a change of length and mass units, or of shape and inertia only; lengths
+// without a direction take the geometric mean of the three
+mjCGauge mjCGauge::Of(const double scale[3], mjtScaling scaling, double massscale) {
+  bool   uniform = scale[0] == scale[1] && scale[1] == scale[2];
+  double s       = uniform ? scale[0] : std::cbrt(scale[0] * scale[1] * scale[2]);
+  double m       = massscale > 0 ? massscale : scale[0] * scale[1] * scale[2];
+  if (scaling == mjSCALING_GEOMETRY) { return {s, 1, 1, m}; }
+  return {s, s, m, m};
+}
+
+
+// factor of a shape-class quantity of dimension L^a M^b, without a direction
+double mjCGauge::Shape(double a, double b) const {
+  return std::pow(shape, a) * std::pow(inertia, b);
+}
+
+
+// factor of a force-class quantity of dimension L^a M^b
+double mjCGauge::Force(double a, double b) const {
+  return std::pow(length, a) * std::pow(mass, b);
+}
+
+
+// scale a position or displacement
+void mjCGauge::Point(double x[3]) const {
+  for (int i = 0; i < 3; i++) { x[i] *= shape; }
+}
+
+
+// length factor along a direction
+double mjCGauge::Stretch(const double dir[3]) const {
+  return shape;
+}
+
+
+// scale the first n sizes of a primitive aligned with the axes of the gauge
+void mjCGauge::Size(double size[3], int n) const {
+  for (int i = 0; i < n; i++) { size[i] *= shape; }
+}
+
+
+// scale a mass, the diagonal inertia and, if defined, the full inertia
+void mjCGauge::Inertia(double& mass_, double inertia[3], double fullinertia[6]) const {
+  mass_ *= Shape(0, 1);
+  for (int i = 0; i < 3; i++) { inertia[i] *= Shape(2, 1); }
+  if (mjuu_defined(fullinertia[0])) {
+    for (int i = 0; i < 6; i++) { fullinertia[i] *= Shape(2, 1); }
+  }
+}
+
+
+// composition of gauges along an ancestry
+mjCGauge mjCGauge::operator*(const mjCGauge& other) const {
+  return {shape * other.shape, length * other.length, mass * other.mass, inertia * other.inertia};
+}
+
+
+// gauge of an element: that of the contents of its innermost frame or else its parent
+mjCGauge mjCBase::Gauge() const {
+  if (frame) { return frame->ContentGauge(); }
+  const mjCBase* parent = GetParent();
+  return parent ? parent->ContentGauge() : mjCGauge();
+}
+
+
 void mjCBase::SetUserValue(std::string_view key, const void* data, void (*cleanup)(const void*)) {
   user_payload_[std::string(key)] = UserValue(data, cleanup);
 }
@@ -2516,6 +2582,9 @@ void mjCBody::MakeInertialExplicit() {
 
 // make the inertial which compilation calculated for this body part of the spec
 void mjCBody::AdoptInertial() {
+  if (!ContentGauge().IsIdentity()) {
+    throw mjCError(this, "the inertial of a scaled body cannot be written to the spec");
+  }
   MakeInertialExplicit();
   iframe    = nullptr;  // the inertial frame is in body coordinates
   spec.mass = mass;
@@ -2634,6 +2703,10 @@ void mjCBody::SpecInertial(double com[3], double inert[6]) const {
 
 // merge the inertial of a child body into the inertial in the spec of this body
 void mjCBody::MergeInertial(const mjCBody* child) {
+  if (!ContentGauge().IsIdentity() || !child->ContentGauge().IsIdentity()) {
+    throw mjCError(this, "the inertials of scaled bodies cannot be merged");
+  }
+
   // pose of the child in this body
   double childpos[3], childquat[4];
   mjuu_copyvec(childpos, child->spec.pos, 3);
@@ -2814,9 +2887,23 @@ mjtNum* mjCBody::mquat(const std::string& state_name) {
 }
 
 
+// scale the compiled copy by the gauge; the inertial takes that of the contents of its own frame
+void mjCBody::ApplyGauge() {
+  const mjCGauge g  = Gauge();
+  const mjCGauge gi = iframe ? iframe->ContentGauge() : ContentGauge();
+  if (g.IsIdentity() && gi.IsIdentity()) { return; }
+  if (plugin.active) { throw mjCError(this, "a body with a plugin cannot be scaled"); }
+
+  g.Point(pos);
+  if (mjuu_defined(ipos[0])) { gi.Point(ipos); }
+  gi.Inertia(mass, inertia, fullinertia);
+}
+
+
 // compiler
 void mjCBody::Compile(void) {
   CopyFromSpec();
+  ApplyGauge();
 
   // compile all frames
   for (int i = 0; i < frames.size(); i++) { frames[i]->Compile(); }
@@ -3210,6 +3297,7 @@ void mjCFrame::Compile() {
   if (!std::isfinite(massscale) || massscale < 0) {
     throw mjCError(this, "frame massscale must be finite and non-negative");
   }
+  ApplyGauge();
 
   // compile parents and accumulate result
   if (frame) {
@@ -3219,6 +3307,20 @@ void mjCFrame::Compile() {
 
   mjuu_normvec(quat, 4);
   compiled = true;
+}
+
+
+// scale the compiled copy by the gauge around this frame; its own scale applies to its contents
+void mjCFrame::ApplyGauge() {
+  const mjCGauge g = Gauge();
+  if (g.IsIdentity()) { return; }
+  g.Point(pos);
+}
+
+
+// gauge of what this frame contains: its own composed with its scale
+mjCGauge mjCFrame::ContentGauge() const {
+  return Gauge() * mjCGauge::Of(spec.scale, spec.scaling, spec.massscale);
 }
 
 
@@ -3349,9 +3451,42 @@ void mjCJoint::CopyFromSpec() {
 }
 
 
+// scale the compiled copy by the gauge; Q is L^q with q = 1 for a slide, F is M L^(2-q) T^-2, and
+// the shared parameters of a free joint, which mix both, are left as they are
+void mjCJoint::ApplyGauge() {
+  const mjCGauge g = Gauge();
+  if (g.IsIdentity()) { return; }
+  g.Point(pos);
+  if (type == mjJNT_FREE) { return; }
+
+  // coordinate: shape class, the stretch along the axis of a slide
+  const int    q      = type == mjJNT_SLIDE ? 1 : 0;
+  const double fq     = q ? g.Stretch(axis) : 1;
+  range[0]           *= fq;
+  range[1]           *= fq;
+  ref                *= fq;
+  springref          *= fq;
+  margin             *= fq;
+  solimp_limit[2]    *= fq;
+  solimp_friction[2] *= fq;
+
+  // springs, dampers, armature and forces: force class
+  const int a = 2 - q;
+  for (int n = 0; n <= mjNPOLY; n++) {
+    stiffness[n] *= g.Force(a - (n + 1) * q, 1);
+    damping[n]   *= g.Force(a - (n + 1) * q, 1);
+  }
+  armature       *= g.Force(a - q, 1);
+  frictionloss   *= g.Force(a, 1);
+  actfrcrange[0] *= g.Force(a, 1);
+  actfrcrange[1] *= g.Force(a, 1);
+}
+
+
 // compiler
 int mjCJoint::Compile(void) {
   CopyFromSpec();
+  ApplyGauge();
 
   // resize userdata
   if (userdata_.size() > model->nuser_jnt) {
@@ -3947,9 +4082,44 @@ const std::string& mjCGeom::get_material() const {
   return spec_material_;
 }
 
+
+// scale the compiled copy by the gauge; density is M L^-3, or M L^-2 for a shell
+void mjCGeom::ApplyGauge() {
+  const mjCGauge g = Gauge();
+  if (g.IsIdentity()) { return; }
+  if (plugin.active) { throw mjCError(this, "a geom with a plugin cannot be scaled"); }
+  if ((mesh || hfield) && g.shape != 1) {
+    throw mjCError(this, "a geom with a mesh or height field cannot be scaled");
+  }
+
+  // shape class
+  const double fl = g.Shape(1);
+  g.Point(pos);
+  g.Point(surfacevel);
+  g.Size(size, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+  if (mjuu_defined(fromto[0])) {
+    g.Point(fromto);
+    g.Point(fromto + 3);
+  }
+  friction[1] *= fl;
+  friction[2] *= fl;
+  margin      *= fl;
+  gap         *= fl;
+  solimp[2]   *= fl;
+  if (mjuu_defined(mass)) { mass *= g.Shape(0, 1); }
+  bool shell  = typeinertia == mjINERTIA_SHELL ||
+                (type == mjGEOM_MESH && mesh && mesh->spec.inertia == mjMESH_INERTIA_SHELL);
+  density    *= shell ? g.Shape(-2, 1) : g.Shape(-3, 1);
+
+  // force class
+  adhesion *= g.Force(1, 1);
+}
+
+
 // compiler
 void mjCGeom::Compile(void) {
   CopyFromSpec();
+  ApplyGauge();
 
   // resize userdata
   if (userdata_.size() > model->nuser_geom) {
@@ -4317,9 +4487,24 @@ const std::string& mjCSite::get_material() const {
 }
 
 
+// scale the compiled copy by the gauge
+void mjCSite::ApplyGauge() {
+  const mjCGauge g = Gauge();
+  if (g.IsIdentity()) { return; }
+  if (mesh && g.shape != 1) { throw mjCError(this, "a site with a mesh cannot be scaled"); }
+  g.Point(pos);
+  g.Size(size, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+  if (mjuu_defined(fromto[0])) {
+    g.Point(fromto);
+    g.Point(fromto + 3);
+  }
+}
+
+
 // compiler
 void mjCSite::Compile(void) {
   CopyFromSpec();
+  ApplyGauge();
 
   // resize userdata
   if (userdata_.size() > model->nuser_site) {
@@ -4526,9 +4711,25 @@ void mjCCamera::ResolveReferences(const mjCModel* m) {
 }
 
 
+// scale the compiled copy by the gauge; the image is unchanged
+void mjCCamera::ApplyGauge() {
+  const mjCGauge g = Gauge();
+  if (g.IsIdentity()) { return; }
+  const double fl = g.Shape(1);
+  g.Point(pos);
+  ipd *= fl;
+  for (int i = 0; i < 2; i++) {
+    sensor_size[i]      *= fl;
+    focal_length[i]     *= fl;
+    principal_length[i] *= fl;
+  }
+}
+
+
 // compiler
 void mjCCamera::Compile(void) {
   CopyFromSpec();
+  ApplyGauge();
 
   // resize userdata
   if (userdata_.size() > model->nuser_cam) {
@@ -4726,9 +4927,23 @@ void mjCLight::ResolveReferences(const mjCModel* m) {
 }
 
 
+// scale the compiled copy by the gauge; attenuation is 1, L^-1, L^-2
+void mjCLight::ApplyGauge() {
+  const mjCGauge g = Gauge();
+  if (g.IsIdentity()) { return; }
+  const double fl = g.Shape(1);
+  g.Point(pos);
+  bulbradius     *= fl;
+  range          *= fl;
+  attenuation[1] /= fl;
+  attenuation[2] /= fl * fl;
+}
+
+
 // compiler
 void mjCLight::Compile(void) {
   CopyFromSpec();
+  ApplyGauge();
 
   // frame
   if (frame) {

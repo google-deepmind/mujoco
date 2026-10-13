@@ -40,6 +40,7 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
+using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 
@@ -2445,6 +2446,373 @@ TEST_F(DelayBufferTest, ActuatorDelayBufferSizes) {
   EXPECT_EQ(m->actuator_historyadr[0], -1);
   EXPECT_EQ(m->actuator_historyadr[1], 0);
   EXPECT_EQ(m->actuator_historyadr[2], 8);
+}
+
+// ------------------------------ frame scale ----------------------------------
+
+using FrameScaleTest = MujocoTest;
+
+// a pendulum in a frame, with the given frame attributes
+static std::string Pendulum(const char* frame) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame" %s>
+        <body name="arm" pos="0 0 1">
+          <joint name="hinge" axis="0 1 0" damping="0.1" armature="0.01"/>
+          <geom type="capsule" fromto="0 0 0 0 0 -0.5" size="0.05"/>
+          <site name="tip" pos="0 0 -0.5" size="0.01"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )",
+                         frame);
+}
+
+// a unit scale compiles to the same model as no scale
+TEST_F(FrameScaleTest, IdentityScale) {
+  MjModelPtr m = LoadModelFromString(Pendulum(""));
+  ASSERT_THAT(m.get(), NotNull());
+  for (const char* frame :
+       {R"(scale="1")", R"(scale="1" scaling="geometry")"}) {
+    MjModelPtr m1 = LoadModelFromString(Pendulum(frame));
+    ASSERT_THAT(m1.get(), NotNull());
+    std::string field;
+    EXPECT_EQ(CompareModel(m.get(), m1.get(), field), 0) << field;
+  }
+}
+
+// the compiled values of the pendulum of the design, under both policies
+TEST_F(FrameScaleTest, Pendulum) {
+  MjModelPtr m = LoadModelFromString(Pendulum(""));
+  MjModelPtr similar = LoadModelFromString(Pendulum(R"(scale="2")"));
+  MjModelPtr geometry =
+      LoadModelFromString(Pendulum(R"(scale="2" scaling="geometry")"));
+  ASSERT_THAT(m.get(), NotNull());
+  ASSERT_THAT(similar.get(), NotNull());
+  ASSERT_THAT(geometry.get(), NotNull());
+
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  for (const mjModel* scaled : {similar.get(), geometry.get()}) {
+    EXPECT_EQ(scaled->body_pos[5], 2);
+    EXPECT_NEAR(scaled->geom_size[0], 0.1, tol);
+    EXPECT_EQ(scaled->site_pos[2], -1);
+    EXPECT_NEAR(scaled->body_mass[1], 8 * m->body_mass[1], 8 * tol);
+    for (int i = 0; i < 3; i++) {
+      EXPECT_NEAR(scaled->body_inertia[3 + i], 32 * m->body_inertia[3 + i],
+                  32 * tol);
+    }
+  }
+
+  // similar: hinge damping and armature are M L^2 T^-1 and M L^2
+  EXPECT_NEAR(similar->dof_damping[0], 3.2, tol);
+  EXPECT_NEAR(similar->dof_armature[0], 0.32, tol);
+
+  // geometry: forces are unchanged
+  EXPECT_EQ(geometry->dof_damping[0], m->dof_damping[0]);
+  EXPECT_EQ(geometry->dof_armature[0], m->dof_armature[0]);
+}
+
+// a frame scales its contents about its own origin, and nested scales compose
+TEST_F(FrameScaleTest, NestedTranslatedFrames) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame pos="1 0 0" euler="0 0 90" scale="2">
+        <frame pos="0 1 0" scale="3">
+          <geom pos="0 0 1" size="0.1"/>
+        </frame>
+        <body pos="1 0 0">
+          <geom size="0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  EXPECT_THAT(GetRow(m->geom_pos, 3, 0),
+              Pointwise(DoubleNear(tol), {-1, 0, 6}));
+  EXPECT_NEAR(m->geom_size[0], 0.6, tol);
+  EXPECT_THAT(GetRow(m->body_pos, 3, 1), Pointwise(DoubleNear(tol), {1, 2, 0}));
+  EXPECT_NEAR(m->geom_size[3], 0.2, tol);
+}
+
+// mixed policies compose: similar 2 around geometry 0.5 keeps the shape and
+// inertia and multiplies a hinge stiffness by 2^2 * 2^3
+TEST_F(FrameScaleTest, MixedPolicies) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="outer">
+        <frame name="inner" scaling="geometry">
+          <body>
+            <joint stiffness="1" damping="1"/>
+            <geom pos="0 0 1" size="0.1"/>
+          </body>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull());
+  mjs_findFrame(spec, "outer")->scale[0] = 2;
+  mjs_findFrame(spec, "outer")->scale[1] = 2;
+  mjs_findFrame(spec, "outer")->scale[2] = 2;
+  mjs_findFrame(spec, "inner")->scale[0] = 0.5;
+  mjs_findFrame(spec, "inner")->scale[1] = 0.5;
+  mjs_findFrame(spec, "inner")->scale[2] = 0.5;
+  mjModel* scaled = mj_compile(spec, nullptr);
+  ASSERT_THAT(scaled, NotNull()) << mjs_getError(spec);
+
+  EXPECT_EQ(scaled->geom_size[0], m->geom_size[0]);
+  EXPECT_EQ(scaled->body_mass[1], m->body_mass[1]);
+  EXPECT_EQ(scaled->jnt_stiffness[0], 32);
+  EXPECT_EQ(scaled->dof_damping[0], 32);
+
+  mj_deleteModel(scaled);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// masses follow massscale, by default the ratio of volumes: inertias take its
+// factor times the square of the scale, and under similar forces follow it
+TEST_F(FrameScaleTest, MassScale) {
+  MjModelPtr m = LoadModelFromString(Pendulum(""));
+  ASSERT_THAT(m.get(), NotNull());
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  struct Case {
+    const char* frame;
+    double length, mass, force;  // factors of lengths, masses, and damping
+  };
+  const Case kCases[] = {
+      {R"(scale="2" scaling="geometry" massscale="1")", 2, 1, 1},
+      {R"(massscale="2" scaling="geometry")", 1, 2, 1},
+      {R"(scale="2" massscale="1")", 2, 1, 4},
+      {R"(scale="2" massscale="2")", 2, 2, 8},
+  };
+  for (const Case& c : kCases) {
+    std::array<char, 1024> error;
+    MjModelPtr s =
+        LoadModelFromString(Pendulum(c.frame), error.data(), error.size());
+    ASSERT_THAT(s.get(), NotNull()) << error.data();
+    EXPECT_NEAR(s->geom_size[0], c.length * m->geom_size[0], tol) << c.frame;
+    EXPECT_NEAR(s->body_mass[1], c.mass * m->body_mass[1], c.mass * tol)
+        << c.frame;
+    for (int i = 0; i < 3; i++) {
+      double f = c.mass * c.length * c.length;
+      EXPECT_NEAR(s->body_inertia[3 + i], f * m->body_inertia[3 + i], f * tol)
+          << c.frame;
+    }
+    EXPECT_NEAR(s->dof_damping[0], c.force * m->dof_damping[0], c.force * tol)
+        << c.frame;
+  }
+}
+
+// a body with an explicit inertial and one with a geom of given mass, in a
+// frame of the given scale around a frame of the given mass factor
+static std::string NestedMass(const char* scale, const char* massscale) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="%s" scaling="geometry">
+        <frame massscale="%s" scaling="geometry">
+          <body>
+            <freejoint/>
+            <inertial pos="0 0 0" mass="2" diaginertia="1 1 1"/>
+          </body>
+          <body>
+            <freejoint/>
+            <geom size="0.1" mass="3"/>
+          </body>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )",
+                         scale, massscale);
+}
+
+// mass factors compose like scales: massscale is relative to the enclosing
+// frame, and explicit inertials and geom masses follow it
+TEST_F(FrameScaleTest, NestedMassScale) {
+  MjModelPtr m = LoadModelFromString(NestedMass("1", "0"));
+  MjModelPtr s = LoadModelFromString(NestedMass("2", "0.5"));
+  ASSERT_THAT(m.get(), NotNull());
+  ASSERT_THAT(s.get(), NotNull());
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  for (int b = 1; b < 3; b++) {
+    EXPECT_NEAR(s->body_mass[b], 4 * m->body_mass[b], tol);
+    EXPECT_NEAR(s->body_inertia[3 * b], 16 * m->body_inertia[3 * b], 16 * tol);
+  }
+}
+
+// compilation starts from the spec: compiling at 2, 0.5 and 2 again gives the
+// same model the first and the last time
+TEST_F(FrameScaleTest, NoAccumulation) {
+  mjSpec* spec = mj_parseXMLString(Pendulum("").c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjsFrame* frame = mjs_findFrame(spec, "frame");
+  std::vector<mjModel*> models;
+  for (double s : {2.0, 0.5, 2.0}) {
+    frame->scale[0] = frame->scale[1] = frame->scale[2] = s;
+    models.push_back(mj_compile(spec, nullptr));
+    ASSERT_THAT(models.back(), NotNull()) << mjs_getError(spec);
+  }
+  std::string field;
+  EXPECT_EQ(CompareModel(models[0], models[2], field), 0) << field;
+  EXPECT_GT(CompareModel(models[0], models[1], field), 0);
+  for (mjModel* m : models) mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// saved compiled, the scale is baked into the values, which reload to the same
+// model
+TEST_F(FrameScaleTest, SavesCompiled) {
+  mjSpec* spec = mj_parseXMLString(Pendulum(R"(scale="1.5")").c_str(), nullptr,
+                                   nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  std::string saved = SaveAndReadXml(spec);
+  EXPECT_THAT(saved, Not(HasSubstr("scale")));
+  MjModelPtr reloaded = LoadModelFromString(saved);
+  ASSERT_THAT(reloaded.get(), NotNull()) << saved;
+  std::string field;
+  EXPECT_LE(CompareModel(m, reloaded.get(), field), MjTol(1e-12, 1e-6))
+      << field;
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// what the compiler cannot yet scale is an error
+TEST_F(FrameScaleTest, Unsupported) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <frame scale="2">
+        <geom type="mesh" mesh="tetra"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("mesh or height field cannot be scaled"));
+
+  // copy back
+  mjSpec* spec =
+      mj_parseXMLString(Pendulum(R"(scale="2")").c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("scaled frames"));
+
+  // adopting an inertial
+  EXPECT_EQ(mjs_adoptInertial(mjs_findBody(spec, "arm"), nullptr), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("scaled body"));
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// a chain of hinge and slide joints, and a free sphere on a plane, all in a
+// frame of the given scale, in the given gravity
+static std::string Chain(double scale, double gravity) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <option gravity="0 0 %.17g" tolerance="0" iterations="20"/>
+    <worldbody>
+      <frame scale="%.17g">
+        <geom type="plane" size="5 5 0.1"/>
+        <body pos="0 0 1">
+          <joint axis="0 1 0" stiffness="2" damping="0.3" armature="0.01"
+                 springref="10" range="-30 30"/>
+          <geom type="capsule" fromto="0 0 0 0.3 0 -0.5" size="0.05"/>
+          <body pos="0.3 0 -0.5">
+            <joint type="slide" axis="1 0 0" stiffness="50" damping="1"
+                   range="-0.05 0.05" frictionloss="0.1" ref="0.02"/>
+            <geom type="box" size="0.1 0.05 0.05" mass="0.5"/>
+          </body>
+        </body>
+        <body pos="1 0 0.3">
+          <freejoint/>
+          <geom type="sphere" size="0.1" margin="0.01"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )",
+                         gravity, scale);
+}
+
+// the statement of the design: scaled by s under similar, in gravity g, a model
+// moves like the original in gravity g / s, with lengths multiplied by s
+TEST_F(FrameScaleTest, Similarity) {
+  constexpr double s = 1.7;
+  constexpr double g = -9.81;
+  MjModelPtr m0 = LoadModelFromString(Chain(1, g / s));
+  MjModelPtr m1 = LoadModelFromString(Chain(s, g));
+  ASSERT_THAT(m0.get(), NotNull());
+  ASSERT_THAT(m1.get(), NotNull());
+  MjDataPtr d0 = MakeData(m0);
+  MjDataPtr d1 = MakeData(m1);
+
+  // factors of qpos: slide and free positions are lengths
+  std::vector<mjtNum> factor(m0->nq, 1);
+  factor[1] = s;
+  for (int i = 2; i < 5; i++) factor[i] = s;
+
+  bool contact = false;
+  for (int step = 0; step < 500; step++) {
+    mj_step(m0.get(), d0.get());
+    mj_step(m1.get(), d1.get());
+    contact |= d0->ncon > 0;
+    for (int i = 0; i < m0->nq; i++) {
+      EXPECT_NEAR(d1->qpos[i] / factor[i], d0->qpos[i], MjTol(1e-10, 1e-4))
+          << "step " << step << ", qpos " << i;
+    }
+    if (HasFailure()) break;
+  }
+  EXPECT_TRUE(contact);
+}
+
+// a model scaled under similar with a mass factor moves like the original in
+// gravity g / s, whatever the factor
+TEST_F(FrameScaleTest, MassScaleSimilarity) {
+  constexpr double s = 1.7;
+  constexpr double g = -9.81;
+  MjModelPtr m0 = LoadModelFromString(Chain(1, g / s));
+  std::string scaled = Chain(s, g);
+  std::string::size_type at = scaled.find("<frame scale=");
+  ASSERT_NE(at, std::string::npos);
+  scaled.insert(at + 7, R"(massscale="0.3" )");
+  MjModelPtr m1 = LoadModelFromString(scaled);
+  ASSERT_THAT(m0.get(), NotNull());
+  ASSERT_THAT(m1.get(), NotNull()) << scaled;
+  MjDataPtr d0 = MakeData(m0);
+  MjDataPtr d1 = MakeData(m1);
+  std::vector<mjtNum> factor(m0->nq, 1);
+  for (int i = 1; i < 5; i++) factor[i] = s;
+  for (int step = 0; step < 300; step++) {
+    mj_step(m0.get(), d0.get());
+    mj_step(m1.get(), d1.get());
+    for (int i = 0; i < m0->nq; i++) {
+      EXPECT_NEAR(d1->qpos[i] / factor[i], d0->qpos[i], MjTol(1e-10, 1e-4))
+          << "step " << step << ", qpos " << i;
+    }
+    if (HasFailure()) break;
+  }
 }
 
 }  // namespace

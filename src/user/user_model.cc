@@ -4256,7 +4256,8 @@ void mjCModel::SaveState(const std::string& state_name,
     }
   }
 
-  // save standard state components
+  // save standard state components; they are restored as they are, so if a frame scale changed
+  // between the compilations, the lengths in the state of what it holds are not rescaled
   SaveState(state_name, d->qpos, d->qvel, d->act, d->ctrl, d->mocap_pos, d->mocap_quat);
 
   // save time and userdata
@@ -6615,6 +6616,14 @@ bool mjCModel::CopyBack(const mjModel* m) {
   if (spec.element->signature != m->signature) {
     errInfo = mjCError(0, "incompatible signatures in CopyBack");
     return false;
+  }
+
+  // values compiled under a frame scale are not written back
+  for (const mjCFrame* frame : frames_) {
+    if (frame->spec.scale[0] != 1 || frame->spec.scale[1] != 1 || frame->spec.scale[2] != 1) {
+      errInfo = mjCError(frame, "scaled frames are not supported in CopyBack");
+      return false;
+    }
   }
 
   // every value which the spec cannot express is reported before anything is written

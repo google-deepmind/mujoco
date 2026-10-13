@@ -358,6 +358,40 @@ class mjCOctree : public mjCOctree_ {
 //------------------------- class mjCBase ----------------------------------------------------------
 // Generic functionality for all derived classes
 
+// accumulated scale of an element, composed along its ancestry, in the coordinates in which the
+// element is posed: the length factor of its shape, the length and mass factors of its forces, and
+// the factor of its masses and inertias
+struct mjCGauge {
+  double shape   = 1;
+  double length  = 1;
+  double mass    = 1;
+  double inertia = 1;
+
+  // gauge of a frame scale under the given policy, with the given mass factor (0: ratio of volumes)
+  static mjCGauge Of(const double scale[3], mjtScaling scaling, double massscale);
+
+  // factor of a shape-class quantity of dimension L^a M^b, without a direction
+  double Shape(double a, double b = 0) const;
+
+  // factor of a force-class quantity of dimension L^a M^b
+  double Force(double a, double b) const;
+
+  // scale a position or displacement
+  void Point(double x[3]) const;
+
+  // length factor along a direction
+  double Stretch(const double dir[3]) const;
+
+  // scale the first n sizes of a primitive aligned with the axes of the gauge
+  void Size(double size[3], int n) const;
+
+  // scale a mass, the diagonal inertia and, if defined, the full inertia
+  void Inertia(double& mass, double inertia[3], double fullinertia[6]) const;
+
+  bool     IsIdentity() const { return shape == 1 && length == 1 && mass == 1 && inertia == 1; }
+  mjCGauge operator*(const mjCGauge& other) const;
+};
+
 class mjCBase_ : public mjsElement {
  public:
   int         id;         // object id
@@ -398,6 +432,12 @@ class mjCBase : public mjCBase_ {
 
   // Returns parent of this object
   virtual mjCBase* GetParent() const { return nullptr; }
+
+  // gauge of this element: that of its innermost frame or else its parent, from the spec
+  mjCGauge Gauge() const;
+
+  // gauge of what this element contains, in its own coordinates
+  virtual mjCGauge ContentGauge() const { return Gauge(); }
 
   // Returns the model of this object
   mjsCompiler* FindCompiler(const mjsCompiler* compiler) const;
@@ -636,6 +676,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   mjCBody& operator=(const mjCBody& other);         // copy assignment
 
   void Compile(void);          // compiler
+  void ApplyGauge();           // scale the compiled copy by the gauge
   void InertiaFromGeom(void);  // get inertial info from geoms
 
   // true if compilation infers the inertial of this body from its geoms
@@ -728,6 +769,9 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
 
   bool IsAncestor(const mjCFrame* child) const;  // true if child is contained in this frame
 
+  // gauge of what this frame contains: its own composed with its scale
+  mjCGauge ContentGauge() const;
+
   // express in this frame, as compiled, a pose which is given in its body
   void ToLocal(double childpos[3], double childquat[4]) const;
 
@@ -735,6 +779,7 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
 
   mjCBody* body;  // body that owns the frame
 };
@@ -797,6 +842,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
  private:
   int  Compile(void);  // compiler; return dofnum
+  void ApplyGauge();   // scale the compiled copy by the gauge
   void PointToLocal(void);
 
   // write to the spec the anchor, the axis or both, which compile to the compiled ones: in the
@@ -873,6 +919,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
 
  private:
   void   Compile(void);      // compiler
+  void   ApplyGauge();       // scale the compiled copy by the gauge
   double GetRBound(void);    // bounding sphere radius of a mesh or SDF geom
   void   ComputeAABB(void);  // compute axis-aligned bounding box
   void   CopyFromSpec(void);
@@ -949,6 +996,7 @@ class mjCSite : public mjCSite_, private mjsSite {
 
  private:
   void Compile(void);   // compiler
+  void ApplyGauge();    // scale the compiled copy by the gauge
   void CopyFromSpec();  // copy spec into attributes
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
@@ -997,6 +1045,7 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
@@ -1053,6 +1102,7 @@ class mjCLight : public mjCLight_, private mjsLight {
 
  private:
   void Compile(void);  // compiler
+  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
