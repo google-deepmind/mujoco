@@ -295,19 +295,25 @@ PYBIND11_MODULE(_structs, m, pybind11::mod_gil_not_used()) {
   MJVISUAL_RGBA_FIELDS
 #undef XVEC
 
-#define X(var)                    \
-  mjVisual.def_property_readonly( \
-      #var, [](const MjVisualWrapper& c) -> auto& { return c.get()->var; });
+#define X(var)                                                              \
+  mjVisual.def_property(                                                    \
+      #var, [](const MjVisualWrapper& c) -> auto& { return c.get()->var; }, \
+      [](MjVisualWrapper& c, const decltype(raw::MjVisual::var)& rhs) {     \
+        c.get()->var = rhs;                                                 \
+      });
   // mjVisual.global is exposed as "global_" to avoid clash with the Python
   // keyword.
-  mjVisual.def_property_readonly(
+  mjVisual.def_property(
       "global_",
-      [](const MjVisualWrapper& c) -> auto& { return c.get()->global; });
+      [](const MjVisualWrapper& c) -> auto& { return c.get()->global; },
+      [](MjVisualWrapper& c, const raw::MjVisualGlobal& rhs) {
+        c.get()->global = rhs;
+      });
   X(quality);
-  mjVisual.def_readonly("headlight", &MjVisualWrapper::headlight);
+  DefinePyStruct(mjVisual, "headlight", &MjVisualWrapper::headlight);
   X(map);
   X(scale);
-  mjVisual.def_readonly("rgba", &MjVisualWrapper::rgba);
+  DefinePyStruct(mjVisual, "rgba", &MjVisualWrapper::rgba);
 #undef X
 
   // ==================== MJMODEL ==============================================
@@ -353,9 +359,9 @@ This is useful for example when the MJB is not available as a file on disk.)"));
         return MjModelWrapper::Deserialize(input);
       }));
 
-  mjModel.def_readonly("opt", &MjModelWrapper::opt);
-  mjModel.def_readonly("vis", &MjModelWrapper::vis);
-  mjModel.def_readonly("stat", &MjModelWrapper::stat);
+  DefinePyStruct(mjModel, "opt", &MjModelWrapper::opt);
+  DefinePyStruct(mjModel, "vis", &MjModelWrapper::vis);
+  DefinePyStruct(mjModel, "stat", &MjModelWrapper::stat);
 
   mjModel.def_property(
       "flg_gravcomp",

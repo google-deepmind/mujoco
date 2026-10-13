@@ -264,6 +264,13 @@ Filament Rendering
    - Removed ``mjrf_DEBUG_drawImguiEditor`` from the public API; the ImGui scene editor is an internal debugging aid
      for MuJoCo Studio.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- The ``opt``, ``vis`` and ``stat`` attributes of ``MjModel``, and the sub-struct attributes of ``MjVisual``, can now
+  be assigned to (e.g. ``model.opt = new_opt``); previously this raised ``AttributeError``. Assignment copies the
+  fields into the underlying C struct in place, so existing references and NumPy array views into the destination
+  remain valid.
+
 Models
 ^^^^^^
 - Added three `elastic mechanism <https://github.com/google-deepmind/mujoco/tree/main/model/flex/mechanisms/>`__

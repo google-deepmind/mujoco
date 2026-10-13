@@ -1198,6 +1198,23 @@ static void DefinePyStr(pybind11::class_<C, O...> c, const char* name,
       });
 }
 
+// Defines a struct property of a Python class that supports assignments by
+// copying the underlying C struct in place.
+//
+// Use `DefinePyStruct(c, "somestruct", &MjStructHolder<C>::somestruct)`
+// as a drop-in replacement for
+// `c.def_readonly("somestruct", &MjStructHolder<C>::somestruct)`.
+template <typename T, typename C, typename... O>
+static void DefinePyStruct(pybind11::class_<C, O...> c, const char* name,
+                           T C::* member) {
+  c.def_property(
+      name,
+      [member](const C& wrapper) -> const T& { return wrapper.*member; },
+      [member](C& wrapper, const T& rhs) {
+        *(wrapper.*member).get() = *rhs.get();
+      });
+}
+
 // An equals operator that works for comparing numpy arrays too.
 // Unlike other objects, the equality operator for numpy arrays returns a
 // numpy array.

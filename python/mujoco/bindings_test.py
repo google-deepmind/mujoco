@@ -477,6 +477,60 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     np.testing.assert_allclose(opt2.timestep, 0.001)
     np.testing.assert_allclose(opt2.gravity, [2, 2, 2])
 
+  def test_mjmodel_and_mjvisual_substruct_assignment(self):
+    # Assigning to model.opt copies into the model and updates existing views.
+    gravity_view = self.model.opt.gravity
+    opt = mujoco.MjOption()
+    opt.timestep = 0.001
+    opt.gravity = (0, 0, -1)
+    self.model.opt = opt
+    self.assertEqual(self.model.opt, opt)
+    np.testing.assert_allclose(self.model.opt.timestep, 0.001)
+    np.testing.assert_array_equal(gravity_view, [0, 0, -1])
+    # The model holds a copy: later edits to opt do not propagate.
+    opt.timestep = 0.5
+    opt.gravity = (1, 2, 3)
+    np.testing.assert_allclose(self.model.opt.timestep, 0.001)
+    np.testing.assert_array_equal(self.model.opt.gravity, [0, 0, -1])
+
+    # Same for model.stat: in-place copy, existing array views stay valid.
+    stat = mujoco.MjStatistic()
+    stat.extent = 42.0
+    stat.center = (1, 2, 3)
+    center_view = self.model.stat.center
+    self.model.stat = stat
+    self.assertEqual(self.model.stat, stat)
+    np.testing.assert_array_equal(center_view, [1, 2, 3])
+
+    # Assigning a whole MjVisual updates views into its nested sub-structs.
+    vis = copy.copy(self.model.vis)
+    vis.global_.fovy = 75
+    vis.quality.shadowsize = 2048
+    vis.headlight.ambient = (0.2, 0.3, 0.4)
+    vis.map.stiffness = 200.0
+    vis.scale.framelength = 2.5
+    vis.rgba.fog = (0.1, 0.2, 0.3, 0.4)
+    ambient_view = self.model.vis.headlight.ambient
+    fog_view = self.model.vis.rgba.fog
+    self.model.vis = vis
+    self.assertEqual(self.model.vis, vis)
+    np.testing.assert_allclose(ambient_view, [0.2, 0.3, 0.4])
+    np.testing.assert_allclose(fog_view, [0.1, 0.2, 0.3, 0.4])
+
+    # Sub-structs with array fields (headlight) are assignable directly.
+    headlight = copy.copy(self.model.vis.headlight)
+    headlight.diffuse = (0.5, 0.6, 0.7)
+    self.model.vis.headlight = headlight
+    np.testing.assert_allclose(
+        self.model.vis.headlight.diffuse, [0.5, 0.6, 0.7]
+    )
+
+    # Sub-structs with only scalar fields (global_) are assignable too.
+    global_vis = copy.copy(self.model.vis.global_)
+    global_vis.fovy = 60
+    self.model.vis.global_ = global_vis
+    self.assertEqual(self.model.vis.global_.fovy, 60)
+
   def test_mjmodel_can_copy(self):
     model_copy = copy.copy(self.model)
 

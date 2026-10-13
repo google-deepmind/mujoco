@@ -275,6 +275,13 @@ that create a new :ref:`mjModel` instance: ``mujoco.MjModel.from_xml_string``, `
 functions accept the path to either an XML or MJB model file. All three functions optionally accept a Python
 dictionary which is converted into a MuJoCo :ref:`Virtualfilesystem` for use during model compilation.
 
+Assigning to a struct attribute writes into the underlying C memory rather than rebinding the attribute. For array
+fields, ``model.opt.gravity = value`` is equivalent to ``model.opt.gravity[:] = value``. Likewise, the sub-struct
+attributes of ``MjModel`` (``opt``, ``vis``, ``stat``) and ``MjVisual`` (``global_``, ``quality``, ``headlight``,
+``map``, ``scale``, ``rgba``) can be assigned to, for example ``model.opt = new_opt``, which copies the fields of
+``new_opt`` into the model's own ``mjOption`` struct in place. Any existing references and NumPy array views into the
+destination struct remain valid and reflect the new values; later modifications to ``new_opt`` do not propagate.
+
 
 
 .. _PyFunctions:
