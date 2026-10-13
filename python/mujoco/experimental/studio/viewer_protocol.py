@@ -86,7 +86,6 @@ class Viewer(abc.ABC):
       endpoint: endpoints.ViewerEndpoint,
       *,
       model: mujoco.MjModel | None = None,
-      model_path: str = '',
       plugins: list[Any] | None = None,
       camera: mujoco.MjvCamera | None = None,
       vis_options: mujoco.MjvOption | None = None,
@@ -102,7 +101,6 @@ class Viewer(abc.ABC):
       model: Optional initial MjModel. If None, an empty model is created from
         an empty MjSpec. The Viewer deep-copies this model and creates its own
         MjData.
-      model_path: Optional path to the model file.
       plugins: Optional list of plugin instances for viewer-side processing.
       camera: Camera parameters. Internal object is created if None.
       vis_options: Visualization options. Internal object is created if None.
@@ -121,7 +119,7 @@ class Viewer(abc.ABC):
     self.model: mujoco.MjModel
     self.data: mujoco.MjData
     self.model_path: str = ''
-    self.load_model(model, model_path)
+    self.load_model(model)
 
     # Visual state.
     self.camera = camera or mujoco.MjvCamera()
