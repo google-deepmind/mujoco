@@ -447,13 +447,20 @@ void mjXWriter::WriteSpecInertial(XMLElement* elem, const mjCBody* body) {
 
   // the calculated inertial is in the frame of the body as the spec gives it, which is where it
   // was before compilation aligned the body with a free joint, and with the mass before
-  // settotalmass scaled it, as the inertials which the spec gives: the saved file scales them all
+  // settotalmass scaled it, as the inertials which the spec gives: the saved file scales them all.
+  // It is in the units of the spec, which compilation scales by the frame of the body
   else if (model->spec.compiler.saveinertial && !body->iframe) {
+    const mjCGauge g = body->ContentGauge().Inverse();
+    double         pos[3], inertia[3], mass = body->mass_compiled_, full[6] = {mjNAN};
+    mjuu_copyvec(pos, body->ipos_compiled_, 3);
+    mjuu_copyvec(inertia, body->inertia_compiled_, 3);
+    g.Point(pos);
+    g.Inertia(mass, inertia, full);
     XMLElement* inertial = InsertEnd(elem, "inertial");
-    WriteAttr(inertial, "pos", 3, body->ipos_compiled_);
+    WriteAttr(inertial, "pos", 3, pos);
     WriteAttr(inertial, "quat", 4, body->iquat_compiled_, unitq);
-    WriteAttr(inertial, "mass", 1, &body->mass_compiled_);
-    WriteAttr(inertial, "diaginertia", 3, body->inertia_compiled_);
+    WriteAttr(inertial, "mass", 1, &mass);
+    WriteAttr(inertial, "diaginertia", 3, inertia);
   }
 }
 

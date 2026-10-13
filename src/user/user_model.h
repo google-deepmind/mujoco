@@ -561,6 +561,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   // expand a keyframe, filling in missing values
   void ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
+  // scale the vectors of a keyframe from the units of the spec to the compiled model, or back
+  template <class T>
+  void ScaleKeyframe(T* qpos, T* qvel, T* act, T* ctrl, T* mpos, bool inverse) const;
+
   // compute qpos0
   void ComputeReference();
 

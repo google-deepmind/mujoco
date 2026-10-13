@@ -393,6 +393,7 @@ struct mjCGauge {
 
   bool     IsIdentity() const { return shape == 1 && length == 1 && mass == 1 && inertia == 1; }
   bool     IsForceIdentity() const { return length == 1 && mass == 1; }
+  mjCGauge Inverse() const { return {1 / shape, 1 / length, 1 / mass, 1 / inertia}; }
   mjCGauge operator*(const mjCGauge& other) const;
 };
 
@@ -693,8 +694,12 @@ class mjCBody : public mjCBody_, private mjsBody {
   // have been compiled since the spec was last edited
   void CompiledInertial(double com[3], double inert[6]) const;
 
+  // true if compilation scales the inertial of this body, by its frame or by that of the inertial
+  bool ScaledInertial() const;
+
   // merge the inertial of a child body into the inertial in the spec of this body; an inertial
-  // which is inferred from geoms is taken as compiled, one which is given as it is in the spec
+  // which is inferred from geoms is taken as compiled, one which is given as it is in the spec.
+  // Scaled inertials are all taken as compiled, and the sum is written in the units of this body
   void MergeInertial(const mjCBody* child);
 
   // turn a compiled pose of this body into the pose in the spec which compiles to it: before the
@@ -779,6 +784,10 @@ class mjCFrame : public mjCFrame_, private mjsFrame {
   // express in this frame, as compiled, a pose which is given in its body
   void ToLocal(double childpos[3], double childquat[4]) const;
 
+  // map a point or a direction given in the body of this frame from the coordinates of the spec to
+  // the compiled ones, which scale the contents of the frame, or back
+  void ScaleInBody(double x[3], bool point, bool inverse) const;
+
   mjsBody* last_attached;  // last attached body to this frame
 
  private:
@@ -846,8 +855,10 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
  private:
   int  Compile(void);  // compiler; return dofnum
-  void ApplyGauge();   // scale the compiled copy by the gauge
   void PointToLocal(void);
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   // write to the spec the anchor, the axis or both, which compile to the compiled ones: in the
   // frame which the joint is in
@@ -923,13 +934,15 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
 
  private:
   void   Compile(void);      // compiler
-  void   ApplyGauge();       // scale the compiled copy by the gauge
   double GetRBound(void);    // bounding sphere radius of a mesh or SDF geom
   void   ComputeAABB(void);  // compute axis-aligned bounding box
   void   CopyFromSpec(void);
   void   PointToLocal(void);
   void   NameSpace(const mjCModel* m);
   void   CopyPlugin();
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   // write to the spec what compiles to the compiled values of this geom, for mj_copyBack: the
   // position and the orientation which are new; and those of size, pose and surface velocity
@@ -1000,10 +1013,12 @@ class mjCSite : public mjCSite_, private mjsSite {
 
  private:
   void Compile(void);   // compiler
-  void ApplyGauge();    // scale the compiled copy by the gauge
   void CopyFromSpec();  // copy spec into attributes
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   // write to the spec what compiles to the compiled values of this site, as for a geom
   void PoseToSpec(bool position, bool orientation);
@@ -1049,11 +1064,13 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void ResolveReferences(const mjCModel* m);
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   // write to the spec the position and the orientation which compile to the compiled ones, each
   // only if asked
@@ -1106,11 +1123,13 @@ class mjCLight : public mjCLight_, private mjsLight {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
   void ResolveReferences(const mjCModel* m);
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   // write to the spec the position and the direction which compile to the compiled ones, each
   // only if asked
@@ -1760,7 +1779,9 @@ class mjCPair : public mjCPair_, private mjsPair {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   mjCGeom* geom1;  // geom1
   mjCGeom* geom2;  // geom2
@@ -1845,7 +1866,9 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 };
 
 
@@ -1914,7 +1937,9 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 };
 
 
@@ -2017,9 +2042,9 @@ class mjCActuator_ : public mjCBase {
 
   // gauge of the transmission target, and what it makes of the transmission and the control
   mjCGauge gauge_;
-  int      linear_    = 0;  // 1 if the transmission length is a length
-  double   ctrlscale_ = 1;  // factor of the control
-  double   actscale_  = 1;  // factor of the activation
+  int      linear_        = 0;             // 1 if the transmission length is a length
+  double   ctrlscales_[4] = {1, 1, 1, 1};  // factors of the controls
+  double   actscale_      = 1;             // factor of the activation
 
   std::map<std::string, std::vector<mjtNum>> act_;   // act at the previous step
   std::map<std::string, std::vector<mjtNum>> ctrl_;  // ctrl at the previous step
@@ -2066,12 +2091,14 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec();
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
   void ResetId();
@@ -2122,13 +2149,15 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
 
  private:
   void Compile(void);  // compiler
-  void ApplyGauge();   // scale the compiled copy by the gauge
   void CopyFromSpec();
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
   void ResetId();
+
+  // scale the compiled copy by the gauge, or back
+  void ApplyGauge(bool inverse = false);
 
   mjCBase* obj;  // sensorized object
   mjCBase* ref;  // sensorized reference

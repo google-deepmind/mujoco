@@ -5852,19 +5852,70 @@ static double* pendingvec(bool stored, std::vector<double>& vec, int size) {
 }
 
 
+// scale a point or a direction in the world, at a top-level body, from the units of the spec to
+// the compiled model, or back
+template <class T>
+static void ScaleInWorld(const mjCBody* body, T* x, bool point, bool inverse) {
+  if (!body->frame) { return; }
+  double y[3] = {(double)x[0], (double)x[1], (double)x[2]};
+  body->frame->ScaleInBody(y, point, inverse);
+  for (int i = 0; i < 3; i++) { x[i] = (T)y[i]; }
+}
+
+
+// scale the vectors of a keyframe from the units of the spec to the compiled model, or back; free
+// joints and mocap bodies are posed in the world, and null vectors are left as they are
+template <class T>
+void mjCModel::ScaleKeyframe(T* qpos, T* qvel, T* act, T* ctrl, T* mpos, bool inverse) const {
+  auto scale = [inverse](T& x, double f) { x = (T)(inverse ? x / f : x * f); };
+  for (const mjCJoint* joint : joints_) {
+    if (joint->qposadr_ < 0) { continue; }
+    if (joint->spec.type == mjJNT_SLIDE) {
+      const double f = joint->Gauge().Stretch(joint->spec.axis);
+      if (qpos) { scale(qpos[joint->qposadr_], f); }
+      if (qvel) { scale(qvel[joint->dofadr_], f); }
+    } else if (joint->spec.type == mjJNT_FREE) {
+      if (qpos) { ScaleInWorld(joint->body, qpos + joint->qposadr_, true, inverse); }
+      if (qvel) { ScaleInWorld(joint->body, qvel + joint->dofadr_, false, inverse); }
+    }
+  }
+  for (const mjCActuator* actuator : actuators_) {
+    for (int j = 0; act && actuator->actadr_ >= 0 && j < actuator->actdim_; j++) {
+      scale(act[actuator->actadr_ + j], actuator->actscale_);
+    }
+    for (int j = 0; ctrl && actuator->ctrladr_ >= 0 && j < actuator->ctrlnum_ && j < 4; j++) {
+      scale(ctrl[actuator->ctrladr_ + j], actuator->ctrlscales_[j]);
+    }
+  }
+  for (const mjCBody* body : bodies_) {
+    if (mpos && body->mocapid >= 0) { ScaleInWorld(body, mpos + 3 * body->mocapid, true, inverse); }
+  }
+}
+
+
 // reassemble the vectors of the pending keyframes, fill in missing default values
 void mjCModel::ResolveKeyframes(const mjModel* m) {
   // store dof offsets in joints and actuators
   SaveDofOffsets();
   keysstored = false;
 
+  // the default configuration, in the units of the spec
+  std::vector<mjtNum> specqpos0(m->qpos0, m->qpos0 + m->nq);
+  std::vector<mjtNum> specbodypos(m->body_pos, m->body_pos + 3 * m->nbody);
+  ScaleKeyframe<mjtNum>(specqpos0.data(), nullptr, nullptr, nullptr, nullptr, /*inverse=*/true);
+  for (int i = 0; i < m->nbody; i++) {
+    if (bodies_[i]->mocapid >= 0) {
+      ScaleInWorld(bodies_[i], specbodypos.data() + 3 * i, true, true);
+    }
+  }
+
   std::vector<std::string> resolved;
   for (mjCKey* key : keys_) {
     if (!key->ispending_) { continue; }
     const mjKeyInfo& info = key->pending_;
     RestoreState(info.name,
-                 m->qpos0,
-                 m->body_pos,
+                 specqpos0.data(),
+                 specbodypos.data(),
                  m->body_quat,
                  pendingvec(info.qpos, key->spec_qpos_, nq),
                  pendingvec(info.qvel, key->spec_qvel_, nv),
@@ -5879,6 +5930,11 @@ void mjCModel::ResolveKeyframes(const mjModel* m) {
 
   // the stored values have served
   for (const std::string& name : resolved) { ForgetState(name); }
+
+  // complete the vectors which are shorter than the model with the default configuration
+  for (mjCKey* key : keys_) {
+    ExpandKeyframe(key, specqpos0.data(), specbodypos.data(), m->body_quat);
+  }
 }
 
 #if defined(__EMSCRIPTEN__) && !defined(MUJOCO_WASM_THREADS)
@@ -6180,10 +6236,20 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // keyframe compilation needs access to nq, nv, na, nmocap, qpos0
   ResolveKeyframes(m);
 
-  // complete the vectors which are shorter than the model with the default configuration
-  for (mjCKey* key : keys_) { ExpandKeyframe(key, m->qpos0, m->body_pos, m->body_quat); }
-
   for (int i = 0; i < keys_.size(); i++) { keys_[i]->Compile(m); }
+
+  // the vectors which a keyframe gives are in the units of the spec
+  for (mjCKey* key : keys_) {
+    auto given = [](std::vector<double>& vec, const std::vector<double>& spec) {
+      return spec.empty() ? nullptr : vec.data();
+    };
+    ScaleKeyframe(given(key->qpos_, key->spec_qpos_),
+                  given(key->qvel_, key->spec_qvel_),
+                  given(key->act_, key->spec_act_),
+                  given(key->ctrl_, key->spec_ctrl_),
+                  given(key->mpos_, key->spec_mpos_),
+                  /*inverse=*/false);
+  }
 
   // copy objects outsite kinematic tree (including keyframes)
   CopyObjects(m);
@@ -6618,14 +6684,6 @@ bool mjCModel::CopyBack(const mjModel* m) {
     return false;
   }
 
-  // values compiled under a frame scale are not written back
-  for (const mjCFrame* frame : frames_) {
-    if (frame->spec.scale[0] != 1 || frame->spec.scale[1] != 1 || frame->spec.scale[2] != 1) {
-      errInfo = mjCError(frame, "scaled frames are not supported in CopyBack");
-      return false;
-    }
-  }
-
   // every value which the spec cannot express is reported before anything is written
   try {
     BackValues(m, /*tospec=*/true, /*write=*/false);
@@ -6644,12 +6702,40 @@ bool mjCModel::CopyBack(const mjModel* m) {
 // to the spec, each as what compiles to it, and a value which the spec cannot express is an
 // error. Without `write` nothing is copied and only the errors are raised
 void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
+  // the compiled values of the element which is being copied, and the inverse of its gauge, which
+  // maps them back to the units of the spec
+  struct {
+    char*                 begin = nullptr;
+    size_t                size  = 0;
+    std::function<void()> inverse;
+  } scaled;
+  auto unscaling = [&](auto* compiled, std::function<void()> inverse) {
+    if (!tospec) { return; }
+    scaled.begin   = reinterpret_cast<char*>(compiled);
+    scaled.size    = sizeof(*compiled);
+    scaled.inverse = std::move(inverse);
+  };
+
+  // write compiled values to the spec, in its units: those of the element which is being copied
+  // are taken from its compiled values as the inverse gauge leaves them
+  auto tospecvalues = [&](auto* value, const auto* element, int n) {
+    const char* p = reinterpret_cast<const char*>(element);
+    if (!scaled.inverse || p < scaled.begin || p >= scaled.begin + scaled.size) {
+      std::copy_n(element, n, value);
+      return;
+    }
+    std::vector<char> saved(scaled.begin, scaled.begin + scaled.size);
+    scaled.inverse();
+    std::copy_n(element, n, value);
+    std::memcpy(scaled.begin, saved.data(), scaled.size);
+  };
+
   // a value which compilation copies to the model as it is; true if the model changed it
   auto copy = [&](auto* value, auto* element, const auto* model, int n = 1) {
     if (!Differs(element, model, n)) { return false; }
     if (write) {
       Back(element, model, n);
-      if (tospec) { std::copy_n(element, n, value); }
+      if (tospec) { tospecvalues(value, element, n); }
     }
     return true;
   };
@@ -6679,8 +6765,10 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     if (!lower && !upper) { return false; }
     if (write && tospec) {
       Back(element, model, 2);
-      if (lower) { value[0] = scale * element[0]; }
-      if (upper) { value[1] = scale * element[1]; }
+      double range[2];
+      tospecvalues(range, element, 2);
+      if (lower) { value[0] = scale * range[0]; }
+      if (upper) { value[1] = scale * range[1]; }
       if (valuelimited == mjLIMITED_AUTO) {
         bool hasrange = value[0] != 0 || value[1] != 0;
         if ((!settings->autolimits && hasrange) || (value[0] < value[1]) != modellimited) {
@@ -6779,6 +6867,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     mjCJoint* pj      = joints_[i];
     int       qposadr = m->jnt_qposadr[i];
     int       dofadr  = m->jnt_dofadr[i];
+    unscaling(static_cast<mjsJoint*>(pj), [pj] { pj->ApplyGauge(/*inverse=*/true); });
 
     // an angle is in degrees in a spec which says so
     const bool   rotates = pj->type == mjJNT_HINGE || pj->type == mjJNT_BALL;
@@ -6789,10 +6878,10 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     if (pj->type == mjJNT_SLIDE || pj->type == mjJNT_HINGE) {
       const double scale = pj->type == mjJNT_HINGE ? degrees : 1;
       if (copy(&pj->spec.ref, &pj->ref, m->qpos0 + qposadr) && tospec && write) {
-        pj->spec.ref = scale * pj->ref;
+        pj->spec.ref *= scale;
       }
       if (copy(&pj->spec.springref, &pj->springref, m->qpos_spring + qposadr) && tospec && write) {
-        pj->spec.springref = scale * pj->springref;
+        pj->spec.springref *= scale;
       }
     }
 
@@ -6839,8 +6928,8 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
         write &&
         pj->springdamper[0] > 0 &&
         pj->springdamper[1] > 0) {
-      pj->spec.stiffness[0] = pj->stiffness[0];
-      pj->spec.damping[0]   = pj->damping[0];
+      tospecvalues(pj->spec.stiffness, pj->stiffness, 1);
+      tospecvalues(pj->spec.damping, pj->damping, 1);
       pj->springdamper[0] = pj->springdamper[1] = 0;
       pj->spec.springdamper[0] = pj->spec.springdamper[1] = 0;
     }
@@ -6930,6 +7019,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // geom
   for (int i = 0; i < ngeom; i++) {
     mjCGeom* pg = geoms_[i];
+    unscaling(static_cast<mjsGeom*>(pg), [pg] { pg->ApplyGauge(/*inverse=*/true); });
 
     // size, pose and surface velocity: the size of a mesh or height field geom is that of the asset
     bool newsize     = Differs(pg->size, m->geom_size + 3 * i, 3);
@@ -7015,6 +7105,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // sites
   for (int i = 0; i < nsite; i++) {
     mjCSite* ps = sites_[i];
+    unscaling(static_cast<mjsSite*>(ps), [ps] { ps->ApplyGauge(/*inverse=*/true); });
 
     // size and pose: the size of a mesh site is that of the mesh
     bool newsize     = Differs(ps->size, m->site_size + 3 * i, 3);
@@ -7040,6 +7131,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   for (int i = 0; i < ncam; i++) {
     mjCCamera* pc     = cameras_[i];
     const bool sensor = pc->sensor_size[0] > 0 && pc->sensor_size[1] > 0;
+    unscaling(static_cast<mjsCamera*>(pc), [pc] { pc->ApplyGauge(/*inverse=*/true); });
 
     // pose
     bool position    = Differs(pc->pos, m->cam_pos + 3 * i, 3);
@@ -7077,6 +7169,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // lights
   for (int i = 0; i < nlight; i++) {
     mjCLight* pl = lights_[i];
+    unscaling(static_cast<mjsLight*>(pl), [pl] { pl->ApplyGauge(/*inverse=*/true); });
 
     // position and direction
     bool position  = Differs(pl->pos, m->light_pos + 3 * i, 3);
@@ -7110,6 +7203,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // pairs, which the model holds in the order of their ids
   for (mjCPair* pair : pairs_) {
     int i = pair->id;
+    unscaling(static_cast<mjsPair*>(pair), [pair] { pair->ApplyGauge(/*inverse=*/true); });
     copy(pair->spec.solref, pair->solref, m->pair_solref + mjNREF * i, mjNREF);
     copy(pair->spec.solreffriction,
          pair->solreffriction,
@@ -7126,6 +7220,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   for (int i = 0; i < neq; i++) {
     mjCEquality*  pe   = equalities_[i];
     const mjtNum* data = m->eq_data + mjNEQDATA * i;
+    unscaling(static_cast<mjsEquality*>(pe), [pe] { pe->ApplyGauge(/*inverse=*/true); });
 
     if (pe->type == mjEQ_CONNECT && pe->objtype == mjOBJ_BODY) {
       // a connect between bodies: the anchor in the first body is given, and the one in the
@@ -7155,7 +7250,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
       if (Differs(pe->data + 3, data + 3, 7) || (anchor && computed)) {
         if (write) {
           Back(pe->data + 3, data + 3, 7);
-          if (tospec) { std::copy_n(pe->data + 3, 7, pe->spec.data + 3); }
+          if (tospec) { tospecvalues(pe->spec.data + 3, pe->data + 3, 7); }
         }
       }
       copy(pe->spec.data + 10, pe->data + 10, data + 10);
@@ -7169,6 +7264,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // tendons
   for (int i = 0; i < ntendon; i++) {
     mjCTendon* pt = tendons_[i];
+    unscaling(static_cast<mjsTendon*>(pt), [pt] { pt->ApplyGauge(/*inverse=*/true); });
 
     copyrange(pt->spec.range,
               pt->range,
@@ -7203,6 +7299,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // actuators
   for (int i = 0; i < nactuator; i++) {
     mjCActuator* pa = actuators_[i];
+    unscaling(static_cast<mjsActuator*>(pa), [pa] { pa->ApplyGauge(/*inverse=*/true); });
 
     copy(pa->spec.dynprm, pa->dynprm, m->actuator_dynprm + mjNDYN * i, mjNDYN);
     copy(pa->spec.gainprm, pa->gainprm, m->actuator_gainprm + mjNGAIN * i, mjNGAIN);
@@ -7289,6 +7386,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // sensors
   for (int i = 0; i < nsensor; i++) {
     mjCSensor* ps = sensors_[i];
+    unscaling(static_cast<mjsSensor*>(ps), [ps] { ps->ApplyGauge(/*inverse=*/true); });
 
     copy(&ps->spec.cutoff, &ps->cutoff, m->sensor_cutoff + i);
     copy(&ps->spec.noise, &ps->noise, m->sensor_noise + i);
@@ -7307,17 +7405,25 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     copyvector(pt->spec_objprm_, pt->objprm_, m->tuple_objprm + m->tuple_adr[i], m->tuple_size[i]);
   }
 
-  // keyframes
+  // keyframes, in the units of the spec
   for (int i = 0; i < m->nkey; i++) {
     mjCKey* pk = keys_[i];
 
     copy(&pk->spec.time, &pk->time, m->key_time + i);
-    copyvector(pk->spec_qpos_, pk->qpos_, m->key_qpos + i * nq, nq);
-    copyvector(pk->spec_qvel_, pk->qvel_, m->key_qvel + i * nv, nv);
-    copyvector(pk->spec_act_, pk->act_, m->key_act + i * na, na);
-    copyvector(pk->spec_mpos_, pk->mpos_, m->key_mpos + i * 3 * nmocap, 3 * nmocap);
+    bool qpos = copyvector(pk->spec_qpos_, pk->qpos_, m->key_qpos + i * nq, nq);
+    bool qvel = copyvector(pk->spec_qvel_, pk->qvel_, m->key_qvel + i * nv, nv);
+    bool act  = copyvector(pk->spec_act_, pk->act_, m->key_act + i * na, na);
+    bool mpos = copyvector(pk->spec_mpos_, pk->mpos_, m->key_mpos + i * 3 * nmocap, 3 * nmocap);
     copyvector(pk->spec_mquat_, pk->mquat_, m->key_mquat + i * 4 * nmocap, 4 * nmocap);
-    copyvector(pk->spec_ctrl_, pk->ctrl_, m->key_ctrl + i * nu, nu);
+    bool ctrl = copyvector(pk->spec_ctrl_, pk->ctrl_, m->key_ctrl + i * nu, nu);
+    if (tospec && write) {
+      ScaleKeyframe(qpos ? pk->spec_qpos_.data() : nullptr,
+                    qvel ? pk->spec_qvel_.data() : nullptr,
+                    act ? pk->spec_act_.data() : nullptr,
+                    ctrl ? pk->spec_ctrl_.data() : nullptr,
+                    mpos ? pk->spec_mpos_.data() : nullptr,
+                    /*inverse=*/true);
+    }
   }
 }
 

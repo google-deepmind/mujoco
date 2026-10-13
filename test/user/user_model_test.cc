@@ -14,6 +14,7 @@
 
 // Tests for user/user_model.cc.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -2709,21 +2710,6 @@ TEST_F(FrameScaleTest, Unsupported) {
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh or height field cannot be scaled"));
-
-  // copy back
-  mjSpec* spec =
-      mj_parseXMLString(Pendulum(R"(scale="2")").c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(spec, NotNull());
-  mjModel* model = mj_compile(spec, nullptr);
-  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
-  EXPECT_EQ(mj_copyBack(spec, model), 0);
-  EXPECT_THAT(mjs_getError(spec), HasSubstr("scaled frames"));
-
-  // adopting an inertial
-  EXPECT_EQ(mjs_adoptInertial(mjs_findBody(spec, "arm"), nullptr), -1);
-  EXPECT_THAT(mjs_getError(spec), HasSubstr("scaled body"));
-  mj_deleteModel(model);
-  mj_deleteSpec(spec);
 }
 
 // a chain of hinge and slide joints, and a free sphere on a plane, all in a
@@ -3076,6 +3062,369 @@ TEST_F(FrameScaleTest, UserActuator) {
   EXPECT_THAT(error.data(), HasSubstr("cannot be scaled"));
   m = LoadModelFromString(model("geometry"), error.data(), error.size());
   EXPECT_THAT(m.get(), NotNull()) << error.data();
+}
+
+// keyframes are given in the units of the spec: free joints and mocap bodies in
+// the world, about the origin of their innermost frame, and slides, activations
+// and controls by the gauges of their joints and actuators
+TEST_F(FrameScaleTest, Keyframes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame pos="1 0 0" euler="0 0 90" scale="2">
+        <frame pos="0 1 0" scale="3">
+          <body pos="0 0 1">
+            <freejoint name="free"/>
+            <geom size="0.1"/>
+          </body>
+        </frame>
+        <body name="mocap" mocap="true" pos="1 0 0">
+          <geom size="0.1" contype="0" conaffinity="0"/>
+        </body>
+        <body pos="0 0 2">
+          <joint name="slide" type="slide" axis="1 0 0" ref="0.05"/>
+          <geom size="0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <actuator>
+      <general joint="slide" input="vel" dyntype="integrator" gainprm="10"/>
+      <pid joint="slide" kp="10" ki="1" slewmax="1" input="pos vel ff"/>
+    </actuator>
+    <keyframe>
+      <key name="authored" qpos="0 0 1 1 0 0 0 0.1" qvel="1 0 0 0 0 1 0.5"
+           act="0.1 0.1 0.1" ctrl="0.1 0.1 0.1 0.1" mpos="1 1 0"/>
+      <key name="partial" qpos="0 0 1 1 0 0 0"/>
+    </keyframe>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  const int free = m->jnt_qposadr[mj_name2id(m, mjOBJ_JOINT, "free")];
+  const int slide = m->jnt_qposadr[mj_name2id(m, mjOBJ_JOINT, "slide")];
+  const int freedof = m->jnt_dofadr[mj_name2id(m, mjOBJ_JOINT, "free")];
+  const int slidedof = m->jnt_dofadr[mj_name2id(m, mjOBJ_JOINT, "slide")];
+  const int mocap = mj_name2id(m, mjOBJ_BODY, "mocap");
+  ASSERT_EQ(m->nkey, 2);
+  ASSERT_EQ(m->na, 3);
+  ASSERT_EQ(m->nu, 4);
+
+  // the free body where the spec puts it, and a slide of 0.1, scaled by 6 and 2
+  const mjtNum freepos[3] = {-1, 0, 6};
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(m->qpos0[free + i], freepos[i], tol);
+    EXPECT_NEAR(m->key_qpos[free + i], freepos[i], tol);
+    EXPECT_NEAR(m->key_qpos[m->nq + free + i], freepos[i], tol);
+  }
+  EXPECT_NEAR(m->qpos0[slide], 0.1, tol);
+  EXPECT_NEAR(m->key_qpos[slide], 0.2, tol);
+
+  // linear velocities are scaled, angular ones are not
+  const mjtNum qvel[6] = {6, 0, 0, 0, 0, 1};
+  for (int i = 0; i < 6; i++) {
+    EXPECT_NEAR(m->key_qvel[freedof + i], qvel[i], tol);
+  }
+  EXPECT_NEAR(m->key_qvel[slidedof], 1, tol);
+
+  // activations: an integrated velocity, a setpoint and an integral; controls:
+  // a velocity, then a position, a velocity and a force
+  for (int i = 0; i < 3; i++) EXPECT_NEAR(m->key_act[i], 0.2, tol);
+  const mjtNum ctrl[4] = {0.2, 0.2, 0.2, 1.6};
+  for (int i = 0; i < 4; i++) EXPECT_NEAR(m->key_ctrl[i], ctrl[i], tol);
+
+  // the mocap body where the spec puts it
+  const mjtNum mpos[3] = {1, 2, 0};
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(m->body_pos[3 * mocap + i], mpos[i], tol);
+    EXPECT_NEAR(m->key_mpos[i], mpos[i], tol);
+    EXPECT_NEAR(m->key_mpos[3 + i], mpos[i], tol);
+  }
+
+  // a partial keyframe is completed in the spec with the default configuration,
+  // in the units of the spec
+  EXPECT_NEAR(m->key_qpos[m->nq + slide], 0.1, tol);
+  mjsKey* partial = mjs_asKey(mjs_findElement(spec, mjOBJ_KEY, "partial"));
+  ASSERT_THAT(partial, NotNull());
+  ASSERT_EQ(partial->qpos->size(), m->nq);
+  EXPECT_NEAR((*partial->qpos)[slide], 0.05, tol);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// mj_copyBack writes the values of a scaled model in the units of the spec: an
+// unchanged model leaves the spec as it is, and edits compile to themselves
+TEST_F(FrameScaleTest, CopyBack) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame pos="0.5 0 0" euler="0 0 30" scale="2">
+        <body name="arm" pos="0 0 1">
+          <joint name="slide" type="slide" axis="1 0 0" range="-0.1 0.1"
+                 damping="1"/>
+          <geom name="hand" type="capsule" fromto="0 0 0 0 0 -0.5" size="0.05"/>
+          <site name="tip" pos="0 0 -0.5" size="0.01"/>
+          <camera name="cam" pos="0 -1 0"/>
+        </body>
+        <body name="ball" pos="1 0 0.3">
+          <freejoint/>
+          <geom size="0.1"/>
+          <site name="mark" pos="0 0 0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <tendon>
+      <spatial stiffness="10">
+        <site site="tip"/>
+        <site site="mark"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <position joint="slide" kp="100" ctrlrange="-0.1 0.1"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="slide" cutoff="1"/>
+    </sensor>
+    <keyframe>
+      <key qpos="0.05 1 0 1 1 0 0 0"/>
+    </keyframe>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  // unchanged
+  mjSpec* copy = mj_copySpec(spec);
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  EXPECT_THAT(CompareSpec(copy, spec), IsEmpty());
+  mj_deleteSpec(copy);
+
+  // edits of the compiled values, which the frame scales by 2
+  const int arm = mj_name2id(m, mjOBJ_BODY, "arm");
+  const int hand = mj_name2id(m, mjOBJ_GEOM, "hand");
+  const int tip = mj_name2id(m, mjOBJ_SITE, "tip");
+  const int cam = mj_name2id(m, mjOBJ_CAMERA, "cam");
+  m->body_pos[3 * arm + 2] += 0.5;
+  m->body_mass[arm] = 5;
+  m->jnt_range[1] = 0.3;
+  m->dof_damping[0] = 20;
+  m->geom_size[3 * hand] = 0.2;
+  m->site_pos[3 * tip + 2] = -2;
+  m->cam_pos[3 * cam + 1] = -3;
+  m->tendon_stiffness[0] = 50;
+  m->actuator_gainprm[0] = 1000;
+  m->actuator_biasprm[1] = -1000;
+  m->sensor_cutoff[0] = 3;
+  m->key_qpos[0] = 0.15;
+  m->key_qpos[1] += 1;
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+
+  // the spec has them in its units
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  EXPECT_NEAR(mjs_findBody(spec, "arm")->pos[2], 1.25, tol);
+  EXPECT_NEAR(mjs_findBody(spec, "arm")->mass, 5.0 / 8, tol);
+  EXPECT_NEAR(
+      mjs_asJoint(mjs_findElement(spec, mjOBJ_JOINT, "slide"))->range[1], 0.15,
+      tol);
+  EXPECT_NEAR(mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "hand"))->size[0],
+              0.1, tol);
+
+  // and compile to the edited model
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  auto expect = [&](const mjtNum* a, const mjtNum* b, int n, const char* name) {
+    for (int i = 0; i < n; i++) {
+      EXPECT_NEAR(a[i], b[i], tol * std::max(1.0, std::abs((double)a[i])))
+          << name << "[" << i << "]";
+    }
+  };
+  expect(m->body_pos, m2->body_pos, 3 * m->nbody, "body_pos");
+  expect(m->body_mass, m2->body_mass, m->nbody, "body_mass");
+  expect(m->body_inertia, m2->body_inertia, 3 * m->nbody, "body_inertia");
+  expect(m->jnt_range, m2->jnt_range, 2 * m->njnt, "jnt_range");
+  expect(m->dof_damping, m2->dof_damping, m->nv, "dof_damping");
+  expect(m->geom_size, m2->geom_size, 3 * m->ngeom, "geom_size");
+  expect(m->site_pos, m2->site_pos, 3 * m->nsite, "site_pos");
+  expect(m->cam_pos, m2->cam_pos, 3 * m->ncam, "cam_pos");
+  expect(m->tendon_stiffness, m2->tendon_stiffness, m->ntendon,
+         "tendon_stiffness");
+  expect(m->actuator_gainprm, m2->actuator_gainprm, mjNGAIN * m->nu,
+         "actuator_gainprm");
+  expect(m->actuator_biasprm, m2->actuator_biasprm, mjNBIAS * m->nu,
+         "actuator_biasprm");
+  expect(m->sensor_cutoff, m2->sensor_cutoff, m->nsensor, "sensor_cutoff");
+  expect(m->key_qpos, m2->key_qpos, m->nq, "key_qpos");
+
+  mj_deleteModel(m2);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// a new radius of a capsule given by fromto leaves fromto in the spec, at any
+// scale
+TEST_F(FrameScaleTest, CopyBackFromtoRadius) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="1.7">
+        <body>
+          <geom name="g" type="capsule" fromto="0 0 0 0.3 0.1 -0.5" size="0.05"/>
+          <site name="s" type="capsule" fromto="0 0 0 0.3 0.1 -0.5" size="0.05"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  m->geom_size[0] = 0.2;
+  m->site_size[0] = 0.2;
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  mjsGeom* geom = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "g"));
+  mjsSite* site = mjs_asSite(mjs_findElement(spec, mjOBJ_SITE, "s"));
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  EXPECT_EQ(geom->fromto[3], 0.3);
+  EXPECT_EQ(site->fromto[3], 0.3);
+  EXPECT_NEAR(geom->size[0], 0.2 / 1.7, tol);
+  EXPECT_NEAR(site->size[0], 0.2 / 1.7, tol);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// copy-back divides by the mass factor
+TEST_F(FrameScaleTest, MassScaleCopyBack) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame massscale="2" scaling="geometry">
+        <body name="body">
+          <freejoint/>
+          <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->body_mass[1], 2);
+  m->body_mass[1] = 3;
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  mjsBody* body = mjs_findBody(spec, "body");
+  EXPECT_EQ(body->mass, 1.5);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// inertials which are written to the spec are in its units: adopted, merged,
+// fused, and saved with saveinertial
+TEST_F(FrameScaleTest, Inertials) {
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+
+  // adopted
+  mjSpec* spec =
+      mj_parseXMLString(Pendulum(R"(scale="2")").c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  mjsBody* arm = mjs_findBody(spec, "arm");
+  ASSERT_EQ(mjs_adoptInertial(arm, nullptr), 0) << mjs_getError(spec);
+  EXPECT_NEAR(arm->mass, m->body_mass[1] / 8, tol);
+  mjModel* adopted = mj_compile(spec, nullptr);
+  ASSERT_THAT(adopted, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(adopted->body_mass[1], m->body_mass[1], tol);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(adopted->body_ipos[3 + i], m->body_ipos[3 + i], tol);
+    EXPECT_NEAR(adopted->body_inertia[3 + i], m->body_inertia[3 + i], tol);
+  }
+  mj_deleteModel(adopted);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // merged: a child of mass 1 under a scale of 2 weighs 8 in its parent
+  static constexpr char merge[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent" pos="0 0 1">
+        <joint/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+        <frame pos="1 0 0" scale="2">
+          <body name="child" pos="0 0 0.5">
+            <inertial pos="0 0 0" mass="1" diaginertia="0.1 0.1 0.1"/>
+          </body>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  spec = mj_parseXMLString(merge, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjsBody* child = mjs_findBody(spec, "child");
+  ASSERT_THAT(mjs_bodyToFrame(&child), NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(mjs_findBody(spec, "parent")->mass, 9, tol);
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_NEAR(m->body_mass[1], 9, 9 * tol);
+  EXPECT_NEAR(m->body_ipos[3], 8.0 / 9, tol);
+  EXPECT_NEAR(m->body_ipos[5], 8.0 / 9, tol);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // fused, and saved with saveinertial: the same model as before
+  static constexpr char fuse[] = R"(
+  <mujoco>
+    <compiler savecompiled="false" saveinertial="true"/>
+    <worldbody>
+      <frame pos="0 0 1" scale="2">
+        <body name="arm">
+          <joint/>
+          <geom type="box" size="0.1 0.2 0.3"/>
+          <body name="weight" pos="0.5 0 0">
+            <inertial pos="0.1 0 0" mass="1" diaginertia="0.1 0.2 0.3"/>
+          </body>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  spec = mj_parseXMLString(fuse, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  mjModel* saved = nullptr;
+  {
+    std::string xml = SaveAndReadXml(spec);
+    EXPECT_THAT(xml, HasSubstr("scale=\"2\""));
+    saved = LoadModelFromString(xml).release();
+    ASSERT_THAT(saved, NotNull()) << xml;
+  }
+  spec->compiler.fusestatic = 1;
+  mjModel* fused = mj_compile(spec, nullptr);
+  ASSERT_THAT(fused, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(fused->nbody, 2);
+  EXPECT_NEAR(fused->body_mass[1], m->body_mass[1] + m->body_mass[2],
+              tol * fused->body_mass[1]);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(saved->body_inertia[3 + i], m->body_inertia[3 + i], tol);
+    EXPECT_NEAR(saved->body_ipos[3 + i], m->body_ipos[3 + i], tol);
+  }
+  EXPECT_NEAR(saved->body_mass[1], m->body_mass[1], tol * m->body_mass[1]);
+  mj_deleteModel(fused);
+  mj_deleteModel(saved);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
 }
 
 }  // namespace

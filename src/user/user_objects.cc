@@ -2272,10 +2272,12 @@ mjCFrame* mjCBody::ToFrame(bool mergeinertial) {
     bool inferred      = InfersInertial() && !geoms.empty();
     bool parent_given  = !parent->InfersInertial() && mjuu_defined(parent->spec.ipos[0]);
     bool parent_infers = parent->InfersInertial() && !parent->geoms.empty();
+    bool scaled        = ScaledInertial() || parent->ScaledInertial();
 
     // one is given and the other inferred: compile the tree to know what is inferred; if both
-    // are inferred, the geoms move to the parent and take the inertia with them
-    if ((given && parent_infers) || (inferred && parent_given)) {
+    // are inferred, the geoms move to the parent and take the inertia with them. Scaled
+    // inertials are merged as compiled
+    if ((given && parent_infers) || (inferred && parent_given) || (given && scaled)) {
       if (!model->Resolve(nullptr)) {
         std::string error = model->GetError().message;
         throw mjCError(this,
@@ -2611,11 +2613,8 @@ void mjCBody::MakeInertialExplicit() {
 }
 
 
-// make the inertial which compilation calculated for this body part of the spec
+// make the inertial which compilation calculated for this body part of the spec, in its units
 void mjCBody::AdoptInertial() {
-  if (!ContentGauge().IsIdentity()) {
-    throw mjCError(this, "the inertial of a scaled body cannot be written to the spec");
-  }
   MakeInertialExplicit();
   iframe    = nullptr;  // the inertial frame is in body coordinates
   spec.mass = mass;
@@ -2624,6 +2623,9 @@ void mjCBody::AdoptInertial() {
   mjuu_copyvec(spec.inertia, inertia, 3);
   spec.fullinertia[0] = mjNAN;
   mjs_defaultOrientation(&spec.ialt);
+  const mjCGauge g = ContentGauge().Inverse();
+  g.Point(spec.ipos);
+  g.Inertia(spec.mass, spec.inertia, spec.fullinertia);
 }
 
 
@@ -2632,6 +2634,7 @@ void mjCBody::PoseInSpec(double bodypos[3], double bodyquat[4]) const {
   // the alignment moved the frame of the body to its inertial frame
   if (aligned_) { mjuu_frameaccuminv(bodypos, bodyquat, ipos_compiled_, iquat_compiled_); }
   if (frame) { frame->ToLocal(bodypos, bodyquat); }
+  Gauge().Inverse().Point(bodypos);
 }
 
 
@@ -2645,6 +2648,7 @@ void mjCBody::ElementPoseInSpec(const mjCFrame* elementframe,
   } else if (aligned_) {
     mjuu_frameaccumChild(ipos_compiled_, iquat_compiled_, elementpos, elementquat);
   }
+  (elementframe ? elementframe->ContentGauge() : ContentGauge()).Inverse().Point(elementpos);
 }
 
 
@@ -2672,7 +2676,7 @@ void mjCBody::InertialToSpec(bool massonly) {
 
   // an inertial which the spec gives stays as it was written if only the mass is new
   if (massonly && mjuu_defined(spec.ipos[0])) {
-    spec.mass = mass;
+    spec.mass = mass * (iframe ? iframe->ContentGauge() : ContentGauge()).Inverse().Shape(0, 1);
     return;
   }
 
@@ -2732,23 +2736,32 @@ void mjCBody::SpecInertial(double com[3], double inert[6]) const {
 }
 
 
+// true if compilation scales the inertial of this body, by its frame or by that of the inertial
+bool mjCBody::ScaledInertial() const {
+  return !ContentGauge().IsIdentity() || (iframe && !iframe->ContentGauge().IsIdentity());
+}
+
+
 // merge the inertial of a child body into the inertial in the spec of this body
 void mjCBody::MergeInertial(const mjCBody* child) {
-  if (!ContentGauge().IsIdentity() || !child->ContentGauge().IsIdentity()) {
-    throw mjCError(this, "the inertials of scaled bodies cannot be merged");
-  }
+  const bool scaled = ScaledInertial() || child->ScaledInertial();
 
   // pose of the child in this body
   double childpos[3], childquat[4];
-  mjuu_copyvec(childpos, child->spec.pos, 3);
-  mjuu_copyvec(childquat, child->spec.quat, 4);
-  mjuu_normvec(childquat, 4);
-  const char* err = ResolveOrientation(childquat,
-                                       child->compiler->degree,
-                                       child->compiler->eulerseq,
-                                       child->spec.alt);
-  if (err) { throw mjCError(child, "error '%s' in frame alternative", err); }
-  FrameToBody(child->frame, childpos, childquat);
+  if (scaled) {
+    mjuu_copyvec(childpos, child->pos, 3);
+    mjuu_copyvec(childquat, child->quat, 4);
+  } else {
+    mjuu_copyvec(childpos, child->spec.pos, 3);
+    mjuu_copyvec(childquat, child->spec.quat, 4);
+    mjuu_normvec(childquat, 4);
+    const char* err = ResolveOrientation(childquat,
+                                         child->compiler->degree,
+                                         child->compiler->eulerseq,
+                                         child->spec.alt);
+    if (err) { throw mjCError(child, "error '%s' in frame alternative", err); }
+    FrameToBody(child->frame, childpos, childquat);
+  }
 
   // inertial of this body, if any: inferred from its geoms, or given. Without geoms nothing is
   // inferred, and what an earlier compilation calculated is not read: the caller compiles the
@@ -2762,13 +2775,16 @@ void mjCBody::MergeInertial(const mjCBody* child) {
       masses[0] = mass;
       CompiledInertial(coms[0], inerts[0]);
     }
+  } else if (mjuu_defined(spec.ipos[0]) && scaled) {
+    masses[0] = mass;
+    CompiledInertial(coms[0], inerts[0]);
   } else if (mjuu_defined(spec.ipos[0])) {
     masses[0] = spec.mass;
     SpecInertial(coms[0], inerts[0]);
   }
 
   // inertial of the child, in the coordinates of this body
-  if (child->InfersInertial()) {
+  if (child->InfersInertial() || scaled) {
     masses[1] = child->mass;
     child->CompiledInertial(coms[1], inerts[1]);
   } else {
@@ -2791,6 +2807,11 @@ void mjCBody::MergeInertial(const mjCBody* child) {
     double dpos[3] = {coms[j][0] - totalcom[0], coms[j][1] - totalcom[1], coms[j][2] - totalcom[2]};
     mjuu_offcenter(offcenter, masses[j], dpos);
     for (int k = 0; k < 6; k++) { totalinert[k] += inerts[j][k] + offcenter[k]; }
+  }
+  if (scaled) {
+    double diag[3] = {0, 0, 0};
+    ContentGauge().Inverse().Point(totalcom);
+    ContentGauge().Inverse().Inertia(totalmass, diag, totalinert);
   }
 
   // save as full inertia in body coordinates
@@ -3355,6 +3376,30 @@ mjCGauge mjCFrame::ContentGauge() const {
 }
 
 
+// map a point or a direction given in the body of this frame from the coordinates of the spec to
+// the compiled ones, which scale the contents of the frame, or back
+void mjCFrame::ScaleInBody(double x[3], bool point, bool inverse) const {
+  const mjCGauge g = ContentGauge();
+  if (g.IsIdentity()) { return; }
+
+  // pose of this frame in its body, in the spec and as compiled
+  double specpos[3] = {0, 0, 0}, specquat[4] = {1, 0, 0, 0};
+  FrameToBody(this, specpos, specquat);
+  const double* frompos  = inverse ? pos : specpos;
+  const double* fromquat = inverse ? quat : specquat;
+  const double* topos    = inverse ? specpos : pos;
+  const double* toquat   = inverse ? specquat : quat;
+
+  // express in the frame, scale, and express in the body again
+  double local[3], res[3], neg[4] = {fromquat[0], -fromquat[1], -fromquat[2], -fromquat[3]};
+  for (int i = 0; i < 3; i++) { local[i] = x[i] - (point ? frompos[i] : 0); }
+  mjuu_rotVecQuat(res, local, neg);
+  (inverse ? g.Inverse() : g).Point(res);
+  mjuu_rotVecQuat(local, res, toquat);
+  for (int i = 0; i < 3; i++) { x[i] = local[i] + (point ? topos[i] : 0); }
+}
+
+
 //------------------ class mjCJoint implementation -------------------------------------------------
 
 // initialize default joint
@@ -3482,10 +3527,10 @@ void mjCJoint::CopyFromSpec() {
 }
 
 
-// scale the compiled copy by the gauge; Q is L^q with q = 1 for a slide, F is M L^(2-q) T^-2, and
-// the shared parameters of a free joint, which mix both, are left as they are
-void mjCJoint::ApplyGauge() {
-  const mjCGauge g = Gauge();
+// scale the compiled copy by the gauge, or back; Q is L^q with q = 1 for a slide, F is M L^(2-q)
+// T^-2, and the shared parameters of a free joint, which mix both, are left as they are
+void mjCJoint::ApplyGauge(bool inverse) {
+  const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   g.Point(pos);
   if (type == mjJNT_FREE) { return; }
@@ -3631,6 +3676,7 @@ void mjCJoint::AnchorToSpec(bool anchor, bool direction) {
   double specpos[3], rotation[4] = {1, 0, 0, 0};
   mjuu_copyvec(specpos, pos, 3);
   if (frame) { frame->ToLocal(specpos, rotation); }
+  Gauge().Inverse().Point(specpos);
   if (anchor) { mjuu_copyvec(spec.pos, specpos, 3); }
   if (direction) { mjuu_rotVecQuat(spec.axis, axis, rotation); }
 }
@@ -4114,9 +4160,9 @@ const std::string& mjCGeom::get_material() const {
 }
 
 
-// scale the compiled copy by the gauge; density is M L^-3, or M L^-2 for a shell
-void mjCGeom::ApplyGauge() {
-  const mjCGauge g = Gauge();
+// scale the compiled copy by the gauge, or back; density is M L^-3, or M L^-2 for a shell
+void mjCGeom::ApplyGauge(bool inverse) {
+  const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   if (plugin.active) { throw mjCError(this, "a geom with a plugin cannot be scaled"); }
   if ((mesh || hfield) && g.shape != 1) {
@@ -4387,13 +4433,20 @@ void mjCGeom::ShapeToSpec(bool newsize, bool position, bool orientation, bool ne
   const bool span    = mjuu_defined(spec.fromto[0]);
   const bool newpose = position || orientation;
 
+  // the size in the units of the spec
+  double specsize[3];
+  mjuu_copyvec(specsize, size, 3);
+  Gauge().Inverse().Size(specsize, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+
   // fromto does not give the radius of a capsule or cylinder: a new one leaves fromto as it is
   if (span && !newpose && (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER)) {
-    double vec[3] = {spec.fromto[0] - spec.fromto[3],
-                     spec.fromto[1] - spec.fromto[4],
-                     spec.fromto[2] - spec.fromto[5]};
+    double ends[6];
+    mjuu_copyvec(ends, spec.fromto, 6);
+    Gauge().Point(ends);
+    Gauge().Point(ends + 3);
+    double vec[3] = {ends[0] - ends[3], ends[1] - ends[4], ends[2] - ends[5]};
     if (size[1] == mjuu_normvec(vec, 3) / 2) {
-      spec.size[0] = size[0];
+      spec.size[0] = specsize[0];
       newsize      = false;
     }
   }
@@ -4415,7 +4468,7 @@ void mjCGeom::ShapeToSpec(bool newsize, bool position, bool orientation, bool ne
     newsize = position = orientation = true;
   }
 
-  if (newsize) { mjuu_copyvec(spec.size, size, 3); }
+  if (newsize) { mjuu_copyvec(spec.size, specsize, 3); }
   PoseToSpec(position, orientation);
 
   // compilation expresses the surface velocity of a mesh geom in the frame of the mesh: rotate
@@ -4429,6 +4482,7 @@ void mjCGeom::ShapeToSpec(bool newsize, bool position, bool orientation, bool ne
       mjuu_crossvec(wxp, spec.surfacevel + 3, mesh->GetPosPtr());
       for (int i = 0; i < 3; i++) { spec.surfacevel[i] -= wxp[i]; }
     }
+    Gauge().Inverse().Point(spec.surfacevel);
   }
 }
 
@@ -4518,9 +4572,9 @@ const std::string& mjCSite::get_material() const {
 }
 
 
-// scale the compiled copy by the gauge
-void mjCSite::ApplyGauge() {
-  const mjCGauge g = Gauge();
+// scale the compiled copy by the gauge, or back
+void mjCSite::ApplyGauge(bool inverse) {
+  const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   if (mesh && g.shape != 1) { throw mjCError(this, "a site with a mesh cannot be scaled"); }
   g.Point(pos);
@@ -4639,13 +4693,20 @@ void mjCSite::ShapeToSpec(bool newsize, bool position, bool orientation) {
   const bool span    = mjuu_defined(spec.fromto[0]);
   const bool newpose = position || orientation;
 
+  // the size in the units of the spec
+  double specsize[3];
+  mjuu_copyvec(specsize, size, 3);
+  Gauge().Inverse().Size(specsize, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
+
   // fromto does not give the radius of a capsule or cylinder: a new one leaves fromto as it is
   if (span && !newpose && (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER)) {
-    double vec[3] = {spec.fromto[0] - spec.fromto[3],
-                     spec.fromto[1] - spec.fromto[4],
-                     spec.fromto[2] - spec.fromto[5]};
+    double ends[6];
+    mjuu_copyvec(ends, spec.fromto, 6);
+    Gauge().Point(ends);
+    Gauge().Point(ends + 3);
+    double vec[3] = {ends[0] - ends[3], ends[1] - ends[4], ends[2] - ends[5]};
     if (size[1] == mjuu_normvec(vec, 3) / 2) {
-      spec.size[0] = size[0];
+      spec.size[0] = specsize[0];
       newsize      = false;
     }
   }
@@ -4656,7 +4717,7 @@ void mjCSite::ShapeToSpec(bool newsize, bool position, bool orientation) {
     newsize = position = orientation = true;
   }
 
-  if (newsize) { mjuu_copyvec(spec.size, size, 3); }
+  if (newsize) { mjuu_copyvec(spec.size, specsize, 3); }
   PoseToSpec(position, orientation);
 }
 
@@ -4742,9 +4803,9 @@ void mjCCamera::ResolveReferences(const mjCModel* m) {
 }
 
 
-// scale the compiled copy by the gauge; the image is unchanged
-void mjCCamera::ApplyGauge() {
-  const mjCGauge g = Gauge();
+// scale the compiled copy by the gauge, or back; the image is unchanged
+void mjCCamera::ApplyGauge(bool inverse) {
+  const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   const double fl = g.Shape(1);
   g.Point(pos);
@@ -4853,13 +4914,15 @@ void mjCCamera::PoseToSpec(bool position, bool orientation) {
 }
 
 
-// write the compiled intrinsics as focal length and principal point, in units of length
+// write the compiled intrinsics as focal length and principal point, in units of length, which are
+// those of the spec in the spec
 void mjCCamera::IntrinsicToSpec(bool tospec) {
   for (mjsCamera* camera : {static_cast<mjsCamera*>(this), tospec ? &spec : nullptr}) {
     if (!camera) { continue; }
+    const double fl = camera == &spec ? Gauge().Inverse().Shape(1) : 1;
     for (int i = 0; i < 2; i++) {
-      camera->focal_length[i]     = intrinsic[i];
-      camera->principal_length[i] = intrinsic[i + 2];
+      camera->focal_length[i]     = fl * intrinsic[i];
+      camera->principal_length[i] = fl * intrinsic[i + 2];
       camera->focal_pixel[i]      = 0;
       camera->principal_pixel[i]  = 0;
     }
@@ -4958,9 +5021,9 @@ void mjCLight::ResolveReferences(const mjCModel* m) {
 }
 
 
-// scale the compiled copy by the gauge; attenuation is 1, L^-1, L^-2
-void mjCLight::ApplyGauge() {
-  const mjCGauge g = Gauge();
+// scale the compiled copy by the gauge, or back; attenuation is 1, L^-1, L^-2
+void mjCLight::ApplyGauge(bool inverse) {
+  const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   const double fl = g.Shape(1);
   g.Point(pos);
@@ -6252,11 +6315,11 @@ void mjCPair::ResolveReferences(const mjCModel* m) {
 }
 
 
-// compiler
-// scale the compiled copy by the mean gauge of the two geoms; undefined values are inherited from
-// the geoms, which are scaled already
-void mjCPair::ApplyGauge() {
-  const mjCGauge g = mjCGauge::Mean(geom1->Gauge(), geom2->Gauge());
+// scale the compiled copy by the mean gauge of the two geoms, or back; undefined values are
+// inherited from the geoms, which are scaled already
+void mjCPair::ApplyGauge(bool inverse) {
+  const mjCGauge mean = mjCGauge::Mean(geom1->Gauge(), geom2->Gauge());
+  const mjCGauge g    = inverse ? mean.Inverse() : mean;
   if (g.IsIdentity()) { return; }
   const double fl = g.Shape(1);
   if (mjuu_defined(margin)) { margin *= fl; }
@@ -6269,6 +6332,7 @@ void mjCPair::ApplyGauge() {
 }
 
 
+// compiler
 void mjCPair::Compile(void) {
   CopyFromSpec();
 
@@ -6623,10 +6687,10 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
 }
 
 
-// scale the compiled copy by the gauges of the constrained objects: an anchor by that of the body
-// in which it is given, a coupling by those of its coordinates, and the impedance width by the
-// dimension of the residual
-void mjCEquality::ApplyGauge() {
+// scale the compiled copy by the gauges of the constrained objects, or back: an anchor by that of
+// the body in which it is given, a coupling by those of its coordinates, and the impedance width by
+// the dimension of the residual
+void mjCEquality::ApplyGauge(bool inverse) {
   double width = 1;
   if (type == mjEQ_CONNECT || type == mjEQ_WELD) {
     const bool     body = objtype == mjOBJ_BODY;
@@ -6636,6 +6700,10 @@ void mjCEquality::ApplyGauge() {
     mjCGauge g1 = body ? o1->ContentGauge() : o1->Gauge();
     mjCGauge g2 = o2 ? (body ? o2->ContentGauge() : o2->Gauge()) : mjCGauge();
     if (g1.IsIdentity() && g2.IsIdentity()) { return; }
+    if (inverse) {
+      g1 = g1.Inverse();
+      g2 = g2.Inverse();
+    }
     const mjCGauge mean = mjCGauge::Mean(g1, g2);
     width               = mean.Shape(1);
     if (body && type == mjEQ_CONNECT) {
@@ -6658,9 +6726,13 @@ void mjCEquality::ApplyGauge() {
           static_cast<const mjCTendon*>(model->FindObject(mjOBJ_TENDON, name));
       return tendon->Linear() ? tendon->PathGauge().Shape(1) : 1;
     };
-    const double q1 = coordinate(name1_);
-    const double q2 = coordinate(name2_);
+    double q1 = coordinate(name1_);
+    double q2 = coordinate(name2_);
     if (q1 == 1 && q2 == 1) { return; }
+    if (inverse) {
+      q1 = 1 / q1;
+      q2 = 1 / q2;
+    }
     for (int k = 0; k < 5; k++) { data[k] *= q1 / std::pow(q2, k); }
     width = q1;
   }
@@ -6919,18 +6991,20 @@ int mjCTendon::Linear() const {
 }
 
 
-// scale the compiled copy by the gauge of the path; the coefficient of a joint converts its
-// coordinate to the length of the tendon, so it takes the ratio of their factors
-void mjCTendon::ApplyGauge() {
-  const mjCGauge g  = PathGauge();
+// scale the compiled copy by the gauge of the path, or back; the coefficient of a joint converts
+// its coordinate to the length of the tendon, so it takes the ratio of their factors
+void mjCTendon::ApplyGauge(bool inverse) {
+  const mjCGauge g  = inverse ? PathGauge().Inverse() : PathGauge();
   const int      q  = Linear();
   const double   fq = q ? g.Shape(1) : 1;
-  for (mjCWrap* wrap : path) {
-    wrap->prmscale = 1;
-    if (wrap->Type() == mjWRAP_JOINT && wrap->obj) {
-      const mjCJoint* joint = static_cast<const mjCJoint*>(wrap->obj);
-      bool            slide = joint->spec.type == mjJNT_SLIDE;
-      wrap->prmscale        = fq / (slide ? joint->Gauge().Stretch(joint->spec.axis) : 1);
+  if (!inverse) {
+    for (mjCWrap* wrap : path) {
+      wrap->prmscale = 1;
+      if (wrap->Type() == mjWRAP_JOINT && wrap->obj) {
+        const mjCJoint* joint = static_cast<const mjCJoint*>(wrap->obj);
+        bool            slide = joint->spec.type == mjJNT_SLIDE;
+        wrap->prmscale        = fq / (slide ? joint->Gauge().Stretch(joint->spec.axis) : 1);
+      }
     }
   }
   if (g.IsIdentity()) { return; }
@@ -7507,56 +7581,63 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
 }
 
 
-// scale the compiled copy by the gauge of the transmission target. Q is the coordinate of the
-// transmission, L^q, and G the generalized force, M L^(2-q) T^-2; gains and biases are force class
-// whatever their dimension, and a control follows its declared input
-void mjCActuator::ApplyGauge() {
+// scale the compiled copy by the gauge of the transmission target, or back. Q is the coordinate of
+// the transmission, L^q, and G the generalized force, M L^(2-q) T^-2; gains and biases are force
+// class whatever their dimension, and a control follows its declared input
+void mjCActuator::ApplyGauge(bool inverse) {
   // transmission target, and whether its coordinate is a length
-  const bool linear6 = gear[0] || gear[1] || gear[2];
-  gauge_             = mjCGauge();
-  linear_            = 0;
-  double fq          = 1;
-  switch (trntype) {
-    case mjTRN_JOINT:
-    case mjTRN_JOINTINPARENT: {
-      const mjCJoint* joint = static_cast<const mjCJoint*>(ptarget);
-      gauge_                = joint->Gauge();
-      if (joint->spec.type == mjJNT_SLIDE) {
+  const bool      linear6 = gear[0] || gear[1] || gear[2];
+  const bool      tojoint = trntype == mjTRN_JOINT || trntype == mjTRN_JOINTINPARENT;
+  const mjCJoint* joint   = tojoint ? static_cast<const mjCJoint*>(ptarget) : nullptr;
+  if (!inverse) {
+    gauge_  = mjCGauge();
+    linear_ = 0;
+    switch (trntype) {
+      case mjTRN_JOINT:
+      case mjTRN_JOINTINPARENT:
+        gauge_  = joint->Gauge();
+        linear_ = joint->spec.type == mjJNT_SLIDE || (joint->spec.type == mjJNT_FREE && linear6);
+        break;
+      case mjTRN_TENDON:
+        gauge_  = static_cast<const mjCTendon*>(ptarget)->PathGauge();
+        linear_ = static_cast<const mjCTendon*>(ptarget)->Linear();
+        break;
+      case mjTRN_SITE:
+        gauge_  = ptarget->Gauge();
+        linear_ = linear6;
+        break;
+      case mjTRN_SLIDERCRANK:
+        gauge_ =
+            mjCGauge::Mean(ptarget->Gauge(), model->FindObject(mjOBJ_SITE, slidersite_)->Gauge());
         linear_ = 1;
-        fq      = gauge_.Stretch(joint->spec.axis);
-      } else if (joint->spec.type == mjJNT_FREE && linear6) {
+        break;
+      case mjTRN_BODY:
+        gauge_  = ptarget->ContentGauge();
         linear_ = 1;
-        fq      = gauge_.Shape(1);
-      }
-      break;
+        break;
+      default:
+        break;
     }
-    case mjTRN_TENDON:
-      gauge_  = static_cast<const mjCTendon*>(ptarget)->PathGauge();
-      linear_ = static_cast<const mjCTendon*>(ptarget)->Linear();
-      fq      = linear_ ? gauge_.Shape(1) : 1;
-      break;
-    case mjTRN_SITE:
-      gauge_  = ptarget->Gauge();
-      linear_ = linear6;
-      fq      = linear_ ? gauge_.Shape(1) : 1;
-      break;
-    case mjTRN_SLIDERCRANK:
-      gauge_ =
-          mjCGauge::Mean(ptarget->Gauge(), model->FindObject(mjOBJ_SITE, slidersite_)->Gauge());
-      linear_ = 1;
-      fq      = gauge_.Shape(1);
-      break;
-    case mjTRN_BODY:
-      gauge_  = ptarget->ContentGauge();
-      linear_ = 1;
-      fq      = gauge_.Shape(1);
-      break;
-    default:
-      break;
+    actscale_ = 1;
+    for (int j = 0; j < 4; j++) { ctrlscales_[j] = 1; }
   }
-  ctrlscale_ = actscale_ = 1;
-  const mjCGauge& g      = gauge_;
+  const mjCGauge g = inverse ? gauge_.Inverse() : gauge_;
   if (g.IsIdentity()) { return; }
+
+  // factor of the coordinate: the stretch along a slide, or that of a length
+  const bool   slide = joint && joint->spec.type == mjJNT_SLIDE;
+  const double fq    = !linear_ ? 1 : (slide ? g.Stretch(joint->spec.axis) : g.Shape(1));
+
+  // factors of the inputs which are declared, packed in the order pos, vel, ff, voltage, and of
+  // the activation
+  double ctrlf[4] = {1, 1, 1, 1}, actf = 1;
+  auto   packinputs = [&](double pos, double vel, double ff, double voltage) {
+    const int    bits[4] = {mjINPUT_POS, mjINPUT_VEL, mjINPUT_FF, mjINPUT_VOLTAGE};
+    const double f[4]    = {pos, vel, ff, voltage};
+    for (int k = 0, j = 0; k < 4; k++) {
+      if (ctrlspec_ & bits[k]) { ctrlf[j++] = f[k]; }
+    }
+  };
 
   // parameters which the gauge cannot interpret
   if (!g.IsForceIdentity() && (plugin.active ||
@@ -7570,10 +7651,8 @@ void mjCActuator::ApplyGauge() {
   }
 
   // transmission: shape class
-  const int  q      = linear_;
-  const bool tofree = (trntype == mjTRN_JOINT || trntype == mjTRN_JOINTINPARENT) &&
-                      static_cast<const mjCJoint*>(ptarget)->spec.type == mjJNT_FREE;
-  if ((trntype == mjTRN_SITE || tofree) && linear6) {
+  const int q = linear_;
+  if ((trntype == mjTRN_SITE || (joint && joint->spec.type == mjJNT_FREE)) && linear6) {
     for (int i = 3; i < 6; i++) { gear[i] *= g.Shape(1); }
   }
   cranklength    *= g.Shape(1);
@@ -7612,9 +7691,9 @@ void mjCActuator::ApplyGauge() {
       gainprm[2] *= g.Force(a - uL - q, 1 - uM);
     }
     if (biastype == mjBIAS_AFFINE) { affinebias(); }
-    ctrlscale_ = fu;
+    ctrlf[0] = fu;
     if (dyntype == mjDYN_INTEGRATOR || dyntype == mjDYN_FILTER || dyntype == mjDYN_FILTEREXACT) {
-      actscale_ = fu;
+      actf = fu;
     }
   }
 
@@ -7624,7 +7703,8 @@ void mjCActuator::ApplyGauge() {
     if (biastype == mjBIAS_MUSCLE && biasprm[2] > 0) { biasprm[2] *= g.Force(a, 1); }
   }
 
-  // pid: inputs pos, vel and ff; ki is G/(Q T), the integral and slew limits are Q
+  // pid: inputs pos, vel and ff; ki is G/(Q T), the integral and slew limits are Q, and so are the
+  // states, a setpoint and an integral over time
   else if (gaintype == mjGAIN_PID) {
     gainprm[0] *= g.Force(a - q, 1);
     affinebias();
@@ -7634,7 +7714,8 @@ void mjCActuator::ApplyGauge() {
     velrange[1] *= fq;
     ffrange[0]  *= g.Force(a, 1);
     ffrange[1]  *= g.Force(a, 1);
-    ctrlscale_   = fq;
+    packinputs(fq, fq, g.Force(a, 1), 1);
+    actf = fq;
   }
 
   // orientation servo: an angle or quaternion controls a torque
@@ -7648,13 +7729,19 @@ void mjCActuator::ApplyGauge() {
   else if (gaintype == mjGAIN_DCMOTOR) {
     velrange[0] *= fq;
     velrange[1] *= fq;
-    if (ctrlspec & mjINPUT_POS) { ctrlscale_ = fq; }
+    packinputs(fq, fq, 1, 1);
   }
 
-  ctrlrange[0] *= ctrlscale_;
-  ctrlrange[1] *= ctrlscale_;
-  actrange[0]  *= actscale_;
-  actrange[1]  *= actscale_;
+  // the control range is that of the first input, or of the position input of a dc motor
+  const double frange  = gaintype != mjGAIN_DCMOTOR || (ctrlspec_ & mjINPUT_POS) ? ctrlf[0] : 1;
+  ctrlrange[0]        *= frange;
+  ctrlrange[1]        *= frange;
+  actrange[0]         *= actf;
+  actrange[1]         *= actf;
+  if (!inverse) {
+    actscale_ = actf;
+    for (int j = 0; j < 4; j++) { ctrlscales_[j] = ctrlf[j]; }
+  }
 }
 
 
@@ -8442,10 +8529,9 @@ mjtStage sensorNeedstage(mjtSensor type) {
   return mjSTAGE_POS;  // all cases are covered but GCC is extra persnickety
 }
 
-// compiler
-// scale the cutoff and noise by the dimension of the output, in the gauge of the sensorized object;
-// the reference only chooses coordinates, except for distances which average both gauges
-void mjCSensor::ApplyGauge() {
+// scale the cutoff and noise by the dimension of the output, in the gauge of the sensorized object,
+// or back; the reference only chooses coordinates, except for distances which average both gauges
+void mjCSensor::ApplyGauge(bool inverse) {
   if (!obj) { return; }
 
   // gauge of the object, and the factor of its coordinate
@@ -8533,11 +8619,13 @@ void mjCSensor::ApplyGauge() {
     default:
       break;
   }
+  if (inverse) { f = 1 / f; }
   cutoff *= f;
   noise  *= f;
 }
 
 
+// compiler
 void mjCSensor::Compile(void) {
   CopyFromSpec();
 
