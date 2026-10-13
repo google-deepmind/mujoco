@@ -74,10 +74,21 @@ def run(
     viewer_plugins: list[Any] | None = None,
     sim_plugins: list[Any] | None = None,
 ) -> None:
-  """Launches the NativeViewer and runs the blocking simulation sync loop."""
+  """Launches the NativeViewer and runs the blocking simulation sync loop.
+
+  Args:
+    config: Optional ViewerConfig (defaults to standard ViewerConfig()).
+    model: A model to publish before the loop starts.
+    data: The data for ``model``; a fresh one is created when None.
+    model_path: The file ``model`` came from, if any, for viewer reloads.
+    viewer_plugins: Optional list of viewer-side plugin instances.
+    sim_plugins: Optional list of sim-side plugin instances.
+  """
   with launch(
       config,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   ) as handle:
-    viewer_handle.run_sim_loop(handle, model, data, model_path=model_path)
+    if model is not None:
+      handle.set_model(model, path=model_path or '', data=data)
+    viewer_handle.run_sim_loop(handle)

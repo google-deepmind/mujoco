@@ -105,6 +105,9 @@ message-driven plugin architecture:
     -   `python/mujoco/experimental/studio/sample/implot.py` —
         Demonstrates real-time responsive charting with Dear ImGui and ImPlot
         via `BodyInspector`.
+    -   `python/mujoco/experimental/studio/sample/custom_sim_loop.py` —
+        Demonstrates a script that owns its stepping and pacing loop via
+        `handle.sync(model, data)`.
 
 ## 3. Messaging & Channel Protocol (`messages.py`)
 
@@ -382,6 +385,10 @@ with launch_web.launch(
     # handlers, or sync() cannot send the change to the viewer (see §8.2).
     model, data = handle.sync(model, data)
 ```
+
+To step and pace physics directly in the loop instead, omit `StepControl()` and
+step after `handle.sync(model, data)` (see
+`python/mujoco/experimental/studio/sample/custom_sim_loop.py`).
 
 ## 5. Authoring Python Plugins
 

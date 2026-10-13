@@ -189,19 +189,33 @@ class ViewerHandle:
     )
 
   def dispatch(self, message: messages.Message) -> None:
-    """Dispatches a message to registered sim-side handlers in priority order."""
+    """Dispatches a message to sim-side handlers in priority order."""
     self._sim_plugins.dispatch(message)
 
-  def set_model(self, model: mujoco.MjModel, path: str = '') -> None:
-    """Replaces the simulation's model and notifies both sim plugins and the viewer."""
+  def set_model(
+      self,
+      model: mujoco.MjModel,
+      path: str = '',
+      data: mujoco.MjData | None = None,
+  ) -> None:
+    """Publishes ``model`` to sim plugins and the viewer as the current model.
+
+    Args:
+      model: The new model.
+      path: The file that produced ``model``, if any; see ``ModelEvent.path``.
+      data: The data for ``model``; a fresh ``MjData`` is created when None.
+    """
+    self.model = model
+    self.data = mujoco.MjData(model) if data is None else data
+    mujoco.mj_forward(self.model, self.data)
     event = messages.ModelEvent(model=model, path=path)
     self.dispatch(event)
     self.send_to_viewer(event)
 
   def sync(
       self,
-      model: mujoco.MjModel | None,
-      data: mujoco.MjData | None,
+      model: mujoco.MjModel | None = None,
+      data: mujoco.MjData | None = None,
   ) -> tuple[mujoco.MjModel | None, mujoco.MjData | None]:
     """Syncs the simulation with the viewer and returns the updated sim state.
 
@@ -210,23 +224,26 @@ class ViewerHandle:
     can prepare, advance, and observe the simulation, and sends the resulting
     simulation state to the viewer as a snapshot.
 
-    Stepping and pacing are plugin responsibilities: pass
-    ``step_control.StepControl()`` in ``sim_plugins`` for the standard
-    real-time-paced CPU stepping, or your own plugin to step differently.
-    Without a stepping plugin nothing advances and ``sync`` never sleeps, so
-    the calling loop must pace itself to avoid busy-spinning; even then, keep
-    edits out of the loop.
+    ``sync`` itself neither advances physics nor sleeps. When using
+    ``run_sim_loop``, include a ``StepEvent`` plugin in ``sim_plugins`` (e.g.
+    ``step_control.StepControl()`` for real-time-paced CPU stepping, or your
+    own plugin to step differently) that also paces each iteration to avoid
+    busy-spinning. Alternatively, a user script can write its own loop around
+    ``sync`` and step and pace the simulation directly (see
+    ``sample/custom_sim_loop.py``).
 
-    Sim-side edits belong in handlers of those three events: ``sync`` compares
-    ``model.opt`` before ``PreStepEvent`` and after ``PostStepEvent`` and sends
-    an ``MjOptionSnapshot`` to the viewer when it changed.
+    Sim-side edits belong in handlers of those three events: ``sync`` checks
+    ``model.opt`` for changes across ``PreStepEvent``, ``StepEvent``, and
+    ``PostStepEvent`` and sends an ``MjOptionSnapshot`` to the viewer when it
+    was modified.
 
     Args:
-      model: The current model.
-      data: The current data.
+      model: Optional model owned by the caller's loop. If None, keeps
+        simulating the model already on the handle (from ``set_model``).
+      data: The data for ``model``; ignored when ``model`` is None.
 
     Returns:
-      The updated model and data; rebind both, they may be new objects (e.g.
+      The current model and data; rebind both, they may be new objects (e.g.
       after the viewer sends a ModelEvent).
     """
     # Read the viewer's queues before dispatching anything: a handler may close
@@ -234,14 +251,15 @@ class ViewerHandle:
     events = self._sim_endpoint.get_viewer_events()
     snapshots = self._sim_endpoint.get_viewer_snapshots()
 
-    model_changed = model is not None and model is not self.model
-    self.model, self.data = model, data
-    if model_changed:
-      assert self.model is not None and self.data is not None
-      self._sim_endpoint.send_to_viewer(messages.ModelEvent(model=self.model))
-      self._sim_plugins.dispatch(
-          messages.PostModelEvent(model=self.model, data=self.data)
-      )
+    if model is not None:
+      model_changed = model is not self.model
+      self.model, self.data = model, data
+      if model_changed:
+        assert self.model is not None and self.data is not None
+        self._sim_endpoint.send_to_viewer(messages.ModelEvent(model=self.model))
+        self._sim_plugins.dispatch(
+            messages.PostModelEvent(model=self.model, data=self.data)
+        )
 
     # Process incoming events from the viewer.
     for event in events:
@@ -294,9 +312,12 @@ class ViewerHandle:
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_model(self, event: messages.ModelEvent) -> None:
-    self.model = event.model
-    self.data = mujoco.MjData(event.model)
-    mujoco.mj_forward(self.model, self.data)
+    if event.model is not self.model:
+      # Only needed when ModelEvent is dispatched without calling set_model().
+      self.model = event.model
+      self.data = mujoco.MjData(event.model)
+      mujoco.mj_forward(self.model, self.data)
+    assert self.model is not None and self.data is not None
     self.dispatch(
         messages.PostModelEvent(
             model=self.model, data=self.data, path=event.path
@@ -310,7 +331,7 @@ class ViewerHandle:
       *,
       forward: bool = False,
   ) -> None:
-    """Applies a state array to the sim's data and optionally runs mj_forward."""
+    """Applies a state array to sim data and optionally runs mj_forward."""
     if self.model is not None and self.data is not None:
       state_size = mujoco.mj_stateSize(self.model, state_sig)
       if len(state) == state_size:
@@ -330,7 +351,7 @@ class ViewerHandle:
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_reset(self, event: messages.ResetEvent) -> None:
-    """Resets the sim's data; does not consume the event so plugins observe it."""
+    """Resets sim data without consuming the event so plugins observe it."""
     if self.model is not None:
       assert self.data is not None
       if event.key is not None:
@@ -370,25 +391,22 @@ class ViewerHandle:
     return True
 
 
-def run_sim_loop(
-    handle: ViewerHandle,
-    model: mujoco.MjModel | None = None,
-    data: mujoco.MjData | None = None,
-    model_path: str | None = None,
-) -> None:
-  """Runs the standard simulation sync loop until the viewer closes."""
-  if model is not None:
-    handle.set_model(model, path=model_path or '')
+def run_sim_loop(handle: ViewerHandle) -> None:
+  """Runs the standard simulation sync loop until the viewer closes.
+
+  Publish a model before calling this (``handle.set_model``), or include a sim
+  plugin that does; until one arrives the viewer shows an empty scene.
+
+  With this loop, all sim-side behavior—stepping, pacing, and edits to
+  ``model``, ``data``, or plugin state—belongs in ``sim_plugins`` handling
+  ``PreStepEvent``, ``StepEvent``, and ``PostStepEvent``, which ``sync``
+  dispatches inside its ``model.opt`` change detection. For an example of a
+  script that owns its loop, stepping and pacing itself, see
+  ``sample/custom_sim_loop.py``.
+  """
   try:
-    # This loop is framework boilerplate, identical in every launcher. It is
-    # important NOT to step physics or edit model, data or plugin state here,
-    # nor in a loop of your own around sync(): sim-side behaviour belongs in
-    # sim_plugins handling PreStepEvent, StepEvent and PostStepEvent, which
-    # sync() dispatches inside its change detection. An edit made between
-    # sync() calls is never sent to the viewer, and the viewer's next snapshot
-    # overwrites it.
     while handle.is_running():
-      model, data = handle.sync(model, data)
+      handle.sync()
   except KeyboardInterrupt:
     # Ctrl+C is the documented way to quit; exit cleanly, no traceback.
     print('\nShutting down.', flush=True)
