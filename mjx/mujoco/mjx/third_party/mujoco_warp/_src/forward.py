@@ -68,7 +68,7 @@ def check_discrete(m: Model):
     return
   if m.has_unsupported_flex_interp:
     raise NotImplementedError(
-      "Discrete integrator: shell (flex_interp < 0) and quadratic (flex_interp >= 2) interpolated flexes are not supported"
+      "Discrete integrator: quadratic (abs(flex_interp) >= 2) interpolated flexes are not supported"
     )
   if m.opt.solver == SolverType.NEWTON and m.has_non_simple_flex:
     raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")

@@ -633,7 +633,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
             flex_interp_assemblable = False
             break
   m.flex_interp_assemblable = flex_interp_assemblable
-  m.has_unsupported_flex_interp = bool(any(int(x) < 0 or int(x) >= 2 for x in mjm.flex_interp))
+  m.has_unsupported_flex_interp = bool(any(int(x) < -1 or int(x) >= 2 for x in mjm.flex_interp))
 
   # Precompute flex_cell_map
   flex_cell_map = []
