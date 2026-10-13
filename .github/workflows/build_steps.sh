@@ -356,7 +356,8 @@ build_python_bindings() {
 install_python_bindings() {
     echo "Installing Python bindings..."
     source ${TMPDIR}/venv/bin/activate &&
-    pip install --no-index mujoco-*.whl
+    pip install --no-deps --no-index mujoco-*.whl &&
+    pip check
 }
 
 
@@ -448,7 +449,8 @@ install_mjx() {
     else
         pip install --require-hashes -r requirements.txt
     fi
-    pip install --no-index dist/mujoco_mjx-*.whl
+    pip install --no-deps --no-index dist/mujoco_mjx-*.whl
+    pip check
 }
 
 
@@ -555,13 +557,16 @@ _install_python_wheel() {
     fi
     echo "Building and installing the Python bindings against ${prefix}..."
     _build_python_wheel "${prefix}"
-    # --force-reinstall --no-deps replaces whatever mujoco is installed with the
-    # one just built, without disturbing the rest of the environment. It also
-    # installs none of the wheel's runtime dependencies, so the plain install
-    # that follows adds those (websockets, which the web viewer server needs,
-    # among them) and leaves the freshly installed mujoco alone.
-    pip install --force-reinstall --no-deps python/dist/mujoco-*.whl
-    pip install python/dist/mujoco-*.whl
+    # Install build/runtime dependencies (including websockets for the web
+    # viewer server) with hash verification, then --force-reinstall --no-deps
+    # --no-index to replace whatever mujoco is installed with the one just built
+    # without disturbing the rest of the environment.
+    if command -v uv > /dev/null 2>&1; then
+        uv pip install --require-hashes -r python/build_requirements.txt
+    else
+        pip install --require-hashes -r python/build_requirements.txt
+    fi
+    pip install --force-reinstall --no-deps --no-index python/dist/mujoco-*.whl
 }
 
 
