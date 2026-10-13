@@ -525,3 +525,70 @@ int mjc_CapsuleCapsule(const mjModel* m, mjData* d, mjPreContact* con, int g1, i
   const mjtNum* size2 = m->geom_size + 3*g2;
   return mjraw_CapsuleCapsule(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
+
+
+// compute the barycentric weights w of the closest point on triangle ABC to p
+void mjc_triWeights(mjtNum w[3], const mjtNum p[3], const mjtNum a[3], const mjtNum b[3],
+                    const mjtNum c[3]) {
+  // compute barycentric coordinates via Voronoi regions (See Ericson 5.1.5)
+  mjtNum ab[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+  mjtNum ac[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+  mjtNum ap[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
+  mjtNum bp[3] = {p[0] - b[0], p[1] - b[1], p[2] - b[2]};
+  mjtNum cp[3] = {p[0] - c[0], p[1] - c[1], p[2] - c[2]};
+
+  mjtNum dot1 = mju_dot3(ab, ap);
+  mjtNum dot2 = mju_dot3(ac, ap);
+  mjtNum dot3 = mju_dot3(ab, bp);
+  mjtNum dot4 = mju_dot3(ac, bp);
+  mjtNum dot5 = mju_dot3(ab, cp);
+  mjtNum dot6 = mju_dot3(ac, cp);
+
+  // vertex region outside A
+  if (dot1 <= 0 && dot2 <= 0) {
+    w[0] = 1, w[1] = 0, w[2] = 0;
+    return;
+  }
+
+  // vertex region outside B
+  if (dot3 >= 0 && dot4 <= dot3) {
+    w[0] = 0, w[1] = 1, w[2] = 0;
+    return;
+  }
+
+  // vertex region outside C
+  if (dot6 >= 0 && dot5 <= dot6) {
+    w[0] = 0, w[1] = 0, w[2] = 1;
+    return;
+  }
+
+  // signed areas of PBC, PCA, PAB scaled by 4*area(ABC)
+  mjtNum va = dot3 * dot6 - dot5 * dot4;
+  mjtNum vb = dot5 * dot2 - dot1 * dot6;
+  mjtNum vc = dot1 * dot4 - dot3 * dot2;
+
+  // edge region AB
+  if (vc <= 0 && dot1 >= 0 && dot3 <= 0) {
+    mjtNum t = dot1 / (dot1 - dot3);
+    w[0] = 1 - t,  w[1] = t, w[2] = 0;
+    return;
+  }
+
+  // edge region AC
+  if (vb <= 0 && dot2 >= 0 && dot6 <= 0) {
+    mjtNum t = dot2 / (dot2 - dot6);
+    w[0] = 1 - t, w[1] = 0, w[2] = t;
+    return;
+  }
+
+  // edge region BC
+  if (va <= 0 && (dot4 - dot3) >= 0 && (dot5 - dot6) >= 0) {
+    mjtNum t = (dot4 - dot3) / ((dot4 - dot3) + (dot5 - dot6));
+    w[0] = 0, w[1] = 1 - t, w[2] = t;
+    return;
+  }
+
+  // face region ABC
+  mjtNum d = 1.0 / (va + vb + vc), t = vb * d, u = vc * d;
+  w[0] = 1 - t - u, w[1] = t, w[2] = u;
+}
