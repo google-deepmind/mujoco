@@ -695,7 +695,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   void AccumulateInertia(const mjsBody* other);
 
   // gauge of what this body contains, in its coordinates
-  mjCGauge ContentGauge() const override;
+  mjCGauge ContentGauge() const;
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
