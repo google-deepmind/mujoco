@@ -16,6 +16,9 @@
 
 #include "src/engine/engine_sleep.h"
 
+#include <atomic>
+#include <cstddef>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -563,6 +566,56 @@ TEST_F(SleepTest, InitIslandFail) {
               HasSubstr("3 trees were marked as sleep='init' but only 0 could "
                         "be slept.\nBody 'asleep_init0' (id=1) is the root of "
                         "the first tree that could not be slept."));
+}
+
+// applied force keeps a tree awake
+void PushControl(const mjModel* m, mjData* d) { d->qfrc_applied[0] = 1; }
+
+// MuJoCo allocations not yet freed, counted by CountingMalloc and CountingFree
+std::atomic<int> live_allocations = 0;
+
+void* CountingMalloc(std::size_t size) {
+  live_allocations++;
+  return std::malloc(size);
+}
+
+void CountingFree(void* block) {
+  live_allocations--;
+  std::free(block);
+}
+
+// a reset that cannot put sleep='init' trees to sleep raises and leaves the
+// caller's data allocated; mj_makeData frees the data it made
+TEST_F(SleepTest, InitFailureFreesOnlyNewData) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option><flag sleep="enable"/></option>
+    <worldbody>
+      <body sleep="init"><freejoint/><geom size=".1"/></body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  mju_user_malloc = CountingMalloc;
+  mju_user_free = CountingFree;
+  mjData* d = mj_makeData(model.get());
+  int allocated = live_allocations;
+  mjcb_control = PushControl;
+  EXPECT_THAT(MjuErrorMessageFrom(mj_resetData)(model.get(), d),
+              HasSubstr("could be slept"));
+  EXPECT_EQ(live_allocations, allocated);
+  EXPECT_THAT(MjuErrorMessageFrom(mj_resetDataKeyframe)(model.get(), d, -1),
+              HasSubstr("could be slept"));
+  EXPECT_EQ(live_allocations, allocated);
+  EXPECT_THAT(MjuErrorMessageFrom(mj_makeData)(model.get()),
+              HasSubstr("could be slept"));
+  EXPECT_EQ(live_allocations, allocated);
+  mjcb_control = nullptr;
+  mj_deleteData(d);
+  EXPECT_EQ(live_allocations, 0);
+  mju_user_malloc = nullptr;
+  mju_user_free = nullptr;
 }
 
 // Test that a constrained flex eventually goes to sleep.

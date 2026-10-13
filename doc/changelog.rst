@@ -57,6 +57,8 @@ Engine
 - Fixed floating-point cancellation in capsule-capsule collision detection for parallel and near-parallel axes. Thanks
   to :github:user:`ayonga` for reporting the issue in :doc:`MJWarp <mjwarp/index>` issue
   `1758 <https://github.com/google-deepmind/mujoco_warp/issues/1758>`__.
+- Fixed :ref:`mj_resetData` and :ref:`mj_resetDataKeyframe` freeing the caller's ``mjData`` before raising the error for
+  ``sleep="init"`` trees that cannot be put to sleep. :ref:`mj_makeData` still frees the data it made.
 
 Compiler
 ^^^^^^^^

@@ -1139,13 +1139,15 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 }
 
 
+static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value, int owned);
+
 // allocate and initialize mjData structure
 mjData* mj_makeData(const mjModel* m) {
   mjData* d = NULL;
   mj_makeRawData(&d, m);
   if (d) {
     mj_initPlugin(m, d);
-    mj_resetData(m, d);
+    _resetData(m, d, 0, /*owned=*/1);
   }
   return d;
 }
@@ -1297,7 +1299,8 @@ mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 
 // clear data, set defaults
-static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
+// reset d; owned: d was just made, and is freed if sleep initialization fails
+static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value, int owned) {
   // error early if history buffers cannot be initialized
   mjtNum dt = m->opt.timestep;
   if (m->nhistory && dt <= 0) {
@@ -1528,8 +1531,10 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
           }
         }
 
-        // free all memory held by d just before aborting
-        mj_deleteData(d);
+        // free all memory held by a new d just before aborting
+        if (owned) {
+          mj_deleteData(d);
+        }
 
         // raise error and abort
         const char* hasname = mj_id2name(m, mjOBJ_BODY, root);
@@ -1678,14 +1683,14 @@ void mj_resetData(const mjModel* m, mjData* d) {
   // emit step timing diagnostics before timers are cleared
   mj_logTimingDiagnostics(d);
 
-  _resetData(m, d, 0);
+  _resetData(m, d, 0, /*owned=*/0);
 }
 
 
 
 // clear data, set data->qpos = model->qpos0, fill with debug_value
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value) {
-  _resetData(m, d, debug_value);
+  _resetData(m, d, debug_value, /*owned=*/0);
 }
 
 
@@ -1694,7 +1699,7 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
   // emit step timing diagnostics before timers are cleared
   mj_logTimingDiagnostics(d);
 
-  _resetData(m, d, 0);
+  _resetData(m, d, 0, /*owned=*/0);
 
   // copy keyframe data if key is valid
   if (key >= 0 && key < m->nkey) {
