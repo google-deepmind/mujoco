@@ -133,7 +133,7 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ matrix.label }}-mujoco
-        max-size: "500M"
+        max-size: ${{ contains(matrix.cmake_args, 'MUJOCO_BUILD_STUDIO:BOOL=ON') && '300M' || '150M' }}
         save: ${{ github.ref_name == 'main' }}
 
     - name: Cache external dependencies
@@ -301,7 +301,7 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ env.label }}
-        max-size: "500M"
+        max-size: "100M"
         save: ${{ github.ref_name == 'main' }}
 
     # For convenience run multiple build_steps functions in a single step.
@@ -362,7 +362,7 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ubuntu-24.04-clang-18-mjx
-        max-size: "500M"
+        max-size: "100M"
         save: ${{ github.ref_name == 'main' }}
 
     - name: Cache external dependencies

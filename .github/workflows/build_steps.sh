@@ -336,11 +336,13 @@ build_python_bindings() {
     # temp-dir churn without affecting header content detection.
     # On Windows (Git Bash / MSYS2), TMPDIR is an MSYS path (/c/Temp) that MSYS2
     # does not auto-convert in custom env vars passed to native Win32 processes,
-    # so convert it to a Windows path (C:/Temp) for ccache.exe.
+    # so convert it to a Windows path (C:/Temp) for ccache.exe. On macOS, /tmp is
+    # a symlink to /private/tmp, so resolve symlinks with pwd -P to match the
+    # canonicalized compiler paths in pip's temp build directory.
     if command -v cygpath >/dev/null 2>&1; then
         export CCACHE_BASEDIR="$(cygpath -m "${TMPDIR}")"
     else
-        export CCACHE_BASEDIR="${TMPDIR}"
+        export CCACHE_BASEDIR="$(cd "${TMPDIR}" && pwd -P)"
     fi
     export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
@@ -536,7 +538,7 @@ _build_python_wheel() {
     if command -v cygpath >/dev/null 2>&1; then
         export CCACHE_BASEDIR="$(cygpath -m "${TMPDIR:-$(pwd)}")"
     else
-        export CCACHE_BASEDIR="${TMPDIR:-$(pwd)}"
+        export CCACHE_BASEDIR="$(cd "${TMPDIR:-$(pwd)}" && pwd -P)"
     fi
     export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
