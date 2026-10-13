@@ -24,7 +24,6 @@ import mujoco
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin_registry
-from mujoco.experimental.studio import struct_utils
 from mujoco.experimental.studio import ux
 
 logger = logging.getLogger(__name__)
@@ -221,7 +220,7 @@ class Viewer(abc.ABC):
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_mjoption(self, event: messages.MjOptionSnapshot) -> None:
     """Applies incoming simulation physics options to the viewer's model."""
-    struct_utils.copy_struct(event.opt, self.model.opt)
+    self.model.opt = event.opt
 
   @messages.handler(priority=messages.Priority.CRITICAL)
   def _on_state(self, event: messages.StateSnapshot) -> None:

@@ -21,7 +21,6 @@ import mujoco
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin_registry
-from mujoco.experimental.studio import struct_utils
 import numpy as np
 
 # Launcher-owned liveness check: returns True while the viewer is still alive.
@@ -347,7 +346,7 @@ class ViewerHandle:
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_mjoption(self, event: messages.MjOptionSnapshot) -> bool:
     if self.model is not None:
-      struct_utils.copy_struct(event.opt, self.model.opt)
+      self.model.opt = event.opt
     return True
 
   @messages.handler(priority=messages.Priority.INTERNAL)
