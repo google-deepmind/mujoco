@@ -7,19 +7,21 @@ Upcoming Version (not yet released)
 
 Significant new features
 ^^^^^^^^^^^^^^^^^^^^^^^^
-- Frames can now resize their contents at compile time, without modifying the spec, using the new
-  :ref:`scale<frame-scale>`, :ref:`scaling<frame-scaling>` and :ref:`massscale<frame-massscale>` attributes. Under the
-  default ``similar`` policy a scaled model moves like the original in proportionally scaled gravity; under ``geometry``
-  only shapes and inertias change, and the scale may be anisotropic. Masses follow volumes unless ``massscale`` sets
-  their factor. Everything which refers to the contents of a frame follows its scale: actuators, tendons, equalities,
-  contact pairs, sensors, keyframes, meshes, height fields, flexes and skins. :ref:`mj_copyBack` and the operations
-  which write compiled inertials to the spec write values in its units. See :ref:`frame/scale<frame-scale>` for details.
-- Models can now be saved as written. With the new :ref:`savecompiled<compiler-savecompiled>` compiler attribute set to
-  "false", a model is saved as it is in the :ref:`mjSpec`, with its default classes, frames and exact numbers, and reads
-  back as the same spec. With :ref:`savecanonical<compiler-savecanonical>` "false" it also keeps the notation it was
-  written in, such as orientations, angles, sizes and actuator shortcuts; see :ref:`Model Encoding & Saving <meSaving>`.
-  Both attributes default to "true", which saves models as before. :ref:`mj_copyBack` (``MjSpec.copy_back`` in Python)
-  now writes changes made to the model into the spec itself, leaving everything else as written.
+- :ref:`Frames<frame>` can now scale their contents at compile time—without modifying the :ref:`mjSpec` via the new
+  :ref:`scale<frame-scale>`, :ref:`scaling<frame-scaling>`, and :ref:`massscale<frame-massscale>` attributes. The
+  default ``similar`` policy scales all physical quantities so that dynamics are preserved under proportionally scaled
+  gravity, whereas ``geometry`` scales only spatial dimensions and inertias (and supports anisotropic scaling). Masses
+  scale with volume unless overridden by ``massscale``. External references to scaled elements—including actuators,
+  tendons, constraints, sensors, keyframes, and deformable/mesh assets—are scaled consistently, and :ref:`mj_copyBack`
+  maps values back into unscaled spec coordinates. See :ref:`frame/scale<frame-scale>` for details.
+- Added compiler attributes :ref:`savecompiled<compiler-savecompiled>` and
+  :ref:`savecanonical<compiler-savecanonical>` (both defaulting to ``"true"``) to preserve original authoring when
+  saving models to XML. Setting ``savecompiled="false"`` saves the uncompiled :ref:`mjSpec` directly—retaining default
+  classes, frames, and authored numeric values—so the saved XML reloads into an identical spec. Setting
+  ``savecanonical="false"`` additionally preserves the original input conventions, such as orientation representations,
+  degree/radian units, and actuator shortcuts; see :ref:`Model Encoding & Saving <meSaving>`. :ref:`mj_copyBack`
+  (``MjSpec.copy_back`` in Python) now updates only the modified fields in the spec while leaving all other authored
+  values untouched.
 - Added support for building MuJoCo with `Bazel <https://bazel.build/>`__ (initially covers core library, ``simulate``,
   plugins, and samples).
 
