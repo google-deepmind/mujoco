@@ -476,7 +476,6 @@ cc_library(
         ":engine_inline",
         ":engine_util_blas",
         ":engine_util_misc",
-        ":engine_util_spatial",
         "//:mjdata_hdrs",
         "//:mjmodel_hdrs",
         "//:mjtype_hdrs",
@@ -501,7 +500,9 @@ cc_library(
     deps = [
         ":engine_collision_convex",
         ":engine_collision_primitive",
+        ":engine_inline",
         ":engine_util_blas",
+        ":engine_util_misc",
         ":engine_util_spatial",
         "//:mjdata_hdrs",
         "//:mjmodel_hdrs",
