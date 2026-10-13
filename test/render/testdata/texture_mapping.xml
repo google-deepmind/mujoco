@@ -53,43 +53,46 @@
   </custom>
 
   <worldbody>
-    <camera name="default" pos="0.343 -12.795 16.452" xyaxes="1.000 -0.002 0.000 0.002 0.814 0.581"/>
+    <camera name="default" pos="-1.319 -13.531 30.789" xyaxes="1.000 -0.002 0.000 0.002 0.929 0.370"/>
 
-    <geom type="box" size="0.7 1.0 1.2"  material="phong-t-1-1"     pos="-2 -4.5 0"/>
-    <geom type="box" size="0.7 1.0 1.2"  material="pbr-t-1-1"       pos="-2 -1.5 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="phong-t-1-1"     pos="-12 -11 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="phong-t-2-2.2"   pos="-12  -7 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="phong-t-0.5-0.7" pos="-12  -3 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="phong-f-1-1"     pos="-12   3 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="phong-f-2-2.2"   pos="-12   7 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="phong-f-0.5-0.7" pos="-12  11 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="pbr-t-1-1"       pos=" -8 -11 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="pbr-t-2-2.2"     pos=" -8  -7 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="pbr-t-0.5-0.7"   pos=" -8  -3 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="pbr-f-1-1"       pos=" -8   3 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="pbr-f-2-2.2"     pos=" -8   7 0"/>
+    <geom type="box" size="0.7 1.0 1.2"            material="pbr-f-0.5-0.7"   pos=" -8  11 0"/>
 
-    <geom type="box" size="0.7 1.0 1.2"  material="phong-t-2-2.2"     pos="-5 -4.5 0"/>
-    <geom type="box" size="0.7 1.0 1.2"  material="pbr-t-2-2.2"       pos="-5 -1.5 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="phong-t-1-1"     pos=" -4 -11 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="phong-t-2-2.2"   pos=" -4  -7 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="phong-t-0.5-0.7" pos=" -4  -3 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="phong-f-1-1"     pos=" -4   3 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="phong-f-2-2.2"   pos=" -4   7 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="phong-f-0.5-0.7" pos=" -4  11 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="pbr-t-1-1"       pos="  0 -11 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="pbr-t-2-2.2"     pos="  0  -7 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="pbr-t-0.5-0.7"   pos="  0  -3 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="pbr-f-1-1"       pos="  0   3 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="pbr-f-2-2.2"     pos="  0   7 0"/>
+    <geom type="mesh" mesh="bunny" euler="90 0 0"  material="pbr-f-0.5-0.7"   pos="  0  11 0"/>
 
-    <geom type="box" size="0.7 1.0 1.2"  material="phong-t-0.5-0.7" pos="-8 -4.5 0"/>
-    <geom type="box" size="0.7 1.0 1.2"  material="pbr-t-0.5-0.7"   pos="-8 -1.5 0"/>
-
-    <geom type="box" size="0.7 1.0 1.2"  material="phong-f-1-1"     pos="-2  1.5 0"/>
-    <geom type="box" size="0.7 1.0 1.2"  material="pbr-f-1-1"       pos="-2  4.5 0"/>
-
-    <geom type="box" size="0.7 1.0 1.2"  material="phong-f-2-2.2"     pos="-5  1.5 0"/>
-    <geom type="box" size="0.7 1.0 1.2"  material="pbr-f-2-2.2"       pos="-5  4.5 0"/>
-
-    <geom type="box" size="0.7 1.0 1.2"  material="phong-f-0.5-0.7" pos="-8  1.5 0"/>
-    <geom type="box" size="0.7 1.0 1.2"  material="pbr-f-0.5-0.7"   pos="-8  4.5 0"/>
-
-    <geom type="mesh" mesh="bunny" material="phong-t-1-1"           pos="2 -4.5 -1.5" euler="90 0 0"/>
-    <geom type="mesh" mesh="bunny" material="pbr-t-1-1"             pos="2 -1.5 -1.5" euler="90 0 0"/>
-
-    <geom type="mesh" mesh="bunny" material="phong-t-2-2.2"           pos="5 -4.5 -1.5" euler="90 0 0"/>
-    <geom type="mesh" mesh="bunny" material="pbr-t-2-2.2"             pos="5 -1.5 -1.5" euler="90 0 0"/>
-
-    <geom type="mesh" mesh="bunny" material="phong-t-0.5-0.7"       pos="8 -4.5 -1.5" euler="90 0 0"/>
-    <geom type="mesh" mesh="bunny" material="pbr-t-0.5-0.7"         pos="8 -1.5 -1.5" euler="90 0 0"/>
-
-    <geom type="mesh" mesh="bunny" material="phong-f-1-1"           pos="2  1.5 -1.5" euler="90 0 0"/>
-    <geom type="mesh" mesh="bunny" material="pbr-f-1-1"             pos="2  4.5 -1.5" euler="90 0 0"/>
-
-    <geom type="mesh" mesh="bunny" material="phong-f-2-2.2"           pos="5  1.5 -1.5" euler="90 0 0"/>
-    <geom type="mesh" mesh="bunny" material="pbr-f-2-2.2"             pos="5  4.5 -1.5" euler="90 0 0"/>
-
-    <geom type="mesh" mesh="bunny" material="phong-f-0.5-0.7"       pos="8  1.5 -1.5" euler="90 0 0"/>
-    <geom type="mesh" mesh="bunny" material="pbr-f-0.5-0.7"         pos="8  4.5 -1.5" euler="90 0 0"/>
+    <flexcomp name="f00" type="grid" radius="0.01" material="phong-t-1-1"     pos="  4 -11 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f04" type="grid" radius="0.01" material="phong-t-2-2.2"   pos="  4  -7 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f08" type="grid" radius="0.01" material="phong-t-0.5-0.7" pos="  4  -3 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f02" type="grid" radius="0.01" material="phong-f-1-1"     pos="  4   3 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f06" type="grid" radius="0.01" material="phong-f-2-2.2"   pos="  4   7 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f10" type="grid" radius="0.01" material="phong-f-0.5-0.7" pos="  4  11 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f01" type="grid" radius="0.01" material="pbr-t-1-1"       pos="  8 -11 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f05" type="grid" radius="0.01" material="pbr-t-2-2.2"     pos="  8  -7 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f09" type="grid" radius="0.01" material="pbr-t-0.5-0.7"   pos="  8  -3 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f03" type="grid" radius="0.01" material="pbr-f-1-1"       pos="  8   3 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f07" type="grid" radius="0.01" material="pbr-f-2-2.2"     pos="  8   7 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
+    <flexcomp name="f11" type="grid" radius="0.01" material="pbr-f-0.5-0.7"   pos="  8  11 0" zaxis="0 0 1" count="6 6 1" mass="1" spacing="0.5 0.6 0.7" dim="2"><edge equality="true" solref="0.15 0.2" stiffness="0" damping="0"/></flexcomp>
 
   </worldbody>
 </mujoco>
