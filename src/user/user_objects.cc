@@ -3198,6 +3198,19 @@ void mjCFrame::Compile() {
   const char* err = ResolveOrientation(quat, compiler->degree, compiler->eulerseq, alt);
   if (err) { throw mjCError(this, "orientation specification error '%s' in site %d", err, id); }
 
+  // scale must be finite and positive, and uniform
+  for (int i = 0; i < 3; i++) {
+    if (!std::isfinite(scale[i]) || scale[i] <= 0) {
+      throw mjCError(this, "frame scale must be finite and positive");
+    }
+  }
+  if (scale[0] != scale[1] || scale[1] != scale[2]) {
+    throw mjCError(this, "frame scale must be uniform");
+  }
+  if (!std::isfinite(massscale) || massscale < 0) {
+    throw mjCError(this, "frame massscale must be finite and non-negative");
+  }
+
   // compile parents and accumulate result
   if (frame) {
     frame->Compile();

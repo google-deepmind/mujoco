@@ -778,6 +778,15 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjCONFLICT_ERROR', 2),
          ]),
      )),
+    ('mjtScaling',
+     EnumDecl(
+         name='mjtScaling',
+         declname='enum mjtScaling',
+         values=dict([
+             ('mjSCALING_SIMILAR', 0),
+             ('mjSCALING_GEOMETRY', 1),
+         ]),
+     )),
     ('mjtActuator',
      EnumDecl(
          name='mjtActuator',

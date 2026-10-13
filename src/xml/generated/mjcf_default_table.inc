@@ -321,6 +321,9 @@ static const mjXDefaultEntry kDefaults_mjsFlex[] = {
 static const mjXDefaultEntry kDefaults_mjsFrame[] = {
   {"pos", (int)offsetof(mjsFrame, pos), 0, 3, 0, 0, {0}},
   {"quat", (int)offsetof(mjsFrame, quat), 0, 4, 4, 0, {1.0, 0.0, 0.0, 0.0}},
+  {"scale", (int)offsetof(mjsFrame, scale), 0, 3, 3, 0, {1.0, 1.0, 1.0}},
+  {"scaling", (int)offsetof(mjsFrame, scaling), 2, 1, 1, 0, {(double)mjSCALING_SIMILAR}},
+  {"massscale", (int)offsetof(mjsFrame, massscale), 0, 1, 1, 0, {0.0}},
 };
 
 static const mjXDefaultEntry kDefaults_mjsGeom[] = {

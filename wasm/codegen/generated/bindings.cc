@@ -4361,6 +4361,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjSAMEFRAME_INERTIA", mjSAMEFRAME_INERTIA)
     .value("mjSAMEFRAME_BODYROT", mjSAMEFRAME_BODYROT)
     .value("mjSAMEFRAME_INERTIAROT", mjSAMEFRAME_INERTIAROT);
+  enum_<mjtScaling>("mjtScaling")
+    .value("mjSCALING_SIMILAR", mjSCALING_SIMILAR)
+    .value("mjSCALING_GEOMETRY", mjSCALING_GEOMETRY);
   enum_<mjtSection>("mjtSection")
     .value("mjSECT_CLOSED", mjSECT_CLOSED)
     .value("mjSECT_OPEN", mjSECT_OPEN)
@@ -5861,8 +5864,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("childclass", &MjsFrame::childclass, &MjsFrame::set_childclass, reference())
     .property("element", &MjsFrame::element, reference())
     .property("info", &MjsFrame::info, &MjsFrame::set_info, reference())
+    .property("massscale", &MjsFrame::massscale, &MjsFrame::set_massscale)
     .property("pos", &MjsFrame::pos)
-    .property("quat", &MjsFrame::quat);
+    .property("quat", &MjsFrame::quat)
+    .property("scale", &MjsFrame::scale)
+    .property("scaling", &MjsFrame::scaling, &MjsFrame::set_scaling);
   emscripten::class_<MjsGeom>("MjsGeom")
     .property("adhesion", &MjsGeom::adhesion, &MjsGeom::set_adhesion)
     .property("alt", &MjsGeom::alt, reference())

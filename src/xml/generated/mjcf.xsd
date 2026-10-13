@@ -408,6 +408,13 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="kw_scaling">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="similar"/>
+      <xs:enumeration value="geometry"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="kw_lrmode">
     <xs:restriction base="xs:string">
       <xs:enumeration value="none"/>
@@ -2151,6 +2158,9 @@
     <xs:attribute name="xyaxes" type="double6"/>
     <xs:attribute name="zaxis" type="double3"/>
     <xs:attribute name="euler" type="double3"/>
+    <xs:attribute name="scale" type="double1to3" default="1 1 1"/>
+    <xs:attribute name="scaling" type="kw_scaling" default="similar"/>
+    <xs:attribute name="massscale" type="xs:double" default="0"/>
   </xs:complexType>
 
   <xs:complexType name="replicate">

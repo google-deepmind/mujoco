@@ -388,6 +388,11 @@ enum conflict : mjtConflict {
   error     = mjCONFLICT_ERROR
 }
 
+enum scaling : mjtScaling {
+  similar   = mjSCALING_SIMILAR
+  geometry  = mjSCALING_GEOMETRY
+}
+
 enum lrmode : mjtLRMode {
   none         = mjLRMODE_NONE
   muscle       = mjLRMODE_MUSCLE
@@ -2289,6 +2294,9 @@ element frame : mjsFrame (alias=body) {
   childclass  : ref<default>
   pos         : double[3] (dim=L)
   use orientation
+  scale       : double[1..3] = {1, 1, 1} (dim=1)
+  scaling     : enum<scaling> = similar
+  massscale   : double = 0 (dim=1)
   child body R
   child frame R
   child replicate *

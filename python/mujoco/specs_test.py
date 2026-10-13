@@ -997,6 +997,31 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsite, 10)
     self.assertEqual(model.nsensor, 9)
 
+  def test_frame_scale(self):
+    spec = mujoco.MjSpec()
+    frame = spec.worldbody.add_frame()
+    np.testing.assert_array_equal(frame.scale, [1, 1, 1])
+    self.assertEqual(frame.scaling, mujoco.mjtScaling.mjSCALING_SIMILAR)
+    frame.scale = 2
+    np.testing.assert_array_equal(frame.scale, [2, 2, 2])
+    frame.scale = np.float32(0.5)
+    np.testing.assert_array_equal(frame.scale, [0.5, 0.5, 0.5])
+    frame.scale = [1, 2, 3]
+    np.testing.assert_array_equal(frame.scale, [1, 2, 3])
+    with self.assertRaises(ValueError):
+      frame.scale = [1, 2]
+    frame.scaling = mujoco.mjtScaling.mjSCALING_GEOMETRY
+    self.assertEqual(frame.scaling, mujoco.mjtScaling.mjSCALING_GEOMETRY)
+    self.assertEqual(frame.massscale, 0)
+    frame.massscale = 2
+    self.assertEqual(frame.massscale, 2)
+    frame = spec.worldbody.add_frame(scale=3)
+    np.testing.assert_array_equal(frame.scale, [3, 3, 3])
+    frame = spec.worldbody.add_frame(scale=[1, 2, 3])
+    np.testing.assert_array_equal(frame.scale, [1, 2, 3])
+    with self.assertRaises(ValueError):
+      spec.worldbody.add_frame(scale=[1, 2])
+
   def test_delete_frame(self):
     spec = mujoco.MjSpec.from_string("""
       <mujoco>

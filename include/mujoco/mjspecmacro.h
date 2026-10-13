@@ -132,6 +132,9 @@
     XVEC( double,         pos,        3 ) \
     XVEC( double,         quat,       4 ) \
     X   ( mjsOrientation, alt,        1 ) \
+    XVEC( double,         scale,      3 ) \
+    X   ( mjtScaling,     scaling,    1 ) \
+    X   ( double,         massscale,  1 ) \
     X   ( mjString*,      info,       1 )
 
 

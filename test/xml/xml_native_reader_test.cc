@@ -21,6 +21,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -1426,6 +1427,64 @@ TEST_F(XMLReaderTest, DuplicateFrameName) {
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m.get(), IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'frame1'"));
+}
+
+TEST_F(XMLReaderTest, ParseFrameScale) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="default"/>
+      <frame name="uniform" scale="2"/>
+      <frame name="vector" scale="1 2 3" scaling="geometry"/>
+      <frame name="similar" scaling="similar"/>
+      <frame name="mass" massscale="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  mjsFrame* frame = mjs_findFrame(spec, "default");
+  EXPECT_THAT(frame->scale, ElementsAre(1, 1, 1));
+  EXPECT_EQ(frame->scaling, mjSCALING_SIMILAR);
+
+  frame = mjs_findFrame(spec, "uniform");
+  EXPECT_THAT(frame->scale, ElementsAre(2, 2, 2));
+  EXPECT_EQ(frame->scaling, mjSCALING_SIMILAR);
+
+  frame = mjs_findFrame(spec, "vector");
+  EXPECT_THAT(frame->scale, ElementsAre(1, 2, 3));
+  EXPECT_EQ(frame->scaling, mjSCALING_GEOMETRY);
+
+  frame = mjs_findFrame(spec, "similar");
+  EXPECT_EQ(frame->scaling, mjSCALING_SIMILAR);
+  EXPECT_EQ(frame->massscale, 0);
+
+  frame = mjs_findFrame(spec, "mass");
+  EXPECT_EQ(frame->massscale, 2);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLReaderTest, InvalidFrameScale) {
+  constexpr std::pair<const char*, const char*> kCases[] = {
+      {R"(<frame scale="1 2"/>)", "must have 1 or 3 values"},
+      {R"(<frame scale="1 2 3 4"/>)", "too much data"},
+      {R"(<frame scaling="material"/>)", "invalid keyword"},
+      {R"(<frame scale="0"/>)", "frame scale must be finite and positive"},
+      {R"(<frame scale="1 -1 1"/>)", "frame scale must be finite and positive"},
+      {R"(<frame scale="1 2 1"/>)", "frame scale must be uniform"},
+      {R"(<frame massscale="-1"/>)",
+       "frame massscale must be finite and non-negative"},
+  };
+  for (const auto& [frame, message] : kCases) {
+    std::string xml =
+        std::string("<mujoco><worldbody>") + frame + "</worldbody></mujoco>";
+    std::array<char, 1024> error;
+    MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+    EXPECT_THAT(m.get(), IsNull()) << frame;
+    EXPECT_THAT(error.data(), HasSubstr(message)) << frame;
+  }
 }
 
 // inertia tensor of a body, in body coordinates

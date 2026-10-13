@@ -1751,6 +1751,10 @@ typedef enum mjtConflict {         // conflict resolution for attach
   mjCONFLICT_MERGE,                // merge: min/max/error per field
   mjCONFLICT_ERROR,                // error on any conflict
 } mjtConflict;
+typedef enum mjtScaling {          // physical policy of a frame's scale
+  mjSCALING_SIMILAR = 0,           // change of length and mass units: same motion in scaled gravity
+  mjSCALING_GEOMETRY,              // shape and inertia only: forces and gains unchanged
+} mjtScaling;
 typedef enum mjtActuator {         // actuator element, which owns its shortcut parameters
   mjACTUATOR_GENERAL = 0,          // general
   mjACTUATOR_MOTOR,                // motor
@@ -1909,6 +1913,9 @@ typedef struct mjsFrame_ {         // frame specification
   double pos[3];                   // position
   double quat[4];                  // orientation
   mjsOrientation alt;              // alternative orientation
+  double scale[3];                 // scale of the frame's contents
+  mjtScaling scaling;              // physical policy of the scale
+  double massscale;                // mass factor of the contents; 0: ratio of volumes
   mjString* info;                  // message appended to compiler errors
 } mjsFrame;
 typedef struct mjsJoint_ {         // joint specification

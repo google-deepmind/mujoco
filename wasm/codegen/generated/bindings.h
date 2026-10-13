@@ -3685,6 +3685,21 @@ struct MjsFrame {
   emscripten::val quat() const {
     return emscripten::val(emscripten::typed_memory_view(4, ptr_->quat));
   }
+  emscripten::val scale() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->scale));
+  }
+  mjtScaling scaling() const {
+    return ptr_->scaling;
+  }
+  void set_scaling(mjtScaling value) {
+    ptr_->scaling = value;
+  }
+  double massscale() const {
+    return ptr_->massscale;
+  }
+  void set_massscale(double value) {
+    ptr_->massscale = value;
+  }
   mjString info() const {
     return (ptr_ && ptr_->info) ? *(ptr_->info) : "";
   }

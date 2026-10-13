@@ -982,6 +982,15 @@ Conflict resolution mode for attach.
 
 .. mujoco-include:: mjtConflict
 
+.. _mjtScaling:
+
+mjtScaling
+~~~~~~~~~~
+
+Physical policy of a frame's :ref:`scale<frame-scale>`, see :ref:`scaling<frame-scaling>`.
+
+.. mujoco-include:: mjtScaling
+
 .. _mjtActuator:
 
 mjtActuator

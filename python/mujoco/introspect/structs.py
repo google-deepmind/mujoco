@@ -7875,6 +7875,24 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='alternative orientation',
              ),
              StructFieldDecl(
+                 name='scale',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc="scale of the frame's contents",
+             ),
+             StructFieldDecl(
+                 name='scaling',
+                 type=ValueType(name='mjtScaling'),
+                 doc='physical policy of the scale',
+             ),
+             StructFieldDecl(
+                 name='massscale',
+                 type=ValueType(name='double'),
+                 doc='mass factor of the contents; 0: ratio of volumes',
+             ),
+             StructFieldDecl(
                  name='info',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),

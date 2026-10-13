@@ -284,6 +284,10 @@
      - :math:`1`
    * - :ref:`frame/euler<frame-euler>`
      - :math:`A`
+   * - :ref:`frame/scale<frame-scale>`
+     - :math:`1`
+   * - :ref:`frame/massscale<frame-massscale>`
+     - :math:`1`
    * - :ref:`replicate/offset<replicate-offset>`
      - :math:`L`
    * - :ref:`replicate/euler<replicate-euler>`

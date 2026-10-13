@@ -40,6 +40,7 @@ namespace {
 
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::FloatEq;
 using ::testing::HasSubstr;
 using ::testing::Not;
@@ -2741,6 +2742,57 @@ TEST_F(AsWrittenTest, SavesWhatWasWritten) {
   EXPECT_THAT(compiled, Not(HasSubstr("euler")));
   EXPECT_THAT(compiled, Not(HasSubstr("fromto")));
   EXPECT_THAT(compiled, HasSubstr("<geom name=\"fitted\" size="));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// a frame keeps its scale and scaling when saved as written, one value if the
+// scale is uniform; saved compiled, the scale is baked into the values
+TEST_F(AsWrittenTest, SavesFrameScale) {
+  static constexpr char xml[] = R"(
+<mujoco>
+  <worldbody>
+    <frame name="uniform" scale="2">
+      <geom size="0.1"/>
+    </frame>
+    <frame name="vector" scale="1 2 3" scaling="geometry"/>
+    <frame name="unit" pos="1 0 0" scale="1"/>
+    <frame name="mass" massscale="2"/>
+  </worldbody>
+</mujoco>
+)";
+  mjSpec* spec = ParseAsWritten(xml);
+  ASSERT_THAT(spec, NotNull());
+  std::string saved = SaveToString(spec);
+  EXPECT_THAT(saved, HasSubstr(R"(<frame name="uniform" scale="2">)"));
+  EXPECT_THAT(
+      saved,
+      HasSubstr(R"(<frame name="vector" scale="1 2 3" scaling="geometry"/>)"));
+  EXPECT_THAT(saved, HasSubstr(R"(<frame name="unit" pos="1 0 0"/>)"));
+  EXPECT_THAT(saved, HasSubstr(R"(<frame name="mass" massscale="2"/>)"));
+
+  // reloaded, the frames have the same scale and scaling
+  std::array<char, 1024> error;
+  mjSpec* reloaded =
+      mj_parseXMLString(saved.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(reloaded, NotNull()) << error.data();
+  for (const char* name : {"uniform", "vector", "unit", "mass"}) {
+    mjsFrame* f1 = mjs_findFrame(spec, name);
+    mjsFrame* f2 = mjs_findFrame(reloaded, name);
+    EXPECT_THAT(f2->scale, ElementsAreArray(f1->scale)) << name;
+    EXPECT_EQ(f2->scaling, f1->scaling) << name;
+    EXPECT_EQ(f2->massscale, f1->massscale) << name;
+  }
+  mj_deleteSpec(reloaded);
+
+  // saved compiled, neither attribute is written
+  mjs_delete(spec, mjs_findFrame(spec, "vector")->element);
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  spec->compiler.savecompiled = 1;
+  saved = SaveToString(spec);
+  EXPECT_THAT(saved, Not(HasSubstr("scale")));
 
   mj_deleteModel(model);
   mj_deleteSpec(spec);

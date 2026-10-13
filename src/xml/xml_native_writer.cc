@@ -2369,6 +2369,18 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame, string_view c
       WriteAttrTxt(frame_elem, "childclass", frame->classname);
     }
     WriteSpecPose(frame_elem, frame, frame->spec.pos, frame->spec.quat, frame->spec.alt);
+    const double* scale   = frame->spec.scale;
+    double        unit[3] = {1, 1, 1};
+    bool          uniform = scale[0] == scale[1] && scale[1] == scale[2];
+    WriteAttr(frame_elem, "scale", uniform ? 1 : 3, scale, unit);
+    WriteAttrKey(frame_elem,
+                 "scaling",
+                 scaling_map,
+                 scaling_sz,
+                 frame->spec.scaling,
+                 mjSCALING_SIMILAR);
+    double zero = 0;
+    WriteAttr(frame_elem, "massscale", 1, &frame->spec.massscale, &zero);
     return frame_elem;
   }
 

@@ -164,6 +164,24 @@ def _array_binding_code(
   if classname == 'mjSpec':  # raw mjSpec has a wrapper
     rawclassname = classname.replace('mjS', 'MjS')
     fullvarname = 'ptr->' + varname
+  if classname == 'mjsFrame' and varname == 'scale':
+    return f"""\
+  {classname}.def_property(
+      "{varname}",
+      []({rawclassname}& self) -> MjDouble3 {{
+        return MjDouble3(self.{fullvarname});
+    }},
+      []({rawclassname}& self, py::object {varname}) {{
+        try {{
+          MjDouble3(self.{fullvarname}) = py::cast<Eigen::Vector3d>({varname});
+        }} catch (const py::cast_error&) {{
+          try {{
+            MjDouble3(self.{fullvarname}).setConstant(py::cast<double>({varname}));
+          }} catch (const py::cast_error&) {{
+            throw py::value_error("{varname}: expected a scalar or a sequence of size 3");
+          }}
+        }}
+    }}, py::return_value_policy::reference_internal);"""
   if innertype == 'mjtNum':
     innertype = 'MjNum'  # custom Eigen type for mjtNum fields
   elif innertype == 'double':
@@ -496,6 +514,18 @@ def generate_add() -> None:
               f'py::object& {f.name}',
               f'py::arg("{f.name}") = py::none()',
           )
+        if key == 'mjsFrame' and f.name == 'scale':
+          return (
+              (
+                  f'set_array_broadcast(out->{f.name}, {f.name},'
+                  f' {f.type.extents[0]}, "{f.name}");'
+              ),
+              'array_broadcast',
+              f.name,
+              'float | list[float]',
+              f'std::optional<py::object>& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
         if (
             f.name == 'size'
             and f.type.extents[0] == 3
@@ -795,6 +825,26 @@ def generate_add() -> None:
               int idx = 0;
               for (auto val : array.value()) {
                 des[idx++] = val;
+              }
+            }
+          };
+          """
+        elif t == 'array_broadcast':
+          code += """\n
+          auto set_array_broadcast = [](auto&& des, const std::optional<py::object>& obj, int size, const char* name) {
+            if (obj.has_value() && !obj->is_none()) {
+              std::vector<double> array;
+              try {
+                array = py::cast<std::vector<double>>(*obj);
+              } catch (const py::cast_error&) {
+                array.assign(size, py::cast<double>(*obj));
+              }
+              if (array.size() != size) {
+                std::string msg = std::string(name) + " should be a scalar or a list/array of size " + std::to_string(size) + ".";
+                throw pybind11::value_error(msg);
+              }
+              for (int i = 0; i < size; i++) {
+                des[i] = array[i];
               }
             }
           };

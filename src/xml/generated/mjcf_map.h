@@ -395,6 +395,13 @@ inline constexpr mjMap conflict_map[] = {
 };
 inline constexpr int conflict_sz = 3;
 
+// enum scaling
+inline constexpr mjMap scaling_map[] = {
+  {"similar",   mjSCALING_SIMILAR},
+  {"geometry",  mjSCALING_GEOMETRY},
+};
+inline constexpr int scaling_sz = 2;
+
 // enum lrmode
 inline constexpr mjMap lrmode_map[] = {
   {"none",        mjLRMODE_NONE},

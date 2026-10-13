@@ -2321,6 +2321,14 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       ReadAttr(elem, "pos", 3, pframe->pos, text);
       ReadQuat(elem, "quat", pframe->quat, text);
       ReadAlternative(elem, pframe->alt);
+      int nscale = ReadAttr(elem, "scale", 3, pframe->scale, text, false, false);
+      if (nscale == 1) {
+        pframe->scale[1] = pframe->scale[2] = pframe->scale[0];
+      } else if (nscale == 2) {
+        throw mjXError(elem, "attribute 'scale' must have 1 or 3 values");
+      }
+      MapValue(elem, "scaling", &pframe->scaling, scaling_map, scaling_sz);
+      ReadAttr(elem, "massscale", 1, &pframe->massscale, text);
 
       stack.push_back({FirstChildElement(elem), body, pframe});
     }

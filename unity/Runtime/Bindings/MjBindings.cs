@@ -618,6 +618,10 @@ public enum mjtConflict : int{
   mjCONFLICT_MERGE = 1,
   mjCONFLICT_ERROR = 2,
 }
+public enum mjtScaling : int{
+  mjSCALING_SIMILAR = 0,
+  mjSCALING_GEOMETRY = 1,
+}
 public enum mjtActuator : int{
   mjACTUATOR_GENERAL = 0,
   mjACTUATOR_MOTOR = 1,
