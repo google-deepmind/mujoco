@@ -23,6 +23,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -108,13 +109,50 @@ FilePath ResolveFilePath(XMLElement*     e,
   return FilePath(path) + filename;
 }
 
+// Opens and parses the XML resource `filename` into `doc`. Returns the
+// directory of the resource, or nullopt if it cannot be opened. Calls
+// mju_error if it cannot be read or parsed.
+optional<FilePath> ParseXMLResource(const string& filename, tinyxml2::XMLDocument& doc) {
+  // Open through the resource provider so this works against any registered
+  // backend (OS file system, VFS, HTTP, "github:", ...).
+  mjResource* resource = mju_openResource("", filename.c_str(), nullptr, nullptr, 0);
+  if (resource == nullptr) { return std::nullopt; }
+
+  // Read the XML bytes from the resource.
+  const void* buffer = nullptr;
+  int         size   = mju_readResource(resource, &buffer);
+  if (size < 0 || !size) {
+    mju_closeResource(resource);
+    mju_error("Could not read '%s'", filename.c_str());
+  }
+
+  // Capture the directory while the resource is still open.
+  const char* dir  = nullptr;
+  int         ndir = 0;
+  mju_getResourceDir(resource, &dir, &ndir);
+  FilePath resource_dir(string(dir, ndir));
+
+  // Parse from buffer and close (the parsed DOM is independent of the
+  // resource buffer once Parse returns).
+  tinyxml2::XMLError err = doc.Parse(static_cast<const char*>(buffer), static_cast<size_t>(size));
+  mju_closeResource(resource);
+
+  if (err != tinyxml2::XML_SUCCESS) {
+    mju_error("Problem reading XML file '%s': %s",
+              filename.c_str(),
+              doc.ErrorStr() ? doc.ErrorStr() : "");
+  }
+  if (!doc.RootElement()) { mju_error("XML root element not found in '%s'", filename.c_str()); }
+  return resource_dir;
+}
+
 void AccumulateFiles(std::unordered_set<string>& files,
                      XMLElement*                 root,
                      const FilePath&             model_dir) {
   optional<FilePath> asset_dir;
   optional<FilePath> mesh_dir;
   optional<FilePath> texture_dir;
-  std::set<string>   include_and_model_files;
+  std::set<string>   model_files;
   std::set<string>   texture_files;
   std::set<string>   mesh_files;
   std::set<string>   hfield_files;
@@ -133,19 +171,74 @@ void AccumulateFiles(std::unordered_set<string>& files,
     }
   };
 
-  std::stack<XMLElement*> elements;
-  elements.push(root);
+  // Included files are part of the model: ExpandIncludeXML in xml.cc copies
+  // the included file's elements into the including document, where they are
+  // read as if written in place of the <include>. They are walked here the
+  // same way, so the model's <compiler> directories apply to them and their
+  // assets are relative to the model directory. Each element is paired with
+  // the directory of its file, for looking up nested includes.
+  vector<std::unique_ptr<tinyxml2::XMLDocument>> included;
+  std::stack<std::pair<XMLElement*, FilePath>>   elements;
+  elements.push({root, model_dir});
   while (!elements.empty()) {
-    XMLElement* elem = elements.top();
+    auto [elem, dir] = elements.top();
     elements.pop();
 
-    if (!std::strcmp(elem->Value(), "include") || !std::strcmp(elem->Value(), "model")) {
+    if (!std::strcmp(elem->Value(), "include")) {
+      // include elements don't have children.
       auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
-      if (file_attr.has_value()) {
-        include_and_model_files.insert(file_attr->Str());
-        // Neither of these elements should have children.
+      if (!file_attr.has_value()) { continue; }
+
+      // A relative <include> path can be relative to the model directory
+      // (legacy) or to the including file's directory; try them in the same
+      // order as ExpandIncludeXML in xml.cc.
+      vector<FilePath> candidates = {file_attr.value()};
+      if (!file_attr->IsAbs()) { candidates = {model_dir + *file_attr, dir + *file_attr}; }
+
+      // Skip if this file was already included (unlike ExpandIncludeXML, which
+      // errors on duplicate includes, the dependency scanner simply records
+      // each file once and breaks A -> B -> A include cycles).
+      if (std::any_of(candidates.begin(), candidates.end(), [&](const FilePath& path) {
+            return files.count(path.Str());
+          })) {
         continue;
       }
+
+      // Try each candidate path until one opens, parse it into `doc`, and
+      // record the resolved path in `files`.
+      auto               doc = std::make_unique<tinyxml2::XMLDocument>();
+      optional<FilePath> include_dir;
+      for (const FilePath& path : candidates) {
+        include_dir = ParseXMLResource(path.Str(), *doc);
+        if (include_dir.has_value()) {
+          files.insert(path.Str());
+          break;
+        }
+      }
+      if (!include_dir.has_value()) {
+        if (candidates.size() > 1 && candidates[0].Str() != candidates[1].Str()) {
+          mju_error("Could not open '%s' or '%s'", candidates[0].c_str(), candidates[1].c_str());
+        } else {
+          mju_error("Could not open '%s'", candidates[0].c_str());
+        }
+      }
+
+      // Walk the included elements as part of this model. Nested includes are
+      // looked up relative to the included file's directory.
+      XMLElement* child = doc->RootElement()->FirstChildElement();
+      while (child) {
+        elements.push({child, include_dir.value()});
+        child = child->NextSiblingElement();
+      }
+
+      // Keep the document alive while its elements are on the stack.
+      included.push_back(std::move(doc));
+      continue;
+    } else if (!std::strcmp(elem->Value(), "model")) {
+      // model elements don't have children.
+      auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
+      if (file_attr.has_value()) { model_files.insert(file_attr->Str()); }
+      continue;
     } else if (!std::strcmp(elem->Value(), "compiler")) {
       auto assetdir_str = mjXUtil::ReadAttrStr(elem, "assetdir", false);
       if (assetdir_str.has_value()) asset_dir = FilePath(assetdir_str.value());
@@ -179,7 +272,7 @@ void AccumulateFiles(std::unordered_set<string>& files,
 
     XMLElement* child = elem->FirstChildElement();
     while (child) {
-      elements.push(child);
+      elements.push({child, dir});
       child = child->NextSiblingElement();
     }
   }
@@ -188,8 +281,9 @@ void AccumulateFiles(std::unordered_set<string>& files,
   // "get dependencies" function to call here. For non XML types we assume they
   // have no dependencies here.
 
-  // First resolve all dependent XML files.
-  for (const auto& file : include_and_model_files) {
+  // First resolve all dependent models; each is a separate model with its own
+  // <compiler> directories.
+  for (const auto& file : model_files) {
     mjStringVec subdeps;
     FilePath    full_path = model_dir + FilePath(file);
     mju_getXMLDependencies(full_path.Str().c_str(), &subdeps);
@@ -214,40 +308,12 @@ void mjCopyError(char* dst, const char* src, int maxlen) {
 }
 
 void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies) {
-  // Open through the resource provider so the function works against any
-  // registered backend (OS file system, VFS, HTTP, "github:", ...) rather
-  // than only the OS file system.
-  mjResource* resource = mju_openResource("", filename, nullptr, nullptr, 0);
-  if (resource == nullptr) { mju_error("Could not open '%s'", filename); }
-
-  // Read the XML bytes from the resource.
-  const void* buffer = nullptr;
-  int         size   = mju_readResource(resource, &buffer);
-  if (size < 0 || !size) {
-    mju_closeResource(resource);
-    mju_error("Could not read '%s'", filename);
-  }
-
-  // Capture the model directory while the resource is still open.
-  const char* dir  = nullptr;
-  int         ndir = 0;
-  mju_getResourceDir(resource, &dir, &ndir);
-  FilePath model_dir(string(dir, ndir));
-
-  // Parse from buffer and close (the parsed DOM is independent of the
-  // resource buffer once Parse returns).
   tinyxml2::XMLDocument doc;
-  tinyxml2::XMLError err = doc.Parse(static_cast<const char*>(buffer), static_cast<size_t>(size));
-  mju_closeResource(resource);
-
-  if (err != tinyxml2::XML_SUCCESS) {
-    mju_error("Problem reading XML file '%s': %s", filename, doc.ErrorStr() ? doc.ErrorStr() : "");
-  }
-  XMLElement* root = doc.RootElement();
-  if (!root) { mju_error("XML root element not found in '%s'", filename); }
+  optional<FilePath>    model_dir = ParseXMLResource(filename, doc);
+  if (!model_dir.has_value()) { mju_error("Could not open '%s'", filename); }
 
   std::unordered_set<string> files = {filename};
-  AccumulateFiles(files, root, model_dir);
+  AccumulateFiles(files, doc.RootElement(), model_dir.value());
 
   *dependencies = {files.begin(), files.end()};
 }
