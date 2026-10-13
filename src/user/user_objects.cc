@@ -1649,13 +1649,15 @@ static const mjCBase* Container(const mjCBase* element) {
 }
 
 
-// gauge in force inside the lowest frame or body which contains all the given elements
-static mjCGauge LowestContainerGauge(const std::vector<const mjCBase*>& elements) {
+// gauge in force inside the lowest frame or body which contains all the given elements; a body
+// contains itself
+mjCGauge LowestContainerGauge(const std::vector<const mjCBase*>& elements) {
   if (elements.empty()) { return mjCGauge(); }
-  for (const mjCBase* c = Container(elements[0]); c; c = Container(c)) {
+  auto start = [](const mjCBase* e) { return e->elemtype == mjOBJ_BODY ? e : Container(e); };
+  for (const mjCBase* c = start(elements[0]); c; c = Container(c)) {
     bool all = true;
     for (int i = 1; i < elements.size() && all; i++) {
-      const mjCBase* d = Container(elements[i]);
+      const mjCBase* d = start(elements[i]);
       while (d && d != c) { d = Container(d); }
       all = d == c;
     }
@@ -3793,7 +3795,7 @@ void mjCGeom::NameSpace(const mjCModel* m) {
 double mjCGeom::GetVolume() const {
   // get from mesh
   if (type == mjGEOM_MESH || type == mjGEOM_SDF) {
-    if (mesh->id < 0 || !((std::size_t)mesh->id <= model->Meshes().size())) {
+    if (mesh->id < 0 || mesh->id > model->NumCompiledMeshes()) {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
@@ -3871,7 +3873,7 @@ double mjCGeom::GetVolume() const {
 void mjCGeom::SetInertia(void) {
   // get from mesh
   if (type == mjGEOM_MESH || type == mjGEOM_SDF) {
-    if (mesh->id < 0 || !((std::size_t)mesh->id <= model->Meshes().size())) {
+    if (mesh->id < 0 || mesh->id > model->NumCompiledMeshes()) {
       throw mjCError(this, "invalid mesh id in mesh geom");
     }
 
@@ -4165,9 +4167,6 @@ void mjCGeom::ApplyGauge(bool inverse) {
   const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
   if (plugin.active) { throw mjCError(this, "a geom with a plugin cannot be scaled"); }
-  if ((mesh || hfield) && g.shape != 1) {
-    throw mjCError(this, "a geom with a mesh or height field cannot be scaled");
-  }
 
   // shape class
   const double fl = g.Shape(1);
@@ -4576,7 +4575,6 @@ const std::string& mjCSite::get_material() const {
 void mjCSite::ApplyGauge(bool inverse) {
   const mjCGauge g = inverse ? Gauge().Inverse() : Gauge();
   if (g.IsIdentity()) { return; }
-  if (mesh && g.shape != 1) { throw mjCError(this, "a site with a mesh cannot be scaled"); }
   g.Point(pos);
   g.Size(size, type >= 0 && type < mjNGEOMTYPES ? mjGEOMINFO[type] : 3);
   if (mjuu_defined(fromto[0])) {
@@ -5125,6 +5123,7 @@ void mjCHField::PointToLocal() {
 
 void mjCHField::CopyFromSpec() {
   *static_cast<mjsHField*>(this) = spec;
+  for (int i = 0; i < 4; i++) { size[i] *= instancescale_; }
 
   file_         = spec_file_;
   content_type_ = spec_content_type_;
@@ -6735,6 +6734,10 @@ void mjCEquality::ApplyGauge(bool inverse) {
     }
     for (int k = 0; k < 5; k++) { data[k] *= q1 / std::pow(q2, k); }
     width = q1;
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+    const mjCFlex* flex = static_cast<const mjCFlex*>(model->FindObject(mjOBJ_FLEX, name1_));
+    width               = flex->BodyGauge().Shape(1);
+    if (inverse) { width = 1 / width; }
   }
   solimp[2] *= width;
 }

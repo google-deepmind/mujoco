@@ -287,10 +287,17 @@ class mjCModel : public mjCModel_, private mjSpec {
     return active_plugins_;
   };
 
-  const std::vector<mjCFlex*>&     Flexes() const { return flexes_; }
-  const std::vector<mjCMesh*>&     Meshes() const { return meshes_; }
-  const std::vector<mjCSkin*>&     Skins() const { return skins_; }
-  const std::vector<mjCHField*>&   HFields() const { return hfields_; }
+  const std::vector<mjCFlex*>&   Flexes() const { return flexes_; }
+  const std::vector<mjCMesh*>&   Meshes() const { return meshes_; }
+  const std::vector<mjCSkin*>&   Skins() const { return skins_; }
+  const std::vector<mjCHField*>& HFields() const { return hfields_; }
+
+  // the meshes and height fields as compiled: those of the spec, then the instances which the
+  // compilation made of those used at several scales
+  std::vector<mjCMesh*>   CompiledMeshes() const;
+  std::vector<mjCHField*> CompiledHFields() const;
+  int NumCompiledMeshes() const { return meshes_.size() + meshinstances_.size(); }
+
   const std::vector<mjCTexture*>&  Textures() const { return textures_; }
   const std::vector<mjCMaterial*>& Materials() const { return materials_; }
   const std::vector<mjCPair*>&     Pairs() const { return pairs_; }
@@ -455,6 +462,14 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // delete the referenced plugin instances that elements and defaults no longer reference
   void RemovePlugins(const std::unordered_set<const mjsElement*>& referenced);
+
+  // give the geoms and sites which use a mesh or a height field the instance of the asset at the
+  // scale of their use, made again unless the assets are reused
+  void MakeInstances(bool reuse);
+
+  // instances which compilation makes of the meshes and height fields used at several scales
+  std::vector<mjCMesh*>   meshinstances_;
+  std::vector<mjCHField*> hfieldinstances_;
 
   // objects created here
   std::vector<mjCFlex*>     flexes_;      // list of flexes

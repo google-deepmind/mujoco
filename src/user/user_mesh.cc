@@ -296,6 +296,7 @@ void mjCMesh::NameSpace(const mjCModel* m) {
 
 void mjCMesh::CopyFromSpec() {
   *static_cast<mjsMesh*>(this) = spec;
+  for (int i = 0; i < 3; i++) { scale[i] *= instancescale_; }
 
   file_         = spec_file_;
   content_type_ = spec_content_type_;
@@ -319,6 +320,10 @@ void mjCMesh::CopyFromSpec() {
   szgraph_ = 0;
   center_  = nullptr;
   graph_   = nullptr;
+  halfedge_.clear();
+  tree_ = mjCBoundingVolumeHierarchy();
+  face_aabb_.clear();
+  octree_.Clear();
 }
 
 
@@ -342,6 +347,9 @@ void mjCMesh::LoadSDF() {
                    id);
   }
 
+  if (instancescale_ != 1) {
+    throw mjCError(this, "SDF mesh '%s' cannot be scaled by a frame", name.c_str());
+  }
   if (scale[0] != 1 || scale[1] != 1 || scale[2] != 1) {
     throw mjCError(this,
                    "attribute scale is not compatible with SDFs in mesh '%s', (id = %d)",
@@ -500,7 +508,17 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
         const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
         delete mesh;
       });
-  cache->Insert("", resource->name, resource, cached_data, size);
+  cache->Insert("", CacheId(resource), resource, cached_data, size);
+}
+
+
+// id of the mesh in the asset cache: that of its file, and its factor for an instance at another
+// scale
+std::string mjCMesh::CacheId(const mjResource* resource) const {
+  if (instancescale_ == 1) { return resource->name; }
+  char factor[32];
+  std::snprintf(factor, sizeof(factor), "@%a", instancescale_);
+  return std::string(resource->name) + factor;
 }
 
 namespace {
@@ -1046,7 +1064,7 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
   };
 
   // check that cached asset has all data
-  return cache->PopulateData(resource->name, resource, process_mesh);
+  return cache->PopulateData(CacheId(resource), resource, process_mesh);
 }
 
 
@@ -3496,11 +3514,34 @@ void mjCSkin::ResolveReferences(const mjCModel* m) {
   for (int i = 0; i < nbone; i++) {
     mjCBase* pbody = m->FindObject(mjOBJ_BODY, bodyname_[i]);
     if (!pbody) { throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str()); }
-    if (!pbody->ContentGauge().IsIdentity()) {
-      throw mjCError(this, "a skin on a scaled body cannot be compiled");
-    }
     bodyid[i] = pbody->id;
   }
+}
+
+
+// scale the compiled copy by the gauge of the bones: the vertices and the bind poses are given in
+// the same coordinates, in which the offsets of the vertices from the bones scale with the bones
+void mjCSkin::ApplyGauge() {
+  scale_ = 1;
+  if (bodyid.empty()) { return; }
+  const mjCGauge g = model->Bodies()[bodyid[0]]->ContentGauge();
+  for (int b : bodyid) {
+    if (model->Bodies()[b]->ContentGauge().shape != g.shape) {
+      throw mjCError(this, "the bones of a skin must have the same scale");
+    }
+  }
+  if (g.shape == 1) { return; }
+  auto points = [&g](std::vector<float>& pos) {
+    for (int i = 0; i < pos.size() / 3; i++) {
+      double x[3] = {pos[3 * i], pos[3 * i + 1], pos[3 * i + 2]};
+      g.Point(x);
+      for (int k = 0; k < 3; k++) { pos[3 * i + k] = (float)x[k]; }
+    }
+  };
+  points(vert_);
+  points(bindpos_);
+  inflate *= g.Shape(1);
+  scale_   = g.shape;
 }
 
 
@@ -3574,6 +3615,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // resolve body names
   ResolveReferences(model);
+  ApplyGauge();
 
   // resolve material name
   mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);

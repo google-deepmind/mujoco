@@ -4399,6 +4399,10 @@ transformation they encode is accumulated in their direct children; frames are p
    Scales of nested frames compose by multiplication. A single value applies to all three axes. Values must be finite
    and positive, and the three values must currently be equal: anisotropic scaling is not yet supported.
 
+   A mesh or height field used at several scales compiles to an instance per scale; the first keeps its name and the
+   others are named ``name@1``, ``name@2``, ... The bones of a skin must have the same scale, and elements with
+   plugins and tactile sensors cannot be scaled.
+
 .. _frame-scaling:
 
 :at:`scaling`: :at-val:`[similar, geometry], "similar"`

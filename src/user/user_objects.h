@@ -397,6 +397,10 @@ struct mjCGauge {
   mjCGauge operator*(const mjCGauge& other) const;
 };
 
+// gauge in force inside the lowest frame or body which contains all the given elements; a body
+// contains itself
+mjCGauge LowestContainerGauge(const std::vector<const mjCBase*>& elements);
+
 class mjCBase_ : public mjsElement {
  public:
   int         id;         // object id
@@ -1230,6 +1234,9 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
     material_.clear();
   }
 
+  // gauge of the lowest frame or body which contains the bodies of the vertices and nodes
+  mjCGauge BodyGauge() const;
+
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
 
@@ -1243,6 +1250,9 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
                         int           ne,
                         int           fdim,        // with no mesh content
                         const double  minmax[6]);  // bounding box of the node grid
+
+  // scale the compiled copy: positions by the gauges of their bodies, the rest by that of the flex
+  void ApplyGauge();
 
   std::vector<double> vert0_;  // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;  // node Cartesian positions
@@ -1322,6 +1332,12 @@ class mjCMesh_ : public mjCBase {
   // octree
   mjCOctree octree_;  // octree of the mesh
   double    mesh_timer_[mjNCTIMER] = {0};
+
+ public:
+  // the asset of the spec which this instance repeats at another scale, if compilation made it,
+  // and the factor of the scale at which geoms and sites use this instance
+  const mjCMesh* primary_       = nullptr;
+  double         instancescale_ = 1;
 };
 
 class mjCMesh : public mjCMesh_, private mjsMesh {
@@ -1470,6 +1486,10 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   // store mesh into asset cache (OBJ files are only supported)
   void CacheMesh(mjCCache* cache, const mjResource* resource);
 
+  // id of the mesh in the asset cache: that of its file, and its factor for an instance at another
+  // scale
+  std::string CacheId(const mjResource* resource) const;
+
   // convert vertices to double precision and remove repeated vertices if requested
   void ProcessVertices(const std::vector<float>& vert, bool remove_repeated = false);
 
@@ -1545,6 +1565,9 @@ class mjCSkin_ : public mjCBase {
 
   int              matid;   // material id
   std::vector<int> bodyid;  // body ids
+
+  // factor of the shape of the bones, which compilation applied to the vertices and the bind pose
+  double scale_ = 1;
 };
 
 class mjCSkin : public mjCSkin_, private mjsSkin {
@@ -1583,6 +1606,9 @@ class mjCSkin : public mjCSkin_, private mjsSkin {
   void NameSpace(const mjCModel* m);
   void Compile(const mjVFS* vfs);      // compiler
   void LoadSKN(mjResource* resource);  // load skin in SKN BIN format
+
+  // scale the compiled copy by the gauge of the bones, which must be the same for all
+  void ApplyGauge();
 };
 
 
@@ -1599,6 +1625,12 @@ class mjCHField_ : public mjCBase {
   std::string        spec_file_;
   std::string        spec_content_type_;
   std::vector<float> spec_userdata_;
+
+ public:
+  // the asset of the spec which this instance repeats at another scale, if compilation made it,
+  // and the factor of the scale at which geoms use this instance
+  const mjCHField* primary_       = nullptr;
+  double           instancescale_ = 1;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {

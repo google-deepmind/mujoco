@@ -35,6 +35,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -883,6 +884,18 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 }
 
 
+// delete the compiled instances of an asset
+template <class T>
+static void DeleteInstances(std::vector<T*>& instances, const T* primary) {
+  auto of = [primary](T* instance) {
+    if (instance->primary_ != primary) { return false; }
+    delete instance;
+    return true;
+  };
+  instances.erase(std::remove_if(instances.begin(), instances.end(), of), instances.end());
+}
+
+
 // remove the element from the model
 void mjCModel::operator-=(mjsElement* el) {
   if (el->elemtype != mjOBJ_DEFAULT) {
@@ -939,6 +952,16 @@ void mjCModel::operator-=(mjsElement* el) {
 
     case mjOBJ_CAMERA:
       deletefromlist(&(static_cast<mjCCamera*>(el)->body->cameras), el);
+      break;
+
+    case mjOBJ_MESH:
+      DeleteInstances(meshinstances_, static_cast<mjCMesh*>(el));
+      deletefromlist(object_lists_[el->elemtype], el);
+      break;
+
+    case mjOBJ_HFIELD:
+      DeleteInstances(hfieldinstances_, static_cast<mjCHField*>(el));
+      deletefromlist(object_lists_[el->elemtype], el);
       break;
 
     default:
@@ -1232,6 +1255,8 @@ mjCModel::~mjCModel() {
   for (int i = 0; i < meshes_.size(); i++) meshes_[i]->Release();
   for (int i = 0; i < skins_.size(); i++) skins_[i]->Release();
   for (int i = 0; i < hfields_.size(); i++) hfields_[i]->Release();
+  for (mjCMesh* mesh : meshinstances_) delete mesh;
+  for (mjCHField* hfield : hfieldinstances_) delete hfield;
   for (int i = 0; i < textures_.size(); i++) textures_[i]->Release();
   for (int i = 0; i < materials_.size(); i++) materials_[i]->Release();
   for (int i = 0; i < pairs_.size(); i++) pairs_[i]->Release();
@@ -2007,6 +2032,116 @@ void mjCModel::IndexAssets() {
 }
 
 
+// the meshes and height fields as compiled: those of the spec, then the instances which the
+// compilation made of those used at several scales
+std::vector<mjCMesh*> mjCModel::CompiledMeshes() const {
+  std::vector<mjCMesh*> meshes = meshes_;
+  meshes.insert(meshes.end(), meshinstances_.begin(), meshinstances_.end());
+  return meshes;
+}
+
+
+std::vector<mjCHField*> mjCModel::CompiledHFields() const {
+  std::vector<mjCHField*> hfields = hfields_;
+  hfields.insert(hfields.end(), hfieldinstances_.begin(), hfieldinstances_.end());
+  return hfields;
+}
+
+
+// give each use of an asset the instance of the asset at the scale of the use: the asset itself at
+// the scale of its first use, and instances named after it at the others
+template <class T>
+static void Instantiate(const mjCModel*                            model,
+                        mjtObj                                     type,
+                        std::vector<T*>&                           assets,
+                        std::vector<T*>&                           instances,
+                        const std::vector<std::pair<T**, double>>& uses,
+                        bool                                       reuse) {
+  if (!reuse) {
+    for (T* instance : instances) { delete instance; }
+    instances.clear();
+    std::unordered_map<const T*, double> first;
+    for (const auto& [use, scale] : uses) { first.emplace(*use, scale); }
+    for (T* asset : assets) {
+      auto   it    = first.find(asset);
+      double scale = it == first.end() ? 1 : it->second;
+      if (asset->instancescale_ != scale) {
+        asset->instancescale_ = scale;
+        asset->CopyFromSpec();
+      }
+    }
+  }
+
+  for (const auto& [use, scale] : uses) {
+    T* asset = *use;
+    if (asset->instancescale_ == scale) { continue; }
+    auto same = [asset, scale](const T* instance) {
+      return instance->primary_ == asset && instance->instancescale_ == scale;
+    };
+    auto it = std::find_if(instances.begin(), instances.end(), same);
+    if (it == instances.end()) {
+      if (reuse) { throw mjCError(asset, "no instance of this asset at the scale of its use"); }
+      auto        of   = [asset](const T* instance) { return instance->primary_ == asset; };
+      std::string name = asset->name +
+                         "@" +
+                         std::to_string(1 + std::count_if(instances.begin(), instances.end(), of));
+      if (model->FindObject(type, name)) {
+        throw mjCError(asset, "the name '%s' of an instance of this asset is taken", name.c_str());
+      }
+      T* instance              = new T(*asset);
+      instance->model          = asset->model;
+      instance->compiler       = asset->compiler;
+      instance->name           = name;
+      instance->primary_       = asset;
+      instance->instancescale_ = scale;
+      instance->id             = assets.size() + instances.size();
+      instance->CopyFromSpec();
+      instances.push_back(instance);
+      it = instances.end() - 1;
+    }
+    *use = *it;
+  }
+
+  // reused instances which no use refers to anymore are dropped
+  if (reuse) {
+    std::unordered_set<const T*> used;
+    for (const auto& [use, scale] : uses) { used.insert(*use); }
+    instances.erase(std::remove_if(instances.begin(),
+                                   instances.end(),
+                                   [&used](T* instance) {
+                                     if (used.count(instance)) { return false; }
+                                     delete instance;
+                                     return true;
+                                   }),
+                    instances.end());
+  }
+  for (int i = 0; i < instances.size(); i++) { instances[i]->id = assets.size() + i; }
+}
+
+
+// give the geoms and sites which use a mesh or a height field the instance of the asset at the
+// scale of their use, in the order of their ids, made again unless the assets are reused
+void mjCModel::MakeInstances(bool reuse) {
+  std::vector<std::pair<mjCMesh**, double>>   meshuses;
+  std::vector<std::pair<mjCHField**, double>> hfielduses;
+  for (mjCGeom* geom : geoms_) {
+    if (geom->mesh) { meshuses.emplace_back(&geom->mesh, geom->Gauge().shape); }
+    if (geom->hfield) { hfielduses.emplace_back(&geom->hfield, geom->Gauge().shape); }
+  }
+  for (mjCSite* site : sites_) {
+    if (site->mesh) { meshuses.emplace_back(&site->mesh, site->Gauge().shape); }
+  }
+  Instantiate(this, mjOBJ_MESH, meshes_, meshinstances_, meshuses, reuse);
+  Instantiate(this, mjOBJ_HFIELD, hfields_, hfieldinstances_, hfielduses, reuse);
+
+  // the instances which sdf geoms use
+  for (mjCMesh* mesh : CompiledMeshes()) { mesh->SetNeedSDF(false); }
+  for (mjCGeom* geom : geoms_) {
+    if (geom->mesh && geom->spec.type == mjGEOM_SDF) { geom->mesh->SetNeedSDF(true); }
+  }
+}
+
+
 // error for an asset without a name; only the XML parser names an asset after its file
 static mjCError EmptyName(const mjCBase* asset, const char* type, const std::string& file) {
   if (file.empty()) { return mjCError(asset, "empty name in %s", type); }
@@ -2059,6 +2194,8 @@ static size_t getpathslength(std::vector<T> list) {
 
 // set array sizes
 void mjCModel::SetSizes() {
+  std::vector<mjCMesh*>   meshes  = CompiledMeshes();
+  std::vector<mjCHField*> hfields = CompiledHFields();
   // set from object list sizes
   nbody    = (int)bodies_.size();
   njnt     = (int)joints_.size();
@@ -2067,9 +2204,9 @@ void mjCModel::SetSizes() {
   ncam     = (int)cameras_.size();
   nlight   = (int)lights_.size();
   nflex    = (int)flexes_.size();
-  nmesh    = (int)meshes_.size();
+  nmesh    = (int)meshes.size();
   nskin    = (int)skins_.size();
-  nhfield  = (int)hfields_.size();
+  nhfield  = (int)hfields.size();
   ntex     = (int)textures_.size();
   nmat     = (int)materials_.size();
   npair    = (int)pairs_.size();
@@ -2120,8 +2257,8 @@ void mjCModel::SetSizes() {
   // nbvh, nbvhstatic, nbvhdynamic
   for (int i = 0; i < nbody; i++) { nbvhstatic += bodies_[i]->tree.Nbvh(); }
   for (int i = 0; i < nmesh; i++) {
-    nbvhstatic += meshes_[i]->tree().Nbvh();
-    noct       += meshes_[i]->octree().NumNodes();
+    nbvhstatic += meshes[i]->tree().Nbvh();
+    noct       += meshes[i]->octree().NumNodes();
   }
   for (int i = 0; i < nflex; i++) { nbvhdynamic += flexes_[i]->tree.Nbvh(); }
   nbvh = nbvhstatic + nbvhdynamic;
@@ -2281,14 +2418,14 @@ void mjCModel::SetSizes() {
 
   // mesh counts
   for (int i = 0; i < nmesh; i++) {
-    nmeshvert     += meshes_[i]->nvert();
-    nmeshnormal   += meshes_[i]->nnormal();
-    nmeshface     += meshes_[i]->nface();
-    nmeshtexcoord += (meshes_[i]->HasTexcoord() ? meshes_[i]->ntexcoord() : 0);
-    nmeshgraph    += meshes_[i]->szgraph();
-    nmeshpoly     += meshes_[i]->npolygon();
-    nmeshpolyvert += meshes_[i]->npolygonvert();
-    nmeshpolymap  += meshes_[i]->npolygonmap();
+    nmeshvert     += meshes[i]->nvert();
+    nmeshnormal   += meshes[i]->nnormal();
+    nmeshface     += meshes[i]->nface();
+    nmeshtexcoord += (meshes[i]->HasTexcoord() ? meshes[i]->ntexcoord() : 0);
+    nmeshgraph    += meshes[i]->szgraph();
+    nmeshpoly     += meshes[i]->npolygon();
+    nmeshpolyvert += meshes[i]->npolygonvert();
+    nmeshpolymap  += meshes[i]->npolygonmap();
   }
 
   // skin counts
@@ -2304,7 +2441,7 @@ void mjCModel::SetSizes() {
 
   // nhfielddata
   for (int i = 0; i < nhfield; i++) {
-    nhfielddata += static_cast<mjtSize>(hfields_[i]->nrow) * hfields_[i]->ncol;
+    nhfielddata += static_cast<mjtSize>(hfields[i]->nrow) * hfields[i]->ncol;
   }
 
   // ntexdata
@@ -2357,9 +2494,9 @@ void mjCModel::SetSizes() {
   for (int i = 0; i < ncam; i++)      nnames += (int)cameras_[i]->name.length() + 1;
   for (int i = 0; i < nlight; i++)    nnames += (int)lights_[i]->name.length() + 1;
   for (int i = 0; i < nflex; i++)     nnames += (int)flexes_[i]->name.length() + 1;
-  for (int i = 0; i < nmesh; i++)     nnames += (int)meshes_[i]->name.length() + 1;
+  for (int i = 0; i < nmesh; i++)     nnames += (int)meshes[i]->name.length() + 1;
   for (int i = 0; i < nskin; i++)     nnames += (int)skins_[i]->name.length() + 1;
-  for (int i = 0; i < nhfield; i++)   nnames += (int)hfields_[i]->name.length() + 1;
+  for (int i = 0; i < nhfield; i++)   nnames += (int)hfields[i]->name.length() + 1;
   for (int i = 0; i < ntex; i++)      nnames += (int)textures_[i]->name.length() + 1;
   for (int i = 0; i < nmat; i++)      nnames += (int)materials_[i]->name.length() + 1;
   for (int i = 0; i < npair; i++)     nnames += (int)pairs_[i]->name.length() + 1;
@@ -2377,8 +2514,8 @@ void mjCModel::SetSizes() {
 
   // npaths
   npaths  = 0;
-  npaths += getpathslength(hfields_);
-  npaths += getpathslength(meshes_);
+  npaths += getpathslength(hfields);
+  npaths += getpathslength(meshes);
   npaths += getpathslength(skins_);
   npaths += getpathslength(textures_);
   if (npaths == 0) { npaths = 1; }
@@ -2598,6 +2735,8 @@ static int namelist(vector<T*>& list, int adr, int* name_adr, char* names, int* 
 
 // copy names, compute name addresses
 void mjCModel::CopyNames(mjModel* m) {
+  std::vector<mjCMesh*>   meshes  = CompiledMeshes();
+  std::vector<mjCHField*> hfields = CompiledHFields();
   // start with model name
   int  adr     = (int)modelname_.size() + 1;
   int* map_adr = m->names_map;
@@ -2626,14 +2765,14 @@ void mjCModel::CopyNames(mjModel* m) {
   adr      = namelist(flexes_, adr, m->name_flexadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE * flexes_.size();
 
-  adr      = namelist(meshes_, adr, m->name_meshadr, m->names, map_adr);
-  map_adr += mjLOAD_MULTIPLE * meshes_.size();
+  adr      = namelist(meshes, adr, m->name_meshadr, m->names, map_adr);
+  map_adr += mjLOAD_MULTIPLE * meshes.size();
 
   adr      = namelist(skins_, adr, m->name_skinadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE * skins_.size();
 
-  adr      = namelist(hfields_, adr, m->name_hfieldadr, m->names, map_adr);
-  map_adr += mjLOAD_MULTIPLE * hfields_.size();
+  adr      = namelist(hfields, adr, m->name_hfieldadr, m->names, map_adr);
+  map_adr += mjLOAD_MULTIPLE * hfields.size();
 
   adr      = namelist(textures_, adr, m->name_texadr, m->names, map_adr);
   map_adr += mjLOAD_MULTIPLE * textures_.size();
@@ -2695,12 +2834,14 @@ static int pathlist(vector<T*>& list, int adr, int* path_adr, char* paths) {
 }
 
 void mjCModel::CopyPaths(mjModel* m) {
+  std::vector<mjCMesh*>   meshes  = CompiledMeshes();
+  std::vector<mjCHField*> hfields = CompiledHFields();
   // start with 0 address, unlike m->names m->paths might be empty
   size_t adr  = 0;
   m->paths[0] = 0;
 
-  adr = pathlist(hfields_, adr, m->hfield_pathadr, m->paths);
-  adr = pathlist(meshes_, adr, m->mesh_pathadr, m->paths);
+  adr = pathlist(hfields, adr, m->hfield_pathadr, m->paths);
+  adr = pathlist(meshes, adr, m->mesh_pathadr, m->paths);
   adr = pathlist(skins_, adr, m->skin_pathadr, m->paths);
   adr = pathlist(textures_, adr, m->tex_pathadr, m->paths);
 }
@@ -3325,6 +3466,8 @@ int mjCModel::CountNJten(const mjModel* m) {
 // copy objects outside kinematic tree
 // NOLINTBEGIN(readability/fn_size)
 void mjCModel::CopyObjects(mjModel* m) {
+  std::vector<mjCMesh*>   meshes  = CompiledMeshes();
+  std::vector<mjCHField*> hfields = CompiledHFields();
   mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
   mjtSize stiffness_adr, bending_adr;
   mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr;
@@ -3358,7 +3501,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   polymap_adr  = 0;
   for (int i = 0; i < nmesh; i++) {
     // get pointer
-    mjCMesh* pme = meshes_[i];
+    mjCMesh* pme = meshes[i];
 
     // set fields
     m->mesh_polyadr[i]     = poly_adr;
@@ -3782,7 +3925,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   data_adr = 0;
   for (int i = 0; i < nhfield; i++) {
     // get pointer
-    mjCHField* phf = hfields_[i];
+    mjCHField* phf = hfields[i];
 
     // set fields
     mjuu_copyvec(m->hfield_size + 4 * i, phf->size, 4);
@@ -5246,6 +5389,7 @@ int mjCModel::DiscardVisual(const mjVFS* vfs) {
   }
   for (mjCMesh* mesh : discardmeshes) {
     meshes_.erase(std::remove(meshes_.begin(), meshes_.end(), mesh), meshes_.end());
+    DeleteInstances(meshinstances_, mesh);
     mesh->id = -1;
     mesh->Release();
   }
@@ -5304,6 +5448,26 @@ void mjCModel::CopyCompiled(const mjCModel& other) {
     auto it = assets.find(asset);
     return it == assets.end() ? nullptr : it->second;
   };
+  auto instantiate = [&](auto& instances, const auto& source) {
+    for (auto* instance : instances) { delete instance; }
+    instances.clear();
+    for (const auto* instance : source) {
+      using T          = std::remove_const_t<std::remove_pointer_t<decltype(instance)>>;
+      const T* primary = static_cast<const T*>(copied(instance->primary_));
+      if (!primary) { continue; }
+      T* copy        = new T(*instance);
+      copy->model    = this;
+      copy->primary_ = primary;
+      copy->compiler = copy->primary_->compiler;
+      if constexpr (std::is_same_v<T, mjCMesh>) {
+        copy->spec.plugin.element = copy->primary_->spec.plugin.element;
+      }
+      assets[instance] = copy;
+      instances.push_back(copy);
+    }
+  };
+  instantiate(meshinstances_, other.meshinstances_);
+  instantiate(hfieldinstances_, other.hfieldinstances_);
   for (mjCGeom* geom : geoms_) {
     geom->mesh   = static_cast<mjCMesh*>(copied(geom->mesh));
     geom->hfield = static_cast<mjCHField*>(copied(geom->hfield));
@@ -5319,7 +5483,7 @@ void mjCModel::CopyCompiled(const mjCModel& other) {
   };
   for (mjCBody* body : bodies_) { pointplugin(body); }
   for (mjCGeom* geom : geoms_) { pointplugin(geom); }
-  for (mjCMesh* mesh : meshes_) { pointplugin(mesh); }
+  for (mjCMesh* mesh : CompiledMeshes()) { pointplugin(mesh); }
   for (mjCActuator* actuator : actuators_) { pointplugin(actuator); }
   for (mjCSensor* sensor : sensors_) { pointplugin(sensor); }
   for (mjCEquality* equality : equalities_) {
@@ -5682,9 +5846,10 @@ static void CompileTexture(mjCTexture*         texture,
 
 // multi-threaded mesh and texture compilation with shared threadpool
 void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs, bool textures) {
-  int nmesh       = meshes_.size();
-  int ntexture    = textures ? textures_.size() : 0;
-  int total_tasks = nmesh + ntexture;
+  const std::vector<mjCMesh*> meshes      = CompiledMeshes();
+  int                         nmesh       = meshes.size();
+  int                         ntexture    = textures ? textures_.size() : 0;
+  int                         total_tasks = nmesh + ntexture;
 
   // holds exceptions thrown by worker threads
   std::exception_ptr mesh_exception;
@@ -5699,7 +5864,7 @@ void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs, bool textures) {
   if (!compiler.usethread || total_tasks < 2) {
     // Compile meshes serially
     for (int i = 0; i < nmesh; i++) {
-      CompileMesh(meshes_[i], vfs, mesh_exception, mesh_except_mutex, &mesh_warningtext[i]);
+      CompileMesh(meshes[i], vfs, mesh_exception, mesh_except_mutex, &mesh_warningtext[i]);
     }
     // Compile textures serially
     for (int i = 0; i < ntexture; i++) {
@@ -5714,7 +5879,7 @@ void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs, bool textures) {
 
     // Enqueue mesh tasks
     for (int i = 0; i < nmesh; ++i) {
-      pool.Schedule([mesh = meshes_[i],
+      pool.Schedule([mesh = meshes[i],
                      vfs,
                      &mesh_exception,
                      &mesh_except_mutex,
@@ -5764,7 +5929,7 @@ void mjCModel::CompileMeshesAndTextures(const mjVFS* vfs, bool textures) {
   if (texture_exception) { std::rethrow_exception(texture_exception); }
 
   for (int i = 0; i < nmesh; i++) {
-    for (int t = 0; t < mjNCTIMER; t++) { timer[t] += meshes_[i]->mesh_timer_[t]; }
+    for (int t = 0; t < mjNCTIMER; t++) { timer[t] += meshes[i]->mesh_timer_[t]; }
   }
   for (int i = 0; i < ntexture; i++) { timer[mjCTIMER_TEXTURE] += textures_[i]->texture_time_; }
 }
@@ -5995,15 +6160,16 @@ void mjCModel::CompileTree(const mjVFS* vfs, bool textures, bool keyframes) {
     for (const auto& asset : textures_) asset->CopyFromSpec();
   }
   for (const auto& asset : skins_) asset->CopyFromSpec();
-  for (const auto& asset : hfields_) asset->CopyFromSpec();
   CheckEmptyNames();
 
   // set object ids, check for repeated names
   ProcessLists();
 
-  // map names to asset references
+  // map names to asset references, and give each use the instance of its asset at its scale
   for (mjCMesh* mesh : meshes_) { mesh->SetNeedSDF(false); }
   IndexAssets();
+  MakeInstances(/*reuse=*/!compileassets);
+  for (mjCHField* hfield : CompiledHFields()) { hfield->CopyFromSpec(); }
 
   // compile pairs for convex hull check
   // TODO(quaglino): Consolidate the two calls to pair->Compile() in TryCompile.
@@ -6029,7 +6195,7 @@ void mjCModel::CompileTree(const mjVFS* vfs, bool textures, bool keyframes) {
 
   // convex inertia is computed from the hull, so it is needed whether or not
   // any geom references the mesh
-  for (mjCMesh* mesh : meshes_) {
+  for (mjCMesh* mesh : CompiledMeshes()) {
     if (mesh->spec.inertia == mjMESH_INERTIA_CONVEX) { mesh->SetNeedHull(true); }
   }
 
@@ -6090,7 +6256,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // compile all other objects except for keyframes
   for (auto flex : flexes_) flex->Compile(vfs);
   for (auto skin : skins_) skin->Compile(vfs);
-  for (auto hfield : hfields_) hfield->Compile(vfs);
+  for (auto hfield : CompiledHFields()) hfield->Compile(vfs);
 
   for (auto material : materials_) material->Compile();
   for (auto pair : pairs_) pair->Compile();
@@ -6114,6 +6280,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // resolve asset references, compute sizes
   IndexAssets();
+  MakeInstances(/*reuse=*/true);
   SetSizes();
   SaveDofOffsets(/*computesize=*/false);  // Populate jnt->dofadr_
 
@@ -7053,8 +7220,9 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   }
 
   // mesh: the frame which compilation gave it is not something the spec gives
+  const std::vector<mjCMesh*> meshes = CompiledMeshes();
   for (int i = 0; i < nmesh; i++) {
-    mjCMesh* pm = meshes_[i];
+    mjCMesh* pm = meshes[i];
     if (Differs(pm->GetPosPtr(), m->mesh_pos + 3 * i, 3) ||
         Differs(pm->GetQuatPtr(), m->mesh_quat + 4 * i, 4)) {
       refuse(pm, "the frame of a mesh", "it is computed from the mesh");
@@ -7067,12 +7235,25 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
 
   // heightfield: the model holds the elevation data scaled to [0, 1]. Data which the spec gives
   // stays as it was given unless the model changed it, and data which was read from a file is
-  // then given in place of the file
+  // then given in place of the file. A height field which is used at several scales is written
+  // once, from its instances, which must then agree
+  const std::vector<mjCHField*> hfields = CompiledHFields();
   for (int i = 0; i < nhfield; i++) {
-    mjCHField*   ph    = hfields_[i];
+    mjCHField*   ph    = hfields[i];
     const float* model = m->hfield_data + m->hfield_adr[i];
     int          n     = m->hfield_nrow[i] * m->hfield_ncol[i];
     if (!Differs(ph->data.data(), model, n)) { continue; }
+
+    // the instances of the same height field
+    const mjCHField* primary = ph->primary_ ? ph->primary_ : ph;
+    for (int j = 0; j < nhfield; j++) {
+      bool family = hfields[j] == primary || hfields[j]->primary_ == primary;
+      if (family && Differs(m->hfield_data + m->hfield_adr[j], model, n)) {
+        refuse(ph,
+               "the elevation data of an instance of a height field",
+               "the height field is used at several scales, and its instances differ");
+      }
+    }
 
     // compilation scales the data again: only data which it leaves as it is can be given
     float lowest = model[0], highest = model[0];
@@ -7087,7 +7268,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     }
     if (write) {
       Back(ph->data.data(), model, n);
-      if (tospec) {
+      if (tospec && !ph->primary_) {
         ph->userdata_ = ph->data;
         ph->file_.clear();
         ph->content_type_.clear();

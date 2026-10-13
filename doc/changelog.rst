@@ -13,8 +13,10 @@ Significant new features
   only shapes and inertias change. Masses follow volumes unless ``massscale`` sets their factor. Elements outside the
   kinematic tree, like actuators, tendons, equalities, contact pairs and sensors, take the scale of the elements they
   refer to, and keyframes are scaled like the joints, bodies and actuators they set. :ref:`mj_copyBack` and the
-  operations which write compiled inertials to the spec write values in its units. Mesh and height field geoms, flexes
-  and skins are not yet supported. See :ref:`frame/scale<frame-scale>` for details.
+  operations which write compiled inertials to the spec write values in its units. A mesh or height field which is used
+  at several scales compiles to an instance per scale, named after it (``name@1``, ``name@2``, ...). A flex takes the
+  scale of the lowest frame or body containing its bodies, with its vertices scaled by their own bodies; a skin scales
+  with its bones, which must all have the same scale. See :ref:`frame/scale<frame-scale>` for details.
 - Models can now be saved as written. With the new :ref:`savecompiled<compiler-savecompiled>` compiler attribute set to
   "false", a model is saved as it is in the :ref:`mjSpec`, with its default classes, frames and exact numbers, and reads
   back as the same spec. With :ref:`savecanonical<compiler-savecanonical>` "false" it also keeps the notation it was

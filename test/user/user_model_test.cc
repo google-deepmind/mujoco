@@ -2692,8 +2692,294 @@ TEST_F(FrameScaleTest, SavesCompiled) {
   mj_deleteSpec(spec);
 }
 
-// what the compiler cannot yet scale is an error
-TEST_F(FrameScaleTest, Unsupported) {
+// a mesh used at three scales: by geoms of bodies in frames, and by a site
+static std::string Tetra(double s1, double s2) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="b0">
+        <freejoint/>
+        <geom type="mesh" mesh="tetra"/>
+      </body>
+      <frame name="f1" scale="%.17g">
+        <body name="b1" pos="2 0 0">
+          <freejoint/>
+          <geom type="mesh" mesh="tetra"/>
+        </body>
+        <site type="mesh" mesh="tetra"/>
+      </frame>
+      <frame name="f2" scale="%.17g">
+        <body name="b2" pos="4 0 0">
+          <freejoint/>
+          <geom type="mesh" mesh="tetra"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )",
+                         s1, s2);
+}
+
+// a mesh used at several scales compiles to an instance per scale, each as the
+// asset compiled with its scale multiplied by that of its use
+TEST_F(FrameScaleTest, MeshInstances) {
+  std::array<char, 1024> error;
+  MjModelPtr m =
+      LoadModelFromString(Tetra(1.5, 0.5), error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  ASSERT_EQ(m->nmesh, 3);
+  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_MESH, 0), "tetra");
+  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_MESH, 1), "tetra@1");
+  EXPECT_STREQ(mj_id2name(m.get(), mjOBJ_MESH, 2), "tetra@2");
+  EXPECT_THAT(AsVector(m->geom_dataid, 3), ElementsAre(0, 1, 2));
+  EXPECT_EQ(m->site_dataid[0], 1);
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  EXPECT_NEAR(m->body_mass[2] / m->body_mass[1], 3.375, tol);
+  EXPECT_NEAR(m->body_mass[3] / m->body_mass[1], 0.125, tol);
+
+  static constexpr char reference[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <mesh name="tetra@1" vertex="0 0 0 1 0 0 0 1 0 0 0 1"
+            scale="1.5 1.5 1.5"/>
+      <mesh name="tetra@2" vertex="0 0 0 1 0 0 0 1 0 0 0 1"
+            scale="0.5 0.5 0.5"/>
+    </asset>
+    <worldbody>
+      <body name="b0">
+        <freejoint/>
+        <geom type="mesh" mesh="tetra"/>
+      </body>
+      <body name="b1" pos="3 0 0">
+        <freejoint/>
+        <geom type="mesh" mesh="tetra@1"/>
+      </body>
+      <site type="mesh" mesh="tetra@1"/>
+      <body name="b2" pos="2 0 0">
+        <freejoint/>
+        <geom type="mesh" mesh="tetra@2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr ref = LoadModelFromString(reference, error.data(), error.size());
+  ASSERT_THAT(ref.get(), NotNull()) << error.data();
+  ASSERT_EQ(m->nmeshvert, ref->nmeshvert);
+  auto same = [&](const auto* a, const auto* b, int n) {
+    for (int i = 0; i < n; i++) {
+      EXPECT_NEAR(a[i], b[i], tol * std::max(1.0, std::abs((double)b[i]))) << i;
+    }
+  };
+  same(m->mesh_vert, ref->mesh_vert, 3 * m->nmeshvert);
+  same(m->mesh_scale, ref->mesh_scale, 3 * m->nmesh);
+  same(m->mesh_pos, ref->mesh_pos, 3 * m->nmesh);
+  same(m->geom_size, ref->geom_size, 3 * m->ngeom);
+  same(m->geom_pos, ref->geom_pos, 3 * m->ngeom);
+  same(m->geom_rbound, ref->geom_rbound, m->ngeom);
+  same(m->site_size, ref->site_size, 3 * m->nsite);
+  same(m->body_pos, ref->body_pos, 3 * m->nbody);
+  same(m->body_ipos, ref->body_ipos, 3 * m->nbody);
+  same(m->body_mass, ref->body_mass, m->nbody);
+  same(m->body_inertia, ref->body_inertia, 3 * m->nbody);
+}
+
+// the instances are not in the spec, which saves without them; saved compiled,
+// they are assets of their own
+TEST_F(FrameScaleTest, MeshInstancesSave) {
+  mjSpec* spec =
+      mj_parseXMLString(Tetra(1.5, 0.5).c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "tetra@1"), IsNull());
+
+  std::string saved = SaveAndReadXml(spec);
+  EXPECT_THAT(saved, HasSubstr("tetra@2"));
+  MjModelPtr reloaded = LoadModelFromString(saved);
+  ASSERT_THAT(reloaded.get(), NotNull()) << saved;
+  std::string field;
+  EXPECT_LE(CompareModel(m, reloaded.get(), field), MjTol(1e-12, 1e-6))
+      << field;
+
+  spec->compiler.savecompiled = 0;
+  std::string written = SaveAndReadXml(spec);
+  EXPECT_THAT(written, Not(HasSubstr("@")));
+  MjModelPtr rewritten = LoadModelFromString(written);
+  ASSERT_THAT(rewritten.get(), NotNull()) << written;
+  EXPECT_EQ(CompareModel(m, rewritten.get(), field), 0) << field;
+
+  // a copy of the compiled spec keeps the instances
+  mjSpec* copy = mj_copySpec(spec);
+  copy->compiler.savecompiled = 1;
+  EXPECT_EQ(SaveAndReadXml(copy), saved);
+  mj_deleteSpec(copy);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// instances are made again at each compilation, from the spec
+TEST_F(FrameScaleTest, MeshInstancesRecompile) {
+  mjSpec* spec = mj_parseXMLString(Tetra(1, 1).c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjsFrame* frame = mjs_findFrame(spec, "f1");
+  std::vector<mjModel*> models;
+  for (double s : {2.0, 0.5, 1.0, 2.0}) {
+    frame->scale[0] = frame->scale[1] = frame->scale[2] = s;
+    models.push_back(mj_compile(spec, nullptr));
+    ASSERT_THAT(models.back(), NotNull()) << mjs_getError(spec);
+  }
+  EXPECT_EQ(models[0]->nmesh, 2);
+  EXPECT_EQ(models[2]->nmesh, 1);
+  std::string field;
+  EXPECT_EQ(CompareModel(models[0], models[3], field), 0) << field;
+  MjModelPtr fresh = LoadModelFromString(Tetra(2, 1));
+  ASSERT_THAT(fresh.get(), NotNull());
+  EXPECT_EQ(CompareModel(models[3], fresh.get(), field), 0) << field;
+  for (mjModel* m : models) mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // the first use of the mesh changes scale
+  auto xml = [](const char* scale) {
+    return std::string(R"(
+    <mujoco>
+      <asset>
+        <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      </asset>
+      <worldbody>
+        <frame name="f" scale=")") +
+           scale + R"(">
+          <geom type="mesh" mesh="tetra"/>
+        </frame>
+      </worldbody>
+    </mujoco>
+    )";
+  };
+  spec = mj_parseXMLString(xml("1").c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  frame = mjs_findFrame(spec, "f");
+  frame->scale[0] = frame->scale[1] = frame->scale[2] = 2;
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  MjModelPtr fresh2 = LoadModelFromString(xml("2"));
+  ASSERT_THAT(fresh2.get(), NotNull());
+  EXPECT_EQ(CompareModel(m2, fresh2.get(), field), 0) << field;
+  EXPECT_EQ(m2->mesh_scale[0], 2);
+  mj_deleteModel(m2);
+  mj_deleteModel(m1);
+  mj_deleteSpec(spec);
+}
+
+// the name of an instance cannot be that of another asset
+TEST_F(FrameScaleTest, MeshInstanceName) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <mesh name="tetra@1" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tetra"/>
+      <geom type="mesh" mesh="tetra@1"/>
+      <frame scale="2">
+        <geom type="mesh" mesh="tetra"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("'tetra@1' of an instance of this asset is taken"));
+}
+
+// discarding visual geoms compiles the tree first, whose instances are kept for
+// those which remain
+TEST_F(FrameScaleTest, MeshInstancesDiscardVisual) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler discardvisual="true"/>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <mesh name="visual" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="tetra"/>
+      <frame scale="2">
+        <body>
+          <freejoint/>
+          <geom type="mesh" mesh="tetra"/>
+          <geom type="mesh" mesh="visual" contype="0" conaffinity="0"/>
+          <frame scale="1.5">
+            <geom type="mesh" mesh="tetra" contype="0" conaffinity="0"/>
+          </frame>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->nmesh, 2);
+  EXPECT_THAT(AsVector(m->geom_dataid, m->ngeom), ElementsAre(0, 1));
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_LE(CompareModel(m, again, field), MjTol(1e-12, 1e-6)) << field;
+  mj_deleteModel(again);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// deleting a mesh deletes its instances, so that the spec can be copied
+TEST_F(FrameScaleTest, MeshInstancesDelete) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+      <mesh name="other" vertex="0 0 0 1 0 0 0 1 0 0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom name="small" type="mesh" mesh="tetra"/>
+      <frame scale="2">
+        <geom name="large" type="mesh" mesh="tetra"/>
+      </frame>
+      <geom type="mesh" mesh="other"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->nmesh, 3);
+  for (const char* name : {"small", "large"}) {
+    ASSERT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_GEOM, name)), 0);
+  }
+  ASSERT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_MESH, "tetra")), 0);
+  mjSpec* copy = mj_copySpec(spec);
+  ASSERT_THAT(copy, NotNull());
+  mjModel* m2 = mj_compile(copy, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(copy);
+  EXPECT_EQ(m2->nmesh, 1);
+  mj_deleteModel(m2);
+  mj_deleteSpec(copy);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// a flex made from a mesh asset takes the asset at its own scale, also after a
+// compilation which scaled the asset for a geom
+TEST_F(FrameScaleTest, MeshInstanceMakeFlex) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
@@ -2706,10 +2992,273 @@ TEST_F(FrameScaleTest, Unsupported) {
     </worldbody>
   </mujoco>
   )";
+  std::array<mjModel*, 2> m;
+  for (int compiled = 0; compiled < 2; compiled++) {
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+    ASSERT_THAT(spec, NotNull());
+    if (compiled) {
+      mjModel* first = mj_compile(spec, nullptr);
+      ASSERT_THAT(first, NotNull()) << mjs_getError(spec);
+      mj_deleteModel(first);
+    }
+    mjsFlex* flex =
+        mjs_makeFlex(mjs_findBody(spec, "world"), "flex", "mesh", 2, nullptr,
+                     nullptr, nullptr, nullptr, nullptr, 0.001, 1, 0, 0, 0, 0,
+                     0, nullptr, nullptr, nullptr, "tetra", nullptr);
+    ASSERT_THAT(flex, NotNull()) << mjs_getError(spec);
+    m[compiled] = mj_compile(spec, nullptr);
+    ASSERT_THAT(m[compiled], NotNull()) << mjs_getError(spec);
+    mj_deleteSpec(spec);
+  }
+  std::string field;
+  EXPECT_LE(CompareModel(m[0], m[1], field), MjTol(1e-12, 1e-6)) << field;
+  mj_deleteModel(m[0]);
+  mj_deleteModel(m[1]);
+}
+
+// a height field used at two scales; its elevation data is copied back if its
+// instances agree
+TEST_F(FrameScaleTest, HFieldInstances) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="terrain" nrow="2" ncol="2" elevation="0 1 1 0"
+              size="1 1 0.5 0.1"/>
+    </asset>
+    <worldbody>
+      <geom type="hfield" hfield="terrain"/>
+      <frame scale="2">
+        <geom type="hfield" hfield="terrain" pos="5 0 0"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nhfield, 2);
+  EXPECT_STREQ(mj_id2name(m, mjOBJ_HFIELD, 1), "terrain@1");
+  EXPECT_THAT(AsVector(m->hfield_size + 4, 4), ElementsAre(2, 2, 1, 0.2));
+  EXPECT_THAT(AsVector(m->geom_dataid, 2), ElementsAre(0, 1));
+
+  float edited[4] = {0, 0, 1, 1};
+  std::copy(edited, edited + 4, m->hfield_data + m->hfield_adr[1]);
+  EXPECT_EQ(mj_copyBack(spec, m), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("instances differ"));
+
+  std::copy(edited, edited + 4, m->hfield_data + m->hfield_adr[0]);
+  ASSERT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  mjModel* recompiled = mj_compile(spec, nullptr);
+  ASSERT_THAT(recompiled, NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_EQ(CompareModel(m, recompiled, field), 0) << field;
+  mj_deleteModel(recompiled);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// the density of a mesh with shell inertia is a surface density, and the mass
+// still follows the volume ratio
+TEST_F(FrameScaleTest, ShellMeshMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra" vertex="0 0 0 1 0 0 0 1 0 0 0 1" inertia="shell"/>
+    </asset>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom type="mesh" mesh="tetra"/>
+      </body>
+      <frame scale="2" scaling="geometry">
+        <body>
+          <freejoint/>
+          <geom type="mesh" mesh="tetra"/>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
   std::array<char, 1024> error;
   MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("mesh or height field cannot be scaled"));
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_NEAR(m->body_mass[2] / m->body_mass[1], 8, MjTol(1e-12, 1e-5));
+}
+
+// flexes on bodies in a frame of the given scale: a rope with edge stiffness, a
+// rope with an edge equality, and a triangle with its vertices in one body
+static std::string Ropes(double scale, const char* scaling) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <default>
+      <joint type="slide" axis="1 0 0"/>
+      <geom size="0.01"/>
+    </default>
+    <worldbody>
+      <frame scale="%.17g" scaling="%s">
+        <body name="b0" pos="0 0 1"><joint/><geom/></body>
+        <body name="b1" pos="0.2 0 1"><joint/><geom/></body>
+        <body name="b2" pos="0.4 0 1"><joint/><geom/></body>
+        <body name="b3" pos="0 1 1"><joint/><geom/></body>
+        <body name="b4" pos="0.2 1 1"><joint/><geom/></body>
+        <body name="plate" pos="0 0 2"/>
+      </frame>
+    </worldbody>
+    <deformable>
+      <flex name="rope" dim="1" body="b0 b1 b2" element="0 1 1 2" radius="0.02">
+        <edge stiffness="10" damping="0.5"/>
+        <contact margin="0.01" gap="0.005" solimp="0.9 0.95 0.001 0.5 2"
+                 friction="1 0.005 0.0001"/>
+        <elasticity damping="0.3"/>
+      </flex>
+      <flex name="rope2" dim="1" body="b3 b4" element="0 1" radius="0.02"/>
+      <flex name="tri" dim="2" body="plate" vertex="0 0 0 0.1 0 0 0 0.1 0"
+            element="0 1 2" radius="0.01"/>
+    </deformable>
+    <equality>
+      <flex flex="rope2" solimp="0.9 0.95 0.001 0.5 2"/>
+    </equality>
+  </mujoco>
+  )",
+                         scale, scaling);
+}
+
+// the properties of a flex take the gauge of its bodies, and the positions of
+// its vertices those of their own bodies
+TEST_F(FrameScaleTest, Flexes) {
+  std::array<char, 1024> error;
+  MjModelPtr m =
+      LoadModelFromString(Ropes(1, "similar"), error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  const mjtNum tol = MjTol(1e-12, 1e-6);
+  for (const char* scaling : {"similar", "geometry"}) {
+    MjModelPtr s =
+        LoadModelFromString(Ropes(2, scaling), error.data(), error.size());
+    ASSERT_THAT(s.get(), NotNull()) << error.data();
+    const double force = std::string(scaling) == "similar" ? 8 : 1;
+    for (int f = 0; f < m->nflex; f++) {
+      EXPECT_NEAR(s->flex_radius[f], 2 * m->flex_radius[f], tol);
+    }
+    EXPECT_NEAR(s->flex_margin[0], 0.02, tol);
+    EXPECT_NEAR(s->flex_gap[0], 0.01, tol);
+    EXPECT_NEAR(s->flex_solimp[2], 0.002, tol);
+    EXPECT_NEAR(s->flex_friction[0], 1, tol);
+    EXPECT_NEAR(s->flex_friction[1], 0.01, tol);
+    EXPECT_NEAR(s->flex_friction[2], 0.0002, tol);
+    EXPECT_NEAR(s->flex_edgestiffness[0], 10 * force, force * tol);
+    EXPECT_NEAR(s->flex_edgedamping[0], 0.5 * force, force * tol);
+    EXPECT_EQ(s->flex_damping[0], m->flex_damping[0]);
+    EXPECT_NEAR(s->eq_solimp[2], 0.002, tol);
+    int adr = s->flex_vertadr[2];
+    for (int i = 0; i < 9; i++) {
+      EXPECT_NEAR(s->flex_vert[3 * adr + i], 2 * m->flex_vert[3 * adr + i],
+                  tol);
+    }
+    for (int i = 0; i < 3; i++) {
+      EXPECT_NEAR(s->flex_size[3 * 2 + i], 2 * m->flex_size[3 * 2 + i], tol);
+    }
+  }
+}
+
+// a cloth in a frame of the given scale, in the given gravity
+static std::string Cloth(double scale, double gravity) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <option gravity="0 0 %.17g"/>
+    <worldbody>
+      <frame scale="%.17g">
+        <body name="holder" pos="0 0 1">
+          <flexcomp type="grid" count="4 4 1" spacing="0.1 0.1 0.1"
+                    radius="0.01" name="cloth" dim="2" mass="0.5">
+            <elasticity young="1e3" poisson="0.2" thickness="0.01"
+                        damping="0.01" elastic2d="stretch"/>
+            <edge equality="false" damping="0.1"/>
+            <contact contype="0" conaffinity="0"/>
+            <pin id="0 3"/>
+          </flexcomp>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )",
+                         gravity, scale);
+}
+
+// a scaled cloth moves like the original in proportionally scaled gravity
+TEST_F(FrameScaleTest, FlexSimilarity) {
+  constexpr double s = 1.7;
+  constexpr double g = -9.81;
+  std::array<char, 1024> error;
+  MjModelPtr m0 =
+      LoadModelFromString(Cloth(1, g / s), error.data(), error.size());
+  ASSERT_THAT(m0.get(), NotNull()) << error.data();
+  MjModelPtr m1 = LoadModelFromString(Cloth(s, g), error.data(), error.size());
+  ASSERT_THAT(m1.get(), NotNull()) << error.data();
+  ASSERT_GT(m0->nq, 0);
+  MjDataPtr d0 = MakeData(m0);
+  MjDataPtr d1 = MakeData(m1);
+  for (int step = 0; step < 300; step++) {
+    mj_step(m0.get(), d0.get());
+    mj_step(m1.get(), d1.get());
+    for (int i = 0; i < m0->nq; i++) {
+      EXPECT_NEAR(d1->qpos[i] / s, d0->qpos[i], MjTol(1e-10, 1e-4))
+          << "step " << step << ", qpos " << i;
+    }
+    if (HasFailure()) break;
+  }
+  EXPECT_GT(std::abs(d0->qpos[m0->nq - 1]), 0.01);
+}
+
+// a skin scales with its bones, which must have the same scale
+TEST_F(FrameScaleTest, Skins) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="f" scale="2">
+        <body name="b0" pos="0 0 1"/>
+        <body name="b1" pos="1 0 1"/>
+      </frame>
+      <frame name="g">
+        <body name="b2" pos="0 1 1"/>
+      </frame>
+    </worldbody>
+    <deformable>
+      <skin name="skin" vertex="0 0 1 1 0 1 0 1 1" face="0 1 2" inflate="0.01">
+        <bone body="b0" bindpos="0 0 1" bindquat="1 0 0 0" vertid="0 2"
+              vertweight="1 1"/>
+        <bone body="b1" bindpos="1 0 1" bindquat="1 0 0 0" vertid="1"
+              vertweight="1"/>
+      </skin>
+    </deformable>
+  </mujoco>
+  )";
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, nullptr, 0);
+  ASSERT_THAT(spec, NotNull());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(AsVector(m->skin_vert, 9),
+              ElementsAre(0, 0, 2, 2, 0, 2, 0, 2, 2));
+  EXPECT_THAT(AsVector(m->skin_bonebindpos, 6), ElementsAre(0, 0, 2, 2, 0, 2));
+  EXPECT_FLOAT_EQ(m->skin_inflate[0], 0.02);
+
+  // saved compiled, the scaled skin reloads to the same model
+  std::string saved = SaveAndReadXml(spec);
+  MjModelPtr reloaded = LoadModelFromString(saved);
+  ASSERT_THAT(reloaded.get(), NotNull()) << saved;
+  std::string field;
+  EXPECT_LE(CompareModel(m, reloaded.get(), field), MjTol(1e-12, 1e-6))
+      << field;
+  mj_deleteModel(m);
+
+  // bones of different scales
+  mjsFrame* frame = mjs_findFrame(spec, "g");
+  frame->scale[0] = frame->scale[1] = frame->scale[2] = 3;
+  mjsSkin* skin = mjs_asSkin(mjs_findElement(spec, mjOBJ_SKIN, "skin"));
+  mjs_setInStringVec(skin->bodyname, 1, "b2");
+  EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("must have the same scale"));
+  mj_deleteSpec(spec);
 }
 
 // a chain of hinge and slide joints, and a free sphere on a plane, all in a

@@ -698,7 +698,8 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
   string         text;
   mjCSkin        defskin;
   const mjsSkin* values = Values<mjsSkin>(skin);
-  const string   file   = Pick(authored_, skin->spec.file, skin->File());
+  const bool     scaled = !authored_ && skin->scale_ != 1;
+  const string   file   = scaled ? "" : Pick(authored_, skin->spec.file, skin->File());
 
   // write attributes
   WriteAttrTxt(elem, "name", skin->name);
@@ -979,9 +980,16 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   }
 
   // hfield and mesh attributes
-  if (geom->type == mjGEOM_HFIELD) { WriteAttrTxt(elem, "hfield", geom->get_hfieldname()); }
+  if (geom->type == mjGEOM_HFIELD) {
+    WriteAttrTxt(
+        elem,
+        "hfield",
+        geom->hfield && geom->hfield->primary_ ? geom->hfield->name : geom->get_hfieldname());
+  }
   if (geom->type == mjGEOM_MESH || geom->type == mjGEOM_SDF) {
-    WriteAttrTxt(elem, "mesh", geom->get_meshname());
+    WriteAttrTxt(elem,
+                 "mesh",
+                 geom->mesh && geom->mesh->primary_ ? geom->mesh->name : geom->get_meshname());
   }
 
   // userdata
@@ -1046,7 +1054,9 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
     WriteAttrTxt(elem, "material", site->get_material());
   }
   if (site->type == mjGEOM_MESH && site->get_meshname() != def->Site().get_meshname()) {
-    WriteAttrTxt(elem, "mesh", site->get_meshname());
+    WriteAttrTxt(elem,
+                 "mesh",
+                 site->mesh && site->mesh->primary_ ? site->mesh->name : site->get_meshname());
   }
   WriteAttr(elem, "rgba", 4, site->rgba, def->Site().rgba);
 
@@ -2205,10 +2215,12 @@ void mjXWriter::Asset(XMLElement* root) {
   XMLElement* elem;
 
   // get sizes
-  int ntex    = model->NumObjects(mjOBJ_TEXTURE);
-  int nmat    = model->NumObjects(mjOBJ_MATERIAL);
-  int nmesh   = model->NumObjects(mjOBJ_MESH);
-  int nhfield = model->NumObjects(mjOBJ_HFIELD);
+  int                           ntex    = model->NumObjects(mjOBJ_TEXTURE);
+  int                           nmat    = model->NumObjects(mjOBJ_MATERIAL);
+  const std::vector<mjCMesh*>   meshes  = authored_ ? model->Meshes() : model->CompiledMeshes();
+  const std::vector<mjCHField*> hfields = authored_ ? model->HFields() : model->CompiledHFields();
+  int                           nmesh   = meshes.size();
+  int                           nhfield = hfields.size();
 
   // return if empty
   if (ntex == 0 && nmat == 0 && nmesh == 0 && nhfield == 0) { return; }
@@ -2301,7 +2313,7 @@ void mjXWriter::Asset(XMLElement* root) {
   // write meshes
   for (int i = 0; i < nmesh; i++) {
     // create element and write
-    mjCMesh*         mesh   = (mjCMesh*)model->GetObject(mjOBJ_MESH, i);
+    mjCMesh*         mesh   = meshes[i];
     const mjsPlugin& plugin = authored_ ? mesh->spec.plugin : mesh->Plugin();
     if (plugin.active) {
       elem = InsertEnd(section, "mesh");
@@ -2317,7 +2329,7 @@ void mjXWriter::Asset(XMLElement* root) {
   // write hfields
   for (int i = 0; i < nhfield; i++) {
     // create element
-    mjCHField*       phfield = (mjCHField*)model->GetObject(mjOBJ_HFIELD, i);
+    mjCHField*       phfield = hfields[i];
     const mjsHField* hfield  = Values<mjsHField>(phfield);
     const string&    file    = authored_ ? phfield->spec_file_ : phfield->file_;
 

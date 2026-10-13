@@ -938,8 +938,9 @@ static void ToAssetFrame(std::vector<double>& point, const double pos[3], const 
 // make mesh
 bool mjCFlexcomp::MakeMesh(
     mjCModel* model, mjsCompiler* compiler, char* error, int error_sz, const mjVFS* vfs) {
-  mjCMesh  local_mesh;
-  mjCMesh* cmesh = nullptr;
+  mjCMesh                  local_mesh;
+  mjCMesh*                 cmesh = nullptr;
+  std::unique_ptr<mjCMesh> unscaled;
 
   if (!mesh.empty()) {
     // use mesh asset
@@ -947,6 +948,14 @@ bool mjCFlexcomp::MakeMesh(
     if (!cmesh) {
       snprintf(error, error_sz, "mesh '%s' not found", mesh.c_str());
       return false;
+    }
+
+    if (cmesh->instancescale_ != 1) {
+      unscaled                 = std::make_unique<mjCMesh>(*cmesh);
+      unscaled->model          = cmesh->model;
+      unscaled->compiler       = cmesh->compiler;
+      unscaled->instancescale_ = 1;
+      cmesh                    = unscaled.get();
     }
 
     try {
@@ -2081,6 +2090,47 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
 }
 
 
+// gauge of the lowest frame or body which contains the bodies of the vertices and nodes
+mjCGauge mjCFlex::BodyGauge() const {
+  std::vector<const mjCBase*> bodies;
+  for (const std::vector<std::string>* names : {&spec_vertbody_, &spec_nodebody_}) {
+    for (const std::string& name : *names) {
+      if (const mjCBase* body = model->FindObject(mjOBJ_BODY, name)) { bodies.push_back(body); }
+    }
+  }
+  return LowestContainerGauge(bodies);
+}
+
+
+// scale the compiled copy: vertex and node positions, given in the coordinates of their bodies, by
+// the gauges of those bodies, and the properties of the flex by the gauge of the lowest frame or
+// body which contains them all
+void mjCFlex::ApplyGauge() {
+  auto points = [&](std::vector<double>& pos, const std::vector<int>& bodyid) {
+    for (int i = 0; i < pos.size() / 3 && !bodyid.empty(); i++) {
+      int b = bodyid[bodyid.size() == 1 ? 0 : i];
+      model->Bodies()[b]->ContentGauge().Point(pos.data() + 3 * i);
+    }
+  };
+  points(vert_, vertbodyid);
+  points(node_, nodebodyid);
+
+  const mjCGauge g = BodyGauge();
+  if (g.IsIdentity()) { return; }
+  const double fl  = g.Shape(1);
+  radius          *= fl;
+  thickness       *= fl;
+  margin          *= fl;
+  gap             *= fl;
+  solimp[2]       *= fl;
+  friction[1]     *= fl;
+  friction[2]     *= fl;
+  young           *= g.Force(-1, 1);
+  edgestiffness   *= g.Force(0, 1);
+  edgedamping     *= g.Force(0, 1);
+}
+
+
 // Mirrors mj_flexSimple: only fixed-frame XYZ translations use the cached bending factor.
 bool mjCFlex::IsSimple() const {
   for (int bid : vertbodyid) {
@@ -2535,15 +2585,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // resolve body ids
   ResolveReferences(model);
-
-  // a flex is not scaled yet
-  for (const std::vector<std::string>* names : {&vertbody_, &nodebody_}) {
-    for (const std::string& name : *names) {
-      if (!model->FindObject(mjOBJ_BODY, name)->ContentGauge().IsIdentity()) {
-        throw mjCError(this, "a flex on a scaled body cannot be compiled");
-      }
-    }
-  }
+  ApplyGauge();
 
   // process elements
   for (int e = 0; e < (int)elem_.size() / (dim + 1); e++) {
