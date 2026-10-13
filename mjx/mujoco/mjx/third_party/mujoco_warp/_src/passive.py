@@ -2127,6 +2127,13 @@ def flex_hessian_mul(
   )
 
 
+def flex_stretch_scratch(m: Model, d: Data) -> tuple[wp.array2d[wp.vec3], wp.array2d[wp.vec3]]:
+  """Allocates the per-vertex scratch arrays used by flex_stretch_mul."""
+  wvec = wp.empty((d.nworld, m.nflexvert), dtype=wp.vec3)
+  wres = wp.empty((d.nworld, m.nflexvert), dtype=wp.vec3)
+  return wvec, wres
+
+
 def flex_stretch_mul(
   m: Model,
   d: Data,
@@ -2138,12 +2145,16 @@ def flex_stretch_mul(
   non_simple_only: bool = False,
   snh_only: bool = False,
   skip: Optional[wp.array] = None,
+  scratch: Optional[tuple[wp.array2d[wp.vec3], wp.array2d[wp.vec3]]] = None,
 ):
-  """Adds (s1 + s2*flex_damping) * J^T * K_stretch * J * vec to res."""
+  """Adds (s1 + s2*flex_damping) * J^T * K_stretch * J * vec to res.
+
+  Pass scratch (from flex_stretch_scratch) when calling inside wp.capture_while, where memory
+  cannot be allocated.
+  """
   if m.nflex == 0 or m.nflexvert == 0:
     return
-  wvec = wp.empty((d.nworld, m.nflexvert), dtype=wp.vec3)
-  wres = wp.empty((d.nworld, m.nflexvert), dtype=wp.vec3)
+  wvec, wres = scratch if scratch is not None else flex_stretch_scratch(m, d)
   flex_gather(m, d, wvec, vec, skip=skip)
   flex_hessian_mul(
     m,

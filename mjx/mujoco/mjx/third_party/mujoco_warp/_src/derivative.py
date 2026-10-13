@@ -3391,6 +3391,17 @@ def eff_actuation(m: Model, d: Data):
     smooth._factor_i_sparse(m, d, d.qH, d.qHLD[:, m.qLD_block_total :], d.qHDiagInv)
 
 
+def eff_mul_m_scratch(m: Model, d: Data) -> tuple[Optional[tuple], Optional[tuple]]:
+  """Builds the eff_mul_m efm_con and flex_scratch arguments.
+
+  eff_mul_m allocates them on each call if they are not passed, which is not allowed inside
+  wp.capture_while: build them before the loop instead.
+  """
+  efm_con = build_efm_contact(m, d) if m.has_flex_passive else None
+  flex_scratch = passive.flex_stretch_scratch(m, d) if m.nflex and m.nflexvert else None
+  return efm_con, flex_scratch
+
+
 @event_scope
 def eff_mul_m(
   m: Model,
@@ -3399,8 +3410,13 @@ def eff_mul_m(
   vec: wp.array2d[float],
   skip: Optional[wp.array] = None,
   efm_con: Optional[tuple] = None,
+  flex_scratch: Optional[tuple] = None,
 ):
-  """Multiplies vector by effective metric M_hat = M + h*D + h^2*K."""
+  """Multiplies vector by effective metric M_hat = M + h*D + h^2*K.
+
+  Inside wp.capture_while, where memory cannot be allocated, pass efm_con and flex_scratch
+  from eff_mul_m_scratch, built before the loop.
+  """
   support.mul_m(m, d, res, vec, skip=skip)
   if m.opt.integrator == IntegratorType.DISCRETE:
     check_skip = skip is not None
@@ -3493,7 +3509,16 @@ def eff_mul_m(
     ):
       passive.flex_bend_mul(m, d, res, vec, s1_in=1.0, s2_in=1.0, use_timestep=True, non_simple_only=(m.nefmK > 0), skip=skip)
       passive.flex_stretch_mul(
-        m, d, res, vec, s1_in=1.0, s2_in=1.0, use_timestep=True, non_simple_only=(m.nefmK > 0), skip=skip
+        m,
+        d,
+        res,
+        vec,
+        s1_in=1.0,
+        s2_in=1.0,
+        use_timestep=True,
+        non_simple_only=(m.nefmK > 0),
+        skip=skip,
+        scratch=flex_scratch,
       )
     if not m.flex_interp_assemblable and not (
       (m.opt.disableflags & DisableBit.SPRING) and (m.opt.disableflags & DisableBit.DAMPER)
@@ -3987,7 +4012,8 @@ def eff_solve(m: Model, d: Data, qacc: wp.array2d[float], qfrc: Optional[wp.arra
 
   efm_nsolving.fill_(d.nworld)
   efm_iter.zero_()
-  efm_con = build_efm_contact(m, d) if (has_spring_or_damper and m.has_flex_passive) else None
+  # allocated here since _pcg_iteration may run inside wp.capture_while
+  efm_con, flex_scratch = eff_mul_m_scratch(m, d)
 
   eff_prec(m, d, efm_z, rhs)
   wp.launch_tiled(
@@ -4015,7 +4041,7 @@ def eff_solve(m: Model, d: Data, qacc: wp.array2d[float], qfrc: Optional[wp.arra
   max_it = m.opt.iterations
 
   def _pcg_iteration():
-    eff_mul_m(m, d, efm_Ap, efm_p, skip=efm_done, efm_con=efm_con)
+    eff_mul_m(m, d, efm_Ap, efm_p, skip=efm_done, efm_con=efm_con, flex_scratch=flex_scratch)
     wp.launch_tiled(
       _pcg_pAp_step_and_check_tiled,
       dim=d.nworld,

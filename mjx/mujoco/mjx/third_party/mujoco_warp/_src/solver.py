@@ -3406,7 +3406,8 @@ def _update_gradient(m: types.Model, d: types.Data, ctx: SolverContext, compact:
           outputs=[ctx.h],
         )
       if m.has_flex_passive:
-        efm_con_dof, efm_con_val, efm_con_scale, _, efm_con_nnz = derivative.build_efm_contact(m, d)
+        efm_con = ctx.efm_con if ctx.efm_con is not None else derivative.build_efm_contact(m, d)
+        efm_con_dof, efm_con_val, efm_con_scale, _, efm_con_nnz = efm_con
         wp.launch(
           _add_flexcon_metric_dense,
           dim=d.naconmax,
@@ -3948,6 +3949,9 @@ def _solve(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = Fa
     )
     d = dataclasses.replace(d, qfrc_smooth=qfrc_smooth_eff)
 
+    # effective-metric scratch for the solver iterations, which may run inside wp.capture_while
+    ctx.efm_con, ctx.flex_scratch = derivative.eff_mul_m_scratch(m, d)
+
   warmstart = not (m.opt.disableflags & types.DisableBit.WARMSTART)
   wp.launch(
     _solve_init_dof(warmstart, m.is_sparse),
@@ -4095,7 +4099,7 @@ def _sparse_compact(ctx: SolverContext | InverseContext) -> bool:
 def _mul_m_compact_aware(m: types.Model, d: types.Data, ctx: SolverContext | InverseContext, res, vec, skip):
   """M @ vec: full-coordinate sparse walk under compact, support.mul_m natively."""
   if m.opt.integrator == types.IntegratorType.DISCRETE:
-    derivative.eff_mul_m(m, d, res, vec, skip=skip)
+    derivative.eff_mul_m(m, d, res, vec, skip=skip, efm_con=ctx.efm_con, flex_scratch=ctx.flex_scratch)
     return
   dfull = ctx.compact_d_full
   if dfull is not None:
