@@ -276,28 +276,6 @@ static void treeIterInit(const mjModel* m, const mjData* d, int i, mjTreeIter* i
     iter->trees[0] = m->dof_treeid[m->jnt_dofadr[efc_id]];
   }
 
-  // contact
-  else if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
-           efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
-           efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
-    int g1 = d->contact[efc_id].geom[0];
-    int g2 = d->contact[efc_id].geom[1];
-
-    // geom-geom contact
-    if (g1 >= 0 && g2 >= 0) {
-      iter->trees[0] = m->body_treeid[m->geom_bodyid[g1]];
-      iter->trees[1] = m->body_treeid[m->geom_bodyid[g2]];
-      if (iter->trees[0] < 0 && iter->trees[1] < 0) {
-        mjERROR("contact %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
-      }
-    }
-
-    // no shortcut for flex contacts: enable generic scan
-    else {
-      iter->jac_idx = 0;
-    }
-  }
-
   // connect or weld constraints
   else if (efc_type == mjCNSTR_EQUALITY &&
            (m->eq_type[efc_id] == mjEQ_CONNECT ||
@@ -332,6 +310,49 @@ static int isFlexEquality(const mjModel* m, int efc_type, int efc_id) {
          (m->eq_type[efc_id] == mjEQ_FLEX ||
           m->eq_type[efc_id] == mjEQ_FLEXVERT ||
           m->eq_type[efc_id] == mjEQ_FLEXSTRAIN);
+}
+
+
+// activate and union the trees of the bodies of a contact, return the first tree, -1 if none:
+// with flexes a contact can span many trees, and the values of its Jacobian rows can vanish
+// (e.g. contact point on a hinge axis), so the trees cannot be found by scanning the rows
+static int unionContactTrees(const mjModel* m, const mjData* d, int* parent,
+                             const mjContact* con) {
+  // geom-geom: trees of the two geom bodies
+  if (con->geom[0] >= 0 && con->geom[1] >= 0) {
+    int tree1 = m->body_treeid[m->geom_bodyid[con->geom[0]]];
+    int tree2 = m->body_treeid[m->geom_bodyid[con->geom[1]]];
+    if (tree1 < 0) {
+      tree1 = tree2;
+      tree2 = -1;
+    }
+    if (tree1 >= 0) {
+      mj_dsuMerge(parent, tree1, tree2);
+    }
+    return tree1;
+  }
+
+  // flex: get bodies of both sides
+  int body[729];  // 729 = 27*27, as in mj_contactJacobian
+  int nb = mj_contactBodyWeight(m, d, con, 0, body, NULL);
+  nb += mj_contactBodyWeight(m, d, con, 1, body+nb, NULL);
+
+  // activate the first tree, union the others with it, skip static bodies
+  int tree1 = -1;
+  for (int j=0; j < nb; j++) {
+    int tree2 = m->body_treeid[body[j]];
+    if (tree2 < 0 || tree2 == tree1) {
+      continue;
+    }
+    if (tree1 < 0) {
+      tree1 = tree2;
+      mj_dsuMerge(parent, tree1, -1);
+    } else {
+      mj_dsuMerge(parent, tree1, tree2);
+    }
+  }
+
+  return tree1;
 }
 
 
@@ -373,6 +394,18 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
     }
     efc_type = d->efc_type[i];
     efc_id = d->efc_id[i];
+
+    // contact: union the trees of its bodies
+    if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
+        efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
+        efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
+      efc_tree[i] = unionContactTrees(m, d, parent, d->contact + efc_id);
+      if (efc_tree[i] < 0) {
+        *err_i = efc_id;
+        return "contact %d is between two static bodies";
+      }
+      continue;
+    }
 
     // initialize tree iterator
     mjTreeIter iter;

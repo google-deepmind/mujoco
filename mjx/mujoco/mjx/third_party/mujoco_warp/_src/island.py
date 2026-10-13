@@ -13,8 +13,11 @@
 # limitations under the License.
 # ==============================================================================
 
+from typing import Tuple
+
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
 from mujoco.mjx.third_party.mujoco_warp._src.types import EqType
@@ -106,6 +109,91 @@ def _is_repeated_fixed_support_efc(
   )
 
 
+@wp.func
+def _flex_contact_bodies(
+  # Model:
+  geom_bodyid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_shelldataadr: wp.array[int],
+  flex_nodebodyid: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  flex_shell: wp.array[int],
+  flex_vert0: wp.array[wp.vec3],
+  # Data in:
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  contact_pos_in: wp.array[wp.vec3],
+  contact_geom_in: wp.array[wp.vec2i],
+  contact_flex_in: wp.array[wp.vec2i],
+  contact_elem_in: wp.array[wp.vec2i],
+  contact_vert_in: wp.array[wp.vec2i],
+  # In:
+  worldid: int,
+  conid: int,
+) -> Tuple[wp.vec4i, wp.vec4i]:
+  """Return the bodies of both sides of a flex contact, -1 padded.
+
+  The rows of a flex contact can vanish (e.g. contact point on a hinge axis), so its trees
+  are taken from its bodies, as for its Jacobian, rather than from the values of its rows.
+  """
+  geom = contact_geom_in[conid]
+  flex = contact_flex_in[conid]
+  elem = contact_elem_in[conid]
+  vert = contact_vert_in[conid]
+  pos = contact_pos_in[conid]
+  bodies0, _ = support.contact_bodies_and_weights(
+    geom_bodyid,
+    flex_dim,
+    flex_cellnum,
+    flex_nodeadr,
+    flex_vertadr,
+    flex_elemdataadr,
+    flex_shelldataadr,
+    flex_nodebodyid,
+    flex_vertbodyid,
+    flex_elem,
+    flex_shell,
+    flex_vert0,
+    flexvert_xpos_in,
+    conid,
+    0,
+    geom,
+    flex,
+    elem,
+    vert,
+    pos,
+    worldid,
+  )
+  bodies1, _ = support.contact_bodies_and_weights(
+    geom_bodyid,
+    flex_dim,
+    flex_cellnum,
+    flex_nodeadr,
+    flex_vertadr,
+    flex_elemdataadr,
+    flex_shelldataadr,
+    flex_nodebodyid,
+    flex_vertbodyid,
+    flex_elem,
+    flex_shell,
+    flex_vert0,
+    flexvert_xpos_in,
+    conid,
+    1,
+    geom,
+    flex,
+    elem,
+    vert,
+    pos,
+    worldid,
+  )
+  return bodies0, bodies1
+
+
 @wp.kernel
 def _island_dsu(
   # Model:
@@ -115,6 +203,17 @@ def _island_dsu(
   dof_treeid: wp.array[int],
   geom_bodyid: wp.array[int],
   site_bodyid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_shelldataadr: wp.array[int],
+  flex_nodebodyid: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  flex_shell: wp.array[int],
+  flex_vert0: wp.array[wp.vec3],
   eq_type: wp.array[int],
   eq_obj1id: wp.array[int],
   eq_obj2id: wp.array[int],
@@ -122,7 +221,12 @@ def _island_dsu(
   is_sparse: bool,
   # Data in:
   nefc_in: wp.array[int],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  contact_pos_in: wp.array[wp.vec3],
   contact_geom_in: wp.array[wp.vec2i],
+  contact_flex_in: wp.array[wp.vec2i],
+  contact_elem_in: wp.array[wp.vec2i],
+  contact_vert_in: wp.array[wp.vec2i],
   efc_type_in: wp.array2d[int],
   efc_id_in: wp.array2d[int],
   efc_J_rownnz_in: wp.array2d[int],
@@ -181,14 +285,52 @@ def _island_dsu(
       or efc_type == ConstraintType.CONTACT_PYRAMIDAL
       or efc_type == ConstraintType.CONTACT_ELLIPTIC
     ):
+      if repeated:
+        continue
       geom_pair = contact_geom_in[efc_id]
       if geom_pair[0] >= 0 and geom_pair[1] >= 0:
-        if repeated:
-          continue
         tree0 = body_treeid[geom_bodyid[geom_pair[0]]]
         tree1 = body_treeid[geom_bodyid[geom_pair[1]]]
       else:
-        use_generic = 1
+        # flex: union the trees of the bodies of both sides
+        bodies0, bodies1 = _flex_contact_bodies(
+          geom_bodyid,
+          flex_dim,
+          flex_cellnum,
+          flex_nodeadr,
+          flex_vertadr,
+          flex_elemdataadr,
+          flex_shelldataadr,
+          flex_nodebodyid,
+          flex_vertbodyid,
+          flex_elem,
+          flex_shell,
+          flex_vert0,
+          flexvert_xpos_in,
+          contact_pos_in,
+          contact_geom_in,
+          contact_flex_in,
+          contact_elem_in,
+          contact_vert_in,
+          worldid,
+          efc_id,
+        )
+        first_tree = int(-1)
+        for k in range(8):
+          body = bodies0[k % 4]
+          if k >= 4:
+            body = bodies1[k % 4]
+          if body < 0:
+            continue
+          tree = body_treeid[body]
+          if tree < 0:
+            continue
+          if first_tree < 0:
+            first_tree = tree
+            _dsu_union(island_parent_out, worldid, tree, -1, tree_island_out)
+          elif tree != first_tree:
+            _dsu_union(island_parent_out, worldid, first_tree, tree, tree_island_out)
+        continue
     else:
       use_generic = 1
 
@@ -309,13 +451,29 @@ def direct_dsu(m: types.Model, d: types.Data, island_parent: wp.array2d[int]):
       m.dof_treeid,
       m.geom_bodyid,
       m.site_bodyid,
+      m.flex_dim,
+      m.flex_cellnum,
+      m.flex_nodeadr,
+      m.flex_vertadr,
+      m.flex_elemdataadr,
+      m.flex_shelldataadr,
+      m.flex_nodebodyid,
+      m.flex_vertbodyid,
+      m.flex_elem,
+      m.flex_shell,
+      m.flex_vert0,
       m.eq_type,
       m.eq_obj1id,
       m.eq_obj2id,
       m.eq_objtype,
       m.is_sparse,
       d.nefc,
+      d.flexvert_xpos,
+      d.contact.pos,
       d.contact.geom,
+      d.contact.flex,
+      d.contact.elem,
+      d.contact.vert,
       d.efc.type,
       d.efc.id,
       d.efc.J_rownnz,
@@ -574,6 +732,17 @@ def _compute_efc_tree(
   dof_treeid: wp.array[int],
   geom_bodyid: wp.array[int],
   site_bodyid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_shelldataadr: wp.array[int],
+  flex_nodebodyid: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  flex_shell: wp.array[int],
+  flex_vert0: wp.array[wp.vec3],
   eq_type: wp.array[int],
   eq_obj1id: wp.array[int],
   eq_obj2id: wp.array[int],
@@ -581,7 +750,12 @@ def _compute_efc_tree(
   is_sparse: bool,
   # Data in:
   nefc_in: wp.array[int],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  contact_pos_in: wp.array[wp.vec3],
   contact_geom_in: wp.array[wp.vec2i],
+  contact_flex_in: wp.array[wp.vec2i],
+  contact_elem_in: wp.array[wp.vec2i],
+  contact_vert_in: wp.array[wp.vec2i],
   efc_type_in: wp.array2d[int],
   efc_id_in: wp.array2d[int],
   efc_J_rownnz_in: wp.array2d[int],
@@ -652,8 +826,38 @@ def _compute_efc_tree(
       else:
         tree = t2
     else:
-      # flex contacts: generic scan
-      use_generic = 1
+      # flex: first tree of the bodies of both sides
+      bodies0, bodies1 = _flex_contact_bodies(
+        geom_bodyid,
+        flex_dim,
+        flex_cellnum,
+        flex_nodeadr,
+        flex_vertadr,
+        flex_elemdataadr,
+        flex_shelldataadr,
+        flex_nodebodyid,
+        flex_vertbodyid,
+        flex_elem,
+        flex_shell,
+        flex_vert0,
+        flexvert_xpos_in,
+        contact_pos_in,
+        contact_geom_in,
+        contact_flex_in,
+        contact_elem_in,
+        contact_vert_in,
+        worldid,
+        efc_id,
+      )
+      for k in range(8):
+        body = bodies0[k % 4]
+        if k >= 4:
+          body = bodies1[k % 4]
+        if body >= 0:
+          t = body_treeid[body]
+          if t >= 0:
+            tree = t
+            break
 
   else:
     # generic: scan Jacobian row
@@ -791,13 +995,29 @@ def compute_island_mapping(m: types.Model, d: types.Data):
       m.dof_treeid,
       m.geom_bodyid,
       m.site_bodyid,
+      m.flex_dim,
+      m.flex_cellnum,
+      m.flex_nodeadr,
+      m.flex_vertadr,
+      m.flex_elemdataadr,
+      m.flex_shelldataadr,
+      m.flex_nodebodyid,
+      m.flex_vertbodyid,
+      m.flex_elem,
+      m.flex_shell,
+      m.flex_vert0,
       m.eq_type,
       m.eq_obj1id,
       m.eq_obj2id,
       m.eq_objtype,
       m.is_sparse,
       d.nefc,
+      d.flexvert_xpos,
+      d.contact.pos,
       d.contact.geom,
+      d.contact.flex,
+      d.contact.elem,
+      d.contact.vert,
       d.efc.type,
       d.efc.id,
       d.efc.J_rownnz,

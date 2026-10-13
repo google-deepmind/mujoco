@@ -18,6 +18,7 @@ from typing import Optional, Tuple
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.math import motion_cross
+from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
@@ -1285,3 +1286,295 @@ def dphi2D(s0: float, l0: int, s1: float, l1: int, order: int, direction: int) -
     return flex_dphi(s0, l0, order) * flex_phi(s1, l1, order)
   else:
     return flex_phi(s0, l0, order) * flex_dphi(s1, l1, order)
+
+
+@wp.func
+def contact_bodies_and_weights(
+  # Model:
+  geom_bodyid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_shelldataadr: wp.array[int],
+  flex_nodebodyid: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  flex_shell: wp.array[int],
+  flex_vert0: wp.array[wp.vec3],
+  # Data in:
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  conid: int,
+  side: int,
+  geom: wp.vec2i,
+  flex: wp.vec2i,
+  elem: wp.vec2i,
+  vert: wp.vec2i,
+  con_pos: wp.vec3,
+  worldid: int,
+) -> Tuple[wp.vec4i, wp.vec4]:
+  geom_id = geom[side]
+  flex_id = flex[side]
+  elem_id = elem[side]
+  vert_id = vert[side]
+
+  # Rigid Geom Side
+  if geom_id >= 0:
+    return wp.vec4i(geom_bodyid[geom_id], -1, -1, -1), wp.vec4(1.0, 0.0, 0.0, 0.0)
+
+  # Plane-Vertex or Vertex-only flex contact
+  flex_vert_start = flex_vertadr[flex_id]
+  if vert_id >= 0:
+    body = flex_vertbodyid[flex_vert_start + vert_id]
+    if body >= 0:
+      return wp.vec4i(body, -1, -1, -1), wp.vec4(1.0, 0.0, 0.0, 0.0)
+
+    # Interpolated flex vertex contact: interpolate to the 8 corner nodes
+    v_adr = flex_vert_start + vert_id
+    coord = flex_vert0[v_adr]
+    cn = flex_cellnum[flex_id]
+    cx = cn[0]
+    cy = cn[1]
+    cz = cn[2]
+
+    ci = wp.min(int(coord[0] * float(cx)), cx - 1)
+    ci = wp.max(ci, 0)
+    cj = wp.min(int(coord[1] * float(cy)), cy - 1)
+    cj = wp.max(cj, 0)
+    ck = wp.min(int(coord[2] * float(cz)), cz - 1)
+    ck = wp.max(ck, 0)
+
+    local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+    local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+    local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+    local = wp.vec3(local_x, local_y, local_z)
+
+    ny_g = cy + 1
+    nz_g = cz + 1
+    nstart = flex_nodeadr[flex_id]
+
+    body_ids = wp.vec4i(-1, -1, -1, -1)
+    weights = wp.vec4(0.0, 0.0, 0.0, 0.0)
+    n_collected = int(0)
+
+    for li in range(2):
+      for lj in range(2):
+        for lk in range(2):
+          w = eval_basis_trilinear(local, li * 4 + lj * 2 + lk)
+          if w > 1.0e-5 and n_collected < 4:
+            gi = ci + li
+            gj = cj + lj
+            gk = ck + lk
+            node_idx = gi * ny_g * nz_g + gj * nz_g + gk
+            b = flex_nodebodyid[nstart + node_idx]
+
+            # Put into body_ids and weights
+            if n_collected == 0:
+              body_ids = wp.vec4i(b, -1, -1, -1)
+              weights = wp.vec4(w, 0.0, 0.0, 0.0)
+            elif n_collected == 1:
+              body_ids = wp.vec4i(body_ids[0], b, -1, -1)
+              weights = wp.vec4(weights[0], w, 0.0, 0.0)
+            elif n_collected == 2:
+              body_ids = wp.vec4i(body_ids[0], body_ids[1], b, -1)
+              weights = wp.vec4(weights[0], weights[1], w, 0.0)
+            else:
+              body_ids = wp.vec4i(body_ids[0], body_ids[1], body_ids[2], b)
+              weights = wp.vec4(weights[0], weights[1], weights[2], w)
+
+            n_collected += 1
+
+    # Normalize weights so they sum to 1.0
+    w_sum = weights[0] + weights[1] + weights[2] + weights[3]
+    if w_sum > 1.0e-5:
+      w_sum_inv = 1.0 / w_sum
+      weights = wp.vec4(weights[0] * w_sum_inv, weights[1] * w_sum_inv, weights[2] * w_sum_inv, weights[3] * w_sum_inv)
+
+    return body_ids, weights
+
+  dim = flex_dim[flex_id]
+
+  if dim == 1:
+    elem_data_start = flex_elemdataadr[flex_id] + elem_id * 2
+    v0 = flex_elem[elem_data_start + 0]
+    v1 = flex_elem[elem_data_start + 1]
+
+    x0 = flexvert_xpos_in[worldid, flex_vert_start + v0]
+    x1 = flexvert_xpos_in[worldid, flex_vert_start + v1]
+
+    d0 = wp.length(con_pos - x0)
+    d1 = wp.length(con_pos - x1)
+
+    w0 = safe_div(1.0, d0)
+    w1 = safe_div(1.0, d1)
+
+    w_sum = w0 + w1
+    w_sum_inv = 1.0 / w_sum
+    w0 = w0 * w_sum_inv
+    w1 = w1 * w_sum_inv
+
+    b0 = flex_vertbodyid[flex_vert_start + v0]
+    b1 = flex_vertbodyid[flex_vert_start + v1]
+
+    return wp.vec4i(b0, b1, -1, -1), wp.vec4(w0, w1, 0.0, 0.0)
+
+  elif dim == 2:
+    elem_data_start = flex_elemdataadr[flex_id] + elem_id * 3
+    v0 = flex_elem[elem_data_start + 0]
+    v1 = flex_elem[elem_data_start + 1]
+    v2 = flex_elem[elem_data_start + 2]
+
+    x0 = flexvert_xpos_in[worldid, flex_vert_start + v0]
+    x1 = flexvert_xpos_in[worldid, flex_vert_start + v1]
+    x2 = flexvert_xpos_in[worldid, flex_vert_start + v2]
+
+    d0 = wp.length(con_pos - x0)
+    d1 = wp.length(con_pos - x1)
+    d2 = wp.length(con_pos - x2)
+
+    w0 = safe_div(1.0, d0)
+    w1 = safe_div(1.0, d1)
+    w2 = safe_div(1.0, d2)
+
+    w_sum = w0 + w1 + w2
+    w_sum_inv = 1.0 / w_sum
+    w0 = w0 * w_sum_inv
+    w1 = w1 * w_sum_inv
+    w2 = w2 * w_sum_inv
+
+    b0 = flex_vertbodyid[flex_vert_start + v0]
+    b1 = flex_vertbodyid[flex_vert_start + v1]
+    b2 = flex_vertbodyid[flex_vert_start + v2]
+
+    return wp.vec4i(b0, b1, b2, -1), wp.vec4(w0, w1, w2, 0.0)
+
+  elif dim == 3:
+    elem_data_start = flex_elemdataadr[flex_id] + elem_id * 4
+    v0 = flex_elem[elem_data_start + 0]
+    v1 = flex_elem[elem_data_start + 1]
+    v2 = flex_elem[elem_data_start + 2]
+    v3 = flex_elem[elem_data_start + 3]
+
+    x0 = flexvert_xpos_in[worldid, flex_vert_start + v0]
+    x1 = flexvert_xpos_in[worldid, flex_vert_start + v1]
+    x2 = flexvert_xpos_in[worldid, flex_vert_start + v2]
+    x3 = flexvert_xpos_in[worldid, flex_vert_start + v3]
+
+    d0 = wp.length(con_pos - x0)
+    d1 = wp.length(con_pos - x1)
+    d2 = wp.length(con_pos - x2)
+    d3 = wp.length(con_pos - x3)
+
+    w0 = safe_div(1.0, d0)
+    w1 = safe_div(1.0, d1)
+    w2 = safe_div(1.0, d2)
+    w3 = safe_div(1.0, d3)
+
+    w_sum = w0 + w1 + w2 + w3
+    w_sum_inv = 1.0 / w_sum
+    w0 = w0 * w_sum_inv
+    w1 = w1 * w_sum_inv
+    w2 = w2 * w_sum_inv
+    w3 = w3 * w_sum_inv
+
+    b0 = flex_vertbodyid[flex_vert_start + v0]
+    if b0 >= 0:
+      b1 = flex_vertbodyid[flex_vert_start + v1]
+      b2 = flex_vertbodyid[flex_vert_start + v2]
+      b3 = flex_vertbodyid[flex_vert_start + v3]
+      return wp.vec4i(b0, b1, b2, b3), wp.vec4(w0, w1, w2, w3)
+    else:
+      # Interpolated 3D flex element contact: accumulate node weights and select top 4
+      coord0 = flex_vert0[flex_vert_start + v0]
+      cn = flex_cellnum[flex_id]
+      cx = cn[0]
+      cy = cn[1]
+      cz = cn[2]
+
+      ci = wp.min(int(coord0[0] * float(cx)), cx - 1)
+      ci = wp.max(ci, 0)
+      cj = wp.min(int(coord0[1] * float(cy)), cy - 1)
+      cj = wp.max(cj, 0)
+      ck = wp.min(int(coord0[2] * float(cz)), cz - 1)
+      ck = wp.max(ck, 0)
+
+      ny_g = cy + 1
+      nz_g = cz + 1
+      nstart = flex_nodeadr[flex_id]
+
+      # 8 accumulated weights for the voxel corners
+      W0 = float(0.0)
+      W1 = float(0.0)
+      W2 = float(0.0)
+      W3 = float(0.0)
+      W4 = float(0.0)
+      W5 = float(0.0)
+      W6 = float(0.0)
+      W7 = float(0.0)
+
+      # Loop over the 4 vertices of the tetrahedron
+      for k in range(4):
+        v_idx = v0
+        w_k = w0
+        if k == 1:
+          v_idx = v1
+          w_k = w1
+        elif k == 2:
+          v_idx = v2
+          w_k = w2
+        elif k == 3:
+          v_idx = v3
+          w_k = w3
+
+        coord = flex_vert0[flex_vert_start + v_idx]
+        local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
+        local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
+        local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+        local = wp.vec3(local_x, local_y, local_z)
+
+        # Accumulate trilinear weights
+        W0 += w_k * eval_basis_trilinear(local, 0)
+        W1 += w_k * eval_basis_trilinear(local, 1)
+        W2 += w_k * eval_basis_trilinear(local, 2)
+        W3 += w_k * eval_basis_trilinear(local, 3)
+        W4 += w_k * eval_basis_trilinear(local, 4)
+        W5 += w_k * eval_basis_trilinear(local, 5)
+        W6 += w_k * eval_basis_trilinear(local, 6)
+        W7 += w_k * eval_basis_trilinear(local, 7)
+
+      # 8 node body IDs corresponding to the 8 voxel corners
+      b0_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 0)]
+      b1_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 1)]
+      b2_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 0)]
+      b3_node = flex_nodebodyid[nstart + (ci + 0) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 1)]
+      b4_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 0)]
+      b5_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 0) * nz_g + (ck + 1)]
+      b6_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 0)]
+      b7_node = flex_nodebodyid[nstart + (ci + 1) * ny_g * nz_g + (cj + 1) * nz_g + (ck + 1)]
+
+      W_mat = wp.mat33(W0, W1, W2, W3, W4, W5, W6, W7, -1.0)
+      b_mat = wp.mat33(
+        float(b0_node),
+        float(b1_node),
+        float(b2_node),
+        float(b3_node),
+        float(b4_node),
+        float(b5_node),
+        float(b6_node),
+        float(b7_node),
+        -1.0,
+      )
+      return select_top4_weights(W_mat, b_mat)
+
+  else:
+    return wp.vec4i(-1, -1, -1, -1), wp.vec4(0.0, 0.0, 0.0, 0.0)
+
+
+# TODO(flex): Add interpolated flex self-collision support. Currently, interpolated
+# flex contacts only handle flex-vs-geom contacts (e.g., flex on ground plane).
+# Self-collision requires distributing both sides of the contact across cell nodes.
+
+# TODO(flex): Replace inverse-distance contact weights with barycentric weights
+# (mj_elemBodyWeight-style) for element contacts on interpolated flex.

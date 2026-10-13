@@ -935,6 +935,127 @@ TEST_F(IslandTest, FlexStiffnessUnionsTrees) {
   EXPECT_EQ(data->nidof, model->nv);
 }
 
+// rigid flex hinged about its middle: vertices on the axis touch the plane
+static constexpr char kRigidFlap[] = R"(
+<mujoco>
+  <worldbody>
+    <geom name="floor" type="plane" size="1 1 .1"/>
+    <body name="flap">
+      <joint name="hinge" axis="0 1 0"/>
+      <geom name="mass" size=".01" pos=".3 0 .1"/>
+      <flexcomp name="flap" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" rigid="true"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// rigid flex sliding along x on a box: the normal row is zero, a tangent is not
+static constexpr char kRigidSlider[] = R"(
+<mujoco>
+  <option cone="elliptic"/>
+  <worldbody>
+    <geom name="box" type="box" size=".05 .05 .05" pos="0 0 -.05"/>
+    <body name="slider">
+      <joint type="slide" axis="1 0 0"/>
+      <geom name="mass" size=".02" pos="0 0 .2"/>
+      <flexcomp name="f1" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" rigid="true"
+                radius=".005"/>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// cloth pinned to a hinged body: pins on the hinge axis touch the plane
+static constexpr char kPinnedCloth[] = R"(
+<mujoco>
+  <worldbody>
+    <geom name="floor" type="plane" size="1 1 .1"/>
+    <body name="flap">
+      <joint name="hinge" axis="0 1 0"/>
+      <geom name="mass" size=".01" pos=".3 0 .1"/>
+      <flexcomp name="cloth" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" mass=".1">
+        <pin id="3 4 5"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+// triangle with vertices in three trees, hinges orthogonal to the box: element
+// contacts span the three trees and their normal row is zero
+static constexpr char kHingedTriangle[] = R"(
+<mujoco>
+  <option cone="elliptic"/>
+  <worldbody>
+    <geom name="box" type="box" size=".2 .2 .05" pos="0 0 -.05"/>
+    <body name="b0" pos=".1 0 0">
+      <joint/>
+      <geom size=".01" pos=".02 0 .1"/>
+    </body>
+    <body name="b1" pos="-.05 .1 0">
+      <joint/>
+      <geom size=".01" pos=".02 0 .1"/>
+    </body>
+    <body name="b2" pos="-.05 -.1 0">
+      <joint/>
+      <geom size=".01" pos=".02 0 .1"/>
+    </body>
+  </worldbody>
+  <deformable>
+    <flex name="triangle" dim="2" body="b0 b1 b2" vertex="0 0 0 0 0 0 0 0 0" element="0 1 2"
+          radius=".005">
+      <edge damping="1"/>
+    </flex>
+  </deformable>
+</mujoco>
+)";
+
+// a flex contact is in the trees of its bodies even if its first row is zero:
+// dense and sparse Jacobians give the same contacts, in one island
+TEST_F(IslandTest, FlexContactWithZeroRow) {
+  for (auto xml : {kRigidFlap, kRigidSlider, kPinnedCloth, kHingedTriangle}) {
+    SCOPED_TRACE(xml);
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    int nv = model->nv;
+
+    // dense: some contact has a zero first row
+    model->opt.jacobian = mjJAC_DENSE;
+    MjDataPtr dense = MakeData(model);
+    mj_forward(model.get(), dense.get());
+    int nzero = 0;
+    for (int i = 0; i < dense->ncon; i++) {
+      int adr = dense->contact[i].efc_address;
+      nzero += adr >= 0 && mju_isZero(dense->efc_J + adr * nv, nv);
+    }
+    EXPECT_GT(nzero, 0);
+
+    // sparse: same contacts
+    model->opt.jacobian = mjJAC_SPARSE;
+    MjDataPtr sparse = MakeData(model);
+    mj_forward(model.get(), sparse.get());
+    ASSERT_EQ(dense->ncon, sparse->ncon);
+    for (int i = 0; i < dense->ncon; i++) {
+      const mjContact& con1 = dense->contact[i];
+      const mjContact& con2 = sparse->contact[i];
+      EXPECT_THAT(con1.geom, ElementsAre(con2.geom[0], con2.geom[1]));
+      EXPECT_THAT(con1.flex, ElementsAre(con2.flex[0], con2.flex[1]));
+      EXPECT_THAT(con1.elem, ElementsAre(con2.elem[0], con2.elem[1]));
+      EXPECT_THAT(con1.vert, ElementsAre(con2.vert[0], con2.vert[1]));
+      EXPECT_EQ(con1.exclude, con2.exclude);
+      EXPECT_EQ(con1.efc_address, con2.efc_address);
+    }
+
+    // one island with every dof
+    for (const mjData* data : {dense.get(), sparse.get()}) {
+      EXPECT_EQ(data->nisland, 1);
+      EXPECT_EQ(data->nidof, nv);
+    }
+  }
+}
+
 TEST_F(IslandTest, IslandEfcElliptic) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
   char error[1024];
