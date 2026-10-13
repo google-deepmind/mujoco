@@ -2074,8 +2074,10 @@ static void Instantiate(const mjCModel*                                 model,
     }
   }
 
-  for (const auto& [use, scale] : uses) {
-    T* asset = *use;
+  for (const auto& use_scale : uses) {
+    T**                use   = use_scale.first;
+    const InstanceMap& scale = use_scale.second;
+    T*                 asset = *use;
     if (asset->instancemap_ == scale) { continue; }
     auto same = [asset, &scale](const T* instance) {
       return instance->primary_ == asset && instance->instancemap_ == scale;
