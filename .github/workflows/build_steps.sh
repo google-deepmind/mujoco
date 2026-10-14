@@ -839,9 +839,9 @@ build_simulate_app() {
 
 
 # The Python Studio viewer: platform libraries, SDK, then the Studio Python
-# modules (ux, sim, renderer, window, dear_imgui, implot, headless_ui,
-# state_payload, _render_filament) built into a wheel and installed. The
-# browser client and the C++ app are not built.
+# modules (ux, sim, window, dear_imgui, implot, headless_ui, state_payload,
+# _render_filament) built into a wheel and installed. The browser client and
+# the C++ app are not built.
 build_studio_python() {
     echo "Building the Studio platform for Python..."
     build_studio_platform_libs

@@ -213,7 +213,7 @@ incremental, so any source edit — Python or C++ — needs the step re-run.
 | `build_studio_cpp_viewer` | the C++ Studio viewer app with its plugins, in the host tree | `build_host/bin/mujoco_studio` |
 | `build_studio_platform_libs` | the Studio platform without the app: platform library (and the Filament tools), staged assets, engine plugins | `build_host/` |
 | `build_studio_wasm` | the web viewer browser client (WASM/JS/HTML + assets) via Emscripten | `python/mujoco/experimental/studio/web/dist/` |
-| `build_studio_python` | platform libraries + SDK, then the Studio Python modules (`ux`, `sim`, `renderer`, `window`, `dear_imgui`, `implot`, `headless_ui`, `state_payload`, `_render_filament`), installed | `build/mujoco_install/`, `python/dist/` |
+| `build_studio_python` | platform libraries + SDK, then the Studio Python modules (`ux`, `sim`, `window`, `dear_imgui`, `implot`, `headless_ui`, `state_payload`, `_render_filament`), installed | `build/mujoco_install/`, `python/dist/` |
 | `build_studio_all` | `build_studio_python` plus the browser client | everything above |
 | `build_wheel` | platform libraries + SDK + browser client, then a clean sdist and the wheel from it (no install, no app) | `python/dist/mujoco-*.whl` |
 | `build_studio` | CI's Studio build check: the app from a `configure_studio` tree | `build/bin/mujoco_studio` |
@@ -268,8 +268,8 @@ python -m mujoco.experimental.studio.viewer --model=model/humanoid/humanoid.xml
 
 `build_studio_python` builds the Studio platform, then packages and installs a
 wheel. Any edit — Python (`viewer.py`, plugins) or C++ binding (`sim.cc`,
-`ux.cc`, `renderer.cc`, `headless_ui.cc`, ...) — needs the step re-run before it
-takes effect. The platform libraries are reused across runs and ccache absorbs
+`ux.cc`, `headless_ui.cc`, ...) — needs the step re-run before it takes effect.
+The platform libraries are reused across runs and ccache absorbs
 most of the recompilation, but the extensions themselves are rebuilt from a
 fresh sdist every time, so expect minutes rather than seconds. The C++ app
 (`main.cc`, `launcher.cc`) is never compiled by this workflow.
