@@ -28,6 +28,13 @@ extern "C" {
 void mjc_triWeights(mjtNum w[3], const mjtNum p[3], const mjtNum a[3], const mjtNum b[3],
                     const mjtNum c[3]);
 
+// compute the barycentric weights w = {s1, t1, s2, t2} in [0, 1] of the closest points
+// A + s*(B - A) on segment AB and C + t*(D - C) on segment CD;
+// return the number of closest point pairs (1, or 2 if parallel)
+int mjc_segWeights(mjtNum w[4], const mjtNum a[3], const mjtNum b[3], const mjtNum c[3],
+                   const mjtNum d[3]);
+
+
 // raw collision functions (called by mjc_XXX)
 int mjraw_SphereCapsule(mjPreContact* con, mjtNum margin, const mjtNum* pos1, const mjtNum* mat1,
                         const mjtNum* size1, const mjtNum* pos2, const mjtNum* mat2,

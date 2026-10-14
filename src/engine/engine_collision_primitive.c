@@ -425,92 +425,28 @@ int mjc_SphereCylinder(const mjModel* m, mjData* d, mjPreContact* con, int g1, i
 int mjraw_CapsuleCapsule(mjPreContact* con, mjtNum margin,
                          const mjtNum* pos1, const mjtNum* mat1, const mjtNum* size1,
                          const mjtNum* pos2, const mjtNum* mat2, const mjtNum* size2) {
-  // get capsule axes (scaled) and center difference
+  // get capsule axes (scaled) and segment endpoints
   mjtNum axis1[3] = {mat1[2] * size1[1], mat1[5] * size1[1], mat1[8] * size1[1]};
   mjtNum axis2[3] = {mat2[2] * size2[1], mat2[5] * size2[1], mat2[8] * size2[1]};
-  mjtNum dif[3] = {pos1[0] - pos2[0], pos1[1] - pos2[1], pos1[2] - pos2[2]};
+  mjtNum p1[3], p2[3], q1[3], q2[3];
+  mju_sub3(p1, pos1, axis1);
+  mju_add3(p2, pos1, axis1);
+  mju_sub3(q1, pos2, axis2);
+  mju_add3(q2, pos2, axis2);
 
-  // compute matrix coefficients
-  mjtNum ma =  mju_dot3(axis1, axis1);
-  mjtNum mb = -mju_dot3(axis1, axis2);
-  mjtNum mc =  mju_dot3(axis2, axis2);
-  mjtNum u  = -mju_dot3(axis1, dif);
-  mjtNum v  =  mju_dot3(axis2, dif);
+  mjtNum w[4];
+  int n = mjc_segWeights(w, p1, p2, q1, q2);
 
-  // determinant via cross product to avoid cancellation for parallel axes
-  mjtNum cross[3];
-  mji_cross(cross, axis1, axis2);
-  mjtNum det = mju_dot3(cross, cross);
-
-  // general configuration (non-parallel axes)
-  const mjtNum sin2 = 1e-8;  // sin^2(0.006 deg)
-  if (det > sin2*ma*mc) {
-    // find projections, clip to segments (Ericson, Real-Time Collision Detection, 5.1.8)
-    // Binet-Cauchy identity: mc*u - mb*v = (axis1 x axis2)' * (axis2 x dif)
-    mjtNum cross_dif[3];
-    mji_cross(cross_dif, axis2, dif);
-    mjtNum x1 = mju_clip(mju_dot3(cross, cross_dif) / det, -1, 1);
-    mjtNum x2 = (v - mb*x1) / mc;
-    if (x2 > 1 || x2 < -1) {
-      x2 = mju_clip(x2, -1, 1);
-      x1 = mju_clip((u - mb*x2) / ma, -1, 1);
-    }
-
-    // find nearest points, do sphere-sphere test
+  int ncon = 0;
+  for (int i = 0; i < n; i++) {
     mjtNum vec1[3], vec2[3];
-    mji_scl3(vec1, axis1, x1);
-    mji_addTo3(vec1, pos1);
-    mji_scl3(vec2, axis2, x2);
-    mji_addTo3(vec2, pos2);
-
-    return mjraw_SphereSphere(con, margin, vec1, mat1, size1, vec2, mat2, size2);
-  }
-
-  // parallel axes
-  else {
-    // x1 = 1
-    mjtNum vec1[3];
-    mji_add3(vec1, pos1, axis1);
-    mjtNum x2 = mju_clip((v - mb) / mc, -1, 1);
-
-    mjtNum vec2[3];
-    mji_scl3(vec2, axis2, x2);
-    mji_addTo3(vec2, pos2);
-    int n1 = mjraw_SphereSphere(con, margin, vec1, mat1, size1, vec2, mat2, size2);
-
-    // x1 = -1
-    mji_sub3(vec1, pos1, axis1);
-    x2 = mju_clip((v + mb) / mc, -1, 1);
-    mji_scl3(vec2, axis2, x2);
-    mji_addTo3(vec2, pos2);
-    int n2 = mjraw_SphereSphere(con + n1, margin, vec1, mat1, size1, vec2, mat2, size2);
-
-    // return if two contacts already found
-    if (n1+n2 >= 2) {
-      return n1+n2;
+    for (int k = 0; k < 3; k++) {
+      vec1[k] = p1[k] + w[2*i] * (p2[k] - p1[k]);
+      vec2[k] = q1[k] + w[2*i + 1] * (q2[k] - q1[k]);
     }
-
-    // x2 = 1
-    mji_add3(vec2, pos2, axis2);
-    mjtNum x1 = mju_clip((u - mb) / ma, -1, 1);
-    mji_scl3(vec1, axis1, x1);
-    mji_addTo3(vec1, pos1);
-    int n3 = mjraw_SphereSphere(con + n1 + n2, margin, vec1, mat1, size1, vec2, mat2, size2);
-
-    // return if two contacts already found
-    if (n1+n2+n3 >= 2) {
-      return n1+n2+n3;
-    }
-
-    // x2 = -1
-    mji_sub3(vec2, pos2, axis2);
-    x1 = mju_clip((u + mb) / ma, -1, 1);
-    mji_scl3(vec1, axis1, x1);
-    mji_addTo3(vec1, pos1);
-    int n4 = mjraw_SphereSphere(con + n1 + n2 + n3, margin, vec1, mat1, size1, vec2, mat2, size2);
-
-    return n1+n2+n3+n4;
+    ncon += mjraw_SphereSphere(con + ncon, margin, vec1, mat1, size1, vec2, mat2, size2);
   }
+  return ncon;
 }
 
 
@@ -591,4 +527,78 @@ void mjc_triWeights(mjtNum w[3], const mjtNum p[3], const mjtNum a[3], const mjt
   // face region ABC
   mjtNum d = 1.0 / (va + vb + vc), t = vb * d, u = vc * d;
   w[0] = 1 - t - u, w[1] = t, w[2] = u;
+}
+
+
+// clamp t to [0, 1] and recompute s on segment AB (s0 at t=0, s1 at t=1)
+static inline void clampSeg(mjtNum w[2], mjtNum s, mjtNum t, mjtNum s0, mjtNum s1) {
+  if (t < 0) {
+    w[0] = mju_clip(s0, 0, 1), w[1] = 0;
+  } else if (t > 1) {
+    w[0] = mju_clip(s1, 0, 1), w[1] = 1;
+  } else {
+    w[0] = s, w[1] = t;
+  }
+}
+
+
+// compute the barycentric weights w = {s1, t1, s2, t2} in [0, 1] of the closest points
+// A + s*(B - A) on segment AB and C + t*(D - C) on segment CD;
+// return the number of closest point pairs (1, or 2 if parallel)
+int mjc_segWeights(mjtNum w[4], const mjtNum a[3], const mjtNum b[3], const mjtNum c[3],
+                   const mjtNum d[3]) {
+  const mjtNum sin2 = 1e-8;  // sin^2(0.006 deg) cutoff for parallel segments
+
+  // compute barycentric coordinates via Voronoi regions (See Ericson 5.1.9)
+  mjtNum ab[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+  mjtNum cd[3] = {d[0] - c[0], d[1] - c[1], d[2] - c[2]};
+  mjtNum ca[3] = {a[0] - c[0], a[1] - c[1], a[2] - c[2]};
+
+  mjtNum dot1 = mju_dot3(ab, ab);
+  mjtNum dot2 = mju_dot3(cd, cd);
+  mjtNum dot3 = mju_dot3(cd, ca);
+  mjtNum dot4 = mju_dot3(ab, ca);
+  mjtNum dot5 = mju_dot3(ab, cd);
+
+  // both segments degenerate into points
+  if (dot1 <= mjMINVAL && dot2 <= mjMINVAL) {
+    w[0] = 0, w[1] = 0;
+    return 1;
+  }
+
+  // first segment degenerates into a point
+  if (dot1 <= mjMINVAL) {
+    w[0] = 0, w[1] = mju_clip(dot3 / dot2, 0, 1);
+    return 1;
+  }
+
+  // second segment degenerates into a point
+  if (dot2 <= mjMINVAL) {
+    w[0] = mju_clip(-dot4 / dot1, 0, 1), w[1] = 0;
+    return 1;
+  }
+
+  // projections of C (t=0) and D (t=1) onto AB
+  mjtNum s0 = -dot4 / dot1;
+  mjtNum s1 = (dot5 - dot4) / dot1;
+
+  // compute determinant via Lagrange's identity to avoid cancellation for parallel segments
+  mjtNum cross[3];
+  mji_cross(cross, ab, cd);
+  mjtNum det = mju_dot3(cross, cross);
+
+  // segments are considered non-parallel
+  if (det > sin2 * dot1 * dot2) {
+    // compute s via Binet-Cauchy identity to avoid cancellation for near-parallel segments
+    mjtNum cross_ca[3];
+    mji_cross(cross_ca, cd, ca);
+    mjtNum s = mju_clip(mju_dot3(cross, cross_ca) / det, 0, 1);
+    clampSeg(w, s, (dot5 * s + dot3) / dot2, s0, s1);
+    return 1;
+  }
+
+  // segments are close to parallel (compute closest points on both segments)
+  clampSeg(w, 0, dot3 / dot2, s0, s1);
+  clampSeg(w + 2, 1, (dot5 + dot3) / dot2, s0, s1);
+  return 2;
 }
