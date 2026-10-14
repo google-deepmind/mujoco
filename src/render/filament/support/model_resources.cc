@@ -78,7 +78,7 @@ static bool UseFaceNormal(const float3& face_normal,
 
 // Same object-space projection that phong_2d.mat computes in its shader.
 static float2 ProjectUv(const float3& p) {
-  return float2(0.5f * p.x - 0.5f, -0.5f * p.y - 0.5f);
+  return float2(0.5f * p.x, -0.5f * p.y);
 }
 
 static void FillConvexHullBuffer(MeshBuilder& builder, const mjModel* model,
@@ -162,17 +162,15 @@ static void FillMeshBuffer(MeshBuilder& builder, const mjModel* model, int meshi
 
 static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
                                   int hfieldid) {
-  auto append_tri = [&](float3 a, float3 b, float3 c, float2 uv_a, float2 uv_b,
-                        float2 uv_c) {
+  auto append_tri = [&](float3 a, float3 b, float3 c) {
     float4 orientation = CalculateOrientation(a, b, c);
-    builder.Append(a, orientation, uv_a);
-    builder.Append(b, orientation, uv_b);
-    builder.Append(c, orientation, uv_c);
+    builder.Append(a, orientation, ProjectUv(a));
+    builder.Append(b, orientation, ProjectUv(b));
+    builder.Append(c, orientation, ProjectUv(c));
   };
-  auto append_quad = [&](float3 a, float3 b, float3 c, float3 d, float2 uv_a,
-                         float2 uv_b, float2 uv_c, float2 uv_d) {
-    append_tri(a, b, d, uv_a, uv_b, uv_d);
-    append_tri(d, b, c, uv_d, uv_b, uv_c);
+  auto append_quad = [&](float3 a, float3 b, float3 c, float3 d) {
+    append_tri(a, b, d);
+    append_tri(d, b, c);
   };
 
   const float* data = model->hfield_data + model->hfield_adr[hfieldid];
@@ -234,21 +232,10 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
       }
 
       const float3 mid = {mid_x, mid_y, mid_z};
-      const float2 uv_a = {(float)col / (ncol - 1),
-                           1.f - (float)row / (nrow - 1)};
-      const float2 uv_b = {(float)(col + 1) / (ncol - 1),
-                           1.f - (float)row / (nrow - 1)};
-      const float2 uv_c = {(float)(col + 1) / (ncol - 1),
-                           1.f - (float)(row + 1) / (nrow - 1)};
-      const float2 uv_d = {(float)col / (ncol - 1),
-                           1.f - (float)(row + 1) / (nrow - 1)};
-      const float2 uv_mid = {(float)(col + 0.5f) / (ncol - 1),
-                             1.f - (float)(row + 0.5f) / (nrow - 1)};
-
-      append_tri(a, b, mid, uv_a, uv_b, uv_mid);
-      append_tri(b, c, mid, uv_b, uv_c, uv_mid);
-      append_tri(c, d, mid, uv_c, uv_d, uv_mid);
-      append_tri(d, a, mid, uv_d, uv_a, uv_mid);
+      append_tri(a, b, mid);
+      append_tri(b, c, mid);
+      append_tri(c, d, mid);
+      append_tri(d, a, mid);
     }
   }
   // Build the left edge.
@@ -257,9 +244,7 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
     const float3 b = get_pos(row + 1, 0);
     const float3 c = {b.x, b.y, -sz[3]};
     const float3 d = {a.x, a.y, -sz[3]};
-    const float2 uv_a = {0.f, 1.f - (float)row / (nrow - 1)};
-    const float2 uv_b = {0.f, 1.f - (float)(row + 1) / (nrow - 1)};
-    append_quad(a, b, c, d, uv_a, uv_b, uv_b, uv_a);
+    append_quad(a, b, c, d);
   }
   // Build the right edge.
   for (int row = 0; row < nrow - 1; ++row) {
@@ -267,9 +252,7 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
     const float3 b = get_pos(row, ncol - 1);
     const float3 c = {b.x, b.y, -sz[3]};
     const float3 d = {a.x, a.y, -sz[3]};
-    const float2 uv_a = {1.f, 1.f - (float)(row + 1) / (nrow - 1)};
-    const float2 uv_b = {1.f, 1.f - (float)row / (nrow - 1)};
-    append_quad(a, b, c, d, uv_a, uv_b, uv_b, uv_a);
+    append_quad(a, b, c, d);
   }
   // Build the front edge.
   for (int col = 0; col < ncol - 1; ++col) {
@@ -277,9 +260,7 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
     const float3 b = {a.x, a.y, -sz[3]};
     const float3 d = get_pos(0, col + 1);
     const float3 c = {d.x, d.y, -sz[3]};
-    const float2 uv_a = {(float)col / (ncol - 1), 1.f};
-    const float2 uv_d = {(float)(col + 1) / (ncol - 1), 1.f};
-    append_quad(a, b, c, d, uv_a, uv_a, uv_d, uv_d);
+    append_quad(a, b, c, d);
   }
   // Build the back edge.
   for (int col = 0; col < ncol - 1; ++col) {
@@ -287,9 +268,7 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
     const float3 b = {a.x, a.y, -sz[3]};
     const float3 d = get_pos(nrow - 1, col);
     const float3 c = {d.x, d.y, -sz[3]};
-    const float2 uv_a = {(float)(col + 1) / (ncol - 1), 0.f};
-    const float2 uv_d = {(float)col / (ncol - 1), 0.f};
-    append_quad(a, b, c, d, uv_a, uv_a, uv_d, uv_d);
+    append_quad(a, b, c, d);
   }
   // Build the base. We use the visualization quality as the size rather than
   // the height field dimensions.
@@ -301,13 +280,8 @@ static void FillHeightFieldBuffer(MeshBuilder& builder, const mjModel* model,
       const float x1 = sz[0] * ((col + 1) / base_width - 1.0f);
       const float y0 = sz[1] * ((row + 0) / base_height - 1.0f);
       const float y1 = sz[1] * ((row + 1) / base_height - 1.0f);
-      const float2 uv0 = {(col + 0) / (2.f * base_width),
-                          1.f - (row + 0) / (2.f * base_height)};
-      const float2 uv1 = {(col + 1) / (2.f * base_width),
-                          1.f - (row + 1) / (2.f * base_height)};
       append_quad({x0, y0, -sz[3]}, {x0, y1, -sz[3]}, {x1, y1, -sz[3]},
-                  {x1, y0, -sz[3]}, {uv0.x, uv0.y}, {uv0.x, uv1.y},
-                  {uv1.x, uv1.y}, {uv1.x, uv0.y});
+                  {x1, y0, -sz[3]});
     }
   }
 }
@@ -331,33 +305,6 @@ static int CalculateHeightFieldVertexCount(const mjModel* model, int hfieldid) {
 
   const int total_count = surface_count + edge_count + base_count;
   return total_count;
-}
-
-// Returns true if the mesh needs a UV attribute: it has texture coordinates
-// (height fields always do), or a geom draws it with a material that selects a
-// PBR shader, which requires UV0 (see MaterialManager::GetMaterialType).
-static bool NeedsUvs(const mjModel* model, int id, MeshType mesh_type) {
-  if (mesh_type == MeshType::kHeightField || model->mesh_texcoordadr[id] >= 0) {
-    return true;
-  }
-  for (int i = 0; i < model->ngeom; ++i) {
-    const int type = model->geom_type[i];
-    if ((type != mjGEOM_MESH && type != mjGEOM_SDF) ||
-        model->geom_dataid[i] != id) {
-      continue;
-    }
-    const int matid = model->geom_matid[i];
-    if (matid < 0) {
-      continue;
-    }
-    const int* texid = model->mat_texid + matid * mjNTEXROLE;
-    if (texid[mjTEXROLE_ORM] >= 0 || texid[mjTEXROLE_METALLIC] >= 0 ||
-        texid[mjTEXROLE_ROUGHNESS] >= 0 || model->mat_metallic[matid] >= 0 ||
-        model->mat_roughness[matid] >= 0) {
-      return true;
-    }
-  }
-  return false;
 }
 
 static bool IsValidIndex(const mjModel* model, int id, MeshType mesh_type) {
@@ -390,7 +337,6 @@ static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
   }
 
   const int num_vertices = GetNumVertices(model, id, mesh_type);
-  const bool with_uvs = NeedsUvs(model, id, mesh_type);
 
   MeshBuilder* builder = new MeshBuilder(num_vertices);
   data->user_data = builder;
@@ -416,24 +362,20 @@ static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
   config->index_type = num_vertices >= std::numeric_limits<uint16_t>::max()
                            ? mjINDEX_TYPE_U32
                            : mjINDEX_TYPE_U16;
-  config->num_attributes = with_uvs ? 3 : 2;
+  config->num_attributes = 3;
   config->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   config->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
   config->attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_TANGENTS;
   config->attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT4;
-  if (with_uvs) {
-    config->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
-    config->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
-  }
+  config->attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+  config->attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
 
   data->num_vertices = num_vertices;
   data->num_indices = num_vertices;
   data->indices = nullptr;
   data->vertices[0] = builder->positions.data();
   data->vertices[1] = builder->orientations.data();
-  if (with_uvs) {
-    data->vertices[2] = builder->uvs.data();
-  }
+  data->vertices[2] = builder->uvs.data();
   data->bounds_min[0] = builder->bounds_min.x;
   data->bounds_min[1] = builder->bounds_min.y;
   data->bounds_min[2] = builder->bounds_min.z;

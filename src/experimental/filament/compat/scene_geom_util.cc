@@ -229,9 +229,29 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
             (0.5f * dot_pos_axis_x - 0.5f * plane_scale) * tex_repeat[0] - 0.5f;
         material.uv_offset[1] =
             (-0.5f * dot_pos_axis_y - 0.5f * plane_scale) * tex_repeat[1] - 0.5f;
-      } else if (tex_uniform) {
-        material.uv_scale[0] *= (geom.size[0] ? geom.size[0] : 1.0f);
-        material.uv_scale[1] *= (geom.size[1] ? geom.size[1] : 1.0f);
+      } else {
+        if ((geom.type == mjGEOM_HFIELD || geom.type == mjGEOM_MESH ||
+             geom.type == mjGEOM_SDF) &&
+            geom.dataid >= 0 && !geom.texcoord) {
+          if (geom.size[0] > 0) {
+            material.uv_scale[0] /= mju_max(mjMINVAL, geom.size[0]);
+          }
+          if (geom.size[1] > 0) {
+            material.uv_scale[1] /= mju_max(mjMINVAL, geom.size[1]);
+          }
+          // Adjust the offset to the origin to match OpenGL's glTexGen.
+          material.uv_offset[0] = -0.5f;
+          material.uv_offset[1] = -0.5f;
+        }
+        if (tex_uniform && geom.type != mjGEOM_FLEX &&
+            geom.type != mjGEOM_SKIN) {
+          if (geom.size[0] > 0) {
+            material.uv_scale[0] *= geom.size[0];
+          }
+          if (geom.size[1] > 0) {
+            material.uv_scale[1] *= geom.size[1];
+          }
+        }
       }
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
