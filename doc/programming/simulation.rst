@@ -1289,8 +1289,10 @@ Sleeping can happen in one of two ways:
   Since trees which share contacts or are otherwise in the same island must sleep together, if some trees in an island
   are initialized as sleeping, all of them must be marked as such. `This model
   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ contains an
-  example XML that will produce a compilation error because this condition is not met. Finally, note that the
-  initialized-asleep feature is only available for the default configuration (and not keyframes, see discussion below).
+  example XML which does not meet this condition. When trees cannot be slept, during compilation or later in
+  :ref:`mj_resetData` (e.g., because a control callback applies force to them), a warning is issued and those trees
+  start awake. Finally, note that the initialized-asleep feature is only available for the default configuration (and
+  not keyframes, see discussion below).
 
 .. _siSleepWaking:
 

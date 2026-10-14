@@ -2309,9 +2309,9 @@ defined. Its body name is automatically defined as "world".
    can be expensive. Trees initialized as sleeping can be placed in unstable configurations like deep penetration or in
    mid-air, but will only move when woken up. Also note that this policy can fail. For example if a tree marked as
    sleep="init" is in contact with a tree not marked as such (i.e., they are in the same :ref:`island<soIsland>`) then
-   it is impossible to put the tree to sleep; such `models
-   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ will lead to
-   a compilation error.
+   it is impossible to put the tree to sleep; for such `models
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ a warning
+   is issued and the trees which could not be slept start awake.
 
    See :ref:`implementation notes<siSleep>` for more details.
 

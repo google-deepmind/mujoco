@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming Version (not yet released)
+-----------------------------------
+
+Engine
+^^^^^^
+- Trees marked :ref:`sleep="init"<body-sleep>` which cannot be put to sleep now cause a warning rather than an error,
+  and start awake. See :ref:`Sleeping<siSleepSleeping>` for details.
+
 Version 3.16.0 (October 14, 2026)
 ---------------------------------
 

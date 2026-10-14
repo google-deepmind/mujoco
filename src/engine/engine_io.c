@@ -1517,26 +1517,23 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
       int nslept = mj_sleep(m, d);
 
-      // raise error if any failed to sleep
+      // warn if any failed to sleep, leave them awake
       if (nslept != num_asleep_init) {
-        // find root body of the first tree that could not be slept
+        // find root body of the first tree that could not be slept, wake the others
         int root = -1;
         for (int i=0; i < m->ntree; i++) {
           if (m->tree_sleep_policy[i] == mjSLEEP_INIT && d->tree_asleep[i] < 0) {
-            root = m->tree_bodyadr[i];
-            break;
+            if (root < 0) root = m->tree_bodyadr[i];
+            d->tree_asleep[i] = kAwake;
           }
         }
 
-        // free all memory held by d just before aborting
-        mj_deleteData(d);
-
-        // raise error and abort
+        // warn and continue
         const char* hasname = mj_id2name(m, mjOBJ_BODY, root);
         const char* name = hasname ? hasname : "";
-        mjERROR("%d trees were marked as sleep='init' but only %d could be slept.\n"
-                "Body '%s' (id=%d) is the root of the first tree that could not be slept.",
-                num_asleep_init, nslept, name, root);
+        mju_warning("%d trees were marked as sleep='init' but only %d could be slept. "
+                    "Body '%s' (id=%d) is the root of the first tree that could not be slept.",
+                    num_asleep_init, nslept, name, root);
       }
 
       // clear arrays to avoid MSAN errors upon mid-step wake
