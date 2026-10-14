@@ -28,7 +28,6 @@ from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src import util_pkg
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
-from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import MJ_COLLISION_TABLE
 from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const as set_const
 from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const_0 as set_const_0
 from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const_fixed as set_const_fixed
@@ -838,7 +837,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   # check for unsupported margin + multicontact / box-box CCD combinations
   use_multiccd = (mjm.opt.disableflags & types.DisableBit.MULTICCD) == 0
-  nativeccd_disabled = mjm.opt.disableflags & types.DisableBit.NATIVECCD
   BOX = int(mujoco.mjtGeom.mjGEOM_BOX)
   MESH = int(mujoco.mjtGeom.mjGEOM_MESH)
   geom_name = lambda g: mujoco.mj_id2name(mjm, mujoco.mjtObj.mjOBJ_GEOM, g) or str(g)
@@ -870,35 +868,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   # margin. MJWarp uses the convex (CCD) collider by default, which does not support margin, so fall
   # back to the primitive collider if NATIVECCD is disabled or any box-box pair has a margin.
   m.has_boxbox_margin = any(t1 == BOX and t2 == BOX for _, t1, t2, _ in box_mesh_margin_pairs)
-  boxbox_primitive = bool(nativeccd_disabled or m.has_boxbox_margin)
-
-  # TODO(team): remove after implementing multicontact support for CCD pairs.
-  if use_multiccd:
-    unsupported_multiccd_pairs = []
-    for (g1, g2), col_type in MJ_COLLISION_TABLE.items():
-      if g1 == types.GeomType.BOX and g2 == types.GeomType.BOX and boxbox_primitive:
-        continue
-      if col_type == types.CollisionType.CONVEX:
-        if g1 in (types.GeomType.SPHERE, types.GeomType.ELLIPSOID) or g2 in (
-          types.GeomType.SPHERE,
-          types.GeomType.ELLIPSOID,
-        ):
-          continue
-        if (g1, g2) not in (
-          (types.GeomType.BOX, types.GeomType.BOX),
-          (types.GeomType.BOX, types.GeomType.MESH),
-          (types.GeomType.MESH, types.GeomType.MESH),
-          (types.GeomType.CYLINDER, types.GeomType.CYLINDER),
-          (types.GeomType.CYLINDER, types.GeomType.BOX),
-          (types.GeomType.CYLINDER, types.GeomType.MESH),
-        ):
-          if m.geom_pair_type_count[geom_trid_index(int(g1), int(g2))] > 0:
-            unsupported_multiccd_pairs.append((g1.name, g2.name))
-    if unsupported_multiccd_pairs:
-      warnings.warn(
-        "MULTICCD is enabled, but the scene contains CCD pairs without multicontact support:"
-        f" {unsupported_multiccd_pairs}. At most 1 contact will be generated for these pairs."
-      )
 
   # CCD multicontact (box-mesh and mesh-mesh with MULTICCD) does not support margin
   if use_multiccd:

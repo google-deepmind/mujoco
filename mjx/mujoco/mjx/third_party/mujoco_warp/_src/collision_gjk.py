@@ -2023,6 +2023,27 @@ def _cylinder_face(
   return 16
 
 
+# recover edge of a capsule from witness point
+@wp.func
+def _capsule_edge_normals(
+  # In:
+  mat: wp.mat33,
+  pos: wp.vec3,
+  size: wp.vec3,
+  w: wp.vec3,
+  # Out:
+  normal_out: wp.array[wp.vec3],
+  endvert_out: wp.array[wp.vec3],
+) -> Tuple[int, wp.vec3]:
+  res = mat[:, 2]
+  pr = wp.dot(w - pos, res)
+  length = size[1]
+  normal_out[0] = res
+  v = w + res * (-pr - length)
+  endvert_out[0] = w + res * (-pr + length)
+  return 1, v
+
+
 @wp.func
 def _plane_normal(v1: wp.vec3, v2: wp.vec3, n: wp.vec3) -> Tuple[float, wp.vec3]:
   v3 = v1 + n
@@ -2198,16 +2219,14 @@ def _polygon_clip(
 @wp.func
 def _set_edge(
   # In:
-  vert1: wp.array[wp.vec3],
-  vert2: wp.array[wp.vec3],
-  start: int,
+  v: wp.vec3,
+  endvert_in: wp.array[wp.vec3],
   end: int,
-  offset: int,
   # Out:
   face_out: wp.array[wp.vec3],
 ) -> int:
-  face_out[0] = vert1[2 * start + offset]
-  face_out[1] = vert2[end]
+  face_out[0] = v
+  face_out[1] = endvert_in[end]
   return 2
 
 
@@ -2266,6 +2285,8 @@ def multicontact(
   # get dimensions of features of geoms 1 and 2
   nface1, feature_index1, feature_vertex1 = _feature_dim(face, epa_vert_index, epa_vert, 0)
   nface2, feature_index2, feature_vertex2 = _feature_dim(face, epa_vert_index, epa_vert, 1)
+  v1 = feature_vertex1[0]
+  v2 = feature_vertex2[0]
 
   dir = x2 - x1
   dir_neg = -dir
@@ -2317,7 +2338,7 @@ def multicontact(
   nres, res = _aligned_faces(n1, nnorms1, n2, nnorms2)
   if not nres:
     # check if edge-face collision
-    if nface1 < 3 and nface1 <= nface2:
+    if nface1 < 3 and nnorms2 and (nface1 <= nface2 or not nnorms1):
       nnorms1 = 0
       if geomtype1 == GeomType.BOX:
         nnorms1 = _box_edge_normals(
@@ -2345,6 +2366,8 @@ def multicontact(
         )
       elif geomtype1 == GeomType.CYLINDER:
         nnorms1 = _cylinder_edge_normals(nface1, geom1.rot, geom1.size, feature_vertex1[0], feature_index1[0], n1, endvert)
+      elif geomtype1 == GeomType.CAPSULE:
+        nnorms1, v1 = _capsule_edge_normals(geom1.rot, geom1.pos, geom1.size, x1, n1, endvert)
       nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2, dir)
       if not nres:
         return 1, witness1, witness2, dists
@@ -2379,6 +2402,8 @@ def multicontact(
         )
       elif geomtype2 == GeomType.CYLINDER:
         nnorms2 = _cylinder_edge_normals(nface2, geom2.rot, geom2.size, feature_vertex2[0], feature_index2[0], n2, endvert)
+      elif geomtype2 == GeomType.CAPSULE:
+        nnorms2, v2 = _capsule_edge_normals(geom2.rot, geom2.pos, geom2.size, x2, n2, endvert)
       nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1, dir_neg)
       if not nres:
         return 1, witness1, witness2, dists
@@ -2392,7 +2417,7 @@ def multicontact(
 
   # recover geom1 matching edge or face
   if is_edge_contact_geom1:
-    nface1 = _set_edge(epa_vert, endvert, face[0], i, 0, face1)
+    nface1 = _set_edge(v1, endvert, i, face1)
   else:
     ind = wp.where(is_edge_contact_geom2, idx1[j], idx1[i])
     if geomtype1 == GeomType.BOX:
@@ -2415,7 +2440,7 @@ def multicontact(
 
   # recover geom2 matching edge or face
   if is_edge_contact_geom2:
-    nface2 = _set_edge(epa_vert, endvert, face[0], i, 1, face2)
+    nface2 = _set_edge(v2, endvert, i, face2)
   else:
     if geomtype2 == GeomType.BOX:
       nface2 = _box_face(geom2.rot, geom2.pos, geom2.size, idx2[j], face2)
@@ -2499,6 +2524,44 @@ def _inflate(
 
 
 @wp.func
+def _supports_multiccd(geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int) -> bool:
+  if geom1.margin != 0.0 or geom2.margin != 0.0:
+    return False
+  has_face1 = geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH or geomtype1 == GeomType.CYLINDER
+  has_face2 = geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH or geomtype2 == GeomType.CYLINDER
+  has_edge1 = geomtype1 == GeomType.CAPSULE
+  has_edge2 = geomtype2 == GeomType.CAPSULE
+  return (has_face1 and has_face2) or (has_edge1 and has_face2) or (has_face1 and has_edge2)
+
+
+@wp.func
+def _gjk_simplex_to_epa(
+  # In:
+  result: GJKResult,
+  # Out:
+  vert_out: wp.array[wp.vec3],
+  vert_index_out: wp.array[int],
+  face_out: wp.array[int],
+) -> int:
+  i2 = wp.where(result.dim > 1, 1, 0)
+  i3 = wp.where(result.dim > 2, 2, 0)
+  vert_out[0] = result.simplex1[0]
+  vert_out[1] = result.simplex2[0]
+  vert_out[2] = result.simplex1[i2]
+  vert_out[3] = result.simplex2[i2]
+  vert_out[4] = result.simplex1[i3]
+  vert_out[5] = result.simplex2[i3]
+  vert_index_out[0] = result.simplex_index1[0]
+  vert_index_out[1] = result.simplex_index2[0]
+  vert_index_out[2] = result.simplex_index1[i2]
+  vert_index_out[3] = result.simplex_index2[i2]
+  vert_index_out[4] = result.simplex_index1[i3]
+  vert_index_out[5] = result.simplex_index2[i3]
+  face_out[0] = 0 + (1 << 10) + (2 << 20)
+  return 0
+
+
+@wp.func
 def gjk_phase(
   # In:
   tolerance: float,
@@ -2549,7 +2612,11 @@ def gjk_phase(
       if result.dist == FLOAT_MAX:
         return False, result.dist, 1, result.x1, result.x2, empty, geom1, geom2
       dist, x1, x2 = _inflate(result, geom1, geom2, geomtype1, geomtype2, full_margin1, full_margin2)
-      return False, dist, 1, x1, x2, empty, geom1, geom2
+      geom1.margin = orig_margin1
+      geom1.size = orig_size1
+      geom2.margin = orig_margin2
+      geom2.size = orig_size2
+      return False, dist, 1, x1, x2, result, geom1, geom2
 
     # deep penetration: reset initial conditions and rerun GJK + EPA
     geom1.margin = orig_margin1
@@ -2666,14 +2733,7 @@ def epa_phase(
   if idx == -1:
     return FLOAT_MAX, 0, wp.vec3(), wp.vec3(), -1
 
-  # multicontact not supported for margin
-  if geom1.margin != 0.0 or geom2.margin != 0.0:
-    idx = -1
-
-  # multicontact only supported for boxes, cylinders, and meshes
-  if (geomtype1 != GeomType.BOX and geomtype1 != GeomType.MESH and geomtype1 != GeomType.CYLINDER) or (
-    geomtype2 != GeomType.BOX and geomtype2 != GeomType.MESH and geomtype2 != GeomType.CYLINDER
-  ):
+  if not _supports_multiccd(geom1, geom2, geomtype1, geomtype2):
     idx = -1
 
   return dist, 1, x1, x2, idx
@@ -2708,7 +2768,10 @@ def ccd(
     tolerance, cutoff, gjk_iterations, geom1, geom2, geomtype1, geomtype2, x_1, x_2
   )
   if not needs_epa:
-    return dist, ncontact, x1, x2, -1
+    idx = -1
+    if dist < 0.0 and result.dim > 0 and _supports_multiccd(geom1, geom2, geomtype1, geomtype2):
+      idx = _gjk_simplex_to_epa(result, vert, vert_index, face)
+    return dist, ncontact, x1, x2, idx
   return epa_phase(
     tolerance,
     epa_iterations,

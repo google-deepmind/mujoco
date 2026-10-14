@@ -25,6 +25,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.collision_core import contact_param
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import geom_collision_pair
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import geom_collision_pair_from_types
 from mujoco.mjx.third_party.mujoco_warp._src.collision_core import write_contact
+from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import _gjk_simplex_to_epa
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import ccd
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import epa_phase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import gjk_phase
@@ -903,11 +904,36 @@ def ccd_kernel_builder(
     witness1[0] = w1
     witness2[0] = w2
 
+    has_face1 = wp.static(
+      geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH or geomtype1 == GeomType.CYLINDER
+    )
+    has_face2 = wp.static(
+      geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH or geomtype2 == GeomType.CYLINDER
+    )
+    has_edge1 = wp.static(geomtype1 == GeomType.CAPSULE)
+    has_edge2 = wp.static(geomtype2 == GeomType.CAPSULE)
     if wp.static(
-      (use_multiccd or (geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX))
-      and (geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH or geomtype1 == GeomType.CYLINDER)
-      and (geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH or geomtype2 == GeomType.CYLINDER)
+      (geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX)
+      or (
+        use_multiccd
+        and ((has_face1 and has_face2) or (has_edge1 and has_face2) or (has_face1 and has_edge2))
+      )
     ):
+      if not needs_epa and dist < 0.0 and margin == 0.0 and gjk_result.dim > 0:
+        ccdid = wp.atomic_add(nccd_in, geomgeomid, 1)
+        if ccdid >= naccdmax_in:
+          if wp.static(bool(warn_overflow & OverflowType.CCD)):
+            wp.printf(
+              "CCD overflow - please increase naccdmax beyond %u\n"
+              "To disable the print warning: m.opt.warn_overflow &= ~mjw.OverflowType.CCD (or = 0 for all)\n",
+              naccdmax_in,
+            )
+          wp.atomic_or(overflow_out, worldid, OverflowType.CCD)
+          return
+        multiccd_idx = _gjk_simplex_to_epa(
+          gjk_result, epa_vert_in[ccdid], epa_vert_index_in[ccdid], epa_face_in[ccdid]
+        )
+
       if wp.static(geomtype1 == GeomType.MESH):
         # verify that geom1 mesh data is present for multicontact
         if geom1.mesh_polyadr < 0:
@@ -1268,6 +1294,8 @@ def convex_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table
   ncylcyl, _ = _pair_count(GeomType.CYLINDER.value, GeomType.CYLINDER.value)
   ncylbox, _ = _pair_count(GeomType.CYLINDER.value, GeomType.BOX.value)
   ncylmesh, _ = _pair_count(GeomType.CYLINDER.value, GeomType.MESH.value)
+  ncapcyl, _ = _pair_count(GeomType.CAPSULE.value, GeomType.CYLINDER.value)
+  ncapmesh, _ = _pair_count(GeomType.CAPSULE.value, GeomType.MESH.value)
 
   epa_iterations = 16 if nboxbox == ncollision else m.opt.ccd_iterations
 
@@ -1280,10 +1308,10 @@ def convex_narrowphase(m: Model, d: Data, ctx: CollisionContext, collision_table
   nmeshdegmax = 3 if nboxbox > 0 else 0
 
   # need to allocate more memory if there are cylinders or meshes
-  if use_multiccd and ncylcyl + ncylbox + ncylmesh > 0:
+  if use_multiccd and ncylcyl + ncylbox + ncylmesh + ncapcyl > 0:
     npolygonmax = max(m.npolygonmax, 16)
     nmeshdegmax = max(m.nmeshdegmax, 3)
-  elif use_multiccd and nmeshmesh + nboxmesh > 0:
+  elif use_multiccd and nmeshmesh + nboxmesh + ncapmesh > 0:
     minval = 4 if nboxmesh else npolygonmax
     npolygonmax = max(m.npolygonmax, minval)
     nmeshdegmax = max(m.nmeshdegmax, 3)
