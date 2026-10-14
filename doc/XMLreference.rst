@@ -4320,6 +4320,7 @@ the saved XML file. Note that this element is a subset of the functionality of t
 :at:`frame`: :at-val:`string, optional`
    Name of the frame in the child model to attach here. If neither this attribute nor :ref:`body<body-attach-body>` is
    specified (only one allowed), the contents of the world body will be attached in a new :ref:`frame<body-frame>`.
+   Frames which enclose it in the child model are not attached.
 
 .. _body-attach-prefix:
 

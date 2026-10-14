@@ -5115,6 +5115,67 @@ TEST_F(MujocoTest, AttachFrameByReferenceLeavesChild) {
   mj_deleteModel(model[1]);
 }
 
+// a frame attached to a body is posed relative to that body, the frames which
+// enclose it in the child are not attached
+TEST_F(MujocoTest, AttachNestedFrameToBody) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="A">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="x">
+        <frame name="fy" pos="1 0 0">
+          <frame name="fz" pos="0 1 0">
+            <geom name="gz" size=".1"/>
+          </frame>
+        </frame>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  for (bool deepcopy : {false, true}) {
+    mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+    ASSERT_THAT(parent, NotNull()) << er.data();
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjs_setDeepCopy(parent, deepcopy);
+    mjsFrame* fy = mjs_findFrame(child, "fy");
+
+    mjsElement* attached =
+        mjs_attach(mjs_findBody(parent, "A")->element,
+                   mjs_findFrame(child, "fz")->element, "c_", "");
+    ASSERT_THAT(attached, NotNull()) << mjs_getError(parent);
+    EXPECT_THAT(mjs_getFrame(attached), IsNull());
+
+    // edit the enclosing frame of the child, delete it in a copy
+    fy->pos[0] = 2;
+    if (deepcopy) {
+      EXPECT_EQ(mjs_delete(child, fy->element), 0);
+    }
+
+    mjModel* model = mj_compile(parent, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+    int gz = mj_name2id(model, mjOBJ_GEOM, "c_gz");
+    ASSERT_GE(gz, 0);
+    EXPECT_EQ(model->geom_pos[3 * gz + 0], 0);
+    EXPECT_EQ(model->geom_pos[3 * gz + 1], 1);
+    EXPECT_EQ(model->geom_pos[3 * gz + 2], 0);
+    mj_deleteModel(model);
+    mj_deleteSpec(child);
+    mj_deleteSpec(parent);
+  }
+}
+
 // the elements of a spec attached by reference are in the parent, the spec
 // cannot be attached again as a whole
 TEST_F(MujocoTest, AttachSpecByReferenceAgain) {

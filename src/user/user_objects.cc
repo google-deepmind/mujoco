@@ -2090,7 +2090,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->body     = this;
   frames.back()->model    = model;
   frames.back()->compiler = origin ? &origin->compiler : &model->spec.compiler;
-  frames.back()->frame    = other.frame;
+  frames.back()->frame    = nullptr;  // posed in this body, enclosing frames stay behind
   frames.back()->NameSpace(other_model);
   if (!model->deepcopy_) { frames.back()->AddRef(); }
   int i         = frames.size();

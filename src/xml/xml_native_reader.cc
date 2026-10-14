@@ -2364,7 +2364,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
       double   quat[4] = {1, 0, 0, 0};
 
       // parent frame that will be used to attach the subtree
-      mjsFrame* pframe = mjs_addFrame(subtree, frame);
+      mjsFrame* pframe = mjs_addFrame(subtree, nullptr);
       mjs_setDefault(pframe->element, childdef ? childdef : def);
       mjs_setString(pframe->info, ("line = " + std::to_string(elem->GetLineNum())).c_str());
 
@@ -2390,8 +2390,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
         string suffix = separator;
         UpdateString(suffix, count, i);
 
-        // attach to parent
-        if (!mjs_attach(body->element, pframe->element, /*prefix=*/"", suffix.c_str())) {
+        // attach to parent, inside the enclosing frame
+        if (!mjs_attach(frame ? frame->element : body->element,
+                        pframe->element,
+                        /*prefix=*/"",
+                        suffix.c_str())) {
           throw mjXError(elem, "%s", stripError(mjs_getError(spec)));
         }
       }
