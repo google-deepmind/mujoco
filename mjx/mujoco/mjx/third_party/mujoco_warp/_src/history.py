@@ -648,7 +648,10 @@ def _reset_sensor_history_kernel(
     t0 = phase if phase != 0.0 else -period
     for j in range(nsample):
       continuous_t = t0 - float(nsample - 1 - j) * period
-      history_out[worldid, times_offset + j] = wp.ceil(continuous_t / dt) * dt
+      if dt > 0.0:
+        history_out[worldid, times_offset + j] = wp.ceil(continuous_t / dt) * dt
+      else:
+        history_out[worldid, times_offset + j] = continuous_t
   else:
     for j in range(nsample):
       history_out[worldid, times_offset + j] = -float(nsample - j) * dt

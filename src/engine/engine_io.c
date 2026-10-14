@@ -1298,10 +1298,10 @@ mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 
 // clear data, set defaults
 static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
-  // error early if history buffers cannot be initialized
+  // warn if history buffers cannot be initialized
   mjtNum dt = m->opt.timestep;
   if (m->nhistory && dt <= 0) {
-    mjERROR("history buffers require positive timestep, got %g", dt);
+    mju_warning("history buffers require positive timestep, got %g", dt);
   }
 
   //------------------------------ save plugin state and data
@@ -1461,7 +1461,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
         mjtNum t0 = (phase == 0) ? -period : phase;
         for (int j = 0; j < n; j++) {
           mjtNum continuous_t = t0 - (n-1-j)*period;
-          times[j] = mju_ceil(continuous_t / dt) * dt;
+          times[j] = dt > 0 ? mju_ceil(continuous_t / dt) * dt : continuous_t;
         }
       } else {
         // no period: timestamps at [-n*dt, ..., -dt]

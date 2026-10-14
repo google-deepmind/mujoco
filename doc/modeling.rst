@@ -1200,6 +1200,10 @@ History buffers are initialized by :ref:`mj_resetData` as follows:
   multiple of ``dt``, since that is when samples could have been computed. If ``phase = 0`` (the default), it is
   interpreted as ``-period``, meaning the first sample will be computed at ``t = 0``.
 
+History buffers require a positive :ref:`timestep<option-timestep>`; models which violate this are rejected by the
+compiler. If the timestep is subsequently set to a non-positive value, :ref:`mj_resetData` issues a warning and the
+behavior of history buffers is undefined.
+
 **Causality and interpolation**
 
 The most common positive delay value is ``delay = timestep * nsample``, which implements a simple

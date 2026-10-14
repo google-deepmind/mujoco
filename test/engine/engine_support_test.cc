@@ -16,6 +16,8 @@
 
 #include "src/engine/engine_support.h"
 
+#include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <random>
 #include <string>
@@ -33,6 +35,7 @@ namespace {
 using ::std::vector;
 using ::testing::ContainsRegex;  // NOLINT
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::MatchesRegex;
 using ::testing::Ne;
 using ::testing::NotNull;
@@ -334,6 +337,50 @@ TEST_F(StateTest, GetSetStateDelay) {
 
   // verify restoration
   EXPECT_NE(data->history[7], 99.0);
+}
+
+// history buffers require a positive timestep: the compiler rejects a model
+// without one, and a reset after the timestep is changed warns
+TEST_F(StateTest, HistoryNonPositiveTimestep) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="%s"/>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide" delay="0.02" nsample="3"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="slide" nsample="3" interval="0.02"/>
+    </sensor>
+  </mujoco>
+  )";
+
+  char model_xml[1024];
+  char error[1024];
+  std::snprintf(model_xml, sizeof(model_xml), xml, "0");
+  MjModelPtr bad = LoadModelFromString(model_xml, error, sizeof(error));
+  EXPECT_EQ(bad.get(), nullptr);
+  std::string message(error);
+  std::string expected = "history buffers require positive timestep";
+  EXPECT_THAT(message, HasSubstr(expected));
+  EXPECT_EQ(message.find(expected), message.rfind(expected)) << message;
+
+  std::snprintf(model_xml, sizeof(model_xml), xml, "0.01");
+  MjModelPtr model = LoadModelFromString(model_xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  model->opt.timestep = 0;
+  mock_warning_handler.ExpectWarnings(
+      "history buffers require positive timestep");
+  mj_resetData(model.get(), data.get());
+  for (int i = 0; i < model->nhistory; i++) {
+    EXPECT_TRUE(std::isfinite(data->history[i])) << i;
+  }
 }
 
 TEST_F(StateTest, CopyState) {

@@ -6553,6 +6553,16 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                       scratch.data());
   }
 
+  // history buffers require a positive timestep
+  if (m->nhistory && m->opt.timestep <= 0) {
+    char msg[100];
+    snprintf(msg,
+             sizeof(msg),
+             "history buffers require positive timestep, got %g",
+             (double)m->opt.timestep);
+    throw mjCError(0, "%s", msg);
+  }
+
   // create data
   int disableflags     = m->opt.disableflags;
   m->opt.disableflags |= mjDSBL_CONTACT;
