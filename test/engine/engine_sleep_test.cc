@@ -593,11 +593,42 @@ void CountingFree(void* block) {
   std::free(block);
 }
 
+// passive plugin whose instance data is allocated by init and read by compute
+int RegisterDataPlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+  plugin.name = "mujoco.test.sleepdata";
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
+  plugin.nstate = +[](const mjModel* m, int instance) { return 1; };
+  plugin.init = +[](const mjModel* m, mjData* d, int instance) {
+    d->plugin_data[instance] =
+        reinterpret_cast<uintptr_t>(mju_malloc(sizeof(mjtNum)));
+    return 0;
+  };
+  plugin.destroy = +[](mjData* d, int instance) {
+    mju_free(reinterpret_cast<void*>(d->plugin_data[instance]));
+    d->plugin_data[instance] = 0;
+  };
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
+                     int instance) { *static_cast<mjtNum*>(plugin_data) = 0; };
+  plugin.compute = +[](const mjModel* m, mjData* d, int instance, int type) {
+    *reinterpret_cast<mjtNum*>(d->plugin_data[instance]) += 1;
+  };
+  return mjp_registerPlugin(&plugin);
+}
+
 // a reset that cannot put sleep='init' trees to sleep warns and leaves them
 // awake, allocating and freeing nothing
 TEST_F(SleepTest, InitFailureWarnsAndLeavesTreesAwake) {
+  static const int plugin_slot = RegisterDataPlugin();
+  ASSERT_GE(plugin_slot, 0);
   static constexpr char xml[] = R"(
   <mujoco>
+    <extension>
+      <plugin plugin="mujoco.test.sleepdata">
+        <instance name="data"/>
+      </plugin>
+    </extension>
     <option>
       <flag sleep="enable"/>
     </option>

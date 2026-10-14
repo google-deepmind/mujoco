@@ -1481,6 +1481,24 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     mju_copy(d->qpos, m->qpos0, m->nq);
   }
 
+  // restore pluginstate and plugindata
+  if (d->nplugin) {
+    memcpy(d->plugin_state, plugin_state, sizeof(mjtNum) * m->npluginstate);
+    mju_free(plugin_state);
+    memcpy(d->plugin_data, plugindata, sizeof(uintptr_t) * m->nplugin);
+    mju_free(plugindata);
+
+    // restore the plugin array back into d and reset the instances
+    for (int i = 0; i < m->nplugin; ++i) {
+      d->plugin[i] = m->plugin[i];
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
+      if (plugin->reset) {
+        plugin->reset(m, &d->plugin_state[m->plugin_stateadr[i]],
+                      (void*)(d->plugin_data[i]), i);
+      }
+    }
+  }
+
   static int kAwake = -(1+mjMINAWAKE);  // tree_asleep value for fully awake tree
 
   // set all trees to awake
@@ -1566,24 +1584,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // check consistency of sparse matrix representations
   checkDBSparse(m);
-
-  // restore pluginstate and plugindata
-  if (d->nplugin) {
-    memcpy(d->plugin_state, plugin_state, sizeof(mjtNum) * m->npluginstate);
-    mju_free(plugin_state);
-    memcpy(d->plugin_data, plugindata, sizeof(uintptr_t) * m->nplugin);
-    mju_free(plugindata);
-
-    // restore the plugin array back into d and reset the instances
-    for (int i = 0; i < m->nplugin; ++i) {
-      d->plugin[i] = m->plugin[i];
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
-      if (plugin->reset) {
-        plugin->reset(m, &d->plugin_state[m->plugin_stateadr[i]],
-                      (void*)(d->plugin_data[i]), i);
-      }
-    }
-  }
 
   // copy signature from model
   d->signature = m->signature;
