@@ -2,6 +2,17 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Compiler bug fixes
+^^^^^^^^^^^^^^^^^^
+- Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole outline of each polygon (Newell's
+  method) instead of its first three vertices. When these vertices were nearly collinear, as happens on dense convex
+  hulls with nearly coplanar faces, the normal could point in an arbitrary direction, and the single-shot
+  :ref:`multiccd<coMultiCCD>` pipeline could then report contacts with a wrong normal and a depth of the order of the
+  geom size. Fixes :issue:`3691`.
+
 Version 3.16.0 (October 14, 2026)
 ---------------------------------
 

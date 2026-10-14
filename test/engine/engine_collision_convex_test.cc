@@ -538,5 +538,42 @@ TEST_F(MjcConvexTest, HFieldMarginAndGap) {
   EXPECT_GT(nflex, 0);
 }
 
+TEST_F(MjcConvexTest, MultiCCDNearlyCollinearPolygon) {
+  // thin plate with an extra vertex 0.1 mm above the midpoint of a top edge, so the top polygon's
+  // outline starts with three collinear vertices; a box rests on the plate, overlapping ~0.76 mm
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate"
+            vertex="-0.4 -0.4 0.01  0.4 -0.4 0.01  0.4 0.4 0.01  -0.4 0.4 0.01  0 0.4 0.0101
+                    -0.4 -0.4 -0.01  0.4 -0.4 -0.01  0.4 0.4 -0.01  -0.4 0.4 -0.01"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate"/>
+      <body pos="0 0 0.1093">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // penetration depth computed without multiCCD
+  mjtNum dist = mj_geomDistance(model.get(), data.get(), 0, 1, 0.1, nullptr);
+  EXPECT_LT(dist, 0);
+
+  // multiCCD contacts have the same depth (up to the 0.1 mm non-planarity of the top polygon)
+  // and a vertical normal; with a wrong polygon normal the depth was ~0.5 m and horizontal
+  ASSERT_GT(data->ncon, 1);
+  for (int i = 0; i < data->ncon; i++) {
+    EXPECT_NEAR(data->contact[i].dist, dist, 1e-4);
+    EXPECT_NEAR(mju_abs(data->contact[i].frame[2]), 1, MjTol(1e-8, 1e-6));
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

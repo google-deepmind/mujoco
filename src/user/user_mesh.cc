@@ -3138,11 +3138,35 @@ void mjCMesh::MakeCenter(const double* dvert) {
 // compute the normals of the polygons
 void mjCMesh::MakePolygonNormals(const double* dvert) {
   for (int i = 0; i < polygons_.size(); ++i) {
-    double n[3];
-    mjuu_makenormal(n,
-                    &dvert[3 * polygons_[i][0]],
-                    &dvert[3 * polygons_[i][1]],
-                    &dvert[3 * polygons_[i][2]]);
+    // vector area of the outline (equivalent to Newell's method): sum of the cross products of a
+    // triangle fan anchored at the first vertex; unlike a normal from three outline vertices, it is
+    // well defined when consecutive vertices are nearly collinear or slightly non-coplanar
+    const std::vector<int>& polygon = polygons_[i];
+    const double* v0 = &dvert[3 * polygon[0]];
+    double n[3] = {0, 0, 0};
+    for (int j = 1; j + 1 < polygon.size(); ++j) {
+      const double* v1 = &dvert[3 * polygon[j]];
+      const double* v2 = &dvert[3 * polygon[j + 1]];
+      double edge1[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+      double edge2[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+      double cross[3];
+      mjuu_crossvec(cross, edge1, edge2);
+      n[0] += cross[0];
+      n[1] += cross[1];
+      n[2] += cross[2];
+    }
+
+    // normalize, use the same fallback as mjuu_makenormal for a zero-area outline
+    double nrm = std::sqrt(mjuu_dot3(n, n));
+    if (nrm < mjEPS) {
+      n[0] = 1;
+      n[1] = 0;
+      n[2] = 0;
+    } else {
+      n[0] /= nrm;
+      n[1] /= nrm;
+      n[2] /= nrm;
+    }
     polygon_normals_[3 * i + 0] = n[0];
     polygon_normals_[3 * i + 1] = n[1];
     polygon_normals_[3 * i + 2] = n[2];

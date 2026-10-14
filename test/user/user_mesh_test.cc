@@ -1315,6 +1315,50 @@ TEST_F(MjCMeshTest, NegativeScaleConvexPolygons) {
   check_normals("mirrored");
 }
 
+TEST_F(MjCMeshTest, PolygonNormalNearlyCollinearOutline) {
+  // thin plate with an extra vertex 0.1 mm above the midpoint of a top edge: the top polygon's
+  // outline starts with three vertices that are collinear in the top plane
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate"
+            vertex="-0.4 -0.4 0.01  0.4 -0.4 0.01  0.4 0.4 0.01  -0.4 0.4 0.01  0 0.4 0.0101
+                    -0.4 -0.4 -0.01  0.4 -0.4 -0.01  0.4 0.4 -0.01  -0.4 0.4 -0.01"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  MjDataPtr data = MakeData(model);
+  mj_kinematics(model.get(), data.get());
+
+  // find the top polygon (the one containing the raised vertex, with 5 vertices)
+  const mjtNum* xmat = data->geom_xmat;
+  int poly_start = model->mesh_polyadr[0];
+  int poly_num = model->mesh_polynum[0];
+  int ntop = 0;
+  for (int p = poly_start; p < poly_start + poly_num; p++) {
+    // polygon normal in world coordinates
+    const mjtNum* n = model->mesh_polynormal + 3 * p;
+    mjtNum nworld[3];
+    mju_mulMatVec3(nworld, xmat, n);
+    if (nworld[2] > 0.5) {
+      ntop++;
+      // the outline is not exactly planar (0.1 mm over 0.8 m), so the normal tilts by ~6e-5
+      EXPECT_THAT(nworld[0], MjNear(0, 1e-3, 1e-3));
+      EXPECT_THAT(nworld[1], MjNear(0, 1e-3, 1e-3));
+      EXPECT_THAT(nworld[2], MjNear(1, 1e-8, 1e-6));
+    }
+  }
+
+  // the top face must be present as a single polygon with an upward normal
+  EXPECT_EQ(ntop, 1);
+}
+
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
   static constexpr char xml[] = R"(
   <mujoco>
