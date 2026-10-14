@@ -430,7 +430,6 @@ setuptools.setup(
         CMakeExtension('mujoco._structs'),
         # Studio extensions
         CMakeExtension('mujoco.experimental.studio.native_viewer_cc'),
-        CMakeExtension('mujoco.experimental.studio.renderer'),
         CMakeExtension('mujoco.experimental.studio.ux'),
         CMakeExtension('mujoco.experimental.studio.sim'),
         CMakeExtension('mujoco.experimental.studio.window'),

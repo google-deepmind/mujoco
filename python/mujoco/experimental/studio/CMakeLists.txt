@@ -26,9 +26,6 @@ set(STUDIO_COMMON_LIBS
 mujoco_pybind11_module(native_viewer_cc native_viewer.cc)
 target_link_libraries(native_viewer_cc PRIVATE ${STUDIO_COMMON_LIBS})
 
-mujoco_pybind11_module(renderer renderer.cc)
-target_link_libraries(renderer PRIVATE ${STUDIO_COMMON_LIBS})
-
 mujoco_pybind11_module(ux ux.cc)
 target_link_libraries(ux PRIVATE ${STUDIO_COMMON_LIBS})
 
@@ -42,7 +39,6 @@ add_subdirectory(web)
 
 set(MUJOCO_STUDIO_TARGETS
     native_viewer_cc
-    renderer
     ux
     sim
     window
@@ -77,7 +73,6 @@ set_target_properties(implot PROPERTIES
 if(UNIX AND NOT APPLE)
   set(STUDIO_PY_MODULES
       native_viewer_cc
-      renderer
       ux
       sim
       window
@@ -104,7 +99,7 @@ if(APPLE)
   # add_custom_command(TARGET ...) POST_BUILD hook the way
   # mujoco_pybind11_module does: that form only accepts targets created in the
   # same directory, which excludes the web/ modules below.
-  foreach(target native_viewer_cc renderer ux sim window dear_imgui implot)
+  foreach(target native_viewer_cc ux sim window dear_imgui implot)
     set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "@loader_path/../..")
   endforeach()
 
@@ -117,4 +112,3 @@ if(APPLE)
     set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "@loader_path/../../..")
   endforeach()
 endif()
-
