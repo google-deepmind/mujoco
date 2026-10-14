@@ -92,8 +92,8 @@ class BlockDim:
 
   Attributes:
     segmented_sort: segmented sort block dimension (collision_driver)
+    nxn_broadphase: NXN broadphase block dimension (collision_driver)
     convex_ccd: convex CCD kernel block dimension (collision_convex)
-    actuator_velocity: actuator velocity block dimension (forward)
     island_dsu: island discovery DSU block dimension (island)
     ray: ray block dimension (ray)
     contact_sort: contact sort block dimension (sensor)
@@ -117,13 +117,12 @@ class BlockDim:
     solve_search_update_cg: solve search update CG block dimension (solver)
     solve_init_search_cg: solve init search CG block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
-    qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
     eff_pcg: effective-metric PCG block dimension (derivative)
     render: render block dimension (render)
   """
   segmented_sort: int = 128
+  nxn_broadphase: int = 128
   convex_ccd: int = 64
-  actuator_velocity: int = 32
   island_dsu: int = 32
   ray: int = 64
   contact_sort: int = 64
@@ -143,7 +142,6 @@ class BlockDim:
   solve_search_update_cg: int = 256
   solve_init_search_cg: int = 256
   contact_jac_tiled: int = 32
-  qderiv_actuator_dense: int = 32
   eff_pcg: int = 128
   render: int = 64
 
@@ -210,6 +208,7 @@ class ModelWarp(PyTreeNode):
   body_freeadr: np.ndarray
   body_is_free: np.ndarray
   body_isdofancestor: np.ndarray
+  body_subtreenum: np.ndarray
   body_tree: Tuple[np.ndarray, ...]
   callback: Callback
   cam_projection: np.ndarray
@@ -892,7 +891,6 @@ _NDIM = {
         'actuator_trnid': 2,
         'actuator_trntype': 1,
         'actuator_trntype_body_adr': 1,
-        'block_dim__actuator_velocity': 0,
         'block_dim__cholesky_factorize': 0,
         'block_dim__cholesky_factorize_solve': 0,
         'block_dim__cholesky_solve': 0,
@@ -903,7 +901,7 @@ _NDIM = {
         'block_dim__energy_vel_kinetic': 0,
         'block_dim__island_dsu': 0,
         'block_dim__linesearch_iterative': 0,
-        'block_dim__qderiv_actuator_dense': 0,
+        'block_dim__nxn_broadphase': 0,
         'block_dim__ray': 0,
         'block_dim__render': 0,
         'block_dim__segmented_sort': 0,
@@ -946,6 +944,7 @@ _NDIM = {
         'body_rootid': 1,
         'body_simple': 1,
         'body_subtreemass': 2,
+        'body_subtreenum': 1,
         'body_tree': -1,
         'body_treeid': 1,
         'body_weldid': 1,
@@ -1689,7 +1688,6 @@ _BATCH_DIM = {
         'actuator_trnid': False,
         'actuator_trntype': False,
         'actuator_trntype_body_adr': False,
-        'block_dim__actuator_velocity': False,
         'block_dim__cholesky_factorize': False,
         'block_dim__cholesky_factorize_solve': False,
         'block_dim__cholesky_solve': False,
@@ -1700,7 +1698,7 @@ _BATCH_DIM = {
         'block_dim__energy_vel_kinetic': False,
         'block_dim__island_dsu': False,
         'block_dim__linesearch_iterative': False,
-        'block_dim__qderiv_actuator_dense': False,
+        'block_dim__nxn_broadphase': False,
         'block_dim__ray': False,
         'block_dim__render': False,
         'block_dim__segmented_sort': False,
@@ -1743,6 +1741,7 @@ _BATCH_DIM = {
         'body_rootid': False,
         'body_simple': False,
         'body_subtreemass': True,
+        'body_subtreenum': False,
         'body_tree': False,
         'body_treeid': False,
         'body_weldid': False,

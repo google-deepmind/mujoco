@@ -1441,6 +1441,7 @@ def _tri_point_segment(p: wp.vec2, u: wp.vec2, v: wp.vec2) -> wp.vec2:
 
 @wp.func
 def sphere_triangle(
+  # In:
   sphere_pos: wp.vec3,
   sphere_radius: float,
   t1: wp.vec3,
@@ -1520,6 +1521,7 @@ def sphere_triangle(
 
 @wp.func
 def box_triangle(
+  # In:
   box_pos: wp.vec3,
   box_rot: wp.mat33,
   box_size: wp.vec3,
@@ -1611,6 +1613,7 @@ def box_triangle(
 
 @wp.func
 def capsule_triangle(
+  # In:
   capsule_pos: wp.vec3,
   capsule_axis: wp.vec3,
   capsule_radius: float,
@@ -1688,6 +1691,7 @@ def capsule_triangle(
 
 @wp.func
 def cylinder_triangle(
+  # In:
   cylinder_pos: wp.vec3,
   cylinder_axis: wp.vec3,
   cylinder_radius: float,

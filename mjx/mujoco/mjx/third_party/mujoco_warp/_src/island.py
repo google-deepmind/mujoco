@@ -194,7 +194,7 @@ def _flex_contact_bodies(
   return bodies0, bodies1
 
 
-@wp.kernel
+@wp.kernel(module="unique")
 def _island_dsu(
   # Model:
   nv: int,

@@ -67,9 +67,7 @@ def check_discrete(m: Model):
       )
     return
   if m.has_unsupported_flex_interp:
-    raise NotImplementedError(
-      "Discrete integrator: quadratic (abs(flex_interp) >= 2) interpolated flexes are not supported"
-    )
+    raise NotImplementedError("Discrete integrator: quadratic (abs(flex_interp) >= 2) interpolated flexes are not supported")
   if m.opt.solver == SolverType.NEWTON and m.has_non_simple_flex:
     raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")
   if m.opt.solver == SolverType.NEWTON and not m.flex_interp_assemblable:
@@ -164,21 +162,66 @@ def _next_velocity(
   qvel_out[worldid, dofid] = qvel_in[worldid, dofid] + qacc_scale_in * qacc_in[worldid, dofid] * timestep
 
 
+@wp.func
+def _wrap_period(
+  # Model:
+  jnt_type: wp.array[int],
+  # In:
+  trntype: int,
+  dyntype: int,
+  gaintype: int,
+  biastype: int,
+  trnid: wp.vec2i,
+  gainprm: vec10,
+  biasprm: vec10,
+  gear: wp.spatial_vector,
+) -> float:
+  # servo shape: fixed gain, affine bias, matching kp, setpoint input
+  is_servo = (
+    gaintype == GainType.FIXED
+    and biastype == BiasType.AFFINE
+    and gainprm[0] == -biasprm[1]
+    and (dyntype == DynType.NONE or dyntype == DynType.INTEGRATOR)
+  )
+  if not is_servo:
+    return 0.0
+
+  # site transmission with refsite and purely rotational gear
+  if trntype == TrnType.SITE and trnid[1] >= 0 and gear[0] == 0.0 and gear[1] == 0.0 and gear[2] == 0.0:
+    rot_gear = wp.vec3(gear[3], gear[4], gear[5])
+    return wp.static(2.0 * wp.pi) * wp.length(rot_gear)
+
+  # joint transmission on a ball joint
+  if trntype == TrnType.JOINT or trntype == TrnType.JOINTINPARENT:
+    if jnt_type[trnid[0]] == JointType.BALL:
+      lin_gear = wp.vec3(gear[0], gear[1], gear[2])
+      return wp.static(2.0 * wp.pi) * wp.length(lin_gear)
+
+  return 0.0
+
+
 @wp.kernel
 def _next_activation(
   # Model:
   opt_timestep: wp.array[float],
+  jnt_type: wp.array[int],
+  actuator_trntype: wp.array[int],
   actuator_dyntype: wp.array[int],
+  actuator_gaintype: wp.array[int],
+  actuator_biastype: wp.array[int],
   actuator_actadr: wp.array[int],
   actuator_actnum: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
   actuator_dynprm: wp.array2d[vec10],
   actuator_gainprm: wp.array2d[vec10],
   actuator_biasprm: wp.array2d[vec10],
   actuator_actlimited: wp.array[bool],
   actuator_actrange: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   act_in: wp.array2d[float],
   act_dot_in: wp.array2d[float],
+  actuator_length_in: wp.array2d[float],
   actuator_velocity_in: wp.array2d[float],
   # In:
   act_dot_scale: float,
@@ -248,6 +291,30 @@ def _next_activation(
         act_dot_scale,
         limit and actuator_actlimited[uid],
       )
+      if limit and dyntype == DynType.INTEGRATOR:
+        gaintype = actuator_gaintype[uid]
+        biastype = actuator_biastype[uid]
+        gainprm = actuator_gainprm[actuator_gainprm_id, uid]
+        biasprm = actuator_biasprm[actuator_biasprm_id, uid]
+        trntype = actuator_trntype[uid]
+        trnid = actuator_trnid[uid]
+        gear = actuator_gear[worldid % actuator_gear.shape[0], uid]
+        period = _wrap_period(
+          jnt_type,
+          trntype,
+          dyntype,
+          gaintype,
+          biastype,
+          trnid,
+          gainprm,
+          biasprm,
+          gear,
+        )
+        if period > 0.0:
+          length = actuator_length_in[worldid, uid]
+          err = act - length
+          act -= period * wp.round(err / period)
+
       act_out[worldid, j] = act
 
 
@@ -332,16 +399,23 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
     dim=(d.nworld, m.nactuator),
     inputs=[
       m.opt.timestep,
+      m.jnt_type,
+      m.actuator_trntype,
       m.actuator_dyntype,
+      m.actuator_gaintype,
+      m.actuator_biastype,
       m.actuator_actadr,
       m.actuator_actnum,
+      m.actuator_trnid,
       m.actuator_dynprm,
       m.actuator_gainprm,
       m.actuator_biasprm,
       m.actuator_actlimited,
       m.actuator_actrange,
+      m.actuator_gear,
       d.act,
       d.act_dot,
+      d.actuator_length,
       d.actuator_velocity,
       1.0,
       True,
@@ -497,16 +571,23 @@ def _rk_perturb_state(
       dim=(d.nworld, m.nactuator),
       inputs=[
         m.opt.timestep,
+        m.jnt_type,
+        m.actuator_trntype,
         m.actuator_dyntype,
+        m.actuator_gaintype,
+        m.actuator_biastype,
         m.actuator_actadr,
         m.actuator_actnum,
+        m.actuator_trnid,
         m.actuator_dynprm,
         m.actuator_gainprm,
         m.actuator_biasprm,
         m.actuator_actlimited,
         m.actuator_actrange,
+        m.actuator_gear,
         act_t0,
         d.act_dot,
+        d.actuator_length,
         d.actuator_velocity,
         scale,
         False,
@@ -749,6 +830,7 @@ def _project_spatial_B(
 @wp.kernel
 def _implicit_free_body_solve(
   # Model:
+  nbody: int,
   opt_timestep: wp.array[float],
   opt_wind: wp.array[wp.vec3],
   opt_density: wp.array[float],
@@ -756,6 +838,7 @@ def _implicit_free_body_solve(
   opt_integrator: int,
   opt_disableflags: int,
   opt_enableflags: int,
+  body_rootid: wp.array[int],
   body_dofadr: wp.array[int],
   body_geomnum: wp.array[int],
   body_geomadr: wp.array[int],
@@ -782,6 +865,7 @@ def _implicit_free_body_solve(
   geom_xmat_in: wp.array2d[wp.mat33],
   subtree_com_in: wp.array2d[wp.vec3],
   cdof_in: wp.array2d[wp.spatial_vector],
+  crb_in: wp.array2d[vec10],
   M_in: wp.array2d[float],
   tree_awake_in: wp.array2d[int],
   cvel_in: wp.array2d[wp.spatial_vector],
@@ -824,18 +908,28 @@ def _implicit_free_body_solve(
       A[r, r] += timestep * util_misc._poly_force_deriv(damp, dpoly, v, 1)
 
   # 3. Add gyroscopic bias velocity derivative
-  mass = body_mass[worldid % body_mass.shape[0], bodyid]
+  crb = crb_in[worldid, bodyid]
+  subtree_mass = crb[9]
   R = xmat_in[worldid, bodyid]
-  Xi = ximat_in[worldid, bodyid]
-  inertia = body_inertia[worldid % body_inertia.shape[0], bodyid]
-  s = xipos_in[worldid, bodyid] - xpos_in[worldid, bodyid]
+  Iw = wp.mat33(
+    crb[0],
+    crb[3],
+    crb[4],
+    crb[3],
+    crb[1],
+    crb[5],
+    crb[4],
+    crb[5],
+    crb[2],
+  )
+  s = subtree_com_in[worldid, bodyid] - xpos_in[worldid, bodyid]
   qvel_rot = wp.vec3(
     qvel_in[worldid, dof_adr + 3],
     qvel_in[worldid, dof_adr + 4],
     qvel_in[worldid, dof_adr + 5],
   )
-  lin, rot = math.free_bias_vel_blocks(mass, R, Xi, inertia, s, qvel_rot)
-  h_mass = -timestep * mass
+  lin, rot = math.free_bias_vel_blocks(subtree_mass, R, Iw, s, qvel_rot)
+  h_mass = -timestep * subtree_mass
   for r in range(3):
     for c in range(3):
       A[r, 3 + c] += h_mass * lin[r, c]
@@ -847,113 +941,117 @@ def _implicit_free_body_solve(
   wind = opt_wind[worldid % opt_wind.shape[0]]
 
   if density > 0.0 or viscosity > 0.0:
-    if body_fluid_ellipsoid[bodyid]:
-      subtree_root = subtree_com_in[worldid, bodyid]
-      xipos = xipos_in[worldid, bodyid]
-      cvel = cvel_in[worldid, bodyid]
-      ang_global = wp.spatial_top(cvel)
-      lin_global = wp.spatial_bottom(cvel)
-      lin_com = lin_global - wp.cross(xipos - subtree_root, ang_global)
+    subtree_root = subtree_com_in[worldid, bodyid]
 
-      geomadr = body_geomadr[bodyid]
-      geomnum = body_geomnum[bodyid]
+    for b in range(bodyid, nbody):
+      if body_rootid[b] != bodyid:
+        break
 
-      for g in range(geomnum):
-        geomid = geomadr + g
-        coef = geom_fluid[geomid, 0]
-        if coef <= 0.0:
-          continue
+      if body_fluid_ellipsoid[b]:
+        xipos = xipos_in[worldid, b]
+        cvel = cvel_in[worldid, b]
+        ang_global = wp.spatial_top(cvel)
+        lin_global = wp.spatial_bottom(cvel)
+        lin_com = lin_global - wp.cross(xipos - subtree_root, ang_global)
 
-        size = geom_size[worldid % geom_size.shape[0], geomid]
-        semiaxes = passive.geom_semiaxes(size, geom_type[geomid])
-        geom_rot = geom_xmat_in[worldid, geomid]
-        geom_rotT = wp.transpose(geom_rot)
-        geom_pos = geom_xpos_in[worldid, geomid]
+        geomadr = body_geomadr[b]
+        geomnum = body_geomnum[b]
 
-        # compute local velocity
-        lin_point = lin_com + wp.cross(ang_global, geom_pos - xipos)
-        l_ang = geom_rotT @ ang_global
-        l_lin = geom_rotT @ lin_point
+        for g in range(geomnum):
+          geomid = geomadr + g
+          coef = geom_fluid[geomid, 0]
+          if coef <= 0.0:
+            continue
 
-        if wind[0] != 0.0 or wind[1] != 0.0 or wind[2] != 0.0:
-          l_lin -= geom_rotT @ wind
+          size = geom_size[worldid % geom_size.shape[0], geomid]
+          semiaxes = passive.geom_semiaxes(size, geom_type[geomid])
+          geom_rot = geom_xmat_in[worldid, geomid]
+          geom_rotT = wp.transpose(geom_rot)
+          geom_pos = geom_xpos_in[worldid, geomid]
 
-        ang_vel = l_ang
-        lin_vel = l_lin
+          # compute local velocity
+          lin_point = lin_com + wp.cross(ang_global, geom_pos - xipos)
+          l_ang = geom_rotT @ ang_global
+          l_lin = geom_rotT @ lin_point
 
-        blunt_drag_coef = geom_fluid[geomid, 1]
-        slender_drag_coef = geom_fluid[geomid, 2]
-        ang_drag_coef = geom_fluid[geomid, 3]
-        kutta_lift_coef = geom_fluid[geomid, 4]
-        magnus_lift_coef = geom_fluid[geomid, 5]
-        virtual_mass = wp.vec3(geom_fluid[geomid, 6], geom_fluid[geomid, 7], geom_fluid[geomid, 8])
-        virtual_inertia = wp.vec3(geom_fluid[geomid, 9], geom_fluid[geomid, 10], geom_fluid[geomid, 11])
+          if wind[0] != 0.0 or wind[1] != 0.0 or wind[2] != 0.0:
+            l_lin -= geom_rotT @ wind
 
-        # Compute 6x6 spatial B matrix once per geom (unsymmetrized for free body)
-        B00, B01, B10, B11 = derivative._geom_ellipsoid_fluid_B(
-          semiaxes,
-          blunt_drag_coef,
-          slender_drag_coef,
-          ang_drag_coef,
-          kutta_lift_coef,
-          magnus_lift_coef,
-          virtual_mass,
-          virtual_inertia,
-          ang_vel,
-          lin_vel,
-          density,
-          viscosity,
-          False,
+          ang_vel = l_ang
+          lin_vel = l_lin
+
+          blunt_drag_coef = geom_fluid[geomid, 1]
+          slender_drag_coef = geom_fluid[geomid, 2]
+          ang_drag_coef = geom_fluid[geomid, 3]
+          kutta_lift_coef = geom_fluid[geomid, 4]
+          magnus_lift_coef = geom_fluid[geomid, 5]
+          virtual_mass = wp.vec3(geom_fluid[geomid, 6], geom_fluid[geomid, 7], geom_fluid[geomid, 8])
+          virtual_inertia = wp.vec3(geom_fluid[geomid, 9], geom_fluid[geomid, 10], geom_fluid[geomid, 11])
+
+          # Compute 6x6 spatial B matrix once per geom (unsymmetrized for free body)
+          B00, B01, B10, B11 = derivative._geom_ellipsoid_fluid_B(
+            semiaxes,
+            blunt_drag_coef,
+            slender_drag_coef,
+            ang_drag_coef,
+            kutta_lift_coef,
+            magnus_lift_coef,
+            virtual_mass,
+            virtual_inertia,
+            ang_vel,
+            lin_vel,
+            density,
+            viscosity,
+            False,
+          )
+
+          # 3x3 block projection of J^T @ B @ J
+          offset = geom_pos - subtree_root
+          J_T_B_J = _project_spatial_B(cdof_in, worldid, dof_adr, geom_rotT, offset, B00, B01, B10, B11)
+          for r in range(6):
+            for c in range(6):
+              A[r, c] -= timestep * J_T_B_J[r, c]
+
+      elif body_mass[worldid % body_mass.shape[0], b] >= MJ_MINVAL:
+        b_ipos = xipos_in[worldid, b]
+        b_imat = ximat_in[worldid, b]
+
+        cvel = cvel_in[worldid, b]
+        v_subtree_ang = wp.vec3(cvel[0], cvel[1], cvel[2])
+        v_subtree_lin = wp.vec3(cvel[3], cvel[4], cvel[5])
+
+        lin_com = v_subtree_lin - wp.cross(b_ipos - subtree_root, v_subtree_ang)
+        b_imat_T = wp.transpose(b_imat)
+        v_local_ang = b_imat_T @ v_subtree_ang
+        v_local_lin = b_imat_T @ (lin_com - wind)
+
+        lvel = wp.spatial_vector(
+          v_local_ang[0],
+          v_local_ang[1],
+          v_local_ang[2],
+          v_local_lin[0],
+          v_local_lin[1],
+          v_local_lin[2],
         )
 
-        # 3x3 block projection of J^T @ B @ J
-        offset = geom_pos - subtree_root
-        J_T_B_J = _project_spatial_B(cdof_in, worldid, dof_adr, geom_rotT, offset, B00, B01, B10, B11)
+        B_box = derivative._deriv_box_fluid(
+          opt_integrator,
+          body_mass,
+          body_inertia,
+          worldid,
+          b,
+          lvel,
+          density,
+          viscosity,
+        )
+        B00 = wp.diag(wp.vec3(B_box[0, 0], B_box[1, 1], B_box[2, 2]))
+        B11 = wp.diag(wp.vec3(B_box[3, 3], B_box[4, 4], B_box[5, 5]))
+        zero33 = wp.mat33(0.0)
+        offset_box = b_ipos - subtree_root
+        J_T_B_J = _project_spatial_B(cdof_in, worldid, dof_adr, b_imat_T, offset_box, B00, zero33, zero33, B11)
         for r in range(6):
           for c in range(6):
             A[r, c] -= timestep * J_T_B_J[r, c]
-
-    elif mass >= MJ_MINVAL:
-      b_ipos = xipos_in[worldid, bodyid]
-      b_imat = ximat_in[worldid, bodyid]
-      subtree_root = subtree_com_in[worldid, bodyid]
-
-      vel_subtree = cvel_in[worldid, bodyid]
-      v_subtree_ang = wp.vec3(vel_subtree[0], vel_subtree[1], vel_subtree[2])
-      v_subtree_lin = wp.vec3(vel_subtree[3], vel_subtree[4], vel_subtree[5])
-
-      lin_com = v_subtree_lin - wp.cross(b_ipos - subtree_root, v_subtree_ang)
-      b_imat_T = wp.transpose(b_imat)
-      v_local_ang = b_imat_T @ v_subtree_ang
-      v_local_lin = b_imat_T @ (lin_com - wind)
-
-      lvel = wp.spatial_vector(
-        v_local_ang[0],
-        v_local_ang[1],
-        v_local_ang[2],
-        v_local_lin[0],
-        v_local_lin[1],
-        v_local_lin[2],
-      )
-
-      B_box = derivative._deriv_box_fluid(
-        opt_integrator,
-        body_mass,
-        body_inertia,
-        worldid,
-        bodyid,
-        lvel,
-        density,
-        viscosity,
-      )
-      B00 = wp.diag(wp.vec3(B_box[0, 0], B_box[1, 1], B_box[2, 2]))
-      B11 = wp.diag(wp.vec3(B_box[3, 3], B_box[4, 4], B_box[5, 5]))
-      zero33 = wp.mat33(0.0)
-      offset_box = b_ipos - subtree_root
-      J_T_B_J = _project_spatial_B(cdof_in, worldid, dof_adr, b_imat_T, offset_box, B00, zero33, zero33, B11)
-      for r in range(6):
-        for c in range(6):
-          A[r, c] -= timestep * J_T_B_J[r, c]
 
   # 5. Solve A * x = qfrc
   A_fact, pivot, ok = math.lu_factor_6x6(A)
@@ -973,6 +1071,7 @@ def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float])
     _implicit_free_body_solve,
     dim=(d.nworld, m.body_freeadr.size),
     inputs=[
+      m.nbody,
       m.opt.timestep,
       m.opt.wind,
       m.opt.density,
@@ -980,6 +1079,7 @@ def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float])
       m.opt.integrator,
       m.opt.disableflags,
       m.opt.enableflags,
+      m.body_rootid,
       m.body_dofadr,
       m.body_geomnum,
       m.body_geomadr,
@@ -1005,6 +1105,7 @@ def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float])
       d.geom_xmat,
       d.subtree_com,
       d.cdof,
+      d.crb,
       d.M,
       d.tree_awake,
       d.cvel,
@@ -1024,8 +1125,6 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
     opt_timestep: wp.array[float],
     opt_enableflags: int,
     body_dofadr: wp.array[int],
-    body_mass: wp.array2d[float],
-    body_inertia: wp.array2d[wp.vec3],
     dof_treeid: wp.array[int],
     ten_J_rownnz: wp.array[int],
     ten_J_rowadr: wp.array[int],
@@ -1041,11 +1140,11 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
     qacc_in: wp.array2d[float],
     xpos_in: wp.array2d[wp.vec3],
     xmat_in: wp.array2d[wp.mat33],
-    xipos_in: wp.array2d[wp.vec3],
-    ximat_in: wp.array2d[wp.mat33],
+    subtree_com_in: wp.array2d[wp.vec3],
     moment_rownnz_in: wp.array2d[int],
     moment_rowadr_in: wp.array2d[int],
     moment_colind_in: wp.array2d[int],
+    crb_in: wp.array2d[vec10],
     M_in: wp.array2d[float],
     tree_awake_in: wp.array2d[int],
     qfrc_smooth_in: wp.array2d[float],
@@ -1120,8 +1219,19 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
               return
 
     timestep = opt_timestep[worldid % opt_timestep.shape[0]]
-    mass = body_mass[worldid % body_mass.shape[0], bodyid]
-    inertia = body_inertia[worldid % body_inertia.shape[0], bodyid]
+    crb = crb_in[worldid, bodyid]
+    subtree_mass = crb[9]
+    Iw = wp.mat33(
+      crb[0],
+      crb[3],
+      crb[4],
+      crb[3],
+      crb[1],
+      crb[5],
+      crb[4],
+      crb[5],
+      crb[2],
+    )
     qvel_rot = wp.vec3(
       qvel_in[worldid, dof_adr + 3],
       qvel_in[worldid, dof_adr + 4],
@@ -1152,9 +1262,9 @@ def _discrete_free_gyro_kernel(has_fluid: bool, has_flex_passive: bool, is_inver
           if c != r:
             A[c, r] += val
 
-    s = xipos_in[worldid, bodyid] - xpos_in[worldid, bodyid]
-    lin, rot = math.free_bias_vel_blocks(mass, xmat_in[worldid, bodyid], ximat_in[worldid, bodyid], inertia, s, qvel_rot)
-    h_mass = -timestep * mass
+    s = subtree_com_in[worldid, bodyid] - xpos_in[worldid, bodyid]
+    lin, rot = math.free_bias_vel_blocks(subtree_mass, xmat_in[worldid, bodyid], Iw, s, qvel_rot)
+    h_mass = -timestep * subtree_mass
     for r in range(3):
       for c in range(3):
         A[r, 3 + c] += h_mass * lin[r, c]
@@ -1199,8 +1309,6 @@ def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: 
       m.opt.timestep,
       m.opt.enableflags,
       m.body_dofadr,
-      m.body_mass,
-      m.body_inertia,
       m.dof_treeid,
       m.ten_J_rownnz,
       m.ten_J_rowadr,
@@ -1215,11 +1323,11 @@ def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: 
       qacc,
       d.xpos,
       d.xmat,
-      d.xipos,
-      d.ximat,
+      d.subtree_com,
       d.moment_rownnz,
       d.moment_rowadr,
       d.moment_colind,
+      d.crb,
       d.M,
       d.tree_awake,
       d.qfrc_smooth,
@@ -1425,7 +1533,6 @@ def fwd_velocity(m: Model, d: Data):
     dim=(d.nworld, m.nactuator),
     inputs=[d.qvel, d.moment_rownnz, d.moment_rowadr, d.moment_colind, d.actuator_moment],
     outputs=[d.actuator_velocity],
-    block_dim=m.block_dim.actuator_velocity,
   )
 
   wp.launch(
@@ -1448,6 +1555,8 @@ def _actuator_force(
   # Model:
   na: int,
   opt_timestep: wp.array[float],
+  jnt_type: wp.array[int],
+  actuator_trntype: wp.array[int],
   actuator_dyntype: wp.array[int],
   actuator_gaintype: wp.array[int],
   actuator_biastype: wp.array[int],
@@ -1456,6 +1565,7 @@ def _actuator_force(
   actuator_ctrlspec: wp.array[int],
   actuator_actadr: wp.array[int],
   actuator_actnum: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
   actuator_dynprm: wp.array2d[vec10],
   actuator_gainprm: wp.array2d[vec10],
   actuator_biasprm: wp.array2d[vec10],
@@ -1466,6 +1576,7 @@ def _actuator_force(
   actuator_forcerange: wp.array2d[wp.vec2],
   actuator_ctrllimited: wp.array[bool],
   actuator_ctrlrange: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   actuator_acc0: wp.array2d[float],
   actuator_lengthrange: wp.array2d[wp.vec2],
   # Data in:
@@ -1494,10 +1605,10 @@ def _actuator_force(
   ctrl_act = ctrl
   u_first = ctrl
 
+  dyntype = actuator_dyntype[uid]
   act_first = actuator_actadr[uid]
   if na and act_first >= 0:
     act_last = act_first + actuator_actnum[uid] - 1
-    dyntype = actuator_dyntype[uid]
     dynprm = actuator_dynprm[worldid % actuator_dynprm.shape[0], uid]
 
     if dyntype == DynType.INTEGRATOR:
@@ -1726,6 +1837,24 @@ def _actuator_force(
       K = gainprm[1]
       bias -= gain * K * velocity
 
+  trntype = actuator_trntype[uid]
+  trnid = actuator_trnid[uid]
+  gear = actuator_gear[worldid % actuator_gear.shape[0], uid]
+  period = _wrap_period(
+    jnt_type,
+    trntype,
+    dyntype,
+    gaintype,
+    biastype,
+    trnid,
+    gainprm,
+    biasprm,
+    gear,
+  )
+  if period > 0.0:
+    err = ctrl_act - length
+    ctrl_act -= period * wp.round(err / period)
+
   force = gain * ctrl_act + bias
 
   if actuator_forcelimited[uid]:
@@ -1874,6 +2003,8 @@ def fwd_actuation(m: Model, d: Data):
       inputs=[
         m.na,
         m.opt.timestep,
+        m.jnt_type,
+        m.actuator_trntype,
         m.actuator_dyntype,
         m.actuator_gaintype,
         m.actuator_biastype,
@@ -1882,6 +2013,7 @@ def fwd_actuation(m: Model, d: Data):
         m.actuator_ctrlspec,
         m.actuator_actadr,
         m.actuator_actnum,
+        m.actuator_trnid,
         m.actuator_dynprm,
         m.actuator_gainprm,
         m.actuator_biasprm,
@@ -1892,6 +2024,7 @@ def fwd_actuation(m: Model, d: Data):
         m.actuator_forcerange,
         m.actuator_ctrllimited,
         m.actuator_ctrlrange,
+        m.actuator_gear,
         m.actuator_acc0,
         m.actuator_lengthrange,
         d.act,

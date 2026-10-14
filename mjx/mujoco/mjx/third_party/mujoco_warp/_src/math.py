@@ -341,16 +341,12 @@ def free_bias_vel_blocks(
   # In:
   mass: float,
   R: wp.mat33,
-  Xi: wp.mat33,
-  inertia: wp.vec3,
+  Iw: wp.mat33,
   s: wp.vec3,
   qvel_rot: wp.vec3,
 ) -> tuple[wp.mat33, wp.mat33]:
-  """3x3 sub-blocks of (d qfrc_bias / d qvel) for a standalone free body."""
+  """3x3 sub-blocks of (d qfrc_bias / d qvel) for a free rigid subtree."""
   w = R @ qvel_rot
-
-  diag_inertia = wp.diag(inertia)
-  Iw = Xi @ diag_inertia @ wp.transpose(Xi)
 
   ws = wp.cross(w, s)
   Iww = Iw @ w

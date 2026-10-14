@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-warp"
-version = "3.15.0"
+version = "3.16.0"
 # TODO(team): create a distribution list
 authors = [
     {name = "Newton Developers", email = "mujoco@deepmind.com"},
@@ -29,7 +29,7 @@ requires-python = ">=3.10"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco>=3.12.0",
+    "mujoco>=3.13.0",
     "numpy",
     "warp-lang>=1.15",
 ]

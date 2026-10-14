@@ -260,10 +260,9 @@ def mul_m(
 @wp.kernel
 def _apply_ft(
   # Model:
-  nbody: int,
-  body_parentid: wp.array[int],
   body_rootid: wp.array[int],
   dof_bodyid: wp.array[int],
+  body_subtreenum: wp.array[int],
   # Data in:
   xipos_in: wp.array2d[wp.vec3],
   subtree_com_in: wp.array2d[wp.vec3],
@@ -280,19 +279,15 @@ def _apply_ft(
   jac = wp.spatial_vector(cdof[3], cdof[4], cdof[5], cdof[0], cdof[1], cdof[2])
 
   dofbodyid = dof_bodyid[dofid]
+  subtree_com = subtree_com_in[worldid, body_rootid[dofbodyid]]
   accumul = float(0.0)
 
-  for bodyid in range(dofbodyid, nbody):
+  # Bodies in a subtree are contiguous in MuJoCo's depth-first order.
+  for bodyid in range(dofbodyid, dofbodyid + body_subtreenum[dofbodyid]):
     ft_body = ft_in[worldid, bodyid]
     if ft_body == wp.spatial_vector():
       continue
-    # any body that is in the subtree of dofbodyid is part of the jacobian
-    parentid = bodyid
-    while parentid != 0 and parentid != dofbodyid:
-      parentid = body_parentid[parentid]
-    if parentid == 0:
-      continue  # body is not part of the subtree
-    offset = xipos_in[worldid, bodyid] - subtree_com_in[worldid, body_rootid[bodyid]]
+    offset = xipos_in[worldid, bodyid] - subtree_com
     cross_term = wp.cross(rotational_cdof, offset)
     accumul += wp.dot(jac, ft_body) + wp.dot(cross_term, wp.spatial_top(ft_body))
 
@@ -306,7 +301,7 @@ def apply_ft(m: Model, d: Data, ft: wp.array2d[wp.spatial_vector], qfrc: wp.arra
   wp.launch(
     kernel=_apply_ft,
     dim=(d.nworld, m.nv),
-    inputs=[m.nbody, m.body_parentid, m.body_rootid, m.dof_bodyid, d.xipos, d.subtree_com, d.cdof, ft, flg_add],
+    inputs=[m.body_rootid, m.dof_bodyid, m.body_subtreenum, d.xipos, d.subtree_com, d.cdof, ft, flg_add],
     outputs=[qfrc],
   )
 

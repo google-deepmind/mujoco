@@ -904,20 +904,13 @@ def ccd_kernel_builder(
     witness1[0] = w1
     witness2[0] = w2
 
-    has_face1 = wp.static(
-      geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH or geomtype1 == GeomType.CYLINDER
-    )
-    has_face2 = wp.static(
-      geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH or geomtype2 == GeomType.CYLINDER
-    )
+    has_face1 = wp.static(geomtype1 == GeomType.BOX or geomtype1 == GeomType.MESH or geomtype1 == GeomType.CYLINDER)
+    has_face2 = wp.static(geomtype2 == GeomType.BOX or geomtype2 == GeomType.MESH or geomtype2 == GeomType.CYLINDER)
     has_edge1 = wp.static(geomtype1 == GeomType.CAPSULE)
     has_edge2 = wp.static(geomtype2 == GeomType.CAPSULE)
     if wp.static(
       (geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX)
-      or (
-        use_multiccd
-        and ((has_face1 and has_face2) or (has_edge1 and has_face2) or (has_face1 and has_edge2))
-      )
+      or (use_multiccd and ((has_face1 and has_face2) or (has_edge1 and has_face2) or (has_face1 and has_edge2)))
     ):
       if not needs_epa and dist < 0.0 and margin == 0.0 and gjk_result.dim > 0:
         ccdid = wp.atomic_add(nccd_in, geomgeomid, 1)
@@ -930,9 +923,7 @@ def ccd_kernel_builder(
             )
           wp.atomic_or(overflow_out, worldid, OverflowType.CCD)
           return
-        multiccd_idx = _gjk_simplex_to_epa(
-          gjk_result, epa_vert_in[ccdid], epa_vert_index_in[ccdid], epa_face_in[ccdid]
-        )
+        multiccd_idx = _gjk_simplex_to_epa(gjk_result, epa_vert_in[ccdid], epa_vert_index_in[ccdid], epa_face_in[ccdid])
 
       if wp.static(geomtype1 == GeomType.MESH):
         # verify that geom1 mesh data is present for multicontact

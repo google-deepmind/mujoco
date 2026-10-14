@@ -135,6 +135,7 @@ def _collision_shim(
     nmesh: int,
     nmeshdegmax: int,
     nmeshface: int,
+    npair: int,
     npolygonmax: int,
     nxn_geom_pair_filtered: wp.array[wp.vec2i],
     nxn_pairid: wp.array[wp.vec2i],
@@ -146,6 +147,8 @@ def _collision_shim(
     pair_dim: wp.array[int],
     pair_friction: wp.array2d[mjwp_types.vec5],
     pair_gap: wp.array2d[float],
+    pair_geom1: wp.array[int],
+    pair_geom2: wp.array[int],
     pair_margin: wp.array2d[float],
     pair_solimp: wp.array2d[mjwp_types.vec5],
     pair_solref: wp.array2d[wp.vec2],
@@ -283,6 +286,7 @@ def _collision_shim(
   _m.nmesh = nmesh
   _m.nmeshdegmax = nmeshdegmax
   _m.nmeshface = nmeshface
+  _m.npair = npair
   _m.npolygonmax = npolygonmax
   _m.nxn_geom_pair_filtered = nxn_geom_pair_filtered
   _m.nxn_pairid = nxn_pairid
@@ -305,6 +309,8 @@ def _collision_shim(
   _m.pair_dim = pair_dim
   _m.pair_friction = pair_friction
   _m.pair_gap = pair_gap
+  _m.pair_geom1 = pair_geom1
+  _m.pair_geom2 = pair_geom2
   _m.pair_margin = pair_margin
   _m.pair_solimp = pair_solimp
   _m.pair_solref = pair_solref
@@ -562,6 +568,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.nmesh,
       m._impl.nmeshdegmax,
       m.nmeshface,
+      m.npair,
       m._impl.npolygonmax,
       m._impl.nxn_geom_pair_filtered,
       m._impl.nxn_pairid,
@@ -573,6 +580,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.pair_dim,
       m.pair_friction,
       m.pair_gap,
+      m.pair_geom1,
+      m.pair_geom2,
       m.pair_margin,
       m.pair_solimp,
       m.pair_solref,

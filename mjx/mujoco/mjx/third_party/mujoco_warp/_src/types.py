@@ -61,8 +61,8 @@ class BlockDim:
 
   Attributes:
     segmented_sort: segmented sort block dimension (collision_driver)
+    nxn_broadphase: NXN broadphase block dimension (collision_driver)
     convex_ccd: convex CCD kernel block dimension (collision_convex)
-    actuator_velocity: actuator velocity block dimension (forward)
     island_dsu: island discovery DSU block dimension (island)
     ray: ray block dimension (ray)
     contact_sort: contact sort block dimension (sensor)
@@ -82,17 +82,15 @@ class BlockDim:
     solve_search_update_cg: solve search update CG block dimension (solver)
     solve_init_search_cg: solve init search CG block dimension (solver)
     contact_jac_tiled: contact Jacobian tiled block dimension (solver)
-    qderiv_actuator_dense: qderiv actuator dense block dimension (derivative)
     eff_pcg: effective-metric PCG block dimension (derivative)
     render: render block dimension (render)
   """
 
   # collision_driver
   segmented_sort: int = 128
+  nxn_broadphase: int = 128
   # collision_convex
   convex_ccd: int = 64
-  # forward
-  actuator_velocity: int = 32
   # island
   island_dsu: int = 32
   # ray
@@ -118,7 +116,6 @@ class BlockDim:
   solve_init_search_cg: int = 256
   contact_jac_tiled: int = 32
   # derivative
-  qderiv_actuator_dense: int = 32
   eff_pcg: int = 128
   # render
   render: int = 64
@@ -1510,11 +1507,12 @@ class Model:
     max_flex_dim: maximum flex dimension in the model
     block_dim: block dim options
     body_tree: list of body ids by tree level
+    body_subtreenum: number of bodies in subtree, including self (nbody,)
     body_branches: flattened body ids for all branches
     body_branch_start: start index in body_branches for each branch   (nbranch + 1,)
     mocap_bodyid: id of body for mocap                       (nmocap,)
     body_fluid_ellipsoid: does body use ellipsoid fluid      (nbody,)
-    body_is_free: is body a standalone free body             (nbody,)
+    body_is_free: is body root of a free rigid subtree       (nbody,)
     body_fluid_ellipsoid_adr: body ids with ellipsoid fluid  (nbody_fluid_ellipsoid,)
     body_fluid_box_adr: body ids with box fluid              (nbody_fluid_box,)
     body_freeadr: body ids of free bodies                    (nbodyfree,)
@@ -2039,6 +2037,7 @@ class Model:
   max_flex_dim: int
   block_dim: BlockDim
   body_tree: tuple[array("nbody", int), ...]
+  body_subtreenum: array("nbody", int)
   body_branches: array("nbody_branches", int)
   body_branch_start: array("nbranch_start", int)
   mocap_bodyid: array("nmocap", int)

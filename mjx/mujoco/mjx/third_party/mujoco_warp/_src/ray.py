@@ -911,7 +911,7 @@ def _ray_geom_mesh(
     return -1.0, wp.vec3()
 
 
-@wp.kernel
+@wp.kernel(module="unique")
 def _ray(
   # Model:
   ngeom: int,
