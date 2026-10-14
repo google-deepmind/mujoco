@@ -10,6 +10,12 @@ Engine
 - Trees marked :ref:`sleep="init"<body-sleep>` which cannot be put to sleep now cause a warning rather than an error,
   and start awake. See :ref:`Sleeping<siSleepSleeping>` for details.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- Unallocated arena arrays of ``MjData``, for example ``efm_*`` arrays when the ``discrete`` integrator is not used or
+  island arrays when no islands are formed, are now filled with zeros, or with -1 for index fields where -1 means
+  "none". Previously they returned uninitialized memory.
+
 Version 3.16.0 (October 14, 2026)
 ---------------------------------
 

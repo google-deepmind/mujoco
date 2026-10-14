@@ -891,6 +891,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         name: span(name)
         for name in dir(data)
         if name.startswith(('efc_Y', 'efc_AR', 'efm_')) and name != 'efm_active'
+        and not getattr(data, name).flags.owndata
     }
 
     # grow the islands: the new island arrays must not overlap the later ones
@@ -910,6 +911,58 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       for other, (other_start, other_end) in later.items():
         overlap = start < other_end and other_start < end
         self.assertFalse(overlap, f'{name} overlaps {other}')
+
+  def test_unallocated_arena_arrays_are_filled(self):
+    model = mujoco.MjModel.from_xml_string("""
+<mujoco>
+  <option>
+    <flag island="disable"/>
+  </option>
+  <worldbody>
+    <site name="a"/>
+    <body>
+      <joint name="hinge" axis="0 1 0" range="-1 1"/>
+      <geom size=".1" pos="0 0 -.5"/>
+      <site name="b" pos="0 0 -1"/>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial range="0 2">
+      <site site="a"/>
+      <site site="b"/>
+    </spatial>
+  </tendon>
+  <actuator>
+    <motor joint="hinge"/>
+  </actuator>
+</mujoco>
+""")
+    none_index = ('tendon_efcadr', 'tree_island', 'dof_island')
+
+    # unallocated arrays own their data, allocated ones are views of mjData
+    def assert_unallocated_are_filled(data):
+      unallocated = [
+          name for name in dir(data)
+          if isinstance(arr := getattr(data, name), np.ndarray)
+          and arr.flags.owndata and arr.size > 0
+      ]
+      self.assertNotEmpty(unallocated)
+      for name in unallocated:
+        fill = -1 if name in none_index else 0
+        np.testing.assert_array_equal(getattr(data, name), fill, err_msg=name)
+      return unallocated
+
+    data = mujoco.MjData(model)
+    self.assertIn('tendon_efcadr', assert_unallocated_are_filled(data))
+
+    # joint limit violated, islands disabled: nefc-sized island arrays are NULL
+    data.qpos[0] = 2
+    mujoco.mj_forward(model, data)
+    self.assertGreater(data.nefc, 0)
+    self.assertIn('efc_island', assert_unallocated_are_filled(data))
+
+    # allocated arena arrays are views of mjData
+    self.assertFalse(data.tendon_efcadr.flags.owndata)
 
   def test_mj_struct_list_equality(self):
     model2 = mujoco.MjModel.from_xml_string(TEST_XML)

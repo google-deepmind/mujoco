@@ -16,6 +16,7 @@
 
 #include <Python.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <ios>
@@ -71,6 +72,26 @@ constexpr auto XArrayShapeImpl(const std::string_view dim1_str) {
   } else {
     return XArrayShapeImpl2D;
   }
+}
+
+// Wraps an arena array, or returns an array of the same shape filled with
+// `fill` if it is not allocated (e.g. efm_* arrays when the discrete integrator
+// is not used).
+template <typename T>
+py::array_t<T> InitArenaArray(const std::vector<mjtSize>& shape, T* buf,
+                              py::handle owner, T fill) {
+  if (!buf) {
+    py::array_t<T> arr(shape);
+    std::fill_n(arr.mutable_data(), arr.size(), fill);
+    return arr;
+  }
+  return InitPyArray(shape, buf, owner);
+}
+
+// arena fields where -1 means "none"
+constexpr bool IsNoneIndex(std::string_view name) {
+  return name == "tendon_efcadr" || name == "tree_island" ||
+         name == "dof_island";
 }
 
 py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
@@ -922,9 +943,11 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 #define MJ_M(x) d.model().get()->x
 #undef MJ_D
 #define MJ_D(x) d.get()->x
-#define X(dtype, var, dim0, dim1)                                           \
-  mjData.def_property_readonly(#var, [](const MjDataWrapper& d) {           \
-    return InitPyArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var, d.owner()); \
+#define X(dtype, var, dim0, dim1)                                         \
+  mjData.def_property_readonly(#var, [](const MjDataWrapper& d) {         \
+    return InitArenaArray(X_ARRAY_SHAPE(dim0, dim1), d.get()->var,        \
+                          d.owner(),                                      \
+                          static_cast<dtype>(IsNoneIndex(#var) ? -1 : 0)); \
   });
 
   MJDATA_ARENA_POINTERS_SOLVER
