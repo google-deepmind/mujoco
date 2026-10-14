@@ -74,15 +74,6 @@ using std::vector;
 
 constexpr double kFrameEps = 1e-6;  // difference below which frames are considered equal
 
-// return true if two 3-vectors are element-wise less than kFrameEps apart
-template <typename T>
-bool IsSameVec(const T pos1[3], const T pos2[3]) {
-  static_assert(std::is_floating_point_v<T>);
-  return std::abs(pos1[0] - pos2[0]) < kFrameEps &&
-         std::abs(pos1[1] - pos2[1]) < kFrameEps &&
-         std::abs(pos1[2] - pos2[2]) < kFrameEps;
-}
-
 unsigned int NumCompilerThreads(int upper_bound = -1) {
   // Use at most half the available threads to avoid
   // overloading hyperthreaded CPUs.
@@ -93,42 +84,27 @@ unsigned int NumCompilerThreads(int upper_bound = -1) {
   return std::max(static_cast<unsigned int>(1), nthreads);
 }
 
-// return true if two quaternions are element-wise less than kFrameEps apart, including double-cover
-template <typename T>
-bool IsSameQuat(const T quat1[4], const T quat2[4]) {
-  static_assert(std::is_floating_point_v<T>);
-  bool same_quat_minus = std::abs(quat1[0] - quat2[0]) < kFrameEps &&
-                         std::abs(quat1[1] - quat2[1]) < kFrameEps &&
-                         std::abs(quat1[2] - quat2[2]) < kFrameEps &&
-                         std::abs(quat1[3] - quat2[3]) < kFrameEps;
-
-  bool same_quat_plus = std::abs(quat1[0] + quat2[0]) < kFrameEps &&
-                        std::abs(quat1[1] + quat2[1]) < kFrameEps &&
-                        std::abs(quat1[2] + quat2[2]) < kFrameEps &&
-                        std::abs(quat1[3] + quat2[3]) < kFrameEps;
-
-  return same_quat_minus || same_quat_plus;
-}
-
-
-// compare two poses
-template <typename T>
-bool IsSamePose(const T pos1[3], const T pos2[3], const T quat1[4], const T quat2[4]) {
-  // check position if given
-  if (pos1 && pos2 && !IsSameVec(pos1, pos2)) { return false; }
-
-  // check orientation if given
-  if (quat1 && quat2 && !IsSameQuat(quat1, quat2)) { return false; }
-
-  return true;
-}
-
 // detect null pose
 template <typename T>
-bool IsNullPose(const T pos[3], const T quat[4]) {
-  T zero[3]  = {0, 0, 0};
-  T qunit[4] = {1, 0, 0, 0};
-  return IsSamePose(pos, zero, quat, qunit);
+bool IsNullPose(const T pos[3], const T quat[4] = nullptr) {
+  static_assert(std::is_floating_point_v<T>);
+  if (std::abs(pos[0]) >= kFrameEps ||
+      std::abs(pos[1]) >= kFrameEps ||
+      std::abs(pos[2]) >= kFrameEps) {
+    return false;
+  }
+  if (quat) {
+    bool plus  = std::abs(quat[0] - 1) < kFrameEps &&
+                 std::abs(quat[1]) < kFrameEps &&
+                 std::abs(quat[2]) < kFrameEps &&
+                 std::abs(quat[3]) < kFrameEps;
+    bool minus = std::abs(quat[0] + 1) < kFrameEps &&
+                 std::abs(quat[1]) < kFrameEps &&
+                 std::abs(quat[2]) < kFrameEps &&
+                 std::abs(quat[3]) < kFrameEps;
+    return plus || minus;
+  }
+  return true;
 }
 
 // get body id from wrap object
@@ -1143,7 +1119,6 @@ void mjCModel::ComputeSparseSizes() {
   }
 
   // joint-based demotion for body_simple_pre
-  const double* nulldouble = nullptr;
   for (int i = 1; i < nbody; ++i) {
     if (!body_simple_pre[i]) continue;
 
@@ -1155,7 +1130,7 @@ void mjCModel::ComputeSparseSizes() {
                            (std::abs(pj->axis[1]) > mjEPS) +
                            (std::abs(pj->axis[2]) > mjEPS)) == 1;
       if (rotfound ||
-          !IsNullPose(pj->pos, nulldouble) ||
+          !IsNullPose(pj->pos) ||
           ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
         body_simple_pre[i] = 0;
         break;
@@ -2853,12 +2828,12 @@ void mjCModel::CopyPaths(mjModel* m) {
 
 // copy objects inside kinematic tree
 void mjCModel::CopyTree(mjModel* m) {
-  const mjtNum* nullnum = nullptr;
-
   int jntadr  = 0;  // addresses in global arrays
   int dofadr  = 0;
   int qposadr = 0;
   int bvh_adr = 0;
+
+  m->body_sameframe[0] = mjSAMEFRAME_BODY;
 
   // main loop over bodies
   for (int i = 0; i < nbody; i++) {
@@ -2923,20 +2898,9 @@ void mjCModel::CopyTree(mjModel* m) {
     // init lastdof from parent
     pb->lastdof = par ? par->lastdof : -1;
 
-    // set sameframe
-    mjtSameFrame sameframe;
-    if (IsNullPose(m->body_ipos + 3 * i, m->body_iquat + 4 * i)) {
-      sameframe = mjSAMEFRAME_BODY;
-    } else if (IsNullPose(nullnum, m->body_iquat + 4 * i)) {
-      sameframe = mjSAMEFRAME_BODYROT;
-    } else {
-      sameframe = mjSAMEFRAME_NONE;
-    }
-    m->body_sameframe[i] = sameframe;
-
     // init simple: sameframe, and (self-root, or parent is fixed child of world)
     int parentid      = m->body_parentid[i];
-    m->body_simple[i] = (sameframe == mjSAMEFRAME_BODY &&
+    m->body_simple[i] = (IsNullPose(m->body_ipos + 3 * i, m->body_iquat + 4 * i) &&
                          (m->body_rootid[i] == i ||
                           (m->body_parentid[parentid] == 0 && m->body_dofnum[parentid] == 0)));
 
@@ -2978,7 +2942,7 @@ void mjCModel::CopyTree(mjModel* m) {
                            (std::abs(pj->axis[1]) > mjEPS) +
                            (std::abs(pj->axis[2]) > mjEPS)) == 1;
       if (rotfound ||
-          !IsNullPose(m->jnt_pos + 3 * jid, nullnum) ||
+          !IsNullPose(m->jnt_pos + 3 * jid) ||
           ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
         m->body_simple[i] = 0;
       }
@@ -3086,21 +3050,6 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->geom_user + nuser_geom * gid, pg->get_userdata().data(), nuser_geom);
       mjuu_copyvec(m->geom_rgba + 4 * gid, pg->rgba, 4);
 
-      // determine sameframe
-      const double* nulldouble = nullptr;
-      if (IsNullPose(m->geom_pos + 3 * gid, m->geom_quat + 4 * gid)) {
-        sameframe = mjSAMEFRAME_BODY;
-      } else if (IsNullPose(nullnum, m->geom_quat + 4 * gid)) {
-        sameframe = mjSAMEFRAME_BODYROT;
-      } else if (IsSamePose(pg->pos, pb->ipos, pg->quat, pb->iquat)) {
-        sameframe = mjSAMEFRAME_INERTIA;
-      } else if (IsSamePose(nulldouble, nulldouble, pg->quat, pb->iquat)) {
-        sameframe = mjSAMEFRAME_INERTIAROT;
-      } else {
-        sameframe = mjSAMEFRAME_NONE;
-      }
-      m->geom_sameframe[gid] = sameframe;
-
       // bounding sphere of a mesh or SDF geom, mj_setConst computes those of other geoms
       m->geom_rbound[gid] = (mjtNum)pg->GetRBound();
     }
@@ -3122,21 +3071,6 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->site_quat + 4 * sid, ps->quat, 4);
       mjuu_copyvec(m->site_user + nuser_site * sid, ps->userdata_.data(), nuser_site);
       mjuu_copyvec(m->site_rgba + 4 * sid, ps->rgba, 4);
-
-      // determine sameframe
-      const double* nulldouble = nullptr;
-      if (IsNullPose(m->site_pos + 3 * sid, m->site_quat + 4 * sid)) {
-        sameframe = mjSAMEFRAME_BODY;
-      } else if (IsNullPose(nullnum, m->site_quat + 4 * sid)) {
-        sameframe = mjSAMEFRAME_BODYROT;
-      } else if (IsSamePose(ps->pos, pb->ipos, ps->quat, pb->iquat)) {
-        sameframe = mjSAMEFRAME_INERTIA;
-      } else if (IsSamePose(nulldouble, nulldouble, ps->quat, pb->iquat)) {
-        sameframe = mjSAMEFRAME_INERTIAROT;
-      } else {
-        sameframe = mjSAMEFRAME_NONE;
-      }
-      m->site_sameframe[sid] = sameframe;
     }
 
     // loop over cameras for this body
