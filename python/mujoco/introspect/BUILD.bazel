@@ -1,0 +1,116 @@
+# Description:
+#   A library for introspecting MuJoCo's public API.
+
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+licenses(["notice"])
+
+package(default_visibility = [
+    "//python/mujoco/codegen:__subpackages__",
+    "//wasm:__subpackages__",
+])
+
+py_library(
+    name = "ast_nodes",
+    srcs = ["ast_nodes.py"],
+    imports = [".."],
+)
+
+py_test(
+    name = "ast_nodes_test",
+    srcs = ["ast_nodes_test.py"],
+    main_module = "introspect.ast_nodes_test",
+    deps = [
+        ":ast_nodes",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_library(
+    name = "type_parsing",
+    srcs = ["type_parsing.py"],
+    imports = [".."],
+    deps = [":ast_nodes"],
+)
+
+py_test(
+    name = "type_parsing_test",
+    srcs = ["type_parsing_test.py"],
+    main_module = "introspect.type_parsing_test",
+    deps = [
+        ":ast_nodes",
+        ":type_parsing",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_library(
+    name = "enums",
+    srcs = ["enums.py"],
+    imports = [".."],
+    deps = [":ast_nodes"],
+)
+
+py_test(
+    name = "enums_test",
+    srcs = ["enums_test.py"],
+    main_module = "introspect.enums_test",
+    deps = [
+        ":enums",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_library(
+    name = "functions",
+    srcs = ["functions.py"],
+    imports = [".."],
+    deps = [":ast_nodes"],
+)
+
+py_test(
+    name = "functions_test",
+    srcs = ["functions_test.py"],
+    main_module = "introspect.functions_test",
+    deps = [
+        ":ast_nodes",
+        ":functions",
+        ":type_parsing",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_library(
+    name = "structs",
+    srcs = ["structs.py"],
+    imports = [".."],
+    deps = [":ast_nodes"],
+)
+
+py_test(
+    name = "structs_test",
+    srcs = ["structs_test.py"],
+    main_module = "introspect.structs_test",
+    deps = [
+        ":ast_nodes",
+        ":structs",
+        ":type_parsing",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_library(
+    name = "mjxmacro",
+    srcs = ["mjxmacro.py"],
+    imports = [".."],
+    deps = [
+        ":structs",
+    ],
+)
+
+py_library(
+    name = "introspect",
+    srcs = ["__init__.py"],
+    imports = [".."],
+)

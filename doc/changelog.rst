@@ -12,6 +12,8 @@ Engine
 
 Python bindings
 ^^^^^^^^^^^^^^^
+- Added support for building the Python bindings with `Bazel <https://bazel.build/>`__ (initially covers the core
+  bindings, without rendering or the viewer).
 - Unallocated arena arrays of ``MjData``, for example ``efm_*`` arrays when the ``discrete`` integrator is not used or
   island arrays when no islands are formed, are now filled with zeros, or with -1 for index fields where -1 means
   "none". Previously they returned uninitialized memory.

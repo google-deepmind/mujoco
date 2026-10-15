@@ -1,0 +1,103 @@
+# Description:
+#   C++ utility libraries for Python bindings.
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(default_visibility = ["//python/mujoco:__pkg__"])
+
+licenses(["notice"])
+
+cc_library(
+    name = "array_traits",
+    hdrs = ["array_traits.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":crossplatform",
+        "@eigen",
+    ],
+)
+
+cc_test(
+    name = "array_traits_test",
+    srcs = ["array_traits_test.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":array_traits",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "crossplatform",
+    hdrs = ["crossplatform.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+)
+
+cc_library(
+    name = "func_traits",
+    hdrs = ["func_traits.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+)
+
+cc_test(
+    name = "func_traits_test",
+    srcs = ["func_traits_test.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":func_traits",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "func_wrap",
+    hdrs = ["func_wrap.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":array_traits",
+        ":crossplatform",
+        ":func_traits",
+        "@eigen",
+    ],
+)
+
+cc_test(
+    name = "func_wrap_test",
+    srcs = ["func_wrap_test.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":func_traits",
+        ":func_wrap",
+        "@eigen",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "tuple_tools",
+    hdrs = ["tuple_tools.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":crossplatform",
+    ],
+)
+
+cc_test(
+    name = "tuple_tools_test",
+    srcs = ["tuple_tools_test.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":tuple_tools",
+        "@googletest//:gtest_main",
+    ],
+)

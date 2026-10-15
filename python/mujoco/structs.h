@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 
-#include <absl/types/span.h>
+#include "absl/types/span.h"
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "gil.h"

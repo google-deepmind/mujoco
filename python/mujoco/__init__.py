@@ -37,11 +37,14 @@ _SYSTEM = platform.system()
 if _SYSTEM == 'Windows':
   ctypes.WinDLL(os.path.join(os.path.dirname(__file__), 'mujoco.dll'))
 elif _SYSTEM == 'Darwin':
-  proc_translated = subprocess.run(
-      ['sysctl', '-n', 'sysctl.proc_translated'], capture_output=True).stdout
+  # sysctl is in /usr/sbin, which is not on minimal PATHs (e.g. the
+  # environment Bazel runs tests in), so don't rely on PATH lookup.
   try:
+    proc_translated = subprocess.run(
+        ['/usr/sbin/sysctl', '-n', 'sysctl.proc_translated'],
+        capture_output=True).stdout
     is_rosetta = bool(int(proc_translated))
-  except ValueError:
+  except (OSError, ValueError):
     is_rosetta = False
   if is_rosetta and platform.machine() == 'x86_64':
     raise ImportError(

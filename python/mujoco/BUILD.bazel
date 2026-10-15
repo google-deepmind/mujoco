@@ -1,0 +1,561 @@
+# Description:
+#   Python bindings for the MuJoCo physics engine.
+
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@pybind11_bazel//:build_defs.bzl", "pybind_library")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//python/mujoco:build_defs.bzl", "mujoco_pybind_extension")
+
+package_group(
+    name = "visibility",
+    includes = [
+        "//:visibility",
+    ],
+)
+
+licenses(["notice"])
+
+exports_files([
+    "LICENSE",
+    "setup.py",
+    "build_requirements.txt",
+    "CMakeLists.txt",
+])
+
+# A single shared copy of the MuJoCo engine (plus the bundled plugins) for the
+# extension modules below. Each extension module is its own shared object, so
+# linking the engine statically into each one would give every module its own
+# copy of the engine's global state (plugin registry, error handlers,
+# allocators); the CMake build avoids this the same way, with a shared
+# libmujoco. In the Bazel build, mujoco_pybind_extension links this into every
+# extension.
+cc_shared_library(
+    name = "libmujoco",
+    # The engine and plugin targets, which are the only libraries linked in.
+    exports_filter = ["//:__subpackages__"],
+    shared_lib_name = select({
+        "@platforms//os:macos": "libmujoco_python.dylib",
+        "//conditions:default": "libmujoco_python.so",
+    }),
+    deps = [
+        "//:mujoco",
+        "//plugin/actuator:register",
+        "//plugin/elasticity:register",
+        "//plugin/sdf:register",
+        "//plugin/sensor:register",
+    ],
+)
+
+py_library(
+    name = "mujoco",
+    srcs = [
+        "__init__.py",
+        "gl_context.py",
+        "minimize.py",
+        "renderer.py",
+        "rollout.py",
+    ],
+    data = [
+        ":_callbacks",
+        ":_constants",
+        ":_enums",
+        ":_errors",
+        ":_functions",
+        ":_render",
+        ":_rollout",
+        ":_specs",
+        ":_structs",
+    ],
+    imports = [".."],
+    visibility = [":visibility"],
+    deps = [
+        "//python/mujoco/pypi:absl_py",
+        "//python/mujoco/pypi:epath",
+        "//python/mujoco/pypi:glfw",
+        "//python/mujoco/pypi:numpy",  # buildcleaner: keep
+        "//python/mujoco/pypi:pyopengl",
+        "//python/mujoco/pypi:typing_extensions",
+        "//python/mujoco/pypi:websockets",
+    ],
+)
+
+genrule(
+    name = "_genrule_enum_traits.h",
+    outs = ["enum_traits.h"],
+    cmd = "$(location //python/mujoco/codegen:generate_enum_traits) > $@",
+    tools = ["//python/mujoco/codegen:generate_enum_traits"],
+)
+
+config_setting(
+    name = "_cpu_aarch64_config",
+    constraint_values = ["@platforms//cpu:aarch64"],
+)
+
+config_setting(
+    name = "_cpu_arm_config",
+    constraint_values = ["@platforms//cpu:arm"],
+)
+
+selects.config_setting_group(
+    name = "_arm_build",
+    match_any = [
+        ":_cpu_aarch64_config",
+        ":_cpu_arm_config",
+    ],
+)
+
+cc_library(
+    name = "gil_header",
+    hdrs = ["gil.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+)
+
+cc_library(
+    name = "mujoco_private_api_header",
+    hdrs = ["private.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = ["//:libmujoco_hdrs"],
+)
+
+mujoco_pybind_extension(
+    name = "_callbacks",
+    srcs = ["callbacks.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":gil_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco",  # buildcleaner: keep
+    ],
+)
+
+mujoco_pybind_extension(
+    name = "_constants",
+    srcs = ["constants.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//:mujoco",  # buildcleaner: keep
+    ],
+)
+
+cc_library(
+    name = "enum_traits",
+    hdrs = ["enum_traits.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    # Generated, so in the Bazel export it is under bazel-bin, not next to the
+    # sources that include it.
+    includes = ["."],
+    deps = ["//:libmujoco_hdrs"],
+)
+
+mujoco_pybind_extension(
+    name = "_enums",
+    srcs = ["enums.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":enum_traits",
+        "//:mujoco",  # buildcleaner: keep
+        "//python/mujoco/util:crossplatform",
+        "//python/mujoco/util:tuple_tools",
+    ],
+)
+
+genrule(
+    name = "_genrule_function_traits.h",
+    outs = ["function_traits.h"],
+    cmd = "$(location //python/mujoco/codegen:generate_function_traits) > $@",
+    tools = ["//python/mujoco/codegen:generate_function_traits"],
+)
+
+cc_library(
+    name = "function_traits",
+    hdrs = ["function_traits.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    # Generated, so in the Bazel export it is under bazel-bin, not next to the
+    # sources that include it.
+    includes = ["."],
+    deps = [
+        "//:libmujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+    ],
+)
+
+pybind_library(
+    name = "errors_header",
+    hdrs = ["errors.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":mujoco_private_api_header",
+        "//:libmujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+        "//python/mujoco/util:func_wrap",
+    ],
+)
+
+mujoco_pybind_extension(
+    name = "_errors",
+    srcs = ["errors.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [":errors_header"],
+)
+
+pybind_library(
+    name = "functions_header",
+    hdrs = ["functions.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":structs_header",
+        "//:libmujoco_hdrs",
+        "//python/mujoco/util:array_traits",
+        "//python/mujoco/util:crossplatform",
+        "//python/mujoco/util:func_wrap",
+        "//python/mujoco/util:tuple_tools",
+        "//src/engine:engine_util_errmem",
+        "@eigen",
+    ],
+)
+
+mujoco_pybind_extension(
+    name = "_functions",
+    srcs = ["functions.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":function_traits",
+        ":functions_header",
+        ":mujoco_private_api_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco",  # buildcleaner: keep
+        "//python/mujoco/util:func_wrap",
+        "@eigen",
+    ],
+)
+
+cc_library(
+    name = "raw",
+    hdrs = ["raw.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = ["//visibility:private"],
+    deps = ["//:libmujoco_hdrs"],
+)
+
+mujoco_pybind_extension(
+    name = "_render",
+    srcs = ["render.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":function_traits",
+        ":functions_header",
+        ":raw",
+        ":structs_header",
+        "//:libmujoco_hdrs",
+        "//:mujoco",  # buildcleaner: keep
+        "@eigen",
+    ],
+)
+
+pybind_library(
+    name = "structs_header",
+    hdrs = [
+        "indexer_xmacro.h",
+        "indexers.h",
+        "structs.h",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = [":visibility"],
+    deps = [
+        ":gil_header",
+        ":raw",
+        "//:libmujoco_hdrs",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+pybind_library(
+    name = "structs_wrappers",
+    srcs = [
+        "indexers.cc",
+        "serialization.h",
+        "structs_wrappers.cc",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = [":visibility"],
+    deps = [
+        ":errors_header",
+        ":gil_header",
+        ":mujoco_private_api_header",
+        ":raw",
+        ":structs_header",
+        ":vfs",
+        "//:libmujoco_hdrs",
+        "//python/mujoco/util:crossplatform",
+        "@abseil-cpp//absl/container:flat_hash_map",
+    ],
+)
+
+pybind_library(
+    name = "specs_wrapper",
+    srcs = [
+        "specs_wrapper.cc",
+    ],
+    hdrs = [
+        "specs_wrapper.h",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    visibility = [":visibility"],
+    deps = [
+        ":errors_header",
+        ":mujoco_private_api_header",
+        ":raw",
+        ":structs_header",
+        "//:libmujoco_hdrs",
+    ],
+)
+
+mujoco_pybind_extension(
+    name = "_structs",
+    srcs = [
+        "serialization.h",
+        "structs.cc",
+    ],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":function_traits",
+        ":raw",
+        ":structs_header",
+        ":structs_wrappers",  # buildcleaner: keep
+        ":vfs",
+        "//:libmujoco_hdrs",
+        "//:mujoco",  # buildcleaner: keep
+    ],
+)
+
+py_test(
+    name = "bindings_test",
+    srcs = ["bindings_test.py"],
+    data = [
+        "testdata/abdomen_1_body.msh",
+        "testdata/msh.xml",
+    ],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:epath",
+        "//python/mujoco/pypi:numpy",
+        "//python/mujoco/pypi:parameterized",
+    ],
+)
+
+cc_library(
+    name = "threadpool",
+    srcs = ["threadpool.cc"],
+    hdrs = ["threadpool.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = ["@abseil-cpp//absl/base:core_headers"],
+)
+
+cc_library(
+    name = "vfs",
+    hdrs = ["vfs.h"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = ["//:libmujoco_hdrs"],
+)
+
+mujoco_pybind_extension(
+    name = "_rollout",
+    srcs = ["rollout.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":raw",
+        ":structs_header",
+        ":threadpool",
+        "//:mujoco",  # buildcleaner: keep
+    ],
+)
+
+py_test(
+    name = "rollout_test",
+    srcs = ["rollout_test.py"],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+        "//python/mujoco/pypi:parameterized",
+    ],
+)
+
+genrule(
+    name = "_genrule_specs.cc.inc",
+    outs = ["specs.cc.inc"],
+    cmd = "$(location //python/mujoco/codegen:generate_spec_bindings) > $@",
+    tools = ["//python/mujoco/codegen:generate_spec_bindings"],
+)
+
+# The generated specs.cc.inc, as a header library. Bazel puts generated files
+# under bazel-bin, outside specs.cc's source directory, so in the Bazel export
+# specs.cc's `#include "specs.cc.inc"` needs the `includes` path.
+cc_library(
+    name = "specs_inc",
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    includes = ["."],
+    textual_hdrs = ["specs.cc.inc"],
+)
+
+mujoco_pybind_extension(
+    name = "_specs",
+    srcs = ["specs.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":raw",
+        ":specs_inc",
+        ":specs_wrapper",
+        ":structs_header",
+        ":vfs",
+        "//:mujoco",  # buildcleaner: keep
+        "@eigen",
+    ],
+)
+
+py_test(
+    name = "specs_test",
+    srcs = ["specs_test.py"],
+    data = [
+        "testdata/MJCF_NoRoot.zip",
+        "testdata/MJCF_Root.zip",
+        "testdata/model.urdf",
+        "testdata/model.xml",
+    ],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absl_flags",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:epath",
+        "//python/mujoco/pypi:numpy",
+    ],
+)
+
+exports_files(
+    srcs = [
+        "mjpython/mjpython.mm",
+        "mjpython/mjpython.py",
+    ],
+)
+
+py_test(
+    name = "minimize_test",
+    srcs = ["minimize_test.py"],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+    ],
+)
+
+py_library(
+    name = "msh2obj",
+    srcs = [
+        "msh2obj.py",
+    ],
+    imports = [".."],
+    deps = [
+        "//python/mujoco/pypi:numpy",
+    ],
+)
+
+py_test(
+    name = "msh2obj_test",
+    srcs = ["msh2obj_test.py"],
+    data = [
+        ":testdata",
+    ],
+    deps = [
+        ":msh2obj",
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:epath",
+        "//python/mujoco/pypi:numpy",
+        "//python/mujoco/pypi:parameterized",
+    ],
+)
+
+filegroup(
+    name = "testdata",
+    srcs = glob([
+        "testdata/*",
+    ]),
+)
+
+py_test(
+    name = "memory_leak_test",
+    srcs = ["memory_leak_test.py"],
+    tags = [
+        "noasan",
+        "nomsan",
+        "notsan",
+    ],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_test(
+    name = "vfs_test",
+    srcs = ["vfs_test.py"],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_test(
+    name = "thread_safety_test",
+    srcs = ["thread_safety_test.py"],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+    ],
+)
+
+py_test(
+    name = "gil_test",
+    srcs = ["gil_test.py"],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+    ],
+)

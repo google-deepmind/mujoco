@@ -1,0 +1,84 @@
+# Copyright 2026 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# PyPI dependencies of the Bazel build of the MuJoCo Python bindings.
+#
+# This file is only used by the open-source Bazel build.
+#
+# The exported Python BUILD files reference these aliases rather than the pip
+# hub directly, so that several internal labels that map onto the same PyPI
+# package (e.g. absltest and parameterized -> absl-py) never collapse into
+# duplicate entries in a single deps list.
+#
+# The @mujoco_pip hub is built from python/build_requirements.txt, the same
+# hashed lock file that .github/workflows/build_steps.sh installs for the CMake
+# build, so both builds test the same package versions. A package aliased here
+# must be listed in that file.
+
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "absl_py",
+    actual = "@mujoco_pip//absl_py",
+)
+
+alias(
+    name = "absl_app",
+    actual = "@mujoco_pip//absl_py",
+)
+
+alias(
+    name = "absl_flags",
+    actual = "@mujoco_pip//absl_py",
+)
+
+alias(
+    name = "absltest",
+    actual = "@mujoco_pip//absl_py",
+)
+
+alias(
+    name = "parameterized",
+    actual = "@mujoco_pip//absl_py",
+)
+
+alias(
+    name = "epath",
+    actual = "@mujoco_pip//etils",
+)
+
+alias(
+    name = "glfw",
+    actual = "@mujoco_pip//glfw",
+)
+
+alias(
+    name = "numpy",
+    actual = "@mujoco_pip//numpy",
+)
+
+alias(
+    name = "pyopengl",
+    actual = "@mujoco_pip//pyopengl",
+)
+
+alias(
+    name = "typing_extensions",
+    actual = "@mujoco_pip//typing_extensions",
+)
+
+alias(
+    name = "websockets",
+    actual = "@mujoco_pip//websockets",
+)

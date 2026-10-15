@@ -19,11 +19,15 @@ module(
     bazel_compatibility = [">=8.0.0"],
 )
 
-bazel_dep(name = "abseil-cpp", version = "20260107.1", dev_dependency = True)
-
+# abseil-cpp, eigen, pybind11_bazel and rules_python are only needed by the
+# Python bindings (//python/mujoco), but must be regular deps so downstream
+# modules can build them. C-only consumers never fetch them, though they still
+# take part in version resolution.
+bazel_dep(name = "abseil-cpp", version = "20260107.1")
 bazel_dep(name = "apple_support", version = "1.24.5")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "ccd", version = "2.1.0.bcr.2")
+bazel_dep(name = "eigen", version = "5.0.1.bcr.2")
 bazel_dep(name = "glfw", version = "3.4.0.bcr.3")
 
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
@@ -32,10 +36,65 @@ bazel_dep(name = "lodepng", version = "0.0.0-20250506-17d08dd")
 bazel_dep(name = "marchingcubecpp", version = "0.0.0-20230911-f03a1b3")
 bazel_dep(name = "miniz", version = "3.1.1")
 bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "pybind11_bazel", version = "3.0.1")
 bazel_dep(name = "qhull", version = "8.0.2.bcr.1")
 bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "rules_python", version = "1.9.0")
 
 bazel_dep(name = "rules_shell", version = "0.4.1", dev_dependency = True)
 
 bazel_dep(name = "tinyobjloader", version = "2.0.0-rc1.bcr.2")
 bazel_dep(name = "tinyxml2", version = "11.0.0")
+
+# Python toolchain and PyPI dependencies for the Python bindings in
+# //python/mujoco. Runtime and build-time PyPI packages are referenced through
+# the aliases in //python/mujoco/pypi.
+#
+# The default Python version comes from the same file the GitHub Actions CMake
+# jobs pass to actions/setup-python, so both builds test the same version.
+# Choosing a default is up to the root module, so this only applies when
+# building MuJoCo itself; downstream modules pick their own.
+python = use_extension(
+    "@rules_python//python/extensions:python.bzl",
+    "python",
+    dev_dependency = True,
+)
+python.defaults(python_version_file = "//:.github/workflows/python-version")
+
+# The version file must name one of these. Changing it to another listed
+# version needs no edit here; a version that isn't listed fails with "No default
+# Python toolchain configured". This matches the versions the wheels support
+# (pyproject.toml), except 3.15, which needs a newer rules_python.
+_PYTHON_VERSIONS = [
+    "3.10",
+    "3.11",
+    "3.12",
+    "3.13",
+    "3.14",
+]
+
+[
+    python.toolchain(
+        ignore_root_user_error = True,
+        python_version = version,
+    )
+    for version in _PYTHON_VERSIONS
+]
+
+# The pip hub is not dev-only, because //python/mujoco needs its runtime
+# dependencies and absl-py to run the code generators. It is parsed once per
+# supported Python version, so @mujoco_pip serves wheels for whichever
+# interpreter is in use. The lock file is the one the CMake build installs.
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
+[
+    pip.parse(
+        experimental_index_url = "https://pypi.org/simple",
+        hub_name = "mujoco_pip",
+        python_version = version,
+        requirements_lock = "//:python/build_requirements.txt",
+    )
+    for version in _PYTHON_VERSIONS
+]
+
+use_repo(pip, "mujoco_pip")

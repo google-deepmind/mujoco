@@ -23,7 +23,7 @@
 #include <thread>
 #include <vector>
 
-#include <absl/base/attributes.h>
+#include "absl/base/attributes.h"
 
 namespace mujoco::python {
 
