@@ -385,10 +385,10 @@ dt .at {
     padding: 0.5rem 1rem !important; /* Standardize body padding */
 }
 
-/* Align the title text perfectly with the body text */
+/* Align the title text perfectly with the body text. Block, not flex: a flex
+   container drops the space between text and inline markup such as links. */
 .admonition .admonition-title {
-    display: flex;
-    align-items: center;
+    display: block;
     margin-left: -0.25rem; /* Pulls the title slightly left to balance the icon */
     padding-bottom: 0.25rem;
 }
