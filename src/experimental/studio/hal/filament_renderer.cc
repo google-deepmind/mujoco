@@ -41,8 +41,7 @@ static void PluginUpdate(GuiPlugin* plugin) {
   }
 }
 
-FilamentRenderer::FilamentRenderer(void* native_window, GraphicsMode gfx)
-    : native_window_(native_window), gfx_(gfx) {
+FilamentRenderer::FilamentRenderer(void* native_window, GraphicsMode gfx) {
   g_update_gui_callback = [this]() {
     if (main_scene_) {
       DrawSceneEditor(main_scene_.get());
@@ -55,10 +54,10 @@ FilamentRenderer::FilamentRenderer(void* native_window, GraphicsMode gfx)
 
   mjrfContextConfig cfg;
   mjrf_defaultContextConfig(&cfg);
-  cfg.native_window = native_window_;
-  cfg.software_rendering = IsSoftware(gfx_);
-  cfg.graphics_api = IsOpenGl(gfx_) || IsWebGl(gfx_) ? mjGRAPHICS_API_OPENGL
-                                                      : mjGRAPHICS_API_VULKAN;
+  cfg.native_window = native_window;
+  cfg.software_rendering = IsSoftware(gfx);
+  cfg.graphics_api = IsOpenGl(gfx) || IsWebGl(gfx) ? mjGRAPHICS_API_OPENGL
+                                                   : mjGRAPHICS_API_VULKAN;
   filament_context_ = CreateContext(cfg);
 
   ux_scene_ = CreateScene(filament_context_.get(), {});
