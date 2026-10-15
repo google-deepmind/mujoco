@@ -45,6 +45,8 @@ public class MjHeightFieldShape : IMjShape {
   public int UpdateLimit;
 
   private int _updateCountdown;
+  private float _minimumHeightMapValue;
+  private float _maximumHeightMapValue;
 
   [HideInInspector]
   public float MinimumHeight { get; private set; }
@@ -102,12 +104,15 @@ public class MjHeightFieldShape : IMjShape {
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height),
         0,
         0);
-    MaximumHeight = texture.GetPixels().Select(c => c.r).Max() * HeightMapScale.y * 2;
-    var minimumHeight = texture.GetPixels().Select(c => c.r).Min() * HeightMapScale.y * 2;
+    var pixels = texture.GetPixels();
+    _maximumHeightMapValue = pixels.Max(c => c.r);
+    _minimumHeightMapValue = pixels.Min(c => c.r);
+    MaximumHeight = _maximumHeightMapValue * HeightMapScale.y * 2;
+    MinimumHeight = _minimumHeightMapValue * HeightMapScale.y * 2;
 
     RenderTexture.active = null;
     if (ExportImage) {
-      if (minimumHeight > 0.0001)
+      if (_minimumHeightMapValue > 0.0001)
         Debug.LogWarning("Due to assumptions in MuJoCo heightfields, terrains should have a " +
                          "minimum heightmap value of 0.");
       File.WriteAllBytes(FullHeightMapPath, texture.EncodeToPNG());
@@ -124,8 +129,15 @@ public class MjHeightFieldShape : IMjShape {
         0);
     RenderTexture.active = null;
 
-    float[] curData = texture.GetPixels(0, 0, texture.width, texture.height)
-        .Select(c => c.r * 2).ToArray();
+    var pixels = texture.GetPixels(0, 0, texture.width, texture.height);
+    float heightRange = _maximumHeightMapValue - _minimumHeightMapValue;
+    float[] curData;
+    if (heightRange > Mathf.Epsilon) {
+      curData = pixels.Select(
+          c => Mathf.Clamp01((c.r - _minimumHeightMapValue) / heightRange)).ToArray();
+    } else {
+      curData = new float[pixels.Length];
+    }
     int adr = MjScene.Instance.Model->hfield_adr[HeightFieldId];
     for (int i = 0; i < curData.Length; i++) {
       MjScene.Instance.Model->hfield_data[adr + i] = curData[i];
