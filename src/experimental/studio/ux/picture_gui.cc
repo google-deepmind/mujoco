@@ -15,21 +15,19 @@
 #include "experimental/studio/ux/picture_gui.h"
 
 #include <algorithm>
-#include <cstddef>
 #include <string>
 #include <vector>
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
-#include "experimental/studio/hal/filament_renderer.h"
 #include "experimental/studio/ux/imgui_widgets.h"
 
 namespace mujoco::studio {
 
 // Returns false if the user requests that this picture-in-picture widget be
 // removed from the GUI.
-static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
-                       FilamentRenderer* renderer, PipState* pip) {
+static bool PipGuiImpl(const mjModel* model, float aspect_ratio,
+                       const PipRenderCallback& render_cb, PipState* pip) {
   bool result = true;
 
   auto get_camera_name = [model](int i) -> const char* {
@@ -42,8 +40,6 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
 
   const int width = ImGui::GetContentRegionAvail().x;
   const int height = aspect_ratio != 0.f ? width / aspect_ratio : width;
-  std::vector<std::byte> output(width * height * 3);
-
   const int combo_width = (width - 30) / 2;
 
   ImGui::PushID(pip);
@@ -56,11 +52,6 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
     }
     ImGui::EndCombo();
   }
-
-  mjvCamera camera;
-  mjv_defaultCamera(&camera);
-  camera.type = mjCAMERA_FIXED;
-  camera.fixedcamid = pip->camera;
 
   const char* mode_names[] = {"Color", "Depth", "Segmentation"};
   ImGui::SameLine();
@@ -79,26 +70,15 @@ static bool PipGuiImpl(const mjModel* model, mjData* data, float aspect_ratio,
     result = false;
   }
 
-  mjtByte* flags = renderer->GetRenderFlags();
-  const int prev_depth = flags[mjRND_DEPTH];
-  const int prev_segment = flags[mjRND_SEGMENT];
-  flags[mjRND_DEPTH] = (pip->mode == PipState::Depth) ? 1 : 0;
-  flags[mjRND_SEGMENT] = (pip->mode == PipState::Segmentation) ? 1 : 0;
-  renderer->RenderToTexture(model, data, &camera, width, height, output.data());
-  pip->texture =
-      renderer->UploadImage(pip->texture, output.data(), width, height, 3);
-
-  // Restore previous render flags.
-  flags[mjRND_DEPTH] = prev_depth;
-  flags[mjRND_SEGMENT] = prev_segment;
+  pip->texture = render_cb(*pip, width, height);
 
   ImGui::Image(pip->texture, {(float)width, (float)height});
   ImGui::PopID();
   return result;
 }
 
-void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
-            FilamentRenderer* renderer, std::vector<PipState>* pips) {
+void PipGui(const mjModel* model, float aspect_ratio,
+            const PipRenderCallback& render_cb, std::vector<PipState>* pips) {
   if (pips->empty()) {
     pips->emplace_back();
   }
@@ -106,7 +86,7 @@ void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
   std::vector<int> to_delete;
   for (int i = 0; i < pips->size(); ++i) {
     PipState& pip = pips->at(i);
-    if (PipGuiImpl(model, data, aspect_ratio, renderer, &pip) == false) {
+    if (PipGuiImpl(model, aspect_ratio, render_cb, &pip) == false) {
       to_delete.push_back(i);
     };
     ImGui::Separator();

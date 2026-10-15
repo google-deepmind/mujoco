@@ -1317,8 +1317,30 @@ void App::BuildGui() {
 
   if (tmp_.picture_in_picture) {
     if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
-      PipGui(model(), data(), window_->GetAspectRatio(),
-                       renderer_.get(), &tmp_.pips);
+      auto render_cb = [this](const PipState& pip, int width, int height) {
+        mjtByte* flags = renderer_->GetRenderFlags();
+        const int prev_depth = flags[mjRND_DEPTH];
+        const int prev_segment = flags[mjRND_SEGMENT];
+        flags[mjRND_DEPTH] = (pip.mode == PipState::Depth) ? 1 : 0;
+        flags[mjRND_SEGMENT] = (pip.mode == PipState::Segmentation) ? 1 : 0;
+
+        std::vector<std::byte> output(width * height * 3);
+        mjvCamera camera;
+        mjv_defaultCamera(&camera);
+        camera.type = mjCAMERA_FIXED;
+        camera.fixedcamid = pip.camera;
+
+        renderer_->RenderToTexture(model(), data(), &camera, width, height,
+                                   output.data());
+        int id = renderer_->UploadImage(pip.texture, output.data(), width,
+                                        height, 3);
+
+        flags[mjRND_DEPTH] = prev_depth;
+        flags[mjRND_SEGMENT] = prev_segment;
+        return id;
+      };
+
+      PipGui(model(), window_->GetAspectRatio(), render_cb, &tmp_.pips);
     }
     ImGui::End();
   }

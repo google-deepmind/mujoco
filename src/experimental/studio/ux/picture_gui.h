@@ -15,12 +15,12 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_PICTURE_GUI_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_PICTURE_GUI_H_
 
+#include <functional>
 #include <string>
 #include <vector>
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
-#include "experimental/studio/hal/filament_renderer.h"
 
 namespace mujoco::studio {
 
@@ -39,9 +39,12 @@ struct PipState {
   Mode mode = Color;
 };
 
+using PipRenderCallback =
+    std::function<ImTextureID(const PipState&, int, int)>;
+
 // Renders the GUI for a set of picture-in-picture widgets.
-void PipGui(const mjModel* model, mjData* data, float aspect_ratio,
-            FilamentRenderer* renderer, std::vector<PipState>* pips);
+void PipGui(const mjModel* model, float aspect_ratio,
+            const PipRenderCallback& render_cb, std::vector<PipState>* pips);
 
 // Renders the GUI for a set of picture-in-picture widgets backed by
 // pre-uploaded textures.
