@@ -92,18 +92,21 @@
       "os": "ubuntu-24.04",
       "label": "ubuntu-24.04-bazel-8.x",
       "bazel_version": "8.x",
+      "disk_cache": "true",
       "tier": "extended"
     },
     {
       "os": "ubuntu-24.04",
       "label": "ubuntu-24.04-bazel-latest",
       "bazel_version": "latest",
+      "disk_cache": "true",
       "tier": "extended"
     },
     {
       "os": "macos-15",
       "label": "macos-15-arm64-bazel",
       "bazel_version": "",
+      "disk_cache": "true",
       "tier": "core"
     }
   ]
