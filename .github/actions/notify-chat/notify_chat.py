@@ -103,10 +103,29 @@ def main():
 
     server_url = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
     repo = os.environ.get('GITHUB_REPOSITORY', 'google-deepmind/mujoco')
-    run_id = os.environ.get('GITHUB_RUN_ID', '123456')
-    run_url = os.environ.get('JOB_URL', f'{server_url}/{repo}/actions/runs/{run_id}')
+    build_id = os.environ.get('CHATMSG_BUILD_ID') or os.environ.get('GITHUB_RUN_ID')
+    if not build_id:
+        print('Error: CHATMSG_BUILD_ID (or GITHUB_RUN_ID) is required.', file=sys.stderr)
+        sys.exit(1)
 
-    commit_sha = os.environ.get('CHAT_COMMIT_SHA', '')[:7] or os.environ.get('GITHUB_SHA', '')[:7] or git_log('%h') or 'unknown'
+    build_url = (
+        os.environ.get('CHATMSG_BUILD_URL')
+        or os.environ.get('JOB_URL')
+        or f'{server_url}/{repo}/actions/runs/{build_id}'
+    )
+    workflow = os.environ.get('CHATMSG_WORKFLOW') or os.environ.get('GITHUB_WORKFLOW', 'build')
+    icon_url = os.environ.get(
+        'CHATMSG_ICON_URL',
+        'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+    )
+
+    commit_sha = (
+        os.environ.get('CHATMSG_COMMIT_SHA', '')[:7]
+        or os.environ.get('CHAT_COMMIT_SHA', '')[:7]
+        or os.environ.get('GITHUB_SHA', '')[:7]
+        or git_log('%h')
+        or 'unknown'
+    )
     git_name = git_log('%an')
     git_email = git_log('%ae')
     git_msg = git_log('%s')
@@ -133,8 +152,8 @@ def main():
                 'card': {
                     'header': {
                         'title': 'Build Status: FAILURE',
-                        'subtitle': f"Workflow: {os.environ.get('GITHUB_WORKFLOW', 'build')}",
-                        'imageUrl': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+                        'subtitle': f'Workflow: {workflow}',
+                        'imageUrl': icon_url,
                         'imageType': 'CIRCLE',
                     },
                     'sections': [
@@ -142,7 +161,7 @@ def main():
                             'widgets': [
                                 {
                                     'decoratedText': {
-                                        'text': f'🔴 Run: <a href="{run_url}">{run_id}</a>',
+                                        'text': f'🔴 Run: <a href="{build_url}">{build_id}</a>',
                                     }
                                 }
                             ]
@@ -163,7 +182,7 @@ def main():
         ]
     }
 
-    message_id = f'client-run-{run_id}'
+    message_id = f'client-run-{build_id}'
     url = f'https://chat.googleapis.com/v1/{space_id}/messages?messageId={message_id}'
     post_req = urllib.request.Request(
         url,
@@ -181,7 +200,7 @@ def main():
             print('Chat notification sent successfully!')
     except urllib.error.HTTPError as e:
         if e.code == 409:
-            print(f'Notification for run {run_id} was already posted by another job; skipping duplicate.')
+            print(f'Notification for run {build_id} was already posted by another job; skipping duplicate.')
             sys.exit(0)
         print(f'Failed to post chat message (HTTP {e.code}): {e.read().decode("utf-8")}', file=sys.stderr)
         sys.exit(1)
@@ -221,7 +240,7 @@ def main():
                     print('Threaded mention reply sent successfully!')
             except urllib.error.HTTPError as e:
                 if e.code == 409:
-                    print(f'Threaded mention for run {run_id} was already posted; skipping duplicate.')
+                    print(f'Threaded mention for run {build_id} was already posted; skipping duplicate.')
                 else:
                     print(f'Failed to post threaded mention (HTTP {e.code}): {e.read().decode("utf-8")}', file=sys.stderr)
             except Exception as e:

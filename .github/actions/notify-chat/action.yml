@@ -39,7 +39,7 @@ runs:
         CHAT_SERVICE_ACCOUNT_KEY: ${{ inputs.service-account-key }}
         CHAT_USER_ID_MAP: ${{ inputs.user-id-map }}
         CHAT_SPACE_ID: ${{ inputs.space-id }}
-        CHAT_COMMIT_SHA: ${{ inputs.commit-sha }}
+        CHATMSG_COMMIT_SHA: ${{ inputs.commit-sha }}
         CHATMSG_AUTHOR_NAME: ${{ inputs.author-name }}
         CHATMSG_AUTHOR_EMAIL: ${{ inputs.author-email }}
         CHATMSG_COMMIT_MESSAGE: ${{ inputs.commit-message }}
