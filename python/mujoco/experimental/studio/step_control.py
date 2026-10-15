@@ -16,11 +16,11 @@
 import contextlib
 
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import viewer_handle
 
 
-class StepControl:
+class StepControl(plugin.SimPlugin):
   """Default sim plugin that steps CPU physics with real-time pacing.
 
   Pass your own plugin instead to step differently (e.g. a GPU simulation).
@@ -33,7 +33,6 @@ class StepControl:
   """
 
   def __init__(self) -> None:
-    self._handle: viewer_handle.ViewerHandle | None = None
     self._model_path: str = ''
     self.step_control = sim.StepControl()
 
@@ -45,10 +44,6 @@ class StepControl:
             self.step_control
         )
     )
-
-  @messages.handler(priority=messages.Priority.INTERNAL)
-  def _on_sim_init(self, event: viewer_handle.SimInitEvent) -> None:
-    self._handle = event.handle
 
   @messages.handler(priority=messages.Priority.INTERNAL)
   def _on_post_model(self, event: messages.PostModelEvent) -> None:

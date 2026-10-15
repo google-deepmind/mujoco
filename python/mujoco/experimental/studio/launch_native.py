@@ -13,12 +13,14 @@
 # limitations under the License.
 """Native desktop viewer launcher."""
 
+from collections.abc import Iterable
 from typing import Any
 
 import mujoco
 from mujoco.experimental.studio import endpoints
 from mujoco.experimental.studio import launch_thread
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
@@ -44,6 +46,7 @@ def run_native_viewer(
 def launch(
     config: viewer_protocol.ViewerConfig | None = None,
     *,
+    plugins: Iterable[plugin.Plugin] | None = None,
     viewer_plugins: list[Any] | None = None,
     sim_plugins: list[Any] | None = None,
 ) -> viewer_handle.ViewerHandle:
@@ -51,14 +54,18 @@ def launch(
 
   Args:
     config: Optional ViewerConfig (defaults to standard ViewerConfig()).
-    viewer_plugins: Optional list of viewer-side plugin instances.
-    sim_plugins: Optional list of sim-side plugin instances.
+    plugins: Optional viewer and sim plugins.
+    viewer_plugins: Deprecated list of viewer-side plugin instances.
+    sim_plugins: Deprecated list of sim-side plugin instances.
 
   Returns:
     A ViewerHandle for interacting with the viewer.
   """
   if config is None:
     config = viewer_protocol.ViewerConfig()
+  split_viewer_plugins, split_sim_plugins = plugin.split_plugins(plugins)
+  viewer_plugins = split_viewer_plugins + list(viewer_plugins or ())
+  sim_plugins = split_sim_plugins + list(sim_plugins or ())
 
   def target(endpoint: endpoints.ViewerEndpoint) -> None:
     run_native_viewer(config, endpoint, plugins=viewer_plugins)
@@ -72,6 +79,7 @@ def run(
     model: mujoco.MjModel | None = None,
     data: mujoco.MjData | None = None,
     model_path: str | None = None,
+    plugins: Iterable[plugin.Plugin] | None = None,
     viewer_plugins: list[Any] | None = None,
     sim_plugins: list[Any] | None = None,
 ) -> None:
@@ -79,11 +87,12 @@ def run(
 
   Args:
     config: Optional ViewerConfig (defaults to standard ViewerConfig()).
-    model_path: Model file to load.
     model: In-memory model to publish instead.
     data: The data for ``model``; a fresh one is created when None.
-    viewer_plugins: Optional list of viewer-side plugin instances.
-    sim_plugins: Optional list of sim-side plugin instances.
+    model_path: Model file to load.
+    plugins: Optional viewer and sim plugins.
+    viewer_plugins: Deprecated list of viewer-side plugin instances.
+    sim_plugins: Deprecated list of sim-side plugin instances.
 
   Raises:
     ValueError: If both ``model`` and ``model_path`` are given.
@@ -92,6 +101,7 @@ def run(
     raise ValueError('Pass either model_path or model, not both.')
   with launch(
       config,
+      plugins=plugins,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   ) as handle:

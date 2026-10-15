@@ -57,19 +57,25 @@ class ViewerConfig:
 
 
 # -----------------------------------------------------------------------------
-# Base class for any viewer.
+# Viewer lifecycle events.
 # -----------------------------------------------------------------------------
 
 
 @dataclasses.dataclass(frozen=True)
 class ViewerInitEvent(messages.Event):
-  """Lifecycle event dispatched once when the concrete Viewer is initialized.
+  """Lifecycle event dispatched locally once when a ``Viewer`` initializes.
 
-  Plugins that need access to the Viewer should handle this event
-  and cache the reference.
+  ``plugin.ViewerPlugin`` caches ``event.viewer`` as ``self._viewer`` above
+  ``CRITICAL`` priority, so ``self._viewer`` is already set when subclass
+  handlers run.
   """
 
   viewer: 'Viewer'
+
+
+# -----------------------------------------------------------------------------
+# Base class for any viewer.
+# -----------------------------------------------------------------------------
 
 
 class Viewer(abc.ABC):

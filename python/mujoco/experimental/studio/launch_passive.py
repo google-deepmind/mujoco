@@ -17,10 +17,12 @@ Launches the viewer in a daemon thread and returns a ``ViewerHandle``
 that the calling thread uses to push simulation state into the viewer.
 """
 
+from collections.abc import Iterable
 from typing import Any
 
 import mujoco
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
 
@@ -28,6 +30,7 @@ from mujoco.experimental.studio import viewer_protocol
 def launch(
     config: viewer_protocol.ViewerConfig,
     *,
+    plugins: Iterable[plugin.Plugin] | None = None,
     viewer_plugins: list[Any] | None = None,
     sim_plugins: list[Any] | None = None,
 ) -> viewer_handle.ViewerHandle:
@@ -39,12 +42,11 @@ def launch(
 
   Args:
     config: Viewer window configuration.
-    viewer_plugins: Optional list of viewer-side plugin instances, which are
-      classes with methods decorated with ``@handler``.
-    sim_plugins: Optional list of sim-side plugin instances, which are classes
-      with methods decorated with ``@handler``. Include a plugin that handles
-      ``StepEvent`` (e.g. ``step_control.StepControl()``) to advance the
+    plugins: Optional viewer and sim plugins. Include a ``SimPlugin`` that
+      handles ``StepEvent`` (e.g. ``step_control.StepControl()``) to advance the
       physics and, at minimum, pace each ``sync`` call.
+    viewer_plugins: Deprecated list of viewer-side plugin instances.
+    sim_plugins: Deprecated list of sim-side plugin instances.
 
   Returns:
     A ViewerHandle for interacting with the viewer.
@@ -54,6 +56,7 @@ def launch(
 
     return launch_web.launch(
         config,
+        plugins=plugins,
         viewer_plugins=viewer_plugins,
         sim_plugins=sim_plugins,
     )
@@ -61,6 +64,7 @@ def launch(
 
   return launch_native.launch(
       config,
+      plugins=plugins,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   )
@@ -72,6 +76,7 @@ def run(
     model: mujoco.MjModel | None = None,
     data: mujoco.MjData | None = None,
     model_path: str | None = None,
+    plugins: Iterable[plugin.Plugin] | None = None,
     viewer_plugins: list[Any] | None = None,
     sim_plugins: list[Any] | None = None,
 ) -> None:
@@ -79,11 +84,12 @@ def run(
 
   Args:
     config: Viewer window configuration.
-    model_path: Model file to load.
     model: In-memory model to publish instead.
     data: The data for ``model``; a fresh one is created when None.
-    viewer_plugins: Optional list of viewer-side plugin instances.
-    sim_plugins: Optional list of sim-side plugin instances.
+    model_path: Model file to load.
+    plugins: Optional viewer and sim plugins.
+    viewer_plugins: Deprecated list of viewer-side plugin instances.
+    sim_plugins: Deprecated list of sim-side plugin instances.
 
   Raises:
     ValueError: If both ``model`` and ``model_path`` are given.
@@ -92,6 +98,7 @@ def run(
     raise ValueError('Pass either model_path or model, not both.')
   with launch(
       config,
+      plugins=plugins,
       viewer_plugins=viewer_plugins,
       sim_plugins=sim_plugins,
   ) as handle:

@@ -36,6 +36,7 @@ from absl import flags as _flags
 import mujoco
 from mujoco.experimental.studio import launch_web
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import sim
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
@@ -63,7 +64,7 @@ def build(num_boxes: int) -> mujoco.MjModel:
   """)
 
 
-class _ViewerControls:
+class _ViewerControls(plugin.SimPlugin):
   """Mirrors the viewer's pause button and speed setting for the loop below.
 
   The viewer sends ``StepControlSnapshot`` when either changes; ``StepControl``
@@ -93,8 +94,7 @@ def main(argv: list[str]) -> None:
 
   with launch_web.launch(
       config,
-      viewer_plugins=[viewer_app.ViewerApp()],
-      sim_plugins=[controls],  # No StepControl: this loop steps and paces.
+      plugins=[viewer_app.ViewerApp(), controls],  # No StepControl: loop paces.
   ) as handle:
     while handle.is_running():
       tick = time.perf_counter()

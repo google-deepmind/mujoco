@@ -50,8 +50,11 @@ def main(argv: list[str]) -> None:
   launch_passive.run(
       config,
       model_path=model_path,
-      viewer_plugins=[viewer_app.ViewerApp()],
-      sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
+      plugins=[
+          viewer_app.ViewerApp(),
+          step_control.StepControl(),
+          sim_history.SimHistory(),
+      ],
   )
 
 

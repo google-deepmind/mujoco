@@ -67,7 +67,7 @@ message-driven plugin architecture:
 │              Simulation Thread (Caller)                │
 │  - Owns MjModel and MjData                             │
 │  - Runs physics loop, RL policies, or MPC planners     │
-│  - Executes sim_plugins (e.g. StepControl, reset)      │
+│  - Executes SimPlugin instances (e.g. StepControl)     │
 │  - Drives simulation via handle.sync()                 │
 └────────────────────────────────────────────────────────┘
                         ▲
@@ -78,7 +78,7 @@ message-driven plugin architecture:
 │              Viewer Thread (or Web Client)             │
 │  - Owns Window, Renderer, Camera, VisOptions, Perturb  │
 │  - Owns local copy of MjModel and MjData for rendering │
-│  - Executes viewer_plugins (ViewerApp, custom UI)      │
+│  - Executes ViewerPlugin instances (ViewerApp, UI)     │
 │  - Dispatches lifecycle events (UpdateEvent, BuildGuiEvent) │
 └────────────────────────────────────────────────────────┘
 ```
@@ -87,15 +87,21 @@ message-driven plugin architecture:
     and the viewer thread run independently. The simulation communicates with
     the viewer non-blockingly through endpoints (`SimEndpoint ↔ ViewerEndpoint`)
     using queued `Event`s and latest-value `Snapshot`s.
--   **Priority-based Plugin System (`plugin_registry.py`)**: State and UI
-    behaviors are decoupled into standalone plugin classes decorated with
-    `@messages.handler(priority=...)`.
-    -   **Simulation plugins (`sim_plugins`)**: Handle simulation-side events
-        (e.g. physics reset, step control, perturbations, model reloading,
-        policy changes).
-    -   **Viewer plugins (`viewer_plugins`)**: Handle rendering and UI lifecycle
-        events (e.g. viewer initialization, model reloading, per-frame visual
-        updates, GUI construction).
+-   **Priority-based Plugin System (`plugin.py`, `plugin_registry.py`)**: State
+    and UI behaviors are decoupled into standalone plugin classes decorated with
+    `@messages.handler(priority=...)`; `plugin_registry.PluginRegistry` discovers
+    the handlers and dispatches messages to them. Launchers accept a single
+    `plugins=[...]` argument and partition instances by base class:
+    -   **Simulation plugins (`plugin.SimPlugin`)**:
+        Subclass `SimPlugin` to run on the simulation thread, automatically
+        caching `self._handle` on `SimInitEvent`, and handle simulation-side
+        events (e.g. physics reset, step control, perturbations, model
+        reloading, policy changes).
+    -   **Viewer plugins (`plugin.ViewerPlugin`)**:
+        Subclass `ViewerPlugin` to run on the viewer thread, automatically
+        caching `self._viewer` on `ViewerInitEvent`, and handle rendering and UI
+        lifecycle events (e.g. viewer initialization, model reloading,
+        per-frame visual updates, GUI construction).
 -   **Standard Samples (`python/mujoco/experimental/studio/`)**:
     -   `python/mujoco/experimental/studio/viewer.py` —
         Minimal baseline with standard GUI (`viewer_app.ViewerApp`).
@@ -176,10 +182,11 @@ below is ordered chronologically from startup through per-iteration execution to
 shutdown:
 
 -   **Viewer Lifecycle Events** (dispatched on the viewer side by
-    `run_viewer_loop` to `viewer_plugins`):
-    1.  `ViewerInitEvent` (`viewer_protocol.ViewerInitEvent`) — dispatched once
-        on viewer initialization so stateful plugins can cache the viewer
-        instance (`event.viewer`).
+    `run_viewer_loop` to `ViewerPlugin` instances):
+    1.  `ViewerInitEvent` (`viewer_protocol.ViewerInitEvent`, also exported as
+        `plugin.ViewerInitEvent`) — dispatched once on viewer initialization
+        (`ViewerPlugin` caches `self._viewer` automatically above `CRITICAL`
+        priority before subclass handlers run).
     2.  `ModelEvent` — received when a model is published by the sim; `Viewer`
         deep-copies `viewer.model`, creates `viewer.data`, records
         `viewer.model_path` (`event.path`), and runs `mj_forward`.
@@ -202,10 +209,11 @@ shutdown:
         sim side by `ViewerHandle.close()`). Handle it to release resources
         (threads, pools, GPU handles).
 -   **Simulation Lifecycle Events** (dispatched on the sim side to
-    `sim_plugins`):
-    1.  `SimInitEvent` (`viewer_handle.SimInitEvent`) — dispatched once by
-        `ViewerHandle.__init__` so stateful plugins can cache the handle
-        (`event.handle`) instead of the launcher having to hand it to them.
+    `SimPlugin` instances):
+    1.  `SimInitEvent` (`viewer_handle.SimInitEvent`, also exported as
+        `plugin.SimInitEvent`) — dispatched once by `ViewerHandle.__init__`
+        (`SimPlugin` caches `self._handle` automatically above `CRITICAL`
+        priority before subclass handlers run).
     2.  `LoadModelEvent` — sent from the viewer (on **Reload** or file
         drag-and-drop) or dispatched on the sim thread (e.g. by
         `run(config, model_path=...)`). `ViewerHandle` loads `event.path` (or
@@ -251,15 +259,18 @@ shutdown:
 
 ### The `@messages.handler` Decorator
 
-Plugins subscribe to messages by annotating methods with `@messages.handler`:
+Plugins subclass `ViewerPlugin` (`plugin.ViewerPlugin`) or `SimPlugin`
+(`plugin.SimPlugin`) and subscribe to messages by annotating methods with
+`@messages.handler`:
 
 ```python
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin
 
-class MyPlugin:
+class MyPlugin(plugin.ViewerPlugin):
   @messages.handler
   def on_build_gui(self, event: messages.BuildGuiEvent) -> bool | None:
-    # Build Dear ImGui elements here
+    # Build Dear ImGui elements here (self._viewer is populated automatically)
     return False  # Return True to consume and halt lower-priority handlers
 ```
 
@@ -366,15 +377,18 @@ config = viewer_protocol.ViewerConfig(title='Studio')
 launch_web.run(
     config,
     model_path=model_path,  # Or model=model, data=data for an in-memory model.
-    viewer_plugins=[viewer_app.ViewerApp()],
-    sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
+    plugins=[
+        viewer_app.ViewerApp(),
+        step_control.StepControl(),
+        sim_history.SimHistory(),
+    ],
 )
 ```
 
 > [!WARNING]
 >
 > **Stepping and pacing are plugin responsibilities.** Including
-> `step_control.StepControl()` in `sim_plugins` provides standard
+> `step_control.StepControl()` in `plugins` provides standard
 > real-time-paced CPU stepping. If you omit `StepControl()` (for example, when
 > running GPU rollouts or custom RL loops), `handle.sync()` will **not advance
 > physics or sleep**, so your stepping plugin must manage its own pacing to
@@ -390,8 +404,11 @@ context manager returning a `ViewerHandle`:
 ```python
 with launch_web.launch(
     config,
-    viewer_plugins=[viewer_app.ViewerApp()],
-    sim_plugins=[step_control.StepControl(), sim_history.SimHistory()],
+    plugins=[
+        viewer_app.ViewerApp(),
+        step_control.StepControl(),
+        sim_history.SimHistory(),
+    ],
 ) as handle:
   while handle.is_running():
     # Do NOT edit model, data or plugin state here; do it in step-event
@@ -575,7 +592,7 @@ C++):
 ```text
 ┌────────────────────────────────────────────────────────┐
 │              Simulation Thread (Host)                  │
-│  - Runs physics loop & sim_plugins                     │
+│  - Runs physics loop & SimPlugin instances             │
 │  - Pushes state snapshots & receives events            │
 └────────────────────────────────────────────────────────┘
                          ▲ Endpoints (IPC / Queues)
@@ -583,7 +600,7 @@ C++):
                          ▼
 ┌────────────────────────────────────────────────────────┐
 │              WebViewer Thread (Host Server)            │
-│  - Runs viewer_plugins in headless Dear ImGui context  │
+│  - Runs ViewerPlugin instances in headless Dear ImGui  │
 │  - Serves single HTTP port (default 8080)              │
 │  - Streams UI via NetImgui (/ui) & state (/state)      │
 └────────────────────────────────────────────────────────┘
@@ -648,7 +665,7 @@ As a direct consequence of this principle:
 >
 > **Keep `ViewerHandle` minimal.** It is the framework's sim-side orchestrator
 > and should only own `sync()`, message dispatch, and model/data lifecycle.
-> Domain-specific sim-side behaviours belong in **`sim_plugins`** — for
+> Domain-specific sim-side behaviours belong in **`SimPlugin` subclasses** — for
 > example `StepControl` (stepping/pacing) and `SimHistory` (history,
 > scrubbing). Do not add `ux` or `sim` imports to `viewer_handle.py`.
 
@@ -708,7 +725,7 @@ self.history.append(app.data.xpos[body_id].copy())
 
 ### 4. Stepping Pacing & `NullSimulation` for Pure Viewers
 
-If you do not pass `step_control.StepControl()` to `sim_plugins`,
+If you do not pass `step_control.StepControl()` to `plugins`,
 `handle.sync()` will not pace itself against real wall-clock time. A tight
 `while handle.is_running(): handle.sync(...)` loop without a stepping plugin
 will spin at 100% CPU. Ensure you either include `StepControl()` or insert a

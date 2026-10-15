@@ -1,0 +1,120 @@
+# Copyright 2026 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Base classes for Studio plugins.
+
+A plugin is an object whose methods are decorated with ``messages.handler``;
+``plugin_registry.PluginRegistry`` discovers those methods and dispatches
+messages to them in priority order. Plugins run on one of two endpoints:
+
+* ``ViewerPlugin`` subclasses run on the viewer side (UI, rendering) and get
+  the ``viewer_protocol.Viewer`` as ``self._viewer``.
+* ``SimPlugin`` subclasses run on the simulation side (physics, control) and
+  get the ``viewer_handle.ViewerHandle`` as ``self._handle``.
+
+The launchers accept both kinds in one ``plugins`` list and route each to its
+endpoint (see ``split_plugins``).
+"""
+
+from collections.abc import Iterable
+
+from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import viewer_handle
+from mujoco.experimental.studio import viewer_protocol
+
+# The lifecycle events that hand plugins their host, re-exported from the
+# modules that dispatch them so plugin authors only need this module.
+SimInitEvent = viewer_handle.SimInitEvent
+ViewerInitEvent = viewer_protocol.ViewerInitEvent
+
+
+class SimPlugin:
+  """Base class for simulation-side plugins.
+
+  Automatically caches ``self._handle`` when ``SimInitEvent`` is dispatched;
+  stored as a class attribute default so subclasses needn't call
+  ``super().__init__()``.
+  """
+
+  _handle: viewer_handle.ViewerHandle | None = None
+
+  # Prefixed so a subclass defining its own ``_on_sim_init`` or ``on_sim_init``
+  # doesn't shadow this handler (handlers are discovered by method name), and
+  # given priority above CRITICAL so self._handle is populated before all
+  # subclass handlers run.
+  @messages.handler(priority=messages.Priority.CRITICAL + 1)
+  def _sim_plugin_on_sim_init(self, event: SimInitEvent) -> None:
+    self._handle = event.handle
+
+
+class ViewerPlugin:
+  """Base class for viewer-side plugins.
+
+  Automatically caches ``self._viewer`` when ``ViewerInitEvent`` is dispatched;
+  stored as a class attribute default so subclasses needn't call
+  ``super().__init__()``.
+  """
+
+  _viewer: viewer_protocol.Viewer | None = None
+
+  # Prefixed so a subclass defining its own ``_on_viewer_init`` or
+  # ``on_viewer_init`` doesn't shadow this handler (handlers are discovered by
+  # method name), and given priority above CRITICAL so self._viewer is populated
+  # before all subclass handlers run.
+  @messages.handler(priority=messages.Priority.CRITICAL + 1)
+  def _viewer_plugin_on_viewer_init(self, event: ViewerInitEvent) -> None:
+    self._viewer = event.viewer
+
+
+Plugin = SimPlugin | ViewerPlugin
+
+
+def split_plugins(
+    plugins: Iterable[Plugin] | None = None,
+) -> tuple[list[ViewerPlugin], list[SimPlugin]]:
+  """Splits a sequence of plugins into ``(viewer_plugins, sim_plugins)``.
+
+  Args:
+    plugins: Iterable of ``ViewerPlugin`` and ``SimPlugin`` instances.
+
+  Returns:
+    A ``(viewer_plugins, sim_plugins)`` tuple preserving input order.
+
+  Raises:
+    TypeError: If an item is neither a ``ViewerPlugin`` nor a ``SimPlugin``,
+      inherits from both, or is a class rather than an instance.
+  """
+  viewer_plugins: list[ViewerPlugin] = []
+  sim_plugins: list[SimPlugin] = []
+  for plugin in plugins or ():
+    if isinstance(plugin, ViewerPlugin) and isinstance(plugin, SimPlugin):
+      raise TypeError(
+          f'Plugin {plugin!r} cannot inherit from both ViewerPlugin and'
+          ' SimPlugin; viewer and sim plugins run on separate endpoints.'
+      )
+    if isinstance(plugin, ViewerPlugin):
+      viewer_plugins.append(plugin)
+    elif isinstance(plugin, SimPlugin):
+      sim_plugins.append(plugin)
+    elif isinstance(plugin, type) and issubclass(
+        plugin, (ViewerPlugin, SimPlugin)
+    ):
+      raise TypeError(
+          f'Expected a plugin instance, got class {plugin.__qualname__};'
+          f' pass {plugin.__qualname__}() instead.'
+      )
+    else:
+      raise TypeError(
+          f'Plugin {plugin!r} must subclass ViewerPlugin or SimPlugin.'
+      )
+  return viewer_plugins, sim_plugins

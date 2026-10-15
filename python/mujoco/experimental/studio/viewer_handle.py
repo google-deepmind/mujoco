@@ -44,22 +44,11 @@ ForwardErrorFn = Callable[[], None]
 
 @dataclasses.dataclass(frozen=True)
 class SimInitEvent(messages.Event):
-  """Lifecycle event dispatched once when the ViewerHandle is initialized.
+  """Lifecycle event dispatched locally once when ``ViewerHandle`` initializes.
 
-  The sim-side counterpart of ``viewer_protocol.ViewerInitEvent``: plugins that
-  need the handle, to publish a model or to send messages to the viewer, should
-  handle this event and cache the reference rather than having the launcher
-  hand it to them.
-
-  Like ``ViewerInitEvent``, this carries a live object, so it is dispatched
-  locally to ``sim_plugins`` and never crosses the sim/viewer endpoint.
-
-  Dispatched from ``ViewerHandle.__init__``, so a handler runs before
-  ``launch_passive`` (or any other launcher) has returned. The outbound endpoint
-  queues are already initialized, so handlers may cache the handle and enqueue
-  initial messages via ``event.handle.send_to_viewer(...)``. Raising from a
-  handler aborts the launch: the viewer is shut down and the exception
-  propagates out of the launcher.
+  ``plugin.SimPlugin`` caches ``event.handle`` as ``self._handle`` above
+  ``CRITICAL`` priority, so ``self._handle`` is already set when subclass
+  handlers run (raising aborts the launch and shuts down the viewer).
   """
 
   handle: 'ViewerHandle'

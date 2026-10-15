@@ -29,6 +29,7 @@ from absl import flags as _flags
 import mujoco
 from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
+from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import viewer_app
 from mujoco.experimental.studio import viewer_protocol
@@ -110,7 +111,7 @@ def _setup_angle_axis(plot_size: imgui.Vec2) -> None:
   )
 
 
-class BodyInspector:
+class BodyInspector(plugin.ViewerPlugin):
   """Handler that draws body-inspection plots using ImGui/ImPlot."""
 
   def __init__(self) -> None:
@@ -241,8 +242,11 @@ def main(argv: list[str]) -> None:
   launch_passive.run(
       config,
       model_path=model_path,
-      viewer_plugins=[viewer_app.ViewerApp(), BodyInspector()],
-      sim_plugins=[step_control.StepControl()],
+      plugins=[
+          viewer_app.ViewerApp(),
+          BodyInspector(),
+          step_control.StepControl(),
+      ],
   )
 
 
