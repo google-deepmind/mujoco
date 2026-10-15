@@ -984,8 +984,7 @@ cc_library(
     ],
     visibility = [
         ":_impl_visibility",
-        "//robotics/api/developer/robot_sim/frontend:__subpackages__",
-        "//third_party/py/mujoco:__pkg__",
+        "//python/mujoco:__pkg__",
     ],
     deps = [
         ":engine_crossplatform",

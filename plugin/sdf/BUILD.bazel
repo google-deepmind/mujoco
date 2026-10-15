@@ -7,12 +7,10 @@ package_group(
     name = "_impl_visibility",
     packages =
         [
-            "//google/webmj/...",
+            "//python/mujoco/...",
             "//sample/...",
             "//simulate/...",
             "//test/...",
-            "//third_party/py/dm_control/mujoco/...",
-            "//third_party/py/mujoco/...",
         ],
 )
 

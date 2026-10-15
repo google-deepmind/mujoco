@@ -1,5 +1,5 @@
 {
-  "comment": "Build matrix for build.yml. 'tier' controls when an entry runs: 'core' runs on every pull_request and push; 'extended' runs only on push to main (full compiler sweep). See generate_matrix() in build_steps.sh.",
+  "comment": "Build matrix for build.yml. 'include' is the CMake 'mujoco' job matrix and 'bazel' is the 'bazel' job matrix. 'tier' controls when an entry runs: 'core' runs on every pull_request and push; 'extended' runs only on push to main (full compiler sweep, and the oldest supported and latest Bazel versions). For Bazel, an empty 'bazel_version' means the version pinned in .bazelversion, and 'disk_cache' keeps a Bazel disk cache across runs (see build.yml). See generate_matrix() in build_steps.sh.",
   "include": [
     {
       "os": "ubuntu-24.04",
@@ -77,6 +77,33 @@
       "label": "windows-2025-clang",
       "cmake_args": "-G Ninja -DCMAKE_C_COMPILER:STRING=clang-cl -DCMAKE_CXX_COMPILER:STRING=clang-cl -DCMAKE_SYSTEM_VERSION=\"10.0.26100.0\" -DMUJOCO_BUILD_STUDIO:BOOL=ON -DMUJOCO_USE_FILAMENT:BOOL=ON -DUSE_STATIC_LIBCXX:BOOL=OFF",
       "tmpdir": "C:/Temp",
+      "tier": "core"
+    }
+  ],
+  "bazel": [
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-bazel",
+      "bazel_version": "",
+      "disk_cache": "true",
+      "tier": "core"
+    },
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-bazel-8.x",
+      "bazel_version": "8.x",
+      "tier": "extended"
+    },
+    {
+      "os": "ubuntu-24.04",
+      "label": "ubuntu-24.04-bazel-latest",
+      "bazel_version": "latest",
+      "tier": "extended"
+    },
+    {
+      "os": "macos-15",
+      "label": "macos-15-arm64-bazel",
+      "bazel_version": "",
       "tier": "core"
     }
   ]

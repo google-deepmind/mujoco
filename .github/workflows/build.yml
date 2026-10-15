@@ -50,6 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate.outputs.matrix }}
+      bazel_matrix: ${{ steps.generate.outputs.bazel_matrix }}
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
@@ -427,16 +428,20 @@ jobs:
 
 
   bazel:
+    needs: setup
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            label: ubuntu-24.04-bazel
-          - os: macos-15
-            label: macos-15-arm64-bazel
+      # bazel_version is passed to bazelisk as USE_BAZEL_VERSION. Empty means
+      # the version pinned in .bazelversion. PRs test only the pinned version.
+      # Pushes (postsubmits) also test 8.x, the oldest LTS allowed by
+      # bazel_compatibility in MODULE.bazel, and latest, which catches breakage
+      # from new Bazel releases early. See build_matrix.json.
+      matrix: ${{ fromJson(needs.setup.outputs.bazel_matrix) }}
     name: "${{ matrix.label }}"
     runs-on: ${{ matrix.os }}
+    # A new upstream Bazel release can break the "latest" job without any
+    # MuJoCo change, so report it without failing the workflow.
+    continue-on-error: ${{ matrix.bazel_version == 'latest' }}
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
@@ -451,9 +456,51 @@ jobs:
       with:
         bazelisk-cache: true
         repository-cache: true
+        # Bazel 9 keeps unpacked external repos (the repo contents cache) inside
+        # the repository cache, which roughly doubles what is saved to the
+        # GitHub cache. Re-extracting them from the cached archives only takes
+        # seconds, so turn it off here. It is already off by default in Bazel 8.
+        bazelrc: common --repo_contents_cache=
+
+    # Bazel disk cache, only for jobs with disk_cache in build_matrix.json. Like
+    # ccache above, each push to main saves a new entry and every run restores
+    # the newest one. (setup-bazel's disk-cache only saves when the BUILD files
+    # change, so it goes stale.)
+    - name: Restore Bazel disk cache
+      if: ${{ matrix.disk_cache }}
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ~/.cache/bazel-disk
+        key: bazel-disk-${{ matrix.label }}-${{ github.sha }}
+        restore-keys: bazel-disk-${{ matrix.label }}-
+
+    - name: Enable Bazel disk cache
+      if: ${{ matrix.disk_cache }}
+      run: |
+        mkdir -p ~/.cache/bazel-disk
+        echo "build --disk_cache=${HOME}/.cache/bazel-disk" >> ~/.bazelrc
+        # Bazel refreshes the mtime of every disk cache entry it uses, so
+        # entries older than this marker after the build were not used.
+        touch "${RUNNER_TEMP}/bazel-disk-cache-start"
 
     - name: Build and Test with Bazel
+      env:
+        USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
       run: bash ./.github/workflows/build_steps.sh test_bazel
+
+    # Drop the entries this build didn't use before saving, so the cache only
+    # holds the current build's outputs instead of growing (and growing more
+    # stale) with every push.
+    - name: Prune Bazel disk cache
+      if: ${{ matrix.disk_cache && github.event_name == 'push' && github.ref_name == 'main' }}
+      run: find ~/.cache/bazel-disk -type f ! -newer "${RUNNER_TEMP}/bazel-disk-cache-start" -delete
+
+    - name: Save Bazel disk cache
+      if: ${{ matrix.disk_cache && github.event_name == 'push' && github.ref_name == 'main' }}
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ~/.cache/bazel-disk
+        key: bazel-disk-${{ matrix.label }}-${{ github.sha }}
 
     - name: Notify team chat
       if: failure() && github.ref_name == 'main' && github.event_name == 'push'

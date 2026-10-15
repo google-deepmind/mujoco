@@ -15,7 +15,8 @@
 module(
     name = "mujoco",
     version = "3.16.1",
-    bazel_compatibility = [">=7.2.1"],
+    # REPO.bazel uses ignore_directories(), which was added in Bazel 8.0.
+    bazel_compatibility = [">=8.0.0"],
 )
 
 bazel_dep(name = "abseil-cpp", version = "20260107.1", dev_dependency = True)
