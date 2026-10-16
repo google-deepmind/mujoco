@@ -841,49 +841,6 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     )
   )
 
-  # check for unsupported margin + multicontact / box-box CCD combinations
-  use_multiccd = (mjm.opt.disableflags & types.DisableBit.MULTICCD) == 0
-  BOX = int(mujoco.mjtGeom.mjGEOM_BOX)
-  MESH = int(mujoco.mjtGeom.mjGEOM_MESH)
-  geom_name = lambda g: mujoco.mj_id2name(mjm, mujoco.mjtObj.mjOBJ_GEOM, g) or str(g)
-
-  # (name, type1, type2, margin) for box/mesh contact pairs with non-zero margin
-  box_mesh_margin_pairs = []
-  has_box_mesh_pairs = any(
-    m.geom_pair_type_count[geom_trid_index(t1, t2)] > 0 for t1, t2 in ((BOX, BOX), (BOX, MESH), (MESH, MESH))
-  )
-  if has_box_mesh_pairs:
-    for idx in np.nonzero(nxn_include & (nxn_pairid_contact == -1))[0]:
-      g1, g2 = int(geom1[idx]), int(geom2[idx])
-      t1, t2 = int(mjm.geom_type[g1]), int(mjm.geom_type[g2])
-      if t1 not in (BOX, MESH) or t2 not in (BOX, MESH):
-        continue
-      margin = (float(mjm.geom_margin[g1]), float(mjm.geom_margin[g2]))
-      if any(margin):
-        box_mesh_margin_pairs.append((f"geom pair ({geom_name(g1)}, {geom_name(g2)})", t1, t2, margin))
-    for pid in range(mjm.npair):
-      g1, g2 = int(mjm.pair_geom1[pid]), int(mjm.pair_geom2[pid])
-      t1, t2 = int(mjm.geom_type[g1]), int(mjm.geom_type[g2])
-      if t1 not in (BOX, MESH) or t2 not in (BOX, MESH):
-        continue
-      margin = float(mjm.pair_margin[pid])
-      if margin:
-        box_mesh_margin_pairs.append((f"pair {pid} ({geom_name(g1)}, {geom_name(g2)})", t1, t2, margin))
-
-  # MuJoCo always collides box-box pairs with the primitive collider (mjc_BoxBox), which supports
-  # margin. MJWarp uses the convex (CCD) collider by default, which does not support margin, so fall
-  # back to the primitive collider if NATIVECCD is disabled or any box-box pair has a margin.
-  m.has_boxbox_margin = any(t1 == BOX and t2 == BOX for _, t1, t2, _ in box_mesh_margin_pairs)
-
-  # CCD multicontact (box-mesh and mesh-mesh with MULTICCD) does not support margin
-  if use_multiccd:
-    for name, t1, t2, margin in box_mesh_margin_pairs:
-      if t1 == BOX and t2 == BOX:
-        continue  # handled by the primitive collider
-      raise NotImplementedError(
-        f"{name} has non-zero margin ({margin}) with MULTICCD enabled. Set margin to 0 or disable MULTICCD."
-      )
-
   # filter plugins for only geom plugins, drop the rest
   m.plugin, m.plugin_attr = [], []
   m.geom_plugin_index = np.full_like(mjm.geom_type, -1)

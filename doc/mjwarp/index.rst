@@ -1405,8 +1405,7 @@ Pair-wise colliders
 
 The table below provides information about the colliders and maximum number of contacts generated for different geom
 pairs in MJWarp. Use the toggles to see the maximum number of contacts with the options
-:ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
-:ref:`margin<body-geom-margin>`.
+:ref:`nativeccd<option-flag-nativeccd>` and :ref:`multiccd<option-flag-multiccd>`.
 
 .. raw:: html
 
@@ -1424,13 +1423,6 @@ pairs in MJWarp. Use the toggles to see the maximum number of contacts with the 
          <span class="pairwise-slider"></span>
        </label>
        <span>multiccd</span>
-     </div>
-     <div class="pairwise-toggle-item">
-       <label class="pairwise-switch">
-         <input type="checkbox" id="margin-checkbox">
-         <span class="pairwise-slider"></span>
-       </label>
-       <span>with margin</span>
      </div>
    </div>
 
@@ -1499,12 +1491,20 @@ pairs in MJWarp. Use the toggles to see the maximum number of contacts with the 
        | **2**
      - | CCD
        | **1**
-     - | CCD
-       | **1**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-cap-ccd">2</strong></div>
+
      - | primitive
        | **2**
-     - | CCD
-       | **1**
+     -
+       .. raw:: html
+
+         <div class="line">CCD</div>
+         <div class="line"><strong class="mjw-cap-ccd">2</strong></div>
+
      - | SDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
    * - Ellipsoid
@@ -1561,7 +1561,7 @@ pairs in MJWarp. Use the toggles to see the maximum number of contacts with the 
        .. raw:: html
 
          <div class="line">CCD</div>
-         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
 
      - | SDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
@@ -1575,7 +1575,7 @@ pairs in MJWarp. Use the toggles to see the maximum number of contacts with the 
        .. raw:: html
 
          <div class="line">CCD</div>
-         <div class="line"><span class="mjw-mesh-ccd"><strong>4</strong></span></div>
+         <div class="line"><strong class="mjw-ccd">4</strong></div>
 
      - | MeshSDF
        | :ref:`sdf_initpoints <option-sdf_initpoints>`
@@ -1595,34 +1595,28 @@ pairs in MJWarp. Use the toggles to see the maximum number of contacts with the 
      (() => {
        const nativeccd = document.getElementById('nativeccd-checkbox');
        const multiccd = document.getElementById('multiccd-checkbox');
-       const margin = document.getElementById('margin-checkbox');
 
        const update = () => {
          const isNative = nativeccd && nativeccd.checked;
          const isMulti = multiccd && multiccd.checked;
-         const isMargin = margin && margin.checked;
 
-         const ccdVal = (isMulti && !isMargin) ? '4' : '1';
+         const ccdVal = isMulti ? '4' : '1';
          document.querySelectorAll('.mjw-ccd').forEach(el => el.textContent = ccdVal);
 
-         const meshVal = (isMulti && isMargin)
-           ? '<a href="#mjwccdmargin">not implemented</a>'
-           : `<strong>${ccdVal}</strong>`;
-         document.querySelectorAll('.mjw-mesh-ccd').forEach(el => el.innerHTML = meshVal);
+         const capVal = isMulti ? '2' : '1';
+         document.querySelectorAll('.mjw-cap-ccd').forEach(el => el.textContent = capVal);
 
          const boxbox = document.querySelector('.mjw-boxbox');
          if (boxbox) {
            if (!isNative) {
              boxbox.innerHTML = '<div class="line">primitive</div><div class="line"><strong>8</strong></div>';
-           } else if (isMargin) {
-             boxbox.innerHTML = '<div class="line">CCD</div><div class="line"><a href="#mjwccdmargin">not implemented</a></div>';
            } else {
-             boxbox.innerHTML = `<div class="line">CCD</div><div class="line"><strong>${isMulti ? '4' : '1'}</strong></div>`;
+             boxbox.innerHTML = `<div class="line">CCD</div><div class="line"><strong>${ccdVal}</strong></div>`;
            }
          }
        };
 
-       [nativeccd, multiccd, margin].forEach(cb => cb && cb.addEventListener('change', update));
+       [nativeccd, multiccd].forEach(cb => cb && cb.addEventListener('change', update));
      })();
    </script>
 
@@ -1642,30 +1636,6 @@ is available by setting the ``NATIVECCD`` disable flag:
 
 The specialized collider generates up to 8 contact points, compared to up to 4 for the convex pipeline, and may improve
 contact stability for tasks involving box stacking or manipulation.
-
-.. _mjwCCDMargin:
-
-CCD margin
-----------
-
-Non-zero :ref:`geom margin <body-geom-margin>` or :ref:`pair margin <contact-pair-margin>` is not supported with certain
-CCD colliders and will raise a ``NotImplementedError`` when calling :func:`mjw.put_model <mujoco_warp.put_model>`:
-
-.. list-table::
-   :width: 90%
-   :align: left
-   :widths: 3 3 4
-   :header-rows: 1
-
-   * - Geom pair
-     - Scenario
-     - Workaround
-   * - box-box, box-mesh, mesh-mesh
-     - :ref:`MULTICCD <option-flag-multiccd>` enabled (on by default)
-     - Set margin to ``0`` or disable ``MULTICCD``
-   * - box-box
-     - :ref:`NATIVECCD <option-flag-nativeccd>` enabled (on by default)
-     - Set margin to ``0`` or disable ``NATIVECCD``
 
 Rendering
 ---------

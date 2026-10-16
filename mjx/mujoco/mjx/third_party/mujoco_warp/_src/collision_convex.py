@@ -912,7 +912,7 @@ def ccd_kernel_builder(
       (geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX)
       or (use_multiccd and ((has_face1 and has_face2) or (has_edge1 and has_face2) or (has_face1 and has_edge2)))
     ):
-      if not needs_epa and dist < 0.0 and margin == 0.0 and gjk_result.dim > 0:
+      if not needs_epa and dist < margin and gjk_result.dim > 0:
         ccdid = wp.atomic_add(nccd_in, geomgeomid, 1)
         if ccdid >= naccdmax_in:
           if wp.static(bool(warn_overflow & OverflowType.CCD)):
@@ -1000,7 +1000,7 @@ def ccd_kernel_builder(
       write_contact(
         naconmax_in,
         i,
-        dists[i] if ncollision > 1 else dist,
+        dists[i] + margin if ncollision > 1 else dist,
         0.5 * (witness1[i] + witness2[i]) + origin,
         frame,
         margin,

@@ -75,7 +75,7 @@ MJ_COLLISION_TABLE = {
   (GeomType.CYLINDER, GeomType.CYLINDER): CollisionType.CONVEX,
   (GeomType.CYLINDER, GeomType.BOX): CollisionType.CONVEX,
   (GeomType.CYLINDER, GeomType.MESH): CollisionType.CONVEX,
-  (GeomType.BOX, GeomType.BOX): CollisionType.CONVEX,  # see _narrowphase
+  (GeomType.BOX, GeomType.BOX): CollisionType.CONVEX,  # overwritten by NATIVECCD disable flag
   (GeomType.BOX, GeomType.MESH): CollisionType.CONVEX,
   (GeomType.MESH, GeomType.MESH): CollisionType.CONVEX,
 }
@@ -1042,9 +1042,7 @@ def nxn_broadphase(
 
 def _narrowphase(m: Model, d: Data, ctx: CollisionContext):
   collision_table = MJ_COLLISION_TABLE
-  # MuJoCo collides box-box pairs with the primitive collider; MJWarp uses it if NATIVECCD is
-  # disabled or if box-box pairs have a margin (unsupported by box-box CCD)
-  if m.has_boxbox_margin or m.opt.disableflags & DisableBit.NATIVECCD:
+  if m.opt.disableflags & DisableBit.NATIVECCD:
     collision_table = collision_table.copy()
     collision_table[(GeomType.BOX, GeomType.BOX)] = CollisionType.PRIMITIVE
 

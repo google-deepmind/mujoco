@@ -99,7 +99,6 @@ def _collision_shim(
     geom_type: wp.array[int],
     has_1d_flex: bool,
     has_3d_flex: bool,
-    has_boxbox_margin: bool,
     has_ellipsoid_geom: bool,
     has_flex_selfcollide: bool,
     has_plane_geom: bool,
@@ -250,7 +249,6 @@ def _collision_shim(
   _m.geom_type = geom_type
   _m.has_1d_flex = has_1d_flex
   _m.has_3d_flex = has_3d_flex
-  _m.has_boxbox_margin = has_boxbox_margin
   _m.has_ellipsoid_geom = has_ellipsoid_geom
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_plane_geom = has_plane_geom
@@ -532,7 +530,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.geom_type,
       m._impl.has_1d_flex,
       m._impl.has_3d_flex,
-      m._impl.has_boxbox_margin,
       m._impl.has_ellipsoid_geom,
       m._impl.has_flex_selfcollide,
       m._impl.has_plane_geom,
