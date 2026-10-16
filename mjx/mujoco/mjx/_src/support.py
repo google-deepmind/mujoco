@@ -649,7 +649,9 @@ def _length_circle(
   angle = jp.atan2(jp.abs(cross), jp.dot(p0, p1))
 
   # flip if necessary
-  flip = ((cross > 0) & (ind != 0)) | ((cross < 0) & (ind == 0))
+  flip = (angle > 1.0e-6) & (
+      ((cross > 0) & (ind != 0)) | ((cross < 0) & (ind == 0))
+  )
   angle = jp.where(flip, 2 * jp.pi - angle, angle)
 
   return rad * angle
@@ -676,8 +678,8 @@ def _is_intersect(
 
   return jp.where(
       jp.abs(det) < mujoco.mjMINVAL,
-      0,
-      (a0 >= 0.0) & (a1 <= 0.0) & (b0 >= 0.0) & (b1 <= 0.0),
+      False,
+      (a0 >= 0.0) & (a1 < 0.0) & (b0 >= 0.0) & (b1 < 0.0),
   )
 
 
@@ -775,7 +777,6 @@ def wrap_inside(
     radius: jax.Array,
     maxiter: int = 20,
     tolerance: float = 1.0e-6,
-    z_init: float = 1.0 - 1.0e-7,
 ) -> Tuple[jax.Array, jax.Array]:
   """Compute 2D inside wrap point.
 
@@ -784,7 +785,6 @@ def wrap_inside(
     radius: radius of circle
     maxiter: Maximum number of solver iterations
     tolerance: Solver convergence tolerance
-    z_init: Initialization for solver
 
   Returns:
     status: 0 if wrap, else -1
@@ -829,30 +829,26 @@ def wrap_inside(
   G = jp.arccos(cosG)  # pylint: disable=invalid-name
 
   # initialize solver: Newton on phi = asin(z)
-  z = jp.array([z_init])
-  phi = jp.arcsin(z)
-  asin_Az = jp.arcsin(A * z)
-  asin_Bz = jp.arcsin(B * z)
-  f = asin_Az + asin_Bz - 2 * phi + G
+  phi = jp.array([0.5 * jp.pi])
+  z = jp.sin(phi)
+  f = jp.arcsin(A * z) + jp.arcsin(B * z) - 2 * phi + G
 
   # make sure initialization is not on the other side
   early_return1 = f > 0
 
   # iteratively solve with Newton's method
   def _newton(carry, _):
-    # unpack
-    phi, z, _, _, f, status_prev = carry
+    phi, z, f, status_prev = carry
 
     # check current solution
     converged = jp.abs(f) <= tolerance
 
     # compute derivative with respect to phi
-    sq_z = z * z
     df = (
         jp.cos(phi)
         * (
-            A / jp.maximum(mjMINVAL, jp.sqrt(1 - sq_z * A * A))
-            + B / jp.maximum(mjMINVAL, jp.sqrt(1 - sq_z * B * B))
+            A / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * A * A))
+            + B / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * B * B))
         )
         - 2.0
     )
@@ -861,38 +857,33 @@ def wrap_inside(
     status0 = df > -mjMINVAL
 
     # new point
-    phi_next = phi - (1 - converged) * math.safe_div(f, df)
+    phi_next = jp.where(converged, phi, phi - math.safe_div(f, df))
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
     status1 = phi_next > phi
 
-    phi_cur = jp.where(converged, phi, phi_next)
-    z_cur = jp.sin(phi_cur)
-    asin_Az_cur = jp.arcsin(A * z_cur)
-    asin_Bz_cur = jp.arcsin(B * z_cur)
-    f_next = asin_Az_cur + asin_Bz_cur - 2 * phi_cur + G
+    z_next = jp.sin(phi_next)
+    f_next = jp.arcsin(A * z_next) + jp.arcsin(B * z_next) - 2 * phi_next + G
 
     # exit if positive; SHOULD NOT OCCUR
     status2 = f_next > tolerance
 
     return (
-        phi_cur,
-        z_cur,
-        asin_Az_cur,
-        asin_Bz_cur,
+        phi_next,
+        z_next,
         f_next,
         status_prev | status0 | status1 | status2,
     ), None
 
-  (phi, z, asin_Az, asin_Bz, f, early_return2), _ = jax.lax.scan(
-      _newton, (phi, z, asin_Az, asin_Bz, f, jp.array([False])), None, maxiter
+  (phi, z, f, early_return2), _ = jax.lax.scan(
+      _newton, (phi, z, f, jp.array([False])), None, maxiter
   )
 
   # finalize: rotation by ang from vec = a or b, depending on cross(a,b) sign
   sign = end[0] * end[3] - end[1] * end[2] > 0
   vec = jp.where(sign, end[:2], end[2:])
   vec = math.normalize(vec)
-  ang = phi - jp.where(sign, asin_Az, asin_Bz)
+  ang = phi - jp.where(sign, jp.arcsin(A * z), jp.arcsin(B * z))
   pnt_sol = radius * jp.array([
       jp.cos(ang) * vec[0] - jp.sin(ang) * vec[1],
       jp.sin(ang) * vec[0] + jp.cos(ang) * vec[1],
@@ -920,7 +911,6 @@ def wrap(
     is_wrap_inside: bool,
     wrap_inside_maxiter: int,
     wrap_inside_tolerance: float,
-    wrap_inside_z_init: float,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Wrap tendon around sphere or cylinder."""
   # map sites to wrap object's local frame
@@ -971,7 +961,7 @@ def wrap(
 
   if is_wrap_inside:
     wlen, pnt = wrap_inside(
-        d, size, wrap_inside_maxiter, wrap_inside_tolerance, wrap_inside_z_init
+        d, size, wrap_inside_maxiter, wrap_inside_tolerance
     )
   else:
     wlen, pnt = wrap_circle(d, sd, sidesite, size)
