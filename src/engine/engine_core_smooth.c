@@ -742,6 +742,9 @@ void mj_flex(const mjModel* m, mjData* d) {
       if (!NV) {
         continue;
       }
+      if (NV > m->flexedge_J_rownnz[ebase+e]) {
+        mjERROR("flexedge_J_rownnz too small");
+      }
 
       // apply chain rule to compute edge Jacobian
       mju_mulMatTVec(d->flexedge_J + rowadr[ebase+e], jacdif, vec, 3, NV);

@@ -885,6 +885,74 @@ TEST_F(ValidateReferencesTest, Tuples) {
   model->tuple_objid[0] = 1;
 }
 
+TEST_F(ValidateReferencesTest, SparseMatrices) {
+  static const char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b1">
+        <joint name="j1" type="hinge"/>
+        <geom size="1"/>
+        <site name="s1"/>
+        <body name="b2" pos="0 0 1">
+          <joint name="j2" type="hinge"/>
+          <geom size="1"/>
+          <site name="s2"/>
+        </body>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial>
+        <site site="s1"/>
+        <site site="s2"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  auto check_field = [&](int* field, int bad_val, const char* substr) {
+    int saved = *field;
+    *field = bad_val;
+    EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr(substr));
+    *field = saved;
+    EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+  };
+
+  check_field(&model->M_rowadr[0], 0x1000000, "M_rowadr");
+  check_field(&model->M_rowadr[0], -1, "M_rowadr");
+  check_field(&model->M_rownnz[1], 1, "M_rownnz");
+  check_field(&model->M_rownnz[1], 3, "M_rownnz");
+  check_field(&model->M_colind[0], 1, "M_colind");
+  check_field(&model->dof_Madr[1], 0, "dof_Madr");
+
+  check_field(&model->D_rowadr[0], model->nD, "D_rowadr");
+  check_field(&model->D_rownnz[0], 1, "D_rownnz");
+  check_field(&model->D_colind[0], 1, "D_colind");
+  check_field(&model->D_diag[1], 0, "D_diag");
+
+  check_field(&model->B_rowadr[1], model->nB, "B_rowadr");
+  check_field(&model->B_rownnz[0], 1, "B_rownnz");
+  check_field(&model->B_colind[model->B_rowadr[2]], 1, "B_colind");
+
+  check_field(&model->mapM2M[0], -1, "mapM2M");
+  check_field(&model->mapM2M[0], model->nM, "mapM2M");
+  check_field(&model->mapM2D[0], -2, "mapM2D");
+  check_field(&model->mapM2D[0], model->nC, "mapM2D");
+  check_field(&model->mapD2M[0], -1, "mapD2M");
+  check_field(&model->mapD2M[0], model->nD, "mapD2M");
+
+  check_field(&model->ten_J_rowadr[0], model->nJten, "ten_J_rowadr");
+  check_field(&model->ten_J_rownnz[0], model->nv + 1, "ten_J_rownnz");
+  check_field(&model->ten_J_colind[0], -1, "ten_J_colind");
+  check_field(&model->ten_J_colind[0], model->nv, "ten_J_colind");
+}
+
 TEST_F(EngineIoTest, CanMarkAndFreeStack) {
   constexpr char xml[] = R"(
   <mujoco>
