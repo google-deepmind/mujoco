@@ -24,6 +24,17 @@ Python bindings
   island arrays when no islands are formed, are now filled with zeros, or with -1 for index fields where -1 means
   "none". Previously they returned uninitialized memory.
 
+Bug fixes
+^^^^^^^^^
+- Fixed several bugs on error paths which called :ref:`mju_error` while C++ objects were alive. An error handler which
+  does not return, as in the Python bindings and the model compiler, skips their destructors:
+
+  - Invalid configurations of the touch grid, cable and SDF plugins leaked more than 10 MB per failed compilation. They
+    now fail plugin initialization with a warning.
+  - An error while compiling meshes or textures on the compiler's worker threads crashed the process.
+  - :ref:`mj_loadAllPluginLibraries` kept a lock if a library failed to load, so other threads deadlocked.
+  - An unknown :ref:`role<material-layer-role>` of a material layer leaked memory instead of causing a parse error.
+
 Version 3.16.0 (October 14, 2026)
 ---------------------------------
 

@@ -174,7 +174,7 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d, int instance) {
     int nchannel = strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
     if (!nchannel) nchannel = 1;
     if (nchannel < 1 || nchannel > 6) {
-      mju_error("nchannel must be between 1 and 6");
+      mju_warning("nchannel must be between 1 and 6");
       return nullptr;
     }
 
@@ -183,11 +183,11 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d, int instance) {
     std::string size_str = std::string(mj_getPluginConfig(m, instance, "size"));
     ReadVector(size, size_str.c_str());
     if (size.size() != 2) {
-      mju_error("Both horizontal and vertical resolutions must be specified");
+      mju_warning("Both horizontal and vertical resolutions must be specified");
       return nullptr;
     }
     if (size[0] <= 0 || size[1] <= 0) {
-      mju_error("Horizontal and vertical resolutions must be positive");
+      mju_warning("Horizontal and vertical resolutions must be positive");
       return nullptr;
     }
 
@@ -196,30 +196,40 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d, int instance) {
     std::string fov_str = std::string(mj_getPluginConfig(m, instance, "fov"));
     ReadVector(fov, fov_str.c_str());
     if (fov.size() != 2) {
-      mju_error(
+      mju_warning(
           "Both horizontal and vertical fields of view must be specified");
       return nullptr;
     }
     if (fov[0] <= 0 || fov[0] > 180) {
-      mju_error("`fov[0]` must be a float between (0, 180] degrees");
+      mju_warning("`fov[0]` must be a float between (0, 180] degrees");
       return nullptr;
     }
     if (fov[1] <= 0 || fov[1] > 90) {
-      mju_error("`fov[1]` must be a float between (0, 90] degrees");
+      mju_warning("`fov[1]` must be a float between (0, 90] degrees");
       return nullptr;
     }
 
     // gamma
     mjtNum gamma = strtod(mj_getPluginConfig(m, instance, "gamma"), nullptr);
     if (gamma < 0 || gamma > 1) {
-      mju_error("`gamma` must be a nonnegative float between [0, 1]");
+      mju_warning("`gamma` must be a nonnegative float between [0, 1]");
       return nullptr;
+    }
+
+    // Make sure sensor is attached to a site.
+    for (int i = 0; i < m->nsensor; ++i) {
+      if (m->sensor_type[i] == mjSENS_PLUGIN &&
+          m->sensor_plugin[i] == instance &&
+          m->sensor_objtype[i] != mjOBJ_SITE) {
+        mju_warning("Touch Grid sensor must be attached to a site");
+        return nullptr;
+      }
     }
 
     return new TouchGrid(m, d, instance, nchannel, size.data(), fov.data(),
                          gamma);
   } else {
-    mju_error("Invalid or missing parameters in touch_grid sensor plugin");
+    mju_warning("Invalid or missing parameters in touch_grid sensor plugin");
     return nullptr;
   }
 }
@@ -230,15 +240,6 @@ TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel,
       size_{size[0], size[1]},
       fov_{fov[0], fov[1]},
       gamma_(gamma) {
-  // Make sure sensor is attached to a site.
-  for (int i = 0; i < m->nsensor; ++i) {
-    if (m->sensor_type[i] == mjSENS_PLUGIN && m->sensor_plugin[i] == instance) {
-      if (m->sensor_objtype[i] != mjOBJ_SITE) {
-        mju_error("Touch Grid sensor must be attached to a site");
-      }
-    }
-  }
-
   // Allocate distance array.
   distance_.resize(size[0] * size[1], 0);
 }

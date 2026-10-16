@@ -29,6 +29,45 @@ namespace {
 using ElasticityTest = MujocoTest;
 
 // -------------------------------- cable -----------------------------------
+// non-contiguous bodies fail plugin init, which is reported as a compile error;
+// leaks of the partial mjData or the half-built Cable are detected under asan
+TEST_F(ElasticityTest, CableNonContiguousBodiesErrorDoesNotLeak) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.elasticity.cable">
+        <instance name="cable">
+          <config key="twist" value="1"/>
+          <config key="bend" value="1"/>
+          <config key="flat" value="a value longer than the sso buffer"/>
+        </instance>
+      </plugin>
+    </extension>
+    <worldbody>
+      <body>
+        <plugin instance="cable"/>
+        <joint type="ball"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+      </body>
+      <body>
+        <joint type="ball"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+      </body>
+      <body>
+        <plugin instance="cable"/>
+        <joint type="ball"/>
+        <geom type="capsule" size=".01" fromto="0 0 0 .1 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error,
+              testing::HasSubstr("must be applied to contiguous bodies"));
+}
+
 TEST_F(ElasticityTest, CantileverIntoCircle) {
 #ifdef mjUSESINGLE
   GTEST_SKIP() << "Cable simulation with extreme stiffness diverges in float32";

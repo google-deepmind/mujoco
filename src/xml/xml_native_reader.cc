@@ -747,6 +747,7 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* material) {
     // layer sub-element
     ReadAttrTxt(layer, "role", text, true);
     int role = FindKey(texrole_map, texrole_sz, text);
+    if (role < 0) { throw mjXError(layer, "unknown layer role '%s'", text.c_str()); }
     ReadAttrTxt(layer, "texture", text, true);
     mjs_setInStringVec(material->textures, role, text.c_str());
     layer = NextSiblingElement(layer);

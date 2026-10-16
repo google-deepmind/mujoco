@@ -18,10 +18,16 @@
 #include "src/engine/engine_plugin.h"
 
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <filesystem>  // NOLINT
+#include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>  // NOLINT
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -807,6 +813,41 @@ TEST_F(EnginePluginTest, ArchiveProviderRegistration) {
       mjp_findArchiveProvider("model.alsoarchive");
   ASSERT_THAT(found2, NotNull());
 }
+
+#if !defined(_WIN32) && !defined(__CYGWIN__)
+// mju_error from a failing dlopen must not longjmp past the plugin table lock,
+// or the std::string locals of mj_loadAllPluginLibraries; leaks are detected
+// when running under asan
+TEST_F(MujocoTest, LoadAllPluginLibrariesErrorReleasesLock) {
+  #if defined(__APPLE__)
+  const char* suffix = ".dylib";
+  #else
+  const char* suffix = ".so";
+  #endif
+  std::filesystem::path dir =
+      std::filesystem::temp_directory_path() /
+      "mujoco_load_all_plugin_libraries_error_directory_longer_than_sso";
+  std::filesystem::create_directories(dir);
+  std::ofstream(dir / (std::string("not_a_library") + suffix)) << "not an ELF";
+
+  auto load_all = MjuErrorMessageFrom(mj_loadAllPluginLibraries);
+  EXPECT_THAT(load_all(dir.string().c_str(), nullptr),
+              HasSubstr("Error loading plugin library"));
+  std::filesystem::remove_all(dir);
+
+  // registering an identical plugin takes the table lock on another thread
+  auto done = std::make_shared<std::atomic<bool>>(false);
+  std::thread([done] {
+    mjpPlugin plugin = *mjp_getPluginAtSlot(0);
+    mjp_registerPlugin(&plugin);
+    *done = true;
+  }).detach();
+  for (int i = 0; i < 500 && !*done; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  EXPECT_TRUE(*done) << "plugin table lock was not released";
+}
+#endif
 
 }  // namespace
 }  // namespace mujoco

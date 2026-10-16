@@ -121,6 +121,20 @@ bool CheckAttr(const char* name, const mjModel* m, int instance) {
 
 // factory function
 std::optional<Cable> Cable::Create(const mjModel* m, mjData* d, int instance) {
+  // plugin bodies must be contiguous
+  int first = -1, last = -1, n = 0;
+  for (int i = 1; i < m->nbody; i++) {
+    if (m->body_plugin[i] == instance) {
+      if (first < 0) first = i;
+      last = i;
+      n++;
+    }
+  }
+  if (n && n != last - first + 1) {
+    mju_warning("Cable plugin instance must be applied to contiguous bodies");
+    return std::nullopt;
+  }
+
   if (CheckAttr("twist", m, instance) && CheckAttr("bend", m, instance)) {
     return Cable(m, d, instance);
   } else {
@@ -161,9 +175,6 @@ Cable::Cable(const mjModel* m, mjData* d, int instance) {
   // compute initial curvature
   for (int b = 0; b < n; b++) {
     int i = i0 + b;
-    if (m->body_plugin[i] != instance) {
-      mju_error("This body does not have the requested plugin instance");
-    }
     bool first = (b == 0), last = (b == n - 1);
     prev[b] = first ? 0 : -1;
     next[b] = last ? 0 : +1;

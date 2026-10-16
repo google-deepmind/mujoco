@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
-#include <string>
+#include <cstring>
 
 #include <mujoco/mujoco.h>
 #include "sdf.h"
@@ -25,11 +23,14 @@
 namespace mujoco::plugin::sdf {
 
 bool CheckAttr(const char* name, const mjModel* m, int instance) {
+  // empty or whitespace is valid (default), otherwise a number with optional
+  // surrounding whitespace, as in SdfDefault::GetDefault
+  const char* ws = " \t\n\v\f\r";
+  const char* value = mj_getPluginConfig(m, instance, name);
+  if (!value[std::strspn(value, ws)]) return true;
   char* end;
-  std::string value = mj_getPluginConfig(m, instance, name);
-  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
-  strtod(value.c_str(), &end);
-  return end == value.data() + value.size();
+  strtod(value, &end);
+  return end != value && !end[std::strspn(end, ws)];
 }
 
 SdfVisualizer::SdfVisualizer() {

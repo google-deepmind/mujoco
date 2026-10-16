@@ -1040,6 +1040,13 @@ void mj_initPlugin(const mjModel* m, mjData* d) {
     d->plugin[i] = m->plugin[i];
     const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
     if (plugin->init && plugin->init(m, d, i) < 0) {
+      // destroy previously initialized instances
+      for (int j=0; j < i; j++) {
+        const mjpPlugin* prev = mjp_getPluginAtSlot(d->plugin[j]);
+        if (prev->destroy) {
+          prev->destroy(d, j);
+        }
+      }
       mju_free(d->buffer);
       mju_free(d->arena);
       mju_free(d);

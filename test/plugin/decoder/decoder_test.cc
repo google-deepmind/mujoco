@@ -254,6 +254,67 @@ TEST_F(DecoderPluginTest, MeshDecodeErrorReachesCompiler) {
   mj_deleteVFS(&vfs);
 }
 
+// a decoder which calls mju_error, as a misbehaving plugin may
+mjpDecoder ErrorDecoder() {
+  mjpDecoder decoder;
+  mjp_defaultDecoder(&decoder);
+  decoder.content_type = "model/errorformat";
+  decoder.extension = ".errorformat";
+  decoder.can_decode = +[](const mjResource* r) -> int {
+    return std::string_view(r->name).ends_with(".errorformat");
+  };
+  decoder.decode = +[](mjResource* resource, const mjVFS* vfs, char* error,
+                       int error_sz) -> mjSpec* {
+    mju_error("errorformat: cannot decode '%s'", resource->name);
+    return nullptr;
+  };
+  return decoder;
+}
+
+// mju_error during mesh compilation on the compiler's worker threads, where
+// Compile did not set a longjmp target, is reported as a compile error
+TEST_F(DecoderPluginTest, MeshDecodeMjuErrorInWorkerThread) {
+  mjpDecoder decoder = ErrorDecoder();
+  mjp_registerDecoder(&decoder);
+
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  const char contents[] = "garbage";
+  mj_addBufferVFS(&vfs, "bad1.errorformat", contents, sizeof(contents));
+  mj_addBufferVFS(&vfs, "bad2.errorformat", contents, sizeof(contents));
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="bad1" file="bad1.errorformat"
+        content_type="model/errorformat"/>
+      <mesh name="bad2" file="bad2.errorformat"
+        content_type="model/errorformat"/>
+    </asset>
+  </mujoco>
+  )";
+
+  for (const char* usethread : {"true", "false"}) {
+    std::string model = xml;
+    model.replace(
+        model.find("<asset>"), 7,
+        std::string("<compiler usethread=\"") + usethread + "\"/><asset>");
+    char error[1024] = "";
+    mjSpec* spec = mj_parseXMLString(model.c_str(), &vfs, error, sizeof(error));
+    ASSERT_THAT(spec, testing::NotNull()) << error;
+    mjModel* m = mj_compile(spec, &vfs);
+    EXPECT_THAT(m, testing::IsNull());
+    EXPECT_THAT(mjs_getError(spec),
+                testing::HasSubstr("errorformat: cannot decode"));
+    mj_deleteSpec(spec);
+  }
+
+  // the longjmp still skips the meshes' own cleanup, so their resources stay
+  // open: decoders should report errors through their error buffer instead
+  mock_warning_handler.ExpectWarnings("open resources");
+  mj_deleteVFS(&vfs);
+}
+
 TEST_F(DecoderPluginTest, GmshDecoder41) {
   static constexpr char msh[] =
       "$MeshFormat\n"

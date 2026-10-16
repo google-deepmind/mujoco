@@ -5738,24 +5738,48 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool te
 }
 
 
+// compile a mesh or texture with the compiler log handler, on any thread: an mju_error is
+// converted to a longjmp back here and stored as an exception, as Compile only calls setjmp on
+// the calling thread
+template <typename T>
+static void CompileAsset(T*                  asset,
+                         const mjVFS*        vfs,
+                         std::exception_ptr& exception,
+                         std::mutex&         exception_mutex,
+                         std::string*        warningtext) {
+  local_warningtext_ptr = warningtext;
+  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
+
+  // save the enclosing longjmp target, if any
+  std::jmp_buf saved;
+  std::memcpy(saved, error_jmp_buf, sizeof(std::jmp_buf));
+
+  if (setjmp(error_jmp_buf) == 0) {
+    try {
+      asset->Compile(vfs);
+    } catch (...) {
+      std::lock_guard<std::mutex> lock(exception_mutex);
+      if (!exception) { exception = std::current_exception(); }
+    }
+  } else {
+    std::lock_guard<std::mutex> lock(exception_mutex);
+    if (!exception) {
+      exception = std::make_exception_ptr(mjCError(asset, "engine error: %s", errortext));
+    }
+  }
+
+  std::memcpy(error_jmp_buf, saved, sizeof(std::jmp_buf));
+  _mjPRIVATE_setTlsLogHandler(previous_handler);
+  local_warningtext_ptr = nullptr;
+}
+
 // Helper function for mesh compilation used by both serial and parallel paths
 static void CompileMesh(mjCMesh*            mesh,
                         const mjVFS*        vfs,
                         std::exception_ptr& exception,
                         std::mutex&         exception_mutex,
                         std::string*        warningtext) {
-  local_warningtext_ptr = warningtext;
-  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
-
-  try {
-    mesh->Compile(vfs);
-  } catch (...) {
-    std::lock_guard<std::mutex> lock(exception_mutex);
-    if (!exception) { exception = std::current_exception(); }
-  }
-
-  _mjPRIVATE_setTlsLogHandler(previous_handler);
-  local_warningtext_ptr = nullptr;
+  CompileAsset(mesh, vfs, exception, exception_mutex, warningtext);
 }
 
 // Helper function for texture compilation used by both serial and parallel paths
@@ -5764,22 +5788,11 @@ static void CompileTexture(mjCTexture*         texture,
                            std::exception_ptr& exception,
                            std::mutex&         exception_mutex,
                            std::string*        warningtext) {
-  using Clock           = std::chrono::steady_clock;
-  using Seconds         = std::chrono::duration<double>;
-  local_warningtext_ptr = warningtext;
-  auto previous_handler = _mjPRIVATE_setTlsLogHandler(compilerLogHandler);
-
+  using Clock          = std::chrono::steady_clock;
+  using Seconds        = std::chrono::duration<double>;
   Clock::time_point t0 = Clock::now();
-  try {
-    texture->Compile(vfs);
-  } catch (...) {
-    std::lock_guard<std::mutex> lock(exception_mutex);
-    if (!exception) { exception = std::current_exception(); }
-  }
+  CompileAsset(texture, vfs, exception, exception_mutex, warningtext);
   texture->texture_time_ = Seconds(Clock::now() - t0).count();
-
-  _mjPRIVATE_setTlsLogHandler(previous_handler);
-  local_warningtext_ptr = nullptr;
 }
 
 // multi-threaded mesh and texture compilation with shared threadpool

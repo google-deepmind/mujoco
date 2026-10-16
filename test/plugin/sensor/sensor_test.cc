@@ -41,5 +41,32 @@ TEST_F(SensorPluginTest, ValidAttributes) {
   mj_deleteModel(model);
 }
 
+// invalid attributes fail plugin init, which is reported as a compile error;
+// leaks of the partial mjData or of C++ locals are detected under asan
+TEST_F(SensorPluginTest, InvalidAttributeErrorDoesNotLeak) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sensor.touch_grid"/>
+    </extension>
+    <worldbody>
+      <site name="touch"/>
+    </worldbody>
+    <sensor>
+      <plugin plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch">
+        <config key="size" value="6 2"/>
+        <config key="fov" value="0 45"/>
+        <config key="gamma" value="0"/>
+        <config key="nchannel" value="1"/>
+      </plugin>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model, testing::IsNull());
+  EXPECT_THAT(error, testing::HasSubstr("`fov[0]` must be a float"));
+}
+
 }  // namespace
 }  // namespace mujoco

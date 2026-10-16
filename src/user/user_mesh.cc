@@ -382,6 +382,11 @@ void mjCMesh::LoadSDF() {
   if (pplugin->sdf_attribute) {
     pplugin->sdf_attribute(attributes.data(), names.data(), values.data());
   }
+  for (int i = 0; i < pplugin->nattribute; i++) {
+    if (std::isnan(attributes[i])) {
+      throw mjCError(this, "invalid attribute value for '%s'", names[i]);
+    }
+  }
 
   mjtNum aabb[6] = {0};
   pplugin->sdf_aabb(aabb, attributes.data());

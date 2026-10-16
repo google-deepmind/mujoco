@@ -4413,5 +4413,110 @@ TEST_F(FrameScaleTest, AnisotropicSkin) {
               Pointwise(FloatNear(1e-5), {0, 0, 4, 2, 0, 4}));
 }
 
+// ------------------------- mju_error during compile --------------------------
+
+// mjCModel::Compile turns mju_error into a compile error via longjmp, skipping
+// the destructors of C++ objects on the stack, so errors from bad input must
+// not reach mju_error; the leak checks below come from running under asan
+
+// SDF attribute error in the serial mesh compile path
+TEST_F(UserModelTest, SdfAttributeErrorDoesNotLeak) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler usethread="false"/>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="torus_instance_with_a_long_name_to_defeat_sso">
+          <config key="radius1" value="not_a_number_and_longer_than_sso"/>
+          <config key="radius2" value="0.15"/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="torus">
+        <plugin instance="torus_instance_with_a_long_name_to_defeat_sso"/>
+      </mesh>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid attribute value for 'radius1'"));
+}
+
+// an SDF attribute with trailing characters is invalid
+TEST_F(UserModelTest, SdfAttributeTrailingCharacters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="torus">
+          <config key="radius1" value="0.35m"/>
+          <config key="radius2" value=" 0.15 "/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="torus">
+        <plugin instance="torus"/>
+      </mesh>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid attribute value for 'radius1'"));
+}
+
+// SDF attribute error in the threaded mesh compile path
+TEST_F(UserModelTest, SdfAttributeErrorInWorkerThread) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="torus">
+          <config key="radius1" value="not_a_number_and_longer_than_sso"/>
+          <config key="radius2" value="0.15"/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="torus1">
+        <plugin instance="torus"/>
+      </mesh>
+      <mesh name="torus2">
+        <plugin instance="torus"/>
+      </mesh>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid attribute value for 'radius1'"));
+}
+
+// SDF attribute error in plugin init, for an instance which no mesh uses
+TEST_F(UserModelTest, SdfInitErrorDoesNotLeak) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.gear">
+        <instance name="gear">
+          <config key="thickness" value="not_a_number_and_longer_than_sso"/>
+        </instance>
+      </plugin>
+    </extension>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("Invalid parameter specification in Gear plugin"));
+}
+
 }  // namespace
 }  // namespace mujoco

@@ -195,6 +195,11 @@ create an arbitrary data structure that it requires to function and stores its p
 :ref:`mjData` that is being created. During :ref:`mj_deleteData`, MuJoCo calls the ``destroy`` callback from the same
 :ref:`mjpPlugin`, and the plugin is responsible for deallocating its internal resources associated with the instance.
 
+The ``init`` callback should report an invalid configuration by issuing a :ref:`mju_warning` and returning -1, upon
+which :ref:`mj_makeData` (and model compilation) fails. Plugin callbacks should not call :ref:`mju_error`: error
+handlers which do not return, like those of the Python bindings and the model compiler, skip the destructors of C++
+objects on the stack, in the plugin and in MuJoCo itself.
+
 When :ref:`mjData` is being copied via :ref:`mj_copyData`, MuJoCo will copy over the plugin state. However, the plugin
 code is responsible for setting up the plugin data for the newly copied :ref:`mjData`. To facilitate this, MuJoCo calls
 the ``copy`` callback from :ref:`mjpPlugin` for each plugin instance present.
@@ -386,7 +391,7 @@ A decoder is described by the :ref:`mjpDecoder` struct, which has the following 
   failure, in which case the decoder should write a human-readable reason into the ``error`` buffer of size
   ``error_sz``, if ``error`` is not ``NULL``. This message is propagated to the user, e.g. via the ``error``
   argument of :ref:`mj_parse` or as a compiler error for mesh assets. Non-fatal issues can be reported with
-  :ref:`mju_warning`.
+  :ref:`mju_warning`. Decoders should not call :ref:`mju_error`, see :ref:`plugin state<exPluginState>`.
 
 When a decoder is invoked for a mesh asset, the compiler will reference the first mesh element in the spec returned
 by the ``decode`` callback.

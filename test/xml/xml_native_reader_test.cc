@@ -991,6 +991,26 @@ TEST_F(XMLReaderTest, MaterialTextureFailTest) {
                                       "cannot have layer sub-elements"));
 }
 
+// an unknown layer role is a parse error, not an mju_error which would longjmp
+// past the parser's C++ objects; leaks are detected when running under asan
+TEST_F(XMLReaderTest, MaterialUnknownLayerRole) {
+  static constexpr char xml[] = R"(
+  <mujoco model="a model name which is longer than the sso buffer">
+    <asset>
+      <texture name="texture_name_longer_than_sso" type="2d" builtin="checker"
+        width="8" height="8"/>
+      <material name="material_name_longer_than_sso">
+        <layer role="not_a_role" texture="texture_name_longer_than_sso"/>
+      </material>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error = {0};
+  auto parse = MjuErrorMessageFrom(mj_parseXMLString);
+  EXPECT_EQ(parse(xml, nullptr, error.data(), error.size()), "");
+  EXPECT_THAT(error.data(), HasSubstr("unknown layer role 'not_a_role'"));
+}
+
 TEST_F(XMLReaderTest, LargeTextureAddressTest) {
 #if defined(__has_feature)
   #if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer) || \

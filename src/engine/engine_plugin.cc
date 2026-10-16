@@ -776,26 +776,38 @@ int mjp_archiveProviderCount() {
 }
 
 
-// load plugins from a dynamic library
-void mj_loadPluginLibrary(const char* path) {
+// load plugins from a dynamic library, return false and write error message on failure
+static bool LoadPluginLibrary(const char* path, char* error, int error_sz) {
 #if defined(_WIN32) || defined(__CYGWIN__)
+  (void)error;
+  (void)error_sz;
   LoadLibraryA(path);
 #else
   void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
-    const char* error = dlerror();
-    if (error) {
-      mju_error("Error loading plugin library '%s': %s\n", path, error);
+    const char* dlerr = dlerror();
+    if (dlerr) {
+      std::snprintf(error, error_sz, "Error loading plugin library '%s': %s\n", path, dlerr);
     } else {
-      mju_error("Unknown error loading plugin library '%s'\n", path);
+      std::snprintf(error, error_sz, "Unknown error loading plugin library '%s'\n", path);
     }
+    return false;
   }
 #endif
+  return true;
 }
 
-// scan a directory and load all dynamic libraries
-void mj_loadAllPluginLibraries(const char* directory,
-                               mjfPluginLibraryLoadCallback callback) {
+// load plugins from a dynamic library
+void mj_loadPluginLibrary(const char* path) {
+  char error[1024];
+  if (!LoadPluginLibrary(path, error, sizeof(error))) {
+    mju_error("%s", error);
+  }
+}
+
+// scan a directory and load all dynamic libraries, return false and write error message on failure
+static bool LoadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback,
+                                   char* error, int error_sz) {
   auto load_dso_and_call_callback = [&](const std::string& filename,
                                         const std::string& dso_path) {
     int nplugin_before;
@@ -805,7 +817,9 @@ void mj_loadAllPluginLibraries(const char* directory,
     {
       auto lock = plugin_table.LockExclusively();
       nplugin_before = mjp_pluginCount();
-      mj_loadPluginLibrary(dso_path.c_str());
+      if (!LoadPluginLibrary(dso_path.c_str(), error, error_sz)) {
+        return false;
+      }
       nplugin_after = mjp_pluginCount();
     }
 
@@ -814,6 +828,7 @@ void mj_loadAllPluginLibraries(const char* directory,
       int first = count ? nplugin_before : -1;
       callback(filename.c_str(), first, count);
     }
+    return true;
   };
 
   // define platform-specific strings
@@ -823,7 +838,7 @@ void mj_loadAllPluginLibraries(const char* directory,
   HANDLE hfile = FindFirstFileA(
       (directory + sep + "*.dll").c_str(), &find_data);
   if (!hfile) {
-    return;
+    return true;
   }
 
   // go through each file in the directory
@@ -832,7 +847,10 @@ void mj_loadAllPluginLibraries(const char* directory,
     const std::string name(find_data.cFileName);
     // load the library and check for plugins
     const std::string dso_path = directory + sep + name;
-    load_dso_and_call_callback(name.c_str(), dso_path.c_str());
+    if (!load_dso_and_call_callback(name.c_str(), dso_path.c_str())) {
+      FindClose(hfile);
+      return false;
+    }
     keep_going = FindNextFileA(hfile, &find_data);
   }
   FindClose(hfile);
@@ -846,7 +864,7 @@ void mj_loadAllPluginLibraries(const char* directory,
 
   DIR* dirp = opendir(directory);
   if (!dirp) {
-    return;
+    return true;
   }
 
   // go through each entry in the directory
@@ -859,10 +877,24 @@ void mj_loadAllPluginLibraries(const char* directory,
       // use stat to resolve symlinks and check that the target is a regular file
       struct stat file_stat;
       if (stat(dso_path.c_str(), &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
-        load_dso_and_call_callback(name.c_str(), dso_path.c_str());
+        if (!load_dso_and_call_callback(name.c_str(), dso_path.c_str())) {
+          closedir(dirp);
+          return false;
+        }
       }
     }
   }
   closedir(dirp);
 #endif
+  return true;
+}
+
+// scan a directory and load all dynamic libraries
+void mj_loadAllPluginLibraries(const char* directory,
+                               mjfPluginLibraryLoadCallback callback) {
+  // mju_error may longjmp: call it after the lock and C++ objects are destroyed
+  char error[1024] = "";
+  if (!LoadAllPluginLibraries(directory, callback, error, sizeof(error))) {
+    mju_error("%s", error);
+  }
 }

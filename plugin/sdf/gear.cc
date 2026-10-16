@@ -143,7 +143,7 @@ static mjtNum distance(const mjtNum p[3],
 // factory function
 std::optional<Gear> Gear::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr("alpha", m, instance) && CheckAttr("diameter", m, instance) &&
-      CheckAttr("teeth", m, instance) &&
+      CheckAttr("teeth", m, instance) && CheckAttr("thickness", m, instance) &&
       CheckAttr("innerdiameter", m, instance)) {
     return Gear(m, d, instance);
   } else {

@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
@@ -46,16 +47,16 @@ class SdfDefault {
     }
   }
 
-  // get a single default value
+  // get a single default value, NaN if the value is invalid
   mjtNum GetDefault(const char* name, const char* value) {
-    if (std::string(value).empty()) {
+    // empty or whitespace, as in CheckAttr
+    if (!value[std::strspn(value, " \t\n\v\f\r")]) {
       return default_[name];
     }
     char* end = nullptr;
     mjtNum num = strtod(value, &end);
-    if (end == value) {
-      mju_error("invalid attribute value for '%s'", name);
-      return 0;
+    if (end == value || end[std::strspn(end, " \t\n\v\f\r")]) {
+      return std::nan("");
     }
     return num;
   }
