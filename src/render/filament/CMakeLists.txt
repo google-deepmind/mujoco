@@ -68,6 +68,8 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         support/model_renderables.cc
         support/model_resources.h
         support/model_resources.cc
+        support/renderer.h
+        support/renderer.cc
 )
 
 target_include_directories(${MUJOCO_FILAMENT_TARGET_NAME}

@@ -1,0 +1,494 @@
+// Copyright 2026 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "src/render/filament/support/renderer.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <span>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <vector>
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mujoco/mjrfilament.h>
+#include <mujoco/mujoco.h>
+#include "src/render/filament/support/mjrf_ptr.h"
+#include "test/fixture.h"
+
+namespace mujoco {
+namespace {
+
+using ::testing::HasSubstr;
+using RendererTest = MujocoTest;
+
+static constexpr uint8_t kRed[3] = {255, 0, 0};
+static constexpr uint8_t kGreen[3] = {0, 255, 0};
+static constexpr uint8_t kBlue[3] = {0, 0, 255};
+static constexpr uint8_t kWhite[3] = {255, 255, 255};
+
+static UniquePtr<mjrfTexture> MakeTexture(mjrfContext* ctx,
+                                          const uint8_t* color) {
+  mjrfTextureConfig config;
+  mjrf_defaultTextureConfig(&config);
+  config.width = 1;
+  config.height = 1;
+  config.format = mjPIXEL_FORMAT_RGB8;
+  UniquePtr<mjrfTexture> texture = CreateTexture(ctx, config);
+
+  mjrfTextureData data;
+  mjrf_defaultTextureData(&data);
+  data.bytes = color;
+  data.num_bytes = 3;
+  mjrf_uploadTexture(texture.get(), &data);
+  return texture;
+}
+
+static UniquePtr<mjrfMesh> MakeQuadMesh(mjrfContext* ctx) {
+  static const float vertices[] = {
+      -256.0f, -256.0f, 256.0f, -256.0f, -256.0f, 256.0f, 256.0f, 256.0f,
+  };
+  static const float uvs[] = {
+      0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+  };
+  static const uint8_t colors[] = {
+      255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255,
+  };
+  static const uint16_t indices[] = {0, 1, 2, 1, 3, 2};
+
+  mjrfMeshConfig config;
+  mjrf_defaultMeshConfig(&config);
+  config.num_attributes = 3;
+  config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+  config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+  config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_UV;
+  config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT2;
+  config.attributes[2].usage = mjVERTEX_ATTRIBUTE_USAGE_COLOR;
+  config.attributes[2].type = mjVERTEX_ATTRIBUTE_TYPE_UBYTE4;
+  config.max_vertices = 4;
+  config.max_indices = 6;
+  config.interleaved = false;
+  config.index_type = mjINDEX_TYPE_U16;
+  config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+  UniquePtr<mjrfMesh> mesh = CreateMesh(ctx, config);
+
+  mjrfMeshData data;
+  mjrf_defaultMeshData(&data);
+  data.num_vertices = 4;
+  data.vertices[0] = vertices;
+  data.vertices[1] = uvs;
+  data.vertices[2] = colors;
+  data.num_indices = 6;
+  data.indices = indices;
+  mjrf_uploadMesh(mesh.get(), &data);
+
+  return mesh;
+}
+
+static UniquePtr<mjrfRenderable> MakeRenderable(mjrfContext* ctx,
+                                                mjrfMesh* mesh,
+                                                mjrfTexture* texture) {
+  mjrfMaterial material;
+  mjrf_defaultMaterial(&material);
+  material.decor = true;
+  material.color_texture = texture;
+
+  mjrfRenderableParams params;
+  mjrf_defaultRenderableParams(&params);
+  params.cast_shadow = false;
+  params.receive_shadow = false;
+  auto renderable = CreateRenderable(ctx, params);
+  mjrf_setRenderableMesh(renderable.get(), mesh, 0, 0);
+  mjrf_setRenderableMaterial(renderable.get(), &material);
+  return renderable;
+}
+
+mjrfContextConfig MakeOffscreenConfig() {
+  mjrfContextConfig config;
+  mjrf_defaultContextConfig(&config);
+  config.native_window = nullptr;
+  config.software_rendering = true;
+  config.graphics_api = mjGRAPHICS_API_VULKAN;
+  return config;
+}
+
+TEST_F(RendererTest, ContextCreationAndDefaults) {
+  Renderer renderer(MakeOffscreenConfig());
+  EXPECT_NE(renderer.GetContext(), nullptr);
+  EXPECT_FLOAT_EQ(renderer.GetGpuFrameMs(), 0.0f);
+}
+
+TEST_F(RendererTest, SceneManagement) {
+  Renderer renderer(MakeOffscreenConfig());
+
+  // Unknown scene names and invalid handles return invalid/null results.
+  EXPECT_EQ(renderer.GetSceneHandle("main"), Renderer::kInvalidScene);
+  EXPECT_EQ(renderer.GetScene(Renderer::kInvalidScene), nullptr);
+  EXPECT_EQ(renderer.GetScene(Renderer::SceneHandle{-5}), nullptr);
+  EXPECT_EQ(renderer.GetScene(Renderer::SceneHandle{0}), nullptr);
+  EXPECT_EQ(renderer.GetScene(Renderer::SceneHandle{100}), nullptr);
+
+  // GetScene lazily creates a scene and assigns a valid handle.
+  mjrfScene* scene_a = renderer.GetScene("scene_a");
+  ASSERT_NE(scene_a, nullptr);
+  Renderer::SceneHandle handle_a = renderer.GetSceneHandle("scene_a");
+  EXPECT_NE(handle_a, Renderer::kInvalidScene);
+  EXPECT_EQ(renderer.GetScene(handle_a), scene_a);
+
+  // Requesting the same scene name again returns the existing scene instance.
+  EXPECT_EQ(renderer.GetScene("scene_a"), scene_a);
+  EXPECT_EQ(renderer.GetSceneHandle("scene_a"), handle_a);
+
+  // Creating a second scene produces a distinct handle and pointer.
+  mjrfScene* scene_b = renderer.GetScene("scene_b");
+  ASSERT_NE(scene_b, nullptr);
+  EXPECT_NE(scene_b, scene_a);
+  Renderer::SceneHandle handle_b = renderer.GetSceneHandle("scene_b");
+  EXPECT_NE(handle_b, Renderer::kInvalidScene);
+  EXPECT_NE(handle_b, handle_a);
+  EXPECT_EQ(renderer.GetScene(handle_b), scene_b);
+  EXPECT_EQ(renderer.GetScene(handle_a), scene_a);
+}
+
+TEST_F(RendererTest, RenderTargetLifecycleAndResize) {
+  Renderer renderer(MakeOffscreenConfig());
+
+  EXPECT_EQ(renderer.GetRenderTargetHandle("color"),
+            Renderer::kInvalidRenderTarget);
+  EXPECT_TRUE(renderer.GetPixels(Renderer::kInvalidRenderTarget).empty());
+  EXPECT_TRUE(renderer.GetPixels(Renderer::kWindowRenderTarget).empty());
+  EXPECT_TRUE(renderer.GetPixels(Renderer::RenderTargetHandle{42}).empty());
+
+  // Resizing invalid or out-of-bounds handles is a safe no-op.
+  renderer.ResizeRenderTarget(Renderer::kInvalidRenderTarget, 64, 64);
+  renderer.ResizeRenderTarget(Renderer::RenderTargetHandle{42}, 64, 64);
+  renderer.ResizeRenderTarget(Renderer::kWindowRenderTarget, 128, 128);
+  EXPECT_TRUE(renderer.GetPixels(Renderer::kWindowRenderTarget).empty());
+
+  // Creating a target with positive dimensions immediately allocates buffer.
+  mjrfRenderTargetConfig config;
+  mjrf_defaultRenderTargetConfig(&config);
+  config.width = 64;
+  config.height = 32;
+  config.color_format = mjPIXEL_FORMAT_RGBA8;
+  config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+
+  Renderer::RenderTargetHandle color_target =
+      renderer.CreateRenderTarget("color", config);
+  EXPECT_NE(color_target, Renderer::kInvalidRenderTarget);
+  EXPECT_EQ(renderer.GetRenderTargetHandle("color"), color_target);
+  EXPECT_EQ(renderer.GetPixels(color_target).size(), 64 * 32 * 4);
+
+  // Resizing updates the pixel buffer capacity accordingly.
+  renderer.ResizeRenderTarget(color_target, 128, 64);
+  EXPECT_EQ(renderer.GetPixels(color_target).size(), 128 * 64 * 4);
+
+  renderer.ResizeRenderTarget(color_target, 16, 8);
+  EXPECT_EQ(renderer.GetPixels(color_target).size(), 16 * 8 * 4);
+
+  renderer.ResizeRenderTarget(color_target, 0, 0);
+  EXPECT_TRUE(renderer.GetPixels(color_target).empty());
+
+  // Creating a target with zero initial dimensions defers pixel allocation
+  // until ResizeRenderTarget is called.
+  mjrfRenderTargetConfig deferred_config;
+  mjrf_defaultRenderTargetConfig(&deferred_config);
+  deferred_config.width = 0;
+  deferred_config.height = 0;
+  deferred_config.color_format = mjPIXEL_FORMAT_RGB8;
+
+  Renderer::RenderTargetHandle deferred_target =
+      renderer.CreateRenderTarget("deferred", deferred_config);
+  EXPECT_NE(deferred_target, Renderer::kInvalidRenderTarget);
+  EXPECT_NE(deferred_target, color_target);
+  EXPECT_TRUE(renderer.GetPixels(deferred_target).empty());
+
+  renderer.ResizeRenderTarget(deferred_target, 32, 24);
+  EXPECT_EQ(renderer.GetPixels(deferred_target).size(), 32 * 24 * 3);
+}
+
+TEST_F(RendererTest, RenderTargetPixelFormatsAndDuplicateNames) {
+  Renderer renderer(MakeOffscreenConfig());
+
+  struct FormatCase {
+    const char* name;
+    mjrPixelFormat format;
+    size_t bytes_per_pixel;
+  };
+  constexpr FormatCase kFormats[] = {
+      {"r8", mjPIXEL_FORMAT_R8, 1},
+      {"rgb8", mjPIXEL_FORMAT_RGB8, 3},
+      {"rgba8", mjPIXEL_FORMAT_RGBA8, 4},
+      {"r32f", mjPIXEL_FORMAT_R32F, 4},
+  };
+
+  constexpr int kWidth = 20;
+  constexpr int kHeight = 10;
+  for (const FormatCase& tc : kFormats) {
+    mjrfRenderTargetConfig config;
+    mjrf_defaultRenderTargetConfig(&config);
+    config.width = kWidth;
+    config.height = kHeight;
+    config.color_format = tc.format;
+
+    Renderer::RenderTargetHandle handle =
+        renderer.CreateRenderTarget(tc.name, config);
+    EXPECT_NE(handle, Renderer::kInvalidRenderTarget) << tc.name;
+    EXPECT_EQ(renderer.GetRenderTargetHandle(tc.name), handle) << tc.name;
+    EXPECT_EQ(renderer.GetPixels(handle).size(),
+              kWidth * kHeight * tc.bytes_per_pixel)
+        << tc.name;
+  }
+
+  // Creating a render target with an already-registered name raises mju_error.
+  EXPECT_THAT(MjuErrorMessageFrom(+[](Renderer* r) {
+                mjrfRenderTargetConfig cfg;
+                mjrf_defaultRenderTargetConfig(&cfg);
+                r->CreateRenderTarget("rgb8", cfg);
+              })(&renderer),
+              HasSubstr("Render target 'rgb8' already exists"));
+}
+
+TEST_F(RendererTest, ViewManagement) {
+  Renderer renderer(MakeOffscreenConfig());
+
+  EXPECT_EQ(renderer.GetViewHandle("main"), Renderer::kInvalidView);
+  EXPECT_EQ(renderer.GetView(Renderer::kInvalidView), nullptr);
+  EXPECT_EQ(renderer.GetView(Renderer::ViewHandle{-2}), nullptr);
+  EXPECT_EQ(renderer.GetView(Renderer::ViewHandle{0}), nullptr);
+  EXPECT_EQ(renderer.GetView(Renderer::ViewHandle{50}), nullptr);
+
+  // GetView creates a view initialized with default parameters.
+  Renderer::View* main_view = renderer.GetView("main");
+  ASSERT_NE(main_view, nullptr);
+  EXPECT_EQ(main_view->scene, Renderer::kInvalidScene);
+  EXPECT_EQ(main_view->render_target, Renderer::kWindowRenderTarget);
+  EXPECT_FLOAT_EQ(main_view->rel_viewport[0], 0.0f);
+  EXPECT_FLOAT_EQ(main_view->rel_viewport[1], 0.0f);
+  EXPECT_FLOAT_EQ(main_view->rel_viewport[2], 1.0f);
+  EXPECT_FLOAT_EQ(main_view->rel_viewport[3], 1.0f);
+  EXPECT_EQ(main_view->draw_mode, mjDRAW_MODE_DEFAULT);
+  EXPECT_TRUE(main_view->post_processing);
+  EXPECT_TRUE(main_view->reflections);
+  EXPECT_TRUE(main_view->shadows);
+  EXPECT_FALSE(main_view->headlight.has_value());
+
+  Renderer::ViewHandle main_handle = renderer.GetViewHandle("main");
+  EXPECT_NE(main_handle, Renderer::kInvalidView);
+  EXPECT_EQ(renderer.GetView(main_handle), main_view);
+
+  // Mutating the view persists across lookups by name or handle.
+  main_view->draw_mode = mjDRAW_MODE_WIREFRAME;
+  main_view->shadows = false;
+  EXPECT_EQ(renderer.GetView("main"), main_view);
+  EXPECT_EQ(renderer.GetView("main")->draw_mode, mjDRAW_MODE_WIREFRAME);
+  EXPECT_FALSE(renderer.GetView(main_handle)->shadows);
+
+  // Creating a second view yields a distinct handle and pointer.
+  Renderer::View* pip_view = renderer.GetView("pip");
+  ASSERT_NE(pip_view, nullptr);
+  EXPECT_NE(pip_view, main_view);
+  Renderer::ViewHandle pip_handle = renderer.GetViewHandle("pip");
+  EXPECT_NE(pip_handle, Renderer::kInvalidView);
+  EXPECT_NE(pip_handle, main_handle);
+  EXPECT_EQ(renderer.GetView(pip_handle), pip_view);
+}
+
+TEST_F(RendererTest, RenderFullscreen) {
+  Renderer renderer(MakeOffscreenConfig());
+
+  mjrfContext* ctx = renderer.GetContext();
+  UniquePtr<mjrfMesh> mesh = MakeQuadMesh(ctx);
+  UniquePtr<mjrfTexture> texture = MakeTexture(ctx, kRed);
+  UniquePtr<mjrfRenderable> renderable =
+      MakeRenderable(ctx, mesh.get(), texture.get());
+
+  mjrfRenderTargetConfig target_config;
+  mjrf_defaultRenderTargetConfig(&target_config);
+  target_config.width = 32;
+  target_config.height = 32;
+  target_config.color_format = mjPIXEL_FORMAT_RGB8;
+  target_config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle target =
+      renderer.CreateRenderTarget("offscreen", target_config);
+  ASSERT_NE(target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene = renderer.GetScene("scene");
+  ASSERT_NE(scene, nullptr);
+  mjrf_addSceneRenderable(scene, renderable.get());
+
+  Renderer::View* view = renderer.GetView("view");
+  ASSERT_NE(view, nullptr);
+  view->render_target = target;
+  view->scene = renderer.GetSceneHandle("scene");
+  view->camera.orthographic = true;
+  view->post_processing = false;
+  view->shadows = false;
+  view->reflections = false;
+
+  Renderer::ViewHandle views[] = {renderer.GetViewHandle("view")};
+  renderer.Render(views);
+
+  std::span<const std::byte> pixels = renderer.GetPixels(target);
+  EXPECT_EQ(pixels.size(), target_config.width * target_config.height * 3);
+  EXPECT_NE(pixels.data(), nullptr);
+  for (int i = 0; i < pixels.size(); i += 3) {
+    EXPECT_EQ((uint8_t)pixels[i + 0], kRed[0]);
+    EXPECT_EQ((uint8_t)pixels[i + 1], kRed[1]);
+    EXPECT_EQ((uint8_t)pixels[i + 2], kRed[2]);
+  }
+}
+
+TEST_F(RendererTest, RenderGrid) {
+  Renderer renderer(MakeOffscreenConfig());
+
+  mjrfContext* ctx = renderer.GetContext();
+
+  UniquePtr<mjrfMesh> mesh = MakeQuadMesh(ctx);
+  std::vector<UniquePtr<mjrfTexture>> textures;
+  textures.push_back(MakeTexture(ctx, kRed));
+  textures.push_back(MakeTexture(ctx, kGreen));
+  textures.push_back(MakeTexture(ctx, kBlue));
+  textures.push_back(MakeTexture(ctx, kWhite));
+
+  std::vector<UniquePtr<mjrfRenderable>> renderables;
+  for (int i = 0; i < textures.size(); ++i) {
+    renderables.push_back(MakeRenderable(ctx, mesh.get(), textures[i].get()));
+  }
+
+  mjrfRenderTargetConfig target_config;
+  mjrf_defaultRenderTargetConfig(&target_config);
+  target_config.width = 32;
+  target_config.height = 32;
+  target_config.color_format = mjPIXEL_FORMAT_RGB8;
+  target_config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle target =
+      renderer.CreateRenderTarget("offscreen", target_config);
+  ASSERT_NE(target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene0 = renderer.GetScene("scene0");
+  mjrf_addSceneRenderable(scene0, renderables[0].get());
+  mjrfScene* scene1 = renderer.GetScene("scene1");
+  mjrf_addSceneRenderable(scene1, renderables[1].get());
+  mjrfScene* scene2 = renderer.GetScene("scene2");
+  mjrf_addSceneRenderable(scene2, renderables[2].get());
+  mjrfScene* scene3 = renderer.GetScene("scene3");
+  mjrf_addSceneRenderable(scene3, renderables[3].get());
+
+  Renderer::View* view0 = renderer.GetView("view0");
+  ASSERT_NE(view0, nullptr);
+  view0->render_target = target;
+  view0->scene = renderer.GetSceneHandle("scene0");
+  view0->rel_viewport[0] = 0.0f;
+  view0->rel_viewport[1] = 0.0f;
+  view0->rel_viewport[2] = 0.5f;
+  view0->rel_viewport[3] = 0.5f;
+  view0->camera.orthographic = true;
+  view0->post_processing = false;
+  view0->shadows = false;
+  view0->reflections = false;
+
+  Renderer::View* view1 = renderer.GetView("view1");
+  ASSERT_NE(view1, nullptr);
+  view1->render_target = target;
+  view1->scene = renderer.GetSceneHandle("scene1");
+  view1->rel_viewport[0] = 0.0f;
+  view1->rel_viewport[1] = 0.5f;
+  view1->rel_viewport[2] = 0.5f;
+  view1->rel_viewport[3] = 0.5f;
+  view1->camera.orthographic = true;
+  view1->post_processing = false;
+  view1->shadows = false;
+  view1->reflections = false;
+
+  Renderer::View* view2 = renderer.GetView("view2");
+  ASSERT_NE(view2, nullptr);
+  view2->render_target = target;
+  view2->scene = renderer.GetSceneHandle("scene2");
+  view2->rel_viewport[0] = 0.5f;
+  view2->rel_viewport[1] = 0.0f;
+  view2->rel_viewport[2] = 0.5f;
+  view2->rel_viewport[3] = 0.5f;
+  view2->camera.orthographic = true;
+  view2->post_processing = false;
+  view2->shadows = false;
+  view2->reflections = false;
+
+  Renderer::View* view3 = renderer.GetView("view3");
+  ASSERT_NE(view3, nullptr);
+  view3->render_target = target;
+  view3->scene = renderer.GetSceneHandle("scene3");
+  view3->rel_viewport[0] = 0.5f;
+  view3->rel_viewport[1] = 0.5f;
+  view3->rel_viewport[2] = 0.5f;
+  view3->rel_viewport[3] = 0.5f;
+  view3->camera.orthographic = true;
+  view3->post_processing = false;
+  view3->shadows = false;
+  view3->reflections = false;
+
+  Renderer::ViewHandle views[] = {
+      renderer.GetViewHandle("view0"), renderer.GetViewHandle("view1"),
+      renderer.GetViewHandle("view2"), renderer.GetViewHandle("view3")};
+  renderer.Render(views);
+
+  std::span<const std::byte> pixels = renderer.GetPixels(target);
+  EXPECT_EQ(pixels.size(), target_config.width * target_config.height * 3);
+  EXPECT_NE(pixels.data(), nullptr);
+  auto get_pixel = [&](int x, int y) {
+    int index = (y * target_config.width + x) * 3;
+    return std::make_tuple((uint8_t)pixels[index + 0],
+                           (uint8_t)pixels[index + 1],
+                           (uint8_t)pixels[index + 2]);
+  };
+
+  for (int x = 0; x < 16; ++x) {
+    for (int y = 0; y < 16; ++y) {
+      auto pixel = get_pixel(x, y);
+      EXPECT_EQ(std::get<0>(pixel), kGreen[0]);
+      EXPECT_EQ(std::get<1>(pixel), kGreen[1]);
+      EXPECT_EQ(std::get<2>(pixel), kGreen[2]);
+    }
+  }
+  for (int x = 16; x < 32; ++x) {
+    for (int y = 0; y < 16; ++y) {
+      auto pixel = get_pixel(x, y);
+      EXPECT_EQ(std::get<0>(pixel), kWhite[0]);
+      EXPECT_EQ(std::get<1>(pixel), kWhite[1]);
+      EXPECT_EQ(std::get<2>(pixel), kWhite[2]);
+    }
+  }
+  for (int x = 0; x < 16; ++x) {
+    for (int y = 16; y < 32; ++y) {
+      auto pixel = get_pixel(x, y);
+      EXPECT_EQ(std::get<0>(pixel), kRed[0]);
+      EXPECT_EQ(std::get<1>(pixel), kRed[1]);
+      EXPECT_EQ(std::get<2>(pixel), kRed[2]);
+    }
+  }
+  for (int x = 16; x < 32; ++x) {
+    for (int y = 16; y < 32; ++y) {
+      auto pixel = get_pixel(x, y);
+      EXPECT_EQ(std::get<0>(pixel), kBlue[0]);
+      EXPECT_EQ(std::get<1>(pixel), kBlue[1]);
+      EXPECT_EQ(std::get<2>(pixel), kBlue[2]);
+    }
+  }
+}
+}  // namespace
+}  // namespace mujoco
