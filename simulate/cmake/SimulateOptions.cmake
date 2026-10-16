@@ -47,9 +47,20 @@ include(GNUInstallDirs)
 # Change the default output directory in the build structure. This is not stricly needed, but helps
 # running in Windows, such that all built executables have DLLs in the same folder as the .exe
 # files.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
+if(IS_ABSOLUTE ${CMAKE_INSTALL_BINDIR})
+  set(_BINDIR "bin")
+else()
+  set(_BINDIR "${CMAKE_INSTALL_BINDIR}")
+endif()
+if(IS_ABSOLUTE ${CMAKE_INSTALL_LIBDIR})
+  set(_LIBDIR "lib")
+else()
+  set(_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+endif()
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${_BINDIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${_LIBDIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${_LIBDIR}")
 
 set(OpenGL_GL_PREFERENCE GLVND)
 
