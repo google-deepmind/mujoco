@@ -19,6 +19,8 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,7 @@
 #include <gtest/gtest-spi.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
@@ -1034,6 +1037,72 @@ TEST_F(SleepTest, MocapWeldEqualityWakes) {
   d->eq_active[mj_name2id(m.get(), mjOBJ_EQUALITY, "grab")] = 1;
   mj_step(m.get(), d.get());
   EXPECT_EQ(d->ntree_awake, 1);
+}
+
+// plugin whose init runs kinematics before mj_resetData, like the cable plugin
+// state: xpos of the last body, computed at init
+void RegisterKinematicsPlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+  plugin.name = "mujoco.test.kinematics";
+  plugin.nstate = +[](const mjModel* m, int instance) { return 3; };
+  plugin.init = +[](const mjModel* m, mjData* d, int instance) {
+    mju_copy(d->qpos, m->qpos0, m->nq);
+    mj_kinematics(m, d);
+    mju_copy3(d->plugin_state + m->plugin_stateadr[instance],
+              d->xpos + 3 * (m->nbody - 1));
+    return 0;
+  };
+  mjp_registerPlugin(&plugin);
+}
+
+// plugin init sees all trees awake and static bodies posed
+TEST_F(SleepTest, PluginInitKinematics) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <extension>
+      <plugin plugin="mujoco.test.kinematics">
+        <instance name="kinematics"/>
+      </plugin>
+    </extension>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size=".1"/>
+      </body>
+      <body pos="0 0 1">
+        <body pos="1 0 0">
+          <joint/>
+          <geom size=".1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  RegisterKinematicsPlugin();
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+
+  // zero-filled buffers: uninitialized sleep state would put both trees in one
+  // sleep cycle through tree 0; mjData buffers must be 64-byte aligned
+  mju_user_malloc = +[](size_t size) {
+    void* ptr = ::operator new(size, std::align_val_t(64));
+    std::memset(ptr, 0, size);
+    return ptr;
+  };
+  mju_user_free =
+      +[](void* ptr) { ::operator delete(ptr, std::align_val_t(64)); };
+  mjData* d = mj_makeData(m.get());
+  mj_forward(m.get(), d);
+  EXPECT_EQ(AsVector(d->plugin_state, 3),
+            AsVector(d->xpos + 3 * (m->nbody - 1), 3));
+  mj_deleteData(d);
+  mju_user_malloc = nullptr;
+  mju_user_free = nullptr;
 }
 
 }  // namespace
