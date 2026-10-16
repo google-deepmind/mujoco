@@ -128,7 +128,7 @@ MJAPI mjtNum mjc_PtTri(const mjtNum* p, const mjtNum* a, const mjtNum* b, const 
 MJAPI mjtNum mjc_SegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1, const mjtNum* q2,
                         mjtNum* cp1, mjtNum* cp2, mjtNum* st);
 
-// is geom type supported by mjc_GeomDist (plane, sphere, capsule, box, mesh)
+// is geom type supported by mjc_GeomDist (plane, sphere, capsule, ellipsoid, cylinder, box, mesh)
 MJAPI int mjc_GeomSupported(int type);
 
 // signed distance (+ outward unit normal n) from geom gi's surface, at pose

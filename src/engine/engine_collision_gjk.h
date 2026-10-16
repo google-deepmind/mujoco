@@ -108,6 +108,10 @@ MJAPI size_t mjc_ccdSize(int npolygonmax, int nmeshdegmax, int iterations);
 // run general convex collision detection, returns positive for distance, negative for penetration
 MJAPI mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2);
 
+// run warm-started GJK distance query (no EPA), returns positive distance or 0 if penetrating
+MJAPI mjtNum mjc_gjk(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum x1[3], mjtNum x2[3],
+                     mjtNum dist_cutoff, mjtNum tolerance, int max_iterations);
+
 #ifdef __cplusplus
 }
 #endif

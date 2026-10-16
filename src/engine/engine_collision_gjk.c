@@ -2617,4 +2617,21 @@ mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, m
   return min_dist;
 }
 
+
+// warm-started GJK distance query (no EPA), returns positive distance or 0 if penetrating
+mjtNum mjc_gjk(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum x1[3], mjtNum x2[3],
+               mjtNum dist_cutoff, mjtNum tolerance, int max_iterations) {
+  mjCCDStatus status = {0};
+  mju_copy3(status.x1, x1);
+  mju_copy3(status.x2, x2);
+  status.dist_cutoff = dist_cutoff;
+  status.tolerance = tolerance;
+  status.max_iterations = max_iterations;
+
+  gjk(&status, obj1, obj2);
+  mju_copy3(x1, status.x1);
+  mju_copy3(x2, status.x2);
+  return status.dist[0];
+}
+
 #undef EPA_VERT_EXPAND

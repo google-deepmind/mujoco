@@ -1401,16 +1401,19 @@ TEST_F(IpcTest, NativeRowsExcludedForIpcPairs) {
 TEST_F(IpcTest, NativeRowsKeptForUnsupportedGeoms) {
   static constexpr char kModel[] = R"(
     <mujoco><option timestep="0.002" integrator="discrete" solver="CG"><flag ipc="enable"/></option>
+      <asset><hfield name="hf" nrow="2" ncol="2" elevation="1 1 1 1" size=".2 .2 .1 .1"/></asset>
       <worldbody>
-        <geom name="drum" type="%s" size="%s" pos="0 0 .2"/>
+        <geom name="drum" type="%s" %s/>
         <flexcomp name="sheet" type="grid" dim="2" count="9 9 1" spacing=".03 .03 1" radius=".003"
                   mass=".05" pos="0 0 .5">
           <edge equality="true" solref=".004 1"/>
           <contact selfcollide="auto" contype="1" conaffinity="1" solref=".004 1"/>
         </flexcomp>
       </worldbody></mujoco>)";
-  const char* geoms[][2] = {
-      {"cylinder", ".2 .1"}, {"ellipsoid", ".2 .2 .1"}, {"box", ".2 .2 .1"}};
+  const char* geoms[][2] = {{"hfield", "hfield=\"hf\" pos=\"0 0 .3\""},
+                            {"cylinder", "size=\".2 .1\" pos=\"0 0 .2\""},
+                            {"ellipsoid", "size=\".2 .2 .1\" pos=\"0 0 .2\""},
+                            {"box", "size=\".2 .2 .1\" pos=\"0 0 .2\""}};
   for (const auto& g : geoms) {
     char xml[1024];
     snprintf(xml, sizeof(xml), kModel, g[0], g[1]);
@@ -1424,7 +1427,7 @@ TEST_F(IpcTest, NativeRowsKeptForUnsupportedGeoms) {
     mjtNum zmin = 1;
     for (int v = 0; v < m->nflexvert; v++)
       zmin = mju_min(zmin, d->flexvert_xpos[3 * v + 2]);
-    bool supported = std::string(g[0]) == "box";
+    bool supported = mjc_GeomSupported(m->geom_type[0]);
     EXPECT_EQ(native > 0, !supported)
         << g[0] << ": native contacts only for unsupported types";
     EXPECT_GT(zmin, 0.25) << g[0] << ": the sheet rests on top";

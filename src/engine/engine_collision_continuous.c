@@ -22,7 +22,10 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
+#include "engine/engine_collision_convex.h"
+#include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -61,137 +64,24 @@ mjtNum mjc_SegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1, const mj
 }
 
 
-// closest point (out) on a convex polygon face to point p: project onto the face plane; if the
-// projection is inside the polygon use it, else clamp to the nearest boundary edge. pv = the face's
-// mesh-local vertex indices (nv of them) into the vertex array vbase; nrm = the face's plane
-// normal. Helper for mjc_GeomDist's convex-mesh SDF branch; the engine has no
-// point-on-convex-face util.
-static void closestOnPoly(const mjtNum* p, const float* vbase, const int* pv, int nv,
-                          const mjtNum* nrm, mjtNum* out) {
-  const float* a0 = vbase + 3 * pv[0];
-  mjtNum dpl = nrm[0] * (p[0] - a0[0]) + nrm[1] * (p[1] - a0[1]) + nrm[2] * (p[2] - a0[2]);
-  mjtNum pp[3];
-  for (int k=0; k < 3; k++) pp[k] = p[k] - dpl * nrm[k];  // projection onto face plane
-  int npos = 0, nneg = 0;
-  for (int i=0; i < nv; i++) {
-    const float* a = vbase + 3 * pv[i];
-    const float* b = vbase + 3 * pv[(i + 1) % nv];
-    mjtNum e[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]},
-           w[3] = {pp[0] - a[0], pp[1] - a[1], pp[2] - a[2]};
-    mjtNum cr = (e[1] * w[2] - e[2] * w[1]) * nrm[0] + (e[2] * w[0] - e[0] * w[2]) * nrm[1] +
-                (e[0] * w[1] - e[1] * w[0]) * nrm[2];
-    if (cr > 0)
-      npos++;
-    else
-      nneg++;
-  }
-  if (npos == 0 || nneg == 0) {
-    for (int k=0; k < 3; k++) out[k] = pp[k];
-    return;
-  }                    // inside polygon
-  mjtNum best = 1e30;  // clamp to edges
-  for (int i=0; i < nv; i++) {
-    const float* a = vbase + 3 * pv[i];
-    const float* b = vbase + 3 * pv[(i + 1) % nv];
-    mjtNum e[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]},
-           w[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
-    mjtNum t = (e[0] * w[0] + e[1] * w[1] + e[2] * w[2]) /
-               (e[0] * e[0] + e[1] * e[1] + e[2] * e[2] + 1e-18);
-    t = t < 0 ? 0 : (t > 1 ? 1 : t);
-    mjtNum c[3] = {a[0] + t * e[0], a[1] + t * e[1], a[2] + t * e[2]};
-    mjtNum d2 = (p[0] - c[0]) * (p[0] - c[0]) + (p[1] - c[1]) * (p[1] - c[1]) +
-                (p[2] - c[2]) * (p[2] - c[2]);
-    if (d2 < best) {
-      best = d2;
-      for (int k=0; k < 3; k++) out[k] = c[k];
-    }
-  }
-}
-
-
 // geom types mjc_GeomDist supports; a flex vertex has no continuous contact with the others
 int mjc_GeomSupported(int type) {
   return type == mjGEOM_PLANE || type == mjGEOM_SPHERE || type == mjGEOM_CAPSULE ||
-         type == mjGEOM_BOX || type == mjGEOM_MESH;
+         type == mjGEOM_ELLIPSOID || type == mjGEOM_CYLINDER || type == mjGEOM_BOX ||
+         type == mjGEOM_MESH;
 }
 
 
 // signed distance from a static geom's surface to world point x (positive outside) + outward unit
-// normal n. Closed-form for plane/sphere/capsule/box; returns +large (no contact) for other types.
-// A continuous-contact solver needs a differentiable POINT-to-geom signed distance;
-// mj_geomDistance is geom-vs-geom (can't take a flex vertex) and mjc_distance/mjc_gradient need an
-// mjSDF object + miss convex meshes.
+// normal n. Closed-form for plane/sphere/capsule/box, GJK for mesh/cylinder/ellipsoid; returns
+// +large (no contact) for other types.
 mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gmat,
                     const mjtNum* x, mjtNum* n, mjtNum distmax) {
   int type = m->geom_type[gi];
   const mjtNum* size = m->geom_size + 3 * gi;
-  mjtNum dx[3];
-  for (int k=0; k < 3; k++) dx[k] = x[k] - gpos[k];
-  if (type == mjGEOM_MESH) {
-    // point vs CONVEX-hull mesh, using MuJoCo's precomputed convex polygon faces. First the max
-    // signed face-plane distance (cheap; gives the inside test and a far/cheap reject). If the
-    // point is INSIDE (maxd<=0) return maxd with the max-face normal. If clearly FAR (maxd large)
-    // return maxd (barrier is off there, normal direction irrelevant). Only NEAR the surface do the
-    // proper point-to-convex-hull CLOSEST POINT (min over faces of the clamped projection) ->
-    // correct distance AND a normal that points at the actual nearest surface (no max-plane normal
-    // chatter).
-    int meshid = m->geom_dataid[gi];
-    const float* vbase = m->mesh_vert + 3 * m->mesh_vertadr[meshid];
-    int polyadr = m->mesh_polyadr[meshid], pn = m->mesh_polynum[meshid];
-    if (pn <= 0) {
-      n[0] = 0;
-      n[1] = 0;
-      n[2] = 1;
-      return 1e30;
-    }
-    mjtNum pl[3];
-    mju_mulMatTVec3(pl, gmat, dx);  // world -> mesh-local
-    mjtNum maxd = -1e30;
-    const mjtNum* bestn = m->mesh_polynormal + 3 * polyadr;
-    for (int p=0; p < pn; p++) {
-      const mjtNum* pnl = m->mesh_polynormal + 3 * (polyadr + p);
-      const float* v0 = vbase + 3 * m->mesh_polyvert[m->mesh_polyvertadr[polyadr + p]];
-      mjtNum c = pnl[0] * v0[0] + pnl[1] * v0[1] + pnl[2] * v0[2];
-      mjtNum dd = pnl[0] * pl[0] + pnl[1] * pl[1] + pnl[2] * pl[2] - c;
-      if (dd > maxd) {
-        maxd = dd;
-        bestn = pnl;
-      }
-    }
-    if (maxd <= 0) {
-      mju_mulMatVec3(n, gmat, bestn);
-      return maxd;
-    }  // inside: penetration
-    // far reject: maxd (max signed plane distance) is a LOWER bound on the true distance for a
-    // convex hull, so if it already exceeds distmax the closest-point search can't bring it into
-    // range -- skip the O(faces) loop (this is what makes the per-vertex broadphase against a mesh
-    // affordable).
-    if (maxd > distmax) {
-      mju_mulMatVec3(n, gmat, bestn);
-      return maxd;
-    }
-    mjtNum best = 1e30, bc[3] = {0, 0, 0};  // outside: true closest point
-    for (int p=0; p < pn; p++) {
-      const mjtNum* pnl = m->mesh_polynormal + 3 * (polyadr + p);
-      const int* pv = m->mesh_polyvert + m->mesh_polyvertadr[polyadr + p];
-      int nv = m->mesh_polyvertnum[polyadr + p];
-      mjtNum cc[3];
-      closestOnPoly(pl, vbase, pv, nv, pnl, cc);
-      mjtNum d2 = (pl[0] - cc[0]) * (pl[0] - cc[0]) + (pl[1] - cc[1]) * (pl[1] - cc[1]) +
-                  (pl[2] - cc[2]) * (pl[2] - cc[2]);
-      if (d2 < best) {
-        best = d2;
-        bc[0] = cc[0];
-        bc[1] = cc[1];
-        bc[2] = cc[2];
-      }
-    }
-    mjtNum dist = sqrt(best);
-    mjtNum nl[3];
-    for (int k=0; k < 3; k++) nl[k] = (dist > 1e-12) ? (pl[k] - bc[k]) / dist : bestn[k];
-    mju_mulMatVec3(n, gmat, nl);  // outward normal (point - closest) -> world
-    return dist;
-  }
+  mjtNum dx[3] = {x[0] - gpos[0], x[1] - gpos[1], x[2] - gpos[2]};
+  n[0] = 0, n[1] = 0, n[2] = 1;
+
   if (type == mjGEOM_PLANE) {
     n[0] = gmat[2];
     n[1] = gmat[5];
@@ -201,12 +91,9 @@ mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* 
   if (type == mjGEOM_SPHERE) {
     mjtNum L = sqrt(mju_dot3(dx, dx));
     if (L < 1e-12) {
-      n[0] = 0;
-      n[1] = 0;
-      n[2] = 1;
       return -size[0];
     }
-    for (int k=0; k < 3; k++) n[k] = dx[k] / L;
+    mji_scl3(n, dx, 1.0 / L);
     return L - size[0];
   }
   mjtNum p[3];
@@ -219,7 +106,7 @@ mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* 
     if (L < 1e-12) {
       nl[0] = 1;
     } else {
-      for (int k=0; k < 3; k++) nl[k] = q[k] / L;
+      mji_scl3(nl, q, 1.0 / L);
     }
     dist = L - size[0];
   } else if (type == mjGEOM_BOX) {
@@ -233,7 +120,7 @@ mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* 
     if (outside) {
       mjtNum L = sqrt(mju_dot3(q, q));
       dist = L;
-      for (int k=0; k < 3; k++) nl[k] = q[k] / L;
+      mji_scl3(nl, q, 1.0 / L);
     } else {  // inside: least-penetration face
       int ax = 0;
       mjtNum best = 1e30;
@@ -247,10 +134,77 @@ mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* 
       dist = -best;
       nl[ax] = p[ax] > 0 ? 1 : -1;
     }
+  } else if (type == mjGEOM_MESH || type == mjGEOM_CYLINDER || type == mjGEOM_ELLIPSOID) {
+    if (type == mjGEOM_MESH && m->mesh_polynum[m->geom_dataid[gi]] <= 0) {
+      return 1e30;
+    }
+    mjCCDObj obj_pt = {.pos = {x[0], x[1], x[2]}, .support = mjc_pointSupport};
+    mjCCDObj obj_geom;
+    mjc_initCCDObj(&obj_geom, m, NULL, gi, 0);
+    mju_copy3(obj_geom.pos, gpos);
+    mju_copy9(obj_geom.mat, gmat);
+
+    mjtNum x1[3] = {x[0], x[1], x[2]};
+    mjtNum x2[3] = {gpos[0], gpos[1], gpos[2]};
+    mjtNum gdist = mjc_gjk(&obj_pt, &obj_geom, x1, x2, distmax, m->opt.ccd_tolerance,
+                           m->opt.ccd_iterations);
+    if (gdist > distmax) {
+      return 1e30;
+    }
+    if (gdist > 0) {
+      mjtNum diff[3] = {x[0] - x2[0], x[1] - x2[1], x[2] - x2[2]};
+      if (mju_normalize3(diff) > 0) {
+        mju_copy3(n, diff);
+        return gdist;
+      }
+    }
+
+    // inside or on surface: closed-form penetration depth and outward normal
+    if (type == mjGEOM_MESH) {
+      int meshid = m->geom_dataid[gi];
+      const float* vbase = m->mesh_vert + 3 * m->mesh_vertadr[meshid];
+      int polyadr = m->mesh_polyadr[meshid], pn = m->mesh_polynum[meshid];
+      dist = -1e30;
+      const mjtNum* bestn = m->mesh_polynormal + 3 * polyadr;
+      for (int i = 0; i < pn; i++) {
+        const mjtNum* pnl = m->mesh_polynormal + 3 * (polyadr + i);
+        const float* v0 = vbase + 3 * m->mesh_polyvert[m->mesh_polyvertadr[polyadr + i]];
+        mjtNum c = pnl[0] * v0[0] + pnl[1] * v0[1] + pnl[2] * v0[2];
+        mjtNum dd = mju_dot3(pnl, p) - c;
+        if (dd > dist) {
+          dist = dd;
+          bestn = pnl;
+        }
+      }
+      mju_copy3(nl, bestn);
+    } else if (type == mjGEOM_CYLINDER) {
+      mjtNum r = mju_sqrt(p[0] * p[0] + p[1] * p[1]);
+      mjtNum pr = size[0] - r;
+      mjtNum pz = size[1] - mju_abs(p[2]);
+      if (pr < pz) {
+        dist = -pr;
+        if (r > mjMINVAL) {
+          nl[0] = p[0] / r;
+          nl[1] = p[1] / r;
+        } else {
+          nl[0] = 1;
+        }
+      } else {
+        dist = -pz;
+        nl[2] = p[2] >= 0 ? 1 : -1;
+      }
+    } else {
+      // approximate ellipsoid penetration depth and normal
+      mjtNum q[3] = {p[0] / size[0], p[1] / size[1], p[2] / size[2]};
+      mjtNum qnorm = mju_norm3(q);
+      mjtNum smin = mju_min(size[0], mju_min(size[1], size[2]));
+      dist = (qnorm - 1.0) * smin;
+      nl[0] = p[0] / (size[0] * size[0]);
+      nl[1] = p[1] / (size[1] * size[1]);
+      nl[2] = p[2] / (size[2] * size[2]);
+      if (mju_normalize3(nl) == 0) nl[2] = 1;
+    }
   } else {
-    n[0] = 0;
-    n[1] = 0;
-    n[2] = 1;
     return 1e30;  // unsupported geom -> no barrier
   }
   mju_mulMatVec3(n, gmat, nl);  // geom-local normal -> world
