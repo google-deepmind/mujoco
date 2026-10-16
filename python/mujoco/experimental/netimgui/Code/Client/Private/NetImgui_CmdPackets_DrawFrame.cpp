@@ -1,3 +1,6 @@
+// Google modifications:
+//  - Guard SetAndIncreaseDataPointer when dataCount is 0, and zero-initialize
+//    ImguiDraw entries in ImGui_ExtractDraws before delta compression.
 #include "NetImgui_Shared.h"
 
 #if NETIMGUI_ENABLED
@@ -13,7 +16,9 @@ inline void SetAndIncreaseDataPointer(OffsetPointer<TType>& dataPointer,
                                       ComDataType*& pDataOutput) {
   dataPointer.SetComDataPtr(pDataOutput);
   const size_t dataCount = DivUp<size_t>(dataSize, ComDataSize);
-  pDataOutput[dataCount - 1] = 0;
+  if (dataCount > 0) {
+    pDataOutput[dataCount - 1] = 0;
+  }
   pDataOutput += dataCount;
 }
 
@@ -116,6 +121,7 @@ inline void ImGui_ExtractDraws(const ImDrawList& cmdList,
   for (int cmd_i = 0; cmd_i < maxDrawCount; ++cmd_i) {
     const ImDrawCmd* pCmd = &cmdList.CmdBuffer[cmd_i];
     if (pCmd->UserCallback == nullptr) {
+      pOutDraws[drawCount] = ImguiDraw();
 #if IMGUI_VERSION_NUM >= 17100
       pOutDraws[drawCount].mVtxOffset = pCmd->VtxOffset;
       pOutDraws[drawCount].mIdxOffset = pCmd->IdxOffset;
