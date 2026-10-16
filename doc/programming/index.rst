@@ -126,6 +126,47 @@ target directory.
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
    GitHub.
 
+.. _inBuildBazel:
+
+Building with Bazel
+~~~~~~~~~~~~~~~~~~~
+
+MuJoCo can also be built with `Bazel <https://bazel.build/>`__ 8.0 or later. The Bazel version it is tested with is
+pinned in ``.bazelversion``, which `Bazelisk <https://github.com/bazelbuild/bazelisk>`__ uses automatically. To build
+and test MuJoCo from the root of the cloned repository:
+
+.. code-block:: shell
+
+   bazel build //...
+   bazel test //...
+
+To use MuJoCo from your own Bazel module, add it to your ``MODULE.bazel``. MuJoCo isn't in the
+`Bazel Central Registry <https://registry.bazel.build/>`__ yet, so use an override, for example:
+
+.. code-block:: python
+
+   bazel_dep(name = "mujoco")
+   git_override(
+       module_name = "mujoco",
+       remote = "https://github.com/google-deepmind/mujoco.git",
+       commit = "<commit>",
+   )
+
+The main targets are:
+
+- ``@mujoco``: the MuJoCo library. Its headers are included as ``#include <mujoco/mujoco.h>``.
+- ``@mujoco//plugin/<name>:register``, where ``<name>`` is ``actuator``, ``elasticity``, ``sdf`` or ``sensor``: the
+  bundled plugins, which register themselves when linked in.
+- ``@mujoco//python/mujoco``: the Python bindings, see :ref:`PyBuildBazel`.
+
+To use single-precision floating point (``mjUSESINGLE``), build with ``--@mujoco//:single_precision``.
+
+The Bazel build is tested on Linux and macOS, and covers the MuJoCo library, ``simulate``, the plugins, the samples and
+the core Python bindings.
+
+.. tip::
+   The ``sample`` directory is a standalone Bazel module that depends on MuJoCo this way.
+
 .. _inBuildDocs:
 
 Building the docs

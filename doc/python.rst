@@ -972,6 +972,31 @@ successfully installed, ``cd`` outside of the ``mujoco`` directory and run
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
    GitHub.
 
+.. _PyBuildBazel:
+
+Building with Bazel
+-------------------
+
+The Python bindings can also be built with Bazel (see :ref:`inBuildBazel`). The ``@mujoco//python/mujoco`` target
+provides the ``mujoco`` package, so Python targets in your own Bazel module can depend on it directly. With a
+``bazel_dep`` on ``rules_python`` in your ``MODULE.bazel``:
+
+.. code-block:: python
+
+   load("@rules_python//python:py_binary.bzl", "py_binary")
+
+   py_binary(
+       name = "simulate_model",
+       srcs = ["simulate_model.py"],
+       deps = ["@mujoco//python/mujoco"],
+   )
+
+To run the bindings' tests from the root of the cloned repository, use ``bazel test //python/...``.
+
+The Bazel build supports the Python versions listed in ``MODULE.bazel``, and installs the bindings' PyPI dependencies
+from ``pypi.org``. It covers the core bindings; rendering (``mujoco.Renderer`` and the GL contexts), the interactive
+viewer, MJX, and the USD exporter are not yet supported.
+
 
 .. _PyModule:
 
