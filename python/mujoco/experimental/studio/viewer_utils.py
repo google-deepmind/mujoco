@@ -46,7 +46,16 @@ def apply_perturb(
     size = mujoco.mj_stateSize(model, sig)
     zero_state = np.zeros(size, np.float64)
     mujoco.mj_setState(model, data, zero_state, sig)
-    mujoco.mjv_applyPerturbPose(model, data, perturb, 0)
+    # Running: the pose edit moves a dragged mocap body in the viewer's local
+    # data; send it to the sim, else the next StateSnapshot reverts it.
+    mocap_sig = (
+        mujoco.mjtState.mjSTATE_MOCAP_POS.value
+        | mujoco.mjtState.mjSTATE_MOCAP_QUAT.value
+    )
+    with viewer.send_if_changes(
+        lambda: messages.StateEvent.from_data(model, data, mocap_sig)
+    ):
+      mujoco.mjv_applyPerturbPose(model, data, perturb, 0)
     mujoco.mjv_applyPerturbForce(model, data, perturb)
   else:
     # Paused: the pose edit only moves the viewer's local data; send it to the
