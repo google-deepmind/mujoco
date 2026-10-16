@@ -5,7 +5,8 @@ description: >-
   sim/viewer threads, message passing (Snapshot latest-wins vs Event FIFO queue),
   lifecycle events, @messages.handler priorities, blocking viewer runners and
   non-blocking viewer launchers, Python/C++ plugin registry (mjPLUGIN_LIB_INIT),
-  NetImgui/WASM WebViewer streaming.
+  NetImgui/WASM WebViewer streaming,
+  Python plugin hot reload (--hot_reload, HotReloadEvent).
   Use for launching Studio viewers, authoring Studio plugins, simulation-viewer messaging.
   Do NOT use for ImGui widget layout (mujoco-gui) or physics simulation (mujoco-python).
 ---
@@ -476,6 +477,38 @@ for actively maintained reference implementations.
 >     `handle.set_model(new_model, path=handle.model_path)` (passing
 >     `path=handle.model_path` preserves camera and pause state across in-place
 >     scene edits).
+
+### Hot Reload (Python only, opt-in)
+
+With hot reload enabled (`viewer.py --hot_reload=all`, or
+`viewer_protocol.ViewerConfig(hot_reload='all')`; off by default), saving a
+plugin's `.py` file or the watched model file updates the running viewer on the
+next frame or step without restarting, keeping the browser connection, camera,
+UI layout, and plugin state. The value says what to reload: `all` (plugin
+modules and the model file), `plugins`, `model`, or comma-separated plugin
+class names such as `Scene,SceneGui` (combinable, e.g. `model,Scene`); see
+`hot_reload.Options.parse`.
+
+See the module docstring of
+`python/mujoco/experimental/studio/hot_reload.py` for the full design and usage
+guide, including:
+
+-   **Reloadable vs. fixed boundary:** registered plugin modules (user and
+    built-in plugins such as `ViewerApp`, `StepControl`, and `SimHistory`),
+    same-directory helper modules, and the active XML/URDF model file (with its
+    `<include>`s and assets) reload on save; framework modules, `__main__`, the
+    C++ binary, and the set of registered plugin instances are fixed. Register
+    the viewer/sim plugins you expect to grow up front, and compose separate
+    plugins rather than subclassing built-in plugins.
+-   **Preserving and reconciling state (`HotReloadEvent`):** declare default
+    attribute values on the class (e.g. `height: int = 5`) so mutated attributes
+    on `self` survive class swaps while newly added class attributes appear
+    without re-running `__init__`, and handle `messages.HotReloadEvent` (`if
+    self in event.plugins:`) to initialize new mutable buffers, invalidate
+    cached IDs, migrate reshaped state, or trigger immediate rebuilds.
+-   **Error recovery:** syntax/import/model errors keep the previous code and
+    model and retry on the next save; exceptions raised by a swapped plugin's
+    handlers are caught and logged once per handler until the next reload.
 
 ## 6. C++ Studio & Plugin Architecture
 

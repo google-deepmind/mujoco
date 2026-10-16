@@ -477,6 +477,29 @@ def describe_exception(ex: BaseException | None) -> str:
   return ' '.join(text.split())
 
 
+@dataclasses.dataclass(frozen=True)
+class HotReloadEvent(Event):
+  """Dispatched after plugins are hot-reloaded (see ``hot_reload.py``).
+
+  The plugin instances are kept and only their class is replaced, so their
+  state survives. Handling this event is optional, but it gives plugins a hook
+  to reconcile state after a live code swap — for example, initializing newly
+  added mutable attributes that ``__init__`` would create, recomputing cached
+  IDs or lookup tables, migrating or clearing buffers whose shape changed, or
+  triggering an immediate rebuild:
+
+      @messages.handler
+      def _on_hot_reload(self, event: messages.HotReloadEvent) -> None:
+        if self in event.plugins:
+          ...
+
+  Attributes:
+    plugins: The plugin instances whose class was replaced.
+  """
+
+  plugins: tuple[Any, ...]
+
+
 # ---------------------------------------------------------------------------
 # Message handling decorator.
 # ---------------------------------------------------------------------------

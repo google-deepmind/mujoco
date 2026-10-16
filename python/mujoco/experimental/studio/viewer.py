@@ -14,7 +14,10 @@
 """Interactive Studio GUI viewer for MuJoCo.
 
 Pass ``--plugins=a.py,b.py`` to load ``ViewerPlugin`` and ``SimPlugin``
-subclasses from Python files (see ``plugin.load_plugins``).
+subclasses from Python files (see ``plugin.load_plugins``). With
+``--hot_reload=all``, saving those files, the model file, or its assets reloads
+them without restarting (``plugins``, ``model``, or plugin class names narrow
+that down).
 """
 
 import os
@@ -44,6 +47,12 @@ _PORT = _flags.DEFINE_integer(
 )
 _WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
 _HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
+_HOT_RELOAD = _flags.DEFINE_string(
+    'hot_reload',
+    '',
+    'Reload files saved while running: "all", "plugins", "model", or'
+    ' comma-separated plugin class names (e.g. "Scene,SceneGui").',
+)
 
 
 def _resolve(path: str) -> str:
@@ -61,6 +70,7 @@ def main(argv: list[str]) -> None:
       height=_HEIGHT.value,
       gfx=_GFX.value or '',
       http_port=_PORT.value,
+      hot_reload=_HOT_RELOAD.value,
   )
 
   # Resolve model path, if provided.

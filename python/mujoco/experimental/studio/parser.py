@@ -32,3 +32,20 @@ def load(filepath: str) -> mujoco.MjModel:
 def parse(filepath: str) -> mujoco.MjData:
   """Loads a model file and returns a fresh ``MjData`` for it."""
   return mujoco.MjData(load(filepath))
+
+
+def dependencies(filepath: str) -> list[str]:
+  """Returns the files a model file is built from, including ``filepath``.
+
+  For XML/URDF: the file, its ``<include>`` and ``<model>`` trees and their
+  mesh, skin, hfield and texture assets. Other formats: just the file.
+
+  Args:
+    filepath: The model file.
+  """
+  if filepath.endswith(('.mjb', '.mjz', '.zip')):
+    return [filepath]
+  try:
+    return [filepath, *mujoco.mju_getXMLDependencies(filepath)]
+  except Exception:  # pylint: disable=broad-exception-caught
+    return [filepath]  # Unparsable: watch it, so saving a fix reloads it.

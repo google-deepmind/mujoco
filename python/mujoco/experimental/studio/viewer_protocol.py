@@ -22,6 +22,7 @@ import logging
 from typing import Any
 import mujoco
 from mujoco.experimental.studio import endpoints
+from mujoco.experimental.studio import hot_reload
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin_registry
 from mujoco.experimental.studio import ux
@@ -54,6 +55,9 @@ class ViewerConfig:
   gfx: str = ''  # Graphics mode ('web' launches Web Viewer).
   http_port: int = 0  # Web Viewer port (0 picks first free port >= 8080).
   open_browser: bool = False  # Open Web Viewer URL in a browser tab on launch.
+  # What to reload when saved: 'all' (plugin modules and the model file),
+  # 'plugins', 'model', or plugin class names; see hot_reload.Options.parse.
+  hot_reload: str = ''
 
 
 # -----------------------------------------------------------------------------
@@ -142,6 +146,9 @@ class Viewer(abc.ABC):
     # Plugin infrastructure.
     all_plugins = [self] + list(plugins or [])
     self.plugins = plugin_registry.PluginRegistry(all_plugins)
+    if config.hot_reload:
+      # Process-wide; also covers the sim's plugins.
+      hot_reload.enable(config.hot_reload)
 
   def close(self) -> None:
     """Closes the viewer, sends an exit event and shuts down the endpoint."""
@@ -281,6 +288,9 @@ def run_viewer_loop(viewer: Viewer) -> None:
   """
   try:
     while True:
+      # Apply edited plugin code between frames (no-op unless enabled).
+      hot_reload.tick(viewer.plugins, viewer)
+
       # Get the next frame; this also gets the frame's mouse/keyboard events.
       frame = viewer.prepare_next_frame()
 

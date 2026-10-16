@@ -17,10 +17,15 @@ import collections
 from typing import Any, Callable
 from mujoco.experimental.studio import messages
 
+# A bound ``@handler`` method: takes the message, returns True to consume it.
+Handler = Callable[..., Any]
+# Maps a plugin and one of its handlers to the callable actually registered.
+HandlerWrapper = Callable[[Any, Handler], Handler]
+
 
 def _discover_handlers(
     plugin: Any,
-) -> list[tuple[messages._HandlerInfo, Callable[..., Any]]]:
+) -> list[tuple[messages._HandlerInfo, Handler]]:
   """Scan an object for methods marked with handler decorators."""
   handlers = []
   for name in dir(type(plugin)):
@@ -35,16 +40,43 @@ def _discover_handlers(
   return handlers
 
 
+def _type_key(cls: type[Any]) -> Any:
+  """Returns a reload-stable lookup key for a message class."""
+  if '<locals>' in cls.__qualname__:
+    return cls
+  return (cls.__module__, cls.__qualname__)
+
+
 class PluginRegistry:
-  """Runtime registry of discovered handlers from plugin instances."""
+  """Runtime registry of discovered handlers from plugin instances.
+
+  The set of plugins is fixed at construction: there is no late registration.
+  ``hot_reload`` relies on this — it scans ``plugins`` once per registry, and a
+  reload swaps the class of an existing instance and calls ``rebuild_handlers``,
+  but never adds an instance. Plugins therefore need to be registered up front;
+  see the hot-reload design goal in ``hot_reload.py``.
+  """
 
   def __init__(self, plugins: list[Any] | None = None) -> None:
-    self.handlers: dict[
-        type[messages.Message], list[tuple[int, Callable[..., Any]]]
-    ] = collections.defaultdict(list)
-    for obj in plugins or []:
+    self.plugins: list[Any] = list(plugins or [])
+    self.handlers: dict[Any, list[tuple[int, Handler]]] = (
+        collections.defaultdict(list)
+    )
+    self.rebuild_handlers()
+
+  def rebuild_handlers(self, wrap: HandlerWrapper | None = None) -> None:
+    """Discovers and registers handlers for all plugins in ``self.plugins``.
+
+    Args:
+      wrap: Optional ``wrap(plugin, handler)`` returning the callable to
+        register in place of ``handler`` (e.g. to log its exceptions).
+    """
+    handlers = collections.defaultdict(list)
+    for obj in self.plugins:
       for info, bound_method in _discover_handlers(obj):
-        self.handlers[info.message_type].append((info.priority, bound_method))
+        fn = wrap(obj, bound_method) if wrap is not None else bound_method
+        handlers[_type_key(info.message_type)].append((info.priority, fn))
+    self.handlers = handlers
 
   def dispatch(self, message: Any) -> None:
     """Dispatches a message to registered handlers in priority order."""
@@ -52,7 +84,7 @@ class PluginRegistry:
     # ancestors/superclasses.
     message_handlers = []
     for message_type in type(message).__mro__:
-      message_handlers.extend(self.handlers.get(message_type, []))
+      message_handlers.extend(self.handlers.get(_type_key(message_type), []))
 
     # Sort by priority; higher values execute first.
     message_handlers.sort(key=lambda item: item[0], reverse=True)
