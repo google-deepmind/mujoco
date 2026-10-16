@@ -1709,6 +1709,80 @@ struct _mjPrimalPnt {
 typedef struct _mjPrimalPnt mjPrimalPnt;
 
 
+// update kink with the closest root above lo, if it is on the requested cone side
+static void updateKink(mjtNum root, mjtNum normal, int positive,
+                       mjtNum lo, mjtNum* kink, int* found) {
+  if (mju_isBad(root) || (positive ? normal < 0 : normal > 0)) {
+    return;
+  }
+
+  if (root > lo && root < *kink) {
+    *kink = root;
+    *found = 1;
+  }
+}
+
+
+// find the first root of A*x^2 + 2*B*x + C between lo and kink
+static void quadraticKink(mjtNum A, mjtNum B, mjtNum C, mjtNum U0, mjtNum V0, int positive,
+                          mjtNum lo, mjtNum* kink, int* found) {
+  if (A == 0) {
+    if (B != 0) {
+      mjtNum root = -C / (2*B);
+      updateKink(root, U0 + root*V0, positive, lo, kink, found);
+    }
+    return;
+  }
+
+  mjtNum det = B*B - A*C;
+  if (det < 0) {
+    return;
+  }
+
+  mjtNum sqrt_det = mju_sqrt(det);
+  mjtNum q = -B - (B >= 0 ? sqrt_det : -sqrt_det);
+  if (q == 0) {
+    mjtNum root = -B/A;
+    updateKink(root, U0 + root*V0, positive, lo, kink, found);
+  } else {
+    mjtNum root = q/A;
+    updateKink(root, U0 + root*V0, positive, lo, kink, found);
+    root = C/q;
+    updateKink(root, U0 + root*V0, positive, lo, kink, found);
+  }
+}
+
+
+// find the first elliptic cone zone boundary between lo and hi
+static int PrimalKink(const mjPrimalContext* ctx, mjtNum lo, mjtNum hi, mjtNum* kink) {
+  int found = 0;
+  *kink = hi;
+
+  for (int i=ctx->ne + ctx->nf; i < ctx->nefc; i++) {
+    if (ctx->efc_type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
+      continue;
+    }
+
+    const mjContact* con = ctx->contact + ctx->efc_id[i];
+    const mjtNum* quad = ctx->quad + 3*i;
+    mjtNum U0 = quad[3], V0 = quad[4], UU = quad[5], UV = quad[6], VV = quad[7];
+    mjtNum mu2 = con->mu * con->mu;
+
+    // top boundary: N = mu*T
+    quadraticKink(V0*V0 - mu2*VV, U0*V0 - mu2*UV, U0*U0 - mu2*UU,
+                  U0, V0, 1, lo, kink, &found);
+
+    // bottom boundary: mu*N = -T
+    quadraticKink(mu2*V0*V0 - VV, mu2*U0*V0 - UV, mu2*U0*U0 - UU,
+                  U0, V0, 0, lo, kink, &found);
+
+    i += con->dim - 1;
+  }
+
+  return found;
+}
+
+
 // Huber cost of a single friction constraint at a given point x
 static mjtNum frictionCost(mjtNum x, mjtNum f, mjtNum Rf, mjtNum D) {
   // -bound < x < bound : quadratic
@@ -2174,8 +2248,12 @@ static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_ite
 
   // bracketed search
   while (ctx->LSiter < ls_iterations) {
-    // evaluate at midpoint
-    pmid.alpha = 0.5*(p1.alpha + p2.alpha);
+    // evaluate at the first cone boundary in the bracket, or at the midpoint
+    mjtNum lo = mju_min(p1.alpha, p2.alpha);
+    mjtNum hi = mju_max(p1.alpha, p2.alpha);
+    if (!PrimalKink(ctx, lo, hi, &pmid.alpha)) {
+      pmid.alpha = 0.5*(p1.alpha + p2.alpha);
+    }
     PrimalEval(ctx, &pmid);
 
     // make list of candidates
