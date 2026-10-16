@@ -323,7 +323,7 @@ TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
   ASSERT_THAT(world, NotNull());
 
   mjsElement* attached =
-      mjs_attach(world->element, child_spec->element, "", "");
+      mjs_attach(world->element, child_spec->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   mjModel* model = mj_compile(parent_spec, &vfs);
@@ -1273,13 +1273,14 @@ TEST_F(MujocoTest, SetNameDetectsRepeatedNames) {
   // names that arrived through attach are visible to the check
   mjSpec* child = mj_makeSpec();
   mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
-  EXPECT_EQ(mjs_setName(child_body->element, "attached"), 0);
+  EXPECT_EQ(mjs_setName(child_body->element, "body"), 0);
   mjsFrame* frame = mjs_addFrame(world, nullptr);
-  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "", ""),
+  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "attached_", ""),
               NotNull());
   mjsBody* body = mjs_addBody(world, 0);
-  EXPECT_EQ(mjs_setName(body->element, "attached"), -1);
-  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'attached' in body");
+  EXPECT_EQ(mjs_setName(body->element, "attached_body"), -1);
+  EXPECT_STREQ(mjs_getError(spec),
+               "Error: repeated name 'attached_body' in body");
   EXPECT_EQ(mjs_setName(body->element, "own"), 0);
 
   // the model compiles once names are unique
@@ -1287,7 +1288,7 @@ TEST_F(MujocoTest, SetNameDetectsRepeatedNames) {
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "a"), 1);
-  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached"), 1);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached_body"), 1);
 
   mj_deleteModel(model);
   mj_deleteSpec(child);
@@ -2452,6 +2453,7 @@ TEST_F(MujocoTest, AttachSame) {
 }
 
 TEST_F(MujocoTest, AttachSpatialTendonWithoutSidesite) {
+  mock_warning_handler.ExpectWarnings();
   static constexpr char xml_parent[] = R"(
   <mujoco>
     <worldbody>
@@ -2530,6 +2532,7 @@ TEST_F(MujocoTest, AttachSpatialTendonWithoutSidesite) {
 }
 
 TEST_F(MujocoTest, AttachSpatialTendonGitHubIssue3119) {
+  mock_warning_handler.ExpectWarnings();
   static constexpr char parent_xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2915,7 +2918,7 @@ TEST_F(MujocoTest, AttachCompiled) {
   // attach child body to the frame
   mjsBody* to_attach = mjs_findBody(child, "base");
   EXPECT_THAT(to_attach, NotNull()) << mjs_getError(child);
-  mjs_attach(frame->element, to_attach->element, "", "");
+  mjs_attach(frame->element, to_attach->element, "child_", "");
 
   // check that attached model can be compiled
   mjModel* m_attached = mj_compile(parent, 0);
@@ -9351,6 +9354,26 @@ TEST_F(CopyBackTest, RefusesValuesWhichDifferBetweenDofs) {
   mj_deleteModel(model);
   mj_deleteSpec(before);
   mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, AttachEmptyOrNullPrefixWarning) {
+  mock_warning_handler.ExpectWarnings();
+
+  for (const char* prefix : {"", static_cast<const char*>(nullptr)}) {
+    mjSpec* parent = mj_makeSpec();
+    mjSpec* child = mj_makeSpec();
+    mjsBody* world = mjs_findBody(parent, "world");
+
+    mjsElement* attached =
+        mjs_attach(world->element, child->element, prefix, "");
+    ASSERT_THAT(attached, NotNull());
+    EXPECT_EQ(mjs_numWarnings(parent), 1);
+    EXPECT_THAT(mjs_getWarning(parent, 0),
+                HasSubstr("may prevent the model from being saved correctly"));
+
+    mj_deleteSpec(parent);
+    mj_deleteSpec(child);
+  }
 }
 }  // namespace
 }  // namespace mujoco

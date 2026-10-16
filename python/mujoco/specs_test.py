@@ -2750,6 +2750,17 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(geom.signature, model.signature)
     self.assertEqual(model.bind(geom).id, 1)
 
+  def test_attach_empty_prefix_warning(self):
+    parent = mujoco.MjSpec()
+    child = mujoco.MjSpec()
+    child.worldbody.add_body(name='b').add_geom(size=[1, 0, 0])
+    frame = parent.worldbody.add_frame()
+    parent.attach(child, frame=frame, prefix='')
+    with self.assertWarnsRegex(
+        UserWarning, 'may prevent the model from being saved correctly'
+    ):
+      parent.compile()
+
 
 if __name__ == '__main__':
   absltest.main()

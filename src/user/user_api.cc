@@ -402,8 +402,8 @@ static mjsElement* attachBody(mjCFrame*      parent,
                               const char*    prefix,
                               const char*    suffix) {
   mjCBody* mutable_child = const_cast<mjCBody*>(child);
-  mutable_child->prefix  = prefix;
-  mutable_child->suffix  = suffix;
+  mutable_child->prefix  = prefix ? prefix : "";
+  mutable_child->suffix  = suffix ? suffix : "";
   try {
     *parent += *mutable_child;
   } catch (mjCError& e) {
@@ -422,8 +422,8 @@ static mjsElement* attachFrame(mjCBody*        parent,
                                const char*     prefix,
                                const char*     suffix) {
   mjCFrame* mutable_child = const_cast<mjCFrame*>(child);
-  mutable_child->prefix   = prefix;
-  mutable_child->suffix   = suffix;
+  mutable_child->prefix   = prefix ? prefix : "";
+  mutable_child->suffix   = suffix ? suffix : "";
   try {
     *parent += *mutable_child;
   } catch (mjCError& e) {
@@ -632,8 +632,16 @@ mjsElement* mjs_attach(mjsElement*       parent,
       return nullptr;
   }
 
-  // mark all warnings accumulated so far as attach-phase
-  if (result) { model->SetAttachWarningBoundary(); }
+  if (result) {
+    if (child_spec != &model->spec && (!prefix || !prefix[0])) {
+      model->AddWarning(
+          "Attaching a spec with an empty prefix may prevent the model from being saved "
+          "correctly.");
+    }
+
+    // mark all warnings accumulated so far as attach-phase
+    model->SetAttachWarningBoundary();
+  }
   return result;
 }
 

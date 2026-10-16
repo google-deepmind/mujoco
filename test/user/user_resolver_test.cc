@@ -102,7 +102,8 @@ TEST_F(MujocoTest, AttachConflictWarningDefault) {
   child->option.timestep = 0.001;
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // parent value should be unchanged
@@ -128,7 +129,8 @@ TEST_F(MujocoTest, AttachConflictWarningNoConflict) {
   child->option.timestep = 0.001;
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // warning produced when child is non-default
@@ -153,7 +155,8 @@ TEST_F(MujocoTest, AttachConflictMergeMin) {
   child->option.sleep_tolerance = 0.005;
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // min-fields should take the smaller value
@@ -263,7 +266,8 @@ TEST_F(MujocoTest, AttachConflictErrorNoConflict) {
   // child timestep is default -> no conflict
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // parent unchanged
@@ -353,7 +357,8 @@ TEST_F(MujocoTest, AttachConflictWarningBitfields) {
   child->option.disableflags = mjDSBL_GRAVITY | mjDSBL_ACTUATION;
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // Contact and Actuation differ, Gravity agrees -> 1 grouped warning
@@ -385,7 +390,8 @@ TEST_F(MujocoTest, AttachConflictMergeMultipleWarnings) {
   child->visual.global.realtime = 0.5f;  // min conflict
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // values should be merged
@@ -416,7 +422,8 @@ TEST_F(MujocoTest, AttachConflictWarningBitfieldsNoConflict) {
   // child disableflags is 0 (default) -> no conflict
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
   EXPECT_FALSE(mjs_isWarning(parent));
 
@@ -437,7 +444,8 @@ TEST_F(MujocoTest, AttachConflictMergeBitfields) {
   child->option.enableflags = mjENBL_ENERGY;
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // union of flags
@@ -539,7 +547,8 @@ TEST_F(MujocoTest, AttachConflictWarningArray) {
   child->option.gravity[2] = -1.62;
 
   mjsBody* world = mjs_findBody(parent, "world");
-  mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+  mjsElement* attached =
+      mjs_attach(world->element, child->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   // parent gravity should be unchanged
@@ -570,7 +579,8 @@ TEST_F(MujocoTest, AttachConflictSubjectNames) {
     child->option.timestep = 0.001;
 
     mjsBody* world = mjs_findBody(parent, "world");
-    mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+    mjsElement* attached =
+        mjs_attach(world->element, child->element, "child_", "");
     ASSERT_THAT(attached, NotNull());
 
     EXPECT_EQ(mjs_numWarnings(parent), 1);
@@ -592,7 +602,8 @@ TEST_F(MujocoTest, AttachConflictSubjectNames) {
     child->option.timestep = 0.001;
 
     mjsBody* world = mjs_findBody(parent, "world");
-    mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+    mjsElement* attached =
+        mjs_attach(world->element, child->element, "child_", "");
     ASSERT_THAT(attached, NotNull());
 
     EXPECT_EQ(mjs_numWarnings(parent), 1);
@@ -614,7 +625,8 @@ TEST_F(MujocoTest, AttachConflictSubjectNames) {
     child->option.timestep = 0.001;
 
     mjsBody* world = mjs_findBody(parent, "world");
-    mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+    mjsElement* attached =
+        mjs_attach(world->element, child->element, "child_", "");
     ASSERT_THAT(attached, NotNull());
 
     EXPECT_EQ(mjs_numWarnings(parent), 1);
@@ -635,7 +647,8 @@ TEST_F(MujocoTest, AttachConflictSubjectNames) {
     child->option.timestep = 0.001;
 
     mjsBody* world = mjs_findBody(parent, "world");
-    mjsElement* attached = mjs_attach(world->element, child->element, "", "");
+    mjsElement* attached =
+        mjs_attach(world->element, child->element, "child_", "");
     ASSERT_THAT(attached, NotNull());
 
     EXPECT_EQ(mjs_numWarnings(parent), 1);
