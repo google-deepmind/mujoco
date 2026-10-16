@@ -112,7 +112,10 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
     qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     mul_m(m, d, qfrc, d.qacc, M=qDeriv)
-    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, qacc, qfrc)
+
+    # standalone free bodies: overwrite block rows with the unsymmetric local product,
+    # including the bias (gyroscopic) derivative
+    forward.implicit_free_body(m, d, d.qacc, qfrc, solve=False)
   elif m.opt.integrator == IntegratorType.DISCRETE:
     # Under discrete, qacc is already the discrete step map: INVDISCRETE is implied.
     wp.copy(qacc, d.qacc)

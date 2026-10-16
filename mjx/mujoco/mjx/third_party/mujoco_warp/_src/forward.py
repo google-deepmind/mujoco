@@ -828,7 +828,7 @@ def _project_spatial_B(
 
 
 @wp.kernel
-def _implicit_free_body_solve(
+def _implicit_free_body(
   # Model:
   nbody: int,
   opt_timestep: wp.array[float],
@@ -870,9 +870,10 @@ def _implicit_free_body_solve(
   tree_awake_in: wp.array2d[int],
   cvel_in: wp.array2d[wp.spatial_vector],
   # In:
-  qfrc_in: wp.array2d[float],
-  # Data out:
-  qacc_out: wp.array2d[float],
+  solve: bool,
+  vec_in: wp.array2d[float],
+  # Out:
+  vec_out: wp.array2d[float],
 ):
   worldid, freeid = wp.tid()
   bodyid = body_freeadr[freeid]
@@ -1053,22 +1054,37 @@ def _implicit_free_body_solve(
           for c in range(6):
             A[r, c] -= timestep * J_T_B_J[r, c]
 
-  # 5. Solve A * x = qfrc
-  A_fact, pivot, ok = math.lu_factor_6x6(A)
-  if ok:
-    b_vec = vec6(0.0)
-    for r in range(6):
-      b_vec[r] = qfrc_in[worldid, dof_adr + r]
-    x = math.lu_solve_6x6(A_fact, pivot, b_vec)
-    for r in range(6):
-      qacc_out[worldid, dof_adr + r] = x[r]
-
-
-def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float]):
-  if m.body_freeadr.size == 0:
+  # Solve A * vec_out = vec_in
+  if solve:
+    A_fact, pivot, ok = math.lu_factor_6x6(A)
+    if ok:
+      b_vec = vec6(0.0)
+      for r in range(6):
+        b_vec[r] = vec_in[worldid, dof_adr + r]
+      x = math.lu_solve_6x6(A_fact, pivot, b_vec)
+      for r in range(6):
+        vec_out[worldid, dof_adr + r] = x[r]
     return
+
+  # or multiply vec_out = A * vec_in
+  b_vec = vec6(0.0)
+  for r in range(6):
+    b_vec[r] = vec_in[worldid, dof_adr + r]
+  for r in range(6):
+    Ax = float(0.0)
+    for c in range(6):
+      Ax += A[r, c] * b_vec[c]
+    vec_out[worldid, dof_adr + r] = Ax
+
+
+def implicit_free_body(m: Model, d: Data, vec_in: wp.array2d[float], vec_out: wp.array2d[float], solve: bool):
+  """Solves or multiplies by the implicit mass matrix of standalone free bodies.
+
+  Overwrites the free-body rows of vec_out with A^-1 * vec_in (solve) or A * vec_in, where A is
+  the free-body block of M - h * D including the gyroscopic bias derivative.
+  """
   wp.launch(
-    _implicit_free_body_solve,
+    _implicit_free_body,
     dim=(d.nworld, m.body_freeadr.size),
     inputs=[
       m.nbody,
@@ -1109,9 +1125,10 @@ def _launch_implicit_free_body_solve(m: Model, d: Data, qacc: wp.array2d[float])
       d.M,
       d.tree_awake,
       d.cvel,
-      d.efc.Ma,
+      solve,
+      vec_in,
     ],
-    outputs=[qacc],
+    outputs=[vec_out],
   )
 
 
@@ -1375,7 +1392,7 @@ def implicit(m: Model, d: Data):
     # 4. Factorize and solve: qacc = qLU \ Ma
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
     smooth.factor_solve_lu(m, d, d.qLU, qacc, d.efc.Ma)
-    _launch_implicit_free_body_solve(m, d, qacc)
+    implicit_free_body(m, d, d.efc.Ma, qacc, solve=True)
     _advance(m, d, qacc)
   elif (m.opt.disableflags & (DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)) != (
     DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER
@@ -1385,22 +1402,21 @@ def implicit(m: Model, d: Data):
     qLD = wp.empty_like(d.qLD)
     qLDiagInv = wp.empty((d.nworld, m.nv), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
-    if m.body_freeadr.size > 0:
-      wp.launch(
-        _implicit_free_body_reset_m,
-        dim=(d.nworld, m.body_freeadr.size),
-        inputs=[
-          m.body_dofadr,
-          m.M_rownnz,
-          m.M_rowadr,
-          m.body_freeadr,
-          d.M,
-        ],
-        outputs=[qDeriv],
-      )
+    wp.launch(
+      _implicit_free_body_reset_m,
+      dim=(d.nworld, m.body_freeadr.size),
+      inputs=[
+        m.body_dofadr,
+        m.M_rownnz,
+        m.M_rowadr,
+        m.body_freeadr,
+        d.M,
+      ],
+      outputs=[qDeriv],
+    )
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
     smooth.factor_solve_i(m, d, qDeriv, qLD, qLDiagInv, qacc, d.efc.Ma)
-    _launch_implicit_free_body_solve(m, d, qacc)
+    implicit_free_body(m, d, d.efc.Ma, qacc, solve=True)
     _advance(m, d, qacc)
   else:
     _advance(m, d, d.qacc)
