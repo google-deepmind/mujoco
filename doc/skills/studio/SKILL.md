@@ -104,13 +104,17 @@ message-driven plugin architecture:
         per-frame visual updates, GUI construction).
 -   **Standard Samples (`python/mujoco/experimental/studio/`)**:
     -   `python/mujoco/experimental/studio/viewer.py` —
-        Minimal baseline with standard GUI (`viewer_app.ViewerApp`).
+        Standard Studio viewer (`viewer_app.ViewerApp`); supports
+        `--model=<file>` and `--plugins=a.py,b.py` (instantiates every
+        `ViewerPlugin`/`SimPlugin` defined in those files).
     -   `python/mujoco/experimental/studio/sample/ghost.py` —
         Demonstrates a viewer plugin (`GhostRenderer`) injecting extra geoms via
-        `extra_geoms` and custom Dear ImGui controls on `BuildGuiEvent`.
+        `extra_geoms` and custom Dear ImGui controls on `BuildGuiEvent`; run
+        with `viewer.py --model=... --plugins=sample/ghost.py`.
     -   `python/mujoco/experimental/studio/sample/implot.py` —
         Demonstrates real-time responsive charting with Dear ImGui and ImPlot
-        via `BodyInspector`.
+        via `BodyInspector`; run with
+        `viewer.py --model=... --plugins=sample/implot.py`.
     -   `python/mujoco/experimental/studio/sample/custom_sim_loop.py` —
         Demonstrates a script that owns its stepping and pacing loop via
         `handle.sync(model, data)`.

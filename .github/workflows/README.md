@@ -290,8 +290,8 @@ source /path/to/venv/bin/activate
 pip install -r python/build_requirements.txt
 bash .github/workflows/build_steps.sh build_studio_python
 
-python python/mujoco/experimental/studio/sample/ghost.py --model=model/humanoid/humanoid.xml
-python python/mujoco/experimental/studio/sample/implot.py --model=model/humanoid/humanoid.xml
+python python/mujoco/experimental/studio/viewer.py --model=model/humanoid/humanoid.xml --plugins=python/mujoco/experimental/studio/sample/ghost.py
+python python/mujoco/experimental/studio/viewer.py --model=model/humanoid/humanoid.xml --plugins=python/mujoco/experimental/studio/sample/implot.py
 python python/mujoco/experimental/studio/sample/render.py --model=model/humanoid/humanoid.xml --output=render.png
 python python/mujoco/experimental/studio/sample/filament_render.py model/humanoid/humanoid.xml
 python python/mujoco/experimental/studio/sample/filament_multiview.py model/humanoid/humanoid.xml

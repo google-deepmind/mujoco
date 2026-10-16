@@ -11,42 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Example to run studio with a time-delayed ghost overlay of model geoms.
+r"""Viewer plugin that renders time-delayed semi-transparent ghost geoms.
 
-This script runs a Studio viewer that renders time-delayed semi-transparent
-ghosts of the primitive mjvGeoms in the model.
+Run with the Studio viewer::
+
+  python -m mujoco.experimental.studio.viewer \
+      --model=model/humanoid/humanoid.xml \
+      --plugins=python/mujoco/experimental/studio/sample/ghost.py
 """
 
 import collections
-import os
-import sys
 
-from absl import app as _app
-from absl import flags as _flags
 import mujoco
-from mujoco.experimental.studio import launch_passive
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin
-from mujoco.experimental.studio import step_control
-from mujoco.experimental.studio import ux
-from mujoco.experimental.studio import viewer_app_events
-from mujoco.experimental.studio import viewer_protocol
-from mujoco.experimental.studio import viewer_utils
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
-vp = viewer_protocol
-
-_MODEL = _flags.DEFINE_string('model', None, 'Path to model file.')
-_GFX = _flags.DEFINE_enum(
-    'gfx', None, vp.GFX_MODES, 'Graphics mode ("web" launches Web Viewer).'
-)
-_PORT = _flags.DEFINE_integer(
-    'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'
-)
-_WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
-_HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
+_PRIMITIVE_GEOM_TYPES = frozenset({
+    mujoco.mjtGeom.mjGEOM_PLANE,
+    mujoco.mjtGeom.mjGEOM_SPHERE,
+    mujoco.mjtGeom.mjGEOM_CAPSULE,
+    mujoco.mjtGeom.mjGEOM_ELLIPSOID,
+    mujoco.mjtGeom.mjGEOM_CYLINDER,
+    mujoco.mjtGeom.mjGEOM_BOX,
+})
 
 
 class GhostRenderer(plugin.ViewerPlugin):
@@ -92,20 +82,10 @@ class GhostRenderer(plugin.ViewerPlugin):
 
   @messages.handler
   def on_update(self, _: messages.UpdateEvent) -> None:
-    """Handles mouse events, applies perturbations, and updates ghost geoms."""
+    """Updates the time-delayed ghost geoms."""
     assert self._viewer is not None
     model = self._viewer.model
     data = self._viewer.data
-
-    viewer_app_events.handle_mouse_events(
-        model,
-        data,
-        self._viewer.camera,
-        self._viewer.vis_options,
-        self._viewer.perturb,
-        ux.UxState(),
-    )
-    viewer_utils.apply_perturb(self._viewer, model, data)
 
     self._viewer.extra_geoms.clear()
     if self._last_time is None or data.time < self._last_time:
@@ -130,6 +110,7 @@ class GhostRenderer(plugin.ViewerPlugin):
     for i in range(model.ngeom):
       if (
           self._is_fixed_body(model.geom_bodyid[i])
+          or model.geom_type[i] not in _PRIMITIVE_GEOM_TYPES
           or model.geom_rgba[i, 3] == 0
           or model.geom_group[i] > 2
       ):
@@ -148,33 +129,3 @@ class GhostRenderer(plugin.ViewerPlugin):
       geom.objtype = int(mujoco.mjtObj.mjOBJ_GEOM)
       geom.objid = i
       self._viewer.extra_geoms.append(geom)
-
-
-def main(argv: list[str]) -> None:
-  model_path = _MODEL.value or (
-      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else None
-  )
-  if not model_path:
-    raise _app.UsageError(
-        'Please provide a model path argument or --model flag.'
-    )
-
-  config = viewer_protocol.ViewerConfig(
-      title=os.path.basename(sys.argv[0]),
-      width=_WIDTH.value,
-      height=_HEIGHT.value,
-      gfx=_GFX.value or '',
-      http_port=_PORT.value,
-  )
-
-  ghost_renderer = GhostRenderer()
-
-  launch_passive.run(
-      config,
-      model_path=model_path,
-      plugins=[ghost_renderer, step_control.StepControl()],
-  )
-
-
-if __name__ == '__main__':
-  _app.run(main)
