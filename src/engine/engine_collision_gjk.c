@@ -1608,9 +1608,10 @@ static int halfspace(const mjtNum a[3], const mjtNum n[3], const mjtNum p[3]) {
 static inline mjtNum witnessOnFace(mjtNum w1[3], mjtNum w2[3], const mjtNum v[3],
                                    const mjtNum* p, const mjtNum n[3], const mjtNum dir[3]) {
   mjtNum d[3] = {v[0] - p[0], v[1] - p[1], v[2] - p[2]};
-  mjtNum dist = dot3(d, n);
-  addScl3(w1, v, dir, -mju_abs(dist));
-  copy3(w2, v);
+  addScl3(w1, v, n, -dot3(d, n));
+  sub3(d, w1, v);
+  mjtNum dist = dot3(d, dir);
+  addScl3(w2, w1, dir, -dist);
   return dist;
 }
 

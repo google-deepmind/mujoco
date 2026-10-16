@@ -2574,4 +2574,50 @@ TEST_F(MjGjkTest, MultiCCDEdgeClipEmpty) {
   EXPECT_MJTNUM_EQ(dir1[2], dir2[2]);
 }
 
+TEST_F(MjGjkTest, TiltedBoxBoxMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="box" pos="0 0 -0.05" size="1 1 0.05"/>
+      <geom name="box" type="box" pos="0 0 0.08" euler="5 0 0" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "box");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
+
+  // Box (half-size 0.1) tilted 5 deg about x at z = 0.08:
+  // lower edge (y_local = -0.1, z_local = -0.1): y = -0.0909039, z = -0.0283350
+  // upper edge (y_local = +0.1, z_local = -0.1): y =  0.1083350, z = -0.0109038
+  const double cos5 = mju_cos(5.0 * mjPI / 180.0);
+  const double sin5 = mju_sin(5.0 * mjPI / 180.0);
+  const double y_lower = -0.1 * cos5 + 0.1 * sin5;
+  const double z_lower = 0.08 - 0.1 * sin5 - 0.1 * cos5;
+  const double y_upper = 0.1 * cos5 + 0.1 * sin5;
+  const double z_upper = 0.08 + 0.1 * sin5 - 0.1 * cos5;
+
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(status.dist[0], z_upper, kTolerance);
+  EXPECT_NEAR(status.dist[1], z_upper, kTolerance);
+  EXPECT_NEAR(status.dist[2], z_lower, kTolerance);
+  EXPECT_NEAR(status.dist[3], z_lower, kTolerance);
+
+  // clang-format off
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {
+      -0.1, y_upper, 0.5 * z_upper,
+       0.1, y_upper, 0.5 * z_upper,
+       0.1, y_lower, 0.5 * z_lower,
+      -0.1, y_lower, 0.5 * z_lower}));
+  // clang-format on
+}
+
 }  // namespace mujoco

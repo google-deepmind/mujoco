@@ -2071,9 +2071,9 @@ def _plane_intersect(pn: wp.vec3, pd: float, a: wp.vec3, b: wp.vec3) -> float:
 @wp.func
 def _witness_on_face(v: wp.vec3, p: wp.vec3, n: wp.vec3, dir: wp.vec3) -> Tuple[wp.vec3, wp.vec3, float]:
   d = v - p
-  dist = wp.dot(d, n)
-  w1 = v - dir * wp.abs(dist)
-  w2 = v
+  w1 = v - wp.dot(d, n) * n
+  dist = wp.dot(w1 - v, dir)
+  w2 = w1 - dist * dir
   return w1, w2, dist
 
 
