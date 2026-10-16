@@ -11,6 +11,11 @@ Engine
   and start awake. See :ref:`Sleeping<siSleepSleeping>` for details.
 - Added single-shot :ref:`multicontact<coMultiCCD>` for geoms with positive contact :ref:`margins<body-geom-margin>`.
 
+Compiler
+^^^^^^^^
+- Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole polygon outline using Newell's
+  method rather than the first three vertices (:issue:`3691`).
+
 Python bindings
 ^^^^^^^^^^^^^^^
 - Added support for building the Python bindings with `Bazel <https://bazel.build/>`__ (initially covers the core

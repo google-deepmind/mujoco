@@ -3138,14 +3138,27 @@ void mjCMesh::MakeCenter(const double* dvert) {
 // compute the normals of the polygons
 void mjCMesh::MakePolygonNormals(const double* dvert) {
   for (int i = 0; i < polygons_.size(); ++i) {
-    double n[3];
-    mjuu_makenormal(n,
-                    &dvert[3 * polygons_[i][0]],
-                    &dvert[3 * polygons_[i][1]],
-                    &dvert[3 * polygons_[i][2]]);
-    polygon_normals_[3 * i + 0] = n[0];
-    polygon_normals_[3 * i + 1] = n[1];
-    polygon_normals_[3 * i + 2] = n[2];
+    double n[3]  = {0, 0, 0};
+    int    nvert = polygons_[i].size();
+
+    // compute normal using Newell's method
+    for (int j = 0; j < nvert; ++j) {
+      const double* v0  = &dvert[3 * polygons_[i][j]];
+      const double* v1  = &dvert[3 * polygons_[i][(j + 1) % nvert]];
+      n[0]             += (v0[1] - v1[1]) * (v0[2] + v1[2]);
+      n[1]             += (v0[2] - v1[2]) * (v0[0] + v1[0]);
+      n[2]             += (v0[0] - v1[0]) * (v0[1] + v1[1]);
+    }
+    double nrm = std::sqrt(mjuu_dot3(n, n));
+    if (nrm < mjEPS) {
+      polygon_normals_[3 * i + 0] = 1;
+      polygon_normals_[3 * i + 1] = 0;
+      polygon_normals_[3 * i + 2] = 0;
+    } else {
+      polygon_normals_[3 * i + 0] = n[0] / nrm;
+      polygon_normals_[3 * i + 1] = n[1] / nrm;
+      polygon_normals_[3 * i + 2] = n[2] / nrm;
+    }
   }
 }
 

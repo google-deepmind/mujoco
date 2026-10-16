@@ -447,6 +447,11 @@ TEST_F(MjCMeshTest, TinyMeshLoads) {
   char error[1024];
   MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nmeshpoly, 4);
+
+  // Polygon areas are ~5e-9 m^2 (squared Newell norm ~1e-16 < mjEPS);
+  // normals must still be distinct rather than falling back to (1, 0, 0).
+  EXPECT_LT(mju_dot3(model->mesh_polynormal, model->mesh_polynormal + 3), 0);
 }
 
 // ------------- test max hull vert -------------------------------------------
@@ -1313,6 +1318,40 @@ TEST_F(MjCMeshTest, NegativeScaleConvexPolygons) {
 
   check_normals("normal");
   check_normals("mirrored");
+}
+
+TEST_F(MjCMeshTest, PolygonNormalCollinearOutline) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate"
+            vertex="-0.4 -0.4 -0.01   0.4 -0.4 -0.01
+                     0.4  0.4 -0.01  -0.4  0.4 -0.01
+                    -0.4 -0.4  0.01   0.4 -0.4  0.01
+                     0.4  0.4  0.01   0.0  0.4  0.0101
+                    -0.4  0.4  0.01"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  ASSERT_EQ(model->nmeshpoly, 6);
+
+  // Rotate polygon normals from mesh inertial frame back to user frame.
+  // Specifically check the top (+z) polygon, which has 3 nearly collinear
+  // outline vertices at y = 0.4: (0.4, 0.4, 0.01), (0, 0.4, 0.0101), (-0.4,
+  // 0.4, 0.01).
+  mjtNum max_z = -1;
+  for (int p = 0; p < model->nmeshpoly; ++p) {
+    mjtNum n_user[3];
+    mju_rotVecQuat(n_user, model->mesh_polynormal + 3 * p, model->mesh_quat);
+    max_z = mju_max(max_z, n_user[2]);
+  }
+  EXPECT_NEAR(max_z, 1.0, MjTol(1e-4, 1e-4));
 }
 
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
