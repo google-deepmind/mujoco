@@ -109,9 +109,24 @@ FilePath ResolveFilePath(XMLElement*     e,
   return FilePath(path) + filename;
 }
 
+// Thrown inside mju_getXMLDependencies so C++ stack objects are destroyed
+// before mju_error (which may longjmp in language bindings) is called.
+struct XmlDepsError {
+  char message[1024];
+};
+
+template <typename... Args>
+[[noreturn]] void ThrowXmlDepsError(const char* format, Args... args) {
+  XmlDepsError err;
+  mju::sprintf_arr(err.message, format, args...);
+  throw err;
+}
+
+void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies);
+
 // Opens and parses the XML resource `filename` into `doc`. Returns the
-// directory of the resource, or nullopt if it cannot be opened. Calls
-// mju_error if it cannot be read or parsed.
+// directory of the resource, or nullopt if it cannot be opened. Throws
+// XmlDepsError if it cannot be read or parsed.
 optional<FilePath> ParseXMLResource(const string& filename, tinyxml2::XMLDocument& doc) {
   // Open through the resource provider so this works against any registered
   // backend (OS file system, VFS, HTTP, "github:", ...).
@@ -123,7 +138,7 @@ optional<FilePath> ParseXMLResource(const string& filename, tinyxml2::XMLDocumen
   int         size   = mju_readResource(resource, &buffer);
   if (size < 0 || !size) {
     mju_closeResource(resource);
-    mju_error("Could not read '%s'", filename.c_str());
+    ThrowXmlDepsError("Could not read '%s'", filename.c_str());
   }
 
   // Capture the directory while the resource is still open.
@@ -138,11 +153,13 @@ optional<FilePath> ParseXMLResource(const string& filename, tinyxml2::XMLDocumen
   mju_closeResource(resource);
 
   if (err != tinyxml2::XML_SUCCESS) {
-    mju_error("Problem reading XML file '%s': %s",
-              filename.c_str(),
-              doc.ErrorStr() ? doc.ErrorStr() : "");
+    ThrowXmlDepsError("Problem reading XML file '%s': %s",
+                      filename.c_str(),
+                      doc.ErrorStr() ? doc.ErrorStr() : "");
   }
-  if (!doc.RootElement()) { mju_error("XML root element not found in '%s'", filename.c_str()); }
+  if (!doc.RootElement()) {
+    ThrowXmlDepsError("XML root element not found in '%s'", filename.c_str());
+  }
   return resource_dir;
 }
 
@@ -217,9 +234,11 @@ void AccumulateFiles(std::unordered_set<string>& files,
       }
       if (!include_dir.has_value()) {
         if (candidates.size() > 1 && candidates[0].Str() != candidates[1].Str()) {
-          mju_error("Could not open '%s' or '%s'", candidates[0].c_str(), candidates[1].c_str());
+          ThrowXmlDepsError("Could not open '%s' or '%s'",
+                            candidates[0].c_str(),
+                            candidates[1].c_str());
         } else {
-          mju_error("Could not open '%s'", candidates[0].c_str());
+          ThrowXmlDepsError("Could not open '%s'", candidates[0].c_str());
         }
       }
 
@@ -286,7 +305,7 @@ void AccumulateFiles(std::unordered_set<string>& files,
   for (const auto& file : model_files) {
     mjStringVec subdeps;
     FilePath    full_path = model_dir + FilePath(file);
-    mju_getXMLDependencies(full_path.Str().c_str(), &subdeps);
+    GetXMLDependenciesImpl(full_path.Str().c_str(), &subdeps);
     for (const auto& subdep : subdeps) { files.insert(subdep); }
   }
   // Then for each non MJCF resource file, add them to the set of files using their respective
@@ -294,6 +313,17 @@ void AccumulateFiles(std::unordered_set<string>& files,
   accumulate_files(texture_files, texture_dir.has_value() ? texture_dir : asset_dir);
   accumulate_files(mesh_files, mesh_dir.has_value() ? mesh_dir : asset_dir);
   accumulate_files(hfield_files, asset_dir);
+}
+
+void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies) {
+  tinyxml2::XMLDocument doc;
+  optional<FilePath>    model_dir = ParseXMLResource(filename, doc);
+  if (!model_dir.has_value()) { ThrowXmlDepsError("Could not open '%s'", filename); }
+
+  std::unordered_set<string> files = {filename};
+  AccumulateFiles(files, doc.RootElement(), model_dir.value());
+
+  *dependencies = {files.begin(), files.end()};
 }
 }  // namespace
 
@@ -308,14 +338,14 @@ void mjCopyError(char* dst, const char* src, int maxlen) {
 }
 
 void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies) {
-  tinyxml2::XMLDocument doc;
-  optional<FilePath>    model_dir = ParseXMLResource(filename, doc);
-  if (!model_dir.has_value()) { mju_error("Could not open '%s'", filename); }
-
-  std::unordered_set<string> files = {filename};
-  AccumulateFiles(files, doc.RootElement(), model_dir.value());
-
-  *dependencies = {files.begin(), files.end()};
+  char error[1024] = "";
+  try {
+    GetXMLDependenciesImpl(filename, dependencies);
+    return;
+  } catch (const XmlDepsError& err) { mjCopyError(error, err.message, sizeof(error)); }
+  // Called outside the catch block: a longjmp out of a handler would skip the
+  // destruction of the exception object itself.
+  mju_error("%s", error);
 }
 
 // error constructor

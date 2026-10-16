@@ -34,6 +34,7 @@ Bug fixes
   - An error while compiling meshes or textures on the compiler's worker threads crashed the process.
   - :ref:`mj_loadAllPluginLibraries` kept a lock if a library failed to load, so other threads deadlocked.
   - An unknown :ref:`role<material-layer-role>` of a material layer leaked memory instead of causing a parse error.
+  - :ref:`mju_getXMLDependencies` leaked memory when reading or parsing an XML file failed.
 
 Version 3.16.0 (October 14, 2026)
 ---------------------------------
