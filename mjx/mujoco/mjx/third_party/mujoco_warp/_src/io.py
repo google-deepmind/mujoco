@@ -2760,9 +2760,9 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
         qacc_out[worldid, i] = 0.0
     for i in range(nu):
       ctrl_out[worldid, i] = 0.0
-      if i < na:
-        act_out[worldid, i] = 0.0
-        act_dot_out[worldid, i] = 0.0
+    for i in range(na):
+      act_out[worldid, i] = 0.0
+      act_dot_out[worldid, i] = 0.0
     for i in range(neq):
       eq_active_out[worldid, i] = eq_active0[i]
     for i in range(nflex):
