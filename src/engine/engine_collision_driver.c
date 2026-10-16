@@ -64,8 +64,7 @@ mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
 
 
 // return the maximum number of contacts that can be generated between two geoms
-// if has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
-// indicates that the geoms have a positive margin
+// has_margin is ignored
 int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
   int type1 = m->geom_type[g1];
   int type2 = m->geom_type[g2];
@@ -126,34 +125,6 @@ int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin) {
   }
 
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
-    return 5;
-  }
-
-  // check margin from model
-  if (has_margin < 0) {
-    has_margin = 0;
-    if (mjENABLED(mjENBL_OVERRIDE)) {
-      has_margin = m->opt.o_margin > 0.0;
-    } else {
-      int npair = m->npair;
-      int ipair = -1;
-      for (int k=0; k < npair; k++) {
-        if ((m->pair_geom1[k] == g1 && m->pair_geom2[k] == g2) ||
-            (m->pair_geom1[k] == g2 && m->pair_geom2[k] == g1)) {
-            ipair = k;
-            break;
-          }
-        }
-
-      if (ipair > -1) {
-        has_margin = m->pair_margin[ipair] > 0.0;
-      } else {
-        has_margin = m->geom_margin[g1] > 0.0 || m->geom_margin[g2] > 0.0;
-      }
-    }
-  }
-
-  if (has_margin) {
     return 5;
   }
 

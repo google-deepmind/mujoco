@@ -1860,14 +1860,13 @@ multi-run pipeline (legacy)
   Multiple contact points are found by rotating the two geoms by ±1e-3 radians around the tangential axes and
   re-running the collision routine. If a new contact is detected it is added, allowing for up to 4 additional contact
   points. This method is effective, but increases the cost of each collision call by a factor of 5.  This method is
-  used when the :ref:`nativeccd<option-flag-nativeccd>` flag is disabled, and for geom collisions involving capsules
-  or with :ref:`positive contact margins<body-geom-margin>`.
+  used when the :ref:`nativeccd<option-flag-nativeccd>` flag is disabled.
 
 single-shot pipeline
   The single-shot pipeline is used in conjunction with the native CCD pipeline, i.e., when the
   :ref:`nativeccd<option-flag-nativeccd>` flag is enabled. As this pipeline is one-shot and most of the geom analysis
-  is done at compilation time, there is very little performance overhead. Supported geoms are boxes, cylinders, and meshes
-  without :ref:`positive contact margins<body-geom-margin>`.
+  is done at compilation time, there is very little performance overhead. Supported geoms are capsules, cylinders,
+  boxes, and meshes.
 
 .. _coDistance:
 
@@ -1913,8 +1912,7 @@ Pair-wise colliders
 
 The table below provides information about the colliders used for different geom pairs. These values can be computed
 dynamically by the :ref:`mj_maxContact` function. Use the toggles to see the max number of contacts returned with the
-parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-multiccd>`, and
-:ref:`margin<body-geom-margin>`.
+parameters :ref:`nativeccd<option-flag-nativeccd>` and :ref:`multiccd<option-flag-multiccd>`.
 
 .. raw:: html
 
@@ -1932,13 +1930,6 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
          <span class="pairwise-slider"></span>
        </label>
        <span>multiccd</span>
-     </div>
-     <div class="pairwise-toggle-item">
-       <label class="pairwise-switch">
-         <input type="checkbox" id="margin-checkbox">
-         <span class="pairwise-slider"></span>
-       </label>
-       <span>with margin</span>
      </div>
    </div>
 
@@ -2134,8 +2125,7 @@ parameters :ref:`nativeccd<option-flag-nativeccd>`, :ref:`multiccd<option-flag-m
        const table = document.querySelector('.table-pairwise');
        const toggles = [
          {id: 'nativeccd-checkbox', cls: 'nativeccd-enabled'},
-         {id: 'multiccd-checkbox', cls: 'multiccd-enabled'},
-         {id: 'margin-checkbox', cls: 'margin-enabled'}
+         {id: 'multiccd-checkbox', cls: 'multiccd-enabled'}
        ];
 
        toggles.forEach(toggle => {

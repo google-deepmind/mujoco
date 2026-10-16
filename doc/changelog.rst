@@ -9,6 +9,7 @@ Engine
 ^^^^^^
 - Trees marked :ref:`sleep="init"<body-sleep>` which cannot be put to sleep now cause a warning rather than an error,
   and start awake. See :ref:`Sleeping<siSleepSleeping>` for details.
+- Added single-shot :ref:`multicontact<coMultiCCD>` for geoms with positive contact :ref:`margins<body-geom-margin>`.
 
 Python bindings
 ^^^^^^^^^^^^^^^

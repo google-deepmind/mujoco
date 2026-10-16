@@ -124,24 +124,11 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   display: none;
 }
 
-.multiccd-enabled.nativeccd-enabled:not(.margin-enabled) .multiccd-native {
+.multiccd-enabled.nativeccd-enabled .multiccd-native {
   display: inline;
 }
 
-.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy,
-.multiccd-enabled.nativeccd-enabled.margin-enabled .multiccd-legacy {
-  display: inline;
-}
-
-.margin-show {
-  display: none;
-}
-
-.margin-enabled .margin-hide {
-  display: none;
-}
-
-.margin-enabled .margin-show {
+.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy {
   display: inline;
 }
 

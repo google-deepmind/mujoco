@@ -552,6 +552,10 @@ TEST_F(MjCollisionTest, MaxContact) {
   EXPECT_EQ(mj_maxContact(m.get(), cylinder, cylinder, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, -1), 4);
   EXPECT_EQ(mj_maxContact(m.get(), cylinder, mesh, -1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, box, 1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), mesh, mesh, 1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), cylinder, box, 1), 4);
+  EXPECT_EQ(mj_maxContact(m.get(), capsule, mesh, 1), 2);
 }
 
 // flex lying on a plane and on 16 spheres of the world body

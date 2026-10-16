@@ -903,8 +903,8 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 
 // return number of contacts supported by a single pass of narrowphase
 static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* obj2) {
-  // single pass not supported for margins nor libccd
-  if (obj1->margin > 0 || obj2->margin > 0 || mjDISABLED(mjDSBL_NATIVECCD)) {
+  // single pass not supported for libccd
+  if (mjDISABLED(mjDSBL_NATIVECCD)) {
     return 1;
   }
 
