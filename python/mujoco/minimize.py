@@ -330,7 +330,7 @@ def least_squares(
     g_norm = np.linalg.norm(grad_free)
     if g_norm <= gtol:
       status = Status.G_TOL
-      if g_norm == 0:
+      if g_norm == 0 and verbose > Verbosity.SILENT.value:
         print('Zero gradient norm: exact minimum found?', file=output)
       break
 
