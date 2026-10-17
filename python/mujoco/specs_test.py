@@ -930,7 +930,7 @@ class SpecsTest(absltest.TestCase):
       <compiler angle="radian"/>
 
       <asset>
-        <mesh name="cube" file="cube.obj"/>
+        <mesh name="cube" content_type="model/obj" file="cube.obj"/>
       </asset>
 
       <worldbody>

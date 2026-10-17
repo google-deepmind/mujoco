@@ -746,6 +746,9 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     FilePath filename    = meshdir_ + FilePath(file_);
     resource_            = LoadResource(owning_spec->modelfiledir->c_str(), filename.Str(), vfs);
 
+    // set content type before the cache lookup, so it does not depend on a cache hit
+    content_type_ = GetAssetContentType(resource_->name, content_type_);
+
     // try loading from cache
     if (cache != nullptr && LoadCachedMesh(cache, resource_)) {
       mju_closeResource(resource_);

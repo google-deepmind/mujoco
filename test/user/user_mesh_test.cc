@@ -393,6 +393,32 @@ TEST_F(MjCMeshTest, LoadTorus) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, SavedContentTypeIndependentOfCache) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+
+  // the second compilation loads the mesh from the asset cache
+  std::array<std::string, 2> saved;
+  for (std::string& xml : saved) {
+    mjSpec* spec =
+        mj_parseXML(xml_path.c_str(), nullptr, error.data(), error.size());
+    ASSERT_THAT(spec, NotNull()) << error.data();
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    std::array<char, 8192> str;
+    ASSERT_EQ(mj_saveXMLString(spec, str.data(), str.size(), error.data(),
+                               error.size()),
+              0)
+        << error.data();
+    xml = str.data();
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+
+  EXPECT_THAT(saved[0], HasSubstr("content_type=\"model/obj\""));
+  EXPECT_EQ(saved[0], saved[1]);
+}
+
 TEST_F(MjCMeshTest, LoadTorusQuads) {
   const std::string xml_path = GetTestDataFilePath(kTorusQuadsPath);
   std::array<char, 1024> error;
