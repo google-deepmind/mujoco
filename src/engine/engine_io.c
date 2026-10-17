@@ -1192,6 +1192,7 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   dest->buffer = save_buffer;
   dest->arena = save_arena;
   dest->threadpool = 0;
+  dest->nefc = 0;
   mj_setPtrData(m, dest);
 
   // save plugin_data, since the X macro copying block below will override it
