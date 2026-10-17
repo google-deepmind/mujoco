@@ -72,6 +72,8 @@ cc_library(
         ":user_resource",
         ":user_threadpool",
         ":user_util",
+        "@lodepng",
+        "@marchingcubecpp",
         "//:libmujoco_hdrs",
         "//src/cc:array_safety",
         "//src/engine:engine_core_util",
@@ -81,13 +83,14 @@ cc_library(
         "//src/engine:engine_io",
         "//src/engine:engine_name",
         "//src/engine:engine_plugin",
+        # For mj_printModel. Its header comes with mujoco.h, but GNU ld (e.g. in
+        # the GitHub Bazel builds) needs the dependency for the link order.
+        "//src/engine:engine_print",  # buildcleaner: keep
         "//src/engine:engine_setconst",
         "//src/engine:engine_support",
         "//src/engine:engine_util_errmem",
         "//src/engine:engine_util_misc",
         "//src/engine:engine_util_solve",
-        "@lodepng",
-        "@marchingcubecpp",
         "@qhull//:libqhull_r",
     ],
 )
