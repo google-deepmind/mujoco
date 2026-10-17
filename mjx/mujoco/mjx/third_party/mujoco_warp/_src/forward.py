@@ -1368,28 +1368,33 @@ def _launch_discrete_free_gyro(m: Model, d: Data, out: wp.array2d[float], qacc: 
   )
 
 
+def implicit_qlu(m: Model, d: Data):
+  """Sets d.qLU = M - dt * qDeriv in D-structure, including RNE derivatives."""
+  # Smooth velocity derivatives into M-structure
+  qH_M = wp.empty((d.nworld, m.nC), dtype=float)
+  derivative.deriv_smooth_vel(m, d, qH_M)
+
+  # Map qH_M (M-structure) to qLU (D-structure) via mapM2D.
+  wp.launch(
+    _map_m2d,
+    dim=(d.nworld, m.nD),
+    inputs=[m.mapM2D, qH_M],
+    outputs=[d.qLU],
+  )
+
+  # Compute RNE derivatives, scale by timestep, and add in-place to qLU.
+  # Note: inverse dynamics Coriolis enters equations of motion as -qfrc_bias,
+  # so M - dt * df/dv = M + dt * d(qfrc_bias)/dv.
+  derivative.deriv_rne_vel(m, d, d.qLU)
+
+
 @event_scope
 def implicit(m: Model, d: Data):
   """Integrates fully implicit in velocity."""
   if m.opt.integrator == IntegratorType.IMPLICIT:
-    # 1. Smooth velocity derivatives into M-structure
-    qH_M = wp.empty((d.nworld, m.nC), dtype=float)
-    derivative.deriv_smooth_vel(m, d, qH_M)
+    implicit_qlu(m, d)
 
-    # 2. Map qH_M (M-structure) to qLU (D-structure) via mapM2D.
-    wp.launch(
-      _map_m2d,
-      dim=(d.nworld, m.nD),
-      inputs=[m.mapM2D, qH_M],
-      outputs=[d.qLU],
-    )
-
-    # 3. Compute RNE derivatives, scale by timestep, and add in-place to qLU.
-    # Note: inverse dynamics Coriolis enters equations of motion as -qfrc_bias,
-    # so M - dt * df/dv = M + dt * d(qfrc_bias)/dv.
-    derivative.deriv_rne_vel(m, d, d.qLU)
-
-    # 4. Factorize and solve: qacc = qLU \ Ma
+    # Factorize and solve: qacc = qLU \ Ma
     qacc = wp.empty((d.nworld, m.nv), dtype=float)
     smooth.factor_solve_lu(m, d, d.qLU, qacc, d.efc.Ma)
     implicit_free_body(m, d, d.efc.Ma, qacc, solve=True)

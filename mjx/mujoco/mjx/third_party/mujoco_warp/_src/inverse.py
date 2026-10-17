@@ -57,6 +57,28 @@ def _qfrc_eulerdamp(
 
 
 @wp.kernel
+def _mul_qLU(
+  # Model:
+  D_rownnz: wp.array[int],
+  D_rowadr: wp.array[int],
+  D_colind: wp.array[int],
+  # Data in:
+  qLU_in: wp.array2d[float],
+  # In:
+  vec: wp.array2d[float],
+  # Out:
+  res: wp.array2d[float],
+):
+  worldid, dofid = wp.tid()
+  rowadr = D_rowadr[dofid]
+  val = float(0.0)
+  for k in range(D_rownnz[dofid]):
+    adr = rowadr + k
+    val += qLU_in[worldid, adr] * vec[worldid, D_colind[adr]]
+  res[worldid, dofid] = val
+
+
+@wp.kernel
 def _qfrc_inverse(
   # Data in:
   qfrc_bias_in: wp.array2d[float],
@@ -108,6 +130,18 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
       inputs=[m.opt.timestep, m.dof_damping, m.dof_dampingpoly, d.qvel, d.qacc],
       outputs=[qfrc],
     )
+  elif m.opt.integrator == IntegratorType.IMPLICIT:
+    # set qLU = M - dt * qDeriv
+    forward.implicit_qlu(m, d)
+
+    # set qfrc = qLU * qacc
+    wp.launch(
+      _mul_qLU,
+      dim=(d.nworld, m.nv),
+      inputs=[m.D_rownnz, m.D_rowadr, m.D_colind, d.qLU, d.qacc],
+      outputs=[qfrc],
+    )
+    forward.implicit_free_body(m, d, d.qacc, qfrc, solve=False)
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
     qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
