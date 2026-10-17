@@ -881,6 +881,65 @@ void queryClosestBVHWithFace(const mjtNum* bvh,
 }
 
 
+// accumulate the pseudonormal of a vertex (vsecond == -1) or edge (vfirst, vsecond)
+// angle weights follow Baerentzen and Aanaes (2005), doi:10.1109/TVCG.2005.49
+void queryFeatureNormal(const mjtNum* bvh,
+                        const int*    child,
+                        const int*    nodeid,
+                        const double* vert,
+                        const int*    face,
+                        int           node_idx,
+                        int           vfirst,
+                        int           vsecond,
+                        double        normal[3]) {
+  // every incident face contains vfirst; allow for rounding of the stored bounding boxes
+  const double* point = vert + 3 * vfirst;
+  const mjtNum* aabb  = bvh + 6 * node_idx;
+  for (int i = 0; i < 3; ++i) {
+    double center = aabb[i];
+    double size   = aabb[i + 3];
+    double tol    = 4 * std::numeric_limits<mjtNum>::epsilon() * (std::abs(center) + size);
+    if (point[i] < center - size - tol || point[i] > center + size + tol) { return; }
+  }
+
+  int left  = child[2 * node_idx];
+  int right = child[2 * node_idx + 1];
+  if (left == -1 && right == -1) {
+    int fi = nodeid[node_idx];
+    if (fi < 0) { return; }
+    const int* vertices   = face + 3 * fi;
+    int        corner     = -1;
+    bool       has_second = vsecond == -1;
+    for (int i = 0; i < 3; ++i) {
+      if (vertices[i] == vfirst) { corner = i; }
+      if (vertices[i] == vsecond) { has_second = true; }
+    }
+    if (corner == -1 || !has_second) { return; }
+
+    const double* v1    = vert + 3 * vertices[(corner + 1) % 3];
+    const double* v2    = vert + 3 * vertices[(corner + 2) % 3];
+    double        e1[3] = {v1[0] - point[0], v1[1] - point[1], v1[2] - point[2]};
+    double        e2[3] = {v2[0] - point[0], v2[1] - point[1], v2[2] - point[2]};
+    double        cross[3];
+    mjuu_crossvec(cross, e1, e2);
+    double length = std::sqrt(mjuu_dot3(cross, cross));
+    if (length == 0) { return; }
+
+    // unit face normals have equal weight on an edge and corner-angle weight at a vertex
+    double weight = vsecond == -1 ? std::atan2(length, mjuu_dot3(e1, e2)) : 1;
+    for (int i = 0; i < 3; ++i) { normal[i] += weight * cross[i] / length; }
+    return;
+  }
+
+  if (left >= 0) {
+    queryFeatureNormal(bvh, child, nodeid, vert, face, left, vfirst, vsecond, normal);
+  }
+  if (right >= 0) {
+    queryFeatureNormal(bvh, child, nodeid, vert, face, right, vfirst, vsecond, normal);
+  }
+}
+
+
 double querySignedDistance(const mjtNum* bvh,
                            const int*    child,
                            const int*    nodeid,
@@ -918,15 +977,45 @@ double querySignedDistance(const mjtNum* bvh,
                         e1[2] * e2[0] - e1[0] * e2[2],
                         e1[0] * e2[1] - e1[1] * e2[0]};
 
+    // the closest-point routine returns exact boundary coordinates for vertices and edges
+    int first = -1, second = -1;
+    if (best_u == 0 && best_v == 0) {
+      first = 0;
+    } else if (best_u == 1 && best_v == 0) {
+      first = 1;
+    } else if (best_u == 0 && best_v == 1) {
+      first = 2;
+    } else if (best_v == 0) {
+      first  = 0;
+      second = 1;
+    } else if (best_u == 0) {
+      first  = 0;
+      second = 2;
+    } else if (best_u + best_v == 1) {
+      first  = 1;
+      second = 2;
+    }
+
+    // a single face normal cannot determine the sign at a shared edge or vertex
+    if (first >= 0) {
+      normal[0] = normal[1] = normal[2] = 0;
+      queryFeatureNormal(bvh,
+                         child,
+                         nodeid,
+                         vert,
+                         face,
+                         0,
+                         face[3 * best_face + first],
+                         second < 0 ? -1 : face[3 * best_face + second],
+                         normal);
+    }
+
     double closest[3] = {v0[0] + best_u * (v1[0] - v0[0]) + best_v * (v2[0] - v0[0]),
                          v0[1] + best_u * (v1[1] - v0[1]) + best_v * (v2[1] - v0[1]),
                          v0[2] + best_u * (v1[2] - v0[2]) + best_v * (v2[2] - v0[2])};
 
-    double u[3]       = {point[0] - closest[0], point[1] - closest[1], point[2] - closest[2]};
-    double dot        = u[0] * normal[0] + u[1] * normal[1] + u[2] * normal[2];
-    double normal_len = mjuu_normvec(normal, 3);
-    double eps        = 1e-12 * normal_len * dist;
-    sign              = (dot > eps) ? 1.0 : -1.0;
+    double u[3] = {point[0] - closest[0], point[1] - closest[1], point[2] - closest[2]};
+    sign        = mjuu_dot3(u, normal) >= 0 ? 1.0 : -1.0;
   }
 
   return sign * dist;
