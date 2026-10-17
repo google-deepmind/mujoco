@@ -93,6 +93,25 @@ cc_library(
 )
 
 cc_test(
+    name = "compare_model_test",
+    srcs = ["compare_model_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    tags = mujoco_test_tags,
+    deps = [
+        ":compare_model",
+        ":fixture",
+        "//:mujoco",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "compare_spec_test",
     srcs = ["compare_spec_test.cc"],
     conlyopts = ["-std=c11"],
