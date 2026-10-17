@@ -49,14 +49,8 @@ alias(
 
 cc_library(
     name = "engine",
-    srcs = [
-        "engine_derivative_fd.c",
-        "engine_setconst.c",
-    ],
-    hdrs = [
-        "engine_derivative_fd.h",
-        "engine_setconst.h",
-    ],
+    srcs = ["engine_print.c"],
+    hdrs = ["engine_print.h"],
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/include",
@@ -73,21 +67,91 @@ cc_library(
     deps = [
         ":engine_core",
         ":engine_core_util",
+        ":engine_derivative",  # buildcleaner: keep
+        ":engine_derivative_fd",  # buildcleaner: keep
+        ":engine_forward",  # buildcleaner: keep
+        ":engine_io",
+        ":engine_macro",
+        ":engine_memory",  # buildcleaner: keep
+        ":engine_name",
+        ":engine_setconst",  # buildcleaner: keep
+        ":engine_support",
+        ":engine_util_blas",  # buildcleaner: keep
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        ":engine_util_solve",  # buildcleaner: keep
+        ":engine_util_sparse",  # buildcleaner: keep
+        ":engine_util_spatial",  # buildcleaner: keep
+        ":engine_vis",  # buildcleaner: keep
+        ":engine_vis_init",  # buildcleaner: keep
+        "//:libmujoco_hdrs",
+    ],
+)
+
+alias(
+    name = "engine_print",
+    actual = ":engine",
+)
+
+cc_library(
+    name = "engine_derivative_fd",
+    srcs = ["engine_derivative_fd.c"],
+    hdrs = ["engine_derivative_fd.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    deps = [
+        ":engine_forward",
+        ":engine_macro",
+        ":engine_memory",
+        ":engine_support",
+        ":engine_util_blas",
+        ":engine_util_errmem",
+        ":engine_util_misc",
+        "//:libmujoco_hdrs",
+    ],
+    # nothing else in the engine calls mjd_transitionFD and mjd_inverseFD
+    alwayslink = 1,
+)
+
+cc_library(
+    name = "engine_setconst",
+    srcs = ["engine_setconst.c"],
+    hdrs = ["engine_setconst.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/include",
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+    ],
+    cxxopts = ["-std=c++20"],
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+        "mjUSEPLATFORMSIMD",
+    ],
+    deps = [
+        ":engine_core",
+        ":engine_core_util",
         ":engine_derivative",
         ":engine_forward",
         ":engine_io",
-        ":engine_macro",
         ":engine_memory",
-        ":engine_print",  # buildcleaner: keep
-        ":engine_support",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
         ":engine_util_solve",
         ":engine_util_sparse",
         ":engine_util_spatial",
-        ":engine_vis",  # buildcleaner: keep
-        ":engine_vis_init",  # buildcleaner: keep
         "//:libmujoco_hdrs",
     ],
 )
@@ -172,35 +236,6 @@ cc_library(
         "//:mjdata_hdrs",
         "//:mjmodel_hdrs",
         "//:mjtype_hdrs",
-    ],
-)
-
-cc_library(
-    name = "engine_print",
-    srcs = ["engine_print.c"],
-    hdrs = ["engine_print.h"],
-    conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-        "-Wshadow",
-    ],
-    cxxopts = ["-std=c++20"],
-    local_defines = [
-        "MUJOCO_DLL_EXPORTS",
-        "_GNU_SOURCE",
-    ],
-    deps = [
-        ":engine_core",
-        ":engine_core_util",
-        ":engine_io",
-        ":engine_macro",
-        ":engine_name",
-        ":engine_support",
-        ":engine_util_errmem",
-        ":engine_util_misc",
-        ":engine_vis_init",
-        "//:libmujoco_hdrs",
     ],
 )
 

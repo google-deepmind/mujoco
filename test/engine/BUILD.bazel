@@ -247,10 +247,10 @@ cc_test(
     ],
     deps = [
         "//:mujoco",
-        "//src/engine",
         "//src/engine:engine_core",
         "//src/engine:engine_core_util",
         "//src/engine:engine_derivative",
+        "//src/engine:engine_derivative_fd",
         "//src/engine:engine_forward",
         "//src/engine:engine_io",
         "//src/engine:engine_util_blas",
