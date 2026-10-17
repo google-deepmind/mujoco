@@ -23,6 +23,7 @@ reproducible on your machine by calling the same functions in order.
 | [`lint.yml`](lint.yml) | Python/C++ linting. |
 | [`live.yml`](live.yml) / [`update_live.yml`](update_live.yml) | Build + deploy the hosted browser Studio demo to GitHub Pages. |
 | [`publish-wasm.yml`](publish-wasm.yml) | Publish the `@mujoco/mujoco` npm package. |
+| [`windows_arm64.yml`](windows_arm64.yml) | Opt-in, manual-only build and test of native Windows ARM64 CPU wheels (helpers: `windows_arm64.py`, `audit_windows_arm64_wheel.py`). Never runs on PRs or pushes. |
 
 ## The `build_steps.sh` convention
 

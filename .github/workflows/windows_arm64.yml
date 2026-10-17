@@ -1,0 +1,74 @@
+# Opt-in build and test of native Windows ARM64 CPU Python wheels.
+#
+# Windows on ARM is not officially supported. This workflow never runs on
+# pushes or pull requests. It only runs when started by hand
+# (Actions > windows-arm64 > Run workflow), so it adds no load and no required
+# checks to regular CI.
+#
+# Scope: CPU core and Python bindings only. Studio/Filament, USD and rendering
+# contexts are not built, and nothing is published.
+
+name: windows-arm64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-arm64:
+    name: "windows-11-arm / CPython ${{ matrix.python }}"
+    runs-on: windows-11-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # CPython 3.10 is not included: NumPy has no Windows ARM64 wheels for it.
+        python: ["3.11", "3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "3"
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: ${{ matrix.python }}
+        architecture: arm64
+    - name: Select isolated native build workspace
+      shell: pwsh
+      run: '"MUJOCO_ARM64_WORK=$env:RUNNER_TEMP/mujoco-arm64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
+    - name: Configure native ARM64 MSVC and Windows SDK
+      shell: pwsh
+      run: |
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $vsPath = & $vswhere -products * -latest -prerelease -property installationPath
+        $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvarsall.bat"
+        $before = @{}
+        Get-ChildItem Env: | ForEach-Object { $before[$_.Name] = $_.Value }
+        $lines = cmd.exe /c "`"$vcvars`" arm64 >nul && set"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        foreach ($line in $lines) {
+          $idx = $line.IndexOf("=")
+          if ($idx -gt 0) {
+            $name = $line.Substring(0, $idx)
+            $val = $line.Substring($idx + 1)
+            if ($before[$name] -ne $val) {
+              "$name=$val" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          }
+        }
+    - name: Install build tools
+      # --upgrade: the 3.11 interpreter ships a setuptools too old for PEP 639.
+      run: python -m pip install --upgrade cmake ninja setuptools wheel build absl-py "zstandard; python_version < '3.14'"
+    - name: Build, audit, and test native CPU wheels
+      run: python .github/workflows/windows_arm64.py
+    - name: Upload native wheel and test results
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: windows-arm64-cp${{ matrix.python }}
+        path: |
+          ${{ env.MUJOCO_ARM64_WORK }}/package/dist/*.whl
+          ${{ env.MUJOCO_ARM64_WORK }}/tests.xml
