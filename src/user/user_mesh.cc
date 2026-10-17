@@ -3351,12 +3351,6 @@ void MeshPolygon::InsertFace(int v1, int v2, int v3) {
 // return the transverse vertices of the polygon, multiple paths possible if not connected
 std::vector<std::vector<int>> MeshPolygon::Paths() const {
   std::vector<std::vector<int>> paths;
-  // shortcut if polygon is just a triangular face
-  if (edges_.size() == 3) {
-    return {
-        {edges_[0].first, edges_[1].first, edges_[2].first}
-    };
-  }
 
   // go through each connected component of the polygon
   for (int i = 0; i < nisland_; ++i) {
