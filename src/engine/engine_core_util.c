@@ -1644,6 +1644,41 @@ int mj_tendonHasDamping(const mjModel* m, int i) {
 }
 
 
+// flex f has a nonzero stretch stiffness record (raw stiffness, or the strain equality
+// eigenmodes). Volume-mode interpolated flexes store one dense block per cell and empty cells
+// (no mesh content) keep an all-zero block, so the first block alone is not representative
+int mj_flexHasStiffness(const mjModel* m, int f) {
+  int adr = m->flex_stiffnessadr[f];
+  if (adr < 0) {
+    return 0;
+  }
+  const mjtNum* k = m->flex_stiffness + adr;
+
+  // standard flex: every element has stiffness if any does
+  // shell-mode interpolated flex (interp < 0): keep the first-block check; shells have no empty
+  // cells, and their first block (a membrane quad on the x=0 face) has a zero first entry, so
+  // interpolated shell stretch is currently never applied (to be revisited with MJWarp)
+  int order = m->flex_interp[f];
+  if (order <= 0) {
+    return k[0] != 0;
+  }
+
+  // volume-mode interpolated flex: any 3D cell counts
+  int cx = m->flex_cellnum[3*f+0];
+  int cy = m->flex_cellnum[3*f+1];
+  int cz = m->flex_cellnum[3*f+2];
+  int npe = (order+1)*(order+1)*(order+1);
+  int nelem = cx*cy*cz;
+  int stride = 9*npe*npe;
+  for (int e=0; e < nelem; e++) {
+    if (k[(size_t)e*stride] != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 // does flex f use the penalty form of passive contact: a standard deformable flex of dim >= 2
 // that asks for it, and not under the ipc flag, which solves the same law for every supported
 // flex itself (running both would apply each pair's force twice)
@@ -1664,8 +1699,7 @@ int mj_effFlexStiffPossible(const mjModel* m, int f) {
 
   // stretch stiffness present (the strain equality mode stores its constraint
   // eigenmodes in this block instead)
-  int sadr = m->flex_stiffnessadr[f];
-  if (sadr >= 0 && m->flex_stiffness[sadr] != 0 && m->flex_edgeequality[f] != 3) {
+  if (m->flex_edgeequality[f] != 3 && mj_flexHasStiffness(m, f)) {
     return 1;
   }
 

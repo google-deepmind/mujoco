@@ -1318,6 +1318,146 @@ TEST_F(ElasticityTest, InterpBendingRigidRotationInvariance) {
   }
 }
 
+// a trilinear flex whose first cage cell is empty (no mesh content, all-zero
+// stiffness block) must still get elastic forces from its non-empty cells:
+// the flex used to be gated on the stiffness of cell 0 only
+TEST_F(ElasticityTest, TrilinearEmptyFirstCell) {
+  // a cube of 5 tetrahedra in x=[.7, 1] plus an unattached vertex at x=0 that
+  // extends the cage to x=[0, 1]; of the 3x1x1 cells only the last is occupied
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="INTEGRATOR" timestep="1e-3"
+            solver="CG"/>
+    <worldbody>
+      <flexcomp name="test" type="direct" dim="3" dof="trilinear" mass="1"
+                cellcount="3 1 1" radius=".001"
+                point=".7 0 0  1 0 0  .7 1 0  1 1 0
+                       .7 0 1  1 0 1  .7 1 1  1 1 1
+                       0 .5 .5"
+                element="0 1 2 4  3 2 1 7  5 1 4 7  6 2 4 7  1 2 4 7">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="100" poisson="0.3" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* integrator : {"Euler", "discrete"}) {
+    std::string model_xml = xml;
+    model_xml.replace(model_xml.find("INTEGRATOR"), 10, integrator);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(model_xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+
+    // cell 0 is empty, cell 2 has stiffness
+    ASSERT_EQ(m->flex_interp[0], 1);
+    ASSERT_EQ(m->flex_edgeequality[0], 0);
+    int block = 24 * 24;
+    const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[0];
+    ASSERT_EQ(k[0], 0) << "test requires an empty first cell";
+    ASSERT_NE(k[2 * block], 0) << "test requires a non-empty last cell";
+
+    // free node bodies (nodes exclusively in empty cells are pinned)
+    std::vector<int> free_bodies;
+    for (int n = 0; n < m->flex_nodenum[0]; n++) {
+      int b = m->flex_nodebodyid[m->flex_nodeadr[0] + n];
+      if (m->body_dofnum[b] == 3) {
+        free_bodies.push_back(b);
+      }
+    }
+    ASSERT_EQ(free_bodies.size(), 8u);
+
+    // deformation: summed change of the distances between free nodes
+    mj_kinematics(m.get(), d.get());
+    std::vector<mjtNum> xpos0 = AsVector(d->xpos, 3 * m->nbody);
+    auto deformation = [&]() {
+      mjtNum total = 0;
+      for (int i : free_bodies) {
+        for (int j : free_bodies) {
+          if (i < j) {
+            mjtNum dist = mju_dist3(d->xpos + 3 * i, d->xpos + 3 * j);
+            mjtNum dist0 =
+                mju_dist3(xpos0.data() + 3 * i, xpos0.data() + 3 * j);
+            total += mju_abs(dist - dist0);
+          }
+        }
+      }
+      return total;
+    };
+
+    // displace one free node: the non-empty cell must push back
+    int dof = m->body_dofadr[free_bodies[0]];
+    d->qpos[m->jnt_qposadr[m->dof_jntid[dof]]] += 0.02;
+    mj_forward(m.get(), d.get());
+    EXPECT_GT(mju_norm(d->qfrc_spring, m->nv), 0)
+        << integrator << ": no elastic force with an empty first cell";
+    mjtNum initial = deformation();
+    ASSERT_GT(initial, 0);
+
+    // simulate: the deformation must decay and the state stay finite
+    for (int i = 0; i < 2000; i++) {
+      mj_step(m.get(), d.get());
+    }
+    for (int i = 0; i < m->nq; i++) {
+      ASSERT_TRUE(std::isfinite(d->qpos[i])) << integrator << ": qpos " << i;
+    }
+    mj_kinematics(m.get(), d.get());
+    EXPECT_LT(deformation(), 0.5 * initial)
+        << integrator << ": deformation did not decay";
+  }
+}
+
+// shell-mode interpolated flexes keep the first-block stiffness gate, under
+// which their membrane stretch is not applied: forces come from bending only
+// (elastic2d="stretch" has none, "both" equals "bend")
+TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="4 2 4" spacing=".025 .05 .025" pos="0 0 1"
+                dim="3" cellcount="2 1 2" radius=".001" mass="5"
+                name="softbody" dof="trilinear">
+        <elasticity young="1e4" poisson="0.3"
+                    elastic2d="ELASTIC2D" thickness="0.03"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto spring = [&](const char* elastic2d) {
+    std::string model_xml = xml;
+    model_xml.replace(model_xml.find("ELASTIC2D"), 9, elastic2d);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(model_xml.c_str(), error, sizeof(error));
+    EXPECT_THAT(m.get(), NotNull()) << error;
+    if (!m) return std::vector<mjtNum>();
+    EXPECT_LT(m->flex_interp[0], 0) << "test requires a shell-mode flex";
+    MjDataPtr d = MakeData(m);
+    for (int i = 0; i < m->nq; i++) {
+      d->qpos[i] = m->qpos0[i] + 0.01 * mju_sin(1.7 * i + 0.3);
+    }
+    mj_forward(m.get(), d.get());
+    return AsVector(d->qfrc_spring, m->nv);
+  };
+
+  std::vector<mjtNum> bend = spring("bend");
+  std::vector<mjtNum> stretch = spring("stretch");
+  std::vector<mjtNum> both = spring("both");
+  ASSERT_FALSE(bend.empty());
+  ASSERT_EQ(bend.size(), stretch.size());
+  ASSERT_EQ(bend.size(), both.size());
+  mjtNum bend_norm = 0;
+  for (int i = 0; i < static_cast<int>(bend.size()); i++) {
+    bend_norm += bend[i] * bend[i];
+    EXPECT_EQ(stretch[i], 0) << "stretch force at dof " << i;
+    EXPECT_EQ(both[i], bend[i]) << "dof " << i;
+  }
+  EXPECT_GT(bend_norm, 0);
+}
+
 // verify that a pinned vertex (on a static body) gets zero bending force
 // while its free neighbors get nonzero bending force
 TEST_F(ElasticityTest, PinnedVertexBendingForce) {

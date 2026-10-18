@@ -195,6 +195,10 @@ int mj_tendonHasStiffness(const mjModel* m, int i);
 // tendon i has a damper: nonzero damping, damping polynomial, or an attached actuator
 int mj_tendonHasDamping(const mjModel* m, int i);
 
+// flex f has a nonzero stretch stiffness record; for volume-mode interpolated flexes,
+// any cell counts (empty cells carry an all-zero block)
+int mj_flexHasStiffness(const mjModel* m, int f);
+
 // does flex f use the passive contact path (metric-carried contacts)
 MJAPI int mj_effFlexContactPossible(const mjModel* m, int f);
 

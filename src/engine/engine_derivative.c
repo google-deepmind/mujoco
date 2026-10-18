@@ -1342,27 +1342,14 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
 
   // loop over flexes
   for (int f=0; f < m->nflex; f++) {
-    // only process flex_interp
-    if (!m->flex_interp[f]) {
+    // only process stiff, non-rigid flex_interp without strain constraints
+    if (!mjd_flexInterp_processed(m, f)) {
       continue;
     }
 
     // get stiffness and damping
     int stiffnessadr = m->flex_stiffnessadr[f];
-    if (stiffnessadr < 0) {
-      continue;
-    }
     mjtNum* K = m->flex_stiffness + stiffnessadr;
-
-    // skip if rigid or no stiffness
-    if (m->flex_rigid[f] || K[0] == 0) {
-      continue;
-    }
-
-    // skip if strain constraints present (stiffness handled by constraint solver)
-    if (m->flex_edgeequality[f] == 3) {
-      continue;
-    }
 
     // compute scale
     mjtNum damping = m->flex_damping[f];
@@ -1705,11 +1692,12 @@ mjtBool mjd_flexInterp_processed(const mjModel* m, int f) {
   if (!m->flex_interp[f]) {
     return 0;
   }
-  int sa = m->flex_stiffnessadr[f];
-  if (sa < 0 || m->flex_rigid[f] || m->flex_stiffness[sa] == 0) {
+  // strain constraints present: stiffness handled by the constraint solver
+  if (m->flex_edgeequality[f] == 3) {
     return 0;
   }
-  if (m->flex_edgeequality[f] == 3) {
+  // element 0 may be an empty cell with zero stiffness
+  if (m->flex_rigid[f] || !mj_flexHasStiffness(m, f)) {
     return 0;
   }
   return 1;
