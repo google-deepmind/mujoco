@@ -1,6 +1,9 @@
 // Google modifications:
 //  - Zero-initialize CmdInput with memset in its constructor, and check
 //    sizeof(CmdInput) with static_assert.
+//  - PendingCom: added SizeMax/kMaxCmdSize, GetSizeToReceive() and
+//    IsBiggerBufferNeeded() so the command size received from the network can
+//    never overflow the receive buffer.
 #pragma once
 
 #include <cstring>
@@ -418,18 +421,45 @@ struct alignas(8) CmdClipboard : public CmdHeader {
 // Keeping track of partial incoming/outgoing transmissions
 //=============================================================================
 struct PendingCom {
+  // Commands claiming a bigger size are rejected (protects against bad data)
+  static constexpr uint32_t kMaxCmdSize = 256u * 1024u * 1024u;
   size_t SizeCurrent = 0;  // Amount of data sent or received so far
+  size_t SizeMax = 0;      // Capacity of 'pCommand' buffer (when receiving)
   bool bAutoFree = false;  // Need to free data buffer at the end of processing
   bool bError = false;     // If an error occurs during coms
   CmdHeader* pCommand =
       nullptr;  // Where to store incoming data or read to send data
   inline bool IsError() const { return bError; }
   inline bool IsDone() const {
-    return IsError() || (pCommand && pCommand->mSize == SizeCurrent);
+    return IsError() || (pCommand && SizeCurrent >= sizeof(CmdHeader) &&
+                         pCommand->mSize == SizeCurrent);
   }
   inline bool IsReady() const { return !IsError() && pCommand == nullptr; }
   inline bool IsPending() const {
     return !IsError() && !IsDone() && !IsReady();
+  }
+  // Receiving a command: the header is received first (into a CmdHeader sized
+  // buffer), then the caller allocates a buffer for the command size it holds.
+  // Both methods validate that size, since it comes from the network.
+  //
+  // Amount of data left to receive. Flags an error when the command size is
+  // smaller than the data already received or exceeds the buffer 'SizeMax'.
+  size_t GetSizeToReceive() {
+    const size_t sizeExpected = SizeCurrent < sizeof(CmdHeader)
+                                    ? sizeof(CmdHeader)
+                                    : pCommand->mSize;
+    bError |= sizeExpected < SizeCurrent || sizeExpected > SizeMax;
+    return bError ? 0 : sizeExpected - SizeCurrent;
+  }
+  // True once the header of a command bigger than the header buffer has been
+  // received: the caller must allocate 'pCommand->mSize' bytes for it (and
+  // update 'SizeMax'). Flags an error when that size is invalid.
+  bool IsBiggerBufferNeeded() {
+    const bool bHeaderDone =
+        SizeCurrent == sizeof(CmdHeader) && SizeMax == sizeof(CmdHeader);
+    bError |= bHeaderDone && (pCommand->mSize < sizeof(CmdHeader) ||
+                              pCommand->mSize > kMaxCmdSize);
+    return !bError && bHeaderDone && pCommand->mSize > sizeof(CmdHeader);
   }
 };
 

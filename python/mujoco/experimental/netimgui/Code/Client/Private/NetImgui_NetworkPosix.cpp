@@ -3,6 +3,7 @@
 //    a SIGSEGV caused by Linux select() writing to a const timeval placed
 //    in read-only memory by the compiler.
 //  - Added logging for network events.
+//  - DataReceive validates the command size with PendingCom::GetSizeToReceive.
 #include "NetImgui_Shared.h"
 #include "google/logging.h"
 
@@ -290,10 +291,9 @@ void DataReceive(SocketInfo* pClientSocket,
     return;
   }
 
-  size_t BytesToRead =
-      PendingComRcv.pCommand->mSize - PendingComRcv.SizeCurrent;
+  size_t BytesToRead = PendingComRcv.GetSizeToReceive();
   if (BytesToRead == 0) {
-    return;  // Already fully received
+    return;  // Already fully received, or invalid size (error flagged)
   }
 
   // Receive data from remote connection (non-blocking)

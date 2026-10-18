@@ -1,3 +1,6 @@
+// Google modifications:
+//  - Receive loop and handshake validate the command size received from the
+//    network (PendingCom::SizeMax / IsBiggerBufferNeeded).
 #include "NetImguiServer_Network.h"
 
 #include <Private/NetImgui_CmdPackets.h>
@@ -102,6 +105,7 @@ void Communications_Incoming(RemoteClient::Client& Client) {
     if (Client.mPendingRcv.IsReady()) {
       Client.mCmdPendingRead = NetImgui::Internal::CmdPendingRead();
       Client.mPendingRcv.pCommand = &Client.mCmdPendingRead;
+      Client.mPendingRcv.SizeMax = sizeof(Client.mCmdPendingRead);
       Client.mPendingRcv.bAutoFree = false;
     }
 
@@ -112,14 +116,13 @@ void Communications_Incoming(RemoteClient::Client& Client) {
       ::Network::DataReceive(Client.mpSocket, Client.mPendingRcv);
 
       // Detected a new command bigger than header, allocate memory for it
-      if (Client.mPendingRcv.pCommand->mSize >
-              sizeof(NetImgui::Internal::CmdPendingRead) &&
-          Client.mPendingRcv.pCommand == &Client.mCmdPendingRead) {
+      if (Client.mPendingRcv.IsBiggerBufferNeeded()) {
         CmdPendingRead* pCmdHeader =
             reinterpret_cast<NetImgui::Internal::CmdPendingRead*>(
                 netImguiSizedNew<uint8_t>(Client.mPendingRcv.pCommand->mSize));
         *pCmdHeader = Client.mCmdPendingRead;
         Client.mPendingRcv.pCommand = pCmdHeader;
+        Client.mPendingRcv.SizeMax = pCmdHeader->mSize;
         Client.mPendingRcv.bAutoFree = true;
       }
     }
@@ -300,6 +303,7 @@ bool Communications_InitializeClient(
 
   if (!PendingSend.IsError()) {
     PendingRcv.pCommand = reinterpret_cast<CmdPendingRead*>(&cmdVersionRcv);
+    PendingRcv.SizeMax = sizeof(cmdVersionRcv);
     while (!PendingRcv.IsDone() &&
            cmdVersionRcv.mType == CmdHeader::eCommands::Version) {
       while (!gbShutdown && !::Network::DataReceivePending(pClientSocket)) {
@@ -312,7 +316,8 @@ bool Communications_InitializeClient(
       //---------------------------------------------------------------------
       // Connection accepted, initialize client
       //---------------------------------------------------------------------
-      if (cmdVersionRcv.mType !=
+      if (cmdVersionRcv.mSize != sizeof(NetImgui::Internal::CmdVersion) ||
+          cmdVersionRcv.mType !=
               NetImgui::Internal::CmdHeader::eCommands::Version ||
           cmdVersionRcv.mVersion !=
               NetImgui::Internal::CmdVersion::eVersion::_current) {

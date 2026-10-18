@@ -10,6 +10,8 @@
 //  - Synchronize mPendingTextures and CmdHeader::mSent accesses under
 //    mPendingTexturesLock, and use atomics for ClientInfo fields shared
 //    between the main thread and communication thread.
+//  - Receive loop and handshake validate the command size received from the
+//    network (PendingCom::SizeMax / IsBiggerBufferNeeded).
 #include "NetImgui_Shared.h"
 #include "google/logging.h"
 
@@ -263,6 +265,7 @@ void Communications_Incoming(ClientInfo& client) {
     if (client.mPendingRcv.IsReady()) {
       client.mCmdPendingRead = CmdPendingRead();
       client.mPendingRcv.pCommand = &client.mCmdPendingRead;
+      client.mPendingRcv.SizeMax = sizeof(client.mCmdPendingRead);
       client.mPendingRcv.bAutoFree = false;
     }
 
@@ -273,12 +276,12 @@ void Communications_Incoming(ClientInfo& client) {
       Network::DataReceive(client.mpSocketComs, client.mPendingRcv);
 
       // Detected a new command bigger than header, allocate memory for it
-      if (client.mPendingRcv.pCommand->mSize > sizeof(CmdPendingRead) &&
-          client.mPendingRcv.pCommand == &client.mCmdPendingRead) {
+      if (client.mPendingRcv.IsBiggerBufferNeeded()) {
         CmdPendingRead* pCmdHeader = reinterpret_cast<CmdPendingRead*>(
             netImguiSizedNew<uint8_t>(client.mPendingRcv.pCommand->mSize));
         *pCmdHeader = client.mCmdPendingRead;
         client.mPendingRcv.pCommand = pCmdHeader;
+        client.mPendingRcv.SizeMax = pCmdHeader->mSize;
         client.mPendingRcv.bAutoFree = true;
       }
     }
@@ -417,6 +420,7 @@ bool Communications_Initialize(ClientInfo& client) {
   // Handshake confirming connection validity
   //---------------------------------------------------------------------
   PendingRcv.pCommand = reinterpret_cast<CmdPendingRead*>(&cmdVersionRcv);
+  PendingRcv.SizeMax = sizeof(cmdVersionRcv);
   while (!PendingRcv.IsDone() &&
          cmdVersionRcv.mType == CmdHeader::eCommands::Version) {
     auto start_time = std::chrono::steady_clock::now();
@@ -440,6 +444,7 @@ bool Communications_Initialize(ClientInfo& client) {
       (cmdVersionRcv.mFlags &
        static_cast<uint8_t>(CmdVersion::eFlags::ConnectForce)) != 0;
   bool bCanConnect = !PendingRcv.IsError() &&
+                     cmdVersionRcv.mSize == sizeof(CmdVersion) &&
                      cmdVersionRcv.mType == cmdVersionSend.mType &&
                      cmdVersionRcv.mVersion == cmdVersionSend.mVersion &&
                      cmdVersionRcv.mWCharSize == cmdVersionSend.mWCharSize &&

@@ -181,6 +181,7 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
     if (pending_receive_.IsReady()) {
       cmd_pending_read_ = CmdPendingRead();
       pending_receive_.pCommand = &cmd_pending_read_;
+      pending_receive_.SizeMax = sizeof(cmd_pending_read_);
       pending_receive_.bAutoFree = false;
     }
 
@@ -188,8 +189,8 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
 
     Network::DataReceive(socket_, pending_receive_);
 
-    if (pending_receive_.pCommand->mSize > sizeof(CmdPendingRead) &&
-        pending_receive_.pCommand == &cmd_pending_read_) {
+    // Received the header of a command bigger than the header: allocate it.
+    if (pending_receive_.IsBiggerBufferNeeded()) {
       VLOG(2, "Allocating %u bytes for incoming cmd type=%d",
            pending_receive_.pCommand->mSize,
            static_cast<int>(pending_receive_.pCommand->mType));
@@ -197,6 +198,7 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
           netImguiSizedNew<uint8_t>(pending_receive_.pCommand->mSize));
       *cmd_header = cmd_pending_read_;
       pending_receive_.pCommand = cmd_header;
+      pending_receive_.SizeMax = cmd_header->mSize;
       pending_receive_.bAutoFree = true;
     }
 

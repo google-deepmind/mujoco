@@ -1,3 +1,5 @@
+// Google modifications:
+//  - DataReceive validates the command size with PendingCom::GetSizeToReceive.
 #include "NetImgui_Shared.h"
 
 #if NETIMGUI_ENABLED && NETIMGUI_WINSOCKET_ENABLED
@@ -188,13 +190,16 @@ void DataReceive(SocketInfo* pClientSocket,
     return;
   }
 
+  size_t BytesToRead = PendingComRcv.GetSizeToReceive();
+  if (BytesToRead == 0) {
+    return;  // Already fully received, or invalid size (error flagged)
+  }
+
   // Receive data from remote connection
   int resultRcv = recv(pClientSocket->mSocket,
                        &reinterpret_cast<char*>(
                            PendingComRcv.pCommand)[PendingComRcv.SizeCurrent],
-                       static_cast<int>(PendingComRcv.pCommand->mSize -
-                                        PendingComRcv.SizeCurrent),
-                       0);
+                       static_cast<int>(BytesToRead), 0);
 
   // Note: 'DataReceive' is called after pending data has been confirm.
   //		 0 received data means connection lost
