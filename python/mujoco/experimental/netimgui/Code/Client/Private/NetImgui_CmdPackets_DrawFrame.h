@@ -1,6 +1,7 @@
 // Google modifications:
 //  - ImguiDrawGroup::ToPointers() validates the offsets and sizes received
 //    from the network against the draw frame command buffer.
+//  - DecompressCmdDrawFrame() returns null for invalid compressed data.
 #pragma once
 
 #include "NetImgui_Shared.h"

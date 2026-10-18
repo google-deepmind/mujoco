@@ -424,6 +424,10 @@ void RemoteUi::ProcessCmdDrawFrame(CmdDrawFrame* cmd_draw_frame) {
           last_uncompressed_frame_.get(), cmd_draw_frame);
       netImguiDeleteSafe(cmd_draw_frame);
       cmd_draw_frame = uncompressed_frame;
+      if (!cmd_draw_frame) {  // Invalid compressed data, get a fresh keyframe.
+        request_keyframe_ = true;
+        return;
+      }
     } else {
       // Missing previous / reference frame data. Ignore this delta-encoded
       // drawframe and ask the client for a fresh uncompressed keyframe.

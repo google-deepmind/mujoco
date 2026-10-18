@@ -1,6 +1,9 @@
 // Google modifications:
 //  - Guard SetAndIncreaseDataPointer when dataCount is 0, and zero-initialize
 //    ImguiDraw entries in ImGui_ExtractDraws before delta compression.
+//  - DecompressData/DecompressCmdDrawFrame validate the compressed data
+//    received from the network against the input, output and previous frame
+//    buffers.
 #include "NetImgui_Shared.h"
 
 #if NETIMGUI_ENABLED
@@ -211,26 +214,49 @@ void CompressData(const ComDataType* pDataPrev, size_t dataSizePrev,
 
 //=================================================================================================
 // Unpack a delta data compressed stream
+// Returns false when the compressed data (received from the network) is
+// invalid: it must stay inside [pDataPack, pDataPackEnd), generate exactly
+// 'dataUnpackSize' bytes of output, and only keep unchanged the elements copied
+// from the previous data.
 //=================================================================================================
-void DecompressData(const ComDataType* pDataPrev, size_t dataSizePrev,
-                    const ComDataType* pDataPack, size_t dataUnpackSize,
+bool DecompressData(const ComDataType* pDataPrev, size_t dataSizePrev,
+                    const ComDataType* pDataPack,
+                    const ComDataType* pDataPackEnd, size_t dataUnpackSize,
                     ComDataType*& pCommandMemoryInOut) {
-  const size_t elemCountPrev = DivUp(dataSizePrev, ComDataSize);
+  const size_t elemCountPrev = pDataPrev ? DivUp(dataSizePrev, ComDataSize) : 0;
   const size_t elemCountUnpack = DivUp(dataUnpackSize, ComDataSize);
   const size_t elemCountCopy =
       elemCountPrev < elemCountUnpack ? elemCountPrev : elemCountUnpack;
+  const uint64_t* pCommandMemoryCopyEnd = &pCommandMemoryInOut[elemCountCopy];
   uint64_t* pCommandMemoryEnd = &pCommandMemoryInOut[elemCountUnpack];
   if (pDataPrev) {
     memcpy(pCommandMemoryInOut, pDataPrev, elemCountCopy * ComDataSize);
   }
   while (pCommandMemoryInOut < pCommandMemoryEnd) {
+    if (pDataPack >= pDataPackEnd) {
+      return false;
+    }
     const uint32_t* pBlockInfo = reinterpret_cast<const uint32_t*>(
         pDataPack++);  // Add a new block info to output
-    pCommandMemoryInOut += pBlockInfo[0];
-    memcpy(pCommandMemoryInOut, pDataPack, pBlockInfo[1] * sizeof(uint64_t));
-    pCommandMemoryInOut += pBlockInfo[1];
-    pDataPack += pBlockInfo[1];
+    const uint64_t elemCountSame = pBlockInfo[0];
+    const uint64_t elemCountNew = pBlockInfo[1];
+    // Unchanged elements are the ones copied from the previous data.
+    const uint64_t elemCountSameMax =
+        pCommandMemoryInOut < pCommandMemoryCopyEnd
+            ? static_cast<uint64_t>(pCommandMemoryCopyEnd - pCommandMemoryInOut)
+            : 0;
+    if (elemCountSame + elemCountNew >
+            static_cast<uint64_t>(pCommandMemoryEnd - pCommandMemoryInOut) ||
+        elemCountNew > static_cast<uint64_t>(pDataPackEnd - pDataPack) ||
+        elemCountSame > elemCountSameMax) {
+      return false;
+    }
+    pCommandMemoryInOut += elemCountSame;
+    memcpy(pCommandMemoryInOut, pDataPack, elemCountNew * sizeof(uint64_t));
+    pCommandMemoryInOut += elemCountNew;
+    pDataPack += elemCountNew;
   }
+  return true;
 }
 
 //=================================================================================================
@@ -339,16 +365,49 @@ CmdDrawFrame* CompressCmdDrawFrame(const CmdDrawFrame* pDrawFramePrev,
 }
 
 //=================================================================================================
-//
+// Returns null when the compressed command (received from the network) is
+// invalid.
 //=================================================================================================
 CmdDrawFrame* DecompressCmdDrawFrame(const CmdDrawFrame* pDrawFramePrev,
                                      const CmdDrawFrame* pDrawFramePacked) {
   //-----------------------------------------------------------------------------------------
+  // Find memory needed for the uncompressed command from its draw groups
+  // (instead of trusting the 'mUncompressedSize' received)
+  //-----------------------------------------------------------------------------------------
+  uint64_t neededDataCount = DivUp<uint64_t>(sizeof(CmdDrawFrame), ComDataSize);
+  neededDataCount += DivUp<uint64_t>(
+      static_cast<uint64_t>(pDrawFramePacked->mDrawGroupCount) *
+          sizeof(ImguiDrawGroup),
+      ComDataSize);
+  for (uint32_t n = 0; n < pDrawFramePacked->mDrawGroupCount; n++) {
+    const ImguiDrawGroup& drawGroupPack = pDrawFramePacked->mpDrawGroups[n];
+    neededDataCount +=
+        DivUp<uint64_t>(static_cast<uint64_t>(drawGroupPack.mIndiceCount) *
+                            drawGroupPack.mBytePerIndex,
+                        ComDataSize);
+    neededDataCount +=
+        DivUp<uint64_t>(static_cast<uint64_t>(drawGroupPack.mVerticeCount) *
+                            sizeof(ImguiVert),
+                        ComDataSize);
+    neededDataCount += DivUp<uint64_t>(
+        static_cast<uint64_t>(drawGroupPack.mDrawCount) * sizeof(ImguiDraw),
+        ComDataSize);
+  }
+  if (neededDataCount * ComDataSize > PendingCom::kMaxCmdSize) {
+    return nullptr;
+  }
+  const ComDataType* pDataPackEnd =
+      reinterpret_cast<const ComDataType*>(pDrawFramePacked) +
+      pDrawFramePacked->mSize / ComDataSize;
+
+  //-----------------------------------------------------------------------------------------
   // Allocate memory for the new uncompressed compressed command
   //-----------------------------------------------------------------------------------------
-  CmdDrawFrame* pDrawFrameNew =
-      netImguiSizedNew<CmdDrawFrame>(pDrawFramePacked->mUncompressedSize);
+  CmdDrawFrame* pDrawFrameNew = netImguiSizedNew<CmdDrawFrame>(
+      static_cast<size_t>(neededDataCount * ComDataSize));
   *pDrawFrameNew = *pDrawFramePacked;
+  pDrawFrameNew->mSize = pDrawFrameNew->mUncompressedSize =
+      static_cast<uint32_t>(neededDataCount * ComDataSize);
   pDrawFrameNew->mCompressed = false;
   ComDataType* pDataOutput = reinterpret_cast<ComDataType*>(&pDrawFrameNew[1]);
   SetAndIncreaseDataPointer(
@@ -381,20 +440,32 @@ CmdDrawFrame* DecompressCmdDrawFrame(const CmdDrawFrame* pDrawFramePrev,
     }
 
     drawGroup.mpIndices.SetComDataPtr(pDataOutput);
-    DecompressData(pIndicePrev, indiceSizePrev,
-                   drawGroupPack.mpIndices.GetComData(),
-                   drawGroupPack.mIndiceCount *
-                       static_cast<size_t>(drawGroupPack.mBytePerIndex),
-                   pDataOutput);
+    bool bValid = DecompressData(
+        pIndicePrev, indiceSizePrev, drawGroupPack.mpIndices.GetComData(),
+        pDataPackEnd,
+        drawGroupPack.mIndiceCount *
+            static_cast<size_t>(drawGroupPack.mBytePerIndex),
+        pDataOutput);
 
     drawGroup.mpVertices.SetComDataPtr(pDataOutput);
-    DecompressData(
-        pVerticePrev, verticeSizePrev, drawGroupPack.mpVertices.GetComData(),
-        drawGroupPack.mVerticeCount * sizeof(ImguiVert), pDataOutput);
+    bValid = bValid && DecompressData(pVerticePrev, verticeSizePrev,
+                                      drawGroupPack.mpVertices.GetComData(),
+                                      pDataPackEnd,
+                                      drawGroupPack.mVerticeCount *
+                                          sizeof(ImguiVert),
+                                      pDataOutput);
 
     drawGroup.mpDraws.SetComDataPtr(pDataOutput);
-    DecompressData(pDrawsPrev, drawSizePrev, drawGroupPack.mpDraws.GetComData(),
-                   drawGroupPack.mDrawCount * sizeof(ImguiDraw), pDataOutput);
+    bValid = bValid && DecompressData(pDrawsPrev, drawSizePrev,
+                                      drawGroupPack.mpDraws.GetComData(),
+                                      pDataPackEnd,
+                                      drawGroupPack.mDrawCount *
+                                          sizeof(ImguiDraw),
+                                      pDataOutput);
+    if (!bValid) {
+      netImguiDeleteSafe(pDrawFrameNew);
+      return nullptr;
+    }
   }
   return pDrawFrameNew;
 }

@@ -1,3 +1,6 @@
+// Google modifications:
+//  - Request a new uncompressed frame when a received compressed frame is
+//    invalid (DecompressCmdDrawFrame returns null).
 #include "NetImguiServer_RemoteClient.h"
 
 #include <Private/NetImgui_CmdPackets.h>
@@ -39,6 +42,9 @@ void Client::ReceiveDrawFrame(NetImgui::Internal::CmdDrawFrame* pFrameData) {
                                                      pFrameData);
       netImguiDeleteSafe(pFrameData);
       pFrameData = pUncompressedFrame;
+      if (pFrameData == nullptr) {
+        mbCompressionSkipOncePending = true;  // Invalid data, get a new frame
+      }
     }
     // Missing previous frame data
     // ignore this drawframe and request a new uncompressed one to be able to
