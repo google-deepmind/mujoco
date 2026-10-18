@@ -1,6 +1,7 @@
 // Google modifications:
 //  - Receive loop and handshake validate the command size received from the
 //    network (PendingCom::SizeMax / IsBiggerBufferNeeded).
+//  - Incoming commands are validated (size, offsets) before being used.
 #include "NetImguiServer_Network.h"
 
 #include <Private/NetImgui_CmdPackets.h>
@@ -37,8 +38,11 @@ static std::atomic_uint64_t gStatsDataRcvd(0);
 void Communications_Incoming_CmdTexture(RemoteClient::Client& Client) {
   auto pCmdTexture = reinterpret_cast<NetImgui::Internal::CmdTexture*>(
       Client.mPendingRcv.pCommand);
+  if (!pCmdTexture->ToPointers()) {
+    Client.mPendingRcv.bError = true;  // Invalid command received
+    return;
+  }
   Client.mPendingRcv.bAutoFree = false;  // Taking ownership of the data
-  pCmdTexture->mpTextureData.ToPointer();
 
   // For debug tracking
   uint32_t idx =
@@ -68,6 +72,10 @@ void Communications_Incoming_CmdTexture(RemoteClient::Client& Client) {
 void Communications_Incoming_CmdBackground(RemoteClient::Client& Client) {
   auto pCmdBackground = reinterpret_cast<NetImgui::Internal::CmdBackground*>(
       Client.mPendingRcv.pCommand);
+  if (pCmdBackground->mSize < sizeof(NetImgui::Internal::CmdBackground)) {
+    Client.mPendingRcv.bError = true;  // Invalid command received
+    return;
+  }
   Client.mPendingRcv.bAutoFree = false;  // Taking ownership of the data
   Client.mPendingBackgroundIn.Assign(pCmdBackground);
 }
@@ -78,8 +86,11 @@ void Communications_Incoming_CmdBackground(RemoteClient::Client& Client) {
 void Communications_Incoming_CmdDrawFrame(RemoteClient::Client& Client) {
   auto pCmdDraw = reinterpret_cast<NetImgui::Internal::CmdDrawFrame*>(
       Client.mPendingRcv.pCommand);
+  if (!pCmdDraw->ToPointers()) {
+    Client.mPendingRcv.bError = true;  // Invalid command received
+    return;
+  }
   Client.mPendingRcv.bAutoFree = false;  // Taking ownership of the data
-  pCmdDraw->ToPointers();
   Client.ReceiveDrawFrame(pCmdDraw);
 }
 
@@ -89,8 +100,11 @@ void Communications_Incoming_CmdDrawFrame(RemoteClient::Client& Client) {
 void Communications_Incoming_CmdClipboard(RemoteClient::Client& Client) {
   auto pCmdClipboard = reinterpret_cast<NetImgui::Internal::CmdClipboard*>(
       Client.mPendingRcv.pCommand);
+  if (!pCmdClipboard->ToPointers()) {
+    Client.mPendingRcv.bError = true;  // Invalid command received
+    return;
+  }
   Client.mPendingRcv.bAutoFree = false;  // Taking ownership of the data
-  pCmdClipboard->ToPointers();
   Client.mPendingClipboardIn.Assign(pCmdClipboard);
 }
 

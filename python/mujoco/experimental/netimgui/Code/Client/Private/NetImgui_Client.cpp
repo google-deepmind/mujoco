@@ -12,6 +12,7 @@
 //    between the main thread and communication thread.
 //  - Receive loop and handshake validate the command size received from the
 //    network (PendingCom::SizeMax / IsBiggerBufferNeeded).
+//  - Incoming commands are validated (size, offsets) before being used.
 #include "NetImgui_Shared.h"
 #include "google/logging.h"
 
@@ -149,10 +150,17 @@ static void SetClipboardTextFn_NetImguiImpl(ImGuiContext* ctx,
 //=================================================================================================
 void Communications_Incoming_Input(ClientInfo& client) {
   auto pCmdInput = static_cast<CmdInput*>(client.mPendingRcv.pCommand);
+  if (pCmdInput->mSize < sizeof(CmdInput)) {
+    client.mPendingRcv.bError = true;  // Invalid command received
+    return;
+  }
   client.mPendingRcv.bAutoFree = false;  // Taking ownership of the data
   client.mDesiredFps =
       pCmdInput->mDesiredFps > 0.f ? pCmdInput->mDesiredFps : 0.f;
   size_t keyCount(pCmdInput->mKeyCharCount);
+  if (keyCount > ArrayCount(pCmdInput->mKeyChars)) {
+    keyCount = ArrayCount(pCmdInput->mKeyChars);
+  }
   client.mPendingKeyIn.AddData(pCmdInput->mKeyChars, keyCount);
 
   VLOG(2, "CmdInput: mDesiredFps=%.1f, screen=%dx%d, mouse=%d,%d",
@@ -169,8 +177,11 @@ void Communications_Incoming_Input(ClientInfo& client) {
 //=================================================================================================
 void Communications_Incoming_Clipboard(ClientInfo& client) {
   auto pCmdClipboard = static_cast<CmdClipboard*>(client.mPendingRcv.pCommand);
+  if (!pCmdClipboard->ToPointers()) {
+    client.mPendingRcv.bError = true;  // Invalid command received
+    return;
+  }
   client.mPendingRcv.bAutoFree = false;  // Taking ownership of the data
-  pCmdClipboard->ToPointers();
   client.mPendingClipboardIn.Assign(pCmdClipboard);
 }
 

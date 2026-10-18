@@ -1,3 +1,6 @@
+// Google modifications:
+//  - CreateTexture_Default copies the texture size worth of pixels, instead
+//    of the data size received from the network.
 #include "NetImguiServer_App.h"
 
 #include "Fonts/Roboto_Medium.cpp"
@@ -273,7 +276,7 @@ bool CreateTexture_Default(ServerTexture& serverTexture,
                                   cmdTexture.mWidth, cmdTexture.mHeight);
     if (cmdTexture.mFormat == ImTextureFormat::ImTextureFormat_RGBA32) {
       memcpy(serverTexture.mTexData.Pixels, cmdTexture.mpTextureData.Get(),
-             customDataSize);
+             serverTexture.mTexData.GetSizeInBytes());
     } else if (cmdTexture.mFormat == ImTextureFormat::ImTextureFormat_Alpha8) {
       const uint8_t* pSrcCur = cmdTexture.mpTextureData.Get();
       uint32_t* pDestCur =

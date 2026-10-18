@@ -1,3 +1,6 @@
+// Google modifications:
+//  - ImguiDrawGroup::ToPointers() validates the offsets and sizes received
+//    from the network against the draw frame command buffer.
 #pragma once
 
 #include "NetImgui_Shared.h"
@@ -48,7 +51,8 @@ struct alignas(8) ImguiDrawGroup {
   OffsetPointer<uint8_t> mpIndices;
   OffsetPointer<ImguiVert> mpVertices;
   OffsetPointer<ImguiDraw> mpDraws;
-  inline void ToPointers();
+  inline bool ToPointers(const void* pBufferStart, const void* pBufferEnd,
+                         bool bCompressed);
   inline void ToOffsets();
 };
 

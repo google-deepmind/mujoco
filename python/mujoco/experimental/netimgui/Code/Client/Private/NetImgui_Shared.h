@@ -1,3 +1,6 @@
+// Google modifications:
+//  - OffsetPointer::ToPointer() validates that the data (offset received from
+//    the network) is inside the command buffer.
 #pragma once
 
 //=================================================================================================
@@ -120,7 +123,8 @@ struct OffsetPointer {
   inline bool IsPointer() const;
   inline bool IsOffset() const;
 
-  inline TType* ToPointer();
+  inline bool ToPointer(const void* pBufferStart, const void* pBufferEnd,
+                        uint64_t byteSize);
   inline uint64_t ToOffset();
   inline TType* operator->();
   inline const TType* operator->() const;

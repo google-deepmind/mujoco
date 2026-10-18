@@ -2,6 +2,9 @@
 //  - Use ImGui::GetAllocatorFunctions() instead of ImGui::MemAlloc/MemFree in
 //    netImguiNew/Delete to avoid data races on Dear ImGui global debug
 //    allocation state from the background communication thread.
+//  - OffsetPointer::ToPointer() validates that the data (offset received from
+//    the network) is inside the command buffer.
+//  - Fixed GetOff() mask truncating offsets to 32 bits.
 #pragma once
 
 #include <assert.h>
@@ -134,7 +137,7 @@ void OffsetPointer<TType>::SetOff(uint64_t offset)
 template <typename TType>
 uint64_t OffsetPointer<TType>::GetOff()const
 {
-	return mOffset & ~0x0000000000000001u;
+	return mOffset & ~0x0000000000000001ull;
 }
 
 template <typename TType>
@@ -149,12 +152,21 @@ bool OffsetPointer<TType>::IsPointer()const
 	return !IsOffset();
 }
 
+//=============================================================================
+// Convert the offset to a pointer (or keep the pointer) of data inside the
+// command buffer [pBufferStart, pBufferEnd). The offset comes from the network,
+// so make sure the 'byteSize' bytes it points to are entirely in the buffer.
+// Returns false (and sets a null pointer) when they are not.
+//=============================================================================
 template <typename TType>
-TType* OffsetPointer<TType>::ToPointer()
+bool OffsetPointer<TType>::ToPointer(const void* pBufferStart, const void* pBufferEnd, uint64_t byteSize)
 {
-	assert(IsOffset());
-	SetPtr( reinterpret_cast<TType*>( reinterpret_cast<uint64_t>(&mPointer) + GetOff() ) );
-	return mPointer;
+	const uint64_t bufferStart	= reinterpret_cast<uint64_t>(pBufferStart);
+	const uint64_t bufferEnd	= reinterpret_cast<uint64_t>(pBufferEnd);
+	const uint64_t address		= IsOffset() ? reinterpret_cast<uint64_t>(&mPointer) + GetOff() : reinterpret_cast<uint64_t>(mPointer);
+	const bool bValid			= address >= bufferStart && address <= bufferEnd && byteSize <= bufferEnd - address;
+	SetPtr( bValid ? reinterpret_cast<TType*>(address) : nullptr );
+	return bValid;
 }
 
 template <typename TType>

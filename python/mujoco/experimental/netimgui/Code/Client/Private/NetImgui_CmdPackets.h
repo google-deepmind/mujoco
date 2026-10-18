@@ -4,6 +4,8 @@
 //  - PendingCom: added SizeMax/kMaxCmdSize, GetSizeToReceive() and
 //    IsBiggerBufferNeeded() so the command size received from the network can
 //    never overflow the receive buffer.
+//  - ToPointers() of commands received from the network return false when
+//    their offsets or sizes are invalid (added CmdTexture::ToPointers()).
 #pragma once
 
 #include <cstring>
@@ -373,6 +375,7 @@ struct alignas(8) CmdTexture : public CmdHeader {
       nullptr;  // Used for single linked list of pending textures (alignas
                 // needed to keep class size the same between win32/x64)
   OffsetPointer<uint8_t> mpTextureData;
+  inline bool ToPointers();
 };
 
 struct alignas(8) CmdDrawFrame : public CmdHeader {
@@ -390,7 +393,7 @@ struct alignas(8) CmdDrawFrame : public CmdHeader {
   uint8_t mCompressed = false;
   uint8_t PADDING[3] = {};
   OffsetPointer<ImguiDrawGroup> mpDrawGroups;
-  inline void ToPointers();
+  inline bool ToPointers();
   inline void ToOffsets();
 };
 
@@ -412,7 +415,7 @@ struct alignas(8) CmdClipboard : public CmdHeader {
       : CmdHeader(CmdHeader::eCommands::Clipboard, sizeof(CmdClipboard)) {}
   size_t mByteSize = 0;
   OffsetPointer<char> mContentUTF8;
-  inline void ToPointers();
+  inline bool ToPointers();
   inline void ToOffsets();
   inline static CmdClipboard* Create(const char* clipboard);
 };
