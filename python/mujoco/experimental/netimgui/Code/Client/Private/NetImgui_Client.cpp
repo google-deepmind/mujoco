@@ -5,6 +5,8 @@
 //  - Added cmdTexture.mpNext = nullptr in TexturePendingServerAdd to
 //    terminate the linked list when appending a new texture command.
 //  - Added logging for network events.
+//  - Free outgoing CmdBackground commands and any in-flight auto-freed
+//    commands on disconnect.
 #include "NetImgui_Shared.h"
 #include "google/logging.h"
 
@@ -194,7 +196,7 @@ void Communications_Outgoing_Background(ClientInfo& client) {
   CmdBackground* pPendingBackground = client.mPendingBackgroundOut.Release();
   if (pPendingBackground) {
     client.mPendingSend.pCommand = pPendingBackground;
-    client.mPendingSend.bAutoFree = false;
+    client.mPendingSend.bAutoFree = true;
   }
 }
 
@@ -511,6 +513,15 @@ void Communications_Loop(void* pClientVoid) {
          pClient->mbDisconnectPending ? "Y" : "N");
   }
   VLOG(1, "Communications_Loop: exiting loop");
+
+  if (pClient->mPendingRcv.bAutoFree) {
+    netImguiDeleteSafe(pClient->mPendingRcv.pCommand);
+  }
+  pClient->mPendingRcv = PendingCom();
+  if (pClient->mPendingSend.bAutoFree) {
+    netImguiDeleteSafe(pClient->mPendingSend.pCommand);
+  }
+  pClient->mPendingSend = PendingCom();
 
   Network::SocketInfo* pSocket = pClient->mpSocketComs.exchange(nullptr);
   if (pSocket) {
