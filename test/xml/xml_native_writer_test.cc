@@ -2721,6 +2721,21 @@ static std::string SaveToString(const mjSpec* spec,
   return xml;
 }
 
+// an element type which the writer does not support is a write error, not an
+// mju_error which would longjmp past the writer's C++ objects (and, from
+// mj_saveLastXML, its lock); leaks are detected when running under asan
+TEST_F(AsWrittenTest, UnknownTypeIsWriteError) {
+  mjSpec* spec = mj_makeSpec();
+  spec->compiler.savecompiled = 0;
+  mjs_setString(spec->modelname, "a model name longer than the sso buffer");
+  mjs_addEquality(spec, nullptr)->type = mjEQ_DISTANCE;
+  std::array<char, 1024> error = {0};
+  auto save = MjuErrorMessageFrom(mj_saveXMLString);
+  EXPECT_EQ(save(spec, nullptr, 0, error.data(), error.size()), "");
+  EXPECT_THAT(error.data(), HasSubstr("unknown equality type"));
+  mj_deleteSpec(spec);
+}
+
 // every attribute is saved as it was written, also one which was written with
 // its default value, and numbers are saved exactly
 TEST_F(AsWrittenTest, SavesWhatWasWritten) {

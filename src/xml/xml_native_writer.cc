@@ -1355,7 +1355,7 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* pequality, mjCD
         break;
 
       default:
-        mju_error("mjXWriter: unknown equality type.");
+        throw mjXError(0, "unknown equality type");
     }
   }
 
@@ -3171,7 +3171,7 @@ void mjXWriter::Sensor(XMLElement* root) {
         break;
 
       default:
-        mju_error("Unknown sensor type in XML write");
+        throw mjXError(0, "unknown sensor type");
     }
 
     // write name, noise, userdata
