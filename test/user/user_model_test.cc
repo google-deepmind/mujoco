@@ -4518,5 +4518,40 @@ TEST_F(UserModelTest, SdfInitErrorDoesNotLeak) {
               HasSubstr("Invalid parameter specification in Gear plugin"));
 }
 
+// ------------- test material textures ----------------------------------------
+
+using MaterialTest = MujocoTest;
+
+// the textures of a material are resolved from the spec: a material which is
+// pointed at another texture compiles once the first texture is deleted
+TEST_F(MaterialTest, TextureFromSpec) {
+  mjSpec* spec = mj_makeSpec();
+  mjsTexture* tex1 = mjs_addTexture(spec);
+  mjsTexture* tex2 = mjs_addTexture(spec);
+  for (mjsTexture* tex : {tex1, tex2}) {
+    tex->type = mjTEXTURE_2D;
+    tex->builtin = mjBUILTIN_CHECKER;
+    tex->width = 8;
+    tex->height = 8;
+  }
+  mjs_setName(tex1->element, "tex1");
+  mjs_setName(tex2->element, "tex2");
+  mjsMaterial* mat = mjs_addMaterial(spec, nullptr);
+  mjs_setName(mat->element, "mat");
+  (*mat->textures)[mjTEXROLE_RGB] = "tex1";
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->mat_texid[mjTEXROLE_RGB], 0);
+  mj_deleteModel(m);
+
+  (*mat->textures)[mjTEXROLE_RGB] = "tex2";
+  EXPECT_EQ(mjs_delete(spec, tex1->element), 0) << mjs_getError(spec);
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->ntex, 1);
+  EXPECT_EQ(m->mat_texid[mjTEXROLE_RGB], mj_name2id(m, mjOBJ_TEXTURE, "tex2"));
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
 }  // namespace
 }  // namespace mujoco

@@ -1988,7 +1988,8 @@ void mjCModel::IndexAssets() {
   for (int i = 0; i < materials_.size(); i++) {
     mjCMaterial* material = materials_[i];
 
-    // find textures by name
+    // find textures by name, as the spec has them now
+    material->CopyFromSpec();
     for (int j = 0; j < mjNTEXROLE; j++) {
       material->texid[j] = -1;
       if (!material->textures_[j].empty()) {
