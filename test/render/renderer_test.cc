@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -28,6 +29,7 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "src/render/filament/support/mjrf_ptr.h"
+#include "src/render/filament/support/model_resources.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -489,6 +491,30 @@ TEST_F(RendererTest, RenderGrid) {
       EXPECT_EQ(std::get<2>(pixel), kBlue[2]);
     }
   }
+}
+
+// a texture with an unsupported number of channels is skipped with a warning,
+// rather than an mju_error which would longjmp past the objects being built
+TEST_F(RendererTest, UnsupportedTextureChannelsSkipped) {
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(mj_makeSpec(),
+                                                         mj_deleteSpec);
+  mjsTexture* texture = mjs_addTexture(spec.get());
+  mjs_setName(texture->element, "texture");
+  texture->type = mjTEXTURE_2D;
+  texture->width = 2;
+  texture->height = 2;
+  texture->nchannel = 2;
+  const std::vector<uint8_t> data(8, 255);
+  mjs_setBuffer(texture->data, data.data(), data.size());
+  std::unique_ptr<mjModel, decltype(&mj_deleteModel)> model(
+      mj_compile(spec.get(), nullptr), mj_deleteModel);
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->tex_nchannel[0], 2);
+
+  Renderer renderer(MakeOffscreenConfig());
+  mock_warning_handler.ExpectWarnings("2-channel");
+  ModelResources resources(model.get(), renderer.GetContext());
+  EXPECT_EQ(resources.GetTexture(0), nullptr);
 }
 }  // namespace
 }  // namespace mujoco

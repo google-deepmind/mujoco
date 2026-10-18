@@ -35,6 +35,8 @@ Bug fixes
   - :ref:`mj_loadAllPluginLibraries` kept a lock if a library failed to load, so other threads deadlocked.
   - An unknown :ref:`role<material-layer-role>` of a material layer leaked memory instead of causing a parse error.
   - :ref:`mju_getXMLDependencies` leaked memory when reading or parsing an XML file failed.
+  - The Filament renderer called :ref:`mju_error` for a texture with an unsupported number of channels. It now skips the
+    texture with a warning, like the classic renderer.
 
 Version 3.16.0 (October 14, 2026)
 ---------------------------------

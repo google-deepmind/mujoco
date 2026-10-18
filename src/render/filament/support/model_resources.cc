@@ -464,8 +464,12 @@ void ModelResources::UploadTexture(const mjModel* model, int id) {
       config.format = mjPIXEL_FORMAT_RGBA8;
       break;
     default:
-      mju_error("Unsupported texture format: %d", model->tex_nchannel[id]);
-      break;
+      // skip, like the classic renderer: mju_error here would skip the
+      // destructors of the objects being constructed
+      mju_warning("texture %d: can't upload %d-channel data, skipping", id,
+                  model->tex_nchannel[id]);
+      textures_.erase(id);
+      return;
   }
   if (config.height == 1 && model->tex_nchannel[id] == 1) {
     config.format = mjPIXEL_FORMAT_KTX;
@@ -521,19 +525,13 @@ const mjrfMesh* ModelResources::GetMesh(int data_id) const {
 }
 
 const mjrfMesh* ModelResources::GetHeightField(int hfield_id) const {
-  if (auto it = height_fields_.find(hfield_id); it != height_fields_.end()) {
-    return it->second.get();
-  }
-  mju_error("Unknown height field %d", hfield_id);
-  return nullptr;
+  auto it = height_fields_.find(hfield_id);
+  return it != height_fields_.end() ? it->second.get() : nullptr;
 }
 
 const mjrfTexture* ModelResources::GetTexture(int tex_id) const {
-  if (auto it = textures_.find(tex_id); it != textures_.end()) {
-    return it->second.get();
-  }
-  mju_error("Unknown texture %d", tex_id);
-  return nullptr;
+  auto it = textures_.find(tex_id);
+  return it != textures_.end() ? it->second.get() : nullptr;
 }
 
 const mjrfTexture* ModelResources::GetSkyboxTexture() const {
