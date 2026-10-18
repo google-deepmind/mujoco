@@ -472,7 +472,7 @@ Similarly, we also provide a `Renderer
 ``mujoco.rendering.filament``. This class can be used to manage the lifetimes of key objects (such as the
 :ref:`mjrfContext` and :ref:`mjrfScene`) and provides useful functions for controlling the camera and reading pixels.
 
-Here is a mimimal example for rendering an mjModel with the filament renderer:
+Here is a minimal example for rendering an mjModel with the filament renderer:
 
 .. code-block:: python
 
