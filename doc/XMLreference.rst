@@ -5331,6 +5331,13 @@ at each of the 8 Gauss points, giving 26 constraints per element. For quadratic 
 constraint type is only supported for dimension 3 flexes with trilinear or quadratic interpolation. See `this model
 <https://github.com/google-deepmind/mujoco/blob/main/model/flex/strain.xml>`__ for an example.
 
+The strain constraint replaces the stretch elasticity of the flex: the compiled element stiffness holds the constraint
+eigenmodes instead of the :ref:`young<flex-elasticity-young>` and :ref:`poisson<flex-elasticity-poisson>` stiffness,
+and the passive stretch force is not computed. A positive :at:`young` is therefore rejected by the compiler unless
+:ref:`elastic2d<flex-elasticity-elastic2d>` is :at-val:`bend`, in which case it only determines the bending stiffness
+of the shell. Note that deactivating the constraint at runtime leaves the flex without stretch elasticity; to simulate
+a volumetric elastic solid, remove the constraint and set :at:`young` and :at:`poisson` before compiling.
+
 .. _equality-flexstrain-name:
 .. _equality-flexstrain-class:
 .. _equality-flexstrain-active:

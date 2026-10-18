@@ -2689,6 +2689,217 @@ TEST_F(UserFlexTest, MakeFlexFileOrMeshName) {
   mj_deleteSpec(spec);
 }
 
+// make a trilinear box surface flex, as a strain-constrained shell or as a
+// solid
+static mjsFlex* MakeTrilinearBox(mjSpec* spec, bool shell) {
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  mjs_setName(body->element, "obj");
+  int count[3] = {4, 4, 4};
+  int cellcount[3] = {2, 2, 2};
+  double spacing[3] = {.02, .02, .02};
+  mjsFlex* flex =
+      mjs_makeFlex(body, "cube", "box", 2, "trilinear", count, cellcount,
+                   spacing, nullptr, 0.001, 0.05, 0, shell ? 3 : 0, 0, 0,
+                   shell ? 1 : 0, nullptr, nullptr, nullptr, nullptr, nullptr);
+  if (flex) {
+    flex->selfcollide = mjFLEXSELF_NONE;
+  }
+  return flex;
+}
+
+// a flex made as a strain-constrained shell and then switched to a volumetric
+// solid (elastic2d none, strain equalities deleted) must compile the same
+// stiffness as a flex made volumetric from the start, and stay stable
+TEST_F(UserFlexTest, ShellSwitchedToSolidStiffness) {
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  auto set_solid = [](mjsFlex* flex) {
+    flex->young = 3e4;
+    flex->poisson = 0.4;
+    flex->damping = 0.002;
+  };
+
+  // reference: made volumetric
+  SpecPtr ref_spec(mj_makeSpec(), mj_deleteSpec);
+  mjsFlex* ref_flex = MakeTrilinearBox(ref_spec.get(), /*shell=*/false);
+  ASSERT_THAT(ref_flex, NotNull()) << mjs_getError(ref_spec.get());
+  set_solid(ref_flex);
+  MjModelPtr ref(mj_compile(ref_spec.get(), nullptr));
+  ASSERT_THAT(ref, NotNull()) << mjs_getError(ref_spec.get());
+  ASSERT_EQ(ref->flex_interp[0], 1);
+  int nstiffness = ref->nflexstiffness;
+  ASSERT_GT(nstiffness, 0);
+  ASSERT_LT(ref->flex_stiffness[0], 0) << "expected a raw stiffness matrix";
+
+  // switched without and with an intermediate compile of the shell
+  for (bool precompile : {false, true}) {
+    SpecPtr spec(mj_makeSpec(), mj_deleteSpec);
+    spec->option.integrator = mjINT_DISCRETE;
+    spec->option.solver = mjSOL_CG;
+    spec->option.gravity[0] = spec->option.gravity[1] = 0;
+    spec->option.gravity[2] = 0;
+    mjsFlex* flex = MakeTrilinearBox(spec.get(), /*shell=*/true);
+    ASSERT_THAT(flex, NotNull()) << mjs_getError(spec.get());
+    ASSERT_THAT(mjs_firstElement(spec.get(), mjOBJ_EQUALITY), NotNull());
+    if (precompile) {
+      flex->young = 3e4;
+      flex->thickness = 0.01;
+      MjModelPtr shell(mj_compile(spec.get(), nullptr));
+      ASSERT_THAT(shell, NotNull()) << mjs_getError(spec.get());
+      EXPECT_EQ(shell->flex_edgeequality[0], 3);
+    }
+
+    // switch to a volumetric solid
+    flex->elastic2d = 0;
+    mjsElement* eq = mjs_firstElement(spec.get(), mjOBJ_EQUALITY);
+    while (eq) {
+      mjsElement* next = mjs_nextElement(spec.get(), eq);
+      ASSERT_EQ(mjs_delete(spec.get(), eq), 0);
+      eq = next;
+    }
+    set_solid(flex);
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(m, NotNull()) << mjs_getError(spec.get());
+    EXPECT_EQ(m->neq, 0);
+    EXPECT_EQ(m->flex_edgeequality[0], 0);
+    EXPECT_EQ(m->flex_interp[0], 1);
+
+    // same stiffness as the reference, not the strain eigenmode table
+    ASSERT_EQ(m->nflexstiffness, nstiffness) << "precompile " << precompile;
+    for (int i = 0; i < nstiffness && !HasFailure(); i++) {
+      EXPECT_MJTNUM_EQ(m->flex_stiffness[i], ref->flex_stiffness[i])
+          << "precompile " << precompile << ", index " << i;
+    }
+
+    // simulate: must stay finite and bounded
+    MjDataPtr d = MakeData(m);
+    for (int i = 0; i < 200; i++) {
+      mj_step(m.get(), d.get());
+    }
+    for (int i = 0; i < m->nq; i++) {
+      ASSERT_TRUE(std::isfinite(d->qpos[i])) << "qpos " << i;
+      EXPECT_LT(mju_abs(d->qpos[i]), 0.01) << "qpos " << i;
+    }
+  }
+}
+
+// state derived by a compile (flap stencils, rigid, centered, empty cells) is
+// recomputed from the current spec when it is compiled again
+TEST_F(UserFlexTest, RecompileResetsDerivedState) {
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  auto compile = [](mjSpec* spec) {
+    MjModelPtr m(mj_compile(spec, nullptr));
+    EXPECT_THAT(m, NotNull()) << mjs_getError(spec);
+    return m;
+  };
+  auto first_flex = [](mjSpec* spec) {
+    return mjs_asFlex(mjs_firstElement(spec, mjOBJ_FLEX));
+  };
+
+  // flap stencils: reverse the triangle order between compiles
+  static constexpr char cloth_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="cloth" type="grid" count="3 3 1" spacing=".1 .1 .1"
+                dim="2" radius=".001">
+        <elasticity young="1e3" thickness="1e-3" elastic2d="bend"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  auto reverse_triangles = [](mjsFlex* flex) {
+    std::vector<int>& elem = *flex->elem;
+    std::vector<int> reversed;
+    for (int t = static_cast<int>(elem.size()) / 3 - 1; t >= 0; t--) {
+      reversed.insert(reversed.end(), elem.begin() + 3 * t,
+                      elem.begin() + 3 * t + 3);
+    }
+    elem = reversed;
+  };
+  SpecPtr cloth(mj_parseXMLString(cloth_xml, nullptr, nullptr, 0),
+                mj_deleteSpec);
+  ASSERT_THAT(cloth, NotNull());
+  ASSERT_THAT(compile(cloth.get()), NotNull());
+  reverse_triangles(first_flex(cloth.get()));
+  MjModelPtr recompiled = compile(cloth.get());
+  SpecPtr cloth_ref(mj_parseXMLString(cloth_xml, nullptr, nullptr, 0),
+                    mj_deleteSpec);
+  ASSERT_THAT(cloth_ref, NotNull());
+  reverse_triangles(first_flex(cloth_ref.get()));
+  MjModelPtr cloth_expected = compile(cloth_ref.get());
+  ASSERT_THAT(recompiled, NotNull());
+  ASSERT_THAT(cloth_expected, NotNull());
+  ASSERT_EQ(recompiled->nflexedge, cloth_expected->nflexedge);
+  EXPECT_EQ(AsVector(recompiled->flex_edge, 2 * recompiled->nflexedge),
+            AsVector(cloth_expected->flex_edge, 2 * cloth_expected->nflexedge));
+  EXPECT_EQ(
+      AsVector(recompiled->flex_edgeflap, 2 * recompiled->nflexedge),
+      AsVector(cloth_expected->flex_edgeflap, 2 * cloth_expected->nflexedge));
+
+  // rigid and centered: attach the vertices to different bodies, move them
+  static constexpr char rod_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a"><freejoint/><geom size=".1"/></body>
+      <body name="b" pos="1 0 0"><freejoint/><geom size=".1"/></body>
+    </worldbody>
+    <deformable>
+      <flex name="rod" dim="1" body="a a" vertex="0 0 0  0 0 0" element="0 1"/>
+    </deformable>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  SpecPtr rod(mj_parseXMLString(rod_xml, nullptr, error, sizeof(error)),
+              mj_deleteSpec);
+  ASSERT_THAT(rod, NotNull()) << error;
+  MjModelPtr rigid = compile(rod.get());
+  ASSERT_THAT(rigid, NotNull());
+  EXPECT_EQ(rigid->flex_rigid[0], 1);
+  EXPECT_EQ(rigid->flex_centered[0], 1);
+  mjsFlex* rod_flex = first_flex(rod.get());
+  mjs_setStringVec(rod_flex->vertbody, "a b");
+  const double vert[6] = {0, 0, 0, .1, 0, 0};
+  mjs_setDouble(rod_flex->vert, vert, 6);
+  MjModelPtr moved = compile(rod.get());
+  ASSERT_THAT(moved, NotNull());
+  EXPECT_EQ(moved->flex_rigid[0], 0);
+  EXPECT_EQ(moved->flex_centered[0], 0);
+
+  // empty cells: recomputed on every compile, same stiffness when compiled
+  // again (of the 3x1x1 cells only the last one is occupied)
+  static constexpr char solid_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="solid" type="direct" dim="3" dof="trilinear" mass="1"
+                cellcount="3 1 1" radius=".001"
+                point=".7 0 0  1 0 0  .7 1 0  1 1 0
+                       .7 0 1  1 0 1  .7 1 1  1 1 1
+                       0 .5 .5"
+                element="0 1 2 4  3 2 1 7  5 1 4 7  6 2 4 7  1 2 4 7">
+        <contact selfcollide="none"/>
+        <elasticity young="100" poisson="0.3"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  SpecPtr solid(mj_parseXMLString(solid_xml, nullptr, nullptr, 0),
+                mj_deleteSpec);
+  ASSERT_THAT(solid, NotNull());
+  MjModelPtr once = compile(solid.get());
+  MjModelPtr twice = compile(solid.get());
+  ASSERT_THAT(once, NotNull());
+  ASSERT_THAT(twice, NotNull());
+  ASSERT_EQ(once->nflexstiffness, twice->nflexstiffness);
+  int block = 24 * 24;
+  ASSERT_EQ(once->nflexstiffness, 3 * block);
+  EXPECT_EQ(once->flex_stiffness[0], 0) << "expected an empty first cell";
+  EXPECT_NE(once->flex_stiffness[2 * block], 0);
+  for (int i = 0; i < once->nflexstiffness && !HasFailure(); i++) {
+    EXPECT_MJTNUM_EQ(once->flex_stiffness[i], twice->flex_stiffness[i])
+        << "index " << i;
+  }
+}
+
 TEST_F(UserFlexTest, FlexcompMeshAssetWrongType) {
   static constexpr char xml[] = R"(
   <mujoco>

@@ -758,12 +758,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       mjs_setString(pe->name1, name.c_str());
     } else if (equality == 3) {
       // create one strain constraint per finite element, storing element index
-      flex->has_strain_eq = true;
-      int  cell_cx        = flex->spec.cellcount[0];
-      int  cell_cy        = flex->spec.cellcount[1];
-      int  cell_cz        = flex->spec.cellcount[2];
-      bool shell          = (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) &&
-                            flex->spec.elastic2d;
+      int  cell_cx = flex->spec.cellcount[0];
+      int  cell_cy = flex->spec.cellcount[1];
+      int  cell_cz = flex->spec.cellcount[2];
+      bool shell   = (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) &&
+                     flex->spec.elastic2d;
 
       if (shell) {
         // shell mode: one constraint per boundary face element
@@ -2059,6 +2058,16 @@ void mjCFlex::CopyFromSpec() {
   nedge = 0;
   edge.clear();
   shell.clear();
+
+  // clear state derived by a previous compile: the spec may have changed since
+  // (e.g. elastic2d, young, vertices, elements or its equality constraints)
+  flaps.clear();
+  stiffness.clear();
+  bending.clear();
+  cell_empty.clear();
+  has_strain_eq = false;
+  rigid         = false;
+  centered      = false;
 }
 
 
@@ -2164,6 +2173,11 @@ std::string mjCFlex::ComputeStiffnessCacheKey() const {
   combine(std::hash<int>{}(spec.cellcount[0]));
   combine(std::hash<int>{}(spec.cellcount[1]));
   combine(std::hash<int>{}(spec.cellcount[2]));
+
+  // element type and stored representation (raw stiffness or strain eigenmodes)
+  combine(std::hash<int>{}(elastic2d != 0));
+  combine(std::hash<double>{}(thickness));
+  combine(std::hash<bool>{}(has_strain_eq));
 
   // compute bounding box from vertex positions
   if (!vert_.empty()) {
@@ -2857,17 +2871,18 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
-  // compute linear stiffness for interpolated elements (cached)
-  bool stiffness_cached = false;
-  if (young > 0 && interpolated) { stiffness_cached = LoadCachedStiffness(); }
-
-  // check if any strain equality references this flex
+  // check if any strain equality references this flex (the equalities may
+  // have been added or removed since the flex was made)
   for (auto* equality : model->Equalities()) {
     if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) {
       has_strain_eq = true;
       break;
     }
   }
+
+  // compute linear stiffness for interpolated elements (cached)
+  bool stiffness_cached = false;
+  if (interpolated && (young > 0 || has_strain_eq)) { stiffness_cached = LoadCachedStiffness(); }
 
   if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
     // use young=1 for strain constraints (eigenvectors are geometry-only)
@@ -2892,8 +2907,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
     int ndof_elem = 3 * npe;
 
-    // total stiffness = nelem_fe * ndof_elem^2
-    stiffness.resize(nelem_fe * ndof_elem * ndof_elem, 0);
+    // total stiffness = nelem_fe * ndof_elem^2 (empty cells stay zero)
+    stiffness.assign(nelem_fe * ndof_elem * ndof_elem, 0);
 
     // face layout for shell mode:
     //   face 0: x=0     (cy*cz quads, normal=0, in-plane=(1,2))

@@ -40,6 +40,10 @@ Bug fixes
 - Fixed volume (solid) interpolated flexes whose first cell is empty, e.g. a trilinear :ref:`flexcomp<body-flexcomp>`
   from a mesh that does not fill the corner of its bounding box. Their elasticity was gated on the stiffness of the
   first cell, which is zero for an empty cell, so the whole flex had no elastic forces and no implicit stiffness.
+- A flex made with a strain :ref:`equality<flexcomp-edge-equality>` (e.g. by ``body.make_flex``) and then edited to
+  have none, or recompiled after such an edit, now compiles the stiffness of its current configuration. It used to keep
+  the strain constraint eigenmodes as its stiffness matrix, so a flex switched from shell to volumetric ignored
+  ``young`` and ``poisson`` and was unstable.
 
 Version 3.16.0 (October 14, 2026)
 ---------------------------------
