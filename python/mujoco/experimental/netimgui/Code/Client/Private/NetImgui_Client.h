@@ -1,3 +1,6 @@
+// Google modifications:
+//  - Use atomics for ClientInfo fields shared between the main thread and
+//    communication thread.
 #pragma once
 
 #include <mutex>
@@ -182,19 +185,20 @@ struct ClientInfo {
   bool mServerCompressionEnabled =
       false;  // If Server would like compression to be enabled
               // (mClientCompressionMode value can override this value)
-  bool mServerCompressionSkip =
-      false;  // Force ignore compression setting for 1 frame
-  bool mServerForceConnectEnabled =
-      true;  // If another NetImguiServer can take connection away from the one
-             // currently active
+  std::atomic_bool mServerCompressionSkip{
+      false};  // Force ignore compression setting for 1 frame
+  std::atomic_bool mServerForceConnectEnabled{
+      true};  // If another NetImguiServer can take connection away from the one
+              // currently active
   ThreadFunctPtr mThreadFunction =
       nullptr;                    // Function to use when laucnhing new threads
   float mFontSavedScaling = 0.f;  // Original Font scaling before our override
                                   // between NewFrame / EndFrame
   float mFontServerScale =
       1.f;                   // Desired Font DPI Scaling by the NetImgui Server
-  float mDesiredFps = 30.f;  // How often we should update the remote drawing.
-                             // Received from server
+  std::atomic<float> mDesiredFps{
+      30.f};  // How often we should update the remote drawing. Received from
+              // server
   InputState mPreviousInputState;  // Keeping track of last keyboard/mouse state
   ImGuiID mhImguiHookNewframe = 0;
   ImGuiID mhImguiHookEndframe = 0;

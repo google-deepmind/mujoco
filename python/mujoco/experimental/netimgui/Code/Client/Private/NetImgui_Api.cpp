@@ -1,6 +1,7 @@
 // Google modifications:
 //  - Adding missing headers.
 //  - Added logging for network events.
+//  - Use atomic loads/stores for shared ClientInfo fields.
 #include "NetImgui_Shared.h"
 #include "NetImgui_WarningDisable.h"
 
@@ -247,15 +248,16 @@ bool NewFrame(bool bSupportFrameSkip)
     client.mbValidDrawFrame = false;
 
     // Take into account delay until next method call, for more precise fps
+    const float desiredFps = client.mDesiredFps.load();
     bool shouldDraw =
-        client.mDesiredFps > 0.f &&
-        (elapsedDrawMs + elapsedCheckMs / 2.f) > (1000.f / client.mDesiredFps);
+        desiredFps > 0.f &&
+        (elapsedDrawMs + elapsedCheckMs / 2.f) > (1000.f / desiredFps);
 
     VLOG(2,
          "NewFrame: elapsedDrawMs=%.2f, elapsedCheckMs=%.2f, shouldDraw=%s, "
          "mDesiredFps=%.1f (target=%.1f)",
          elapsedDrawMs, elapsedCheckMs, shouldDraw ? "Y" : "N",
-         client.mDesiredFps, 1000.f / client.mDesiredFps);
+         desiredFps, 1000.f / desiredFps);
 
     if (shouldDraw) {
       VLOG(2, "NewFrame: shouldDraw=Y, triggering draw!");
@@ -931,7 +933,9 @@ bool ProcessInputData(Client::ClientInfo& client)
     client.mPreviousInputState.mMouseWheelHorizPrev =
         pCmdInput->mMouseWheelHoriz;
     client.mServerCompressionEnabled = pCmdInput->mCompressionUse;
-    client.mServerCompressionSkip |= pCmdInput->mCompressionSkip;
+    if (pCmdInput->mCompressionSkip) {
+      client.mServerCompressionSkip = true;
+    }
   }
 
   if (hasNewInput) {

@@ -1,3 +1,7 @@
+// Google modifications:
+//  - Use ImGui::GetAllocatorFunctions() instead of ImGui::MemAlloc/MemFree in
+//    netImguiNew/Delete to avoid data races on Dear ImGui global debug
+//    allocation state from the background communication thread.
 #pragma once
 
 #include <assert.h>
@@ -6,16 +10,34 @@
 namespace NetImgui { namespace Internal
 {
 
+inline void* netImguiAlloc(size_t size)
+{
+	ImGuiMemAllocFunc allocFunc;
+	ImGuiMemFreeFunc freeFunc;
+	void* pUserData;
+	ImGui::GetAllocatorFunctions(&allocFunc, &freeFunc, &pUserData);
+	return allocFunc(size, pUserData);
+}
+
+inline void netImguiFree(void* pData)
+{
+	ImGuiMemAllocFunc allocFunc;
+	ImGuiMemFreeFunc freeFunc;
+	void* pUserData;
+	ImGui::GetAllocatorFunctions(&allocFunc, &freeFunc, &pUserData);
+	freeFunc(pData, pUserData);
+}
+
 template <typename TType, typename... Args> 
 TType* netImguiNew(Args... args)
 {
-	return new( ImGui::MemAlloc(sizeof(TType)) ) TType(args...);
+	return new( netImguiAlloc(sizeof(TType)) ) TType(args...);
 }
 
 template <typename TType> 
 TType* netImguiSizedNew(size_t placementSize)
 {
-	return new( ImGui::MemAlloc(placementSize > sizeof(TType) ? placementSize : sizeof(TType)) ) TType();
+	return new( netImguiAlloc(placementSize > sizeof(TType) ? placementSize : sizeof(TType)) ) TType();
 }
 
 template <typename TType> 
@@ -24,7 +46,7 @@ void netImguiDelete(TType* pData)
 	if( pData )
 	{
 		pData->~TType();
-		ImGui::MemFree(pData);
+		netImguiFree(pData);
 	}
 }
 
