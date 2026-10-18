@@ -1,4 +1,9 @@
+// Google modifications:
+//  - Zero-initialize CmdInput with memset in its constructor, and check
+//    sizeof(CmdInput) with static_assert.
 #pragma once
+
+#include <cstring>
 
 #include "NetImgui_CmdPackets_DrawFrame.h"
 #include "NetImgui_Shared.h"
@@ -317,25 +322,33 @@ struct alignas(8) CmdInput : public CmdHeader {
   static constexpr uint32_t kAnalog_Last = ImGuiKey_GamepadRStickDown;
   static constexpr uint32_t kAnalog_Count = kAnalog_Last - kAnalog_First + 1;
 
-  CmdInput() : CmdHeader(CmdHeader::eCommands::Input, sizeof(CmdInput)) {}
-  uint16_t mScreenSize[2] = {};
-  int16_t mMousePos[2] = {};
-  float mMouseWheelVert = 0.f;
-  float mMouseWheelHoriz = 0.f;
-  uint16_t mKeyChars[256] = {};  // Input characters
-  uint16_t mKeyCharCount = 0;    // Number of valid input characters
-  bool mCompressionUse =
-      false;  // Server would like client to compress the communication data
-  bool mCompressionSkip =
-      false;  // Server forcing next client's frame data to be uncompressed
-  float mFontDPIScaling =
-      1.f;  // Font scaling request by Server accounting for monitor DPI
-  float mDesiredFps = 30.f;  // Requested redraw speed
-  uint64_t mMouseDownMask = 0;
-  uint64_t mInputDownMask[(ImGuiKey_COUNT + 63) / 64] = {};
-  float mInputAnalog[kAnalog_Count] = {};
+  CmdInput() : CmdHeader(CmdHeader::eCommands::Input, sizeof(CmdInput)) {
+    memset(static_cast<void*>(this), 0, sizeof(*this));
+    mSize = sizeof(CmdInput);
+    mType = CmdHeader::eCommands::Input;
+    mFontDPIScaling = 1.f;
+    mDesiredFps = 30.f;
+  }
+  uint16_t mScreenSize[2];
+  int16_t mMousePos[2];
+  float mMouseWheelVert;
+  float mMouseWheelHoriz;
+  uint16_t mKeyChars[256];  // Input characters
+  uint16_t mKeyCharCount;   // Number of valid input characters
+  bool mCompressionUse;     // Server would like client to compress the
+                            // communication data
+  bool mCompressionSkip;  // Server forcing next client's frame data to be
+                          // uncompressed
+  float mFontDPIScaling;  // Font scaling request by Server accounting for
+                          // monitor DPI
+  float mDesiredFps;      // Requested redraw speed
+  uint64_t mMouseDownMask;
+  uint64_t mInputDownMask[(ImGuiKey_COUNT + 63) / 64];
+  float mInputAnalog[kAnalog_Count];
   inline bool IsKeyDown(NetImguiKeys netimguiKey) const;
 };
+static_assert(sizeof(CmdInput) == 616,
+              "CmdInput is sent over the network as is");
 
 struct alignas(8) CmdTexture : public CmdHeader {
   enum class eType : uint8_t { Create, Update, Destroy };
