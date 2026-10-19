@@ -7614,6 +7614,10 @@ void mjCModel::ResolvePlugin(mjCBase*           obj,
     if (plugin_slot == -1) { throw mjCError(obj, "unrecognized plugin '%s'", pname.c_str()); }
   }
 
+  // meshes sharing a plugin instance resolve it concurrently on compiler worker threads
+  static std::mutex           mutex;
+  std::lock_guard<std::mutex> lock(mutex);
+
   // implicit plugin instance
   if (*plugin_instance && (*plugin_instance)->plugin_slot == -1) {
     (*plugin_instance)->plugin_slot = plugin_slot;
@@ -7628,7 +7632,12 @@ void mjCModel::ResolvePlugin(mjCBase*           obj,
                      "unrecognized name '%s' for plugin instance",
                      plugin_instance_name.c_str());
     }
-    (*plugin_instance)->plugin_slot = plugin_slot;
+
+    // write only if changed: worker threads read plugin_slot after this call without the lock
+    if ((*plugin_instance)->plugin_slot != plugin_slot) {
+      (*plugin_instance)->plugin_slot = plugin_slot;
+    }
+
     if (plugin_slot != -1 && plugin_slot != (*plugin_instance)->plugin_slot) {
       throw mjCError(obj, "'plugin' attribute does not match that of the instance");
     }
