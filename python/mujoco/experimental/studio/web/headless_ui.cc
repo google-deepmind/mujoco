@@ -59,11 +59,13 @@ namespace py = pybind11;
 // Based on SampleNoBackend::Client_Startup() from
 // netimgui/Code/Sample/SampleNoBackend/SampleNoBackend.cpp
 static bool Client_Startup(ImGuiContext*& context,
+                           ImPlotContext*& implot_context,
                            const std::string& assets_dir) {
   IMGUI_CHECKVERSION();
   context = ImGui::CreateContext();
   ImGui::SetCurrentContext(context);
-  ImPlot::CreateContext();
+  implot_context = ImPlot::CreateContext();
+  ImPlot::SetCurrentContext(implot_context);
 
   ImGuiIO& io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -105,9 +107,13 @@ static bool Client_Startup(ImGuiContext*& context,
 // Release resources.
 // Based on SampleNoBackend::Client_Shutdown() from
 // netimgui/Code/Sample/SampleNoBackend/SampleNoBackend.cpp
-static void Client_Shutdown(ImGuiContext*& context) {
+static void Client_Shutdown(ImGuiContext*& context,
+                            ImPlotContext*& implot_context) {
   NetImgui::Shutdown();
-  ImPlot::DestroyContext();
+  if (implot_context) {
+    ImPlot::DestroyContext(implot_context);
+    implot_context = nullptr;
+  }
   if (context) {
     ImGui::DestroyContext(context);
     context = nullptr;
@@ -144,7 +150,7 @@ class HeadlessUi {
  public:
   HeadlessUi(const std::string& title, int port, const std::string& assets_dir)
       : title_(title), port_(port) {
-    if (!Client_Startup(context_, assets_dir)) {
+    if (!Client_Startup(context_, implot_context_, assets_dir)) {
       return;
     }
 
@@ -193,7 +199,7 @@ class HeadlessUi {
       }
     }
     textures_.clear();
-    Client_Shutdown(context_);
+    Client_Shutdown(context_, implot_context_);
   }
 
   bool NewFrame() {
@@ -342,13 +348,14 @@ class HeadlessUi {
   // of the ImPlot globals, so the context pointer has to be shared explicitly
   // (same pattern as get_context/set_imgui_context).
   intptr_t GetImPlotContext() const {
-    return reinterpret_cast<intptr_t>(ImPlot::GetCurrentContext());
+    return reinterpret_cast<intptr_t>(implot_context_);
   }
 
  private:
   std::string title_;
   int port_;
   ImGuiContext* context_ = nullptr;
+  ImPlotContext* implot_context_ = nullptr;
   bool is_drawing_remote_ = false;
   std::unordered_map<uintptr_t, std::unique_ptr<ImTextureData>> textures_;
   std::chrono::steady_clock::time_point last_frame_time_ =
