@@ -1380,6 +1380,39 @@ TEST_F(MjCMeshTest, PolygonNormalCollinearOutline) {
   EXPECT_NEAR(max_z, 1.0, MjTol(1e-4, 1e-4));
 }
 
+TEST_F(MjCMeshTest, PolygonNormalTriangularOutlineOfSeveralFaces) {
+  // A triangular prism whose top vertex (0.5, 0.3, 0.10001) is slightly
+  // raised: the top polygon is a triangle merged from three faces.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="prism"
+            vertex="0 0 0.1   1 0 0.1   0.5 0.9 0.1   0.5 0.3 0.10001
+                    0 0 0     1 0 0     0.5 0.9 0"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="prism"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  ASSERT_EQ(model->nmeshpoly, 5);
+
+  // Rotate polygon normals from mesh inertial frame back to user frame; the
+  // top (+z) and bottom (-z) polygons must both point outward.
+  mjtNum max_z = -1, min_z = 1;
+  for (int p = 0; p < model->nmeshpoly; ++p) {
+    mjtNum n_user[3];
+    mju_rotVecQuat(n_user, model->mesh_polynormal + 3 * p, model->mesh_quat);
+    max_z = mju_max(max_z, n_user[2]);
+    min_z = mju_min(min_z, n_user[2]);
+  }
+  EXPECT_NEAR(max_z, 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(min_z, -1.0, MjTol(1e-4, 1e-4));
+}
+
 TEST_F(MjCMeshTest, NegativeScaleUserMeshCompiles) {
   static constexpr char xml[] = R"(
   <mujoco>
