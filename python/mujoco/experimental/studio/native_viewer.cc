@@ -151,19 +151,6 @@ class Viewer {
                                   height, bpp);
   }
 
-  int RenderToTexture(const mujoco::python::MjModelWrapper& model,
-                      mujoco::python::MjDataWrapper& data,
-                      mujoco::python::MjvCameraWrapper& cam, int width,
-                      int height, int tex_id) {
-    py::gil_scoped_release no_gil;
-    const int bytes_per_pixel = 3;
-    std::vector<std::byte> bytes(width * height * bytes_per_pixel);
-    renderer_->RenderToTexture(model.get(), data.get(), cam.get(), width,
-                               height, bytes.data());
-    return renderer_->UploadImage(tex_id, bytes.data(), width, height,
-                                  bytes_per_pixel);
-  }
-
   std::string GetDropFile() { return window_->GetDropFile(); }
 
   void Present(
@@ -227,7 +214,6 @@ PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
            pybind11::arg("extra_geoms") =
                std::vector<mujoco::python::MjvGeomWrapper>())
       .def("UploadImage", &Viewer::UploadImage)
-      .def("RenderToTexture", &Viewer::RenderToTexture)
       .def("GetDropFile", &Viewer::GetDropFile);
   m.def("IsCrd", &IsCrd);
   m.def("IsCuda", &IsCuda);
