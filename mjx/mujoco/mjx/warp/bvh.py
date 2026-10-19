@@ -35,9 +35,6 @@ _d = mjwarp.Data(
 _o = mjwarp.Option(
     **{f.name: None for f in dataclasses.fields(mjwarp.Option) if f.init}
 )
-_s = mjwarp.Statistic(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Statistic) if f.init}
-)
 _c = mjwarp.Contact(
     **{f.name: None for f in dataclasses.fields(mjwarp.Contact) if f.init}
 )
@@ -78,7 +75,6 @@ def _refit_bvh_shim(
     # Output token
     output_token: wp.array[int],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e

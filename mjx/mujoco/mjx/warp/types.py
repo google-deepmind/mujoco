@@ -155,10 +155,6 @@ class BlockDim:
     return cls(*children)
 
 
-class StatisticWarp(PyTreeNode):
-  """Derived fields from Statistic."""
-  meaninertia: jax.Array
-
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
   broadphase: int
@@ -453,7 +449,6 @@ class DataWarp(PyTreeNode):
   cfrc_ext: jax.Array
   cfrc_int: jax.Array
   cinert: jax.Array
-  cls_tol: jax.Array
   contact__adhesion: jax.Array
   contact__dim: jax.Array
   contact__dist: jax.Array
@@ -480,7 +475,6 @@ class DataWarp(PyTreeNode):
   cqfrc_smooth: jax.Array
   crb: jax.Array
   crhs: jax.Array
-  ctol: jax.Array
   cx: jax.Array
   dof_awake_ind: jax.Array
   dof_cdof: jax.Array
@@ -593,7 +587,6 @@ class DataWarp(PyTreeNode):
 DATA_NON_VMAP = {
     'cdof_tri_col',
     'cdof_tri_row',
-    'cls_tol',
     'contact__adhesion',
     'contact__dim',
     'contact__dist',
@@ -612,7 +605,6 @@ DATA_NON_VMAP = {
     'contact__type',
     'contact__vert',
     'contact__worldid',
-    'ctol',
     'naccdmax',
     'nacon',
     'naconmax',
@@ -675,7 +667,6 @@ _NDIM = {
         'cfrc_ext': 3,
         'cfrc_int': 3,
         'cinert': 3,
-        'cls_tol': 1,
         'contact__adhesion': 1,
         'contact__dim': 1,
         'contact__dist': 1,
@@ -702,7 +693,6 @@ _NDIM = {
         'cqfrc_smooth': 2,
         'crb': 3,
         'crhs': 3,
-        'ctol': 1,
         'ctrl': 2,
         'cvel': 3,
         'cx': 3,
@@ -1367,7 +1357,6 @@ _NDIM = {
         'site_quat': 3,
         'site_size': 2,
         'site_type': 1,
-        'stat__meaninertia': 1,
         'taxel_sensorid': 1,
         'taxel_vertadr': 1,
         'ten_J_colind': 1,
@@ -1443,7 +1432,6 @@ _NDIM = {
         'warn_overflow': 0,
         'wind': 2,
     },
-    'Statistic': {'meaninertia': 1},
 }
 _BATCH_DIM = {
     'Data': {
@@ -1471,7 +1459,6 @@ _BATCH_DIM = {
         'cfrc_ext': True,
         'cfrc_int': True,
         'cinert': True,
-        'cls_tol': False,
         'contact__adhesion': False,
         'contact__dim': False,
         'contact__dist': False,
@@ -1498,7 +1485,6 @@ _BATCH_DIM = {
         'cqfrc_smooth': True,
         'crb': True,
         'crhs': True,
-        'ctol': False,
         'ctrl': True,
         'cvel': True,
         'cx': True,
@@ -2163,7 +2149,6 @@ _BATCH_DIM = {
         'site_quat': True,
         'site_size': False,
         'site_type': False,
-        'stat__meaninertia': True,
         'taxel_sensorid': False,
         'taxel_vertadr': False,
         'ten_J_colind': False,
@@ -2239,5 +2224,4 @@ _BATCH_DIM = {
         'warn_overflow': False,
         'wind': True,
     },
-    'Statistic': {'meaninertia': True},
 }

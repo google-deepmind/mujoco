@@ -23,7 +23,6 @@ import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
-
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
 )
@@ -32,9 +31,6 @@ _d = mjwarp.Data(
 )
 _o = mjwarp.Option(
     **{f.name: None for f in dataclasses.fields(mjwarp.Option) if f.init}
-)
-_s = mjwarp.Statistic(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Statistic) if f.init}
 )
 _c = mjwarp.Contact(
     **{f.name: None for f in dataclasses.fields(mjwarp.Contact) if f.init}
@@ -45,7 +41,6 @@ _e = mjwarp.Constraint(
 _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
-
 
 @ffi.format_args_for_warp
 def _collision_shim(
@@ -196,7 +191,6 @@ def _collision_shim(
     contact__vert: wp.array[wp.vec2i],
     contact__worldid: wp.array[int],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e

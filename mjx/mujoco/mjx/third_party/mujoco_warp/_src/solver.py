@@ -112,6 +112,7 @@ def _create_solver_context(
     quad_changed_ids=wp.empty((nworld, njmax), dtype=int) if alloc_incremental else wp.empty((nworld, 0), dtype=int),
     quad_changed_count=wp.empty((nworld,), dtype=int) if alloc_incremental else wp.empty((0,), dtype=int),
     state_changed_count=wp.empty((nworld,), dtype=int) if alloc_incremental else wp.empty((0,), dtype=int),
+    inertia_scale=wp.empty((nworld,), dtype=float),
   )
 
 
@@ -135,9 +136,23 @@ def _add_qfrc_smooth_eff(
   qfrc_smooth_eff_out[worldid, dofid] = qfrc_smooth_in[worldid, dofid] + efm_c_in[worldid, dofid] + efm_ca_in[worldid, dofid]
 
 
-@wp.func
-def _rescale(nv: int, meaninertia: float, value: float) -> float:
-  return value / (meaninertia * float(nv))
+@wp.kernel
+def _inertia_scale(
+  # Model:
+  nv: int,
+  M_rownnz: wp.array[int],
+  M_rowadr: wp.array[int],
+  # Data in:
+  M_in: wp.array2d[float],
+  # Out:
+  inertia_scale_out: wp.array[float],
+):
+  """Inverse trace of the inertia matrix, which scales the termination criteria."""
+  worldid = wp.tid()
+  trace = float(0.0)
+  for i in range(nv):
+    trace += M_in[worldid, M_rowadr[i] + M_rownnz[i] - 1]
+  inertia_scale_out[worldid] = 1.0 / wp.max(types.MJ_MINVAL, trace)
 
 
 @wp.func
@@ -902,7 +917,6 @@ def _linesearch_iterative_kernel(
     opt_tolerance: wp.array[float],
     opt_ls_tolerance: wp.array[float],
     opt_impratio_invsqrt: wp.array[float],
-    stat_meaninertia: wp.array[float],
     # Data in:
     ne_in: wp.array[int],
     nf_in: wp.array[int],
@@ -922,6 +936,7 @@ def _linesearch_iterative_kernel(
     njmax_in: int,
     nacon_in: wp.array[int],
     # In:
+    ctx_inertia_scale_in: wp.array[float],
     ctx_search_unchanged_in: wp.array[bool],
     ctx_Jaref_in: wp.array2d[float],
     ctx_search_in: wp.array2d[float],
@@ -1041,9 +1056,7 @@ def _linesearch_iterative_kernel(
     tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
     ls_tolerance = opt_ls_tolerance[worldid % opt_ls_tolerance.shape[0]]
     snorm = wp.sqrt(ctx_search_dot_in[worldid])
-    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
-    scale = meaninertia * wp.float(nv)
-    gtol = wp.max(tolerance * ls_tolerance * snorm * scale, 1e-6)
+    gtol = wp.max(tolerance * ls_tolerance * snorm / ctx_inertia_scale_in[worldid], 1e-6)
 
     # quad_gauss = [0, search.T @ Ma - search.T @ qfrc_smooth, 0.5 * search.T @ mv] + equality
     local_gauss = wp.vec2(0.0)
@@ -1438,7 +1451,6 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
       m.opt.tolerance,
       m.opt.ls_tolerance,
       m.opt.impratio_invsqrt,
-      m.stat.meaninertia,
       d.ne,
       d.nf,
       d.nefc,
@@ -1456,6 +1468,7 @@ def _linesearch_iterative(m: types.Model, d: types.Data, ctx: SolverContext, fus
       d.efc.frictionloss,
       d.njmax,
       d.nacon,
+      ctx.inertia_scale,
       ctx.search_unchanged,
       ctx.Jaref,
       ctx.search,
@@ -1736,8 +1749,8 @@ def _solve_init_search_cg_tiled(
   # Model:
   nv: int,
   opt_tolerance: wp.array[float],
-  stat_meaninertia: wp.array[float],
   # In:
+  ctx_inertia_scale_in: wp.array[float],
   ctx_grad_in: wp.array2d[float],
   ctx_Mgrad_in: wp.array2d[float],
   # Out:
@@ -1773,9 +1786,8 @@ def _solve_init_search_cg_tiled(
   if tid == 0:
     ctx_search_dot_out[worldid] = search_dot_sum[0]
     if not ctx_done_out[worldid]:
-      meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
       tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-      scale = 1.0 / (meaninertia * float(wp.max(1, nv)))
+      scale = ctx_inertia_scale_in[worldid]
       if wp.max(0.0, 0.5 * scale * grad_mgrad_sum[0]) < tolerance:
         ctx_done_out[worldid] = True
         wp.atomic_sub(nsolving_out, 0, 1)
@@ -3642,8 +3654,8 @@ def _solve_beta_finalize_tiled(warn_overflow: int):
     nv: int,
     opt_tolerance: wp.array[float],
     opt_iterations: int,
-    stat_meaninertia: wp.array[float],
     # In:
+    ctx_inertia_scale_in: wp.array[float],
     ctx_grad_in: wp.array2d[float],
     ctx_Mgrad_in: wp.array2d[float],
     ctx_prev_grad_in: wp.array2d[float],
@@ -3685,13 +3697,13 @@ def _solve_beta_finalize_tiled(warn_overflow: int):
 
       solver_niter_out[worldid] += 1
       tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-      meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+      scale = ctx_inertia_scale_in[worldid]
 
       grad_dot = ctx_grad_dot_in[worldid]
 
       alpha = ctx_alpha_in[worldid]
-      improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-      gradient = _rescale(nv, meaninertia, wp.sqrt(grad_dot))
+      improvement = scale * ctx_improvement_in[worldid]
+      gradient = scale * wp.sqrt(grad_dot)
       done = (alpha == 0.0) or (improvement > 0.0 and improvement < tolerance) or (gradient < tolerance)
       if done or solver_niter_out[worldid] == opt_iterations:
         if not done and solver_niter_out[worldid] == opt_iterations:
@@ -3713,11 +3725,10 @@ def _solve_done(warn_overflow: int):
   @wp.kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
-    nv: int,
     opt_tolerance: wp.array[float],
     opt_iterations: int,
-    stat_meaninertia: wp.array[float],
     # In:
+    ctx_inertia_scale_in: wp.array[float],
     ctx_grad_dot_in: wp.array[float],
     ctx_newton_decrement_in: wp.array[float],
     ctx_improvement_in: wp.array[float],
@@ -3737,12 +3748,12 @@ def _solve_done(warn_overflow: int):
 
     solver_niter_out[worldid] += 1
     tolerance = opt_tolerance[worldid % opt_tolerance.shape[0]]
-    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
+    scale = ctx_inertia_scale_in[worldid]
 
     alpha = ctx_alpha_in[worldid]
-    improvement = _rescale(nv, meaninertia, ctx_improvement_in[worldid])
-    gradient = _rescale(nv, meaninertia, wp.sqrt(ctx_grad_dot_in[worldid]))
-    model_improvement = _rescale(nv, meaninertia, 0.5 * ctx_newton_decrement_in[worldid])
+    improvement = scale * ctx_improvement_in[worldid]
+    gradient = scale * wp.sqrt(ctx_grad_dot_in[worldid])
+    model_improvement = scale * 0.5 * ctx_newton_decrement_in[worldid]
     done = (
       (alpha == 0.0)
       or (improvement > 0.0 and improvement < tolerance)
@@ -3835,7 +3846,7 @@ def _solver_iteration(
         m.nv,
         m.opt.tolerance,
         m.opt.iterations,
-        m.stat.meaninertia,
+        ctx.inertia_scale,
         ctx.grad,
         ctx.Mgrad,
         ctx.prev_grad,
@@ -3867,10 +3878,9 @@ def _solver_iteration(
       _solve_done(int(m.opt.warn_overflow)),
       dim=d.nworld,
       inputs=[
-        m.nv,
         m.opt.tolerance,
         m.opt.iterations,
-        m.stat.meaninertia,
+        ctx.inertia_scale,
         ctx.grad_dot,
         ctx.newton_decrement,
         ctx.improvement,
@@ -3894,6 +3904,12 @@ def init_context(m: types.Model, d: types.Data, ctx: SolverContext | InverseCont
         outputs=[qfrc_smooth_eff],
       )
       d = dataclasses.replace(d, qfrc_smooth=qfrc_smooth_eff)
+
+  # inverse trace of the inertia matrix, of the full model in a compacted solve
+  if isinstance(ctx, SolverContext):
+    mf = m if ctx.compact_m_full is None else ctx.compact_m_full
+    df = d if ctx.compact_d_full is None else ctx.compact_d_full
+    wp.launch(_inertia_scale, dim=d.nworld, inputs=[mf.nv, mf.M_rownnz, mf.M_rowadr, df.M], outputs=[ctx.inertia_scale])
 
   # initialize some efc arrays
   wp.launch(
@@ -4013,7 +4029,7 @@ def _solve(m: types.Model, d: types.Data, ctx: SolverContext, compact: bool = Fa
     wp.launch_tiled(
       _solve_init_search_cg_tiled,
       dim=d.nworld,
-      inputs=[m.nv, m.opt.tolerance, m.stat.meaninertia, ctx.grad, ctx.Mgrad],
+      inputs=[m.nv, m.opt.tolerance, ctx.inertia_scale, ctx.grad, ctx.Mgrad],
       outputs=[ctx.search, ctx.search_dot, ctx.prev_grad, ctx.prev_Mgrad, ctx.done, nsolving],
       block_dim=m.block_dim.solve_init_search_cg,
     )
@@ -4353,7 +4369,7 @@ def solve_compact(m: types.Model, d: types.Data):
   # instead of running all iterations); fall back to the plain loop on CPU.
   nvp = d.nvmax_pad
   gc = m.opt.graph_conditional and wp.get_device().is_cuda
-  opt2 = dataclasses.replace(m.opt, graph_conditional=gc, tolerance=d.ctol, ls_tolerance=d.cls_tol)
+  opt2 = dataclasses.replace(m.opt, graph_conditional=gc)
   m2 = dataclasses.replace(
     m, opt=opt2, nv=nvp, nv_pad=nvp, is_sparse=False, dof_tri_row=d.cdof_tri_row, dof_tri_col=d.cdof_tri_col
   )
@@ -5142,7 +5158,6 @@ def _noslip_solve(is_sparse: bool, sleep: bool):
     nv: int,
     opt_noslip_tolerance: wp.array[float],
     opt_noslip_iterations: int,
-    stat_meaninertia: wp.array[float],
     # Data in:
     nefc_in: wp.array[int],
     contact_friction_in: wp.array[types.vec5],
@@ -5160,6 +5175,7 @@ def _noslip_solve(is_sparse: bool, sleep: bool):
     # In:
     noslip_Y_in: wp.array3d[float],
     noslip_A_in: wp.array2d[types.vec5],
+    inertia_scale_in: wp.array[float],
     # Data out:
     solver_niter_out: wp.array[int],
     qacc_out: wp.array2d[float],
@@ -5176,8 +5192,7 @@ def _noslip_solve(is_sparse: bool, sleep: bool):
     qacc = qacc_out[worldid]
     efc_force = efc_force_out[worldid]
 
-    meaninertia = stat_meaninertia[worldid % stat_meaninertia.shape[0]]
-    scale = 1.0 / (meaninertia * float(wp.max(1, nv)))
+    scale = inertia_scale_in[worldid]
     tolerance = opt_noslip_tolerance[worldid % opt_noslip_tolerance.shape[0]]
 
     # main iteration
@@ -5441,9 +5456,11 @@ def noslip(m: types.Model, d: types.Data):
   noslip_L = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
   noslip_Y = wp.empty((d.nworld, d.njmax, m.nv), dtype=float)
   noslip_A = wp.empty((d.nworld, d.njmax), dtype=types.vec5)
+  inertia_scale = wp.empty((d.nworld,), dtype=float)
 
   sleep = bool(m.opt.enableflags & types.EnableBit.SLEEP)
 
+  wp.launch(_inertia_scale, dim=d.nworld, inputs=[m.nv, m.M_rownnz, m.M_rowadr, d.M], outputs=[inertia_scale])
   wp.launch(
     _noslip_factor_m(sleep),
     dim=d.nworld,
@@ -5498,7 +5515,6 @@ def noslip(m: types.Model, d: types.Data):
       m.nv,
       m.opt.noslip_tolerance,
       m.opt.noslip_iterations,
-      m.stat.meaninertia,
       d.nefc,
       d.contact.friction,
       d.contact.dim,
@@ -5514,6 +5530,7 @@ def noslip(m: types.Model, d: types.Data):
       d.njmax,
       noslip_Y,
       noslip_A,
+      inertia_scale,
     ],
     outputs=[d.solver_niter, d.qacc, d.efc.force],
   )

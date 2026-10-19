@@ -23,7 +23,6 @@ import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
-
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
 )
@@ -32,9 +31,6 @@ _d = mjwarp.Data(
 )
 _o = mjwarp.Option(
     **{f.name: None for f in dataclasses.fields(mjwarp.Option) if f.init}
-)
-_s = mjwarp.Statistic(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Statistic) if f.init}
 )
 _c = mjwarp.Contact(
     **{f.name: None for f in dataclasses.fields(mjwarp.Contact) if f.init}
@@ -45,7 +41,6 @@ _e = mjwarp.Constraint(
 _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
-
 
 @ffi.format_args_for_warp
 def _forward_shim(
@@ -510,7 +505,6 @@ def _forward_shim(
     opt__viscosity: wp.array[float],
     opt__warn_overflow: int,
     opt__wind: wp.array[wp.vec3],
-    stat__meaninertia: wp.array[float],
     # Data
     naccdmax: int,
     naconmax: int,
@@ -541,7 +535,6 @@ def _forward_shim(
     cfrc_ext: wp.array2d[wp.spatial_vector],
     cfrc_int: wp.array2d[wp.spatial_vector],
     cinert: wp.array2d[mjwp_types.vec10],
-    cls_tol: wp.array[float],
     cqLD: wp.array3d[float],
     cqacc: wp.array2d[float],
     cqacc_smooth: wp.array2d[float],
@@ -550,7 +543,6 @@ def _forward_shim(
     cqfrc_smooth: wp.array2d[float],
     crb: wp.array2d[mjwp_types.vec10],
     crhs: wp.array3d[float],
-    ctol: wp.array[float],
     ctrl: wp.array2d[float],
     cvel: wp.array2d[wp.spatial_vector],
     cx: wp.array3d[float],
@@ -701,7 +693,6 @@ def _forward_shim(
     efc__type: wp.array2d[int],
     efc__vel: wp.array2d[float],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e
@@ -1125,7 +1116,6 @@ def _forward_shim(
   _m.site_quat = site_quat
   _m.site_size = site_size
   _m.site_type = site_type
-  _m.stat.meaninertia = stat__meaninertia
   _m.taxel_sensorid = taxel_sensorid
   _m.taxel_vertadr = taxel_vertadr
   _m.ten_J_colind = ten_J_colind
@@ -1189,7 +1179,6 @@ def _forward_shim(
   _d.cfrc_ext = cfrc_ext
   _d.cfrc_int = cfrc_int
   _d.cinert = cinert
-  _d.cls_tol = cls_tol
   _d.contact.adhesion = contact__adhesion
   _d.contact.dim = contact__dim
   _d.contact.dist = contact__dist
@@ -1216,7 +1205,6 @@ def _forward_shim(
   _d.cqfrc_smooth = cqfrc_smooth
   _d.crb = crb
   _d.crhs = crhs
-  _d.ctol = ctol
   _d.ctrl = ctrl
   _d.cvel = cvel
   _d.cx = cx
@@ -1747,7 +1735,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'cfrc_ext',
           'cfrc_int',
           'cinert',
-          'cls_tol',
           'contact__adhesion',
           'contact__dim',
           'contact__dist',
@@ -1774,7 +1761,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'cqfrc_smooth',
           'crb',
           'crhs',
-          'ctol',
           'ctrl',
           'cvel',
           'cx',
@@ -2619,7 +2605,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.viscosity,
       m.opt._impl.warn_overflow,
       m.opt.wind,
-      m.stat.meaninertia,
       d._impl.naccdmax,
       d._impl.naconmax,
       d._impl.njmax,
@@ -2649,7 +2634,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.cfrc_ext,
       d._impl.cfrc_int,
       d._impl.cinert,
-      d._impl.cls_tol,
       d._impl.cqLD,
       d._impl.cqacc,
       d._impl.cqacc_smooth,
@@ -2658,7 +2642,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.cqfrc_smooth,
       d._impl.crb,
       d._impl.crhs,
-      d._impl.ctol,
       d.ctrl,
       d.cvel,
       d._impl.cx,
@@ -3462,7 +3445,6 @@ def _step_shim(
     opt__viscosity: wp.array[float],
     opt__warn_overflow: int,
     opt__wind: wp.array[wp.vec3],
-    stat__meaninertia: wp.array[float],
     # Data
     naccdmax: int,
     naconmax: int,
@@ -3493,7 +3475,6 @@ def _step_shim(
     cfrc_ext: wp.array2d[wp.spatial_vector],
     cfrc_int: wp.array2d[wp.spatial_vector],
     cinert: wp.array2d[mjwp_types.vec10],
-    cls_tol: wp.array[float],
     cqLD: wp.array3d[float],
     cqacc: wp.array2d[float],
     cqacc_smooth: wp.array2d[float],
@@ -3502,7 +3483,6 @@ def _step_shim(
     cqfrc_smooth: wp.array2d[float],
     crb: wp.array2d[mjwp_types.vec10],
     crhs: wp.array3d[float],
-    ctol: wp.array[float],
     ctrl: wp.array2d[float],
     cvel: wp.array2d[wp.spatial_vector],
     cx: wp.array3d[float],
@@ -3654,7 +3634,6 @@ def _step_shim(
     efc__type: wp.array2d[int],
     efc__vel: wp.array2d[float],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e
@@ -4087,7 +4066,6 @@ def _step_shim(
   _m.site_quat = site_quat
   _m.site_size = site_size
   _m.site_type = site_type
-  _m.stat.meaninertia = stat__meaninertia
   _m.taxel_sensorid = taxel_sensorid
   _m.taxel_vertadr = taxel_vertadr
   _m.ten_J_colind = ten_J_colind
@@ -4151,7 +4129,6 @@ def _step_shim(
   _d.cfrc_ext = cfrc_ext
   _d.cfrc_int = cfrc_int
   _d.cinert = cinert
-  _d.cls_tol = cls_tol
   _d.contact.adhesion = contact__adhesion
   _d.contact.dim = contact__dim
   _d.contact.dist = contact__dist
@@ -4178,7 +4155,6 @@ def _step_shim(
   _d.cqfrc_smooth = cqfrc_smooth
   _d.crb = crb
   _d.crhs = crhs
-  _d.ctol = ctol
   _d.ctrl = ctrl
   _d.cvel = cvel
   _d.cx = cx
@@ -4720,7 +4696,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'cfrc_ext',
           'cfrc_int',
           'cinert',
-          'cls_tol',
           'contact__adhesion',
           'contact__dim',
           'contact__dist',
@@ -4747,7 +4722,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'cqfrc_smooth',
           'crb',
           'crhs',
-          'ctol',
           'ctrl',
           'cvel',
           'cx',
@@ -5608,7 +5582,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.viscosity,
       m.opt._impl.warn_overflow,
       m.opt.wind,
-      m.stat.meaninertia,
       d._impl.naccdmax,
       d._impl.naconmax,
       d._impl.njmax,
@@ -5638,7 +5611,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.cfrc_ext,
       d._impl.cfrc_int,
       d._impl.cinert,
-      d._impl.cls_tol,
       d._impl.cqLD,
       d._impl.cqacc,
       d._impl.cqacc_smooth,
@@ -5647,7 +5619,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.cqfrc_smooth,
       d._impl.crb,
       d._impl.crhs,
-      d._impl.ctol,
       d.ctrl,
       d.cvel,
       d._impl.cx,

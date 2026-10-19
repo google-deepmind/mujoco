@@ -84,7 +84,7 @@ typedef struct mjTimerStat_ {  // timer statistics
 
 
 typedef struct mjSolverStat_ {  // per-iteration solver statistics
-  mjtNum  improvement;          // cost reduction, scaled by 1/trace(M(qpos0))
+  mjtNum  improvement;          // cost reduction, scaled by 1/trace(M)
   mjtNum  gradient;             // gradient norm (primal only, scaled)
   mjtNum  lineslope;            // slope in linesearch
   int     nactive;              // number of active constraints

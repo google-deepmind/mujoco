@@ -49,7 +49,6 @@ _CLS_MAP = {
     'Model': mjwarp.Model,
     'Data': mjwarp.Data,
     'Option': mjwarp.Option,
-    'Statistic': mjwarp.Statistic,
 }
 
 
@@ -413,7 +412,7 @@ def write_core_cls(
     extra_annotations: dict[str, type] | None = None,
     defaults: Optional[Dict[str, Any]] = None,
 ):
-  """Writes a core API class (e.g. Model/Data/Option/Statistic)."""
+  """Writes a core API class (e.g. Model/Data/Option)."""
   cls = _CLS_MAP[cls_name]
 
   annotations = dict(cls.__annotations__)
@@ -562,7 +561,6 @@ def main(argv):
   write_nested_dataclass(target_fpath, mjwarp._src.types.TileSet)
   write_nested_dataclass(target_fpath, mjwarp._src.types.BlockDim)
 
-  write_core_cls('Statistic', target_fpath, mjx_types_fpath, set_diff=False)
   write_core_cls(
       'Option', target_fpath, mjx_types_fpath,
       extra_annotations={'graph_mode': GraphMode},

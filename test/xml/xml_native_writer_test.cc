@@ -2214,6 +2214,7 @@ TEST_F(DecompilerTest, SavesStatistics) {
     <statistic meansize="2" extent="3" center="4 5 6" meanmass="7" meaninertia="8"/>
   </mujoco>
   )";
+  mock_warning_handler.ExpectWarnings("meaninertia");
   MjModelPtr model = LoadModelFromString(xml);
   ASSERT_THAT(model.get(), NotNull());
   model->stat.meansize = 7;

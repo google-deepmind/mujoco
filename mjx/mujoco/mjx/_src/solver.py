@@ -418,8 +418,21 @@ def _update_gradient(m: Model, d: Data, ctx: Context) -> Context:
   return ctx
 
 
-def _rescale(m: Model, value: jax.Array) -> jax.Array:
-  return value / (m.stat.meaninertia * max(1, m.nv))
+def _trace_m(m: Model, d: Data) -> jax.Array:
+  if not isinstance(d._impl, DataJAX):
+    raise ValueError('_trace_m requires JAX backend implementation.')
+  if not m.nv:
+    return jp.array(mujoco.mjMINVAL)
+  trace = (
+      d._impl.M[m.M_rowadr + m.M_rownnz - 1].sum()
+      if support.is_sparse(m)
+      else jp.trace(d._impl.M)
+  )
+  return jp.maximum(mujoco.mjMINVAL, trace)
+
+
+def _rescale(m: Model, d: Data, value: jax.Array) -> jax.Array:
+  return value / _trace_m(m, d)
 
 
 def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
@@ -440,7 +453,7 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   ):
     raise ValueError('_lineasearch requires JAX backend implementation.')
 
-  smag = math.norm(ctx.search) * m.stat.meaninertia * max(1, m.nv)
+  smag = math.norm(ctx.search) * _trace_m(m, d)
   gtol = m.opt.tolerance * m.opt.ls_tolerance * smag
 
   # compute Mv, Jv
@@ -582,8 +595,8 @@ def solve(m: Model, d: Data) -> Data:
     raise ValueError('solve requires JAX backend implementation.')
 
   def cond(ctx: Context) -> jax.Array:
-    improvement = _rescale(m, ctx.prev_cost - ctx.cost)
-    gradient = _rescale(m, math.norm(ctx.grad))
+    improvement = _rescale(m, d, ctx.prev_cost - ctx.cost)
+    gradient = _rescale(m, d, math.norm(ctx.grad))
 
     done = ctx.solver_niter >= m.opt.iterations
     done |= improvement < m.opt.tolerance

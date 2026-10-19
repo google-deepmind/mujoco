@@ -287,7 +287,6 @@ def get_mjwarp_field_info(
   """Return field info for mujoco_warp/_src/types.py."""
   dataclass_map = {
       'opt': 'Option',
-      'stat': 'Statistic',
       'efc': 'Constraint',
       'contact': 'Contact',
   }
@@ -314,7 +313,7 @@ def get_mjwarp_field_info(
   # to Model or Data based solely on the field name lookup in mjwarp_field_info
   # (via field_info.param_source) rather than inspecting base variable names.
   #
-  # Nested sub-dataclasses (Option, Statistic in Model; Constraint, Contact in
+  # Nested sub-dataclasses (Option in Model; Constraint, Contact in
   # Data) are flattened with container prefixes (e.g. 'opt__timestep',
   # 'contact__pos'). This prefixing prevents collisions between sub-dataclasses
   # that share generic field names (such as 'pos' or 'type' in Contact and

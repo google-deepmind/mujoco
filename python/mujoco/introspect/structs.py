@@ -5557,7 +5557,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='improvement',
                  type=ValueType(name='mjtNum'),
-                 doc='cost reduction, scaled by 1/trace(M(qpos0))',
+                 doc='cost reduction, scaled by 1/trace(M)',
              ),
              StructFieldDecl(
                  name='gradient',

@@ -320,6 +320,58 @@ TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
   EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
 }
 
+// the statistic attribute meaninertia is deprecated: it does not affect
+// simulation, and compilation warns
+TEST_F(UserModelTest, MeanInertiaDeprecated) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag island="disable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_numWarnings(spec), 0);
+
+  mock_warning_handler.ExpectWarnings("meaninertia");
+  spec->stat.meaninertia = 1000;
+  mjModel* given = mj_compile(spec, nullptr);
+  ASSERT_THAT(given, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(mjs_numWarnings(spec), 1);
+  EXPECT_THAT(mjs_getWarning(spec, 0), HasSubstr("deprecated"));
+  EXPECT_EQ(given->stat.meaninertia, 1000);
+
+  // the same trajectory, for every solver
+  for (int solver : {mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON}) {
+    m->opt.solver = given->opt.solver = solver;
+    mjData* d = mj_makeData(m);
+    mjData* d_given = mj_makeData(given);
+    for (int i = 0; i < 10; i++) {
+      mj_step(m, d);
+      mj_step(given, d_given);
+    }
+    EXPECT_EQ(AsVector(d->qpos, m->nq), AsVector(d_given->qpos, m->nq))
+        << "solver " << solver;
+    mj_deleteData(d_given);
+    mj_deleteData(d);
+  }
+
+  mj_deleteModel(given);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 // settotalmass is deprecated: it still scales the masses, with a warning which
 // says what to do instead
 TEST_F(UserModelTest, SetTotalMassDeprecated) {

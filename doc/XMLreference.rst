@@ -477,7 +477,8 @@ adjust it properly through the XML.
    gradient norm. For Newton, it is additionally applied to the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g`, the
    predicted cost improvement of the next iteration. Before the first iteration, CG and Newton also apply it to a
    :ref:`convergence certificate<soAlgorithms>` of the warmstarted solution, possibly terminating with zero iterations.
-   Set the tolerance to 0 to disable early termination.
+   The cost improvement and the gradient are scaled by the inverse trace of the inertia matrix, of the whole model or
+   of a constraint :ref:`island<soIsland>`. Set the tolerance to 0 to disable early termination.
 
 .. _option-ls_iterations:
 
@@ -1253,9 +1254,11 @@ parameters.
 .. _statistic-meaninertia:
 
 :at:`meaninertia`: :at-val:`real, optional`
-   If this attribute is specified, it replaces the value of mjModel.stat.meaninertia computed by the compiler. The
-   computed value is the average diagonal element of the joint-space inertia matrix when the model is in qpos0. At
-   runtime this value scales the solver cost and gradient used for early termination.
+   This attribute is deprecated and will be removed in a future release; compiling a model which sets it gives a
+   warning. If it is specified, it replaces the value of mjModel.stat.meaninertia computed by the compiler. The
+   computed value is the average diagonal element of the joint-space inertia matrix when the model is in qpos0. It
+   does not affect simulation: the solvers scale their termination criteria by the trace of the current inertia
+   matrix, see :ref:`tolerance<option-tolerance>`.
 
 .. _statistic-meansize:
 

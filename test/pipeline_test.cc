@@ -49,6 +49,10 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
 #ifdef mjUSESINGLE
   // CG and NOSLIP sparse-dense equivalence breaks at float32 precision.
   int nsolvers = 2;
+
+  // the tolerance is below float32 precision, where sparse and dense can stop
+  // at different iterations: run all of them
+  model->opt.tolerance = 0;
 #else
   int nsolvers = 4;
 #endif

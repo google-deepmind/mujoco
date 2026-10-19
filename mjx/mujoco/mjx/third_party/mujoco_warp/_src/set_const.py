@@ -228,30 +228,6 @@ def _compute_geom_bound(
 
 
 @wp.kernel
-def _compute_meaninertia(
-  nv: int,
-  M_rownnz_in: wp.array[int],
-  M_rowadr_in: wp.array[int],
-  M_in: wp.array2d[float],
-  meaninertia_out: wp.array[float],
-):
-  """Compute mean diagonal inertia from M at qpos0."""
-  worldid = wp.tid()
-
-  if nv == 0:
-    meaninertia_out[worldid % meaninertia_out.shape[0]] = 1.0  # Default from MuJoCo
-    return
-
-  total = float(0.0)
-  for i in range(nv):
-    # CSR row diagonal is the last entry: M_rowadr_in[i] + M_rownnz_in[i] - 1
-    madr = M_rowadr_in[i] + M_rownnz_in[i] - 1
-    total += M_in[worldid, madr]
-
-  meaninertia_out[worldid % meaninertia_out.shape[0]] = total / float(nv)
-
-
-@wp.kernel
 def _set_unit_vector(
   dofid_target: int,
   unit_vec_out: wp.array2d[float],
@@ -721,14 +697,6 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
   smooth.tendon_armature(m, d)
   smooth.factor_m(m, d)
   smooth.transmission(m, d)
-
-  # Compute meaninertia from M diagonal at qpos0
-  wp.launch(
-    _compute_meaninertia,
-    dim=m.stat.meaninertia.shape[0],
-    inputs=[m.nv, m.M_rownnz, m.M_rowadr, d.M],
-    outputs=[m.stat.meaninertia],
-  )
 
   wp.launch(_copy_tendon_length0, dim=(m.tendon_length0.shape[0], m.ntendon), inputs=[d.ten_length], outputs=[m.tendon_length0])
 

@@ -322,16 +322,8 @@ def _put_option(
   raise NotImplementedError(f'Unsupported implementation: {impl}')
 
 
-def _put_statistic(
-    s: mujoco.MjStatistic, impl: types.Impl
-) -> Union[types.Statistic, types.StatisticWarp]:
+def _put_statistic(s: mujoco.MjStatistic) -> types.Statistic:
   """Puts mujoco.MjStatistic onto a device, resulting in mjx.Statistic."""
-  if impl == types.Impl.WARP:
-    fields = {
-        f.name: _wp_to_np_type(getattr(s, f.name, None), f.name)
-        for f in types.StatisticWarp.fields()
-    }
-    return types.StatisticWarp(**fields)
   return types.Statistic(
       meaninertia=s.meaninertia,
       meanmass=s.meanmass,
@@ -424,7 +416,7 @@ def _put_model_jax(
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, types.Impl.JAX)
-  fields['stat'] = _put_statistic(m.stat, types.Impl.JAX)
+  fields['stat'] = _put_statistic(m.stat)
 
   fields_jax = {}
   fields_jax['dof_hasfrictionloss'] = fields['dof_frictionloss'] > 0
@@ -495,7 +487,7 @@ def _put_model_warp(
   private_options = {k: getattr(mw.opt, k) for k in option_keys}
   private_options['graph_mode'] = graph_mode
   fields['opt'] = _put_option(m.opt, types.Impl.WARP, private_options)
-  fields['stat'] = _put_statistic(m.stat, types.Impl.WARP)
+  fields['stat'] = _put_statistic(m.stat)
 
   # Use MJW fields directly instead of MjModel, so that shape and dtype are
   # always compatible with MJXW (e.g. cam_mat0/geom_aabb).
@@ -544,7 +536,7 @@ def _put_model_cpp(
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, impl=types.Impl.JAX)
-  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.JAX)
+  fields['stat'] = _put_statistic(m.stat)
 
   # get the pointer address
   # we use a 0-d array

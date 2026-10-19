@@ -475,13 +475,6 @@ class Statistic(PyTreeNode):
   center: jax.Array
 
 
-class StatisticWarp(mjxw_types.StatisticWarp, Statistic):
-  """Warp-specific model statistics."""
-
-  # NB: StatisticWarp type annotations may not match those on Statistic.
-  pass
-
-
 class OptionJAX(PyTreeNode):
   """JAX-specific option."""
 
@@ -654,7 +647,7 @@ class Model(PyTreeNode):
   npluginstate: int
   nhistory: int
   opt: Option
-  stat: Union[Statistic, StatisticWarp]
+  stat: Statistic
   qpos0: jax.Array
   qpos_spring: jax.Array
   body_parentid: np.ndarray

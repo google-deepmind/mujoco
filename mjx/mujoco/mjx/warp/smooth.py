@@ -23,7 +23,6 @@ import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
-
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
 )
@@ -32,9 +31,6 @@ _d = mjwarp.Data(
 )
 _o = mjwarp.Option(
     **{f.name: None for f in dataclasses.fields(mjwarp.Option) if f.init}
-)
-_s = mjwarp.Statistic(
-    **{f.name: None for f in dataclasses.fields(mjwarp.Statistic) if f.init}
 )
 _c = mjwarp.Contact(
     **{f.name: None for f in dataclasses.fields(mjwarp.Contact) if f.init}
@@ -93,7 +89,6 @@ def _kinematics_shim(
     xpos: wp.array2d[wp.vec3],
     xquat: wp.array2d[wp.quat],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e
@@ -337,7 +332,6 @@ def _tendon_shim(
     wrap_obj: wp.array2d[wp.vec2i],
     wrap_xpos: wp.array2d[wp.spatial_vector],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e
@@ -522,7 +516,6 @@ def _com_pos_shim(
     xipos: wp.array2d[wp.vec3],
     xmat: wp.array2d[wp.mat33],
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e

@@ -196,7 +196,6 @@ def _global_assignments():
       ('_m', 'mjwarp.Model'),
       ('_d', 'mjwarp.Data'),
       ('_o', 'mjwarp.Option'),
-      ('_s', 'mjwarp.Statistic'),
       ('_c', 'mjwarp.Contact'),
       ('_e', 'mjwarp.Constraint'),
       ('_cb', 'mjwp_types.Callback'),
@@ -325,7 +324,7 @@ def _jax_shim_fn(
     elif mjwarp_field_info[arg].param_source == 'Model':
       arg_jax = (
           arg.replace('__', '.')
-          if arg.startswith('opt') or arg.startswith('stat')
+          if arg.startswith('opt')
           else arg
       )
       public_field = arg.split('__')[0] in mjx_types.Model.__annotations__
@@ -451,7 +450,6 @@ def create_jax_warp_shim(
 def _{fn_name}_shim(
 {fn_args_raw_str}
 ):
-  _m.stat = _s
   _m.opt = _o
   _m.callback = _cb
   _d.efc = _e

@@ -46,7 +46,7 @@ class GeneratedTypesMetadataTest(absltest.TestCase):
           if sub_cls_name in types._BATCH_DIM and hasattr(
               types, f'{sub_cls_name}Warp'
           ):
-            # Dedicated top-level sub-class (Option, Statistic)
+            # Dedicated top-level sub-class (Option)
             _check_fields(
                 sub_cls_name, val, getattr(types, f'{sub_cls_name}Warp')
             )

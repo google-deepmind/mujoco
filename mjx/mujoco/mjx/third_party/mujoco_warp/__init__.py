@@ -123,5 +123,4 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType as Overfl
 from mujoco.mjx.third_party.mujoco_warp._src.types import RenderContext as RenderContext
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType as SolverType
 from mujoco.mjx.third_party.mujoco_warp._src.types import State as State
-from mujoco.mjx.third_party.mujoco_warp._src.types import Statistic as Statistic
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType as TrnType
