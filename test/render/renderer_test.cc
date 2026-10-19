@@ -552,5 +552,36 @@ TEST_F(RendererTest, TextureGeneratesMipmaps) {
     EXPECT_NEAR(static_cast<uint8_t>(pixels[i]), 60, 2);
   }
 }
+// A texture destroyed before Filament has read its data releases the data once,
+// after the upload, without touching the destroyed texture.
+TEST_F(RendererTest, TextureDestroyedBeforeUploadReleasesData) {
+  static int released;
+  released = 0;
+  {
+    Renderer renderer(MakeOffscreenConfig());
+    mjrfTextureConfig config;
+    mjrf_defaultTextureConfig(&config);
+    config.width = 4;
+    config.height = 4;
+    config.format = mjPIXEL_FORMAT_RGB8;
+    UniquePtr<mjrfTexture> texture =
+        CreateTexture(renderer.GetContext(), config);
+
+    auto* bytes = new std::vector<uint8_t>(4 * 4 * 3, 255);
+    mjrfTextureData data;
+    mjrf_defaultTextureData(&data);
+    data.bytes = bytes->data();
+    data.num_bytes = bytes->size();
+    data.user_data = bytes;
+    data.release = +[](void* user_data) {
+      delete static_cast<std::vector<uint8_t>*>(user_data);
+      released++;
+    };
+    mjrf_uploadTexture(texture.get(), &data);
+    texture.reset();
+  }
+  EXPECT_EQ(released, 1);
+}
+
 }  // namespace
 }  // namespace mujoco
