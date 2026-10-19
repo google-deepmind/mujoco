@@ -49,6 +49,16 @@ static bool IsCrd() {
   return display ? strcmp(display, ":20") == 0 : false;
 }
 
+static intptr_t GetImGuiContext() {
+  return reinterpret_cast<intptr_t>(ImGui::GetCurrentContext());
+}
+
+// See ux.set_implot_context: extension modules each hold their own copy of
+// the ImPlot globals, so the context pointer must be shared explicitly.
+static intptr_t GetImPlotContext() {
+  return reinterpret_cast<intptr_t>(ImPlot::GetCurrentContext());
+}
+
 static std::vector<std::byte> LoadAsset(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
   static const std::string asset_dir = []() {
@@ -198,16 +208,6 @@ class Viewer {
     window_->Present(pixels_);
   }
 
-  intptr_t GetImGuiContext() {
-    return reinterpret_cast<intptr_t>(ImGui::GetCurrentContext());
-  }
-
-  // See ux.set_implot_context: extension modules each hold their own copy of
-  // the ImPlot globals, so the context pointer must be shared explicitly.
-  intptr_t GetImPlotContext() {
-    return reinterpret_cast<intptr_t>(ImPlot::GetCurrentContext());
-  }
-
  private:
   std::unique_ptr<mujoco::studio::Window> window_;
   std::unique_ptr<mujoco::studio::FilamentRenderer> renderer_;
@@ -228,9 +228,9 @@ PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
                std::vector<mujoco::python::MjvGeomWrapper>())
       .def("UploadImage", &Viewer::UploadImage)
       .def("RenderToTexture", &Viewer::RenderToTexture)
-      .def("GetDropFile", &Viewer::GetDropFile)
-      .def("GetImGuiContext", &Viewer::GetImGuiContext)
-      .def("GetImPlotContext", &Viewer::GetImPlotContext);
+      .def("GetDropFile", &Viewer::GetDropFile);
   m.def("IsCrd", &IsCrd);
   m.def("IsCuda", &IsCuda);
+  m.def("GetImGuiContext", &GetImGuiContext);
+  m.def("GetImPlotContext", &GetImPlotContext);
 }

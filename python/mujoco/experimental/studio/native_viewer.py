@@ -80,12 +80,12 @@ class NativeViewer(viewer_protocol.Viewer):
     # so we can detect when the model changes and re-initialize.
     self._renderer_model_id = id(None)
 
-    ctx = self._viewer.GetImGuiContext()
+    ctx = _viewer.GetImGuiContext()
     imgui.SetCurrentContext(ctx)
     ux.set_imgui_context(ctx)
-    ux.set_implot_context(self._viewer.GetImPlotContext())
+    ux.set_implot_context(_viewer.GetImPlotContext())
     implot.set_imgui_context(ctx)
-    implot.set_implot_context(self._viewer.GetImPlotContext())
+    implot.set_implot_context(_viewer.GetImPlotContext())
 
     # Dispatch lifecycle event so handlers can cache the viewer reference.
     try:
