@@ -30,9 +30,9 @@
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
-#include "experimental/studio/sim/sim_history.h"
-#include "experimental/studio/sim/sim_profiler.h"
-#include "experimental/studio/sim/step_control.h"
+#include "../sim/sim_history.h"
+#include "../sim/sim_profiler.h"
+#include "../sim/step_control.h"
 
 namespace mujoco::studio {
 

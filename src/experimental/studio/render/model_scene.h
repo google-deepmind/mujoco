@@ -21,10 +21,10 @@
 
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/support/model_decorations.h"
-#include "render/filament/support/model_lights.h"
-#include "render/filament/support/model_renderables.h"
-#include "render/filament/support/model_resources.h"
+#include "../../../render/filament/support/model_decorations.h"
+#include "../../../render/filament/support/model_lights.h"
+#include "../../../render/filament/support/model_renderables.h"
+#include "../../../render/filament/support/model_resources.h"
 
 namespace mujoco::studio {
 

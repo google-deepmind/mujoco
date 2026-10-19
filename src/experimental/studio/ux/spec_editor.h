@@ -22,7 +22,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "experimental/studio/sim/model_holder.h"
+#include "../sim/model_holder.h"
 
 namespace mujoco::studio {
 
