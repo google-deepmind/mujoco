@@ -1332,8 +1332,7 @@ void App::BuildGui() {
 
         renderer_->RenderToTexture(model(), data(), &camera, width, height,
                                    output.data());
-        int id = renderer_->UploadImage(pip.texture, output.data(), width,
-                                        height, 3);
+        int id = renderer_->UploadImage(pip.texture, output, width, height);
 
         flags[mjRND_DEPTH] = prev_depth;
         flags[mjRND_SEGMENT] = prev_segment;

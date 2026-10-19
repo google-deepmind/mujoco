@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -53,9 +54,10 @@ ImguiBridge::~ImguiBridge() {
   }
 }
 
-uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
-                                   int width, int height, int bpp) {
-  if (pixels == nullptr) {
+uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id,
+                                   std::span<const std::byte> pixels, int width,
+                                   int height) {
+  if (pixels.empty()) {
     // If the pixels are nullptr, we destroy the texture. This is checked before
     // the bpp validation below: a destruction request carries no pixel format.
     if (tex_id != 0) {
@@ -64,9 +66,14 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     return 0;
   }
 
-  if (bpp != 4 && bpp != 3) {
-    mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
+  if (width <= 0 || height <= 0 ||
+      (pixels.size() != static_cast<size_t>(width * height * 3) &&
+       pixels.size() != static_cast<size_t>(width * height * 4))) {
+    mju_error(
+        "Image size (%zu bytes) does not match %dx%d RGB or RGBA",
+        pixels.size(), width, height);
   }
+  const int bpp = pixels.size() / (width * height);
 
   // Assign a new texture ID.
   if (tex_id == 0) {
@@ -93,8 +100,9 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
 
   // Create a copy of the image to pass it to filament as we don't know the
   // lifetime of the data.
-  const size_t num_bytes = width * height * bpp;
+  const size_t num_bytes = pixels.size();
   std::byte* bytes = new std::byte[num_bytes];
+  std::memcpy(bytes, pixels.data(), num_bytes);
   const auto callback =
       +[](void* user) { delete[] reinterpret_cast<std::byte*>(user); };
 
@@ -104,8 +112,6 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   texture_data.num_bytes = num_bytes;
   texture_data.user_data = bytes;
   texture_data.release = callback;
-
-  std::memcpy(bytes, pixels, num_bytes);
   mjrf_uploadTexture(texture, &texture_data);
   return tex_id;
 }
@@ -309,26 +315,4 @@ void ImguiBridge::PrepareRenderables(int count) {
     renderables_.pop_back();
   }
 }
-
-mjrCamera ImguiBridge::GetCamera(int width, int height) const {
-  mjrCamera camera;
-  camera.orthographic = true;
-  camera.pos[0] = 0.0f;
-  camera.pos[1] = 0.0f;
-  camera.pos[2] = 1.0f;
-  camera.forward[0] = 0.0f;
-  camera.forward[1] = 0.0f;
-  camera.forward[2] = -1.0f;
-  camera.up[0] = 0.0f;
-  camera.up[1] = 1.0f;
-  camera.up[2] = 0.0f;
-  camera.frustum_top = 0.0f;
-  camera.frustum_near = 0.0f;
-  camera.frustum_far = 1.0f;
-  camera.frustum_center = width / 2.0f;
-  camera.frustum_width = width / 2.0f;
-  camera.frustum_bottom = height;
-  return camera;
-}
-
 }  // namespace mujoco

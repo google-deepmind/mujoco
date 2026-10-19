@@ -66,10 +66,10 @@ class FilamentRenderer {
 
   // Uploads an image to the backend for GUI rendering, returning the texture
   // ID for the texture. The ID can be used in subsequent calls to update the
-  // texture data. A nullptr pixels argument will free the texture if it exists.
+  // texture data. An empty pixels argument will free the texture if it exists.
   // A texture ID of 0 will create a new texture.
-  int UploadImage(int texture_id, const std::byte* pixels, int width,
-                  int height, int bpp);
+  int UploadImage(int tex_id, std::span<const std::byte> pixels, int width,
+                  int height);
 
   // Rendering flags.
   mjtByte* GetRenderFlags() { return render_flags_; }

@@ -233,11 +233,9 @@ void FilamentRenderer::RenderToTexture(const mjModel* model, mjData* data,
   mjrf_waitForFrame(filament_context_.get(), frame);
 }
 
-int FilamentRenderer::UploadImage(int texture_id, const std::byte* pixels,
-                                  int width, int height, int bpp) {
-  return imgui_bridge_->UploadImage(
-      texture_id, reinterpret_cast<const unsigned char*>(pixels), width, height,
-      bpp);
+int FilamentRenderer::UploadImage(int tex_id, std::span<const std::byte> pixels,
+                                  int width, int height) {
+  return imgui_bridge_->UploadImage(tex_id, pixels, width, height);
 }
 
 double FilamentRenderer::GetGpuFrameMs() { return gpu_frame_ms_; }
@@ -281,7 +279,22 @@ void FilamentRenderer::BuildUxRenderRequest(mjrfRenderRequest* request,
   mjrf_defaultRenderRequest(request);
   request->scene = ux_scene_.get();
   request->draw_mode = mjDRAW_MODE_DEFAULT;
-  request->camera = imgui_bridge_->GetCamera(viewport.width, viewport.height);
+  request->camera.orthographic = true;
+  request->camera.pos[0] = 0.0f;
+  request->camera.pos[1] = 0.0f;
+  request->camera.pos[2] = 1.0f;
+  request->camera.forward[0] = 0.0f;
+  request->camera.forward[1] = 0.0f;
+  request->camera.forward[2] = -1.0f;
+  request->camera.up[0] = 0.0f;
+  request->camera.up[1] = 1.0f;
+  request->camera.up[2] = 0.0f;
+  request->camera.frustum_top = 0.0f;
+  request->camera.frustum_near = 0.0f;
+  request->camera.frustum_far = 1.0f;
+  request->camera.frustum_center = viewport.width / 2.0f;
+  request->camera.frustum_width = viewport.width / 2.0f;
+  request->camera.frustum_bottom = viewport.height;
   request->viewport = viewport;
   request->shadows = false;
   request->reflections = false;

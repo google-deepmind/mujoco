@@ -15,7 +15,9 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_IMGUI_BRIDGE_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_IMGUI_BRIDGE_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -25,7 +27,8 @@
 
 namespace mujoco {
 
-// Creates and manages a SceneView using data read from ImGui.
+// Populates an mjrfScene using data read from ImGui. The scene can then be
+// rendered using an orthographic camera.
 class ImguiBridge {
  public:
   explicit ImguiBridge(mjrfContext* ctx, mjrfScene* scene);
@@ -36,12 +39,10 @@ class ImguiBridge {
   // synced.
   void Update();
 
-  // Returns the camera used for rendering the UX scene.
-  mjrCamera GetCamera(int width, int height) const;
-
   // Uploads texture to be used with ImGui's Image and ImageButton functions.
-  uintptr_t UploadImage(uintptr_t tex_id, const uint8_t* pixels, int width,
-                        int height, int bpp);
+  // An empty pixel buffer with a non-zero `tex_id` will destroy the texture.
+  uintptr_t UploadImage(uintptr_t tex_id, std::span<const std::byte> pixels,
+                        int width, int height);
 
   ImguiBridge(const ImguiBridge&) = delete;
   ImguiBridge& operator=(const ImguiBridge&) = delete;
@@ -63,7 +64,6 @@ class ImguiBridge {
   std::unordered_map<uintptr_t, UniquePtr<mjrfTexture>> textures_;
   uintptr_t next_tex_id_ = 1;
 };
-
 }  // namespace mujoco
 
 #endif  // MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_IMGUI_BRIDGE_H_

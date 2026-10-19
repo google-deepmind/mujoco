@@ -384,7 +384,12 @@ uintptr_t AppCallbacks::UploadTexture(uintptr_t current, const std::byte* rgba,
                                       uint32_t width, uint32_t height) {
   // All GUI textures are RGBA8. When rgba is nullptr this is a destruction
   // request and the format is ignored.
-  return g_app.renderer->UploadImage(current, rgba, width, height, 4);
+  const size_t num_bytes = width * height * 4;
+  if (rgba) {
+      return g_app.renderer->UploadImage(current, {rgba, num_bytes}, width, height);
+  } else {
+    return g_app.renderer->UploadImage(current, {}, width, height);
+  }
 }
 
 bool AppCallbacks::GpuReady() { return IsFilamentReady(); }

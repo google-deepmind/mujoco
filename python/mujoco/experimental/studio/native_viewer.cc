@@ -147,8 +147,9 @@ class Viewer {
   intptr_t UploadImage(intptr_t tex_id, const std::string img, int width,
                        int height, int bpp) {
     py::gil_scoped_release no_gil;
-    return renderer_->UploadImage(tex_id, (const std::byte*)img.data(), width,
-                                  height, bpp);
+    auto bytes = reinterpret_cast<const std::byte*>(img.data());
+    const size_t num_bytes = img.size();
+    return renderer_->UploadImage(tex_id, {bytes, num_bytes}, width, height);
   }
 
   std::string GetDropFile() { return window_->GetDropFile(); }
