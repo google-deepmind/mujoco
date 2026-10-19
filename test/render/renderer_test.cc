@@ -500,8 +500,18 @@ TEST_F(RendererTest, TextureGeneratesMipmaps) {
   mjrf_uploadTexture(texture.get(), &tex_data);
 
   UniquePtr<mjrfMesh> mesh = MakeQuadMesh(ctx, /*small=*/true);
-  UniquePtr<mjrfRenderable> renderable =
-      MakeRenderable(ctx, mesh.get(), texture.get());
+  mjrfMaterial material;
+  mjrf_defaultMaterial(&material);
+  material.metallic = 0.0f;
+  material.emissive_texture = texture.get();
+
+  mjrfRenderableParams params;
+  mjrf_defaultRenderableParams(&params);
+  params.cast_shadow = false;
+  params.receive_shadow = false;
+  UniquePtr<mjrfRenderable> renderable = CreateRenderable(ctx, params);
+  mjrf_setRenderableMesh(renderable.get(), mesh.get(), 0, 0);
+  mjrf_setRenderableMaterial(renderable.get(), &material);
 
   mjrfRenderTargetConfig target_config;
   mjrf_defaultRenderTargetConfig(&target_config);
@@ -518,12 +528,28 @@ TEST_F(RendererTest, TextureGeneratesMipmaps) {
 
   Renderer::View views[1];
   SetupView(&views[0], renderer.GetSceneHandle("scene"), target, 4, 4);
+  views[0].camera.frustum_bottom = 0.0f;
+  views[0].camera.frustum_top = 4.0f;
   renderer.Render(views);
 
   std::span<const std::byte> pixels = renderer.GetPixels(target);
   ASSERT_EQ(pixels.size(), 4 * 4 * 3);
   for (size_t i = 0; i < pixels.size(); ++i) {
     EXPECT_NEAR(static_cast<uint8_t>(pixels[i]), 15, 2);
+  }
+
+  // UI (decor) materials sample level 0 directly without mipmapping.
+  mjrf_removeSceneRenderable(scene, renderable.get());
+  UniquePtr<mjrfRenderable> decor_renderable =
+      MakeRenderable(ctx, mesh.get(), texture.get());
+  mjrf_addSceneRenderable(scene, decor_renderable.get());
+  SetupView(&views[0], renderer.GetSceneHandle("scene"), target, 4, 4);
+  renderer.Render(views);
+
+  pixels = renderer.GetPixels(target);
+  ASSERT_EQ(pixels.size(), 4 * 4 * 3);
+  for (size_t i = 0; i < pixels.size(); ++i) {
+    EXPECT_NEAR(static_cast<uint8_t>(pixels[i]), 60, 2);
   }
 }
 }  // namespace
