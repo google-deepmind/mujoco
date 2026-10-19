@@ -65,6 +65,14 @@ def create_initialized_egl_device_display():
 EGL_DISPLAY = None
 
 
+def _terminate_display():
+  """Terminates EGL_DISPLAY at exit and marks it as no longer usable."""
+  global EGL_DISPLAY
+  if EGL_DISPLAY is not None:
+    EGL.eglTerminate(EGL_DISPLAY)
+    EGL_DISPLAY = None
+
+
 EGL_ATTRIBUTES = (
     EGL.EGL_RED_SIZE, 8,
     EGL.EGL_GREEN_SIZE, 8,
@@ -93,14 +101,15 @@ class GLContext:
     global EGL_DISPLAY
     if EGL_DISPLAY is None:
       # only initialize for the first time
-      EGL_DISPLAY = create_initialized_egl_device_display()
-      if EGL_DISPLAY == EGL.EGL_NO_DISPLAY:
+      display = create_initialized_egl_device_display()
+      if display == EGL.EGL_NO_DISPLAY:
         raise ImportError(
           "Cannot initialize a EGL device display. This likely means that your EGL "
           "driver does not support the PLATFORM_DEVICE extension, which is "
           "required for creating a headless rendering context."
         )
-      atexit.register(EGL.eglTerminate, EGL_DISPLAY)
+      EGL_DISPLAY = display
+      atexit.register(_terminate_display)
     EGL.eglChooseConfig(
         EGL_DISPLAY,
         EGL_ATTRIBUTES,
@@ -126,7 +135,7 @@ class GLContext:
   def free(self):
     """Frees resources associated with this context."""
     global EGL_DISPLAY
-    if self._context:
+    if EGL_DISPLAY is not None and self._context:
       current_context = EGL.eglGetCurrentContext()
       if current_context and self._context.address == current_context.address:
         EGL.eglMakeCurrent(EGL_DISPLAY, EGL.EGL_NO_SURFACE,
