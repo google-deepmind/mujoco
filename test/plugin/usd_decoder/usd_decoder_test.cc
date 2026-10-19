@@ -22,15 +22,15 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
-#include "third_party/usd/v26/pxr/base/arch/fileSystem.h"
-#include "third_party/usd/v26/pxr/base/tf/token.h"
-#include "third_party/usd/v26/pxr/usd/sdf/layer.h"
-#include "third_party/usd/v26/pxr/usd/sdf/path.h"
-#include "third_party/usd/v26/pxr/usd/sdf/types.h"
-#include "third_party/usd/v26/pxr/usd/usd/attribute.h"
-#include "third_party/usd/v26/pxr/usd/usd/prim.h"
-#include "third_party/usd/v26/pxr/usd/usd/relationship.h"
-#include "third_party/usd/v26/pxr/usd/usd/stage.h"
+#include <pxr/base/arch/fileSystem.h>
+#include <pxr/base/tf/token.h>
+#include <pxr/usd/sdf/layer.h>
+#include <pxr/usd/sdf/path.h>
+#include <pxr/usd/sdf/types.h>
+#include <pxr/usd/usd/attribute.h>
+#include <pxr/usd/usd/prim.h>
+#include <pxr/usd/usd/relationship.h>
+#include <pxr/usd/usd/stage.h>
 
 namespace mujoco {
 namespace {
