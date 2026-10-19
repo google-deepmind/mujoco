@@ -221,7 +221,7 @@ class App {
   // Requests that the currently loaded model be reloaded at the next update.
   void RequestModelReload();
 
-  // (Re)builds the model based on the given configmration.
+  // (Re)builds the model based on the given configuration.
   void BuildModel(const BuildModelInfo& info);
 
   // Updates the currently loaded model to the given model. If model is null,
@@ -281,6 +281,9 @@ class App {
   bool has_spec() const { return model_holder_ && model_holder_->spec(); }
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
+
+  std::vector<std::byte> RenderToTexture(mjvCamera* camera, int width,
+                                         int height);
 
   std::unique_ptr<Window> window_;
   std::unique_ptr<FilamentRenderer> renderer_;
