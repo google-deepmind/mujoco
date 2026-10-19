@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//:build_defs.bzl", "MJ_ROOT", "mujoco_test_tags")
 
 licenses(["notice"])
@@ -183,5 +184,36 @@ cc_test(
         "//:mujoco",
         "//src/engine:engine_io",
         "@googletest//:gtest_main",
+    ],
+)
+
+_NM = "$(NM)"
+
+# Checks that the shared MuJoCo library exports exactly MuJoCo's API.
+genrule(
+    name = "mujoco_shared_exports",
+    srcs = ["//:mujoco_shared"],
+    outs = ["mujoco_shared_exports.txt"],
+    # Lists the symbols the shared library exports, without the extra leading
+    # underscore of Mach-O names or ELF symbol versions. Running nm here, at
+    # build time, lets the test itself run on any host.
+    cmd = select({
+        "@platforms//os:macos": _NM + " -g --defined-only $< | awk '{print $$NF}' | sed 's/^_//' > $@",
+        "//conditions:default": _NM + " -D --defined-only $< | awk '{print $$NF}' | sed 's/@.*$$//' > $@",
+    }),
+    toolchains = ["@rules_cc//cc:current_cc_toolchain"],
+)
+
+sh_test(
+    name = "mujoco_shared_exports_test",
+    size = "small",
+    srcs = ["mujoco_shared_exports_test.sh"],
+    args = [
+        "$(rootpath :mujoco_shared_exports)",
+        "$(rootpath //:mujoco_api_header)",
+    ],
+    data = [
+        ":mujoco_shared_exports",
+        "//:mujoco_api_header",
     ],
 )

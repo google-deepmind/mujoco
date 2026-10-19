@@ -3,6 +3,7 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
 package(default_visibility = ["//visibility:private"])
 
@@ -11,7 +12,16 @@ licenses(["notice"])
 exports_files([
     ".clang-format",
     "LICENSE",
+    "mujoco_plugin.exported_symbols",
+    "mujoco_plugin.lds",
 ])
+
+# The header declaring MuJoCo's API, for the shared library's exports test.
+filegroup(
+    name = "mujoco_api_header",
+    srcs = ["include/mujoco/mujoco.h"],
+    visibility = ["//test:__pkg__"],
+)
 
 package_group(
     name = "visibility",
@@ -32,6 +42,41 @@ cc_library(
         ":_io_plugins",  # buildcleaner: keep
         ":graphics_native",
     ],
+)
+
+# The MuJoCo library as a shared library, like the CMake build's libmujoco:
+# only MuJoCo's API is exported (the mj* functions and variables, and the
+# private _mj* functions used by the Python bindings). Engine internals and the
+# bundled third-party code stay hidden.
+cc_shared_library(
+    name = "mujoco_shared",
+    additional_linker_inputs = select({
+        "@platforms//os:macos": [":mujoco.exported_symbols"],
+        "//conditions:default": [":mujoco.lds"],
+    }),
+    # Libraries linked into this one, which other cc_shared_libraries (the
+    # plugins, the Python extensions) link dynamically instead of statically.
+    # Unrelated to which symbols are exported.
+    exports_filter = ["//:__subpackages__"],
+    shared_lib_name = select({
+        "@platforms//os:macos": "libmujoco.dylib",
+        "//conditions:default": "libmujoco.so",
+    }),
+    # Windows would need a different way to choose the exported symbols.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    user_link_flags = select({
+        "@platforms//os:macos": [
+            "-Wl,-exported_symbols_list,$(execpath :mujoco.exported_symbols)",
+        ],
+        "//conditions:default": [
+            "-Wl,--version-script=$(execpath :mujoco.lds)",
+        ],
+    }),
+    visibility = [":visibility"],
+    deps = [":mujoco"],
 )
 
 cc_library(

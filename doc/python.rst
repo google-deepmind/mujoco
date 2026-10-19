@@ -991,6 +991,10 @@ provides the ``mujoco`` package, so Python targets in your own Bazel module can 
        deps = ["@mujoco//python/mujoco"],
    )
 
+As in the wheel, the bindings link MuJoCo dynamically (``@mujoco//:mujoco_shared``), and the bundled plugins are
+separate shared libraries that ``mujoco`` loads when it is imported. C++ code in the same process that links MuJoCo the
+same way shares the engine with the bindings.
+
 To run the bindings' tests from the root of the cloned repository, use ``bazel test //python/...``.
 
 The Bazel build supports the Python versions listed in ``MODULE.bazel``, and installs the bindings' PyPI dependencies

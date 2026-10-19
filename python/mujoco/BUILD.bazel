@@ -25,28 +25,88 @@ exports_files([
     "CMakeLists.txt",
 ])
 
-# A single shared copy of the MuJoCo engine (plus the bundled plugins) for the
-# extension modules below. Each extension module is its own shared object, so
-# linking the engine statically into each one would give every module its own
-# copy of the engine's global state (plugin registry, error handlers,
-# allocators); the CMake build avoids this the same way, with a shared
-# libmujoco. In the Bazel build, mujoco_pybind_extension links this into every
-# extension.
+# The bundled plugins as separate shared libraries in plugin/, linked against
+# the shared engine library like the extension modules. In the Bazel build they
+# are data of :mujoco, and __init__.py loads them at import time, as in the
+# CMake-built wheel, which ships the same libraries.
 cc_shared_library(
-    name = "libmujoco",
-    # The engine and plugin targets, which are the only libraries linked in.
-    exports_filter = ["//:__subpackages__"],
-    shared_lib_name = select({
-        "@platforms//os:macos": "libmujoco_python.dylib",
-        "//conditions:default": "libmujoco_python.so",
+    name = "plugin_actuator",
+    additional_linker_inputs = select({
+        "@platforms//os:macos": ["//:mujoco_plugin.exported_symbols"],
+        "//conditions:default": ["//:mujoco_plugin.lds"],
     }),
-    deps = [
-        "//:mujoco",
-        "//plugin/actuator:register",
-        "//plugin/elasticity:register",
-        "//plugin/sdf:register",
-        "//plugin/sensor:register",
-    ],
+    dynamic_deps = ["//:mujoco_shared"],
+    shared_lib_name = select({
+        "@platforms//os:macos": "plugin/libactuator.dylib",
+        "//conditions:default": "plugin/libactuator.so",
+    }),
+    user_link_flags = select({
+        "@platforms//os:macos": ["-Wl,-exported_symbols_list,$(execpath //:mujoco_plugin.exported_symbols)"],
+        "//conditions:default": [
+            "-Wl,--version-script=$(execpath //:mujoco_plugin.lds)",
+        ],
+    }),
+    deps = ["//plugin/actuator:register"],
+)
+
+cc_shared_library(
+    name = "plugin_elasticity",
+    additional_linker_inputs = select({
+        "@platforms//os:macos": ["//:mujoco_plugin.exported_symbols"],
+        "//conditions:default": ["//:mujoco_plugin.lds"],
+    }),
+    dynamic_deps = ["//:mujoco_shared"],
+    shared_lib_name = select({
+        "@platforms//os:macos": "plugin/libelasticity.dylib",
+        "//conditions:default": "plugin/libelasticity.so",
+    }),
+    user_link_flags = select({
+        "@platforms//os:macos": ["-Wl,-exported_symbols_list,$(execpath //:mujoco_plugin.exported_symbols)"],
+        "//conditions:default": [
+            "-Wl,--version-script=$(execpath //:mujoco_plugin.lds)",
+        ],
+    }),
+    deps = ["//plugin/elasticity:register"],
+)
+
+cc_shared_library(
+    name = "plugin_sdf",
+    additional_linker_inputs = select({
+        "@platforms//os:macos": ["//:mujoco_plugin.exported_symbols"],
+        "//conditions:default": ["//:mujoco_plugin.lds"],
+    }),
+    dynamic_deps = ["//:mujoco_shared"],
+    shared_lib_name = select({
+        "@platforms//os:macos": "plugin/libsdf_plugin.dylib",
+        "//conditions:default": "plugin/libsdf_plugin.so",
+    }),
+    user_link_flags = select({
+        "@platforms//os:macos": ["-Wl,-exported_symbols_list,$(execpath //:mujoco_plugin.exported_symbols)"],
+        "//conditions:default": [
+            "-Wl,--version-script=$(execpath //:mujoco_plugin.lds)",
+        ],
+    }),
+    deps = ["//plugin/sdf:register"],
+)
+
+cc_shared_library(
+    name = "plugin_sensor",
+    additional_linker_inputs = select({
+        "@platforms//os:macos": ["//:mujoco_plugin.exported_symbols"],
+        "//conditions:default": ["//:mujoco_plugin.lds"],
+    }),
+    dynamic_deps = ["//:mujoco_shared"],
+    shared_lib_name = select({
+        "@platforms//os:macos": "plugin/libsensor.dylib",
+        "//conditions:default": "plugin/libsensor.so",
+    }),
+    user_link_flags = select({
+        "@platforms//os:macos": ["-Wl,-exported_symbols_list,$(execpath //:mujoco_plugin.exported_symbols)"],
+        "//conditions:default": [
+            "-Wl,--version-script=$(execpath //:mujoco_plugin.lds)",
+        ],
+    }),
+    deps = ["//plugin/sensor:register"],
 )
 
 py_library(
@@ -68,6 +128,10 @@ py_library(
         ":_rollout",
         ":_specs",
         ":_structs",
+        ":plugin_actuator",
+        ":plugin_elasticity",
+        ":plugin_sdf",
+        ":plugin_sensor",
     ],
     imports = [".."],
     visibility = [":visibility"],

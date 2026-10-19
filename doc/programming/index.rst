@@ -155,6 +155,10 @@ To use MuJoCo from your own Bazel module, add it to your ``MODULE.bazel``. MuJoC
 The main targets are:
 
 - ``@mujoco``: the MuJoCo library. Its headers are included as ``#include <mujoco/mujoco.h>``.
+- ``@mujoco//:mujoco_shared``: MuJoCo as a shared library (``libmujoco.so``, or ``libmujoco.dylib`` on macOS) which,
+  like the one built with CMake, exports only the MuJoCo API. Add it to the ``dynamic_deps`` of a ``cc_binary`` or
+  ``cc_shared_library`` that depends on ``@mujoco`` to link MuJoCo dynamically, for example to share one copy of MuJoCo
+  with the Python bindings.
 - ``@mujoco//plugin/<name>:register``, where ``<name>`` is ``actuator``, ``elasticity``, ``sdf`` or ``sensor``: the
   bundled plugins, which register themselves when linked in.
 - ``@mujoco//python/mujoco``: the Python bindings, see :ref:`PyBuildBazel`.
