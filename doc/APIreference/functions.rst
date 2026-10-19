@@ -1900,7 +1900,9 @@ m is only required to contain the size fields from MJMODEL_INTS.
 
 .. mujoco-include:: mjv_copyData
 
-Copy mjData, skip large arrays not required for visualization.
+Copy :ref:`mjData`, skipping large arrays not required for visualization, like the constraint Jacobian. The copy is
+meant for visualization, e.g. with :ref:`mjv_updateScene`; the skipped arrays are ``NULL``, so it is not a valid input
+to simulation functions.
 
 .. _mj_resetCtrl:
 

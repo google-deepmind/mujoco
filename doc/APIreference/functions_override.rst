@@ -170,6 +170,12 @@ depend on qpos. Calling the dynamics with skipstage = :ref:`mjSTAGE_POS<mjtStage
 This section contains functions that load/initialize the model or other data structures. Their use is well illustrated
 in the code samples.
 
+.. _mjv_copyData:
+
+Copy :ref:`mjData`, skipping large arrays not required for visualization, like the constraint Jacobian. The copy is
+meant for visualization, e.g. with :ref:`mjv_updateScene`; the skipped arrays are ``NULL``, so it is not a valid input
+to simulation functions.
+
 .. _Printing:
 
 These functions can be used to print various quantities to the screen for debugging purposes.
