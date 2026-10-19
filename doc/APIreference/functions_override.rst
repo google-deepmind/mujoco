@@ -1029,6 +1029,16 @@ which were discarded are no longer valid. Assets are read as in :ref:`mj_compile
 a discarded geom. Returns the number of elements discarded, 0 if the spec is unchanged, or -1 on error, in which case
 nothing is discarded.
 
+.. _mjs_dedupAssets:
+
+Merge the textures and meshes of the spec which would compile to the same asset: textures with the same resolved file
+or buffer and the same parameters, meshes with the same resolved file or arrays and the same parameters, names
+excluded. The first asset of each group keeps its name, every reference to the others (materials, lights, geoms, sites,
+default classes, sensors, tuples) is rewritten to it, and the others are deleted as by :ref:`mjs_delete`, so pointers
+to them are no longer valid. An unnamed asset is left alone, as is a mesh with a plugin. Nothing is read from disk: a
+model which attaches the same sub-model several times is merged without its asset files. Returns the number of assets
+merged, 0 if the spec is unchanged, or -1 on error, in which case nothing is merged.
+
 .. _mjs_adoptInertial:
 
 Make the inertial which compilation infers for a body part of the spec. The mass, inertia and inertial frame which the

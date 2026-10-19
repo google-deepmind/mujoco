@@ -4288,6 +4288,7 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
                                    const mjsOrientation* orientation);
 int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
 int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
+int mjs_dedupAssets(mjSpec* s);
 int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);
 mjsFrame* mjs_bodyToFrame(mjsBody** body);
 void mjs_setUserValue(mjsElement* element, const char* key, const void* data);

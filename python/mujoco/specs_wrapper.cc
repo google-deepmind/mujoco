@@ -155,6 +155,14 @@ int MjSpec::DiscardVisual(mjVFS* vfs) {
   return result;
 }
 
+int MjSpec::DedupAssets() {
+  const int result = mjs_dedupAssets(ptr);
+  if (result < 0) {
+    throw py::value_error(mjs_getError(ptr));
+  }
+  return result;
+}
+
 raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
   std::optional<mjVFS> local_vfs;
   vfs = AssetsVfs(vfs, local_vfs);

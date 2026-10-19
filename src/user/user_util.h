@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -322,6 +323,19 @@ std::optional<std::string_view> mjuu_parseContentTypeAttrSubtype(std::string_vie
 
 // convert filename extension to content type; return empty string if not found
 std::string mjuu_extToContentType(std::string_view filename);
+
+// append the bytes of a value to a key
+template <class T>
+inline void mjuu_addkey(std::string& key, const T& value) {
+  static_assert(std::is_trivially_copyable_v<T>);
+  key.append(reinterpret_cast<const char*>(&value), sizeof(T));
+}
+
+// append a string to a key, terminated so that consecutive strings cannot run together
+inline void mjuu_addkey(std::string& key, const std::string& value) {
+  key += value;
+  key += '\0';
+}
 
 // get the length of the dirname portion of a given path
 int mjuu_dirnamelen(const char* path);

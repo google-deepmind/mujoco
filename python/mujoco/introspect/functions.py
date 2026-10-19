@@ -12431,6 +12431,20 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Discard the visual elements of the spec; return the number discarded, -1 on error.',  # pylint: disable=line-too-long
      )),
+    ('mjs_dedupAssets',
+     FunctionDecl(
+         name='mjs_dedupAssets',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+         ),
+         doc='Merge the textures and meshes of the spec which would compile to the same asset; return the number merged, -1 on error.',  # pylint: disable=line-too-long
+     )),
     ('mjs_adoptInertial',
      FunctionDecl(
          name='mjs_adoptInertial',

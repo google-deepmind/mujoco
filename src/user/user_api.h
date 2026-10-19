@@ -510,6 +510,9 @@ MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
 // Discard the visual elements of the spec; return the number discarded, -1 on error.
 MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
 
+// Merge duplicate textures and meshes in the spec; return the number merged, -1 on error.
+MJAPI int mjs_dedupAssets(mjSpec* s);
+
 // Make the inertial which compilation infers for a body part of the spec, return 0 on success.
 MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);
 

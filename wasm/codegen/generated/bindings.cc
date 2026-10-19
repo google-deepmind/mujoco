@@ -2523,6 +2523,10 @@ std::optional<MjsElement> mjs_attach_wrapper(MjsElement& parent, const MjsElemen
   return MjsElement(result);
 }
 
+int mjs_dedupAssets_wrapper(MjSpec& s) {
+  return mjs_dedupAssets(s.get());
+}
+
 void mjs_defaultActuator_wrapper(MjsActuator& actuator) {
   mjs_defaultActuator(actuator.get());
 }
@@ -6532,6 +6536,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_asTexture", &mjs_asTexture_wrapper);
   function("mjs_asTuple", &mjs_asTuple_wrapper);
   function("mjs_attach", &mjs_attach_wrapper);
+  function("mjs_dedupAssets", &mjs_dedupAssets_wrapper);
   function("mjs_defaultActuator", &mjs_defaultActuator_wrapper);
   function("mjs_defaultBody", &mjs_defaultBody_wrapper);
   function("mjs_defaultCamera", &mjs_defaultCamera_wrapper);

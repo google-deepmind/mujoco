@@ -548,6 +548,18 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         A VFS to read assets from. Cannot be used with assets.
     )mydelimiter");
   mjSpec.def(
+      "dedup_assets", [](MjSpec& self) { return self.DedupAssets(); },
+      R"mydelimiter(
+    Merges the duplicate textures and meshes of the spec.
+
+    Textures and meshes which would compile to the same asset, with the same
+    resolved file or buffers and the same parameters, are merged: the first of
+    each group keeps its name, every reference to the others is rewritten to it
+    and the others are deleted. Objects referring to the deleted elements must
+    not be used afterwards. Nothing is read from disk. Returns the number of
+    assets merged.
+    )mydelimiter");
+  mjSpec.def(
       "adopt_inertial",
       [](MjSpec& self, raw::MjsBody* body, std::optional<MjVfs*> vfs) {
         self.AdoptInertial(body, vfs.has_value() ? (*vfs)->get() : nullptr);

@@ -1414,6 +1414,57 @@ class SpecsTest(absltest.TestCase):
       spec.discard_visual()
     self.assertIsNotNone(spec.geom('visual'))
 
+  def test_dedup_assets(self):
+    spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
+        <mujoco>
+          <asset>
+            <texture name="tex1" type="2d" builtin="checker" width="8" height="8"/>
+            <texture name="tex2" type="2d" builtin="checker" width="8" height="8"/>
+            <texture name="tex3" type="2d" builtin="checker" width="8" height="16"/>
+            <material name="mat1" texture="tex1"/>
+            <material name="mat2" texture="tex2"/>
+            <material name="mat3" texture="tex3"/>
+            <mesh name="mesh1" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+            <mesh name="mesh2" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+            <mesh name="mesh3" vertex="0 0 0  1 0 0  0 1 0  0 0 1" scale="2 2 2"/>
+          </asset>
+          <worldbody>
+            <geom type="mesh" mesh="mesh1" material="mat1"/>
+            <geom type="mesh" mesh="mesh2" material="mat2"/>
+            <geom type="mesh" mesh="mesh3" material="mat3"/>
+          </worldbody>
+        </mujoco>
+    """))
+    self.assertEqual(spec.dedup_assets(), 2)
+    self.assertIsNotNone(spec.texture('tex1'))
+    self.assertIsNone(spec.texture('tex2'))
+    self.assertIsNotNone(spec.texture('tex3'))
+    self.assertIsNotNone(spec.mesh('mesh1'))
+    self.assertIsNone(spec.mesh('mesh2'))
+    self.assertIsNotNone(spec.mesh('mesh3'))
+    self.assertEqual(spec.material('mat2').textures[mujoco.mjtTextureRole.mjTEXROLE_RGB], 'tex1')
+    self.assertEqual(spec.geoms[1].meshname, 'mesh1')
+    self.assertEqual(spec.dedup_assets(), 0)
+    model = spec.compile()
+    self.assertEqual(model.ntex, 2)
+    self.assertEqual(model.nmesh, 2)
+    self.assertEqual(model.geom_dataid[0], model.geom_dataid[1])
+    self.assertEqual(
+        model.mat_texid[0, mujoco.mjtTextureRole.mjTEXROLE_RGB],
+        model.mat_texid[1, mujoco.mjtTextureRole.mjTEXROLE_RGB],
+    )
+
+  def test_dedup_assets_of_attached_spec_error(self):
+    parent = mujoco.MjSpec()
+    child = mujoco.MjSpec()
+    child.worldbody.add_body(name='child_body')
+    frame = parent.worldbody.add_frame()
+    parent.attach(child, frame=frame, prefix='child_')
+    with self.assertRaisesRegex(
+        ValueError, 'Cannot merge the assets of an attached mjSpec.'
+    ):
+      child.dedup_assets()
+
   def test_adopt_inertial(self):
     spec = mujoco.MjSpec.from_string(textwrap.dedent("""\
         <mujoco>

@@ -5345,6 +5345,168 @@ int mjCModel::DiscardVisual(const mjVFS* vfs) {
 }
 
 
+//------------------------------- MERGE ASSETS -----------------------------------------------------
+
+// map the assets of a list which repeat an earlier one, with the same key and the same content,
+// to that first one
+template <class T, class Mergeable, class Key, class Content>
+static std::unordered_map<T*, T*> duplicates(const std::vector<T*>& list,
+                                             Mergeable              mergeable,
+                                             Key                    key,
+                                             Content                content) {
+  std::unordered_map<T*, T*>                       merged;
+  std::unordered_map<std::string, std::vector<T*>> groups;
+  for (T* asset : list) {
+    if (!mergeable(asset)) { continue; }
+    std::vector<T*>& group = groups[key(asset)];
+    auto             same  = [&](const T* other) { return content(asset, other); };
+    auto             first = std::find_if(group.begin(), group.end(), same);
+    if (first == group.end()) {
+      group.push_back(asset);
+    } else {
+      merged[asset] = *first;
+    }
+  }
+  return merged;
+}
+
+
+// merge the textures and the meshes which would compile to the same asset: the first of each group
+// keeps its name, every reference to the others is rewritten to it, and the others are deleted as
+// mjs_delete would. Nothing is read: an asset is identified by what compilation reads from the
+// spec, its resolved file or its buffers and all its parameters, names excluded. Return the number
+// of assets merged
+int mjCModel::DedupAssets() {
+  // set ids and the maps from names to ids; the names of the assets must be unique, since the
+  // references to them are rewritten by name
+  ProcessLists(/*checkrepeat=*/false);
+  CheckRepeat(mjOBJ_TEXTURE);
+  CheckRepeat(mjOBJ_MESH);
+
+  // what identifies an asset: its key, and the buffers which are compared without being copied
+  auto texturekey     = [](const mjCTexture* tex) { return tex->AssetKey(); };
+  auto texturecontent = [](const mjCTexture* a, const mjCTexture* b) {
+    return a->spec_data_ == b->spec_data_;
+  };
+  auto meshkey     = [](const mjCMesh* mesh) { return mesh->AssetKey(); };
+  auto meshcontent = [](const mjCMesh* a, const mjCMesh* b) {
+    return a->spec_vert_ == b->spec_vert_ &&
+           a->spec_normal_ == b->spec_normal_ &&
+           a->spec_texcoord_ == b->spec_texcoord_ &&
+           a->spec_face_ == b->spec_face_ &&
+           a->spec_facenormal_ == b->spec_facenormal_ &&
+           a->spec_facetexcoord_ == b->spec_facetexcoord_ &&
+           a->spec_node_ == b->spec_node_ &&
+           a->spec_tet_ == b->spec_tet_;
+  };
+  // an unnamed asset cannot be referenced, it is left as it is; a mesh with a plugin is the
+  // instance of the plugin, it is not merged
+  auto named    = [](const mjCTexture* tex) { return !tex->name.empty(); };
+  auto noplugin = [](const mjCMesh* mesh) {
+    return !mesh->name.empty() && !mesh->spec.plugin.active;
+  };
+  auto textures = duplicates(textures_, named, texturekey, texturecontent);
+  auto meshes   = duplicates(meshes_, noplugin, meshkey, meshcontent);
+  int  nmerged  = textures.size() + meshes.size();
+  if (!nmerged) { return 0; }
+
+  // the names which replace those of the merged assets
+  std::unordered_map<std::string, std::string> texnames, meshnames;
+  for (const auto& [tex, first] : textures) { texnames[tex->name] = first->name; }
+  for (const auto& [mesh, first] : meshes) { meshnames[mesh->name] = first->name; }
+  auto rename = [](const std::unordered_map<std::string, std::string>& names, std::string& name) {
+    auto it = names.find(name);
+    if (it != names.end()) { name = it->second; }
+  };
+  auto texture = [&](std::string& name) { rename(texnames, name); };
+  auto mesh    = [&](std::string& name) { rename(meshnames, name); };
+  auto object  = [&](mjtObj type, std::string& name) {
+    if (type == mjOBJ_TEXTURE) { texture(name); }
+    if (type == mjOBJ_MESH) { mesh(name); }
+  };
+
+  // the merged assets and the instances of the meshes, which the compiled copies of the elements
+  // may point to until the next compilation resolves them again from the names
+  std::unordered_set<const mjCBase*> gone;
+  for (const auto& [tex, first] : textures) { gone.insert(tex); }
+  for (const auto& [m, first] : meshes) { gone.insert(m); }
+  for (const mjCMesh* instance : meshinstances_) {
+    if (gone.count(instance->primary_)) { gone.insert(instance); }
+  }
+  auto drop = [&](auto*& pointer) {
+    if (gone.count(pointer)) { pointer = nullptr; }
+  };
+
+  // everything was checked, the spec is changed from here on: rewrite the references, in the
+  // spec and in the compiled copies of the elements
+  auto material = [&](mjCMaterial* mat) {
+    for (std::string& name : mat->spec_textures_) { texture(name); }
+    for (std::string& name : mat->textures_) { texture(name); }
+  };
+  auto light = [&](mjCLight* l) {
+    texture(l->spec_texture_);
+    texture(l->texture_);
+  };
+  auto geom = [&](mjCGeom* g) {
+    mesh(g->spec_meshname_);
+    mesh(g->meshname_);
+    drop(g->mesh);
+  };
+  auto site = [&](mjCSite* s) {
+    mesh(s->spec_meshname_);
+    mesh(s->meshname_);
+    drop(s->mesh);
+  };
+  for (mjCMaterial* mat : materials_) { material(mat); }
+  for (mjCLight* l : lights_) { light(l); }
+  for (mjCGeom* g : geoms_) { geom(g); }
+  for (mjCSite* s : sites_) { site(s); }
+  for (mjCDef* def : defaults_) {
+    material(&def->Material());
+    light(&def->Light());
+    geom(&def->Geom());
+    site(&def->Site());
+  }
+  for (mjCSensor* sensor : sensors_) {
+    object(sensor->spec.objtype, sensor->spec_objname_);
+    object(sensor->spec.objtype, sensor->objname_);
+    object(sensor->spec.reftype, sensor->spec_refname_);
+    object(sensor->spec.reftype, sensor->refname_);
+    drop(sensor->obj);
+    drop(sensor->ref);
+  }
+  for (mjCTuple* tuple : tuples_) {
+    size_t nobj = std::min(tuple->spec_objtype_.size(), tuple->spec_objname_.size());
+    for (size_t i = 0; i < nobj; i++) { object(tuple->spec_objtype_[i], tuple->spec_objname_[i]); }
+    nobj = std::min(tuple->objtype_.size(), tuple->objname_.size());
+    for (size_t i = 0; i < nobj; i++) { object(tuple->objtype_[i], tuple->objname_[i]); }
+    for (mjCBase*& obj : tuple->obj) { drop(obj); }
+  }
+
+  // delete the merged assets, with the instances which compilation made of the meshes
+  auto istexture = [&](mjCTexture* tex) { return textures.count(tex) > 0; };
+  auto ismesh    = [&](mjCMesh* m) { return meshes.count(m) > 0; };
+  textures_.erase(std::remove_if(textures_.begin(), textures_.end(), istexture), textures_.end());
+  meshes_.erase(std::remove_if(meshes_.begin(), meshes_.end(), ismesh), meshes_.end());
+  for (const auto& [tex, first] : textures) {
+    tex->id = -1;
+    tex->Release();
+  }
+  for (const auto& [m, first] : meshes) {
+    DeleteInstances(meshinstances_, m);
+    m->id = -1;
+    m->Release();
+  }
+
+  // update the ids and the maps from names to ids
+  for (mjCTexture* tex : textures_) { tex->id = -1; }
+  for (mjCMesh* m : meshes_) { m->id = -1; }
+  ProcessLists(/*checkrepeat=*/false);
+  InvalidateSignature();
+  return nmerged;
+}
+
+
 //------------------------------- COMPILER ---------------------------------------------------------
 
 // signature comparisons

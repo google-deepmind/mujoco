@@ -40,6 +40,7 @@
 
 #include "lodepng.h"  // NOLINT
 #include <mujoco/mjspec.h>
+#include <mujoco/mjspecmacro.h>
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "user/user_api.h"
@@ -1598,6 +1599,18 @@ std::string mjCBase::GetAssetContentType(std::string_view resource_name,
   } else {
     return mjuu_extToContentType(resource_name);
   }
+}
+
+
+// the file of an asset of the spec as compilation resolves it: the directory of the spec which
+// owns the asset, the asset directory of its compiler settings, then the file, stripped of its path
+// if the compiler settings ask for it; empty if there is no file
+std::string mjCBase::ResolvedSpecFile(const std::string& dir, std::string file) const {
+  if (file.empty()) { return ""; }
+  if (model->spec.strippath) { file = mjuu_strippath(file); }
+  mjSpec*                owning = model->FindSpec(compiler);
+  mujoco::user::FilePath modeldir(owning ? mjs_getString(owning->modelfiledir) : "");
+  return (modeldir + mujoco::user::FilePath(dir) + mujoco::user::FilePath(file)).Str();
 }
 
 
@@ -5694,6 +5707,44 @@ void mjCTexture::PointToLocal() {
   file              = nullptr;
   content_type      = nullptr;
   cubefiles         = nullptr;
+}
+
+
+// the key under which textures which would compile to the same asset are deduplicated: every
+// field of the spec which compilation reads, names excluded, with the files resolved as the
+// compiler resolves them; the pixel buffer is compared separately
+std::string mjCTexture::AssetKey() const {
+#define X(type, name, dim) +1
+#define XVEC(type, name, dim) +1
+  static_assert((0 MJSTEXTURE_FIELDS) == 21,
+                "a field was added to mjsTexture: decide whether AssetKey reads it");
+#undef X
+#undef XVEC
+  const mjsTexture& s   = spec;
+  std::string       dir = mjs_getString(compiler->texturedir);
+  std::string       key;
+  mjuu_addkey(key, ResolvedSpecFile(dir, spec_file_));
+  for (const std::string& cubefile : spec_cubefiles_) {
+    mjuu_addkey(key, ResolvedSpecFile(dir, cubefile));
+  }
+  mjuu_addkey(key, spec_content_type_);
+  mjuu_addkey(key, s.type);
+  mjuu_addkey(key, s.colorspace);
+  mjuu_addkey(key, s.builtin);
+  mjuu_addkey(key, s.mark);
+  mjuu_addkey(key, s.rgb1);
+  mjuu_addkey(key, s.rgb2);
+  mjuu_addkey(key, s.markrgb);
+  mjuu_addkey(key, s.random);
+  mjuu_addkey(key, s.height);
+  mjuu_addkey(key, s.width);
+  mjuu_addkey(key, s.nchannel);
+  mjuu_addkey(key, s.gridsize);
+  mjuu_addkey(key, s.gridlayout);
+  mjuu_addkey(key, s.hflip);
+  mjuu_addkey(key, s.vflip);
+  mjuu_addkey(key, spec_data_.size());
+  return key;
 }
 
 

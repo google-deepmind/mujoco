@@ -438,6 +438,9 @@ class mjCBase : public mjCBase_ {
   // content type from resource_name; throw on failure
   static std::string GetAssetContentType(std::string_view resource_name, std::string_view raw_text);
 
+  // the file of an asset of the spec as compilation resolves it; empty if there is no file
+  std::string ResolvedSpecFile(const std::string& dir, std::string file) const;
+
   // Add frame transformation
   void SetFrame(mjCFrame* _frame);
 
@@ -1380,6 +1383,9 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
 
+  // what compilation reads from the spec, names excluded: the key of mjs_dedupAssets
+  std::string AssetKey() const;
+
   // make a mesh of a predefined shape
   void MakeHemisphere(int res, bool make_faces, bool make_cap);
   void MakeSphere(int subdiv, bool make_faces);
@@ -1729,6 +1735,9 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   void   PointToLocal(void);
   void   Compile(const mjVFS* vfs);
   double texture_time_ = 0;
+
+  // what compilation reads from the spec, names excluded: the key of mjs_dedupAssets
+  std::string AssetKey() const;
 
   std::string              File() const { return file_; }
   std::string              get_content_type() const { return content_type_; }

@@ -1,0 +1,16 @@
+<mujoco model="child">
+  <asset>
+    <mesh name="torus" file="textured_torus/textured_torus.obj"/>
+    <texture name="carpet" file="textured_torus/carpet.png" type="2d"/>
+    <texture name="checker" type="2d" builtin="checker" width="8" height="8"/>
+    <material name="carpet" texture="carpet"/>
+    <material name="checker" texture="checker"/>
+  </asset>
+  <worldbody>
+    <body name="body">
+      <joint/>
+      <geom type="mesh" mesh="torus" material="carpet"/>
+      <geom type="mesh" mesh="torus" material="checker" pos="0 0 1"/>
+    </body>
+  </worldbody>
+</mujoco>

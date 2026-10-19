@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstddef>
 #include <filesystem>  // NOLINT
 #include <sstream>
 #include <string>
@@ -26,8 +25,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "absl/strings/match.h"
-#include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
+#include <mujoco/mjxmacro.h>
+#include <mujoco/mujoco.h>
 #include "src/xml/xml_api.h"
 #include "src/xml/xml_numeric_format.h"
 #include "test/compare_model.h"
@@ -283,6 +283,149 @@ TEST_P(RecompileCompareTest, SavedAsWritten) {
     mj_deleteSpec(r);
   }
 
+  mj_deleteModel(m);
+  mj_deleteSpec(s);
+}
+
+// The differences between two models outside their assets: the sizes and
+// arrays of meshes, textures, bounding volumes, octrees, names and paths are
+// not compared, nor are the asset ids which elements hold. Returns the first
+// differing field, or an empty string.
+std::string CompareWithoutAssets(const mjModel* m1, const mjModel* m2) {
+  auto asset = [](std::string_view name) {
+    for (std::string_view prefix :
+         {"nmesh",         "ntex",        "nbvh",        "noct",
+          "nnames",        "npaths",      "nbuffer",     "mesh_",
+          "tex_",          "bvh_",        "oct_",        "name_",
+          "names",         "paths",       "geom_dataid", "site_dataid",
+          "mat_texid",     "light_texid", "flex_bvhadr", "skin_pathadr",
+          "hfield_pathadr"}) {
+      if (absl::StartsWith(name, prefix)) return true;
+    }
+    return false;
+  };
+  MJMODEL_POINTERS_PREAMBLE(m1);
+#define X(name) \
+  if (!asset(#name) && m1->name != m2->name) return #name;
+  MJMODEL_SIZES
+#undef X
+#define X(type, name, nr, nc)                                      \
+  if (!asset(#name)) {                                             \
+    for (int i = 0; i < m1->nr * nc; i++) {                        \
+      if (m1->name[i] != m2->name[i]) {                            \
+        return std::string(#name) + "[" + std::to_string(i) + "]"; \
+      }                                                            \
+    }                                                              \
+  }
+  MJMODEL_POINTERS
+#undef X
+  return "";
+}
+
+// True if the meshes of two models hold the same data.
+bool SameMesh(const mjModel* m1, int id1, const mjModel* m2, int id2) {
+  if (id1 < 0 || id2 < 0) return id1 == id2;
+  if (m1->mesh_vertnum[id1] != m2->mesh_vertnum[id2] ||
+      m1->mesh_facenum[id1] != m2->mesh_facenum[id2] ||
+      m1->mesh_normalnum[id1] != m2->mesh_normalnum[id2] ||
+      m1->mesh_texcoordnum[id1] != m2->mesh_texcoordnum[id2] ||
+      (m1->mesh_graphadr[id1] < 0) != (m2->mesh_graphadr[id2] < 0) ||
+      m1->mesh_octnum[id1] != m2->mesh_octnum[id2]) {
+    return false;
+  }
+  for (int i = 0; i < 3; i++) {
+    if (m1->mesh_pos[3 * id1 + i] != m2->mesh_pos[3 * id2 + i]) return false;
+    if (m1->mesh_scale[3 * id1 + i] != m2->mesh_scale[3 * id2 + i])
+      return false;
+  }
+  for (int i = 0; i < 4; i++) {
+    if (m1->mesh_quat[4 * id1 + i] != m2->mesh_quat[4 * id2 + i]) return false;
+  }
+  int nvert = 3 * m1->mesh_vertnum[id1];
+  int nface = 3 * m1->mesh_facenum[id1];
+  const float* vert1 = m1->mesh_vert + 3 * m1->mesh_vertadr[id1];
+  const float* vert2 = m2->mesh_vert + 3 * m2->mesh_vertadr[id2];
+  const int* face1 = m1->mesh_face + 3 * m1->mesh_faceadr[id1];
+  const int* face2 = m2->mesh_face + 3 * m2->mesh_faceadr[id2];
+  return std::equal(vert1, vert1 + nvert, vert2) &&
+         std::equal(face1, face1 + nface, face2);
+}
+
+// True if the textures of two models hold the same data.
+bool SameTexture(const mjModel* m1, int id1, const mjModel* m2, int id2) {
+  if (id1 < 0 || id2 < 0) return id1 == id2;
+  if (m1->tex_type[id1] != m2->tex_type[id2] ||
+      m1->tex_colorspace[id1] != m2->tex_colorspace[id2] ||
+      m1->tex_width[id1] != m2->tex_width[id2] ||
+      m1->tex_height[id1] != m2->tex_height[id2] ||
+      m1->tex_nchannel[id1] != m2->tex_nchannel[id2]) {
+    return false;
+  }
+  int size = m1->tex_width[id1] * m1->tex_height[id1] * m1->tex_nchannel[id1];
+  const mjtByte* data1 = m1->tex_data + m1->tex_adr[id1];
+  const mjtByte* data2 = m2->tex_data + m2->tex_adr[id2];
+  return std::equal(data1, data1 + size, data2);
+}
+
+// Merging the duplicate assets of a compiled spec and compiling again gives a
+// model with the same physics: every field outside the assets is the same,
+// and every geom, site, material and light refers to an asset with the same
+// data. Merging again changes nothing.
+TEST_P(RecompileCompareTest, DedupAssets) {
+  std::string xml = GetParam();
+  std::array<char, 1000> err;
+  mjSpec* s = mj_parseXML(xml.c_str(), 0, err.data(), err.size());
+  if (!s) {
+    GTEST_SKIP() << "Failed to load " << xml << ": " << err.data();
+  }
+  mjModel* m = mj_compile(s, nullptr);
+  if (!m) {
+    std::string error_message = mjs_getError(s);
+    mj_deleteSpec(s);
+    GTEST_SKIP() << "Failed to compile " << xml << ": " << error_message;
+  }
+
+  int nmerged = mjs_dedupAssets(s);
+  ASSERT_GE(nmerged, 0) << xml << ": " << mjs_getError(s);
+  mjModel* m_merged = mj_compile(s, nullptr);
+  ASSERT_THAT(m_merged, NotNull()) << xml << ": " << mjs_getError(s);
+  EXPECT_EQ(m->ntex - m_merged->ntex + m->nmesh - m_merged->nmesh, nmerged)
+      << xml;
+
+  EXPECT_THAT(CompareWithoutAssets(m, m_merged), IsEmpty()) << xml;
+  for (int i = 0; i < m->ngeom; i++) {
+    if (m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) {
+      EXPECT_TRUE(
+          SameMesh(m, m->geom_dataid[i], m_merged, m_merged->geom_dataid[i]))
+          << xml << ": geom " << i;
+    } else {
+      EXPECT_EQ(m->geom_dataid[i], m_merged->geom_dataid[i])
+          << xml << ": geom " << i;
+    }
+  }
+  for (int i = 0; i < m->nsite; i++) {
+    EXPECT_TRUE(
+        SameMesh(m, m->site_dataid[i], m_merged, m_merged->site_dataid[i]))
+        << xml << ": site " << i;
+  }
+  for (int i = 0; i < m->nmat * mjNTEXROLE; i++) {
+    EXPECT_TRUE(
+        SameTexture(m, m->mat_texid[i], m_merged, m_merged->mat_texid[i]))
+        << xml << ": material " << i / mjNTEXROLE << " role " << i % mjNTEXROLE;
+  }
+  for (int i = 0; i < m->nlight; i++) {
+    EXPECT_TRUE(
+        SameTexture(m, m->light_texid[i], m_merged, m_merged->light_texid[i]))
+        << xml << ": light " << i;
+  }
+
+  // applying it again changes nothing
+  mjSpec* once = mj_copySpec(s);
+  EXPECT_EQ(mjs_dedupAssets(s), 0) << xml << ": " << mjs_getError(s);
+  EXPECT_THAT(CompareSpec(once, s), IsEmpty()) << xml;
+
+  mj_deleteSpec(once);
+  mj_deleteModel(m_merged);
   mj_deleteModel(m);
   mj_deleteSpec(s);
 }

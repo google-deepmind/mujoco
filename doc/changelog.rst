@@ -23,6 +23,10 @@ Compiler
 
      **Migration:** Test for an error with ``< 0`` rather than ``!= 0``.
 
+- Added :ref:`mjs_dedupAssets` (``MjSpec.dedup_assets``), which merges the textures and meshes of an :ref:`mjSpec`
+  that would compile to the same asset, as those of a sub-model attached several times do: the first of each group is
+  kept and every reference to the others is rewritten to it. Like :ref:`mjs_fuseStatic`, it returns the number of
+  assets merged.
 - Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole polygon outline using Newell's
   method rather than the first three vertices (:issue:`3691`).
 

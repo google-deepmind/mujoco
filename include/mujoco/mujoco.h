@@ -1977,6 +1977,10 @@ MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
 // Nullable: vfs
 MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
 
+// Merge the textures and meshes of the spec which would compile to the same asset; return the number
+// merged, -1 on error.
+MJAPI int mjs_dedupAssets(mjSpec* s);
+
 // Make the inertial which compilation infers for a body part of the spec, return 0 on success.
 // Nullable: vfs
 MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);

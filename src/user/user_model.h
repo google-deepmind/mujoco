@@ -209,6 +209,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool CopyBack(const mjModel*);         // DECOMPILER: copy numeric back
   int  FuseStatic(const mjVFS* vfs);     // fuse static bodies with parent, return number fused
   int  DiscardVisual(const mjVFS* vfs);  // discard visual elements, return number discarded
+  int  DedupAssets();                    // merge duplicate assets, return number merged
 
   // API for adding model elements
   mjCFlex*     AddFlex();
