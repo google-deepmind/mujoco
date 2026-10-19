@@ -917,7 +917,7 @@ TEST_F(FuseStaticTest, FuseStaticOperation) {
   // the operation followed by a compilation without the option
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 1) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(CompareModel(m_option, m, field), 0) << field;
@@ -1014,7 +1014,7 @@ TEST_F(FuseStaticTest, FuseStaticKeepsBody) {
 
   // without the attribute, the operation fuses the body
   mjs_findBody(spec, "kept")->fuse = 1;
-  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 1) << mjs_getError(spec);
   EXPECT_THAT(mjs_findBody(spec, "kept"), IsNull());
 
   mj_deleteModel(m);
@@ -1051,7 +1051,9 @@ TEST_F(FuseStaticTest, FuseStaticBoundMass) {
     mjSpec* spec =
         mj_parseXMLString(model.c_str(), 0, error.data(), error.size());
     ASSERT_THAT(spec, NotNull()) << error.data();
-    EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 0) << mjs_getError(spec);
+    EXPECT_EQ(mjs_fuseStatic(spec, nullptr),
+              std::string(inertiafromgeom) == "true" ? 0 : 1)
+        << mjs_getError(spec);
     MjModelPtr fuse(mj_compile(spec, nullptr));
     ASSERT_THAT(fuse.get(), NotNull()) << mjs_getError(spec);
 
@@ -1849,7 +1851,7 @@ TEST_F(DiscardVisualTest, DiscardVisualOperation) {
   // the operation followed by a compilation without the option
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 8) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(CompareModel(m_option, m, field), 0) << field;
@@ -1946,7 +1948,7 @@ TEST_F(DiscardVisualTest, DiscardVisualKeepsReferencedAssets) {
   std::array<char, 1024> error;
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 3) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
 
@@ -2018,7 +2020,7 @@ TEST_F(DiscardVisualTest, DiscardVisualInertiaFromGeomTrue) {
   ASSERT_THAT(spec, NotNull()) << error.data();
   mjModel* m_full = mj_compile(spec, nullptr);
   ASSERT_THAT(m_full, NotNull()) << mjs_getError(spec);
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 2) << mjs_getError(spec);
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
   EXPECT_EQ(mjs_findBody(spec, "body")->explicitinertial, 0);
   mjModel* m = mj_compile(spec, nullptr);
@@ -2055,7 +2057,7 @@ TEST_F(DiscardVisualTest, DiscardVisualReadsAssetsIfNeeded) {
   mjSpec* spec =
       mj_parseXMLString(xml_explicit.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 2) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(m->nmesh, 0);
@@ -2167,7 +2169,7 @@ TEST_F(DiscardVisualTest, DiscardVisualDeletesPluginInstances) {
   ASSERT_THAT(spec, NotNull()) << error.data();
   ASSERT_EQ(instances(spec), 3);
 
-  ASSERT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  ASSERT_EQ(mjs_discardVisual(spec, nullptr), 3) << mjs_getError(spec);
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "shares"), IsNull());
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "visual"), IsNull());

@@ -12408,7 +12408,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Fuse the static bodies of the spec with their parents, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Fuse the static bodies of the spec with their parents; return the number fused, -1 on error.',  # pylint: disable=line-too-long
      )),
     ('mjs_discardVisual',
      FunctionDecl(
@@ -12429,7 +12429,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  nullable=True,
              ),
          ),
-         doc='Discard the visual elements of the spec, return 0 on success.',
+         doc='Discard the visual elements of the spec; return the number discarded, -1 on error.',  # pylint: disable=line-too-long
      )),
     ('mjs_adoptInertial',
      FunctionDecl(

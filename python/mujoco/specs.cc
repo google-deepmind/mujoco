@@ -512,7 +512,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
   mjSpec.def(
       "fuse_static",
       [](MjSpec& self, std::optional<MjVfs*> vfs) {
-        self.FuseStatic(vfs.has_value() ? (*vfs)->get() : nullptr);
+        return self.FuseStatic(vfs.has_value() ? (*vfs)->get() : nullptr);
       },
       py::arg("vfs") = py::none(),
       R"mydelimiter(
@@ -520,7 +520,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
 
     Each fused body becomes a frame in its parent, holding what the body held.
     Objects referring to the fused bodies must not be used afterwards. Assets
-    are read as in compile().
+    are read as in compile(). Returns the number of bodies fused.
 
     Parameters
     ----------
@@ -530,7 +530,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
   mjSpec.def(
       "discard_visual",
       [](MjSpec& self, std::optional<MjVfs*> vfs) {
-        self.DiscardVisual(vfs.has_value() ? (*vfs)->get() : nullptr);
+        return self.DiscardVisual(vfs.has_value() ? (*vfs)->get() : nullptr);
       },
       py::arg("vfs") = py::none(),
       R"mydelimiter(
@@ -540,7 +540,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
     collide and are not referenced, and the meshes which are then not used.
     Objects referring to the discarded elements must not be used afterwards.
     Assets are read as in compile(), and only if body inertia is inferred from
-    a discarded geom.
+    a discarded geom. Returns the number of elements discarded.
 
     Parameters
     ----------

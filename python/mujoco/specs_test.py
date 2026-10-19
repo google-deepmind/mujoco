@@ -1352,7 +1352,7 @@ class SpecsTest(absltest.TestCase):
     """))
     self.assertEqual(spec.compile().nbody, 3)
 
-    spec.fuse_static()
+    self.assertEqual(spec.fuse_static(), 1)
     self.assertIsNone(spec.body('static'))
     self.assertEqual(spec.geom('static').frame.pos[0], 1)
     self.assertEqual(spec.geom('static').parent, spec.body('moving'))
@@ -1364,10 +1364,10 @@ class SpecsTest(absltest.TestCase):
     kept = spec.body('moving').add_body(name='kept')
     kept.add_geom(size=[0.1, 0, 0])
     kept.fuse = False
-    spec.fuse_static()
+    self.assertEqual(spec.fuse_static(), 0)
     self.assertIsNotNone(spec.body('kept'))
     kept.fuse = True
-    spec.fuse_static()
+    self.assertEqual(spec.fuse_static(), 1)
     self.assertIsNone(spec.body('kept'))
 
   def test_discard_visual(self):
@@ -1387,7 +1387,7 @@ class SpecsTest(absltest.TestCase):
     """))
     mass = spec.compile().body('body').mass
 
-    spec.discard_visual()
+    self.assertEqual(spec.discard_visual(), 2)
     self.assertIsNone(spec.geom('visual'))
     self.assertIsNone(spec.material('mat'))
     self.assertEqual(spec.geom('collision').material, '')
@@ -1395,6 +1395,7 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.ngeom, 1)
     self.assertEqual(model.nmat, 0)
     np.testing.assert_allclose(model.body('body').mass, mass)
+    self.assertEqual(spec.discard_visual(), 0)
 
     # inertia inferred from a discarded geom cannot be kept under 'true'
     spec = mujoco.MjSpec.from_string(textwrap.dedent("""\

@@ -13,6 +13,16 @@ Engine
 
 Compiler
 ^^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :ref:`mjs_fuseStatic` and :ref:`mjs_discardVisual` now return the number of bodies fused or elements discarded,
+     and -1 on error. Previously they returned 0 on success, so a caller could not tell whether the spec changed. In
+     Python, ``MjSpec.fuse_static`` and ``MjSpec.discard_visual`` return the same number instead of ``None``.
+
+     **Migration:** Test for an error with ``< 0`` rather than ``!= 0``.
+
 - Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole polygon outline using Newell's
   method rather than the first three vertices (:issue:`3691`).
 

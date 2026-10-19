@@ -2031,8 +2031,7 @@ int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs) {
     return -1;
   }
   try {
-    model->FuseStatic(vfs);
-    return 0;
+    return model->FuseStatic(vfs);
   } catch (mjCError& e) {
     model->SetError(e);
     return -1;
@@ -2048,8 +2047,7 @@ int mjs_discardVisual(mjSpec* s, const mjVFS* vfs) {
     return -1;
   }
   try {
-    model->DiscardVisual(vfs);
-    return 0;
+    return model->DiscardVisual(vfs);
   } catch (mjCError& e) {
     model->SetError(e);
     return -1;

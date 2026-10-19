@@ -129,28 +129,30 @@ void MjSpec::AdoptInertial(raw::MjsBody* body, mjVFS* vfs) {
   }
 }
 
-void MjSpec::FuseStatic(mjVFS* vfs) {
+int MjSpec::FuseStatic(mjVFS* vfs) {
   std::optional<mjVFS> local_vfs;
   vfs = AssetsVfs(vfs, local_vfs);
   const int result = mjs_fuseStatic(ptr, vfs);
   if (local_vfs.has_value()) {
     mj_deleteVFS(vfs);
   }
-  if (result) {
+  if (result < 0) {
     throw py::value_error(mjs_getError(ptr));
   }
+  return result;
 }
 
-void MjSpec::DiscardVisual(mjVFS* vfs) {
+int MjSpec::DiscardVisual(mjVFS* vfs) {
   std::optional<mjVFS> local_vfs;
   vfs = AssetsVfs(vfs, local_vfs);
   const int result = mjs_discardVisual(ptr, vfs);
   if (local_vfs.has_value()) {
     mj_deleteVFS(vfs);
   }
-  if (result) {
+  if (result < 0) {
     throw py::value_error(mjs_getError(ptr));
   }
+  return result;
 }
 
 raw::MjModel* MjSpec::Compile(mjVFS* vfs) {
