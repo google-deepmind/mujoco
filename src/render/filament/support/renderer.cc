@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -33,7 +32,6 @@ Renderer::Renderer(const mjrfContextConfig& config)
     : ctx_(CreateContext(config)) {}
 
 Renderer::~Renderer() {
-  views_.clear();
   targets_.clear();
   scenes_.clear();
   ctx_.reset();
@@ -145,40 +143,13 @@ Renderer::RenderTargetHandle Renderer::GetRenderTargetHandle(
   return it->second;
 }
 
-Renderer::View* Renderer::GetView(ViewHandle handle) {
-  if (handle.id < 0 || handle.id >= static_cast<int>(views_.size())) {
-    return nullptr;
-  }
-  return views_[handle.id].get();
-}
-
-Renderer::View* Renderer::GetView(std::string_view name) {
-  ViewHandle handle = GetViewHandle(name);
-  if (handle != kInvalidView) {
-    return GetView(handle);
-  }
-
-  const ViewHandle hnd{static_cast<int>(views_.size())};
-  views_.emplace_back(std::make_unique<View>());
-  view_lookup_.emplace(name, hnd);
-  return views_.back().get();
-}
-
-Renderer::ViewHandle Renderer::GetViewHandle(std::string_view name) const {
-  auto it = view_lookup_.find(std::string(name));
-  if (it == view_lookup_.end()) {
-    return kInvalidView;
-  }
-  return it->second;
-}
-
-void Renderer::Render(std::span<const ViewHandle> views) {
+void Renderer::Render(std::span<const View> views) {
   std::unordered_set<int> targets;
   std::vector<mjrfReadRequest> read_requests;
   std::vector<mjrfRenderRequest> render_requests;
 
   render_requests.reserve(views.size());
-  for (const ViewHandle& view : views) {
+  for (const View& view : views) {
     mjrfRenderRequest request;
     RenderTargetHandle target = UpdateRenderRequest(request, view);
     if (target != kInvalidRenderTarget) {
@@ -206,69 +177,49 @@ void Renderer::Render(std::span<const ViewHandle> views) {
 }
 
 Renderer::RenderTargetHandle Renderer::UpdateRenderRequest(
-    mjrfRenderRequest& request, ViewHandle view) {
+    mjrfRenderRequest& request, const View& view) {
   mjrf_defaultRenderRequest(&request);
-  const View* v = GetView(view);
-  if (!v) {
-    return kInvalidRenderTarget;
-  }
-
   mjrRect target_viewport = {0, 0, window_width_, window_height_};
-  if (v->render_target.id >= 0 &&
-             v->render_target.id < static_cast<int>(targets_.size())) {
-    request.target = targets_[v->render_target.id].get();
-    target_viewport.width = target_configs_[v->render_target.id].width;
-    target_viewport.height = target_configs_[v->render_target.id].height;
-  } else if (v->render_target == kWindowRenderTarget) {
+  if (view.render_target.id >= 0 &&
+      view.render_target.id < static_cast<int>(targets_.size())) {
+    request.target = targets_[view.render_target.id].get();
+    target_viewport.width = target_configs_[view.render_target.id].width;
+    target_viewport.height = target_configs_[view.render_target.id].height;
+  } else if (view.render_target == kWindowRenderTarget) {
     request.target = nullptr;
   } else {
     return kInvalidRenderTarget;
   }
 
-  request.scene = GetScene(v->scene);
+  request.scene = GetScene(view.scene);
   if (request.scene == nullptr) {
     return kInvalidRenderTarget;
   }
 
-  request.camera = v->camera;
-  if (v->camera.orthographic) {
-    request.camera.orthographic = true;
-    request.camera.pos[0] = 0.0f;
-    request.camera.pos[1] = 0.0f;
-    request.camera.pos[2] = 1.0f;
-    request.camera.forward[0] = 0.0f;
-    request.camera.forward[1] = 0.0f;
-    request.camera.forward[2] = -1.0f;
-    request.camera.up[0] = 0.0f;
-    request.camera.up[1] = 1.0f;
-    request.camera.up[2] = 0.0f;
-    request.camera.frustum_top = 0.0f;
-    request.camera.frustum_near = 0.0f;
-    request.camera.frustum_far = 1.0f;
-    request.camera.frustum_center = target_viewport.width / 2.0f;
-    request.camera.frustum_width = target_viewport.width / 2.0f;
-    request.camera.frustum_bottom = target_viewport.height;
-  }
-
-  request.viewport.left = static_cast<int>(v->rel_viewport[0] * target_viewport.width);
-  request.viewport.bottom = static_cast<int>(v->rel_viewport[1] * target_viewport.height);
-  request.viewport.width = static_cast<int>(v->rel_viewport[2] * target_viewport.width);
-  request.viewport.height = static_cast<int>(v->rel_viewport[3] * target_viewport.height);
-  request.draw_mode = v->draw_mode;
-  request.post_processing = v->post_processing;
-  request.reflections = v->reflections;
-  request.shadows = v->shadows;
-  if (v->headlight.has_value()) {
+  request.camera = view.camera;
+  request.viewport.left =
+      static_cast<int>(view.rel_viewport[0] * target_viewport.width);
+  request.viewport.bottom =
+      static_cast<int>(view.rel_viewport[1] * target_viewport.height);
+  request.viewport.width =
+      static_cast<int>(view.rel_viewport[2] * target_viewport.width);
+  request.viewport.height =
+      static_cast<int>(view.rel_viewport[3] * target_viewport.height);
+  request.draw_mode = view.draw_mode;
+  request.post_processing = view.post_processing;
+  request.reflections = view.reflections;
+  request.shadows = view.shadows;
+  if (view.headlight.has_value()) {
     request.headlight = true;
-    request.headlight_color[0] = v->headlight->color[0];
-    request.headlight_color[1] = v->headlight->color[1];
-    request.headlight_color[2] = v->headlight->color[2];
-    request.headlight_intensity = v->headlight->intensity;
+    request.headlight_color[0] = view.headlight->color[0];
+    request.headlight_color[1] = view.headlight->color[1];
+    request.headlight_color[2] = view.headlight->color[2];
+    request.headlight_intensity = view.headlight->intensity;
   } else {
     request.headlight = false;
   }
 
-  return v->render_target;
+  return view.render_target;
 }
 
 void Renderer::UpdateReadRequest(mjrfReadRequest& request,

@@ -17,7 +17,6 @@
 
 #include <cstddef>
 #include <cstring>
-#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -38,7 +37,7 @@ class Renderer {
   ~Renderer();
 
   // Strongly-typed handles for different types of resources.
-  enum class Kind { Scene, RenderTarget, View };
+  enum class Kind { Scene, RenderTarget };
   template <Kind T>
   struct Handle {
     int id = -1;
@@ -46,11 +45,9 @@ class Renderer {
     bool operator!=(const Handle& other) const = default;
   };
 
-  using ViewHandle = Handle<Kind::View>;
   using SceneHandle = Handle<Kind::Scene>;
   using RenderTargetHandle = Handle<Kind::RenderTarget>;
 
-  static constexpr ViewHandle kInvalidView = {-1};
   static constexpr SceneHandle kInvalidScene = {-1};
   static constexpr RenderTargetHandle kInvalidRenderTarget = {-1};
   static constexpr RenderTargetHandle kWindowRenderTarget = {-2};
@@ -94,9 +91,7 @@ class Renderer {
     // the window is the render target.
     RenderTargetHandle render_target = kWindowRenderTarget;
 
-    // The camera into which to render the scene. Note that if `orthographic` is
-    // true, the other camera parameters are ignored, and the camera will be
-    // overridden to an orthographic camera looking down the -Z axis.
+    // The camera into which to render the scene.
     mjrCamera camera;
 
     // The area in the render target into which to render the scene.
@@ -116,18 +111,8 @@ class Renderer {
     std::optional<Headlight> headlight;
   };
 
-  // Returns the view with the given name, creating a new View if necessary.
-  View* GetView(std::string_view name);
-
-  // Returns the view with the given handle, or nullptr if no such View exists.
-  View* GetView(ViewHandle handle);
-
-  // Returns the handle of the view with the given name, or kInvalidView if no
-  // such View exists.
-  ViewHandle GetViewHandle(std::string_view name) const;
-
   // Renders the given views.
-  void Render(std::span<const ViewHandle> views);
+  void Render(std::span<const View> views);
 
   float GetGpuFrameMs() const { return gpu_frame_ms_; }
 
@@ -139,7 +124,7 @@ class Renderer {
 
  private:
   RenderTargetHandle UpdateRenderRequest(mjrfRenderRequest& request,
-                                         ViewHandle view);
+                                         const View& view);
   void UpdateReadRequest(mjrfReadRequest& request, RenderTargetHandle target);
 
   UniquePtr<mjrfContext> ctx_;
@@ -150,9 +135,6 @@ class Renderer {
   std::vector<mjrfRenderTargetConfig> target_configs_;
   std::vector<std::vector<std::byte>> target_pixels_;
   std::unordered_map<std::string, RenderTargetHandle> render_target_lookup_;
-
-  std::vector<std::unique_ptr<View>> views_;
-  std::unordered_map<std::string, ViewHandle> view_lookup_;
 
   int window_width_ = 0;
   int window_height_ = 0;
