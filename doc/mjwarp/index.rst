@@ -1205,7 +1205,7 @@ Inertia matrix factorization
 MJWarp performs a per-tree factorization of the inertia matrix that is stored in ``qLD`` where the size of the tree
 determines if Warp's ``U'U`` Cholesky factorization
 `wp.tile_cholesky <https://nvidia.github.io/warp/stable/language_reference/_generated/warp.tile_cholesky.html>`__,
-MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse rountine is employed.
+MuJoCo's sparse reverse-mode ``L'DL`` routine, or a simple diagonal inverse routine is employed.
 
 Options
 -------
