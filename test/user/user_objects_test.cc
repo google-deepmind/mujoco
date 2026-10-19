@@ -2992,7 +2992,7 @@ TEST_F(UserObjectsTest, ZeroMass) {
 
 using OctreeSDFTest = MujocoTest;
 
-TEST_F(OctreeSDFTest, TetrahedronOutsideSDF) {
+TEST_F(OctreeSDFTest, TetrahedronSDFSign) {
   // Four outward-facing triangles form a closed tetrahedron in z >= 0.
   static constexpr char xml[] = R"(
   <mujoco>
@@ -3014,8 +3014,14 @@ TEST_F(OctreeSDFTest, TetrahedronOutsideSDF) {
   ASSERT_THAT(spec.get(), NotNull()) << error.data();
   mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec.get(), mjOBJ_MESH));
   ASSERT_THAT(mesh, NotNull());
-  // Depth one exposes vertex sign errors; depth two also exposes edge errors.
-  for (int depth = 1; depth <= 2; ++depth) {
+  // Outward unit normals and offsets of the face planes, n.x <= d inside.
+  const mjtNum norm = mju_sqrt(0.25 + 25 + 1);
+  const mjtNum planes[4][4] = {{0, 0, -1, 0},
+                               {0, -1, 0, 0},
+                               {-1, 0, 0, 0},
+                               {0.5 / norm, 5 / norm, 1 / norm, 1 / norm}};
+  // Depth one exposes vertex errors; deeper octrees also expose edge errors.
+  for (int depth = 1; depth <= 3; ++depth) {
     SCOPED_TRACE(depth);
     mesh->octree_maxdepth = depth;
     MjModelPtr model(mj_compile(spec.get(), nullptr));
@@ -3026,6 +3032,8 @@ TEST_F(OctreeSDFTest, TetrahedronOutsideSDF) {
     mjtNum rotation[9];
     mju_quat2Mat(rotation, model->mesh_quat);
     int outside_count = 0;
+    int below_count = 0;
+    int inside_count = 0;
     int start = model->mesh_octadr[0];
     int stop = start + model->mesh_octnum[0];
     for (int node = start; node < stop; ++node) {
@@ -3037,21 +3045,35 @@ TEST_F(OctreeSDFTest, TetrahedronOutsideSDF) {
           mjtNum sign = (corner & (1 << axis)) ? 1 : -1;
           local[axis] = aabb[axis] + sign * aabb[axis + 3];
         }
-        // Undo mesh compilation's rotation and translation before checking z.
+        // Undo the rotation and translation applied by mesh compilation.
         mjtNum point[3];
         mju_mulMatVec3(point, rotation, local);
         mju_addTo3(point, model->mesh_pos);
-        // Points this far below the mesh are unambiguously outside.
-        if (point[2] < -0.01) {
-          ++outside_count;
-          EXPECT_GT(model->oct_coeff[8 * node + corner], 0)
-              << "Outside point (" << point[0] << ", " << point[1] << ", "
-              << point[2] << "), node " << node << ", corner " << corner;
+        // A convex mesh contains a point iff it is inside every face plane.
+        mjtNum plane_distance = -mjMAXVAL;
+        for (const auto& plane : planes) {
+          plane_distance =
+              std::max(plane_distance, mju_dot3(plane, point) - plane[3]);
         }
+        // Skip points too close to the surface for a well-defined sign.
+        if (std::abs(plane_distance) < 1e-6) {
+          continue;
+        }
+        bool outside = plane_distance > 0;
+        outside_count += outside;
+        below_count += point[2] < -0.01;
+        inside_count += !outside;
+        EXPECT_EQ(model->oct_coeff[8 * node + corner] > 0, outside)
+            << (outside ? "Outside" : "Inside") << " point (" << point[0]
+            << ", " << point[1] << ", " << point[2] << "), node " << node
+            << ", corner " << corner;
       }
     }
-    EXPECT_GT(outside_count, 0)
-        << "The test must sample points below the mesh.";
+    EXPECT_GT(below_count, 0) << "The test must sample points below the mesh.";
+    EXPECT_GT(outside_count, below_count);
+    if (depth > 1) {
+      EXPECT_GT(inside_count, 0);
+    }
   }
 }
 
