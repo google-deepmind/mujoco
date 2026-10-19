@@ -19,7 +19,7 @@
 #include <math/vec4.h>
 #include <mujoco/mujoco.h>
 #include <mujoco/mjrfilament.h>
-#include "render/filament/support/mjrf_ptr.h"
+#include "mjrf_ptr.h"
 
 namespace mujoco {
 

@@ -19,8 +19,8 @@
 
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/support/mjrf_ptr.h"
-#include "render/filament/support/model_resources.h"
+#include "mjrf_ptr.h"
+#include "model_resources.h"
 
 namespace mujoco {
 
