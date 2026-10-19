@@ -46,6 +46,8 @@ Bug fixes
   have none, or recompiled after such an edit, now compiles the stiffness of its current configuration. It used to keep
   the strain constraint eigenmodes as its stiffness matrix, so a flex switched from shell to volumetric ignored
   ``young`` and ``poisson`` and was unstable.
+- Fixed a bug in the Filament renderer where textures did not allocate mipmap levels, preventing mipmap generation and
+  causing minification aliasing, and where sRGB textures were unconditionally excluded from mipmapping.
 
 Version 3.16.0 (October 14, 2026)
 ---------------------------------

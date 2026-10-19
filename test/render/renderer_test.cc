@@ -60,9 +60,12 @@ static UniquePtr<mjrfTexture> MakeTexture(mjrfContext* ctx,
   return texture;
 }
 
-static UniquePtr<mjrfMesh> MakeQuadMesh(mjrfContext* ctx) {
+static UniquePtr<mjrfMesh> MakeQuadMesh(mjrfContext* ctx, bool small = false) {
   static const float vertices[] = {
       -256.0f, -256.0f, 256.0f, -256.0f, -256.0f, 256.0f, 256.0f, 256.0f,
+  };
+  static const float small_vertices[] = {
+      -4.0f, -4.0f, 4.0f, -4.0f, -4.0f, 4.0f, 4.0f, 4.0f,
   };
   static const float uvs[] = {
       0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
@@ -92,7 +95,7 @@ static UniquePtr<mjrfMesh> MakeQuadMesh(mjrfContext* ctx) {
   mjrfMeshData data;
   mjrf_defaultMeshData(&data);
   data.num_vertices = 4;
-  data.vertices[0] = vertices;
+  data.vertices[0] = small ? small_vertices : vertices;
   data.vertices[1] = uvs;
   data.vertices[2] = colors;
   data.num_indices = 6;
@@ -515,6 +518,74 @@ TEST_F(RendererTest, UnsupportedTextureChannelsSkipped) {
   mock_warning_handler.ExpectWarnings("2-channel");
   ModelResources resources(model.get(), renderer.GetContext());
   EXPECT_EQ(resources.GetTexture(0), nullptr);
+}
+
+TEST_F(RendererTest, TextureGeneratesMipmaps) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  // 64x64 texture where 1 in every 4x4 block is 240 and all other texels are 0.
+  // The box-filtered mip average at level >= 2 is 240 / 16 = 15, whereas
+  // sampling level 0 at the 4x4 render target pixel centers (u = 8, 24, 40, 56)
+  // would bilinearly sample one 240 texel and three 0 texels (240 / 4 = 60).
+  constexpr int kTexSize = 64;
+  std::vector<uint8_t> tex_bytes(kTexSize * kTexSize * 3, 0);
+  for (int y = 0; y < kTexSize; y += 4) {
+    for (int x = 0; x < kTexSize; x += 4) {
+      int idx = (y * kTexSize + x) * 3;
+      tex_bytes[idx + 0] = 240;
+      tex_bytes[idx + 1] = 240;
+      tex_bytes[idx + 2] = 240;
+    }
+  }
+
+  mjrfTextureConfig tex_config;
+  mjrf_defaultTextureConfig(&tex_config);
+  tex_config.width = kTexSize;
+  tex_config.height = kTexSize;
+  tex_config.format = mjPIXEL_FORMAT_RGB8;
+  tex_config.color_space = mjCOLORSPACE_LINEAR;
+  UniquePtr<mjrfTexture> texture = CreateTexture(ctx, tex_config);
+
+  mjrfTextureData tex_data;
+  mjrf_defaultTextureData(&tex_data);
+  tex_data.bytes = tex_bytes.data();
+  tex_data.num_bytes = tex_bytes.size();
+  mjrf_uploadTexture(texture.get(), &tex_data);
+
+  UniquePtr<mjrfMesh> mesh = MakeQuadMesh(ctx, /*small=*/true);
+  UniquePtr<mjrfRenderable> renderable =
+      MakeRenderable(ctx, mesh.get(), texture.get());
+
+  mjrfRenderTargetConfig target_config;
+  mjrf_defaultRenderTargetConfig(&target_config);
+  target_config.width = 4;
+  target_config.height = 4;
+  target_config.color_format = mjPIXEL_FORMAT_RGB8;
+  target_config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle target =
+      renderer.CreateRenderTarget("offscreen", target_config);
+  ASSERT_NE(target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene = renderer.GetScene("scene");
+  mjrf_addSceneRenderable(scene, renderable.get());
+
+  Renderer::View* view = renderer.GetView("view");
+  view->render_target = target;
+  view->scene = renderer.GetSceneHandle("scene");
+  view->camera.orthographic = true;
+  view->post_processing = false;
+  view->shadows = false;
+  view->reflections = false;
+
+  Renderer::ViewHandle views[] = {renderer.GetViewHandle("view")};
+  renderer.Render(views);
+
+  std::span<const std::byte> pixels = renderer.GetPixels(target);
+  ASSERT_EQ(pixels.size(), 4 * 4 * 3);
+  for (size_t i = 0; i < pixels.size(); ++i) {
+    EXPECT_NEAR(static_cast<uint8_t>(pixels[i]), 15, 2);
+  }
 }
 }  // namespace
 }  // namespace mujoco

@@ -126,10 +126,12 @@ Texture::Texture(filament::Engine* engine, const mjrfTextureConfig& config,
     return;
   }
 
+  const filament::Texture::InternalFormat internal_format =
+      GetTextureInternalFormat(config_);
   filament::Texture::Builder builder;
   builder.width(config_.width);
   builder.height(config_.height);
-  builder.format(GetTextureInternalFormat(config_));
+  builder.format(internal_format);
 
   if (IsCubeMap(config_)) {
     if (config_.format != mjPIXEL_FORMAT_RGB8) {
@@ -149,8 +151,10 @@ Texture::Texture(filament::Engine* engine, const mjrfTextureConfig& config,
   } else if (flags.depth_attachment) {
     usage |= filament::Texture::Usage::DEPTH_ATTACHMENT;
     usage |= filament::Texture::Usage::BLIT_SRC;
-  } else if (config_.color_space != mjCOLORSPACE_SRGB) {
+  } else if (filament::Texture::isTextureFormatMipmappable(*engine_,
+                                                           internal_format)) {
     usage |= filament::Texture::Usage::GEN_MIPMAPPABLE;
+    builder.levels(0xff);
   }
   builder.usage(usage);
 
@@ -234,7 +238,7 @@ void Texture::Upload(const mjrfTextureData& data) {
     }
   }
 
-  if (config_.color_space != mjCOLORSPACE_SRGB) {
+  if (texture_->getLevels() > 1) {
     texture_->generateMipmaps(*engine_);
   }
 }
