@@ -25,6 +25,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -9132,6 +9133,51 @@ TEST_F(CopyBackTest, WritesVectors) {
   mj_deleteModel(again);
   mj_deleteModel(model);
   mj_deleteSpec(authored);
+  mj_deleteSpec(spec);
+}
+
+// a spring length which was changed is written, in place of one which
+// compilation computed
+TEST_F(CopyBackTest, WritesSpringLength) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slider" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed stiffness="1">
+        <joint joint="slider" coef="1"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjsTendon* tendon = mjs_asTendon(mjs_firstElement(spec, mjOBJ_TENDON));
+
+  // unchanged, the computed length stays computed
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_EQ(tendon->springlength[0], -1);
+  EXPECT_EQ(tendon->springlength[1], -1);
+
+  model->tendon_lengthspring[0] = 0.25;
+  model->tendon_lengthspring[1] = 0.5;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_EQ(tendon->springlength[0], 0.25);
+  EXPECT_EQ(tendon->springlength[1], 0.5);
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(again->tendon_lengthspring[0], 0.25);
+  EXPECT_EQ(again->tendon_lengthspring[1], 0.5);
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
   mj_deleteSpec(spec);
 }
 

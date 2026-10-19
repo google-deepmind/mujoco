@@ -10,12 +10,20 @@ Engine
 - Trees marked :ref:`sleep="init"<body-sleep>` which cannot be put to sleep now cause a warning rather than an error,
   and start awake. See :ref:`Sleeping<siSleepSleeping>` for details.
 - Added single-shot :ref:`multicontact<coMultiCCD>` for geoms with positive contact :ref:`margins<body-geom-margin>`.
-- The constraint solvers scale their termination criteria by the trace of the current inertia matrix, of the model or
-  of a constraint island, instead of ``mjModel.stat.meaninertia`` times ``nv``, which was computed in ``qpos0`` and used
-  by CG and Newton only without islands. Models solved without islands, or with PGS or noslip, can stop at slightly
-  different iterations. The :ref:`statistic<statistic>` attribute :ref:`meaninertia<statistic-meaninertia>`, which no
-  longer affects simulation, is deprecated and will be removed in a future release (compiling a model that sets it now
-  gives a warning; remove the attribute to migrate).
+- :ref:`mj_setConst` now computes only values which follow from other fields of the model, and the compiler resolves
+  the conventions of the spec once. A model which is edited after compilation and passed to :ref:`mj_setConst` is
+  the model which recompiling the edited spec would give, apart from the values the compiler derives once:
+
+  - The compiler alone computes the values which the spec leaves to it: the damping of position actuators given a
+    :ref:`dampratio<actuator-position-dampratio>`, the spring length of tendons given ``(-1, -1)``, the relative pose
+    of welds between bodies given a zero quaternion, and the model statistics. :ref:`mj_setConst` no longer resolves
+    these conventions when they are written into a compiled model; code which did so should set the values directly,
+    which :ref:`mj_copyBack` now copies to the spec for tendon spring lengths too.
+  - Simulation no longer depends on the statistics: the constraint solvers scale their termination criteria by the
+    trace of the current inertia matrix, of the model or of an island, instead of ``mjModel.stat.meaninertia``.
+    Models solved with PGS, noslip or islands disabled can stop at slightly different iterations. The
+    :ref:`meaninertia<statistic-meaninertia>` attribute is deprecated and will be removed in a future release (compiling
+    a model that sets it now gives a warning; remove the attribute to migrate).
 
 Compiler
 ^^^^^^^^

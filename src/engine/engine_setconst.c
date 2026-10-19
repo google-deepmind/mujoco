@@ -1099,8 +1099,8 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
 }
 
 
-// align 2D flexes to the XY plane
-static void mj_alignFlex(mjModel* m, mjData* d) {
+// align 2D flexes with vertex equality constraints to the XY plane
+void mj_alignFlex(mjModel* m) {
   for (int f = 0; f < m->nflex; f++) {
     // only for 2D flexes with vertex equality constraints
     if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
@@ -1146,19 +1146,18 @@ static void mj_alignFlex(mjModel* m, mjData* d) {
   }
 }
 
+
 // set quantities that depend on qpos0
 static void set0(mjModel* m, mjData* d) {
   makeTendonSparse(m);
   makeFlexSparse(m, d);
 
-  mj_alignFlex(m, d);
   int nv = m->nv;
-  mjtNum A[36] = {0}, pos[3], quat[4];
+  mjtNum A[36] = {0}, pos[3];
   mj_markStack(d);
   mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
-  mjtNum* invweight = m->nout ? mjSTACKALLOC(d, m->nout, mjtNum) : NULL;
   int* cammode = 0;
   int* lightmode = 0;
 
@@ -1358,75 +1357,31 @@ static void set0(mjModel* m, mjData* d) {
       m->tendon_invweight0[i] = mju_dot(tmp, tmp+nv, nv);
     }
 
-    // compute actuator_acc0 and invweight, one per force output (moment row)
+    // compute actuator_acc0, one per force output (moment row)
     for (int i=0; i < m->nout; i++) {
       mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
                        d->moment_rowadr + i, d->moment_colind);
       mj_solveM(m, d, tmp, moment, 1);
       m->actuator_acc0[i] = mju_norm(tmp, nv);
-      invweight[i] = mju_dot(moment, tmp, nv);
     }
   } else {
     mju_zero(m->tendon_invweight0, m->ntendon);
     mju_zero(m->actuator_acc0, m->nout);
   }
 
-  // compute missing eq_data for body constraints
+  // anchor of connect constraints between bodies in the second body
   for (int i=0; i < m->neq; i++) {
-    // get ids
-    int id1 = m->eq_obj1id[i];
+    if (m->eq_type[i] != mjEQ_CONNECT || m->eq_objtype[i] != mjOBJ_BODY) {
+      continue;
+    }
+
+    // pos = anchor position in global frame
+    mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, m->eq_obj1id[i], 0);
+
+    // data[3-5] = anchor position in body2 local frame
     int id2 = m->eq_obj2id[i];
-
-    // connect constraint
-    if (m->eq_type[i] == mjEQ_CONNECT) {
-      switch ((mjtObj) m->eq_objtype[i]) {
-        case mjOBJ_BODY:
-          // pos = anchor position in global frame
-          mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id1, 0);
-
-          // data[3-5] = anchor position in body2 local frame
-          mju_subFrom3(pos, d->xpos+3*id2);
-          mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
-          break;
-        case mjOBJ_SITE:
-          // site-based connect, eq_data is unused
-          mju_zero(m->eq_data+mjNEQDATA*i, mjNEQDATA);
-          break;
-        default:
-          mjERROR("invalid objtype in connect constraint %d", i);
-      }
-    }
-
-    // weld constraint
-    else if (m->eq_type[i] == mjEQ_WELD) {
-      switch ((mjtObj) m->eq_objtype[i]) {
-        case mjOBJ_BODY: {
-          // skip if user has set any quaternion data
-          if (!mju_isZero(m->eq_data + mjNEQDATA*i + 6, 4)) {
-            // normalize quaternion just in case
-            mju_normalize4(m->eq_data+mjNEQDATA*i+6);
-            continue;
-          }
-
-          // anchor position is in body2 local frame
-          mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, id2, 0);
-
-          // data[3-5] = anchor position in body1 local frame
-          mju_subFrom3(pos, d->xpos+3*id1);
-          mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id1, pos);
-
-          // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
-          mju_negQuat(quat, d->xquat+4*id1);
-          mju_mulQuat(m->eq_data+mjNEQDATA*i+6, quat, d->xquat+4*id2);
-          break;
-        }
-        case mjOBJ_SITE: {
-          break;
-        }
-        default:
-          mjERROR("invalid objtype in weld constraint %d", i);
-      }
-    }
+    mju_subFrom3(pos, d->xpos+3*id2);
+    mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
   }
 
   // camera compos0, pos0, mat0
@@ -1457,48 +1412,6 @@ static void set0(mjModel* m, mjData* d) {
     mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
   }
 
-  // compute actuator damping from dampratio
-  for (int i=0; i < m->nactuator; i++) {
-    // get bias, gain parameters
-    mjtNum* biasprm = m->actuator_biasprm + i*mjNBIAS;
-    mjtNum* gainprm = m->actuator_gainprm + i*mjNGAIN;
-
-    // not a position-like actuator: skip (PID single-sources kp in biasprm[1])
-    int is_pid = m->actuator_gaintype[i] == mjGAIN_PID;
-    if (!is_pid && gainprm[0] != -biasprm[1]) {
-      continue;
-    }
-
-    // damping is 0 or negative (interpreted as regular "kv"): skip
-    if (biasprm[2] <= 0) {
-      continue;
-    }
-
-    // === interpret biasprm[2] > 0 as dampratio for position-like actuators
-
-    // "reflected" inertia: 1 / (J * inv(M) * J')
-    mjtNum mass = 0;
-    if (nv) {
-      int outadr = m->actuator_outadr[i];
-      int outnum = m->actuator_outnum[i];
-      mjtNum w = 0;
-      for (int k=0; k < outnum; k++) {
-        w += invweight[outadr+k];
-      }
-      w /= outnum;
-      if (w > mjMINVAL) {
-        mass = 1 / w;
-      }
-    }
-
-    // damping = dampratio * 2 * sqrt(kp * mass)
-    mjtNum kp = is_pid ? -biasprm[1] : gainprm[0];
-    mjtNum damping = biasprm[2] * 2 * mju_sqrt(kp * mass);
-
-    // set biasprm[2] to negative damping
-    biasprm[2] = -damping;
-  }
-
   mj_freeStack(d);
 }
 
@@ -1512,61 +1425,10 @@ static void updateBox(mjtNum* xmin, mjtNum* xmax, mjtNum* pos, mjtNum radius) {
 }
 
 
-// compute stat; assume computations already executed in qpos0
-static void setStat(mjModel* m, mjData* d) {
-  mjtNum xmin[3] = {1E+10, 1E+10, 1E+10};
-  mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
-  mjtNum rbound;
-  mj_markStack(d);
-
-  // approximate length associated with each body
-  mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
-
-  // compute bounding box of bodies, joint centers, geoms and sites
-  for (int i=1; i < m->nbody; i++) {
-    updateBox(xmin, xmax, d->xpos+3*i, 0);
-    updateBox(xmin, xmax, d->xipos+3*i, 0);
-  }
-  for (int i=0; i < m->njnt; i++) {
-    updateBox(xmin, xmax, d->xanchor+3*i, 0);
-  }
-  for (int i=0; i < m->nsite; i++) {
-    updateBox(xmin, xmax, d->site_xpos+3*i, 0);
-  }
-  for (int i=0; i < m->ngeom; i++) {
-    // set rbound: regular geom rbound, or 0.1 of plane or hfield max size
-    rbound = 0;
-    if (m->geom_rbound[i] > 0) {
-      rbound = m->geom_rbound[i];
-    } else if (m->geom_type[i] == mjGEOM_PLANE) {
-      // finite in at least one direction
-      if (m->geom_size[3*i] || m->geom_size[3*i+1]) {
-        rbound = mjMAX(m->geom_size[3*i], m->geom_size[3*i+1]) * 0.1;
-      }
-
-      // infinite in both directions
-      else {
-        rbound = 0.01;
-      }
-    } else if (m->geom_type[i] == mjGEOM_HFIELD) {
-      int j = m->geom_dataid[i];
-      rbound = mjMAX(m->hfield_size[4*j],
-                     mjMAX(m->hfield_size[4*j+1],
-                           mjMAX(m->hfield_size[4*j+2], m->hfield_size[4*j+3]))) * 0.1;
-    }
-
-    updateBox(xmin, xmax, d->geom_xpos+3*i, rbound);
-  }
-
-  // compute center
-  mju_add3(m->stat.center, xmin, xmax);
-  mju_scl3(m->stat.center, m->stat.center, 0.5);
-
-  // compute bounding box size
-  if (xmax[0] > xmin[0])
-    m->stat.extent = mju_max(1E-5,
-                             mju_max(xmax[0]-xmin[0], mju_max(xmax[1]-xmin[1], xmax[2]-xmin[2])));
-
+// approximate length associated with each body: the largest distance from its center of mass to a
+// joint of it or of a child, to the far side of a geom, or along a flex edge; at least 1E-5 for all
+// bodies but the world; assume computations already executed in qpos0
+static void bodySize(const mjModel* m, const mjData* d, mjtNum* body) {
   // set body size to max com-joint distance
   mju_zero(body, m->nbody);
   for (int i=0; i < m->njnt; i++) {
@@ -1610,14 +1472,19 @@ static void setStat(mjModel* m, mjData* d) {
     }
   }
 
-  // compute meansize, make sure all sizes are above min
-  if (m->nbody > 1) {
-    m->stat.meansize = 0;
-    for (int i=1; i < m->nbody; i++) {
-      body[i] = mju_max(body[i], 1E-5);
-      m->stat.meansize += body[i]/(m->nbody-1);
-    }
+  // make sure all sizes are above min
+  for (int i=1; i < m->nbody; i++) {
+    body[i] = mju_max(body[i], 1E-5);
   }
+}
+
+
+// set dof_length: 1 for translations, the size of the body for rotations; assume computations
+// already executed in qpos0
+static void setDofLength(mjModel* m, mjData* d) {
+  mj_markStack(d);
+  mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
+  bodySize(m, d, body);
 
   // inherit dof length from parent body
   for (int i=0; i < m->nv; i++) {
@@ -1635,51 +1502,19 @@ static void setStat(mjModel* m, mjData* d) {
     }
   }
 
-  // fix extent if too small compared to meanbody
-  m->stat.extent = mju_max(m->stat.extent, 2 * m->stat.meansize);
-
-  // compute meanmass
-  if (m->nbody > 1) {
-    m->stat.meanmass = 0;
-    for (int i=1; i < m->nbody; i++) {
-      m->stat.meanmass += m->body_mass[i];
-    }
-    m->stat.meanmass /= (m->nbody-1);
-  }
-
-  // compute meaninertia
-  if (m->nv) {
-    m->stat.meaninertia = 0;
-    for (int i=0; i < m->nv; i++) {
-      m->stat.meaninertia += d->M[m->M_rowadr[i] + m->M_rownnz[i] - 1];
-    }
-    m->stat.meaninertia /= m->nv;
-  }
-
   mj_freeStack(d);
 }
 
 
-// set quantities that depend qpos_spring
+// run computations in qpos_spring, whose frames setEfm0Factor uses
 static void setSpring(mjModel* m, mjData* d) {
-  // run computations in qpos_spring
   mju_copy(d->qpos, m->qpos_spring, m->nq);
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_tendon(m, d);
   mj_transmission(m, d);
-
-  // copy if model spring length is -1
-  for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_lengthspring[2*i] == -1 && m->tendon_lengthspring[2*i+1] == -1) {
-      // explicit springlength unused, set equal to ten_length
-      m->tendon_lengthspring[2*i] = m->tendon_lengthspring[2*i+1] = d->ten_length[i];
-    }
-  }
 }
 
-
-// entry point: set all remaining constant fields of mjModel, except for lengthrange
 
 // constant part of the implicit effective metric factor (currently dim-2 bending): sparse
 // reverse-Cholesky of M + (h^2 + h*damping)*K_bend over
@@ -1852,7 +1687,220 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
 }
 
 
-void mj_setConst(mjModel* m, mjData* d) {
+//----------------------------- constants set once by compilation ----------------------------------
+
+// compute the model statistics; assume computations already executed in qpos0
+static void setStat(mjModel* m, mjData* d) {
+  mjtNum xmin[3] = {1E+10, 1E+10, 1E+10};
+  mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
+  mjtNum rbound;
+  mj_markStack(d);
+
+  // compute bounding box of bodies, joint centers, geoms and sites
+  for (int i=1; i < m->nbody; i++) {
+    updateBox(xmin, xmax, d->xpos+3*i, 0);
+    updateBox(xmin, xmax, d->xipos+3*i, 0);
+  }
+  for (int i=0; i < m->njnt; i++) {
+    updateBox(xmin, xmax, d->xanchor+3*i, 0);
+  }
+  for (int i=0; i < m->nsite; i++) {
+    updateBox(xmin, xmax, d->site_xpos+3*i, 0);
+  }
+  for (int i=0; i < m->ngeom; i++) {
+    // set rbound: regular geom rbound, or 0.1 of plane or hfield max size
+    rbound = 0;
+    if (m->geom_rbound[i] > 0) {
+      rbound = m->geom_rbound[i];
+    } else if (m->geom_type[i] == mjGEOM_PLANE) {
+      // finite in at least one direction
+      if (m->geom_size[3*i] || m->geom_size[3*i+1]) {
+        rbound = mjMAX(m->geom_size[3*i], m->geom_size[3*i+1]) * 0.1;
+      }
+
+      // infinite in both directions
+      else {
+        rbound = 0.01;
+      }
+    } else if (m->geom_type[i] == mjGEOM_HFIELD) {
+      int j = m->geom_dataid[i];
+      rbound = mjMAX(m->hfield_size[4*j],
+                     mjMAX(m->hfield_size[4*j+1],
+                           mjMAX(m->hfield_size[4*j+2], m->hfield_size[4*j+3]))) * 0.1;
+    }
+
+    updateBox(xmin, xmax, d->geom_xpos+3*i, rbound);
+  }
+
+  // compute center
+  mju_add3(m->stat.center, xmin, xmax);
+  mju_scl3(m->stat.center, m->stat.center, 0.5);
+
+  // compute bounding box size
+  if (xmax[0] > xmin[0])
+    m->stat.extent = mju_max(1E-5,
+                             mju_max(xmax[0]-xmin[0], mju_max(xmax[1]-xmin[1], xmax[2]-xmin[2])));
+
+  // compute meansize
+  if (m->nbody > 1) {
+    mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
+    bodySize(m, d, body);
+    m->stat.meansize = 0;
+    for (int i=1; i < m->nbody; i++) {
+      m->stat.meansize += body[i]/(m->nbody-1);
+    }
+  }
+
+  // fix extent if too small compared to meanbody
+  m->stat.extent = mju_max(m->stat.extent, 2 * m->stat.meansize);
+
+  // compute meanmass
+  if (m->nbody > 1) {
+    m->stat.meanmass = 0;
+    for (int i=1; i < m->nbody; i++) {
+      m->stat.meanmass += m->body_mass[i];
+    }
+    m->stat.meanmass /= (m->nbody-1);
+  }
+
+  // compute meaninertia
+  if (m->nv) {
+    m->stat.meaninertia = 0;
+    for (int i=0; i < m->nv; i++) {
+      m->stat.meaninertia += d->M[m->M_rowadr[i] + m->M_rownnz[i] - 1];
+    }
+    m->stat.meaninertia /= m->nv;
+  }
+
+  mj_freeStack(d);
+}
+
+
+// compute the damping of position-like actuators which have a damping ratio, given as a positive
+// biasprm[2]; assume computations already executed in qpos0
+static void setDampRatio(mjModel* m, mjData* d) {
+  int nv = m->nv;
+  mj_markStack(d);
+  mjtNum* tmp = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
+
+  for (int i=0; i < m->nactuator; i++) {
+    // get bias, gain parameters
+    mjtNum* biasprm = m->actuator_biasprm + i*mjNBIAS;
+    mjtNum* gainprm = m->actuator_gainprm + i*mjNGAIN;
+
+    // not a position-like actuator: skip (PID single-sources kp in biasprm[1])
+    int is_pid = m->actuator_gaintype[i] == mjGAIN_PID;
+    if (!is_pid && gainprm[0] != -biasprm[1]) {
+      continue;
+    }
+
+    // damping is 0 or negative (interpreted as regular "kv"): skip
+    if (biasprm[2] <= 0) {
+      continue;
+    }
+
+    // "reflected" inertia: 1 / (J * inv(M) * J'), averaged over force outputs
+    mjtNum mass = 0;
+    if (nv) {
+      int outadr = m->actuator_outadr[i];
+      int outnum = m->actuator_outnum[i];
+      mjtNum w = 0;
+      for (int k=0; k < outnum; k++) {
+        int j = outadr + k;
+        mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + j,
+                         d->moment_rowadr + j, d->moment_colind);
+        mj_solveM(m, d, tmp, moment, 1);
+        w += mju_dot(moment, tmp, nv);
+      }
+      w /= outnum;
+      if (w > mjMINVAL) {
+        mass = 1 / w;
+      }
+    }
+
+    // damping = dampratio * 2 * sqrt(kp * mass)
+    mjtNum kp = is_pid ? -biasprm[1] : gainprm[0];
+    mjtNum damping = biasprm[2] * 2 * mju_sqrt(kp * mass);
+
+    // set biasprm[2] to negative damping
+    biasprm[2] = -damping;
+  }
+
+  mj_freeStack(d);
+}
+
+
+// complete the data of equality constraints: zero the unused data of connects between sites, and
+// compute the relative pose of welds between bodies which have none, given as a zero quaternion,
+// or normalize the one they have; assume computations already executed in qpos0
+static void setEqualityData(mjModel* m, mjData* d) {
+  mjtNum pos[3], quat[4];
+  for (int i=0; i < m->neq; i++) {
+    int id1 = m->eq_obj1id[i];
+    int id2 = m->eq_obj2id[i];
+    mjtNum* data = m->eq_data + mjNEQDATA*i;
+
+    // connect constraint: mj_setConst computes the anchor in the second body
+    if (m->eq_type[i] == mjEQ_CONNECT) {
+      switch ((mjtObj) m->eq_objtype[i]) {
+        case mjOBJ_BODY:
+          break;
+        case mjOBJ_SITE:
+          // site-based connect, eq_data is unused
+          mju_zero(data, mjNEQDATA);
+          break;
+        default:
+          mjERROR("invalid objtype in connect constraint %d", i);
+      }
+    }
+
+    // weld constraint
+    else if (m->eq_type[i] == mjEQ_WELD) {
+      switch ((mjtObj) m->eq_objtype[i]) {
+        case mjOBJ_BODY:
+          // relative pose given: normalize the quaternion
+          if (!mju_isZero(data+6, 4)) {
+            mju_normalize4(data+6);
+            break;
+          }
+
+          // anchor position is in body2 local frame
+          mj_local2Global(d, pos, 0, data, 0, id2, 0);
+
+          // data[3-5] = anchor position in body1 local frame
+          mju_subFrom3(pos, d->xpos+3*id1);
+          mju_mulMatTVec3(data+3, d->xmat+9*id1, pos);
+
+          // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
+          mju_negQuat(quat, d->xquat+4*id1);
+          mju_mulQuat(data+6, quat, d->xquat+4*id2);
+          break;
+        case mjOBJ_SITE:
+          break;
+        default:
+          mjERROR("invalid objtype in weld constraint %d", i);
+      }
+    }
+  }
+}
+
+
+// set the spring length range of tendons which have none, given as (-1, -1), to their length;
+// assume computations already executed in qpos_spring
+static void setSpringLength(mjModel* m, mjData* d) {
+  for (int i=0; i < m->ntendon; i++) {
+    if (m->tendon_lengthspring[2*i] == -1 && m->tendon_lengthspring[2*i+1] == -1) {
+      m->tendon_lengthspring[2*i] = m->tendon_lengthspring[2*i+1] = d->ten_length[i];
+    }
+  }
+}
+
+
+//----------------------------- entry points -------------------------------------------------------
+
+// set all remaining constant fields of mjModel, except for lengthrange
+static void setConst(mjModel* m, mjData* d, int compiled) {
   // compute npolygonmax and nmeshdegmax
   m->npolygonmax = 0;
   for (int i=0; i < m->nmeshpoly; i++) {
@@ -1891,11 +1939,19 @@ void mj_setConst(mjModel* m, mjData* d) {
   // set quantities that depend on qpos0
   set0(m, d);
 
-  // compute statistics
-  setStat(m, d);
+  // set dof_length, and in compilation the other qpos0 quantities
+  setDofLength(m, d);
+  if (compiled) {
+    setDampRatio(m, d);
+    setEqualityData(m, d);
+    setStat(m, d);
+  }
 
-  // set quantities that depend qpos_spring
+  // set quantities that depend on qpos_spring
   setSpring(m, d);
+  if (compiled) {
+    setSpringLength(m, d);
+  }
 
   // precompute the constant part of the implicit effective metric factor
   setEfm0Factor(m, d);
@@ -1904,6 +1960,16 @@ void mj_setConst(mjModel* m, mjData* d) {
   mj_effCholSetConst(m, d);
 
   m->opt.enableflags = enableflags;
+}
+
+
+void mj_setConst(mjModel* m, mjData* d) {
+  setConst(m, d, 0);
+}
+
+
+void mj_setCompiledConst(mjModel* m, mjData* d) {
+  setConst(m, d, 1);
 }
 
 

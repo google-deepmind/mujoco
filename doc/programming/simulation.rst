@@ -690,7 +690,12 @@ Exceptions to the general rule that **integer** types are **not safe to change**
 
 When considering exceptions to the rule that real-valued parameters are safe to change, we need to note the function
 :ref:`mj_setConst`, which constitutes the last step of the compilation process. This function propagates changes from
-some fields to other fields, allowing changes that would otherwise be unsafe.
+some fields to other fields, allowing changes that would otherwise be unsafe. It does not redo what the compiler
+derives once from the conventions of the specification: the damping of actuators given a
+:ref:`dampratio<actuator-position-dampratio>`, the stiffness and damping of joints given a
+:ref:`springdamper<body-joint-springdamper>`, the spring length of tendons and the relative pose of welds which have
+none, and the model statistics. These keep the values computed for the model as compiled; to change them, recompile the
+spec or set the derived values directly.
 
 Exceptions to the general rule that **real-valued** types **are safe to change**:
 
@@ -704,7 +709,8 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - Notes
    * - ``qpos0`` |br| ``qpos_spring``
      - Safe with :ref:`mj_setConst`.
-     -
+     - The spring length of tendons which have none, and the relative pose of welds which have none, keep their
+       compiled values.
    * - ``body_mass`` |br| ``body_inertia`` |br| ``body_ipos`` |br| ``body_iquat``
      - Safe with :ref:`mj_setConst`.
      - Note that mass and inertia are usually scaled together, since inertia is :math:`\sum m r^2`. Scaling them
@@ -745,11 +751,12 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - Mostly safe.
      - Affects whether kinematic trees are allowed to sleep. If changing from/to zero, :ref:`mj_setConst` is required.
    * - ``actuator_gainprm`` |br| ``actuator_biasprm``
-     - Mostly safe.
-     - For position-like actuators using :ref:`dampratio<actuator-position-dampratio>`, :ref:`mj_setConst` is required.
+     - Safe.
+     - The damping of position-like actuators given a :ref:`dampratio<actuator-position-dampratio>` is computed by the
+       compiler and keeps its value.
    * - ``eq_data``
      - Safe with :ref:`mj_setConst`.
-     - For connect and weld constraints, offsets are computed if not provided.
+     - For connect constraints between bodies, :ref:`mj_setConst` computes the anchor in the second body.
    * - ``hfield_size``
      - Safe with :ref:`mj_setConst`.
      -

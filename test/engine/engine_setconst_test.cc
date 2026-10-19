@@ -15,6 +15,7 @@
 // Tests for engine/engine_setconst.c.
 
 #include <cstddef>
+#include <cstring>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -1062,6 +1063,76 @@ TEST_F(SetConstTest, SleepingTrees) {
   EXPECT_EQ(m->actuator_acc0[0], acc0);
   EXPECT_EQ(m->dof_invweight0[0], invweight0);
   EXPECT_EQ(m->opt.enableflags, mjENBL_SLEEP);
+}
+
+// What compilation derives once from the conventions of the spec keeps its
+// value: mj_setConst neither recomputes it nor resolves the conventions.
+TEST_F(SetConstTest, CompiledConstants) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <statistic meansize="5"/>
+    <worldbody>
+      <body name="slider">
+        <joint name="slider" type="slide" springref=".25"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+      <body name="a" pos="0 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+      <body name="b" pos="1 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <equality>
+      <weld body1="a" body2="b"/>
+    </equality>
+    <tendon>
+      <fixed stiffness="1">
+        <joint joint="slider" coef="2"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <position joint="slider" kp="4" dampratio="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+
+  // compiled: damping 2 * sqrt(kp * mass), length 2 * springref, the pose of b
+  // relative to a, the given meansize
+  mjtNum* biasprm = m->actuator_biasprm;
+  mjtNum* lengthspring = m->tendon_lengthspring;
+  mjtNum* relpose = m->eq_data + 3;
+  EXPECT_MJTNUM_EQ(biasprm[2], -4);
+  EXPECT_THAT(AsVector(lengthspring, 2), ElementsAre(0.5, 0.5));
+  EXPECT_THAT(AsVector(relpose, 7), ElementsAre(1, 0, 0, 1, 0, 0, 0));
+  EXPECT_MJTNUM_EQ(m->stat.meansize, 5);
+  mjStatistic stat = m->stat;
+
+  // their inputs change: the values stay
+  m->body_mass[1] = 4;
+  m->qpos_spring[0] = 0.5;
+  m->qpos0[m->jnt_qposadr[2]] = 2;
+  mj_setConst(m.get(), d.get());
+  EXPECT_MJTNUM_EQ(m->dof_invweight0[0], 0.25);
+  EXPECT_MJTNUM_EQ(biasprm[2], -4);
+  EXPECT_THAT(AsVector(lengthspring, 2), ElementsAre(0.5, 0.5));
+  EXPECT_THAT(AsVector(relpose, 7), ElementsAre(1, 0, 0, 1, 0, 0, 0));
+  EXPECT_EQ(std::memcmp(&m->stat, &stat, sizeof(mjStatistic)), 0);
+
+  // the conventions are not resolved
+  biasprm[2] = 1;
+  lengthspring[0] = lengthspring[1] = -1;
+  for (int k = 0; k < 7; k++) relpose[k] = 0;
+  mj_setConst(m.get(), d.get());
+  EXPECT_MJTNUM_EQ(biasprm[2], 1);
+  EXPECT_THAT(AsVector(lengthspring, 2), ElementsAre(-1, -1));
+  EXPECT_THAT(AsVector(relpose, 7), ElementsAre(0, 0, 0, 0, 0, 0, 0));
 }
 
 }  // namespace

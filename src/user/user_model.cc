@@ -6694,8 +6694,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // normalize keyframe quaternions
   for (int i = 0; i < m->nkey; i++) { mj_normalizeQuat(m, m->key_qpos + i * m->nq); }
 
-  // set constant fields
-  mj_setConst(m, d);
+  // set constant fields, after aligning 2D flexes, including those which compilation derives once
+  mj_alignFlex(m);
+  mj_setCompiledConst(m, d);
 
   // automatic spring-damper adjustment
   AutoSpringDamper(m);
@@ -7604,6 +7605,7 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
     copy(pt->spec.damping + 1, pt->damping + 1, m->tendon_dampingpoly + mjNPOLY * i, mjNPOLY);
     copy(&pt->spec.armature, &pt->armature, m->tendon_armature + i);
     copy(&pt->spec.frictionloss, &pt->frictionloss, m->tendon_frictionloss + i);
+    copy(pt->spec.springlength, pt->springlength, m->tendon_lengthspring + 2 * i, 2);
     copyvector(pt->spec_userdata_, pt->userdata_, m->tendon_user + nuser_tendon * i, nuser_tendon);
   }
 
