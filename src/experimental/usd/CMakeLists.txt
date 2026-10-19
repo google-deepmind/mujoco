@@ -249,6 +249,13 @@ configure_and_install_usd_plugin_info(
   ${MJ_USD_INSTALL_DIR_LIB}
 )
 
+# Stage the schema alongside plugInfo.json for use from the build tree.
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/mjcPhysics/generatedSchema.usda"
+  "${CMAKE_BINARY_DIR}/${MJ_USD_INSTALL_DIR_LIB}/mjcPhysics/generatedSchema.usda"
+  COPYONLY
+)
+
 # Install specific resources that are not plugInfo.json (like generatedSchema.usda)
 install(FILES
   mjcPhysics/generatedSchema.usda
