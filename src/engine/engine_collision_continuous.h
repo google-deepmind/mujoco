@@ -146,6 +146,16 @@ MJAPI int mjc_GeomVerts(const mjModel* m, int gi, const mjtNum* gpos, const mjtN
 MJAPI int mjc_GeomEdges(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gmat,
                         mjtNum* out);
 
+// compute the step displacement (dx, dw) over the time interval [0, t] and return the
+// upper bound on the distance traveled by any point on the geom's surface
+MJAPI mjtNum mjc_geomStepMotion(const mjModel* m, const mjData* d, int g, mjtNum t,
+                                mjtNum dx[3], mjtNum dw[3]);
+
+// conservative advancement between two geoms g1 and g2 over the timestep;
+// return time of impact in [0, 1] and writes the contact for t < 1
+MJAPI mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
+                                 mjtNum margin, mjPreContact* con);
+
 #ifdef __cplusplus
 }
 #endif

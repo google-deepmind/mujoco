@@ -30,6 +30,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_spatial.h"
 
 
 // point-triangle: distance, closest point cp, barycentric weights w of cp (for the barrier
@@ -1064,4 +1065,245 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
                 nc, d->time);
   }
   return nc;
+}
+
+
+// compute the step displacement (dx, dw) over the time interval [0, t] and return the
+// upper bound on the distance traveled by any point on the geom's surface
+mjtNum mjc_geomStepMotion(const mjModel* m, const mjData* d, int g, mjtNum t,
+                          mjtNum dx[3], mjtNum dw[3]) {
+  mju_zero3(dx);
+  mju_zero3(dw);
+  if (g < 0 || m->body_weldid[m->geom_bodyid[g]] == 0) {
+    return 0;
+  }
+  int bodyid = m->geom_bodyid[g];
+
+  // compute 6D spatial velocity cvel at subtree_com from cdof * qvel
+  mjtNum cvel[6] = {0, 0, 0, 0, 0, 0};
+  for (int b = m->body_weldid[bodyid]; b > 0; b = m->body_parentid[b]) {
+    int bda = m->body_dofadr[b];
+    int dofnum = m->body_dofnum[b];
+    for (int j = 0; j < dofnum; j++) {
+      mjtNum qv = d->qvel[bda + j];
+      if (qv != 0) {
+        const mjtNum* cdof = d->cdof + 6 * (bda + j);
+        for (int k = 0; k < 6; k++) {
+          cvel[k] += cdof[k] * qv;
+        }
+      }
+    }
+  }
+
+  // transform 6D spatial velocity from subtree_com to geom_xpos
+  mjtNum gvel[6];
+  mju_transformSpatial(gvel, cvel, 0, d->geom_xpos + 3 * g,
+                       d->subtree_com + 3 * m->body_rootid[bodyid], NULL);
+
+  mji_scl3(dw, gvel, t);
+  mji_scl3(dx, gvel + 3, t);
+
+  // for any point q on the geom surface, its velocity is v + w x (q - xpos)
+  // where v is the linear velocity and w is the angular velocity
+  // the upper bound on the distance traveled for any point on the surface is
+  // lin_dist + ang_dist * max_q |q - xpos| via the triangle inequality
+  return mju_norm3(dx) + mju_norm3(dw) * m->geom_rbound[g];
+}
+
+
+// advance rigid geom pose (obj->pos, obj->mat) by step * (dx, dw)
+static inline void advanceGeomPose(mjCCDObj* obj, const mjtNum dx[3], const mjtNum dw[3],
+                                   mjtNum step) {
+  mji_addToScl3(obj->pos, dx, step);
+
+  // guard against near-zero rotation angles
+  mjtNum wnorm = mju_norm3(dw);
+  if (wnorm * step < mjMINVAL) {
+    return;
+  }
+
+  mjtNum axis[3], dq[4], dmat[9], mat[9];
+  mju_copy9(mat, obj->mat);
+  mji_scl3(axis, dw, 1.0 / wnorm);
+  mju_axisAngle2Quat(dq, axis, wnorm * step);
+  mju_quat2Mat(dmat, dq);
+  mju_mulMatMat3(obj->mat, dmat, mat);
+}
+
+
+// evaluate distance and witnesses (x1, x2, normal from g1 to g2) at current obj1/obj2 poses
+static inline mjtNum evalGeomPairDist(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
+                                      mjtNum distmax, mjtNum x1[3], mjtNum x2[3],
+                                      mjtNum normal[3]) {
+  // radii of spheres and capsules (shrunk to point and line segment for GJK)
+  int type1 = obj1->geom_type, type2 = obj2->geom_type;
+  mjtNum r1 = (type1 == mjGEOM_SPHERE || type1 == mjGEOM_CAPSULE) ? obj1->size[0] : 0;
+  mjtNum r2 = (type2 == mjGEOM_SPHERE || type2 == mjGEOM_CAPSULE) ? obj2->size[0] : 0;
+
+  // distance returned by GJK and cutoff distance for GJK
+  mjtNum dist = 0, cutoff = distmax + r1 + r2;
+
+  // planes not supported by GJK
+  int has_plane = (type1 == mjGEOM_PLANE) - (type2 == mjGEOM_PLANE);
+  if (has_plane) {
+    mjCCDObj* plane = has_plane > 0 ? obj1 : obj2;
+    mjCCDObj* other = has_plane > 0 ? obj2 : obj1;
+    mjtNum* x = has_plane > 0 ? x2 : x1;
+    mjtNum n[3] = {plane->mat[2], plane->mat[5], plane->mat[8]};
+
+    mjtNum s[3], dir[3] = {-n[0], -n[1], -n[2]};
+    other->support(s, other, dir);
+
+    // account for sphere or capsule radius
+    mjtNum r = has_plane > 0 ? r2 : r1;
+    mji_addScl3(x, s, n, -r);
+
+    dist = mju_dot3(n, x) - mju_dot3(n, plane->pos);
+    mji_addScl3(has_plane > 0 ? x1 : x2, x, n, -dist);
+    mji_scl3(normal, n, has_plane);
+    return dist;
+  }
+
+  mji_copy3(x1, obj1->pos);
+  mji_copy3(x2, obj2->pos);
+  normal[0] = 0, normal[1] = 0, normal[2] = 1;
+  dist = mjc_gjk(obj1, obj2, x1, x2, cutoff, m->opt.ccd_tolerance, m->opt.ccd_iterations);
+  if (dist <= cutoff) {
+    mjtNum diff[3] = {x2[0] - x1[0], x2[1] - x1[1], x2[2] - x1[2]};
+    if (mju_normalize3(diff) > 0) {
+      mju_copy3(normal, diff);
+    }
+    mji_addToScl3(x1, normal, r1);
+    mji_addToScl3(x2, normal, -r2);
+  }
+  return dist - (r1 + r2);
+}
+
+
+// compute effective contact distance so that mj_referenceConstraint arrests (1 - t) of the
+// normal velocity over this step and lands the geom at margin at t = 1
+// TODO(kylebayes): use contact solver parameters from mj_contactParam and refine for mjINT_DISCRETE
+static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin, mjtNum t,
+                                 mjtNum closing_dist) {
+  mjtNum dt = m->opt.timestep;
+  mjtNum solref0 = 0.5 * (m->geom_solref[mjNREF * g1 + 0] + m->geom_solref[mjNREF * g2 + 0]);
+  mjtNum solref1 = 0.5 * (m->geom_solref[mjNREF * g1 + 1] + m->geom_solref[mjNREF * g2 + 1]);
+  mjtNum solimp2 = 0.5 * (m->geom_solimp[mjNIMP * g1 + 2] + m->geom_solimp[mjNIMP * g2 + 2]);
+  if (mjENABLED(mjENBL_OVERRIDE)) {
+    solref0 = m->opt.o_solref[0];
+    solref1 = m->opt.o_solref[1];
+    solimp2 = m->opt.o_solimp[2];
+  }
+  solimp2 = mju_max(1e-4, solimp2);
+
+  mjtNum delta = mju_max(solimp2, (1.0 - t) * closing_dist);
+  if (m->opt.integrator != mjINT_DISCRETE && solref0 > 0 && dt > 0) {
+    mjtNum tau_ref = mju_max(2.0 * dt, solref0);
+    mjtNum d_ratio = mju_max(mjMINVAL, solref1);
+    mjtNum rem = mju_max(0.0, 1.0 - t - 2.0 * dt / tau_ref);
+    mjtNum spring_delta = d_ratio * d_ratio * (tau_ref * tau_ref / (dt * dt)) * rem * closing_dist;
+    delta = mju_max(delta, spring_delta);
+  }
+  return margin - delta;
+}
+
+
+// conservative advancement between two geoms g1 and g2 over the timestep;
+// return time of impact in [0, 1] and writes the contact for t < 1
+mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
+                           mjtNum margin, mjPreContact* con) {
+  int type1 = g1 >= 0 ? m->geom_type[g1] : -1, type2 = g2 >= 0 ? m->geom_type[g2] : -1;
+  if (!mjc_GeomSupported(type1) || !mjc_GeomSupported(type2) ||
+      (type1 == mjGEOM_PLANE && type2 == mjGEOM_PLANE)) {
+    return 1.0;
+  }
+
+  mjtNum dx1[3], dw1[3], dx2[3], dw2[3];
+  mjtNum sweep = mjc_geomStepMotion(m, d, g1, m->opt.timestep, dx1, dw1) +
+                 mjc_geomStepMotion(m, d, g2, m->opt.timestep, dx2, dw2);
+  if (sweep < mjMINVAL) {
+    return 1.0;
+  }
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj2, m, d, g2, 0);
+  if (type1 == mjGEOM_SPHERE) obj1.support = mjc_pointSupport;
+  if (type1 == mjGEOM_CAPSULE) obj1.support = mjc_lineSupport;
+  if (type2 == mjGEOM_SPHERE) obj2.support = mjc_pointSupport;
+  if (type2 == mjGEOM_CAPSULE) obj2.support = mjc_lineSupport;
+
+  mjtNum distmax = sweep + margin;
+
+  mjtNum x1[3], x2[3], normal[3];
+  mjtNum dist0 = evalGeomPairDist(m, &obj1, &obj2, distmax, x1, x2, normal);
+
+  // already in contact or too far apart (no extra collision needed)
+  if (dist0 <= margin || dist0 - margin > sweep) {
+    return 1.0;
+  }
+
+  // conservative advancement (capped at 16 steps for grazing trajectories)
+  // close distance to 2% of initial distance to always get witness points from GJK without EPA
+  mjtNum target = 0.02 * (dist0 - margin) + margin;
+  mjtNum t = 0, dist = dist0;
+  for (int it = 0; it < 16; it++) {
+    mjtNum clearance = dist - target;
+    if (clearance <= m->opt.ccd_tolerance) {
+      break;
+    }
+
+    mjtNum step = clearance / sweep;
+    t += step;
+    if (t >= 1.0) {
+      return 1.0;
+    }
+
+    advanceGeomPose(&obj1, dx1, dw1, step);
+    advanceGeomPose(&obj2, dx2, dw2, step);
+    dist = evalGeomPairDist(m, &obj1, &obj2, distmax, x1, x2, normal);
+  }
+  if (dist - target > m->opt.ccd_tolerance) {
+    return 1.0;
+  }
+
+  // full-step displacements of witness points x1, x2: dp = dx + dw x (x - pos)
+  mjtNum rel1[3], rel2[3], dp1[3], dp2[3], drel[3];
+  mji_sub3(rel1, x1, obj1.pos);
+  mji_sub3(rel2, x2, obj2.pos);
+  mji_cross(dp1, dw1, rel1);
+  mji_cross(dp2, dw2, rel2);
+  mji_addTo3(dp1, dx1);
+  mji_addTo3(dp2, dx2);
+
+  // normal closing distance over the step (max of instantaneous and average closing rates)
+  mji_sub3(drel, dp1, dp2);
+  mjtNum closing_dist = mju_max(mju_dot3(normal, drel), (dist0 - dist) / mju_max(t, mjMINVAL));
+  if (closing_dist <= 0) {
+    return 1.0;
+  }
+
+  if (con) {
+    // subtract linear translation to place witness points at t = 0 body positions while keeping
+    // the rotated lever arms at impact time t consistent with normal
+    mjtNum x1_0[3], x2_0[3];
+    mji_addScl3(x1_0, x1, dx1, -t);
+    mji_addScl3(x2_0, x2, dx2, -t);
+    int weld1 = m->body_weldid[m->geom_bodyid[g1]];
+    int weld2 = m->body_weldid[m->geom_bodyid[g2]];
+    if (weld1 == 0 && weld2 > 0) {
+      mju_copy3(con->pos, x2_0);
+    } else if (weld2 == 0 && weld1 > 0) {
+      mju_copy3(con->pos, x1_0);
+    } else {
+      con->pos[0] = 0.5 * (x1_0[0] + x2_0[0]);
+      con->pos[1] = 0.5 * (x1_0[1] + x2_0[1]);
+      con->pos[2] = 0.5 * (x1_0[2] + x2_0[2]);
+    }
+    con->dist = contactDist(m, g1, g2, margin, t, closing_dist);
+    mju_copy3(con->normal, normal);
+    mju_zero3(con->tangent);
+  }
+
+  return t;
 }

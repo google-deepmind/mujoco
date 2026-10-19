@@ -567,6 +567,7 @@ cc_library(
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
+        ":engine_util_spatial",
         "//:mjdata_hdrs",
         "//:mjmodel_hdrs",
         "//:mjtype_hdrs",

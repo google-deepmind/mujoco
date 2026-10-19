@@ -756,5 +756,95 @@ TEST_F(ContinuousCollisionTest, EllipsoidCylinderAndMeshGeomDist) {
   mj_deleteModel(m);
 }
 
+TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <worldbody>
+      <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -1"/>
+      <geom name="wall" type="box" size="0.5 0.5 0.02" pos="0 0 0"/>
+      <body name="ball" pos="0 0 0.27">
+        <freejoint/>
+        <geom name="sphere" type="sphere" size="0.05"/>
+      </body>
+      <body name="box1" pos="2 0 0.5">
+        <freejoint/>
+        <geom name="b1" type="box" size="0.05 0.05 0.05"/>
+      </body>
+      <body name="box2" pos="2 0 0.8">
+        <freejoint/>
+        <geom name="b2" type="box" size="0.05 0.05 0.05"/>
+      </body>
+      <body name="rod" pos="-2 0 -0.90">
+        <freejoint/>
+        <geom name="cap" type="capsule" size="0.02 0.2" quat="0.70710678 0 0.70710678 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kXml);
+  mjData* d = mj_makeData(m);
+
+  // initial distance is 0.27 - 0.02 - 0.05 = 0.20 m
+  // downward speed -50 m/s over dt = 0.01 s -> step travel 0.50 m -> TOI around
+  // 0.20 / 0.50 = 0.40
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con;
+  mjtNum toi = mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con);
+  EXPECT_LT(toi, 1.0);
+  EXPECT_NEAR(toi, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con.pos[2], 0.22, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_LT(con.dist, 0.0);
+
+  // moving upward (+50 m/s) -> no collision (toi == 1.0)
+  d->qvel[2] = 50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_MJTNUM_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con), 1.0);
+
+  // grazing near-miss (skimming 1 cm above the box top at 50 m/s) -> no
+  // collision (toi == 1.0)
+  d->qpos[0] = -0.8;
+  d->qpos[2] = 0.08;
+  d->qvel[0] = 50.0;
+  d->qvel[2] = 0.0;
+  mj_fwdPosition(m, d);
+  EXPECT_MJTNUM_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con), 1.0);
+
+  // plane vs. moving sphere (both g1 = plane and g2 = plane)
+  mj_resetData(m, d);
+  d->qpos[2] = -0.75;  // 0.20 m above ground plane at z = -1 (radius 0.05)
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 0, 2, 0.0, &con), 0.392,
+              MjTol(0.02, 0.02));
+  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 2, 0, 0.0, &con), 0.392,
+              MjTol(0.02, 0.02));
+  EXPECT_NEAR(con.normal[2], -1.0, MjTol(1e-4, 1e-4));
+
+  // two moving boxes traveling in the same direction at different speeds
+  // initial distance is (0.8 - 0.05) - (0.5 + 0.05) = 0.20 m;
+  // b1 moves at -10 m/s, b2 catches up at -60 m/s (relative closing 0.50 m)
+  mj_resetData(m, d);
+  d->qvel[8] = -10.0;
+  d->qvel[14] = -60.0;
+  mj_fwdPosition(m, d);
+  EXPECT_LT(mjc_advanceGeomPair(m, d, 3, 4, 0.0, &con), 1.0);
+  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // rotational motion (dw != 0): horizontal capsule at z = -0.90 rotating about
+  // y-axis so its +x tip swings down into the ground plane at z = -1
+  mj_resetData(m, d);
+  d->qvel[22] = 100.0;  // wy = 100 rad/s -> 1 rad over dt = 0.01 s
+  mj_fwdPosition(m, d);
+  EXPECT_LT(mjc_advanceGeomPair(m, d, 0, 5, 0.0, &con), 1.0);
+  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
