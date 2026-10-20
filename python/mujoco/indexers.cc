@@ -82,23 +82,40 @@ IDToName MakeIDToName(int count, IntPtr name_offsets, CharPtr names) {
 //   shape: The shape of the array as defined by MuJoCo. If MjSize corresponds
 //     to a ragged or indirect field, the shape may be prepended by additional
 //     dimensions as appropriate, e.g. if MjSize is nv then the view gains an
-//     additional dimension of the size len(qvel) of the particular joint.
+//     additional dimension of the size len(qvel) of the particular joint. For
+//     actuator fields (nu, nout), that dimension is added only if the actuator
+//     does not have exactly one control or output, so that the views of
+//     single-input, single-output actuators keep the shape of a single row.
 //   m: Used for dereferencing MjSize.
 //   owner: The base object whose lifetime is tied to the returned array.
 template <auto MjSize, typename T>
 py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
                          const raw::MjModel& m, py::handle owner) {
+  // number of elements in one row of a ragged field, whose address counts rows
+  mjtSize rowsize = 1;
+  for (int s : shape) {
+    rowsize *= s;
+  }
   mjtSize offset;
   if (MjSize == &raw::MjModel::nq) {
-    offset = m.jnt_qposadr[index];
+    offset = m.jnt_qposadr[index] * rowsize;
     shape.insert(
         shape.begin(),
-        ((index < m.njnt-1) ? m.jnt_qposadr[index+1] : m.nq) - offset);
+        ((index < m.njnt-1) ? m.jnt_qposadr[index+1] : m.nq) -
+            m.jnt_qposadr[index]);
   } else if (MjSize == &raw::MjModel::nv) {
-    offset = m.jnt_dofadr[index];
+    offset = m.jnt_dofadr[index] * rowsize;
     shape.insert(
         shape.begin(),
-        ((index < m.njnt-1) ? m.jnt_dofadr[index+1] : m.nv) - offset);
+        ((index < m.njnt-1) ? m.jnt_dofadr[index+1] : m.nv) -
+            m.jnt_dofadr[index]);
+  } else if (MjSize == &raw::MjModel::nu || MjSize == &raw::MjModel::nout) {
+    bool ctrl = MjSize == &raw::MjModel::nu;
+    offset = (ctrl ? m.actuator_ctrladr : m.actuator_outadr)[index] * rowsize;
+    int num = (ctrl ? m.actuator_ctrlnum : m.actuator_outnum)[index];
+    if (num != 1 || shape.empty()) {
+      shape.insert(shape.begin(), num);
+    }
   } else if (MjSize == &raw::MjModel::nhfielddata) {
     offset = m.hfield_adr[index];
     shape.insert(shape.begin(), m.hfield_ncol[index]);

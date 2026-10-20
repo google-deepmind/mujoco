@@ -4574,16 +4574,19 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 
   // Bindings for the MjData accessor classes.
   #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::get_##var, &Accessor::set_##var)
+  #define XC(name) .property(#name, &Accessor::get_##name)
   #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)       \
     {                                                          \
       using Accessor = MjData##Name##Accessor;                 \
       emscripten::class_<Accessor>("MjData" #Name "Accessor")  \
           .property("id", &Accessor::id)                       \
           .property("name", &Accessor::name)                   \
-          MJDATA_##NAME;                                       \
+          MJDATA_##NAME                                        \
+          MJDATA_COMPUTED_##NAME;                              \
     }
     MJDATA_ACCESSORS
   #undef X
+  #undef XC
   #undef X_ACCESSOR
 
   emscripten::class_<MjContact>("MjContact")

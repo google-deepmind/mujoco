@@ -344,10 +344,10 @@
   XGROUP( tex, texture,  MJMODEL_TEXTURE  ) \
   XGROUP( key, keyframe, MJMODEL_KEYFRAME )
 
+// actuator_moment is sparse: the moment view is computed, in structs.cc
 #define MJDATA_ACTUATOR                            \
   X( mjtNum, ,          ctrl,     nu,   1        ) \
   X( mjtNum, actuator_, length,   nout, 1        ) \
-  X( mjtNum, actuator_, moment,   nout, MJ_M(nv) ) \
   X( mjtNum, actuator_, velocity, nout, 1        ) \
   X( mjtNum, actuator_, force,    nout, 1        )
 

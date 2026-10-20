@@ -51,6 +51,19 @@ Python bindings
 - Unallocated arena arrays of ``MjData``, for example ``efm_*`` arrays when the ``discrete`` integrator is not used or
   island arrays when no islands are formed, are now filled with zeros, or with -1 for index fields where -1 means
   "none". Previously they returned uninitialized memory.
+- Fixed several bugs in :ref:`named access<PyNamed>` (``data.actuator('a')``, ``model.joint('j')``, ``data.bind(...)``):
+
+  - Actuator views now follow ``actuator_ctrladr`` and ``actuator_outadr``. An actuator with several controls or force
+    outputs, such as :ref:`orientation<actuator-orientation>`, got the shape of a single row, and every actuator after
+    it got the rows of another. Its views now have a leading dimension of ``ctrlnum`` or ``outnum``, e.g.
+    ``model.actuator('a').gear`` is ``outnum x 6``; actuators with one control and one output keep their shapes.
+  - ``data.actuator('a').moment`` read the sparse ``actuator_moment`` as if it were dense, giving wrong values. It is
+    now a read-only dense copy of the actuator's moment arm, of size ``nv``, or ``outnum x nv``.
+  - The views of multi-column per-dof fields (``cdof``, ``cdof_dot``, ``dof_dampingpoly``) of any joint other than the
+    first pointed at the wrong rows.
+
+  The named accessors of the JavaScript bindings, which are generated from the same tables, had the same bugs and are
+  fixed in the same way, with flat arrays.
 
 Bug fixes
 ^^^^^^^^^

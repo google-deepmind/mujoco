@@ -67,28 +67,28 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
 // 2.  Name: The object type name in CamelCase (e.g., Actuator).
 // 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
 // 4.  field: The name of the array field in mjModel (e.g., actuator).
-// 5.  nfield: The name of the count field in mjModel (e.g., nu).
-#define MJMODEL_ACCESSORS                                              \
-  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
-  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
-  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
-  X_ACCESSOR( EQUALITY, Equality, mjOBJ_EQUALITY, eq,       neq      ) \
-  X_ACCESSOR( EXCLUDE,  Exclude,  mjOBJ_EXCLUDE,  exclude,  nexclude ) \
-  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
-  X_ACCESSOR( HFIELD,   Hfield,   mjOBJ_HFIELD,   hfield,   nhfield  ) \
-  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
-  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
-  X_ACCESSOR( MATERIAL, Material, mjOBJ_MATERIAL, mat,      nmat     ) \
-  X_ACCESSOR( MESH,     Mesh,     mjOBJ_MESH,     mesh,     nmesh    ) \
-  X_ACCESSOR( NUMERIC,  Numeric,  mjOBJ_NUMERIC,  numeric,  nnumeric ) \
-  X_ACCESSOR( PAIR,     Pair,     mjOBJ_PAIR,     pair,     npair    ) \
-  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
-  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
-  X_ACCESSOR( SKIN,     Skin,     mjOBJ_SKIN,     skin,     nskin    ) \
-  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  ) \
-  X_ACCESSOR( TEXTURE,  Texture,  mjOBJ_TEXTURE,  tex,      ntex     ) \
-  X_ACCESSOR( TUPLE,    Tuple,    mjOBJ_TUPLE,    tuple,    ntuple   ) \
-  X_ACCESSOR( KEYFRAME, Keyframe, mjOBJ_KEY,      key,      nkey     )
+// 5.  nfield: The name of the count field in mjModel (e.g., nbody).
+#define MJMODEL_ACCESSORS                                               \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nactuator ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody     ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam      ) \
+  X_ACCESSOR( EQUALITY, Equality, mjOBJ_EQUALITY, eq,       neq       ) \
+  X_ACCESSOR( EXCLUDE,  Exclude,  mjOBJ_EXCLUDE,  exclude,  nexclude  ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom     ) \
+  X_ACCESSOR( HFIELD,   Hfield,   mjOBJ_HFIELD,   hfield,   nhfield   ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt      ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight    ) \
+  X_ACCESSOR( MATERIAL, Material, mjOBJ_MATERIAL, mat,      nmat      ) \
+  X_ACCESSOR( MESH,     Mesh,     mjOBJ_MESH,     mesh,     nmesh     ) \
+  X_ACCESSOR( NUMERIC,  Numeric,  mjOBJ_NUMERIC,  numeric,  nnumeric  ) \
+  X_ACCESSOR( PAIR,     Pair,     mjOBJ_PAIR,     pair,     npair     ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor   ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite     ) \
+  X_ACCESSOR( SKIN,     Skin,     mjOBJ_SKIN,     skin,     nskin     ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon   ) \
+  X_ACCESSOR( TEXTURE,  Texture,  mjOBJ_TEXTURE,  tex,      ntex      ) \
+  X_ACCESSOR( TUPLE,    Tuple,    mjOBJ_TUPLE,    tuple,    ntuple    ) \
+  X_ACCESSOR( KEYFRAME, Keyframe, mjOBJ_KEY,      key,      nkey      )
 
 // Macro to define accessors for different MuJoCo object types within mjData.
 // Each line calls X_ACCESSOR with the following arguments:
@@ -96,17 +96,17 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
 // 2.  Name: The object type name in CamelCase (e.g., Actuator).
 // 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
 // 4.  field: The name of the array field in mjData (e.g., actuator).
-// 5.  nfield: The name of the count field in mjModel (e.g., nu).
-#define MJDATA_ACCESSORS                                               \
-  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
-  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
-  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
-  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
-  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
-  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
-  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
-  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
-  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  )
+// 5.  nfield: The name of the count field in mjModel (e.g., nbody).
+#define MJDATA_ACCESSORS                                                \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nactuator ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody     ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam      ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom     ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt      ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight    ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor   ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite     ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon   )
 
 // Raises an error if the given val is null or undefined.
 // A macro is used so that the error contains the name of the variable.
@@ -166,7 +166,17 @@ using mjVisualScale = decltype(::mjVisual::scale);
     } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
       int start = model_->jnt_dofadr[id_];                                                       \
       int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
-      return val(typed_memory_view(end - start, model_->prefix##var + start));                   \
+      return val(typed_memory_view((end - start) * (dim1),                                       \
+                                   model_->prefix##var + start * (dim1)));                       \
+    } else if constexpr (std::string_view(#dim0) == "nu" ||                                      \
+                         std::string_view(#dim0) == "nout") {                                    \
+      bool ctrl = std::string_view(#dim0) == "nu";                                               \
+      int adr = ctrl ? model_->actuator_ctrladr[id_] : model_->actuator_outadr[id_];             \
+      int num = ctrl ? model_->actuator_ctrlnum[id_] : model_->actuator_outnum[id_];             \
+      if (std::string_view(#dim1) == "1" && num == 1) {                                          \
+        return val(model_->prefix##var[adr]);                                                    \
+      }                                                                                          \
+      return val(typed_memory_view(num * (dim1), model_->prefix##var + adr * (dim1)));           \
     } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
       int start = model_->hfield_adr[id_];                                                       \
       int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
@@ -200,8 +210,20 @@ using mjVisualScale = decltype(::mjVisual::scale);
     } else if constexpr (std::string_view(#dim0) == "nv") {                                      \
       int start = model_->jnt_dofadr[id_];                                                       \
       int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv;             \
-      val(typed_memory_view(end - start, model_->prefix##var + start))                           \
+      val(typed_memory_view((end - start) * (dim1),                                              \
+                            model_->prefix##var + start * (dim1)))                               \
           .call<void>("set", value);                                                             \
+    } else if constexpr (std::string_view(#dim0) == "nu" ||                                      \
+                         std::string_view(#dim0) == "nout") {                                    \
+      bool ctrl = std::string_view(#dim0) == "nu";                                               \
+      int adr = ctrl ? model_->actuator_ctrladr[id_] : model_->actuator_outadr[id_];             \
+      int num = ctrl ? model_->actuator_ctrlnum[id_] : model_->actuator_outnum[id_];             \
+      if (std::string_view(#dim1) == "1" && num == 1) {                                          \
+        model_->prefix##var[adr] = value.as<type>();                                             \
+      } else {                                                                                   \
+        val(typed_memory_view(num * (dim1), model_->prefix##var + adr * (dim1)))                 \
+            .call<void>("set", value);                                                           \
+      }                                                                                          \
     } else if constexpr (std::string_view(#dim0) == "nhfielddata") {                             \
       int start = model_->hfield_adr[id_];                                                       \
       int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];                           \
@@ -283,6 +305,15 @@ MJMODEL_ACCESSORS
         return val(typed_memory_view(                                                  \
             (end - start) * dim1, data_->prefix##var + start * dim1));                 \
       }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nu" ||                            \
+                         std::string_view(#dim0) == "nout") {                          \
+      bool ctrl = std::string_view(#dim0) == "nu";                                     \
+      int adr = ctrl ? model_->actuator_ctrladr[id_] : model_->actuator_outadr[id_];   \
+      int num = ctrl ? model_->actuator_ctrlnum[id_] : model_->actuator_outnum[id_];   \
+      if (std::string_view(#dim1) == "1" && num == 1) {                                \
+        return val(data_->prefix##var[adr]);                                           \
+      }                                                                                \
+      return val(typed_memory_view(num * (dim1), data_->prefix##var + adr * (dim1)));  \
     } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
       int start = model_->sensor_adr[id_];                                             \
       int count = model_->sensor_dim[id_];                                             \
@@ -312,6 +343,17 @@ MJMODEL_ACCESSORS
                                           data_->prefix##var + start * dim1))          \
             .call<void>("set", value);                                                 \
       }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nu" ||                            \
+                         std::string_view(#dim0) == "nout") {                          \
+      bool ctrl = std::string_view(#dim0) == "nu";                                     \
+      int adr = ctrl ? model_->actuator_ctrladr[id_] : model_->actuator_outadr[id_];   \
+      int num = ctrl ? model_->actuator_ctrlnum[id_] : model_->actuator_outnum[id_];   \
+      if (std::string_view(#dim1) == "1" && num == 1) {                                \
+        data_->prefix##var[adr] = value.as<type>();                                    \
+      } else {                                                                         \
+        val(typed_memory_view(num * (dim1), data_->prefix##var + adr * (dim1)))        \
+            .call<void>("set", value);                                                 \
+      }                                                                                \
     } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
       int start = model_->sensor_adr[id_];                                             \
       int count = model_->sensor_dim[id_];                                             \
@@ -327,6 +369,20 @@ MJMODEL_ACCESSORS
     }                                                                                  \
   }
 
+// Fields of an object type that are computed rather than viewed, as XC(name),
+// for the getter get_name() which each declares. actuator_moment is sparse: an
+// actuator's moment is a dense copy of its rows.
+#define MJDATA_COMPUTED_ACTUATOR XC(moment)
+#define MJDATA_COMPUTED_BODY
+#define MJDATA_COMPUTED_CAMERA
+#define MJDATA_COMPUTED_GEOM
+#define MJDATA_COMPUTED_JOINT
+#define MJDATA_COMPUTED_LIGHT
+#define MJDATA_COMPUTED_SENSOR
+#define MJDATA_COMPUTED_SITE
+#define MJDATA_COMPUTED_TENDON
+
+#define XC(name) emscripten::val get_##name() const;
 #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                                     \
   struct MjData##Name##Accessor {                                                                          \
     MjData##Name##Accessor(mjData* data, mjModel* model, int id) : data_(data), model_(model), id_(id) {}  \
@@ -338,6 +394,7 @@ MJMODEL_ACCESSORS
     }                                                                                                      \
                                                                                                            \
     MJDATA_##NAME                                                                                          \
+    MJDATA_COMPUTED_##NAME                                                                                 \
                                                                                                            \
    private:                                                                                                \
     mjData* data_;                                                                                         \
@@ -346,6 +403,19 @@ MJMODEL_ACCESSORS
   };
 MJDATA_ACCESSORS
 #undef X_ACCESSOR
+#undef XC
+
+// the actuator's rows of the sparse actuator_moment, as a dense copy: nv, or
+// outnum x nv
+inline val MjDataActuatorAccessor::get_moment() const {
+  int adr = model_->actuator_outadr[id_];
+  int num = model_->actuator_outnum[id_];
+  std::vector<mjtNum> dense(num * model_->nv);
+  mju_sparse2dense(dense.data(), data_->actuator_moment, num, model_->nv,
+                   data_->moment_rownnz + adr, data_->moment_rowadr + adr,
+                   data_->moment_colind);
+  return val(typed_memory_view(dense.size(), dense.data())).call<val>("slice");
+}
 
 #undef X
 #undef MJ_M

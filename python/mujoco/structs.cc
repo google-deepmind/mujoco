@@ -120,6 +120,30 @@ py::tuple RecompileSpec(raw::MjSpec* spec, const MjModelWrapper& old_m,
   return py::make_tuple(m_pyobj, d_pyobj);
 }
 
+// properties of a group of named views that are not views of a field
+template <typename GroupedViews>
+void DefineComputedViews(py::class_<GroupedViews>&) {}
+
+// an actuator's rows of the sparse actuator_moment, as a dense read-only copy:
+// (nv,) for an actuator with one force output, else (outnum, nv)
+template <>
+void DefineComputedViews(py::class_<MjDataActuatorViews>& views) {
+  views.def_property_readonly("moment", [](MjDataActuatorViews& v) {
+    const raw::MjModel* m = v.model();
+    const raw::MjData* d = v.ptr();
+    int adr = m->actuator_outadr[v.index()];
+    int num = m->actuator_outnum[v.index()];
+    std::vector<py::ssize_t> shape = {num, static_cast<py::ssize_t>(m->nv)};
+    if (num == 1) shape.erase(shape.begin());
+    py::array_t<mjtNum> out(shape);
+    mju_sparse2dense(out.mutable_data(), d->actuator_moment, num, m->nv,
+                     d->moment_rownnz + adr, d->moment_rowadr + adr,
+                     d->moment_colind);
+    out.attr("flags").attr("writeable") = false;
+    return out;
+  });
+}
+
 }  // namespace
 
 PYBIND11_MODULE(_structs, m, pybind11::mod_gil_not_used()) {
@@ -1019,6 +1043,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     using GroupedViews = MjDataGroupedViews;                                 \
     py::class_<MjDataGroupedViews> groupedViews(m, "_" #MjDataGroupedViews); \
     FIELD_XMACROS                                                            \
+    DefineComputedViews(groupedViews);                                       \
     groupedViews.def("__repr__", MjDataStructRepr<GroupedViews>);            \
     groupedViews.def_property_readonly(                                      \
         "id", [](GroupedViews& views) { return views.index(); });            \

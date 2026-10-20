@@ -2275,8 +2275,9 @@ describe('MuJoCo WASM Bindings', () => {
       expect(actuator.name).toBe('myactuator');
       expect(actuator.velocity).toBe(0);
       expect(actuator.force).toBe(0);
+      // the hinge's dof follows the 6 of the free joint
       expectArraysClose(
-          actuator.moment, new Float64Array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+          actuator.moment, new Float64Array([0, 0, 0, 0, 0, 0, 1, 0, 0, 0]));
 
       // Body
       expect(model!.nbody).toBe(5);
@@ -2350,6 +2351,70 @@ describe('MuJoCo WASM Bindings', () => {
       expectArraysClose(site.xpos, new Float64Array([0, 0, 0]));
       expectArraysClose(
           site.xmat, new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_mimo_actuators
+    it('should follow the controls and outputs of each actuator', () => {
+      const xml = `
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint name="slide" type="slide"/>
+            <geom size=".1"/>
+            <body>
+              <joint name="ball" type="ball"/>
+              <geom size=".1" pos=".2 0 0"/>
+            </body>
+          </body>
+        </worldbody>
+        <actuator>
+          <motor name="before" joint="slide" gear="2"/>
+          <orientation name="orient" joint="ball" kp="1" input="quat"/>
+          <motor name="after" joint="slide" gear="3"/>
+        </actuator>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/mimo.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const mimoModel = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      let mimoData: MjData|null = null;
+      try {
+        assertExists(mimoModel);
+        mimoData = new mujoco.MjData(mimoModel);
+        for (let i = 0; i < mimoModel.nu; i++) mimoData.ctrl[i] = i;
+        mujoco.mj_forward(mimoModel, mimoData);
+        expect(mimoModel.nactuator).toBe(3);
+        expect(mimoModel.nu).toBe(6);
+        expect(mimoModel.nout).toBe(5);
+
+        // one control and output: a single value, at the actuator's address
+        expect(mimoData.actuator('after').ctrl).toBe(5);
+        expect(mimoData.actuator('after').force)
+            .toBe(mimoData.actuator_force[4]);
+        expectArraysEqual(
+            mimoModel.actuator('after').gear,
+            new Float64Array([3, 0, 0, 0, 0, 0]));
+
+        // several: all of them
+        expectArraysEqual(
+            mimoData.actuator('orient').ctrl, new Float64Array([1, 2, 3, 4]));
+        expectArraysEqual(
+            mimoData.actuator('orient').force,
+            mimoData.actuator_force.slice(1, 4));
+        expect(mimoModel.actuator('orient').gear.length).toBe(18);
+
+        // moment: a dense copy of the sparse rows
+        const moment = mimoData.actuator('after').moment;
+        expectArraysClose(moment, new Float64Array([3, 0, 0, 0]));
+        expect(mimoData.actuator('orient').moment.length).toBe(3 * 4);
+
+        // writes reach mjData
+        mimoData.actuator('after').ctrl = 7;
+        expect(mimoData.ctrl[5]).toBe(7);
+      } finally {
+        mimoData?.delete();
+        mimoModel?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
     });
 
     // Corresponds to bindings_test.py:test_indexer_name_id

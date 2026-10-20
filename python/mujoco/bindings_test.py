@@ -365,6 +365,116 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         self.data.cdof[dof_idx : dof_idx + 6], [[42] * 6] * 6
     )
 
+  def test_named_indexing_ragged2d_after_first_joint(self):
+    # rows of a joint which is not the first: the address counts rows
+    self.data.cdof[:] = np.arange(self.data.cdof.size).reshape(-1, 6)
+    self.model.dof_dampingpoly[:] = np.arange(
+        self.model.dof_dampingpoly.size
+    ).reshape(self.model.nv, -1)
+    for name in ('myhinge', 'myball'):
+      adr = self.model.joint(name).dofadr[0]
+      dofs = slice(adr, adr + self.data.joint(name).qvel.size)
+      np.testing.assert_array_equal(
+          self.data.joint(name).cdof, self.data.cdof[dofs], name
+      )
+      np.testing.assert_array_equal(
+          self.model.joint(name).dampingpoly,
+          self.model.dof_dampingpoly[dofs],
+          name,
+      )
+
+  def test_named_indexing_mimo_actuators(self):
+    model = mujoco.MjModel.from_xml_string("""
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="slide" type="slide"/>
+          <geom size=".1"/>
+          <body>
+            <joint name="ball" type="ball"/>
+            <geom size=".1" pos=".2 0 0"/>
+          </body>
+        </body>
+      </worldbody>
+      <actuator>
+        <motor name="before" joint="slide" gear="2" ctrlrange="-1 1"/>
+        <orientation name="orient" joint="ball" kp="1" input="quat"/>
+        <motor name="after" joint="slide" gear="3" ctrlrange="-2 2"/>
+      </actuator>
+    </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    data.ctrl[:] = np.arange(model.nu)
+    mujoco.mj_forward(model, data)
+    np.testing.assert_array_equal(model.actuator_ctrlnum, [1, 4, 1])
+    np.testing.assert_array_equal(model.actuator_outnum, [1, 3, 1])
+    # a single control or output keeps the shape of one row
+    one = lambda rows: rows[0] if len(rows) == 1 else rows
+    for i in range(model.nactuator):
+      ctrladr, outadr = model.actuator_ctrladr[i], model.actuator_outadr[i]
+      ctrls = slice(ctrladr, ctrladr + model.actuator_ctrlnum[i])
+      outs = slice(outadr, outadr + model.actuator_outnum[i])
+      name = model.actuator(i).name
+      for got, expected in (
+          (data.actuator(i).ctrl, data.ctrl[ctrls]),
+          (data.actuator(i).force, data.actuator_force[outs]),
+          (data.actuator(i).length, data.actuator_length[outs]),
+          (model.actuator(i).ctrlrange, one(model.actuator_ctrlrange[ctrls])),
+          (model.actuator(i).gear, one(model.actuator_gear[outs])),
+          (model.actuator(i).lengthrange,
+           one(model.actuator_lengthrange[outs])),
+      ):
+        np.testing.assert_array_equal(got, expected, name)
+    self.assertEqual(model.actuator('before').gear.shape, (6,))
+    self.assertEqual(model.actuator('orient').gear.shape, (3, 6))
+    self.assertEqual(model.actuator('orient').ctrlrange.shape, (4, 2))
+    self.assertEqual(data.actuator('orient').ctrl.shape, (4,))
+    self.assertEqual(data.actuator('after').ctrl.shape, (1,))
+    # views are views: a write reaches mjData
+    data.actuator('after').ctrl = 7
+    self.assertEqual(data.ctrl[model.actuator_ctrladr[2]], 7)
+
+  def test_named_indexing_actuator_moment(self):
+    model = mujoco.MjModel.from_xml_string("""
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="slide" type="slide"/>
+          <geom size=".1"/>
+          <body>
+            <joint name="ball" type="ball"/>
+            <geom size=".1" pos=".2 0 0"/>
+          </body>
+        </body>
+      </worldbody>
+      <actuator>
+        <motor joint="slide" gear="2"/>
+        <orientation joint="ball" kp="1"/>
+        <motor joint="slide" gear="3"/>
+      </actuator>
+    </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    # actuator_moment is sparse: fewer values than a dense (nout, nv) matrix
+    self.assertLess(model.nJmom, model.nout * model.nv)
+    dense = np.zeros((model.nout, model.nv), dtype=DTYPE)
+    mujoco.mju_sparse2dense(
+        dense,
+        data.actuator_moment,
+        data.moment_rownnz,
+        data.moment_rowadr,
+        data.moment_colind,
+    )
+    for i in range(model.nactuator):
+      adr = model.actuator_outadr[i]
+      rows = dense[adr : adr + model.actuator_outnum[i]]
+      moment = data.actuator(i).moment
+      np.testing.assert_array_equal(moment, rows[0] if len(rows) == 1 else rows)
+      self.assertFalse(moment.flags.writeable)  # a copy, not a view
+    np.testing.assert_array_equal(data.actuator(0).moment, [2, 0, 0, 0])
+    self.assertEqual(data.actuator(1).moment.shape, (3, model.nv))
+
   def test_named_indexing_repr_in_data(self):
     view_repr = repr(self.data.geom('mybox'))
     self.assertStartsWith(view_repr, '<_MjDataGeomViews')
