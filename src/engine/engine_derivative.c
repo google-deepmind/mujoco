@@ -1303,7 +1303,8 @@ size_t mjd_flexInterp_mulBytes(const mjModel* m) {
 // Stack: mjd_flexInterp_mulBytes
 static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
                                   mjtNum* res, const mjtNum* vec, mjtNum s1, mjtNum s2,
-                                  const mjtNum* K_rot_cache, mjtNum* K_rot_out) {
+                                  const mjtNum* K_rot_cache, mjtNum* K_rot_out,
+                                  int first, int last) {
   int nv = m->nv;
 
   // compute upper bounds across all interpolated flexes
@@ -1341,7 +1342,7 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
   mjtNum* fast_tmp = mjSTACKALLOC(d, max_dim_c, mjtNum);
 
   // loop over flexes
-  for (int f=0; f < m->nflex; f++) {
+  for (int f=first; f < last; f++) {
     // only process stiff, non-rigid flex_interp without strain constraints
     if (!mjd_flexInterp_processed(m, f)) {
       continue;
@@ -1552,18 +1553,26 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
 }
 
 
+// compute res += (s1 + s2*damping) * J'*K*J * vec for interpolated flexes in [first, last)
+void mjd_flexInterp_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                             mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache,
+                             int first, int last) {
+  mjd_flexInterp_kernel(m, d, res, vec, s1, s2, K_rot_cache, NULL, first, last);
+}
+
+
 // compute res += (s1 + s2*damping) * J'*K*J * vec, for all interpolated flexes
 //   K_rot_cache: if non-NULL, use pre-cached K_rot (same layout as m->flex_stiffness)
 void mjd_flexInterp_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                         mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache) {
-  mjd_flexInterp_kernel(m, d, res, vec, s1, s2, K_rot_cache, NULL);
+  mjd_flexInterp_kernel(m, d, res, vec, s1, s2, K_rot_cache, NULL, 0, m->nflex);
 }
 
 
 // precompute unscaled K_rot for all elements into cache (same layout as m->flex_stiffness)
 void mjd_flexInterp_cacheKrot(const mjModel* m, mjData* d, mjtNum* K_rot_out) {
   // use s1=1, s2=0 so scale=1 and K_rot_out gets unscaled values
-  mjd_flexInterp_kernel(m, d, NULL, NULL, 1, 0, NULL, K_rot_out);
+  mjd_flexInterp_kernel(m, d, NULL, NULL, 1, 0, NULL, K_rot_out, 0, m->nflex);
 }
 
 

@@ -729,7 +729,7 @@ Discrete-time (``discrete``)
       - Models with flex elasticity or passive flex contact under the ``PGS`` :ref:`solver<option-solver>` or with
         :ref:`noslip<option-noslip_iterations>` post-processing.
       - :ref:`Sleep<option-flag-sleep>` without :ref:`islands<option-flag-island>` (island grouping is required
-        to keep metric-coupled trees awake or asleep together), and sleep combined with flex.
+        to keep metric-coupled trees awake or asleep together).
       - Interpolated flexes (e.g. flexcomp ``dof="trilinear"``) whose nodes are attached to arbitrary moving bodies
         under the ``Newton`` solver (these models require the ``CG`` solver).
 
@@ -738,7 +738,6 @@ Discrete-time (``discrete``)
       - Under ``PGS``, tendon and actuator metric terms are excluded and their forces integrate explicitly.
       - Under primal solvers (``CG``, ``Newton``), ``noslip`` post-processing approximates the Delassus operator
         from the backbone metric factor alone, omitting tendon and actuator couplings.
-      - Models with flex currently fall back to a monolithic solve across islands.
 
 4th-order Runge-Kutta (``RK4``)
    One advantage of our continuous-time formulation is that we can use higher order integrators such as Runge-Kutta or

@@ -4220,8 +4220,9 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactUnsupportedShape) {
 }
 
 // passive contact with no elastic stiffness still contributes to the metric:
-// the flex predicate must see it, and flex metric terms force a monolithic
-// solve under islands
+// the flex predicate must see it, and island discovery unions the contacting
+// body with the flex trees into one island while unrelated bodies form their
+// own islands
 TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -4263,6 +4264,7 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
 
   // the sphere landed on the net, deforming it, and no divergence occurred
   ASSERT_GT(d1->ncon, 0);
+  EXPECT_EQ(d1->nisland, 2);
   EXPECT_FALSE(d1->warning[mjWARN_BADQACC].number);
   EXPECT_GT(d1->qpos[model->nq - 12], 0.1) << "sphere fell through the net";
   mjtNum sag = 0;
@@ -4271,10 +4273,10 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
   }
   EXPECT_GT(sag, 0.002);
 
-  // island and monolithic solves agree (islands only reorder the constraint
-  // rows)
+  // island and monolithic solves agree (within CG stopping tolerance across
+  // separate per-island vs. combined monolithic CG trajectories)
   EXPECT_THAT(AsVector(d1->qpos, model->nq),
-              Pointwise(MjNear(1e-6, 1e-5), AsVector(d2->qpos, model->nq)));
+              Pointwise(MjNear(2e-6, 1e-5), AsVector(d2->qpos, model->nq)));
 }
 
 TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
@@ -5135,9 +5137,15 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   EXPECT_THAT(forward_error(model.get(), data.get()),
               testing::HasSubstr("sleep without islands"));
 
-  // sleep with islands is supported
+  // sleep with islands is supported, including with flex
   model->opt.disableflags &= ~mjDSBL_ISLAND;
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
+  model_f->opt.solver = mjSOL_CG;
+  model_f->opt.enableflags |= mjENBL_SLEEP;
+  EXPECT_EQ(forward_error(model_f.get(), data_f.get()), "");
+  model_f->opt.disableflags |= mjDSBL_ISLAND;
+  EXPECT_THAT(forward_error(model_f.get(), data_f.get()),
+              testing::HasSubstr("sleep without islands"));
 
   // valid options again: no error, under both supported solvers and both cones
   model->opt.enableflags &= ~mjENBL_SLEEP;
@@ -6339,6 +6347,90 @@ TEST_F(ForwardTest, DiscreteTendonThreeTreeIsland) {
   m->opt.disableflags &= ~mjDSBL_ISLAND;
   EXPECT_THAT(AsVector(d1->qpos, nq),
               Pointwise(MjNear(1e-8, 1e-4), AsVector(d2->qpos, nq)));
+}
+
+// islands and the monolithic solve agree under the discrete metric with flexes
+// (CSR-assembled, bending-only matrix-free, and trilinear interpolated), while
+// an unconstrained flex stays out of islands
+TEST_F(ForwardTest, DiscreteFlexIslandsMatchMonolithic) {
+  static const char* const kXmls[] = {
+      // CSR-assembled 2D cloth in contact + separate rigid box + free-falling
+      // elastic flex
+      R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" tolerance="1e-14" iterations="500"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <flexcomp name="cloth" type="grid" count="3 3 1" spacing=".05 .05 .05"
+                radius=".01" dim="2" mass=".2" pos="0 0 .008" dof="full">
+        <contact selfcollide="none"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both" thickness="0.01"/>
+      </flexcomp>
+      <body pos="1 0 .04">
+        <joint name="far" type="slide" axis="1 0 0" damping="2" stiffness="50"/>
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+      <flexcomp name="free_flex" type="grid" count="2 2 1" spacing=".05 .05 .05"
+                radius=".005" dim="2" mass=".1" pos="-1 0 1" dof="full">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="both" thickness="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )",
+      // bending-only 2D cloth (matrix-free under CG, assembled under Newton) +
+      // trilinear 3D solid in separate contact islands
+      R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" tolerance="1e-14" iterations="500"/>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <flexcomp name="bend_cloth" type="grid" count="3 3 1" spacing=".05 .05 .05"
+                radius=".01" dim="2" mass=".2" pos="0 0 .008" dof="full">
+        <contact selfcollide="none"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="bend" thickness="0.01"/>
+      </flexcomp>
+      <flexcomp name="solid" type="grid" count="2 2 2" spacing=".06 .06 .06"
+                radius=".01" dim="3" mass=".3" pos="1 0 .035" dof="trilinear">
+        <contact selfcollide="none"/>
+        <elasticity young="2e3" poisson="0.2" damping="0.1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )",
+  };
+
+  for (const char* xml : kXmls) {
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    int nv = model->nv;
+
+    for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON}) {
+      model->opt.solver = solver;
+      model->opt.disableflags &= ~mjDSBL_ISLAND;
+      mj_resetData(model.get(), data.get());
+      for (int i = 0; i < 15; i++) {
+        mj_step(model.get(), data.get());
+      }
+      mj_forward(model.get(), data.get());
+      ASSERT_GE(data->nisland, 2);
+      std::vector<mjtNum> qacc_island(data->qacc, data->qacc + nv);
+
+      model->opt.disableflags |= mjDSBL_ISLAND;
+      mj_forward(model.get(), data.get());
+
+      mjtNum scale =
+          mju_norm(qacc_island.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
+      for (int i = 0; i < nv; i++) {
+        EXPECT_THAT(data->qacc[i],
+                    MjNear(qacc_island[i], 1e-7 * scale, 1e-4 * scale))
+            << "solver " << solver << " dof " << i;
+      }
+      model->opt.disableflags &= ~mjDSBL_ISLAND;
+    }
+  }
 }
 
 // sleep composes with the discrete metric: unrelated trees sleep while the

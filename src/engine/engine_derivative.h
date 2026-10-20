@@ -145,6 +145,11 @@ mjtBool mjd_flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stre
 // is this interpolated flex processed by mjd_flexInterp_mul?
 mjtBool mjd_flexInterp_processed(const mjModel* m, int f);
 
+// compute res += (s1 + s2*damping) * J'*K*J * vec for interpolated flexes in [first, last)
+void mjd_flexInterp_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
+                             mjtNum s1, mjtNum s2, const mjtNum* K_rot_cache,
+                             int first, int last);
+
 // compute res += scale * K_bend * vec for standard (non-interp) flex bending, over the convex
 // stencils
 //   scale = s1 + s2 * flex_damping[f]  per flex

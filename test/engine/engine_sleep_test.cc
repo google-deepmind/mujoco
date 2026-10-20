@@ -863,6 +863,87 @@ TEST_F(SleepTest, HollowVsSolidSleep) {
   mj_deleteModel(m);
 }
 
+// Test sleep/wake lifecycle with elastic flexes under the discrete integrator
+// (both CG and Newton solvers).
+TEST_F(SleepTest, FlexSleepDiscrete) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" viscosity="2" sleep_tolerance="0.1">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <flexcomp name="cloth" type="grid" count="3 3 1" spacing=".05 .05 .05"
+                radius=".01" dim="2" mass=".3" pos="0 0 .01" dof="full">
+        <contact selfcollide="none"/>
+        <edge equality="true" solref="0.02 1"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.2" elastic2d="bend" thickness="0.01"/>
+      </flexcomp>
+      <flexcomp name="hollow" type="grid" count="2 2 2" spacing=".05 .05 .05"
+                radius=".01" dim="3" mass=".4" pos="0.5 0 .035" dof="trilinear">
+        <contact selfcollide="none"/>
+        <edge equality="strain" solref="0.02 1"/>
+      </flexcomp>
+      <body name="ball" pos="0 0.01 0.5">
+        <freejoint/>
+        <geom type="sphere" size=".03" mass=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  int cloth_id = mj_name2id(m.get(), mjOBJ_FLEX, "cloth");
+  int hollow_id = mj_name2id(m.get(), mjOBJ_FLEX, "hollow");
+  ASSERT_GE(cloth_id, 0);
+  ASSERT_GE(hollow_id, 0);
+
+  for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON}) {
+    m->opt.solver = solver;
+    MjDataPtr d = MakeData(m);
+
+    // phase 1: cloth and hollow flexes settle onto the plane and fall asleep
+    // before the ball reaches them
+    for (int step = 0; step < 500; step++) {
+      mj_step(m.get(), d.get());
+      if (mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id) == mjS_ASLEEP &&
+          mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, hollow_id) ==
+              mjS_ASLEEP) {
+        break;
+      }
+    }
+    ASSERT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id), mjS_ASLEEP)
+        << "solver " << solver;
+    ASSERT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, hollow_id),
+              mjS_ASLEEP)
+        << "solver " << solver;
+
+    // phase 2: falling ball impacts cloth and wakes it while hollow stays
+    // asleep
+    for (int step = 0; step < 2000; step++) {
+      mj_step(m.get(), d.get());
+      if (mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id) == mjS_AWAKE) {
+        break;
+      }
+    }
+    EXPECT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id), mjS_AWAKE)
+        << "solver " << solver;
+    EXPECT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, hollow_id),
+              mjS_ASLEEP)
+        << "solver " << solver;
+
+    // phase 3: everything settles back to sleep
+    for (int step = 0; step < 5000; step++) {
+      mj_step(m.get(), d.get());
+      if (d->ntree_awake == 0) {
+        break;
+      }
+    }
+    EXPECT_EQ(d->ntree_awake, 0) << "solver " << solver;
+  }
+}
+
 // Test that a sleeping flex touching a non-world static body doesn't crash.
 TEST_F(SleepTest, FlexStaticContact) {
   const std::string xml_path =

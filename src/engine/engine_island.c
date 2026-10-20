@@ -444,9 +444,6 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
   // effective metric (integrator=discrete) carries the coupling inside the constraint solve. Awake
   // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
   // constraint filter); waking a flex as a unit remains the wake machinery's job.
-  // NOTE: passive flex contact between two DIFFERENT flexes has no efc row either, and nothing
-  // merges their trees. Unreachable while effFlexAny forces a monolithic solve; island-local
-  // flex operators will need a contact-driven merge here (walk exclude==4 contacts, union sides).
   for (int f=0; f < m->nflex; f++) {
     if (!mj_effFlexStiffPossible(m, f) && !mj_effFlexContactPossible(m, f)) {
       continue;
@@ -474,6 +471,34 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
         tree1 = tree2;
       } else {
         mj_dsuMerge(parent, tree1, tree2);
+      }
+    }
+  }
+
+  // passive flex contacts (exclude == 4) also carry metric terms without efc rows: union the
+  // awake trees of their bodies so two flexes (or a flex and a rigid body) coupled by passive
+  // contact share one island
+  if (mj_isMetric(m)) {
+    for (int i=0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4) {
+        continue;
+      }
+      int body[729];  // 729 = 27*27, as in mj_contactJacobian
+      int nb = mj_contactBodyWeight(m, d, con, 0, body, NULL);
+      nb += mj_contactBodyWeight(m, d, con, 1, body+nb, NULL);
+
+      int tree1 = -1;
+      for (int j=0; j < nb; j++) {
+        int tree2 = m->body_treeid[body[j]];
+        if (tree2 < 0 || tree2 == tree1 || !d->tree_awake[tree2]) {
+          continue;
+        }
+        if (tree1 < 0) {
+          tree1 = tree2;
+        } else {
+          mj_dsuMerge(parent, tree1, tree2);
+        }
       }
     }
   }

@@ -120,7 +120,7 @@ typedef struct mjData_ {
   int     nefmT;             // number of tendons with terms in the metric
   int     nefmA;             // number of actuators with terms in the metric
   int     nefmdof;           // number of 3x3 blocks in the effective-metric preconditioner
-  int     nefmL;             // size of the effective-metric block storage (9*nefmdof)
+  int     nefmL;             // size of efm_L (9*nefmdof plus optional Cholesky or island tail)
 
   // variable sizes, continued
   int     nY;                // number of non-zeros in constraint inverse inertia square root
@@ -410,7 +410,7 @@ typedef struct mjData_ {
   int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
   int*    efm_con_ind;       // contact rows, packed [nnz, conid, colind...]     (nefmcon x 1)
   mjtNum* efm_con_val;       // contact rows, packed [scale, force, val...]      (nefmcon x 1)
-  mjtNum* efm_L;             // factored 3x3 diagonal blocks of M+K              (nefmL x 1)
+  mjtNum* efm_L;             // factored 3x3 blocks of M+K and packed tail data  (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 

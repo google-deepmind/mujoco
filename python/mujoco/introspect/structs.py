@@ -5767,7 +5767,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='nefmL',
                  type=ValueType(name='int'),
-                 doc='size of the effective-metric block storage (9*nefmdof)',
+                 doc='size of efm_L (9*nefmdof plus optional Cholesky or island tail)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='nY',
@@ -7205,7 +7205,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='factored 3x3 diagonal blocks of M+K',
+                 doc='factored 3x3 blocks of M+K and packed tail data',
                  array_extent=('nefmL',),
              ),
              StructFieldDecl(

@@ -1233,15 +1233,8 @@ static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
-  // check if islands are supported
-  // islands are supported under the discrete metric: findEdges unions the trees of
-  // metric-coupled tendons, and the solver contexts see an island-local view (gathered
-  // shift, mapped products, gathered M+diag backbone factor). Only flex with metric terms
-  // still forces a monolithic solve: the flex operators (stencils, 3x3 block factors)
-  // have no island-local form.
-  // TODO: island-local flex operators, then remove the flex condition.
-  int islands_supported = flg_island && nisland > 0 &&
-                          !(mj_isMetric(m) && effFlexAny(m));
+  // check if islands are supported (IPC folds its subproblem monolithically)
+  int islands_supported = flg_island && nisland > 0 && !mjENABLED(mjENBL_IPC);
 
   // run solver over constraint islands
   if (islands_supported) {
@@ -1790,9 +1783,6 @@ void mj_checkDiscrete(const mjModel* m) {
   if (mjENABLED(mjENBL_SLEEP)) {
     if (mjDISABLED(mjDSBL_ISLAND)) {
       mjERROR("discrete integrator: sleep without islands not yet supported");
-    }
-    if (effFlexAny(m)) {
-      mjERROR("discrete integrator: sleep with flex not yet supported");
     }
   }
 }

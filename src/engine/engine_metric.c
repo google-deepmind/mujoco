@@ -288,6 +288,7 @@ static void effBlockRaw(const mjModel* m, const mjData* d, int i, mjtNum* Bk) {
 
 #define EFF_HDR 1
 #define EFF_CHOL_PENDING 2
+#define EFF_ISLAND_TAG -1
 #define EFF_CHOL_MAXVERT 8192
 #define EFF_CHOL_PIVOT 1e-12
 
@@ -387,7 +388,53 @@ static void effCholStep(const mjData* d, mjEffChol* c) {
 
 static int effCholReserved(const mjData* d) {
   int nb = d->nefmdof;
-  return nb && d->nefmL > 9*nb;
+  return nb && d->nefmL > 9*nb && d->efm_L[9*nb] >= 0;
+}
+
+// per-island flex/triple lists, packed into efm_L after the 9*nefmdof 3x3 blocks when islands are
+// active (and IPC is disabled, so effCholReserve is unused):
+//   [9*nb 3x3 blocks][EFF_ISLAND_TAG][nisland, nb, nbd, nflex, cov_adr, cov_ind, bend_adr, ...]
+typedef struct {
+  int nisland, nb, nbd, nflex;
+  int *cov_adr, *cov_ind;    // covered block indices k in [0, nefmdof) per island
+  int *bend_adr, *bend_ind;  // bending dof indices b in [0, nefm0dof) per island
+  int *flex_adr, *flex_ind;  // matrix-free flex indices f in [0, nflex) per island
+} mjEffIsland;
+
+static int effIslandTail(const mjModel* m, const mjData* d, int nb) {
+  int nisland = d->nisland;
+  int nbd = nb ? 0 : m->nefm0dof;
+  int nflex = m->nflex;
+  size_t ints = 4 + 3*(size_t)(nisland + 1) + (size_t)nb + (size_t)nbd + (size_t)nflex;
+  size_t npack = (sizeof(int)*ints + sizeof(mjtNum) - 1) / sizeof(mjtNum);
+  return EFF_HDR + (int)npack;
+}
+
+static void effIslandPackLayout(int* A, mjEffIsland* isl) {
+  isl->nisland = A[0];
+  isl->nb = A[1];
+  isl->nbd = A[2];
+  isl->nflex = A[3];
+  int* p = A + 4;
+  isl->cov_adr = p;   p += isl->nisland + 1;
+  isl->cov_ind = p;   p += isl->nb;
+  isl->bend_adr = p;  p += isl->nisland + 1;
+  isl->bend_ind = p;  p += isl->nbd;
+  isl->flex_adr = p;  p += isl->nisland + 1;
+  isl->flex_ind = p;
+}
+
+static int effIslandStep(const mjData* d, mjEffIsland* isl) {
+  int nb = d->nefmdof;
+  if (d->nefmL <= 9*nb || d->efm_L[9*nb] != EFF_ISLAND_TAG) {
+    return 0;
+  }
+  int* A = (int*)(d->efm_L + 9*nb + EFF_HDR);
+  if (A[0] != d->nisland) {
+    return 0;
+  }
+  effIslandPackLayout(A, isl);
+  return 1;
 }
 
 static mjtNum* effCholStepValues(const mjData* d, const mjEffChol* c) {
@@ -1394,7 +1441,14 @@ static void effBlocks(const mjModel* m, mjData* d) {
   int ntail = 0;
   mjtNum* B = effCholReserve(m, d, nb, adr, &ntail);
   if (!B) {
-    B = (mjtNum*) effAlloc(d, sizeof(mjtNum)*9*(nb > 0 ? nb : 1), _Alignof(mjtNum));
+    if (d->nisland > 0 && m->nflex > 0 && !mjENABLED(mjENBL_IPC)) {
+      ntail = effIslandTail(m, d, nb);
+    }
+    size_t nB = 9*(size_t)nb + (size_t)ntail;
+    B = (mjtNum*) effAlloc(d, sizeof(mjtNum)*(nB > 0 ? nB : 1), _Alignof(mjtNum));
+    if (ntail) {
+      B[9*nb] = EFF_ISLAND_TAG;
+    }
   }
   for (int k = 0; k < nb; k++) {
     mjtNum* Bk = B + 9*k;
@@ -1494,11 +1548,13 @@ static void effBlockApply(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* 
       x[m->efm0_dofid[i]] = 0;
     }
   }
-  // TODO(team): restrict solve to awake trees when island sleep filtering is active
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < nv;
   if (d->efm_diag) {
-    mj_solveLD(x, d->qH, d->qHDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+    mj_solveLD(x, d->qH, d->qHDiagInv, sleep_filter ? d->nv_awake : nv, 1,
+               m->M_rownnz, m->M_rowadr, m->M_colind, sleep_filter ? d->dof_awake_ind : NULL);
   } else {
-    mj_solveLD(x, d->qLD, d->qLDiagInv, nv, 1, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+    mj_solveLD(x, d->qLD, d->qLDiagInv, sleep_filter ? d->nv_awake : nv, 1,
+               m->M_rownnz, m->M_rowadr, m->M_colind, sleep_filter ? d->dof_awake_ind : NULL);
   }
 
   // per-step stiffness: the sparse factor or the 3x3 blocks
@@ -1788,8 +1844,8 @@ size_t mj_effFoldScratch(const mjModel* m, const mjData* d, int nu) {
 }
 
 
-// stack bytes of mj_effMulAdd, at most: the frames of the matrix-free flex operators it falls
-// back to, one at a time
+// stack bytes of mj_effMulAdd and mj_effMulAddIsland, at most: the frames of the matrix-free
+// flex operators they fall back to, one at a time, plus the island scatter/gather frame
 size_t mj_effMulAddScratch(const mjModel* m, const mjData* d) {
   size_t frame = mj_stackFrameBytes(), bytes = 0;
   for (int f=0; f < m->nflex; f++) {
@@ -1804,6 +1860,9 @@ size_t mj_effMulAddScratch(const mjModel* m, const mjData* d) {
   if (!d->nefmK || !mjd_flexInterpAssemblable(m)) {
     size_t b = mjd_flexInterp_mulBytes(m);
     bytes = mjMAX(bytes, b);
+  }
+  if (bytes && !mjDISABLED(mjDSBL_ISLAND) && !mjENABLED(mjENBL_IPC)) {
+    bytes += frame + 2*mj_stackBytes(sizeof(mjtNum)*m->nv, _Alignof(mjtNum));
   }
   return bytes;
 }
@@ -2357,16 +2416,142 @@ void mj_effActuation(const mjModel* m, mjData* d, int flg_factor) {
       d->efm_sdiag[i] = d->qH[diag] - d->M[diag];
     }
     if (flg_factor) {
-      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind, NULL);
+      int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < nv;
+      mj_factorI(d->qH, d->qHDiagInv, sleep_filter ? d->nv_awake : nv,
+                 m->M_rownnz, m->M_rowadr, m->M_colind,
+                 sleep_filter ? d->dof_awake_ind : NULL);
     }
   }
 }
 
 
-// island-local metric product res += S*vec: the diagonal classes and the island's tendons,
-// with vectors in island-local dof coordinates. Flex terms never reach the island path:
-// models with flex metric terms force a monolithic solve
-void mj_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
+// island of flex f, or -1 if none of its bodies belong to an island. All awake trees of a
+// metric-coupled flex share one island (unionConstraintTrees), so the first dynamic body in an
+// island decides membership
+static int flexIsland(const mjModel* m, const mjData* d, int f) {
+  int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
+  int adr = m->flex_interp[f] ? m->flex_nodeadr[f] : m->flex_vertadr[f];
+  const int* bodyid = m->flex_interp[f] ? m->flex_nodebodyid : m->flex_vertbodyid;
+  for (int j=0; j < num; j++) {
+    int tree = m->body_treeid[bodyid[adr + j]];
+    if (tree >= 0 && d->tree_island[tree] >= 0) {
+      return d->tree_island[tree];
+    }
+  }
+  return -1;
+}
+
+
+// does flex f require the matrix-free stiffness path (not covered by the CSR)?
+static int flexMatrixFree(const mjModel* m, const mjData* d, int f, int interp_asm) {
+  if (m->flex_interp[f]) {
+    return !interp_asm && mjd_flexInterp_processed(m, f);
+  }
+  return mjd_flexStiff_active(m, f, /*flg_bend=*/1, /*flg_stretch=*/1) &&
+         (!d->nefmK || !mj_flexSimple(m, f));
+}
+
+
+// build CSR-style per-island lists of covered triples, bending-only dofs, and matrix-free flexes
+// in the tail of d->efm_L once per step, avoiding O(nefmdof + nefm0dof + nflex) scans per island
+// per CG iteration
+static void effIslandBuild(const mjModel* m, mjData* d) {
+  int nisland = d->nisland;
+  int nb = d->nefmdof;
+  int ntail = effIslandTail(m, d, nb);
+  if (!nb) {
+    d->efm_L = EFMALLOC(mjtNum, ntail);
+    d->nefmL = ntail;
+  }
+
+  mjtNum* tail = d->efm_L + 9*nb;
+  mju_zero(tail, ntail);
+  tail[0] = EFF_ISLAND_TAG;
+  int* A = (int*)(tail + EFF_HDR);
+  A[0] = nisland;
+  A[1] = nb;
+  A[2] = nb ? 0 : m->nefm0dof;
+  A[3] = m->nflex;
+  mjEffIsland isl;
+  effIslandPackLayout(A, &isl);
+
+  mju_zeroInt(isl.cov_adr, nisland + 1);
+  for (int k=0; k < nb; k++) {
+    int island = d->dof_island[d->efm_dofid[k]];
+    if (island >= 0 && island < nisland) {
+      isl.cov_adr[island + 1]++;
+    }
+  }
+  for (int c=0; c < nisland; c++) {
+    isl.cov_adr[c + 1] += isl.cov_adr[c];
+  }
+  for (int k=0; k < nb; k++) {
+    int island = d->dof_island[d->efm_dofid[k]];
+    if (island >= 0 && island < nisland) {
+      isl.cov_ind[isl.cov_adr[island]++] = k;
+    }
+  }
+  for (int c=nisland; c > 0; c--) {
+    isl.cov_adr[c] = isl.cov_adr[c - 1];
+  }
+  isl.cov_adr[0] = 0;
+
+  mju_zeroInt(isl.bend_adr, nisland + 1);
+  if (!nb && m->nefm0dof) {
+    for (int i=0; i < m->nefm0dof; i++) {
+      int island = d->dof_island[m->efm0_dofid[i]];
+      if (island >= 0 && island < nisland) {
+        isl.bend_adr[island + 1]++;
+      }
+    }
+    for (int c=0; c < nisland; c++) {
+      isl.bend_adr[c + 1] += isl.bend_adr[c];
+    }
+    for (int i=0; i < m->nefm0dof; i++) {
+      int island = d->dof_island[m->efm0_dofid[i]];
+      if (island >= 0 && island < nisland) {
+        isl.bend_ind[isl.bend_adr[island]++] = i;
+      }
+    }
+    for (int c=nisland; c > 0; c--) {
+      isl.bend_adr[c] = isl.bend_adr[c - 1];
+    }
+    isl.bend_adr[0] = 0;
+  }
+
+  mju_zeroInt(isl.flex_adr, nisland + 1);
+  int interp_asm = d->nefmK && mjd_flexInterpAssemblable(m);
+  for (int f=0; f < m->nflex; f++) {
+    if (!flexMatrixFree(m, d, f, interp_asm)) {
+      continue;
+    }
+    int island = flexIsland(m, d, f);
+    if (island >= 0 && island < nisland) {
+      isl.flex_adr[island + 1]++;
+    }
+  }
+  for (int c=0; c < nisland; c++) {
+    isl.flex_adr[c + 1] += isl.flex_adr[c];
+  }
+  for (int f=0; f < m->nflex; f++) {
+    if (!flexMatrixFree(m, d, f, interp_asm)) {
+      continue;
+    }
+    int island = flexIsland(m, d, f);
+    if (island >= 0 && island < nisland) {
+      isl.flex_ind[isl.flex_adr[island]++] = f;
+    }
+  }
+  for (int c=nisland; c > 0; c--) {
+    isl.flex_adr[c] = isl.flex_adr[c - 1];
+  }
+  isl.flex_adr[0] = 0;
+}
+
+
+// island-local metric product res += S*vec: the diagonal classes, fluid blocks, rank-1 terms,
+// and flex stiffness of the island, with vectors in island-local dof coordinates
+void mj_effMulAddIsland(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                         int island) {
   int nv = d->island_nv[island];
   int idofadr = d->island_idofadr[island];
@@ -2412,6 +2597,185 @@ void mj_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res, const mj
       res[d->map_dof2idof[e.colind[j]] - idofadr] += dot * e.val[j];
     }
   }
+
+  mjEffIsland isl;
+  int has_isl = effIslandStep(d, &isl);
+
+  // flex stiffness CSR restricted to the island's covered triples.
+  // Invariant: all dynamic trees of a metric-coupled flex are awake or asleep together (sleeping
+  // acts on whole islands in mj_sleep and wakes whole cycles in mj_wakeIsland, and
+  // unionConstraintTrees unions all awake trees of a metric-coupled flex into one island), so
+  // every column in row i belongs to the same island as i.
+  if (d->nefmK && d->nefmdof && has_isl) {
+    const int* rowadr = d->efm_K_rowadr;
+    const int* rownnz = d->efm_K_rownnz;
+    const int* colind = d->efm_K_colind;
+    const mjtNum* val = d->efm_K_val;
+    int p_end = isl.cov_adr[island + 1];
+    for (int p=isl.cov_adr[island]; p < p_end; p++) {
+      int i = d->efm_dofid[isl.cov_ind[p]];
+      int li = d->map_dof2idof[i] - idofadr;
+      const mjtNum* v0 = val + rowadr[i];
+      const mjtNum* v1 = val + rowadr[i+1];
+      const mjtNum* v2 = val + rowadr[i+2];
+      const int* ci = colind + rowadr[i];
+      int nn = rownnz[i] / 3;
+      mjtNum r0 = 0, r1 = 0, r2 = 0;
+      for (int j=0; j < nn; j++) {
+        int lc = d->map_dof2idof[ci[3*j]] - idofadr;
+        if (lc < 0 || lc + 2 >= nv) {
+          mjERROR("flex stiffness column outside island %d", island);  // SHOULD NOT OCCUR
+        }
+        mjtNum x0 = vec[lc], x1 = vec[lc+1], x2 = vec[lc+2];
+        r0 += v0[3*j]*x0 + v0[3*j+1]*x1 + v0[3*j+2]*x2;
+        r1 += v1[3*j]*x0 + v1[3*j+1]*x1 + v1[3*j+2]*x2;
+        r2 += v2[3*j]*x0 + v2[3*j+1]*x1 + v2[3*j+2]*x2;
+      }
+      res[li] += r0;
+      res[li+1] += r1;
+      res[li+2] += r2;
+    }
+  } else if (d->nefmK) {
+    for (int k=0; k < nv; k++) {
+      int i = idof2dof[k];
+      int nnz = d->efm_K_rownnz[i];
+      if (!nnz) {
+        continue;
+      }
+      const int* ci = d->efm_K_colind + d->efm_K_rowadr[i];
+      const mjtNum* v = d->efm_K_val + d->efm_K_rowadr[i];
+      mjtNum acc = 0;
+      for (int j=0; j < nnz; j++) {
+        int lc = d->map_dof2idof[ci[j]] - idofadr;
+        if (lc < 0 || lc >= nv) {
+          mjERROR("flex stiffness column outside island %d", island);  // SHOULD NOT OCCUR
+        }
+        acc += v[j] * vec[lc];
+      }
+      res[k] += acc;
+    }
+  }
+
+  // matrix-free fallback for flexes in this island not covered by the CSR
+  int has_mf = has_isl ? (isl.flex_adr[island] < isl.flex_adr[island + 1]) : 0;
+  int interp_asm = d->nefmK && mjd_flexInterpAssemblable(m);
+  if (!has_isl) {
+    for (int f=0; f < m->nflex; f++) {
+      if (flexMatrixFree(m, d, f, interp_asm) && flexIsland(m, d, f) == island) {
+        has_mf = 1;
+        break;
+      }
+    }
+  }
+  if (has_mf) {
+    mjtNum h = m->opt.timestep;
+    mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
+    mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
+    mj_markStack(d);
+    mjtNum* gvec = mjSTACKALLOC(d, m->nv, mjtNum);
+    mjtNum* gres = mjSTACKALLOC(d, m->nv, mjtNum);
+    for (int k=0; k < nv; k++) {
+      int dof = idof2dof[k];
+      gvec[dof] = vec[k];
+      gres[dof] = 0;
+    }
+    int n = has_isl ? (isl.flex_adr[island + 1] - isl.flex_adr[island]) : m->nflex;
+    for (int p=0; p < n; p++) {
+      int f = has_isl ? isl.flex_ind[isl.flex_adr[island] + p] : p;
+      if (!has_isl && (!flexMatrixFree(m, d, f, interp_asm) || flexIsland(m, d, f) != island)) {
+        continue;
+      }
+      if (m->flex_interp[f]) {
+        mjd_flexInterp_mulRange(m, d, gres, gvec, -s1, -s2, d->flexelem_krot, f, f+1);
+      } else {
+        mjd_flexBend_mulRange(m, d, gres, gvec, s1, s2, f, f+1);
+        mjd_flexStretch_mulRange(m, d, gres, gvec, s1, s2, f, f+1);
+      }
+    }
+    for (int k=0; k < nv; k++) {
+      res[k] += gres[idof2dof[k]];
+    }
+    mj_freeStack(d);
+  }
+}
+
+
+// island-local metric preconditioner x ~= (M + B)_island^-1 b, vectors in island-local dof
+// coordinates; qLD/qLDiagInv/M_* are the island's gathered backbone factor
+void mj_effPrecIsland(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b, int island,
+                      const mjtNum* qLD, const mjtNum* qLDiagInv,
+                      const int* M_rownnz, const int* M_rowadr, const int* M_colind) {
+  int nv = d->island_nv[island];
+  int idofadr = d->island_idofadr[island];
+  int nbd = m->nefm0dof;
+  int flg_bend = nbd && !d->nefmdof;
+
+  mjEffIsland isl;
+  int has_isl = effIslandStep(d, &isl);
+  int has_cov = has_isl && (isl.cov_adr[island] < isl.cov_adr[island + 1]);
+  int has_bend = flg_bend && has_isl && (isl.bend_adr[island] < isl.bend_adr[island + 1]);
+
+  // no covered or bending-only flex blocks in this island: the gathered backbone factor is all
+  if (!has_cov && !has_bend) {
+    if (x != b) {
+      mju_copy(x, b, nv);
+    }
+    mj_solveLD(x, qLD, qLDiagInv, nv, 1, M_rownnz, M_rowadr, M_colind, NULL);
+    return;
+  }
+
+  mj_markStack(d);
+  mjtNum* rhs = mjSTACKALLOC(d, nv, mjtNum);
+  mju_copy(rhs, b, nv);   // b may alias x
+
+  // backbone solve on uncovered island dofs
+  mju_copy(x, rhs, nv);
+  if (has_cov) {
+    int p_end = isl.cov_adr[island + 1];
+    for (int p=isl.cov_adr[island]; p < p_end; p++) {
+      int i = d->efm_dofid[isl.cov_ind[p]];
+      mju_zero(x + (d->map_dof2idof[i] - idofadr), 3);
+    }
+  }
+  if (has_bend) {
+    int p_end = isl.bend_adr[island + 1];
+    for (int p=isl.bend_adr[island]; p < p_end; p++) {
+      int gdof = m->efm0_dofid[isl.bend_ind[p]];
+      x[d->map_dof2idof[gdof] - idofadr] = 0;
+    }
+  }
+  mj_solveLD(x, qLD, qLDiagInv, nv, 1, M_rownnz, M_rowadr, M_colind, NULL);
+
+  // per-step 3x3 blocks on the island's covered triples
+  if (has_cov) {
+    int p_end = isl.cov_adr[island + 1];
+    for (int p=isl.cov_adr[island]; p < p_end; p++) {
+      int k = isl.cov_ind[p];
+      int li = d->map_dof2idof[d->efm_dofid[k]] - idofadr;
+      chol3Solve(x + li, d->efm_L + 9*k, rhs + li);
+    }
+  }
+
+  // bending-only constant factor restricted to the island
+  if (has_bend) {
+    mjtNum* bfr = mjSTACKALLOC(d, nbd, mjtNum);
+    mjtNum* bfz = mjSTACKALLOC(d, nbd, mjtNum);
+    mju_zero(bfr, nbd);
+    int p_end = isl.bend_adr[island + 1];
+    for (int p=isl.bend_adr[island]; p < p_end; p++) {
+      int i = isl.bend_ind[p];
+      int gdof = m->efm0_dofid[i];
+      bfr[i] = rhs[d->map_dof2idof[gdof] - idofadr];
+    }
+    mju_cholSolveSparse(bfz, m->efm0_L, bfr, nbd,
+                        m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind);
+    for (int p=isl.bend_adr[island]; p < p_end; p++) {
+      int i = isl.bend_ind[p];
+      int gdof = m->efm0_dofid[i];
+      x[d->map_dof2idof[gdof] - idofadr] = bfz[i];
+    }
+  }
+  mj_freeStack(d);
 }
 
 
@@ -2650,6 +3014,11 @@ void mj_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   } else {
     mju_zeroInt(d->efm_K_rownnz, nv);
     mju_zeroInt(d->efm_K_rowadr, nv);
+  }
+
+  // per-island flex/triple lists for mj_effMulAddIsland and mj_effPrecIsland
+  if (d->nisland > 0 && m->nflex > 0 && !mjENABLED(mjENBL_IPC) && !effCholReserved(d)) {
+    effIslandBuild(m, d);
   }
 
   d->efm_active = 1;

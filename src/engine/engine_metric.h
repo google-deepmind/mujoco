@@ -61,7 +61,7 @@ int mj_effRank1Next(const mjModel* m, const mjData* d, mjEffRank1Iter* it,
                     mjEffRank1* e, int flg_contact);
 
 // island-local metric product res += S*vec, vectors in island-local dof coordinates
-void mj_effMulAddIsland(const mjModel* m, const mjData* d, mjtNum* res,
+void mj_effMulAddIsland(const mjModel* m, mjData* d, mjtNum* res,
                         const mjtNum* vec, int island);
 
 // implicit effective metric Mtilde = M + (h^2+h*d)*K: per-step arena object (see mjdata.h efm_*)
@@ -85,6 +85,14 @@ MJAPI void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
 // apply the metric preconditioner: x ~= (M + B)^-1 b, a cheap fixed linear operator, NOT a solve.
 // Exact only when the metric is inactive (x = M^-1 b); otherwise approximate by construction.
 MJAPI void mj_effPrec(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b);
+
+// island-local metric preconditioner x ~= (M + B)_island^-1 b, vectors in
+// island-local dof coordinates; qLD/qLDiagInv/M_* are the island's gathered
+// backbone factor
+void mj_effPrecIsland(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
+                      int island, const mjtNum* qLD, const mjtNum* qLDiagInv,
+                      const int* M_rownnz, const int* M_rowadr,
+                      const int* M_colind);
 
 // a constraint solve's contact-adaptive sparse factor
 typedef struct mjEffFactor_ mjEffFactor;

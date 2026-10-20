@@ -1278,7 +1278,16 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 
     // the view is lower-triangle: at most half the symmetric CSR, the lower wedge of
     // each rank-1 outer product, the strictly-lower fluid pattern, one diagonal per row
-    nScap = (ctx->island < 0 ? d->nefmK/2 : 0) + tlow + nv + (d->efm_fluid ? m->nC - nv : 0);
+    int kcap = d->nefmK / 2;
+    if (ctx->island >= 0 && d->nefmK) {
+      int ksum = 0;
+      int idofadr = d->island_idofadr[ctx->island];
+      for (int i = 0; i < nv; i++) {
+        ksum += d->efm_K_rownnz[d->map_idof2dof[idofadr + i]];
+      }
+      kcap = ksum / 2;
+    }
+    nScap = kcap + tlow + nv + (d->efm_fluid ? m->nC - nv : 0);
   }
 
   // carve the mjtNum and int blocks: pass 0 totals the sizes, pass 1 hands out the
@@ -1621,8 +1630,13 @@ static void PrimalUpdateMgrad(mjPrimalContext* ctx, int flg_Newton) {
     PrimalMetricPrecond(ctx, ctx->Mgrad, ctx->grad);
   }
 
-  // CG: Mgrad = M \ grad. For metric island contexts the gathered factor already holds
-  // M + diag including the tendon diagonal; tendon off-diagonals are handled by CG itself
+  // CG island with metric: island-local metric preconditioner
+  else if (ctx->flg_metric) {
+    mj_effPrecIsland(ctx->fm, ctx->fd, ctx->Mgrad, ctx->grad, ctx->island,
+                     ctx->qLD, ctx->qLDiagInv, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+  }
+
+  // CG without metric: Mgrad = M \ grad
   else {
     mju_copy(ctx->Mgrad, ctx->grad, nv);
     mj_solveLD(ctx->Mgrad, ctx->qLD, ctx->qLDiagInv, nv, 1,
@@ -2339,7 +2353,7 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
     }
   }
 
-  // merge flex CSR (monolithic only), tendon buckets and diagonals into the lower view
+  // merge flex CSR, tendon buckets and diagonals into the lower view
   adr = 0;
   for (int i=0; i < nv; i++) {
     ctx->S_rowadr[i] = adr;
@@ -2348,13 +2362,13 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
 
     // three-way merge of the sorted flex row, the sorted tendon/actuator row and the
     // fluid M-pattern row, summing duplicates. Island dof->idof maps preserve order
-    // within a tree, so mapped fluid columns stay sorted
+    // across DOFs in the island, so mapped flex and fluid columns stay sorted
     int fa = 0, fn = 0;
     const int* fcol = NULL;
     const mjtNum* fval = NULL;
-    if (island < 0 && d->nefmK) {
-      fa = d->efm_K_rowadr[i];
-      fn = d->efm_K_rownnz[i];
+    if (d->nefmK) {
+      fa = d->efm_K_rowadr[gdof];
+      fn = d->efm_K_rownnz[gdof];
       fcol = d->efm_K_colind;
       fval = d->efm_K_val;
     }
@@ -2368,13 +2382,16 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
     while (fa < fe || ta < te || ga < ge) {
       int col;
       mjtNum val = 0;
-      int cf = fa < fe ? fcol[fa] : nv;
+      int cf = fa < fe ? (island >= 0 ? d->map_dof2idof[fcol[fa]] - idofadr
+                                      : fcol[fa]) : nv;
       int ct = ta < te ? tcol[ta] : nv;
       int cg = ga < ge ? (island >= 0 ? d->map_dof2idof[m->M_colind[ga]] - idofadr
                                       : m->M_colind[ga]) : nv;
       col = cf < ct ? cf : ct;
       col = cg < col ? cg : col;
-      while (fa < fe && fcol[fa] == col) {
+      while (fa < fe &&
+             (island >= 0 ? d->map_dof2idof[fcol[fa]] - idofadr
+                          : fcol[fa]) == col) {
         val += fval[fa++];
       }
       while (ta < te && tcol[ta] == col) {
@@ -2872,6 +2889,19 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // make context
   PrimalPointers(m, d, &ctx, island);
+
+  // unconstrained metric island: mj_fwdAcceleration already solved
+  // (M + S)*qacc_smooth = qfrc_smooth - qfrc_bias via mj_effSolve (which includes all metric
+  // terms S), so with nefc == 0 the primal cost 1/2*(a - qacc_smooth)^T*Mtilde*(a - qacc_smooth)
+  // is minimized directly at qacc = qacc_smooth
+  if (island >= 0 && ctx.nefc == 0) {
+    mju_copy(ctx.qacc, ctx.qacc_smooth, ctx.nv);
+    mju_zero(ctx.qfrc_constraint, ctx.nv);
+    d->solver_niter[island] = 0;
+    mj_freeStack(d);
+    return;
+  }
+
   PrimalAllocate(m, d, &ctx, flg_Newton);
 
   // local copies
