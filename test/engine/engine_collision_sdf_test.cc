@@ -146,12 +146,6 @@ TEST_F(SdfTest, FlexSdfCollision) {
   EXPECT_TRUE(has_flex_contact) << "Expected at least one flex contact";
 }
 
-extern "C" {
-mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid);
-void oct_gradient(const mjModel* m, mjtNum grad[3], const mjtNum point[3],
-                  int meshid);
-}
-
 TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
   static constexpr char kCubeXml[] = R"(
   <mujoco>
@@ -169,6 +163,15 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   ASSERT_GT(model->mesh_octnum[0], 0);
 
+  const mjpPlugin* plugin = nullptr;
+  int meshid = 0;
+  mjtGeom geomtype = mjGEOM_SDF;
+  mjSDF sdf{};
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.id = &meshid;
+  sdf.plugin = &plugin;
+  sdf.geomtype = &geomtype;
+
   const mjtNum points[][3] = {
       {0.8, 0.4, -0.2},
       {0.2, -0.3, 0.5},
@@ -179,7 +182,7 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
 
   for (const auto& point : points) {
     mjtNum grad_analytic[3];
-    oct_gradient(model.get(), grad_analytic, point, 0);
+    mjc_gradient(model.get(), nullptr, &sdf, grad_analytic, point);
 
     mjtNum grad_fd[3];
     for (int k = 0; k < 3; ++k) {
@@ -187,8 +190,8 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
       mjtNum p_minus[3] = {point[0], point[1], point[2]};
       p_plus[k] += eps;
       p_minus[k] -= eps;
-      mjtNum d_plus = oct_distance(model.get(), p_plus, 0);
-      mjtNum d_minus = oct_distance(model.get(), p_minus, 0);
+      mjtNum d_plus = mjc_distance(model.get(), nullptr, &sdf, p_plus);
+      mjtNum d_minus = mjc_distance(model.get(), nullptr, &sdf, p_minus);
       grad_fd[k] = (d_plus - d_minus) / (2.0 * eps);
     }
 
@@ -225,7 +228,8 @@ TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {
   mj_forward(model.get(), data.get());
 
   mjPreContact con[mjMAXCONPAIR];
-  int ncon = mjc_MeshSDF(model.get(), data.get(), con, 0, 1, 0.0);
+  int ncon = mjCOLLISIONFUNC[mjGEOM_MESH][mjGEOM_SDF](model.get(), data.get(),
+                                                      con, 0, 1, 0.0);
   ASSERT_GT(ncon, 0);
 
   // Mesh bottom face is at z = 0.45, SDF top face is at z = 0.50
@@ -241,7 +245,6 @@ TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {
 TEST_F(SdfTest, SdfCollisionExcessContactsNoCrash) {
   static constexpr char kSdfSdfXml[] = R"(
   <mujoco>
-    <option sdf_initpoints="50"/>
     <asset>
       <mesh name="cube" vertex="-0.5 -0.5 -0.5  0.5 -0.5 -0.5  -0.5 0.5 -0.5  0.5 0.5 -0.5
                                 -0.5 -0.5  0.5  0.5 -0.5  0.5  -0.5 0.5  0.5  0.5 0.5  0.5"/>
@@ -259,14 +262,17 @@ TEST_F(SdfTest, SdfCollisionExcessContactsNoCrash) {
   char error[1024];
   MjModelPtr model = LoadModelFromString(kSdfSdfXml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
+  // More starting points than contact slots must stop before writing past the
+  // buffer.
+  model->opt.sdf_initpoints = 2 * mjMAXCONPAIR;
   MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
   mj_forward(model.get(), data.get());
 
   mjPreContact con[mjMAXCONPAIR];
-  int ncon = mjc_SDF(model.get(), data.get(), con, 0, 1, 0.0);
-  EXPECT_LE(ncon, mjMAXCONPAIR);
-  EXPECT_GT(ncon, 0);
+  int ncon = mjCOLLISIONFUNC[mjGEOM_SDF][mjGEOM_SDF](model.get(), data.get(),
+                                                     con, 0, 1, 0.0);
+  EXPECT_EQ(ncon, mjMAXCONPAIR);
 }
 
 }  // namespace
