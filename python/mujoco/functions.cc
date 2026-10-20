@@ -139,9 +139,12 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
                   .c_str()));
 
   // mj_embedAssets returns a new MjModel which owns the model
+  py::function mjmodel_from_raw_ptr = py::module::import("mujoco._structs")
+                                          .attr("MjModel")
+                                          .attr("_from_model_ptr");
   pymodule.def(
       "mj_embedAssets",
-      [](const MjModelWrapper& m) {
+      [mjmodel_from_raw_ptr](const MjModelWrapper& m) -> py::object {
         std::array<char, 1024> error;
         raw::MjModel* embedded = nullptr;
         {
@@ -152,7 +155,8 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         if (!embedded) {
           throw py::value_error(std::string(error.data()));
         }
-        return MjModelWrapper::WrapRawModel(embedded);
+        // wrapped by _structs, which owns MjModelWrapper's symbols
+        return mjmodel_from_raw_ptr(reinterpret_cast<std::uintptr_t>(embedded));
       },
       py::arg("m"), py::doc(traits::mj_embedAssets::doc));
 

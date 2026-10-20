@@ -151,7 +151,12 @@ class TextureByReferenceTest : public MujocoTest {
   // write the scene's files under a fresh directory
   void SetUp() override {
     MujocoTest::SetUp();
-    root_ = std::filesystem::path(testing::TempDir()) / "by_reference";
+    // one directory per test: ctest runs the tests of a file in parallel
+    const testing::TestInfo* test =
+        testing::UnitTest::GetInstance()->current_test_info();
+    root_ = std::filesystem::path(testing::TempDir()) /
+            (std::string("by_reference_") + test->test_suite_name() + "_" +
+             test->name());
     std::filesystem::remove_all(root_);
     WriteFile(root_ / "textures", "hfield.png",
               ReadTestData("user/testdata/hfield.png"));
