@@ -29,6 +29,7 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "src/render/filament/support/mjrf_ptr.h"
+#include "src/render/filament/support/model_renderables.h"
 #include "src/render/filament/support/model_resources.h"
 #include "test/fixture.h"
 
@@ -581,6 +582,49 @@ TEST_F(RendererTest, TextureDestroyedBeforeUploadReleasesData) {
     texture.reset();
   }
   EXPECT_EQ(released, 1);
+}
+
+// A skin whose faces share vertices uploads 3 * skin_facenum indices for
+// skin_vertnum vertices; the index buffer must be sized by the face count.
+// Regression test for https://github.com/google-deepmind/mujoco/issues/3719.
+TEST_F(RendererTest, SkinWithSharedVertices) {
+  static constexpr char kModel[] = R"(
+    <mujoco model="shared skin vertices">
+      <worldbody>
+        <light pos="0 -1 1" dir="0 1 -1"/>
+        <geom type="plane" size="1 1 0.01" rgba="0.85 0.85 0.85 1"/>
+      </worldbody>
+      <deformable>
+        <skin name="shared" rgba="0.93 0.55 0.51 1" inflate="0.01"
+              vertex="0.15 0.15 0.05
+                      0.15 -0.15 0.05
+                      -0.15 0 0.05
+                      0 0 0.3"
+              face="0 1 2
+                    0 3 1
+                    1 3 2
+                    2 3 0">
+          <bone body="world" bindpos="0 0 0" bindquat="1 0 0 0"
+                vertid="0 1 2 3" vertweight="1 1 1 1"/>
+        </skin>
+      </deformable>
+    </mujoco>)";
+
+  char error[1024] = "";
+  MjModelPtr model = LoadModelFromString(kModel, error, sizeof(error));
+  ASSERT_NE(model, nullptr) << error;
+  ASSERT_EQ(model->nskin, 1);
+  ASSERT_EQ(model->skin_vertnum[0], 4);
+  ASSERT_EQ(model->skin_facenum[0], 4);
+
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  Renderer renderer(MakeOffscreenConfig());
+  ModelResources resources(model.get(), renderer.GetContext());
+  ModelRenderables renderables(renderer.GetScene("scene"), &resources);
+  renderables.Update(data.get());
+  EXPECT_NE(renderables.GetRenderable(mjOBJ_SKIN, 0), nullptr);
 }
 
 }  // namespace
