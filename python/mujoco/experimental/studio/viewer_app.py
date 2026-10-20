@@ -44,6 +44,7 @@ from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import sim
 from mujoco.experimental.studio import sim_history
+from mujoco.experimental.studio import step_control
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_app_events
 from mujoco.experimental.studio import viewer_protocol
@@ -219,8 +220,21 @@ class ViewerAppConfig:
   show_inspector: bool = True
 
 
+# Sim-side plugins that back ViewerApp's step control and history scrubbing UI.
+# Unpack alongside ViewerApp() in plugins=[...], or pass individual plugins
+# when replacing one (e.g. a custom StepEvent plugin).
+SIM_PLUGINS: tuple[plugin.SimPlugin, ...] = (
+    step_control.StepControl(),
+    sim_history.SimHistory(),
+)
+
+
 class ViewerApp(plugin.ViewerPlugin):
-  """ViewerApp wraps a Viewer and adds Studio UI/UX."""
+  """ViewerApp wraps a Viewer and adds Studio UI/UX.
+
+  Pair with ``*SIM_PLUGINS`` in ``plugins=[...]`` for the default sim-side
+  real-time CPU stepping and history scrubbing.
+  """
 
   @property
   def model(self) -> mujoco.MjModel:

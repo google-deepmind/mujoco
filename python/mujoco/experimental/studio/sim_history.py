@@ -93,6 +93,13 @@ class SimHistory(plugin.SimPlugin):
     self._model: mujoco.MjModel | None = None
     self._last_recorded_time = math.inf
 
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_sim_init(self, _: plugin.SimInitEvent) -> None:
+    self.sim_history = sim.SimHistory()
+    self._ux_state = ux.UxState()
+    self._model = None
+    self._last_recorded_time = math.inf
+
   def _send_snapshot(self) -> None:
     self.handle.send_to_viewer(
         SimHistorySnapshot(

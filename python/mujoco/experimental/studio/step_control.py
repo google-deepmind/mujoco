@@ -36,6 +36,11 @@ class StepControl(plugin.SimPlugin):
     self._model_path: str = ''
     self.step_control = sim.StepControl()
 
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_sim_init(self, _: plugin.SimInitEvent) -> None:
+    self._model_path = ''
+    self.step_control = sim.StepControl()
+
   def _send_if_changes(self) -> contextlib.AbstractContextManager[None]:
     return self.handle.send_if_changes(
         lambda: messages.StepControlSnapshot.from_step_control(
