@@ -216,7 +216,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCMesh*     AddMesh(mjCDef* def = nullptr);
   mjCSkin*     AddSkin();
   mjCHField*   AddHField();
-  mjCTexture*  AddTexture();
+  mjCTexture*  AddTexture(mjCDef* def = nullptr);
   mjCMaterial* AddMaterial(mjCDef* def = nullptr);
   mjCPair*     AddPair(mjCDef* def = nullptr);      // geom pair for inclusion
   mjCBodyPair* AddExclude();                        // body pair for exclusion

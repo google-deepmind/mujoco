@@ -5583,6 +5583,8 @@ Add skin.
 
 Add texture.
 
+*Nullable:* ``def``
+
 .. _mjs_addMaterial:
 
 `mjs_addMaterial <#mjs_addMaterial>`__

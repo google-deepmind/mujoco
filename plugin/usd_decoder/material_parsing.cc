@@ -99,7 +99,7 @@ ResolvedShaderInput<T> ReadUsdUVTexture(mjSpec* spec,
                                         const pxr::UsdShadeShader shader,
                                         unsigned nchannels) {
   ResolvedShaderInput<T> out;
-  mjsTexture* texture = mjs_addTexture(spec);
+  mjsTexture* texture = mjs_addTexture(spec, nullptr);
   texture->type = mjtTexture::mjTEXTURE_2D;
   mjs_setName(texture->element, shader.GetPath().GetAsString().c_str());
 

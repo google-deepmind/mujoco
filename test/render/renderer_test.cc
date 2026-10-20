@@ -447,7 +447,7 @@ TEST_F(RendererTest, RenderGrid) {
 TEST_F(RendererTest, UnsupportedTextureChannelsSkipped) {
   std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(mj_makeSpec(),
                                                          mj_deleteSpec);
-  mjsTexture* texture = mjs_addTexture(spec.get());
+  mjsTexture* texture = mjs_addTexture(spec.get(), nullptr);
   mjs_setName(texture->element, "texture");
   texture->type = mjTEXTURE_2D;
   texture->width = 2;

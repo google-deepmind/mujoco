@@ -1086,7 +1086,7 @@ void MjsSensor::set(mjsSensor* ptr) {
   ptr_ = ptr;
 }
 
-MjsDefault::MjsDefault(mjsDefault *ptr) : ptr_(ptr), element(ptr_->element), joint(ptr_->joint), geom(ptr_->geom), site(ptr_->site), camera(ptr_->camera), light(ptr_->light), flex(ptr_->flex), mesh(ptr_->mesh), material(ptr_->material), pair(ptr_->pair), equality(ptr_->equality), tendon(ptr_->tendon), actuator(ptr_->actuator) {}
+MjsDefault::MjsDefault(mjsDefault *ptr) : ptr_(ptr), element(ptr_->element), joint(ptr_->joint), geom(ptr_->geom), site(ptr_->site), camera(ptr_->camera), light(ptr_->light), flex(ptr_->flex), mesh(ptr_->mesh), texture(ptr_->texture), material(ptr_->material), pair(ptr_->pair), equality(ptr_->equality), tendon(ptr_->tendon), actuator(ptr_->actuator) {}
 mjsDefault* MjsDefault::get() const {
   return ptr_;
 }
@@ -2301,8 +2301,8 @@ std::optional<MjsText> mjs_addText_wrapper(MjSpec& s) {
   return MjsText(result);
 }
 
-std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s) {
-  mjsTexture* result = mjs_addTexture(s.get());
+std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s, const MjsDefault& def) {
+  mjsTexture* result = mjs_addTexture(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -5809,7 +5809,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("mesh", &MjsDefault::mesh, reference())
     .property("pair", &MjsDefault::pair, reference())
     .property("site", &MjsDefault::site, reference())
-    .property("tendon", &MjsDefault::tendon, reference());
+    .property("tendon", &MjsDefault::tendon, reference())
+    .property("texture", &MjsDefault::texture, reference());
   emscripten::class_<MjsElement>("MjsElement")
     .property("elemtype", &MjsElement::elemtype, &MjsElement::set_elemtype)
     .property("signature", &MjsElement::signature, &MjsElement::set_signature);

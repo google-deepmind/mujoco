@@ -2519,8 +2519,8 @@ TEST_F(DedupAssetsTest, DedupAssetsKeepsDistinct) {
 
   // textures from buffers are merged only if the buffers are the same
   spec = mj_makeSpec();
-  mjsTexture* tex1 = mjs_addTexture(spec);
-  mjsTexture* tex2 = mjs_addTexture(spec);
+  mjsTexture* tex1 = mjs_addTexture(spec, nullptr);
+  mjsTexture* tex2 = mjs_addTexture(spec, nullptr);
   mjs_setName(tex1->element, "buffer1");
   mjs_setName(tex2->element, "buffer2");
   std::vector<std::byte> pixels1(3, std::byte{0});
@@ -5286,8 +5286,8 @@ using MaterialTest = MujocoTest;
 // pointed at another texture compiles once the first texture is deleted
 TEST_F(MaterialTest, TextureFromSpec) {
   mjSpec* spec = mj_makeSpec();
-  mjsTexture* tex1 = mjs_addTexture(spec);
-  mjsTexture* tex2 = mjs_addTexture(spec);
+  mjsTexture* tex1 = mjs_addTexture(spec, nullptr);
+  mjsTexture* tex2 = mjs_addTexture(spec, nullptr);
   for (mjsTexture* tex : {tex1, tex2}) {
     tex->type = mjTEXTURE_2D;
     tex->builtin = mjBUILTIN_CHECKER;

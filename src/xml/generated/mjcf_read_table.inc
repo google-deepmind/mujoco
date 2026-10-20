@@ -269,7 +269,7 @@ inline constexpr mjXAttr kTextureAttrs[] = {
   {"name", mjXAttr::kName, 1, true, false, true, false, -1},
   {"type", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, type), texture_map, texture_sz},
   {"colorspace", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, colorspace), colorspace_map, colorspace_sz},
-  {"content_type", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsTexture, content_type)},
+  {"content_type", mjXAttr::kString, 1, true, false, true, false, (int)offsetof(mjsTexture, content_type)},
   {"gridsize", mjXAttr::kInt, 2, true, false, false, false, (int)offsetof(mjsTexture, gridsize)},
   {"gridlayout", mjXAttr::kChars, 12, false, false, false, false, (int)offsetof(mjsTexture, gridlayout)},
   {"builtin", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, builtin), builtin_map, builtin_sz},

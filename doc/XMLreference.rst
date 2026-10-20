@@ -1842,6 +1842,11 @@ Only ``image/png`` and ``image/ktx`` are supported.
    extension) becomes the texture name. If the name after parsing is empty and the texture type is not "skybox", the
    compiler will generate an error.
 
+.. _asset-texture-class:
+
+:at:`class`: :at-val:`string, optional`
+   Defaults class for setting unspecified attributes.
+
 .. _asset-texture-type:
 
 :at:`type`: :at-val:`[2d, cube, skybox], "cube"`
@@ -10195,6 +10200,46 @@ if omitted.
 
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
 | The available attributes are: :ref:`scale <asset-mesh-scale>` and :ref:`maxhullvert <asset-mesh-maxhullvert>`.
+
+
+.. _default-texture:
+
+.. _default-texture-type:
+
+.. _default-texture-colorspace:
+
+.. _default-texture-gridsize:
+
+.. _default-texture-gridlayout:
+
+.. _default-texture-builtin:
+
+.. _default-texture-rgb1:
+
+.. _default-texture-rgb2:
+
+.. _default-texture-mark:
+
+.. _default-texture-markrgb:
+
+.. _default-texture-random:
+
+.. _default-texture-width:
+
+.. _default-texture-height:
+
+.. _default-texture-hflip:
+
+.. _default-texture-vflip:
+
+.. _default-texture-nchannel:
+
+:el-prefix:`default/` |-| **texture** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| This element sets the attributes of the dummy :ref:`texture <asset-texture>` element of the defaults class.
+| All texture attributes are available here except: name, class, content_type, file, fileright, fileleft, fileup,
+  filedown, filefront, fileback.
 
 
 .. _default-material:

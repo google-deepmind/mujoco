@@ -7628,6 +7628,7 @@ struct MjsDefault {
   MjsLight light;
   MjsFlex flex;
   MjsMesh mesh;
+  MjsTexture texture;
   MjsMaterial material;
   MjsPair pair;
   MjsEquality equality;

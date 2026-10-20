@@ -54,6 +54,15 @@ Compiler
   that would compile to the same asset, as those of a sub-model attached several times do: the first of each group is
   kept and every reference to the others is rewritten to it. Like :ref:`mjs_fuseStatic`, it returns the number of
   assets merged.
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - :ref:`mjs_addTexture` now takes a default class, like :ref:`mjs_addMesh` and :ref:`mjs_addMaterial`.
+
+     **Migration:** ``mjs_addTexture(spec)`` → ``mjs_addTexture(spec, NULL)``. ``MjSpec.add_texture`` is unchanged.
+
+- Textures can have :ref:`default classes<default-texture>`: ``mjsDefault`` has a ``texture`` member and
+  :ref:`texture<asset-texture>` takes a :ref:`class<asset-texture-class>`.
 - The asset paths in :ref:`mjModel` (``paths`` at ``mesh_pathadr``, ``hfield_pathadr``, ``skin_pathadr`` and
   ``tex_pathadr``) are now the path or URI from which the compiler read the asset: the model file's directory,
   ``meshdir`` or ``texturedir``, and the :at:`file`, unless the file is an absolute path or a URI, which is kept as is.

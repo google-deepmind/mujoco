@@ -1311,6 +1311,54 @@ class SpecsTest(absltest.TestCase):
     texture.data = np.zeros((2, 2, 3), dtype=np.uint8).tobytes()
     spec.compile()
 
+  def test_texture_defaults(self):
+    spec = mujoco.MjSpec()
+    main = spec.default
+    self.assertEqual(main.texture.nchannel, 3)
+    flat = spec.add_default('flat', main)
+    flat.texture.type = mujoco.mjtTexture.mjTEXTURE_2D
+    flat.texture.builtin = mujoco.mjtBuiltin.mjBUILTIN_FLAT
+    flat.texture.width = 2
+    flat.texture.height = 3
+
+    # a texture takes the defaults of its class, and overrides them
+    with_class = spec.add_texture(flat, name='with')
+    self.assertEqual(with_class.classname.name, 'flat')
+    self.assertEqual(with_class.builtin, mujoco.mjtBuiltin.mjBUILTIN_FLAT)
+    self.assertEqual(with_class.height, 3)
+    overriding = spec.add_texture(default=flat, name='overriding', height=4)
+    self.assertEqual(overriding.builtin, mujoco.mjtBuiltin.mjBUILTIN_FLAT)
+    self.assertEqual(overriding.height, 4)
+    without = spec.add_texture(name='without')
+    self.assertEqual(without.classname.name, 'main')
+    self.assertEqual(without.builtin, mujoco.mjtBuiltin.mjBUILTIN_NONE)
+    without.type = mujoco.mjtTexture.mjTEXTURE_2D
+    without.builtin = mujoco.mjtBuiltin.mjBUILTIN_CHECKER
+    without.width = 4
+    without.height = 4
+
+    model = spec.compile()
+    np.testing.assert_array_equal(model.tex_height, [3, 4, 4])
+    self.assertIn('<default class="flat">', spec.to_xml())
+    self.assertIn('name="with" class="flat"/>', spec.to_xml())
+
+    # the defaults are read from XML
+    xml = textwrap.dedent("""\
+        <mujoco>
+          <default>
+            <default class="flat">
+              <texture type="2d" builtin="flat" width="2" height="3"/>
+            </default>
+          </default>
+          <asset>
+            <texture name="tex" class="flat"/>
+          </asset>
+        </mujoco>
+    """)
+    spec = mujoco.MjSpec.from_string(xml)
+    self.assertEqual(spec.find_default('flat').texture.width, 2)
+    self.assertEqual(spec.texture('tex').height, 3)
+
   def test_read_texture(self):
     spec = mujoco.MjSpec()
     texture = spec.add_texture(name='texture', height=1, width=2, nchannel=3)

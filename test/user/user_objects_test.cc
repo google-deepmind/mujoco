@@ -1533,7 +1533,7 @@ TEST_F(MjCTextureTest, TexturesLoad) {
 TEST_F(MjCTextureTest, BuiltinMustHaveThreeChannels) {
   for (int nchannel : {1, 4}) {
     mjSpec* spec = mj_makeSpec();
-    mjsTexture* texture = mjs_addTexture(spec);
+    mjsTexture* texture = mjs_addTexture(spec, nullptr);
     mjs_setName(texture->element, "texture");
     texture->type = mjTEXTURE_2D;
     texture->builtin = mjBUILTIN_FLAT;
@@ -1572,7 +1572,7 @@ TEST_F(MjCTextureTest, CubeFromFileMustHaveThreeChannels) {
   for (const Case& c : cases) {
     for (bool separate : {false, true}) {
       mjSpec* spec = mj_makeSpec();
-      mjsTexture* texture = mjs_addTexture(spec);
+      mjsTexture* texture = mjs_addTexture(spec, nullptr);
       mjs_setName(texture->element, "texture");
       texture->type = mjTEXTURE_CUBE;
       texture->nchannel = c.nchannel;
@@ -1611,17 +1611,17 @@ TEST_F(MjCTextureTest, PixelsSameAfterRecompile) {
   mj_addBufferVFS(vfs.get(), "pixel.png", pixel, sizeof(pixel));
 
   mjSpec* spec = mj_makeSpec();
-  mjsTexture* file = mjs_addTexture(spec);
+  mjsTexture* file = mjs_addTexture(spec, nullptr);
   mjs_setName(file->element, "file");
   file->type = mjTEXTURE_2D;
   mjs_setString(file->file, "pixel.png");
-  mjsTexture* builtin = mjs_addTexture(spec);
+  mjsTexture* builtin = mjs_addTexture(spec, nullptr);
   mjs_setName(builtin->element, "builtin");
   builtin->type = mjTEXTURE_2D;
   builtin->builtin = mjBUILTIN_CHECKER;
   builtin->width = 4;
   builtin->height = 4;
-  mjsTexture* buffered = mjs_addTexture(spec);
+  mjsTexture* buffered = mjs_addTexture(spec, nullptr);
   mjs_setName(buffered->element, "buffer");
   buffered->type = mjTEXTURE_2D;
   buffered->width = 2;

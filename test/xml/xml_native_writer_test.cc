@@ -43,6 +43,7 @@ using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::FloatEq;
 using ::testing::HasSubstr;
+using ::testing::IsNull;
 using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
@@ -2204,6 +2205,181 @@ TEST_F(XMLWriterTest, KeepsTextureChannels) {
 
   mj_deleteModel(model);
   mj_deleteSpec(spec);
+}
+
+// texture defaults are inherited through classes and survive a round trip,
+// the writer saving only what differs from the parent class
+TEST_F(XMLWriterTest, TextureDefaultsRoundTrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="c">
+        <texture type="2d" builtin="checker" rgb1="0.1 0.2 0.3" mark="edge"
+          markrgb="1 0 0" width="4" height="4"/>
+        <default class="d">
+          <texture rgb1="0.9 0.8 0.7"/>
+        </default>
+      </default>
+    </default>
+    <asset>
+      <texture name="a" class="c"/>
+      <texture name="b" class="d" height="8"/>
+      <texture name="e" type="2d" builtin="flat" width="2" height="2"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  auto check = [](mjSpec* spec) {
+    mjsTexture* a = mjs_asTexture(mjs_findElement(spec, mjOBJ_TEXTURE, "a"));
+    mjsTexture* b = mjs_asTexture(mjs_findElement(spec, mjOBJ_TEXTURE, "b"));
+    mjsTexture* e = mjs_asTexture(mjs_findElement(spec, mjOBJ_TEXTURE, "e"));
+    ASSERT_THAT(a, NotNull());
+    ASSERT_THAT(b, NotNull());
+    ASSERT_THAT(e, NotNull());
+    EXPECT_EQ(a->type, mjTEXTURE_2D);
+    EXPECT_EQ(a->builtin, mjBUILTIN_CHECKER);
+    EXPECT_EQ(a->mark, mjMARK_EDGE);
+    EXPECT_THAT(a->rgb1, ElementsAre(0.1, 0.2, 0.3));
+    EXPECT_THAT(a->markrgb, ElementsAre(1, 0, 0));
+    EXPECT_EQ(a->width, 4);
+    EXPECT_EQ(a->height, 4);
+    EXPECT_EQ(b->builtin, mjBUILTIN_CHECKER);
+    EXPECT_THAT(b->rgb1, ElementsAre(0.9, 0.8, 0.7));
+    EXPECT_EQ(b->height, 8);
+    EXPECT_EQ(e->builtin, mjBUILTIN_FLAT);
+    EXPECT_THAT(e->rgb1, ElementsAre(0.8, 0.8, 0.8));
+    mjsDefault* c = mjs_findDefault(spec, "c");
+    ASSERT_THAT(c, NotNull());
+    EXPECT_EQ(c->texture->builtin, mjBUILTIN_CHECKER);
+    EXPECT_EQ(mjs_findDefault(spec, "d")->texture->rgb1[0], 0.9);
+    EXPECT_EQ(mjs_getSpecDefault(spec)->texture->builtin, mjBUILTIN_NONE);
+  };
+  check(spec);
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->tex_type[0], mjTEXTURE_2D);
+  EXPECT_EQ(model->tex_height[1], 8);
+
+  // the class is saved, and each level writes only what it sets
+  std::string saved = SaveAndReadXml(spec);
+  EXPECT_THAT(saved, HasSubstr("<texture type=\"2d\" colorspace=\"auto\" "
+                               "name=\"a\" class=\"c\"/>"));
+  EXPECT_THAT(saved, HasSubstr("<texture type=\"2d\" colorspace=\"auto\" "
+                               "name=\"b\" class=\"d\" height=\"8\"/>"));
+  EXPECT_THAT(saved,
+              HasSubstr("<default class=\"c\">\n      <texture type=\"2d\" "
+                        "builtin=\"checker\" rgb1=\"0.1 0.2 0.3\" "
+                        "mark=\"edge\" markrgb=\"1 0 0\" width=\"4\" "
+                        "height=\"4\"/>"));
+  EXPECT_THAT(saved, HasSubstr("<default class=\"d\">\n        <texture "
+                               "rgb1=\"0.9 0.8 0.7\"/>"));
+
+  mjSpec* reloaded =
+      mj_parseXMLString(saved.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(reloaded, NotNull()) << error.data();
+  check(reloaded);
+
+  mj_deleteSpec(reloaded);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// defaults which hold for a file texture, and an inherited flag turned off
+TEST_F(XMLWriterTest, TextureDefaultsFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="f">
+        <texture type="2d" nchannel="4" hflip="true" vflip="true"/>
+      </default>
+    </default>
+    <asset>
+      <texture name="t" class="f" file="hfield.png"/>
+      <texture name="u" class="f" file="hfield.png" vflip="false"/>
+    </asset>
+  </mujoco>
+  )";
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  ASSERT_EQ(
+      mj_addFileVFS(vfs.get(), "",
+                    GetTestDataFilePath("xml/testdata/hfield.png").c_str()),
+      0);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, vfs.get(), error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* model = mj_compile(spec, vfs.get());
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->tex_type[0], mjTEXTURE_2D);
+  EXPECT_EQ(model->tex_nchannel[0], 4);
+  EXPECT_EQ(model->tex_nchannel[1], 4);
+
+  std::string saved = SaveAndReadXml(spec);
+  EXPECT_THAT(saved, HasSubstr("<texture type=\"2d\" hflip=\"true\" "
+                               "vflip=\"true\" nchannel=\"4\"/>"));
+  EXPECT_THAT(saved, HasSubstr("name=\"t\" class=\"f\" file=\"hfield.png\"/>"));
+  EXPECT_THAT(saved, HasSubstr("name=\"u\" class=\"f\" file=\"hfield.png\" "
+                               "vflip=\"false\"/>"));
+
+  mjSpec* reloaded =
+      mj_parseXMLString(saved.c_str(), vfs.get(), error.data(), error.size());
+  ASSERT_THAT(reloaded, NotNull()) << error.data();
+  mjsTexture* u = mjs_asTexture(mjs_findElement(reloaded, mjOBJ_TEXTURE, "u"));
+  ASSERT_THAT(u, NotNull());
+  EXPECT_TRUE(u->hflip);
+  EXPECT_FALSE(u->vflip);
+  EXPECT_EQ(u->nchannel, 4);
+
+  mj_deleteSpec(reloaded);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
+}
+
+// attributes which identify the file cannot be defaults
+TEST_F(XMLWriterTest, TextureDefaultsRejectFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <texture file="hfield.png"/>
+    </default>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("file"));
+}
+
+// a model without texture defaults is saved as before
+TEST_F(XMLWriterTest, TextureWithoutDefaultsUnchanged) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="checker" type="2d" builtin="checker" rgb1="0.1 0.2 0.3"
+        width="8" height="8"/>
+      <texture name="sky" type="skybox" builtin="gradient" rgb2="0 0 1"
+        width="4" height="4" mark="cross"/>
+    </asset>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  std::string saved = SaveAndReadXml(model.get());
+  EXPECT_THAT(saved, Not(HasSubstr("<default")));
+  EXPECT_THAT(saved, Not(HasSubstr("class=")));
+  EXPECT_THAT(saved, HasSubstr("<texture type=\"2d\" colorspace=\"auto\" "
+                               "name=\"checker\" builtin=\"checker\" "
+                               "rgb1=\"0.1 0.2 0.3\" width=\"8\" "
+                               "height=\"8\"/>"));
+  EXPECT_THAT(saved, HasSubstr("<texture type=\"skybox\" colorspace=\"auto\" "
+                               "name=\"sky\" builtin=\"gradient\" "
+                               "mark=\"cross\" rgb2=\"0 0 1\" width=\"4\" "
+                               "height=\"24\"/>"));
 }
 
 // ---------------- test CopyBack functionality (decompiler) ------------------

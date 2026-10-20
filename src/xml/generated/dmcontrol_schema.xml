@@ -263,6 +263,25 @@
                 <attribute name="inertia" type="keyword" valid_values="convex legacy exact shell" default="legacy"/>
               </attributes>
             </element>
+            <element name="texture">
+              <attributes>
+                <attribute name="type" type="keyword" valid_values="2d cube skybox" default="cube"/>
+                <attribute name="colorspace" type="keyword" valid_values="auto linear sRGB" default="auto"/>
+                <attribute name="gridsize" type="array" array_type="int" array_size="2" default="1 1"/>
+                <attribute name="gridlayout" type="string"/>
+                <attribute name="builtin" type="keyword" valid_values="none gradient checker flat"/>
+                <attribute name="rgb1" type="array" array_type="float" array_size="3" default="0.8 0.8 0.8"/>
+                <attribute name="rgb2" type="array" array_type="float" array_size="3" default="0.5 0.5 0.5"/>
+                <attribute name="mark" type="keyword" valid_values="none edge cross random"/>
+                <attribute name="markrgb" type="array" array_type="float" array_size="3"/>
+                <attribute name="random" type="float" default="0.01"/>
+                <attribute name="width" type="int"/>
+                <attribute name="height" type="int"/>
+                <attribute name="hflip" type="keyword" valid_values="false true"/>
+                <attribute name="vflip" type="keyword" valid_values="false true"/>
+                <attribute name="nchannel" type="int" default="3"/>
+              </attributes>
+            </element>
             <element name="material">
               <attributes>
                 <attribute name="texture" type="reference" reference_namespace="texture"/>
@@ -659,6 +678,25 @@
             <attribute name="scale" type="array" array_type="float" array_size="3" default="1 1 1"/>
             <attribute name="maxhullvert" type="int" default="-1"/>
             <attribute name="inertia" type="keyword" valid_values="convex legacy exact shell" default="legacy"/>
+          </attributes>
+        </element>
+        <element name="texture">
+          <attributes>
+            <attribute name="type" type="keyword" valid_values="2d cube skybox" default="cube"/>
+            <attribute name="colorspace" type="keyword" valid_values="auto linear sRGB" default="auto"/>
+            <attribute name="gridsize" type="array" array_type="int" array_size="2" default="1 1"/>
+            <attribute name="gridlayout" type="string"/>
+            <attribute name="builtin" type="keyword" valid_values="none gradient checker flat"/>
+            <attribute name="rgb1" type="array" array_type="float" array_size="3" default="0.8 0.8 0.8"/>
+            <attribute name="rgb2" type="array" array_type="float" array_size="3" default="0.5 0.5 0.5"/>
+            <attribute name="mark" type="keyword" valid_values="none edge cross random"/>
+            <attribute name="markrgb" type="array" array_type="float" array_size="3"/>
+            <attribute name="random" type="float" default="0.01"/>
+            <attribute name="width" type="int"/>
+            <attribute name="height" type="int"/>
+            <attribute name="hflip" type="keyword" valid_values="false true"/>
+            <attribute name="vflip" type="keyword" valid_values="false true"/>
+            <attribute name="nchannel" type="int" default="3"/>
           </attributes>
         </element>
         <element name="material">
@@ -1153,6 +1191,7 @@
         <element name="texture" repeated="true">
           <attributes>
             <attribute name="name" type="identifier"/>
+            <attribute name="class" type="reference" reference_namespace="default"/>
             <attribute name="type" type="keyword" valid_values="2d cube skybox" default="cube"/>
             <attribute name="colorspace" type="keyword" valid_values="auto linear sRGB" default="auto"/>
             <attribute name="content_type" type="string"/>

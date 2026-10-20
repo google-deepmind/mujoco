@@ -2427,6 +2427,7 @@ typedef struct mjsDefault_ {       // default specification
   mjsLight* light;                 // light defaults
   mjsFlex* flex;                   // flex defaults
   mjsMesh* mesh;                   // mesh defaults
+  mjsTexture* texture;             // texture defaults
   mjsMaterial* material;           // material defaults
   mjsPair* pair;                   // pair defaults
   mjsEquality* equality;           // equality defaults
@@ -4245,7 +4246,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator, double motorconst[2], double
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);
-mjsTexture* mjs_addTexture(mjSpec* s);
+mjsTexture* mjs_addTexture(mjSpec* s, const mjsDefault* def);
 mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
 mjSpec* mjs_getSpec(const mjsElement* element);

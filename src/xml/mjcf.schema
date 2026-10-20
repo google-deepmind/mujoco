@@ -850,6 +850,7 @@ element default {
   # children below are projections of the primary decls:
   # reduced rows = attrs minus name/class minus (nodefault)
   child mesh ?
+  child texture ?
   child material ?
   child joint ?
   child geom ?
@@ -974,18 +975,19 @@ element bone {
 
 element texture : mjsTexture {
   name               : id<texture>
+  class              : ref<default>
   type               : enum<texture> = cube
   colorspace         : enum<colorspace> = auto
-  content_type       : string
-  file               : file
+  content_type       : string (nodefault)
+  file               : file (nodefault)
   gridsize           : int[2] = {1, 1}
   gridlayout         : chars[1..12]  # length must equal the gridsize product
-  fileright          : file
-  fileleft           : file
-  fileup             : file
-  filedown           : file
-  filefront          : file
-  fileback           : file
+  fileright          : file (nodefault)
+  fileleft           : file (nodefault)
+  fileup             : file (nodefault)
+  filedown           : file (nodefault)
+  filefront          : file (nodefault)
+  fileback           : file (nodefault)
   builtin            : enum<builtin>
   rgb1               : double[3] = {0.8, 0.8, 0.8} (dim=1)
   rgb2               : double[3] = {0.5, 0.5, 0.5} (dim=1)

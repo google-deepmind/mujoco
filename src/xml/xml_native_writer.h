@@ -88,6 +88,7 @@ class mjXWriter : public mjXBase {
   void OneFlex(tinyxml2::XMLElement* elem, const mjCFlex* pflex);
   void OneMesh(tinyxml2::XMLElement* elem, const mjCMesh* pmesh, mjCDef* def);
   void OneSkin(tinyxml2::XMLElement* elem, const mjCSkin* pskin);
+  void OneTexture(tinyxml2::XMLElement* elem, const mjCTexture* ptexture, mjCDef* def);
   void OneMaterial(tinyxml2::XMLElement* elem, const mjCMaterial* pmaterial, mjCDef* def);
   void OneJoint(tinyxml2::XMLElement* elem,
                 const mjCJoint*       pjoint,

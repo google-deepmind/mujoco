@@ -1405,6 +1405,7 @@ mjCDef::mjCDef() {
   mjs_defaultLight(&light_.spec);
   mjs_defaultFlex(&flex_.spec);
   mjs_defaultMesh(&mesh_.spec);
+  mjs_defaultTexture(&texture_.spec);
   mjs_defaultMaterial(&material_.spec);
   mjs_defaultPair(&pair_.spec);
   mjs_defaultEquality(&equality_.spec);
@@ -1481,6 +1482,7 @@ void mjCDef::CopyWithoutChildren(const mjCDef& other) {
   light_    = other.light_;
   flex_     = other.flex_;
   mesh_     = other.mesh_;
+  texture_  = other.texture_;
   material_ = other.material_;
   pair_     = other.pair_;
   equality_ = other.equality_;
@@ -1498,6 +1500,7 @@ void mjCDef::PointToLocal() {
   light_.PointToLocal();
   flex_.PointToLocal();
   mesh_.PointToLocal();
+  texture_.PointToLocal();
   material_.PointToLocal();
   pair_.PointToLocal();
   equality_.PointToLocal();
@@ -1511,6 +1514,7 @@ void mjCDef::PointToLocal() {
   spec.light    = &light_.spec;
   spec.flex     = &flex_.spec;
   spec.mesh     = &mesh_.spec;
+  spec.texture  = &texture_.spec;
   spec.material = &material_.spec;
   spec.pair     = &pair_.spec;
   spec.equality = &equality_.spec;
@@ -1527,6 +1531,7 @@ void mjCDef::CopyFromSpec() {
   light_.CopyFromSpec();
   flex_.CopyFromSpec();
   mesh_.CopyFromSpec();
+  texture_.CopyFromSpec();
   material_.CopyFromSpec();
   pair_.CopyFromSpec();
   equality_.CopyFromSpec();
@@ -5667,13 +5672,9 @@ void mjCHField::Compile(const mjVFS* vfs) {
 //------------------ class mjCTexture implementation -----------------------------------------------
 
 // initialize defaults
-mjCTexture::mjCTexture(mjCModel* _model) {
+mjCTexture::mjCTexture(mjCModel* _model, mjCDef* _def) {
   mjs_defaultTexture(&spec);
   elemtype = mjOBJ_TEXTURE;
-
-  // set model pointer
-  model = _model;
-  if (_model) compiler = &_model->spec.compiler;
 
   // clear user settings: single file
   spec_file_.clear();
@@ -5685,6 +5686,14 @@ mjCTexture::mjCTexture(mjCModel* _model) {
   // clear internal variables
   data_.clear();
   spec_data_.clear();
+
+  // reset to default if given
+  if (_def) { *this = _def->Texture(); }
+
+  // set model pointer
+  model = _model;
+  if (_model) compiler = &_model->spec.compiler;
+  classname = (_def ? _def->name : (_model ? "main" : ""));
 
   // point to local
   PointToLocal();

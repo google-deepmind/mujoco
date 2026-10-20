@@ -39,7 +39,7 @@ SPECS = [
     ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
     ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
     ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
-    ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
+    ('mjsTexture',  'Spec', True,  'textures',   'mjOBJ_TEXTURE'),
     ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
     ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
     ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),

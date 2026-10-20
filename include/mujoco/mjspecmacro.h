@@ -614,6 +614,7 @@
     X( mjsLight*,    light,    1 ) \
     X( mjsFlex*,     flex,     1 ) \
     X( mjsMesh*,     mesh,     1 ) \
+    X( mjsTexture*,  texture,  1 ) \
     X( mjsMaterial*, material, 1 ) \
     X( mjsPair*,     pair,     1 ) \
     X( mjsEquality*, equality, 1 ) \

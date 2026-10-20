@@ -398,7 +398,7 @@ mjsElement* SpecEditor::AddElementToSpec(mjSpec* spec, mjtObj type,
     case mjOBJ_TEXT:
       return mjs_addText(spec)->element;
     case mjOBJ_TEXTURE:
-      return mjs_addTexture(spec)->element;
+      return mjs_addTexture(spec, def)->element;
     case mjOBJ_TUPLE:
       return mjs_addTuple(spec)->element;
     case mjOBJ_PLUGIN:

@@ -781,6 +781,91 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
 }
 
 
+// write texture
+void mjXWriter::OneTexture(XMLElement* elem, const mjCTexture* texture, mjCDef* def) {
+  const mjsTexture* values = Values<mjsTexture>(texture);
+  const mjsTexture* deftex = &def->Texture().spec;
+  const string      gridlayout(values->gridlayout, strnlen(values->gridlayout, 12));
+  const string      defgridlayout(deftex->gridlayout, strnlen(deftex->gridlayout, 12));
+
+  // defaults: what differs from the parent class
+  if (writingdefaults) {
+    WriteAttrTable(elem, values, deftex, kTextureAttrs, kTextureAttrsN);
+    if (gridlayout != defgridlayout) { WriteAttrTxt(elem, "gridlayout", gridlayout); }
+    return;
+  }
+
+  const string file      = Pick(authored_, texture->spec.file, texture->File());
+  const auto   cubefiles = Pick(authored_, texture->spec.cubefiles, texture->get_cubefiles());
+
+  // write common attributes
+  WriteAttrKey(elem, "type", texture_map, texture_sz, values->type);
+  if (!authored_ || values->colorspace != deftex->colorspace) {
+    WriteAttrKey(elem, "colorspace", colorspace_map, colorspace_sz, values->colorspace);
+  }
+  WriteAttrTxt(elem, "name", texture->name);
+  if (texture->classname != "main") { WriteAttrTxt(elem, "class", texture->classname); }
+
+  // write builtin
+  WriteAttrKey(elem, "builtin", builtin_map, builtin_sz, values->builtin, deftex->builtin);
+  if (values->builtin != mjBUILTIN_NONE) {
+    WriteAttrKey(elem, "mark", mark_map, mark_sz, values->mark, deftex->mark);
+    WriteAttr(elem, "rgb1", 3, values->rgb1, deftex->rgb1);
+    WriteAttr(elem, "rgb2", 3, values->rgb2, deftex->rgb2);
+    WriteAttr(elem, "markrgb", 3, values->markrgb, deftex->markrgb);
+    WriteAttr(elem, "random", 1, &values->random, &deftex->random);
+    WriteAttrInt(elem, "width", values->width, deftex->width);
+    WriteAttrInt(elem, "height", values->height, deftex->height);
+  }
+
+  // write buffer
+  else if (cubefiles[0].empty() &&
+           cubefiles[1].empty() &&
+           cubefiles[2].empty() &&
+           cubefiles[3].empty() &&
+           cubefiles[4].empty() &&
+           cubefiles[5].empty() &&
+           file.empty() &&
+           values->gridsize[0] == 1 &&
+           values->gridsize[1] == 1) {
+    throw mjXError(0, "no support for buffer textures.");
+  }
+
+  // write textures loaded from files
+  else {
+    // write single file
+    WriteAttrTxt(elem,
+                 "content_type",
+                 Pick(authored_, texture->spec.content_type, texture->get_content_type()));
+    WriteAttrTxt(elem, "file", file);
+
+    // write separate files
+    WriteAttrTxt(elem, "fileright", cubefiles[0]);
+    WriteAttrTxt(elem, "fileleft", cubefiles[1]);
+    WriteAttrTxt(elem, "fileup", cubefiles[2]);
+    WriteAttrTxt(elem, "filedown", cubefiles[3]);
+    WriteAttrTxt(elem, "filefront", cubefiles[4]);
+    WriteAttrTxt(elem, "fileback", cubefiles[5]);
+    WriteAttrKey(elem, "hflip", bool_map, 2, values->hflip, deftex->hflip);
+    WriteAttrKey(elem, "vflip", bool_map, 2, values->vflip, deftex->vflip);
+    WriteAttrInt(elem, "nchannel", texture->spec.nchannel, deftex->nchannel);
+    WriteAttr(elem, "rgb1", 3, values->rgb1, deftex->rgb1);
+    WriteAttr(elem, "rgb2", 3, values->rgb2, deftex->rgb2);
+
+    // write grid
+    bool gridsize_differs =
+        values->gridsize[0] != deftex->gridsize[0] || values->gridsize[1] != deftex->gridsize[1];
+    if (gridsize_differs) {
+      double gsize[2] = {(double)values->gridsize[0], (double)values->gridsize[1]};
+      WriteAttr(elem, "gridsize", 2, gsize);
+    }
+    if (gridsize_differs || gridlayout != defgridlayout) {
+      WriteAttrTxt(elem, "gridlayout", gridlayout);
+    }
+  }
+}
+
+
 // write material
 void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* material, mjCDef* def) {
   // regular
@@ -2038,6 +2123,11 @@ void mjXWriter::Default(XMLElement* root, mjCDef* def) {
   OneMesh(elem, &def->Mesh(), parent);
   if (!elem->FirstAttribute()) section->DeleteChild(elem);
 
+  // texture
+  elem = InsertEnd(section, "texture");
+  OneTexture(elem, &def->Texture(), parent);
+  if (!elem->FirstAttribute()) section->DeleteChild(elem);
+
   // material
   elem = InsertEnd(section, "material");
   OneMaterial(elem, &def->Material(), parent);
@@ -2255,76 +2345,12 @@ void mjXWriter::Asset(XMLElement* root) {
   XMLElement* section = InsertEnd(root, "asset");
 
   // write textures
-  mjCTexture deftex(0);
   for (int i = 0; i < ntex; i++) {
-    // create element
-    mjCTexture*       ptexture = (mjCTexture*)model->GetObject(mjOBJ_TEXTURE, i);
-    const mjsTexture* texture  = Values<mjsTexture>(ptexture);
-    const string      file     = Pick(authored_, ptexture->spec.file, ptexture->File());
-    const auto cubefiles = Pick(authored_, ptexture->spec.cubefiles, ptexture->get_cubefiles());
+    // create element and write
+    mjCTexture* texture = (mjCTexture*)model->GetObject(mjOBJ_TEXTURE, i);
 
     elem = InsertEnd(section, "texture");
-
-    // write common attributes
-    WriteAttrKey(elem, "type", texture_map, texture_sz, texture->type);
-    if (!authored_ || texture->colorspace != mjCOLORSPACE_AUTO) {
-      WriteAttrKey(elem, "colorspace", colorspace_map, colorspace_sz, texture->colorspace);
-    }
-    WriteAttrTxt(elem, "name", ptexture->name);
-
-    // write builtin
-    if (texture->builtin != mjBUILTIN_NONE) {
-      WriteAttrKey(elem, "builtin", builtin_map, builtin_sz, texture->builtin);
-      WriteAttrKey(elem, "mark", mark_map, mark_sz, texture->mark, deftex.mark);
-      WriteAttr(elem, "rgb1", 3, texture->rgb1, deftex.rgb1);
-      WriteAttr(elem, "rgb2", 3, texture->rgb2, deftex.rgb2);
-      WriteAttr(elem, "markrgb", 3, texture->markrgb, deftex.markrgb);
-      WriteAttr(elem, "random", 1, &texture->random, &deftex.random);
-      WriteAttrInt(elem, "width", texture->width);
-      WriteAttrInt(elem, "height", texture->height);
-    }
-
-    // write buffer
-    else if (cubefiles[0].empty() &&
-             cubefiles[1].empty() &&
-             cubefiles[2].empty() &&
-             cubefiles[3].empty() &&
-             cubefiles[4].empty() &&
-             cubefiles[5].empty() &&
-             file.empty() &&
-             texture->gridsize[0] == 1 &&
-             texture->gridsize[1] == 1) {
-      throw mjXError(0, "no support for buffer textures.");
-    }
-
-    // write textures loaded from files
-    else {
-      // write single file
-      WriteAttrTxt(elem,
-                   "content_type",
-                   Pick(authored_, ptexture->spec.content_type, ptexture->get_content_type()));
-      WriteAttrTxt(elem, "file", file);
-
-      // write separate files
-      WriteAttrTxt(elem, "fileright", cubefiles[0]);
-      WriteAttrTxt(elem, "fileleft", cubefiles[1]);
-      WriteAttrTxt(elem, "fileup", cubefiles[2]);
-      WriteAttrTxt(elem, "filedown", cubefiles[3]);
-      WriteAttrTxt(elem, "filefront", cubefiles[4]);
-      WriteAttrTxt(elem, "fileback", cubefiles[5]);
-      if (texture->hflip) { WriteAttrKey(elem, "hflip", bool_map, 2, 1); }
-      if (texture->vflip) { WriteAttrKey(elem, "vflip", bool_map, 2, 1); }
-      WriteAttrInt(elem, "nchannel", ptexture->spec.nchannel, deftex.spec.nchannel);
-      WriteAttr(elem, "rgb1", 3, texture->rgb1, deftex.rgb1);
-      WriteAttr(elem, "rgb2", 3, texture->rgb2, deftex.rgb2);
-
-      // write grid
-      if (texture->gridsize[0] != 1 || texture->gridsize[1] != 1) {
-        double gsize[2] = {(double)texture->gridsize[0], (double)texture->gridsize[1]};
-        WriteAttr(elem, "gridsize", 2, gsize);
-        WriteAttrTxt(elem, "gridlayout", texture->gridlayout);
-      }
-    }
+    OneTexture(elem, texture, model->def_map[texture->classname]);
   }
 
   // write materials

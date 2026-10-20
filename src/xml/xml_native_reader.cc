@@ -725,6 +725,43 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* skin, const mjVFS* vfs) {
 }
 
 
+// texture element parser
+void mjXReader::OneTexture(XMLElement* elem, mjsTexture* texture, const mjVFS* vfs) {
+  string text;
+
+  // mechanical attributes
+  ReadAttrTable(elem, texture, texture->element, kTextureAttrs, kTextureAttrsN);
+
+  // file, resolved against the texture directory
+  auto file = ReadAttrFile(elem, "file", vfs, TextureDir());
+  if (file.has_value()) { mjs_setString(texture->file, file->c_str()); }
+  NameFromFile(elem, texture->element, texture->file);
+
+  // gridlayout length must equal the gridsize product (value-conditional)
+  if (ReadAttrTxt(elem, "gridlayout", text) &&
+      text.length() != texture->gridsize[0] * texture->gridsize[1]) {
+    throw mjXError(elem, "gridlayout length must match gridsize");
+  }
+
+  // separate files
+  std::vector<string> cubefiles(6);
+  std::vector<string> cubefile_names =
+      {"fileright", "fileleft", "fileup", "filedown", "filefront", "fileback"};
+  for (int i = 0; i < cubefiles.size(); i++) {
+    auto maybe_file = ReadAttrFile(elem, cubefile_names[i].c_str(), vfs, TextureDir());
+    if (maybe_file.has_value()) {
+      cubefiles[i] = maybe_file.value().Str();
+    } else {
+      cubefiles[i] = "";
+    }
+    mjs_setInStringVec(texture->cubefiles, i, cubefiles[i].c_str());
+  }
+
+  // write error info
+  mjs_setString(texture->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
+}
+
+
 // material element parser
 void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* material) {
   string text, texture;
@@ -1658,6 +1695,10 @@ void mjXReader::Default(XMLElement* section, const mjsDefault* def, const mjVFS*
     // read mesh
     if (name == "mesh") OneMesh(elem, def->mesh, vfs);
 
+    // read texture
+    else if (name == "texture")
+      OneTexture(elem, def->texture, vfs);
+
     // read material
     else if (name == "material")
       OneMaterial(elem, def->material);
@@ -2004,39 +2045,9 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
     // texture sub-element
     if (name == "texture") {
-      // create texture
-      mjsTexture* texture = mjs_addTexture(spec);
-
-      // write error info
-      mjs_setString(texture->info, ("line " + std::to_string(elem->GetLineNum())).c_str());
-
-      // mechanical attributes
-      ReadAttrTable(elem, texture, texture->element, kTextureAttrs, kTextureAttrsN);
-
-      // file, resolved against the texture directory
-      auto file = ReadAttrFile(elem, "file", vfs, TextureDir());
-      if (file.has_value()) { mjs_setString(texture->file, file->c_str()); }
-      NameFromFile(elem, texture->element, texture->file);
-
-      // gridlayout length must equal the gridsize product (value-conditional)
-      if (ReadAttrTxt(elem, "gridlayout", text) &&
-          text.length() != texture->gridsize[0] * texture->gridsize[1]) {
-        throw mjXError(elem, "gridlayout length must match gridsize");
-      }
-
-      // separate files
-      std::vector<string> cubefiles(6);
-      std::vector<string> cubefile_names =
-          {"fileright", "fileleft", "fileup", "filedown", "filefront", "fileback"};
-      for (int i = 0; i < cubefiles.size(); i++) {
-        auto maybe_file = ReadAttrFile(elem, cubefile_names[i].c_str(), vfs, TextureDir());
-        if (maybe_file.has_value()) {
-          cubefiles[i] = maybe_file.value().Str();
-        } else {
-          cubefiles[i] = "";
-        }
-        mjs_setInStringVec(texture->cubefiles, i, cubefiles[i].c_str());
-      }
+      // create texture and parse
+      mjsTexture* texture = mjs_addTexture(spec, def);
+      OneTexture(elem, texture, vfs);
     }
 
     // material sub-element

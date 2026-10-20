@@ -67,7 +67,7 @@ TEST_F(SchemaDefaultsTest, DeclaredDefaultsMatchConstructors) {
       {"mjsMesh", mjs_addMesh(spec, nullptr)},
       {"mjsSkin", mjs_addSkin(spec)},
       {"mjsMaterial", mjs_addMaterial(spec, nullptr)},
-      {"mjsTexture", mjs_addTexture(spec)},
+      {"mjsTexture", mjs_addTexture(spec, nullptr)},
   };
 
   for (int t = 0; t < kDefaultTablesN; t++) {

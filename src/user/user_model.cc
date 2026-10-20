@@ -1396,8 +1396,8 @@ mjCHField* mjCModel::AddHField() {
 
 
 // add texture
-mjCTexture* mjCModel::AddTexture() {
-  return AddObject(textures_, "texture");
+mjCTexture* mjCModel::AddTexture(mjCDef* def) {
+  return AddObjectDefault(textures_, "texture", def);
 }
 
 

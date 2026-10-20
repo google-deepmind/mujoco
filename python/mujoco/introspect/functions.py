@@ -11475,6 +11475,13 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjSpec'),
                  ),
              ),
+             FunctionParameterDecl(
+                 name='def',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsDefault', is_const=True),
+                 ),
+                 nullable=True,
+             ),
          ),
          doc='Add texture.',
      )),

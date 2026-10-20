@@ -10400,6 +10400,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='mesh defaults',
              ),
              StructFieldDecl(
+                 name='texture',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTexture'),
+                 ),
+                 doc='texture defaults',
+             ),
+             StructFieldDecl(
                  name='material',
                  type=PointerType(
                      inner_type=ValueType(name='mjsMaterial'),

@@ -1003,9 +1003,10 @@ mjsSkin* mjs_addSkin(mjSpec* s) {
 
 
 // add texture to model
-mjsTexture* mjs_addTexture(mjSpec* s) {
+mjsTexture* mjs_addTexture(mjSpec* s, const mjsDefault* defspec) {
   mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
-  mjCTexture* texture = modelC->AddTexture();
+  mjCDef*     def     = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCTexture* texture = modelC->AddTexture(def);
   return &texture->spec;
 }
 

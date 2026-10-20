@@ -1725,12 +1725,13 @@ class mjCTexture_ : public mjCBase {
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {
+  friend class mjCDef;
   friend class mjCModel;
   friend class mjXReader;
   friend class mjXWriter;
 
  public:
-  explicit mjCTexture(mjCModel*);
+  explicit mjCTexture(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCTexture(const mjCTexture& other);
   mjCTexture& operator=(const mjCTexture& other);
   ~mjCTexture();
@@ -2432,6 +2433,7 @@ class mjCDef : public mjsElement {
   mjCLight&    Light() { return light_; }
   mjCFlex&     Flex() { return flex_; }
   mjCMesh&     Mesh() { return mesh_; }
+  mjCTexture&  Texture() { return texture_; }
   mjCMaterial& Material() { return material_; }
   mjCPair&     Pair() { return pair_; }
   mjCEquality& Equality() { return equality_; }
@@ -2462,6 +2464,7 @@ class mjCDef : public mjsElement {
   mjCLight    light_;
   mjCFlex     flex_;
   mjCMesh     mesh_;
+  mjCTexture  texture_;
   mjCMaterial material_;
   mjCPair     pair_;
   mjCEquality equality_;

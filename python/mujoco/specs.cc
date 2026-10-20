@@ -1980,6 +1980,15 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       throw pybind11::value_error(mjs_getError(self.ptr));
     }
   });
+  mjsTexture.def_property(
+      "classname",
+      [](raw::MjsTexture& self) -> raw::MjsDefault* {
+        return mjs_getDefault(self.element);
+      },
+      [](raw::MjsTexture& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSKEY ======================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsKey& obj) {
