@@ -55,8 +55,8 @@ class ViewerConfig:
   gfx: str = ''  # Graphics mode ('web' launches Web Viewer).
   http_port: int = 0  # Web Viewer port (0 picks first free port >= 8080).
   open_browser: bool = False  # Open Web Viewer URL in a browser tab on launch.
-  # What to reload when saved: 'all' (plugin modules and the model file),
-  # 'plugins', 'model', or plugin class names; see hot_reload.Options.parse.
+  # What is reloaded when modified. Options are '', 'plugins', 'model', 'all',
+  # 'Plugin1,Plugin2,...'. Default is '', meaning nothing.
   hot_reload: str = ''
 
 

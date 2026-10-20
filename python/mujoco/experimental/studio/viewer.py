@@ -48,8 +48,8 @@ _HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
 _HOT_RELOAD = _flags.DEFINE_string(
     'hot_reload',
     '',
-    'Reload files saved while running: "all", "plugins", "model", or'
-    ' comma-separated plugin class names (e.g. "Scene,SceneGui").',
+    "What is reloaded when modified. Options are '', 'plugins', 'model',"
+    " 'all', 'Plugin1,Plugin2,...'. Default is '', meaning nothing.",
 )
 
 
