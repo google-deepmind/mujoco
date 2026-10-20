@@ -4,6 +4,10 @@
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load(
+    "//:build_defs.bzl",
+    "cc_headers",
+)
 
 package(default_visibility = ["//visibility:private"])
 
@@ -16,11 +20,13 @@ exports_files([
     "mujoco_plugin.lds",
 ])
 
-# The header declaring MuJoCo's API, for the shared library's exports test.
-filegroup(
-    name = "mujoco_api_header",
-    srcs = ["include/mujoco/mujoco.h"],
+# The headers of :mujoco and everything it depends on. mujoco_shared exports
+# the C API they declare with MJAPI, like CMake's libmujoco, and the exports
+# test checks that.
+cc_headers(
+    name = "mujoco_api_headers",
     visibility = ["//test:__pkg__"],
+    deps = [":mujoco"],
 )
 
 package_group(
@@ -77,6 +83,20 @@ cc_shared_library(
     }),
     visibility = [":visibility"],
     deps = [":mujoco"],
+)
+
+# The C API symbols mujoco_shared exports, generated from the MJAPI declarations
+# in the headers: an ELF version script and a macOS exported-symbols list.
+genrule(
+    name = "mujoco_symbols",
+    srcs = [":mujoco_api_headers"],
+    outs = [
+        "mujoco.lds",
+        "mujoco.exported_symbols",
+    ],
+    cmd = "bash $(execpath :mujoco_symbols.sh) lds $(RULEDIR)/mujoco.lds $(SRCS) && " +
+          "bash $(execpath :mujoco_symbols.sh) exported_symbols $(RULEDIR)/mujoco.exported_symbols $(SRCS)",
+    tools = [":mujoco_symbols.sh"],
 )
 
 cc_library(

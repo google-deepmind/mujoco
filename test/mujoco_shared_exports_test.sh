@@ -13,15 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Checks that the shared MuJoCo library exports MuJoCo's API and nothing else:
-# every function and variable mujoco.h declares with MJAPI, and otherwise only
-# mj* symbols (such as the private _mj* functions used by the Python bindings),
-# so that engine internals and the bundled third-party libraries stay hidden.
+# Checks that the shared MuJoCo library exports only the C API that MuJoCo's
+# headers declare with MJAPI (like CMake's libmujoco) plus the private
+# _mjPRIVATE_* functions used by the Python bindings, so that engine internals
+# and the bundled third-party libraries stay hidden; and that it exports every
+# public function in introspect/functions.py (parsed from mujoco.h by clang).
 #
-# Usage: mujoco_shared_exports_test.sh [--exclude=REGEX] <exports> <mujoco.h>
+# Usage: mujoco_shared_exports_test.sh [--exclude=REGEX] <exports> <functions_py> <header>...
 #
-# <exports> lists the library's exported symbols, one per line. --exclude skips
-# API names matching REGEX that the library isn't expected to export.
+# <exports> lists the library's exported symbols, one per line. <functions_py>
+# is python/mujoco/introspect/functions.py. The headers are all of MuJoCo's
+# headers. --exclude skips public function names matching REGEX that the
+# library isn't expected to export.
 
 set -euo pipefail
 
@@ -34,32 +37,16 @@ for arg in "$@"; do
   esac
 done
 exports="${positional[0]}"
-header="${positional[1]}"
+functions_py="${positional[1]}"
+headers=("${positional[@]:2}")
 
 symbols="$(sort -u "${exports}")"
 
-# Ignore the __start_*/__stop_* section bounds the linker itself adds for named
-# sections in linked-in code (e.g. malloc hooks); they aren't part of the API.
-# Also allow C++ symbols in MuJoCo's own namespace (_ZN6mujoco..., _ZZN6mujoco...):
-# some toolchains can't hide inline and thread-local statics with a linker
-# script (GCC 13 on Ubuntu 24.04 exports two), and unlike third-party symbols
-# they can't clash with other libraries.
-unexpected="$(grep -v -E '^_?mj' <<< "${symbols}" |
-  grep -v -E '^__(start|stop)_' |
-  grep -v -E '^_ZZ?N6mujoco' || true)"
-if [[ -n "${unexpected}" ]]; then
-  echo "FAIL: the library exports symbols other than mj* and _mj*:"
-  echo "${unexpected}" | head -50
-  exit 1
-fi
-
-# The names mujoco.h declares with MJAPI, outside of conditional blocks (other
-# than its include guard), e.g. "MJAPI void mj_step(...);" or
-# "MJAPI extern void* (*mju_user_malloc)(size_t);".
-api="$(awk '
-  /^#[ \t]*if/ { depth++ }
-  /^#[ \t]*endif/ { depth-- }
-  depth == 1 && /^MJAPI/ {
+# Any C API name declared with MJAPI in the headers may be exported, including
+# names that depend on the build (e.g. the stack functions with
+# AddressSanitizer).
+allowed="$(awk '
+  /^MJAPI/ {
     s = $0
     sub(/^MJAPI[ \t]+/, "", s)
     if (match(s, /\(\*[ \t]*[A-Za-z_][A-Za-z0-9_]*/)) {
@@ -70,24 +57,48 @@ api="$(awk '
       name = s
       sub(/.*[^A-Za-z0-9_]/, "", name)
     }
-    print name
-  }' "${header}" | sort -u)"
+    if (name ~ /^mj/ && name !~ /^mjuu_/) print name
+  }' "${headers[@]}" | sort -u)"
+
+# Ignore the __start_*/__stop_* section bounds the linker itself adds for named
+# sections in linked-in code (e.g. malloc hooks); they aren't part of the API.
+# Some toolchains also can't hide thread-local and inline statics with a linker
+# script (GCC 13 on Ubuntu 24.04 exports three), so allow those in MuJoCo's own
+# namespace (_ZN6mujoco..., _ZZN6mujoco...) and the thread-local test hook
+# mj_nesterov_momentum; unlike third-party symbols, they can't clash with other
+# libraries.
+unexpected="$(comm -23 <(echo "${symbols}") <(echo "${allowed}") |
+  grep -v -E '^_mjPRIVATE_' |
+  grep -v -E '^__(start|stop)_' |
+  grep -v -E '^_ZZ?N6mujoco' |
+  grep -v -x 'mj_nesterov_momentum' || true)"
+if [[ -n "${unexpected}" ]]; then
+  echo "FAIL: the library exports symbols that aren't MJAPI or _mjPRIVATE_*:"
+  echo "${unexpected}" | head -50
+  exit 1
+fi
+
+# Every unconditional public function in introspect/functions.py (parsed from
+# mujoco.h by clang) must be exported. mj_markStack and mj_freeStack are
+# inline wrappers around mj__markStack and mj__freeStack under ASan.
+api="$(awk -F"'" '/FunctionDecl\(/ {getline; print $2}' "${functions_py}" |
+  grep -v -E '^mj_(mark|free)Stack$' | sort -u)"
 if [[ -n "${exclude}" ]]; then
   api="$(grep -v -E "${exclude}" <<< "${api}" || true)"
 fi
 
-# Guard against a broken header parse.
+# Guard against a broken functions.py parse.
 if [[ "$(wc -l <<< "${api}")" -lt 100 ]]; then
-  echo "FAIL: found only $(wc -l <<< "${api}") MJAPI names in ${header}"
+  echo "FAIL: found only $(wc -l <<< "${api}") functions in ${functions_py}"
   exit 1
 fi
 
 missing="$(comm -23 <(echo "${api}") <(echo "${symbols}"))"
 if [[ -n "${missing}" ]]; then
-  echo "FAIL: the library doesn't export these MJAPI names from mujoco.h:"
+  echo "FAIL: the library doesn't export these public functions from ${functions_py}:"
   echo "${missing}" | head -50
   exit 1
 fi
 
-echo "PASS: the library exports $(wc -l <<< "${symbols}") symbols, all mj* or" \
-  "_mj*, including all $(wc -l <<< "${api}") MJAPI names checked from mujoco.h"
+echo "PASS: the library exports $(wc -l <<< "${symbols}") symbols, all MJAPI or" \
+  "_mjPRIVATE_*, including all $(wc -l <<< "${api}") functions checked from functions.py"

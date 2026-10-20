@@ -202,10 +202,12 @@ sh_test(
     srcs = ["mujoco_shared_exports_test.sh"],
     args = [
         "$(rootpath :mujoco_shared_exports)",
-        "$(rootpath //:mujoco_api_header)",
+        "$(rootpath //python/mujoco/introspect:functions.py)",
+        "$(rootpaths //:mujoco_api_headers)",
     ],
     data = [
         ":mujoco_shared_exports",
-        "//:mujoco_api_header",
+        "//:mujoco_api_headers",
+        "//python/mujoco/introspect:functions.py",
     ],
 )
