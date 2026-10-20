@@ -100,6 +100,8 @@ Bug fixes
   ``young`` and ``poisson`` and was unstable.
 - Fixed a bug in the Filament renderer where textures did not allocate mipmap levels, preventing mipmap generation and
   causing minification aliasing, and where sRGB textures were unconditionally excluded from mipmapping.
+- Fixed a bug in the Filament renderer where skins that share vertices across faces failed with an index count mismatch
+  (:issue:`3719`).
 
 Models
 ^^^^^^

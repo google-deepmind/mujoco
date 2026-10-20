@@ -363,13 +363,13 @@ static void FillSkinVertices(T* vertices, const mjModel* model,
 }
 
 static void PrepareMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
-                            int num_vertices, bool has_uvs) {
+                            int num_vertices, int num_indices, bool has_uvs) {
   mjrf_defaultMeshConfig(config);
   config->max_vertices = num_vertices;
   config->num_attributes = has_uvs ? 3 : 2;
   config->interleaved = true;
   config->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  config->max_indices = num_vertices;
+  config->max_indices = num_indices;
   config->index_type = mjINDEX_TYPE_U32;
   config->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   config->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
@@ -401,7 +401,7 @@ static void PrepareMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
   if (has_uvs) {
     data->vertices[2] = buf + sizeof(float[7]);
   }
-  data->num_indices = num_vertices;
+  data->num_indices = num_indices;
   data->indices = nullptr;
 }
 
@@ -435,7 +435,8 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
 
   mjrfMeshConfig mesh_config;
   mjrfMeshData mesh_data;
-  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, has_uvs);
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, num_vertices,
+                  has_uvs);
 
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
@@ -456,12 +457,12 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
 UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
                                    const mjData* data, int skin_id) {
   const int num_vertices = model->skin_vertnum[skin_id];
+  const int num_indices = 3 * model->skin_facenum[skin_id];
   const bool has_uvs = model->skin_texcoordadr[skin_id] >= 0;
-
 
   mjrfMeshConfig mesh_config;
   mjrfMeshData mesh_data;
-  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, has_uvs);
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, num_indices, has_uvs);
 
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
@@ -472,7 +473,6 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
     VertexNoUv* vertices = (VertexNoUv*)(mesh_data.user_data);
     FillSkinVertices(vertices, model, data, skin_id, &min_pt, &max_pt);
   }
-  mesh_data.num_indices = 3 * model->skin_facenum[skin_id];
   mesh_data.indices = model->skin_face + 3 * model->skin_faceadr[skin_id];
   SetBounds(&mesh_data, min_pt, max_pt);
 
