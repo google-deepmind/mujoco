@@ -1025,6 +1025,11 @@ class DataIOTest(parameterized.TestCase):
     addr1 = int(lo[1]) | (int(hi[1]) << 32)
     self.assertNotEqual(addr0, addr1)
 
+    jit_vmjx_data = jax.jit(jax.vmap(put_data, in_axes=0, out_axes=0))(
+        jp.zeros(2, dtype=jp.uint32)
+    )
+    np.testing.assert_allclose(jit_vmjx_data.qpos[:, 0], [1.0, 1.0])
+
 
 # Test cases for `_resolve_impl_and_device` where the device is
 # specified by the user and the device is available.

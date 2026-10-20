@@ -1180,8 +1180,7 @@ def _put_data_cpp(
       dummy_arg_for_batching,
   )
 
-  new_d = data_list[0]
-  fields = _put_data_public_fields(new_d)
+  fields = {k: copy.copy(v) for k, v in _put_data_public_fields(d).items()}
 
   c_pointers_impl = types.DataCPP(
       pointer_lo=pointer_lo,
