@@ -14,13 +14,20 @@
 """Discovers plugin ``@handler`` methods and dispatches messages to them."""
 
 import collections
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 from mujoco.experimental.studio import messages
 
 # A bound ``@handler`` method: takes the message, returns True to consume it.
 Handler = Callable[..., Any]
 # Maps a plugin and one of its handlers to the callable actually registered.
 HandlerWrapper = Callable[[Any, Handler], Handler]
+
+
+class PrioritizedHandler(NamedTuple):
+  """A registered handler and its priority; higher priorities run first."""
+
+  priority: int
+  handler: Handler
 
 
 def _discover_handlers(
@@ -59,7 +66,7 @@ class PluginRegistry:
 
   def __init__(self, plugins: list[Any] | None = None) -> None:
     self.plugins: list[Any] = list(plugins or [])
-    self.handlers: dict[Any, list[tuple[int, Handler]]] = (
+    self.handlers: dict[Any, list[PrioritizedHandler]] = (
         collections.defaultdict(list)
     )
     self.rebuild_handlers()
@@ -75,19 +82,21 @@ class PluginRegistry:
     for obj in self.plugins:
       for info, bound_method in _discover_handlers(obj):
         fn = wrap(obj, bound_method) if wrap is not None else bound_method
-        handlers[_type_key(info.message_type)].append((info.priority, fn))
+        handlers[_type_key(info.message_type)].append(
+            PrioritizedHandler(info.priority, fn)
+        )
     self.handlers = handlers
 
   def dispatch(self, message: Any) -> None:
     """Dispatches a message to registered handlers in priority order."""
     # Collect all matching handlers for the given message class and all its
     # ancestors/superclasses.
-    message_handlers = []
+    message_handlers: list[PrioritizedHandler] = []
     for message_type in type(message).__mro__:
       message_handlers.extend(self.handlers.get(_type_key(message_type), []))
 
     # Sort by priority; higher values execute first.
-    message_handlers.sort(key=lambda item: item[0], reverse=True)
+    message_handlers.sort(key=lambda item: item.priority, reverse=True)
     for _, handler in message_handlers:
       if handler(message):
         # Handler returned True to consume the message; stop dispatching.
