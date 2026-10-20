@@ -23,10 +23,7 @@ cc_library(
         "elasticity.h",
     ],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
@@ -49,10 +46,7 @@ cc_library(
         "cable.h",
     ],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
@@ -72,10 +66,7 @@ cc_library(
         "register.cc",
     ],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",

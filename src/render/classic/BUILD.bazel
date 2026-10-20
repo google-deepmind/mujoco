@@ -13,10 +13,7 @@ cc_library(
     ],
     hdrs = ["glad/glad.h"],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     linkopts = ["-ldl"],
     local_defines = [
@@ -29,10 +26,7 @@ cc_library(
 cc_library(
     name = "classic",
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
@@ -52,10 +46,7 @@ cc_library(
     srcs = ["render_context.c"],
     hdrs = ["render_context.h"],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
@@ -76,10 +67,7 @@ cc_library(
     srcs = ["render_gl2.c"],
     hdrs = ["render_gl2.h"],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
@@ -97,10 +85,7 @@ cc_library(
     srcs = ["render_gl3.c"],
     hdrs = ["render_gl3.h"],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
@@ -124,10 +109,7 @@ cc_library(
     srcs = ["render_util.c"],
     hdrs = ["render_util.h"],
     conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
+    copts = ["-I" + MJ_ROOT + "/src"],
     cxxopts = ["-std=c++20"],
     local_defines = [
         "MUJOCO_DLL_EXPORTS",

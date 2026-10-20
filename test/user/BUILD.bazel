@@ -12,7 +12,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -30,7 +29,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -52,7 +50,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -76,7 +73,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -102,7 +98,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -125,7 +120,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -156,7 +150,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -176,7 +169,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -197,7 +189,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -217,7 +208,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -241,7 +231,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -259,7 +248,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -283,7 +271,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
     ],
