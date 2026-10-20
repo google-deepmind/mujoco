@@ -24,6 +24,8 @@ Engine
     Models solved with PGS, noslip or islands disabled can stop at slightly different iterations. The
     :ref:`meaninertia<statistic-meaninertia>` attribute is deprecated and will be removed in a future release (compiling
     a model that sets it now gives a warning; remove the attribute to migrate).
+- Interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>`) now support
+  :ref:`self-collision<flex-contact-selfcollide>`, excluding elements in the same or neighboring cells.
 
 Compiler
 ^^^^^^^^

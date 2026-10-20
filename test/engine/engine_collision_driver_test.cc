@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
@@ -714,6 +715,347 @@ TEST_F(MjCollisionTest, Flex3DActiveLayersMidphaseDisabled) {
         int layer = m->flex_elemlayer[m->flex_elemadr[f] + e];
         EXPECT_LT(layer, m->flex_activelayers[f]);
       }
+    }
+  }
+}
+
+// closed box surface with n[i] points along edge i and half-sizes size[i], as
+// point and element strings of a flexcomp of type direct
+void BoxSurface(const int n[3], const mjtNum size[3], std::string* point,
+                std::string* element) {
+  // index surface points
+  std::vector<int> id(n[0] * n[1] * n[2], -1);
+  int npoint = 0;
+  for (int i = 0; i < n[0]; i++) {
+    for (int j = 0; j < n[1]; j++) {
+      for (int k = 0; k < n[2]; k++) {
+        if (i == 0 || i == n[0] - 1 || j == 0 || j == n[1] - 1 || k == 0 ||
+            k == n[2] - 1) {
+          int ijk[3] = {i, j, k};
+          id[(i * n[1] + j) * n[2] + k] = npoint++;
+          for (int a = 0; a < 3; a++) {
+            *point += std::to_string(size[a] * (2.0 * ijk[a] / (n[a] - 1) - 1));
+            *point += ' ';
+          }
+        }
+      }
+    }
+  }
+
+  // two triangles per quad on each face
+  for (int a = 0; a < 3; a++) {
+    int b = (a + 1) % 3, c = (a + 2) % 3;
+    for (int s : {0, n[a] - 1}) {
+      for (int u = 0; u < n[b] - 1; u++) {
+        for (int v = 0; v < n[c] - 1; v++) {
+          int quad[4];
+          int corner[4][2] = {{u, v}, {u + 1, v}, {u + 1, v + 1}, {u, v + 1}};
+          for (int q = 0; q < 4; q++) {
+            int ijk[3];
+            ijk[a] = s;
+            ijk[b] = corner[q][0];
+            ijk[c] = corner[q][1];
+            quad[q] = id[(ijk[0] * n[1] + ijk[1]) * n[2] + ijk[2]];
+          }
+          int tri[2][3] = {{quad[0], quad[1], quad[2]},
+                           {quad[0], quad[2], quad[3]}};
+          for (auto& t : tri) {
+            if (s == 0) {
+              std::swap(t[1], t[2]);
+            }
+            for (int vid : t) {
+              *element += std::to_string(vid) + " ";
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// pillow: closed box surface of 10 x 10 x 2 cm with interpolated dofs, resting
+// on a floor, optionally pressed by a plate
+std::string Pillow(const std::string& cellcount, const std::string& selfcollide,
+                   const std::string& dof = "trilinear", bool plate = false) {
+  const int n[3] = {11, 11, 3};
+  const mjtNum size[3] = {.05, .05, .01};
+  std::string point, element;
+  BoxSurface(n, size, &point, &element);
+
+  std::string plate_xml = plate ? R"(
+      <body name="plate" pos="0 0 .028">
+        <joint name="press" type="slide" axis="0 0 1" damping="5"/>
+        <geom type="box" size=".07 .07 .005" mass=".1"/>
+      </body>)"
+                                : "";
+  std::string actuator_xml = plate ? R"(
+    <actuator>
+      <motor joint="press" gear="-1"/>
+    </actuator>)"
+                                   : "";
+  // narrow phase only: all element pairs are allocated on the arena
+  std::string memory = selfcollide == "narrow" ? "200M" : "10M";
+  return R"(
+  <mujoco>
+    <option timestep="1e-3" solver="CG" tolerance="1e-8" integrator="discrete"/>
+    <size memory=")" +
+         memory + R"("/>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 .1"/>)" +
+         plate_xml + R"(
+      <flexcomp name="pillow" type="direct" dim="2" pos="0 0 .0115"
+                radius=".001" mass=".1" dof=")" +
+         dof + R"(" cellcount=")" + cellcount + R"("
+                point=")" +
+         point + R"(" element=")" + element + R"(">
+        <elasticity young="300" poisson=".2" damping=".002" elastic2d="none"/>
+        <contact selfcollide=")" +
+         selfcollide + R"(" solref=".005 1"/>
+      </flexcomp>
+    </worldbody>)" +
+         actuator_xml + R"(
+  </mujoco>
+  )";
+}
+
+// self contacts of a flex: total, between its top and bottom faces, smallest
+// distance
+struct SelfContacts {
+  int nself = 0;
+  int ntopbottom = 0;
+  mjtNum mindist = mjMAXVAL;
+};
+
+// vertex v (global index) of an interpolated flex on the top (side=1) or
+// bottom (side=0) face of the cage, from its parametric coordinates
+bool VertOnFace(const mjModel* m, int v, int side) {
+  return std::abs(m->flex_vert0[3 * v + 2] - side) < 1e-6;
+}
+
+// element of interpolated flex f on the top (side=1) or bottom (side=0) face of
+// the cage
+bool OnFace(const mjModel* m, int f, int e, int side) {
+  int dim = m->flex_dim[f];
+  const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e * (dim + 1);
+  for (int i = 0; i <= dim; i++) {
+    if (!VertOnFace(m, m->flex_vertadr[f] + edata[i], side)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+SelfContacts CountSelfContacts(const mjModel* m, const mjData* d, int f) {
+  SelfContacts count;
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact& con = d->contact[i];
+    if (con.flex[0] != f || con.flex[1] != f) {
+      continue;
+    }
+    count.nself++;
+    count.mindist = std::min(count.mindist, con.dist);
+    if ((OnFace(m, f, con.elem[0], 0) && OnFace(m, f, con.elem[1], 1)) ||
+        (OnFace(m, f, con.elem[0], 1) && OnFace(m, f, con.elem[1], 0))) {
+      count.ntopbottom++;
+    }
+  }
+  return count;
+}
+
+// move the nodes of interpolated flex f such that the cage is flattened along z
+// to thickness eps above its lowest node
+void FlattenCage(const mjModel* m, mjData* d, int f, mjtNum eps) {
+  mj_resetData(m, d);
+  mj_kinematics(m, d);
+  int order = std::abs(m->flex_interp[f]);
+  int nz = m->flex_cellnum[3 * f + 2] * order + 1;
+  int nodeadr = m->flex_nodeadr[f];
+  mjtNum zmin = mjMAXVAL;
+  for (int i = 0; i < m->flex_nodenum[f]; i++) {
+    zmin = std::min(zmin, d->xpos[3 * m->flex_nodebodyid[nodeadr + i] + 2]);
+  }
+  for (int i = 0; i < m->flex_nodenum[f]; i++) {
+    int b = m->flex_nodebodyid[nodeadr + i];
+    mjtNum ztarget = zmin + eps * (i % nz) / (nz - 1);
+    for (int j = m->body_jntadr[b]; j < m->body_jntadr[b] + m->body_jntnum[b];
+         j++) {
+      if (m->jnt_type[j] == mjJNT_SLIDE && m->jnt_axis[3 * j + 2] == 1) {
+        d->qpos[m->jnt_qposadr[j]] += ztarget - d->xpos[3 * b + 2];
+      }
+    }
+  }
+  mj_fwdPosition(m, d);
+}
+
+TEST_F(MjCollisionTest, InterpolatedSelfCollisionNoContactsAtRest) {
+  for (const char* cellcount : {"1 1 1", "2 2 3", "4 4 4"}) {
+    for (const char* selfcollide : {"narrow", "bvh", "sap"}) {
+      for (const char* dof : {"trilinear", "quadratic"}) {
+        char error[1024];
+        MjModelPtr m = LoadModelFromString(Pillow(cellcount, selfcollide, dof),
+                                           error, sizeof(error));
+        ASSERT_THAT(m.get(), NotNull()) << error;
+        ASSERT_NE(m->flex_interp[0], 0);
+        MjDataPtr d = MakeData(m);
+        mj_fwdPosition(m.get(), d.get());
+
+        // adjacent elements touch, but they share cage nodes: no self contacts
+        EXPECT_EQ(CountSelfContacts(m.get(), d.get(), 0).nself, 0)
+            << cellcount << ", " << selfcollide << ", " << dof;
+      }
+    }
+  }
+}
+
+TEST_F(MjCollisionTest, InterpolatedSelfCollisionExcludesSharedNodes) {
+  for (const char* selfcollide : {"narrow", "bvh", "sap"}) {
+    // top and bottom faces are in cells 2 and 0, which have no common node
+    char error[1024];
+    MjModelPtr m =
+        LoadModelFromString(Pillow("2 2 3", selfcollide), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    FlattenCage(m.get(), d.get(), 0, 0.5 * m->flex_radius[0]);
+    SelfContacts flat = CountSelfContacts(m.get(), d.get(), 0);
+    EXPECT_GT(flat.ntopbottom, 0) << selfcollide;
+    EXPECT_LE(flat.nself, mjMAXCONPAIR) << selfcollide;
+
+    // top and bottom faces are in neighboring cells, which share the middle
+    // layer of nodes: no self contacts
+    for (const char* cellcount : {"2 2 1", "2 2 2"}) {
+      MjModelPtr m_near = LoadModelFromString(Pillow(cellcount, selfcollide),
+                                              error, sizeof(error));
+      ASSERT_THAT(m_near.get(), NotNull()) << error;
+      MjDataPtr d_near = MakeData(m_near);
+      FlattenCage(m_near.get(), d_near.get(), 0, 0.5 * m->flex_radius[0]);
+      EXPECT_EQ(CountSelfContacts(m_near.get(), d_near.get(), 0).nself, 0)
+          << cellcount << ", " << selfcollide;
+    }
+  }
+}
+
+// number of contacts between elements 0 and 1 of the flex with two horizontal
+// triangles at heights z1 and z2 (and a vertical triangle far away, so that the
+// cage spans z in [0, 1] with 4 cells along z), after flattening the cage
+int FlattenedTrianglePairContacts(mjtNum z1, mjtNum z2) {
+  char point[512];
+  std::snprintf(point, sizeof(point),
+                "0 0 %.17g  1 0 %.17g  0 1 %.17g  0 0 %.17g  1 0 %.17g  "
+                "0 1 %.17g  5 0 0  5 1 0  5 0 1",
+                z1, z1, z1, z2, z2, z2);
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="tris" type="direct" dim="2" dof="trilinear"
+                cellcount="1 1 4" radius=".001" mass="1"
+                element="0 1 2  3 4 5  6 7 8" point=")" +
+                    std::string(point) + R"(">
+        <contact selfcollide="narrow"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  EXPECT_THAT(m.get(), NotNull()) << error;
+  if (!m) return -1;
+  MjDataPtr d = MakeData(m);
+  FlattenCage(m.get(), d.get(), 0, 0.5 * m->flex_radius[0]);
+  int ncon = 0;
+  for (int i = 0; i < d->ncon; i++) {
+    const mjContact& con = d->contact[i];
+    if (con.flex[0] == 0 && con.flex[1] == 0 &&
+        std::min(con.elem[0], con.elem[1]) == 0 &&
+        std::max(con.elem[0], con.elem[1]) == 1) {
+      ncon++;
+    }
+  }
+  return ncon;
+}
+
+TEST_F(MjCollisionTest, InterpolatedSelfCollisionBoundarySymmetry) {
+  // with 4 cells along z, heights 0, .25, .5, .75 and 1 are cell planes 0 to 4;
+  // a triangle on an internal plane belongs to the cells on both sides
+
+  // symmetric about plane 2: a triangle on plane 2 is in cells 1 and 2, which
+  // neighbor cells 0 and 3
+  EXPECT_EQ(FlattenedTrianglePairContacts(0, .5), 0);
+  EXPECT_EQ(FlattenedTrianglePairContacts(.5, 1), 0);
+  EXPECT_GT(FlattenedTrianglePairContacts(0, .75), 0);
+  EXPECT_GT(FlattenedTrianglePairContacts(.25, 1), 0);
+  EXPECT_GT(FlattenedTrianglePairContacts(0, 1), 0);
+
+  // rounding below a cell plane does not change the cells of a triangle
+  EXPECT_EQ(FlattenedTrianglePairContacts(0, .5 - 1e-16), 0);
+  EXPECT_EQ(FlattenedTrianglePairContacts(.5 - 1e-16, 1), 0);
+
+  // a triangle inside cell 1 neighbors cells 0 and 2, not 3
+  EXPECT_EQ(FlattenedTrianglePairContacts(.375, 0), 0);
+  EXPECT_GT(FlattenedTrianglePairContacts(.375, 1), 0);
+}
+
+// lowest vertex of the top face and highest vertex of the bottom face of the
+// cage
+std::pair<mjtNum, mjtNum> FaceHeights(const mjModel* m, const mjData* d,
+                                      int f) {
+  mjtNum ztop = mjMAXVAL, zbottom = -mjMAXVAL;
+  for (int v = m->flex_vertadr[f]; v < m->flex_vertadr[f] + m->flex_vertnum[f];
+       v++) {
+    mjtNum z = d->flexvert_xpos[3 * v + 2];
+    if (VertOnFace(m, v, 1)) {
+      ztop = std::min(ztop, z);
+    } else if (VertOnFace(m, v, 0)) {
+      zbottom = std::max(zbottom, z);
+    }
+  }
+  return {ztop, zbottom};
+}
+
+TEST_F(MjCollisionTest, InterpolatedSelfCollisionPressedPillow) {
+  for (const char* selfcollide : {"auto", "none"}) {
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(
+        Pillow("2 2 3", selfcollide, "trilinear", /*plate=*/true), error,
+        sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+
+    // press the plate down with a force that collapses the cage, then hold it
+    // until the pillow settles; track the smallest gap between the faces
+    mjtNum mingap = mjMAXVAL;
+    for (int i = 0; i < 2000; i++) {
+      d->ctrl[0] = 3 * std::min(1.0, i / 1000.0);
+      mj_step(m.get(), d.get());
+      auto [top, bottom] = FaceHeights(m.get(), d.get(), 0);
+      mingap = std::min(mingap, top - bottom);
+    }
+    SelfContacts pressed = CountSelfContacts(m.get(), d.get(), 0);
+    auto [ztop, zbottom] = FaceHeights(m.get(), d.get(), 0);
+    mjtNum vmax = 0;
+    for (int i = 0; i < m->nv; i++) {
+      vmax = std::max(vmax, std::abs(d->qvel[i]));
+    }
+
+    // simulation is stable
+    for (int i = 0; i < m->nq; i++) {
+      EXPECT_TRUE(std::isfinite(d->qpos[i])) << selfcollide;
+    }
+    for (int i = 0; i < mjNWARNING; i++) {
+      EXPECT_EQ(d->warning[i].number, 0) << selfcollide << ", warning " << i;
+    }
+
+    if (std::string(selfcollide) == "auto") {
+      // settled: top and bottom faces are in contact, penetration is bounded
+      // (only the settled state is checked: the deepest transient penetration
+      // depends on the platform)
+      EXPECT_LT(vmax, 0.05);
+      EXPECT_GT(pressed.ntopbottom, 0);
+      EXPECT_GT(pressed.mindist, -m->flex_radius[0]);
+      EXPECT_GT(ztop, zbottom);
+    } else {
+      // without self-collision, the top face passes through the bottom face
+      EXPECT_EQ(pressed.ntopbottom, 0);
+      EXPECT_LT(mingap, 0);
     }
   }
 }

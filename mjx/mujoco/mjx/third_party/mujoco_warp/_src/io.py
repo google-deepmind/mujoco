@@ -505,6 +505,9 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       raise NotImplementedError("Flex internal collisions are not implemented.")
     if (mjm.flex_rigid != 0).any():
       raise NotImplementedError("Rigid flexes are not implemented.")
+    # TODO(team): skip element pairs driven by a common grid node, as in mjc_ElemSharedNode
+    if np.any((mjm.flex_interp != 0) & (mjm.flex_selfcollide != 0) & ((mjm.flex_contype & mjm.flex_conaffinity) != 0)):
+      raise NotImplementedError("Self-collision of interpolated flexes (dof=trilinear or quadratic) is not implemented.")
   m.nmaxcondim = np.concatenate(condim_arrays).max()
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()

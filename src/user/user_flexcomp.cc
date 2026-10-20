@@ -309,14 +309,12 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
   int nnode = 0;
   if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
     int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
-    // multi-cell count for mesh/direct/gmsh, else single cell
+    // cellcount applies to all types (see the nodal mesh below), else single cell
     int cx = 1, cy = 1, cz = 1;
-    if (type == mjFCOMPTYPE_MESH || type == mjFCOMPTYPE_DIRECT || type == mjFCOMPTYPE_GMSH) {
-      if (cellcount[0] >= 0) {
-        cx = cellcount[0];
-        cy = cellcount[1];
-        cz = cellcount[2];
-      }
+    if (cellcount[0] >= 0) {
+      cx = cellcount[0];
+      cy = cellcount[1];
+      cz = cellcount[2];
     }
     nnode = (cx * order + 1) * (cy * order + 1) * (cz * order + 1);
   }
@@ -2509,9 +2507,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (vert_.size() % 3) { throw mjCError(this, "vert size must be a multiple of 3"); }
   if (edgestiffness > 0 && dim > 1) {
     throw mjCError(this, "edge stiffness only available for dim=1, please use elasticity plugins");
-  }
-  if (interpolated && selfcollide != mjFLEXSELF_NONE) {
-    throw mjCError(this, "trilinear interpolation cannot do self-collision");
   }
   nelem = (int)elem_.size() / (dim + 1);
 

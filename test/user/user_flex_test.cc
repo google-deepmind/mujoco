@@ -543,21 +543,59 @@ TEST_F(UserFlexTest, BoundingBoxCoordinates) {
   EXPECT_EQ(m->flex_vert0[3 * m->nflexvert - 1], 1);
 }
 
-TEST_F(UserFlexTest, TrilinearCannotDoSelfCollision) {
-  std::array<char, 1024> error;
-  static constexpr char xml_selfcoll[] = R"(
-  <mujoco>
-  <worldbody>
-    <flexcomp name="test" type="grid" count="2 2 2" spacing="1 1 1" dim="3" dof="trilinear">
-      <contact selfcollide="auto"/>
-    </flexcomp>
-  </worldbody>
-  </mujoco>
-  )";
-  MjModelPtr m1 = LoadModelFromString(xml_selfcoll, error.data(), error.size());
-  EXPECT_THAT(m1.get(), IsNull()) << error.data();
-  EXPECT_THAT(error.data(),
-              HasSubstr("trilinear interpolation cannot do self-collision"));
+TEST_F(UserFlexTest, InterpolatedFlexCanSelfCollide) {
+  for (const char* dof : {"trilinear", "quadratic"}) {
+    std::string xml = std::string(R"(
+    <mujoco>
+    <worldbody>
+      <flexcomp name="test" type="grid" count="3 3 3" spacing="1 1 1" dim="3"
+                dof=")") +
+                      dof + R"(">
+        <contact selfcollide="auto"/>
+      </flexcomp>
+    </worldbody>
+    </mujoco>
+    )";
+    std::array<char, 1024> error;
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error.data(), error.size());
+    ASSERT_THAT(m.get(), NotNull()) << dof << ": " << error.data();
+    EXPECT_NE(m->flex_interp[0], 0) << dof;
+    EXPECT_EQ(m->flex_selfcollide[0], mjFLEXSELF_AUTO) << dof;
+    MjDataPtr d = MakeData(m);
+    mj_step(m.get(), d.get());
+  }
+}
+
+// cellcount sizes the nodal grid of every flexcomp type
+TEST_F(UserFlexTest, InterpolatedCellcountAllTypes) {
+  const char* types[][2] = {
+      {"grid", "3"}, {"box", "2"}, {"cylinder", "2"}, {"ellipsoid", "2"}};
+  for (const auto& [type, dim] : types) {
+    for (const char* dof : {"trilinear", "quadratic"}) {
+      std::string xml = std::string(R"(
+      <mujoco>
+      <worldbody>
+        <flexcomp name="test" type=")") +
+                        type + R"(" count="4 4 4" spacing=".1 .1 .1" dim=")" +
+                        dim + R"(" dof=")" + dof + R"(" cellcount="2 3 2">
+          <contact selfcollide="none"/>
+        </flexcomp>
+      </worldbody>
+      </mujoco>
+      )";
+      std::array<char, 1024> error;
+      MjModelPtr m =
+          LoadModelFromString(xml.c_str(), error.data(), error.size());
+      ASSERT_THAT(m.get(), NotNull())
+          << type << ", " << dof << ": " << error.data();
+      int order = std::abs(m->flex_interp[0]);
+      EXPECT_EQ(m->flex_nodenum[0],
+                (2 * order + 1) * (3 * order + 1) * (2 * order + 1))
+          << type << ", " << dof;
+      MjDataPtr d = MakeData(m);
+      mj_step(m.get(), d.get());
+    }
+  }
 }
 
 TEST_F(UserFlexTest, TrilinearInterpolation) {

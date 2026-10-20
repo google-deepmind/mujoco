@@ -4801,6 +4801,10 @@ extensions specific to flexes.
    **sap** in 1D and 2D, and **bvh** in 3D. Which strategy performs better depends on the specifics of the model. The
    automatic setting is just a simple rule which we have found to perform well in general.
 
+   For interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>`), elements in the same or
+   neighboring :ref:`cells<body-flexcomp-cellcount>` do not self-collide, so self-collision requires at least 3 cells
+   along an axis.
+
 .. _flex-contact-activelayers:
 
 :at:`activelayers`: :at-val:`int(1), "1"`
