@@ -434,6 +434,10 @@ class mjCBase : public mjCBase_ {
                                   const std::string& filename,
                                   const mjVFS*       vfs);
 
+  // path of an asset file as LoadResource opens it: modelfiledir of the spec that owns this
+  // element, then dir, then file; file is returned as is if absolute or with a scheme
+  std::string ResolvePath(const std::string& dir, const std::string& file) const;
+
   // Get and sanitize content type from raw_text if not empty, otherwise parse
   // content type from resource_name; throw on failure
   static std::string GetAssetContentType(std::string_view resource_name, std::string_view raw_text);
@@ -1406,6 +1410,7 @@ class mjCMesh : public mjCMesh_, private mjsMesh {
   const mjsPlugin&           Plugin() const { return plugin; }
   const std::string&         ContentType() const { return content_type_; }
   const std::string&         File() const { return file_; }
+  std::string                ResolvedFilePath() const;  // modelfiledir + meshdir + file
   const double*              Refpos() const { return refpos; }
   const double*              Refquat() const { return refquat; }
   const double*              Scale() const { return scale; }
@@ -1621,6 +1626,7 @@ class mjCSkin : public mjCSkin_, private mjsSkin {
   using mjCBase::info;
 
   const std::string&                     File() const { return file_; }
+  std::string                            ResolvedFilePath() const;  // modelfiledir + meshdir + file
   const std::string&                     get_material() const { return material_; }
   const std::vector<float>&              get_vert() const { return vert_; }
   const std::vector<float>&              get_texcoord() const { return texcoord_; }
@@ -1688,6 +1694,7 @@ class mjCHField : public mjCHField_, private mjsHField {
   void PointToLocal(void);
 
   std::string File() const { return file_; }
+  std::string ResolvedFilePath() const;  // modelfiledir + meshdir + file
 
   // getter for user data
   std::vector<float>& get_userdata() { return userdata_; }
@@ -1740,6 +1747,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   std::string AssetKey() const;
 
   std::string              File() const { return file_; }
+  std::string              ResolvedFilePath() const;  // modelfiledir + texturedir + file
   std::string              get_content_type() const { return content_type_; }
   std::vector<std::string> get_cubefiles() const { return cubefiles_; }
 

@@ -894,7 +894,7 @@ typedef struct mjModel_ {
   int*      names_map;            // internal hash map of names               (nnames_map x 1)
 
   // paths
-  char*     paths;                // paths to assets, 0-terminated            (npaths x 1)
+  char*     paths;                // resolved paths to assets, 0-terminated   (npaths x 1)
 
   // sparse structures
   int*      B_rownnz;             // body-dof: non-zeros in each row          (nbody x 1)

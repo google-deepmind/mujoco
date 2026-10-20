@@ -54,6 +54,13 @@ Compiler
   that would compile to the same asset, as those of a sub-model attached several times do: the first of each group is
   kept and every reference to the others is rewritten to it. Like :ref:`mjs_fuseStatic`, it returns the number of
   assets merged.
+- The asset paths in :ref:`mjModel` (``paths`` at ``mesh_pathadr``, ``hfield_pathadr``, ``skin_pathadr`` and
+  ``tex_pathadr``) are now the path or URI from which the compiler read the asset: the model file's directory,
+  ``meshdir`` or ``texturedir``, and the :at:`file`, unless the file is an absolute path or a URI, which is kept as is.
+  :ref:`mju_openResource` opens them directly, from the same working directory and VFS as the compiler. Previously they
+  held the :at:`file` attribute as authored, which could not be resolved after :ref:`attaching<body-attach>` models
+  with different asset directories. Code which prefixed these paths with a directory of its own should pass them to
+  :ref:`mju_openResource` directly.
 - Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole polygon outline using Newell's
   method rather than the first three vertices (:issue:`3691`).
 

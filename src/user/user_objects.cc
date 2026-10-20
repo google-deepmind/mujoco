@@ -1587,6 +1587,15 @@ mjResource* mjCBase::LoadResource(const std::string& modelfiledir,
 }
 
 
+// path of an asset file as LoadResource opens it: modelfiledir + dir + file
+std::string mjCBase::ResolvePath(const std::string& dir, const std::string& file) const {
+  mjSpec* owning_spec = model->FindSpec(compiler);
+  if (!owning_spec) { owning_spec = &model->spec; }
+  FilePath filename = FilePath(dir) + FilePath(file);
+  return FilePath(mjs_getString(owning_spec->modelfiledir), filename.Str()).Str();
+}
+
+
 // Get and sanitize content type from raw_text if not empty, otherwise parse
 // content type from resource_name; throw error on failure
 std::string mjCBase::GetAssetContentType(std::string_view resource_name,
@@ -1608,9 +1617,7 @@ std::string mjCBase::GetAssetContentType(std::string_view resource_name,
 std::string mjCBase::ResolvedSpecFile(const std::string& dir, std::string file) const {
   if (file.empty()) { return ""; }
   if (model->spec.strippath) { file = mjuu_strippath(file); }
-  mjSpec*                owning = model->FindSpec(compiler);
-  mujoco::user::FilePath modeldir(owning ? mjs_getString(owning->modelfiledir) : "");
-  return (modeldir + mujoco::user::FilePath(dir) + mujoco::user::FilePath(file)).Str();
+  return ResolvePath(dir, file);
 }
 
 
@@ -5481,6 +5488,12 @@ mjCHField::~mjCHField() {
 }
 
 
+// file as opened by Compile, which has already applied strippath to file_
+std::string mjCHField::ResolvedFilePath() const {
+  return ResolvePath(mjs_getString(compiler->meshdir), file_);
+}
+
+
 std::string mjCHField::GetCacheId(const mjResource* resource, const std::string& asset_type) {
   std::stringstream ss;
   ss << "mjCHField:" << resource->name << ";ARGS:content_type=" << asset_type;
@@ -5763,6 +5776,12 @@ void mjCTexture::CopyFromSpec() {
 // free data storage allocated by lodepng
 mjCTexture::~mjCTexture() {
   data_.clear();
+}
+
+
+// file as opened by Compile, which has already applied strippath to file_
+std::string mjCTexture::ResolvedFilePath() const {
+  return ResolvePath(mjs_getString(compiler->texturedir), file_);
 }
 
 

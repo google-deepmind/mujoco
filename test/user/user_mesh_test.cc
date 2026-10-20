@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -452,8 +453,11 @@ TEST_F(MjCMeshTest, SaveMeshOnce) {
   const std::string xml_path = GetTestDataFilePath(kCubePath);
   std::array<char, 1024> error;
   mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
-  // Confirm the mesh file is loaded and stored in paths
-  EXPECT_EQ(std::string(&model->paths[model->mesh_pathadr[0]]), "cube.obj");
+  // Confirm the mesh file is loaded and its resolved path stored in paths
+  EXPECT_EQ(std::filesystem::path(&model->paths[model->mesh_pathadr[0]])
+                .lexically_normal(),
+            std::filesystem::path(GetTestDataFilePath("user/testdata/cube.obj"))
+                .lexically_normal());
   std::string saved_xml = SaveAndReadXml(model);
   EXPECT_THAT(saved_xml, Not(testing::HasSubstr("vertex")));
   mj_deleteModel(model);

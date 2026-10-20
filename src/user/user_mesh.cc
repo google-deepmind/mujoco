@@ -381,6 +381,12 @@ mjCMesh::~mjCMesh() {
 }
 
 
+// file as opened by Compile, which has already applied strippath to file_
+std::string mjCMesh::ResolvedFilePath() const {
+  return ResolvePath(mjs_getString(compiler->meshdir), file_);
+}
+
+
 // generate mesh using marching cubes
 void mjCMesh::LoadSDF() {
   if (plugin_name.empty() && plugin_instance_name.empty()) {
@@ -3600,6 +3606,12 @@ mjCSkin::~mjCSkin() {
   spec_vertid_.clear();
   spec_vertweight_.clear();
   bodyid.clear();
+}
+
+
+// file as opened by Compile, which has already applied strippath to file_
+std::string mjCSkin::ResolvedFilePath() const {
+  return ResolvePath(mjs_getString(compiler->meshdir), file_);
 }
 
 

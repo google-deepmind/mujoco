@@ -5225,7 +5225,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='char'),
                  ),
-                 doc='paths to assets, 0-terminated',
+                 doc='resolved paths to assets, 0-terminated',
                  array_extent=('npaths',),
              ),
              StructFieldDecl(
