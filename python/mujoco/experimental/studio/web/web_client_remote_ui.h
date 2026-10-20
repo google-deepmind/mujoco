@@ -106,7 +106,7 @@ class RemoteUi {
 
   // The latest assembled remote draw data, or nullptr before the first frame.
   ImDrawData* RemoteDrawData() {
-    return remote_draw_data_ ? &remote_draw_data_->draw_data : nullptr;
+    return remote_draw_data_.Valid ? &remote_draw_data_ : nullptr;
   }
 
   // Returns the bytes received since the last call and resets the counter.
@@ -120,21 +120,6 @@ class RemoteUi {
   void ProcessCmdTexture(NetImgui::Internal::CmdTexture* cmd);
 
  private:
-  // An assembled remote frame: an ImDrawData plus the single command list it
-  // points at (a plain ImDrawData only references externally-owned lists).
-  struct RemoteDrawFrame {
-    RemoteDrawFrame()
-        : command_list(ImGui::GetCurrentContext()
-                           ? ImGui::GetDrawListSharedData()
-                           : nullptr) {
-      draw_data.CmdLists.push_back(&command_list);
-    }
-
-    ImDrawData draw_data;
-    ImDrawList command_list;
-    uint64_t frame_index = 0;
-  };
-
   Callbacks& callbacks_;
 
   float max_clip_[2] = {0.0f, 0.0f};
@@ -161,7 +146,11 @@ class RemoteUi {
 
   // --- Session state. -------------------------------------------------------
 
-  std::unique_ptr<RemoteDrawFrame, NetImguiDeleter> remote_draw_data_;
+  // The latest remote frame as Dear ImGui draw data, with one ImDrawList per
+  // remote window (an ImDrawData only points at lists owned elsewhere). The
+  // lists are reused from frame to frame while their windows stay open.
+  ImDrawData remote_draw_data_;
+  std::vector<std::unique_ptr<ImDrawList>> remote_draw_lists_;
   std::unordered_map<ClientTextureID, uintptr_t> texture_map_;
 
   // CPU-side texture cache so partial updates from NetImgui can be patched into

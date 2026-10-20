@@ -380,19 +380,44 @@ TEST_F(RemoteUiTest, ProcessesUncompressedAndDeltaCompressedDrawFrames) {
             expected_idx_count);
 }
 
-TEST_F(RemoteUiTest, BakesVertexOffsetsClampsClipRectAndSkipsUnmappedTextures) {
+TEST_F(RemoteUiTest, ProcessesADrawFrameWithoutDraws) {
+  ImGuiIO& io = ImGui::GetIO();
+  io.DisplaySize = ImVec2(640, 480);
+  unsigned char* font_pixels = nullptr;
+  int font_w = 0, font_h = 0;
+  io.Fonts->GetTexDataAsAlpha8(&font_pixels, &font_w, &font_h);
+  io.Fonts->SetTexID(static_cast<ImTextureID>(1));
+  ImGui::NewFrame();  // Draws nothing.
+  ImGui::Render();
+  CmdDrawFrame* frame =
+      ConvertToCmdDrawFrame(ImGui::GetDrawData(), ImGuiMouseCursor_Arrow);
+  ASSERT_NE(frame, nullptr);
+  ASSERT_EQ(frame->mTotalDrawCount, 0u);
+  frame->mFrameIndex = 1;
+  frame->ToOffsets();
+
+  remote_ui_.ProcessCmdDrawFrame(frame);
+  ImDrawData* draw_data = remote_ui_.RemoteDrawData();
+  ASSERT_NE(draw_data, nullptr);
+  EXPECT_EQ(draw_data->CmdLists.Size, 0);
+}
+
+TEST_F(RemoteUiTest,
+       BuildsOneDrawListPerWindowClampsClipRectAndSkipsUnmappedTextures) {
   RegisterDummyTexture(/*tex_id=*/1);
   remote_ui_.SetMaxClip(120.0f, 80.0f);
 
-  // Two windows produce two draw groups; the second group's vertices live at a
-  // non-zero vertex_offset that must be baked into its 16-bit indices.
+  // Two windows produce two draw groups; each gets its own ImDrawList with its
+  // 0-based indices copied unchanged.
   CmdDrawFrame* frame = MakeDrawFrame("First", /*frame_index=*/1,
                                       /*tex_id=*/1, /*second_window=*/true);
   ASSERT_GE(frame->mDrawGroupCount, 2u);
+  const uint32_t group_count = frame->mDrawGroupCount;
   const uint32_t group0_vtx = frame->mpDrawGroups[0].mVerticeCount;
-  const uint32_t group0_idx = frame->mpDrawGroups[0].mIndiceCount;
+  const uint32_t group1_vtx = frame->mpDrawGroups[1].mVerticeCount;
+  const uint32_t group1_idx = frame->mpDrawGroups[1].mIndiceCount;
   ASSERT_GT(group0_vtx, 0u);
-  ASSERT_GT(frame->mpDrawGroups[1].mIndiceCount, 0u);
+  ASSERT_GT(group1_idx, 0u);
   const uint16_t raw_first_idx_group1 = reinterpret_cast<const uint16_t*>(
       frame->mpDrawGroups[1].mpIndices.Get())[0];
 
@@ -401,23 +426,31 @@ TEST_F(RemoteUiTest, BakesVertexOffsetsClampsClipRectAndSkipsUnmappedTextures) {
 
   ImDrawData* draw_data = remote_ui_.RemoteDrawData();
   ASSERT_NE(draw_data, nullptr);
-  ImDrawList* cmd_list = draw_data->CmdLists[0];
-  EXPECT_EQ(cmd_list->IdxBuffer[group0_idx],
-            static_cast<ImDrawIdx>(raw_first_idx_group1 + group0_vtx));
-  for (const ImDrawCmd& cmd : cmd_list->CmdBuffer) {
-    EXPECT_EQ(cmd.VtxOffset, 0u);
-    EXPECT_LE(cmd.ClipRect.z, 120.0f);
-    EXPECT_LE(cmd.ClipRect.w, 80.0f);
+  ASSERT_EQ(draw_data->CmdLists.Size, static_cast<int>(group_count));
+  ImDrawList* list0 = draw_data->CmdLists[0];
+  ImDrawList* list1 = draw_data->CmdLists[1];
+  EXPECT_EQ(static_cast<uint32_t>(list0->VtxBuffer.Size), group0_vtx);
+  EXPECT_EQ(static_cast<uint32_t>(list1->VtxBuffer.Size), group1_vtx);
+  EXPECT_EQ(static_cast<uint32_t>(list1->IdxBuffer.Size), group1_idx);
+  EXPECT_EQ(list1->IdxBuffer[0], static_cast<ImDrawIdx>(raw_first_idx_group1));
+  for (int i = 0; i < draw_data->CmdLists.Size; ++i) {
+    for (const ImDrawCmd& cmd : draw_data->CmdLists[i]->CmdBuffer) {
+      EXPECT_EQ(cmd.VtxOffset, 0u);
+      EXPECT_LE(cmd.ClipRect.z, 120.0f);
+      EXPECT_LE(cmd.ClipRect.w, 80.0f);
+    }
   }
 
   // A draw frame referencing an unmapped texture ID zeroes ElemCount so the
-  // renderer skips the draw call.
+  // renderer skips the draw call, and reuses the existing ImDrawList.
   CmdDrawFrame* unmapped =
       MakeDrawFrame("Unmapped", /*frame_index=*/2, /*tex_id=*/999);
   unmapped->ToOffsets();
   remote_ui_.ProcessCmdDrawFrame(unmapped);
   draw_data = remote_ui_.RemoteDrawData();
   ASSERT_NE(draw_data, nullptr);
+  ASSERT_EQ(draw_data->CmdLists.Size, 1);
+  EXPECT_EQ(draw_data->CmdLists[0], list0);
   for (const ImDrawCmd& cmd : draw_data->CmdLists[0]->CmdBuffer) {
     EXPECT_EQ(cmd.ElemCount, 0u);
   }
