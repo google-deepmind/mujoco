@@ -45,7 +45,7 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
   """
 
   if isinstance(obj, np.ndarray):
-    return obj[idx]
+    return obj[idx]  # pyrefly: ignore[bad-return]
 
   def take(x):
     # TODO(erikfrey): if this helps perf, add support for striding too
