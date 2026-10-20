@@ -253,13 +253,12 @@ void ImguiBridge::Update() {
     data.indices = cmds->IdxBuffer.Data;
     mjrf_uploadMesh(mesh, &data);
 
-    int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
       const int width = size.x * scale.x;
       const int height = size.y * scale.y;
 
       UniquePtr<mjrfRenderable>& renderable = renderables_[renderable_index];
-      mjrf_setRenderableMesh(renderable.get(), mesh, index_offset,
+      mjrf_setRenderableMesh(renderable.get(), mesh, command.IdxOffset,
                              command.ElemCount);
 
       mjrfMaterial material;
@@ -293,7 +292,6 @@ void ImguiBridge::Update() {
       const float size[] = {scale.x, scale.y, 1.0f};
       mjrf_setRenderableSize(renderable.get(), size);
 
-      index_offset += command.ElemCount;
       ++renderable_index;
     }
   }
