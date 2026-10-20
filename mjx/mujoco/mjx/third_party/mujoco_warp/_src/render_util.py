@@ -50,20 +50,28 @@ def _convert_texture_data(
   tex_data_out[y, x, 3] = float(a) * wp.static(1.0 / 255.0)
 
 
+def texture_pixels(mjm: mujoco.MjModel, tex_id: int) -> np.ndarray:
+  """Host pixels of a MuJoCo model texture as a (height, width, nchannel) uint8 array.
+
+  A by-reference texture (tex_adr == -1) is decoded from its file; a load failure raises.
+  """
+  tex_adr = mjm.tex_adr[tex_id]
+  if tex_adr == -1:
+    return mujoco.mj_loadTexture(mjm, tex_id)[0]
+  shape = (mjm.tex_height[tex_id], mjm.tex_width[tex_id], mjm.tex_nchannel[tex_id])
+  return mjm.tex_data[tex_adr : tex_adr + int(np.prod(shape))].reshape(shape)
+
+
 def create_warp_texture(mjm: mujoco.MjModel, tex_id: int) -> wp.Texture2D:
   """Create a Warp texture from a MuJoCo model texture data."""
-  tex_adr = mjm.tex_adr[tex_id]
-  tex_width = mjm.tex_width[tex_id]
-  tex_height = mjm.tex_height[tex_id]
-  nchannel = mjm.tex_nchannel[tex_id]
-  tex_size = tex_width * tex_height * nchannel
+  pixels = texture_pixels(mjm, tex_id)
+  tex_height, tex_width, nchannel = pixels.shape
   tex_data = wp.zeros((tex_height, tex_width, 4), dtype=float)
 
-  tex_slice = mjm.tex_data[tex_adr : tex_adr + tex_size]
   wp.launch(
     _convert_texture_data,
     dim=(tex_width, tex_height),
-    inputs=[tex_width, 0, nchannel, wp.array(tex_slice, dtype=wp.uint8)],
+    inputs=[tex_width, 0, nchannel, wp.array(pixels.ravel(), dtype=wp.uint8)],
     outputs=[tex_data],
   )
   return wp.Texture2D(tex_data, filter_mode=wp.TextureFilterMode.LINEAR)
@@ -516,11 +524,9 @@ def create_render_context(
   has_skybox = render_skybox and skybox_tex_ids.size > 0
   if has_skybox:
     skybox_tex_id_np = np.array([skybox_tex_ids[0]], dtype=int)
-    skybox_face_width_np = np.array([mjm.tex_width[skybox_tex_ids[0]]], dtype=int)
   else:
     render_skybox = False
     skybox_tex_id_np = np.array([-1], dtype=int)
-    skybox_face_width_np = np.array([1], dtype=int)
 
   textures_registry = []
   # Only materialize GPU textures when the caller actually needs them.
@@ -533,6 +539,8 @@ def create_render_context(
       else:
         textures_registry.append(empty_tex)
   textures = wp.array(textures_registry, dtype=wp.Texture2D)
+  # face width from the uploaded texture: tex_width is 0 for a by-reference skybox
+  skybox_face_width_np = np.array([textures_registry[skybox_id].width if has_skybox else 1], dtype=int)
 
   # Filter active cameras
   if cam_active is not None:
