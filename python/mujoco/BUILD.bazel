@@ -430,6 +430,7 @@ py_test(
     ],
     deps = [
         ":mujoco",
+        "//python/mujoco/pypi:absl_flags",
         "//python/mujoco/pypi:absltest",
         "//python/mujoco/pypi:epath",
         "//python/mujoco/pypi:numpy",

@@ -1380,7 +1380,7 @@ class SpecsTest(absltest.TestCase):
 
   def test_texture_by_reference(self):
     # a file texture under the passthrough policy has no pixels in the model
-    png = os.path.join(absltest.get_default_test_tmpdir(), 'tiny.png')
+    png = os.path.join(self.create_tempdir().full_path, 'tiny.png')
     with open(png, 'wb') as f:
       f.write(_TINY_PNG)
     xml = textwrap.dedent(f"""\

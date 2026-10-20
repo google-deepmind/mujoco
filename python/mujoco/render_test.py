@@ -18,6 +18,7 @@ import os
 import struct
 import zlib
 
+from absl import flags
 from absl.testing import absltest
 import mujoco
 import numpy as np
@@ -66,6 +67,9 @@ class MuJoCoRenderTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
+    # Mark flags as parsed to avoid pytest errors about unparsed flags.
+    # This is needed for `create_tempdir()` calls below.
+    flags.FLAGS.mark_as_parsed()
     self.gl = mujoco.GLContext(640, 480)
     self.gl.make_current()
 
@@ -232,7 +236,10 @@ class MuJoCoRenderTest(absltest.TestCase):
 
   def _write_png(self, name, color):
     """Writes a 4x4 PNG of one color to the test tmpdir, returns its path."""
-    path = os.path.join(absltest.get_default_test_tmpdir(), name)
+    if not hasattr(self, '_tmpdir'):
+      # one directory per test, so that a second write replaces the first
+      self._tmpdir = self.create_tempdir().full_path
+    path = os.path.join(self._tmpdir, name)
     with open(path, 'wb') as f:
       f.write(_png(np.full((4, 4, 3), color, dtype=np.uint8)))
     return path

@@ -23,6 +23,7 @@ import pickle
 import sys
 import weakref
 
+from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 import mujoco
@@ -138,6 +139,9 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
+    # Mark flags as parsed to avoid pytest errors about unparsed flags.
+    # This is needed for `create_tempdir()` calls below.
+    flags.FLAGS.mark_as_parsed()
     self.model: mujoco.MjModel = mujoco.MjModel.from_xml_string(TEST_XML)
     self.data = mujoco.MjData(self.model)
 
@@ -2237,7 +2241,7 @@ Euler integrator, semi-implicit in velocity.
 
     # a by-reference texture: the decoded file, with the colorspace resolved;
     # the array outlives the model
-    png = os.path.join(absltest.get_default_test_tmpdir(), 'load_texture.png')
+    png = os.path.join(self.create_tempdir().full_path, 'load_texture.png')
     with open(png, 'wb') as f:
       f.write(_TINY_PNG)
     xml = f"""
@@ -2270,7 +2274,7 @@ Euler integrator, semi-implicit in velocity.
       mujoco.mj_loadTexture(model, model.tex('byref').id)
 
   def test_mj_embedAssets(self):  # pylint: disable=invalid-name
-    png = os.path.join(absltest.get_default_test_tmpdir(), 'embed_assets.png')
+    png = os.path.join(self.create_tempdir().full_path, 'embed_assets.png')
     with open(png, 'wb') as f:
       f.write(_TINY_PNG)
     xml = f"""
