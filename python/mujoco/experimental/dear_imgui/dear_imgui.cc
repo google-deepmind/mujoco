@@ -54,6 +54,7 @@ PYBIND11_MODULE(dear_imgui, m) {
       .def_readwrite("w", &ImVec4::w);
 
   py::class_<ImGuiStyle>(m, "Style")
+      .def_readwrite("FontScaleMain", &ImGuiStyle::FontScaleMain)
       .def_readwrite("FramePadding", &ImGuiStyle::FramePadding)
       .def_readwrite("ItemSpacing", &ImGuiStyle::ItemSpacing)
       .def_readwrite("WindowPadding", &ImGuiStyle::WindowPadding);
@@ -65,6 +66,9 @@ PYBIND11_MODULE(dear_imgui, m) {
       .def_readonly("DisplaySize", &ImGuiIO::DisplaySize)
       .def_readonly("FontGlobalScale", &ImGuiIO::FontGlobalScale)
       .def_readonly("DeltaTime", &ImGuiIO::DeltaTime)
+      .def_property_readonly(
+          "Fonts", [](const ImGuiIO& io) -> ImFontAtlas* { return io.Fonts; },
+          py::return_value_policy::reference)
       .def_readonly("Framerate", &ImGuiIO::Framerate)
       .def_readonly("WantCaptureMouse", &ImGuiIO::WantCaptureMouse)
       .def_readonly("WantCaptureKeyboard", &ImGuiIO::WantCaptureKeyboard)
@@ -96,6 +100,19 @@ PYBIND11_MODULE(dear_imgui, m) {
       .def("SeekCursorForItem", &ImGuiListClipper::SeekCursorForItem, py::arg("item_index"))
       .def_readonly("DisplayStart", &ImGuiListClipper::DisplayStart)
       .def_readonly("DisplayEnd", &ImGuiListClipper::DisplayEnd);
+
+  py::class_<ImFontAtlas>(m, "FontAtlas")
+      .def("__len__", [](const ImFontAtlas& atlas) { return atlas.Fonts.Size; })
+      .def(
+          "__getitem__",
+          [](const ImFontAtlas& atlas, int i) -> ImFont* {
+            if (i < 0) i += atlas.Fonts.Size;
+            if (i < 0 || i >= atlas.Fonts.Size) throw py::index_error();
+            return atlas.Fonts[i];
+          },
+          py::return_value_policy::reference);
+
+  py::class_<ImFont>(m, "Font");
 
   // Enumerations.
 
@@ -810,6 +827,10 @@ PYBIND11_MODULE(dear_imgui, m) {
     return open;
   });
 
+  DEF1(StyleColorsDark, (ImGuiStyle*, dst, = nullptr));
+  DEF1(StyleColorsLight, (ImGuiStyle*, dst, = nullptr));
+  DEF1(StyleColorsClassic, (ImGuiStyle*, dst, = nullptr));
+
   DEF3_F(Begin, (ImString, name, ), (bool*, p_open, = nullptr), (ImGuiWindowFlags, flags, = 0), {
     const auto result = ImGui::Begin(name, p_open, flags);
     return std::make_tuple(result, *p_open);
@@ -861,6 +882,7 @@ PYBIND11_MODULE(dear_imgui, m) {
   DEF1(SetScrollHereY, (float, center_y_ratio, = 0.5f));
   DEF2(SetScrollFromPosX, (float, local_x, ), (float, center_x_ratio, = 0.5f));
   DEF2(SetScrollFromPosY, (float, local_y, ), (float, center_y_ratio, = 0.5f));
+  DEF2(PushFont, (ImFont*, font, ), (float, font_size_base_unscaled, = 0.0f));
   DEF0(PopFont);
   DEF2(PushStyleColor, (ImGuiCol, idx, ), (ImU32, col, ));
   DEF2(PushStyleColor, (ImGuiCol, idx, ), (const ImVec4&, col, ));
