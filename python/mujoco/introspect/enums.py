@@ -704,6 +704,15 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjMESH_BUILTIN_DISC', 13),
          ]),
      )),
+    ('mjtFlexSection',
+     EnumDecl(
+         name='mjtFlexSection',
+         declname='enum mjtFlexSection',
+         values=dict([
+             ('mjFLEXSECTION_CIRCLE', 0),
+             ('mjFLEXSECTION_BOX', 1),
+         ]),
+     )),
     ('mjtBuiltin',
      EnumDecl(
          name='mjtBuiltin',

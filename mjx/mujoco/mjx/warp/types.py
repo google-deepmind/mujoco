@@ -269,6 +269,7 @@ class ModelWarp(PyTreeNode):
   flex_priority: np.ndarray
   flex_radius: np.ndarray
   flex_rigid: np.ndarray
+  flex_rodhinge_map: np.ndarray
   flex_selfcollide: np.ndarray
   flex_shell: np.ndarray
   flex_shelladr: np.ndarray
@@ -307,6 +308,7 @@ class ModelWarp(PyTreeNode):
   has_flex_passive: bool
   has_flex_selfcollide: bool
   has_flex_snh: bool
+  has_flex_stiff_dim23: bool
   has_fluid: bool
   has_non_simple_flex: bool
   has_plane_geom: bool
@@ -356,6 +358,7 @@ class ModelWarp(PyTreeNode):
   nflexface: int
   nflexintcell: int
   nflexnode: int
+  nflexrodhinge: int
   nflexshelldata: int
   nflexstiffness: int
   nflexvert: int
@@ -1037,6 +1040,7 @@ _NDIM = {
         'flex_priority': 1,
         'flex_radius': 1,
         'flex_rigid': 1,
+        'flex_rodhinge_map': 2,
         'flex_selfcollide': 1,
         'flex_shell': 1,
         'flex_shelladr': 1,
@@ -1101,6 +1105,7 @@ _NDIM = {
         'has_flex_passive': 0,
         'has_flex_selfcollide': 0,
         'has_flex_snh': 0,
+        'has_flex_stiff_dim23': 0,
         'has_fluid': 0,
         'has_non_simple_flex': 0,
         'has_plane_geom': 0,
@@ -1222,6 +1227,7 @@ _NDIM = {
         'nflexface': 0,
         'nflexintcell': 0,
         'nflexnode': 0,
+        'nflexrodhinge': 0,
         'nflexshelldata': 0,
         'nflexstiffness': 0,
         'nflexvert': 0,
@@ -1829,6 +1835,7 @@ _BATCH_DIM = {
         'flex_priority': False,
         'flex_radius': False,
         'flex_rigid': False,
+        'flex_rodhinge_map': False,
         'flex_selfcollide': False,
         'flex_shell': False,
         'flex_shelladr': False,
@@ -1893,6 +1900,7 @@ _BATCH_DIM = {
         'has_flex_passive': False,
         'has_flex_selfcollide': False,
         'has_flex_snh': False,
+        'has_flex_stiff_dim23': False,
         'has_fluid': False,
         'has_non_simple_flex': False,
         'has_plane_geom': False,
@@ -2014,6 +2022,7 @@ _BATCH_DIM = {
         'nflexface': False,
         'nflexintcell': False,
         'nflexnode': False,
+        'nflexrodhinge': False,
         'nflexshelldata': False,
         'nflexstiffness': False,
         'nflexvert': False,

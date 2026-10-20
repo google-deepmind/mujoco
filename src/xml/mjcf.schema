@@ -486,6 +486,11 @@ enum elastic2d {
   both      = 3
 }
 
+enum flexsection : mjtFlexSection {
+  circle    = mjFLEXSECTION_CIRCLE
+  box       = mjFLEXSECTION_BOX
+}
+
 enum flexeq {
   false    = 0
   true     = 1
@@ -1323,6 +1328,8 @@ element elasticity : mjsFlex {
   damping            : double (dim=T)
   thickness          : double = -1 (dim=L)
   elastic2d          : enum<elastic2d>
+  section            : enum<flexsection>
+  sectionsize        : double[2] (dim=L)
 }
 
 element flexcomp_contact : mjsFlex (xml=contact) {

@@ -1553,6 +1553,8 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
+    MapValue(elasticity, "section", &dflex.section, flexsection_map, flexsection_sz);
+    ReadAttr(elasticity, "sectionsize", 2, dflex.sectionsize, text);
   }
 
   // contact

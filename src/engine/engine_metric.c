@@ -238,7 +238,8 @@ void mj_effMulAdd(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec, i
   mjtNum s1 = mjDISABLED(mjDSBL_SPRING) ? 0 : h*h;
   mjtNum s2 = mjDISABLED(mjDSBL_DAMPER) ? 0 : h;
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) continue;
+    if (m->flex_interp[f] || m->flex_rigid[f]) continue;
+    if (m->flex_dim[f] == 1 && m->flex_bendingadr[f] < 0) continue;
     if (!d->nefmK || !mj_flexSimple(m, f)) {
       mjd_flexBend_mulRange(m, d, res, vec, s1, s2, f, f+1);
       mjd_flexStretch_mulRange(m, d, res, vec, s1, s2, f, f+1);
@@ -1792,7 +1793,8 @@ size_t mj_effFoldScratch(const mjModel* m, const mjData* d, int nu) {
 size_t mj_effMulAddScratch(const mjModel* m, const mjData* d) {
   size_t frame = mj_stackFrameBytes(), bytes = 0;
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) continue;
+    if (m->flex_interp[f] || m->flex_rigid[f]) continue;
+    if (m->flex_dim[f] == 1 && m->flex_bendingadr[f] < 0) continue;
     if (!d->nefmK || !mj_flexSimple(m, f)) {
       // bending and stretch: the gathered vector and result
       size_t b = frame + 2*mj_stackBytes(sizeof(mjtNum)*3*m->flex_vertnum[f], _Alignof(mjtNum));

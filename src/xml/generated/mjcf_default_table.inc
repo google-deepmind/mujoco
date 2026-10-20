@@ -295,6 +295,8 @@ static const mjXDefaultEntry kDefaults_mjsFlex[] = {
   {"damping", (int)offsetof(mjsFlex, damping), 0, 1, 0, 0, {0}},
   {"thickness", (int)offsetof(mjsFlex, thickness), 0, 1, 1, 0, {-1.0}},
   {"elastic2d", (int)offsetof(mjsFlex, elastic2d), 2, 1, 0, 0, {0}},
+  {"section", (int)offsetof(mjsFlex, section), 2, 1, 0, 0, {0}},
+  {"sectionsize", (int)offsetof(mjsFlex, sectionsize), 0, 2, 0, 0, {0}},
   {"contype", (int)offsetof(mjsFlex, contype), 2, 1, 1, 0, {1.0}},
   {"conaffinity", (int)offsetof(mjsFlex, conaffinity), 2, 1, 1, 0, {1.0}},
   {"condim", (int)offsetof(mjsFlex, condim), 2, 1, 1, 0, {3.0}},

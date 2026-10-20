@@ -211,6 +211,7 @@ def _forward_shim(
     flex_priority: wp.array[int],
     flex_radius: wp.array[float],
     flex_rigid: wp.array[bool],
+    flex_rodhinge_map: wp.array[wp.vec2i],
     flex_selfcollide: wp.array[int],
     flex_shell: wp.array[int],
     flex_shelldataadr: wp.array[int],
@@ -271,6 +272,7 @@ def _forward_shim(
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
+    has_flex_stiff_dim23: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -352,6 +354,7 @@ def _forward_shim(
     nflexface: int,
     nflexintcell: int,
     nflexnode: int,
+    nflexrodhinge: int,
     nflexvert: int,
     ngeom: int,
     nhistory: int,
@@ -862,6 +865,7 @@ def _forward_shim(
   _m.flex_priority = flex_priority
   _m.flex_radius = flex_radius
   _m.flex_rigid = flex_rigid
+  _m.flex_rodhinge_map = flex_rodhinge_map
   _m.flex_selfcollide = flex_selfcollide
   _m.flex_shell = flex_shell
   _m.flex_shelldataadr = flex_shelldataadr
@@ -922,6 +926,7 @@ def _forward_shim(
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
+  _m.has_flex_stiff_dim23 = has_flex_stiff_dim23
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -1003,6 +1008,7 @@ def _forward_shim(
   _m.nflexface = nflexface
   _m.nflexintcell = nflexintcell
   _m.nflexnode = nflexnode
+  _m.nflexrodhinge = nflexrodhinge
   _m.nflexvert = nflexvert
   _m.ngeom = ngeom
   _m.nhistory = nhistory
@@ -2311,6 +2317,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_priority,
       m._impl.flex_radius,
       m._impl.flex_rigid,
+      m._impl.flex_rodhinge_map,
       m._impl.flex_selfcollide,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
@@ -2371,6 +2378,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
+      m._impl.has_flex_stiff_dim23,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -2452,6 +2460,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.nflexface,
       m._impl.nflexintcell,
       m._impl.nflexnode,
+      m._impl.nflexrodhinge,
       m._impl.nflexvert,
       m.ngeom,
       m.nhistory,
@@ -3146,6 +3155,7 @@ def _step_shim(
     flex_priority: wp.array[int],
     flex_radius: wp.array[float],
     flex_rigid: wp.array[bool],
+    flex_rodhinge_map: wp.array[wp.vec2i],
     flex_selfcollide: wp.array[int],
     flex_shell: wp.array[int],
     flex_shelldataadr: wp.array[int],
@@ -3206,6 +3216,7 @@ def _step_shim(
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
+    has_flex_stiff_dim23: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -3289,6 +3300,7 @@ def _step_shim(
     nflexface: int,
     nflexintcell: int,
     nflexnode: int,
+    nflexrodhinge: int,
     nflexvert: int,
     ngeom: int,
     nhistory: int,
@@ -3807,6 +3819,7 @@ def _step_shim(
   _m.flex_priority = flex_priority
   _m.flex_radius = flex_radius
   _m.flex_rigid = flex_rigid
+  _m.flex_rodhinge_map = flex_rodhinge_map
   _m.flex_selfcollide = flex_selfcollide
   _m.flex_shell = flex_shell
   _m.flex_shelldataadr = flex_shelldataadr
@@ -3867,6 +3880,7 @@ def _step_shim(
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
+  _m.has_flex_stiff_dim23 = has_flex_stiff_dim23
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -3950,6 +3964,7 @@ def _step_shim(
   _m.nflexface = nflexface
   _m.nflexintcell = nflexintcell
   _m.nflexnode = nflexnode
+  _m.nflexrodhinge = nflexrodhinge
   _m.nflexvert = nflexvert
   _m.ngeom = ngeom
   _m.nhistory = nhistory
@@ -5283,6 +5298,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_priority,
       m._impl.flex_radius,
       m._impl.flex_rigid,
+      m._impl.flex_rodhinge_map,
       m._impl.flex_selfcollide,
       m._impl.flex_shell,
       m._impl.flex_shelldataadr,
@@ -5343,6 +5359,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
+      m._impl.has_flex_stiff_dim23,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -5426,6 +5443,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.nflexface,
       m._impl.nflexintcell,
       m._impl.nflexnode,
+      m._impl.nflexrodhinge,
       m._impl.nflexvert,
       m.ngeom,
       m.nhistory,

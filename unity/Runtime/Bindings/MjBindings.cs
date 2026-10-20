@@ -579,6 +579,10 @@ public enum mjtMeshBuiltin : int{
   mjMESH_BUILTIN_SQUARE = 12,
   mjMESH_BUILTIN_DISC = 13,
 }
+public enum mjtFlexSection : int{
+  mjFLEXSECTION_CIRCLE = 0,
+  mjFLEXSECTION_BOX = 1,
+}
 public enum mjtBuiltin : int{
   mjBUILTIN_NONE = 0,
   mjBUILTIN_GRADIENT = 1,

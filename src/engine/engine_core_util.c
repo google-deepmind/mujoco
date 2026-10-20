@@ -1692,9 +1692,14 @@ int mj_effFlexContactPossible(const mjModel* m, int f) {
 // mjd_flexStiff_active (engine_derivative.c), interpolated flexes are included: their
 // stiffness is carried matrix-free
 int mj_effFlexStiffPossible(const mjModel* m, int f) {
-  // rigid or 1D flexes do not contribute stiffness
-  if (m->flex_rigid[f] || m->flex_dim[f] < 2) {
+  // rigid flexes do not contribute stiffness
+  if (m->flex_rigid[f]) {
     return 0;
+  }
+
+  // 1D flexes: rod bending
+  if (m->flex_dim[f] == 1) {
+    return m->flex_bendingadr[f] >= 0;
   }
 
   // stretch stiffness present (the strain equality mode stores its constraint
@@ -1873,6 +1878,77 @@ void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
     for (int r=0; r < 3; r++) {
       res[3*v[0]+r] += scale*(a[3*r]*y[0] + a[3*r+1]*y[1] + a[3*r+2]*y[2]);
       res[3*v[1]+r] += scale*(a[r]*x[0] + a[3+r]*x[1] + a[6+r]*x[2]);
+    }
+  }
+}
+
+
+//-------------------------- 1D rod bending --------------------------------------------------------
+
+// curvature binormal of a rod hinge and its Jacobian, see Bergou et al., "Discrete Elastic Rods"
+int mj_rodHinge(const mjtNum xa[3], const mjtNum xv[3], const mjtNum xb[3],
+                mjtNum kb[3], mjtNum J[27]) {
+  mjtNum e0[3], e1[3];
+  mji_sub3(e0, xv, xa);
+  mji_sub3(e1, xb, xv);
+  mjtNum l0 = mju_norm3(e0), l1 = mju_norm3(e1);
+  mjtNum denom = l0*l1 + mju_dot3(e0, e1);
+  if (l0 < mjMINVAL || l1 < mjMINVAL || denom < mjMINVAL) {
+    return 0;
+  }
+  mjtNum cross[3];
+  mji_cross(cross, e0, e1);
+  mji_scl3(kb, cross, 2/denom);
+  if (!J) {
+    return 1;
+  }
+
+  // gradients of denom with respect to e0 and e1
+  mjtNum g0[3], g1[3];
+  mji_scl3(g0, e0, l1/l0);
+  mji_addTo3(g0, e1);
+  mji_scl3(g1, e1, l0/l1);
+  mji_addTo3(g1, e0);
+
+  // A0 = d(kb)/d(e0) = (-2[e1]x - kb g0') / denom,  A1 = d(kb)/d(e1) = (2[e0]x - kb g1') / denom
+  mjtNum A0[9] = {0, e1[2], -e1[1], -e1[2], 0, e1[0], e1[1], -e1[0], 0};
+  mjtNum A1[9] = {0, -e0[2], e0[1], e0[2], 0, -e0[0], -e0[1], e0[0], 0};
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      A0[3*r+c] = (2*A0[3*r+c] - kb[r]*g0[c]) / denom;
+      A1[3*r+c] = (2*A1[3*r+c] - kb[r]*g1[c]) / denom;
+    }
+  }
+
+  // J = [-A0, A0 - A1, A1]
+  for (int r=0; r < 3; r++) {
+    for (int c=0; c < 3; c++) {
+      J[9*r+c]   = -A0[3*r+c];
+      J[9*r+3+c] = A0[3*r+c] - A1[3*r+c];
+      J[9*r+6+c] = A1[3*r+c];
+    }
+  }
+  return 1;
+}
+
+
+// gradient, Hessian, and damping weights of k |kb|^2 in kb space
+void mj_rodHingeWeights(mjtNum g[3], mjtNum Wk[9], mjtNum Wd[9],
+                        const mjtNum kb[3], mjtNum k) {
+  // gradient 2k kb
+  if (g) mji_scl3(g, kb, 2*k);
+
+  // Hessian 2k I; damping 2k n n' with n = kb/|kb|, isotropic at a straight hinge
+  mjtNum r = mju_norm3(kb);
+  mjtNum n[3] = {0, 0, 0};
+  if (r >= mjMINVAL) {
+    mji_scl3(n, kb, 1/r);
+  }
+  for (int i=0; i < 3; i++) {
+    for (int j=0; j < 3; j++) {
+      mjtNum w = (i == j) ? 2*k : 0;
+      if (Wk) Wk[3*i+j] = w;
+      if (Wd) Wd[3*i+j] = r < mjMINVAL ? w : 2*k*n[i]*n[j];
     }
   }
 }

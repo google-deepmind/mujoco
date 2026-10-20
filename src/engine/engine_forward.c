@@ -1753,10 +1753,10 @@ void mj_checkDiscrete(const mjModel* m) {
 
     // until the discrete integrator, flex elasticity was integrated implicitly under
     // implicit and implicitfast; those models need the metric. Euler and RK4 always
-    // integrated it explicitly and still do
+    // integrated it explicitly and still do, as do all integrators for 1D rod bending
     if (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST) {
       for (int f=0; f < m->nflex; f++) {
-        if (mj_effFlexStiffPossible(m, f)) {
+        if (m->flex_dim[f] > 1 && mj_effFlexStiffPossible(m, f)) {
           mjERROR("flex elasticity is no longer integrated implicitly under "
                   "integrator='implicit' and 'implicitfast': set "
                   "integrator='discrete'");

@@ -7,6 +7,15 @@ Upcoming Version (not yet released)
 
 Engine
 ^^^^^^
+- Added bending :ref:`elasticity<flex-elasticity>` for 1D flexes, using a twist-free isotropic discrete elastic rod
+  model. The cross-section is selected with the new :ref:`section<flex-elasticity-section>` attribute: a circle of the
+  flex radius, or a box with half-sizes :ref:`sectionsize<flex-elasticity-sectionsize>` that uses the stiffness of its
+  weak axis. It is enabled by a positive :ref:`young<flex-elasticity-young>` modulus, requires a straight reference
+  configuration (curved initial poses can be set with ``qpos`` or keyframes), is compatible with edge equality
+  constraints, and is integrated implicitly by the :ref:`discrete<option-integrator>` integrator. Previously ``young``
+  was ignored for 1D flexes: existing models that set it now bend, and fail to compile if the cross-section is
+  degenerate (zero radius with the default circle section), if a vertex joins a zero-length edge, or if the rod is not
+  straight.
 - Trees marked :ref:`sleep="init"<body-sleep>` which cannot be put to sleep now cause a warning rather than an error,
   and start awake. See :ref:`Sleeping<siSleepSleeping>` for details.
 - Added single-shot :ref:`multicontact<coMultiCCD>` for geoms with positive contact :ref:`margins<body-geom-margin>`.
@@ -91,6 +100,12 @@ Bug fixes
   ``young`` and ``poisson`` and was unstable.
 - Fixed a bug in the Filament renderer where textures did not allocate mipmap levels, preventing mipmap generation and
   causing minification aliasing, and where sRGB textures were unconditionally excluded from mipmapping.
+
+Models
+^^^^^^
+- The `elastic mechanism <https://github.com/google-deepmind/mujoco/tree/main/model/flex/mechanisms/>`__ example models
+  now use 1D flex rods: the cantilever comparison of quadratic flexes adds a rod, and the elastic slider-crank and the
+  tendon-loaded dipper arm are built from rods.
 
 Version 3.16.0 (October 14, 2026)
 ---------------------------------

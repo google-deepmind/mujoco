@@ -61,8 +61,9 @@
       <site name="hook" size=".005" rgba="1 .8 .3 1" pos="0 0 -.045"/>
     </body>
     <body name="flex_frame" pos="0 0 1.2">
-      <flexcomp name="arm_flex" type="grid" count="37 3 3" spacing="0.0444444444 0.0375 0.0325" pos="0.4 0 0" dim="3" dof="trilinear" cellcount="12 1 1" mass="0.35" radius=".001" rgba=".95 .38 .12 1">
-        <elasticity young="14000000.0" poisson=".25" damping=".015"/>
+      <flexcomp name="arm_flex" type="grid" count="21 1 1" spacing=".08 .08 .08" pos=".4 0 0" dim="1" mass=".35" radius=".0325" rgba=".95 .38 .12 1">
+        <elasticity young="3.15e7" damping=".0067" section="box" sectionsize=".0375 .0325"/>
+        <edge equality="true" solref=".003 1" solimp=".99 .999 .001"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
       </flexcomp>
     </body>
@@ -75,18 +76,12 @@
   <equality>
     <connect name="eccentric_pin" site1="piston_pin" site2="piston"/>
     <connect name="cylinder_pin" site1="rod_tip" site2="cylinder_tip"/>
-    <connect name="arm_flex_3_0_0_attach" body1="arm_flex_3_0_0" body2="fulcrum" anchor="0 0 0"/>
-    <connect name="arm_flex_3_0_1_attach" body1="arm_flex_3_0_1" body2="fulcrum" anchor="0 0 0"/>
-    <connect name="arm_flex_3_1_0_attach" body1="arm_flex_3_1_0" body2="fulcrum" anchor="0 0 0"/>
-    <connect name="arm_flex_3_1_1_attach" body1="arm_flex_3_1_1" body2="fulcrum" anchor="0 0 0"/>
-    <connect name="arm_flex_0_0_0_attach" body1="arm_flex_0_0_0" body2="rear_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_0_0_1_attach" body1="arm_flex_0_0_1" body2="rear_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_0_1_0_attach" body1="arm_flex_0_1_0" body2="rear_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_0_1_1_attach" body1="arm_flex_0_1_1" body2="rear_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_12_0_0_attach" body1="arm_flex_12_0_0" body2="tip_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_12_0_1_attach" body1="arm_flex_12_0_1" body2="tip_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_12_1_0_attach" body1="arm_flex_12_1_0" body2="tip_fitting" anchor="0 0 0"/>
-    <connect name="arm_flex_12_1_1_attach" body1="arm_flex_12_1_1" body2="tip_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_4_attach" body1="arm_flex_4" body2="fulcrum" anchor="0 0 0"/>
+    <connect name="arm_flex_6_attach" body1="arm_flex_6" body2="fulcrum" anchor="0 0 0"/>
+    <connect name="arm_flex_0_attach" body1="arm_flex_0" body2="rear_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_1_attach" body1="arm_flex_1" body2="rear_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_19_attach" body1="arm_flex_19" body2="tip_fitting" anchor="0 0 0"/>
+    <connect name="arm_flex_20_attach" body1="arm_flex_20" body2="tip_fitting" anchor="0 0 0"/>
   </equality>
   <tendon>
     <spatial name="suspension" limited="true" range="0 .42" width=".004" rgba=".93 .83 .55 1" solreflimit=".003 1" solimplimit=".99 .999 .001">

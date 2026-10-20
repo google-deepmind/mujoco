@@ -47,21 +47,18 @@
       </body>
     </body>
     <body name="flex_frame" pos="-.32 0 .7">
-      <flexcomp name="rod" type="grid" count="37 3 3" spacing=".025 .03 .02" pos=".45 0 0" dim="3" dof="trilinear" cellcount="12 1 1" mass=".15" radius=".001" rgba=".95 .38 .12 1">
-        <elasticity young="1e6" poisson=".25" damping=".01"/>
+      <flexcomp name="rod" type="grid" count="21 1 1" spacing=".045 .045 .045" pos=".45 0 0" dim="1" mass=".15" radius=".02" rgba=".95 .38 .12 1">
+        <elasticity young="1.8e6" damping=".0056" section="box" sectionsize=".03 .02"/>
+        <edge equality="true" solref=".003 1" solimp=".99 .999 .001"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
       </flexcomp>
     </body>
   </worldbody>
   <equality>
-    <connect name="rod_0_0_0_attach" body1="rod_0_0_0" body2="left_fitting" anchor="0 0 0"/>
-    <connect name="rod_0_0_1_attach" body1="rod_0_0_1" body2="left_fitting" anchor="0 0 0"/>
-    <connect name="rod_0_1_0_attach" body1="rod_0_1_0" body2="left_fitting" anchor="0 0 0"/>
-    <connect name="rod_0_1_1_attach" body1="rod_0_1_1" body2="left_fitting" anchor="0 0 0"/>
-    <connect name="rod_12_0_0_attach" body1="rod_12_0_0" body2="right_fitting" anchor="0 0 0"/>
-    <connect name="rod_12_0_1_attach" body1="rod_12_0_1" body2="right_fitting" anchor="0 0 0"/>
-    <connect name="rod_12_1_0_attach" body1="rod_12_1_0" body2="right_fitting" anchor="0 0 0"/>
-    <connect name="rod_12_1_1_attach" body1="rod_12_1_1" body2="right_fitting" anchor="0 0 0"/>
+    <connect name="rod_0_attach" body1="rod_0" body2="left_fitting" anchor="0 0 0"/>
+    <connect name="rod_1_attach" body1="rod_1" body2="left_fitting" anchor="0 0 0"/>
+    <connect name="rod_19_attach" body1="rod_19" body2="right_fitting" anchor="0 0 0"/>
+    <connect name="rod_20_attach" body1="rod_20" body2="right_fitting" anchor="0 0 0"/>
   </equality>
   <actuator>
     <!-- Torque = 50 * (2*pi/3 - angular velocity), even with zero control. -->

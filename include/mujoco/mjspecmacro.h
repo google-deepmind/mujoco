@@ -277,44 +277,46 @@
 
 #define MJSFLEX_FIELDS                           \
     X   ( mjsElement*,   element,       1      ) \
-    X   ( int,           contype,       1      ) \
-    X   ( int,           conaffinity,   1      ) \
-    X   ( int,           condim,        1      ) \
-    X   ( int,           priority,      1      ) \
-    XVEC( double,        friction,      3      ) \
-    X   ( double,        solmix,        1      ) \
-    XVEC( mjtNum,        solref,        mjNREF ) \
-    XVEC( mjtNum,        solimp,        mjNIMP ) \
-    X   ( double,        margin,        1      ) \
-    X   ( double,        gap,           1      ) \
-    X   ( int,           dim,           1      ) \
-    X   ( double,        radius,        1      ) \
-    XVEC( double,        size,          3      ) \
-    X   ( mjtBool,       flatskin,      1      ) \
-    X   ( mjtFlexSelf,   selfcollide,   1      ) \
-    X   ( int,           passive,       1      ) \
-    X   ( int,           activelayers,  1      ) \
-    X   ( int,           group,         1      ) \
-    X   ( double,        edgestiffness, 1      ) \
-    X   ( double,        edgedamping,   1      ) \
-    XVEC( float,         rgba,          4      ) \
-    X   ( mjString*,     material,      1      ) \
-    X   ( double,        young,         1      ) \
-    X   ( double,        poisson,       1      ) \
-    X   ( double,        damping,       1      ) \
-    X   ( double,        thickness,     1      ) \
-    X   ( int,           elastic2d,     1      ) \
-    X   ( int,           elastic3d,     1      ) \
-    XVEC( int,           cellcount,     3      ) \
-    X   ( int,           order,         1      ) \
-    X   ( mjStringVec*,  nodebody,      1      ) \
-    X   ( mjStringVec*,  vertbody,      1      ) \
-    X   ( mjDoubleVec*,  node,          1      ) \
-    X   ( mjDoubleVec*,  vert,          1      ) \
-    X   ( mjIntVec*,     elem,          1      ) \
-    X   ( mjFloatVec*,   texcoord,      1      ) \
-    X   ( mjIntVec*,     elemtexcoord,  1      ) \
-    X   ( mjString*,     info,          1      )
+    X   ( int,            contype,       1      ) \
+    X   ( int,            conaffinity,   1      ) \
+    X   ( int,            condim,        1      ) \
+    X   ( int,            priority,      1      ) \
+    XVEC( double,         friction,      3      ) \
+    X   ( double,         solmix,        1      ) \
+    XVEC( mjtNum,         solref,        mjNREF ) \
+    XVEC( mjtNum,         solimp,        mjNIMP ) \
+    X   ( double,         margin,        1      ) \
+    X   ( double,         gap,           1      ) \
+    X   ( int,            dim,           1      ) \
+    X   ( double,         radius,        1      ) \
+    XVEC( double,         size,          3      ) \
+    X   ( mjtBool,        flatskin,      1      ) \
+    X   ( mjtFlexSelf,    selfcollide,   1      ) \
+    X   ( int,            passive,       1      ) \
+    X   ( int,            activelayers,  1      ) \
+    X   ( int,            group,         1      ) \
+    X   ( double,         edgestiffness, 1      ) \
+    X   ( double,         edgedamping,   1      ) \
+    XVEC( float,          rgba,          4      ) \
+    X   ( mjString*,      material,      1      ) \
+    X   ( double,         young,         1      ) \
+    X   ( double,         poisson,       1      ) \
+    X   ( double,         damping,       1      ) \
+    X   ( double,         thickness,     1      ) \
+    X   ( int,            elastic2d,     1      ) \
+    X   ( int,            elastic3d,     1      ) \
+    X   ( mjtFlexSection, section,       1      ) \
+    XVEC( double,         sectionsize,   2      ) \
+    XVEC( int,            cellcount,     3      ) \
+    X   ( int,            order,         1      ) \
+    X   ( mjStringVec*,   nodebody,      1      ) \
+    X   ( mjStringVec*,   vertbody,      1      ) \
+    X   ( mjDoubleVec*,   node,          1      ) \
+    X   ( mjDoubleVec*,   vert,          1      ) \
+    X   ( mjIntVec*,      elem,          1      ) \
+    X   ( mjFloatVec*,    texcoord,      1      ) \
+    X   ( mjIntVec*,      elemtexcoord,  1      ) \
+    X   ( mjString*,      info,          1      )
 
 
 //-------------------------------- mjsMesh ---------------------------------------------------------

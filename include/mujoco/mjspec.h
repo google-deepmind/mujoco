@@ -89,6 +89,12 @@ typedef enum mjtMeshBuiltin {      // type of built-in procedural mesh
 } mjtMeshBuiltin;
 
 
+typedef enum mjtFlexSection {      // cross-section of 1D flex elasticity
+  mjFLEXSECTION_CIRCLE = 0,        // circle of the flex radius
+  mjFLEXSECTION_BOX                // box with half-sizes sectionsize
+} mjtFlexSection;
+
+
 typedef enum mjtBuiltin {          // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture
   mjBUILTIN_GRADIENT,              // gradient: rgb1->rgb2
@@ -534,6 +540,8 @@ typedef struct mjsFlex_ {          // flex specification
   int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
   int elastic3d;  // experimental 3D material (mjSpec only); 0: Saint
                   // Venant-Kirchhoff, 1: Stable Neo-Hookean
+  mjtFlexSection section;          // 1D cross-section (mjtFlexSection)
+  double sectionsize[2];           // 1D box cross-section half-sizes
   int cellcount[3];                // grid cell count for finite cell method
   int order;                       // interpolation order (1: trilinear, 2: quadratic)
 

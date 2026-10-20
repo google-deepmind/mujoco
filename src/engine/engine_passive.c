@@ -510,6 +510,78 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
 }
 
 
+// passive forces for 1D flex bending: isotropic discrete elastic rod without twist, see
+// Bergou et al., "Discrete Elastic Rods", https://www.cs.columbia.edu/cg/pdfs/143-rods.pdf
+//   energy per hinge: k |kb|^2, with k = EI / (|e0| + |e1|) in the straight reference
+//   damping: Rayleigh on the rate of |kb|, so that rigid rotations are not damped
+static void mj_flexPassiveBend1D(const mjModel* m, mjData* d, int f,
+                                 int enbl_spring, int enbl_damper) {
+  int bendingadr = m->flex_bendingadr[f];
+  if (bendingadr < 0) {
+    return;
+  }
+  mjtNum damp = enbl_damper ? m->flex_damping[f] : 0;
+  enbl_damper = (damp != 0);
+  if (!enbl_spring && !enbl_damper) {
+    return;
+  }
+
+  const mjtNum* b = m->flex_bending + bendingadr;
+  int nhinge = (int)b[0];
+  int vertnum = m->flex_vertnum[f];
+  const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+
+  mj_markStack(d);
+  mjtNum* vvel = enbl_damper ? mjSTACKALLOC(d, 3*vertnum, mjtNum) : NULL;
+  mjtNum* frc = mjSTACKALLOC(d, 3*vertnum, mjtNum);
+  mjtNum* dmp = mjSTACKALLOC(d, 3*vertnum, mjtNum);
+  mju_zero(frc, 3*vertnum);
+  mju_zero(dmp, 3*vertnum);
+  if (enbl_damper) {
+    mj_flexGather(m, d, f, vvel, d->qvel);
+  }
+
+  for (int h = 0; h < nhinge; h++) {
+    const mjtNum* hinge = b + 1 + mjROD_HINGE_SIZE*h;
+    int v[3] = {(int)hinge[0], (int)hinge[1], (int)hinge[2]};
+    mjtNum kb[3], J[27];
+    if (!mj_rodHinge(xpos + 3*v[0], xpos + 3*v[1], xpos + 3*v[2], kb, J)) {
+      continue;
+    }
+
+    // w: weight in kb space, mapped to vertex forces as -J'w
+    mjtNum w[3] = {0}, Wd[9];
+    mj_rodHingeWeights(enbl_spring ? w : NULL, NULL, enbl_damper ? Wd : NULL, kb, hinge[3]);
+
+    // damper weight: Wd J vel
+    mjtNum wd[3] = {0};
+    if (enbl_damper) {
+      mjtNum kbdot[3] = {0};
+      for (int r = 0; r < 3; r++) {
+        for (int i = 0; i < 3; i++) {
+          kbdot[r] += mju_dot3(J + 9*r + 3*i, vvel + 3*v[i]);
+        }
+      }
+      mji_mulMatVec3(wd, Wd, kbdot);
+    }
+
+    for (int i = 0; i < 3; i++) {
+      for (int c = 0; c < 3; c++) {
+        for (int r = 0; r < 3; r++) {
+          frc[3*v[i]+c] -= J[9*r + 3*i + c] * w[r];
+          dmp[3*v[i]+c] -= J[9*r + 3*i + c] * wd[r];
+        }
+      }
+    }
+  }
+
+  if (enbl_spring) mj_flexScatter(m, d, f, d->qfrc_spring, frc, 1);
+  if (enbl_damper) mj_flexScatter(m, d, f, d->qfrc_damper, dmp, damp);
+
+  mj_freeStack(d);
+}
+
+
 // passive forces for flex stretch
 static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
                                   int enbl_spring, int enbl_damper) {
@@ -699,7 +771,13 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
   // flex elasticity
   for (int f=0; f < m->nflex; f++) {
-    if (m->flex_dim[f] == 1 || m->flex_rigid[f]) {
+    if (m->flex_rigid[f]) {
+      continue;
+    }
+
+    if (m->flex_dim[f] == 1) {
+      // rod bending forces
+      mj_flexPassiveBend1D(m, d, f, enbl_spring, enbl_damper);
       continue;
     }
 

@@ -227,6 +227,26 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f);
 void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
                        const mjtNum* vec, mjtNum scale);
 
+//-------------------------- 1D rod bending --------------------------------------------------------
+
+// per-hinge data layout in flex_bending for 1D flexes, after a leading hinge count:
+//   [v_prev, v, v_next, k], energy k |kb|^2 (the reference configuration is straight)
+#define mjROD_HINGE_SIZE 4
+
+// curvature binormal kb = 2 e0 x e1 / (|e0||e1| + e0.e1) of hinge (xa, xv, xb), with
+// e0 = xv - xa and e1 = xb - xv, and its Jacobian J (3x9, columns xa, xv, xb);
+// returns 0 if the hinge is degenerate or fully folded
+int mj_rodHinge(const mjtNum xa[3], const mjtNum xv[3], const mjtNum xb[3],
+                mjtNum kb[3], mjtNum J[27]);
+
+// weights of the hinge energy in kb space, both including the factor 2k:
+//   g:  gradient dE/d(kb)
+//   Wk: Hessian d2E/d(kb)2
+//   Wd: Rayleigh damping weight, restricted to the rate of |kb| (rotation invariant)
+// each output is optional
+void mj_rodHingeWeights(mjtNum g[3], mjtNum Wk[9], mjtNum Wd[9],
+                        const mjtNum kb[3], mjtNum k);
+
 // element-local geometry, quadratic edge response, and stiffness contractions shared by
 // passive forces and both solver paths; keep the helpers visible to the compiler so the
 // small edge loops can be optimized together with their callers

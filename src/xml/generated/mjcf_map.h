@@ -517,6 +517,13 @@ inline constexpr mjMap elastic2d_map[] = {
 };
 inline constexpr int elastic2d_sz = 4;
 
+// enum flexsection
+inline constexpr mjMap flexsection_map[] = {
+  {"circle",  mjFLEXSECTION_CIRCLE},
+  {"box",     mjFLEXSECTION_BOX},
+};
+inline constexpr int flexsection_sz = 2;
+
 // enum flexeq
 inline constexpr mjMap flexeq_map[] = {
   {"false",   0},

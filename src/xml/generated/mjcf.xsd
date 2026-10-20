@@ -533,6 +533,13 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="kw_flexsection">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="circle"/>
+      <xs:enumeration value="box"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="kw_flexeq">
     <xs:restriction base="xs:string">
       <xs:enumeration value="false"/>
@@ -4111,6 +4118,8 @@
     <xs:attribute name="damping" type="xs:double"/>
     <xs:attribute name="thickness" type="xs:double" default="-1"/>
     <xs:attribute name="elastic2d" type="kw_elastic2d"/>
+    <xs:attribute name="section" type="kw_flexsection"/>
+    <xs:attribute name="sectionsize" type="double2"/>
   </xs:complexType>
 
   <xs:complexType name="flexcomp_contact">

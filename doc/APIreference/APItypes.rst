@@ -973,6 +973,15 @@ Type of built-in procedural mesh.
 
 .. mujoco-include:: mjtMeshBuiltin
 
+.. _mjtFlexSection:
+
+mjtFlexSection
+~~~~~~~~~~~~~~
+
+Cross-section of 1D flex :ref:`elasticity<flex-elasticity>`, see :ref:`section<flex-elasticity-section>`.
+
+.. mujoco-include:: mjtFlexSection
+
 .. _mjtConflict:
 
 mjtConflict

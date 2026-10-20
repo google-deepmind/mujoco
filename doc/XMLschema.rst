@@ -1580,6 +1580,12 @@
                .. grid-item::
                   :ref:`elastic2d<flexcomp-elasticity-elastic2d>`
 
+               .. grid-item::
+                  :ref:`section<flexcomp-elasticity-section>`
+
+               .. grid-item::
+                  :ref:`sectionsize<flexcomp-elasticity-sectionsize>`
+
 
          .. dropdown:: :ref:`contact<flexcomp-contact>` :octicon:`dot`
 
@@ -1801,6 +1807,12 @@
 
                .. grid-item::
                   :ref:`elastic2d<flex-elasticity-elastic2d>`
+
+               .. grid-item::
+                  :ref:`section<flex-elasticity-section>`
+
+               .. grid-item::
+                  :ref:`sectionsize<flex-elasticity-sectionsize>`
 
 
       .. dropdown:: :ref:`skin<deformable-skin>` |*|

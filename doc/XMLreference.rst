@@ -4202,9 +4202,11 @@ element is used to adjust the properties of all edges in the flex.
 .. _flexcomp-elasticity-damping:
 .. _flexcomp-elasticity-thickness:
 .. _flexcomp-elasticity-elastic2d:
+.. _flexcomp-elasticity-section:
+.. _flexcomp-elasticity-sectionsize:
 
 .. |body/flexcomp/elasticity attrib list| replace::
-   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`, :at:`elastic2d`
+   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`, :at:`elastic2d`, :at:`section`, :at:`sectionsize`
 
 |body/flexcomp/elasticity attrib list|
    Same as in :ref:`flex/elasticity<flex-elasticity>`.
@@ -4743,6 +4745,22 @@ to large displacements (finite rotations) and small strains, since it uses a non
 stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and `this model
 <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__.
 
+For 1D flexes, elasticity is a twist-free, isotropic `discrete elastic rod
+<https://www.cs.columbia.edu/cg/pdfs/143-rods.pdf>`__ bending model with the cross-section given by
+:ref:`section<flex-elasticity-section>`. Every vertex shared by exactly two edges stores the energy
+:math:`k |\kappa b|^2`, where :math:`\kappa b` is the discrete curvature binormal and
+:math:`k = E I / (\ell_0 + \ell_1)`, with :math:`I` the second moment of area of the cross-section and
+:math:`\ell_{0,1}` the reference lengths of the two edges. The reference configuration ``qpos0`` must be straight: a
+compiler error is raised if any such vertex is bent by more than :math:`10^{-4}` rad, since without material frames an
+isotropic rod with a curved reference would only resist the magnitude of its curvature, not its direction. A curved
+initial pose, e.g. coiled or draped, can be set with ``qpos`` or a :ref:`keyframe<keyframe>`; the rod then starts with
+stored bending energy and is pushed toward straightening. Rods with a curved rest shape, such as coil springs, can use
+the :ref:`cable<CComposite>` composite instead. Twist is assumed to relax instantly, which is exact unless the
+orientation of both ends of the rod is constrained. Stretching is not included; use :ref:`edge<flex-edge>` constraints
+or stiffness instead. Rod bending is integrated implicitly by the :ref:`discrete<option-integrator>` integrator, using a
+positive semi-definite approximation of its Hessian, and explicitly by all other integrators. It is not supported by
+:ref:`dof<body-flexcomp-dof>` **trilinear** and **quadratic**.
+
 .. _flex-elasticity-young:
 
 :at:`young`: :at-val:`real(1), "0"`
@@ -4781,7 +4799,22 @@ stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and
    With the :ref:`discrete<option-integrator>` integrator, use :ref:`solver<option-solver>` **CG** for general attachments.
    Newton supports fixed attachments and independent slide bodies with local positive X, Y and Z joints in that order
    and fixed ancestors. Mocap attachments are not supported for non-rigid flexes with elasticity because mocap poses do
-   not provide velocities for elastic damping.
+   not provide velocities for elastic damping, except for 1D flexes with zero :ref:`damping<flex-elasticity-damping>`.
+
+.. _flex-elasticity-section:
+
+:at:`section`: :at-val:`[circle, box], "circle"`
+   Cross-section of 1D flexes, used to compute the second moment of area :math:`I` of the bending stiffness. "circle":
+   :math:`I = \pi r^4 / 4`, where :math:`r` is the flex :ref:`radius <deformable-flex-radius>`. "box": rectangle with
+   half-sizes given by :ref:`sectionsize<flex-elasticity-sectionsize>`. Since the bending model is isotropic, a box uses
+   the second moment of area of its weak axis, :math:`I = \min(w h^3, h w^3) / 12`, where :math:`w, h` are the full
+   sizes. Collisions and rendering always use the flex radius.
+
+.. _flex-elasticity-sectionsize:
+
+:at:`sectionsize`: :at-val:`real(2), "0 0"`
+   Half-sizes of the "box" cross-section of 1D flexes, units of length. Both values must be positive when
+   :ref:`section<flex-elasticity-section>` is "box"; ignored otherwise.
 
 .. _flex-contact:
 

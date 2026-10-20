@@ -30,6 +30,7 @@ MJ_MAXCONPAIR = mujoco.mjMAXCONPAIR
 MJ_MINMU = mujoco.mjMINMU  # minimum friction
 MJ_MINAWAKE = mujoco.mjMINAWAKE  # minimum number of timesteps before sleeping
 FLEX_STIFFNESS_3D = 24 if util_pkg.check_version("mujoco>=3.14.1.dev989511280") else 21
+ROD_HINGE_SIZE = 4  # 1D rod hinge data in flex_bending: [v_prev, v, v_next, k]
 # maximum size (by number of edges) of an horizon in EPA algorithm
 MJ_MAX_EPAHORIZON = 24
 # maximum average number of trianglarfaces EPA can insert at each iteration
@@ -1480,6 +1481,7 @@ class Model:
     has_flex_passive: whether any flex has passive contact enabled
     has_flex_snh: whether any flex uses 3D SNH elasticity
     has_non_simple_flex: whether any flex has non-simple vertex bodies
+    has_flex_stiff_dim23: whether any 2D or 3D flex contributes elastic stiffness
     has_tendon_stiffness: whether any tendon has positive stiffness
     has_tendon_damping: whether any tendon has positive damping
     has_efm_actuator: whether any actuator contributes effective metric coupling
@@ -1596,6 +1598,8 @@ class Model:
     nflexface: number of interpolated flex shell faces
     flex_face_map: mapping of face index to flex and local element face indices
     flex_face: global node indices of each face                             (nflexface, 9)
+    nflexrodhinge: number of 1D rod bending hinges
+    flex_rodhinge_map: flex id and flex_bending address of each rod hinge   (nflexrodhinge, 2)
   """
 
   nq: int
@@ -2008,6 +2012,7 @@ class Model:
   has_flex_passive: bool
   has_flex_snh: bool
   has_non_simple_flex: bool
+  has_flex_stiff_dim23: bool
   has_tendon_stiffness: bool
   has_tendon_damping: bool
   has_efm_actuator: bool
@@ -2117,6 +2122,8 @@ class Model:
   nflexface: int
   flex_face_map: array("nflexface", wp.vec2i)
   flex_face: array("nflexface", 9, int)
+  nflexrodhinge: int
+  flex_rodhinge_map: array("nflexrodhinge", wp.vec2i)
 
 
 class ContactType(enum.IntFlag):

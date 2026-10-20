@@ -7130,7 +7130,8 @@ void mjCEquality::Compile(void) {
     if (flex->rigid) {
       throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
     }
-    if (flex->elastic2d != 1 && flex->young > 0) {
+    // bending-only elasticity (2D bend, or 1D rod bending) is compatible with constraints
+    if (flex->dim > 1 && flex->elastic2d != 1 && flex->young > 0) {
       throw mjCError(this, "flex constraints and elasticity (young) cannot both be present");
     }
     if (flex->edgestiffness > 0) {

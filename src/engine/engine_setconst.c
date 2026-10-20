@@ -1533,7 +1533,8 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
 
   // enumerate covered vertices: compact slot per unpinned vertex of qualifying flexes
   // (filter matches the compiler's sizing and, for bending, mjd_flexStiff_active in
-  // engine_derivative.c: bending data exists only for dim-2 flexes)
+  // engine_derivative.c: constant bending stencils exist only for dim-2 flexes; 1D rod
+  // bending is state-dependent and assembled per step)
   int* bodyslot = mjSTACKALLOC(d, m->nbody, int);
   for (int b=0; b < m->nbody; b++) {
     bodyslot[b] = -1;

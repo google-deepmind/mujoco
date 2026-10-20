@@ -14,6 +14,7 @@
 
 // Tests for user/user_model.cc.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -1447,6 +1448,62 @@ TEST_F(UserFlexTest, EmptyCellNodePinning) {
   MjDataPtr d = MakeData(m);
   for (int i = 0; i < 10; i++) {
     mj_step(m.get(), d.get());
+  }
+}
+
+// the elastic mechanisms use 1D rods with bending elasticity: they load and
+// simulate stably, the drives move them, and the edge equalities keep the rods
+// nearly inextensible
+TEST_F(UserFlexTest, MechanismRods) {
+  struct Mechanism {
+    const char* file;
+    const char* flex;
+    const char* joint;  // driven joint that must move, or nullptr
+    int nstep;
+  };
+  const Mechanism mechanisms[] = {
+      {"flex/mechanisms/cantilever.xml", "rod", nullptr, 500},
+      {"flex/mechanisms/slidercrank.xml", "rod", "slide", 1500},
+      {"flex/mechanisms/dipper.xml", "arm_flex", "arm", 3000},
+  };
+  for (const Mechanism& mech : mechanisms) {
+    SCOPED_TRACE(mech.file);
+    const std::string xml_path = GetModelPath(mech.file);
+    std::array<char, 1024> error;
+    mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+    ASSERT_THAT(m, NotNull()) << error.data();
+    int f = mj_name2id(m, mjOBJ_FLEX, mech.flex);
+    ASSERT_GE(f, 0);
+    EXPECT_EQ(m->flex_dim[f], 1);
+    EXPECT_GE(m->flex_bendingadr[f], 0);
+
+    mjData* d = mj_makeData(m);
+    int jnt = mech.joint ? mj_name2id(m, mjOBJ_JOINT, mech.joint) : -1;
+    mjtNum q0 = jnt >= 0 ? d->qpos[m->jnt_qposadr[jnt]] : 0;
+    mjtNum qmin = q0, qmax = q0, strain = 0;
+    for (int i = 0; i < mech.nstep; i++) {
+      mj_step(m, d);
+      if (jnt >= 0) {
+        qmin = std::min(qmin, d->qpos[m->jnt_qposadr[jnt]]);
+        qmax = std::max(qmax, d->qpos[m->jnt_qposadr[jnt]]);
+      }
+      for (int e = m->flex_edgeadr[f];
+           e < m->flex_edgeadr[f] + m->flex_edgenum[f]; e++) {
+        strain = std::max(
+            strain,
+            std::abs(d->flexedge_length[e] / m->flexedge_length0[e] - 1));
+      }
+    }
+    EXPECT_EQ(d->warning[mjWARN_BADQACC].number, 0);
+    for (int i = 0; i < m->nq; i++) {
+      ASSERT_TRUE(std::isfinite(d->qpos[i])) << "qpos " << i;
+    }
+    EXPECT_LT(strain, 0.01);
+    if (jnt >= 0) {
+      EXPECT_GT(qmax - qmin, 0.05) << mech.joint;
+    }
+    mj_deleteData(d);
+    mj_deleteModel(m);
   }
 }
 

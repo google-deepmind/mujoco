@@ -203,6 +203,26 @@ def _flex_simple(mjm: mujoco.MjModel, f: int) -> bool:
   return True
 
 
+def _eff_flex_stiff_possible(mjm: mujoco.MjModel, f: int) -> bool:
+  """Whether flex f contributes elastic stiffness to the metric, see mj_effFlexStiffPossible."""
+  if mjm.flex_rigid[f]:
+    return False
+  badr = int(mjm.flex_bendingadr[f])
+  if mjm.flex_dim[f] == 1:
+    return badr >= 0
+  sadr = int(mjm.flex_stiffnessadr[f])
+  if sadr >= 0 and mjm.flex_stiffness[sadr] != 0 and mjm.flex_edgeequality[f] != 3:
+    return True
+  if badr < 0:
+    return False
+  end = mjm.nflexbending
+  for g in range(f + 1, mjm.nflex):
+    if mjm.flex_bendingadr[g] >= 0:
+      end = int(mjm.flex_bendingadr[g])
+      break
+  return bool(np.any(mjm.flex_bending[badr:end] != 0))
+
+
 def _get_efm_data(mjm: mujoco.MjModel) -> mujoco.MjData | None:
   """Runs position kinematics under discrete integrator on a temp MjData for flex stiffness."""
   if mjm.nflex == 0:
@@ -539,12 +559,21 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     and any(
       mjm.flex_interp[f] == 0
       and not mjm.flex_rigid[f]
-      and mjm.flex_dim[f] >= 2
       and not flex_simple[f]
-      and (mjm.flex_bendingadr[f] >= 0 or (mjm.flex_stiffnessadr[f] >= 0 and mjm.flex_stiffness[mjm.flex_stiffnessadr[f]] != 0))
+      and (
+        (mjm.flex_dim[f] == 1 and mjm.flex_bendingadr[f] >= 0)
+        or (
+          mjm.flex_dim[f] >= 2
+          and (
+            mjm.flex_bendingadr[f] >= 0 or (mjm.flex_stiffnessadr[f] >= 0 and mjm.flex_stiffness[mjm.flex_stiffnessadr[f]] != 0)
+          )
+        )
+      )
       for f in range(mjm.nflex)
     )
   )
+  # 1D rod bending is integrated explicitly under implicit and implicitfast, unlike 2D and 3D
+  m.has_flex_stiff_dim23 = bool(any(mjm.flex_dim[f] > 1 and _eff_flex_stiff_possible(mjm, f) for f in range(mjm.nflex)))
   if (
     mjm.opt.integrator == mujoco.mjtIntegrator.mjINT_DISCRETE
     and mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON
@@ -1236,6 +1265,17 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       for face_idx in range(nfaces):
         flex_face_map.append((fi, face_idx))
       face_offset += nfaces
+
+  # 1D rod bending hinges: (flex id, address of the hinge data in flex_bending)
+  flex_rodhinge_map = []
+  for fi in range(mjm.nflex):
+    bendingadr = int(mjm.flex_bendingadr[fi])
+    if mjm.flex_dim[fi] != 1 or mjm.flex_interp[fi] != 0 or mjm.flex_rigid[fi] or bendingadr < 0:
+      continue
+    for h in range(int(mjm.flex_bending[bendingadr])):
+      flex_rodhinge_map.append((fi, bendingadr + 1 + types.ROD_HINGE_SIZE * h))
+  m.nflexrodhinge = len(flex_rodhinge_map)
+  m.flex_rodhinge_map = np.array(flex_rodhinge_map, dtype=np.int32).reshape(-1, 2)
 
   if not flex_bend_interp_map:
     m.nflexbend_interp = 0

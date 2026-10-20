@@ -1644,13 +1644,107 @@ void mjd_flexBend_mul(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* ve
 }
 
 
+// Jacobian J (3x9) and kb-space weight W = s1*Wk + s2*damping*Wd of 1D rod hinge h of flex f,
+// so that the hinge stiffness is J'WJ; returns 0 if the hinge is degenerate
+static int rodHingeWeight(const mjModel* m, const mjData* d, int f, int h,
+                          mjtNum s1, mjtNum s2, int v[3], mjtNum J[27], mjtNum W[9]) {
+  const mjtNum* hinge = m->flex_bending + m->flex_bendingadr[f] + 1 + mjROD_HINGE_SIZE*h;
+  const mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+  for (int i = 0; i < 3; i++) {
+    v[i] = (int)hinge[i];
+  }
+  mjtNum kb[3], Wk[9], Wd[9];
+  if (!mj_rodHinge(xpos + 3*v[0], xpos + 3*v[1], xpos + 3*v[2], kb, J)) {
+    return 0;
+  }
+  mj_rodHingeWeights(NULL, Wk, Wd, kb, hinge[3]);
+  mjtNum sd = s2*m->flex_damping[f];
+  for (int i = 0; i < 9; i++) {
+    W[i] = s1*Wk[i] + sd*Wd[i];
+  }
+  return 1;
+}
+
+
+// 9x9 world-space stiffness of 1D rod hinge h of flex f: J'(s1*Wk + s2*damping*Wd)J, with
+// block (i, j) at rows 3i..3i+2 and columns 3j..3j+2; returns 0 if the hinge is degenerate
+static int rodHingeStiffness(const mjModel* m, const mjData* d, int f, int h,
+                             mjtNum s1, mjtNum s2, int v[3], mjtNum K[81]) {
+  mjtNum J[27], W[9];
+  if (!rodHingeWeight(m, d, f, h, s1, s2, v, J, W)) {
+    return 0;
+  }
+
+  // WJ = W * J (3x9), K = J' * WJ (9x9)
+  mjtNum WJ[27];
+  mju_mulMatMat(WJ, W, J, 3, 3, 9);
+  mju_mulMatTMat(K, J, WJ, 3, 9, 9);
+  return 1;
+}
+
+
+// compute res += K_rod * vec for 1D rod bending of flex f, applying J'(W(J vec)) per hinge
+// without forming the 9x9 stiffness, see rodHingeWeight
+static void flexRod_mul(const mjModel* m, mjData* d, int f, mjtNum* res, const mjtNum* vec,
+                        mjtNum s1, mjtNum s2) {
+  int nvert = m->flex_vertnum[f];
+  int nhinge = (int)m->flex_bending[m->flex_bendingadr[f]];
+  mj_markStack(d);
+  mjtNum* wvec = mjSTACKALLOC(d, 3*nvert, mjtNum);
+  mjtNum* wres = mjSTACKALLOC(d, 3*nvert, mjtNum);
+  mj_flexGather(m, d, f, wvec, vec);
+  mju_zero(wres, 3*nvert);
+
+  for (int h = 0; h < nhinge; h++) {
+    int v[3];
+    mjtNum J[27], W[9];
+    if (!rodHingeWeight(m, d, f, h, s1, s2, v, J, W)) {
+      continue;
+    }
+
+    // u = J vec, w = W u
+    mjtNum u[3] = {0}, w[3];
+    for (int r = 0; r < 3; r++) {
+      for (int i = 0; i < 3; i++) {
+        u[r] += mju_dot3(J + 9*r + 3*i, wvec + 3*v[i]);
+      }
+    }
+    mji_mulMatVec3(w, W, u);
+
+    // res += J' w
+    for (int i = 0; i < 3; i++) {
+      for (int c = 0; c < 3; c++) {
+        wres[3*v[i]+c] += J[3*i+c]*w[0] + J[9+3*i+c]*w[1] + J[18+3*i+c]*w[2];
+      }
+    }
+  }
+
+  mj_flexScatter(m, d, f, res, wres, 1);
+  mj_freeStack(d);
+}
+
+
+// does flex f carry 1D rod bending stiffness
+static int flexRod_active(const mjModel* m, int f) {
+  return m->flex_dim[f] == 1 && !m->flex_rigid[f] && m->flex_bendingadr[f] >= 0;
+}
+
+
 // compute res += (s1 + s2*flex_damping) * K_stretch * vec for standard flexes
 // SNH uses its PSD-projected material Hessian; StVK keeps the material term
 // and tensile geometric stiffness. For articulated attachments the pullback J'KJ
 // omits derivatives of the attachment Jacobian.
+// 1D flexes contribute their (state-dependent) rod bending stiffness here, see
+// rodHingeStiffness, rather than with the constant bending stencils of 2D flexes.
 void mjd_flexStretch_mulRange(const mjModel* m, mjData* d, mjtNum* res, const mjtNum* vec,
                               mjtNum s1, mjtNum s2, int first, int last) {
   for (int f = first; f < last; f++) {
+    // 1D rod bending
+    if (flexRod_active(m, f)) {
+      flexRod_mul(m, d, f, res, vec, s1, s2);
+      continue;
+    }
+
     // skip interp, rigid, or 1D
     if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2) {
       continue;
@@ -1783,13 +1877,21 @@ mjtBool mjd_flexStiff_any(const mjModel* m, int flg_interp) {
         mj_flexSimple(m, f)) {
       return 1;
     }
+    if (flexRod_active(m, f) && mj_flexSimple(m, f)) {
+      return 1;
+    }
   }
   return 0;
 }
 
 
 // does this standard flex contribute implicit stiffness under the given term flags?
+// 1D rod bending is state-dependent and therefore follows flg_stretch, not the constant
+// bending stencils of flg_bend
 mjtBool mjd_flexStiff_active(const mjModel* m, int f, int flg_bend, int flg_stretch) {
+  if (flexRod_active(m, f)) {
+    return flg_stretch && mj_flexSimple(m, f);
+  }
   if (m->flex_interp[f] || m->flex_rigid[f] || m->flex_dim[f] < 2 ||
       !mj_flexSimple(m, f)) {
     return 0;
@@ -1944,6 +2046,17 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       continue;
     }
     int dim = m->flex_dim[f], nvrt = dim + 1;
+    // rod hinges: 3-vertex cliques
+    if (flexRod_active(m, f)) {
+      const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
+      for (int h = 0; h < (int)b[0]; h++) {
+        for (int i = 0; i < 3; i++) {
+          int si = vslot[m->flex_vertadr[f] + (int)b[1 + mjROD_HINGE_SIZE*h + i]];
+          if (si >= 0) ncand[si] += 3;
+        }
+      }
+      continue;
+    }
     // bending stencils: 4-vertex flaps per edge
     if (flg_bend && m->flex_bendingadr[f] >= 0) {
       for (int e = 0; e < m->flex_edgenum[f]; e++) {
@@ -1998,6 +2111,21 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
       continue;
     }
     int dim = m->flex_dim[f], nvrt = dim + 1;
+    if (flexRod_active(m, f)) {
+      const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
+      for (int h = 0; h < (int)b[0]; h++) {
+        const mjtNum* hinge = b + 1 + mjROD_HINGE_SIZE*h;
+        for (int i = 0; i < 3; i++) {
+          int si = vslot[m->flex_vertadr[f] + (int)hinge[i]];
+          if (si < 0) continue;
+          for (int j = 0; j < 3; j++) {
+            int sj = vslot[m->flex_vertadr[f] + (int)hinge[j]];
+            if (sj >= 0) cand[cadr[si] + ncand[si]++] = sj;
+          }
+        }
+      }
+      continue;
+    }
     if (flg_bend && m->flex_bendingadr[f] >= 0) {
       for (int e = 0; e < m->flex_edgenum[f]; e++) {
         const int* edge = m->flex_edge + 2*(e + m->flex_edgeadr[f]);
@@ -2143,6 +2271,40 @@ int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr
     }
     mjtNum scale = s1 + s2*m->flex_damping[f];
     if (!scale) {
+      continue;
+    }
+
+    // rod hinges: world 3x3 blocks rotated into the body frames
+    if (flexRod_active(m, f)) {
+      int va = m->flex_vertadr[f];
+      for (int h = 0; h < (int)m->flex_bending[m->flex_bendingadr[f]]; h++) {
+        int v[3];
+        mjtNum K[81];
+        if (!rodHingeStiffness(m, d, f, h, s1, s2, v, K)) {
+          continue;
+        }
+        for (int i = 0; i < 3; i++) {
+          int si = vslot[va + v[i]];
+          if (si < 0) continue;
+          int bi = m->body_weldid[m->flex_vertbodyid[va + v[i]]];
+          for (int j = 0; j < 3; j++) {
+            int sj = vslot[va + v[j]];
+            if (sj < 0) continue;
+            int bj = m->body_weldid[m->flex_vertbodyid[va + v[j]]];
+            mjtNum block[9], tmp[9], blkd[9];
+            for (int r = 0; r < 3; r++) {
+              mji_copy3(block + 3*r, K + 9*(3*i+r) + 3*j);
+            }
+            mji_mulMatMat3(tmp, block, d->xmat + 9*bj);
+            mji_mulMatTMat3(blkd, d->xmat + 9*bi, tmp);
+            int pos;
+            FLEXSTIFF_BLOCK(si, sj, pos);
+            for (int r = 0; r < 3; r++) {
+              mji_addTo3(val + rowadr[vdof[si]+r] + 3*pos, blkd + 3*r);
+            }
+          }
+        }
+      }
       continue;
     }
 

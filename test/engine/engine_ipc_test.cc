@@ -2324,7 +2324,12 @@ TEST_F(IpcTest, SparseFactorCoverage) {
       <flexcomp name="cable" type="grid" dim="1" count="8 1 1" spacing=".04 1 1"
                 radius=".004" mass=".1" pos="0 1 .5">
         <contact selfcollide="none"/>
-        <elasticity young="1e5" poisson=".2"/>
+      </flexcomp>)";
+  static constexpr char kRod[] = R"(
+      <flexcomp name="rod" type="grid" dim="1" count="8 1 1" spacing=".04 1 1"
+                radius=".004" mass=".1" pos="0 1 .5">
+        <contact selfcollide="none"/>
+        <elasticity young="1e5"/>
       </flexcomp>)";
   static constexpr char kSolid[] = R"(
       <flexcomp name="solid" type="grid" dim="3" count="3 3 3" spacing=".04 .04 .04"
@@ -2356,6 +2361,7 @@ TEST_F(IpcTest, SparseFactorCoverage) {
       {"joint before the sheet", kIpc, std::string(kHinge) + sheet("both", ""),
        true, true},
       {"sheet and cable", kIpc, sheet("both", "") + kCable, true, true},
+      {"sheet and elastic rod", kIpc, sheet("both", "") + kRod, true, false},
       {"sheet and solid", kIpc, sheet("both", "") + kSolid, true, false},
       {"solid", kIpc, kSolid, false, false},
       {"no IPC", "", sheet("both", ""), false, false},

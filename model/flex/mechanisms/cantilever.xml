@@ -16,11 +16,11 @@
 <mujoco model="Cantilever comparison">
   <include file="scene.xml"/>
   <option iterations="1000"/>
-  <statistic center=".4 0 .5" extent="2"/>
+  <statistic center=".4 .25 .5" extent="2.2"/>
   <worldbody>
-    <camera name="overview" pos="1.65 -2.35 2.35" xyaxes="0.88287239 0.46961297 -0 -0.26306772 0.49456731 0.82837102"/>
-    <geom type="box" pos="-.08 0 .08" size=".21 .8 .08"/>
-    <geom type="box" pos="-.08 0 .48" size=".055 .72 .32"/>
+    <camera name="overview" pos="1.65 -2.1 2.35" xyaxes="0.88287239 0.46961297 -0 -0.26306772 0.49456731 0.82837102"/>
+    <geom type="box" pos="-.08 .25 .08" size=".21 1.05 .08"/>
+    <geom type="box" pos="-.08 .25 .48" size=".055 .97 .32"/>
     <body name="soft_clamp" pos="0 -0.5 .85">
       <geom type="box" size=".045 .065 .065" material="silver"/>
       <geom class="bolt"/>
@@ -63,6 +63,22 @@
       <geom type="box" size=".035 .065 .04" mass=".2" material="load"/>
       <site name="damped_tip_site" size=".004" rgba=".6 .5 .9 1"/>
     </body>
+    <body name="rod_clamp" pos="0 1 .85">
+      <geom type="box" size=".045 .065 .065" material="silver"/>
+      <geom class="bolt"/>
+      <!-- the pinned edge straddles the clamp face: the rod is effectively clamped at its midpoint -->
+      <flexcomp name="rod" type="grid" count="24 1 1" spacing=".04 .04 .04" pos=".44 0 0" dim="1" mass=".12" radius=".015" rgba=".9 .75 .2 1">
+        <elasticity young="8e+06" damping="0.002" section="box" sectionsize=".035 .0275"/>
+        <edge equality="true" solref=".003 1" solimp=".99 .999 .001"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <pin id="0 1"/>
+      </flexcomp>
+    </body>
+    <body name="rod_tip" pos=".9 1 .85">
+      <freejoint/>
+      <geom type="box" size=".035 .065 .04" mass=".2" material="load"/>
+      <site name="rod_tip_site" size=".004" rgba=".9 .75 .2 1"/>
+    </body>
   </worldbody>
   <equality>
     <connect name="soft_0_0_attach" body1="soft_4_0_0" body2="soft_tip" anchor="0 0 0"/>
@@ -77,5 +93,7 @@
     <connect name="damped_0_2_attach" body1="damped_4_0_2" body2="damped_tip" anchor="0 0 0"/>
     <connect name="damped_2_0_attach" body1="damped_4_2_0" body2="damped_tip" anchor="0 0 0"/>
     <connect name="damped_2_2_attach" body1="damped_4_2_2" body2="damped_tip" anchor="0 0 0"/>
+    <connect name="rod_end_attach" body1="rod_23" body2="rod_tip" anchor="0 0 0"/>
+    <connect name="rod_slope_attach" body1="rod_22" body2="rod_tip" anchor="0 0 0"/>
   </equality>
 </mujoco>

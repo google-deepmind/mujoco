@@ -448,6 +448,8 @@ inline constexpr mjXAttr kElasticityAttrs[] = {
   {"damping", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, damping)},
   {"thickness", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, thickness)},
   {"elastic2d", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, elastic2d), elastic2d_map, elastic2d_sz},
+  {"section", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, section), flexsection_map, flexsection_sz},
+  {"sectionsize", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsFlex, sectionsize)},
 };
 inline constexpr int kElasticityAttrsN = sizeof(kElasticityAttrs) / sizeof(kElasticityAttrs[0]);
 

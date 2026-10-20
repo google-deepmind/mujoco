@@ -8823,6 +8823,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='experimental 3D material (mjSpec only); 0: Saint Venant-Kirchhoff, 1: Stable Neo-Hookean',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
+                 name='section',
+                 type=ValueType(name='mjtFlexSection'),
+                 doc='1D cross-section (mjtFlexSection)',
+             ),
+             StructFieldDecl(
+                 name='sectionsize',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='1D box cross-section half-sizes',
+             ),
+             StructFieldDecl(
                  name='cellcount',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),

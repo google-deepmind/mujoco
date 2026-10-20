@@ -1551,6 +1551,8 @@
                     <attribute name="damping" type="float"/>
                     <attribute name="thickness" type="float" default="-1"/>
                     <attribute name="elastic2d" type="keyword" valid_values="none bend stretch both"/>
+                    <attribute name="section" type="keyword" valid_values="circle box"/>
+                    <attribute name="sectionsize" type="array" array_type="float" array_size="2"/>
                   </attributes>
                 </element>
                 <element name="contact">
@@ -1861,6 +1863,8 @@
                 <attribute name="damping" type="float"/>
                 <attribute name="thickness" type="float" default="-1"/>
                 <attribute name="elastic2d" type="keyword" valid_values="none bend stretch both"/>
+                <attribute name="section" type="keyword" valid_values="circle box"/>
+                <attribute name="sectionsize" type="array" array_type="float" array_size="2"/>
               </attributes>
             </element>
             <element name="contact">
@@ -1958,6 +1962,8 @@
                 <attribute name="damping" type="float"/>
                 <attribute name="thickness" type="float" default="-1"/>
                 <attribute name="elastic2d" type="keyword" valid_values="none bend stretch both"/>
+                <attribute name="section" type="keyword" valid_values="circle box"/>
+                <attribute name="sectionsize" type="array" array_type="float" array_size="2"/>
               </attributes>
             </element>
           </children>

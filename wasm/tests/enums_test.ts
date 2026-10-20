@@ -188,6 +188,10 @@ describe('Enums', () => {
     expect(mujoco.mjtMeshBuiltin).toBeDefined();
   });
 
+  it('mjtFlexSection should exist', () => {
+    expect(mujoco.mjtFlexSection).toBeDefined();
+  });
+
   it('mjtBuiltin should exist', () => {
     expect(mujoco.mjtBuiltin).toBeDefined();
   });

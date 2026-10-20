@@ -3439,6 +3439,153 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
   }
 }
 
+// 1D rod bending stiffness: at the (straight) rest configuration the energy
+// gradient vanishes, so the PSD Gauss-Newton Hessian used by the metric is
+// exact. Checked against central differences of the spring force
+TEST_F(DerivativeTest, FlexRodHessianAtRest) {
+  static const char* const kStraight = R"(
+  <mujoco>
+    <option integrator="discrete" gravity="0 0 0"/>
+    <worldbody>
+      <body name="turned" euler="20 30 40">
+        <flexcomp name="rod" type="grid" count="6 1 1" spacing="0.1 0.1 0.1"
+                  radius="0.01" dim="1" mass="1">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kStraight, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  vector<mjtNum> vec(nv), res(nv, 0);
+  for (int i = 0; i < nv; i++) {
+    vec[i] = mju_Halton(i, 3) - 0.5;
+  }
+  mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
+
+  // central differences of the spring force
+  mjtNum eps = MjEps(1e-6, 1e-3);
+  mjData* plus = mj_copyData(NULL, model.get(), data.get());
+  mjData* minus = mj_copyData(NULL, model.get(), data.get());
+  mju_addToScl(plus->qpos, vec.data(), eps, nv);
+  mju_addToScl(minus->qpos, vec.data(), -eps, nv);
+  mj_forward(model.get(), plus);
+  mj_forward(model.get(), minus);
+
+  mjtNum max_err = 0, scale = 0;
+  for (int i = 0; i < nv; i++) {
+    mjtNum fd = -(plus->qfrc_spring[i] - minus->qfrc_spring[i]) / (2 * eps);
+    max_err = mju_max(max_err, mju_abs(res[i] - fd));
+    scale = mju_max(scale, mju_abs(fd));
+  }
+  EXPECT_GT(scale, 1e-3) << "test should exercise nontrivial bending stiffness";
+  EXPECT_LT(max_err, MjTol(1e-5, 1e-2) * scale)
+      << "rod bending Hessian is not the Jacobian of the force at rest";
+  mj_deleteData(plus);
+  mj_deleteData(minus);
+}
+
+// 1D rod bending stiffness away from rest: symmetric, positive semi-definite,
+// assembled CSR matches the matrix-free operator
+TEST_F(DerivativeTest, FlexRodStiffAssemble) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="discrete" gravity="0 0 0"/>
+    <worldbody>
+      <body name="turned" euler="20 30 40">
+        <flexcomp name="rod" type="grid" count="6 1 1" spacing="0.1 0.1 0.1"
+                  radius="0.01" dim="1" mass="1">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7" damping="0.1"/>
+        </flexcomp>
+      </body>
+      <flexcomp name="free" type="grid" count="5 1 1" spacing="0.1 0.1 0.1"
+                radius="0.01" dim="1" mass="1" pos="1 0 0">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7" damping="0.1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+  for (int i = 0; i < nv; i++) {
+    data->qpos[i] += 2e-2 * (mju_Halton(i, 2) - 0.5);
+  }
+  mj_forward(model.get(), data.get());
+
+  mjtNum s1 = 4e-6, s2 = 2e-3;
+  vector<int> rownnz(nv), rowadr(nv);
+  int nnz = mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                                   rowadr.data(), NULL, NULL, s1, s2,
+                                   /*flg_bend=*/1, /*flg_stretch=*/1, NULL);
+  ASSERT_GT(nnz, 0);
+  vector<int> colind(nnz);
+  vector<mjtNum> val(nnz);
+  mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(), rowadr.data(),
+                         colind.data(), val.data(), s1, s2, /*flg_bend=*/1,
+                         /*flg_stretch=*/1, NULL);
+
+  // the constant-stencil (setconst) assembly excludes state-dependent rod
+  // bending
+  vector<int> rownnz0(nv), rowadr0(nv);
+  EXPECT_EQ(mjd_flexStiff_assemble(model.get(), data.get(), rownnz0.data(),
+                                   rowadr0.data(), NULL, NULL, s1, s2,
+                                   /*flg_bend=*/1, /*flg_stretch=*/0, NULL),
+            0);
+
+  // dense copy of the operator, column by column
+  vector<mjtNum> K(nv * nv, 0), csr(nv * nv, 0);
+  for (int j = 0; j < nv; j++) {
+    vector<mjtNum> e(nv, 0), col(nv, 0);
+    e[j] = 1;
+    mjd_flexBend_mul(model.get(), data.get(), col.data(), e.data(), s1, s2);
+    mjd_flexStretch_mul(model.get(), data.get(), col.data(), e.data(), s1, s2);
+    for (int i = 0; i < nv; i++) {
+      K[i * nv + j] = col[i];
+    }
+  }
+  for (int i = 0; i < nv; i++) {
+    for (int k = 0; k < rownnz[i]; k++) {
+      csr[i * nv + colind[rowadr[i] + k]] += val[rowadr[i] + k];
+    }
+  }
+
+  mjtNum kmax = 0;
+  for (mjtNum k : K) kmax = mju_max(kmax, mju_abs(k));
+  ASSERT_GT(kmax, 0);
+  for (int i = 0; i < nv; i++) {
+    for (int j = 0; j < nv; j++) {
+      mjtNum tol = MjTol(1e-12, 1e-5) * kmax;
+      EXPECT_NEAR(K[i * nv + j], K[j * nv + i], tol) << i << ", " << j;
+      EXPECT_NEAR(csr[i * nv + j], K[i * nv + j], tol) << i << ", " << j;
+    }
+  }
+
+  // positive semi-definite: x'Kx >= 0 for a set of test vectors
+  for (int trial = 0; trial < 10; trial++) {
+    vector<mjtNum> x(nv), Kx(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      x[i] = mju_Halton(i + trial * nv, 5) - 0.5;
+    }
+    mju_mulMatVec(Kx.data(), K.data(), x.data(), nv, nv);
+    EXPECT_GE(mju_dot(x.data(), Kx.data(), nv), -1e-12 * kmax * nv);
+  }
+}
+
 // verify the interp assembly mode: with the K_rot cache supplied, the assembled
 // CSR applied to test vectors must reproduce mjd_flexInterp_mul, whose sign
 // convention is negated
