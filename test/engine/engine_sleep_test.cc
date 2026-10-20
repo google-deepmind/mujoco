@@ -944,6 +944,152 @@ TEST_F(SleepTest, FlexSleepDiscrete) {
   }
 }
 
+// Test sleep/wake lifecycle with purely passive elastic flexes (no equality
+// constraints, both non-interpolated and trilinear interpolated, including a
+// pinned node 0 and a zero-contact floating flex) under the discrete
+// integrator.
+TEST_F(SleepTest, PassiveFlexSleepDiscrete) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" viscosity="2" sleep_tolerance="0.1">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="5 5 .1"/>
+      <flexcomp name="passive_cloth" type="grid" count="3 3 1" spacing=".05 .05 .05"
+                radius=".01" dim="2" mass=".3" pos="0 0 .01" dof="full">
+        <pin id="0"/>
+        <contact selfcollide="none"/>
+        <elasticity young="1e3" poisson="0.2" damping="0.2" elastic2d="both" thickness="0.01"/>
+      </flexcomp>
+      <flexcomp name="passive_solid" type="grid" count="2 2 2" spacing=".05 .05 .05"
+                radius=".01" dim="3" mass=".4" pos="0.5 0 .06" dof="trilinear">
+        <pin id="0"/>
+        <contact selfcollide="none"/>
+        <elasticity young="2e3" poisson="0.2" damping="0.2"/>
+      </flexcomp>
+      <body name="ball_cloth" pos="0 0.01 0.5">
+        <freejoint/>
+        <geom type="sphere" size=".03" mass=".1"/>
+      </body>
+      <body name="ball_solid" pos="0.52 0.02 1.2">
+        <freejoint/>
+        <geom type="sphere" size=".03" mass=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  int cloth_id = mj_name2id(m.get(), mjOBJ_FLEX, "passive_cloth");
+  int solid_id = mj_name2id(m.get(), mjOBJ_FLEX, "passive_solid");
+  ASSERT_GE(cloth_id, 0);
+  ASSERT_GE(solid_id, 0);
+  EXPECT_EQ(m->flex_edgeequality[cloth_id], 0);
+  EXPECT_EQ(m->flex_edgeequality[solid_id], 0);
+
+  for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON}) {
+    m->opt.solver = solver;
+    MjDataPtr d = MakeData(m);
+
+    // phase 1: both passive flexes settle and fall asleep before the balls
+    // reach them
+    for (int step = 0; step < 500; step++) {
+      mj_step(m.get(), d.get());
+      if (mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id) == mjS_ASLEEP &&
+          mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, solid_id) == mjS_ASLEEP) {
+        break;
+      }
+    }
+    ASSERT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id), mjS_ASLEEP)
+        << "solver " << solver;
+    ASSERT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, solid_id), mjS_ASLEEP)
+        << "solver " << solver;
+
+    // phase 2: ball_cloth impacts passive_cloth and wakes all of its trees
+    // while passive_solid stays asleep
+    for (int step = 0; step < 2000; step++) {
+      mj_step(m.get(), d.get());
+      if (mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id) == mjS_AWAKE) {
+        break;
+      }
+    }
+    EXPECT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, cloth_id), mjS_AWAKE)
+        << "solver " << solver;
+    EXPECT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, solid_id), mjS_ASLEEP)
+        << "solver " << solver;
+
+    // phase 3: ball_solid impacts passive_solid (whose node 0 is pinned) and
+    // wakes all of its dynamic node trees
+    for (int step = 0; step < 2000; step++) {
+      mj_step(m.get(), d.get());
+      if (mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, solid_id) == mjS_AWAKE) {
+        break;
+      }
+    }
+    EXPECT_EQ(mj_sleepState(m.get(), d.get(), mjOBJ_FLEX, solid_id), mjS_AWAKE)
+        << "solver " << solver;
+
+    // phase 4: everything settles back to sleep
+    for (int step = 0; step < 5000; step++) {
+      mj_step(m.get(), d.get());
+      if (d->ntree_awake == 0) {
+        break;
+      }
+    }
+    EXPECT_EQ(d->ntree_awake, 0) << "solver " << solver;
+  }
+
+  // also verify a zero-contact floating passive flex sleeps and wakes as one
+  // cycle when a single vertex is perturbed
+  static constexpr char free_xml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" viscosity="5" sleep_tolerance="0.05">
+      <flag sleep="enable" gravity="disable" contact="disable"/>
+    </option>
+    <worldbody>
+      <flexcomp name="free_cloth" type="grid" count="2 2 1" spacing=".05 .05 .05"
+                radius=".01" dim="2" mass=".2" dof="full">
+        <elasticity young="1e3" poisson="0.2" damping="0.2" elastic2d="both" thickness="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr mf = LoadModelFromString(free_xml, error, sizeof(error));
+  ASSERT_THAT(mf.get(), NotNull()) << error;
+  MjDataPtr df = MakeData(mf);
+  df->qvel[0] = 0.01;
+  for (int step = 0; step < 500; step++) {
+    mj_step(mf.get(), df.get());
+    if (df->ntree_awake == 0) {
+      break;
+    }
+  }
+  ASSERT_EQ(df->ntree_awake, 0);
+  // Switching to a non-metric integrator at runtime wakes the passive flex and
+  // prevents individual vertices from sleeping without the metric union
+  mf->opt.integrator = mjINT_EULER;
+  for (int step = 0; step < 200; step++) {
+    mj_step(mf.get(), df.get());
+  }
+  EXPECT_EQ(df->ntree_awake, mf->ntree);
+
+  // Switching back to discrete allows the passive flex to sleep again as one
+  // cycle, and perturbing one vertex wakes all 4 vertex trees
+  mf->opt.integrator = mjINT_DISCRETE;
+  for (int step = 0; step < 500; step++) {
+    mj_step(mf.get(), df.get());
+    if (df->ntree_awake == 0) {
+      break;
+    }
+  }
+  ASSERT_EQ(df->ntree_awake, 0);
+  df->qvel[0] = 1.0;
+  mj_step(mf.get(), df.get());
+  EXPECT_EQ(df->ntree_awake, mf->ntree);
+}
+
 // Test that a sleeping flex touching a non-world static body doesn't crash.
 TEST_F(SleepTest, FlexStaticContact) {
   const std::string xml_path =

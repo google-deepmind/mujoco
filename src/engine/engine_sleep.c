@@ -257,6 +257,39 @@ int mj_wakeIsland(int* tree_asleep, int ntree, int i, int wakeval, const char* r
 
 static int kAwake = -(1+mjMINAWAKE);  // tree_asleep value for fully awake tree
 
+
+// under non-metric integrators, constraint-free flexes cannot sleep: wake sleeping trees and
+// reset awake countdowns in a single O(nflexvert) pass
+static int wakeNonMetricFlex(const mjModel* m, mjData* d, int flg_wake) {
+  int nwoke = 0;
+  if (mj_isMetric(m)) {
+    return 0;
+  }
+  for (int f = 0; f < m->nflex; f++) {
+    if (m->flex_edgeequality[f] || !mj_effFlexPossible(m, f)) {
+      continue;
+    }
+    int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
+    const int* bodyid = m->flex_interp[f] ? m->flex_nodebodyid + m->flex_nodeadr[f]
+                                          : m->flex_vertbodyid + m->flex_vertadr[f];
+    for (int j = 0; j < num; j++) {
+      int t = m->body_treeid[bodyid[j]];
+      if (t < 0) {
+        continue;
+      }
+      if (d->tree_asleep[t] >= 0) {
+        if (flg_wake) {
+          nwoke += mj_wakeIsland(d->tree_asleep, m->ntree, t, kAwake, "perturbation", d->time);
+        }
+      } else {
+        d->tree_asleep[t] = kAwake;
+      }
+    }
+  }
+  return nwoke;
+}
+
+
 // wake sleeping trees due to changes by user, return number of woke trees
 int mj_wake(const mjModel* m, mjData* d) {
   int ntree = m->ntree, nwoke = 0;
@@ -268,6 +301,11 @@ int mj_wake(const mjModel* m, mjData* d) {
       mju_fillInt(d->tree_asleep, kAwake, ntree);
     }
     return ntree - d->ntree_awake;
+  }
+
+  // wake sleeping passive flexes if integrator is non-metric
+  if (d->ntree_awake < ntree) {
+    nwoke += wakeNonMetricFlex(m, d, /*flg_wake=*/1);
   }
 
   // sweep over trees, wake if required
@@ -298,19 +336,30 @@ int mj_flexBody(const mjModel* m, const mjContact* con, int side) {
     return m->flex_vertbodyid[m->flex_vertadr[f] + con->vert[side]];
   }
 
-  // flex element contact
-  if (con->elem[side] >= 0) {
-    if (m->flex_interp[f] == 0) {
-      int dim = m->flex_dim[f];
-      const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(dim+1);
-      return m->flex_vertbodyid[m->flex_vertadr[f] + edata[0]];
-    } else {
-      return m->flex_nodebodyid[m->flex_nodeadr[f]];
+  // flex element contact (non-interpolated): return first dynamic vertex body if any
+  if (con->elem[side] >= 0 && m->flex_interp[f] == 0) {
+    int dim = m->flex_dim[f];
+    const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(dim+1);
+    const int* vertbodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+    for (int j = 0; j <= dim; j++) {
+      int b = vertbodyid[edata[j]];
+      if (m->body_treeid[b] >= 0) {
+        return b;
+      }
     }
+    return vertbodyid[edata[0]];
   }
 
-  // flex vertex contact (interpolated): use first node
-  return m->flex_nodebodyid[m->flex_nodeadr[f]];
+  // interpolated flex: return the first dynamic node body if any, else first node body
+  int nodenum = m->flex_nodenum[f];
+  const int* nodebodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+  for (int j = 0; j < nodenum; j++) {
+    int b = nodebodyid[j];
+    if (m->body_treeid[b] >= 0) {
+      return b;
+    }
+  }
+  return nodebodyid[0];
 }
 
 
@@ -633,6 +682,9 @@ int mj_sleep(const mjModel* m, mjData* d) {
       d->tree_asleep[i] = -(1+mjMINAWAKE);
     }
   }
+
+  // under non-metric integrators, prevent constraint-free flex trees from sleeping
+  wakeNonMetricFlex(m, d, /*flg_wake=*/0);
 
   // sweep over islands, put to sleep if all trees are under tolerance
   for (int i=0; i < nisland; i++) {

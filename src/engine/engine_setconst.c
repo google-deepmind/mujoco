@@ -746,10 +746,10 @@ static void setFixed(mjModel* m, mjData* d) {
     }
   }
 
-  // flexes: constraint-free trees are not allowed to sleep
+  // flexes: constraint-free trees are not allowed to sleep unless metric-coupled
   for (int i = 0; i < m->nflex; ++i) {
-    // constrained flexes are allowed to sleep
-    if (m->flex_edgeequality[i]) {
+    // constrained or metric-coupled flexes are allowed to sleep
+    if (m->flex_edgeequality[i] || mj_effFlexPossible(m, i)) {
       continue;
     }
 

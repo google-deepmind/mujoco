@@ -1441,7 +1441,7 @@ static void effBlocks(const mjModel* m, mjData* d) {
   int ntail = 0;
   mjtNum* B = effCholReserve(m, d, nb, adr, &ntail);
   if (!B) {
-    if (d->nisland > 0 && m->nflex > 0 && !mjENABLED(mjENBL_IPC)) {
+    if (d->nisland > 0 && d->nefc > 0 && m->nflex > 0 && !mjENABLED(mjENBL_IPC)) {
       ntail = effIslandTail(m, d, nb);
     }
     size_t nB = 9*(size_t)nb + (size_t)ntail;
@@ -1601,11 +1601,7 @@ void mj_effSolve(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b) {
   // backbone-only metric (no tendon, actuator or flex couplings): the qH solve inside the
   // block-apply is the exact metric solve, skip the iteration. Beyond the saved iterations,
   // the direct solve is block-decoupled across trees, which sleeping trees rely on
-  int flex_any = 0;
-  for (int f=0; f < m->nflex; f++) {
-    flex_any = flex_any || mj_effFlexPossible(m, f);
-  }
-  if (!d->nefmT && !d->nefmA && !flex_any) {
+  if (!d->nefmT && !d->nefmA && !mj_effFlexAny(m)) {
     effBlockApply(m, d, x, b, d->efm_L, NULL);
     return;
   }
@@ -3017,7 +3013,8 @@ void mj_effBuild(const mjModel* m, mjData* d, int active, int flg_factor) {
   }
 
   // per-island flex/triple lists for mj_effMulAddIsland and mj_effPrecIsland
-  if (d->nisland > 0 && m->nflex > 0 && !mjENABLED(mjENBL_IPC) && !effCholReserved(d)) {
+  if (d->nisland > 0 && d->nefc > 0 && m->nflex > 0 &&
+      !mjENABLED(mjENBL_IPC) && !effCholReserved(d)) {
     effIslandBuild(m, d);
   }
 

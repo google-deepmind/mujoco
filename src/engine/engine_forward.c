@@ -1162,17 +1162,6 @@ static void solveIslandTask(const mjModel* m, mjData* d, void* arg, int thread_i
 }
 
 
-// any flex with metric terms (stiffness or passive contact)
-static int effFlexAny(const mjModel* m) {
-  for (int f=0; f < m->nflex; f++) {
-    if (mj_effFlexPossible(m, f)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-
 // discrete: reinstate the free-body gyroscopic derivative for decoupled standalone free
 // bodies, re-solving their rows of qacc against the local unsymmetric metric. Guarded by
 // mjd_freeGyroPossible: no constraint Jacobian support and no off-diagonal metric coupling
@@ -1776,7 +1765,7 @@ void mj_checkDiscrete(const mjModel* m) {
     // (mj_effCouplings), and the backbone IS the metric; under a primal solver, the
     // noslip post-pass consumes the backbone AR as an approximation. Flex cannot be
     // excluded: explicit flex elasticity is the divergence the metric exists to prevent
-    if (effFlexAny(m)) {
+    if (mj_effFlexAny(m)) {
       mjERROR("discrete integrator: PGS and noslip not yet supported with flex");
     }
   }

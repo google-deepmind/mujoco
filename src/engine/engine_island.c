@@ -445,7 +445,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
   // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
   // constraint filter); waking a flex as a unit remains the wake machinery's job.
   for (int f=0; f < m->nflex; f++) {
-    if (!mj_effFlexStiffPossible(m, f) && !mj_effFlexContactPossible(m, f)) {
+    if (!mj_effFlexPossible(m, f)) {
       continue;
     }
 
@@ -564,8 +564,9 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
 void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree = m->ntree;
 
-  // no constraints or islands disabled: quick return
-  if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
+  // no constraints (and no sleeping metric-coupled flexes) or islands disabled: quick return
+  if (mjDISABLED(mjDSBL_ISLAND) ||
+      (!nefc && !(mjENABLED(mjENBL_SLEEP) && mj_isMetric(m) && mj_effFlexAny(m)))) {
     d->nisland = d->nidof = 0;
     return;
   }

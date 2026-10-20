@@ -208,6 +208,9 @@ int mj_effFlexStiffPossible(const mjModel* m, int f);
 // does flex f need the implicit metric treatment: elastic stiffness or passive contact
 MJAPI int mj_effFlexPossible(const mjModel* m, int f);
 
+// does any flex need the implicit metric treatment: elastic stiffness or passive contact
+int mj_effFlexAny(const mjModel* m);
+
 // can this tendon contribute to the metric (model-level; mirrored by island discovery
 // and the sleep wake rule)
 MJAPI int mj_effTendonPossible(const mjModel* m, int i);
