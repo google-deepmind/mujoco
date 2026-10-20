@@ -47,8 +47,8 @@ ForwardErrorFn = Callable[[], None]
 class SimInitEvent(messages.Event):
   """Lifecycle event dispatched locally once when ``ViewerHandle`` initializes.
 
-  ``plugin.SimPlugin`` caches ``event.handle`` as ``self._handle`` above
-  ``CRITICAL`` priority, so ``self._handle`` is already set when subclass
+  ``plugin.SimPlugin`` caches ``event.handle`` as ``self.handle`` above
+  ``CRITICAL`` priority, so ``self.handle`` is already set when subclass
   handlers run (raising aborts the launch and shuts down the viewer).
   """
 
@@ -215,6 +215,10 @@ class ViewerHandle:
     self.dispatch(event)
     self.send_to_viewer(event)
 
+  def reload(self) -> None:
+    """Reloads the current model, as the Reload button does."""
+    self.dispatch(messages.LoadModelEvent())
+
   def _watch_model(self, path: str) -> None:
     """With model hot reload on, watches the files ``path`` is built from."""
     self._model_files = None
@@ -283,15 +287,15 @@ class ViewerHandle:
     elif self._model_files is None and self.model_path:
       self._watch_model(self.model_path)
     if self._model_files is not None and self._model_files.poll():
-      self.dispatch(messages.LoadModelEvent())
+      self.reload()
 
     # Process incoming events from the viewer.
     for event in events:
-      self._sim_plugins.dispatch(event)
+      self.dispatch(event)
 
     # Process incoming snapshots from the viewer.
     for snapshot in snapshots:
-      self._sim_plugins.dispatch(snapshot)
+      self.dispatch(snapshot)
 
     # Nothing left to step for once a handler has closed the handle.
     if self.model is not None and self._is_running:

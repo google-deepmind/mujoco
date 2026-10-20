@@ -94,14 +94,13 @@ class SimHistory(plugin.SimPlugin):
     self._last_recorded_time = math.inf
 
   def _send_snapshot(self) -> None:
-    if self._handle is not None:
-      self._handle.send_to_viewer(
-          SimHistorySnapshot(
-              size=self.sim_history.size(),
-              index=self.sim_history.get_index(),
-              head_time=self._ux_state.sim_head_time,
-          )
-      )
+    self.handle.send_to_viewer(
+        SimHistorySnapshot(
+            size=self.sim_history.size(),
+            index=self.sim_history.get_index(),
+            head_time=self._ux_state.sim_head_time,
+        )
+    )
 
   # -- Event handlers ---------------------------------------------------------
 
@@ -140,16 +139,12 @@ class SimHistory(plugin.SimPlugin):
 
     See ``SimHistorySnapshot`` for the request format.
     """
-    handle = self._handle
+    handle = self.handle
     # A ResetEvent/ModelEvent dispatched earlier in the same sync() clears
     # self._model; the buffer then still holds pre-reset frames that must not
     # overwrite the fresh data. Ignore the scrub; the next PostStepEvent
     # re-initialises the history and broadcasts it.
-    if (
-        handle is not None
-        and handle.model is not None
-        and self._model is handle.model
-    ):
+    if handle.model is not None and self._model is handle.model:
       assert handle.data is not None  # ViewerHandle keeps model/data paired.
       ux.load_history_frame(
           self.sim_history, handle.model, handle.data, snapshot.index

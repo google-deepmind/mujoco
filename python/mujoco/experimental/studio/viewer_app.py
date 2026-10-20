@@ -223,15 +223,6 @@ class ViewerApp(plugin.ViewerPlugin):
   """ViewerApp wraps a Viewer and adds Studio UI/UX."""
 
   @property
-  def viewer(self) -> viewer_protocol.Viewer:
-    assert self._viewer is not None
-    return self._viewer
-
-  @viewer.setter
-  def viewer(self, value: viewer_protocol.Viewer | None) -> None:
-    self._viewer = value
-
-  @property
   def model(self) -> mujoco.MjModel:
     return self.viewer.model
 

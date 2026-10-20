@@ -18,9 +18,9 @@ A plugin is an object whose methods are decorated with ``messages.handler``;
 messages to them in priority order. Plugins run on one of two endpoints:
 
 * ``ViewerPlugin`` subclasses run on the viewer side (UI, rendering) and get
-  the ``viewer_protocol.Viewer`` as ``self._viewer``.
+  the ``viewer_protocol.Viewer`` as ``self.viewer``.
 * ``SimPlugin`` subclasses run on the simulation side (physics, control) and
-  get the ``viewer_handle.ViewerHandle`` as ``self._handle``.
+  get the ``viewer_handle.ViewerHandle`` as ``self.handle``.
 
 The launchers accept both kinds in one ``plugins`` list and route each to its
 endpoint (see ``split_plugins``).
@@ -56,12 +56,21 @@ ViewerInitEvent = viewer_protocol.ViewerInitEvent
 class SimPlugin:
   """Base class for simulation-side plugins.
 
-  Automatically caches ``self._handle`` when ``SimInitEvent`` is dispatched;
-  stored as a class attribute default so subclasses needn't call
+  Automatically caches ``self.handle`` (``self._handle``) when ``SimInitEvent``
+  is dispatched; stored as a class attribute default so subclasses needn't call
   ``super().__init__()``.
   """
 
   _handle: viewer_handle.ViewerHandle | None = None
+
+  @property
+  def handle(self) -> viewer_handle.ViewerHandle:
+    assert self._handle is not None
+    return self._handle
+
+  @handle.setter
+  def handle(self, value: viewer_handle.ViewerHandle | None) -> None:
+    self._handle = value
 
   # Prefixed so a subclass defining its own ``_on_sim_init`` or ``on_sim_init``
   # doesn't shadow this handler (handlers are discovered by method name), and
@@ -75,12 +84,21 @@ class SimPlugin:
 class ViewerPlugin:
   """Base class for viewer-side plugins.
 
-  Automatically caches ``self._viewer`` when ``ViewerInitEvent`` is dispatched;
-  stored as a class attribute default so subclasses needn't call
-  ``super().__init__()``.
+  Automatically caches ``self.viewer`` (``self._viewer``) when
+  ``ViewerInitEvent`` is dispatched; stored as a class attribute default so
+  subclasses needn't call ``super().__init__()``.
   """
 
   _viewer: viewer_protocol.Viewer | None = None
+
+  @property
+  def viewer(self) -> viewer_protocol.Viewer:
+    assert self._viewer is not None
+    return self._viewer
+
+  @viewer.setter
+  def viewer(self, value: viewer_protocol.Viewer | None) -> None:
+    self._viewer = value
 
   # Prefixed so a subclass defining its own ``_on_viewer_init`` or
   # ``on_viewer_init`` doesn't shadow this handler (handlers are discovered by

@@ -69,8 +69,8 @@ class ViewerConfig:
 class ViewerInitEvent(messages.Event):
   """Lifecycle event dispatched locally once when a ``Viewer`` initializes.
 
-  ``plugin.ViewerPlugin`` caches ``event.viewer`` as ``self._viewer`` above
-  ``CRITICAL`` priority, so ``self._viewer`` is already set when subclass
+  ``plugin.ViewerPlugin`` caches ``event.viewer`` as ``self.viewer`` above
+  ``CRITICAL`` priority, so ``self.viewer`` is already set when subclass
   handlers run.
   """
 

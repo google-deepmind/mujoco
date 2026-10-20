@@ -52,8 +52,7 @@ class GhostRenderer(plugin.ViewerPlugin):
 
   def _is_fixed_body(self, body_id: int) -> bool:
     """Check if a body is fixed (welded to world, not attached to mocap)."""
-    assert self._viewer is not None
-    model = self._viewer.model
+    model = self.viewer.model
     is_weld = model.body_weldid[body_id] == 0
     root_id = model.body_rootid[body_id]
     return bool(is_weld and model.body_mocapid[root_id] < 0)
@@ -61,7 +60,7 @@ class GhostRenderer(plugin.ViewerPlugin):
   @messages.handler
   def on_post_model(self, event: messages.PostModelEvent) -> None:
     """Resets ghost-specific state when the model changes."""
-    del event  # Model/data are accessed via self._viewer.
+    del event  # Model/data are accessed via self.viewer.
     self._history.clear()
     self._last_time = None
 
@@ -83,11 +82,10 @@ class GhostRenderer(plugin.ViewerPlugin):
   @messages.handler
   def on_update(self, _: messages.UpdateEvent) -> None:
     """Updates the time-delayed ghost geoms."""
-    assert self._viewer is not None
-    model = self._viewer.model
-    data = self._viewer.data
+    model = self.viewer.model
+    data = self.viewer.data
 
-    self._viewer.extra_geoms.clear()
+    self.viewer.extra_geoms.clear()
     if self._last_time is None or data.time < self._last_time:
       self._history.clear()
     if not self._history or data.time > self._last_time:  # pyrefly: ignore[unsupported-operation]
@@ -128,4 +126,4 @@ class GhostRenderer(plugin.ViewerPlugin):
       geom.dataid = model.geom_dataid[i]
       geom.objtype = int(mujoco.mjtObj.mjOBJ_GEOM)
       geom.objid = i
-      self._viewer.extra_geoms.append(geom)
+      self.viewer.extra_geoms.append(geom)

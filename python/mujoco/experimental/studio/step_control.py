@@ -37,9 +37,7 @@ class StepControl(plugin.SimPlugin):
     self.step_control = sim.StepControl()
 
   def _send_if_changes(self) -> contextlib.AbstractContextManager[None]:
-    if self._handle is None:
-      return contextlib.nullcontext()
-    return self._handle.send_if_changes(
+    return self.handle.send_if_changes(
         lambda: messages.StepControlSnapshot.from_step_control(
             self.step_control
         )

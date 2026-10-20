@@ -95,12 +95,12 @@ message-driven plugin architecture:
     `plugins=[...]` argument and partition instances by base class:
     -   **Simulation plugins (`plugin.SimPlugin`)**:
         Subclass `SimPlugin` to run on the simulation thread, automatically
-        caching `self._handle` on `SimInitEvent`, and handle simulation-side
+        caching `self.handle` on `SimInitEvent`, and handle simulation-side
         events (e.g. physics reset, step control, perturbations, model
         reloading, policy changes).
     -   **Viewer plugins (`plugin.ViewerPlugin`)**:
         Subclass `ViewerPlugin` to run on the viewer thread, automatically
-        caching `self._viewer` on `ViewerInitEvent`, and handle rendering and UI
+        caching `self.viewer` on `ViewerInitEvent`, and handle rendering and UI
         lifecycle events (e.g. viewer initialization, model reloading,
         per-frame visual updates, GUI construction).
 -   **Standard Samples (`python/mujoco/experimental/studio/`)**:
@@ -190,7 +190,7 @@ shutdown:
     `run_viewer_loop` to `ViewerPlugin` instances):
     1.  `ViewerInitEvent` (`viewer_protocol.ViewerInitEvent`, also exported as
         `plugin.ViewerInitEvent`) — dispatched once on viewer initialization
-        (`ViewerPlugin` caches `self._viewer` automatically above `CRITICAL`
+        (`ViewerPlugin` caches `self.viewer` automatically above `CRITICAL`
         priority before subclass handlers run).
     2.  `ModelEvent` — received when a model is published by the sim; `Viewer`
         deep-copies `viewer.model`, creates `viewer.data`, records
@@ -217,7 +217,7 @@ shutdown:
     `SimPlugin` instances):
     1.  `SimInitEvent` (`viewer_handle.SimInitEvent`, also exported as
         `plugin.SimInitEvent`) — dispatched once by `ViewerHandle.__init__`
-        (`SimPlugin` caches `self._handle` automatically above `CRITICAL`
+        (`SimPlugin` caches `self.handle` automatically above `CRITICAL`
         priority before subclass handlers run).
     2.  `LoadModelEvent` — sent from the viewer (on **Reload** or file
         drag-and-drop) or dispatched on the sim thread (e.g. by
@@ -275,7 +275,7 @@ from mujoco.experimental.studio import plugin
 class MyPlugin(plugin.ViewerPlugin):
   @messages.handler
   def on_build_gui(self, event: messages.BuildGuiEvent) -> bool | None:
-    # Build Dear ImGui elements here (self._viewer is populated automatically)
+    # Build Dear ImGui elements here (self.viewer is populated automatically)
     return False  # Return True to consume and halt lower-priority handlers
 ```
 
