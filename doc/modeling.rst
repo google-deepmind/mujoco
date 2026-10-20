@@ -1668,7 +1668,9 @@ A texture ``i`` of :ref:`mjModel` is by reference when ``tex_adr[i] == -1``. The
   texture: for a by-reference texture it reads and decodes the file, resolving a colorspace of "auto", and returns
   exactly the bytes compilation would have stored; for an embedded texture it returns a copy. The built-in renderer
   loads by-reference textures through it, in :ref:`mjr_makeContext` and :ref:`mjr_uploadTexture`, so a file which does
-  not resolve or decode is a warning and an untextured material rather than an error.
+  not resolve or decode is a warning and an untextured material rather than an error. The Filament renderer loads them
+  through :ref:`mj_loadTexture` too, uploading the data as it would that of an embedded texture (a KTX file is its
+  bytes, which Filament decodes), and uploads a file once for all textures that share it and its decode parameters.
 
 A by-reference texture is always the file as a consumer would read it. Textures which the compiler would transform stay
 embedded, so that the model needs no fields describing the transformation: flipped textures, composite

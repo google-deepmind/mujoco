@@ -33,11 +33,6 @@
 
 namespace mujoco {
 
-template <class T>
-static void Combine(uint64_t& seed, const T* v) {
-  seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
 static void Combine(uint64_t& seed, const mjrfTexture* texture) {
   if (texture) {
     const uint64_t id = Texture::downcast(texture)->Id();

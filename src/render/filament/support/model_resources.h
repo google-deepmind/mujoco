@@ -15,7 +15,12 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_OBJECTS_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_MODEL_OBJECTS_H_
 
+#include <cstddef>
+#include <memory>
+#include <optional>
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrfilament.h>
@@ -49,7 +54,8 @@ class ModelResources {
   // Returns the mjModel height field mesh with the given id.
   const mjrfMesh* GetHeightField(int hfield_id) const;
 
-  // Returns the mjModel texture with the given id.
+  // Returns the mjModel texture with the given id, or nullptr if it has none,
+  // e.g. a by-reference texture that could not be loaded.
   const mjrfTexture* GetTexture(int tex_id) const;
 
   // Returns the skybox texture in the mjModel.
@@ -71,12 +77,47 @@ class ModelResources {
   ModelResources& operator=(const ModelResources&) = delete;
 
  private:
+  // The identity of a by-reference texture: ids with the same key share one GPU
+  // texture.
+  struct TextureKey {
+    TextureKey(const mjModel* model, int id);
+    bool operator==(const TextureKey& other) const;
+
+    std::string path;
+    std::string content_type;
+    int type;
+    int nchannel;
+    int colorspace;
+  };
+  struct TextureKeyHash {
+    size_t operator()(const TextureKey& key) const;
+  };
+
+  // An uploaded texture, null if it could not be loaded, and its key if it is
+  // by reference.
+  struct TextureEntry {
+    std::optional<TextureKey> key;
+    std::shared_ptr<mjrfTexture> texture;
+  };
+
+  // Removes the id from the ids uploaded with the key.
+  void RemoveFromKey(int id, const TextureKey& key);
+
+  // Returns the texture of a by-reference id, loading its file or sharing the
+  // texture of another id with the same key.
+  std::shared_ptr<mjrfTexture> LoadByReference(const mjModel* model, int id,
+                                               const TextureKey& key,
+                                               bool reload);
+
   const mjModel* model_ = nullptr;
   mjrfContext* ctx_ = nullptr;
   std::unordered_map<int, UniquePtr<mjrfMesh>> meshes_;
   std::unordered_map<int, UniquePtr<mjrfMesh>> convex_hulls_;
   std::unordered_map<int, UniquePtr<mjrfMesh>> height_fields_;
-  std::unordered_map<int, UniquePtr<mjrfTexture>> textures_;
+  std::unordered_map<int, TextureEntry> textures_;
+  // The ids of the by-reference textures uploaded with each key.
+  std::unordered_map<TextureKey, std::unordered_set<int>, TextureKeyHash>
+      ids_by_key_;
   float specular_multiplier_ = 0.2f;
   float shininess_multiplier_ = 0.1f;
   float emissive_multiplier_ = 0.3f;

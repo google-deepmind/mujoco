@@ -78,7 +78,8 @@ Compiler
     :ref:`mj_saveModel` gives a hermetic MJB. Both are in Python as ``mujoco.mj_loadTexture`` and
     ``mujoco.mj_embedAssets``.
   - Rendering: the built-in renderer loads by-reference textures in :ref:`mjr_makeContext` and
-    :ref:`mjr_uploadTexture`. A file which does not resolve is a warning and an untextured material.
+    :ref:`mjr_uploadTexture`; the Filament renderer loads them through :ref:`mj_loadTexture` too, and uploads each file
+    once for all textures that share it. A file which does not resolve is a warning and an untextured material.
 - Textures can have :ref:`default classes<default-texture>`: ``mjsDefault`` has a ``texture`` member and
   :ref:`texture<asset-texture>` takes a :ref:`class<asset-texture-class>`.
 - The asset paths in :ref:`mjModel` (``paths`` at ``mesh_pathadr``, ``hfield_pathadr``, ``skin_pathadr`` and

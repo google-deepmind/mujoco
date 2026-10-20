@@ -15,6 +15,8 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_FILAMENT_UTIL_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_FILAMENT_UTIL_H_
 
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -27,6 +29,12 @@
 #include <mujoco/mujoco.h>
 
 namespace mujoco {
+
+// Combines the hash of *v into seed.
+template <class T>
+inline void Combine(uint64_t& seed, const T* v) {
+  seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
 
 // Reads a float2 from an array buffer in the model/scene.
 template <typename T>
