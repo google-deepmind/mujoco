@@ -833,6 +833,214 @@
     X   ( int,     mapM2D,                nD,            1                    ) \
     X   ( int,     mapD2M,                nC,            1                    )
 
+// how mj_setConst uses an mjModel array: reads it, writes it, or both
+#define mjSC_IN    (1<<0)
+#define mjSC_OUT   (1<<1)
+#define mjSC_INOUT (mjSC_IN | mjSC_OUT)
+
+// arrays of mjModel which mj_setConst uses, and how each group of its computations uses them when
+// run alone; the columns are the groups, in the order mj_setConst runs them:
+//   fixed:  independent of the configuration
+//   kin0:   kinematics in qpos0
+//   inert0: inertia matrix in qpos0
+//   spring: kinematics in qpos_spring
+// later groups may read what earlier groups write
+// an array is an input of mj_setConst (changing it requires calling it) if the first group that
+// uses it reads it
+// arrays not listed are neither read nor written
+// the fixed group also writes MJSETCONST_SCALARS
+#define MJSETCONST_ARRAYS                                                     \
+    X( qpos0,                0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( qpos_spring,          0,          0,          0,          mjSC_IN    ) \
+    X( body_parentid,        mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_rootid,          0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_weldid,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_mocapid,         0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_jntnum,          0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_jntadr,          0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_dofnum,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_dofadr,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_treeid,          mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_geomnum,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_geomadr,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_simple,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_sameframe,       mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_pos,             0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_quat,            0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_ipos,            mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_iquat,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_mass,            mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_subtreemass,     mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_inertia,         0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( body_invweight0,      0,          0,          mjSC_OUT,   0          ) \
+    X( body_gravcomp,        mjSC_IN,    0,          0,          0          ) \
+    X( body_margin,          mjSC_OUT,   0,          0,          0          ) \
+    X( body_contype,         mjSC_OUT,   0,          0,          0          ) \
+    X( body_conaffinity,     mjSC_OUT,   0,          0,          0          ) \
+    X( body_bvhadr,          mjSC_IN,    0,          0,          0          ) \
+    X( body_bvhnum,          mjSC_IN,    0,          0,          0          ) \
+    X( bvh_child,            mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( bvh_nodeid,           mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( bvh_aabb,             mjSC_OUT,   0,          0,          0          ) \
+    X( jnt_type,             0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( jnt_qposadr,          0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( jnt_dofadr,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( jnt_bodyid,           mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( jnt_actuatorid,       mjSC_OUT,   0,          mjSC_IN,    0          ) \
+    X( jnt_pos,              0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( jnt_axis,             0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( dof_bodyid,           0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( dof_jntid,            0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( dof_parentid,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( dof_treeid,           mjSC_IN,    0,          0,          0          ) \
+    X( dof_simplenum,        0,          0,          mjSC_IN,    0          ) \
+    X( dof_armature,         0,          0,          mjSC_IN,    0          ) \
+    X( dof_invweight0,       0,          0,          mjSC_OUT,   0          ) \
+    X( dof_M0,               0,          0,          mjSC_OUT,   mjSC_IN    ) \
+    X( dof_length,           0,          mjSC_OUT,   0,          0          ) \
+    X( tree_bodyadr,         mjSC_OUT,   0,          0,          0          ) \
+    X( tree_bodynum,         mjSC_OUT,   0,          0,          0          ) \
+    X( tree_dofadr,          mjSC_OUT,   0,          0,          0          ) \
+    X( tree_dofnum,          mjSC_OUT,   0,          0,          0          ) \
+    X( tree_sleep_policy,    mjSC_INOUT, 0,          0,          0          ) \
+    X( geom_type,            mjSC_IN,    0,          0,          0          ) \
+    X( geom_contype,         mjSC_IN,    0,          0,          0          ) \
+    X( geom_conaffinity,     mjSC_IN,    0,          0,          0          ) \
+    X( geom_bodyid,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( geom_dataid,          mjSC_IN,    0,          0,          0          ) \
+    X( geom_sameframe,       mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( geom_size,            mjSC_INOUT, mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( geom_aabb,            mjSC_INOUT, 0,          0,          0          ) \
+    X( geom_rbound,          mjSC_OUT,   mjSC_IN,    0,          0          ) \
+    X( geom_pos,             mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( geom_quat,            mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( geom_margin,          mjSC_IN,    0,          0,          0          ) \
+    X( geom_gap,             mjSC_IN,    0,          0,          0          ) \
+    X( geom_surfacevel,      mjSC_IN,    0,          0,          0          ) \
+    X( geom_adhesion,        mjSC_IN,    0,          0,          0          ) \
+    X( geom_fluid,           mjSC_INOUT, 0,          0,          0          ) \
+    X( site_bodyid,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( site_sameframe,       mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( site_pos,             mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( site_quat,            mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( cam_bodyid,           0,          mjSC_IN,    0,          0          ) \
+    X( cam_targetbodyid,     0,          mjSC_IN,    0,          0          ) \
+    X( cam_pos,              0,          mjSC_IN,    0,          0          ) \
+    X( cam_quat,             0,          mjSC_IN,    0,          0          ) \
+    X( cam_poscom0,          0,          mjSC_OUT,   0,          0          ) \
+    X( cam_pos0,             0,          mjSC_OUT,   0,          0          ) \
+    X( cam_mat0,             0,          mjSC_OUT,   0,          0          ) \
+    X( light_bodyid,         0,          mjSC_IN,    0,          0          ) \
+    X( light_targetbodyid,   0,          mjSC_IN,    0,          0          ) \
+    X( light_pos,            0,          mjSC_IN,    0,          0          ) \
+    X( light_dir,            0,          mjSC_IN,    0,          0          ) \
+    X( light_poscom0,        0,          mjSC_OUT,   0,          0          ) \
+    X( light_pos0,           0,          mjSC_OUT,   0,          0          ) \
+    X( light_dir0,           0,          mjSC_OUT,   0,          0          ) \
+    X( flex_passive,         mjSC_IN,    0,          0,          mjSC_IN    ) \
+    X( flex_dim,             mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_interp,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_cellnum,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_nodeadr,         mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_nodenum,         mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_vertadr,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_vertnum,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_edgeadr,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_edgenum,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_elemadr,         0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_elemnum,         0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_elemdataadr,     0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_stiffnessadr,    mjSC_IN,    0,          0,          mjSC_IN    ) \
+    X( flex_bendingadr,      mjSC_IN,    0,          0,          mjSC_IN    ) \
+    X( flex_nodebodyid,      mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_vertbodyid,      mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_vertedgeadr,     mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_vertedgenum,     mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_vertedge,        mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_edge,            mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_edgeflap,        0,          0,          0,          mjSC_IN    ) \
+    X( flex_elem,            0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_vert,            0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_vert0,           mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_vertmetric,      mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_node,            0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flexedge_length0,     0,          mjSC_OUT,   0,          0          ) \
+    X( flexedge_invweight0,  0,          0,          mjSC_OUT,   0          ) \
+    X( flex_radius,          0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_size,            mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_stiffness,       mjSC_IN,    0,          0,          mjSC_IN    ) \
+    X( flex_bending,         mjSC_IN,    0,          0,          mjSC_IN    ) \
+    X( efm0_dofid,           0,          0,          0,          mjSC_OUT   ) \
+    X( efm0_L_rownnz,        0,          0,          0,          mjSC_OUT   ) \
+    X( efm0_L_rowadr,        0,          0,          0,          mjSC_OUT   ) \
+    X( efm0_L_colind,        0,          0,          0,          mjSC_OUT   ) \
+    X( efm0_L,               0,          0,          0,          mjSC_OUT   ) \
+    X( efmC_perm,            0,          0,          0,          mjSC_OUT   ) \
+    X( flex_damping,         mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_edgestiffness,   mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_edgedamping,     mjSC_IN,    mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_edgeequality,    mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_rigid,           mjSC_IN,    0,          0,          mjSC_IN    ) \
+    X( flexedge_rigid,       0,          0,          mjSC_IN,    0          ) \
+    X( flex_centered,        0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_bvhadr,          0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flex_bvhnum,          0,          mjSC_IN,    mjSC_IN,    0          ) \
+    X( flexedge_J_rownnz,    mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flexedge_J_rowadr,    mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flexedge_J_colind,    mjSC_OUT,   0,          mjSC_IN,    0          ) \
+    X( flexvert_J_rownnz,    mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flexvert_J_rowadr,    mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( flexvert_J_colind,    mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
+    X( mesh_polyvertnum,     mjSC_IN,    0,          0,          0          ) \
+    X( mesh_polymapnum,      mjSC_IN,    0,          0,          0          ) \
+    X( hfield_size,          mjSC_IN,    0,          0,          0          ) \
+    X( pair_adhesion,        mjSC_IN,    0,          0,          0          ) \
+    X( eq_type,              0,          mjSC_IN,    0,          0          ) \
+    X( eq_obj1id,            0,          mjSC_IN,    0,          0          ) \
+    X( eq_obj2id,            0,          mjSC_IN,    0,          0          ) \
+    X( eq_objtype,           0,          mjSC_IN,    0,          0          ) \
+    X( eq_data,              0,          mjSC_INOUT, 0,          0          ) \
+    X( tendon_adr,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( tendon_num,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( tendon_actuatorid,    mjSC_OUT,   0,          mjSC_IN,    0          ) \
+    X( tendon_treenum,       mjSC_OUT,   0,          0,          0          ) \
+    X( tendon_treeid,        mjSC_OUT,   0,          0,          0          ) \
+    X( ten_J_rownnz,         mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( ten_J_rowadr,         mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( ten_J_colind,         mjSC_OUT,   mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( tendon_stiffness,     mjSC_IN,    0,          0,          0          ) \
+    X( tendon_stiffnesspoly, mjSC_IN,    0,          0,          0          ) \
+    X( tendon_damping,       mjSC_IN,    0,          0,          0          ) \
+    X( tendon_dampingpoly,   mjSC_IN,    0,          0,          0          ) \
+    X( tendon_armature,      0,          0,          mjSC_IN,    0          ) \
+    X( tendon_length0,       0,          mjSC_OUT,   0,          0          ) \
+    X( tendon_invweight0,    0,          0,          mjSC_OUT,   0          ) \
+    X( wrap_type,            mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( wrap_objid,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( wrap_prm,             0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( actuator_trntype,     mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( actuator_outadr,      0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( actuator_trnid,       mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( actuator_cranklength, 0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( actuator_damping,     mjSC_IN,    0,          0,          0          ) \
+    X( actuator_dampingpoly, mjSC_IN,    0,          0,          0          ) \
+    X( actuator_armature,    mjSC_IN,    0,          mjSC_IN,    0          ) \
+    X( actuator_gear,        0,          mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( actuator_acc0,        0,          0,          mjSC_OUT,   0          ) \
+    X( actuator_length0,     0,          mjSC_OUT,   0,          0          ) \
+    X( M_rownnz,             0,          0,          mjSC_IN,    0          ) \
+    X( M_rowadr,             0,          0,          mjSC_IN,    0          ) \
+    X( M_colind,             0,          0,          mjSC_IN,    0          )
+
+// mjModel scalars which mj_setConst writes
+#define MJSETCONST_SCALARS \
+    X( ngravcomp      )    \
+    X( npolygonmax    )    \
+    X( nmeshdegmax    )    \
+    X( flg_gravcomp   )    \
+    X( flg_surfacevel )    \
+    X( flg_adhesion   )
+
 //-------------------------------- mjData ----------------------------------------------------------
 
 // pointer fields of mjData

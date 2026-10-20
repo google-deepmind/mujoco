@@ -1147,72 +1147,23 @@ void mj_alignFlex(mjModel* m) {
 }
 
 
-// set quantities that depend on qpos0
-static void set0(mjModel* m, mjData* d) {
-  makeTendonSparse(m);
-  makeFlexSparse(m, d);
-
-  int nv = m->nv;
-  mjtNum A[36] = {0}, pos[3];
-  mj_markStack(d);
-  mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
-  mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
-  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
-  int* cammode = 0;
-  int* lightmode = 0;
-
-  // save camera and light mode, set to fixed
-  if (m->ncam) {
-    cammode = mjSTACKALLOC(d, m->ncam, int);
-    for (int i=0; i < m->ncam; i++) {
-      cammode[i] = m->cam_mode[i];
-      m->cam_mode[i] = mjCAMLIGHT_FIXED;
-    }
-  }
-  if (m->nlight) {
-    lightmode = mjSTACKALLOC(d, m->nlight, int);
-    for (int i=0; i < m->nlight; i++) {
-      lightmode[i] = m->light_mode[i];
-      m->light_mode[i] = mjCAMLIGHT_FIXED;
-    }
-  }
-
+// run kinematics in qpos0, which the quantities that depend on qpos0 use
+static void kinematics0(mjModel* m, mjData* d) {
   // run computations in qpos0
   mju_copy(d->qpos, m->qpos0, m->nq);
   mj_kinematics(m, d);
   mj_comPos(m, d);
-  mj_camlight(m, d);
-
-  // compute dof_M0 for CRB algorithm
-  mj_setM0(m, d);
-
-  // save flex_rigid, temporarily make all flexes non-rigid
-  mjtByte* rigid = NULL;
-  if (m->nflex) {
-    rigid = mjSTACKALLOC(d, m->nflex, mjtByte);
-    memcpy(rigid, m->flex_rigid, m->nflex);
-    memset(m->flex_rigid, 0, m->nflex);
-  }
 
   // run remaining computations
   mj_tendon(m, d);
-  mj_makeM(m, d);
-  mj_factorM(m, d);
-  mj_flex(m, d);
+  mj_flexSkip(m, d, 0);
   mj_transmission(m, d);
+}
 
-  // restore flex rigidity
-  if (m->nflex) {
-    memcpy(m->flex_rigid, rigid, m->nflex);
-  }
 
-  // restore camera and light mode
-  for (int i=0; i < m->ncam; i++) {
-    m->cam_mode[i] = cammode[i];
-  }
-  for (int i=0; i < m->nlight; i++) {
-    m->light_mode[i] = lightmode[i];
-  }
+// set kinematic quantities that depend on qpos0; assume kinematics0 already executed
+static void setKinematics0(mjModel* m, mjData* d) {
+  mjtNum pos[3];
 
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
@@ -1223,6 +1174,76 @@ static void set0(mjModel* m, mjData* d) {
   }
   mju_copy(m->tendon_length0, d->ten_length, m->ntendon);
   mju_copy(m->actuator_length0, d->actuator_length, m->nout);
+
+  // anchor of connect constraints between bodies in the second body
+  for (int i=0; i < m->neq; i++) {
+    if (m->eq_type[i] != mjEQ_CONNECT || m->eq_objtype[i] != mjOBJ_BODY) {
+      continue;
+    }
+
+    // pos = anchor position in global frame
+    mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, m->eq_obj1id[i], 0);
+
+    // data[3-5] = anchor position in body2 local frame
+    int id2 = m->eq_obj2id[i];
+    mju_subFrom3(pos, d->xpos+3*id2);
+    mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
+  }
+
+  // camera compos0, pos0, mat0
+  for (int i=0; i < m->ncam; i++) {
+    // get body ids
+    int id = m->cam_bodyid[i];              // camera body
+    int id1 = m->cam_targetbodyid[i];       // target body
+
+    // pose in fixed mode
+    mj_local2Global(d, d->cam_xpos+3*i, d->cam_xmat+9*i,
+                    m->cam_pos+3*i, m->cam_quat+4*i, id, 0);
+
+    // compute positional offsets
+    mju_sub3(m->cam_pos0+3*i, d->cam_xpos+3*i, d->xpos+3*id);
+    mju_sub3(m->cam_poscom0+3*i, d->cam_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
+
+    // copy mat
+    mju_copy9(m->cam_mat0+9*i, d->cam_xmat+9*i);
+  }
+
+  // light compos0, pos0, dir0
+  for (int i=0; i < m->nlight; i++) {
+    // get body ids
+    int id = m->light_bodyid[i];            // light body
+    int id1 = m->light_targetbodyid[i];     // target body
+
+    // pose in fixed mode
+    mj_local2Global(d, d->light_xpos+3*i, 0, m->light_pos+3*i, 0, id, 0);
+    mju_rotVecQuat(d->light_xdir+3*i, m->light_dir+3*i, d->xquat+4*id);
+    mju_normalize3(d->light_xdir+3*i);
+
+    // compute positional offsets
+    mju_sub3(m->light_pos0+3*i, d->light_xpos+3*i, d->xpos+3*id);
+    mju_sub3(m->light_poscom0+3*i, d->light_xpos+3*i, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
+
+    // copy dir
+    mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
+  }
+}
+
+
+// set inertial quantities that depend on qpos0; assume kinematics0 already executed
+static void setInertia0(mjModel* m, mjData* d) {
+  int nv = m->nv;
+  mjtNum A[36] = {0};
+  mj_markStack(d);
+  mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
+
+  // compute dof_M0 for CRB algorithm
+  mj_setM0(m, d);
+
+  // factorize the inertia matrix
+  mj_makeM(m, d);
+  mj_factorM(m, d);
 
   // compute body_invweight0
   m->body_invweight0[0] = m->body_invweight0[1] = 0.0;
@@ -1367,49 +1388,6 @@ static void set0(mjModel* m, mjData* d) {
   } else {
     mju_zero(m->tendon_invweight0, m->ntendon);
     mju_zero(m->actuator_acc0, m->nout);
-  }
-
-  // anchor of connect constraints between bodies in the second body
-  for (int i=0; i < m->neq; i++) {
-    if (m->eq_type[i] != mjEQ_CONNECT || m->eq_objtype[i] != mjOBJ_BODY) {
-      continue;
-    }
-
-    // pos = anchor position in global frame
-    mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, m->eq_obj1id[i], 0);
-
-    // data[3-5] = anchor position in body2 local frame
-    int id2 = m->eq_obj2id[i];
-    mju_subFrom3(pos, d->xpos+3*id2);
-    mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
-  }
-
-  // camera compos0, pos0, mat0
-  for (int i=0; i < m->ncam; i++) {
-    // get body ids
-    int id = m->cam_bodyid[i];              // camera body
-    int id1 = m->cam_targetbodyid[i];       // target body
-
-    // compute positional offsets
-    mju_sub3(m->cam_pos0+3*i, d->cam_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->cam_poscom0+3*i, d->cam_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
-
-    // copy mat
-    mju_copy9(m->cam_mat0+9*i, d->cam_xmat+9*i);
-  }
-
-  // light compos0, pos0, dir0
-  for (int i=0; i < m->nlight; i++) {
-    // get body ids
-    int id = m->light_bodyid[i];            // light body
-    int id1 = m->light_targetbodyid[i];     // target body
-
-    // compute positional offsets
-    mju_sub3(m->light_pos0+3*i, d->light_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->light_poscom0+3*i, d->light_xpos+3*i, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
-
-    // copy dir
-    mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
   }
 
   mj_freeStack(d);
@@ -1900,67 +1878,94 @@ static void setSpringLength(mjModel* m, mjData* d) {
 
 //----------------------------- entry points -------------------------------------------------------
 
-// set all remaining constant fields of mjModel, except for lengthrange
-static void setConst(mjModel* m, mjData* d, int compiled) {
-  // compute npolygonmax and nmeshdegmax
-  m->npolygonmax = 0;
-  for (int i=0; i < m->nmeshpoly; i++) {
-    m->npolygonmax = mjMAX(m->npolygonmax, m->mesh_polyvertnum[i]);
-  }
-
-  m->nmeshdegmax = 0;
-  for (int i=0; i < m->nmeshvert; i++) {
-    m->nmeshdegmax = mjMAX(m->nmeshdegmax, m->mesh_polymapnum[i]);
-  }
-
-  // recompute sameframe flags from current model geometry
-  setSameframe(m);
-
-  // error if simple body lost sameframe (user must set simple="false")
-  for (int i = 1; i < m->nbody; i++) {
-    if (m->body_simple[i] > 0 && m->body_sameframe[i] != mjSAMEFRAME_BODY) {
-      mjERROR("body %d is compiled as simple but sameframe no longer holds, "
-              "use body/simple='false'", i);
+// run the groups of mj_setConst computations selected by the bits of groups, in order
+void mj_setConstGroups(mjModel* m, mjData* d, int groups) {
+  // quantities independent of the configuration
+  if (groups & mjSCGROUP_FIXED) {
+    // compute npolygonmax and nmeshdegmax
+    m->npolygonmax = 0;
+    for (int i=0; i < m->nmeshpoly; i++) {
+      m->npolygonmax = mjMAX(m->npolygonmax, m->mesh_polyvertnum[i]);
     }
+
+    m->nmeshdegmax = 0;
+    for (int i=0; i < m->nmeshvert; i++) {
+      m->nmeshdegmax = mjMAX(m->nmeshdegmax, m->mesh_polymapnum[i]);
+    }
+
+    // recompute sameframe flags from current model geometry
+    setSameframe(m);
+
+    // error if simple body lost sameframe (user must set simple="false")
+    for (int i = 1; i < m->nbody; i++) {
+      if (m->body_simple[i] > 0 && m->body_sameframe[i] != mjSAMEFRAME_BODY) {
+        mjERROR("body %d is compiled as simple but sameframe no longer holds, "
+                "use body/simple='false'", i);
+      }
+    }
+
+    // set geom and body bounds
+    setBound(m, d);
+
+    // set fluid added mass
+    setFluid(m);
+
+    // set fixed quantities
+    setFixed(m, d);
+
+    // set Jacobian sparsity of tendons and flexes
+    makeTendonSparse(m);
+    makeFlexSparse(m, d);
   }
 
-  // set geom and body bounds
-  setBound(m, d);
-
-  // set fluid added mass
-  setFluid(m);
-
-  // set fixed quantities
-  setFixed(m, d);
-
-  // computations below cover all bodies, sleeping or not
+  // computations below cover all bodies, sleeping or not (not restored if an error is raised)
   int enableflags = m->opt.enableflags;
   m->opt.enableflags &= ~mjENBL_SLEEP;
 
   // set quantities that depend on qpos0
-  set0(m, d);
+  if (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0)) {
+    kinematics0(m, d);
+    if (groups & mjSCGROUP_KIN0) {
+      setKinematics0(m, d);
+      setDofLength(m, d);
+    }
+    if (groups & mjSCGROUP_INERT0) {
+      setInertia0(m, d);
+    }
+  }
 
-  // set dof_length, and in compilation the other qpos0 quantities
-  setDofLength(m, d);
+  // set quantities that depend on qpos_spring
+  if (groups & mjSCGROUP_SPRING) {
+    setSpring(m, d);
+
+    // precompute the constant part of the implicit effective metric factor
+    setEfm0Factor(m, d);
+
+    // the vertex ordering of the metric's sparse factor
+    mj_effCholSetConst(m, d);
+  }
+
+  m->opt.enableflags = enableflags;
+}
+
+
+// set all remaining constant fields of mjModel, except for lengthrange
+static void setConst(mjModel* m, mjData* d, int compiled) {
+  mj_setConstGroups(m, d, mjSCGROUP_FIXED | mjSCGROUP_KIN0 | mjSCGROUP_INERT0);
+
+  // in compilation, the other qpos0 quantities
   if (compiled) {
     setDampRatio(m, d);
     setEqualityData(m, d);
     setStat(m, d);
   }
 
-  // set quantities that depend on qpos_spring
-  setSpring(m, d);
+  mj_setConstGroups(m, d, mjSCGROUP_SPRING);
+
+  // in compilation, the other qpos_spring quantities
   if (compiled) {
     setSpringLength(m, d);
   }
-
-  // precompute the constant part of the implicit effective metric factor
-  setEfm0Factor(m, d);
-
-  // the vertex ordering of the metric's sparse factor
-  mj_effCholSetConst(m, d);
-
-  m->opt.enableflags = enableflags;
 }
 
 

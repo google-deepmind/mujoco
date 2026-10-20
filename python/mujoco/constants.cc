@@ -17,6 +17,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
@@ -86,6 +87,11 @@ PYBIND11_MODULE(_constants, pymodule, pybind11::mod_gil_not_used()) {
 
   // from mjtype.h
   X(mjMINVAL);
+
+  // from mjxmacro.h
+  X(mjSC_IN);
+  X(mjSC_OUT);
+  X(mjSC_INOUT);
 
   #undef X
   pymodule.attr("mjDISABLESTRING") = MakeTuple(mjDISABLESTRING);

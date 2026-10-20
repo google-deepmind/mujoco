@@ -473,6 +473,57 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     return py::tuple(py::cast(fields));
   });
 
+  // arrays which mj_setConst uses, with how each group of its computations
+  // (fixed, kin0, inert0, spring) uses them: 0, mjSC_IN, mjSC_OUT or mjSC_INOUT
+  mjModel.def_property_readonly_static("_setconst_fields", [](py::object) {
+    py::dict fields;
+#define X(name, fixed, kin0, inert0, spring) \
+    fields[#name] = py::make_tuple(fixed, kin0, inert0, spring);
+    MJSETCONST_ARRAYS
+#undef X
+    return fields;
+  });
+
+  // the groups of mj_setConst computations, in the order of the columns
+  mjModel.def_property_readonly_static("_setconst_groups", [](py::object) {
+    return py::make_tuple("fixed", "kin0", "inert0", "spring");
+  });
+
+  // arrays which are inputs of mj_setConst: the first group which uses them
+  // reads them before writing them
+  mjModel.def_property_readonly_static("_setconst_inputs", [](py::object) {
+    std::vector<std::string> inputs;
+#define X(name, fixed, kin0, inert0, spring)                    \
+    for (int access : {fixed, kin0, inert0, spring}) {          \
+      if (access) {                                             \
+        if (access & mjSC_IN) inputs.push_back(#name);          \
+        break;                                                  \
+      }                                                         \
+    }
+    MJSETCONST_ARRAYS
+#undef X
+    return py::tuple(py::cast(inputs));
+  });
+
+  // arrays which mj_setConst writes
+  mjModel.def_property_readonly_static("_setconst_outputs", [](py::object) {
+    std::vector<std::string> outputs;
+#define X(name, fixed, kin0, inert0, spring) \
+    if ((fixed | kin0 | inert0 | spring) & mjSC_OUT) outputs.push_back(#name);
+    MJSETCONST_ARRAYS
+#undef X
+    return py::tuple(py::cast(outputs));
+  });
+
+  // scalars which mj_setConst writes
+  mjModel.def_property_readonly_static("_setconst_scalars", [](py::object) {
+    std::vector<std::string> scalars;
+#define X(name) scalars.push_back(#name);
+    MJSETCONST_SCALARS
+#undef X
+    return py::tuple(py::cast(scalars));
+  });
+
 #define X(dtype, var, dim0, dim1)                        \
   if constexpr (std::string_view(#var) != "text_data" && \
                 std::string_view(#var) != "names" &&     \

@@ -1,0 +1,20 @@
+<!-- flexes which reach branches of mj_setConst that no other model of the repository reaches:
+     a 2D flex with bending only and an interpolated flex with stiffness, under IPC, and an
+     interpolated flex without stiffness, which may not sleep -->
+<mujoco>
+  <option integrator="discrete" solver="CG">
+    <flag ipc="enable"/>
+  </option>
+  <worldbody>
+    <flexcomp name="bend" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2" radius=".01"
+              mass="1">
+      <elasticity young="1e3" elastic2d="bend" thickness=".01"/>
+    </flexcomp>
+    <flexcomp name="elastic" type="grid" count="2 2 2" spacing=".1 .1 .1" dim="3" radius=".01"
+              mass="1" dof="trilinear" pos="1 0 0">
+      <elasticity young="1e3"/>
+    </flexcomp>
+    <flexcomp name="inelastic" type="grid" count="2 2 2" spacing=".1 .1 .1" dim="3" radius=".01"
+              mass="1" dof="trilinear" pos="2 0 0"/>
+  </worldbody>
+</mujoco>

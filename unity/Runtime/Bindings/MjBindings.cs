@@ -117,6 +117,9 @@ public const int mjMAXLINE = 100;
 public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
+public const int mjSC_IN = 1;
+public const int mjSC_OUT = 2;
+public const int mjSC_INOUT = 3;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
 public const int mjVERSION_HEADER = 3016001;
 

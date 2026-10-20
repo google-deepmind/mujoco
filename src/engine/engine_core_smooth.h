@@ -43,6 +43,9 @@ MJAPI void mj_camlight(const mjModel* m, mjData* d);
 // compute flex-related quantities
 MJAPI void mj_flex(const mjModel* m, mjData* d);
 
+// compute flex-related quantities, optionally skipping rigid flexes
+void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid);
+
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 

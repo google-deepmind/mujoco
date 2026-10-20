@@ -26,6 +26,16 @@ extern "C" {
 // Set constant fields of mjModel, corresponding to qpos0 configuration.
 MJAPI void mj_setConst(mjModel* m, mjData* d);
 
+// Groups of mj_setConst computations, in the order of the columns of MJSETCONST_ARRAYS.
+#define mjSCGROUP_FIXED  (1<<0)  // independent of the configuration
+#define mjSCGROUP_KIN0   (1<<1)  // kinematics in qpos0
+#define mjSCGROUP_INERT0 (1<<2)  // inertia matrix in qpos0
+#define mjSCGROUP_SPRING (1<<3)  // kinematics in qpos_spring
+#define mjSCGROUP_ALL    (mjSCGROUP_FIXED | mjSCGROUP_KIN0 | mjSCGROUP_INERT0 | mjSCGROUP_SPRING)
+
+// Run the groups of mj_setConst computations selected by the bits of groups, in order.
+MJAPI void mj_setConstGroups(mjModel* m, mjData* d, int groups);
+
 // Align 2D flexes with vertex equality constraints to the XY plane; compilation calls it before
 // mj_setCompiledConst.
 void mj_alignFlex(mjModel* m);
