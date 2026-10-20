@@ -3737,6 +3737,9 @@ mjtSize mj_encode(const mjSpec* s, const mjModel* m, const char* filename,
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 int mj_copyBack(mjSpec* s, const mjModel* m);
 int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
+int mj_loadTexture(const mjModel* m, int id, mjtByte** data, int* width, int* height,
+                   int* colorspace, char* error, int error_sz);
+mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz);
 int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int error_sz);
 void mj_freeLastXML(void);
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);

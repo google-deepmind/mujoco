@@ -45,6 +45,19 @@ MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 // Recompile spec to model, preserving the state, return 0 on success.
 MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
+// Decode texture id into pixels; return 0 on success.
+MJAPI int mj_loadTexture(const mjModel* m,
+                         int            id,
+                         mjtByte**      data,
+                         int*           width,
+                         int*           height,
+                         int*           colorspace,
+                         char*          error,
+                         int            error_sz);
+
+// Copy of m with every by-reference asset loaded into it.
+MJAPI mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz);
+
 // Copy spec.
 MJAPI mjSpec* mj_copySpec(const mjSpec* s);
 

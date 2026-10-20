@@ -15,6 +15,7 @@
 #include "user/user_api.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -34,6 +35,7 @@
 #include <mujoco/mjspecmacro.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
+#include "engine/engine_io.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
@@ -351,6 +353,258 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
     return -1;
   }
   return 0;
+}
+
+
+// copy a message into the user's error buffer, if any
+static void CopyError(char* error, int error_sz, const std::string& msg) {
+  if (error && error_sz > 0) { mju_strncpy(error, msg.c_str(), error_sz); }
+}
+
+
+// decode texture id into pixels, exactly the bytes compilation would store in tex_data for it
+int mj_loadTexture(const mjModel* m,
+                   int            id,
+                   mjtByte**      data,
+                   int*           width,
+                   int*           height,
+                   int*           colorspace,
+                   char*          error,
+                   int            error_sz) {
+  if (id < 0 || id >= m->ntex) {
+    CopyError(error, error_sz, "texture id " + std::to_string(id) + " out of range");
+    return 1;
+  }
+
+  // embedded: a copy of the slice
+  if (m->tex_adr[id] >= 0) {
+    mjtSize nbytes =
+        static_cast<mjtSize>(m->tex_nchannel[id]) * m->tex_width[id] * m->tex_height[id];
+    *data = static_cast<mjtByte*>(mju_malloc(nbytes));
+    memcpy(*data, m->tex_data + m->tex_adr[id], nbytes);
+    if (width) { *width = m->tex_width[id]; }
+    if (height) { *height = m->tex_height[id]; }
+    if (colorspace) { *colorspace = m->tex_colorspace[id]; }
+    return 0;
+  }
+
+  // by reference: the path and content type are in the model, the file is read with no VFS
+  if (m->tex_pathadr[id] < 0) {
+    CopyError(error, error_sz, "texture " + std::to_string(id) + " has no path");
+    return 1;
+  }
+  const char* path = m->paths + m->tex_pathadr[id];
+  const char* type = m->tex_contenttypeadr[id] >= 0 ? m->paths + m->tex_contenttypeadr[id] : "";
+  std::string content_type = mjCBase::GetAssetContentType(path, type);
+  std::array<char, 1024> err;
+  mjResource*            resource = mju_openResource("", path, nullptr, err.data(), err.size());
+  if (!resource) {
+    CopyError(error, error_sz, err.data());
+    return 1;
+  }
+
+  // decode as the compiler does, with the authored type, channels and colorspace as inputs
+  std::vector<std::byte> image;
+  unsigned int           w, h;
+  bool                   is_srgb;
+  int                    nch = m->tex_nchannel[id];
+  try {
+    mjCTexture::Decode(nullptr, resource, content_type, nch, image, w, h, is_srgb);
+  } catch (mjCError& e) {
+    mju_closeResource(resource);
+    CopyError(error, error_sz, e.message);
+    return 1;
+  }
+  mju_closeResource(resource);
+
+  // cube or skybox from a single file: a square 3-channel image, repeated on the six faces
+  if (m->tex_type[id] != mjTEXTURE_2D) {
+    if (nch != 3) {
+      CopyError(error, error_sz, "cube and skybox textures loaded from files must have 3 channels");
+      return 1;
+    }
+    if (w != h) {
+      CopyError(error, error_sz, "cube and skybox textures loaded from a file must be square");
+      return 1;
+    }
+  }
+
+  *data = static_cast<mjtByte*>(mju_malloc(image.size()));
+  memcpy(*data, image.data(), image.size());
+  if (width) { *width = w; }
+  if (height) { *height = h; }
+  if (colorspace) {
+    *colorspace = m->tex_colorspace[id];
+    if (*colorspace == mjCOLORSPACE_AUTO) {
+      *colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
+    }
+  }
+  return 0;
+}
+
+
+// copy of m with every by-reference asset loaded into it; NULL with error on a file that does not
+// resolve
+mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz) {
+  // the pixels of a by-reference texture, as mj_loadTexture returns them
+  struct Pixels {
+    mjtByte* data  = nullptr;
+    int      width = 0, height = 0, colorspace = 0;
+    mjtSize  nbytes(int nchannel) const { return static_cast<mjtSize>(nchannel) * width * height; }
+  };
+  std::vector<Pixels> pixels(m->ntex);
+  auto                free_pixels = [&pixels]() {
+    for (Pixels& p : pixels) { mju_free(p.data); }
+  };
+
+  // load every by-reference texture before allocating anything, so that a failure leaves nothing
+  mjtSize ntexdata = m->ntexdata;
+  for (int i = 0; i < m->ntex; i++) {
+    if (m->tex_adr[i] != -1) { continue; }
+    Pixels&                p = pixels[i];
+    std::array<char, 1024> err;
+    if (mj_loadTexture(m, i, &p.data, &p.width, &p.height, &p.colorspace, err.data(), err.size())) {
+      free_pixels();
+      CopyError(error, error_sz, "texture " + std::to_string(i) + ": " + err.data());
+      return nullptr;
+    }
+    ntexdata += p.nbytes(m->tex_nchannel[i]);
+  }
+
+  // a new model, with ntexdata and nbuffer for the embedded textures
+  mjModel* dest = nullptr;
+  mj_makeModel(&dest,
+               m->nq,
+               m->nv,
+               m->nu,
+               m->nactuator,
+               m->nout,
+               m->na,
+               m->nbody,
+               m->nbvh,
+               m->nbvhstatic,
+               m->nbvhdynamic,
+               m->noct,
+               m->njnt,
+               m->ntree,
+               m->nM,
+               m->nB,
+               m->nC,
+               m->nD,
+               m->ngeom,
+               m->nsite,
+               m->ncam,
+               m->nlight,
+               m->nflex,
+               m->nflexnode,
+               m->nflexvert,
+               m->nflexedge,
+               m->nflexelem,
+               m->nflexelemdata,
+               m->nflexstiffness,
+               m->nflexbending,
+               m->nefm0dof,
+               m->nefm0L,
+               m->nefmCvert,
+               m->nflexelemedge,
+               m->nflexshelldata,
+               m->nflextexcoord,
+               m->nJfe,
+               m->nJfv,
+               m->nmesh,
+               m->nmeshvert,
+               m->nmeshnormal,
+               m->nmeshtexcoord,
+               m->nmeshface,
+               m->nmeshgraph,
+               m->nmeshpoly,
+               m->nmeshpolyvert,
+               m->nmeshpolymap,
+               m->nskin,
+               m->nskinvert,
+               m->nskintexvert,
+               m->nskinface,
+               m->nskinbone,
+               m->nskinbonevert,
+               m->nhfield,
+               m->nhfielddata,
+               m->ntex,
+               ntexdata,
+               m->nmat,
+               m->npair,
+               m->nexclude,
+               m->neq,
+               m->ntendon,
+               m->nJten,
+               m->nwrap,
+               m->nsensor,
+               m->nnumeric,
+               m->nnumericdata,
+               m->ntext,
+               m->ntextdata,
+               m->ntuple,
+               m->ntupledata,
+               m->nkey,
+               m->nmocap,
+               m->nplugin,
+               m->npluginattr,
+               m->nuser_body,
+               m->nuser_jnt,
+               m->nuser_geom,
+               m->nuser_site,
+               m->nuser_cam,
+               m->nuser_tendon,
+               m->nuser_actuator,
+               m->nuser_sensor,
+               m->nnames,
+               m->npaths);
+  if (!dest) {
+    free_pixels();
+    CopyError(error, error_sz, "could not allocate model");
+    return nullptr;
+  }
+
+  // every scalar field, keeping the new buffer and sizes
+  void*   buffer  = dest->buffer;
+  mjtSize nbuffer = dest->nbuffer;
+  *dest           = *m;
+  dest->buffer    = buffer;
+  dest->nbuffer   = nbuffer;
+  dest->ntexdata  = ntexdata;
+  mj_setPtrModel(dest);
+
+  // every array but tex_data
+  {
+    MJMODEL_POINTERS_PREAMBLE(m)
+#define X(type, name, nr, nc)                                                         \
+  if (static_cast<const void*>(&m->name) != static_cast<const void*>(&m->tex_data)) { \
+    memcpy(dest->name, m->name, sizeof(type) * (m->nr) * nc);                         \
+  }
+    MJMODEL_POINTERS
+#undef X
+  }
+
+  // tex_data in texture order, as compilation lays it out
+  mjtSize adr = 0;
+  for (int i = 0; i < m->ntex; i++) {
+    const Pixels& p = pixels[i];
+    mjtSize       nbytes;
+    if (m->tex_adr[i] >= 0) {
+      nbytes = static_cast<mjtSize>(m->tex_nchannel[i]) * m->tex_width[i] * m->tex_height[i];
+      memcpy(dest->tex_data + adr, m->tex_data + m->tex_adr[i], nbytes);
+    } else {
+      nbytes = p.nbytes(m->tex_nchannel[i]);
+      memcpy(dest->tex_data + adr, p.data, nbytes);
+      dest->tex_width[i]      = p.width;
+      dest->tex_height[i]     = p.height;
+      dest->tex_colorspace[i] = p.colorspace;
+    }
+    dest->tex_adr[i]  = adr;
+    adr              += nbytes;
+  }
+
+  free_pixels();
+  return dest;
 }
 
 

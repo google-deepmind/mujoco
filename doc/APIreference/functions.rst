@@ -160,6 +160,35 @@ struct pointers while editing the model programmatically.
 :ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
 instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
 
+.. _mj_loadTexture:
+
+`mj_loadTexture <#mj_loadTexture>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadTexture
+
+Decode texture id to raw bytes, exactly what compilation would store in tex_data, with
+tex_nchannel channels; embedded textures are copied from the model. The buffer is allocated with
+mju_malloc and freed by the caller; colorspace receives the resolved colorspace (mjtColorSpace).
+
+Return 0 on success.
+
+*Nullable:* ``width``, ``height``, ``colorspace``, ``error``
+
+.. _mj_embedAssets:
+
+`mj_embedAssets <#mj_embedAssets>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_embedAssets
+
+Copy of m with every by-reference asset loaded into it, as compilation would have stored it.
+
+Return NULL with error on a file that does not resolve. A hermetic MJB file of a model with
+by-reference assets is mj_embedAssets, then mj_saveModel, then mj_deleteModel.
+
+*Nullable:* ``error``
+
 .. _mj_saveLastXML:
 
 `mj_saveLastXML <#mj_saveLastXML>`__
@@ -1828,7 +1857,10 @@ Copy mjModel, allocate new if dest is NULL.
 
 .. mujoco-include:: mj_saveModel
 
-Save model to binary MJB file or memory buffer; buffer has precedence when given.
+Save model to binary MJB file or memory buffer; buffer has precedence when given. The model is written as it is: a
+model with :ref:`by-reference<CAssetReference>` textures keeps them as references, and the file loads wherever the
+paths resolve. A hermetic file is :ref:`mj_embedAssets`, then :ref:`mj_saveModel` on the result, then
+:ref:`mj_deleteModel`.
 
 *Nullable:* ``filename``, ``buffer``
 
@@ -2968,7 +3000,8 @@ Resize offscreen buffers.
 
 .. mujoco-include:: mjr_uploadTexture
 
-Upload texture to GPU, overwriting previous upload if any.
+Upload texture to GPU, overwriting previous upload if any. A by-reference texture (tex_adr == -1)
+is decoded with mj_loadTexture.
 
 .. _mjr_uploadMesh:
 

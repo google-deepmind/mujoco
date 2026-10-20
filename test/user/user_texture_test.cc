@@ -39,6 +39,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::AllOf;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -72,12 +73,11 @@ void WriteFile(const std::filesystem::path& dir, const std::string& name,
 }
 
 // the fields which differ between an embedded and a by-reference compile of the
-// same spec: the payload, the colorspace which only a decode resolves, and the
-// channel count which the KTX loader rewrites to 1 for its encoded blob
+// same spec: the payload and the colorspace which only a decode resolves
 bool IsPayloadField(std::string_view name) {
   return name == "tex_adr" || name == "tex_width" || name == "tex_height" ||
-         name == "tex_data" || name == "tex_colorspace" ||
-         name == "tex_nchannel" || name == "ntexdata" || name == "nbuffer";
+         name == "tex_data" || name == "tex_colorspace" || name == "ntexdata" ||
+         name == "nbuffer";
 }
 
 // the first field outside the texture payload which differs between two
@@ -203,7 +203,7 @@ TEST_F(TextureByReferenceTest, OnlyPayloadDiffers) {
   EXPECT_GT(embedded->nbuffer, byref->nbuffer);
 
   // the file textures are by reference, the builtin one stays embedded;
-  // nchannel is as authored
+  // nchannel is as authored, 1 for a KTX as in the embedded compile
   int checker = mj_name2id(byref, mjOBJ_TEXTURE, "checker");
   for (int i = 0; i < byref->ntex; i++) {
     if (i == checker) {
@@ -213,7 +213,7 @@ TEST_F(TextureByReferenceTest, OnlyPayloadDiffers) {
       EXPECT_EQ(PathAt(byref, byref->tex_pathadr[i]),
                 PathAt(embedded, embedded->tex_pathadr[i]));
     }
-    EXPECT_EQ(byref->tex_nchannel[i], 3);
+    EXPECT_EQ(byref->tex_nchannel[i], embedded->tex_nchannel[i]);
     EXPECT_EQ(PathAt(byref, byref->tex_contenttypeadr[i]),
               PathAt(embedded, embedded->tex_contenttypeadr[i]));
   }
@@ -587,6 +587,259 @@ TEST_F(TextureByReferenceTest, Defaults) {
   mjsTexture* texture = mjs_addTexture(spec, nullptr);
   EXPECT_EQ(texture->embed, mjEMBED_AUTO);
   mj_deleteSpec(spec);
+}
+
+// ------------------------------ mj_loadTexture -------------------------------
+
+// the pixels of texture i, as mj_loadTexture returns them
+struct Pixels {
+  std::vector<mjtByte> data;
+  int width = 0, height = 0, nchannel = 0, colorspace = -1;
+  std::string error;
+};
+
+Pixels LoadTexture(const mjModel* m, int i) {
+  Pixels p;
+  std::array<char, 1024> error;
+  mjtByte* data = nullptr;
+  if (mj_loadTexture(m, i, &data, &p.width, &p.height, &p.colorspace,
+                     error.data(), error.size())) {
+    p.error = error.data();
+    return p;
+  }
+  p.nchannel = m->tex_nchannel[i];
+  p.data.assign(data,
+                data + static_cast<mjtSize>(p.width) * p.height * p.nchannel);
+  mju_free(data);
+  return p;
+}
+
+// the pixels of embedded texture i, as stored in the model
+Pixels Slice(const mjModel* m, int i) {
+  Pixels p;
+  p.width = m->tex_width[i];
+  p.height = m->tex_height[i];
+  p.nchannel = m->tex_nchannel[i];
+  p.colorspace = m->tex_colorspace[i];
+  const mjtByte* data = m->tex_data + m->tex_adr[i];
+  p.data.assign(data,
+                data + static_cast<mjtSize>(p.width) * p.height * p.nchannel);
+  return p;
+}
+
+void ExpectSamePixels(const Pixels& a, const Pixels& b, int i) {
+  EXPECT_EQ(a.error, "") << "texture " << i;
+  EXPECT_EQ(a.width, b.width) << "texture " << i;
+  EXPECT_EQ(a.height, b.height) << "texture " << i;
+  EXPECT_EQ(a.nchannel, b.nchannel) << "texture " << i;
+  EXPECT_EQ(a.colorspace, b.colorspace) << "texture " << i;
+  EXPECT_EQ(a.data.size(), b.data.size()) << "texture " << i;
+  EXPECT_TRUE(a.data == b.data) << "texture " << i;
+}
+
+// every PNG and KTX under the test models, in the ways a single file can be
+// authored: 2d with 1, 3 and 4 channels, cube and skybox, colorspace given and
+// inferred from the file, content type given and inferred from the extension
+constexpr char kLoadXml[] = R"(
+<mujoco>
+  <compiler texturedir="textures"/>
+  <asset>
+    <texture name="rgba3" type="2d" file="hfield.png"/>
+    <texture name="rgba4" type="2d" file="hfield.png" nchannel="4"/>
+    <texture name="rgba1" type="2d" file="hfield.png" nchannel="1"/>
+    <texture name="palette" type="2d" file="test-pattern.png"/>
+    <texture name="srgb" type="2d" file="carpet.png" nchannel="4"/>
+    <texture name="srgblinear" type="2d" file="carpet.png" colorspace="linear"/>
+    <texture name="ktx" type="2d" file="ibl.ktx" content_type="image/ktx"/>
+    <texture name="ktxext" type="2d" file="ibl.ktx" colorspace="sRGB"/>
+    <texture name="cube" type="cube" file="hfield.png"/>
+    <texture name="skybox" type="skybox" file="hfield.png" colorspace="sRGB"/>
+    <texture name="checker" type="2d" builtin="checker" width="4" height="4"/>
+  </asset>
+</mujoco>
+)";
+
+class LoadTextureTest : public TextureByReferenceTest {
+ protected:
+  void SetUp() override {
+    TextureByReferenceTest::SetUp();
+    WriteFile(root_ / "textures", "test-pattern.png",
+              ReadTestData("render/testdata/test-pattern.png"));
+    WriteFile(root_ / "textures", "carpet.png",
+              ReadTestData("user/testdata/textured_torus/carpet.png"));
+  }
+};
+
+// mj_loadTexture on a by-reference texture gives exactly what the eager compile
+// stores, including the resolved colorspace; on an embedded texture, a copy
+TEST_F(LoadTextureTest, MatchesEagerCompile) {
+  mjModel* eager = Compile(kLoadXml, mjPASSTHROUGH_NONE);
+  ASSERT_THAT(eager, NotNull()) << error_;
+  mjModel* byref = Compile(kLoadXml, mjPASSTHROUGH_TEXTURES);
+  ASSERT_THAT(byref, NotNull()) << error_;
+  ASSERT_EQ(byref->ntex, 11);
+  EXPECT_EQ(byref->ntexdata, 3 * 4 * 4);
+
+  for (int i = 0; i < byref->ntex; i++) {
+    ExpectSamePixels(LoadTexture(byref, i), Slice(eager, i), i);
+    ExpectSamePixels(LoadTexture(eager, i), Slice(eager, i), i);
+  }
+
+  // the decoder resolved what the model left as auto
+  int palette = mj_name2id(byref, mjOBJ_TEXTURE, "palette");
+  int ktx = mj_name2id(byref, mjOBJ_TEXTURE, "ktx");
+  int rgba3 = mj_name2id(byref, mjOBJ_TEXTURE, "rgba3");
+  EXPECT_EQ(byref->tex_colorspace[palette], mjCOLORSPACE_AUTO);
+  EXPECT_EQ(LoadTexture(byref, palette).colorspace, mjCOLORSPACE_SRGB);
+  EXPECT_EQ(LoadTexture(byref, rgba3).colorspace, mjCOLORSPACE_LINEAR);
+  EXPECT_EQ(LoadTexture(byref, ktx).colorspace, mjCOLORSPACE_LINEAR);
+  EXPECT_EQ(byref->tex_nchannel[ktx], 1);
+  EXPECT_EQ(LoadTexture(byref, ktx).height, 1);
+
+  // the out-parameters other than the pixels may be left out
+  mjtByte* data = nullptr;
+  int w = 0;
+  EXPECT_EQ(
+      mj_loadTexture(byref, palette, &data, &w, nullptr, nullptr, nullptr, 0),
+      0);
+  EXPECT_EQ(w, 256);
+  mju_free(data);
+
+  mj_deleteModel(byref);
+  mj_deleteModel(eager);
+}
+
+// the errors: a bad id, a file that does not resolve, a content type the
+// decoder does not know, a file the decoder cannot read, a file which cannot be
+// a cube
+TEST_F(LoadTextureTest, Errors) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler texturedir="textures"/>
+    <asset>
+      <texture name="png" type="2d" file="hfield.png"/>
+      <texture name="jpeg" type="2d" file="hfield.png" content_type="image/jpeg"/>
+      <texture name="corrupt" type="2d" file="corrupt.png"/>
+      <texture name="ktxcube" type="cube" file="ibl.ktx"/>
+    </asset>
+  </mujoco>
+  )";
+  WriteFile(root_ / "textures", "corrupt.png", "not a png");
+  WriteFile(root_ / "textures", "hfield.pnx",
+            ReadTestData("user/testdata/hfield.png"));
+  mjModel* m = Compile(xml, mjPASSTHROUGH_TEXTURES);
+  ASSERT_THAT(m, NotNull()) << error_;
+  int png = mj_name2id(m, mjOBJ_TEXTURE, "png");
+  EXPECT_EQ(LoadTexture(m, png).error, "");
+
+  EXPECT_THAT(LoadTexture(m, -1).error, HasSubstr("out of range"));
+  EXPECT_THAT(LoadTexture(m, m->ntex).error, HasSubstr("out of range"));
+  EXPECT_THAT(LoadTexture(m, mj_name2id(m, mjOBJ_TEXTURE, "jpeg")).error,
+              HasSubstr("unsupported content type: 'image/jpeg'"));
+  EXPECT_THAT(LoadTexture(m, mj_name2id(m, mjOBJ_TEXTURE, "corrupt")).error,
+              HasSubstr("error decoding PNG"));
+  EXPECT_THAT(LoadTexture(m, mj_name2id(m, mjOBJ_TEXTURE, "ktxcube")).error,
+              HasSubstr("must have 3 channels"));
+
+  // the path is a string in the model: a file that is not there, then an
+  // extension the decoder does not know
+  char* path = m->paths + m->tex_pathadr[png];
+  char* name = path + std::strlen(path) - std::strlen("hfield.png");
+  name[0] = 'x';
+  EXPECT_THAT(LoadTexture(m, png).error, HasSubstr("xfield.png"));
+  name[0] = 'h';
+  name[std::strlen("hfield.pn")] = 'x';
+  EXPECT_THAT(
+      LoadTexture(m, png).error,
+      AllOf(HasSubstr("unsupported content type"), HasSubstr("hfield.pnx")));
+
+  // a null error buffer is accepted
+  mjtByte* data = nullptr;
+  int w, h, c;
+  EXPECT_NE(mj_loadTexture(m, png, &data, &w, &h, &c, nullptr, 0), 0);
+  EXPECT_THAT(data, IsNull());
+
+  mj_deleteModel(m);
+}
+
+// ------------------------------ mj_embedAssets -------------------------------
+
+// embedding a by-reference compile gives the eager compile, field for field;
+// the result saves, loads and validates; an all-embedded model gives a plain
+// copy
+TEST_F(LoadTextureTest, EmbedAssetsEqualsEagerCompile) {
+  mjModel* eager = Compile(kLoadXml, mjPASSTHROUGH_NONE);
+  ASSERT_THAT(eager, NotNull()) << error_;
+  mjModel* byref = Compile(kLoadXml, mjPASSTHROUGH_TEXTURES);
+  ASSERT_THAT(byref, NotNull()) << error_;
+  ASSERT_GT(eager->ntexdata, byref->ntexdata);
+
+  std::array<char, 1024> error;
+  mjModel* embedded = mj_embedAssets(byref, error.data(), error.size());
+  ASSERT_THAT(embedded, NotNull()) << error.data();
+  std::string field;
+  EXPECT_EQ(CompareModel(eager, embedded, field), 0) << field;
+  EXPECT_EQ(embedded->ntexdata, eager->ntexdata);
+  EXPECT_EQ(embedded->nbuffer, eager->nbuffer);
+  EXPECT_EQ(mj_sizeModel(embedded), mj_sizeModel(eager));
+  EXPECT_THAT(mj_validateReferences(embedded), IsNull());
+  for (int i = 0; i < embedded->ntex; i++) ExpectEmbedded(embedded, i);
+
+  // the by-reference model is untouched
+  mjModel* byref2 = Compile(kLoadXml, mjPASSTHROUGH_TEXTURES);
+  EXPECT_EQ(CompareModel(byref, byref2, field), 0) << field;
+
+  // save and load
+  std::vector<char> mjb(mj_sizeModel(embedded));
+  mj_saveModel(embedded, nullptr, mjb.data(), mjb.size());
+  mjModel* loaded = mj_loadModelBuffer(mjb.data(), mjb.size());
+  ASSERT_THAT(loaded, NotNull());
+  EXPECT_THAT(mj_validateReferences(loaded), IsNull());
+  EXPECT_EQ(CompareModel(eager, loaded, field), 0) << field;
+
+  // an all-embedded model is copied
+  mjModel* copy = mj_embedAssets(eager, error.data(), error.size());
+  ASSERT_THAT(copy, NotNull()) << error.data();
+  EXPECT_EQ(CompareModel(eager, copy, field), 0) << field;
+  EXPECT_NE(copy->buffer, eager->buffer);
+
+  mj_deleteModel(copy);
+  mj_deleteModel(loaded);
+  mj_deleteModel(byref2);
+  mj_deleteModel(embedded);
+  mj_deleteModel(byref);
+  mj_deleteModel(eager);
+}
+
+// a file that does not resolve is an error naming the texture, and nothing is
+// allocated
+TEST_F(LoadTextureTest, EmbedAssetsMissingFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler texturedir="textures"/>
+    <asset>
+      <texture name="png" type="2d" file="hfield.png"/>
+      <texture name="missing" type="2d" file="missing.png"/>
+    </asset>
+  </mujoco>
+  )";
+  mjModel* m = Compile(xml, mjPASSTHROUGH_TEXTURES);
+  ASSERT_THAT(m, NotNull()) << error_;
+
+  std::array<char, 1024> error;
+  EXPECT_THAT(mj_embedAssets(m, error.data(), error.size()), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("texture 1: "));
+  EXPECT_THAT(error.data(), HasSubstr("missing.png"));
+  EXPECT_THAT(mj_embedAssets(m, nullptr, 0), IsNull());
+
+  // with the file in place it succeeds
+  WriteFile(root_ / "textures", "missing.png",
+            ReadTestData("user/testdata/hfield.png"));
+  mjModel* embedded = mj_embedAssets(m, error.data(), error.size());
+  ASSERT_THAT(embedded, NotNull()) << error.data();
+  EXPECT_EQ(embedded->ntexdata, 2 * 3 * 32 * 32);
+  mj_deleteModel(embedded);
+  mj_deleteModel(m);
 }
 
 // textures which differ only in embed compile to different representations,

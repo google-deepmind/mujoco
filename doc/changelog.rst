@@ -72,6 +72,13 @@ Compiler
     when there is one, at the new ``tex_contenttypeadr``. Flipped, composite, six-file, procedural, buffer and
     in-memory textures stay embedded, as does any texture with :at:`embed` "true" (:at:`embed` can be set in a
     :ref:`default class<default-texture>`).
+  - Getting the pixels: :ref:`mj_loadTexture` decodes a texture of either kind, resolving a
+    :ref:`colorspace<asset-texture-colorspace>` of "auto" as compilation would; :ref:`mj_embedAssets` returns a copy
+    of the model with every by-reference texture loaded, equal to an eager compile, which followed by
+    :ref:`mj_saveModel` gives a hermetic MJB. Both are in Python as ``mujoco.mj_loadTexture`` and
+    ``mujoco.mj_embedAssets``.
+  - Rendering: the built-in renderer loads by-reference textures in :ref:`mjr_makeContext` and
+    :ref:`mjr_uploadTexture`. A file which does not resolve is a warning and an untextured material.
 - Textures can have :ref:`default classes<default-texture>`: ``mjsDefault`` has a ``texture`` member and
   :ref:`texture<asset-texture>` takes a :ref:`class<asset-texture-class>`.
 - The asset paths in :ref:`mjModel` (``paths`` at ``mesh_pathadr``, ``hfield_pathadr``, ``skin_pathadr`` and

@@ -145,7 +145,7 @@ static inline unsigned int SKIP(intptr_t offset) {
 //----------------------------------- mjModel construction -----------------------------------------
 
 // set pointers in mjModel buffer
-static void mj_setPtrModel(mjModel* m) {
+void mj_setPtrModel(mjModel* m) {
   char* ptr = (char*)m->buffer;
 
   // prepare symbols needed by xmacro

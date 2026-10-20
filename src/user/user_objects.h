@@ -1754,6 +1754,17 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   std::vector<std::string> get_cubefiles() const { return cubefiles_; }
   bool                     ByReference() const { return byref_; }
 
+  // decode a texture file as compilation stores it: a PNG to the given channels, a KTX as the raw
+  // blob of height 1, which requires channels 1; obj is only for error messages and may be null
+  static void Decode(const mjCBase*          obj,
+                     mjResource*             resource,
+                     const std::string&      mime_type,
+                     int                     channels,
+                     std::vector<std::byte>& image,
+                     unsigned int&           w,
+                     unsigned int&           h,
+                     bool&                   is_srgb);
+
  private:
   // store texture into asset cache
   std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
@@ -1774,16 +1785,20 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
                 unsigned int&           h,
                 bool&                   is_srgb);
 
-  void LoadPNG(mjResource*             resource,
-               std::vector<std::byte>& image,
-               unsigned int&           w,
-               unsigned int&           h,
-               bool&                   is_srgb);
-  void LoadKTX(mjResource*             resource,
-               std::vector<std::byte>& image,
-               unsigned int&           w,
-               unsigned int&           h,
-               bool&                   is_srgb);
+  static void LoadPNG(const mjCBase*          obj,
+                      mjResource*             resource,
+                      int                     channels,
+                      std::vector<std::byte>& image,
+                      unsigned int&           w,
+                      unsigned int&           h,
+                      bool&                   is_srgb);
+  static void LoadKTX(const mjCBase*          obj,
+                      mjResource*             resource,
+                      int                     channels,
+                      std::vector<std::byte>& image,
+                      unsigned int&           w,
+                      unsigned int&           h,
+                      bool&                   is_srgb);
 };
 
 

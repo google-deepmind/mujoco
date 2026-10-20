@@ -67,6 +67,9 @@ void mj_makeModel(mjModel** dest,
     mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
     mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths);
 
+// set pointers in mjModel buffer from its sizes
+void mj_setPtrModel(mjModel* m);
+
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 

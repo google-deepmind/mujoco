@@ -147,6 +147,7 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mj_freeLastXML",
     "mj_freeStack",
     "mj_loadModelBuffer",
+    "mj_loadTexture",  # returns an mju_malloc'ed buffer through mjtByte**
     "mj_markStack",
     "mj_stackAllocByte",
     "mj_stackAllocInt",
@@ -239,6 +240,7 @@ SKIPPED_STRUCTS: tuple[str, ...] = (
 MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_compile",
+    "mj_embedAssets",
     "mj_saveLastXML",
     "mj_saveModel",
     "mj_setLengthRange",

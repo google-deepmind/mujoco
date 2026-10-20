@@ -15,22 +15,48 @@
 """Tests for MuJoCo Python rendering."""
 
 import os
+import struct
+import zlib
 
 from absl.testing import absltest
 import mujoco
 import numpy as np
 
-# a 3x2 RGB PNG
-_TINY_PNG = bytes([
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
-    0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
-    0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
-    0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
-    0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
-    0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
-    0x82,
-])
+
+def _png(pixels: np.ndarray) -> bytes:
+  """Encodes an (H, W, 3) uint8 array as an RGB PNG."""
+
+  def chunk(tag, payload):
+    data = tag + payload
+    return struct.pack('>I', len(payload)) + data + struct.pack(
+        '>I', zlib.crc32(data)
+    )
+
+  h, w, _ = pixels.shape
+  raw = b''.join(b'\x00' + pixels[i].tobytes() for i in range(h))
+  return (
+      b'\x89PNG\r\n\x1a\n'
+      + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+      + chunk(b'IDAT', zlib.compress(raw))
+      + chunk(b'IEND', b'')
+  )
+
+
+def _textured_plane_xml(png: str, passthrough: str) -> str:
+  return f"""
+  <mujoco>
+    <compiler passthrough="{passthrough}"/>
+    <asset>
+      <texture name="tex" type="2d" file="{png}"/>
+      <material name="tex" texture="tex"/>
+    </asset>
+    <worldbody>
+      <light pos="0 0 3"/>
+      <camera pos="0 0 2"/>
+      <geom type="plane" size="1 1 .1" material="tex"/>
+    </worldbody>
+  </mujoco>
+  """
 
 
 @absltest.skipUnless(
@@ -175,57 +201,102 @@ class MuJoCoRenderTest(absltest.TestCase):
     context.free()
     context.free()
 
-  def test_by_reference_texture_is_skipped(self):
-    # the classic renderer cannot load a by-reference texture yet: it warns
-    # and renders the material untextured instead of crashing
-    png = os.path.join(absltest.get_default_test_tmpdir(), 'tiny.png')
-    with open(png, 'wb') as f:
-      f.write(_TINY_PNG)
-    xml = f"""
-    <mujoco>
-      <compiler passthrough="textures"/>
-      <asset>
-        <texture name="tiny" type="2d" file="{png}"/>
-        <material name="tiny" texture="tiny"/>
-      </asset>
-      <worldbody>
-        <geom type="plane" size="1 1 .1" material="tiny"/>
-      </worldbody>
-    </mujoco>
-    """
-    model = mujoco.MjModel.from_xml_string(xml)
-    self.assertEqual(model.tex_adr[0], -1)
+  def _render(self, model, context=None):
+    """Renders model from its first camera, in context or a context of its own."""
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
-
-    warning_messages = []
-    old_cb = mujoco.get_mju_user_warning()
-    try:
-      mujoco.set_mju_user_warning(warning_messages.append)
-      context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
-    finally:
-      mujoco.set_mju_user_warning(old_cb)
-    self.assertTrue(
-        any('by reference' in msg for msg in warning_messages), warning_messages
-    )
-
     scene = mujoco.MjvScene(model, maxgeom=10)
+    camera = mujoco.MjvCamera()
+    camera.type = mujoco.mjtCamera.mjCAMERA_FIXED
+    camera.fixedcamid = 0
     mujoco.mjv_updateScene(
         model,
         data,
         mujoco.MjvOption(),
         None,
-        mujoco.MjvCamera(),
+        camera,
         mujoco.mjtCatBit.mjCAT_ALL,
         scene,
     )
+    own_context = context is None
+    if own_context:
+      context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
     mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
     full_rect = mujoco.MjrRect(0, 0, 640, 480)
     mujoco.mjr_render(full_rect, scene, context)
     image = np.empty((480, 640, 3), dtype=np.uint8)
     mujoco.mjr_readPixels(image, None, full_rect, context)
+    if own_context:
+      context.free()
+    return image
+
+  def _write_png(self, name, color):
+    """Writes a 4x4 PNG of one color to the test tmpdir, returns its path."""
+    path = os.path.join(absltest.get_default_test_tmpdir(), name)
+    with open(path, 'wb') as f:
+      f.write(_png(np.full((4, 4, 3), color, dtype=np.uint8)))
+    return path
+
+  def test_by_reference_texture_renders_as_embedded(self):
+    png = self._write_png('tex.png', (200, 50, 50))
+    eager = mujoco.MjModel.from_xml_string(_textured_plane_xml(png, 'none'))
+    by_ref = mujoco.MjModel.from_xml_string(
+        _textured_plane_xml(png, 'textures')
+    )
+    self.assertEqual(eager.tex_adr[0], 0)
+    self.assertEqual(by_ref.tex_adr[0], -1)
+
+    warning_messages = []
+    old_cb = mujoco.get_mju_user_warning()
+    try:
+      mujoco.set_mju_user_warning(warning_messages.append)
+      image_by_ref = self._render(by_ref)
+    finally:
+      mujoco.set_mju_user_warning(old_cb)
+    self.assertEmpty(warning_messages)
+    image_eager = self._render(eager)
+    self.assertGreater(np.count_nonzero(image_eager), 0)
+    np.testing.assert_allclose(image_by_ref, image_eager, atol=1)
+
+  def test_by_reference_texture_missing_file_warns(self):
+    png = os.path.join(absltest.get_default_test_tmpdir(), 'missing.png')
+    model = mujoco.MjModel.from_xml_string(
+        _textured_plane_xml(png, 'textures')
+    )
+    self.assertEqual(model.tex_adr[0], -1)
+
+    # one warning, and the material renders untextured rather than crashing
+    warning_messages = []
+    old_cb = mujoco.get_mju_user_warning()
+    try:
+      mujoco.set_mju_user_warning(warning_messages.append)
+      image = self._render(model)
+    finally:
+      mujoco.set_mju_user_warning(old_cb)
+    self.assertLen(warning_messages, 1)
+    self.assertIn('texture 0: not uploaded', warning_messages[0])
     self.assertGreater(np.count_nonzero(image), 0)
+
+  def test_upload_texture_rereads_by_reference_file(self):
+    png = self._write_png('tex_reread.png', (200, 50, 50))
+    model = mujoco.MjModel.from_xml_string(
+        _textured_plane_xml(png, 'textures')
+    )
+    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    image_red = self._render(model, context)
+
+    # overwrite the file and upload again: the new pixels are picked up
+    self._write_png('tex_reread.png', (50, 50, 200))
+    mujoco.mjr_uploadTexture(model, context, 0)
+    image_blue = self._render(model, context)
     context.free()
+    self.assertFalse(np.array_equal(image_red, image_blue))
+
+    png_blue = self._write_png('tex_blue.png', (50, 50, 200))
+    eager = mujoco.MjModel.from_xml_string(
+        _textured_plane_xml(png_blue, 'none')
+    )
+    np.testing.assert_allclose(image_blue, self._render(eager), atol=1)
 
   def test_mjrrect_repr(self):
     rect = mujoco.MjrRect(1, 2, 3, 4)

@@ -6030,22 +6030,24 @@ void mjCTexture::BuiltinCube(void) {
 }
 
 // load PNG file
-void mjCTexture::LoadPNG(mjResource*             resource,
+void mjCTexture::LoadPNG(const mjCBase*          obj,
+                         mjResource*             resource,
+                         int                     channels,
                          std::vector<std::byte>& image,
                          unsigned int&           w,
                          unsigned int&           h,
                          bool&                   is_srgb) {
   LodePNGColorType color_type;
-  if (nchannel == 4) {
+  if (channels == 4) {
     color_type = LCT_RGBA;
-  } else if (nchannel == 3) {
+  } else if (channels == 3) {
     color_type = LCT_RGB;
-  } else if (nchannel == 1) {
+  } else if (channels == 1) {
     color_type = LCT_GREY;
   } else {
-    throw mjCError(this, "Unsupported number of channels: %s", std::to_string(nchannel).c_str());
+    throw mjCError(obj, "Unsupported number of channels: %s", std::to_string(channels).c_str());
   }
-  PNGImage png_image = PNGImage::Load(this, resource, color_type);
+  PNGImage png_image = PNGImage::Load(obj, resource, color_type);
   w                  = png_image.Width();
   h                  = png_image.Height();
   is_srgb            = png_image.IsSRGB();
@@ -6055,28 +6057,52 @@ void mjCTexture::LoadPNG(mjResource*             resource,
 }
 
 // load KTX file
-void mjCTexture::LoadKTX(mjResource*             resource,
+void mjCTexture::LoadKTX(const mjCBase*          obj,
+                         mjResource*             resource,
+                         int                     channels,
                          std::vector<std::byte>& image,
                          unsigned int&           w,
                          unsigned int&           h,
                          bool&                   is_srgb) {
+  if (channels != 1) {
+    throw mjCError(obj, "KTX textures must have 1 channel, got %d", nullptr, channels);
+  }
   const void* buffer    = 0;
   int         buffer_sz = mju_readResource(resource, &buffer);
 
   // still not found
   if (buffer_sz < 0) {
-    throw mjCError(this, "could not read texture file '%s'", resource->name);
+    throw mjCError(obj, "could not read texture file '%s'", resource->name);
   } else if (!buffer_sz) {
-    throw mjCError(this, "texture file is empty: '%s'", resource->name);
+    throw mjCError(obj, "texture file is empty: '%s'", resource->name);
   }
 
-  w        = buffer_sz;
-  h        = 1;
-  nchannel = 1;
-  is_srgb  = false;
+  w       = buffer_sz;
+  h       = 1;
+  is_srgb = false;
 
   image.resize(buffer_sz);
   memcpy(image.data(), buffer, buffer_sz);
+}
+
+// decode a texture file as compilation stores it, without an element
+void mjCTexture::Decode(const mjCBase*          obj,
+                        mjResource*             resource,
+                        const std::string&      mime_type,
+                        int                     channels,
+                        std::vector<std::byte>& image,
+                        unsigned int&           w,
+                        unsigned int&           h,
+                        bool&                   is_srgb) {
+  if (mime_type == "image/png") {
+    LoadPNG(obj, resource, channels, image, w, h, is_srgb);
+  } else if (mime_type == "image/ktx") {
+    LoadKTX(obj, resource, channels, image, w, h, is_srgb);
+  } else {
+    std::string msg  = "unsupported content type: '" + mime_type + "' for file '";
+    msg             += std::string(resource->name) + "'";
+    throw mjCError(obj, "%s", msg.c_str());
+  }
 }
 
 // load custom file
@@ -6154,6 +6180,9 @@ void mjCTexture::LoadFlip(std::string             filename,
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
+  // a KTX is stored as a single-channel blob, whatever was authored
+  if (asset_type == "image/ktx") { nchannel = 1; }
+
   // try loading from cache
   mjSpec*     owning_spec = model->FindSpec(compiler);
   mjResource* resource    = LoadResource(owning_spec->modelfiledir->c_str(), filename, vfs);
@@ -6163,12 +6192,10 @@ void mjCTexture::LoadFlip(std::string             filename,
   }
 
   try {
-    if (asset_type == "image/png") {
-      LoadPNG(resource, image, w, h, is_srgb);
-    } else if (asset_type == "image/ktx") {
-      if (hflip || vflip) { throw mjCError(this, "cannot flip KTX textures"); }
-      LoadKTX(resource, image, w, h, is_srgb);
+    if (asset_type == "image/ktx" && (hflip || vflip)) {
+      throw mjCError(this, "cannot flip KTX textures");
     }
+    Decode(this, resource, asset_type, nchannel, image, w, h, is_srgb);
   } catch (mjCError err) {
     mju_closeResource(resource);
     throw err;
@@ -6454,6 +6481,7 @@ void mjCTexture::Compile(const mjVFS* vfs) {
     } else {
       // nothing is read: the model gets the resolved path and no payload
       if (model->strippath) { file_ = mjuu_strippath(file_); }
+      if (GetAssetContentType(file_, content_type_) == "image/ktx") { nchannel = 1; }
       width = height = 0;
       byref_         = true;
       return;

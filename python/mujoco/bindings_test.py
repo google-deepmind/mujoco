@@ -112,6 +112,18 @@ TEST_XML_TEXTURE = r"""
 </mujoco>
 """
 
+# a 3x2 RGB PNG
+_TINY_PNG = bytes([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
+    0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
+    0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
+    0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
+    0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
+    0x82,
+])
+
 
 @contextlib.contextmanager
 def temporary_callback(setter, callback):
@@ -2213,6 +2225,90 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(model.tex('tex').data.shape, (512, 512, 3))
     self.assertEqual(model.tex('tex').adr.dtype, np.int64)
     self.assertTrue(np.shares_memory(model.tex('tex').adr, model.tex_adr))
+
+  def test_mj_loadTexture(self):  # pylint: disable=invalid-name
+    # an embedded texture: a copy of its pixels and its colorspace
+    model = mujoco.MjModel.from_xml_string(TEST_XML_TEXTURE)
+    pixels, colorspace = mujoco.mj_loadTexture(model, 0)
+    self.assertEqual(pixels.dtype, np.uint8)
+    np.testing.assert_array_equal(pixels, model.tex('tex').data)
+    self.assertFalse(np.shares_memory(pixels, model.tex_data))
+    self.assertEqual(colorspace, model.tex_colorspace[0])
+
+    # a by-reference texture: the decoded file, with the colorspace resolved;
+    # the array outlives the model
+    png = os.path.join(self.create_tempdir('test_mj_loadTexture'), 'tiny.png')
+    with open(png, 'wb') as f:
+      f.write(_TINY_PNG)
+    xml = f"""
+    <mujoco>
+      <compiler passthrough="textures"/>
+      <asset>
+        <texture name="byref" type="2d" file="{png}"/>
+        <texture name="eager" type="2d" file="{png}" embed="true"/>
+      </asset>
+    </mujoco>
+    """
+    model = mujoco.MjModel.from_xml_string(xml)
+    self.assertEqual(model.tex('byref').adr[0], -1)
+    pixels, colorspace = mujoco.mj_loadTexture(model, model.tex('byref').id)
+    self.assertEqual(pixels.shape, (2, 3, 3))
+    np.testing.assert_array_equal(pixels, model.tex('eager').data)
+    self.assertEqual(colorspace, model.tex_colorspace[model.tex('eager').id])
+    self.assertEqual(colorspace, mujoco.mjtColorSpace.mjCOLORSPACE_LINEAR)
+    expected = pixels.copy()
+    del model
+    gc.collect()
+    np.testing.assert_array_equal(pixels, expected)
+
+    # errors
+    model = mujoco.MjModel.from_xml_string(xml)
+    with self.assertRaisesRegex(ValueError, 'out of range'):
+      mujoco.mj_loadTexture(model, 2)
+    os.remove(png)
+    with self.assertRaisesRegex(ValueError, 'tiny.png'):
+      mujoco.mj_loadTexture(model, model.tex('byref').id)
+
+  def test_mj_embedAssets(self):  # pylint: disable=invalid-name
+    png = os.path.join(self.create_tempdir('test_mj_embedAssets'), 'tiny.png')
+    with open(png, 'wb') as f:
+      f.write(_TINY_PNG)
+    xml = f"""
+    <mujoco>
+      <compiler passthrough="textures"/>
+      <asset>
+        <texture name="tiny" type="2d" file="{png}"/>
+        <texture name="checker" type="2d" builtin="checker" width="4"
+          height="4"/>
+      </asset>
+    </mujoco>
+    """
+    byref = mujoco.MjModel.from_xml_string(xml)
+    eager = mujoco.MjModel.from_xml_string(
+        xml.replace(' passthrough="textures"', '')
+    )
+    self.assertEqual(byref.tex('tiny').adr[0], -1)
+
+    # the embedded model is the eager compile, and lives on its own
+    embedded = mujoco.mj_embedAssets(byref)
+    self.assertIsInstance(embedded, mujoco.MjModel)
+    self.assertEqual(embedded.ntexdata, eager.ntexdata)
+    self.assertEqual(mujoco.mj_sizeModel(embedded), mujoco.mj_sizeModel(eager))
+    np.testing.assert_array_equal(embedded.tex_data, eager.tex_data)
+    np.testing.assert_array_equal(embedded.tex_adr, eager.tex_adr)
+    np.testing.assert_array_equal(embedded.tex_width, eager.tex_width)
+    np.testing.assert_array_equal(
+        embedded.tex_colorspace, eager.tex_colorspace
+    )
+    del byref
+    gc.collect()
+    self.assertEqual(embedded.tex('tiny').data.shape, (2, 3, 3))
+
+    # a file that does not resolve
+    byref = mujoco.MjModel.from_xml_string(xml)
+    os.remove(png)
+    with self.assertRaisesRegex(ValueError, 'texture 0: .*tiny.png'):
+      mujoco.mj_embedAssets(byref)
 
   def test_xml_dependencies(self):
     model_path = str(epath.resource_path("mujoco") / "testdata" / "msh.xml")

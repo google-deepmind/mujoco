@@ -170,6 +170,15 @@ depend on qpos. Calling the dynamics with skipstage = :ref:`mjSTAGE_POS<mjtStage
 This section contains functions that load/initialize the model or other data structures. Their use is well illustrated
 in the code samples.
 
+.. _mj_saveModel:
+
+Save model to binary MJB file or memory buffer; buffer has precedence when given. The model is written as it is: a
+model with :ref:`by-reference<CAssetReference>` textures keeps them as references, and the file loads wherever the
+paths resolve. A hermetic file is :ref:`mj_embedAssets`, then :ref:`mj_saveModel` on the result, then
+:ref:`mj_deleteModel`.
+
+*Nullable:* ``filename``, ``buffer``
+
 .. _mjv_copyData:
 
 Copy :ref:`mjData`, skipping large arrays not required for visualization, like the constraint Jacobian. The copy is

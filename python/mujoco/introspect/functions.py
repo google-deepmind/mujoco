@@ -560,6 +560,91 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Recompile spec to model, preserving the state; return 0 on success.',  # pylint: disable=line-too-long
      )),
+    ('mj_loadTexture',
+     FunctionDecl(
+         name='mj_loadTexture',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='data',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjtByte'),
+                     ),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='width',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='height',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='colorspace',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Decode texture id to raw bytes, exactly what compilation would store in tex_data, with tex_nchannel channels; embedded textures are copied from the model. The buffer is allocated with mju_malloc and freed by the caller; colorspace receives the resolved colorspace (mjtColorSpace). Return 0 on success.',  # pylint: disable=line-too-long
+     )),
+    ('mj_embedAssets',
+     FunctionDecl(
+         name='mj_embedAssets',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjModel'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Copy of m with every by-reference asset loaded into it, as compilation would have stored it. Return NULL with error on a file that does not resolve. A hermetic MJB file of a model with by-reference assets is mj_embedAssets, then mj_saveModel, then mj_deleteModel.',  # pylint: disable=line-too-long
+     )),
     ('mj_saveLastXML',
      FunctionDecl(
          name='mj_saveLastXML',
@@ -5741,7 +5826,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=ValueType(name='int'),
              ),
          ),
-         doc='Upload texture to GPU, overwriting previous upload if any.',
+         doc='Upload texture to GPU, overwriting previous upload if any. A by-reference texture (tex_adr == -1) is decoded with mj_loadTexture.',  # pylint: disable=line-too-long
      )),
     ('mjr_uploadMesh',
      FunctionDecl(

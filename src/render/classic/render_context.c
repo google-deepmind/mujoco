@@ -1444,24 +1444,34 @@ static void makeTexture(const mjModel* m, mjrContext* con) {
 
 
 
-// (re) upload texture to GPU
+// (re) upload texture to GPU; a by-reference texture calls mj_loadTexture
 void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
-  int w = m->tex_width[texid];
+  int w = m->tex_width[texid], h = m->tex_height[texid];
+  int nchannel = m->tex_nchannel[texid], colorspace = m->tex_colorspace[texid];
+  const mjtByte* data = NULL;
+  mjtByte* loaded = NULL;
   float plane[4];
 
-  // by-reference texture: the pixels are not in the model, skip with a warning
+  // by-reference texture: decode the file into a buffer, skip with a warning on failure
   if (m->tex_adr[texid] == -1) {
-    mju_warning("texture %d: by reference, not uploaded by the classic renderer", texid);
-    return;
+    char err[500];
+    if (mj_loadTexture(m, texid, &loaded, &w, &h, &colorspace, err, sizeof(err))) {
+      mju_warning("texture %d: not uploaded, %s", texid, err);
+      return;
+    }
+    data = loaded;
+  } else {
+    data = m->tex_data + m->tex_adr[texid];
   }
 
   // the classic renderer only uploads 3- (RGB) or 4-channel (RGBA) textures. KTX
   // and other encoded textures are single-channel blobs for the Filament renderer
   // (see LoadKTX); skip them with a warning instead of aborting (issue #3343).
-  if (m->tex_nchannel[texid] != 3 && m->tex_nchannel[texid] != 4) {
+  if (nchannel != 3 && nchannel != 4) {
     mju_warning("texture %d: classic renderer can't upload %d-channel data, "
                 "skipping (KTX/encoded textures need the Filament renderer)",
-                texid, m->tex_nchannel[texid]);
+                texid, nchannel);
+    mju_free(loaded);
     return;
   }
 
@@ -1487,17 +1497,15 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     // assign data
     int type = 0;
     int internaltype = 0;
-    if (m->tex_nchannel[texid] == 3) {
+    if (nchannel == 3) {
       type = GL_RGB;
-      internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_EXT : GL_RGB;
+      internaltype = (colorspace == mjCOLORSPACE_SRGB) ? GL_SRGB8_EXT : GL_RGB;
     } else {  // 4 channels, guaranteed by the channel check at the top of the function
       type = GL_RGBA;
-      internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_ALPHA8_EXT : GL_RGBA;
+      internaltype = (colorspace == mjCOLORSPACE_SRGB) ? GL_SRGB8_ALPHA8_EXT : GL_RGBA;
     }
 
-    glTexImage2D(GL_TEXTURE_2D, 0, internaltype, m->tex_width[texid],
-                 m->tex_height[texid], 0, type, GL_UNSIGNED_BYTE,
-                 m->tex_data + m->tex_adr[texid]);
+    glTexImage2D(GL_TEXTURE_2D, 0, internaltype, w, h, 0, type, GL_UNSIGNED_BYTE, data);
 
     // generate mipmaps
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -1528,10 +1536,10 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     glTexGenfv(GL_R, GL_OBJECT_PLANE, plane);
 
     // assign data: repeated
-    if (m->tex_width[texid] == m->tex_height[texid]) {
+    if (w == h) {
       for (int i=0; i < 6; i++) {
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, w, w, 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid]);
+                     GL_RGB, GL_UNSIGNED_BYTE, data);
       }
     }
 
@@ -1539,7 +1547,7 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     else {
       for (int i=0; i < 6; i++) {
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, 0, GL_RGB, w, w, 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid] + i*3*w*w);
+                     GL_RGB, GL_UNSIGNED_BYTE, data + i*3*w*w);
       }
     }
 
@@ -1547,6 +1555,9 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
     glDisable(GL_TEXTURE_CUBE_MAP);
   }
+
+  // free the pixels of a by-reference texture
+  mju_free(loaded);
 }
 
 

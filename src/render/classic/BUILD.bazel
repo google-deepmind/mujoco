@@ -59,6 +59,7 @@ cc_library(
         ":glad",
         ":render_util",
         "//:libmujoco_hdrs",
+        "//src/user:user_model",  # buildcleaner: keep
     ],
 )
 

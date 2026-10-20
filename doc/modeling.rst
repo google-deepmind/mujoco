@@ -1653,8 +1653,9 @@ the :ref:`passthrough<compiler-passthrough>` attribute of :ref:`compiler<compile
 A texture ``i`` of :ref:`mjModel` is by reference when ``tex_adr[i] == -1``. Then:
 
 - ``tex_width[i]`` and ``tex_height[i]`` are 0, since the size is not known without reading the file. ``tex_type``,
-  ``tex_colorspace`` and ``tex_nchannel`` are as authored; in particular a :ref:`colorspace<asset-texture-colorspace>`
-  of "auto" stays ``mjCOLORSPACE_AUTO``, to be resolved by whoever decodes the file. ``ntexdata`` excludes the texture.
+  ``tex_colorspace`` and ``tex_nchannel`` are as authored, except that a KTX has 1 channel, as when embedded; in
+  particular a :ref:`colorspace<asset-texture-colorspace>` of "auto" stays ``mjCOLORSPACE_AUTO``, to be resolved by
+  whoever decodes the file. ``ntexdata`` excludes the texture.
 - ``paths + tex_pathadr[i]`` is the resolved path of the file: the directory of the model file, the
   :ref:`texturedir<compiler-texturedir>` and the :ref:`file<asset-texture-file>` attribute, after
   :ref:`strippath<compiler-strippath>`, unless the file is absolute or has a scheme (e.g. ``https://``) handled by a
@@ -1663,9 +1664,11 @@ A texture ``i`` of :ref:`mjModel` is by reference when ``tex_adr[i] == -1``. The
   ``tex_contenttypeadr[i] == -1`` to infer it from the extension.
 - The bytes of the file are read with :ref:`mju_openResource` and :ref:`mju_readResource` on that path, with no
   virtual file system. The compiler does not check that the file exists or that it can decode it; a path which does not
-  resolve is an error for whoever reads it. Decoding into pixels is up to the consumer; a function doing so for both
-  kinds of texture will be provided in a later release, and until then the built-in renderer skips by-reference textures
-  with a warning.
+  resolve is an error for whoever reads it. :ref:`mj_loadTexture` decodes a texture into pixels, for both kinds of
+  texture: for a by-reference texture it reads and decodes the file, resolving a colorspace of "auto", and returns
+  exactly the bytes compilation would have stored; for an embedded texture it returns a copy. The built-in renderer
+  loads by-reference textures through it, in :ref:`mjr_makeContext` and :ref:`mjr_uploadTexture`, so a file which does
+  not resolve or decode is a warning and an untextured material rather than an error.
 
 A by-reference texture is always the file as a consumer would read it. Textures which the compiler would transform stay
 embedded, so that the model needs no fields describing the transformation: flipped textures, composite
@@ -1677,7 +1680,9 @@ Compilation does not modify the :ref:`mjSpec`: the resolved path is computed whe
 element keeps its :at:`file` and :at:`embed` attributes, and every spec texture has exactly one model texture, with the
 same id and name, whether or not it is by reference. Recompiling after changing the policy switches the representation.
 :ref:`mj_saveModel` writes the model as it is, so an MJB file keeps its by-reference textures as references, and loads
-wherever the paths resolve.
+wherever the paths resolve. :ref:`mj_embedAssets` makes a new model with every by-reference texture loaded into it,
+equal to the eager compile of the same spec; a hermetic MJB file is :ref:`mj_embedAssets`, :ref:`mj_saveModel`,
+:ref:`mj_deleteModel`.
 
 .. _Tips:
 

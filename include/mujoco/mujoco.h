@@ -162,6 +162,20 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 // Nullable: vfs
 MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
+// Decode texture id to raw bytes, exactly what compilation would store in tex_data, with
+// tex_nchannel channels; embedded textures are copied from the model. The buffer is allocated with
+// mju_malloc and freed by the caller; colorspace receives the resolved colorspace (mjtColorSpace).
+// Return 0 on success.
+// Nullable: width, height, colorspace, error
+MJAPI int mj_loadTexture(const mjModel* m, int id, mjtByte** data, int* width, int* height,
+                         int* colorspace, char* error, int error_sz);
+
+// Copy of m with every by-reference asset loaded into it, as compilation would have stored it.
+// Return NULL with error on a file that does not resolve. A hermetic MJB file of a model with
+// by-reference assets is mj_embedAssets, then mj_saveModel, then mj_deleteModel.
+// Nullable: error
+MJAPI mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz);
+
 // Update XML data structures with info from low-level model created with mj_loadXML, save as MJCF.
 // If error is not NULL, it must have size error_sz.
 // Nullable: error
@@ -891,7 +905,8 @@ MJAPI void mjr_freeContext(mjrContext* con);
 // Resize offscreen buffers.
 MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con);
 
-// Upload texture to GPU, overwriting previous upload if any.
+// Upload texture to GPU, overwriting previous upload if any. A by-reference texture (tex_adr == -1)
+// is decoded with mj_loadTexture.
 MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
 
 // Upload mesh to GPU, overwriting previous upload if any.
