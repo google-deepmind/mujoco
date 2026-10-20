@@ -2090,7 +2090,9 @@ properties are grouped together.
    some cases this leads to more uniform texture appearance, but in general, which settings produces better results
    depends on the texture and the object. For 2d textures, this attribute interacts with texrepeat above. Let texrepeat
    be N. The default value "false" means that the 2d texture is repeated N times over the (z-facing side of the) object.
-   The value "true" means that the 2d texture is repeated N times over one spatial unit, regardless of object size.
+   The value "true" means that the 2d texture is repeated N times over two spatial units, i.e., once every 2/N length
+   units, regardless of object size. Infinite plane dimensions (size 0) have no object size, so in those dimensions the
+   texture is always repeated once every 2/N length units, regardless of this attribute.
 
 .. _asset-material-emission:
 
