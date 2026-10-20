@@ -281,6 +281,7 @@ static const mjXDefaultEntry kDefaults_mjsCompiler[] = {
   {"savecanonical", (int)offsetof(mjsCompiler, savecanonical), 3, 1, 1, 0, {1}},
   {"alignfree", (int)offsetof(mjsCompiler, alignfree), 3, 1, 0, 0, {0}},
   {"conflict", (int)offsetof(mjsCompiler, conflict), 2, 1, 0, 0, {0}},
+  {"passthrough", (int)offsetof(mjsCompiler, passthrough), 2, 1, 0, 0, {0}},
 };
 
 static const mjXDefaultEntry kDefaults_mjsEquality[] = {
@@ -511,6 +512,7 @@ static const mjXDefaultEntry kDefaults_mjsTexture[] = {
   {"hflip", (int)offsetof(mjsTexture, hflip), 3, 1, 0, 0, {0}},
   {"vflip", (int)offsetof(mjsTexture, vflip), 3, 1, 0, 0, {0}},
   {"nchannel", (int)offsetof(mjsTexture, nchannel), 2, 1, 1, 0, {3.0}},
+  {"embed", (int)offsetof(mjsTexture, embed), 2, 1, 1, 0, {(double)2}},
 };
 
 static const mjXDefaultTable kDefaultTables[] = {

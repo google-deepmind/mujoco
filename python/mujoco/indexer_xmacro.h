@@ -114,12 +114,13 @@
   X( mjtNum,  geom_, user,        ngeom, MJ_M(nuser_geom) ) \
   X( float,   geom_, rgba,        ngeom, 4                )
 
-#define MJMODEL_HFIELD                       \
-  X( mjtNum, hfield_, size, nhfield,     4 ) \
-  X( int,    hfield_, nrow, nhfield,     1 ) \
-  X( int,    hfield_, ncol, nhfield,     1 ) \
-  X( int,    hfield_, adr,  nhfield,     1 ) \
-  X( float,  hfield_, data, nhfielddata, 1 )
+#define MJMODEL_HFIELD                          \
+  X( mjtNum, hfield_, size,    nhfield,     4 ) \
+  X( int,    hfield_, nrow,    nhfield,     1 ) \
+  X( int,    hfield_, ncol,    nhfield,     1 ) \
+  X( int,    hfield_, adr,     nhfield,     1 ) \
+  X( float,  hfield_, data,    nhfielddata, 1 ) \
+  X( int,    hfield_, pathadr, nhfield,     1 )
 
 #define MJMODEL_JOINT                                     \
   X( mjtNum,  ,     qpos0,        nq,   1               ) \
@@ -185,7 +186,8 @@
   X( int, mesh_, texcoordadr, nmesh, 1 ) \
   X( int, mesh_, faceadr,     nmesh, 1 ) \
   X( int, mesh_, facenum,     nmesh, 1 ) \
-  X( int, mesh_, graphadr,    nmesh, 1 )
+  X( int, mesh_, graphadr,    nmesh, 1 ) \
+  X( int, mesh_, pathadr,     nmesh, 1 )
 
 #define MJMODEL_NUMERIC                        \
   X( int,    numeric_, adr,  nnumeric,     1 ) \
@@ -239,7 +241,8 @@
   X( int,   skin_, faceadr,     nskin, 1 ) \
   X( int,   skin_, facenum,     nskin, 1 ) \
   X( int,   skin_, boneadr,     nskin, 1 ) \
-  X( int,   skin_, bonenum,     nskin, 1 )
+  X( int,   skin_, bonenum,     nskin, 1 ) \
+  X( int,   skin_, pathadr,     nskin, 1 )
 
 #define MJMODEL_TENDON                                             \
   X( int,     tendon, _adr,          ntendon, 1                  ) \
@@ -268,13 +271,16 @@
   X( int,     ten_,   J_rowadr,      ntendon, 1                  ) \
   X( int,     ten_,   J_colind,      ntendon, MJ_M(nv)           )
 
-#define MJMODEL_TEXTURE                   \
-  X( int,     tex_, type,     ntex,     1 ) \
-  X( int,     tex_, height,   ntex,     1 ) \
-  X( int,     tex_, width,    ntex,     1 ) \
-  X( int,     tex_, nchannel, ntex,     1 ) \
-  X( mjtSize, tex_, adr,      ntex,     1 ) \
-  X( mjtByte, tex_, data,     ntexdata, 1 )
+#define MJMODEL_TEXTURE                         \
+  X( int,     tex_, type,           ntex,     1 ) \
+  X( int,     tex_, colorspace,     ntex,     1 ) \
+  X( int,     tex_, height,         ntex,     1 ) \
+  X( int,     tex_, width,          ntex,     1 ) \
+  X( int,     tex_, nchannel,       ntex,     1 ) \
+  X( mjtSize, tex_, adr,            ntex,     1 ) \
+  X( mjtByte, tex_, data,           ntexdata, 1 ) \
+  X( int,     tex_, pathadr,        ntex,     1 ) \
+  X( int,     tex_, contenttypeadr, ntex,     1 )
 
 #define MJMODEL_TUPLE                         \
   X( int,    tuple_, adr,     ntuple,     1 ) \

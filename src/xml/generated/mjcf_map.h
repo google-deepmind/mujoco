@@ -395,6 +395,13 @@ inline constexpr mjMap conflict_map[] = {
 };
 inline constexpr int conflict_sz = 3;
 
+// enum passthrough
+inline constexpr mjMap passthrough_map[] = {
+  {"none",      mjPASSTHROUGH_NONE},
+  {"textures",  mjPASSTHROUGH_TEXTURES},
+};
+inline constexpr int passthrough_sz = 2;
+
 // enum scaling
 inline constexpr mjMap scaling_map[] = {
   {"similar",   mjSCALING_SIMILAR},

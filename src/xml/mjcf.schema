@@ -388,6 +388,11 @@ enum conflict : mjtConflict {
   error     = mjCONFLICT_ERROR
 }
 
+enum passthrough : mjtPassthrough {
+  none      = mjPASSTHROUGH_NONE
+  textures  = mjPASSTHROUGH_TEXTURES
+}
+
 enum scaling : mjtScaling {
   similar   = mjSCALING_SIMILAR
   geometry  = mjSCALING_GEOMETRY
@@ -619,6 +624,7 @@ element compiler : mjsCompiler {
   assetdir           : string (reading=custom)    # fans out to mesh/texturedir
   alignfree          : bool
   conflict           : enum<conflict>
+  passthrough        : enum<passthrough>
   child lengthrange ?
 }
 
@@ -999,6 +1005,7 @@ element texture : mjsTexture {
   hflip              : bool
   vflip              : bool
   nchannel           : int = 3
+  embed              : enum<FalseTrueAuto> = auto
 }
 
 element material : mjsMaterial {

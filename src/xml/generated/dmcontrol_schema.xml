@@ -32,6 +32,7 @@
         <attribute name="assetdir" type="basepath" path_namespace="asset" conflict_allowed="true"/>
         <attribute name="alignfree" type="keyword" valid_values="false true"/>
         <attribute name="conflict" type="keyword" valid_values="warning merge error"/>
+        <attribute name="passthrough" type="keyword" valid_values="none textures"/>
       </attributes>
       <children>
         <element name="lengthrange">
@@ -280,6 +281,7 @@
                 <attribute name="hflip" type="keyword" valid_values="false true"/>
                 <attribute name="vflip" type="keyword" valid_values="false true"/>
                 <attribute name="nchannel" type="int" default="3"/>
+                <attribute name="embed" type="keyword" valid_values="false true auto" default="auto"/>
               </attributes>
             </element>
             <element name="material">
@@ -697,6 +699,7 @@
             <attribute name="hflip" type="keyword" valid_values="false true"/>
             <attribute name="vflip" type="keyword" valid_values="false true"/>
             <attribute name="nchannel" type="int" default="3"/>
+            <attribute name="embed" type="keyword" valid_values="false true auto" default="auto"/>
           </attributes>
         </element>
         <element name="material">
@@ -1215,6 +1218,7 @@
             <attribute name="hflip" type="keyword" valid_values="false true"/>
             <attribute name="vflip" type="keyword" valid_values="false true"/>
             <attribute name="nchannel" type="int" default="3"/>
+            <attribute name="embed" type="keyword" valid_values="false true auto" default="auto"/>
           </attributes>
         </element>
         <element name="material" repeated="true">

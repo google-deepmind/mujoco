@@ -44,6 +44,7 @@ inline constexpr mjXAttr kCompilerAttrs[] = {
   {"savecanonical", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, savecanonical)},
   {"alignfree", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, alignfree)},
   {"conflict", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, conflict), conflict_map, conflict_sz},
+  {"passthrough", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, passthrough), passthrough_map, passthrough_sz},
 };
 inline constexpr int kCompilerAttrsN = sizeof(kCompilerAttrs) / sizeof(kCompilerAttrs[0]);
 
@@ -283,6 +284,7 @@ inline constexpr mjXAttr kTextureAttrs[] = {
   {"hflip", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsTexture, hflip)},
   {"vflip", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsTexture, vflip)},
   {"nchannel", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsTexture, nchannel)},
+  {"embed", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, embed), FalseTrueAuto_map, FalseTrueAuto_sz},
 };
 inline constexpr int kTextureAttrsN = sizeof(kTextureAttrs) / sizeof(kTextureAttrs[0]);
 

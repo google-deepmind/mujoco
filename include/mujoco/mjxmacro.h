@@ -604,7 +604,8 @@
     X   ( int,     tex_nchannel,          ntex,          1                    ) \
     X   ( mjtSize, tex_adr,               ntex,          1                    ) \
     XNV ( mjtByte, tex_data,              ntexdata,      1                    ) \
-    X   ( int,     tex_pathadr,           ntex,          1                    )
+    X   ( int,     tex_pathadr,           ntex,          1                    ) \
+    X   ( int,     tex_contenttypeadr,    ntex,          1                    )
 
 #define MJMODEL_POINTERS_MATERIAL                                               \
     X   ( int,     mat_texid,             nmat,          mjNTEXROLE           ) \

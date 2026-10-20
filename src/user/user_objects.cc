@@ -48,6 +48,7 @@
 #include "user/user_model.h"
 #include "user/user_resource.h"
 #include "user/user_util.h"
+#include "user/user_vfs.h"
 
 namespace {
 namespace mju = ::mujoco::util;
@@ -5738,7 +5739,7 @@ void mjCTexture::PointToLocal() {
 std::string mjCTexture::AssetKey() const {
 #define X(type, name, dim) +1
 #define XVEC(type, name, dim) +1
-  static_assert((0 MJSTEXTURE_FIELDS) == 21,
+  static_assert((0 MJSTEXTURE_FIELDS) == 22,
                 "a field was added to mjsTexture: decide whether AssetKey reads it");
 #undef X
 #undef XVEC
@@ -5765,6 +5766,7 @@ std::string mjCTexture::AssetKey() const {
   mjuu_addkey(key, s.gridlayout);
   mjuu_addkey(key, s.hflip);
   mjuu_addkey(key, s.vflip);
+  mjuu_addkey(key, s.embed);
   mjuu_addkey(key, spec_data_.size());
   return key;
 }
@@ -6412,12 +6414,51 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 }
 
 
+// why this texture cannot be by reference, nullptr if it can: a single file used as it is, which
+// a consumer reads for itself (a VFS buffer has no lifetime beyond compilation, so it is embedded)
+const char* mjCTexture::Ineligible(const mjVFS* vfs) const {
+  if (!data_.empty()) { return "it is given as a buffer"; }
+  if (builtin != mjBUILTIN_NONE) { return "it is builtin"; }
+  if (file_.empty()) { return "it is given as cube files"; }
+  if (hflip || vflip) { return "it is flipped"; }
+  if (gridsize[0] != 1 || gridsize[1] != 1) { return "it is a grid"; }
+  if (vfs) {
+    mjSpec* owning_spec = model->FindSpec(compiler);
+    if (!owning_spec) { owning_spec = &model->spec; }
+    std::string        file     = model->strippath ? mjuu_strippath(file_) : file_;
+    FilePath           filename = FilePath(mjs_getString(compiler->texturedir)) + FilePath(file);
+    mujoco::user::VFS* impl     = mujoco::user::VFS::Upcast(const_cast<mjVFS*>(vfs));
+    if (impl->InMemory(owning_spec->modelfiledir->c_str(), filename.c_str())) {
+      return "its file is served from memory by the VFS";
+    }
+  }
+  return nullptr;
+}
+
+
 // compiler
 void mjCTexture::Compile(const mjVFS* vfs) {
   CopyFromSpec();
 
   mujoco::user::FilePath texturedir_;
   texturedir_ = FilePath(mjs_getString(compiler->texturedir));
+
+  // by reference: the policy of the model being compiled, unless this texture says otherwise
+  byref_      = false;
+  bool policy = model->spec.compiler.passthrough & mjPASSTHROUGH_TEXTURES;
+  if ((policy && embed == mjEMBED_AUTO) || embed == mjEMBED_FALSE) {
+    if (const char* reason = Ineligible(vfs)) {
+      if (embed == mjEMBED_FALSE) {
+        throw mjCError(this, "texture cannot be by reference: %s", reason);
+      }
+    } else {
+      // nothing is read: the model gets the resolved path and no payload
+      if (model->strippath) { file_ = mjuu_strippath(file_); }
+      width = height = 0;
+      byref_         = true;
+      return;
+    }
+  }
 
   // buffer from user
   if (!data_.empty()) {

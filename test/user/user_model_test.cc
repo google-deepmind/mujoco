@@ -3147,6 +3147,118 @@ TEST_F(MujocoTest, PathsStripped) {
   std::filesystem::remove_all(root);
 }
 
+// the content type of a texture is stored after the paths when authored, and
+// is -1 otherwise, for embedded textures too; it survives an MJB round trip
+TEST_F(MujocoTest, TextureContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="typed" type="2d" builtin="checker" width="4" height="4"
+        content_type="image/png"/>
+      <texture name="untyped" type="2d" builtin="checker" width="4" height="4"/>
+    </asset>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->ntex, 2);
+
+  // no files, so paths holds only the content type
+  const mjtSize type_size = sizeof("image/png");
+  EXPECT_EQ(m->tex_pathadr[0], -1);
+  EXPECT_EQ(m->tex_pathadr[1], -1);
+  EXPECT_EQ(PathAt(m.get(), m->tex_contenttypeadr[0]), "image/png");
+  EXPECT_EQ(m->tex_contenttypeadr[1], -1);
+  EXPECT_EQ(m->npaths, type_size);
+
+  // round trip through MJB
+  std::vector<char> mjb(mj_sizeModel(m.get()));
+  mj_saveModel(m.get(), nullptr, mjb.data(), mjb.size());
+  MjModelPtr loaded(mj_loadModelBuffer(mjb.data(), mjb.size()));
+  ASSERT_THAT(loaded, NotNull());
+  EXPECT_EQ(loaded->npaths, m->npaths);
+  EXPECT_EQ(loaded->tex_contenttypeadr[0], m->tex_contenttypeadr[0]);
+  EXPECT_EQ(loaded->tex_contenttypeadr[1], -1);
+  EXPECT_EQ(PathAt(loaded.get(), loaded->tex_contenttypeadr[0]), "image/png");
+}
+
+// a model without content types stores only the paths, and attaching keeps the
+// content type of every texture
+TEST_F(MujocoTest, TextureContentTypeAttached) {
+  static constexpr char plain_xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="plain" type="2d" file="hfield.png"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="a" file="child.xml"/>
+      <texture name="plain" type="2d" file="hfield.png"/>
+    </asset>
+    <worldbody>
+      <attach model="a" body="box" prefix="a_"/>
+      <attach model="a" body="box" prefix="b_"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="tex" type="2d" file="hfield.png" content_type="image/png"/>
+      <material name="mat" texture="tex"/>
+    </asset>
+    <worldbody>
+      <body name="box">
+        <geom size="1" material="mat"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::filesystem::path root =
+      std::filesystem::path(testing::TempDir()) / "content_types";
+  std::filesystem::remove_all(root);
+  WriteFile(root, "plain.xml", plain_xml);
+  WriteFile(root, "parent.xml", parent_xml);
+  WriteFile(root, "child.xml", child_xml);
+  WriteFile(root, "hfield.png", ReadTestData("user/testdata/hfield.png"));
+
+  // without content types, paths holds only the paths
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML((root / "plain.xml").string().c_str(), nullptr,
+                          error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->ntex, 1);
+  std::string path = PathAt(m, m->tex_pathadr[0]);
+  const mjtSize path_size = path.size() + 1;
+  const mjtSize type_size = sizeof("image/png");
+  EXPECT_EQ(m->tex_contenttypeadr[0], -1);
+  EXPECT_EQ(m->npaths, path_size);
+  mj_deleteModel(m);
+
+  // the attached textures keep their content type, the parent's has none
+  m = mj_loadXML((root / "parent.xml").string().c_str(), nullptr, error.data(),
+                 error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->ntex, 3);
+  int plain = mj_name2id(m, mjOBJ_TEXTURE, "plain");
+  ASSERT_GE(plain, 0);
+  for (int i = 0; i < m->ntex; i++) {
+    EXPECT_EQ(PathAt(m, m->tex_pathadr[i]), path);
+    EXPECT_EQ(PathAt(m, m->tex_contenttypeadr[i]),
+              i == plain ? "" : "image/png");
+  }
+  EXPECT_EQ(m->npaths, 3 * path_size + 2 * type_size);
+
+  mj_deleteModel(m);
+  std::filesystem::remove_all(root);
+}
+
 TEST_F(MujocoTest, ConvertSpringdamper) {
   static constexpr char xml[] = R"(
     <mujoco>

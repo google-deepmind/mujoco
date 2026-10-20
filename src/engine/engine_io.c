@@ -2001,7 +2001,8 @@ const char* mj_validateReferences(const mjModel* m) {
   X(hfield_pathadr,     nhfield,        npaths        , 0                      ) \
   X(mesh_pathadr,       nmesh,          npaths        , 0                      ) \
   X(skin_pathadr,       nskin,          npaths        , 0                      ) \
-  X(tex_pathadr,        ntex,           npaths        , 0                      )
+  X(tex_pathadr,        ntex,           npaths        , 0                      ) \
+  X(tex_contenttypeadr, ntex,           npaths        , 0                      )
 
   #define X(adrarray, nadrs, ntarget, numarray) {             \
     int *nums = (numarray);                                   \
@@ -2202,6 +2203,13 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int i=0; i < m->ntex; i++) {
+    // by-reference texture: no payload, the file is at tex_pathadr
+    if (m->tex_adr[i] == -1) {
+      if (m->tex_pathadr[i] < 0) {
+        return "Invalid model: by-reference texture has no path.";
+      }
+      continue;
+    }
     mjtSize nbytes = ((mjtSize) m->tex_nchannel[i]) * m->tex_height[i] * m->tex_width[i];
     if (m->tex_adr[i] + nbytes > m->ntexdata || m->tex_adr[i] < 0) {
       return "Invalid model: tex_adr out of bounds.";

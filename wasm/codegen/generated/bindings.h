@@ -2365,6 +2365,12 @@ struct MjsCompiler {
   void set_conflict(mjtConflict value) {
     ptr_->conflict = value;
   }
+  mjtPassthrough passthrough() const {
+    return ptr_->passthrough;
+  }
+  void set_passthrough(mjtPassthrough value) {
+    ptr_->passthrough = value;
+  }
   mjString meshdir() const {
     return (ptr_ && ptr_->meshdir) ? *(ptr_->meshdir) : "";
   }
@@ -3585,6 +3591,12 @@ struct MjsTexture {
   }
   void set_vflip(mjtBool value) {
     ptr_->vflip = value;
+  }
+  mjtEmbed embed() const {
+    return ptr_->embed;
+  }
+  void set_embed(mjtEmbed value) {
+    ptr_->embed = value;
   }
   mjString info() const {
     return (ptr_ && ptr_->info) ? *(ptr_->info) : "";
@@ -5390,6 +5402,9 @@ struct MjModel {
   }
   emscripten::val tex_pathadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_pathadr));
+  }
+  emscripten::val tex_contenttypeadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntex, ptr_->tex_contenttypeadr));
   }
   emscripten::val mat_texid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nmat * mjNTEXROLE, ptr_->mat_texid));

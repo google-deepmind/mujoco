@@ -270,6 +270,14 @@ bool VFS::ContainsFile(const char* directory, const char* filename) {
   return mounts_.contains(key);
 }
 
+bool VFS::InMemory(const char* dir, const char* name) {
+  if (name == nullptr) { return false; }
+  const std::string path = FilePath(dir ? dir : "", name).Str();
+  if (mjp_findProvider(path.c_str())) { return false; }
+  const mjResource* mount = FindMount(path);
+  return mount && mount != &default_mount_;
+}
+
 int VFS::Read(mjResource* resource, const void** buffer) {
   if (resource && resource->provider && resource->provider->read) {
     return resource->provider->read(resource, buffer);

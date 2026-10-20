@@ -121,7 +121,8 @@ py::array_t<T> MakeArray(T* base_ptr, int index, std::vector<int>&& shape,
     shape.insert(shape.begin(), m.hfield_ncol[index]);
     shape.insert(shape.begin(), m.hfield_nrow[index]);
   } else if (MjSize == &raw::MjModel::ntexdata) {
-    offset = m.tex_adr[index];
+    // a by-reference texture (tex_adr == -1) has no pixels: an empty view
+    offset = m.tex_adr[index] < 0 ? 0 : m.tex_adr[index];
     shape.insert(shape.begin(), m.tex_nchannel[index]);
     shape.insert(shape.begin(), m.tex_width[index]);
     shape.insert(shape.begin(), m.tex_height[index]);

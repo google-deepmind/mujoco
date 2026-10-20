@@ -61,6 +61,17 @@ Compiler
 
      **Migration:** ``mjs_addTexture(spec)`` → ``mjs_addTexture(spec, NULL)``. ``MjSpec.add_texture`` is unchanged.
 
+- Textures can be left :ref:`by reference<CAssetReference>` instead of being decoded into :ref:`mjModel`. With
+  :ref:`compiler/passthrough<compiler-passthrough>` set to "textures", or :ref:`texture/embed<asset-texture-embed>`
+  set to "false", a texture loaded from a single file is not read at compile time; the model holds its path and not its
+  pixels. A scene which attaches many textured sub-models then loads in a fraction of the memory and time. The default
+  is unchanged: everything embedded.
+
+  - What the model holds: ``tex_adr`` is -1, ``tex_width`` and ``tex_height`` are 0 and ``ntexdata`` excludes the
+    texture; the resolved path is at ``tex_pathadr`` and the authored :ref:`content_type<asset-texture-content_type>`,
+    when there is one, at the new ``tex_contenttypeadr``. Flipped, composite, six-file, procedural, buffer and
+    in-memory textures stay embedded, as does any texture with :at:`embed` "true" (:at:`embed` can be set in a
+    :ref:`default class<default-texture>`).
 - Textures can have :ref:`default classes<default-texture>`: ``mjsDefault`` has a ``texture`` member and
   :ref:`texture<asset-texture>` takes a :ref:`class<asset-texture-class>`.
 - The asset paths in :ref:`mjModel` (``paths`` at ``mesh_pathadr``, ``hfield_pathadr``, ``skin_pathadr`` and

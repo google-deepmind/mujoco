@@ -23,6 +23,11 @@ mujoco_test(
 mujoco_test(user_objects_test)
 
 mujoco_test(
+  user_texture_test
+  ADDITIONAL_LINK_LIBRARIES compare_model
+)
+
+mujoco_test(
   user_api_test
   ADDITIONAL_LINK_LIBRARIES compare_model compare_spec
   PROPERTIES

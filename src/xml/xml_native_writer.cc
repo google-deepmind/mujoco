@@ -803,6 +803,7 @@ void mjXWriter::OneTexture(XMLElement* elem, const mjCTexture* texture, mjCDef* 
   if (!authored_ || values->colorspace != deftex->colorspace) {
     WriteAttrKey(elem, "colorspace", colorspace_map, colorspace_sz, values->colorspace);
   }
+  WriteAttrKey(elem, "embed", FalseTrueAuto_map, 3, values->embed, deftex->embed);
   WriteAttrTxt(elem, "name", texture->name);
   if (texture->classname != "main") { WriteAttrTxt(elem, "class", texture->classname); }
 
@@ -1947,6 +1948,12 @@ void mjXWriter::Compiler(XMLElement* root) {
                conflict_sz,
                model->compiler.conflict,
                mjCONFLICT_WARNING);
+  WriteAttrKey(section,
+               "passthrough",
+               passthrough_map,
+               passthrough_sz,
+               model->compiler.passthrough,
+               mjPASSTHROUGH_NONE);
 }
 
 

@@ -1043,6 +1043,18 @@ has any effect. The settings here are global and apply to the entire model.
       Any conflict between authored values results in a compile error. This is the strictest mode and is useful for
       detecting unintended attribute mismatches.
 
+.. _compiler-passthrough:
+
+:at:`passthrough`: :at-val:`[none, textures], "none"`
+   Which assets the compiler leaves :ref:`by reference<CAssetReference>` instead of loading into :ref:`mjModel`. With
+   "textures", a texture loaded from a single file is not read: the model holds its resolved path and the parameters a
+   consumer needs to load it, and no pixels. Textures which the compiler would transform (flipped, composite
+   :ref:`grids<asset-texture-gridsize>`, six :ref:`separate files<asset-texture-fileright>`), procedural textures,
+   textures given as a buffer and files served from memory by a :ref:`virtual file system<Virtualfilesystem>` stay
+   embedded. The per-texture :ref:`embed<asset-texture-embed>` attribute overrides this policy. The policy is that of
+   the model being compiled, so it also applies to the textures of :ref:`attached<body-attach>` models. Only textures
+   can be by reference for now; other asset types will be added to the list of values.
+
 .. _compiler-lengthrange:
 
 :el-prefix:`compiler/` |-| **lengthrange** |?|
@@ -2043,6 +2055,16 @@ Only ``image/png`` and ``image/ktx`` are supported.
    The number of channels in the texture image file. This allows loading 4-channel textures (RGBA) or single-channel
    textures (e.g., for Physics-Based Rendering properties such as roughness or metallic). Procedural, cube and skybox
    textures must have 3 channels.
+
+.. _asset-texture-embed:
+
+:at:`embed`: :at-val:`[false, true, auto], "auto"`
+   Whether the pixels of this texture are in :ref:`mjModel` or the texture is left :ref:`by reference<CAssetReference>`.
+   "auto" follows the :ref:`passthrough<compiler-passthrough>` policy of the compiler. "true" keeps the pixels in the
+   model whatever the policy says, for example for a texture which is written into at runtime. "false" asks for the
+   texture to be by reference whatever the policy says, and is a compile error for a texture which cannot be: one which
+   is procedural, given as a buffer or as six separate files, flipped, a composite grid, or whose file is served from
+   memory by a :ref:`virtual file system<Virtualfilesystem>`.
 
 
 .. _asset-material:
@@ -10233,6 +10255,8 @@ if omitted.
 .. _default-texture-vflip:
 
 .. _default-texture-nchannel:
+
+.. _default-texture-embed:
 
 :el-prefix:`default/` |-| **texture** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

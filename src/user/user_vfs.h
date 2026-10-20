@@ -59,13 +59,13 @@ class VFS {
 
   // Status codes for VFS operations. Values are based on the mj_VFS APIs.
   enum Status {
-    kSuccess                 = 0,
-    kFailedToLoad            = -1,
-    kFailedToRead            = -1,
-    kNotFound                = -1,
-    kRepeatedName            = 2,
-    kInvalidVfs              = -1,
-    kInvalidResource         = -1,
+    kSuccess         = 0,
+    kFailedToLoad    = -1,
+    kFailedToRead    = -1,
+    kNotFound        = -1,
+    kRepeatedName    = 2,
+    kInvalidVfs      = -1,
+    kInvalidResource = -1,
     kInvalidProvider = -1,
   };
 
@@ -100,6 +100,10 @@ class VFS {
 
   // Returns true if the VFS contains a file with the given name.
   bool ContainsFile(const char* directory, const char* filename);
+
+  // Returns true if Open(dir, name) would be served from memory: by a mount of
+  // this VFS rather than by the file system or a registered resource provider.
+  bool InMemory(const char* dir, const char* name);
 
   // Sets a destructor to be called when the VFS has no more open resources.
   // Assumes that `destructor` will delete `this`.

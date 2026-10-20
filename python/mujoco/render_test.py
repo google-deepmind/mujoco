@@ -14,9 +14,23 @@
 # ==============================================================================
 """Tests for MuJoCo Python rendering."""
 
+import os
+
 from absl.testing import absltest
 import mujoco
 import numpy as np
+
+# a 3x2 RGB PNG
+_TINY_PNG = bytes([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x02,
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d, 0x00, 0x00, 0x00,
+    0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0x78, 0xc1, 0xc0, 0xc0,
+    0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81, 0xe1, 0x3f, 0xc3, 0xff, 0xff,
+    0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46, 0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1,
+    0x41, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
+    0x82,
+])
 
 
 @absltest.skipUnless(
@@ -159,6 +173,58 @@ class MuJoCoRenderTest(absltest.TestCase):
     mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
 
     context.free()
+    context.free()
+
+  def test_by_reference_texture_is_skipped(self):
+    # the classic renderer cannot load a by-reference texture yet: it warns
+    # and renders the material untextured instead of crashing
+    png = os.path.join(absltest.get_default_test_tmpdir(), 'tiny.png')
+    with open(png, 'wb') as f:
+      f.write(_TINY_PNG)
+    xml = f"""
+    <mujoco>
+      <compiler passthrough="textures"/>
+      <asset>
+        <texture name="tiny" type="2d" file="{png}"/>
+        <material name="tiny" texture="tiny"/>
+      </asset>
+      <worldbody>
+        <geom type="plane" size="1 1 .1" material="tiny"/>
+      </worldbody>
+    </mujoco>
+    """
+    model = mujoco.MjModel.from_xml_string(xml)
+    self.assertEqual(model.tex_adr[0], -1)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    warning_messages = []
+    old_cb = mujoco.get_mju_user_warning()
+    try:
+      mujoco.set_mju_user_warning(warning_messages.append)
+      context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    finally:
+      mujoco.set_mju_user_warning(old_cb)
+    self.assertTrue(
+        any('by reference' in msg for msg in warning_messages), warning_messages
+    )
+
+    scene = mujoco.MjvScene(model, maxgeom=10)
+    mujoco.mjv_updateScene(
+        model,
+        data,
+        mujoco.MjvOption(),
+        None,
+        mujoco.MjvCamera(),
+        mujoco.mjtCatBit.mjCAT_ALL,
+        scene,
+    )
+    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+    full_rect = mujoco.MjrRect(0, 0, 640, 480)
+    mujoco.mjr_render(full_rect, scene, context)
+    image = np.empty((480, 640, 3), dtype=np.uint8)
+    mujoco.mjr_readPixels(image, None, full_rect, context)
+    self.assertGreater(np.count_nonzero(image), 0)
     context.free()
 
   def test_mjrrect_repr(self):

@@ -755,6 +755,25 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjALIGNFREE_AUTO', 2),
          ]),
      )),
+    ('mjtPassthrough',
+     EnumDecl(
+         name='mjtPassthrough',
+         declname='enum mjtPassthrough',
+         values=dict([
+             ('mjPASSTHROUGH_NONE', 0),
+             ('mjPASSTHROUGH_TEXTURES', 1),
+         ]),
+     )),
+    ('mjtEmbed',
+     EnumDecl(
+         name='mjtEmbed',
+         declname='enum mjtEmbed',
+         values=dict([
+             ('mjEMBED_FALSE', 0),
+             ('mjEMBED_TRUE', 1),
+             ('mjEMBED_AUTO', 2),
+         ]),
+     )),
     ('mjtInertiaFromGeom',
      EnumDecl(
          name='mjtInertiaFromGeom',

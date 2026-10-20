@@ -1449,6 +1449,12 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
   int w = m->tex_width[texid];
   float plane[4];
 
+  // by-reference texture: the pixels are not in the model, skip with a warning
+  if (m->tex_adr[texid] == -1) {
+    mju_warning("texture %d: by reference, not uploaded by the classic renderer", texid);
+    return;
+  }
+
   // the classic renderer only uploads 3- (RGB) or 4-channel (RGBA) textures. KTX
   // and other encoded textures are single-channel blobs for the Filament renderer
   // (see LoadKTX); skip them with a warning instead of aborting (issue #3343).

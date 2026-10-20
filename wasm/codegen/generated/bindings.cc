@@ -4069,6 +4069,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjDYN_DCMOTOR", mjDYN_DCMOTOR)
     .value("mjDYN_PID", mjDYN_PID)
     .value("mjDYN_USER", mjDYN_USER);
+  enum_<mjtEmbed>("mjtEmbed")
+    .value("mjEMBED_FALSE", mjEMBED_FALSE)
+    .value("mjEMBED_TRUE", mjEMBED_TRUE)
+    .value("mjEMBED_AUTO", mjEMBED_AUTO);
   enum_<mjtEnableBit>("mjtEnableBit")
     .value("mjENBL_OVERRIDE", mjENBL_OVERRIDE)
     .value("mjENBL_ENERGY", mjENBL_ENERGY)
@@ -4325,6 +4329,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjORIENTATION_XYAXES", mjORIENTATION_XYAXES)
     .value("mjORIENTATION_ZAXIS", mjORIENTATION_ZAXIS)
     .value("mjORIENTATION_EULER", mjORIENTATION_EULER);
+  enum_<mjtPassthrough>("mjtPassthrough")
+    .value("mjPASSTHROUGH_NONE", mjPASSTHROUGH_NONE)
+    .value("mjPASSTHROUGH_TEXTURES", mjPASSTHROUGH_TEXTURES);
   enum_<mjtPertBit>("mjtPertBit")
     .value("mjPERT_TRANSLATE", mjPERT_TRANSLATE)
     .value("mjPERT_ROTATE", mjPERT_ROTATE);
@@ -5461,6 +5468,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tendon_width", &MjModel::tendon_width)
     .property("tex_adr", &MjModel::tex_adr)
     .property("tex_colorspace", &MjModel::tex_colorspace)
+    .property("tex_contenttypeadr", &MjModel::tex_contenttypeadr)
     .property("tex_data", &MjModel::tex_data)
     .property("tex_height", &MjModel::tex_height)
     .property("tex_nchannel", &MjModel::tex_nchannel)
@@ -5790,6 +5798,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("inertiafromgeom", &MjsCompiler::inertiafromgeom, &MjsCompiler::set_inertiafromgeom)
     .property("inertiagrouprange", &MjsCompiler::inertiagrouprange)
     .property("meshdir", &MjsCompiler::meshdir, &MjsCompiler::set_meshdir, reference())
+    .property("passthrough", &MjsCompiler::passthrough, &MjsCompiler::set_passthrough)
     .property("savecanonical", &MjsCompiler::savecanonical, &MjsCompiler::set_savecanonical)
     .property("savecompiled", &MjsCompiler::savecompiled, &MjsCompiler::set_savecompiled)
     .property("saveinertial", &MjsCompiler::saveinertial, &MjsCompiler::set_saveinertial)
@@ -6131,6 +6140,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cubefiles", &MjsTexture::cubefiles, reference())
     .property("data", &MjsTexture::data, reference())
     .property("element", &MjsTexture::element, reference())
+    .property("embed", &MjsTexture::embed, &MjsTexture::set_embed)
     .property("file", &MjsTexture::file, &MjsTexture::set_file, reference())
     .property("gridlayout", &MjsTexture::gridlayout)
     .property("gridsize", &MjsTexture::gridsize)

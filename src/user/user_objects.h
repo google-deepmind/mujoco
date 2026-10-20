@@ -1722,6 +1722,7 @@ class mjCTexture_ : public mjCBase {
   std::string              spec_file_;
   std::string              spec_content_type_;
   std::vector<std::string> spec_cubefiles_;
+  bool                     byref_ = false;  // compiled by reference: no payload in the model
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {
@@ -1751,10 +1752,12 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   std::string              ResolvedFilePath() const;  // modelfiledir + texturedir + file
   std::string              get_content_type() const { return content_type_; }
   std::vector<std::string> get_cubefiles() const { return cubefiles_; }
+  bool                     ByReference() const { return byref_; }
 
  private:
   // store texture into asset cache
   std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
+  const char* Ineligible(const mjVFS* vfs) const;              // why not by reference, or nullptr
   void        Builtin2D(void);                                 // make builtin 2D
   void        BuiltinCube(void);                               // make builtin cube
   void        Load2D(std::string filename, const mjVFS* vfs);  // load 2D from file

@@ -408,6 +408,13 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="kw_passthrough">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="textures"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="kw_scaling">
     <xs:restriction base="xs:string">
       <xs:enumeration value="similar"/>
@@ -787,6 +794,7 @@
     </xs:attribute>
     <xs:attribute name="alignfree" type="kw_bool"/>
     <xs:attribute name="conflict" type="kw_conflict"/>
+    <xs:attribute name="passthrough" type="kw_passthrough"/>
   </xs:complexType>
 
   <xs:complexType name="option">
@@ -1376,6 +1384,7 @@
     <xs:attribute name="hflip" type="kw_bool"/>
     <xs:attribute name="vflip" type="kw_bool"/>
     <xs:attribute name="nchannel" type="xs:int" default="3"/>
+    <xs:attribute name="embed" type="kw_FalseTrueAuto" default="auto"/>
   </xs:complexType>
 
   <xs:complexType name="default_material">
@@ -2099,6 +2108,7 @@
     <xs:attribute name="hflip" type="kw_bool"/>
     <xs:attribute name="vflip" type="kw_bool"/>
     <xs:attribute name="nchannel" type="xs:int" default="3"/>
+    <xs:attribute name="embed" type="kw_FalseTrueAuto" default="auto"/>
   </xs:complexType>
 
   <xs:complexType name="material">

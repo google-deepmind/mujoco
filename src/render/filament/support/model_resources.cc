@@ -447,6 +447,12 @@ void ModelResources::UploadTexture(const mjModel* model, int id) {
     mju_error("Invalid texture index: %d", id);
   }
 
+  // by-reference texture: the pixels are not in the model, skip with a warning
+  if (model->tex_adr[id] == -1) {
+    mju_warning("texture %d: by reference, not uploaded", id);
+    return;
+  }
+
   mjrfTextureConfig config;
   mjrf_defaultTextureConfig(&config);
   config.width = model->tex_width[id];

@@ -266,6 +266,9 @@
          .. grid-item::
             :ref:`conflict<compiler-conflict>`
 
+         .. grid-item::
+            :ref:`passthrough<compiler-passthrough>`
+
 
       .. dropdown:: :ref:`lengthrange<compiler-lengthrange>` :octicon:`dot`
 
@@ -616,6 +619,9 @@
 
             .. grid-item::
                :ref:`nchannel<asset-texture-nchannel>`
+
+            .. grid-item::
+               :ref:`embed<asset-texture-embed>`
 
 
       .. dropdown:: :ref:`material<asset-material>` |*|
@@ -5596,6 +5602,9 @@
 
             .. grid-item::
                :ref:`nchannel<default-texture-nchannel>`
+
+            .. grid-item::
+               :ref:`embed<default-texture-embed>`
 
 
       .. dropdown:: :ref:`material<default-material>` :octicon:`dot`

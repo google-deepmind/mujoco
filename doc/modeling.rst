@@ -1638,6 +1638,47 @@ memory efficient, followed by the Newton solver, while the PGS solver is the mos
 models, we usually aim for 50% utilization in the worst-case scenario encountered while exploring the model. If you only
 intend to use the CG solver, you can get away with significantly smaller arena allocation.
 
+.. _CAssetReference:
+
+Assets by reference
+~~~~~~~~~~~~~~~~~~~
+
+An asset in :ref:`mjModel` is *embedded* when its payload is in the model buffer, which is the default, or *by
+reference* when the model holds a resolved path and the parameters a consumer needs to load it, and no payload. Textures
+are the first asset type which can be by reference; the compiler never reads a texture, so leaving it out of the model
+saves the decoding time and the memory of the pixels, which in texture-heavy scenes is most of the model. The mode is
+the :ref:`passthrough<compiler-passthrough>` attribute of :ref:`compiler<compiler>`, overridden per texture by
+:ref:`embed<asset-texture-embed>` (``mjsCompiler.passthrough`` and ``mjsTexture.embed`` in the :ref:`mjSpec`).
+
+A texture ``i`` of :ref:`mjModel` is by reference when ``tex_adr[i] == -1``. Then:
+
+- ``tex_width[i]`` and ``tex_height[i]`` are 0, since the size is not known without reading the file. ``tex_type``,
+  ``tex_colorspace`` and ``tex_nchannel`` are as authored; in particular a :ref:`colorspace<asset-texture-colorspace>`
+  of "auto" stays ``mjCOLORSPACE_AUTO``, to be resolved by whoever decodes the file. ``ntexdata`` excludes the texture.
+- ``paths + tex_pathadr[i]`` is the resolved path of the file: the directory of the model file, the
+  :ref:`texturedir<compiler-texturedir>` and the :ref:`file<asset-texture-file>` attribute, after
+  :ref:`strippath<compiler-strippath>`, unless the file is absolute or has a scheme (e.g. ``https://``) handled by a
+  :ref:`resource provider<exProvider>`. As for every asset, this holds whether or not the texture is by reference.
+  ``paths + tex_contenttypeadr[i]`` is the authored :ref:`content_type<asset-texture-content_type>`, or
+  ``tex_contenttypeadr[i] == -1`` to infer it from the extension.
+- The bytes of the file are read with :ref:`mju_openResource` and :ref:`mju_readResource` on that path, with no
+  virtual file system. The compiler does not check that the file exists or that it can decode it; a path which does not
+  resolve is an error for whoever reads it. Decoding into pixels is up to the consumer; a function doing so for both
+  kinds of texture will be provided in a later release, and until then the built-in renderer skips by-reference textures
+  with a warning.
+
+A by-reference texture is always the file as a consumer would read it. Textures which the compiler would transform stay
+embedded, so that the model needs no fields describing the transformation: flipped textures, composite
+:ref:`grids<asset-texture-gridsize>`, cubes from six :ref:`separate files<asset-texture-fileright>`,
+:ref:`procedural<asset-texture-builtin>` textures and textures given as a buffer. A file served from memory by a
+:ref:`virtual file system<Virtualfilesystem>` also stays embedded, since the memory has no lifetime beyond compilation.
+
+Compilation does not modify the :ref:`mjSpec`: the resolved path is computed when the model is written, the texture
+element keeps its :at:`file` and :at:`embed` attributes, and every spec texture has exactly one model texture, with the
+same id and name, whether or not it is by reference. Recompiling after changing the policy switches the representation.
+:ref:`mj_saveModel` writes the model as it is, so an MJB file keeps its by-reference textures as references, and loads
+wherever the paths resolve.
+
 .. _Tips:
 
 Tips and tricks

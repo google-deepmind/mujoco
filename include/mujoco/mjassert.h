@@ -100,6 +100,8 @@ MJ_ASSERT_SIZE(mjtBuiltin, 4);
 MJ_ASSERT_SIZE(mjtMark, 4);
 MJ_ASSERT_SIZE(mjtLimited, 4);
 MJ_ASSERT_SIZE(mjtAlignFree, 4);
+MJ_ASSERT_SIZE(mjtPassthrough, 4);
+MJ_ASSERT_SIZE(mjtEmbed, 4);
 MJ_ASSERT_SIZE(mjtInertiaFromGeom, 4);
 MJ_ASSERT_SIZE(mjtOrientation, 4);
 MJ_ASSERT_SIZE(mjtActuator, 4);

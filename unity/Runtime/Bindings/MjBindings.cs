@@ -605,6 +605,15 @@ public enum mjtAlignFree : int{
   mjALIGNFREE_TRUE = 1,
   mjALIGNFREE_AUTO = 2,
 }
+public enum mjtPassthrough : int{
+  mjPASSTHROUGH_NONE = 0,
+  mjPASSTHROUGH_TEXTURES = 1,
+}
+public enum mjtEmbed : int{
+  mjEMBED_FALSE = 0,
+  mjEMBED_TRUE = 1,
+  mjEMBED_AUTO = 2,
+}
 public enum mjtInertiaFromGeom : int{
   mjINERTIAFROMGEOM_FALSE = 0,
   mjINERTIAFROMGEOM_TRUE = 1,
@@ -1478,6 +1487,7 @@ public unsafe struct mjModel_ {
   public UInt64* tex_adr;
   public byte* tex_data;
   public int* tex_pathadr;
+  public int* tex_contenttypeadr;
   public int* mat_texid;
   public byte* mat_texuniform;
   public float* mat_texrepeat;
@@ -5983,6 +5993,7 @@ public unsafe struct mjsCompiler_ {
   public byte savecanonical;
   public byte alignfree;
   public mjtConflict conflict;
+  public mjtPassthrough passthrough;
   public mjLROpt_ LRopt;
   public void* meshdir;
   public void* texturedir;

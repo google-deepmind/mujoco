@@ -937,6 +937,26 @@ Whether to align free joints with the inertial frame.
 
 .. mujoco-include:: mjtAlignFree
 
+.. _mjtPassthrough:
+
+mjtPassthrough
+~~~~~~~~~~~~~~
+
+Which assets the compiler leaves :ref:`by reference<CAssetReference>` instead of loading into :ref:`mjModel`, a
+bitmask; see :ref:`compiler/passthrough<compiler-passthrough>`.
+
+.. mujoco-include:: mjtPassthrough
+
+.. _mjtEmbed:
+
+mjtEmbed
+~~~~~~~~
+
+Whether an asset's payload is in the model or the asset is :ref:`by reference<CAssetReference>`; see
+:ref:`texture/embed<asset-texture-embed>`.
+
+.. mujoco-include:: mjtEmbed
+
 .. _mjtInertiaFromGeom:
 
 mjtInertiaFromGeom

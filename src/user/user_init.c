@@ -46,6 +46,7 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->compiler.saveinertial         = 0;
   spec->compiler.savecompiled         = 1;
   spec->compiler.savecanonical        = 1;
+  spec->compiler.passthrough          = mjPASSTHROUGH_NONE;
   mj_defaultLROpt(&spec->compiler.LRopt);
 
   // engine data
@@ -281,6 +282,7 @@ void mjs_defaultTexture(mjsTexture* texture) {
   texture->random                                        = 0.01;
   texture->gridsize[0] = texture->gridsize[1] = 1;
   texture->nchannel                           = 3;
+  texture->embed                              = mjEMBED_AUTO;
   memcpy(texture->gridlayout, "............", sizeof(texture->gridlayout));
 }
 

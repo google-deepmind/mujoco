@@ -1193,6 +1193,7 @@ TEST_P(MjzEncoderParameterizedTest, WriteReadCompare) {
     reset_pathadr(model->skin_pathadr, model->nskin);
     reset_pathadr(model->hfield_pathadr, model->nhfield);
     reset_pathadr(model->tex_pathadr, model->ntex);
+    reset_pathadr(model->tex_contenttypeadr, model->ntex);
   }
 
   std::string field = "";
