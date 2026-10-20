@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cmath>
 #include <csetjmp>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -3898,6 +3899,9 @@ void mjCModel::CopyObjects(mjModel* m) {
     // copy rgb data
     mjtSize nbytes = static_cast<mjtSize>(ptex->nchannel) * ptex->width * ptex->height;
     memcpy(m->tex_data + data_adr, ptex->data_.data(), nbytes);
+
+    // the model has the pixels now; the next compile loads them again
+    std::vector<std::byte>().swap(ptex->data_);
 
     // advance counter
     data_adr += nbytes;

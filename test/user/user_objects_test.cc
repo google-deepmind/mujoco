@@ -20,6 +20,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -1585,6 +1586,77 @@ TEST_F(MjCTextureTest, CubeFromFileMustHaveThreeChannels) {
       mj_deleteSpec(spec);
     }
   }
+  mj_deleteVFS(vfs.get());
+}
+
+// the spec does not keep the pixels of its textures between compilations: a
+// file, a builtin and a buffer texture compile to the same tex_data every time,
+// with and without the asset cache
+TEST_F(MjCTextureTest, PixelsSameAfterRecompile) {
+  // 1 x 1 RGB PNG file
+  static constexpr unsigned char pixel[] = {
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+      0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xf8, 0xdf, 0xc0, 0x00,
+      0x00, 0x04, 0x01, 0x01, 0x80, 0xfb, 0xd7, 0xcb, 0xf1, 0x00, 0x00, 0x00,
+      0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+  static constexpr std::byte buffer[] = {
+      std::byte{1},  std::byte{2},  std::byte{3},  std::byte{11},
+      std::byte{12}, std::byte{13}, std::byte{21}, std::byte{22},
+      std::byte{23}, std::byte{31}, std::byte{32}, std::byte{33}};
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "pixel.png", pixel, sizeof(pixel));
+
+  mjSpec* spec = mj_makeSpec();
+  mjsTexture* file = mjs_addTexture(spec);
+  mjs_setName(file->element, "file");
+  file->type = mjTEXTURE_2D;
+  mjs_setString(file->file, "pixel.png");
+  mjsTexture* builtin = mjs_addTexture(spec);
+  mjs_setName(builtin->element, "builtin");
+  builtin->type = mjTEXTURE_2D;
+  builtin->builtin = mjBUILTIN_CHECKER;
+  builtin->width = 4;
+  builtin->height = 4;
+  mjsTexture* buffered = mjs_addTexture(spec);
+  mjs_setName(buffered->element, "buffer");
+  buffered->type = mjTEXTURE_2D;
+  buffered->width = 2;
+  buffered->height = 2;
+  buffered->nchannel = 3;
+  buffered->hflip = 1;
+  mjs_setBuffer(buffered->data, buffer, sizeof(buffer));
+
+  mjModel* m = mj_compile(spec, vfs.get());
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->ntex, 3);
+  ASSERT_EQ(m->ntexdata, 3 + 48 + 12);
+  std::vector<mjtByte> expected(m->tex_data, m->tex_data + m->ntexdata);
+  EXPECT_EQ(expected[0], 255);             // the pixel of the file is red
+  EXPECT_EQ(expected[m->tex_adr[2]], 11);  // the buffer is flipped
+
+  // recompile with a warm cache, then with a cold one, then compile again
+  for (int i = 0; i < 3; i++) {
+    if (i == 1) mj_clearCache(mj_getCache());
+    if (i < 2) {
+      ASSERT_EQ(mj_recompile(spec, vfs.get(), m, nullptr), 0)
+          << mjs_getError(spec);
+    } else {
+      mj_deleteModel(m);
+      m = mj_compile(spec, vfs.get());
+      ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+    }
+    ASSERT_EQ(m->ntexdata, expected.size()) << i;
+    EXPECT_EQ(std::vector<mjtByte>(m->tex_data, m->tex_data + m->ntexdata),
+              expected)
+        << i;
+  }
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
   mj_deleteVFS(vfs.get());
 }
 
