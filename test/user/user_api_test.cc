@@ -9410,41 +9410,64 @@ TEST_F(CopyBackTest, RefusesComputedAnchorOfConnect) {
   mj_deleteSpec(spec);
 }
 
-// a weld between bodies keeps the relative pose which compilation computes
-// for it, unless that pose is changed in the model or its anchor is
-TEST_F(CopyBackTest, WritesGivenPartsOfWeld) {
+// a weld between bodies which has no relative pose is marked for mj_setConst
+// to compute it: a change to the pose which does not follow from the model
+// cannot be copied back, and a weld which is no longer marked has it written
+TEST_F(CopyBackTest, WritesPoseOfUnmarkedWeld) {
   std::array<char, 1000> er;
   mjSpec* spec =
       mj_parseXMLString(kCopyBackEquality, nullptr, er.data(), er.size());
   ASSERT_THAT(spec, NotNull()) << er.data();
   mjModel* model = mj_compile(spec, nullptr);
   ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
   mjSpec* before = mj_copySpec(spec);
   mjtNum* weld = model->eq_data + mjNEQDATA;
   ASSERT_THAT(AsVector(weld, mjNEQDATA),
-              ElementsAre(0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1));
+              ElementsAre(0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1));
 
-  // the torque scale: the relative pose stays as it was written, computed
+  // the torque scale
   weld[10] = 2;
   ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
   EXPECT_THAT(ChangedFields(before, spec),
               ElementsAre("equality[1] 'weld': data[10]"));
 
-  // the anchor: the relative pose was computed for the anchor as it was, and
-  // is now given
+  // a pose which mj_setConst does not compute
+  weld[3] = 0.5;
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("the relative pose of a weld"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("'weld'"));
+  weld[3] = 1;
+
+  // the anchor, and the pose which mj_setConst computes from it
   weld[0] = 0.25;
+  mj_setConst(model, data);
+  ASSERT_EQ(weld[3], 1.25);
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(ChangedFields(before, spec),
+              ElementsAre("equality[1] 'weld': data[0]",
+                          "equality[1] 'weld': data[10]"));
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(again->eq_data + mjNEQDATA, mjNEQDATA),
+            AsVector(weld, mjNEQDATA));
+
+  // no longer marked: the pose is given
+  weld[11] = 0;
   ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
   EXPECT_THAT(
       ChangedFields(before, spec),
       ElementsAre("equality[1] 'weld': data[0]", "equality[1] 'weld': data[3]",
                   "equality[1] 'weld': data[6]",
                   "equality[1] 'weld': data[10]"));
-  mjModel* again = mj_compile(spec, nullptr);
-  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
-  EXPECT_EQ(AsVector(again->eq_data + mjNEQDATA, mjNEQDATA),
+  mjModel* unmarked = mj_compile(spec, nullptr);
+  ASSERT_THAT(unmarked, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(unmarked->eq_data + mjNEQDATA, mjNEQDATA),
             AsVector(weld, mjNEQDATA));
 
+  mj_deleteModel(unmarked);
   mj_deleteModel(again);
+  mj_deleteData(data);
   mj_deleteModel(model);
   mj_deleteSpec(before);
   mj_deleteSpec(spec);

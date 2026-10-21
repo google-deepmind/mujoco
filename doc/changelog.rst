@@ -24,15 +24,27 @@ Engine
   the model which recompiling the edited spec would give, apart from the values the compiler derives once:
 
   - The compiler alone computes the values which the spec leaves to it: the damping of position actuators given a
-    :ref:`dampratio<actuator-position-dampratio>`, the spring length of tendons given ``(-1, -1)``, the relative pose
-    of welds between bodies given a zero quaternion, and the model statistics. :ref:`mj_setConst` no longer resolves
-    these conventions when they are written into a compiled model; code which did so should set the values directly,
-    which :ref:`mj_copyBack` now copies to the spec for tendon spring lengths too.
+    :ref:`dampratio<actuator-position-dampratio>`, the spring length of tendons given ``(-1, -1)``, and the model
+    statistics. :ref:`mj_setConst` no longer resolves these conventions when they are written into a compiled
+    model; code which did so should set the values directly, which :ref:`mj_copyBack` now copies to the spec for
+    tendon spring lengths too.
   - Simulation no longer depends on the statistics: the constraint solvers scale their termination criteria by the
     trace of the current inertia matrix, of the model or of an island, instead of ``mjModel.stat.meaninertia``.
     Models solved with PGS, noslip or islands disabled can stop at slightly different iterations. The
     :ref:`meaninertia<statistic-meaninertia>` attribute is deprecated and will be removed in a future release (compiling
     a model that sets it now gives a warning; remove the attribute to migrate).
+  - For body-based :ref:`weld<equality-weld>` constraints without a specified :ref:`relpose<equality-weld-relpose>`,
+    the relative pose inferred in ``qpos0`` is now recomputed by :ref:`mj_setConst` when the model is modified after
+    compilation (matching the second body's :ref:`anchor<equality-connect-anchor>` in body-based ``connect``
+    constraints): the compiler marks such welds with a nonzero ``eq_data[11]``, and :ref:`mjNEQDATA<glNumericSizes>`
+    increased from 11 to 12.
+
+    .. admonition:: Breaking ABI changes
+       :class: attention
+
+       :ref:`mjNEQDATA<glNumericSizes>` increased from 11 to 12, and :ref:`mj_setConst` overwrites ``eq_data[3:10]`` of
+       body-based welds that had no ``relpose`` at compile time. Zero ``eq_data[11]`` before calling :ref:`mj_setConst`
+       to set the relative pose of such a weld directly.
   - ``MJSETCONST_ARRAYS`` in ``mjxmacro.h`` lists the arrays of :ref:`mjModel` which :ref:`mj_setConst` uses, and how
     each group of its computations uses them: those independent of the configuration, the kinematics and the inertia
     matrix in ``qpos0``, and the kinematics in ``qpos_spring``. Each entry is ``mjSC_IN`` if the group reads the array,

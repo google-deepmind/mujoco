@@ -3902,9 +3902,8 @@ TEST_F(XMLWriterTest, OmitsDefaultEqualityData) {
   EXPECT_THAT(saved_xml, Not(HasSubstr("anchor=")));
   EXPECT_THAT(saved_xml, Not(HasSubstr("torquescale=")));
   EXPECT_THAT(saved_xml, Not(HasSubstr("polycoef=")));
-  // relpose is legitimately saved: the compiler resolves the zero-quat
-  // "compute current pose" sentinel into the actual relative pose
-  EXPECT_THAT(saved_xml, HasSubstr("relpose=\"0 0 0 1 0 0 0\""));
+  // the relative pose, which mj_setConst computes
+  EXPECT_THAT(saved_xml, Not(HasSubstr("relpose=")));
 }
 
 TEST_F(XMLWriterTest, WritesDefaultClassJointPosAxis) {

@@ -477,7 +477,7 @@ to change.
      - value
      - description
    * - ``mjNEQDATA``
-     - 11
+     - 12
      - The maximal number of real-valued parameters used to define each equality constraint. Determines the size of
        ``mjModel.eq_data``.
    * - ``mjNDYN``

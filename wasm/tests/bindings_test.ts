@@ -682,7 +682,7 @@ describe('MuJoCo WASM Bindings', () => {
   });
 
   it('should check constants values', () => {
-    expect(mujoco.mjNEQDATA).toBe(11);
+    expect(mujoco.mjNEQDATA).toBe(12);
     expect(mujoco.mjDISABLESTRING).toEqual([
       'Constraint',   'Equality',  'Frictionloss', 'Limit',     'Contact',
       'Spring',       'Damper',    'Gravity',      'Clampctrl', 'Warmstart',

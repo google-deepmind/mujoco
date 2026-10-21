@@ -42,6 +42,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _forward_shim(
     # Model
@@ -155,7 +156,7 @@ def _forward_shim(
     efm_dofblk: wp.array[int],
     efm_dofid: wp.array[int],
     eq_connect_adr: wp.array[int],
-    eq_data: wp.array2d[mjwp_types.vec11],
+    eq_data: wp.array2d[mjwp_types.vec12],
     eq_flex_adr: wp.array[int],
     eq_flexstrain_adr: wp.array[int],
     eq_jnt_adr: wp.array[int],
@@ -3099,7 +3100,7 @@ def _step_shim(
     efm_dofblk: wp.array[int],
     efm_dofid: wp.array[int],
     eq_connect_adr: wp.array[int],
-    eq_data: wp.array2d[mjwp_types.vec11],
+    eq_data: wp.array2d[mjwp_types.vec12],
     eq_flex_adr: wp.array[int],
     eq_flexstrain_adr: wp.array[int],
     eq_jnt_adr: wp.array[int],

@@ -849,6 +849,10 @@ class vec11f(wp.types.vector(length=11, dtype=float)):
   pass
 
 
+class vec12f(wp.types.vector(length=12, dtype=float)):
+  pass
+
+
 class vec_pluginattr(wp.types.vector(length=_NPLUGINATTR, dtype=float)):
   pass
 
@@ -886,6 +890,7 @@ vec6 = vec6f
 vec8 = vec8f
 vec10 = vec10f
 vec11 = vec11f
+vec12 = vec12f
 vec16 = vec16f
 vec128 = vec_pluginattr
 mat23 = mat23f
@@ -1894,7 +1899,7 @@ class Model:
   eq_active0: array("neq", bool)
   eq_solref: array("*", "neq", wp.vec2)
   eq_solimp: array("*", "neq", vec5)
-  eq_data: array("*", "neq", vec11)
+  eq_data: array("*", "neq", vec12)
   tendon_adr: array("ntendon", int)
   tendon_num: array("ntendon", int)
   ten_J_rownnz: array("ntendon", int)

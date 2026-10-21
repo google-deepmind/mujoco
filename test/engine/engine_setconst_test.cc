@@ -1319,18 +1319,7 @@ TEST_F(SetConstTest, CompiledConstants) {
         <joint name="slider" type="slide" springref=".25"/>
         <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
       </body>
-      <body name="a" pos="0 0 1">
-        <freejoint/>
-        <geom size=".1"/>
-      </body>
-      <body name="b" pos="1 0 1">
-        <freejoint/>
-        <geom size=".1"/>
-      </body>
     </worldbody>
-    <equality>
-      <weld body1="a" body2="b"/>
-    </equality>
     <tendon>
       <fixed stiffness="1">
         <joint joint="slider" coef="2"/>
@@ -1346,36 +1335,90 @@ TEST_F(SetConstTest, CompiledConstants) {
   ASSERT_THAT(m.get(), NotNull()) << error;
   MjDataPtr d(mj_makeData(m.get()));
 
-  // compiled: damping 2 * sqrt(kp * mass), length 2 * springref, the pose of b
-  // relative to a, the given meansize
+  // compiled: damping 2 * sqrt(kp * mass), length 2 * springref, the given
+  // meansize
   mjtNum* biasprm = m->actuator_biasprm;
   mjtNum* lengthspring = m->tendon_lengthspring;
-  mjtNum* relpose = m->eq_data + 3;
   EXPECT_MJTNUM_EQ(biasprm[2], -4);
   EXPECT_THAT(AsVector(lengthspring, 2), ElementsAre(0.5, 0.5));
-  EXPECT_THAT(AsVector(relpose, 7), ElementsAre(1, 0, 0, 1, 0, 0, 0));
   EXPECT_MJTNUM_EQ(m->stat.meansize, 5);
   mjStatistic stat = m->stat;
 
   // their inputs change: the values stay
   m->body_mass[1] = 4;
   m->qpos_spring[0] = 0.5;
-  m->qpos0[m->jnt_qposadr[2]] = 2;
   mj_setConst(m.get(), d.get());
   EXPECT_MJTNUM_EQ(m->dof_invweight0[0], 0.25);
   EXPECT_MJTNUM_EQ(biasprm[2], -4);
   EXPECT_THAT(AsVector(lengthspring, 2), ElementsAre(0.5, 0.5));
-  EXPECT_THAT(AsVector(relpose, 7), ElementsAre(1, 0, 0, 1, 0, 0, 0));
   EXPECT_EQ(std::memcmp(&m->stat, &stat, sizeof(mjStatistic)), 0);
 
   // the conventions are not resolved
   biasprm[2] = 1;
   lengthspring[0] = lengthspring[1] = -1;
-  for (int k = 0; k < 7; k++) relpose[k] = 0;
   mj_setConst(m.get(), d.get());
   EXPECT_MJTNUM_EQ(biasprm[2], 1);
   EXPECT_THAT(AsVector(lengthspring, 2), ElementsAre(-1, -1));
-  EXPECT_THAT(AsVector(relpose, 7), ElementsAre(0, 0, 0, 0, 0, 0, 0));
+}
+
+// Compilation marks welds between bodies which have no relative pose in
+// eq_data[11], and mj_setConst computes the pose of marked welds.
+TEST_F(SetConstTest, WeldPose) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a" pos="0 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+      <body name="b" pos="1 0 1">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+      <body name="m" mocap="true" pos="0 1 1"/>
+    </worldbody>
+    <equality>
+      <weld body1="a" body2="b"/>
+      <weld body1="a" body2="b" relpose="0 0 0 2 0 0 0"/>
+      <weld body1="m" body2="b"/>
+    </equality>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+
+  // compiled: the pose of b relative to a, the given pose normalized, and the
+  // pose of b relative to the mocap body m
+  mjtNum* computed = m->eq_data;
+  mjtNum* given = m->eq_data + mjNEQDATA;
+  mjtNum* mocap = m->eq_data + 2 * mjNEQDATA;
+  EXPECT_THAT(AsVector(computed + 3, 7), ElementsAre(1, 0, 0, 1, 0, 0, 0));
+  EXPECT_EQ(computed[11], 1);
+  EXPECT_THAT(AsVector(given + 3, 7), ElementsAre(0, 0, 0, 1, 0, 0, 0));
+  EXPECT_EQ(given[11], 0);
+  EXPECT_THAT(AsVector(mocap + 3, 7), ElementsAre(1, -1, 0, 1, 0, 0, 0));
+  EXPECT_EQ(mocap[11], 1);
+
+  // the reference configuration and the anchor change: the marked pose follows,
+  // using the mocap body's model pose rather than d->mocap_pos, which is
+  // preserved
+  int qposadr = m->jnt_qposadr[1];
+  m->qpos0[qposadr] = 2;
+  computed[2] = given[2] = 0.5;
+  d->mocap_pos[0] = 10;
+  mj_setConst(m.get(), d.get());
+  EXPECT_THAT(AsVector(computed + 3, 7), ElementsAre(2, 0, 0.5, 1, 0, 0, 0));
+  EXPECT_THAT(AsVector(given + 3, 7), ElementsAre(0, 0, 0, 1, 0, 0, 0));
+  EXPECT_THAT(AsVector(mocap + 3, 7), ElementsAre(2, -1, 0, 1, 0, 0, 0));
+  EXPECT_MJTNUM_EQ(d->mocap_pos[0], 10);
+
+  // unmarked, the pose stays
+  computed[11] = 0;
+  m->qpos0[qposadr] = 3;
+  mj_setConst(m.get(), d.get());
+  EXPECT_THAT(AsVector(computed + 3, 7), ElementsAre(2, 0, 0.5, 1, 0, 0, 0));
 }
 
 }  // namespace

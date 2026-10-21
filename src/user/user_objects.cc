@@ -7294,6 +7294,20 @@ void mjCEquality::Compile(void) {
   ResolveReferences(model);
   ApplyGauge();
 
+  // a connect between sites uses no data
+  if (type == mjEQ_CONNECT && objtype == mjOBJ_SITE) { std::fill(data, data + mjNEQDATA, 0); }
+
+  // a weld between bodies without a relative pose, given as a zero quaternion, is marked in
+  // data[11] for mj_setConst to compute the pose; a given one is normalized
+  if (type == mjEQ_WELD) {
+    const bool body = objtype == mjOBJ_BODY;
+    data[11]        = body && !data[6] && !data[7] && !data[8] && !data[9];
+    if (body && !data[11] && !mjuu_normvec(data + 6, 4)) {
+      data[6] = 1;
+      data[7] = data[8] = data[9] = 0;
+    }
+  }
+
   // make sure flex is not rigid, and has no conflicting stretch forces
   if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
     mjCFlex* flex = model->Flexes()[obj1id];

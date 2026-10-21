@@ -1410,7 +1410,17 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* pequality, mjCD
           // not the constructor's union payload
           double zero3[3] = {0, 0, 0};
           WriteAttr(elem, "anchor", 3, equality->data, zero3);
-          WriteAttr(elem, "relpose", 7, equality->data + 3, def->Equality().spec.data + 3);
+
+          // a relative pose which mj_setConst computes, marked in data[11], is written as none:
+          // a zero quaternion
+          const double* defpose = def->Equality().spec.data + 3;
+          double        relpose[7];
+          std::copy_n(equality->data + 3, 7, relpose);
+          if (!authored_ && equality->data[11]) {
+            std::copy_n(defpose, 3, relpose);
+            std::fill_n(relpose + 3, 4, 0);
+          }
+          WriteAttr(elem, "relpose", 7, relpose, defpose);
         } else {
           WriteAttrTxt(elem, "site1", mjs_getString(equality->name1));
           WriteAttrTxt(elem, "site2", mjs_getString(equality->name2));

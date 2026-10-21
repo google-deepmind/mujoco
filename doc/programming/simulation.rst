@@ -693,9 +693,9 @@ When considering exceptions to the rule that real-valued parameters are safe to 
 some fields to other fields, allowing changes that would otherwise be unsafe. It does not redo what the compiler
 derives once from the conventions of the specification: the damping of actuators given a
 :ref:`dampratio<actuator-position-dampratio>`, the stiffness and damping of joints given a
-:ref:`springdamper<body-joint-springdamper>`, the spring length of tendons and the relative pose of welds which have
-none, and the model statistics. These keep the values computed for the model as compiled; to change them, recompile the
-spec or set the derived values directly.
+:ref:`springdamper<body-joint-springdamper>`, the spring length of tendons which have none, and the model statistics.
+These keep the values computed for the model as compiled; to change them, recompile the spec or set the derived values
+directly.
 
 Exceptions to the general rule that **real-valued** types **are safe to change**:
 
@@ -709,8 +709,7 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - Notes
    * - ``qpos0`` |br| ``qpos_spring``
      - Safe with :ref:`mj_setConst`.
-     - The spring length of tendons which have none, and the relative pose of welds which have none, keep their
-       compiled values.
+     - The spring length of tendons which have none keeps its compiled value.
    * - ``body_mass`` |br| ``body_inertia`` |br| ``body_ipos`` |br| ``body_iquat``
      - Safe with :ref:`mj_setConst`.
      - Note that mass and inertia are usually scaled together, since inertia is :math:`\sum m r^2`. Scaling them
@@ -756,7 +755,9 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
        compiler and keeps its value.
    * - ``eq_data``
      - Safe with :ref:`mj_setConst`.
-     - For connect constraints between bodies, :ref:`mj_setConst` computes the anchor in the second body.
+     - For connect constraints between bodies, :ref:`mj_setConst` computes the anchor in the second body. For weld
+       constraints between bodies marked by a nonzero ``eq_data[11]``, which the compiler sets for those without a
+       relative pose, it computes the relative pose.
    * - ``hfield_size``
      - Safe with :ref:`mj_setConst`.
      -

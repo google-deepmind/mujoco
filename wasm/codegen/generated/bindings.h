@@ -2435,7 +2435,7 @@ struct MjsEquality {
     ptr_->type = value;
   }
   emscripten::val data() const {
-    return emscripten::val(emscripten::typed_memory_view(11, ptr_->data));
+    return emscripten::val(emscripten::typed_memory_view(12, ptr_->data));
   }
   mjtBool active() const {
     return ptr_->active;

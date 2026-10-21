@@ -25,7 +25,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec11
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec12
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
@@ -250,7 +250,7 @@ def _equality_connect(is_sparse: bool, newton: bool, is_discrete: bool = False):
     eq_objtype: wp.array[int],
     eq_solref: wp.array2d[wp.vec2],
     eq_solimp: wp.array2d[vec5],
-    eq_data: wp.array2d[vec11],
+    eq_data: wp.array2d[vec12],
     body_isdofancestor: wp.array2d[int],
     eq_connect_adr: wp.array[int],
     # Data in:
@@ -584,7 +584,7 @@ def _equality_joint(is_sparse: bool, newton: bool, is_discrete: bool = False):
     eq_obj2id: wp.array[int],
     eq_solref: wp.array2d[wp.vec2],
     eq_solimp: wp.array2d[vec5],
-    eq_data: wp.array2d[vec11],
+    eq_data: wp.array2d[vec12],
     eq_jnt_adr: wp.array[int],
     # Data in:
     qpos_in: wp.array2d[float],
@@ -724,7 +724,7 @@ def _equality_tendon(is_sparse: bool, newton: bool, is_discrete: bool = False):
     eq_obj2id: wp.array[int],
     eq_solref: wp.array2d[wp.vec2],
     eq_solimp: wp.array2d[vec5],
-    eq_data: wp.array2d[vec11],
+    eq_data: wp.array2d[vec12],
     ten_J_rownnz: wp.array[int],
     ten_J_rowadr: wp.array[int],
     ten_J_colind: wp.array[int],
@@ -1071,7 +1071,7 @@ def _equality_weld(is_sparse: bool, newton: bool, is_discrete: bool = False):
     eq_objtype: wp.array[int],
     eq_solref: wp.array2d[wp.vec2],
     eq_solimp: wp.array2d[vec5],
-    eq_data: wp.array2d[vec11],
+    eq_data: wp.array2d[vec12],
     body_isdofancestor: wp.array2d[int],
     eq_wld_adr: wp.array[int],
     # Data in:
@@ -1548,7 +1548,7 @@ def _equality_flexstrain(is_sparse: bool, newton: bool, is_discrete: bool = Fals
     eq_obj1id: wp.array[int],
     eq_solref: wp.array2d[wp.vec2],
     eq_solimp: wp.array2d[vec5],
-    eq_data: wp.array2d[vec11],
+    eq_data: wp.array2d[vec12],
     body_isdofancestor: wp.array2d[int],
     eq_flexstrain_adr: wp.array[int],
     flexstrain_J_rownnz: wp.array[int],

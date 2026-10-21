@@ -9606,7 +9606,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='data',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
-                     extents=(11,),
+                     extents=(12,),
                  ),
                  doc='type-dependent data',
              ),

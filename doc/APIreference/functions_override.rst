@@ -81,8 +81,8 @@ it:
 - A stiffness or damping of a joint with :ref:`springdamper<body-joint-springdamper>`, and a control or activation
   range which was inherited with :ref:`inheritrange<actuator-position-inheritrange>`, are written in its place.
 - Elevation data of a height field which was read from a file is written in place of the file.
-- The relative pose of a :ref:`weld<equality-weld>` between bodies which compilation computed stays computed, unless
-  it was changed in the model or the anchor of the weld was; it is then written.
+- The relative pose of a :ref:`weld<equality-weld>` between bodies which is marked by a nonzero
+  ``mjModel.eq_data[11]`` is written as computed, with a zero quaternion.
 
 The following changes cannot be expressed in the spec and are errors: the mass or inertia of a body when
 :ref:`inertiafromgeom<compiler-inertiafromgeom>` is "true" or :ref:`settotalmass<compiler-settotalmass>` is set; the
@@ -92,8 +92,8 @@ mesh site, and the frame of a mesh; the field of view of a camera which has a se
 which has none; and different control ranges for the inputs of an actuator which has one. So are changes which the
 next compilation would not keep: damping, armature, friction loss or their solver parameters which differ between the
 degrees of freedom of a ball or free joint; elevation data of a height field whose lowest and highest values are not
-0 and 1; and the anchor of a :ref:`connect<equality-connect>` between bodies in its second body, other than the one
-which :ref:`mj_setConst` computes.
+0 and 1; and the anchor of a :ref:`connect<equality-connect>` between bodies in its second body, or the relative pose
+of a marked weld, other than the one which :ref:`mj_setConst` computes.
 
 .. _mj_recompile:
 

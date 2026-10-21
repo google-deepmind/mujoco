@@ -42,9 +42,8 @@ void mj_alignFlex(mjModel* m);
 
 // Set constant fields of mjModel, corresponding to qpos0 configuration, and those which
 // compilation derives once from the conventions of the spec: the damping of position-like
-// actuators given a damping ratio as a positive biasprm[2], the relative pose of welds between
-// bodies given a zero quaternion, the spring length of tendons given (-1, -1), and the model
-// statistics.
+// actuators given a damping ratio as a positive biasprm[2], the spring length of tendons given
+// (-1, -1), and the model statistics.
 void mj_setCompiledConst(mjModel* m, mjData* d);
 
 // Set actuator_lengthrange for specified actuator; return 1 if ok, 0 if error.

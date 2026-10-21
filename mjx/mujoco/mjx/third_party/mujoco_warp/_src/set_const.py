@@ -18,6 +18,7 @@ import mujoco
 import numpy as np
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src import math as mjmath
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
@@ -63,6 +64,21 @@ def _copy_qpos0_to_qpos(
 
 
 @wp.kernel
+def _copy_body_to_mocap(
+  body_mocapid: wp.array[int],
+  body_pos: wp.array2d[wp.vec3],
+  body_quat: wp.array2d[wp.quat],
+  mocap_pos_out: wp.array2d[wp.vec3],
+  mocap_quat_out: wp.array2d[wp.quat],
+):
+  worldid, bodyid = wp.tid()
+  mocapid = body_mocapid[bodyid]
+  if mocapid >= 0:
+    mocap_pos_out[worldid, mocapid] = body_pos[worldid % body_pos.shape[0], bodyid]
+    mocap_quat_out[worldid, mocapid] = body_quat[worldid % body_quat.shape[0], bodyid]
+
+
+@wp.kernel
 def _copy_tendon_length0(
   ten_length_in: wp.array2d[float],
   tendon_length0_out: wp.array2d[float],
@@ -81,34 +97,56 @@ def _compute_eq_data0(
   eq_objtype: wp.array[int],
   # Data in:
   xpos_in: wp.array2d[wp.vec3],
+  xquat_in: wp.array2d[wp.quat],
   xmat_in: wp.array2d[wp.mat33],
   # Out:
-  eq_data_out: wp.array2d[types.vec11],
+  eq_data_out: wp.array2d[types.vec12],
 ):
-  """Compute the anchor of connect constraints between bodies in the second body.
+  """Compute the data of equality constraints between bodies which follows from qpos0.
 
-  Kinematics must have been evaluated at qpos0 so the constraint is satisfied at qpos0.
+  The anchor of connects in the second body, and the relative pose of welds which are marked in
+  data[11] for it to be computed. Kinematics must have been evaluated at qpos0.
   """
   worldid, eqid = wp.tid()
 
-  if eq_type[eqid] != int(types.EqType.CONNECT.value) or eq_objtype[eqid] != int(types.ObjType.BODY.value):
+  if eq_objtype[eqid] != int(types.ObjType.BODY.value):
     return
 
+  eqtype = eq_type[eqid]
   eq_data_id = worldid % eq_data_out.shape[0]
   data = eq_data_out[eq_data_id, eqid]
   obj1id = eq_obj1id[eqid]
   obj2id = eq_obj2id[eqid]
 
-  # data[0:3] = anchor in body1 local frame; map to global frame
-  anchor1 = wp.vec3(data[0], data[1], data[2])
-  pos = xpos_in[worldid, obj1id] + xmat_in[worldid, obj1id] @ anchor1
+  if eqtype == int(types.EqType.CONNECT.value):
+    # data[0:3] = anchor in body1 local frame; map to global frame
+    anchor1 = wp.vec3(data[0], data[1], data[2])
+    pos = xpos_in[worldid, obj1id] + xmat_in[worldid, obj1id] @ anchor1
 
-  # data[3:6] = anchor position in body2 local frame
-  anchor2 = wp.transpose(xmat_in[worldid, obj2id]) @ (pos - xpos_in[worldid, obj2id])
-  data[3] = anchor2[0]
-  data[4] = anchor2[1]
-  data[5] = anchor2[2]
-  eq_data_out[eq_data_id, eqid] = data
+    # data[3:6] = anchor position in body2 local frame
+    anchor2 = wp.transpose(xmat_in[worldid, obj2id]) @ (pos - xpos_in[worldid, obj2id])
+    data[3] = anchor2[0]
+    data[4] = anchor2[1]
+    data[5] = anchor2[2]
+    eq_data_out[eq_data_id, eqid] = data
+  elif eqtype == int(types.EqType.WELD.value) and data[11] != 0.0:
+    # data[0:3] = anchor in body2 local frame; map to global frame
+    anchor2 = wp.vec3(data[0], data[1], data[2])
+    pos = xpos_in[worldid, obj2id] + xmat_in[worldid, obj2id] @ anchor2
+
+    # data[3:6] = anchor position in body1 local frame
+    anchor1 = wp.transpose(xmat_in[worldid, obj1id]) @ (pos - xpos_in[worldid, obj1id])
+    data[3] = anchor1[0]
+    data[4] = anchor1[1]
+    data[5] = anchor1[2]
+
+    # data[6:10] = neg(xquat1) * xquat2 = "xquat2 - xquat1" in body1 local frame
+    relquat = mjmath.mul_quat(mjmath.quat_inv(xquat_in[worldid, obj1id]), xquat_in[worldid, obj2id])
+    data[6] = relquat[0]
+    data[7] = relquat[1]
+    data[8] = relquat[2]
+    data[9] = relquat[3]
+    eq_data_out[eq_data_id, eqid] = data
 
 
 @wp.kernel
@@ -564,8 +602,8 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
 
   Computes:
     - tendon_length0: tendon resting lengths
-    - eq_data: anchor of connect constraints between bodies in the second
-      body, recomputed so the constraint is satisfied at qpos0
+    - eq_data: anchor of connects between bodies in the second body, and
+      relative pose of welds between bodies marked in eq_data[11]
     - dof_invweight0: inverse inertia for DOFs
     - body_invweight0: inverse spatial inertia for bodies
     - tendon_invweight0: inverse weight for tendons
@@ -579,8 +617,17 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
     restore: Whether to restore state fields to correspond to d.qpos.
   """
   qpos_saved = wp.clone(d.qpos)
+  mocap_pos_saved = wp.clone(d.mocap_pos) if m.nmocap else None
+  mocap_quat_saved = wp.clone(d.mocap_quat) if m.nmocap else None
 
   wp.launch(_copy_qpos0_to_qpos, dim=(d.nworld, m.nq), inputs=[m.qpos0], outputs=[d.qpos])
+  if m.nmocap:
+    wp.launch(
+      _copy_body_to_mocap,
+      dim=(d.nworld, m.nbody),
+      inputs=[m.body_mocapid, m.body_pos, m.body_quat],
+      outputs=[d.mocap_pos, d.mocap_quat],
+    )
 
   smooth.kinematics(m, d)
   smooth.com_pos(m, d)
@@ -597,7 +644,7 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
   wp.launch(
     _compute_eq_data0,
     dim=(m.eq_data.shape[0], m.neq),
-    inputs=[m.eq_type, m.eq_obj1id, m.eq_obj2id, m.eq_objtype, d.xpos, d.xmat],
+    inputs=[m.eq_type, m.eq_obj1id, m.eq_obj2id, m.eq_objtype, d.xpos, d.xquat, d.xmat],
     outputs=[m.eq_data],
   )
 
@@ -723,6 +770,9 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
       )
 
   wp.copy(d.qpos, qpos_saved)
+  if m.nmocap:
+    wp.copy(d.mocap_pos, mocap_pos_saved)
+    wp.copy(d.mocap_quat, mocap_quat_saved)
 
   if restore:
     smooth.kinematics(m, d)
@@ -754,7 +804,7 @@ def set_const(m: types.Model, d: types.Data, restore: bool = True):
   body_pos, body_quat                 Unsafe for static bodies (invalidates BVH).
   body_gravcomp                       If changing from 0 to >0 bodies, required.
   dof_armature
-  eq_data                             Anchor of connects between bodies.
+  eq_data                             Connect anchors, marked weld poses.
   geom_size, hfield_size              Bounds of primitive and height field geoms.
   tendon_stiffness, tendon_damping    Only if changing from/to zero.
   ==================================  ==============================================

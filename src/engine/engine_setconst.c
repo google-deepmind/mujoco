@@ -1163,7 +1163,7 @@ static void kinematics0(mjModel* m, mjData* d) {
 
 // set kinematic quantities that depend on qpos0; assume kinematics0 already executed
 static void setKinematics0(mjModel* m, mjData* d) {
-  mjtNum pos[3];
+  mjtNum pos[3], quat[4];
 
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
@@ -1175,19 +1175,37 @@ static void setKinematics0(mjModel* m, mjData* d) {
   mju_copy(m->tendon_length0, d->ten_length, m->ntendon);
   mju_copy(m->actuator_length0, d->actuator_length, m->nout);
 
-  // anchor of connect constraints between bodies in the second body
+  // equality constraints between bodies: the anchor of connects in the second body, and the
+  // relative pose of welds which are marked in data[11] for it to be computed
   for (int i=0; i < m->neq; i++) {
-    if (m->eq_type[i] != mjEQ_CONNECT || m->eq_objtype[i] != mjOBJ_BODY) {
+    if (m->eq_objtype[i] != mjOBJ_BODY) {
       continue;
     }
-
-    // pos = anchor position in global frame
-    mj_local2Global(d, pos, 0, m->eq_data+mjNEQDATA*i, 0, m->eq_obj1id[i], 0);
-
-    // data[3-5] = anchor position in body2 local frame
+    int id1 = m->eq_obj1id[i];
     int id2 = m->eq_obj2id[i];
-    mju_subFrom3(pos, d->xpos+3*id2);
-    mju_mulMatTVec3(m->eq_data+mjNEQDATA*i+3, d->xmat+9*id2, pos);
+    mjtNum* data = m->eq_data + mjNEQDATA*i;
+
+    // connect: anchor position is in body1 local frame
+    if (m->eq_type[i] == mjEQ_CONNECT) {
+      mj_local2Global(d, pos, 0, data, 0, id1, 0);
+
+      // data[3-5] = anchor position in body2 local frame
+      mju_subFrom3(pos, d->xpos+3*id2);
+      mju_mulMatTVec3(data+3, d->xmat+9*id2, pos);
+    }
+
+    // weld: anchor position is in body2 local frame
+    else if (m->eq_type[i] == mjEQ_WELD && data[11]) {
+      mj_local2Global(d, pos, 0, data, 0, id2, 0);
+
+      // data[3-5] = anchor position in body1 local frame
+      mju_subFrom3(pos, d->xpos+3*id1);
+      mju_mulMatTVec3(data+3, d->xmat+9*id1, pos);
+
+      // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
+      mju_negQuat(quat, d->xquat+4*id1);
+      mju_mulQuat(data+6, quat, d->xquat+4*id2);
+    }
   }
 
   // camera compos0, pos0, mat0
@@ -1810,61 +1828,6 @@ static void setDampRatio(mjModel* m, mjData* d) {
 }
 
 
-// complete the data of equality constraints: zero the unused data of connects between sites, and
-// compute the relative pose of welds between bodies which have none, given as a zero quaternion,
-// or normalize the one they have; assume computations already executed in qpos0
-static void setEqualityData(mjModel* m, mjData* d) {
-  mjtNum pos[3], quat[4];
-  for (int i=0; i < m->neq; i++) {
-    int id1 = m->eq_obj1id[i];
-    int id2 = m->eq_obj2id[i];
-    mjtNum* data = m->eq_data + mjNEQDATA*i;
-
-    // connect constraint: mj_setConst computes the anchor in the second body
-    if (m->eq_type[i] == mjEQ_CONNECT) {
-      switch ((mjtObj) m->eq_objtype[i]) {
-        case mjOBJ_BODY:
-          break;
-        case mjOBJ_SITE:
-          // site-based connect, eq_data is unused
-          mju_zero(data, mjNEQDATA);
-          break;
-        default:
-          mjERROR("invalid objtype in connect constraint %d", i);
-      }
-    }
-
-    // weld constraint
-    else if (m->eq_type[i] == mjEQ_WELD) {
-      switch ((mjtObj) m->eq_objtype[i]) {
-        case mjOBJ_BODY:
-          // relative pose given: normalize the quaternion
-          if (!mju_isZero(data+6, 4)) {
-            mju_normalize4(data+6);
-            break;
-          }
-
-          // anchor position is in body2 local frame
-          mj_local2Global(d, pos, 0, data, 0, id2, 0);
-
-          // data[3-5] = anchor position in body1 local frame
-          mju_subFrom3(pos, d->xpos+3*id1);
-          mju_mulMatTVec3(data+3, d->xmat+9*id1, pos);
-
-          // data[6-9] = neg(xquat1)*xquat2 = "xquat2-xquat1" in body1 local frame
-          mju_negQuat(quat, d->xquat+4*id1);
-          mju_mulQuat(data+6, quat, d->xquat+4*id2);
-          break;
-        case mjOBJ_SITE:
-          break;
-        default:
-          mjERROR("invalid objtype in weld constraint %d", i);
-      }
-    }
-  }
-}
-
-
 // set the spring length range of tendons which have none, given as (-1, -1), to their length;
 // assume computations already executed in qpos_spring
 static void setSpringLength(mjModel* m, mjData* d) {
@@ -1922,6 +1885,25 @@ void mj_setConstGroups(mjModel* m, mjData* d, int groups) {
   int enableflags = m->opt.enableflags;
   m->opt.enableflags &= ~mjENBL_SLEEP;
 
+  // set mocap bodies to their model pose (restored after setSpring)
+  int mocap = m->nmocap && (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0 | mjSCGROUP_SPRING));
+  mjtNum* mocap_pos = NULL;
+  mjtNum* mocap_quat = NULL;
+  if (mocap) {
+    mj_markStack(d);
+    mocap_pos = mjSTACKALLOC(d, 3*m->nmocap, mjtNum);
+    mocap_quat = mjSTACKALLOC(d, 4*m->nmocap, mjtNum);
+    mju_copy(mocap_pos, d->mocap_pos, 3*m->nmocap);
+    mju_copy(mocap_quat, d->mocap_quat, 4*m->nmocap);
+    for (int i=0; i < m->nbody; i++) {
+      int id = m->body_mocapid[i];
+      if (id >= 0) {
+        mju_copy3(d->mocap_pos+3*id, m->body_pos+3*i);
+        mju_copy4(d->mocap_quat+4*id, m->body_quat+4*i);
+      }
+    }
+  }
+
   // set quantities that depend on qpos0
   if (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0)) {
     kinematics0(m, d);
@@ -1937,7 +1919,15 @@ void mj_setConstGroups(mjModel* m, mjData* d, int groups) {
   // set quantities that depend on qpos_spring
   if (groups & mjSCGROUP_SPRING) {
     setSpring(m, d);
+  }
 
+  if (mocap) {
+    mju_copy(d->mocap_pos, mocap_pos, 3*m->nmocap);
+    mju_copy(d->mocap_quat, mocap_quat, 4*m->nmocap);
+    mj_freeStack(d);
+  }
+
+  if (groups & mjSCGROUP_SPRING) {
     // precompute the constant part of the implicit effective metric factor
     setEfm0Factor(m, d);
 
@@ -1956,7 +1946,6 @@ static void setConst(mjModel* m, mjData* d, int compiled) {
   // in compilation, the other qpos0 quantities
   if (compiled) {
     setDampRatio(m, d);
-    setEqualityData(m, d);
     setStat(m, d);
   }
 

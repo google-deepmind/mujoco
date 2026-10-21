@@ -7113,18 +7113,29 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
   // data of the model in its reference configuration, made when it is first needed
   std::unique_ptr<mjData, void (*)(mjData*)> reference(nullptr, mj_deleteData);
 
-  // the anchor which a connect between bodies has in its second body, as mj_setConst computes it
-  // from the model as it is now
-  auto secondanchor = [&](int i, mjtNum anchor[3]) {
+  // the anchor which a connect between bodies has in its second body, or the relative pose of a
+  // weld between bodies, as mj_setConst computes it from the model as it is now
+  auto computeddata = [&](int i, mjtNum* computed) {
     if (!reference) {
       reference.reset(mj_makeData(m));
       mj_kinematics(m, reference.get());
     }
-    const mjData* d = reference.get();
-    mjtNum        pos[3];
-    mj_local2Global(reference.get(), pos, 0, m->eq_data + mjNEQDATA * i, 0, m->eq_obj1id[i], 0);
-    mju_subFrom3(pos, d->xpos + 3 * m->eq_obj2id[i]);
-    mju_mulMatTVec3(anchor, d->xmat + 9 * m->eq_obj2id[i], pos);
+    const mjData* d    = reference.get();
+    const mjtNum* data = m->eq_data + mjNEQDATA * i;
+    int           id1  = m->eq_obj1id[i];
+    int           id2  = m->eq_obj2id[i];
+    mjtNum        pos[3], quat[4];
+    if (m->eq_type[i] == mjEQ_CONNECT) {
+      mj_local2Global(reference.get(), pos, 0, data, 0, id1, 0);
+      mju_subFrom3(pos, d->xpos + 3 * id2);
+      mju_mulMatTVec3(computed, d->xmat + 9 * id2, pos);
+    } else {
+      mj_local2Global(reference.get(), pos, 0, data, 0, id2, 0);
+      mju_subFrom3(pos, d->xpos + 3 * id1);
+      mju_mulMatTVec3(computed, d->xmat + 9 * id1, pos);
+      mju_negQuat(quat, d->xquat + 4 * id1);
+      mju_mulQuat(computed + 3, quat, d->xquat + 4 * id2);
+    }
   };
 
   // option and visual
@@ -7566,8 +7577,8 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
         // told apart only where it is reported: compilation ends here too, with this anchor new
         if (tospec && !write) {
           mjtNum computed[3];
-          secondanchor(i, computed);
-          if (computed[0] != data[3] || computed[1] != data[4] || computed[2] != data[5]) {
+          computeddata(i, computed);
+          if (Differs(computed, data + 3, 3)) {
             refuse(pe,
                    "the anchor of a connect in its second body",
                    "it is computed from the anchor in the first body");
@@ -7578,15 +7589,28 @@ void mjCModel::BackValues(const mjModel* m, bool tospec, bool write) {
       copy(pe->spec.data + 6, pe->data + 6, data + 6, mjNEQDATA - 6);
     } else if (pe->type == mjEQ_WELD && pe->objtype == mjOBJ_BODY) {
       // a weld between bodies: the anchor and the torque scale are given, and so is the relative
-      // pose unless compilation computes it. One which was computed is given once it is changed
-      // in the model, or once the anchor is: it was computed for the anchor as it was
-      const bool computed =
-          !pe->spec.data[6] && !pe->spec.data[7] && !pe->spec.data[8] && !pe->spec.data[9];
-      const bool anchor = copy(pe->spec.data, pe->data, data, 3);
-      if (Differs(pe->data + 3, data + 3, 7) || (anchor && computed)) {
+      // pose unless it is marked in data[11], computed from the anchor; the spec marks it with a
+      // zero quaternion
+      copy(pe->spec.data, pe->data, data, 3);
+      const bool marked = data[11];
+      if (Differs(pe->data + 3, data + 3, 7) || Differs(pe->data + 11, data + 11, 1)) {
+        if (tospec && !write && marked) {
+          mjtNum computed[7];
+          computeddata(i, computed);
+          if (Differs(computed, data + 3, 7)) {
+            refuse(pe,
+                   "the relative pose of a weld which is marked as computed",
+                   "it is computed from the anchor");
+          }
+        }
         if (write) {
           Back(pe->data + 3, data + 3, 7);
-          if (tospec) { tospecvalues(pe->spec.data + 3, pe->data + 3, 7); }
+          Back(pe->data + 11, data + 11, 1);
+          if (tospec && marked) {
+            std::fill(pe->spec.data + 6, pe->spec.data + 10, 0);
+          } else if (tospec) {
+            tospecvalues(pe->spec.data + 3, pe->data + 3, 7);
+          }
         }
       }
       copy(pe->spec.data + 10, pe->data + 10, data + 10);
