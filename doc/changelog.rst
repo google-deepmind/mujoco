@@ -117,6 +117,8 @@ Compiler
   :ref:`mju_openResource` directly.
 - Mesh polygon normals (``mjModel.mesh_polynormal``) are now computed from the whole polygon outline using Newell's
   method rather than the first three vertices (:issue:`3691`).
+- Triangle-shaped mesh polygons merged from several faces could get a reversed outline and hence an inward-pointing
+  normal (``mjModel.mesh_polynormal``) (:issue:`3701`).
 
 Python bindings
 ^^^^^^^^^^^^^^^
