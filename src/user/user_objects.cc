@@ -721,14 +721,20 @@ double pointBoxDistSq(const double* p, const mjtNum* aabb) {
 }
 
 
+// Voronoi region of the closest point on a triangle: a corner, the side from corner k to
+// corner k+1, or the interior
+enum TriangleFeature { kCorner0, kCorner1, kCorner2, kSide01, kSide12, kSide20, kInterior };
+
+
 // compute squared distance between point p and triangle (v0, v1, v2),
-// and return barycentric coordinates (u,v) of the closest point
+// and return barycentric coordinates (u,v) and the feature of the closest point
 double pointTriDistSqWithUV(const double* p,
                             const double* v0,
                             const double* v1,
                             const double* v2,
                             double&       out_u,
-                            double&       out_v) {
+                            double&       out_v,
+                            int&          out_feature) {
   double ab[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
   double ac[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
   double ap[3] = {p[0] - v0[0], p[1] - v0[1], p[2] - v0[2]};
@@ -739,8 +745,9 @@ double pointTriDistSqWithUV(const double* p,
 
   // region A (vertex v0)
   if (d1 <= 0 && d2 <= 0) {
-    out_u = 0;
-    out_v = 0;
+    out_u       = 0;
+    out_v       = 0;
+    out_feature = kCorner0;
     return ap[0] * ap[0] + ap[1] * ap[1] + ap[2] * ap[2];
   }
 
@@ -750,8 +757,9 @@ double pointTriDistSqWithUV(const double* p,
 
   // region B (vertex v1)
   if (d3 >= 0 && d4 <= d3) {
-    out_u = 1;
-    out_v = 0;
+    out_u       = 1;
+    out_v       = 0;
+    out_feature = kCorner1;
     return bp[0] * bp[0] + bp[1] * bp[1] + bp[2] * bp[2];
   }
 
@@ -761,6 +769,7 @@ double pointTriDistSqWithUV(const double* p,
     double u          = d1 / (d1 - d3);
     out_u             = u;
     out_v             = 0;
+    out_feature       = kSide01;
     double closest[3] = {v0[0] + u * ab[0], v0[1] + u * ab[1], v0[2] + u * ab[2]};
     return (p[0] - closest[0]) * (p[0] - closest[0]) +
            (p[1] - closest[1]) * (p[1] - closest[1]) +
@@ -773,8 +782,9 @@ double pointTriDistSqWithUV(const double* p,
 
   // region C (vertex v2)
   if (d6 >= 0 && d5 <= d6) {
-    out_u = 0;
-    out_v = 1;
+    out_u       = 0;
+    out_v       = 1;
+    out_feature = kCorner2;
     return cp[0] * cp[0] + cp[1] * cp[1] + cp[2] * cp[2];
   }
 
@@ -784,6 +794,7 @@ double pointTriDistSqWithUV(const double* p,
     double v          = d2 / (d2 - d6);
     out_u             = 0;
     out_v             = v;
+    out_feature       = kSide20;
     double closest[3] = {v0[0] + v * ac[0], v0[1] + v * ac[1], v0[2] + v * ac[2]};
     return (p[0] - closest[0]) * (p[0] - closest[0]) +
            (p[1] - closest[1]) * (p[1] - closest[1]) +
@@ -796,6 +807,7 @@ double pointTriDistSqWithUV(const double* p,
     double w          = (d4 - d3) / ((d4 - d3) + (d5 - d6));
     out_u             = 1 - w;
     out_v             = w;
+    out_feature       = kSide12;
     double bc[3]      = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
     double closest[3] = {v1[0] + w * bc[0], v1[1] + w * bc[1], v1[2] + w * bc[2]};
     return (p[0] - closest[0]) * (p[0] - closest[0]) +
@@ -809,6 +821,7 @@ double pointTriDistSqWithUV(const double* p,
   double v          = vc * denom;
   out_u             = u;
   out_v             = v;
+  out_feature       = kInterior;
   double closest[3] = {v0[0] + u * ab[0] + v * ac[0],
                        v0[1] + u * ab[1] + v * ac[1],
                        v0[2] + u * ab[2] + v * ac[2]};
@@ -818,7 +831,8 @@ double pointTriDistSqWithUV(const double* p,
 }
 
 
-// query BVH for closest face to point p, return distance, face index and barycentric coordinates
+// query BVH for closest face to point p, return distance, face index, barycentric coordinates
+// and feature of the closest point
 void queryClosestBVHWithFace(const mjtNum* bvh,
                              const int*    child,
                              const int*    nodeid,
@@ -829,7 +843,8 @@ void queryClosestBVHWithFace(const mjtNum* bvh,
                              double&       best_dist_sq,
                              int&          best_face,
                              double&       best_u,
-                             double&       best_v) {
+                             double&       best_v,
+                             int&          best_feature) {
   const mjtNum* aabb = &bvh[node_idx * 6];
   if (pointBoxDistSq(p, aabb) >= best_dist_sq) return;
 
@@ -843,12 +858,14 @@ void queryClosestBVHWithFace(const mjtNum* bvh,
       const double* v1 = vert + face[fi * 3 + 1] * 3;
       const double* v2 = vert + face[fi * 3 + 2] * 3;
       double        u, v;
-      double        dist_sq = pointTriDistSqWithUV(p, v0, v1, v2, u, v);
+      int           feature;
+      double        dist_sq = pointTriDistSqWithUV(p, v0, v1, v2, u, v, feature);
       if (dist_sq < best_dist_sq) {
         best_dist_sq = dist_sq;
         best_face    = fi;
         best_u       = u;
         best_v       = v;
+        best_feature = feature;
       }
     }
     return;
@@ -865,7 +882,8 @@ void queryClosestBVHWithFace(const mjtNum* bvh,
                             best_dist_sq,
                             best_face,
                             best_u,
-                            best_v);
+                            best_v,
+                            best_feature);
   }
   if (right >= 0) {
     queryClosestBVHWithFace(bvh,
@@ -878,23 +896,26 @@ void queryClosestBVHWithFace(const mjtNum* bvh,
                             best_dist_sq,
                             best_face,
                             best_u,
-                            best_v);
+                            best_v,
+                            best_feature);
   }
 }
 
 
-double querySignedDistance(const mjtNum* bvh,
-                           const int*    child,
-                           const int*    nodeid,
-                           int           nbvh,
-                           const double* point,
-                           const double* vert,
-                           const int*    face) {
+double querySignedDistance(const mjtNum*            bvh,
+                           const int*               child,
+                           const int*               nodeid,
+                           int                      nbvh,
+                           const double*            point,
+                           const double*            vert,
+                           const int*               face,
+                           const MeshPseudonormals& normals) {
   if (nbvh == 0) { return 0; }
 
   double best_dist_sq = 1e20;
   int    best_face    = -1;
   double best_u = 0, best_v = 0;
+  int    best_feature = kInterior;
   queryClosestBVHWithFace(bvh,
                           child,
                           nodeid,
@@ -905,7 +926,8 @@ double querySignedDistance(const mjtNum* bvh,
                           best_dist_sq,
                           best_face,
                           best_u,
-                          best_v);
+                          best_v,
+                          best_feature);
   double dist = std::sqrt(best_dist_sq);
 
   double sign = 1.0;
@@ -914,21 +936,25 @@ double querySignedDistance(const mjtNum* bvh,
     const double* v1 = vert + face[best_face * 3 + 1] * 3;
     const double* v2 = vert + face[best_face * 3 + 2] * 3;
 
-    double e1[3]     = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
-    double e2[3]     = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
-    double normal[3] = {e1[1] * e2[2] - e1[2] * e2[1],
-                        e1[2] * e2[0] - e1[0] * e2[2],
-                        e1[0] * e2[1] - e1[1] * e2[0]};
+    // a single face normal cannot determine the sign at a shared vertex or edge
+    double        face_normal[3];
+    const double* normal = face_normal;
+    if (best_feature <= kCorner2) {
+      normal = normals.vertex.data() + 3 * face[3 * best_face + best_feature];
+    } else if (best_feature <= kSide20) {
+      normal = normals.edge.data() + 3 * normals.side[3 * best_face + best_feature - kSide01];
+    } else {
+      double e1[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+      double e2[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+      mjuu_crossvec(face_normal, e1, e2);
+    }
 
     double closest[3] = {v0[0] + best_u * (v1[0] - v0[0]) + best_v * (v2[0] - v0[0]),
                          v0[1] + best_u * (v1[1] - v0[1]) + best_v * (v2[1] - v0[1]),
                          v0[2] + best_u * (v1[2] - v0[2]) + best_v * (v2[2] - v0[2])};
 
-    double u[3]       = {point[0] - closest[0], point[1] - closest[1], point[2] - closest[2]};
-    double dot        = u[0] * normal[0] + u[1] * normal[1] + u[2] * normal[2];
-    double normal_len = mjuu_normvec(normal, 3);
-    double eps        = 1e-12 * normal_len * dist;
-    sign              = (dot > eps) ? 1.0 : -1.0;
+    double u[3] = {point[0] - closest[0], point[1] - closest[1], point[2] - closest[2]};
+    sign        = mjuu_dot3(u, normal) >= 0 ? 1.0 : -1.0;
   }
 
   return sign * dist;
@@ -937,10 +963,56 @@ double querySignedDistance(const mjtNum* bvh,
 }  // namespace
 
 
-double mjCBoundingVolumeHierarchy::QuerySignedDistance(const double* point,
-                                                       const double* vert,
-                                                       const int*    face) const {
-  return querySignedDistance(bvh_.data(), child_.data(), nodeid_.data(), nbvh_, point, vert, face);
+MeshPseudonormals::MeshPseudonormals(const double* vert, int nvert, const int* face, int nface)
+    : vertex(3 * nvert, 0), side(3 * nface) {
+  // edges are keyed by their sorted vertex indices
+  std::unordered_map<std::uint64_t, int> edge_index;
+  edge_index.reserve(3 * nface);
+  for (int f = 0; f < nface; ++f) {
+    const int*    v     = face + 3 * f;
+    const double* p[3]  = {vert + 3 * v[0], vert + 3 * v[1], vert + 3 * v[2]};
+    double        e1[3] = {p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]};
+    double        e2[3] = {p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]};
+    double        normal[3];
+    mjuu_crossvec(normal, e1, e2);
+    double length = std::sqrt(mjuu_dot3(normal, normal));
+
+    for (int k = 0; k < 3; ++k) {
+      // every side has an edge, but a degenerate face does not contribute normals
+      auto [lo, hi]       = std::minmax(v[k], v[(k + 1) % 3]);
+      std::uint64_t key   = (static_cast<std::uint64_t>(lo) << 32) | static_cast<std::uint32_t>(hi);
+      auto [it, inserted] = edge_index.emplace(key, edge_index.size());
+      if (inserted) { edge.resize(edge.size() + 3, 0); }
+      side[3 * f + k] = it->second;
+      if (length == 0) { continue; }
+
+      // vertex normals weight unit face normals by the corner angle; |e1 x e2| = length
+      const double* next   = p[(k + 1) % 3];
+      const double* prev   = p[(k + 2) % 3];
+      double        a[3]   = {next[0] - p[k][0], next[1] - p[k][1], next[2] - p[k][2]};
+      double        b[3]   = {prev[0] - p[k][0], prev[1] - p[k][1], prev[2] - p[k][2]};
+      double        weight = std::atan2(length, mjuu_dot3(a, b));
+      for (int i = 0; i < 3; ++i) { vertex[3 * v[k] + i] += weight * normal[i] / length; }
+
+      // edge normals give equal weight to the unit normals of the incident faces
+      for (int i = 0; i < 3; ++i) { edge[3 * it->second + i] += normal[i] / length; }
+    }
+  }
+}
+
+
+double mjCBoundingVolumeHierarchy::QuerySignedDistance(const double*            point,
+                                                       const double*            vert,
+                                                       const int*               face,
+                                                       const MeshPseudonormals& normals) const {
+  return querySignedDistance(bvh_.data(),
+                             child_.data(),
+                             nodeid_.data(),
+                             nbvh_,
+                             point,
+                             vert,
+                             face,
+                             normals);
 }
 
 
@@ -952,6 +1024,7 @@ void mjCOctree::ComputeSdfCoeffs(const double*                     vert,
   std::vector<double> coeffs(nvert_, 0.0);
   std::vector<bool>   processed(nvert_, false);
   std::deque<int>     queue;
+  MeshPseudonormals   normals(vert, nvert, face, nface);
 
   if (NumNodes() > 0) { queue.push_back(0); }
 
@@ -971,7 +1044,7 @@ void mjCOctree::ComputeSdfCoeffs(const double*                     vert,
         p_mesh[1] += ipos_[1];
         p_mesh[2] += ipos_[2];
 
-        coeffs[vert_id] = tree.QuerySignedDistance(p_mesh, vert, face);
+        coeffs[vert_id] = tree.QuerySignedDistance(p_mesh, vert, face, normals);
       } else {
         // hanging node: interpolate from parents
         double sum_coeff = 0;

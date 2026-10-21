@@ -170,6 +170,16 @@ struct mjCBoundingVolumeHierarchy_ {
   double                         iquat_[4] = {1, 0, 0, 0};
 };
 
+// angle-weighted vertex and edge pseudonormals of a triangle mesh, which give the sign of the
+// distance to a closest point on a shared vertex or edge (Baerentzen and Aanaes, 2005)
+struct MeshPseudonormals {
+  MeshPseudonormals(const double* vert, int nvert, const int* face, int nface);
+
+  std::vector<double> vertex;  // vertex pseudonormals                 (nvert x 3)
+  std::vector<double> edge;    // edge pseudonormals                   (nedge x 3)
+  std::vector<int>    side;    // edge index of each side of each face (nface x 3)
+};
+
 class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
  public:
   // make bounding volume hierarchy
@@ -207,7 +217,10 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
   }
 
   // query signed distance from point to mesh surface
-  double QuerySignedDistance(const double* point, const double* vert, const int* face) const;
+  double QuerySignedDistance(const double*            point,
+                             const double*            vert,
+                             const int*               face,
+                             const MeshPseudonormals& normals) const;
 
  private:
   // internal class used during BVH construction, for partial sorting of bounding volumes

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -3062,6 +3063,156 @@ TEST_F(UserObjectsTest, ZeroMass) {
 // ------------- test Octree SDF computation -----------------------------------
 
 using OctreeSDFTest = MujocoTest;
+
+TEST_F(OctreeSDFTest, TetrahedronSDFSign) {
+  // Four outward-facing triangles form a closed tetrahedron in z >= 0.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tetra"
+            vertex="0 0 0  2 0 0  0 .2 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom type="sdf" mesh="tetra"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error{};
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+      mj_parseXMLString(xml, nullptr, error.data(), error.size()),
+      mj_deleteSpec);
+  ASSERT_THAT(spec.get(), NotNull()) << error.data();
+  mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec.get(), mjOBJ_MESH));
+  ASSERT_THAT(mesh, NotNull());
+  // Outward unit normals and offsets of the face planes, n.x <= d inside.
+  const mjtNum norm = mju_sqrt(0.25 + 25 + 1);
+  const mjtNum planes[4][4] = {{0, 0, -1, 0},
+                               {0, -1, 0, 0},
+                               {-1, 0, 0, 0},
+                               {1 / (2 * norm), 5 / norm, 1 / norm, 1 / norm}};
+  // Depth one exposes vertex errors; deeper octrees also expose edge errors.
+  for (int depth = 1; depth <= 3; ++depth) {
+    SCOPED_TRACE(depth);
+    mesh->octree_maxdepth = depth;
+    MjModelPtr model(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec.get());
+    ASSERT_EQ(model->nmesh, 1);
+    ASSERT_GT(model->mesh_octnum[0], 0);
+
+    mjtNum rotation[9];
+    mju_quat2Mat(rotation, model->mesh_quat);
+    int outside_count = 0;
+    int below_count = 0;
+    int inside_count = 0;
+    int start = model->mesh_octadr[0];
+    int stop = start + model->mesh_octnum[0];
+    for (int node = start; node < stop; ++node) {
+      const mjtNum* aabb = model->oct_aabb + 6 * node;
+      for (int corner = 0; corner < 8; ++corner) {
+        // Each box stores its center and half-sizes; corner bits select signs.
+        mjtNum local[3];
+        for (int axis = 0; axis < 3; ++axis) {
+          mjtNum sign = (corner & (1 << axis)) ? 1 : -1;
+          local[axis] = aabb[axis] + sign * aabb[axis + 3];
+        }
+        // Undo the rotation and translation applied by mesh compilation.
+        mjtNum point[3];
+        mju_mulMatVec3(point, rotation, local);
+        mju_addTo3(point, model->mesh_pos);
+        // A convex mesh contains a point iff it is inside every face plane.
+        mjtNum plane_distance = -mjMAXVAL;
+        for (const auto& plane : planes) {
+          plane_distance =
+              std::max(plane_distance, mju_dot3(plane, point) - plane[3]);
+        }
+        // Skip points too close to the surface for a well-defined sign.
+        if (std::abs(plane_distance) < 1e-6) {
+          continue;
+        }
+        bool outside = plane_distance > 0;
+        outside_count += outside;
+        below_count += point[2] < -0.01;
+        inside_count += !outside;
+        EXPECT_EQ(model->oct_coeff[8 * node + corner] > 0, outside)
+            << (outside ? "Outside" : "Inside") << " point (" << point[0]
+            << ", " << point[1] << ", " << point[2] << "), node " << node
+            << ", corner " << corner;
+      }
+    }
+    EXPECT_GT(below_count, 0) << "The test must sample points below the mesh.";
+    EXPECT_GT(outside_count, below_count);
+    if (depth > 1) {
+      EXPECT_GT(inside_count, 0);
+    }
+  }
+}
+
+TEST_F(OctreeSDFTest, BoxSDFCoefficients) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box" vertex="-1 -2 -3  1 -2 -3  -1 2 -3  1 2 -3
+                               -1 -2 3   1 -2 3   -1 2 3   1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom type="sdf" mesh="box"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error{};
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+      mj_parseXMLString(xml, nullptr, error.data(), error.size()),
+      mj_deleteSpec);
+  ASSERT_THAT(spec.get(), NotNull()) << error.data();
+  mjsMesh* mesh = mjs_asMesh(mjs_firstElement(spec.get(), mjOBJ_MESH));
+  ASSERT_THAT(mesh, NotNull());
+  mesh->octree_maxdepth = 1;
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec.get());
+  ASSERT_EQ(model->nmesh, 1);
+  ASSERT_GT(model->mesh_octnum[0], 0);
+
+  const mjtNum half_size[3] = {1, 2, 3};
+  mjtNum rotation[9];
+  mju_quat2Mat(rotation, model->mesh_quat);
+  std::array<int, 4> counts{};
+  int start = model->mesh_octadr[0];
+  int stop = start + model->mesh_octnum[0];
+  for (int node = start; node < stop; ++node) {
+    const mjtNum* aabb = model->oct_aabb + 6 * node;
+    for (int corner = 0; corner < 8; ++corner) {
+      mjtNum local[3], point[3];
+      for (int axis = 0; axis < 3; ++axis) {
+        mjtNum sign = (corner & (1 << axis)) ? 1 : -1;
+        local[axis] = aabb[axis] + sign * aabb[axis + 3];
+      }
+      mju_mulMatVec3(point, rotation, local);
+      mju_addTo3(point, model->mesh_pos);
+
+      // Analytic box SDF: outside Euclidean distance plus inside face distance.
+      mjtNum q[3], outside[3];
+      int outside_axes = 0;
+      for (int axis = 0; axis < 3; ++axis) {
+        q[axis] = std::abs(point[axis]) - half_size[axis];
+        outside[axis] = std::max(q[axis], mjtNum{0});
+        outside_axes += q[axis] > 0;
+      }
+      ++counts[outside_axes];
+      mjtNum expected = mju_norm3(outside) +
+                        std::min(std::max({q[0], q[1], q[2]}), mjtNum{0});
+      EXPECT_THAT(model->oct_coeff[8 * node + corner],
+                  MjNear(expected, 1e-14, 1e-6))
+          << "node " << node << ", corner " << corner;
+    }
+  }
+  // Cover inside points and exterior face, edge, and vertex regions.
+  for (int count : counts) {
+    EXPECT_GT(count, 0);
+  }
+}
 
 TEST_F(OctreeSDFTest, SphereSDF) {
   static constexpr char xml[] = R"(
