@@ -3572,6 +3572,8 @@ void mjCSkin::PointToLocal() {
 void mjCSkin::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
   for (auto& name : spec_bodyname_) { name = m->prefix + name + m->suffix; }
+  bone_prefix_ = m->prefix + bone_prefix_;
+  bone_suffix_ = bone_suffix_ + m->suffix;
   if (!spec_material_.empty() && model != m) {
     spec_material_ = m->prefix + spec_material_ + m->suffix;
   }
@@ -3702,6 +3704,9 @@ void mjCSkin::Compile(const mjVFS* vfs) {
       mju_closeResource(resource);
       throw err;
     }
+
+    // the bones loaded from file take the namespace of the attachments
+    for (auto& name : bodyname_) { name = bone_prefix_ + name + bone_suffix_; }
   }
 
   // make sure all data is present

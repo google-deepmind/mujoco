@@ -98,6 +98,7 @@ cc_test(
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
+    data = ["//test/user/testdata:test_mjcf"],
     deps = [
         "//:mujoco",
         "//plugin/actuator:register",

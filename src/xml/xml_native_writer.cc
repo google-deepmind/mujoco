@@ -727,23 +727,32 @@ void mjXWriter::OneSkin(XMLElement* elem, const mjCSkin* skin) {
   const bool     scaled = !authored_ && skin->scaled_;
   const string   file   = scaled ? "" : Pick(authored_, skin->spec.file, skin->File());
 
+  // bones loaded from file and namespaced by an attachment can only be saved as data
+  const bool namespaced = !file.empty() && skin->HasBoneNameSpace();
+  const bool authored   = authored_ && !namespaced;
+  if (namespaced && skin->get_bodyname().empty()) {
+    throw mjXError(0,
+                   "attached skin '%s' with bones from file must be compiled to be saved",
+                   skin->name.c_str());
+  }
+
   // write attributes
   WriteAttrTxt(elem, "name", skin->name);
-  WriteAttrTxt(elem, "file", file);
+  if (!namespaced) { WriteAttrTxt(elem, "file", file); }
   WriteAttrTxt(elem, "material", Pick(authored_, skin->spec.material, skin->get_material()));
   WriteAttrInt(elem, "group", values->group, 0);
   WriteAttrTable(elem, values, static_cast<const mjsSkin*>(&defskin), kSkinAttrs, kSkinAttrsN);
 
   // write data if no file
-  if (file.empty()) {
-    const auto& vert       = Pick(authored_, skin->spec.vert, skin->get_vert());
-    const auto& texcoord   = Pick(authored_, skin->spec.texcoord, skin->get_texcoord());
-    const auto& face       = Pick(authored_, skin->spec.face, skin->get_face());
-    const auto& bodyname   = Pick(authored_, skin->spec.bodyname, skin->get_bodyname());
-    const auto& bindpos    = Pick(authored_, skin->spec.bindpos, skin->get_bindpos());
-    const auto& bindquat   = Pick(authored_, skin->spec.bindquat, skin->get_bindquat());
-    const auto& vertid     = Pick(authored_, skin->spec.vertid, skin->get_vertid());
-    const auto& vertweight = Pick(authored_, skin->spec.vertweight, skin->get_vertweight());
+  if (file.empty() || namespaced) {
+    const auto& vert       = Pick(authored, skin->spec.vert, skin->get_vert());
+    const auto& texcoord   = Pick(authored, skin->spec.texcoord, skin->get_texcoord());
+    const auto& face       = Pick(authored, skin->spec.face, skin->get_face());
+    const auto& bodyname   = Pick(authored, skin->spec.bodyname, skin->get_bodyname());
+    const auto& bindpos    = Pick(authored, skin->spec.bindpos, skin->get_bindpos());
+    const auto& bindquat   = Pick(authored, skin->spec.bindquat, skin->get_bindquat());
+    const auto& vertid     = Pick(authored, skin->spec.vertid, skin->get_vertid());
+    const auto& vertweight = Pick(authored, skin->spec.vertweight, skin->get_vertweight());
 
     // mesh vert
     text = Numbers(vert);

@@ -1623,6 +1623,10 @@ class mjCSkin_ : public mjCBase {
 
   // compilation scaled the vertices and the bind poses with the bones
   bool scaled_ = false;
+
+  // namespace of the attachments, applied to the bone names loaded from file
+  std::string bone_prefix_;
+  std::string bone_suffix_;
 };
 
 class mjCSkin : public mjCSkin_, private mjsSkin {
@@ -1649,7 +1653,8 @@ class mjCSkin : public mjCSkin_, private mjsSkin {
   const std::vector<float>&              get_bindquat() const { return bindquat_; }
   const std::vector<std::vector<int>>&   get_vertid() const { return vertid_; }
   const std::vector<std::vector<float>>& get_vertweight() const { return vertweight_; }
-  void                                   del_material() {
+  bool HasBoneNameSpace() const { return !bone_prefix_.empty() || !bone_suffix_.empty(); }
+  void del_material() {
     spec_material_.clear();
     material_.clear();
   }
