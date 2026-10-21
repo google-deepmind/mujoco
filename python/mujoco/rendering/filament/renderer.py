@@ -125,6 +125,11 @@ class Renderer:
     self._reads: dict[str, Renderer._Read] = {}
     self._ctx.set_clear_color([0.0, 0.0, 0.0])
 
+  @property
+  def context(self) -> mjrf.Context:
+    """Returns the underlying mjrf.Context."""
+    return self._ctx
+
   def scene(self, name: str) -> mjrf.Scene:
     """Returns the scene with the given name, creating it if needed."""
     if name not in self._scenes:
@@ -179,20 +184,74 @@ class Renderer:
       *,
       scene: str,
       target: str,
-      camera: mjrf.Camera | mujoco.MjvGLCamera = mjrf.Camera(),
+      camera: mjrf.Camera | mujoco.MjvGLCamera | None = None,
       viewport: tuple[float, float, float, float] | None = None,
-      draw_mode: mjrf.DrawMode = mjrf.DrawMode.DRAW_MODE_DEFAULT,
+      draw_mode: mjrf.DrawMode | None = None,
+      post_processing: bool | None = None,
+      reflections: bool | None = None,
+      shadows: bool | None = None,
+      headlight: bool | None = None,
+      headlight_color: tuple[float, float, float] | None = None,
+      headlight_intensity: float | None = None,
   ):
     """Associates a scene, camera, viewport, and target as a rendering operation."""
-    self._views[name] = self._View(
-        scene=scene,
-        target=target,
-        viewport=viewport or (0.0, 0.0, 1.0, 1.0),
-        request=mjrf.RenderRequest(
-            camera=self._to_mjrf_camera(camera),
-            draw_mode=draw_mode,
-        ),
-    )
+    if name not in self._views:
+      if camera is None:
+        camera = mujoco.MjvGLCamera()
+      if viewport is None:
+        viewport = (0.0, 0.0, 1.0, 1.0)
+      if draw_mode is None:
+        draw_mode = mjrf.DrawMode.DRAW_MODE_DEFAULT
+      if post_processing is None:
+        post_processing = True
+      if reflections is None:
+        reflections = True
+      if shadows is None:
+        shadows = True
+      if headlight is None:
+        headlight = False
+      if headlight_color is None:
+        headlight_color = (1.0, 1.0, 1.0)
+      if headlight_intensity is None:
+        headlight_intensity = 1.0
+
+      self._views[name] = self._View(
+          scene=scene,
+          target=target,
+          viewport=viewport,
+          request=mjrf.RenderRequest(
+              camera=self._to_mjrf_camera(camera),
+              draw_mode=draw_mode,
+              post_processing=post_processing,
+              reflections=reflections,
+              shadows=shadows,
+              headlight=headlight,
+              headlight_color=headlight_color,
+              headlight_intensity=headlight_intensity,
+          ),
+      )
+    else:
+      view = self._views[name]
+      view.scene = scene
+      view.target = target
+      if viewport is not None:
+        view.viewport = viewport
+      if camera is not None:
+        view.request.camera = self._to_mjrf_camera(camera)
+      if draw_mode is not None:
+        view.request.draw_mode = draw_mode
+      if post_processing is not None:
+        view.request.post_processing = post_processing
+      if reflections is not None:
+        view.request.reflections = reflections
+      if shadows is not None:
+        view.request.shadows = shadows
+      if headlight is not None:
+        view.request.headlight = headlight
+      if headlight_color is not None:
+        view.request.headlight_color = headlight_color
+      if headlight_intensity is not None:
+        view.request.headlight_intensity = headlight_intensity
 
   def update_camera(
       self,
