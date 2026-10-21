@@ -790,18 +790,23 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   d->qvel[2] = -50.0;
   mj_fwdPosition(m, d);
 
-  mjPreContact con;
-  mjtNum toi = mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con);
+  mjPreContact con[4];
+  int ncon = 0;
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  mjtNum toi = mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, &ncon, buffer.data());
   EXPECT_LT(toi, 1.0);
+  EXPECT_EQ(ncon, 1);
   EXPECT_NEAR(toi, 0.392, MjTol(0.02, 0.02));
-  EXPECT_NEAR(con.pos[2], 0.22, MjTol(1e-4, 1e-4));
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
-  EXPECT_LT(con.dist, 0.0);
+  EXPECT_NEAR(con[0].pos[2], 0.22, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_LT(con[0].dist, 0.0);
 
   // moving upward (+50 m/s) -> no collision (toi == 1.0)
   d->qvel[2] = 50.0;
   mj_fwdPosition(m, d);
-  EXPECT_MJTNUM_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con), 1.0);
+  EXPECT_MJTNUM_EQ(
+      mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, &ncon, buffer.data()), 1.0);
+  EXPECT_EQ(ncon, 0);
 
   // grazing near-miss (skimming 1 cm above the box top at 50 m/s) -> no
   // collision (toi == 1.0)
@@ -810,19 +815,23 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   d->qvel[0] = 50.0;
   d->qvel[2] = 0.0;
   mj_fwdPosition(m, d);
-  EXPECT_MJTNUM_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con), 1.0);
+  EXPECT_MJTNUM_EQ(
+      mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, &ncon, buffer.data()), 1.0);
+  EXPECT_EQ(ncon, 0);
 
   // plane vs. moving sphere (both g1 = plane and g2 = plane)
   mj_resetData(m, d);
   d->qpos[2] = -0.75;  // 0.20 m above ground plane at z = -1 (radius 0.05)
   d->qvel[2] = -50.0;
   mj_fwdPosition(m, d);
-  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 0, 2, 0.0, &con), 0.392,
-              MjTol(0.02, 0.02));
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
-  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 2, 0, 0.0, &con), 0.392,
-              MjTol(0.02, 0.02));
-  EXPECT_NEAR(con.normal[2], -1.0, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, &ncon, buffer.data()),
+              0.392, MjTol(0.02, 0.02));
+  EXPECT_EQ(ncon, 1);
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, &ncon, buffer.data()),
+              0.392, MjTol(0.02, 0.02));
+  EXPECT_EQ(ncon, 1);
+  EXPECT_NEAR(con[0].normal[2], -1.0, MjTol(1e-4, 1e-4));
 
   // two moving boxes traveling in the same direction at different speeds
   // initial distance is (0.8 - 0.05) - (0.5 + 0.05) = 0.20 m;
@@ -831,16 +840,40 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   d->qvel[8] = -10.0;
   d->qvel[14] = -60.0;
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 3, 4, 0.0, &con), 1.0);
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_LT(mjc_advanceGeomPair(m, d, 3, 4, 0.0, con, &ncon, buffer.data()),
+            1.0);
+  EXPECT_EQ(ncon, 4);
+  for (int i = 0; i < ncon; i++) {
+    EXPECT_NEAR(std::abs(con[i].pos[0] - 2.0), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(std::abs(con[i].pos[1]), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
+
+  // horizontal capsule falling onto box wall -> 2 edge-face contacts
+  mj_resetData(m, d);
+  d->qpos[21] = 0.0;
+  d->qpos[22] = 0.0;
+  d->qpos[23] = 0.24;
+  d->qvel[20] = -50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_LT(mjc_advanceGeomPair(m, d, 1, 5, 0.0, con, &ncon, buffer.data()),
+            1.0);
+  EXPECT_EQ(ncon, 2);
+  for (int i = 0; i < ncon; i++) {
+    EXPECT_NEAR(std::abs(con[i].pos[0]), 0.2, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].pos[1], 0.0, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
 
   // rotational motion (dw != 0): horizontal capsule at z = -0.90 rotating about
   // y-axis so its +x tip swings down into the ground plane at z = -1
   mj_resetData(m, d);
   d->qvel[22] = 100.0;  // wy = 100 rad/s -> 1 rad over dt = 0.01 s
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 0, 5, 0.0, &con), 1.0);
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_LT(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, &ncon, buffer.data()),
+            1.0);
+  EXPECT_EQ(ncon, 1);
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
 
   mj_deleteData(d);
   mj_deleteModel(m);

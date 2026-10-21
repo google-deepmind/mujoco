@@ -1521,9 +1521,10 @@ static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin
 
 
 // conservative advancement between two geoms g1 and g2 over the timestep;
-// return time of impact in [0, 1] and writes the contact for t < 1
+// return time of impact in [0, 1] and writes up to 4 contacts for t < 1
 mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
-                           mjtNum margin, mjPreContact* con) {
+                           mjtNum margin, mjPreContact* con, int* ncon, void* buffer) {
+  if (ncon) *ncon = 0;
   int type1 = g1 >= 0 ? m->geom_type[g1] : -1, type2 = g2 >= 0 ? m->geom_type[g2] : -1;
   if (!mjc_GeomSupported(type1) || !mjc_GeomSupported(type2) ||
       (type1 == mjGEOM_PLANE && type2 == mjGEOM_PLANE)) {
@@ -1580,13 +1581,13 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
   }
 
   // full-step displacements of witness points x1, x2: dp = dx + dw x (x - pos)
-  mjtNum rel1[3], rel2[3], dp1[3], dp2[3], drel[3];
+  mjtNum rel1[3], rel2[3], rot1[3], rot2[3], dp1[3], dp2[3], drel[3];
   mji_sub3(rel1, x1, obj1.pos);
   mji_sub3(rel2, x2, obj2.pos);
-  mji_cross(dp1, dw1, rel1);
-  mji_cross(dp2, dw2, rel2);
-  mji_addTo3(dp1, dx1);
-  mji_addTo3(dp2, dx2);
+  mji_cross(rot1, dw1, rel1);
+  mji_cross(rot2, dw2, rel2);
+  mju_add3(dp1, dx1, rot1);
+  mju_add3(dp2, dx2, rot2);
 
   // normal closing distance over the step (max of instantaneous and average closing rates)
   mji_sub3(drel, dp1, dp2);
@@ -1595,27 +1596,49 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     return 1.0;
   }
 
+  int nx = 1;
   if (con) {
-    // subtract linear translation to place witness points at t = 0 body positions while keeping
-    // the rotated lever arms at impact time t consistent with normal
-    mjtNum x1_0[3], x2_0[3];
-    mji_addScl3(x1_0, x1, dx1, -t);
-    mji_addScl3(x2_0, x2, dx2, -t);
+    mjtNum x1_all[12], x2_all[12], dist_all[4];
+    mji_copy3(x1_all, x1);
+    mji_copy3(x2_all, x2);
+    dist_all[0] = dist;
+
+    if (ncon && buffer && !mjDISABLED(mjDSBL_MULTICCD) && obj1.nsupp > 0 && obj2.nsupp > 0) {
+      mjtNum pad = 2.0 * mju_max(0.0, dist) + m->opt.ccd_tolerance;
+      obj1.margin = pad;
+      obj2.margin = pad;
+      mji_addToScl3(x1_all, normal, 0.5 * pad);
+      mji_addToScl3(x2_all, normal, -0.5 * pad);
+      nx = mjc_multicontact(&obj1, &obj2, x1_all, x2_all, dist_all, 4,
+                            m->nmeshdegmax, m->npolygonmax, buffer);
+      for (int i = 0; i < nx; i++) {
+        mji_addToScl3(x1_all + 3*i, normal, -0.5 * pad);
+        mji_addToScl3(x2_all + 3*i, normal, 0.5 * pad);
+      }
+    }
+
     int weld1 = m->body_weldid[m->geom_bodyid[g1]];
     int weld2 = m->body_weldid[m->geom_bodyid[g2]];
-    if (weld1 == 0 && weld2 > 0) {
-      mju_copy3(con->pos, x2_0);
-    } else if (weld2 == 0 && weld1 > 0) {
-      mju_copy3(con->pos, x1_0);
-    } else {
-      con->pos[0] = 0.5 * (x1_0[0] + x2_0[0]);
-      con->pos[1] = 0.5 * (x1_0[1] + x2_0[1]);
-      con->pos[2] = 0.5 * (x1_0[2] + x2_0[2]);
+    mjtNum cdist = contactDist(m, g1, g2, margin, t, closing_dist);
+    for (int i = 0; i < nx; i++) {
+      mjtNum x1_0[3], x2_0[3];
+      mji_addScl3(x1_0, x1_all + 3*i, dx1, -t);
+      mji_addScl3(x2_0, x2_all + 3*i, dx2, -t);
+      if (weld1 == 0 && weld2 > 0) {
+        mju_copy3(con[i].pos, x2_0);
+      } else if (weld2 == 0 && weld1 > 0) {
+        mju_copy3(con[i].pos, x1_0);
+      } else {
+        con[i].pos[0] = 0.5 * (x1_0[0] + x2_0[0]);
+        con[i].pos[1] = 0.5 * (x1_0[1] + x2_0[1]);
+        con[i].pos[2] = 0.5 * (x1_0[2] + x2_0[2]);
+      }
+      con[i].dist = cdist;
+      mju_copy3(con[i].normal, normal);
+      mju_zero3(con[i].tangent);
     }
-    con->dist = contactDist(m, g1, g2, margin, t, closing_dist);
-    mju_copy3(con->normal, normal);
-    mju_zero3(con->tangent);
   }
+  if (ncon) *ncon = nx;
 
   return t;
 }
