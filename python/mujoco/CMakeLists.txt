@@ -533,6 +533,8 @@ target_link_libraries(
           structs_header
 )
 
+mujoco_pybind11_module(_batch batch.cc)
+
 mujoco_pybind11_module(_rollout rollout.cc threadpool.cc)
 
 # The Filament rendering API binding. It needs the Filament C API library, the
@@ -571,6 +573,7 @@ if(TARGET mujoco::platform)
   )
 endif()
 
+target_link_libraries(_batch PRIVATE functions_header mujoco raw)
 target_link_libraries(_rollout PRIVATE functions_header mujoco raw)
 
 mujoco_pybind11_module(
@@ -636,6 +639,7 @@ target_link_libraries(
 add_subdirectory(experimental/studio)
 
 set(LIBRARIES_FOR_WHEEL
+    "$<TARGET_FILE:_batch>"
     "$<TARGET_FILE:_callbacks>"
     "$<TARGET_FILE:_constants>"
     "$<TARGET_FILE:_enums>"
@@ -681,6 +685,7 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
 
   add_dependencies(
     wheel
+    _batch
     _callbacks
     _constants
     _enums

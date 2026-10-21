@@ -122,6 +122,10 @@ Compiler
 
 Python bindings
 ^^^^^^^^^^^^^^^
+- Added a :ref:`mujoco.batch<PyBatch>` module over the batch API: ``Batch(model, nsim)`` with live ``(nsim, ...)``
+  arrays from ``bind()`` and named views such as ``joint(name)``, per-simulation model fields from ``expand()``,
+  ``step``, ``forward``, ``reset``, ``set_const`` and ``rollout`` with the GIL released, and ``jac`` and ``ray``
+  queries.
 - Added support for building the Python bindings with `Bazel <https://bazel.build/>`__ (initially covers the core
   bindings, without rendering or the viewer).
 - Unallocated arena arrays of ``MjData``, for example ``efm_*`` arrays when the ``discrete`` integrator is not used or

@@ -113,12 +113,14 @@ py_library(
     name = "mujoco",
     srcs = [
         "__init__.py",
+        "batch.py",
         "gl_context.py",
         "minimize.py",
         "renderer.py",
         "rollout.py",
     ],
     data = [
+        ":_batch",
         ":_callbacks",
         ":_constants",
         ":_enums",
@@ -453,6 +455,30 @@ cc_library(
     conlyopts = ["-std=c11"],
     cxxopts = ["-std=c++20"],
     deps = ["//:libmujoco_hdrs"],
+)
+
+mujoco_pybind_extension(
+    name = "_batch",
+    srcs = ["batch.cc"],
+    conlyopts = ["-std=c11"],
+    cxxopts = ["-std=c++20"],
+    deps = [
+        ":errors_header",
+        ":raw",
+        ":structs_header",
+        "//:mujoco",  # buildcleaner: keep
+    ],
+)
+
+py_test(
+    name = "batch_test",
+    srcs = ["batch_test.py"],
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+        "//python/mujoco/pypi:parameterized",
+    ],
 )
 
 mujoco_pybind_extension(

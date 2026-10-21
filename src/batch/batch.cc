@@ -341,8 +341,9 @@ struct Record {
 
 //------------------------------------------ errors -----------------------------------------------
 
-thread_local std::jmp_buf* tls_jmp = nullptr;    // setjmp around the running simulation's call
-thread_local char          tls_error[1024];      // message of the trapped error
+thread_local std::jmp_buf* tls_jmp = nullptr;  // setjmp around the running simulation's call
+// message of the trapped error: the function's name, then the subject
+thread_local char          tls_error[sizeof(mjLogMessage::subject) + 128];
 thread_local mjfLogHandler tls_prev  = nullptr;  // the thread's handler before the batch's
 thread_local const void*   tls_batch = nullptr;  // batch whose simulation the thread runs
 

@@ -715,7 +715,7 @@ TEST_F(BatchTest, RolloutMatchesLoop) {
     int spec = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED;
     int ncontrol = mj_stateSize(m, spec);
     std::vector<mjtNum> control(n * nstep * ncontrol);
-    for (int k = 0; k < control.size(); ++k)
+    for (int k = 0; k < static_cast<int>(control.size()); ++k)
       control[k] = 0.3 * mju_sin(0.7 * k);
     int nstate = mj_stateSize(m, mjSTATE_FULLPHYSICS);
     std::vector<mjtNum> states(n * nstep * nstate),
@@ -761,7 +761,8 @@ TEST_F(BatchTest, RolloutOnPersistentBatch) {
   int spec = mjSTATE_CTRL;
   int ncontrol = mj_stateSize(m, spec);
   std::vector<mjtNum> control(nsim * nstep * ncontrol);
-  for (int k = 0; k < control.size(); ++k) control[k] = 0.3 * mju_sin(0.7 * k);
+  for (int k = 0; k < static_cast<int>(control.size()); ++k)
+    control[k] = 0.3 * mju_sin(0.7 * k);
   int nstate = mj_stateSize(m, mjSTATE_FULLPHYSICS);
   std::vector<std::vector<mjtNum>> states, rows;
   for (int persistent : {0, 1}) {

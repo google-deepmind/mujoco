@@ -743,6 +743,8 @@ one simulation. The two are not combined, and the batch never installs an engine
 :ref:`mjcb_control` run on the batch's threads, concurrently, and are not told which simulation they serve;
 per-simulation work belongs in :ref:`mjb_apply`.
 
+See :ref:`mujoco.batch<PyBatch>` for the Python module.
+
 .. _siChange:
 
 mjModel changes
