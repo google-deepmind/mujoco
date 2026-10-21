@@ -2588,5 +2588,99 @@ TEST_F(IpcTest, SparseFactorScratchBounds) {
   }
 }
 
+TEST_F(IpcTest, SingleAndMultiThreadedMatch) {
+  static constexpr char kXml[] = R"(
+    <mujoco>
+      <option timestep="0.002" integrator="discrete" solver="CG"
+              iterations="50" tolerance="1e-10">
+        <flag ipc="enable"/>
+      </option>
+      <size memory="16M"/>
+      <worldbody>
+        <geom type="plane" size="2 2 0.05"/>
+        <geom type="box" pos="0 0 0.04" size="0.12 0.12 0.04"/>
+        <flexcomp name="s1" type="grid" dim="2" count="6 6 1"
+                  spacing="0.03 0.03 0.03" pos="0 0 0.081"
+                  radius="0.004" mass="0.1">
+          <contact selfcollide="auto"/>
+          <elasticity young="5e3" poisson="0.3" thickness="0.002"/>
+        </flexcomp>
+        <flexcomp name="s2" type="grid" dim="2" count="6 6 1"
+                  spacing="0.03 0.03 0.03" pos="0.01 -0.01 0.083"
+                  radius="0.004" mass="0.1">
+          <contact selfcollide="auto"/>
+          <elasticity young="5e3" poisson="0.3" thickness="0.002"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+  )";
+  mjModel* m = Load(kXml);
+  mjModel* mt = Load(kXml);
+  mjData* d = mj_makeData(m);
+  mjData* dt = mj_makeData(mt);
+  mju_threadpool(dt, 4);
+
+  for (int s = 0; s < 25; s++) {
+    mj_step(m, d);
+    mj_step(mt, dt);
+  }
+  EXPECT_GT(mju_norm(d->qfrc_constraint, m->nv), 0);
+  EXPECT_EQ(std::memcmp(d->qpos, dt->qpos, sizeof(mjtNum) * m->nq), 0);
+  EXPECT_EQ(std::memcmp(d->qvel, dt->qvel, sizeof(mjtNum) * m->nv), 0);
+  EXPECT_EQ(std::memcmp(d->qacc, dt->qacc, sizeof(mjtNum) * m->nv), 0);
+  EXPECT_EQ(std::memcmp(d->qfrc_constraint, dt->qfrc_constraint,
+                        sizeof(mjtNum) * m->nv),
+            0);
+  EXPECT_EQ(std::memcmp(d->flexvert_lambda, dt->flexvert_lambda,
+                        sizeof(mjtNum) * m->nflexvert),
+            0);
+  EXPECT_EQ(std::memcmp(d->flexvert_conage, dt->flexvert_conage,
+                        sizeof(int) * m->nflexvert),
+            0);
+
+  // Block-pool overflow in threaded mjc_candidates still merges the collected
+  // blocks onto the arena instead of discarding all candidates.
+  mock_warning_handler.ExpectWarnings("IPC: arena full");
+  int nfv = mt->nflexvert;
+  std::vector<mjtNum> radii(nfv, mt->flex_radius[0]);
+  std::vector<int> fidx(nfv), pt2flex(nfv);
+  int flist[2] = {0, 1};
+  int fxadr[2] = {0, mt->flex_vertnum[0]};
+  for (int v = 0; v < nfv; v++) {
+    fidx[v] = v;
+    pt2flex[v] = v >= fxadr[1] ? 1 : 0;
+  }
+  size_t saved_parena = dt->parena;
+  mjcFlexPair* cand_full = nullptr;
+  int nfull = mjc_candidates(
+      mt, dt, dt->flexvert_xpos, nullptr, nullptr, nullptr, nullptr, 0, 0,
+      radii.data(), 0.2, 0.2, dt->flexvert_xpos, dt->flexvert_xpos, 0.05, nfv,
+      nfv, fidx.data(), nullptr, flist, fxadr, 2, pt2flex.data(), &cand_full);
+  dt->parena = saved_parena;
+  EXPECT_GT(nfull, 128);
+
+  mj_markStack(dt);
+  size_t keep = 16384;
+  size_t avail = dt->narena - dt->pstack - dt->parena;
+  if (avail > keep) {
+    mj_stackAllocByte(dt, avail - keep, 1);
+  }
+  mjcFlexPair* cand_part = nullptr;
+  int npart = mjc_candidates(
+      mt, dt, dt->flexvert_xpos, nullptr, nullptr, nullptr, nullptr, 0, 0,
+      radii.data(), 0.2, 0.2, dt->flexvert_xpos, dt->flexvert_xpos, 0.05, nfv,
+      nfv, fidx.data(), nullptr, flist, fxadr, 2, pt2flex.data(), &cand_part);
+  mj_freeStack(dt);
+  dt->parena = saved_parena;
+  EXPECT_GT(npart, 0);
+  EXPECT_LT(npart, nfull);
+  EXPECT_NE(cand_part, nullptr);
+
+  mj_deleteData(dt);
+  mj_deleteModel(mt);
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco

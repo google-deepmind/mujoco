@@ -16,7 +16,9 @@
 
 #include "engine/engine_collision_continuous.h"
 
+#include <limits.h>
 #include <math.h>
+#include <stddef.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -25,8 +27,10 @@
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_crossplatform.h"  // mj_atomic_add_size_t
 #include "engine/engine_inline.h"
-#include "engine/engine_memory.h"
+#include "engine/engine_memory.h"        // mj_arenaAllocByte, mjSTACKALLOC
+#include "engine/engine_thread.h"        // mju_numThread, mju_dispatch
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -637,15 +641,81 @@ static mjtNum bandOffset(const mjcFlexPair* con, const mjtNum* radii) {
 }
 
 
+#define CAND_BLOCK_CAP 64
+
+// one fixed-size block of candidates in the stack pool of a threaded broad phase
+typedef struct {
+  mjcFlexPair pairs[CAND_BLOCK_CAP];
+  int n;
+  int next;
+} candBlock;
+
+// shared pool of candidate blocks on the mjData stack for a threaded broad phase
+typedef struct {
+  candBlock* blocks;
+  size_t next;
+  size_t cap;
+} candBlockPool;
+
+// where addCand puts a candidate: the arena (pool == NULL; the serial broad phase and the merge of
+// a threaded one), or a linked list of stack blocks (pool != NULL; one per task of a threaded
+// broad phase)
+typedef struct {
+  mjData* d;             // arena mode: arena owner
+  mjcFlexPair** base;    // arena mode: start of the pushed array
+  int* nc;               // arena mode: pushed count
+  int full;              // set once the arena or block pool is full
+  candBlockPool* pool;   // block mode: shared stack block pool (NULL in arena mode)
+  int head, tail;        // block mode: first and last block indices (-1 when empty)
+} candSink;
+
+
+// push one candidate onto the sink
+static void sinkPush(candSink* s, const mjcFlexPair* con) {
+  if (s->pool) {
+    if (s->full) return;
+    int b = s->tail;
+    if (b < 0 || s->pool->blocks[b].n == CAND_BLOCK_CAP) {
+      size_t idx = mj_atomic_add_size_t(&s->pool->next, 1);
+      if (idx >= s->pool->cap) {
+        s->full = 1;
+        return;
+      }
+      b = (int)idx;
+      s->pool->blocks[b].n = 0;
+      s->pool->blocks[b].next = -1;
+      if (s->tail >= 0) {
+        s->pool->blocks[s->tail].next = b;
+      } else {
+        s->head = b;
+      }
+      s->tail = b;
+    }
+    candBlock* blk = &s->pool->blocks[b];
+    blk->pairs[blk->n++] = *con;
+    return;
+  }
+  mjcFlexPair* p =
+      (mjcFlexPair*)mj_arenaAllocByte(s->d, sizeof(mjcFlexPair), _Alignof(mjcFlexPair));
+  if (!p) {
+    s->full = 1;
+    return;
+  }
+  *p = *con;
+  if (*s->nc == 0) *s->base = p;
+  (*s->nc)++;
+}
+
+
 // append a candidate contact if its gap at x is below the (margin-inflated) detection threshold.
 // Candidates are pushed onto the arena one at a time, as mj_collision pushes its pairs: consecutive
 // pushes of one type are adjacent, so *base + *nc indexes them as an array. Once the arena is full
-// *full is set and nothing more is pushed.
-static void addCand(mjcFlexPair con, const mjModel* m, mjData* d, const mjtNum* x,
+// sink->full is set and nothing more is pushed. (A threaded broad phase pushes into per-task block
+// lists instead, see candSink.)
+static void addCand(mjcFlexPair con, const mjModel* m, const mjData* d, const mjtNum* x,
                     const mjtNum* gv, const mjtNum* ge, const mjtNum* radii, mjtNum thresh,
-                    const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, mjcFlexPair** base,
-                    int* nc, int* full) {
-  if (*full) return;
+                    const mjtNum* dfrom, const mjtNum* dto, mjtNum ghat, candSink* sink) {
+  if (sink->full) return;
   // flex-flex pre-test: the distance between the two features' bounding boxes bounds their
   // (midsurface) gap from below, so a pair whose boxes are beyond the detection threshold below
   // fails it in any case. The margin keeps the test clear of the exact distance's round-off
@@ -712,15 +782,7 @@ static void addCand(mjcFlexPair con, const mjModel* m, mjData* d, const mjtNum* 
       if (l > bound) bound = l;
     }
   if (g < bo + mjc_pairBand(&con, radii, ghat) + bound) {
-    mjcFlexPair* p =
-        (mjcFlexPair*)mj_arenaAllocByte(d, sizeof(mjcFlexPair), _Alignof(mjcFlexPair));
-    if (!p) {
-      *full = 1;
-      return;
-    }
-    *p = con;
-    if (*nc == 0) *base = p;
-    (*nc)++;
+    sinkPush(sink, &con);
   }
 }
 
@@ -784,6 +846,316 @@ static inline int sameBody(const int* ptbody, int a, int b) {
 }
 
 
+// the broad phase's inputs and derived per-call tables, shared read-only by its work units
+typedef struct {
+  const mjModel* m;
+  const mjData* d;
+  const mjtNum* x;
+  const mjtNum* gv;
+  const mjtNum* ge;
+  const int* gvgeom;
+  const int* gegeom;
+  int ngv, nge;
+  const mjtNum* radii;
+  mjtNum thresh, threshGeom;
+  const mjtNum* dfrom;
+  const mjtNum* dto;
+  mjtNum ghat;
+  int nfv;
+  const int* fidx;
+  const int* pjnv;
+  const int* flist;
+  const int* fxadr;
+  int nfd;
+  const int* pt2flex;
+  const mjtNum* dl;      // per point travel                                         (nfv)
+  const mjtNum* fsweep;  // per flex largest travel                                  (nfd)
+  const mjtNum* fstale;  // per flex largest distance from the BVH's configuration   (nfd)
+  const int* fok;        // flex-pair filter                                         (nfd*nfd)
+  const int* ptbody;     // body of each point                                       (npt_all)
+  // the points that meet the static geoms: their bounding box and largest margin (padded), so a
+  // geom whose box misses the padded point box has no candidate; npg: number of such points
+  mjtNum pglo[3], pghi[3], pgmarg;
+  int npg;
+} candCtx;
+
+// a unit's BVH query scratch; stampG dedups the edges of one query (stamp == qid)
+typedef struct {
+  int* stk;
+  int* outel;
+  int* stampG;
+  int qid;
+} candScratch;
+
+// work units of the broad phase, in the serial order: the point-vs-static-geom tests over geoms
+// [lo, hi), then per queried flex k its geom corners, geom edges, vertices and, per flex kj <= k,
+// the edges of flex kj, each over the index range [lo, hi)
+enum { candGEOMVERT = 0, candCORNER, candGEDGE, candVERT, candEDGE };
+typedef struct {
+  int kind, k, kj, lo, hi;
+} candUnit;
+
+
+// run one work unit, pushing its candidates onto sink in the serial order
+static void candRun(const candCtx* cx, const candUnit* u, candScratch* w, candSink* sink) {
+  const mjModel* m = cx->m;
+  const mjData* d = cx->d;
+  const mjtNum* x = cx->x;
+  const mjtNum* gv = cx->gv;
+  const mjtNum* ge = cx->ge;
+  const mjtNum* radii = cx->radii;
+  const mjtNum* dfrom = cx->dfrom;
+  const mjtNum* dto = cx->dto;
+  const mjtNum* dl = cx->dl;
+  mjtNum ghat = cx->ghat;
+  int nfd = cx->nfd;
+
+  if (u->kind == candGEOMVERT) {
+    for (int gi=u->lo; gi < u->hi; gi++) {  // free point (flex vert) vs STATIC geom
+      if (m->geom_contype[gi] == 0 && m->geom_conaffinity[gi] == 0) continue;  // non-colliding
+      if (!mjc_GeomSupported(m->geom_type[gi])) continue;  // its native rows are kept instead
+      if (m->body_weldid[m->geom_bodyid[gi]] != 0)
+        continue;  // STATIC geoms ONLY: a MOVABLE rigid geom (ball/limb) is a soft type-3
+                   // contact, never a frozen penetration-free obstacle
+      // geom-level cull: bound the points by the geom's true world AABB (the rotated local
+      // geom_aabb) + per-point margin, before the per-face distance. Much tighter than the
+      // bounding sphere for the elongated convex-decomposition slabs. Planes are infinite -> no
+      // cull (their distance is O(1) anyway).
+      int isplane = (m->geom_type[gi] == mjGEOM_PLANE);
+      mjtNum wc[3], wh[3];
+      if (!isplane) {
+        const mjtNum* la = m->geom_aabb + 6 * gi;
+        const mjtNum* gp = d->geom_xpos + 3 * gi;
+        const mjtNum* gR = d->geom_xmat + 9 * gi;
+        mju_mulMatVec3(wc, gR, la);
+        for (int k=0; k < 3; k++) wc[k] += gp[k];  // world AABB center
+        for (int k=0; k < 3; k++)
+          wh[k] = mju_abs(gR[3 * k]) * la[3] + mju_abs(gR[3 * k + 1]) * la[4] +
+                  mju_abs(gR[3 * k + 2]) * la[5];
+        // geom-level cull against the box of all the points: a point in the geom's box widened
+        // by its margin lies in the point box, so a geom whose box misses it has no candidate
+        int miss = 0;
+        for (int k=0; k < 3; k++) {
+          if (wc[k] - wh[k] - cx->pgmarg > cx->pghi[k] || wc[k] + wh[k] + cx->pgmarg < cx->pglo[k])
+            miss = 1;
+        }
+        if (miss) continue;
+      }
+      if (!cx->npg) continue;
+      for (int v=0; v < cx->nfv; v++) {  // free points and points riding a moving body
+        if (cx->fidx[v] < 0 && !(cx->pjnv && cx->pjnv[v] > 0)) continue;
+        int f = cx->flist[cx->pt2flex[v]];
+        if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], m->flex_contype[f],
+                         m->flex_conaffinity[f]))
+          continue;
+        mjtNum reach = cx->thresh + dl[v];  // the point's own travel: the geom is static
+        mjtNum marg = reach + radii[v];
+        if (!isplane) {  // world-AABB cull
+          if (mju_abs(x[3 * v] - wc[0]) > wh[0] + marg ||
+              mju_abs(x[3 * v + 1] - wc[1]) > wh[1] + marg ||
+              mju_abs(x[3 * v + 2] - wc[2]) > wh[2] + marg)
+            continue;
+        }
+        mjcFlexPair con = {mjcFLEX_VERT_GEOM, {v, 0, 0, 0}, gi};
+        addCand(con, m, d, x, gv, ge, radii, reach, dfrom, dto, ghat, sink);
+      }
+    }
+    return;
+  }
+
+  // query flex fk's element BVH
+  int k = u->k;
+  int fk = cx->flist[k];
+  int ne_k = m->flex_elemnum[fk], ea_k = m->flex_edgeadr[fk], off_k = cx->fxadr[k];
+  const int* el_k = m->flex_elem + m->flex_elemdataadr[fk];
+  const int* eme_k = m->flex_elemedge + m->flex_elemedgeadr[fk];
+  mjtNum rk = m->flex_radius[fk];
+  int ct_k = m->flex_contype[fk], ca_k = m->flex_conaffinity[fk];
+  mjtNum fsweep_k = cx->fsweep[k], fstale_k = cx->fstale[k];
+  int* stk = w->stk;
+  int* outel = w->outel;
+  int* stampG = w->stampG;
+
+  // (rigid sphere-vs-flex-triangle hard contact removed in increment A -- see note above.)
+  // geom-corner vs flex triangle (type 3); geom is static (one-sided) -> tighter threshGeom (a
+  // convex-decomposition bin's ~1600 edges otherwise produce hundreds of thousands of
+  // candidates). Only the flex side moves: its reach grows by the flex's travel, and its BVH
+  // query by the staleness of the tree as well.
+  // A feature carries its geom (con.g) for the masks and for the radius a sphere centre or
+  // capsule axis stands inside the surface, which widens its query box.
+  mjtNum reachG = cx->threshGeom + fsweep_k, boxG = reachG + rk + fstale_k;
+  if (u->kind == candCORNER) {
+    for (int c=u->lo; c < u->hi; c++) {
+      int gi = cx->gvgeom[c];
+      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], ct_k, ca_k)) continue;
+      mjtNum bx = boxG + featRadius(m, gi);
+      mjtNum qhvG[3] = {bx, bx, bx};
+      int n = bvhBox(m, d, fk, &gv[3 * c], qhvG, stk, outel, ne_k);
+      for (int i=0; i < n; i++) {
+        int e = outel[i];
+        mjcFlexPair con = {mjcGEOM_CORNER_TRI,
+                           {c, off_k + el_k[3 * e], off_k + el_k[3 * e + 1],
+                            off_k + el_k[3 * e + 2]},
+                           gi};
+        addCand(con, m, d, x, gv, ge, radii, reachG, dfrom, dto, ghat, sink);
+      }
+    }
+    return;
+  }
+
+  // geom-edge vs flex edge (type 4); dedup the shared triangle edges per query via stampG.
+  if (u->kind == candGEDGE) {
+    for (int c=u->lo; c < u->hi; c++) {
+      int gi = cx->gegeom[c];
+      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], ct_k, ca_k)) continue;
+      const mjtNum* p0 = &ge[6 * c];
+      const mjtNum* p1 = &ge[6 * c + 3];
+      mjtNum qc[3], qh[3], bx = boxG + featRadius(m, gi);
+      for (int kk=0; kk < 3; kk++) {
+        qc[kk] = 0.5 * (p0[kk] + p1[kk]);
+        qh[kk] = 0.5 * mju_abs(p1[kk] - p0[kk]) + bx;
+      }
+      int n = bvhBox(m, d, fk, qc, qh, stk, outel, ne_k);
+      int qid = ++w->qid;
+      for (int i=0; i < n; i++) {
+        int e = outel[i];
+        for (int j=0; j < 3; j++) {
+          int e2 = eme_k[3 * e + j];
+          if (stampG[e2] == qid) continue;
+          stampG[e2] = qid;
+          mjcFlexPair con = {mjcGEOM_EDGE_EDGE,
+                             {c, off_k + m->flex_edge[2 * (ea_k + e2)],
+                              off_k + m->flex_edge[2 * (ea_k + e2) + 1], 0},
+                             gi};
+          addCand(con, m, d, x, gv, ge, radii, reachG, dfrom, dto, ghat, sink);
+        }
+      }
+    }
+    return;
+  }
+
+  // flex vertex vs flex triangle (type 0): self (same flex) + inter-flex, both under fok.
+  // Asymmetric (vert vs tri), so all verts query every flex's BVH -- both directions are
+  // distinct contacts.
+  if (u->kind == candVERT) {
+    for (int v=u->lo; v < u->hi; v++) {
+      int kv = cx->pt2flex[v];
+      if (!cx->fok[k * nfd + kv]) continue;  // filtered flex pair
+      // per-pair band: the thinner flex sets it, capped by the global band; the reach adds the
+      // travel of both sides, the BVH query the tree's staleness as well
+      mjtNum thv = 3.0 * mju_min(ghat, mju_min(radii[v], rk)) + dl[v] + fsweep_k;
+      mjtNum bv = thv + radii[v] + fstale_k;
+      mjtNum qh[3] = {bv, bv, bv};
+      int n = bvhBox(m, d, fk, &x[3 * v], qh, stk, outel, ne_k);
+      for (int i=0; i < n; i++) {
+        int e = outel[i];
+        int A = off_k + el_k[3 * e], B = off_k + el_k[3 * e + 1], C = off_k + el_k[3 * e + 2];
+        if (kv == k && (v == A || v == B || v == C)) continue;  // the self-adjacent triangle
+        if (sameBody(cx->ptbody, v, A) || sameBody(cx->ptbody, v, B) ||
+            sameBody(cx->ptbody, v, C)) {
+          continue;  // vertex rides on the body of a triangle vertex
+        }
+        mjcFlexPair con = {mjcFLEX_VERT_TRI, {v, A, B, C}, -1};
+        addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, sink);
+      }
+    }
+    return;
+  }
+
+  // flex edge vs flex edge (type 1): symmetric, so canonical -- querying flex kj <= k, and e2 >
+  // e1 within a flex. Self (kj==k) and inter-flex (kj<k) both under fok.
+  int kj = u->kj;
+  int self = (kj == k);
+  if (!cx->fok[k * nfd + kj]) return;  // filtered flex pair
+  int fj = cx->flist[kj], ea_j = m->flex_edgeadr[fj], off_j = cx->fxadr[kj];
+  for (int e1=u->lo; e1 < u->hi; e1++) {
+    int a1 = off_j + m->flex_edge[2 * (ea_j + e1)],
+        b1 = off_j + m->flex_edge[2 * (ea_j + e1) + 1];
+    // per-pair band plus the travel of both sides; the query adds the tree's staleness
+    mjtNum the = 3.0 * mju_min(ghat, mju_min(radii[a1], rk)) + (dl[a1] > dl[b1] ? dl[a1] : dl[b1]) +
+                 fsweep_k;
+    mjtNum qc[3], qh[3];
+    for (int kk=0; kk < 3; kk++) {
+      qc[kk] = 0.5 * (x[3 * a1 + kk] + x[3 * b1 + kk]);
+      qh[kk] = 0.5 * mju_abs(x[3 * a1 + kk] - x[3 * b1 + kk]) + the + radii[a1] + fstale_k;
+    }
+    int n = bvhBox(m, d, fk, qc, qh, stk, outel, ne_k);
+    int qid = ++w->qid;
+    for (int i=0; i < n; i++) {
+      int e = outel[i];
+      for (int j=0; j < 3; j++) {
+        int e2 = eme_k[3 * e + j];
+        if (self && e2 <= e1) continue;  // canonical within a flex
+        if (stampG[e2] == qid) continue;
+        stampG[e2] = qid;
+        int a2 = off_k + m->flex_edge[2 * (ea_k + e2)],
+            b2 = off_k + m->flex_edge[2 * (ea_k + e2) + 1];
+        if (a1 == a2 || a1 == b2 || b1 == a2 || b1 == b2)
+          continue;  // shared vertex -> adjacent, skip
+        if (sameBody(cx->ptbody, a1, a2) || sameBody(cx->ptbody, a1, b2) ||
+            sameBody(cx->ptbody, b1, a2) || sameBody(cx->ptbody, b1, b2)) {
+          continue;  // endpoints ride on one body
+        }
+        mjcFlexPair con = {mjcFLEX_EDGE_EDGE, {a1, b1, a2, b2}, -1};
+        addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, sink);
+      }
+    }
+  }
+}
+
+
+// append the units of one segment [0, n) in chunks of at most chunk (count only if out is NULL)
+static int candSegment(candUnit* out, int nu, int kind, int k, int kj, int n, int chunk) {
+  for (int lo=0; lo < n; lo += chunk) {
+    if (out) {
+      candUnit u = {kind, k, kj, lo, n - lo < chunk ? n : lo + chunk};
+      out[nu] = u;
+    }
+    nu++;
+  }
+  return nu;
+}
+
+
+// the BVH-query units of the broad phase in the serial order (count only if out is NULL); every
+// segment is split into chunks of about n / nsplit (at least minchunk)
+static int candUnits(const candCtx* cx, candUnit* out, int nsplit, int minchunk) {
+  const mjModel* m = cx->m;
+  int nu = 0;
+#define CAND_CHUNK(n) ((n) / nsplit > minchunk ? ((n) + nsplit - 1) / nsplit : minchunk)
+  for (int k=0; k < cx->nfd; k++) {
+    int fk = cx->flist[k];
+    if (m->flex_bvhadr[fk] < 0 || m->flex_elemnum[fk] == 0) continue;
+    nu = candSegment(out, nu, candCORNER, k, 0, cx->ngv, CAND_CHUNK(cx->ngv));
+    nu = candSegment(out, nu, candGEDGE, k, 0, cx->nge, CAND_CHUNK(cx->nge));
+    nu = candSegment(out, nu, candVERT, k, 0, cx->nfv, CAND_CHUNK(cx->nfv));
+    for (int kj=0; kj <= k; kj++) {
+      if (!cx->fok[k * cx->nfd + kj]) continue;
+      int en = m->flex_edgenum[cx->flist[kj]];
+      nu = candSegment(out, nu, candEDGE, k, kj, en, CAND_CHUNK(en));
+    }
+  }
+#undef CAND_CHUNK
+  return nu;
+}
+
+
+// threaded broad phase: unit task_id into its own block list, with thread thread_id's scratch
+typedef struct {
+  const candCtx* cx;
+  const candUnit* units;
+  candScratch* scratch;  // per thread
+  candSink* sinks;       // per unit, block mode
+} candTaskArg;
+
+static void candTask(const mjModel* m, mjData* unused, void* arg, int thread_id, int task_id) {
+  (void)m;
+  (void)unused;
+  candTaskArg* a = (candTaskArg*)arg;
+  candRun(a->cx, a->units + task_id, a->scratch + thread_id, a->sinks + task_id);
+}
+
+
 // build the candidate-contact list: every pair whose gap can enter the detection band along the
 // sweep dfrom -> dto. The reach of each query is the base threshold plus the travel of the points
 // involved, taken per point (|dto - dfrom|) and per queried flex (the largest travel of its points,
@@ -793,13 +1165,15 @@ static inline int sameBody(const int* ptbody, int a, int b) {
 // querying the flex element BVH (bvhBox). The native collision filtering applies: nothing with
 // contact (or constraints) disabled, pairs under the contype/conaffinity rule, self-contact under
 // the flex's selfcollide, and no flex-flex pair between features with points on one body.
+// When a thread pool is bound to d, the work units run in parallel into per-unit block lists on the
+// stack and are then pushed onto the arena in the serial order.
 int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* gv,
                    const mjtNum* ge, const int* gvgeom, const int* gegeom, int ngv, int nge,
                    const mjtNum* radii, mjtNum thresh, mjtNum threshGeom, const mjtNum* dfrom,
                    const mjtNum* dto, mjtNum ghat, int nfv, int npt, const int* fidx,
                    const int* pjnv, const int* flist, const int* fxadr, int nfd,
                    const int* pt2flex, mjcFlexPair** cand) {
-  (void)npt;  // increment A: candidates are flex-only (npt==nfv); rigid bodies carry no hard contact
+  (void)npt;  // increment A: candidates are flex-only (npt==nfv); rigid bodies have no hard contact
   int nc = 0, full = 0;
   *cand = NULL;
   if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT)) return 0;  // as mj_collision
@@ -823,66 +1197,29 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
     if (dl[v] > fsweep[k]) fsweep[k] = dl[v];
     if (stale > fstale[k]) fstale[k] = stale;
   }
-  // the points that meet the static geoms: their bounding box and largest margin (padded), so a
-  // geom whose box misses the padded point box has no candidate
-  mjtNum pglo[3] = {0, 0, 0}, pghi[3] = {0, 0, 0}, pgmarg = 0;
-  int npg = 0;
+  candCtx cx = {m, d, x, gv, ge, gvgeom, gegeom, ngv, nge, radii, thresh, threshGeom, dfrom, dto,
+                ghat, nfv, fidx, pjnv, flist, fxadr, nfd, pt2flex, dl, fsweep, fstale, NULL, NULL,
+                {0, 0, 0}, {0, 0, 0}, 0, 0};
   for (int v=0; v < nfv; v++) {
     if (fidx[v] < 0 && !(pjnv && pjnv[v] > 0)) continue;
     mjtNum marg = thresh + dl[v] + radii[v];
-    if (!npg || marg > pgmarg) pgmarg = marg;
+    if (!cx.npg || marg > cx.pgmarg) cx.pgmarg = marg;
     for (int k=0; k < 3; k++) {
-      if (!npg || x[3 * v + k] < pglo[k]) pglo[k] = x[3 * v + k];
-      if (!npg || x[3 * v + k] > pghi[k]) pghi[k] = x[3 * v + k];
+      if (!cx.npg || x[3 * v + k] < cx.pglo[k]) cx.pglo[k] = x[3 * v + k];
+      if (!cx.npg || x[3 * v + k] > cx.pghi[k]) cx.pghi[k] = x[3 * v + k];
     }
-    npg++;
+    cx.npg++;
   }
-  pgmarg += 1e-9 * mju_abs(pgmarg) + 1e-9;
-  for (int gi=0; gi < m->ngeom; gi++) {  // free point (flex vert) vs STATIC geom
-    if (m->geom_contype[gi] == 0 && m->geom_conaffinity[gi] == 0) continue;  // skip non-colliding
-    if (!mjc_GeomSupported(m->geom_type[gi])) continue;  // its native rows are kept instead
-    if (m->body_weldid[m->geom_bodyid[gi]] != 0)
-      continue;  // STATIC geoms ONLY: a MOVABLE rigid geom (ball/limb) is a soft type-3 contact,
-                 // never a frozen penetration-free obstacle
-    // geom-level cull: bound the points by the geom's true world AABB (the rotated local geom_aabb)
-    // + per-point margin, before the per-face distance. Much tighter than the bounding sphere for
-    // the elongated convex-decomposition slabs. Planes are infinite -> no cull (their distance is
-    // O(1) anyway).
-    int isplane = (m->geom_type[gi] == mjGEOM_PLANE);
-    mjtNum wc[3], wh[3];
-    if (!isplane) {
-      const mjtNum* la = m->geom_aabb + 6 * gi;
-      const mjtNum* gp = d->geom_xpos + 3 * gi;
-      const mjtNum* gR = d->geom_xmat + 9 * gi;
-      mju_mulMatVec3(wc, gR, la);
-      for (int k=0; k < 3; k++) wc[k] += gp[k];  // world AABB center
-      for (int k=0; k < 3; k++)
-        wh[k] = mju_abs(gR[3 * k]) * la[3] + mju_abs(gR[3 * k + 1]) * la[4] +
-                mju_abs(gR[3 * k + 2]) * la[5];
-      int miss = 0;
-      for (int k=0; k < 3; k++) {
-        if (wc[k] - wh[k] - pgmarg > pghi[k] || wc[k] + wh[k] + pgmarg < pglo[k]) miss = 1;
-      }
-      if (miss) continue;
-    }
-    if (!npg) continue;
-    for (int v=0; v < nfv; v++) {  // free points and points riding a moving body
-      if (fidx[v] < 0 && !(pjnv && pjnv[v] > 0)) continue;
-      int f = flist[pt2flex[v]];
-      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], m->flex_contype[f],
-                       m->flex_conaffinity[f]))
-        continue;
-      mjtNum reach = thresh + dl[v];  // the point's own travel: the geom is static
-      mjtNum marg = reach + radii[v];
-      if (!isplane) {  // world-AABB cull
-        if (mju_abs(x[3 * v] - wc[0]) > wh[0] + marg ||
-            mju_abs(x[3 * v + 1] - wc[1]) > wh[1] + marg ||
-            mju_abs(x[3 * v + 2] - wc[2]) > wh[2] + marg)
-          continue;
-      }
-      mjcFlexPair con = {mjcFLEX_VERT_GEOM, {v, 0, 0, 0}, gi};
-      addCand(con, m, d, x, gv, ge, radii, reach, dfrom, dto, ghat, cand, &nc, &full);
-    }
+  // pad clear of the per-point test's round-off
+  cx.pgmarg += 1e-9 * mju_abs(cx.pgmarg) + 1e-9;
+  candSink arena = {d, cand, &nc, 0, NULL, -1, -1};
+  int nthread = mju_numThread(d);
+
+  // free point (flex vert) vs STATIC geom; serially before the scratch below is allocated, as the
+  // arena it fills ends at the stack
+  if (nthread < 2) {
+    candUnit u = {candGEOMVERT, 0, 0, 0, m->ngeom};
+    candRun(&cx, &u, NULL, &arena);
   }
 
   // (Rigid sphere-sphere and sphere-vs-flex HARD contacts removed in increment A: rigid bodies live
@@ -902,13 +1239,8 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
     if (m->flex_elemnum[fk] > maxel) maxel = m->flex_elemnum[fk];
     if (m->flex_edgenum[fk] > maxen) maxen = m->flex_edgenum[fk];
   }
-  int* stk = mjSTACKALLOC(d, maxbvh, int);
-  int* outel = mjSTACKALLOC(d, maxel, int);
-  int* stampG = mjSTACKALLOC(d, maxen, int);
-  for (int e=0; e < maxen; e++) stampG[e] = -1;
-  int qid = 0;
   // flex-pair filter fok[k*nfd+kj]: flex flist[kj] against flex flist[k]'s elements
-  int* fok = mjSTACKALLOC(d, nfd * nfd, int);
+  int* fok = mjSTACKALLOC(d, nfd > 0 ? nfd * nfd : 1, int);
   for (int k=0; k < nfd; k++) {
     for (int kj=0; kj < nfd; kj++) {
       int fk = flist[k], fj = flist[kj];
@@ -934,130 +1266,72 @@ int mjc_candidates(const mjModel* m, mjData* d, const mjtNum* x, const mjtNum* g
       ptbody[fxadr[k] + lv] = m->flex_vertbodyid[m->flex_vertadr[fk] + lv];
     }
   }
+  cx.fok = fok;
+  cx.ptbody = ptbody;
 
-  for (int k=0; k < nfd; k++) {  // query flex fk's element BVH
-    int fk = flist[k];
-    int ne_k = m->flex_elemnum[fk], ea_k = m->flex_edgeadr[fk], off_k = fxadr[k];
-    if (m->flex_bvhadr[fk] < 0 || ne_k == 0) continue;
-    const int* el_k = m->flex_elem + m->flex_elemdataadr[fk];
-    const int* eme_k = m->flex_elemedge + m->flex_elemedgeadr[fk];
-    mjtNum rk = m->flex_radius[fk];
-    int ct_k = m->flex_contype[fk], ca_k = m->flex_conaffinity[fk];
-
-    // (rigid sphere-vs-flex-triangle hard contact removed in increment A -- see note above.)
-    // geom-corner vs flex triangle (type 3); geom is static (one-sided) -> tighter threshGeom (a
-    // convex-decomposition bin's ~1600 edges otherwise produce hundreds of thousands of
-    // candidates). Only the flex side moves: its reach grows by the flex's travel, and its BVH
-    // query by the staleness of the tree as well.
-    // A feature carries its geom (con.g) for the masks and for the radius a sphere centre or
-    // capsule axis stands inside the surface, which widens its query box.
-    mjtNum reachG = threshGeom + fsweep[k], boxG = reachG + rk + fstale[k];
-    for (int c=0; c < ngv; c++) {
-      int gi = gvgeom[c];
-      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], ct_k, ca_k)) continue;
-      mjtNum bx = boxG + featRadius(m, gi);
-      mjtNum qhvG[3] = {bx, bx, bx};
-      int n = bvhBox(m, d, fk, &gv[3 * c], qhvG, stk, outel, ne_k);
-      for (int i=0; i < n; i++) {
-        int e = outel[i];
-        mjcFlexPair con = {mjcGEOM_CORNER_TRI,
-                           {c, off_k + el_k[3 * e], off_k + el_k[3 * e + 1],
-                            off_k + el_k[3 * e + 2]},
-                           gi};
-        addCand(con, m, d, x, gv, ge, radii, reachG, dfrom, dto, ghat, cand, &nc, &full);
+  if (nthread < 2) {
+    // serial: each segment as a single unit, onto the arena
+    int* stk = mjSTACKALLOC(d, maxbvh, int);
+    int* outel = mjSTACKALLOC(d, maxel, int);
+    int* stampG = mjSTACKALLOC(d, maxen, int);
+    for (int e=0; e < maxen; e++) stampG[e] = -1;
+    candScratch w = {stk, outel, stampG, 0};
+    int nu = candUnits(&cx, NULL, 1, INT_MAX);
+    candUnit* units = mjSTACKALLOC(d, nu > 0 ? nu : 1, candUnit);
+    candUnits(&cx, units, 1, INT_MAX);
+    for (int i=0; i < nu && !arena.full; i++) candRun(&cx, units + i, &w, &arena);
+  } else {
+    // threaded: the point-vs-geom units (one per geom chunk), then the BVH units, each into its
+    // own block list on the stack; after dispatch, blocks are copied onto the arena in serial order
+    int gchunk = m->ngeom / (4*nthread) > 1 ? (m->ngeom + 4*nthread - 1) / (4*nthread) : 1;
+    int ng = candSegment(NULL, 0, candGEOMVERT, 0, 0, m->ngeom, gchunk);
+    int nb = candUnits(&cx, NULL, 4*nthread, 16);
+    int nu = ng + nb;
+    candUnit* units = mjSTACKALLOC(d, nu > 0 ? nu : 1, candUnit);
+    candSegment(units, 0, candGEOMVERT, 0, 0, m->ngeom, gchunk);
+    candUnits(&cx, units + ng, 4*nthread, 16);
+    candSink* sinks = mjSTACKALLOC(d, nu > 0 ? nu : 1, candSink);
+    candScratch* scratch = mjSTACKALLOC(d, nthread, candScratch);
+    size_t nscr = (size_t)nthread * (size_t)(maxbvh + maxel + maxen);
+    int* sbuf = mjSTACKALLOC(d, nscr > 0 ? nscr : 1, int);
+    for (int t=0; t < nthread; t++) {
+      int* base = sbuf + (size_t)t * (size_t)(maxbvh + maxel + maxen);
+      candScratch w = {base, base + maxbvh, base + maxbvh + maxel, 0};
+      for (int e=0; e < maxen; e++) w.stampG[e] = -1;
+      scratch[t] = w;
+    }
+    // reserve up to half of the remaining stack space for candidate blocks so the other half stays
+    // free for the contiguous arena merge (and the inner mju_dispatch stack frame)
+    size_t avail = mj_stackBytesAvailable(d);
+    size_t frame = 2 * mj_stackFrameBytes() + mj_stackBytes(sizeof(candBlock), _Alignof(candBlock));
+    size_t maxblocks = avail > frame ? (avail - frame) / (2 * sizeof(candBlock)) : 0;
+    candBlockPool pool = {NULL, 0, maxblocks};
+    if (maxblocks > 0) {
+      pool.blocks = mjSTACKALLOC(d, maxblocks, candBlock);
+    } else if (nu > 0) {
+      full = 1;
+    }
+    for (int i=0; i < nu; i++) {
+      candSink s = {d, NULL, NULL, 0, &pool, -1, -1};
+      sinks[i] = s;
+    }
+    candTaskArg targ = {&cx, units, scratch, sinks};
+    if (!full) {
+      mju_dispatch(m, d, candTask, &targ, nu);
+    }
+    for (int i=0; i < nu && !arena.full; i++) {
+      for (int b=sinks[i].head; b >= 0 && !arena.full; b = pool.blocks[b].next) {
+        const candBlock* blk = &pool.blocks[b];
+        for (int j=0; j < blk->n && !arena.full; j++) {
+          sinkPush(&arena, &blk->pairs[j]);
+        }
       }
     }
-    // geom-edge vs flex edge (type 4); dedup the shared triangle edges per query via stampG.
-    for (int c=0; c < nge; c++) {
-      int gi = gegeom[c];
-      if (maskFiltered(m->geom_contype[gi], m->geom_conaffinity[gi], ct_k, ca_k)) continue;
-      const mjtNum* p0 = &ge[6 * c];
-      const mjtNum* p1 = &ge[6 * c + 3];
-      mjtNum qc[3], qh[3], bx = boxG + featRadius(m, gi);
-      for (int kk=0; kk < 3; kk++) {
-        qc[kk] = 0.5 * (p0[kk] + p1[kk]);
-        qh[kk] = 0.5 * mju_abs(p1[kk] - p0[kk]) + bx;
-      }
-      int n = bvhBox(m, d, fk, qc, qh, stk, outel, ne_k);
-      qid++;
-      for (int i=0; i < n; i++) {
-        int e = outel[i];
-        for (int j=0; j < 3; j++) {
-          int e2 = eme_k[3 * e + j];
-          if (stampG[e2] == qid) continue;
-          stampG[e2] = qid;
-          mjcFlexPair con = {mjcGEOM_EDGE_EDGE,
-                        {c, off_k + m->flex_edge[2 * (ea_k + e2)],
-                         off_k + m->flex_edge[2 * (ea_k + e2) + 1], 0},
-                        gi};
-          addCand(con, m, d, x, gv, ge, radii, reachG, dfrom, dto, ghat, cand, &nc, &full);
-        }
-      }
-    }
-    // flex vertex vs flex triangle (type 0): self (same flex) + inter-flex, both under fok.
-    // Asymmetric (vert vs tri), so all verts query every flex's BVH -- both directions are
-    // distinct contacts.
-    for (int v=0; v < nfv; v++) {
-      int kv = pt2flex[v];
-      if (!fok[k * nfd + kv]) continue;  // filtered flex pair
-      // per-pair band: the thinner flex sets it, capped by the global band; the reach adds the
-      // travel of both sides, the BVH query the tree's staleness as well
-      mjtNum thv = 3.0 * mju_min(ghat, mju_min(radii[v], rk)) + dl[v] + fsweep[k];
-      mjtNum bv = thv + radii[v] + fstale[k];
-      mjtNum qh[3] = {bv, bv, bv};
-      int n = bvhBox(m, d, fk, &x[3 * v], qh, stk, outel, ne_k);
-      for (int i=0; i < n; i++) {
-        int e = outel[i];
-        int A = off_k + el_k[3 * e], B = off_k + el_k[3 * e + 1], C = off_k + el_k[3 * e + 2];
-        if (kv == k && (v == A || v == B || v == C)) continue;  // skip the self-adjacent triangle
-        if (sameBody(ptbody, v, A) || sameBody(ptbody, v, B) || sameBody(ptbody, v, C)) {
-          continue;  // vertex rides on the body of a triangle vertex
-        }
-        mjcFlexPair con = {mjcFLEX_VERT_TRI, {v, A, B, C}, -1};
-        addCand(con, m, d, x, gv, ge, radii, thv, dfrom, dto, ghat, cand, &nc, &full);
-      }
-    }
-    // flex edge vs flex edge (type 1): symmetric, so canonical -- querying flex kj <= k, and e2 >
-    // e1 within a flex. Self (kj==k) and inter-flex (kj<k) both under fok.
-    for (int kj=0; kj <= k; kj++) {
-      int self = (kj == k);
-      if (!fok[k * nfd + kj]) continue;  // filtered flex pair
-      int fj = flist[kj], ea_j = m->flex_edgeadr[fj], en_j = m->flex_edgenum[fj], off_j = fxadr[kj];
-      for (int e1=0; e1 < en_j; e1++) {
-        int a1 = off_j + m->flex_edge[2 * (ea_j + e1)],
-            b1 = off_j + m->flex_edge[2 * (ea_j + e1) + 1];
-        // per-pair band plus the travel of both sides; the query adds the tree's staleness
-        mjtNum the = 3.0 * mju_min(ghat, mju_min(radii[a1], rk)) + (dl[a1] > dl[b1] ? dl[a1] : dl[b1]) +
-                     fsweep[k];
-        mjtNum qc[3], qh[3];
-        for (int kk=0; kk < 3; kk++) {
-          qc[kk] = 0.5 * (x[3 * a1 + kk] + x[3 * b1 + kk]);
-          qh[kk] = 0.5 * mju_abs(x[3 * a1 + kk] - x[3 * b1 + kk]) + the + radii[a1] + fstale[k];
-        }
-        int n = bvhBox(m, d, fk, qc, qh, stk, outel, ne_k);
-        qid++;
-        for (int i=0; i < n; i++) {
-          int e = outel[i];
-          for (int j=0; j < 3; j++) {
-            int e2 = eme_k[3 * e + j];
-            if (self && e2 <= e1) continue;  // canonical within a flex
-            if (stampG[e2] == qid) continue;
-            stampG[e2] = qid;
-            int a2 = off_k + m->flex_edge[2 * (ea_k + e2)],
-                b2 = off_k + m->flex_edge[2 * (ea_k + e2) + 1];
-            if (a1 == a2 || a1 == b2 || b1 == a2 || b1 == b2)
-              continue;  // shared vertex -> adjacent, skip
-            if (sameBody(ptbody, a1, a2) || sameBody(ptbody, a1, b2) ||
-                sameBody(ptbody, b1, a2) || sameBody(ptbody, b1, b2)) {
-              continue;  // endpoints ride on one body
-            }
-            mjcFlexPair con = {mjcFLEX_EDGE_EDGE, {a1, b1, a2, b2}, -1};
-            addCand(con, m, d, x, gv, ge, radii, the, dfrom, dto, ghat, cand, &nc, &full);
-          }
-        }
-      }
+    for (int i=0; i < nu; i++) {
+      if (sinks[i].full) full = 1;
     }
   }
+  if (arena.full) full = 1;
   mj_freeStack(d);
   if (full) {
     mju_warning("IPC: arena full after %d candidate pairs; the rest were dropped, so geometry "

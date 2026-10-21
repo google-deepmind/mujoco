@@ -39,6 +39,7 @@
 #include "engine/engine_name.h"
 #include "engine/engine_sensor.h"
 #include "engine/engine_support.h"
+#include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 
@@ -615,6 +616,54 @@ static void ipc_pinnedPos(const mjModel* m, const mjData* d, int npt, const int*
 }
 
 
+// per-pair gap loops on the engine thread pool: either the active set's linearization (con != NULL:
+// ld0, ln, liv, lcw, lniv of each pair) or the candidates' gaps (cand != NULL: gap[c]); each task
+// covers a disjoint range of pairs, so the result is identical to the serial run
+typedef struct {
+  ipcCon* con;
+  const mjcFlexPair* cand;
+  mjtNum* gap;
+  int n, chunk;
+  const mjtNum* x;
+  const mjtNum* gv;
+  const mjtNum* ge;
+  const mjtNum* rad;
+  mjtNum ghat;
+} ipcGapArg;
+
+static void ipc_gapTask(const mjModel* m, mjData* d, void* arg, int thread_id, int task_id) {
+  (void)thread_id;
+  const ipcGapArg* a = (const ipcGapArg*)arg;
+  int c0 = task_id * a->chunk, c1 = c0 + a->chunk < a->n ? c0 + a->chunk : a->n;
+  for (int c=c0; c < c1; c++) {
+    if (a->con) {
+      ipcCon* w = a->con + c;
+      w->ld0 = mjc_pairGap(IPC_PAIR(w), m, d, a->x, a->gv, a->ge, a->rad, w->ln, w->liv, w->lcw,
+                           &w->lniv, a->ghat);
+    } else {
+      mjtNum nn[3], cw[4];
+      int idv[4], ni;
+      a->gap[c] = mjc_pairGap(a->cand + c, m, d, a->x, a->gv, a->ge, a->rad, nn, idv, cw, &ni,
+                              a->ghat);
+    }
+  }
+}
+
+// run the gap loop described by a (chunk is set here) on d's thread pool
+static void ipc_gapLoop(const mjModel* m, mjData* d, ipcGapArg* a) {
+  int nthread = mju_numThread(d);
+  if (nthread < 2 || a->n <= 0) {
+    a->chunk = a->n;
+    if (a->n > 0) ipc_gapTask(m, d, a, 0, 0);
+    return;
+  }
+  int ntask = 8 * nthread;
+  a->chunk = (a->n + ntask - 1) / ntask;
+  if (a->chunk < 256) a->chunk = 256;
+  mju_dispatch(m, d, ipc_gapTask, a, (a->n + a->chunk - 1) / a->chunk);
+}
+
+
 void mj_ipc(const mjModel* m, mjData* d) {
   mjtNum h = m->opt.timestep;
   // every dim-2 flex takes part; their vertices are concatenated in flex order and fxadr[k] is
@@ -947,9 +996,10 @@ void mj_ipc(const mjModel* m, mjData* d) {
     ipcCon* wcon = aset;  // the working set is the persistent active set
     int wncon = naset;
     // linearize the pairs at xfree (Eq. 10): c(x) is linear in x for this iteration
-    for (int c=0; c < wncon; c++)
-      wcon[c].ld0 = mjc_pairGap(IPC_PAIR(&wcon[c]), m, d, xfree, gv, ge, rad, wcon[c].ln, wcon[c].liv,
-                               wcon[c].lcw, &wcon[c].lniv, ghat);
+    {
+      ipcGapArg ga = {wcon, NULL, NULL, wncon, 0, xfree, gv, ge, rad, ghat};
+      ipc_gapLoop(m, d, &ga);
+    }
     // x persists across outer iterations (the paper's warm start)
     int flex_converged_out = 0, artic_converged_out = 0, newton_converged_out = 0;
     for (int it=0; it < inner_cap && nown > 0; it++) {
@@ -1167,10 +1217,9 @@ void mj_ipc(const mjModel* m, mjData* d) {
     mjtNum* toi = mjSTACKALLOC(d, nq, mjtNum);
     int* appr = mjSTACKALLOC(d, nq, int);
     int* actc = mjSTACKALLOC(d, nq, int);
-    for (int c=0; c < ncand; c++) {
-      mjtNum nn[3], cw[4];
-      int idv[4], ni;  // gaps at xfree (for CCD + admission)
-      cgap[c] = mjc_pairGap(IPC_PAIR(&cand[c]), m, d, xfree, gv, ge, rad, nn, idv, cw, &ni, ghat);
+    {
+      ipcGapArg ga = {NULL, cand, cgap, ncand, 0, xfree, gv, ge, rad, ghat};
+      ipc_gapLoop(m, d, &ga);
     }
     // conservative-advancement CCD (mjc_advance): the largest fraction of xfree -> x that keeps
     // every gap above a fraction of its current value; appr flags the pairs that close this step
