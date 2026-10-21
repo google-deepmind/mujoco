@@ -195,7 +195,10 @@ mjrf_render_request.def(py::init([](
   std::optional<mjrDrawMode> draw_mode,
   std::optional<bool> post_processing,
   std::optional<bool> reflections,
-  std::optional<bool> shadows
+  std::optional<bool> shadows,
+  std::optional<bool> headlight,
+  std::optional<Float3::Ref> headlight_color,
+  std::optional<float> headlight_intensity
 ) {
   mjrfRenderRequest obj;
   Init(obj);
@@ -207,6 +210,9 @@ mjrf_render_request.def(py::init([](
   if (post_processing) Setter(obj.post_processing, *post_processing);
   if (reflections) Setter(obj.reflections, *reflections);
   if (shadows) Setter(obj.shadows, *shadows);
+  if (headlight) Setter(obj.headlight, *headlight);
+  if (headlight_color) Setter(obj.headlight_color, *headlight_color);
+  if (headlight_intensity) Setter(obj.headlight_intensity, *headlight_intensity);
   return obj;
 })
 , py::arg("scene").none(true) = py::none()
@@ -217,6 +223,9 @@ mjrf_render_request.def(py::init([](
 , py::arg("post_processing").none(true) = py::none()
 , py::arg("reflections").none(true) = py::none()
 , py::arg("shadows").none(true) = py::none()
+, py::arg("headlight").none(true) = py::none()
+, py::arg("headlight_color").none(true) = py::none()
+, py::arg("headlight_intensity").none(true) = py::none()
 );
 DefProperty<PyScene>(mjrf_render_request, "scene", &mjrfRenderRequest::scene);
 DefProperty<mjrCamera>(mjrf_render_request, "camera", &mjrfRenderRequest::camera);
@@ -226,6 +235,9 @@ DefProperty<mjrDrawMode>(mjrf_render_request, "draw_mode", &mjrfRenderRequest::d
 DefProperty<bool>(mjrf_render_request, "post_processing", &mjrfRenderRequest::post_processing);
 DefProperty<bool>(mjrf_render_request, "reflections", &mjrfRenderRequest::reflections);
 DefProperty<bool>(mjrf_render_request, "shadows", &mjrfRenderRequest::shadows);
+DefProperty<bool>(mjrf_render_request, "headlight", &mjrfRenderRequest::headlight);
+DefProperty<Float3>(mjrf_render_request, "headlight_color", &mjrfRenderRequest::headlight_color);
+DefProperty<float>(mjrf_render_request, "headlight_intensity", &mjrfRenderRequest::headlight_intensity);
 
 py::class_<mjrfReadRequest> mjrf_read_request(m, "ReadRequest", py::module_local());
 mjrf_read_request.def(py::init([](
