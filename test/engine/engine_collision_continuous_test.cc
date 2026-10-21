@@ -846,5 +846,64 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   mj_deleteModel(m);
 }
 
+TEST_F(ContinuousCollisionTest,
+       DISABLED_HighSpeedConvexGeomsDoNotTunnelInMjStep) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -2"/>
+      <geom name="thin_wall" type="box" size="1.0 1.0 0.02" pos="0 0 0"/>
+      <body name="fast_sphere" pos="-0.4 0 0.25">
+        <freejoint/>
+        <geom type="sphere" size="0.04" mass="1"/>
+      </body>
+      <body name="fast_box" pos="0 0 0.25">
+        <freejoint/>
+        <geom type="box" size="0.04 0.04 0.04" mass="1"/>
+      </body>
+      <body name="fast_capsule" pos="0.4 0 0.25">
+        <freejoint/>
+        <geom type="capsule" size="0.03 0.02" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kXml);
+  mjData* d = mj_makeData(m);
+
+  // First verify that with mjDSBL_NATIVECCD enabled, all 3 fast geoms tunnel
+  // straight through z = 0
+  m->opt.disableflags |= mjDSBL_NATIVECCD;
+  mj_resetData(m, d);
+  d->qvel[2] =
+      -50.0;  // sphere vz = -50 m/s (0.50 m/step vs 0.04 m wall thickness)
+  d->qvel[8] = -50.0;   // box vz = -50 m/s
+  d->qvel[14] = -50.0;  // capsule vz = -50 m/s
+  mj_step(m, d);
+  EXPECT_LT(d->qpos[2], -0.20) << "sphere tunnels when CCD is disabled";
+  EXPECT_LT(d->qpos[9], -0.20) << "box tunnels when CCD is disabled";
+  EXPECT_LT(d->qpos[16], -0.20) << "capsule tunnels when CCD is disabled";
+
+  // Re-enable native CCD and verify all 3 fast convex geoms are caught and stay
+  // above the wall under both mjINT_EULER and mjINT_DISCRETE
+  m->opt.disableflags &= ~mjDSBL_NATIVECCD;
+  for (int integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m, d);
+    d->qvel[2] = -50.0;
+    d->qvel[8] = -50.0;
+    d->qvel[14] = -50.0;
+    for (int step = 0; step < 5; step++) {
+      mj_step(m, d);
+      EXPECT_GT(d->qpos[2], 0.02) << "sphere arrested at step " << step;
+      EXPECT_GT(d->qpos[9], 0.02) << "box arrested at step " << step;
+      EXPECT_GT(d->qpos[16], 0.02) << "capsule arrested at step " << step;
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
