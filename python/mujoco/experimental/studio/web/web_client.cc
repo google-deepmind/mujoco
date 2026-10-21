@@ -42,11 +42,16 @@
 #include <SDL_opengl.h>
 #include <imgui.h>
 #include <implot.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "experimental/studio/hal/filament_renderer.h"
+#include "experimental/studio/hal/graphics_mode.h"
 #include "experimental/studio/hal/window.h"
+#include "experimental/studio/render/model_scene.h"
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/ux/interaction.h"
+#include "experimental/studio/ux/imgui_widgets.h"
+#include "third_party/mujoco/src/render/filament/support/imgui_bridge.h"
+#include "third_party/mujoco/src/render/filament/support/renderer.h"
 #include <NetImgui_Api.h>
 #include "google/logging.h"
 #include "state_payload.h"
@@ -117,11 +122,14 @@ class AppCallbacks final : public RemoteUi::Callbacks,
 
 struct App {
   std::unique_ptr<mujoco::studio::Window> window;
+  std::unique_ptr<mujoco::Renderer> renderer;
   std::unique_ptr<mujoco::studio::ModelHolder> model_holder;
-  mujoco::studio::FilamentRenderer* renderer = nullptr;
+  std::unique_ptr<mujoco::studio::ModelScene> model_scene;
+  std::unique_ptr<mujoco::ImguiBridge> imgui_bridge;
   mjvPerturb perturb;
   mjvCamera camera;
   mjvOption vis_options;
+  mjtByte render_flags[mjNRNDFLAG];
 
   // Spectator camera
   int spectator_cam_mode = kSpecCamTumble;
@@ -249,10 +257,7 @@ void ApplyStatePayload(const StatePayloadView& view) {
       model->stat = rs.stat;
     }
 
-    // Apply render flags to the renderer's scene if available.
-    if (g_app.renderer) {
-      memcpy(g_app.renderer->GetRenderFlags(), rs.render_flags, mjNRNDFLAG);
-    }
+    memcpy(g_app.render_flags, rs.render_flags, mjNRNDFLAG);
   }
 
   // Extra geoms. memcpy since the payload data is not guaranteed to be aligned.
@@ -386,9 +391,10 @@ uintptr_t AppCallbacks::UploadTexture(uintptr_t current, const std::byte* rgba,
   // request and the format is ignored.
   const size_t num_bytes = width * height * 4;
   if (rgba) {
-      return g_app.renderer->UploadImage(current, {rgba, num_bytes}, width, height);
+    return g_app.imgui_bridge->UploadImage(current, {rgba, num_bytes}, width,
+                                           height);
   } else {
-    return g_app.renderer->UploadImage(current, {}, width, height);
+    return g_app.imgui_bridge->UploadImage(current, {}, width, height);
   }
 }
 
@@ -444,6 +450,68 @@ void BuildBrowserGui() {
   // The session is the SessionActions implementation: the role window's
   // intents land there directly.
   g_app.role_window.Draw(view, g_app.session);
+}
+
+static mujoco::Renderer::View GetSceneView() {
+  const mjModel* model = g_app.model_holder->model();
+  const mjData* data = g_app.model_holder->data();
+
+  mujoco::Renderer::View view;
+  view.scene = g_app.renderer->GetSceneHandle("studio");
+  view.camera = mjv_camera2GLCamera(model, data, &g_app.camera);
+  if (g_app.render_flags[mjRND_SEGMENT]) {
+    if (g_app.render_flags[mjRND_IDCOLOR]) {
+      view.draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+    } else {
+      view.draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+    }
+  } else if (g_app.render_flags[mjRND_DEPTH]) {
+    view.draw_mode = mjDRAW_MODE_DEPTH;
+  } else if (g_app.render_flags[mjRND_WIREFRAME]) {
+    view.draw_mode = mjDRAW_MODE_WIREFRAME;
+  } else if (g_app.vis_options.flags[mjVIS_ISLAND]) {
+    view.draw_mode = mjDRAW_MODE_ISLANDS;
+  } else {
+    view.draw_mode = mjDRAW_MODE_DEFAULT;
+  }
+  view.shadows = g_app.render_flags[mjRND_SHADOW];
+  view.reflections = g_app.render_flags[mjRND_REFLECTION];
+  if (model->vis.headlight.active) {
+    view.headlight = mujoco::Renderer::View::Headlight();
+    view.headlight->color[0] = model->vis.headlight.diffuse[0];
+    view.headlight->color[1] = model->vis.headlight.diffuse[1];
+    view.headlight->color[2] = model->vis.headlight.diffuse[2];
+    view.headlight->intensity = g_app.model_scene->GetHeadlightIntensity();
+  }
+  return view;
+}
+
+static mujoco::Renderer::View GetUxView() {
+  const int width = g_app.window->GetWidth() * g_app.window->GetScale();
+  const int height = g_app.window->GetHeight() * g_app.window->GetScale();
+
+  mujoco::Renderer::View view;
+  view.scene = g_app.renderer->GetSceneHandle("ux");
+  view.shadows = false;
+  view.reflections = false;
+  view.post_processing = false;
+  view.camera.orthographic = true;
+  view.camera.pos[0] = 0.0f;
+  view.camera.pos[1] = 0.0f;
+  view.camera.pos[2] = 1.0f;
+  view.camera.forward[0] = 0.0f;
+  view.camera.forward[1] = 0.0f;
+  view.camera.forward[2] = -1.0f;
+  view.camera.up[0] = 0.0f;
+  view.camera.up[1] = 1.0f;
+  view.camera.up[2] = 0.0f;
+  view.camera.frustum_top = 0.0f;
+  view.camera.frustum_near = 0.0f;
+  view.camera.frustum_far = 1.0f;
+  view.camera.frustum_center = width / 2.0f;
+  view.camera.frustum_width = width / 2.0f;
+  view.camera.frustum_bottom = height;
+  return view;
 }
 
 //=================================================================================================
@@ -599,19 +667,32 @@ void MainLoopImpl() {
     int height =
         static_cast<int>(g_app.window->GetHeight() * g_app.window->GetScale());
     if (width > 0 && height > 0) {
-      g_app.renderer->Sync(g_app.model_holder->model(),
-                           g_app.model_holder->data(), &g_app.perturb,
-                           &g_app.camera, &g_app.vis_options, width, height,
-                           std::span(g_app.extra_geoms));
-      g_app.renderer->Submit(width, height);
+      g_app.renderer->ResizeRenderTarget(mujoco::Renderer::kWindowRenderTarget,
+                                         width, height);
+
+      if (g_app.model_scene) {
+        g_app.model_scene->Sync(
+            g_app.model_holder->model(), g_app.model_holder->data(),
+            {0, 0, width, height}, &g_app.vis_options, &g_app.perturb,
+            &g_app.camera, std::span(g_app.extra_geoms));
+      }
+      g_app.imgui_bridge->Update();
+
+      mujoco::Renderer::View views[2] = {GetSceneView(), GetUxView()};
+      g_app.renderer->Render(views);
     }
   }
 
   g_app.window->Present();
 }
 
-void SetupScene(const mjModel* m) {
-  g_app.renderer->Init(m);
+void SetupScene(mjModel* m) {
+  g_app.model_scene.reset();
+  if (m) {
+    g_app.model_scene = std::make_unique<mujoco::studio::ModelScene>(
+        g_app.renderer->GetContext(), g_app.renderer->GetScene("studio"), m,
+        mujoco::studio::DrawTextAt);
+  }
 
   // Invalidate all texture caches (ImGui font atlas + NetImgui streamed
   // textures) and re-upload them on the new Filament context.
@@ -822,8 +903,17 @@ void StartApp() {
                                                             1400, 720, config);
   ImPlot::CreateContext();  // Needed if the server app uses ImPlot.
 
-  g_app.renderer = new mujoco::studio::FilamentRenderer(
-      g_app.window->GetNativeWindowHandle(), config.gfx_mode);
+  for (int i = 0; i < mjNRNDFLAG; i++) {
+    g_app.render_flags[i] = (mjRNDSTRING[i][1][0] == '1');
+  }
+
+  mjrfContextConfig renderer_config;
+  mjrf_defaultContextConfig(&renderer_config);
+  renderer_config.native_window = g_app.window->GetNativeWindowHandle();
+  renderer_config.graphics_api = mjGRAPHICS_API_OPENGL;
+  g_app.renderer = std::make_unique<mujoco::Renderer>(renderer_config);
+  g_app.imgui_bridge = std::make_unique<mujoco::ImguiBridge>(
+      g_app.renderer->GetContext(), g_app.renderer->GetScene("ux"));
 
   // Initialize an empty dummy scene so Filament and ImGui are ready to render
   // the "DOWNLOADING..." progress bar while /model downloads asynchronously
