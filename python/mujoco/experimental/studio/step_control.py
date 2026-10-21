@@ -14,6 +14,7 @@
 """Default sim-side stepping plugin."""
 
 import contextlib
+import time
 
 from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin
@@ -26,10 +27,16 @@ class StepControl(plugin.SimPlugin):
   Pass your own plugin instead to step differently (e.g. a GPU simulation).
 
   Pacing: this plugin owns real-time pacing. It steps as much sim time as fits
-  the wall-clock budget of one loop iteration. Without a plugin handling
-  StepEvent that at minimum paces each iteration, a bare while
-  handle.is_running() and handle.sync(...) loop busy-spins, since sync itself
-  never sleeps.
+  the wall-clock budget of one loop iteration, then sleeps 1ms per StepEvent.
+  The sleep matters because advance() returns at once when no step is due yet
+  or while paused, and sync() itself never sleeps: without it, a bare
+  ``while handle.is_running(): handle.sync()`` loop spins at 100% CPU and
+  starves the viewer threads of the GIL. The 1ms yield matches the physics
+  loops of the simulate app and of the native Studio app; advance() catches up
+  on the next iteration. It lives in this plugin rather than in advance() so
+  that advance() stays non-blocking for callers on render threads (the browser
+  build, scripts with their own frame loop). A plugin that replaces this one
+  must at minimum pace each iteration the same way.
   """
 
   def __init__(self) -> None:
@@ -80,3 +87,5 @@ class StepControl(plugin.SimPlugin):
   def _on_step(self, event: messages.StepEvent) -> None:
     with self._send_if_changes():
       self.step_control.advance(event.model, event.data)
+    # Yield 1ms per StepEvent; see the class docstring ("Pacing") for why.
+    time.sleep(0.001)
