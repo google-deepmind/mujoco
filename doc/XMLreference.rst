@@ -9381,14 +9381,108 @@ Extraction
    :width: 30%
    :target: https://github.com/google-deepmind/mujoco/blob/main/model/tactile/tactile.xml
 
-The tactile sensor returns the maximum penetration depth and the sliding velocities in the tangent frame at given points
-between the geom associated with the sensor and the SDF geoms in contact with it. The sensor is associated with a geom
-and a mesh. It is activated by the contact between its associated geom and other geoms. The vertices of the mesh, when
-positioned in the geom frame, are the points at which sensor values are computed, so the dimension of the output is 3
-times the number of vertices in the mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the
-tangent frame. If the penetration depth is positive (no contact), then all values are 0 for the corresponding vertex.
-Only contacts with geoms of type SDF contribute to the sensor output. The sensor can be visualized by enabling the
-visualization of contact points.
+The tactile sensor evaluates penetration depth and tangential sliding speeds across the vertices (taxels) of a
+:at:`mesh` positioned in a :at:`geom` frame. For a sensor mesh with :math:`N` vertices, the sensor outputs :math:`3N`
+values in three contiguous blocks of length :math:`N`: non-negative penetration depth :math:`d \ge 0` (``0`` when not in
+contact) and two tangential sliding speeds :math:`|v_{t_1}|, |v_{t_2}| \ge 0` (populated when the mesh defines 3 normal
+vectors per vertex, as in :ref:`builtin<asset-mesh-builtin>` ``wedge`` and ``plate`` meshes).
+
+Because the sensor is activated by contacts on any geom in the same weld body, the sensor's :at:`geom` can be a
+non-colliding surface mesh (``contype="0" conaffinity="0"``) while primitive geoms on the body handle collisions:
+
+.. code-block:: xml
+
+   <asset>
+     <mesh name="plate" builtin="plate" params="25 25" scale="0.04 0.04 0.005"/>
+   </asset>
+   <worldbody>
+     <body name="pad">
+       <geom type="box" size="0.04 0.04 0.005"/>
+       <geom name="sensor_surface" type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+     </body>
+   </worldbody>
+   <sensor>
+     <tactile geom="sensor_surface" mesh="plate"/>
+   </sensor>
+
+Signed distance at each taxel is evaluated analytically for colliding primitives and via plugins for ``sdf`` geoms. Any
+``mesh`` geom that may collide with the sensor requires precomputing an SDF octree (otherwise it is ignored by the
+sensor). Enable :ref:`mjsMesh.needsdf<mjsMesh>` on colliding meshes via :ref:`mjSpec` before compiling:
+
+.. code-block:: C
+
+   mjSpec* spec = mj_parseXML("model.xml", NULL, NULL, 0);
+   mjsMesh* mesh = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "object"));
+   mesh->needsdf = 1;
+   mjModel* m = mj_compile(spec, NULL);
+
+**Visualization**
+
+- **3D scene**: Enabling :ref:`mjVIS_CONTACTPOINT<mjtVisFlag>` shades active mesh triangles with RGB channels
+  proportional to penetration depth (red) and tangential speeds (green, blue).
+- **2D image sensor**: In ``simulate``, any :ref:`user<sensor-user>` sensor with ``sensor_intprm = [width, height, 0]``,
+  ``dim = width * height * 3``, and a non-zero sequence byte in ``sensordata[adr + dim - 1]`` is rendered as an RGB
+  image in the *Sensor* panel.
+
+**Laplacian post-processing**
+
+Optical tactile sensors on hardware observe lateral displacement of embedded markers or a printed pattern as an
+elastomer pad deforms. MuJoCo computes only the raw independent normal depth :math:`d(x, y)` and tangential speeds at
+each taxel; it does not perform elastomer post-processing internally. Spatial coupling across a clamped elastomer
+surface can be modeled in user code by solving the 2D Poisson equation with zero Dirichlet boundary conditions:
+
+.. math::
+
+   -\nabla^2 \phi(x, y) = d(x, y) \quad \text{in } \Omega, \qquad \phi = 0 \quad \text{on } \partial\Omega.
+
+.. image:: images/XMLreference/tactile_laplacian_light.svg
+   :width: 100%
+   :align: center
+   :class: only-light
+
+.. image:: images/XMLreference/tactile_laplacian_dark.svg
+   :width: 100%
+   :align: center
+   :class: only-dark
+
+Discretizing :math:`-\nabla^2` with a 5-point stencil on an :math:`n_x \times n_y` grid gives a constant banded
+symmetric positive-definite system :math:`L \phi = d` with bandwidth ``nband = nx + 1``. Factoring :math:`L` once at
+initialization with :ref:`mju_cholFactorBand` allows solving for :math:`\phi` at runtime via :ref:`mju_cholSolveBand`
+and taking central differences :math:`(\Delta x, \Delta y) = \alpha \nabla \phi` to warp a pattern
+:math:`I(x + \Delta x, y + \Delta y)`:
+
+.. code-block:: C
+
+   // assemble and factor banded negative 2D Laplacian (-nabla^2) on an (nx x ny) grid
+   void makeLaplacian(mjtNum* L, int nx, int ny) {
+     int n = nx * ny, nband = nx + 1;
+     mju_zero(L, n * nband);
+     for (int i = 0; i < ny; i++) {
+       for (int j = 0; j < nx; j++) {
+         int k = i*nx + j;
+         L[k*nband + nx] = 4;
+         if (j > 0) L[k*nband + nx - 1] = -1;
+         if (i > 0) L[k*nband]          = -1;
+       }
+     }
+     mju_cholFactorBand(L, n, nband, 0, 0, 0);
+   }
+
+   // solve Poisson equation (-nabla^2 phi = d) and compute lateral displacement
+   void tactileDisplacement(mjtNum* dx, mjtNum* dy, mjtNum* phi,
+                            const mjtNum* L, const mjtNum* d,
+                            int nx, int ny, mjtNum alpha) {
+     mju_cholSolveBand(phi, L, d, nx * ny, nx + 1, 0);
+     for (int i = 0; i < ny; i++) {
+       for (int j = 0; j < nx; j++) {
+         int k = i*nx + j;
+         mjtNum px = (j < nx-1 ? phi[k+1]  : 0) - (j > 0 ? phi[k-1]  : 0);
+         mjtNum py = (i < ny-1 ? phi[k+nx] : 0) - (i > 0 ? phi[k-nx] : 0);
+         dx[k] = 0.5 * alpha * px;
+         dy[k] = 0.5 * alpha * py;
+       }
+     }
+   }
 
 .. _sensor-tactile-geom:
 
