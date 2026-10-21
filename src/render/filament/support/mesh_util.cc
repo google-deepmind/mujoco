@@ -89,7 +89,7 @@ static void AddFlexFace(T* vertices, const mjtNum* src_positions,
   const float sign = radius >= 0 ? 1.f : -1.f;
   if (flatten_normals) {
     const float3 flat = normalize(cross(v1 - v0, v2 - v0));
-    const float4 orientation = CalculateOrientation(sign * flat);
+    const float4 orientation = CalculateOrientation(flat);
     vertices[0].orientation = orientation;
     vertices[1].orientation = orientation;
     vertices[2].orientation = orientation;

@@ -3323,9 +3323,9 @@ static void makeSmooth(float* _face, float* _normal, mjtNum radius, mjtByte flg_
 
     // set all vertex normals equal to face normal
     for (int k=0; k < 3; k++){
-      normal[3*k+0] = (float) (sign*nrm[0]);
-      normal[3*k+1] = (float) (sign*nrm[1]);
-      normal[3*k+2] = (float) (sign*nrm[2]);
+      normal[3*k+0] = (float) nrm[0];
+      normal[3*k+1] = (float) nrm[1];
+      normal[3*k+2] = (float) nrm[2];
     }
   }
 
