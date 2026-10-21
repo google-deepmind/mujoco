@@ -794,6 +794,7 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
   obj->center = mjc_center;
   obj->vertindex = -1;
   obj->meshindex = -1;
+  obj->nsupp = 0;
   obj->flex = -1;
   obj->elem = -1;
   obj->vert = -1;
@@ -829,6 +830,7 @@ void mjc_initCCDObjSite(mjCCDObj* obj, const mjModel* m, const mjData* d, int s,
   obj->center = mjc_center;
   obj->vertindex = -1;
   obj->meshindex = -1;
+  obj->nsupp = 0;
   obj->flex = -1;
   obj->elem = -1;
   obj->vert = -1;
