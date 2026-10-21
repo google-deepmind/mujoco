@@ -18,7 +18,6 @@
 #include <cfloat>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -485,14 +484,21 @@ static std::shared_ptr<mjrfTexture> UploadTextureByReference(
 
 ModelResources::ModelResources(const mjModel* model, mjrfContext* ctx)
     : model_(model), ctx_(ctx) {
-
+  textures_.reserve(model_->ntex);
   for (int i = 0; i < model_->ntex; ++i) {
+    textures_.emplace_back();
     UploadTexture(model_, i);
   }
+  meshes_.reserve(model_->nmesh);
+  convex_hulls_.reserve(model_->nmesh);
   for (int i = 0; i < model_->nmesh; ++i) {
+    meshes_.emplace_back(nullptr, nullptr);
+    convex_hulls_.emplace_back(nullptr, nullptr);
     UploadMesh(model_, i);
   }
+  height_fields_.reserve(model_->nhfield);
   for (int i = 0; i < model_->nhfield; ++i) {
+    height_fields_.emplace_back(nullptr, nullptr);
     UploadHeightField(model_, i);
   }
 
@@ -511,8 +517,8 @@ void ModelResources::UploadMesh(const mjModel* model, int id) {
   if (id < 0 || id >= model->nmesh) {
     mju_error("Invalid mesh index %d", id);
   }
-  meshes_.erase(id);
-  convex_hulls_.erase(id);
+  meshes_[id].reset();
+  convex_hulls_[id].reset();
 
   mjrfMeshConfig config;
   mjrf_defaultMeshConfig(&config);
@@ -522,7 +528,7 @@ void ModelResources::UploadMesh(const mjModel* model, int id) {
 
   auto mesh = CreateMesh(ctx_, config);
   mjrf_uploadMesh(mesh.get(), &data);
-  meshes_.insert_or_assign(id, std::move(mesh));
+  meshes_[id] = std::move(mesh);
 
   if (model->mesh_graphadr[id] >= 0) {
     mjrfMeshConfig convex_hull_config;
@@ -534,7 +540,7 @@ void ModelResources::UploadMesh(const mjModel* model, int id) {
 
     auto convex_hull = CreateMesh(ctx_, convex_hull_config);
     mjrf_uploadMesh(convex_hull.get(), &convex_hull_data);
-    convex_hulls_.insert_or_assign(id, std::move(convex_hull));
+    convex_hulls_[id] = std::move(convex_hull);
   }
 }
 
@@ -610,7 +616,7 @@ void ModelResources::UploadHeightField(const mjModel* model, int id) {
     mju_error("Invalid height field index %d", id);
   }
 
-  height_fields_.erase(id);
+  height_fields_[id].reset();
 
   mjrfMeshConfig config;
   mjrf_defaultMeshConfig(&config);
@@ -620,38 +626,43 @@ void ModelResources::UploadHeightField(const mjModel* model, int id) {
 
   auto mesh = CreateMesh(ctx_, config);
   mjrf_uploadMesh(mesh.get(), &data);
-  height_fields_.insert_or_assign(id, std::move(mesh));
+  height_fields_[id] = std::move(mesh);
 }
 
 const mjrfMesh* ModelResources::GetMesh(int data_id) const {
+  if (data_id < 0) {
+    return nullptr;
+  }
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
   const int mesh_id = data_id / 2;
   if (data_id % 2 == 0) {
-    auto it = meshes_.find(mesh_id);
-    return it != meshes_.end() ? it->second.get() : nullptr;
+    return mesh_id < meshes_.size() ? meshes_[mesh_id].get() : nullptr;
   } else {
-    auto it = convex_hulls_.find(mesh_id);
-    return it != convex_hulls_.end() ? it->second.get() : nullptr;
+    return mesh_id < convex_hulls_.size() ? convex_hulls_[mesh_id].get()
+                                          : nullptr;
   }
 }
 
 const mjrfMesh* ModelResources::GetHeightField(int hfield_id) const {
-  auto it = height_fields_.find(hfield_id);
-  return it != height_fields_.end() ? it->second.get() : nullptr;
+  if (hfield_id < 0 || hfield_id >= height_fields_.size()) {
+    return nullptr;
+  }
+  return height_fields_[hfield_id].get();
 }
 
 const mjrfTexture* ModelResources::GetTexture(int tex_id) const {
-  auto it = textures_.find(tex_id);
-  return it != textures_.end() ? it->second.texture.get() : nullptr;
+  if (tex_id < 0 || tex_id >= textures_.size()) {
+    return nullptr;
+  }
+  return textures_[tex_id].texture.get();
 }
 
 const mjrfTexture* ModelResources::GetSkyboxTexture() const {
-  for (auto& iter : textures_) {
-    if (iter.second.texture &&
-        model_->tex_type[iter.first] == mjTEXTURE_SKYBOX) {
-      return iter.second.texture.get();
+  for (int i = 0; i < textures_.size(); ++i) {
+    if (model_->tex_type[i] == mjTEXTURE_SKYBOX) {
+      return textures_[i].texture.get();
     }
   }
   return nullptr;
