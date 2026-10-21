@@ -541,6 +541,20 @@ mujoco_pybind11_module(_rollout rollout.cc threadpool.cc)
 # interface (includes, C++20, dependency archives); a Studio SDK is what makes
 # the binding buildable, so key on that target.
 if(TARGET mujoco::platform)
+  add_library(_render_filament_header INTERFACE)
+  target_sources(
+    _render_filament_header
+    INTERFACE render_filament.h
+  )
+  set_target_properties(_render_filament_header PROPERTIES PUBLIC_HEADER render_filament.h)
+  target_include_directories(_render_filament_header INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(
+    _render_filament_header
+    INTERFACE mujoco
+              structs_header
+              mujoco::platform
+  )
+
   mujoco_pybind11_module(
     _render_filament
     render_filament.cc
@@ -553,6 +567,7 @@ if(TARGET mujoco::platform)
             mujoco::platform
             raw
             structs_header
+            _render_filament_header
   )
 endif()
 

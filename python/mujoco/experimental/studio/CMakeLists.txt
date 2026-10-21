@@ -21,6 +21,7 @@ set(STUDIO_COMMON_LIBS
   mujoco::platform
   structs_header
   structs_wrappers
+  _render_filament_header
 )
 
 mujoco_pybind11_module(native_viewer_cc native_viewer.cc)
