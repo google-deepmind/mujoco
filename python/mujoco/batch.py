@@ -34,12 +34,11 @@ joint(name), body(name), sensor(name) and the other named views slice the bound
 and expanded fields per object, with the attributes of MjData's and MjModel's:
 batch.joint('hinge').qpos is (nsim, 1), and batch.body('pole').mass = masses
 writes per-simulation masses. set_models(models) runs each simulation on a model
-of the caller's instead of
-expanding fields. get_model(sim) and get_data(sim) materialize one
-simulation, to render it or to pass it to any function. Fields are also
-attributes, as on MjData: batch.xpos binds xpos, and batch.ctrl = u writes every
-simulation's controls. DATA_FIELDS and MODEL_FIELDS name the fields bind() and
-expand() accept.
+of the caller's instead of expanding fields. get_model(sim) and get_data(sim)
+materialize one simulation, to render it or to pass it to any function. Fields
+are also attributes, as on MjData: batch.xpos binds xpos, and batch.ctrl = u
+writes every simulation's controls. DATA_FIELDS and MODEL_FIELDS name the fields
+bind() and expand() accept.
 
 By default an MjData serves many simulations, so memory scales with threads;
 only the fields a call computes are then meaningful, and a field it does not
