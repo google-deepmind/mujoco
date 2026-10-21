@@ -709,7 +709,7 @@ install_studio_platform() {
     # 3. Static archives: mujoco_platform + every dependency archive; the Python
     #    build looks each one up by name with find_library().
     mkdir -p "${prefix}/lib"
-    find "${build_dir}" \( -name "*.a" -o -name "*.lib" \) -exec cp -up {} "${prefix}/lib/" \;
+    find "${build_dir}" \( -name "*.a" -o -name "*.lib" \) -exec cp -p {} "${prefix}/lib/" \;
 
     # 4. Source-tree headers for platform / filament-compat / render.
     _copy_headers src/experimental "${prefix}/include/mujoco/experimental"
