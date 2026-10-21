@@ -121,7 +121,7 @@ public const int mjSC_IN = 1;
 public const int mjSC_OUT = 2;
 public const int mjSC_INOUT = 3;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3016001;
+public const int mjVERSION_HEADER = 3017000;
 
 
 // ------------------------------------Enums------------------------------------
