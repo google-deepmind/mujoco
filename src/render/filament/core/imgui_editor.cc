@@ -80,6 +80,11 @@ NameList EnumNames(ToneMapperType v) {
   return names;
 }
 
+NameList EnumNames(OutputColorSpace v) {
+  static const char* names[] = {"Rec709-Linear-D65", "Rec709-sRGB-D65"};
+  return names;
+}
+
 NameList EnumNames(filament::QualityLevel v) {
   static const char* names[] = {"LOW", "MEDIUM", "HIGH", "ULTRA"};
   return names;
@@ -421,6 +426,7 @@ void DrawColorGradingGui(SceneView* scene_view) {
 
   bool changed = false;
   changed |= Ui("Tone Mapper", &opts.tone_mapper);
+  changed |= Ui("Output Color Space", &opts.output_color_space);
   changed |= Ui("Lut Format", &opts.format);
   changed |= Ui("Lut Dimension", &opts.dimension);
   changed |= Ui("Luminance Scaling", &opts.luminance_scaling);

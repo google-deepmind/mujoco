@@ -558,6 +558,10 @@ specified in the model use the defaults listed below. All flag names begin with 
         - string
         - "pbr_neutral"
         - Tone mapping operator; "aces", "aces_legacy", "filmic", "linear", or "pbr_neutral".
+      * - ``cg.output_color_space``
+        - string
+        - "srgb"
+        - Output color space; "linear" or "srgb".
       * - ``cg.luminance_scaling``
         - bool
         - 0

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <filament/ColorGrading.h>
+#include <filament/ColorSpace.h>
 #include <filament/LightManager.h>
 #include <filament/Material.h>
 #include <filament/Options.h>
@@ -59,10 +60,28 @@ using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
 
+static constexpr filament::color::ColorSpace REC709_LINEAR_D65 =
+    filament::color::Rec709 - filament::color::Linear -
+    filament::color::D65;
+static constexpr filament::color::ColorSpace REC709_SRGB_D65 =
+    filament::color::Rec709 - filament::color::sRGB -
+    filament::color::D65;
+
 static filament::ColorGrading::Builder ToBuilder(
     const ColorGradingOptions& opts) {
+  filament::color::ColorSpace output_color_space = REC709_SRGB_D65;
+  switch (opts.output_color_space) {
+    case OutputColorSpace::kRec709_Linear_D65:
+      output_color_space = REC709_LINEAR_D65;
+      break;
+    case OutputColorSpace::kRec709_sRGB_D65:
+      output_color_space = REC709_SRGB_D65;
+      break;
+  }
+
   return filament::ColorGrading::Builder()
       .format(opts.format)
+      .outputColorSpace(output_color_space)
       .dimensions(opts.dimension)
       .luminanceScaling(opts.luminance_scaling)
       .gamutMapping(opts.gamut_mapping)
@@ -391,7 +410,7 @@ void SceneView::Render(filament::Renderer* renderer,
 
 void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   auto tone_mapper = CreateToneMapper(opts.tone_mapper);
-  auto color_grading = ToBuilder(color_grading_options_)
+  auto color_grading = ToBuilder(opts)
                            .toneMapper(tone_mapper.get())
                            .build(*GetEngine());
   main_view_->setColorGrading(color_grading);
@@ -422,6 +441,17 @@ static ToneMapperType ToneMapperTypeFromString(std::string_view name) {
   }
   mju_warning("Unknown tone mapper type: %s", name.data());
   return ToneMapperType::kPBRNeutral;
+}
+
+static OutputColorSpace OutputColorSpaceFromString(
+    std::string_view name) {
+  if (name == "linear") {
+    return OutputColorSpace::kRec709_Linear_D65;
+  } else if (name == "srgb") {
+    return OutputColorSpace::kRec709_sRGB_D65;
+  }
+  mju_warning("Unknown output color space: %s", name.data());
+  return OutputColorSpace::kRec709_sRGB_D65;
 }
 
 static filament::QualityLevel QualityLevelFromString(std::string_view name) {
@@ -489,6 +519,9 @@ void SceneView::Configure(const mjModel* model) {
       ReadElement(model, "filament.cg.tonal_ranges", cg.tonal_ranges);
   cg.tone_mapper = ToneMapperTypeFromString(ReadElement<std::string_view>(
       model, "filament.cg.tone_mapping", "pbr_neutral"));
+  cg.output_color_space =
+      OutputColorSpaceFromString(ReadElement<std::string_view>(
+          model, "filament.cg.output_color_space", "srgb"));
   SetColorGradingOptions(cg);
 
   auto ao = main_view_->getAmbientOcclusionOptions();
