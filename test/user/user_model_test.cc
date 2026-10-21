@@ -2545,6 +2545,34 @@ TEST_F(DedupAssetsTest, DedupAssetsKeepsDistinct) {
   mj_deleteSpec(spec);
 }
 
+// with strippath, the files of a resource provider keep their paths, so files
+// with the same base name are distinct
+TEST_F(DedupAssetsTest, DedupAssetsKeepsProviderFiles) {
+  mjpResourceProvider provider = {
+      .prefix = "deduptest",
+      .open = [](mjResource*) { return 0; },
+      .read = [](mjResource*, const void**) { return 0; },
+      .close = [](mjResource*) {},
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler strippath="true"/>
+    <asset>
+      <mesh name="a" file="deduptest://a/link.obj"/>
+      <mesh name="b" file="deduptest://b/link.obj"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_dedupAssets(spec), 0) << mjs_getError(spec);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "b"), NotNull());
+  mj_deleteSpec(spec);
+}
+
 // assets whose names repeat cannot be merged, and nothing is changed
 TEST_F(DedupAssetsTest, DedupAssetsRepeatedName) {
   mjSpec* spec = mj_makeSpec();
