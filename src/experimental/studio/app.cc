@@ -45,10 +45,11 @@
 #include <implot.h>
 #include "webp/encode.h"
 #include "webp/types.h"
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "experimental/studio/hal/filament_renderer.h"
 #include "experimental/studio/hal/graphics_mode.h"
 #include "experimental/studio/hal/window.h"
+#include "experimental/studio/render/model_scene.h"
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/sim/step_control.h"
 #include "experimental/studio/ux/console.h"
@@ -60,6 +61,8 @@
 #include "experimental/studio/ux/interaction.h"
 #include "experimental/studio/ux/picture_gui.h"
 #include "experimental/studio/ux/plugin.h"
+#include "render/filament/support/imgui_bridge.h"
+#include "render/filament/support/renderer.h"
 
 namespace mujoco::studio {
 
@@ -164,6 +167,9 @@ App::App(Config config)
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
+  for (int i = 0; i < mjNRNDFLAG; i++) {
+    render_flags_[i] = (mjRNDSTRING[i][1][0] == '1');
+  }
   std::memset(&plugin_scene_, 0, sizeof(mjvScene));
   mjv_makeScene(nullptr, &plugin_scene_, 2000);
 
@@ -214,6 +220,8 @@ void App::PhysicsThreadLoop() {
 
 void App::SwitchGraphicsMode(int width, int height,
                              GraphicsMode mode) {
+  model_scene_.reset();
+  imgui_bridge_.reset();
   renderer_.reset();
   window_.reset();
 
@@ -221,8 +229,27 @@ void App::SwitchGraphicsMode(int width, int height,
   window_config.gfx_mode = mode;
   window_ = std::make_unique<Window>(app_title_, width, height,
                                                window_config);
-  renderer_ = std::make_unique<FilamentRenderer>(
-      window_->GetNativeWindowHandle(), mode);
+
+  mjrfContextConfig renderer_config;
+  mjrf_defaultContextConfig(&renderer_config);
+  renderer_config.native_window = window_->GetNativeWindowHandle();
+  renderer_config.software_rendering = IsSoftware(mode);
+  renderer_config.graphics_api = IsOpenGl(mode) || IsWebGl(mode)
+                                     ? mjGRAPHICS_API_OPENGL
+                                     : mjGRAPHICS_API_VULKAN;
+  renderer_ = std::make_unique<Renderer>(renderer_config);
+
+  // Define two render targets: one for rendering to the window, and one for
+  // RenderToTexture.
+  mjrfRenderTargetConfig config;
+  mjrf_defaultRenderTargetConfig(&config);
+  config.color_format = mjPIXEL_FORMAT_RGB8;
+  config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  renderer_->CreateRenderTarget("pixels", config);
+  renderer_->CreateRenderTarget("tmp", config);
+
+  imgui_bridge_ = std::make_unique<ImguiBridge>(renderer_->GetContext(),
+                                                renderer_->GetScene("ux"));
 
   // TODO: Figure out why this breaks on some platforms.
   // LoadSettings();
@@ -535,31 +562,103 @@ void App::Render() {
   const float width = window_->GetWidth();
   const float height = window_->GetHeight();
   const float scale = window_->GetScale();
-  if (IsHeadless(window_->GetGraphicsMode())) {
-    pixels_.resize(width * height * 3);
-  } else {
-    pixels_.clear();
-  }
+  const mjrRect viewport = {0, 0, static_cast<int>(width * scale),
+                            static_cast<int>(height * scale)};
 
-  {
+  if (model_scene_) {
     std::unique_lock<std::mutex> lock(physics_mutex_);
-    renderer_->Sync(model(), data(), &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale,
-                    {plugin_scene_.geoms, (size_t)plugin_scene_.ngeom});
+    model_scene_->Sync(
+        model(), data(), viewport, &vis_options_, &perturb_, &camera_,
+        {plugin_scene_.geoms, static_cast<size_t>(plugin_scene_.ngeom)});
+  }
+  imgui_bridge_->Update();
+
+  Renderer::View views[2] = { GetSceneView(), GetUxView() };
+  renderer_->ResizeRenderTarget(Renderer::kWindowRenderTarget, viewport.width,
+                                viewport.height);
+
+  auto target = renderer_->GetRenderTargetHandle("pixels");
+  if (IsHeadless(window_->GetGraphicsMode())) {
+    renderer_->ResizeRenderTarget(target, viewport.width, viewport.height);
+    views[0].render_target = target;
+    views[1].render_target = target;
   }
 
-  renderer_->Submit(width * scale, height * scale, pixels_);
+  renderer_->Render(views);
 
   window_->EndFrame();
-  window_->Present(pixels_);
+  window_->Present(renderer_->GetPixels(target));
 }
 
-std::vector<std::byte> App::RenderToTexture(mjvCamera* camera, int width,
-                                            int height) {
-  std::vector<std::byte> output(width * height * 3);
-  renderer_->RenderToTexture(model(), data(), camera, width, height,
-                             output.data());
-  return output;
+std::span<const std::byte> App::RenderToTexture(mjvCamera* camera, int width,
+                                                int height) {
+  auto target = renderer_->GetRenderTargetHandle("tmp");
+  renderer_->ResizeRenderTarget(target, width, height);
+
+  Renderer::View views[1] = { GetSceneView() };
+  views[0].camera = mjv_camera2GLCamera(model(), data(), camera);
+  views[0].render_target = target;
+  renderer_->Render(views);
+  return renderer_->GetPixels(target);
+}
+
+Renderer::View App::GetSceneView() {
+  Renderer::View view;
+  view.scene = renderer_->GetSceneHandle("studio");
+  view.camera = mjv_camera2GLCamera(model(), data(), &camera_);
+  if (render_flags_[mjRND_SEGMENT]) {
+    if (render_flags_[mjRND_IDCOLOR]) {
+      view.draw_mode = mjDRAW_MODE_SEGMENTATION_BY_ID;
+    } else {
+      view.draw_mode = mjDRAW_MODE_SEGMENTATION_BY_COLOR;
+    }
+  } else if (render_flags_[mjRND_DEPTH]) {
+    view.draw_mode = mjDRAW_MODE_DEPTH;
+  } else if (render_flags_[mjRND_WIREFRAME]) {
+    view.draw_mode = mjDRAW_MODE_WIREFRAME;
+  } else if (vis_options_.flags[mjVIS_ISLAND]) {
+    view.draw_mode = mjDRAW_MODE_ISLANDS;
+  } else {
+    view.draw_mode = mjDRAW_MODE_DEFAULT;
+  }
+  view.shadows = render_flags_[mjRND_SHADOW];
+  view.reflections = render_flags_[mjRND_REFLECTION];
+  if (model()->vis.headlight.active) {
+    view.headlight = Renderer::View::Headlight();
+    view.headlight->color[0] = model()->vis.headlight.diffuse[0];
+    view.headlight->color[1] = model()->vis.headlight.diffuse[1];
+    view.headlight->color[2] = model()->vis.headlight.diffuse[2];
+    view.headlight->intensity = model_scene_->GetHeadlightIntensity();
+  }
+  return view;
+}
+
+Renderer::View App::GetUxView() {
+  const int width = window_->GetWidth() * window_->GetScale();
+  const int height = window_->GetHeight() * window_->GetScale();
+
+  Renderer::View view;
+  view.scene = renderer_->GetSceneHandle("ux");
+  view.shadows = false;
+  view.reflections = false;
+  view.post_processing = false;
+  view.camera.orthographic = true;
+  view.camera.pos[0] = 0.0f;
+  view.camera.pos[1] = 0.0f;
+  view.camera.pos[2] = 1.0f;
+  view.camera.forward[0] = 0.0f;
+  view.camera.forward[1] = 0.0f;
+  view.camera.forward[2] = -1.0f;
+  view.camera.up[0] = 0.0f;
+  view.camera.up[1] = 1.0f;
+  view.camera.up[2] = 0.0f;
+  view.camera.frustum_top = 0.0f;
+  view.camera.frustum_near = 0.0f;
+  view.camera.frustum_far = 1.0f;
+  view.camera.frustum_center = width / 2.0f;
+  view.camera.frustum_width = width / 2.0f;
+  view.camera.frustum_bottom = height;
+  return view;
 }
 
 void App::BuildModel(const BuildModelInfo& info) {
@@ -585,7 +684,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     }
 
     RestoreKeyframeSelection(saved_key);
-    renderer_->Init(model());
+    InitModelScene();
     ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
                   has_data() ? data() : nullptr);
     timer_prev_ = {};
@@ -679,7 +778,7 @@ void App::OnModelLoaded(std::string_view filename, ModelKind model_kind) {
 
   // Reset/reinitialize everything that depends on the new mjModel.
   mjModel* model = model_holder_->model();
-  renderer_->Init(model);
+  InitModelScene();
   ResetPhysics();
 
   if (!preserve_camera_on_load_) {
@@ -713,6 +812,16 @@ void App::OnModelLoaded(std::string_view filename, ModelKind model_kind) {
   last_pause_state_ = step_control_.GetPauseState();
 }
 
+void App::InitModelScene() {
+  // Ensure all entities in the scene are removed before populating it again.
+  model_scene_.reset();
+  if (has_model()) {
+    mjrfContext* ctx = renderer_->GetContext();
+    mjrfScene* scene = renderer_->GetScene("studio");
+    model_scene_ =
+        std::make_unique<ModelScene>(ctx, scene, model(), DrawTextAt);
+  }
+}
 
 void App::ProcessPendingLoads() {
   if (pending_reload_) {
@@ -1054,7 +1163,7 @@ void App::HandleKeyboardEvents() {
   } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_D)) {
     ToggleFlag(vis_options_.flags[mjVIS_STATIC]);
   } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_W)) {
-    ToggleFlag(renderer_->GetRenderFlags()[mjRND_WIREFRAME]);
+    ToggleFlag(render_flags_[mjRND_WIREFRAME]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
     ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_GraveAccent)) {
@@ -1326,7 +1435,7 @@ void App::BuildGui() {
   if (tmp_.picture_in_picture) {
     if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
       auto render_cb = [this](const PipState& pip, int width, int height) {
-        mjtByte* flags = renderer_->GetRenderFlags();
+        mjtByte* flags = render_flags_;
         const int prev_depth = flags[mjRND_DEPTH];
         const int prev_segment = flags[mjRND_SEGMENT];
         flags[mjRND_DEPTH] = (pip.mode == PipState::Depth) ? 1 : 0;
@@ -1337,8 +1446,8 @@ void App::BuildGui() {
         camera.type = mjCAMERA_FIXED;
         camera.fixedcamid = pip.camera;
 
-        std::vector<std::byte> output = RenderToTexture(&camera, width, height);
-        int id = renderer_->UploadImage(pip.texture, output, width, height);
+        auto output = RenderToTexture(&camera, width, height);
+        int id = imgui_bridge_->UploadImage(pip.texture, output, width, height);
 
         flags[mjRND_DEPTH] = prev_depth;
         flags[mjRND_SEGMENT] = prev_segment;
@@ -1639,8 +1748,7 @@ void App::ModelOptionsGui() {
 
     ImGui::PopID();
 
-    RenderingGui(model(), &vis_options_, renderer_->GetRenderFlags(),
-                           min_width);
+    RenderingGui(model(), &vis_options_, render_flags_, min_width);
     ImGui::TreePop();
   }
   ImGui::EndChild();
@@ -2324,7 +2432,7 @@ void App::MainMenuGui() {
             const int width = window_->GetWidth();
             const int height = window_->GetHeight();
             SwitchGraphicsMode(width, height, *mode);
-            renderer_->Init(model());
+            InitModelScene();
           };
         }
         ImGui::EndMenu();
@@ -2393,8 +2501,7 @@ void App::FileDialogGui() {
         case UiTempState::FileDialog_SaveScreenshot: {
           const int width = window_->GetWidth();
           const int height = window_->GetHeight();
-          std::vector<std::byte> buffer =
-              RenderToTexture(&camera_, width, height);
+          auto buffer = RenderToTexture(&camera_, width, height);
           SaveToWebp(width, height, buffer.data(), res.path);
           break;
         }
