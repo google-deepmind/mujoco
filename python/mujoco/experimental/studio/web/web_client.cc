@@ -50,8 +50,8 @@
 #include "experimental/studio/sim/model_holder.h"
 #include "experimental/studio/ux/interaction.h"
 #include "experimental/studio/ux/imgui_widgets.h"
-#include "third_party/mujoco/src/render/filament/support/imgui_bridge.h"
-#include "third_party/mujoco/src/render/filament/support/renderer.h"
+#include "render/filament/support/imgui_bridge.h"
+#include "render/filament/support/renderer.h"
 #include <NetImgui_Api.h>
 #include "google/logging.h"
 #include "state_payload.h"
