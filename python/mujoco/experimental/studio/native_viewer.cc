@@ -22,7 +22,7 @@
 #include <mujoco/experimental/studio/hal/graphics_mode.h>
 #include <mujoco/experimental/studio/render/model_scene.h>
 #include <mujoco/experimental/studio/ux/imgui_widgets.h>
-#include "third_party/mujoco/src/render/filament/support/imgui_bridge.h"
+#include <mujoco/render/filament/support/imgui_bridge.h>
 #include "render_filament.h"
 #include "structs.h"
 #include <pybind11/eval.h>
