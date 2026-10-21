@@ -331,12 +331,12 @@ the clause:
       # Use renderer.
     ```
     """
-    if self._gl_context:
-      self._gl_context.free()
-    self._gl_context = None
     if self._mjr_context:
       self._mjr_context.free()
     self._mjr_context = None
+    if self._gl_context:
+      self._gl_context.free()
+    self._gl_context = None
 
   def __enter__(self):
     return self
