@@ -3020,5 +3020,57 @@ TEST_F(UserFlexTest, FlexcompMeshAssetWrongType) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(UserFlexTest, InterpolatedShellElastic2dStiffness) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="shell" type="grid" count="4 4 4" spacing=".05 .05 .05"
+                dim="3" cellcount="2 2 2" radius=".001" mass="1"
+                dof="trilinear">
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="bend"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  SpecPtr spec(mj_parseXMLString(xml, nullptr, error, sizeof(error)),
+               mj_deleteSpec);
+  ASSERT_THAT(spec, NotNull()) << error;
+  mjsFlex* flex = mjs_asFlex(mjs_firstElement(spec.get(), mjOBJ_FLEX));
+  ASSERT_THAT(flex, NotNull());
+
+  // elastic2d="bend" (1) without strain equality: no membrane stiffness
+  MjModelPtr bend(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(bend, NotNull()) << mjs_getError(spec.get());
+  EXPECT_EQ(bend->flex_interp[0], -1);
+  EXPECT_EQ(bend->flex_stiffnessadr[0], -1);
+  EXPECT_EQ(bend->nflexstiffness, 0);
+  EXPECT_GE(bend->flex_bendingadr[0], 0);
+
+  // elastic2d="stretch" (2): membrane stiffness allocated, no bending
+  flex->elastic2d = 2;
+  MjModelPtr stretch(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(stretch, NotNull()) << mjs_getError(spec.get());
+  EXPECT_EQ(stretch->flex_interp[0], -1);
+  EXPECT_EQ(stretch->flex_stiffnessadr[0], 0);
+  EXPECT_GT(stretch->nflexstiffness, 0);
+  EXPECT_NE(stretch->flex_stiffness[3 * 4 + 1], 0);
+  EXPECT_EQ(stretch->flex_bendingadr[0], -1);
+
+  // elastic2d="both" (3): both membrane stiffness and bending allocated
+  flex->elastic2d = 3;
+  MjModelPtr both(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(both, NotNull()) << mjs_getError(spec.get());
+  EXPECT_EQ(both->flex_interp[0], -1);
+  EXPECT_EQ(both->flex_stiffnessadr[0], 0);
+  EXPECT_EQ(both->nflexstiffness, stretch->nflexstiffness);
+  EXPECT_NE(both->flex_stiffness[3 * 4 + 1], 0);
+  EXPECT_GE(both->flex_bendingadr[0], 0);
+}
+
 }  // namespace
 }  // namespace mujoco

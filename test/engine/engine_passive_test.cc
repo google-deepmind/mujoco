@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -1412,16 +1413,16 @@ TEST_F(ElasticityTest, TrilinearEmptyFirstCell) {
   }
 }
 
-// shell-mode interpolated flexes keep the first-block stiffness gate, under
-// which their membrane stretch is not applied: forces come from bending only
-// (elastic2d="stretch" has none, "both" equals "bend")
-TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
+// shell-mode interpolated flexes apply bending for elastic2d="bend", membrane
+// stretch on all 6 faces (including the x=0 and x=max faces whose first
+// stiffness entry is zero) for elastic2d="stretch", and their sum for "both"
+TEST_F(ElasticityTest, TrilinearShellElastic2d) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option gravity="0 0 0"/>
     <worldbody>
-      <flexcomp type="grid" count="4 2 4" spacing=".025 .05 .025" pos="0 0 1"
-                dim="3" cellcount="2 1 2" radius=".001" mass="5"
+      <flexcomp type="grid" count="4 4 4" spacing=".025 .05 .025" pos="0 0 1"
+                dim="3" cellcount="1 2 2" radius=".001" mass="5"
                 name="softbody" dof="trilinear">
         <elasticity young="1e4" poisson="0.3"
                     elastic2d="ELASTIC2D" thickness="0.03"/>
@@ -1431,7 +1432,7 @@ TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
   </mujoco>
   )";
 
-  auto spring = [&](const char* elastic2d) {
+  auto load_and_deform = [&](const char* elastic2d, MjModelPtr* m_out) {
     std::string model_xml = xml;
     model_xml.replace(model_xml.find("ELASTIC2D"), 9, elastic2d);
     char error[1024] = {0};
@@ -1444,22 +1445,47 @@ TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
       d->qpos[i] = m->qpos0[i] + 0.01 * mju_sin(1.7 * i + 0.3);
     }
     mj_forward(m.get(), d.get());
-    return AsVector(d->qfrc_spring, m->nv);
+    std::vector<mjtNum> frc = AsVector(d->qfrc_spring, m->nv);
+    if (m_out) *m_out = std::move(m);
+    return frc;
   };
 
-  std::vector<mjtNum> bend = spring("bend");
-  std::vector<mjtNum> stretch = spring("stretch");
-  std::vector<mjtNum> both = spring("both");
+  MjModelPtr m_bend, m_stretch, m_both;
+  std::vector<mjtNum> bend = load_and_deform("bend", &m_bend);
+  std::vector<mjtNum> stretch = load_and_deform("stretch", &m_stretch);
+  std::vector<mjtNum> both = load_and_deform("both", &m_both);
   ASSERT_FALSE(bend.empty());
   ASSERT_EQ(bend.size(), stretch.size());
   ASSERT_EQ(bend.size(), both.size());
-  mjtNum bend_norm = 0;
+
+  // bend-only does not allocate membrane stiffness; stretch and both do
+  EXPECT_EQ(m_bend->flex_stiffnessadr[0], -1);
+  EXPECT_GE(m_stretch->flex_stiffnessadr[0], 0);
+  EXPECT_GE(m_both->flex_stiffnessadr[0], 0);
+
+  mjtNum bend_norm = 0, stretch_norm = 0;
   for (int i = 0; i < static_cast<int>(bend.size()); i++) {
     bend_norm += bend[i] * bend[i];
-    EXPECT_EQ(stretch[i], 0) << "stretch force at dof " << i;
-    EXPECT_EQ(both[i], bend[i]) << "dof " << i;
+    stretch_norm += stretch[i] * stretch[i];
+    EXPECT_NEAR(both[i], bend[i] + stretch[i], MjTol(1e-10, 1e-4))
+        << "dof " << i;
   }
   EXPECT_GT(bend_norm, 0);
+  EXPECT_GT(stretch_norm, 0);
+
+  // With cellcount="1 2 2" (node grid 2 x 3 x 3), node (0, 1, 1) at index 4
+  // and node (1, 1, 1) at index 13 lie strictly in the interior of the x=0
+  // and x=max faces (faces 0 and 1, where normal_axis=0 and k_elem[0]==0) and
+  // do not touch any y- or z-normal faces. Verify both receive nonzero
+  // membrane stretch forces.
+  for (int node_idx : {4, 13}) {
+    int bid = m_stretch->flex_nodebodyid[m_stretch->flex_nodeadr[0] + node_idx];
+    int dadr = m_stretch->body_dofadr[bid];
+    mjtNum node_frc = mju_norm3(stretch.data() + dadr);
+    EXPECT_GT(node_frc, 1e-2)
+        << "expected nonzero stretch force on x-face interior node "
+        << node_idx;
+  }
 }
 
 // verify that a pinned vertex (on a static body) gets zero bending force

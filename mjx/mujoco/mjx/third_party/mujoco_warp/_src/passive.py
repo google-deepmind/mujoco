@@ -3011,12 +3011,15 @@ def _flex_passive_interp(
   flex_damping: wp.array[float],
   flex_edgeequality: wp.array[int],
   flex_centered: wp.array[bool],
+  flex_faceadr: wp.array[int],
   flex_cell_map: wp.array[wp.vec4i],
+  flex_face: wp.array2d[int],
   # Data in:
   xipos_in: wp.array2d[wp.vec3],
   subtree_com_in: wp.array2d[wp.vec3],
   cvel_in: wp.array2d[wp.spatial_vector],
   flexnode_xpos_in: wp.array2d[wp.vec3],
+  face_quat_in: wp.array2d[wp.quat],
   # In:
   dsbl_spring: bool,
   dsbl_damper: bool,
@@ -3036,122 +3039,125 @@ def _flex_passive_interp(
   ck = mapping[3]
 
   order = flex_interp[f]
-  if order <= 0:
+  if order == 0:
     return
+  shell_mode = order < 0
+  order_abs = -order if shell_mode else order
 
-  npc = (order + 1) * (order + 1) * (order + 1)
+  npc = (order_abs + 1) * (order_abs + 1) if shell_mode else (order_abs + 1) * (order_abs + 1) * (order_abs + 1)
   ndof_cell = 3 * npc
 
   cellnum = flex_cellnum[f]
   cy = cellnum[1]
   cz = cellnum[2]
   nstart = flex_nodeadr[f]
-  ny_g = cy * order + 1
-  nz_g = cz * order + 1
+  ny_g = cy * order_abs + 1
+  nz_g = cz * order_abs + 1
 
   # Cell stiffness matrix address
   stiffness_adr_base = flex_stiffnessadr[f]
   if stiffness_adr_base < 0:
     return
 
-  cell_idx = ci * cy * cz + cj * cz + ck
+  cell_idx = ci if shell_mode else ci * cy * cz + cj * cz + ck
   k_base = stiffness_adr_base + cell_idx * ndof_cell * ndof_cell
 
-  # Skip empty cells (zero stiffness)
-  if flex_stiffness[k_base] == 0.0:
+  # Skip empty cells (zero stiffness) in volume mode; shells have no empty cells
+  # and their x-normal faces (faces 0 and 1) have flex_stiffness[k_base] == 0
+  if not shell_mode and flex_stiffness[k_base] == 0.0:
     return
 
-  cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+  if shell_mode:
+    cell_quat = face_quat_in[worldid, flex_faceadr[f] + ci]
+  else:
+    cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
 
   # mju_negQuat: conjugate (R⁻¹) — negate xyz, keep w
   cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
 
   # Pre-compute displacements and velocities in corotational frame
   # (matches C: rotate all positions/velocities once, then K*u)
-  idx_j = int(0)
-  for li_j in range(order + 1):
-    for lj_j in range(order + 1):
-      for lk_j in range(order + 1):
-        if idx_j < npc:
-          gi_j = ci * order + li_j
-          gj_j = cj * order + lj_j
-          gk_j = ck * order + lk_j
-          gidx_j = gi_j * ny_g * nz_g + gj_j * nz_g + gk_j
+  op1 = order_abs + 1
+  for idx_j in range(npc):
+    if shell_mode:
+      node_j = flex_face[flex_faceadr[f] + ci, idx_j]
+    else:
+      li_j = idx_j // (op1 * op1)
+      lj_j = (idx_j // op1) % op1
+      lk_j = idx_j % op1
+      gidx_j = (ci * order_abs + li_j) * ny_g * nz_g + (cj * order_abs + lj_j) * nz_g + (ck * order_abs + lk_j)
+      node_j = nstart + gidx_j
 
-          xpos_j = flexnode_xpos_in[worldid, nstart + gidx_j]
+    xpos_j = flexnode_xpos_in[worldid, node_j]
 
-          if not dsbl_spring:
-            refpos_j = flex_node0[nstart + gidx_j]
-            xrot_j = wp.quat_rotate(cell_quat_inv, xpos_j)
-            displ_scratch_out[worldid, cellid, idx_j] = xrot_j - refpos_j
+    if not dsbl_spring:
+      refpos_j = flex_node0[node_j]
+      xrot_j = wp.quat_rotate(cell_quat_inv, xpos_j)
+      displ_scratch_out[worldid, cellid, idx_j] = xrot_j - refpos_j
 
-          if not dsbl_damper:
-            bodyid_j = flex_nodebodyid[nstart + gidx_j]
-            cvel_j = cvel_in[worldid, bodyid_j]
-            omega_j = wp.spatial_top(cvel_j)
-            vcom_j = wp.spatial_bottom(cvel_j)
-            com_j = subtree_com_in[worldid, body_rootid[bodyid_j]]
-            r_j = xpos_j - com_j
-            vel_world_j = vcom_j + wp.cross(omega_j, r_j)
-            vel_corot_scratch_out[worldid, cellid, idx_j] = wp.quat_rotate(cell_quat_inv, vel_world_j)
-
-          idx_j += 1
+    if not dsbl_damper:
+      bodyid_j = flex_nodebodyid[node_j]
+      cvel_j = cvel_in[worldid, bodyid_j]
+      omega_j = wp.spatial_top(cvel_j)
+      vcom_j = wp.spatial_bottom(cvel_j)
+      com_j = subtree_com_in[worldid, body_rootid[bodyid_j]]
+      r_j = xpos_j - com_j
+      vel_world_j = vcom_j + wp.cross(omega_j, r_j)
+      vel_corot_scratch_out[worldid, cellid, idx_j] = wp.quat_rotate(cell_quat_inv, vel_world_j)
 
   # Compute K*displacement and K*velocity per output node, then scatter forces
-  idx_i = int(0)
-  for li_i in range(order + 1):
-    for lj_i in range(order + 1):
-      for lk_i in range(order + 1):
-        if idx_i < npc:
-          gi_i = ci * order + li_i
-          gj_i = cj * order + lj_i
-          gk_i = ck * order + lk_i
-          gidx_i = gi_i * ny_g * nz_g + gj_i * nz_g + gk_i
-          bodyid_i = flex_nodebodyid[nstart + gidx_i]
+  for idx_i in range(npc):
+    if shell_mode:
+      node_i = flex_face[flex_faceadr[f] + ci, idx_i]
+    else:
+      li_i = idx_i // (op1 * op1)
+      lj_i = (idx_i // op1) % op1
+      lk_i = idx_i % op1
+      gidx_i = (ci * order_abs + li_i) * ny_g * nz_g + (cj * order_abs + lj_i) * nz_g + (ck * order_abs + lk_i)
+      node_i = nstart + gidx_i
+    bodyid_i = flex_nodebodyid[node_i]
 
-          frc_spring = wp.vec3(0.0)
-          frc_damper = wp.vec3(0.0)
+    frc_spring = wp.vec3(0.0)
+    frc_damper = wp.vec3(0.0)
 
-          for comp_i in range(3):
-            row = idx_i * 3 + comp_i
-            val_spring = float(0.0)
-            val_damper = float(0.0)
+    for comp_i in range(3):
+      row = idx_i * 3 + comp_i
+      val_spring = float(0.0)
+      val_damper = float(0.0)
 
-            for idx_j in range(npc):
-              for comp_j in range(3):
-                col = idx_j * 3 + comp_j
-                K_ij = flex_stiffness[k_base + row * ndof_cell + col]
+      for idx_j in range(npc):
+        for comp_j in range(3):
+          col = idx_j * 3 + comp_j
+          K_ij = flex_stiffness[k_base + row * ndof_cell + col]
 
-                if not dsbl_spring:
-                  val_spring += K_ij * displ_scratch_out[worldid, cellid, idx_j][comp_j]
-
-                if not dsbl_damper:
-                  val_damper += K_ij * vel_corot_scratch_out[worldid, cellid, idx_j][comp_j]
-
-            frc_spring[comp_i] = val_spring
-            frc_damper[comp_i] = val_damper
-
-          # Rotate forces back to world frame (R)
-          frc_spring_world = wp.quat_rotate(cell_quat, frc_spring)
-          frc_damper_world = wp.quat_rotate(cell_quat, frc_damper)
-
-          # Scale damper force by damping coefficient
-          frc_damper_world = frc_damper_world * flex_damping[f]
-
-          # Apply forces to body
-          node_pos = flexnode_xpos_in[worldid, nstart + gidx_i]
-          body_xipos = xipos_in[worldid, bodyid_i]
-
-          offset = body_xipos - node_pos
           if not dsbl_spring:
-            spatial_frc_s = wp.spatial_vector(frc_spring_world, -wp.cross(offset, frc_spring_world))
-            wp.atomic_add(flex_spring_body_force_out, worldid, bodyid_i, spatial_frc_s)
+            val_spring += K_ij * displ_scratch_out[worldid, cellid, idx_j][comp_j]
 
           if not dsbl_damper:
-            spatial_frc_d = wp.spatial_vector(frc_damper_world, -wp.cross(offset, frc_damper_world))
-            wp.atomic_add(flex_damper_body_force_out, worldid, bodyid_i, spatial_frc_d)
+            val_damper += K_ij * vel_corot_scratch_out[worldid, cellid, idx_j][comp_j]
 
-          idx_i += 1
+      frc_spring[comp_i] = val_spring
+      frc_damper[comp_i] = val_damper
+
+    # Rotate forces back to world frame (R)
+    frc_spring_world = wp.quat_rotate(cell_quat, frc_spring)
+    frc_damper_world = wp.quat_rotate(cell_quat, frc_damper)
+
+    # Scale damper force by damping coefficient
+    frc_damper_world = frc_damper_world * flex_damping[f]
+
+    # Apply forces to body
+    node_pos = flexnode_xpos_in[worldid, node_i]
+    body_xipos = xipos_in[worldid, bodyid_i]
+
+    offset = body_xipos - node_pos
+    if not dsbl_spring:
+      spatial_frc_s = wp.spatial_vector(frc_spring_world, -wp.cross(offset, frc_spring_world))
+      wp.atomic_add(flex_spring_body_force_out, worldid, bodyid_i, spatial_frc_s)
+
+    if not dsbl_damper:
+      spatial_frc_d = wp.spatial_vector(frc_damper_world, -wp.cross(offset, frc_damper_world))
+      wp.atomic_add(flex_damper_body_force_out, worldid, bodyid_i, spatial_frc_d)
 
 
 @wp.func
@@ -4020,11 +4026,14 @@ def passive(m: Model, d: Data):
         m.flex_damping,
         m.flex_edgeequality,
         m.flex_centered,
+        m.flex_faceadr,
         m.flex_cell_map,
+        m.flex_face,
         d.xipos,
         d.subtree_com,
         d.cvel,
         d.flexnode_xpos,
+        d.face_quat,
         dsbl_spring,
         dsbl_damper,
       ],

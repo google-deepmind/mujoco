@@ -1404,9 +1404,10 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
       // get element stiffness
       mjtNum* k_elem = K + fe * 3*npe * 3*npe;
 
-      // skip empty elements: stiffness buffer is zero-initialized at compile time
-      // (user_model.cc), and non-empty elements have strictly positive diagonal
-      if (k_elem[0] == 0) {
+      // skip empty elements in volume mode: stiffness buffer is zero-initialized at compile time
+      // (user_model.cc), and non-empty 3D cells have strictly positive diagonal; shells have no
+      // empty cells and their x-normal faces (faces 0 and 1) have k_elem[0] == 0
+      if (!shell_mode && k_elem[0] == 0) {
         continue;
       }
 
@@ -1849,7 +1850,7 @@ mjtBool mjd_flexInterpAssemblable(const mjModel* m) {
     const mjtNum* K_ = m->flex_stiffness + m->flex_stiffnessadr[f];          \
     int gindices[125];                                                       \
     for (int fe = 0; fe < nelem_fe_; fe++) {                                 \
-      if (K_[(size_t)fe * 3 * npe * 3 * npe] == 0) continue;                 \
+      if (!shell_ && K_[(size_t)fe * 3 * npe * 3 * npe] == 0) continue;      \
       if (shell_) {                                                          \
         mju_flexGatherFaceState(order_, cx_, cy_, cz_, fe, NULL, NULL, NULL, \
                                 NULL, NULL, NULL, gindices, NULL);           \

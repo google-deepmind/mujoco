@@ -1655,12 +1655,14 @@ int mj_flexHasStiffness(const mjModel* m, int f) {
   const mjtNum* k = m->flex_stiffness + adr;
 
   // standard flex: every element has stiffness if any does
-  // shell-mode interpolated flex (interp < 0): keep the first-block check; shells have no empty
-  // cells, and their first block (a membrane quad on the x=0 face) has a zero first entry, so
-  // interpolated shell stretch is currently never applied (to be revisited with MJWarp)
   int order = m->flex_interp[f];
-  if (order <= 0) {
+  if (order == 0) {
     return k[0] != 0;
+  }
+
+  // shell-mode interpolated flex (interp < 0): stiffness is allocated only when nonzero
+  if (order < 0) {
+    return 1;
   }
 
   // volume-mode interpolated flex: any 3D cell counts

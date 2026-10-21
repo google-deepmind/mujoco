@@ -2978,10 +2978,12 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // compute linear stiffness for interpolated elements (cached)
+  bool need_stiffness =
+      interpolated && (has_strain_eq || (young > 0 && (elastic2d == 0 || elastic2d >= 2)));
   bool stiffness_cached = false;
-  if (interpolated && (young > 0 || has_strain_eq)) { stiffness_cached = LoadCachedStiffness(); }
+  if (need_stiffness) { stiffness_cached = LoadCachedStiffness(); }
 
-  if (!stiffness_cached && interpolated && (young > 0 || has_strain_eq)) {
+  if (!stiffness_cached && need_stiffness) {
     // use young=1 for strain constraints (eigenvectors are geometry-only)
     double K_young   = has_strain_eq ? 1e1 : young;
     double K_poisson = has_strain_eq ? 0.3 : poisson;

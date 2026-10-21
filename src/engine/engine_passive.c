@@ -99,8 +99,9 @@ static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
     // get element stiffness matrix
     mjtNum* k_elem = k + fe * 3*npe * 3*npe;
 
-    // skip empty elements (zero stiffness)
-    if (k_elem[0] == 0) {
+    // skip empty elements (zero stiffness) in volume mode; shells have no empty cells and
+    // their x-normal faces (faces 0 and 1) have k_elem[0] == 0
+    if (!shell_mode && k_elem[0] == 0) {
       continue;
     }
 

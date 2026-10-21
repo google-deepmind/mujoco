@@ -2334,10 +2334,13 @@ def _eff_flex_interp_stiff(
   efm_K_rownnz: wp.array[int],
   efm_K_rowadr: wp.array[int],
   efm_K_colind: wp.array[int],
+  flex_faceadr: wp.array[int],
   flex_cell_map: wp.array[wp.vec4i],
+  flex_face: wp.array2d[int],
   # Data in:
   xmat_in: wp.array2d[wp.mat33],
   flexnode_xpos_in: wp.array2d[wp.vec3],
+  face_quat_in: wp.array2d[wp.quat],
   # Data out:
   efm_K_val_out: wp.array2d[float],
 ):
@@ -2351,8 +2354,10 @@ def _eff_flex_interp_stiff(
   ck = mapping[3]
 
   order = flex_interp[f]
-  if order <= 0:
+  if order == 0:
     return
+  shell_mode = order < 0
+  order_abs = -order if shell_mode else order
 
   stiffness_adr_base = flex_stiffnessadr[f]
   if stiffness_adr_base < 0:
@@ -2364,61 +2369,73 @@ def _eff_flex_interp_stiff(
   if iscale == 0.0:
     return
 
-  npc = (order + 1) * (order + 1) * (order + 1)
+  npc = (order_abs + 1) * (order_abs + 1) if shell_mode else (order_abs + 1) * (order_abs + 1) * (order_abs + 1)
   ndof_cell = 3 * npc
   cellnum = flex_cellnum[f]
   cy = cellnum[1]
   cz = cellnum[2]
   nstart = flex_nodeadr[f]
-  ny_g = cy * order + 1
-  nz_g = cz * order + 1
+  ny_g = cy * order_abs + 1
+  nz_g = cz * order_abs + 1
 
-  cell_idx = ci * cy * cz + cj * cz + ck
+  cell_idx = ci if shell_mode else ci * cy * cz + cj * cz + ck
   k_base = stiffness_adr_base + cell_idx * ndof_cell * ndof_cell
-  if flex_stiffness[k_base] == 0.0:
+  if not shell_mode and flex_stiffness[k_base] == 0.0:
     return
 
-  cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+  if shell_mode:
+    cell_quat = face_quat_in[worldid, flex_faceadr[f] + ci]
+  else:
+    cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
   R = wp.quat_to_matrix(cell_quat)
   RT = wp.transpose(R)
 
-  for li_i in range(order + 1):
-    for lj_i in range(order + 1):
-      for lk_i in range(order + 1):
-        idx_i = (li_i * (order + 1) + lj_i) * (order + 1) + lk_i
-        gidx_i = (ci * order + li_i) * ny_g * nz_g + (cj * order + lj_i) * nz_g + (ck * order + lk_i)
-        bi = flex_nodebodyid[nstart + gidx_i]
-        if body_dofnum[bi] != 3:
-          continue
-        dof_i = body_dofadr[bi]
-        T_i_T = wp.transpose(xmat_in[worldid, bi]) * R
+  op1 = order_abs + 1
+  for idx_i in range(npc):
+    if shell_mode:
+      node_i = flex_face[flex_faceadr[f] + ci, idx_i]
+    else:
+      li_i = idx_i // (op1 * op1)
+      lj_i = (idx_i // op1) % op1
+      lk_i = idx_i % op1
+      gidx_i = (ci * order_abs + li_i) * ny_g * nz_g + (cj * order_abs + lj_i) * nz_g + (ck * order_abs + lk_i)
+      node_i = nstart + gidx_i
+    bi = flex_nodebodyid[node_i]
+    if body_dofnum[bi] != 3:
+      continue
+    dof_i = body_dofadr[bi]
+    T_i_T = wp.transpose(xmat_in[worldid, bi]) * R
 
-        for li_j in range(order + 1):
-          for lj_j in range(order + 1):
-            for lk_j in range(order + 1):
-              idx_j = (li_j * (order + 1) + lj_j) * (order + 1) + lk_j
-              gidx_j = (ci * order + li_j) * ny_g * nz_g + (cj * order + lj_j) * nz_g + (ck * order + lk_j)
-              bj = flex_nodebodyid[nstart + gidx_j]
-              if body_dofnum[bj] != 3:
-                continue
-              dof_j = body_dofadr[bj]
-              T_j = RT * xmat_in[worldid, bj]
+    for idx_j in range(npc):
+      if shell_mode:
+        node_j = flex_face[flex_faceadr[f] + ci, idx_j]
+      else:
+        li_j = idx_j // (op1 * op1)
+        lj_j = (idx_j // op1) % op1
+        lk_j = idx_j % op1
+        gidx_j = (ci * order_abs + li_j) * ny_g * nz_g + (cj * order_abs + lj_j) * nz_g + (ck * order_abs + lk_j)
+        node_j = nstart + gidx_j
+      bj = flex_nodebodyid[node_j]
+      if body_dofnum[bj] != 3:
+        continue
+      dof_j = body_dofadr[bj]
+      T_j = RT * xmat_in[worldid, bj]
 
-              K_ij = wp.mat33(0.0)
-              for r in range(3):
-                for c in range(3):
-                  K_ij[r, c] = flex_stiffness[k_base + (3 * idx_i + r) * ndof_cell + (3 * idx_j + c)]
+      K_ij = wp.mat33(0.0)
+      for r in range(3):
+        for c in range(3):
+          K_ij[r, c] = flex_stiffness[k_base + (3 * idx_i + r) * ndof_cell + (3 * idx_j + c)]
 
-              blkd = iscale * (T_i_T * K_ij * T_j)
-              for r in range(3):
-                row = dof_i + r
-                rowadr = efm_K_rowadr[row]
-                rownnz = efm_K_rownnz[row]
-                for c in range(3):
-                  col = dof_j + c
-                  idx = _find_csr_col(rowadr, rownnz, col, efm_K_colind)
-                  if idx >= 0:
-                    wp.atomic_add(efm_K_val_out, worldid, idx, blkd[r, c])
+      blkd = iscale * (T_i_T * K_ij * T_j)
+      for r in range(3):
+        row = dof_i + r
+        rowadr = efm_K_rowadr[row]
+        rownnz = efm_K_rownnz[row]
+        for c in range(3):
+          col = dof_j + c
+          idx = _find_csr_col(rowadr, rownnz, col, efm_K_colind)
+          if idx >= 0:
+            wp.atomic_add(efm_K_val_out, worldid, idx, blkd[r, c])
 
 
 @wp.func
@@ -2644,12 +2661,15 @@ def _eff_flex_interp_mul(check_skip: bool, is_shift: bool):
     flex_nodebodyid: wp.array[int],
     flex_stiffness: wp.array[float],
     flex_damping: wp.array[float],
+    flex_faceadr: wp.array[int],
     flex_cell_map: wp.array[wp.vec4i],
+    flex_face: wp.array2d[int],
     # Data in:
     xmat_in: wp.array2d[wp.mat33],
     subtree_com_in: wp.array2d[wp.vec3],
     cdof_in: wp.array2d[wp.spatial_vector],
     flexnode_xpos_in: wp.array2d[wp.vec3],
+    face_quat_in: wp.array2d[wp.quat],
     # In:
     vec_in: wp.array2d[float],
     skip: wp.array[bool],
@@ -2671,8 +2691,10 @@ def _eff_flex_interp_mul(check_skip: bool, is_shift: bool):
     ck = mapping[3]
 
     order = flex_interp[f]
-    if order <= 0:
+    if order == 0:
       return
+    shell_mode = order < 0
+    order_abs = -order if shell_mode else order
 
     stiffness_adr_base = flex_stiffnessadr[f]
     if stiffness_adr_base < 0:
@@ -2689,88 +2711,100 @@ def _eff_flex_interp_mul(check_skip: bool, is_shift: bool):
       if scale == 0.0:
         return
 
-    npc = (order + 1) * (order + 1) * (order + 1)
+    npc = (order_abs + 1) * (order_abs + 1) if shell_mode else (order_abs + 1) * (order_abs + 1) * (order_abs + 1)
     ndof_cell = 3 * npc
     cellnum = flex_cellnum[f]
     cy = cellnum[1]
     cz = cellnum[2]
     nstart = flex_nodeadr[f]
-    ny_g = cy * order + 1
-    nz_g = cz * order + 1
+    ny_g = cy * order_abs + 1
+    nz_g = cz * order_abs + 1
 
-    cell_idx = ci * cy * cz + cj * cz + ck
+    cell_idx = ci if shell_mode else ci * cy * cz + cj * cz + ck
     k_base = stiffness_adr_base + cell_idx * ndof_cell * ndof_cell
-    if flex_stiffness[k_base] == 0.0:
+    if not shell_mode and flex_stiffness[k_base] == 0.0:
       return
 
-    cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+    if shell_mode:
+      cell_quat = face_quat_in[worldid, flex_faceadr[f] + ci]
+    else:
+      cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
     cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
 
-    for li_i in range(order + 1):
-      for lj_i in range(order + 1):
-        for lk_i in range(order + 1):
-          idx_i = (li_i * (order + 1) + lj_i) * (order + 1) + lk_i
-          gidx_i = (ci * order + li_i) * ny_g * nz_g + (cj * order + lj_i) * nz_g + (ck * order + lk_i)
-          bi = flex_nodebodyid[nstart + gidx_i]
-          if bi == 0:
-            continue
+    op1 = order_abs + 1
+    for idx_i in range(npc):
+      if shell_mode:
+        node_i = flex_face[flex_faceadr[f] + ci, idx_i]
+      else:
+        li_i = idx_i // (op1 * op1)
+        lj_i = (idx_i // op1) % op1
+        lk_i = idx_i % op1
+        gidx_i = (ci * order_abs + li_i) * ny_g * nz_g + (cj * order_abs + lj_i) * nz_g + (ck * order_abs + lk_i)
+        node_i = nstart + gidx_i
+      bi = flex_nodebodyid[node_i]
+      if bi == 0:
+        continue
 
-          frc_corot = wp.vec3(0.0, 0.0, 0.0)
-          for li_j in range(order + 1):
-            for lj_j in range(order + 1):
-              for lk_j in range(order + 1):
-                idx_j = (li_j * (order + 1) + lj_j) * (order + 1) + lk_j
-                gidx_j = (ci * order + li_j) * ny_g * nz_g + (cj * order + lj_j) * nz_g + (ck * order + lk_j)
-                bj = flex_nodebodyid[nstart + gidx_j]
-                if bj == 0:
-                  continue
+      frc_corot = wp.vec3(0.0, 0.0, 0.0)
+      for idx_j in range(npc):
+        if shell_mode:
+          node_j = flex_face[flex_faceadr[f] + ci, idx_j]
+        else:
+          li_j = idx_j // (op1 * op1)
+          lj_j = (idx_j // op1) % op1
+          lk_j = idx_j % op1
+          gidx_j = (ci * order_abs + li_j) * ny_g * nz_g + (cj * order_abs + lj_j) * nz_g + (ck * order_abs + lk_j)
+          node_j = nstart + gidx_j
+        bj = flex_nodebodyid[node_j]
+        if bj == 0:
+          continue
 
-                v_world_j = wp.vec3(0.0, 0.0, 0.0)
-                if body_simple[bj] == 2 and body_dofnum[bj] == 3:
-                  dof_j = body_dofadr[bj]
-                  v_loc_j = wp.vec3(vec_in[worldid, dof_j], vec_in[worldid, dof_j + 1], vec_in[worldid, dof_j + 2])
-                  v_world_j = xmat_in[worldid, bj] * v_loc_j
-                else:
-                  pt_j = flexnode_xpos_in[worldid, nstart + gidx_j]
-                  offset_j = pt_j - subtree_com_in[worldid, body_rootid[bj]]
-                  cur_b = bj
-                  while cur_b > 0:
-                    d_adr = body_dofadr[cur_b]
-                    d_num = body_dofnum[cur_b]
-                    for d_idx in range(d_adr, d_adr + d_num):
-                      cdof = cdof_in[worldid, d_idx]
-                      jacp = wp.spatial_bottom(cdof) + wp.cross(wp.spatial_top(cdof), offset_j)
-                      v_world_j += jacp * vec_in[worldid, d_idx]
-                    cur_b = body_parentid[cur_b]
+        v_world_j = wp.vec3(0.0, 0.0, 0.0)
+        if body_simple[bj] == 2 and body_dofnum[bj] == 3:
+          dof_j = body_dofadr[bj]
+          v_loc_j = wp.vec3(vec_in[worldid, dof_j], vec_in[worldid, dof_j + 1], vec_in[worldid, dof_j + 2])
+          v_world_j = xmat_in[worldid, bj] * v_loc_j
+        else:
+          pt_j = flexnode_xpos_in[worldid, node_j]
+          offset_j = pt_j - subtree_com_in[worldid, body_rootid[bj]]
+          cur_b = bj
+          while cur_b > 0:
+            d_adr = body_dofadr[cur_b]
+            d_num = body_dofnum[cur_b]
+            for d_idx in range(d_adr, d_adr + d_num):
+              cdof = cdof_in[worldid, d_idx]
+              jacp = wp.spatial_bottom(cdof) + wp.cross(wp.spatial_top(cdof), offset_j)
+              v_world_j += jacp * vec_in[worldid, d_idx]
+            cur_b = body_parentid[cur_b]
 
-                v_corot_j = wp.quat_rotate(cell_quat_inv, v_world_j)
+        v_corot_j = wp.quat_rotate(cell_quat_inv, v_world_j)
 
-                for r in range(3):
-                  row = 3 * idx_i + r
-                  acc = float(0.0)
-                  for c in range(3):
-                    col = 3 * idx_j + c
-                    acc += flex_stiffness[k_base + row * ndof_cell + col] * v_corot_j[c]
-                  frc_corot[r] += acc
+        for r in range(3):
+          row = 3 * idx_i + r
+          acc = float(0.0)
+          for c in range(3):
+            col = 3 * idx_j + c
+            acc += flex_stiffness[k_base + row * ndof_cell + col] * v_corot_j[c]
+          frc_corot[r] += acc
 
-          frc_world = wp.quat_rotate(cell_quat, frc_corot)
-          if body_simple[bi] == 2 and body_dofnum[bi] == 3:
-            dof_i = body_dofadr[bi]
-            frc_loc = wp.transpose(xmat_in[worldid, bi]) * frc_world
-            for r in range(3):
-              wp.atomic_add(res_out, worldid, dof_i + r, scale * frc_loc[r])
-          else:
-            pt_i = flexnode_xpos_in[worldid, nstart + gidx_i]
-            offset_i = pt_i - subtree_com_in[worldid, body_rootid[bi]]
-            cur_b = bi
-            while cur_b > 0:
-              d_adr = body_dofadr[cur_b]
-              d_num = body_dofnum[cur_b]
-              for d_idx in range(d_adr, d_adr + d_num):
-                cdof = cdof_in[worldid, d_idx]
-                jacp = wp.spatial_bottom(cdof) + wp.cross(wp.spatial_top(cdof), offset_i)
-                wp.atomic_add(res_out, worldid, d_idx, scale * wp.dot(jacp, frc_world))
-              cur_b = body_parentid[cur_b]
+      frc_world = wp.quat_rotate(cell_quat, frc_corot)
+      if body_simple[bi] == 2 and body_dofnum[bi] == 3:
+        dof_i = body_dofadr[bi]
+        frc_loc = wp.transpose(xmat_in[worldid, bi]) * frc_world
+        for r in range(3):
+          wp.atomic_add(res_out, worldid, dof_i + r, scale * frc_loc[r])
+      else:
+        pt_i = flexnode_xpos_in[worldid, node_i]
+        offset_i = pt_i - subtree_com_in[worldid, body_rootid[bi]]
+        cur_b = bi
+        while cur_b > 0:
+          d_adr = body_dofadr[cur_b]
+          d_num = body_dofnum[cur_b]
+          for d_idx in range(d_adr, d_adr + d_num):
+            cdof = cdof_in[worldid, d_idx]
+            jacp = wp.spatial_bottom(cdof) + wp.cross(wp.spatial_top(cdof), offset_i)
+            wp.atomic_add(res_out, worldid, d_idx, scale * wp.dot(jacp, frc_world))
+          cur_b = body_parentid[cur_b]
 
   return kernel
 
@@ -3192,9 +3226,12 @@ def eff_build(m: Model, d: Data):
           m.efm_K_rownnz,
           m.efm_K_rowadr,
           m.efm_K_colind,
+          m.flex_faceadr,
           m.flex_cell_map,
+          m.flex_face,
           d.xmat,
           d.flexnode_xpos,
+          d.face_quat,
         ],
         outputs=[d.efm_K_val],
       )
@@ -3300,11 +3337,14 @@ def eff_shift(m: Model, d: Data):
         m.flex_nodebodyid,
         m.flex_stiffness,
         m.flex_damping,
+        m.flex_faceadr,
         m.flex_cell_map,
+        m.flex_face,
         d.xmat,
         d.subtree_com,
         d.cdof,
         d.flexnode_xpos,
+        d.face_quat,
         d.qvel,
         m.body_is_free,
       ],
@@ -3650,11 +3690,14 @@ def eff_mul_m(
           m.flex_nodebodyid,
           m.flex_stiffness,
           m.flex_damping,
+          m.flex_faceadr,
           m.flex_cell_map,
+          m.flex_face,
           d.xmat,
           d.subtree_com,
           d.cdof,
           d.flexnode_xpos,
+          d.face_quat,
           vec,
           skip_arr,
         ],
