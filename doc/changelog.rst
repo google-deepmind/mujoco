@@ -63,6 +63,8 @@ Engine
     matrix in ``qpos0``, and the kinematics in ``qpos_spring``. Each entry is ``mjSC_IN`` if the group reads the array,
     ``mjSC_OUT`` if it writes it, ``mjSC_INOUT`` if both, or 0. ``MJSETCONST_SCALARS`` lists the scalars it
     writes.
+- :ref:`mju_boxQP` now updates its Cholesky factor incrementally with :ref:`mju_cholUpdate`, making cold-started solves
+  1.4-1.6x faster and warm-started solves 1.9-2.9x faster.
 
 Compiler
 ^^^^^^^^

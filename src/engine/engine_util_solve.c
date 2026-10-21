@@ -101,7 +101,7 @@ void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
 
 
 // Cholesky rank-one update: L*L' +/- x*x'; return rank
-int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus) {
+int mju_cholUpdate(mjtNum* restrict mat, mjtNum* restrict x, int n, int flg_plus) {
   int rank = n;
   mjtNum r, c, cinv, s, Lkk, tmp;
 
@@ -122,20 +122,12 @@ int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus) {
       // update diagonal
       mat[k*(n+1)] = r;
 
-      // update mat
-      if (flg_plus) {
-        for (int i=k+1; i < n; i++) {
-          mat[i*n+k] = (mat[i*n+k] + s*x[i])*cinv;
-        }
-      } else {
-        for (int i=k+1; i < n; i++) {
-          mat[i*n+k] = (mat[i*n+k] - s*x[i])*cinv;
-        }
-      }
-
-      // update x
+      // update mat and x
+      mjtNum s_signed = flg_plus ? s : -s;
       for (int i=k+1; i < n; i++) {
-        x[i] = c*x[i] - s*mat[i*n+k];
+        mjtNum m = (mat[i*n+k] + s_signed*x[i])*cinv;
+        mat[i*n+k] = m;
+        x[i] = c*x[i] - s*m;
       }
     }
   }
@@ -1588,9 +1580,9 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 //     index       - set of free dimensions    nfree          allocated: n
 //   notes:
 //     the initial value of res is used to warmstart the solver
-//     R must have allocatd size n*(n+7), but only nfree*nfree values are used in output
+//     R must have allocated size n*(n+7), but only nfree*nfree values are used in output
 //     index (if given) must have allocated size n, but only nfree values are used in output
-//     only lower triangles of H and R and read from and written to, respectively
+//     only lower triangles of H and R are read from and written to, respectively
 int mju_boxQP(mjtNum* res, mjtNum* R, int* index,
               const mjtNum* H, const mjtNum* g, int n,
               const mjtNum* lower, const mjtNum* upper) {
@@ -1643,18 +1635,6 @@ enum mjtStatusBoxQP {
 };
 
 
-// multiply symmetric matrix with vector on both sides: return vec'*mat*vec
-//   assumes symmetry of mat, ignores upper triangle
-static mjtNum mulVecMatVecSym(const mjtNum* vec, const mjtNum* mat, int n) {
-  mjtNum res = 0;
-  for (int i=0; i < n; i++) {
-    res += vec[i] * mat[n*i+i] * vec[i];           // diagonal
-    res += 2 * vec[i] * mju_dot(mat+n*i, vec, i);  // off-diagonal
-  }
-  return res;
-}
-
-
 // multiply symmetric matrix with vector: res = mat*vec
 //   assumes symmetry of mat, ignores upper triangle, res must not alias vec
 static void mulSymVec(mjtNum* restrict res, const mjtNum* mat, const mjtNum* vec, int n) {
@@ -1663,8 +1643,93 @@ static void mulSymVec(mjtNum* restrict res, const mjtNum* mat, const mjtNum* vec
     res[i] = mat[n*i+i]*vec[i] + mju_dot(mat+n*i, vec, i);
 
     // strict upper mirror contribution: res[k] += mat[i,k] * vec[i] for k < i
-    mju_addToScl(res, mat+n*i, vec[i], i);
+    if (vec[i]) {
+      mju_addToScl(res, mat+n*i, vec[i], i);
+    }
   }
+}
+
+
+// delete row and column p from m-by-m Cholesky factor R, return rank of (m-1)-by-(m-1) factor
+static int cholDelete(mjtNum* restrict R, mjtNum* restrict temp, int m, int p) {
+  // shift rows 1..p-1 to stride m-1
+  for (int i=1; i < p; i++) {
+    for (int j=0; j <= i; j++) {
+      R[i*(m-1)+j] = R[i*m+j];
+    }
+  }
+
+  // zero leading entries of update vector
+  mju_zero(temp, p);
+
+  // shift rows p+1..m-1 to rows p..m-2 (stride m-1) and extract column p into temp
+  for (int i=p+1; i < m; i++) {
+    for (int j=0; j < p; j++) {
+      R[(i-1)*(m-1)+j] = R[i*m+j];
+    }
+    temp[i-1] = R[i*m+p];
+    for (int j=p+1; j <= i; j++) {
+      R[(i-1)*(m-1)+(j-1)] = R[i*m+j];
+    }
+  }
+
+  // rank-1 update on trailing (m-1-p) block
+  return mju_cholUpdate(R, temp, m-1, 1);
+}
+
+
+// insert variable idx at position p into m-by-m Cholesky factor R, return rank of (m+1)-by-(m+1)
+static int cholInsert(mjtNum* restrict R, mjtNum* restrict temp, mjtNum* restrict rowp,
+                      const mjtNum* H, int n, const int* index, int m, int p, int idx) {
+  // solve L_11 * l_21 = h_21 for new row p (entries 0..p-1)
+  for (int j=0; j < p; j++) {
+    mjtNum s = H[idx*n+index[j]];
+    if (j) {
+      s -= mju_dot(R+j*m, rowp, j);
+    }
+    rowp[j] = s / R[j*(m+1)];
+  }
+
+  // diagonal entry l_22
+  mjtNum diag = H[idx*(n+1)] - mju_dot(rowp, rowp, p);
+  if (diag < mjMINVAL) {
+    return -1;
+  }
+  mjtNum l22 = mju_sqrt(diag);
+  rowp[p] = l22;
+
+  // compute new column p below diagonal: l_32 = (h_32 - L_31 * l_21) / l_22
+  mju_zero(temp, p+1);
+  mjtNum inv_l22 = 1 / l22;
+  for (int i=p; i < m; i++) {
+    temp[i+1] = (H[index[i]*n+idx] - mju_dot(R+i*m, rowp, p)) * inv_l22;
+  }
+
+  // expand R from stride m to stride m+1 (in-place backward pass)
+  for (int i=m-1; i >= p; i--) {
+    for (int j=i; j >= p; j--) {
+      R[(i+1)*(m+1)+(j+1)] = R[i*m+j];
+    }
+    R[(i+1)*(m+1)+p] = temp[i+1];
+    for (int j=p-1; j >= 0; j--) {
+      R[(i+1)*(m+1)+j] = R[i*m+j];
+    }
+  }
+
+  // write new row p
+  for (int j=0; j <= p; j++) {
+    R[p*(m+1)+j] = rowp[j];
+  }
+
+  // shift rows p-1..1 to stride m+1
+  for (int i=p-1; i >= 1; i--) {
+    for (int j=i; j >= 0; j--) {
+      R[i*(m+1)+j] = R[i*m+j];
+    }
+  }
+
+  // rank-1 downdate on trailing (m-p) block
+  return mju_cholUpdate(R, temp, m+1, 0);
 }
 
 
@@ -1685,10 +1750,9 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
                     char* log, int logsz)                             // logging
 {
   int status = mjBOXQP_NO_DESCENT;  // initial status: no descent direction found
-  int factorize = 1;                // always factorize on the first iteration
-  int nfree = n;                    // initialise nfree with n
+  int nfree = n;                    // initialize nfree with n
   int nfactor = 0;
-  mjtNum sdotg, improvement=0, value=0, norm2=0;
+  mjtNum value = 0, norm2 = 0;
 
   // basic checks
   if (n <= 0) {
@@ -1697,7 +1761,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
   if (upper && lower) {
     for (int i=0; i < n; i++) {
       if (lower[i] >= upper[i]) {
-        mjERROR("upper bounds must be stricly larger than lower bounds");
+        mjERROR("upper bounds must be strictly larger than lower bounds");
       }
     }
   }
@@ -1734,6 +1798,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     if (rank == n) {
       mju_cholSolve(res, R, g, n);
       mju_scl(res, res, -1, n);
+      value = 0.5 * mju_dot(res, g, n);
       nfactor = 1;
       status = mjBOXQP_UNBOUNDED;
     } else {
@@ -1760,33 +1825,30 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
 
   // ------ main loop
   int iter, logptr = 0;
-  mjtNum oldvalue;
   for (iter=0; iter < maxiter; iter++) {
+    // stop if already resolved (e.g. unbounded fast path or line-search failure)
     if (status != mjBOXQP_NO_DESCENT) {
       break;
     }
 
-    // compute objective: value = 0.5*res'*H*res + res'*g
-    value = 0.5 * mulVecMatVecSym(res, H, n) + mju_dot(res, g, n);
-
-    // save last value
-    oldvalue = value;
-
-    // compute gradient
+    // compute gradient and objective: value = 0.5*res'*H*res + res'*g
     mulSymVec(grad, H, res, n);
+    if (iter == 0) {
+      value = 0.5 * mju_dot(res, grad, n) + mju_dot(res, g, n);
+    }
     mju_addTo(grad, g, n);
 
-    // find clamped dimensions
+    // save last value
+    mjtNum oldvalue = value;
+
+    // find clamped dimensions, count free dimensions
+    int oldnfree = nfree;
+    nfree = 0;
     for (int i=0; i < n; i++) {
       clamped[i] = ( lower && res[i] == lower[i] && grad[i] > 0 ) ||
                    ( upper && res[i] == upper[i] && grad[i] < 0 );
-    }
-
-    // build index of free dimensions, count them
-    nfree = 0;
-    for (int i=0; i < n; i++) {
       if (!clamped[i]) {
-        index[nfree++] = i;
+        nfree++;
       }
     }
 
@@ -1796,15 +1858,90 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       break;
     }
 
-    // re-factorize if clamped dimensions have changed
+    // update or re-factorize if clamped dimensions have changed
+    int rank = nfree;
+    int factorize = (iter == 0);
     if (iter) {
-      factorize = 0;
+      // count newly clamped and unclamped dimensions
+      int nclamp = 0, nunclamp = 0;
       for (int i=0; i < n; i++) {
-        if (clamped[i] != oldclamped[i]) {
-          factorize = 1;
-          break;
+        if (clamped[i] && !oldclamped[i]) {
+          nclamp++;
+        } else if (!clamped[i] && oldclamped[i]) {
+          nunclamp++;
         }
       }
+
+      // maybe update Cholesky factor with rank-1 operations
+      if (nclamp + nunclamp > 0) {
+        // use rank-1 updates rather than full re-factorization when:
+        //  - at least one previously free variable remains free (nclamp < oldnfree)
+        //  - insertions are weighted 2x deletions because cholInsert adds a triangular solve
+        //  - weighted count <= max(2, nfree/8): flop crossover is nfree/3, but cholFactor uses
+        //    row-wise SIMD mju_dot while updates shift R and do column-strided Givens rotations
+        if (nclamp < oldnfree && nclamp + 2*nunclamp <= mjMAX(2, nfree/8)) {
+          int m = oldnfree;
+          int rank_ok = 1;
+
+          // delete newly clamped dimensions in reverse order
+          for (int p=m-1; p >= 0; p--) {
+            if (clamped[index[p]]) {
+              if (cholDelete(R, temp, m, p) != m-1) {
+                rank_ok = 0;
+                break;
+              }
+              for (int j=p; j < m-1; j++) {
+                index[j] = index[j+1];
+              }
+              m--;
+            }
+          }
+
+          // insert newly unclamped dimensions
+          if (nunclamp && rank_ok) {
+            int p = 0;
+            for (int i=0; i < n; i++) {
+              if (!clamped[i]) {
+                if (oldclamped[i]) {
+                  if (cholInsert(R, temp, search, H, n, index, m, p, i) != m+1) {
+                    rank_ok = 0;
+                    break;
+                  }
+                  for (int j=m; j > p; j--) {
+                    index[j] = index[j-1];
+                  }
+                  index[p] = i;
+                  m++;
+                }
+                p++;
+              }
+            }
+          }
+
+          if (!rank_ok) {
+            factorize = 1;
+          }
+        } else {
+          factorize = 1;
+        }
+      }
+    }
+
+    // full factorization if required
+    if (factorize) {
+      int j = 0;
+      for (int i=0; i < n; i++) {
+        if (!clamped[i]) {
+          index[j++] = i;
+        }
+      }
+      for (int i=0; i < nfree; i++) {
+        for (int k=0; k < i+1; k++) {
+          R[i*nfree+k] = H[index[i]*n+index[k]];
+        }
+      }
+      rank = mju_cholFactor(R, nfree, mjMINVAL);
+      nfactor++;
     }
 
     // save last clamped
@@ -1812,52 +1949,19 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       oldclamped[i] = clamped[i];
     }
 
-    // get search direction: search = g + H_all,clamped * res_clamped
-    for (int i=0; i < n; i++) {
-      temp[i] = clamped[i] ? res[i] : 0;
-    }
-    mulSymVec(search, H, temp, n);
-    mju_addTo(search, g, n);
-
-    // search = compress_free(search)
-    for (int i=0; i < nfree; i++) {
-      search[i] = search[index[i]];
-    }
-
-    // R = compress_free(H)
-    if (factorize) {
-      for (int i=0; i < nfree; i++) {
-        for (int j=0; j < i+1; j++) {
-          R[i*nfree+j] = H[index[i]*n+index[j]];
-        }
-      }
-    }
-
-    // re-factorize and increment counter, if required
-    int rank = factorize ? mju_cholFactor(R, nfree, mjMINVAL) : nfree;
-    nfactor += factorize;
-
     // abort if factorization failed
     if (rank != nfree) {
       status = mjBOXQP_NOT_SPD;
       break;
     }
 
-    // temp = H_free,free \ search_free
-    mju_cholSolve(temp, R, search, nfree);
-
-    // search_free = expand_free(-temp) - x_free
-    mju_zero(search, n);
-    for (int i=0; i < nfree; i++) {
-      search[index[i]] = -temp[i] -res[index[i]];
-    }
-
     // ------ check gradient
 
-    // squared norm of free gradient
+    // squared norm of free gradient, compress grad_free into temp
     norm2 = 0;
     for (int i=0; i < nfree; i++) {
       mjtNum grad_i = grad[index[i]];
+      temp[i] = grad_i;
       norm2 += grad_i*grad_i;
     }
 
@@ -1867,28 +1971,57 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       break;
     }
 
+    // get search direction: solve H_free,free * temp = grad_free
+    mju_cholSolve(temp, R, temp, nfree);
+
+    // search = -temp, compute directional derivative sdotg
+    mjtNum sdotg = 0;
+    for (int i=0; i < nfree; i++) {
+      search[i] = -temp[i];
+      sdotg -= temp[i] * grad[index[i]];
+    }
+
     // sanity check: make sure we have a descent direction
-    if ((sdotg = mju_dot(search, grad, n)) >= 0) {
+    if (sdotg >= 0) {
       break;  // SHOULD NOT OCCUR
     }
 
-    // ------ projected Armijo line search
-    mjtNum step = 1;
-    int nstep = 0;
+    // ------ projected Armijo line search in free subspace
+    mjtNum step = 1, improvement = 0, reduction = 0;
+    int nstep = 0, clipped = 0;
     do {
-      // candidate = clamp(x + step*search)
-      mju_scl(candidate, search, step, n);
-      mju_addTo(candidate, res, n);
-      for (int i=0; i < n; i++) {
-        if (lower && candidate[i] < lower[i]) {
-          candidate[i] = lower[i];
-        } else if (upper && candidate[i] > upper[i]) {
-          candidate[i] = upper[i];
+      // candidate = clamp(res_free + step*search)
+      clipped = 0;
+      for (int i=0; i < nfree; i++) {
+        int idx = index[i];
+        mjtNum c = res[idx] + step*search[i];
+        if (lower && c < lower[idx]) {
+          c = lower[idx];
+          clipped = 1;
+        } else if (upper && c > upper[idx]) {
+          c = upper[idx];
+          clipped = 1;
         }
+        candidate[i] = c;
       }
 
-      // new objective value
-      value = 0.5 * mulVecMatVecSym(candidate, H, n) + mju_dot(candidate, g, n);
+      // objective reduction: -grad_free'*delta - 0.5*||R'*delta||^2
+      if (!clipped) {
+        reduction = -step*(1 - 0.5*step)*sdotg;
+      } else {
+        mju_zero(temp, nfree);
+        mjtNum ddotg = 0;
+        for (int i=0; i < nfree; i++) {
+          int idx = index[i];
+          mjtNum di = candidate[i] - res[idx];
+          if (di) {
+            ddotg += di * grad[idx];
+            mju_addToScl(temp, R+i*nfree, di, i+1);
+          }
+        }
+        reduction = -ddotg - 0.5*mju_dot(temp, temp, nfree);
+      }
+      value = oldvalue - reduction;
 
       // increment and break if step is too small
       nstep++;
@@ -1899,7 +2032,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       }
 
       // repeat until relative improvement >= Armijo
-      improvement = (value - oldvalue) / (step*sdotg);
+      improvement = -reduction / (step*sdotg);
     } while (improvement < armijo);
 
 
@@ -1908,7 +2041,7 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       int written = snprintf(log+logptr, logsz-logptr,
                              "iter %-3d:  |grad|: %-8.2g  reduction: %-8.2g  improvement: %-8.4g  "
                              "linesearch: %g^%-2d  factorized: %d  nfree: %d\n",
-                             iter+1, mju_sqrt(norm2), oldvalue-value, improvement,
+                             iter+1, mju_sqrt(norm2), reduction, improvement,
                              backtrack, nstep-1, factorize, nfree);
       if (written > 0) {
         logptr = mjMIN(logptr + written, logsz);
@@ -1916,7 +2049,15 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
     }
 
     // accept candidate
-    mju_copy(res, candidate, n);
+    for (int i=0; i < nfree; i++) {
+      res[index[i]] = candidate[i];
+    }
+
+    // stop if unclipped step produced no floating-point decrease in objective
+    if (!clipped && value >= oldvalue) {
+      status = nfree == n ? mjBOXQP_UNBOUNDED : mjBOXQP_TOL_GRAD;
+      break;
+    }
   }
 
   // max iterations exceeded

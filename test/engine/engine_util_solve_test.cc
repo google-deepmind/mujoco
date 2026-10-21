@@ -84,54 +84,36 @@ TEST_F(QCQP3Test, DegenerateAMatrix) {
 
 using BoxQPTest = MujocoTest;
 
-// utility: compute QP objective = 0.5*x'*H*x + x'*g
-mjtNum objective(const mjtNum* x, const mjtNum* H, const mjtNum* g, int n) {
-  return 0.5 * mju_mulVecMatVec(x, H, x, n) + mju_dot(x, g, n);
-}
-
 // utility: test if res is the minimum of a given box-QP problem
 bool isQPminimum(const mjtNum* res, const mjtNum* H, const mjtNum* g, int n,
                  const mjtNum* lower, const mjtNum* upper) {
   const mjtNum eps = MjEps(1e-4, 5e-2);      // epsilon used for nudging
   const mjtNum threshold = MjTol(0, -2e-3);  // comparison threshold
-  bool is_minimum = true;
-  mjtNum* res_nudge = (mjtNum*)mju_malloc(sizeof(mjtNum) * n);
-
-  // get solution value
-  mjtNum value = objective(res, H, g, n);
-  mjtNum value_nudge;
-
-  // compare to nudged solution
-  mju_copy(res_nudge, res, n);
   for (int i = 0; i < n; i++) {
+    mjtNum grad_i = mju_dot(H + i * n, res, n) + g[i];
+    mjtNum Hii = H[i * n + i];
+
     // nudge down
-    res_nudge[i] = res[i] - eps;
+    mjtNum lo = res[i] - eps;
     if (lower) {
-      res_nudge[i] = mju_max(lower[i], res_nudge[i]);
+      lo = mju_max(lower[i], lo);
     }
-    value_nudge = objective(res_nudge, H, g, n);
-    if (value_nudge - value < threshold) {
-      is_minimum = false;
-      break;
+    mjtNum dlo = lo - res[i];
+    if (dlo * grad_i + 0.5 * Hii * dlo * dlo < threshold) {
+      return false;
     }
 
     // nudge up
-    res_nudge[i] = res[i] + eps;
+    mjtNum hi = res[i] + eps;
     if (upper) {
-      res_nudge[i] = mju_min(upper[i], res_nudge[i]);
+      hi = mju_min(upper[i], hi);
     }
-    value_nudge = objective(res_nudge, H, g, n);
-    if (value_nudge - value < threshold) {
-      is_minimum = false;
-      break;
+    mjtNum dhi = hi - res[i];
+    if (dhi * grad_i + 0.5 * Hii * dhi * dhi < threshold) {
+      return false;
     }
-
-    // reset
-    res_nudge[i] = res[i];
   }
-
-  mju_free(res_nudge);
-  return is_minimum;
+  return true;
 }
 
 // utility: define QP with pseudorandom values
@@ -353,12 +335,6 @@ TEST_F(BoxQPTest, BoundedQP) {
 
 // test mju_boxQP on a set of random bounded QPs
 TEST_F(BoxQPTest, BoundedQPvariations) {
-  if constexpr (sizeof(mjtNum) == sizeof(float)) {
-    GTEST_SKIP()
-        << "BoxQP test permutations contain ill-conditioned matrices which "
-           "natively fail to find descent directions under float32 precision";
-  }
-
   int nmax = 100;
 
   // allocate maximum size on heap
@@ -407,7 +383,8 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
               << "n " << n << '\n'
               << "scaleH " << scaleH << '\n'
               << "scaleg " << scaleg << '\n'
-              << "scalebounds " << scalebounds << '\n';
+              << "scalebounds " << scalebounds << '\n'
+              << log;
 
           // wrap log with string, count factorizations
           string slog(log);
