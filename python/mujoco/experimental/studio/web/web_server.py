@@ -39,6 +39,7 @@ _WS_CLOSE_SESSION_FULL.
 import asyncio
 import datetime
 import enum
+import functools
 import json
 import logging
 import os
@@ -446,6 +447,21 @@ def _run_server(
     controller_sid: str | None = None
     state_clients: dict[str, ServerConnection] = {}
 
+    # Wakes every /state stream when the viewer thread publishes a payload (see
+    # WebServer.update_state), so a payload goes out the moment it exists. A
+    # 60Hz poll instead would free-run against the viewer's 60Hz frame clock
+    # and periodically cost a whole tick. One event per stream: each stream
+    # clears its own, so a shared one would lose wakeups for the others.
+    state_waiters: set[asyncio.Event] = set()
+
+    def wake_state_streams() -> None:
+      for event in state_waiters:
+        event.set()
+
+    server._wake_state_streams = functools.partial(
+        asyncio.get_running_loop().call_soon_threadsafe, wake_state_streams
+    )
+
     # Control handoff: spectators queue for the controller slot; when it frees,
     # the head of the queue is granted a short exclusive claim window.
     control_queue: list[str] = []
@@ -790,23 +806,27 @@ def _run_server(
       # input latency).
       payload_acked = asyncio.Event()
       payload_acked.set()
+      # Set initially so a browser that connects between payloads gets the
+      # current one right away.
+      state_ready = asyncio.Event()
+      state_ready.set()
+      state_waiters.add(state_ready)
 
       async def send_payloads() -> None:
         last_gen = 0
         while True:
-          await asyncio.sleep(1.0 / 60.0)
-          # _state_generation is bumped by WebServer.update_state() on the
-          # viewer thread.
-          if server._state_generation == last_gen:
-            continue
+          await state_ready.wait()
           try:
             await asyncio.wait_for(
                 payload_acked.wait(), timeout=_STATE_ACK_TIMEOUT_SEC
             )
           except asyncio.TimeoutError:
             pass  # Lost ack; send anyway rather than stalling forever.
+          # Cleared before the read: an update racing with it sets the event
+          # again and is picked up on the next pass instead of being lost.
+          state_ready.clear()
           result = read_state()
-          if result is None:
+          if result is None or result[0] == last_gen:
             continue
           last_gen, data = result
           payload_acked.clear()
@@ -839,6 +859,7 @@ def _run_server(
       except (ConnectionClosed, ConnectionError):
         pass
       finally:
+        state_waiters.discard(state_ready)
         # Only tear down if this socket is still the one registered for sid: a
         # reconnect may have already replaced it, and that newer connection now
         # owns the queue and heartbeat entries.
@@ -1068,6 +1089,7 @@ def _run_server(
     try:
       await watch_stop()
     finally:
+      server._wake_state_streams = None
       enforcer.cancel()
       if server.stop_reason:
         # Tell the browsers why the viewer stopped, so the page can show it;
@@ -1142,6 +1164,7 @@ class WebServer:
     self._state_lock = threading.Lock()
     self._state_payload: bytes | None = None
     self._state_generation: int = 0
+    self._wake_state_streams: Callable[[], Any] | None = None
 
     self._stop_event = threading.Event()
     self._thread: threading.Thread | None = None
@@ -1154,6 +1177,14 @@ class WebServer:
     with self._state_lock:
       self._state_payload = payload
       self._state_generation += 1
+    # Hop to the server thread's event loop to wake the /state streams; unset
+    # while the server thread is not running.
+    wake = self._wake_state_streams
+    if wake is not None:
+      try:
+        wake()
+      except RuntimeError:
+        pass  # The server's event loop has just closed.
 
   def update_model(self, mjb_data: bytes) -> None:
     """Swaps the model bytes served at /model. No server restart needed."""
