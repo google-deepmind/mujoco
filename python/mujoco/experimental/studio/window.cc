@@ -17,8 +17,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <optional>
+#include <span>
 #include <string>
-#include <string_view>
 
 #include <imgui.h>
 #include <implot.h>
@@ -73,23 +74,33 @@ class Window {
     return window_status == mujoco::studio::Window::Status::kRunning;
   }
 
-  void Present(pybind11::buffer pixels) {
-    pybind11::buffer_info info = pixels.request();
-    if (!PyBuffer_IsContiguous(info.view(), 'C')) {
-      throw pybind11::value_error("Buffer must be C-contiguous.");
+  void Present(std::optional<pybind11::buffer> pixels = std::nullopt) {
+    std::span<const std::byte> buf = {};
+    pybind11::buffer_info info;
+    if (pixels.has_value()) {
+      info = pixels->request();
+      if (!PyBuffer_IsContiguous(info.view(), 'C')) {
+        throw pybind11::value_error("Buffer must be C-contiguous.");
+      }
+      auto data = static_cast<std::byte*>(info.ptr);
+      auto size = static_cast<size_t>(info.size * info.itemsize);
+      buf = std::span<const std::byte>{data, size};
     }
-    auto* data = static_cast<std::byte*>(info.ptr);
-    const auto size = static_cast<size_t>(info.size * info.itemsize);
     pybind11::gil_scoped_release no_gil;
     window_->EndFrame();
-    window_->Present({data, size});
+    window_->Present(buf);
   }
 
   int GetWidth() { return window_->GetWidth(); }
   int GetHeight() { return window_->GetHeight(); }
+  float GetScale() { return window_->GetScale(); }
 
   uint64_t GetNativeWindowHandle() {
     return reinterpret_cast<uint64_t>(window_->GetNativeWindowHandle());
+  }
+
+  int GetGraphicsMode() {
+    return static_cast<int>(window_->GetGraphicsMode());
   }
 
   std::string GetDropFile() { return window_->GetDropFile(); }
@@ -109,9 +120,12 @@ PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {
   pybind11::class_<Window> cls(m, "Window");
   cls.def(pybind11::init<const std::string&, int, int, const std::string&>());
   cls.def("NewFrame", &Window::NewFrame);
-  cls.def("Present", &Window::Present);
+  cls.def("Present", &Window::Present,
+          pybind11::arg("pixels") = pybind11::none());
   cls.def("GetWidth", &Window::GetWidth);
   cls.def("GetHeight", &Window::GetHeight);
+  cls.def("GetScale", &Window::GetScale);
   cls.def("GetDropFile", &Window::GetDropFile);
+  cls.def("GetGraphicsMode", &Window::GetGraphicsMode);
   cls.def("GetNativeWindowHandle", &Window::GetNativeWindowHandle);
 }

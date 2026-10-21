@@ -25,6 +25,8 @@ from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import native_viewer_cc as _viewer
 from mujoco.experimental.studio import ux
 from mujoco.experimental.studio import viewer_protocol
+from mujoco.experimental.studio import window
+import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui
 from mujoco.experimental.implot import implot
@@ -71,21 +73,30 @@ class NativeViewer(viewer_protocol.Viewer):
         extra_geoms=extra_geoms,
     )
 
-    # Create the renderer.
+    gfx_mode = config.gfx or ''
+
+    self._window = window.Window(
+        config.title,
+        config.width,
+        config.height,
+        gfx_mode,
+    )
     self._viewer = _viewer.Viewer(
-        config.title, config.width, config.height, config.gfx or ''
+        self._window.GetNativeWindowHandle(),
+        self._window.GetGraphicsMode(),
     )
 
     # Track the python object id of the model currently loaded in the renderer
     # so we can detect when the model changes and re-initialize.
     self._renderer_model_id = id(None)
 
-    ctx = _viewer.GetImGuiContext()
+    ctx = window.GetImGuiContext()
     imgui.SetCurrentContext(ctx)
+    _viewer.set_imgui_context(ctx)
     ux.set_imgui_context(ctx)
-    ux.set_implot_context(_viewer.GetImPlotContext())
+    ux.set_implot_context(window.GetImPlotContext())
     implot.set_imgui_context(ctx)
-    implot.set_implot_context(_viewer.GetImPlotContext())
+    implot.set_implot_context(window.GetImPlotContext())
 
     # Dispatch lifecycle event so handlers can cache the viewer reference.
     try:
@@ -102,7 +113,7 @@ class NativeViewer(viewer_protocol.Viewer):
 
   def prepare_next_frame(self) -> bool:
     """Advances to the next frame; returns False when the window is closed."""
-    if not self._viewer.NewFrame():
+    if not self._window.NewFrame():
       self.dispatch(messages.ExitEvent())
       return False
     return True
@@ -110,7 +121,23 @@ class NativeViewer(viewer_protocol.Viewer):
   def sync(self) -> None:
     """Render the scene and present it to the window."""
     self._sync_renderer(self.model)
-    self._viewer.Present(
+
+    pixels = None
+    width = self._window.GetWidth()
+    height = self._window.GetHeight()
+    scale = self._window.GetScale()
+
+    gfx_mode = self._window.GetGraphicsMode()
+
+    if self._viewer.RenderToPixels(gfx_mode):
+      pixels = np.empty((height, width, 3), dtype=np.uint8)
+    else:
+      width = int(width * scale)
+      height = int(height * scale)
+
+    self._viewer.Render(
+        width,
+        height,
         self.model,
         self.data,
         self.perturb,
@@ -118,7 +145,9 @@ class NativeViewer(viewer_protocol.Viewer):
         self.vis_options,
         self.render_flags.flags,
         self.extra_geoms,
+        pixels,
     )
+    self._window.Present(pixels)
 
   def close(self) -> None:
     """Close the viewer and explicitly destroy the renderer.
@@ -136,12 +165,13 @@ class NativeViewer(viewer_protocol.Viewer):
       # Destroy the C++ viewer *before* closing the endpoint so that the
       # FilamentRenderer destructor runs on the daemon/viewer thread, even if
       # an ExitEvent handler raised.
-      self._viewer = None  # Release the C++ Viewer pybind11 prevent object.
+      self._viewer = None
+      self._window = None
       super().close()
 
   def get_drop_file(self) -> str:
     """Returns the path of the file dropped into the window, or empty string."""
-    return self._viewer.GetDropFile()
+    return self._window.GetDropFile()
 
   def upload_image(
       self, tex_id: int, img: str | bytes, width: int, height: int, bpp: int
