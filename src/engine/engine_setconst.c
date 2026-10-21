@@ -1885,6 +1885,13 @@ void mj_setConstGroups(mjModel* m, mjData* d, int groups) {
   int enableflags = m->opt.enableflags;
   m->opt.enableflags &= ~mjENBL_SLEEP;
 
+  // the constants do not depend on the contacts of d, which mj_transmission averages for adhesion
+  // actuators: clear them and the constraints, as collision detection does
+  if (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0 | mjSCGROUP_SPRING)) {
+    d->ncon = 0;
+    mj_clearEfc(d);
+  }
+
   // set mocap bodies to their model pose (restored after setSpring)
   int mocap = m->nmocap && (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0 | mjSCGROUP_SPRING));
   mjtNum* mocap_pos = NULL;

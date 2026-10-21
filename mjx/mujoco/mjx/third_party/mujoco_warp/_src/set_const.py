@@ -620,6 +620,12 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
   mocap_pos_saved = wp.clone(d.mocap_pos) if m.nmocap else None
   mocap_quat_saved = wp.clone(d.mocap_quat) if m.nmocap else None
 
+  # the constants do not depend on the contacts of d, which transmission averages for adhesion
+  # actuators: hide them while the constants are computed, as mj_setConst clears them
+  nacon_saved = wp.clone(d.nacon) if m.nacttrnbody else None
+  if m.nacttrnbody:
+    d.nacon.zero_()
+
   wp.launch(_copy_qpos0_to_qpos, dim=(d.nworld, m.nq), inputs=[m.qpos0], outputs=[d.qpos])
   if m.nmocap:
     wp.launch(
@@ -773,6 +779,8 @@ def set_const_0(m: types.Model, d: types.Data, restore: bool = True):
   if m.nmocap:
     wp.copy(d.mocap_pos, mocap_pos_saved)
     wp.copy(d.mocap_quat, mocap_quat_saved)
+  if m.nacttrnbody:
+    wp.copy(d.nacon, nacon_saved)
 
   if restore:
     smooth.kinematics(m, d)

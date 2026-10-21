@@ -1308,6 +1308,36 @@ TEST_F(SetConstTest, SleepingTrees) {
   EXPECT_EQ(m->opt.enableflags, mjENBL_SLEEP);
 }
 
+// The constants do not depend on the contacts of mjData: the moment of an
+// adhesion actuator averages them, and is zero without contacts, as compiled.
+TEST_F(SetConstTest, ContactsInDataIgnored) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body name="box" pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <adhesion body="box" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  mjtNum acc0 = m->actuator_acc0[0];
+  mj_forward(m.get(), d.get());
+  ASSERT_GT(d->ncon, 0);
+
+  mj_setConst(m.get(), d.get());
+  EXPECT_EQ(m->actuator_acc0[0], acc0);
+  EXPECT_EQ(d->ncon, 0);
+}
+
 // What compilation derives once from the conventions of the spec keeps its
 // value: mj_setConst neither recomputes it nor resolves the conventions.
 TEST_F(SetConstTest, CompiledConstants) {
