@@ -5,6 +5,15 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+Significant new features
+^^^^^^^^^^^^^^^^^^^^^^^^
+- Added a :ref:`batch API<siBatch>` in ``mujoco/mjbatch.h``: many simulations of one model stepped on a
+  thread pool of its own, each held as its integration state and loaded into an ``mjData`` for each call, so memory
+  scales with threads and results are bit-identical to a plain loop at any thread count. It supports per-simulation
+  model and option fields or models of the caller's, observations of the state after a step, recorded trajectories,
+  persistent simulations (required for sleep), and arbitrary per-simulation functions. Follows the design of
+  `mjbatch <https://github.com/kevinzakka/mjbatch>`__ by :github:user:`kevinzakka`.
+
 Engine
 ^^^^^^
 - Added bending :ref:`elasticity<flex-elasticity>` for 1D flexes, using a twist-free isotropic discrete elastic rod

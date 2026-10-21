@@ -317,6 +317,8 @@ Next we list the prefixes corresponding to function definitions. Note that funct
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 ``mjs_``
    Functions for :doc:`procedural model editing <modeledit>`, for example :ref:`mjs_addJoint`.
+``mjb_``
+   Functions for :ref:`batched simulation<siBatch>`, declared in ``mujoco/mjbatch.h``, for example :ref:`mjb_step`.
 
 .. toctree::
     :hidden:

@@ -16,6 +16,16 @@
 // Error: C reference not found
 // NOLINTBEGIN
 
+typedef struct mjBatch_ mjBatch;
+typedef struct mjBatchConfig_ {  // parameters of mjb_makeBatch
+  int nthread;                   // threads including the caller's; <= 0: one per logical CPU
+  mjtBool persistent;            // one mjData per simulation instead of one per thread
+} mjBatchConfig;
+typedef struct mjBatchRecord_ {  // mjData field or state recorded by mjb_rollout
+  const char* field;             // mjData field (as for mjb_output), NULL: record a state
+  int spec;                      // mjtState bits of the recorded state
+  void* buf;                     // output (n x nstep x size), of the field's type
+} mjBatchRecord;
 typedef struct mjPreContact_ {     // contact parameters set by narrowphase collision functions
   mjtNum dist;
   mjtNum pos[3];
@@ -3646,6 +3656,34 @@ const char* mjRNDSTRING[mjNRNDFLAG][3] = {
 };
 
 //----------------------------- MJAPI FUNCTIONS --------------------------------
+void mjb_defaultConfig(mjBatchConfig* config);
+mjBatch* mjb_makeBatch(const mjModel* m, int nsim, const mjBatchConfig* config,
+                       char* error, int error_sz);
+void mjb_deleteBatch(mjBatch* b);
+int mjb_nstate(const mjBatch* b);
+mjtNum* mjb_state(mjBatch* b);
+mjtNum* mjb_stateComponent(mjBatch* b, int component, int* size);
+mjWarningStat* mjb_warning(mjBatch* b);
+int mjb_step(mjBatch* b, const int* ids, int nid, int nstep, int stage);
+int mjb_forward(mjBatch* b, const int* ids, int nid, int stage);
+int mjb_reset(mjBatch* b, const int* ids, int nid, const int* key, int stage);
+const int* mjb_status(const mjBatch* b);
+const char* mjb_error(const mjBatch* b, int sim);
+void* mjb_output(mjBatch* b, const char* name, int* size, int* elemsize);
+void* mjb_expand(mjBatch* b, const char* name, int* size, int* elemsize);
+const void* mjb_expanded(mjBatch* b, const char* name, int* size, int* elemsize);
+int mjb_setConst(mjBatch* b, const int* ids, int nid);
+void mjb_setModels(mjBatch* b, const mjModel* const* models);
+int mjb_rollout(mjBatch* b, const int* ids, int nid, int nstep, const mjtNum* control,
+                int control_spec, const mjBatchRecord* record, int nrecord);
+int mjb_apply(mjBatch* b, const int* ids, int nid, mjfBatchFunc func, void* arg,
+              int save);
+void mjb_getModel(mjBatch* b, int sim, mjModel* m);
+void mjb_getData(mjBatch* b, int sim, mjData* d);
+int mjb_nsim(const mjBatch* b);
+int mjb_nthread(const mjBatch* b);
+int mjb_persistent(const mjBatch* b);
+const mjModel* mjb_model(const mjBatch* b);
 void mjrf_defaultContextConfig(mjrfContextConfig* config);
 mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
 void mjrf_destroyContext(mjrfContext* ctx);
