@@ -2645,9 +2645,9 @@ TEST_F(MjGjkTest, BoxBoxMarginShallowMultiCCD) {
   EXPECT_NEAR(dist, -0.05, kTolerance);
   for (int i = 0; i < 4; ++i) {
     EXPECT_NEAR(status.dist[i], -0.05, kTolerance);
-    EXPECT_NEAR(dir[3*i+0], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+1], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+2], -1, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1, kTolerance);
   }
   // clang-format off
   EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 1.025,
@@ -2682,9 +2682,9 @@ TEST_F(MjGjkTest, BoxBoxMarginTouchingMultiCCD) {
   EXPECT_NEAR(dist, -0.1, kTolerance);
   for (int i = 0; i < 4; ++i) {
     EXPECT_NEAR(status.dist[i], -0.1, kTolerance);
-    EXPECT_NEAR(dir[3*i+0], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+1], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+2], -1, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1, kTolerance);
   }
   // clang-format off
   EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 1.0,
@@ -2719,9 +2719,9 @@ TEST_F(MjGjkTest, BoxBoxMarginDeepMultiCCD) {
   EXPECT_NEAR(dist, -0.2, kTolerance);
   for (int i = 0; i < 4; ++i) {
     EXPECT_NEAR(status.dist[i], -0.2, kTolerance);
-    EXPECT_NEAR(dir[3*i+0], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+1], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+2], -1, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1, kTolerance);
   }
   // clang-format off
   EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 0.95,
@@ -2935,10 +2935,10 @@ TEST_F(MjGjkTest, MeshMeshMarginMultiCCD) {
   EXPECT_NEAR(dist, -0.101, kTolerance);
   for (int i = 0; i < 4; ++i) {
     EXPECT_NEAR(status.dist[i], -0.101, kTolerance);
-    EXPECT_NEAR(dir[3*i+0], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+1], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+2], 1, kTolerance);
-    EXPECT_NEAR(pos[3*i+2], -0.0005, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], 1, kTolerance);
+    EXPECT_NEAR(pos[3 * i + 2], -0.0005, kTolerance);
   }
 
   // deep penetration edge-face: distance = -0.01, margin = 0.1 -> depth = -0.11
@@ -2947,10 +2947,10 @@ TEST_F(MjGjkTest, MeshMeshMarginMultiCCD) {
   EXPECT_NEAR(dist, -0.11, kTolerance);
   for (int i = 0; i < 2; ++i) {
     EXPECT_NEAR(status.dist[i], -0.11, kTolerance);
-    EXPECT_NEAR(dir[3*i+0], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+1], 0, kTolerance);
-    EXPECT_NEAR(dir[3*i+2], 1, kTolerance);
-    EXPECT_NEAR(pos[3*i+2], -0.005, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], 1, kTolerance);
+    EXPECT_NEAR(pos[3 * i + 2], -0.005, kTolerance);
   }
 }
 
@@ -2965,9 +2965,9 @@ TEST_F(MjGjkTest, SmallTriangleDistance) {
     triangle.geom_type = mjGEOM_MESH;
     const mjtNum x = 0.03, y = 0.04, z = 0.05;
     const mjtNum a = 1.4, b = 0.2, c = 0.8;
-    mjtNum vertices[3][3] = {{x-h, y-h, z+a*h},
-                            {x+h, y-h, z+b*h},
-                            {x, y+h, z-c*h}};
+    mjtNum vertices[3][3] = {{x - h, y - h, z + a * h},
+                             {x + h, y - h, z + b * h},
+                             {x, y + h, z - c * h}};
     for (int i = 0; i < 3; ++i) {
       mju_copy3(triangle.data.hfield.prism[i], vertices[i]);
     }
@@ -3028,19 +3028,23 @@ TEST_F(MjGjkTest, CapsuleEllipsoidTightTolerance) {
   ASSERT_NE(model, nullptr);
   MjDataPtr data = MakeData(model);
   // Independently minimize point-to-ellipsoid distance along the capsule axis.
-  // The closest axis point is its negative endpoint; subtract the capsule radius.
-  const mjtNum normal[3] = {-0.05579216483193726, 0.7010799568120819, -0.7108967073349933};
+  // The closest axis point is its negative endpoint; subtract the capsule
+  // radius.
+  const mjtNum normal[3] = {-0.05579216483193726, 0.7010799568120819,
+                            -0.7108967073349933};
   for (mjtNum tolerance : {1e-6, 1e-7, 1e-8, 1e-10, 1e-12}) {
     SCOPED_TRACE(tolerance);
     model->opt.ccd_tolerance = tolerance;
     mj_forward(model.get(), data.get());
     ASSERT_EQ(data->ncon, 1);
-    EXPECT_NEAR(data->contact[0].dist, 1.9899367727234385e-5, MjTol(1e-11, 1e-7));
+    EXPECT_NEAR(data->contact[0].dist, 1.9899367727234385e-5,
+                MjTol(1e-11, 1e-7));
     for (int i = 0; i < 3; ++i) {
       EXPECT_NEAR(data->contact[0].frame[i], normal[i], MjTol(1e-4, 1e-3));
     }
 
-    // Check the same geometry at different scales without changing the CCD tolerance.
+    // Check the same geometry at different scales without changing the CCD
+    // tolerance.
     for (mjtNum scale : {0.1, 1.0, 10.0}) {
       SCOPED_TRACE(scale);
       mjCCDObj capsule, ellipsoid;
