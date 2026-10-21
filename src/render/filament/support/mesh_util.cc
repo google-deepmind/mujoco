@@ -464,6 +464,10 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
   mjrfMeshData mesh_data;
   PrepareMeshData(&mesh_config, &mesh_data, num_vertices, num_indices, has_uvs);
 
+  // Faces can share vertices, so the index buffer is sized by the face
+  // count rather than the vertex count.
+  mesh_config.max_indices = 3 * model->skin_facenum[skin_id];
+
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
   if (has_uvs) {
