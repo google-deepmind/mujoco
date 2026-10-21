@@ -27,7 +27,10 @@
 #include "engine/engine_collision_convex.h"
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
+#include "engine/engine_core_constraint.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"  // mj_atomic_add_size_t
+#include "engine/engine_init.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"        // mj_arenaAllocByte, mjSTACKALLOC
 #include "engine/engine_thread.h"        // mju_numThread, mju_dispatch
@@ -1456,27 +1459,62 @@ static inline mjtNum evalGeomPairDist(const mjModel* m, mjCCDObj* obj1, mjCCDObj
 
 // compute effective contact distance so that mj_referenceConstraint arrests (1 - t) of the
 // normal velocity over this step and lands the geom at margin at t = 1
-// TODO(kylebayes): use contact solver parameters from mj_contactParam and refine for mjINT_DISCRETE
 static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin, mjtNum t,
                                  mjtNum closing_dist) {
-  mjtNum dt = m->opt.timestep;
-  mjtNum solref0 = 0.5 * (m->geom_solref[mjNREF * g1 + 0] + m->geom_solref[mjNREF * g2 + 0]);
-  mjtNum solref1 = 0.5 * (m->geom_solref[mjNREF * g1 + 1] + m->geom_solref[mjNREF * g2 + 1]);
-  mjtNum solimp2 = 0.5 * (m->geom_solimp[mjNIMP * g1 + 2] + m->geom_solimp[mjNIMP * g2 + 2]);
-  if (mjENABLED(mjENBL_OVERRIDE)) {
-    solref0 = m->opt.o_solref[0];
-    solref1 = m->opt.o_solref[1];
-    solimp2 = m->opt.o_solimp[2];
+  int condim;
+  mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
+  int ipair = -1;
+  for (int i = 0; i < m->npair; i++) {
+    if ((m->pair_geom1[i] == g1 && m->pair_geom2[i] == g2) ||
+        (m->pair_geom1[i] == g2 && m->pair_geom2[i] == g1)) {
+      ipair = i;
+      break;
+    }
   }
-  solimp2 = mju_max(1e-4, solimp2);
+  if (ipair >= 0) {
+    mju_copy(solref, m->pair_solref + mjNREF * ipair, mjNREF);
+    mju_copy(solimp, m->pair_solimp + mjNIMP * ipair, mjNIMP);
+  } else {
+    mj_contactParam(m, &condim, solref, solimp, friction, &adhesion, g1, g2, -1, -1);
+  }
+  mj_assignRef(m, solref, solref);
+  mj_assignImp(m, solimp, solimp);
+  if ((solref[0] > 0) ^ (solref[1] > 0)) {
+    mj_defaultSolRefImp(solref, NULL);
+  }
 
-  mjtNum delta = mju_max(solimp2, (1.0 - t) * closing_dist);
-  if (m->opt.integrator != mjINT_DISCRETE && solref0 > 0 && dt > 0) {
-    mjtNum tau_ref = mju_max(2.0 * dt, solref0);
-    mjtNum d_ratio = mju_max(mjMINVAL, solref1);
-    mjtNum rem = mju_max(0.0, 1.0 - t - 2.0 * dt / tau_ref);
-    mjtNum spring_delta = d_ratio * d_ratio * (tau_ref * tau_ref / (dt * dt)) * rem * closing_dist;
-    delta = mju_max(delta, spring_delta);
+  mjtNum dt = m->opt.timestep;
+  mjtNum imp = mju_min(mjMAXIMP, mju_max(mjMINIMP, solimp[1]));
+  mjtNum delta = mju_max(1e-4, solimp[2]);
+  if (dt > 0) {
+    mjtNum k0 = 0, b0 = 0;
+    if (solref[0] > 0) {
+      mjtNum tau_ref = (!mjDISABLED(mjDSBL_REFSAFE) && !mj_isMetric(m))
+                       ? mju_max(2.0 * dt, solref[0])
+                       : mju_max(mjMINVAL, solref[0]);
+      mjtNum d_ratio = mju_max(mjMINVAL, solref[1]);
+      k0 = (dt * dt) / mju_max(mjMINVAL, tau_ref * tau_ref * d_ratio * d_ratio);
+      b0 = 2.0 * dt / tau_ref;
+    } else {
+      k0 = -solref[0] * dt * dt;
+      b0 = -solref[1] * dt;
+    }
+
+    if (mj_isMetric(m)) {
+      if (!mjDISABLED(mjDSBL_REFSAFE) && solref[0] > 0 && k0 > imp) {
+        mjtNum excess = k0 / imp;
+        mjtNum fmax = mjMAXIMP * (1.0 - imp) / mju_max(mjMINVAL, imp * (1.0 - mjMAXIMP));
+        k0 = imp;
+        b0 = mju_min(b0 / mju_sqrt(excess), imp * mju_max(0.0, fmax - 2.0));
+      }
+      if (k0 > mjMINVAL) {
+        mjtNum rem = mju_max(0.0, 1.0 - t - t * (b0 + k0));
+        delta = mju_max(delta, (rem / k0) * closing_dist);
+      }
+    } else if (k0 > mjMINVAL) {
+      mjtNum rem = mju_max(0.0, 1.0 - t - b0);
+      delta = mju_max(delta, (rem / k0) * closing_dist);
+    }
   }
   return margin - delta;
 }
