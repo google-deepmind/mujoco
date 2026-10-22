@@ -41,6 +41,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
@@ -480,16 +481,34 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
 @wp.kernel
 def _compute_damping_deriv(
   # Model:
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
   dof_damping: wp.array2d[float],
   dof_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   qvel_in: wp.array2d[float],
   # Out:
   deriv_out: wp.array2d[float],
 ):
   worldid, tid = wp.tid()
-  damping = dof_damping[worldid % dof_damping.shape[0], tid]
-  dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], tid]
+  damping, dpoly = util_misc.dof_damping_total(
+    jnt_actuatorid,
+    dof_jntid,
+    dof_damping,
+    dof_dampingpoly,
+    actuator_trntype,
+    actuator_trnid,
+    actuator_damping,
+    actuator_dampingpoly,
+    actuator_gear,
+    worldid,
+    tid,
+  )
   v = qvel_in[worldid, tid]
   deriv_out[worldid, tid] = util_misc._poly_force_deriv(damping, dpoly, v, 1)
 
@@ -524,7 +543,18 @@ def euler(m: Model, d: Data):
     wp.launch(
       _compute_damping_deriv,
       dim=(d.nworld, m.nv),
-      inputs=[m.dof_damping, m.dof_dampingpoly, d.qvel],
+      inputs=[
+        m.jnt_actuatorid,
+        m.dof_jntid,
+        m.dof_damping,
+        m.dof_dampingpoly,
+        m.actuator_trntype,
+        m.actuator_trnid,
+        m.actuator_damping,
+        m.actuator_dampingpoly,
+        m.actuator_gear,
+        d.qvel,
+      ],
       outputs=[damp_deriv],
     )
 
@@ -849,12 +879,19 @@ def _implicit_free_body(
   body_geomadr: wp.array[int],
   body_mass: wp.array2d[float],
   body_inertia: wp.array2d[wp.vec3],
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
   dof_treeid: wp.array[int],
   dof_damping: wp.array2d[float],
   dof_dampingpoly: wp.array2d[wp.vec2],
   geom_type: wp.array[int],
   geom_size: wp.array2d[wp.vec3],
   geom_fluid: wp.array2d[float],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   M_rownnz: wp.array[int],
   M_rowadr: wp.array[int],
   M_colind: wp.array[int],
@@ -906,10 +943,22 @@ def _implicit_free_body(
 
   # 2. Add joint damping (with damper disable check and polynomial damping)
   if not (opt_disableflags & DisableBit.DAMPER):
+    jntid = dof_jntid[dof_adr]
+    act_damp, act_dpoly = util_misc.actuator_target_damping(
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      ObjType.JOINT,
+      jntid,
+      jnt_actuatorid[jntid],
+    )
     for r in range(6):
       dof = dof_adr + r
-      damp = dof_damping[worldid % dof_damping.shape[0], dof]
-      dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dof]
+      damp = dof_damping[worldid % dof_damping.shape[0], dof] + act_damp
+      dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dof] + act_dpoly
       v = qvel_in[worldid, dof]
       A[r, r] += timestep * util_misc._poly_force_deriv(damp, dpoly, v, 1)
 
@@ -1106,12 +1155,19 @@ def implicit_free_body(m: Model, d: Data, vec_in: wp.array2d[float], vec_out: wp
       m.body_geomadr,
       m.body_mass,
       m.body_inertia,
+      m.jnt_actuatorid,
+      m.dof_jntid,
       m.dof_treeid,
       m.dof_damping,
       m.dof_dampingpoly,
       m.geom_type,
       m.geom_size,
       m.geom_fluid,
+      m.actuator_trntype,
+      m.actuator_trnid,
+      m.actuator_damping,
+      m.actuator_dampingpoly,
+      m.actuator_gear,
       m.M_rownnz,
       m.M_rowadr,
       m.M_colind,

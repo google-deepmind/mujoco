@@ -24,6 +24,8 @@ from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
+from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
 from mujoco.mjx.third_party.mujoco_warp._src.types import WrapType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 
@@ -917,3 +919,206 @@ def poly_potential(linear: float, poly: wp.vec2, x: float, flg_odd: int) -> floa
   res += poly[0] * wp.static(1.0 / 3.0) * x_val3
   res += poly[1] * 0.25 * x_val4
   return res
+
+
+@wp.func
+def _actuator_target(
+  # Model:
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  # In:
+  objtype: int,
+  objid: int,
+  actuatorid: int,
+) -> bool:
+  """Returns whether an actuator's transmission target is a given joint or tendon."""
+  if actuator_trnid[actuatorid][0] != objid:
+    return False
+  trntype = actuator_trntype[actuatorid]
+  if objtype == ObjType.JOINT:
+    return trntype == TrnType.JOINT or trntype == TrnType.JOINTINPARENT
+  return trntype == TrnType.TENDON
+
+
+@wp.func
+def actuator_target_damping(
+  # Model:
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  objtype: int,
+  objid: int,
+  actuatorid: int,
+) -> Tuple[float, wp.vec2]:
+  """Returns actuator damping and high-order damping contributions to a joint or tendon.
+
+  Contributions are scaled by gear^2. actuatorid is jnt_actuatorid or tendon_actuatorid of objid:
+  -1: no actuator, >= 0: single actuator, < -1: scan all actuators.
+  """
+  damping = float(0.0)
+  dpoly = wp.vec2(0.0)
+
+  # single actuator contributes damping
+  if actuatorid >= 0:
+    gear = actuator_gear[worldid % actuator_gear.shape[0], actuatorid][0]
+    damping = actuator_damping[worldid % actuator_damping.shape[0], actuatorid] * gear * gear
+    dpoly = actuator_dampingpoly[worldid % actuator_dampingpoly.shape[0], actuatorid] * gear * gear
+
+  # scan all actuators for contributions
+  elif actuatorid < -1:
+    for k in range(actuator_trntype.shape[0]):
+      if not _actuator_target(actuator_trntype, actuator_trnid, objtype, objid, k):
+        continue
+      gear = actuator_gear[worldid % actuator_gear.shape[0], k][0]
+      damping += actuator_damping[worldid % actuator_damping.shape[0], k] * gear * gear
+      dpoly += actuator_dampingpoly[worldid % actuator_dampingpoly.shape[0], k] * gear * gear
+
+  return damping, dpoly
+
+
+@wp.func
+def actuator_target_armature(
+  # Model:
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_armature: wp.array2d[float],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  objtype: int,
+  objid: int,
+  actuatorid: int,
+) -> float:
+  """Returns actuator armature contribution to a joint or tendon.
+
+  Contributions are scaled by gear^2. actuatorid is jnt_actuatorid or tendon_actuatorid of objid:
+  -1: no actuator, >= 0: single actuator, < -1: scan all actuators.
+  """
+  armature = float(0.0)
+
+  # single actuator contributes armature
+  if actuatorid >= 0:
+    gear = actuator_gear[worldid % actuator_gear.shape[0], actuatorid][0]
+    armature = actuator_armature[worldid % actuator_armature.shape[0], actuatorid] * gear * gear
+
+  # scan all actuators for contributions
+  elif actuatorid < -1:
+    for k in range(actuator_trntype.shape[0]):
+      if not _actuator_target(actuator_trntype, actuator_trnid, objtype, objid, k):
+        continue
+      gear = actuator_gear[worldid % actuator_gear.shape[0], k][0]
+      armature += actuator_armature[worldid % actuator_armature.shape[0], k] * gear * gear
+
+  return armature
+
+
+@wp.func
+def dof_damping_total(
+  # Model:
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
+  dof_damping: wp.array2d[float],
+  dof_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  dofid: int,
+) -> Tuple[float, wp.vec2]:
+  """Returns dof damping and high-order damping, including actuator contributions."""
+  jntid = dof_jntid[dofid]
+  damping, dpoly = actuator_target_damping(
+    actuator_trntype,
+    actuator_trnid,
+    actuator_damping,
+    actuator_dampingpoly,
+    actuator_gear,
+    worldid,
+    ObjType.JOINT,
+    jntid,
+    jnt_actuatorid[jntid],
+  )
+  damping += dof_damping[worldid % dof_damping.shape[0], dofid]
+  dpoly += dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofid]
+  return damping, dpoly
+
+
+@wp.func
+def tendon_damping_total(
+  # Model:
+  tendon_actuatorid: wp.array[int],
+  tendon_damping: wp.array2d[float],
+  tendon_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  tenid: int,
+) -> Tuple[float, wp.vec2]:
+  """Returns tendon damping and high-order damping, including actuator contributions."""
+  damping, dpoly = actuator_target_damping(
+    actuator_trntype,
+    actuator_trnid,
+    actuator_damping,
+    actuator_dampingpoly,
+    actuator_gear,
+    worldid,
+    ObjType.TENDON,
+    tenid,
+    tendon_actuatorid[tenid],
+  )
+  damping += tendon_damping[worldid % tendon_damping.shape[0], tenid]
+  dpoly += tendon_dampingpoly[worldid % tendon_dampingpoly.shape[0], tenid]
+  return damping, dpoly
+
+
+@wp.func
+def dof_armature_total(
+  # Model:
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
+  dof_armature: wp.array2d[float],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_armature: wp.array2d[float],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  dofid: int,
+) -> float:
+  """Returns dof armature, including actuator contributions."""
+  jntid = dof_jntid[dofid]
+  armature = actuator_target_armature(
+    actuator_trntype, actuator_trnid, actuator_armature, actuator_gear, worldid, ObjType.JOINT, jntid, jnt_actuatorid[jntid]
+  )
+  return dof_armature[worldid % dof_armature.shape[0], dofid] + armature
+
+
+@wp.func
+def tendon_armature_total(
+  # Model:
+  tendon_actuatorid: wp.array[int],
+  tendon_armature: wp.array2d[float],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_armature: wp.array2d[float],
+  actuator_gear: wp.array2d[wp.spatial_vector],
+  # In:
+  worldid: int,
+  tenid: int,
+) -> float:
+  """Returns tendon armature, including actuator contributions."""
+  armature = actuator_target_armature(
+    actuator_trntype, actuator_trnid, actuator_armature, actuator_gear, worldid, ObjType.TENDON, tenid, tendon_actuatorid[tenid]
+  )
+  return tendon_armature[worldid % tendon_armature.shape[0], tenid] + armature

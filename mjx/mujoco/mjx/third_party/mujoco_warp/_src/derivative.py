@@ -248,8 +248,15 @@ def _qderiv_actuator_passive(
   # Model:
   opt_timestep: wp.array[float],
   opt_disableflags: int,
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
   dof_damping: wp.array2d[float],
   dof_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   M_elemid: wp.array2d[int],
   # Data in:
   qvel_in: wp.array2d[float],
@@ -274,8 +281,19 @@ def _qderiv_actuator_passive(
   qderiv = qDeriv_in[worldid, madr]
 
   if not (opt_disableflags & DisableBit.DAMPER) and dofiid == dofjid:
-    damping = dof_damping[worldid % dof_damping.shape[0], dofiid]
-    dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofiid]
+    damping, dpoly = util_misc.dof_damping_total(
+      jnt_actuatorid,
+      dof_jntid,
+      dof_damping,
+      dof_dampingpoly,
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      dofiid,
+    )
     v = qvel_in[worldid, dofiid]
     qderiv -= util_misc._poly_force_deriv(damping, dpoly, v, 1)
 
@@ -290,11 +308,17 @@ def _qderiv_tendon_damping(
   # Model:
   ntendon: int,
   opt_timestep: wp.array[float],
+  tendon_actuatorid: wp.array[int],
   ten_J_rownnz: wp.array[int],
   ten_J_rowadr: wp.array[int],
   ten_J_colind: wp.array[int],
   tendon_damping: wp.array2d[float],
   tendon_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   M_elemid: wp.array2d[int],
   # Data in:
   ten_J_in: wp.array2d[float],
@@ -315,10 +339,19 @@ def _qderiv_tendon_damping(
     return
 
   qderiv = float(0.0)
-  tendon_damping_id = worldid % tendon_damping.shape[0]
   for tenid in range(ntendon):
-    damping = tendon_damping[tendon_damping_id, tenid]
-    dpoly = tendon_dampingpoly[worldid % tendon_dampingpoly.shape[0], tenid]
+    damping, dpoly = util_misc.tendon_damping_total(
+      tendon_actuatorid,
+      tendon_damping,
+      tendon_dampingpoly,
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      tenid,
+    )
     if damping == 0.0 and dpoly[0] == 0.0 and dpoly[1] == 0.0:
       continue
 
@@ -1253,8 +1286,15 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
       inputs=[
         m.opt.timestep,
         m.opt.disableflags,
+        m.jnt_actuatorid,
+        m.dof_jntid,
         m.dof_damping,
         m.dof_dampingpoly,
+        m.actuator_trntype,
+        m.actuator_trnid,
+        m.actuator_damping,
+        m.actuator_dampingpoly,
+        m.actuator_gear,
         m.M_elemid,
         d.qvel,
         d.M,
@@ -1275,11 +1315,17 @@ def deriv_smooth_vel(m: Model, d: Data, out: wp.array2d[float]):
       inputs=[
         m.ntendon,
         m.opt.timestep,
+        m.tendon_actuatorid,
         m.ten_J_rownnz,
         m.ten_J_rowadr,
         m.ten_J_colind,
         m.tendon_damping,
         m.tendon_dampingpoly,
+        m.actuator_trntype,
+        m.actuator_trnid,
+        m.actuator_damping,
+        m.actuator_dampingpoly,
+        m.actuator_gear,
         m.M_elemid,
         d.ten_J,
         d.ten_velocity,
@@ -1444,8 +1490,15 @@ def _eff_diag_damp_shift(
   # Model:
   opt_timestep: wp.array[float],
   opt_disableflags: int,
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
   dof_damping: wp.array2d[float],
   dof_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   qvel_in: wp.array2d[float],
   # Data out:
@@ -1457,8 +1510,19 @@ def _eff_diag_damp_shift(
 
   damp_deriv = float(0.0)
   if not (opt_disableflags & DisableBit.DAMPER):
-    damping = dof_damping[worldid % dof_damping.shape[0], dofid]
-    dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofid]
+    damping, dpoly = util_misc.dof_damping_total(
+      jnt_actuatorid,
+      dof_jntid,
+      dof_damping,
+      dof_dampingpoly,
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      dofid,
+    )
     v = qvel_in[worldid, dofid]
     damp_deriv = wp.max(0.0, util_misc._poly_force_deriv(damping, dpoly, v, 1))
 
@@ -1472,6 +1536,7 @@ def _eff_tendon_shift(
   # Model:
   opt_timestep: wp.array[float],
   opt_disableflags: int,
+  tendon_actuatorid: wp.array[int],
   ten_J_rownnz: wp.array[int],
   ten_J_rowadr: wp.array[int],
   ten_J_colind: wp.array[int],
@@ -1480,6 +1545,11 @@ def _eff_tendon_shift(
   tendon_damping: wp.array2d[float],
   tendon_dampingpoly: wp.array2d[wp.vec2],
   tendon_lengthspring: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   ten_J_in: wp.array2d[float],
   ten_length_in: wp.array2d[float],
@@ -1509,8 +1579,18 @@ def _eff_tendon_shift(
 
   b = float(0.0)
   if not (opt_disableflags & DisableBit.DAMPER):
-    damping = tendon_damping[worldid % tendon_damping.shape[0], tenid]
-    dpoly = tendon_dampingpoly[worldid % tendon_dampingpoly.shape[0], tenid]
+    damping, dpoly = util_misc.tendon_damping_total(
+      tendon_actuatorid,
+      tendon_damping,
+      tendon_dampingpoly,
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      tenid,
+    )
     v = ten_velocity_in[worldid, tenid]
     b = wp.max(0.0, util_misc._poly_force_deriv(damping, dpoly, v, 1))
 
@@ -3285,8 +3365,15 @@ def eff_shift(m: Model, d: Data):
     inputs=[
       m.opt.timestep,
       m.opt.disableflags,
+      m.jnt_actuatorid,
+      m.dof_jntid,
       m.dof_damping,
       m.dof_dampingpoly,
+      m.actuator_trntype,
+      m.actuator_trnid,
+      m.actuator_damping,
+      m.actuator_dampingpoly,
+      m.actuator_gear,
       d.qvel,
     ],
     outputs=[d.efm_c, d.efm_diag],
@@ -3298,6 +3385,7 @@ def eff_shift(m: Model, d: Data):
     inputs=[
       m.opt.timestep,
       m.opt.disableflags,
+      m.tendon_actuatorid,
       m.ten_J_rownnz,
       m.ten_J_rowadr,
       m.ten_J_colind,
@@ -3306,6 +3394,11 @@ def eff_shift(m: Model, d: Data):
       m.tendon_damping,
       m.tendon_dampingpoly,
       m.tendon_lengthspring,
+      m.actuator_trntype,
+      m.actuator_trnid,
+      m.actuator_damping,
+      m.actuator_dampingpoly,
+      m.actuator_gear,
       d.ten_J,
       d.ten_length,
       d.ten_velocity,

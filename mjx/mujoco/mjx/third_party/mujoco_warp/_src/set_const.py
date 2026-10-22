@@ -812,6 +812,10 @@ def set_const(m: types.Model, d: types.Data, restore: bool = True):
   body_pos, body_quat                 Unsafe for static bodies (invalidates BVH).
   body_gravcomp                       If changing from 0 to >0 bodies, required.
   dof_armature
+  actuator_armature, actuator_gear    Actuator armature is added to joint and tendon
+                                      armature. Not if changing from/to zero, since
+                                      jnt_actuatorid and tendon_actuatorid are set
+                                      by put_model.
   eq_data                             Connect anchors, marked weld poses.
   geom_size, hfield_size              Bounds of primitive and height field geoms.
   tendon_stiffness, tendon_damping    Only if changing from/to zero.

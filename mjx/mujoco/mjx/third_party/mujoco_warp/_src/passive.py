@@ -29,6 +29,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
 from mujoco.mjx.third_party.mujoco_warp._src.types import mat66
@@ -86,10 +87,16 @@ def _spring_damper_dof_passive(
   jnt_type: wp.array[int],
   jnt_qposadr: wp.array[int],
   jnt_dofadr: wp.array[int],
+  jnt_actuatorid: wp.array[int],
   jnt_stiffness: wp.array2d[float],
   jnt_stiffnesspoly: wp.array2d[wp.vec2],
   dof_damping: wp.array2d[float],
   dof_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   qpos_in: wp.array2d[float],
   qvel_in: wp.array2d[float],
@@ -115,9 +122,20 @@ def _spring_damper_dof_passive(
   else:
     dof_damping_id = worldid % dof_damping.shape[0]
     dof_dampingpoly_id = worldid % dof_dampingpoly.shape[0]
+    act_damping, act_dpoly = util_misc.actuator_target_damping(
+      actuator_trntype,
+      actuator_trnid,
+      actuator_damping,
+      actuator_dampingpoly,
+      actuator_gear,
+      worldid,
+      ObjType.JOINT,
+      jntid,
+      jnt_actuatorid[jntid],
+    )
     for i in range(ndof):
-      damping = dof_damping[dof_damping_id, dofid + i]
-      dpoly = dof_dampingpoly[dof_dampingpoly_id, dofid + i]
+      damping = dof_damping[dof_damping_id, dofid + i] + act_damping
+      dpoly = dof_dampingpoly[dof_dampingpoly_id, dofid + i] + act_dpoly
       if damping != 0.0 or dpoly[0] != 0.0 or dpoly[1] != 0.0:
         v = qvel_in[worldid, dofid + i]
         qfrc_damper_out[worldid, dofid + i] = -v * util_misc._poly_force(damping, dpoly, v, 1)
@@ -195,6 +213,7 @@ def _spring_damper_dof_passive(
 @wp.kernel
 def _spring_damper_tendon_passive(
   # Model:
+  tendon_actuatorid: wp.array[int],
   ten_J_rownnz: wp.array[int],
   ten_J_rowadr: wp.array[int],
   ten_J_colind: wp.array[int],
@@ -203,6 +222,11 @@ def _spring_damper_tendon_passive(
   tendon_damping: wp.array2d[float],
   tendon_dampingpoly: wp.array2d[wp.vec2],
   tendon_lengthspring: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   ten_J_in: wp.array2d[float],
   ten_length_in: wp.array2d[float],
@@ -218,8 +242,18 @@ def _spring_damper_tendon_passive(
 
   stiffness = tendon_stiffness[worldid % tendon_stiffness.shape[0], tenid]
   spoly = tendon_stiffnesspoly[worldid % tendon_stiffnesspoly.shape[0], tenid]
-  damping = tendon_damping[worldid % tendon_damping.shape[0], tenid]
-  dpoly = tendon_dampingpoly[worldid % tendon_dampingpoly.shape[0], tenid]
+  damping, dpoly = util_misc.tendon_damping_total(
+    tendon_actuatorid,
+    tendon_damping,
+    tendon_dampingpoly,
+    actuator_trntype,
+    actuator_trnid,
+    actuator_damping,
+    actuator_dampingpoly,
+    actuator_gear,
+    worldid,
+    tenid,
+  )
 
   has_stiffness = (stiffness != 0.0 or spoly[0] != 0.0 or spoly[1] != 0.0) and not dsbl_spring
   has_damping = (damping != 0.0 or dpoly[0] != 0.0 or dpoly[1] != 0.0) and not dsbl_damper
@@ -3806,10 +3840,16 @@ def passive(m: Model, d: Data):
       m.jnt_type,
       m.jnt_qposadr,
       m.jnt_dofadr,
+      m.jnt_actuatorid,
       m.jnt_stiffness,
       m.jnt_stiffnesspoly,
       m.dof_damping,
       m.dof_dampingpoly,
+      m.actuator_trntype,
+      m.actuator_trnid,
+      m.actuator_damping,
+      m.actuator_dampingpoly,
+      m.actuator_gear,
       d.qpos,
       d.qvel,
     ],
@@ -3821,6 +3861,7 @@ def passive(m: Model, d: Data):
       _spring_damper_tendon_passive,
       dim=(d.nworld, m.ntendon, m.max_ten_J_rownnz),
       inputs=[
+        m.tendon_actuatorid,
         m.ten_J_rownnz,
         m.ten_J_rowadr,
         m.ten_J_colind,
@@ -3829,6 +3870,11 @@ def passive(m: Model, d: Data):
         m.tendon_damping,
         m.tendon_dampingpoly,
         m.tendon_lengthspring,
+        m.actuator_trntype,
+        m.actuator_trnid,
+        m.actuator_damping,
+        m.actuator_dampingpoly,
+        m.actuator_gear,
         d.ten_J,
         d.ten_length,
         d.ten_velocity,

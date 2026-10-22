@@ -188,9 +188,12 @@ class ModelWarp(PyTreeNode):
   M_mulm_madr: np.ndarray
   M_mulm_rowadr: np.ndarray
   M_tiles: Tuple[TileSet, ...]
+  actuator_armature: jax.Array
   actuator_ctrladr: np.ndarray
   actuator_ctrlnum: np.ndarray
   actuator_ctrlspec: np.ndarray
+  actuator_damping: jax.Array
+  actuator_dampingpoly: jax.Array
   actuator_delay: jax.Array
   actuator_history: jax.Array
   actuator_historyadr: jax.Array
@@ -317,6 +320,7 @@ class ModelWarp(PyTreeNode):
   has_tendon_stiffness: bool
   has_unsupported_flex_interp: bool
   is_sparse: bool
+  jnt_actuatorid: np.ndarray
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
   light_bodyid: np.ndarray
@@ -420,6 +424,7 @@ class ModelWarp(PyTreeNode):
   ten_J_rownnz: np.ndarray
   ten_wrapadr_site: np.ndarray
   ten_wrapnum_site: np.ndarray
+  tendon_actuatorid: np.ndarray
   tendon_geom_adr: np.ndarray
   tendon_jnt_adr: np.ndarray
   tendon_limited_adr: np.ndarray
@@ -861,6 +866,7 @@ _NDIM = {
         'actuator_actlimited': 1,
         'actuator_actnum': 1,
         'actuator_actrange': 3,
+        'actuator_armature': 2,
         'actuator_biasprm': 3,
         'actuator_biastype': 1,
         'actuator_cranklength': 2,
@@ -869,6 +875,8 @@ _NDIM = {
         'actuator_ctrlnum': 1,
         'actuator_ctrlrange': 3,
         'actuator_ctrlspec': 1,
+        'actuator_damping': 2,
+        'actuator_dampingpoly': 3,
         'actuator_delay': 2,
         'actuator_dynprm': 3,
         'actuator_dyntype': 1,
@@ -1122,6 +1130,7 @@ _NDIM = {
         'jnt_actfrclimited': 1,
         'jnt_actfrcrange': 3,
         'jnt_actgravcomp': 1,
+        'jnt_actuatorid': 1,
         'jnt_axis': 3,
         'jnt_bodyid': 1,
         'jnt_dofadr': 1,
@@ -1372,6 +1381,7 @@ _NDIM = {
         'ten_wrapnum_site': 1,
         'tendon_actfrclimited': 1,
         'tendon_actfrcrange': 3,
+        'tendon_actuatorid': 1,
         'tendon_adr': 1,
         'tendon_armature': 2,
         'tendon_damping': 2,
@@ -1656,6 +1666,7 @@ _BATCH_DIM = {
         'actuator_actlimited': False,
         'actuator_actnum': False,
         'actuator_actrange': True,
+        'actuator_armature': True,
         'actuator_biasprm': True,
         'actuator_biastype': False,
         'actuator_cranklength': True,
@@ -1664,6 +1675,8 @@ _BATCH_DIM = {
         'actuator_ctrlnum': False,
         'actuator_ctrlrange': True,
         'actuator_ctrlspec': False,
+        'actuator_damping': True,
+        'actuator_dampingpoly': True,
         'actuator_delay': True,
         'actuator_dynprm': True,
         'actuator_dyntype': False,
@@ -1917,6 +1930,7 @@ _BATCH_DIM = {
         'jnt_actfrclimited': False,
         'jnt_actfrcrange': True,
         'jnt_actgravcomp': False,
+        'jnt_actuatorid': False,
         'jnt_axis': True,
         'jnt_bodyid': False,
         'jnt_dofadr': False,
@@ -2167,6 +2181,7 @@ _BATCH_DIM = {
         'ten_wrapnum_site': False,
         'tendon_actfrclimited': False,
         'tendon_actfrcrange': True,
+        'tendon_actuatorid': False,
         'tendon_adr': False,
         'tendon_armature': True,
         'tendon_damping': True,
