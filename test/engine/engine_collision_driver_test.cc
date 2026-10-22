@@ -1255,5 +1255,53 @@ TEST_F(MjCollisionTest, ParallelCapsuleCapsule) {
               MjNear(0.01, 1e-12, 1e-1));
 }
 
+// Parallel capsules where the first one overhangs the second: the closest
+// points come from the second capsule's endpoints, so the distance must not
+// depend on distmax (the collision margin) or on the geom order.
+TEST_F(MjCollisionTest, ParallelCapsuleCapsuleOverhang) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="long" type="capsule" size="0.05 0.3"/>
+      <body>
+        <geom name="short" type="capsule" size="0.08 0.2" pos="0.2 0 0.05"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="long" geom2="short" margin="1"/>
+    </contact>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m.get(), d.get());
+
+  // Surface distance: 0.2 - (0.05 + 0.08) = 0.07 at both ends of short's span
+  // [-0.15, 0.25].
+  ASSERT_EQ(d->ncon, 2);
+  EXPECT_MJTNUM_EQ(d->contact[0].dist, 0.07);
+  EXPECT_MJTNUM_EQ(d->contact[1].dist, 0.07);
+  EXPECT_MJTNUM_EQ(d->contact[0].pos[2], -0.15);
+  EXPECT_MJTNUM_EQ(d->contact[1].pos[2], 0.25);
+
+  int l = mj_name2id(m.get(), mjOBJ_GEOM, "long");
+  int s = mj_name2id(m.get(), mjOBJ_GEOM, "short");
+  for (mjtNum distmax : {0.08, 1.0}) {
+    mjtNum fromto[6];
+    EXPECT_MJTNUM_EQ(mj_geomDistance(m.get(), d.get(), l, s, distmax, fromto),
+                     0.07);
+    EXPECT_MJTNUM_EQ(fromto[2], -0.15);
+    EXPECT_MJTNUM_EQ(fromto[5], -0.15);
+
+    EXPECT_MJTNUM_EQ(mj_geomDistance(m.get(), d.get(), s, l, distmax, fromto),
+                     0.07);
+    EXPECT_MJTNUM_EQ(fromto[2], -0.15);
+    EXPECT_MJTNUM_EQ(fromto[5], -0.15);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
