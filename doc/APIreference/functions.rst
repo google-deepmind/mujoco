@@ -1716,6 +1716,7 @@ Resources
 
 Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.
 These functions provide the means to query the resource provider and obtain resources.
+
 .. _mju_openResource:
 
 `mju_openResource <#mju_openResource>`__

@@ -30,6 +30,11 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
 The following methods provide way to control the capacity of the cache or to disable it altogether.
 
+.. _Resources:
+
+Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.
+These functions provide the means to query the resource provider and obtain resources.
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
@@ -1371,8 +1376,3 @@ types; their nodes are stored in double precision in ``usernode``.
 Types without volume (square, disc, and
 grid, box, cylinder and ellipsoid with ``dim`` < 3) change a ``legacy`` :ref:`inertia<asset-mesh-inertia>` to
 ``shell``.
-
-.. _Resources:
-
-Resources are the interface between :ref:`resource providers <exProvider>` and MuJoCo model compilation code.
-These functions provide the means to query the resource provider and obtain resources.
