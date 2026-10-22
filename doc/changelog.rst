@@ -29,6 +29,8 @@ Engine
     straight.
   - Interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>`) now support
     :ref:`self-collision<flex-contact-selfcollide>`, excluding elements in the same or neighboring cells.
+  - The default arena :ref:`memory<size-memory>` for flex models is now much smaller, sized from the flex mesh
+    topology instead of ``nv^2``. If the Newton solver runs out of arena memory it falls back to CG with a warning.
 - :ref:`mj_setConst` now computes only quantities derived from other fields of :ref:`mjModel`, while the compiler alone
   resolves spec-level conventions:
 

@@ -3211,5 +3211,125 @@ TEST_F(UserFlexTest, InterpolatedElastic2dSwitchValidation) {
   }
 }
 
+TEST_F(UserFlexTest, DefaultArenaSize) {
+  constexpr size_t kMB = 1 << 20;
+
+  // 40x40 2D grid with default contact settings (selfcollide="auto", nv =
+  // 4800): symbolically sized instead of quadratic in nv (< 256 MB instead
+  // of 1.15 GB)
+  static constexpr char kGrid40Xml[] = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .01"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="40 40 1"
+                spacing=".01 .01 .01" pos="0 0 .05" radius=".002" mass="1">
+        <elasticity young="1e3" damping="1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr grid40 = LoadModelFromString(kGrid40Xml, error, sizeof(error));
+  ASSERT_THAT(grid40, NotNull()) << error;
+  EXPECT_LE(grid40->narena, 256 * kMB);
+  {
+    MjDataPtr d(mj_makeData(grid40.get()));
+    for (int step = 0; step < 5; step++) {
+      mj_step(grid40.get(), d.get());
+    }
+    for (int w = 0; w < mjNWARNING; w++) {
+      EXPECT_EQ(d->warning[w].number, 0) << "warning " << w;
+    }
+  }
+
+  // 60x60 2D grid with default contact settings (nv = 10800): fits in < 256 MB
+  // and steps cleanly
+  static constexpr char kGrid60Xml[] = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .01"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="60 60 1"
+                spacing=".01 .01 .01" pos="0 0 .05" radius=".002" mass="1">
+        <elasticity young="1e3" damping="1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr grid60 = LoadModelFromString(kGrid60Xml, error, sizeof(error));
+  ASSERT_THAT(grid60, NotNull()) << error;
+  EXPECT_LE(grid60->narena, 256 * kMB);
+  {
+    MjDataPtr d(mj_makeData(grid60.get()));
+    for (int step = 0; step < 5; step++) {
+      mj_step(grid60.get(), d.get());
+    }
+    for (int w = 0; w < mjNWARNING; w++) {
+      EXPECT_EQ(d->warning[w].number, 0) << "warning " << w;
+    }
+  }
+
+  // 16^3 3D grid (nv = 12288): symbolic Cholesky sizing with 1.5x safety
+  // factor covers 3D fill (< 300 MB instead of 6.7 GB)
+  static constexpr char kGrid3dXml[] = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .01"/>
+      <flexcomp name="cube" type="grid" dim="3" count="16 16 16"
+                spacing=".01 .01 .01" pos="0 0 .1" radius=".002" mass="10">
+        <contact selfcollide="none"/>
+        <elasticity young="1e2" damping="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr grid3d = LoadModelFromString(kGrid3dXml, error, sizeof(error));
+  ASSERT_THAT(grid3d, NotNull()) << error;
+  EXPECT_LE(grid3d->narena, 300 * kMB);
+  {
+    MjDataPtr d(mj_makeData(grid3d.get()));
+    for (int step = 0; step < 5; step++) {
+      mj_step(grid3d.get(), d.get());
+    }
+    for (int w = 0; w < mjNWARNING; w++) {
+      EXPECT_EQ(d->warning[w].number, 0) << "warning " << w;
+    }
+  }
+
+  // two colliding 40x40 grids (nv = 9600): < 256 MB instead of 4.2 GB, steps
+  // cleanly
+  static constexpr char kTwoGrids40Xml[] = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .01"/>
+      <flexcomp name="c1" type="grid" dim="2" count="40 40 1"
+                spacing=".01 .01 .01" pos="0 0 .05" radius=".002" mass="1">
+        <elasticity young="1e3" damping="1"/>
+      </flexcomp>
+      <flexcomp name="c2" type="grid" dim="2" count="40 40 1"
+                spacing=".01 .01 .01" pos="0 0 .08" radius=".002" mass="1">
+        <elasticity young="1e3" damping="1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr two_grids40 =
+      LoadModelFromString(kTwoGrids40Xml, error, sizeof(error));
+  ASSERT_THAT(two_grids40, NotNull()) << error;
+  EXPECT_LE(two_grids40->narena, 256 * kMB);
+  {
+    MjDataPtr d(mj_makeData(two_grids40.get()));
+    for (int step = 0; step < 5; step++) {
+      mj_step(two_grids40.get(), d.get());
+    }
+    for (int w = 0; w < mjNWARNING; w++) {
+      EXPECT_EQ(d->warning[w].number, 0) << "warning " << w;
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

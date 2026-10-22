@@ -6259,6 +6259,234 @@ struct ScopedDisableThreading {
 };
 #endif
 
+// return true if flex f can generate flex-flex contacts (with itself or another flex)
+static bool FlexCollidesWithFlex(const mjModel* m, int f) {
+  if (m->flex_contype[f] == 0 && m->flex_conaffinity[f] == 0) { return false; }
+  if ((m->flex_contype[f] & m->flex_conaffinity[f]) && m->flex_selfcollide[f] != mjFLEXSELF_NONE) {
+    return true;
+  }
+  for (int f2 = 0; f2 < m->nflex; f2++) {
+    if (f2 != f && ((m->flex_contype[f] & m->flex_conaffinity[f2]) ||
+                    (m->flex_contype[f2] & m->flex_conaffinity[f]))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// count DOFs and symbolic Hessian/Cholesky nonzeros of non-rigid flexes
+static void EstimateFlexArena(const mjModel* m,
+                              int            njmax,
+                              std::size_t*   nflexdof_out,
+                              std::size_t*   nflexdof_collide_out,
+                              std::size_t*   nH_out,
+                              std::size_t*   nL_out) {
+  *nflexdof_out         = 0;
+  *nflexdof_collide_out = 0;
+  *nH_out               = 0;
+  *nL_out               = 0;
+  if (!m->nflex || !m->nv) { return; }
+
+  // body_slot[b]: -1 if not a flex body, 0 if isolated flex body, 1 if colliding flex body
+  std::vector<int> body_slot(m->nbody, -1);
+  std::vector<int> body_collide(m->nbody, 0);
+  bool             has_flex     = false;
+  bool             has_isolated = false;
+  for (int f = 0; f < m->nflex; f++) {
+    if (m->flex_rigid[f]) { continue; }
+    has_flex     = true;
+    bool collide = FlexCollidesWithFlex(m, f);
+    if (!collide) { has_isolated = true; }
+    int        num    = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
+    int        adr    = m->flex_interp[f] ? m->flex_nodeadr[f] : m->flex_vertadr[f];
+    const int* bodyid = m->flex_interp[f] ? m->flex_nodebodyid : m->flex_vertbodyid;
+    for (int i = 0; i < num; i++) {
+      int b = m->body_weldid[bodyid[adr + i]];
+      if (b > 0 && m->body_dofnum[b] > 0) {
+        body_slot[b] = 0;
+        if (collide) { body_collide[b] = 1; }
+      }
+    }
+  }
+  if (!has_flex) { return; }
+
+  int              nb               = 0;
+  std::size_t      nflexdof         = 0;
+  std::size_t      nflexdof_collide = 0;
+  std::vector<int> nd;
+  nd.reserve(m->nbody);
+  for (int b = 1; b < m->nbody; b++) {
+    if (body_slot[b] == 0) {
+      body_slot[b] = nb++;
+      nd.push_back(m->body_dofnum[b]);
+      nflexdof += m->body_dofnum[b];
+      if (body_collide[b]) { nflexdof_collide += m->body_dofnum[b]; }
+    }
+  }
+  if (!nb || (!has_isolated && nflexdof <= static_cast<std::size_t>(njmax))) { return; }
+
+  // build upper-triangular weld-body adjacency across all static stencils of non-rigid flexes
+  std::vector<std::vector<int>> upper(nb);
+  auto                          add_clique = [&](const int* slots, int k) {
+    for (int a = 0; a < k; a++) {
+      int sa = slots[a];
+      if (sa < 0) continue;
+      for (int b = a + 1; b < k; b++) {
+        int sb = slots[b];
+        if (sb < 0 || sa == sb) continue;
+        if (sa < sb) {
+          upper[sa].push_back(sb);
+        } else {
+          upper[sb].push_back(sa);
+        }
+      }
+    }
+  };
+
+  for (int f = 0; f < m->nflex; f++) {
+    if (m->flex_rigid[f]) { continue; }
+    if (m->flex_interp[f]) {
+      int  order      = m->flex_interp[f];
+      bool shell_mode = order < 0;
+      order           = order < 0 ? -order : order;
+      int cx          = m->flex_cellnum[3 * f + 0];
+      int cy          = m->flex_cellnum[3 * f + 1];
+      int cz          = m->flex_cellnum[3 * f + 2];
+      int npe = shell_mode ? (order + 1) * (order + 1) : (order + 1) * (order + 1) * (order + 1);
+      int nelem_fe      = shell_mode ? 2 * (cy * cz + cx * cz + cx * cy) : cx * cy * cz;
+      const int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+      int        gindices[125];
+      int        slots[125];
+      for (int fe = 0; fe < nelem_fe; fe++) {
+        if (shell_mode) {
+          mju_flexGatherFaceState(order,
+                                  cx,
+                                  cy,
+                                  cz,
+                                  fe,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  gindices,
+                                  nullptr);
+        } else {
+          int ci = fe / (cy * cz);
+          int cj = (fe / cz) % cy;
+          int ck = fe % cz;
+          mju_flexGatherCellState(order,
+                                  cy,
+                                  cz,
+                                  ci,
+                                  cj,
+                                  ck,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  gindices,
+                                  nullptr);
+        }
+        for (int i = 0; i < npe; i++) { slots[i] = body_slot[m->body_weldid[bodyid[gindices[i]]]]; }
+        add_clique(slots, npe);
+      }
+      continue;
+    }
+
+    int              vadr = m->flex_vertadr[f];
+    int              vnum = m->flex_vertnum[f];
+    std::vector<int> vslot(vnum, -1);
+    for (int v = 0; v < vnum; v++) {
+      vslot[v] = body_slot[m->body_weldid[m->flex_vertbodyid[vadr + v]]];
+    }
+
+    // elements (triangles, tetrahedra, capsules)
+    int dim  = m->flex_dim[f];
+    int eadr = m->flex_elemdataadr[f];
+    for (int e = 0; e < m->flex_elemnum[f]; e++) {
+      const int* elem = m->flex_elem + eadr + e * (dim + 1);
+      int        slots[4];
+      for (int k = 0; k <= dim; k++) { slots[k] = vslot[elem[k]]; }
+      add_clique(slots, dim + 1);
+    }
+
+    // edges and 2D bending flaps
+    int  edgeadr    = m->flex_edgeadr[f];
+    int  edgenum    = m->flex_edgenum[f];
+    bool has_bend2d = (dim == 2 && m->flex_bendingadr[f] >= 0);
+    for (int e = 0; e < edgenum; e++) {
+      int v0       = m->flex_edge[2 * (edgeadr + e) + 0];
+      int v1       = m->flex_edge[2 * (edgeadr + e) + 1];
+      int slots[4] = {vslot[v0], vslot[v1], -1, -1};
+      if (has_bend2d) {
+        int f0 = m->flex_edgeflap[2 * (edgeadr + e) + 0];
+        int f1 = m->flex_edgeflap[2 * (edgeadr + e) + 1];
+        if (f0 >= 0 && f1 >= 0) {
+          slots[2] = vslot[f0];
+          slots[3] = vslot[f1];
+          add_clique(slots, 4);
+          continue;
+        }
+      }
+      add_clique(slots, 2);
+    }
+
+    // 1D rod bending (adjacent edges) or mjEQ_FLEXVERT (vertex 1-ring star)
+    if ((dim == 1 && m->flex_bendingadr[f] >= 0) || m->flex_edgeequality[f] == 2) {
+      std::vector<std::vector<int>> star(vnum);
+      for (int v = 0; v < vnum; v++) { star[v].push_back(vslot[v]); }
+      for (int e = 0; e < edgenum; e++) {
+        int v0 = m->flex_edge[2 * (edgeadr + e) + 0];
+        int v1 = m->flex_edge[2 * (edgeadr + e) + 1];
+        star[v0].push_back(vslot[v1]);
+        star[v1].push_back(vslot[v0]);
+      }
+      for (int v = 0; v < vnum; v++) {
+        add_clique(star[v].data(), static_cast<int>(star[v].size()));
+      }
+    }
+  }
+
+  for (int q = 0; q < nb; q++) {
+    auto& row = upper[q];
+    std::sort(row.begin(), row.end());
+    row.erase(std::unique(row.begin(), row.end()), row.end());
+  }
+
+  // block-level symbolic reverse-Cholesky count on the static flex graph
+  std::vector<int>         parent(nb, -1);
+  std::vector<int>         flag(nb, -1);
+  std::vector<std::size_t> offdiag_dofs(nb, 0);
+  std::size_t              nH = 0;
+  for (int q = nb - 1; q >= 0; q--) {
+    flag[q]         = q;
+    std::size_t dq  = static_cast<std::size_t>(nd[q]);
+    nH             += dq * (dq + 1) / 2;
+    for (int p0 : upper[q]) {
+      nH += dq * static_cast<std::size_t>(nd[p0]);
+      for (int p = p0; p >= 0 && flag[p] != q; p = parent[p]) {
+        if (parent[p] == -1) { parent[p] = q; }
+        flag[p]          = q;
+        offdiag_dofs[p] += dq;
+      }
+    }
+  }
+
+  std::size_t nL = 0;
+  for (int p = 0; p < nb; p++) {
+    std::size_t dp  = static_cast<std::size_t>(nd[p]);
+    nL             += dp * offdiag_dofs[p] + dp * (dp + 1) / 2;
+  }
+
+  *nflexdof_out         = nflexdof;
+  *nflexdof_collide_out = nflexdof_collide;
+  *nH_out               = nH;
+  *nL_out               = nL;
+}
 
 // first stage of compilation: the assets and the kinematic tree; keyframes are added and
 // completed only if asked, which a full compilation does and an operation on the spec does not
@@ -6591,27 +6819,33 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     // memory size is user-specified in bytes
     m->narena = memory;
   } else {
-    const int nconmax = m->nconmax == -1 ? 100 : m->nconmax;
-    const int njmax   = m->njmax == -1 ? 500 : m->njmax;
-    if (nstack != -1) {
+    const int   nconmax  = m->nconmax == -1 ? 100 : m->nconmax;
+    const int   njmax    = m->njmax == -1 ? 500 : m->njmax;
+    std::size_t nflexdof = 0, nflexdof_collide = 0, nH_flex = 0, nL_flex = 0;
+    if (nstack == -1) {
+      // use a conservative heuristic if neither memory nor nstack is specified in XML; in sparse
+      // mode, size non-rigid flexes symbolically via their static Hessian and Cholesky factor
+      // instead of including their DOFs in the dense quadratic term (MakeHessian falls back to CG
+      // if runtime contact fill-in exhausts the arena)
+      if (mj_isSparse(m)) {
+        EstimateFlexArena(m, njmax, &nflexdof, &nflexdof_collide, &nH_flex, &nL_flex);
+      }
+      const std::size_t ndense  = njmax + m->neq + m->nv - nflexdof;
+      const std::size_t nlinear = m->nq +
+                                  m->nv +
+                                  m->nu +
+                                  m->na +
+                                  m->nbody +
+                                  m->njnt +
+                                  m->ngeom +
+                                  m->nsite +
+                                  m->neq +
+                                  m->ntendon +
+                                  m->nwrap;
+      m->narena                 = sizeof(mjtNum) * mjMAX(1000, 5 * ndense * ndense + 20 * nlinear);
+    } else {
       // (legacy) stack size is user-specified as multiple of sizeof(mjtNum)
       m->narena = sizeof(mjtNum) * nstack;
-    } else {
-      // use a conservative heuristic if neither memory nor nstack is specified in XML
-      m->narena = sizeof(mjtNum) *
-                  static_cast<size_t>(mjMAX(
-                      1000,
-                      5 * (njmax + m->neq + m->nv) * (njmax + m->neq + m->nv) + 20 * (m->nq +
-                                                                                      m->nv +
-                                                                                      m->nu +
-                                                                                      m->na +
-                                                                                      m->nbody +
-                                                                                      m->njnt +
-                                                                                      m->ngeom +
-                                                                                      m->nsite +
-                                                                                      m->neq +
-                                                                                      m->ntendon +
-                                                                                      m->nwrap)));
     }
 
     // add an arena space equal to memory footprint prior to the introduction of the arena
@@ -6621,6 +6855,31 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                                       njmax * m->nv * (2 * sizeof(int) + 2 * sizeof(mjtNum)) +
                                       njmax * njmax * (sizeof(int) + sizeof(mjtNum)));
     m->narena                     += arena_bytes;
+
+    // if symbolic Hessian + Cholesky factor of flexes exceeds the linear njmax*nflexdof allocation
+    // already included in arena_bytes, add the excess (e.g. 3D grids with higher fill), plus a
+    // bounded allowance for two-sided contact Jacobians/fill on colliding flexes
+    if (nflexdof) {
+      const std::size_t njmax_flex_bytes =
+          static_cast<std::size_t>(njmax) * nflexdof * (2 * sizeof(int) + 2 * sizeof(mjtNum));
+      const std::size_t nL_num            = (m->opt.cone == mjCONE_ELLIPTIC) ? 2 : 1;
+      const std::size_t flex_solver_bytes = nH_flex * (6 * sizeof(int) + 5 * sizeof(mjtNum)) +
+                                            nL_flex * (3 * sizeof(int) + nL_num * sizeof(mjtNum));
+      // 1.5x safety factor on static symbolic Hessian + Cholesky factor bytes
+      if (flex_solver_bytes > njmax_flex_bytes) {
+        m->narena += flex_solver_bytes - njmax_flex_bytes;
+      }
+      m->narena += flex_solver_bytes / 2;
+      if (nflexdof_collide) {
+        // cap contact fill-in allowance at 64 MB so large colliding flexes do not allocate
+        // hundreds of megabytes by default (heavier fill-in falls back to CG)
+        constexpr std::size_t kMaxCollideBytes  = 64 << 20;
+        const std::size_t     collide_bytes     = static_cast<std::size_t>(njmax) *
+                                                  nflexdof_collide *
+                                                  (2 * sizeof(int) + 2 * sizeof(mjtNum));
+        m->narena                              += std::min(collide_bytes, kMaxCollideBytes);
+      }
+    }
 
     // round up to the nearest megabyte
     constexpr std::size_t kMegabyte   = 1 << 20;

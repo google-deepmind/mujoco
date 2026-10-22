@@ -810,5 +810,80 @@ TEST_F(SolverTest, NewtonHessianSurvivesLostPivot) {
   }
 }
 
+// When the arena has enough room for PrimalAllocate and CG but not for Newton's
+// sparse Hessian/Cholesky factor, MakeHessian warns (mjWARN_CNSTRFULL) and
+// mj_solPrimal falls back to CG instead of aborting in mj_stackAlloc.
+TEST_F(SolverTest, NewtonFallsBackToCGOnArenaExhaustion) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" solver="Newton"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .01"/>
+      <flexcomp name="cloth" type="grid" dim="2" count="20 20 1"
+                spacing=".01 .01 .01" pos="0 0 .001" radius=".002" mass="1">
+        <contact selfcollide="none"/>
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  // first run with ample arena to measure full Newton vs CG arena usage
+  MjDataPtr data_full = MakeData(model);
+  mj_step(model.get(), data_full.get());
+  ASSERT_EQ(data_full->warning[mjWARN_CNSTRFULL].number, 0);
+
+  model->opt.solver = mjSOL_CG;
+  MjDataPtr data_cg = MakeData(model);
+  mj_step(model.get(), data_cg.get());
+  ASSERT_LT(data_cg->maxuse_arena, data_full->maxuse_arena);
+
+  // set narena large enough for PrimalAllocate + CG, but too small for Newton's
+  // L factor
+  model->opt.solver = mjSOL_NEWTON;
+  model->narena = (data_cg->maxuse_arena + data_full->maxuse_arena) / 2;
+  MjDataPtr data_tight = MakeData(model);
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+  mj_step(model.get(), data_tight.get());
+  EXPECT_GT(data_tight->warning[mjWARN_CNSTRFULL].number, 0);
+  EXPECT_EQ(data_tight->warning[mjWARN_BADQACC].number, 0);
+
+  // also test dense Newton with discrete flex metric (flg_metric && !is_sparse)
+  static constexpr char xml_dense[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="Newton" jacobian="dense">
+      <flag island="disable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="2 2 .01"/>
+      <flexcomp name="rod" type="grid" dim="1" count="12 1 1"
+                spacing=".02 .02 .02" pos="0 0 .001" radius=".005" mass="1">
+        <contact selfcollide="none"/>
+        <elasticity young="1e3" damping="1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model_dense = LoadModelFromString(xml_dense, error, sizeof(error));
+  ASSERT_THAT(model_dense.get(), NotNull()) << error;
+
+  MjDataPtr dense_full = MakeData(model_dense);
+  mj_step(model_dense.get(), dense_full.get());
+  ASSERT_EQ(dense_full->warning[mjWARN_CNSTRFULL].number, 0);
+
+  // set narena just above dense_full->maxuse_arena so PrimalAllocate + cg_buf
+  // fit, but MakeHessian's loop_bytes reserve check fails and falls back to CG
+  model_dense->narena = dense_full->maxuse_arena + 1024;
+  MjDataPtr dense_tight = MakeData(model_dense);
+  mock_warning_handler.ExpectWarnings("Insufficient arena memory");
+  mj_step(model_dense.get(), dense_tight.get());
+  EXPECT_GT(dense_tight->warning[mjWARN_CNSTRFULL].number, 0);
+  EXPECT_EQ(dense_tight->warning[mjWARN_BADQACC].number, 0);
+}
+
 }  // namespace
 }  // namespace mujoco

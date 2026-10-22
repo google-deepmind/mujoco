@@ -1165,7 +1165,9 @@ compilation.
    This attribute specifies the size of memory allocated for dynamic arrays in the ``mjData.arena`` memory space, in
    bytes. The default setting of ``-1`` instructs the compiler to guess how much space to allocate. Appending the digits
    with one of the letters {K, M, G, T, P, E} sets the unit to be {kilo, mega, giga, tera, peta, exa}-byte,
-   respectively. Thus "16M" means "allocate 16 megabytes of ``arena`` memory".
+   respectively. Thus "16M" means "allocate 16 megabytes of ``arena`` memory". If the Newton solver runs out of
+   ``arena`` memory while building its Hessian or Cholesky factor (for example under heavy flex contact fill-in), it
+   raises ``mjWARN_CNSTRFULL`` and falls back to CG for that step; increase ``memory`` if this warning persists.
    See the :ref:`Memory allocation <CSize>` section for details.
 
 .. _size-njmax:

@@ -1614,7 +1614,7 @@ There are two types of dynamic arrays allocated in the ``arena`` memory space.
 By allocating dynamic quantities from both sides of the ``arena`` space, variable-sized memory allocation is controlled
 by a single number: the :at:`memory` attribute of the :ref:`size <size>` MJCF element. Unlike the fixed-size arrays in
 the ``buffer``, variable-sized arrays in the arena can be ``NULL``, for example after a call to :ref:`mj_resetData`.
-When ``arena`` memory runs out, one of three things will happen, depending on the type of memory requested:
+When ``arena`` memory runs out, one of four things will happen, depending on the type of memory requested:
 
 - If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
   this step, but simulation continues as usual.
@@ -1622,12 +1622,19 @@ When ``arena`` memory runs out, one of three things will happen, depending on th
   disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
   generally be very different, but allowing the simulation to continue can still be useful, e.g. during
   scene initialization when many bodies are temporarily overlapping.
+- If memory runs out while the Newton solver is constructing or refactoring its Hessian/Cholesky factor (for example,
+  under heavy contact fill-in on a deformable ``flex``), ``mjWARN_CNSTRFULL`` will be raised and the solver will fall
+  back to CG (or to incremental rank-1 cone updates) for that step. If this warning fires repeatedly, each step still
+  incurs symbolic Hessian counting before falling back, so :at:`memory` should be increased.
 - If memory runs out during stack array allocation, a hard error will occur.
 
 Unlike the size of the ``buffer``, the size of the ``arena`` cannot be pre-computed, since the number of contacts and
-stack usage is not known in advance. So how should one choose it? The following simple heuristic is currently used,
-though it may be improved in the future: enough memory is allocated for 100 contacts and 500 scalar constraints, under
-worst-case conditions. If this heuristic is insufficient, we recommend the following procedure. Increase the ``arena``
+stack usage is not known in advance. So how should one choose it? The following heuristic is currently used: for rigid
+degrees of freedom, enough memory is allocated for 100 contacts and 500 scalar constraints under worst-case dense
+conditions; for deformable ``flex`` degrees of freedom, the sparse Newton Hessian and Cholesky factor are estimated
+from a symbolic reverse-Cholesky count on the static flex mesh topology (with a 1.5x safety margin) plus a bounded
+allowance for colliding flex contacts. If this heuristic is insufficient, we recommend the following procedure. Increase
+the ``arena``
 memory significantly using the :at:`memory` attribute, and inspect the actual memory used at runtime.
 ``mjData.maxuse_arena`` keeps track of the maximum ``arena`` memory utilization since the last reset. The :ref:`simulate
 <saSimulate>` viewer shows this number as a fraction of the total arena space (in the info window in the lower-left

@@ -2427,10 +2427,36 @@ static void MakeMetricLower(mjData* d, mjPrimalContext* ctx) {
 }
 
 
-// allocate and compute Hessian given efc_state
+// scratch stack bytes needed by mju_sqrMatTDSparseSymbolic + Numeric
+static size_t primalSqrScratchBytes(int nv, int nefc) {
+  size_t sym_bytes = mj_stackFrameBytes() +
+                     2 * mj_stackBytes((size_t)nv * sizeof(int), _Alignof(int)) +
+                     mj_stackBytes((size_t)nefc * sizeof(int), _Alignof(int));
+  size_t num_bytes = mj_stackFrameBytes() +
+                     mj_stackBytes(8 * (size_t)nv * sizeof(mjtNum), _Alignof(mjtNum));
+  return mjMAX(sym_bytes, num_bytes);
+}
+
+
+// per-iteration scratch stack bytes needed by the primal solver main loop
+static size_t primalLoopScratchBytes(const mjPrimalContext* ctx, const mjData* d) {
+  size_t sqr_bytes = ctx->is_sparse ? primalSqrScratchBytes(ctx->nv, ctx->nefc) : 0;
+  size_t mul_bytes = ctx->flg_metric ? mj_effMulAddScratch(ctx->fm, d) : 0;
+  size_t prec_bytes =
+      ctx->flg_metric ? mj_effFoldScratch(ctx->fm, d, ctx->ep ? ctx->ep->nu : 0) : 0;
+  return mjMAX(sqr_bytes, mjMAX(mul_bytes, prec_bytes));
+}
+
+
+// allocate and compute Hessian given efc_state; return 1 on success, 0 if arena is exhausted
 //  mj_{mark/free}Stack in caller function!
-static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
+static int MakeHessian(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
+
+  // per-iteration scratch needed by the solver main loop after MakeHessian returns
+  size_t cg_bytes =
+      ctx->LTJ ? 0 : mj_stackBytes(2 * (size_t)nv * sizeof(mjtNum), _Alignof(mjtNum));
+  size_t loop_bytes = primalLoopScratchBytes(ctx, d);
 
   // compute constraint inertia
   for (int i=0; i < nefc; i++) {
@@ -2440,11 +2466,25 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
   // discrete metric: build the lower-triangle view of S for merging into H
   ctx->nS = 0;
   if (ctx->flg_metric) {
+    int tcap = ctx->S_tcap > 0 ? ctx->S_tcap : 1;
+    size_t metric_bytes =
+        mj_stackFrameBytes() +
+        mj_stackBytes((2 * (size_t)nv + (size_t)tcap) * sizeof(int), _Alignof(int)) +
+        mj_stackBytes((size_t)tcap * sizeof(mjtNum), _Alignof(mjtNum));
+    if (mj_stackBytesAvailable(d) < mjMAX(metric_bytes, cg_bytes + loop_bytes)) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      return 0;
+    }
     MakeMetricLower(d, ctx);
   }
 
   // sparse
   if (ctx->is_sparse) {
+    if (mj_stackBytesAvailable(d) < cg_bytes + loop_bytes) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      return 0;
+    }
+
     // count Hessian nonzeros, initialize rowadr, rownnz
     ctx->nH = mju_sqrMatTDSparseSymbolic(
         ctx->H_rownnz, ctx->H_rowadr, NULL, NULL,
@@ -2456,6 +2496,17 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
 
     // add discrete-metric nonzeros
     ctx->nH += ctx->nS;
+
+    // check stack space for H, H_colind, HT_colind plus symbolic Cholesky counting scratch
+    size_t H_bytes =
+        mj_stackBytes((size_t)ctx->nH * sizeof(mjtNum), _Alignof(mjtNum)) +
+        mj_stackBytes(2 * (size_t)ctx->nH * sizeof(int), _Alignof(int));
+    size_t chol_count_bytes =
+        mj_stackFrameBytes() + 2 * mj_stackBytes((size_t)nv * sizeof(int), _Alignof(int));
+    if (mj_stackBytesAvailable(d) < H_bytes + cg_bytes + mjMAX(chol_count_bytes, loop_bytes)) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      return 0;
+    }
 
     // nH is known: allocate H, H_colind, HT_colind
     ctx->H          = mjSTACKALLOC(d, ctx->nH, mjtNum);
@@ -2503,9 +2554,19 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
                                      ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
                                      nv, d);
 
-    // nL is known: allocate blocks and carve L_colind, LT_colind, LT_map, L, Lcone
-    size_t nL_int = 3*ctx->nL + (ctx->is_elliptic ? nv : 0);  // L_colind + LT_colind + LT_map + pathcost
-    size_t nL_num = ctx->is_elliptic ? 2*ctx->nL : ctx->nL;   // L + Lcone
+    // nL is known: check stack space, then allocate L_colind, LT_colind, LT_map, L, Lcone
+    // L_colind + LT_colind + LT_map + pathcost
+    size_t nL_int = 3*(size_t)ctx->nL + (ctx->is_elliptic ? (size_t)nv : 0);
+    size_t nL_num = ctx->is_elliptic ? 2*(size_t)ctx->nL : (size_t)ctx->nL;  // L + Lcone
+    size_t L_bytes =
+        mj_stackBytes(nL_int * sizeof(int), _Alignof(int)) +
+        mj_stackBytes(nL_num * sizeof(mjtNum), _Alignof(mjtNum));
+    size_t chol_fill_bytes =
+        mj_stackFrameBytes() + 4 * mj_stackBytes((size_t)nv * sizeof(int), _Alignof(int));
+    if (mj_stackBytesAvailable(d) < L_bytes + mjMAX(chol_fill_bytes, loop_bytes)) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      return 0;
+    }
     int* L_intblock    = mjSTACKALLOC(d, nL_int, int);
     mjtNum* L_numblock = mjSTACKALLOC(d, nL_num, mjtNum);
     ctx->L_colind      = L_intblock;
@@ -2551,11 +2612,14 @@ static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
                          /*flg_upper=*/ 0);
     }
   }
+
+  return 1;
 }
 
 
-// forward declaration of HessianCone (for readability)
+// forward declarations (for readability)
 static void HessianCone(mjData* d, mjPrimalContext* ctx);
+static void HessianConeUpdate(mjData* d, mjPrimalContext* ctx);
 
 // factorize Hessian: L = chol(H), maybe (re)compute H given efc_state
 static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute) {
@@ -2641,6 +2705,19 @@ static void HessianConeFolded(mjData* d, mjPrimalContext* ctx) {
 
   // allocate on the first fold of this solve and reuse for the rest of it
   if (!ctx->Jmod) {
+    size_t fold_bytes =
+        2 * mj_stackBytes((size_t)ctx->nJ * sizeof(mjtNum), _Alignof(mjtNum)) +
+        mj_stackBytes((size_t)nefc * sizeof(mjtNum), _Alignof(mjtNum)) +
+        mj_stackBytes((size_t)ctx->nH * sizeof(mjtNum), _Alignof(mjtNum)) +
+        2 * mj_stackBytes((size_t)nv * sizeof(int), _Alignof(int)) +
+        mj_stackBytes((size_t)ctx->nJ * sizeof(int), _Alignof(int));
+    size_t loop_bytes = primalLoopScratchBytes(ctx, d);
+    if (mj_stackBytesAvailable(d) < fold_bytes + loop_bytes) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      ctx->cone_fold = 0;
+      HessianConeUpdate(d, ctx);
+      return;
+    }
     ctx->Jmod         = mjSTACKALLOC(d, ctx->nJ, mjtNum);
     ctx->JTmod        = mjSTACKALLOC(d, ctx->nJ, mjtNum);
     ctx->Dmod         = mjSTACKALLOC(d, nefc, mjtNum);
@@ -2964,14 +3041,29 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
 
   // Newton: compute and factorize Hessian, Mgrad = H \ grad
   if (!flg_done && flg_Newton) {
-    MakeHessian(d, &ctx);
-    FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
-    PrimalUpdateMgrad(&ctx, /*flg_Newton=*/1);
+    if (MakeHessian(d, &ctx)) {
+      FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
+      PrimalUpdateMgrad(&ctx, /*flg_Newton=*/1);
 
-    // Newton decrement already below tolerance: converged, skip the first line search
-    // (gradient-gated like the certificate: H^-1 suppresses stiff-direction force errors)
-    flg_done = flg_gradient &&
-               mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+      // Newton decrement already below tolerance: converged, skip the first line search
+      // (gradient-gated like the certificate: H^-1 suppresses stiff-direction force errors)
+      flg_done = flg_gradient &&
+                 mju_max(0, 0.5*scale*mju_dot(ctx.grad, ctx.Mgrad, nv)) < m->opt.tolerance;
+    } else {
+      // arena exhausted during Hessian/Cholesky setup: fall back to CG
+      flg_Newton = 0;
+      flg_done = flg_gap;
+      if (!flg_done) {
+        // PrimalAllocate unconditionally carves cholupd[nv], cholscratch[nv] (sparse) /
+        // L[nv*nv] (dense), and LTJ[6*nv] (elliptic) when flg_Newton is set; reuse them
+        // for the 4 CG vectors now that Newton is disabled
+        ctx.gradold  = ctx.cholupd;
+        ctx.Mgradold = ctx.is_sparse ? ctx.cholscratch : ctx.L;
+        mjtNum* cg_buf = ctx.LTJ ? ctx.LTJ : mjSTACKALLOC(d, 2*nv, mjtNum);
+        ctx.graddif  = cg_buf;
+        ctx.Mgraddif = cg_buf + nv;
+      }
+    }
   } else if (!flg_done && ctx.ep && ctx.ep->F) {
     ctx.ep->factor = mj_effCholFoldFactor(m, d, ctx.ep, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J,
                                           ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind);
