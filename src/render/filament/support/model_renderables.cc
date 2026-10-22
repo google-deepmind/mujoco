@@ -847,10 +847,10 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
     material.metallic = model->mat_metallic[matid];
     material.roughness = model->mat_roughness[matid];
 
-    const float* rgba = model->mat_rgba + 4 * matid;
-    if (rgba[0] != 0.5f || rgba[1] != 0.5f || rgba[2] != 0.5f ||
-        rgba[3] != 1.0f) {
-      xtof(material.color, rgba, 4);
+    if (rgba[0] == 0.5f && rgba[1] == 0.5f && rgba[2] == 0.5f &&
+        rgba[3] == 1.0f) {
+      const float* mat_rgba = model->mat_rgba + 4 * matid;
+      xtof(material.color, mat_rgba, 4);
     }
   } else {
     material.emissive = 0;

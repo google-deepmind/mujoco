@@ -179,6 +179,8 @@ Bug fixes
   causing minification aliasing, and where sRGB textures were unconditionally excluded from mipmapping.
 - Fixed a bug in the Filament renderer where skins that share vertices across faces failed with an index count mismatch
   (:issue:`3719`).
+- Fixed a bug in the Filament renderer where material colors overwrote custom object colors incorrectly. Material colors
+  now only take effect when the object has the default color.
 
 Models
 ^^^^^^
