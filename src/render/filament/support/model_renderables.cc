@@ -839,6 +839,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
     material.metallic_texture = get_texture(mjTEXROLE_METALLIC);
     material.roughness_texture = get_texture(mjTEXROLE_ROUGHNESS);
     material.occlusion_texture = get_texture(mjTEXROLE_OCCLUSION);
+    material.opacity_texture = get_texture(mjTEXROLE_OPACITY);
 
     material.emissive = model->mat_emission[matid];
     material.specular = model->mat_specular[matid];
