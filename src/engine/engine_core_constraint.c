@@ -917,8 +917,11 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       flex_vertnum = m->flex_vertnum[id[0]];
       for (int v=flex_vertadr; v < flex_vertadr+flex_vertnum; v++) {
         for (int j=0; j < 2; j++) {
-          cpos[0] = d->flexvert_length[2*v+j];
           int row = 2*v+j;
+          if (!m->flexvert_J_rownnz[row]) {
+            continue;
+          }
+          cpos[0] = d->flexvert_length[row];
           if (issparse) {
             mj_addConstraint(m, d, d->flexvert_J + m->flexvert_J_rowadr[row],
                              cpos, 0, 0, 1, mjCNSTR_EQUALITY, i,
@@ -1675,14 +1678,41 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
         break;
 
       case mjEQ_FLEXVERT:
-        // process all vertices for this flex
+        // process all non-rigid vertices for this flex
         f = m->eq_obj1id[id];
         int vertadr = m->flex_vertadr[f];
         int vertnum = m->flex_vertnum[f];
         for (int v=vertadr; v<vertadr+vertnum; v++) {
+          if (!m->flexvert_J_rownnz[2*v+0] && !m->flexvert_J_rownnz[2*v+1]) {
+            continue;
+          }
           int bodyid = m->flex_vertbodyid[v];
-          dA[i++] = m->body_invweight0[2*bodyid];
-          dA[i++] = m->body_invweight0[2*bodyid];
+          mjtNum invweight = m->body_invweight0[2*bodyid];
+          if (invweight == 0) {
+            int nedge = m->flex_vertedgenum[v];
+            int edgeadr = m->flex_vertedgeadr[v];
+            int ebase = m->flex_edgeadr[f];
+            int n = 0;
+            for (int k=0; k<nedge; k++) {
+              int e = m->flex_vertedge[edgeadr+k];
+              int v1 = m->flex_edge[2*(ebase+e)];
+              int v2 = m->flex_edge[2*(ebase+e)+1];
+              int nb = m->flex_vertbodyid[vertadr + (v == vertadr+v1 ? v2 : v1)];
+              if (m->body_invweight0[2*nb] > 0) {
+                invweight += m->body_invweight0[2*nb];
+                n++;
+              }
+            }
+            if (n > 0) {
+              invweight /= n;
+            }
+          }
+          if (m->flexvert_J_rownnz[2*v+0]) {
+            dA[i++] = invweight;
+          }
+          if (m->flexvert_J_rownnz[2*v+1]) {
+            dA[i++] = invweight;
+          }
         }
 
         // adjust constraint counter
@@ -2257,7 +2287,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   int nv = m->nv, neq = m->neq;
   int id[2], size, NV, NV2, *chain = NULL, *chain2 = NULL;
   int issparse = (nnz != NULL);
-  int flex_edgeadr, flex_edgenum, flex_vertadr, flex_vertnum;
+  int flex_edgeadr, flex_edgenum;
 
   // disabled or no equality constraints: return
   if (mjDISABLED(mjDSBL_EQUALITY) || m->nemax == 0) {
@@ -2390,15 +2420,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
       break;
 
     case mjEQ_FLEXVERT:
-      flex_vertadr = m->flex_vertadr[id[0]];
-      flex_vertnum = m->flex_vertnum[id[0]];
-      size = 2 * flex_vertnum;
-      if (nnz) {
-        for (int v=flex_vertadr; v < flex_vertadr+flex_vertnum; v++) {
-          NV += m->flexvert_J_rownnz[2*v+0];
-          NV += m->flexvert_J_rownnz[2*v+1];
-        }
-      }
+      size = mj_flexvertRows(m, id[0], nnz ? &NV : NULL);
       break;
 
     case mjEQ_FLEXSTRAIN: {

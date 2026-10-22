@@ -979,6 +979,7 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
       }
 
       // precompute metric (Binv)
+      mjtNum mean_mass = mj_flexMeanVertMass(m, f);
       for (int v = 0; v < nvert; ++v) {
         mjtNum B[4] = {0};
         int v_global = vbase + v;
@@ -1002,14 +1003,9 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
             mjERROR("flex vertices are not in the same plane");
           }
 
-          // get mass of neighbor vertex
-          mjtNum weight = 1.0;
+          // get mass weight of neighbor vertex
           int neighbor_v = (v == v1) ? v2 : v1;
-          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
-          if (b_neighbor >= 0) {
-            weight = m->body_mass[b_neighbor];
-            if (weight < mjMINVAL) weight = mjMINVAL;
-          }
+          mjtNum weight = mj_flexvertWeight(m, vbase + neighbor_v, mean_mass);
 
           // accumulate B += w * dx * dx'
           for (int row = 0; row < 2; row++) {

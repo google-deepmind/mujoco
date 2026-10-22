@@ -773,6 +773,7 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
       // temporary buffer for Jacobian accumulation
       mjtNum* J_local = mjSTACKALLOC(d, nv, mjtNum);
 
+      mjtNum mean_mass = mj_flexMeanVertMass(m, f);
       for (int v = 0; v < nvert; v++) {
         mjtNum A[6] = {0};
         int vadr = vbase + v;
@@ -795,14 +796,9 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
           mjtNum dy[3];
           mju_sub3(dy, d->flexvert_xpos + 3 * (vbase + v2), d->flexvert_xpos + 3 * (vbase + v1));
 
-          // get mass of neighbor vertex
-          mjtNum weight = 1.0;
+          // get mass weight of neighbor vertex
           int neighbor_v = (v == v1) ? v2 : v1;
-          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
-          if (b_neighbor >= 0) {
-            weight = m->body_mass[b_neighbor];
-            if (weight < mjMINVAL) weight = mjMINVAL;
-          }
+          mjtNum weight = mj_flexvertWeight(m, vbase + neighbor_v, mean_mass);
 
           // accumulate A += w * dy * dx'
           A[0] += weight * dy[0] * dx[0];
@@ -825,14 +821,7 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
 
         // mass scaling: scale constraint by sqrt(mass) to improve condition number
         // note: departure from original algorithm in Chen, Kry, and Vouga 2019
-        mjtNum scale = 1.0;
-        int b = m->flex_vertbodyid[vadr];
-        if (b >= 0) {
-          mjtNum mass = m->body_mass[b];
-          if (mass > mjMINVAL) {
-            scale = mju_sqrt(mass);
-          }
-        }
+        mjtNum scale = mju_sqrt(mj_flexvertWeight(m, vadr, mean_mass));
 
         // compute tensor invariants
         d->flexvert_length[2 * vadr + 0] = (cauchy[0] + cauchy[3] - 2) * scale;
@@ -859,13 +848,8 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
           dx[0] *= 2 * m->flex_size[3 * f + 0];
           dx[1] *= 2 * m->flex_size[3 * f + 1];
           dx[2] *= 2 * m->flex_size[3 * f + 2];
-          mjtNum weight = 1.0;
           int neighbor_v = (v == v1) ? v2 : v1;
-          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
-          if (b_neighbor >= 0) {
-            weight = m->body_mass[b_neighbor];
-            if (weight < mjMINVAL) weight = mjMINVAL;
-          }
+          mjtNum weight = mj_flexvertWeight(m, vbase + neighbor_v, mean_mass);
 
           mjtNum dI1dy1[3], dI1dy2[3], dI2dy[3], dI2dy1[3], dI2dy2[3];
 
@@ -2662,8 +2646,8 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       break;
 
     case mjEQ_FLEXVERT:
-      k = m->eq_obj1id[id];
-      i += 2*m->flex_vertnum[k];
+      // increment with number of non-rigid vertex constraints
+      i += mj_flexvertRows(m, m->eq_obj1id[id], NULL);
       break;
 
     case mjEQ_FLEXSTRAIN: {

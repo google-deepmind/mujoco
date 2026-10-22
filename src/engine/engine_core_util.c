@@ -1681,6 +1681,43 @@ int mj_flexHasStiffness(const mjModel* m, int f) {
 }
 
 
+// mean mass of dynamic vertices of flex f (1.0 if all vertices are pinned/massless)
+mjtNum mj_flexMeanVertMass(const mjModel* m, int f) {
+  int vertadr = m->flex_vertadr[f];
+  int vertnum = m->flex_vertnum[f];
+  mjtNum sum = 0;
+  int count = 0;
+  for (int i = vertadr; i < vertadr + vertnum; i++) {
+    int bi = m->flex_vertbodyid[i];
+    if (bi >= 0 && m->body_mass[bi] > mjMINVAL) {
+      sum += m->body_mass[bi];
+      count++;
+    }
+  }
+  return count > 0 ? sum / count : 1.0;
+}
+
+
+// count active mjEQ_FLEXVERT constraint rows for flex f; optionally accumulate Jacobian nnz
+int mj_flexvertRows(const mjModel* m, int f, int* nnz) {
+  int vertadr = m->flex_vertadr[f];
+  int vertnum = m->flex_vertnum[f];
+  int rows = 0;
+  for (int v = vertadr; v < vertadr + vertnum; v++) {
+    for (int j = 0; j < 2; j++) {
+      int rownnz = m->flexvert_J_rownnz[2*v + j];
+      if (rownnz) {
+        rows++;
+        if (nnz) {
+          *nnz += rownnz;
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+
 // does flex f use the penalty form of passive contact: a standard deformable flex of dim >= 2
 // that asks for it, and not under the ipc flag, which solves the same law for every supported
 // flex itself (running both would apply each pair's force twice)
