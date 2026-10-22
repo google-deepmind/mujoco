@@ -38,6 +38,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import OverflowType
+from mujoco.mjx.third_party.mujoco_warp._src.types import ProjectionType
+from mujoco.mjx.third_party.mujoco_warp._src.types import RayDataField
 from mujoco.mjx.third_party.mujoco_warp._src.types import SensorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Stage
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
@@ -115,6 +117,13 @@ def _write_vector(
 
 
 @wp.func
+def _clamp_real(val: float, cutoff: float) -> float:
+  if cutoff > 0.0:
+    return wp.clamp(val, -cutoff, cutoff)
+  return val
+
+
+@wp.func
 def _magnetometer(
   # Model:
   opt_magnetic: wp.array[wp.vec3],
@@ -182,23 +191,179 @@ def _cam_projection(
 @wp.kernel
 def _sensor_rangefinder_init(
   # Model:
+  cam_projection: wp.array[int],
+  cam_fovy: wp.array2d[float],
+  cam_resolution: wp.array[wp.vec2i],
+  cam_sensorsize: wp.array[wp.vec2],
+  cam_intrinsic: wp.array2d[wp.vec4],
+  sensor_objtype: wp.array[int],
   sensor_objid: wp.array[int],
   sensor_rangefinder_adr: wp.array[int],
+  rangefinder_sensor_adr: wp.array[int],
   # Data in:
   site_xpos_in: wp.array2d[wp.vec3],
   site_xmat_in: wp.array2d[wp.mat33],
+  cam_xpos_in: wp.array2d[wp.vec3],
+  cam_xmat_in: wp.array2d[wp.mat33],
   # Out:
   pnt_out: wp.array2d[wp.vec3],
   vec_out: wp.array2d[wp.vec3],
 ):
   worldid, rfid = wp.tid()
   sensorid = sensor_rangefinder_adr[rfid]
+  objtype = sensor_objtype[sensorid]
   objid = sensor_objid[sensorid]
-  site_xpos = site_xpos_in[worldid, objid]
-  site_xmat = site_xmat_in[worldid, objid]
 
-  pnt_out[worldid, rfid] = site_xpos
-  vec_out[worldid, rfid] = wp.vec3(site_xmat[0, 2], site_xmat[1, 2], site_xmat[2, 2])
+  if objtype == ObjType.SITE:
+    # site-attached rangefinder: single ray from site origin along +z
+    pnt_out[worldid, rfid] = site_xpos_in[worldid, objid]
+    vec_out[worldid, rfid] = site_xmat_in[worldid, objid][:, 2]
+  else:
+    # camera-attached rangefinder: row-major pixel index within sensor
+    res = cam_resolution[objid]
+    width = float(res[0])
+    height = float(res[1])
+    pixelid = rfid - rangefinder_sensor_adr[sensorid]
+    row = pixelid // res[0]
+    col = pixelid - row * res[0]
+
+    cam_xpos = cam_xpos_in[worldid, objid]
+    cam_xmat = cam_xmat_in[worldid, objid]
+    proj = cam_projection[objid]
+
+    # compute camera intrinsics (focal lengths and principal point in pixels)
+    fx = 0.5 * width
+    fy = 0.5 * height
+    cx = fx
+    cy = fy
+
+    if proj == ProjectionType.PERSPECTIVE:
+      sensorsize = cam_sensorsize[objid]
+      if sensorsize[0] != 0.0 and sensorsize[1] != 0.0:
+        intrinsic = cam_intrinsic[worldid % cam_intrinsic.shape[0], objid]
+        inv_sx = math.safe_div(width, sensorsize[0])
+        inv_sy = math.safe_div(height, sensorsize[1])
+        fx = intrinsic[0] * inv_sx
+        fy = intrinsic[1] * inv_sy
+        cx = intrinsic[2] * inv_sx
+        cy = intrinsic[3] * inv_sy
+      else:
+        fovy = cam_fovy[worldid % cam_fovy.shape[0], objid]
+        fx = math.safe_div(fy, wp.tan(fovy * wp.static(wp.pi / 360.0)))
+        fy = fx
+
+    # normalized pixel ray offsets in camera frame (+x right, +y up, -z forward)
+    dx = math.safe_div(float(col) + 0.5 - cx, fx)
+    dy = -math.safe_div(float(row) + 0.5 - cy, fy)
+
+    # perspective rays fan from camera origin; orthographic rays shift origin across image plane
+    if proj == ProjectionType.PERSPECTIVE:
+      pnt_out[worldid, rfid] = cam_xpos
+      vec_out[worldid, rfid] = wp.normalize(cam_xmat @ wp.vec3(dx, dy, -1.0))
+    else:
+      half_extent = 0.5 * cam_fovy[worldid % cam_fovy.shape[0], objid]
+      pnt_out[worldid, rfid] = cam_xpos + cam_xmat @ wp.vec3(dx * half_extent, dy * half_extent, 0.0)
+      vec_out[worldid, rfid] = -cam_xmat[:, 2]
+
+
+@wp.kernel
+def _sensor_rangefinder(
+  # Model:
+  sensor_objtype: wp.array[int],
+  sensor_objid: wp.array[int],
+  sensor_intprm: wp.array2d[int],
+  sensor_adr: wp.array[int],
+  sensor_cutoff: wp.array[float],
+  sensor_rangefinder_adr: wp.array[int],
+  rangefinder_sensor_adr: wp.array[int],
+  # Data in:
+  cam_xmat_in: wp.array2d[wp.mat33],
+  # In:
+  rangefinder_pnt_in: wp.array2d[wp.vec3],
+  rangefinder_vec_in: wp.array2d[wp.vec3],
+  rangefinder_dist_in: wp.array2d[float],
+  rangefinder_normal_in: wp.array2d[wp.vec3],
+  # Data out:
+  sensordata_out: wp.array2d[float],
+):
+  worldid, rfid = wp.tid()
+  sensorid = sensor_rangefinder_adr[rfid]
+  dataspec = sensor_intprm[sensorid, 0]
+  pixelid = rfid - rangefinder_sensor_adr[sensorid]
+
+  # unpack requested ray data fields from bitmask
+  has_dist = bool(dataspec & (1 << RayDataField.DIST))
+  has_dir = bool(dataspec & (1 << RayDataField.DIR))
+  has_origin = bool(dataspec & (1 << RayDataField.ORIGIN))
+  has_point = bool(dataspec & (1 << RayDataField.POINT))
+  has_normal = bool(dataspec & (1 << RayDataField.NORMAL))
+  has_depth = bool(dataspec & (1 << RayDataField.DEPTH))
+
+  # compute per-ray output stride and starting sensordata address
+  stride = (
+    (1 if has_dist else 0)
+    + (3 if has_dir else 0)
+    + (3 if has_origin else 0)
+    + (3 if has_point else 0)
+    + (3 if has_normal else 0)
+    + (1 if has_depth else 0)
+  )
+  adr = sensor_adr[sensorid] + pixelid * stride
+  ptr = adr
+  out = sensordata_out[worldid]
+
+  dist = rangefinder_dist_in[worldid, rfid]
+  hit = dist >= 0.0
+  is_camera = sensor_objtype[sensorid] == ObjType.CAMERA
+  need_dir = has_dir or has_point or (has_depth and is_camera)
+
+  # load ray direction and origin only when required by requested fields
+  direction = rangefinder_vec_in[worldid, rfid] if (hit and need_dir) else wp.vec3(0.0)
+  origin = rangefinder_pnt_in[worldid, rfid] if (has_origin or (hit and has_point)) else wp.vec3(0.0)
+  point = origin + direction * dist if (hit and has_point) else wp.vec3(0.0)
+
+  cutoff = sensor_cutoff[sensorid]
+
+  # write requested fields in ascending mjtRayDataField bit order, clamped to [-cutoff, cutoff]
+  if has_dist:
+    out[ptr] = _clamp_real(dist, cutoff)
+    ptr += 1
+
+  if has_dir:
+    out[ptr + 0] = _clamp_real(direction[0], cutoff)
+    out[ptr + 1] = _clamp_real(direction[1], cutoff)
+    out[ptr + 2] = _clamp_real(direction[2], cutoff)
+    ptr += 3
+
+  if has_origin:
+    out[ptr + 0] = _clamp_real(origin[0], cutoff)
+    out[ptr + 1] = _clamp_real(origin[1], cutoff)
+    out[ptr + 2] = _clamp_real(origin[2], cutoff)
+    ptr += 3
+
+  if has_point:
+    out[ptr + 0] = _clamp_real(point[0], cutoff)
+    out[ptr + 1] = _clamp_real(point[1], cutoff)
+    out[ptr + 2] = _clamp_real(point[2], cutoff)
+    ptr += 3
+
+  if has_normal:
+    normal = rangefinder_normal_in[worldid, rfid] if hit else wp.vec3(0.0)
+    out[ptr + 0] = _clamp_real(normal[0], cutoff)
+    out[ptr + 1] = _clamp_real(normal[1], cutoff)
+    out[ptr + 2] = _clamp_real(normal[2], cutoff)
+    ptr += 3
+
+  if has_depth:
+    # depth is z-distance along camera optical axis (-z), or ray distance for sites
+    if not hit:
+      depth = -1.0
+    elif is_camera:
+      objid = sensor_objid[sensorid]
+      depth = -dist * wp.dot(direction, cam_xmat_in[worldid, objid][:, 2])
+    else:
+      depth = dist
+    out[ptr] = _clamp_real(depth, cutoff)
 
 
 @wp.func
@@ -529,7 +694,6 @@ def _sensor_pos(
   sensor_cutoff: wp.array[float],
   nxn_pairid: wp.array[wp.vec2i],
   sensor_pos_adr: wp.array[int],
-  rangefinder_sensor_adr: wp.array[int],
   # Data in:
   time_in: wp.array[float],
   energy_in: wp.array[wp.vec2],
@@ -549,7 +713,6 @@ def _sensor_pos(
   ten_length_in: wp.array2d[float],
   actuator_length_in: wp.array2d[float],
   # In:
-  rangefinder_dist_in: wp.array2d[float],
   sensor_collision_in: wp.array4d[float],
   # Data out:
   sensordata_out: wp.array2d[float],
@@ -569,9 +732,7 @@ def _sensor_pos(
       cam_fovy, cam_resolution, cam_sensorsize, cam_intrinsic, site_xpos_in, cam_xpos_in, cam_xmat_in, worldid, objid, refid
     )
     _write_vector(sensor_type, sensor_datatype, sensor_adr, sensor_cutoff, sensorid, 2, vec2, out)
-  elif sensortype == SensorType.RANGEFINDER:
-    val = rangefinder_dist_in[worldid, rangefinder_sensor_adr[sensorid]]
-    _write_scalar(sensor_type, sensor_datatype, sensor_adr, sensor_cutoff, sensorid, val, out)
+  # rangefinder sensors are written by _sensor_rangefinder
   elif sensortype == SensorType.JOINTPOS:
     val = _joint_pos(jnt_qposadr, qpos_in, worldid, objid)
     _write_scalar(sensor_type, sensor_datatype, sensor_adr, sensor_cutoff, sensorid, val, out)
@@ -817,22 +978,37 @@ def sensor_pos(m: Model, d: Data):
     return
 
   # rangefinder
-  rangefinder_dist = wp.empty((d.nworld, m.nrangefinder), dtype=float)
-  if m.sensor_rangefinder_adr.size > 0:
+  if m.nrangefinder > 0:
     rangefinder_pnt = wp.empty((d.nworld, m.nrangefinder), dtype=wp.vec3)
     rangefinder_vec = wp.empty((d.nworld, m.nrangefinder), dtype=wp.vec3)
+    rangefinder_dist = wp.empty((d.nworld, m.nrangefinder), dtype=float)
     rangefinder_geomid = wp.empty((d.nworld, m.nrangefinder), dtype=int)
     rangefinder_normal = wp.empty((d.nworld, m.nrangefinder), dtype=wp.vec3)
 
     # get position and direction
     wp.launch(
       _sensor_rangefinder_init,
-      dim=(d.nworld, m.sensor_rangefinder_adr.size),
-      inputs=[m.sensor_objid, m.sensor_rangefinder_adr, d.site_xpos, d.site_xmat],
+      dim=(d.nworld, m.nrangefinder),
+      inputs=[
+        m.cam_projection,
+        m.cam_fovy,
+        m.cam_resolution,
+        m.cam_sensorsize,
+        m.cam_intrinsic,
+        m.sensor_objtype,
+        m.sensor_objid,
+        m.sensor_rangefinder_adr,
+        m.rangefinder_sensor_adr,
+        d.site_xpos,
+        d.site_xmat,
+        d.cam_xpos,
+        d.cam_xmat,
+      ],
       outputs=[rangefinder_pnt, rangefinder_vec],
     )
 
     # get distances
+    # TODO(team): use BVH for high-resolution camera rangefinders
     ray.rays(
       m,
       d,
@@ -844,6 +1020,26 @@ def sensor_pos(m: Model, d: Data):
       rangefinder_dist,
       rangefinder_geomid,
       rangefinder_normal,
+    )
+
+    wp.launch(
+      _sensor_rangefinder,
+      dim=(d.nworld, m.nrangefinder),
+      inputs=[
+        m.sensor_objtype,
+        m.sensor_objid,
+        m.sensor_intprm,
+        m.sensor_adr,
+        m.sensor_cutoff,
+        m.sensor_rangefinder_adr,
+        m.rangefinder_sensor_adr,
+        d.cam_xmat,
+        rangefinder_pnt,
+        rangefinder_vec,
+        rangefinder_dist,
+        rangefinder_normal,
+      ],
+      outputs=[d.sensordata],
     )
 
   if m.sensor_e_potential:
@@ -908,7 +1104,6 @@ def sensor_pos(m: Model, d: Data):
       m.sensor_cutoff,
       m.nxn_pairid,
       m.sensor_pos_adr,
-      m.rangefinder_sensor_adr,
       d.time,
       d.energy,
       d.qpos,
@@ -926,7 +1121,6 @@ def sensor_pos(m: Model, d: Data):
       d.subtree_com,
       d.ten_length,
       d.actuator_length,
-      rangefinder_dist,
       sensor_collision,
     ],
     outputs=[d.sensordata],

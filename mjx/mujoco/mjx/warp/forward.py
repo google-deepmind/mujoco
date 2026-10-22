@@ -126,6 +126,7 @@ def _forward_shim(
     cam_pos: wp.array2d[wp.vec3],
     cam_pos0: wp.array2d[wp.vec3],
     cam_poscom0: wp.array2d[wp.vec3],
+    cam_projection: wp.array[int],
     cam_quat: wp.array2d[wp.quat],
     cam_resolution: wp.array[wp.vec2i],
     cam_sensorsize: wp.array[wp.vec2],
@@ -780,6 +781,7 @@ def _forward_shim(
   _m.cam_pos = cam_pos
   _m.cam_pos0 = cam_pos0
   _m.cam_poscom0 = cam_poscom0
+  _m.cam_projection = cam_projection
   _m.cam_quat = cam_quat
   _m.cam_resolution = cam_resolution
   _m.cam_sensorsize = cam_sensorsize
@@ -2232,6 +2234,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.cam_pos,
       m.cam_pos0,
       m.cam_poscom0,
+      m._impl.cam_projection,
       m.cam_quat,
       m.cam_resolution,
       m.cam_sensorsize,
@@ -3070,6 +3073,7 @@ def _step_shim(
     cam_pos: wp.array2d[wp.vec3],
     cam_pos0: wp.array2d[wp.vec3],
     cam_poscom0: wp.array2d[wp.vec3],
+    cam_projection: wp.array[int],
     cam_quat: wp.array2d[wp.quat],
     cam_resolution: wp.array[wp.vec2i],
     cam_sensorsize: wp.array[wp.vec2],
@@ -3734,6 +3738,7 @@ def _step_shim(
   _m.cam_pos = cam_pos
   _m.cam_pos0 = cam_pos0
   _m.cam_poscom0 = cam_poscom0
+  _m.cam_projection = cam_projection
   _m.cam_quat = cam_quat
   _m.cam_resolution = cam_resolution
   _m.cam_sensorsize = cam_sensorsize
@@ -5213,6 +5218,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.cam_pos,
       m.cam_pos0,
       m.cam_poscom0,
+      m._impl.cam_projection,
       m.cam_quat,
       m.cam_resolution,
       m.cam_sensorsize,

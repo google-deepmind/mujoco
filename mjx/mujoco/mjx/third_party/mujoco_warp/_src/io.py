@@ -529,7 +529,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   )[1]
   m.nacttrnbody = (mjm.actuator_trntype == mujoco.mjtTrn.mjTRN_BODY).sum()
   m.nsensortaxel = mjm.mesh_vertnum[mjm.sensor_objid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_TACTILE]].sum()
-  m.nrangefinder = (mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER).sum()
+  # rangefinder ray counts (1 per site sensor, width * height per camera sensor)
+  rf_sensors = np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER)[0]
+  rf_nrays = np.array(
+    [
+      1 if mjm.sensor_objtype[i] == mujoco.mjtObj.mjOBJ_SITE else mjm.cam_resolution[mjm.sensor_objid[i]].prod()
+      for i in rf_sensors
+    ],
+    dtype=int,
+  )
+  m.nrangefinder = int(rf_nrays.sum())
   condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
   if mjm.nflex > 0:
     condim_arrays.append(mjm.flex_condim)
@@ -1063,9 +1072,10 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       | (mjm.sensor_type != mujoco.mjtSensor.mjSENS_TENDONACTFRC)
     )
   )[0]
-  m.sensor_rangefinder_adr = np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER)[0]
+  # map each ray to its sensor id and each sensor to its starting ray index
+  m.sensor_rangefinder_adr = np.repeat(rf_sensors, rf_nrays)
   m.rangefinder_sensor_adr = np.full(mjm.nsensor, -1)
-  m.rangefinder_sensor_adr[m.sensor_rangefinder_adr] = np.arange(len(m.sensor_rangefinder_adr))
+  m.rangefinder_sensor_adr[rf_sensors] = np.cumsum(rf_nrays) - rf_nrays
   m.collision_sensor_adr = np.full(mjm.nsensor, -1)
   m.collision_sensor_adr[sensor_collision_adr] = np.arange(len(sensor_collision_adr))
   m.sensor_touch_adr = np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_TOUCH)[0]
@@ -1088,7 +1098,17 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       mujoco.mjtSensor.mjSENS_FRAMEANGACC,
     ],
   ).any()
-  m.sensor_rangefinder_bodyid = mjm.site_bodyid[mjm.sensor_objid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER]]
+  # exclude attached site or camera body from ray intersection
+  rf_bodyids = np.array(
+    [
+      mjm.site_bodyid[mjm.sensor_objid[i]]
+      if mjm.sensor_objtype[i] == mujoco.mjtObj.mjOBJ_SITE
+      else mjm.cam_bodyid[mjm.sensor_objid[i]]
+      for i in rf_sensors
+    ],
+    dtype=int,
+  )
+  m.sensor_rangefinder_bodyid = np.repeat(rf_bodyids, rf_nrays)
   m.taxel_vertadr = [
     j + mjm.mesh_vertadr[mjm.sensor_objid[i]]
     for i in range(mjm.nsensor)
