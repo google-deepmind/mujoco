@@ -498,21 +498,23 @@ Here is a minimal example for rendering an mjModel with the filament renderer:
      # associate the pixel buffer with a render target
      r.target("out", pixels)
 
-     # define a view that connects the scene we want to render to an output target
-     r.view("v1", scene="scn", target="out")
+     # update the lights and renderables with the current `data` state
+     ms.update(data)
 
      # define the camera for the view we want to render
      vcam = mujoco.MjvCamera()
      mujoco.mjv_defaultFreeCamera(model, vcam)
      vcam.type = int(mujoco.mjtCamera.mjCAMERA_FIXED)
      vcam.fixedcamid = 0
-     r.update_camera("v1", mujoco.mjv_camera2GLCamera(model, data, vcam))
-
-     # update the lights and renderables with the current `data` state
-     ms.update(data)
+     # define a view that connects the scene we want to render to an output target
+     view = renderer.View(
+         scene="scn",
+         target="out",
+         camera=mujoco.mjv_camera2GLCamera(model, data, vcam),
+     )
 
      # render the scene; blocks until the render has completed writing to the render target
-     r.render()
+     r.render([view])
 
      # return the pixels
      return pixels

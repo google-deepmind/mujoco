@@ -52,9 +52,6 @@ def main(argv: Sequence[str]) -> None:
   vcam.type = int(mujoco.mjtCamera.mjCAMERA_FIXED)
   vcam.fixedcamid = 0
 
-  # define a single view that connects a scene and camera to an output
-  r.view("v1", scene="scn", target="out")
-
   buf = np.empty((0, 0, 3), dtype=np.uint8)
   while win.NewFrame():
     # simulate one step
@@ -63,9 +60,6 @@ def main(argv: Sequence[str]) -> None:
     # update the lights and renderables with the current `data` state
     scene.update(data)
 
-    # update the camera
-    r.update_camera("v1", mujoco.mjv_camera2GLCamera(model, data, vcam))
-
     # ensure output buffer is of right size (in case of window resize)
     w, h = win.GetWidth(), win.GetHeight()
     if buf.shape != (h, w, 3):
@@ -73,7 +67,12 @@ def main(argv: Sequence[str]) -> None:
       r.target("out", buf)
 
     # render the scene
-    r.render()
+    view = renderer.View(
+        scene="scn",
+        target="out",
+        camera=mujoco.mjv_camera2GLCamera(model, data, vcam),
+    )
+    r.render([view])
 
     # present the output image to the window
     win.Present(buf)

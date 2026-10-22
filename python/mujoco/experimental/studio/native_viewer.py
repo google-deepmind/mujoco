@@ -169,8 +169,7 @@ class NativeViewer(viewer_protocol.Viewer):
     elif self.vis_options.flags[mujoco.mjtVisFlag.mjVIS_ISLAND]:
       draw_mode = mjrf.DrawMode.DRAW_MODE_ISLANDS
 
-    self._renderer.view(
-        'v1',
+    scene_view = renderer.View(
         scene='scn',
         target='out' if pixels is not None else '',
         camera=mujoco.mjv_camera2GLCamera(self.model, self.data, self.camera),
@@ -196,8 +195,7 @@ class NativeViewer(viewer_protocol.Viewer):
         frustum_width=width / 2.0,
         frustum_bottom=height,
     )
-    self._renderer.view(
-        'v2',
+    ux_view = renderer.View(
         scene='ux',
         target='out' if pixels is not None else '',
         camera=ux_camera,
@@ -207,7 +205,7 @@ class NativeViewer(viewer_protocol.Viewer):
     )
 
     # ensure output buffer is of right size (in case of window resize)
-    self._renderer.render()
+    self._renderer.render([scene_view, ux_view])
     self._window.Present(pixels)
 
   def close(self) -> None:
