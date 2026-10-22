@@ -1955,8 +1955,8 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
         if (ncon[i] == 0 && !mjDISABLED(mjDSBL_NATIVECCD)) {
           if (geomFastSweep(m, d, g1, NULL, NULL) > 0 ||
               geomFastSweep(m, d, g2, NULL, NULL) > 0) {
-            mjc_advanceGeomPair(m, d, g1, g2, margin + gap, conbuffer + conpos, &ncon[i],
-                                epabuffer + thread_id * conargs->ccd_size);
+            ncon[i] = mjc_advanceGeomPair(m, d, g1, g2, margin + gap, conbuffer + conpos,
+                                          epabuffer + thread_id * conargs->ccd_size);
           }
         }
         break;

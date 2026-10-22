@@ -760,6 +760,9 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   constexpr char kXml[] = R"(
   <mujoco>
     <option timestep="0.01"/>
+    <default>
+      <geom solref="0.1 1"/>
+    </default>
     <worldbody>
       <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -1"/>
       <geom name="wall" type="box" size="0.5 0.5 0.02" pos="0 0 0"/>
@@ -787,50 +790,44 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   // initial distance is 0.27 - 0.02 - 0.05 = 0.20 m
   // downward speed -50 m/s over dt = 0.01 s -> step travel 0.50 m -> TOI around
   // 0.20 / 0.50 = 0.40
+  // With dt = 0.01 and solref = (0.1, 1): k0 = 0.01, b0 = 0.2, so
+  // dist = -((0.8 - t) / 0.01) * 0.50 = -50 * (0.8 - t) -> t = 0.8 + dist / 50
   d->qvel[2] = -50.0;
   mj_fwdPosition(m, d);
 
   mjPreContact con[4];
-  int ncon = 0;
   std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
-  mjtNum toi = mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, &ncon, buffer.data());
-  EXPECT_LT(toi, 1.0);
+  int ncon = mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data());
   EXPECT_EQ(ncon, 1);
-  EXPECT_NEAR(toi, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
   EXPECT_NEAR(con[0].pos[2], 0.22, MjTol(1e-4, 1e-4));
   EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
   EXPECT_LT(con[0].dist, 0.0);
 
-  // moving upward (+50 m/s) -> no collision (toi == 1.0)
+  // moving upward (+50 m/s) -> no collision
   d->qvel[2] = 50.0;
   mj_fwdPosition(m, d);
-  EXPECT_MJTNUM_EQ(
-      mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, &ncon, buffer.data()), 1.0);
-  EXPECT_EQ(ncon, 0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
 
   // grazing near-miss (skimming 1 cm above the box top at 50 m/s) -> no
-  // collision (toi == 1.0)
+  // collision
   d->qpos[0] = -0.8;
   d->qpos[2] = 0.08;
   d->qvel[0] = 50.0;
   d->qvel[2] = 0.0;
   mj_fwdPosition(m, d);
-  EXPECT_MJTNUM_EQ(
-      mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, &ncon, buffer.data()), 1.0);
-  EXPECT_EQ(ncon, 0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
 
   // plane vs. moving sphere (both g1 = plane and g2 = plane)
   mj_resetData(m, d);
   d->qpos[2] = -0.75;  // 0.20 m above ground plane at z = -1 (radius 0.05)
   d->qvel[2] = -50.0;
   mj_fwdPosition(m, d);
-  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, &ncon, buffer.data()),
-              0.392, MjTol(0.02, 0.02));
-  EXPECT_EQ(ncon, 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
   EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
-  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, &ncon, buffer.data()),
-              0.392, MjTol(0.02, 0.02));
-  EXPECT_EQ(ncon, 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
   EXPECT_NEAR(con[0].normal[2], -1.0, MjTol(1e-4, 1e-4));
 
   // two moving boxes traveling in the same direction at different speeds
@@ -840,8 +837,7 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   d->qvel[8] = -10.0;
   d->qvel[14] = -60.0;
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 3, 4, 0.0, con, &ncon, buffer.data()),
-            1.0);
+  ncon = mjc_advanceGeomPair(m, d, 3, 4, 0.0, con, buffer.data());
   EXPECT_EQ(ncon, 4);
   for (int i = 0; i < ncon; i++) {
     EXPECT_NEAR(std::abs(con[i].pos[0] - 2.0), 0.05, MjTol(1e-4, 1e-4));
@@ -856,8 +852,7 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   d->qpos[23] = 0.24;
   d->qvel[20] = -50.0;
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 1, 5, 0.0, con, &ncon, buffer.data()),
-            1.0);
+  ncon = mjc_advanceGeomPair(m, d, 1, 5, 0.0, con, buffer.data());
   EXPECT_EQ(ncon, 2);
   for (int i = 0; i < ncon; i++) {
     EXPECT_NEAR(std::abs(con[i].pos[0]), 0.2, MjTol(1e-4, 1e-4));
@@ -870,10 +865,17 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   mj_resetData(m, d);
   d->qvel[22] = 100.0;  // wy = 100 rad/s -> 1 rad over dt = 0.01 s
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, &ncon, buffer.data()),
-            1.0);
-  EXPECT_EQ(ncon, 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, buffer.data()), 1);
   EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // line-of-sight ray occlusion: ball at (0, 0, 0.27) falling at -200 m/s
+  // hits wall (g = 1, at z = 0), which occludes ground (g = 0, at z = -1)
+  mj_resetData(m, d);
+  d->qvel[2] = -200.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 0);
 
   mj_deleteData(d);
   mj_deleteModel(m);

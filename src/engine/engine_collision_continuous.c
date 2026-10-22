@@ -33,6 +33,7 @@
 #include "engine/engine_init.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"        // mj_arenaAllocByte, mjSTACKALLOC
+#include "engine/engine_ray.h"
 #include "engine/engine_thread.h"        // mju_numThread, mju_dispatch
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -1520,22 +1521,127 @@ static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin
 }
 
 
+// map witness point x_t from advanced geom pose (obj->pos, obj->mat) back to t = 0 geom pose
+static inline void pullbackGeomPoint(mjtNum x_0[3], const mjtNum x_t[3],
+                                     const mjCCDObj* obj, const mjData* d) {
+  int g = obj->geom;
+  mjtNum diff[3], local[3];
+  mji_sub3(diff, x_t, obj->pos);
+  mju_mulMatTVec3(local, obj->mat, diff);
+  mji_mulMatVec3(x_0, d->geom_xmat + 9 * g, local);
+  mju_addTo3(x_0, d->geom_xpos + 3 * g);
+}
+
+
+// return 1 if segment between a and b is occluded by another collidable geom
+static inline int isRayOccluded(const mjModel* m, const mjData* d, int g1, int g2,
+                                const mjtNum a[3], const mjtNum b[3]) {
+  mjtNum ab[3];
+  mji_sub3(ab, b, a);
+  mjtNum len2 = mju_dot3(ab, ab);
+  if (len2 < mjMINVAL * mjMINVAL) {
+    return 0;
+  }
+
+  // shrink segment slightly to avoid self-hits on geoms touching a or b from outside
+  const mjtNum eps = 1e-5;
+  mjtNum pnt[3], vec[3];
+  mji_addScl3(pnt, a, ab, eps);
+  mji_scl3(vec, ab, 1.0 - 2.0 * eps);
+
+  mjtNum mid[3];
+  mju_addScl3(mid, a, ab, 0.5);
+  mjtNum half_len = 0.5 * mju_sqrt(len2);
+
+  int weld1 = m->body_weldid[m->geom_bodyid[g1]];
+  int weld2 = m->body_weldid[m->geom_bodyid[g2]];
+  int p1 = m->body_weldid[m->body_parentid[weld1]];
+  int p2 = m->body_weldid[m->body_parentid[weld2]];
+  int fltparent = !mjDISABLED(mjDSBL_FILTERPARENT);
+  int ct1 = m->geom_contype[g1], ca1 = m->geom_conaffinity[g1];
+  int ct2 = m->geom_contype[g2], ca2 = m->geom_conaffinity[g2];
+
+  // TODO(kylebayes): consider doing this as a post-processing step on the
+  // speculative contacts in engine_collision_driver instead of iterating over
+  // all geoms here
+  for (int g3 = 0; g3 < m->ngeom; g3++) {
+    int type = m->geom_type[g3];
+    if (g3 == g1 || g3 == g2 || !mjc_GeomSupported(type)) {
+      continue;
+    }
+
+    // g3 must be able to collide with g1 (when on a different weld) and g2 (when on a different weld)
+    int weld3 = m->body_weldid[m->geom_bodyid[g3]];
+    int p3 = m->body_weldid[m->body_parentid[weld3]];
+    int ct3 = m->geom_contype[g3], ca3 = m->geom_conaffinity[g3];
+    if (weld3 != weld1) {
+      if (!((ct1 & ca3) || (ct3 & ca1)) ||
+          (fltparent && weld1 != 0 && weld3 != 0 && (weld1 == p3 || weld3 == p1))) {
+        continue;
+      }
+    }
+    if (weld3 != weld2) {
+      if (!((ct2 & ca3) || (ct3 & ca2)) ||
+          (fltparent && weld2 != 0 && weld3 != 0 && (weld2 == p3 || weld3 == p2))) {
+        continue;
+      }
+    }
+
+    // skip g3 if its bounding sphere cannot overlap the segment's sphere
+    if (m->geom_rbound[g3] > 0) {
+      mjtNum diff[3];
+      mji_sub3(diff, d->geom_xpos + 3 * g3, mid);
+      mjtNum max_r = m->geom_rbound[g3] + half_len;
+      if (mju_dot3(diff, diff) > max_r * max_r) {
+        continue;
+      }
+    }
+
+    if (type == mjGEOM_PLANE) {
+      const mjtNum* gpos = d->geom_xpos + 3 * g3;
+      const mjtNum* gmat = d->geom_xmat + 9 * g3;
+      mjtNum n[3] = {gmat[2], gmat[5], gmat[8]};
+      mjtNum diff[3];
+      mji_sub3(diff, pnt, gpos);
+      mjtNum da = mju_dot3(diff, n);
+      mjtNum db = da + mju_dot3(vec, n);
+      if ((da >= 0 && db <= 0) || (da <= 0 && db >= 0)) {
+        return 1;
+      }
+      continue;
+    }
+
+    mjtNum x = -1;
+    if (type == mjGEOM_MESH) {
+      x = mj_rayMesh(m, d, g3, pnt, vec, NULL);
+    } else {
+      x = mju_rayGeom(d->geom_xpos + 3 * g3, d->geom_xmat + 9 * g3,
+                      m->geom_size + 3 * g3, pnt, vec, type, NULL);
+    }
+
+    if (x >= 0 && x <= 1) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 // conservative advancement between two geoms g1 and g2 over the timestep;
-// return time of impact in [0, 1] and writes up to 4 contacts for t < 1
-mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
-                           mjtNum margin, mjPreContact* con, int* ncon, void* buffer) {
-  if (ncon) *ncon = 0;
+// write up to 4 contacts into con and return number of contacts
+int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
+                        mjtNum margin, mjPreContact* con, void* buffer) {
   int type1 = g1 >= 0 ? m->geom_type[g1] : -1, type2 = g2 >= 0 ? m->geom_type[g2] : -1;
   if (!mjc_GeomSupported(type1) || !mjc_GeomSupported(type2) ||
       (type1 == mjGEOM_PLANE && type2 == mjGEOM_PLANE)) {
-    return 1.0;
+    return 0;
   }
 
   mjtNum dx1[3], dw1[3], dx2[3], dw2[3];
   mjtNum sweep = mjc_geomStepMotion(m, d, g1, m->opt.timestep, dx1, dw1) +
                  mjc_geomStepMotion(m, d, g2, m->opt.timestep, dx2, dw2);
   if (sweep < mjMINVAL) {
-    return 1.0;
+    return 0;
   }
 
   mjCCDObj obj1, obj2;
@@ -1553,7 +1659,7 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
 
   // already in contact or too far apart (no extra collision needed)
   if (dist0 <= margin || dist0 - margin > sweep) {
-    return 1.0;
+    return 0;
   }
 
   // conservative advancement (capped at 16 steps for grazing trajectories)
@@ -1569,7 +1675,7 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     mjtNum step = clearance / sweep;
     t += step;
     if (t >= 1.0) {
-      return 1.0;
+      return 0;
     }
 
     advanceGeomPose(&obj1, dx1, dw1, step);
@@ -1577,7 +1683,7 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     dist = evalGeomPairDist(m, &obj1, &obj2, distmax, x1, x2, normal);
   }
   if (dist - target > m->opt.ccd_tolerance) {
-    return 1.0;
+    return 0;
   }
 
   // full-step displacements of witness points x1, x2: dp = dx + dw x (x - pos)
@@ -1593,17 +1699,18 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
   mji_sub3(drel, dp1, dp2);
   mjtNum closing_dist = mju_max(mju_dot3(normal, drel), (dist0 - dist) / mju_max(t, mjMINVAL));
   if (closing_dist <= 0) {
-    return 1.0;
+    return 0;
   }
 
-  int nx = 1;
+  int ncon = 0;
   if (con) {
+    int nx = 1;
     mjtNum x1_all[12], x2_all[12], dist_all[4];
     mji_copy3(x1_all, x1);
     mji_copy3(x2_all, x2);
     dist_all[0] = dist;
 
-    if (ncon && buffer && !mjDISABLED(mjDSBL_MULTICCD) && obj1.nsupp > 0 && obj2.nsupp > 0) {
+    if (buffer && !mjDISABLED(mjDSBL_MULTICCD) && obj1.nsupp > 0 && obj2.nsupp > 0) {
       mjtNum pad = 2.0 * mju_max(0.0, dist) + m->opt.ccd_tolerance;
       obj1.margin = pad;
       obj2.margin = pad;
@@ -1622,23 +1729,33 @@ mjtNum mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     mjtNum cdist = contactDist(m, g1, g2, margin, t, closing_dist);
     for (int i = 0; i < nx; i++) {
       mjtNum x1_0[3], x2_0[3];
-      mji_addScl3(x1_0, x1_all + 3*i, dx1, -t);
-      mji_addScl3(x2_0, x2_all + 3*i, dx2, -t);
-      if (weld1 == 0 && weld2 > 0) {
-        mju_copy3(con[i].pos, x2_0);
-      } else if (weld2 == 0 && weld1 > 0) {
-        mju_copy3(con[i].pos, x1_0);
-      } else {
-        con[i].pos[0] = 0.5 * (x1_0[0] + x2_0[0]);
-        con[i].pos[1] = 0.5 * (x1_0[1] + x2_0[1]);
-        con[i].pos[2] = 0.5 * (x1_0[2] + x2_0[2]);
+      pullbackGeomPoint(x1_0, x1_all + 3*i, &obj1, d);
+      pullbackGeomPoint(x2_0, x2_all + 3*i, &obj2, d);
+      if (isRayOccluded(m, d, g1, g2, x1_0, x2_0)) {
+        continue;
       }
-      con[i].dist = cdist;
-      mju_copy3(con[i].normal, normal);
-      mju_zero3(con[i].tangent);
+      if (weld1 == 0 && weld2 > 0) {
+        mju_copy3(con[ncon].pos, x2_0);
+      } else if (weld2 == 0 && weld1 > 0) {
+        mju_copy3(con[ncon].pos, x1_0);
+      } else {
+        con[ncon].pos[0] = 0.5 * (x1_0[0] + x2_0[0]);
+        con[ncon].pos[1] = 0.5 * (x1_0[1] + x2_0[1]);
+        con[ncon].pos[2] = 0.5 * (x1_0[2] + x2_0[2]);
+      }
+      con[ncon].dist = cdist;
+      mju_copy3(con[ncon].normal, normal);
+      mju_zero3(con[ncon].tangent);
+      ncon++;
+    }
+  } else {
+    mjtNum x1_0[3], x2_0[3];
+    pullbackGeomPoint(x1_0, x1, &obj1, d);
+    pullbackGeomPoint(x2_0, x2, &obj2, d);
+    if (!isRayOccluded(m, d, g1, g2, x1_0, x2_0)) {
+      ncon = 1;
     }
   }
-  if (ncon) *ncon = nx;
 
-  return t;
+  return ncon;
 }

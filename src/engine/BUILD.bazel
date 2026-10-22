@@ -547,6 +547,7 @@ cc_library(
     deps = [
         ":engine_collision_convex",
         ":engine_collision_primitive",
+        ":engine_collision_raysdf",
         ":engine_core",
         ":engine_core_util",
         ":engine_crossplatform",
