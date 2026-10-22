@@ -54,7 +54,7 @@ set(MUJOCO_DEP_VERSION_gtest
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    834a61fc65e8b7885fcf177f1230ae4b897118fa
+    a6b4a9f00b36c19af9997d68a1cf6e0b5b3d032c
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
