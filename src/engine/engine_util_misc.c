@@ -1987,7 +1987,10 @@ const char* mju_warningText(int warning, size_t info) {
 
   switch ((mjtWarning) warning) {
   case mjWARN_INERTIA:
-    mjSNPRINTF(str, "Inertia matrix is too close to singular at DOF %zu. Check model.", info);
+    mjSNPRINTF(str,
+               "Inertia matrix is too close to singular, or the effective-metric solve failed to "
+               "converge, at DOF %zu. Check model.",
+               info);
     break;
 
   case mjWARN_CONTACTFULL:

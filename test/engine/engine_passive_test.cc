@@ -2304,5 +2304,74 @@ TEST_F(ElasticityTest, RodBendingMocapRequiresZeroDamping) {
               HasSubstr("flex elasticity does not support mocap attachments"));
 }
 
+// 1D rod bending uses the sparse covered-block Cholesky factor (effChol) in the
+// effective metric without requiring IPC, including the 2-hop hinge span pairs
+// (v_prev, v_next), so (M + K) is factored exactly with zero fill-in and the
+// smooth metric solve converges in a single PCG iteration without
+// mjWARN_INERTIA
+TEST_F(ElasticityTest, RodBendingMetricCholesky) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="discrete" timestep="0.002" iterations="1"/>
+    <worldbody>
+      <flexcomp name="rod" type="grid" count="41 1 1" spacing="0.025 0.025 0.025"
+                radius="0.005" dim="1" mass="0.1">
+        <pin id="0 1"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <edge equality="true" damping="0.1"/>
+        <elasticity young="1e9" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  EXPECT_EQ(m->nefmCvert, 39);
+
+  MjDataPtr d = MakeData(m);
+  // bend into a smooth curve so all hinges have state-dependent 3-vertex blocks
+  for (int i = 0; i < m->nq; i++) {
+    d->qpos[i] = 0.005 * mju_sin(1.3 * i + 0.2);
+    d->qvel[i] = 0.1 * mju_cos(0.7 * i + 0.4);
+  }
+
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+  EXPECT_EQ(d->nefmdof, 39);
+  ASSERT_GT(d->nefmL, 9 * d->nefmdof);
+  EXPECT_EQ(d->efm_L[9 * d->nefmdof], 1);
+
+  // check that (M + K) qacc_smooth == qfrc_smooth + efm_c to machine precision
+  // in 1 PCG iteration
+  std::vector<mjtNum> rhs(m->nv), lhs(m->nv);
+  mju_add(rhs.data(), d->qfrc_smooth, d->efm_c, m->nv);
+  mj_mulM(m.get(), d.get(), lhs.data(), d->qacc_smooth);
+  for (int i = 0; i < m->nv; i++) {
+    int adr = d->efm_K_rowadr[i];
+    for (int j = 0; j < d->efm_K_rownnz[i]; j++) {
+      lhs[i] +=
+          d->efm_K_val[adr + j] * d->qacc_smooth[d->efm_K_colind[adr + j]];
+    }
+  }
+  mjtNum err = 0, norm = mju_norm(rhs.data(), m->nv);
+  ASSERT_GT(norm, 0);
+  for (int i = 0; i < m->nv; i++) {
+    mjtNum diff = lhs[i] - rhs[i];
+    err += diff * diff;
+  }
+  EXPECT_LT(mju_sqrt(err) / norm, MjTol(1e-11, 1e-4));
+
+  // restore iterations for the constraint solver (edge equalities) and step
+  // with constraint islands active
+  m->opt.iterations = 100;
+  for (int step = 0; step < 10; step++) {
+    mj_step(m.get(), d.get());
+    EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+    EXPECT_EQ(d->warning[mjWARN_BADQACC].number, 0);
+  }
+  EXPECT_GT(d->nisland, 0);
+}
+
 }  // namespace
 }  // namespace mujoco
