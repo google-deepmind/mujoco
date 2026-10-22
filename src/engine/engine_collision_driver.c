@@ -473,6 +473,10 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
 // test active element self-collisions with SAP, pushing pairs onto the arena
 static int mj_collideFlexSAPPairs(const mjModel* m, mjData* d, int f, int group, int npair);
 
+// test active element self-collisions of an interpolated flex by grouping elements into cells
+static int mj_collideFlexCellPairs(const mjModel* m, mjData* d, int f, int group,
+                                   size_t parena, int npair);
+
 // get colliding object IDs for a collision pair
 static inline void pairObjects(const mjcPair* p, int* obj1, int* obj2) {
   switch (p->type) {
@@ -903,10 +907,13 @@ void mj_collision(const mjModel* m, mjData* d) {
         // element-element: midphase
         if (!mjDISABLED(mjDSBL_MIDPHASE) &&
             m->flex_selfcollide[f] != mjFLEXSELF_NARROW &&
-            m->flex_bvhadr[f] >= 0) {
+            (m->flex_bvhadr[f] >= 0 ||
+             (m->flex_selfcollide[f] == mjFLEXSELF_AUTO && m->flex_interp[f]))) {
           // select midphase mode
-          if (m->flex_selfcollide[f] == mjFLEXSELF_BVH ||
-              (m->flex_selfcollide[f] == mjFLEXSELF_AUTO && m->flex_dim[f] == 3)) {
+          if (m->flex_selfcollide[f] == mjFLEXSELF_AUTO && m->flex_interp[f]) {
+            ncandidate = mj_collideFlexCellPairs(m, d, f, group, parena, ncandidate);
+          } else if (m->flex_selfcollide[f] == mjFLEXSELF_BVH ||
+                     (m->flex_selfcollide[f] == mjFLEXSELF_AUTO && m->flex_dim[f] == 3)) {
             ncandidate = mj_collideTree(m, d, nbody+f, nbody+f, 0, 0, 0, parena, ncandidate,
                                         group);
           } else {
@@ -2337,6 +2344,224 @@ static int mj_collideFlexSAPPairs(const mjModel* m, mjData* d, int f, int group,
     int e1 = elid[sappair[i].hi];
     int e2 = elid[sappair[i].lo];
     npair = pushSelfElemElem(m, d, f, e1, e2, group, npair);
+  }
+
+  mj_freeStack(d);
+  return npair;
+}
+
+
+// test active element self-collisions of an interpolated flex by grouping elements into cells
+static int mj_collideFlexCellPairs(const mjModel* m, mjData* d, int f, int group,
+                                   size_t parena, int npair) {
+  const int* cellnum = m->flex_cellnum + 3*f;
+  int nx = cellnum[0], ny = cellnum[1], nz = cellnum[2];
+  int ncell = nx * ny * nz;
+  int nvert = m->flex_vertnum[f];
+  int nelem = m->flex_elemnum[f];
+  int dim = m->flex_dim[f];
+  if (nelem < 2 || ncell < 1) {
+    return npair;
+  }
+
+  mj_markStack(d);
+  int start_pair = npair;
+
+  // compute cell range [lo, hi] once per vertex
+  int* vert_lo = mjSTACKALLOC(d, 3*nvert, int);
+  int* vert_hi = mjSTACKALLOC(d, 3*nvert, int);
+  for (int v = 0; v < nvert; v++) {
+    mjc_vertCellRange(m, f, v, vert_lo + 3*v, vert_hi + 3*v);
+  }
+
+  // assign each active element to the lo-cell of its first vertex, and record its [elo, ehi] range
+  int* elem_cell = mjSTACKALLOC(d, nelem, int);
+  int* elem_lo = mjSTACKALLOC(d, 3*nelem, int);
+  int* elem_hi = mjSTACKALLOC(d, 3*nelem, int);
+  int* cell_count = mjSTACKALLOC(d, ncell, int);
+  mju_zeroInt(cell_count, ncell);
+
+  const int* elemdata = m->flex_elem + m->flex_elemdataadr[f];
+  int nactive = 0;
+  for (int e = 0; e < nelem; e++) {
+    if (!mj_isElemActive(m, f, e)) {
+      elem_cell[e] = -1;
+      continue;
+    }
+    const int* edata = elemdata + e*(dim + 1);
+    int v0 = edata[0];
+    int elo[3], ehi[3];
+    for (int k = 0; k < 3; k++) {
+      elo[k] = vert_lo[3*v0 + k];
+      ehi[k] = vert_hi[3*v0 + k];
+    }
+    int c = (elo[0]*ny + elo[1])*nz + elo[2];
+    for (int i = 1; i <= dim; i++) {
+      int v = edata[i];
+      for (int k = 0; k < 3; k++) {
+        elo[k] = mjMIN(elo[k], vert_lo[3*v + k]);
+        ehi[k] = mjMAX(ehi[k], vert_hi[3*v + k]);
+      }
+    }
+    elem_cell[e] = c;
+    for (int k = 0; k < 3; k++) {
+      elem_lo[3*e + k] = elo[k];
+      elem_hi[3*e + k] = ehi[k];
+    }
+    cell_count[c]++;
+    nactive++;
+  }
+
+  if (nactive < 2) {
+    mj_freeStack(d);
+    return npair;
+  }
+
+  // compact non-empty cells and build CSR offsets into cell_elems
+  int nnonempty = 0;
+  for (int c = 0; c < ncell; c++) {
+    if (cell_count[c] > 0) {
+      nnonempty++;
+    }
+  }
+  int* cell_slot = mjSTACKALLOC(d, ncell, int);
+  int* cell_offset = mjSTACKALLOC(d, nnonempty + 1, int);
+  int* cell_cursor = mjSTACKALLOC(d, nnonempty, int);
+  int* cell_coord = mjSTACKALLOC(d, 3*nnonempty, int);
+  int* cell_lo = mjSTACKALLOC(d, 3*nnonempty, int);
+  int* cell_hi = mjSTACKALLOC(d, 3*nnonempty, int);
+  mjtNum* cell_min = mjSTACKALLOC(d, 3*nnonempty, mjtNum);
+  mjtNum* cell_max = mjSTACKALLOC(d, 3*nnonempty, mjtNum);
+  mjtNum* cell_aabb = mjSTACKALLOC(d, 6*nnonempty, mjtNum);
+
+  int offset = 0, slot = 0;
+  for (int c = 0; c < ncell; c++) {
+    if (cell_count[c] > 0) {
+      cell_slot[c] = slot;
+      cell_offset[slot] = offset;
+      cell_cursor[slot] = offset;
+      offset += cell_count[c];
+
+      int cx = c / (ny * nz);
+      int cy = (c / nz) % ny;
+      int cz = c % nz;
+      cell_coord[3*slot + 0] = cx;
+      cell_coord[3*slot + 1] = cy;
+      cell_coord[3*slot + 2] = cz;
+      cell_lo[3*slot + 0] = cx;
+      cell_lo[3*slot + 1] = cy;
+      cell_lo[3*slot + 2] = cz;
+      cell_hi[3*slot + 0] = cx;
+      cell_hi[3*slot + 1] = cy;
+      cell_hi[3*slot + 2] = cz;
+      for (int k = 0; k < 3; k++) {
+        cell_min[3*slot + k] = mjMAXVAL;
+        cell_max[3*slot + k] = -mjMAXVAL;
+      }
+      slot++;
+    } else {
+      cell_slot[c] = -1;
+    }
+  }
+  cell_offset[nnonempty] = offset;
+
+  // populate cell_elems, cell_lo/hi, and cell bounding boxes in a single O(nelem) pass
+  int* cell_elems = mjSTACKALLOC(d, nactive, int);
+  const mjtNum* elemaabb = d->flexelem_aabb + 6*m->flex_elemadr[f];
+  for (int e = 0; e < nelem; e++) {
+    int c = elem_cell[e];
+    if (c < 0) {
+      continue;
+    }
+    int s = cell_slot[c];
+    cell_elems[cell_cursor[s]++] = e;
+    for (int k = 0; k < 3; k++) {
+      cell_lo[3*s + k] = mjMIN(cell_lo[3*s + k], elem_lo[3*e + k]);
+      cell_hi[3*s + k] = mjMAX(cell_hi[3*s + k], elem_hi[3*e + k]);
+      mjtNum center = elemaabb[6*e + k];
+      mjtNum radius = elemaabb[6*e + 3 + k];
+      cell_min[3*s + k] = mju_min(cell_min[3*s + k], center - radius);
+      cell_max[3*s + k] = mju_max(cell_max[3*s + k], center + radius);
+    }
+  }
+
+  for (int s = 0; s < nnonempty; s++) {
+    for (int k = 0; k < 3; k++) {
+      cell_aabb[6*s + k] = 0.5 * (cell_max[3*s + k] + cell_min[3*s + k]);
+      cell_aabb[6*s + 3 + k] = 0.5 * (cell_max[3*s + k] - cell_min[3*s + k]);
+    }
+  }
+
+  // test pairs of non-empty cells (interpolated cages are coarse in practice, typically 3^3 to 6^3)
+  for (int s1 = 0; s1 < nnonempty; s1++) {
+    const int* coord1 = cell_coord + 3*s1;
+    const int* lo1 = cell_lo + 3*s1;
+    const int* hi1 = cell_hi + 3*s1;
+    const mjtNum* aabb1 = cell_aabb + 6*s1;
+    int start1 = cell_offset[s1], end1 = cell_offset[s1 + 1];
+
+    // elements in the same cell s1 share a node via their first vertex (both have vert_lo == coord1)
+    for (int s2 = s1 + 1; s2 < nnonempty; s2++) {
+      const int* coord2 = cell_coord + 3*s2;
+
+      // if first-vertex cells are neighbors (|coord1 - coord2|_inf <= 1), every pair is excluded
+      if (mjc_cellRangeShared(coord1, coord1, coord2, coord2)) {
+        continue;
+      }
+
+      // skip if cell AABBs do not overlap
+      if (filterBox(aabb1, cell_aabb + 6*s2, 0)) {
+        continue;
+      }
+
+      // if cell ranges are separated by > 1 along some axis, no pair in (s1, s2) shares a node
+      const int* lo2 = cell_lo + 3*s2;
+      const int* hi2 = cell_hi + 3*s2;
+      int disjoint = !mjc_cellRangeShared(lo1, hi1, lo2, hi2);
+
+      int start2 = cell_offset[s2], end2 = cell_offset[s2 + 1];
+      for (int i1 = start1; i1 < end1; i1++) {
+        int e1 = cell_elems[i1];
+        const mjtNum* eaabb1 = elemaabb + 6*e1;
+        for (int i2 = start2; i2 < end2; i2++) {
+          int e2 = cell_elems[i2];
+          if (!filterBox(eaabb1, elemaabb + 6*e2, 0)) {
+            int emin = mjMIN(e1, e2);
+            int emax = mjMAX(e1, e2);
+            if (!disjoint) {
+              // check if any vertex of e1 and any vertex of e2 share a cell node
+              const int* edata1 = elemdata + e1*(dim + 1);
+              const int* edata2 = elemdata + e2*(dim + 1);
+              int shared = 0;
+              for (int v1 = 0; v1 <= dim && !shared; v1++) {
+                const int* vlo1 = vert_lo + 3*edata1[v1];
+                const int* vhi1 = vert_hi + 3*edata1[v1];
+                for (int v2 = 0; v2 <= dim; v2++) {
+                  const int* vlo2 = vert_lo + 3*edata2[v2];
+                  const int* vhi2 = vert_hi + 3*edata2[v2];
+                  if (mjc_cellRangeShared(vlo1, vhi1, vlo2, vhi2)) {
+                    shared = 1;
+                    break;
+                  }
+                }
+              }
+              if (shared) {
+                continue;
+              }
+            }
+            npair = pushElemElem(d, f, emin, f, emax, group, npair);
+          }
+        }
+      }
+    }
+  }
+
+  // sort pairs generated by this flex self-collision
+  int n = npair - start_pair;
+  if (n > 1) {
+    mjcPair* buf = mjSTACKALLOC(d, n, mjcPair);
+    mjcPair* pairs = (mjcPair*) ((char*) d->arena + parena);
+    pairSort(pairs + start_pair, buf, n, (void*)m);
   }
 
   mj_freeStack(d);

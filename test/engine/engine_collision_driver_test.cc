@@ -889,7 +889,7 @@ void FlattenCage(const mjModel* m, mjData* d, int f, mjtNum eps) {
 
 TEST_F(MjCollisionTest, InterpolatedSelfCollisionNoContactsAtRest) {
   for (const char* cellcount : {"1 1 1", "2 2 3", "4 4 4"}) {
-    for (const char* selfcollide : {"narrow", "bvh", "sap"}) {
+    for (const char* selfcollide : {"narrow", "bvh", "sap", "auto"}) {
       for (const char* dof : {"trilinear", "quadratic"}) {
         char error[1024];
         MjModelPtr m = LoadModelFromString(Pillow(cellcount, selfcollide, dof),
@@ -908,7 +908,7 @@ TEST_F(MjCollisionTest, InterpolatedSelfCollisionNoContactsAtRest) {
 }
 
 TEST_F(MjCollisionTest, InterpolatedSelfCollisionExcludesSharedNodes) {
-  for (const char* selfcollide : {"narrow", "bvh", "sap"}) {
+  for (const char* selfcollide : {"narrow", "bvh", "sap", "auto"}) {
     // top and bottom faces are in cells 2 and 0, which have no common node
     char error[1024];
     MjModelPtr m =
@@ -930,6 +930,143 @@ TEST_F(MjCollisionTest, InterpolatedSelfCollisionExcludesSharedNodes) {
       FlattenCage(m_near.get(), d_near.get(), 0, 0.5 * m->flex_radius[0]);
       EXPECT_EQ(CountSelfContacts(m_near.get(), d_near.get(), 0).nself, 0)
           << cellcount << ", " << selfcollide;
+    }
+  }
+}
+
+TEST_F(MjCollisionTest, InterpolatedSelfCollisionMidphaseParity) {
+  // compare selfcollide="auto" (cell-level midphase) against "narrow", "bvh",
+  // and "sap" on trilinear and quadratic pillows (including a 3x3x3 cell grid
+  // where the 10x10x2 vertex grid has elements straddling cell boundaries)
+  for (const char* cellcount : {"2 2 3", "3 3 3"}) {
+    for (const char* dof : {"trilinear", "quadratic"}) {
+      char error[1024];
+      MjModelPtr m_auto = LoadModelFromString(Pillow(cellcount, "auto", dof),
+                                              error, sizeof(error));
+      ASSERT_THAT(m_auto.get(), NotNull()) << error;
+      MjDataPtr d_auto = MakeData(m_auto);
+
+      // push the top-corner cage node down to the bottom face so a small patch
+      // of opposite cells collides (< mjMAXCONPAIR contacts, avoiding tie-break
+      // truncation differences when bvh/sap swap (e1, e2) in GJK)
+      mj_resetData(m_auto.get(), d_auto.get());
+      mj_kinematics(m_auto.get(), d_auto.get());
+      int nodeadr = m_auto->flex_nodeadr[0];
+      mjtNum zmin = mjMAXVAL;
+      for (int i = 0; i < m_auto->flex_nodenum[0]; i++) {
+        zmin = std::min(
+            zmin, d_auto->xpos[3 * m_auto->flex_nodebodyid[nodeadr + i] + 2]);
+      }
+      int b = m_auto->flex_nodebodyid[nodeadr + m_auto->flex_nodenum[0] - 1];
+      mjtNum ztarget = zmin - 0.5 * m_auto->flex_radius[0];
+      for (int j = m_auto->body_jntadr[b];
+           j < m_auto->body_jntadr[b] + m_auto->body_jntnum[b]; j++) {
+        if (m_auto->jnt_type[j] == mjJNT_SLIDE &&
+            m_auto->jnt_axis[3 * j + 2] == 1) {
+          d_auto->qpos[m_auto->jnt_qposadr[j]] +=
+              ztarget - d_auto->xpos[3 * b + 2];
+        }
+      }
+      mj_forward(m_auto.get(), d_auto.get());
+      SelfContacts c_auto = CountSelfContacts(m_auto.get(), d_auto.get(), 0);
+      ASSERT_GT(c_auto.ntopbottom, 0);
+      ASSERT_LT(c_auto.nself, mjMAXCONPAIR);
+
+      for (const char* mode : {"narrow", "bvh", "sap"}) {
+        MjModelPtr m = LoadModelFromString(Pillow(cellcount, mode, dof), error,
+                                           sizeof(error));
+        ASSERT_THAT(m.get(), NotNull()) << error;
+        MjDataPtr d = MakeData(m);
+        mju_copy(d->qpos, d_auto->qpos, m->nq);
+        mj_forward(m.get(), d.get());
+
+        ASSERT_EQ(d->ncon, d_auto->ncon)
+            << cellcount << ", " << dof << ", " << mode;
+
+        if (std::string(mode) == "narrow") {
+          // auto and narrow both canonicalize (e1 < e2) and sort pairs, so
+          // their contacts are bit-for-bit identical
+          for (int i = 0; i < d->ncon; i++) {
+            EXPECT_EQ(d->contact[i].elem[0], d_auto->contact[i].elem[0])
+                << cellcount << ", " << dof << ", contact " << i;
+            EXPECT_EQ(d->contact[i].elem[1], d_auto->contact[i].elem[1])
+                << cellcount << ", " << dof << ", contact " << i;
+            EXPECT_EQ(d->contact[i].dist, d_auto->contact[i].dist)
+                << cellcount << ", " << dof << ", contact " << i;
+            for (int k = 0; k < 3; k++) {
+              EXPECT_EQ(d->contact[i].pos[k], d_auto->contact[i].pos[k]);
+              EXPECT_EQ(d->contact[i].frame[k], d_auto->contact[i].frame[k]);
+            }
+          }
+          for (int i = 0; i < m->nv; i++) {
+            EXPECT_EQ(d->qfrc_constraint[i], d_auto->qfrc_constraint[i])
+                << cellcount << ", " << dof << ", dof " << i;
+          }
+        } else {
+          // bvh and sap do not canonicalize e1 < e2 before GJK/EPA, so GJK
+          // distances can differ by ~1e-7 when swapping (e1, e2)
+          SelfContacts c_mode = CountSelfContacts(m.get(), d.get(), 0);
+          EXPECT_EQ(c_mode.nself, c_auto.nself);
+          EXPECT_EQ(c_mode.ntopbottom, c_auto.ntopbottom);
+          EXPECT_NEAR(c_mode.mindist, c_auto.mindist, 1e-6);
+          for (int i = 0; i < m->nv; i++) {
+            EXPECT_THAT(d->qfrc_constraint[i],
+                        MjNear(d_auto->qfrc_constraint[i], 1e-4, 1e-3))
+                << cellcount << ", " << dof << ", " << mode << ", dof " << i;
+          }
+        }
+      }
+    }
+  }
+
+  // also test an element spanning >= 2 cells colliding with another element in
+  // the same primary cell (both have e_lo = 0, but one spans cells [0, 3] and
+  // has only 1 vertex in cell 0 and 2 vertices in cell 3, while the other is
+  // in cell 0; after flattening the cage, only the vertices in cell 3 touch
+  // cell 0)
+  std::string xml_span = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="span" type="direct" dim="2" dof="trilinear"
+                cellcount="1 1 4" radius=".01" mass="1"
+                element="0 1 2  3 4 5  6 7 8"
+                point="0 0 0  1 0 0  0 1 0
+                       1 1 0  1 0 1  0 1 1
+                       5 0 0  5 1 0  5 0 1">
+        <elasticity young="1"/>
+        <contact selfcollide="auto"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m_span_auto =
+      LoadModelFromString(xml_span.c_str(), error, sizeof(error));
+  ASSERT_THAT(m_span_auto.get(), NotNull()) << error;
+  MjDataPtr d_span_auto = MakeData(m_span_auto);
+  FlattenCage(m_span_auto.get(), d_span_auto.get(), 0,
+              0.5 * m_span_auto->flex_radius[0]);
+  mj_forward(m_span_auto.get(), d_span_auto.get());
+
+  for (const char* mode : {"narrow", "bvh", "sap"}) {
+    std::string xml_mode = xml_span;
+    size_t pos = xml_mode.find("auto");
+    xml_mode.replace(pos, 4, mode);
+    MjModelPtr m_span =
+        LoadModelFromString(xml_mode.c_str(), error, sizeof(error));
+    ASSERT_THAT(m_span.get(), NotNull()) << error;
+    MjDataPtr d_span = MakeData(m_span);
+    FlattenCage(m_span.get(), d_span.get(), 0, 0.5 * m_span->flex_radius[0]);
+    mj_forward(m_span.get(), d_span.get());
+    ASSERT_EQ(d_span->ncon, d_span_auto->ncon) << mode;
+    for (int i = 0; i < d_span->ncon; i++) {
+      EXPECT_EQ(
+          std::min(d_span->contact[i].elem[0], d_span->contact[i].elem[1]),
+          d_span_auto->contact[i].elem[0]);
+      EXPECT_EQ(
+          std::max(d_span->contact[i].elem[0], d_span->contact[i].elem[1]),
+          d_span_auto->contact[i].elem[1]);
+      EXPECT_NEAR(d_span->contact[i].dist, d_span_auto->contact[i].dist, 1e-6);
     }
   }
 }

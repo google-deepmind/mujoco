@@ -4866,7 +4866,7 @@ extensions specific to flexes.
 
    For interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>`), elements in the same or
    neighboring :ref:`cells<body-flexcomp-cellcount>` do not self-collide, so self-collision requires at least 3 cells
-   along an axis.
+   along an axis; **auto** prunes non-neighboring cell pairs by their bounding boxes before testing element pairs.
 
 .. _flex-contact-activelayers:
 
