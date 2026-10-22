@@ -162,6 +162,8 @@ Bug fixes
     :ref:`mju_error`, which from :ref:`mj_saveLastXML` also left a lock held. It is now a write error.
   - The Filament renderer called :ref:`mju_error` for a texture with an unsupported number of channels. It now skips the
     texture with a warning, like the classic renderer.
+  - :ref:`mj_recompile` freed the given :ref:`mjData` and called :ref:`mju_error` if a plugin failed to initialize. On
+    some other failures it did not delete the model and data, contrary to its documentation.
 - Fixed several bugs in interpolated :ref:`flexcomp<body-flexcomp>` elasticity:
 
   - Volume (solid) interpolated flexes whose first cell is empty, e.g. a trilinear :ref:`flexcomp<body-flexcomp>` from

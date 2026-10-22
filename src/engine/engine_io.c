@@ -1033,8 +1033,9 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
 }
 
 
-// initialize plugins, copy into d (required for deletion)
-void mj_initPlugin(const mjModel* m, mjData* d) {
+// initialize plugins, copy into d (required for deletion); if an init callback fails, destroy
+// the instances already initialized and return the id of the failed instance, otherwise -1
+int mj_initPlugin(const mjModel* m, mjData* d) {
   d->nplugin = m->nplugin;
   for (int i = 0; i < m->nplugin; ++i) {
     d->plugin[i] = m->plugin[i];
@@ -1047,11 +1048,22 @@ void mj_initPlugin(const mjModel* m, mjData* d) {
           prev->destroy(d, j);
         }
       }
-      mju_free(d->buffer);
-      mju_free(d->arena);
-      mju_free(d);
-      mjERROR("plugin->init failed for plugin id %d", i);
+      d->nplugin = 0;
+      return i;
     }
+  }
+  return -1;
+}
+
+
+// initialize plugins of mjData allocated by the caller, free it and error on failure
+static void initPluginOrFree(const mjModel* m, mjData* d) {
+  int failed = mj_initPlugin(m, d);
+  if (failed >= 0) {
+    mju_free(d->buffer);
+    mju_free(d->arena);
+    mju_free(d);
+    mjERROR("plugin->init failed for plugin id %d", failed);
   }
 }
 
@@ -1153,7 +1165,7 @@ mjData* mj_makeData(const mjModel* m) {
   mjData* d = NULL;
   mj_makeRawData(&d, m);
   if (d) {
-    mj_initPlugin(m, d);
+    initPluginOrFree(m, d);
     mj_resetData(m, d);
   }
   return d;
@@ -1169,7 +1181,7 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   // allocate new data if needed
   if (!dest) {
     mj_makeRawData(&dest, m);
-    mj_initPlugin(m, dest);
+    initPluginOrFree(m, dest);
   }
 
   // check sizes

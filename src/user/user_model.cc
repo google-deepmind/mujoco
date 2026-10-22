@@ -4440,7 +4440,9 @@ void mjCModel::MakeData(const mjModel* m, mjData** dest) {
   mj_makeRawData(dest, m);
   mjData* d = *dest;
   if (d) {
-    mj_initPlugin(m, d);
+    // d belongs to the caller: report a failed plugin init as a compile error
+    int failed = mj_initPlugin(m, d);
+    if (failed >= 0) { throw mjCError(0, "plugin init failed for plugin id %d", nullptr, failed); }
     mj_resetData(m, d);
   }
 }

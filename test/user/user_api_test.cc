@@ -9653,5 +9653,49 @@ TEST_F(MujocoTest, AttachEmptyOrNullPrefixWarning) {
     mj_deleteSpec(child);
   }
 }
+// a passive plugin whose init fails for the given mjData
+static mjData* fail_init_data = nullptr;
+static void RegisterFailInitPlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+  plugin.name = "mujoco.test.fail_init";
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
+  plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
+  plugin.init = +[](const mjModel* m, mjData* d, int instance) {
+    return d == fail_init_data ? -1 : 0;
+  };
+  plugin.compute =
+      +[](const mjModel* m, mjData* d, int instance, int capability_bit) {};
+  mjp_registerPlugin(&plugin);
+}
+
+// a plugin init which fails when mj_recompile remakes the caller's mjData is a
+// recompile error, and m and d are deleted, as when compilation fails
+TEST_F(MujocoTest, RecompilePluginInitFailure) {
+  RegisterFailInitPlugin();
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.test.fail_init">
+        <instance name="instance"/>
+      </plugin>
+    </extension>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  fail_init_data = d;
+  EXPECT_NE(mj_recompile(spec, nullptr, m, d), 0);
+  fail_init_data = nullptr;
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("plugin init failed"));
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco
