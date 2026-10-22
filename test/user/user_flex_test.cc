@@ -3072,5 +3072,144 @@ TEST_F(UserFlexTest, InterpolatedShellElastic2dStiffness) {
   EXPECT_GE(both->flex_bendingadr[0], 0);
 }
 
+TEST_F(UserFlexTest, FlexStrainEqualityValidation) {
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  char error[1024] = {0};
+
+  // Non-interpolated flex with flexstrain equality fails to compile.
+  static constexpr char non_interp_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="2 2 2" spacing=".1 .1 .1"
+                dim="3" radius=".001">
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <flexstrain flex="f" cell="0 0 0"/>
+    </equality>
+  </mujoco>
+  )";
+  MjModelPtr non_interp =
+      LoadModelFromString(non_interp_xml, error, sizeof(error));
+  EXPECT_THAT(non_interp, IsNull());
+  EXPECT_THAT(error,
+              HasSubstr("flex strain equality requires an interpolated flex"));
+
+  // Switching a shell flex with strain equalities to volume mode (elastic2d=0)
+  // without removing the shell strain equalities fails to compile.
+  {
+    SpecPtr spec(mj_makeSpec(), mj_deleteSpec);
+    mjsFlex* flex = MakeTrilinearBox(spec.get(), /*shell=*/true);
+    ASSERT_THAT(flex, NotNull()) << mjs_getError(spec.get());
+    flex->elastic2d = 0;
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m, IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("shell flex strain equality on volumetric flex"));
+  }
+
+  // Switching a single-cell volumetric flex with strain equalities to shell
+  // mode (elastic2d=1) without updating the equalities fails to compile, and
+  // out-of-range face/cell indices are rejected.
+  static constexpr char vol_strain_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="box" count="4 4 4" cellcount="1 1 1"
+                spacing=".02 .02 .02" dim="2" dof="trilinear" radius=".001">
+        <edge equality="strain"/>
+        <elasticity thickness="0.01"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  {
+    SpecPtr spec(
+        mj_parseXMLString(vol_strain_xml, nullptr, error, sizeof(error)),
+        mj_deleteSpec);
+    ASSERT_THAT(spec, NotNull()) << error;
+    mjsFlex* flex = mjs_asFlex(mjs_firstElement(spec.get(), mjOBJ_FLEX));
+    mjsEquality* eq =
+        mjs_asEquality(mjs_firstElement(spec.get(), mjOBJ_EQUALITY));
+    ASSERT_THAT(flex, NotNull());
+    ASSERT_THAT(eq, NotNull());
+
+    // Out-of-range cell index in volume mode.
+    eq->data[0] = 1;
+    MjModelPtr m_bad_cell(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m_bad_cell, IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("flex strain cell index out of range"));
+    eq->data[0] = 0;
+
+    // Volumetric strain equality (data[1] >= 0) on shell flex (elastic2d != 0).
+    flex->elastic2d = 1;
+    MjModelPtr m_mismatch(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m_mismatch, IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("volumetric flex strain equality on shell flex"));
+
+    // Out-of-range face index in shell mode (1x1x1 has 6 faces: 0..5).
+    eq->data[0] = 6;
+    eq->data[1] = -1;
+    eq->data[2] = -1;
+    MjModelPtr m_bad_face(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m_bad_face, IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("flex strain face index out of range"));
+  }
+}
+
+TEST_F(UserFlexTest, InterpolatedElastic2dSwitchValidation) {
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  char error[1024] = {0};
+
+  // Volume -> shell switch on a 2x2x2 grid leaves interior node (1, 1, 1)
+  // attached to an unreferenced 3-DOF slide body and must fail to compile.
+  {
+    SpecPtr spec(mj_makeSpec(), mj_deleteSpec);
+    mjsFlex* flex = MakeTrilinearBox(spec.get(), /*shell=*/false);
+    ASSERT_THAT(flex, NotNull()) << mjs_getError(spec.get());
+    flex->elastic2d = 1;
+    flex->thickness = 0.01;
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m, IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("has unpinned interior node 13 with free DOFs"));
+  }
+
+  // Shell -> volume switch on a mesh with an empty corner cell leaves the
+  // empty-cell-only corner nodes attached to zero-stiffness 3-DOF slide bodies
+  // and must fail to compile.
+  static constexpr char empty_cell_shell_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="flex" type="direct" dim="3" dof="trilinear" mass="1"
+                cellcount="2 2 1" radius=".001"
+                point="0 0 0  1 0 0  0 0.4 0  0 0 1  0.4 0 0  0 1 0"
+                element="0 1 2 3  0 4 5 3">
+        <contact selfcollide="none"/>
+        <elasticity young="1e4" poisson="0.3" thickness="0.01"
+                    elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  {
+    SpecPtr spec(
+        mj_parseXMLString(empty_cell_shell_xml, nullptr, error, sizeof(error)),
+        mj_deleteSpec);
+    ASSERT_THAT(spec, NotNull()) << error;
+    mjsFlex* flex = mjs_asFlex(mjs_firstElement(spec.get(), mjOBJ_FLEX));
+    ASSERT_THAT(flex, NotNull());
+    flex->elastic2d = 0;
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m, IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("has unpinned node 16 in empty cell with free DOFs"));
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

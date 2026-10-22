@@ -1293,6 +1293,8 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
                         int           ne,
                         int           fdim,        // with no mesh content
                         const double  minmax[6]);  // bounding box of the node grid
+  bool NodeInEmptyCells(int gi, int gj,
+                        int gk) const;  // node only in empty cells
 
   // scale the compiled copy: positions by the gauges of their bodies, the rest by that of the flex
   void ApplyGauge();

@@ -93,11 +93,6 @@ mjCFlexcomp::mjCFlexcomp(void) {
 // identify empty cells and pin nodes exclusively in empty cells
 void mjCFlexcomp::MarkEmptyCells(
     mjCFlex* flex, const double* points, const double minmax[6], int nx, int ny, int nz) {
-  int cx    = flex->spec.cellcount[0];
-  int cy    = flex->spec.cellcount[1];
-  int cz    = flex->spec.cellcount[2];
-  int order = flex->spec.order;
-
   // delegate cell_empty computation to mjCFlex
   int nelem = element.size() / (flex->spec.dim + 1);
   flex->ComputeCellEmpty(points, element.data(), nelem, flex->spec.dim, minmax);
@@ -106,24 +101,7 @@ void mjCFlexcomp::MarkEmptyCells(
   for (int gi = 0; gi < nx; gi++) {
     for (int gj = 0; gj < ny; gj++) {
       for (int gk = 0; gk < nz; gk++) {
-        // find all cells that reference this node
-        bool all_empty = true;
-        int  ci_min    = std::max(0, gi == 0 ? 0 : (gi - 1) / order);
-        int  ci_max    = std::min(cx - 1, gi / order);
-        int  cj_min    = std::max(0, gj == 0 ? 0 : (gj - 1) / order);
-        int  cj_max    = std::min(cy - 1, gj / order);
-        int  ck_min    = std::max(0, gk == 0 ? 0 : (gk - 1) / order);
-        int  ck_max    = std::min(cz - 1, gk / order);
-
-        for (int ci = ci_min; ci <= ci_max && all_empty; ci++) {
-          for (int cj = cj_min; cj <= cj_max && all_empty; cj++) {
-            for (int ck = ck_min; ck <= ck_max && all_empty; ck++) {
-              if (!flex->cell_empty[ci * cy * cz + cj * cz + ck]) { all_empty = false; }
-            }
-          }
-        }
-
-        if (all_empty) {
+        if (flex->NodeInEmptyCells(gi, gj, gk)) {
           int idx     = gi * ny * nz + gj * nz + gk;
           pinned[idx] = true;
         }
@@ -2968,6 +2946,88 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
+  // disallow free flex node bodies on interior shell nodes or empty-cell-only
+  // volume nodes (checked once all flexes have resolved their node bodies and
+  // empty cells, since multiple flexes may share a cage)
+  if (!model->Flexes().empty() && this == model->Flexes().back()) {
+    std::unordered_set<int> supported_bodies;
+    for (const mjCFlex* f : model->Flexes()) {
+      if (!f->interpolated || f->rigid) {
+        for (int bid : f->vertbodyid) { supported_bodies.insert(bid); }
+        for (int bid : f->nodebodyid) { supported_bodies.insert(bid); }
+        continue;
+      }
+      int cx = f->spec.cellcount[0], cy = f->spec.cellcount[1], cz = f->spec.cellcount[2];
+      int nx = cx * f->spec.order + 1;
+      int ny = cy * f->spec.order + 1;
+      int nz = cz * f->spec.order + 1;
+
+      std::unordered_map<int, int> body_count;
+      for (int bid : f->nodebodyid) { body_count[bid]++; }
+      for (const auto& [bid, count] : body_count) {
+        if (count > 1) { supported_bodies.insert(bid); }
+      }
+
+      for (int gi = 0; gi < nx; gi++) {
+        for (int gj = 0; gj < ny; gj++) {
+          for (int gk = 0; gk < nz; gk++) {
+            int  idx       = gi * ny * nz + gj * nz + gk;
+            bool supported = f->elastic2d ? (gi == 0 ||
+                                             gi == nx - 1 ||
+                                             gj == 0 ||
+                                             gj == ny - 1 ||
+                                             gk == 0 ||
+                                             gk == nz - 1)
+                                          : !f->NodeInEmptyCells(gi, gj, gk);
+            if (supported) { supported_bodies.insert(f->nodebodyid[idx]); }
+          }
+        }
+      }
+    }
+
+    auto has_free_node_body = [&](int bid) {
+      if (bid <= 0 || supported_bodies.count(bid)) { return false; }
+      const mjCBody* pbody = model->Bodies()[bid];
+      if (pbody->joints.empty() || !pbody->geoms.empty() || !pbody->bodies.empty()) {
+        return false;
+      }
+      for (const mjCJoint* jnt : pbody->joints) {
+        if (jnt->spec.type != mjJNT_SLIDE) { return false; }
+      }
+      return true;
+    };
+
+    for (mjCFlex* f : model->Flexes()) {
+      if (!f->interpolated || f->rigid) { continue; }
+      int cx = f->spec.cellcount[0], cy = f->spec.cellcount[1], cz = f->spec.cellcount[2];
+      int nx = cx * f->spec.order + 1;
+      int ny = cy * f->spec.order + 1;
+      int nz = cz * f->spec.order + 1;
+
+      for (int gi = 0; gi < nx; gi++) {
+        for (int gj = 0; gj < ny; gj++) {
+          for (int gk = 0; gk < nz; gk++) {
+            int idx = gi * ny * nz + gj * nz + gk;
+            if (!has_free_node_body(f->nodebodyid[idx])) { continue; }
+            if (f->elastic2d) {
+              throw mjCError(f,
+                             "shell flex '%s' has unpinned interior node %d "
+                             "with free DOFs",
+                             f->name.c_str(),
+                             idx);
+            } else {
+              throw mjCError(f,
+                             "volumetric flex '%s' has unpinned node %d in "
+                             "empty cell with free DOFs",
+                             f->name.c_str(),
+                             idx);
+            }
+          }
+        }
+      }
+    }
+  }
+
   // check if any strain equality references this flex (the equalities may
   // have been added or removed since the flex was made)
   for (auto* equality : model->Equalities()) {
@@ -3411,6 +3471,29 @@ void mjCFlex::ComputeCellEmpty(
   }
 }
 
+// return true if all cells adjacent to node (gi, gj, gk) are empty
+bool mjCFlex::NodeInEmptyCells(int gi, int gj, int gk) const {
+  if (cell_empty.empty() || spec.order <= 0) { return false; }
+  int cx     = spec.cellcount[0];
+  int cy     = spec.cellcount[1];
+  int cz     = spec.cellcount[2];
+  int order  = spec.order;
+  int ci_min = std::max(0, gi == 0 ? 0 : (gi - 1) / order);
+  int ci_max = std::min(cx - 1, gi / order);
+  int cj_min = std::max(0, gj == 0 ? 0 : (gj - 1) / order);
+  int cj_max = std::min(cy - 1, gj / order);
+  int ck_min = std::max(0, gk == 0 ? 0 : (gk - 1) / order);
+  int ck_max = std::min(cz - 1, gk / order);
+
+  for (int ci = ci_min; ci <= ci_max; ci++) {
+    for (int cj = cj_min; cj <= cj_max; cj++) {
+      for (int ck = ck_min; ck <= ck_max; ck++) {
+        if (!cell_empty[ci * cy * cz + cj * cz + ck]) { return false; }
+      }
+    }
+  }
+  return true;
+}
 
 // create flex BVH
 void mjCFlex::CreateBVH() {
