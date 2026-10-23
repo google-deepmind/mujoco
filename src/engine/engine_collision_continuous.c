@@ -1378,7 +1378,9 @@ mjtNum mjc_geomStepMotion(const mjModel* m, const mjData* d, int g, mjtNum t,
   mju_transformSpatial(gvel, cvel, 0, d->geom_xpos + 3 * g,
                        d->subtree_com + 3 * m->body_rootid[bodyid], NULL);
 
-  mji_scl3(dw, gvel, t);
+  if (m->geom_type[g] != mjGEOM_SPHERE) {
+    mji_scl3(dw, gvel, t);
+  }
   mji_scl3(dx, gvel + 3, t);
 
   // for any point q on the geom surface, its velocity is v + w x (q - xpos)
@@ -1445,6 +1447,8 @@ static inline mjtNum evalGeomPairDist(const mjModel* m, mjCCDObj* obj1, mjCCDObj
   mji_copy3(x1, obj1->pos);
   mji_copy3(x2, obj2->pos);
   normal[0] = 0, normal[1] = 0, normal[2] = 1;
+
+  // TODO(kylebayes): support warmstarting in GJK
   dist = mjc_gjk(obj1, obj2, x1, x2, cutoff, m->opt.ccd_tolerance, m->opt.ccd_iterations);
   if (dist <= cutoff) {
     mjtNum diff[3] = {x2[0] - x1[0], x2[1] - x1[1], x2[2] - x1[2]};
@@ -1638,11 +1642,16 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
   }
 
   mjtNum dx1[3], dw1[3], dx2[3], dw2[3];
-  mjtNum sweep = mjc_geomStepMotion(m, d, g1, m->opt.timestep, dx1, dw1) +
-                 mjc_geomStepMotion(m, d, g2, m->opt.timestep, dx2, dw2);
+  mjtNum s1 = mjc_geomStepMotion(m, d, g1, m->opt.timestep, dx1, dw1);
+  mjtNum s2 = mjc_geomStepMotion(m, d, g2, m->opt.timestep, dx2, dw2);
+  mjtNum sweep = s1 + s2;
   if (sweep < mjMINVAL) {
     return 0;
   }
+
+  mjtNum dx[3];
+  mji_sub3(dx, dx1, dx2);
+  mjtNum rot_sweep = (s1 - mju_norm3(dx1)) + (s2 - mju_norm3(dx2));
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
@@ -1662,17 +1671,27 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     return 0;
   }
 
-  // conservative advancement (capped at 16 steps for grazing trajectories)
-  // close distance to 2% of initial distance to always get witness points from GJK without EPA
+  // target distance to shrink to (2% of initial distance to always get witness
+  // points from GJK)
   mjtNum target = 0.02 * (dist0 - margin) + margin;
+
+  // relative tolerance for early exit
+  mjtNum rel_tol = mju_max(m->opt.ccd_tolerance, 0.5 * (target - margin));
   mjtNum t = 0, dist = dist0;
+
+  // directed conservative advancement (capped at 16 steps)
   for (int it = 0; it < 16; it++) {
     mjtNum clearance = dist - target;
-    if (clearance <= m->opt.ccd_tolerance) {
+    if (clearance <= rel_tol) {
       break;
     }
 
-    mjtNum step = clearance / sweep;
+    mjtNum dir_sweep = mju_dot3(normal, dx) + rot_sweep;
+    if (dir_sweep <= mjMINVAL) {
+      return 0;
+    }
+
+    mjtNum step = clearance / dir_sweep;
     t += step;
     if (t >= 1.0) {
       return 0;
@@ -1681,9 +1700,6 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     advanceGeomPose(&obj1, dx1, dw1, step);
     advanceGeomPose(&obj2, dx2, dw2, step);
     dist = evalGeomPairDist(m, &obj1, &obj2, distmax, x1, x2, normal);
-  }
-  if (dist - target > m->opt.ccd_tolerance) {
-    return 0;
   }
 
   // full-step displacements of witness points x1, x2: dp = dx + dw x (x - pos)
@@ -1697,7 +1713,16 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
 
   // normal closing distance over the step (max of instantaneous and average closing rates)
   mji_sub3(drel, dp1, dp2);
-  mjtNum closing_dist = mju_max(mju_dot3(normal, drel), (dist0 - dist) / mju_max(t, mjMINVAL));
+  mjtNum vn = mju_dot3(normal, drel);
+  mjtNum closing_dist = mju_max(vn, (dist0 - dist) / mju_max(t, mjMINVAL));
+
+  // linear extrapolation fallback if 16-step cap was reached (non-conservative under rotation)
+  if (dist - target > rel_tol) {
+    if (vn <= mjMINVAL || dist - margin > (1.0 - t) * vn) {
+      return 0;
+    }
+    t += (dist - target) / vn;
+  }
   if (closing_dist <= 0) {
     return 0;
   }
@@ -1716,6 +1741,7 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
       obj2.margin = pad;
       mji_addToScl3(x1_all, normal, 0.5 * pad);
       mji_addToScl3(x2_all, normal, -0.5 * pad);
+      // TODO(kylebayes): support multicontact with plane geoms
       nx = mjc_multicontact(&obj1, &obj2, x1_all, x2_all, dist_all, 4,
                             m->nmeshdegmax, m->npolygonmax, buffer);
       for (int i = 0; i < nx; i++) {
@@ -1724,9 +1750,10 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
       }
     }
 
-    int weld1 = m->body_weldid[m->geom_bodyid[g1]];
-    int weld2 = m->body_weldid[m->geom_bodyid[g2]];
     mjtNum cdist = contactDist(m, g1, g2, margin, t, closing_dist);
+    // TODO(kylebayes): slower body gets a lever-arm error proportional to tangential travel;
+    // the real fix is per-body contact points in the Jacobian
+    mjtNum w1 = s1 / sweep, w2 = s2 / sweep;
     for (int i = 0; i < nx; i++) {
       mjtNum x1_0[3], x2_0[3];
       pullbackGeomPoint(x1_0, x1_all + 3*i, &obj1, d);
@@ -1734,15 +1761,9 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
       if (isRayOccluded(m, d, g1, g2, x1_0, x2_0)) {
         continue;
       }
-      if (weld1 == 0 && weld2 > 0) {
-        mju_copy3(con[ncon].pos, x2_0);
-      } else if (weld2 == 0 && weld1 > 0) {
-        mju_copy3(con[ncon].pos, x1_0);
-      } else {
-        con[ncon].pos[0] = 0.5 * (x1_0[0] + x2_0[0]);
-        con[ncon].pos[1] = 0.5 * (x1_0[1] + x2_0[1]);
-        con[ncon].pos[2] = 0.5 * (x1_0[2] + x2_0[2]);
-      }
+      con[ncon].pos[0] = w1 * x1_0[0] + w2 * x2_0[0];
+      con[ncon].pos[1] = w1 * x1_0[1] + w2 * x2_0[1];
+      con[ncon].pos[2] = w1 * x1_0[2] + w2 * x2_0[2];
       con[ncon].dist = cdist;
       mju_copy3(con[ncon].normal, normal);
       mju_zero3(con[ncon].tangent);

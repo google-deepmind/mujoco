@@ -772,7 +772,7 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
       </body>
       <body name="box1" pos="2 0 0.5">
         <freejoint/>
-        <geom name="b1" type="box" size="0.05 0.05 0.05"/>
+        <geom name="b1" type="box" size="0.05 0.05 0.05" mass="100"/>
       </body>
       <body name="box2" pos="2 0 0.8">
         <freejoint/>
@@ -842,7 +842,57 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   for (int i = 0; i < ncon; i++) {
     EXPECT_NEAR(std::abs(con[i].pos[0] - 2.0), 0.05, MjTol(1e-4, 1e-4));
     EXPECT_NEAR(std::abs(con[i].pos[1]), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].pos[2], (0.1 * 0.55 + 0.6 * 0.75) / 0.7,
+                MjTol(1e-4, 1e-4));
     EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
+
+  // frictionless sphere (g = 2) hitting a free box (b1, g = 3) obliquely at
+  // 45 deg: normal force passes through the sphere's t = 0 center so the sphere
+  // gains no angular velocity and does not tunnel
+  mj_resetData(m, d);
+  d->qpos[0] = 1.85;
+  d->qpos[2] = 0.75;  // 0.15 m left and 0.15 m above b1 top (2.0, 0, 0.55)
+  d->qvel[0] = 30.0;
+  d->qvel[2] = -30.0;
+  mj_fwdPosition(m, d);
+  ncon = mjc_advanceGeomPair(m, d, 3, 2, 0.0, con, buffer.data());
+  ASSERT_EQ(ncon, 1);
+  EXPECT_NEAR(con[0].pos[0], 1.85, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con[0].pos[2], 0.70, MjTol(1e-4, 1e-4));
+  {
+    mjContact c = {};
+    c.dist = con[0].dist;
+    mju_copy3(c.pos, con[0].pos);
+    mju_copy3(c.frame, con[0].normal);
+    c.frame[4] = 1.0;
+    c.frame[8] = 1.0;
+    c.geom[0] = 3;
+    c.geom[1] = 2;
+    c.geom1 = 3;
+    c.geom2 = 2;
+    c.dim = 1;
+    c.vert[0] = -1;
+    c.vert[1] = -1;
+    c.elem[0] = -1;
+    c.elem[1] = -1;
+    c.flex[0] = -1;
+    c.flex[1] = -1;
+    c.efc_address = -1;
+    mju_copy(c.solref, m->geom_solref + mjNREF * 2, mjNREF);
+    mju_copy(c.solimp, m->geom_solimp + mjNIMP * 2, mjNIMP);
+    ASSERT_EQ(mj_addContact(m, d, &c), 0);
+    mj_makeConstraint(m, d);
+    mj_fwdVelocity(m, d);
+    mj_fwdActuation(m, d);
+    mj_fwdAcceleration(m, d);
+    mj_fwdConstraint(m, d);
+    mj_Euler(m, d);
+    EXPECT_LT(mju_norm3(d->qvel + 3), MjTol(1e-6, 1e-3));
+    EXPECT_GT(d->qpos[2] - d->qpos[9], 0.08);
+    // box spin (d->qvel + 9) is not checked: placing a single shared contact
+    // point at the fast sphere's t = 0 witness point shifts the lever arm on
+    // the resting box by the tangential travel
   }
 
   // horizontal capsule falling onto box wall -> 2 edge-face contacts
@@ -876,6 +926,30 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
   EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 0);
   EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 0);
+
+  // oblique impact at ~76 deg from normal (d0 = 0.02 m, dz = -0.05 m,
+  // dx = 0.20 m) and with large spin (dw dominating sweep)
+  mj_resetData(m, d);
+  d->qpos[0] = -0.10;
+  d->qpos[2] = 0.09;  // dist0 = 0.09 - 0.02 - 0.05 = 0.02 m above wall
+  d->qvel[0] = 20.0;  // dx = 0.20 m
+  d->qvel[2] = -5.0;  // dz = -0.05 m (TOI = 0.4)
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // box spinning rapidly about vertical z-axis (rot_sweep >> vn, hitting
+  // 16-step cap and exercising linear extrapolation fallback)
+  d->qpos[7] = -0.10;
+  d->qpos[9] = 0.09;    // dist0 = 0.09 - 0.02 - 0.05 = 0.02 m above wall
+  d->qvel[6] = 20.0;    // dx = 0.20 m
+  d->qvel[8] = -5.0;    // dz = -0.05 m (TOI = 0.4)
+  d->qvel[11] = 500.0;  // large wz spin inflating rot_sweep beyond 16-step cap
+  mj_fwdPosition(m, d);
+  EXPECT_GT(mjc_advanceGeomPair(m, d, 1, 3, 0.0, con, buffer.data()), 0);
+  EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
 
   mj_deleteData(d);
   mj_deleteModel(m);
