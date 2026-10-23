@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #import <algorithm>
-#import <atomic>
 #import <cstdint>
 #import <cstdlib>
 #import <cstring>
 #import <iostream>
 #import <vector>
 
+#import <dispatch/dispatch.h>
 #import <dlfcn.h>
 #import <mach-o/dyld.h>
 #import <pthread.h>
@@ -76,7 +76,7 @@ struct {
 #undef CPYTHON_FN
 } cpython;
 
-std::atomic_bool py_initialized;
+dispatch_semaphore_t py_initialized;
 
 struct Args {
   int argc;
@@ -109,7 +109,7 @@ void* mjpython_pymain(void* vargs) {
 
   // Set up the condition variable to pass control back to the macOS main thread.
   gil = cpython.PyGILState_Ensure();
-  cpython.PyRun_SimpleStringFlags(R"(
+  if (cpython.PyRun_SimpleStringFlags(R"(
 def _mjpython_make_cond():
   # Don't pollute the global namespace.
   global _mjpython_make_cond
@@ -121,12 +121,15 @@ def _mjpython_make_cond():
   cond = threading.Condition()
 
 _mjpython_make_cond()
-)", nullptr);
-  py_initialized.store(true);
+)", nullptr) != 0) {
+    std::cerr << "mjpython: failed to create the main-thread condition variable\n";
+    std::exit(EXIT_FAILURE);
+  }
+  dispatch_semaphore_signal(py_initialized);
 
   // Wait until GLFW is initialized on macOS main thread, set up the queue and an atexit hook
   // to enqueue a termination flag upon exit.
-  cpython.PyRun_SimpleStringFlags(R"(
+  if (cpython.PyRun_SimpleStringFlags(R"(
 def _mjpython_init():
   # Don't pollute the global namespace.
   global _mjpython_init
@@ -216,7 +219,10 @@ def _mjpython_init():
     cond.notify()
 
 _mjpython_init()
-)", nullptr);
+)", nullptr) != 0) {
+    std::cerr << "mjpython: failed to initialize the viewer dispatch bridge\n";
+    std::exit(EXIT_FAILURE);
+  }
 
   // Run the Python interpreter main loop.
   cpython.Py_RunMain();
@@ -228,7 +234,7 @@ _mjpython_init()
 }  // namespace
 
 int main(int argc, char** argv) {
-  py_initialized.store(false);
+  py_initialized = dispatch_semaphore_create(0);
   const char* libpython_path = getenv("MJPYTHON_LIBPYTHON");
   if (!libpython_path || !libpython_path[0]) {
     std::cerr << "This binary must be launched via the mjpython.py script.\n";
@@ -322,13 +328,13 @@ int main(int argc, char** argv) {
   pthread_attr_destroy(&pthread_attr);
 #undef PTHREAD_CHECKED
 
-  // Busy-wait until Python interpreter is initialized.
-  while (!py_initialized.load()) {}
+  // Wait until the Python interpreter is initialized.
+  dispatch_semaphore_wait(py_initialized, DISPATCH_TIME_FOREVER);
 
   // Initialize GLFW on the macOS main thread, yield control to Python main thread and wait for it
   // to finish setting up _MJPYTHON, then serve incoming viewer launch requests.
   PyGILState_STATE gil = cpython.PyGILState_Ensure();
-  cpython.PyRun_SimpleStringFlags(R"(
+  if (cpython.PyRun_SimpleStringFlags(R"(
 def _mjpython_main():
   # Don't pollute the global namespace.
   global _mjpython_main
@@ -379,7 +385,11 @@ def _mjpython_main():
       mujoco.viewer._MJPYTHON.done()
 
 _mjpython_main()
-)", nullptr);
+)", nullptr) != 0) {
+    std::cerr << "mjpython: viewer event loop terminated abnormally\n";
+    cpython.PyGILState_Release(gil);
+    return EXIT_FAILURE;
+  }
   cpython.PyGILState_Release(gil);
 
   // Tear everything down.
