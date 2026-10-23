@@ -13,6 +13,10 @@ Engine
   a different material point, and the contact force exerted a spurious torque on the element. This changes the
   simulation of models with flex contacts.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- Removed support for Python 3.10, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.
+
 Version 3.17.0 (October 22, 2026)
 ---------------------------------
 
