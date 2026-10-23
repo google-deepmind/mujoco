@@ -125,6 +125,8 @@ target_include_directories(compare_spec PRIVATE ${mujoco_SOURCE_DIR}/include)
 
 mujoco_test(fixture_test)
 
+mujoco_test(compare_model_test ADDITIONAL_LINK_LIBRARIES compare_model)
+
 mujoco_test(compare_spec_test ADDITIONAL_LINK_LIBRARIES compare_spec)
 
 mujoco_test(header_test)
