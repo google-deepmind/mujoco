@@ -13,6 +13,9 @@ Engine
   a different material point, and the contact force exerted a spurious torque on the element. This changes the
   simulation of models with flex contacts.
 - Fixed contact Jacobians of quadratic flexes, which dropped nodes with negative basis weights.
+- Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
+  wrapping at wrap onset. Thanks to :github:user:`M-Colley` for reporting and analyzing the issue in
+  :doc:`MJWarp <mjwarp/index>` issue `1772 <https://github.com/google-deepmind/mujoco_warp/issues/1772>`__.
 
 Python bindings
 ^^^^^^^^^^^^^^^

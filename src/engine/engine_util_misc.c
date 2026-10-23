@@ -53,7 +53,7 @@ static mjtBool is_intersect(const mjtNum* p1, const mjtNum* p2,
   mjtNum b0 = (u[0]*w[1] - u[1]*w[0]) * s;
   mjtNum b1 = (u[0]*d[1] - u[1]*d[0]) * s;
 
-  return (a0 >= 0 && a1 <= 0 && b0 >= 0 && b1 <= 0);
+  return (a0 >= 0 && a1 < 0 && b0 >= 0 && b1 < 0);
 }
 
 
@@ -64,7 +64,7 @@ static mjtNum length_circle(const mjtNum* p0, const mjtNum* p1, int ind, mjtNum 
   mjtNum angle = mju_atan2(mju_abs(cross), mju_dot(p0, p1, 2));
 
   // flip if necessary
-  if ((cross > 0 && ind) || (cross < 0 && !ind)) {
+  if (angle > 1e-6 && ((cross > 0 && ind) || (cross < 0 && !ind))) {
     angle = 2*mjPI - angle;
   }
 

@@ -248,22 +248,54 @@ TEST_F(UtilMiscTest, WrapInside) {
 TEST_F(UtilMiscTest, WrapCircleOnset) {
   const mjtNum xpos[3] = {0, 0, 0};
   const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-  const mjtNum x0[3] = {0.158835, -0.02149, 0};
-  const mjtNum x1[3] = {-0.190895, 0.059719, 0};
-  const mjtNum side_pos[3] = {0, 0.015, 0};
-  const mjtNum radius = 0.015;
+
+  struct Case {
+    mjtNum end[4];
+    mjtNum radius;
+    mjtNum wlen;
+    mjtNum wpnt0[2];
+    mjtNum wpnt1[2];
+  };
+  const Case cases[] = {
+      // tangent segments nearly collinear (a > 1, b > 1)
+      {{0.158835, -0.02149, -0.190895, 0.059719},
+       0.015,
+       1.1253506488708159e-6,
+       {0.0033934139554204273, 0.014611117059525527},
+       {0.0033923177705339506, 0.014611371603779007}},
+      // vanishing wrap angle with opposite cross sign
+      {{0.125, 0, MjEps(-0.099303395631717667, -0.219594762f),
+        MjEps(0.027112324066336239, 0.0416523553f)},
+       0.015,
+       0,
+       {0.0018, 0.014891608375189028},
+       {0.0018, 0.014891608375189028}},
+      // coincident tangent points (p2 == p4) at wrap onset
+      {{16.0, 0, MjEps(-26.864008298238332, -14.2271366f),
+        MjEps(5.1811203325342365, 3.65365791f)},
+       1.92,
+       0,
+       {0.2304, 1.9061258720241956},
+       {0.2304, 1.9061258720241956}},
+  };
 
   for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
-    for (const mjtNum* side : {static_cast<const mjtNum*>(nullptr), side_pos}) {
-      mjtNum wpnt[6] = {0};
-      mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, radius, type, side);
-      EXPECT_NEAR(wlen, 1.1253506488708159e-6, MjTol(1e-15, 1e-8));
-      EXPECT_NEAR(wpnt[0], 0.0033934139554204273, MjTol(1e-15, 1e-8));
-      EXPECT_NEAR(wpnt[1], 0.014611117059525527, MjTol(1e-15, 1e-8));
-      EXPECT_EQ(wpnt[2], 0);
-      EXPECT_NEAR(wpnt[3], 0.0033923177705339506, MjTol(1e-15, 1e-8));
-      EXPECT_NEAR(wpnt[4], 0.014611371603779007, MjTol(1e-15, 1e-8));
-      EXPECT_EQ(wpnt[5], 0);
+    for (const Case& c : cases) {
+      const mjtNum side_pos[3] = {0, c.radius, 0};
+      for (const mjtNum* side :
+           {static_cast<const mjtNum*>(nullptr), side_pos}) {
+        const mjtNum x0[3] = {c.end[0], c.end[1], 0};
+        const mjtNum x1[3] = {c.end[2], c.end[3], 0};
+        mjtNum wpnt[6] = {0};
+        mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, c.radius, type, side);
+        EXPECT_NEAR(wlen, c.wlen, MjTol(1e-15, 1e-6));
+        EXPECT_NEAR(wpnt[0], c.wpnt0[0], MjTol(1e-15, 1e-6));
+        EXPECT_NEAR(wpnt[1], c.wpnt0[1], MjTol(1e-15, 1e-6));
+        EXPECT_EQ(wpnt[2], 0);
+        EXPECT_NEAR(wpnt[3], c.wpnt1[0], MjTol(1e-15, 1e-6));
+        EXPECT_NEAR(wpnt[4], c.wpnt1[1], MjTol(1e-15, 1e-6));
+        EXPECT_EQ(wpnt[5], 0);
+      }
     }
   }
 }
