@@ -622,11 +622,13 @@ void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order) {
 //   coord: [0,1]^3 parametric coordinates
 //   cellnum: cell counts (cx, cy, cz)
 //   order: interpolation order (1=trilinear, 2=triquadratic)
-//   local: output local parametric coordinates within cell [0,1]^3
+//   cell: flat cell index (ci*cy*cz + cj*cz + ck), or -1 to compute from coord
+//   local: output local parametric coordinates within cell (extrapolated within [-0.02, 1.02]^3 if
+//          cell differs from the natural cell of coord)
 //   nodeindices: output array of global node indices for the cell (size (order+1)^3, may be NULL)
 //   returns: number of nodes per cell (order+1)^3
-int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],
-                   int* nodeindices) {
+int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, int cell,
+                   mjtNum local[3], int* nodeindices) {
   int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
 
   // find containing cell
@@ -637,10 +639,20 @@ int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNu
   cj = mjMIN(cj, cy - 1); cj = mjMAX(cj, 0);
   ck = mjMIN(ck, cz - 1); ck = mjMAX(ck, 0);
 
-  // local parametric coordinates within cell
-  local[0] = mju_clip(coord[0] * cx - ci, 0, 1);
-  local[1] = mju_clip(coord[1] * cy - cj, 0, 1);
-  local[2] = mju_clip(coord[2] * cz - ck, 0, 1);
+  // if precomputed cell differs from natural cell, redirect and extrapolate within [-0.02, 1.02]
+  if (cell >= 0 && cell != ci * cy * cz + cj * cz + ck) {
+    ck = cell % cz;
+    cj = (cell / cz) % cy;
+    ci = cell / (cy * cz);
+    const mjtNum kMaxExtrap = 0.02;  // must match kSliverMargin in user_flexcomp.cc
+    local[0] = mju_clip(coord[0] * cx - ci, -kMaxExtrap, 1 + kMaxExtrap);
+    local[1] = mju_clip(coord[1] * cy - cj, -kMaxExtrap, 1 + kMaxExtrap);
+    local[2] = mju_clip(coord[2] * cz - ck, -kMaxExtrap, 1 + kMaxExtrap);
+  } else {
+    local[0] = mju_clip(coord[0] * cx - ci, 0, 1);
+    local[1] = mju_clip(coord[1] * cy - cj, 0, 1);
+    local[2] = mju_clip(coord[2] * cz - ck, 0, 1);
+  }
 
   // build node indices for this cell
   if (nodeindices) {

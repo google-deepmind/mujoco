@@ -288,6 +288,7 @@ class ModelWarp(PyTreeNode):
   flex_stiffnessadr: np.ndarray
   flex_vert: np.ndarray
   flex_vertbodyid: np.ndarray
+  flex_vertcell: np.ndarray
   flex_vertflexid: np.ndarray
   flexedge_J_colind: np.ndarray
   flexedge_J_rowadr: np.ndarray
@@ -1066,6 +1067,7 @@ _NDIM = {
         'flex_vert0': 2,
         'flex_vertadr': 1,
         'flex_vertbodyid': 1,
+        'flex_vertcell': 1,
         'flex_vertflexid': 1,
         'flex_vertnum': 1,
         'flexedge_J_colind': 1,
@@ -1866,6 +1868,7 @@ _BATCH_DIM = {
         'flex_vert0': False,
         'flex_vertadr': False,
         'flex_vertbodyid': False,
+        'flex_vertcell': False,
         'flex_vertflexid': False,
         'flex_vertnum': False,
         'flexedge_J_colind': False,

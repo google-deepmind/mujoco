@@ -597,7 +597,7 @@ TEST_F(InterpolationTest, mju_cellLookup_SingleCell) {
   mjtNum local[3];
   int nodeindices[8];
 
-  int npc = mju_cellLookup(coord, cellnum, 1, local, nodeindices);
+  int npc = mju_cellLookup(coord, cellnum, 1, -1, local, nodeindices);
   EXPECT_EQ(npc, 8);
   EXPECT_NEAR(local[0], 0.3, MjTol(1e-12, 1e-6));
   EXPECT_NEAR(local[1], 0.7, MjTol(1e-12, 1e-6));
@@ -621,7 +621,7 @@ TEST_F(InterpolationTest, mju_cellLookup_MultiCell) {
   mjtNum local[3];
   int nodeindices[8];
 
-  int npc = mju_cellLookup(coord, cellnum, order, local, nodeindices);
+  int npc = mju_cellLookup(coord, cellnum, order, -1, local, nodeindices);
   EXPECT_EQ(npc, 8);
 
   // cell (1,1,0): local = (0.75*2 - 1, 0.5*3 - 1, 0.125*4 - 0)
@@ -653,7 +653,7 @@ TEST_F(InterpolationTest, mju_cellLookup_Boundary) {
   mjtNum coord[3] = {1.0, 1.0, 1.0};
   mjtNum local[3];
 
-  mju_cellLookup(coord, cellnum, 1, local, NULL);
+  mju_cellLookup(coord, cellnum, 1, -1, local, NULL);
   // cell (2,2,2), local = (1*3 - 2, 1*3 - 2, 1*3 - 2) = (1, 1, 1)
   EXPECT_NEAR(local[0], 1.0, 1e-12);
   EXPECT_NEAR(local[1], 1.0, 1e-12);
@@ -661,10 +661,35 @@ TEST_F(InterpolationTest, mju_cellLookup_Boundary) {
 
   // point at coord=0.0 should map to first cell
   mjtNum coord0[3] = {0.0, 0.0, 0.0};
-  mju_cellLookup(coord0, cellnum, 1, local, NULL);
+  mju_cellLookup(coord0, cellnum, 1, -1, local, NULL);
   EXPECT_NEAR(local[0], 0.0, 1e-12);
   EXPECT_NEAR(local[1], 0.0, 1e-12);
   EXPECT_NEAR(local[2], 0.0, 1e-12);
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_EmptyCellExtrapolation) {
+  // 2x1x1 grid, trilinear: Cell 0 active (cell=0), Cell 1 empty
+  int cellnum[3] = {2, 1, 1};
+  int order = 1;
+
+  // Point at x = 0.505 (1% into empty Cell 1) redirected to active Cell 0
+  // with extrapolated local[0] = 0.505 * 2 - 0 = 1.01
+  mjtNum coord[3] = {0.505, 0.25, 0.75};
+  mjtNum local[3];
+  int nodeindices[8];
+  mju_cellLookup(coord, cellnum, order, 0, local, nodeindices);
+  EXPECT_NEAR(local[0], 1.01, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(local[1], 0.25, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(local[2], 0.75, MjTol(1e-12, 1e-5));
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(nodeindices[i], i);
+  }
+
+  // Point far inside empty Cell 1 (x = 0.9 -> raw local = 1.8) is clamped
+  // to 1.02
+  mjtNum coord_far[3] = {0.9, 0.25, 0.75};
+  mju_cellLookup(coord_far, cellnum, order, 0, local, nodeindices);
+  EXPECT_NEAR(local[0], 1.02, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(InterpolationTest, mju_defGradient) {

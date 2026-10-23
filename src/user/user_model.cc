@@ -3729,8 +3729,9 @@ void mjCModel::CopyObjects(mjModel* m) {
       mjuu_copyvec(m->flex_node + 3 * node_adr, pfl->node_.data(), 3 * pfl->nnode);
     }
 
-    // copy vert0
+    // copy vert0 and vertcell
     mjuu_copyvec(m->flex_vert0 + 3 * vert_adr, pfl->vert0_.data(), 3 * pfl->nvert);
+    memcpy(m->flex_vertcell + vert_adr, pfl->vertcell_.data(), pfl->nvert * sizeof(int));
 
     // copy node0
     mjuu_copyvec(m->flex_node0 + 3 * node_adr, pfl->node0_.data(), 3 * pfl->nnode);

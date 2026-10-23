@@ -482,6 +482,7 @@
     X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
+    X   ( int,     flex_vertcell,         nflexvert,     1                    ) \
     X   ( int,     flex_vertedgeadr,      nflexvert,     1                    ) \
     X   ( int,     flex_vertedgenum,      nflexvert,     1                    ) \
     X   ( int,     flex_vertedge,         nflexedge,     2                    ) \
@@ -954,6 +955,7 @@
     X( flex_bendingadr,      mjSC_IN,    0,          0,          mjSC_IN    ) \
     X( flex_nodebodyid,      mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
     X( flex_vertbodyid,      mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
+    X( flex_vertcell,        0,          mjSC_IN,    mjSC_IN,    0          ) \
     X( flex_vertedgeadr,     mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
     X( flex_vertedgenum,     mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \
     X( flex_vertedge,        mjSC_OUT,   mjSC_IN,    mjSC_IN,    0          ) \

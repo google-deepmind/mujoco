@@ -23,6 +23,7 @@ import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
+
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
 )
@@ -231,6 +232,7 @@ def _forward_shim(
     flex_vert0: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
+    flex_vertcell: wp.array[int],
     flex_vertflexid: wp.array[int],
     flex_vertnum: wp.array[int],
     flexedge_J_colind: wp.array[int],
@@ -891,6 +893,7 @@ def _forward_shim(
   _m.flex_vert0 = flex_vert0
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
+  _m.flex_vertcell = flex_vertcell
   _m.flex_vertflexid = flex_vertflexid
   _m.flex_vertnum = flex_vertnum
   _m.flexedge_J_colind = flexedge_J_colind
@@ -2352,6 +2355,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.flex_vert0,
       m.flex_vertadr,
       m._impl.flex_vertbodyid,
+      m._impl.flex_vertcell,
       m._impl.flex_vertflexid,
       m.flex_vertnum,
       m._impl.flexedge_J_colind,
@@ -3196,6 +3200,7 @@ def _step_shim(
     flex_vert0: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
+    flex_vertcell: wp.array[int],
     flex_vertflexid: wp.array[int],
     flex_vertnum: wp.array[int],
     flexedge_J_colind: wp.array[int],
@@ -3866,6 +3871,7 @@ def _step_shim(
   _m.flex_vert0 = flex_vert0
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
+  _m.flex_vertcell = flex_vertcell
   _m.flex_vertflexid = flex_vertflexid
   _m.flex_vertnum = flex_vertnum
   _m.flexedge_J_colind = flexedge_J_colind
@@ -5354,6 +5360,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.flex_vert0,
       m.flex_vertadr,
       m._impl.flex_vertbodyid,
+      m._impl.flex_vertcell,
       m._impl.flex_vertflexid,
       m.flex_vertnum,
       m._impl.flexedge_J_colind,

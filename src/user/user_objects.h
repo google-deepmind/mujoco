@@ -1299,8 +1299,9 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   // scale the compiled copy: positions by the gauges of their bodies, the rest by that of the flex
   void ApplyGauge();
 
-  std::vector<double> vert0_;  // vertex positions in [0, 1]^d in the bounding box
-  std::vector<double> node0_;  // node Cartesian positions
+  std::vector<double> vert0_;     // vertex positions in [0, 1]^d in the bounding box
+  std::vector<int>    vertcell_;  // finite cell index for vertex; -1: none
+  std::vector<double> node0_;     // node Cartesian positions
 
   // compute unrotated node positions for stiffness computation
   // optionally outputs the grid rotation matrix R0 (stored as rows)

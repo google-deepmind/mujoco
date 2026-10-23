@@ -876,9 +876,11 @@ int mjv_flexBodyId(const mjModel* m, const mjData* d, int flexid, int vertid, mj
     int npc = (order+1)*(order+1)*(order+1);
 
     // cell lookup: get local coords and node indices
+    int gv = m->flex_vertadr[flexid] + vertid;
+    int cell = m->flex_vertcell ? m->flex_vertcell[gv] : -1;
     mjtNum loc[3];
     int nodeindices[27];  // max npc for quadratic: 3^3 = 27
-    mju_cellLookup(coord, m->flex_cellnum+3*flexid, order, loc, nodeindices);
+    mju_cellLookup(coord, m->flex_cellnum+3*flexid, order, cell, loc, nodeindices);
 
     // find node with largest weight in this cell
     // in shell mode, skip interior nodes (pinned to worldbody)

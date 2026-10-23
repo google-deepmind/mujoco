@@ -5096,6 +5096,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_vert0", &MjModel::flex_vert0)
     .property("flex_vertadr", &MjModel::flex_vertadr)
     .property("flex_vertbodyid", &MjModel::flex_vertbodyid)
+    .property("flex_vertcell", &MjModel::flex_vertcell)
     .property("flex_vertedge", &MjModel::flex_vertedge)
     .property("flex_vertedgeadr", &MjModel::flex_vertedgeadr)
     .property("flex_vertedgenum", &MjModel::flex_vertedgenum)

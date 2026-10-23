@@ -3331,5 +3331,110 @@ TEST_F(UserFlexTest, DefaultArenaSize) {
   }
 }
 
+// Cells that are only grazed by a tiny mesh sliver (within kSliverMargin = 2%
+// of the cell size) are pruned as empty: their stiffness block is zero, their
+// exterior-only nodes are pinned, and vertices inside the pruned sliver retain
+// their exact flex_vert0 and extrapolate from the nearest active cell in
+// mju_cellLookup without snapping to the cell boundary.
+TEST_F(UserFlexTest, SliverCellPruningAndExtrapolation) {
+  // 2x1x1 grid over x in [0, 1] (anchor point at x=1 extends the bounding box):
+  // - Cell 0 (x in [0, 0.5]) is 100% full.
+  // - Cell 1 (x in [0.5, 1.0]) only has a 1% sliver x in [0.5, 0.505]
+  //   (penetration depth 0.005 / 0.5 = 1% < kSliverMargin = 2%).
+  static constexpr char kSliverXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -9.81" integrator="discrete" timestep="2e-3"/>
+    <worldbody>
+      <body name="parent">
+        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
+        <flexcomp name="sliver" type="direct" dim="3" dof="DOF_TYPE" mass="1.0"
+                  cellcount="2 1 1" radius="0.001"
+                  point="0.0 0 0  0.5 0 0  0.0 1 0  0.5 1 0
+                         0.0 0 1  0.5 0 1  0.0 1 1  0.5 1 1
+                         0.505 0 0  0.505 1 0  0.505 0 1  0.505 1 1
+                         1.0 0.5 0.5"
+                  element="0 1 2 4  3 2 1 7  5 1 4 7  6 2 4 7  1 2 4 7
+                           1 8 3 5  9 3 8 11  10 8 5 11  7 3 5 11  8 3 5 11">
+          <pin id="0 2 4 6"/>
+          <contact selfcollide="auto"/>
+          <elasticity young="1e4" poisson="0.3" damping="0.01"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* dof : {"trilinear", "quadratic"}) {
+    std::string xml = kSliverXml;
+    xml.replace(xml.find("DOF_TYPE"), 8, dof);
+    char error[1024] = {0};
+    using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+    SpecPtr spec(mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error)),
+                 mj_deleteSpec);
+    ASSERT_THAT(spec.get(), NotNull()) << dof << ": " << error;
+
+    // Compile twice to verify both flexcomp MarkEmptyCells and mjCFlex::Compile
+    // recomputation.
+    MjModelPtr m1(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(m1.get(), NotNull()) << dof << ": " << mjs_getError(spec.get());
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(m.get(), NotNull()) << dof << ": " << mjs_getError(spec.get());
+
+    int order = (std::string(dof) == "trilinear") ? 1 : 2;
+    int npe = (order + 1) * (order + 1) * (order + 1);
+    int ndof_elem = 3 * npe;
+    int block = ndof_elem * ndof_elem;
+    ASSERT_EQ(m->nflexstiffness, 2 * block);
+
+    // Cell 0 has non-zero stiffness; Cell 1 (1% sliver) is pruned as empty.
+    double norm0 = 0, norm1 = 0;
+    for (int i = 0; i < block; i++) {
+      norm0 += m->flex_stiffness[i] * m->flex_stiffness[i];
+      norm1 += m->flex_stiffness[block + i] * m->flex_stiffness[block + i];
+    }
+    EXPECT_GT(norm0, 0) << dof;
+    EXPECT_EQ(norm1, 0) << dof << ": 1% sliver cell must be pruned as empty";
+
+    // Exterior nodes of pruned Cell 1 (gi > order) must be pinned to parent.
+    int parent_bid = mj_name2id(m.get(), mjOBJ_BODY, "parent");
+    int ny = order + 1, nz = order + 1;
+    int nadr = m->flex_nodeadr[0];
+    for (int gi = order + 1; gi <= 2 * order; gi++) {
+      for (int gj = 0; gj < ny; gj++) {
+        for (int gk = 0; gk < nz; gk++) {
+          int bid = m->flex_nodebodyid[nadr + gi * ny * nz + gj * nz + gk];
+          EXPECT_EQ(bid, parent_bid)
+              << dof << " gi=" << gi << " gj=" << gj << " gk=" << gk;
+        }
+      }
+    }
+
+    // Vertices 8..11 at x = 0.505 retain their exact unprojected parametric
+    // coordinate flex_vert0[x] = 0.505, are pre-assigned to active Cell 0 in
+    // flex_vertcell, and extrapolate from Cell 0 in mj_flex without snapping.
+    for (int v = 0; v < m->nflexvert; v++) {
+      EXPECT_EQ(m->flex_vertcell[v], 0) << dof << " vertex " << v;
+    }
+    for (int v = 8; v < m->nflexvert; v++) {
+      EXPECT_NEAR(m->flex_vert0[3 * v + 0], 0.505, MjTol(1e-12, 1e-5))
+          << dof << " vertex " << v;
+    }
+
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+    EXPECT_EQ(d->ncon, 0)
+        << dof << ": redirected sliver vertices share active cell 0 nodes";
+    for (int v = 8; v < m->nflexvert; v++) {
+      EXPECT_NEAR(d->flexvert_xpos[3 * v + 0], 0.505, MjTol(1e-12, 1e-5))
+          << dof << " vertex " << v
+          << " must retain exact initial position without snapping";
+    }
+    for (int step = 0; step < 50; step++) {
+      mj_step(m.get(), d.get());
+      ASSERT_EQ(d->warning[mjWARN_BADQACC].number, 0) << dof;
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

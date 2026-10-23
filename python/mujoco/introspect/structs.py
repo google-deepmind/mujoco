@@ -2973,6 +2973,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexvert',),
              ),
              StructFieldDecl(
+                 name='flex_vertcell',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='finite cell index for vertex; -1: none',
+                 array_extent=('nflexvert',),
+             ),
+             StructFieldDecl(
                  name='flex_vertedgeadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

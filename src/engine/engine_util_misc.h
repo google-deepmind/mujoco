@@ -92,8 +92,8 @@ MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
 MJAPI void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order);
 
 // map global parametric coord to cell-local coord and build node indices
-MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, mjtNum local[3],
-                         int* nodeindices);
+MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order,
+                         int cell, mjtNum local[3], int* nodeindices);
 
 // interpolate a function at x with given interpolation coefficients and order n
 MJAPI void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order,

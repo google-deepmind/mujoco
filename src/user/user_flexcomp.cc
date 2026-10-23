@@ -2211,6 +2211,7 @@ std::string mjCFlex::ComputeStiffnessCacheKey() const {
 
   combine(std::hash<double>{}(young));
   combine(std::hash<double>{}(poisson));
+  combine(std::hash<int>{}(dim));
   combine(std::hash<int>{}(spec.order));
   combine(std::hash<int>{}(spec.cellcount[0]));
   combine(std::hash<int>{}(spec.cellcount[1]));
@@ -2242,6 +2243,12 @@ std::string mjCFlex::ComputeStiffnessCacheKey() const {
   for (std::size_t i = 0; i < vert_.size(); i += std::max(1, (int)vert_.size() / 100)) {
     combine(std::hash<double>{}(vert_[i]));
   }
+
+  for (std::size_t i = 0; i < elem_.size(); i += std::max(1, (int)elem_.size() / 100)) {
+    combine(std::hash<int>{}(elem_[i]));
+  }
+
+  for (bool empty : cell_empty) { combine(std::hash<bool>{}(empty)); }
 
   for (std::size_t i = 0; i < shell.size(); i += std::max(1, (int)shell.size() / 50)) {
     combine(std::hash<int>{}(shell[i]));
@@ -3215,6 +3222,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // compute bounding box coordinates
   vert0_.assign(3 * nvert, 0);
+  vertcell_.assign(nvert, -1);
 
   if (interpolated && nnode > 0) {
     // for interpolated flex, compute vert0_ in the unrotated local frame
@@ -3247,6 +3255,39 @@ void mjCFlex::Compile(const mjVFS* vfs) {
           vert0_[3 * j + k] = 0.5;
         }
       }
+    }
+
+    // assign each vertex to its containing active cell (or nearest active cell if pruned)
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    for (int j = 0; j < nvert; j++) {
+      const double* coord = vert0_.data() + 3 * j;
+      int           ci    = std::clamp(static_cast<int>(std::floor(coord[0] * cx)), 0, cx - 1);
+      int           cj    = std::clamp(static_cast<int>(std::floor(coord[1] * cy)), 0, cy - 1);
+      int           ck    = std::clamp(static_cast<int>(std::floor(coord[2] * cz)), 0, cz - 1);
+      int           c     = ci * cy * cz + cj * cz + ck;
+      if (!cell_empty.empty() && cell_empty[c]) {
+        double u[3]       = {coord[0] * cx, coord[1] * cy, coord[2] * cz};
+        double best_dist2 = mjMAXVAL;
+        for (int ni = 0; ni < cx; ni++) {
+          double dx = u[0] - std::clamp(u[0], static_cast<double>(ni), static_cast<double>(ni + 1));
+          for (int nj = 0; nj < cy; nj++) {
+            double dy =
+                u[1] - std::clamp(u[1], static_cast<double>(nj), static_cast<double>(nj + 1));
+            for (int nk = 0; nk < cz; nk++) {
+              int nc = ni * cy * cz + nj * cz + nk;
+              if (cell_empty[nc]) { continue; }
+              double dz =
+                  u[2] - std::clamp(u[2], static_cast<double>(nk), static_cast<double>(nk + 1));
+              double dist2 = dx * dx + dy * dy + dz * dz;
+              if (dist2 < best_dist2) {
+                best_dist2 = dist2;
+                c          = nc;
+              }
+            }
+          }
+        }
+      }
+      vertcell_[j] = c;
     }
   } else {
     // non-interpolated: use BVH bounding box (original behavior)
@@ -3365,8 +3406,166 @@ std::vector<double> mjCFlex::ComputeUnrotatedNodePositions(const std::vector<dou
   return nodexpos_local;
 }
 
+// relative cell core shrink margin for pruning tiny-cut sliver cells
+// (must match kMaxExtrap in mju_cellLookup in engine_util_misc.c)
+constexpr double kSliverMargin = 0.02;
 
-// identify cells with no mesh content from vertex/element geometry, minmax: box of the node grid
+// test if a 3D triangle (v0, v1, v2) intersects an axis-aligned box [bmin,
+// bmax]
+static bool TriangleIntersectsBox(const double v0[3],
+                                  const double v1[3],
+                                  const double v2[3],
+                                  const double bmin[3],
+                                  const double bmax[3]) {
+  double c[3] = {
+      0.5 * (bmin[0] + bmax[0]),
+      0.5 * (bmin[1] + bmax[1]),
+      0.5 * (bmin[2] + bmax[2]),
+  };
+  double e[3] = {
+      0.5 * (bmax[0] - bmin[0]),
+      0.5 * (bmax[1] - bmin[1]),
+      0.5 * (bmax[2] - bmin[2]),
+  };
+  double eps  = 1e-9 * std::max({e[0], e[1], e[2], 1e-6});
+  e[0]       += eps;
+  e[1]       += eps;
+  e[2]       += eps;
+
+  double u0[3] = {v0[0] - c[0], v0[1] - c[1], v0[2] - c[2]};
+  double u1[3] = {v1[0] - c[0], v1[1] - c[1], v1[2] - c[2]};
+  double u2[3] = {v2[0] - c[0], v2[1] - c[1], v2[2] - c[2]};
+
+  // 1. box face normals (AABB overlap)
+  for (int d = 0; d < 3; d++) {
+    double lo = std::min({u0[d], u1[d], u2[d]});
+    double hi = std::max({u0[d], u1[d], u2[d]});
+    if (lo > e[d] || hi < -e[d]) { return false; }
+  }
+
+  double f[3][3] = {
+      {u1[0] - u0[0], u1[1] - u0[1], u1[2] - u0[2]},
+      {u2[0] - u1[0], u2[1] - u1[1], u2[2] - u1[2]},
+      {u0[0] - u2[0], u0[1] - u2[1], u0[2] - u2[2]},
+  };
+
+  // 2. 9 cross-product axes a_ij = e_i x f_j
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      double a[3] = {0, 0, 0};
+      int    i1   = (i + 1) % 3;
+      int    i2   = (i + 2) % 3;
+      a[i1]       = -f[j][i2];
+      a[i2]       = f[j][i1];
+      double p0   = mjuu_dot3(a, u0);
+      double p1   = mjuu_dot3(a, u1);
+      double p2   = mjuu_dot3(a, u2);
+      double r    = e[i1] * std::abs(a[i1]) + e[i2] * std::abs(a[i2]);
+      if (std::min({p0, p1, p2}) > r || std::max({p0, p1, p2}) < -r) { return false; }
+    }
+  }
+
+  // 3. triangle normal n = f[0] x f[1]
+  double n[3];
+  mjuu_crossvec(n, f[0], f[1]);
+  double d0 = mjuu_dot3(n, u0);
+  double r  = e[0] * std::abs(n[0]) + e[1] * std::abs(n[1]) + e[2] * std::abs(n[2]);
+  if (std::abs(d0) > r) { return false; }
+
+  return true;
+}
+
+// test if a 3D segment (v0, v1) intersects an axis-aligned box [bmin, bmax]
+static bool SegmentIntersectsBox(const double v0[3],
+                                 const double v1[3],
+                                 const double bmin[3],
+                                 const double bmax[3]) {
+  return TriangleIntersectsBox(v0, v1, v1, bmin, bmax);
+}
+
+struct TetCellData {
+  double v0[3];
+  double invM[3][3];
+  double lo[3];
+  double hi[3];
+};
+
+static bool PointInTet(const double x[3], const TetCellData& tet) {
+  for (int d = 0; d < 3; d++) {
+    if (x[d] < tet.lo[d] || x[d] > tet.hi[d]) { return false; }
+  }
+  double           dx[3]    = {x[0] - tet.v0[0], x[1] - tet.v0[1], x[2] - tet.v0[2]};
+  double           l1       = mjuu_dot3(tet.invM[0], dx);
+  double           l2       = mjuu_dot3(tet.invM[1], dx);
+  double           l3       = mjuu_dot3(tet.invM[2], dx);
+  double           l0       = 1.0 - l1 - l2 - l3;
+  constexpr double kBaryTol = -1e-7;
+  return l0 >= kBaryTol && l1 >= kBaryTol && l2 >= kBaryTol && l3 >= kBaryTol;
+}
+
+static bool TetIntersectsBox(const double       v0[3],
+                             const double       v1[3],
+                             const double       v2[3],
+                             const double       v3[3],
+                             const TetCellData* tet,
+                             const double       bmin[3],
+                             const double       bmax[3]) {
+  if (TriangleIntersectsBox(v0, v1, v2, bmin, bmax) ||
+      TriangleIntersectsBox(v0, v1, v3, bmin, bmax) ||
+      TriangleIntersectsBox(v0, v2, v3, bmin, bmax) ||
+      TriangleIntersectsBox(v1, v2, v3, bmin, bmax)) {
+    return true;
+  }
+  if (tet) {
+    double c[3] = {
+        0.5 * (bmin[0] + bmax[0]),
+        0.5 * (bmin[1] + bmax[1]),
+        0.5 * (bmin[2] + bmax[2]),
+    };
+    if (PointInTet(c, *tet)) { return true; }
+  }
+  return false;
+}
+
+struct TriCellData {
+  double a[3];
+  double b[3];
+  double c[3];
+};
+
+// generalized winding number for a 3D point relative to a surface triangle mesh
+static double WindingNumber(const double x[3], const std::vector<TriCellData>& tris) {
+  double total_omega = 0.0;
+  for (const TriCellData& t : tris) {
+    double ra[3] = {t.a[0] - x[0], t.a[1] - x[1], t.a[2] - x[2]};
+    double rb[3] = {t.b[0] - x[0], t.b[1] - x[1], t.b[2] - x[2]};
+    double rc[3] = {t.c[0] - x[0], t.c[1] - x[1], t.c[2] - x[2]};
+    double la    = std::sqrt(ra[0] * ra[0] + ra[1] * ra[1] + ra[2] * ra[2]);
+    double lb    = std::sqrt(rb[0] * rb[0] + rb[1] * rb[1] + rb[2] * rb[2]);
+    double lc    = std::sqrt(rc[0] * rc[0] + rc[1] * rc[1] + rc[2] * rc[2]);
+    double labc  = la * lb * lc;
+    if (labc < 1e-30) { return 1.0; }
+    double bxc[3] = {
+        rb[1] * rc[2] - rb[2] * rc[1],
+        rb[2] * rc[0] - rb[0] * rc[2],
+        rb[0] * rc[1] - rb[1] * rc[0],
+    };
+    double num = ra[0] * bxc[0] + ra[1] * bxc[1] + ra[2] * bxc[2];
+    double ab  = ra[0] * rb[0] + ra[1] * rb[1] + ra[2] * rb[2];
+    double bc  = rb[0] * rc[0] + rb[1] * rc[1] + rb[2] * rc[2];
+    double ca  = rc[0] * ra[0] + rc[1] * ra[1] + rc[2] * ra[2];
+    double den = labc + ab * lc + bc * la + ca * lb;
+    if (std::abs(num) <= 1e-12 * labc) {
+      if (den <= 1e-12 * labc) { return 1.0; }
+      continue;
+    }
+    total_omega += 2.0 * std::atan2(num, den);
+  }
+  return total_omega / (4.0 * mjPI);
+}
+
+// identify cells with no mesh content (or only tiny-cut slivers) from
+// vertex/element geometry
 void mjCFlex::ComputeCellEmpty(
     const double* vpos, const int* elems, int ne, int fdim, const double minmax[6]) {
   int cx     = spec.cellcount[0];
@@ -3378,14 +3577,28 @@ void mjCFlex::ComputeCellEmpty(
   double dy = minmax[4] - minmax[1];
   double dz = minmax[5] - minmax[2];
 
-  // determine which cells contain mesh elements
-  std::vector<bool> has_element(ncells, false);
+  cell_empty.assign(ncells, false);
 
   int nvpe = fdim + 1;
+  if (nvpe <= 0 || ne <= 0 || ncells <= 0) { return; }
 
-  if (nvpe > 0 && ne > 0) {
+  auto cellIdxLo = [](double coord, double lo, double d, int nc) {
+    if (d <= 0) return 0;
+    double eps = 1e-9 * d;
+    int    c   = static_cast<int>(std::floor((coord - eps - lo) / d * nc));
+    return std::max(0, std::min(nc - 1, c));
+  };
+  auto cellIdxHi = [](double coord, double lo, double d, int nc) {
+    if (d <= 0) return 0;
+    double eps = 1e-9 * d;
+    int    c   = static_cast<int>(std::floor((coord + eps - lo) / d * nc));
+    return std::max(0, std::min(nc - 1, c));
+  };
+
+  // fallback to AABB overlap if any grid box dimension is degenerate
+  if (dx <= mjMINVAL || dy <= mjMINVAL || dz <= mjMINVAL) {
+    std::vector<bool> has_element(ncells, false);
     for (int e = 0; e < ne; e++) {
-      // compute element AABB
       double elo[3] = {1e30, 1e30, 1e30};
       double ehi[3] = {-1e30, -1e30, -1e30};
       for (int v = 0; v < nvpe; v++) {
@@ -3395,79 +3608,261 @@ void mjCFlex::ComputeCellEmpty(
           ehi[j] = std::max(ehi[j], vpos[3 * vid + j]);
         }
       }
-
-      // map element AABB to cell range
-      auto cellIdx = [](double coord, double lo, double d, int nc) {
-        if (d <= 0) return 0;
-        int c = (int)((coord - lo) / d * nc);
-        return std::max(0, std::min(nc - 1, c));
-      };
-
-      int ci0 = cellIdx(elo[0], minmax[0], dx, cx);
-      int ci1 = cellIdx(ehi[0], minmax[0], dx, cx);
-      int cj0 = cellIdx(elo[1], minmax[1], dy, cy);
-      int cj1 = cellIdx(ehi[1], minmax[1], dy, cy);
-      int ck0 = cellIdx(elo[2], minmax[2], dz, cz);
-      int ck1 = cellIdx(ehi[2], minmax[2], dz, cz);
-
+      int ci0 = cellIdxLo(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdxHi(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdxLo(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdxHi(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdxLo(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdxHi(ehi[2], minmax[2], dz, cz);
       for (int ci = ci0; ci <= ci1; ci++) {
         for (int cj = cj0; cj <= cj1; cj++) {
           for (int ck = ck0; ck <= ck1; ck++) { has_element[ci * cy * cz + cj * cz + ck] = true; }
         }
       }
     }
+    if (ncells > 1) {
+      for (int c = 0; c < ncells; c++) { cell_empty[c] = !has_element[c]; }
+    }
+    return;
   }
 
-  cell_empty.assign(ncells, false);
+  double hx = dx / cx;
+  double hy = dy / cy;
+  double hz = dz / cz;
+  double mx = (cx > 1) ? kSliverMargin * hx : 0.0;
+  double my = (cy > 1) ? kSliverMargin * hy : 0.0;
+  double mz = (cz > 1) ? kSliverMargin * hz : 0.0;
 
-  // for dim=2 (surface mesh): flood-fill from boundary to find exterior cells
-  if (fdim == 2 && nvpe == 3 && ne > 0) {
-    std::vector<bool> visited(ncells, false);
+  std::vector<bool> has_element(ncells, false);
+  std::vector<bool> has_core(ncells, false);
 
-    std::queue<std::array<int, 3>> bfs;
+  if (fdim == 3) {
+    double vol_scale = hx * hy * hz;
+    double bbox_eps  = 1e-7 * std::max({hx, hy, hz});
 
-    // seed BFS from boundary cells that have no elements
-    for (int ci = 0; ci < cx; ci++) {
-      for (int cj = 0; cj < cy; cj++) {
-        for (int ck = 0; ck < cz; ck++) {
-          if (ci == 0 || ci == cx - 1 || cj == 0 || cj == cy - 1 || ck == 0 || ck == cz - 1) {
-            int idx = ci * cy * cz + cj * cz + ck;
-            if (!has_element[idx] && !visited[idx]) {
-              visited[idx]    = true;
-              cell_empty[idx] = true;
-              bfs.push({ci, cj, ck});
+    for (int e = 0; e < ne; e++) {
+      const double* v0 = vpos + 3 * elems[4 * e + 0];
+      const double* v1 = vpos + 3 * elems[4 * e + 1];
+      const double* v2 = vpos + 3 * elems[4 * e + 2];
+      const double* v3 = vpos + 3 * elems[4 * e + 3];
+
+      double elo[3], ehi[3];
+      for (int j = 0; j < 3; j++) {
+        elo[j] = std::min({v0[j], v1[j], v2[j], v3[j]});
+        ehi[j] = std::max({v0[j], v1[j], v2[j], v3[j]});
+      }
+
+      double d1[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+      double d2[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+      double d3[3] = {v3[0] - v0[0], v3[1] - v0[1], v3[2] - v0[2]};
+      double c1[3], c2[3], c3[3];
+      mjuu_crossvec(c1, d2, d3);
+      mjuu_crossvec(c2, d3, d1);
+      mjuu_crossvec(c3, d1, d2);
+      double det = mjuu_dot3(d1, c1);
+
+      TetCellData        td;
+      const TetCellData* tet_ptr = nullptr;
+      if (std::abs(det) > 1e-14 * vol_scale) {
+        mjuu_copyvec(td.v0, v0, 3);
+        double inv_det = 1.0 / det;
+        for (int j = 0; j < 3; j++) {
+          td.invM[0][j] = c1[j] * inv_det;
+          td.invM[1][j] = c2[j] * inv_det;
+          td.invM[2][j] = c3[j] * inv_det;
+          td.lo[j]      = elo[j] - bbox_eps;
+          td.hi[j]      = ehi[j] + bbox_eps;
+        }
+        tet_ptr = &td;
+      }
+
+      int ci0 = cellIdxLo(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdxHi(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdxLo(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdxHi(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdxLo(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdxHi(ehi[2], minmax[2], dz, cz);
+
+      for (int ci = ci0; ci <= ci1; ci++) {
+        double bmin_x = minmax[0] + ci * hx;
+        double bmax_x = bmin_x + hx;
+        for (int cj = cj0; cj <= cj1; cj++) {
+          double bmin_y = minmax[1] + cj * hy;
+          double bmax_y = bmin_y + hy;
+          for (int ck = ck0; ck <= ck1; ck++) {
+            double bmin_z  = minmax[2] + ck * hz;
+            double bmax_z  = bmin_z + hz;
+            double bmin[3] = {bmin_x, bmin_y, bmin_z};
+            double bmax[3] = {bmax_x, bmax_y, bmax_z};
+            if (TetIntersectsBox(v0, v1, v2, v3, tet_ptr, bmin, bmax)) {
+              int c          = ci * cy * cz + cj * cz + ck;
+              has_element[c] = true;
+              double cmin[3] = {bmin_x + mx, bmin_y + my, bmin_z + mz};
+              double cmax[3] = {bmax_x - mx, bmax_y - my, bmax_z - mz};
+              if (TetIntersectsBox(v0, v1, v2, v3, tet_ptr, cmin, cmax)) { has_core[c] = true; }
             }
           }
         }
       }
     }
 
-    // BFS: spread through non-element cells
-    const int dirs[6][3] = {
-        {-1, 0,  0 },
-        {1,  0,  0 },
-        {0,  -1, 0 },
-        {0,  1,  0 },
-        {0,  0,  -1},
-        {0,  0,  1 }
-    };
-    while (!bfs.empty()) {
-      auto [ci, cj, ck] = bfs.front();
-      bfs.pop();
-      for (auto& d : dirs) {
-        int ni = ci + d[0], nj = cj + d[1], nk = ck + d[2];
-        if (ni < 0 || ni >= cx || nj < 0 || nj >= cy || nk < 0 || nk >= cz) { continue; }
-        int nidx = ni * cy * cz + nj * cz + nk;
-        if (!visited[nidx] && !has_element[nidx]) {
-          visited[nidx]    = true;
-          cell_empty[nidx] = true;
-          bfs.push({ni, nj, nk});
+    if (ncells > 1) {
+      bool any_core = false;
+      for (bool core : has_core) {
+        if (core) {
+          any_core = true;
+          break;
+        }
+      }
+      for (int c = 0; c < ncells; c++) {
+        cell_empty[c] = any_core ? !has_core[c] : !has_element[c];
+      }
+    }
+  } else if (fdim == 2) {
+    std::vector<TriCellData> tris(ne);
+    for (int e = 0; e < ne; e++) {
+      const double* v0 = vpos + 3 * elems[3 * e + 0];
+      const double* v1 = vpos + 3 * elems[3 * e + 1];
+      const double* v2 = vpos + 3 * elems[3 * e + 2];
+      mjuu_copyvec(tris[e].a, v0, 3);
+      mjuu_copyvec(tris[e].b, v1, 3);
+      mjuu_copyvec(tris[e].c, v2, 3);
+
+      double elo[3], ehi[3];
+      for (int j = 0; j < 3; j++) {
+        elo[j] = std::min({v0[j], v1[j], v2[j]});
+        ehi[j] = std::max({v0[j], v1[j], v2[j]});
+      }
+
+      int ci0 = cellIdxLo(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdxHi(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdxLo(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdxHi(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdxLo(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdxHi(ehi[2], minmax[2], dz, cz);
+
+      for (int ci = ci0; ci <= ci1; ci++) {
+        double bmin_x = minmax[0] + ci * hx;
+        double bmax_x = bmin_x + hx;
+        for (int cj = cj0; cj <= cj1; cj++) {
+          double bmin_y = minmax[1] + cj * hy;
+          double bmax_y = bmin_y + hy;
+          for (int ck = ck0; ck <= ck1; ck++) {
+            double bmin_z  = minmax[2] + ck * hz;
+            double bmax_z  = bmin_z + hz;
+            double bmin[3] = {bmin_x, bmin_y, bmin_z};
+            double bmax[3] = {bmax_x, bmax_y, bmax_z};
+            if (TriangleIntersectsBox(v0, v1, v2, bmin, bmax)) {
+              int c          = ci * cy * cz + cj * cz + ck;
+              has_element[c] = true;
+              double cmin[3] = {bmin_x + mx, bmin_y + my, bmin_z + mz};
+              double cmax[3] = {bmax_x - mx, bmax_y - my, bmax_z - mz};
+              if (TriangleIntersectsBox(v0, v1, v2, cmin, cmax)) { has_core[c] = true; }
+            }
+          }
         }
       }
     }
+
+    if (ncells > 1) {
+      // Cells intersecting the shrunken core (has_core) are always active
+      // (including open sheets). WindingNumber is only evaluated once per
+      // connected component of non-intersected cells (propagated from adjacent
+      // !has_element neighbors) to keep hollow interiors of closed shells, plus
+      // on pure sliver cells (has_element && !has_core).
+      constexpr double  kWindingThreshold = 0.5 - 1e-5;
+      std::vector<bool> cell_inside(ncells, false);
+      bool              any_active = false;
+      for (int ci = 0; ci < cx; ci++) {
+        double bmin_x = minmax[0] + ci * hx;
+        for (int cj = 0; cj < cy; cj++) {
+          double bmin_y = minmax[1] + cj * hy;
+          for (int ck = 0; ck < cz; ck++) {
+            double bmin_z = minmax[2] + ck * hz;
+            int    c      = ci * cy * cz + cj * cz + ck;
+            if (!has_element[c]) {
+              bool inside = false;
+              if (ck > 0 && !has_element[c - 1]) {
+                inside = cell_inside[c - 1];
+              } else if (cj > 0 && !has_element[c - cz]) {
+                inside = cell_inside[c - cz];
+              } else if (ci > 0 && !has_element[c - cy * cz]) {
+                inside = cell_inside[c - cy * cz];
+              } else {
+                double center[3] = {bmin_x + 0.5 * hx, bmin_y + 0.5 * hy, bmin_z + 0.5 * hz};
+                inside           = std::abs(WindingNumber(center, tris)) >= kWindingThreshold;
+              }
+              cell_inside[c] = inside;
+              cell_empty[c]  = !inside;
+              if (inside) { any_active = true; }
+            } else if (has_core[c]) {
+              cell_empty[c] = false;
+              any_active    = true;
+            } else {
+              // surface only grazes outer sliver margin: keep iff core center
+              // is inside volume
+              double center[3] = {bmin_x + 0.5 * hx, bmin_y + 0.5 * hy, bmin_z + 0.5 * hz};
+              bool   inside    = std::abs(WindingNumber(center, tris)) >= kWindingThreshold;
+              cell_inside[c]   = inside;
+              cell_empty[c]    = !inside;
+              if (inside) { any_active = true; }
+            }
+          }
+        }
+      }
+      if (!any_active) {
+        for (int c = 0; c < ncells; c++) { cell_empty[c] = !has_element[c]; }
+      }
+    }
   } else {
-    // dim!=2: cells without element overlap are empty
-    for (int c = 0; c < ncells; c++) { cell_empty[c] = !has_element[c]; }
+    for (int e = 0; e < ne; e++) {
+      const double* v0 = vpos + 3 * elems[2 * e + 0];
+      const double* v1 = vpos + 3 * elems[2 * e + 1];
+      double        elo[3], ehi[3];
+      for (int j = 0; j < 3; j++) {
+        elo[j] = std::min(v0[j], v1[j]);
+        ehi[j] = std::max(v0[j], v1[j]);
+      }
+      int ci0 = cellIdxLo(elo[0], minmax[0], dx, cx);
+      int ci1 = cellIdxHi(ehi[0], minmax[0], dx, cx);
+      int cj0 = cellIdxLo(elo[1], minmax[1], dy, cy);
+      int cj1 = cellIdxHi(ehi[1], minmax[1], dy, cy);
+      int ck0 = cellIdxLo(elo[2], minmax[2], dz, cz);
+      int ck1 = cellIdxHi(ehi[2], minmax[2], dz, cz);
+      for (int ci = ci0; ci <= ci1; ci++) {
+        double bmin_x = minmax[0] + ci * hx;
+        double bmax_x = bmin_x + hx;
+        for (int cj = cj0; cj <= cj1; cj++) {
+          double bmin_y = minmax[1] + cj * hy;
+          double bmax_y = bmin_y + hy;
+          for (int ck = ck0; ck <= ck1; ck++) {
+            double bmin_z  = minmax[2] + ck * hz;
+            double bmax_z  = bmin_z + hz;
+            double bmin[3] = {bmin_x, bmin_y, bmin_z};
+            double bmax[3] = {bmax_x, bmax_y, bmax_z};
+            if (SegmentIntersectsBox(v0, v1, bmin, bmax)) {
+              int c          = ci * cy * cz + cj * cz + ck;
+              has_element[c] = true;
+              double cmin[3] = {bmin_x + mx, bmin_y + my, bmin_z + mz};
+              double cmax[3] = {bmax_x - mx, bmax_y - my, bmax_z - mz};
+              if (SegmentIntersectsBox(v0, v1, cmin, cmax)) { has_core[c] = true; }
+            }
+          }
+        }
+      }
+    }
+    if (ncells > 1) {
+      bool any_core = false;
+      for (bool core : has_core) {
+        if (core) {
+          any_core = true;
+          break;
+        }
+      }
+      for (int c = 0; c < ncells; c++) {
+        cell_empty[c] = any_core ? !has_core[c] : !has_element[c];
+      }
+    }
   }
 }
 

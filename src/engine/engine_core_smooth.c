@@ -626,7 +626,7 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
         // cell lookup: get local coords and node indices
         mjtNum local[3];
         int nodeindices[27];  // max npc for quadratic: 3^3 = 27
-        mju_cellLookup(m->flex_vert0 + 3*i, m->flex_cellnum+3*f, order, local, nodeindices);
+        mju_cellLookup(m->flex_vert0 + 3*i, m->flex_cellnum+3*f, order, m->flex_vertcell[i], local, nodeindices);
         mju_interpolate3D(d->flexvert_xpos+3*i, local, nodexpos, order, nodeindices);
       }
       mj_freeStack(d);

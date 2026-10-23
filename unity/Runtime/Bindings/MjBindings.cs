@@ -1376,6 +1376,7 @@ public unsafe struct mjModel_ {
   public int* flex_texcoordadr;
   public int* flex_nodebodyid;
   public int* flex_vertbodyid;
+  public int* flex_vertcell;
   public int* flex_vertedgeadr;
   public int* flex_vertedgenum;
   public int* flex_vertedge;

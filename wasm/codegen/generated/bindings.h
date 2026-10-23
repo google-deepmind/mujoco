@@ -5058,6 +5058,9 @@ struct MjModel {
   emscripten::val flex_vertbodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertbodyid));
   }
+  emscripten::val flex_vertcell() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertcell));
+  }
   emscripten::val flex_vertedgeadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgeadr));
   }

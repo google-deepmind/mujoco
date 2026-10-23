@@ -575,6 +575,7 @@ typedef struct mjModel_ {
   int*      flex_texcoordadr;     // address in flex_texcoord; -1: none       (nflex x 1)
   int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
+  int*      flex_vertcell;        // finite cell index for vertex; -1: none   (nflexvert x 1)
   int*      flex_vertedgeadr;     // first edge address                       (nflexvert x 1)
   int*      flex_vertedgenum;     // number of edges                          (nflexvert x 1)
   int*      flex_vertedge;        // edge indices                             (nflexedge x 2)

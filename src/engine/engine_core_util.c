@@ -743,9 +743,33 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   }
 
   // cell lookup: get local coords and node indices
+  const int* cellnum = m->flex_cellnum + 3*f;
+  int cell = -1;
+  if (nw == 1) {
+    cell = m->flex_vertcell[v[0]];
+  } else {
+    int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+    int ci = mjMAX(0, mjMIN(cx - 1, (int)mju_floor(coord[0] * cx)));
+    int cj = mjMAX(0, mjMIN(cy - 1, (int)mju_floor(coord[1] * cy)));
+    int ck = mjMAX(0, mjMIN(cz - 1, (int)mju_floor(coord[2] * cz)));
+    int nat_cell = ci * cy * cz + cj * cz + ck;
+    int best = 0;
+    for (int i = 0; i < nw; i++) {
+      if (m->flex_vertcell[v[i]] == nat_cell) {
+        cell = nat_cell;
+        break;
+      }
+      if (vweight[i] > vweight[best]) {
+        best = i;
+      }
+    }
+    if (cell < 0) {
+      cell = m->flex_vertcell[v[best]];
+    }
+  }
   mjtNum local[3];
   int nodeindices[27];  // max npc for quadratic: 3^3 = 27
-  mju_cellLookup(coord, m->flex_cellnum+3*f, order, local, nodeindices);
+  mju_cellLookup(coord, cellnum, order, cell, local, nodeindices);
 
   // evaluate basis functions for this cell's local nodes
   int nstart = m->flex_nodeadr[f];

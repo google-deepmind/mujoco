@@ -237,6 +237,7 @@ def _flex_vertices(
   flex_vertadr: wp.array[int],
   flex_vertnum: wp.array[int],
   flex_vertbodyid: wp.array[int],
+  flex_vertcell: wp.array[int],
   flex_vert: wp.array[wp.vec3],
   flex_vert0: wp.array[wp.vec3],
   flex_centered: wp.array[bool],
@@ -254,7 +255,8 @@ def _flex_vertices(
     if locid >= 0 and locid < flex_vertnum[f]:
       break
 
-  if flex_interp[f] != 0:
+  order = flex_interp[f]
+  if order != 0:
     # Interpolated flex: vertex position = weighted sum of node positions
     coord = flex_vert0[vertid]
     cn = flex_cellnum[f]
@@ -262,18 +264,28 @@ def _flex_vertices(
     cy = cn[1]
     cz = cn[2]
 
-    # Cell lookup: find containing cell
-    ci = wp.min(int(coord[0] * float(cx)), cx - 1)
-    ci = wp.max(ci, 0)
-    cj = wp.min(int(coord[1] * float(cy)), cy - 1)
-    cj = wp.max(cj, 0)
-    ck = wp.min(int(coord[2] * float(cz)), cz - 1)
-    ck = wp.max(ck, 0)
+    ux = coord[0] * float(cx)
+    uy = coord[1] * float(cy)
+    uz = coord[2] * float(cz)
 
-    # Local parametric coordinates within cell
-    local_x = wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0)
-    local_y = wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0)
-    local_z = wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0)
+    # Cell lookup: find containing cell
+    ci = wp.clamp(int(wp.floor(ux)), 0, cx - 1)
+    cj = wp.clamp(int(wp.floor(uy)), 0, cy - 1)
+    ck = wp.clamp(int(wp.floor(uz)), 0, cz - 1)
+
+    # If precomputed active cell differs from natural cell, redirect and extrapolate
+    cell = flex_vertcell[vertid]
+    if cell >= 0 and cell != ci * cy * cz + cj * cz + ck:
+      ck = cell % cz
+      cj = (cell // cz) % cy
+      ci = cell // (cy * cz)
+      local_x = wp.clamp(ux - float(ci), -0.02, 1.02)
+      local_y = wp.clamp(uy - float(cj), -0.02, 1.02)
+      local_z = wp.clamp(uz - float(ck), -0.02, 1.02)
+    else:
+      local_x = wp.clamp(ux - float(ci), 0.0, 1.0)
+      local_y = wp.clamp(uy - float(cj), 0.0, 1.0)
+      local_z = wp.clamp(uz - float(ck), 0.0, 1.0)
     local = wp.vec3(local_x, local_y, local_z)
 
     # Node grid dimensions
@@ -602,6 +614,7 @@ def flex(m: Model, d: Data):
       m.flex_vertadr,
       m.flex_vertnum,
       m.flex_vertbodyid,
+      m.flex_vertcell,
       m.flex_vert,
       m.flex_vert0,
       m.flex_centered,

@@ -2187,6 +2187,16 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: efmC_perm out of bounds.";
     }
   }
+  for (int f=0; f < m->nflex; f++) {
+    int ncell = m->flex_interp[f] ?
+                m->flex_cellnum[3*f+0] * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2] : 0;
+    for (int v=0; v < m->flex_vertnum[f]; v++) {
+      int c = m->flex_vertcell[m->flex_vertadr[f] + v];
+      if (m->flex_interp[f] ? (c < 0 || c >= ncell) : (c != -1)) {
+        return "Invalid model: flex_vertcell out of bounds.";
+      }
+    }
+  }
   for (int i=0; i < m->ngeom; i++) {
     if (m->geom_condim[i] > 6 || m->geom_condim[i] < 0) {
       return "Invalid model: geom_condim out of bounds.";
