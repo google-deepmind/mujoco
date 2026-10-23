@@ -758,7 +758,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   if (npc > 27) {
     for (int j = 0; j < npc; j++) {
       mjtNum w = mju_evalBasis(local, j, order);
-      if (w < 1e-5) {
+      if (mju_abs(w) < 1e-5) {
         continue;
       }
 
@@ -799,7 +799,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 
     for (int j = 0; j < npc; j++) {
       mjtNum w = basis[j];
-      if (w < 1e-5) {
+      if (mju_abs(w) < 1e-5) {
         continue;
       }
 

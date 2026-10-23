@@ -12,6 +12,7 @@ Engine
   distances from the contact, which do not interpolate the contact point: the contact Jacobian measured the velocity of
   a different material point, and the contact force exerted a spurious torque on the element. This changes the
   simulation of models with flex contacts.
+- Fixed contact Jacobians of quadratic flexes, which dropped nodes with negative basis weights.
 
 Python bindings
 ^^^^^^^^^^^^^^^

@@ -826,5 +826,93 @@ TEST_F(JacobianTest, JacDifPairSameSimpleBody) {
             0);
 }
 
+TEST_F(JacobianTest, QuadraticFlexContactPreservesNegativeBasisWeights) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body name="parent">
+        <flexcomp name="quad" type="grid" count="5 5 2" spacing=".1 .1 .1"
+                  dim="3" mass="1" radius="0.02" dof="quadratic" cellcount="1 1 1">
+          <elasticity young="1e4" poisson="0.2"/>
+          <contact condim="1"/>
+        </flexcomp>
+      </body>
+      <body name="probe_body">
+        <joint name="probe_z" type="slide" axis="0 0 1"/>
+        <geom name="probe" type="sphere" size="0.02"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // Find interior vertex (1, 1, 0) on the bottom face, where local coordinates
+  // are (0.25, 0.25, 0) and quadratic basis functions along x and y evaluate to
+  // {0.375, 0.75, -0.125}.
+  int v_target = -1;
+  for (int v = 0; v < m->nflexvert; v++) {
+    const mjtNum* c = m->flex_vert0 + 3 * v;
+    if (std::abs(c[0] - 0.25) < 1e-6 && std::abs(c[1] - 0.25) < 1e-6 &&
+        std::abs(c[2] - 0.0) < 1e-6) {
+      v_target = v;
+      break;
+    }
+  }
+  ASSERT_GE(v_target, 0);
+
+  // Place probe sphere directly beneath v_target so the contact point is at
+  // (0.25, 0.25, 0) with normal +z.
+  mj_kinematics(m.get(), d.get());
+  int probe = mj_name2id(m.get(), mjOBJ_GEOM, "probe");
+  ASSERT_GE(probe, 0);
+  m->geom_pos[3 * probe + 0] = d->flexvert_xpos[3 * v_target + 0];
+  m->geom_pos[3 * probe + 1] = d->flexvert_xpos[3 * v_target + 1];
+  m->geom_pos[3 * probe + 2] = d->flexvert_xpos[3 * v_target + 2] - 0.03;
+
+  // In the 3x3x3 quadratic node grid (order=2, cellcount=1x1x1), node (2, 1, 0)
+  // at index 2*9 + 1*3 + 0 = 21 has basis weight (-0.125) * (0.75) * (1.0) =
+  // -0.09375 at local coordinate (0.25, 0.25, 0).
+  ASSERT_EQ(m->flex_nodenum[0], 27);
+  int b_neg = m->flex_nodebodyid[m->flex_nodeadr[0] + 21];
+  int node_neg_z_dof = m->body_dofadr[b_neg] + 2;
+  ASSERT_GE(node_neg_z_dof, 0);
+  int probe_dof = m->jnt_dofadr[mj_name2id(m.get(), mjOBJ_JOINT, "probe_z")];
+
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+    mj_forward(m.get(), d.get());
+    ASSERT_GT(d->ncon, 0);
+    ASSERT_GT(d->nefc, 0);
+
+    // Extract first contact row of efc_J.
+    std::vector<mjtNum> row(m->nv, 0);
+    if (mj_isSparse(m.get())) {
+      int adr = d->efc_J_rowadr[0];
+      int nnz = d->efc_J_rownnz[0];
+      for (int k = 0; k < nnz; k++) {
+        row[d->efc_J_colind[adr + k]] = d->efc_J[adr + k];
+      }
+    } else {
+      mju_copy(row.data(), d->efc_J, m->nv);
+    }
+
+    // By partition of unity, moving all flex z-DOFs and the probe z-DOF by +1
+    // produces zero relative normal velocity, and node (2, 1, 0) has a negative
+    // basis weight (so its Jacobian entry has the same sign as the probe's).
+    mjtNum sum_z = row[probe_dof];
+    for (int n = 0; n < m->flex_nodenum[0]; n++) {
+      int b = m->flex_nodebodyid[m->flex_nodeadr[0] + n];
+      sum_z += row[m->body_dofadr[b] + 2];
+    }
+    EXPECT_THAT(sum_z, MjNear(0.0, 1e-6, 1e-5));
+    EXPECT_GT(row[node_neg_z_dof] / row[probe_dof], 1e-2);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco
