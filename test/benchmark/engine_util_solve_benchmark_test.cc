@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include "benchmark/benchmark.h"  // IWYU pragma: keep
+#include <benchmark/benchmark.h>
 #include "absl/base/attributes.h"
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_blas.h"
@@ -110,8 +110,7 @@ ABSL_ATTRIBUTE_NO_TAIL_CALL static void FactorBenchmark(benchmark::State& state,
     benchmark::DoNotOptimize(A);
   }
 
-  state.counters["factor/s"] =
-      benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
+  state.SetItemsProcessed(state.iterations());
 }
 
 // factor and solve
@@ -145,8 +144,7 @@ ABSL_ATTRIBUTE_NO_TAIL_CALL static void FactorSolveBenchmark(
     benchmark::DoNotOptimize(x);
   }
 
-  state.counters["solve/s"] =
-      benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
+  state.SetItemsProcessed(state.iterations());
 }
 
 void BM_factorLU_generic6(benchmark::State& state) {
@@ -458,8 +456,7 @@ static void BoxQPBenchmark(benchmark::State& state, int n, bool warmstart,
     p = (p + 1) % BoxQPDataset::kNumProb;
   }
 
-  state.counters["solve/s"] =
-      benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
+  state.SetItemsProcessed(state.iterations());
 }
 
 void BM_BoxQP_Old_Cold_10(benchmark::State& s) {
@@ -529,9 +526,3 @@ BENCHMARK(BM_BoxQP_New_Warm_300);
 
 }  // namespace
 }  // namespace mujoco
-
-int main(int argc, char** argv) {
-  benchmark::Initialize(&argc, argv);
-  benchmark::RunSpecifiedBenchmarks();
-  return 0;
-}

@@ -627,27 +627,18 @@ void mju_mulMatMatT(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 
 
 // compute M'*diag*M (diag=NULL: compute M'*M), upper triangle optional
-void mju_sqrMatTD_impl(mjtNum* res, const mjtNum* mat, const mjtNum* diag,
-                       int nr, int nc, int flg_upper) {
-  mjtNum tmp;
-
+void mju_sqrMatTD_impl(mjtNum* restrict res, const mjtNum* restrict mat,
+                       const mjtNum* restrict diag, int nr, int nc, int flg_upper) {
   // half of MatMat routine: only lower triangle
   mju_zero(res, nc*nc);
-  if (diag) {
-    for (int j=0; j < nr; j++) {
-      if (diag[j]) {
-        for (int i=0; i < nc; i++) {
-          if ((tmp = mat[j*nc+i])) {
-            mju_addToScl(res+i*nc, mat+j*nc, tmp*diag[j], i+1);
-          }
-        }
-      }
-    }
-  } else {
-    for (int i=0; i < nc; i++) {
-      for (int j=0; j < nr; j++) {
-        if ((tmp = mat[j*nc+i])) {
-          mju_addToScl(res+i*nc, mat+j*nc, tmp, i+1);
+  for (int j=0; j < nr; j++) {
+    mjtNum dj = diag ? diag[j] : 1;
+    if (dj) {
+      const mjtNum* mat_j = mat + j*nc;
+      for (int i=0; i < nc; i++) {
+        mjtNum tmp = mat_j[i];
+        if (tmp) {
+          mju_addToScl(res+i*nc, mat_j, tmp*dj, i+1);
         }
       }
     }
