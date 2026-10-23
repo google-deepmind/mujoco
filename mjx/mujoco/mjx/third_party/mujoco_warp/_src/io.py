@@ -28,10 +28,6 @@ from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src import util_pkg
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const as set_const
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const_0 as set_const_0
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const_fixed as set_const_fixed
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_length_range as set_length_range
 
 wp.set_module_options({"default_grid_stride": False})
 

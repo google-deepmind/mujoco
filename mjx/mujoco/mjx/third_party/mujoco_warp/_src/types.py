@@ -837,6 +837,26 @@ class State(enum.IntEnum):
   # unsupported: PLUGIN
 
 
+class SetConstGroup(enum.IntFlag):
+  """Groups of set_const computations.
+
+  Attributes:
+    NONE: no group
+    FIXED: independent of the configuration
+    KIN0: kinematics in qpos0
+    INERT0: inertia matrix in qpos0
+    ALL: all supported groups
+  """
+
+  NONE = 0
+  # TODO(team): replace hardcoded values with mujoco values
+  FIXED = 1 << 0
+  KIN0 = 1 << 1
+  INERT0 = 1 << 2
+  # unsupported: SPRING
+  ALL = FIXED | KIN0 | INERT0
+
+
 class vec5f(wp.types.vector(length=5, dtype=float)):
   pass
 
