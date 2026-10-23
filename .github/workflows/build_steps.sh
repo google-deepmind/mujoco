@@ -370,8 +370,15 @@ install_python_bindings() {
 
 test_python_bindings() {
     echo "Testing Python bindings..."
-    source ${TMPDIR}/venv/bin/activate &&
+    source ${TMPDIR}/venv/bin/activate
     pytest -v --pyargs mujoco
+    if _has_studio_platform build; then
+        echo "Smoke testing Studio Python modules..."
+        python -c "import mujoco._render_filament, mujoco.experimental.studio.window, mujoco.experimental.studio.ux, mujoco.experimental.studio.sim, mujoco.experimental.studio.native_viewer"
+        if [[ "${RUNNER_OS:-}" != "Windows" ]]; then
+            python -c "import mujoco.experimental.studio.web.headless_ui, mujoco.experimental.studio.web.state_payload"
+        fi
+    fi
 }
 
 
@@ -636,7 +643,7 @@ build_studio_platform_libs() {
     _configure_studio_host
     echo "Building the Studio platform libraries, assets and engine plugins..."
     cmake --build build_host -j"${NJOBS}" \
-        --target mujoco_studio_platform mujoco_studio_assets actuator elasticity sensor sdf_plugin
+        --target mujoco_studio_platform mujoco_studio_assets matc resgen cmgen actuator elasticity sensor sdf_plugin
 }
 
 
@@ -656,19 +663,20 @@ build_studio_cpp_viewer() {
 
 
 # Gathers the headers, static archives, plugins and assets the Python
-# extensions compile against from the host build into build/mujoco_install/.
+# extensions compile against from the host build into ${TMPDIR:-build}/mujoco_install/.
 install_studio_platform() {
     echo "Gathering the headers + libraries the Studio Python modules compile against..."
-    local build_dir prefix deps plugin_ext plugin_dir
+    local build_dir install_dir prefix deps plugin_ext plugin_dir
     build_dir="$(_resolve_studio_host_dir)"
+    install_dir="${TMPDIR:-build}/mujoco_install"
     # Recreate the prefix every time. cmake --install and the copies below only
     # ever add files, so after a version bump the previous engine library
     # (libmujoco.so.<old version>) would stay here next to the new one, and
     # setup.py, which packages every libmujoco.so.* it finds, would ship both.
     # The copies keep timestamps, so repeated Python builds stay incremental.
-    rm -rf build/mujoco_install
-    mkdir -p build/mujoco_install
-    prefix="$(cd build/mujoco_install && pwd)"
+    rm -rf "${install_dir}"
+    mkdir -p "${install_dir}"
+    prefix="$(cd "${install_dir}" && pwd)"
     # Per-OS engine-plugin layout.
     case "$(uname -s)" in
         Darwin) plugin_ext="dylib"; plugin_dir="${build_dir}/lib" ;;
@@ -709,7 +717,9 @@ install_studio_platform() {
     # 3. Static archives: mujoco_platform + every dependency archive; the Python
     #    build looks each one up by name with find_library().
     mkdir -p "${prefix}/lib"
-    find "${build_dir}" \( -name "*.a" -o -name "*.lib" \) -exec cp -p {} "${prefix}/lib/" \;
+    find "${build_dir}" -path "${prefix}" -prune -o \
+        \( -name "*.a" -o -name "*.lib" \) ! -name "mujoco.lib" \
+        -exec cp -p {} "${prefix}/lib/" \;
 
     # 4. Source-tree headers for platform / filament-compat / render.
     _copy_headers src/experimental "${prefix}/include/mujoco/experimental"
@@ -765,20 +775,45 @@ build_studio_wasm() {
     fi
     source emsdk/emsdk_env.sh
 
-    build_studio_platform_libs
     local host_dir
     host_dir="$(_resolve_studio_host_dir)"
+    if [[ ! -x "${host_dir}/bin/matc" || ! -x "${host_dir}/bin/resgen" || ! -x "${host_dir}/bin/cmgen" || ! -d "${host_dir}/src/render/filament/assets" ]]; then
+        if [[ "${host_dir}" == "$(pwd)/build_host" ]]; then
+            _configure_studio_host
+        fi
+        echo "Building Filament host tools and materials in ${host_dir}..."
+        cmake --build "${host_dir}" -j"${NJOBS}" --target matc resgen cmgen mujoco_filament_assets
+    fi
 
     if [[ ! -f build_wasm/CMakeCache.txt ]] ||
        ! grep -q "^MUJOCO_NATIVE_BUILD_DIR:[A-Z]*=${host_dir}\$" build_wasm/CMakeCache.txt; then
         echo "Configuring the web viewer browser client (WASM) with host tools from ${host_dir}..."
+        local host_deps_args=()
+        mkdir -p build_wasm/_deps
+        local wasm_deps_dir
+        wasm_deps_dir="$(cd build_wasm/_deps && pwd)"
+        for src_dir in "${host_dir}/_deps"/*-src; do
+            if [[ -d "${src_dir}" ]]; then
+                local dep_dir="${src_dir##*/}"
+                local dep_name="${dep_dir%-src}"
+                local dep_upper
+                dep_upper="$(echo "${dep_name}" | tr '[:lower:]' '[:upper:]')"
+                if [[ ! -d "${wasm_deps_dir}/${dep_dir}" ]]; then
+                    cp -al "${src_dir}" "${wasm_deps_dir}/${dep_dir}" 2>/dev/null || \
+                        cp -rp "${src_dir}" "${wasm_deps_dir}/${dep_dir}"
+                fi
+                host_deps_args+=("-DFETCHCONTENT_SOURCE_DIR_${dep_upper}=${wasm_deps_dir}/${dep_dir}")
+            fi
+        done
         emcmake cmake -S . -B build_wasm -G Ninja \
             -DCMAKE_BUILD_TYPE:STRING=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
             -DMUJOCO_BUILD_STUDIO=ON \
             -DMUJOCO_USE_FILAMENT=ON \
             -DMUJOCO_BUILD_TESTS_WASM=OFF \
             -DMUJOCO_NATIVE_BUILD_DIR:PATH="${host_dir}" \
-            ${CCACHE_ARGS}
+            ${CCACHE_ARGS} \
+            "${host_deps_args[@]}"
     fi
     echo "Building the web viewer browser client (WASM)..."
     cmake --build build_wasm --target web_client -j"${NJOBS}"
@@ -851,7 +886,7 @@ build_studio_python() {
     echo "Building the Studio platform for Python..."
     build_studio_platform_libs
     install_studio_platform
-    _install_python_wheel "$(cd build/mujoco_install && pwd)"
+    _install_python_wheel "$(cd "${TMPDIR:-build}/mujoco_install" && pwd)"
 }
 
 
@@ -862,7 +897,7 @@ build_studio_all() {
     build_studio_platform_libs
     build_studio_wasm
     install_studio_platform
-    _install_python_wheel "$(cd build/mujoco_install && pwd)"
+    _install_python_wheel "$(cd "${TMPDIR:-build}/mujoco_install" && pwd)"
 }
 
 
@@ -875,7 +910,7 @@ build_wheel() {
     build_studio_platform_libs
     install_studio_platform
     build_studio_wasm
-    _build_python_wheel "$(cd build/mujoco_install && pwd)"
+    _build_python_wheel "$(cd "${TMPDIR:-build}/mujoco_install" && pwd)"
 }
 
 
