@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_collision_primitive.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
@@ -613,8 +614,86 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 }
 
 
+// compute barycentric weights w of the point closest to p on the simplex with n vertices x
+static void simplexWeights(mjtNum w[4], const mjtNum p[3], const mjtNum* x[4], int n) {
+  // vertex
+  if (n == 1) {
+    w[0] = 1;
+  }
+
+  // segment
+  else if (n == 2) {
+    mjtNum ab[3], ap[3];
+    mju_sub3(ab, x[1], x[0]);
+    mju_sub3(ap, p, x[0]);
+    mjtNum len2 = mju_dot3(ab, ab);
+    mjtNum t = len2 > mjMINVAL ? mju_clip(mju_dot3(ap, ab) / len2, 0, 1) : 0;
+    w[0] = 1 - t;
+    w[1] = t;
+  }
+
+  // triangle
+  else if (n == 3) {
+    mjc_triWeights(w, p, x[0], x[1], x[2]);
+  }
+
+  // tetrahedron
+  else {
+    // solve p - x0 = sum_i w_i (x_i - x0) with Cramer's rule, done if p is inside
+    mjtNum e1[3], e2[3], e3[3], ep[3], c[3];
+    mju_sub3(e1, x[1], x[0]);
+    mju_sub3(e2, x[2], x[0]);
+    mju_sub3(e3, x[3], x[0]);
+    mju_sub3(ep, p, x[0]);
+    mji_cross(c, e2, e3);
+    mjtNum det = mju_dot3(e1, c);
+    if (mju_abs(det) > mjMINVAL) {
+      w[1] = mju_dot3(ep, c) / det;
+      mji_cross(c, ep, e3);
+      w[2] = mju_dot3(e1, c) / det;
+      mji_cross(c, e2, ep);
+      w[3] = mju_dot3(e1, c) / det;
+      w[0] = 1 - w[1] - w[2] - w[3];
+      if (w[0] >= 0 && w[1] >= 0 && w[2] >= 0 && w[3] >= 0) {
+        return;
+      }
+    }
+
+    // p is outside: closest point on the faces, face i is opposite vertex i
+    static const int face[4][3] = {{1, 2, 3}, {0, 2, 3}, {0, 1, 3}, {0, 1, 2}};
+    mjtNum mindist = mjMAXVAL;
+    mju_fill(w, 0.25, 4);
+    for (int i=0; i < 4; i++) {
+      const int* f = face[i];
+      mjtNum wf[3], cp[3] = {0, 0, 0};
+      mjc_triWeights(wf, p, x[f[0]], x[f[1]], x[f[2]]);
+      for (int k=0; k < 3; k++) {
+        mju_addToScl3(cp, x[f[k]], wf[k]);
+      }
+      mjtNum dist = mju_dist3(cp, p);
+      if (dist < mindist) {
+        mindist = dist;
+        w[i] = 0;
+        for (int k=0; k < 3; k++) {
+          w[f[k]] = wf[k];
+        }
+      }
+    }
+  }
+
+  // degenerate simplex: uniform weights
+  for (int i=0; i < n; i++) {
+    if (mju_isBad(w[i])) {
+      mju_fill(w, 1.0/n, n);
+      return;
+    }
+  }
+}
+
+
 // compute element vertices and weights for given contact point, return #vertices
-// if v is one of the element vertices, reduce element to fragment
+//   weights are the barycentric coordinates of the point on the element closest to the contact
+//   if v is one of the element vertices, reduce element to fragment
 static int mj_elemVertWeight(const mjModel* m, const mjData* d, int f, int e, int v,
                              const mjtNum point[3], int* vertid, mjtNum* weight) {
   // get flex info
@@ -622,37 +701,19 @@ static int mj_elemVertWeight(const mjModel* m, const mjData* d, int f, int e, in
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
   const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
-  // compute inverse distances from contact point to element vertices
-  // save vertex ids, find vertex v in element
-  int vid = -1;
+  // save vertex ids and positions, skip vertex v
+  int n = 0;
+  const mjtNum* x[4];
   for (int i=0; i <= dim; i++) {
-    mjtNum dist = mju_dist3(point, vert+3*edata[i]);
-    weight[i] = 1.0/(mju_max(mjMINVAL, dist));
-    vertid[i] = m->flex_vertadr[f] + edata[i];
-
-    // check if element vertex matches v
-    if (edata[i] == v) {
-      vid = i;
+    if (edata[i] != v) {
+      vertid[n] = m->flex_vertadr[f] + edata[i];
+      x[n++] = vert + 3*edata[i];
     }
   }
 
-  // v found in e: skip and shift remaining
-  if (vid >= 0) {
-    while (vid < dim) {
-      weight[vid] = weight[vid+1];
-      vertid[vid] = vertid[vid+1];
-      vid++;
-    }
-    dim--;
-  }
-
-  // normalize weights
-  mjtNum sum = mju_sum(weight, dim+1);
-  if (sum < mjMINVAL) {
-    mjERROR("element body weight sum < mjMINVAL");
-  }
-  mju_scl(weight, weight, 1.0/sum, dim+1);
-  return dim+1;
+  // barycentric weights of the closest point on the element or fragment
+  simplexWeights(weight, point, x, n);
+  return n;
 }
 
 

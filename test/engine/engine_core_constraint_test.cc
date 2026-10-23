@@ -1485,6 +1485,103 @@ TEST_F(CoreConstraintTest, ShellModeContactJacobian) {
       << "Interior nodes should not receive contact force";
 }
 
+// flex element contact Jacobian interpolates the closest point on the element
+TEST_F(CoreConstraintTest, FlexElementContactJacobianBarycentric) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="dense">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <geom name="floor" type="plane" size="1 1 .1" pos="0 0 -1"/>
+      <flexcomp name="seg" type="direct" dim="1" radius=".01"
+                point="0 0 0  1 0 0" element="0 1"/>
+      <flexcomp name="tri" type="direct" dim="2" radius=".01"
+                point="0 0 0  1 0 0  0 1 0" element="0 1 2"/>
+      <flexcomp name="tet" type="direct" dim="3" radius=".01"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  ASSERT_EQ(model->nflex, 3);
+  int floor_id = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  int nv = model->nv;
+
+  struct TestCase {
+    int flex;           // flex id: 0 segment, 1 triangle, 2 tetrahedron
+    int vert;           // excluded vertex of the same flex, or -1
+    mjtNum pos[3];      // contact position
+    mjtNum closest[3];  // expected closest point on the element or fragment
+  };
+  const TestCase cases[] = {
+      // segment: interior, beyond endpoint
+      {0, -1, {.3, .2, 0}, {.3, 0, 0}},
+      {0, -1, {1.5, 0, 0}, {1, 0, 0}},
+
+      // triangle: above interior, vertex region, edge region
+      {1, -1, {.25, .25, .1}, {.25, .25, 0}},
+      {1, -1, {-.5, -.5, 0}, {0, 0, 0}},
+      {1, -1, {.5, -.2, .1}, {.5, 0, 0}},
+
+      // tetrahedron: interior, below bottom face, outside slanted face
+      {2, -1, {.1, .2, .3}, {.1, .2, .3}},
+      {2, -1, {.2, .3, -.05}, {.2, .3, 0}},
+      {2, -1, {.5, .5, .5}, {1.0 / 3, 1.0 / 3, 1.0 / 3}},
+
+      // tetrahedron without vertex (0, 0, 1): closest point on bottom face
+      {2, 3, {.2, .3, .4}, {.2, .3, 0}},
+  };
+
+  for (const TestCase& c : cases) {
+    SCOPED_TRACE(testing::Message()
+                 << "flex " << c.flex << ", pos (" << c.pos[0] << ", "
+                 << c.pos[1] << ", " << c.pos[2] << ")");
+
+    // contact of the floor or a flex vertex (side 0) with element 0 (side 1)
+    mjContact con = {};
+    con.geom[0] = c.vert >= 0 ? -1 : floor_id;
+    con.geom[1] = -1;
+    con.flex[0] = c.vert >= 0 ? c.flex : -1;
+    con.vert[0] = c.vert;
+    con.elem[0] = -1;
+    con.flex[1] = c.flex;
+    con.vert[1] = -1;
+    con.elem[1] = 0;
+    mju_copy3(con.pos, c.pos);
+
+    std::vector<mjtNum> jacdif(3 * nv, 0);
+    mj_contactJacobian(model.get(), data.get(), &con, 1, jacdif.data(), nullptr,
+                       nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    // vertex weights are the x-row entries of the vertex x-slider dofs
+    int vertadr = model->flex_vertadr[c.flex];
+    mjtNum sum = 0;
+    mjtNum point[3] = {0, 0, 0};
+    for (int v = 0; v < model->flex_vertnum[c.flex]; v++) {
+      int dofadr = model->body_dofadr[model->flex_vertbodyid[vertadr + v]];
+      mjtNum weight = jacdif[dofadr];
+
+      // excluded vertex is side 0 only
+      if (v == c.vert) {
+        EXPECT_EQ(weight, -1) << "excluded vertex " << v;
+        continue;
+      }
+      EXPECT_GE(weight, 0) << "vertex " << v;
+      sum += weight;
+      mju_addToScl3(point, data->flexvert_xpos + 3 * (vertadr + v), weight);
+    }
+
+    // weights are a partition of unity which interpolates the closest point
+    EXPECT_THAT(sum, MjNear(1, 1e-12, 1e-6));
+    EXPECT_THAT(point, Pointwise(MjNear(1e-12, 1e-6), c.closest));
+  }
+}
+
 // ------------------------------- adhesion ------------------------------------
 
 static const char* kAdhereCeiling = R"(

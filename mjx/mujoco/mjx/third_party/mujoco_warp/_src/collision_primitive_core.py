@@ -1604,6 +1604,74 @@ def box_triangle(
 
 
 @wp.func
+def tri_weights(p: wp.vec3, a: wp.vec3, b: wp.vec3, c: wp.vec3) -> wp.vec3:
+  """Barycentric weights of the closest point on triangle abc to p.
+
+  Port of mjc_triWeights from engine_collision_primitive.c.
+
+  Args:
+    p: Query point.
+    a: Triangle vertex positions.
+    b: Triangle vertex positions.
+    c: Triangle vertex positions.
+
+  Returns:
+    Barycentric weights of the closest point, ordered as (a, b, c).
+  """
+  # compute barycentric coordinates via Voronoi regions (See Ericson 5.1.5)
+  ab = b - a
+  ac = c - a
+  ap = p - a
+  bp = p - b
+  cp = p - c
+
+  dot1 = wp.dot(ab, ap)
+  dot2 = wp.dot(ac, ap)
+  dot3 = wp.dot(ab, bp)
+  dot4 = wp.dot(ac, bp)
+  dot5 = wp.dot(ab, cp)
+  dot6 = wp.dot(ac, cp)
+
+  # vertex region outside a
+  if dot1 <= 0.0 and dot2 <= 0.0:
+    return wp.vec3(1.0, 0.0, 0.0)
+
+  # vertex region outside b
+  if dot3 >= 0.0 and dot4 <= dot3:
+    return wp.vec3(0.0, 1.0, 0.0)
+
+  # vertex region outside c
+  if dot6 >= 0.0 and dot5 <= dot6:
+    return wp.vec3(0.0, 0.0, 1.0)
+
+  # signed areas of pbc, pca, pab scaled by 4 * area(abc)
+  va = dot3 * dot6 - dot5 * dot4
+  vb = dot5 * dot2 - dot1 * dot6
+  vc = dot1 * dot4 - dot3 * dot2
+
+  # edge region ab
+  if vc <= 0.0 and dot1 >= 0.0 and dot3 <= 0.0:
+    t = dot1 / (dot1 - dot3)
+    return wp.vec3(1.0 - t, t, 0.0)
+
+  # edge region ac
+  if vb <= 0.0 and dot2 >= 0.0 and dot6 <= 0.0:
+    t = dot2 / (dot2 - dot6)
+    return wp.vec3(1.0 - t, 0.0, t)
+
+  # edge region bc
+  if va <= 0.0 and (dot4 - dot3) >= 0.0 and (dot5 - dot6) >= 0.0:
+    t = (dot4 - dot3) / ((dot4 - dot3) + (dot5 - dot6))
+    return wp.vec3(0.0, 1.0 - t, t)
+
+  # face region abc
+  inv = 1.0 / (va + vb + vc)
+  t = vb * inv
+  u = vc * inv
+  return wp.vec3(1.0 - t - u, t, u)
+
+
+@wp.func
 def capsule_triangle(
   # In:
   capsule_pos: wp.vec3,

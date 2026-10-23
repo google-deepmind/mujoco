@@ -2800,18 +2800,14 @@ def _efc_contact_init_flex(cone_type: types.ConeType, is_sparse: bool, newton: b
                 edata_adr = flex_elemdataadr[f] + e * (dim_f + 1)
                 vert_adr_f = flex_vertadr[f]
                 contact_pos = pos_in[conid]
-                total_inv_dist = float(0.0)
+                w_elem = support.flex_elem_weights(
+                  flex_dim, flex_vertadr, flex_elemdataadr, flex_elem, flexvert_xpos_in, f, e, contact_pos, worldid
+                )
                 blended_coord = wp.vec3(0.0, 0.0, 0.0)
                 for vi in range(4):
                   if vi <= dim_f:
                     v_idx = flex_elem[edata_adr + vi]
-                    vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
-                    dist_v = wp.length(contact_pos - vpos)
-                    w_inv = 1.0 / wp.max(1.0e-10, dist_v)
-                    total_inv_dist += w_inv
-                    blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
-                if total_inv_dist > 1.0e-10:
-                  blended_coord = blended_coord / total_inv_dist
+                    blended_coord += flex_vert0[vert_adr_f + v_idx] * w_elem[vi]
                 cn = flex_cellnum[f]
                 cx = cn[0]
                 cy = cn[1]
@@ -3220,18 +3216,14 @@ def _efc_contact_jac_sparse_flex(cone_type: types.ConeType):
               dim_f = flex_dim[f]
               edata_adr = flex_elemdataadr[f] + e * (dim_f + 1)
               vert_adr_f = flex_vertadr[f]
-              total_inv_dist = float(0.0)
+              w_elem = support.flex_elem_weights(
+                flex_dim, flex_vertadr, flex_elemdataadr, flex_elem, flexvert_xpos_in, f, e, con_pos, worldid
+              )
               blended_coord = wp.vec3(0.0, 0.0, 0.0)
               for vi in range(4):
                 if vi <= dim_f:
                   v_idx = flex_elem[edata_adr + vi]
-                  vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
-                  dist_v = wp.length(con_pos - vpos)
-                  w_inv = 1.0 / wp.max(1.0e-10, dist_v)
-                  total_inv_dist += w_inv
-                  blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
-              if total_inv_dist > 1.0e-10:
-                blended_coord = blended_coord / total_inv_dist
+                  blended_coord += flex_vert0[vert_adr_f + v_idx] * w_elem[vi]
               cn = flex_cellnum[f]
               cx = cn[0]
               cy = cn[1]
@@ -4325,18 +4317,14 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
           dim_f = flex_dim[f1]
           edata_adr = flex_elemdataadr[f1] + e * (dim_f + 1)
           vert_adr_f = flex_vertadr[f1]
-          total_inv_dist = float(0.0)
+          w_elem = support.flex_elem_weights(
+            flex_dim, flex_vertadr, flex_elemdataadr, flex_elem, flexvert_xpos_in, f1, e, con_pos, worldid
+          )
           blended_coord = wp.vec3(0.0, 0.0, 0.0)
           for vi in range(4):
             if vi <= dim_f:
               v_idx = flex_elem[edata_adr + vi]
-              vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
-              dist_v = wp.length(con_pos - vpos)
-              w_inv = 1.0 / wp.max(1.0e-10, dist_v)
-              total_inv_dist += w_inv
-              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
-          if total_inv_dist > 1.0e-10:
-            blended_coord = blended_coord / total_inv_dist
+              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_elem[vi]
           cn = flex_cellnum[f1]
           cx = cn[0]
           cy = cn[1]
@@ -4457,18 +4445,14 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
           dim_f = flex_dim[f2]
           edata_adr = flex_elemdataadr[f2] + e * (dim_f + 1)
           vert_adr_f = flex_vertadr[f2]
-          total_inv_dist = float(0.0)
+          w_elem = support.flex_elem_weights(
+            flex_dim, flex_vertadr, flex_elemdataadr, flex_elem, flexvert_xpos_in, f2, e, con_pos, worldid
+          )
           blended_coord = wp.vec3(0.0, 0.0, 0.0)
           for vi in range(4):
             if vi <= dim_f:
               v_idx = flex_elem[edata_adr + vi]
-              vpos = flexvert_xpos_in[worldid, vert_adr_f + v_idx]
-              dist_v = wp.length(con_pos - vpos)
-              w_inv = 1.0 / wp.max(1.0e-10, dist_v)
-              total_inv_dist += w_inv
-              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_inv
-          if total_inv_dist > 1.0e-10:
-            blended_coord = blended_coord / total_inv_dist
+              blended_coord += flex_vert0[vert_adr_f + v_idx] * w_elem[vi]
           cn = flex_cellnum[f2]
           cx = cn[0]
           cy = cn[1]

@@ -596,6 +596,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_collision_primitive",
         ":engine_inline",
         ":engine_memory",
         ":engine_util_blas",

@@ -2,6 +2,17 @@
 Changelog
 =========
 
+Upcoming Version (not yet released)
+-----------------------------------
+
+Engine
+^^^^^^
+- Contacts with flex elements now distribute the contact to the element vertices with the barycentric coordinates of the
+  point on the element closest to the contact. Previously the vertex weights were inversely proportional to the
+  distances from the contact, which do not interpolate the contact point: the contact Jacobian measured the velocity of
+  a different material point, and the contact force exerted a spurious torque on the element. This changes the
+  simulation of models with flex contacts.
+
 Version 3.17.0 (October 22, 2026)
 ---------------------------------
 

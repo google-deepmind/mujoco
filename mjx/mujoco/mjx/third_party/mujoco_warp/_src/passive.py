@@ -3647,33 +3647,17 @@ def _eff_contact_build(
       dim0 = flex_dim[flex0]
       nvrt0 = dim0 + 1
       base0 = flex_elemdataadr[flex0] + nvrt0 * elem0
-      w0 = wp.vec4(0.0, 0.0, 0.0, 0.0)
-      v0 = wp.vec4i(-1, -1, -1, -1)
-      n0 = int(0)
-      sum_w0 = float(0.0)
+      w0 = support.flex_elem_weights(
+        flex_dim, flex_vertadr, flex_elemdataadr, flex_elem, flexvert_xpos_in, flex0, elem0, pos, worldid
+      )
       for j in range(nvrt0):
-        v_local = flex_elem[base0 + j]
-        if vert1 >= 0 and v_local == vert1:
-          continue
-        gv = flex_vertadr[flex0] + v_local
-        v_pos = flexvert_xpos_in[worldid, gv]
-        d = wp.length(pos - v_pos)
-        weight = math.safe_div(1.0, d)
-        w0[n0] = weight
-        v0[n0] = gv
-        sum_w0 += weight
-        n0 += 1
-      if sum_w0 > float(0.0):
-        inv_sum0 = float(1.0) / sum_w0
-        for j in range(n0):
-          wj = w0[j] * inv_sum0
-          gv = v0[j]
-          b = body_weldid[flex_vertbodyid[gv]]
-          if body_dofnum[b] == 3:
-            da = body_dofadr[b]
-            n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
-            for ax in range(3):
-              nnz = _add_con_dof(cid, da + ax, -wj * n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
+        gv = flex_vertadr[flex0] + flex_elem[base0 + j]
+        b = body_weldid[flex_vertbodyid[gv]]
+        if body_dofnum[b] == 3:
+          da = body_dofadr[b]
+          n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
+          for ax in range(3):
+            nnz = _add_con_dof(cid, da + ax, -w0[j] * n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
 
   # Side 1 (sign = +1.0)
   if flex1 >= 0:
@@ -3689,33 +3673,17 @@ def _eff_contact_build(
       dim1 = flex_dim[flex1]
       nvrt1 = dim1 + 1
       base1 = flex_elemdataadr[flex1] + nvrt1 * elem1
-      w1 = wp.vec4(0.0, 0.0, 0.0, 0.0)
-      v1 = wp.vec4i(-1, -1, -1, -1)
-      n1 = int(0)
-      sum_w1 = float(0.0)
+      w1 = support.flex_elem_weights(
+        flex_dim, flex_vertadr, flex_elemdataadr, flex_elem, flexvert_xpos_in, flex1, elem1, pos, worldid
+      )
       for j in range(nvrt1):
-        v_local = flex_elem[base1 + j]
-        if vert0 >= 0 and v_local == vert0:
-          continue
-        gv = flex_vertadr[flex1] + v_local
-        v_pos = flexvert_xpos_in[worldid, gv]
-        d = wp.length(pos - v_pos)
-        weight = math.safe_div(1.0, d)
-        w1[n1] = weight
-        v1[n1] = gv
-        sum_w1 += weight
-        n1 += 1
-      if sum_w1 > float(0.0):
-        inv_sum1 = float(1.0) / sum_w1
-        for j in range(n1):
-          wj = w1[j] * inv_sum1
-          gv = v1[j]
-          b = body_weldid[flex_vertbodyid[gv]]
-          if body_dofnum[b] == 3:
-            da = body_dofadr[b]
-            n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
-            for ax in range(3):
-              nnz = _add_con_dof(cid, da + ax, wj * n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
+        gv = flex_vertadr[flex1] + flex_elem[base1 + j]
+        b = body_weldid[flex_vertbodyid[gv]]
+        if body_dofnum[b] == 3:
+          da = body_dofadr[b]
+          n_loc = wp.transpose(xmat_in[worldid, b]) @ normal
+          for ax in range(3):
+            nnz = _add_con_dof(cid, da + ax, w1[j] * n_loc[ax], nnz, efm_con_dof_out, efm_con_val_out)
 
   # Compact zero entries
   real_nnz = int(0)
