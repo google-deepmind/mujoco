@@ -4950,6 +4950,53 @@ TEST_F(ForwardTest, ImplicitFlexElasticityRequiresMetric) {
   EXPECT_EQ(forward_error(model.get(), data.get()), "");
 }
 
+// flex edge damping is integrated explicitly under implicitfast, so uniform
+// translation of a free flex has zero relative edge velocity and is not damped,
+// while relative vertex motion is damped
+TEST_F(ForwardTest, FlexEdgeDampingTranslationalInvariance) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="implicitfast" gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp name="rope" type="grid" count="3 1 1" spacing=".1 .1 .1"
+                radius=".01" dim="1" mass="1">
+        <edge damping="10"/>
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // give all 3 vertices the same uniform velocity (1, -2, 3)
+  for (int v = 0; v < 3; v++) {
+    data->qvel[3 * v + 0] = 1.0;
+    data->qvel[3 * v + 1] = -2.0;
+    data->qvel[3 * v + 2] = 3.0;
+  }
+  mj_step(model.get(), data.get());
+
+  // uniform translation must not be damped by edge damping
+  for (int v = 0; v < 3; v++) {
+    EXPECT_NEAR(data->qvel[3 * v + 0], 1.0, MjTol(1e-12, 1e-6));
+    EXPECT_NEAR(data->qvel[3 * v + 1], -2.0, MjTol(1e-12, 1e-6));
+    EXPECT_NEAR(data->qvel[3 * v + 2], 3.0, MjTol(1e-12, 1e-6));
+  }
+
+  // give vertices differing velocities along the edge direction (x)
+  mj_resetData(model.get(), data.get());
+  data->qvel[0] = 1.0;
+  mj_step(model.get(), data.get());
+
+  // relative motion between vertices 0 and 1 is damped
+  EXPECT_LT(data->qvel[0], 1.0);
+  EXPECT_GT(data->qvel[3], 0.0);
+  EXPECT_LT(data->qvel[0] - data->qvel[3], 1.0);
+}
+
 // the strain equality mode stores its constraint eigenmodes in flex_stiffness:
 // they are not elasticity, so the migration error must not fire
 TEST_F(ForwardTest, StrainEqualityIsNotElasticity) {

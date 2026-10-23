@@ -3350,29 +3350,6 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
     d->qDeriv[adr] -= mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
   }
 
-  // flex edge damping
-  for (int f=0; f < m->nflex; f++) {
-    mjtNum B = -m->flex_edgedamping[f];
-    if (m->flex_rigid[f] || !B) {
-      continue;
-    }
-
-    int flex_edgeadr = m->flex_edgeadr[f];
-    int flex_edgenum = m->flex_edgenum[f];
-
-    // process non-rigid edges of this flex
-    for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-      // skip rigid
-      if (m->flexedge_rigid[e]) {
-        continue;
-      }
-
-      // always sparse
-      addJTBJSparse(m, d, d->qDeriv, d->flexedge_J, &B, 1, e,
-                    m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind);
-    }
-  }
-
   // tendon damping
   int ntendon = m->ntendon;
   for (int i=0; i < ntendon; i++) {
