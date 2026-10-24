@@ -2373,5 +2373,110 @@ TEST_F(ElasticityTest, RodBendingMetricCholesky) {
   EXPECT_GT(d->nisland, 0);
 }
 
+// passive contact on interpolated flexes (trilinear volumetric, trilinear shell
+// elastic2d="bend", quadratic, and with pinned cage nodes): contacts are routed
+// to d->nefmcon with d->nefc == 0 and produce upward repulsive qfrc_spring on
+// the cage nodes matching the basis-interpolated contact force
+TEST_F(ElasticityTest, InterpPassiveContactForceAndPin) {
+  struct Case {
+    const char* name;
+    const char* dof;
+    const char* elasticity;
+    const char* pin;
+    int expected_interp;
+  };
+  const Case cases[] = {
+      {"trilinear_vol", "trilinear",
+       R"(<elasticity young="1e4" poisson="0.3"/>)", "", 1},
+      {"trilinear_shell_bend", "trilinear",
+       R"(<elasticity young="1e4" poisson="0.3" thickness="0.01" elastic2d="bend"/>)",
+       "", -1},
+      {"quadratic_vol", "quadratic",
+       R"(<elasticity young="1e4" poisson="0.3"/>)", "", 2},
+      {"trilinear_pinned", "trilinear",
+       R"(<elasticity young="1e4" poisson="0.3"/>)", R"(<pin id="1 3 5 7"/>)",
+       1},
+  };
+
+  for (const Case& tc : cases) {
+    SCOPED_TRACE(tc.name);
+    std::string xml = std::string(R"(
+    <mujoco>
+      <option integrator="discrete" gravity="0 0 -9.81" timestep="0.002"/>
+      <worldbody>
+        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <flexcomp name="box" type="grid" count="3 3 3" cellcount="1 1 1"
+                  spacing="0.1 0.1 0.1" radius="0.01" dim="3" mass="1.0"
+                  pos="0 0 0.095" dof=")") +
+                      tc.dof + R"(">
+          <contact selfcollide="none" passive="true"/>
+          )" + tc.elasticity +
+                      "\n" + tc.pin + R"(
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    EXPECT_EQ(m->flex_interp[0], tc.expected_interp);
+
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+
+    // At rest qpos = 0: bottom vertices at z = 0.095 - 0.1 - radius(0.01) =
+    // -0.015 penetrate the z = 0 plane, while elastic strain is zero so
+    // qfrc_spring is purely the passive contact force.
+    EXPECT_GT(d->ncon, 0);
+    EXPECT_GT(d->nefmcon, 0);
+    EXPECT_EQ(d->nefc, 0);
+
+    // Check that total upward vertical force in qfrc_spring is strictly
+    // positive and matches the published passive contact rows in
+    // d->efm_con_ind/val.
+    mjtNum total_fz_nodes = 0;
+    for (int n = 0; n < m->flex_nodenum[0]; n++) {
+      int b = m->body_weldid[m->flex_nodebodyid[m->flex_nodeadr[0] + n]];
+      if (m->body_dofnum[b] == 3) {
+        int da = m->body_dofadr[b];
+        total_fz_nodes += d->qfrc_spring[da + 2];
+        EXPECT_GE(d->qfrc_spring[da + 2], 0);
+      }
+    }
+    EXPECT_GT(total_fz_nodes, 0);
+
+    // Verify qfrc_spring equals the sum of force * Jacobian row over all
+    // published passive contacts, and for unpinned trilinear flexes verify
+    // total vertical force equals sum of -k * dist over the 9 bottom contacts.
+    std::vector<mjtNum> expected_qfrc(m->nv, 0);
+    for (int adr = 0; adr < d->nefmcon;) {
+      int nnz = d->efm_con_ind[adr];
+      mjtNum f = d->efm_con_val[adr + 1];
+      EXPECT_GT(f, 0);
+      for (int a = 0; a < nnz; a++) {
+        expected_qfrc[d->efm_con_ind[adr + 2 + a]] +=
+            f * d->efm_con_val[adr + 2 + a];
+      }
+      adr += 2 + nnz;
+    }
+    for (int i = 0; i < m->nv; i++) {
+      EXPECT_NEAR(d->qfrc_spring[i], expected_qfrc[i],
+                  MjTol(1e-11, 1e-4) * mju_max(1.0, mju_abs(expected_qfrc[i])))
+          << "dof " << i;
+    }
+    if (std::string(tc.name) == "trilinear_vol") {
+      // 8 unpinned cage nodes of mass m_node = 1/8 kg, nodenum/vertnum = 8/27,
+      // 9 bottom vertices with penetration -dist = 0.015 m:
+      //   4 corners (sum w^2 = 1), 4 edges (sum w^2 = 1/2), 1 center (sum w^2 =
+      //   1/4),
+      // so sum(1 / sum(w^2)) = 4*1 + 4*2 + 1*4 = 16.
+      mjtNum k_base = 5e7 * (1.0 / 8.0) * (8.0 / 27.0);
+      EXPECT_NEAR(total_fz_nodes, 16 * k_base * 0.015,
+                  MjTol(1e-8, 1e-2) * (16 * k_base * 0.015));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

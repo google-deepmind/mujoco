@@ -3757,11 +3757,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     // set interpolation type: positive = volumetric, negative = shell mode
     m->flex_interp[i] = pfl->spec.elastic2d ? -pfl->spec.order : pfl->spec.order;
 
-    if (m->flex_passive[i] && (m->flex_rigid[i] || m->flex_interp[i] || m->flex_dim[i] < 2)) {
+    if (m->flex_passive[i] && (m->flex_rigid[i] || m->flex_dim[i] < 2)) {
       AddWarning("flex '" +
                      pfl->name +
-                     "' has passive contact, which is not supported for rigid, "
-                     "interpolated or 1D flexes: attribute ignored",
+                     "' has passive contact, which is not supported for rigid "
+                     "or 1D flexes: attribute ignored",
                  pfl);
     }
 

@@ -760,7 +760,7 @@ static int effChol12D(const mjModel* m, int ipc) {
     if (!covered) {
       continue;
     }
-    if (mjd_flexInterp_processed(m, f)) {
+    if (m->flex_interp[f]) {
       return 0;
     }
     if (m->flex_dim[f] != 1 && !(ipc && m->flex_dim[f] == 2)) {
@@ -2903,11 +2903,21 @@ static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
   mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
   mjtNum* jacn = mjSTACKALLOC(d, 3*nv, mjtNum);
   int* chain = mjSTACKALLOC(d, nv, int);
+  int* flex_ndyn = m->nflex ? mjSTACKALLOC(d, m->nflex, int) : NULL;
+  for (int f = 0; f < m->nflex; f++) {
+    flex_ndyn[f] = m->flex_interp[f] ? mjd_flexInterpDynNodes(m, f) : 0;
+  }
+  mjtNum* kcon = mjSTACKALLOC(d, d->ncon, mjtNum);
 
   // pass 1: packed length, two header entries plus nnz per row
   for (int i = 0; i < d->ncon; i++) {
     const mjContact* con = d->contact + i;
-    if (con->exclude != 4 || mjd_flexContactStiffness(m, d, con) <= 0) {
+    if (con->exclude != 4) {
+      kcon[i] = 0;
+      continue;
+    }
+    kcon[i] = mjd_flexContactStiffness(m, d, con, flex_ndyn);
+    if (kcon[i] <= 0) {
       continue;
     }
     int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);
@@ -2928,11 +2938,8 @@ static void effContactBuild(const mjModel* m, mjData* d, mjtNum scale) {
   int adr = 0;
   for (int i = 0; i < d->ncon; i++) {
     const mjContact* con = d->contact + i;
-    if (con->exclude != 4) {
-      continue;
-    }
-    mjtNum k = mjd_flexContactStiffness(m, d, con);
-    if (k <= 0) {
+    mjtNum k = kcon[i];
+    if (con->exclude != 4 || k <= 0) {
       continue;
     }
     int NV = mj_contactJacobian(m, d, con, con->dim, jacdif, NULL, jac1, jac2, NULL, NULL, chain);

@@ -526,6 +526,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     # TODO(team): skip element pairs driven by a common grid node, as in mjc_ElemSharedNode
     if np.any((mjm.flex_interp != 0) & (mjm.flex_selfcollide != 0) & ((mjm.flex_contype & mjm.flex_conaffinity) != 0)):
       raise NotImplementedError("Self-collision of interpolated flexes (dof=trilinear or quadratic) is not implemented.")
+    if np.any((mjm.flex_interp != 0) & (mjm.flex_passive != 0) & (mjm.flex_dim >= 2)):
+      raise NotImplementedError("Passive contact of interpolated flexes (dof=trilinear or quadratic) is not implemented.")
   m.nmaxcondim = np.concatenate(condim_arrays).max()
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()

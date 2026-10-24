@@ -4177,7 +4177,7 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactMovingBase) {
       << " against the lower sheet's " << lo[0];
 }
 
-// passive contact on unsupported flex shapes (rigid, interpolated, 1D): a
+// passive contact on unsupported flex shapes (rigid, 1D): a
 // compile-time warning fires, the attribute is ignored, and the contact stays
 // on the constraint solver
 TEST_F(ImplicitIntegratorTest, PassiveFlexContactUnsupportedShape) {
@@ -4201,8 +4201,7 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactUnsupportedShape) {
   )";
   char error[1024];
   MockWarningHandler warning_handler;
-  warning_handler.ExpectWarnings(
-      "not supported for rigid, interpolated or 1D flexes");
+  warning_handler.ExpectWarnings("not supported for rigid or 1D flexes");
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m, NotNull()) << error;
   testing::Mock::VerifyAndClearExpectations(&warning_handler);
@@ -4277,6 +4276,193 @@ TEST_F(ImplicitIntegratorTest, PassiveFlexContactOnlyInMetric) {
   // separate per-island vs. combined monolithic CG trajectories)
   EXPECT_THAT(AsVector(d1->qpos, model->nq),
               Pointwise(MjNear(2e-6, 1e-5), AsVector(d2->qpos, model->nq)));
+}
+
+// Passive contact on interpolated flexes (trilinear volumetric, trilinear shell
+// elastic2d="bend", and quadratic) against a plane/box geom and against another
+// flex with pinned cage nodes: contacts are carried in d->nefmcon with
+// d->nefc == 0 and step stably under integrator="discrete" without falling
+// through.
+TEST_F(ImplicitIntegratorTest, PassiveFlexContactInterpolated) {
+  struct GeomCase {
+    const char* name;
+    const char* dof;
+    const char* elasticity;
+    const char* pin;
+  };
+  const GeomCase geom_cases[] = {
+      {"trilinear_vol", "trilinear",
+       R"(<elasticity young="5e4" poisson="0.3" damping="0.01"/>)", ""},
+      {"trilinear_shell_bend", "trilinear",
+       R"(<elasticity young="5e2" poisson="0.3" thickness="0.015" elastic2d="bend" damping="0"/>)",
+       R"(<pin id="1 3 5 7"/>)"},
+      {"trilinear_shell_stretch", "trilinear",
+       R"(<elasticity young="5e4" poisson="0.3" thickness="0.015" elastic2d="stretch" damping="0.01"/>)",
+       ""},
+      {"quadratic_vol", "quadratic",
+       R"(<elasticity young="5e4" poisson="0.3" damping="0.01"/>)", ""},
+      {"trilinear_pinned_corner", "trilinear",
+       R"(<elasticity young="5e4" poisson="0.3" damping="0.01"/>)",
+       R"(<pin id="1"/>)"},
+  };
+
+  for (const GeomCase& tc : geom_cases) {
+    SCOPED_TRACE(tc.name);
+    std::string xml = std::string(R"(
+    <mujoco>
+      <option timestep="0.002" integrator="discrete" solver="CG" iterations="200"/>
+      <worldbody>
+        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <geom name="press" type="box" size="0.3 0.3 0.02" pos="0 0 0.25"/>
+        <flexcomp name="block" type="grid" count="4 4 4" cellcount="1 1 1"
+                  spacing="0.06 0.06 0.06" radius="0.008" dim="3" mass="0.5"
+                  pos="0 0 0.10" dof=")") +
+                      tc.dof + R"(">
+          <contact selfcollide="none" passive="true"/>
+          )" + tc.elasticity +
+                      "\n" + tc.pin + R"(
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+
+    bool saw_passive_con = false;
+    mjtNum vmax = 0;
+    for (int step = 0; step < 300; step++) {
+      mj_step(m.get(), d.get());
+      EXPECT_EQ(d->nefc, 0);
+      if (d->nefmcon > 0) {
+        saw_passive_con = true;
+      }
+      for (int i = 0; i < m->nv; i++) {
+        vmax = mju_max(vmax, mju_abs(d->qvel[i]));
+      }
+      ASSERT_EQ(d->warning[mjWARN_BADQACC].number, 0) << "step " << step;
+      ASSERT_EQ(d->warning[mjWARN_INERTIA].number, 0) << "step " << step;
+    }
+    EXPECT_TRUE(saw_passive_con);
+    EXPECT_LT(vmax, 5.0);
+
+    // Verify no vertex fell through the z = 0 floor.
+    mjtNum min_z = 1e30;
+    for (int v = 0; v < m->flex_vertnum[0]; v++) {
+      min_z = mju_min(min_z, d->flexvert_xpos[3 * v + 2]);
+    }
+    EXPECT_GT(min_z, -0.005);
+  }
+
+  // Flex-vs-flex passive contact between two trilinear flexes, with the lower
+  // flex pinned at its bottom cage nodes.
+  static constexpr char kFlexFlexXml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG" iterations="200"/>
+    <worldbody>
+      <flexcomp name="lower" type="grid" count="4 4 3" cellcount="1 1 1"
+                spacing="0.08 0.08 0.04" radius="0.008" dim="3" mass="0.4"
+                pos="0 0 0.1" dof="trilinear">
+        <contact selfcollide="none" passive="true"/>
+        <elasticity young="1e5" poisson="0.3" damping="0.01"/>
+        <pin id="0 2 4 6"/>
+      </flexcomp>
+      <flexcomp name="upper" type="grid" count="3 3 3" cellcount="1 1 1"
+                spacing="0.06 0.06 0.04" radius="0.008" dim="3" mass="0.2"
+                pos="0 0 0.21" dof="trilinear">
+        <contact selfcollide="none" passive="true"/>
+        <elasticity young="1e5" poisson="0.3" damping="0.01"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(kFlexFlexXml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  bool saw_passive_con = false;
+  for (int step = 0; step < 300; step++) {
+    mj_step(m.get(), d.get());
+    EXPECT_EQ(d->nefc, 0);
+    if (d->nefmcon > 0) {
+      saw_passive_con = true;
+    }
+    ASSERT_EQ(d->warning[mjWARN_BADQACC].number, 0) << "step " << step;
+    ASSERT_EQ(d->warning[mjWARN_INERTIA].number, 0) << "step " << step;
+  }
+  EXPECT_TRUE(saw_passive_con);
+
+  int f_lower = mj_name2id(m.get(), mjOBJ_FLEX, "lower");
+  int f_upper = mj_name2id(m.get(), mjOBJ_FLEX, "upper");
+  mjtNum min_z_lower = 1e30, min_z_upper = 1e30;
+  for (int v = 0; v < m->flex_vertnum[f_lower]; v++) {
+    min_z_lower = mju_min(
+        min_z_lower, d->flexvert_xpos[3 * (m->flex_vertadr[f_lower] + v) + 2]);
+  }
+  for (int v = 0; v < m->flex_vertnum[f_upper]; v++) {
+    min_z_upper = mju_min(
+        min_z_upper, d->flexvert_xpos[3 * (m->flex_vertadr[f_upper] + v) + 2]);
+  }
+  EXPECT_GT(min_z_upper, min_z_lower);
+
+  // Refining the surface mesh (count) at a fixed cage (cellcount) should keep
+  // passive contact penetration similar rather than stiffening with vertex
+  // count, for both volumetric and shell flexes (where interior cage nodes are
+  // pinned).
+  for (int shell : {0, 1}) {
+    SCOPED_TRACE(shell ? "shell_refinement" : "volumetric_refinement");
+    mjtNum max_pen_coarse = 0, max_pen_fine = 0;
+    for (int fine : {0, 1}) {
+      std::string ref_xml =
+          std::string(R"(
+      <mujoco>
+        <option timestep="0.002" integrator="discrete" solver="CG" iterations="200"/>
+        <worldbody>
+          <geom name="floor" type="plane" size="2 2 0.1"/>
+          <flexcomp name="block" type=")") +
+          (shell ? "box" : "grid") + R"(" count=")" +
+          (fine ? "7 7 7" : "3 3 3") + R"(" cellcount="2 2 2" spacing=")" +
+          (fine ? "0.03 0.03 0.03" : "0.09 0.09 0.09") +
+          R"(" radius="0.008" dim=")" + (shell ? "2" : "3") + R"(" mass="1.0"
+                    pos="0 0 0.098" dof="trilinear">
+            <contact selfcollide="none" passive="true"/>
+            )" +
+          (shell
+               ? R"(<elasticity young="1e5" poisson="0.3" damping="0.05" elastic2d="stretch" thickness="0.015"/>)"
+               : R"(<elasticity young="1e5" poisson="0.3" damping="0.05"/>)") +
+          R"(
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      )";
+      char rerr[1024] = {0};
+      MjModelPtr rm = LoadModelFromString(ref_xml.c_str(), rerr, sizeof(rerr));
+      ASSERT_THAT(rm, NotNull()) << rerr;
+      MjDataPtr rd = MakeData(rm);
+      for (int step = 0; step < 200; step++) {
+        mj_step(rm.get(), rd.get());
+      }
+      mjtNum max_pen = 0;
+      for (int c = 0; c < rd->ncon; c++) {
+        max_pen = mju_max(max_pen, -rd->contact[c].dist);
+      }
+      if (fine) {
+        max_pen_fine = max_pen;
+      } else {
+        max_pen_coarse = max_pen;
+      }
+    }
+    EXPECT_GT(max_pen_coarse, 0);
+    EXPECT_GT(max_pen_fine, 0);
+    // 7x7 = 49 bottom vertices vs 3x3 = 9 bottom vertices (5.4x more contacts
+    // per face): penetration remains within a factor of 2.5 rather than
+    // dropping >5x.
+    EXPECT_LT(max_pen_coarse / max_pen_fine, 2.5);
+    EXPECT_LT(max_pen_fine / max_pen_coarse, 2.5);
+  }
 }
 
 TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {

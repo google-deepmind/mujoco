@@ -4912,10 +4912,11 @@ extensions specific to flexes.
    non-penetration, leave this option off.
 
    The force is a penalty on penetration depth whose stiffness is chosen as a natural frequency scaled by the
-   participating vertex mass, so a single value is appropriate across model scales; it is not user-specified. That
-   stiffness is integrated implicitly, its curvature being carried by the effective metric, and is therefore far
-   stiffer than an explicit force at the same timestep could be. It follows that the feature requires the ``discrete``
-   :ref:`integrator<option-integrator>`, with the ``CG`` or ``Newton`` :ref:`solver<option-solver>`, no
+   participating vertex mass (or for interpolated flexes, the effective cage node mass at the contact point scaled by
+   the node-to-vertex ratio), so a single value is appropriate across model scales and mesh resolutions; it is not
+   user-specified. That stiffness is integrated implicitly, its curvature being carried by the effective metric, and is
+   therefore far stiffer than an explicit force at the same timestep could be. It follows that the feature requires the
+   ``discrete`` :ref:`integrator<option-integrator>`, with the ``CG`` or ``Newton`` :ref:`solver<option-solver>`, no
    :ref:`noslip<option-noslip_iterations>` iterations and the :ref:`sleep<option-flag-sleep>` flag disabled. A model
    requesting passive flex collisions otherwise is rejected with an error.
 

@@ -1360,6 +1360,9 @@ int mj_flexBodySimple(const mjModel* m, int body) {
 
 // Check for standard fixed-frame three-DOF assembly flex and compatibility with cached factor.
 int mj_flexSimple(const mjModel* m, int f) {
+  if (m->flex_interp[f]) {
+    return 0;
+  }
   for (int v=m->flex_vertadr[f]; v < m->flex_vertadr[f]+m->flex_vertnum[f]; v++) {
     int body = m->body_weldid[m->flex_vertbodyid[v]];
     if (m->body_dofnum[body] && !mj_flexBodySimple(m, body)) return 0;
@@ -1803,11 +1806,11 @@ int mj_flexvertRows(const mjModel* m, int f, int* nnz) {
 }
 
 
-// does flex f use the penalty form of passive contact: a standard deformable flex of dim >= 2
+// does flex f use the penalty form of passive contact: a deformable flex of dim >= 2
 // that asks for it, and not under the ipc flag, which solves the same law for every supported
 // flex itself (running both would apply each pair's force twice)
 int mj_effFlexContactPossible(const mjModel* m, int f) {
-  return m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] && m->flex_dim[f] >= 2 &&
+  return m->flex_passive[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 &&
          !mjENABLED(mjENBL_IPC);
 }
 

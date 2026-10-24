@@ -110,8 +110,13 @@ MJAPI mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam)
 // point mass of global flex vertex gv, 0 when it has no 3-dof body of its own (pinned)
 MJAPI mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv);
 
+// count dynamic (3-dof) cage nodes of interpolated flex f
+int mjd_flexInterpDynNodes(const mjModel* m, int f);
+
 // passive contact stiffness of a pair; force and Hessian must use the same value
-MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con);
+//   flex_ndyn (optional, size nflex) provides precomputed mjd_flexInterpDynNodes(m, f)
+MJAPI mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con,
+                                      const int* flex_ndyn);
 
 MJAPI int mjd_flexStiff_assemble(const mjModel* m, mjData* d, int* rownnz, int* rowadr,
                                  int* colind, mjtNum* val, mjtNum s1, mjtNum s2,

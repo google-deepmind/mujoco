@@ -909,7 +909,7 @@ int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt) {
   // Matrix-free flex attachments can couple this free body without any CSR or constraint row.
   int tree = m->body_treeid[m->jnt_bodyid[jnt]];
   for (int f=0; f < m->nflex; f++) {
-    if (!mj_effFlexStiffPossible(m, f)) continue;
+    if (!mj_effFlexPossible(m, f)) continue;
     const int* bodies = m->flex_interp[f] ? m->flex_nodebodyid : m->flex_vertbodyid;
     int vertadr = m->flex_interp[f] ? m->flex_nodeadr[f] : m->flex_vertadr[f];
     int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
@@ -1925,8 +1925,11 @@ mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam) {
 }
 
 
-mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
-  int b = m->body_weldid[m->flex_vertbodyid[gv]];
+static mjtNum flexBodyMass(const mjModel* m, const mjData* d, int body) {
+  if (body < 0) {
+    return 0;
+  }
+  int b = m->body_weldid[body];
   if (m->body_dofnum[b] != 3) {
     return 0;
   }
@@ -1935,11 +1938,58 @@ mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
 }
 
 
-mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con) {
+mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
+  return flexBodyMass(m, d, m->flex_vertbodyid[gv]);
+}
+
+
+// count dynamic (3-dof) cage nodes of interpolated flex f
+int mjd_flexInterpDynNodes(const mjModel* m, int f) {
+  if (m->flex_centered[f]) {
+    return m->flex_nodenum[f];
+  }
+  int nstart = m->flex_nodeadr[f];
+  int ndyn = 0;
+  for (int j = 0; j < m->flex_nodenum[f]; j++) {
+    int b = m->flex_nodebodyid[nstart + j];
+    if (b >= 0 && m->body_dofnum[m->body_weldid[b]] == 3) {
+      ndyn++;
+    }
+  }
+  return ndyn;
+}
+
+
+mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con,
+                                const int* flex_ndyn) {
   mjtNum mmin = 0;
   for (int side = 0; side < 2; side++) {
     int f = con->flex[side];
     if (f < 0) {
+      continue;
+    }
+    if (m->flex_interp[f]) {
+      // 1 cell has at most 27 nodes (quadratic), projected to at most 27 boundary nodes in TFI
+      int body[27];
+      mjtNum weight[27];
+      int nb = mj_contactBodyWeight(m, d, con, side, body, weight);
+      mjtNum inv_m = 0;
+      for (int j = 0; j < nb; j++) {
+        mjtNum mb = flexBodyMass(m, d, body[j]);
+        if (mb > 0) {
+          inv_m += weight[j] * weight[j] / mb;
+        }
+      }
+      if (inv_m > 0) {
+        int ndyn = flex_ndyn ? flex_ndyn[f] : mjd_flexInterpDynNodes(m, f);
+        mjtNum scale = m->flex_vertnum[f] > 0
+                       ? (mjtNum)ndyn / m->flex_vertnum[f]
+                       : 1;
+        mjtNum meff = scale / inv_m;
+        if (mmin == 0 || meff < mmin) {
+          mmin = meff;
+        }
+      }
       continue;
     }
     int gv[8], ngv = 0;

@@ -3755,6 +3755,146 @@ TEST_F(DerivativeTest, FlexInterpShellDerivatives) {
   }
 }
 
+// verify passive contact metric and velocity shift on interpolated flexes
+// (trilinear volumetric, trilinear shell elastic2d="bend", quadratic, and with
+// pinned cage nodes) against central finite differences of qfrc_spring
+TEST_F(DerivativeTest, FlexInterpPassiveContactDerivatives) {
+  struct Case {
+    const char* name;
+    const char* dof;
+    const char* elasticity;
+    const char* pin;
+  };
+  const Case cases[] = {
+      {"trilinear_vol", "trilinear",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0"/>)", ""},
+      {"trilinear_shell_bend", "trilinear",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0" thickness="0.01" elastic2d="bend"/>)",
+       ""},
+      {"quadratic_vol", "quadratic",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0"/>)", ""},
+      {"trilinear_pinned", "trilinear",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0"/>)",
+       R"(<pin id="1 3 5 7"/>)"},
+  };
+
+  for (const Case& tc : cases) {
+    SCOPED_TRACE(tc.name);
+    std::string xml = std::string(R"(
+    <mujoco>
+      <option integrator="discrete" gravity="0 0 0" timestep="0.002"/>
+      <worldbody>
+        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <flexcomp name="box" type="grid" count="3 3 3" cellcount="1 1 1"
+                  spacing="0.1 0.1 0.1" radius="0.01" dim="3" mass="1.0"
+                  pos="0 0 0.09" dof=")") +
+                      tc.dof + R"(">
+          <contact selfcollide="none" passive="true"/>
+          )" + tc.elasticity +
+                      "\n" + tc.pin + R"(
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+
+    ASSERT_GT(d->nefmcon, 0);
+    ASSERT_EQ(d->nefc, 0);
+
+    // At rest qpos = 0, elastic force is zero so qfrc_spring equals the
+    // contact force interpolated onto cage nodes via mj_contactBodyWeight.
+    std::vector<mjtNum> expected_qfrc(m->nv, 0);
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4 || con->dist >= 0) continue;
+      mjtNum k = mjd_flexContactStiffness(m.get(), d.get(), con, nullptr);
+      ASSERT_GT(k, 0);
+      mjtNum fn = -k * con->dist;
+      mjtNum force[3] = {fn * con->frame[0], fn * con->frame[1],
+                         fn * con->frame[2]};
+      for (int side = 0; side < 2; side++) {
+        if (con->flex[side] < 0) continue;
+        int body[128];
+        mjtNum weight[128];
+        int nb =
+            mj_contactBodyWeight(m.get(), d.get(), con, side, body, weight);
+        mjtNum sign = (side == 0) ? -1.0 : 1.0;
+        for (int j = 0; j < nb; j++) {
+          int b = m->body_weldid[body[j]];
+          if (m->body_dofnum[b] == 3) {
+            int da = m->body_dofadr[b];
+            expected_qfrc[da + 0] += sign * weight[j] * force[0];
+            expected_qfrc[da + 1] += sign * weight[j] * force[1];
+            expected_qfrc[da + 2] += sign * weight[j] * force[2];
+          }
+        }
+      }
+    }
+    for (int i = 0; i < m->nv; i++) {
+      EXPECT_NEAR(d->qfrc_spring[i], expected_qfrc[i],
+                  MjTol(1e-9, 1e-3) * mju_max(1.0, mju_abs(expected_qfrc[i])))
+          << "dof " << i;
+    }
+
+    int nv = m->nv;
+    mjtNum h = m->opt.timestep;
+    std::vector<mjtNum> vec(nv), res_with_con(nv, 0), res_no_con(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i, 3) - 0.5;
+    }
+    mj_effMulAdd(m.get(), d.get(), res_with_con.data(), vec.data(),
+                 /*flg_contact=*/1);
+    mj_effMulAdd(m.get(), d.get(), res_no_con.data(), vec.data(),
+                 /*flg_contact=*/0);
+
+    // Isolate the contact-only spring force by comparing against a copy with
+    // contact disabled, perturbed by +/- eps*vec (small enough that active
+    // contacts remain penetrating with constant plane normal).
+    mjtNum eps = MjEps(1e-7, 1e-5);
+    MjDataPtr d_plus(mj_copyData(nullptr, m.get(), d.get()));
+    MjDataPtr d_minus(mj_copyData(nullptr, m.get(), d.get()));
+    mju_addToScl(d_plus->qpos, vec.data(), eps, nv);
+    mju_addToScl(d_minus->qpos, vec.data(), -eps, nv);
+    mj_forward(m.get(), d_plus.get());
+    mj_forward(m.get(), d_minus.get());
+
+    m->opt.disableflags |= mjDSBL_CONTACT;
+    MjDataPtr d_plus_nocon(mj_copyData(nullptr, m.get(), d_plus.get()));
+    MjDataPtr d_minus_nocon(mj_copyData(nullptr, m.get(), d_minus.get()));
+    mj_forward(m.get(), d_plus_nocon.get());
+    mj_forward(m.get(), d_minus_nocon.get());
+    m->opt.disableflags &= ~mjDSBL_CONTACT;
+
+    mjtNum max_err = 0, scale = 0;
+    for (int i = 0; i < nv; i++) {
+      mjtNum f_plus = d_plus->qfrc_spring[i] - d_plus_nocon->qfrc_spring[i];
+      mjtNum f_minus = d_minus->qfrc_spring[i] - d_minus_nocon->qfrc_spring[i];
+      mjtNum fd_h2K = -h * h * (f_plus - f_minus) / (2 * eps);
+      mjtNum analytic_h2K = res_with_con[i] - res_no_con[i];
+      max_err = mju_max(max_err, mju_abs(analytic_h2K - fd_h2K));
+      scale = mju_max(scale, mju_abs(fd_h2K));
+    }
+    EXPECT_GT(scale, 1e-2);
+    EXPECT_LT(max_err, MjTol(1e-6, 1e-3) * scale);
+
+    // Also verify velocity shift d->efm_c: setting qvel = vec must shift efm_c
+    // by -(1/h) * (h^2 K_total * vec) = -h * K_total * vec.
+    mju_copy(d->qvel, vec.data(), nv);
+    mj_forward(m.get(), d.get());
+    for (int i = 0; i < nv; i++) {
+      EXPECT_NEAR(
+          d->efm_c[i], -res_with_con[i] / h,
+          MjTol(1e-9, 1e-3) * mju_max(1.0, mju_abs(res_with_con[i] / h)))
+          << "shift mismatch at DOF " << i;
+    }
+  }
+}
+
 struct FlexAttachmentCase {
   const char* name;
   const char* joints;
