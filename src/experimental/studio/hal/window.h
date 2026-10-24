@@ -22,7 +22,7 @@
 
 #include <SDL_render.h>
 #include <SDL_video.h>
-#include "experimental/studio/hal/graphics_mode.h"
+#include "graphics_mode.h"
 
 namespace mujoco::studio {
 

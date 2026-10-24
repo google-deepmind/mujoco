@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_LAUNCHER_H_
 
 #include <string>
-#include "experimental/studio/app.h"
+#include "app.h"
 
 namespace mujoco::studio {
 
