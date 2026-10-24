@@ -20,7 +20,6 @@ that the calling thread uses to push simulation state into the viewer.
 from collections.abc import Iterable
 
 import mujoco
-from mujoco.experimental.studio import messages
 from mujoco.experimental.studio import plugin
 from mujoco.experimental.studio import viewer_handle
 from mujoco.experimental.studio import viewer_protocol
@@ -75,11 +74,18 @@ def run(
   Raises:
     ValueError: If both ``model`` and ``model_path`` are given.
   """
-  if model is not None and model_path:
-    raise ValueError('Pass either model_path or model, not both.')
-  with launch(config, plugins=plugins) as handle:
-    if model is not None:
-      handle.set_model(model, data=data)
-    elif model_path:
-      handle.dispatch(messages.LoadModelEvent(path=model_path))
-    viewer_handle.run_sim_loop(handle)
+  # Delegate to the mode-specific blocking launcher so each owns its platform
+  # handling: launch_native.run keeps the viewer on the calling thread, which
+  # is required on macOS (see launch_native.launch).
+  if config.gfx in ('web', 'webgl'):
+    from mujoco.experimental.studio import launch_web  # pylint: disable=g-import-not-at-top
+
+    launch_web.run(
+        config, model=model, data=data, model_path=model_path, plugins=plugins
+    )
+    return
+  from mujoco.experimental.studio import launch_native  # pylint: disable=g-import-not-at-top
+
+  launch_native.run(
+      config, model=model, data=data, model_path=model_path, plugins=plugins
+  )
