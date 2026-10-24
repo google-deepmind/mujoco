@@ -2112,7 +2112,7 @@ TEST_F(ElasticityTest, RodBendingCantilever) {
                 radius="0.01" dim="1" mass="1">
         <pin id="0 1"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <edge equality="true" damping="1"/>
+        <edge equality="true"/>
         <elasticity young="1e9" damping="0.2" %s/>
       </flexcomp>
     </worldbody>
@@ -2318,7 +2318,7 @@ TEST_F(ElasticityTest, RodBendingMetricCholesky) {
                 radius="0.005" dim="1" mass="0.1">
         <pin id="0 1"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <edge equality="true" damping="0.1"/>
+        <edge equality="true"/>
         <elasticity young="1e9" damping="0.05"/>
       </flexcomp>
     </worldbody>

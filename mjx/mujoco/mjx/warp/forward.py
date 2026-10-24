@@ -276,10 +276,10 @@ def _forward_shim(
     has_3d_flex: bool,
     has_efm_actuator: bool,
     has_ellipsoid_geom: bool,
+    has_flex_edge_stiff_damp: bool,
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
-    has_flex_stiff_dim23: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -937,10 +937,10 @@ def _forward_shim(
   _m.has_3d_flex = has_3d_flex
   _m.has_efm_actuator = has_efm_actuator
   _m.has_ellipsoid_geom = has_ellipsoid_geom
+  _m.has_flex_edge_stiff_damp = has_flex_edge_stiff_damp
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
-  _m.has_flex_stiff_dim23 = has_flex_stiff_dim23
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -2399,10 +2399,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_3d_flex,
       m._impl.has_efm_actuator,
       m._impl.has_ellipsoid_geom,
+      m._impl.has_flex_edge_stiff_damp,
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
-      m._impl.has_flex_stiff_dim23,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -3244,10 +3244,10 @@ def _step_shim(
     has_3d_flex: bool,
     has_efm_actuator: bool,
     has_ellipsoid_geom: bool,
+    has_flex_edge_stiff_damp: bool,
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
-    has_flex_stiff_dim23: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -3915,10 +3915,10 @@ def _step_shim(
   _m.has_3d_flex = has_3d_flex
   _m.has_efm_actuator = has_efm_actuator
   _m.has_ellipsoid_geom = has_ellipsoid_geom
+  _m.has_flex_edge_stiff_damp = has_flex_edge_stiff_damp
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
-  _m.has_flex_stiff_dim23 = has_flex_stiff_dim23
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -5404,10 +5404,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_3d_flex,
       m._impl.has_efm_actuator,
       m._impl.has_ellipsoid_geom,
+      m._impl.has_flex_edge_stiff_damp,
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
-      m._impl.has_flex_stiff_dim23,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,

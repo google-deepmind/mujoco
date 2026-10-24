@@ -61,17 +61,16 @@ def check_discrete(m: Model):
       raise ValueError("stable Neo-Hookean elasticity requires integrator='discrete'")
     if m.has_flex_passive:
       raise ValueError("passive flex contact requires an integrator with the effective metric: set integrator='discrete'")
-    # 1D rod bending is integrated explicitly by all integrators except discrete
-    if (
-      m.opt.integrator in (IntegratorType.IMPLICIT, IntegratorType.IMPLICITFAST)
-      and (m.nefmK > 0 or m.has_non_simple_flex)
-      and m.has_flex_stiff_dim23
-    ):
+    if m.opt.integrator in (IntegratorType.IMPLICIT, IntegratorType.IMPLICITFAST) and (m.nefmK > 0 or m.has_non_simple_flex):
       raise ValueError(
         "flex elasticity is no longer integrated implicitly under integrator='implicit' and 'implicitfast': "
-        "set integrator='discrete'"
+        "set integrator='discrete', or 'Euler' with a small timestep"
       )
     return
+  if m.has_flex_edge_stiff_damp:
+    raise ValueError(
+      "discrete integrator: flex edge stiffness and damping are not supported; use <elasticity> or <edge equality> instead"
+    )
   if m.has_unsupported_flex_interp:
     raise NotImplementedError("Discrete integrator: quadratic (abs(flex_interp) >= 2) interpolated flexes are not supported")
   if m.opt.solver == SolverType.NEWTON and m.has_non_simple_flex:

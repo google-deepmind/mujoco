@@ -1536,7 +1536,7 @@ class Model:
     has_flex_passive: whether any flex has passive contact enabled
     has_flex_snh: whether any flex uses 3D SNH elasticity
     has_non_simple_flex: whether any flex has non-simple vertex bodies
-    has_flex_stiff_dim23: whether any 2D or 3D flex contributes elastic stiffness
+    has_flex_edge_stiff_damp: whether any non-rigid flex has edge stiffness or damping
     has_tendon_stiffness: whether any tendon has positive stiffness
     has_tendon_damping: whether any tendon has positive damping
     has_efm_actuator: whether any actuator contributes effective metric coupling
@@ -2073,7 +2073,7 @@ class Model:
   has_flex_passive: bool
   has_flex_snh: bool
   has_non_simple_flex: bool
-  has_flex_stiff_dim23: bool
+  has_flex_edge_stiff_damp: bool
   has_tendon_stiffness: bool
   has_tendon_damping: bool
   has_efm_actuator: bool

@@ -4479,7 +4479,7 @@ TEST_F(ImplicitIntegratorTest, FlexContactEnergy) {
       <geom type="plane" size="5 5 0.1"/>
       <flexcomp type="grid" count="8 8 1" spacing=".04 .04 .04"
                 radius=".01" name="sheet" dim="2" pos="0 0 0.02" mass="0.1">
-        <edge equality="true" damping="0.1"/>
+        <edge equality="true"/>
         <elasticity young="3e6" poisson="0" thickness="2e-2"
                     elastic2d="bend" damping="0"/>
         <contact solref="0.003 1" selfcollide="none"/>
@@ -5105,35 +5105,57 @@ TEST_F(ForwardTest, SNHRequiresDiscreteIntegrator) {
 // flex elasticity lost its implicit treatment under implicit*: the migration is
 // loud
 TEST_F(ForwardTest, ImplicitFlexElasticityRequiresMetric) {
-  static const char* const kXml = R"(
-  <mujoco>
-    <option integrator="discrete" solver="CG"/>
-    <worldbody>
-      <flexcomp name="sheet" type="grid" count="4 4 1" spacing=".05 .05 .05" radius=".01"
-                dim="2" mass=".1" pos="0 0 1">
-        <elasticity young="1e4" poisson="0" thickness="1e-2" elastic2d="bend"/>
-        <pin id="0 3"/>
-      </flexcomp>
-    </worldbody>
-  </mujoco>
-  )";
+  static const char* const kXmls[] = {
+      R"(
+      <mujoco>
+        <option integrator="discrete" solver="CG"/>
+        <worldbody>
+          <flexcomp name="sheet" type="grid" count="4 4 1" spacing=".05 .05 .05" radius=".01"
+                    dim="2" mass=".1" pos="0 0 1">
+            <elasticity young="1e4" poisson="0" thickness="1e-2" elastic2d="bend"/>
+            <pin id="0 3"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      )",
+      R"(
+      <mujoco>
+        <option integrator="discrete" solver="CG"/>
+        <worldbody>
+          <flexcomp name="rod" type="grid" count="4 1 1" spacing=".05 .05 .05" radius=".01"
+                    dim="1" mass=".1" pos="0 0 1">
+            <elasticity young="1e4"/>
+            <pin id="0"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      )",
+  };
   char error[1024];
-  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
-  ASSERT_THAT(model.get(), NotNull()) << error;
-  MjDataPtr data = MakeData(model);
   auto forward_error = MjuErrorMessageFrom(mj_forward);
 
-  // the model loads and runs under discrete; flipping to implicitfast is a loud
-  // error
-  EXPECT_EQ(forward_error(model.get(), data.get()), "");
-  model->opt.integrator = mjINT_IMPLICITFAST;
-  EXPECT_THAT(
-      forward_error(model.get(), data.get()),
-      testing::HasSubstr("flex elasticity is no longer integrated implicitly"));
+  for (const char* xml : kXmls) {
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
 
-  // Euler always integrated elasticity explicitly and still does
-  model->opt.integrator = mjINT_EULER;
-  EXPECT_EQ(forward_error(model.get(), data.get()), "");
+    // the model loads and runs under discrete; flipping to implicit or
+    // implicitfast is a loud error
+    EXPECT_EQ(forward_error(model.get(), data.get()), "");
+    for (int integrator : {mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+      model->opt.integrator = integrator;
+      EXPECT_THAT(forward_error(model.get(), data.get()),
+                  testing::HasSubstr("flex elasticity is no longer integrated "
+                                     "implicitly under integrator='implicit' "
+                                     "and 'implicitfast': set "
+                                     "integrator='discrete', or 'Euler' with "
+                                     "a small timestep"));
+    }
+
+    // Euler always integrated elasticity explicitly and still does
+    model->opt.integrator = mjINT_EULER;
+    EXPECT_EQ(forward_error(model.get(), data.get()), "");
+  }
 }
 
 // flex edge damping is integrated explicitly under implicitfast, so uniform
@@ -5181,6 +5203,51 @@ TEST_F(ForwardTest, FlexEdgeDampingTranslationalInvariance) {
   EXPECT_LT(data->qvel[0], 1.0);
   EXPECT_GT(data->qvel[3], 0.0);
   EXPECT_LT(data->qvel[0] - data->qvel[3], 1.0);
+}
+
+// flex edge stiffness and damping are not supported under discrete
+TEST_F(ForwardTest, FlexEdgeStiffnessDampingDisallowedInDiscrete) {
+  static const char* const kXmls[] = {
+      R"(
+      <mujoco>
+        <worldbody>
+          <flexcomp name="rope" type="grid" count="3 1 1" spacing=".1 .1 .1"
+                    radius=".01" dim="1" mass="1">
+            <edge stiffness="10"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      )",
+      R"(
+      <mujoco>
+        <worldbody>
+          <flexcomp name="rope" type="grid" count="3 1 1" spacing=".1 .1 .1"
+                    radius=".01" dim="1" mass="1">
+            <edge damping="1"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      )",
+  };
+  char error[1024];
+  auto forward_error = MjuErrorMessageFrom(mj_forward);
+
+  for (const char* xml : kXmls) {
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+
+    for (int integrator :
+         {mjINT_EULER, mjINT_RK4, mjINT_IMPLICIT, mjINT_IMPLICITFAST}) {
+      model->opt.integrator = integrator;
+      EXPECT_EQ(forward_error(model.get(), data.get()), "");
+    }
+    model->opt.integrator = mjINT_DISCRETE;
+    EXPECT_THAT(forward_error(model.get(), data.get()),
+                testing::HasSubstr("discrete integrator: flex edge stiffness "
+                                   "and damping are not supported; use "
+                                   "<elasticity> or <edge equality> instead"));
+  }
 }
 
 // the strain equality mode stores its constraint eigenmodes in flex_stiffness:

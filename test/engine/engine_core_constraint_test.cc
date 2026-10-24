@@ -1087,7 +1087,7 @@ TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
                 spacing=".1 .05 .08" radius="0.001"
                 pos="0 0 .5" dof="quadratic" mass="1" dim="3">
         <contact selfcollide="none"/>
-        <edge equality="strain" damping="0.01"/>
+        <edge equality="strain"/>
       </flexcomp>
     </body>
   </worldbody>

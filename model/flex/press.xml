@@ -30,15 +30,13 @@
     <flexcomp name="A" type="grid" count="4 4 4" spacing=".2 .2 .2" pos="0 0 .5"
               radius=".005" rgba="0 .7 .7 1" dim="3" mass="5">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
-      <edge damping="1"/>
-      <elasticity young="1e4" poisson="0.4"/>
+      <elasticity young="1e4" poisson="0.4" damping="0.01"/>
     </flexcomp>
 
     <flexcomp name="B" type="grid" count="4 4 4" spacing=".2 .2 .2" pos="1 0 .5"
               radius=".005" rgba="0 .7 .7 1" dim="3" mass="5">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
-      <edge damping="1"/>
-      <elasticity young="5e4" poisson="0"/>
+      <elasticity young="5e4" poisson="0" damping="0.01"/>
     </flexcomp>
 
     <body>

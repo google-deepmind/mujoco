@@ -728,6 +728,8 @@ Discrete-time (``discrete``)
 
       - Models with flex elasticity or passive flex contact under the ``PGS`` :ref:`solver<option-solver>` or with
         :ref:`noslip<option-noslip_iterations>` post-processing.
+      - Flex :ref:`edge stiffness<flex-edge-stiffness>` or :ref:`damping<flex-edge-damping>` (use
+        :ref:`elasticity<flex-elasticity>` or :ref:`edge equality<flexcomp-edge-equality>` instead).
       - :ref:`Sleep<option-flag-sleep>` without :ref:`islands<option-flag-island>` (island grouping is required
         to keep metric-coupled trees awake or asleep together).
       - Interpolated flexes (e.g. flexcomp ``dof="trilinear"``) whose nodes are attached to arbitrary moving bodies

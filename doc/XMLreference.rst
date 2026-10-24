@@ -4757,12 +4757,15 @@ these mechanisms to be combined as desired.
 .. _flex-edge-stiffness:
 
 :at:`stiffness`: :at-val:`real(1), "0"`
-   Stiffness of all edges. Only for 1D flex. For 2D and 3D, plugins must be used.
+   Stiffness of all edges. Only for 1D flex. Integrated explicitly; not supported by the
+   :ref:`discrete<option-integrator>` integrator (use :ref:`elasticity<flex-elasticity>` or
+   :ref:`edge equality<flexcomp-edge-equality>` instead).
 
 .. _flex-edge-damping:
 
 :at:`damping`: :at-val:`real(1), "0"`
-   Damping of all edges.
+   Damping of all edges. Integrated explicitly; not supported by the :ref:`discrete<option-integrator>` integrator
+   (use :ref:`elasticity/damping<flex-elasticity-damping>` instead).
 
 
 .. _flex-elasticity:
@@ -4789,8 +4792,9 @@ initial pose, e.g. coiled or draped, can be set with ``qpos`` or a :ref:`keyfram
 stored bending energy and is pushed toward straightening. Rods with a curved rest shape, such as coil springs, can use
 the :ref:`cable<CComposite>` composite instead. Twist is assumed to relax instantly, which is exact unless the
 orientation of both ends of the rod is constrained. Stretching is not included; use :ref:`edge<flex-edge>` constraints
-or stiffness instead. Rod bending is integrated implicitly by the :ref:`discrete<option-integrator>` integrator, using a
-positive semi-definite approximation of its Hessian, and explicitly by all other integrators. It is not supported by
+(or edge stiffness under integrators other than ``discrete``) instead. Rod bending is integrated implicitly by the
+:ref:`discrete<option-integrator>` integrator, using a positive semi-definite approximation of its Hessian, and
+explicitly by ``Euler`` and ``RK4`` (not supported under ``implicit`` and ``implicitfast``). It is not supported by
 :ref:`dof<body-flexcomp-dof>` **trilinear** and **quadratic**.
 
 .. _flex-elasticity-young:

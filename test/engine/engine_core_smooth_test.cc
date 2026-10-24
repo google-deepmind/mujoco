@@ -2418,9 +2418,9 @@ TEST_F(CoreSmoothTest, FlexVertStability) {
     <worldbody>
       <geom name="floor" type="plane" size="0 0 .1"/>
       <flexcomp name="flex" type="grid" count="10 10 1" spacing="0.05 0.05 0.05" radius="0.01" dim="2" mass="1" pos="0 0 1">
-           <edge equality="vert" damping="0.1"/>
+           <edge equality="vert"/>
            <contact solref="0.003"/>
-           <elasticity young="3e5" poisson="0" thickness="8e-3" elastic2d="bend"/>
+           <elasticity young="3e5" poisson="0" thickness="8e-3" elastic2d="bend" damping="0.02"/>
       </flexcomp>
     </worldbody>
   </mujoco>
