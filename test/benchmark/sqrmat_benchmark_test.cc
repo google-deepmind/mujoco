@@ -246,7 +246,14 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
 
 // ========================== SqrMatTD Benchmarks ==============================
 
-enum class SqrMatTDVariant { kBaseline, kRow, kCol, kSplitCol };
+enum class SqrMatTDVariant {
+  kBaseline,
+  kRow,
+  kCol,
+  kSplitCol,
+  kSymbolicOnly,
+  kNumericOnly
+};
 
 template <Size S>
 static void BM_sqrMatTD_impl(benchmark::State& state, SqrMatTDVariant variant) {
@@ -275,9 +282,8 @@ static void BM_sqrMatTD_impl(benchmark::State& state, SqrMatTDVariant variant) {
   if (variant == SqrMatTDVariant::kBaseline) {
     H.resize(max_nnz);
     H_colind.resize(max_nnz);
-  } else if (variant == SqrMatTDVariant::kSplitCol ||
-             variant == SqrMatTDVariant::kCol) {
-    // use symbolic to count nnz
+  } else if (variant != SqrMatTDVariant::kRow) {
+    // use symbolic to count nnz and fill pattern
     int nH = mju_sqrMatTDSparseSymbolic(
         H_rownnz.data(), H_rowadr.data(), nullptr, nullptr, data.nefc, nv,
         data.J_rownnz.data(), data.J_rowadr.data(), data.J_colind.data(),
@@ -285,6 +291,13 @@ static void BM_sqrMatTD_impl(benchmark::State& state, SqrMatTDVariant variant) {
         data.JT_rowsuper.data(), d);
     H.resize(nH);
     H_colind.resize(nH);
+    if (variant == SqrMatTDVariant::kNumericOnly) {
+      mju_sqrMatTDSparseSymbolic(
+          H_rownnz.data(), H_rowadr.data(), H_colind.data(), nullptr, data.nefc,
+          nv, data.J_rownnz.data(), data.J_rowadr.data(), data.J_colind.data(),
+          data.JT_rownnz.data(), data.JT_rowadr.data(), data.JT_colind.data(),
+          data.JT_rowsuper.data(), d);
+    }
   } else {
     // row: use Count (lower triangle only)
     mju_sqrMatTDSparseCount(
@@ -352,6 +365,28 @@ static void BM_sqrMatTD_impl(benchmark::State& state, SqrMatTDVariant variant) {
             data.JT_rowadr.data(), data.JT_colind.data(),
             data.JT_rowsuper.data(), data.D.data(), d);
         break;
+
+      case SqrMatTDVariant::kSymbolicOnly:
+        mju_sqrMatTDSparseSymbolic(
+            H_rownnz.data(), H_rowadr.data(), nullptr, nullptr, data.nefc, nv,
+            data.J_rownnz.data(), data.J_rowadr.data(), data.J_colind.data(),
+            data.JT_rownnz.data(), data.JT_rowadr.data(), data.JT_colind.data(),
+            data.JT_rowsuper.data(), d);
+        mju_sqrMatTDSparseSymbolic(
+            H_rownnz.data(), H_rowadr.data(), H_colind.data(), nullptr,
+            data.nefc, nv, data.J_rownnz.data(), data.J_rowadr.data(),
+            data.J_colind.data(), data.JT_rownnz.data(), data.JT_rowadr.data(),
+            data.JT_colind.data(), data.JT_rowsuper.data(), d);
+        break;
+
+      case SqrMatTDVariant::kNumericOnly:
+        mju_sqrMatTDSparseNumeric(
+            H.data(), nv, H_rownnz.data(), H_rowadr.data(), H_colind.data(),
+            nullptr, data.J.data(), data.J_rownnz.data(), data.J_rowadr.data(),
+            data.J_colind.data(), data.JT.data(), data.JT_rownnz.data(),
+            data.JT_rowadr.data(), data.JT_colind.data(),
+            data.JT_rowsuper.data(), data.D.data(), d);
+        break;
     }
   }
 
@@ -383,6 +418,18 @@ void BM_sqrMatTD_2H100_splitCol(benchmark::State& state) {
 }
 BENCHMARK(BM_sqrMatTD_2H100_splitCol);
 
+void BM_sqrMatTD_2H100_symbolic(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTD_impl<Size::H2_100>(state, SqrMatTDVariant::kSymbolicOnly);
+}
+BENCHMARK(BM_sqrMatTD_2H100_symbolic);
+
+void BM_sqrMatTD_2H100_numeric(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTD_impl<Size::H2_100>(state, SqrMatTDVariant::kNumericOnly);
+}
+BENCHMARK(BM_sqrMatTD_2H100_numeric);
+
 void BM_sqrMatTD_100H_baseline(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_sqrMatTD_impl<Size::H100>(state, SqrMatTDVariant::kBaseline);
@@ -406,6 +453,18 @@ void BM_sqrMatTD_100H_splitCol(benchmark::State& state) {
   BM_sqrMatTD_impl<Size::H100>(state, SqrMatTDVariant::kSplitCol);
 }
 BENCHMARK(BM_sqrMatTD_100H_splitCol);
+
+void BM_sqrMatTD_100H_symbolic(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTD_impl<Size::H100>(state, SqrMatTDVariant::kSymbolicOnly);
+}
+BENCHMARK(BM_sqrMatTD_100H_symbolic);
+
+void BM_sqrMatTD_100H_numeric(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTD_impl<Size::H100>(state, SqrMatTDVariant::kNumericOnly);
+}
+BENCHMARK(BM_sqrMatTD_100H_numeric);
 
 // ========================= Dense SqrMatTD Benchmarks =========================
 

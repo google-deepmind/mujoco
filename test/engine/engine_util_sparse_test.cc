@@ -1159,6 +1159,31 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparseNumeric) {
       }
     }
   }
+
+  // Test superset sparsity pattern (as in HessianConeFolded where M is merged
+  // into H_colind):
+  // - col 0 is unconstrained (rownnzT[0] == 0) but present in H_colind
+  // - cols 1, 2 form a JT supernode, with an extra off-diagonal (2, 0) in H
+  int J_colind[] = {1, 2};
+  int J_rownnz[] = {2};
+  int J_rowadr[] = {0};
+  mjtNum J[] = {2, 3};
+  mjtNum D[] = {5};
+
+  mjtNum JT[2];
+  int JT_colind[2], JT_rownnz[3], JT_rowadr[3], JT_rowsuper[3];
+  mju_transposeSparse(JT, J, 1, 3, JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
+                      J_rownnz, J_rowadr, J_colind);
+
+  int H_rownnz[] = {1, 1, 3};
+  int H_rowadr[] = {0, 1, 2};
+  int H_colind[] = {0, 1, 0, 1, 2};
+  mjtNum H[] = {-99, -99, -99, -99, -99};
+
+  mju_sqrMatTDSparseNumeric(H, 3, H_rownnz, H_rowadr, H_colind, nullptr, J,
+                            J_rownnz, J_rowadr, J_colind, JT, JT_rownnz,
+                            JT_rowadr, JT_colind, JT_rowsuper, D, data.get());
+  EXPECT_THAT(AsVector(H, 5), ElementsAre(0, 20, 0, 30, 45));
 }
 
 TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {

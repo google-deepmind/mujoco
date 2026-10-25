@@ -793,22 +793,21 @@ int mju_sqrMatTDSparseSymbolic(
       ns += mjMIN(cs, mjMAXSUPER - 1);
     }
 
-    // for each row r where M^T[r, c] != 0, look at row r of M
+    // if column batch is empty, nothing to do (must follow ns computation since loop steps by ns)
+    if (!nnz_c) {
+      continue;
+    }
+
+    // for each row r where M^T[r, c] != 0, look at row r of M past the supernode block
     for (int i = 0; i < nnz_c; i++) {
       int r = ind_c[i];
       int adrT = coladrT[r];
       int nnzT = colnnzT[r];
       const int* indT = rowindT + adrT;
 
-      // scan row r of M, starting from rowstart[r]
-      for (int k = rowstart[r]; k < nnzT; k++) {
+      // columns c .. c+ns-1 are at rowstart[r] .. rowstart[r]+ns-1; scan j >= c+ns
+      for (int k = (rowstart[r] += ns); k < nnzT; k++) {
         int j = indT[k];
-
-        // skip if j <= c: only fill the strict lower triangle
-        if (j <= c) {
-          rowstart[r]++;
-          continue;
-        }
 
         // new nonzero in row j of result
         if (!marker[j]) {
@@ -818,27 +817,37 @@ int mju_sqrMatTDSparseSymbolic(
       }
     }
 
-    // scatter: update result rows j > c that have nonzeros in this column batch
+    // scatter: update result rows j >= c + ns that have nonzeros in this column batch
 
-    // fill mode: write column indices, clear markers
+    // fill mode: write column indices, clear markers (specialize ns == 1 to avoid inner s loop)
     if (res_colind) {
-      for (int i = 0; i < buffer_nnz; i++) {
-        int j = buffer_idx[i];
-        marker[j] = 0;
-        int nm = mjMIN(ns, j - c);
-        int adr_j = res_rowadr[j] + res_rownnz[j];
-        for (int s = 0; s < nm; s++) {
-          res_colind[adr_j + s] = c + s;
+      if (ns == 1) {
+        res_colind[res_rowadr[c] + res_rownnz[c]++] = c;
+        for (int i = 0; i < buffer_nnz; i++) {
+          int j = buffer_idx[i];
+          marker[j] = 0;
+          res_colind[res_rowadr[j] + res_rownnz[j]++] = c;
         }
-        res_rownnz[j] += nm;
-      }
+      } else {
+        // write supernode lower-triangle and diagonal entries (rows c .. c+ns-1)
+        for (int s = 0; s < ns; s++) {
+          int col = c + s;
+          int adr_col = res_rowadr[col] + res_rownnz[col];
+          for (int k = 0; k <= s; k++) {
+            res_colind[adr_col + k] = c + k;
+          }
+          res_rownnz[col] += s + 1;
+        }
 
-      // write diagonal entries
-      for (int s = 0; s < ns; s++) {
-        int col = c + s;
-        if (colnnz[col]) {
-          res_colind[res_rowadr[col] + res_rownnz[col]] = col;
-          res_rownnz[col]++;
+        // write off-diagonal entries for rows j >= c + ns
+        for (int i = 0; i < buffer_nnz; i++) {
+          int j = buffer_idx[i];
+          marker[j] = 0;
+          int adr_j = res_rowadr[j] + res_rownnz[j];
+          for (int s = 0; s < ns; s++) {
+            res_colind[adr_j + s] = c + s;
+          }
+          res_rownnz[j] += ns;
         }
       }
     }
@@ -848,20 +857,17 @@ int mju_sqrMatTDSparseSymbolic(
       for (int i = 0; i < buffer_nnz; i++) {
         int j = buffer_idx[i];
         marker[j] = 0;
-        int nm = mjMIN(ns, j - c);
-        res_rownnz[j] += nm;
-        if (res_diagind) {
-          for (int s = 0; s < nm; s++) {
-            res_rownnz[c + s]++;
-          }
-        }
+        res_rownnz[j] += ns;
       }
 
-      // count diagonal entries
-      for (int s = 0; s < ns; s++) {
-        int col = c + s;
-        if (colnnz[col]) {
-          res_rownnz[col]++;
+      // count supernode lower-triangle, diagonal, and optional upper-triangle entries
+      if (res_diagind) {
+        for (int s = 0; s < ns; s++) {
+          res_rownnz[c + s] += ns + buffer_nnz;
+        }
+      } else {
+        for (int s = 0; s < ns; s++) {
+          res_rownnz[c + s] += s + 1;
         }
       }
     }
@@ -905,8 +911,44 @@ int mju_sqrMatTDSparseSymbolic(
 }
 
 
+// accumulate supernode block and off-diagonal row entries with fixed SIMD width (force inline)
+#if defined(_MSC_VER)
+static __forceinline
+#elif defined(__GNUC__)
+static inline __attribute__((always_inline))
+#else
+static inline
+#endif
+void accumSuperRow(
+    mjtNum block[mjMAXSUPER][mjMAXSUPER], mjtNum* restrict buffer,
+    const mjtNum* restrict scale, const mjtNum* const matT_s[mjMAXSUPER],
+    const int* restrict ind_k, const mjtNum* restrict val_k,
+    int i, int r, int ns, int any_off, int width) {
+  // accumulate supernode block
+  for (int t = 0; t < ns; t++) {
+    mjtNum v = matT_s[t][i];
+    for (int s = 0; s < width; s++) {
+      block[t][s] += scale[s] * v;
+    }
+  }
+
+  // accumulate off-diagonal row entries (column r is in M[k, :] since k is in M'[r, :])
+  if (any_off) {
+    for (int j = 0; ; j++) {
+      int c = ind_k[j];
+      if (c >= r) break;
+      mjtNum v = val_k[j];
+      mjtNum* buf = buffer + c * mjMAXSUPER;
+      for (int s = 0; s < width; s++) {
+        buf[s] += scale[s] * v;
+      }
+    }
+  }
+}
+
+
 // numeric phase for sparse matrix squaring: compute values given pre-computed sparsity
-//   diagind can be NULL, otherwise fills upper triangle and saves diagonal indices
+//   if res_diagind is not NULL, also fill upper triangle
 void mju_sqrMatTDSparseNumeric(
     mjtNum* restrict res, int nc,
     const int* res_rownnz, const int* res_rowadr, const int* res_colind, const int* res_diagind,
@@ -915,9 +957,9 @@ void mju_sqrMatTDSparseNumeric(
     const int* rowsuperT, const mjtNum* diag, mjData* d) {
   mj_markStack(d);
 
-  // dense accumulator for current result row (or batch of rows)
+  // dense accumulator for off-diagonal columns c < r, zeroed lazily up to flat index buf_zeroed
   mjtNum* restrict buffer = mjSTACKALLOC(d, nc * mjMAXSUPER, mjtNum);
-  mju_zero(buffer, nc * mjMAXSUPER);
+  int buf_zeroed = 0;
 
   // process result rows
   int ns;  // set in the loop
@@ -929,10 +971,33 @@ void mju_sqrMatTDSparseNumeric(
       if (ns > mjMAXSUPER) ns = mjMAXSUPER;
     }
 
+    // if row (or supernode) is empty, zero out result rows and continue
+    int nnzT_r = rownnzT[r];
+    if (!nnzT_r) {
+      for (int s = 0; s < ns; s++) {
+        int row = r + s;
+        int adr = res_rowadr[row];
+        int nnz = res_diagind ? res_diagind[row] - adr + 1 : res_rownnz[row];
+        if (nnz > 0) {
+          mju_zero(res + adr, nnz);
+        }
+      }
+      continue;
+    }
+    int adr_r = rowadrT[r];
+
     // single row
     if (ns == 1) {
-      int nnzT_r = rownnzT[r];
-      int adr_r = rowadrT[r];
+      int res_adr = res_rowadr[r];
+      int res_nnz = res_diagind ? res_diagind[r] - res_adr + 1 : res_rownnz[r];
+      int off_nnz = res_nnz - 1;
+      mjtNum diag_r = 0;
+
+      // lazily zero buffer up to column r
+      if (off_nnz > 0 && r > buf_zeroed) {
+        mju_zero(buffer + buf_zeroed, r - buf_zeroed);
+        buf_zeroed = r;
+      }
 
       // accumulate: res[r, :] = sum over k in M'[r, :] of diag[k] * M'[r, k] * M[k, :]
       for (int i = 0; i < nnzT_r; i++) {
@@ -940,84 +1005,102 @@ void mju_sqrMatTDSparseNumeric(
         mjtNum valT = matT[adr_r + i];
         mjtNum scale = diag ? diag[k] * valT : valT;
         if (scale == 0) continue;
+        diag_r += scale * valT;
 
-        int adr_k = rowadr[k];
-        int nnz_k = rownnz[k];
-        const int* ind_k = colind + adr_k;
-        const mjtNum* val_k = mat + adr_k;
-
-        for (int j = 0; j < nnz_k; j++) {
-          int c = ind_k[j];
-          if (c > r) break;
-          buffer[c] += scale * val_k[j];
+        // column r is in M[k, :] since k is in M'[r, :], acting as a sentinel for c >= r
+        if (off_nnz > 0) {
+          int adr_k = rowadr[k];
+          const int* ind_k = colind + adr_k;
+          const mjtNum* val_k = mat + adr_k;
+          for (int j = 0; ; j++) {
+            int c = ind_k[j];
+            if (c >= r) break;
+            buffer[c] += scale * val_k[j];
+          }
         }
       }
 
-      // scatter from dense buffer to sparse result
-      int res_adr = res_rowadr[r];
-      int res_nnz = res_rownnz[r];
+      // scatter off-diagonal columns from dense buffer and write diagonal
       const int* res_ind = res_colind + res_adr;
       mjtNum* res_val = res + res_adr;
-
-      for (int j = 0; j < res_nnz; j++) {
+      for (int j = 0; j < off_nnz; j++) {
         int c = res_ind[j];
         res_val[j] = buffer[c];
         buffer[c] = 0;
       }
+      res_val[off_nnz] = diag_r;
     }
 
-    // supernode: ns > 1 rows share the same sparsity pattern
+    // supernode: ns > 1 rows share the same sparsity pattern in M'
     else {
-      int nnzT_r = rownnzT[r];
-      int adr_r = rowadrT[r];
+      // row addresses and counts of columns left of the supernode (c < r)
+      int res_adr_s[mjMAXSUPER];
+      int off_nnz_s[mjMAXSUPER];
+      int any_off = 0;
+      const mjtNum* matT_s[mjMAXSUPER];
+      for (int s = 0; s < ns; s++) {
+        int row = r + s;
+        int adr = res_rowadr[row];
+        int nnz = res_diagind ? res_diagind[row] - adr + 1 : res_rownnz[row];
+        res_adr_s[s] = adr;
+        off_nnz_s[s] = nnz - (s + 1);
+        any_off |= off_nnz_s[s];
+        matT_s[s] = matT + rowadrT[row];
+      }
 
-      // accumulate for ns rows
+      // lazily zero buffer for off-diagonal columns (c < r)
+      if (any_off && r * mjMAXSUPER > buf_zeroed) {
+        mju_zero(buffer + buf_zeroed, r * mjMAXSUPER - buf_zeroed);
+        buf_zeroed = r * mjMAXSUPER;
+      }
+
+      // supernode block: block[t][s] = res[r+s, r+t] (transposed for SIMD)
+      mjtNum block[mjMAXSUPER][mjMAXSUPER] = {{0}};
+      mjtNum scale[mjMAXSUPER] = {0};
+
+      // accumulate: res[r:r+ns-1, :] = sum over k in M'[r:r+ns-1, :] of
+      //   diag[k] * M'[r:r+ns-1, k] * M[k, :]
       for (int i = 0; i < nnzT_r; i++) {
         int k = colindT[adr_r + i];
-
-        // compute scale for all rows
-        mjtNum scale[mjMAXSUPER];
         if (diag) {
           mjtNum dk = diag[k];
           if (dk == 0) continue;
           for (int s = 0; s < ns; s++) {
-            scale[s] = dk * matT[rowadrT[r + s] + i];
+            scale[s] = dk * matT_s[s][i];
           }
         } else {
           for (int s = 0; s < ns; s++) {
-            scale[s] = matT[rowadrT[r + s] + i];
+            scale[s] = matT_s[s][i];
           }
         }
 
+        // accumulate supernode block and off-diagonal row entries (specialize SIMD width=4)
         int adr_k = rowadr[k];
-        int nnz_k = rownnz[k];
-        const int* ind_k = colind + adr_k;
-        const mjtNum* val_k = mat + adr_k;
-
-        for (int j = 0; j < nnz_k; j++) {
-          int c = ind_k[j];
-          if (c > r + ns - 1) break;  // skip if beyond block
-          mjtNum v = val_k[j];
-
-          for (int s = 0; s < ns; s++) {
-            if (c <= r + s) {
-              buffer[s * nc + c] += scale[s] * v;
-            }
-          }
+        if (ns <= 4) {
+          accumSuperRow(block, buffer, scale, matT_s,
+                        colind + adr_k, mat + adr_k, i, r, ns, any_off, 4);
+        } else {
+          accumSuperRow(block, buffer, scale, matT_s,
+                        colind + adr_k, mat + adr_k, i, r, ns, any_off, mjMAXSUPER);
         }
       }
 
-      // scatter
+      // write off-diagonal columns c < r and supernode lower triangle
       for (int s = 0; s < ns; s++) {
-        int row = r + s;
-        int res_adr = res_rowadr[row];
-        int res_nnz = res_rownnz[row];
-        const int* res_ind = res_colind + res_adr;
-        mjtNum* res_val = res + res_adr;
-        for (int j = 0; j < res_nnz; j++) {
+        const int* res_ind = res_colind + res_adr_s[s];
+        mjtNum* res_val = res + res_adr_s[s];
+        int off_s = off_nnz_s[s];
+
+        // copy off-diagonal entries from buffer to result
+        for (int j = 0; j < off_s; j++) {
           int c = res_ind[j];
-          res_val[j] = buffer[s*nc + c];
-          buffer[s*nc + c] = 0;
+          res_val[j] = buffer[c * mjMAXSUPER + s];
+          buffer[c * mjMAXSUPER + s] = 0;
+        }
+
+        // copy supernode lower triangle entries from block to result
+        for (int t = 0; t <= s; t++) {
+          res_val[off_s + t] = block[t][s];
         }
       }
     }
