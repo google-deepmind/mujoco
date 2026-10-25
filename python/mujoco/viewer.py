@@ -144,8 +144,9 @@ class Handle:
 
     Args:
       texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
-        font: Font style from mujoco.mjtFontScale
-        gridpos: Position of text box from mujoco.mjtGridPos
+        font: Font style from mujoco.mjtFont, defaults to mjFONT_NORMAL if None
+        gridpos: Position of text box from mujoco.mjtGridPos, defaults to
+          mjGRID_TOPLEFT if None
         text1: Left text column, defaults to empty string if None
         text2: Right text column, defaults to empty string if None
     """
@@ -156,7 +157,7 @@ class Handle:
         texts = [texts]
 
       # Convert None values to empty strings
-      default_font = mujoco.mjtFontScale.mjFONTSCALE_150
+      default_font = mujoco.mjtFont.mjFONT_NORMAL
       default_gridpos = mujoco.mjtGridPos.mjGRID_TOPLEFT
       processed_texts = [(
                         default_font if font is None else font,
