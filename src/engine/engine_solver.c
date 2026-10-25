@@ -1683,39 +1683,24 @@ static void PrimalPrepare(mjPrimalContext* ctx) {
       // extract contact info
       const mjContact* con = ctx->contact + ctx->efc_id[i];
       int dim = con->dim;
-      mjtNum U[6], V[6], UU = 0, UV = 0, VV = 0, mu = con->mu;
+      mjtNum UU = 0, mu = con->mu;
       const mjtNum* friction = con->friction;
 
-      // complete vector quadratic (for bottom zone)
+      // complete vector quadratic (for bottom zone) and tangential norm at alpha=0
       for (int j=1; j < dim; j++) {
         mjtNum DJj = D[j]*Jaref[j];
         quad[0] += Jaref[j]*DJj;
         quad[1] += Jv[j]*DJj;
         quad[2] += Jv[j]*D[j]*Jv[j];
+        mjtNum Uj = Jaref[j]*friction[j-1];
+        UU += Uj*Uj;
       }
 
-      // rescale to make primal cone circular
-      U[0] = Jaref[0]*mu;
-      V[0] = Jv[0]*mu;
-      for (int j=1; j < dim; j++) {
-        U[j] = Jaref[j]*friction[j-1];
-        V[j] = Jv[j]*friction[j-1];
-      }
-
-      // accumulate sums of squares
-      for (int j=1; j < dim; j++) {
-        UU += U[j]*U[j];
-        UV += U[j]*V[j];
-        VV += V[j]*V[j];
-      }
-
-      // store in quad[3-8], using the fact that dim>=3
-      quad[3] = U[0];
-      quad[4] = V[0];
-      quad[5] = UU;
-      quad[6] = UV;
-      quad[7] = VV;
-      quad[8] = D[0] / ((mu*mu) * (1 + (mu*mu)));
+      // store cone quantities in quad[3-6], using the fact that dim>=3
+      quad[3] = Jaref[0]*mu;
+      quad[4] = Jv[0]*mu;
+      quad[5] = mju_sqrt(UU);
+      quad[6] = D[0] / ((mu*mu) * (1 + (mu*mu)));
 
       // advance to next constraint
       i += (dim-1);
@@ -1776,43 +1761,32 @@ static mjtNum frictionCostDif(mjtNum start, mjtNum x, mjtNum f, mjtNum Rf, mjtNu
 
 
 // compute cost difference of an elliptic cone at a given alpha: cost(alpha) - cost(0)
-static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNum Dm) {
-  mjtNum U0 = quad[3], V0 = quad[4], UU = quad[5];
-  mjtNum UV = quad[6], VV = quad[7];
+static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu,
+                              mjtNum N, mjtNum T, mjtNum Tsqr_delta) {
+  mjtNum U0 = quad[3], V0 = quad[4], T0 = quad[5], Dm = quad[6];
 
-  // determine zone and cost at alpha=0
+  // determine zone at alpha=0
   int zone0 = 0;
-  mjtNum T0 = 0;
-  if (UU <= 0) {
+  if (T0 <= 0) {
     zone0 = (U0 < 0) ? 2 : 1;
+  } else if (U0 >= mu*T0) {
+    zone0 = 1;  // top zone
+  } else if (mu*U0 + T0 <= 0) {
+    zone0 = 2;  // bottom zone
   } else {
-    T0 = mju_sqrt(UU);
-    if (U0 >= mu*T0) {
-      zone0 = 1;  // top zone
-    } else if (mu*U0 + T0 <= 0) {
-      zone0 = 2;  // bottom zone
-    } else {
-      zone0 = 3;  // middle zone
-    }
+    zone0 = 3;  // middle zone
   }
 
   // determine zone at alpha
-  mjtNum N = U0 + alpha*V0;
-  mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
   int zone_alpha = 0;
-  mjtNum T = 0;
-
-  if (Tsqr <= 0) {
+  if (T <= 0) {
     zone_alpha = (N < 0) ? 2 : 1;  // bottom or top zone
+  } else if (N >= mu*T) {
+    zone_alpha = 1;  // top zone
+  } else if (mu*N + T <= 0) {
+    zone_alpha = 2;  // bottom zone
   } else {
-    T = mju_sqrt(Tsqr);
-    if (N >= mu*T) {
-      zone_alpha = 1;  // top zone
-    } else if (mu*N + T <= 0) {
-      zone_alpha = 2;  // bottom zone
-    } else {
-      zone_alpha = 3;  // middle zone
-    }
+    zone_alpha = 3;  // middle zone
   }
 
   // both top zone
@@ -1827,7 +1801,6 @@ static mjtNum ellipticCostDif(const mjtNum* quad, mjtNum alpha, mjtNum mu, mjtNu
 
   // both middle zone: apply rationalized formula to avoid cancellation
   if (zone0 == 3 && zone_alpha == 3) {
-    mjtNum Tsqr_delta = alpha*(2*UV + alpha*VV);
     mjtNum T_delta = Tsqr_delta / (T + T0);
     mjtNum r_delta = alpha*V0 - mu*T_delta;
     mjtNum r0 = U0 - mu*T0;
@@ -1931,6 +1904,9 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
     if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {         // elliptic cone
       // extract contact info
       const mjContact* con = ctx->contact + ctx->efc_id[i];
+      const mjtNum* Jaref = ctx->Jaref + i;
+      const mjtNum* Jv = ctx->Jv + i;
+      const mjtNum* friction = con->friction;
       mjtNum* quad = ctx->quad + 3*i;
       int dim = con->dim;
       mjtNum mu = con->mu;
@@ -1938,17 +1914,26 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
       // unpack quad
       mjtNum U0 = quad[3];
       mjtNum V0 = quad[4];
-      mjtNum UU = quad[5];
-      mjtNum UV = quad[6];
-      mjtNum VV = quad[7];
-      mjtNum Dm = quad[8];
+      mjtNum Dm = quad[6];
+
+      // normal and tangential components at alpha (formed componentwise before squaring)
+      mjtNum N = U0 + alpha*V0;
+      mjtNum V[5], W[5];
+      mjtNum Tsqr = 0, WV = 0, Tsqr_delta = 0;
+      for (int j=0; j < dim-1; j++) {
+        mjtNum Uj = Jaref[j+1]*friction[j];
+        mjtNum Vj = Jv[j+1]*friction[j];
+        mjtNum Wj = Uj + alpha*Vj;
+        V[j] = Vj;
+        W[j] = Wj;
+        Tsqr += Wj*Wj;
+        WV += Wj*Vj;
+        Tsqr_delta += alpha*Vj*(Uj + Wj);
+      }
+      mjtNum T = mju_sqrt(Tsqr);
 
       // shifted cost
-      cost += ellipticCostDif(quad, alpha, mu, Dm);
-
-      // compute N, Tsqr for derivatives
-      mjtNum N = U0 + alpha*V0;
-      mjtNum Tsqr = UU + alpha*(2*UV + alpha*VV);
+      cost += ellipticCostDif(quad, alpha, mu, N, T, Tsqr_delta);
 
       // no tangential force : top or bottom zone
       if (Tsqr <= 0) {
@@ -1963,9 +1948,6 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
 
       // otherwise regular processing
       else {
-        // tangential force
-        mjtNum T = mju_sqrt(Tsqr);
-
         // N>=mu*T : top zone
         if (N >= mu*T) {
           // nothing to do
@@ -1979,10 +1961,19 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
 
         // otherwise middle zone
         else {
+          // cross-product norm squared ||W ^ V||^2 via Lagrange identity to avoid cancellation
+          mjtNum det = 0;
+          for (int j=0; j < dim-1; j++) {
+            for (int k=j+1; k < dim-1; k++) {
+              mjtNum djk = W[j]*V[k] - W[k]*V[j];
+              det += djk*djk;
+            }
+          }
+
           // derivatives
           mjtNum N1 = V0;
-          mjtNum T1 = (UV + alpha*VV)/T;
-          mjtNum T2 = VV/T - (UV + alpha*VV)*T1/(T*T);
+          mjtNum T1 = WV / T;
+          mjtNum T2 = det / (T*Tsqr);
           deriv[0] += Dm*(N-mu*T)*(N1-mu*T1);
           deriv[1] += Dm*((N1-mu*T1)*(N1-mu*T1) + (N-mu*T)*(-mu*T2));
         }

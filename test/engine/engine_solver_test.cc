@@ -394,6 +394,42 @@ TEST_F(SolverTest, EllipticLineSearchPrecisionDiagnostics) {
   }
 }
 
+TEST_F(SolverTest, EllipticLineSearchCancellation) {
+  std::string xml = R"(
+  <mujoco>
+    <option timestep="0.016" integrator="discrete" cone="elliptic" impratio="10"
+            noslip_iterations="2">
+      <flag refsafe="disable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="2 2 .1" solref="0.002 1"/>
+      <body pos="0 0 0.05">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" mass="1" solref="0.002 1" condim="6"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Sliding box decelerating to rest across slightly perturbed initial
+  // velocities: when the Newton step cancels the tangential velocity in the
+  // elliptic cone middle zone, the linesearch second derivative must remain
+  // positive without triggering a non-convexity warning.
+  for (double v0 : {1.95, 1.97, 1.99, 2.01, 2.03, 2.05}) {
+    mj_resetData(model.get(), data.get());
+    data->qvel[0] = v0;
+    data->qvel[1] = 1e-6;
+    for (int i = 0; i < 120; ++i) {
+      mj_step(model.get(), data.get());
+    }
+  }
+}
+
 // Newton terminates early when the decrement predicts sub-tolerance improvement
 TEST_F(SolverTest, NewtonDecrementTermination) {
   const std::string xml_path = GetTestDataFilePath(kHumanoidPath);
