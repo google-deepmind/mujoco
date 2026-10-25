@@ -474,7 +474,7 @@ void cholSuffixUpdate(int ns, int batch, int nlead,
                       mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
                       const mjtNum* restrict p0, const mjtNum* restrict p1,
                       const mjtNum* restrict p2, const mjtNum* restrict p3,
-                      const mjtNum s[3][4]) {
+                      mjtNum s[3][4]) {
   // leading columns shared by all ns rows
   for (int i=0; i < nlead; i++) {
     mjtNum v[4] = {p0[i], (batch >= 2) ? p1[i] : 0,
