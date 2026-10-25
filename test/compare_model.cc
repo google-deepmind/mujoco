@@ -63,6 +63,23 @@ auto Compare(T val1, T val2) {
              : error;
 }
 
+// Keep the array loop and diagnostic formatting shared across pointer fields.
+template <typename T>
+void CompareArray(const T* values1, const T* values2, mjtSize nr, int nc,
+                  const char* name, mjtNum& maxdif, std::string& field) {
+  for (int r = 0; r < nr; r++) {
+    for (int c = 0; c < nc; c++) {
+      mjtNum dif = Compare(values1[r * nc + c], values2[r * nc + c]);
+      if (dif > maxdif) {
+        maxdif = dif;
+        field = name;
+        field += " row: " + std::to_string(r);
+        field += " col: " + std::to_string(c);
+      }
+    }
+  }
+}
+
 }  // namespace
 
 mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field) {
@@ -94,17 +111,7 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field) {
       strcmp(#name, "flex_size") && strcmp(#name, "flexedge_length0") &&  \
       strcmp(#name, "flexedge_invweight0") &&                             \
       strncmp(#name, "flex_node", 9)) {                                   \
-    for (int r = 0; r < m1->nr; r++) {                                    \
-      for (int c = 0; c < nc; c++) {                                      \
-        dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]);        \
-        if (dif > maxdif) {                                               \
-          maxdif = dif;                                                   \
-          field = #name;                                                  \
-          field += " row: " + std::to_string(r);                          \
-          field += " col: " + std::to_string(c);                          \
-        }                                                                 \
-      }                                                                   \
-    }                                                                     \
+    CompareArray(m1->name, m2->name, m1->nr, nc, #name, maxdif, field);   \
   }  // NOLINT
   MJMODEL_POINTERS
 #undef X
