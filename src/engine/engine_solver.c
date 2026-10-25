@@ -2634,14 +2634,8 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
 
   // sparse
   if (ctx->is_sparse) {
-    // maybe compute H = M + J'*D*J
+    // maybe compute H = M + J'*D*J (sparsity pattern already in H_rownnz, H_rowadr, H_colind)
     if (flg_recompute) {
-      // compute H = J'*D*J: symbolic phase
-      mju_sqrMatTDSparseSymbolic(
-          ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, NULL,
-          nefc, nv, ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
-          ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper, d);
-
       // compute H = J'*D*J: numeric phase
       mju_sqrMatTDSparseNumeric(
           ctx->H, nv, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
