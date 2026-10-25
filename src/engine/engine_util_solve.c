@@ -181,6 +181,28 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
   return rank;
 }
 
+
+// return index of first upper-triangular column (> r) in sorted row colind[start .. end-1]
+static inline int upperStart(const int* colind, int start, int end, int r) {
+  if (start < end && colind[start] <= r) {
+    if (colind[start] == r) {
+      return start + 1;
+    }
+    int lo = start + 1, hi = end;
+    while (lo < hi) {
+      int mid = (lo + hi) >> 1;
+      if (colind[mid] <= r) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+  return start;
+}
+
+
 // symbolic reverse-Cholesky: compute both L (CSR) and LT (CSC) structures
 //   if L_colind is NULL, perform counting logic (fill rownnz/rowadr arrays and return total nnz)
 //   if L_colind is not NULL, assume rownnz/rowadr are precomputed and fill colind/map arrays
@@ -189,85 +211,109 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
 int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* restrict L_rowadr,
                            int* restrict LT_colind, int* restrict LT_rownnz,
                            int* restrict LT_rowadr, int* restrict LT_map,
-                           const int* rownnz, const int* rowadr, const int* colind, int n,
-                           mjData* d) {
+                           const int* restrict rownnz, const int* restrict rowadr,
+                           const int* restrict colind, int n, mjData* d) {
   // d supplies stack scratch; if NULL, scratch is heap-allocated
   if (d) {
     mj_markStack(d);
   }
   int* restrict parent = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
   int* restrict flag = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
-  int* restrict cursor = NULL;
-  int* LT_write = NULL;
 
-  // filling phase: initialize write positions
-  if (L_colind) {
-    cursor = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
-    LT_write = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
-    for (int r = 0; r < n; r++) {
-      cursor[r] = L_rowadr[r] + L_rownnz[r] - 2;  // end of row r (before diagonal)
-      LT_write[r] = LT_rowadr[r];                 // start of LT row r
+  // counting phase: fill rownnz/rowadr and return total non-zeros
+  if (!L_colind) {
+    // loop over rows in reverse order
+    for (int r=n-1; r >= 0; r--) {
+      parent[r] = -1;
+      flag[r] = r;
+
+      // start with 1 for diagonal
+      L_rownnz[r] = 1;
+      int lt_nnz = 1;
+
+      // loop over non-zero columns of upper triangle (> r)
+      int end = rowadr[r] + rownnz[r];
+      for (int c=upperStart(colind, rowadr[r], end, r); c < end; c++) {
+        int i = colind[c];
+
+        // traverse elimination tree from i toward root, stop when row is already flagged for r
+        while (flag[i] != r) {
+          // count non-zero in L[i, r] and LT[r, i], mark visited, attach unparented root to r
+          L_rownnz[i]++;
+          lt_nnz++;
+          flag[i] = r;
+          int p = parent[i];
+          if (p == -1) {
+            parent[i] = r;
+            break;
+          }
+          i = p;
+        }
+      }
+      LT_rownnz[r] = lt_nnz;
     }
+
+    if (d) {
+      mj_freeStack(d);
+    } else {
+      mju_free(parent);
+      mju_free(flag);
+    }
+
+    // compute row addresses, add up total non-zeros
+    int nnz = L_rownnz[0];
+    L_rowadr[0] = 0;
+    LT_rowadr[0] = 0;
+    for (int r=1; r < n; r++) {
+      L_rowadr[r] = L_rowadr[r-1] + L_rownnz[r-1];
+      LT_rowadr[r] = LT_rowadr[r-1] + LT_rownnz[r-1];
+      nnz += L_rownnz[r];
+    }
+    return nnz;
   }
 
+  // filling phase: populate L_colind, LT_colind, and LT_map
+  // cursor[i] tracks next write slot in row i of L (filled right-to-left as r decreases)
+  int* restrict cursor = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
+
   // loop over rows in reverse order
-  for (int r = n - 1; r >= 0; r--) {
+  for (int r=n-1; r >= 0; r--) {
     parent[r] = -1;
     flag[r] = r;
 
-    // counting phase: start with 1 for diagonal
-    if (!L_colind) {
-      L_rownnz[r] = 1;
-      LT_rownnz[r] = 1;
-    }
+    // write L diagonal at end of row r and initialize write cursor just before diagonal
+    int diag_idx = L_rowadr[r] + L_rownnz[r] - 1;
+    cursor[r] = diag_idx - 1;
+    L_colind[diag_idx] = r;
 
-    // filling phase: write diagonals
-    else {
-      int diag_idx = L_rowadr[r] + L_rownnz[r] - 1;
-      L_colind[diag_idx] = r;
-      int write_idx = LT_write[r];
-      LT_colind[write_idx] = r;
-      LT_map[write_idx] = diag_idx;
-      LT_write[r]++;
-    }
+    // write LT diagonal at head of transpose row r
+    int lt_write = LT_rowadr[r];
+    LT_colind[lt_write] = r;
+    LT_map[lt_write] = diag_idx;
+    lt_write++;
 
-    // loop over non-zero columns of upper triangle
-    int start = rowadr[r];
-    int end = start + rownnz[r];
-    for (int c = start; c < end; c++) {
+    // loop over non-zero columns of upper triangle (> r)
+    int end = rowadr[r] + rownnz[r];
+    for (int c=upperStart(colind, rowadr[r], end, r); c < end; c++) {
       int i = colind[c];
 
-      // skip lower triangle
-      if (i <= r) {
-        continue;
-      }
-
-      // traverse from i to ancestor, stop when row is flagged
+      // traverse elimination tree from i toward root, stop when row is already flagged for r
       while (flag[i] != r) {
-        // if not yet set, set parent to current row
-        if (parent[i] == -1) {
-          parent[i] = r;
-        }
+        // record column r in L[i] and row i (with its L index) in LT[r]
+        int L_idx = cursor[i]--;
+        L_colind[L_idx] = r;
+        LT_colind[lt_write] = i;
+        LT_map[lt_write] = L_idx;
+        lt_write++;
 
-        // counting phase: increment non-zeros
-        if (!L_colind) {
-          L_rownnz[i]++;
-          LT_rownnz[r]++;
-        }
-
-        // filling phase: write L[i, r] and LT[r, i]
-        else {
-          int L_idx = cursor[i];
-          cursor[i]--;
-          L_colind[L_idx] = r;
-          LT_colind[LT_write[r]] = i;
-          LT_map[LT_write[r]] = L_idx;
-          LT_write[r]++;
-        }
-
-        // flag row i, advance to parent
+        // mark row i visited for r, advance to parent (or attach unparented root to r)
         flag[i] = r;
-        i = parent[i];
+        int p = parent[i];
+        if (p == -1) {
+          parent[i] = r;
+          break;
+        }
+        i = p;
       }
     }
   }
@@ -278,24 +324,11 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
     mju_free(parent);
     mju_free(flag);
     mju_free(cursor);
-    mju_free(LT_write);
   }
 
-  // counting phase: compute row addresses, add up total non-zeros
-  int nnz = 0;
-  if (!L_colind) {
-    nnz = L_rownnz[0];
-    L_rowadr[0] = 0;
-    LT_rowadr[0] = 0;
-    for (int r = 1; r < n; r++) {
-      L_rowadr[r] = L_rowadr[r - 1] + L_rownnz[r - 1];
-      LT_rowadr[r] = LT_rowadr[r - 1] + LT_rownnz[r - 1];
-      nnz += L_rownnz[r];
-    }
-  }
-
-  return nnz;
+  return 0;
 }
+
 
 // block p is reached by block column q at slot i of its block columns: rows bs*p .. bs*p+bs-1
 // hold columns bs*q .. bs*q+bs-1 there
@@ -428,111 +461,485 @@ int mju_cholFactorSymbolicBlocked(int* restrict L_colind, int* restrict L_rownnz
   return 0;
 }
 
+
+// suffix update of ns target rows from batch descendant rows (ns, batch are compile-time constants)
+#if defined(_MSC_VER)
+static __forceinline
+#elif defined(__GNUC__)
+static inline __attribute__((always_inline))
+#else
+static inline
+#endif
+void cholSuffixUpdate(int ns, int batch, int nlead,
+                      mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
+                      const mjtNum* restrict p0, const mjtNum* restrict p1,
+                      const mjtNum* restrict p2, const mjtNum* restrict p3,
+                      const mjtNum s[3][4]) {
+  // leading columns shared by all ns rows
+  for (int i=0; i < nlead; i++) {
+    mjtNum v[4] = {p0[i], (batch >= 2) ? p1[i] : 0,
+                   (batch >= 3) ? p2[i] : 0, (batch >= 4) ? p3[i] : 0};
+    for (int b=0; b < batch; b++) dptr0[i] -= s[0][b] * v[b];
+    if (ns >= 2) {
+      for (int b=0; b < batch; b++) dptr1[i] -= s[1][b] * v[b];
+    }
+    if (ns >= 3) {
+      for (int b=0; b < batch; b++) dptr2[i] -= s[2][b] * v[b];
+    }
+  }
+
+  // triangular tail: column nlead+u is present in rows t <= ns-2-u
+  for (int u=0; u < ns-1; u++) {
+    int idx = nlead + u;
+    mjtNum v[4] = {p0[idx], (batch >= 2) ? p1[idx] : 0,
+                   (batch >= 3) ? p2[idx] : 0, (batch >= 4) ? p3[idx] : 0};
+    for (int b=0; b < batch; b++) dptr0[idx] -= s[0][b] * v[b];
+    if (u == 0 && ns >= 3) {
+      for (int b=0; b < batch; b++) dptr1[idx] -= s[1][b] * v[b];
+    }
+  }
+}
+
+
+// non-suffix scatter of batch descendant rows into dense (batch is a compile-time constant)
+#if defined(_MSC_VER)
+static __forceinline
+#elif defined(__GNUC__)
+static inline __attribute__((always_inline))
+#else
+static inline
+#endif
+void cholScatterUpdate(int batch, int num_cols, mjtNum* restrict dense,
+                       const int* restrict colptr,
+                       const mjtNum* restrict p0, const mjtNum* restrict p1,
+                       const mjtNum* restrict p2, const mjtNum* restrict p3,
+                       const mjtNum s[4]) {
+  for (int i=0; i < num_cols; i++) {
+    int col = colptr[i];
+    mjtNum acc = dense[col] - s[0] * p0[i];
+    if (batch >= 2) acc -= s[1] * p1[i];
+    if (batch >= 3) acc -= s[2] * p2[i];
+    if (batch >= 4) acc -= s[3] * p3[i];
+    dense[col] = acc;
+  }
+}
+
+
+// factor supernode of size ns (1, 2, or 3) starting at row r; return rank decrement (force inline)
+#if defined(_MSC_VER)
+static __forceinline
+#elif defined(__GNUC__)
+static inline __attribute__((always_inline))
+#else
+static inline
+#endif
+int cholFactorSupernode(
+    int r, int ns, mjtNum mindiag, mjtNum* restrict L,
+    const int* restrict L_rownnz, const int* restrict L_rowadr, const int* restrict L_colind,
+    const int* restrict LT_rownnz, const int* restrict LT_rowadr,
+    const int* restrict LT_colind, const int* restrict LT_map,
+    const mjtNum* restrict H,
+    const int* restrict H_rownnz, const int* restrict H_rowadr, const int* restrict H_colind,
+    mjtNum* restrict dense) {
+  int L_adr = L_rowadr[r];
+  int L_nnz = L_rownnz[r];
+  const int* restrict L_colptr = L_colind + L_adr;
+  int LT_adr = LT_rowadr[r];
+  int LT_nnz = LT_rownnz[r];
+
+  mjtNum* restrict Lptr0 = L + L_adr;
+  mjtNum* restrict Lptr1 = (ns >= 2) ? L + L_rowadr[r-1] : NULL;
+  mjtNum* restrict Lptr2 = (ns >= 3) ? L + L_rowadr[r-2] : NULL;
+  mjtNum* restrict Lptr_s[3] = {Lptr0, Lptr1, Lptr2};
+
+  // initialize L rows for the supernode from H (copy if no fill-in, else scatter/gather)
+  int used_dense = 0;
+  for (int s=0; s < ns; s++) {
+    int row = r - s;
+    int nnz_s = L_nnz - s;
+    int h_adr = H_rowadr[row];
+    int h_nnz = H_rownnz[row];
+    mjtNum* restrict row_s = Lptr_s[s];
+
+    if (h_nnz >= nnz_s && H_colind[h_adr+nnz_s-1] == row) {
+      mju_copy(row_s, H+h_adr, nnz_s);
+    } else if (ns == 1) {
+      mju_zero(row_s, nnz_s);
+      for (int i=0; i < h_nnz; i++) {
+        int c = H_colind[h_adr+i];
+        if (c > row) break;
+        dense[c] = H[h_adr+i];
+      }
+      used_dense = 1;
+    } else {
+      for (int i=0; i < h_nnz; i++) {
+        int c = H_colind[h_adr+i];
+        if (c > row) break;
+        dense[c] = H[h_adr+i];
+      }
+      for (int i=0; i < nnz_s; i++) {
+        int c = L_colptr[i];
+        row_s[i] = dense[c];
+        dense[c] = 0;
+      }
+    }
+  }
+
+  // accumulate updates from descendant rows c > r in LT[r] (skip k=0 diagonal entry);
+  // cap batch at 3 when ns == 3 so 3*3 broadcast scalars + row/descendant vectors fit in 16 YMM regs
+  const int max_batch = (ns == 3) ? 3 : 4;
+  int k = 1;
+  while (k < LT_nnz) {
+    int c0 = LT_colind[LT_adr+k];
+    int idx0 = LT_map[LT_adr+k];
+    int c0_adr = L_rowadr[c0];
+    int num_cols = idx0 - c0_adr + 1;
+
+    // by Cholesky elimination, cols(L[c, 0:r]) is a subset of cols(L[r, 0:r]) ending at r;
+    // it matches the suffix L_colptr[L_nnz-num_cols .. L_nnz-1] iff its first column matches
+    const int* restrict colptr = L_colind + c0_adr;
+    const mjtNum* p[4] = {L + c0_adr, NULL, NULL, NULL};
+    int idx[4] = {idx0, 0, 0, 0};
+    int col0 = colptr[0];
+    int is_suffix = (L_colptr[L_nnz-num_cols] == col0);
+    int batch = 1;
+
+    // fuse up to max_batch descendant rows in LT[r] that share the identical pattern on [0, r]
+    if (is_suffix || ns == 1) {
+      int prev_c = c0, prev_adr = c0_adr;
+      while (k + batch < LT_nnz && batch < max_batch) {
+        int next_c = LT_colind[LT_adr+k+batch];
+        int next_idx = LT_map[LT_adr+k+batch];
+        int next_adr = L_rowadr[next_c];
+        if (next_idx - next_adr + 1 != num_cols) {
+          break;
+        }
+        if (is_suffix) {
+          if (L_colind[next_adr] != col0) break;
+        } else {
+          int hi = next_c > prev_c ? next_c : prev_c;
+          int lo = next_c > prev_c ? prev_c : next_c;
+          int hi_adr = next_c > prev_c ? next_adr : prev_adr;
+          int lo_nnz = L_rownnz[lo];
+          if (lo_nnz >= L_rownnz[hi] || L_colind[hi_adr+lo_nnz-1] != lo) break;
+          prev_c = next_c;
+          prev_adr = next_adr;
+        }
+        p[batch] = L + next_adr;
+        idx[batch] = next_idx;
+        batch++;
+      }
+    }
+
+    // suffix fast path: update target supernode rows contiguously in L
+    if (is_suffix) {
+      int off = L_nnz - num_cols;
+      int nlead = num_cols - (ns - 1);
+      mjtNum* restrict dptr0 = Lptr0 + off;
+      mjtNum* restrict dptr1 = (ns >= 2) ? Lptr1 + off : NULL;
+      mjtNum* restrict dptr2 = (ns >= 3) ? Lptr2 + off : NULL;
+      mjtNum s[3][4];
+      for (int t=0; t < ns; t++) {
+        for (int b=0; b < batch; b++) {
+          s[t][b] = L[idx[b] - t];
+        }
+      }
+      switch (batch) {
+        case 1:
+          cholSuffixUpdate(ns, 1, nlead, dptr0, dptr1, dptr2, p[0], p[1], p[2], p[3], s);
+          break;
+        case 2:
+          cholSuffixUpdate(ns, 2, nlead, dptr0, dptr1, dptr2, p[0], p[1], p[2], p[3], s);
+          break;
+        case 3:
+          cholSuffixUpdate(ns, 3, nlead, dptr0, dptr1, dptr2, p[0], p[1], p[2], p[3], s);
+          break;
+        case 4:
+          cholSuffixUpdate(ns, 4, nlead, dptr0, dptr1, dptr2, p[0], p[1], p[2], p[3], s);
+          break;
+      }
+    }
+
+    // non-suffix subset: scatter row r update into dense; rows r-1, r-2 are revisited below
+    else {
+      used_dense = 1;
+      mjtNum s[4];
+      for (int b=0; b < batch; b++) {
+        s[b] = L[idx[b]];
+      }
+      switch (batch) {
+        case 1: cholScatterUpdate(1, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
+        case 2: cholScatterUpdate(2, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
+        case 3: cholScatterUpdate(3, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
+        case 4: cholScatterUpdate(4, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
+      }
+    }
+
+    k += batch;
+  }
+
+  // flush non-suffix updates from dense for s = 0 .. ns-1
+  if (used_dense) {
+    for (int s=0; s < ns; s++) {
+      if (s > 0) {
+        for (int j=1; j < LT_nnz; j++) {
+          int c0 = LT_colind[LT_adr+j];
+          int L_cr0_idx = LT_map[LT_adr+j];
+          int c0_adr = L_rowadr[c0];
+          int num_cols = L_cr0_idx - c0_adr + 1;
+          if (L_colptr[L_nnz-num_cols] != L_colind[c0_adr]) {
+            mjtNum scale = L[L_cr0_idx-s];
+            const mjtNum* restrict p0 = L + c0_adr;
+            const int* restrict colptr = L_colind + c0_adr;
+            for (int i=0; i < num_cols-s; i++) {
+              dense[colptr[i]] -= scale * p0[i];
+            }
+          }
+        }
+      }
+      mjtNum* restrict row_s = Lptr_s[s];
+      int nnz_s = L_nnz - s;
+      for (int i=0; i < nnz_s; i++) {
+        int c = L_colptr[i];
+        row_s[i] += dense[c];
+        dense[c] = 0;
+      }
+    }
+  }
+
+  // factor supernode rows r, r-1, ... and fuse scaling with intra-supernode elimination
+  int rank_dec = 0;
+  int n_off = L_nnz - ns;
+  for (int s=0; s < ns; s++) {
+    mjtNum* restrict row_s = Lptr_s[s];
+    int nnz_s = L_nnz - s;
+    mjtNum diag = row_s[nnz_s-1];
+    int deficient = diag < mindiag;
+    if (deficient) {
+      diag = mindiag;
+      rank_dec++;
+    }
+    mjtNum L_rr = mju_sqrt(diag);
+    if (deficient) {
+      mju_zero(row_s, nnz_s-1);
+    } else {
+      mjtNum L_rr_inv = 1.0 / L_rr;
+      mjtNum s_st[3] = {0, 0, 0};
+      for (int t=s+1; t < ns; t++) {
+        s_st[t] = (row_s[L_nnz-1-t] *= L_rr_inv);
+      }
+      for (int i=0; i < n_off; i++) {
+        mjtNum l_si = (row_s[i] *= L_rr_inv);
+        if (s + 1 < ns) Lptr_s[s+1][i] -= s_st[s+1] * l_si;
+        if (s + 2 < ns) Lptr_s[s+2][i] -= s_st[s+2] * l_si;
+      }
+      for (int t=s+1; t < ns; t++) {
+        for (int u=t; u < ns; u++) {
+          Lptr_s[t][L_nnz-1-u] -= s_st[t] * s_st[u];
+        }
+      }
+    }
+    row_s[nnz_s-1] = L_rr;
+  }
+
+  return rank_dec;
+}
+
+
 // numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
 //  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
 //  LT_map[k] gives index in L for LT_colind[k]
 int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
-                          const int* L_rownnz, const int* L_rowadr, const int* L_colind,
-                          const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
-                          const int* LT_map, const mjtNum* H,
-                          const int* H_rownnz, const int* H_rowadr, const int* H_colind,
-                          mjtNum* scratch) {
+                          const int* restrict L_rownnz, const int* restrict L_rowadr,
+                          const int* restrict L_colind,
+                          const int* restrict LT_rownnz, const int* restrict LT_rowadr,
+                          const int* restrict LT_colind, const int* restrict LT_map,
+                          const mjtNum* restrict H,
+                          const int* restrict H_rownnz, const int* restrict H_rowadr,
+                          const int* restrict H_colind, mjtNum* restrict scratch) {
   int rank = n;
 
+  // zero dense accumulator workspace; each row cleans up its own entries below
   mjtNum* restrict dense = scratch;
+  mju_zero(dense, n);
 
   // backpass over rows
-  for (int r = n - 1; r >= 0; r--) {
-    // scatter H[r, 0:r] into dense
-    mju_scatter(dense, H + H_rowadr[r], H_colind + H_rowadr[r], H_rownnz[r]);
-
-    // accumulate updates from rows c > r where L[c,r] != 0
-    // use CSC transpose: LT column r contains rows that have column r
-    // start from k=1 to skip the diagonal entry (LT_colind[LT_adr] = r)
-    int LT_adr = LT_rowadr[r];
-    int LT_nnz = LT_rownnz[r];
-    for (int k = 1; k < LT_nnz; k++) {
-      int c = LT_colind[LT_adr + k];  // row c has L[c,r] != 0, c > r guaranteed
-
-      // get L[c,r] index directly from LT_map
-      int L_cr_idx = LT_map[LT_adr + k];
-      mjtNum L_cr = L[L_cr_idx];
-
-      // get row c info
-      int c_adr = L_rowadr[c];
-
-      // dense[j] -= L[c,r] * L[c,j] for all j <= r in L[c]
-      // L_cr_idx - c_adr gives the position of r in row c
-      int num_cols = L_cr_idx - c_adr + 1;
-      const int* colptr = L_colind + c_adr;
-      const mjtNum* Lptr = L + c_adr;
-      for (int i = 0; i < num_cols; i++) {
-        dense[colptr[i]] -= L_cr * Lptr[i];
-      }
-    }
-
-    // factor row r diagonal, handle rank-deficient case
-    mjtNum diag = dense[r];
-    int deficient = diag < mindiag;
-    if (deficient) {
-      diag = mindiag;
-      rank--;
-    }
-
-    // scale off-diagonals; if deficient clear them, decoupling the row as mju_cholFactor does
-    mjtNum L_rr = mju_sqrt(diag);
-    mjtNum L_rr_inv = 1.0 / L_rr;
+  int ns;
+  for (int r=n-1; r >= 0; r -= ns) {
     int L_adr = L_rowadr[r];
     int L_nnz = L_rownnz[r];
-    const int* colptr = L_colind + L_adr;
-    mjtNum* Lptr = L + L_adr;
-    if (deficient) {
-      mju_zero(Lptr, L_nnz - 1);
-    } else {
-      for (int i = 0; i < L_nnz - 1; i++) {
-        Lptr[i] = dense[colptr[i]] * L_rr_inv;
+    const int* restrict L_colptr = L_colind + L_adr;
+    mjtNum* restrict Lptr = L + L_adr;
+
+    int LT_nnz = LT_rownnz[r];
+
+    // lower triangle of H[r] has no fill-in iff its L_nnz-th column is the diagonal r
+    int H_adr = H_rowadr[r];
+    int H_nnz = H_rownnz[r];
+    int H_nofill = (H_nnz >= L_nnz && H_colind[H_adr+L_nnz-1] == r);
+
+    // leaf fast path: no updates from rows c > r and no fill-in on row r
+    if (LT_nnz == 1 && H_nofill) {
+      ns = 1;
+      const mjtNum* restrict Hptr = H + H_adr;
+      mjtNum diag = Hptr[L_nnz-1];
+      int deficient = diag < mindiag;
+      if (deficient) {
+        diag = mindiag;
+        rank--;
       }
+
+      // scale off-diagonals directly from H into L; clear if rank-deficient
+      mjtNum L_rr = mju_sqrt(diag);
+      if (deficient) {
+        mju_zero(Lptr, L_nnz-1);
+      } else {
+        mjtNum L_rr_inv = 1.0 / L_rr;
+        for (int i=0; i < L_nnz-1; i++) {
+          Lptr[i] = Hptr[i] * L_rr_inv;
+        }
+      }
+      Lptr[L_nnz-1] = L_rr;
+      continue;
     }
 
-    // store diagonal
-    L[L_adr + L_nnz - 1] = L_rr;
+    // detect target supernode size ns in {1, 2, 3}: consecutive rows (r, r-1, ...) that share
+    // the exact same off-diagonal columns in L and the exact same descendant rows c > r in LT
+    ns = 1;
+    while (ns < 3 && r - ns >= 0 && L_nnz > ns &&
+           L_colptr[L_nnz-1-ns] == r - ns &&
+           L_rownnz[r-ns] == L_nnz - ns &&
+           LT_rownnz[r-ns] == LT_nnz + ns) {
+      ns++;
+    }
 
-    // clear dense workspace
-    for (int i = 0; i < L_nnz; i++) {
-      dense[colptr[i]] = 0;
+    // pass ns as a compile-time literal so cholFactorSupernode specializes per supernode size
+    if (ns == 3) {
+      rank -= cholFactorSupernode(r, 3, mindiag, L, L_rownnz, L_rowadr, L_colind,
+                                  LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                  H, H_rownnz, H_rowadr, H_colind, dense);
+    } else if (ns == 2) {
+      rank -= cholFactorSupernode(r, 2, mindiag, L, L_rownnz, L_rowadr, L_colind,
+                                  LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                  H, H_rownnz, H_rowadr, H_colind, dense);
+    } else {
+      rank -= cholFactorSupernode(r, 1, mindiag, L, L_rownnz, L_rowadr, L_colind,
+                                  LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                  H, H_rownnz, H_rowadr, H_colind, dense);
     }
   }
 
   return rank;
 }
 
+
 // sparse reverse-order Cholesky solve
-void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
-                         const int* rownnz, const int* rowadr, const int* colind) {
-  // copy input into result
-  mju_copy(res, vec, n);
-
-  // vec <- L^-T vec
-  for (int i=n-1; i >= 0; i--) {
-    if (res[i]) {
-      // get rowadr[i], rownnz[i]
-      const int adr = rowadr[i], nnz = rownnz[i];
-
-      // x(i) /= L(i,i)
-      res[i] /= mat[adr+nnz-1];
-      mjtNum tmp = res[i];
-
-      // x(j) -= L(i,j)*x(i), j=0:i-1
-      for (int j=0; j < nnz-1; j++) {
-        res[colind[adr+j]] -= mat[adr+j]*tmp;
-      }
-    }
+void mju_cholSolveSparse(mjtNum* restrict res, const mjtNum* restrict mat,
+                         const mjtNum* vec, int n,
+                         const int* restrict rownnz, const int* restrict rowadr,
+                         const int* restrict colind) {
+  // copy into result if different
+  if (res != vec) {
+    mju_copy(res, vec, n);
   }
 
-  // vec <- L^-1 vec
-  for (int i=0; i < n; i++) {
-    // get rowadr[i], rownnz[i]
+  // backward substitution: res <- L^-T res
+  int i = n - 1;
+  while (i >= 0) {
     const int adr = rowadr[i], nnz = rownnz[i];
+
+    // fuse adjacent supernode rows (up to 3) when they share the exact same off-diagonal columns
+    if (i > 0 && nnz >= 2 && rownnz[i-1] == nnz-1 && colind[adr+nnz-2] == i-1) {
+      const mjtNum* restrict row0 = mat + adr;
+      const mjtNum* restrict row1 = mat + rowadr[i-1];
+      const int* restrict ci = colind + adr;
+
+      // 3-row supernode (i, i-1, i-2)
+      if (i > 1 && nnz >= 3 && rownnz[i-2] == nnz-2 && colind[adr+nnz-3] == i-2) {
+        const int nob = nnz - 3;
+        const mjtNum* restrict row2 = mat + rowadr[i-2];
+
+        mjtNum x0 = (res[i] /= row0[nob+2]);
+        mjtNum x1 = (res[i-1] = (res[i-1] - row0[nob+1]*x0) / row1[nob+1]);
+        mjtNum x2 = (res[i-2] = (res[i-2] - row0[nob]*x0 - row1[nob]*x1) / row2[nob]);
+
+        if (x0 || x1 || x2) {
+          for (int j=0; j < nob; j++) {
+            int c = ci[j];
+            res[c] = res[c] - row0[j]*x0 - row1[j]*x1 - row2[j]*x2;
+          }
+        }
+        i -= 3;
+        continue;
+      }
+
+      // 2-row supernode (i, i-1)
+      const int nob = nnz - 2;
+      mjtNum x0 = (res[i] /= row0[nob+1]);
+      mjtNum x1 = (res[i-1] = (res[i-1] - row0[nob]*x0) / row1[nob]);
+
+      if (x0 || x1) {
+        for (int j=0; j < nob; j++) {
+          int c = ci[j];
+          res[c] = res[c] - row0[j]*x0 - row1[j]*x1;
+        }
+      }
+      i -= 2;
+      continue;
+    }
+
+    if (res[i]) {
+      mjtNum tmp = (res[i] /= mat[adr+nnz-1]);
+      const mjtNum* restrict row = mat + adr;
+      const int* restrict ci = colind + adr;
+      for (int j=0; j < nnz-1; j++) {
+        res[ci[j]] -= row[j] * tmp;
+      }
+    }
+    i--;
+  }
+
+  // forward substitution: res <- L^-1 res
+  i = 0;
+  while (i < n) {
+    const int adr = rowadr[i], nnz = rownnz[i];
+
+    // fuse adjacent supernode rows (up to 3) when they share the exact same off-diagonal columns
+    if (i + 1 < n && rownnz[i+1] == nnz+1 && colind[rowadr[i+1]+nnz-1] == i) {
+      const int nob = nnz - 1;
+      const mjtNum* restrict row0 = mat + adr;
+      const mjtNum* restrict row1 = mat + rowadr[i+1];
+      const int* restrict ci = colind + adr;
+
+      // 3-row supernode (i, i+1, i+2)
+      if (i + 2 < n && rownnz[i+2] == nnz+2 && colind[rowadr[i+2]+nnz-1] == i) {
+        const mjtNum* restrict row2 = mat + rowadr[i+2];
+        mjtNum s0 = 0, s1 = 0, s2 = 0;
+        for (int j=0; j < nob; j++) {
+          mjtNum y = res[ci[j]];
+          s0 += row0[j] * y;
+          s1 += row1[j] * y;
+          s2 += row2[j] * y;
+        }
+        res[i] = (res[i] - s0) / row0[nob];
+        res[i+1] = (res[i+1] - s1 - row1[nob]*res[i]) / row1[nob+1];
+        res[i+2] = (res[i+2] - s2 - row2[nob]*res[i] - row2[nob+1]*res[i+1]) / row2[nob+2];
+        i += 3;
+        continue;
+      }
+
+      // 2-row supernode (i, i+1)
+      mjtNum s0 = 0, s1 = 0;
+      for (int j=0; j < nob; j++) {
+        mjtNum y = res[ci[j]];
+        s0 += row0[j] * y;
+        s1 += row1[j] * y;
+      }
+      res[i] = (res[i] - s0) / row0[nob];
+      res[i+1] = (res[i+1] - s1 - row1[nob]*res[i]) / row1[nob+1];
+      i += 2;
+      continue;
+    }
 
     // x(i) -= sum_j L(i,j)*x(j), j=0:i-1
     if (nnz > 1) {
@@ -542,15 +949,15 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
       //   res[i] -= mat[adr+j]*res[colind[adr+j]];
     }
 
-
     // x(i) /= L(i,i)
     res[i] /= mat[adr+nnz-1];
+    i++;
   }
 }
 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
-//  x is sparse, change in sparsity pattern of mat is not allowed
+//  x is sparse (with x_ind sorted ascending), change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, int flg_plus,
                          const int* restrict rownnz, const int* restrict rowadr,
                          const int* restrict colind, int x_nnz, const int* restrict x_ind,
@@ -560,56 +967,77 @@ int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, 
     return n;
   }
 
-  // get starting row: last non-zero entry in x
-  int start = x_ind[x_nnz - 1];
+  // get starting row (last non-zero in x) and initial minimum active row
+  int start = x_ind[x_nnz-1];
+  int min_row = x_ind[0];
 
-  // dense accumulator for x, cleared over the range the backpass touches
+  // zero active range of dense accumulator, then scatter x into dense
   mjtNum* restrict dense = scratch;
-  mju_zero(dense, start + 1);
-
-  // scatter x into dense
+  mju_zero(dense+min_row, start-min_row+1);
   mju_scatter(dense, x, x_ind, x_nnz);
 
-  // backpass over rows from start down to 0
+  // backpass over rows from start down to min_row
   int rank = n;
-  for (int row = start; row >= 0; row--) {
+  for (int row=start; row >= min_row; row--) {
     // skip if zero
-    if (dense[row] == 0) continue;
+    mjtNum x_row = dense[row];
+    if (x_row == 0) continue;
 
     // get rownnz (excluding diagonal), rowadr
     int nnz = rownnz[row] - 1;
     int adr = rowadr[row];
 
     // update diagonal, handle rank-deficient case
-    mjtNum diag = mat[adr + nnz];
-    mjtNum x_row = dense[row];
+    mjtNum diag = mat[adr+nnz];
     mjtNum tmp = diag*diag + (flg_plus ? x_row*x_row : -x_row*x_row);
     if (tmp < mjMINVAL) {
       tmp = mjMINVAL;
       rank--;
     }
     mjtNum r = mju_sqrt(tmp);
-    mat[adr + nnz] = r;
+    mat[adr+nnz] = r;
+
+    if (nnz == 0) {
+      continue;
+    }
 
     // compute Givens rotation parameters https://en.wikipedia.org/wiki/Givens_rotation
     mjtNum c = diag / r;
     mjtNum s = -x_row / r;
     mjtNum s_signed = flg_plus ? -s : s;
 
-    // update row
-    for (int i = 0; i < nnz; i++) {
-      int j = colind[adr + i];
-      mjtNum dense_j = dense[j];
-      mjtNum mat_val = mat[adr + i];
+    // extend zeroed min_row range if this row reaches earlier columns
+    const int* restrict ci = colind + adr;
+    int col0 = ci[0];
+    if (col0 < min_row) {
+      mju_zero(dense+col0, min_row-col0);
+      min_row = col0;
+    }
 
-      // update mat and dense using the Givens rotation
-      mat[adr + i] = c*mat_val + s_signed*dense_j;
-      dense[j]     = s*mat_val + c*dense_j;
+    // apply Givens rotation to off-diagonals and dense workspace (contiguous fast path if dense)
+    mjtNum* restrict mrow = mat + adr;
+    if (nnz == ci[nnz-1] - col0 + 1) {
+      mjtNum* restrict dptr = dense + col0;
+      for (int i=0; i < nnz; i++) {
+        mjtNum dense_j = dptr[i];
+        mjtNum mat_val = mrow[i];
+        mrow[i] = c*mat_val + s_signed*dense_j;
+        dptr[i] = s*mat_val + c*dense_j;
+      }
+    } else {
+      for (int i=0; i < nnz; i++) {
+        int j = ci[i];
+        mjtNum dense_j = dense[j];
+        mjtNum mat_val = mrow[i];
+        mrow[i]  = c*mat_val + s_signed*dense_j;
+        dense[j] = s*mat_val + c*dense_j;
+      }
     }
   }
 
   return rank;
 }
+
 
 //---------------------------- banded Cholesky -----------------------------------------------------
 

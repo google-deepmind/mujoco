@@ -2562,7 +2562,7 @@ static int MakeHessian(mjData* d, mjPrimalContext* ctx) {
         mj_stackBytes(nL_int * sizeof(int), _Alignof(int)) +
         mj_stackBytes(nL_num * sizeof(mjtNum), _Alignof(mjtNum));
     size_t chol_fill_bytes =
-        mj_stackFrameBytes() + 4 * mj_stackBytes((size_t)nv * sizeof(int), _Alignof(int));
+        mj_stackFrameBytes() + 3 * mj_stackBytes((size_t)nv * sizeof(int), _Alignof(int));
     if (mj_stackBytesAvailable(d) < L_bytes + mjMAX(chol_fill_bytes, loop_bytes)) {
       mj_warning(d, mjWARN_CNSTRFULL, d->narena);
       return 0;
