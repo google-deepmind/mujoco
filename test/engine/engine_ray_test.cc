@@ -221,6 +221,41 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   EXPECT_GT(nhits, 10);
 }
 
+// The body BVH is expressed in the inertial frame, so its bounding sphere
+// centre must be rotated by ximat as well as offset by xipos.
+TEST_F(RayTest, MultiRayRotatedInertialFrame) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <inertial pos="0 0 0" quat="1 0 0 1" mass="1" diaginertia="1 1 1"/>
+        <geom type="box" size=".1 .1 .1" pos="3 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m.get(), d.get());
+
+  mjtNum pnt[3] = {0, 0, 0};
+  mjtNum vec[3] = {1, 0, 0};
+  int geomid_single;
+  mjtNum dist_single = mj_ray(m.get(), d.get(), pnt, vec, NULL, 1, -1,
+                              &geomid_single, nullptr);
+  int geomid_multi;
+  mjtNum dist_multi;
+  mj_multiRay(m.get(), d.get(), pnt, vec, NULL, 1, -1, &geomid_multi,
+              &dist_multi, nullptr, 1, mjMAXVAL);
+
+  EXPECT_NEAR(dist_single, 2.9, MjTol(1e-12, 1e-5));
+  EXPECT_MJTNUM_EQ(dist_multi, dist_single);
+  EXPECT_EQ(geomid_multi, geomid_single);
+}
+
 TEST_F(RayTest, MultiRayNormalEqualsSingleRayNormal) {
   char error[1024];
   MjModelPtr m = LoadModelFromString(kRayCastingModel, error, sizeof(error));
