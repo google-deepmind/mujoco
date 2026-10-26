@@ -589,6 +589,57 @@ static int addPreContact(mjtNum* points, mjPreContact* con, const mjtNum x[3],
 }
 
 
+// reconstruct a contact from both SDFs, in the coordinate frame of g2
+static int addSdfPreContact(mjtNum* points, mjPreContact* con, const mjtNum x[3],
+                            const mjtNum pos2[3], const mjtNum quat2[4], int cnt,
+                            const mjModel* m, const mjSDF* s, const mjData* d) {
+  mjtNum y[3];
+  mju_mulMatVec3(y, s->relmat, x);
+  mju_addTo3(y, s->relpos);
+  mjtNum A = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+  mjtNum B = geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+
+  // the intersection value detects overlap, but is not the contact distance
+  if (mju_max(A, B) > 0) {
+    return cnt;
+  }
+
+  mjtNum gradA[3], gradB[3], normal[3];
+  geomGradient(gradA, m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+  geomGradient(gradB, m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+  mju_mulMatTVec3(gradB, s->relmat, gradB);
+  if (mju_normalize3(gradA) < mjMINVAL || mju_normalize3(gradB) < mjMINVAL) {
+    return cnt;
+  }
+
+  // normal points from g1 (B) to g2 (A)
+  mju_sub3(normal, gradB, gradA);
+  if (mju_normalize3(normal) < mjMINVAL) {
+    return cnt;
+  }
+
+  // the collision objective can favor either surface, so x need not be a
+  // surface point or a midpoint; approximate both surface witnesses locally
+  mjtNum surfaceA[3], surfaceB[3], midpoint[3], separation[3];
+  mju_addScl3(surfaceA, x, gradA, -A);
+  mju_addScl3(surfaceB, x, gradB, -B);
+  mju_add3(midpoint, surfaceA, surfaceB);
+  mju_scl3(midpoint, midpoint, 0.5);
+  mju_sub3(separation, surfaceA, surfaceB);
+  if (isknown(points, midpoint, cnt)) {
+    return cnt;
+  }
+  mju_copy3(points + 3*cnt, midpoint);
+
+  con->dist = mju_dot3(separation, normal);
+  mju_rotVecQuat(con->normal, normal, quat2);
+  mju_rotVecQuat(con->pos, midpoint, quat2);
+  mju_addTo3(con->pos, pos2);
+  mju_zero3(con->tangent);
+  return cnt + 1;
+}
+
+
 // finds minimum of Frank-Wolfe objective
 static mjtNum stepFrankWolfe(mjtNum x[3], const mjtNum* corners, int ncorners,
                              const mjModel* m, const mjSDF* sdf, const mjData* d) {
@@ -1055,7 +1106,7 @@ int mjc_SDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtN
   const mjtNum* size2 = m->geom_aabb + 6*g2;
 
   int cnt = 0;
-  mjtNum x[3], y[3], dist2, vec1[3], vec2[3];
+  mjtNum x[3], y[3], vec1[3], vec2[3];
   mjtNum aabb1[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
   mjtNum aabb2[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
   mjtNum aabb[6]  = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
@@ -1167,15 +1218,16 @@ int mjc_SDF(const mjModel* m, mjData* d, mjPreContact* con, int g1, int g2, mjtN
 
     // gradient descent - we use a special function of the two SDF as objective
     sdf.type = mjSDFTYPE_COLLISION;
-    dist2 = stepGradient(x, m, &sdf, d, m->opt.sdf_iterations);
+    stepGradient(x, m, &sdf, d, m->opt.sdf_iterations);
 
-    // inexact SDFs can yield spurious collisions, filter them by projecting on the midsurface
+    // refine the candidate and reject non-overlap or an invalid gradient
     sdf.type = mjSDFTYPE_INTERSECTION;
-    dist2 = stepGradient(x, m, &sdf, d, 1);
+    if (stepGradient(x, m, &sdf, d, 1) > 0) {
+      continue;
+    }
 
-    // contact point and normal - we use the midsurface where SDF1=SDF2 as zero level set
-    sdf.type = mjSDFTYPE_MIDSURFACE;
-    cnt = addPreContact(contacts, con + cnt, x, pos2, quat2, dist2, cnt, m, &sdf, d, 0);
+    // filter non-overlapping candidates and reconstruct from both surfaces
+    cnt = addSdfPreContact(contacts, con + cnt, x, pos2, quat2, cnt, m, &sdf, d);
 
     if (cnt >= mjMAXCONPAIR) {
       break;

@@ -17,11 +17,14 @@
 #include "src/engine/engine_collision_sdf.h"
 
 #include <cstdio>
+#include <ostream>
+#include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjplugin.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -212,7 +215,7 @@ TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {
     </asset>
     <worldbody>
       <body pos="0 0 0.55">
-        <geom name="geom1" type="mesh" mesh="small_cube"/>
+        <geom name="geom1" type="sdf" mesh="small_cube"/>
       </body>
       <body pos="0 0 0">
         <geom name="geom2" type="sdf" mesh="cube"/>
@@ -225,22 +228,234 @@ TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
-  mj_forward(model.get(), data.get());
+  // Exercise mesh-SDF, octree SDF-SDF, and primitive-SDF reconstruction.
+  for (mjtGeom type : {mjGEOM_MESH, mjGEOM_SDF, mjGEOM_SPHERE}) {
+    SCOPED_TRACE(type);
+    model->geom_type[0] = type;
+    model->opt.sdf_iterations = 100;
+    mj_forward(model.get(), data.get());
+    mjPreContact con[mjMAXCONPAIR];
+    int ncon = mjCOLLISIONFUNC[type][mjGEOM_SDF](model.get(), data.get(), con, 0, 1, 0);
+    ASSERT_GT(ncon, 0);
 
-  mjPreContact con[mjMAXCONPAIR];
-  int ncon = mjCOLLISIONFUNC[mjGEOM_MESH][mjGEOM_SDF](model.get(), data.get(),
-                                                      con, 0, 1, 0.0);
-  ASSERT_GT(ncon, 0);
+    // The SDF search can also return edge contacts. Check its deepest contact;
+    // mesh-SDF searches the bottom triangles, so check all of those contacts.
+    int deepest = 0;
+    for (int i = 1; i < ncon; ++i) {
+      if (con[i].dist < con[deepest].dist) {
+        deepest = i;
+      }
+    }
 
-  // Mesh bottom face is at z = 0.45, SDF top face is at z = 0.50
-  // Penetration distance = -0.05m
-  // Midpoint is at z = (0.45 + 0.50) / 2 = 0.475m
-  for (int i = 0; i < ncon; ++i) {
-    EXPECT_NEAR(con[i].dist, -0.05, MjTol(2e-3, 5e-3));
-    EXPECT_NEAR(con[i].pos[2], 0.475, MjTol(2e-3, 5e-3));
-    EXPECT_NEAR(con[i].normal[2], -1.0, MjTol(1e-3, 5e-3));
+    // The facing surfaces are at z = 0.45 and z = 0.50.
+    // Penetration is -0.05 and midpoint is (0.45 + 0.50) / 2 = 0.475.
+    for (int i = 0; i < ncon; ++i) {
+      if (type != mjGEOM_MESH && i != deepest) {
+        continue;
+      }
+      EXPECT_NEAR(con[i].dist, -0.05, MjTol(2e-3, 5e-3));
+      EXPECT_NEAR(con[i].pos[2], 0.475, MjTol(2e-3, 5e-3));
+      EXPECT_NEAR(con[i].normal[0], 0.0, 5e-3);
+      EXPECT_NEAR(con[i].normal[1], 0.0, 5e-3);
+      EXPECT_NEAR(con[i].normal[2], -1.0, MjTol(1e-3, 5e-3));
+    }
   }
 }
+
+// An exact slab SDF isolates reconstruction from octree interpolation. The
+// supplied cube mesh bounds the patch of the two parallel faces being tested.
+int RegisterSlabSdf() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+  plugin.name = "mujoco.test.sdf_slab";
+  plugin.capabilityflags = mjPLUGIN_SDF;
+  plugin.nstate = +[](const mjModel*, int) { return 0; };
+  plugin.init = +[](const mjModel*, mjData*, int) { return 0; };
+  plugin.reset = +[](const mjModel*, mjtNum*, void*, int) {};
+  plugin.compute = +[](const mjModel*, mjData*, int, int) {};
+  plugin.sdf_distance = +[](const mjtNum p[3], const mjData*, int) -> mjtNum {
+    return mju_abs(p[2]) - 0.5;
+  };
+  plugin.sdf_gradient = +[](mjtNum g[3], const mjtNum p[3], const mjData*, int) {
+    g[0] = g[1] = 0;
+    g[2] = p[2] > 0 ? 1 : -1;
+  };
+  return mjp_registerPlugin(&plugin);
+}
+
+TEST_F(SdfTest, SdfSdfParallelSurfaces) {
+  static const int slot = RegisterSlabSdf();
+  ASSERT_GE(slot, 0);
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.test.sdf_slab"/>
+    </extension>
+    <asset>
+      <mesh name="cube" vertex="-.5 -.5 -.5  .5 -.5 -.5  -.5 .5 -.5  .5 .5 -.5
+                               -.5 -.5  .5  .5 -.5  .5  -.5 .5  .5  .5 .5  .5"/>
+    </asset>
+    <worldbody>
+      <body name="upper" pos="0 0 .8">
+        <geom type="sdf" mesh="cube"><plugin plugin="mujoco.test.sdf_slab"/></geom>
+      </body>
+      <body name="lower">
+        <geom type="sdf" mesh="cube"><plugin plugin="mujoco.test.sdf_slab"/></geom>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  // Exercise both relative and world rotations, translation, and geom order.
+  const mjtNum quats[][4] = {{1, 0, 0, 0}, {0.5, 0.5, 0.5, 0.5}, {1, 2, 3, 4}};
+  const mjtNum origin[3] = {1.2, -2.3, 0.7};
+  const mjtNum zaxis[3] = {0, 0, 1};
+  const mjtNum flip[4] = {0, 1, 0, 0};
+  for (const auto& rotation : quats) {
+    mjtNum axis[3], quat[4];
+    mju_copy4(quat, rotation);
+    mju_normalize4(quat);
+    mju_rotVecQuat(axis, zaxis, quat);
+    mju_copy4(model->body_quat + 4, quat);
+    mju_mulQuat(model->body_quat + 8, quat, flip);
+    mju_copy3(model->body_pos + 6, origin);
+    for (mjtNum depth : {-0.02, 0.02, 0.2, 0.4}) {
+      SCOPED_TRACE(depth);
+      mju_addScl3(model->body_pos + 3, origin, axis, 1 - depth);
+      mj_forward(model.get(), data.get());
+      for (int swap : {0, 1}) {
+        SCOPED_TRACE(swap);
+        mjPreContact con[mjMAXCONPAIR];
+        int ncon = mjCOLLISIONFUNC[mjGEOM_SDF][mjGEOM_SDF](
+            model.get(), data.get(), con, swap, 1 - swap, 0);
+        if (depth < 0) {
+          EXPECT_EQ(ncon, 0);
+          continue;
+        }
+        ASSERT_GT(ncon, 0);
+        for (int i = 0; i < ncon; ++i) {
+          SCOPED_TRACE(i);
+          EXPECT_NEAR(con[i].dist, -depth, MjTol(1e-9, 2e-6));
+          mjtNum pos[3];
+          mju_sub3(pos, con[i].pos, origin);
+          EXPECT_NEAR(mju_dot3(pos, axis), (1 - depth) / 2, MjTol(1e-9, 2e-6));
+          for (int k = 0; k < 3; ++k) {
+            EXPECT_NEAR(con[i].normal[k], (swap ? 1 : -1) * axis[k],
+                        MjTol(1e-9, 2e-6));
+          }
+        }
+      }
+    }
+  }
+}
+
+struct SdfShape {
+  const char* name;
+  mjtNum separation;
+  bool flip_upper;
+  bool flip_lower;
+};
+
+void PrintTo(const SdfShape& shape, std::ostream* os) { *os << shape.name; }
+
+class SdfPluginTest : public MujocoTest,
+                      public ::testing::WithParamInterface<SdfShape> {};
+
+TEST_P(SdfPluginTest, ContactReconstruction) {
+  const auto& shape = GetParam();
+#ifdef mjUSESINGLE
+  if (std::string(shape.name) == "bowl") {
+    GTEST_SKIP() << "Bowl's 1e-8 finite-difference step vanishes at unit scale in float";
+  }
+#endif
+  const mjtNum identity[4] = {1, 0, 0, 0};
+  const mjtNum flip[4] = {0, 1, 0, 0};
+  const mjtNum zaxis[3] = {0, 0, 1};
+  std::string name = shape.name;
+  std::string config =
+      name == "gear"
+          ? "<config key='diameter' value='1'/><config key='teeth' value='12'/>"
+            "<config key='innerdiameter' value='.25'/>"
+          : "";
+  std::string xml =
+      "<mujoco><option sdf_initpoints='40' sdf_iterations='100'/>"
+      "<extension><plugin plugin='mujoco.sdf." + name + "'><instance name='shape'>" +
+      config + "</instance></plugin></extension>"
+      "<asset><mesh name='shape'><plugin instance='shape'/></mesh></asset>"
+      "<worldbody><body><geom type='sdf' mesh='shape'>"
+      "<plugin instance='shape'/></geom></body>"
+      "<body><geom type='sdf' mesh='shape'><plugin instance='shape'/></geom></body>"
+      "</worldbody></mujoco>";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  for (mjtNum depth : {.005, .02, .04}) {
+    SCOPED_TRACE(depth);
+    for (bool rotated : {false, true}) {
+      SCOPED_TRACE(rotated);
+      mjtNum quat[4] = {1, 0, 0, 0}, origin[3] = {0, 0, 0};
+      if (rotated) {
+        quat[1] = 2;
+        quat[2] = 3;
+        quat[3] = 4;
+        mju_normalize4(quat);
+        origin[0] = .7;
+        origin[1] = -.4;
+        origin[2] = .2;
+      }
+      mjtNum axis[3], midpoint[3];
+      mju_rotVecQuat(axis, zaxis, quat);
+      mju_mulQuat(model->body_quat + 4, quat, shape.flip_upper ? flip : identity);
+      mju_mulQuat(model->body_quat + 8, quat, shape.flip_lower ? flip : identity);
+      mju_addScl3(model->body_pos + 3, origin, axis, shape.separation - depth);
+      mju_copy3(model->body_pos + 6, origin);
+      mju_addScl3(midpoint, origin, axis, (shape.separation - depth) / 2);
+      mj_forward(model.get(), data.get());
+
+      for (int swap : {0, 1}) {
+        SCOPED_TRACE(swap);
+        mjPreContact con[mjMAXCONPAIR];
+        int ncon = mjCOLLISIONFUNC[mjGEOM_SDF][mjGEOM_SDF](
+            model.get(), data.get(), con, swap, 1 - swap, 0);
+        ASSERT_GT(ncon, 0);
+        int deepest = 0;
+        for (int i = 1; i < ncon; ++i) {
+          if (con[i].dist < con[deepest].dist) {
+            deepest = i;
+          }
+        }
+        // Edge contacts need not attain the axial overlap. The deepest
+        // contact should, up to the finite search error on curved surfaces.
+        mjtNum depth_tol = name == "bowl" ? MjTol(2e-4, 5e-4) : MjTol(2e-6, 1e-4);
+        EXPECT_NEAR(con[deepest].dist, -depth, depth_tol);
+        mjtNum delta[3];
+        mju_sub3(delta, con[deepest].pos, midpoint);
+        EXPECT_NEAR(mju_dot3(delta, axis), 0, MjTol(2e-6, 1e-4));
+        for (int k = 0; k < 3; ++k) {
+          EXPECT_NEAR(con[deepest].normal[k], (swap ? 1 : -1) * axis[k],
+                      MjTol(1e-3, 1e-2));
+        }
+      }
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Shapes, SdfPluginTest,
+    ::testing::Values(SdfShape{"torus", .3, false, false},
+                      SdfShape{"gear", .2, false, false},
+                      SdfShape{"bowl", 2.04, false, true},
+                      SdfShape{"bolt", 0, true, false},
+                      SdfShape{"nut", 0, true, false}),
+    [](const ::testing::TestParamInfo<SdfShape>& info) { return info.param.name; });
 
 TEST_F(SdfTest, SdfCollisionExcessContactsNoCrash) {
   static constexpr char kSdfSdfXml[] = R"(
