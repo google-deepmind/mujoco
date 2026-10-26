@@ -7,19 +7,21 @@ Upcoming Version (not yet released)
 
 Engine
 ^^^^^^
-- Contacts with flex elements now distribute the contact to the element vertices with the barycentric coordinates of the
-  point on the element closest to the contact. Previously the vertex weights were inversely proportional to the
-  distances from the contact, which do not interpolate the contact point: the contact Jacobian measured the velocity of
-  a different material point, and the contact force exerted a spurious torque on the element. This changes the
-  simulation of models with flex contacts.
-- Fixed contact Jacobians of quadratic flexes, which dropped nodes with negative basis weights.
-- Interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>`) now support
-  :ref:`passive<flex-contact-passive>` contact.
-- Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
-  wrapping at wrap onset. Thanks to :github:user:`M-Colley` for reporting and analyzing the issue in
-  :doc:`MJWarp <mjwarp/index>` issue `1772 <https://github.com/google-deepmind/mujoco_warp/issues/1772>`__.
-- Flex integration changes:
+- Flex improvements:
 
+  - Volumetric interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>` with ``elastic2d="none"``)
+    now integrate cell stiffness and lump nodal masses over the mesh volume using Finite Cell Method (FCM) subcell
+    quadrature instead of treating every non-empty grid cell as a full cube. This changes the stiffness and nodal mass
+    distribution of volumetric interpolated flexes whose mesh does not fill its bounding box, as well as the nodal mass
+    distribution of multi-cell **trilinear** flexes.
+  - Interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>`) now support
+    :ref:`passive<flex-contact-passive>` contact.
+  - Contacts with flex elements now distribute the contact to the element vertices with the barycentric coordinates of the
+    point on the element closest to the contact. Previously the vertex weights were inversely proportional to the
+    distances from the contact, which do not interpolate the contact point: the contact Jacobian measured the velocity of
+    a different material point, and the contact force exerted a spurious torque on the element. This changes the
+    simulation of models with flex contacts.
+  - Fixed contact Jacobians of quadratic flexes, which dropped nodes with negative basis weights.
   - Flex :ref:`edge damping<flex-edge-damping>` is now integrated explicitly under ``implicit`` and ``implicitfast``
     (previously it also damped rigid translation).
   - 1D rod bending :ref:`elasticity<flex-elasticity>` (``dim="1"`` with positive ``young``) is no longer supported under
@@ -28,6 +30,10 @@ Engine
   - Flex :ref:`edge stiffness<flex-edge-stiffness>` and :ref:`damping<flex-edge-damping>` are no longer supported under
     ``integrator="discrete"`` (where they were integrated explicitly rather than in the effective metric). Migrate to
     :ref:`elasticity<flex-elasticity>` (or :ref:`edge equality<flexcomp-edge-equality>`), or use ``Euler``/``RK4``/``implicitfast``.
+
+- Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
+  wrapping at wrap onset. Thanks to :github:user:`M-Colley` for reporting and analyzing the issue in
+  :doc:`MJWarp <mjwarp/index>` issue `1772 <https://github.com/google-deepmind/mujoco_warp/issues/1772>`__.
 
 Python bindings
 ^^^^^^^^^^^^^^^

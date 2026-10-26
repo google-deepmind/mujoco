@@ -2478,5 +2478,100 @@ TEST_F(ElasticityTest, InterpPassiveContactForceAndPin) {
   }
 }
 
+// FCM quadrature scales elastic restoring forces on cut boundary cells by the
+// occupied volume fraction, matches between dim=2 and dim=3, and simulates
+// stably when outer corner cells (including cell 0) are empty.
+TEST_F(ElasticityTest, FcmCutCellPassiveForcesAndSimulation) {
+  static constexpr char kShapeXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" timestep="1e-3"/>
+    <worldbody>
+      <flexcomp name="soft" type="SHAPE" dim="DIM" count="7 7 7"
+                spacing="0.05 0.05 0.05" cellcount="2 2 2" dof="trilinear"
+                mass="1" radius="0.001">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.25" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto compute_stretch_force_norm = [&](const char* shape, const char* dim) {
+    std::string xml = kShapeXml;
+    xml.replace(xml.find("SHAPE"), 5, shape);
+    xml.replace(xml.find("DIM"), 3, dim);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    EXPECT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_kinematics(m.get(), d.get());
+
+    // Apply a uniform 5% axial stretch along x to all node bodies
+    for (int n = 0; n < m->flex_nodenum[0]; n++) {
+      int b = m->flex_nodebodyid[m->flex_nodeadr[0] + n];
+      int dof = m->body_dofadr[b];
+      if (dof >= 0) {
+        d->qpos[m->jnt_qposadr[m->dof_jntid[dof]]] = 0.05 * d->xpos[3 * b + 0];
+      }
+    }
+    mj_forward(m.get(), d.get());
+    return mju_norm(d->qfrc_spring, m->nv);
+  };
+
+  mjtNum f_box3 = compute_stretch_force_norm("box", "3");
+  mjtNum f_box2 = compute_stretch_force_norm("box", "2");
+  mjtNum f_ell3 = compute_stretch_force_norm("ellipsoid", "3");
+  mjtNum f_ell2 = compute_stretch_force_norm("ellipsoid", "2");
+
+  EXPECT_GT(f_box3, 0);
+  EXPECT_NEAR(f_box2, f_box3, MjTol(1e-9, 1e-4));
+  EXPECT_GT(f_ell3, 0);
+  EXPECT_LT(f_ell3, 0.7 * f_box3);
+  EXPECT_GT(f_ell3, 0.35 * f_box3);
+  EXPECT_NEAR(f_ell2, f_ell3, 0.1 * f_ell3);
+
+  // Simulate a 6x6x6 sphere (where cell 0 at the outer corner is empty,
+  // boundary cells are cut, and interior cells are full) for both trilinear and
+  // quadratic interpolation.
+  static constexpr char kSphereSimXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" timestep="1e-3" solver="CG"/>
+    <worldbody>
+      <body name="parent">
+        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
+        <flexcomp name="sphere" type="ellipsoid" dim="2" count="7 7 7"
+                  spacing="0.04 0.04 0.04" cellcount="6 6 6" dof="DOF_TYPE"
+                  mass="1" radius="0.001">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="500" poisson="0.25" damping="0.05"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* dof : {"trilinear", "quadratic"}) {
+    std::string xml = kSphereSimXml;
+    xml.replace(xml.find("DOF_TYPE"), 8, dof);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << dof << ": " << error;
+    EXPECT_EQ(m->flex_stiffness[0], 0) << dof << ": cell 0 should be empty";
+
+    MjDataPtr d = MakeData(m);
+    d->qpos[0] = 0.01;
+    mj_forward(m.get(), d.get());
+    EXPECT_GT(mju_norm(d->qfrc_spring, m->nv), 0) << dof;
+
+    for (int step = 0; step < 50; step++) {
+      mj_step(m.get(), d.get());
+    }
+    EXPECT_EQ(d->warning[mjWARN_BADQACC].number, 0) << dof;
+    for (int i = 0; i < m->nq; i++) {
+      ASSERT_TRUE(std::isfinite(d->qpos[i])) << dof << " qpos " << i;
+    }
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

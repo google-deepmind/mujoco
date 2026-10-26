@@ -4055,7 +4055,9 @@ saving the XML:
 
 :at:`cellcount`: :at-val:`int(3), "1 1 1"`
    Specifies the number of cells in each dimension for the background interpolation grid when using **trilinear** or
-   **quadratic** dofs.
+   **quadratic** dofs. Compilation and simulation cost scale with ``cellcount`` and the interpolation order
+   (:ref:`dof<body-flexcomp-dof>`); compiled cell stiffness and cut-cell quadrature weights are cached across
+   recompilations.
 
 .. _body-flexcomp-spacing:
 
