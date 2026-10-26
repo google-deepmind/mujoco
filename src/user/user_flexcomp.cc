@@ -2205,7 +2205,7 @@ bool mjCFlex::IsSimple() const {
 }
 
 
-std::string mjCFlex::ComputeStiffnessCacheKey() const {
+std::string mjCFlex::ComputeStiffnessCacheKey(const std::vector<double>& nodexpos_local) const {
   std::size_t hash = 0;
   auto combine     = [&hash](std::size_t v) { hash ^= v + 0x9e3779b9 + (hash << 6) + (hash >> 2); };
 
@@ -2240,29 +2240,25 @@ std::string mjCFlex::ComputeStiffnessCacheKey() const {
     combine(std::hash<double>{}(maxz - minz));
   }
 
-  for (std::size_t i = 0; i < vert_.size(); i += std::max(1, (int)vert_.size() / 100)) {
-    combine(std::hash<double>{}(vert_[i]));
-  }
+  for (double x : nodexpos_local) { combine(std::hash<double>{}(x)); }
 
-  for (std::size_t i = 0; i < elem_.size(); i += std::max(1, (int)elem_.size() / 100)) {
-    combine(std::hash<int>{}(elem_[i]));
-  }
+  for (double v : vert_) { combine(std::hash<double>{}(v)); }
+
+  for (int e : elem_) { combine(std::hash<int>{}(e)); }
 
   for (bool empty : cell_empty) { combine(std::hash<bool>{}(empty)); }
 
-  for (std::size_t i = 0; i < shell.size(); i += std::max(1, (int)shell.size() / 50)) {
-    combine(std::hash<int>{}(shell[i]));
-  }
+  for (int s : shell) { combine(std::hash<int>{}(s)); }
 
   return "flex_stiffness:" + std::to_string(hash);
 }
 
 
-bool mjCFlex::LoadCachedStiffness() {
+bool mjCFlex::LoadCachedStiffness(const std::vector<double>& nodexpos_local) {
   mjCCache* cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
   if (!cache) return false;
 
-  std::string key = ComputeStiffnessCacheKey();
+  std::string key = ComputeStiffnessCacheKey(nodexpos_local);
 
   auto load_fn = [this](const void* data) {
     const auto* cached = static_cast<const std::vector<double>*>(data);
@@ -2270,19 +2266,22 @@ bool mjCFlex::LoadCachedStiffness() {
     return true;
   };
 
+  mjpResourceProvider dummy_provider{};
+  dummy_provider.modified = [](const mjResource*, const char*) { return 0; };
   mjResource dummy_resource{};
   dummy_resource.name         = const_cast<char*>(key.c_str());
   dummy_resource.timestamp[0] = '\0';
+  dummy_resource.provider     = &dummy_provider;
 
   return cache->PopulateData(key, &dummy_resource, load_fn);
 }
 
 
-void mjCFlex::CacheStiffness() {
+void mjCFlex::CacheStiffness(const std::vector<double>& nodexpos_local) {
   mjCCache* cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
   if (!cache || stiffness.empty()) return;
 
-  std::string key = ComputeStiffnessCacheKey();
+  std::string key = ComputeStiffnessCacheKey(nodexpos_local);
 
   auto* cached = new std::vector<double>(stiffness);
 
@@ -3048,7 +3047,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   bool need_stiffness =
       interpolated && (has_strain_eq || (young > 0 && (elastic2d == 0 || elastic2d >= 2)));
   bool stiffness_cached = false;
-  if (need_stiffness) { stiffness_cached = LoadCachedStiffness(); }
+  if (need_stiffness) { stiffness_cached = LoadCachedStiffness(nodexpos_local); }
 
   if (!stiffness_cached && need_stiffness) {
     // use young=1 for strain constraints (eigenvectors are geometry-only)
@@ -3204,6 +3203,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         std::copy(K_elem.begin(), K_elem.end(), out);
       }
     }
+    CacheStiffness(nodexpos_local);
   }
 
   // compute interpolated shell bending edge data (independent of stiffness cache)

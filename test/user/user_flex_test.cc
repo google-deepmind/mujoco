@@ -3436,5 +3436,96 @@ TEST_F(UserFlexTest, SliverCellPruningAndExtrapolation) {
   }
 }
 
+TEST_F(UserFlexTest, StiffnessCacheHit) {
+  static constexpr char kSphereXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
+        <flexcomp name="s" type="ellipsoid" count="6 6 6" spacing=".05 .05 .05"
+                  dim="2" dof="quadratic" mass="1.0" cellcount="3 3 3" radius="0.001">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1.23e4" poisson="0.3"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char kOtherSphereXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
+        <flexcomp name="s" type="ellipsoid" count="6 6 6" spacing=".05 .05 .05"
+                  dim="2" dof="quadratic" mass="1.0" cellcount="3 3 3" radius="0.001">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="2.46e4" poisson="0.3"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  mjCache* cache = mj_getCache();
+  std::size_t orig_capacity = mj_getCacheCapacity(cache);
+  mj_clearCache(cache);
+
+  // Cold parse + compile populates the stiffness cache (insert_num=0,
+  // access=0).
+  mjSpec* spec1 = mj_parseXMLString(kSphereXml, nullptr, error, sizeof(error));
+  ASSERT_THAT(spec1, NotNull()) << error;
+  std::size_t parse_size = mj_getCacheSize(cache);
+  MjModelPtr m1(mj_compile(spec1, nullptr));
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec1);
+  std::size_t total_size = mj_getCacheSize(cache);
+  std::size_t stiff_size = total_size - parse_size;
+  ASSERT_GT(stiff_size, 0);
+
+  // Warm recompile of the same spec hits the stiffness cache (increments
+  // access_count to 1 without inserting a new entry).
+  MjModelPtr m2(mj_compile(spec1, nullptr));
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec1);
+  EXPECT_EQ(mj_getCacheSize(cache), total_size);
+
+  // Compile a second model with different Young's modulus (insert_num=1,
+  // access=0), then trim the cache capacity to evict one stiffness entry.
+  // Because mjCCache evicts the entry with smaller (access_count, insert_num),
+  // the first stiffness entry (access_count=1) survives eviction only if m2's
+  // compile actually hit LoadCachedStiffness.
+  mjSpec* spec_other =
+      mj_parseXMLString(kOtherSphereXml, nullptr, error, sizeof(error));
+  ASSERT_THAT(spec_other, NotNull()) << error;
+  MjModelPtr m_other(mj_compile(spec_other, nullptr));
+  ASSERT_THAT(m_other, NotNull()) << mjs_getError(spec_other);
+  EXPECT_EQ(mj_getCacheSize(cache), total_size + stiff_size);
+
+  mj_setCacheCapacity(cache, total_size);
+  mj_setCacheCapacity(cache, orig_capacity);
+  EXPECT_EQ(mj_getCacheSize(cache), total_size);
+
+  // Warm parse + compile of a fresh spec for the first model hits the surviving
+  // cache entry, so cache size remains total_size instead of growing by
+  // stiff_size.
+  mjSpec* spec2 = mj_parseXMLString(kSphereXml, nullptr, error, sizeof(error));
+  ASSERT_THAT(spec2, NotNull()) << error;
+  MjModelPtr m3(mj_compile(spec2, nullptr));
+  ASSERT_THAT(m3, NotNull()) << mjs_getError(spec2);
+  EXPECT_EQ(mj_getCacheSize(cache), total_size);
+
+  ASSERT_GT(m1->nflexstiffness, 0);
+  ASSERT_EQ(m1->nflexstiffness, m2->nflexstiffness);
+  ASSERT_EQ(m1->nflexstiffness, m3->nflexstiffness);
+  for (int i = 0; i < m1->nflexstiffness; i++) {
+    EXPECT_EQ(m1->flex_stiffness[i], m2->flex_stiffness[i]);
+    EXPECT_EQ(m1->flex_stiffness[i], m3->flex_stiffness[i]);
+  }
+
+  mj_deleteSpec(spec1);
+  mj_deleteSpec(spec2);
+  mj_deleteSpec(spec_other);
+}
+
 }  // namespace
 }  // namespace mujoco

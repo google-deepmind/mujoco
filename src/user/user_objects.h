@@ -1309,9 +1309,9 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
                                                     double* R0_out = nullptr) const;
 
   // stiffness caching
-  std::string ComputeStiffnessCacheKey() const;
-  bool        LoadCachedStiffness();
-  void        CacheStiffness();
+  std::string ComputeStiffnessCacheKey(const std::vector<double>& nodexpos_local) const;
+  bool        LoadCachedStiffness(const std::vector<double>& nodexpos_local);
+  void        CacheStiffness(const std::vector<double>& nodexpos_local);
 };
 
 
