@@ -1952,11 +1952,23 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
         mjtNum margin = getMargin(m, g1, g2, ipair);
         mjtNum gap = getGap(m, g1, g2, ipair);
         ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
-        if (ncon[i] == 0 && !mjDISABLED(mjDSBL_NATIVECCD)) {
-          if (geomFastSweep(m, d, g1, NULL, NULL) > 0 ||
-              geomFastSweep(m, d, g2, NULL, NULL) > 0) {
-            ncon[i] = mjc_advanceGeomPair(m, d, g1, g2, margin + gap, conbuffer + conpos,
-                                          epabuffer + thread_id * conargs->ccd_size);
+        if (!mjDISABLED(mjDSBL_NATIVECCD)) {
+          // check for active surface contact (in-gap contacts are only replaced if
+          // CCD finds a surface hit)
+          int active = 0;
+          for (int k = 0; k < ncon[i]; k++) {
+            if (conbuffer[conpos + k].dist < margin) {
+              active = 1;
+              break;
+            }
+          }
+          if (!active && (geomFastSweep(m, d, g1, NULL, NULL) > 0 ||
+                          geomFastSweep(m, d, g2, NULL, NULL) > 0)) {
+            int nccd = mjc_advanceGeomPair(m, d, g1, g2, margin, conbuffer + conpos,
+                                           epabuffer + thread_id * conargs->ccd_size);
+            if (nccd > 0) {
+              ncon[i] = nccd;
+            }
           }
         }
         break;

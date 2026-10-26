@@ -972,11 +972,11 @@ TEST_F(ContinuousCollisionTest,
       <geom name="thin_wall" type="box" size="1.0 1.0 0.02" pos="0 0 0"/>
       <body name="fast_sphere" pos="-0.4 0 0.25">
         <freejoint/>
-        <geom type="sphere" size="0.04" mass="1"/>
+        <geom type="sphere" size="0.04" gap="0.05" mass="1"/>
       </body>
       <body name="fast_box" pos="0 0 0.25">
         <freejoint/>
-        <geom type="box" size="0.04 0.04 0.04" mass="1"/>
+        <geom type="box" size="0.04 0.04 0.04" gap="0.20" mass="1"/>
       </body>
       <body name="fast_capsule" pos="0.4 0 0.25">
         <freejoint/>
