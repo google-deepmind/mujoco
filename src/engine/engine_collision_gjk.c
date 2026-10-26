@@ -1672,8 +1672,8 @@ static int polygonClip(mjtNum* x1, mjtNum* x2, mjtNum* dist, int nconmax,
                        const mjtNum* face2, int nface2, const mjtNum n[3],
                        const mjtNum dir[3], mjtNum* buffer, int npolygonmax,
                        mjtNum margin) {
-  // clipping face needs to be at least a triangle
-  if (nface1 < 3) {
+  // clipping face needs to be at least a triangle, or a plane (nface1 == 0)
+  if (nface1 != 0 && nface1 < 3) {
     return 0;
   }
   mjtNum* polygon = buffer;
@@ -1682,10 +1682,12 @@ static int polygonClip(mjtNum* x1, mjtNum* x2, mjtNum* dist, int nconmax,
   mjtNum* pd = pn + 3 * npolygonmax;
 
   // compute plane normal and distance to plane for each vertex
-  for (int i = 0; i < nface1 - 1; i++) {
-    pd[i] = planeNormal(&pn[3*i], &face1[3*i], &face1[3*i + 3], n);
+  if (nface1 > 0) {
+    for (int i = 0; i < nface1 - 1; i++) {
+      pd[i] = planeNormal(&pn[3*i], &face1[3*i], &face1[3*i + 3], n);
+    }
+    pd[nface1 - 1] = planeNormal(&pn[3*(nface1 - 1)], &face1[3*(nface1 - 1)], &face1[0], n);
   }
-  pd[nface1 - 1] = planeNormal(&pn[3*(nface1 - 1)], &face1[3*(nface1 - 1)], &face1[0], n);
 
   // reserve 2 * max_sides as max sides for a clipped polygon
   int npolygon = nface2, nclipped = 0;
@@ -2223,11 +2225,29 @@ static int meshFace(mjtNum* res, mjCCDObj* obj, int idx) {
 }
 
 
+// recover plane normal
+static int planeNormals(mjtNum res[3], int resind[1], mjCCDObj* obj) {
+  res[0] = obj->mat[2];
+  res[1] = obj->mat[5];
+  res[2] = obj->mat[8];
+  resind[0] = 0;
+  return 1;
+}
+
+
+// recover plane point (0 edges as infinite plane needs no edge clipping)
+static int planeFace(mjtNum res[3], mjCCDObj* obj) {
+  copy3(res, obj->pos);
+  return 0;
+}
+
+
 // find two normals that are facing each other within a tolerance, return 1 if found
 static inline int alignedFaces(int res[2], const mjtNum* v, int nv,
-                               const mjtNum* w, int nw, const mjtNum dir[3]) {
+                               const mjtNum* w, int nw, const mjtNum dir[3],
+                               mjtNum face_tol) {
   int found = 0;
-  mjtNum best = -mjFACE_TOL;
+  mjtNum best = -face_tol;
   mjtNum dir_tol = mjEDGE_TOL * norm3(dir);
   for (int i = 0; i < nv; i++) {
     if (dot3(v + 3*i, dir) >= -dir_tol) {
@@ -2310,7 +2330,8 @@ static inline void inflate(int nx, mjtNum* x1, mjtNum* x2, mjtNum* dist,
 // return number of contacts
 int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjtNum* dist,
                      int nconmax, int nmeshdegmax, int npolygonmax, uint8_t* buffer) {
-  if (obj1->nsupp < 1 || obj2->nsupp < 1) {
+  if ((obj1->geom_type != mjGEOM_PLANE && obj1->nsupp < 1) ||
+      (obj2->geom_type != mjGEOM_PLANE && obj2->nsupp < 1)) {
     return 1;
   }
   if (obj1->geom_type == mjGEOM_MESH && !obj1->data.mesh.mesh_polynum) {
@@ -2318,6 +2339,10 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
   }
   if (obj2->geom_type == mjGEOM_MESH && !obj2->data.mesh.mesh_polynum) {
     return 1;
+  }
+  if (obj1->geom_type == mjGEOM_PLANE || obj2->geom_type == mjGEOM_PLANE) {
+    nmeshdegmax = nmeshdegmax < 1 ? 1 : nmeshdegmax;
+    npolygonmax = npolygonmax < 1 ? 1 : npolygonmax;
   }
   if (obj1->geom_type == mjGEOM_CYLINDER || obj2->geom_type == mjGEOM_CYLINDER) {
     nmeshdegmax = nmeshdegmax < 2 ? 2 : nmeshdegmax;
@@ -2332,17 +2357,29 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     npolygonmax = npolygonmax < 2 ? 2 : npolygonmax;
   }
 
-  int s1_1 = obj1->nsupp > 1 ? 1 : 0, s1_2 = obj1->nsupp > 2 ? 2 : 0;
-  int s2_1 = obj2->nsupp > 1 ? 1 : 0, s2_2 = obj2->nsupp > 2 ? 2 : 0;
-  int triface1i[3] = {obj1->suppind[0], obj1->suppind[s1_1], obj1->suppind[s1_2]};
-  int triface2i[3] = {obj2->suppind[0], obj2->suppind[s2_1], obj2->suppind[s2_2]};
-  mjtNum triface1[9], triface2[9];
-  copy3(triface1 + 0, obj1->suppvert + 0);
-  copy3(triface1 + 3, obj1->suppvert + 3*s1_1);
-  copy3(triface1 + 6, obj1->suppvert + 3*s1_2);
-  copy3(triface2 + 0, obj2->suppvert + 0);
-  copy3(triface2 + 3, obj2->suppvert + 3*s2_1);
-  copy3(triface2 + 6, obj2->suppvert + 3*s2_2);
+  int triface1i[3] = {0}, triface2i[3] = {0};
+  mjtNum triface1[9] = {0}, triface2[9] = {0};
+  int nface1 = 3, nface2 = 3;
+  if (obj1->geom_type != mjGEOM_PLANE) {
+    int s1_1 = obj1->nsupp > 1 ? 1 : 0, s1_2 = obj1->nsupp > 2 ? 2 : 0;
+    triface1i[0] = obj1->suppind[0];
+    triface1i[1] = obj1->suppind[s1_1];
+    triface1i[2] = obj1->suppind[s1_2];
+    copy3(triface1 + 0, obj1->suppvert + 0);
+    copy3(triface1 + 3, obj1->suppvert + 3*s1_1);
+    copy3(triface1 + 6, obj1->suppvert + 3*s1_2);
+    nface1 = simplexDim(triface1i, triface1);
+  }
+  if (obj2->geom_type != mjGEOM_PLANE) {
+    int s2_1 = obj2->nsupp > 1 ? 1 : 0, s2_2 = obj2->nsupp > 2 ? 2 : 0;
+    triface2i[0] = obj2->suppind[0];
+    triface2i[1] = obj2->suppind[s2_1];
+    triface2i[2] = obj2->suppind[s2_2];
+    copy3(triface2 + 0, obj2->suppvert + 0);
+    copy3(triface2 + 3, obj2->suppvert + 3*s2_1);
+    copy3(triface2 + 6, obj2->suppvert + 3*s2_2);
+    nface2 = simplexDim(triface2i, triface2);
+  }
 
   uint8_t* ptr = buffer;
   int* idx1 = (int*)ptr;           ptr += align8(sizeof(int) * nmeshdegmax);
@@ -2354,14 +2391,23 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
   mjtNum* face2 = (mjtNum*)ptr;    ptr += align8(sizeof(mjtNum) * 3 * npolygonmax);
   mjtNum* polygon = (mjtNum*)ptr;  // buffer for polygonClip
 
-  // get dimensions of features of geoms 1 and 2
-  int nface1 = simplexDim(triface1i, triface1);
-  int nface2 = simplexDim(triface2i, triface2);
   int nnorms1 = 0, nnorms2 = 0;
 
   mjtNum dir[3], dir_neg[3];
-  sub3(dir, x2, x1);
-  sub3(dir_neg, x1, x2);
+  if (obj1->geom_type == mjGEOM_PLANE) {
+    dir_neg[0] = obj1->mat[2];
+    dir_neg[1] = obj1->mat[5];
+    dir_neg[2] = obj1->mat[8];
+    scl3(dir, dir_neg, -1.0);
+  } else if (obj2->geom_type == mjGEOM_PLANE) {
+    dir[0] = obj2->mat[2];
+    dir[1] = obj2->mat[5];
+    dir[2] = obj2->mat[8];
+    scl3(dir_neg, dir, -1.0);
+  } else {
+    sub3(dir, x2, x1);
+    sub3(dir_neg, x1, x2);
+  }
 
   // get all possible face normals for each geom
   if (obj1->geom_type == mjGEOM_BOX) {
@@ -2370,6 +2416,8 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     nnorms1 = meshNormals(n1, idx1, nface1, obj1, triface1i);
   } else if (obj1->geom_type == mjGEOM_CYLINDER) {
     nnorms1 = cylinderNormals(n1, idx1, nface1, obj1, triface1i, dir_neg);
+  } else if (obj1->geom_type == mjGEOM_PLANE) {
+    nnorms1 = planeNormals(n1, idx1, obj1);
   }
   if (obj2->geom_type == mjGEOM_BOX) {
     nnorms2 = boxNormals(n2, idx2, nface2, obj2, triface2i, dir);
@@ -2377,11 +2425,15 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     nnorms2 = meshNormals(n2, idx2, nface2, obj2, triface2i);
   } else if (obj2->geom_type == mjGEOM_CYLINDER) {
     nnorms2 = cylinderNormals(n2, idx2, nface2, obj2, triface2i, dir);
+  } else if (obj2->geom_type == mjGEOM_PLANE) {
+    nnorms2 = planeNormals(n2, idx2, obj2);
   }
 
-  // determine if any two face normals match
+  // determine if any two face normals match (planes skip face tolerance)
   int res[2], edgecon1 = 0, edgecon2 = 0;
-  if (!alignedFaces(res, n1, nnorms1, n2, nnorms2, dir)) {
+  mjtNum face_tol = (obj1->geom_type == mjGEOM_PLANE || obj2->geom_type == mjGEOM_PLANE)
+                    ? 0 : mjFACE_TOL;
+  if (!alignedFaces(res, n1, nnorms1, n2, nnorms2, dir, face_tol)) {
     // check if edge-face collision
     if (nface1 < 3 && nnorms2 && (nface1 <= nface2 || !nnorms1)) {
       nnorms1 = 0;
@@ -2433,6 +2485,8 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
     } else if (obj1->geom_type == mjGEOM_CYLINDER) {
       int ind = (edgecon2 ? idx1[j] : idx1[i]);
       nface1 = cylinderFace(face1, obj1, ind);
+    } else if (obj1->geom_type == mjGEOM_PLANE) {
+      nface1 = planeFace(face1, obj1);
     }
   }
 
@@ -2448,6 +2502,8 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
       nface2 = meshFace(face2, obj2, idx2[j]);
     } else if (obj2->geom_type == mjGEOM_CYLINDER) {
       nface2 = cylinderFace(face2, obj2, idx2[j]);
+    } else if (obj2->geom_type == mjGEOM_PLANE) {
+      nface2 = planeFace(face2, obj2);
     }
   }
 
@@ -2460,17 +2516,18 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
   mjtNum margin = margin1 + margin2;
 
   int nx;
-  if (edgecon1) {
-    // face1 is an edge; clip face1 against face2
+  if (edgecon1 || obj2->geom_type == mjGEOM_PLANE) {
+    // face1 is an edge or face2 is a plane; clip face1 against face2
     scl3(wit_dir, n2 + 3*j, -1.0);
     copy3(normal, wit_dir);
     nx = polygonClip(x2, x1, dist, nconmax, face2, nface2, face1, nface1, n2 + 3*j, wit_dir,
                      polygon, npolygonmax, margin);
-  } else if (edgecon2) {
-    // face2 is an edge; clip face2 against face1
-    scl3(wit_dir, n1 + 3*j, -1.0);
-    copy3(normal, n1 + 3*j);
-    nx = polygonClip(x1, x2, dist, nconmax, face1, nface1, face2, nface2, n1 + 3*j, wit_dir,
+  } else if (edgecon2 || obj1->geom_type == mjGEOM_PLANE) {
+    // face2 is an edge or face1 is a plane; clip face2 against face1
+    int ind = edgecon2 ? j : i;
+    scl3(wit_dir, n1 + 3*ind, -1.0);
+    copy3(normal, n1 + 3*ind);
+    nx = polygonClip(x1, x2, dist, nconmax, face1, nface1, face2, nface2, n1 + 3*ind, wit_dir,
                      polygon, npolygonmax, margin);
   } else {
     // face-face collision

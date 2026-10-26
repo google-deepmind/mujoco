@@ -910,6 +910,13 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
     EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
   }
 
+  // horizontal capsule falling onto ground plane -> 2 edge-face contacts
+  mj_resetData(m, d);
+  d->qvel[20] = -50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, buffer.data()), 2);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 5, 0, 0.0, con, buffer.data()), 2);
+
   // rotational motion (dw != 0): horizontal capsule at z = -0.90 rotating about
   // y-axis so its +x tip swings down into the ground plane at z = -1
   mj_resetData(m, d);
