@@ -481,7 +481,13 @@ TEST_F(MjCMeshTest, TinyMeshLoads) {
 
   // Polygon areas are ~5e-9 m^2 (squared Newell norm ~1e-16 < mjEPS);
   // normals must still be distinct rather than falling back to (1, 0, 0).
-  EXPECT_LT(mju_dot3(model->mesh_polynormal, model->mesh_polynormal + 3), 0);
+  for (int i = 0; i < 4; ++i) {
+    for (int j = i + 1; j < 4; ++j) {
+      EXPECT_LT(mju_dot3(model->mesh_polynormal + 3 * i,
+                         model->mesh_polynormal + 3 * j),
+                1e-7);
+    }
+  }
 }
 
 // ------------- test max hull vert -------------------------------------------
