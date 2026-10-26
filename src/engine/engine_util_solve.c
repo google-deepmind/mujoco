@@ -30,7 +30,7 @@
 //---------------------------- dense Cholesky ------------------------------------------------------
 
 // Cholesky decomposition: mat = L*L'; return 'rank'
-int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
+int mju_cholFactor(mjtNum* restrict mat, int n, mjtNum mindiag) {
   int rank = n;
   mjtNum tmp;
 
@@ -71,7 +71,7 @@ int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
 
 
 // Cholesky solve
-void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
+void mju_cholSolve(mjtNum* res, const mjtNum* restrict mat, const mjtNum* vec, int n) {
   // copy if source and destination are different
   if (res != vec) {
     mju_copy(res, vec, n);
@@ -79,6 +79,7 @@ void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
 
   // forward substitution: solve L*res = vec
   for (int i=0; i < n; i++) {
+    // off-diagonal
     if (i) {
       res[i] -= mju_dot(mat+i*n, res, i);
     }
@@ -89,13 +90,13 @@ void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
 
   // backward substitution: solve L'*res = res
   for (int i=n-1; i >= 0; i--) {
-    if (i < n-1) {
-      for (int j=i+1; j < n; j++) {
-        res[i] -= mat[j*n+i] * res[j];
-      }
-    }
     // diagonal
     res[i] /= mat[i*(n+1)];
+
+    // update res[0..i-1] with row i of L
+    if (i && res[i]) {
+      mju_addToScl(res, mat+i*n, -res[i], i);
+    }
   }
 }
 

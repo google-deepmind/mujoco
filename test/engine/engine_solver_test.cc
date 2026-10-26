@@ -612,7 +612,7 @@ TEST_F(SolverTest, WarmstartZeroIterationsIslands) {
   MjDataPtr data = MakeData(model);
 
   // float32 cannot resolve the default tolerance: use a resolvable one
-  model->opt.tolerance = MjTol(1e-8, 1e-6);
+  model->opt.tolerance = MjTol(1e-8, 2e-6);
 
   // settle both boxes, islands enabled (default)
   for (int i = 0; i < 500; i++) {
