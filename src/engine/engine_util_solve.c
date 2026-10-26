@@ -18,6 +18,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -463,13 +464,7 @@ int mju_cholFactorSymbolicBlocked(int* restrict L_colind, int* restrict L_rownnz
 
 
 // suffix update of ns target rows from batch descendant rows (ns, batch are compile-time constants)
-#if defined(_MSC_VER)
-static __forceinline
-#elif defined(__GNUC__)
-static inline __attribute__((always_inline))
-#else
-static inline
-#endif
+static mjALWAYS_INLINE
 void cholSuffixUpdate(int ns, int batch, int nlead,
                       mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
                       const mjtNum* restrict p0, const mjtNum* restrict p1,
@@ -502,13 +497,7 @@ void cholSuffixUpdate(int ns, int batch, int nlead,
 
 
 // non-suffix scatter of batch descendant rows into dense (batch is a compile-time constant)
-#if defined(_MSC_VER)
-static __forceinline
-#elif defined(__GNUC__)
-static inline __attribute__((always_inline))
-#else
-static inline
-#endif
+static mjALWAYS_INLINE
 void cholScatterUpdate(int batch, int num_cols, mjtNum* restrict dense,
                        const int* restrict colptr,
                        const mjtNum* restrict p0, const mjtNum* restrict p1,
@@ -526,13 +515,7 @@ void cholScatterUpdate(int batch, int num_cols, mjtNum* restrict dense,
 
 
 // factor supernode of size ns (1, 2, or 3) starting at row r; return rank decrement (force inline)
-#if defined(_MSC_VER)
-static __forceinline
-#elif defined(__GNUC__)
-static inline __attribute__((always_inline))
-#else
-static inline
-#endif
+static mjALWAYS_INLINE
 int cholFactorSupernode(
     int r, int ns, mjtNum mindiag, mjtNum* restrict L,
     const int* restrict L_rownnz, const int* restrict L_rowadr, const int* restrict L_colind,

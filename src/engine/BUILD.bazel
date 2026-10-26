@@ -1049,6 +1049,7 @@ cc_library(
         "mjUSEPLATFORMSIMD",
     ],
     deps = [
+        ":engine_crossplatform",
         ":engine_memory",
         ":engine_util_blas",
         ":engine_util_misc",
@@ -1093,6 +1094,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_crossplatform",
         ":engine_inline",
         ":engine_memory",
         ":engine_util_blas",

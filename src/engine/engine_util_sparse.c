@@ -18,6 +18,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtype.h>
+#include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
@@ -912,13 +913,7 @@ int mju_sqrMatTDSparseSymbolic(
 
 
 // accumulate supernode block and off-diagonal row entries with fixed SIMD width (force inline)
-#if defined(_MSC_VER)
-static __forceinline
-#elif defined(__GNUC__)
-static inline __attribute__((always_inline))
-#else
-static inline
-#endif
+static mjALWAYS_INLINE
 void accumSuperRow(
     mjtNum block[mjMAXSUPER][mjMAXSUPER], mjtNum* restrict buffer,
     const mjtNum* restrict scale, const mjtNum* const matT_s[mjMAXSUPER],
