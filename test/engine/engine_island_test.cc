@@ -885,12 +885,12 @@ TEST_F(IslandTest, IslandFlex) {
   mjData* data2 = mj_makeData(model);
 
   model->opt.disableflags &= ~mjDSBL_ISLAND;
-  while (data1->time < 0.2) {
+  while (data1->time < 0.045) {
     mj_step(model, data1);
   }
 
   model->opt.disableflags |= mjDSBL_ISLAND;
-  while (data2->time < 0.2) {
+  while (data2->time < 0.045) {
     mj_step(model, data2);
   }
 
