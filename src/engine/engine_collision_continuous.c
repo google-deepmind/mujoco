@@ -1467,6 +1467,7 @@ static inline mjtNum evalGeomPairDist(const mjModel* m, mjCCDObj* obj1, mjCCDObj
 
 // compute effective contact distance so that mj_referenceConstraint arrests (1 - t) of the
 // normal velocity over this step and lands the geom at margin at t = 1
+// TODO(kylebayes): consider reusing the solver directly
 static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin, mjtNum t,
                                  mjtNum closing_dist) {
   int condim;
@@ -1516,12 +1517,12 @@ static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin
         b0 = mju_min(b0 / mju_sqrt(excess), imp * mju_max(0.0, fmax - 2.0));
       }
       if (k0 > mjMINVAL) {
-        mjtNum rem = mju_max(0.0, 1.0 - t - t * (b0 + k0));
-        delta = mju_max(delta, (rem / k0) * closing_dist);
+        mjtNum rem = 1.0 - t - t * (b0 + k0);
+        delta = (rem / k0) * closing_dist;
       }
     } else if (k0 > mjMINVAL) {
-      mjtNum rem = mju_max(0.0, 1.0 - t - b0);
-      delta = mju_max(delta, (rem / k0) * closing_dist);
+      mjtNum rem = 1.0 - t - b0;
+      delta = (rem / k0) * closing_dist;
     }
   }
   return margin - delta;

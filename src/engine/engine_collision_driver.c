@@ -434,7 +434,7 @@ typedef struct {
   int conpos;
   int group;                // filter group (-1: no filtering)
   union {
-    struct { int g1, g2, ipair; } geom_geom;
+    struct { int g1, g2, ipair, spec; } geom_geom;
     struct { int g, f; } geom_flex;
     struct { int g, f, e; } geom_elem;
     struct { int f1, e1, f2, e2; } elem_elem;
@@ -565,6 +565,7 @@ static int pushGeomGeom(const mjModel* m, mjData* d, int g1, int g2, int ipair, 
   pair.geom_geom.g1 = g1;
   pair.geom_geom.g2 = g2;
   pair.geom_geom.ipair = ipair;
+  pair.geom_geom.spec = 0;
   return pushPairArena(d, &pair, npair);
 }
 
@@ -1833,7 +1834,7 @@ static void mj_setContact(const mjModel* m, mjContact* con,
                           int condim, mjtNum includemargin,
                           const mjtNum* solref, const mjtNum* solreffriction,
                           const mjtNum* solimp, const mjtNum* friction,
-                          mjtNum adhesion) {
+                          mjtNum adhesion, int speculative) {
   // set parameters
   con->dim = condim;
   con->includemargin = includemargin;
@@ -1843,14 +1844,15 @@ static void mj_setContact(const mjModel* m, mjContact* con,
   mj_assignImp(m, con->solimp, solimp);
   mj_assignFriction(m, con->friction, friction);
 
-  // exclude in gap; adhesive contacts remain active in the gap, producing
-  // rows with positive violation whose reference acceleration pulls (tether)
-  con->exclude = (con->dist >= includemargin) && !adhesion;
+  // exclude in gap; adhesive and speculative contacts remain active when dist >= includemargin
+  con->exclude = (con->dist >= includemargin) && !adhesion && !speculative;
 
   // in-gap adhesive contacts have no surface contact and therefore no
   // friction: reduce to normal-only rows (with tangential rows present, fast
-  // slip would recruit normal force and brake tangential motion at a distance)
-  if (adhesion && con->dist >= includemargin) {
+  // slip would recruit normal force and brake tangential motion at a distance).
+  // Speculative contacts represent a surface impact during this step (where
+  // dist >= includemargin only indicates t >= 1 - b0), so they keep condim.
+  if (adhesion && !speculative && con->dist >= includemargin) {
     con->dim = 1;
   }
 
@@ -1933,7 +1935,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
   char* epabuffer = conargs->epabuffer;
   int chunksize = conargs->chunksize;
   int globalidx = chunksize * idx;
-  const mjcPair* pair = conargs->pairbuffer + globalidx;
+  mjcPair* pair = conargs->pairbuffer + globalidx;
   int* ncon = conargs->nconbuffer + chunksize * idx;
 
   int npair = conargs->npair;
@@ -1968,6 +1970,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
                                            epabuffer + thread_id * conargs->ccd_size);
             if (nccd > 0) {
               ncon[i] = nccd;
+              pair[i].geom_geom.spec = 1;
             }
           }
         }
@@ -2052,12 +2055,14 @@ static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* pre
 
   int g1 = -1, g2 = -1, f1 = -1, f2 = -1;
   int e1 = -1, e2 = -1, v1 = -1, v2 = -1;
+  int spec = 0;
 
   switch (pair->type) {
     case mjCPAIR_GEOM_GEOM: {
       g1 = pair->geom_geom.g1;
       g2 = pair->geom_geom.g2;
       int ipair = pair->geom_geom.ipair;
+      spec = pair->geom_geom.spec;
       margin = getMargin(m, g1, g2, ipair);
       if (ipair >= 0) {
         condim = m->pair_dim[ipair];
@@ -2114,7 +2119,8 @@ static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* pre
     con[i].vert[0] = v1;
     con[i].vert[1] = vert ? vert[i] : v2;
 
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction, adhesion);
+    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction,
+                  adhesion, spec);
   }
 }
 
