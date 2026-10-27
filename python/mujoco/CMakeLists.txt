@@ -102,7 +102,7 @@ if(NOT TARGET mujoco)
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
       set(MUJOCO_LIBRARY
-          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.17.0.dylib
+          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.3.17.1.dylib
       )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
       set(MUJOCO_INCLUDE "${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/Headers")
@@ -111,7 +111,7 @@ if(NOT TARGET mujoco)
 
   if(NOT MUJOCO_FRAMEWORK)
     find_library(
-      MUJOCO_LIBRARY mujoco mujoco.3.17.0 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
+      MUJOCO_LIBRARY mujoco mujoco.3.17.1 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
     )
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
@@ -533,6 +533,8 @@ target_link_libraries(
           structs_header
 )
 
+mujoco_pybind11_module(_batch batch.cc)
+
 mujoco_pybind11_module(_rollout rollout.cc threadpool.cc)
 
 # The Filament rendering API binding. It needs the Filament C API library, the
@@ -571,6 +573,7 @@ if(TARGET mujoco::platform)
   )
 endif()
 
+target_link_libraries(_batch PRIVATE functions_header mujoco raw)
 target_link_libraries(_rollout PRIVATE functions_header mujoco raw)
 
 mujoco_pybind11_module(
@@ -636,6 +639,7 @@ target_link_libraries(
 add_subdirectory(experimental/studio)
 
 set(LIBRARIES_FOR_WHEEL
+    "$<TARGET_FILE:_batch>"
     "$<TARGET_FILE:_callbacks>"
     "$<TARGET_FILE:_constants>"
     "$<TARGET_FILE:_enums>"
@@ -681,6 +685,7 @@ if(MUJOCO_PYTHON_MAKE_WHEEL)
 
   add_dependencies(
     wheel
+    _batch
     _callbacks
     _constants
     _enums

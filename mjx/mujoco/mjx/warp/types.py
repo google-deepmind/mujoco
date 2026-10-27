@@ -188,9 +188,12 @@ class ModelWarp(PyTreeNode):
   M_mulm_madr: np.ndarray
   M_mulm_rowadr: np.ndarray
   M_tiles: Tuple[TileSet, ...]
+  actuator_armature: jax.Array
   actuator_ctrladr: np.ndarray
   actuator_ctrlnum: np.ndarray
   actuator_ctrlspec: np.ndarray
+  actuator_damping: jax.Array
+  actuator_dampingpoly: jax.Array
   actuator_delay: jax.Array
   actuator_history: jax.Array
   actuator_historyadr: jax.Array
@@ -285,6 +288,7 @@ class ModelWarp(PyTreeNode):
   flex_stiffnessadr: np.ndarray
   flex_vert: np.ndarray
   flex_vertbodyid: np.ndarray
+  flex_vertcell: np.ndarray
   flex_vertflexid: np.ndarray
   flexedge_J_colind: np.ndarray
   flexedge_J_rowadr: np.ndarray
@@ -305,10 +309,10 @@ class ModelWarp(PyTreeNode):
   has_3d_flex: bool
   has_efm_actuator: bool
   has_ellipsoid_geom: bool
+  has_flex_edge_stiff_damp: bool
   has_flex_passive: bool
   has_flex_selfcollide: bool
   has_flex_snh: bool
-  has_flex_stiff_dim23: bool
   has_fluid: bool
   has_non_simple_flex: bool
   has_plane_geom: bool
@@ -317,6 +321,7 @@ class ModelWarp(PyTreeNode):
   has_tendon_stiffness: bool
   has_unsupported_flex_interp: bool
   is_sparse: bool
+  jnt_actuatorid: np.ndarray
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
   light_bodyid: np.ndarray
@@ -420,6 +425,7 @@ class ModelWarp(PyTreeNode):
   ten_J_rownnz: np.ndarray
   ten_wrapadr_site: np.ndarray
   ten_wrapnum_site: np.ndarray
+  tendon_actuatorid: np.ndarray
   tendon_geom_adr: np.ndarray
   tendon_jnt_adr: np.ndarray
   tendon_limited_adr: np.ndarray
@@ -861,6 +867,7 @@ _NDIM = {
         'actuator_actlimited': 1,
         'actuator_actnum': 1,
         'actuator_actrange': 3,
+        'actuator_armature': 2,
         'actuator_biasprm': 3,
         'actuator_biastype': 1,
         'actuator_cranklength': 2,
@@ -869,6 +876,8 @@ _NDIM = {
         'actuator_ctrlnum': 1,
         'actuator_ctrlrange': 3,
         'actuator_ctrlspec': 1,
+        'actuator_damping': 2,
+        'actuator_dampingpoly': 3,
         'actuator_delay': 2,
         'actuator_dynprm': 3,
         'actuator_dyntype': 1,
@@ -1058,6 +1067,7 @@ _NDIM = {
         'flex_vert0': 2,
         'flex_vertadr': 1,
         'flex_vertbodyid': 1,
+        'flex_vertcell': 1,
         'flex_vertflexid': 1,
         'flex_vertnum': 1,
         'flexedge_J_colind': 1,
@@ -1102,10 +1112,10 @@ _NDIM = {
         'has_3d_flex': 0,
         'has_efm_actuator': 0,
         'has_ellipsoid_geom': 0,
+        'has_flex_edge_stiff_damp': 0,
         'has_flex_passive': 0,
         'has_flex_selfcollide': 0,
         'has_flex_snh': 0,
-        'has_flex_stiff_dim23': 0,
         'has_fluid': 0,
         'has_non_simple_flex': 0,
         'has_plane_geom': 0,
@@ -1122,6 +1132,7 @@ _NDIM = {
         'jnt_actfrclimited': 1,
         'jnt_actfrcrange': 3,
         'jnt_actgravcomp': 1,
+        'jnt_actuatorid': 1,
         'jnt_axis': 3,
         'jnt_bodyid': 1,
         'jnt_dofadr': 1,
@@ -1372,6 +1383,7 @@ _NDIM = {
         'ten_wrapnum_site': 1,
         'tendon_actfrclimited': 1,
         'tendon_actfrcrange': 3,
+        'tendon_actuatorid': 1,
         'tendon_adr': 1,
         'tendon_armature': 2,
         'tendon_damping': 2,
@@ -1656,6 +1668,7 @@ _BATCH_DIM = {
         'actuator_actlimited': False,
         'actuator_actnum': False,
         'actuator_actrange': True,
+        'actuator_armature': True,
         'actuator_biasprm': True,
         'actuator_biastype': False,
         'actuator_cranklength': True,
@@ -1664,6 +1677,8 @@ _BATCH_DIM = {
         'actuator_ctrlnum': False,
         'actuator_ctrlrange': True,
         'actuator_ctrlspec': False,
+        'actuator_damping': True,
+        'actuator_dampingpoly': True,
         'actuator_delay': True,
         'actuator_dynprm': True,
         'actuator_dyntype': False,
@@ -1853,6 +1868,7 @@ _BATCH_DIM = {
         'flex_vert0': False,
         'flex_vertadr': False,
         'flex_vertbodyid': False,
+        'flex_vertcell': False,
         'flex_vertflexid': False,
         'flex_vertnum': False,
         'flexedge_J_colind': False,
@@ -1897,10 +1913,10 @@ _BATCH_DIM = {
         'has_3d_flex': False,
         'has_efm_actuator': False,
         'has_ellipsoid_geom': False,
+        'has_flex_edge_stiff_damp': False,
         'has_flex_passive': False,
         'has_flex_selfcollide': False,
         'has_flex_snh': False,
-        'has_flex_stiff_dim23': False,
         'has_fluid': False,
         'has_non_simple_flex': False,
         'has_plane_geom': False,
@@ -1917,6 +1933,7 @@ _BATCH_DIM = {
         'jnt_actfrclimited': False,
         'jnt_actfrcrange': True,
         'jnt_actgravcomp': False,
+        'jnt_actuatorid': False,
         'jnt_axis': True,
         'jnt_bodyid': False,
         'jnt_dofadr': False,
@@ -2167,6 +2184,7 @@ _BATCH_DIM = {
         'ten_wrapnum_site': False,
         'tendon_actfrclimited': False,
         'tendon_actfrcrange': True,
+        'tendon_actuatorid': False,
         'tendon_adr': False,
         'tendon_armature': True,
         'tendon_damping': True,

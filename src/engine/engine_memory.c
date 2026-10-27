@@ -174,9 +174,10 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
     mju_error(
         "mj_stackAlloc: out of memory, stack overflow%s\n"
         "  max = %" PRIuPTR ", available = %" PRIuPTR ", requested = %" PRIuPTR
-        "\n nefc = %d, ncon = %d",
+        ", narena = %" PRIuPTR " (increase <size memory=\"...\"/>)\n"
+        "  nefc = %d, ncon = %d",
         info, stack_info->bottom - stack_info->limit, stack_available_bytes,
-        stack_required_bytes, d->nefc, d->ncon);
+        stack_required_bytes, (uintptr_t)d->narena, d->nefc, d->ncon);
   }
 
 #ifdef mjUSEASAN
@@ -229,10 +230,11 @@ static inline void* stackalloc(mjData* d, size_t size, size_t alignment,
       mju_error(
           "mj_stackAlloc: out of memory, stack overflow%s (threadlock)\n"
           "  max = %" PRIuPTR ", available = %" PRIuPTR ", requested = %" PRIuPTR
-          "\n nefc = %d, ncon = %d",
+          ", narena = %" PRIuPTR " (increase <size memory=\"...\"/>)\n"
+          "  nefc = %d, ncon = %d",
           info, (uintptr_t)stack_available_bytes,
           (uintptr_t)(stack_available_bytes - old_pstack),
-          (uintptr_t)alloc_size, d->nefc, d->ncon);
+          (uintptr_t)alloc_size, (uintptr_t)d->narena, d->nefc, d->ncon);
     }
 
     uintptr_t bottom = (uintptr_t)d->arena + (uintptr_t)d->narena;

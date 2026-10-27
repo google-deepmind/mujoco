@@ -59,6 +59,8 @@ Renderable::Renderable(filament::Engine* engine,
                        MaterialManager* material_mgr)
     : material_mgr_(material_mgr), params_(params) {
   mjrf_defaultMaterial(&material_);
+  curr_state_.cast_shadow = params_.cast_shadow;
+  curr_state_.receive_shadow = params_.receive_shadow;
 }
 
 Renderable::~Renderable() noexcept { ClearParts(); }
@@ -76,6 +78,8 @@ void Renderable::ClearParts() {
   parts_.clear();
   get_transform_fn_ = nullptr;
   curr_state_ = DrawState{};
+  curr_state_.cast_shadow = params_.cast_shadow;
+  curr_state_.receive_shadow = params_.receive_shadow;
 }
 
 void Renderable::SetMesh(const Mesh* mesh, int elem_offset, int elem_count) {
@@ -262,6 +266,8 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
 
   for (const mjrfRenderRequest* request : requests) {
     DrawState draw_state;
+    draw_state.cast_shadow = params_.cast_shadow;
+    draw_state.receive_shadow = params_.receive_shadow;
     mjrfMaterial material = material_;
 
     // Selected materials are handled in a separate pass, so clear the value
@@ -417,24 +423,24 @@ std::uint16_t Renderable::SetBlendOrder(std::uint16_t blend_order) {
 }
 
 void Renderable::SetCastShadows(bool cast_shadow) {
-  if (params_.cast_shadow != cast_shadow) {
-    params_.cast_shadow = cast_shadow;
+  if (curr_state_.cast_shadow != cast_shadow) {
+    curr_state_.cast_shadow = cast_shadow;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
-      rm.setCastShadows(rm.getInstance(part.entity), params_.cast_shadow);
+      rm.setCastShadows(rm.getInstance(part.entity), curr_state_.cast_shadow);
     }
   }
 }
 
 void Renderable::SetReceiveShadows(bool receive_shadow) {
-  if (params_.receive_shadow != receive_shadow) {
-    params_.receive_shadow = receive_shadow;
+  if (curr_state_.receive_shadow != receive_shadow) {
+    curr_state_.receive_shadow = receive_shadow;
 
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (Part& part : parts_) {
       rm.setReceiveShadows(rm.getInstance(part.entity),
-                           params_.receive_shadow);
+                           curr_state_.receive_shadow);
     }
   }
 }

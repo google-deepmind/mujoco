@@ -3655,6 +3655,246 @@ TEST_F(DerivativeTest, FlexStiffAssembleInterp) {
   }
 }
 
+// verify shell-mode interpolated flex (flex_interp < 0, elastic2d="stretch")
+// derivatives and CSR assembly: mjd_flexInterp_mul matches finite differences
+// of qfrc_passive across rotations, is symmetric and PSD, includes the x-normal
+// faces (where k_elem[0] == 0), and matches mjd_flexStiff_assemble
+TEST_F(DerivativeTest, FlexInterpShellDerivatives) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="discrete"/>
+    <worldbody>
+      <flexcomp name="flex" type="grid" count="4 4 4" spacing="0.1 0.2 0.3"
+                cellcount="1 2 2" radius=".01" dim="3" mass="1" dof="trilinear">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e4" poisson="0.3" damping="5"
+                    elastic2d="stretch" thickness="0.02"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  EXPECT_EQ(model->flex_interp[0], -1);
+  ASSERT_EQ(mjd_flexInterpAssemblable(model.get()), 1);
+  int nv = model->nv;
+  MjDataPtr data = MakeData(model);
+
+  for (mjtNum angle : {0.0, 0.5, mjPI / 2}) {
+    RotateFlexGrid(model.get(), data.get(), "flex", angle);
+    mj_forward(model.get(), data.get());
+
+    // assemble dense K via mjd_flexInterp_mul (with damping=0, h=1)
+    mjtNum save_damping = model->flex_damping[0];
+    model->flex_damping[0] = 0;
+    std::vector<mjtNum> H(nv * nv, 0);
+    mulKD_dense(model.get(), data.get(), H.data(), nv, 1.0);
+    model->flex_damping[0] = save_damping;
+
+    std::vector<mjtNum> vec(nv), res(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i, 2) - 0.5;
+    }
+    mju_mulMatVec(res.data(), H.data(), vec.data(), nv, nv);
+
+    // finite difference of mj_passive at zero velocity
+    mjtNum eps = MjEps(1e-6, 1e-3);
+    mjData* data_perturbed = mj_copyData(NULL, model.get(), data.get());
+    mju_addToScl(data_perturbed->qpos, vec.data(), eps, nv);
+    mj_forward(model.get(), data_perturbed);
+    for (int i = 0; i < nv; ++i) {
+      mjtNum fd =
+          -(data_perturbed->qfrc_passive[i] - data->qfrc_passive[i]) / eps;
+      EXPECT_THAT(res[i], MjNear(fd, 5e-3, 5.0))
+          << "shell stiffness mismatch at DOF " << i << " angle " << angle;
+    }
+    mj_deleteData(data_perturbed);
+
+    // interior nodes on x=0 (node 4) and x=max (node 13) only belong to faces 0
+    // and 1 (where k_elem[0] == 0); verify their diagonal blocks are nonzero
+    for (int node_idx : {4, 13}) {
+      int bid = model->flex_nodebodyid[model->flex_nodeadr[0] + node_idx];
+      int dadr = model->body_dofadr[bid];
+      mjtNum trace = H[(dadr + 0) * nv + (dadr + 0)] +
+                     H[(dadr + 1) * nv + (dadr + 1)] +
+                     H[(dadr + 2) * nv + (dadr + 2)];
+      EXPECT_GT(trace, 1.0) << "expected positive stiffness trace on x-face "
+                               "interior node "
+                            << node_idx;
+    }
+
+    // verify CSR assembly matches mjd_flexInterp_mul
+    std::vector<mjtNum> krot(model->nflexstiffness, 0);
+    mjd_flexInterp_cacheKrot(model.get(), data.get(), krot.data());
+    mjtNum s1 = 4e-6, s2 = 2e-3;
+    std::vector<int> rownnz(nv), rowadr(nv);
+    int nnz = mjd_flexStiff_assemble(
+        model.get(), data.get(), rownnz.data(), rowadr.data(), NULL, NULL, s1,
+        s2, /*flg_bend=*/0, /*flg_stretch=*/0, krot.data());
+    ASSERT_GT(nnz, 0);
+    std::vector<int> colind(nnz);
+    std::vector<mjtNum> val(nnz);
+    mjd_flexStiff_assemble(model.get(), data.get(), rownnz.data(),
+                           rowadr.data(), colind.data(), val.data(), s1, s2,
+                           /*flg_bend=*/0, /*flg_stretch=*/0, krot.data());
+
+    std::vector<mjtNum> res_op(nv, 0), res_csr(nv, 0);
+    mjd_flexInterp_mul(model.get(), data.get(), res_op.data(), vec.data(), -s1,
+                       -s2, krot.data());
+    for (int i = 0; i < nv; i++) {
+      mjtNum sum = 0;
+      for (int k = 0; k < rownnz[i]; k++) {
+        sum += val[rowadr[i] + k] * vec[colind[rowadr[i] + k]];
+      }
+      res_csr[i] = sum;
+      EXPECT_THAT(res_csr[i], MjNear(res_op[i], 1e-12, 2e-5))
+          << "shell CSR/operator mismatch at DOF " << i;
+    }
+  }
+}
+
+// verify passive contact metric and velocity shift on interpolated flexes
+// (trilinear volumetric, trilinear shell elastic2d="bend", quadratic, and with
+// pinned cage nodes) against central finite differences of qfrc_spring
+TEST_F(DerivativeTest, FlexInterpPassiveContactDerivatives) {
+  struct Case {
+    const char* name;
+    const char* dof;
+    const char* elasticity;
+    const char* pin;
+  };
+  const Case cases[] = {
+      {"trilinear_vol", "trilinear",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0"/>)", ""},
+      {"trilinear_shell_bend", "trilinear",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0" thickness="0.01" elastic2d="bend"/>)",
+       ""},
+      {"quadratic_vol", "quadratic",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0"/>)", ""},
+      {"trilinear_pinned", "trilinear",
+       R"(<elasticity young="1e3" poisson="0.3" damping="0"/>)",
+       R"(<pin id="1 3 5 7"/>)"},
+  };
+
+  for (const Case& tc : cases) {
+    SCOPED_TRACE(tc.name);
+    std::string xml = std::string(R"(
+    <mujoco>
+      <option integrator="discrete" gravity="0 0 0" timestep="0.002"/>
+      <worldbody>
+        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <flexcomp name="box" type="grid" count="3 3 3" cellcount="1 1 1"
+                  spacing="0.1 0.1 0.1" radius="0.01" dim="3" mass="1.0"
+                  pos="0 0 0.09" dof=")") +
+                      tc.dof + R"(">
+          <contact selfcollide="none" passive="true"/>
+          )" + tc.elasticity +
+                      "\n" + tc.pin + R"(
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+
+    ASSERT_GT(d->nefmcon, 0);
+    ASSERT_EQ(d->nefc, 0);
+
+    // At rest qpos = 0, elastic force is zero so qfrc_spring equals the
+    // contact force interpolated onto cage nodes via mj_contactBodyWeight.
+    std::vector<mjtNum> expected_qfrc(m->nv, 0);
+    for (int i = 0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4 || con->dist >= 0) continue;
+      mjtNum k = mjd_flexContactStiffness(m.get(), d.get(), con, nullptr);
+      ASSERT_GT(k, 0);
+      mjtNum fn = -k * con->dist;
+      mjtNum force[3] = {fn * con->frame[0], fn * con->frame[1],
+                         fn * con->frame[2]};
+      for (int side = 0; side < 2; side++) {
+        if (con->flex[side] < 0) continue;
+        int body[128];
+        mjtNum weight[128];
+        int nb =
+            mj_contactBodyWeight(m.get(), d.get(), con, side, body, weight);
+        mjtNum sign = (side == 0) ? -1.0 : 1.0;
+        for (int j = 0; j < nb; j++) {
+          int b = m->body_weldid[body[j]];
+          if (m->body_dofnum[b] == 3) {
+            int da = m->body_dofadr[b];
+            expected_qfrc[da + 0] += sign * weight[j] * force[0];
+            expected_qfrc[da + 1] += sign * weight[j] * force[1];
+            expected_qfrc[da + 2] += sign * weight[j] * force[2];
+          }
+        }
+      }
+    }
+    for (int i = 0; i < m->nv; i++) {
+      EXPECT_NEAR(d->qfrc_spring[i], expected_qfrc[i],
+                  MjTol(1e-9, 1e-3) * mju_max(1.0, mju_abs(expected_qfrc[i])))
+          << "dof " << i;
+    }
+
+    int nv = m->nv;
+    mjtNum h = m->opt.timestep;
+    std::vector<mjtNum> vec(nv), res_with_con(nv, 0), res_no_con(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i, 3) - 0.5;
+    }
+    mj_effMulAdd(m.get(), d.get(), res_with_con.data(), vec.data(),
+                 /*flg_contact=*/1);
+    mj_effMulAdd(m.get(), d.get(), res_no_con.data(), vec.data(),
+                 /*flg_contact=*/0);
+
+    // Isolate the contact-only spring force by comparing against a copy with
+    // contact disabled, perturbed by +/- eps*vec (small enough that active
+    // contacts remain penetrating with constant plane normal).
+    mjtNum eps = MjEps(1e-7, 1e-5);
+    MjDataPtr d_plus(mj_copyData(nullptr, m.get(), d.get()));
+    MjDataPtr d_minus(mj_copyData(nullptr, m.get(), d.get()));
+    mju_addToScl(d_plus->qpos, vec.data(), eps, nv);
+    mju_addToScl(d_minus->qpos, vec.data(), -eps, nv);
+    mj_forward(m.get(), d_plus.get());
+    mj_forward(m.get(), d_minus.get());
+
+    m->opt.disableflags |= mjDSBL_CONTACT;
+    MjDataPtr d_plus_nocon(mj_copyData(nullptr, m.get(), d_plus.get()));
+    MjDataPtr d_minus_nocon(mj_copyData(nullptr, m.get(), d_minus.get()));
+    mj_forward(m.get(), d_plus_nocon.get());
+    mj_forward(m.get(), d_minus_nocon.get());
+    m->opt.disableflags &= ~mjDSBL_CONTACT;
+
+    mjtNum max_err = 0, scale = 0;
+    for (int i = 0; i < nv; i++) {
+      mjtNum f_plus = d_plus->qfrc_spring[i] - d_plus_nocon->qfrc_spring[i];
+      mjtNum f_minus = d_minus->qfrc_spring[i] - d_minus_nocon->qfrc_spring[i];
+      mjtNum fd_h2K = -h * h * (f_plus - f_minus) / (2 * eps);
+      mjtNum analytic_h2K = res_with_con[i] - res_no_con[i];
+      max_err = mju_max(max_err, mju_abs(analytic_h2K - fd_h2K));
+      scale = mju_max(scale, mju_abs(fd_h2K));
+    }
+    EXPECT_GT(scale, 1e-2);
+    EXPECT_LT(max_err, MjTol(1e-6, 1e-3) * scale);
+
+    // Also verify velocity shift d->efm_c: setting qvel = vec must shift efm_c
+    // by -(1/h) * (h^2 K_total * vec) = -h * K_total * vec.
+    mju_copy(d->qvel, vec.data(), nv);
+    mj_forward(m.get(), d.get());
+    for (int i = 0; i < nv; i++) {
+      EXPECT_NEAR(
+          d->efm_c[i], -res_with_con[i] / h,
+          MjTol(1e-9, 1e-3) * mju_max(1.0, mju_abs(res_with_con[i] / h)))
+          << "shift mismatch at DOF " << i;
+    }
+  }
+}
+
 struct FlexAttachmentCase {
   const char* name;
   const char* joints;

@@ -144,19 +144,19 @@ static void FillMeshBuffer(MeshBuilder& builder, const mjModel* model, int meshi
     const float2 uv2 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 1]) : ProjectUv(p2);
     const float2 uv3 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 2]) : ProjectUv(p3);
 
-    if (UseFaceNormal(face_normal, n1)) {
+    if (!texcoords && UseFaceNormal(face_normal, n1)) {
       builder.Append(p1, CalculateOrientation(face_normal), uv1);
     } else {
       builder.Append(p1, CalculateOrientation(n1), uv1);
     }
 
-    if (UseFaceNormal(face_normal, n2)) {
+    if (!texcoords && UseFaceNormal(face_normal, n2)) {
       builder.Append(p2, CalculateOrientation(face_normal), uv2);
     } else {
       builder.Append(p2, CalculateOrientation(n2), uv2);
     }
 
-    if (UseFaceNormal(face_normal, n3)) {
+    if (!texcoords && UseFaceNormal(face_normal, n3)) {
       builder.Append(p3, CalculateOrientation(face_normal), uv3);
     } else {
       builder.Append(p3, CalculateOrientation(n3), uv3);

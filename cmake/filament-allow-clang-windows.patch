@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 02c889f..446da78 100644
+index b558f82..cf36093 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -11,12 +11,7 @@ cmake_minimum_required(VERSION 3.22.1)
@@ -175,10 +175,10 @@ index b3fac7b..de14c8a 100644
  
  target_compile_options(${TARGET} PRIVATE
 diff --git a/filament/backend/CMakeLists.txt b/filament/backend/CMakeLists.txt
-index e18f9bd..658c73f 100644
+index 661a474..35756e7 100644
 --- a/filament/backend/CMakeLists.txt
 +++ b/filament/backend/CMakeLists.txt
-@@ -542,6 +542,10 @@ else()
+@@ -544,6 +544,10 @@ else()
      )
  endif()
  

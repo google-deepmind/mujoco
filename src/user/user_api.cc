@@ -350,6 +350,10 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
     }
   } catch (mjCError& e) {
     modelC->SetError(e);
+
+    // m and d are deleted on failure, as when compilation fails
+    if (d) { mj_deleteData(d); }
+    mj_deleteModel(m);
     return -1;
   }
   return 0;
@@ -510,7 +514,6 @@ mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz) {
                m->nflexshelldata,
                m->nflextexcoord,
                m->nJfe,
-               m->nJfv,
                m->nmesh,
                m->nmeshvert,
                m->nmeshnormal,

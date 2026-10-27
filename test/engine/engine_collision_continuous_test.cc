@@ -760,6 +760,9 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   constexpr char kXml[] = R"(
   <mujoco>
     <option timestep="0.01"/>
+    <default>
+      <geom solref="0.1 1"/>
+    </default>
     <worldbody>
       <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -1"/>
       <geom name="wall" type="box" size="0.5 0.5 0.02" pos="0 0 0"/>
@@ -769,7 +772,7 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
       </body>
       <body name="box1" pos="2 0 0.5">
         <freejoint/>
-        <geom name="b1" type="box" size="0.05 0.05 0.05"/>
+        <geom name="b1" type="box" size="0.05 0.05 0.05" mass="100"/>
       </body>
       <body name="box2" pos="2 0 0.8">
         <freejoint/>
@@ -787,42 +790,45 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   // initial distance is 0.27 - 0.02 - 0.05 = 0.20 m
   // downward speed -50 m/s over dt = 0.01 s -> step travel 0.50 m -> TOI around
   // 0.20 / 0.50 = 0.40
+  // With dt = 0.01 and solref = (0.1, 1): k0 = 0.01, b0 = 0.2, so
+  // dist = -((0.8 - t) / 0.01) * 0.50 = -50 * (0.8 - t) -> t = 0.8 + dist / 50
   d->qvel[2] = -50.0;
   mj_fwdPosition(m, d);
 
-  mjPreContact con;
-  mjtNum toi = mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con);
-  EXPECT_LT(toi, 1.0);
-  EXPECT_NEAR(toi, 0.392, MjTol(0.02, 0.02));
-  EXPECT_NEAR(con.pos[2], 0.22, MjTol(1e-4, 1e-4));
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
-  EXPECT_LT(con.dist, 0.0);
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  int ncon = mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon, 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].pos[2], 0.22, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_LT(con[0].dist, 0.0);
 
-  // moving upward (+50 m/s) -> no collision (toi == 1.0)
+  // moving upward (+50 m/s) -> no collision
   d->qvel[2] = 50.0;
   mj_fwdPosition(m, d);
-  EXPECT_MJTNUM_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con), 1.0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
 
   // grazing near-miss (skimming 1 cm above the box top at 50 m/s) -> no
-  // collision (toi == 1.0)
+  // collision
   d->qpos[0] = -0.8;
   d->qpos[2] = 0.08;
   d->qvel[0] = 50.0;
   d->qvel[2] = 0.0;
   mj_fwdPosition(m, d);
-  EXPECT_MJTNUM_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, &con), 1.0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
 
   // plane vs. moving sphere (both g1 = plane and g2 = plane)
   mj_resetData(m, d);
   d->qpos[2] = -0.75;  // 0.20 m above ground plane at z = -1 (radius 0.05)
   d->qvel[2] = -50.0;
   mj_fwdPosition(m, d);
-  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 0, 2, 0.0, &con), 0.392,
-              MjTol(0.02, 0.02));
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
-  EXPECT_NEAR(mjc_advanceGeomPair(m, d, 2, 0, 0.0, &con), 0.392,
-              MjTol(0.02, 0.02));
-  EXPECT_NEAR(con.normal[2], -1.0, MjTol(1e-4, 1e-4));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], -1.0, MjTol(1e-4, 1e-4));
 
   // two moving boxes traveling in the same direction at different speeds
   // initial distance is (0.8 - 0.05) - (0.5 + 0.05) = 0.20 m;
@@ -831,16 +837,169 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   d->qvel[8] = -10.0;
   d->qvel[14] = -60.0;
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 3, 4, 0.0, &con), 1.0);
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+  ncon = mjc_advanceGeomPair(m, d, 3, 4, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon, 4);
+  for (int i = 0; i < ncon; i++) {
+    EXPECT_NEAR(std::abs(con[i].pos[0] - 2.0), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(std::abs(con[i].pos[1]), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].pos[2], (0.1 * 0.55 + 0.6 * 0.75) / 0.7,
+                MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
+
+  // frictionless sphere (g = 2) hitting a free box (b1, g = 3) obliquely at
+  // 45 deg: normal force passes through the sphere's t = 0 center so the sphere
+  // gains no angular velocity and does not tunnel
+  mj_resetData(m, d);
+  d->qpos[0] = 1.85;
+  d->qpos[2] = 0.75;  // 0.15 m left and 0.15 m above b1 top (2.0, 0, 0.55)
+  d->qvel[0] = 30.0;
+  d->qvel[2] = -30.0;
+  mj_fwdPosition(m, d);
+  ncon = mjc_advanceGeomPair(m, d, 3, 2, 0.0, con, buffer.data());
+  ASSERT_EQ(ncon, 1);
+  EXPECT_NEAR(con[0].pos[0], 1.85, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con[0].pos[2], 0.70, MjTol(1e-4, 1e-4));
+  {
+    mjContact c = {};
+    c.dist = con[0].dist;
+    mju_copy3(c.pos, con[0].pos);
+    mju_copy3(c.frame, con[0].normal);
+    c.frame[3] = 1.0;
+    c.frame[7] = 1.0;
+    c.geom[0] = 3;
+    c.geom[1] = 2;
+    c.geom1 = 3;
+    c.geom2 = 2;
+    c.dim = 1;
+    c.vert[0] = -1;
+    c.vert[1] = -1;
+    c.elem[0] = -1;
+    c.elem[1] = -1;
+    c.flex[0] = -1;
+    c.flex[1] = -1;
+    c.efc_address = -1;
+    mju_copy(c.solref, m->geom_solref + mjNREF * 2, mjNREF);
+    mju_copy(c.solimp, m->geom_solimp + mjNIMP * 2, mjNIMP);
+    ASSERT_EQ(mj_addContact(m, d, &c), 0);
+    mj_makeConstraint(m, d);
+    mj_fwdVelocity(m, d);
+    mj_fwdActuation(m, d);
+    mj_fwdAcceleration(m, d);
+    mj_fwdConstraint(m, d);
+    mj_Euler(m, d);
+    EXPECT_LT(mju_norm3(d->qvel + 3), MjTol(1e-6, 1e-3));
+    EXPECT_GT(d->qpos[2] - d->qpos[9], 0.08);
+    // box spin (d->qvel + 9) is not checked: placing a single shared contact
+    // point at the fast sphere's t = 0 witness point shifts the lever arm on
+    // the resting box by the tangential travel
+  }
+
+  // horizontal capsule falling onto box wall -> 2 edge-face contacts
+  mj_resetData(m, d);
+  d->qpos[21] = 0.0;
+  d->qpos[22] = 0.0;
+  d->qpos[23] = 0.24;
+  d->qvel[20] = -50.0;
+  mj_fwdPosition(m, d);
+  ncon = mjc_advanceGeomPair(m, d, 1, 5, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon, 2);
+  for (int i = 0; i < ncon; i++) {
+    EXPECT_NEAR(std::abs(con[i].pos[0]), 0.2, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].pos[1], 0.0, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
+
+  // horizontal capsule falling onto ground plane -> 2 edge-face contacts
+  mj_resetData(m, d);
+  d->qvel[20] = -50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, buffer.data()), 2);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 5, 0, 0.0, con, buffer.data()), 2);
 
   // rotational motion (dw != 0): horizontal capsule at z = -0.90 rotating about
   // y-axis so its +x tip swings down into the ground plane at z = -1
   mj_resetData(m, d);
   d->qvel[22] = 100.0;  // wy = 100 rad/s -> 1 rad over dt = 0.01 s
   mj_fwdPosition(m, d);
-  EXPECT_LT(mjc_advanceGeomPair(m, d, 0, 5, 0.0, &con), 1.0);
-  EXPECT_NEAR(con.normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // line-of-sight ray occlusion: ball at (0, 0, 0.27) falling at -200 m/s
+  // hits wall (g = 1, at z = 0), which occludes ground (g = 0, at z = -1)
+  mj_resetData(m, d);
+  d->qvel[2] = -200.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 0);
+
+  // oblique impact at ~76 deg from normal (d0 = 0.02 m, dz = -0.05 m,
+  // dx = 0.20 m) and with large spin (dw dominating sweep)
+  mj_resetData(m, d);
+  d->qpos[0] = -0.10;
+  d->qpos[2] = 0.09;  // dist0 = 0.09 - 0.02 - 0.05 = 0.02 m above wall
+  d->qvel[0] = 20.0;  // dx = 0.20 m
+  d->qvel[2] = -5.0;  // dz = -0.05 m (TOI = 0.4)
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // box spinning rapidly about vertical z-axis (rot_sweep >> vn, hitting
+  // 16-step cap and exercising linear extrapolation fallback)
+  d->qpos[7] = -0.10;
+  d->qpos[9] = 0.09;    // dist0 = 0.09 - 0.02 - 0.05 = 0.02 m above wall
+  d->qvel[6] = 20.0;    // dx = 0.20 m
+  d->qvel[8] = -5.0;    // dz = -0.05 m (TOI = 0.4)
+  d->qvel[11] = 500.0;  // large wz spin inflating rot_sweep beyond 16-step cap
+  mj_fwdPosition(m, d);
+  EXPECT_GT(mjc_advanceGeomPair(m, d, 1, 3, 0.0, con, buffer.data()), 0);
+  EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // t > 1 - b0 (signed delta < 0, dist > margin): verify no mid-air ghost stop
+  // With default solref = (0.02, 1) and dt = 0.01: b0 = 1.0, k0 = 0.25.
+  // For Euler, rem = 1 - t - b0 = -t < 0, so dist = -delta = (t / 0.25) * 0.50
+  // = 2 * t > 0, and stepping lands the sphere on the wall top (z = 0.07).
+  m->geom_solref[mjNREF * 1 + 0] = 0.02;
+  m->geom_solref[mjNREF * 2 + 0] = 0.02;
+  for (int integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m, d);
+    d->qvel[2] = -50.0;
+    mj_fwdPosition(m, d);
+    ASSERT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+    if (integrator == mjINT_EULER) {
+      // t ~= 0.392 -> dist = -delta = (t / 0.25) * 0.50 = 2 * t ~= 0.784
+      EXPECT_NEAR(con[0].dist, 0.784, MjTol(0.04, 0.04));
+    }
+    mjContact c = {};
+    c.dist = con[0].dist;
+    mju_copy3(c.pos, con[0].pos);
+    mju_copy3(c.frame, con[0].normal);
+    c.frame[3] = 1.0;
+    c.frame[7] = 1.0;
+    c.geom[0] = 1;
+    c.geom[1] = 2;
+    c.geom1 = 1;
+    c.geom2 = 2;
+    c.dim = 1;
+    c.vert[0] = -1;
+    c.vert[1] = -1;
+    c.elem[0] = -1;
+    c.elem[1] = -1;
+    c.flex[0] = -1;
+    c.flex[1] = -1;
+    c.efc_address = -1;
+    mju_copy(c.solref, m->geom_solref + mjNREF * 2, mjNREF);
+    mju_copy(c.solimp, m->geom_solimp + mjNIMP * 2, mjNIMP);
+    ASSERT_EQ(mj_addContact(m, d, &c), 0);
+    mj_makeConstraint(m, d);
+    mj_fwdVelocity(m, d);
+    mj_step2(m, d);
+    EXPECT_NEAR(d->qpos[2], 0.07, 0.02) << "integrator=" << integrator;
+  }
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -856,11 +1015,11 @@ TEST_F(ContinuousCollisionTest,
       <geom name="thin_wall" type="box" size="1.0 1.0 0.02" pos="0 0 0"/>
       <body name="fast_sphere" pos="-0.4 0 0.25">
         <freejoint/>
-        <geom type="sphere" size="0.04" mass="1"/>
+        <geom type="sphere" size="0.04" gap="0.05" mass="1"/>
       </body>
       <body name="fast_box" pos="0 0 0.25">
         <freejoint/>
-        <geom type="box" size="0.04 0.04 0.04" mass="1"/>
+        <geom type="box" size="0.04 0.04 0.04" gap="0.20" mass="1"/>
       </body>
       <body name="fast_capsule" pos="0.4 0 0.25">
         <freejoint/>
@@ -895,6 +1054,11 @@ TEST_F(ContinuousCollisionTest,
     d->qvel[14] = -50.0;
     for (int step = 0; step < 5; step++) {
       mj_step(m, d);
+      if (step == 0) {
+        EXPECT_NEAR(d->qpos[2], 0.06, 0.02) << "sphere lands on wall";
+        EXPECT_NEAR(d->qpos[9], 0.06, 0.02) << "box lands on wall";
+        EXPECT_NEAR(d->qpos[16], 0.07, 0.02) << "capsule lands on wall";
+      }
       EXPECT_GT(d->qpos[2], 0.02) << "sphere arrested at step " << step;
       EXPECT_GT(d->qpos[9], 0.02) << "box arrested at step " << step;
       EXPECT_GT(d->qpos[16], 0.02) << "capsule arrested at step " << step;

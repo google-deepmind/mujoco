@@ -390,16 +390,39 @@ int mjc_GeomElem(const mjModel* m, mjData* d, mjPreContact* con, int g, int f, i
 //   on an internal cell plane belongs to the cells on both sides, so that the result does not
 //   depend on the side the vertex is rounded to; vertices within eps of a plane are treated as on
 //   the plane, where eps is relative to the cell size and covers the rounding of flex_vert0 in
-//   [0, 1] in single precision
-static void vertCellRange(const mjModel* m, int f, int v, int lo[3], int hi[3]) {
-  const mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[f] + v);
+//   [0, 1] in single precision; if v falls in a pruned/empty cell, returns the active cell that
+//   extrapolates v so mjc_ElemSharedNode reflects the nodes actually driving v
+void mjc_vertCellRange(const mjModel* m, int f, int v, int lo[3], int hi[3]) {
+  int gv = m->flex_vertadr[f] + v;
+  const mjtNum* coord = m->flex_vert0 + 3*gv;
   const int* cellnum = m->flex_cellnum + 3*f;
+  int cell = m->flex_vertcell[gv];
+  if (cell >= 0) {
+    int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+    int ci = mjMAX(0, mjMIN(cx - 1, (int)mju_floor(coord[0] * cx)));
+    int cj = mjMAX(0, mjMIN(cy - 1, (int)mju_floor(coord[1] * cy)));
+    int ck = mjMAX(0, mjMIN(cz - 1, (int)mju_floor(coord[2] * cz)));
+    if (cell != ci * cy * cz + cj * cz + ck) {
+      lo[0] = hi[0] = cell / (cy * cz);
+      lo[1] = hi[1] = (cell / cz) % cy;
+      lo[2] = hi[2] = cell % cz;
+      return;
+    }
+  }
   for (int i = 0; i < 3; i++) {
     mjtNum u = coord[i] * cellnum[i];
     mjtNum eps = 1e-6 * cellnum[i];
     lo[i] = mjMAX(0, mjMIN(cellnum[i] - 1, (int)mju_floor(u - eps)));
     hi[i] = mjMAX(0, mjMIN(cellnum[i] - 1, (int)mju_floor(u + eps)));
   }
+}
+
+
+// return 1 if cell ranges [lo1, hi1] and [lo2, hi2] are within distance 1 along every axis
+int mjc_cellRangeShared(const int lo1[3], const int hi1[3], const int lo2[3], const int hi2[3]) {
+  return lo2[0] - hi1[0] <= 1 && lo1[0] - hi2[0] <= 1 &&
+         lo2[1] - hi1[1] <= 1 && lo1[1] - hi2[1] <= 1 &&
+         lo2[2] - hi1[2] <= 1 && lo1[2] - hi2[2] <= 1;
 }
 
 
@@ -418,21 +441,14 @@ int mjc_ElemSharedNode(const mjModel* m, int f, int e1, int e2) {
   const int* edata2 = m->flex_elem + m->flex_elemdataadr[f] + e2*(dim + 1);
   int lo1[4][3], hi1[4][3], lo2[4][3], hi2[4][3];
   for (int i = 0; i <= dim; i++) {
-    vertCellRange(m, f, edata1[i], lo1[i], hi1[i]);
-    vertCellRange(m, f, edata2[i], lo2[i], hi2[i]);
+    mjc_vertCellRange(m, f, edata1[i], lo1[i], hi1[i]);
+    mjc_vertCellRange(m, f, edata2[i], lo2[i], hi2[i]);
   }
 
   // cell ranges within distance 1 along every axis
   for (int i1 = 0; i1 <= dim; i1++) {
     for (int i2 = 0; i2 <= dim; i2++) {
-      int shared = 1;
-      for (int k = 0; k < 3; k++) {
-        if (lo2[i2][k] - hi1[i1][k] > 1 || lo1[i1][k] - hi2[i2][k] > 1) {
-          shared = 0;
-          break;
-        }
-      }
-      if (shared) {
+      if (mjc_cellRangeShared(lo1[i1], hi1[i1], lo2[i2], hi2[i2])) {
         return 1;
       }
     }

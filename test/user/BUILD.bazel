@@ -201,6 +201,7 @@ cc_test(
     ],
     deps = [
         "//:mujoco",
+        "//src/user:user_model",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],

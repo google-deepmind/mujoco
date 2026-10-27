@@ -69,13 +69,13 @@ def main(argv: Sequence[str]) -> None:
   model_renderables = mjrf.ModelRenderables(r.scene("scn"), model_resources)
 
   # define multiple views
+  views: dict[str, renderer.View] = {}
   dx = 1.0 / ncam
   dy = 1.0 / len(modes)
   for y, mode in enumerate(modes):
     for x in range(ncam):
       vp = (x * dx, y * dy, dx, dy)
-      r.view(
-          f"v_{x}_{y}",
+      views[f"v_{x}_{y}"] = renderer.View(
           scene="scn",
           target="out",
           viewport=vp,
@@ -101,15 +101,15 @@ def main(argv: Sequence[str]) -> None:
         else:
           vcam.type = int(mujoco.mjtCamera.mjCAMERA_FIXED)
           vcam.fixedcamid = x
-        r.update_camera(
-            f"v_{x}_{y}", mujoco.mjv_camera2GLCamera(model, data, vcam)
+        views[f"v_{x}_{y}"].camera = mujoco.mjv_camera2GLCamera(
+            model, data, vcam
         )
 
     # ensure our output buffer is of the right size
     buf = _update_target(r, win, buf)
 
     # render the scene
-    r.render()
+    r.render(list(views.values()))
 
     # present the output image to the window
     win.Present(buf)

@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -1412,16 +1413,16 @@ TEST_F(ElasticityTest, TrilinearEmptyFirstCell) {
   }
 }
 
-// shell-mode interpolated flexes keep the first-block stiffness gate, under
-// which their membrane stretch is not applied: forces come from bending only
-// (elastic2d="stretch" has none, "both" equals "bend")
-TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
+// shell-mode interpolated flexes apply bending for elastic2d="bend", membrane
+// stretch on all 6 faces (including the x=0 and x=max faces whose first
+// stiffness entry is zero) for elastic2d="stretch", and their sum for "both"
+TEST_F(ElasticityTest, TrilinearShellElastic2d) {
   static constexpr char xml[] = R"(
   <mujoco>
     <option gravity="0 0 0"/>
     <worldbody>
-      <flexcomp type="grid" count="4 2 4" spacing=".025 .05 .025" pos="0 0 1"
-                dim="3" cellcount="2 1 2" radius=".001" mass="5"
+      <flexcomp type="grid" count="4 4 4" spacing=".025 .05 .025" pos="0 0 1"
+                dim="3" cellcount="1 2 2" radius=".001" mass="5"
                 name="softbody" dof="trilinear">
         <elasticity young="1e4" poisson="0.3"
                     elastic2d="ELASTIC2D" thickness="0.03"/>
@@ -1431,7 +1432,7 @@ TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
   </mujoco>
   )";
 
-  auto spring = [&](const char* elastic2d) {
+  auto load_and_deform = [&](const char* elastic2d, MjModelPtr* m_out) {
     std::string model_xml = xml;
     model_xml.replace(model_xml.find("ELASTIC2D"), 9, elastic2d);
     char error[1024] = {0};
@@ -1444,22 +1445,47 @@ TEST_F(ElasticityTest, TrilinearShellStretchUnchanged) {
       d->qpos[i] = m->qpos0[i] + 0.01 * mju_sin(1.7 * i + 0.3);
     }
     mj_forward(m.get(), d.get());
-    return AsVector(d->qfrc_spring, m->nv);
+    std::vector<mjtNum> frc = AsVector(d->qfrc_spring, m->nv);
+    if (m_out) *m_out = std::move(m);
+    return frc;
   };
 
-  std::vector<mjtNum> bend = spring("bend");
-  std::vector<mjtNum> stretch = spring("stretch");
-  std::vector<mjtNum> both = spring("both");
+  MjModelPtr m_bend, m_stretch, m_both;
+  std::vector<mjtNum> bend = load_and_deform("bend", &m_bend);
+  std::vector<mjtNum> stretch = load_and_deform("stretch", &m_stretch);
+  std::vector<mjtNum> both = load_and_deform("both", &m_both);
   ASSERT_FALSE(bend.empty());
   ASSERT_EQ(bend.size(), stretch.size());
   ASSERT_EQ(bend.size(), both.size());
-  mjtNum bend_norm = 0;
+
+  // bend-only does not allocate membrane stiffness; stretch and both do
+  EXPECT_EQ(m_bend->flex_stiffnessadr[0], -1);
+  EXPECT_GE(m_stretch->flex_stiffnessadr[0], 0);
+  EXPECT_GE(m_both->flex_stiffnessadr[0], 0);
+
+  mjtNum bend_norm = 0, stretch_norm = 0;
   for (int i = 0; i < static_cast<int>(bend.size()); i++) {
     bend_norm += bend[i] * bend[i];
-    EXPECT_EQ(stretch[i], 0) << "stretch force at dof " << i;
-    EXPECT_EQ(both[i], bend[i]) << "dof " << i;
+    stretch_norm += stretch[i] * stretch[i];
+    EXPECT_NEAR(both[i], bend[i] + stretch[i], MjTol(1e-10, 1e-4))
+        << "dof " << i;
   }
   EXPECT_GT(bend_norm, 0);
+  EXPECT_GT(stretch_norm, 0);
+
+  // With cellcount="1 2 2" (node grid 2 x 3 x 3), node (0, 1, 1) at index 4
+  // and node (1, 1, 1) at index 13 lie strictly in the interior of the x=0
+  // and x=max faces (faces 0 and 1, where normal_axis=0 and k_elem[0]==0) and
+  // do not touch any y- or z-normal faces. Verify both receive nonzero
+  // membrane stretch forces.
+  for (int node_idx : {4, 13}) {
+    int bid = m_stretch->flex_nodebodyid[m_stretch->flex_nodeadr[0] + node_idx];
+    int dadr = m_stretch->body_dofadr[bid];
+    mjtNum node_frc = mju_norm3(stretch.data() + dadr);
+    EXPECT_GT(node_frc, 1e-2)
+        << "expected nonzero stretch force on x-face interior node "
+        << node_idx;
+  }
 }
 
 // verify that a pinned vertex (on a static body) gets zero bending force
@@ -2086,7 +2112,7 @@ TEST_F(ElasticityTest, RodBendingCantilever) {
                 radius="0.01" dim="1" mass="1">
         <pin id="0 1"/>
         <contact selfcollide="none" contype="0" conaffinity="0"/>
-        <edge equality="true" damping="1"/>
+        <edge equality="true"/>
         <elasticity young="1e9" damping="0.2" %s/>
       </flexcomp>
     </worldbody>
@@ -2276,6 +2302,275 @@ TEST_F(ElasticityTest, RodBendingMocapRequiresZeroDamping) {
   EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error,
               HasSubstr("flex elasticity does not support mocap attachments"));
+}
+
+// 1D rod bending uses the sparse covered-block Cholesky factor (effChol) in the
+// effective metric without requiring IPC, including the 2-hop hinge span pairs
+// (v_prev, v_next), so (M + K) is factored exactly with zero fill-in and the
+// smooth metric solve converges in a single PCG iteration without
+// mjWARN_INERTIA
+TEST_F(ElasticityTest, RodBendingMetricCholesky) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="discrete" timestep="0.002" iterations="1"/>
+    <worldbody>
+      <flexcomp name="rod" type="grid" count="41 1 1" spacing="0.025 0.025 0.025"
+                radius="0.005" dim="1" mass="0.1">
+        <pin id="0 1"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <edge equality="true"/>
+        <elasticity young="1e9" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  EXPECT_EQ(m->nefmCvert, 39);
+
+  MjDataPtr d = MakeData(m);
+  // bend into a smooth curve so all hinges have state-dependent 3-vertex blocks
+  for (int i = 0; i < m->nq; i++) {
+    d->qpos[i] = 0.005 * mju_sin(1.3 * i + 0.2);
+    d->qvel[i] = 0.1 * mju_cos(0.7 * i + 0.4);
+  }
+
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+  EXPECT_EQ(d->nefmdof, 39);
+  ASSERT_GT(d->nefmL, 9 * d->nefmdof);
+  EXPECT_EQ(d->efm_L[9 * d->nefmdof], 1);
+
+  // check that (M + K) qacc_smooth == qfrc_smooth + efm_c to machine precision
+  // in 1 PCG iteration
+  std::vector<mjtNum> rhs(m->nv), lhs(m->nv);
+  mju_add(rhs.data(), d->qfrc_smooth, d->efm_c, m->nv);
+  mj_mulM(m.get(), d.get(), lhs.data(), d->qacc_smooth);
+  for (int i = 0; i < m->nv; i++) {
+    int adr = d->efm_K_rowadr[i];
+    for (int j = 0; j < d->efm_K_rownnz[i]; j++) {
+      lhs[i] +=
+          d->efm_K_val[adr + j] * d->qacc_smooth[d->efm_K_colind[adr + j]];
+    }
+  }
+  mjtNum err = 0, norm = mju_norm(rhs.data(), m->nv);
+  ASSERT_GT(norm, 0);
+  for (int i = 0; i < m->nv; i++) {
+    mjtNum diff = lhs[i] - rhs[i];
+    err += diff * diff;
+  }
+  EXPECT_LT(mju_sqrt(err) / norm, MjTol(1e-11, 1e-4));
+
+  // restore iterations for the constraint solver (edge equalities) and step
+  // with constraint islands active
+  m->opt.iterations = 100;
+  for (int step = 0; step < 10; step++) {
+    mj_step(m.get(), d.get());
+    EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+    EXPECT_EQ(d->warning[mjWARN_BADQACC].number, 0);
+  }
+  EXPECT_GT(d->nisland, 0);
+}
+
+// passive contact on interpolated flexes (trilinear volumetric, trilinear shell
+// elastic2d="bend", quadratic, and with pinned cage nodes): contacts are routed
+// to d->nefmcon with d->nefc == 0 and produce upward repulsive qfrc_spring on
+// the cage nodes matching the basis-interpolated contact force
+TEST_F(ElasticityTest, InterpPassiveContactForceAndPin) {
+  struct Case {
+    const char* name;
+    const char* dof;
+    const char* elasticity;
+    const char* pin;
+    int expected_interp;
+  };
+  const Case cases[] = {
+      {"trilinear_vol", "trilinear",
+       R"(<elasticity young="1e4" poisson="0.3"/>)", "", 1},
+      {"trilinear_shell_bend", "trilinear",
+       R"(<elasticity young="1e4" poisson="0.3" thickness="0.01" elastic2d="bend"/>)",
+       "", -1},
+      {"quadratic_vol", "quadratic",
+       R"(<elasticity young="1e4" poisson="0.3"/>)", "", 2},
+      {"trilinear_pinned", "trilinear",
+       R"(<elasticity young="1e4" poisson="0.3"/>)", R"(<pin id="1 3 5 7"/>)",
+       1},
+  };
+
+  for (const Case& tc : cases) {
+    SCOPED_TRACE(tc.name);
+    std::string xml = std::string(R"(
+    <mujoco>
+      <option integrator="discrete" gravity="0 0 -9.81" timestep="0.002"/>
+      <worldbody>
+        <geom name="floor" type="plane" size="2 2 0.1"/>
+        <flexcomp name="box" type="grid" count="3 3 3" cellcount="1 1 1"
+                  spacing="0.1 0.1 0.1" radius="0.01" dim="3" mass="1.0"
+                  pos="0 0 0.095" dof=")") +
+                      tc.dof + R"(">
+          <contact selfcollide="none" passive="true"/>
+          )" + tc.elasticity +
+                      "\n" + tc.pin + R"(
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    EXPECT_EQ(m->flex_interp[0], tc.expected_interp);
+
+    MjDataPtr d = MakeData(m);
+    mj_forward(m.get(), d.get());
+
+    // At rest qpos = 0: bottom vertices at z = 0.095 - 0.1 - radius(0.01) =
+    // -0.015 penetrate the z = 0 plane, while elastic strain is zero so
+    // qfrc_spring is purely the passive contact force.
+    EXPECT_GT(d->ncon, 0);
+    EXPECT_GT(d->nefmcon, 0);
+    EXPECT_EQ(d->nefc, 0);
+
+    // Check that total upward vertical force in qfrc_spring is strictly
+    // positive and matches the published passive contact rows in
+    // d->efm_con_ind/val.
+    mjtNum total_fz_nodes = 0;
+    for (int n = 0; n < m->flex_nodenum[0]; n++) {
+      int b = m->body_weldid[m->flex_nodebodyid[m->flex_nodeadr[0] + n]];
+      if (m->body_dofnum[b] == 3) {
+        int da = m->body_dofadr[b];
+        total_fz_nodes += d->qfrc_spring[da + 2];
+        EXPECT_GE(d->qfrc_spring[da + 2], 0);
+      }
+    }
+    EXPECT_GT(total_fz_nodes, 0);
+
+    // Verify qfrc_spring equals the sum of force * Jacobian row over all
+    // published passive contacts, and for unpinned trilinear flexes verify
+    // total vertical force equals sum of -k * dist over the 9 bottom contacts.
+    std::vector<mjtNum> expected_qfrc(m->nv, 0);
+    for (int adr = 0; adr < d->nefmcon;) {
+      int nnz = d->efm_con_ind[adr];
+      mjtNum f = d->efm_con_val[adr + 1];
+      EXPECT_GT(f, 0);
+      for (int a = 0; a < nnz; a++) {
+        expected_qfrc[d->efm_con_ind[adr + 2 + a]] +=
+            f * d->efm_con_val[adr + 2 + a];
+      }
+      adr += 2 + nnz;
+    }
+    for (int i = 0; i < m->nv; i++) {
+      EXPECT_NEAR(d->qfrc_spring[i], expected_qfrc[i],
+                  MjTol(1e-11, 1e-4) * mju_max(1.0, mju_abs(expected_qfrc[i])))
+          << "dof " << i;
+    }
+    if (std::string(tc.name) == "trilinear_vol") {
+      // 8 unpinned cage nodes of mass m_node = 1/8 kg, nodenum/vertnum = 8/27,
+      // 9 bottom vertices with penetration -dist = 0.015 m:
+      //   4 corners (sum w^2 = 1), 4 edges (sum w^2 = 1/2), 1 center (sum w^2 =
+      //   1/4),
+      // so sum(1 / sum(w^2)) = 4*1 + 4*2 + 1*4 = 16.
+      mjtNum k_base = 5e7 * (1.0 / 8.0) * (8.0 / 27.0);
+      EXPECT_NEAR(total_fz_nodes, 16 * k_base * 0.015,
+                  MjTol(1e-8, 1e-2) * (16 * k_base * 0.015));
+    }
+  }
+}
+
+// FCM quadrature scales elastic restoring forces on cut boundary cells by the
+// occupied volume fraction, matches between dim=2 and dim=3, and simulates
+// stably when outer corner cells (including cell 0) are empty.
+TEST_F(ElasticityTest, FcmCutCellPassiveForcesAndSimulation) {
+  static constexpr char kShapeXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" timestep="1e-3"/>
+    <worldbody>
+      <flexcomp name="soft" type="SHAPE" dim="DIM" count="7 7 7"
+                spacing="0.05 0.05 0.05" cellcount="2 2 2" dof="trilinear"
+                mass="1" radius="0.001">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e3" poisson="0.25" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto compute_stretch_force_norm = [&](const char* shape, const char* dim) {
+    std::string xml = kShapeXml;
+    xml.replace(xml.find("SHAPE"), 5, shape);
+    xml.replace(xml.find("DIM"), 3, dim);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    EXPECT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    mj_kinematics(m.get(), d.get());
+
+    // Apply a uniform 5% axial stretch along x to all node bodies
+    for (int n = 0; n < m->flex_nodenum[0]; n++) {
+      int b = m->flex_nodebodyid[m->flex_nodeadr[0] + n];
+      int dof = m->body_dofadr[b];
+      if (dof >= 0) {
+        d->qpos[m->jnt_qposadr[m->dof_jntid[dof]]] = 0.05 * d->xpos[3 * b + 0];
+      }
+    }
+    mj_forward(m.get(), d.get());
+    return mju_norm(d->qfrc_spring, m->nv);
+  };
+
+  mjtNum f_box3 = compute_stretch_force_norm("box", "3");
+  mjtNum f_box2 = compute_stretch_force_norm("box", "2");
+  mjtNum f_ell3 = compute_stretch_force_norm("ellipsoid", "3");
+  mjtNum f_ell2 = compute_stretch_force_norm("ellipsoid", "2");
+
+  EXPECT_GT(f_box3, 0);
+  EXPECT_NEAR(f_box2, f_box3, MjTol(1e-9, 1e-4));
+  EXPECT_GT(f_ell3, 0);
+  EXPECT_LT(f_ell3, 0.7 * f_box3);
+  EXPECT_GT(f_ell3, 0.35 * f_box3);
+  EXPECT_NEAR(f_ell2, f_ell3, 0.1 * f_ell3);
+
+  // Simulate a 6x6x6 sphere (where cell 0 at the outer corner is empty,
+  // boundary cells are cut, and interior cells are full) for both trilinear and
+  // quadratic interpolation.
+  static constexpr char kSphereSimXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" timestep="1e-3" solver="CG"/>
+    <worldbody>
+      <body name="parent">
+        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
+        <flexcomp name="sphere" type="ellipsoid" dim="2" count="7 7 7"
+                  spacing="0.04 0.04 0.04" cellcount="6 6 6" dof="DOF_TYPE"
+                  mass="1" radius="0.001">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="500" poisson="0.25" damping="0.05"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* dof : {"trilinear", "quadratic"}) {
+    std::string xml = kSphereSimXml;
+    xml.replace(xml.find("DOF_TYPE"), 8, dof);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << dof << ": " << error;
+    EXPECT_EQ(m->flex_stiffness[0], 0) << dof << ": cell 0 should be empty";
+
+    MjDataPtr d = MakeData(m);
+    d->qpos[0] = 0.01;
+    mj_forward(m.get(), d.get());
+    EXPECT_GT(mju_norm(d->qfrc_spring, m->nv), 0) << dof;
+
+    for (int step = 0; step < 50; step++) {
+      mj_step(m.get(), d.get());
+    }
+    EXPECT_EQ(d->warning[mjWARN_BADQACC].number, 0) << dof;
+    for (int i = 0; i < m->nq; i++) {
+      ASSERT_TRUE(std::isfinite(d->qpos[i])) << dof << " qpos " << i;
+    }
+  }
 }
 
 }  // namespace

@@ -81,6 +81,7 @@ def main(argv: Sequence[str]) -> None:
   y = 0.0
   dx = 1.0 / float(nx)
   dy = 1.0 / float(ny)
+  views = []
   for md in models:
     md.objects = mjrf.ModelResources(ctx, md.model)
     md.lights = mjrf.ModelLights(r.scene(md.name), md.objects)
@@ -90,13 +91,13 @@ def main(argv: Sequence[str]) -> None:
     mujoco.mjv_defaultFreeCamera(md.model, vcam)
 
     vp = (x, y, dx, dy)
-    r.view(
-        md.name,
+    view = renderer.View(
         scene=md.name,
         camera=mujoco.mjv_camera2GLCamera(md.model, md.data, vcam),
         target="out",
         viewport=vp,
     )
+    views.append(view)
     x += dx
     if x >= 1.0:
       x = 0.0
@@ -112,7 +113,7 @@ def main(argv: Sequence[str]) -> None:
       md.renderables.update(md.data)
 
     buf = _update_target(r, win, buf)
-    r.render()
+    r.render(views)
     win.Present(buf)
 
 

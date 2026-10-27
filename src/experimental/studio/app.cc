@@ -61,6 +61,7 @@
 #include "experimental/studio/ux/interaction.h"
 #include "experimental/studio/ux/picture_gui.h"
 #include "experimental/studio/ux/plugin.h"
+#include "render/filament/core/imgui_editor.h"
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/renderer.h"
 
@@ -1586,6 +1587,24 @@ void App::BuildGui() {
     ImGui::End();
   }
 
+  mjrfScene* scene = renderer_->GetScene("studio");
+  if (scene) {
+    if (ImGui::BeginMainMenuBar()) {
+      if (ImGui::BeginMenu("Plugins")) {
+        if (ImGui::MenuItem("Filament", "", tmp_.filament_editor)) {
+          tmp_.filament_editor = !tmp_.filament_editor;
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
+    }
+    if (tmp_.filament_editor) {
+      if (ImGui::Begin("Filament", &tmp_.filament_editor)) {
+        DrawSceneEditor(scene);
+      }
+      ImGui::End();
+    }
+  }
   ForEachPlugin<GuiPlugin>([](auto* plugin) {
     if (!plugin->update) {
       return;

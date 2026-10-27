@@ -55,7 +55,7 @@ void mj_makeModel(mjModel** dest,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
     mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
     mjtSize nefm0dof, mjtSize nefm0L, mjtSize nefmCvert, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv,
+    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe,
     mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
     mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
     mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
@@ -139,8 +139,9 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-// init plugins
-MJAPI void mj_initPlugin(const mjModel* m, mjData* d);
+// init plugins; on failure, destroy the instances already initialized and return the id of the
+// failed instance, otherwise return -1
+MJAPI int mj_initPlugin(const mjModel* m, mjData* d);
 
 // deallocate data
 MJAPI void mj_deleteData(mjData* d);

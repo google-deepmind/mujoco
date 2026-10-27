@@ -186,6 +186,72 @@ class SolverTest(parameterized.TestCase):
     m.opt.cone = cone
     solver.solve(mjx.put_model(m), mjx.put_data(m, mujoco.MjData(m)))
 
+  def test_elliptic_linesearch_cancellation(self):
+    """Elliptic linesearch preserves orthogonal tangential curvature under cancellation."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option cone="elliptic"/>
+        <worldbody>
+          <geom type="plane" size="1 1 1"/>
+          <body pos="0 0 0.09">
+            <freejoint/>
+            <geom type="sphere" size="0.1" friction="1 1 1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    ctx = solver.Context.create(mx, dx)
+
+    # Set u = [0, 1, 2^-13, 0, 0, 0] and search so jv = [0, -1, 0].
+    # In float32, 1 + 2^-26 rounds to 1.0, so naive uu + alpha*(2*uv + alpha*vv)
+    # vanishes at alpha = 1 and loses the middle-zone curvature.
+    eps_perp = np.float32(2.0**-13)
+    u = jax.numpy.array([[0.0, 1.0, eps_perp, 0.0, 0.0, 0.0]])
+    fri = jax.numpy.ones((1, 6))
+    dm = jax.numpy.array([1.0])
+    ctx = ctx.replace(
+        Jaref=jax.numpy.array([0.0, 1.0, eps_perp]),
+        u=u,
+        fri=fri,
+        dm=dm,
+    )
+    jv = jax.numpy.array([0.0, -1.0, 0.0])
+    quad = jax.numpy.zeros((3, 3))
+    quad_gauss = jax.numpy.zeros(3)
+
+    u_tan = u[:, 1:]
+    v_tan = jax.numpy.array([[-1.0, 0.0, 0.0, 0.0, 0.0]])
+    wedge = (
+        u_tan[:, :, None] * v_tan[:, None, :]
+        - u_tan[:, None, :] * v_tan[:, :, None]
+    )
+    det = 0.5 * jax.numpy.sum(jax.numpy.square(wedge), axis=(1, 2))
+    vv = jax.numpy.sum(v_tan * v_tan, axis=1)
+    v_norm = jax.numpy.sqrt(vv)
+    u_par = jax.numpy.sum(u_tan * v_tan, axis=1) / v_norm
+    u_perp_sq = det / vv
+
+    pt = solver._LSPoint.create(
+        mx,
+        dx,
+        ctx,
+        jax.numpy.array(1.0),
+        jv,
+        quad,
+        quad_gauss,
+        u_perp_sq,
+        jax.numpy.array([0.0]),
+        u_par,
+        v_norm,
+    )
+    np.testing.assert_allclose(pt.cost, 0.5 * eps_perp**2, rtol=1e-5)
+    np.testing.assert_allclose(pt.deriv_0, 0.0, atol=1e-7)
+    np.testing.assert_allclose(pt.deriv_1, 1.0, rtol=1e-5)
+
 
 if __name__ == '__main__':
   absltest.main()

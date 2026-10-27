@@ -808,6 +808,99 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
 }
 
 
+// compute material id of the element that owns each shell fragment of flex f
+static void flexShellMatid(const mjModel* m, mjData* d, int f, int* shell_matid) {
+  int dim = m->flex_dim[f];
+  int vertnum = m->flex_vertnum[f];
+  int elemadr = m->flex_elemadr[f];
+  int elemnum = m->flex_elemnum[f];
+  int shellnum = m->flex_shellnum[f];
+  const int* elemdata = m->flex_elem + m->flex_elemdataadr[f];
+  const int* shelldata = m->flex_shell + m->flex_shelldataadr[f];
+
+  // build vertex-to-element adjacency (CSR) for O(nelem + nshell) lookup
+  mj_markStack(d);
+  int* v_cnt = mjSTACKALLOC(d, vertnum, int);
+  int* v_adr = mjSTACKALLOC(d, vertnum, int);
+  int* v_elem = mjSTACKALLOC(d, (dim+1)*elemnum, int);
+  mju_zeroInt(v_cnt, vertnum);
+  for (int i=0; i < (dim+1)*elemnum; i++) {
+    v_cnt[elemdata[i]]++;
+  }
+  v_adr[0] = 0;
+  for (int v=0; v < vertnum-1; v++) {
+    v_adr[v+1] = v_adr[v] + v_cnt[v];
+  }
+  mju_zeroInt(v_cnt, vertnum);
+  for (int e=0; e < elemnum; e++) {
+    const int* edata = elemdata + e*(dim+1);
+    for (int j=0; j < dim+1; j++) {
+      int v = edata[j];
+      v_elem[v_adr[v] + v_cnt[v]++] = e;
+    }
+  }
+
+  // find owning element of each shell fragment among elements incident to sdata[0]
+  int first = m->flex_matid[elemadr];
+  for (int s=0; s < shellnum; s++) {
+    const int* sdata = shelldata + s*dim;
+    int v0 = sdata[0];
+    int matid = first;
+    for (int idx=0; idx < v_cnt[v0]; idx++) {
+      int e = v_elem[v_adr[v0] + idx];
+      const int* edata = elemdata + e*(dim+1);
+      int match = 1;
+      for (int k=1; k < dim; k++) {
+        int found = 0;
+        for (int j=0; j < dim+1; j++) {
+          if (edata[j] == sdata[k]) {
+            found = 1;
+            break;
+          }
+        }
+        if (!found) {
+          match = 0;
+          break;
+        }
+      }
+      if (match) {
+        matid = m->flex_matid[elemadr+e];
+        break;
+      }
+    }
+    shell_matid[s] = matid;
+  }
+  mj_freeStack(d);
+}
+
+
+// collect unique material ids used by flex f in order of first appearance
+static int flexUniqueMatids(const mjModel* m, int f, const mjvOption* opt, int* matids, int maxmat) {
+  int elemadr = m->flex_elemadr[f];
+  int elemnum = m->flex_elemnum[f];
+  if (elemnum <= 0 || opt->flags[mjVIS_ISLAND]) {
+    matids[0] = elemnum > 0 ? m->flex_matid[elemadr] : -1;
+    return 1;
+  }
+
+  int nmat = 0;
+  for (int e=0; e < elemnum; e++) {
+    int matid = m->flex_matid[elemadr+e];
+    int found = 0;
+    for (int k=0; k < nmat; k++) {
+      if (matids[k] == matid) {
+        found = 1;
+        break;
+      }
+    }
+    if (!found && nmat < maxmat) {
+      matids[nmat++] = matid;
+    }
+  }
+  return nmat ? nmat : 1;
+}
+
+
 static void addFlexGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
   const int category = mjCAT_DYNAMIC;
@@ -819,85 +912,101 @@ static void addFlexGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     return;
   }
 
+  mj_markStack(d);
+  int maxmat = m->nmat + 1;
+  int* matids = mjSTACKALLOC(d, maxmat, int);
+
   for (int i=0; i < m->nflex; i++) {
     if (!vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[i]))]) {
       continue;
     }
 
-    mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_FLEX);
-    if (!thisgeom) {
-      return;
-    }
+    int nmat = flexUniqueMatids(m, i, vopt, matids, maxmat);
+    for (int k=0; k < nmat; k++) {
+      mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_FLEX);
+      if (!thisgeom) {
+        mj_freeStack(d);
+        return;
+      }
 
-    // construct geom, pos = first vertex
-    mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
-                  d->flexvert_xpos + 3*m->flex_vertadr[i], NULL, NULL);
-    thisgeom->size[0] = m->flex_radius[i];
-    setMaterial(m, thisgeom, m->flex_matid[i], m->flex_rgba+4*i, vopt->flags);
+      // construct geom, pos = first vertex
+      // for multi-material flexes, dataid is the slice index and size[1..2] hold
+      // the face offset and face count populated in mjv_updateActiveFlex
+      mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
+                    d->flexvert_xpos + 3*m->flex_vertadr[i], NULL, NULL);
+      thisgeom->dataid = (nmat > 1) ? k : -1;
+      thisgeom->size[0] = m->flex_radius[i];
+      if (nmat > 1) {
+        thisgeom->size[1] = 0;
+        thisgeom->size[2] = 0;
+      }
+      setMaterial(m, thisgeom, matids[k], m->flex_rgba+4*i, vopt->flags);
 
-    // override if visualizing islands
-    if (vopt->flags[mjVIS_ISLAND]) {
-      // find first dynamic body in flex
-      int bodyid = -1;
-      if (m->flex_interp[i]) {
-        int nodeadr = m->flex_nodeadr[i];
-        for (int j=0; j < m->flex_nodenum[i] && bodyid < 0; j++) {
-          int b = m->flex_nodebodyid[nodeadr+j];
-          if (m->body_treeid[b] >= 0) bodyid = b;
+      // override if visualizing islands
+      if (vopt->flags[mjVIS_ISLAND]) {
+        // find first dynamic body in flex
+        int bodyid = -1;
+        if (m->flex_interp[i]) {
+          int nodeadr = m->flex_nodeadr[i];
+          for (int j=0; j < m->flex_nodenum[i] && bodyid < 0; j++) {
+            int b = m->flex_nodebodyid[nodeadr+j];
+            if (m->body_treeid[b] >= 0) bodyid = b;
+          }
+        } else {
+          int vertadr = m->flex_vertadr[i];
+          for (int j=0; j < m->flex_vertnum[i] && bodyid < 0; j++) {
+            int b = m->flex_vertbodyid[vertadr+j];
+            if (m->body_treeid[b] >= 0) bodyid = b;
+          }
         }
+
+        if (bodyid >= 0) {
+          // strip material
+          thisgeom->matid = -1;
+
+          int weld_id = m->body_weldid[bodyid];
+          int dof = m->body_dofadr[weld_id];
+          int island = d->nisland ? d->dof_island[dof] : -1;
+          int h = island >= 0 ? d->island_dofadr[island] : -1;
+          int awake = d->body_awake[bodyid];
+
+          // if sleep is enabled, color by first tree dof
+          if (h == -1 && mjENABLED(mjENBL_SLEEP)) {
+            int tree = m->dof_treeid[dof];
+            if (!awake) tree = mj_sleepCycle(d->tree_asleep, m->ntree, tree);
+            h = m->tree_dofadr[tree];
+          }
+
+          islandColor(thisgeom->rgba, h, awake);
+        }
+      }
+
+      // set texcoord
+      if (m->flex_texcoordadr[i] >= 0) {
+        thisgeom->texcoord = 1;
       } else {
-        int vertadr = m->flex_vertadr[i];
-        for (int j=0; j < m->flex_vertnum[i] && bodyid < 0; j++) {
-          int b = m->flex_vertbodyid[vertadr+j];
-          if (m->body_treeid[b] >= 0) bodyid = b;
-        }
-      }
-
-      if (bodyid >= 0) {
-        // strip material
         thisgeom->matid = -1;
-
-        int weld_id = m->body_weldid[bodyid];
-        int dof = m->body_dofadr[weld_id];
-        int island = d->nisland ? d->dof_island[dof] : -1;
-        int h = island >= 0 ? d->island_dofadr[island] : -1;
-        int awake = d->body_awake[bodyid];
-
-        // if sleep is enabled, color by first tree dof
-        if (h == -1 && mjENABLED(mjENBL_SLEEP)) {
-          int tree = m->dof_treeid[dof];
-          if (!awake) tree = mj_sleepCycle(d->tree_asleep, m->ntree, tree);
-          h = m->tree_dofadr[tree];
-        }
-
-        islandColor(thisgeom->rgba, h, awake);
       }
-    }
 
-    // set texcoord
-    if (m->flex_texcoordadr[i] >= 0) {
-      thisgeom->texcoord = 1;
-    } else {
-      thisgeom->matid = -1;
-    }
+      // glow flex if selected
+      if (pert->flexselect == i) {
+        markselected(&m->vis, thisgeom);
+      }
 
-    // glow flex if selected
-    if (pert->flexselect == i) {
-      markselected(&m->vis, thisgeom);
-    }
+      // skip if alpha is 0
+      if (thisgeom->rgba[3] == 0) {
+        continue;
+      }
 
-    // skip if alpha is 0
-    if (thisgeom->rgba[3] == 0) {
-      continue;
-    }
+      // vopt->label (only on first part of multi-material flex)
+      if (vopt->label == mjLABEL_FLEX && k == 0) {
+        makeLabel(m, mjOBJ_FLEX, i, thisgeom->label);
+      }
 
-    // vopt->label
-    if (vopt->label == mjLABEL_FLEX) {
-      makeLabel(m, mjOBJ_FLEX, i, thisgeom->label);
+      releaseGeom(&thisgeom, scn);
     }
-
-    releaseGeom(&thisgeom, scn);
   }
+  mj_freeStack(d);
 }
 
 
@@ -3323,9 +3432,9 @@ static void makeSmooth(float* _face, float* _normal, mjtNum radius, mjtByte flg_
 
     // set all vertex normals equal to face normal
     for (int k=0; k < 3; k++){
-      normal[3*k+0] = (float) (sign*nrm[0]);
-      normal[3*k+1] = (float) (sign*nrm[1]);
-      normal[3*k+2] = (float) (sign*nrm[2]);
+      normal[3*k+0] = (float) nrm[0];
+      normal[3*k+1] = (float) nrm[1];
+      normal[3*k+2] = (float) nrm[2];
     }
   }
 
@@ -3412,6 +3521,12 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
   }
 
   // construct faces
+  mj_markStack(d);
+  int maxmat = m->nmat + 1;
+  int* matids = mjSTACKALLOC(d, maxmat, int);
+  int* group_offset = mjSTACKALLOC(d, maxmat, int);
+  int* group_count = mjSTACKALLOC(d, maxmat, int);
+
   for (int f=0; f < m->nflex; f++) {
     int dim = m->flex_dim[f];
     mjtNum radius = m->flex_radius[f];
@@ -3423,56 +3538,68 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
                     scn->flextexcoord + 6*scn->flexfaceadr[f] : NULL;
     const float* texsrc = m->flex_texcoordadr[f] >= 0 ?
                           m->flex_texcoord + 2*m->flex_texcoordadr[f] : NULL;
+    int nmat = flexUniqueMatids(m, f, opt, matids, maxmat);
 
     // 1D, or face and skin disabled: no faces
     if (dim == 1 || (!opt->flags[mjVIS_FLEXFACE] && !opt->flags[mjVIS_FLEXSKIN])) {
       scn->flexfaceused[f] = 0;
+      for (int k=0; k < nmat; k++) {
+        group_offset[k] = 0;
+        group_count[k] = 0;
+      }
     }
 
     // 2D or 3D face: faces from elements, flat normals, texture
     else if (!opt->flags[mjVIS_FLEXSKIN]) {
       int nface = 0;
-      for (int e=0; e < m->flex_elemnum[f]; e++) {
-        // in 3D, show only elements in selected layer
-        if (dim == 2 || m->flex_elemlayer[m->flex_elemadr[f]+e] == opt->flex_layer) {
-          // get element data
-          const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
-          const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
-
-          // triangles: two faces per element
-          if (dim == 2) {
-            makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[1], edata[2]);
-            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
-            nface++;
-
-            makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[2], edata[1]);
-            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
-            nface++;
+      for (int k=0; k < nmat; k++) {
+        group_offset[k] = nface;
+        for (int e=0; e < m->flex_elemnum[f]; e++) {
+          if (nmat > 1 && m->flex_matid[m->flex_elemadr[f]+e] != matids[k]) {
+            continue;
           }
+          // in 3D, show only elements in selected layer
+          if (dim == 2 || m->flex_elemlayer[m->flex_elemadr[f]+e] == opt->flex_layer) {
+            // get element data
+            const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+            const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
 
-          // tetrahedra: four faces per element
-          else {
-            makeFace(face, normal, radius, vertxpos,
-                     nface, edata[0], edata[1], edata[2]);
-            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
-            nface++;
+            // triangles: two faces per element
+            if (dim == 2) {
+              makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[1], edata[2]);
+              copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
+              nface++;
 
-            makeFace(face, normal, radius, vertxpos,
-                     nface, edata[0], edata[2], edata[3]);
-            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[3]);
-            nface++;
+              makeFace(face, normal, radius, vertxpos, nface, edata[0], edata[2], edata[1]);
+              copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
+              nface++;
+            }
 
-            makeFace(face, normal, radius, vertxpos,
-                     nface, edata[0], edata[3], edata[1]);
-            copyTex(texdst, texsrc, nface, tdata[0], tdata[3], tdata[1]);
-            nface++;
+            // tetrahedra: four faces per element
+            else {
+              makeFace(face, normal, radius, vertxpos,
+                       nface, edata[0], edata[1], edata[2]);
+              copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
+              nface++;
 
-            makeFace(face, normal, radius, vertxpos,
-                     nface, edata[1], edata[3], edata[2]);
-            copyTex(texdst, texsrc, nface, tdata[1], tdata[3], tdata[2]);
-            nface++;
+              makeFace(face, normal, radius, vertxpos,
+                       nface, edata[0], edata[2], edata[3]);
+              copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[3]);
+              nface++;
+
+              makeFace(face, normal, radius, vertxpos,
+                       nface, edata[0], edata[3], edata[1]);
+              copyTex(texdst, texsrc, nface, tdata[0], tdata[3], tdata[1]);
+              nface++;
+
+              makeFace(face, normal, radius, vertxpos,
+                       nface, edata[1], edata[3], edata[2]);
+              copyTex(texdst, texsrc, nface, tdata[1], tdata[3], tdata[2]);
+              nface++;
+            }
           }
         }
+        group_count[k] = nface - group_offset[k];
       }
 
       // save face count
@@ -3504,44 +3631,61 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
         mju_normalize3(vertnorm+3*i);
       }
 
-      // create faces, offset along smoothed vertex normals, and texcoord
-      int nface = 0;
-      if (dim == 2) {
-        for (int e=0; e < m->flex_elemnum[f]; e++) {
-          const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
-          const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
-          makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
-                     nface, edata[0], edata[1], edata[2]);
-          copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
-          nface++;
-          makeSmooth(face, normal, -radius, flg_flat, vertnorm, vertxpos,
-                     nface, edata[0], edata[2], edata[1]);
-          copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
-          nface++;
-        }
-      } else {
-        for (int s=0; s < m->flex_shellnum[f]; s++) {
-          const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
-          makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
-                     nface, sdata[0], sdata[1], sdata[2]);
-          copyTex(texdst, texsrc, nface, sdata[0], sdata[1], sdata[2]);
-          nface++;
-        }
+      // precompute shell fragment material ids once per multi-material flex
+      int* shell_matid = NULL;
+      if (nmat > 1 && m->flex_shellnum[f] > 0) {
+        shell_matid = mjSTACKALLOC(d, m->flex_shellnum[f], int);
+        flexShellMatid(m, d, f, shell_matid);
       }
 
-      // 2D: close sides using shell fragments
-      if (dim == 2) {
-        for (int s=0; s < m->flex_shellnum[f]; s++) {
-          const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
-          makeSide(face, normal, radius, vertnorm, vertxpos,
-                   nface, sdata[0], sdata[1]);
-          copyTex(texdst, texsrc, nface, sdata[0], sdata[1], sdata[1]);
-          nface++;
-          makeSide(face, normal, -radius, vertnorm, vertxpos,
-                   nface, sdata[1], sdata[0]);
-          copyTex(texdst, texsrc, nface, sdata[1], sdata[0], sdata[0]);
-          nface++;
+      // create faces, offset along smoothed vertex normals, and texcoord
+      int nface = 0;
+      for (int k=0; k < nmat; k++) {
+        group_offset[k] = nface;
+        if (dim == 2) {
+          for (int e=0; e < m->flex_elemnum[f]; e++) {
+            if (nmat > 1 && m->flex_matid[m->flex_elemadr[f]+e] != matids[k]) {
+              continue;
+            }
+            const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
+            const int* tdata = m->flex_elemtexcoord + m->flex_elemdataadr[f] + e*(dim+1);
+            makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
+                       nface, edata[0], edata[1], edata[2]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[1], tdata[2]);
+            nface++;
+            makeSmooth(face, normal, -radius, flg_flat, vertnorm, vertxpos,
+                       nface, edata[0], edata[2], edata[1]);
+            copyTex(texdst, texsrc, nface, tdata[0], tdata[2], tdata[1]);
+            nface++;
+          }
+          // 2D: close sides using shell fragments
+          for (int s=0; s < m->flex_shellnum[f]; s++) {
+            if (nmat > 1 && shell_matid[s] != matids[k]) {
+              continue;
+            }
+            const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
+            makeSide(face, normal, radius, vertnorm, vertxpos,
+                     nface, sdata[0], sdata[1]);
+            copyTex(texdst, texsrc, nface, sdata[0], sdata[1], sdata[1]);
+            nface++;
+            makeSide(face, normal, -radius, vertnorm, vertxpos,
+                     nface, sdata[1], sdata[0]);
+            copyTex(texdst, texsrc, nface, sdata[1], sdata[0], sdata[0]);
+            nface++;
+          }
+        } else {
+          for (int s=0; s < m->flex_shellnum[f]; s++) {
+            if (nmat > 1 && shell_matid[s] != matids[k]) {
+              continue;
+            }
+            const int* sdata = m->flex_shell + m->flex_shelldataadr[f] + s*dim;
+            makeSmooth(face, normal, radius, flg_flat, vertnorm, vertxpos,
+                       nface, sdata[0], sdata[1], sdata[2]);
+            copyTex(texdst, texsrc, nface, sdata[0], sdata[1], sdata[2]);
+            nface++;
+          }
         }
+        group_count[k] = nface - group_offset[k];
       }
 
       // save face count
@@ -3553,7 +3697,20 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
     if (scn->flexfaceused[f] > scn->flexfacenum[f]) {
       mju_error("too many flex faces in mjv_updateActiveFlex");
     }
+
+    // record per-material face offset and count on multi-material flex geoms
+    if (nmat > 1) {
+      for (int g=0; g < scn->ngeom; g++) {
+        mjvGeom* geom = scn->geoms + g;
+        if (geom->type == mjGEOM_FLEX && geom->objid == f &&
+            geom->dataid >= 0 && geom->dataid < nmat) {
+          geom->size[1] = (float)group_offset[geom->dataid];
+          geom->size[2] = (float)group_count[geom->dataid];
+        }
+      }
+    }
   }
+  mj_freeStack(d);
 }
 
 

@@ -1107,7 +1107,6 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
         break;
 
       case mjEQ_FLEX:
-      case mjEQ_FLEXVERT:
         ReadAttrTxt(elem, "flex", name1, true);
         break;
 
@@ -1544,7 +1543,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     throw mjXError(elem, "both 'file' and 'mesh' specified");
   }
   if (!fcomp.mesh.empty() && !elem->Attribute("type")) { fcomp.type = mjFCOMPTYPE_MESH; }
-  if (ReadAttrTxt(elem, "material", material)) { mjs_setString(dflex.material, material.c_str()); }
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjs_setStringVec(dflex.material, material.c_str());
+  }
   ReadAttr(elem, "rgba", 4, dflex.rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) { dflex.flatskin = (n == 1); }
   if (ReadAttrInt(elem, "dim", &dflex.dim)) { fcomp.has_dim = true; }
@@ -1575,7 +1576,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   // edge
   XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
-    MapValue(edge, "equality", &fcomp.equality, flexeq_map, 4);
+    MapValue(edge, "equality", &fcomp.equality, flexeq_map, flexeq_sz);
     ReadAttr(edge, "solref", mjNREF, fcomp.def.spec.equality->solref, text, false, false);
     ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
     ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);

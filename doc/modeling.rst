@@ -559,8 +559,8 @@ general guidelines and observations:
    aggressive tolerance values, say 1e-10, because it is capable of achieving high accuracy without added delay (due to
    quadratic convergence at the end). The only situation where we have seen it slow down are large models with elliptic
    cones and many slipping contacts. In that regime the Hessian factorization needs a lot of updates. It may also slow
-   down in some large models with unfortunate ordering of model elements that results in high fill-in (computing the
-   optimal elimination order is NP-hard, so we are relying on a heuristic). Note that the number of non-zeros in the
+   down in some large models when the ordering of bodies in the scene causes high fill-in during sparse Hessian
+   factorization; see :ref:`Body ordering and fill-in <CBodyOrdering>` below. Note that the number of non-zeros in the
    factorized Hessian can be monitored in the profiler.
 -  The CG algorithm works well in the situation described above where Newton slows down. In general CG shows linear
    convergence with a good rate, but it cannot compete with Newton in terms of number of iterations, especially when
@@ -585,6 +585,31 @@ general guidelines and observations:
    PGS solver, the PGS setup cost will be paid whenever NoSlip is enabled, even if the main solver is CG or Newton. The
    setup operation for the main PGS and NoSlip PGS is the same, thus the setup cost is paid only once when both are
    enabled.
+
+.. _CBodyOrdering:
+
+Body ordering and fill-in
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. tip::
+   Declare moving bodies with many contacts *before* the objects they interact with in :el:`worldbody`, so they receive
+   lower DOF indices and avoid dense Cholesky fill-in.
+
+In sparse mode, the Newton solver factorizes the Hessian :math:`H = \widehat{M} + J^T D J` using reverse-order Cholesky,
+eliminating degrees of freedom from last to first (:math:`\nv - 1` down to :math:`0`, i.e., from leaves to root). For
+the tree-structured matrix :math:`\widehat{M}` alone, this elimination order is `optimal and produces zero fill-in
+<https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_. Contacts, tendons, and equality constraints add off-tree
+couplings in :math:`J^T D J`: when DOF :math:`r` is eliminated, it creates fill-in between **all lower-indexed DOFs**
+(:math:`c < r`) currently coupled to :math:`r`, forming a dense clique among them.
+
+Consequently, the declaration order of bodies in :el:`worldbody` can strongly affect solver speed without changing the
+physics. A moving "hub" body that simultaneously contacts many other bodies -- such as an actuated tray, sieve,
+container, or platform -- should be declared *before* the objects resting on or inside it. If a moving tray is declared
+first (low DOFs) and :math:`N` free bodies are declared after it (high DOFs), the free bodies are eliminated first and
+only fill into the tray's DOFs, giving an arrowhead sparsity pattern with zero fill-in and :math:`O(N)` factorization
+cost. If the tray is declared *last*, it is eliminated first and couples all :math:`N` bodies into a single dense block
+with :math:`O(N^3)` cost. Static geoms attached directly to :el:`worldbody` or to welded bodies have no DOFs and are
+unaffected by ordering.
 
 .. _CActuators:
 
@@ -1614,7 +1639,7 @@ There are two types of dynamic arrays allocated in the ``arena`` memory space.
 By allocating dynamic quantities from both sides of the ``arena`` space, variable-sized memory allocation is controlled
 by a single number: the :at:`memory` attribute of the :ref:`size <size>` MJCF element. Unlike the fixed-size arrays in
 the ``buffer``, variable-sized arrays in the arena can be ``NULL``, for example after a call to :ref:`mj_resetData`.
-When ``arena`` memory runs out, one of three things will happen, depending on the type of memory requested:
+When ``arena`` memory runs out, one of four things will happen, depending on the type of memory requested:
 
 - If memory runs out during contact allocation, a warning will be raised and subsequent contacts will not be added in
   this step, but simulation continues as usual.
@@ -1622,12 +1647,19 @@ When ``arena`` memory runs out, one of three things will happen, depending on th
   disabled in this step, but simulation continues as usual. Note that physics without the constraint solver will
   generally be very different, but allowing the simulation to continue can still be useful, e.g. during
   scene initialization when many bodies are temporarily overlapping.
+- If memory runs out while the Newton solver is constructing or refactoring its Hessian/Cholesky factor (for example,
+  under heavy contact fill-in on a deformable ``flex``), ``mjWARN_CNSTRFULL`` will be raised and the solver will fall
+  back to CG (or to incremental rank-1 cone updates) for that step. If this warning fires repeatedly, each step still
+  incurs symbolic Hessian counting before falling back, so :at:`memory` should be increased.
 - If memory runs out during stack array allocation, a hard error will occur.
 
 Unlike the size of the ``buffer``, the size of the ``arena`` cannot be pre-computed, since the number of contacts and
-stack usage is not known in advance. So how should one choose it? The following simple heuristic is currently used,
-though it may be improved in the future: enough memory is allocated for 100 contacts and 500 scalar constraints, under
-worst-case conditions. If this heuristic is insufficient, we recommend the following procedure. Increase the ``arena``
+stack usage is not known in advance. So how should one choose it? The following heuristic is currently used: for rigid
+degrees of freedom, enough memory is allocated for 100 contacts and 500 scalar constraints under worst-case dense
+conditions; for deformable ``flex`` degrees of freedom, the sparse Newton Hessian and Cholesky factor are estimated
+from a symbolic reverse-Cholesky count on the static flex mesh topology (with a 1.5x safety margin) plus a bounded
+allowance for colliding flex contacts. If this heuristic is insufficient, we recommend the following procedure. Increase
+the ``arena``
 memory significantly using the :at:`memory` attribute, and inspect the actual memory used at runtime.
 ``mjData.maxuse_arena`` keeps track of the maximum ``arena`` memory utilization since the last reset. The :ref:`simulate
 <saSimulate>` viewer shows this number as a fraction of the total arena space (in the info window in the lower-left

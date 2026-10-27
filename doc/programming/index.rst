@@ -163,6 +163,27 @@ The main targets are:
   bundled plugins, which register themselves when linked in.
 - ``@mujoco//python/mujoco``: the Python bindings, see :ref:`PyBuildBazel`.
 
+To build your own :ref:`plugin<exPlugin>` as a shared library, like the bundled ones, use the ``mujoco_plugin`` macro.
+The library links against ``@mujoco//:mujoco_shared`` and exports no symbols; load it at run time with
+:ref:`mj_loadPluginLibrary`, which runs its :ref:`registration<exRegistration>` code:
+
+.. code-block:: python
+
+   load("@mujoco//plugin:mujoco_plugin.bzl", "mujoco_plugin")
+
+   cc_library(
+       name = "my_plugin_lib",
+       srcs = ["my_plugin.cc"],
+       deps = ["@mujoco"],
+       alwayslink = True,
+   )
+
+   # Builds libmy_plugin.so (libmy_plugin.dylib on macOS).
+   mujoco_plugin(
+       name = "my_plugin",
+       deps = [":my_plugin_lib"],
+   )
+
 To use single-precision floating point (``mjUSESINGLE``), build with ``--@mujoco//:single_precision``.
 
 The Bazel build is tested on Linux and macOS, and covers the MuJoCo library, ``simulate``, the plugins, the samples and
@@ -317,6 +338,8 @@ Next we list the prefixes corresponding to function definitions. Note that funct
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
 ``mjs_``
    Functions for :doc:`procedural model editing <modeledit>`, for example :ref:`mjs_addJoint`.
+``mjb_``
+   Functions for :ref:`batched simulation<siBatch>`, declared in ``mujoco/mjbatch.h``, for example :ref:`mjb_step`.
 
 .. toctree::
     :hidden:

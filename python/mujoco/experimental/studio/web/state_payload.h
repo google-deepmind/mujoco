@@ -46,6 +46,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -137,6 +139,67 @@ struct RenderStateView {
 // Decodes a render state block produced by the serializer. `data` must hold
 // kRenderStateSize bytes (e.g. StatePayloadView::render_state).
 void ParseRenderState(const std::byte* data, RenderStateView* out);
+
+// ---------------------------------------------------------------------------
+// Model bundle: the payload served as /model.
+//
+// A model compiled with mjPASSTHROUGH_TEXTURES stores no texture pixels; its
+// MJB only carries the path of every by-reference texture (tex_adr == -1,
+// path at m->paths + tex_pathadr). Those paths point at the server's
+// filesystem (or into a .mjz archive), which the browser cannot open. The
+// bundle therefore packs the MJB together with the encoded file bytes of every
+// such texture, so one download (through the existing chunked, retried
+// /model transport) carries everything the browser needs:
+//
+//   [ModelBundleHeader][mjb bytes]
+//   nresources x { [u32 path_size][u64 data_size][path bytes][data bytes] }
+//
+// Paths are the exact strings found in m->paths, so the browser can match
+// them without any out-of-band listing. A model without by-reference textures
+// is a bundle with nresources == 0.
+
+// "MJBD" as little-endian bytes.
+constexpr uint32_t kModelBundleMagic =
+    'M' | ('J' << 8) | ('B' << 16) | ('D' << 24);
+constexpr uint32_t kModelBundleVersion = 1;
+
+struct ModelBundleHeader {
+  uint32_t magic = kModelBundleMagic;
+  uint32_t version = kModelBundleVersion;
+  uint64_t mjb_size = 0;
+  uint32_t nresources = 0;
+  uint32_t reserved = 0;
+};
+static_assert(sizeof(ModelBundleHeader) == 24);
+
+// Serializes `m` (mj_saveModel) plus the encoded bytes of each by-reference
+// texture, read with mju_openResource so local files, .mjz archives and
+// registered resource providers all work. Archives are mounted into a VFS
+// that lives only for the duration of this call. Textures whose file cannot
+// be read are left out of the bundle (the browser then renders them untextured
+// with a warning, like the native viewer) and their paths are appended to
+// `unreadable`, together with the error from mju_openResource.
+std::vector<std::byte> SerializeModelBundle(
+    const mjModel* m, std::vector<std::string>* unreadable = nullptr);
+
+// One by-reference texture file in a parsed bundle. Pointers alias the input
+// buffer.
+struct ModelBundleResource {
+  std::string_view path;  // as found in mjModel::paths
+  const std::byte* data = nullptr;
+  size_t size = 0;
+};
+
+// Parsed view into a serialized bundle. Pointers alias the input buffer.
+struct ModelBundleView {
+  const std::byte* mjb = nullptr;
+  size_t mjb_size = 0;
+  std::vector<ModelBundleResource> resources;
+};
+
+// Parses a bundle produced by SerializeModelBundle. Returns false if the
+// buffer is malformed.
+bool ParseModelBundle(const void* data, size_t size, ModelBundleView* out);
 
 }  // namespace mujoco::studio
 

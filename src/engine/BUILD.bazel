@@ -7,6 +7,7 @@ package_group(
     name = "_impl_visibility",
     packages =
         [
+            "//src/batch/...",
             "//src/render/classic/...",
             "//src/user/...",
             "//src/xml/...",
@@ -143,6 +144,7 @@ cc_library(
         ":engine_forward",
         ":engine_io",
         ":engine_memory",
+        ":engine_sleep",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
@@ -546,7 +548,11 @@ cc_library(
     deps = [
         ":engine_collision_convex",
         ":engine_collision_primitive",
+        ":engine_collision_raysdf",
+        ":engine_core",
+        ":engine_core_util",
         ":engine_crossplatform",
+        ":engine_init",
         ":engine_inline",
         ":engine_memory",
         ":engine_thread",
@@ -591,6 +597,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_collision_primitive",
         ":engine_inline",
         ":engine_memory",
         ":engine_util_blas",
@@ -1043,6 +1050,7 @@ cc_library(
         "mjUSEPLATFORMSIMD",
     ],
     deps = [
+        ":engine_crossplatform",
         ":engine_memory",
         ":engine_util_blas",
         ":engine_util_misc",
@@ -1087,6 +1095,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_crossplatform",
         ":engine_inline",
         ":engine_memory",
         ":engine_util_blas",

@@ -14,113 +14,92 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
-#include <imgui.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/studio/hal/filament_renderer.h>
 #include <mujoco/experimental/studio/hal/graphics_mode.h>
+#include <mujoco/experimental/studio/render/model_scene.h>
+#include <mujoco/experimental/studio/ux/imgui_widgets.h>
+#include <mujoco/render/filament/support/imgui_bridge.h>
+#include "render_filament.h"
 #include "structs.h"
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 
-class Viewer {
- public:
-  Viewer(uint64_t native_window, int gfx_mode) {
-    py::gil_scoped_release no_gil;
-    renderer_ = std::make_unique<mujoco::studio::FilamentRenderer>(
-        reinterpret_cast<void*>(native_window),
-        static_cast<mujoco::studio::GraphicsMode>(gfx_mode));
-  }
+using namespace mujoco;          // NOLINT(build/namespaces)
+using namespace mujoco::python;  // NOLINT(build/namespaces)
+using namespace mujoco::studio;  // NOLINT(build/namespaces)
 
-  void InitRenderer(const mujoco::python::MjModelWrapper& model) {
-    py::gil_scoped_release no_gil;
-    renderer_->Init(model.get());
-  }
+std::unique_ptr<ImguiBridge> MakeImguiBridge(mujoco::python::PyContext& ctx,
+                                             PyScene& scene) {
+  return std::make_unique<ImguiBridge>(ctx.get(), scene.get());
+}
 
-  intptr_t UploadImage(intptr_t tex_id, const std::string img, int width,
-                       int height, int bpp) {
-    py::gil_scoped_release no_gil;
-    auto bytes = reinterpret_cast<const std::byte*>(img.data());
-    const size_t num_bytes = img.size();
-    return renderer_->UploadImage(tex_id, {bytes, num_bytes}, width, height);
-  }
+std::unique_ptr<ModelScene> MakeModelScene(mujoco::python::PyContext& ctx,
+                                           PyScene& scene,
+                                           MjModelWrapper& model) {
+  return std::make_unique<ModelScene>(ctx.get(), scene.get(), model.get(),
+                                      DrawTextAt);
+}
 
-  bool RenderToPixels(int gfx_mode) {
-    return IsHeadless(
-        static_cast<mujoco::studio::GraphicsMode>(gfx_mode));
-  }
+intptr_t UploadImage(ImguiBridge& imgui_bridge, intptr_t tex_id,
+                     const std::string img, int width, int height, int bpp) {
+  py::gil_scoped_release no_gil;
+  auto bytes = reinterpret_cast<const std::byte*>(img.data());
+  const size_t num_bytes = img.size();
+  return imgui_bridge.UploadImage(tex_id, {bytes, num_bytes}, width, height);
+}
 
-  void Render(
-      int width, int height,
-      const mujoco::python::MjModelWrapper& model,
-      mujoco::python::MjDataWrapper& data,
-      mujoco::python::MjvPerturbWrapper& perturb,
-      mujoco::python::MjvCameraWrapper& camera,
-      mujoco::python::MjvOptionWrapper& vis_options,
-      const std::vector<uint8_t>& render_flags,
-      const std::vector<mujoco::python::MjvGeomWrapper>& extra_geoms = {},
-      std::optional<pybind11::buffer> pixels = std::nullopt) {
-    std::byte* pixel_data = nullptr;
-    size_t pixel_size = 0;
-    pybind11::buffer_info info;
-    if (pixels.has_value()) {
-      info = pixels->request();
-      if (!PyBuffer_IsContiguous(info.view(), 'C')) {
-        throw pybind11::value_error("Buffer must be C-contiguous.");
-      }
-      pixel_data = static_cast<std::byte*>(info.ptr);
-      pixel_size = static_cast<size_t>(info.size * info.itemsize);
+void SyncModelScene(
+    ModelScene& model_scene, int width, int height,
+    const mujoco::python::MjModelWrapper& model,
+    mujoco::python::MjDataWrapper& data,
+    mujoco::python::MjvPerturbWrapper& perturb,
+    mujoco::python::MjvCameraWrapper& camera,
+    mujoco::python::MjvOptionWrapper& vis_options,
+    const std::vector<mujoco::python::MjvGeomWrapper>& extra_geoms) {
+  std::vector<mjvGeom> geoms;
+  geoms.reserve(extra_geoms.size());
+  for (const auto& geom_wrapper : extra_geoms) {
+    if (geom_wrapper.get()) {
+      geoms.push_back(*geom_wrapper.get());
     }
-
-    std::vector<mjvGeom> geoms;
-    geoms.reserve(extra_geoms.size());
-    for (const auto& geom_wrapper : extra_geoms) {
-      if (geom_wrapper.get()) {
-        geoms.push_back(*geom_wrapper.get());
-      }
-    }
-
-    py::gil_scoped_release no_gil;
-    // Update render flags before rendering.
-    for (size_t i = 0; i < mjNRNDFLAG && i < render_flags.size(); ++i) {
-      renderer_->GetRenderFlags()[i] = render_flags[i];
-    }
-    renderer_->Sync(model.get(), data.get(), perturb.get(), camera.get(),
-                    vis_options.get(), width, height, geoms);
-    renderer_->Submit(width, height, {pixel_data, pixel_size});
   }
 
- private:
-  std::unique_ptr<mujoco::studio::FilamentRenderer> renderer_;
-};
+  py::gil_scoped_release no_gil;
+  model_scene.Sync(model.get(), data.get(), {0, 0, width, height},
+                   vis_options.get(), perturb.get(), camera.get(), geoms);
+}
+
+
+bool RenderToPixels(int gfx_mode) {
+  return IsHeadless(
+    static_cast<mujoco::studio::GraphicsMode>(gfx_mode));
+}
 
 PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
   pybind11::module_::import("mujoco._structs");
-  m.def(
-      "set_imgui_context",
-      [](intptr_t ptr) {
-        ImGui::SetCurrentContext(reinterpret_cast<ImGuiContext*>(ptr));
-      },
-      pybind11::arg("ptr"), "Set ImGui context pointer.");
-  pybind11::class_<Viewer>(m, "Viewer")
-      .def(pybind11::init<uintptr_t, int>())
-      .def("InitRenderer", &Viewer::InitRenderer)
-      .def("RenderToPixels", &Viewer::RenderToPixels)
-      .def("Render", &Viewer::Render, pybind11::arg("width"),
-           pybind11::arg("height"), pybind11::arg("model"),
-           pybind11::arg("data"), pybind11::arg("perturb"),
-           pybind11::arg("camera"), pybind11::arg("vis_options"),
-           pybind11::arg("render_flags"),
-           pybind11::arg("extra_geoms") =
-               std::vector<mujoco::python::MjvGeomWrapper>(),
-           pybind11::arg("pixels") = pybind11::none())
-      .def("UploadImage", &Viewer::UploadImage);
+  {
+    py::class_<ImguiBridge> cls(m, "ImguiBridge", py::module_local());
+    cls.def(py::init(&MakeImguiBridge), py::arg("ctx"), py::arg("scene"),
+            py::keep_alive<1, 2>(), py::keep_alive<1, 3>());
+    cls.def("update", &ImguiBridge::Update);
+    cls.def("upload_image", &UploadImage, py::arg("tex_id"), py::arg("img"),
+            py::arg("width"), py::arg("height"), py::arg("bpp"));
+  }
+  {
+    py::class_<ModelScene> cls(m, "ModelScene", py::module_local());
+    cls.def(py::init(&MakeModelScene), py::arg("ctx"), py::arg("scene"),
+            py::arg("model"), py::keep_alive<1, 2>(), py::keep_alive<1, 3>(),
+            py::keep_alive<1, 4>());
+    cls.def("sync", &SyncModelScene, py::arg("width"), py::arg("height"),
+            py::arg("model"), py::arg("data"), py::arg("perturb"),
+            py::arg("camera"), py::arg("vis_options"), py::arg("extra_geoms"));
+    cls.def("get_headlight_intensity", &ModelScene::GetHeadlightIntensity);
+  }
+  m.def("render_to_pixels", &RenderToPixels);
 }

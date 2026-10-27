@@ -74,8 +74,8 @@ MJAPI int mju_cholFactorNumeric(mjtNum* L, int n, mjtNum mindiag,
                                 mjtNum* scratch);
 
 // sparse reverse-order Cholesky solve
-void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
-                         const int* rownnz, const int* rowadr, const int* colind);
+MJAPI void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
+                               const int* rownnz, const int* rowadr, const int* colind);
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed

@@ -2103,30 +2103,6 @@
                :ref:`flex<equality-flex-flex>`
 
 
-      .. dropdown:: :ref:`flexvert<equality-flexvert>` |*|
-
-         .. grid:: 2 3 4 4
-            :gutter: 0
-
-            .. grid-item::
-               :ref:`name<equality-flexvert-name>`
-
-            .. grid-item::
-               :ref:`class<equality-flexvert-class>`
-
-            .. grid-item::
-               :ref:`active<equality-flexvert-active>`
-
-            .. grid-item::
-               :ref:`solref<equality-flexvert-solref>`
-
-            .. grid-item::
-               :ref:`solimp<equality-flexvert-solimp>`
-
-            .. grid-item::
-               :ref:`flex<equality-flexvert-flex>`
-
-
       .. dropdown:: :ref:`flexstrain<equality-flexstrain>` |*|
 
          .. grid:: 2 3 4 4

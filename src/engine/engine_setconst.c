@@ -16,7 +16,6 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -29,6 +28,7 @@
 #include "engine/engine_io.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_metric.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_solve.h"
@@ -875,14 +875,12 @@ static void makeTendonSparse(mjModel* m) {
   }
 }
 
-// compute flex sparsity: flexedge_J_{rowadr,rownnz,colind} and flexvert_J_{rowadr,rownnz}
+// compute flex sparsity: flexedge_J_{rowadr,rownnz,colind}
 static void makeFlexSparse(mjModel* m, mjData* d) {
   int nv = m->nv;
   int* rowadr = m->flexedge_J_rowadr;
   int* rownnz = m->flexedge_J_rownnz;
   int* colind = m->flexedge_J_colind;
-  int* vrowadr = m->flexvert_J_rowadr;
-  int* vrownnz = m->flexvert_J_rownnz;
 
   if (!m->nflex) {
     return;
@@ -890,26 +888,13 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
 
   mj_markStack(d);
   int* chain = mjSTACKALLOC(d, nv, int);
-  int* chain1 = mjSTACKALLOC(d, nv, int);
-  int* chain2 = mjSTACKALLOC(d, nv, int);
-  int* buf_ind = mjSTACKALLOC(d, nv, int);
   mjtNum* dummy_pos = mjSTACKALLOC(d, 3, mjtNum);
   mju_zero(dummy_pos, 3);
 
   // clear
   mju_zeroInt(rowadr, m->nflexedge);
   mju_zeroInt(rownnz, m->nflexedge);
-  mju_zeroInt(vrowadr, 2 * m->nflexvert);
-  mju_zeroInt(vrowadr, 2 * m->nflexvert);
-  mju_zeroInt(vrownnz, 2 * m->nflexvert);
-  mju_zeroInt(m->flex_vertedgeadr, m->nflexvert);
-  mju_zeroInt(m->flex_vertedgenum, m->nflexvert);
-  mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
-  mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
-  mju_zero(m->flex_vertmetric, 4 * m->nflexvert);
   mju_zeroInt(m->flexedge_J_colind, m->nJfe);
-  mju_zeroInt(m->flexvert_J_colind, 2 * m->nJfv);
-  int current_adj_offset = 0;
 
   // compute lengths and Jacobians of edges
   for (int f = 0; f < m->nflex; f++) {
@@ -948,202 +933,9 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
       rownnz[ebase + e] = NV;
       mju_copyInt(colind + rowadr[ebase + e], chain, NV);
     }
-
-    // if dim=2 and constraints are active we use the vertex-based constraint
-    if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
-      int nvert = m->flex_vertnum[f];
-
-      // populate global vertex adjacency list
-      int* v_edge_cnt = m->flex_vertedgenum + vbase;
-      int* v_edge_adr = m->flex_vertedgeadr + vbase;
-      int* adj_edges = m->flex_vertedge;  // global array
-
-      for (int e = 0; e < m->flex_edgenum[f]; ++e) {
-        v_edge_cnt[m->flex_edge[2 * (ebase + e) + 0]]++;
-        v_edge_cnt[m->flex_edge[2 * (ebase + e) + 1]]++;
-      }
-      int total_adj_edges = 0;
-      for (int v = 0; v < nvert; ++v) {
-        v_edge_adr[v] = current_adj_offset + total_adj_edges;
-        total_adj_edges += v_edge_cnt[v];
-      }
-      int* v_edge_fill = mjSTACKALLOC(d, nvert, int);
-      mju_zeroInt(v_edge_fill, nvert);
-      for (int e = 0; e < m->flex_edgenum[f]; ++e) {
-        int v1 = m->flex_edge[2 * (ebase + e) + 0];
-        int v2 = m->flex_edge[2 * (ebase + e) + 1];
-        adj_edges[v_edge_adr[v1] + v_edge_fill[v1]] = e;
-        v_edge_fill[v1]++;
-        adj_edges[v_edge_adr[v2] + v_edge_fill[v2]] = e;
-        v_edge_fill[v2]++;
-      }
-
-      // precompute metric (Binv)
-      for (int v = 0; v < nvert; ++v) {
-        mjtNum B[4] = {0};
-        int v_global = vbase + v;
-
-        for (int k = 0; k < v_edge_cnt[v]; ++k) {
-          int e = adj_edges[v_edge_adr[v] + k];
-
-          // compute rest edge vector
-          mjtNum dx[3];
-          int v1 = m->flex_edge[2 * (ebase + e)];
-          int v2 = m->flex_edge[2 * (ebase + e) + 1];
-          mju_sub3(dx, m->flex_vert0 + 3 * (vbase + v2),
-                   m->flex_vert0 + 3 * (vbase + v1));
-
-          // apply scaling since they are half sizes
-          dx[0] *= 2 * m->flex_size[3 * f + 0];
-          dx[1] *= 2 * m->flex_size[3 * f + 1];
-          dx[2] *= 2 * m->flex_size[3 * f + 2];
-
-          if (mju_abs(dx[2]) > mjMINVAL) {
-            mjERROR("flex vertices are not in the same plane");
-          }
-
-          // get mass of neighbor vertex
-          mjtNum weight = 1.0;
-          int neighbor_v = (v == v1) ? v2 : v1;
-          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
-          if (b_neighbor >= 0) {
-            weight = m->body_mass[b_neighbor];
-            if (weight < mjMINVAL) weight = mjMINVAL;
-          }
-
-          // accumulate B += w * dx * dx'
-          for (int row = 0; row < 2; row++) {
-            for (int col = 0; col < 2; col++) {
-              B[2 * row + col] += weight * dx[row] * dx[col];
-            }
-          }
-        }
-
-        mjtNum* metric = m->flex_vertmetric + 4 * v_global;
-        mjtNum det = B[0] * B[3] - B[1] * B[2];
-
-        if (mju_abs(det) < mjMINVAL) {
-          mju_zero(metric, 4);
-        } else {
-          mjtNum invdet = 1.0 / det;
-          metric[0] = B[3] * invdet;
-          metric[1] = -B[1] * invdet;
-          metric[2] = -B[2] * invdet;
-          metric[3] = B[0] * invdet;
-        }
-      }
-
-      // advance global offset
-      current_adj_offset += total_adj_edges;
-
-      // determine start address for this flex
-      int v0_base = 2 * vbase;
-      int current_adr = 0;
-      if (v0_base > 0) {
-        current_adr = vrowadr[v0_base - 1] + vrownnz[v0_base - 1];
-      }
-      vrowadr[v0_base] = current_adr;
-
-      for (int v = 0; v < nvert; ++v) {
-        // clear buf_ind
-        mju_zeroInt(buf_ind, nv);
-        int current_nnz = 0;
-        for (int i = 0; i < v_edge_cnt[v]; ++i) {
-          int e = adj_edges[v_edge_adr[v] + i];
-          int v1 = m->flex_edge[2 * (ebase + e)];
-          int v2 = m->flex_edge[2 * (ebase + e) + 1];
-
-          // chains from edge e
-          int b1 = m->flex_vertbodyid[vbase + v1];
-          int b2 = m->flex_vertbodyid[vbase + v2];
-          int NV1 = mj_bodyChain(m, b1, chain1);
-          int NV2 = mj_bodyChain(m, b2, chain2);
-
-          for (int j = 0; j < NV1; ++j) {
-            if (!buf_ind[chain1[j]]) {
-              buf_ind[chain1[j]] = 1;
-              current_nnz++;
-            }
-          }
-          for (int j = 0; j < NV2; ++j) {
-            if (!buf_ind[chain2[j]]) {
-              buf_ind[chain2[j]] = 1;
-              current_nnz++;
-            }
-          }
-        }
-        int row0 = 2 * (vbase + v);
-        int row1 = 2 * (vbase + v) + 1;
-        vrownnz[row0] = vrownnz[row1] = current_nnz;
-
-        // set rowadr for next rows
-        vrowadr[row1] = vrowadr[row0] + current_nnz;
-        if (row1 + 1 < 2 * m->nflexvert) {
-          vrowadr[row1 + 1] = vrowadr[row1] + current_nnz;
-        }
-
-        // fill colind
-        int count = 0;
-        for (int j = 0; j < nv; j++) {
-          if (buf_ind[j]) {
-            m->flexvert_J_colind[vrowadr[row0] + count] = j;
-            m->flexvert_J_colind[vrowadr[row1] + count] = j;
-            count++;
-          }
-        }
-      }
-    }
   }
 
   mj_freeStack(d);
-}
-
-
-// align 2D flexes with vertex equality constraints to the XY plane
-void mj_alignFlex(mjModel* m) {
-  for (int f = 0; f < m->nflex; f++) {
-    // only for 2D flexes with vertex equality constraints
-    if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
-      // get element data
-      int t_adr = m->flex_elemdataadr[f];
-      int vbase = m->flex_vertadr[f];
-      int t0 = m->flex_elem[t_adr];
-      int t1 = m->flex_elem[t_adr + 1];
-      int t2 = m->flex_elem[t_adr + 2];
-
-      // compute normal from first element
-      mjtNum edge1[3], edge2[3], normal[3];
-      mju_sub3(edge1, m->flex_vert0 + 3 * (vbase + t1), m->flex_vert0 + 3 * (vbase + t0));
-      mju_sub3(edge2, m->flex_vert0 + 3 * (vbase + t2),
-               m->flex_vert0 + 3 * (vbase + t0));
-      mju_cross(normal, edge1, edge2);
-      mju_normalize3(normal);
-
-      // compute rotation to Z
-      mjtNum quat[4], mat[9];
-      mju_quatZ2Vec(quat, normal);
-      mju_quat2Mat(mat, quat);
-
-      // rotate all vertices of this flex
-      int nvert = m->flex_vertnum[f];
-      for (int v = 0; v < nvert; v++) {
-        mjtNum* vert = m->flex_vert0 + 3 * (vbase + v);
-        mjtNum res[3];
-
-        mju_mulMatTVec3(res, mat, vert);
-        mju_copy3(vert, res);
-
-        // check planarity (warning if not planar)
-        if (mju_abs(vert[2] - m->flex_vert0[3 * (vbase + t0) + 2]) > 100 * mjMINVAL) {
-          static int warned = 0;
-          if (!warned) {
-            warned = 1;
-            mju_warning("flex %d is not planar", f);
-          }
-        }
-      }
-    }
-  }
 }
 
 
@@ -1163,8 +955,6 @@ static void kinematics0(mjModel* m, mjData* d) {
 
 // set kinematic quantities that depend on qpos0; assume kinematics0 already executed
 static void setKinematics0(mjModel* m, mjData* d) {
-  mjtNum pos[3], quat[4];
-
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
   for (int f=0; f < m->nflex; f++) {
@@ -1187,6 +977,7 @@ static void setKinematics0(mjModel* m, mjData* d) {
 
     // connect: anchor position is in body1 local frame
     if (m->eq_type[i] == mjEQ_CONNECT) {
+      mjtNum pos[3];
       mj_local2Global(d, pos, 0, data, 0, id1, 0);
 
       // data[3-5] = anchor position in body2 local frame
@@ -1196,6 +987,7 @@ static void setKinematics0(mjModel* m, mjData* d) {
 
     // weld: anchor position is in body2 local frame
     else if (m->eq_type[i] == mjEQ_WELD && data[11]) {
+      mjtNum pos[3], quat[4];
       mj_local2Global(d, pos, 0, data, 0, id2, 0);
 
       // data[3-5] = anchor position in body1 local frame
@@ -1215,15 +1007,15 @@ static void setKinematics0(mjModel* m, mjData* d) {
     int id1 = m->cam_targetbodyid[i];       // target body
 
     // pose in fixed mode
-    mj_local2Global(d, d->cam_xpos+3*i, d->cam_xmat+9*i,
-                    m->cam_pos+3*i, m->cam_quat+4*i, id, 0);
+    mjtNum pos[3], mat[9];
+    mj_local2Global(d, pos, mat, m->cam_pos+3*i, m->cam_quat+4*i, id, 0);
 
     // compute positional offsets
-    mju_sub3(m->cam_pos0+3*i, d->cam_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->cam_poscom0+3*i, d->cam_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
+    mju_sub3(m->cam_pos0+3*i, pos, d->xpos+3*id);
+    mju_sub3(m->cam_poscom0+3*i, pos, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy mat
-    mju_copy9(m->cam_mat0+9*i, d->cam_xmat+9*i);
+    mju_copy9(m->cam_mat0+9*i, mat);
   }
 
   // light compos0, pos0, dir0
@@ -1233,16 +1025,17 @@ static void setKinematics0(mjModel* m, mjData* d) {
     int id1 = m->light_targetbodyid[i];     // target body
 
     // pose in fixed mode
-    mj_local2Global(d, d->light_xpos+3*i, 0, m->light_pos+3*i, 0, id, 0);
-    mju_rotVecQuat(d->light_xdir+3*i, m->light_dir+3*i, d->xquat+4*id);
-    mju_normalize3(d->light_xdir+3*i);
+    mjtNum pos[3], dir[3];
+    mj_local2Global(d, pos, 0, m->light_pos+3*i, 0, id, 0);
+    mju_rotVecQuat(dir, m->light_dir+3*i, d->xquat+4*id);
+    mju_normalize3(dir);
 
     // compute positional offsets
-    mju_sub3(m->light_pos0+3*i, d->light_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->light_poscom0+3*i, d->light_xpos+3*i, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
+    mju_sub3(m->light_pos0+3*i, pos, d->xpos+3*id);
+    mju_sub3(m->light_poscom0+3*i, pos, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy dir
-    mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
+    mju_copy3(m->light_dir0+3*i, dir);
   }
 }
 
@@ -1943,6 +1736,12 @@ void mj_setConstGroups(mjModel* m, mjData* d, int groups) {
   }
 
   m->opt.enableflags = enableflags;
+
+  // the kinematics above overwrote the cached state of sleeping trees: wake all trees
+  if (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0 | mjSCGROUP_SPRING)) {
+    mju_fillInt(d->tree_asleep, -(1+mjMINAWAKE), m->ntree);
+    mj_updateSleep(m, d);
+  }
 }
 
 

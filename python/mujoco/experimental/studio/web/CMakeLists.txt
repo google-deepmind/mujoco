@@ -41,6 +41,7 @@ if(EMSCRIPTEN)
       dear_imgui
       implot
       netimgui
+      mujoco_filament
       mujoco::mujoco
       mujoco::platform
       mujoco::render_noop

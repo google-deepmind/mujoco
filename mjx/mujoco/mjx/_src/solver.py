@@ -148,10 +148,10 @@ class _LSPoint(PyTreeNode):
       jv: jax.Array,
       quad: jax.Array,
       quad_gauss: jax.Array,
-      uu: jax.Array,
+      u_perp_sq: jax.Array,
       v0: jax.Array,
-      uv: jax.Array,
-      vv: jax.Array,
+      u_par: jax.Array,
+      v_norm: jax.Array,
   ) -> '_LSPoint':
     """Creates a linesearch point with first and second derivatives."""
     # roughly corresponds to CGEval in mujoco/src/engine/engine_solver.c
@@ -179,7 +179,8 @@ class _LSPoint(PyTreeNode):
     if m.opt.cone == ConeType.ELLIPTIC:
       mu, u0 = ctx.fri[:, 0], ctx.u[:, 0]
       n = u0 + alpha * v0
-      tsqr = uu + alpha * (2 * uv + alpha * vv)
+      w_par = u_par + alpha * v_norm
+      tsqr = jp.square(w_par) + u_perp_sq
       t = jp.sqrt(tsqr)  # tangential force
 
       bottom_zone = ((tsqr <= 0) & (n < 0)) | ((tsqr > 0) & ((mu * n + t) <= 0))
@@ -199,8 +200,8 @@ class _LSPoint(PyTreeNode):
       t += (t == 0) * mujoco.mjMINVAL
       tsqr += (tsqr == 0) * mujoco.mjMINVAL
       n1 = v0
-      t1 = (uv + alpha * vv) / t
-      t2 = vv / t - (uv + alpha * vv) * t1 / tsqr
+      t1 = w_par * v_norm / t
+      t2 = (u_perp_sq / tsqr) * (v_norm * v_norm / t)
       dm = ctx.dm * middle_zone
       nmt = n - mu * t
       cost = 0.5 * jp.sum(dm * jp.square(nmt))
@@ -468,7 +469,7 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   ))
   quad = jp.stack((0.5 * ctx.Jaref * ctx.Jaref, jv * ctx.Jaref, 0.5 * jv * jv))
   quad = (quad * d._impl.efc_D).T
-  uu, v0, uv, vv = 0.0, 0.0, 0.0, 0.0
+  u_perp_sq, v0, u_par, v_norm = 0.0, 0.0, 0.0, 0.0
   if m.opt.cone == ConeType.ELLIPTIC:
     mask = d._impl.contact.dim > 1
     # complete vector quadratic (for bottom zone)
@@ -489,13 +490,27 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
     )
     efc_elliptic = d._impl.contact.efc_address[mask]
     v = jv_fn(efc_elliptic) * ctx.fri
-    uu = jp.sum(ctx.u[:, 1:] * ctx.u[:, 1:], axis=1)
+    u_tan, v_tan = ctx.u[:, 1:], v[:, 1:]
+    uu = jp.sum(u_tan * u_tan, axis=1)
     v0 = v[:, 0]
-    uv = jp.sum(ctx.u[:, 1:] * v[:, 1:], axis=1)
-    vv = jp.sum(v[:, 1:] * v[:, 1:], axis=1)
+    uv = jp.sum(u_tan * v_tan, axis=1)
+    vv = jp.sum(v_tan * v_tan, axis=1)
+
+    # decompose tangential u into components parallel and orthogonal to v
+    wedge = (
+        u_tan[:, :, None] * v_tan[:, None, :]
+        - u_tan[:, None, :] * v_tan[:, :, None]
+    )
+    det = 0.5 * jp.sum(jp.square(wedge), axis=(1, 2))
+    v_pos = vv > 0
+    vv_safe = jp.where(v_pos, vv, 1.0)
+    v_norm = jp.where(v_pos, jp.sqrt(vv_safe), 0.0)
+    v_norm_safe = jp.where(v_pos, v_norm, 1.0)
+    u_par = jp.where(v_pos, uv / v_norm_safe, 0.0)
+    u_perp_sq = jp.where(v_pos, det / vv_safe, uu)
 
   point_fn = lambda a: _LSPoint.create(
-      m, d, ctx, a, jv, quad, quad_gauss, uu, v0, uv, vv  # pyrefly: ignore[bad-argument-type]
+      m, d, ctx, a, jv, quad, quad_gauss, u_perp_sq, v0, u_par, v_norm  # pyrefly: ignore[bad-argument-type]
   )
   # initialize interval
   p0 = point_fn(jp.array(0.0))

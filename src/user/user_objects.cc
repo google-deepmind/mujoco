@@ -7186,7 +7186,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
     object_type = mjOBJ_JOINT;
   } else if (type == mjEQ_TENDON) {
     object_type = mjOBJ_TENDON;
-  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXSTRAIN) {
     object_type = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint");
@@ -7277,7 +7277,7 @@ void mjCEquality::ApplyGauge(bool inverse) {
     }
     for (int k = 0; k < 5; k++) { data[k] *= q1 / std::pow(q2, k); }
     width = q1;
-  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXSTRAIN) {
     const mjCFlex* flex = static_cast<const mjCFlex*>(model->FindObject(mjOBJ_FLEX, name1_));
     width               = flex->BodyGauge().Shape(1);
     if (inverse) { width = 1 / width; }
@@ -7309,7 +7309,7 @@ void mjCEquality::Compile(void) {
   }
 
   // make sure flex is not rigid, and has no conflicting stretch forces
-  if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+  if (type == mjEQ_FLEX || type == mjEQ_FLEXSTRAIN) {
     mjCFlex* flex = model->Flexes()[obj1id];
     if (flex->rigid) {
       throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);
@@ -7320,6 +7320,47 @@ void mjCEquality::Compile(void) {
     }
     if (flex->edgestiffness > 0) {
       throw mjCError(this, "flex constraints and edge stiffness cannot both be present");
+    }
+    if (type == mjEQ_FLEXSTRAIN) {
+      if (!flex->interpolated) {
+        throw mjCError(this,
+                       "flex strain equality requires an interpolated flex '%s'",
+                       name1_.c_str());
+      }
+      int cx = flex->spec.cellcount[0];
+      int cy = flex->spec.cellcount[1];
+      int cz = flex->spec.cellcount[2];
+      int d0 = static_cast<int>(data[0]);
+      int d1 = static_cast<int>(data[1]);
+      int d2 = static_cast<int>(data[2]);
+      if (flex->elastic2d) {
+        if (d1 != -1 || d2 != -1) {
+          throw mjCError(this,
+                         "volumetric flex strain equality on shell flex '%s' "
+                         "(elastic2d != 0)",
+                         name1_.c_str());
+        }
+        int nfaces = 2 * (cy * cz + cx * cz + cx * cy);
+        if (d0 < 0 || d0 >= nfaces) {
+          throw mjCError(this,
+                         "flex strain face index out of range in equality constraint %d",
+                         nullptr,
+                         id);
+        }
+      } else {
+        if (d1 == -1 || d2 == -1) {
+          throw mjCError(this,
+                         "shell flex strain equality on volumetric flex '%s' "
+                         "(elastic2d == 0)",
+                         name1_.c_str());
+        }
+        if (d0 < 0 || d0 >= cx || d1 < 0 || d1 >= cy || d2 < 0 || d2 >= cz) {
+          throw mjCError(this,
+                         "flex strain cell index out of range in equality constraint %d",
+                         nullptr,
+                         id);
+        }
+      }
     }
   }
 }

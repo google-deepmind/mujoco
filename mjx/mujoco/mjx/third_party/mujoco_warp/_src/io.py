@@ -28,10 +28,6 @@ from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src import util_pkg
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const as set_const
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const_0 as set_const_0
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_const_fixed as set_const_fixed
-from mujoco.mjx.third_party.mujoco_warp._src.set_const import set_length_range as set_length_range
 
 wp.set_module_options({"default_grid_stride": False})
 
@@ -148,17 +144,35 @@ def _jtdaj_groups(mjd: mujoco.MjData) -> tuple[np.ndarray, np.ndarray]:
   return adr, nrow
 
 
+def _flex_has_stiffness(mjm: mujoco.MjModel, f: int) -> bool:
+  """Whether flex f has a nonzero stretch stiffness record, see mj_flexHasStiffness."""
+  adr = int(mjm.flex_stiffnessadr[f])
+  if adr < 0:
+    return False
+  order = int(mjm.flex_interp[f])
+  if order < 0:
+    return True
+  if order == 0:
+    return bool(mjm.flex_stiffness[adr] != 0)
+  cx, cy, cz = mjm.flex_cellnum[f]
+  npe = (order + 1) ** 3
+  nelem = int(cx) * int(cy) * int(cz)
+  stride = 9 * npe * npe
+  return any(mjm.flex_stiffness[adr + e * stride] != 0 for e in range(nelem))
+
+
 def _get_nflexintcell(mjm: mujoco.MjModel) -> int:
   nflexintcell = 0
   if mjm.nflex > 0:
     for fi in range(mjm.nflex):
-      order = abs(int(mjm.flex_interp[fi]))
-      if order == 0:
+      order = int(mjm.flex_interp[fi])
+      if order == 0 or mjm.flex_edgeequality[fi] == 3 or not _flex_has_stiffness(mjm, fi):
         continue
-      if mjm.flex_edgeequality[fi] == 3:
-        continue
-      cx, cy, cz = mjm.flex_cellnum[fi]
-      nflexintcell += int(cx) * int(cy) * int(cz)
+      cx, cy, cz = (int(x) for x in mjm.flex_cellnum[fi])
+      if order < 0:
+        nflexintcell += 2 * (cy * cz + cx * cz + cx * cy)
+      else:
+        nflexintcell += cx * cy * cz
   return nflexintcell
 
 
@@ -210,8 +224,7 @@ def _eff_flex_stiff_possible(mjm: mujoco.MjModel, f: int) -> bool:
   badr = int(mjm.flex_bendingadr[f])
   if mjm.flex_dim[f] == 1:
     return badr >= 0
-  sadr = int(mjm.flex_stiffnessadr[f])
-  if sadr >= 0 and mjm.flex_stiffness[sadr] != 0 and mjm.flex_edgeequality[f] != 3:
+  if mjm.flex_edgeequality[f] != 3 and _flex_has_stiffness(mjm, f):
     return True
   if badr < 0:
     return False
@@ -474,32 +487,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     else:
       setattr(opt, f.name, f.type(getattr(opt, f.name)))
 
-
   # create model
   m = types.Model(**{f.name: getattr(mjm, f.name, None) for f in dataclasses.fields(types.Model)})
-
-  # fold actuator damping into dof_damping and tendon_damping (matching mj_actuatorDamping)
-  if mjm.nactuator > 0 and (np.any(mjm.actuator_damping != 0) or np.any(mjm.actuator_dampingpoly != 0)):
-    m.dof_damping = mjm.dof_damping.copy()
-    m.dof_dampingpoly = mjm.dof_dampingpoly.copy()
-    m.tendon_damping = mjm.tendon_damping.copy()
-    m.tendon_dampingpoly = mjm.tendon_dampingpoly.copy()
-    for k in range(mjm.nactuator):
-      damping_k = float(mjm.actuator_damping[k])
-      poly_k = mjm.actuator_dampingpoly[k]
-      if damping_k == 0.0 and np.all(poly_k == 0.0):
-        continue
-      gear = float(mjm.actuator_gear[k, 0])
-      gear2 = gear * gear
-      trntype = int(mjm.actuator_trntype[k])
-      trnid = int(mjm.actuator_trnid[k, 0])
-      if trntype in (mujoco.mjtTrn.mjTRN_JOINT, mujoco.mjtTrn.mjTRN_JOINTINPARENT):
-        mask = mjm.dof_jntid == trnid
-        m.dof_damping[mask] += damping_k * gear2
-        m.dof_dampingpoly[mask] += poly_k * gear2
-      elif trntype == mujoco.mjtTrn.mjTRN_TENDON:
-        m.tendon_damping[trnid] += damping_k * gear2
-        m.tendon_dampingpoly[trnid] += poly_k * gear2
 
   m.opt = opt
   m.callback = types.Callback()
@@ -513,7 +502,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   )[1]
   m.nacttrnbody = (mjm.actuator_trntype == mujoco.mjtTrn.mjTRN_BODY).sum()
   m.nsensortaxel = mjm.mesh_vertnum[mjm.sensor_objid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_TACTILE]].sum()
-  m.nrangefinder = (mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER).sum()
+  # rangefinder ray counts (1 per site sensor, width * height per camera sensor)
+  rf_sensors = np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER)[0]
+  rf_nrays = np.array(
+    [
+      1 if mjm.sensor_objtype[i] == mujoco.mjtObj.mjOBJ_SITE else mjm.cam_resolution[mjm.sensor_objid[i]].prod()
+      for i in rf_sensors
+    ],
+    dtype=int,
+  )
+  m.nrangefinder = int(rf_nrays.sum())
   condim_arrays = [np.array([0]), mjm.geom_condim, mjm.pair_dim]
   if mjm.nflex > 0:
     condim_arrays.append(mjm.flex_condim)
@@ -528,6 +526,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     # TODO(team): skip element pairs driven by a common grid node, as in mjc_ElemSharedNode
     if np.any((mjm.flex_interp != 0) & (mjm.flex_selfcollide != 0) & ((mjm.flex_contype & mjm.flex_conaffinity) != 0)):
       raise NotImplementedError("Self-collision of interpolated flexes (dof=trilinear or quadratic) is not implemented.")
+    if np.any((mjm.flex_interp != 0) & (mjm.flex_passive != 0) & (mjm.flex_dim >= 2)):
+      raise NotImplementedError("Passive contact of interpolated flexes (dof=trilinear or quadratic) is not implemented.")
   m.nmaxcondim = np.concatenate(condim_arrays).max()
   m.nmaxpyramid = np.maximum(1, 2 * (m.nmaxcondim - 1))
   m.has_sdf_geom = (mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF).any()
@@ -572,8 +572,9 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       for f in range(mjm.nflex)
     )
   )
-  # 1D rod bending is integrated explicitly under implicit and implicitfast, unlike 2D and 3D
-  m.has_flex_stiff_dim23 = bool(any(mjm.flex_dim[f] > 1 and _eff_flex_stiff_possible(mjm, f) for f in range(mjm.nflex)))
+  m.has_flex_edge_stiff_damp = bool(
+    any(not mjm.flex_rigid[f] and (mjm.flex_edgestiffness[f] > 0 or mjm.flex_edgedamping[f] > 0) for f in range(mjm.nflex))
+  )
   if (
     mjm.opt.integrator == mujoco.mjtIntegrator.mjINT_DISCRETE
     and mjm.opt.solver == mujoco.mjtSolver.mjSOL_NEWTON
@@ -581,7 +582,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   ):
     raise ValueError("discrete integrator: flex with general attachments requires solver='CG'")
   m.has_tendon_stiffness = bool(mjm.ntendon > 0 and (np.any(m.tendon_stiffness != 0) or np.any(m.tendon_stiffnesspoly != 0)))
-  m.has_tendon_damping = bool(mjm.ntendon > 0 and (np.any(m.tendon_damping != 0) or np.any(m.tendon_dampingpoly != 0)))
+  tendon_actuator = mjm.actuator_trntype == mujoco.mjtTrn.mjTRN_TENDON
+  m.has_tendon_damping = bool(
+    mjm.ntendon > 0
+    and (
+      np.any(m.tendon_damping != 0)
+      or np.any(m.tendon_dampingpoly != 0)
+      or np.any(mjm.actuator_damping[tendon_actuator] != 0)
+      or np.any(mjm.actuator_dampingpoly[tendon_actuator] != 0)
+    )
+  )
   m.has_efm_actuator = bool(
     mjm.nu > 0
     and np.any(
@@ -629,15 +639,21 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   for k, b in enumerate(m.efm_dofid):
     dofblk[b : b + 3] = k
   has_stretch_or_interp = any(
-    (mjm.flex_interp[f] != 0 or mjm.flex_edgeequality[f] != 2)
-    and mjm.flex_stiffnessadr[f] >= 0
-    and not mjm.flex_rigid[f]
-    and np.any(
-      mjm.flex_stiffness[
-        mjm.flex_stiffnessadr[f] : mjm.flex_stiffnessadr[f]
-        + (types.FLEX_STIFFNESS_3D if mjm.flex_dim[f] == 3 else 21) * mjm.flex_elemnum[f]
-      ]
-      != 0
+    not mjm.flex_rigid[f]
+    and mjm.flex_edgeequality[f] != 3
+    and (
+      _flex_has_stiffness(mjm, f)
+      if mjm.flex_interp[f] != 0
+      else (
+        mjm.flex_stiffnessadr[f] >= 0
+        and np.any(
+          mjm.flex_stiffness[
+            mjm.flex_stiffnessadr[f] : mjm.flex_stiffnessadr[f]
+            + (types.FLEX_STIFFNESS_3D if mjm.flex_dim[f] == 3 else 21) * mjm.flex_elemnum[f]
+          ]
+          != 0
+        )
+      )
     )
     for f in range(mjm.nflex)
   )
@@ -651,8 +667,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   flex_interp_assemblable = True
   for fi in range(mjm.nflex):
     if mjm.flex_interp[fi] != 0:
-      sa = int(mjm.flex_stiffnessadr[fi])
-      if sa >= 0 and not mjm.flex_rigid[fi] and mjm.flex_stiffness[sa] != 0 and mjm.flex_edgeequality[fi] != 3:
+      if not mjm.flex_rigid[fi] and mjm.flex_edgeequality[fi] != 3 and _flex_has_stiffness(mjm, fi):
         nodeadr = int(mjm.flex_nodeadr[fi])
         for n in range(int(mjm.flex_nodenum[fi])):
           bid = int(mjm.flex_nodebodyid[nodeadr + n])
@@ -667,16 +682,19 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   flex_cell_map = []
   if mjm.nflex > 0:
     for fi in range(mjm.nflex):
-      order = abs(int(mjm.flex_interp[fi]))
-      if order == 0:
+      order = int(mjm.flex_interp[fi])
+      if order == 0 or mjm.flex_edgeequality[fi] == 3 or not _flex_has_stiffness(mjm, fi):
         continue
-      if mjm.flex_edgeequality[fi] == 3:
-        continue
-      cx, cy, cz = mjm.flex_cellnum[fi]
-      for ci in range(cx):
-        for cj in range(cy):
-          for ck in range(cz):
-            flex_cell_map.append((fi, ci, cj, ck))
+      cx, cy, cz = (int(x) for x in mjm.flex_cellnum[fi])
+      if order < 0:
+        nfaces = 2 * (cy * cz + cx * cz + cx * cy)
+        for fe in range(nfaces):
+          flex_cell_map.append((fi, fe, 0, 0))
+      else:
+        for ci in range(cx):
+          for cj in range(cy):
+            for ck in range(cz):
+              flex_cell_map.append((fi, ci, cj, ck))
   if not flex_cell_map:
     m.flex_cell_map = np.zeros((0, 4), dtype=np.int32)
   else:
@@ -1038,9 +1056,10 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       | (mjm.sensor_type != mujoco.mjtSensor.mjSENS_TENDONACTFRC)
     )
   )[0]
-  m.sensor_rangefinder_adr = np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER)[0]
+  # map each ray to its sensor id and each sensor to its starting ray index
+  m.sensor_rangefinder_adr = np.repeat(rf_sensors, rf_nrays)
   m.rangefinder_sensor_adr = np.full(mjm.nsensor, -1)
-  m.rangefinder_sensor_adr[m.sensor_rangefinder_adr] = np.arange(len(m.sensor_rangefinder_adr))
+  m.rangefinder_sensor_adr[rf_sensors] = np.cumsum(rf_nrays) - rf_nrays
   m.collision_sensor_adr = np.full(mjm.nsensor, -1)
   m.collision_sensor_adr[sensor_collision_adr] = np.arange(len(sensor_collision_adr))
   m.sensor_touch_adr = np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_TOUCH)[0]
@@ -1063,7 +1082,17 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       mujoco.mjtSensor.mjSENS_FRAMEANGACC,
     ],
   ).any()
-  m.sensor_rangefinder_bodyid = mjm.site_bodyid[mjm.sensor_objid[mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER]]
+  # exclude attached site or camera body from ray intersection
+  rf_bodyids = np.array(
+    [
+      mjm.site_bodyid[mjm.sensor_objid[i]]
+      if mjm.sensor_objtype[i] == mujoco.mjtObj.mjOBJ_SITE
+      else mjm.cam_bodyid[mjm.sensor_objid[i]]
+      for i in rf_sensors
+    ],
+    dtype=int,
+  )
+  m.sensor_rangefinder_bodyid = np.repeat(rf_bodyids, rf_nrays)
   m.taxel_vertadr = [
     j + mjm.mesh_vertadr[mjm.sensor_objid[i]]
     for i in range(mjm.nsensor)
@@ -3182,7 +3211,7 @@ def override_model(model: types.Model | mujoco.MjModel, overrides: dict[str, Any
     "opt.run_collision_detection",
     "opt.run_rne_postconstraint",
   }
-  mj_only_fields = {"actuator_dampingpoly", "opt.jacobian", "vis.quality.offsamples"}
+  mj_only_fields = {"opt.jacobian", "vis.quality.offsamples"}
 
   if not isinstance(overrides, dict):
     overrides_dict = {}

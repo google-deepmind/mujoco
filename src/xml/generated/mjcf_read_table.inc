@@ -479,7 +479,7 @@ inline constexpr mjXAttr kFlexAttrs[] = {
   {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsFlex, group)},
   {"dim", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsFlex, dim)},
   {"radius", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, radius)},
-  {"material", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsFlex, material)},
+  {"material", mjXAttr::kStringVec, 1, true, false, false, true, (int)offsetof(mjsFlex, material)},
   {"rgba", mjXAttr::kFloat, 4, true, false, false, false, (int)offsetof(mjsFlex, rgba)},
   {"flatskin", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsFlex, flatskin)},
   {"body", mjXAttr::kStringVec, 1, true, true, false, false, (int)offsetof(mjsFlex, vertbody)},

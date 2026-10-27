@@ -224,6 +224,7 @@ cc_library(
         "//:__subpackages__",
     ],
     deps = [
+        "//src/batch",
         "//src/engine",
         "//src/xml:xml_api",
     ],
@@ -258,6 +259,7 @@ filegroup(
     name = "mujoco_headers",
     srcs = [
         "include/mujoco/mjassert.h",
+        "include/mujoco/mjbatch.h",
         "include/mujoco/mjdata.h",
         "include/mujoco/mjexport.h",
         "include/mujoco/mjmacro.h",

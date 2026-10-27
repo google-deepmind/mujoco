@@ -347,5 +347,40 @@ TEST_F(MjvSceneTest, TendonWrapGeodesicLength) {
   FreeSceneObjects();
 }
 
+TEST_F(MjvSceneTest, FlexDim2FlatskinNormalsPointOutward) {
+  constexpr char kFlexXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="sheet" type="direct" dim="2" radius="0.01" flatskin="true"
+                point="0 0 0  1 0 0  0 1 0" element="0 1 2"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(kFlexXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  InitSceneObjects(model.get());
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+
+  // First 3 vertices belong to the +radius face (normal +z), next 3 to the
+  // -radius face (normal -z).
+  for (int k = 0; k < 3; ++k) {
+    EXPECT_NEAR(scn_.flexnormal[3 * k + 0], 0.0f, 1e-5f);
+    EXPECT_NEAR(scn_.flexnormal[3 * k + 1], 0.0f, 1e-5f);
+    EXPECT_NEAR(scn_.flexnormal[3 * k + 2], 1.0f, 1e-5f);
+  }
+  for (int k = 3; k < 6; ++k) {
+    EXPECT_NEAR(scn_.flexnormal[3 * k + 0], 0.0f, 1e-5f);
+    EXPECT_NEAR(scn_.flexnormal[3 * k + 1], 0.0f, 1e-5f);
+    EXPECT_NEAR(scn_.flexnormal[3 * k + 2], -1.0f, 1e-5f);
+  }
+
+  FreeSceneObjects();
+}
+
 }  // namespace
 }  // namespace mujoco

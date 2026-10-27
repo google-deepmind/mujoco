@@ -14,7 +14,7 @@
 
 module(
     name = "mujoco",
-    version = "3.17.0",
+    version = "3.17.1",
     # REPO.bazel uses ignore_directories(), which was added in Bazel 8.0.
     bazel_compatibility = [">=8.0.0"],
 )
@@ -66,7 +66,6 @@ python.defaults(python_version_file = "//:.github/workflows/python-version")
 # Python toolchain configured". This matches the versions the wheels support
 # (pyproject.toml), except 3.15, which needs a newer rules_python.
 _PYTHON_VERSIONS = [
-    "3.10",
     "3.11",
     "3.12",
     "3.13",

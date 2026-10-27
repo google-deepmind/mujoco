@@ -241,7 +241,7 @@ void mj_makeModel(mjModel** dest,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
     mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
     mjtSize nefm0dof, mjtSize nefm0L, mjtSize nefmCvert, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv,
+    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe,
     mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
     mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
     mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
@@ -341,7 +341,6 @@ void mj_makeModel(mjModel** dest,
   m->nflexshelldata = nflexshelldata;
   m->nflextexcoord = nflextexcoord;
   m->nJfe = nJfe;
-  m->nJfv = nJfv;
   m->nmesh = nmesh;
   m->nmeshvert = nmeshvert;
   m->nmeshnormal = nmeshnormal;
@@ -450,7 +449,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
         src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
         src->nflexbending, src->nefm0dof, src->nefm0L, src->nefmCvert, src->nflexelemedge,
         src->nflexshelldata,
-        src->nflextexcoord, src->nJfe, src->nJfv, src->nmesh, src->nmeshvert, src->nmeshnormal,
+        src->nflextexcoord, src->nJfe, src->nmesh, src->nmeshvert, src->nmeshnormal,
         src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
         src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
         src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata, src->ntex,
@@ -631,7 +630,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
                sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
                sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
                sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
-               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81], sizes[82], sizes[83]);
+               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81], sizes[82]);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -1033,8 +1032,9 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
 }
 
 
-// initialize plugins, copy into d (required for deletion)
-void mj_initPlugin(const mjModel* m, mjData* d) {
+// initialize plugins, copy into d (required for deletion); if an init callback fails, destroy
+// the instances already initialized and return the id of the failed instance, otherwise -1
+int mj_initPlugin(const mjModel* m, mjData* d) {
   d->nplugin = m->nplugin;
   for (int i = 0; i < m->nplugin; ++i) {
     d->plugin[i] = m->plugin[i];
@@ -1047,11 +1047,22 @@ void mj_initPlugin(const mjModel* m, mjData* d) {
           prev->destroy(d, j);
         }
       }
-      mju_free(d->buffer);
-      mju_free(d->arena);
-      mju_free(d);
-      mjERROR("plugin->init failed for plugin id %d", i);
+      d->nplugin = 0;
+      return i;
     }
+  }
+  return -1;
+}
+
+
+// initialize plugins of mjData allocated by the caller, free it and error on failure
+static void initPluginOrFree(const mjModel* m, mjData* d) {
+  int failed = mj_initPlugin(m, d);
+  if (failed >= 0) {
+    mju_free(d->buffer);
+    mju_free(d->arena);
+    mju_free(d);
+    mjERROR("plugin->init failed for plugin id %d", failed);
   }
 }
 
@@ -1153,7 +1164,7 @@ mjData* mj_makeData(const mjModel* m) {
   mjData* d = NULL;
   mj_makeRawData(&d, m);
   if (d) {
-    mj_initPlugin(m, d);
+    initPluginOrFree(m, d);
     mj_resetData(m, d);
   }
   return d;
@@ -1169,7 +1180,7 @@ mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int
   // allocate new data if needed
   if (!dest) {
     mj_makeRawData(&dest, m);
-    mj_initPlugin(m, dest);
+    initPluginOrFree(m, dest);
   }
 
   // check sizes
@@ -1943,12 +1954,11 @@ const char* mj_validateReferences(const mjModel* m) {
   X(flex_vertadr,       nflex,          nflexvert     , m->flex_vertnum        ) \
   X(flex_edgeadr,       nflex,          nflexedge     , m->flex_edgenum        ) \
   X(flex_elemadr,       nflex,          nflexelem     , m->flex_elemnum        ) \
+  X(flex_matid,         nflexelem,      nmat          , 0                      ) \
   X(flex_texcoordadr,   nflex,          nflextexcoord , 0                      ) \
   X(flex_elemdataadr,   nflex,          nflexelemdata , 0                      ) \
   X(flex_elemedgeadr,   nflex,          nflexelemedge , 0                      ) \
   X(flex_shelldataadr,  nflex,          nflexshelldata, 0                      ) \
-  X(flex_vertedgeadr,   nflexvert,      nflexedge*2   , m->flex_vertedgenum    ) \
-  X(flex_vertedge,      nflexedge*2,    nflexedge     , 0                      ) \
   X(flex_edge,          nflexedge*2,    nflexvert     , 0                      ) \
   X(flex_elem,          nflexelemdata,  nflexvert     , 0                      ) \
   X(flex_elemedge,      nflexelemedge,  nflexedge     , 0                      ) \
@@ -2043,7 +2053,6 @@ const char* mj_validateReferences(const mjModel* m) {
   VALIDATE_SPARSE(B,          m->nbody,       m->nv,       m->nB,     1);
   VALIDATE_SPARSE(ten_J,      m->ntendon,     m->nv,       m->nJten,  0);
   VALIDATE_SPARSE(flexedge_J, m->nflexedge,   m->nv,       m->nJfe,   1);
-  VALIDATE_SPARSE(flexvert_J, 2*m->nflexvert, m->nv,       2*m->nJfv, 1);
   VALIDATE_SPARSE(efm0_L,     m->nefm0dof,    m->nefm0dof, m->nefm0L, 1);
   #undef VALIDATE_SPARSE
 
@@ -2173,6 +2182,16 @@ const char* mj_validateReferences(const mjModel* m) {
   for (int i=0; i < m->nefmCvert; i++) {
     if (m->efmC_perm[i] < -1 || m->efmC_perm[i] >= m->nv) {
       return "Invalid model: efmC_perm out of bounds.";
+    }
+  }
+  for (int f=0; f < m->nflex; f++) {
+    int ncell = m->flex_interp[f] ?
+                m->flex_cellnum[3*f+0] * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2] : 0;
+    for (int v=0; v < m->flex_vertnum[f]; v++) {
+      int c = m->flex_vertcell[m->flex_vertadr[f] + v];
+      if (m->flex_interp[f] ? (c < 0 || c >= ncell) : (c != -1)) {
+        return "Invalid model: flex_vertcell out of bounds.";
+      }
     }
   }
   for (int i=0; i < m->ngeom; i++) {
@@ -2330,7 +2349,6 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
 
     case mjEQ_FLEX:
-    case mjEQ_FLEXVERT:
     case mjEQ_FLEXSTRAIN:
       if (obj1id >= m->nflex || obj1id < 0) {
         return "Invalid model: eq_obj1id out of bounds.";

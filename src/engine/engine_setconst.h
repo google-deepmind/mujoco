@@ -36,10 +36,6 @@ MJAPI void mj_setConst(mjModel* m, mjData* d);
 // Run the groups of mj_setConst computations selected by the bits of groups, in order.
 MJAPI void mj_setConstGroups(mjModel* m, mjData* d, int groups);
 
-// Align 2D flexes with vertex equality constraints to the XY plane; compilation calls it before
-// mj_setCompiledConst.
-void mj_alignFlex(mjModel* m);
-
 // Set constant fields of mjModel, corresponding to qpos0 configuration, and those which
 // compilation derives once from the conventions of the spec: the damping of position-like
 // actuators given a damping ratio as a positive biasprm[2], the spring length of tendons given

@@ -16,6 +16,16 @@
 // Error: C reference not found
 // NOLINTBEGIN
 
+typedef struct mjBatch_ mjBatch;
+typedef struct mjBatchConfig_ {  // parameters of mjb_makeBatch
+  int nthread;                   // threads including the caller's; <= 0: one per logical CPU
+  mjtBool persistent;            // one mjData per simulation instead of one per thread
+} mjBatchConfig;
+typedef struct mjBatchRecord_ {  // mjData field or state recorded by mjb_rollout
+  const char* field;             // mjData field (as for mjb_output), NULL: record a state
+  int spec;                      // mjtState bits of the recorded state
+  void* buf;                     // output (n x nstep x size), of the field's type
+} mjBatchRecord;
 typedef struct mjPreContact_ {     // contact parameters set by narrowphase collision functions
   mjtNum dist;
   mjtNum pos[3];
@@ -218,8 +228,6 @@ typedef struct mjData_ {
   mjtNum*  flexedge_hessian;   // oriented off-diagonal Hessian blocks           (nflexedge x 9)
   mjtNum*  flexedge_J;         // flex edge Jacobian                             (nJfe x 1)
   mjtNum*  flexedge_length;    // flex edge lengths                              (nflexedge x 1)
-  mjtNum*  flexvert_J;         // flex vertex Jacobian                           (nJfv x 2)
-  mjtNum*  flexvert_length;    // flex vertex lengths                            (nflexvert x 2)
   mjtNum*  bvh_aabb_dyn;       // global bounding box (center, size)             (nbvhdynamic x 6)
 
   // AL contact state carried across steps (flag ipc, not in mjtState)
@@ -634,7 +642,6 @@ typedef struct mjModel_ {
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflextexcoord;          // number of vertices with texture coordinates
   mjtSize nJfe;                   // number of non-zeros in sparse flexedge Jacobian matrix
-  mjtSize nJfv;                   // number of non-zeros in sparse flexvert Jacobian matrix
   mjtSize nmesh;                  // number of meshes
   mjtSize nmeshvert;              // number of vertices in all meshes
   mjtSize nmeshnormal;            // number of normals in all meshes
@@ -911,7 +918,7 @@ typedef struct mjModel_ {
 
   // flexes: other properties
   int*      flex_dim;             // 1: lines, 2: triangles, 3: tetrahedra    (nflex x 1)
-  int*      flex_matid;           // material id for rendering                (nflex x 1)
+  int*      flex_matid;           // material id for rendering                (nflexelem x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
   int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)
@@ -932,9 +939,7 @@ typedef struct mjModel_ {
   int*      flex_texcoordadr;     // address in flex_texcoord; -1: none       (nflex x 1)
   int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
-  int*      flex_vertedgeadr;     // first edge address                       (nflexvert x 1)
-  int*      flex_vertedgenum;     // number of edges                          (nflexvert x 1)
-  int*      flex_vertedge;        // edge indices                             (nflexedge x 2)
+  int*      flex_vertcell;        // finite cell index for vertex; -1: none   (nflexvert x 1)
   int*      flex_edge;            // edge vertex ids (2 per edge)             (nflexedge x 2)
   int*      flex_edgeflap;        // adjacent vertex ids (dim=2 only)         (nflexedge x 2)
   int*      flex_elem;            // element vertex ids (dim+1 per elem)      (nflexelemdata x 1)
@@ -944,7 +949,6 @@ typedef struct mjModel_ {
   int*      flex_shell;           // shell fragment vertex ids (dim per frag) (nflexshelldata x 1)
   mjtNum*   flex_vert;            // vertex positions in local body frames    (nflexvert x 3)
   mjtNum*   flex_vert0;           // vertex positions in qpos0 on [0, 1]^d    (nflexvert x 3)
-  mjtNum*   flex_vertmetric;      // inverse of reference shape matrix        (nflexvert x 4)
   mjtNum*   flex_node;            // node positions in local body frames      (nflexnode x 3)
   mjtNum*   flex_node0;           // Cartesian node positions in qpos0        (nflexnode x 3)
   mjtNum*   flexedge_length0;     // edge lengths in qpos0                    (nflexedge x 1)
@@ -962,7 +966,7 @@ typedef struct mjModel_ {
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
-  int*      flex_edgeequality;    // 0:none, 1:edges, 2:vertices, 3:strain    (nflex x 1)
+  int*      flex_edgeequality;    // 0:none, 1:edges, 3:strain                (nflex x 1)
   mjtBool*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
   mjtBool*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtBool*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
@@ -972,9 +976,6 @@ typedef struct mjModel_ {
   int*      flexedge_J_rownnz;    // number of non-zeros in Jacobian row      (nflexedge x 1)
   int*      flexedge_J_rowadr;    // row start address in colind array        (nflexedge x 1)
   int*      flexedge_J_colind;    // column indices in sparse Jacobian        (nJfe x 1)
-  int*      flexvert_J_rownnz;    // number of non-zeros in Jacobian row      (nflexvert x 2)
-  int*      flexvert_J_rowadr;    // row start address in colind array        (nflexvert x 2)
-  int*      flexvert_J_colind;    // column indices in sparse Jacobian        (nJfv x 2)
   float*    flex_rgba;            // rgba when material is omitted            (nflex x 4)
   float*    flex_texcoord;        // vertex texture coordinates               (nflextexcoord x 2)
 
@@ -2120,7 +2121,7 @@ typedef struct mjsFlex_ {          // flex specification
   double edgestiffness;            // edge stiffness
   double edgedamping;              // edge damping
   float rgba[4];                   // rgba when material is omitted
-  mjString* material;              // name of material used for rendering
+  mjStringVec* material;           // name of material used for rendering
   double young;                    // Young's modulus
   double poisson;                  // Poisson's ratio
   double damping;                  // Rayleigh's damping
@@ -2583,7 +2584,7 @@ typedef enum mjtEq {              // type of equality constraint
   mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
   mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
   mjEQ_FLEX,                      // fix all edge lengths of a flex
-  mjEQ_FLEXVERT,                  // fix all vertex lengths of a flex
+  mjEQ_FLEXVERT,                  // unsupported, will cause an error if used
   mjEQ_FLEXSTRAIN,                // constrain strain of a trilinear/quadratic flex (B-bar)
   mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
@@ -3347,7 +3348,8 @@ typedef struct mjvGLCamera_ {     // OpenGL camera
 typedef struct mjvGeom_ {         // abstract geom
   // type info
   int      type;                  // geom type (mjtGeom)
-  int      dataid;                // mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)
+  int      dataid;                // mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull);
+                                  // multi-material flex: material slice index
   int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
@@ -3358,7 +3360,7 @@ typedef struct mjvGeom_ {         // abstract geom
   int      segid;                 // segmentation id; -1: not shown
 
   // spatial transform
-  float    size[3];               // size parameters
+  float    size[3];               // size parameters; multi-material flex: (radius, face offset, face count)
   float    pos[3];                // Cartesian position
   float    mat[9];                // Cartesian orientation
 
@@ -3646,6 +3648,34 @@ const char* mjRNDSTRING[mjNRNDFLAG][3] = {
 };
 
 //----------------------------- MJAPI FUNCTIONS --------------------------------
+void mjb_defaultConfig(mjBatchConfig* config);
+mjBatch* mjb_makeBatch(const mjModel* m, int nsim, const mjBatchConfig* config,
+                       char* error, int error_sz);
+void mjb_deleteBatch(mjBatch* b);
+int mjb_nstate(const mjBatch* b);
+mjtNum* mjb_state(mjBatch* b);
+mjtNum* mjb_stateComponent(mjBatch* b, int component, int* size);
+mjWarningStat* mjb_warning(mjBatch* b);
+int mjb_step(mjBatch* b, const int* ids, int nid, int nstep, int stage);
+int mjb_forward(mjBatch* b, const int* ids, int nid, int stage);
+int mjb_reset(mjBatch* b, const int* ids, int nid, const int* key, int stage);
+const int* mjb_status(const mjBatch* b);
+const char* mjb_error(const mjBatch* b, int sim);
+void* mjb_output(mjBatch* b, const char* name, int* size, int* elemsize);
+void* mjb_expand(mjBatch* b, const char* name, int* size, int* elemsize);
+const void* mjb_expanded(mjBatch* b, const char* name, int* size, int* elemsize);
+int mjb_setConst(mjBatch* b, const int* ids, int nid);
+void mjb_setModels(mjBatch* b, const mjModel* const* models);
+int mjb_rollout(mjBatch* b, const int* ids, int nid, int nstep, const mjtNum* control,
+                int control_spec, const mjBatchRecord* record, int nrecord);
+int mjb_apply(mjBatch* b, const int* ids, int nid, mjfBatchFunc func, void* arg,
+              int save);
+void mjb_getModel(mjBatch* b, int sim, mjModel* m);
+void mjb_getData(mjBatch* b, int sim, mjData* d);
+int mjb_nsim(const mjBatch* b);
+int mjb_nthread(const mjBatch* b);
+int mjb_persistent(const mjBatch* b);
+const mjModel* mjb_model(const mjBatch* b);
 void mjrf_defaultContextConfig(mjrfContextConfig* config);
 mjrfContext* mjrf_createContext(const mjrfContextConfig* config);
 void mjrf_destroyContext(mjrfContext* ctx);

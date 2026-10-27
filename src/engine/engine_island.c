@@ -308,7 +308,6 @@ static void treeIterInit(const mjModel* m, const mjData* d, int i, mjTreeIter* i
 static int isFlexEquality(const mjModel* m, int efc_type, int efc_id) {
   return efc_type == mjCNSTR_EQUALITY &&
          (m->eq_type[efc_id] == mjEQ_FLEX ||
-          m->eq_type[efc_id] == mjEQ_FLEXVERT ||
           m->eq_type[efc_id] == mjEQ_FLEXSTRAIN);
 }
 

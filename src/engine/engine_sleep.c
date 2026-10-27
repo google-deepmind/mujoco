@@ -526,7 +526,6 @@ int mj_wakeEquality(const mjModel* m, mjData* d) {
       continue;
 
     case mjEQ_FLEX:
-    case mjEQ_FLEXVERT:
     case mjEQ_FLEXSTRAIN: {
       int f = id1;
       int num, adr;
@@ -813,7 +812,6 @@ static mjtSleepState mj_equalitySleepState(const mjModel* m, const mjData* d, in
       objtype = mjOBJ_TENDON;
       break;
     case mjEQ_FLEX:
-    case mjEQ_FLEXVERT:
     case mjEQ_FLEXSTRAIN:
       objtype = mjOBJ_FLEX;
       break;

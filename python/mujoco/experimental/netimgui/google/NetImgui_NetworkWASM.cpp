@@ -48,6 +48,7 @@ struct SocketInfo {
   std::atomic<int> mCloseCode{0};
 
   std::vector<uint8_t> mBuffer;
+  size_t mBufferReadOffset = 0;
   std::mutex mBufferMutex;
   int mSendSizeMax =
       1024 * 1024;  // Interface compatibility with other backends
@@ -71,13 +72,25 @@ static EM_BOOL OnWebSocketMessage(int /*event_type*/,
   auto* socket = static_cast<SocketInfo*>(user_data);
   if (socket && !event->isText) {
     std::lock_guard<std::mutex> lock(socket->mBufferMutex);
-    size_t old_size = socket->mBuffer.size();
+    // DataReceive resets the buffer as soon as it has consumed all of it, so a
+    // non-zero read offset always has unread bytes after it. Compact when the
+    // consumed prefix is large, so a long-lived connection does not keep
+    // growing the buffer.
+    if (socket->mBufferReadOffset >= 65536 &&
+        socket->mBufferReadOffset >= socket->mBuffer.size() / 2) {
+      socket->mBuffer.erase(
+          socket->mBuffer.begin(),
+          socket->mBuffer.begin() + socket->mBufferReadOffset);
+      socket->mBufferReadOffset = 0;
+    }
+    size_t old_size = socket->mBuffer.size() - socket->mBufferReadOffset;
     socket->mBuffer.insert(socket->mBuffer.end(), event->data,
                            event->data + event->numBytes);
     static int msg_count = 0;
     ++msg_count;
     VLOG(1, "onmessage #%d: %d bytes, buffer: %zu -> %zu", msg_count,
-         event->numBytes, old_size, socket->mBuffer.size());
+         event->numBytes, old_size,
+         socket->mBuffer.size() - socket->mBufferReadOffset);
   } else if (socket && event->isText) {
     VLOG(1, "onmessage: TEXT frame (%d bytes), IGNORED", event->numBytes);
   }
@@ -177,6 +190,7 @@ void Disconnect(SocketInfo* client_socket) {
     // Release the receive buffer now; only the flags must stay valid.
     std::lock_guard<std::mutex> lock(client_socket->mBufferMutex);
     client_socket->mBuffer.clear();
+    client_socket->mBufferReadOffset = 0;
     client_socket->mBuffer.shrink_to_fit();
   }
   if (s_socket_graveyard[s_socket_graveyard_idx]) {
@@ -193,16 +207,17 @@ bool DataReceivePending(SocketInfo* client_socket) {
     // Connection is dead — flush any buffered data so we stop processing
     // stale commands that arrived before the close.
     std::lock_guard<std::mutex> lock(client_socket->mBufferMutex);
-    if (!client_socket->mBuffer.empty()) {
+    if (client_socket->mBufferReadOffset < client_socket->mBuffer.size()) {
       LOG(Warning, "Connection closed/error. Discarding %zu buffered bytes.",
-          client_socket->mBuffer.size());
+          client_socket->mBuffer.size() - client_socket->mBufferReadOffset);
       client_socket->mBuffer.clear();
+      client_socket->mBufferReadOffset = 0;
     }
     return false;
   }
 
   std::lock_guard<std::mutex> lock(client_socket->mBufferMutex);
-  return !client_socket->mBuffer.empty();
+  return client_socket->mBufferReadOffset < client_socket->mBuffer.size();
 }
 
 void DataReceive(SocketInfo* client_socket, PendingCom& pending_rcv) {
@@ -223,26 +238,30 @@ void DataReceive(SocketInfo* client_socket, PendingCom& pending_rcv) {
 
   std::lock_guard<std::mutex> lock(client_socket->mBufferMutex);
 
+  size_t available =
+      client_socket->mBuffer.size() - client_socket->mBufferReadOffset;
   VLOG(1, "DataReceive: want=%zu, have=%zu, cmd_size=%u, progress=%zu",
-       bytes_to_read, client_socket->mBuffer.size(),
-       pending_rcv.pCommand->mSize, pending_rcv.SizeCurrent);
+       bytes_to_read, available, pending_rcv.pCommand->mSize,
+       pending_rcv.SizeCurrent);
 
-  if (client_socket->mBuffer.empty()) {
+  if (available == 0) {
     if (client_socket->mError || client_socket->mClosed) {
       pending_rcv.bError = true;
     }
     return;
   }
 
-  size_t bytes_to_consume =
-      std::min(bytes_to_read, client_socket->mBuffer.size());
+  size_t bytes_to_consume = std::min(bytes_to_read, available);
   if (bytes_to_consume > 0) {
     memcpy(reinterpret_cast<uint8_t*>(pending_rcv.pCommand) +
                pending_rcv.SizeCurrent,
-           client_socket->mBuffer.data(), bytes_to_consume);
-    client_socket->mBuffer.erase(
-        client_socket->mBuffer.begin(),
-        client_socket->mBuffer.begin() + bytes_to_consume);
+           client_socket->mBuffer.data() + client_socket->mBufferReadOffset,
+           bytes_to_consume);
+    client_socket->mBufferReadOffset += bytes_to_consume;
+    if (client_socket->mBufferReadOffset == client_socket->mBuffer.size()) {
+      client_socket->mBuffer.clear();
+      client_socket->mBufferReadOffset = 0;
+    }
     pending_rcv.SizeCurrent += bytes_to_consume;
     pending_rcv.bError = false;
   }

@@ -1198,7 +1198,7 @@ class mjCFlex_ : public mjCBase {
   int                              nnode;         // number of nodes
   int                              nedge;         // number of edges
   int                              nelem;         // number of elements
-  int                              matid;         // material id
+  std::vector<int>                 elemmatid_;    // element material ids
   bool                             rigid;         // all vertices attached to the same body
   bool                             centered;      // all vertices coordinates (0,0,0)
   bool                             interpolated;  // vertices are interpolated from nodes
@@ -1214,8 +1214,11 @@ class mjCFlex_ : public mjCBase {
   std::vector<int>                 edgeidx_;      // element edge ids
   std::vector<double>              stiffness;     // elasticity stiffness matrix
   std::vector<double>              bending;       // bending stiffness matrix
-  bool              has_strain_eq = false;        // true if strain constraints reference this flex
-  std::vector<bool> cell_empty;                   // true if cell contains no mesh geometry
+  bool                has_strain_eq = false;      // true if strain constraints reference this flex
+  std::vector<bool>   cell_empty;                 // true if cell contains no mesh geometry
+  std::vector<bool>   cell_full;                  // true if cell is 100% inside mesh
+  std::vector<double> cell_vol;                   // material volume fraction per cell
+  std::vector<std::vector<double>> cell_alphas;   // subcell quadrature occupancy for cut cells
 
   // variable-size data
   std::vector<std::string> vertbody_;      // vertex body names
@@ -1225,9 +1228,9 @@ class mjCFlex_ : public mjCBase {
   std::vector<int>         elem_;          // element vertex ids
   std::vector<float>       texcoord_;      // vertex texture coordinates
   std::vector<int>         elemtexcoord_;  // face texture coordinates (OBJ only)
-  std::string              material_;      // name of material used for rendering
+  std::vector<std::string> material_;      // names of materials used for rendering
 
-  std::string              spec_material_;
+  std::vector<std::string> spec_material_;
   std::vector<std::string> spec_vertbody_;
   std::vector<std::string> spec_nodebody_;
   std::vector<double>      spec_vert_;
@@ -1261,7 +1264,7 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   void NameSpace(const mjCModel* m);
 
   // used by mjXWriter and mjCModel
-  const std::string&              get_material() const { return material_; }
+  const std::vector<std::string>& get_material() const { return material_; }
   const std::vector<std::string>& get_vertbody() const { return vertbody_; }
   const std::vector<double>&      get_vert() const { return vert_; }
   const std::vector<double>&      get_elemaabb() const { return elemaabb_; }
@@ -1284,31 +1287,40 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
 
 
  private:
-  bool IsSimple() const;           // fixed or independent XYZ-slide attachments
-  void Compile(const mjVFS* vfs);  // compiler
-  void CreateBVH(void);            // create flex BVH
-  void CreateShell(void);          // create shells
-  void ComputeCellEmpty(const double* vpos,
-                        const int*    elems,  // identify cells
-                        int           ne,
-                        int           fdim,        // with no mesh content
-                        const double  minmax[6]);  // bounding box of the node grid
+  bool   IsSimple() const;           // fixed or independent XYZ-slide attachments
+  void   Compile(const mjVFS* vfs);  // compiler
+  void   CreateBVH(void);            // create flex BVH
+  void   CreateShell(void);          // create shells
+  void   ComputeCellEmpty(const double* vpos,
+                          const int*    elems,  // identify cells
+                          int           ne,
+                          int           fdim,        // with no mesh content
+                          const double  minmax[6]);  // bounding box of the node grid
+  bool   NodeInEmptyCells(int gi, int gj,
+                          int gk) const;  // node only in empty cells
+  double NodeMassWeight(int gi, int gj,
+                        int gk) const;  // FCM volume-weighted nodal mass
 
   // scale the compiled copy: positions by the gauges of their bodies, the rest by that of the flex
   void ApplyGauge();
 
-  std::vector<double> vert0_;  // vertex positions in [0, 1]^d in the bounding box
-  std::vector<double> node0_;  // node Cartesian positions
+  std::vector<double> vert0_;     // vertex positions in [0, 1]^d in the bounding box
+  std::vector<int>    vertcell_;  // finite cell index for vertex; -1: none
+  std::vector<double> node0_;     // node Cartesian positions
 
   // compute unrotated node positions for stiffness computation
   // optionally outputs the grid rotation matrix R0 (stored as rows)
   std::vector<double> ComputeUnrotatedNodePositions(const std::vector<double>& nodexpos,
                                                     double* R0_out = nullptr) const;
 
-  // stiffness caching
-  std::string ComputeStiffnessCacheKey() const;
-  bool        LoadCachedStiffness();
-  void        CacheStiffness();
+  // stiffness and FCM geometry caching
+  std::string ComputeStiffnessCacheKey(const std::vector<double>& nodexpos_local) const;
+  bool        LoadCachedStiffness(const std::vector<double>& nodexpos_local);
+  void        CacheStiffness(const std::vector<double>& nodexpos_local);
+  std::string ComputeFcmCacheKey(
+      const double* vpos, const int* elems, int ne, int fdim, const double minmax[6]) const;
+  bool LoadCachedFcmGeometry(const std::string& key);
+  void CacheFcmGeometry(const std::string& key);
 };
 
 

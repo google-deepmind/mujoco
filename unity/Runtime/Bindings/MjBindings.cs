@@ -27,6 +27,7 @@ public static class MujocoLib {
 // ----------------------------------Constants----------------------------------
 
 public const bool THIRD_PARTY_MUJOCO_MJASSERT_H_ = true;
+public const bool THIRD_PARTY_MUJOCO_MJBATCH_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJDATA_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MJEXPORT_H_ = true;
 public const bool MUJOCO_HELPER_DLL_LOCAL = true;
@@ -121,7 +122,7 @@ public const int mjSC_IN = 1;
 public const int mjSC_OUT = 2;
 public const int mjSC_INOUT = 3;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 3017000;
+public const int mjVERSION_HEADER = 3017001;
 
 
 // ------------------------------------Enums------------------------------------
@@ -1117,7 +1118,6 @@ public unsafe struct mjModel_ {
   public UInt64 nflexshelldata;
   public UInt64 nflextexcoord;
   public UInt64 nJfe;
-  public UInt64 nJfv;
   public UInt64 nmesh;
   public UInt64 nmeshvert;
   public UInt64 nmeshnormal;
@@ -1375,9 +1375,7 @@ public unsafe struct mjModel_ {
   public int* flex_texcoordadr;
   public int* flex_nodebodyid;
   public int* flex_vertbodyid;
-  public int* flex_vertedgeadr;
-  public int* flex_vertedgenum;
-  public int* flex_vertedge;
+  public int* flex_vertcell;
   public int* flex_edge;
   public int* flex_edgeflap;
   public int* flex_elem;
@@ -1387,7 +1385,6 @@ public unsafe struct mjModel_ {
   public int* flex_shell;
   public double* flex_vert;
   public double* flex_vert0;
-  public double* flex_vertmetric;
   public double* flex_node;
   public double* flex_node0;
   public double* flexedge_length0;
@@ -1415,9 +1412,6 @@ public unsafe struct mjModel_ {
   public int* flexedge_J_rownnz;
   public int* flexedge_J_rowadr;
   public int* flexedge_J_colind;
-  public int* flexvert_J_rownnz;
-  public int* flexvert_J_rowadr;
-  public int* flexvert_J_colind;
   public float* flex_rgba;
   public float* flex_texcoord;
   public int* mesh_vertadr;
@@ -5842,8 +5836,6 @@ public unsafe struct mjData_ {
   public double* flexedge_hessian;
   public double* flexedge_J;
   public double* flexedge_length;
-  public double* flexvert_J;
-  public double* flexvert_length;
   public double* bvh_aabb_dyn;
   public double* flexvert_lambda;
   public int* flexvert_conage;

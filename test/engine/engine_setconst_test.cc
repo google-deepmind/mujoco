@@ -1275,7 +1275,8 @@ TEST_F(SetConstTest, SleepPolicyResolvedAnew) {
   EXPECT_EQ(m->tree_sleep_policy[1], mjSLEEP_AUTO_NEVER);
 }
 
-// Constants are computed for sleeping trees as for awake ones.
+// Constants are computed for sleeping trees as for awake ones, and the trees,
+// whose cached kinematics are overwritten, are woken.
 TEST_F(SetConstTest, SleepingTrees) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -1306,6 +1307,8 @@ TEST_F(SetConstTest, SleepingTrees) {
   EXPECT_EQ(m->actuator_acc0[0], acc0);
   EXPECT_EQ(m->dof_invweight0[0], invweight0);
   EXPECT_EQ(m->opt.enableflags, mjENBL_SLEEP);
+  EXPECT_EQ(d->ntree_awake, m->ntree);
+  EXPECT_EQ(d->nv_awake, m->nv);
 }
 
 // The constants do not depend on the contacts of mjData: the moment of an
@@ -1449,6 +1452,90 @@ TEST_F(SetConstTest, WeldPose) {
   m->qpos0[qposadr] = 3;
   mj_setConst(m.get(), d.get());
   EXPECT_THAT(AsVector(computed + 3, 7), ElementsAre(2, 0, 0.5, 1, 0, 0, 0));
+}
+
+// Computing reference camera and light poses in mj_setConst preserves
+// cam_xpos, cam_xmat, light_xpos, and light_xdir in mjData, including for
+// static and sleeping cameras and lights with targeting or tracking.
+TEST_F(SetConstTest, CamLightPose0PreservesData) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <camera name="static_target" mode="targetbody" target="pedestal"
+              pos="0 -1 1"/>
+      <light name="static_spot" mode="targetbody" target="pedestal"
+             pos="0 -1 2" dir="0 0 -1"/>
+      <body name="pedestal" pos="1 0.5 0.4">
+        <geom size="0.1"/>
+      </body>
+      <body name="sleeper" sleep="init" pos="-0.5 0 0.5">
+        <joint type="hinge" axis="0 0 1"/>
+        <geom size="0.1"/>
+        <camera name="sleep_target" mode="targetbodycom" target="pedestal"
+                pos="0 0 0.3"/>
+        <light name="sleep_spot" mode="targetbodycom" target="pedestal"
+               pos="0 0 0.4" dir="0 0 -1"/>
+      </body>
+      <body name="mover" pos="0 0 1">
+        <joint name="j" type="hinge" axis="1 0 0" armature="0.05"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d(mj_makeData(m.get()));
+  mj_forward(m.get(), d.get());
+
+  // targeted orientations in mjData differ from fixed-mode reference poses
+  EXPECT_NE(AsVector(d->cam_xmat, 9), AsVector(m->cam_mat0, 9));
+  EXPECT_NE(AsVector(d->cam_xmat + 9, 9), AsVector(m->cam_mat0 + 9, 9));
+  EXPECT_NE(AsVector(d->light_xdir, 3), AsVector(m->light_dir0, 3));
+  EXPECT_NE(AsVector(d->light_xdir + 3, 3), AsVector(m->light_dir0 + 3, 3));
+
+  std::vector<mjtNum> cam_xpos = AsVector(d->cam_xpos, 3 * m->ncam);
+  std::vector<mjtNum> cam_xmat = AsVector(d->cam_xmat, 9 * m->ncam);
+  std::vector<mjtNum> light_xpos = AsVector(d->light_xpos, 3 * m->nlight);
+  std::vector<mjtNum> light_xdir = AsVector(d->light_xdir, 3 * m->nlight);
+
+  // unrelated model edit + mj_setConst + mj_forward preserves camera/light
+  // poses in mjData: static ones are skipped, the woken tree is unmoved
+  m->dof_armature[1] = 0.2;
+  mj_setConst(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  for (int i = 0; i < 3 * m->ncam; i++) {
+    EXPECT_MJTNUM_EQ(d->cam_xpos[i], cam_xpos[i]);
+  }
+  for (int i = 0; i < 9 * m->ncam; i++) {
+    EXPECT_MJTNUM_EQ(d->cam_xmat[i], cam_xmat[i]);
+  }
+  for (int i = 0; i < 3 * m->nlight; i++) {
+    EXPECT_MJTNUM_EQ(d->light_xpos[i], light_xpos[i]);
+    EXPECT_MJTNUM_EQ(d->light_xdir[i], light_xdir[i]);
+  }
+
+  // editing camera and light offsets updates reference constants in mjModel
+  // without mutating mjData until mj_resetData
+  m->cam_pos[0] = 0.25;
+  m->light_pos[0] = -0.3;
+  m->light_dir[0] = 3;
+  m->light_dir[2] = -4;
+  mj_setConst(m.get(), d.get());
+  EXPECT_MJTNUM_EQ(m->cam_pos0[0], 0.25);
+  EXPECT_MJTNUM_EQ(m->light_pos0[0], -0.3);
+  EXPECT_MJTNUM_EQ(m->light_dir0[0], 0.6);
+  EXPECT_MJTNUM_EQ(m->light_dir0[2], -0.8);
+  EXPECT_MJTNUM_EQ(d->cam_xpos[0], cam_xpos[0]);
+  EXPECT_MJTNUM_EQ(d->light_xpos[0], light_xpos[0]);
+
+  mj_resetData(m.get(), d.get());
+  EXPECT_MJTNUM_EQ(d->cam_xpos[0], 0.25);
+  EXPECT_MJTNUM_EQ(d->light_xpos[0], -0.3);
 }
 
 }  // namespace

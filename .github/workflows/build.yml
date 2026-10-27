@@ -203,6 +203,13 @@ jobs:
         TMPDIR: ${{ matrix.tmpdir }}
       run: bash ../.github/workflows/build_steps.sh copy_plugins_window
 
+    - name: Install MuJoCo Studio platform
+      if: ${{ contains(matrix.cmake_args, 'MUJOCO_BUILD_STUDIO:BOOL=ON') }}
+      shell: bash
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ./.github/workflows/build_steps.sh install_studio_platform
+
     - name: Configure samples
       working-directory: sample
       env:
@@ -303,17 +310,44 @@ jobs:
       uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ env.label }}
-        max-size: "100M"
+        max-size: "250M"
         save: ${{ github.ref_name == 'main' }}
 
-    # For convenience run multiple build_steps functions in a single step.
-    - name: Prepare, Build and Test WASM bindings
+    - name: Setup Emscripten
+      run: bash ./.github/workflows/build_steps.sh setup_emsdk
+
+    # Cache Emscripten's compiled sysroot libraries (e.g. multithreaded +
+    # exception-enabled libc/libc++/libgl/embind built on demand for Studio
+    # WASM). Keyed on the static Emscripten version so it occupies a single ~50MB
+    # slot without creating new cache entries per commit.
+    - name: Cache Emscripten sysroot
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: emsdk/upstream/emscripten/cache
+        key: emsdk-sysroot-4.0.10
+
+    - name: Cache external dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ runner.temp }}/external_deps
+        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        restore-keys: |
+          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+
+    - name: Build and Test WASM bindings
       env:
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ env.cmake_args }}
       run: |
         bash ./.github/workflows/build_steps.sh npm_ci
-        bash ./.github/workflows/build_steps.sh setup_emsdk
         bash ./.github/workflows/build_steps.sh build_test_wasm
+
+    - name: Build MuJoCo Studio WASM
+      env:
+        EXTERNAL_DEPS: "eigen3"
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
+        CMAKE_ARGS: ${{ env.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh build_studio_wasm
 
     - name: Notify team chat
       if: failure() && github.ref_name == 'main' && github.event_name == 'push'

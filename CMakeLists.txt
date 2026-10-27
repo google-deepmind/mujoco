@@ -29,7 +29,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.17.0
+  VERSION 3.17.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -113,6 +113,7 @@ include(MujocoDependencies)
 
 set(MUJOCO_HEADERS
     include/mujoco/mjassert.h
+    include/mujoco/mjbatch.h
     include/mujoco/mjdata.h
     include/mujoco/mjexport.h
     include/mujoco/mjmacro.h
@@ -166,6 +167,7 @@ add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/xml/mjz)
+add_subdirectory(src/batch)
 
 add_subdirectory(src/render/noop)
 

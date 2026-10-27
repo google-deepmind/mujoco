@@ -242,12 +242,21 @@ class HeadlessUi {
       // at 1000+ FPS, starving the simulation thread of CPU cycles and GIL
       // access. Note: this sleep occurs while GIL is released, allowing the
       // simulation thread full uninterrupted execution.
+      //
+      // Schedule each frame from the previous frame's deadline rather than from
+      // the time the sleep returned, so sleep overshoot does not accumulate and
+      // slow the frame rate below 60 FPS. If more than a frame behind (e.g.
+      // after a reconnect), resync to avoid bursting to catch up.
+      constexpr auto kFramePeriod =
+          std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+              kTargetFrameDuration);
       const auto frame_now = std::chrono::steady_clock::now();
-      const auto elapsed = frame_now - last_frame_time_;
-      if (elapsed < kTargetFrameDuration) {
-        std::this_thread::sleep_for(kTargetFrameDuration - elapsed);
+      auto deadline = last_frame_time_ + kFramePeriod;
+      if (deadline + kFramePeriod < frame_now) {
+        deadline = frame_now;
       }
-      last_frame_time_ = std::chrono::steady_clock::now();
+      std::this_thread::sleep_until(deadline);
+      last_frame_time_ = deadline;
 
       bool new_frame_result = NetImgui::NewFrame(false);
       is_drawing_remote_ = new_frame_result;

@@ -496,7 +496,7 @@ def _collide_geom_capsule_detect(
     g_half_len = size_val[1]
     g_axis = wp.vec3(rot[0, 2], rot[1, 2], rot[2, 2])
     dists, poss, nrms = collision_primitive_core.capsule_capsule(
-      pos, g_axis, g_radius, g_half_len, cap_pos, cap_axis, cap_radius, cap_half_len, margin
+      pos, g_axis, g_radius, g_half_len, cap_pos, cap_axis, cap_radius, cap_half_len
     )
   elif gtype == int(GeomType.BOX):
     dists, poss, box_nrms = collision_primitive_core.capsule_box(
@@ -1443,7 +1443,7 @@ def _flex_narrowphase(warn_overflow: int):
       cap2_half_len = 0.5 * wp.length(p2_1 - p2_0)
 
       contact_dist, contact_pos, contact_normal = collision_primitive_core.capsule_capsule(
-        cap1_pos, cap1_axis, radius1, cap1_half_len, cap2_pos, cap2_axis, radius2, cap2_half_len, mix_margin
+        cap1_pos, cap1_axis, radius1, cap1_half_len, cap2_pos, cap2_axis, radius2, cap2_half_len
       )
 
       for c in range(2):

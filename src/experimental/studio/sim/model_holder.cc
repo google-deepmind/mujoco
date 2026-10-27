@@ -73,6 +73,9 @@ void ModelHolder::PostInit() {
 #ifdef __EMSCRIPTEN__
     // Disable threaded compilation on WASM since pthreads are not available.
     spec_->compiler.usethread = 0;
+    // Leave file-backed textures by reference so the renderer loads and decodes
+    // them on demand rather than duplicating pixels in WASM memory.
+    spec_->compiler.passthrough = mjPASSTHROUGH_TEXTURES;
 #endif
     model_ = mj_compile(spec_, vfs_);
     if (!model_) {

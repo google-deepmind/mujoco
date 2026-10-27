@@ -23,6 +23,7 @@ import mujoco.mjx.third_party.mujoco_warp as mjwarp
 from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
 import warp as wp
 
+
 _m = mjwarp.Model(
     **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
 )
@@ -64,6 +65,7 @@ def _forward_shim(
     actuator_actlimited: wp.array[bool],
     actuator_actnum: wp.array[int],
     actuator_actrange: wp.array2d[wp.vec2],
+    actuator_armature: wp.array2d[float],
     actuator_biasprm: wp.array2d[mjwp_types.vec10],
     actuator_biastype: wp.array[int],
     actuator_cranklength: wp.array2d[float],
@@ -72,6 +74,8 @@ def _forward_shim(
     actuator_ctrlnum: wp.array[int],
     actuator_ctrlrange: wp.array2d[wp.vec2],
     actuator_ctrlspec: wp.array[int],
+    actuator_damping: wp.array2d[float],
+    actuator_dampingpoly: wp.array2d[wp.vec2],
     actuator_delay: wp.array2d[float],
     actuator_dynprm: wp.array2d[mjwp_types.vec10],
     actuator_dyntype: wp.array[int],
@@ -126,6 +130,7 @@ def _forward_shim(
     cam_pos: wp.array2d[wp.vec3],
     cam_pos0: wp.array2d[wp.vec3],
     cam_poscom0: wp.array2d[wp.vec3],
+    cam_projection: wp.array[int],
     cam_quat: wp.array2d[wp.quat],
     cam_resolution: wp.array[wp.vec2i],
     cam_sensorsize: wp.array[wp.vec2],
@@ -227,6 +232,7 @@ def _forward_shim(
     flex_vert0: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
+    flex_vertcell: wp.array[int],
     flex_vertflexid: wp.array[int],
     flex_vertnum: wp.array[int],
     flexedge_J_colind: wp.array[int],
@@ -270,10 +276,10 @@ def _forward_shim(
     has_3d_flex: bool,
     has_efm_actuator: bool,
     has_ellipsoid_geom: bool,
+    has_flex_edge_stiff_damp: bool,
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
-    has_flex_stiff_dim23: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -290,6 +296,7 @@ def _forward_shim(
     jnt_actfrclimited: wp.array[bool],
     jnt_actfrcrange: wp.array2d[wp.vec2],
     jnt_actgravcomp: wp.array[int],
+    jnt_actuatorid: wp.array[int],
     jnt_axis: wp.array2d[wp.vec3],
     jnt_bodyid: wp.array[int],
     jnt_dofadr: wp.array[int],
@@ -447,6 +454,7 @@ def _forward_shim(
     ten_J_rownnz: wp.array[int],
     tendon_actfrclimited: wp.array[bool],
     tendon_actfrcrange: wp.array2d[wp.vec2],
+    tendon_actuatorid: wp.array[int],
     tendon_adr: wp.array[int],
     tendon_armature: wp.array2d[float],
     tendon_damping: wp.array2d[float],
@@ -718,6 +726,7 @@ def _forward_shim(
   _m.actuator_actlimited = actuator_actlimited
   _m.actuator_actnum = actuator_actnum
   _m.actuator_actrange = actuator_actrange
+  _m.actuator_armature = actuator_armature
   _m.actuator_biasprm = actuator_biasprm
   _m.actuator_biastype = actuator_biastype
   _m.actuator_cranklength = actuator_cranklength
@@ -726,6 +735,8 @@ def _forward_shim(
   _m.actuator_ctrlnum = actuator_ctrlnum
   _m.actuator_ctrlrange = actuator_ctrlrange
   _m.actuator_ctrlspec = actuator_ctrlspec
+  _m.actuator_damping = actuator_damping
+  _m.actuator_dampingpoly = actuator_dampingpoly
   _m.actuator_delay = actuator_delay
   _m.actuator_dynprm = actuator_dynprm
   _m.actuator_dyntype = actuator_dyntype
@@ -780,6 +791,7 @@ def _forward_shim(
   _m.cam_pos = cam_pos
   _m.cam_pos0 = cam_pos0
   _m.cam_poscom0 = cam_poscom0
+  _m.cam_projection = cam_projection
   _m.cam_quat = cam_quat
   _m.cam_resolution = cam_resolution
   _m.cam_sensorsize = cam_sensorsize
@@ -881,6 +893,7 @@ def _forward_shim(
   _m.flex_vert0 = flex_vert0
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
+  _m.flex_vertcell = flex_vertcell
   _m.flex_vertflexid = flex_vertflexid
   _m.flex_vertnum = flex_vertnum
   _m.flexedge_J_colind = flexedge_J_colind
@@ -924,10 +937,10 @@ def _forward_shim(
   _m.has_3d_flex = has_3d_flex
   _m.has_efm_actuator = has_efm_actuator
   _m.has_ellipsoid_geom = has_ellipsoid_geom
+  _m.has_flex_edge_stiff_damp = has_flex_edge_stiff_damp
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
-  _m.has_flex_stiff_dim23 = has_flex_stiff_dim23
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -944,6 +957,7 @@ def _forward_shim(
   _m.jnt_actfrclimited = jnt_actfrclimited
   _m.jnt_actfrcrange = jnt_actfrcrange
   _m.jnt_actgravcomp = jnt_actgravcomp
+  _m.jnt_actuatorid = jnt_actuatorid
   _m.jnt_axis = jnt_axis
   _m.jnt_bodyid = jnt_bodyid
   _m.jnt_dofadr = jnt_dofadr
@@ -1130,6 +1144,7 @@ def _forward_shim(
   _m.ten_J_rownnz = ten_J_rownnz
   _m.tendon_actfrclimited = tendon_actfrclimited
   _m.tendon_actfrcrange = tendon_actfrcrange
+  _m.tendon_actuatorid = tendon_actuatorid
   _m.tendon_adr = tendon_adr
   _m.tendon_armature = tendon_armature
   _m.tendon_damping = tendon_damping
@@ -1695,9 +1710,12 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'act_dot',
           'actuator_acc0',
           'actuator_actrange',
+          'actuator_armature',
           'actuator_biasprm',
           'actuator_cranklength',
           'actuator_ctrlrange',
+          'actuator_damping',
+          'actuator_dampingpoly',
           'actuator_delay',
           'actuator_dynprm',
           'actuator_force',
@@ -2170,6 +2188,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.actuator_actlimited,
       m.actuator_actnum,
       m.actuator_actrange,
+      m._impl.actuator_armature,
       m.actuator_biasprm,
       m.actuator_biastype,
       m.actuator_cranklength,
@@ -2178,6 +2197,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.actuator_ctrlnum,
       m.actuator_ctrlrange,
       m._impl.actuator_ctrlspec,
+      m._impl.actuator_damping,
+      m._impl.actuator_dampingpoly,
       m._impl.actuator_delay,
       m.actuator_dynprm,
       m.actuator_dyntype,
@@ -2232,6 +2253,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.cam_pos,
       m.cam_pos0,
       m.cam_poscom0,
+      m._impl.cam_projection,
       m.cam_quat,
       m.cam_resolution,
       m.cam_sensorsize,
@@ -2333,6 +2355,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.flex_vert0,
       m.flex_vertadr,
       m._impl.flex_vertbodyid,
+      m._impl.flex_vertcell,
       m._impl.flex_vertflexid,
       m.flex_vertnum,
       m._impl.flexedge_J_colind,
@@ -2376,10 +2399,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_3d_flex,
       m._impl.has_efm_actuator,
       m._impl.has_ellipsoid_geom,
+      m._impl.has_flex_edge_stiff_damp,
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
-      m._impl.has_flex_stiff_dim23,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -2396,6 +2419,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.jnt_actfrclimited,
       m.jnt_actfrcrange,
       m.jnt_actgravcomp,
+      m._impl.jnt_actuatorid,
       m.jnt_axis,
       m.jnt_bodyid,
       m.jnt_dofadr,
@@ -2553,6 +2577,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.ten_J_rownnz,
       m.tendon_actfrclimited,
       m.tendon_actfrcrange,
+      m._impl.tendon_actuatorid,
       m.tendon_adr,
       m.tendon_armature,
       m.tendon_damping,
@@ -3008,6 +3033,7 @@ def _step_shim(
     actuator_actlimited: wp.array[bool],
     actuator_actnum: wp.array[int],
     actuator_actrange: wp.array2d[wp.vec2],
+    actuator_armature: wp.array2d[float],
     actuator_biasprm: wp.array2d[mjwp_types.vec10],
     actuator_biastype: wp.array[int],
     actuator_cranklength: wp.array2d[float],
@@ -3016,6 +3042,8 @@ def _step_shim(
     actuator_ctrlnum: wp.array[int],
     actuator_ctrlrange: wp.array2d[wp.vec2],
     actuator_ctrlspec: wp.array[int],
+    actuator_damping: wp.array2d[float],
+    actuator_dampingpoly: wp.array2d[wp.vec2],
     actuator_delay: wp.array2d[float],
     actuator_dynprm: wp.array2d[mjwp_types.vec10],
     actuator_dyntype: wp.array[int],
@@ -3070,6 +3098,7 @@ def _step_shim(
     cam_pos: wp.array2d[wp.vec3],
     cam_pos0: wp.array2d[wp.vec3],
     cam_poscom0: wp.array2d[wp.vec3],
+    cam_projection: wp.array[int],
     cam_quat: wp.array2d[wp.quat],
     cam_resolution: wp.array[wp.vec2i],
     cam_sensorsize: wp.array[wp.vec2],
@@ -3171,6 +3200,7 @@ def _step_shim(
     flex_vert0: wp.array[wp.vec3],
     flex_vertadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
+    flex_vertcell: wp.array[int],
     flex_vertflexid: wp.array[int],
     flex_vertnum: wp.array[int],
     flexedge_J_colind: wp.array[int],
@@ -3214,10 +3244,10 @@ def _step_shim(
     has_3d_flex: bool,
     has_efm_actuator: bool,
     has_ellipsoid_geom: bool,
+    has_flex_edge_stiff_damp: bool,
     has_flex_passive: bool,
     has_flex_selfcollide: bool,
     has_flex_snh: bool,
-    has_flex_stiff_dim23: bool,
     has_fluid: bool,
     has_non_simple_flex: bool,
     has_plane_geom: bool,
@@ -3234,6 +3264,7 @@ def _step_shim(
     jnt_actfrclimited: wp.array[bool],
     jnt_actfrcrange: wp.array2d[wp.vec2],
     jnt_actgravcomp: wp.array[int],
+    jnt_actuatorid: wp.array[int],
     jnt_axis: wp.array2d[wp.vec3],
     jnt_bodyid: wp.array[int],
     jnt_dofadr: wp.array[int],
@@ -3395,6 +3426,7 @@ def _step_shim(
     ten_J_rownnz: wp.array[int],
     tendon_actfrclimited: wp.array[bool],
     tendon_actfrcrange: wp.array2d[wp.vec2],
+    tendon_actuatorid: wp.array[int],
     tendon_adr: wp.array[int],
     tendon_armature: wp.array2d[float],
     tendon_damping: wp.array2d[float],
@@ -3672,6 +3704,7 @@ def _step_shim(
   _m.actuator_actlimited = actuator_actlimited
   _m.actuator_actnum = actuator_actnum
   _m.actuator_actrange = actuator_actrange
+  _m.actuator_armature = actuator_armature
   _m.actuator_biasprm = actuator_biasprm
   _m.actuator_biastype = actuator_biastype
   _m.actuator_cranklength = actuator_cranklength
@@ -3680,6 +3713,8 @@ def _step_shim(
   _m.actuator_ctrlnum = actuator_ctrlnum
   _m.actuator_ctrlrange = actuator_ctrlrange
   _m.actuator_ctrlspec = actuator_ctrlspec
+  _m.actuator_damping = actuator_damping
+  _m.actuator_dampingpoly = actuator_dampingpoly
   _m.actuator_delay = actuator_delay
   _m.actuator_dynprm = actuator_dynprm
   _m.actuator_dyntype = actuator_dyntype
@@ -3734,6 +3769,7 @@ def _step_shim(
   _m.cam_pos = cam_pos
   _m.cam_pos0 = cam_pos0
   _m.cam_poscom0 = cam_poscom0
+  _m.cam_projection = cam_projection
   _m.cam_quat = cam_quat
   _m.cam_resolution = cam_resolution
   _m.cam_sensorsize = cam_sensorsize
@@ -3835,6 +3871,7 @@ def _step_shim(
   _m.flex_vert0 = flex_vert0
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
+  _m.flex_vertcell = flex_vertcell
   _m.flex_vertflexid = flex_vertflexid
   _m.flex_vertnum = flex_vertnum
   _m.flexedge_J_colind = flexedge_J_colind
@@ -3878,10 +3915,10 @@ def _step_shim(
   _m.has_3d_flex = has_3d_flex
   _m.has_efm_actuator = has_efm_actuator
   _m.has_ellipsoid_geom = has_ellipsoid_geom
+  _m.has_flex_edge_stiff_damp = has_flex_edge_stiff_damp
   _m.has_flex_passive = has_flex_passive
   _m.has_flex_selfcollide = has_flex_selfcollide
   _m.has_flex_snh = has_flex_snh
-  _m.has_flex_stiff_dim23 = has_flex_stiff_dim23
   _m.has_fluid = has_fluid
   _m.has_non_simple_flex = has_non_simple_flex
   _m.has_plane_geom = has_plane_geom
@@ -3898,6 +3935,7 @@ def _step_shim(
   _m.jnt_actfrclimited = jnt_actfrclimited
   _m.jnt_actfrcrange = jnt_actfrcrange
   _m.jnt_actgravcomp = jnt_actgravcomp
+  _m.jnt_actuatorid = jnt_actuatorid
   _m.jnt_axis = jnt_axis
   _m.jnt_bodyid = jnt_bodyid
   _m.jnt_dofadr = jnt_dofadr
@@ -4089,6 +4127,7 @@ def _step_shim(
   _m.ten_J_rownnz = ten_J_rownnz
   _m.tendon_actfrclimited = tendon_actfrclimited
   _m.tendon_actfrcrange = tendon_actfrcrange
+  _m.tendon_actuatorid = tendon_actuatorid
   _m.tendon_adr = tendon_adr
   _m.tendon_armature = tendon_armature
   _m.tendon_damping = tendon_damping
@@ -4665,9 +4704,12 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'act_dot',
           'actuator_acc0',
           'actuator_actrange',
+          'actuator_armature',
           'actuator_biasprm',
           'actuator_cranklength',
           'actuator_ctrlrange',
+          'actuator_damping',
+          'actuator_dampingpoly',
           'actuator_delay',
           'actuator_dynprm',
           'actuator_force',
@@ -5151,6 +5193,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.actuator_actlimited,
       m.actuator_actnum,
       m.actuator_actrange,
+      m._impl.actuator_armature,
       m.actuator_biasprm,
       m.actuator_biastype,
       m.actuator_cranklength,
@@ -5159,6 +5202,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.actuator_ctrlnum,
       m.actuator_ctrlrange,
       m._impl.actuator_ctrlspec,
+      m._impl.actuator_damping,
+      m._impl.actuator_dampingpoly,
       m._impl.actuator_delay,
       m.actuator_dynprm,
       m.actuator_dyntype,
@@ -5213,6 +5258,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.cam_pos,
       m.cam_pos0,
       m.cam_poscom0,
+      m._impl.cam_projection,
       m.cam_quat,
       m.cam_resolution,
       m.cam_sensorsize,
@@ -5314,6 +5360,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.flex_vert0,
       m.flex_vertadr,
       m._impl.flex_vertbodyid,
+      m._impl.flex_vertcell,
       m._impl.flex_vertflexid,
       m.flex_vertnum,
       m._impl.flexedge_J_colind,
@@ -5357,10 +5404,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.has_3d_flex,
       m._impl.has_efm_actuator,
       m._impl.has_ellipsoid_geom,
+      m._impl.has_flex_edge_stiff_damp,
       m._impl.has_flex_passive,
       m._impl.has_flex_selfcollide,
       m._impl.has_flex_snh,
-      m._impl.has_flex_stiff_dim23,
       m._impl.has_fluid,
       m._impl.has_non_simple_flex,
       m._impl.has_plane_geom,
@@ -5377,6 +5424,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.jnt_actfrclimited,
       m.jnt_actfrcrange,
       m.jnt_actgravcomp,
+      m._impl.jnt_actuatorid,
       m.jnt_axis,
       m.jnt_bodyid,
       m.jnt_dofadr,
@@ -5538,6 +5586,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.ten_J_rownnz,
       m.tendon_actfrclimited,
       m.tendon_actfrcrange,
+      m._impl.tendon_actuatorid,
       m.tendon_adr,
       m.tendon_armature,
       m.tendon_damping,

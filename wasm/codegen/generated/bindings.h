@@ -2638,13 +2638,8 @@ struct MjsFlex {
   emscripten::val rgba() const {
     return emscripten::val(emscripten::typed_memory_view(4, ptr_->rgba));
   }
-  mjString material() const {
-    return (ptr_ && ptr_->material) ? *(ptr_->material) : "";
-  }
-  void set_material(const mjString& value) {
-    if (ptr_ && ptr_->material) {
-      *(ptr_->material) = value;
-    }
+  mjStringVec &material() const {
+    return *(ptr_->material);
   }
   double young() const {
     return ptr_->young;
@@ -4098,12 +4093,6 @@ struct MjModel {
   void set_nJfe(int value) {
     ptr_->nJfe = static_cast<mjtSize>(value);
   }
-  int nJfv() const {
-    return static_cast<int>(ptr_->nJfv);
-  }
-  void set_nJfv(int value) {
-    ptr_->nJfv = static_cast<mjtSize>(value);
-  }
   int nmesh() const {
     return static_cast<int>(ptr_->nmesh);
   }
@@ -4996,7 +4985,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_dim));
   }
   emscripten::val flex_matid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_matid));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexelem, ptr_->flex_matid));
   }
   emscripten::val flex_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_group));
@@ -5058,14 +5047,8 @@ struct MjModel {
   emscripten::val flex_vertbodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertbodyid));
   }
-  emscripten::val flex_vertedgeadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgeadr));
-  }
-  emscripten::val flex_vertedgenum() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgenum));
-  }
-  emscripten::val flex_vertedge() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_vertedge));
+  emscripten::val flex_vertcell() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertcell));
   }
   emscripten::val flex_edge() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_edge));
@@ -5093,9 +5076,6 @@ struct MjModel {
   }
   emscripten::val flex_vert0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 3, ptr_->flex_vert0));
-  }
-  emscripten::val flex_vertmetric() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 4, ptr_->flex_vertmetric));
   }
   emscripten::val flex_node() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexnode * 3, ptr_->flex_node));
@@ -5177,15 +5157,6 @@ struct MjModel {
   }
   emscripten::val flexedge_J_colind() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nJfe, ptr_->flexedge_J_colind));
-  }
-  emscripten::val flexvert_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rownnz));
-  }
-  emscripten::val flexvert_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rowadr));
-  }
-  emscripten::val flexvert_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJfv * 2, ptr_->flexvert_J_colind));
   }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
@@ -7195,12 +7166,6 @@ struct MjData {
   }
   emscripten::val flexedge_length() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_length));
-  }
-  emscripten::val flexvert_J() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJfv * 2, ptr_->flexvert_J));
-  }
-  emscripten::val flexvert_length() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 2, ptr_->flexvert_length));
   }
   emscripten::val bvh_aabb_dyn() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));

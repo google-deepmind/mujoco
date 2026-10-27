@@ -306,6 +306,16 @@ spec.add_sensor(name='torso_gyro', type=mujoco.mjtSensor.mjSENS_GYRO,
     `TypeError`. Pass the `MjsDefault` instance: `geom.classname = rubber`.
 3.  **Always assign `recompile()`**: `spec.recompile(m, d)` produces newly
     allocated model and data instances. Reassign them: `m, d = spec.recompile(m, d)`.
+4.  **Declare high-contact "hub" bodies first (reverse-Cholesky fill-in)**:
+    MuJoCo's sparse Newton solver (`mju_cholFactorSparse`) eliminates DOFs in
+    reverse order (`nv - 1` down to `0`, leaves to root). Eliminating a DOF $r$
+    creates fill-in edges between all lower-indexed DOFs ($c < r$) coupled to $r$.
+    In scenes where a moving body with DOFs (e.g., an actuated sieve, tray,
+    container, or robot base) contacts many independent bodies (e.g., hundreds
+    of balls or clutter objects), always add the hub body **before** the
+    independent objects so it gets the lowest DOF indices ($O(N)$ arrowhead
+    factorization with zero fill-in rather than a dense $O(N^3)$ clique). Static
+    geoms welded to `worldbody` have 0 DOFs and are unaffected by ordering.
 
 ## 10. Key References
 

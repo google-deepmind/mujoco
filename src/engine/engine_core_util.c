@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_collision_primitive.h"
 #include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
@@ -613,8 +614,86 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 }
 
 
+// compute barycentric weights w of the point closest to p on the simplex with n vertices x
+static void simplexWeights(mjtNum w[4], const mjtNum p[3], const mjtNum* x[4], int n) {
+  // vertex
+  if (n == 1) {
+    w[0] = 1;
+  }
+
+  // segment
+  else if (n == 2) {
+    mjtNum ab[3], ap[3];
+    mju_sub3(ab, x[1], x[0]);
+    mju_sub3(ap, p, x[0]);
+    mjtNum len2 = mju_dot3(ab, ab);
+    mjtNum t = len2 > mjMINVAL ? mju_clip(mju_dot3(ap, ab) / len2, 0, 1) : 0;
+    w[0] = 1 - t;
+    w[1] = t;
+  }
+
+  // triangle
+  else if (n == 3) {
+    mjc_triWeights(w, p, x[0], x[1], x[2]);
+  }
+
+  // tetrahedron
+  else {
+    // solve p - x0 = sum_i w_i (x_i - x0) with Cramer's rule, done if p is inside
+    mjtNum e1[3], e2[3], e3[3], ep[3], c[3];
+    mju_sub3(e1, x[1], x[0]);
+    mju_sub3(e2, x[2], x[0]);
+    mju_sub3(e3, x[3], x[0]);
+    mju_sub3(ep, p, x[0]);
+    mji_cross(c, e2, e3);
+    mjtNum det = mju_dot3(e1, c);
+    if (mju_abs(det) > mjMINVAL) {
+      w[1] = mju_dot3(ep, c) / det;
+      mji_cross(c, ep, e3);
+      w[2] = mju_dot3(e1, c) / det;
+      mji_cross(c, e2, ep);
+      w[3] = mju_dot3(e1, c) / det;
+      w[0] = 1 - w[1] - w[2] - w[3];
+      if (w[0] >= 0 && w[1] >= 0 && w[2] >= 0 && w[3] >= 0) {
+        return;
+      }
+    }
+
+    // p is outside: closest point on the faces, face i is opposite vertex i
+    static const int face[4][3] = {{1, 2, 3}, {0, 2, 3}, {0, 1, 3}, {0, 1, 2}};
+    mjtNum mindist = mjMAXVAL;
+    mju_fill(w, 0.25, 4);
+    for (int i=0; i < 4; i++) {
+      const int* f = face[i];
+      mjtNum wf[3], cp[3] = {0, 0, 0};
+      mjc_triWeights(wf, p, x[f[0]], x[f[1]], x[f[2]]);
+      for (int k=0; k < 3; k++) {
+        mju_addToScl3(cp, x[f[k]], wf[k]);
+      }
+      mjtNum dist = mju_dist3(cp, p);
+      if (dist < mindist) {
+        mindist = dist;
+        w[i] = 0;
+        for (int k=0; k < 3; k++) {
+          w[f[k]] = wf[k];
+        }
+      }
+    }
+  }
+
+  // degenerate simplex: uniform weights
+  for (int i=0; i < n; i++) {
+    if (mju_isBad(w[i])) {
+      mju_fill(w, 1.0/n, n);
+      return;
+    }
+  }
+}
+
+
 // compute element vertices and weights for given contact point, return #vertices
-// if v is one of the element vertices, reduce element to fragment
+//   weights are the barycentric coordinates of the point on the element closest to the contact
+//   if v is one of the element vertices, reduce element to fragment
 static int mj_elemVertWeight(const mjModel* m, const mjData* d, int f, int e, int v,
                              const mjtNum point[3], int* vertid, mjtNum* weight) {
   // get flex info
@@ -622,37 +701,19 @@ static int mj_elemVertWeight(const mjModel* m, const mjData* d, int f, int e, in
   const int* edata = m->flex_elem + m->flex_elemdataadr[f] + e*(dim+1);
   const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
-  // compute inverse distances from contact point to element vertices
-  // save vertex ids, find vertex v in element
-  int vid = -1;
+  // save vertex ids and positions, skip vertex v
+  int n = 0;
+  const mjtNum* x[4];
   for (int i=0; i <= dim; i++) {
-    mjtNum dist = mju_dist3(point, vert+3*edata[i]);
-    weight[i] = 1.0/(mju_max(mjMINVAL, dist));
-    vertid[i] = m->flex_vertadr[f] + edata[i];
-
-    // check if element vertex matches v
-    if (edata[i] == v) {
-      vid = i;
+    if (edata[i] != v) {
+      vertid[n] = m->flex_vertadr[f] + edata[i];
+      x[n++] = vert + 3*edata[i];
     }
   }
 
-  // v found in e: skip and shift remaining
-  if (vid >= 0) {
-    while (vid < dim) {
-      weight[vid] = weight[vid+1];
-      vertid[vid] = vertid[vid+1];
-      vid++;
-    }
-    dim--;
-  }
-
-  // normalize weights
-  mjtNum sum = mju_sum(weight, dim+1);
-  if (sum < mjMINVAL) {
-    mjERROR("element body weight sum < mjMINVAL");
-  }
-  mju_scl(weight, weight, 1.0/sum, dim+1);
-  return dim+1;
+  // barycentric weights of the closest point on the element or fragment
+  simplexWeights(weight, point, x, n);
+  return n;
 }
 
 
@@ -682,9 +743,33 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   }
 
   // cell lookup: get local coords and node indices
+  const int* cellnum = m->flex_cellnum + 3*f;
+  int cell = -1;
+  if (nw == 1) {
+    cell = m->flex_vertcell[v[0]];
+  } else {
+    int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+    int ci = mjMAX(0, mjMIN(cx - 1, (int)mju_floor(coord[0] * cx)));
+    int cj = mjMAX(0, mjMIN(cy - 1, (int)mju_floor(coord[1] * cy)));
+    int ck = mjMAX(0, mjMIN(cz - 1, (int)mju_floor(coord[2] * cz)));
+    int nat_cell = ci * cy * cz + cj * cz + ck;
+    int best = 0;
+    for (int i = 0; i < nw; i++) {
+      if (m->flex_vertcell[v[i]] == nat_cell) {
+        cell = nat_cell;
+        break;
+      }
+      if (vweight[i] > vweight[best]) {
+        best = i;
+      }
+    }
+    if (cell < 0) {
+      cell = m->flex_vertcell[v[best]];
+    }
+  }
   mjtNum local[3];
   int nodeindices[27];  // max npc for quadratic: 3^3 = 27
-  mju_cellLookup(coord, m->flex_cellnum+3*f, order, local, nodeindices);
+  mju_cellLookup(coord, cellnum, order, cell, local, nodeindices);
 
   // evaluate basis functions for this cell's local nodes
   int nstart = m->flex_nodeadr[f];
@@ -697,7 +782,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
   if (npc > 27) {
     for (int j = 0; j < npc; j++) {
       mjtNum w = mju_evalBasis(local, j, order);
-      if (w < 1e-5) {
+      if (mju_abs(w) < 1e-5) {
         continue;
       }
 
@@ -738,7 +823,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int* v,
 
     for (int j = 0; j < npc; j++) {
       mjtNum w = basis[j];
-      if (w < 1e-5) {
+      if (mju_abs(w) < 1e-5) {
         continue;
       }
 
@@ -1275,6 +1360,9 @@ int mj_flexBodySimple(const mjModel* m, int body) {
 
 // Check for standard fixed-frame three-DOF assembly flex and compatibility with cached factor.
 int mj_flexSimple(const mjModel* m, int f) {
+  if (m->flex_interp[f]) {
+    return 0;
+  }
   for (int v=m->flex_vertadr[f]; v < m->flex_vertadr[f]+m->flex_vertnum[f]; v++) {
     int body = m->body_weldid[m->flex_vertbodyid[v]];
     if (m->body_dofnum[body] && !mj_flexBodySimple(m, body)) return 0;
@@ -1655,12 +1743,14 @@ int mj_flexHasStiffness(const mjModel* m, int f) {
   const mjtNum* k = m->flex_stiffness + adr;
 
   // standard flex: every element has stiffness if any does
-  // shell-mode interpolated flex (interp < 0): keep the first-block check; shells have no empty
-  // cells, and their first block (a membrane quad on the x=0 face) has a zero first entry, so
-  // interpolated shell stretch is currently never applied (to be revisited with MJWarp)
   int order = m->flex_interp[f];
-  if (order <= 0) {
+  if (order == 0) {
     return k[0] != 0;
+  }
+
+  // shell-mode interpolated flex (interp < 0): stiffness is allocated only when nonzero
+  if (order < 0) {
+    return 1;
   }
 
   // volume-mode interpolated flex: any 3D cell counts
@@ -1679,11 +1769,11 @@ int mj_flexHasStiffness(const mjModel* m, int f) {
 }
 
 
-// does flex f use the penalty form of passive contact: a standard deformable flex of dim >= 2
+// does flex f use the penalty form of passive contact: a deformable flex of dim >= 2
 // that asks for it, and not under the ipc flag, which solves the same law for every supported
 // flex itself (running both would apply each pair's force twice)
 int mj_effFlexContactPossible(const mjModel* m, int f) {
-  return m->flex_passive[f] && !m->flex_rigid[f] && !m->flex_interp[f] && m->flex_dim[f] >= 2 &&
+  return m->flex_passive[f] && !m->flex_rigid[f] && m->flex_dim[f] >= 2 &&
          !mjENABLED(mjENBL_IPC);
 }
 

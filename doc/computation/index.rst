@@ -728,6 +728,8 @@ Discrete-time (``discrete``)
 
       - Models with flex elasticity or passive flex contact under the ``PGS`` :ref:`solver<option-solver>` or with
         :ref:`noslip<option-noslip_iterations>` post-processing.
+      - Flex :ref:`edge stiffness<flex-edge-stiffness>` or :ref:`damping<flex-edge-damping>` (use
+        :ref:`elasticity<flex-elasticity>` or :ref:`edge equality<flexcomp-edge-equality>` instead).
       - :ref:`Sleep<option-flag-sleep>` without :ref:`islands<option-flag-island>` (island grouping is required
         to keep metric-coupled trees awake or asleep together).
       - Interpolated flexes (e.g. flexcomp ``dof="trilinear"``) whose nodes are attached to arbitrary moving bodies
@@ -1477,12 +1479,15 @@ representations of the constraint Jacobian and related matrices.
 
 **Newton** : Newton's method
    This algorithm implements the exact Newton method, with analytical second-order derivatives and Cholesky
-   factorization of the Hessian. The line-search is the same as in the CG method. When constraint states change between
-   iterations (e.g., a constraint transitions from quadratic to linear), the Hessian factorization is updated
-   incrementally via rank-1 Cholesky updates, avoiding full refactorization. Early termination is triggered when any of
-   three quantities falls below :ref:`tolerance<option-tolerance>`: the cost improvement of the last iteration, the
-   gradient norm, and the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g` -- the predicted cost improvement of the
-   next iteration. It is the default solver.
+   factorization of the Hessian. In sparse mode, the Hessian :math:`H = \widehat{M} + J^T D J` is factorized as
+   :math:`L^T L` by eliminating rows in reverse order (:math:`\nv - 1` down to :math:`0`, leaves to root); this gives
+   zero fill-in on the kinematic tree :math:`\widehat{M}`, though off-tree constraints can introduce fill-in depending
+   on :ref:`body ordering <CBodyOrdering>`. The line-search is the same as in the CG method. When constraint states
+   change between iterations (e.g., a constraint transitions from quadratic to linear), the Hessian factorization is
+   updated incrementally via rank-1 Cholesky updates, avoiding full refactorization. Early termination is triggered when
+   any of three quantities falls below :ref:`tolerance<option-tolerance>`: the cost improvement of the last iteration,
+   the gradient norm, and the Newton decrement :math:`\tfrac{1}{2} g^T H^{-1} g` -- the predicted cost improvement of
+   the next iteration. It is the default solver.
 
 **PGS** : Projected Gauss-Seidel method
    This is the most common algorithm used in physics simulators, and used to be the default in MuJoCo, until we

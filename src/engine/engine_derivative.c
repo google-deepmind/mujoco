@@ -909,7 +909,7 @@ int mjd_freeGyroPossible(const mjModel* m, const mjData* d, int jnt) {
   // Matrix-free flex attachments can couple this free body without any CSR or constraint row.
   int tree = m->body_treeid[m->jnt_bodyid[jnt]];
   for (int f=0; f < m->nflex; f++) {
-    if (!mj_effFlexStiffPossible(m, f)) continue;
+    if (!mj_effFlexPossible(m, f)) continue;
     const int* bodies = m->flex_interp[f] ? m->flex_nodebodyid : m->flex_vertbodyid;
     int vertadr = m->flex_interp[f] ? m->flex_nodeadr[f] : m->flex_vertadr[f];
     int num = m->flex_interp[f] ? m->flex_nodenum[f] : m->flex_vertnum[f];
@@ -1404,9 +1404,10 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
       // get element stiffness
       mjtNum* k_elem = K + fe * 3*npe * 3*npe;
 
-      // skip empty elements: stiffness buffer is zero-initialized at compile time
-      // (user_model.cc), and non-empty elements have strictly positive diagonal
-      if (k_elem[0] == 0) {
+      // skip empty elements in volume mode: stiffness buffer is zero-initialized at compile time
+      // (user_model.cc), and non-empty 3D cells have strictly positive diagonal; shells have no
+      // empty cells and their x-normal faces (faces 0 and 1) have k_elem[0] == 0
+      if (!shell_mode && k_elem[0] == 0) {
         continue;
       }
 
@@ -1849,7 +1850,7 @@ mjtBool mjd_flexInterpAssemblable(const mjModel* m) {
     const mjtNum* K_ = m->flex_stiffness + m->flex_stiffnessadr[f];          \
     int gindices[125];                                                       \
     for (int fe = 0; fe < nelem_fe_; fe++) {                                 \
-      if (K_[(size_t)fe * 3 * npe * 3 * npe] == 0) continue;                 \
+      if (!shell_ && K_[(size_t)fe * 3 * npe * 3 * npe] == 0) continue;      \
       if (shell_) {                                                          \
         mju_flexGatherFaceState(order_, cx_, cy_, cz_, fe, NULL, NULL, NULL, \
                                 NULL, NULL, NULL, gindices, NULL);           \
@@ -1924,8 +1925,11 @@ mjtNum mjd_flexContactResidual(mjtNum k, mjtNum gap, mjtNum s, mjtNum lam) {
 }
 
 
-mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
-  int b = m->body_weldid[m->flex_vertbodyid[gv]];
+static mjtNum flexBodyMass(const mjModel* m, const mjData* d, int body) {
+  if (body < 0) {
+    return 0;
+  }
+  int b = m->body_weldid[body];
   if (m->body_dofnum[b] != 3) {
     return 0;
   }
@@ -1934,11 +1938,58 @@ mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
 }
 
 
-mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con) {
+mjtNum mjd_flexVertMass(const mjModel* m, const mjData* d, int gv) {
+  return flexBodyMass(m, d, m->flex_vertbodyid[gv]);
+}
+
+
+// count dynamic (3-dof) cage nodes of interpolated flex f
+int mjd_flexInterpDynNodes(const mjModel* m, int f) {
+  if (m->flex_centered[f]) {
+    return m->flex_nodenum[f];
+  }
+  int nstart = m->flex_nodeadr[f];
+  int ndyn = 0;
+  for (int j = 0; j < m->flex_nodenum[f]; j++) {
+    int b = m->flex_nodebodyid[nstart + j];
+    if (b >= 0 && m->body_dofnum[m->body_weldid[b]] == 3) {
+      ndyn++;
+    }
+  }
+  return ndyn;
+}
+
+
+mjtNum mjd_flexContactStiffness(const mjModel* m, const mjData* d, const mjContact* con,
+                                const int* flex_ndyn) {
   mjtNum mmin = 0;
   for (int side = 0; side < 2; side++) {
     int f = con->flex[side];
     if (f < 0) {
+      continue;
+    }
+    if (m->flex_interp[f]) {
+      // 1 cell has at most 27 nodes (quadratic), projected to at most 27 boundary nodes in TFI
+      int body[27];
+      mjtNum weight[27];
+      int nb = mj_contactBodyWeight(m, d, con, side, body, weight);
+      mjtNum inv_m = 0;
+      for (int j = 0; j < nb; j++) {
+        mjtNum mb = flexBodyMass(m, d, body[j]);
+        if (mb > 0) {
+          inv_m += weight[j] * weight[j] / mb;
+        }
+      }
+      if (inv_m > 0) {
+        int ndyn = flex_ndyn ? flex_ndyn[f] : mjd_flexInterpDynNodes(m, f);
+        mjtNum scale = m->flex_vertnum[f] > 0
+                       ? (mjtNum)ndyn / m->flex_vertnum[f]
+                       : 1;
+        mjtNum meff = scale / inv_m;
+        if (mmin == 0 || meff < mmin) {
+          mmin = meff;
+        }
+      }
       continue;
     }
     int gv[8], ngv = 0;
@@ -3347,29 +3398,6 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
     mjtNum damping = m->dof_damping[i] + mj_actuatorDamping(m, mjOBJ_JOINT, m->dof_jntid[i], poly);
     int adr = m->D_rowadr[i] + m->D_diag[i];
     d->qDeriv[adr] -= mjd_xPolyForce(damping, poly, v, mjNPOLY, 1);
-  }
-
-  // flex edge damping
-  for (int f=0; f < m->nflex; f++) {
-    mjtNum B = -m->flex_edgedamping[f];
-    if (m->flex_rigid[f] || !B) {
-      continue;
-    }
-
-    int flex_edgeadr = m->flex_edgeadr[f];
-    int flex_edgenum = m->flex_edgenum[f];
-
-    // process non-rigid edges of this flex
-    for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-      // skip rigid
-      if (m->flexedge_rigid[e]) {
-        continue;
-      }
-
-      // always sparse
-      addJTBJSparse(m, d, d->qDeriv, d->flexedge_J, &B, 1, e,
-                    m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind);
-    }
   }
 
   // tendon damping

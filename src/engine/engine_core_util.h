@@ -111,8 +111,9 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 
 // compute bodies and weights of one side of a contact, return number of bodies
 //   the weights interpolate the side at the contact point; weight can be NULL
-int mj_contactBodyWeight(const mjModel* m, const mjData* d, const mjContact* con, int side,
-                         int* body, mjtNum* weight);
+MJAPI int mj_contactBodyWeight(const mjModel* m, const mjData* d,
+                               const mjContact* con, int side, int* body,
+                               mjtNum* weight);
 
 // compute 3/6-by-nv Jacobian time derivative of global point attached to given body
 MJAPI void mj_jacDot(const mjModel* m, const mjData* d,

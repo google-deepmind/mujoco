@@ -242,8 +242,6 @@ typedef struct mjData_ {
   mjtNum*  flexedge_hessian;   // oriented off-diagonal Hessian blocks           (nflexedge x 9)
   mjtNum*  flexedge_J;         // flex edge Jacobian                             (nJfe x 1)
   mjtNum*  flexedge_length;    // flex edge lengths                              (nflexedge x 1)
-  mjtNum*  flexvert_J;         // flex vertex Jacobian                           (nJfv x 2)
-  mjtNum*  flexvert_length;    // flex vertex lengths                            (nflexvert x 2)
   mjtNum*  bvh_aabb_dyn;       // global bounding box (center, size)             (nbvhdynamic x 6)
 
   // AL contact state carried across steps (flag ipc, not in mjtState)

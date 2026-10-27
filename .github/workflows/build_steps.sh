@@ -131,7 +131,7 @@ setup_emsdk() {
 # cached dependency in EXTERNAL_DEPS_DIR.
 _setup_ext_deps_args() {
     ext_deps_args=()
-    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
+    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR:-/tmp}/external_deps}"
     if command -v cygpath >/dev/null 2>&1 && [[ -n "${ext_deps_dir}" ]]; then
         ext_deps_dir="$(cygpath -m "${ext_deps_dir}")"
     fi
@@ -154,6 +154,23 @@ _setup_ext_deps_args() {
 }
 
 
+# Copy any newly fetched dependencies from $1/_deps/<dep>-src into
+# EXTERNAL_DEPS_DIR so actions/cache can persist them across runs.
+_populate_ext_deps_cache() {
+    local build_dir="${1:-.}"
+    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR:-/tmp}/external_deps}"
+    for dep in ${EXTERNAL_DEPS:-eigen3}; do
+        local src="${build_dir}/_deps/${dep}-src"
+        local dst="${ext_deps_dir}/${dep}"
+        if [[ -d "${src}" && ! -d "${dst}" ]]; then
+            echo "Populating external dependencies cache for ${dep}..."
+            mkdir -p "${ext_deps_dir}"
+            cp -r "${src}" "${dst}"
+        fi
+    done
+}
+
+
 configure_mujoco() {
     echo "Configuring MuJoCo..."
     # Disable global IPO/LTO to avoid expensive whole-program optimization link
@@ -165,7 +182,6 @@ configure_mujoco() {
 
     # Use cached external dependencies from actions/cache.
     local ext_deps_args=()
-    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
     _setup_ext_deps_args
 
     mkdir build &&
@@ -178,17 +194,7 @@ configure_mujoco() {
         ${CCACHE_ARGS} \
         ${CMAKE_ARGS} \
         "${ext_deps_args[@]}" &&
-
-    # Populate any missing external dependency caches.
-    for dep in ${EXTERNAL_DEPS:-eigen3}; do
-        local src="_deps/${dep}-src"
-        local dst="${ext_deps_dir}/${dep}"
-        if [[ -d "${src}" && ! -d "${dst}" ]]; then
-            echo "Populating external dependencies cache for ${dep}..."
-            mkdir -p "${ext_deps_dir}"
-            cp -r "${src}" "${dst}"
-        fi
-    done
+    _populate_ext_deps_cache .
 }
 
 
@@ -370,8 +376,15 @@ install_python_bindings() {
 
 test_python_bindings() {
     echo "Testing Python bindings..."
-    source ${TMPDIR}/venv/bin/activate &&
+    source ${TMPDIR}/venv/bin/activate
     pytest -v --pyargs mujoco
+    if _has_studio_platform build; then
+        echo "Smoke testing Studio Python modules..."
+        python -c "import mujoco._render_filament, mujoco.experimental.studio.window, mujoco.experimental.studio.ux, mujoco.experimental.studio.sim, mujoco.experimental.studio.native_viewer"
+        if [[ "${RUNNER_OS:-}" != "Windows" ]]; then
+            python -c "import mujoco.experimental.studio.web.headless_ui, mujoco.experimental.studio.web.state_payload"
+        fi
+    fi
 }
 
 
@@ -379,12 +392,15 @@ test_python_bindings() {
 _build_wasm_threads() {  # $1 = ON | OFF
     local mode=$1 dir
     [[ "${mode}" == "ON" ]] && dir=build_wasm_mt || dir=build_wasm_st
+    local ext_deps_args=()
+    _setup_ext_deps_args
     echo "Build MuJoCo with Emscripten (MUJOCO_WASM_THREADS=${mode})..."
     emcmake cmake -B "${dir}" \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=${mode} \
         ${CCACHE_ARGS} \
-        $WASM_CMAKE_ARGS
+        $WASM_CMAKE_ARGS \
+        "${ext_deps_args[@]}"
     cmake --build "${dir}" --parallel $(nproc)
 }
 
@@ -476,14 +492,19 @@ build_mujoco_live() {
     source emsdk/emsdk_env.sh
 
     echo "Building Filament tools, targeting host platform..."
+    local ext_deps_args=()
+    _setup_ext_deps_args
     cmake -S . -B build_host -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DUSE_STATIC_LIBCXX=OFF \
         -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_USE_FILAMENT=ON \
         -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
-        -DMUJOCO_BUILD_SIMULATE=OFF
+        -DMUJOCO_BUILD_SIMULATE=OFF \
+        "${ext_deps_args[@]}"
+    _populate_ext_deps_cache build_host
     cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j"${NJOBS}"
 
     echo "Building desktop WASM app..."
@@ -547,9 +568,11 @@ _build_python_wheel() {
     fi
     export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
+    local ext_deps_args=()
+    _setup_ext_deps_args
     MUJOCO_PATH="${prefix}" \
     MUJOCO_PLUGIN_PATH="${prefix}/mujoco_plugin" \
-    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS}" \
+    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
     pip wheel -v --no-deps -w python/dist python/dist/mujoco-*.tar.gz
 }
 
@@ -606,6 +629,8 @@ _configure_studio_host() {
         return 0
     fi
     echo "Configuring the native Studio host build..."
+    local ext_deps_args=()
+    _setup_ext_deps_args
     cmake -S . -B build_host -G Ninja \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
@@ -613,10 +638,13 @@ _configure_studio_host() {
         -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_USE_FILAMENT=ON \
         -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
         -DMUJOCO_BUILD_SIMULATE=OFF \
         ${CCACHE_ARGS} \
-        ${CMAKE_ARGS}
+        ${CMAKE_ARGS} \
+        "${ext_deps_args[@]}"
+    _populate_ext_deps_cache build_host
 }
 
 
@@ -636,7 +664,7 @@ build_studio_platform_libs() {
     _configure_studio_host
     echo "Building the Studio platform libraries, assets and engine plugins..."
     cmake --build build_host -j"${NJOBS}" \
-        --target mujoco_studio_platform mujoco_studio_assets actuator elasticity sensor sdf_plugin
+        --target mujoco_studio_platform mujoco_studio_assets matc resgen cmgen actuator elasticity sensor sdf_plugin
 }
 
 
@@ -656,19 +684,20 @@ build_studio_cpp_viewer() {
 
 
 # Gathers the headers, static archives, plugins and assets the Python
-# extensions compile against from the host build into build/mujoco_install/.
+# extensions compile against from the host build into ${TMPDIR:-build}/mujoco_install/.
 install_studio_platform() {
     echo "Gathering the headers + libraries the Studio Python modules compile against..."
-    local build_dir prefix deps plugin_ext plugin_dir
+    local build_dir install_dir prefix deps plugin_ext plugin_dir
     build_dir="$(_resolve_studio_host_dir)"
+    install_dir="${TMPDIR:-build}/mujoco_install"
     # Recreate the prefix every time. cmake --install and the copies below only
     # ever add files, so after a version bump the previous engine library
     # (libmujoco.so.<old version>) would stay here next to the new one, and
     # setup.py, which packages every libmujoco.so.* it finds, would ship both.
     # The copies keep timestamps, so repeated Python builds stay incremental.
-    rm -rf build/mujoco_install
-    mkdir -p build/mujoco_install
-    prefix="$(cd build/mujoco_install && pwd)"
+    rm -rf "${install_dir}"
+    mkdir -p "${install_dir}"
+    prefix="$(cd "${install_dir}" && pwd)"
     # Per-OS engine-plugin layout.
     case "$(uname -s)" in
         Darwin) plugin_ext="dylib"; plugin_dir="${build_dir}/lib" ;;
@@ -709,7 +738,9 @@ install_studio_platform() {
     # 3. Static archives: mujoco_platform + every dependency archive; the Python
     #    build looks each one up by name with find_library().
     mkdir -p "${prefix}/lib"
-    find "${build_dir}" \( -name "*.a" -o -name "*.lib" \) -exec cp -p {} "${prefix}/lib/" \;
+    find "${build_dir}" -path "${prefix}" -prune -o \
+        \( -name "*.a" -o -name "*.lib" \) ! -name "mujoco.lib" \
+        -exec cp -p {} "${prefix}/lib/" \;
 
     # 4. Source-tree headers for platform / filament-compat / render.
     _copy_headers src/experimental "${prefix}/include/mujoco/experimental"
@@ -765,20 +796,45 @@ build_studio_wasm() {
     fi
     source emsdk/emsdk_env.sh
 
-    build_studio_platform_libs
     local host_dir
     host_dir="$(_resolve_studio_host_dir)"
+    if [[ ! -x "${host_dir}/bin/matc" || ! -x "${host_dir}/bin/resgen" || ! -x "${host_dir}/bin/cmgen" || ! -d "${host_dir}/src/render/filament/assets" ]]; then
+        if [[ "${host_dir}" == "$(pwd)/build_host" ]]; then
+            _configure_studio_host
+        fi
+        echo "Building Filament host tools and materials in ${host_dir}..."
+        cmake --build "${host_dir}" -j"${NJOBS}" --target matc resgen cmgen mujoco_filament_assets
+    fi
 
     if [[ ! -f build_wasm/CMakeCache.txt ]] ||
        ! grep -q "^MUJOCO_NATIVE_BUILD_DIR:[A-Z]*=${host_dir}\$" build_wasm/CMakeCache.txt; then
         echo "Configuring the web viewer browser client (WASM) with host tools from ${host_dir}..."
+        local host_deps_args=()
+        mkdir -p build_wasm/_deps
+        local wasm_deps_dir
+        wasm_deps_dir="$(cd build_wasm/_deps && pwd)"
+        for src_dir in "${host_dir}/_deps"/*-src; do
+            if [[ -d "${src_dir}" ]]; then
+                local dep_dir="${src_dir##*/}"
+                local dep_name="${dep_dir%-src}"
+                local dep_upper
+                dep_upper="$(echo "${dep_name}" | tr '[:lower:]' '[:upper:]')"
+                if [[ ! -d "${wasm_deps_dir}/${dep_dir}" ]]; then
+                    cp -al "${src_dir}" "${wasm_deps_dir}/${dep_dir}" 2>/dev/null || \
+                        cp -rp "${src_dir}" "${wasm_deps_dir}/${dep_dir}"
+                fi
+                host_deps_args+=("-DFETCHCONTENT_SOURCE_DIR_${dep_upper}=${wasm_deps_dir}/${dep_dir}")
+            fi
+        done
         emcmake cmake -S . -B build_wasm -G Ninja \
             -DCMAKE_BUILD_TYPE:STRING=Release \
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
             -DMUJOCO_BUILD_STUDIO=ON \
             -DMUJOCO_USE_FILAMENT=ON \
             -DMUJOCO_BUILD_TESTS_WASM=OFF \
             -DMUJOCO_NATIVE_BUILD_DIR:PATH="${host_dir}" \
-            ${CCACHE_ARGS}
+            ${CCACHE_ARGS} \
+            "${host_deps_args[@]}"
     fi
     echo "Building the web viewer browser client (WASM)..."
     cmake --build build_wasm --target web_client -j"${NJOBS}"
@@ -796,13 +852,17 @@ build_engine() {
     # See configure_mujoco for why global IPO is off while CMakeLists.txt keeps
     # IPO on the core mujoco target on Windows MSVC.
     local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
+    local ext_deps_args=()
+    _setup_ext_deps_args
     cmake -S . -B build -G Ninja \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         ${ipo_off} \
         -DCMAKE_INSTALL_PREFIX:PATH="${prefix}" \
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF \
         ${CCACHE_ARGS} \
-        ${CMAKE_ARGS}
+        ${CMAKE_ARGS} \
+        "${ext_deps_args[@]}"
+    _populate_ext_deps_cache build
     cmake --build build -j"${NJOBS}"
     cmake --install build --prefix "${prefix}"
 
@@ -833,6 +893,7 @@ build_simulate_app() {
             -DMUJOCO_BUILD_SIMULATE=ON \
             -DMUJOCO_BUILD_STUDIO=OFF \
             -DMUJOCO_BUILD_TESTS=OFF \
+            -DMUJOCO_TEST_PYTHON_UTIL=OFF \
             -DMUJOCO_BUILD_EXAMPLES=OFF \
             ${CCACHE_ARGS} \
             ${CMAKE_ARGS}
@@ -851,7 +912,7 @@ build_studio_python() {
     echo "Building the Studio platform for Python..."
     build_studio_platform_libs
     install_studio_platform
-    _install_python_wheel "$(cd build/mujoco_install && pwd)"
+    _install_python_wheel "$(cd "${TMPDIR:-build}/mujoco_install" && pwd)"
 }
 
 
@@ -862,7 +923,7 @@ build_studio_all() {
     build_studio_platform_libs
     build_studio_wasm
     install_studio_platform
-    _install_python_wheel "$(cd build/mujoco_install && pwd)"
+    _install_python_wheel "$(cd "${TMPDIR:-build}/mujoco_install" && pwd)"
 }
 
 
@@ -875,7 +936,7 @@ build_wheel() {
     build_studio_platform_libs
     install_studio_platform
     build_studio_wasm
-    _build_python_wheel "$(cd build/mujoco_install && pwd)"
+    _build_python_wheel "$(cd "${TMPDIR:-build}/mujoco_install" && pwd)"
 }
 
 
