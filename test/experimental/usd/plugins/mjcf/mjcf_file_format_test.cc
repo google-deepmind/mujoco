@@ -1552,6 +1552,37 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIApplied) {
     <worldbody>
       <body name="body">
         <geom name="box" type="box" size=".05 .05 .05" mass="0.1"/>
+        <geom
+          name="massless_collider"
+          type="box"
+          size=".05 .05 .05"
+          mass="0"/>
+        <geom
+          name="zero_density_collider"
+          type="box"
+          size=".05 .05 .05"
+          density="0"/>
+        <geom
+          name="visual"
+          type="box"
+          size=".05 .05 .05"
+          mass="0.2"
+          contype="0"
+          conaffinity="0"/>
+        <geom
+          name="massless_visual"
+          type="box"
+          size=".05 .05 .05"
+          mass="0"
+          contype="0"
+          conaffinity="0"/>
+        <geom
+          name="zero_density_visual"
+          type="box"
+          size=".05 .05 .05"
+          density="0"
+          contype="0"
+          conaffinity="0"/>
       </body>
     </worldbody>
   </mujoco>
@@ -1560,9 +1591,32 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIApplied) {
 
   EXPECT_PRIM_VALID(stage, "/test/body");
   EXPECT_PRIM_VALID(stage, "/test/body/box");
+  EXPECT_PRIM_VALID(stage, "/test/body/massless_collider");
+  EXPECT_PRIM_VALID(stage, "/test/body/zero_density_collider");
+  EXPECT_PRIM_VALID(stage, "/test/body/visual");
+  EXPECT_PRIM_VALID(stage, "/test/body/massless_visual");
+  EXPECT_PRIM_VALID(stage, "/test/body/zero_density_visual");
   EXPECT_PRIM_API_APPLIED(stage, "/test/body/box", pxr::UsdPhysicsMassAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/massless_collider",
+                          pxr::UsdPhysicsMassAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/zero_density_collider",
+                          pxr::UsdPhysicsMassAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/visual", pxr::UsdPhysicsMassAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/massless_visual",
+                          pxr::UsdPhysicsMassAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/zero_density_visual",
+                          pxr::UsdPhysicsMassAPI);
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body", pxr::UsdPhysicsMassAPI);
   ExpectAttributeEqual(stage, "/test/body/box.physics:mass", 0.1f);
+  ExpectAttributeEqual(stage, "/test/body/massless_collider.physics:density",
+                       0.0f);
+  ExpectAttributeEqual(
+      stage, "/test/body/zero_density_collider.physics:density", 0.0f);
+  ExpectAttributeEqual(stage, "/test/body/visual.physics:mass", 0.2f);
+  ExpectAttributeEqual(stage, "/test/body/massless_visual.physics:density",
+                       0.0f);
+  ExpectAttributeEqual(stage, "/test/body/zero_density_visual.physics:density",
+                       0.0f);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIAppliedToBody) {

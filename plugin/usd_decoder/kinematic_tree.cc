@@ -145,7 +145,12 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
       root->physics_scene = prim_path;
     }
 
-    if (prim.IsA<pxr::UsdGeomGprim>()) {
+    if (prim.HasAPI(NewtonTokens->NewtonSiteAPI) ||
+        prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+      current_node->sites.push_back(prim_path);
+      // Sites should not have children.
+      it.PruneChildren();
+    } else if (prim.IsA<pxr::UsdGeomGprim>()) {
       bool has_collision_api = prim.HasAPI<pxr::UsdPhysicsCollisionAPI>();
       if (has_collision_api) {
         bool collision_enabled = false;
@@ -159,13 +164,6 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
       } else {
         current_node->visual_gprims.push_back(prim_path);
       }
-    }
-
-    if (prim.HasAPI(NewtonTokens->NewtonSiteAPI) ||
-        prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
-      current_node->sites.push_back(prim_path);
-      // Sites should not have children.
-      it.PruneChildren();
     }
 
     if (prim.IsA<pxr::UsdPhysicsJoint>()) {

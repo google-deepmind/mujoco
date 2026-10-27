@@ -1713,6 +1713,38 @@ class ModelWriter {
       ApplyApiSchema(layer_, geom_spec, MjcPhysicsTokens->MjcImageableAPI);
     }
 
+    if (geom->typeinertia == mjtGeomInertia::mjINERTIA_SHELL) {
+      ApplyApiSchema(layer_, geom_spec, kTokens->NewtonMassAPI);
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Token,
+                            kTokens->newtonMassModel,
+                            MjcPhysicsTokens->shell);
+    }
+
+    const double density = (geom->mass == 0) ? 0.0 : geom->density;
+    if (geom->mass >= mjMINVAL || density >= 0) {
+      ApplyApiSchema(layer_, geom_spec, pxr::UsdPhysicsTokens->PhysicsMassAPI);
+    }
+
+    if (geom->mass >= mjMINVAL) {
+      auto mass_attr_spec = CreateAttributeSpec(
+          layer_, geom_spec, pxr::UsdPhysicsTokens->physicsMass,
+          pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
+
+      // Make sure to cast to float here since mjtNum might be a double.
+      SetAttributeDefault(layer_, mass_attr_spec, (float)geom->mass);
+    }
+
+    // Even though density is not used for mass computation when mass exists
+    // we want to retain the information anyways.
+    if (density >= 0) {
+      auto density_attr_spec = CreateAttributeSpec(
+          layer_, geom_spec, pxr::UsdPhysicsTokens->physicsDensity,
+          pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
+
+      // Make sure to cast to float here since mjtNum might be a double.
+      SetAttributeDefault(layer_, density_attr_spec, (float)density);
+    }
+
     // Apply the physics schemas if we are writing physics and the
     // geom participates in collisions.
     if (model_->geom_contype[geom_id] != 0 ||
@@ -1720,13 +1752,6 @@ class ModelWriter {
       ApplyApiSchema(layer_, geom_spec,
                      pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
       ApplyApiSchema(layer_, geom_spec, MjcPhysicsTokens->MjcCollisionAPI);
-
-      if (geom->typeinertia == mjtGeomInertia::mjINERTIA_SHELL) {
-        ApplyApiSchema(layer_, geom_spec, kTokens->NewtonMassAPI);
-        WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Token,
-                              kTokens->newtonMassModel,
-                              MjcPhysicsTokens->shell);
-      }
 
       WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Int,
                             MjcPhysicsTokens->mjcPriority, geom->priority);
@@ -1757,30 +1782,6 @@ class ModelWriter {
       WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Float,
                             kTokens->newtonContactGap,
                             static_cast<float>(geom->gap));
-
-      if (geom->mass >= mjMINVAL || geom->density >= mjMINVAL) {
-        ApplyApiSchema(layer_, geom_spec, pxr::UsdPhysicsTokens->PhysicsMassAPI);
-      }
-
-      if (geom->mass >= mjMINVAL) {
-        auto mass_attr_spec = CreateAttributeSpec(
-            layer_, geom_spec, pxr::UsdPhysicsTokens->physicsMass,
-            pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
-
-        // Make sure to cast to float here since mjtNum might be a double.
-        SetAttributeDefault(layer_, mass_attr_spec, (float)geom->mass);
-      }
-
-      // Even though density is not used for mass computation when mass exists
-      // we want to retain the information anyways.
-      if (geom->density >= mjMINVAL) {
-        auto density_attr_spec = CreateAttributeSpec(
-            layer_, geom_spec, pxr::UsdPhysicsTokens->physicsDensity,
-            pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
-
-        // Make sure to cast to float here since mjtNum might be a double.
-        SetAttributeDefault(layer_, density_attr_spec, (float)geom->density);
-      }
 
       mjsDefault *geom_default = mjs_getDefault(geom->element);
 

@@ -28,6 +28,7 @@
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/sdf/types.h>
 #include <pxr/usd/usd/attribute.h>
+#include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/prim.h>
 #include <pxr/usd/usd/relationship.h>
 #include <pxr/usd/usd/stage.h>
@@ -540,6 +541,245 @@ TEST_P(UsdMimicTargetTest, AuthoredMJCPrecedesNewtonIncludingEmptyTargets) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Mimic, UsdMimicTargetTest, testing::Range(0, 5));
+
+class UsdInertialSemanticsTest : public MujocoTest {
+ public:
+  static void SetUpTestSuite() {
+#ifdef USD_DECODER_PLUGIN_PATH
+    mj_loadPluginLibrary(USD_DECODER_PLUGIN_PATH);
+#endif
+  }
+
+ protected:
+  void SetUp() override {
+    directory_ = pxr::ArchMakeTmpSubdir(
+        std::filesystem::temp_directory_path().string(), "usd_inertial");
+    ASSERT_FALSE(directory_.empty());
+  }
+
+  void TearDown() override {
+    if (!directory_.empty()) {
+      std::filesystem::remove_all(directory_);
+    }
+  }
+
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> Parse(
+      const pxr::UsdStageRefPtr& stage) {
+    const std::string path = directory_ + "/model.usda";
+    EXPECT_TRUE(stage->GetRootLayer()->Export(path));
+    char error[1024] = {};
+    std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+        mj_parse(path.c_str(), nullptr, nullptr, error, sizeof(error)),
+        mj_deleteSpec);
+    EXPECT_NE(spec, nullptr) << error;
+    return spec;
+  }
+
+  std::string directory_;
+};
+
+TEST_F(UsdInertialSemanticsTest, ExplicitBodyInertialPreserved) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+) {
+    float physics:mass = 1.2
+    float3 physics:diagonalInertia = (0.02, 0.03, 0.04)
+    quatf physics:principalAxes = (0.70710678, 0.70710678, 0, 0)
+    def Sphere "collider" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 1
+    }
+}
+def Xform "zero_body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+) {
+    float physics:mass = 1.0
+    float3 physics:diagonalInertia = (0, 0, 0)
+    def Sphere "collider" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMassAPI"]
+    ) {
+        double radius = 0.1
+        float physics:mass = 3.4
+    }
+}
+def Xform "zero_mass_body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+) {
+    float physics:mass = 0.0
+    float3 physics:diagonalInertia = (0.02, 0.03, 0.04)
+    def Sphere "collider" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMassAPI"]
+    ) {
+        double radius = 0.1
+        float physics:mass = 5.6
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  mjsBody* body = mjs_findBody(spec.get(), "/body");
+  ASSERT_NE(body, nullptr);
+  EXPECT_TRUE(body->explicitinertial);
+
+  mjsBody* zero_body = mjs_findBody(spec.get(), "/zero_body");
+  ASSERT_NE(zero_body, nullptr);
+  EXPECT_FALSE(zero_body->explicitinertial);
+
+  mjsBody* zero_mass_body = mjs_findBody(spec.get(), "/zero_mass_body");
+  ASSERT_NE(zero_mass_body, nullptr);
+  EXPECT_FALSE(zero_mass_body->explicitinertial);
+
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->nbody, 4);
+  EXPECT_NEAR(model->body_mass[1], 1.2, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_ipos[3], 0.0, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_ipos[4], 0.0, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_ipos[5], 0.0, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_inertia[3], 0.02, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_inertia[4], 0.03, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_inertia[5], 0.04, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_iquat[4], 0.70710678, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_iquat[5], 0.70710678, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_iquat[6], 0.0, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_iquat[7], 0.0, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_mass[2], 3.4, MjTol(1e-7, 1e-6));
+  EXPECT_NEAR(model->body_mass[3], 5.6, MjTol(1e-7, 1e-6));
+}
+
+TEST_F(UsdInertialSemanticsTest, VisualGeomMassAPIDecoded) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "visual" (
+        prepend apiSchemas = ["PhysicsMassAPI", "MjcImageableAPI"]
+    ) {
+        double radius = 1
+        float physics:mass = 2.5
+        float physics:density = 500
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  mjsGeom* geom =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/visual"));
+  ASSERT_NE(geom, nullptr);
+  EXPECT_NEAR(geom->mass, 2.5, 1e-6);
+  EXPECT_NEAR(geom->density, 500.0, 1e-6);
+
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->nbody, 2);
+  EXPECT_NEAR(model->body_mass[1], 2.5, MjTol(1e-7, 1e-6));
+}
+
+TEST_F(UsdInertialSemanticsTest, MasslessVisualGeomsHaveZeroDensity) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "collider" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMassAPI"]
+    ) {
+        double radius = 0.1
+        float physics:mass = 1.0
+    }
+    def Sphere "zero_density_collider" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMassAPI"]
+    ) {
+        double radius = 1.0
+        float physics:density = 0.0
+    }
+    def Sphere "visual" (prepend apiSchemas = ["MjcImageableAPI"]) {
+        double radius = 1.0
+        uniform int mjc:group = 0
+    }
+    def Sphere "plain_visual" {
+        double radius = 1.0
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  mjsGeom* zero_collider = mjs_asGeom(
+      mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/zero_density_collider"));
+  ASSERT_NE(zero_collider, nullptr);
+  EXPECT_EQ(zero_collider->density, 0.0);
+
+  mjsGeom* visual =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/visual"));
+  ASSERT_NE(visual, nullptr);
+  EXPECT_EQ(visual->density, 0.0);
+
+  mjsGeom* plain_visual =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/plain_visual"));
+  ASSERT_NE(plain_visual, nullptr);
+  EXPECT_EQ(plain_visual->density, 0.0);
+
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->nbody, 2);
+  EXPECT_NEAR(model->body_mass[1], 1.0, MjTol(1e-7, 1e-6));
+}
+
+TEST_F(UsdInertialSemanticsTest, VisualOnlyBodyFallsBackToDefaultDensity) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "visual" {
+        double radius = 0.1
+    }
+}
+)"));
+  mock_warning_handler.ExpectWarnings("has only visual gprims");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  mjsGeom* visual =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/visual"));
+  ASSERT_NE(visual, nullptr);
+  EXPECT_EQ(visual->density, 1000.0);
+
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  EXPECT_GT(model->body_mass[1], 0.0);
+}
+
+TEST_F(UsdInertialSemanticsTest, FixedAndAuthoredZeroVisualsDoNotFallBack) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "fixed_body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "visual" {
+        double radius = 0.1
+    }
+}
+def PhysicsFixedJoint "weld" {
+    prepend rel physics:body1 = </fixed_body>
+}
+def Xform "authored_zero_body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "zero_visual" (prepend apiSchemas = ["PhysicsMassAPI"]) {
+        double radius = 0.1
+        float physics:density = 0.0
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  mjsGeom* fixed_visual =
+      mjs_asGeom(mjs_findElement(spec.get(), mjOBJ_GEOM, "/fixed_body/visual"));
+  ASSERT_NE(fixed_visual, nullptr);
+  EXPECT_EQ(fixed_visual->density, 0.0);
+
+  mjsGeom* zero_visual = mjs_asGeom(mjs_findElement(
+      spec.get(), mjOBJ_GEOM, "/authored_zero_body/zero_visual"));
+  ASSERT_NE(zero_visual, nullptr);
+  EXPECT_EQ(zero_visual->density, 0.0);
+}
 
 }  // namespace
 }  // namespace mujoco
