@@ -30,8 +30,8 @@
 #include <misc/cpp/imgui_stdlib.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/studio/ux/enum_utils.h"
-#include "experimental/studio/ux/well_tempered.h"
+#include "enum_utils.h"
+#include "well_tempered.h"
 
 namespace mujoco::studio {
 

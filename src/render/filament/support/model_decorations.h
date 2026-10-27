@@ -22,7 +22,7 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/support/mjrf_ptr.h"
+#include "mjrf_ptr.h"
 
 namespace mujoco {
 

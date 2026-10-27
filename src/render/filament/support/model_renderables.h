@@ -26,9 +26,9 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/support/mesh_util.h"
-#include "render/filament/support/mjrf_ptr.h"
-#include "render/filament/support/model_resources.h"
+#include "mesh_util.h"
+#include "mjrf_ptr.h"
+#include "model_resources.h"
 
 namespace mujoco {
 

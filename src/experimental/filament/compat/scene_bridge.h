@@ -25,10 +25,10 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include "experimental/filament/compat/scene_objects.h"
-#include "render/filament/support/mjrf_ptr.h"
-#include "render/filament/support/model_lights.h"
-#include "render/filament/support/model_resources.h"
+#include "scene_objects.h"
+#include "../../render/filament/support/mjrf_ptr.h"
+#include "../../render/filament/support/model_lights.h"
+#include "../../render/filament/support/model_resources.h"
 
 namespace mujoco {
 

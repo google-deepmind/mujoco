@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_UX_GUI_SPEC_H_
 
 #include <mujoco/mujoco.h>
-#include "experimental/studio/ux/spec_editor.h"
+#include "spec_editor.h"
 
 namespace mujoco::studio {
 

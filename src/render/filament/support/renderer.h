@@ -25,7 +25,7 @@
 #include <vector>
 
 #include <mujoco/mjrfilament.h>
-#include "render/filament/support/mjrf_ptr.h"
+#include "mjrf_ptr.h"
 
 namespace mujoco {
 
