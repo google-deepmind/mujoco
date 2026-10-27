@@ -15,7 +15,9 @@
 #include "render/filament/support/model_renderables.h"
 
 #include <array>
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -30,9 +32,9 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_sleep.h"
-#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/filament_util.h"
 #include "render/filament/support/mesh_util.h"
+#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/model_resources.h"
 
 namespace mujoco {
@@ -284,18 +286,26 @@ void ModelRenderables::Update(const mjData* data) {
 
   if (vopts_.flags[mjVIS_FLEXSKIN]) {
     for (int i = 0; i < model->nflex; ++i) {
-      mjrfMaterial material = GetMaterial(mjOBJ_FLEX, i, data);
-
       const int dim = model->flex_dim[i];
       if (dim > 1) {
         auto mesh = CreateFlexMesh(ctx, model, data, i);
-        mjrf_setRenderableMesh(flexes_[i][0].get(), mesh.get(), 0, 0);
+        const auto& slices = flex_slices_[i];
+        for (size_t k = 0; k < slices.size() && k < flexes_[i].size(); ++k) {
+          if (slices[k].elem_count > 0) {
+            mjrf_setRenderableMesh(flexes_[i][k].get(), mesh.get(),
+                                   slices[k].elem_offset, slices[k].elem_count);
+          }
+          mjrfMaterial material =
+              GetMaterial(mjOBJ_FLEX, i, data, slices[k].matid);
+          mjrf_setRenderableMaterial(flexes_[i][k].get(), &material);
+        }
         flex_meshes_[i] = std::move(mesh);
-        mjrf_setRenderableMaterial(flexes_[i][0].get(), &material);
       } else {
         const int vertadr = model->flex_vertadr[i];
         const int edgeadr = model->flex_edgeadr[i];
         const int edgenum = model->flex_edgenum[i];
+        const int elemadr = model->flex_elemadr[i];
+        const int elemnum = model->flex_elemnum[i];
         const float radius = model->flex_radius[i];
         auto& edges = flexes_[i];
         for (int j = 0; j < edgenum; ++j) {
@@ -305,6 +315,10 @@ void ModelRenderables::Update(const mjData* data) {
           const float3 v0 = ReadFloat3(data->flexvert_xpos, vertadr + idx0);
           const float3 v1 = ReadFloat3(data->flexvert_xpos, vertadr + idx1);
           Connect(edges[j].get(), v0, v1, radius);
+          const int matid =
+              (j < elemnum) ? model->flex_matid[elemadr + j]
+                            : (elemnum > 0 ? model->flex_matid[elemadr] : -1);
+          mjrfMaterial material = GetMaterial(mjOBJ_FLEX, i, data, matid);
           mjrf_setRenderableMaterial(flexes_[i][j].get(), &material);
         }
       }
@@ -458,21 +472,23 @@ void ModelRenderables::AddFlexGeoms() {
   const mjModel* model = model_resources_->GetModel();
 
   flexes_.reserve(model->nflex);
+  flex_slices_.reserve(model->nflex);
   flex_meshes_.reserve(model->nflex);
   for (int i = 0; i < model->nflex; ++i) {
     flex_meshes_.emplace_back(nullptr, nullptr);
 
-    mjrfMaterial material = GetMaterial(mjOBJ_FLEX, i);
-
     mjrfRenderableParams params;
     mjrf_defaultRenderableParams(&params);
+    mjrfMaterial material = GetMaterial(mjOBJ_FLEX, i);
 
     auto& parts = flexes_.emplace_back();
+    auto& slices = flex_slices_.emplace_back();
 
     const int dim = model->flex_dim[i];
     if (dim == 1) {
       const float radius = model->flex_radius[i];
       const float size[3] = {radius, radius, radius};
+      parts.reserve(model->flex_edgenum[i]);
       for (int j = 0; j < model->flex_edgenum[i]; ++j) {
         auto renderable = CreateRenderable(ctx, params);
         mjrf_setRenderableGeomMesh(renderable.get(), mjGEOM_CAPSULE, 4, 8, 1);
@@ -481,9 +497,13 @@ void ModelRenderables::AddFlexGeoms() {
         parts.push_back(std::move(renderable));
       }
     } else {
-      auto renderable = CreateRenderable(ctx, params);
-      mjrf_setRenderableMaterial(renderable.get(), &material);
-      parts.push_back(std::move(renderable));
+      slices = CalculateFlexMeshSlices(model, i);
+      parts.reserve(slices.size());
+      for (size_t k = 0; k < slices.size(); ++k) {
+        auto renderable = CreateRenderable(ctx, params);
+        mjrf_setRenderableMaterial(renderable.get(), &material);
+        parts.push_back(std::move(renderable));
+      }
     }
 
     if (vopts_.flexgroup[model->flex_group[i]]) {
@@ -767,7 +787,8 @@ int ModelRenderables::GetSegmentationId(mjtObj obj_type, int obj_index) {
 }
 
 mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
-                                           const mjData* data) {
+                                           const mjData* data,
+                                           std::optional<int> matid_override) {
   const mjModel* model = model_resources_->GetModel();
 
   mjrfMaterial material;
@@ -802,7 +823,9 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
       geom_type = mjGEOM_FLEX;
       rgba = model->flex_rgba + (4 * obj_index);
       size = model->flex_size + (3 * obj_index);
-      matid = model->flex_matid[obj_index];
+      if (model->flex_elemnum[obj_index] > 0) {
+        matid = model->flex_matid[model->flex_elemadr[obj_index]];
+      }
       break;
     case mjOBJ_SKIN:
       geom_type = mjGEOM_SKIN;
@@ -823,6 +846,10 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
     default:
       mju_error("Unsupported object type: %d", obj_type);
       break;
+  }
+
+  if (matid_override.has_value()) {
+    matid = *matid_override;
   }
 
   xtof(material.color, rgba, 4);

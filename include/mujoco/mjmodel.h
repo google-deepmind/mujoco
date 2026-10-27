@@ -554,7 +554,7 @@ typedef struct mjModel_ {
 
   // flexes: other properties
   int*      flex_dim;             // 1: lines, 2: triangles, 3: tetrahedra    (nflex x 1)
-  int*      flex_matid;           // material id for rendering                (nflex x 1)
+  int*      flex_matid;           // material id for rendering                (nflexelem x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
   int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)

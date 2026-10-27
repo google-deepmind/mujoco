@@ -4263,5 +4263,102 @@ TEST_F(UserFlexTest, FastWindingBVHMatchesBruteForce) {
   EXPECT_EQ(closed_bvh.Evaluate(centroid), 1.0);
 }
 
+TEST_F(UserFlexTest, MultiMaterialFlex) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <material name="mat0" rgba="1 0 0 1"/>
+      <material name="mat1" rgba="0 1 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="b0" pos="0 0 0">
+        <joint type="slide"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+      <body name="b1" pos="1 0 0">
+        <joint type="slide"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+      <body name="b2" pos="0 1 0">
+        <joint type="slide"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+      <body name="b3" pos="1 1 0">
+        <joint type="slide"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="f" dim="2" body="b0 b1 b2 b3" vertex="0 0 0 0 0 0 0 0 0 0 0 0"
+            element="0 1 2 1 3 2" material="mat0 mat1"/>
+    </deformable>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  SpecPtr spec(mj_parseXMLString(xml, nullptr, error, sizeof(error)),
+               mj_deleteSpec);
+  ASSERT_THAT(spec.get(), NotNull()) << error;
+  MjModelPtr m(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(spec.get());
+  ASSERT_EQ(m->nflex, 1);
+  ASSERT_EQ(m->nflexelem, 2);
+  int mat0_id = mj_name2id(m.get(), mjOBJ_MATERIAL, "mat0");
+  int mat1_id = mj_name2id(m.get(), mjOBJ_MATERIAL, "mat1");
+  EXPECT_EQ(m->flex_matid[0], mat0_id);
+  EXPECT_EQ(m->flex_matid[1], mat1_id);
+
+  // XML round-trip preserves per-element materials.
+  std::array<char, 8192> saved_xml;
+  ASSERT_GE(mj_saveXMLString(spec.get(), saved_xml.data(), saved_xml.size(),
+                             error, sizeof(error)),
+            0)
+      << error;
+  EXPECT_THAT(saved_xml.data(), HasSubstr("material=\"mat0 mat1\""));
+  MjModelPtr m2 = LoadModelFromString(saved_xml.data(), error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  ASSERT_EQ(m2->nflexelem, 2);
+  EXPECT_EQ(m2->flex_matid[0], mat0_id);
+  EXPECT_EQ(m2->flex_matid[1], mat1_id);
+
+  // mjv_updateScene produces one mjGEOM_FLEX geom per unique material.
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  mjvScene scn;
+  mjv_defaultScene(&scn);
+  mjv_makeScene(m.get(), &scn, 100);
+  mjvOption opt;
+  mjv_defaultOption(&opt);
+  mjvPerturb pert;
+  mjv_defaultPerturb(&pert);
+  mjvCamera cam;
+  mjv_defaultCamera(&cam);
+  mjv_updateScene(m.get(), d.get(), &opt, &pert, &cam, mjCAT_ALL, &scn);
+
+  int flex_geom_count = 0;
+  for (int i = 0; i < scn.ngeom; i++) {
+    if (scn.geoms[i].type == mjGEOM_FLEX) {
+      int k = scn.geoms[i].dataid;
+      ASSERT_GE(k, 0);
+      ASSERT_LT(k, 2);
+      EXPECT_FLOAT_EQ(scn.geoms[i].rgba[0], k == 0 ? 1.0f : 0.0f);
+      EXPECT_FLOAT_EQ(scn.geoms[i].rgba[1], k == 0 ? 0.0f : 1.0f);
+      EXPECT_GT(scn.geoms[i].size[2], 0.0f);
+      flex_geom_count++;
+    }
+  }
+  EXPECT_EQ(flex_geom_count, 2);
+  mjv_freeScene(&scn);
+
+  // Invalid material count != 0, 1, nelem fails to compile.
+  mjsFlex* flex = mjs_asFlex(mjs_findElement(spec.get(), mjOBJ_FLEX, "f"));
+  ASSERT_THAT(flex, NotNull());
+  mjs_setStringVec(flex->material, "mat0 mat1 mat0");
+  MjModelPtr bad(mj_compile(spec.get(), nullptr));
+  EXPECT_THAT(bad.get(), IsNull());
+  EXPECT_THAT(mjs_getError(spec.get()),
+              HasSubstr("material size must be 0, 1 or nelem"));
+}
+
 }  // namespace
 }  // namespace mujoco

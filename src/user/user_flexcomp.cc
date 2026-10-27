@@ -821,7 +821,7 @@ static void AppendMeshSpec(const mjsMesh&       mesh,
 // make grid
 bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
   int  dim     = def.Flex().spec.dim;
-  bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
+  bool needtex = texcoord.empty() && !def.spec.flex->material->empty();
   bool circle  = dim == 1 && type == mjFCOMPTYPE_CIRCLE;
 
   mjCMesh mesh;
@@ -843,7 +843,7 @@ bool mjCFlexcomp::MakeGrid(char* error, int error_sz) {
 bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
   // set 2D
   def.spec.flex->dim = 2;
-  bool needtex       = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
+  bool needtex       = texcoord.empty() && !def.spec.flex->material->empty();
 
   mjCMesh mesh;
   if (type == mjFCOMPTYPE_DISC) {
@@ -862,7 +862,7 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
 
 // make 3d box, ellipsoid or cylinder
 bool mjCFlexcomp::MakeBox(char* error, int error_sz, int dim, bool open) {
-  bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
+  bool needtex = texcoord.empty() && !def.spec.flex->material->empty();
 
   // set dimension
   def.spec.flex->dim = dim;
@@ -2142,7 +2142,6 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   nnode    = 0;
   nedge    = 0;
   nelem    = 0;
-  matid    = -1;
   rigid    = false;
   centered = false;
 
@@ -2193,8 +2192,10 @@ void mjCFlex::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
   for (auto& name : spec_vertbody_) { name = m->prefix + name + m->suffix; }
   for (auto& name : spec_nodebody_) { name = m->prefix + name + m->suffix; }
-  if (!spec_material_.empty() && model != m) {
-    spec_material_ = m->prefix + spec_material_ + m->suffix;
+  if (model != m) {
+    for (auto& mat : spec_material_) {
+      if (!mat.empty()) { mat = m->prefix + mat + m->suffix; }
+    }
   }
 }
 
@@ -2856,12 +2857,24 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     memcpy(elemtexcoord_.data(), elem_.data(), (dim + 1) * nelem * sizeof(int));
   }
 
-  // resolve material name
-  mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
-  if (!pmat && !material_.empty()) {
-    throw mjCError(this, "unknown material '%s' in flex", material_.c_str());
+  // resolve material name(s)
+  if (!material_.empty() && material_.size() != 1 && (int)material_.size() != nelem) {
+    throw mjCError(this, "material size must be 0, 1 or nelem");
   }
-  matid = pmat ? pmat->id : -1;
+  elemmatid_.assign(nelem, -1);
+  if (!material_.empty()) {
+    std::vector<int> resolved(material_.size(), -1);
+    for (size_t i = 0; i < material_.size(); i++) {
+      if (!material_[i].empty()) {
+        mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_[i]);
+        if (!pmat) { throw mjCError(this, "unknown material '%s' in flex", material_[i].c_str()); }
+        resolved[i] = pmat->id;
+      }
+    }
+    for (int e = 0; e < nelem; e++) {
+      elemmatid_[e] = (resolved.size() == 1) ? resolved[0] : resolved[e];
+    }
+  }
 
   // resolve body ids
   ResolveReferences(model);

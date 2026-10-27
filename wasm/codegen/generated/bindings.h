@@ -2638,13 +2638,8 @@ struct MjsFlex {
   emscripten::val rgba() const {
     return emscripten::val(emscripten::typed_memory_view(4, ptr_->rgba));
   }
-  mjString material() const {
-    return (ptr_ && ptr_->material) ? *(ptr_->material) : "";
-  }
-  void set_material(const mjString& value) {
-    if (ptr_ && ptr_->material) {
-      *(ptr_->material) = value;
-    }
+  mjStringVec &material() const {
+    return *(ptr_->material);
   }
   double young() const {
     return ptr_->young;
@@ -4996,7 +4991,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_dim));
   }
   emscripten::val flex_matid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_matid));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexelem, ptr_->flex_matid));
   }
   emscripten::val flex_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_group));

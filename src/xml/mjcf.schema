@@ -1377,7 +1377,7 @@ element flex : mjsFlex {
   group              : int
   dim                : int = 2
   radius             : double = 0.005 (dim=L)
-  material           : ref<material>
+  material           : ref<material> (writing=custom)
   rgba               : float[4] = {0.5, 0.5, 0.5, 1} (dim=1)
   flatskin           : bool
   body               : string (required, field=vertbody)   # space-separated body names

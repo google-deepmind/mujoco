@@ -2916,6 +2916,42 @@ class SpecsTest(absltest.TestCase):
     ):
       parent.compile()
 
+  def test_flex_multi_material(self):
+    spec = mujoco.MjSpec.from_string("""
+      <mujoco>
+        <asset>
+          <material name="mat0" rgba="1 0 0 1"/>
+          <material name="mat1" rgba="0 1 0 1"/>
+        </asset>
+        <worldbody>
+          <flexcomp name="f" type="grid" dim="2" count="2 2 1" spacing="0.1 0.1 0.1"
+                    material="mat0"/>
+        </worldbody>
+      </mujoco>
+    """)
+    flex = spec.flexes[0]
+    self.assertEqual(list(flex.material), ['mat0'])
+
+    # Single string assignment works for backward compatibility.
+    flex.material = 'mat1'
+    self.assertEqual(list(flex.material), ['mat1'])
+    model = spec.compile()
+    mat0_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, 'mat0')
+    mat1_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, 'mat1')
+    np.testing.assert_array_equal(model.flex_matid, [mat1_id, mat1_id])
+
+    # Sequence of strings assigns per-element materials.
+    flex.material = ['mat0', 'mat1']
+    self.assertEqual(list(flex.material), ['mat0', 'mat1'])
+    model = spec.compile()
+    np.testing.assert_array_equal(model.flex_matid, [mat0_id, mat1_id])
+
+    # Empty string clears material list.
+    flex.material = ''
+    self.assertEqual(list(flex.material), [])
+    model = spec.compile()
+    np.testing.assert_array_equal(model.flex_matid, [-1, -1])
+
 
 if __name__ == '__main__':
   absltest.main()

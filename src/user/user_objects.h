@@ -1198,7 +1198,7 @@ class mjCFlex_ : public mjCBase {
   int                              nnode;         // number of nodes
   int                              nedge;         // number of edges
   int                              nelem;         // number of elements
-  int                              matid;         // material id
+  std::vector<int>                 elemmatid_;    // element material ids
   bool                             rigid;         // all vertices attached to the same body
   bool                             centered;      // all vertices coordinates (0,0,0)
   bool                             interpolated;  // vertices are interpolated from nodes
@@ -1228,9 +1228,9 @@ class mjCFlex_ : public mjCBase {
   std::vector<int>         elem_;          // element vertex ids
   std::vector<float>       texcoord_;      // vertex texture coordinates
   std::vector<int>         elemtexcoord_;  // face texture coordinates (OBJ only)
-  std::string              material_;      // name of material used for rendering
+  std::vector<std::string> material_;      // names of materials used for rendering
 
-  std::string              spec_material_;
+  std::vector<std::string> spec_material_;
   std::vector<std::string> spec_vertbody_;
   std::vector<std::string> spec_nodebody_;
   std::vector<double>      spec_vert_;
@@ -1264,7 +1264,7 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   void NameSpace(const mjCModel* m);
 
   // used by mjXWriter and mjCModel
-  const std::string&              get_material() const { return material_; }
+  const std::vector<std::string>& get_material() const { return material_; }
   const std::vector<std::string>& get_vertbody() const { return vertbody_; }
   const std::vector<double>&      get_vert() const { return vert_; }
   const std::vector<double>&      get_elemaabb() const { return elemaabb_; }

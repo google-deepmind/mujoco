@@ -310,6 +310,13 @@ def _ptr_binding_code(
       }},
     []({rawclassname}& self, py::object rhs) {{
         self.{fullvarname}->clear();
+        if (py::isinstance<py::str>(rhs)) {{
+          auto s = py::cast<std::string>(rhs);
+          if (!s.empty()) {{
+            self.{fullvarname}->push_back(std::move(s));
+          }}
+          return;
+        }}
         self.{fullvarname}->reserve(py::len(rhs));
         for (auto val : rhs) {{
           self.{fullvarname}->push_back(py::cast<std::string>(val));

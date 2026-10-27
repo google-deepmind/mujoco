@@ -136,7 +136,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
       const int vertnum = scene->flexvertnum[geom->objid];
       const float radius = model->flex_radius[geom->objid];
 
-      if (scene->flexvertopt) {
+      if (geom->dataid <= 0 && scene->flexvertopt) {
         // Use small spheres to represent vertices.
         const float rot[] = {1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f};
         const float size[] = {radius, radius, radius};
@@ -151,7 +151,7 @@ void SceneBridge::Update(const mjrRect& viewport, const mjvScene* scene) {
         }
       }
 
-      if (scene->flexedgeopt) {
+      if (geom->dataid <= 0 && scene->flexedgeopt) {
         const int edgeadr = scene->flexedgeadr[geom->objid];
         const int edgenum = scene->flexedgenum[geom->objid];
 

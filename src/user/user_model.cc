@@ -3593,10 +3593,10 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_contype[i]     = pfl->contype;
     m->flex_conaffinity[i] = pfl->conaffinity;
     m->flex_condim[i]      = pfl->condim;
-    m->flex_matid[i]       = pfl->matid;
-    m->flex_group[i]       = pfl->group;
-    m->flex_priority[i]    = pfl->priority;
-    m->flex_solmix[i]      = (mjtNum)pfl->solmix;
+    memcpy(m->flex_matid + elem_adr, pfl->elemmatid_.data(), pfl->nelem * sizeof(int));
+    m->flex_group[i]    = pfl->group;
+    m->flex_priority[i] = pfl->priority;
+    m->flex_solmix[i]   = (mjtNum)pfl->solmix;
     mjuu_copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
     mjuu_copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
     m->flex_radius[i] = (mjtNum)pfl->radius;

@@ -921,7 +921,7 @@ typedef struct mjModel_ {
 
   // flexes: other properties
   int*      flex_dim;             // 1: lines, 2: triangles, 3: tetrahedra    (nflex x 1)
-  int*      flex_matid;           // material id for rendering                (nflex x 1)
+  int*      flex_matid;           // material id for rendering                (nflexelem x 1)
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
   int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)
@@ -2131,7 +2131,7 @@ typedef struct mjsFlex_ {          // flex specification
   double edgestiffness;            // edge stiffness
   double edgedamping;              // edge damping
   float rgba[4];                   // rgba when material is omitted
-  mjString* material;              // name of material used for rendering
+  mjStringVec* material;           // name of material used for rendering
   double young;                    // Young's modulus
   double poisson;                  // Poisson's ratio
   double damping;                  // Rayleigh's damping
@@ -3358,7 +3358,8 @@ typedef struct mjvGLCamera_ {     // OpenGL camera
 typedef struct mjvGeom_ {         // abstract geom
   // type info
   int      type;                  // geom type (mjtGeom)
-  int      dataid;                // mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)
+  int      dataid;                // mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull);
+                                  // multi-material flex: material slice index
   int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
@@ -3369,7 +3370,7 @@ typedef struct mjvGeom_ {         // abstract geom
   int      segid;                 // segmentation id; -1: not shown
 
   // spatial transform
-  float    size[3];               // size parameters
+  float    size[3];               // size parameters; multi-material flex: (radius, face offset, face count)
   float    pos[3];                // Cartesian position
   float    mat[9];                // Cartesian orientation
 

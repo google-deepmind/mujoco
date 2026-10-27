@@ -102,7 +102,8 @@ static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
       mjrf_setRenderableSize(renderable, geom.size);
       break;
     case mjGEOM_FLEX:
-      mjrf_setRenderableMesh(renderable, scene_objs->GetFlexMesh(geom.objid), 0, 0);
+      mjrf_setRenderableMesh(
+          renderable, scene_objs->GetFlexMesh(geom.objid, geom.dataid), 0, 0);
       // Flexes are defined in global space.
       std::memset(position, 0, sizeof(position));
       std::memset(rotation, 0, sizeof(rotation));

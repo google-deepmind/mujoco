@@ -299,7 +299,7 @@
     X   ( double,         edgestiffness, 1      ) \
     X   ( double,         edgedamping,   1      ) \
     XVEC( float,          rgba,          4      ) \
-    X   ( mjString*,      material,      1      ) \
+    X   ( mjStringVec*,   material,      1      ) \
     X   ( double,         young,         1      ) \
     X   ( double,         poisson,       1      ) \
     X   ( double,         damping,       1      ) \

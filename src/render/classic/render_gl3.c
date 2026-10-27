@@ -521,7 +521,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
 
     // vertex spheres
-    if (size[0]>0 && scn->flexvertopt &&
+    if (size[0]>0 && geom->dataid<=0 && scn->flexvertopt &&
         !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
       for (int v=scn->flexvertadr[geom->objid];
                v<scn->flexvertadr[geom->objid]+scn->flexvertnum[geom->objid]; v++) {
@@ -534,7 +534,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
 
     // edge cylinders
-    if (size[0]>0 && scn->flexedgeopt &&
+    if (size[0]>0 && geom->dataid<=0 && scn->flexedgeopt &&
         !(scn->flexskinopt && scn->flexfaceused[geom->objid])) {
       for (int e=scn->flexedgeadr[geom->objid];
                e<scn->flexedgeadr[geom->objid]+scn->flexedgenum[geom->objid]; e++) {
@@ -575,16 +575,18 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     }
 
     // face triangles
-    if (scn->flexfaceused[geom->objid]) {
+    int faceadr = scn->flexfaceadr[geom->objid] + (geom->dataid >= 0 ? (int)geom->size[1] : 0);
+    int facenum = (geom->dataid >= 0) ? (int)geom->size[2] : scn->flexfaceused[geom->objid];
+    if (facenum) {
       glEnableClientState(GL_VERTEX_ARRAY);
       glEnableClientState(GL_NORMAL_ARRAY);
-      glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*scn->flexfaceadr[geom->objid]);
-      glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*scn->flexfaceadr[geom->objid]);
+      glVertexPointer(3, GL_FLOAT, 0, scn->flexface + 9*faceadr);
+      glNormalPointer(GL_FLOAT, 0, scn->flexnormal + 9*faceadr);
       if (geom->texcoord && geom->matid>=0) {
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*scn->flexfaceadr[geom->objid]);
+        glTexCoordPointer(2, GL_FLOAT, 0, scn->flextexcoord + 6*faceadr);
       }
-      glDrawArrays(GL_TRIANGLES, 0, 3*scn->flexfaceused[geom->objid]);
+      glDrawArrays(GL_TRIANGLES, 0, 3*facenum);
       glDisableClientState(GL_VERTEX_ARRAY);
       glDisableClientState(GL_NORMAL_ARRAY);
       if (geom->texcoord && geom->matid>=0) {

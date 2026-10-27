@@ -5870,7 +5870,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("group", &MjsFlex::group, &MjsFlex::set_group)
     .property("info", &MjsFlex::info, &MjsFlex::set_info, reference())
     .property("margin", &MjsFlex::margin, &MjsFlex::set_margin)
-    .property("material", &MjsFlex::material, &MjsFlex::set_material, reference())
+    .property("material", &MjsFlex::material, reference())
     .property("node", &MjsFlex::node, reference())
     .property("nodebody", &MjsFlex::nodebody, reference())
     .property("order", &MjsFlex::order, &MjsFlex::set_order)

@@ -568,8 +568,10 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   // common attributes
   WriteAttrTxt(elem, "name", flex->name);
   WriteAttrTable(elem, values, static_cast<const mjsFlex*>(&defflex), kFlexAttrs, kFlexAttrsN);
-  const string& material = Pick(authored_, flex->spec.material, flex->get_material());
-  if (material != defflex.get_material()) { WriteAttrTxt(elem, "material", material); }
+  const auto& material = Pick(authored_, flex->spec.material, flex->get_material());
+  if (material != defflex.get_material() && !material.empty()) {
+    WriteAttrTxt(elem, "material", Numbers(material));
+  }
   WriteAttr(elem, "cellcount", 3, flex->spec.cellcount, defflex.spec.cellcount);
   if (flex->spec.order != defflex.spec.order) {
     string dof_str = "full";

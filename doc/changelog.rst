@@ -5,6 +5,20 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Flexes now support per-element visual materials: ``mjModel.flex_matid`` is now ``(nflexelem x 1)`` instead of
+     ``(nflex x 1)``, and the ``material`` attribute on :ref:`flex<deformable-flex>` and :ref:`flexcomp<body-flexcomp>`
+     (``mjsFlex.material``) is now ``mjStringVec`` rather than ``mjString`` (accepting either a single material name
+     broadcast to all elements or one material name per element).
+
+     **Migration:** Index ``mjModel.flex_matid`` by element ``m->flex_elemadr[f] + e`` rather than by flex ``f``. In C,
+     set ``mjsFlex.material`` with ``mjs_setStringVec`` (or ``mjs_appendString``) instead of ``mjs_setString``; in
+     Python, assign a list of material names (e.g. ``flex.material = ['mat']``).
+
 Engine
 ^^^^^^
 - Flex improvements:

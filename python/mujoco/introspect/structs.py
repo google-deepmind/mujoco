@@ -2810,7 +2810,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='material id for rendering',
-                 array_extent=('nflex',),
+                 array_extent=('nflexelem',),
              ),
              StructFieldDecl(
                  name='flex_group',
@@ -8809,7 +8809,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='material',
                  type=PointerType(
-                     inner_type=ValueType(name='mjString'),
+                     inner_type=ValueType(name='mjStringVec'),
                  ),
                  doc='name of material used for rendering',
              ),
@@ -10672,7 +10672,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='dataid',
                  type=ValueType(name='int'),
-                 doc='mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)',  # pylint: disable=line-too-long
+                 doc='mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull); multi-material flex: material slice index',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='objtype',
@@ -10720,7 +10720,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='float'),
                      extents=(3,),
                  ),
-                 doc='size parameters',
+                 doc='size parameters; multi-material flex: (radius, face offset, face count)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='pos',

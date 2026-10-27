@@ -546,7 +546,7 @@ typedef struct mjsFlex_ {          // flex specification
   double edgestiffness;            // edge stiffness
   double edgedamping;              // edge damping
   float rgba[4];                   // rgba when material is omitted
-  mjString* material;              // name of material used for rendering
+  mjStringVec* material;           // name of material used for rendering
   double young;                    // Young's modulus
   double poisson;                  // Poisson's ratio
   double damping;                  // Rayleigh's damping

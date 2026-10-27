@@ -461,7 +461,7 @@
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
     X   ( int,     flex_passive,          nflex,         1                    ) \
     X   ( int,     flex_dim,              nflex,         1                    ) \
-    X   ( int,     flex_matid,            nflex,         1                    ) \
+    X   ( int,     flex_matid,            nflexelem,     1                    ) \
     X   ( int,     flex_group,            nflex,         1                    ) \
     X   ( int,     flex_interp,           nflex,         1                    ) \
     X   ( int,     flex_cellnum,          nflex,         3                    ) \

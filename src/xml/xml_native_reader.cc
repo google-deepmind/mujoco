@@ -1544,7 +1544,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     throw mjXError(elem, "both 'file' and 'mesh' specified");
   }
   if (!fcomp.mesh.empty() && !elem->Attribute("type")) { fcomp.type = mjFCOMPTYPE_MESH; }
-  if (ReadAttrTxt(elem, "material", material)) { mjs_setString(dflex.material, material.c_str()); }
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjs_setStringVec(dflex.material, material.c_str());
+  }
   ReadAttr(elem, "rgba", 4, dflex.rgba, text);
   if (MapValue(elem, "flatskin", &n, bool_map, 2)) { dflex.flatskin = (n == 1); }
   if (ReadAttrInt(elem, "dim", &dflex.dim)) { fcomp.has_dim = true; }
