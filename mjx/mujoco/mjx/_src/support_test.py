@@ -480,9 +480,8 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
   def test_wrap_inside(self):
-    maxiter = 5
-    tolerance = 1.0e-4
-    z_init = 1.0 - 1.0e-5
+    maxiter = 20
+    tolerance = 1.0e-6
 
     # len0 <= radius
     np.testing.assert_equal(
@@ -491,7 +490,6 @@ class SupportTest(parameterized.TestCase):
             jp.array([1.0]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -503,7 +501,6 @@ class SupportTest(parameterized.TestCase):
             jp.array([1.0]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -513,7 +510,6 @@ class SupportTest(parameterized.TestCase):
         support.wrap_inside(
             jp.array([1, 0, 0, 1]), jp.array([0.1 * mujoco.mjMINVAL]), maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -525,7 +521,6 @@ class SupportTest(parameterized.TestCase):
             jp.array([0.1 * mujoco.mjMINVAL]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -537,14 +532,13 @@ class SupportTest(parameterized.TestCase):
             jp.array([0.1 * mujoco.mjMINVAL]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
 
     # wrap: p0 = [1, 0], p1 = [0, 1]
     status, pnt = support.wrap_inside(
-        jp.array([1, 0, 0, 1]), jp.array([0.5]), maxiter, tolerance, z_init
+        jp.array([1, 0, 0, 1]), jp.array([0.5]), maxiter, tolerance
     )
     np.testing.assert_allclose(
         pnt,
@@ -556,7 +550,7 @@ class SupportTest(parameterized.TestCase):
 
     # no wrap, point on circle: p0 = [1, 0], p1 = [0, 0.5]
     status, pnt = support.wrap_inside(
-        jp.array([1, 0, 0, 0.5]), jp.array([0.5]), maxiter, tolerance, z_init
+        jp.array([1, 0, 0, 0.5]), jp.array([0.5]), maxiter, tolerance
     )
     np.testing.assert_allclose(
         pnt,
@@ -572,7 +566,6 @@ class SupportTest(parameterized.TestCase):
         jp.array([0.5]),
         maxiter,
         tolerance,
-        z_init,
     )
     np.testing.assert_allclose(
         pnt,
@@ -588,7 +581,6 @@ class SupportTest(parameterized.TestCase):
         jp.array([0.5]),
         maxiter,
         tolerance,
-        z_init,
     )
     np.testing.assert_allclose(
         pnt,
@@ -598,7 +590,70 @@ class SupportTest(parameterized.TestCase):
     )
     np.testing.assert_equal(status, jp.array([0]))
 
-    # TODO(taylorhowell): improve wrap_inside testing with additional test cases
+    # asymmetric site pairs matching MuJoCo C
+    for end, radius, pnt_expected in (
+        (jp.array([2.0, 0.0, -0.7, 0.7]), jp.array([0.5]), jp.array([0.125786, 0.483919])),
+        (jp.array([1.0, 0.0, -1.4, 1.4]), jp.array([0.5]), jp.array([0.251405, 0.432199])),
+    ):
+      status, pnt = support.wrap_inside(end, radius)
+      np.testing.assert_equal(status, jp.array([0]))
+      np.testing.assert_allclose(pnt[:2], pnt_expected, atol=1e-4)
+      np.testing.assert_allclose(pnt[2:], pnt_expected, atol=1e-4)
+
+  def test_is_intersect(self):
+    # wrap-onset tangent segments that meet just past their endpoints (a > 1, b > 1)
+    intersect = support._is_intersect(
+        jp.array([0.158835, -0.02149], dtype=jp.float32),
+        jp.array([0.00339341, 0.01461112], dtype=jp.float32),
+        jp.array([-0.190895, 0.059719], dtype=jp.float32),
+        jp.array([0.00339232, 0.01461137], dtype=jp.float32),
+    )
+    self.assertFalse(bool(intersect))
+
+    # wrap-onset tangent segments meeting at coincident tangent point (p2 == p4)
+    self.assertFalse(
+        support._is_intersect(
+            jp.array([0.112450145, 0.138992026], dtype=jp.float32),
+            jp.array([-0.010828755, 0.010379695], dtype=jp.float32),
+            jp.array([-0.138847992, -0.12317808], dtype=jp.float32),
+            jp.array([-0.010828755, 0.010379695], dtype=jp.float32),
+        )
+    )
+
+  def test_length_circle(self):
+    # small wrap-onset arc angle where dot(p0n, p1n) would round to 1.0 in float32
+    arc_length = support._length_circle(
+        jp.array([0.00339341, 0.01461112], dtype=jp.float32),
+        jp.array([0.00339232, 0.01461137], dtype=jp.float32),
+        jp.array(1),
+        jp.array(0.015, dtype=jp.float32),
+    )
+    np.testing.assert_allclose(arc_length, 1.12535e-6, atol=1e-8, rtol=1e-3)
+
+    # vanishing wrap-onset arc angle with opposite cross sign
+    np.testing.assert_allclose(
+        support._length_circle(
+            jp.array([-0.0111310557, 0.0100548286], dtype=jp.float32),
+            jp.array([-0.0111310557, 0.0100548295], dtype=jp.float32),
+            jp.array(1),
+            jp.array(0.015, dtype=jp.float32),
+        ),
+        0.0,
+        atol=1e-8,
+    )
+
+  def test_wrap_circle(self):
+    # wrap onset with coincident tangent points should not fail as an intersection
+    wlen, pnt = support.wrap_circle(
+        jp.array(
+            [0.112450145, 0.138992026, -0.138847992, -0.12317808],
+            dtype=jp.float32,
+        ),
+        jp.zeros(2, dtype=jp.float32),
+        jp.array(False),
+        jp.array(0.015, dtype=jp.float32),
+    )
+    self.assertGreaterEqual(float(wlen), 0.0)
 
   def test_muscle_gain_length(self):
     lmin = 0.5

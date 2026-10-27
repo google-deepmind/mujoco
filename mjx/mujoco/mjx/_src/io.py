@@ -424,9 +424,8 @@ def _put_model_jax(
   fields_jax['geom_rbound_hfield'] = fields['geom_rbound']
 
   # spatial tendon wrap inside
-  fields_jax['wrap_inside_maxiter'] = 5
-  fields_jax['wrap_inside_tolerance'] = 1.0e-4
-  fields_jax['wrap_inside_z_init'] = 1.0 - 1.0e-5
+  fields_jax['wrap_inside_maxiter'] = 20
+  fields_jax['wrap_inside_tolerance'] = 1.0e-6
   fields_jax['is_wrap_inside'] = np.zeros(0, dtype=bool)
   if m.nsite:
     # find sphere or cylinder geoms (if any exist)
