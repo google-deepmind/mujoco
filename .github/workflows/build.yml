@@ -514,7 +514,8 @@ jobs:
       if: ${{ matrix.disk_cache }}
       run: |
         mkdir -p ~/.cache/bazel-disk
-        echo "build --disk_cache=${HOME}/.cache/bazel-disk" >> ~/.bazelrc
+        # setup-bazel writes ~/.bazelrc without a trailing newline.
+        printf '\nbuild --disk_cache=%s/.cache/bazel-disk\n' "${HOME}" >> ~/.bazelrc
         # Bazel refreshes the mtime of every disk cache entry it uses, so
         # entries older than this marker after the build were not used.
         touch "${RUNNER_TEMP}/bazel-disk-cache-start"
