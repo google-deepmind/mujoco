@@ -1470,9 +1470,9 @@ static inline mjtNum evalGeomPairDist(const mjModel* m, mjCCDObj* obj1, mjCCDObj
 // TODO(kylebayes): consider reusing the solver directly
 static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin, mjtNum t,
                                  mjtNum closing_dist) {
-  int condim;
+  // compute effective solref and solimp for g1 and g2
   mjtNum solref[mjNREF], solimp[mjNIMP], friction[5], adhesion;
-  int ipair = -1;
+  int condim, ipair = -1;
   for (int i = 0; i < m->npair; i++) {
     if ((m->pair_geom1[i] == g1 && m->pair_geom2[i] == g2) ||
         (m->pair_geom1[i] == g2 && m->pair_geom2[i] == g1)) {
@@ -1492,6 +1492,8 @@ static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin
     mj_defaultSolRefImp(solref, NULL);
   }
 
+  // compute dimensionless step stiffness (k0 = k * dt^2) and damping (b0 = b * dt) from solref,
+  // either in standard (timeconst, dampratio) mode or direct (-stiffness, -damping) mode
   mjtNum dt = m->opt.timestep;
   mjtNum imp = mju_min(mjMAXIMP, mju_max(mjMINIMP, solimp[1]));
   mjtNum delta = mju_max(1e-4, solimp[2]);
@@ -1509,6 +1511,8 @@ static inline mjtNum contactDist(const mjModel* m, int g1, int g2, mjtNum margin
       b0 = -solref[1] * dt;
     }
 
+    // solve for virtual penetration delta so that mj_referenceConstraint's spring-damper response
+    // absorbs the remaining (1 - t) fraction of closing_dist after damping is accounted for
     if (mj_isMetric(m)) {
       if (!mjDISABLED(mjDSBL_REFSAFE) && solref[0] > 0 && k0 > imp) {
         mjtNum excess = k0 / imp;

@@ -239,23 +239,18 @@ static int filterSphereBox(const mjtNum s[3], mjtNum bound, const mjtNum aabb[6]
 }
 
 
-// filter contact based on bounding sphere test (raw)
-static int filterSphere(const mjtNum pos1[3], const mjtNum pos2[3], mjtNum bound) {
-  mjtNum dif[3] = {pos1[0]-pos2[0], pos1[1]-pos2[1], pos1[2]-pos2[2]};
-  mjtNum distsqr = dif[0]*dif[0] + dif[1]*dif[1] + dif[2]*dif[2];
-
-  return (distsqr > bound*bound);
+// return 1 if speculative collisions are enabled
+static inline int speculativeEnabled(const mjModel* m) {
+  // TODO(kylebayes): replace m->opt.timestep < 0 with an enable flag
+  return m->opt.timestep < 0 && !mjDISABLED(mjDSBL_NATIVECCD);
 }
-
 
 // return step sweep distance if geom g moves faster than its minimum half-thickness
 static mjtNum geomFastSweep(const mjModel* m, const mjData* d, int g,
                             mjtNum dx[3], mjtNum dw[3]) {
-  if (dx) mju_zero3(dx);
-  if (dw) mju_zero3(dw);
-  // TODO(kylebayes): replace m->opt.timestep >= 0 with an enable flag
-  if (g < 0 || m->opt.timestep >= 0 || mjDISABLED(mjDSBL_NATIVECCD) ||
-      m->geom_type[g] == mjGEOM_PLANE || !mjc_GeomSupported(m->geom_type[g])) {
+  if (dx) mji_zero3(dx);
+  if (dw) mji_zero3(dw);
+  if (g < 0 || m->geom_type[g] == mjGEOM_PLANE || !mjc_GeomSupported(m->geom_type[g])) {
     return 0;
   }
   const mjtNum* size = m->geom_aabb + 6*g + 3;
@@ -268,16 +263,15 @@ static mjtNum geomFastSweep(const mjModel* m, const mjData* d, int g,
     return 0;
   }
 
-  if (dx) mju_copy3(dx, dx_copy);
-  if (dw) mju_copy3(dw, dw_copy);
+  if (dx) mji_copy3(dx, dx_copy);
+  if (dw) mji_copy3(dw, dw_copy);
   return s;
 }
 
 
 // return 1 if body b has any geom moving faster than its minimum half-thickness
 static int bodyHasFastGeom(const mjModel* m, const mjData* d, int b) {
-  // TODO(kylebayes): replace m->opt.timestep >= 0 with an enable flag
-  if (b <= 0 || b >= m->nbody || m->opt.timestep >= 0 || mjDISABLED(mjDSBL_NATIVECCD)) {
+  if (b <= 0 || b >= m->nbody) {
     return 0;
   }
   int adr = m->body_geomadr[b];
@@ -294,43 +288,57 @@ static int bodyHasFastGeom(const mjModel* m, const mjData* d, int b) {
 // filter contact based on bounding sphere test (swept over step for fast geoms)
 static int mj_filterSphere(const mjModel* m, mjData* d, int g1, int g2, mjtNum margin) {
   mjtNum dx1[3], dx2[3];
-  mjtNum s1 = geomFastSweep(m, d, g1, dx1, NULL);
-  mjtNum s2 = geomFastSweep(m, d, g2, dx2, NULL);
+  mjtNum s1 = 0, s2 = 0;
+
+  // if speculative collisions are enabled, compute the step sweep distance for each geom
+  if (speculativeEnabled(m)) {
+    s1 = geomFastSweep(m, d, g1, dx1, NULL);
+    s2 = geomFastSweep(m, d, g2, dx2, NULL);
+  }
 
   // neither geom is a plane
   if (m->geom_rbound[g1] > 0 && m->geom_rbound[g2] > 0) {
     mjtNum bound = m->geom_rbound[g1] + m->geom_rbound[g2] + margin;
+    const mjtNum* pos1 = d->geom_xpos + 3*g1;
+    const mjtNum* pos2 = d->geom_xpos + 3*g2;
+    mjtNum diff[3] = {pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]};
+
+    // no sweeping motion needed, check distance between centers
     if (s1 == 0 && s2 == 0) {
-      return filterSphere(d->geom_xpos + 3*g1, d->geom_xpos + 3*g2, bound);
+      return diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2] > bound*bound;
     }
 
     // find closest approach time tau in [0, 1] (fraction of timestep) and check against
     // combined radius
-    mjtNum p[3], v[3], closest[3];
-    mju_sub3(p, d->geom_xpos + 3*g2, d->geom_xpos + 3*g1);
+    mjtNum v[3], closest[3];
     mju_sub3(v, dx2, dx1);
     mjtNum vv = mju_dot3(v, v);
-    mjtNum tau = (vv > mjMINVAL) ? mju_clip(-mju_dot3(p, v) / vv, 0.0, 1.0) : 0.0;
-    mji_addScl3(closest, p, v, tau);
+    // tau is the minimum of |diff + t*v|^2 on the line segment [0, 1]
+    mjtNum tau = (vv > mjMINVAL) ? mju_clip(-mju_dot3(diff, v) / vv, 0.0, 1.0) : 0.0;
+    mji_addScl3(closest, diff, v, tau);
     return mju_dot3(closest, closest) > bound * bound;
   }
 
   // one geom is a plane
   if (m->geom_type[g1] == mjGEOM_PLANE && m->geom_rbound[g2] > 0) {
-    mjtNum dist0 = planeGeomDist(m, d, g1, g2);
-    const mjtNum* mat1 = d->geom_xmat + 9*g1;
-    mjtNum n1[3] = {mat1[2], mat1[5], mat1[8]};
-    mjtNum dist_min = mju_min(dist0, dist0 + mju_dot3(n1, dx2));
-    if (dist_min > margin + m->geom_rbound[g2]) {
+    mjtNum dist = planeGeomDist(m, d, g1, g2);
+    if (s2 > 0) {
+      const mjtNum* mat1 = d->geom_xmat + 9*g1;
+      mjtNum n1[3] = {mat1[2], mat1[5], mat1[8]};
+      dist = mju_min(dist, dist + mju_dot3(n1, dx2));
+    }
+    if (dist > margin + m->geom_rbound[g2]) {
       return 1;
     }
   }
   if (m->geom_type[g2] == mjGEOM_PLANE && m->geom_rbound[g1] > 0) {
-    mjtNum dist0 = planeGeomDist(m, d, g2, g1);
-    const mjtNum* mat2 = d->geom_xmat + 9*g2;
-    mjtNum n2[3] = {mat2[2], mat2[5], mat2[8]};
-    mjtNum dist_min = mju_min(dist0, dist0 + mju_dot3(n2, dx1));
-    if (dist_min > margin + m->geom_rbound[g1]) {
+    mjtNum dist = planeGeomDist(m, d, g2, g1);
+    if (s1 > 0) {
+      const mjtNum* mat2 = d->geom_xmat + 9*g2;
+      mjtNum n2[3] = {mat2[2], mat2[5], mat2[8]};
+      dist = mju_min(dist, dist + mju_dot3(n2, dx1));
+    }
+    if (dist > margin + m->geom_rbound[g1]) {
       return 1;
     }
   }
@@ -787,7 +795,8 @@ void mj_collision(const mjModel* m, mjData* d) {
 
     // process bodyflex pair: midphase
     else if (!mjDISABLED(mjDSBL_MIDPHASE) && bvh1 >= 0 && bvh2 >= 0 &&
-             !(isbody1 && isbody2 && (bodyHasFastGeom(m, d, bf1) || bodyHasFastGeom(m, d, bf2)))) {
+             !(speculativeEnabled(m) && isbody1 && isbody2 &&
+               (bodyHasFastGeom(m, d, bf1) || bodyHasFastGeom(m, d, bf2)))) {
       // filter groups for reducible flexes: one per geom for body:flex, one for flex:flex
       int group = -1;
       if (isbody1 && !isbody2) {
@@ -1368,8 +1377,8 @@ static void makeAAMM(const mjModel* m, mjData* d,
       mji_transpose3(axis, xmat);
       mjtNum r_half = m->geom_rbound[geom];
       mjtNum dx[3], dw[3];
-      geomFastSweep(m, d, geom, dx, dw);
-      mjtNum s_rot = mju_norm3(dw) * r_half;
+      mjtNum s = speculativeEnabled(m) ? geomFastSweep(m, d, geom, dx, dw) : 0;
+      mjtNum s_rot = s > 0 ? mju_norm3(dw) * r_half : 0;
 
       for (int j=0; j < 3; j++) {
         const mjtNum* frame_j = frame + 3*j;
@@ -1381,9 +1390,13 @@ static void makeAAMM(const mjModel* m, mjData* d,
         mjtNum r_cen = mju_dot3(xpos, frame_j);
         mjtNum lo = mju_max(r_cen - r_half, aabb_cen - aabb_half);
         mjtNum hi = mju_min(r_cen + r_half, aabb_cen + aabb_half);
-        mjtNum d_proj = mju_dot3(dx, frame_j);
-        _aamm[j + 0] = lo + mju_min(0, d_proj) - margin;
-        _aamm[j + 3] = hi + mju_max(0, d_proj) + margin;
+        if (s > 0) {
+          mjtNum d_proj = mju_dot3(dx, frame_j);
+          lo += mju_min(0, d_proj);
+          hi += mju_max(0, d_proj);
+        }
+        _aamm[j + 0] = lo - margin;
+        _aamm[j + 3] = hi + margin;
       }
 
       // update body aamm
@@ -1954,7 +1967,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
         mjtNum margin = getMargin(m, g1, g2, ipair);
         mjtNum gap = getGap(m, g1, g2, ipair);
         ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
-        if (!mjDISABLED(mjDSBL_NATIVECCD)) {
+        if (speculativeEnabled(m)) {
           // check for active surface contact (in-gap contacts are only replaced if
           // CCD finds a surface hit)
           int active = 0;
