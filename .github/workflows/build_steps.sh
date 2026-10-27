@@ -131,7 +131,7 @@ setup_emsdk() {
 # cached dependency in EXTERNAL_DEPS_DIR.
 _setup_ext_deps_args() {
     ext_deps_args=()
-    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
+    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR:-/tmp}/external_deps}"
     if command -v cygpath >/dev/null 2>&1 && [[ -n "${ext_deps_dir}" ]]; then
         ext_deps_dir="$(cygpath -m "${ext_deps_dir}")"
     fi
@@ -154,6 +154,23 @@ _setup_ext_deps_args() {
 }
 
 
+# Copy any newly fetched dependencies from $1/_deps/<dep>-src into
+# EXTERNAL_DEPS_DIR so actions/cache can persist them across runs.
+_populate_ext_deps_cache() {
+    local build_dir="${1:-.}"
+    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR:-/tmp}/external_deps}"
+    for dep in ${EXTERNAL_DEPS:-eigen3}; do
+        local src="${build_dir}/_deps/${dep}-src"
+        local dst="${ext_deps_dir}/${dep}"
+        if [[ -d "${src}" && ! -d "${dst}" ]]; then
+            echo "Populating external dependencies cache for ${dep}..."
+            mkdir -p "${ext_deps_dir}"
+            cp -r "${src}" "${dst}"
+        fi
+    done
+}
+
+
 configure_mujoco() {
     echo "Configuring MuJoCo..."
     # Disable global IPO/LTO to avoid expensive whole-program optimization link
@@ -165,7 +182,6 @@ configure_mujoco() {
 
     # Use cached external dependencies from actions/cache.
     local ext_deps_args=()
-    local ext_deps_dir="${EXTERNAL_DEPS_DIR:-${TMPDIR}/external_deps}"
     _setup_ext_deps_args
 
     mkdir build &&
@@ -178,17 +194,7 @@ configure_mujoco() {
         ${CCACHE_ARGS} \
         ${CMAKE_ARGS} \
         "${ext_deps_args[@]}" &&
-
-    # Populate any missing external dependency caches.
-    for dep in ${EXTERNAL_DEPS:-eigen3}; do
-        local src="_deps/${dep}-src"
-        local dst="${ext_deps_dir}/${dep}"
-        if [[ -d "${src}" && ! -d "${dst}" ]]; then
-            echo "Populating external dependencies cache for ${dep}..."
-            mkdir -p "${ext_deps_dir}"
-            cp -r "${src}" "${dst}"
-        fi
-    done
+    _populate_ext_deps_cache .
 }
 
 
@@ -386,12 +392,15 @@ test_python_bindings() {
 _build_wasm_threads() {  # $1 = ON | OFF
     local mode=$1 dir
     [[ "${mode}" == "ON" ]] && dir=build_wasm_mt || dir=build_wasm_st
+    local ext_deps_args=()
+    _setup_ext_deps_args
     echo "Build MuJoCo with Emscripten (MUJOCO_WASM_THREADS=${mode})..."
     emcmake cmake -B "${dir}" \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
         -DMUJOCO_WASM_THREADS=${mode} \
         ${CCACHE_ARGS} \
-        $WASM_CMAKE_ARGS
+        $WASM_CMAKE_ARGS \
+        "${ext_deps_args[@]}"
     cmake --build "${dir}" --parallel $(nproc)
 }
 
@@ -483,14 +492,19 @@ build_mujoco_live() {
     source emsdk/emsdk_env.sh
 
     echo "Building Filament tools, targeting host platform..."
+    local ext_deps_args=()
+    _setup_ext_deps_args
     cmake -S . -B build_host -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DUSE_STATIC_LIBCXX=OFF \
         -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_USE_FILAMENT=ON \
         -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
-        -DMUJOCO_BUILD_SIMULATE=OFF
+        -DMUJOCO_BUILD_SIMULATE=OFF \
+        "${ext_deps_args[@]}"
+    _populate_ext_deps_cache build_host
     cmake --build build_host --target matc resgen cmgen mujoco_filament_assets -j"${NJOBS}"
 
     echo "Building desktop WASM app..."
@@ -554,9 +568,11 @@ _build_python_wheel() {
     fi
     export CCACHE_NOHASHDIR=1
     export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,pch_defines,locale"
+    local ext_deps_args=()
+    _setup_ext_deps_args
     MUJOCO_PATH="${prefix}" \
     MUJOCO_PLUGIN_PATH="${prefix}/mujoco_plugin" \
-    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS}" \
+    MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${CCACHE_ARGS} ${CMAKE_ARGS} ${ext_deps_args[*]}" \
     pip wheel -v --no-deps -w python/dist python/dist/mujoco-*.tar.gz
 }
 
@@ -613,6 +629,8 @@ _configure_studio_host() {
         return 0
     fi
     echo "Configuring the native Studio host build..."
+    local ext_deps_args=()
+    _setup_ext_deps_args
     cmake -S . -B build_host -G Ninja \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
@@ -620,10 +638,13 @@ _configure_studio_host() {
         -DMUJOCO_BUILD_STUDIO=ON \
         -DMUJOCO_USE_FILAMENT=ON \
         -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_TEST_PYTHON_UTIL=OFF \
         -DMUJOCO_BUILD_EXAMPLES=OFF \
         -DMUJOCO_BUILD_SIMULATE=OFF \
         ${CCACHE_ARGS} \
-        ${CMAKE_ARGS}
+        ${CMAKE_ARGS} \
+        "${ext_deps_args[@]}"
+    _populate_ext_deps_cache build_host
 }
 
 
@@ -831,13 +852,17 @@ build_engine() {
     # See configure_mujoco for why global IPO is off while CMakeLists.txt keeps
     # IPO on the core mujoco target on Windows MSVC.
     local ipo_off="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF"
+    local ext_deps_args=()
+    _setup_ext_deps_args
     cmake -S . -B build -G Ninja \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         ${ipo_off} \
         -DCMAKE_INSTALL_PREFIX:PATH="${prefix}" \
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF \
         ${CCACHE_ARGS} \
-        ${CMAKE_ARGS}
+        ${CMAKE_ARGS} \
+        "${ext_deps_args[@]}"
+    _populate_ext_deps_cache build
     cmake --build build -j"${NJOBS}"
     cmake --install build --prefix "${prefix}"
 
@@ -868,6 +893,7 @@ build_simulate_app() {
             -DMUJOCO_BUILD_SIMULATE=ON \
             -DMUJOCO_BUILD_STUDIO=OFF \
             -DMUJOCO_BUILD_TESTS=OFF \
+            -DMUJOCO_TEST_PYTHON_UTIL=OFF \
             -DMUJOCO_BUILD_EXAMPLES=OFF \
             ${CCACHE_ARGS} \
             ${CMAKE_ARGS}

@@ -326,8 +326,17 @@ jobs:
         path: emsdk/upstream/emscripten/cache
         key: emsdk-sysroot-4.0.10
 
+    - name: Cache external dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ runner.temp }}/external_deps
+        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        restore-keys: |
+          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+
     - name: Build and Test WASM bindings
       env:
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ env.cmake_args }}
       run: |
         bash ./.github/workflows/build_steps.sh npm_ci
@@ -335,6 +344,8 @@ jobs:
 
     - name: Build MuJoCo Studio WASM
       env:
+        EXTERNAL_DEPS: "eigen3"
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ env.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh build_studio_wasm
 

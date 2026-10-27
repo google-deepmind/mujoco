@@ -28,10 +28,20 @@ jobs:
     - name: Setup Emscripten
       run: bash ./.github/workflows/build_steps.sh setup_emsdk
 
+    - name: Cache external dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ runner.temp }}/external_deps
+        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        restore-keys: |
+          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+
     - name: Build MuJoCo Live
       env:
         CC: clang-18
         CXX: clang++-18
+        EXTERNAL_DEPS: "eigen3"
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
       run: bash ./.github/workflows/build_steps.sh build_mujoco_live
 
     - name: Prepare files for GitHub Pages
