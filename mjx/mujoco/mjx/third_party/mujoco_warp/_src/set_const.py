@@ -805,18 +805,18 @@ def set_const(
 
   For selective updates, pass SetConstGroup flags to groups:
 
-  ===================  ==============================================
-  Modified Field       Groups
-  ===================  ==============================================
-  body_mass            SetConstGroup.ALL
-  geom_size            SetConstGroup.FIXED (or ALL if tendon wraps geom)
-  cam_pos, cam_quat    SetConstGroup.KIN0
-  light_pos, light_dir SetConstGroup.KIN0
-  eq_data              SetConstGroup.KIN0
-  body_inertia         SetConstGroup.INERT0
-  dof_armature         SetConstGroup.INERT0
-  qpos0                SetConstGroup.KIN0 | SetConstGroup.INERT0
-  ===================  ==============================================
+  ====================  =================================================
+  Modified Field        Groups
+  ====================  =================================================
+  body_mass             SetConstGroup.ALL
+  geom_size             SetConstGroup.FIXED (or ALL if tendon wraps geom)
+  cam_pos, cam_quat     SetConstGroup.KIN0
+  light_pos, light_dir  SetConstGroup.KIN0
+  eq_data               SetConstGroup.KIN0
+  body_inertia          SetConstGroup.INERT0
+  dof_armature          SetConstGroup.INERT0
+  qpos0                 SetConstGroup.KIN0 | SetConstGroup.INERT0
+  ====================  =================================================
 
   Computes:
     - Fixed quantities (SetConstGroup.FIXED):
