@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Wire-format implementation for the web viewer's state payload (see
-// state_payload.h). Compiled into BOTH sides of the wire: the state_payload
-// pybind module (serializer, via state_payload_py.cc) and the wasm
-// web_client (parser, via web_client_session.cc). It must therefore stay
-// free of python- or browser-specific dependencies.
+// Wire-format implementation for the web viewer's state payload and model
+// bundle. Compiled into BOTH sides of the wire: the state_payload pybind
+// module and the wasm web_client. It must therefore stay free of python- or
+// browser-specific dependencies.
 
 #include "state_payload.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -194,6 +196,100 @@ bool ParseStatePayload(const void* data, size_t size, StatePayloadView* out) {
         break;  // Unknown tag: skip.
     }
     offset += block.size;
+  }
+  return true;
+}
+
+std::vector<std::byte> SerializeModelBundle(
+    const mjModel* m, std::vector<std::string>* unreadable) {
+  std::vector<std::byte> buffer;
+
+  // Header, patched once the resource count is known.
+  ModelBundleHeader header;
+  header.mjb_size = mj_sizeModel(m);
+  AppendBytes(buffer, &header, sizeof(header));
+
+  // The MJB, saved straight into the bundle.
+  const size_t mjb_offset = buffer.size();
+  buffer.resize(mjb_offset + header.mjb_size);
+  mj_saveModel(m, nullptr, buffer.data() + mjb_offset, header.mjb_size);
+
+  // One entry per distinct by-reference texture path. The VFS keeps any .mjz
+  // archive mounted across the reads of this bundle and is deleted with it.
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  std::vector<std::string_view> seen;
+  for (int i = 0; i < m->ntex; ++i) {
+    if (m->tex_adr[i] != -1 || m->tex_pathadr[i] < 0) continue;
+    std::string_view path(m->paths + m->tex_pathadr[i]);
+    if (path.empty()) continue;
+    if (std::find(seen.begin(), seen.end(), path) != seen.end()) continue;
+    seen.push_back(path);
+
+    char error[1024] = "";
+    mjResource* resource = mju_openResource("", std::string(path).c_str(),
+                                            &vfs, error, sizeof(error));
+    const void* data = nullptr;
+    int size = resource ? mju_readResource(resource, &data) : -1;
+    if (size < 0) {
+      if (unreadable) {
+        unreadable->push_back(std::string(path) + ": " +
+                              (resource ? "read failed" : error));
+      }
+      if (resource) mju_closeResource(resource);
+      continue;
+    }
+
+    const uint32_t path_size = static_cast<uint32_t>(path.size());
+    const uint64_t data_size = static_cast<uint64_t>(size);
+    AppendBytes(buffer, &path_size, sizeof(path_size));
+    AppendBytes(buffer, &data_size, sizeof(data_size));
+    AppendBytes(buffer, path.data(), path.size());
+    AppendBytes(buffer, data, size);
+    mju_closeResource(resource);
+    ++header.nresources;
+  }
+  mj_deleteVFS(&vfs);
+
+  memcpy(buffer.data(), &header, sizeof(header));
+  return buffer;
+}
+
+bool ParseModelBundle(const void* data, size_t size, ModelBundleView* out) {
+  const std::byte* bytes = static_cast<const std::byte*>(data);
+  if (size < sizeof(ModelBundleHeader)) return false;
+
+  ModelBundleHeader header;
+  memcpy(&header, bytes, sizeof(header));
+  if (header.magic != kModelBundleMagic) return false;
+  if (header.version != kModelBundleVersion) return false;
+
+  size_t offset = sizeof(ModelBundleHeader);
+  if (header.mjb_size > size - offset) return false;
+  out->mjb = bytes + offset;
+  out->mjb_size = header.mjb_size;
+  offset += header.mjb_size;
+
+  out->resources.clear();
+  out->resources.reserve(header.nresources);
+  for (uint32_t i = 0; i < header.nresources; ++i) {
+    uint32_t path_size;
+    uint64_t data_size;
+    if (size - offset < sizeof(path_size) + sizeof(data_size)) return false;
+    memcpy(&path_size, bytes + offset, sizeof(path_size));
+    offset += sizeof(path_size);
+    memcpy(&data_size, bytes + offset, sizeof(data_size));
+    offset += sizeof(data_size);
+    if (path_size > size - offset) return false;
+    ModelBundleResource resource;
+    resource.path = std::string_view(
+        reinterpret_cast<const char*>(bytes + offset), path_size);
+    offset += path_size;
+    if (data_size > size - offset) return false;
+    resource.data = bytes + offset;
+    resource.size = data_size;
+    offset += data_size;
+    out->resources.push_back(resource);
   }
   return true;
 }

@@ -124,6 +124,11 @@ struct App {
   std::unique_ptr<mujoco::studio::Window> window;
   std::unique_ptr<mujoco::Renderer> renderer;
   std::unique_ptr<mujoco::studio::ModelHolder> model_holder;
+  // Replacement for model_holder->model()->paths when the model has
+  // by-reference textures: the original paths followed by the "asset:" URIs
+  // they were rewritten to (see RegisterBundledTextures). Must outlive the
+  // model, which points into it.
+  std::vector<char> model_paths;
   std::unique_ptr<mujoco::studio::ModelScene> model_scene;
   std::unique_ptr<mujoco::ImguiBridge> imgui_bridge;
   mjvPerturb perturb;
@@ -730,11 +735,118 @@ uint32_t Crc32(const uint8_t* data, size_t len) {
   return crc ^ 0xFFFFFFFFu;
 }
 
+// Holds assets that the resource providers below resolve without a
+// filesystem: Filament assets and local ImGui fonts pushed in by the page via
+// the registerAsset() binding (owned copies), and the by-reference textures of
+// the current model bundle (non-owning views into the download buffer, see
+// RegisterBundledTextures).
+class AssetRegistry {
+ public:
+  static AssetRegistry& Instance() {
+    static AssetRegistry instance;
+    return instance;
+  }
+
+  // Registers an owned copy of `contents`.
+  void RegisterAsset(std::string filename, std::string contents) {
+    std::string& owned = owned_[filename];
+    owned = std::move(contents);
+    assets_[std::move(filename)] = owned;
+  }
+
+  // Registers a view of `contents`, which the caller must keep alive until the
+  // asset is cleared again.
+  void RegisterAssetView(std::string filename, std::string_view contents) {
+    assets_[std::move(filename)] = contents;
+  }
+
+  // Removes every asset whose name starts with `prefix`.
+  void ClearPrefix(std::string_view prefix) {
+    std::erase_if(assets_, [prefix](const auto& kv) {
+      return std::string_view(kv.first).starts_with(prefix);
+    });
+    std::erase_if(owned_, [prefix](const auto& kv) {
+      return std::string_view(kv.first).starts_with(prefix);
+    });
+  }
+
+  // Looks up "<provider>:<filename>"; empty if unknown.
+  std::string_view Get(std::string_view filename) const {
+    filename = filename.substr(filename.find_first_of(':') + 1);
+    auto it = assets_.find(std::string(filename));
+    return it != assets_.end() ? it->second : std::string_view();
+  }
+
+ private:
+  std::unordered_map<std::string, std::string_view> assets_;
+  std::unordered_map<std::string, std::string> owned_;
+};
+
+// Prefix of the AssetRegistry names of the current model's textures.
+constexpr std::string_view kBundledTexturePrefix = "tex_";
+
+// Makes the by-reference textures shipped in `bundle` loadable by `m`.
+//
+// mj_loadTexture() (called for every by-reference texture when SetupScene()
+// builds the scene) opens m->paths + tex_pathadr[i] with no VFS, so the only
+// hook the browser has is a resource provider selected by URI prefix. Each
+// texture's path is therefore rewritten to "asset:tex_<i><ext>" and its bytes
+// registered under that name. The names are deliberately flat: the VFS would
+// try to mount any ".mjz/" segment of the original path as an archive. The
+// extension is kept so the content type can still be derived from it.
+//
+// The rewritten paths live in g_app.model_paths. Only m->paths is redirected
+// there; m->npaths is left alone so the model stays consistent with its own
+// buffer for mj_sizeModel/mj_copyModel/mj_saveModel, which would all still
+// see the original paths.
+static void RegisterBundledTextures(mjModel* m,
+                                    const mujoco::studio::ModelBundleView& b) {
+  std::vector<char>& paths = g_app.model_paths;
+  paths.assign(m->paths, m->paths + m->npaths);
+  bool rewritten = false;
+  for (int i = 0; i < m->ntex; ++i) {
+    if (m->tex_adr[i] != -1 || m->tex_pathadr[i] < 0) continue;
+    std::string_view path(m->paths + m->tex_pathadr[i]);
+    auto it = std::find_if(
+        b.resources.begin(), b.resources.end(),
+        [path](const auto& r) { return r.path == path; });
+    if (it == b.resources.end()) {
+      LOG(Warning, "Texture %d (%.*s) is not in the model bundle", i,
+          static_cast<int>(path.size()), path.data());
+      continue;
+    }
+    size_t dot = path.find_last_of('.');
+    size_t slash = path.find_last_of("/\\");
+    std::string_view ext =
+        dot != std::string_view::npos &&
+                (slash == std::string_view::npos || dot > slash)
+            ? path.substr(dot)
+            : std::string_view();
+    std::string name = std::string(kBundledTexturePrefix) +
+                       std::to_string(i) + std::string(ext);
+    AssetRegistry::Instance().RegisterAssetView(
+        name, std::string_view(reinterpret_cast<const char*>(it->data),
+                               it->size));
+    const std::string uri = "asset:" + name;
+    m->tex_pathadr[i] = static_cast<int>(paths.size());
+    paths.insert(paths.end(), uri.begin(), uri.end());
+    paths.push_back('\0');
+    rewritten = true;
+  }
+  if (rewritten) m->paths = paths.data();
+}
+
 bool ParseModelBufferImpl(const char* data, size_t size) {
-  LOG(Info, "Fetched model.mjb, size: %zu", size);
+  LOG(Info, "Fetched model bundle, size: %zu", size);
+  mujoco::studio::ModelBundleView bundle;
+  if (!mujoco::studio::ParseModelBundle(data, size, &bundle)) {
+    LOG(Error, "Failed to load model: malformed model bundle");
+    return false;
+  }
+  LOG(Info, "Model bundle: %zu byte MJB, %zu texture file(s)", bundle.mjb_size,
+      bundle.resources.size());
   g_app.model_holder = mujoco::studio::ModelHolder::FromBuffer(
-      std::span<const std::byte>(reinterpret_cast<const std::byte*>(data),
-                                 size),
+      std::span<const std::byte>(bundle.mjb, bundle.mjb_size),
       "application/mjb", "model.mjb");
   if (g_app.model_holder && g_app.model_holder->ok()) {
     mjModel* m = g_app.model_holder->model();
@@ -756,6 +868,7 @@ bool ParseModelBufferImpl(const char* data, size_t size) {
         }
       }
     }
+    if (m) RegisterBundledTextures(m, bundle);
     g_app.session.SetModelCrc32(
         Crc32(reinterpret_cast<const uint8_t*>(data), size));
     LOG(Info, "Model parsed successfully!");
@@ -807,37 +920,17 @@ void FreeModelBuffer(uintptr_t ptr_val) {
   }
 }
 
-// Parses an MJB model from a buffer.
+// Parses a model bundle from a buffer and rebuilds the scene from it. The
+// buffer is the page's to free once this returns.
 void ParseModelBuffer(uintptr_t ptr_val, size_t size) {
   if (ParseModelBufferImpl(reinterpret_cast<char*>(ptr_val), size)) {
     FinishModelLoad();
   }
+  // SetupScene() has uploaded every bundled texture to the GPU, and nothing
+  // reads the encoded bytes again; drop the views before the buffer they
+  // point into is freed. A re-upload would need the bundle fetched again.
+  AssetRegistry::Instance().ClearPrefix(kBundledTexturePrefix);
 }
-
-// Holds assets (Filament assets and local ImGui fonts) that the page fetches
-// and pushes in via the registerAsset() binding before startApp() runs, so the
-// resource providers below can resolve them without a filesystem.
-class AssetRegistry {
- public:
-  static AssetRegistry& Instance() {
-    static AssetRegistry instance;
-    return instance;
-  }
-
-  void RegisterAsset(std::string filename, std::string contents) {
-    assets_[std::move(filename)] = std::move(contents);
-  }
-
-  const std::string& Get(std::string_view filename) const {
-    filename = filename.substr(filename.find_first_of(':') + 1);
-    static std::string empty;
-    auto it = assets_.find(std::string(filename));
-    return it != assets_.end() ? it->second : empty;
-  }
-
- private:
-  std::unordered_map<std::string, std::string> assets_;
-};
 
 // Exposed to JS (see EMSCRIPTEN_BINDINGS): the page calls this once per asset.
 void RegisterAsset(std::string filename, emscripten::val contents) {
@@ -866,8 +959,9 @@ void RegisterAsset(std::string filename, emscripten::val contents) {
   AssetRegistry::Instance().RegisterAsset(std::move(filename), std::move(data));
 }
 
-// Registers resource providers so that "filament:" and "font:" asset requests
-// resolve from the AssetRegistry populated by registerAsset().
+// Registers resource providers so that "filament:", "font:" and "asset:"
+// requests resolve from the AssetRegistry: the first two are populated by
+// registerAsset(), the last by RegisterBundledTextures().
 static void RegisterAssetProviders() {
   mjpResourceProvider resource_provider;
   mjp_defaultProvider(&resource_provider);
@@ -878,12 +972,12 @@ static void RegisterAssetProviders() {
   };
   resource_provider.read = [](mjResource* resource, const void** buffer) {
     AssetRegistry& r = AssetRegistry::Instance();
-    const std::string& contents = r.Get(resource->name);
+    std::string_view contents = r.Get(resource->name);
     *buffer = contents.data();
     return static_cast<int>(contents.size());
   };
   resource_provider.close = [](mjResource* resource) {};
-  for (const char* prefix : {"filament", "font"}) {
+  for (const char* prefix : {"filament", "font", "asset"}) {
     resource_provider.prefix = prefix;
     mjp_registerProvider(&resource_provider);
   }
@@ -948,7 +1042,8 @@ EMSCRIPTEN_BINDINGS(web_client_bindings) {
   // Frees a buffer previously allocated by allocModelBuffer.
   emscripten::function("freeModelBuffer", &FreeModelBuffer);
 
-  // Parses a completed MJB model buffer and reinitializes the Filament scene.
+  // Parses a completed model bundle buffer (MJB plus by-reference textures)
+  // and reinitializes the Filament scene.
   emscripten::function("parseModelBuffer", &ParseModelBuffer);
 
   // Initializes the Filament window, ImGui context, WebSocket connections, and

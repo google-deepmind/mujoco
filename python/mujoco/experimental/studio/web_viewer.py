@@ -272,10 +272,7 @@ class WebViewer(viewer_protocol.Viewer):
     _update_model() to swap the model bytes served at /model without restarting
     the server.
     """
-    # Serialize the compiled model to MJB bytes (served as /model).
-    buffer = np.empty(mujoco.mj_sizeModel(self.model), np.uint8)
-    mujoco.mj_saveModel(self.model, None, buffer)
-    mjb_data = buffer.tobytes()
+    mjb_data = self._serialize_model()
 
     # Identity of the served model, included in every state payload. When it
     # changes, the browser refetches /model by reloading the page.
@@ -291,12 +288,19 @@ class WebViewer(viewer_protocol.Viewer):
 
   def _update_model(self) -> None:
     """Swaps the model bytes served at /model without restarting the server."""
-    buffer = np.empty(mujoco.mj_sizeModel(self.model), np.uint8)
-    mujoco.mj_saveModel(self.model, None, buffer)
-    mjb_data = buffer.tobytes()
+    mjb_data = self._serialize_model()
     self._model_crc32 = zlib.crc32(mjb_data)
     if self._web_server is not None:
       self._web_server.update_model(mjb_data)
+
+  def _serialize_model(self) -> bytes:
+    """Returns the bytes served at /model: the MJB plus by-reference textures.
+
+    A model compiled with ``passthrough="textures"`` stores only the paths of
+    its textures, which the browser cannot open, so the files are bundled with
+    the MJB. The browser parses the bundle in one step.
+    """
+    return state_payload.serialize_model_bundle(self.model)
 
   def _stop_server(self) -> None:
     if self._web_server is not None:
