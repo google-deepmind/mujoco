@@ -8,10 +8,11 @@ description: >-
   LaunchStudio), authoring Python ViewerPlugin/SimPlugin or C++ RegisterPlugin
   (mjPLUGIN_LIB_INIT) extensions, synchronizing sim and viewer state
   (ViewerHandle.sync, @messages.handler), hot-reloading Python plugins or models
-  (HotReloadEvent), configuring graphics modes or WebViewer NetImgui/WASM
-  streaming, or debugging Studio and browser console logs. Don't use for Dear
-  ImGui/ImPlot widget layout or styling (use mujoco-gui), core physics stepping
-  (use mujoco-python), or headless offscreen rendering (use mujoco-rendering).
+  (HotReloadEvent), iterating on a live hot-reload Studio session, configuring
+  graphics modes or WebViewer NetImgui/WASM streaming, or debugging Studio and
+  browser console logs. Don't use for Dear ImGui/ImPlot widget layout or styling
+  (use mujoco-gui), core physics stepping (use mujoco-python), or headless
+  offscreen rendering (use mujoco-rendering).
 ---
 
 # MuJoCo Studio: Interactive Simulation, UI & Plugin Architecture
@@ -48,10 +49,11 @@ Read the matching reference file when your task touches these areas:
     chronological Viewer and Simulation lifecycle event sequences, or setting
     `messages.Priority` overrides.
 -   **[references/python_plugins_and_hot_reload.md](references/python_plugins_and_hot_reload.md)** —
-    Read when authoring Python `ViewerPlugin` or `SimPlugin` extensions (ImGui
-    panels, `extra_geoms` overlays, split Sim/Viewer `MjSpec` editors, Python vs
-    C++ widget trade-offs) or enabling Python plugin/model hot reload
-    (`hot_reload`, `HotReloadEvent`).
+    Read when authoring Python `ViewerPlugin` or `SimPlugin` extensions (keeping
+    plugins in separate `.py` modules outside `__main__`, ImGui panels,
+    `extra_geoms` overlays, split Sim/Viewer `MjSpec` editors, Python vs C++
+    widget trade-offs) or enabling and iterating on live Python plugin/model hot
+    reload (`hot_reload`, `HotReloadEvent`).
 -   **[references/cpp_studio.md](references/cpp_studio.md)** — Read when
     building C++ Studio applications (`mujoco::studio::App`, `LaunchStudio`) or
     registering C++ plugins (`mujoco::studio::RegisterPlugin`,
@@ -289,6 +291,12 @@ load [references/messaging_and_lifecycle.md](references/messaging_and_lifecycle.
     self.history.append(app.data.xpos[body_id].copy())
     ```
 
-4.  **Build and Run with `-c opt`**: Always compile and run Studio targets with
+4.  **Put Python Plugins in Separate Modules (Never in `__main__`)**: Python's
+    `__main__` entrypoint script cannot be swapped by `--hot_reload`. Define
+    `ViewerPlugin` and `SimPlugin` classes in importable `.py` module files (and
+    if an existing script defines plugins inline in `__main__`, ask the user
+    whether to extract them; see
+    [references/python_plugins_and_hot_reload.md](references/python_plugins_and_hot_reload.md)).
+5.  **Build and Run with `-c opt`**: Always compile and run Studio targets with
     `-c opt` so physics stepping, Filament rendering, and NetImgui/WebSocket
     streaming execute with compiler optimizations enabled.

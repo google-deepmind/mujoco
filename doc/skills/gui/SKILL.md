@@ -2,11 +2,13 @@
 name: mujoco-gui
 description: >-
   Dear ImGui and ImPlot user interfaces across C++ and Python, immediate-mode
-  widget design, layout, naming conventions (build_gui vs render), Tables API,
-  ID stack rules (## label disambiguation vs ### seed reset override), list
-  virtualization (ImGuiListClipper), theming, input capture (WantCaptureKeyboard).
-  Use for building, styling, and debugging Dear ImGui widgets and ImPlot charts.
-  Do NOT use for Studio app architecture/plugins (mujoco-studio) or physics (mujoco-python).
+  widget design, layout and multi-row widget/column alignment (Tables API),
+  naming conventions (build_gui vs render), ID stack rules (## label
+  disambiguation vs ### seed reset override), list virtualization
+  (ImGuiListClipper), theming, input capture (WantCaptureKeyboard). Use for
+  building, aligning, styling, and debugging Dear ImGui widgets and ImPlot
+  charts. Do NOT use for Studio app architecture/plugins (mujoco-studio) or
+  physics (mujoco-python).
 ---
 
 # Dear ImGui Development & Architecture Guide
@@ -258,17 +260,34 @@ details and patterns:
 High-quality ImGui tools balance immediate-mode simplicity with clean visual
 structure and consistent styling:
 
--   **Grid-Aligned Widgets (Prefer the Tables API)**:
+-   **Grid-Aligned Widgets & Form Rows (Prefer the Tables API)**:
     -   When arranging widgets into grids, key-value inspector panels, parameter
-        sheets, or multi-column layouts, **always prefer the modern Tables
-        API** (`imgui.BeginTable`, `TableNextRow`, `TableNextColumn`).
-    -   Avoid legacy alignment techniques like `imgui.Columns()` (which is
-        obsolete and lacks modern features), manual `SameLine()` pixel offsets,
-        or inserting arbitrary dummy spacing.
-    -   Tables provide automatic or proportional column sizing
-        (`imgui.TableColumnFlags.WidthStretch` / `WidthFixed`), clean row
-        heights, built-in clipping, and consistent alignment without brittle
-        manual coordinate calculations.
+        sheets, or multi-row control bars where labels, dropdowns, or sliders
+        must line up vertically and share equal widths, **prefer the modern
+        Tables API** (`imgui.BeginTable`, `TableNextRow`, `TableNextColumn`).
+    -   Avoid legacy or brittle alignment techniques such as `imgui.Columns()`
+        (obsolete), chaining `SameLine()` after variable-length text labels
+        (different label widths shift every subsequent control horizontally),
+        hardcoding pixel widths with `SetNextItemWidth(px)`, or inserting dummy
+        spacing.
+    -   **Form & Multi-Control Alignment Recipe**:
+        -   Pass `int(imgui.TableFlags.SizingStretchProp) | int(imgui.TableFlags.NoPadOuterX)`
+            for borderless layout tables so the outer left and right edges stay
+            flush with surrounding non-table widgets.
+        -   Place text labels in `imgui.TableColumnFlags.WidthFixed` columns
+            (omitting an explicit width so ImGui auto-fits to the widest label
+            across all rows) and call `imgui.AlignTextToFramePadding()` before
+            `TextUnformatted(...)` so label baselines center vertically against
+            framed controls (`Combo`, `Slider`, `Input`).
+        -   Place controls (`Combo`, `SliderInt`, `SliderFloat`, `InputFloat`)
+            in `imgui.TableColumnFlags.WidthStretch` columns using hidden `##`
+            labels and `imgui.SetNextItemWidth(-1)` so every control in the
+            column starts at the exact same X coordinate and stretches to the
+            exact same length. If sliders also have trailing right-hand labels
+            of different lengths (e.g., `'Quality'` vs `'Overlay'`), place those
+            trailing labels in their own `WidthFixed` column—calling
+            `SetNextItemWidth(-1)` directly on a widget with a visible label
+            sizes the frame box to the full column width and clips the label.
 
 -   **Costs of Overriding Colors & Styles (Theming Impact)**:
     -   Dear ImGui manages color palettes and visual metrics globally
@@ -290,16 +309,42 @@ structure and consistent styling:
         ensure it renders legibly across all supported themes.
 
 ```python
-# Good: Clean grid alignment using the Tables API
-if imgui.BeginTable('InspectorTable', 2):
-  imgui.TableSetupColumn('Property', int(imgui.TableColumnFlags.WidthFixed), 120.0)
-  imgui.TableSetupColumn('Value', int(imgui.TableColumnFlags.WidthStretch))
+# Good: Multi-row control bar with vertically aligned labels and equal-length
+# dropdowns/sliders using a borderless layout table
+flags = int(imgui.TableFlags.SizingStretchProp) | int(imgui.TableFlags.NoPadOuterX)
+if imgui.BeginTable('##controls_layout', 4, flags):
+  imgui.TableSetupColumn('Label', int(imgui.TableColumnFlags.WidthFixed))
+  imgui.TableSetupColumn('Combo', int(imgui.TableColumnFlags.WidthStretch), 1.1)
+  imgui.TableSetupColumn('Slider', int(imgui.TableColumnFlags.WidthStretch), 0.9)
+  imgui.TableSetupColumn('TrailingLabel', int(imgui.TableColumnFlags.WidthFixed))
 
   imgui.TableNextRow()
   imgui.TableNextColumn()
-  imgui.TextUnformatted('Stiffness')
+  imgui.AlignTextToFramePadding()
+  imgui.TextUnformatted('Format:')
   imgui.TableNextColumn()
-  _, stiffness = imgui.SliderFloat('##stiffness', stiffness, 0.0, 100.0)
+  imgui.SetNextItemWidth(-1)
+  _, fmt_idx = imgui.Combo('##format', fmt_idx, ['Lossless', 'Lossy'])
+  imgui.TableNextColumn()
+  imgui.SetNextItemWidth(-1)
+  _, quality = imgui.SliderInt('##quality', quality, 1, 100)
+  imgui.TableNextColumn()
+  imgui.AlignTextToFramePadding()
+  imgui.TextUnformatted('Quality')
+
+  imgui.TableNextRow()
+  imgui.TableNextColumn()
+  imgui.AlignTextToFramePadding()
+  imgui.TextUnformatted('Viewport:')
+  imgui.TableNextColumn()
+  imgui.SetNextItemWidth(-1)
+  _, cam_idx = imgui.Combo('##camera', cam_idx, camera_names)
+  imgui.TableNextColumn()
+  imgui.SetNextItemWidth(-1)
+  _, opacity = imgui.SliderFloat('##overlay', opacity, 0.0, 1.0)
+  imgui.TableNextColumn()
+  imgui.AlignTextToFramePadding()
+  imgui.TextUnformatted('Overlay')
 
   imgui.EndTable()
 
