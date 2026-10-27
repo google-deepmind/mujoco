@@ -499,7 +499,6 @@ enum flexsection : mjtFlexSection {
 enum flexeq {
   false    = 0
   true     = 1
-  vert     = 2
   strain   = 3
 }
 
@@ -1516,7 +1515,6 @@ element equality : mjsEquality {
   child equality_joint *
   child equality_tendon *
   child equality_flex *
-  child flexvert *
   child flexstrain *
 }
 
@@ -1561,11 +1559,6 @@ element equality_tendon : mjsEquality (xml=tendon) {
 }
 
 element equality_flex : mjsEquality (xml=flex) {
-  use equality_base
-  flex               : ref<flex> (required)
-}
-
-element flexvert : mjsEquality {
   use equality_base
   flex               : ref<flex> (required)
 }

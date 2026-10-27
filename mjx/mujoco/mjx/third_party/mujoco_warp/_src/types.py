@@ -1352,7 +1352,7 @@ class Model:
     flex_damping: Rayleigh's damping coefficient             (nflex,)
     flex_edgestiffness: edge stiffness                       (nflex,)
     flex_edgedamping: edge damping                           (nflex,)
-    flex_edgeequality: edge equality type (0:none,1:edge,2:vert,3:strain) (nflex,)
+    flex_edgeequality: edge equality type (0:none,1:edge,3:strain) (nflex,)
     flex_rigid: flex is rigid (all vertices on same body)    (nflex,)
     flexedge_rigid: edge is rigid (e.g. vertices welded to same body) (nflexedge,)
     flex_centered: flex vertices are centered at body origin (nflex,)

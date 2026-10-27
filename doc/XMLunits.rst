@@ -716,10 +716,6 @@
      - :math:`T,\ 1` or :math:`T^{-2},\ T^{-1}`
    * - :ref:`equality/flex/solimp<equality-flex-solimp>`
      - *varies*
-   * - :ref:`equality/flexvert/solref<equality-flexvert-solref>`
-     - :math:`T,\ 1` or :math:`T^{-2},\ T^{-1}`
-   * - :ref:`equality/flexvert/solimp<equality-flexvert-solimp>`
-     - *varies*
    * - :ref:`equality/flexstrain/solref<equality-flexstrain-solref>`
      - :math:`T,\ 1` or :math:`T^{-2},\ T^{-1}`
    * - :ref:`equality/flexstrain/solimp<equality-flexstrain-solimp>`

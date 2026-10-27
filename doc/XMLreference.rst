@@ -4206,12 +4206,11 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-edge-equality:
 
-:at:`equality`: :at-val:`[false, true, vert, strain], "false"`
+:at:`equality`: :at-val:`[false, true, strain], "false"`
    The type of equality constraint applied to this edge. If :at-val:`false`, no equality constraint is applied. If
-   :at-val:`true`, then edge constraints are enforced. If :at-val:`vert`, an averaged constraint is used, see
-   :ref:`flexvert<equality-flexvert>`. if :at-val:`strain`, then a constraint is added to enforce that the invariants of
-   the strain tensor do not change; this is only equality constraint type supported for trilinear and quadratic
-   :ref:`dofs<body-flexcomp-dof>` elements and :ref:`here<equality-flexstrain>`.
+   :at-val:`true`, then edge constraints are enforced. If :at-val:`strain`, then a constraint is added to enforce that the
+   invariants of the strain tensor do not change; this is the only equality constraint type supported for trilinear and
+   quadratic :ref:`dofs<body-flexcomp-dof>` elements, see :ref:`here<equality-flexstrain>`.
 
 .. _flexcomp-edge-solref:
 .. _flexcomp-edge-solimp:
@@ -5370,32 +5369,6 @@ as there are edges in the specified flex. See `this model
 
 :at:`flex`: :at-val:`string, required`
    Name of the flex whose edges are being constrained.
-
-
-.. _equality-flexvert:
-
-:el-prefix:`equality/` |-| **flexvert** |*|
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This element constrains the trace and the derminant of the strain tensor to that of the identity matrix as in Chen, Kry,
-and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019. The strain tensor is computed per triangle and
-averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing V
-degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes. See `this model
-<https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml>`__ for an example.
-
-.. _equality-flexvert-name:
-.. _equality-flexvert-class:
-.. _equality-flexvert-active:
-.. _equality-flexvert-solref:
-.. _equality-flexvert-solimp:
-
-:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
-   Same as in :ref:`connect <equality-connect>` element.
-
-.. _equality-flexvert-flex:
-
-:at:`flex`: :at-val:`string, required`
-   Name of the flex whose vertices are being constrained.
 
 
 .. _equality-flexstrain:

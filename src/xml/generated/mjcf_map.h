@@ -535,10 +535,9 @@ inline constexpr int flexsection_sz = 2;
 inline constexpr mjMap flexeq_map[] = {
   {"false",   0},
   {"true",    1},
-  {"vert",    2},
   {"strain",  3},
 };
-inline constexpr int flexeq_sz = 4;
+inline constexpr int flexeq_sz = 3;
 // clang-format on
 
 #endif  // MUJOCO_SRC_XML_GENERATED_MJCF_MAP_H_

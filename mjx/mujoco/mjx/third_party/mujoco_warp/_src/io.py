@@ -645,8 +645,7 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       _flex_has_stiffness(mjm, f)
       if mjm.flex_interp[f] != 0
       else (
-        mjm.flex_edgeequality[f] != 2
-        and mjm.flex_stiffnessadr[f] >= 0
+        mjm.flex_stiffnessadr[f] >= 0
         and np.any(
           mjm.flex_stiffness[
             mjm.flex_stiffnessadr[f] : mjm.flex_stiffnessadr[f]

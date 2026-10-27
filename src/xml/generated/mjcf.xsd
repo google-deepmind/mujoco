@@ -551,7 +551,6 @@
     <xs:restriction base="xs:string">
       <xs:enumeration value="false"/>
       <xs:enumeration value="true"/>
-      <xs:enumeration value="vert"/>
       <xs:enumeration value="strain"/>
     </xs:restriction>
   </xs:simpleType>
@@ -1081,7 +1080,7 @@
 
   <xs:complexType name="equality">
     <xs:annotation>
-      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): connect (*), weld (*), equality_joint (*), equality_tendon (*), equality_flex (*), flexvert (*), flexstrain (*)</xs:documentation>
+      <xs:documentation>children, with cardinality the XSD cannot enforce (? at most one, ! exactly one, * any number, R recursive): connect (*), weld (*), equality_joint (*), equality_tendon (*), equality_flex (*), flexstrain (*)</xs:documentation>
     </xs:annotation>
     <xs:choice minOccurs="0" maxOccurs="unbounded">
       <xs:element name="connect" type="connect"/>
@@ -1089,7 +1088,6 @@
       <xs:element name="joint" type="equality_joint"/>
       <xs:element name="tendon" type="equality_tendon"/>
       <xs:element name="flex" type="equality_flex"/>
-      <xs:element name="flexvert" type="flexvert"/>
       <xs:element name="flexstrain" type="flexstrain"/>
       <xs:element name="include" type="include"/>
     </xs:choice>
@@ -2696,15 +2694,6 @@
   </xs:complexType>
 
   <xs:complexType name="equality_flex">
-    <xs:attribute name="name" type="xs:string"/>
-    <xs:attribute name="class" type="xs:string"/>
-    <xs:attribute name="active" type="kw_bool" default="true"/>
-    <xs:attribute name="solref" type="double1to2" default="0.02 1"/>
-    <xs:attribute name="solimp" type="double1to5" default="0.9 0.95 0.001 0.5 2"/>
-    <xs:attribute name="flex" type="xs:string" use="required"/>
-  </xs:complexType>
-
-  <xs:complexType name="flexvert">
     <xs:attribute name="name" type="xs:string"/>
     <xs:attribute name="class" type="xs:string"/>
     <xs:attribute name="active" type="kw_bool" default="true"/>

@@ -7186,7 +7186,7 @@ void mjCEquality::ResolveReferences(const mjCModel* m) {
     object_type = mjOBJ_JOINT;
   } else if (type == mjEQ_TENDON) {
     object_type = mjOBJ_TENDON;
-  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXSTRAIN) {
     object_type = mjOBJ_FLEX;
   } else {
     throw mjCError(this, "invalid type in equality constraint");
@@ -7277,7 +7277,7 @@ void mjCEquality::ApplyGauge(bool inverse) {
     }
     for (int k = 0; k < 5; k++) { data[k] *= q1 / std::pow(q2, k); }
     width = q1;
-  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+  } else if (type == mjEQ_FLEX || type == mjEQ_FLEXSTRAIN) {
     const mjCFlex* flex = static_cast<const mjCFlex*>(model->FindObject(mjOBJ_FLEX, name1_));
     width               = flex->BodyGauge().Shape(1);
     if (inverse) { width = 1 / width; }
@@ -7309,7 +7309,7 @@ void mjCEquality::Compile(void) {
   }
 
   // make sure flex is not rigid, and has no conflicting stretch forces
-  if (type == mjEQ_FLEX || type == mjEQ_FLEXVERT || type == mjEQ_FLEXSTRAIN) {
+  if (type == mjEQ_FLEX || type == mjEQ_FLEXSTRAIN) {
     mjCFlex* flex = model->Flexes()[obj1id];
     if (flex->rigid) {
       throw mjCError(this, "rigid flex '%s' in equality constraint %d", name1_.c_str(), id);

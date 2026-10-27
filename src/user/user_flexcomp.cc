@@ -160,6 +160,13 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     return comperr(error, "Mass and inertiabox must be larger than mjMINVAL", error_sz);
   }
 
+  // check edge equality: 0=none, 1=edge, 3=strain (2=vert was removed)
+  if (equality != 0 && equality != 1 && equality != 3) {
+    return comperr(error,
+                   "Invalid edge equality, must be 0 (none), 1 (edge) or 3 (strain)",
+                   error_sz);
+  }
+
   // compute orientation
   const char* alterr = mjs_resolveOrientation(quat, compiler->degree, compiler->eulerseq, &alt);
   if (alterr) { return comperr(error, alterr, error_sz); }
@@ -728,11 +735,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
   // create equality constraints
   if (equality) {
-    // equality 1=edge(mjEQ_FLEX), 2=vert(mjEQ_FLEXVERT), 3=strain(mjEQ_FLEXSTRAIN)
-    if (equality == 1 || equality == 2) {
+    // equality 1=edge(mjEQ_FLEX), 3=strain(mjEQ_FLEXSTRAIN); 2 (vert) was removed
+    if (equality == 1) {
       mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
       mjs_setDefault(pe->element, &model->Default()->spec);
-      pe->type   = (equality == 1) ? mjEQ_FLEX : mjEQ_FLEXVERT;
+      pe->type   = mjEQ_FLEX;
       pe->active = true;
       mjs_setString(pe->name1, name.c_str());
     } else if (equality == 3) {

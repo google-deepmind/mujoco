@@ -200,18 +200,6 @@ int mj_tendonHasDamping(const mjModel* m, int i);
 // any cell counts (empty cells carry an all-zero block)
 int mj_flexHasStiffness(const mjModel* m, int f);
 
-// mean mass of dynamic vertices of flex f (1.0 if all vertices are pinned/massless)
-mjtNum mj_flexMeanVertMass(const mjModel* m, int f);
-
-// mass weight of global vertex v (mean_mass if v is pinned/massless)
-static inline mjtNum mj_flexvertWeight(const mjModel* m, int v, mjtNum mean_mass) {
-  int b = m->flex_vertbodyid[v];
-  return (b >= 0 && m->body_mass[b] > mjMINVAL) ? m->body_mass[b] : mean_mass;
-}
-
-// count active mjEQ_FLEXVERT constraint rows for flex f; optionally accumulate Jacobian nnz
-int mj_flexvertRows(const mjModel* m, int f, int* nnz);
-
 // does flex f use the passive contact path (metric-carried contacts)
 MJAPI int mj_effFlexContactPossible(const mjModel* m, int f);
 

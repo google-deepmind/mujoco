@@ -277,7 +277,6 @@ typedef struct mjModel_ {
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
   mjtSize nflextexcoord;          // number of vertices with texture coordinates
   mjtSize nJfe;                   // number of non-zeros in sparse flexedge Jacobian matrix
-  mjtSize nJfv;                   // number of non-zeros in sparse flexvert Jacobian matrix
   mjtSize nmesh;                  // number of meshes
   mjtSize nmeshvert;              // number of vertices in all meshes
   mjtSize nmeshnormal;            // number of normals in all meshes
@@ -576,9 +575,6 @@ typedef struct mjModel_ {
   int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
   int*      flex_vertcell;        // finite cell index for vertex; -1: none   (nflexvert x 1)
-  int*      flex_vertedgeadr;     // first edge address                       (nflexvert x 1)
-  int*      flex_vertedgenum;     // number of edges                          (nflexvert x 1)
-  int*      flex_vertedge;        // edge indices                             (nflexedge x 2)
   int*      flex_edge;            // edge vertex ids (2 per edge)             (nflexedge x 2)
   int*      flex_edgeflap;        // adjacent vertex ids (dim=2 only)         (nflexedge x 2)
   int*      flex_elem;            // element vertex ids (dim+1 per elem)      (nflexelemdata x 1)
@@ -588,7 +584,6 @@ typedef struct mjModel_ {
   int*      flex_shell;           // shell fragment vertex ids (dim per frag) (nflexshelldata x 1)
   mjtNum*   flex_vert;            // vertex positions in local body frames    (nflexvert x 3)
   mjtNum*   flex_vert0;           // vertex positions in qpos0 on [0, 1]^d    (nflexvert x 3)
-  mjtNum*   flex_vertmetric;      // inverse of reference shape matrix        (nflexvert x 4)
   mjtNum*   flex_node;            // node positions in local body frames      (nflexnode x 3)
   mjtNum*   flex_node0;           // Cartesian node positions in qpos0        (nflexnode x 3)
   mjtNum*   flexedge_length0;     // edge lengths in qpos0                    (nflexedge x 1)
@@ -606,7 +601,7 @@ typedef struct mjModel_ {
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
-  int*      flex_edgeequality;    // 0:none, 1:edges, 2:vertices, 3:strain    (nflex x 1)
+  int*      flex_edgeequality;    // 0:none, 1:edges, 3:strain                (nflex x 1)
   mjtBool*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
   mjtBool*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtBool*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
@@ -616,9 +611,6 @@ typedef struct mjModel_ {
   int*      flexedge_J_rownnz;    // number of non-zeros in Jacobian row      (nflexedge x 1)
   int*      flexedge_J_rowadr;    // row start address in colind array        (nflexedge x 1)
   int*      flexedge_J_colind;    // column indices in sparse Jacobian        (nJfe x 1)
-  int*      flexvert_J_rownnz;    // number of non-zeros in Jacobian row      (nflexvert x 2)
-  int*      flexvert_J_rowadr;    // row start address in colind array        (nflexvert x 2)
-  int*      flexvert_J_colind;    // column indices in sparse Jacobian        (nJfv x 2)
   float*    flex_rgba;            // rgba when material is omitted            (nflex x 4)
   float*    flex_texcoord;        // vertex texture coordinates               (nflextexcoord x 2)
 

@@ -64,13 +64,13 @@
 
     <!-- Stack 2 (x ~ +0.045): trilinear volume -> trilinear shell -> trilinear strain -> 2D sheet -->
 
-    <!-- 2D planar-DOF flex in vertical X-Z plane with vertex equality -->
+    <!-- 2D planar-DOF flex in vertical X-Z plane with edge equality -->
     <body name="sheet2d_frame" pos="0.045 0 0.150" euler="90 0 0">
       <inertial pos="0 0 0" mass="0.05" diaginertia="1e-4 1e-4 1e-4"/>
       <joint type="slide" axis="0 0 1"/>
       <flexcomp name="sheet2d" type="grid" dim="2" count="3 2 1" spacing="0.03 0.03 0.03"
                 radius="0.003" mass="0.2" dof="2d" rgba=".3 .8 .3 1">
-        <edge equality="vert" solref="0.08 0.5"/>
+        <edge equality="true" solref="0.08 0.5"/>
         <contact selfcollide="none"/>
       </flexcomp>
     </body>

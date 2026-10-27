@@ -1302,7 +1302,6 @@ void mjCModel::Clear() {
   nflexshelldata = 0;
   nflextexcoord  = 0;
   nJfe           = 0;
-  nJfv           = 0;
   nmeshvert      = 0;
   nmeshnormal    = 0;
   nmeshtexcoord  = 0;
@@ -2277,27 +2276,6 @@ void mjCModel::SetSizes() {
         }
       }
       for (mjCBody* b : bodies_in_jac) { nJfe += b->dofnum; }
-    }
-
-    // compute nJfv
-    std::vector<std::vector<int>> adj(flexes_[i]->nvert);
-    for (const auto& edge : flexes_[i]->edge) {
-      adj[edge.first].push_back(edge.second);
-      adj[edge.second].push_back(edge.first);
-    }
-    for (int j = 0; j < flexes_[i]->nvert; j++) {
-      std::unordered_set<int> vert_bodies;
-      vert_bodies.insert(flexes_[i]->vertbodyid[j]);
-      for (int neighbor : adj[j]) { vert_bodies.insert(flexes_[i]->vertbodyid[neighbor]); }
-      std::unordered_set<mjCBody*> bodies_in_jac;
-      for (int body_id : vert_bodies) {
-        mjCBody* b = bodies_[body_id];
-        while (b) {
-          bodies_in_jac.insert(b);
-          b = b->parent;
-        }
-      }
-      for (mjCBody* b : bodies_in_jac) { nJfv += b->dofnum; }
     }
   }
 
@@ -3678,10 +3656,6 @@ void mjCModel::CopyObjects(mjModel* m) {
       if (equalities_[k]->name1_ == pfl->name) {
         if (equalities_[k]->type == mjEQ_FLEX) {
           m->flex_edgeequality[i] = 1;
-          break;
-        }
-        if (equalities_[k]->type == mjEQ_FLEXVERT) {
-          m->flex_edgeequality[i] = 2;
           break;
         }
         if (equalities_[k]->type == mjEQ_FLEXSTRAIN) {
@@ -6436,8 +6410,8 @@ static void EstimateFlexArena(const mjModel* m,
       add_clique(slots, 2);
     }
 
-    // 1D rod bending (adjacent edges) or mjEQ_FLEXVERT (vertex 1-ring star)
-    if ((dim == 1 && m->flex_bendingadr[f] >= 0) || m->flex_edgeequality[f] == 2) {
+    // 1D rod bending (adjacent edges)
+    if (dim == 1 && m->flex_bendingadr[f] >= 0) {
       std::vector<std::vector<int>> star(vnum);
       for (int v = 0; v < vnum; v++) { star[v].push_back(vslot[v]); }
       for (int e = 0; e < edgenum; e++) {
@@ -6714,7 +6688,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nflexshelldata,
                nflextexcoord,
                nJfe,
-               nJfv,
                nmesh,
                nmeshvert,
                nmeshnormal,
@@ -6983,8 +6956,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // normalize keyframe quaternions
   for (int i = 0; i < m->nkey; i++) { mj_normalizeQuat(m, m->key_qpos + i * m->nq); }
 
-  // set constant fields, after aligning 2D flexes, including those which compilation derives once
-  mj_alignFlex(m);
+  // set constant fields, including those which compilation derives once
   mj_setCompiledConst(m, d);
 
   // automatic spring-damper adjustment
