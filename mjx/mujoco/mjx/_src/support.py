@@ -1116,10 +1116,8 @@ def muscle_dynamics_timescale(
     # sigmoid function over 0 <= x <= 1 using quintic polynomial
     # sigmoid: f(x) = 6 * x^5 - 15 * x^4 + 10 * x^3
     # solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
-    sol = x * x * x * (3 * x * (2 * x - 5) + 10)
-    sol = jp.where(x <= 0, 0, sol)
-    sol = jp.where(x >= 1, 1, sol)
-    return sol
+    x = jp.clip(x, 0, 1)
+    return x * x * x * (3 * x * (2 * x - 5) + 10)
 
   # smooth switching
   # scale by width, center around 0.5 midpoint, rescale to bounds
