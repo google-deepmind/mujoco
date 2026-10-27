@@ -16,7 +16,6 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -29,6 +28,7 @@
 #include "engine/engine_io.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_metric.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_solve.h"
@@ -1159,8 +1159,6 @@ static void kinematics0(mjModel* m, mjData* d) {
 
 // set kinematic quantities that depend on qpos0; assume kinematics0 already executed
 static void setKinematics0(mjModel* m, mjData* d) {
-  mjtNum pos[3], quat[4];
-
   // copy fields
   mju_copy(m->flexedge_length0, d->flexedge_length, m->nflexedge);
   for (int f=0; f < m->nflex; f++) {
@@ -1183,6 +1181,7 @@ static void setKinematics0(mjModel* m, mjData* d) {
 
     // connect: anchor position is in body1 local frame
     if (m->eq_type[i] == mjEQ_CONNECT) {
+      mjtNum pos[3];
       mj_local2Global(d, pos, 0, data, 0, id1, 0);
 
       // data[3-5] = anchor position in body2 local frame
@@ -1192,6 +1191,7 @@ static void setKinematics0(mjModel* m, mjData* d) {
 
     // weld: anchor position is in body2 local frame
     else if (m->eq_type[i] == mjEQ_WELD && data[11]) {
+      mjtNum pos[3], quat[4];
       mj_local2Global(d, pos, 0, data, 0, id2, 0);
 
       // data[3-5] = anchor position in body1 local frame
@@ -1211,15 +1211,15 @@ static void setKinematics0(mjModel* m, mjData* d) {
     int id1 = m->cam_targetbodyid[i];       // target body
 
     // pose in fixed mode
-    mj_local2Global(d, d->cam_xpos+3*i, d->cam_xmat+9*i,
-                    m->cam_pos+3*i, m->cam_quat+4*i, id, 0);
+    mjtNum pos[3], mat[9];
+    mj_local2Global(d, pos, mat, m->cam_pos+3*i, m->cam_quat+4*i, id, 0);
 
     // compute positional offsets
-    mju_sub3(m->cam_pos0+3*i, d->cam_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->cam_poscom0+3*i, d->cam_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
+    mju_sub3(m->cam_pos0+3*i, pos, d->xpos+3*id);
+    mju_sub3(m->cam_poscom0+3*i, pos, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy mat
-    mju_copy9(m->cam_mat0+9*i, d->cam_xmat+9*i);
+    mju_copy9(m->cam_mat0+9*i, mat);
   }
 
   // light compos0, pos0, dir0
@@ -1229,16 +1229,17 @@ static void setKinematics0(mjModel* m, mjData* d) {
     int id1 = m->light_targetbodyid[i];     // target body
 
     // pose in fixed mode
-    mj_local2Global(d, d->light_xpos+3*i, 0, m->light_pos+3*i, 0, id, 0);
-    mju_rotVecQuat(d->light_xdir+3*i, m->light_dir+3*i, d->xquat+4*id);
-    mju_normalize3(d->light_xdir+3*i);
+    mjtNum pos[3], dir[3];
+    mj_local2Global(d, pos, 0, m->light_pos+3*i, 0, id, 0);
+    mju_rotVecQuat(dir, m->light_dir+3*i, d->xquat+4*id);
+    mju_normalize3(dir);
 
     // compute positional offsets
-    mju_sub3(m->light_pos0+3*i, d->light_xpos+3*i, d->xpos+3*id);
-    mju_sub3(m->light_poscom0+3*i, d->light_xpos+3*i, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
+    mju_sub3(m->light_pos0+3*i, pos, d->xpos+3*id);
+    mju_sub3(m->light_poscom0+3*i, pos, d->subtree_com + (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy dir
-    mju_copy3(m->light_dir0+3*i, d->light_xdir+3*i);
+    mju_copy3(m->light_dir0+3*i, dir);
   }
 }
 
@@ -1939,6 +1940,12 @@ void mj_setConstGroups(mjModel* m, mjData* d, int groups) {
   }
 
   m->opt.enableflags = enableflags;
+
+  // the kinematics above overwrote the cached state of sleeping trees: wake all trees
+  if (groups & (mjSCGROUP_KIN0 | mjSCGROUP_INERT0 | mjSCGROUP_SPRING)) {
+    mju_fillInt(d->tree_asleep, -(1+mjMINAWAKE), m->ntree);
+    mj_updateSleep(m, d);
+  }
 }
 
 

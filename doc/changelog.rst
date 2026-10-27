@@ -53,6 +53,13 @@ Python bindings
 ^^^^^^^^^^^^^^^
 - Removed support for Python 3.10, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.
 
+Bug fixes
+^^^^^^^^^
+- :ref:`mj_setConst` now wakes all :ref:`sleeping<siSleep>` trees, since it recomputes their kinematics at ``qpos0`` and
+  ``qpos_spring``. Previously their cached poses could be left at ``qpos_spring``. It also no longer overwrites
+  ``cam_xpos``, ``cam_xmat``, ``light_xpos`` and ``light_xdir`` in :ref:`mjData`, which left static cameras and lights
+  with tracking or targeting at their fixed-mode poses.
+
 Version 3.17.0 (October 22, 2026)
 ---------------------------------
 

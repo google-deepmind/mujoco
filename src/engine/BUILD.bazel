@@ -144,6 +144,7 @@ cc_library(
         ":engine_forward",
         ":engine_io",
         ":engine_memory",
+        ":engine_sleep",
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",

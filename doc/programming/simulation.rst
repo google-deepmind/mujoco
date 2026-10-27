@@ -809,6 +809,11 @@ derives once from the conventions of the specification: the damping of actuators
 These keep the values computed for the model as compiled; to change them, recompile the spec or set the derived values
 directly.
 
+:ref:`mj_setConst` uses the passed :ref:`mjData` as workspace and wakes all :ref:`sleeping<siSleep>` trees, so call
+:ref:`mj_resetData` or restore the state before continuing the simulation. When sleeping is enabled, the poses of static
+bodies and the elements attached to them are computed only by :ref:`mj_makeData` and :ref:`mj_resetData`; call
+:ref:`mj_resetData` after modifying them.
+
 Exceptions to the general rule that **real-valued** types **are safe to change**:
 
 .. list-table::
@@ -855,9 +860,13 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
      - If passing from a state where all geoms have zero surface velocity to a state where some geoms have
        non-zero surface velocity (or vice-versa), the ``flg_surfacevel`` flag in :ref:`mjModel` must be updated.
        This can be done directly or by calling :ref:`mj_setConst`.
-   * - ``{site,cam,light}_`` |br| ``{pos,quat}``
+   * - ``site_pos`` |br| ``site_quat``
+     - Safe with :ref:`mj_setConst`.
+     - Updates ``site_sameframe`` and tendon resting lengths; without :ref:`mj_setConst`, changes to sites compiled
+       with body- or inertia-aligned frames can be ignored.
+   * - ``cam_pos`` |br| ``cam_quat`` |br| ``light_pos`` |br| ``light_dir``
      - Mostly safe.
-     - For cameras and lights with tracking or targeting, :ref:`mj_setConst` is required.
+     - For cameras and lights with tracking, :ref:`mj_setConst` is required.
    * - ``tendon_stiffness`` |br| ``tendon_damping``
      - Mostly safe.
      - Affects whether kinematic trees are allowed to sleep. If changing from/to zero, :ref:`mj_setConst` is required.
