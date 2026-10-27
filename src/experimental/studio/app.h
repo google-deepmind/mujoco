@@ -174,6 +174,7 @@ class App {
     bool editor_panel = false;
     bool full_screen = false;
     bool style_editor = false;
+    bool filament_editor = false;
     bool imgui_demo = false;
     bool implot_demo = false;
     float editor_split = -1;
