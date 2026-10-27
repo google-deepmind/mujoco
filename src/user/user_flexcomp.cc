@@ -1596,24 +1596,77 @@ static int ComputeRodBending(std::vector<double>&                    bending,
 // Gauss Legendre quadrature points in 1 dimension on the interval [a, b]
 void quadratureGaussLegendre(
     double* points, double* weights, const int order, const double a, const double b) {
-  if (order > 3) mju_error("Integration order > 3 not yet supported.");
-
   // x is on [-1, 1], p on [a, b]
   double p0   = (a + b) / 2.;
   double dpdx = (b - a) / 2;
 
-  if (order == 2) {
+  if (order == 1) {
+    points[0]  = p0;
+    weights[0] = 2.0 * dpdx;
+  } else if (order == 2) {
     points[0]  = -dpdx / sqrt(3) + p0;
     points[1]  = dpdx / sqrt(3) + p0;
     weights[0] = dpdx;
     weights[1] = dpdx;
-  } else {
+  } else if (order == 3) {
     points[0]  = p0;
     points[1]  = -dpdx * sqrt(3. / 5.) + p0;
     points[2]  = dpdx * sqrt(3. / 5.) + p0;
     weights[0] = 8. / 9. * dpdx;
     weights[1] = 5. / 9. * dpdx;
     weights[2] = 5. / 9. * dpdx;
+  } else if (order == 4) {
+    double s30 = sqrt(30.0);
+    double x1  = sqrt((3.0 - 2.0 * sqrt(6.0 / 5.0)) / 7.0);
+    double x2  = sqrt((3.0 + 2.0 * sqrt(6.0 / 5.0)) / 7.0);
+    double w1  = (18.0 + s30) / 36.0 * dpdx;
+    double w2  = (18.0 - s30) / 36.0 * dpdx;
+    points[0]  = -dpdx * x2 + p0;
+    points[1]  = -dpdx * x1 + p0;
+    points[2]  = dpdx * x1 + p0;
+    points[3]  = dpdx * x2 + p0;
+    weights[0] = w2;
+    weights[1] = w1;
+    weights[2] = w1;
+    weights[3] = w2;
+  } else if (order == 5) {
+    double s70 = sqrt(70.0);
+    double x1  = sqrt(5.0 - 2.0 * sqrt(10.0 / 7.0)) / 3.0;
+    double x2  = sqrt(5.0 + 2.0 * sqrt(10.0 / 7.0)) / 3.0;
+    double w0  = (128.0 / 225.0) * dpdx;
+    double w1  = (322.0 + 13.0 * s70) / 900.0 * dpdx;
+    double w2  = (322.0 - 13.0 * s70) / 900.0 * dpdx;
+    points[0]  = p0;
+    points[1]  = -dpdx * x1 + p0;
+    points[2]  = dpdx * x1 + p0;
+    points[3]  = -dpdx * x2 + p0;
+    points[4]  = dpdx * x2 + p0;
+    weights[0] = w0;
+    weights[1] = w1;
+    weights[2] = w1;
+    weights[3] = w2;
+    weights[4] = w2;
+  } else if (order == 8) {
+    static constexpr double kX[4] = {
+        0.183434642495649805,
+        0.525532409916328986,
+        0.796666477413626740,
+        0.960289856497536232,
+    };
+    static constexpr double kW[4] = {
+        0.362683783378361983,
+        0.313706645877887287,
+        0.222381034453374471,
+        0.101228536290376259,
+    };
+    for (int i = 0; i < 4; i++) {
+      points[2 * i + 0]  = -dpdx * kX[i] + p0;
+      points[2 * i + 1]  = dpdx * kX[i] + p0;
+      weights[2 * i + 0] = kW[i] * dpdx;
+      weights[2 * i + 1] = kW[i] * dpdx;
+    }
+  } else {
+    mju_error("Integration order > 3 not yet supported.");
   }
 }
 
@@ -2461,8 +2514,11 @@ std::string mjCFlex::ComputeFcmCacheKey(
 
   int nvpe = fdim + 1;
   for (int e = 0; e < ne; e++) {
+    int vids[4];
+    for (int v = 0; v < nvpe; v++) { vids[v] = elems[e * nvpe + v]; }
+    if (fdim == 3) { std::sort(vids, vids + 4); }
     for (int v = 0; v < nvpe; v++) {
-      int vid = elems[e * nvpe + v];
+      int vid = vids[v];
       combine(std::hash<int>{}(vid));
       for (int d = 0; d < 3; d++) {
         double u = (vpos[3 * vid + d] - minmax[d]) * inv_d[d];
@@ -3756,10 +3812,12 @@ static bool SegmentIntersectsBox(const double v0[3],
 }
 
 struct TetCellData {
+  double v[4][3];
   double v0[3];
   double invM[3][3];
   double lo[3];
   double hi[3];
+  int    boundary_mask = 0xF;
 };
 
 static bool PointInTet(const double x[3], const TetCellData& tet) {
@@ -3797,6 +3855,377 @@ static bool TetIntersectsBox(const double       v0[3],
     if (PointInTet(c, *tet)) { return true; }
   }
   return false;
+}
+
+
+// evaluate shifted Legendre polynomials P_r(2s - 1) and their exact
+// antiderivatives int_0^s P_r(2*sigma - 1) d(sigma) on [0, 1] for r = 0..4
+static inline void EvalShiftedLegendre1D(double s, double P[5], double intP[5]) {
+  double x  = 2.0 * s - 1.0;
+  double x2 = x * x;
+  P[0]      = 1.0;
+  P[1]      = x;
+  P[2]      = 0.5 * (3.0 * x2 - 1.0);
+  P[3]      = 0.5 * x * (5.0 * x2 - 3.0);
+  P[4]      = 0.125 * (35.0 * x2 * x2 - 30.0 * x2 + 3.0);
+  double P5 = 0.125 * x * (63.0 * x2 * x2 - 70.0 * x2 + 15.0);
+
+  intP[0] = s;
+  intP[1] = (P[2] - P[0]) / 6.0;
+  intP[2] = (P[3] - P[1]) / 10.0;
+  intP[3] = (P[4] - P[2]) / 14.0;
+  intP[4] = (P5 - P[3]) / 18.0;
+}
+
+// build the 1D weighted minimum-norm moment-fitting projector H = V^T (V W V^T)^{-1}
+// mapping exact shifted Legendre moments mu_r (r = 0..2*order) on [0, 1] to
+// quadrature multipliers alpha_k at the nq_axis composite Gauss-Legendre nodes
+static void BuildLegendreMomentProjector(int           order,
+                                         const double* qpts,
+                                         const double* qwts,
+                                         double        H[6][5]) {
+  int    nbasis  = order + 1;
+  int    nq_axis = kFcmSubdiv * nbasis;
+  int    nmom    = 2 * order + 1;
+  double V[5][6] = {};
+  for (int k = 0; k < nq_axis; k++) {
+    double P[5], intP[5];
+    EvalShiftedLegendre1D(qpts[k], P, intP);
+    for (int r = 0; r < nmom; r++) { V[r][k] = P[r]; }
+  }
+
+  // Gram matrix G = V * W * V^T and augmented identity for Gauss-Jordan inverse
+  double G[5][10] = {};
+  for (int r = 0; r < nmom; r++) {
+    for (int c = 0; c < nmom; c++) {
+      double sum = 0.0;
+      for (int k = 0; k < nq_axis; k++) { sum += qwts[k] * V[r][k] * V[c][k]; }
+      G[r][c] = sum;
+    }
+    G[r][nmom + r] = 1.0;
+  }
+
+  for (int i = 0; i < nmom; i++) {
+    int piv = i;
+    for (int r = i + 1; r < nmom; r++) {
+      if (std::abs(G[r][i]) > std::abs(G[piv][i])) { piv = r; }
+    }
+    if (piv != i) {
+      for (int c = 0; c < 2 * nmom; c++) { std::swap(G[i][c], G[piv][c]); }
+    }
+    double inv_diag = 1.0 / G[i][i];
+    for (int c = 0; c < 2 * nmom; c++) { G[i][c] *= inv_diag; }
+    for (int r = 0; r < nmom; r++) {
+      if (r == i) continue;
+      double factor = G[r][i];
+      for (int c = 0; c < 2 * nmom; c++) { G[r][c] -= factor * G[i][c]; }
+    }
+  }
+
+  for (int k = 0; k < nq_axis; k++) {
+    for (int r = 0; r < nmom; r++) {
+      double sum = 0.0;
+      for (int c = 0; c < nmom; c++) { sum += V[c][k] * G[c][nmom + r]; }
+      H[k][r] = sum;
+    }
+  }
+}
+
+// clip a 3D convex polygon against an axis-aligned half-space
+// sign * p[axis] <= sign * bound (sign = +1 for p[axis] <= bound, -1 for p[axis] >= bound)
+static int ClipPolygonAxis(
+    const double in_pts[][3], int n_in, int axis, double bound, double sign, double out_pts[][3]) {
+  if (n_in < 3) return 0;
+  int    n_out  = 0;
+  double d_prev = sign * (in_pts[n_in - 1][axis] - bound);
+  for (int i = 0; i < n_in; i++) {
+    const double* p_prev = in_pts[(i + n_in - 1) % n_in];
+    const double* p_curr = in_pts[i];
+    double        d_curr = sign * (p_curr[axis] - bound);
+    if (d_curr <= 0.0) {
+      if (d_prev > 0.0) {
+        double t = d_prev / (d_prev - d_curr);
+        for (int d = 0; d < 3; d++) { out_pts[n_out][d] = p_prev[d] + t * (p_curr[d] - p_prev[d]); }
+        out_pts[n_out][axis] = bound;
+        n_out++;
+      }
+      for (int d = 0; d < 3; d++) { out_pts[n_out][d] = p_curr[d]; }
+      n_out++;
+    } else if (d_prev <= 0.0) {
+      double t = d_prev / (d_prev - d_curr);
+      for (int d = 0; d < 3; d++) { out_pts[n_out][d] = p_prev[d] + t * (p_curr[d] - p_prev[d]); }
+      out_pts[n_out][axis] = bound;
+      n_out++;
+    }
+    d_prev = d_curr;
+  }
+  return n_out;
+}
+
+// accumulate exact shifted Legendre moments M[a][b][c] over a positively-oriented
+// tetrahedron (v0, v1, v2, v3) (in local cell coordinates [0, 1]^3) clipped to
+// the unit cube [0, 1]^3 via 3D Divergence Theorem + Duffy Gauss-Legendre quadrature
+static void AccumulateClippedTetMoments(const double  v0[3],
+                                        const double  v1[3],
+                                        const double  v2[3],
+                                        const double  v3[3],
+                                        int           boundary_mask,
+                                        double        sign_weight,
+                                        int           nmom,
+                                        int           n_duffy,
+                                        const double* duffy_pts,
+                                        const double* duffy_wts,
+                                        int           n_duffy_cap,
+                                        const double* duffy_cap_pts,
+                                        const double* duffy_cap_wts,
+                                        double        M[5][5][5]) {
+  constexpr double kClipEps = 1e-12;
+  double           min_s    = std::min({v0[0], v1[0], v2[0], v3[0]});
+  double           max_s    = std::max({v0[0], v1[0], v2[0], v3[0]});
+  double           min_t    = std::min({v0[1], v1[1], v2[1], v3[1]});
+  double           max_t    = std::max({v0[1], v1[1], v2[1], v3[1]});
+  double           min_u    = std::min({v0[2], v1[2], v2[2], v3[2]});
+  double           max_u    = std::max({v0[2], v1[2], v2[2], v3[2]});
+
+  if (max_s <= kClipEps ||
+      min_s >= 1.0 - kClipEps ||
+      max_t <= kClipEps ||
+      min_t >= 1.0 - kClipEps ||
+      max_u <= kClipEps ||
+      min_u >= 1.0 - kClipEps) {
+    return;
+  }
+
+  auto integrate_clipped_poly = [&](const double poly[][3], int npoly, bool on_s1_cap) {
+    if (npoly < 3) return;
+    int           nq    = on_s1_cap ? n_duffy_cap : n_duffy;
+    const double* q_pts = on_s1_cap ? duffy_cap_pts : duffy_pts;
+    const double* q_wts = on_s1_cap ? duffy_cap_wts : duffy_wts;
+    const double* p0    = poly[0];
+    for (int m = 1; m + 1 < npoly; m++) {
+      const double* p1 = poly[m];
+      const double* p2 = poly[m + 1];
+      double        nx = (p1[1] - p0[1]) * (p2[2] - p0[2]) - (p1[2] - p0[2]) * (p2[1] - p0[1]);
+      if (std::abs(nx) <= 1e-16) continue;
+      double flux_scale = sign_weight * nx;
+
+      for (int ia = 0; ia < nq; ia++) {
+        double alpha = q_pts[ia];
+        double wa    = flux_scale * alpha * q_wts[ia];
+        double c0    = 1.0 - alpha;
+        for (int ib = 0; ib < nq; ib++) {
+          double beta = q_pts[ib];
+          double w    = wa * q_wts[ib];
+          double c1   = alpha * (1.0 - beta);
+          double c2   = alpha * beta;
+
+          double t = c0 * p0[1] + c1 * p1[1] + c2 * p2[1];
+          double u = c0 * p0[2] + c1 * p1[2] + c2 * p2[2];
+          double Pt[5], Pu[5], dummy[5];
+          EvalShiftedLegendre1D(t, Pt, dummy);
+          EvalShiftedLegendre1D(u, Pu, dummy);
+
+          if (on_s1_cap) {
+            // At s = 1, intP[0](1) = 1 and intP[a >= 1](1) = 0 identically.
+            for (int b = 0; b < nmom; b++) {
+              double wb = w * Pt[b];
+              for (int c = 0; c < nmom; c++) { M[0][b][c] += wb * Pu[c]; }
+            }
+          } else {
+            double s = c0 * p0[0] + c1 * p1[0] + c2 * p2[0];
+            double Ps[5], intPs[5];
+            EvalShiftedLegendre1D(s, Ps, intPs);
+            for (int a = 0; a < nmom; a++) {
+              double wa_s = w * intPs[a];
+              for (int b = 0; b < nmom; b++) {
+                double wab = wa_s * Pt[b];
+                for (int c = 0; c < nmom; c++) { M[a][b][c] += wab * Pu[c]; }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  // 1. Outward-oriented exterior boundary faces of positively-oriented tetrahedron (v0, v1, v2,
+  // v3):
+  //    (v0, v2, v1), (v0, v1, v3), (v0, v3, v2), (v1, v2, v3)
+  const double* faces[4][3] = {
+      {v0, v2, v1},
+      {v0, v1, v3},
+      {v0, v3, v2},
+      {v1, v2, v3},
+  };
+
+  for (int f = 0; f < 4; f++) {
+    const double* a      = faces[f][0];
+    const double* b      = faces[f][1];
+    const double* c      = faces[f][2];
+    double        min_fs = std::min({a[0], b[0], c[0]});
+    if (!(boundary_mask & (1 << f)) && min_fs < 1.0 - kClipEps) continue;
+    if (std::max({a[0], b[0], c[0]}) <= kClipEps ||
+        min_fs >= 1.0 + kClipEps ||
+        std::max({a[1], b[1], c[1]}) <= kClipEps ||
+        std::min({a[1], b[1], c[1]}) >= 1.0 - kClipEps ||
+        std::max({a[2], b[2], c[2]}) <= kClipEps ||
+        std::min({a[2], b[2], c[2]}) >= 1.0 - kClipEps) {
+      continue;
+    }
+    double nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+    if (std::abs(nx) <= 1e-16) continue;
+
+    double buf0[16][3], buf1[16][3];
+    for (int d = 0; d < 3; d++) {
+      buf0[0][d] = a[d];
+      buf0[1][d] = b[d];
+      buf0[2][d] = c[d];
+    }
+    int n = 3;
+    // Faces lying in the s = 1 plane are integrated as part of the cap: their
+    // s-coordinate is not used, and clipping them against s <= 1 with zero
+    // tolerance would drop the whole face when a vertex rounds to 1 + eps.
+    // Faces that merely touch the plane and extend beyond it are clipped as
+    // usual (their in-cell area is zero).
+    double max_fs    = std::max({a[0], b[0], c[0]});
+    bool   on_s1_cap = min_fs >= 1.0 - kClipEps && max_fs <= 1.0 + kClipEps;
+    if (!on_s1_cap) {
+      n = ClipPolygonAxis(buf0, n, 0, 0.0, -1.0, buf1);
+      n = ClipPolygonAxis(buf1, n, 0, 1.0, +1.0, buf0);
+    }
+    n = ClipPolygonAxis(buf0, n, 1, 0.0, -1.0, buf1);
+    n = ClipPolygonAxis(buf1, n, 1, 1.0, +1.0, buf0);
+    n = ClipPolygonAxis(buf0, n, 2, 0.0, -1.0, buf1);
+    n = ClipPolygonAxis(buf1, n, 2, 1.0, +1.0, buf0);
+    integrate_clipped_poly(buf0, n, on_s1_cap);
+  }
+
+  // 2. Cap polygon on the plane s = 1 when the tetrahedron strictly straddles s = 1
+  if (min_s < 1.0 - kClipEps && max_s > 1.0 + kClipEps) {
+    const double* verts[4] = {v0, v1, v2, v3};
+    int           idx_le[4], idx_gt[4];
+    int           n_le = 0, n_gt = 0;
+    for (int i = 0; i < 4; i++) {
+      if (verts[i][0] <= 1.0) {
+        idx_le[n_le++] = i;
+      } else {
+        idx_gt[n_gt++] = i;
+      }
+    }
+    if (n_le > 0 && n_gt > 0) {
+      auto edge_point = [&](int i, int j, double out[3]) {
+        const double* pi = verts[i];
+        const double* pj = verts[j];
+        double        t  = (1.0 - pi[0]) / (pj[0] - pi[0]);
+        out[0]           = 1.0;
+        out[1]           = pi[1] + t * (pj[1] - pi[1]);
+        out[2]           = pi[2] + t * (pj[2] - pi[2]);
+      };
+
+      double buf0[16][3], buf1[16][3];
+      int    n = 0;
+      if (n_le == 1) {
+        for (int k = 0; k < 3; k++) { edge_point(idx_le[0], idx_gt[k], buf0[n++]); }
+      } else if (n_gt == 1) {
+        for (int k = 0; k < 3; k++) { edge_point(idx_le[k], idx_gt[0], buf0[n++]); }
+      } else {
+        // n_le == 2, n_gt == 2: cyclic perimeter order around K_{2,2}
+        edge_point(idx_le[0], idx_gt[0], buf0[0]);
+        edge_point(idx_le[0], idx_gt[1], buf0[1]);
+        edge_point(idx_le[1], idx_gt[1], buf0[2]);
+        edge_point(idx_le[1], idx_gt[0], buf0[3]);
+        n = 4;
+      }
+
+      // orient cap polygon with outward normal +e_s (positive 2D area in (t, u))
+      double area2 = 0.0;
+      for (int m = 1; m + 1 < n; m++) {
+        area2 += (buf0[m][1] - buf0[0][1]) * (buf0[m + 1][2] - buf0[0][2]) -
+                 (buf0[m][2] - buf0[0][2]) * (buf0[m + 1][1] - buf0[0][1]);
+      }
+      if (area2 < 0.0) {
+        for (int i = 1, j = n - 1; i < j; i++, j--) {
+          std::swap(buf0[i][0], buf0[j][0]);
+          std::swap(buf0[i][1], buf0[j][1]);
+          std::swap(buf0[i][2], buf0[j][2]);
+        }
+      }
+
+      n = ClipPolygonAxis(buf0, n, 1, 0.0, -1.0, buf1);
+      n = ClipPolygonAxis(buf1, n, 1, 1.0, +1.0, buf0);
+      n = ClipPolygonAxis(buf0, n, 2, 0.0, -1.0, buf1);
+      n = ClipPolygonAxis(buf1, n, 2, 1.0, +1.0, buf0);
+      integrate_clipped_poly(buf0, n, true);
+    }
+  }
+}
+
+// test if a triangle mesh (fdim == 2) is a closed, consistently-oriented surface
+// after welding coincident 3D vertex positions
+static bool IsClosedSurfaceMesh(const double* vpos,
+                                const int*    elems,
+                                int           ne,
+                                const double  minmax[6]) {
+  if (ne < 4) return false;
+  double max_ext = std::max({
+      minmax[3] - minmax[0],
+      minmax[4] - minmax[1],
+      minmax[5] - minmax[2],
+      1e-6,
+  });
+  double inv_tol = 1e9 / max_ext;
+
+  struct QuantVert {
+    std::int64_t x, y, z;
+    bool         operator==(const QuantVert& o) const { return x == o.x && y == o.y && z == o.z; }
+  };
+  struct QuantVertHash {
+    std::size_t operator()(const QuantVert& v) const {
+      std::size_t h  = std::hash<std::int64_t>{}(v.x);
+      h             ^= std::hash<std::int64_t>{}(v.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+      h             ^= std::hash<std::int64_t>{}(v.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+      return h;
+    }
+  };
+
+  std::unordered_map<QuantVert, int, QuantVertHash> welded_id;
+  welded_id.reserve(ne * 2);
+  auto get_welded_id = [&](int vid) {
+    QuantVert q{
+        static_cast<std::int64_t>(std::llround((vpos[3 * vid + 0] - minmax[0]) * inv_tol)),
+        static_cast<std::int64_t>(std::llround((vpos[3 * vid + 1] - minmax[1]) * inv_tol)),
+        static_cast<std::int64_t>(std::llround((vpos[3 * vid + 2] - minmax[2]) * inv_tol)),
+    };
+    auto [it, inserted] = welded_id.emplace(q, static_cast<int>(welded_id.size()));
+    return it->second;
+  };
+
+  std::unordered_map<std::pair<int, int>, std::pair<int, int>, PairHash> edge_counts;
+  edge_counts.reserve(ne * 2);
+  int n_nondegen = 0;
+  for (int e = 0; e < ne; e++) {
+    int w[3] = {
+        get_welded_id(elems[3 * e + 0]),
+        get_welded_id(elems[3 * e + 1]),
+        get_welded_id(elems[3 * e + 2]),
+    };
+    if (w[0] == w[1] || w[1] == w[2] || w[2] == w[0]) continue;
+    n_nondegen++;
+    for (int k = 0; k < 3; k++) {
+      int   u       = w[k];
+      int   v       = w[(k + 1) % 3];
+      auto  key     = std::minmax(u, v);
+      int   sign    = (u < v) ? 1 : -1;
+      auto& entry   = edge_counts[key];
+      entry.first  += 1;
+      entry.second += sign;
+    }
+  }
+  if (n_nondegen < 4) return false;
+  for (const auto& [key, counts] : edge_counts) {
+    if (counts.first < 2 || (counts.first % 2) != 0 || counts.second != 0) { return false; }
+  }
+  return true;
 }
 
 
@@ -3883,6 +4312,7 @@ void mjCFlex::ComputeCellEmpty(
   int                 nbasis  = order + 1;
   int                 nq_axis = kFcmSubdiv * nbasis;
   int                 nq_cell = nq_axis * nq_axis * nq_axis;
+  int                 nmom    = 2 * order + 1;
   std::vector<double> qpts(nq_axis);
   std::vector<double> qwts(nq_axis);
   for (int sub = 0; sub < kFcmSubdiv; sub++) {
@@ -3893,20 +4323,83 @@ void mjCFlex::ComputeCellEmpty(
                             static_cast<double>(sub + 1) / kFcmSubdiv);
   }
 
+  double H[6][5] = {};
+  BuildLegendreMomentProjector(order, qpts.data(), qwts.data(), H);
+
+  int    n_duffy          = (order == 1) ? 5 : 8;
+  double duffy_pts[8]     = {};
+  double duffy_wts[8]     = {};
+  int    n_duffy_cap      = 2 * order + 1;
+  double duffy_cap_pts[5] = {};
+  double duffy_cap_wts[5] = {};
+  quadratureGaussLegendre(duffy_pts, duffy_wts, n_duffy, 0.0, 1.0);
+  quadratureGaussLegendre(duffy_cap_pts, duffy_cap_wts, n_duffy_cap, 0.0, 1.0);
+
+  double inv_hx = 1.0 / hx;
+  double inv_hy = 1.0 / hy;
+  double inv_hz = 1.0 / hz;
+
+  auto moments_to_cell_quad = [&](const double M[5][5][5], int c) {
+    double vol_exact = M[0][0][0];
+    cell_empty[c]    = false;
+    if (vol_exact >= 1.0 - 1e-7) {
+      cell_full[c] = true;
+      cell_vol[c]  = 1.0;
+      cell_alphas[c].clear();
+    } else if (vol_exact <= 1e-12) {
+      cell_full[c] = false;
+      cell_vol[c]  = kFcmAlphaMin;
+      cell_alphas[c].assign(nq_cell, kFcmAlphaMin);
+    } else {
+      double T1[5][5][6] = {};
+      for (int a = 0; a < nmom; a++) {
+        for (int b = 0; b < nmom; b++) {
+          for (int pu = 0; pu < nq_axis; pu++) {
+            double s = 0.0;
+            for (int mc = 0; mc < nmom; mc++) { s += M[a][b][mc] * H[pu][mc]; }
+            T1[a][b][pu] = s;
+          }
+        }
+      }
+      double T2[5][6][6] = {};
+      for (int a = 0; a < nmom; a++) {
+        for (int pt = 0; pt < nq_axis; pt++) {
+          for (int pu = 0; pu < nq_axis; pu++) {
+            double s = 0.0;
+            for (int mb = 0; mb < nmom; mb++) { s += T1[a][mb][pu] * H[pt][mb]; }
+            T2[a][pt][pu] = s;
+          }
+        }
+      }
+      std::vector<double> alphas(nq_cell);
+      int                 q_idx = 0;
+      for (int ps = 0; ps < nq_axis; ps++) {
+        for (int pt = 0; pt < nq_axis; pt++) {
+          for (int pu = 0; pu < nq_axis; pu++) {
+            double s = 0.0;
+            for (int ma = 0; ma < nmom; ma++) { s += T2[ma][pt][pu] * H[ps][ma]; }
+            alphas[q_idx++] = kFcmAlphaMin + (1.0 - kFcmAlphaMin) * s;
+          }
+        }
+      }
+      cell_full[c]   = false;
+      cell_vol[c]    = kFcmAlphaMin + (1.0 - kFcmAlphaMin) * std::min(1.0, vol_exact);
+      cell_alphas[c] = std::move(alphas);
+    }
+  };
+
   std::vector<bool> has_element(ncells, false);
   std::vector<bool> has_core(ncells, false);
 
-  if (fdim == 3) {
+  auto integrate_tet_collection = [&](auto get_tet_verts) {
     std::vector<TetCellData>      valid_tets;
     std::vector<std::vector<int>> cell_tets(ncells);
     double                        vol_scale = hx * hy * hz;
     double                        bbox_eps  = 1e-7 * std::max({hx, hy, hz});
 
     for (int e = 0; e < ne; e++) {
-      const double* v0 = vpos + 3 * elems[4 * e + 0];
-      const double* v1 = vpos + 3 * elems[4 * e + 1];
-      const double* v2 = vpos + 3 * elems[4 * e + 2];
-      const double* v3 = vpos + 3 * elems[4 * e + 3];
+      const double *v0, *v1, *v2, *v3;
+      get_tet_verts(e, v0, v1, v2, v3);
 
       double elo[3], ehi[3];
       for (int j = 0; j < 3; j++) {
@@ -3927,6 +4420,15 @@ void mjCFlex::ComputeCellEmpty(
       const TetCellData* tet_ptr = nullptr;
       if (std::abs(det) > 1e-14 * vol_scale) {
         TetCellData td;
+        mjuu_copyvec(td.v[0], v0, 3);
+        if (det > 0.0) {
+          mjuu_copyvec(td.v[1], v1, 3);
+          mjuu_copyvec(td.v[2], v2, 3);
+        } else {
+          mjuu_copyvec(td.v[1], v2, 3);
+          mjuu_copyvec(td.v[2], v1, 3);
+        }
+        mjuu_copyvec(td.v[3], v3, 3);
         mjuu_copyvec(td.v0, v0, 3);
         double inv_det = 1.0 / det;
         for (int j = 0; j < 3; j++) {
@@ -3980,8 +4482,6 @@ void mjCFlex::ComputeCellEmpty(
       }
     }
 
-    // if all tetrahedra are degenerate (0 volume), fallback to has_core /
-    // has_element with full occupancy
     if (valid_tets.empty()) {
       for (int c = 0; c < ncells; c++) {
         bool active   = any_core ? has_core[c] : has_element[c];
@@ -3990,8 +4490,107 @@ void mjCFlex::ComputeCellEmpty(
         cell_full[c]  = !empty;
         cell_vol[c]   = empty ? 0.0 : 1.0;
       }
-      CacheFcmGeometry(fcm_cache_key);
       return;
+    }
+
+    // Cancel shared interior faces with opposite orientation across valid_tets
+    double max_ext = std::max({dx, dy, dz, 1e-6});
+    double inv_tol = 1e9 / max_ext;
+    struct QuantVert {
+      std::int64_t x, y, z;
+      bool         operator==(const QuantVert& o) const { return x == o.x && y == o.y && z == o.z; }
+    };
+    struct QuantVertHash {
+      std::size_t operator()(const QuantVert& v) const {
+        std::size_t h  = std::hash<std::int64_t>{}(v.x);
+        h             ^= std::hash<std::int64_t>{}(v.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h             ^= std::hash<std::int64_t>{}(v.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+      }
+    };
+    struct FaceKey {
+      int  a, b, c;
+      bool operator==(const FaceKey& o) const { return a == o.a && b == o.b && c == o.c; }
+    };
+    struct FaceKeyHash {
+      std::size_t operator()(const FaceKey& f) const {
+        std::size_t h  = std::hash<int>{}(f.a);
+        h             ^= std::hash<int>{}(f.b) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h             ^= std::hash<int>{}(f.c) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+      }
+    };
+    struct FaceMatch {
+      int count    = 0;
+      int sign_sum = 0;
+      int tid0     = -1;
+      int f0       = -1;
+      int tid1     = -1;
+      int f1       = -1;
+    };
+
+    std::unordered_map<QuantVert, int, QuantVertHash> welded_id;
+    welded_id.reserve(valid_tets.size() * 2);
+    auto get_welded_id = [&](const double p[3]) {
+      QuantVert q{
+          static_cast<std::int64_t>(std::llround((p[0] - minmax[0]) * inv_tol)),
+          static_cast<std::int64_t>(std::llround((p[1] - minmax[1]) * inv_tol)),
+          static_cast<std::int64_t>(std::llround((p[2] - minmax[2]) * inv_tol)),
+      };
+      auto [it, inserted] = welded_id.emplace(q, static_cast<int>(welded_id.size()));
+      return it->second;
+    };
+
+    static constexpr int kTetFaces[4][3] = {
+        {0, 2, 1},
+        {0, 1, 3},
+        {0, 3, 2},
+        {1, 2, 3},
+    };
+    std::unordered_map<FaceKey, FaceMatch, FaceKeyHash> face_map;
+    face_map.reserve(valid_tets.size() * 4);
+    for (int tid = 0; tid < static_cast<int>(valid_tets.size()); tid++) {
+      const TetCellData& td   = valid_tets[tid];
+      int                w[4] = {
+          get_welded_id(td.v[0]),
+          get_welded_id(td.v[1]),
+          get_welded_id(td.v[2]),
+          get_welded_id(td.v[3]),
+      };
+      for (int f = 0; f < 4; f++) {
+        int u0 = w[kTetFaces[f][0]];
+        int u1 = w[kTetFaces[f][1]];
+        int u2 = w[kTetFaces[f][2]];
+        int s0 = u0, s1 = u1, s2 = u2, sign = 1;
+        if (s0 > s1) {
+          std::swap(s0, s1);
+          sign = -sign;
+        }
+        if (s1 > s2) {
+          std::swap(s1, s2);
+          sign = -sign;
+        }
+        if (s0 > s1) {
+          std::swap(s0, s1);
+          sign = -sign;
+        }
+        auto& entry = face_map[FaceKey{s0, s1, s2}];
+        if (entry.count == 0) {
+          entry.tid0 = tid;
+          entry.f0   = f;
+        } else if (entry.count == 1) {
+          entry.tid1 = tid;
+          entry.f1   = f;
+        }
+        entry.count    += 1;
+        entry.sign_sum += sign;
+      }
+    }
+    for (const auto& [key, entry] : face_map) {
+      if (entry.count == 2 && entry.sign_sum == 0) {
+        valid_tets[entry.tid0].boundary_mask &= ~(1 << entry.f0);
+        valid_tets[entry.tid1].boundary_mask &= ~(1 << entry.f1);
+      }
     }
 
     for (int ci = 0; ci < cx; ci++) {
@@ -4016,51 +4615,118 @@ void mjCFlex::ComputeCellEmpty(
             continue;
           }
 
-          std::vector<double> alphas(nq_cell, kFcmAlphaMin);
-          int                 n_inside = 0;
-          double              vol      = 0.0;
-          int                 q_idx    = 0;
-          const auto&         tets_c   = cell_tets[c];
-
-          for (int ps = 0; ps < nq_axis; ps++) {
-            double x_coord = bmin_x + qpts[ps] * hx;
-            double ws      = qwts[ps];
-            for (int pt = 0; pt < nq_axis; pt++) {
-              double y_coord = bmin_y + qpts[pt] * hy;
-              double wst     = ws * qwts[pt];
-              for (int pu = 0; pu < nq_axis; pu++) {
-                double x_q[3] = {x_coord, y_coord, bmin_z + qpts[pu] * hz};
-                double w_q    = wst * qwts[pu];
-                bool   inside = false;
-                for (int tid : tets_c) {
-                  if (PointInTet(x_q, valid_tets[tid])) {
-                    inside = true;
-                    break;
-                  }
-                }
-                if (inside) {
-                  alphas[q_idx] = 1.0;
-                  n_inside++;
-                }
-                vol += w_q * alphas[q_idx];
-                q_idx++;
+          const auto& tets_c            = cell_tets[c];
+          double      bmin[3]           = {bmin_x, bmin_y, bmin_z};
+          double      bmax[3]           = {bmin_x + hx, bmin_y + hy, bmin_z + hz};
+          bool        has_boundary_face = false;
+          for (int tid : tets_c) {
+            const TetCellData& td = valid_tets[tid];
+            if (td.boundary_mask == 0) continue;
+            for (int f = 0; f < 4; f++) {
+              if (!(td.boundary_mask & (1 << f))) continue;
+              if (TriangleIntersectsBox(td.v[kTetFaces[f][0]],
+                                        td.v[kTetFaces[f][1]],
+                                        td.v[kTetFaces[f][2]],
+                                        bmin,
+                                        bmax)) {
+                has_boundary_face = true;
+                break;
               }
             }
+            if (has_boundary_face) break;
+          }
+          if (!has_boundary_face) {
+            cell_empty[c] = false;
+            cell_full[c]  = true;
+            cell_vol[c]   = 1.0;
+            cell_alphas[c].clear();
+            continue;
           }
 
-          cell_empty[c] = false;
-          if (n_inside == nq_cell) {
-            cell_full[c] = true;
-            cell_vol[c]  = 1.0;
-          } else {
-            cell_full[c]   = false;
-            cell_vol[c]    = vol;
-            cell_alphas[c] = std::move(alphas);
+          double M[5][5][5] = {};
+          for (int tid : tets_c) {
+            const TetCellData& td = valid_tets[tid];
+            double             lv[4][3];
+            for (int k = 0; k < 4; k++) {
+              lv[k][0] = (td.v[k][0] - bmin_x) * inv_hx;
+              lv[k][1] = (td.v[k][1] - bmin_y) * inv_hy;
+              lv[k][2] = (td.v[k][2] - bmin_z) * inv_hz;
+            }
+            AccumulateClippedTetMoments(lv[0],
+                                        lv[1],
+                                        lv[2],
+                                        lv[3],
+                                        td.boundary_mask,
+                                        1.0,
+                                        nmom,
+                                        n_duffy,
+                                        duffy_pts,
+                                        duffy_wts,
+                                        n_duffy_cap,
+                                        duffy_cap_pts,
+                                        duffy_cap_wts,
+                                        M);
           }
+
+          moments_to_cell_quad(M, c);
         }
       }
     }
+  };
+
+  if (fdim == 3) {
+    integrate_tet_collection(
+        [&](int e, const double*& v0, const double*& v1, const double*& v2, const double*& v3) {
+          v0 = vpos + 3 * elems[4 * e + 0];
+          v1 = vpos + 3 * elems[4 * e + 1];
+          v2 = vpos + 3 * elems[4 * e + 2];
+          v3 = vpos + 3 * elems[4 * e + 3];
+        });
   } else if (fdim == 2) {
+    double origin[3] = {
+        0.5 * (minmax[0] + minmax[3]),
+        0.5 * (minmax[1] + minmax[4]),
+        0.5 * (minmax[2] + minmax[5]),
+    };
+    double vol_scale = hx * hy * hz;
+    double total_det = 0.0;
+    bool   has_pos   = false;
+    bool   has_neg   = false;
+    bool   is_closed = IsClosedSurfaceMesh(vpos, elems, ne, minmax);
+    if (is_closed) {
+      for (int e = 0; e < ne; e++) {
+        const double* a     = vpos + 3 * elems[3 * e + 0];
+        const double* b     = vpos + 3 * elems[3 * e + 1];
+        const double* c     = vpos + 3 * elems[3 * e + 2];
+        double        d1[3] = {a[0] - origin[0], a[1] - origin[1], a[2] - origin[2]};
+        double        d2[3] = {b[0] - origin[0], b[1] - origin[1], b[2] - origin[2]};
+        double        d3[3] = {c[0] - origin[0], c[1] - origin[1], c[2] - origin[2]};
+        double        c1[3];
+        mjuu_crossvec(c1, d2, d3);
+        double det  = mjuu_dot3(d1, c1);
+        total_det  += det;
+        if (det > 1e-14 * vol_scale) has_pos = true;
+        if (det < -1e-14 * vol_scale) has_neg = true;
+      }
+      if (std::abs(total_det) <= 1e-12 * vol_scale) { is_closed = false; }
+    }
+
+    // If the closed surface is star-shaped with respect to the bounding-box
+    // center (all non-degenerate cones have the same orientation sign), the
+    // cones (origin, a, b, c) form an exact tetrahedral partition of the
+    // interior, identical to fdim == 3.
+    if (is_closed && !(has_pos && has_neg)) {
+      integrate_tet_collection(
+          [&](int e, const double*& v0, const double*& v1, const double*& v2, const double*& v3) {
+            v0 = origin;
+            v1 = vpos + 3 * elems[3 * e + 0];
+            v2 = vpos + 3 * elems[3 * e + 1];
+            v3 = vpos + 3 * elems[3 * e + 2];
+          });
+      CacheFcmGeometry(fcm_cache_key);
+      return;
+    }
+
     std::vector<TriCellData>      tris(ne);
     std::vector<std::vector<int>> cell_tris(ncells);
     for (int e = 0; e < ne; e++) {
@@ -4117,8 +4783,9 @@ void mjCFlex::ComputeCellEmpty(
     // connected component of non-intersected cells (propagated from adjacent
     // !has_element neighbors) to keep hollow interiors of closed shells, plus
     // on pure sliver cells (has_element && !has_core).
-    constexpr double kWindingThreshold = 0.5 - 1e-5;
-    bool             any_inside        = false;
+    constexpr double  kWindingThreshold = 0.5 - 1e-5;
+    bool              any_inside        = is_closed;
+    std::vector<bool> is_cut_cell(ncells, false);
 
     for (int ci = 0; ci < cx; ci++) {
       double bmin_x = minmax[0] + ci * hx;
@@ -4163,11 +4830,17 @@ void mjCFlex::ComputeCellEmpty(
             }
           }
 
-          // Pre-check which of the kFcmSubdiv^3 subcells are intersected by
-          // surface triangles; un-intersected subcells have constant winding
-          // number and only require 1 evaluation at the subcell center.
-          // For cut subcells, evaluate the Fast Winding Number BVH at each
-          // quadrature point.
+          if (is_closed) {
+            is_cut_cell[c] = true;
+            continue;
+          }
+
+          // Fallback for open/non-watertight triangle soups, which have no
+          // closed boundary for the divergence theorem to integrate over:
+          // classify each composite Gauss point with the FastWindingBVH
+          // indicator (|w| >= 0.5) and give it full or kFcmAlphaMin weight.
+          // This is the only path that still uses point sampling, and it is
+          // kept deliberately for such meshes.
           const auto& tris_c                                      = cell_tris[c];
           bool        sub_cut[kFcmSubdiv][kFcmSubdiv][kFcmSubdiv] = {};
           bool        sub_in[kFcmSubdiv][kFcmSubdiv][kFcmSubdiv]  = {};
@@ -4242,6 +4915,93 @@ void mjCFlex::ComputeCellEmpty(
             cell_alphas[c] = std::move(alphas);
           }
         }
+      }
+    }
+
+    if (is_closed) {
+      struct MomentGrid {
+        double M[5][5][5] = {};
+      };
+      std::vector<MomentGrid> cell_moments(ncells);
+      double                  orient = (total_det >= 0.0) ? 1.0 : -1.0;
+
+      for (int e = 0; e < ne; e++) {
+        const double* a = tris[e].a;
+        const double* b = tris[e].b;
+        const double* c = tris[e].c;
+
+        double d1[3] = {a[0] - origin[0], a[1] - origin[1], a[2] - origin[2]};
+        double d2[3] = {b[0] - origin[0], b[1] - origin[1], b[2] - origin[2]};
+        double d3[3] = {c[0] - origin[0], c[1] - origin[1], c[2] - origin[2]};
+        double c1[3];
+        mjuu_crossvec(c1, d2, d3);
+        double det = mjuu_dot3(d1, c1);
+
+        // A triangle coplanar with origin forms a flat cone with no volume, but
+        // its surface face (a, b, c) still carries boundary flux: the three
+        // radial faces skipped under boundary_mask = 0x8 sum to exactly this
+        // face, so dropping the triangle leaves the neighbors' skipped radial
+        // faces uncancelled. Keep it with the mesh orientation: for both
+        // det > 0 and det < 0 the signed flux of face (v1, v2, v3) equals
+        // orient times the outward flux of (a, b, c).
+        bool          positive = (det > 0.0) || std::abs(det) <= 1e-14 * vol_scale;
+        double        sign_w   = positive ? orient : -orient;
+        const double* tv[4]    = {
+            origin,
+            positive ? a : b,
+            positive ? b : a,
+            c,
+        };
+
+        double elo[3], ehi[3];
+        for (int j = 0; j < 3; j++) {
+          elo[j] = std::min({origin[j], a[j], b[j], c[j]});
+          ehi[j] = std::max({origin[j], a[j], b[j], c[j]});
+        }
+
+        int ci0 = cellIdxLo(elo[0], minmax[0], dx, cx);
+        int ci1 = cellIdxHi(ehi[0], minmax[0], dx, cx);
+        int cj0 = cellIdxLo(elo[1], minmax[1], dy, cy);
+        int cj1 = cellIdxHi(ehi[1], minmax[1], dy, cy);
+        int ck0 = cellIdxLo(elo[2], minmax[2], dz, cz);
+        int ck1 = cellIdxHi(ehi[2], minmax[2], dz, cz);
+
+        for (int ci = ci0; ci <= ci1; ci++) {
+          double bmin_x = minmax[0] + ci * hx;
+          for (int cj = cj0; cj <= cj1; cj++) {
+            double bmin_y = minmax[1] + cj * hy;
+            for (int ck = ck0; ck <= ck1; ck++) {
+              int cell_idx = ci * cy * cz + cj * cz + ck;
+              if (!is_cut_cell[cell_idx]) continue;
+              double bmin_z = minmax[2] + ck * hz;
+              double lv[4][3];
+              for (int k = 0; k < 4; k++) {
+                lv[k][0] = (tv[k][0] - bmin_x) * inv_hx;
+                lv[k][1] = (tv[k][1] - bmin_y) * inv_hy;
+                lv[k][2] = (tv[k][2] - bmin_z) * inv_hz;
+              }
+              AccumulateClippedTetMoments(lv[0],
+                                          lv[1],
+                                          lv[2],
+                                          lv[3],
+                                          0x8,
+                                          sign_w,
+                                          nmom,
+                                          n_duffy,
+                                          duffy_pts,
+                                          duffy_wts,
+                                          n_duffy_cap,
+                                          duffy_cap_pts,
+                                          duffy_cap_wts,
+                                          cell_moments[cell_idx].M);
+            }
+          }
+        }
+      }
+
+      for (int c = 0; c < ncells; c++) {
+        if (!is_cut_cell[c]) continue;
+        moments_to_cell_quad(cell_moments[c].M, c);
       }
     }
 
