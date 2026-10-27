@@ -559,8 +559,8 @@ general guidelines and observations:
    aggressive tolerance values, say 1e-10, because it is capable of achieving high accuracy without added delay (due to
    quadratic convergence at the end). The only situation where we have seen it slow down are large models with elliptic
    cones and many slipping contacts. In that regime the Hessian factorization needs a lot of updates. It may also slow
-   down in some large models with unfortunate ordering of model elements that results in high fill-in (computing the
-   optimal elimination order is NP-hard, so we are relying on a heuristic). Note that the number of non-zeros in the
+   down in some large models when the ordering of bodies in the scene causes high fill-in during sparse Hessian
+   factorization; see :ref:`Body ordering and fill-in <CBodyOrdering>` below. Note that the number of non-zeros in the
    factorized Hessian can be monitored in the profiler.
 -  The CG algorithm works well in the situation described above where Newton slows down. In general CG shows linear
    convergence with a good rate, but it cannot compete with Newton in terms of number of iterations, especially when
@@ -585,6 +585,31 @@ general guidelines and observations:
    PGS solver, the PGS setup cost will be paid whenever NoSlip is enabled, even if the main solver is CG or Newton. The
    setup operation for the main PGS and NoSlip PGS is the same, thus the setup cost is paid only once when both are
    enabled.
+
+.. _CBodyOrdering:
+
+Body ordering and fill-in
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. tip::
+   Declare moving bodies with many contacts *before* the objects they interact with in :el:`worldbody`, so they receive
+   lower DOF indices and avoid dense Cholesky fill-in.
+
+In sparse mode, the Newton solver factorizes the Hessian :math:`H = \widehat{M} + J^T D J` using reverse-order Cholesky,
+eliminating degrees of freedom from last to first (:math:`\nv - 1` down to :math:`0`, i.e., from leaves to root). For
+the tree-structured matrix :math:`\widehat{M}` alone, this elimination order is `optimal and produces zero fill-in
+<https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_. Contacts, tendons, and equality constraints add off-tree
+couplings in :math:`J^T D J`: when DOF :math:`r` is eliminated, it creates fill-in between **all lower-indexed DOFs**
+(:math:`c < r`) currently coupled to :math:`r`, forming a dense clique among them.
+
+Consequently, the declaration order of bodies in :el:`worldbody` can strongly affect solver speed without changing the
+physics. A moving "hub" body that simultaneously contacts many other bodies -- such as an actuated tray, sieve,
+container, or platform -- should be declared *before* the objects resting on or inside it. If a moving tray is declared
+first (low DOFs) and :math:`N` free bodies are declared after it (high DOFs), the free bodies are eliminated first and
+only fill into the tray's DOFs, giving an arrowhead sparsity pattern with zero fill-in and :math:`O(N)` factorization
+cost. If the tray is declared *last*, it is eliminated first and couples all :math:`N` bodies into a single dense block
+with :math:`O(N^3)` cost. Static geoms attached directly to :el:`worldbody` or to welded bodies have no DOFs and are
+unaffected by ordering.
 
 .. _CActuators:
 
