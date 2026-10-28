@@ -332,7 +332,11 @@ the clause:
     ```
     """
     if self._mjr_context:
-      self._mjr_context.free()
+      if self._gl_context:
+        with self._gl_context.as_current():
+          self._mjr_context.free()
+      else:
+        self._mjr_context.free()
     self._mjr_context = None
     if self._gl_context:
       self._gl_context.free()

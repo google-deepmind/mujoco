@@ -264,6 +264,83 @@ class MuJoCoRendererTest(parameterized.TestCase):
         ),
     )
 
+  def test_renderer_close_preserves_active_context(self):
+    """Closing or GC-collecting a Renderer must not clobber another context."""
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="green_box" type="box" size="1 1 1" rgba="0 1 0 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    renderer1 = mujoco.Renderer(model, 50, 50)
+    renderer1.update_scene(data, 'closeup')
+    renderer1.render()
+
+    with mujoco.Renderer(model, 50, 50) as renderer2:
+      renderer2.update_scene(data, 'closeup')
+      expected = renderer2.render().copy()
+      self.assertGreater(np.count_nonzero(expected), 0)
+
+      # Closing renderer1 while renderer2's GL context is current must not
+      # delete renderer2's offscreen FBO.
+      renderer1.close()
+      out = np.zeros_like(expected)
+      renderer2.render(out=out)
+      np.testing.assert_array_equal(out, expected)
+
+      # Finalizing an unclosed Renderer via cyclic GC while renderer2 is
+      # current must likewise preserve renderer2's FBO and active context.
+      cycle = []
+      cycle.append((cycle, mujoco.Renderer(model, 50, 50)))
+      renderer2.render()
+      del cycle
+      gc.collect()
+      out.fill(0)
+      renderer2.render(out=out)
+      np.testing.assert_array_equal(out, expected)
+
+    # Also verify that a standalone GLContext stays bound across Renderer.close
+    # without needing another make_current() call.
+    gl = mujoco.GLContext(50, 50)
+    try:
+      gl.make_current()
+      ctx = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150.value)
+      try:
+        mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN.value, ctx)
+        scene = mujoco.MjvScene(model=model, maxgeom=100)
+        cam = mujoco.MjvCamera()
+        cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        cam.fixedcamid = 0
+        mujoco.mjv_updateScene(
+            model,
+            data,
+            mujoco.MjvOption(),
+            None,
+            cam,
+            mujoco.mjtCatBit.mjCAT_ALL.value,
+            scene,
+        )
+
+        other = mujoco.Renderer(model, 50, 50)
+        gl.make_current()
+        other.close()
+
+        rect = mujoco.MjrRect(0, 0, 50, 50)
+        rgb = np.zeros((50, 50, 3), dtype=np.uint8)
+        mujoco.mjr_render(rect, scene, ctx)
+        mujoco.mjr_readPixels(rgb, None, rect, ctx)
+        self.assertGreater(np.count_nonzero(rgb), 0)
+      finally:
+        ctx.free()
+    finally:
+      gl.free()
+
 
 if __name__ == '__main__':
   absltest.main()

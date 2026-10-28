@@ -341,6 +341,30 @@ class EglDisplayTest(absltest.TestCase):
     gl.make_current()
     gl.free()
 
+  def test_renderer_close_after_display_terminated(self):
+    model = mujoco.MjModel.from_xml_string('<mujoco/>')
+    renderer = mujoco.Renderer(model, 64, 64)
+    self.egl._terminate_display()  # pylint: disable=protected-access
+    self.assertIsNone(self.egl.EGL_DISPLAY)
+    renderer.close()
+
+    with mujoco.Renderer(model, 64, 64):
+      self.assertIsNotNone(self.egl.EGL_DISPLAY)
+
+  def test_free_non_current_context_preserves_current(self):
+    gl1 = mujoco.GLContext(64, 64)
+    gl2 = mujoco.GLContext(64, 64)
+    try:
+      gl2.make_current()
+      expected_addr = self.egl.EGL.eglGetCurrentContext().address
+      gl1.free()
+      current = self.egl.EGL.eglGetCurrentContext()
+      self.assertTrue(bool(current))
+      self.assertEqual(current.address, expected_addr)
+    finally:
+      gl1.free()
+      gl2.free()
+
   def test_failed_display_init_is_retried(self):
     no_display = mock.patch.object(
         self.egl,

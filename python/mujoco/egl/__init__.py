@@ -15,6 +15,7 @@
 """An EGL context for headless accelerated OpenGL rendering on GPU devices."""
 
 import atexit
+import contextlib
 import ctypes
 import os
 
@@ -132,6 +133,34 @@ class GLContext:
         EGL_DISPLAY, EGL.EGL_NO_SURFACE, EGL.EGL_NO_SURFACE, self._context):
       raise RuntimeError('Failed to make the EGL context current.')
 
+  @contextlib.contextmanager
+  def as_current(self):
+    """Temporarily makes this context current, restoring any prior context."""
+    if EGL_DISPLAY is None or not self._context:
+      yield
+      return
+    prev_ctx = EGL.eglGetCurrentContext()
+    if prev_ctx and self._context.address == prev_ctx.address:
+      yield
+      return
+    prev_display = EGL.eglGetCurrentDisplay()
+    prev_draw = EGL.eglGetCurrentSurface(EGL.EGL_DRAW)
+    prev_read = EGL.eglGetCurrentSurface(EGL.EGL_READ)
+    self.make_current()
+    try:
+      yield
+    finally:
+      if EGL_DISPLAY is not None:
+        if prev_ctx:
+          EGL.eglMakeCurrent(prev_display, prev_draw, prev_read, prev_ctx)
+        else:
+          EGL.eglMakeCurrent(
+              EGL_DISPLAY,
+              EGL.EGL_NO_SURFACE,
+              EGL.EGL_NO_SURFACE,
+              EGL.EGL_NO_CONTEXT,
+          )
+
   def free(self):
     """Frees resources associated with this context."""
     global EGL_DISPLAY
@@ -140,8 +169,10 @@ class GLContext:
       if current_context and self._context.address == current_context.address:
         EGL.eglMakeCurrent(EGL_DISPLAY, EGL.EGL_NO_SURFACE,
                            EGL.EGL_NO_SURFACE, EGL.EGL_NO_CONTEXT)
+        EGL.eglReleaseThread()
+      elif not current_context:
+        EGL.eglReleaseThread()
       EGL.eglDestroyContext(EGL_DISPLAY, self._context)
-      EGL.eglReleaseThread()
     self._context = None
 
   def __del__(self):
