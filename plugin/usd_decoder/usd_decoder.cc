@@ -49,6 +49,7 @@
 #include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/tf/staticData.h>
+#include <pxr/base/tf/stringUtils.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/base/vt/types.h>
 #include <pxr/usd/sdf/path.h>
@@ -98,6 +99,31 @@ struct UsdCaches {
 };
 
 constexpr const char* kUsdPrimPathKey = "usd_primpath";
+
+std::string GetStageModelName(const pxr::UsdStageRefPtr& stage) {
+  pxr::UsdPrim default_prim = stage->GetDefaultPrim();
+  if (default_prim) {
+    std::string display_name = default_prim.GetDisplayName();
+    if (!display_name.empty()) {
+      return display_name;
+    }
+    std::string prim_name = default_prim.GetName().GetString();
+    if (!prim_name.empty()) {
+      return prim_name;
+    }
+  }
+
+  pxr::SdfLayerHandle root_layer = stage->GetRootLayer();
+  if (root_layer && !root_layer->IsAnonymous()) {
+    std::string layer_stem =
+        pxr::TfStringGetBeforeSuffix(root_layer->GetDisplayName());
+    if (!layer_stem.empty()) {
+      return layer_stem;
+    }
+  }
+
+  return "";
+}
 
 void SetUsdPrimPathUserValue(mjsElement* element,
                              const pxr::SdfPath& prim_path) {
@@ -2050,6 +2076,9 @@ mjsGeom* ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
     ParseUsdPhysicsMassAPIForGeom(geom, pxr::UsdPhysicsMassAPI(gprim));
   }
 
+  if (gprim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
+    ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(gprim));
+  }
   if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
     auto imageable_api = pxr::MjcPhysicsImageableAPI(gprim);
     auto group_attr = imageable_api.GetGroupAttr();
@@ -2506,7 +2535,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
 
     float lower, upper;
     if (revolute.GetLowerLimitAttr().Get(&lower) &&
-        revolute.GetUpperLimitAttr().Get(&upper)) {
+        revolute.GetUpperLimitAttr().Get(&upper) &&
+        !(std::isinf(lower) && lower < 0 && std::isinf(upper) && upper > 0)) {
       mj_joint->limited = mjLIMITED_TRUE;
       if (spec->compiler.degree) {
         mj_joint->range[0] = lower;
@@ -2535,7 +2565,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     }
     float lower, upper;
     if (prismatic.GetLowerLimitAttr().Get(&lower) &&
-        prismatic.GetUpperLimitAttr().Get(&upper)) {
+        prismatic.GetUpperLimitAttr().Get(&upper) &&
+        !(std::isinf(lower) && lower < 0 && std::isinf(upper) && upper > 0)) {
       mj_joint->limited = mjLIMITED_TRUE;
       mj_joint->range[0] = lower;
       mj_joint->range[1] = upper;
@@ -2852,6 +2883,10 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
 
 mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
   mjSpec* spec = mj_makeSpec();
+  std::string model_name = GetStageModelName(stage);
+  if (!model_name.empty()) {
+    mjs_setString(spec->modelname, model_name.c_str());
+  }
 
   std::unique_ptr<Node> root = BuildKinematicTree(stage);
 

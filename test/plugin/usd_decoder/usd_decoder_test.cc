@@ -781,5 +781,194 @@ def Xform "authored_zero_body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
   EXPECT_EQ(zero_visual->density, 0.0);
 }
 
+class UsdPreservationSemanticsTest : public MujocoTest {
+ public:
+  static void SetUpTestSuite() {
+#ifdef USD_DECODER_PLUGIN_PATH
+    mj_loadPluginLibrary(USD_DECODER_PLUGIN_PATH);
+#endif
+  }
+
+ protected:
+  void SetUp() override {
+    directory_ = pxr::ArchMakeTmpSubdir(
+        std::filesystem::temp_directory_path().string(), "usd_preservation");
+    ASSERT_FALSE(directory_.empty());
+  }
+
+  void TearDown() override {
+    if (!directory_.empty()) {
+      std::filesystem::remove_all(directory_);
+    }
+  }
+
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> Parse(
+      const pxr::UsdStageRefPtr& stage,
+      const std::string& filename = "model.usda") {
+    const std::string path = directory_ + "/" + filename;
+    EXPECT_TRUE(stage->GetRootLayer()->Export(path));
+    char error[1024] = {};
+    std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+        mj_parse(path.c_str(), nullptr, nullptr, error, sizeof(error)),
+        mj_deleteSpec);
+    EXPECT_NE(spec, nullptr) << error;
+    return spec;
+  }
+
+  std::string directory_;
+};
+
+TEST_F(UsdPreservationSemanticsTest, SiteGprimNotDecodedAsGeom) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "mjc_site" (prepend apiSchemas = ["MjcSiteAPI"]) {
+        double radius = 0.05
+    }
+    def Sphere "newton_site" (prepend apiSchemas = ["NewtonSiteAPI"]) {
+        double radius = 0.05
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_EQ(mjs_firstElement(spec.get(), mjOBJ_GEOM), nullptr);
+  EXPECT_NE(
+      mjs_asSite(mjs_findElement(spec.get(), mjOBJ_SITE, "/body/mjc_site")),
+      nullptr);
+  EXPECT_NE(
+      mjs_asSite(mjs_findElement(spec.get(), mjOBJ_SITE, "/body/newton_site")),
+      nullptr);
+}
+
+TEST_F(UsdPreservationSemanticsTest, StageModelNamePrecedence) {
+  auto stage_display = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage_display->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(defaultPrim = "MyRobot")
+def Xform "MyRobot" (displayName = "CustomDisplayName") {
+}
+)"));
+  auto spec_display = Parse(stage_display, "layer_stem.usda");
+  ASSERT_NE(spec_display, nullptr);
+  EXPECT_STREQ(mjs_getString(spec_display->modelname), "CustomDisplayName");
+
+  auto stage_prim = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage_prim->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(defaultPrim = "MyRobot")
+def Xform "MyRobot" {
+}
+)"));
+  auto spec_prim = Parse(stage_prim, "layer_stem.usda");
+  ASSERT_NE(spec_prim, nullptr);
+  EXPECT_STREQ(mjs_getString(spec_prim->modelname), "MyRobot");
+
+  auto stage_layer = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage_layer->GetRootLayer()->ImportFromString(R"(#usda 1.0
+def Xform "MyRobot" {
+}
+)"));
+  auto spec_layer = Parse(stage_layer, "layer_stem.usda");
+  ASSERT_NE(spec_layer, nullptr);
+  EXPECT_STREQ(mjs_getString(spec_layer->modelname), "layer_stem");
+
+  char error[1024] = {};
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec_anon(
+      mj_parse(stage_layer->GetRootLayer()->GetIdentifier().c_str(),
+               "model/usd", nullptr, error, sizeof(error)),
+      mj_deleteSpec);
+  ASSERT_NE(spec_anon, nullptr) << error;
+  EXPECT_STREQ(mjs_getString(spec_anon->modelname), "MuJoCo Model");
+}
+
+TEST_F(UsdPreservationSemanticsTest, UnlimitedJointsRemainUnlimited) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "unlimited_hinge_body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsArticulationRootAPI"]
+) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def PhysicsRevoluteJoint "unlimited_hinge" {
+        rel physics:body1 = </unlimited_hinge_body>
+        uniform token physics:axis = "Z"
+    }
+}
+def Xform "unlimited_slide_body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsArticulationRootAPI"]
+) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def PhysicsPrismaticJoint "unlimited_slide" {
+        rel physics:body1 = </unlimited_slide_body>
+        uniform token physics:axis = "X"
+    }
+}
+def Xform "limited_hinge_body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsArticulationRootAPI"]
+) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def PhysicsRevoluteJoint "limited_hinge" {
+        rel physics:body1 = </limited_hinge_body>
+        uniform token physics:axis = "Z"
+        float physics:lowerLimit = -45
+        float physics:upperLimit = 45
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+
+  int unlimited_hinge_id = mj_name2id(model.get(), mjOBJ_JOINT,
+                                      "/unlimited_hinge_body/unlimited_hinge");
+  int unlimited_slide_id = mj_name2id(model.get(), mjOBJ_JOINT,
+                                      "/unlimited_slide_body/unlimited_slide");
+  int limited_hinge_id =
+      mj_name2id(model.get(), mjOBJ_JOINT, "/limited_hinge_body/limited_hinge");
+  ASSERT_GE(unlimited_hinge_id, 0);
+  ASSERT_GE(unlimited_slide_id, 0);
+  ASSERT_GE(limited_hinge_id, 0);
+  EXPECT_EQ(model->jnt_limited[unlimited_hinge_id], mjLIMITED_FALSE);
+  EXPECT_EQ(model->jnt_limited[unlimited_slide_id], mjLIMITED_FALSE);
+  EXPECT_EQ(model->jnt_limited[limited_hinge_id], mjLIMITED_TRUE);
+}
+
+TEST_F(UsdPreservationSemanticsTest,
+       DisabledColliderPreservesMjcCollisionMetadata) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Cube "disabled_collider" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "MjcCollisionAPI"]
+    ) {
+        double size = 0.1
+        bool physics:collisionEnabled = false
+        uniform int mjc:group = 2
+        uniform int mjc:priority = 3
+        uniform int mjc:condim = 4
+    }
+}
+)"));
+  mock_warning_handler.ExpectWarnings("has only visual gprims");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  mjsGeom* geom = mjs_asGeom(
+      mjs_findElement(spec.get(), mjOBJ_GEOM, "/body/disabled_collider"));
+  ASSERT_NE(geom, nullptr);
+  EXPECT_EQ(geom->contype, 0);
+  EXPECT_EQ(geom->conaffinity, 0);
+  EXPECT_EQ(geom->group, 2);
+  EXPECT_EQ(geom->priority, 3);
+  EXPECT_EQ(geom->condim, 4);
+}
+
 }  // namespace
 }  // namespace mujoco
