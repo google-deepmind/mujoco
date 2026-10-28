@@ -46,8 +46,7 @@ void LogHandler(const mjLogMessage* msg) {
   // default handler prints it.
   const bool topic_disabled =
       (msg->level == mjLOG_INFO || msg->level == mjLOG_DEBUG) &&
-      msg->topic > 0 &&
-      !(mju_getLogConfig().topics & (1 << (msg->topic - 1)));
+      msg->topic > 0 && !(mju_getLogConfig().topics & (1 << (msg->topic - 1)));
   if (!topic_disabled) {
     Console::Get().Add(static_cast<mjtLogLevel>(msg->level), msg->subject,
                        msg->body ? msg->body : "");

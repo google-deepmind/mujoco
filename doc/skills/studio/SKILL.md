@@ -111,17 +111,17 @@ rendering and UI through non-blocking message endpoints:
     -   **`plugin.ViewerPlugin`**: Runs on the viewer thread, automatically
         caches `self.viewer` on `ViewerInitEvent`, and handles visual updates,
         rendering overlays, and Dear ImGui construction.
--   **Canonical Samples (`python/mujoco/studio/`)**:
+-   **Canonical Samples (`python/mujoco/sample/studio/`)**:
     -   `python/mujoco/studio/viewer.py` — Standard Studio viewer
         (`viewer_app.ViewerApp`); run with
         `viewer.py --model=<file> --plugins=a.py,b.py` (instantiates every
         `ViewerPlugin`/`SimPlugin` defined in those files).
-    -   `sample/ghost.py` — `GhostRenderer` injecting transient `extra_geoms` on
+    -   `python/mujoco/sample/studio/ghost.py` — `GhostRenderer` injecting transient `extra_geoms` on
         `UpdateEvent` and ImGui controls on `BuildGuiEvent`
-        (`viewer.py --model=... --plugins=sample/ghost.py`).
-    -   `sample/implot.py` — `BodyInspector` demonstrating real-time ImGui +
-        ImPlot charting (`viewer.py --model=... --plugins=sample/implot.py`).
-    -   `sample/custom_sim_loop.py` — External script owning its stepping and
+        (`viewer.py --model=... --plugins=python/mujoco/sample/studio/ghost.py`).
+    -   `python/mujoco/sample/studio/implot.py` — `BodyInspector` demonstrating real-time ImGui +
+        ImPlot charting (`viewer.py --model=... --plugins=python/mujoco/sample/studio/implot.py`).
+    -   `python/mujoco/sample/studio/custom_sim_loop.py` — External script owning its stepping and
         pacing loop via `handle.sync(model, data)`.
 
 ## 2. Launching Python Viewers
@@ -203,7 +203,7 @@ with launch_web.launch(
 
 To step and pace physics directly in the caller loop instead, omit
 `StepControl()` and step after `model, data = handle.sync(model, data)` (see
-`python/mujoco/studio/sample/custom_sim_loop.py`).
+`python/mujoco/sample/studio/custom_sim_loop.py`).
 
 ## 3. Plugin & Messaging Essentials
 

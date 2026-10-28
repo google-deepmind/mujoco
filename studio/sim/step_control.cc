@@ -33,8 +33,6 @@ static mjtNum Timer() {
 }
 
 
-
-
 StepControl::StepControl(ClockFn clock_fn) : clock_fn_(std::move(clock_fn)) {
   mjcb_time = Timer;
 }
@@ -65,9 +63,7 @@ void StepControl::SetNoiseParameters(float ctrl_noise_scale,
   ctrl_noise_rate_ = ctrl_noise_rate;
 }
 
-void StepControl::SetPauseState(PauseState state) {
-  pause_state_ = state;
-}
+void StepControl::SetPauseState(PauseState state) { pause_state_ = state; }
 
 StepControl::PauseState StepControl::GetPauseState() const {
   return pause_state_;
@@ -240,12 +236,8 @@ void StepControl::InjectNoise(const mjModel* m, mjData* d) {
   }
 }
 
-void StepControl::SetPreStepCallback(StepFn step_fn) {
-  pre_step_ = step_fn;
-}
+void StepControl::SetPreStepCallback(StepFn step_fn) { pre_step_ = step_fn; }
 
-void StepControl::SetPostStepCallback(StepFn step_fn) {
-  post_step_ = step_fn;
-}
+void StepControl::SetPostStepCallback(StepFn step_fn) { post_step_ = step_fn; }
 
 }  // namespace mujoco::studio

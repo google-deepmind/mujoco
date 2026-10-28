@@ -30,9 +30,7 @@ namespace mujoco::studio {
 
 SimProfiler::SimProfiler() { Clear(); }
 
-void SimProfiler::ResetTimers() {
-  timer_prev_ = {};
-}
+void SimProfiler::ResetTimers() { timer_prev_ = {}; }
 
 void SimProfiler::Clear() {
   constexpr int kProfilerMaxFrames = 200;
@@ -142,7 +140,8 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
 }
 
 // Returns a dynamically padded legend label for ImPlot.
-static std::string GetLegendLabel(const char* name, const std::vector<float>& values) {
+static std::string GetLegendLabel(const char* name,
+                                  const std::vector<float>& values) {
   float sum = 0.f;
   int count = 0;
   for (float val : values) {
@@ -216,12 +215,24 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
     ImPlot_SetupValueAxis(plot_size, "", "%.0f");
     ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
     float max_val = 10.f;
-    for (float val : dim_dof_) { max_val = std::max(max_val, val); }
-    for (float val : dim_body_) { max_val = std::max(max_val, val); }
-    for (float val : dim_constraint_) { max_val = std::max(max_val, val); }
-    for (float val : dim_nnz_) { max_val = std::max(max_val, val); }
-    for (float val : dim_contact_) { max_val = std::max(max_val, val); }
-    for (float val : dim_iteration_) { max_val = std::max(max_val, val); }
+    for (float val : dim_dof_) {
+      max_val = std::max(max_val, val);
+    }
+    for (float val : dim_body_) {
+      max_val = std::max(max_val, val);
+    }
+    for (float val : dim_constraint_) {
+      max_val = std::max(max_val, val);
+    }
+    for (float val : dim_nnz_) {
+      max_val = std::max(max_val, val);
+    }
+    for (float val : dim_contact_) {
+      max_val = std::max(max_val, val);
+    }
+    for (float val : dim_iteration_) {
+      max_val = std::max(max_val, val);
+    }
     float log_max = std::log10(max_val);
     float y_max = std::pow(10.f, log_max + 0.1f);
     ImPlot::SetupAxisLimits(ImAxis_Y1, 1.0, y_max, ImPlotCond_Always);
@@ -243,15 +254,15 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
     };
 
     GetterData nnz_data{&dim_nnz_, count};
-    ImPlot::PlotLineG(GetDimensionLabel("nnz", dim_nnz_.back()).c_str(),
-                      getter, &nnz_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("nnz", dim_nnz_.back()).c_str(), getter,
+                      &nnz_data, count, spec);
     GetterData constraint_data{&dim_constraint_, count};
     ImPlot::PlotLineG(
-        GetDimensionLabel("constraint", dim_constraint_.back()).c_str(),
-        getter, &constraint_data, count, spec);
+        GetDimensionLabel("constraint", dim_constraint_.back()).c_str(), getter,
+        &constraint_data, count, spec);
     GetterData dof_data{&dim_dof_, count};
-    ImPlot::PlotLineG(GetDimensionLabel("dof", dim_dof_.back()).c_str(),
-                      getter, &dof_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("dof", dim_dof_.back()).c_str(), getter,
+                      &dof_data, count, spec);
     GetterData contact_data{&dim_contact_, count};
     ImPlot::PlotLineG(GetDimensionLabel("contact", dim_contact_.back()).c_str(),
                       getter, &contact_data, count, spec);
@@ -260,8 +271,8 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
                       getter, &body_data, count, spec);
     GetterData iteration_data{&dim_iteration_, count};
     ImPlot::PlotLineG(
-        GetDimensionLabel("iteration", dim_iteration_.back()).c_str(),
-        getter, &iteration_data, count, spec);
+        GetDimensionLabel("iteration", dim_iteration_.back()).c_str(), getter,
+        &iteration_data, count, spec);
     ImPlot::EndPlot();
   }
 }

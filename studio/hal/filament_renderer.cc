@@ -71,9 +71,7 @@ FilamentRenderer::FilamentRenderer(void* native_window, GraphicsMode gfx) {
   render_target_ = CreateRenderTarget(filament_context_.get(), config);
 }
 
-FilamentRenderer::~FilamentRenderer() {
-  g_update_gui_callback = nullptr;
-}
+FilamentRenderer::~FilamentRenderer() { g_update_gui_callback = nullptr; }
 
 void FilamentRenderer::Init(const mjModel* model) {
   model_decorations_.reset();
@@ -98,8 +96,8 @@ void FilamentRenderer::Init(const mjModel* model) {
     offsamples_ = model->vis.quality.offsamples;
     model_resources_ =
         std::make_unique<ModelResources>(model, filament_context_.get());
-    model_lights_ =
-        std::make_unique<ModelLights>(main_scene_.get(), model_resources_.get());
+    model_lights_ = std::make_unique<ModelLights>(main_scene_.get(),
+                                                  model_resources_.get());
     model_renderables_ = std::make_unique<ModelRenderables>(
         main_scene_.get(), model_resources_.get());
     model_decorations_ = std::make_unique<ModelDecorations>(
@@ -109,8 +107,8 @@ void FilamentRenderer::Init(const mjModel* model) {
 
 void FilamentRenderer::Sync(const mjModel* model, mjData* data,
                             const mjvPerturb* perturb, mjvCamera* camera,
-                            const mjvOption* vis_option, int width,
-                            int height, std::span<mjvGeom> extra_geoms) {
+                            const mjvOption* vis_option, int width, int height,
+                            std::span<mjvGeom> extra_geoms) {
   const mjrRect viewport = {0, 0, width, height};
 
   mjvCamera default_cam;

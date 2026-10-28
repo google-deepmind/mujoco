@@ -81,8 +81,7 @@ class ModelHolder {
   void InitFromSpec(mjSpec* spec);
   void InitFromFile(std::string_view filepath);
   void InitFromBuffer(std::span<const std::byte> buffer,
-                      std::string_view content_type,
-                      std::string_view filename);
+                      std::string_view content_type, std::string_view filename);
   void PostInit();
   void SetLoadError(std::string_view error);
 

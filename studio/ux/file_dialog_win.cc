@@ -15,7 +15,7 @@
 #include "studio/ux/file_dialog.h"
 
 #ifndef UNICODE
-#define UNICODE
+  #define UNICODE
 #endif
 
 #define _CRTDBG_MAP_ALLOC

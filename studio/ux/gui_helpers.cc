@@ -62,8 +62,8 @@ std::string CameraToString(const mjData* data, const mjvCamera* camera) {
   std::snprintf(str, sizeof(str),
                 "<camera pos=\"%.3f %.3f %.3f\" xyaxes=\"%.3f %.3f %.3f %.3f "
                 "%.3f %.3f\"/>\n",
-                pos[0], pos[1], pos[2], right[0], right[1], right[2],
-                up[0], up[1], up[2]);
+                pos[0], pos[1], pos[2], right[0], right[1], right[2], up[0],
+                up[1], up[2]);
   return str;
 }
 

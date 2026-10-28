@@ -14,7 +14,7 @@ via `mujoco::studio::LaunchStudio`.
 ## 1. C++ Plugin Registry (`mujoco::studio::RegisterPlugin`)
 
 C++ extensions define plugins using structs declared in
-`src/experimental/studio/ux/plugin.h`:
+`studio/ux/plugin.h`:
 
 | Plugin Struct | Role | Key Callbacks |
 | :--- | :--- | :--- |
@@ -37,7 +37,7 @@ Linking the plugin library into the Studio binary registers it without modifying
 ```cpp
 #include "imgui.h"
 #include <mujoco/mjplugin.h>
-#include "src/experimental/studio/ux/plugin.h"
+#include "studio/ux/plugin.h"
 
 namespace {
 
@@ -64,8 +64,8 @@ register plugins explicitly before calling `mujoco::studio::LaunchStudio`:
 ```cpp
 #include "absl/flags/parse.h"
 #include "imgui.h"
-#include "src/experimental/studio/launcher.h"
-#include "src/experimental/studio/ux/plugin.h"
+#include "studio/launcher.h"
+#include "studio/ux/plugin.h"
 
 void MyGuiUpdate(mujoco::studio::GuiPlugin* self) {
   ImGui::TextUnformatted("Custom Tool Window");

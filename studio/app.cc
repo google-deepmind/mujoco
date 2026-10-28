@@ -186,7 +186,6 @@ App::App(Config config)
 #ifndef __EMSCRIPTEN__
   physics_thread_ = std::thread(&App::PhysicsThreadLoop, this);
 #endif
-
 }
 
 App::~App() {
@@ -219,8 +218,7 @@ void App::PhysicsThreadLoop() {
 }
 #endif
 
-void App::SwitchGraphicsMode(int width, int height,
-                             GraphicsMode mode) {
+void App::SwitchGraphicsMode(int width, int height, GraphicsMode mode) {
   model_scene_.reset();
   imgui_bridge_.reset();
   renderer_.reset();
@@ -228,8 +226,7 @@ void App::SwitchGraphicsMode(int width, int height,
 
   Window::Config window_config;
   window_config.gfx_mode = mode;
-  window_ = std::make_unique<Window>(app_title_, width, height,
-                                               window_config);
+  window_ = std::make_unique<Window>(app_title_, width, height, window_config);
 
   mjrfContextConfig renderer_config;
   mjrf_defaultContextConfig(&renderer_config);
@@ -263,9 +260,7 @@ void App::RequestModelLoad(std::string model_file) {
   pending_load_ = std::move(model_file);
 }
 
-void App::RequestModelReload() {
-  pending_reload_ = true;
-}
+void App::RequestModelReload() { pending_reload_ = true; }
 
 void App::InitEmptyModel() {
   std::unique_lock<std::mutex> lock(physics_mutex_);
@@ -300,8 +295,8 @@ void App::LoadKeyframe(std::string_view keyframe) {
 
   if (!keyframe.empty()) {
     int parsed = -1;
-    auto [ptr, ec] = std::from_chars(
-        keyframe.data(), keyframe.data() + keyframe.size(), parsed);
+    auto [ptr, ec] = std::from_chars(keyframe.data(),
+                                     keyframe.data() + keyframe.size(), parsed);
     if (ec == std::errc() && ptr == keyframe.data() + keyframe.size() &&
         parsed >= 0 && parsed < m->nkey) {
       tmp_.key_idx = parsed;
@@ -452,8 +447,7 @@ void App::UpdatePhysics() {
       mjv_applyPerturbPose(model(), data(), &perturb_, 1);
     }
 
-    StepControl::Status status =
-        step_control_.Advance(model(), data());
+    StepControl::Status status = step_control_.Advance(model(), data());
     if (status == StepControl::Status::kPaused) {
       profiler_.Update(model(), data());
     } else if (status == StepControl::Status::kOk) {
@@ -519,7 +513,8 @@ void App::ApplyTimelineScrub() {
 bool App::Update() {
   const auto now = std::chrono::steady_clock::now();
   if (last_frame_time_.time_since_epoch().count() != 0) {
-    const double dt = std::chrono::duration<double>(now - last_frame_time_).count();
+    const double dt =
+        std::chrono::duration<double>(now - last_frame_time_).count();
     const double fps = dt > 0 ? 1.0 / dt : 0;
     fps_ = fps_ > 0 ? 0.9 * fps_ + 0.1 * fps : fps;
   }
@@ -574,7 +569,7 @@ void App::Render() {
   }
   imgui_bridge_->Update();
 
-  Renderer::View views[2] = { GetSceneView(), GetUxView() };
+  Renderer::View views[2] = {GetSceneView(), GetUxView()};
   renderer_->ResizeRenderTarget(Renderer::kWindowRenderTarget, viewport.width,
                                 viewport.height);
 
@@ -596,7 +591,7 @@ std::span<const std::byte> App::RenderToTexture(mjvCamera* camera, int width,
   auto target = renderer_->GetRenderTargetHandle("tmp");
   renderer_->ResizeRenderTarget(target, width, height);
 
-  Renderer::View views[1] = { GetSceneView() };
+  Renderer::View views[1] = {GetSceneView()};
   views[0].camera = mjv_camera2GLCamera(model(), data(), camera);
   views[0].render_target = target;
   renderer_->Render(views);
@@ -687,7 +682,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     RestoreKeyframeSelection(saved_key);
     InitModelScene();
     ResetHistory(sim_history_, timeline_, has_model() ? model() : nullptr,
-                  has_data() ? data() : nullptr);
+                 has_data() ? data() : nullptr);
     timer_prev_ = {};
     profiler_.ResetTimers();
   } else if (std::holds_alternative<EmptyModel>(info)) {
@@ -721,7 +716,8 @@ void App::BuildModel(const BuildModelInfo& info) {
       }
       UpdateFilePaths(resolved_file);
       if (model() && model()->names) {
-        // Assumes the first string in the model is the name of the model itself.
+        // Assumes the first string in the model is the name of the model
+        // itself.
         window_->SetTitle(app_title_ + " : " + std::string(model()->names));
       } else {
         window_->SetTitle(app_title_ + " : " +
@@ -878,7 +874,8 @@ void App::ProcessPendingLoads() {
         BuildModel(FileModel(model_name));
       } else if (buf && size) {
         const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
-        BuildModel(BufferModel{{bytes, bytes + size}, content_type, model_name});
+        BuildModel(
+            BufferModel{{bytes, bytes + size}, content_type, model_name});
       }
     }
   });
@@ -940,8 +937,8 @@ void App::HandleMouseEvents() {
       if (active != perturb_.active) {
         InitPerturb(model(), data(), &camera_, &perturb_, active);
       }
-      MovePerturb(model(), data(), &camera_, &perturb_, action,
-                            mouse_dx, mouse_dy);
+      MovePerturb(model(), data(), &camera_, &perturb_, action, mouse_dx,
+                  mouse_dy);
     }
   }
   // Handle camera movement actions.
@@ -976,9 +973,8 @@ void App::HandleMouseEvents() {
 
   // Left double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-    PickResult picked =
-        Pick(model(), data(), &camera_, mouse_x, mouse_y,
-                       window_->GetAspectRatio(), &vis_options_);
+    PickResult picked = Pick(model(), data(), &camera_, mouse_x, mouse_y,
+                             window_->GetAspectRatio(), &vis_options_);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
       perturb_.flexselect = picked.flex;
@@ -1009,9 +1005,8 @@ void App::HandleMouseEvents() {
 
   // Right double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
-    PickResult picked =
-        Pick(model(), data(), &camera_, mouse_x, mouse_y,
-                       window_->GetAspectRatio(), &vis_options_);
+    PickResult picked = Pick(model(), data(), &camera_, mouse_x, mouse_y,
+                             window_->GetAspectRatio(), &vis_options_);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
       // Switch camera to tracking mode and track the selected body.
@@ -1196,8 +1191,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
     ToggleFlag(vis_options_.geomgroup[5]);
   } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
-    tmp_.camera_idx =
-        SetCamera(model(), &camera_, kTumbleCameraIdx);
+    tmp_.camera_idx = SetCamera(model(), &camera_, kTumbleCameraIdx);
   } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
     tmp_.camera_idx = SetCamera(model(), &camera_, tmp_.camera_idx - 1);
   } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
@@ -1264,8 +1258,7 @@ void App::LoadSettings() {
       ui_.FromDict(ReadIniSection(settings, "[Studio][UX]"));
       ImGui::LoadIniSettingsFromMemory(settings.data(), settings.size());
 
-      KeyValues plugin_names =
-          ReadIniSection(settings, "[Studio][Plugins]");
+      KeyValues plugin_names = ReadIniSection(settings, "[Studio][Plugins]");
       ForEachPlugin<GuiPlugin>([&](auto* plugin) {
         auto it = plugin_names.find(plugin->name);
         if (it != plugin_names.end()) {
@@ -1337,7 +1330,7 @@ void App::SaveSettings() {
       }
     }
     AppendIniSection(settings, "[Studio][WindowStateStorage]",
-                               window_state_storage);
+                     window_state_storage);
 
     SaveText(settings, ini_path_);
   }
@@ -1417,8 +1410,7 @@ void App::BuildGui() {
     if (ImGui::Begin("Profiler", &tmp_.profiler,
                      ImGuiWindowFlags_NoScrollbar |
                          ImGuiWindowFlags_NoScrollWithMouse)) {
-      ProfilerGui(model(), data(), &profiler_,
-                            tmp_.profiler_show_iter);
+      ProfilerGui(model(), data(), &profiler_, tmp_.profiler_show_iter);
     }
     ImGui::End();
   }
@@ -1484,8 +1476,8 @@ void App::BuildGui() {
     const float target_width = std::clamp(
         max_line_width + padding, min_target_width, max_workspace_width);
 
-    if (BeginOverlay("WarningOverlay", OverlayPos::kBottom,
-                               workspace_rect, target_width, 0.8f)) {
+    if (BeginOverlay("WarningOverlay", OverlayPos::kBottom, workspace_rect,
+                     target_width, 0.8f)) {
       const bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
       if (!model_holder_->warning().empty()) {
         const ImVec4 warning_color = is_dark ? ImVec4(1.0f, 0.8f, 0.2f, 1.0f)
@@ -1510,8 +1502,8 @@ void App::BuildGui() {
 
   if (tmp_.info) {
     const float scale = ImGui::GetWindowDpiScale();
-    if (BeginOverlay("Info", OverlayPos::kBottomLeft,
-                               workspace_rect, 180.0f * scale)) {
+    if (BeginOverlay("Info", OverlayPos::kBottomLeft, workspace_rect,
+                     180.0f * scale)) {
       InfoGui(model(), data(),
               step_control_.GetPauseState() == PauseState::kNormalPaused, fps_,
               renderer_->GetGpuFrameMs(), timer_prev_.data());
@@ -1525,8 +1517,8 @@ void App::BuildGui() {
   // pause overlay
   if (tmp_.info && has_model() &&
       step_control_.GetPauseState() == PauseState::kNormalPaused) {
-    TextOverlay("Pause", OverlayPos::kTop, workspace_rect,
-                          "PAUSE", ImVec4(0, 0, 0, 0), 3.0f);
+    TextOverlay("Pause", OverlayPos::kTop, workspace_rect, "PAUSE",
+                ImVec4(0, 0, 0, 0), 3.0f);
   }
 
   // realtime factor overlay
@@ -1542,8 +1534,8 @@ void App::BuildGui() {
       } else {
         std::snprintf(rtlabel, sizeof(rtlabel), "%g%%", desired);
       }
-      TextOverlay("Realtime", OverlayPos::kTopLeft,
-                            workspace_rect, rtlabel, ImVec4(0, 0, 0, 0), 2.0f);
+      TextOverlay("Realtime", OverlayPos::kTopLeft, workspace_rect, rtlabel,
+                  ImVec4(0, 0, 0, 0), 2.0f);
     }
   }
 
@@ -1691,8 +1683,7 @@ void App::ModelOptionsGui() {
 
     // Camera selector.
     {
-      std::string cam_name =
-          GetCameraName(model(), camera_, tmp_.camera_idx);
+      std::string cam_name = GetCameraName(model(), camera_, tmp_.camera_idx);
 
       char camera_text[32];
       std::snprintf(camera_text, sizeof(camera_text), "%s  Camera",
@@ -1825,8 +1816,8 @@ void App::DataInspectorGui() {
 
   ImGui::BeginChild("WatchGui", {0, 0}, child_flags);
   if (SectionHeader("Watch", node_flags, 0.65f)) {
-    WatchGui(model(), data(), tmp_.watch_field,
-                       sizeof(tmp_.watch_field), tmp_.watch_index);
+    WatchGui(model(), data(), tmp_.watch_field, sizeof(tmp_.watch_field),
+             tmp_.watch_index);
     ImGui::TreePop();
   }
   ImGui::EndChild();
@@ -1857,8 +1848,7 @@ void App::SpecExplorerGui() {
 
   mjsElement* element = tmp_.curr_element;
   bool open = element != nullptr;
-  if (ImGui_BeginHSplit("SpecExplorerTree", &tmp_.explorer_split,
-                                  &open)) {
+  if (ImGui_BeginHSplit("SpecExplorerTree", &tmp_.explorer_split, &open)) {
     SpecTreeGui(&element, spec());
 
     if (element != tmp_.curr_element) {
@@ -1875,8 +1865,7 @@ void App::SpecExplorerGui() {
       }
     }
 
-    if (ImGui_HSplit("SpecExplorerProperties", &tmp_.explorer_split,
-                               &open)) {
+    if (ImGui_HSplit("SpecExplorerProperties", &tmp_.explorer_split, &open)) {
       ImGui::Text("%s", mju_type2Str(tmp_.curr_element->elemtype));
       ImGui::SameLine();
       ImGui::Text("(%d)", mjs_getId(tmp_.curr_element));
@@ -1996,15 +1985,12 @@ void App::SpecEditorGui() {
   mjsElement* element = spec_editor_.GetActiveElement();
 
   bool open = element != nullptr;
-  if (ImGui_BeginHSplit("SpecEditorTree", &tmp_.editor_split,
-                                  &open)) {
-    SpecTreeGui(&element, spec_editor_.GetActiveSpec(),
-                          &spec_editor_);
+  if (ImGui_BeginHSplit("SpecEditorTree", &tmp_.editor_split, &open)) {
+    SpecTreeGui(&element, spec_editor_.GetActiveSpec(), &spec_editor_);
     open = element != nullptr;
     spec_editor_.SetActiveElement(element);
 
-    if (ImGui_HSplit("SpecEditorProperties", &tmp_.editor_split,
-                               &open)) {
+    if (ImGui_HSplit("SpecEditorProperties", &tmp_.editor_split, &open)) {
       ImGui::Text("%s", mju_type2Str(element->elemtype));
       ImGui::SameLine();
       ImGui::Text("(%d)", mjs_getId(element));
@@ -2344,7 +2330,8 @@ void App::MainMenuGui() {
             }
             ImGui::EndCombo();
           }
-          ImGui::BeginDisabled(tmp_.key_idx < 0 || tmp_.key_idx >= model()->nkey);
+          ImGui::BeginDisabled(tmp_.key_idx < 0 ||
+                               tmp_.key_idx >= model()->nkey);
           if (ImGui::MenuItem("Save")) {
             mj_setKeyframe(model(), data(), tmp_.key_idx);
           }
@@ -2375,7 +2362,8 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Inspector", "Shift+Tab", tmp_.inspector_panel)) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }
-      if (ImGui::MenuItem("Editor (\xEF\x83\x83)", nullptr, tmp_.editor_panel)) {
+      if (ImGui::MenuItem("Editor (\xEF\x83\x83)", nullptr,
+                          tmp_.editor_panel)) {
         tmp_.editor_panel = !tmp_.editor_panel;
         if (tmp_.editor_panel) {
           tmp_.inspector_panel = true;
@@ -2500,10 +2488,9 @@ void App::FileDialogGui() {
   ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
   if (ImGui::BeginPopupModal("FileDialog", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    const DialogResult res =
-        tmp_.file_dialog == UiTempState::FileDialog_Load
-            ? OpenFileDialog(tmp_.filename)
-            : SaveFileDialog(tmp_.filename);
+    const DialogResult res = tmp_.file_dialog == UiTempState::FileDialog_Load
+                                 ? OpenFileDialog(tmp_.filename)
+                                 : SaveFileDialog(tmp_.filename);
 
     if (res.status == DialogResult::kAccepted) {
       tmp_.last_path[tmp_.file_dialog] = res.path;

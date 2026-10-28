@@ -613,11 +613,12 @@ bool ImGui_Input(const char* name, T* value, ImGuiOpts<T> opts = {}) {
   return ImGui_InputN(name, value, 1, opts);
 }
 
-// A numeric input whose - / + buttons step through a "well-tempered" logarithmic
-// ladder (see WellTemperedStep): round numbers spaced evenly in log space that
-// close each decade on a power of ten. Typed edits are applied on enter or focus
-// change, like ImGui_Input. Suited to quantities spanning several orders of
-// magnitude, such as the simulation timestep. The buttons auto-repeat when held.
+// A numeric input whose - / + buttons step through a "well-tempered"
+// logarithmic ladder (see WellTemperedStep): round numbers spaced evenly in log
+// space that close each decade on a power of ten. Typed edits are applied on
+// enter or focus change, like ImGui_Input. Suited to quantities spanning
+// several orders of magnitude, such as the simulation timestep. The buttons
+// auto-repeat when held.
 template <typename T>
 bool ImGui_LogStepper(const char* name, T* value, ImGuiOpts<T> opts = {}) {
   const float button = ImGui::GetFrameHeight();

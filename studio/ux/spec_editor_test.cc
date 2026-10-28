@@ -45,8 +45,7 @@ TEST(SpecEditorTest, InitialUndoStateAndSingleCommitUndoRedo) {
   EXPECT_FALSE(editor.CanUndo());
   EXPECT_FALSE(editor.CanRedo());
 
-  mjsElement* geom_el =
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
+  mjsElement* geom_el = mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
   ASSERT_NE(geom_el, nullptr);
   editor.SetActiveElement(geom_el);
 
@@ -63,8 +62,8 @@ TEST(SpecEditorTest, InitialUndoStateAndSingleCommitUndoRedo) {
   EXPECT_FALSE(editor.CanUndo());
   EXPECT_TRUE(editor.CanRedo());
 
-  mjsGeom* undone_geom = mjs_asGeom(
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM));
+  mjsGeom* undone_geom =
+      mjs_asGeom(mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM));
   ASSERT_NE(undone_geom, nullptr);
   EXPECT_DOUBLE_EQ(undone_geom->mass, 2.0);
 
@@ -72,8 +71,8 @@ TEST(SpecEditorTest, InitialUndoStateAndSingleCommitUndoRedo) {
   EXPECT_TRUE(editor.CanUndo());
   EXPECT_FALSE(editor.CanRedo());
 
-  mjsGeom* redone_geom = mjs_asGeom(
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM));
+  mjsGeom* redone_geom =
+      mjs_asGeom(mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM));
   ASSERT_NE(redone_geom, nullptr);
   EXPECT_DOUBLE_EQ(redone_geom->mass, 3.0);
 }
@@ -97,8 +96,7 @@ TEST(SpecEditorTest, UndoReversesUndoneOperationInElementMap) {
   EXPECT_FALSE(editor.CanUndo());
   EXPECT_TRUE(editor.CanRedo());
   EXPECT_EQ(editor.GetActiveElement(), nullptr);
-  mjsElement* first_el =
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
+  mjsElement* first_el = mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
   ASSERT_NE(first_el, nullptr);
   EXPECT_EQ(mjs_nextElement(editor.GetActiveSpec(), first_el), nullptr);
 
@@ -158,8 +156,7 @@ TEST(SpecEditorTest, HistoryCapacityEvictsOldestEntries) {
   editor.Reset(*spec);
 
   for (double mass : {2.0, 3.0, 4.0}) {
-    mjsElement* geom_el =
-        mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
+    mjsElement* geom_el = mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
     ASSERT_NE(geom_el, nullptr);
     editor.SetActiveElement(geom_el);
     mjs_asGeom(geom_el)->mass = mass;
@@ -217,8 +214,7 @@ TEST(SpecEditorTest, EmptyAndRepeatedResetClearStateAndMaps) {
   extra_geom->mass = 9.0;
 
   editor.Reset(*spec1);
-  mjsElement* geom_el =
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
+  mjsElement* geom_el = mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
   ASSERT_NE(geom_el, nullptr);
   editor.SetActiveElement(geom_el);
   mjs_asGeom(geom_el)->mass = 4.0;
@@ -252,8 +248,7 @@ TEST(SpecEditorTest, EmptyAndRepeatedResetClearStateAndMaps) {
   EXPECT_FALSE(editor.CanUndo());
   EXPECT_FALSE(editor.CanRedo());
 
-  mjsElement* spec2_geom =
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
+  mjsElement* spec2_geom = mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
   ASSERT_NE(spec2_geom, nullptr);
   editor.SetActiveElement(spec2_geom);
   ASSERT_NE(editor.GetRefElement(), nullptr);
@@ -265,8 +260,7 @@ TEST(SpecEditorTest, CompileRefreshesRefElement) {
   SpecPtr spec = MakeSpecWithGeomMass(2.0);
   editor.Reset(*spec);
 
-  mjsElement* geom_el =
-      mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
+  mjsElement* geom_el = mjs_firstElement(editor.GetActiveSpec(), mjOBJ_GEOM);
   ASSERT_NE(geom_el, nullptr);
   editor.SetActiveElement(geom_el);
   ASSERT_NE(editor.GetRefElement(), nullptr);

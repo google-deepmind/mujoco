@@ -38,8 +38,8 @@ struct LauncherConfig {
 };
 
 // Runs the MuJoCo Studio application.
-// This function handles resource provider registration, graphics mode detection,
-// app creation, and the main loop.
+// This function handles resource provider registration, graphics mode
+// detection, app creation, and the main loop.
 //
 // Expects absl::ParseCommandLine to have been called before this.
 int LaunchStudio(int argc, char** argv, LauncherConfig config = {});

@@ -74,11 +74,11 @@ TEST_F(RendererTest, OpengGlHeadless) {
   renderer.Init(holder_->model());
 
   gl::DriverType driver_type = gl::GetLoadedDriverType();
-  #if TEST_HAS_GPU
+#if TEST_HAS_GPU
   ASSERT_EQ(driver_type, gl::DriverType::kEgl);
-  #else
+#else
   ASSERT_EQ(driver_type, gl::DriverType::kOsMesa);
-  #endif
+#endif
 
   std::vector<std::byte> pixels(width_ * height_ * 3);
   renderer.Sync(holder_->model(), holder_->data(), nullptr, nullptr, nullptr,

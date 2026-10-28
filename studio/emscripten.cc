@@ -204,8 +204,7 @@ class FetchCache {
     std::string url_copy = url;
     entries_.try_emplace(
         std::move(url),
-        FetchEntry{std::move(url_copy), std::move(bytes),
-                   std::move(filename)});
+        FetchEntry{std::move(url_copy), std::move(bytes), std::move(filename)});
   }
 
   // Hands back a pointer into the cached bytes for the given URL.

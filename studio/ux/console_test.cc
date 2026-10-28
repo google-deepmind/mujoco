@@ -151,11 +151,11 @@ TEST_F(ConsoleTest, KeepsOnlyTheMostRecentBytes) {
   EXPECT_GT(bytes + 2 * filler.size(), kSmallMaxBytes);  // Not too eager.
   // The oldest lines were dropped and the most recent ones kept.
   const int first_kept = num_lines - static_cast<int>(lines.size());
-  EXPECT_TRUE(lines.front().starts_with("INFO: " + std::to_string(first_kept) +
-                                        ' '))
+  EXPECT_TRUE(
+      lines.front().starts_with("INFO: " + std::to_string(first_kept) + ' '))
       << lines.front().substr(0, 20);
-  EXPECT_TRUE(lines.back().starts_with("INFO: " +
-                                       std::to_string(num_lines - 1) + ' '))
+  EXPECT_TRUE(
+      lines.back().starts_with("INFO: " + std::to_string(num_lines - 1) + ' '))
       << lines.back().substr(0, 20);
   EXPECT_EQ(console.GetCounts().messages, num_lines);
 }

@@ -418,7 +418,8 @@ void SaveSettings(GuiTheme theme, const std::string& ini_path) {
   ux_dict["theme"] = std::to_string(static_cast<int>(theme));
   AppendIniSection(settings, "[Studio][UX]", ux_dict);
 
-  // Preserve other Studio custom sections (e.g. [Studio][Plugins], [Studio][WindowStateStorage]).
+  // Preserve other Studio custom sections (e.g. [Studio][Plugins],
+  // [Studio][WindowStateStorage]).
   std::istringstream f(existing);
   std::string line;
   std::vector<std::string> custom_sections;
@@ -1179,7 +1180,8 @@ void SimulationGui(const SimulationGuiContext& ctx) {
         const float spacing = ImGui::GetStyle().ItemSpacing.x;
         const float btn_w = (avail - spacing) / 2.0f;
 
-        ImGui::BeginDisabled(*ctx.key_idx < 0 || *ctx.key_idx >= ctx.model->nkey);
+        ImGui::BeginDisabled(*ctx.key_idx < 0 ||
+                             *ctx.key_idx >= ctx.model->nkey);
         if (ImGui::Button(save_label, ImVec2(btn_w, 0))) {
           ctx.save_keyframe();
         }
@@ -1190,8 +1192,8 @@ void SimulationGui(const SimulationGuiContext& ctx) {
           std::string str = KeyframeToString(ctx.model, ctx.data, false);
           MaybeSaveToClipboard(str);
         }
-        ImGui::SetItemTooltip(
-            "%s", "Copy active state to clipboard as MJCF XML");
+        ImGui::SetItemTooltip("%s",
+                              "Copy active state to clipboard as MJCF XML");
       }
     }
 
@@ -1647,7 +1649,8 @@ void PhysicsGui(mjModel* model, mjSpec* spec, float min_width) {
 
   auto& opt = spec ? spec->option : model->opt;
 
-  const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast", "discrete"};
+  const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast",
+                         "discrete"};
   ImGui::Combo("Integrator", &opt.integrator, opts0, IM_ARRAYSIZE(opts0));
 
   const char* opts1[] = {"Pyramidal", "Elliptic"};

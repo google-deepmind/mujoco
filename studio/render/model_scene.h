@@ -31,7 +31,7 @@ namespace mujoco::studio {
 // Populates an mjrfScene with Lights and Renderables from an mjModel.
 class ModelScene {
  public:
-  using DrawTextAtFn = std::function<void (const char *, float, float, float)>;
+  using DrawTextAtFn = std::function<void(const char*, float, float, float)>;
 
   ModelScene(mjrfContext* ctx, mjrfScene* scene, mjModel* model,
              DrawTextAtFn draw_text_at_fn = nullptr);

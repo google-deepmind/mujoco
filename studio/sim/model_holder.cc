@@ -127,8 +127,7 @@ void ModelHolder::InitFromBuffer(std::span<const std::byte> buffer,
     spec_ = mj_parse(name.c_str(), content_type.data(), vfs_, error_,
                      sizeof(error_));
   } else {
-    SetLoadError(
-        "Unknown content type; expected text/xml or application/mjb");
+    SetLoadError("Unknown content type; expected text/xml or application/mjb");
   }
   if (error_[0] == 0) {
     PostInit();

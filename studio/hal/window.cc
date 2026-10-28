@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -24,6 +25,7 @@
 #include <SDL_events.h>
 #include <SDL_hints.h>
 #include <SDL_render.h>
+#include <SDL_stdinc.h>
 #include <SDL_surface.h>
 #include <SDL_syswm.h>
 #include <SDL_version.h>
@@ -31,13 +33,12 @@
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
 #include <mujoco/mujoco.h>
-#include "user/user_resource.h"
 #include "studio/hal/graphics_mode.h"
 #include "studio/ux/fonts.h"
 
 // Because X11/Xlib.h defines Status.
 #ifdef Status
-#undef Status
+  #undef Status
 #endif
 
 #if defined(__APPLE__)
@@ -45,8 +46,9 @@ extern void* GetNativeWindowOsx(void* window);
 #endif
 
 #if defined(__EMSCRIPTEN__)
-#include <emscripten/em_js.h>
+  #include <emscripten/em_js.h>
 
+// clang-format off
 EM_JS(bool, PlatformIsApple, (), {
   if (typeof navigator === "undefined") {
     return false;
@@ -59,6 +61,7 @@ EM_JS(bool, PlatformIsApple, (), {
   }
   return /Macintosh|Mac OS X/i.test(navigator.userAgent || "");
 });
+// clang-format on
 #endif
 
 namespace mujoco::studio {

@@ -88,7 +88,8 @@ class ObjectLauncher {
     const mjtNum size = 0.5 * len;
     Seed(size, &size_, &size_seed_);
     // Mass giving the default box (volume (2*size)^3) density 1000, MuJoCo's
-    // default geom density. Units are unspecified, so 1000 is just a convention.
+    // default geom density. Units are unspecified, so 1000 is just a
+    // convention.
     const mjtNum box_volume = 8.0 * size * size * size;
     Seed(1000.0 * box_volume, &mass_, &mass_seed_);
     const mjtNum gravity = mju_norm3(model->opt.gravity);

@@ -351,8 +351,7 @@ bool ImGui_SliderLog(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
                              ImGuiSliderFlags_Logarithmic);
 }
 
-bool ImGui_ResetButton(const char* id, const char* icon,
-                       const char* tooltip) {
+bool ImGui_ResetButton(const char* id, const char* icon, const char* tooltip) {
   const float size = ImGui::GetFrameHeight();
   ImGui::SameLine();
   ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - size);

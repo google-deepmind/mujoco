@@ -61,7 +61,7 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
     dst = src;                                                                 \
     return true;                                                               \
   }                                                                            \
-  namespace mujoco::studio {                                                 \
+  namespace mujoco::studio {                                                   \
   template void RegisterPlugin<PLUGIN>(PLUGIN plugin);                         \
   template void ForEachPlugin<PLUGIN>(const std::function<void(PLUGIN*)>& fn); \
   }
