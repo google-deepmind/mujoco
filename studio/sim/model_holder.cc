@@ -31,16 +31,15 @@ std::unique_ptr<ModelHolder> ModelHolder::FromSpec(mjSpec* spec, mjVFS* vfs) {
   return mh;
 }
 
-std::unique_ptr<ModelHolder> ModelHolder::FromFile(std::string_view filepath,
-                                                   mjVFS* vfs) {
+std::unique_ptr<ModelHolder> ModelHolder::FromFile(std::string_view filepath, mjVFS* vfs) {
   auto mh = std::unique_ptr<ModelHolder>(new ModelHolder(vfs));
   mh->InitFromFile(filepath);
   return mh;
 }
 
-std::unique_ptr<ModelHolder> ModelHolder::FromBuffer(
-    std::span<const std::byte> buffer, std::string_view content_type,
-    std::string_view filename, mjVFS* vfs) {
+std::unique_ptr<ModelHolder> ModelHolder::FromBuffer(std::span<const std::byte> buffer,
+                                                     std::string_view content_type,
+                                                     std::string_view filename, mjVFS* vfs) {
   auto mh = std::unique_ptr<ModelHolder>(new ModelHolder(vfs));
   mh->InitFromBuffer(buffer, content_type, filename);
   return mh;
@@ -110,8 +109,7 @@ void ModelHolder::InitFromFile(std::string_view filepath) {
   }
 }
 
-void ModelHolder::InitFromBuffer(std::span<const std::byte> buffer,
-                                 std::string_view content_type,
+void ModelHolder::InitFromBuffer(std::span<const std::byte> buffer, std::string_view content_type,
                                  std::string_view filename) {
   if (content_type == "text/xml") {
     const char* ptr = reinterpret_cast<const char*>(buffer.data());
@@ -122,10 +120,8 @@ void ModelHolder::InitFromBuffer(std::span<const std::byte> buffer,
     model_ = mj_loadModelBuffer(buffer.data(), buffer.size());
   } else if (content_type == "application/zip") {
     std::string name(filename);
-    mj_addBufferVFS(vfs_, name.c_str(), buffer.data(),
-                    static_cast<int>(buffer.size()));
-    spec_ = mj_parse(name.c_str(), content_type.data(), vfs_, error_,
-                     sizeof(error_));
+    mj_addBufferVFS(vfs_, name.c_str(), buffer.data(), static_cast<int>(buffer.size()));
+    spec_ = mj_parse(name.c_str(), content_type.data(), vfs_, error_, sizeof(error_));
   } else {
     SetLoadError("Unknown content type; expected text/xml or application/mjb");
   }

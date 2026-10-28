@@ -86,8 +86,7 @@ class Console {
   // Adds a message at the given level without printing it, one line per line
   // of `message` and then of `body`. Use it for messages that are printed
   // elsewhere, e.g. engine messages and Python log records.
-  void Add(mjtLogLevel level, std::string_view message,
-           std::string_view body = "");
+  void Add(mjtLogLevel level, std::string_view message, std::string_view body = "");
 
   // Returns the number of messages, warnings, and errors.
   ConsoleCounts GetCounts() const;
@@ -111,15 +110,14 @@ class Console {
     std::string text;
   };
 
-  void AppendLinesLocked(mjtLogLevel level, std::string_view prefix,
-                         std::string_view text);
+  void AppendLinesLocked(mjtLogLevel level, std::string_view prefix, std::string_view text);
   void ClearLocked();
 
   const size_t max_bytes_ = kMaxBytes;
   mutable std::mutex mutex_;
   std::deque<Line> lines_;
   size_t total_bytes_used_ = 0;  // sum of LineBytes over lines_
-  int64_t dropped_lines_ = 0;  // oldest lines dropped to stay within max_bytes_
+  int64_t dropped_lines_ = 0;    // oldest lines dropped to stay within max_bytes_
   ConsoleCounts counts_;
   bool auto_scroll_ = true;
   bool scroll_to_bottom_ = false;

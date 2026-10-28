@@ -37,13 +37,10 @@ class ModelScene {
              DrawTextAtFn draw_text_at_fn = nullptr);
 
   // Updates the mjrfScene with the current mjData state of the model.
-  void Sync(const mjModel* model, mjData* data, mjrRect viewport,
-            const mjvOption* vis_options, const mjvPerturb* perturb,
-            mjvCamera* camera, std::span<const mjvGeom> extra_geoms);
+  void Sync(const mjModel* model, mjData* data, mjrRect viewport, const mjvOption* vis_options,
+            const mjvPerturb* perturb, mjvCamera* camera, std::span<const mjvGeom> extra_geoms);
 
-  float GetHeadlightIntensity() {
-    return model_lights_->GetHeadlightIntensity();
-  }
+  float GetHeadlightIntensity() { return model_lights_->GetHeadlightIntensity(); }
 
  private:
   mjrfScene* scene_;

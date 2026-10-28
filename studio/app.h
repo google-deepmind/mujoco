@@ -85,8 +85,7 @@ class App {
   // one of: "text/xml", "application/mjb", or "application/mjz". For zip files,
   // a name is required in order to uniquely identify the model within the
   // archive.
-  void LoadModelFromBuffer(std::span<const std::byte> buffer,
-                           std::string_view content_type,
+  void LoadModelFromBuffer(std::span<const std::byte> buffer, std::string_view content_type,
                            std::string_view name);
 
   // Selects and loads a keyframe by name or numerical index. If invalid,
@@ -133,8 +132,8 @@ class App {
   struct RecompileFromSpec {};
 
   // The different ways in which the model can be built.
-  using BuildModelInfo = std::variant<EmptyModel, FileModel, BufferModel,
-                                      RecompileModel, RecompileFromSpec>;
+  using BuildModelInfo =
+      std::variant<EmptyModel, FileModel, BufferModel, RecompileModel, RecompileFromSpec>;
 
   enum class SpecPropertiesMode {
     kSpec,
@@ -294,8 +293,7 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
-  std::span<const std::byte> RenderToTexture(mjvCamera* camera, int width,
-                                             int height);
+  std::span<const std::byte> RenderToTexture(mjvCamera* camera, int width, int height);
 
   std::unique_ptr<Window> window_;
   std::unique_ptr<Renderer> renderer_;
@@ -320,8 +318,7 @@ class App {
   // Cached previous state.
   std::vector<std::byte> last_buffer_;
   std::string last_content_type_;
-  StepControl::PauseState last_pause_state_ =
-      StepControl::PauseState::kNormalPaused;
+  StepControl::PauseState last_pause_state_ = StepControl::PauseState::kNormalPaused;
   std::chrono::steady_clock::time_point last_frame_time_;
   double fps_ = 0;
 

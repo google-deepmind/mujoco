@@ -26,8 +26,8 @@ namespace mujoco::studio {
 
 // Returns false if the user requests that this picture-in-picture widget be
 // removed from the GUI.
-static bool PipGuiImpl(const mjModel* model, float aspect_ratio,
-                       const PipRenderCallback& render_cb, PipState* pip) {
+static bool PipGuiImpl(const mjModel* model, float aspect_ratio, const PipRenderCallback& render_cb,
+                       PipState* pip) {
   bool result = true;
 
   auto get_camera_name = [model](int i) -> const char* {
@@ -77,8 +77,8 @@ static bool PipGuiImpl(const mjModel* model, float aspect_ratio,
   return result;
 }
 
-void PipGui(const mjModel* model, float aspect_ratio,
-            const PipRenderCallback& render_cb, std::vector<PipState>* pips) {
+void PipGui(const mjModel* model, float aspect_ratio, const PipRenderCallback& render_cb,
+            std::vector<PipState>* pips) {
   if (pips->empty()) {
     pips->emplace_back();
   }
@@ -99,8 +99,7 @@ void PipGui(const mjModel* model, float aspect_ratio,
   };
 }
 
-void PipGui(const std::vector<PipSource>& sources,
-            std::vector<PipState>* pips) {
+void PipGui(const std::vector<PipSource>& sources, std::vector<PipState>* pips) {
   if (pips == nullptr || sources.empty()) {
     return;
   }
@@ -134,8 +133,7 @@ void PipGui(const std::vector<PipSource>& sources,
 
     pip.texture = src.texture;
     if (pip.texture != ImTextureID_Invalid) {
-      const float height =
-          src.aspect_ratio > 0.0f ? width / src.aspect_ratio : width;
+      const float height = src.aspect_ratio > 0.0f ? width / src.aspect_ratio : width;
       ImGui::Image(pip.texture, {width, height});
     }
     ImGui::PopID();

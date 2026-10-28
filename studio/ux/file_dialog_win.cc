@@ -43,8 +43,7 @@ static DialogResult SetError(std::string err) {
 
 static std::string WCharToChar(const wchar_t* str) {
   int wlen = static_cast<int>(wcslen(str));
-  int num_bytes =
-      WideCharToMultiByte(CP_UTF8, 0, str, wlen, NULL, 0, NULL, NULL);
+  int num_bytes = WideCharToMultiByte(CP_UTF8, 0, str, wlen, NULL, 0, NULL, NULL);
   assert(num_bytes);
   num_bytes += 1;
 
@@ -80,8 +79,7 @@ static std::unique_ptr<wchar_t[]> ReadFilter(std::string_view filter) {
   return CharToWChar(filter_str);
 }
 
-static bool AddFilters(IFileDialog* dialog,
-                       std::span<std::string_view> filters = {}) {
+static bool AddFilters(IFileDialog* dialog, std::span<std::string_view> filters = {}) {
   // +1 to include *.* wildcard.
   const int num_filters = filters.size() + 1;
 
@@ -115,8 +113,7 @@ static bool SetDefaultPath(IFileDialog* dialog, std::string_view path) {
   auto wpath = CharToWChar(path);
 
   IShellItem* folder(NULL);
-  HRESULT hresult =
-      SHCreateItemFromParsingName(wpath.get(), NULL, IID_PPV_ARGS(&folder));
+  HRESULT hresult = SHCreateItemFromParsingName(wpath.get(), NULL, IID_PPV_ARGS(&folder));
   if (hresult == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) ||
       hresult == HRESULT_FROM_WIN32(ERROR_INVALID_DRIVE)) {
     return true;
@@ -131,19 +128,17 @@ static bool SetDefaultPath(IFileDialog* dialog, std::string_view path) {
 }
 
 template <typename T>
-static std::unique_ptr<T, std::function<void(T*)>> MakeDialog(REFCLSID class_id,
-                                                              REFIID ref_id) {
+static std::unique_ptr<T, std::function<void(T*)>> MakeDialog(REFCLSID class_id, REFIID ref_id) {
   T* ptr = nullptr;
-  HRESULT hresult = ::CoCreateInstance(class_id, NULL, CLSCTX_ALL, ref_id,
-                                       reinterpret_cast<void**>(&ptr));
+  HRESULT hresult =
+      ::CoCreateInstance(class_id, NULL, CLSCTX_ALL, ref_id, reinterpret_cast<void**>(&ptr));
   if (!SUCCEEDED(hresult) || ptr == nullptr) {
     return nullptr;
   }
   return {ptr, [](T* dialog) { dialog->Release(); }};
 }
 
-static DialogResult RunDialog(IFileDialog* dialog,
-                              std::string_view default_path,
+static DialogResult RunDialog(IFileDialog* dialog, std::string_view default_path,
                               std::span<std::string_view> filters = {}) {
   if (!dialog) {
     return SetError("Could not create dialog.");
@@ -180,8 +175,7 @@ static DialogResult RunDialog(IFileDialog* dialog,
       return SetError("");
 
     } else {
-      return {.status = DialogResult::kAccepted,
-              .path = std::move(selected_path)};
+      return {.status = DialogResult::kAccepted, .path = std::move(selected_path)};
     }
 
   } else if (hresult == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
@@ -195,8 +189,7 @@ static DialogResult RunDialog(IFileDialog* dialog,
 namespace {
 struct ScopedCom {
   ScopedCom() {
-    hresult = ::CoInitializeEx(
-        NULL, ::COINIT_APARTMENTTHREADED | ::COINIT_DISABLE_OLE1DDE);
+    hresult = ::CoInitializeEx(NULL, ::COINIT_APARTMENTTHREADED | ::COINIT_DISABLE_OLE1DDE);
   }
 
   ~ScopedCom() {
@@ -216,27 +209,23 @@ struct ScopedCom {
 };
 }  // namespace
 
-DialogResult OpenFileDialog(std::string_view path,
-                            std::span<std::string_view> filters) {
+DialogResult OpenFileDialog(std::string_view path, std::span<std::string_view> filters) {
   ScopedCom com;
   if (!com.ok()) {
     return SetError("Could not initialize COM.");
   }
 
-  auto dialog =
-      MakeDialog<IFileOpenDialog>(CLSID_FileOpenDialog, IID_IFileOpenDialog);
+  auto dialog = MakeDialog<IFileOpenDialog>(CLSID_FileOpenDialog, IID_IFileOpenDialog);
   return RunDialog(dialog.get(), path, filters);
 }
 
-DialogResult SaveFileDialog(std::string_view path,
-                            std::span<std::string_view> filters) {
+DialogResult SaveFileDialog(std::string_view path, std::span<std::string_view> filters) {
   ScopedCom com;
   if (!com.ok()) {
     return SetError("Could not initialize COM.");
   }
 
-  auto dialog =
-      MakeDialog<IFileSaveDialog>(CLSID_FileSaveDialog, IID_IFileSaveDialog);
+  auto dialog = MakeDialog<IFileSaveDialog>(CLSID_FileSaveDialog, IID_IFileSaveDialog);
   return RunDialog(dialog.get(), path, filters);
 }
 
@@ -246,8 +235,7 @@ DialogResult SelectPathDialog(std::string_view path) {
     return SetError("Could not initialize COM.");
   }
 
-  auto dialog =
-      MakeDialog<IFileOpenDialog>(CLSID_FileOpenDialog, IID_IFileOpenDialog);
+  auto dialog = MakeDialog<IFileOpenDialog>(CLSID_FileOpenDialog, IID_IFileOpenDialog);
   DWORD options = 0;
   if (!SUCCEEDED(dialog->GetOptions(&options))) {
     return SetError("GetOptions for IFileDialog failed.");

@@ -56,8 +56,7 @@ TEST_F(ConsoleTest, AddsPrefixedLinesAndCountsMessages) {
   console_.Add(mjLOG_ERROR, "ERROR: already prefixed");
 
   EXPECT_THAT(console_.GetLines(),
-              ElementsAre("INFO: info", "WARNING: two", "lines",
-                          "ERROR: already prefixed"));
+              ElementsAre("INFO: info", "WARNING: two", "lines", "ERROR: already prefixed"));
   const ConsoleCounts counts = console_.GetCounts();
   EXPECT_EQ(counts.messages, 3);
   EXPECT_EQ(counts.warnings, 1);
@@ -73,8 +72,7 @@ TEST_F(ConsoleTest, AddsBodyLinesAfterMessage) {
   console_.Add(mjLOG_WARNING, "subject", "body\nmore body");
 
   // Only the first line gets the prefix, and it all counts as one message.
-  EXPECT_THAT(console_.GetLines(),
-              ElementsAre("WARNING: subject", "body", "more body"));
+  EXPECT_THAT(console_.GetLines(), ElementsAre("WARNING: subject", "body", "more body"));
   const ConsoleCounts counts = console_.GetCounts();
   EXPECT_EQ(counts.messages, 1);
   EXPECT_EQ(counts.warnings, 1);
@@ -90,9 +88,8 @@ TEST_F(ConsoleTest, OnlyLogPrints) {
   // Like the default handler, with a blank line after each message.
   EXPECT_EQ(testing::internal::GetCapturedStdout(), "INFO: printed\n\n");
   EXPECT_EQ(testing::internal::GetCapturedStderr(), "ERROR: printed\n\n");
-  EXPECT_THAT(
-      console_.GetLines(),
-      ElementsAre("INFO: printed", "ERROR: printed", "ERROR: not printed"));
+  EXPECT_THAT(console_.GetLines(),
+              ElementsAre("INFO: printed", "ERROR: printed", "ERROR: not printed"));
 }
 
 TEST_F(ConsoleTest, LogPrintsAndWritesPerLogConfig) {
@@ -151,11 +148,9 @@ TEST_F(ConsoleTest, KeepsOnlyTheMostRecentBytes) {
   EXPECT_GT(bytes + 2 * filler.size(), kSmallMaxBytes);  // Not too eager.
   // The oldest lines were dropped and the most recent ones kept.
   const int first_kept = num_lines - static_cast<int>(lines.size());
-  EXPECT_TRUE(
-      lines.front().starts_with("INFO: " + std::to_string(first_kept) + ' '))
+  EXPECT_TRUE(lines.front().starts_with("INFO: " + std::to_string(first_kept) + ' '))
       << lines.front().substr(0, 20);
-  EXPECT_TRUE(
-      lines.back().starts_with("INFO: " + std::to_string(num_lines - 1) + ' '))
+  EXPECT_TRUE(lines.back().starts_with("INFO: " + std::to_string(num_lines - 1) + ' '))
       << lines.back().substr(0, 20);
   EXPECT_EQ(console.GetCounts().messages, num_lines);
 }
@@ -164,8 +159,8 @@ TEST_F(ConsoleTest, KeepsOnlyTheMostRecentBytes) {
 // only test that calls it.
 TEST_F(ConsoleTest, InitAddsEngineMessagesAndPassesThemOn) {
   static auto* passed_on = new std::vector<std::string>();
-  const mjfLogHandler original = mju_setLogHandler(
-      [](const mjLogMessage* msg) { passed_on->push_back(msg->subject); });
+  const mjfLogHandler original =
+      mju_setLogHandler([](const mjLogMessage* msg) { passed_on->push_back(msg->subject); });
   Console::Init();
   Console::Init();  // Does nothing, so messages are passed on only once.
 
@@ -187,10 +182,8 @@ TEST_F(ConsoleTest, InitAddsEngineMessagesAndPassesThemOn) {
   mju_setLogHandler(original);
 
   EXPECT_THAT(console_.GetLines(),
-              ElementsAre("WARNING: engine warning", "WARNING: not printed",
-                          "INFO: topic on"));
-  EXPECT_THAT(*passed_on, ElementsAre("engine warning", "not printed",
-                                      "topic off", "topic on"));
+              ElementsAre("WARNING: engine warning", "WARNING: not printed", "INFO: topic on"));
+  EXPECT_THAT(*passed_on, ElementsAre("engine warning", "not printed", "topic off", "topic on"));
 }
 
 }  // namespace

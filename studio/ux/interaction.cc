@@ -76,8 +76,8 @@ static void AlignToCamera(mjtNum res[3], mjtMouse action, mjtNum dx, mjtNum dy,
   mjv_alignToCamera(res, vec, forward);
 }
 
-void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
-                 mjvPerturb* pert, mjtPertBit active) {
+void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
+                 mjtPertBit active) {
   // compute selection point in world coordinates
   const int sel = pert->select;
   mjtNum selpos[3];
@@ -95,8 +95,7 @@ void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
   mj_jac(m, d, jac.data(), nullptr, selpos, sel);
 
   std::vector<mjtNum> jacM2(3 * nv);
-  mj_solveM2(m, const_cast<mjData*>(d), jacM2.data(), jac.data(),
-             sqrtInvD.data(), 3);
+  mj_solveM2(m, const_cast<mjData*>(d), jacM2.data(), jac.data(), sqrtInvD.data(), 3);
   mjtNum invmass = mju_dot(jacM2.data() + 0 * nv, jacM2.data() + 0 * nv, nv) +
                    mju_dot(jacM2.data() + 1 * nv, jacM2.data() + 1 * nv, nv) +
                    mju_dot(jacM2.data() + 2 * nv, jacM2.data() + 2 * nv, nv);
@@ -104,8 +103,8 @@ void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
 
   // scale localmass with flex average number of edges per vertex
   if (pert->flexselect >= 0 && !m->flex_rigid[pert->flexselect]) {
-    pert->localmass *= (2.0 * m->flex_edgenum[pert->flexselect]) /
-                       (mjtNum)m->flex_vertnum[pert->flexselect];
+    pert->localmass *=
+        (2.0 * m->flex_edgenum[pert->flexselect]) / (mjtNum)m->flex_vertnum[pert->flexselect];
   }
 
   // copy
@@ -124,9 +123,8 @@ void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
   pert->active = active;
 }
 
-void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
-                 mjvPerturb* pert, mjtMouse action, mjtNum reldx,
-                 mjtNum reldy) {
+void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
+                 mjtMouse action, mjtNum reldx, mjtNum reldy) {
   const mjtNum xaxis[3] = {1, 0, 0};
   const mjtNum yaxis[3] = {0, 1, 0};
   const mjtNum zaxis[3] = {0, 0, 1};
@@ -213,8 +211,8 @@ void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
   }
 }
 
-void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
-                CameraMotion motion, mjtNum dx, mjtNum dy) {
+void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam, CameraMotion motion, mjtNum dx,
+                mjtNum dy) {
   switch (motion) {
     case CameraMotion::ZOOM:
       mjv_moveCamera(m, mjMOUSE_ZOOM, 0, dy, cam);
@@ -242,9 +240,8 @@ void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
   }
 }
 
-static void MakePickRay(mjtNum pos[3], mjtNum ray[3], const mjModel* m,
-                        const mjData* d, const mjvCamera* camera, float relx,
-                        float rely, float aspect_ratio) {
+static void MakePickRay(mjtNum pos[3], mjtNum ray[3], const mjModel* m, const mjData* d,
+                        const mjvCamera* camera, float relx, float rely, float aspect_ratio) {
   mjtNum forward[3], up[3], right[3];
   mjv_cameraFrame(pos, forward, up, right, d, camera);
 
@@ -271,13 +268,11 @@ static void MakePickRay(mjtNum pos[3], mjtNum ray[3], const mjModel* m,
   }
 }
 
-static PickResult PickGeom(const mjModel* m, const mjData* d,
-                           const mjtNum ray_pos[3], const mjtNum ray_dir[3],
-                           const mjvOption* vis_options) {
+static PickResult PickGeom(const mjModel* m, const mjData* d, const mjtNum ray_pos[3],
+                           const mjtNum ray_dir[3], const mjvOption* vis_options) {
   PickResult result;
-  result.dist =
-      mj_ray(m, d, ray_pos, ray_dir, vis_options->geomgroup,
-             vis_options->flags[mjVIS_STATIC], -1, &result.geom, nullptr);
+  result.dist = mj_ray(m, d, ray_pos, ray_dir, vis_options->geomgroup,
+                       vis_options->flags[mjVIS_STATIC], -1, &result.geom, nullptr);
   if (result.dist >= 0 && result.geom >= 0) {
     mju_addScl3(result.point, ray_pos, ray_dir, result.dist);
     result.body = m->geom_bodyid[result.geom];
@@ -285,9 +280,8 @@ static PickResult PickGeom(const mjModel* m, const mjData* d,
   return result;
 }
 
-static PickResult PickFlex(const mjModel* m, const mjData* d,
-                           const mjtNum ray_pos[3], const mjtNum ray_dir[3],
-                           const mjvOption* vis_options) {
+static PickResult PickFlex(const mjModel* m, const mjData* d, const mjtNum ray_pos[3],
+                           const mjtNum ray_dir[3], const mjvOption* vis_options) {
   const mjtByte flag_vert = vis_options->flags[mjVIS_FLEXVERT];
   const mjtByte flag_edge = vis_options->flags[mjVIS_FLEXEDGE];
   const mjtByte flag_face = vis_options->flags[mjVIS_FLEXFACE];
@@ -301,8 +295,8 @@ static PickResult PickFlex(const mjModel* m, const mjData* d,
   for (int i = 0; i < m->nflex; i++) {
     int vertid;
     const mjtNum test_dist =
-        mj_rayFlex(m, d, vis_options->flex_layer, flag_vert, flag_edge,
-                   flag_face, flag_skin, i, ray_pos, ray_dir, &vertid, nullptr);
+        mj_rayFlex(m, d, vis_options->flex_layer, flag_vert, flag_edge, flag_face, flag_skin, i,
+                   ray_pos, ray_dir, &vertid, nullptr);
 
     if (test_dist < 0) {
       continue;
@@ -317,24 +311,22 @@ static PickResult PickFlex(const mjModel* m, const mjData* d,
   return result;
 }
 
-static void MakeSkin(const mjModel* m, const mjData* d, const mjvOption* opt,
-                     int i, float* skinnormal, float* skinvert) {
+static void MakeSkin(const mjModel* m, const mjData* d, const mjvOption* opt, int i,
+                     float* skinnormal, float* skinvert) {
   int vertadr = m->skin_vertadr[i];
   int vertnum = m->skin_vertnum[i];
   int faceadr = m->skin_faceadr[i];
   int facenum = m->skin_facenum[i];
 
   // accumulate positions from all bones
-  for (int j = m->skin_boneadr[i]; j < m->skin_boneadr[i] + m->skin_bonenum[i];
-       j++) {
+  for (int j = m->skin_boneadr[i]; j < m->skin_boneadr[i] + m->skin_bonenum[i]; j++) {
     // get bind pose
     mjtNum bindpos[3] = {(mjtNum)m->skin_bonebindpos[3 * j + 0],
                          (mjtNum)m->skin_bonebindpos[3 * j + 1],
                          (mjtNum)m->skin_bonebindpos[3 * j + 2]};
-    mjtNum bindquat[4] = {(mjtNum)m->skin_bonebindquat[4 * j + 0],
-                          (mjtNum)m->skin_bonebindquat[4 * j + 1],
-                          (mjtNum)m->skin_bonebindquat[4 * j + 2],
-                          (mjtNum)m->skin_bonebindquat[4 * j + 3]};
+    mjtNum bindquat[4] = {
+        (mjtNum)m->skin_bonebindquat[4 * j + 0], (mjtNum)m->skin_bonebindquat[4 * j + 1],
+        (mjtNum)m->skin_bonebindquat[4 * j + 2], (mjtNum)m->skin_bonebindquat[4 * j + 3]};
 
     // compute rotation
     int bodyid = m->skin_bonebodyid[j];
@@ -349,8 +341,7 @@ static void MakeSkin(const mjModel* m, const mjData* d, const mjvOption* opt,
     mju_sub3(translate, d->xpos + 3 * bodyid, translate);
 
     // process all bone vertices
-    for (int k = m->skin_bonevertadr[j];
-         k < m->skin_bonevertadr[j] + m->skin_bonevertnum[j]; k++) {
+    for (int k = m->skin_bonevertadr[j]; k < m->skin_bonevertadr[j] + m->skin_bonevertnum[j]; k++) {
       // vertex id and weight
       int vid = m->skin_bonevertid[k];
       float vweight = m->skin_bonevertweight[k];
@@ -379,8 +370,7 @@ static void MakeSkin(const mjModel* m, const mjData* d, const mjvOption* opt,
     // compute vertex normals from face normals
     for (int k = faceadr; k < faceadr + facenum; k++) {
       // get face vertex indices
-      int vid[3] = {m->skin_face[3 * k], m->skin_face[3 * k + 1],
-                    m->skin_face[3 * k + 2]};
+      int vid[3] = {m->skin_face[3 * k], m->skin_face[3 * k + 1], m->skin_face[3 * k + 2]};
 
       // get triangle edges
       mjtNum vec01[3], vec02[3];
@@ -422,9 +412,8 @@ static void MakeSkin(const mjModel* m, const mjData* d, const mjvOption* opt,
   }
 }
 
-static PickResult PickSkin(const mjModel* m, const mjData* d,
-                           const mjtNum ray_pos[3], const mjtNum ray_dir[3],
-                           const mjvOption* vis_options) {
+static PickResult PickSkin(const mjModel* m, const mjData* d, const mjtNum ray_pos[3],
+                           const mjtNum ray_dir[3], const mjvOption* vis_options) {
   PickResult result;
   if (!vis_options->flags[mjVIS_SKIN]) {
     return result;
@@ -449,9 +438,9 @@ static PickResult PickSkin(const mjModel* m, const mjData* d,
     MakeSkin(m, d, vis_options, i, skinvert, skinnormal);
 
     int vertid;
-    mjtNum test_dist = mju_raySkin(m->skin_facenum[i], m->skin_vertnum[i],
-                                   m->skin_face + 3 * m->skin_faceadr[i],
-                                   skinvert, ray_pos, ray_dir, &vertid);
+    mjtNum test_dist =
+        mju_raySkin(m->skin_facenum[i], m->skin_vertnum[i], m->skin_face + 3 * m->skin_faceadr[i],
+                    skinvert, ray_pos, ray_dir, &vertid);
     if (test_dist < 0) {
       continue;
     } else if (result.dist >= 0 && test_dist >= result.dist) {
@@ -462,10 +451,9 @@ static PickResult PickSkin(const mjModel* m, const mjData* d,
 
     // find body with largest weight for this vertex
     float best_weight = -1;
-    for (int j = m->skin_boneadr[i];
-         j < m->skin_boneadr[i] + m->skin_bonenum[i]; j++) {
-      for (int k = m->skin_bonevertadr[j];
-           k < m->skin_bonevertadr[j] + m->skin_bonevertnum[j]; k++) {
+    for (int j = m->skin_boneadr[i]; j < m->skin_boneadr[i] + m->skin_bonenum[i]; j++) {
+      for (int k = m->skin_bonevertadr[j]; k < m->skin_bonevertadr[j] + m->skin_bonevertnum[j];
+           k++) {
         // get vertex id and weight
         const int vertex_id = m->skin_bonevertid[k];
         const float vertex_weight = m->skin_bonevertweight[k];
@@ -484,9 +472,8 @@ static PickResult PickSkin(const mjModel* m, const mjData* d,
   return result;
 }
 
-PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
-                float x, float y, float aspect_ratio,
-                const mjvOption* vis_options) {
+PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
+                float aspect_ratio, const mjvOption* vis_options) {
   mjtNum ray_pos[3];
   mjtNum ray_dir[3];
   MakePickRay(ray_pos, ray_dir, m, d, camera, x, 1.0 - y, aspect_ratio);

@@ -72,9 +72,7 @@ class AssetRegistry {
 // Also extracts the filename from the Content-Disposition header if present.
 // The caller is responsible for freeing out_data and out_filename.
 EM_ASYNC_JS(int, FetchUrl,
-            (const char* url, char** out_data, std::int32_t* out_size,
-             char** out_filename),
-            {
+            (const char* url, char** out_data, std::int32_t* out_size, char** out_filename), {
               const urlStr = UTF8ToString(url);
               const dlEl = document.getElementById("loadingDownload");
               const dlFileEl = document.getElementById("loadingDownloadFile");
@@ -84,8 +82,7 @@ EM_ASYNC_JS(int, FetchUrl,
               try {
                 const response = await fetch(urlStr);
                 if (!response.ok) {
-                  console.error("Fetch failed: " + response.status + " " +
-                                urlStr);
+                  console.error("Fetch failed: " + response.status + " " + urlStr);
                   return 0;
                 }
                 const buffer = await response.arrayBuffer();
@@ -120,9 +117,7 @@ EM_ASYNC_JS(int, FetchUrl,
                 }
 
                 if (dlFileEl) {
-                  dlFileEl.textContent =
-                      (filename || urlStr.split("/").pop() || urlStr) +
-                      "\u2026";
+                  dlFileEl.textContent = (filename || urlStr.split("/").pop() || urlStr) + "\u2026";
                 }
                 return 1;
               } catch (e) {
@@ -196,15 +191,12 @@ class FetchCache {
 
   // Pre-populates the cache so a subsequent Fetch() of the same URL hits
   // memory instead of the network. First writer wins.
-  void Prime(std::string url, std::string bytes) {
-    Prime(std::move(url), std::move(bytes), "");
-  }
+  void Prime(std::string url, std::string bytes) { Prime(std::move(url), std::move(bytes), ""); }
 
   void Prime(std::string url, std::string bytes, std::string filename) {
     std::string url_copy = url;
-    entries_.try_emplace(
-        std::move(url),
-        FetchEntry{std::move(url_copy), std::move(bytes), std::move(filename)});
+    entries_.try_emplace(std::move(url),
+                         FetchEntry{std::move(url_copy), std::move(bytes), std::move(filename)});
   }
 
   // Hands back a pointer into the cached bytes for the given URL.
@@ -236,8 +228,7 @@ class FetchCache {
 // .filamat material) that is fetched via the static AssetRegistry rather
 // than over HTTP.
 void RegisterAsset(std::string filename, std::string contents) {
-  AssetRegistry::Instance().RegisterAsset(std::move(filename),
-                                          std::move(contents));
+  AssetRegistry::Instance().RegisterAsset(std::move(filename), std::move(contents));
 }
 
 // Javascript-facing function to pre-populate the HTTP/HTTPS fetch cache.
@@ -311,8 +302,7 @@ void Init(const std::string& title, bool dark_theme) {
         if (qpos != std::string::npos) {
           base_url = base_url.substr(0, qpos);
         }
-        if (!base_url.ends_with(entry->filename) &&
-            !base_url.ends_with("/" + entry->filename)) {
+        if (!base_url.ends_with(entry->filename) && !base_url.ends_with("/" + entry->filename)) {
           if (!base_url.empty() && base_url.back() != '/') {
             base_url += '/';
           }
@@ -359,8 +349,7 @@ void Init(const std::string& title, bool dark_theme) {
   github_provider.open = [](mjResource* resource) {
     std::string name(resource->name);
     // Strip the "github:" prefix and prepend the raw.githubusercontent URL.
-    std::string url =
-        "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
+    std::string url = "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
     int size = FetchCache::Instance().Fetch(url.c_str());
     if (size <= 0) return 0;
     const FetchEntry* entry = FetchCache::Instance().GetEntry(url.c_str());
@@ -368,8 +357,7 @@ void Init(const std::string& title, bool dark_theme) {
       resource->data = const_cast<void*>(static_cast<const void*>(entry));
       if (!entry->filename.empty()) {
         std::string base_url = url;
-        if (!base_url.ends_with(entry->filename) &&
-            !base_url.ends_with("/" + entry->filename)) {
+        if (!base_url.ends_with(entry->filename) && !base_url.ends_with("/" + entry->filename)) {
           if (!base_url.empty() && base_url.back() != '/') {
             base_url += '/';
           }
@@ -389,8 +377,7 @@ void Init(const std::string& title, bool dark_theme) {
       return static_cast<int>(entry->data.size());
     }
     std::string name(resource->name);
-    std::string url =
-        "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
+    std::string url = "https://raw.githubusercontent.com/" + name.substr(strlen("github:"));
     return FetchCache::Instance().Read(url.c_str(), buffer);
   };
   github_provider.close = [](mjResource* resource) {
@@ -410,8 +397,8 @@ void Init(const std::string& title, bool dark_theme) {
   config.height = height;
   config.ini_path = ini_path;
   config.gfx_mode = mujoco::studio::GraphicsMode::FilamentWebGl;
-  config.initial_theme = dark_theme ? mujoco::studio::GuiTheme::kDark
-                                    : mujoco::studio::GuiTheme::kLight;
+  config.initial_theme =
+      dark_theme ? mujoco::studio::GuiTheme::kDark : mujoco::studio::GuiTheme::kLight;
   if (!title.empty()) {
     config.title = title;
   }

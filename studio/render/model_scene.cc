@@ -34,8 +34,7 @@ ModelScene::ModelScene(mjrfContext* ctx, mjrfScene* scene, mjModel* model,
 
   model_resources_ = std::make_unique<ModelResources>(model, ctx);
   model_lights_ = std::make_unique<ModelLights>(scene, model_resources_.get());
-  model_renderables_ =
-      std::make_unique<ModelRenderables>(scene, model_resources_.get());
+  model_renderables_ = std::make_unique<ModelRenderables>(scene, model_resources_.get());
   model_decorations_ = std::make_unique<ModelDecorations>(ctx, scene, model);
 
   float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -51,8 +50,8 @@ ModelScene::ModelScene(mjrfContext* ctx, mjrfScene* scene, mjModel* model,
 }
 
 void ModelScene::Sync(const mjModel* model, mjData* data, mjrRect viewport,
-                      const mjvOption* vis_options, const mjvPerturb* perturb,
-                      mjvCamera* camera, std::span<const mjvGeom> extra_geoms) {
+                      const mjvOption* vis_options, const mjvPerturb* perturb, mjvCamera* camera,
+                      std::span<const mjvGeom> extra_geoms) {
   if (model->vis.quality.offsamples != offsamples_) {
     offsamples_ = model->vis.quality.offsamples;
     mjrf_setSceneMsaa(scene_, offsamples_);
@@ -74,8 +73,8 @@ void ModelScene::Sync(const mjModel* model, mjData* data, mjrRect viewport,
   }
   model_renderables_->Update(data);
 
-  model_decorations_->Update(data, vis_options, perturb, camera, viewport,
-                             draw_text_at_fn_, extra_geoms);
+  model_decorations_->Update(data, vis_options, perturb, camera, viewport, draw_text_at_fn_,
+                             extra_geoms);
 }
 
 }  // namespace mujoco::studio

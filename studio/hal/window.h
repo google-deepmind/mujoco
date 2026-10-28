@@ -67,9 +67,7 @@ class Window {
   int GetHeight() const { return height_; }
   float GetScale() const { return scale_; }
   float GetAspectRatio() const {
-    return height_ > 0
-               ? static_cast<float>(width_) / static_cast<float>(height_)
-               : 1.0f;
+    return height_ > 0 ? static_cast<float>(width_) / static_cast<float>(height_) : 1.0f;
   }
 
   // Returns the path to a file that was dropped on the window. Once called,

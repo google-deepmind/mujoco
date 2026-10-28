@@ -34,36 +34,29 @@ static DialogResult ImGui_FileDialog(std::string_view path) {
   ImGui::Text("Filename");
   ImGui::SameLine();
   ImGui::SetNextItemWidth(600);
-  if (ImGui::InputText("##Filename", buf, kBufferSize,
-                       ImGuiInputTextFlags_EnterReturnsTrue)) {
+  if (ImGui::InputText("##Filename", buf, kBufferSize, ImGuiInputTextFlags_EnterReturnsTrue)) {
     status = DialogResult::kAccepted;
   }
-  if (ImGui::Button("OK", ImVec2(120, 0)) ||
-      ImGui::IsKeyChordPressed(ImGuiKey_Enter)) {
+  if (ImGui::Button("OK", ImVec2(120, 0)) || ImGui::IsKeyChordPressed(ImGuiKey_Enter)) {
     status = DialogResult::kAccepted;
   }
   ImGui::SetItemDefaultFocus();
   ImGui::SameLine();
-  if (ImGui::Button("Cancel", ImVec2(120, 0)) ||
-      ImGui::IsKeyChordPressed(ImGuiKey_Escape)) {
+  if (ImGui::Button("Cancel", ImVec2(120, 0)) || ImGui::IsKeyChordPressed(ImGuiKey_Escape)) {
     status = DialogResult::kCancelled;
   }
 
   return DialogResult{.status = status, .path = std::string(buf)};
 }
 
-DialogResult OpenFileDialog(std::string_view path,
-                            std::span<std::string_view> filters) {
+DialogResult OpenFileDialog(std::string_view path, std::span<std::string_view> filters) {
   return ImGui_FileDialog(path);
 }
 
-DialogResult SaveFileDialog(std::string_view path,
-                            std::span<std::string_view> filters) {
+DialogResult SaveFileDialog(std::string_view path, std::span<std::string_view> filters) {
   return ImGui_FileDialog(path);
 }
 
-DialogResult SelectPathDialog(std::string_view path) {
-  return ImGui_FileDialog(path);
-}
+DialogResult SelectPathDialog(std::string_view path) { return ImGui_FileDialog(path); }
 
 }  // namespace mujoco::studio

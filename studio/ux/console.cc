@@ -44,9 +44,9 @@ void LogHandler(const mjLogMessage* msg) {
   // Like the default handler, skip info and debug messages from topics that
   // are not enabled. Everything else goes in the console, whether or not the
   // default handler prints it.
-  const bool topic_disabled =
-      (msg->level == mjLOG_INFO || msg->level == mjLOG_DEBUG) &&
-      msg->topic > 0 && !(mju_getLogConfig().topics & (1 << (msg->topic - 1)));
+  const bool topic_disabled = (msg->level == mjLOG_INFO || msg->level == mjLOG_DEBUG) &&
+                              msg->topic > 0 &&
+                              !(mju_getLogConfig().topics & (1 << (msg->topic - 1)));
   if (!topic_disabled) {
     Console::Get().Add(static_cast<mjtLogLevel>(msg->level), msg->subject,
                        msg->body ? msg->body : "");
@@ -78,12 +78,10 @@ std::string_view LevelPrefix(mjtLogLevel level) {
 ImVec4 ConsoleTextColor(mjtLogLevel level) {
   const bool is_dark = ImGui::GetStyle().Colors[ImGuiCol_WindowBg].x < 0.5f;
   if (level >= mjLOG_ERROR) {
-    return is_dark ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
-                   : ImVec4(0.8f, 0.1f, 0.1f, 1.0f);
+    return is_dark ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f) : ImVec4(0.8f, 0.1f, 0.1f, 1.0f);
   }
   if (level == mjLOG_WARNING) {
-    return is_dark ? ImVec4(1.0f, 0.8f, 0.2f, 1.0f)
-                   : ImVec4(0.7f, 0.45f, 0.0f, 1.0f);
+    return is_dark ? ImVec4(1.0f, 0.8f, 0.2f, 1.0f) : ImVec4(0.7f, 0.45f, 0.0f, 1.0f);
   }
   return ImGui::GetStyleColorVec4(ImGuiCol_Text);
 }
@@ -97,8 +95,7 @@ Console& Console::Get() {
 
 void Console::Init() {
   static std::once_flag once;
-  std::call_once(once,
-                 [] { prev_log_handler = mju_setLogHandler(&LogHandler); });
+  std::call_once(once, [] { prev_log_handler = mju_setLogHandler(&LogHandler); });
 }
 
 void Console::Clear() {
@@ -125,9 +122,8 @@ void Console::Log(mjtLogLevel level, std::string_view message) {
   const char* const end = level == mjLOG_DEBUG ? "\n" : "\n\n";
   if (cfg.logto_console) {
     FILE* stream = level >= mjLOG_WARNING ? stderr : stdout;
-    std::fprintf(stream, "%.*s: %.*s%s", static_cast<int>(name.size()),
-                 name.data(), static_cast<int>(message.size()), message.data(),
-                 end);
+    std::fprintf(stream, "%.*s: %.*s%s", static_cast<int>(name.size()), name.data(),
+                 static_cast<int>(message.size()), message.data(), end);
     std::fflush(stream);
   }
   if (log_to_file) {
@@ -141,16 +137,14 @@ void Console::Log(mjtLogLevel level, std::string_view message) {
 #endif
       char time_str[64];
       std::strftime(time_str, sizeof(time_str), "%c", &local_time);
-      std::fprintf(fp, "%.*s %s: %.*s%s", static_cast<int>(name.size()),
-                   name.data(), time_str, static_cast<int>(message.size()),
-                   message.data(), end);
+      std::fprintf(fp, "%.*s %s: %.*s%s", static_cast<int>(name.size()), name.data(), time_str,
+                   static_cast<int>(message.size()), message.data(), end);
       std::fclose(fp);
     }
   }
 }
 
-void Console::Add(mjtLogLevel level, std::string_view message,
-                  std::string_view body) {
+void Console::Add(mjtLogLevel level, std::string_view message, std::string_view body) {
   std::lock_guard<std::mutex> lock(mutex_);
   ++counts_.messages;
   if (level == mjLOG_WARNING) {
@@ -167,9 +161,7 @@ void Console::Add(mjtLogLevel level, std::string_view message,
   }
 }
 
-size_t Console::LineBytes(std::string_view text) {
-  return sizeof(Line) + text.size();
-}
+size_t Console::LineBytes(std::string_view text) { return sizeof(Line) + text.size(); }
 
 ConsoleCounts Console::GetCounts() const {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -186,15 +178,13 @@ std::vector<std::string> Console::GetLines() const {
   return result;
 }
 
-void Console::AppendLinesLocked(mjtLogLevel level, std::string_view prefix,
-                                std::string_view text) {
+void Console::AppendLinesLocked(mjtLogLevel level, std::string_view prefix, std::string_view text) {
   bool first = true;
   size_t pos = 0;
   while (pos <= text.size()) {
     const size_t next = text.find('\n', pos);
-    std::string_view line = (next == std::string_view::npos)
-                                ? text.substr(pos)
-                                : text.substr(pos, next - pos);
+    std::string_view line =
+        (next == std::string_view::npos) ? text.substr(pos) : text.substr(pos, next - pos);
     if (!line.empty() && line.back() == '\r') {
       line.remove_suffix(1);
     }
@@ -238,9 +228,8 @@ void Console::WindowGui() {
   ScopedStyle style;
   style.Font(ScopedFont::kMono);
 
-  const ImGuiTableFlags table_flags =
-      ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV |
-      ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
+  const ImGuiTableFlags table_flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV |
+                                      ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY;
   if (ImGui::BeginTable("##ConsoleTable", 2, table_flags)) {
     std::optional<std::string> copy_to_clipboard;
     {
@@ -304,22 +293,19 @@ void Console::WindowGui() {
 
       const int num_lines = static_cast<int>(lines_.size());
       const int64_t last_line_number = dropped_lines_ + num_lines;
-      const int digits =
-          last_line_number > 0
-              ? std::max(3, static_cast<int>(std::log10(last_line_number)) + 1)
-              : 3;
+      const int digits = last_line_number > 0
+                             ? std::max(3, static_cast<int>(std::log10(last_line_number)) + 1)
+                             : 3;
       const float char_width = ImGui::CalcTextSize("0").x;
 
-      ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed,
-                              (digits + 1) * char_width);
+      ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, (digits + 1) * char_width);
       ImGui::TableSetupColumn("Log", ImGuiTableColumnFlags_WidthStretch);
 
       const bool do_scroll = auto_scroll_ && scroll_to_bottom_ && num_lines > 0;
       scroll_to_bottom_ = false;
       const ImVec4 warning_color = ConsoleTextColor(mjLOG_WARNING);
       const ImVec4 error_color = ConsoleTextColor(mjLOG_ERROR);
-      const ImVec4 line_num_color =
-          ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+      const ImVec4 line_num_color = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
 
       ImGuiListClipper clipper;
       clipper.Begin(num_lines);
@@ -368,8 +354,7 @@ void Console::StatusGui(bool* show_console) {
   const ConsoleCounts counts = GetCounts();
   char label[128];
   std::snprintf(label, sizeof(label),
-                "Logs: %" PRId64 " | Warnings: %" PRId64 " | Errors: %" PRId64
-                "###ConsoleStatus",
+                "Logs: %" PRId64 " | Warnings: %" PRId64 " | Errors: %" PRId64 "###ConsoleStatus",
                 counts.messages, counts.warnings, counts.errors);
 
   ScopedStyle style;
@@ -391,9 +376,8 @@ void Console::StatusGui(bool* show_console) {
       *show_console = !*show_console;
     }
   }
-  ImGui::SetItemTooltip("%s", (show_console && *show_console)
-                                  ? "Minimize Console to Status Bar"
-                                  : "Open Console");
+  ImGui::SetItemTooltip(
+      "%s", (show_console && *show_console) ? "Minimize Console to Status Bar" : "Open Console");
 }
 
 }  // namespace mujoco::studio

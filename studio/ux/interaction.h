@@ -30,9 +30,8 @@ struct PickResult {
 };
 
 // Returns information about the object (if any) under the mouse cursor.
-PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
-                float x, float y, float aspect_ratio,
-                const mjvOption* vis_options);
+PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
+                float aspect_ratio, const mjvOption* vis_options);
 
 // Indices for cameras that are not defined in the model.
 static constexpr int kTumbleCameraIdx = -3;
@@ -70,14 +69,14 @@ enum class CameraMotion {
   PLANAR_MOVE_V,
 };
 
-void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
-                CameraMotion motion, mjtNum dx, mjtNum dy);
+void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam, CameraMotion motion, mjtNum dx,
+                mjtNum dy);
 
-void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
-                 mjvPerturb* pert, mjtPertBit active);
+void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
+                 mjtPertBit active);
 
-void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
-                 mjvPerturb* pert, mjtMouse action, mjtNum reldx, mjtNum reldy);
+void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
+                 mjtMouse action, mjtNum reldx, mjtNum reldy);
 
 }  // namespace mujoco::studio
 

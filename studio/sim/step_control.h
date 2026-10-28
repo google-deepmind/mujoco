@@ -49,8 +49,8 @@ class StepControl {
   };
 
   // List of warnings that are checked to determine simulation divergence.
-  static constexpr mjtWarning kDivergedWarnings[] = {
-      mjWARN_BADQACC, mjWARN_BADQVEL, mjWARN_BADQPOS};
+  static constexpr mjtWarning kDivergedWarnings[] = {mjWARN_BADQACC, mjWARN_BADQVEL,
+                                                     mjWARN_BADQPOS};
 
   // Steps physics forward, respecting speed settings and refresh budget.
   Status Advance(mjModel* m, mjData* d);

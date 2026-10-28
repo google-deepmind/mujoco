@@ -47,8 +47,7 @@ bool IsWebGl(GraphicsMode gfx_mode);
 bool IsHeadless(GraphicsMode gfx_mode);
 bool IsSoftware(GraphicsMode gfx_mode);
 
-GraphicsMode GraphicsModeFromString(std::string_view str,
-                                    GraphicsMode default_mode);
+GraphicsMode GraphicsModeFromString(std::string_view str, GraphicsMode default_mode);
 
 }  // namespace mujoco::studio
 

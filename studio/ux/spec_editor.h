@@ -158,8 +158,7 @@ class SpecEditor {
   void UpdateReferenceElement();
 
   // Adds an element to the spec with the given type and (optional) body.
-  static mjsElement* AddElementToSpec(mjSpec* spec, mjtObj type,
-                                      mjsBody* body = nullptr);
+  static mjsElement* AddElementToSpec(mjSpec* spec, mjtObj type, mjsBody* body = nullptr);
 
   // Creates a copy of the given spec.
   static SpecPtr Copy(const mjSpec* spec);

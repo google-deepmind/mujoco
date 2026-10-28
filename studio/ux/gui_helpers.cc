@@ -34,14 +34,12 @@ void SaveText(const std::string& contents, const std::string& filename) {
 
 std::string LoadText(const std::string& filename) {
   std::ifstream file(filename);
-  std::string contents((std::istreambuf_iterator<char>(file)),
-                       std::istreambuf_iterator<char>());
+  std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
   file.close();
   return contents;
 }
 
-const void* GetValue(const mjModel* model, const mjData* data,
-                     const char* field, int index) {
+const void* GetValue(const mjModel* model, const mjData* data, const char* field, int index) {
 #define X(TYPE, NAME, NR, NC)                                        \
   if (!std::strcmp(#NAME, field) && !std::strcmp(#TYPE, "mjtNum")) { \
     if (index >= 0 && index < model->NR * NC) {                      \
@@ -62,13 +60,11 @@ std::string CameraToString(const mjData* data, const mjvCamera* camera) {
   std::snprintf(str, sizeof(str),
                 "<camera pos=\"%.3f %.3f %.3f\" xyaxes=\"%.3f %.3f %.3f %.3f "
                 "%.3f %.3f\"/>\n",
-                pos[0], pos[1], pos[2], right[0], right[1], right[2], up[0],
-                up[1], up[2]);
+                pos[0], pos[1], pos[2], right[0], right[1], right[2], up[0], up[1], up[2]);
   return str;
 }
 
-std::string KeyframeToString(const mjModel* model, const mjData* data,
-                             bool full_precision) {
+std::string KeyframeToString(const mjModel* model, const mjData* data, bool full_precision) {
   const int kStrLen = 5000;
 
   char buf[200];

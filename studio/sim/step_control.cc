@@ -33,9 +33,7 @@ static mjtNum Timer() {
 }
 
 
-StepControl::StepControl(ClockFn clock_fn) : clock_fn_(std::move(clock_fn)) {
-  mjcb_time = Timer;
-}
+StepControl::StepControl(ClockFn clock_fn) : clock_fn_(std::move(clock_fn)) { mjcb_time = Timer; }
 
 float StepControl::GetSpeedMeasured() const { return speed_measured_; }
 
@@ -51,23 +49,19 @@ void StepControl::SetSpeed(float speed_percent_real_time) {
 
 void StepControl::ForceSync() { force_sync_ = true; }
 
-void StepControl::GetNoiseParameters(float& ctrl_noise_scale,
-                                     float& ctrl_noise_rate) const {
+void StepControl::GetNoiseParameters(float& ctrl_noise_scale, float& ctrl_noise_rate) const {
   ctrl_noise_scale = ctrl_noise_std_;
   ctrl_noise_rate = ctrl_noise_rate_;
 }
 
-void StepControl::SetNoiseParameters(float ctrl_noise_scale,
-                                     float ctrl_noise_rate) {
+void StepControl::SetNoiseParameters(float ctrl_noise_scale, float ctrl_noise_rate) {
   ctrl_noise_std_ = ctrl_noise_scale;
   ctrl_noise_rate_ = ctrl_noise_rate;
 }
 
 void StepControl::SetPauseState(PauseState state) { pause_state_ = state; }
 
-StepControl::PauseState StepControl::GetPauseState() const {
-  return pause_state_;
-}
+StepControl::PauseState StepControl::GetPauseState() const { return pause_state_; }
 
 bool StepControl::ConsumeSingleStepRequest() {
   const bool requested = single_step_;
@@ -149,8 +143,7 @@ StepControl::Status StepControl::Advance(mjModel* m, mjData* d) {
 
       // Stop stepping if simulation is taking too long to catch up.
       // Note: 12ms == 70% of 1/60 seconds/frame.
-      constexpr Clock::duration kMaxCpuTimeForSim =
-          std::chrono::milliseconds(12);
+      constexpr Clock::duration kMaxCpuTimeForSim = std::chrono::milliseconds(12);
       if (now_cpu - start_cpu >= kMaxCpuTimeForSim) {
         // Note: GetSpeed() and GetSpeedMeasured() will be different in this
         // case.

@@ -44,12 +44,10 @@ struct DialogResult {
 };
 
 // Opens a file dialog used for selecting a file to open.
-DialogResult OpenFileDialog(std::string_view path,
-                            std::span<std::string_view> filters = {});
+DialogResult OpenFileDialog(std::string_view path, std::span<std::string_view> filters = {});
 
 // Opens a file dialog used for selecting a file to save.
-DialogResult SaveFileDialog(std::string_view path,
-                            std::span<std::string_view> filters = {});
+DialogResult SaveFileDialog(std::string_view path, std::span<std::string_view> filters = {});
 
 // Opens a file dialog used for selecting a folder.
 DialogResult SelectPathDialog(std::string_view path);

@@ -37,8 +37,7 @@ namespace mujoco::studio {
 // solver tolerance) reach it. Quantities that never want zero leave
 // `zero_below` at 0, in which case a non-positive value (or a zero direction)
 // is returned unchanged.
-inline double WellTemperedStep(double value, int direction,
-                               double zero_below = 0.0) {
+inline double WellTemperedStep(double value, int direction, double zero_below = 0.0) {
   static constexpr std::array<double, 10> kLadder = {1.0, 1.3, 1.6, 2.0, 2.5,
                                                      3.2, 4.0, 5.0, 6.3, 8.0};
   if (direction == 0) {

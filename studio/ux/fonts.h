@@ -32,8 +32,7 @@ inline constexpr char kMonoFontFile[] = "AtkinsonHyperlegibleMono-Regular.ttf";
 using FontLoaderFn = std::function<std::vector<std::byte>(std::string_view)>;
 
 // A FontLoaderFn that reads font `filename` from an `assets_dir` folder.
-std::vector<std::byte> LoadFontAsset(const std::string& assets_dir,
-                                     std::string_view filename);
+std::vector<std::byte> LoadFontAsset(const std::string& assets_dir, std::string_view filename);
 
 // A FontLoaderFn that reads font `font:<filename>` using a resource provider.
 std::vector<std::byte> LoadFontResource(std::string_view filename);

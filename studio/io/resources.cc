@@ -58,8 +58,7 @@ std::string Resolve(std::string_view path) {
 
 class FileResource {
  public:
-  explicit FileResource(const std::string& path)
-      : file_(path, std::ios::binary | std::ios::ate) {
+  explicit FileResource(const std::string& path) : file_(path, std::ios::binary | std::ios::ate) {
     if (!file_.is_open()) {
       mju_warning("Cannot open file %s", path.c_str());
       return;
@@ -94,9 +93,9 @@ class FileResource {
 std::string GetModuleDir(void* addr) {
 #if defined(_WIN32) || defined(__CYGWIN__)
   HMODULE hModule = NULL;
-  if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                         (LPCSTR)addr, &hModule)) {
+  if (GetModuleHandleExA(
+          GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+          (LPCSTR)addr, &hModule)) {
     char path[MAX_PATH];
     DWORD written = GetModuleFileNameA(hModule, path, sizeof(path));
     if (written > 0 && written < sizeof(path)) {

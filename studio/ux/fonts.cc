@@ -33,21 +33,18 @@ namespace {
 // Copies `data` into ImGui-owned memory and adds it to the current context's
 // atlas; the atlas frees the copy with the context.
 ImFont* AddFontCopy(const std::vector<std::byte>& data, float size_pixels,
-                    const ImFontConfig* config = nullptr,
-                    const ImWchar* glyph_ranges = nullptr) {
+                    const ImFontConfig* config = nullptr, const ImWchar* glyph_ranges = nullptr) {
   void* copy = ImGui::MemAlloc(data.size());
   memcpy(copy, data.data(), data.size());
-  return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
-      copy, static_cast<int>(data.size()), size_pixels, config, glyph_ranges);
+  return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(copy, static_cast<int>(data.size()),
+                                                    size_pixels, config, glyph_ranges);
 }
 
 }  // namespace
 
-std::vector<std::byte> LoadFontAsset(const std::string& assets_dir,
-                                     std::string_view filename) {
+std::vector<std::byte> LoadFontAsset(const std::string& assets_dir, std::string_view filename) {
   if (assets_dir.empty()) return {};
-  const std::string file_path =
-      (std::filesystem::path(assets_dir) / filename).string();
+  const std::string file_path = (std::filesystem::path(assets_dir) / filename).string();
 
   std::ifstream file(file_path, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
@@ -64,8 +61,7 @@ std::vector<std::byte> LoadFontAsset(const std::string& assets_dir,
 
 std::vector<std::byte> LoadFontResource(std::string_view filename) {
   const std::string name = std::string("font:") + std::string(filename);
-  mjResource* resource =
-      mju_openResource("", name.c_str(), nullptr, nullptr, 0);
+  mjResource* resource = mju_openResource("", name.c_str(), nullptr, nullptr, 0);
   if (resource == nullptr) {
     return {};
   }

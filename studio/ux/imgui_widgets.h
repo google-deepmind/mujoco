@@ -60,8 +60,7 @@ inline float GetStableAvailWidth() {
 
 // Draws one line of text horizontally centered in the current window.
 inline void CenteredLine(const char* text, const ImVec4* color = nullptr) {
-  ImGui::SetCursorPosX(ImMax(
-      0.0f, (ImGui::GetWindowWidth() - ImGui::CalcTextSize(text).x) * 0.5f));
+  ImGui::SetCursorPosX(ImMax(0.0f, (ImGui::GetWindowWidth() - ImGui::CalcTextSize(text).x) * 0.5f));
   if (color != nullptr) {
     ImGui::TextColored(*color, "%s", text);
   } else {
@@ -72,8 +71,7 @@ inline void CenteredLine(const char* text, const ImVec4* color = nullptr) {
 // Large centered banner text.
 inline void CenteredBanner(const char* text, const ImVec4& color) {
   ImGui::SetWindowFontScale(1.6f);
-  ImGui::SetCursorPosX(ImMax(
-      0.0f, (ImGui::GetWindowWidth() - ImGui::CalcTextSize(text).x) * 0.5f));
+  ImGui::SetCursorPosX(ImMax(0.0f, (ImGui::GetWindowWidth() - ImGui::CalcTextSize(text).x) * 0.5f));
   ImGui::TextColored(color, "%s", text);
   ImGui::SetWindowFontScale(1.0f);
 }
@@ -119,12 +117,10 @@ template <typename T>
 bool ImGui_Checkbox(const char* name, T& value);
 
 // Appends key/value pairs to an Ini file.
-void AppendIniSection(std::string& ini, const std::string& section,
-                      const KeyValues& key_values);
+void AppendIniSection(std::string& ini, const std::string& section, const KeyValues& key_values);
 
 // Reads key/value pairs from an Ini file section.
-KeyValues ReadIniSection(const std::string& contents,
-                         const std::string& section);
+KeyValues ReadIniSection(const std::string& contents, const std::string& section);
 
 template <typename T>
 T ReadIniValue(const KeyValues& key_values, const std::string& key, T def) {
@@ -270,45 +266,35 @@ class ImGui_DataPtrTable {
 // Helper for displaying mjSpec elements in an ImGui table.
 class ImGui_SpecElementTable : public ImGui_DataPtrTable {
  public:
-  explicit ImGui_SpecElementTable(bool read_only = true)
-      : read_only_(read_only) {}
+  explicit ImGui_SpecElementTable(bool read_only = true) : read_only_(read_only) {}
 
   // Scalar values used by mjSpec elements.
-  void operator()(const char* label, mjtByte& val, const mjtByte& ref,
-                  const char* tooltip);
-  void operator()(const char* label, bool& val, const bool& ref,
-                  const char* tooltip);
-  void operator()(const char* label, mjtSize& val, const mjtSize& ref,
-                  const char* tooltip);
-  void operator()(const char* label, int& val, const int& ref,
-                  const char* tooltip);
-  void operator()(const char* label, float& val, const float& ref,
-                  const char* tooltip);
-  void operator()(const char* label, double& val, const double& ref,
-                  const char* tooltip);
+  void operator()(const char* label, mjtByte& val, const mjtByte& ref, const char* tooltip);
+  void operator()(const char* label, bool& val, const bool& ref, const char* tooltip);
+  void operator()(const char* label, mjtSize& val, const mjtSize& ref, const char* tooltip);
+  void operator()(const char* label, int& val, const int& ref, const char* tooltip);
+  void operator()(const char* label, float& val, const float& ref, const char* tooltip);
+  void operator()(const char* label, double& val, const double& ref, const char* tooltip);
 
   // C++ container values used by mjSpec elements.
-  void operator()(const char* label, std::string* ptr, const std::string* ref,
+  void operator()(const char* label, std::string* ptr, const std::string* ref, const char* tooltip);
+  void operator()(const char* label, std::vector<int>* ptr, const std::vector<int>* ref,
                   const char* tooltip);
-  void operator()(const char* label, std::vector<int>* ptr,
-                  const std::vector<int>* ref, const char* tooltip);
-  void operator()(const char* label, std::vector<double>* ptr,
-                  const std::vector<double>* ref, const char* tooltip);
+  void operator()(const char* label, std::vector<double>* ptr, const std::vector<double>* ref,
+                  const char* tooltip);
   void operator()(const char* label, std::vector<std::string>* ptr,
                   const std::vector<std::string>* ref, const char* tooltip);
 
   // C-style array values used by mjSpec elements.
   template <std::size_t N>
-  void operator()(const char* label, int (&val)[N], const int (&ref)[N],
-                  const char* tooltip) {
+  void operator()(const char* label, int (&val)[N], const int (&ref)[N], const char* tooltip) {
     for (int i = 0; i < N; ++i) {
       Label(label, tooltip, i, N);
       Input(val[i], ref[i]);
     }
   }
   template <std::size_t N>
-  void operator()(const char* label, float (&val)[N], const float (&ref)[N],
-                  const char* tooltip) {
+  void operator()(const char* label, float (&val)[N], const float (&ref)[N], const char* tooltip) {
     for (int i = 0; i < N; ++i) {
       Label(label, tooltip, i, N);
       Input(val[i], ref[i]);
@@ -325,8 +311,7 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
 
   // Special handling for fixed-length character arrays.
   template <std::size_t N>
-  void operator()(const char* label, char (&val)[N], const char (&ref)[N],
-                  const char* tooltip) {
+  void operator()(const char* label, char (&val)[N], const char (&ref)[N], const char* tooltip) {
     Label(label, tooltip);
 
     char buf[N + 1];
@@ -346,16 +331,15 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
 
   // Special handling for treating enum values as integers.
   template <typename T, typename U = std::enable_if_t<std::is_enum_v<T>, T>>
-  void operator()(const char* label, T& val, const T& ref,
-                  const char* tooltip) {
+  void operator()(const char* label, T& val, const T& ref, const char* tooltip) {
     Label(label, tooltip);
     Input(val, ref);
   }
 
   // Special handling for quaternion/orientation pairs.
   void operator()(const char* name, const char* alt_name, double (&quat)[4],
-                  const double (&ref_quat)[4], mjsOrientation& alt,
-                  const mjsOrientation& ref_alt, const char* tooltip);
+                  const double (&ref_quat)[4], mjsOrientation& alt, const mjsOrientation& ref_alt,
+                  const char* tooltip);
 
   // Returns true if any value in the table was modified.
   bool WasModified() const { return modified_; }
@@ -500,8 +484,7 @@ bool ImGui_Checkbox(const char* name, T& value) {
 }
 
 template <typename T>
-bool ImGui_ButtonToggle(const char* label, T* boolean,
-                        const ImVec2& size = ImVec2(0, 0)) {
+bool ImGui_ButtonToggle(const char* label, T* boolean, const ImVec2& size = ImVec2(0, 0)) {
   static_assert(std::is_integral_v<T>, "Toggle only supports integral types.");
 
   ScopedStyle style;
@@ -509,10 +492,9 @@ bool ImGui_ButtonToggle(const char* label, T* boolean,
   style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[color]);
   style.Var(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
 
-  const std::string txt =
-      std::string(" ") +
-      std::string(*boolean ? ICON_FA_CHECK_SQUARE_O : ICON_FA_SQUARE_O) + "  " +
-      label;
+  const std::string txt = std::string(" ") +
+                          std::string(*boolean ? ICON_FA_CHECK_SQUARE_O : ICON_FA_SQUARE_O) + "  " +
+                          label;
   if (ImGui::Button(txt.c_str(), size)) {
     *boolean = !(*boolean);
     return true;
@@ -521,8 +503,7 @@ bool ImGui_ButtonToggle(const char* label, T* boolean,
 }
 
 template <typename T>
-bool ImGui_SwitchToggle(const char* label, T* boolean,
-                        const ImVec2& size = ImVec2(0, 0)) {
+bool ImGui_SwitchToggle(const char* label, T* boolean, const ImVec2& size = ImVec2(0, 0)) {
   static_assert(std::is_integral_v<T>, "Toggle only supports integral types.");
 
   int i = static_cast<int>(*boolean);
@@ -574,8 +555,7 @@ bool ImGui_InputN(const char* name, T* value, int num, ImGuiOpts<T> opts = {}) {
     const int* pstep = step > 0 ? &step : nullptr;
     const int* pstep_fast = step_fast > 0 ? &step_fast : nullptr;
     const char* format = opts.format;
-    res = ImGui::InputScalarN(name, ImGuiDataType_S32, value, num, pstep,
-                              pstep_fast, format);
+    res = ImGui::InputScalarN(name, ImGuiDataType_S32, value, num, pstep, pstep_fast, format);
 
   } else if constexpr (std::is_same_v<T, float>) {
     const float step = opts.step.value_or(0.f);
@@ -583,18 +563,15 @@ bool ImGui_InputN(const char* name, T* value, int num, ImGuiOpts<T> opts = {}) {
     const float* pstep = opts.step.has_value() ? &step : nullptr;
     const float* pstep_fast = opts.step_fast.has_value() ? &step_fast : nullptr;
     const char* format = opts.format ? opts.format : "%.3f";
-    res = ImGui::InputScalarN(name, ImGuiDataType_Float, value, num, pstep,
-                              pstep_fast, format);
+    res = ImGui::InputScalarN(name, ImGuiDataType_Float, value, num, pstep, pstep_fast, format);
 
   } else if constexpr (std::is_same_v<T, double>) {
     const double step = opts.step.value_or(0.0);
     const double step_fast = opts.step_fast.value_or(0.0);
     const double* pstep = opts.step.has_value() ? &step : nullptr;
-    const double* pstep_fast =
-        opts.step_fast.has_value() ? &step_fast : nullptr;
+    const double* pstep_fast = opts.step_fast.has_value() ? &step_fast : nullptr;
     const char* format = opts.format ? opts.format : "%.3f";
-    res = ImGui::InputScalarN(name, ImGuiDataType_Double, value, num, pstep,
-                              pstep_fast, format);
+    res = ImGui::InputScalarN(name, ImGuiDataType_Double, value, num, pstep, pstep_fast, format);
   } else {
     static_assert(dependent_false<T>::value, "Unsupported type");
   }
@@ -626,8 +603,7 @@ bool ImGui_LogStepper(const char* name, T* value, ImGuiOpts<T> opts = {}) {
   float input_width = ImGui::CalcItemWidth() - 2 * (button + spacing);
   if (input_width < 1) input_width = 1;
 
-  const double zero_below =
-      opts.zero_below ? static_cast<double>(*opts.zero_below) : 0.0;
+  const double zero_below = opts.zero_below ? static_cast<double>(*opts.zero_below) : 0.0;
   auto clamp = [&](T v) {
     if (opts.min && v < *opts.min) v = *opts.min;
     if (opts.max && v > *opts.max) v = *opts.max;
@@ -689,11 +665,9 @@ inline bool ImGui_IsChordJustPressed(ImGuiKeyChord chord) {
 // Stateful button that displays the given color when active, and shows a
 // semi-transparent hover color (controlled by hover_alpha) when inactive.
 inline bool ImGui_ColorButton(const char* label, bool active, ImColor color,
-                              const ImVec2& size = ImVec2(0, 0),
-                              float hover_alpha = 0.5f) {
+                              const ImVec2& size = ImVec2(0, 0), float hover_alpha = 0.5f) {
   ScopedStyle style;
-  const ImColor hover(color.Value.x, color.Value.y, color.Value.z,
-                      color.Value.w * hover_alpha);
+  const ImColor hover(color.Value.x, color.Value.y, color.Value.z, color.Value.w * hover_alpha);
   if (active) {
     style.Color(ImGuiCol_Button, color);
     style.Color(ImGuiCol_ButtonHovered, color);
@@ -707,15 +681,12 @@ inline bool ImGui_ColorButton(const char* label, bool active, ImColor color,
 // Like ImGui_ColorButton, but with per-corner rounding control via ImDrawFlags.
 // Use ImDrawFlags_RoundCornersLeft, ImDrawFlags_RoundCornersRight,
 // ImDrawFlags_RoundCornersNone, ImDrawFlags_RoundCornersAll, etc.
-inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color,
-                                ImDrawFlags corners,
-                                const ImVec2& size = ImVec2(0, 0),
-                                float hover_alpha = 0.5f) {
+inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color, ImDrawFlags corners,
+                                const ImVec2& size = ImVec2(0, 0), float hover_alpha = 0.5f) {
   const ImGuiStyle& s = ImGui::GetStyle();
   const ImVec2 label_size = ImGui::CalcTextSize(label, nullptr, true);
-  const ImVec2 btn_size(
-      size.x > 0 ? size.x : label_size.x + s.FramePadding.x * 2,
-      size.y > 0 ? size.y : label_size.y + s.FramePadding.y * 2);
+  const ImVec2 btn_size(size.x > 0 ? size.x : label_size.x + s.FramePadding.x * 2,
+                        size.y > 0 ? size.y : label_size.y + s.FramePadding.y * 2);
 
   const ImVec2 pos = ImGui::GetCursorScreenPos();
   ImGui::InvisibleButton(label, btn_size);
@@ -741,8 +712,8 @@ inline bool ImGui_ColorButtonEx(const char* label, bool active, ImColor color,
 
   // Draw border.
   if (s.FrameBorderSize > 0) {
-    dl->AddRect(pos, max, ImGui::GetColorU32(ImGuiCol_Border), s.FrameRounding,
-                corners, s.FrameBorderSize);
+    dl->AddRect(pos, max, ImGui::GetColorU32(ImGuiCol_Border), s.FrameRounding, corners,
+                s.FrameBorderSize);
   }
 
   // Draw label centered.
@@ -779,23 +750,19 @@ ImPlotFlags ImPlot_SetupPlotFlags(ImVec2 plot_size);
 // Sets up the X axis as a "time/frame" axis.
 // Hides tick labels when the plot is narrow.
 // Uses `label` as the axis label (empty string to hide) and auto-fit limits.
-void ImPlot_SetupTimeAxis(
-    ImVec2 plot_size, const char* label = "",
-    ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
+void ImPlot_SetupTimeAxis(ImVec2 plot_size, const char* label = "",
+                          ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
 
 // Sets up a Y axis with auto-fit limits.
 // Hides tick labels when the plot is short.
-void ImPlot_SetupValueAxis(
-    ImVec2 plot_size, const char* label = "", const char* format = nullptr,
-    ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
+void ImPlot_SetupValueAxis(ImVec2 plot_size, const char* label = "", const char* format = nullptr,
+                           ImPlotAxisFlags extra_flags = ImPlotAxisFlags_AutoFit);
 
 // Sets up a Y axis with fixed limits and optional explicit ticks.
 // Hides tick labels when the plot is short.
-void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max,
-                           const char* label = "", const char* format = nullptr,
-                           const double* tick_values = nullptr,
-                           const char* const* tick_labels = nullptr,
-                           int n_ticks = 0);
+void ImPlot_SetupFixedAxis(ImVec2 plot_size, double y_min, double y_max, const char* label = "",
+                           const char* format = nullptr, const double* tick_values = nullptr,
+                           const char* const* tick_labels = nullptr, int n_ticks = 0);
 
 enum class ImPlotLayoutDirection {
   kHorizontal,
@@ -832,8 +799,8 @@ enum class OverlayPos {
 // alpha:          window transparency (0.0-1.0).
 // Returns true if the overlay is visible (like ImGui::Begin).
 // Must be paired with EndOverlay(), even if this returns false.
-bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
-                  float min_width = 0.0f, float alpha = 0.8f);
+bool BeginOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect, float min_width = 0.0f,
+                  float alpha = 0.8f);
 void EndOverlay();
 
 // One-liner: display a text overlay with automatic width sizing.
@@ -841,9 +808,8 @@ void EndOverlay();
 // if needed.
 // color: text color. If all components are 0, uses the theme default.
 // font_scale: scale factor for the default font (1.0 = normal).
-void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect,
-                 const char* text, ImVec4 color = ImVec4(0, 0, 0, 0),
-                 float font_scale = 1.0f, float alpha = 0.8f,
+void TextOverlay(const char* id, OverlayPos pos, ImVec4 workspace_rect, const char* text,
+                 ImVec4 color = ImVec4(0, 0, 0, 0), float font_scale = 1.0f, float alpha = 0.8f,
                  float min_width = 0.0f);
 
 }  // namespace mujoco::studio

@@ -21,8 +21,7 @@
 namespace mujoco::studio {
 
 bool IsFilament(GraphicsMode gfx_mode) {
-  return gfx_mode == GraphicsMode::FilamentOpenGl ||
-         gfx_mode == GraphicsMode::FilamentVulkan ||
+  return gfx_mode == GraphicsMode::FilamentOpenGl || gfx_mode == GraphicsMode::FilamentVulkan ||
          gfx_mode == GraphicsMode::FilamentVulkanSoftware ||
          gfx_mode == GraphicsMode::FilamentWebGl ||
          gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
@@ -40,9 +39,7 @@ bool IsVulkan(GraphicsMode gfx_mode) {
          gfx_mode == GraphicsMode::FilamentVulkanSoftware;
 }
 
-bool IsWebGl(GraphicsMode gfx_mode) {
-  return gfx_mode == GraphicsMode::FilamentWebGl;
-}
+bool IsWebGl(GraphicsMode gfx_mode) { return gfx_mode == GraphicsMode::FilamentWebGl; }
 
 bool IsHeadless(GraphicsMode gfx_mode) {
   return gfx_mode == GraphicsMode::FilamentOpenGlHeadless ||
@@ -54,8 +51,7 @@ bool IsSoftware(GraphicsMode gfx_mode) {
          gfx_mode == GraphicsMode::FilamentVulkanSoftware;
 }
 
-GraphicsMode GraphicsModeFromString(std::string_view str,
-                                    GraphicsMode default_mode) {
+GraphicsMode GraphicsModeFromString(std::string_view str, GraphicsMode default_mode) {
   if (str == "opengl") {
     return GraphicsMode::FilamentOpenGl;
   } else if (str == "vulkan") {

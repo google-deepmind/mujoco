@@ -85,9 +85,7 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   cpu_total_.erase(cpu_total_.begin());
   cpu_total_.push_back(avg_total);
 
-  auto get_duration = [&](int type) {
-    return timer[type].duration - prev[type].duration;
-  };
+  auto get_duration = [&](int type) { return timer[type].duration - prev[type].duration; };
 
   mjtNum collision = 1000.0 * get_duration(mjTIMER_POS_COLLISION) / number;
   cpu_collision_.erase(cpu_collision_.begin());
@@ -109,8 +107,7 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   // Solver diagnostics.
   mjtNum nnz = 0;
   int solver_niter = 0;
-  const int nisland =
-      data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
+  const int nisland = data->nefc ? mjMAX(1, mjMIN(data->nisland, mjNISLAND)) : 0;
   for (int island = 0; island < nisland; island++) {
     nnz += data->solver_nnz[island];
     solver_niter += data->solver_niter[island];
@@ -121,8 +118,7 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   dim_dof_.push_back(nv);
 
   dim_body_.erase(dim_body_.begin());
-  int nbody = (model->opt.enableflags & mjENBL_SLEEP) ? data->nbody_awake
-                                                      : model->nbody;
+  int nbody = (model->opt.enableflags & mjENBL_SLEEP) ? data->nbody_awake : model->nbody;
   dim_body_.push_back(nbody);
 
   dim_constraint_.erase(dim_constraint_.begin());
@@ -135,13 +131,11 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   dim_contact_.push_back(data->ncon);
 
   dim_iteration_.erase(dim_iteration_.begin());
-  dim_iteration_.push_back(static_cast<float>(solver_niter) /
-                           mjMAX(1, nisland));
+  dim_iteration_.push_back(static_cast<float>(solver_niter) / mjMAX(1, nisland));
 }
 
 // Returns a dynamically padded legend label for ImPlot.
-static std::string GetLegendLabel(const char* name,
-                                  const std::vector<float>& values) {
+static std::string GetLegendLabel(const char* name, const std::vector<float>& values) {
   float sum = 0.f;
   int count = 0;
   for (float val : values) {
@@ -168,8 +162,7 @@ void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
   ScopedStyle style;
   style.Font(ScopedFont::kMono);
 
-  ImPlotFlags flags =
-      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  ImPlotFlags flags = ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
   if (ImPlot::BeginPlot("CPU microseconds (avg) vs frame", plot_size, flags)) {
     ImPlot_SetupTimeAxis(plot_size, "");
     ImPlot_SetupValueAxis(plot_size, "", "%.0f");
@@ -185,21 +178,16 @@ void SimProfiler::CpuTimeGraph(ImVec2 plot_size) {
     ImPlot::SetupFinish();
     ImPlotSpec spec(ImPlotProp_LineWeight, 2.0f);
 
-    ImPlot::PlotLine(GetLegendLabel("total", cpu_total_).c_str(),
-                     cpu_total_.data(), cpu_total_.size(), 1,
-                     -(int)cpu_total_.size(), spec);
-    ImPlot::PlotLine(GetLegendLabel("prepare", cpu_prepare_).c_str(),
-                     cpu_prepare_.data(), cpu_prepare_.size(), 1,
-                     -(int)cpu_prepare_.size(), spec);
-    ImPlot::PlotLine(GetLegendLabel("solve", cpu_solve_).c_str(),
-                     cpu_solve_.data(), cpu_solve_.size(), 1,
-                     -(int)cpu_solve_.size(), spec);
-    ImPlot::PlotLine(GetLegendLabel("collision", cpu_collision_).c_str(),
-                     cpu_collision_.data(), cpu_collision_.size(), 1,
-                     -(int)cpu_collision_.size(), spec);
-    ImPlot::PlotLine(GetLegendLabel("other", cpu_other_).c_str(),
-                     cpu_other_.data(), cpu_other_.size(), 1,
-                     -(int)cpu_other_.size(), spec);
+    ImPlot::PlotLine(GetLegendLabel("total", cpu_total_).c_str(), cpu_total_.data(),
+                     cpu_total_.size(), 1, -(int)cpu_total_.size(), spec);
+    ImPlot::PlotLine(GetLegendLabel("prepare", cpu_prepare_).c_str(), cpu_prepare_.data(),
+                     cpu_prepare_.size(), 1, -(int)cpu_prepare_.size(), spec);
+    ImPlot::PlotLine(GetLegendLabel("solve", cpu_solve_).c_str(), cpu_solve_.data(),
+                     cpu_solve_.size(), 1, -(int)cpu_solve_.size(), spec);
+    ImPlot::PlotLine(GetLegendLabel("collision", cpu_collision_).c_str(), cpu_collision_.data(),
+                     cpu_collision_.size(), 1, -(int)cpu_collision_.size(), spec);
+    ImPlot::PlotLine(GetLegendLabel("other", cpu_other_).c_str(), cpu_other_.data(),
+                     cpu_other_.size(), 1, -(int)cpu_other_.size(), spec);
     ImPlot::EndPlot();
   }
 }
@@ -208,8 +196,7 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
   ScopedStyle style;
   style.Font(ScopedFont::kMono);
 
-  ImPlotFlags flags =
-      ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
+  ImPlotFlags flags = ImPlot_SetupPlotFlags(plot_size) | ImPlotFlags_NoMouseText;
   if (ImPlot::BeginPlot("Dimensions: current vs frame", plot_size, flags)) {
     ImPlot_SetupTimeAxis(plot_size, "");
     ImPlot_SetupValueAxis(plot_size, "", "%.0f");
@@ -254,25 +241,23 @@ void SimProfiler::DimensionsGraph(ImVec2 plot_size) {
     };
 
     GetterData nnz_data{&dim_nnz_, count};
-    ImPlot::PlotLineG(GetDimensionLabel("nnz", dim_nnz_.back()).c_str(), getter,
-                      &nnz_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("nnz", dim_nnz_.back()).c_str(), getter, &nnz_data, count,
+                      spec);
     GetterData constraint_data{&dim_constraint_, count};
-    ImPlot::PlotLineG(
-        GetDimensionLabel("constraint", dim_constraint_.back()).c_str(), getter,
-        &constraint_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("constraint", dim_constraint_.back()).c_str(), getter,
+                      &constraint_data, count, spec);
     GetterData dof_data{&dim_dof_, count};
-    ImPlot::PlotLineG(GetDimensionLabel("dof", dim_dof_.back()).c_str(), getter,
-                      &dof_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("dof", dim_dof_.back()).c_str(), getter, &dof_data, count,
+                      spec);
     GetterData contact_data{&dim_contact_, count};
-    ImPlot::PlotLineG(GetDimensionLabel("contact", dim_contact_.back()).c_str(),
-                      getter, &contact_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("contact", dim_contact_.back()).c_str(), getter,
+                      &contact_data, count, spec);
     GetterData body_data{&dim_body_, count};
-    ImPlot::PlotLineG(GetDimensionLabel("body", dim_body_.back()).c_str(),
-                      getter, &body_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("body", dim_body_.back()).c_str(), getter, &body_data,
+                      count, spec);
     GetterData iteration_data{&dim_iteration_, count};
-    ImPlot::PlotLineG(
-        GetDimensionLabel("iteration", dim_iteration_.back()).c_str(), getter,
-        &iteration_data, count, spec);
+    ImPlot::PlotLineG(GetDimensionLabel("iteration", dim_iteration_.back()).c_str(), getter,
+                      &iteration_data, count, spec);
     ImPlot::EndPlot();
   }
 }

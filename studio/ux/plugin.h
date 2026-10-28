@@ -55,8 +55,8 @@ struct GuiPlugin final {
 
 // Plugin for adding additional scene geoms.
 struct ScenePlugin final {
-  using EnhanceSceneFn = void (*)(ScenePlugin* self, const mjModel* model,
-                                  mjData* data, mjvScene* scene);
+  using EnhanceSceneFn = void (*)(ScenePlugin* self, const mjModel* model, mjData* data,
+                                  mjvScene* scene);
 
   // The name of the plugin; must be unique.
   const char* name = "";
@@ -70,18 +70,14 @@ struct ScenePlugin final {
 
 // Plugin for loading and updating models.
 struct ModelPlugin final {
-  using GetModelToLoadFn = const char* (*)(ModelPlugin* self, int* size,
-                                           char* content_type,
-                                           int content_type_size,
-                                           char* model_name,
+  using GetModelToLoadFn = const char* (*)(ModelPlugin* self, int* size, char* content_type,
+                                           int content_type_size, char* model_name,
                                            int model_name_size);
   using PostModelLoadedFn = void (*)(ModelPlugin* self, const mjModel* model,
                                      const char* model_path);
   using DoUpdateFn = bool (*)(ModelPlugin* self, mjModel* model, mjData* data);
-  using PreStepFn = void (*)(ModelPlugin* self, const mjModel* model,
-                             mjData* data);
-  using PostStepFn = void (*)(ModelPlugin* self, const mjModel* model,
-                              mjData* data);
+  using PreStepFn = void (*)(ModelPlugin* self, const mjModel* model, mjData* data);
+  using PostStepFn = void (*)(ModelPlugin* self, const mjModel* model, mjData* data);
 
   // The name of the plugin; must be unique.
   const char* name = "";
@@ -130,11 +126,10 @@ struct KeyHandlerPlugin final {
 
 // Plugin for editing the mjSpec.
 struct SpecEditorPlugin final {
-  using PreCompileFn = bool (*)(SpecEditorPlugin* self, mjSpec* spec,
-                                const mjModel* model, const mjData* data,
-                                const mjvCamera* camera);
-  using PostCompileFn = void (*)(SpecEditorPlugin* self, const mjSpec* spec,
-                                 const mjModel* model, mjData* data);
+  using PreCompileFn = bool (*)(SpecEditorPlugin* self, mjSpec* spec, const mjModel* model,
+                                const mjData* data, const mjvCamera* camera);
+  using PostCompileFn = void (*)(SpecEditorPlugin* self, const mjSpec* spec, const mjModel* model,
+                                 mjData* data);
 
   // The name of the plugin; must be unique.
   const char* name = "";

@@ -27,15 +27,13 @@ std::string LoadText(const std::string& filename);
 
 // Returns a pointer to the value of the given field in the given data.
 // Returns nullptr if the field is not found or the index is out of bounds.
-const void* GetValue(const mjModel* model, const mjData* data,
-                     const char* field, int index);
+const void* GetValue(const mjModel* model, const mjData* data, const char* field, int index);
 
 // Returns an XML string representation of the camera.
 std::string CameraToString(const mjData* data, const mjvCamera* camera);
 
 // Returns an XML string representation of current data keyframe.
-std::string KeyframeToString(const mjModel* model, const mjData* data,
-                             bool full_precision = false);
+std::string KeyframeToString(const mjModel* model, const mjData* data, bool full_precision = false);
 
 }  // namespace mujoco::studio
 

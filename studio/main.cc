@@ -31,12 +31,11 @@ int main(int argc, char** argv) {
     model_file = argv[1];
   }
 
-  return mujoco::studio::LaunchStudio(
-      argc, argv,
-      {
-          .window_width = absl::GetFlag(FLAGS_window_width),
-          .window_height = absl::GetFlag(FLAGS_window_height),
-          .model_file = model_file,
-          .gfx_mode = absl::GetFlag(FLAGS_gfx),
-      });
+  return mujoco::studio::LaunchStudio(argc, argv,
+                                      {
+                                          .window_width = absl::GetFlag(FLAGS_window_width),
+                                          .window_height = absl::GetFlag(FLAGS_window_height),
+                                          .model_file = model_file,
+                                          .gfx_mode = absl::GetFlag(FLAGS_gfx),
+                                      });
 }

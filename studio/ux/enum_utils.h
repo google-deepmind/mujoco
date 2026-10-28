@@ -47,9 +47,7 @@ struct fixed_string {
   constexpr fixed_string(std::string_view sv) noexcept {
     for (int n = 0; n < N; ++n) str[n] = sv[n];
   }
-  constexpr operator std::string_view() const noexcept {
-    return {str.data(), N};
-  }
+  constexpr operator std::string_view() const noexcept { return {str.data(), N}; }
   std::array<char, N + 1> str{};
 };
 
@@ -153,8 +151,7 @@ constexpr auto entries(std::index_sequence<I...>) noexcept {
 }
 
 template <typename E>
-inline constexpr auto entries_v =
-    entries<E>(std::make_index_sequence<values_v<E>.size()>());
+inline constexpr auto entries_v = entries<E>(std::make_index_sequence<values_v<E>.size()>());
 
 // Returns the name of the given enum value.
 template <typename E>

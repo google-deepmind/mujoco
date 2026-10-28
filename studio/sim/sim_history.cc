@@ -67,8 +67,7 @@ std::span<mjtNum> SimHistory::SetIndex(int offset) {
 
   offset_ = std::clamp<int>(offset, 1 - size_, 0);
 
-  const int actual_index =
-      (cursor_ - 1 + offset_ + history_.size()) % history_.size();
+  const int actual_index = (cursor_ - 1 + offset_ + history_.size()) % history_.size();
   return history_[actual_index];
 }
 

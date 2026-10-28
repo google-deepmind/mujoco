@@ -119,8 +119,7 @@ static void AddEditorButtons(mjsElement* element, mjsElement** selected_element,
   }
 }
 
-static void SelectableElement(mjsElement* element,
-                              mjsElement** selected_element,
+static void SelectableElement(mjsElement* element, mjsElement** selected_element,
                               SpecEditor* editor) {
   constexpr ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowOverlap;
 
@@ -134,8 +133,7 @@ static void SelectableElement(mjsElement* element,
   }
 }
 
-static void BodyChildrenGui(const char* heading, mjtObj type,
-                            mjsElement** element, mjsBody* body,
+static void BodyChildrenGui(const char* heading, mjtObj type, mjsElement** element, mjsBody* body,
                             SpecEditor* editor) {
   mjsElement* iter = mjs_firstChild(body, type, 0);
   if (!iter) {
@@ -154,8 +152,7 @@ static void BodyChildrenGui(const char* heading, mjtObj type,
   }
 }
 
-static void ElementListGui(const char* heading, mjtObj type,
-                           mjsElement** element, mjSpec* spec,
+static void ElementListGui(const char* heading, mjtObj type, mjsElement** element, mjSpec* spec,
                            SpecEditor* editor) {
   mjsElement* iter = mjs_firstElement(spec, type);
   if (!iter) {
@@ -174,15 +171,13 @@ static void ElementListGui(const char* heading, mjtObj type,
   }
 }
 
-static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
-                                 SpecEditor* editor) {
+static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body, SpecEditor* editor) {
   const std::string label = GetElementName(body->element);
 
   ImGui::PushID(label.c_str());
 
-  ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed |
-      ImGuiTreeNodeFlags_DrawLinesFull | ImGuiTreeNodeFlags_AllowOverlap;
+  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed |
+                             ImGuiTreeNodeFlags_DrawLinesFull | ImGuiTreeNodeFlags_AllowOverlap;
 
   if (*element == body->element) {
     flags |= ImGuiTreeNodeFlags_Selected;
@@ -216,8 +211,7 @@ static void BodyTreeGuiRecursive(mjsElement** element, mjsBody* body,
 }
 
 void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor) {
-  const ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
+  const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   ScopedStyle style;
   style.Var(ImGuiStyleVar_ItemSpacing, ImVec2(4, 2));
@@ -280,8 +274,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
   mjsElement* ref_element = editor ? editor->GetRefElement() : element;
 
 #define FIELD(NAME, TIP) table(#NAME, elem->NAME, ref->NAME, TIP);
-#define QFIELD(NAME, ALT, TIP) \
-  table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
+#define QFIELD(NAME, ALT, TIP) table(#NAME, #ALT, elem->NAME, ref->NAME, elem->ALT, ref->ALT, TIP);
 
   ImGui_SpecElementTable table(editor == nullptr);
   switch (element->elemtype) {
@@ -298,8 +291,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(fullinertia, "non-axis-aligned inertia matrix");
       FIELD(mocap, "is this a mocap body");
       FIELD(gravcomp, "gravity compensation");
-      FIELD(explicitinertial,
-            "whether to save the body with explicit inertial clause");
+      FIELD(explicitinertial, "whether to save the body with explicit inertial clause");
       FIELD(sleep, "sleep policy");
       FIELD(info, "message appended to compiler errors");
       break;
@@ -349,8 +341,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(slidersite, "site defining cylinder, for slider-crank");
       FIELD(cranklength, "crank length, for slider-crank");
       FIELD(lengthrange, "transmission length range");
-      FIELD(inheritrange,
-            "automatic range setting for position and intvelocity");
+      FIELD(inheritrange, "automatic range setting for position and intvelocity");
       FIELD(ctrllimited, "are control limits defined (mjtLimited)");
       FIELD(ctrlrange, "control range");
       FIELD(forcelimited, "are force limits defined (mjtLimited)");
@@ -551,8 +542,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(poisson, "Poisson's ratio");
       FIELD(damping, "Rayleigh's damping");
       FIELD(thickness, "thickness (2D only)");
-      FIELD(elastic2d,
-            "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
+      FIELD(elastic2d, "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
       FIELD(section, "1D cross-section (mjtFlexSection)");
       FIELD(sectionsize, "1D box cross-section half-sizes");
       FIELD(info, "message appended to compiler errors");

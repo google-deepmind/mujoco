@@ -25,8 +25,7 @@ namespace mujoco::studio {
 // optional; if provided, it will allow the user to modify the spec (e.g.
 // add/delete elements) on the assumption that `element` and `spec` were
 // obtained from the editor.
-void SpecTreeGui(mjsElement** element, mjSpec* spec,
-                 SpecEditor* editor = nullptr);
+void SpecTreeGui(mjsElement** element, mjSpec* spec, SpecEditor* editor = nullptr);
 
 // Displays the properties of the given element in the table. If `editor` is
 // provided, the user will be able to modify the properties of the element,

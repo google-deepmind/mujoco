@@ -41,35 +41,32 @@ void ForEachPlugin(const std::function<void(T*)>& fn) {
 
 }  // namespace mujoco::studio
 
-#define MUJOCO_SPECIALIZE_PLUGIN(PLUGIN, NAME)                                 \
-  template <>                                                                  \
-  const char* mujoco::GlobalTable<PLUGIN>::HumanReadableTypeName() {           \
-    return NAME;                                                               \
-  }                                                                            \
-  template <>                                                                  \
-  std::string_view mujoco::GlobalTable<PLUGIN>::ObjectKey(const PLUGIN& p) {   \
-    return std::string_view(p.name);                                           \
-  }                                                                            \
-  template <>                                                                  \
-  bool mujoco::GlobalTable<PLUGIN>::ObjectEqual(const PLUGIN& p1,              \
-                                                const PLUGIN& p2) {            \
-    return CaseInsensitiveEqual(p1.name, p2.name);                             \
-  }                                                                            \
-  template <>                                                                  \
-  bool mujoco::GlobalTable<PLUGIN>::CopyObject(PLUGIN& dst, const PLUGIN& src, \
-                                               ErrorMessage& err) {            \
-    dst = src;                                                                 \
-    return true;                                                               \
-  }                                                                            \
-  namespace mujoco::studio {                                                   \
-  template void RegisterPlugin<PLUGIN>(PLUGIN plugin);                         \
-  template void ForEachPlugin<PLUGIN>(const std::function<void(PLUGIN*)>& fn); \
+#define MUJOCO_SPECIALIZE_PLUGIN(PLUGIN, NAME)                                        \
+  template <>                                                                         \
+  const char* mujoco::GlobalTable<PLUGIN>::HumanReadableTypeName() {                  \
+    return NAME;                                                                      \
+  }                                                                                   \
+  template <>                                                                         \
+  std::string_view mujoco::GlobalTable<PLUGIN>::ObjectKey(const PLUGIN& p) {          \
+    return std::string_view(p.name);                                                  \
+  }                                                                                   \
+  template <>                                                                         \
+  bool mujoco::GlobalTable<PLUGIN>::ObjectEqual(const PLUGIN& p1, const PLUGIN& p2) { \
+    return CaseInsensitiveEqual(p1.name, p2.name);                                    \
+  }                                                                                   \
+  template <>                                                                         \
+  bool mujoco::GlobalTable<PLUGIN>::CopyObject(PLUGIN& dst, const PLUGIN& src,        \
+                                               ErrorMessage& err) {                   \
+    dst = src;                                                                        \
+    return true;                                                                      \
+  }                                                                                   \
+  namespace mujoco::studio {                                                          \
+  template void RegisterPlugin<PLUGIN>(PLUGIN plugin);                                \
+  template void ForEachPlugin<PLUGIN>(const std::function<void(PLUGIN*)>& fn);        \
   }
 
 MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::GuiPlugin, "gui plugin");
 MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::ModelPlugin, "model plugin");
 MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::ScenePlugin, "scene plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::KeyHandlerPlugin,
-                         "key handler plugin");
-MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::SpecEditorPlugin,
-                         "spec editor plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::KeyHandlerPlugin, "key handler plugin");
+MUJOCO_SPECIALIZE_PLUGIN(mujoco::studio::SpecEditorPlugin, "spec editor plugin");

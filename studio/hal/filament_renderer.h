@@ -52,24 +52,23 @@ class FilamentRenderer {
   void Init(const mjModel* model);
 
   // Synchronizes scene state from the simulation model and data.
-  void Sync(const mjModel* model, mjData* data, const mjvPerturb* perturb,
-            mjvCamera* camera, const mjvOption* vis_option, int width,
-            int height, std::span<mjvGeom> extra_geoms = {});
+  void Sync(const mjModel* model, mjData* data, const mjvPerturb* perturb, mjvCamera* camera,
+            const mjvOption* vis_option, int width, int height,
+            std::span<mjvGeom> extra_geoms = {});
 
   // Renders the previously synchronized scene and current UX state.
   void Submit(int width, int height, std::span<std::byte> pixels = {});
 
   // Populates the given output buffer with RGB888 pixel data. The size of the
   // output buffer must be at least width * height * 3.
-  void RenderToTexture(const mjModel* model, mjData* data, mjvCamera* camera,
-                       int width, int height, std::byte* output);
+  void RenderToTexture(const mjModel* model, mjData* data, mjvCamera* camera, int width, int height,
+                       std::byte* output);
 
   // Uploads an image to the backend for GUI rendering, returning the texture
   // ID for the texture. The ID can be used in subsequent calls to update the
   // texture data. An empty pixels argument will free the texture if it exists.
   // A texture ID of 0 will create a new texture.
-  int UploadImage(int tex_id, std::span<const std::byte> pixels, int width,
-                  int height);
+  int UploadImage(int tex_id, std::span<const std::byte> pixels, int width, int height);
 
   // Rendering flags.
   mjtByte* GetRenderFlags() { return render_flags_; }
@@ -82,10 +81,9 @@ class FilamentRenderer {
   void Deinit();
 
   void BuildMainRenderRequest(mjrfRenderRequest* request, const mjVisual& vis,
-                              const mjvOption& vis_option,
-                              const mjrRect& viewport, const mjrCamera& camera);
-  void BuildUxRenderRequest(mjrfRenderRequest* request,
-                            const mjrRect& viewport);
+                              const mjvOption& vis_option, const mjrRect& viewport,
+                              const mjrCamera& camera);
+  void BuildUxRenderRequest(mjrfRenderRequest* request, const mjrRect& viewport);
 
   UniquePtr<mjrfContext> filament_context_{nullptr, nullptr};
   UniquePtr<mjrfScene> main_scene_{nullptr, nullptr};

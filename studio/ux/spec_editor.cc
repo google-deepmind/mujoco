@@ -245,8 +245,7 @@ void SpecEditor::Undo() {
     auto& entry = history_[cursor_];
     active_spec_ = Copy(entry.spec.get());
 
-    active_element_ =
-        active_map_.Resolve(active_spec_.get(), active_element_key_);
+    active_element_ = active_map_.Resolve(active_spec_.get(), active_element_key_);
     UpdateReferenceElement();
   }
 }
@@ -265,15 +264,12 @@ void SpecEditor::Redo() {
       active_map_.Remove(entry.key);
     }
 
-    active_element_ =
-        active_map_.Resolve(active_spec_.get(), active_element_key_);
+    active_element_ = active_map_.Resolve(active_spec_.get(), active_element_key_);
     UpdateReferenceElement();
   }
 }
 
-bool SpecEditor::CanRedo() const {
-  return cursor_ + 1 < static_cast<int>(history_.size());
-}
+bool SpecEditor::CanRedo() const { return cursor_ + 1 < static_cast<int>(history_.size()); }
 
 void SpecEditor::AppendHistory(HistoryEntry entry) {
   if (!active_spec_) {
@@ -315,8 +311,7 @@ void SpecEditor::ElementKeyMap::Insert(ElementKey key, TypeIndex type_index) {
   list.insert(list.begin() + type_index.index, key);
 }
 
-SpecEditor::TypeIndex SpecEditor::ElementKeyMap::LookupTypeIndex(
-    ElementKey key) const {
+SpecEditor::TypeIndex SpecEditor::ElementKeyMap::LookupTypeIndex(ElementKey key) const {
   for (int type = mjOBJ_UNKNOWN + 1; type < mjNOBJECT; ++type) {
     const auto& list = keys_[type];
     for (int index = 0; index < list.size(); ++index) {
@@ -328,8 +323,7 @@ SpecEditor::TypeIndex SpecEditor::ElementKeyMap::LookupTypeIndex(
   return kInvalidTypeIndex;
 }
 
-SpecEditor::ElementKey SpecEditor::ElementKeyMap::LookupElementKey(
-    TypeIndex type_index) const {
+SpecEditor::ElementKey SpecEditor::ElementKeyMap::LookupElementKey(TypeIndex type_index) const {
   if (type_index.type == mjOBJ_UNKNOWN) {
     return kInvalidElementKey;
   }
@@ -340,8 +334,7 @@ SpecEditor::ElementKey SpecEditor::ElementKeyMap::LookupElementKey(
   return list[type_index.index];
 }
 
-mjsElement* SpecEditor::ElementKeyMap::Resolve(mjSpec* spec,
-                                               ElementKey key) const {
+mjsElement* SpecEditor::ElementKeyMap::Resolve(mjSpec* spec, ElementKey key) const {
   const TypeIndex type_index = LookupTypeIndex(key);
   if (type_index.type == mjOBJ_UNKNOWN) {
     return nullptr;
@@ -358,8 +351,7 @@ SpecEditor::SpecPtr SpecEditor::Copy(const mjSpec* spec) {
   return SpecPtr(mj_copySpec(spec), mj_deleteSpec);
 }
 
-mjsElement* SpecEditor::AddElementToSpec(mjSpec* spec, mjtObj type,
-                                         mjsBody* body) {
+mjsElement* SpecEditor::AddElementToSpec(mjSpec* spec, mjtObj type, mjsBody* body) {
   if (spec == nullptr || type == mjOBJ_UNKNOWN) {
     return nullptr;
   }

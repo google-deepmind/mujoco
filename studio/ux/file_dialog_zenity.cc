@@ -51,8 +51,7 @@ static DialogResult RunZenity(std::vector<std::string>& args) {
   if (len > 0) {
     buffer[len - 1] = '\0';
   }
-  return DialogResult{.status = DialogResult::kAccepted,
-                      .path = std::string(buffer)};
+  return DialogResult{.status = DialogResult::kAccepted, .path = std::string(buffer)};
 }
 
 static void UpdateArgs(std::vector<std::string>& args, std::string_view path,
@@ -75,8 +74,7 @@ static void UpdateArgs(std::vector<std::string>& args, std::string_view path,
   }
 }
 
-DialogResult OpenFileDialog(std::string_view path,
-                            std::span<std::string_view> filters) {
+DialogResult OpenFileDialog(std::string_view path, std::span<std::string_view> filters) {
   std::vector<std::string> args;
   args.push_back("--file-selection");
   args.push_back("--title=Open File");
@@ -84,8 +82,7 @@ DialogResult OpenFileDialog(std::string_view path,
   return RunZenity(args);
 }
 
-DialogResult SaveFileDialog(std::string_view path,
-                            std::span<std::string_view> filters) {
+DialogResult SaveFileDialog(std::string_view path, std::span<std::string_view> filters) {
   std::vector<std::string> args;
   args.push_back("--file-selection");
   args.push_back("--title=Save File");
