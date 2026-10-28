@@ -5444,6 +5444,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='adhesive force along the contact normal',
              ),
              StructFieldDecl(
+                 name='surfacevel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='surface velocity (geom[1] - geom[0]): tangent1, 2, spin',
+             ),
+             StructFieldDecl(
                  name='mu',
                  type=ValueType(name='mjtNum'),
                  doc='friction of regularized cone, set by mj_makeConstraint',

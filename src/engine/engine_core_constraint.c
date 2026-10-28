@@ -3107,9 +3107,9 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 }
 
 
-// add relative surface velocity of contacting geoms to contact rows of efc_vel
+// add relative surface velocity of contacts to contact rows of efc_vel
 static void mj_addSurfaceVel(const mjModel* m, mjData* d) {
-  // no surface velocity on any geom: quick return
+  // no surface velocity: quick return
   if (!m->flg_surfacevel) {
     return;
   }
@@ -3119,64 +3119,33 @@ static void mj_addSurfaceVel(const mjModel* m, mjData* d) {
 
   // loop over contacts, add surface velocity to efc_vel
   for (int i=0; i < ncon; i++) {
-    // get contact, skip excluded
+    // get contact, skip excluded or frictionless
     const mjContact* con = d->contact + i;
-    if (con->efc_address < 0) { continue; }
-
-    // relative surface velocity in world frame: geom2 minus geom1, linear and angular
-    mjtNum svel[3] = {0, 0, 0}, sang[3] = {0, 0, 0};
-    int active = 0;
-    for (int side=0; side < 2; side++) {
-      int g = con->geom[side];
-      if (g < 0) {
-        // TODO(team): support flex
-        continue;
-      }
-      const mjtNum* sv = m->geom_surfacevel + 6*g;
-
-      // skip geom with no surface velocity
-      if (!sv[0] && !sv[1] && !sv[2] && !sv[3] && !sv[4] && !sv[5]) {
-        continue;
-      }
-      active = 1;
-
-      // rotate to world frame, add angular contribution at contact point
-      mjtNum sgn = side ? 1 : -1;
-      mjtNum vw[3], ww[3];
-      mj_geomSurfaceVelocity(m, d, g, con->pos, vw, ww);
-      mju_addToScl3(svel, vw, sgn);
-      mju_addToScl3(sang, ww, sgn);
-    }
-    if (!active) {
+    if (con->efc_address < 0 || con->dim <= 1) {
       continue;
     }
 
-    // rotate to contact frame: (normal, tangent1, tangent2, spin, roll1, roll2)
-    mjtNum cs[6];
-    mju_mulMatVec3(cs, con->frame, svel);
-    mju_mulMatVec3(cs + 3, con->frame, sang);
+    // skip contact with no surface velocity
+    const mjtNum* sv = con->surfacevel;
+    if (!sv[0] && !sv[1] && !sv[2]) {
+      continue;
+    }
 
-    // surface velocity acts in the tangent plane and torsional direction only
-    cs[0] = 0;  // no normal push
-    cs[4] = 0;  // no rolling drive
-    cs[5] = 0;  // no rolling drive
-
-    // add to contact rows
-    int adr = con->efc_address, dim = con->dim;
-    if (dim == 1 || !ispyramid) {
-      for (int j=0; j < dim; j++) {
-        d->efc_vel[adr + j] += cs[j];
+    // add to contact rows: (tangent1, tangent2, spin) map to directions k = 1, 2, 3
+    int adr = con->efc_address, n = mjMIN(con->dim, 4);
+    if (!ispyramid) {
+      for (int k=1; k < n; k++) {
+        d->efc_vel[adr + k] += sv[k-1];
       }
     } else {
-      for (int k=1; k < dim; k++) {
+      for (int k=1; k < n; k++) {
         mjtNum mu = con->friction[k-1];
-        d->efc_vel[adr + 2*(k-1)]     += cs[0] + mu*cs[k];
-        d->efc_vel[adr + 2*(k-1) + 1] += cs[0] - mu*cs[k];
+        d->efc_vel[adr + 2*(k-1)]     += mu*sv[k-1];
+        d->efc_vel[adr + 2*(k-1) + 1] -= mu*sv[k-1];
       }
     }
   }
 }
-
 
 
 // bias aref of adhesive contact rows: makes the compression branch of the net

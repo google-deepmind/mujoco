@@ -382,5 +382,145 @@ TEST_F(MjvSceneTest, FlexDim2FlatskinNormalsPointOutward) {
   FreeSceneObjects();
 }
 
+TEST_F(MjvSceneTest, ContactSurfaceVelocityArrow) {
+  // Static belt before body, static belt after body, and welded static body
+  // declared after movable body (higher bodyid, still static).
+  constexpr char kBeltFirstXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="belt" type="plane" size="5 5 .1" surfacevel="1 0 0  0 0 0"/>
+      <body pos="0 0 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  constexpr char kBeltSecondXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1"/>
+      </body>
+      <geom name="belt" type="plane" size="5 5 .1" surfacevel="1 0 0  0 0 0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  constexpr char kWeldedBeltAfterBodyXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 .09">
+        <freejoint/>
+        <geom type="sphere" size=".1"/>
+      </body>
+      <body name="conveyor">
+        <geom name="belt" type="plane" size="5 5 .1"
+          surfacevel="1 0 0  0 0 0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* xml :
+       {kBeltFirstXml, kBeltSecondXml, kWeldedBeltAfterBodyXml}) {
+    MjModelPtr model = LoadModelFromString(xml);
+    ASSERT_THAT(model.get(), NotNull());
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
+    ASSERT_EQ(data->ncon, 1);
+
+    InitSceneObjects(model.get());
+    mjv_defaultOption(&opt_);
+    opt_.flags[mjVIS_CONTACTPOINT] = 1;
+    mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                    &scn_);
+
+    int n_arrows = 0;
+    int n_arrows2 = 0;
+    const mjvGeom* arrow = nullptr;
+    for (int i = 0; i < scn_.ngeom; ++i) {
+      if (scn_.geoms[i].type == mjGEOM_ARROW) {
+        arrow = &scn_.geoms[i];
+        ++n_arrows;
+      } else if (scn_.geoms[i].type == mjGEOM_ARROW2) {
+        ++n_arrows2;
+      }
+    }
+    EXPECT_EQ(n_arrows, 1);
+    EXPECT_EQ(n_arrows2, 0);
+    if (arrow) {
+      EXPECT_NEAR(arrow->size[2], 0.5f, 1e-5f);
+      // Arrow +z axis (third column of mat) points along +x belt velocity.
+      EXPECT_NEAR(arrow->mat[2], 1.0f, 1e-5f);
+      EXPECT_NEAR(arrow->mat[5], 0.0f, 1e-5f);
+      EXPECT_NEAR(arrow->mat[8], 0.0f, 1e-5f);
+    }
+
+    // Frictionless contacts (dim == 1) do not draw a surface velocity arrow.
+    data->contact[0].dim = 1;
+    mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                    &scn_);
+    n_arrows = 0;
+    for (int i = 0; i < scn_.ngeom; ++i) {
+      if (scn_.geoms[i].type == mjGEOM_ARROW ||
+          scn_.geoms[i].type == mjGEOM_ARROW2) {
+        ++n_arrows;
+      }
+    }
+    EXPECT_EQ(n_arrows, 0);
+
+    FreeSceneObjects();
+  }
+
+  // Two movable bodies: double-sided arrow (mjGEOM_ARROW2) along tangent axis.
+  constexpr char kTwoMovableXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 0">
+        <freejoint/>
+        <geom type="sphere" size=".1" surfacevel="1 0 0  0 0 0"/>
+      </body>
+      <body pos="0 0 .19">
+        <freejoint/>
+        <geom type="sphere" size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(kTwoMovableXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->ncon, 1);
+
+  InitSceneObjects(model.get());
+  mjv_defaultOption(&opt_);
+  opt_.flags[mjVIS_CONTACTPOINT] = 1;
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_ALL,
+                  &scn_);
+
+  int n_arrows = 0;
+  int n_arrows2 = 0;
+  const mjvGeom* arrow2 = nullptr;
+  for (int i = 0; i < scn_.ngeom; ++i) {
+    if (scn_.geoms[i].type == mjGEOM_ARROW) {
+      ++n_arrows;
+    } else if (scn_.geoms[i].type == mjGEOM_ARROW2) {
+      arrow2 = &scn_.geoms[i];
+      ++n_arrows2;
+    }
+  }
+  EXPECT_EQ(n_arrows, 0);
+  EXPECT_EQ(n_arrows2, 1);
+  if (arrow2) {
+    EXPECT_NEAR(arrow2->size[2], 0.5f, 1e-5f);
+    EXPECT_NEAR(std::abs(arrow2->mat[2]), 1.0f, 1e-5f);
+    EXPECT_NEAR(arrow2->mat[5], 0.0f, 1e-5f);
+    EXPECT_NEAR(arrow2->mat[8], 0.0f, 1e-5f);
+  }
+  FreeSceneObjects();
+}
+
 }  // namespace
 }  // namespace mujoco

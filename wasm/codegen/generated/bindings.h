@@ -465,6 +465,9 @@ struct MjContact {
   void set_adhesion(mjtNum value) {
     ptr_->adhesion = value;
   }
+  emscripten::val surfacevel() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->surfacevel));
+  }
   mjtNum mu() const {
     return ptr_->mu;
   }

@@ -43,6 +43,7 @@ else:
     Callback = None
 PyTreeNode = mjx_dataclasses.PyTreeNode
 
+
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
 class TileSet:
@@ -56,6 +57,7 @@ class TileSet:
     elemid: flat CSR gather indices for tiled blocks; empty selects the
       native-layout scalar path
   """
+
   adr: np.ndarray
   size: int
   elemid: np.ndarray = dataclasses.field(
@@ -74,7 +76,7 @@ class TileSet:
     return hash((self.size, adr.dtype.str, adr.shape, adr.tobytes()))
 
   def tree_flatten(self):
-    children = list((getattr(self, k) for k in self.__dataclass_fields__))
+    children = list(getattr(self, k) for k in self.__dataclass_fields__)
     return (children, None)
 
   @classmethod
@@ -120,6 +122,7 @@ class BlockDim:
     eff_pcg: effective-metric PCG block dimension (derivative)
     render: render block dimension (render)
   """
+
   segmented_sort: int = 128
   nxn_broadphase: int = 128
   convex_ccd: int = 64
@@ -146,7 +149,7 @@ class BlockDim:
   render: int = 64
 
   def tree_flatten(self):
-    children = list((getattr(self, k) for k in self.__dataclass_fields__))
+    children = list(getattr(self, k) for k in self.__dataclass_fields__)
     return (children, None)
 
   @classmethod
@@ -157,6 +160,7 @@ class BlockDim:
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
+
   broadphase: int
   broadphase_filter: int
   ccd_iterations: int
@@ -175,8 +179,10 @@ class OptionWarp(PyTreeNode):
   sleep_tolerance: jax.Array
   warn_overflow: int
 
+
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
+
   D_colind: np.ndarray
   D_diag: np.ndarray
   D_rowadr: np.ndarray
@@ -449,8 +455,10 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
+
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
+
   M: jax.Array
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
@@ -481,6 +489,7 @@ class DataWarp(PyTreeNode):
   contact__solimp: jax.Array
   contact__solref: jax.Array
   contact__solreffriction: jax.Array
+  contact__surfacevel: jax.Array
   contact__type: jax.Array
   contact__vert: jax.Array
   contact__worldid: jax.Array
@@ -601,6 +610,8 @@ class DataWarp(PyTreeNode):
       default_factory=lambda: jax.numpy.zeros((), dtype=jax.numpy.int32)
   )
   shape = property(lambda self: self.cacc.shape)
+
+
 DATA_NON_VMAP = {
     'cdof_tri_col',
     'cdof_tri_row',
@@ -619,6 +630,7 @@ DATA_NON_VMAP = {
     'contact__solimp',
     'contact__solref',
     'contact__solreffriction',
+    'contact__surfacevel',
     'contact__type',
     'contact__vert',
     'contact__worldid',
@@ -699,6 +711,7 @@ _NDIM = {
         'contact__solimp': 2,
         'contact__solref': 2,
         'contact__solreffriction': 2,
+        'contact__surfacevel': 2,
         'contact__type': 1,
         'contact__vert': 2,
         'contact__worldid': 1,
@@ -1512,6 +1525,7 @@ _BATCH_DIM = {
         'contact__solimp': False,
         'contact__solref': False,
         'contact__solreffriction': False,
+        'contact__surfacevel': False,
         'contact__type': False,
         'contact__vert': False,
         'contact__worldid': False,

@@ -75,6 +75,7 @@ def _collision_shim(
     flex_vertbodyid: wp.array[int],
     flex_vertflexid: wp.array[int],
     flex_vertnum: wp.array[int],
+    flg_surfacevel: bool,
     geom_aabb: wp.array3d[wp.vec3],
     geom_adhesion: wp.array2d[float],
     geom_bodyid: wp.array[int],
@@ -93,6 +94,7 @@ def _collision_shim(
     geom_solimp: wp.array2d[mjwp_types.vec5],
     geom_solmix: wp.array2d[float],
     geom_solref: wp.array2d[wp.vec2],
+    geom_surfacevel: wp.array2d[mjwp_types.vec6],
     geom_type: wp.array[int],
     has_1d_flex: bool,
     has_3d_flex: bool,
@@ -190,6 +192,7 @@ def _collision_shim(
     contact__solimp: wp.array[mjwp_types.vec5],
     contact__solref: wp.array[wp.vec2],
     contact__solreffriction: wp.array[wp.vec2],
+    contact__surfacevel: wp.array[wp.vec3],
     contact__type: wp.array[int],
     contact__vert: wp.array[wp.vec2i],
     contact__worldid: wp.array[int],
@@ -225,6 +228,7 @@ def _collision_shim(
   _m.flex_vertbodyid = flex_vertbodyid
   _m.flex_vertflexid = flex_vertflexid
   _m.flex_vertnum = flex_vertnum
+  _m.flg_surfacevel = flg_surfacevel
   _m.geom_aabb = geom_aabb
   _m.geom_adhesion = geom_adhesion
   _m.geom_bodyid = geom_bodyid
@@ -243,6 +247,7 @@ def _collision_shim(
   _m.geom_solimp = geom_solimp
   _m.geom_solmix = geom_solmix
   _m.geom_solref = geom_solref
+  _m.geom_surfacevel = geom_surfacevel
   _m.geom_type = geom_type
   _m.has_1d_flex = has_1d_flex
   _m.has_3d_flex = has_3d_flex
@@ -329,6 +334,7 @@ def _collision_shim(
   _d.contact.solimp = contact__solimp
   _d.contact.solref = contact__solref
   _d.contact.solreffriction = contact__solreffriction
+  _d.contact.surfacevel = contact__surfacevel
   _d.contact.type = contact__type
   _d.contact.vert = contact__vert
   _d.contact.worldid = contact__worldid
@@ -368,13 +374,14 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       'contact__solimp': d._impl.contact__solimp.shape,
       'contact__solref': d._impl.contact__solref.shape,
       'contact__solreffriction': d._impl.contact__solreffriction.shape,
+      'contact__surfacevel': d._impl.contact__surfacevel.shape,
       'contact__type': d._impl.contact__type.shape,
       'contact__vert': d._impl.contact__vert.shape,
       'contact__worldid': d._impl.contact__worldid.shape,
   }
   jf = ffi.jax_callable_variadic_tuple(
       _collision_shim,
-      num_outputs=23,
+      num_outputs=24,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -398,6 +405,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -419,6 +427,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -435,6 +444,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'geom_solimp',
           'geom_solmix',
           'geom_solref',
+          'geom_surfacevel',
           'geom_xmat',
           'geom_xpos',
           'hfield_data',
@@ -466,6 +476,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -507,6 +518,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_vertbodyid,
       m._impl.flex_vertflexid,
       m.flex_vertnum,
+      m.flg_surfacevel,
       m.geom_aabb,
       m._impl.geom_adhesion,
       m.geom_bodyid,
@@ -525,6 +537,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.geom_solimp,
       m.geom_solmix,
       m.geom_solref,
+      m._impl.geom_surfacevel,
       m.geom_type,
       m._impl.has_1d_flex,
       m._impl.has_3d_flex,
@@ -621,6 +634,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       d._impl.contact__solimp,
       d._impl.contact__solref,
       d._impl.contact__solreffriction,
+      d._impl.contact__surfacevel,
       d._impl.contact__type,
       d._impl.contact__vert,
       d._impl.contact__worldid,
@@ -646,9 +660,10 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       '_impl.contact__solimp': out[17],
       '_impl.contact__solref': out[18],
       '_impl.contact__solreffriction': out[19],
-      '_impl.contact__type': out[20],
-      '_impl.contact__vert': out[21],
-      '_impl.contact__worldid': out[22],
+      '_impl.contact__surfacevel': out[20],
+      '_impl.contact__type': out[21],
+      '_impl.contact__vert': out[22],
+      '_impl.contact__worldid': out[23],
   })
   return d
 

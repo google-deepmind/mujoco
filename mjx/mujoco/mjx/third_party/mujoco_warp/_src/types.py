@@ -2287,6 +2287,8 @@ class Contact:
     geomcollisionid: i-th contact generated for geom                 (naconmax,)
                      helps uniquely identity contact when multiple
                      contacts are generated for geom pair
+    adhesion: adhesive force of contact                              (naconmax,)
+    surfacevel: surface velocity in contact frame: tangent1, 2, spin (naconmax, 3)
   """
 
   dist: array("naconmax", float)
@@ -2307,6 +2309,7 @@ class Contact:
   type: array("naconmax", int)
   geomcollisionid: array("naconmax", int)
   adhesion: array("naconmax", float)
+  surfacevel: array("naconmax", wp.vec3)
 
 
 @dataclasses.dataclass

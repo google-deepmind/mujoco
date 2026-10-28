@@ -688,6 +688,7 @@ def _forward_shim(
     contact__solimp: wp.array[mjwp_types.vec5],
     contact__solref: wp.array[wp.vec2],
     contact__solreffriction: wp.array[wp.vec2],
+    contact__surfacevel: wp.array[wp.vec3],
     contact__type: wp.array[int],
     contact__vert: wp.array[wp.vec2i],
     contact__worldid: wp.array[int],
@@ -1229,6 +1230,7 @@ def _forward_shim(
   _d.contact.solimp = contact__solimp
   _d.contact.solref = contact__solref
   _d.contact.solreffriction = contact__solreffriction
+  _d.contact.surfacevel = contact__surfacevel
   _d.contact.type = contact__type
   _d.contact.vert = contact__vert
   _d.contact.worldid = contact__worldid
@@ -1524,6 +1526,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'contact__solimp': d._impl.contact__solimp.shape,
       'contact__solref': d._impl.contact__solref.shape,
       'contact__solreffriction': d._impl.contact__solreffriction.shape,
+      'contact__surfacevel': d._impl.contact__surfacevel.shape,
       'contact__type': d._impl.contact__type.shape,
       'contact__vert': d._impl.contact__vert.shape,
       'contact__worldid': d._impl.contact__worldid.shape,
@@ -1550,7 +1553,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _forward_shim,
-      num_outputs=163,
+      num_outputs=164,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -1694,6 +1697,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -1789,6 +1793,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -2051,6 +2056,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -2825,6 +2831,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.contact__solimp,
       d._impl.contact__solref,
       d._impl.contact__solreffriction,
+      d._impl.contact__surfacevel,
       d._impl.contact__type,
       d._impl.contact__vert,
       d._impl.contact__worldid,
@@ -2990,29 +2997,30 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       '_impl.contact__solimp': out[137],
       '_impl.contact__solref': out[138],
       '_impl.contact__solreffriction': out[139],
-      '_impl.contact__type': out[140],
-      '_impl.contact__vert': out[141],
-      '_impl.contact__worldid': out[142],
-      '_impl.efc__D': out[143],
-      '_impl.efc__J': out[144],
-      '_impl.efc__J_colind': out[145],
-      '_impl.efc__J_rowadr': out[146],
-      '_impl.efc__J_rownnz': out[147],
-      '_impl.efc__Jqvel': out[148],
-      '_impl.efc__Ma': out[149],
-      '_impl.efc__aref': out[150],
-      '_impl.efc__force': out[151],
-      '_impl.efc__frictionloss': out[152],
-      '_impl.efc__id': out[153],
-      '_impl.efc__island': out[154],
-      '_impl.efc__jtdaj_adr': out[155],
-      '_impl.efc__jtdaj_nblock': out[156],
-      '_impl.efc__jtdaj_nrow': out[157],
-      '_impl.efc__margin': out[158],
-      '_impl.efc__pos': out[159],
-      '_impl.efc__state': out[160],
-      '_impl.efc__type': out[161],
-      '_impl.efc__vel': out[162],
+      '_impl.contact__surfacevel': out[140],
+      '_impl.contact__type': out[141],
+      '_impl.contact__vert': out[142],
+      '_impl.contact__worldid': out[143],
+      '_impl.efc__D': out[144],
+      '_impl.efc__J': out[145],
+      '_impl.efc__J_colind': out[146],
+      '_impl.efc__J_rowadr': out[147],
+      '_impl.efc__J_rownnz': out[148],
+      '_impl.efc__Jqvel': out[149],
+      '_impl.efc__Ma': out[150],
+      '_impl.efc__aref': out[151],
+      '_impl.efc__force': out[152],
+      '_impl.efc__frictionloss': out[153],
+      '_impl.efc__id': out[154],
+      '_impl.efc__island': out[155],
+      '_impl.efc__jtdaj_adr': out[156],
+      '_impl.efc__jtdaj_nblock': out[157],
+      '_impl.efc__jtdaj_nrow': out[158],
+      '_impl.efc__margin': out[159],
+      '_impl.efc__pos': out[160],
+      '_impl.efc__state': out[161],
+      '_impl.efc__type': out[162],
+      '_impl.efc__vel': out[163],
   })
   return d
 
@@ -3028,6 +3036,7 @@ def forward(m: types.Model, d: types.Data):
 def forward_vmap(unused_axis_size, is_batched, m: types.Model, d: types.Data):
   d = forward(m, d)
   return d, is_batched[1]
+
 
 
 @ffi.format_args_for_warp
@@ -3688,6 +3697,7 @@ def _step_shim(
     contact__solimp: wp.array[mjwp_types.vec5],
     contact__solref: wp.array[wp.vec2],
     contact__solreffriction: wp.array[wp.vec2],
+    contact__surfacevel: wp.array[wp.vec3],
     contact__type: wp.array[int],
     contact__vert: wp.array[wp.vec2i],
     contact__worldid: wp.array[int],
@@ -4242,6 +4252,7 @@ def _step_shim(
   _d.contact.solimp = contact__solimp
   _d.contact.solref = contact__solref
   _d.contact.solreffriction = contact__solreffriction
+  _d.contact.surfacevel = contact__surfacevel
   _d.contact.type = contact__type
   _d.contact.vert = contact__vert
   _d.contact.worldid = contact__worldid
@@ -4544,6 +4555,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'contact__solimp': d._impl.contact__solimp.shape,
       'contact__solref': d._impl.contact__solref.shape,
       'contact__solreffriction': d._impl.contact__solreffriction.shape,
+      'contact__surfacevel': d._impl.contact__surfacevel.shape,
       'contact__type': d._impl.contact__type.shape,
       'contact__vert': d._impl.contact__vert.shape,
       'contact__worldid': d._impl.contact__worldid.shape,
@@ -4570,7 +4582,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _step_shim,
-      num_outputs=169,
+      num_outputs=170,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames=set([
@@ -4720,6 +4732,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -4815,6 +4828,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -5082,6 +5096,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'contact__solimp',
           'contact__solref',
           'contact__solreffriction',
+          'contact__surfacevel',
           'contact__type',
           'contact__vert',
           'contact__worldid',
@@ -5875,6 +5890,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.contact__solimp,
       d._impl.contact__solref,
       d._impl.contact__solreffriction,
+      d._impl.contact__surfacevel,
       d._impl.contact__type,
       d._impl.contact__vert,
       d._impl.contact__worldid,
@@ -6046,29 +6062,30 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       '_impl.contact__solimp': out[143],
       '_impl.contact__solref': out[144],
       '_impl.contact__solreffriction': out[145],
-      '_impl.contact__type': out[146],
-      '_impl.contact__vert': out[147],
-      '_impl.contact__worldid': out[148],
-      '_impl.efc__D': out[149],
-      '_impl.efc__J': out[150],
-      '_impl.efc__J_colind': out[151],
-      '_impl.efc__J_rowadr': out[152],
-      '_impl.efc__J_rownnz': out[153],
-      '_impl.efc__Jqvel': out[154],
-      '_impl.efc__Ma': out[155],
-      '_impl.efc__aref': out[156],
-      '_impl.efc__force': out[157],
-      '_impl.efc__frictionloss': out[158],
-      '_impl.efc__id': out[159],
-      '_impl.efc__island': out[160],
-      '_impl.efc__jtdaj_adr': out[161],
-      '_impl.efc__jtdaj_nblock': out[162],
-      '_impl.efc__jtdaj_nrow': out[163],
-      '_impl.efc__margin': out[164],
-      '_impl.efc__pos': out[165],
-      '_impl.efc__state': out[166],
-      '_impl.efc__type': out[167],
-      '_impl.efc__vel': out[168],
+      '_impl.contact__surfacevel': out[146],
+      '_impl.contact__type': out[147],
+      '_impl.contact__vert': out[148],
+      '_impl.contact__worldid': out[149],
+      '_impl.efc__D': out[150],
+      '_impl.efc__J': out[151],
+      '_impl.efc__J_colind': out[152],
+      '_impl.efc__J_rowadr': out[153],
+      '_impl.efc__J_rownnz': out[154],
+      '_impl.efc__Jqvel': out[155],
+      '_impl.efc__Ma': out[156],
+      '_impl.efc__aref': out[157],
+      '_impl.efc__force': out[158],
+      '_impl.efc__frictionloss': out[159],
+      '_impl.efc__id': out[160],
+      '_impl.efc__island': out[161],
+      '_impl.efc__jtdaj_adr': out[162],
+      '_impl.efc__jtdaj_nblock': out[163],
+      '_impl.efc__jtdaj_nrow': out[164],
+      '_impl.efc__margin': out[165],
+      '_impl.efc__pos': out[166],
+      '_impl.efc__state': out[167],
+      '_impl.efc__type': out[168],
+      '_impl.efc__vel': out[169],
   })
   return d
 

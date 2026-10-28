@@ -2237,6 +2237,34 @@ def put_data(
     if f.name in ["flex", "elem", "vert"] and mjm.nflex == 0:
       contact_kwargs[f.name] = wp.empty(0, dtype=wp.vec2i)
       continue
+    if f.name == "surfacevel" and not util_pkg.check_version("mujoco>=3.17.1"):
+      val = None
+      if mjm.flg_surfacevel and mjd.ncon > 0:
+        svel = np.zeros((mjd.ncon, 3))
+        sang = np.zeros((mjd.ncon, 3))
+        for side, sgn in ((0, -1.0), (1, 1.0)):
+          geom = mjd.contact.geom[: mjd.ncon, side]
+          valid = geom >= 0
+          g = geom[valid]
+          sv = mjm.geom_surfacevel[g]
+          xmat = mjd.geom_xmat[g].reshape((-1, 3, 3))
+          ang = np.einsum("nij,nj->ni", xmat, sv[:, 3:])
+          lin = np.einsum("nij,nj->ni", xmat, sv[:, :3]) + np.cross(ang, mjd.contact.pos[: mjd.ncon][valid] - mjd.geom_xpos[g])
+          svel[valid] += sgn * lin
+          sang[valid] += sgn * ang
+        frame = mjd.contact.frame[: mjd.ncon].reshape((-1, 3, 3))
+        val = np.stack(
+          (
+            np.einsum("ni,ni->n", frame[:, 1], svel),
+            np.einsum("ni,ni->n", frame[:, 2], svel),
+            np.einsum("ni,ni->n", frame[:, 0], sang),
+          ),
+          axis=-1,
+        )
+        val = np.tile(val, (nworld, 1))
+        val = np.pad(val, ((0, naconmax - val.shape[0]), (0, 0)))
+      contact_kwargs[f.name] = _create_array(val, f.type, sizes)
+      continue
     val = getattr(mjd.contact, f.name)
     val = np.tile(val, (nworld,) + (1,) * (val.ndim - 1))
     width = ((0, naconmax - val.shape[0]),) + ((0, 0),) * (val.ndim - 1)
@@ -2580,6 +2608,8 @@ def get_data_into(
   result.contact.solreffriction[:ncon] = d.contact.solreffriction.numpy()[ncon_filter]
   result.contact.solimp[:ncon] = d.contact.solimp.numpy()[ncon_filter]
   result.contact.adhesion[:ncon] = d.contact.adhesion.numpy()[ncon_filter]
+  if util_pkg.check_version("mujoco>=3.17.1"):
+    result.contact.surfacevel[:ncon] = d.contact.surfacevel.numpy()[ncon_filter]
   result.contact.dim[:ncon] = d.contact.dim.numpy()[ncon_filter]
   result.contact.geom[:ncon] = d.contact.geom.numpy()[ncon_filter]
   is_passive = (contact_type[ncon_filter] & types.ContactType.PASSIVE) != 0
@@ -2858,6 +2888,7 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
     contact_type_out: wp.array[int],
     contact_geomcollisionid_out: wp.array[int],
     contact_adhesion_out: wp.array[float],
+    contact_surfacevel_out: wp.array[wp.vec3],
   ):
     conid = wp.tid()
 
@@ -2892,6 +2923,7 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
     contact_type_out[conid] = 0
     contact_geomcollisionid_out[conid] = 0
     contact_adhesion_out[conid] = 0.0
+    contact_surfacevel_out[conid] = wp.vec3(0.0)
 
   @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
   def reset_sleep(
@@ -3029,6 +3061,7 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
       d.contact.type,
       d.contact.geomcollisionid,
       d.contact.adhesion,
+      d.contact.surfacevel,
     ],
   )
 

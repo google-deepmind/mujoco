@@ -896,6 +896,17 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertLen(expected_friction, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.friction, expected_friction)
 
+    expected_surfacevel = []
+    for contact in self.data.contact:
+      expected_surfacevel.append(
+          np.array(np.random.uniform(size=3), dtype=DTYPE)
+      )
+      contact.surfacevel = expected_surfacevel[-1]
+    self.assertLen(expected_surfacevel, expected_ncon)
+    np.testing.assert_array_equal(
+        self.data.contact.surfacevel, expected_surfacevel
+    )
+
     expected_H = []  # pylint: disable=invalid-name
     for contact in self.data.contact:
       expected_H.append(np.array(np.random.uniform(size=36), dtype=DTYPE))

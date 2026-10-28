@@ -79,6 +79,11 @@ Engine
   joints. Previously, the angular velocities of the Runge-Kutta stages were combined without the Runge-Kutta-Munthe-Kaas
   correction, so orientations converged only at second order. This changes the simulation of models with ball or free
   joints that use ``RK4``.
+- Added ``surfacevel[3]`` to :ref:`mjContact`, storing the relative :ref:`surface velocity<body-geom-surfacevel>`
+  (``geom[1]`` minus ``geom[0]``) in the contact frame ``(tangent1, tangent2, spin)``. Collision detection populates it
+  from ``geom_surfacevel`` when ``mjModel.flg_surfacevel`` is set, and external contact generators can write it
+  directly (setting ``flg_surfacevel = 1`` if no geom specifies ``surfacevel``). Contact-point visualization now draws
+  a single relative tangential velocity arrow per active frictional contact.
 
 Filament Rendering
 ^^^^^^^^^^^^^^^^^^

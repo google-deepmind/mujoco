@@ -4631,6 +4631,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("solimp", &MjContact::solimp)
     .property("solref", &MjContact::solref)
     .property("solreffriction", &MjContact::solreffriction)
+    .property("surfacevel", &MjContact::surfacevel)
     .property("vert", &MjContact::vert);
   emscripten::class_<MjData>("MjData")
     .constructor<MjModel *>()

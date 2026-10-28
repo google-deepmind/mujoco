@@ -1655,11 +1655,11 @@ Recall that :math:`r` is the position residual, while :math:`J v` is the joint v
 the indexing notation refers to one component of the projected velocity vector. For friction loss and friction
 dimensions of elliptic cones, :math:`r \equiv 0` and therefore :math:`k=0`, so the reference acceleration reduces to
 pure damping: :math:`\ari = -b_i (J v)_i`. More detail is given in the :ref:`Friction<CSolverFriction>` section of the
-Modeling chapter. For the tangential rows of contacts whose geoms specify a
-:ref:`surface velocity<body-geom-surfacevel>`, the projected velocity :math:`(J v)_i` is biased by the relative
-velocity of the surface material, so that the reference acceleration drives the contact toward moving *with* the
-surface; this is how conveyor belts and turntables are implemented, and it is also the quantity reported in the
-contact rows of ``mjData.efc_vel``.
+Modeling chapter. For the tangential and torsional rows of contacts with nonzero
+:ref:`surface velocity<body-geom-surfacevel>` (stored per contact in ``mjContact.surfacevel``), the projected velocity
+:math:`(J v)_i` is biased by the relative velocity of the surface material, so that the reference acceleration drives
+the contact toward moving *with* the surface; this is how conveyor belts and turntables are implemented, and it is also
+the quantity reported in the contact rows of ``mjData.efc_vel``.
 
 .. _soAdhesion:
 

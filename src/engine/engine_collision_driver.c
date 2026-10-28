@@ -1843,7 +1843,7 @@ static int mj_broadphase(const mjModel* m, mjData* d, mjPacked32* bfpair, int ma
 
 
 // set contact parameters
-static void mj_setContact(const mjModel* m, mjContact* con,
+static void mj_setContact(const mjModel* m, const mjData* d, mjContact* con,
                           int condim, mjtNum includemargin,
                           const mjtNum* solref, const mjtNum* solreffriction,
                           const mjtNum* solimp, const mjtNum* friction,
@@ -1871,6 +1871,39 @@ static void mj_setContact(const mjModel* m, mjContact* con,
 
   // complete frame
   mju_makeFrame(con->frame);
+
+  // compute relative surface velocity in contact frame: (tangent1, tangent2, spin)
+  mji_zero3(con->surfacevel);
+  if (m->flg_surfacevel) {
+    mjtNum svel[3] = {0, 0, 0}, sang[3] = {0, 0, 0};
+    int active = 0;
+    for (int side=0; side < 2; side++) {
+      int g = con->geom[side];
+      if (g < 0) {
+        // TODO(team): support flex
+        continue;
+      }
+      const mjtNum* sv = m->geom_surfacevel + 6*g;
+
+      // skip geom with no surface velocity
+      if (!sv[0] && !sv[1] && !sv[2] && !sv[3] && !sv[4] && !sv[5]) {
+        continue;
+      }
+      active = 1;
+
+      // rotate to world frame, add angular contribution at contact point
+      mjtNum sgn = side ? 1 : -1;
+      mjtNum vw[3], ww[3];
+      mj_geomSurfaceVelocity(m, d, g, con->pos, vw, ww);
+      mji_addToScl3(svel, vw, sgn);
+      mji_addToScl3(sang, ww, sgn);
+    }
+    if (active) {
+      con->surfacevel[0] = mju_dot3(con->frame + 3, svel);
+      con->surfacevel[1] = mju_dot3(con->frame + 6, svel);
+      con->surfacevel[2] = mju_dot3(con->frame + 0, sang);
+    }
+  }
 
   // clear fields that are computed later
   con->efc_address = -1;
@@ -2132,7 +2165,7 @@ static void addPairContacts(const mjModel* m, mjData* d, const mjPreContact* pre
     con[i].vert[0] = v1;
     con[i].vert[1] = vert ? vert[i] : v2;
 
-    mj_setContact(m, con + i, condim, margin, solref, solreffriction, solimp, friction,
+    mj_setContact(m, d, con + i, condim, margin, solref, solreffriction, solimp, friction,
                   adhesion, spec);
   }
 }

@@ -1694,6 +1694,7 @@ public unsafe struct mjContact_ {
   public fixed double solreffriction[2];
   public fixed double solimp[5];
   public double adhesion;
+  public fixed double surfacevel[3];
   public double mu;
   public fixed double H[36];
   public int dim;
