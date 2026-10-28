@@ -1731,16 +1731,12 @@ TEST_F(XMLWriterTest, KeepsEmptyFlexCells) {
   <mujoco>
     <worldbody>
       <body name="parent">
-        <freejoint/>
-        <inertial mass="0.01" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
         <flexcomp name="test" type="direct" dim="3" dof="quadratic" mass="1" cellcount="3 1 1" point="0.0 0.0 0.0  0.3 0.0 0.0  0.0 1.0 0.0  0.3 1.0 0.0  0.0 0.0 1.0  0.3 0.0 1.0  0.0 1.0 1.0  0.3 1.0 1.0  1.0 0.5 0.5" element="0 1 3 2 4 5 7 6">
           <contact selfcollide="none"/>
           <elasticity young="1"/>
         </flexcomp>
       </body>
       <body name="rotated" euler="30 20 10">
-        <freejoint/>
-        <inertial mass="0.01" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
         <flexcomp name="turned" type="direct" dim="3" dof="quadratic" mass="1" cellcount="3 1 1" point="0.0 0.0 0.0  0.3 0.0 0.0  0.0 1.0 0.0  0.3 1.0 0.0  0.0 0.0 1.0  0.3 0.0 1.0  0.0 1.0 1.0  0.3 1.0 1.0  1.0 0.5 0.5" element="0 1 3 2 4 5 7 6">
           <contact selfcollide="none"/>
           <elasticity young="1"/>

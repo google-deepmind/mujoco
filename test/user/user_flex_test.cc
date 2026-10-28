@@ -1569,9 +1569,6 @@ TEST_F(UserFlexTest, EmptyCellNodePinningQuadratic) {
   <mujoco>
   <worldbody>
     <body name="parent">
-    <freejoint/>
-    <inertial mass="0.01" pos="0 0 0"
-             diaginertia="0.001 0.001 0.001"/>
     <flexcomp name="test" type="direct" dim="3"
               dof="quadratic" mass="1" cellcount="3 1 1"
               point="0.0 0.0 0.0  0.3 0.0 0.0
@@ -1626,9 +1623,6 @@ TEST_F(UserFlexTest, EmptyCellDetectsElements) {
   <mujoco>
   <worldbody>
     <body name="parent">
-    <freejoint/>
-    <inertial mass="0.01" pos="0.5 0.5 0.5"
-             diaginertia="0.001 0.001 0.001"/>
     <flexcomp name="test" type="direct" dim="2"
               dof="trilinear" mass="1" cellcount="6 6 6"
               point="0 0 0  1 0 0  1 1 0  0 1 0
@@ -3445,8 +3439,6 @@ TEST_F(UserFlexTest, StiffnessCacheHit) {
   <mujoco>
     <worldbody>
       <body name="parent">
-        <freejoint/>
-        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
         <flexcomp name="s" type="ellipsoid" count="6 6 6" spacing=".05 .05 .05"
                   dim="2" dof="quadratic" mass="1.0" cellcount="3 3 3" radius="0.001">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
@@ -3460,8 +3452,6 @@ TEST_F(UserFlexTest, StiffnessCacheHit) {
   <mujoco>
     <worldbody>
       <body name="parent">
-        <freejoint/>
-        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
         <flexcomp name="s" type="ellipsoid" count="6 6 6" spacing=".05 .05 .05"
                   dim="2" dof="quadratic" mass="1.0" cellcount="3 3 3" radius="0.001">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
@@ -3544,8 +3534,6 @@ TEST_F(UserFlexTest, FcmCutCellStiffnessAndMassScaling) {
   <mujoco>
     <worldbody>
       <body name="parent">
-        <freejoint/>
-        <inertial mass="0.01" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
         <flexcomp name="fcm" type="direct" dim="3" dof="DOF_TYPE" mass="2.4"
                   cellcount="3 1 1" radius="0.001"
                   point="0.0 0 0  0.3333333333333333 0 0  0.0 1 0  0.3333333333333333 1 0
@@ -3680,8 +3668,7 @@ TEST_F(UserFlexTest, FcmSurfaceVsTetrahedralConsistency) {
                      const std::vector<int>& elems) {
     std::ostringstream ss;
     ss << std::setprecision(17);
-    ss << "<mujoco><worldbody><body name='parent'><freejoint/>"
-       << "<inertial mass='0.01' pos='0 0 0' diaginertia='0.001 0.001 0.001'/>"
+    ss << "<mujoco><worldbody><body name='parent'>"
        << "<flexcomp name='sphere' type='direct' dim='" << dim << "' dof='"
        << dof << "' mass='1.6' cellcount='6 6 6' radius='0.001' point='";
     for (size_t i = 0; i < pts.size(); i++) {
@@ -3774,8 +3761,6 @@ TEST_F(UserFlexTest, FcmMultiCellEmptyCutAndFullCells) {
   <mujoco>
     <worldbody>
       <body name="parent">
-        <freejoint/>
-        <inertial mass="0.01" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
         <flexcomp name="sphere" type="ellipsoid" dim="2" count="9 9 9"
                   spacing="0.04 0.04 0.04" cellcount="6 6 6" dof="trilinear"
                   mass="3.0" radius="0.001">
@@ -4099,8 +4084,6 @@ TEST_F(UserFlexTest, FcmGeometryAndStiffnessCacheHit) {
   <mujoco>
     <worldbody>
       <body name="parent">
-        <freejoint/>
-        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
         <flexcomp name="s" type="ellipsoid" count="8 8 8" spacing=".05 .05 .05"
                   dim="2" dof="quadratic" mass="1.0" cellcount="4 4 4" radius="0.001">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
@@ -4578,6 +4561,95 @@ TEST_F(UserFlexTest, FcmMomentFittingExactnessAndSubGaussSliver) {
                 MjTol(1e-8 * u_notched_exact, 1e-4 * u_notched_exact))
         << "dof=" << dof;
   }
+}
+
+TEST_F(UserFlexTest, UnpinnedParentBodyWithJointsFails) {
+  std::array<char, 1024> error;
+
+  // Unpinned dof="full" flexcomp inside a body with freejoint fails even if
+  // the parent body has explicit inertia.
+  static constexpr char xml_full_bad[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial mass="0.1" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
+        <flexcomp name="f" type="grid" dim="2" count="2 2 1" spacing="0.1 0.1 0.1"
+                  dof="full" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_full_bad =
+      LoadModelFromString(xml_full_bad, error.data(), error.size());
+  EXPECT_THAT(m_full_bad.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("body 'parent' has joints but no flex "
+                                      "vertices/nodes are pinned to it"));
+
+  // Unpinned dof="trilinear" flexcomp under a nested wrapper body with
+  // freejoint fails even when empty cells or shell interior nodes are
+  // auto-pinned.
+  static constexpr char xml_trilinear_bad[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="wrapper_root">
+        <freejoint/>
+        <inertial mass="0.1" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
+        <body name="inner_parent">
+          <flexcomp name="f" type="box" dim="2" count="3 3 3" spacing="0.1 0.1 0.1"
+                    dof="trilinear" cellcount="2 2 2" mass="1">
+            <elasticity young="1e4" thickness="0.01" elastic2d="both"/>
+          </flexcomp>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_tri_bad =
+      LoadModelFromString(xml_trilinear_bad, error.data(), error.size());
+  EXPECT_THAT(m_tri_bad.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("body 'wrapper_root' has joints but no "
+                                      "flex vertices/nodes are pinned to it"));
+
+  // Pinning at least one active node to the parent body allows joints on
+  // parent.
+  static constexpr char xml_pinned_ok[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial mass="0.1" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
+        <flexcomp name="f" type="grid" dim="3" count="2 2 2" spacing="0.1 0.1 0.1"
+                  dof="trilinear" mass="1">
+          <pin id="0"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_pinned_ok =
+      LoadModelFromString(xml_pinned_ok, error.data(), error.size());
+  EXPECT_THAT(m_pinned_ok.get(), NotNull()) << error.data();
+
+  // Unpinned dof="2d" (2 sliders per vertex) inside a body with freejoint is
+  // allowed when the parent has mass/inertia, since out-of-plane translation
+  // and rotation carry the vertices.
+  static constexpr char xml_2d_ok[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <freejoint/>
+        <inertial mass="0.1" pos="0 0 0" diaginertia="0.001 0.001 0.001"/>
+        <flexcomp name="f" type="grid" dim="2" count="2 2 1" spacing="0.1 0.1 0.1"
+                  dof="2d" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_2d_ok =
+      LoadModelFromString(xml_2d_ok, error.data(), error.size());
+  EXPECT_THAT(m_2d_ok.get(), NotNull()) << error.data();
 }
 
 }  // namespace

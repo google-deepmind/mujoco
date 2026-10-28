@@ -4246,6 +4246,7 @@ TEST_F(DerivativeTest, EffSolve) {
                   radius=".005" dim="2" mass="0.5" pos="0 0 0" dof="full">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
           <elasticity young="1e3" poisson="0.2" damping="0.1" elastic2d="stretch" thickness="0.01"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -4326,6 +4327,7 @@ TEST_F(DerivativeTest, EffSolveCapWarns) {
           <contact selfcollide="none" contype="0" conaffinity="0"/>
           <elasticity young="1e9" poisson="0.45" damping="0" elastic2d="stretch"
                       thickness="0.02"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
     </worldbody>

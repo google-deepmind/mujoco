@@ -3445,11 +3445,12 @@ TEST_F(ForwardTest, FlexParentCoupling) {
     <worldbody>
       <body name="parent" pos="0 0 0">
         <freejoint/>
-        <geom size=".1" mass="0.1"/>
+        <geom size=".1" mass="10"/>
         <flexcomp name="flex" type="grid" count="3 3 3" cellcount="1 1 1" spacing="1 1 1"
                   radius=".01" dim="3" mass="100" dof="trilinear" pos="1 1 1">
           <contact selfcollide="none"/>
           <elasticity young="1e4" poisson="0.3" damping="50"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -4792,6 +4793,7 @@ TEST_F(ForwardTest, DiscreteFlexDisableFlags) {
                   name="solid" dof="trilinear">
           <contact selfcollide="none" contype="0" conaffinity="0"/>
           <elasticity young="1e4" poisson="0.3" damping="0.05"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
     </worldbody>
@@ -5417,6 +5419,7 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
                   dim="3" radius=".01" mass=".1" pos="0 0 -.5">
           <elasticity young="1e4" poisson="0.2"/>
           <contact selfcollide="none"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
     </worldbody>

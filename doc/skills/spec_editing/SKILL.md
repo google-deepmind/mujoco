@@ -316,6 +316,20 @@ spec.add_sensor(name='torso_gyro', type=mujoco.mjtSensor.mjSENS_GYRO,
     independent objects so it gets the lowest DOF indices ($O(N)$ arrowhead
     factorization with zero fill-in rather than a dense $O(N^3)$ clique). Static
     geoms welded to `worldbody` have 0 DOFs and are unaffected by ordering.
+5.  **Never add `<freejoint/>` (or joints) to the parent body of an unpinned
+    `<flexcomp>`**:
+    For `<flexcomp>` with `dof="full"`, `"trilinear"`, or `"quadratic"`
+    and `rigid="false"`, every unpinned vertex or interpolation cage node is a
+    child body with 3 orthogonal slide joints. They already provide
+    the full 3D translational and rotational motion of the deformable object. If no
+    vertices/nodes are pinned via `<pin>`, the parent body (and its ancestor
+    bodies) must **not** have a `<freejoint/>` or other joints—and do **not**
+    add a dummy `<inertial/>` on the parent body to work around mass checks. A
+    joint on the parent body is only valid when at least one vertex/node is
+    pinned to it (`<pin>`), when `rigid="true"`, or when `dof="radial"` / `"2d"`. To
+    reposition an unpinned `<flexcomp>` in a static parent body, set `pos`/`quat`
+    on the static parent body (at compile time) or offset the node/vertex slide
+    joint `qpos` values at runtime.
 
 ## 10. Key References
 

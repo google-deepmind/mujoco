@@ -3332,6 +3332,74 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
+  // disallow joints on the parent/ancestor body of an unpinned 3-slider flex
+  if (!rigid) {
+    auto free_slider_parent = [&](int bid) -> const mjCBody* {
+      if (bid <= 0) { return nullptr; }
+      const mjCBody* pbody = model->Bodies()[bid];
+      if (pbody->joints.size() != 3 || !pbody->geoms.empty() || !pbody->bodies.empty()) {
+        return nullptr;
+      }
+      for (const mjCJoint* jnt : pbody->joints) {
+        if (jnt->spec.type != mjJNT_SLIDE) { return nullptr; }
+      }
+      return pbody->parent;
+    };
+
+    const mjCBody* common_parent    = nullptr;
+    bool           all_free_sliders = true;
+    int            num_active       = 0;
+
+    if (!interpolated) {
+      for (int bid : vertbodyid) {
+        const mjCBody* parent = free_slider_parent(bid);
+        if (!parent || (common_parent && parent != common_parent)) {
+          all_free_sliders = false;
+          break;
+        }
+        common_parent = parent;
+        num_active++;
+      }
+    } else {
+      int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+      int nx = cx * spec.order + 1;
+      int ny = cy * spec.order + 1;
+      int nz = cz * spec.order + 1;
+      for (int gi = 0; gi < nx && all_free_sliders; gi++) {
+        for (int gj = 0; gj < ny && all_free_sliders; gj++) {
+          for (int gk = 0; gk < nz && all_free_sliders; gk++) {
+            bool supported = elastic2d ? (gi == 0 ||
+                                          gi == nx - 1 ||
+                                          gj == 0 ||
+                                          gj == ny - 1 ||
+                                          gk == 0 ||
+                                          gk == nz - 1)
+                                       : !NodeInEmptyCells(gi, gj, gk);
+            if (!supported) { continue; }
+            int            idx    = gi * ny * nz + gj * nz + gk;
+            const mjCBody* parent = free_slider_parent(nodebodyid[idx]);
+            if (!parent || (common_parent && parent != common_parent)) {
+              all_free_sliders = false;
+              break;
+            }
+            common_parent = parent;
+            num_active++;
+          }
+        }
+      }
+    }
+
+    if (all_free_sliders && num_active > 0 && common_parent && common_parent->id > 0) {
+      for (const mjCBody* anc = common_parent; anc && anc->id > 0; anc = anc->parent) {
+        if (!anc->joints.empty()) {
+          throw mjCError(this,
+                         "body '%s' has joints but no flex vertices/nodes are pinned to it",
+                         anc->name.c_str());
+        }
+      }
+    }
+  }
+
   // check if any strain equality references this flex (the equalities may
   // have been added or removed since the flex was made)
   for (auto* equality : model->Equalities()) {

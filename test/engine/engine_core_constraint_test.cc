@@ -741,8 +741,6 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   <option integrator="discrete" jacobian="dense"/>
   <worldbody>
     <body name="parent">
-      <joint type="free"/>
-      <geom type="box" size=".01 .01 .01" mass=".1"/>
       <flexcomp name="test" type="box"
                 spacing=".1 .1 .1" radius="0.001"
                 pos="0 0 .5" dof="trilinear" mass="1" dim="3">
@@ -788,15 +786,19 @@ TEST_F(CoreConstraintTest, StrainConstraintNoPinning) {
   }
   EXPECT_FALSE(has_bad_jacobian) << "Jacobian has NaN";
 
-  // Test rigid rotation: rotate flex and check strain still ~0
+  // Test rigid rotation: rotate flex nodes by 45 degrees around Z axis and
+  // check strain still ~0
   std::vector<mjtNum> qpos0(m->nq);
   mju_copy(qpos0.data(), d->qpos, m->nq);
-  // Rotate by 45 degrees around Z axis via quaternion
-  mjtNum angle = 0.785398;          // 45 degrees
-  d->qpos[3] = mju_cos(angle / 2);  // w
-  d->qpos[4] = 0;                   // x
-  d->qpos[5] = 0;                   // y
-  d->qpos[6] = mju_sin(angle / 2);  // z
+  mjtNum angle = 0.785398;  // 45 degrees
+  mjtNum c = mju_cos(angle), s = mju_sin(angle);
+  for (int n = 0; n < m->nflexnode; n++) {
+    int b = m->flex_nodebodyid[n];
+    mjtNum x0 = m->body_pos[3 * b + 0];
+    mjtNum y0 = m->body_pos[3 * b + 1];
+    d->qpos[3 * n + 0] = (c * x0 - s * y0) - x0;
+    d->qpos[3 * n + 1] = (s * x0 + c * y0) - y0;
+  }
   mj_forward(m.get(), d.get());
 
   mjtNum max_strain_rotated = 0;
@@ -825,8 +827,6 @@ TEST_F(CoreConstraintTest, StrainConstraintQuadratic) {
   <option integrator="discrete" jacobian="dense"/>
   <worldbody>
     <body name="parent">
-      <joint type="free"/>
-      <geom type="box" size=".01 .01 .01" mass=".1"/>
       <flexcomp name="test" type="box"
                 spacing=".1 .1 .1" radius="0.001"
                 pos="0 0 .5" dof="quadratic" mass="1" dim="3">
@@ -956,8 +956,6 @@ TEST_F(CoreConstraintTest, QuadraticAnisotropicStrain) {
   <worldbody>
     <geom type="plane" size="10 10 1"/>
     <body name="parent">
-      <joint type="free"/>
-      <geom type="box" size=".01 .01 .01" mass=".1"/>
       <flexcomp name="test" type="grid" count="3 3 3"
                 spacing=".1 .05 .08" radius="0.001"
                 pos="0 0 .5" dof="quadratic" mass="1" dim="3">
@@ -1160,8 +1158,6 @@ TEST_P(StrainConstraintRotatedTest, ResidualIsZero) {
     xml += "quat=\"" + param.body_quat + "\" ";
   }
   xml += R"(>
-      <joint type="free"/>
-      <geom type="box" size=".01 .01 .01" mass=".1"/>
       <flexcomp name="test" type="box" )";
 
   if (!param.flex_spacing.empty()) {
@@ -1651,6 +1647,7 @@ TEST_F(CoreConstraintTest, SparseRotationalJacobianMatchesDense) {
         <flexcomp name="flex" type="grid" count="3 3 3" spacing=".1 .1 .1" dim="3" dof="trilinear">
           <elasticity elastic2d="stretch" thickness="0.01"/>
           <contact selfcollide="none"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
       <geom name="plane" type="plane" size="1 1 1" pos="0 0 -1"/>

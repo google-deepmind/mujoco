@@ -715,7 +715,7 @@ void mj_ipc(const mjModel* m, mjData* d) {
   for (int b=0; b < m->nbody; b++)
     nvertbody[b] = 0;
   for (int vg=0; vg < m->nflexvert; vg++)
-    nvertbody[m->flex_vertbodyid[vg]]++;
+    if (m->flex_vertbodyid[vg] >= 0) nvertbody[m->flex_vertbodyid[vg]]++;
   int nfree = 0;
   for (int k=0; k < nfd; k++) {
     int fi = flist[k];

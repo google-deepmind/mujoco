@@ -3983,6 +3983,11 @@ saving the XML:
    Note that a higher interpolation order generally requires a smaller time step for stability, although usually not as
    large as with the "full" option and a fine mesh.
 
+   For **full**, **trilinear**, and **quadratic** parametrizations (with ``rigid="false"``), the generated vertex or
+   node child bodies already carry 3 orthogonal translational slide joints. Unless at least one active vertex or node is
+   :ref:`pinned<flexcomp-pin>` to the parent body, the parent body (and its ancestor bodies) must not have a
+   ``<freejoint/>`` or other joints.
+
 .. _body-flexcomp-type:
 
 :at:`type`: :at-val:`[grid, box, cylinder, ellipsoid, disc, circle, mesh, gmsh, direct], "grid"`

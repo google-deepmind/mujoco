@@ -1902,6 +1902,7 @@ TEST_F(IpcTest, MulAddScratchBounds) {
                   count="4 4 4" spacing=".05 .05 .05" radius=".005" mass=".1">
           <contact selfcollide="none"/>
           <elasticity young="1e4"/>
+          <pin id="0"/>
         </flexcomp>
       </body>
     </worldbody>
