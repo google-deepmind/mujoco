@@ -884,6 +884,19 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCCDTolerance) {
                        0.0078);
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSleepTolerance) {
+  auto stage = OpenStage(R"(
+    <mujoco model="test">
+      <option sleep_tolerance="0.0091"> </option>
+    </mujoco>
+  )");
+
+  ExpectAttributeEqual(stage,
+                       kPhysicsScenePrimPath.AppendProperty(
+                           MjcPhysicsTokens->mjcOptionSleep_tolerance),
+                       0.0091);
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimOFriction) {
   auto stage = OpenStage(R"(
     <mujoco model="test">
@@ -1119,6 +1132,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
           fwdinv="enable"
           invdiscrete="enable"
           multiccd="enable"
+          sleep="enable"
         />
       </option>
     </mujoco>
@@ -1131,6 +1145,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
       MjcPhysicsTokens->mjcFlagFwdinv,
       MjcPhysicsTokens->mjcFlagInvdiscrete,
       MjcPhysicsTokens->mjcFlagMulticcd,
+      MjcPhysicsTokens->mjcFlagSleep,
   };
   // clang-format on
   for (const auto& flag : kFlags) {

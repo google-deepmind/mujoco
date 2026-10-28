@@ -535,6 +535,8 @@ class ModelWriter {
              spec_->option.noslip_tolerance},
             {MjcPhysicsTokens->mjcOptionCcd_tolerance,
              spec_->option.ccd_tolerance},
+            {MjcPhysicsTokens->mjcOptionSleep_tolerance,
+             spec_->option.sleep_tolerance},
             {MjcPhysicsTokens->mjcOptionImpratio, spec_->option.impratio},
             {MjcPhysicsTokens->mjcOptionDensity, spec_->option.density},
             {MjcPhysicsTokens->mjcOptionViscosity, spec_->option.viscosity},
@@ -679,7 +681,8 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagFwdinv, mjENBL_FWDINV},
         {MjcPhysicsTokens->mjcFlagEnergy, mjENBL_ENERGY},
         {MjcPhysicsTokens->mjcFlagOverride, mjENBL_OVERRIDE},
-        {MjcPhysicsTokens->mjcFlagInvdiscrete, mjENBL_INVDISCRETE}};
+        {MjcPhysicsTokens->mjcFlagInvdiscrete, mjENBL_INVDISCRETE},
+        {MjcPhysicsTokens->mjcFlagSleep, mjENBL_SLEEP}};
     for (const auto &[token, flag] : enable_flags) {
       create_flag_attr(token, flag, true);
     }
