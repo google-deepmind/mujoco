@@ -29,7 +29,7 @@ MuJoCo provides two distinct graphics workflows:
     Focused on capturing image buffers (RGB, depth, object segmentation) without
     opening a desktop window. Ideal for batch dataset collection, reinforcement
     learning observations, and automated visual regression testing.
--   **Interactive Viewers (`mujoco.experimental.studio` / `mujoco.viewer`)**:
+-   **Interactive Viewers (`mujoco.studio` / `mujoco.viewer`)**:
     Interactive desktop or web-streamed applications designed for real-time
     inspection, camera manipulation, and Dear ImGui control panels.
 

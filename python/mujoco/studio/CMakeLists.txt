@@ -13,7 +13,7 @@
 # limitations under the License.
 
 if(NOT TARGET mujoco::platform)
-  message(WARNING "mujoco::platform target not found. experimental/studio bindings will not be built.")
+  message(WARNING "mujoco::platform target not found. studio bindings will not be built.")
   return()
 endif()
 
@@ -48,25 +48,25 @@ set(MUJOCO_STUDIO_TARGETS
 )
 
 # dear_imgui bindings
-mujoco_pybind11_module(dear_imgui ../dear_imgui/dear_imgui.cc)
+mujoco_pybind11_module(dear_imgui ../experimental/dear_imgui/dear_imgui.cc)
 target_link_libraries(dear_imgui PRIVATE
   mujoco::dep::dear_imgui
   mujoco::dep::dear_imgui_stdlib
 )
-target_include_directories(dear_imgui PRIVATE ../dear_imgui)
+target_include_directories(dear_imgui PRIVATE ../experimental/dear_imgui)
 set_target_properties(dear_imgui PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/../dear_imgui"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/../experimental/dear_imgui"
 )
 
 # implot bindings
-mujoco_pybind11_module(implot ../implot/implot.cc)
+mujoco_pybind11_module(implot ../experimental/implot/implot.cc)
 target_link_libraries(implot PRIVATE
   mujoco::dep::implot
   mujoco::dep::dear_imgui
 )
-target_include_directories(implot PRIVATE ../dear_imgui)
+target_include_directories(implot PRIVATE ../experimental/dear_imgui)
 set_target_properties(implot PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/../implot"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/../experimental/implot"
 )
 
 # Workaround for duplicate symbol error (wp_fractional_scale_manager_v1_interface)
@@ -89,27 +89,30 @@ endif()
 if(APPLE)
   # A module records where to look for the libraries it needs as a list of
   # rpaths baked into the binary at link time, where @loader_path means "the
-  # directory this module is in". mujoco_pybind11_module (../../CMakeLists.txt)
+  # directory this module is in". mujoco_pybind11_module (../CMakeLists.txt)
   # gives every module it creates exactly one: @loader_path. That is correct for
   # the modules at the mujoco/ package root, which sit next to libmujoco, and
   # wrong for these, which are installed below it -- in
-  # mujoco/experimental/studio/, mujoco/experimental/dear_imgui/ and so on --
+  # mujoco/studio/, mujoco/experimental/dear_imgui/ and so on --
   # while libmujoco stays at the root. So append the hop back up to the root.
   #
   # Append to BUILD_RPATH rather than calling install_name_tool from an
   # add_custom_command(TARGET ...) POST_BUILD hook the way
   # mujoco_pybind11_module does: that form only accepts targets created in the
   # same directory, which excludes the web/ modules below.
-  foreach(target native_viewer_cc ux sim window dear_imgui implot)
+  foreach(target native_viewer_cc ux sim window)
+    set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "@loader_path/..")
+  endforeach()
+  foreach(target dear_imgui implot)
     set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "@loader_path/../..")
   endforeach()
 
   # One @loader_path level deeper: these are installed in
-  # mujoco/experimental/studio/web/. web/CMakeLists.txt sets this list only on
+  # mujoco/studio/web/. web/CMakeLists.txt sets this list only on
   # the branch that builds the two modules natively, and leaves it unset under
   # Emscripten and when implot or netimgui are missing, so the foreach doubles
   # as the check for whether they exist.
   foreach(target ${MUJOCO_WEB_VIEWER_TARGETS})
-    set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "@loader_path/../../..")
+    set_property(TARGET ${target} APPEND PROPERTY BUILD_RPATH "@loader_path/../..")
   endforeach()
 endif()

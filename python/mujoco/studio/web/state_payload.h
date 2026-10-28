@@ -41,8 +41,8 @@
 // client last applied, which is the baseline that delta compression needs. For
 // 100humanoids.xml the payload is ~181 KB of doubles and dominates slow links.
 
-#ifndef MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_STATE_PAYLOAD_H_
-#define MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_STATE_PAYLOAD_H_
+#ifndef MUJOCO_PYTHON_STUDIO_WEB_STATE_PAYLOAD_H_
+#define MUJOCO_PYTHON_STUDIO_WEB_STATE_PAYLOAD_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -203,4 +203,4 @@ bool ParseModelBundle(const void* data, size_t size, ModelBundleView* out);
 
 }  // namespace mujoco::studio
 
-#endif  // MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_STATE_PAYLOAD_H_
+#endif  // MUJOCO_PYTHON_STUDIO_WEB_STATE_PAYLOAD_H_

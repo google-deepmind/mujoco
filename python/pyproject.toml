@@ -62,9 +62,9 @@ mujoco = [
     "testdata/*.zip",
     "testdata/*.urdf",
     "sysid/report/templates/*.html",
-    "experimental/studio/web/*.html",
-    "experimental/studio/web/dist/*",
-    "experimental/studio/web/dist/assets/*",
+    "studio/web/*.html",
+    "studio/web/dist/*",
+    "studio/web/dist/assets/*",
 ]
 
 [project.optional-dependencies]

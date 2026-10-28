@@ -15,8 +15,8 @@
 // The NetImgui client side of the web viewer. Receives the headless Studio UI
 // (draw frames/textures) over the /ui WebSocket and replies with browser input.
 
-#ifndef MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_REMOTE_UI_H_
-#define MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_REMOTE_UI_H_
+#ifndef MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_REMOTE_UI_H_
+#define MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_REMOTE_UI_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -178,4 +178,4 @@ class RemoteUi {
 
 }  // namespace mujoco::studio
 
-#endif  // MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_REMOTE_UI_H_
+#endif  // MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_REMOTE_UI_H_

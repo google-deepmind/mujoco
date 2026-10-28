@@ -259,7 +259,7 @@ class BuildCMakeExtension(build_ext.build_ext):
     if assets_src:
       dst = os.path.join(
           os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
-          'experimental/studio/assets',
+          'studio/assets',
       )
       if os.path.exists(dst):
         shutil.rmtree(dst)
@@ -430,13 +430,13 @@ setuptools.setup(
         CMakeExtension('mujoco._specs'),
         CMakeExtension('mujoco._structs'),
         # Studio extensions
-        CMakeExtension('mujoco.experimental.studio.native_viewer_cc'),
-        CMakeExtension('mujoco.experimental.studio.ux'),
-        CMakeExtension('mujoco.experimental.studio.sim'),
-        CMakeExtension('mujoco.experimental.studio.window'),
+        CMakeExtension('mujoco.studio.native_viewer_cc'),
+        CMakeExtension('mujoco.studio.ux'),
+        CMakeExtension('mujoco.studio.sim'),
+        CMakeExtension('mujoco.studio.window'),
         # Studio web extensions
-        CMakeExtension('mujoco.experimental.studio.web.headless_ui'),
-        CMakeExtension('mujoco.experimental.studio.web.state_payload'),
+        CMakeExtension('mujoco.studio.web.headless_ui'),
+        CMakeExtension('mujoco.studio.web.state_payload'),
         # ImGui/ImPlot extensions
         CMakeExtension('mujoco.experimental.dear_imgui.dear_imgui'),
         CMakeExtension('mujoco.experimental.implot.implot'),

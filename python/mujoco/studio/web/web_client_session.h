@@ -23,8 +23,8 @@
 // also implements SessionActions, so the role window's intents land here
 // directly.
 
-#ifndef MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_SESSION_H_
-#define MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_SESSION_H_
+#ifndef MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_SESSION_H_
+#define MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_SESSION_H_
 
 #include <emscripten/websocket.h>
 
@@ -256,4 +256,4 @@ class Session : public SessionActions {
 
 }  // namespace mujoco::studio
 
-#endif  // MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_SESSION_H_
+#endif  // MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_SESSION_H_

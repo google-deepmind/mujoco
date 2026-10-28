@@ -18,10 +18,10 @@ from collections.abc import Sequence
 from absl import app
 import mujoco
 from mujoco import mjrf
-from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import window
 from mujoco.rendering.filament import model_scene
 from mujoco.rendering.filament import renderer
+from mujoco.studio import sim
+from mujoco.studio import window
 import numpy as np
 
 from mujoco.experimental.dear_imgui import dear_imgui as imgui

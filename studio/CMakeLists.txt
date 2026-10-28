@@ -270,7 +270,7 @@ endif()
 # Browser WASM client for the Web Viewer.
 if(EMSCRIPTEN)
     add_subdirectory(
-        ${PROJECT_SOURCE_DIR}/python/mujoco/experimental/studio/web
+        ${PROJECT_SOURCE_DIR}/python/mujoco/studio/web
         ${CMAKE_CURRENT_BINARY_DIR}/web
     )
 endif()

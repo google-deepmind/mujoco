@@ -636,7 +636,7 @@ target_link_libraries(
           structs_header
 )
 
-add_subdirectory(experimental/studio)
+add_subdirectory(studio)
 
 set(LIBRARIES_FOR_WHEEL
     "$<TARGET_FILE:_batch>"

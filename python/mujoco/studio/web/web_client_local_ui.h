@@ -18,8 +18,8 @@
 // interface (both defined in web_client_session.h), so drawing depends
 // only on ImGui.
 
-#ifndef MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_LOCAL_UI_H_
-#define MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_LOCAL_UI_H_
+#ifndef MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_LOCAL_UI_H_
+#define MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_LOCAL_UI_H_
 
 #include <imgui.h>
 #include "web_client_session.h"
@@ -112,4 +112,4 @@ class RoleWindow {
 
 }  // namespace mujoco::studio
 
-#endif  // MUJOCO_PYTHON_EXPERIMENTAL_STUDIO_WEB_WEB_CLIENT_LOCAL_UI_H_
+#endif  // MUJOCO_PYTHON_STUDIO_WEB_WEB_CLIENT_LOCAL_UI_H_

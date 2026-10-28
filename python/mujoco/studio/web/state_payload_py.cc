@@ -24,8 +24,8 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include "state_payload.h"
 #include "structs.h"
+#include "state_payload.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 

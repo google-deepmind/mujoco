@@ -85,7 +85,7 @@ app**, which can be customized with **Studio plugins**.
 
 MuJoCo provides both a standalone **C++ Studio viewer app** (`mujoco_studio`,
 built with [Dear ImGui](https://github.com/ocornut/imgui) and Filament) and a
-**Python Studio viewer app** (`python -m mujoco.experimental.studio.viewer`).
+**Python Studio viewer app** (`python -m mujoco.studio.viewer`).
 
 CI compiles the C++ Studio viewer app (a build check, no packaging) with:
 
@@ -212,7 +212,7 @@ incremental, so any source edit — Python or C++ — needs the step re-run.
 | `build_simulate_app` | the engine and the classic `simulate` app, no Filament | `build_simulate/bin/simulate` |
 | `build_studio_cpp_viewer` | the C++ Studio viewer app with its plugins, in the host tree | `build_host/bin/mujoco_studio` |
 | `build_studio_platform_libs` | the Studio platform without the app: platform library (and the Filament tools), staged assets, engine plugins | `build_host/` |
-| `build_studio_wasm` | the web viewer browser client (WASM/JS/HTML + assets) via Emscripten | `python/mujoco/experimental/studio/web/dist/` |
+| `build_studio_wasm` | the web viewer browser client (WASM/JS/HTML + assets) via Emscripten | `python/mujoco/studio/web/dist/` |
 | `build_studio_python` | platform libraries + SDK, then the Studio Python modules (`ux`, `sim`, `window`, `dear_imgui`, `implot`, `headless_ui`, `state_payload`, `_render_filament`), installed | `build/mujoco_install/`, `python/dist/` |
 | `build_studio_all` | `build_studio_python` plus the browser client | everything above |
 | `build_wheel` | platform libraries + SDK + browser client, then a clean sdist and the wheel from it (no install, no app) | `python/dist/mujoco-*.whl` |
@@ -252,7 +252,7 @@ no Filament, Dear ImGui, Emscripten or Python. Rebuilds take seconds. (CI's
 <summary><b>3. Developing the C++ Studio Viewer</b></summary>
 
 Same step as workflow 1: `build_studio_cpp_viewer`. Edits under
-`studio/ux/`, `src/experimental/platform/` or `main.cc`
+`studio/ux/`, `studio/hal/` or `studio/main.cc`
 recompile and relink in seconds; no Python environment or Emscripten needed.
 </details>
 
@@ -263,7 +263,7 @@ recompile and relink in seconds; no Python environment or Emscripten needed.
 source /path/to/venv/bin/activate
 pip install -r python/build_requirements.txt
 bash .github/workflows/build_steps.sh build_studio_python
-python -m mujoco.experimental.studio.viewer --model=model/humanoid/humanoid.xml
+python -m mujoco.studio.viewer --model=model/humanoid/humanoid.xml
 ```
 
 `build_studio_python` builds the Studio platform, then packages and installs a
@@ -275,7 +275,7 @@ fresh sdist every time, so expect minutes rather than seconds. The C++ app
 (`main.cc`, `launcher.cc`) is never compiled by this workflow.
 
 > [!NOTE]
-> **TODO(matijak):** Re-export Studio Python tests (`experimental/studio/*_test.py`)
+> **TODO(matijak):** Re-export Studio Python tests (`studio/*_test.py`)
 > and add a `build_steps.sh` / GitHub CI step to run them against a
 > `build_studio_python` build (currently the `build.yml` matrix builds its
 > test wheel without `MUJOCO_BUILD_STUDIO=ON`, so Studio C++ extensions like
@@ -290,15 +290,15 @@ source /path/to/venv/bin/activate
 pip install -r python/build_requirements.txt
 bash .github/workflows/build_steps.sh build_studio_python
 
-python python/mujoco/experimental/studio/viewer.py --model=model/humanoid/humanoid.xml --plugins=python/mujoco/experimental/studio/sample/ghost.py
-python python/mujoco/experimental/studio/viewer.py --model=model/humanoid/humanoid.xml --plugins=python/mujoco/experimental/studio/sample/implot.py
-python python/mujoco/experimental/studio/sample/render.py --model=model/humanoid/humanoid.xml --output=render.png
-python python/mujoco/experimental/studio/sample/filament_render.py model/humanoid/humanoid.xml
-python python/mujoco/experimental/studio/sample/filament_multiview.py model/humanoid/humanoid.xml
-python python/mujoco/experimental/studio/sample/filament_multimodel.py model/humanoid/humanoid.xml model/cartpole/cartpole.xml
+python python/mujoco/studio/viewer.py --model=model/humanoid/humanoid.xml --plugins=python/mujoco/sample/studio/ghost.py
+python python/mujoco/studio/viewer.py --model=model/humanoid/humanoid.xml --plugins=python/mujoco/sample/studio/implot.py
+python python/mujoco/sample/studio/render.py --model=model/humanoid/humanoid.xml --output=render.png
+python python/mujoco/sample/studio/filament_render.py model/humanoid/humanoid.xml
+python python/mujoco/sample/studio/filament_multiview.py model/humanoid/humanoid.xml
+python python/mujoco/sample/studio/filament_multimodel.py model/humanoid/humanoid.xml model/cartpole/cartpole.xml
 ```
 
-The samples under `python/mujoco/experimental/studio/sample/` show ghost
+The samples under `python/mujoco/sample/studio/` show ghost
 overlays, ImPlot integration, headless rendering to an image, and the Filament
 Python rendering API (`mujoco.rendering.filament`, backed by the
 `_render_filament` and `window` modules that `build_studio_python` installs).
@@ -311,11 +311,11 @@ immediately; editing the library behind it needs the step re-run.
 
 ```sh
 bash .github/workflows/build_steps.sh build_studio_all
-python -m mujoco.experimental.studio.viewer --model=model/humanoid/humanoid.xml --gfx=web
+python -m mujoco.studio.viewer --model=model/humanoid/humanoid.xml --gfx=web
 ```
 
 `build_studio_all` runs `build_studio_wasm`, which compiles the client with
-Emscripten and stages it into `python/mujoco/experimental/studio/web/dist/`,
+Emscripten and stages it into `python/mujoco/studio/web/dist/`,
 and then installs a wheel carrying a copy of that directory. Because the
 browser loads the client from the installed wheel, a client rebuild only takes
 effect after the reinstall — so run the whole step rather than
@@ -340,7 +340,7 @@ MuJoCo has one distribution wheel; this is it.
 <summary><b>8. Sharing the Web Viewer with other machines (Cloudflare quick tunnel)</b></summary>
 
 ```sh
-python -m mujoco.experimental.studio.viewer --model=model/humanoid/humanoid.xml --gfx=web
+python -m mujoco.studio.viewer --model=model/humanoid/humanoid.xml --gfx=web
 cloudflared tunnel --url http://localhost:8080 --no-autoupdate
 ```
 

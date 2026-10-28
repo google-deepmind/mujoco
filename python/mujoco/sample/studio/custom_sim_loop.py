@@ -34,12 +34,12 @@ import time
 from absl import app as _app
 from absl import flags as _flags
 import mujoco
-from mujoco.experimental.studio import launch_web
-from mujoco.experimental.studio import messages
-from mujoco.experimental.studio import plugin
-from mujoco.experimental.studio import sim
-from mujoco.experimental.studio import viewer_app
-from mujoco.experimental.studio import viewer_protocol
+from mujoco.studio import launch_web
+from mujoco.studio import messages
+from mujoco.studio import plugin
+from mujoco.studio import sim
+from mujoco.studio import viewer_app
+from mujoco.studio import viewer_protocol
 
 _PORT = _flags.DEFINE_integer(
     'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'

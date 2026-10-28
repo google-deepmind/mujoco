@@ -18,8 +18,8 @@ from collections.abc import Sequence
 from absl import app
 import mujoco
 from mujoco import mjrf
-from mujoco.experimental.studio import window
 from mujoco.rendering.filament import renderer
+from mujoco.studio import window
 import numpy as np
 
 

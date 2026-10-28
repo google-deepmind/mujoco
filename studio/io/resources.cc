@@ -48,9 +48,8 @@ std::string Resolve(std::string_view path) {
     return (module_dir / "assets" / subpath).string();
   }
   // For a module at the Python package root such as mujoco/_render_filament,
-  // assets are staged in the experimental/studio package directory.
-  std::filesystem::path studio_assets =
-      module_dir / "experimental" / "studio" / "assets";
+  // assets are staged in the studio package directory.
+  std::filesystem::path studio_assets = module_dir / "studio" / "assets";
   if (std::filesystem::exists(studio_assets)) {
     return (studio_assets / subpath).string();
   }
