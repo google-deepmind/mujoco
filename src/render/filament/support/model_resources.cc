@@ -478,8 +478,14 @@ static std::shared_ptr<mjrfTexture> UploadTextureByReference(
     mju_warning("texture %d not loaded, left untextured: %s", id, err);
     return nullptr;
   }
-  return MakeTexture(ctx, id, model->tex_type[id], width, height,
-                     model->tex_nchannel[id], colorspace, data, data, mju_free);
+  std::shared_ptr<mjrfTexture> result =
+      MakeTexture(ctx, id, model->tex_type[id], width, height,
+                  model->tex_nchannel[id], colorspace, data, data, mju_free);
+  // Flush so this decoded buffer is uploaded and freed (via mju_free) before
+  // the next texture is decoded. Without it, every decoded buffer stays alive
+  // until scene setup ends, which can exhaust the 32-bit WASM heap.
+  mjrf_flush(ctx);
+  return result;
 }
 
 ModelResources::ModelResources(const mjModel* model, mjrfContext* ctx)
