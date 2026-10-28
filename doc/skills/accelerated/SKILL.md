@@ -6,7 +6,7 @@ description: >-
   (put_model, put_data), static contact sizing (max_contact_points,
   max_geom_pairs, nconmax, njmax), float32 precision, XLA compilation caching.
   Use for RL environment batches, GPU rollouts, differentiable physics.
-  Do NOT use for CPU simulation, noslip/PGS solvers (mujoco-python), rendering (mujoco-rendering), or GUI (mujoco-gui).
+  Do NOT use for CPU simulation, noslip/PGS solvers (mujoco-python), cross-engine parity debugging (mujoco-parity), rendering (mujoco-rendering), or GUI (mujoco-gui).
 ---
 
 # MuJoCo Accelerated: MJX & MJWarp GPU Backends
@@ -17,6 +17,9 @@ description: >-
 >
 > -   [mujoco-python](../python/SKILL.md) — CPU physics simulation, kinematics,
 >     and full solver suite.
+> -   [mujoco-parity](../parity/SKILL.md) — Cross-engine physics parity checks
+>     between CPU MuJoCo and MJWarp/MJX (`forward` isolation, contact matching,
+>     and `float32` baseline rollouts).
 > -   [mujoco-studio](../studio/SKILL.md) — Interactive simulation and Studio
 >     viewer plugins.
 
@@ -208,6 +211,8 @@ mjw.get_data_into(data, model, mjw_data, world_id=0)
 1.  **Float32 precision**: GPU backends run in single precision (`float32`).
     Stiff systems may experience numerical drift or NaN errors. Counteract this
     by increasing `model.opt.iterations` or decreasing `model.opt.timestep`.
+    For comparing `float32` GPU physics against CPU MuJoCo, refer to
+    [`mujoco-parity`](../parity/SKILL.md).
 2.  **Immutability in MJX**: `mjx.Data` is a JAX pytree. In-place assignments
     fail; use `.replace()`:
     ```python

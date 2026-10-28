@@ -6,7 +6,7 @@ description: >-
   bind(), contact and touch sensors, sensordata, keyframe resets, integrators,
   mju_ spatial math (quaternions, poses), energy diagnostics.
   Use for Python physics simulation, state access, stepping loops, sensors.
-  Do NOT use for model building/editing (mujoco-spec-editing), headless rendering (mujoco-rendering), GPU/TPU (mujoco-accelerated), or GUI/viewers (mujoco-gui, mujoco-studio).
+  Do NOT use for model building/editing (mujoco-spec-editing), headless rendering (mujoco-rendering), GPU/TPU (mujoco-accelerated), cross-engine parity debugging (mujoco-parity), or GUI/viewers (mujoco-gui, mujoco-studio).
 ---
 
 # MuJoCo Python: Simulation, Sensors & Math
@@ -21,6 +21,8 @@ description: >-
 >     cameras, depth, and segmentation.
 > -   [mujoco-accelerated](../accelerated/SKILL.md) — GPU/TPU physics simulation
 >     with MJX (JAX) and MJWarp (CUDA).
+> -   [mujoco-parity](../parity/SKILL.md) — Cross-engine physics parity
+>     comparison against MJWarp and MJX.
 > -   [mujoco-studio](../studio/SKILL.md) — Interactive viewers, Studio viewer
 >     apps, and plugin architecture.
 
@@ -400,11 +402,13 @@ are the cause).
 | **Import** | `import mujoco` | `from mujoco import mjx` | `import mujoco_warp as mjw` |
 | **Primary Use** | Real-time control, interactive tools, full solver support | Differentiable physics, large batch RL | High-throughput batch rollouts |
 | **Hardware** | CPU | GPU / TPU | NVIDIA GPU |
-| **Precision** | float64 | float32 | float32 |
+| **Precision** | float64 (or float32 with `-DmjUSESINGLE` / `--@mujoco//:single_precision`) | float32 | float32 |
 | **Solvers** | Newton, CG, PGS, noslip | Newton, CG | Newton, CG |
 | **Plugins** | All plugins | Not supported | SDF only |
 
-*(For detailed GPU and TPU execution patterns, refer to [`mujoco-accelerated`](../accelerated/SKILL.md).)*
+*(For detailed GPU and TPU execution patterns, refer to
+[`mujoco-accelerated`](../accelerated/SKILL.md); for cross-engine physics
+comparison, refer to [`mujoco-parity`](../parity/SKILL.md).)*
 
 ## 8. Common Gotchas & Best Practices
 

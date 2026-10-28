@@ -12,6 +12,7 @@ Python.
 | **`mujoco-spec-editing`** | [`spec_editing/`](spec_editing/SKILL.md) | Procedural model authoring | Building bodies, geoms, joints, sub-spec attachments with prefixes, actuators (servos, motors), collision bitmasks (`contype`/`conaffinity`), default classes. |
 | **`mujoco-rendering`** | [`rendering/`](rendering/SKILL.md) | Offscreen image rendering | Headless RGB, metric depth maps, segmentation masks, offscreen buffer sizing, camera positioning, C++ `mjrContext`/`mjvScene` pipelines. |
 | **`mujoco-accelerated`** | [`accelerated/`](accelerated/SKILL.md) | GPU & TPU batch simulation | High-throughput batch rollouts with MJX (`jax.vmap`, `jax.lax.scan`), differentiability, CUDA batching with MJWarp, `njmax` contact allocation. |
+| **`mujoco-parity`** | [`parity/`](parity/SKILL.md) | Cross-engine physics parity | Comparing CPU (`float64`) vs MJWarp/MJX (`float32`): stage-by-stage `forward` isolation, stiff actuator & `qM` rounding bounds, contact matching, batched 1-step & `float32` baseline rollouts. |
 | **`mujoco-gui`** | [`gui/`](gui/SKILL.md) | Dear ImGui & ImPlot UI design | Immediate-mode UI patterns, layout, styling, ID stack rules (`##` vs `###`), list virtualization (`ImGuiListClipper`), automated testing hooks. |
 | **`mujoco-studio`** | [`studio/`](studio/SKILL.md) | Studio apps & interactive viewers | Multi-threaded Sim/Viewer decoupling, message channels (Snapshots vs Events), plugin architecture in C++ and Python, WebViewer WASM streaming. |
 
