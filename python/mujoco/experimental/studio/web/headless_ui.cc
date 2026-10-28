@@ -34,7 +34,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <implot.h>
-#include <mujoco/experimental/studio/ux/fonts.h>
+#include <mujoco/studio/ux/fonts.h>
 #include <NetImgui_Api.h>
 #include "google/logging.h"
 #include <pybind11/pybind11.h>

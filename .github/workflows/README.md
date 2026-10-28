@@ -252,7 +252,7 @@ no Filament, Dear ImGui, Emscripten or Python. Rebuilds take seconds. (CI's
 <summary><b>3. Developing the C++ Studio Viewer</b></summary>
 
 Same step as workflow 1: `build_studio_cpp_viewer`. Edits under
-`src/experimental/studio/ux/`, `src/experimental/platform/` or `main.cc`
+`studio/ux/`, `src/experimental/platform/` or `main.cc`
 recompile and relink in seconds; no Python environment or Emscripten needed.
 </details>
 

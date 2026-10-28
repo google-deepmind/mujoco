@@ -742,7 +742,8 @@ install_studio_platform() {
         \( -name "*.a" -o -name "*.lib" \) ! -name "mujoco.lib" \
         -exec cp -p {} "${prefix}/lib/" \;
 
-    # 4. Source-tree headers for platform / filament-compat / render.
+    # 4. Source-tree headers for studio / platform / filament-compat / render.
+    _copy_headers studio "${prefix}/include/mujoco/studio"
     _copy_headers src/experimental "${prefix}/include/mujoco/experimental"
     _copy_headers src/render "${prefix}/include/mujoco/render"
 

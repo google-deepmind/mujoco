@@ -23,9 +23,9 @@
 
 #include <imgui.h>
 #include <implot.h>
-#include <mujoco/experimental/studio/hal/graphics_mode.h>
-#include <mujoco/experimental/studio/hal/window.h>
-#include <mujoco/experimental/studio/io/resources.h>
+#include <mujoco/studio/hal/graphics_mode.h>
+#include <mujoco/studio/hal/window.h>
+#include <mujoco/studio/io/resources.h>
 #include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>

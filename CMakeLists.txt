@@ -283,7 +283,7 @@ if(MUJOCO_BUILD_SIMULATE)
 endif()
 
 if(MUJOCO_BUILD_STUDIO)
-  add_subdirectory(src/experimental/studio)
+  add_subdirectory(studio)
 endif()
 
 if(MUJOCO_BUILD_EXAMPLES)

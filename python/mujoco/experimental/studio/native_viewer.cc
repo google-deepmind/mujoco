@@ -19,10 +19,10 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
-#include <mujoco/experimental/studio/hal/graphics_mode.h>
-#include <mujoco/experimental/studio/render/model_scene.h>
-#include <mujoco/experimental/studio/ux/imgui_widgets.h>
 #include <mujoco/render/filament/support/imgui_bridge.h>
+#include <mujoco/studio/hal/graphics_mode.h>
+#include <mujoco/studio/render/model_scene.h>
+#include <mujoco/studio/ux/imgui_widgets.h>
 #include "render_filament.h"
 #include "structs.h"
 #include <pybind11/eval.h>

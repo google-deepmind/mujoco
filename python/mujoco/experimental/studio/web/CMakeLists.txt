@@ -32,6 +32,7 @@ if(EMSCRIPTEN)
 
   target_include_directories(web_client
     PRIVATE
+      ${PROJECT_SOURCE_DIR}
       ${PROJECT_SOURCE_DIR}/include
       ${PROJECT_SOURCE_DIR}/src
   )
@@ -125,7 +126,7 @@ if(EMSCRIPTEN)
         $<TARGET_FILE_DIR:web_client>/web_client.js
         $<TARGET_FILE_DIR:web_client>/web_client.wasm
         ${CMAKE_CURRENT_SOURCE_DIR}/index.html
-        ${PROJECT_SOURCE_DIR}/src/experimental/studio/favicon.ico
+        ${PROJECT_SOURCE_DIR}/studio/favicon.ico
         ${WEB_CLIENT_DIST_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${WEB_CLIENT_FILAMENT_ASSETS_DIR} ${WEB_CLIENT_DIST_DIR}/assets
