@@ -16,8 +16,13 @@ cc_library(
         "-I" + MJ_ROOT + "/src",
         "-Wshadow",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
