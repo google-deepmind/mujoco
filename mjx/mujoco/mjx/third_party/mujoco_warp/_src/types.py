@@ -14,6 +14,7 @@
 # ==============================================================================
 import dataclasses
 import enum
+import operator
 from typing import Callable, Optional
 
 import mujoco
@@ -51,6 +52,12 @@ Q_LD_BLOCK_SPARSE = -1
 
 # maximum number of plugin attributes
 _NPLUGINATTR = 128
+
+# max DOFs per passive flex contact (2 sides * 4 max vertices per 3D tet * 3 DOFs per vertex)
+EFM_CON_MAX_DOF = 24
+
+# max nodes per interpolated flex cell ((2 + 1)^3 for quadratic)
+FLEX_INTERP_MAX_NODES = 27
 
 
 # TODO(team): add check that all wp.launch_tiled 'block_dim' settings are configurable
@@ -256,6 +263,24 @@ class DataType(enum.IntFlag):
   REAL = mujoco.mjtDataType.mjDATATYPE_REAL
   POSITIVE = mujoco.mjtDataType.mjDATATYPE_POSITIVE
   # unsupported: AXIS, QUATERNION
+
+
+class DeterminismType(enum.IntFlag):
+  """Bitmask for deterministic execution.
+
+  Attributes:
+    NONE: non-deterministic execution
+    CONTACTS: stable contact ordering via geometric radix sort
+    CONSTRAINT: canonical constraint row ordering
+    ATOMICS: invariant floating-point atomic reductions
+    ALL: all determinism features
+  """
+
+  NONE = 0
+  CONTACTS = 1 << 0
+  CONSTRAINT = 1 << 1
+  ATOMICS = 1 << 2
+  ALL = CONTACTS | CONSTRAINT | ATOMICS
 
 
 class DisableBit(enum.IntFlag):
@@ -1001,6 +1026,7 @@ class Option:
     contact_sensor_maxmatch: max number of contacts considered by contact sensor matching criteria
                              contacts matched after this value is exceded will be ignored
     warn_overflow: overflow warning bitmask (OverflowType)
+    deterministic: determinism bitmask (DeterminismType)
   """
 
   timestep: array("*", float)
@@ -1034,6 +1060,7 @@ class Option:
   run_rne_postconstraint: bool
   contact_sensor_maxmatch: int
   warn_overflow: int
+  deterministic: int
 
   @property
   def warn_overflow(self) -> int:
@@ -1044,6 +1071,22 @@ class Option:
     if isinstance(value, bool):
       value = int(OverflowType.ALL) if value else 0
     self._warn_overflow = value
+
+  @property
+  def deterministic(self) -> int:
+    return self._deterministic
+
+  @deterministic.setter
+  def deterministic(self, value: bool | int | None):
+    if value is None or isinstance(value, (bool, np.bool_)):
+      value = DeterminismType.ALL if value else DeterminismType.NONE
+    value = operator.index(value)
+    if value < 0:
+      # complements, e.g. ~DeterminismType.CONTACTS is negative on Python 3.10
+      value &= int(DeterminismType.ALL)
+    if value & ~int(DeterminismType.ALL):
+      raise ValueError(f"deterministic must be a DeterminismType bitmask, got {value}")
+    self._deterministic = value
 
   # TODO(team): remove in future version
   @property
@@ -1601,8 +1644,10 @@ class Model:
                     (excluding limit velocity sensors)
     sensor_limitvel_adr: address for limit velocity sensors
     sensor_acc_adr: addresses for acceleration sensors
-                    (excluding touch sensors)
-                    (excluding limit force sensors)
+                    (excluding touch, contact, limit force, and tendon actuator force sensors)
+    sensor_stage_pos_adr: addresses for all stage-pos sensors
+    sensor_stage_vel_adr: addresses for all stage-vel sensors
+    sensor_stage_acc_adr: addresses for all stage-acc sensors
     sensor_rangefinder_adr: map rangefinder ray id to sensor id (nrangefinder,)
     rangefinder_sensor_adr: map sensor id to starting rangefinder ray id (nsensor,)
     sensor_collision_start_adr: address for sensor's first
@@ -2132,6 +2177,9 @@ class Model:
   sensor_vel_adr: array("nsensor_vel", int)
   sensor_limitvel_adr: array("nsensor_limitvel", int)
   sensor_acc_adr: array("nsensor_acc", int)
+  sensor_stage_pos_adr: array("nsensor_stage_pos", int)
+  sensor_stage_vel_adr: array("nsensor_stage_vel", int)
+  sensor_stage_acc_adr: array("nsensor_stage_acc", int)
   sensor_rangefinder_adr: array("nrangefinder", int)
   rangefinder_sensor_adr: array("nsensor", int)
   sensor_collision_start_adr: array("nsensor_collision_start_adr", int)
@@ -2682,6 +2730,7 @@ class SolverContext:
   # inside wp.capture_while where memory cannot be allocated (None otherwise)
   efm_con: Optional[tuple] = None
   flex_scratch: Optional[tuple] = None
+  solve_ld_scratch: Optional[wp.array] = None
 
 
 @dataclasses.dataclass

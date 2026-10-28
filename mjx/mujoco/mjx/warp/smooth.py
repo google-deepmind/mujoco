@@ -301,6 +301,7 @@ def _tendon_shim(
     geom_size: wp.array2d[wp.vec3],
     jnt_dofadr: wp.array[int],
     jnt_qposadr: wp.array[int],
+    max_ten_J_rownnz: int,
     ntendon: int,
     nwrap: int,
     site_bodyid: wp.array[int],
@@ -319,6 +320,7 @@ def _tendon_shim(
     wrap_pulley_scale: wp.array[float],
     wrap_site_pair_adr: wp.array[int],
     wrap_type: wp.array[int],
+    opt__deterministic: int,
     # Data
     cdof: wp.array2d[wp.spatial_vector],
     geom_xmat: wp.array2d[wp.mat33],
@@ -345,8 +347,10 @@ def _tendon_shim(
   _m.geom_size = geom_size
   _m.jnt_dofadr = jnt_dofadr
   _m.jnt_qposadr = jnt_qposadr
+  _m.max_ten_J_rownnz = max_ten_J_rownnz
   _m.ntendon = ntendon
   _m.nwrap = nwrap
+  _m.opt.deterministic = opt__deterministic
   _m.site_bodyid = site_bodyid
   _m.ten_J_colind = ten_J_colind
   _m.ten_J_rowadr = ten_J_rowadr
@@ -437,6 +441,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m.geom_size,
       m.jnt_dofadr,
       m.jnt_qposadr,
+      m._impl.max_ten_J_rownnz,
       m.ntendon,
       m.nwrap,
       m.site_bodyid,
@@ -455,6 +460,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m._impl.wrap_pulley_scale,
       m._impl.wrap_site_pair_adr,
       m.wrap_type,
+      m.opt._impl.deterministic,
       d.cdof,
       d.geom_xmat,
       d.geom_xpos,
@@ -507,6 +513,7 @@ def _com_pos_shim(
     jnt_type: wp.array[int],
     nbody: int,
     njnt: int,
+    opt__deterministic: int,
     # Data
     cdof: wp.array2d[wp.spatial_vector],
     cinert: wp.array2d[mjwp_types.vec10],
@@ -532,6 +539,7 @@ def _com_pos_shim(
   _m.jnt_type = jnt_type
   _m.nbody = nbody
   _m.njnt = njnt
+  _m.opt.deterministic = opt__deterministic
   _d.cdof = cdof
   _d.cinert = cinert
   _d.subtree_com = subtree_com
@@ -586,6 +594,7 @@ def _com_pos_jax_impl(m: types.Model, d: types.Data):
       m.jnt_type,
       m.nbody,
       m.njnt,
+      m.opt._impl.deterministic,
       d.cdof,
       d._impl.cinert,
       d.subtree_com,

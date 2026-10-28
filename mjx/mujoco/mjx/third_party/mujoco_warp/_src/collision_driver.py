@@ -31,6 +31,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseFilter
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseType
 from mujoco.mjx.third_party.mujoco_warp._src.types import CollisionType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
+from mujoco.mjx.third_party.mujoco_warp._src.types import DeterminismType
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -384,7 +385,7 @@ def _add_geom_pair(
   collision_pairid_out: wp.array[wp.vec2i],
   collision_worldid_out: wp.array[int],
 ):
-  cid = wp.atomic_add(ncollision_out, 0, 1)
+  cid = wp.atomic_add(ncollision_out, 0, 1)  # kernel_analyzer: ignore[atomic]
 
   if cid >= naconmax_in:
     return
@@ -415,8 +416,8 @@ def _sap_pair_margin(npair_margin: int, npair_gap: int):
     pair_margin_id = batchid % npair_margin if wp.static(npair_margin > 1) else 0
     pair_gap_id = batchid % npair_gap if wp.static(npair_gap > 1) else 0
     margin = pair_margin[pair_margin_id, pairid] + pair_gap[pair_gap_id, pairid]  # kernel_analyzer: ignore
-    wp.atomic_max(geom_pair_margin_out, batchid, pair_geom1[pairid], margin)
-    wp.atomic_max(geom_pair_margin_out, batchid, pair_geom2[pairid], margin)
+    wp.atomic_max(geom_pair_margin_out, batchid, pair_geom1[pairid], margin)  # kernel_analyzer: ignore[atomic]
+    wp.atomic_max(geom_pair_margin_out, batchid, pair_geom2[pairid], margin)  # kernel_analyzer: ignore[atomic]
 
   return sap_pair_margin
 
@@ -1058,6 +1059,12 @@ def _narrowphase(m: Model, d: Data, ctx: CollisionContext):
     sdf_narrowphase(m, d, ctx)
 
 
+def _sort_contacts(m: Model, d: Data):
+  """Deterministic contact sort."""
+  # TODO(team): Implementation contact sorting.
+  pass
+
+
 @event_scope
 def collision(
   m: Model,
@@ -1117,3 +1124,6 @@ def collision(
 
   if m.callback.contactfilter:
     m.callback.contactfilter(m, d)
+
+  if m.opt.deterministic & DeterminismType.CONTACTS:
+    _sort_contacts(m, d)

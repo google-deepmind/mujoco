@@ -437,6 +437,9 @@ def _forward_shim(
     sensor_refid: wp.array[int],
     sensor_reftype: wp.array[int],
     sensor_rne_postconstraint: bool,
+    sensor_stage_acc_adr: wp.array[int],
+    sensor_stage_pos_adr: wp.array[int],
+    sensor_stage_vel_adr: wp.array[int],
     sensor_subtree_vel: bool,
     sensor_tendonactfrc_adr: wp.array[int],
     sensor_touch_adr: wp.array[int],
@@ -495,6 +498,7 @@ def _forward_shim(
     opt__cone: int,
     opt__contact_sensor_maxmatch: int,
     opt__density: wp.array[float],
+    opt__deterministic: int,
     opt__disableflags: int,
     opt__enableflags: int,
     opt__graph_conditional: bool,
@@ -1060,6 +1064,7 @@ def _forward_shim(
   _m.opt.cone = opt__cone
   _m.opt.contact_sensor_maxmatch = opt__contact_sensor_maxmatch
   _m.opt.density = opt__density
+  _m.opt.deterministic = opt__deterministic
   _m.opt.disableflags = opt__disableflags
   _m.opt.enableflags = opt__enableflags
   _m.opt.graph_conditional = opt__graph_conditional
@@ -1127,6 +1132,9 @@ def _forward_shim(
   _m.sensor_refid = sensor_refid
   _m.sensor_reftype = sensor_reftype
   _m.sensor_rne_postconstraint = sensor_rne_postconstraint
+  _m.sensor_stage_acc_adr = sensor_stage_acc_adr
+  _m.sensor_stage_pos_adr = sensor_stage_pos_adr
+  _m.sensor_stage_vel_adr = sensor_stage_vel_adr
   _m.sensor_subtree_vel = sensor_subtree_vel
   _m.sensor_tendonactfrc_adr = sensor_tendonactfrc_adr
   _m.sensor_touch_adr = sensor_touch_adr
@@ -2560,6 +2568,9 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.sensor_refid,
       m.sensor_reftype,
       m._impl.sensor_rne_postconstraint,
+      m._impl.sensor_stage_acc_adr,
+      m._impl.sensor_stage_pos_adr,
+      m._impl.sensor_stage_vel_adr,
       m._impl.sensor_subtree_vel,
       m._impl.sensor_tendonactfrc_adr,
       m._impl.sensor_touch_adr,
@@ -2618,6 +2629,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.cone,
       m.opt._impl.contact_sensor_maxmatch,
       m.opt.density,
+      m.opt._impl.deterministic,
       m.opt.disableflags,
       m.opt.enableflags,
       m.opt._impl.graph_conditional,
@@ -3315,6 +3327,7 @@ def _step_shim(
     nC: int,
     nD: int,
     nJten: int,
+    nM: int,
     na: int,
     nacttrnbody: int,
     nactuator: int,
@@ -3409,6 +3422,9 @@ def _step_shim(
     sensor_refid: wp.array[int],
     sensor_reftype: wp.array[int],
     sensor_rne_postconstraint: bool,
+    sensor_stage_acc_adr: wp.array[int],
+    sensor_stage_pos_adr: wp.array[int],
+    sensor_stage_vel_adr: wp.array[int],
     sensor_subtree_vel: bool,
     sensor_tendonactfrc_adr: wp.array[int],
     sensor_touch_adr: wp.array[int],
@@ -3467,6 +3483,7 @@ def _step_shim(
     opt__cone: int,
     opt__contact_sensor_maxmatch: int,
     opt__density: wp.array[float],
+    opt__deterministic: int,
     opt__disableflags: int,
     opt__enableflags: int,
     opt__graph_conditional: bool,
@@ -3986,6 +4003,7 @@ def _step_shim(
   _m.nC = nC
   _m.nD = nD
   _m.nJten = nJten
+  _m.nM = nM
   _m.na = na
   _m.nacttrnbody = nacttrnbody
   _m.nactuator = nactuator
@@ -4040,6 +4058,7 @@ def _step_shim(
   _m.opt.cone = opt__cone
   _m.opt.contact_sensor_maxmatch = opt__contact_sensor_maxmatch
   _m.opt.density = opt__density
+  _m.opt.deterministic = opt__deterministic
   _m.opt.disableflags = opt__disableflags
   _m.opt.enableflags = opt__enableflags
   _m.opt.graph_conditional = opt__graph_conditional
@@ -4110,6 +4129,9 @@ def _step_shim(
   _m.sensor_refid = sensor_refid
   _m.sensor_reftype = sensor_reftype
   _m.sensor_rne_postconstraint = sensor_rne_postconstraint
+  _m.sensor_stage_acc_adr = sensor_stage_acc_adr
+  _m.sensor_stage_pos_adr = sensor_stage_pos_adr
+  _m.sensor_stage_vel_adr = sensor_stage_vel_adr
   _m.sensor_subtree_vel = sensor_subtree_vel
   _m.sensor_tendonactfrc_adr = sensor_tendonactfrc_adr
   _m.sensor_touch_adr = sensor_touch_adr
@@ -5475,6 +5497,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.nC,
       m.nD,
       m.nJten,
+      m.nM,
       m.na,
       m._impl.nacttrnbody,
       m._impl.nactuator,
@@ -5569,6 +5592,9 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.sensor_refid,
       m.sensor_reftype,
       m._impl.sensor_rne_postconstraint,
+      m._impl.sensor_stage_acc_adr,
+      m._impl.sensor_stage_pos_adr,
+      m._impl.sensor_stage_vel_adr,
       m._impl.sensor_subtree_vel,
       m._impl.sensor_tendonactfrc_adr,
       m._impl.sensor_touch_adr,
@@ -5627,6 +5653,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.cone,
       m.opt._impl.contact_sensor_maxmatch,
       m.opt.density,
+      m.opt._impl.deterministic,
       m.opt.disableflags,
       m.opt.enableflags,
       m.opt._impl.graph_conditional,

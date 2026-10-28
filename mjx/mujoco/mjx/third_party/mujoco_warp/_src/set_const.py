@@ -24,6 +24,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import math as mjmath
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 
 wp.set_module_options({"default_grid_stride": False})
 
@@ -41,18 +42,25 @@ def _init_subtreemass(
   body_subtreemass_out[body_subtreemass_id, bodyid] = body_mass_in[body_mass_id, bodyid]
 
 
-@wp.kernel
-def _accumulate_subtreemass(
-  body_parentid: wp.array[int],
-  body_subtreemass_io: wp.array2d[float],
-  body_tree_: wp.array[int],
-):
-  worldid, nodeid = wp.tid()
-  body_subtreemass_id = worldid % body_subtreemass_io.shape[0]
-  bodyid = body_tree_[nodeid]
-  parentid = body_parentid[bodyid]
-  if bodyid != 0:
-    wp.atomic_add(body_subtreemass_io, body_subtreemass_id, parentid, body_subtreemass_io[body_subtreemass_id, bodyid])
+@cache_kernel
+def _accumulate_subtreemass(deterministic: bool = False):
+  module_options = {"enable_backward": False, "deterministic": wp.DeterministicMode.RUN_TO_RUN} if deterministic else {}
+
+  @wp.kernel(module="unique", module_options=module_options)
+  def kernel(
+    body_parentid: wp.array[int],
+    body_subtreemass_in: wp.array2d[float],
+    body_tree_: wp.array[int],
+    body_subtreemass_out: wp.array2d[float],
+  ):
+    worldid, nodeid = wp.tid()
+    body_subtreemass_id = worldid % body_subtreemass_in.shape[0]
+    bodyid = body_tree_[nodeid]
+    parentid = body_parentid[bodyid]
+    if bodyid != 0:
+      wp.atomic_add(body_subtreemass_out, body_subtreemass_id, parentid, body_subtreemass_in[body_subtreemass_id, bodyid])
+
+  return kernel
 
 
 @wp.kernel
@@ -589,12 +597,17 @@ def _set_fixed(m: types.Model):
   """Compute fixed quantities (do not depend on qpos0)."""
   nworld_subtreemass = m.body_subtreemass.shape[0]
   wp.launch(_init_subtreemass, dim=(nworld_subtreemass, m.nbody), inputs=[m.body_mass], outputs=[m.body_subtreemass])
+  det_atomics = bool(m.opt.deterministic & types.DeterminismType.ATOMICS)
+  subtreemass_in = wp.empty_like(m.body_subtreemass) if det_atomics else m.body_subtreemass
   for i in reversed(range(len(m.body_tree))):
     body_tree = m.body_tree[i]
+    if det_atomics:
+      wp.copy(subtreemass_in, m.body_subtreemass)
     wp.launch(
-      _accumulate_subtreemass,
+      _accumulate_subtreemass(det_atomics),
       dim=(nworld_subtreemass, body_tree.size),
-      inputs=[m.body_parentid, m.body_subtreemass, body_tree],
+      inputs=[m.body_parentid, subtreemass_in, body_tree],
+      outputs=[m.body_subtreemass],
     )
 
 

@@ -16,11 +16,13 @@
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import types
+from mujoco.mjx.third_party.mujoco_warp._src.types import DeterminismType
 from mujoco.mjx.third_party.mujoco_warp._src.types import EqType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SleepPolicy
 from mujoco.mjx.third_party.mujoco_warp._src.types import SleepState
 from mujoco.mjx.third_party.mujoco_warp._src.types import WrapType
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
@@ -108,63 +110,79 @@ def _update_sleep_trees(
   is_awake = int(tree_asleep_in[worldid, treeid] < 0)
   tree_awake_out[worldid, treeid] = is_awake
   if is_awake == 1:
-    wp.atomic_add(ntree_awake_out, worldid, 1)
+    wp.atomic_add(ntree_awake_out, worldid, 1)  # kernel_analyzer: ignore[atomic]
 
 
-@wp.kernel
-def _update_sleep_bodies(
-  # Model:
-  body_parentid: wp.array[int],
-  body_rootid: wp.array[int],
-  body_mocapid: wp.array[int],
-  body_treeid: wp.array[int],
-  # Data in:
-  tree_awake_in: wp.array2d[int],
-  # In:
-  flg_staticawake: int,
-  # Data out:
-  nbody_awake_out: wp.array[int],
-  body_awake_out: wp.array2d[int],
-  body_awake_ind_out: wp.array2d[int],
-):
-  worldid, bodyid = wp.tid()
+@cache_kernel
+def _update_sleep_bodies(deterministic: bool = False):
+  module_options = {"enable_backward": False}
+  if deterministic:
+    module_options["deterministic"] = wp.DeterministicMode.RUN_TO_RUN
 
-  tree = body_treeid[bodyid]
+  @wp.kernel(module="unique", module_options=module_options)
+  def kernel(
+    # Model:
+    body_parentid: wp.array[int],
+    body_rootid: wp.array[int],
+    body_mocapid: wp.array[int],
+    body_treeid: wp.array[int],
+    # Data in:
+    tree_awake_in: wp.array2d[int],
+    # In:
+    flg_staticawake: int,
+    # Data out:
+    nbody_awake_out: wp.array[int],
+    body_awake_out: wp.array2d[int],
+    body_awake_ind_out: wp.array2d[int],
+  ):
+    worldid, bodyid = wp.tid()
 
-  # check static
-  if tree < 0:
-    root = body_rootid[bodyid]
-    mocap = body_mocapid[root]
-    if mocap >= 0:
-      state = SleepState.AWAKE
+    tree = body_treeid[bodyid]
+
+    # check static
+    if tree < 0:
+      root = body_rootid[bodyid]
+      mocap = body_mocapid[root]
+      if mocap >= 0:
+        state = SleepState.AWAKE
+      else:
+        state = SleepState.AWAKE if flg_staticawake != 0 else SleepState.STATIC
     else:
-      state = SleepState.AWAKE if flg_staticawake != 0 else SleepState.STATIC
-  else:
-    state = SleepState.AWAKE if tree_awake_in[worldid, tree] == 1 else SleepState.ASLEEP
+      state = SleepState.AWAKE if tree_awake_in[worldid, tree] == 1 else SleepState.ASLEEP
 
-  body_awake_out[worldid, bodyid] = state
+    body_awake_out[worldid, bodyid] = state
 
-  if state != SleepState.ASLEEP:
-    idx = wp.atomic_add(nbody_awake_out, worldid, 1)
-    body_awake_ind_out[worldid, idx] = bodyid
+    if state != SleepState.ASLEEP:
+      idx = wp.atomic_add(nbody_awake_out, worldid, 1)
+      body_awake_ind_out[worldid, idx] = bodyid
+
+  return kernel
 
 
-@wp.kernel
-def _update_sleep_dofs(
-  # Model:
-  body_treeid: wp.array[int],
-  dof_bodyid: wp.array[int],
-  # Data in:
-  body_awake_in: wp.array2d[int],
-  # Data out:
-  nv_awake_out: wp.array[int],
-  dof_awake_ind_out: wp.array2d[int],
-):
-  worldid, dofid = wp.tid()
-  bodyid = dof_bodyid[dofid]
-  if body_treeid[bodyid] >= 0 and body_awake_in[worldid, bodyid] == SleepState.AWAKE:
-    idx = wp.atomic_add(nv_awake_out, worldid, 1)
-    dof_awake_ind_out[worldid, idx] = dofid
+@cache_kernel
+def _update_sleep_dofs(deterministic: bool = False):
+  module_options = {"enable_backward": False}
+  if deterministic:
+    module_options["deterministic"] = wp.DeterministicMode.RUN_TO_RUN
+
+  @wp.kernel(module="unique", module_options=module_options)
+  def kernel(
+    # Model:
+    body_treeid: wp.array[int],
+    dof_bodyid: wp.array[int],
+    # Data in:
+    body_awake_in: wp.array2d[int],
+    # Data out:
+    nv_awake_out: wp.array[int],
+    dof_awake_ind_out: wp.array2d[int],
+  ):
+    worldid, dofid = wp.tid()
+    bodyid = dof_bodyid[dofid]
+    if body_treeid[bodyid] >= 0 and body_awake_in[worldid, bodyid] == SleepState.AWAKE:
+      idx = wp.atomic_add(nv_awake_out, worldid, 1)
+      dof_awake_ind_out[worldid, idx] = dofid
+
+  return kernel
 
 
 @event_scope
@@ -185,7 +203,7 @@ def update_sleep(m: types.Model, d: types.Data, flg_staticawake: int = 0):
   )
 
   wp.launch(
-    _update_sleep_bodies,
+    _update_sleep_bodies(bool(m.opt.deterministic & DeterminismType.ATOMICS)),
     dim=(d.nworld, m.nbody),
     inputs=[
       m.body_parentid,
@@ -203,7 +221,7 @@ def update_sleep(m: types.Model, d: types.Data, flg_staticawake: int = 0):
   )
 
   wp.launch(
-    _update_sleep_dofs,
+    _update_sleep_dofs(bool(m.opt.deterministic & DeterminismType.ATOMICS)),
     dim=(d.nworld, m.nv),
     inputs=[
       m.body_treeid,
@@ -882,7 +900,7 @@ def _check_island_can_sleep(
     as_val = tree_asleep_in[worldid, treeid]
     if as_val < -1:
       # Not ready to sleep yet
-      wp.atomic_min(island_can_sleep_out, worldid, island_id, 0)
+      wp.atomic_min(island_can_sleep_out, worldid, island_id, 0)  # kernel_analyzer: ignore[atomic]
 
 
 @wp.kernel

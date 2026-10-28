@@ -162,6 +162,7 @@ class OptionWarp(PyTreeNode):
   ccd_iterations: int
   ccd_tolerance: jax.Array
   contact_sensor_maxmatch: int
+  deterministic: int
   graph_conditional: bool
   graph_mode: GraphMode
   impratio_invsqrt: jax.Array
@@ -414,6 +415,9 @@ class ModelWarp(PyTreeNode):
   sensor_rangefinder_adr: np.ndarray
   sensor_rangefinder_bodyid: np.ndarray
   sensor_rne_postconstraint: bool
+  sensor_stage_acc_adr: np.ndarray
+  sensor_stage_pos_adr: np.ndarray
+  sensor_stage_vel_adr: np.ndarray
   sensor_subtree_vel: bool
   sensor_tendonactfrc_adr: np.ndarray
   sensor_touch_adr: np.ndarray
@@ -1293,6 +1297,7 @@ _NDIM = {
         'opt__cone': 0,
         'opt__contact_sensor_maxmatch': 0,
         'opt__density': 1,
+        'opt__deterministic': 0,
         'opt__disableflags': 0,
         'opt__enableflags': 0,
         'opt__graph_conditional': 0,
@@ -1364,6 +1369,9 @@ _NDIM = {
         'sensor_refid': 1,
         'sensor_reftype': 1,
         'sensor_rne_postconstraint': 0,
+        'sensor_stage_acc_adr': 1,
+        'sensor_stage_pos_adr': 1,
+        'sensor_stage_vel_adr': 1,
         'sensor_subtree_vel': 0,
         'sensor_tendonactfrc_adr': 1,
         'sensor_touch_adr': 1,
@@ -1426,6 +1434,7 @@ _NDIM = {
         'cone': 0,
         'contact_sensor_maxmatch': 0,
         'density': 1,
+        'deterministic': 0,
         'disableflags': 0,
         'enableflags': 0,
         'graph_conditional': 0,
@@ -2094,6 +2103,7 @@ _BATCH_DIM = {
         'opt__cone': False,
         'opt__contact_sensor_maxmatch': False,
         'opt__density': True,
+        'opt__deterministic': False,
         'opt__disableflags': False,
         'opt__enableflags': False,
         'opt__graph_conditional': False,
@@ -2165,6 +2175,9 @@ _BATCH_DIM = {
         'sensor_refid': False,
         'sensor_reftype': False,
         'sensor_rne_postconstraint': False,
+        'sensor_stage_acc_adr': False,
+        'sensor_stage_pos_adr': False,
+        'sensor_stage_vel_adr': False,
         'sensor_subtree_vel': False,
         'sensor_tendonactfrc_adr': False,
         'sensor_touch_adr': False,
@@ -2227,6 +2240,7 @@ _BATCH_DIM = {
         'cone': False,
         'contact_sensor_maxmatch': False,
         'density': True,
+        'deterministic': False,
         'disableflags': False,
         'enableflags': False,
         'graph_conditional': False,

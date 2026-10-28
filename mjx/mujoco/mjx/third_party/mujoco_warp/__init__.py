@@ -109,6 +109,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Constraint as Constrai
 from mujoco.mjx.third_party.mujoco_warp._src.types import Contact as Contact
 from mujoco.mjx.third_party.mujoco_warp._src.types import CtrlChart as CtrlChart
 from mujoco.mjx.third_party.mujoco_warp._src.types import CtrlInput as CtrlInput
+from mujoco.mjx.third_party.mujoco_warp._src.types import DeterminismType as DeterminismType
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit as DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import DynType as DynType
 from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit as EnableBit

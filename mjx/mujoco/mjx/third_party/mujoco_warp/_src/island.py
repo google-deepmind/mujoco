@@ -39,7 +39,7 @@ def _dsu_find(parent: wp.array2d[int], worldid: int, tree: int):
       return current
     grandparent = parent[worldid, parent_current]
     if grandparent < parent_current:
-      wp.atomic_min(parent, worldid, current, grandparent)
+      wp.atomic_min(parent, worldid, current, grandparent)  # kernel_analyzer: ignore[atomic]
     current = parent_current
   return current
 
@@ -47,7 +47,7 @@ def _dsu_find(parent: wp.array2d[int], worldid: int, tree: int):
 @wp.func
 def _dsu_activate(worldid: int, tree: int, tree_island_out: wp.array2d[int]):
   if tree >= 0:
-    wp.atomic_max(tree_island_out, worldid, tree, 0)
+    wp.atomic_max(tree_island_out, worldid, tree, 0)  # kernel_analyzer: ignore[atomic]
 
 
 @wp.func
@@ -70,7 +70,7 @@ def _dsu_union(parent: wp.array2d[int], worldid: int, tree0: int, tree1: int, tr
       return
     low_root = wp.min(root0, root1)
     high_root = wp.max(root0, root1)
-    previous = wp.atomic_cas(parent, worldid, high_root, high_root, low_root)
+    previous = wp.atomic_cas(parent, worldid, high_root, high_root, low_root)  # kernel_analyzer: ignore[atomic]
     if previous == high_root:
       return
 
@@ -544,7 +544,7 @@ def _island_count_dofs(
   island_id = tree_island_in[worldid, dof_treeid[dofid]]
   dof_island_out[worldid, dofid] = island_id
   if island_id >= 0:
-    wp.atomic_add(island_nv_out, worldid, island_id, 1)
+    wp.atomic_add(island_nv_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
 
 
 @wp.kernel
@@ -653,13 +653,13 @@ def _island_count_constraints(
   efc_island_out[worldid, efcid] = island_id
 
   if island_id >= 0:
-    wp.atomic_add(island_nefc_out, worldid, island_id, 1)
+    wp.atomic_add(island_nefc_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
 
     efc_type = efc_type_in[worldid, efcid]
     if efc_type == ConstraintType.EQUALITY:
-      wp.atomic_add(island_ne_out, worldid, island_id, 1)
+      wp.atomic_add(island_ne_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
     elif efc_type == ConstraintType.FRICTION_DOF or efc_type == ConstraintType.FRICTION_TENDON:
-      wp.atomic_add(island_nf_out, worldid, island_id, 1)
+      wp.atomic_add(island_nf_out, worldid, island_id, 1)  # kernel_analyzer: ignore[atomic]
 
 
 @wp.kernel

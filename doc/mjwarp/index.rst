@@ -1239,6 +1239,7 @@ Additional MJWarp-only options are available:
 - ``run_collision_detection``: use collision detection routine
 - ``contact_sensor_maxmatch``: maximum number of contacts for contact sensor matching criteria
 - ``warn_overflow``: warn if simulation overflow is encountered
+- ``deterministic``: bitmask for deterministic execution (:class:`mjw.DeterminismType <mujoco_warp.DeterminismType>`)
 
 .. admonition:: Fluid model
   :class: note

@@ -43,6 +43,7 @@ _cb = mjwp_types.Callback(
     **{f.name: None for f in dataclasses.fields(mjwp_types.Callback) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _collision_shim(
     # Model
@@ -154,6 +155,7 @@ def _collision_shim(
     opt__broadphase_filter: int,
     opt__ccd_iterations: int,
     opt__ccd_tolerance: wp.array[float],
+    opt__deterministic: int,
     opt__disableflags: int,
     opt__enableflags: int,
     opt__graph_conditional: bool,
@@ -291,6 +293,7 @@ def _collision_shim(
   _m.opt.broadphase_filter = opt__broadphase_filter
   _m.opt.ccd_iterations = opt__ccd_iterations
   _m.opt.ccd_tolerance = opt__ccd_tolerance
+  _m.opt.deterministic = opt__deterministic
   _m.opt.disableflags = opt__disableflags
   _m.opt.enableflags = opt__enableflags
   _m.opt.graph_conditional = opt__graph_conditional
@@ -584,6 +587,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt._impl.broadphase_filter,
       m.opt._impl.ccd_iterations,
       m.opt._impl.ccd_tolerance,
+      m.opt._impl.deterministic,
       m.opt.disableflags,
       m.opt.enableflags,
       m.opt._impl.graph_conditional,
