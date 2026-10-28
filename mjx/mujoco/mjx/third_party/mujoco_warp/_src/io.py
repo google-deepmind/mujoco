@@ -2041,6 +2041,12 @@ def make_data(
       if mjm.nhistory > 0
       else wp.zeros((nworld, 0), dtype=float)
     ),
+    # plastic
+    "plastic": (
+      wp.array(np.tile(mjd.plastic, (nworld, 1)), shape=(nworld, mjm.nplastic), dtype=float)
+      if mjm.nplastic > 0
+      else wp.zeros((nworld, 0), dtype=float)
+    ),
     # island arrays
     "nisland": None,
     "tree_island": None,
@@ -2558,6 +2564,9 @@ def get_data_into(
   if mjm.nhistory > 0:
     result.history[:] = d.history.numpy()[world_id]
 
+  if mjm.nplastic > 0:
+    result.plastic[:] = d.plastic.numpy()[world_id]
+
   if mjm.nuserdata > 0:
     result.userdata[:] = d.userdata.numpy()[world_id]
 
@@ -2925,6 +2934,46 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
     if elemid < nv:
       dof_awake_ind_out[worldid, elemid] = elemid
 
+  @wp.kernel(module="unique", enable_backward=False, grid_stride=False)
+  def reset_plastic(
+    # Model:
+    njnt: int,
+    ntendon: int,
+    qpos_spring: wp.array2d[float],
+    jnt_type: wp.array[int],
+    jnt_qposadr: wp.array[int],
+    jnt_plasticadr: wp.array[int],
+    tendon_plasticadr: wp.array[int],
+    tendon_lengthspring: wp.array2d[wp.vec2],
+    # In:
+    reset_in: wp.array[bool],
+    # Data out:
+    plastic_out: wp.array2d[float],
+  ):
+    worldid = wp.tid()
+
+    if wp.static(reset is not None):
+      if not reset_in[worldid]:
+        return
+
+    qpos_spring_id = worldid % qpos_spring.shape[0]
+    for j in range(njnt):
+      padr = jnt_plasticadr[j]
+      if padr >= 0:
+        qadr = jnt_qposadr[j]
+        jtype = jnt_type[j]
+        nq_j = 4 if jtype == types.JointType.BALL else 1
+        for k in range(nq_j):
+          plastic_out[worldid, padr + k] = qpos_spring[qpos_spring_id, qadr + k]
+
+    tendon_lengthspring_id = worldid % tendon_lengthspring.shape[0]
+    for t in range(ntendon):
+      padr = tendon_plasticadr[t]
+      if padr >= 0:
+        lengthspring = tendon_lengthspring[tendon_lengthspring_id, t]
+        plastic_out[worldid, padr + 0] = lengthspring[0]
+        plastic_out[worldid, padr + 1] = lengthspring[1]
+
   if reset is None:
     reset_input = wp.ones(d.nworld, dtype=bool)
   elif isinstance(reset, wp.array):
@@ -3046,6 +3095,24 @@ def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
   if m.nhistory > 0:
     history.reset_history(m, d, reset=reset_input)
 
+  if m.nplastic > 0:
+    wp.launch(
+      reset_plastic,
+      dim=d.nworld,
+      inputs=[
+        m.njnt,
+        m.ntendon,
+        m.qpos_spring,
+        m.jnt_type,
+        m.jnt_qposadr,
+        m.jnt_plasticadr,
+        m.tendon_plasticadr,
+        m.tendon_lengthspring,
+        reset_input,
+      ],
+      outputs=[d.plastic],
+    )
+
   if sleep_enabled:
     sleep.update_sleep(m, d)
 
@@ -3108,7 +3175,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
   # Call normal reset using the mask
   reset_data(m, d, reset_mask)
 
-  # Set time, qpos, qvel, act, ctrl, mocap_pos, mocap_quat from the keyframe.
+  # Set time, qpos, qvel, act, ctrl, mocap_pos, mocap_quat, plastic from the keyframe.
   @wp.kernel(module="unique", enable_backward=False)
   def reset_keyframe_data(
     # Model:
@@ -3117,6 +3184,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
     nu: int,
     na: int,
     nmocap: int,
+    nplastic: int,
     key_time: wp.array[float],
     key_qpos: wp.array2d[float],
     key_qvel: wp.array2d[float],
@@ -3124,6 +3192,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
     key_mpos: wp.array2d[wp.vec3],
     key_mquat: wp.array2d[wp.quat],
     key_ctrl: wp.array2d[float],
+    key_plastic: wp.array2d[float],
     # In:
     key_in: wp.array[int],
     reset_in: wp.array[bool],
@@ -3135,6 +3204,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
     ctrl_out: wp.array2d[float],
     mocap_pos_out: wp.array2d[wp.vec3],
     mocap_quat_out: wp.array2d[wp.quat],
+    plastic_out: wp.array2d[float],
   ):
     worldid = wp.tid()
 
@@ -3154,6 +3224,8 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
       mocap_quat_out[worldid, i] = key_mquat[key, i]
     for i in range(nu):
       ctrl_out[worldid, i] = key_ctrl[key, i]
+    for i in range(nplastic):
+      plastic_out[worldid, i] = key_plastic[key, i]
 
   wp.launch(
     reset_keyframe_data,
@@ -3164,6 +3236,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
       m.nu,
       m.na,
       m.nmocap,
+      m.nplastic,
       m.key_time,
       m.key_qpos,
       m.key_qvel,
@@ -3171,6 +3244,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
       m.key_mpos,
       m.key_mquat,
       m.key_ctrl,
+      m.key_plastic,
       key_input,
       reset_mask,
     ],
@@ -3182,6 +3256,7 @@ def reset_data_keyframe(m: types.Model, d: types.Data, key: int | wp.array):
       d.ctrl,
       d.mocap_pos,
       d.mocap_quat,
+      d.plastic,
     ],
   )
 

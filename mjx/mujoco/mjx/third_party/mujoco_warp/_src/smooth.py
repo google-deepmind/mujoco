@@ -1988,7 +1988,6 @@ def _cfrc_ext_tendon_actuator(deterministic: bool = False):
     force = actuator_force_in[worldid, actid]
     if force == 0.0:
       return
-
     tenid = actuator_trnid[actid][0]
     gear = actuator_gear[worldid % actuator_gear.shape[0], actid][0]
     wp.atomic_add(ten_frc_out[worldid], tenid, force * gear)
@@ -2012,6 +2011,7 @@ def _cfrc_ext_spatial_tendon(nwrap: int, deterministic: bool = False):
     tendon_adr: wp.array[int],
     tendon_num: wp.array[int],
     tendon_actuatorid: wp.array[int],
+    tendon_plasticadr: wp.array[int],
     ten_J_rownnz: wp.array[int],
     ten_J_rowadr: wp.array[int],
     ten_J_colind: wp.array[int],
@@ -2031,6 +2031,7 @@ def _cfrc_ext_spatial_tendon(nwrap: int, deterministic: bool = False):
     actuator_armature: wp.array2d[float],
     actuator_gear: wp.array2d[wp.spatial_vector],
     # Data in:
+    plastic_in: wp.array2d[float],
     qacc_in: wp.array2d[float],
     subtree_com_in: wp.array2d[wp.vec3],
     ten_wrapadr_in: wp.array2d[int],
@@ -2063,9 +2064,14 @@ def _cfrc_ext_spatial_tendon(nwrap: int, deterministic: bool = False):
       spoly = tendon_stiffnesspoly[worldid % tendon_stiffnesspoly.shape[0], tenid]
       if stiffness != 0.0 or spoly[0] != 0.0 or spoly[1] != 0.0:
         length = ten_length_in[worldid, tenid]
-        lengthspring = tendon_lengthspring[worldid % tendon_lengthspring.shape[0], tenid]
-        lower = lengthspring[0]
-        upper = lengthspring[1]
+        padr = tendon_plasticadr[tenid]
+        if padr >= 0:
+          lower = plastic_in[worldid, padr + 0]
+          upper = plastic_in[worldid, padr + 1]
+        else:
+          lengthspring = tendon_lengthspring[worldid % tendon_lengthspring.shape[0], tenid]
+          lower = lengthspring[0]
+          upper = lengthspring[1]
         x = wp.where(length > upper, length - upper, wp.where(length < lower, length - lower, 0.0))
         frc += -x * util_misc._poly_force(stiffness, spoly, x, 0)
 
@@ -2346,6 +2352,7 @@ def rne_postconstraint(m: Model, d: Data):
         m.tendon_adr,
         m.tendon_num,
         m.tendon_actuatorid,
+        m.tendon_plasticadr,
         m.ten_J_rownnz,
         m.ten_J_rowadr,
         m.ten_J_colind,
@@ -2364,6 +2371,7 @@ def rne_postconstraint(m: Model, d: Data):
         m.actuator_dampingpoly,
         m.actuator_armature,
         m.actuator_gear,
+        d.plastic,
         d.qacc,
         d.subtree_com,
         d.ten_wrapadr,

@@ -827,6 +827,7 @@ class State(enum.IntEnum):
     QVEL: velocity
     ACT: actuator activation
     HISTORY: delay/interval history buffers
+    PLASTIC: spring plastic references
     WARMSTART: acceleration used for warmstart
     CTRL: control
     QFRC_APPLIED: applied generalized force
@@ -835,7 +836,7 @@ class State(enum.IntEnum):
     MOCAP_POS: positions of mocap bodies
     MOCAP_QUAT: orientations of mocap bodies
     NSTATE: number of state elements
-    PHYSICS: TIME | QPOS | QVEL | ACT | HISTORY
+    PHYSICS: TIME | QPOS | QVEL | ACT | HISTORY | PLASTIC
     FULLPHYSICS: TIME | PHYSICS | PLUGIN
     USER: CTRL | QFRC_APPLIED | XFRC_APPLIED | EQ_ACTIVE | MOCAP_POS | MOCAP_QUAT | USERDATA
     INTEGRATION: FULLPHYSICS | USER | WARMSTART
@@ -846,6 +847,7 @@ class State(enum.IntEnum):
   QVEL = mujoco.mjtState.mjSTATE_QVEL
   ACT = mujoco.mjtState.mjSTATE_ACT
   HISTORY = mujoco.mjtState.mjSTATE_HISTORY
+  PLASTIC = mujoco.mjtState.mjSTATE_PLASTIC
   WARMSTART = mujoco.mjtState.mjSTATE_WARMSTART
   CTRL = mujoco.mjtState.mjSTATE_CTRL
   QFRC_APPLIED = mujoco.mjtState.mjSTATE_QFRC_APPLIED
@@ -854,7 +856,7 @@ class State(enum.IntEnum):
   MOCAP_POS = mujoco.mjtState.mjSTATE_MOCAP_POS
   MOCAP_QUAT = mujoco.mjtState.mjSTATE_MOCAP_QUAT
   NSTATE = mujoco.mjtState.mjNSTATE
-  PHYSICS = mujoco.mjtState.mjSTATE_PHYSICS  # includes HISTORY
+  PHYSICS = mujoco.mjtState.mjSTATE_PHYSICS  # includes HISTORY and PLASTIC
   FULLPHYSICS = mujoco.mjtState.mjSTATE_FULLPHYSICS
   USER = mujoco.mjtState.mjSTATE_USER
   INTEGRATION = mujoco.mjtState.mjSTATE_INTEGRATION
@@ -1210,6 +1212,7 @@ class Model:
     nkey: number of keyframes
     nmocap: number of mocap bodies
     nplugin: number of plugin instances
+    nplastic: number of plastic reference elements
     nJmom: number of non-zeros in actuator_moment
     npolygonmax: maximum number of verts per polygon
     nmeshdegmax: maximum number of polygons per vert
@@ -1250,6 +1253,7 @@ class Model:
     jnt_dofadr: start addr in 'qvel' for joint's data        (njnt,)
     jnt_bodyid: id of joint's body                           (njnt,)
     jnt_actuatorid: actuator contributing damping/armature   (njnt,)
+    jnt_plasticadr: start addr in plastic state (-1: none)   (njnt,)
     jnt_limited: does joint have limits                      (njnt,)
     jnt_actfrclimited: does joint have actuator force limits (njnt,)
     jnt_actgravcomp: is gravcomp force applied via actuators (njnt,)
@@ -1259,6 +1263,7 @@ class Model:
     jnt_axis: local joint axis                               (*, njnt, 3)
     jnt_stiffness: stiffness coefficient                     (*, njnt)
     jnt_stiffnesspoly: high-order stiffness coefficients     (*, njnt, 2)
+    jnt_springyield: plastic yield threshold (0: elastic)    (*, njnt)
     jnt_range: joint limits                                  (*, njnt, 2)
     jnt_actfrcrange: range of total actuator force           (*, njnt, 2)
     jnt_margin: min distance for limit detection             (*, njnt)
@@ -1458,6 +1463,7 @@ class Model:
     tendon_adr: address of first object in tendon's path     (ntendon,)
     tendon_num: number of objects in tendon's path           (ntendon,)
     tendon_actuatorid: actuator adding damping/armature      (ntendon,)
+    tendon_plasticadr: start addr in plastic state (-1: none) (ntendon,)
     ten_J_rownnz: number of non-zeros in each tendon row     (ntendon,)
     ten_J_rowadr: row start address for sparse ten_J         (ntendon,)
     ten_J_colind: column indices in sparse ten_J             (nJten,)
@@ -1477,6 +1483,7 @@ class Model:
     tendon_armature: inertia associated with tendon velocity (*, ntendon)
     tendon_frictionloss: loss due to friction                (*, ntendon)
     tendon_lengthspring: spring resting length range         (*, ntendon, 2)
+    tendon_springyield: plastic yield threshold (0: elastic) (*, ntendon)
     tendon_length0: tendon length in qpos0                   (*, ntendon)
     tendon_invweight0: inv. weight in qpos0                  (*, ntendon)
     wrap_type: wrap object type (WrapType)                   (nwrap,)
@@ -1535,6 +1542,7 @@ class Model:
     key_mpos: keyframe mocap pos                             (nkey, nmocap, 3)
     key_mquat: keyframe mocap quat                           (nkey, nmocap, 4)
     key_ctrl: keyframe ctrl                                  (nkey, nu)
+    key_plastic: keyframe plastic                            (nkey, nplastic)
     M_rownnz: number of non-zeros in each row of M           (nv,)
     M_rowadr: index of each row in M                         (nv,)
     M_colind: column indices of non-zeros in M               (nC,)
@@ -1752,6 +1760,7 @@ class Model:
   nkey: int
   nmocap: int
   nplugin: int
+  nplastic: int
   nJmom: int
   npolygonmax: int
   nmeshdegmax: int
@@ -1792,6 +1801,7 @@ class Model:
   jnt_dofadr: array("njnt", int)
   jnt_bodyid: array("njnt", int)
   jnt_actuatorid: array("njnt", int)
+  jnt_plasticadr: array("njnt", int)
   jnt_limited: array("njnt", int)
   jnt_actfrclimited: array("njnt", bool)
   jnt_actgravcomp: array("njnt", int)
@@ -1801,6 +1811,7 @@ class Model:
   jnt_axis: array("*", "njnt", wp.vec3)
   jnt_stiffness: array("*", "njnt", float)
   jnt_stiffnesspoly: array("*", "njnt", wp.vec2)
+  jnt_springyield: array("*", "njnt", float)
   jnt_range: array("*", "njnt", wp.vec2)
   jnt_actfrcrange: array("*", "njnt", wp.vec2)
   jnt_margin: array("*", "njnt", float)
@@ -2000,6 +2011,7 @@ class Model:
   tendon_adr: array("ntendon", int)
   tendon_num: array("ntendon", int)
   tendon_actuatorid: array("ntendon", int)
+  tendon_plasticadr: array("ntendon", int)
   ten_J_rownnz: array("ntendon", int)
   ten_J_rowadr: array("ntendon", int)
   ten_J_colind: array("nJten", int)
@@ -2019,6 +2031,7 @@ class Model:
   tendon_armature: array("*", "ntendon", float)
   tendon_frictionloss: array("*", "ntendon", float)
   tendon_lengthspring: array("*", "ntendon", wp.vec2)
+  tendon_springyield: array("*", "ntendon", float)
   tendon_length0: array("*", "ntendon", float)
   tendon_invweight0: array("*", "ntendon", float)
   wrap_type: array("nwrap", int)
@@ -2077,6 +2090,7 @@ class Model:
   key_mpos: array("nkey", "nmocap", wp.vec3)
   key_mquat: array("nkey", "nmocap", wp.quat)
   key_ctrl: array("nkey", "nu", float)
+  key_plastic: array("nkey", "nplastic", float)
   M_rownnz: array("nv", int)
   M_rowadr: array("nv", int)
   M_colind: array("nC", int)
@@ -2370,6 +2384,7 @@ class Data:
     qvel: velocity                                              (nworld, nv)
     act: actuator activation                                    (nworld, na)
     history: history buffer for delays                          (nworld, nhistory)
+    plastic: plastic spring references                          (nworld, nplastic)
     qacc_warmstart: acceleration used for warmstart             (nworld, nv)
     ctrl: control                                               (nworld, nu)
     qfrc_applied: applied generalized force                     (nworld, nv)
@@ -2532,6 +2547,7 @@ class Data:
   qvel: array("nworld", "nv", float)
   act: array("nworld", "na", float)
   history: array("nworld", "nhistory", float)
+  plastic: array("nworld", "nplastic", float)
   qacc_warmstart: array("nworld", "nv", float)
   ctrl: array("nworld", "nu", float)
   qfrc_applied: array("nworld", "nv", float)

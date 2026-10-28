@@ -709,13 +709,16 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
         int padr = m->jnt_qposadr[j];
         int dadr = m->jnt_dofadr[j];
+        const mjtNum* qspring = m->jnt_plasticadr[j] >= 0 ?
+                                d->plastic + m->jnt_plasticadr[j] :
+                                m->qpos_spring + padr;
 
         switch ((mjtJoint) m->jnt_type[j]) {
         case mjJNT_FREE:
           // apply force
           {
             mjtNum dif[3];
-            mji_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+            mji_sub3(dif, d->qpos+padr, qspring);
             mjtNum r = mju_norm3(dif);
             mjtNum k = mju_polyForce(stiffness, spoly, r, mjNPOLY, 0);
             mji_addToScl3(d->qfrc_spring + dadr, dif, -k);
@@ -724,6 +727,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
           // continue with rotations
           dadr += 3;
           padr += 3;
+          qspring += 3;
           mjFALLTHROUGH;
 
         case mjJNT_BALL:
@@ -732,7 +736,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
             mjtNum dif[3], quat[4];
             mji_copy4(quat, d->qpos+padr);
             mju_normalize4(quat);
-            mji_subQuat(dif, quat, m->qpos_spring + padr);
+            mji_subQuat(dif, quat, qspring);
             mjtNum r = mju_norm3(dif);
             mjtNum k = mju_polyForce(stiffness, spoly, r, mjNPOLY, 0);
 
@@ -745,7 +749,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
         case mjJNT_HINGE:
           {
             // apply force or torque
-            mjtNum x = d->qpos[padr] - m->qpos_spring[padr];
+            mjtNum x = d->qpos[padr] - qspring[0];
             d->qfrc_spring[dadr] = -x * mju_polyForce(stiffness, spoly, x, mjNPOLY, 0);
           }
           break;

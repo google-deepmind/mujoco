@@ -1427,6 +1427,16 @@ void CopyKey(mj::Simulate* sim, const mjModel* m, const mjData* d, bool fp) {
     }
   }
 
+  // plastic
+  if (m->nplastic > 0) {
+    mju::strcat_arr(clipboard, "\"\n  plastic=\"");
+    for (int i = 0; i < m->nplastic; i++) {
+      mju::sprintf_arr(buf, format, d->plastic[i]);
+      if (i < m->nplastic - 1) mju::strcat_arr(buf, " ");
+      mju::strcat_arr(clipboard, buf);
+    }
+  }
+
   mju::strcat_arr(clipboard, "\"\n/>");
 
   // copy to clipboard

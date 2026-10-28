@@ -81,6 +81,7 @@ _STATE_FIELDS = {
     'mocap_quat': mujoco.mjtState.mjSTATE_MOCAP_QUAT,
     'userdata': mujoco.mjtState.mjSTATE_USERDATA,
     'plugin_state': mujoco.mjtState.mjSTATE_PLUGIN,
+    'plastic': mujoco.mjtState.mjSTATE_PLASTIC,
 }
 
 # MjData named-view attributes computed from several fields, not slices of one:

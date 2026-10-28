@@ -154,6 +154,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState sig) {
   case mjSTATE_MOCAP_QUAT:    return 4*m->nmocap;
   case mjSTATE_USERDATA:      return m->nuserdata;
   case mjSTATE_PLUGIN:        return m->npluginstate;
+  case mjSTATE_PLASTIC:       return m->nplastic;
   default:
     mjERROR("invalid state element %u", sig);
     return 0;
@@ -177,6 +178,7 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig)
   case mjSTATE_MOCAP_QUAT:    return d->mocap_quat;
   case mjSTATE_USERDATA:      return d->userdata;
   case mjSTATE_PLUGIN:        return d->plugin_state;
+  case mjSTATE_PLASTIC:       return d->plastic;
   default:
     mjERROR("invalid state element %u", sig);
     return NULL;
@@ -372,6 +374,7 @@ void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
   mju_copy(m->key_mpos + k*3*m->nmocap, d->mocap_pos, 3*m->nmocap);
   mju_copy(m->key_mquat + k*4*m->nmocap, d->mocap_quat, 4*m->nmocap);
   mju_copy(m->key_ctrl + k*m->nu, d->ctrl, m->nu);
+  mju_copy(m->key_plastic + k*m->nplastic, d->plastic, m->nplastic);
 }
 
 

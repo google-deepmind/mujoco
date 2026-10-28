@@ -325,6 +325,8 @@ class ModelWarp(PyTreeNode):
   jnt_actuatorid: np.ndarray
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
+  jnt_plasticadr: np.ndarray
+  jnt_springyield: jax.Array
   light_bodyid: np.ndarray
   light_targetbodyid: np.ndarray
   mapD2M: np.ndarray
@@ -433,7 +435,9 @@ class ModelWarp(PyTreeNode):
   tendon_geom_adr: np.ndarray
   tendon_jnt_adr: np.ndarray
   tendon_limited_adr: np.ndarray
+  tendon_plasticadr: np.ndarray
   tendon_site_pair_adr: np.ndarray
+  tendon_springyield: jax.Array
   tree_bodynum: np.ndarray
   tree_dofadr: np.ndarray
   tree_dofnum: np.ndarray
@@ -798,6 +802,7 @@ _NDIM = {
         'nvmax_pad': 0,
         'nworld': 0,
         'overflow': 1,
+        'plastic': 2,
         'qH': 2,
         'qHDiagInv': 2,
         'qHLD': 2,
@@ -1144,11 +1149,13 @@ _NDIM = {
         'jnt_limited_ball_adr': 1,
         'jnt_limited_slide_hinge_adr': 1,
         'jnt_margin': 2,
+        'jnt_plasticadr': 1,
         'jnt_pos': 3,
         'jnt_qposadr': 1,
         'jnt_range': 3,
         'jnt_solimp': 3,
         'jnt_solref': 3,
+        'jnt_springyield': 2,
         'jnt_stiffness': 2,
         'jnt_stiffnesspoly': 3,
         'jnt_type': 1,
@@ -1156,6 +1163,7 @@ _NDIM = {
         'key_ctrl': 2,
         'key_mpos': 3,
         'key_mquat': 3,
+        'key_plastic': 2,
         'key_qpos': 2,
         'key_qvel': 2,
         'key_time': 1,
@@ -1268,6 +1276,7 @@ _NDIM = {
         'nmocap': 0,
         'noct': 0,
         'npair': 0,
+        'nplastic': 0,
         'nplugin': 0,
         'npolygonmax': 0,
         'nq': 0,
@@ -1406,12 +1415,14 @@ _NDIM = {
         'tendon_limited_adr': 1,
         'tendon_margin': 2,
         'tendon_num': 1,
+        'tendon_plasticadr': 1,
         'tendon_range': 3,
         'tendon_site_pair_adr': 1,
         'tendon_solimp_fri': 3,
         'tendon_solimp_lim': 3,
         'tendon_solref_fri': 3,
         'tendon_solref_lim': 3,
+        'tendon_springyield': 2,
         'tendon_stiffness': 2,
         'tendon_stiffnesspoly': 3,
         'tree_bodynum': 1,
@@ -1604,6 +1615,7 @@ _BATCH_DIM = {
         'nvmax_pad': False,
         'nworld': False,
         'overflow': True,
+        'plastic': True,
         'qH': True,
         'qHDiagInv': True,
         'qHLD': True,
@@ -1950,11 +1962,13 @@ _BATCH_DIM = {
         'jnt_limited_ball_adr': False,
         'jnt_limited_slide_hinge_adr': False,
         'jnt_margin': True,
+        'jnt_plasticadr': False,
         'jnt_pos': True,
         'jnt_qposadr': False,
         'jnt_range': True,
         'jnt_solimp': True,
         'jnt_solref': True,
+        'jnt_springyield': True,
         'jnt_stiffness': True,
         'jnt_stiffnesspoly': True,
         'jnt_type': False,
@@ -1962,6 +1976,7 @@ _BATCH_DIM = {
         'key_ctrl': False,
         'key_mpos': False,
         'key_mquat': False,
+        'key_plastic': False,
         'key_qpos': False,
         'key_qvel': False,
         'key_time': False,
@@ -2074,6 +2089,7 @@ _BATCH_DIM = {
         'nmocap': False,
         'noct': False,
         'npair': False,
+        'nplastic': False,
         'nplugin': False,
         'npolygonmax': False,
         'nq': False,
@@ -2212,12 +2228,14 @@ _BATCH_DIM = {
         'tendon_limited_adr': False,
         'tendon_margin': True,
         'tendon_num': False,
+        'tendon_plasticadr': False,
         'tendon_range': True,
         'tendon_site_pair_adr': False,
         'tendon_solimp_fri': True,
         'tendon_solimp_lim': True,
         'tendon_solref_fri': True,
         'tendon_solref_lim': True,
+        'tendon_springyield': True,
         'tendon_stiffness': True,
         'tendon_stiffnesspoly': True,
         'tree_bodynum': False,

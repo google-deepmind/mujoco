@@ -840,6 +840,9 @@
                :ref:`springref<body-joint-springref>`
 
             .. grid-item::
+               :ref:`springyield<body-joint-springyield>`
+
+            .. grid-item::
                :ref:`armature<body-joint-armature>`
 
             .. grid-item::
@@ -2178,6 +2181,9 @@
                :ref:`springlength<tendon-spatial-springlength>`
 
             .. grid-item::
+               :ref:`springyield<tendon-spatial-springyield>`
+
+            .. grid-item::
                :ref:`width<tendon-spatial-width>`
 
             .. grid-item::
@@ -2275,6 +2281,9 @@
 
             .. grid-item::
                :ref:`springlength<tendon-fixed-springlength>`
+
+            .. grid-item::
+               :ref:`springyield<tendon-fixed-springyield>`
 
             .. grid-item::
                :ref:`margin<tendon-fixed-margin>`
@@ -5234,6 +5243,9 @@
             .. grid-item::
                :ref:`ctrl<keyframe-key-ctrl>`
 
+            .. grid-item::
+               :ref:`plastic<keyframe-key-plastic>`
+
 
    .. dropdown:: :ref:`visual<visual>` |*|
 
@@ -5691,6 +5703,9 @@
                :ref:`springref<default-joint-springref>`
 
             .. grid-item::
+               :ref:`springyield<default-joint-springyield>`
+
+            .. grid-item::
                :ref:`armature<default-joint-armature>`
 
             .. grid-item::
@@ -6049,6 +6064,9 @@
 
             .. grid-item::
                :ref:`springlength<default-tendon-springlength>`
+
+            .. grid-item::
+               :ref:`springyield<default-tendon-springyield>`
 
             .. grid-item::
                :ref:`width<default-tendon-width>`

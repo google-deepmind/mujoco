@@ -13,6 +13,7 @@ filegroup(
         "//model/hammock",
         "//model/humanoid",
         "//model/mug",
+        "//model/plastic",
         "//model/plugin",
         "//model/plugin/actuator",
         "//model/replicate",

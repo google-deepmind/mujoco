@@ -1286,12 +1286,15 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length) {
   int has_stiffness = m->tendon_stiffness[i] ||
                       !mju_isZero(m->tendon_stiffnesspoly+mjNPOLY*i, mjNPOLY);
+  const mjtNum* lengthspring = m->tendon_plasticadr[i] >= 0 ?
+                               d->plastic + m->tendon_plasticadr[i] :
+                               m->tendon_lengthspring + 2*i;
 
   // tendon has a deadband spring
   int limitedspring =
     has_stiffness                         &&    // positive stiffness
-    m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
-    m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
+    lengthspring[0] == 0                  &&    // range lower-bound is 0
+    lengthspring[1] > 0;                        // range upper-bound is positive
 
   // tendon has a simple length constraint, but is currently not limited
   mjtNum ten_length = d->ten_length[i];
@@ -1329,7 +1332,7 @@ int mjv_isCatenary(const mjModel* m, const mjData* d, int i, mjtNum* length) {
     if (limitedconstraint) {
       *length = m->tendon_range[2*i+1];
     } else {
-      *length = m->tendon_lengthspring[2*i+1];
+      *length = lengthspring[1];
     }
   }
 

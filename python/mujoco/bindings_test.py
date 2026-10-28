@@ -498,6 +498,40 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertIn('xpos:', view_repr)
     self.assertEndsWith(view_repr, '>')
 
+  def test_named_indexing_plastic(self):
+    model = mujoco.MjModel.from_xml_string("""
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="slide" type="slide" stiffness="10" springref="0.2" springyield="0.1"/>
+          <geom size=".1"/>
+        </body>
+        <body>
+          <joint name="elastic" type="hinge"/>
+          <geom size=".1"/>
+        </body>
+      </worldbody>
+      <tendon>
+        <fixed name="t_plastic" stiffness="20" springlength="0.1 0.3" springyield="0.05">
+          <joint joint="slide" coef="1"/>
+        </fixed>
+      </tendon>
+      <keyframe>
+        <key name="k0" plastic="0.25 0.15 0.35"/>
+      </keyframe>
+    </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    self.assertEqual(model.jnt('slide').plasticadr[0], 0)
+    np.testing.assert_allclose(model.jnt('slide').springyield, [0.1])
+    self.assertEqual(model.jnt('elastic').plasticadr[0], -1)
+    self.assertEqual(data.jnt('elastic').plastic.shape, (0,))
+    np.testing.assert_allclose(data.jnt('slide').plastic, [0.2])
+    self.assertEqual(model.tendon('t_plastic').plasticadr[0], 1)
+    np.testing.assert_allclose(model.tendon('t_plastic').springyield, [0.05])
+    np.testing.assert_allclose(data.tendon('t_plastic').plastic, [0.1, 0.3])
+    np.testing.assert_allclose(model.key('k0').plastic, [0.25, 0.15, 0.35])
+
   def test_named_indexing_body_repr_in_data(self):
     view_repr = repr(self.data.body('mybox'))
     self.assertStartsWith(view_repr, '<_MjDataBodyViews')

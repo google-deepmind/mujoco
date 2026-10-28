@@ -3168,10 +3168,12 @@ def _energy_pos_passive_joint(deterministic: bool = False):
     qpos_spring: wp.array2d[float],
     jnt_type: wp.array[int],
     jnt_qposadr: wp.array[int],
+    jnt_plasticadr: wp.array[int],
     jnt_stiffness: wp.array2d[float],
     jnt_stiffnesspoly: wp.array2d[wp.vec2],
     # Data in:
     qpos_in: wp.array2d[float],
+    plastic_in: wp.array2d[float],
     # Data out:
     energy_out: wp.array[wp.vec2],
   ):
@@ -3184,14 +3186,40 @@ def _energy_pos_passive_joint(deterministic: bool = False):
       return
 
     padr = jnt_qposadr[jntid]
+    plasticadr = jnt_plasticadr[jntid]
     jnttype = jnt_type[jntid]
     qpos_spring_id = worldid % qpos_spring.shape[0]
 
     if jnttype == JointType.FREE:
+      if plasticadr >= 0:
+        ref_pos = wp.vec3(
+          plastic_in[worldid, plasticadr + 0],
+          plastic_in[worldid, plasticadr + 1],
+          plastic_in[worldid, plasticadr + 2],
+        )
+        quat_spring = wp.quat(
+          plastic_in[worldid, plasticadr + 3],
+          plastic_in[worldid, plasticadr + 4],
+          plastic_in[worldid, plasticadr + 5],
+          plastic_in[worldid, plasticadr + 6],
+        )
+      else:
+        ref_pos = wp.vec3(
+          qpos_spring[qpos_spring_id, padr + 0],
+          qpos_spring[qpos_spring_id, padr + 1],
+          qpos_spring[qpos_spring_id, padr + 2],
+        )
+        quat_spring = wp.quat(
+          qpos_spring[qpos_spring_id, padr + 3],
+          qpos_spring[qpos_spring_id, padr + 4],
+          qpos_spring[qpos_spring_id, padr + 5],
+          qpos_spring[qpos_spring_id, padr + 6],
+        )
+
       dif0 = wp.vec3(
-        qpos_in[worldid, padr + 0] - qpos_spring[qpos_spring_id, padr + 0],
-        qpos_in[worldid, padr + 1] - qpos_spring[qpos_spring_id, padr + 1],
-        qpos_in[worldid, padr + 2] - qpos_spring[qpos_spring_id, padr + 2],
+        qpos_in[worldid, padr + 0] - ref_pos[0],
+        qpos_in[worldid, padr + 1] - ref_pos[1],
+        qpos_in[worldid, padr + 2] - ref_pos[2],
       )
 
       # convert quaternion difference into angular "velocity"
@@ -3202,13 +3230,6 @@ def _energy_pos_passive_joint(deterministic: bool = False):
         qpos_in[worldid, padr + 6],
       )
       quat1 = wp.normalize(quat1)
-
-      quat_spring = wp.quat(
-        qpos_spring[qpos_spring_id, padr + 3],
-        qpos_spring[qpos_spring_id, padr + 4],
-        qpos_spring[qpos_spring_id, padr + 5],
-        qpos_spring[qpos_spring_id, padr + 6],
-      )
 
       dif1 = math.quat_sub(quat1, quat_spring)
 
@@ -3231,12 +3252,20 @@ def _energy_pos_passive_joint(deterministic: bool = False):
       )
       quat = wp.normalize(quat)
 
-      quat_spring = wp.quat(
-        qpos_spring[qpos_spring_id, padr + 0],
-        qpos_spring[qpos_spring_id, padr + 1],
-        qpos_spring[qpos_spring_id, padr + 2],
-        qpos_spring[qpos_spring_id, padr + 3],
-      )
+      if plasticadr >= 0:
+        quat_spring = wp.quat(
+          plastic_in[worldid, plasticadr + 0],
+          plastic_in[worldid, plasticadr + 1],
+          plastic_in[worldid, plasticadr + 2],
+          plastic_in[worldid, plasticadr + 3],
+        )
+      else:
+        quat_spring = wp.quat(
+          qpos_spring[qpos_spring_id, padr + 0],
+          qpos_spring[qpos_spring_id, padr + 1],
+          qpos_spring[qpos_spring_id, padr + 2],
+          qpos_spring[qpos_spring_id, padr + 3],
+        )
 
       dif = math.quat_sub(quat, quat_spring)
       r = wp.length(dif)
@@ -3246,7 +3275,8 @@ def _energy_pos_passive_joint(deterministic: bool = False):
       )
       wp.atomic_add(energy_out, worldid, energy)
     elif jnttype == JointType.SLIDE or jnttype == JointType.HINGE:
-      dif_ = qpos_in[worldid, padr] - qpos_spring[qpos_spring_id, padr]
+      ref_scalar = plastic_in[worldid, plasticadr] if plasticadr >= 0 else qpos_spring[qpos_spring_id, padr]
+      dif_ = qpos_in[worldid, padr] - ref_scalar
       energy = wp.vec2(
         poly_potential(stiffness, spoly, dif_, 0),
         0.0,
@@ -3265,10 +3295,12 @@ def _energy_pos_passive_tendon(deterministic: bool = False):
   @wp.kernel(module="unique", module_options=module_options)
   def kernel(
     # Model:
+    tendon_plasticadr: wp.array[int],
     tendon_stiffness: wp.array2d[float],
     tendon_stiffnesspoly: wp.array2d[wp.vec2],
     tendon_lengthspring: wp.array2d[wp.vec2],
     # Data in:
+    plastic_in: wp.array2d[float],
     ten_length_in: wp.array2d[float],
     # Data out:
     energy_out: wp.array[wp.vec2],
@@ -3285,10 +3317,15 @@ def _energy_pos_passive_tendon(deterministic: bool = False):
     length = ten_length_in[worldid, tenid]
 
     # compute spring displacement
-    tendon_lengthspring_id = worldid % tendon_lengthspring.shape[0]
-    lengthspring = tendon_lengthspring[tendon_lengthspring_id, tenid]
-    lower = lengthspring[0]
-    upper = lengthspring[1]
+    padr = tendon_plasticadr[tenid]
+    if padr >= 0:
+      lower = plastic_in[worldid, padr + 0]
+      upper = plastic_in[worldid, padr + 1]
+    else:
+      tendon_lengthspring_id = worldid % tendon_lengthspring.shape[0]
+      lengthspring = tendon_lengthspring[tendon_lengthspring_id, tenid]
+      lower = lengthspring[0]
+      upper = lengthspring[1]
 
     if length > upper:
       x = length - upper
@@ -3368,9 +3405,11 @@ def energy_pos(m: Model, d: Data):
         m.qpos_spring,
         m.jnt_type,
         m.jnt_qposadr,
+        m.jnt_plasticadr,
         m.jnt_stiffness,
         m.jnt_stiffnesspoly,
         d.qpos,
+        d.plastic,
       ],
       outputs=[d.energy],
     )
@@ -3381,9 +3420,11 @@ def energy_pos(m: Model, d: Data):
         _energy_pos_passive_tendon(bool(m.opt.deterministic & DeterminismType.ATOMICS)),
         dim=(d.nworld, m.ntendon),
         inputs=[
+          m.tendon_plasticadr,
           m.tendon_stiffness,
           m.tendon_stiffnesspoly,
           m.tendon_lengthspring,
+          d.plastic,
           d.ten_length,
         ],
         outputs=[d.energy],

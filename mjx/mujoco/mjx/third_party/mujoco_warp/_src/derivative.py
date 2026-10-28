@@ -1454,10 +1454,12 @@ def _eff_diag_stiff(
   jnt_type: wp.array[int],
   jnt_qposadr: wp.array[int],
   jnt_dofadr: wp.array[int],
+  jnt_plasticadr: wp.array[int],
   jnt_stiffness: wp.array2d[float],
   jnt_stiffnesspoly: wp.array2d[wp.vec2],
   # Data in:
   qpos_in: wp.array2d[float],
+  plastic_in: wp.array2d[float],
   # Data out:
   efm_diag_out: wp.array2d[float],
 ):
@@ -1476,12 +1478,33 @@ def _eff_diag_stiff(
 
   qposid = jnt_qposadr[jntid]
   qpos_spring_id = worldid % qpos_spring.shape[0]
+  padr = jnt_plasticadr[jntid]
 
   if jnttype == JointType.FREE:
+    if padr >= 0:
+      ref_pos = wp.vec3(plastic_in[worldid, padr + 0], plastic_in[worldid, padr + 1], plastic_in[worldid, padr + 2])
+      ref = wp.quat(
+        plastic_in[worldid, padr + 3],
+        plastic_in[worldid, padr + 4],
+        plastic_in[worldid, padr + 5],
+        plastic_in[worldid, padr + 6],
+      )
+    else:
+      ref_pos = wp.vec3(
+        qpos_spring[qpos_spring_id, qposid + 0],
+        qpos_spring[qpos_spring_id, qposid + 1],
+        qpos_spring[qpos_spring_id, qposid + 2],
+      )
+      ref = wp.quat(
+        qpos_spring[qpos_spring_id, qposid + 3],
+        qpos_spring[qpos_spring_id, qposid + 4],
+        qpos_spring[qpos_spring_id, qposid + 5],
+        qpos_spring[qpos_spring_id, qposid + 6],
+      )
     dif = wp.vec3(
-      qpos_in[worldid, qposid + 0] - qpos_spring[qpos_spring_id, qposid + 0],
-      qpos_in[worldid, qposid + 1] - qpos_spring[qpos_spring_id, qposid + 1],
-      qpos_in[worldid, qposid + 2] - qpos_spring[qpos_spring_id, qposid + 2],
+      qpos_in[worldid, qposid + 0] - ref_pos[0],
+      qpos_in[worldid, qposid + 1] - ref_pos[1],
+      qpos_in[worldid, qposid + 2] - ref_pos[2],
     )
     r = wp.length(dif)
     k = wp.max(0.0, util_misc._poly_force_deriv(stiffness, spoly, r, 0))
@@ -1495,12 +1518,6 @@ def _eff_diag_stiff(
         qpos_in[worldid, qposid + 5],
         qpos_in[worldid, qposid + 6],
       )
-    )
-    ref = wp.quat(
-      qpos_spring[qpos_spring_id, qposid + 3],
-      qpos_spring[qpos_spring_id, qposid + 4],
-      qpos_spring[qpos_spring_id, qposid + 5],
-      qpos_spring[qpos_spring_id, qposid + 6],
     )
     dif_rot = math.quat_sub(rot, ref)
     r_rot = wp.length(dif_rot)
@@ -1517,12 +1534,20 @@ def _eff_diag_stiff(
         qpos_in[worldid, qposid + 3],
       )
     )
-    ref = wp.quat(
-      qpos_spring[qpos_spring_id, qposid + 0],
-      qpos_spring[qpos_spring_id, qposid + 1],
-      qpos_spring[qpos_spring_id, qposid + 2],
-      qpos_spring[qpos_spring_id, qposid + 3],
-    )
+    if padr >= 0:
+      ref = wp.quat(
+        plastic_in[worldid, padr + 0],
+        plastic_in[worldid, padr + 1],
+        plastic_in[worldid, padr + 2],
+        plastic_in[worldid, padr + 3],
+      )
+    else:
+      ref = wp.quat(
+        qpos_spring[qpos_spring_id, qposid + 0],
+        qpos_spring[qpos_spring_id, qposid + 1],
+        qpos_spring[qpos_spring_id, qposid + 2],
+        qpos_spring[qpos_spring_id, qposid + 3],
+      )
     dif_rot = math.quat_sub(rot, ref)
     r_rot = wp.length(dif_rot)
     k_rot = wp.max(0.0, util_misc._poly_force_deriv(stiffness, spoly, r_rot, 0))
@@ -1530,7 +1555,8 @@ def _eff_diag_stiff(
       efm_diag_out[worldid, dofid + i] = h * k_rot
 
   else:
-    x = qpos_in[worldid, qposid] - qpos_spring[qpos_spring_id, qposid]
+    ref_scalar = plastic_in[worldid, padr] if padr >= 0 else qpos_spring[qpos_spring_id, qposid]
+    x = qpos_in[worldid, qposid] - ref_scalar
     k = wp.max(0.0, util_misc._poly_force_deriv(stiffness, spoly, x, 0))
     efm_diag_out[worldid, dofid] = h * k
 
@@ -1594,6 +1620,7 @@ def _eff_tendon_shift(max_ten_J_rownnz: int, deterministic: bool = False):
     opt_timestep: wp.array[float],
     opt_disableflags: int,
     tendon_actuatorid: wp.array[int],
+    tendon_plasticadr: wp.array[int],
     ten_J_rownnz: wp.array[int],
     ten_J_rowadr: wp.array[int],
     ten_J_colind: wp.array[int],
@@ -1608,6 +1635,7 @@ def _eff_tendon_shift(max_ten_J_rownnz: int, deterministic: bool = False):
     actuator_dampingpoly: wp.array2d[wp.vec2],
     actuator_gear: wp.array2d[wp.spatial_vector],
     # Data in:
+    plastic_in: wp.array2d[float],
     ten_J_in: wp.array2d[float],
     ten_length_in: wp.array2d[float],
     ten_velocity_in: wp.array2d[float],
@@ -1621,9 +1649,14 @@ def _eff_tendon_shift(max_ten_J_rownnz: int, deterministic: bool = False):
     k = float(0.0)
     if not (opt_disableflags & DisableBit.SPRING):
       length = ten_length_in[worldid, tenid]
-      range_spring = tendon_lengthspring[worldid % tendon_lengthspring.shape[0], tenid]
-      lower = range_spring[0]
-      upper = range_spring[1]
+      padr = tendon_plasticadr[tenid]
+      if padr >= 0:
+        lower = plastic_in[worldid, padr + 0]
+        upper = plastic_in[worldid, padr + 1]
+      else:
+        range_spring = tendon_lengthspring[worldid % tendon_lengthspring.shape[0], tenid]
+        lower = range_spring[0]
+        upper = range_spring[1]
       x = float(0.0)
       if length > upper:
         x = length - upper
@@ -3502,9 +3535,11 @@ def eff_shift(m: Model, d: Data):
       m.jnt_type,
       m.jnt_qposadr,
       m.jnt_dofadr,
+      m.jnt_plasticadr,
       m.jnt_stiffness,
       m.jnt_stiffnesspoly,
       d.qpos,
+      d.plastic,
     ],
     outputs=[d.efm_diag],
   )
@@ -3537,6 +3572,7 @@ def eff_shift(m: Model, d: Data):
       m.opt.timestep,
       m.opt.disableflags,
       m.tendon_actuatorid,
+      m.tendon_plasticadr,
       m.ten_J_rownnz,
       m.ten_J_rowadr,
       m.ten_J_colind,
@@ -3550,6 +3586,7 @@ def eff_shift(m: Model, d: Data):
       m.actuator_damping,
       m.actuator_dampingpoly,
       m.actuator_gear,
+      d.plastic,
       d.ten_J,
       d.ten_length,
       d.ten_velocity,

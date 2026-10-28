@@ -264,7 +264,7 @@ individual components and combinations of components. These are:
 Physics state
 """""""""""""
 The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
-stepping. These are ``mjData.{qpos, qvel, act, history}``:
+stepping. These are ``mjData.{qpos, qvel, act, history, plastic}``:
 
 Position: ``qpos``
   The configuration in generalized coordinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
@@ -285,6 +285,11 @@ History buffer: ``history``
   When actuators or sensors have a positive :at:`nsample` attribute (:ref:`actuators<actuator-general-nsample>`,
   :ref:`sensors<sensor-nsample>`), this buffer stores timestamped samples of previous
   control or sensor values. See :ref:`Delays<CDelay>` for details.
+
+Plastic state: ``plastic``
+  When joints or tendons have a positive :at:`springyield` attribute (:ref:`joints<body-joint-springyield>`,
+  :ref:`tendons<tendon-spatial-springyield>`), this buffer stores the mutable plastic spring reference configurations
+  and resting lengths, updated via return mapping at each step.
 
 .. _siFullPhysics:
 

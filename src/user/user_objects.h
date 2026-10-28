@@ -847,8 +847,9 @@ class mjCJoint_ : public mjCBase {
   mjCBody* body;  // joint's body
 
   // variable used for temporarily storing the state of the joint
-  std::map<std::string, std::array<mjtNum, 7>> qpos_;  // qpos at the previous step
-  std::map<std::string, std::array<mjtNum, 6>> qvel_;  // qvel at the previous step
+  std::map<std::string, std::array<mjtNum, 7>> qpos_;     // qpos at the previous step
+  std::map<std::string, std::array<mjtNum, 6>> qvel_;     // qvel at the previous step
+  std::map<std::string, std::array<mjtNum, 7>> plastic_;  // plastic at the previous step
 
   // variable-size data
   std::vector<double> userdata_;
@@ -891,6 +892,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
 
   mjtNum* qpos(const std::string& state_name);
   mjtNum* qvel(const std::string& state_name);
+  mjtNum* plastic(const std::string& state_name);
   void    ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
   void    ResetId();
 
@@ -906,8 +908,9 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   void AnchorToSpec(bool anchor, bool direction);
 
   // variables that should not be copied during copy assignment
-  int qposadr_;  // address of dof in data->qpos
-  int dofadr_;   // address of dof in data->qvel
+  int qposadr_;     // address of dof in data->qpos
+  int dofadr_;      // address of dof in data->qvel
+  int plasticadr_;  // address in data->plastic
 };
 
 
@@ -2006,7 +2009,11 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
 
 class mjCTendon_ : public mjCBase {
  protected:
-  int matid;  // material id for rendering
+  int matid;        // material id for rendering
+  int plasticadr_;  // address in data->plastic
+
+  // variable used for temporarily storing the state of the tendon
+  std::map<std::string, std::array<mjtNum, 2>> plastic_;  // plastic at the previous step
 
   // variable-size data
   std::string         material_;
@@ -2064,8 +2071,12 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   mjCGauge PathGauge() const;
   int      Linear() const;
 
+  mjtNum* plastic(const std::string& state_name);
+  void    ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
+
  private:
   void Compile(void);  // compiler
+  void ResetId();
 
   // scale the compiled copy by the gauge, or back
   void ApplyGauge(bool inverse = false);
@@ -2404,6 +2415,7 @@ typedef struct mjKeyInfo_ {
   bool   ctrl;
   bool   mpos;
   bool   mquat;
+  bool   plastic;
 } mjKeyInfo;
 
 class mjCKey_ : public mjCBase {
@@ -2424,12 +2436,14 @@ class mjCKey_ : public mjCBase {
   std::vector<double> mpos_;
   std::vector<double> mquat_;
   std::vector<double> ctrl_;
+  std::vector<double> plastic_;
   std::vector<double> spec_qpos_;
   std::vector<double> spec_qvel_;
   std::vector<double> spec_act_;
   std::vector<double> spec_mpos_;
   std::vector<double> spec_mquat_;
   std::vector<double> spec_ctrl_;
+  std::vector<double> spec_plastic_;
 };
 
 class mjCKey : public mjCKey_, private mjsKey {

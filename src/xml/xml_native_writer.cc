@@ -945,6 +945,9 @@ void mjXWriter::OneJoint(XMLElement*     elem,
         result.range[0] = Angle(owner, result.range[0]);
         result.range[1] = Angle(owner, result.range[1]);
       }
+      if (result.type == mjJNT_HINGE || result.type == mjJNT_BALL) {
+        result.springyield = Angle(owner, result.springyield);
+      }
       if (result.type == mjJNT_HINGE) {
         result.ref       = Angle(owner, result.ref);
         result.springref = Angle(owner, result.springref);
@@ -3268,14 +3271,15 @@ void mjXWriter::Keyframe(XMLElement* root) {
       XMLElement* elem = InsertEnd(section, "key");
       WriteAttrTxt(elem, "name", key->name);
       if (key->spec.time != 0) { WriteAttr(elem, "time", 1, &key->spec.time); }
-      const std::vector<double>* vectors[6] = {&key->spec_qpos_,
+      const std::vector<double>* vectors[7] = {&key->spec_qpos_,
                                                &key->spec_qvel_,
                                                &key->spec_act_,
                                                &key->spec_mpos_,
                                                &key->spec_mquat_,
-                                               &key->spec_ctrl_};
-      const char*                names[6]   = {"qpos", "qvel", "act", "mpos", "mquat", "ctrl"};
-      for (int k = 0; k < 6; k++) {
+                                               &key->spec_ctrl_,
+                                               &key->spec_plastic_};
+      const char* names[7] = {"qpos", "qvel", "act", "mpos", "mquat", "ctrl", "plastic"};
+      for (int k = 0; k < 7; k++) {
         if (!vectors[k]->empty()) {
           WriteAttr(elem, names[k], vectors[k]->size(), vectors[k]->data());
         }
@@ -3372,6 +3376,15 @@ void mjXWriter::Keyframe(XMLElement* root) {
     for (int j = 0; j < model->nu; j++) {
       if (key->ctrl_[j] != 0) {
         WriteAttr(elem, "ctrl", model->nu, key->ctrl_.data());
+        change = true;
+        break;
+      }
+    }
+
+    // check plastic and write
+    for (int j = 0; j < model->nplastic; j++) {
+      if (key->plastic_[j] != model->plastic0[j]) {
+        WriteAttr(elem, "plastic", model->nplastic, key->plastic_.data());
         change = true;
         break;
       }

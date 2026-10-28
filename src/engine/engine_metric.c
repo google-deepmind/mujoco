@@ -2171,6 +2171,9 @@ static int effDiagStiff(const mjModel* m, mjData* d) {
 
     int padr = m->jnt_qposadr[j];
     int dadr = m->jnt_dofadr[j];
+    const mjtNum* qspring = m->jnt_plasticadr[j] >= 0 ?
+                            d->plastic + m->jnt_plasticadr[j] :
+                            m->qpos_spring + padr;
     mjtNum k;
 
     switch ((mjtJoint) m->jnt_type[j]) {
@@ -2178,7 +2181,7 @@ static int effDiagStiff(const mjModel* m, mjData* d) {
       // translation: radial derivative of the spring, isotropic on the 3 slide dofs
       {
         mjtNum dif[3];
-        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+        mju_sub3(dif, d->qpos+padr, qspring);
         k = mju_max(0, mjd_xPolyForce(stiffness, spoly, mju_norm3(dif), mjNPOLY, 0));
         d->efm_ck[dadr] = d->efm_ck[dadr+1] = d->efm_ck[dadr+2] = h*k;
         any = any || k > 0;
@@ -2187,6 +2190,7 @@ static int effDiagStiff(const mjModel* m, mjData* d) {
       // continue with rotations
       dadr += 3;
       padr += 3;
+      qspring += 3;
       mjFALLTHROUGH;
 
     case mjJNT_BALL:
@@ -2195,7 +2199,7 @@ static int effDiagStiff(const mjModel* m, mjData* d) {
         mjtNum dif[3], quat[4];
         mju_copy4(quat, d->qpos+padr);
         mju_normalize4(quat);
-        mju_subQuat(dif, quat, m->qpos_spring + padr);
+        mju_subQuat(dif, quat, qspring);
         k = mju_max(0, mjd_xPolyForce(stiffness, spoly, mju_norm3(dif), mjNPOLY, 0));
         d->efm_ck[dadr] = d->efm_ck[dadr+1] = d->efm_ck[dadr+2] = h*k;
         any = any || k > 0;
@@ -2205,7 +2209,7 @@ static int effDiagStiff(const mjModel* m, mjData* d) {
     case mjJNT_SLIDE:
     case mjJNT_HINGE:
       {
-        mjtNum x = d->qpos[padr] - m->qpos_spring[padr];
+        mjtNum x = d->qpos[padr] - qspring[0];
         k = mju_max(0, mjd_xPolyForce(stiffness, spoly, x, mjNPOLY, 0));
         d->efm_ck[dadr] = h*k;
         any = any || k > 0;
@@ -2295,8 +2299,11 @@ void mj_effShift(const mjModel* m, mjData* d) {
     mjtNum k = 0;
     if (!mjDISABLED(mjDSBL_SPRING)) {
       mjtNum length = d->ten_length[i];
-      mjtNum lower = m->tendon_lengthspring[2*i];
-      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      const mjtNum* lengthspring = m->tendon_plasticadr[i] >= 0 ?
+                                   d->plastic + m->tendon_plasticadr[i] :
+                                   m->tendon_lengthspring + 2*i;
+      mjtNum lower = lengthspring[0];
+      mjtNum upper = lengthspring[1];
       mjtNum x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
       if (x) {
         k = mju_max(0, mjd_xPolyForce(m->tendon_stiffness[i],

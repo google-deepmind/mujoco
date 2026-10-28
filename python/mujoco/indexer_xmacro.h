@@ -129,11 +129,13 @@
   X( int,     jnt_, qposadr,      njnt, 1               ) \
   X( int,     jnt_, dofadr,       njnt, 1               ) \
   X( int,     jnt_, group,        njnt, 1               ) \
+  X( int,     jnt_, plasticadr,   njnt, 1               ) \
   X( mjtByte, jnt_, limited,      njnt, 1               ) \
   X( mjtNum,  jnt_, pos,          njnt, 3               ) \
   X( mjtNum,  jnt_, axis,         njnt, 3               ) \
   X( mjtNum,  jnt_, stiffness,    njnt, 1               ) \
   X( mjtNum,  jnt_, stiffnesspoly, njnt, mjNPOLY        ) \
+  X( mjtNum,  jnt_, springyield,  njnt, 1               ) \
   X( mjtNum,  jnt_, range,        njnt, 2               ) \
   X( mjtNum,  jnt_, margin,       njnt, 1               ) \
   X( mjtNum,  jnt_, user,         njnt, MJ_M(nuser_jnt) ) \
@@ -249,6 +251,7 @@
   X( int,     tendon, _num,          ntendon, 1                  ) \
   X( int,     tendon, _matid,        ntendon, 1                  ) \
   X( int,     tendon, _group,        ntendon, 1                  ) \
+  X( int,     tendon_, plasticadr,   ntendon, 1                  ) \
   X( mjtByte, tendon, _limited,      ntendon, 1                  ) \
   X( mjtNum,  tendon, _width,        ntendon, 1                  ) \
   X( mjtNum,  tendon, _solref_lim,   ntendon, mjNREF             ) \
@@ -263,6 +266,7 @@
   X( mjtNum,  tendon, _dampingpoly,  ntendon, mjNPOLY            ) \
   X( mjtNum,  tendon, _frictionloss, ntendon, 1                  ) \
   X( mjtNum,  tendon, _lengthspring, ntendon, 1                  ) \
+  X( mjtNum,  tendon_, springyield,  ntendon, 1                  ) \
   X( mjtNum,  tendon, _length0,      ntendon, 1                  ) \
   X( mjtNum,  tendon, _invweight0,   ntendon, 1                  ) \
   X( mjtNum,  tendon, _user,         ntendon, MJ_M(nuser_tendon) ) \
@@ -295,8 +299,9 @@
   X( mjtNum, key_, qvel,  nkey, MJ_M(nv)       ) \
   X( mjtNum, key_, act,   nkey, MJ_M(na)       ) \
   X( mjtNum, key_, mpos,  nkey, MJ_M(nmocap)*3 ) \
-  X( mjtNum, key_, mquat, nkey, MJ_M(nmocap)*4 ) \
-  X( mjtNum, key_, ctrl,  nkey, MJ_M(nu)       )
+  X( mjtNum, key_, mquat,   nkey, MJ_M(nmocap)*4 ) \
+  X( mjtNum, key_, ctrl,    nkey, MJ_M(nu)       ) \
+  X( mjtNum, key_, plastic, nkey, MJ_M(nplastic) )
 
 #define MJMODEL_VIEW_GROUPS                                             \
   XGROUP( MjModelActuatorViews, actuator, nactuator, MJMODEL_ACTUATOR ) \
@@ -398,8 +403,9 @@
   X( mjtNum, , qfrc_actuator,   nv,   1           ) \
   X( mjtNum, , qfrc_smooth,     nv,   1           ) \
   X( mjtNum, , qacc_smooth,     nv,   1           ) \
-  X( mjtNum, , qfrc_constraint, nv,   1           ) \
-  X( mjtNum, , qfrc_inverse,    nv,   1           )
+  X( mjtNum, , qfrc_constraint, nv,       1           ) \
+  X( mjtNum, , qfrc_inverse,    nv,       1           ) \
+  X( mjtNum, , plastic,         nplastic, 1           )
 
 #define MJDATA_LIGHT                   \
   X( mjtNum, light_, xpos, nlight, 3 ) \
@@ -413,10 +419,11 @@
   X( mjtNum, site_, xmat, nsite, 9 )
 
 #define MJDATA_TENDON                            \
-  X( int, ten_,    wrapadr , ntendon, 1        ) \
-  X( int, ten_,    wrapnum , ntendon, 1        ) \
-  X( mjtNum, ten_, length  , ntendon, 1        ) \
-  X( mjtNum, ten_, velocity, ntendon, 1        )
+  X( int, ten_,    wrapadr , ntendon,  1       ) \
+  X( int, ten_,    wrapnum , ntendon,  1       ) \
+  X( mjtNum, ten_, length  , ntendon,  1       ) \
+  X( mjtNum, ten_, velocity, ntendon,  1       ) \
+  X( mjtNum, ,     plastic , nplastic, 2       )
 
 #define MJDATA_VIEW_GROUPS                                            \
   XGROUP( MjDataActuatorViews, actuator, nactuator, MJDATA_ACTUATOR ) \

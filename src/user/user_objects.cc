@@ -3797,8 +3797,9 @@ mjCJoint::mjCJoint(mjCModel* _model, mjCDef* _def) {
   CopyFromSpec();
 
   // no previous state when a joint is created
-  qposadr_ = -1;
-  dofadr_  = -1;
+  qposadr_    = -1;
+  dofadr_     = -1;
+  plasticadr_ = -1;
 }
 
 
@@ -3814,8 +3815,9 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
     *static_cast<mjCJoint_*>(this) = static_cast<const mjCJoint_&>(other);
     *static_cast<mjsJoint*>(this)  = static_cast<const mjsJoint&>(other);
 
-    qposadr_ = -1;
-    dofadr_  = -1;
+    qposadr_    = -1;
+    dofadr_     = -1;
+    plasticadr_ = -1;
   }
   PointToLocal();
   return *this;
@@ -3823,9 +3825,10 @@ mjCJoint& mjCJoint::operator=(const mjCJoint& other) {
 
 
 void mjCJoint::ResetId() {
-  id       = -1;
-  qposadr_ = -1;
-  dofadr_  = -1;
+  id          = -1;
+  qposadr_    = -1;
+  dofadr_     = -1;
+  plasticadr_ = -1;
 }
 
 
@@ -3877,9 +3880,18 @@ mjtNum* mjCJoint::qvel(const std::string& state_name) {
 }
 
 
+mjtNum* mjCJoint::plastic(const std::string& state_name) {
+  if (plastic_.find(state_name) == plastic_.end()) {
+    plastic_[state_name] = {mjNAN, 0, 0, 0, 0, 0, 0};
+  }
+  return plastic_.at(state_name).data();
+}
+
+
 void mjCJoint::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
   forgetvalues(qpos_, names, keep);
   forgetvalues(qvel_, names, keep);
+  forgetvalues(plastic_, names, keep);
 }
 
 
@@ -3916,6 +3928,7 @@ void mjCJoint::ApplyGauge(bool inverse) {
   range[1]           *= fq;
   ref                *= fq;
   springref          *= fq;
+  springyield        *= fq;
   margin             *= fq;
   solimp_limit[2]    *= fq;
   solimp_friction[2] *= fq;
@@ -3944,12 +3957,13 @@ int mjCJoint::Compile(void) {
   }
   userdata_.resize(model->nuser_jnt);
 
-  // check springdamper
+  // check springdamper and springyield
   if (springdamper[0] || springdamper[1]) {
     if (springdamper[0] <= 0 || springdamper[1] <= 0) {
       throw mjCError(this, "when defined, springdamper values must be positive in joint");
     }
   }
+  if (springyield < 0) { throw mjCError(this, "springyield cannot be negative in joint"); }
 
   // free joints cannot be limited
   if (type == mjJNT_FREE) {
@@ -4016,6 +4030,9 @@ int mjCJoint::Compile(void) {
   if (type == mjJNT_FREE && limited == mjLIMITED_TRUE) {
     throw mjCError(this, "limits should not be defined in free joint");
   }
+  if (type == mjJNT_FREE && springyield > 0) {
+    throw mjCError(this, "springyield should not be defined in free joint");
+  }
 
   // pos: FREE is fixed to (0,0,0)
   if (type == mjJNT_FREE) {
@@ -4028,10 +4045,13 @@ int mjCJoint::Compile(void) {
     mjuu_frameaccumChild(frame->pos, frame->quat, pos, qunit);
   }
 
-  // convert reference angles to radians for hinge joints
-  if (type == mjJNT_HINGE && compiler->degree) {
-    ref       *= mjPI / 180.0;
-    springref *= mjPI / 180.0;
+  // convert reference angles to radians for hinge joints, and springyield for hinge and ball joints
+  if (compiler->degree) {
+    if (type == mjJNT_HINGE) {
+      ref       *= mjPI / 180.0;
+      springref *= mjPI / 180.0;
+    }
+    if (type == mjJNT_HINGE || type == mjJNT_BALL) { springyield *= mjPI / 180.0; }
   }
 
   // return dofnum
@@ -7377,7 +7397,8 @@ mjCTendon::mjCTendon(mjCModel* _model, mjCDef* _def) {
   spec_material_.clear();
   spec_userdata_.clear();
   path.clear();
-  matid = -1;
+  matid       = -1;
+  plasticadr_ = -1;
 
   // reset to default if given
   if (_def) { *this = _def->Tendon(); }
@@ -7406,6 +7427,7 @@ mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
 
     *static_cast<mjCTendon_*>(this) = static_cast<const mjCTendon_&>(other);
     *static_cast<mjsTendon*>(this)  = static_cast<const mjsTendon&>(other);
+    plasticadr_                     = -1;
     for (int i = 0; i < other.path.size(); i++) {
       path.push_back(new mjCWrap(*other.path[i]));
       path.back()->tendon = this;
@@ -7413,6 +7435,23 @@ mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
   }
   PointToLocal();
   return *this;
+}
+
+
+void mjCTendon::ResetId() {
+  id          = -1;
+  plasticadr_ = -1;
+}
+
+
+mjtNum* mjCTendon::plastic(const std::string& state_name) {
+  if (plastic_.find(state_name) == plastic_.end()) { plastic_[state_name] = {mjNAN, 0}; }
+  return plastic_.at(state_name).data();
+}
+
+
+void mjCTendon::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
+  forgetvalues(plastic_, names, keep);
 }
 
 
@@ -7616,6 +7655,7 @@ void mjCTendon::ApplyGauge(bool inverse) {
     springlength[0] *= fq;
     springlength[1] *= fq;
   }
+  springyield        *= fq;
   range[0]           *= fq;
   range[1]           *= fq;
   margin             *= fq;
@@ -7803,8 +7843,9 @@ void mjCTendon::Compile(void) {
     throw mjCError(this, "invalid actuatorfrcrange in tendon");
   }
 
-  // check springlength
+  // check springlength and springyield
   if (springlength[0] > springlength[1]) { throw mjCError(this, "invalid springlength in tendon"); }
+  if (springyield < 0) { throw mjCError(this, "springyield cannot be negative in tendon"); }
 }
 
 
@@ -9918,6 +9959,7 @@ mjCKey::mjCKey(mjCModel* _model) {
   spec_mpos_.clear();
   spec_mquat_.clear();
   spec_ctrl_.clear();
+  spec_plastic_.clear();
 
   // point to local
   PointToLocal();
@@ -9952,6 +9994,7 @@ void mjCKey::PointToLocal() {
   spec.mpos    = &spec_mpos_;
   spec.mquat   = &spec_mquat_;
   spec.ctrl    = &spec_ctrl_;
+  spec.plastic = &spec_plastic_;
   spec.info    = &info;
   qpos         = nullptr;
   qvel         = nullptr;
@@ -9959,18 +10002,20 @@ void mjCKey::PointToLocal() {
   mpos         = nullptr;
   mquat        = nullptr;
   ctrl         = nullptr;
+  plastic      = nullptr;
 }
 
 
 void mjCKey::CopyFromSpec() {
   *static_cast<mjsKey*>(this) = spec;
 
-  qpos_  = spec_qpos_;
-  qvel_  = spec_qvel_;
-  act_   = spec_act_;
-  mpos_  = spec_mpos_;
-  mquat_ = spec_mquat_;
-  ctrl_  = spec_ctrl_;
+  qpos_    = spec_qpos_;
+  qvel_    = spec_qvel_;
+  act_     = spec_act_;
+  mpos_    = spec_mpos_;
+  mquat_   = spec_mquat_;
+  ctrl_    = spec_ctrl_;
+  plastic_ = spec_plastic_;
 }
 
 
@@ -9982,12 +10027,14 @@ mjCKey::~mjCKey() {
   mpos_.clear();
   mquat_.clear();
   ctrl_.clear();
+  plastic_.clear();
   spec_qpos_.clear();
   spec_qvel_.clear();
   spec_act_.clear();
   spec_mpos_.clear();
   spec_mquat_.clear();
   spec_ctrl_.clear();
+  spec_plastic_.clear();
 }
 
 
@@ -10080,6 +10127,18 @@ void mjCKey::Compile(const mjModel* m) {
     for (int i = 0; i < m->nu; i++) { ctrl_[i] = 0; }
   } else if (ctrl_.size() != m->nu) {
     throw mjCError(this, "keyframe %d: invalid ctrl size, expected length %d", nullptr, id, m->nu);
+  }
+
+  // plastic: allocate or check size (default values populated after mj_setCompiledConst)
+  if (plastic_.empty()) {
+    plastic_.resize(m->nplastic);
+    for (int i = 0; i < m->nplastic; i++) { plastic_[i] = 0; }
+  } else if (plastic_.size() != m->nplastic) {
+    throw mjCError(this,
+                   "keyframe %d: invalid plastic size, expected length %d",
+                   nullptr,
+                   id,
+                   m->nplastic);
   }
 }
 

@@ -1325,7 +1325,7 @@ TEST_F(BatchTest, StateComponentsAreNotOutputs) {
                           "act",       "history",      "qacc_warmstart",
                           "ctrl",      "qfrc_applied", "xfrc_applied",
                           "eq_active", "mocap_pos",    "mocap_quat",
-                          "userdata",  "plugin_state"};
+                          "userdata",  "plugin_state", "plastic"};
   ASSERT_EQ(sizeof(fields) / sizeof(fields[0]), mjNSTATE);
   ASSERT_EQ(mjSTATE_INTEGRATION, (1 << mjNSTATE) - 1);
   MjModelPtr model = LoadModelFromString(kXml);

@@ -345,6 +345,7 @@ inline constexpr mjXAttr kJointAttrs[] = {
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, margin)},
   {"ref", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, ref)},
   {"springref", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, springref)},
+  {"springyield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, springyield)},
   {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, armature)},
   {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsJoint, damping)},
   {"frictionloss", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, frictionloss)},
@@ -536,6 +537,7 @@ inline constexpr mjXAttr kSpatialAttrs[] = {
   {"solreffriction", mjXAttr::kNum, mjNREF, false, false, false, false, (int)offsetof(mjsTendon, solref_friction)},
   {"solimpfriction", mjXAttr::kNum, mjNIMP, false, false, false, false, (int)offsetof(mjsTendon, solimp_friction)},
   {"frictionloss", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, frictionloss)},
+  {"springyield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, springyield)},
   {"width", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, width)},
   {"material", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsTendon, material)},
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, margin)},
@@ -560,6 +562,7 @@ inline constexpr mjXAttr kFixedAttrs[] = {
   {"solreffriction", mjXAttr::kNum, mjNREF, false, false, false, false, (int)offsetof(mjsTendon, solref_friction)},
   {"solimpfriction", mjXAttr::kNum, mjNIMP, false, false, false, false, (int)offsetof(mjsTendon, solimp_friction)},
   {"frictionloss", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, frictionloss)},
+  {"springyield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, springyield)},
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, margin)},
   {"stiffness", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsTendon, stiffness)},
   {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsTendon, damping)},
@@ -1153,6 +1156,7 @@ inline constexpr mjXAttr kKeyAttrs[] = {
   {"mpos", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, mpos)},
   {"mquat", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, mquat)},
   {"ctrl", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, ctrl)},
+  {"plastic", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, plastic)},
 };
 inline constexpr int kKeyAttrsN = sizeof(kKeyAttrs) / sizeof(kKeyAttrs[0]);
 

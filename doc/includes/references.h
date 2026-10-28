@@ -165,6 +165,7 @@ typedef struct mjData_ {
   mjtNum* qvel;              // velocity                                         (nv x 1)
   mjtNum* act;               // actuator activation                              (na x 1)
   mjtNum* history;           // history buffer                                   (nhistory x 1)
+  mjtNum* plastic;           // plastic state                                    (nplastic x 1)
   mjtNum* qacc_warmstart;    // acceleration used for warmstart                  (nv x 1)
   mjtNum* plugin_state;      // plugin state                                     (npluginstate x 1)
 
@@ -689,6 +690,7 @@ typedef struct mjModel_ {
   mjtSize nuser_sensor;           // number of mjtNums in sensor_user
   mjtSize nnames;                 // number of chars in all names
   mjtSize npaths;                 // number of chars in all paths
+  mjtSize nplastic;               // number of mjtNums in plastic state vector
 
   // sizes set after mjModel construction
   mjtSize nnames_map;             // number of slots in the names hash map
@@ -779,6 +781,7 @@ typedef struct mjModel_ {
   int*      jnt_bodyid;           // id of joint's body                       (njnt x 1)
   int*      jnt_actuatorid;       // actuator contributing damping / armature (njnt x 1)
   int*      jnt_group;            // group for visibility                     (njnt x 1)
+  int*      jnt_plasticadr;       // start addr in plastic state (-1: none)   (njnt x 1)
   mjtBool*  jnt_limited;          // does joint have limits                   (njnt x 1)
   mjtBool*  jnt_actfrclimited;    // does joint have actuator force limits    (njnt x 1)
   mjtBool*  jnt_actgravcomp;      // is gravcomp force applied via actuators  (njnt x 1)
@@ -788,6 +791,7 @@ typedef struct mjModel_ {
   mjtNum*   jnt_axis;             // local joint axis                         (njnt x 3)
   mjtNum*   jnt_stiffness;        // linear stiffness coefficient             (njnt x 1)
   mjtNum*   jnt_stiffnesspoly;    // high-order stiffness coefficients        (njnt x mjNPOLY)
+  mjtNum*   jnt_springyield;      // plastic yield threshold                  (njnt x 1)
   mjtNum*   jnt_range;            // joint limits                             (njnt x 2)
   mjtNum*   jnt_actfrcrange;      // range of total actuator force            (njnt x 2)
   mjtNum*   jnt_margin;           // min distance for limit detection         (njnt x 1)
@@ -1102,6 +1106,7 @@ typedef struct mjModel_ {
   int*      tendon_matid;         // material id for rendering                (ntendon x 1)
   int*      tendon_actuatorid;    // actuator contributing damping / armature (ntendon x 1)
   int*      tendon_group;         // group for visibility                     (ntendon x 1)
+  int*      tendon_plasticadr;    // start addr in plastic state (-1: none)   (ntendon x 1)
   int*      tendon_treenum;       // number of trees along tendon's path      (ntendon x 1)
   int*      tendon_treeid;        // first two trees along tendon's path      (ntendon x 2)
   int*      ten_J_rownnz;         // number of non-zeros in Jacobian row      (ntendon x 1)
@@ -1124,6 +1129,7 @@ typedef struct mjModel_ {
   mjtNum*   tendon_armature;      // inertia associated with tendon velocity  (ntendon x 1)
   mjtNum*   tendon_frictionloss;  // loss due to friction                     (ntendon x 1)
   mjtNum*   tendon_lengthspring;  // spring resting length range              (ntendon x 2)
+  mjtNum*   tendon_springyield;   // plastic yield threshold                  (ntendon x 1)
   mjtNum*   tendon_length0;       // tendon length in qpos0                   (ntendon x 1)
   mjtNum*   tendon_invweight0;    // inv. weight in qpos0                     (ntendon x 1)
   mjtNum*   tendon_user;          // user data                                (ntendon x nuser_tendon)
@@ -1224,6 +1230,7 @@ typedef struct mjModel_ {
   mjtNum*   key_mpos;             // key mocap position                       (nkey x nmocap*3)
   mjtNum*   key_mquat;            // key mocap quaternion                     (nkey x nmocap*4)
   mjtNum*   key_ctrl;             // key control                              (nkey x nu)
+  mjtNum*   key_plastic;          // key plastic state                        (nkey x nplastic)
 
   // names
   int*      name_bodyadr;         // body name pointers                       (nbody x 1)
@@ -1947,6 +1954,7 @@ typedef struct mjsJoint_ {         // joint specification
   // stiffness
   double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springref;                // spring reference value: qpos_spring
+  double springyield;              // plastic yield threshold (0: elastic)
   double springdamper[2];          // timeconst, dampratio
 
   // limits
@@ -2295,6 +2303,7 @@ typedef struct mjsTendon_ {        // tendon specification
   // stiffness, damping, friction, armature
   double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
+  double springyield;              // plastic yield threshold (0: elastic)
   double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
@@ -2431,6 +2440,7 @@ typedef struct mjsKey_ {           // keyframe specification
   mjDoubleVec* mpos;               // mocap pos
   mjDoubleVec* mquat;              // mocap quat
   mjDoubleVec* ctrl;               // ctrl
+  mjDoubleVec* plastic;            // plastic
   mjString* info;                  // message appended to compiler errors
 } mjsKey;
 typedef struct mjsDefault_ {       // default specification
@@ -2848,11 +2858,13 @@ typedef enum mjtState {             // state elements
   mjSTATE_MOCAP_QUAT     = 1<<11,   // orientations of mocap bodies
   mjSTATE_USERDATA       = 1<<12,   // user data
   mjSTATE_PLUGIN         = 1<<13,   // plugin state
+  mjSTATE_PLASTIC        = 1<<14,   // plastic state
 
-  mjNSTATE               = 14,      // number of state elements
+  mjNSTATE               = 15,      // number of state elements
 
   // convenience values for commonly used state specifications
-  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT | mjSTATE_HISTORY,
+  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT | mjSTATE_HISTORY |
+                           mjSTATE_PLASTIC,
   mjSTATE_FULLPHYSICS    = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
   mjSTATE_USER           = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
                            mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |

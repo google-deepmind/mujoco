@@ -326,6 +326,7 @@
                 <attribute name="margin" type="float"/>
                 <attribute name="ref" type="float"/>
                 <attribute name="springref" type="float"/>
+                <attribute name="springyield" type="float"/>
                 <attribute name="armature" type="float"/>
                 <attribute name="damping" type="array" array_type="float" array_size="3"/>
                 <attribute name="frictionloss" type="float"/>
@@ -460,6 +461,7 @@
                 <attribute name="solimpfriction" type="array" array_type="float" array_size="5"/>
                 <attribute name="frictionloss" type="float"/>
                 <attribute name="springlength" type="array" array_type="float" array_size="2"/>
+                <attribute name="springyield" type="float"/>
                 <attribute name="width" type="float"/>
                 <attribute name="material" type="reference" reference_namespace="material"/>
                 <attribute name="margin" type="float"/>
@@ -744,6 +746,7 @@
             <attribute name="margin" type="float"/>
             <attribute name="ref" type="float"/>
             <attribute name="springref" type="float"/>
+            <attribute name="springyield" type="float"/>
             <attribute name="armature" type="float"/>
             <attribute name="damping" type="array" array_type="float" array_size="3"/>
             <attribute name="frictionloss" type="float"/>
@@ -878,6 +881,7 @@
             <attribute name="solimpfriction" type="array" array_type="float" array_size="5"/>
             <attribute name="frictionloss" type="float"/>
             <attribute name="springlength" type="array" array_type="float" array_size="2"/>
+            <attribute name="springyield" type="float"/>
             <attribute name="width" type="float"/>
             <attribute name="material" type="reference" reference_namespace="material"/>
             <attribute name="margin" type="float"/>
@@ -1302,6 +1306,7 @@
                 <attribute name="margin" type="float"/>
                 <attribute name="ref" type="float"/>
                 <attribute name="springref" type="float"/>
+                <attribute name="springyield" type="float"/>
                 <attribute name="armature" type="float"/>
                 <attribute name="damping" type="array" array_type="float" array_size="3"/>
                 <attribute name="frictionloss" type="float"/>
@@ -2081,6 +2086,7 @@
             <attribute name="solimpfriction" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
             <attribute name="frictionloss" type="float"/>
             <attribute name="springlength" type="array" array_type="float" array_size="2" default="-1 -1"/>
+            <attribute name="springyield" type="float"/>
             <attribute name="width" type="float" default="0.003"/>
             <attribute name="material" type="reference" reference_namespace="material"/>
             <attribute name="margin" type="float"/>
@@ -2124,6 +2130,7 @@
             <attribute name="solimpfriction" type="array" array_type="float" array_size="5" default="0.9 0.95 0.001 0.5 2"/>
             <attribute name="frictionloss" type="float"/>
             <attribute name="springlength" type="array" array_type="float" array_size="2" default="-1 -1"/>
+            <attribute name="springyield" type="float"/>
             <attribute name="margin" type="float"/>
             <attribute name="stiffness" type="array" array_type="float" array_size="3"/>
             <attribute name="damping" type="array" array_type="float" array_size="3"/>
@@ -3294,6 +3301,7 @@
             <attribute name="mpos" type="array" array_type="float"/>
             <attribute name="mquat" type="array" array_type="float"/>
             <attribute name="ctrl" type="array" array_type="float"/>
+            <attribute name="plastic" type="array" array_type="float"/>
           </attributes>
         </element>
       </children>

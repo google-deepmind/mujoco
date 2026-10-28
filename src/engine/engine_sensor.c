@@ -1770,21 +1770,25 @@ void mj_energyPos(const mjModel* m, mjData* d) {
           continue;
         }
         padr = m->jnt_qposadr[j];
+        const mjtNum* qspring = m->jnt_plasticadr[j] >= 0 ?
+                                d->plastic + m->jnt_plasticadr[j] :
+                                m->qpos_spring + padr;
 
         switch ((mjtJoint) m->jnt_type[j]) {
         case mjJNT_FREE:
-          mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+          mju_sub3(dif, d->qpos+padr, qspring);
           x = mju_norm3(dif);
           d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
           // continue with rotations
           padr += 3;
+          qspring += 3;
           mjFALLTHROUGH;
 
         case mjJNT_BALL:
           // convert quaternion difference into angular "velocity"
           mju_copy4(quat, d->qpos+padr);
           mju_normalize4(quat);
-          mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
+          mju_subQuat(dif, d->qpos + padr, qspring);
           x = mju_norm3(dif);
           d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
 
@@ -1792,7 +1796,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
         case mjJNT_SLIDE:
         case mjJNT_HINGE:
-          x = d->qpos[padr] - m->qpos_spring[padr];
+          x = d->qpos[padr] - qspring[0];
           d->energy[0] += mju_polyPotential(stiffness, poly, x, mjNPOLY, 0);
           break;
         }
@@ -1813,8 +1817,11 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       mjtNum length = d->ten_length[i];
 
       // compute spring displacement x
-      mjtNum lower = m->tendon_lengthspring[2*i];
-      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      const mjtNum* lengthspring = m->tendon_plasticadr[i] >= 0 ?
+                                   d->plastic + m->tendon_plasticadr[i] :
+                                   m->tendon_lengthspring + 2*i;
+      mjtNum lower = lengthspring[0];
+      mjtNum upper = lengthspring[1];
       x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
 
       // add potential energy

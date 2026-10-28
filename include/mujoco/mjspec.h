@@ -362,6 +362,7 @@ typedef struct mjsJoint_ {         // joint specification
   // stiffness
   double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springref;                // spring reference value: qpos_spring
+  double springyield;              // plastic yield threshold (0: elastic)
   double springdamper[2];          // timeconst, dampratio
 
   // limits
@@ -739,6 +740,7 @@ typedef struct mjsTendon_ {        // tendon specification
   // stiffness, damping, friction, armature
   double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
+  double springyield;              // plastic yield threshold (0: elastic)
   double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
@@ -889,6 +891,7 @@ typedef struct mjsKey_ {           // keyframe specification
   mjDoubleVec* mpos;               // mocap pos
   mjDoubleVec* mquat;              // mocap quat
   mjDoubleVec* ctrl;               // ctrl
+  mjDoubleVec* plastic;            // plastic
   mjString* info;                  // message appended to compiler errors
 } mjsKey;
 

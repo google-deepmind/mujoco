@@ -306,6 +306,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(stiffness, "stiffness coefficient");
       FIELD(springref, "spring reference value: qpos_spring");
       FIELD(springdamper, "timeconst, dampratio");
+      FIELD(springyield, "yield threshold for plastic spring");
       FIELD(limited, "does joint have limits (mjtLimited)");
       FIELD(range, "joint limits");
       FIELD(margin, "margin value for joint limit detection");
@@ -553,6 +554,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       mjsTendon* ref = mjs_asTendon(ref_element);
       FIELD(stiffness, "stiffness coefficient");
       FIELD(springlength, "spring resting length; {-1, -1}: use qpos_spring");
+      FIELD(springyield, "yield threshold for plastic spring");
       FIELD(damping, "damping coefficient");
       FIELD(frictionloss, "friction loss");
       FIELD(solref_friction, "solver reference: tendon friction");

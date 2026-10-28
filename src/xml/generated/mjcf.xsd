@@ -1448,6 +1448,7 @@
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="ref" type="xs:double"/>
     <xs:attribute name="springref" type="xs:double"/>
+    <xs:attribute name="springyield" type="xs:double"/>
     <xs:attribute name="armature" type="xs:double"/>
     <xs:attribute name="damping" type="double1to3">
       <xs:annotation>
@@ -1628,6 +1629,7 @@
     <xs:attribute name="solimpfriction" type="double1to5"/>
     <xs:attribute name="frictionloss" type="xs:double"/>
     <xs:attribute name="springlength" type="double1to2"/>
+    <xs:attribute name="springyield" type="xs:double"/>
     <xs:attribute name="width" type="xs:double"/>
     <xs:attribute name="material" type="xs:string"/>
     <xs:attribute name="margin" type="xs:double"/>
@@ -2575,6 +2577,7 @@
         <xs:documentation>one value: copied to both</xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:attribute name="springyield" type="xs:double"/>
     <xs:attribute name="width" type="xs:double" default="0.003"/>
     <xs:attribute name="material" type="xs:string"/>
     <xs:attribute name="margin" type="xs:double"/>
@@ -2618,6 +2621,7 @@
         <xs:documentation>one value: copied to both</xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:attribute name="springyield" type="xs:double"/>
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="stiffness" type="double1to3">
       <xs:annotation>
@@ -3961,6 +3965,7 @@
     <xs:attribute name="mpos" type="doublelist"/>
     <xs:attribute name="mquat" type="doublelist"/>
     <xs:attribute name="ctrl" type="doublelist"/>
+    <xs:attribute name="plastic" type="doublelist"/>
   </xs:complexType>
 
   <xs:complexType name="default_layer">
@@ -4053,6 +4058,7 @@
     <xs:attribute name="margin" type="xs:double"/>
     <xs:attribute name="ref" type="xs:double"/>
     <xs:attribute name="springref" type="xs:double"/>
+    <xs:attribute name="springyield" type="xs:double"/>
     <xs:attribute name="armature" type="xs:double"/>
     <xs:attribute name="damping" type="double1to3">
       <xs:annotation>

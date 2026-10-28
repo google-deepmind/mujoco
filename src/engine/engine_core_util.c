@@ -1533,8 +1533,11 @@ void mj_tendonSpringDamper(const mjModel* m, const mjData* d, int i,
     const mjtNum* spoly = m->tendon_stiffnesspoly + mjNPOLY*i;
     if (stiffness || !mju_isZero(spoly, mjNPOLY)) {
       mjtNum length = d->ten_length[i];
-      mjtNum lower = m->tendon_lengthspring[2*i];
-      mjtNum upper = m->tendon_lengthspring[2*i+1];
+      const mjtNum* lengthspring = m->tendon_plasticadr[i] >= 0 ?
+                                   d->plastic + m->tendon_plasticadr[i] :
+                                   m->tendon_lengthspring + 2*i;
+      mjtNum lower = lengthspring[0];
+      mjtNum upper = lengthspring[1];
       mjtNum x = (length > upper) ? length - upper : (length < lower) ? length - lower : 0;
       *frc_spring = -x * mju_polyForce(stiffness, spoly, x, mjNPOLY, 0);
     }

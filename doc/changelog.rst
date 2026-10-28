@@ -5,6 +5,17 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+Significant new features
+^^^^^^^^^^^^^^^^^^^^^^^^
+.. image:: https://www.gstatic.com/mujoco/doc/images/changelog/wire.gif
+   :align: right
+   :width: 40%
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/plastic/wire.xml
+
+- Added ideal elasto-plasticity for joint (:ref:`springyield<body-joint-springyield>`) and tendon
+  (:ref:`spatial<tendon-spatial-springyield>`, :ref:`fixed<tendon-fixed-springyield>`) springs, with stateful plastic
+  spring references in ``mjData.plastic`` (``mjSTATE_PLASTIC``).
+
 General
 ^^^^^^^
 .. admonition:: Breaking API changes

@@ -2823,6 +2823,12 @@ struct MjsJoint {
   void set_springref(double value) {
     ptr_->springref = value;
   }
+  double springyield() const {
+    return ptr_->springyield;
+  }
+  void set_springyield(double value) {
+    ptr_->springyield = value;
+  }
   emscripten::val springdamper() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->springdamper));
   }
@@ -2935,6 +2941,9 @@ struct MjsKey {
   }
   mjDoubleVec &ctrl() const {
     return *(ptr_->ctrl);
+  }
+  mjDoubleVec &plastic() const {
+    return *(ptr_->plastic);
   }
   mjString info() const {
     return (ptr_ && ptr_->info) ? *(ptr_->info) : "";
@@ -3364,6 +3373,12 @@ struct MjsTendon {
   }
   emscripten::val springlength() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->springlength));
+  }
+  double springyield() const {
+    return ptr_->springyield;
+  }
+  void set_springyield(double value) {
+    ptr_->springyield = value;
   }
   emscripten::val damping() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->damping));
@@ -4375,6 +4390,12 @@ struct MjModel {
   void set_npaths(int value) {
     ptr_->npaths = static_cast<mjtSize>(value);
   }
+  int nplastic() const {
+    return static_cast<int>(ptr_->nplastic);
+  }
+  void set_nplastic(int value) {
+    ptr_->nplastic = static_cast<mjtSize>(value);
+  }
   int nnames_map() const {
     return static_cast<int>(ptr_->nnames_map);
   }
@@ -4615,6 +4636,9 @@ struct MjModel {
   emscripten::val jnt_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_group));
   }
+  emscripten::val jnt_plasticadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_plasticadr));
+  }
   emscripten::val jnt_limited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, reinterpret_cast<uint8_t*>(ptr_->jnt_limited)));
   }
@@ -4641,6 +4665,9 @@ struct MjModel {
   }
   emscripten::val jnt_stiffnesspoly() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * mjNPOLY, ptr_->jnt_stiffnesspoly));
+  }
+  emscripten::val jnt_springyield() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->njnt, ptr_->jnt_springyield));
   }
   emscripten::val jnt_range() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->njnt * 2, ptr_->jnt_range));
@@ -5482,6 +5509,9 @@ struct MjModel {
   emscripten::val tendon_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_group));
   }
+  emscripten::val tendon_plasticadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_plasticadr));
+  }
   emscripten::val tendon_treenum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_treenum));
   }
@@ -5547,6 +5577,9 @@ struct MjModel {
   }
   emscripten::val tendon_lengthspring() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * 2, ptr_->tendon_lengthspring));
+  }
+  emscripten::val tendon_springyield() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_springyield));
   }
   emscripten::val tendon_length0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_length0));
@@ -5799,6 +5832,9 @@ struct MjModel {
   }
   emscripten::val key_ctrl() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nkey * ptr_->nu, ptr_->key_ctrl));
+  }
+  emscripten::val key_plastic() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nkey * ptr_->nplastic, ptr_->key_plastic));
   }
   emscripten::val name_bodyadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbody, ptr_->name_bodyadr));
@@ -7043,6 +7079,9 @@ struct MjData {
   }
   emscripten::val history() const {
     return emscripten::val(emscripten::typed_memory_view(model->nhistory, ptr_->history));
+  }
+  emscripten::val plastic() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nplastic, ptr_->plastic));
   }
   emscripten::val qacc_warmstart() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qacc_warmstart));

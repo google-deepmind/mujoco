@@ -2620,6 +2620,24 @@ rotations as unit quaternions.
    corresponding to mjModel.qpos_spring is also used to compute the spring reference lengths of all tendons, stored in
    mjModel.tendon_lengthspring. This is because :ref:`tendons <tendon>` can also have springs.
 
+.. image:: https://www.gstatic.com/mujoco/doc/images/changelog/wire.gif
+   :width: 40%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/plastic/wire.xml
+
+.. _body-joint-springyield:
+
+:at:`springyield`: :at-val:`real, "0"`
+   Elastic yield threshold for the joint spring. Available on slide, hinge, and ball joints (not supported on free
+   joints). For hinge and ball joints, the threshold is specified in degrees or radians depending on the :at:`angle`
+   attribute of :ref:`compiler <compiler>`. When positive, the joint spring reference is allocated in the mutable state
+   vector ``mjData.plastic`` at offset ``mjModel.jnt_plasticadr[j]`` (1 entry for slide/hinge, 4 quaternion entries for
+   ball, initialized from ``mjModel.qpos_spring``) and shifts permanently whenever the spring displacement exceeds
+   ``springyield`` (ideal elasto-plasticity). When ``0`` (default), plasticity is disabled
+   (``mjModel.jnt_plasticadr[j] == -1``) and the spring is purely elastic; setting ``mjModel.jnt_springyield[j] = 0`` at
+   runtime on an already-plastic joint (``jnt_plasticadr[j] >= 0``) corresponds to zero yield threshold (full plastic
+   slip).
+
 .. image:: images/XMLreference/armature.gif
    :width: 40%
    :align: right
@@ -5586,6 +5604,18 @@ length X, as in the clip on the right of `this example model
    The clip on the right is of
    `this model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/passive/poly_stiffness.xml>`__.
 
+.. _tendon-spatial-springyield:
+
+:at:`springyield`: :at-val:`real, "0"`
+   Elastic yield threshold for the tendon spring. When positive, the tendon spring reference range is allocated in the
+   mutable state vector ``mjData.plastic`` at offset ``mjModel.tendon_plasticadr[i]`` (2 entries, initialized from
+   ``mjModel.tendon_lengthspring``) and shifts permanently whenever the displacement outside the spring deadband exceeds
+   ``springyield`` (ideal elasto-plasticity). For unilateral slack tendons with ``springlength="0 L"`` (``L > 0``),
+   tensile yielding shifts only the upper bound ``L`` while keeping the lower bound pinned at ``0``. When ``0``
+   (default), plasticity is disabled (``mjModel.tendon_plasticadr[i] == -1``) and the spring is purely elastic; setting
+   ``mjModel.tendon_springyield[i] = 0`` at runtime on an already-plastic tendon (``tendon_plasticadr[i] >= 0``)
+   corresponds to zero yield threshold (full plastic slip).
+
 .. _tendon-spatial-damping:
 
 :at:`damping`: :at-val:`real, "0 0 0"`
@@ -5733,6 +5763,8 @@ as above.
 
 .. _tendon-fixed-stiffness:
 
+.. _tendon-fixed-springyield:
+
 .. _tendon-fixed-damping:
 
 .. _tendon-fixed-armature:
@@ -5742,7 +5774,7 @@ as above.
 .. |tendon/fixed attrib list| replace::
    :at:`name`, :at:`class`, :at:`group`, :at:`limited`, :at:`range`, :at:`solreflimit`, :at:`solimplimit`,
    :at:`solreffriction`, :at:`solimpfriction`, :at:`frictionloss`, :at:`margin`, :at:`springlength`, :at:`stiffness`,
-   :at:`damping`, :at:`user`
+   :at:`springyield`, :at:`damping`, :at:`user`
 
 |tendon/fixed attrib list|
    Same as in the :ref:`spatial <tendon-spatial>` element.
@@ -9738,6 +9770,11 @@ be set to their values in the default configuration.
 :at:`mquat`: :at-val:`real(4*mjModel.nmocap), default = mjModel.body_quat`
    Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe.
 
+.. _keyframe-key-plastic:
+
+:at:`plastic`: :at-val:`real(mjModel.nplastic), default = initial plastic state`
+   Vector of plastic states, copied into mjData.plastic when the simulation state is set to this keyframe.
+
 
 
 .. _visual:
@@ -10418,6 +10455,8 @@ if omitted.
 
 .. _default-joint-springref:
 
+.. _default-joint-springyield:
+
 .. _default-joint-armature:
 
 .. _default-joint-damping:
@@ -10706,6 +10745,8 @@ if omitted.
 .. _default-tendon-margin:
 
 .. _default-tendon-stiffness:
+
+.. _default-tendon-springyield:
 
 .. _default-tendon-damping:
 

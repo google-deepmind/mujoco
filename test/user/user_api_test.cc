@@ -9697,5 +9697,126 @@ TEST_F(MujocoTest, RecompilePluginInitFailure) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, KeyframePlasticExpandAttachScale) {
+  // 1. ExpandKeyframe: adding a plastic joint to a spec with an existing key
+  static constexpr char expand_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b1">
+        <joint name="j1" type="slide" stiffness="10" springyield="0.1" springref="0.2"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k0" plastic="0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(expand_xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* b2 = mjs_addBody(world, 0);
+  mjsJoint* j2 = mjs_addJoint(b2, 0);
+  j2->type = mjJNT_SLIDE;
+  j2->stiffness[0] = 10;
+  j2->springyield = 0.1;
+  j2->springref = 0.3;
+  mjsGeom* g2 = mjs_addGeom(b2, 0);
+  g2->size[0] = 0.1;
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nplastic, 2);
+  EXPECT_NEAR(m->key_plastic[0], 0.5, 1e-6);
+  EXPECT_NEAR(m->key_plastic[1], 0.3, 1e-6);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // 2. StoreKeyframes (attach): attaching a child spec with a plastic keyframe
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="p">
+        <joint name="pj" type="slide" stiffness="10" springyield="0.1" springref="0.1"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" plastic="0.4"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="c">
+        <joint name="cj" type="slide" stiffness="10" springyield="0.1" springref="0.2"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" plastic="0.7"/>
+    </keyframe>
+  </mujoco>
+  )";
+  mjSpec* parent = mj_parseXMLString(parent_xml, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(child_xml, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjsBody* pworld = mjs_findBody(parent, "world");
+  ASSERT_THAT(mjs_attach(pworld->element, child->element, "c_", ""), NotNull());
+
+  m = mj_compile(parent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+  ASSERT_EQ(m->nplastic, 2);
+  ASSERT_EQ(m->nkey, 2);
+  // key 0 ("k"): parent plastic = 0.4, child default = 0.2
+  EXPECT_NEAR(m->key_plastic[0], 0.4, 1e-6);
+  EXPECT_NEAR(m->key_plastic[1], 0.2, 1e-6);
+  // key 1 ("c_k"): parent default = 0.1, child plastic = 0.7
+  EXPECT_NEAR(m->key_plastic[2], 0.1, 1e-6);
+  EXPECT_NEAR(m->key_plastic[3], 0.7, 1e-6);
+  mj_deleteModel(m);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+
+  // 3. ScaleKeyframe: scaling a body with a slide joint and tendon plastic key
+  static constexpr char scale_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="2">
+        <body name="b">
+          <joint name="j" type="slide" axis="1 0 0" stiffness="10" springyield="0.1"/>
+          <geom size="0.1"/>
+          <site name="s1" pos="0 0 0"/>
+        </body>
+        <site name="s0" pos="-1 0 0"/>
+      </frame>
+    </worldbody>
+    <tendon>
+      <spatial name="t" stiffness="10" springyield="0.1" springlength="1 1">
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+    <keyframe>
+      <key name="k" plastic="0.5 1.2 1.4"/>
+    </keyframe>
+  </mujoco>
+  )";
+  spec = mj_parseXMLString(scale_xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nplastic, 3);
+  EXPECT_NEAR(m->key_plastic[0], 1.0, 1e-6);
+  EXPECT_NEAR(m->key_plastic[1], 2.4, 1e-6);
+  EXPECT_NEAR(m->key_plastic[2], 2.8, 1e-6);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

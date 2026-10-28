@@ -243,6 +243,7 @@
     X( nuser_sensor )       \
     X( nnames )             \
     X( npaths )             \
+    X( nplastic )           \
     X( nnames_map )         \
     X( nJmom )              \
     X( ngravcomp )          \
@@ -275,7 +276,8 @@
     int nv = m->nv;                         \
     int na = m->na;                         \
     int nu = m->nu;                         \
-    int nmocap = m->nmocap;
+    int nmocap = m->nmocap;                 \
+    int nplastic = m->nplastic;
 
 // macro for annotating that an array size in an X macro is a member of mjModel
 // by default this macro does nothing, but users can redefine it as necessary
@@ -323,6 +325,7 @@
     X   ( int,     jnt_bodyid,            njnt,          1                    ) \
     X   ( int,     jnt_actuatorid,        njnt,          1                    ) \
     X   ( int,     jnt_group,             njnt,          1                    ) \
+    X   ( int,     jnt_plasticadr,        njnt,          1                    ) \
     X   ( mjtBool, jnt_limited,           njnt,          1                    ) \
     X   ( mjtBool, jnt_actfrclimited,     njnt,          1                    ) \
     X   ( mjtBool, jnt_actgravcomp,       njnt,          1                    ) \
@@ -332,6 +335,7 @@
     X   ( mjtNum,  jnt_axis,              njnt,          3                    ) \
     X   ( mjtNum,  jnt_stiffness,         njnt,          1                    ) \
     X   ( mjtNum,  jnt_stiffnesspoly,     njnt,          mjNPOLY              ) \
+    X   ( mjtNum,  jnt_springyield,       njnt,          1                    ) \
     X   ( mjtNum,  jnt_range,             njnt,          2                    ) \
     X   ( mjtNum,  jnt_actfrcrange,       njnt,          2                    ) \
     X   ( mjtNum,  jnt_margin,            njnt,          1                    ) \
@@ -644,6 +648,7 @@
     X   ( int,     tendon_matid,          ntendon,       1                    ) \
     X   ( int,     tendon_actuatorid,     ntendon,       1                    ) \
     X   ( int,     tendon_group,          ntendon,       1                    ) \
+    X   ( int,     tendon_plasticadr,     ntendon,       1                    ) \
     X   ( int,     tendon_treenum,        ntendon,       1                    ) \
     X   ( int,     tendon_treeid,         ntendon,       2                    ) \
     X   ( int,     ten_J_rownnz,          ntendon,       1                    ) \
@@ -666,6 +671,7 @@
     X   ( mjtNum,  tendon_armature,       ntendon,       1                    ) \
     X   ( mjtNum,  tendon_frictionloss,   ntendon,       1                    ) \
     X   ( mjtNum,  tendon_lengthspring,   ntendon,       2                    ) \
+    X   ( mjtNum,  tendon_springyield,    ntendon,       1                    ) \
     X   ( mjtNum,  tendon_length0,        ntendon,       1                    ) \
     X   ( mjtNum,  tendon_invweight0,     ntendon,       1                    ) \
     X   ( mjtNum,  tendon_user,           ntendon,       MJ_M(nuser_tendon)   ) \
@@ -786,6 +792,7 @@
     X   ( mjtNum,  key_mpos,              nkey,          MJ_M(nmocap)*3       ) \
     X   ( mjtNum,  key_mquat,             nkey,          MJ_M(nmocap)*4       ) \
     X   ( mjtNum,  key_ctrl,              nkey,          MJ_M(nu)             ) \
+    X   ( mjtNum,  key_plastic,           nkey,          MJ_M(nplastic)       ) \
     X   ( int,     name_bodyadr,          nbody,         1                    ) \
     X   ( int,     name_jntadr,           njnt,          1                    ) \
     X   ( int,     name_geomadr,          ngeom,         1                    ) \
@@ -1037,6 +1044,7 @@
     X   ( mjtNum,    qvel,              nv,          1           ) \
     X   ( mjtNum,    act,               na,          1           ) \
     X   ( mjtNum,    history,           nhistory,    1           ) \
+    X   ( mjtNum,    plastic,           nplastic,    1           ) \
     X   ( mjtNum,    qacc_warmstart,    nv,          1           ) \
     X   ( mjtNum,    plugin_state,      npluginstate, 1          ) \
     X   ( mjtNum,    ctrl,              nu,          1           ) \

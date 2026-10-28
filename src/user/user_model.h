@@ -120,6 +120,7 @@ class mjCModel_ : public mjsElement {
   mjtSize nwrap;           // number of wrap objects in all tendon paths
   mjtSize nsensordata;     // number of mjtNums in sensor data vector
   mjtSize nhistory;        // number of mjtNums in history buffer
+  mjtSize nplastic;        // number of mjtNums in plastic state vector
   mjtSize nnumericdata;    // number of mjtNums in all custom fields
   mjtSize ntextdata;       // number of chars in all text fields, including 0
   mjtSize ntupledata;      // number of objects in all tuple fields
@@ -139,10 +140,11 @@ class mjCModel_ : public mjsElement {
   double extent_auto;       // spatial extent, as computed by mj_setConst
   double center_auto[3];    // center of model, as computed by mj_setConst
 
-  // save qpos0, to recognize changed key_qpos in write
+  // save qpos0 and plastic0, to recognize changed key_qpos and key_plastic in write
   std::vector<mjtNum> qpos0;
   std::vector<mjtNum> body_pos0;
   std::vector<mjtNum> body_quat0;
+  std::vector<mjtNum> plastic0;
 
   // variable-size attributes
   std::string comment_;       // comment at top of XML
@@ -330,6 +332,8 @@ class mjCModel : public mjCModel_, private mjSpec {
 
     std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qfrc_applied;
     std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qacc_warmstart;
+    std::unordered_map<mjCJoint*, std::vector<mjtNum>>    jnt_plastic;
+    std::unordered_map<mjCTendon*, std::array<mjtNum, 2>> tendon_plastic;
     std::unordered_map<mjCBody*, std::array<mjtNum, 6>>   xfrc_applied;
     std::unordered_map<mjCEquality*, mjtByte>             eq_active;
     std::unordered_map<mjCActuator*, std::vector<mjtNum>> actuator_history;
@@ -346,6 +350,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                  const T*           ctrl,
                  const T*           mpos,
                  const T*           mquat,
+                 const T*           plastic,
                  bool               partial = false);
   void SaveState(const std::string& state_name,
                  const mjModel*     m,
@@ -363,7 +368,8 @@ class mjCModel : public mjCModel_, private mjSpec {
                     T*                 act,
                     T*                 ctrl,
                     T*                 mpos,
-                    T*                 mquat);
+                    T*                 mquat,
+                    T*                 plastic);
   void RestoreState(const std::string&      state_name,
                     const mjModel*          m,
                     mjData*                 d,
@@ -530,6 +536,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   // element resets; for a body, also to the bodies and joints of its subtree
   void CopyCompiled(mjCBase* dest, const mjCBase* source) {}
   void CopyCompiled(mjCBody* dest, const mjCBody* source);
+  void CopyCompiled(mjCTendon* dest, const mjCTendon* source);
   void CopyCompiled(mjCEquality* dest, const mjCEquality* source);
   void CopyCompiled(mjCActuator* dest, const mjCActuator* source);
   void CopyCompiled(mjCSensor* dest, const mjCSensor* source);
@@ -578,7 +585,7 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // scale the vectors of a keyframe from the units of the spec to the compiled model, or back
   template <class T>
-  void ScaleKeyframe(T* qpos, T* qvel, T* act, T* ctrl, T* mpos, bool inverse) const;
+  void ScaleKeyframe(T* qpos, T* qvel, T* act, T* ctrl, T* mpos, T* plastic, bool inverse) const;
 
   // compute qpos0
   void ComputeReference();

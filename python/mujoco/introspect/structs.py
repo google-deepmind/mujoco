@@ -1349,6 +1349,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of chars in all paths',
              ),
              StructFieldDecl(
+                 name='nplastic',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of mjtNums in plastic state vector',
+             ),
+             StructFieldDecl(
                  name='nnames_map',
                  type=ValueType(name='mjtSize'),
                  doc='number of slots in the names hash map',
@@ -1816,6 +1821,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('njnt',),
              ),
              StructFieldDecl(
+                 name='jnt_plasticadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='start addr in plastic state (-1: none)',
+                 array_extent=('njnt',),
+             ),
+             StructFieldDecl(
                  name='jnt_limited',
                  type=PointerType(
                      inner_type=ValueType(name='mjtBool'),
@@ -1886,6 +1899,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='high-order stiffness coefficients',
                  array_extent=('njnt', 'mjNPOLY'),
+             ),
+             StructFieldDecl(
+                 name='jnt_springyield',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='plastic yield threshold',
+                 array_extent=('njnt',),
              ),
              StructFieldDecl(
                  name='jnt_range',
@@ -4128,6 +4149,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
+                 name='tendon_plasticadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='start addr in plastic state (-1: none)',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
                  name='tendon_treenum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4302,6 +4331,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='spring resting length range',
                  array_extent=('ntendon', 2),
+             ),
+             StructFieldDecl(
+                 name='tendon_springyield',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='plastic yield threshold',
+                 array_extent=('ntendon',),
              ),
              StructFieldDecl(
                  name='tendon_length0',
@@ -4974,6 +5011,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='key control',
                  array_extent=('nkey', 'nu'),
+             ),
+             StructFieldDecl(
+                 name='key_plastic',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='key plastic state',
+                 array_extent=('nkey', 'nplastic'),
              ),
              StructFieldDecl(
                  name='name_bodyadr',
@@ -5842,6 +5887,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='history buffer',
                  array_extent=('nhistory',),
+             ),
+             StructFieldDecl(
+                 name='plastic',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='plastic state',
+                 array_extent=('nplastic',),
              ),
              StructFieldDecl(
                  name='qacc_warmstart',
@@ -7902,6 +7955,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='spring reference value: qpos_spring',
              ),
              StructFieldDecl(
+                 name='springyield',
+                 type=ValueType(name='double'),
+                 doc='plastic yield threshold (0: elastic)',
+             ),
+             StructFieldDecl(
                  name='springdamper',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
@@ -9619,6 +9677,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='spring resting length; {-1, -1}: use qpos_spring',
              ),
              StructFieldDecl(
+                 name='springyield',
+                 type=ValueType(name='double'),
+                 doc='plastic yield threshold (0: elastic)',
+             ),
+             StructFieldDecl(
                  name='damping',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
@@ -10277,6 +10340,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjDoubleVec'),
                  ),
                  doc='ctrl',
+             ),
+             StructFieldDecl(
+                 name='plastic',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjDoubleVec'),
+                 ),
+                 doc='plastic',
              ),
              StructFieldDecl(
                  name='info',

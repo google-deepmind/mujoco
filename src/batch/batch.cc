@@ -111,7 +111,8 @@ bool InState(std::string_view name) {
                              "mocap_pos",
                              "mocap_quat",
                              "userdata",
-                             "plugin_state"}) {
+                             "plugin_state",
+                             "plastic"}) {
     if (name == s) return true;
   }
   return false;
