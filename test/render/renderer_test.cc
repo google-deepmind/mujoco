@@ -330,6 +330,7 @@ TEST_F(RendererTest, RenderFullscreen) {
     EXPECT_EQ((uint8_t)pixels[i + 1], kRed[1]);
     EXPECT_EQ((uint8_t)pixels[i + 2], kRed[2]);
   }
+  mjrf_removeSceneRenderable(scene, renderable.get());
 }
 
 TEST_F(RendererTest, RenderGrid) {
@@ -440,6 +441,10 @@ TEST_F(RendererTest, RenderGrid) {
       EXPECT_EQ(std::get<2>(pixel), kBlue[2]);
     }
   }
+  mjrf_removeSceneRenderable(scene0, renderables[0].get());
+  mjrf_removeSceneRenderable(scene1, renderables[1].get());
+  mjrf_removeSceneRenderable(scene2, renderables[2].get());
+  mjrf_removeSceneRenderable(scene3, renderables[3].get());
 }
 
 // a texture with an unsupported number of channels is skipped with a warning,
@@ -551,6 +556,7 @@ TEST_F(RendererTest, TextureGeneratesMipmaps) {
   for (size_t i = 0; i < pixels.size(); ++i) {
     EXPECT_NEAR(static_cast<uint8_t>(pixels[i]), 60, 2);
   }
+  mjrf_removeSceneRenderable(scene, decor_renderable.get());
 }
 // A texture destroyed before Filament has read its data releases the data once,
 // after the upload, without touching the destroyed texture.
