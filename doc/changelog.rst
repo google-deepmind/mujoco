@@ -58,6 +58,11 @@ Engine
   wrapping at wrap onset. Thanks to :github:user:`M-Colley` for reporting and analyzing the issue in
   :doc:`MJWarp <mjwarp/index>` issue `1772 <https://github.com/google-deepmind/mujoco_warp/issues/1772>`__.
 
+Filament Rendering
+^^^^^^^^^^^^^^^^^^
+- Added :ref:`mjrf_flush` (``mjrf.Context.flush`` in Python) to flush pending operations to the rendering backend and
+  invoke any completed callbacks.
+
 Python bindings
 ^^^^^^^^^^^^^^^
 - Removed support for Python 3.10, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.

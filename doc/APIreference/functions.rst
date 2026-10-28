@@ -3271,6 +3271,15 @@ invocation of this function it will be done.
 Waits for all rendering operations to complete for the given frame handle, triggering any
 callbacks as needed.
 
+.. _mjrf_flush:
+
+`mjrf_flush <#mjrf_flush>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_flush
+
+Flushes pending operations to the rendering backend and invokes any completed callbacks.
+
 .. _mjrf_setClearColor:
 
 `mjrf_setClearColor <#mjrf_setClearColor>`__

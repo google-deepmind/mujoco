@@ -200,7 +200,8 @@ objects are configured and drawn.
    (positions, packed tangent-frame orientations, UVs) and indices uploaded via :ref:`mjrf_uploadMesh`, along with
    bounding boxes used for frustum culling. :ref:`mjrfTexture` stores 2D, cubemap, or KTX-compressed image data uploaded
    via :ref:`mjrf_uploadTexture`. Both upload functions accept an optional completion callback for freeing host memory
-   once the asynchronous GPU transfer finishes.
+   once the asynchronous GPU transfer finishes; calling :ref:`mjrf_flush` flushes pending operations to the rendering
+   backend and invokes any completed callbacks before the next :ref:`mjrf_render` call.
 
 **Renderables and materials** (:ref:`mjrfRenderable`, :ref:`mjrfMaterial`)
    An :ref:`mjrfRenderable` is a persistent drawable entity in a scene, combining surface geometry, material appearance,

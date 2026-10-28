@@ -3685,6 +3685,7 @@ void mjrf_defaultReadRequest(mjrfReadRequest* request);
 mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req, int nreq,
                       const mjrfReadRequest* read_req, int nread_req);
 void mjrf_waitForFrame(mjrfContext* ctx, mjrfFrameHandle frame);
+void mjrf_flush(mjrfContext* ctx);
 void mjrf_setClearColor(mjrfContext* ctx, const float color[3]);
 void mjrf_defaultFrameStats(mjrfFrameStats* stats);
 void mjrf_getFrameStats(mjrfContext* ctx, mjrfFrameHandle frame, mjrfFrameStats* stats_out);

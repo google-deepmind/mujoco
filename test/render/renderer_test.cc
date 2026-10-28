@@ -159,7 +159,8 @@ void SetupView(Renderer::View* view, Renderer::SceneHandle scene,
 
 TEST_F(RendererTest, ContextCreationAndDefaults) {
   Renderer renderer(MakeOffscreenConfig());
-  EXPECT_NE(renderer.GetContext(), nullptr);
+  ASSERT_NE(renderer.GetContext(), nullptr);
+  mjrf_flush(renderer.GetContext());
   EXPECT_FLOAT_EQ(renderer.GetGpuFrameMs(), 0.0f);
 }
 

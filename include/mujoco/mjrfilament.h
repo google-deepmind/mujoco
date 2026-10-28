@@ -129,6 +129,9 @@ mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req, int 
 // callbacks as needed.
 void mjrf_waitForFrame(mjrfContext* ctx, mjrfFrameHandle frame);
 
+// Flushes pending operations to the rendering backend and invokes any completed callbacks.
+void mjrf_flush(mjrfContext* ctx);
+
 // Sets the clear color for the renderer.
 void mjrf_setClearColor(mjrfContext* ctx, const float color[3]);
 

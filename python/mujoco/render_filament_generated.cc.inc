@@ -599,6 +599,14 @@ mjrf_context.def("wait_for_frame", [](
 , py::call_guard<py::gil_scoped_release>()
 );
 
+mjrf_context.def("flush", [](
+  PyContext& ctx
+) {
+    return mjrf_flush(ctx.get());
+}
+, py::call_guard<py::gil_scoped_release>()
+);
+
 mjrf_context.def("set_clear_color", [](
   PyContext& ctx,
   Float3::Ref& color

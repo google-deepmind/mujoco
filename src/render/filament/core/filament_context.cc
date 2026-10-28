@@ -193,6 +193,11 @@ void FilamentContext::WaitForFrame(mjrfFrameHandle frame_handle) {
   }
 }
 
+void FilamentContext::Flush() {
+  engine_->flush();
+  engine_->pumpMessageQueues();
+}
+
 void FilamentContext::SetClearColor(const filament::math::float4& color) {
   filament::Renderer::ClearOptions opts;
   opts.clear = true;

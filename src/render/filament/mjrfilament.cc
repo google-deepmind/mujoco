@@ -361,6 +361,10 @@ void mjrf_waitForFrame(mjrfContext* ctx, mjrfFrameHandle frame) {
   mujoco::FilamentContext::downcast(ctx)->WaitForFrame(frame);
 }
 
+void mjrf_flush(mjrfContext* ctx) {
+  mujoco::FilamentContext::downcast(ctx)->Flush();
+}
+
 void mjrf_setClearColor(mjrfContext* ctx, const float color[3]) {
   mujoco::FilamentContext::downcast(ctx)->SetClearColor(
       {color[0], color[1], color[2], 1.0f});
