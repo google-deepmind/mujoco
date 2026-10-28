@@ -34,6 +34,8 @@ using namespace mujoco;          // NOLINT(build/namespaces)
 using namespace mujoco::python;  // NOLINT(build/namespaces)
 using namespace mujoco::studio;  // NOLINT(build/namespaces)
 
+namespace {
+
 std::unique_ptr<ImguiBridge> MakeImguiBridge(mujoco::python::PyContext& ctx,
                                              PyScene& scene) {
   return std::make_unique<ImguiBridge>(ctx.get(), scene.get());
@@ -81,7 +83,11 @@ bool RenderToPixels(int gfx_mode) {
     static_cast<mujoco::studio::GraphicsMode>(gfx_mode));
 }
 
-PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
+}  // namespace
+
+namespace mujoco::python::studio {
+
+void InitNativeViewer(pybind11::module_& m) {
   pybind11::module_::import("mujoco._structs");
   {
     py::class_<ImguiBridge> cls(m, "ImguiBridge", py::module_local());
@@ -103,3 +109,11 @@ PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
   }
   m.def("render_to_pixels", &RenderToPixels);
 }
+
+}  // namespace mujoco::python::studio
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(native_viewer_cc, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::studio::InitNativeViewer(m);
+}
+#endif

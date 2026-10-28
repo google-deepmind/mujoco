@@ -36,6 +36,8 @@
 
 namespace py = pybind11;
 
+namespace {
+
 struct UxState {
   // Read/edited by step_control_gui
   int speed_index = 0;
@@ -62,7 +64,11 @@ struct RenderFlags {
   std::array<uint8_t, mjNRNDFLAG> flags = {0};
 };
 
-PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
+}  // namespace
+
+namespace mujoco::python::studio {
+
+void InitUx(py::module_& m) {
   py::module_::import("mujoco._structs");
   py::class_<RenderFlags>(m, "RenderFlags")
       .def(py::init<>())
@@ -705,3 +711,11 @@ PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("sources"), py::arg("pips"));
 }
+
+}  // namespace mujoco::python::studio
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(ux, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::studio::InitUx(m);
+}
+#endif

@@ -109,7 +109,9 @@ static py::tuple ParseModelBundle(const py::bytes& bundle) {
       resources);
 }
 
-PYBIND11_MODULE(state_payload, m, pybind11::mod_gil_not_used()) {
+namespace mujoco::python::studio {
+
+void InitStatePayload(py::module_& m) {
   py::module_::import("mujoco._structs");
   m.doc() = "MuJoCo web viewer state payload serialization";
 
@@ -119,3 +121,11 @@ PYBIND11_MODULE(state_payload, m, pybind11::mod_gil_not_used()) {
   m.def("parse_model_bundle", &ParseModelBundle);
   m.attr("MAX_EXTRA_GEOMS") = mujoco::studio::kMaxExtraGeoms;
 }
+
+}  // namespace mujoco::python::studio
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(state_payload, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::studio::InitStatePayload(m);
+}
+#endif

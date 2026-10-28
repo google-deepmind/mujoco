@@ -26,7 +26,9 @@ namespace py = pybind11;
 
 using StepControl = mujoco::studio::StepControl;
 
-PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
+namespace mujoco::python::studio {
+
+void InitSim(py::module_& m) {
   py::module_::import("mujoco._structs");
   m.doc() = "MuJoCo platform simulation bindings for Link.";
 
@@ -110,3 +112,11 @@ PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
       .def("set_size", &SimHistory::SetSize, py::arg("size"),
            "Sets the number of recorded states.");
 }
+
+}  // namespace mujoco::python::studio
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(sim, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::studio::InitSim(m);
+}
+#endif

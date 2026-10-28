@@ -42,6 +42,8 @@
 
 namespace py = pybind11;
 
+namespace {
+
 // Headless ImGui + netimgui viewer for the MuJoCo web viewer.
 //
 // This class manages a headless ImGui context that streams its draw data
@@ -377,7 +379,11 @@ class HeadlessUi {
   uintptr_t next_tex_id_ = 0x10000;
 };
 
-PYBIND11_MODULE(headless_ui, m, pybind11::mod_gil_not_used()) {
+}  // namespace
+
+namespace mujoco::python::studio {
+
+void InitHeadlessUi(py::module_& m) {
   m.doc() = "MuJoCo web viewer headless Studio UI, streamed via NetImgui";
 
   py::class_<HeadlessUi>(m, "HeadlessUi")
@@ -394,3 +400,11 @@ PYBIND11_MODULE(headless_ui, m, pybind11::mod_gil_not_used()) {
       .def("get_implot_context", &HeadlessUi::GetImPlotContext)
       .def("upload_image", &HeadlessUi::UploadImage);
 }
+
+}  // namespace mujoco::python::studio
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(headless_ui, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::studio::InitHeadlessUi(m);
+}
+#endif

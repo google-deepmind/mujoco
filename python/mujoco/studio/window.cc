@@ -31,6 +31,8 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 
+namespace {
+
 static bool IsCuda() {
 #ifdef CUDA
   return true;
@@ -109,7 +111,11 @@ class Window {
   std::unique_ptr<mujoco::studio::Window> window_;
 };
 
-PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {
+}  // namespace
+
+namespace mujoco::python::studio {
+
+void InitWindow(pybind11::module_& m) {
   mujoco::studio::RegisterProviders();
 
   m.def("IsCrd", &IsCrd);
@@ -129,3 +135,11 @@ PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {
   cls.def("GetGraphicsMode", &Window::GetGraphicsMode);
   cls.def("GetNativeWindowHandle", &Window::GetNativeWindowHandle);
 }
+
+}  // namespace mujoco::python::studio
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(window, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::studio::InitWindow(m);
+}
+#endif
