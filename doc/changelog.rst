@@ -57,6 +57,8 @@ Engine
 - Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
   wrapping at wrap onset. Thanks to :github:user:`M-Colley` for reporting and analyzing the issue in
   :doc:`MJWarp <mjwarp/index>` issue `1772 <https://github.com/google-deepmind/mujoco_warp/issues/1772>`__.
+- Fixed :ref:`mj_multiRay` missing hits on bodies whose inertial frame is rotated: the body bounding sphere was not
+  rotated by ``ximat``. Thanks to :github:user:`zxkane` for reporting the issue (:issue:`3731`).
 
 Python bindings
 ^^^^^^^^^^^^^^^

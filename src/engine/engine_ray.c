@@ -1478,7 +1478,8 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
       mjtNum center[3];
       mjtNum* size = pos + 3;
       mjtNum ssz = size[0]*size[0] + size[1]*size[1] + size[2]*size[2];
-      mju_add3(center, pos, d->xipos+3*b);
+      mju_mulMatVec3(center, d->ximat+9*b, pos);
+      mju_addTo3(center, d->xipos+3*b);
       if (ray_sphere(center, NULL, ssz, pnt, vec, NULL) < 0) {
         continue;
       }
