@@ -20,7 +20,6 @@ endif()
 set(STUDIO_COMMON_LIBS
   mujoco::platform
   structs_header
-  structs_wrappers
   _render_filament_header
 )
 

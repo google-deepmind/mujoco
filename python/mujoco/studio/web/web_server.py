@@ -416,8 +416,20 @@ def _run_server(
       return Response(403, "Forbidden", Headers(), b"forbidden\n")
     if not os.path.isfile(full):
       wasm_full = os.path.normpath(os.path.join(norm_static_root, "wasm", rel))
+      studio_root = os.path.normpath(
+          os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+      )
+      studio_assets_full = os.path.normpath(os.path.join(studio_root, rel))
       if os.path.isfile(wasm_full):
         full = wasm_full
+      elif (
+          rel.startswith("assets/")
+          and studio_assets_full.startswith(
+              os.path.join(studio_root, "assets") + os.sep
+          )
+          and os.path.isfile(studio_assets_full)
+      ):
+        full = studio_assets_full
       else:
         return Response(404, "Not Found", Headers(), b"not found\n")
 

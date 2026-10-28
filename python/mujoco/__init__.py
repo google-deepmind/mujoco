@@ -19,8 +19,7 @@ import ctypes.util
 import os
 import platform
 import subprocess
-from typing import Any, IO, Union, Sequence
-from typing_extensions import TypeAlias
+from typing import Any, IO, Sequence, TypeAlias, Union
 import warnings
 import zipfile
 

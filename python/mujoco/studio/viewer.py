@@ -20,10 +20,9 @@ them without restarting (``plugins``, ``model``, or plugin class names narrow
 that down).
 """
 
+import argparse
 import os
 
-from absl import app as _app
-from absl import flags as _flags
 from mujoco.studio import launch_passive
 from mujoco.studio import plugin
 from mujoco.studio import viewer_app
@@ -31,26 +30,9 @@ from mujoco.studio import viewer_protocol
 
 vp = viewer_protocol
 
-_MODEL = _flags.DEFINE_string('model', None, 'Path to model file.')
-_PLUGINS = _flags.DEFINE_list(
-    'plugins',
-    [],
-    'Comma-separated list of Python plugin files (.py) to load.',
-)
-_GFX = _flags.DEFINE_enum(
-    'gfx', None, vp.GFX_MODES, 'Graphics mode ("web" launches Web Viewer).'
-)
-_PORT = _flags.DEFINE_integer(
-    'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'
-)
-_WIDTH = _flags.DEFINE_integer('width', 1200, 'Width of the output image.')
-_HEIGHT = _flags.DEFINE_integer('height', 800, 'Height of the output image')
-_HOT_RELOAD = _flags.DEFINE_string(
-    'hot_reload',
-    '',
-    "What is reloaded when modified. Options are '', 'plugins', 'model',"
-    " 'all', 'Plugin1,Plugin2,...'. Default is '', meaning nothing.",
-)
+
+def _parse_plugins(value: str) -> list[str]:
+  return [p for p in value.split(',') if p]
 
 
 def _resolve(path: str) -> str:
@@ -62,20 +44,60 @@ def _resolve(path: str) -> str:
   return path
 
 
-def main(argv: list[str]) -> None:
+def main() -> None:
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      'pos_model', nargs='?', default='', help='Path to model file.'
+  )
+  parser.add_argument(
+      '--model', type=str, default=None, help='Path to model file.'
+  )
+  parser.add_argument(
+      '--plugins',
+      type=_parse_plugins,
+      default=[],
+      help='Comma-separated list of Python plugin files (.py) to load.',
+  )
+  parser.add_argument(
+      '--gfx',
+      choices=vp.GFX_MODES,
+      default='',
+      help='Graphics mode ("web" launches Web Viewer).',
+  )
+  parser.add_argument(
+      '--port',
+      type=int,
+      default=0,
+      help='Web Viewer port (0 picks first free port >= 8080).',
+  )
+  parser.add_argument(
+      '--width', type=int, default=1200, help='Width of the output image.'
+  )
+  parser.add_argument(
+      '--height', type=int, default=800, help='Height of the output image'
+  )
+  parser.add_argument(
+      '--hot_reload',
+      type=str,
+      default='',
+      help=(
+          "What is reloaded when modified. Options are '', 'plugins', 'model',"
+          " 'all', 'Plugin1,Plugin2,...'. Default is '', meaning nothing."
+      ),
+  )
+  args, _ = parser.parse_known_args()
+
   config = vp.ViewerConfig(
-      width=_WIDTH.value,
-      height=_HEIGHT.value,
-      gfx=_GFX.value or '',
-      http_port=_PORT.value,
-      hot_reload=_HOT_RELOAD.value,
+      width=args.width,
+      height=args.height,
+      gfx=args.gfx or '',
+      http_port=args.port,
+      hot_reload=args.hot_reload,
   )
 
   # Resolve model path, if provided.
-  model_path = _MODEL.value or (
-      argv[1] if len(argv) > 1 and not argv[1].startswith('--') else ''
-  )
-  user_plugins = plugin.load_plugins(map(_resolve, _PLUGINS.value))
+  model_path = args.model or args.pos_model
+  user_plugins = plugin.load_plugins(map(_resolve, args.plugins))
 
   launch_passive.run(
       config,
@@ -88,4 +110,5 @@ def main(argv: list[str]) -> None:
   )
 
 
-_app.run(main)
+if __name__ == '__main__':
+  main()

@@ -82,12 +82,9 @@ py_library(
     imports = [".."],
     visibility = [":visibility"],
     deps = [
-        "//python/mujoco/pypi:absl_py",
-        "//python/mujoco/pypi:epath",
         "//python/mujoco/pypi:glfw",
         "//python/mujoco/pypi:numpy",  # buildcleaner: keep
         "//python/mujoco/pypi:pyopengl",
-        "//python/mujoco/pypi:typing_extensions",
         "//python/mujoco/pypi:websockets",
     ],
 )

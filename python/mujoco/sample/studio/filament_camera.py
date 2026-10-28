@@ -14,8 +14,8 @@
 """Demonstrates how to use ImGui inputs to control a free camera in MuJoCo."""
 
 from collections.abc import Sequence
+import sys
 
-from absl import app
 import mujoco
 from mujoco import mjrf
 from mujoco.rendering.filament import model_scene
@@ -29,7 +29,7 @@ from mujoco.experimental.dear_imgui import dear_imgui as imgui
 
 def main(argv: Sequence[str]) -> None:
   if len(argv) < 2:
-    raise app.UsageError("Please provide a path to a model XML file.")
+    raise SystemExit("Usage: filament_camera.py <path to model XML file>")
 
   # create an mjModel and mjData from a path to an xml file
   model = mujoco.MjModel.from_xml_path(argv[1])
@@ -123,4 +123,4 @@ def _update_camera(model: mujoco.MjModel, vcam: mujoco.MjvCamera):
     mujoco.mjv_moveCamera(model, MOVE_V_REL, 0.0, -1.0, vcam)
 
 if __name__ == "__main__":
-  app.run(main)
+  main(sys.argv)

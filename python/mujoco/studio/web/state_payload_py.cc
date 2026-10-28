@@ -39,11 +39,12 @@ static py::bytes SerializeStatePayload(
     const mujoco::python::MjvPerturbWrapper& perturb,
     const mujoco::python::MjvOptionWrapper& vis_options,
     const mujoco::python::MjModelWrapper& model,
-    const std::vector<uint8_t>& render_flags,
-    const std::vector<mujoco::python::MjvGeomWrapper>& extra_geoms) {
+    const std::vector<uint8_t>& render_flags, const py::iterable& extra_geoms) {
   std::vector<mjvGeom> geoms;
-  geoms.reserve(extra_geoms.size());
-  for (const mujoco::python::MjvGeomWrapper& geom_wrapper : extra_geoms) {
+  geoms.reserve(py::len_hint(extra_geoms));
+  for (py::handle item : extra_geoms) {
+    const auto& geom_wrapper =
+        py::cast<const mujoco::python::MjvGeomWrapper&>(item);
     if (geom_wrapper.get()) {
       geoms.push_back(*geom_wrapper.get());
     }

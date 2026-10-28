@@ -16,8 +16,8 @@
 from collections.abc import Sequence
 import dataclasses
 import math
+import sys
 
-from absl import app
 import mujoco
 from mujoco import mjrf
 from mujoco.rendering.filament import renderer
@@ -48,8 +48,8 @@ def _update_target(
 def main(argv: Sequence[str]) -> None:
   paths = list(argv[1:])
   if not paths:
-    raise app.UsageError(
-        "Please provide at least one path to a model XML file."
+    raise SystemExit(
+        "Usage: filament_multimodel.py <path to model XML file>..."
     )
   if len(paths) > 16:
     paths = paths[:16]
@@ -118,4 +118,4 @@ def main(argv: Sequence[str]) -> None:
 
 
 if __name__ == "__main__":
-  app.run(main)
+  main(sys.argv)

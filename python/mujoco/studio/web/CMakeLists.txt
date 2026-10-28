@@ -169,7 +169,6 @@ else()
   target_link_libraries(state_payload PRIVATE
     mujoco
     structs_header
-    structs_wrappers
   )
 
   set(MUJOCO_WEB_VIEWER_TARGETS

@@ -14,8 +14,8 @@
 """Renders multiple views of a MuJoCo model with Filament."""
 
 from collections.abc import Sequence
+import sys
 
-from absl import app
 import mujoco
 from mujoco import mjrf
 from mujoco.rendering.filament import renderer
@@ -35,7 +35,7 @@ def _update_target(
 
 def main(argv: Sequence[str]) -> None:
   if len(argv) < 2:
-    raise app.UsageError("Please provide a path to a model XML file.")
+    raise SystemExit("Usage: filament_multiview.py <path to model XML file>")
 
   # create an mjModel and mjData from a path to an xml file
   model = mujoco.MjModel.from_xml_path(argv[1])
@@ -116,4 +116,4 @@ def main(argv: Sequence[str]) -> None:
 
 
 if __name__ == "__main__":
-  app.run(main)
+  main(sys.argv)

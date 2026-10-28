@@ -29,10 +29,9 @@ Here the scene is a stack of boxes that gains a box every few simulated
 seconds, to show the loop swapping in a model of its own.
 """
 
+import argparse
 import time
 
-from absl import app as _app
-from absl import flags as _flags
 import mujoco
 from mujoco.studio import launch_web
 from mujoco.studio import messages
@@ -40,10 +39,6 @@ from mujoco.studio import plugin
 from mujoco.studio import sim
 from mujoco.studio import viewer_app
 from mujoco.studio import viewer_protocol
-
-_PORT = _flags.DEFINE_integer(
-    'port', 0, 'Web Viewer port (0 picks first free port >= 8080).'
-)
 
 
 def build(num_boxes: int) -> mujoco.MjModel:
@@ -81,10 +76,17 @@ class _ViewerControls(plugin.SimPlugin):
     self.speed = snapshot.speed
 
 
-def main(argv: list[str]) -> None:
-  del argv
+def main() -> None:
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--port',
+      type=int,
+      default=0,
+      help='Web Viewer port (0 picks first free port >= 8080).',
+  )
+  args, _ = parser.parse_known_args()
   config = viewer_protocol.ViewerConfig(
-      title='custom_sim_loop', http_port=_PORT.value
+      title='custom_sim_loop', http_port=args.port
   )
   controls = _ViewerControls()
   num_boxes = 1
@@ -119,4 +121,4 @@ def main(argv: list[str]) -> None:
 
 
 if __name__ == '__main__':
-  _app.run(main)
+  main()
