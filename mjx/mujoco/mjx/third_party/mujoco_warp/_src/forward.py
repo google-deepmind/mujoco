@@ -769,13 +769,14 @@ def _rk_perturb_state(
   scale: float,
   qpos_t0: wp.array2d[float],
   qvel_t0: wp.array2d[float],
+  qvel_pos: wp.array2d[float],
   act_t0: Optional[wp.array] = None,
 ):
-  # position
+  # position, integrated with the (corrected) previous stage velocity
   wp.launch(
     _next_position,
     dim=(d.nworld, m.njnt),
-    inputs=[m.opt.timestep, m.jnt_type, m.jnt_qposadr, m.jnt_dofadr, qpos_t0, d.qvel, scale],
+    inputs=[m.opt.timestep, m.jnt_type, m.jnt_qposadr, m.jnt_dofadr, qpos_t0, qvel_pos, scale],
     outputs=[d.qpos],
   )
 
@@ -820,6 +821,47 @@ def _rk_perturb_state(
 
 
 @wp.kernel
+def _rk_correct_velocity(
+  # Model:
+  opt_timestep: wp.array[float],
+  jnt_type: wp.array[int],
+  jnt_dofadr: wp.array[int],
+  # Data in:
+  qvel_in: wp.array2d[float],
+  # In:
+  qvel_stage_in: wp.array2d[float],
+  scale: float,
+  # Out:
+  qvel_stage_out: wp.array2d[float],
+):
+  # Runge-Kutta-Munthe-Kaas (RKMK) correction: maps the stage angular velocities of ball and free joints to the
+  # rates of their rotation vectors rot = timestep * scale * (previous corrected stage velocity), in place
+  worldid, jntid = wp.tid()
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+  jnttype = jnt_type[jntid]
+  dofadr = jnt_dofadr[jntid]
+
+  if jnttype == JointType.HINGE or jnttype == JointType.SLIDE:
+    qvel_stage_out[worldid, dofadr] = qvel_in[worldid, dofadr]
+    return
+
+  rotadr = dofadr
+  if jnttype == JointType.FREE:
+    rotadr = dofadr + 3
+
+  qvel_prev = wp.vec3(qvel_stage_in[worldid, rotadr], qvel_stage_in[worldid, rotadr + 1], qvel_stage_in[worldid, rotadr + 2])
+  rot = timestep * scale * qvel_prev
+  vel = wp.vec3(qvel_in[worldid, rotadr], qvel_in[worldid, rotadr + 1], qvel_in[worldid, rotadr + 2])
+  res = math.deriv_expmap(rot, vel)
+
+  if jnttype == JointType.FREE:
+    for i in range(3):
+      qvel_stage_out[worldid, dofadr + i] = qvel_in[worldid, dofadr + i]
+  for i in range(3):
+    qvel_stage_out[worldid, rotadr + i] = res[i]
+
+
+@wp.kernel
 def _rk_accumulate_velocity_acceleration(
   # Data in:
   qvel_in: wp.array2d[float],
@@ -852,6 +894,7 @@ def _rk_accumulate(
   m: Model,
   d: Data,
   scale: float,
+  qvel_stage: wp.array2d[float],
   qvel_rk: wp.array2d[float],
   qacc_rk: wp.array2d[float],
   act_dot_rk: Optional[wp.array] = None,
@@ -860,7 +903,7 @@ def _rk_accumulate(
   wp.launch(
     _rk_accumulate_velocity_acceleration,
     dim=(d.nworld, m.nv),
-    inputs=[d.qvel, d.qacc, scale],
+    inputs=[qvel_stage, d.qacc, scale],
     outputs=[qvel_rk, qacc_rk],
   )
 
@@ -899,13 +942,23 @@ def rungekutta4(m: Model, d: Data):
     ten_length_t0 = None
     ten_J_t0 = None
 
-  _rk_accumulate(m, d, B[0], qvel_rk, qacc_rk, act_dot_rk)
+  # stage velocities with the RKMK correction (rates of the rotation vectors of ball and free joints); the first
+  # stage has a zero rotation vector, so it needs no correction
+  qvel_stage = wp.clone(d.qvel)
+
+  _rk_accumulate(m, d, B[0], qvel_stage, qvel_rk, qacc_rk, act_dot_rk)
 
   for i in range(3):
     a, b = float(A[i]), B[i + 1]
-    _rk_perturb_state(m, d, a, qpos_t0, qvel_t0, act_t0)
+    _rk_perturb_state(m, d, a, qpos_t0, qvel_t0, qvel_stage, act_t0)
     forward(m, d)
-    _rk_accumulate(m, d, b, qvel_rk, qacc_rk, act_dot_rk)
+    wp.launch(
+      _rk_correct_velocity,
+      dim=(d.nworld, m.njnt),
+      inputs=[m.opt.timestep, m.jnt_type, m.jnt_dofadr, d.qvel, qvel_stage, a],
+      outputs=[qvel_stage],
+    )
+    _rk_accumulate(m, d, b, qvel_stage, qvel_rk, qacc_rk, act_dot_rk)
 
   wp.copy(d.qpos, qpos_t0)
   wp.copy(d.qvel, qvel_t0)

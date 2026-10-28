@@ -53,6 +53,10 @@ MJAPI void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]);
 // time-derivative of quaternion, given 3D rotational velocity
 MJAPI void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]);
 
+// time-derivative of expmap in quat = quat0 * exp(expmap), given 3D rotational velocity in the
+//  rotated frame; expmap is first reduced to angle in (-pi, pi]; res and vel can alias
+MJAPI void mju_derivExpmap(mjtNum res[3], const mjtNum expmap[3], const mjtNum vel[3]);
+
 // integrate quaternion given 3D angular velocity
 MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 

@@ -47,6 +47,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_sparse.h"
+#include "engine/engine_util_spatial.h"
 #include "engine/engine_thread.h"
 
 
@@ -1681,6 +1682,27 @@ const mjtNum RK4_B[4] = {
 };
 
 
+// Runge-Kutta-Munthe-Kaas (RKMK) correction: orientations are written as q = q0 * exp(rot) and
+//  RK integrates the rotation vector rot, an ODE on a vector space, so the order of the tableau is
+//  kept; the rate of rot is not the angular velocity but dexp^{-1}_{-rot} of it, and summing the
+//  uncorrected stage angular velocities makes orientations only second-order accurate;
+//  map the rotational dofs of ball and free joints in vel to rotation vector rates, given the stage
+//  position increment velocity dqvel (rotation vector = h*dqvel); other dofs are unchanged
+static void rkCorrectVel(const mjModel* m, mjtNum* vel, const mjtNum* dqvel, mjtNum h) {
+  for (int j=0; j < m->njnt; j++) {
+    int vadr = m->jnt_dofadr[j];
+    int type = m->jnt_type[j];
+    if (type == mjJNT_FREE) {
+      vadr += 3;
+    } else if (type != mjJNT_BALL) {
+      continue;
+    }
+    mjtNum rot[3] = {h*dqvel[vadr], h*dqvel[vadr+1], h*dqvel[vadr+2]};
+    mju_derivExpmap(vel+vadr, rot, vel+vadr);
+  }
+}
+
+
 // Runge Kutta explicit order-N integrator
 //  (A,B) is the tableau, C is set to row_sum(A)
 void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
@@ -1717,7 +1739,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 
   // init X[0], F[0]; mj_forward() was already called
   mju_copy(X[0], d->qpos, nq);
-  mju_copy(X[0]+nq, d->qvel, nv);
+  mju_copy(X[0]+nq, d->qvel, nv);  // rotation vector is 0: no RKMK correction
   mju_copy(F[0], d->qacc, nv);
   if (na) {
     mju_copy(X[0]+nq+nv, d->act, na);
@@ -1754,6 +1776,10 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
       mju_copy(d->act, X[i]+nq+nv, na);
     }
     d->time = T[i-1];
+
+    // RKMK: d->qvel keeps the stage velocity; X[i]+nq is only read below as a position rate,
+    //  map its angular velocities through dexp^{-1}_{-h*dX} in place
+    rkCorrectVel(m, X[i]+nq, dX, h);
 
     // evaluate F[i]
     mj_forwardSkip(m, d, mjSTAGE_NONE, 1);  // 1: do not recompute sensors and energy

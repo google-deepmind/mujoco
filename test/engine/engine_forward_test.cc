@@ -7843,6 +7843,165 @@ TEST_F(ForwardTest, IntegratorConvergenceOrderContact) {
   }
 }
 
+// RK4 is fourth-order accurate for ball and free joint orientations: the
+// observed order log2(err(h) / err(h/2)) is ~4, i.e. halving the timestep
+// reduces the orientation error ~16x (order ~2 without the RKMK correction).
+// The free body has a rotational spring and the ball joint is a heavy top under
+// gravity, so the torques depend on the stage orientations
+TEST_F(ForwardTest, RungeKuttaOrientationConvergenceOrder) {
+#ifdef mjUSESINGLE
+  GTEST_SKIP() << "Fourth-order errors are below float32 roundoff";
+#endif
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="RK4">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="free" type="free" stiffness="5"/>
+        <inertial pos="0 0 0" mass="1" diaginertia=".1 .2 .3"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="ball" type="ball"/>
+        <inertial pos=".02 .01 .1" mass="1" diaginertia=".01 .01 .02"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // addresses of the joint quaternions and angular velocities
+  const char* const kJoints[2] = {"free", "ball"};
+  int qadr[2], vadr[2];
+  for (int j = 0; j < 2; j++) {
+    int id = mj_name2id(model.get(), mjOBJ_JOINT, kJoints[j]);
+    ASSERT_GE(id, 0);
+    int offset = model->jnt_type[id] == mjJNT_FREE ? 3 : 0;
+    qadr[j] = model->jnt_qposadr[id] + offset;
+    vadr[j] = model->jnt_dofadr[id] + offset;
+  }
+
+  // simulate 1s, return the free and ball joint quaternions
+  auto endpoint = [&](mjtNum h, mjtNum quat[8]) {
+    model->opt.timestep = h;
+    mj_resetData(model.get(), data.get());
+    const mjtNum kOmegaFree[3] = {1, 2, 0.5};
+    mju_copy3(data->qvel + vadr[0], kOmegaFree);
+    data->qvel[vadr[1] + 2] = 20;  // spin the top about its axis
+    int nstep = (int)mju_round(1 / h);
+    for (int i = 0; i < nstep; i++) {
+      mj_step(model.get(), data.get());
+    }
+    for (int j = 0; j < 2; j++) {
+      mju_copy4(quat + 4 * j, data->qpos + qadr[j]);
+    }
+  };
+
+  // reference: timestep 4x smaller than the finest tested one, so its own error
+  // is ~1/256 of the finest error
+  mjtNum ref[8];
+  endpoint(6.25e-4, ref);
+
+  // orientation error of joint j: the angle (rad) of the rotation from the
+  // reference orientation; at h = 1e-2 it is ~1e-7 (free) and ~3e-6 (ball)
+  auto err = [&](const mjtNum quat[8], int j) {
+    mjtNum dif[3];
+    mju_subQuat(dif, quat + 4 * j, ref + 4 * j);
+    return mju_norm3(dif);
+  };
+
+  // observed convergence order between timesteps h and h/2
+  auto order = [](mjtNum err_h, mjtNum err_h2) {
+    return std::log2(err_h / err_h2);
+  };
+
+  mjtNum q1[8], q2[8], q4[8];
+  endpoint(1e-2, q1);
+  endpoint(5e-3, q2);
+  endpoint(2.5e-3, q4);
+  for (int j = 0; j < 2; j++) {
+    mjtNum e1 = err(q1, j), e2 = err(q2, j), e4 = err(q4, j);
+
+    // errors are far above roundoff, so the ratios measure truncation error
+    EXPECT_GT(e4, 1e-12) << kJoints[j];
+
+    // the fast top (h*|omega| = 0.2 at h = 1e-2) is slightly pre-asymptotic:
+    // its order approaches 4 from below as h decreases
+    EXPECT_NEAR(order(e1, e2), 4, 0.25)
+        << kJoints[j] << ", errors " << e1 << ", " << e2;
+    EXPECT_NEAR(order(e2, e4), 4, 0.25)
+        << kJoints[j] << ", errors " << e2 << ", " << e4;
+  }
+}
+
+// a torque-free isotropic body spinning exactly n turns per step (n = 1, 2)
+// must return to its initial orientation. RK4 stages 2 and 3 have rotation
+// vectors of angle n*pi and stage 4 of angle 2*pi*n, where the Bortz
+// coefficient of dexp^{-1} is singular (e.g. ~1e14 near 2*pi). Mathematically
+// rot is parallel to the angular velocity, so rot x vel = 0, but rounding makes
+// the cross product ~1e-13 and the singular coefficient amplifies it into an
+// O(1) rad orientation error, unless the angle is reduced to (-pi, pi] first
+TEST_F(ForwardTest, RungeKuttaFullTurnStage) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option integrator="RK4" timestep="0.01" gravity="0 0 0">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <freejoint name="free"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // addresses of the free joint quaternion and angular velocity
+  int id = mj_name2id(model.get(), mjOBJ_JOINT, "free");
+  ASSERT_GE(id, 0);
+  int qadr = model->jnt_qposadr[id] + 3;
+  int vadr = model->jnt_dofadr[id] + 3;
+
+  // oblique axes, so rot and vel differ by rounding in all components
+  const mjtNum kAxes[2][3] = {{1, 2, 3}, {-0.3, 0.7, 0.2}};
+  for (int turns = 1; turns <= 2; turns++) {
+    for (int a = 0; a < 2; a++) {
+      // angular velocity: n turns per step about the axis
+      mj_resetData(model.get(), data.get());
+      mjtNum omega[3];
+      mju_copy3(omega, kAxes[a]);
+      mju_normalize3(omega);
+      mju_scl3(omega, omega, 2 * mjPI * turns / model->opt.timestep);
+      mju_copy3(data->qvel + vadr, omega);
+      mjtNum quat0[4];
+      mju_copy4(quat0, data->qpos + qadr);
+
+      mj_step(model.get(), data.get());
+
+      // precondition: torque-free, so the angular velocity is unchanged
+      mjtNum dvel[3];
+      mju_sub3(dvel, data->qvel + vadr, omega);
+      EXPECT_LT(mju_norm3(dvel) / mju_norm3(omega), MjTol(4e-15, 2e-6))
+          << "turns " << turns << ", axis " << a;
+
+      // the body is back at its initial orientation (without the angle
+      // reduction the error is ~1 rad)
+      mjtNum dif[3];
+      mju_subQuat(dif, data->qpos + qadr, quat0);
+      EXPECT_LT(mju_norm3(dif), MjTol(2e-14, 1e-5))
+          << "turns " << turns << ", axis " << a << ": angle error (rad)";
+    }
+  }
+}
+
 // on an undamped oscillator below the explicit stability bound, RK4 and the
 // semi-implicit integrators conserve energy while discrete dissipates at the
 // analytic backward-Euler rate: per-step energy factor 1/(1 + (h*omega)^2)

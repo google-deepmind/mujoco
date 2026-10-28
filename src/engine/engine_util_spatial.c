@@ -229,6 +229,70 @@ void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]) {
 }
 
 
+// coefficient of expmap x (expmap x vel) in the Bortz rotation vector equation, given xx = x^2:
+//  (1 - (x/2) cot(x/2)) / x^2; below |x| = 1.75 the closed form loses accuracy to cancellation,
+//  so a minimax polynomial in xx is used there, with coefficients for the floating-point type of
+//  mjtNum; together with the closed form above, the error is below 6 ulp on [-pi, pi];
+//  singular at x = 2*pi*n, n != 0
+static mjtNum bortzCoef(mjtNum xx) {
+#ifdef mjUSESINGLE
+  static const mjtNum k[9] = {
+    0.0833333358f, 0.00138884981f, 3.32480922e-05f, 4.57548566e-07f, 4.23758962e-07f,
+    -2.48791736e-07f, 8.78585737e-08f, -1.64186869e-08f, 1.26339661e-09f
+  };
+#else
+  static const mjtNum k[9] = {
+    0.083333333333333384, 0.0013888888888859755, 3.3068783094433201e-05,
+    8.2671949071520734e-07, 2.0876900642039142e-08, 5.2828494303844588e-10,
+    1.3455485951057888e-11, 3.1615515500778219e-13, 1.230313397310169e-14
+  };
+#endif
+
+  // minimax polynomial (Horner form)
+  if (xx < 1.75*1.75) {
+    mjtNum res = k[8];
+    for (int i=7; i >= 0; i--) {
+      res = k[i] + xx*res;
+    }
+    return res;
+  }
+
+  // closed form
+  mjtNum x = mju_sqrt(xx);
+  return (1 - 0.5*x / mju_tan(0.5*x)) / xx;
+}
+
+
+// time-derivative of expmap in quat = quat0 * exp(expmap), given 3D rotational velocity in the
+//  rotated frame: res = vel + 1/2 expmap x vel + bortzCoef(|expmap|^2) expmap x (expmap x vel),
+//  i.e. dexp^{-1}_{-expmap}(vel); expmap is first replaced with the equivalent rotation vector of
+//  angle in (-pi, pi], since the coefficient is singular at multiples of 2*pi;
+//  res and vel can alias
+void mju_derivExpmap(mjtNum res[3], const mjtNum expmap[3], const mjtNum vel[3]) {
+  mjtNum r[3] = {expmap[0], expmap[1], expmap[2]};
+  mjtNum xx = mju_dot3(r, r);
+
+  // reduce the angle to (-pi, pi], like the SO3 setpoint re-anchoring in mj_advance
+  if (xx > mjPI*mjPI) {
+    mjtNum x = mju_sqrt(xx);
+    mjtNum scale = (x - 2*mjPI*mju_floor(x/(2*mjPI) + 0.5)) / x;
+    for (int k=0; k < 3; k++) {
+      r[k] *= scale;
+    }
+    xx = mju_dot3(r, r);
+  }
+
+  mjtNum c = bortzCoef(xx);
+
+  mjtNum rxv[3], rxrxv[3];
+  mji_cross(rxv, r, vel);
+  mji_cross(rxrxv, r, rxv);
+  for (int k=0; k < 3; k++) {
+    res[k] = vel[k] + 0.5*rxv[k] + c*rxrxv[k];
+  }
+}
+
+
 // integrate quaternion given 3D angular velocity
 void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale) {
   mjtNum angle, tmp[4], qrot[4];

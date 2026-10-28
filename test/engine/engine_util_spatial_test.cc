@@ -250,5 +250,47 @@ TEST_F(Mat2RotTest, SpecialCases) {
   EXPECT_THAT(quat, Pointwise(MjNear(1e-8, 1e-4), {1, 0, 0, 0}));
 }
 
+using DerivExpmapTest = MujocoTest;
+
+// mju_derivExpmap is the rate of the rotation vector log(exp(expmap) * exp(t *
+// vel)) at t = 0: compare against central finite differences, for angles below
+// and above the polynomial cutoff (1.75), near pi, and above pi (where the rate
+// is that of the equivalent rotation vector with angle in (-pi, pi])
+TEST_F(DerivExpmapTest, MatchesFiniteDifference) {
+#ifdef mjUSESINGLE
+  const mjtNum h = 1e-2;
+#else
+  const mjtNum h = 1e-5;
+#endif
+  const mjtNum kVel[3] = {0.3, -1.2, 0.7};
+  for (mjtNum angle : {0.0, 1e-3, 0.5, 1.7, 1.8, 3.0, 4.0, 7.0}) {
+    mjtNum axis[3] = {1, 2, -2};
+    mju_normalize3(axis);
+    mjtNum expmap[3];
+    mju_scl3(expmap, axis, angle);
+
+    mjtNum res[3];
+    mju_derivExpmap(res, expmap, kVel);
+
+    // finite difference of the rotation vector
+    mjtNum quat_p[4], quat_m[4], rot_p[3], rot_m[3], expected[3];
+    mju_axisAngle2Quat(quat_p, axis, angle);
+    mju_copy4(quat_m, quat_p);
+    mju_quatIntegrate(quat_p, kVel, h);
+    mju_quatIntegrate(quat_m, kVel, -h);
+    mju_quat2Vel(rot_p, quat_p, 1);
+    mju_quat2Vel(rot_m, quat_m, 1);
+    mju_sub3(expected, rot_p, rot_m);
+    mju_scl3(expected, expected, 1 / (2 * h));
+    EXPECT_THAT(res, Pointwise(MjNear(1e-9, 1e-4), expected))
+        << "angle " << angle;
+
+    // in place
+    mjtNum vel[3] = {kVel[0], kVel[1], kVel[2]};
+    mju_derivExpmap(vel, expmap, vel);
+    EXPECT_THAT(vel, Pointwise(MjNear(0, 0), res)) << "angle " << angle;
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

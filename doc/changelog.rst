@@ -75,6 +75,10 @@ Engine
 - Improved numerical stability of sphere and cylinder :ref:`spatial tendon<tendon-spatial>` :ref:`geom<spatial-geom>`
   wrapping at wrap onset. Thanks to :github:user:`M-Colley` for reporting and analyzing the issue in
   :doc:`MJWarp <mjwarp/index>` issue `1772 <https://github.com/google-deepmind/mujoco_warp/issues/1772>`__.
+- The ``RK4`` :ref:`integrator<option-integrator>` is now fourth-order accurate for the orientations of ball and free
+  joints. Previously, the angular velocities of the Runge-Kutta stages were combined without the Runge-Kutta-Munthe-Kaas
+  correction, so orientations converged only at second order. This changes the simulation of models with ball or free
+  joints that use ``RK4``.
 
 Filament Rendering
 ^^^^^^^^^^^^^^^^^^

@@ -221,6 +221,7 @@ cc_library(
         ":engine_util_misc",
         ":engine_util_solve",
         ":engine_util_sparse",
+        ":engine_util_spatial",
         "//:libmujoco_hdrs",
     ],
 )

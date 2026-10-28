@@ -200,6 +200,51 @@ def quat_integrate(q: wp.quat, v: wp.vec3, dt: float) -> wp.quat:
 
 
 @wp.func
+def deriv_expmap(expmap: wp.vec3, vel: wp.vec3) -> wp.vec3:
+  """Time-derivative of expmap in quat = quat0 * exp(expmap).
+
+  Given the rotational velocity vel in the rotated frame, computes
+  vel + 1/2 expmap x vel + c expmap x (expmap x vel), with the Bortz
+  coefficient c = (1 - (x/2) cot(x/2)) / x^2, x = |expmap|.
+
+  expmap is first replaced with the equivalent rotation vector of angle in
+  (-pi, pi], since c is singular at multiples of 2*pi. Below x = 1.75, where
+  the closed form loses accuracy to cancellation, c is a minimax polynomial in
+  x^2; with the closed form above, the error is below 6 ulp on [-pi, pi].
+
+  Port of mju_derivExpmap (MuJoCo engine_util_spatial.c), using the
+  single-precision (mjUSESINGLE) coefficients of its bortzCoef.
+  """
+  r = expmap
+  xx = wp.dot(r, r)
+
+  # reduce the angle to (-pi, pi]
+  if xx > wp.static(wp.pi * wp.pi):
+    x = wp.sqrt(xx)
+    r = r * ((x - wp.static(2.0 * wp.pi) * wp.floor(x / wp.static(2.0 * wp.pi) + 0.5)) / x)
+    xx = wp.dot(r, r)
+
+  # Bortz coefficient: minimax polynomial (Horner form), or closed form
+  c = float(0.0)
+  if xx < 3.0625:
+    c = 1.26339661e-09
+    c = -1.64186869e-08 + xx * c
+    c = 8.78585737e-08 + xx * c
+    c = -2.48791736e-07 + xx * c
+    c = 4.23758962e-07 + xx * c
+    c = 4.57548566e-07 + xx * c
+    c = 3.32480922e-05 + xx * c
+    c = 0.00138884981 + xx * c
+    c = 0.0833333358 + xx * c
+  else:
+    x = wp.sqrt(xx)
+    c = (1.0 - 0.5 * x / wp.tan(0.5 * x)) / xx
+
+  rxv = wp.cross(r, vel)
+  return vel + 0.5 * rxv + c * wp.cross(r, rxv)
+
+
+@wp.func
 def orthogonals(a: wp.vec3):
   y = wp.vec3(0.0, 1.0, 0.0)
   z = wp.vec3(0.0, 0.0, 1.0)

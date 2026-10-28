@@ -27,7 +27,6 @@
 #include <gtest/gtest.h>
 #include "absl/types/span.h"
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjspec.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_misc.h"
@@ -43,7 +42,6 @@ using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsNull;
-using ::testing::Not;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 using CoreSmoothTest = MujocoTest;
@@ -198,10 +196,11 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       mju_subFrom(ten_Jh.data(), ten_J.data(), nv);
       mju_scl(ten_Jh.data(), ten_Jh.data(), 1.0 / h, nv);
 
-      // test dot product against finite differences
+      // test dot product against finite differences; in single precision the
+      // finite difference is roundoff-limited at this h, so allow more slack
       mjtNum dot = mj_tendonDot(m, d, 0, d->qvel);
       mjtNum expected_dot = mju_dot(ten_Jh.data(), d->qvel, nv);
-      EXPECT_NEAR(dot, expected_dot, MjTol(1e-5, 2e-3));
+      EXPECT_NEAR(dot, expected_dot, MjTol(1e-5, 5e-3));
     }
 
     mj_deleteData(d);
