@@ -304,6 +304,36 @@ class BatchTest(parameterized.TestCase):
     b.set_const()  # still derived after the read: recomputed
     self.assertFalse(np.array_equal(pole.invweight0, before))
 
+  def test_expanded_reads_without_expanding(self):
+    b = batch.Batch(self.model, NSIM)
+    self.assertIsNone(b.expanded('body_mass'))
+    self.assertIsNone(b.expanded('body_invweight0'))
+    self.assertIsNone(b.expanded('opt.gravity'))
+
+    b.expand('body_mass')[:, 1] = np.arange(1, NSIM + 1)
+    b.expand('opt.gravity')[:, 2] = -np.arange(1, NSIM + 1)
+    b.set_const()
+
+    mass = b.expanded('body_mass')
+    self.assertIsNotNone(mass)
+    self.assertFalse(mass.flags.writeable)
+    np.testing.assert_array_equal(mass[:, 1], np.arange(1, NSIM + 1))
+
+    invweight = b.expanded('body_invweight0')
+    self.assertIsNotNone(invweight)
+    self.assertFalse(invweight.flags.writeable)
+    self.assertNotIn('body_invweight0', b._expanded)
+
+    gravity = b.expanded('opt.gravity')
+    self.assertIsNotNone(gravity)
+    self.assertFalse(gravity.flags.writeable)
+    np.testing.assert_array_equal(gravity[:, 2], -np.arange(1, NSIM + 1))
+
+    with self.assertRaises(ValueError):
+      b.expanded('qpos')
+    with self.assertRaises(ValueError):
+      b.expanded('nope')
+
   def test_named_structural_fields(self):
     m = self.model
     b = batch.Batch(m, NSIM)
@@ -524,7 +554,7 @@ class BatchTest(parameterized.TestCase):
     b = batch.Batch(m, NSIM)
     self.assertEqual(b.expand('bvh_aabb').shape, (NSIM, 0, 6))
     b.set_const()  # reads the expanded values back
-    self.assertEqual(b._expanded_values('bvh_aabb').shape, (NSIM, 0, 6))  # pylint: disable=protected-access
+    self.assertEqual(b.expanded('bvh_aabb').shape, (NSIM, 0, 6))
 
   def test_expand_option(self):
     m = self.model
@@ -660,7 +690,9 @@ class BatchTest(parameterized.TestCase):
       mujoco.mj_setConst(variant, mujoco.MjData(variant))
       variants.append(variant)
     b = batch.Batch(m, NSIM, 3)
+    self.assertIsNone(b.models)
     b.set_models(variants)
+    self.assertEqual(b.models, tuple(variants))
     b.ctrl[:, 0] = 0.5
     b.step(nstep=10)
     for i in range(NSIM):
@@ -685,8 +717,10 @@ class BatchTest(parameterized.TestCase):
     with self.assertRaisesRegex(ValueError, 'per simulation'):
       b.set_models(variants[:-1])
     b.set_models(variants[0])  # one model for every simulation
+    self.assertIs(b.models, variants[0])
     self.assertEqual(b.get_model(NSIM - 1).body_mass[pole], 0.1)
     b.set_models(None)
+    self.assertIsNone(b.models)
     b.expand('body_mass')
     with self.assertRaisesRegex(mujoco.FatalError, 'per-simulation'):
       b.set_models(variants)

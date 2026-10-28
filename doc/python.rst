@@ -1132,10 +1132,11 @@ default, one per CPU), with the Global Interpreter Lock released. Results are bi
   or for any function; see :ref:`mjb_getModel` and :ref:`mjb_getData`.
 - ``set_models(models)`` runs each simulation on a model of the caller's, an ``MjModel`` per simulation or one for all,
   instead of the batch's model, in place of expanded fields; named views then read model attributes from each
-  simulation's model. See :ref:`mjb_setModels`.
+  simulation's model, and ``models`` returns the models set. See :ref:`mjb_setModels`.
 - ``expand(name)`` gives an ``MjModel`` field, or an ``MjOption`` field named ``opt.<name>``, per-simulation values,
-  applied before each call. ``set_const`` runs :ref:`mj_setConst` per simulation, and the fields it derives become
-  per-simulation as well. After writing a field that :ref:`mj_setConst` reads, one of
+  applied before each call; ``expanded(name)`` returns a field's read-only per-simulation values without expanding it,
+  or ``None`` if it is still shared. ``set_const`` runs :ref:`mj_setConst` per simulation, and the fields it derives
+  become per-simulation as well. After writing a field that :ref:`mj_setConst` reads, one of
   ``mujoco.MjModel._setconst_inputs`` or an ``MjOption`` field, call ``set_const`` so that the constants derived from it
   follow.
 - ``step(ids, nstep)``, ``forward(ids)``, ``reset(ids, keyframe)`` and ``set_const(ids)`` run on the simulations

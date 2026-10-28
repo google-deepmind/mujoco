@@ -290,6 +290,31 @@ class Batch:
     self._expanded[name] = out
     return out
 
+  def expanded(self, name: str) -> Optional[np.ndarray]:
+    """Return a model field's read-only per-simulation values, or None.
+
+    Returns the per-simulation values of a field that expand() or set_const()
+    expanded, without expanding it if it is still shared.
+
+    Args:
+      name: the MjModel field, one of MODEL_FIELDS.
+
+    Returns:
+      The read-only (nsim, ...) array, or None if the field is not expanded.
+    """
+    if name not in MODEL_FIELDS:
+      raise _not_expandable(self.model, name)
+    raw = self._b.expanded(name)
+    if raw is None:
+      return None
+    if name.startswith('opt.'):
+      template = np.asarray(getattr(self.model.opt, name[4:]))
+      dtype = mujoco.MJTNUM_DTYPE if template.dtype.kind == 'f' else np.int32
+    else:
+      template = getattr(self.model, name)
+      dtype = template.dtype
+    return _per_simulation(raw.view(dtype), template)
+
   def step(
       self,
       ids: Ids = None,
@@ -395,6 +420,17 @@ class Batch:
     else:
       self._nkey = max(m.nkey for m in models)
     self._models = models
+
+  @property
+  def models(self) -> Union[None, mujoco.MjModel, Tuple[mujoco.MjModel, ...]]:
+    """The caller models set with set_models, or None for the batch's model.
+
+    An MjModel if one was set for every simulation, else a tuple with
+    simulation i's model at index i.
+    """
+    if self._models is None or isinstance(self._models, mujoco.MjModel):
+      return self._models
+    return tuple(self._models)
 
   def _model_of(self, sim: int) -> mujoco.MjModel:
     """The model simulation sim runs on, but for its per-simulation fields."""
@@ -591,14 +627,6 @@ class Batch:
       return dist, geomid
     return dist, geomid, normals
 
-  def _expanded_values(self, name: str) -> Optional[np.ndarray]:
-    """A model field's read-only per-simulation values, None if not expanded."""
-    raw = self._b.expanded(name)
-    if raw is None:
-      return None
-    template = getattr(self.model, name)
-    return _per_simulation(raw.view(template.dtype), template)
-
   def _component(self, component: Any) -> Tuple[int, int]:
     return self._b.state_component(int(component))
 
@@ -713,7 +741,7 @@ class _Named:
         rows = batch.expand(field)
       else:
         # unexpanded read: set_const's per-simulation values, or the model's
-        rows = batch._expanded_values(field)  # pylint: disable=protected-access
+        rows = batch.expanded(field)
         if rows is None:
           return np.broadcast_to(part, (batch.nsim, *part.shape))
       full = getattr(obj, field)
