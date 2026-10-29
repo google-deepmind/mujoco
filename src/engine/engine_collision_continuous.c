@@ -1545,7 +1545,54 @@ static inline void pullbackGeomPoint(mjtNum x_0[3], const mjtNum x_t[3],
 }
 
 
-// return 1 if segment between a and b is occluded by another collidable geom
+// return 1 if body pair (b1, b2) is excluded via <contact><exclude>
+static inline int isBodyPairExcluded(const mjModel* m, int b1, int b2) {
+  // TODO(kylebayes): consider binary search over m->exclude_signature
+  unsigned int sig = ((unsigned int)mjMIN(b1, b2) << 16) + mjMAX(b1, b2);
+  for (int i = 0; i < m->nexclude; i++) {
+    if ((unsigned int)m->exclude_signature[i] == sig) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+// return <contact><pair> index for geoms (g1, g2), or -1 if none
+static inline int findExplicitGeomPair(const mjModel* m, int g1, int g2) {
+  // TODO(kylebayes): consider binary search over m->pair_signature
+  for (int i = 0; i < m->npair; i++) {
+    if ((m->pair_geom1[i] == g1 && m->pair_geom2[i] == g2) ||
+        (m->pair_geom1[i] == g2 && m->pair_geom2[i] == g1)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+
+// return 1 if geoms g1 and g2 are within margin at t = 0
+static inline int isGeomPairWithinMargin(const mjModel* m, const mjData* d,
+                                         int g1, int g2, mjtNum margin) {
+  int type1 = m->geom_type[g1], type2 = m->geom_type[g2];
+  if (type1 == mjGEOM_PLANE && type2 == mjGEOM_PLANE) {
+    return 0;
+  }
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj2, m, d, g2, 0);
+  if (type1 == mjGEOM_SPHERE) obj1.support = mjc_pointSupport;
+  if (type1 == mjGEOM_CAPSULE) obj1.support = mjc_lineSupport;
+  if (type2 == mjGEOM_SPHERE) obj2.support = mjc_pointSupport;
+  if (type2 == mjGEOM_CAPSULE) obj2.support = mjc_lineSupport;
+
+  mjtNum tol = margin + m->opt.ccd_tolerance;
+  mjtNum x1[3], x2[3], normal[3];
+  return evalGeomPairDist(m, &obj1, &obj2, tol, x1, x2, normal) <= tol;
+}
+
+
+// return 1 if segment [a, b] swept by geom g1 (paired with g2) is occluded by another geom
 static inline int isRayOccluded(const mjModel* m, const mjData* d, int g1, int g2,
                                 const mjtNum a[3], const mjtNum b[3]) {
   mjtNum ab[3];
@@ -1565,38 +1612,20 @@ static inline int isRayOccluded(const mjModel* m, const mjData* d, int g1, int g
   mju_addScl3(mid, a, ab, 0.5);
   mjtNum half_len = 0.5 * mju_sqrt(len2);
 
-  int weld1 = m->body_weldid[m->geom_bodyid[g1]];
-  int weld2 = m->body_weldid[m->geom_bodyid[g2]];
+  int b1 = m->geom_bodyid[g1], b2 = m->geom_bodyid[g2];
+  int weld1 = m->body_weldid[b1];
+  int weld2 = m->body_weldid[b2];
   int p1 = m->body_weldid[m->body_parentid[weld1]];
-  int p2 = m->body_weldid[m->body_parentid[weld2]];
   int fltparent = !mjDISABLED(mjDSBL_FILTERPARENT);
   int ct1 = m->geom_contype[g1], ca1 = m->geom_conaffinity[g1];
-  int ct2 = m->geom_contype[g2], ca2 = m->geom_conaffinity[g2];
 
   // TODO(kylebayes): consider doing this as a post-processing step on the
-  // speculative contacts in engine_collision_driver instead of iterating over
-  // all geoms here
+  // speculative contacts in engine_collision_driver (which also respects
+  // mjcb_contactfilter on the main thread) instead of iterating over all geoms here
   for (int g3 = 0; g3 < m->ngeom; g3++) {
     int type = m->geom_type[g3];
     if (g3 == g1 || g3 == g2 || !mjc_GeomSupported(type)) {
       continue;
-    }
-
-    // g3 must be able to collide with g1 (when on a different weld) and g2 (when on a different weld)
-    int weld3 = m->body_weldid[m->geom_bodyid[g3]];
-    int p3 = m->body_weldid[m->body_parentid[weld3]];
-    int ct3 = m->geom_contype[g3], ca3 = m->geom_conaffinity[g3];
-    if (weld3 != weld1) {
-      if (!((ct1 & ca3) || (ct3 & ca1)) ||
-          (fltparent && weld1 != 0 && weld3 != 0 && (weld1 == p3 || weld3 == p1))) {
-        continue;
-      }
-    }
-    if (weld3 != weld2) {
-      if (!((ct2 & ca3) || (ct3 & ca2)) ||
-          (fltparent && weld2 != 0 && weld3 != 0 && (weld2 == p3 || weld3 == p2))) {
-        continue;
-      }
     }
 
     // skip g3 if its bounding sphere cannot overlap the segment's sphere
@@ -1609,30 +1638,47 @@ static inline int isRayOccluded(const mjModel* m, const mjData* d, int g1, int g
       }
     }
 
+    // g3 must not share a weld with g1 (or a moving weld with g2) and must collide with g1
+    int b3 = m->geom_bodyid[g3];
+    int weld3 = m->body_weldid[b3];
+    if (weld3 == weld1 || (weld3 == weld2 && weld2 != 0)) {
+      continue;
+    }
+    int p3 = m->body_weldid[m->body_parentid[weld3]];
+    int ct3 = m->geom_contype[g3], ca3 = m->geom_conaffinity[g3];
+    int ipair = findExplicitGeomPair(m, g1, g3);
+    if (ipair < 0) {
+      if (!((ct1 & ca3) || (ct3 & ca1)) || isBodyPairExcluded(m, b1, b3) ||
+          (fltparent && weld1 != 0 && weld3 != 0 && (weld1 == p3 || weld3 == p1))) {
+        continue;
+      }
+    }
+
+    int hit = 0;
     if (type == mjGEOM_PLANE) {
       const mjtNum* gpos = d->geom_xpos + 3 * g3;
       const mjtNum* gmat = d->geom_xmat + 9 * g3;
       mjtNum n[3] = {gmat[2], gmat[5], gmat[8]};
       mjtNum diff[3];
-      mji_sub3(diff, pnt, gpos);
+      mji_sub3(diff, a, gpos);
       mjtNum da = mju_dot3(diff, n);
-      mjtNum db = da + mju_dot3(vec, n);
-      if ((da >= 0 && db <= 0) || (da <= 0 && db >= 0)) {
+      mjtNum db = da + mju_dot3(ab, n);
+      hit = (da * db <= 0 && (mju_abs(da) > eps || mju_abs(db) > eps));
+    } else if (type == mjGEOM_MESH) {
+      mjtNum x = mj_rayMesh(m, d, g3, pnt, vec, NULL);
+      hit = (x >= 0 && x <= 1);
+    } else {
+      mjtNum x = mju_rayGeom(d->geom_xpos + 3 * g3, d->geom_xmat + 9 * g3,
+                             m->geom_size + 3 * g3, pnt, vec, type, NULL);
+      hit = (x >= 0 && x <= 1);
+    }
+
+    if (hit) {
+      mjtNum margin3 = mj_assignMargin(
+          m, ipair >= 0 ? m->pair_margin[ipair] : m->geom_margin[g1] + m->geom_margin[g3]);
+      if (!isGeomPairWithinMargin(m, d, g1, g3, margin3)) {
         return 1;
       }
-      continue;
-    }
-
-    mjtNum x = -1;
-    if (type == mjGEOM_MESH) {
-      x = mj_rayMesh(m, d, g3, pnt, vec, NULL);
-    } else {
-      x = mju_rayGeom(d->geom_xpos + 3 * g3, d->geom_xmat + 9 * g3,
-                      m->geom_size + 3 * g3, pnt, vec, type, NULL);
-    }
-
-    if (x >= 0 && x <= 1) {
-      return 1;
     }
   }
   return 0;
@@ -1764,11 +1810,16 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     // TODO(kylebayes): slower body gets a lever-arm error proportional to tangential travel;
     // the real fix is per-body contact points in the Jacobian
     mjtNum w1 = s1 / sweep, w2 = s2 / sweep;
+    int g_fast = s1 >= s2 ? g1 : g2, g_slow = s1 >= s2 ? g2 : g1;
     for (int i = 0; i < nx; i++) {
+      const mjtNum* x1_t = x1_all + 3*i;
+      const mjtNum* x2_t = x2_all + 3*i;
       mjtNum x1_0[3], x2_0[3];
-      pullbackGeomPoint(x1_0, x1_all + 3*i, &obj1, d);
-      pullbackGeomPoint(x2_0, x2_all + 3*i, &obj2, d);
-      if (isRayOccluded(m, d, g1, g2, x1_0, x2_0)) {
+      pullbackGeomPoint(x1_0, x1_t, &obj1, d);
+      pullbackGeomPoint(x2_0, x2_t, &obj2, d);
+      if (isRayOccluded(m, d, g1, g2, x1_0, x1_t) ||
+          isRayOccluded(m, d, g2, g1, x2_0, x2_t) ||
+          isRayOccluded(m, d, g_fast, g_slow, x1_t, x2_t)) {
         continue;
       }
       con[ncon].pos[0] = w1 * x1_0[0] + w2 * x2_0[0];
@@ -1780,10 +1831,13 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
       ncon++;
     }
   } else {
+    int g_fast = s1 >= s2 ? g1 : g2, g_slow = s1 >= s2 ? g2 : g1;
     mjtNum x1_0[3], x2_0[3];
     pullbackGeomPoint(x1_0, x1, &obj1, d);
     pullbackGeomPoint(x2_0, x2, &obj2, d);
-    if (!isRayOccluded(m, d, g1, g2, x1_0, x2_0)) {
+    if (!isRayOccluded(m, d, g1, g2, x1_0, x1) &&
+        !isRayOccluded(m, d, g2, g1, x2_0, x2) &&
+        !isRayOccluded(m, d, g_fast, g_slow, x1, x2)) {
       ncon = 1;
     }
   }

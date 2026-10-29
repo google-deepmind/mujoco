@@ -1029,5 +1029,169 @@ TEST_F(ContinuousCollisionTest, SlightlyTiltedThinCardGetsFourFaceContacts) {
   mj_deleteModel(m);
 }
 
+TEST_F(ContinuousCollisionTest, RayOcclusionRespectsContactExclude) {
+  constexpr char kExcludeXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="wall" type="box" size="1 1 0.02" pos="0 0 0"/>
+      <body name="shield" pos="0 0 0.15">
+        <geom name="shield_geom" type="box" size="0.5 0.5 0.02"/>
+      </body>
+      <body name="ball" pos="0 0 0.30">
+        <freejoint/>
+        <geom name="ball_geom" type="sphere" size="0.03" mass="1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <exclude body1="ball" body2="shield"/>
+    </contact>
+  </mujoco>)";
+  mjModel* m = Load(kExcludeXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, RayOcclusionRespectsExplicitPair) {
+  constexpr char kPairXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body name="wall1_body" mocap="true" pos="0 0 0">
+        <geom name="wall1" type="box" size="1 1 0.02"
+              contype="0" conaffinity="0"/>
+      </body>
+      <body name="wall2_body" mocap="true" pos="0 0 -0.15">
+        <geom name="wall2" type="box" size="1 1 0.02"
+              contype="0" conaffinity="0"/>
+      </body>
+      <body name="ball" pos="0 0 0.25">
+        <freejoint/>
+        <geom name="ball_geom" type="sphere" size="0.03"
+              contype="0" conaffinity="0" mass="1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="ball_geom" geom2="wall1"/>
+      <pair geom1="ball_geom" geom2="wall2"/>
+    </contact>
+  </mujoco>)";
+  mjModel* m = Load(kPairXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -60.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, RayOcclusionSkipsSameMovingWeld) {
+  constexpr char kRotorXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="target_fin" type="box" pos="0.1864 0.0725 0"
+            euler="0 0 -68.75" size="0.005 0.0015 0.02"/>
+      <body name="rotor" pos="0 0 0">
+        <joint name="spin" type="hinge" axis="0 0 1"/>
+        <geom name="paddle" type="capsule" fromto="0 -0.20 0 0 0.20 0"
+              size="0.003" mass="0.05"/>
+        <geom name="hub" type="cylinder" pos="0 0 0" size="0.175 0.02"
+              mass="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kRotorXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[0] = -150.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_GE(mjc_advanceGeomPair(m, d, 0, 1, 0.0, con, buffer.data()), 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest,
+       RayOcclusionUsesSweptTrajectoriesForOrthogonalCatch) {
+  constexpr char kOrthogonalCatchXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="overhang" type="box" size="0.05 0.004 0.004"
+            pos="0 -0.01 0.01"/>
+      <body name="finger" pos="0 -0.02 0">
+        <joint name="slide_y" type="slide" axis="0 1 0"/>
+        <geom name="finger_geom" type="sphere" size="0.004" mass="0.2"/>
+      </body>
+      <body name="card" pos="0 0 0.02">
+        <joint name="slide_z" type="slide" axis="0 0 1"/>
+        <geom name="card_geom" type="box" size="0.03 0.02 0.00035" mass="0.01"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kOrthogonalCatchXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[0] = 4.0;
+  d->qvel[1] = -4.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_GE(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest,
+       RayOcclusionIgnoresSupportingFloorWhenPlateSlidesIntoWall) {
+  constexpr char kSlideXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 -9.81"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 0.01" margin="0.001"
+            friction="0 0 0"/>
+      <geom name="wall" type="box" size="0.02 0.5 0.2" pos="0.155 0 0"/>
+      <body name="plate" pos="-0.06 0 0.0035">
+        <freejoint/>
+        <geom name="plate_geom" type="box" size="0.05 0.05 0.00035"
+              margin="0.001" friction="0 0 0" mass="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kSlideXml);
+  mjData* d = mj_makeData(m);
+
+  // step twice under gravity so plate settles into floor's margin with vz < 0
+  d->qvel[0] = 5.0;
+  mj_step(m, d);
+  mj_step(m, d);
+  mj_fwdPosition(m, d);
+  EXPECT_LT(d->qvel[2], 0.0);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.001, con, buffer.data()), 4);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 }  // namespace
 }  // namespace mujoco
