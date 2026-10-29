@@ -105,6 +105,12 @@ Bug fixes
   ``cam_xpos``, ``cam_xmat``, ``light_xpos`` and ``light_xdir`` in :ref:`mjData`, which left static cameras and lights
   with tracking or targeting at their fixed-mode poses.
 
+Documentation
+^^^^^^^^^^^^^
+- Added documentation for :ref:`MuJoCo Studio <Studio>`, covering :ref:`web <StudioWebViewers>` and
+  :ref:`native <StudioNativeViewers>` viewers, :ref:`architecture <StudioArchitecture>`, and
+  :ref:`Python <StudioPythonPlugins>` and :ref:`C++ <StudioCpp>` development.
+
 Version 3.17.0 (October 22, 2026)
 ---------------------------------
 
