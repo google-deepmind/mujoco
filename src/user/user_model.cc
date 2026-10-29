@@ -6710,18 +6710,15 @@ static void EstimateFlexArena(const mjModel* m,
       add_clique(slots, 2);
     }
 
-    // 1D rod bending (adjacent edges)
+    // 1D rod bending (3-vertex single hinges and 4-vertex hinge pairs)
     if (dim == 1 && m->flex_bendingadr[f] >= 0) {
-      std::vector<std::vector<int>> star(vnum);
-      for (int v = 0; v < vnum; v++) { star[v].push_back(vslot[v]); }
-      for (int e = 0; e < edgenum; e++) {
-        int v0 = m->flex_edge[2 * (edgeadr + e) + 0];
-        int v1 = m->flex_edge[2 * (edgeadr + e) + 1];
-        star[v0].push_back(vslot[v1]);
-        star[v1].push_back(vslot[v0]);
-      }
-      for (int v = 0; v < vnum; v++) {
-        add_clique(star[v].data(), static_cast<int>(star[v].size()));
+      const mjtNum* bend = m->flex_bending + m->flex_bendingadr[f];
+      for (int h = 0; h < static_cast<int>(bend[0]); h++) {
+        const mjtNum* hinge = bend + 1 + mjROD_HINGE_SIZE * h;
+        int           nr    = mj_rodHingeVert(hinge);
+        int           slots[4];
+        for (int k = 0; k < nr; k++) { slots[k] = vslot[static_cast<int>(hinge[k])]; }
+        add_clique(slots, nr);
       }
     }
   }

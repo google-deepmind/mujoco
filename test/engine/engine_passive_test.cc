@@ -1792,23 +1792,70 @@ TEST_F(ElasticityTest, StretchParentBodyRotation) {
 
 // ------------------------------ 1D rod bending ------------------------------
 
-constexpr int kRodHingeSize = 4;
+constexpr int kRodHingeSize = 10;
 
 // discrete elastic rod bending energy of flex f, from the compiled hinge data
 mjtNum RodBendingEnergy(const mjModel* m, const mjData* d, int f) {
+  static constexpr mjtNum kSmooth = static_cast<mjtNum>(1e-4);
+  const mjtNum gam = mju_sqrt(1 + kSmooth * kSmooth);
   const mjtNum* b = m->flex_bending + m->flex_bendingadr[f];
   const mjtNum* xpos = d->flexvert_xpos + 3 * m->flex_vertadr[f];
+  auto binormal = [&](int va, int v, int vb, mjtNum kb[3]) {
+    mjtNum e0[3], e1[3], cross[3];
+    mju_sub3(e0, xpos + 3 * v, xpos + 3 * va);
+    mju_sub3(e1, xpos + 3 * vb, xpos + 3 * v);
+    mju_cross(cross, e0, e1);
+    mjtNum denom = mju_norm3(e0) * mju_norm3(e1) + mju_dot3(e0, e1);
+    mju_scl3(kb, cross, 2 / denom);
+  };
   mjtNum energy = 0;
   for (int h = 0; h < (int)b[0]; h++) {
     const mjtNum* hinge = b + 1 + kRodHingeSize * h;
-    int va = hinge[0], v = hinge[1], vb = hinge[2];
-    mjtNum e0[3], e1[3], kb[3];
-    mju_sub3(e0, xpos + 3 * v, xpos + 3 * va);
-    mju_sub3(e1, xpos + 3 * vb, xpos + 3 * v);
-    mju_cross(kb, e0, e1);
-    mjtNum denom = mju_norm3(e0) * mju_norm3(e1) + mju_dot3(e0, e1);
-    mjtNum r = 2 * mju_norm3(kb) / denom;
-    energy += hinge[3] * r * r;
+    int v0 = hinge[0], v1 = hinge[1], v2 = hinge[2], v3 = hinge[3];
+
+    // single hinge: k |kb|^2, or k (|kb| - kb0)^2 smoothed at kb = 0
+    if (v3 < 0) {
+      mjtNum kb[3];
+      binormal(v0, v1, v2, kb);
+      mjtNum k = hinge[4], kb0 = hinge[6];
+      mjtNum r = mju_norm3(kb);
+      mjtNum rho = mju_sqrt(r * r + kSmooth * kSmooth * kb0 * kb0);
+      energy += k * (rho - gam * kb0) * (rho - gam * kb0);
+      continue;
+    }
+
+    // hinge pair: binormals along axes orthogonal to the shared edge, chosen
+    // differently from the engine since the energy does not depend on them
+    mjtNum kba[3], kbb[3], t[3], u[3] = {0, 0, 0}, v[3];
+    binormal(v0, v1, v2, kba);
+    binormal(v1, v2, v3, kbb);
+    mju_sub3(t, xpos + 3 * v2, xpos + 3 * v1);
+    mju_normalize3(t);
+    int axis = 0;
+    for (int i = 1; i < 3; i++) {
+      if (std::abs(t[i]) < std::abs(t[axis])) axis = i;
+    }
+    u[axis] = 1;
+    mju_addToScl3(u, t, -t[axis]);
+    mju_normalize3(u);
+    mju_cross(v, t, u);
+    mjtNum om[4] = {mju_dot3(kba, u), mju_dot3(kba, v), mju_dot3(kbb, u),
+                    mju_dot3(kbb, v)};
+
+    // min over rotations a about the edge of sum_i w_i |om_i - R(a) om0_i|^2,
+    // with the alignment sqrt(c^2 + s^2) smoothed at om = 0
+    mjtNum w0 = hinge[4], w1 = hinge[5];
+    const mjtNum* om0 = hinge + 6;
+    mjtNum q = w0 * (om[0] * om[0] + om[1] * om[1]) +
+               w1 * (om[2] * om[2] + om[3] * om[3]);
+    mjtNum q0 = w0 * (om0[0] * om0[0] + om0[1] * om0[1]) +
+                w1 * (om0[2] * om0[2] + om0[3] * om0[3]);
+    mjtNum c = w0 * (om[0] * om0[0] + om[1] * om0[1]) +
+               w1 * (om[2] * om0[2] + om[3] * om0[3]);
+    mjtNum s = w0 * (om[1] * om0[0] - om[0] * om0[1]) +
+               w1 * (om[3] * om0[2] - om[2] * om0[3]);
+    mjtNum rho = mju_sqrt(c * c + s * s + kSmooth * kSmooth * q0 * q0);
+    energy += q + (2 * gam * gam - 1) * q0 - 2 * gam * rho;
   }
   return energy;
 }
@@ -1830,11 +1877,74 @@ static constexpr char kRodTurnedXml[] = R"(
   <option gravity="0 0 0"/>
   <worldbody>
     <body name="turned" euler="20 30 40">
-      <flexcomp name="rod" type="grid" count="6 1 1" spacing="0.1 0.1 0.1"
-                radius="0.01" dim="1" mass="1">
+      <flexcomp name="turned_rod" type="grid" count="6 1 1"
+                spacing="0.1 0.1 0.1" radius="0.01" dim="1" mass="1">
         <elasticity young="1e7" damping="0.01"/>
       </flexcomp>
     </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char kRodCircleXml[] = R"(
+<mujoco>
+  <option gravity="0 0 0"/>
+  <worldbody>
+    <body name="turned" euler="20 30 40">
+      <flexcomp name="ring" type="circle" count="8 1 1" spacing="0.15 0.15 0.15"
+                radius="0.01" dim="1" mass="1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7" damping="0.01"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char kRodHelixXml[] = R"(
+<mujoco>
+  <option gravity="0 0 0"/>
+  <worldbody>
+    <body name="turned" euler="15 -25 35">
+      <flexcomp name="helix" type="direct" dim="1" radius="0.01" mass="1"
+                element="0 1  1 2  2 3  3 4  4 5  5 6  6 7"
+                point="0.15 0.00 0.00   0.106 0.106 0.03   0.00 0.15 0.06
+                       -0.106 0.106 0.09   -0.15 0.00 0.12   -0.106 -0.106 0.15
+                       0.00 -0.15 0.18   0.106 -0.106 0.21">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7" damping="0.01"/>
+      </flexcomp>
+    </body>
+  </worldbody>
+</mujoco>
+)";
+
+static constexpr char kRodVeeXml[] = R"(
+<mujoco>
+  <option gravity="0 0 0"/>
+  <worldbody>
+    <flexcomp name="vee" type="direct" dim="1" radius="0.01" mass="1"
+              element="0 1  1 2" point="0 0 0  0.1 0 0  0.18 0.06 0.02">
+      <contact selfcollide="none" contype="0" conaffinity="0"/>
+      <elasticity young="1e7" damping="0.01"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>
+)";
+
+// straight segment ending in a planar arc: straight single hinges at vertices
+// 1, 2 and hinge pairs (3, 4), (4, 5), where vertex 3 has one curved neighbor
+static constexpr char kRodHookXml[] = R"(
+<mujoco>
+  <option gravity="0 0 0"/>
+  <worldbody>
+    <flexcomp name="hook" type="direct" dim="1" radius="0.01" mass="1"
+              element="0 1  1 2  2 3  3 4  4 5  5 6"
+              point="0 0 0  0.05 0 0  0.1 0 0  0.15 0 0  0.193 0.025 0
+                     0.218 0.068 0  0.218 0.118 0">
+      <contact selfcollide="none" contype="0" conaffinity="0"/>
+      <elasticity young="1e7" damping="0.01"/>
+    </flexcomp>
   </worldbody>
 </mujoco>
 )";
@@ -1846,11 +1956,12 @@ TEST_F(ElasticityTest, RodBendingCompile) {
   ASSERT_GE(m->flex_bendingadr[0], 0);
   const mjtNum* b = m->flex_bending + m->flex_bendingadr[0];
 
-  // 6 vertices on a line: 4 interior hinges, straight reference
+  // 6 vertices on a line: 4 single straight hinges
   EXPECT_EQ(b[0], 4);
   mjtNum EI = 1e7 * mjPI * std::pow(0.01, 4) / 4;
   for (int h = 0; h < 4; h++) {
-    EXPECT_NEAR(b[1 + kRodHingeSize * h + 3], EI / 0.2, MjTol(1e-12, 1e-6));
+    EXPECT_EQ(b[1 + kRodHingeSize * h + 3], -1);
+    EXPECT_NEAR(b[1 + kRodHingeSize * h + 4], EI / 0.2, MjTol(1e-12, 1e-6));
   }
 
   // rotated straight rod
@@ -1858,16 +1969,27 @@ TEST_F(ElasticityTest, RodBendingCompile) {
   ASSERT_THAT(m.get(), NotNull()) << error;
   b = m->flex_bending + m->flex_bendingadr[0];
   EXPECT_EQ(b[0], 4);
+
+  // closed circle (count="8 1 1" wraps to 7 vertices): 7 hinge pairs
+  m = LoadModelFromString(kRodCircleXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->flex_vertnum[0], 7);
+  b = m->flex_bending + m->flex_bendingadr[0];
+  EXPECT_EQ(b[0], 7);
+  for (int h = 0; h < 7; h++) {
+    EXPECT_GE(b[1 + kRodHingeSize * h + 3], 0);
+  }
 }
 
-// the isotropic rod model requires a straight reference configuration
-TEST_F(ElasticityTest, RodBendingRequiresStraightReference) {
+// references bent by more than 1e-4 rad are kept as the rest shape, as curved
+// single hinges or as hinge pairs; smaller bends are treated as straight
+TEST_F(ElasticityTest, RodBendingCurvedReference) {
   static constexpr char xml_template[] = R"(
   <mujoco>
     <worldbody>
       <flexcomp name="rod" type="direct" dim="1" radius="0.01" mass="1"
                 element="0 1  1 2" point="0 0 0  0.1 0 0  0.2 %s 0">
-        <elasticity young="%s"/>
+        <elasticity young="1e7"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -1875,34 +1997,161 @@ TEST_F(ElasticityTest, RodBendingRequiresStraightReference) {
   char xml[2048];
   char error[1024] = {0};
 
-  // closed ring: curved everywhere
-  static constexpr char ring[] = R"(
+  // bent by 1e-5 rad: straight single hinge
+  std::snprintf(xml, sizeof(xml), xml_template, "1e-6");
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  const mjtNum* b = m->flex_bending + m->flex_bendingadr[0];
+  EXPECT_EQ(b[0], 1);
+  EXPECT_EQ(b[1 + 3], -1);
+  EXPECT_EQ(b[1 + 6], 0);
+
+  // bent by 1e-3 rad: curved single hinge, storing |kb| = 2 tan(phi / 2)
+  std::snprintf(xml, sizeof(xml), xml_template, "1e-4");
+  m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  b = m->flex_bending + m->flex_bendingadr[0];
+  EXPECT_EQ(b[0], 1);
+  EXPECT_EQ(b[1 + 3], -1);
+  EXPECT_NEAR(b[1 + 6], 2 * std::tan(std::atan(1e-3) / 2), MjTol(1e-12, 1e-9));
+
+  // fully folded hinge
+  static constexpr char folded[] = R"(
   <mujoco>
     <worldbody>
-      <flexcomp name="ring" type="circle" count="11 1 1" spacing="0.1 0.1 0.1"
-                radius="0.01" dim="1" mass="1">
+      <flexcomp name="rod" type="direct" dim="1" radius="0.01" mass="1"
+                element="0 1  1 2" point="0 0 0  0.1 0 0  0 0 0">
         <elasticity young="1e7"/>
       </flexcomp>
     </worldbody>
   </mujoco>
   )";
-  MjModelPtr m = LoadModelFromString(ring, error, sizeof(error));
+  m = LoadModelFromString(folded, error, sizeof(error));
   EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(error, HasSubstr("requires a straight reference configuration"));
+  EXPECT_THAT(error, HasSubstr("degenerate 1D flex hinge"));
 
-  // bent by 1e-3 rad at the middle vertex
-  std::snprintf(xml, sizeof(xml), xml_template, "1e-4", "1e7");
-  m = LoadModelFromString(xml, error, sizeof(error));
-  EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(error, HasSubstr("vertex 1 is bent"));
+  // planar arc of radius 0.2 with 8 vertices: 6 curved hinges, 5 hinge pairs
+  static constexpr int kN = 8;
+  static constexpr double kRadius = 0.2;
+  const double dtheta = mjPI / (kN - 1);
+  const double chord = 2 * kRadius * std::sin(dtheta / 2);
+  std::string point, element;
+  for (int i = 0; i < kN; i++) {
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.17g %.17g 0  ",
+                  kRadius * std::cos(i * dtheta),
+                  kRadius * std::sin(i * dtheta));
+    point += buf;
+    if (i) element += std::to_string(i - 1) + " " + std::to_string(i) + "  ";
+  }
+  std::string arc = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp name="arc" type="direct" dim="1" radius="0.01" mass="1"
+                element=")" +
+                    element + R"(" point=")" + point + R"(">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  m = LoadModelFromString(arc.c_str(), error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  b = m->flex_bending + m->flex_bendingadr[0];
+  ASSERT_EQ(b[0], kN - 3);
 
-  // bent within the tolerance, or without elasticity: compiles
-  std::snprintf(xml, sizeof(xml), xml_template, "1e-7", "1e7");
-  m = LoadModelFromString(xml, error, sizeof(error));
-  EXPECT_THAT(m.get(), NotNull()) << error;
-  std::snprintf(xml, sizeof(xml), xml_template, "1e-2", "0");
-  m = LoadModelFromString(xml, error, sizeof(error));
-  EXPECT_THAT(m.get(), NotNull()) << error;
+  // the stiffness k = EI / (l0 + l1) of each hinge is split among its pairs
+  const double k = 1e7 * mjPI * std::pow(0.01, 4) / 4 / (2 * chord);
+  std::vector<double> stiffness(kN, 0);
+  for (int h = 0; h < kN - 3; h++) {
+    const mjtNum* hinge = b + 1 + kRodHingeSize * h;
+    EXPECT_GE(hinge[3], 0);
+    stiffness[(int)hinge[1]] += hinge[4];
+    stiffness[(int)hinge[2]] += hinge[5];
+  }
+  for (int v = 1; v < kN - 1; v++) {
+    EXPECT_NEAR(stiffness[v], k, MjTol(1e-10, 1e-5) * k) << "vertex " << v;
+  }
+
+  // zero energy at rest
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  EXPECT_NEAR(RodBendingEnergy(m.get(), d.get(), 0), 0, MjTol(1e-12, 1e-6));
+
+  // in-plane change of curvature at fixed edge lengths: k (|kb| - |kb0|)^2 per
+  // hinge
+  const double radius = 0.25;
+  const double dtheta1 = 2 * std::asin(chord / (2 * radius));
+  for (int i = 0; i < kN; i++) {
+    d->qpos[3 * i + 0] = radius * std::cos(i * dtheta1) + kRadius - radius -
+                         kRadius * std::cos(i * dtheta);
+    d->qpos[3 * i + 1] =
+        radius * std::sin(i * dtheta1) - kRadius * std::sin(i * dtheta);
+  }
+  mj_forward(m.get(), d.get());
+  double dkb = 2 * std::tan(dtheta1 / 2) - 2 * std::tan(dtheta / 2);
+  double energy = (kN - 2) * k * dkb * dkb;
+  EXPECT_NEAR(RodBendingEnergy(m.get(), d.get(), 0), energy,
+              MjTol(1e-6, 1e-2) * energy);
+
+  // the energy decreases along the force
+  mjtNum e0 = RodBendingEnergy(m.get(), d.get(), 0);
+  std::vector<mjtNum> force(d->qfrc_spring, d->qfrc_spring + m->nv);
+  mjtNum fnorm = mju_norm(force.data(), m->nv);
+  ASSERT_GT(fnorm, 0);
+  for (int i = 0; i < m->nv; i++) {
+    d->qpos[i] += 1e-4 / fnorm * force[i];
+  }
+  mj_fwdPosition(m.get(), d.get());
+  EXPECT_LT(RodBendingEnergy(m.get(), d.get(), 0), e0);
+
+  // rigid rotations at rest, including ones that move edges across the switch
+  // of the engine's edge frame axes: no energy and no force
+  const mjtNum axes[3][3] = {{1, 0, 0}, {0, 1, 1}, {1, -2, 3}};
+  const mjtNum angles[3] = {mjPI / 2, 2.0, -1.0};
+  for (int r = 0; r < 3; r++) {
+    mjtNum quat[4], axis[3];
+    mju_copy3(axis, axes[r]);
+    mju_normalize3(axis);
+    mju_axisAngle2Quat(quat, axis, angles[r]);
+    for (int i = 0; i < kN; i++) {
+      mjtNum x[3] = {static_cast<mjtNum>(kRadius * std::cos(i * dtheta)),
+                     static_cast<mjtNum>(kRadius * std::sin(i * dtheta)), 0};
+      mjtNum rx[3];
+      mju_rotVecQuat(rx, x, quat);
+      mju_sub3(d->qpos + 3 * i, rx, x);
+    }
+    mj_forward(m.get(), d.get());
+    EXPECT_NEAR(RodBendingEnergy(m.get(), d.get(), 0), 0, MjTol(1e-10, 1e-5));
+    for (int i = 0; i < m->nv; i++) {
+      EXPECT_NEAR(d->qfrc_spring[i], 0, MjTol(1e-6, 1e-2))
+          << "rotation " << r << ", dof " << i;
+    }
+  }
+
+  // straight segment ending in an arc: 2 hinge pairs, then 2 straight hinges
+  m = LoadModelFromString(kRodHookXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  b = m->flex_bending + m->flex_bendingadr[0];
+  ASSERT_EQ(b[0], 4);
+  const mjtNum* pair = b + 1;
+  EXPECT_EQ(pair[0], 2);
+  EXPECT_EQ(pair[1], 3);
+  EXPECT_EQ(pair[2], 4);
+  EXPECT_EQ(pair[3], 5);
+  for (int h = 2; h < 4; h++) {
+    const mjtNum* hinge = b + 1 + kRodHingeSize * h;
+    EXPECT_EQ(hinge[1], h - 1);
+    EXPECT_EQ(hinge[3], -1);
+    EXPECT_EQ(hinge[6], 0);
+  }
+
+  // vertex 3 is in one pair, with the full stiffness of its hinge
+  const double EI = 1e7 * mjPI * std::pow(0.01, 4) / 4;
+  const double l1 = std::sqrt(0.043 * 0.043 + 0.025 * 0.025);
+  EXPECT_NEAR(pair[4], EI / (0.05 + l1), MjTol(1e-10, 1e-5) * pair[4]);
 }
 
 // a straight reference can be posed curved through qpos: the bending force
@@ -2005,10 +2254,12 @@ TEST_F(ElasticityTest, RodBendingWithEdgeEquality) {
 }
 
 TEST_F(ElasticityTest, RodBendingZeroForceAtRest) {
-  for (const char* xml : {kRodStraightXml, kRodTurnedXml}) {
+  for (const char* xml : {kRodStraightXml, kRodTurnedXml, kRodCircleXml,
+                          kRodHelixXml, kRodVeeXml, kRodHookXml}) {
     char error[1024] = {0};
     MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
     ASSERT_THAT(m.get(), NotNull()) << error;
+    SCOPED_TRACE(m->names + m->name_flexadr[0]);
     MjDataPtr d = MakeData(m);
     mj_forward(m.get(), d.get());
     for (int i = 0; i < m->nv; i++) {
@@ -2018,10 +2269,12 @@ TEST_F(ElasticityTest, RodBendingZeroForceAtRest) {
 }
 
 TEST_F(ElasticityTest, RodBendingForceIsEnergyGradient) {
-  for (const char* xml : {kRodStraightXml, kRodTurnedXml}) {
+  for (const char* xml : {kRodStraightXml, kRodTurnedXml, kRodCircleXml,
+                          kRodHelixXml, kRodVeeXml, kRodHookXml}) {
     char error[1024] = {0};
     MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
     ASSERT_THAT(m.get(), NotNull()) << error;
+    SCOPED_TRACE(m->names + m->name_flexadr[0]);
     MjDataPtr d = MakeData(m);
 
     // deterministic perturbation of the slide joints
@@ -2053,33 +2306,42 @@ TEST_F(ElasticityTest, RodBendingForceIsEnergyGradient) {
 }
 
 TEST_F(ElasticityTest, RodBendingDamping) {
-  char error[1024] = {0};
-  MjModelPtr m = LoadModelFromString(kRodStraightXml, error, sizeof(error));
-  ASSERT_THAT(m.get(), NotNull()) << error;
-  MjDataPtr d = MakeData(m);
+  for (const char* xml : {kRodStraightXml, kRodCircleXml, kRodHelixXml,
+                          kRodVeeXml, kRodHookXml}) {
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    SCOPED_TRACE(m->names + m->name_flexadr[0]);
+    MjDataPtr d = MakeData(m);
 
-  // bent configuration
-  for (int i = 0; i < m->nq; i++) {
-    d->qpos[i] = 0.02 * std::sin(1.7 * i + 0.3);
-  }
+    // bent configuration
+    for (int i = 0; i < m->nq; i++) {
+      d->qpos[i] = 0.02 * std::sin(1.7 * i + 0.3);
+    }
 
-  // arbitrary velocity: damping dissipates energy
-  for (int i = 0; i < m->nv; i++) {
-    d->qvel[i] = std::cos(2.3 * i + 0.1);
-  }
-  mj_forward(m.get(), d.get());
-  EXPECT_LT(mju_dot(d->qfrc_damper, d->qvel, m->nv), 0);
+    // arbitrary velocity: damping dissipates energy
+    for (int i = 0; i < m->nv; i++) {
+      d->qvel[i] = std::cos(2.3 * i + 0.1);
+    }
+    mj_forward(m.get(), d.get());
+    EXPECT_LT(mju_dot(d->qfrc_damper, d->qvel, m->nv), 0);
 
-  // rigid rotation about an arbitrary axis: no damping
-  mjtNum omega[3] = {0.3, -0.5, 0.7};
-  int nvert = m->flex_vertnum[0];
-  for (int v = 0; v < nvert; v++) {
-    int dofadr = m->body_dofadr[m->flex_vertbodyid[m->flex_vertadr[0] + v]];
-    mju_cross(d->qvel + dofadr, omega, d->flexvert_xpos + 3 * v);
-  }
-  mj_forward(m.get(), d.get());
-  for (int i = 0; i < m->nv; i++) {
-    EXPECT_NEAR(d->qfrc_damper[i], 0, MjTol(1e-8, 1e-5)) << "dof " << i;
+    // rigid rotation about an arbitrary axis: no damping (qvel is in body
+    // frame)
+    mjtNum omega[3] = {0.3, -0.5, 0.7};
+    int nvert = m->flex_vertnum[0];
+    for (int v = 0; v < nvert; v++) {
+      int bid = m->flex_vertbodyid[m->flex_vertadr[0] + v];
+      int dofadr = m->body_dofadr[bid];
+      mjtNum vworld[3];
+      mju_cross(vworld, omega, d->flexvert_xpos + 3 * v);
+      mju_mulMatTVec3(d->qvel + dofadr, d->xmat + 9 * m->body_weldid[bid],
+                      vworld);
+    }
+    mj_forward(m.get(), d.get());
+    for (int i = 0; i < m->nv; i++) {
+      EXPECT_NEAR(d->qfrc_damper[i], 0, MjTol(1e-8, 1e-5)) << "dof " << i;
+    }
   }
 }
 
@@ -2195,7 +2457,7 @@ TEST_F(ElasticityTest, RodBendingBoxSection) {
   EXPECT_EQ(b[0], 4);
   mjtNum EI = 1e7 * 0.04 * std::pow(0.01, 3) / 12;
   for (int h = 0; h < 4; h++) {
-    EXPECT_NEAR(b[1 + kRodHingeSize * h + 3], EI / 0.2, MjTol(1e-12, 1e-6));
+    EXPECT_NEAR(b[1 + kRodHingeSize * h + 4], EI / 0.2, MjTol(1e-12, 1e-6));
   }
 
   // saved XML keeps the section
@@ -2211,7 +2473,7 @@ TEST_F(ElasticityTest, RodBendingBoxSection) {
   MjModelPtr m2 = LoadModelFromString(saved.c_str(), error, sizeof(error));
   ASSERT_THAT(m2.get(), NotNull()) << error;
   const mjtNum* b2 = m2->flex_bending + m2->flex_bendingadr[0];
-  EXPECT_NEAR(b2[1 + 3], EI / 0.2, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(b2[1 + 4], EI / 0.2, MjTol(1e-12, 1e-6));
 
   // box requires positive sizes
   std::snprintf(xml, sizeof(xml), xml_template, R"(section="box")");
@@ -2371,6 +2633,58 @@ TEST_F(ElasticityTest, RodBendingMetricCholesky) {
     EXPECT_EQ(d->warning[mjWARN_BADQACC].number, 0);
   }
   EXPECT_GT(d->nisland, 0);
+
+  // curved helix, whose hinge pairs couple vertices three edges apart: still 1
+  // PCG iteration
+  static constexpr char kCurvedCholXml[] = R"(
+  <mujoco>
+    <option integrator="discrete" timestep="0.002" iterations="1"/>
+    <worldbody>
+      <flexcomp name="helix" type="direct" dim="1" radius="0.005" mass="0.1"
+                element="0 1  1 2  2 3  3 4  4 5  5 6  6 7  7 8  8 9"
+                point="0.10 0.00 0.00   0.08 0.06 0.02   0.03 0.095 0.04
+                       -0.03 0.095 0.06   -0.08 0.06 0.08   -0.10 0.00 0.10
+                       -0.08 -0.06 0.12   -0.03 -0.095 0.14   0.03 -0.095 0.16
+                       0.08 -0.06 0.18">
+        <pin id="0 1"/>
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <edge equality="true"/>
+        <elasticity young="1e9" damping="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  m = LoadModelFromString(kCurvedCholXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  d = MakeData(m);
+  for (int i = 0; i < m->nq; i++) {
+    d->qpos[i] = 0.005 * mju_sin(1.3 * i + 0.2);
+    d->qvel[i] = 0.1 * mju_cos(0.7 * i + 0.4);
+  }
+  mj_forward(m.get(), d.get());
+  EXPECT_EQ(d->warning[mjWARN_INERTIA].number, 0);
+  EXPECT_EQ(d->nefmdof, 8);
+  ASSERT_GT(d->nefmL, 9 * d->nefmdof);
+  EXPECT_EQ(d->efm_L[9 * d->nefmdof], 1);
+  rhs.resize(m->nv);
+  lhs.resize(m->nv);
+  mju_add(rhs.data(), d->qfrc_smooth, d->efm_c, m->nv);
+  mj_mulM(m.get(), d.get(), lhs.data(), d->qacc_smooth);
+  for (int i = 0; i < m->nv; i++) {
+    int adr = d->efm_K_rowadr[i];
+    for (int j = 0; j < d->efm_K_rownnz[i]; j++) {
+      lhs[i] +=
+          d->efm_K_val[adr + j] * d->qacc_smooth[d->efm_K_colind[adr + j]];
+    }
+  }
+  err = 0;
+  norm = mju_norm(rhs.data(), m->nv);
+  ASSERT_GT(norm, 0);
+  for (int i = 0; i < m->nv; i++) {
+    mjtNum diff = lhs[i] - rhs[i];
+    err += diff * diff;
+  }
+  EXPECT_LT(mju_sqrt(err) / norm, MjTol(1e-11, 1e-4));
 }
 
 // passive contact on interpolated flexes (trilinear volumetric, trilinear shell

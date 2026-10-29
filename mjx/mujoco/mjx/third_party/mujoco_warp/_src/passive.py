@@ -24,6 +24,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import EFM_CON_MAX_DOF
 from mujoco.mjx.third_party.mujoco_warp._src.types import FLEX_INTERP_MAX_NODES
 from mujoco.mjx.third_party.mujoco_warp._src.types import FLEX_STIFFNESS_3D
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import ROD_HINGE_SIZE
 from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DeterminismType
@@ -1563,12 +1564,12 @@ def flex_scatter_vert(
 
 
 @wp.func
-def rod_hinge(xa: wp.vec3, xv: wp.vec3, xb: wp.vec3) -> tuple[bool, wp.vec3, wp.mat33, wp.mat33]:
+def _rod_hinge(xa: wp.vec3, xv: wp.vec3, xb: wp.vec3) -> tuple[bool, wp.vec3, wp.mat33, wp.mat33]:
   """Curvature binormal of a 1D rod hinge and its derivatives, see Bergou et al. 2008.
 
   kb = 2 e0 x e1 / (|e0||e1| + e0.e1), with e0 = xv - xa and e1 = xb - xv. Returns whether the
   hinge is valid, kb, A0 = d(kb)/d(e0) and A1 = d(kb)/d(e1); the Jacobian with respect to
-  (xa, xv, xb) is [-A0, A0 - A1, A1], see rod_hinge_jacobian.
+  (xa, xv, xb) is [-A0, A0 - A1, A1], see rod_stencil.
   """
   e0 = xv - xa
   e1 = xb - xv
@@ -1589,29 +1590,252 @@ def rod_hinge(xa: wp.vec3, xv: wp.vec3, xb: wp.vec3) -> tuple[bool, wp.vec3, wp.
   return True, kb, A0, A1
 
 
-@wp.func
-def rod_hinge_jacobian(A0: wp.mat33, A1: wp.mat33, i: int) -> wp.mat33:
-  """Block i (0: previous, 1: middle, 2: next vertex) of the rod hinge Jacobian d(kb)/dx."""
-  if i == 0:
-    return -A0
-  if i == 1:
-    return A0 - A1
-  return A1
+# smoothing of curved rod references at zero curvature, relative to the reference curvature
+_ROD_SMOOTH = 1.0e-4
 
 
 @wp.func
-def rod_hinge_weights(kb: wp.vec3, k: float) -> tuple[wp.vec3, wp.mat33]:
-  """Gradient and damping weight of the rod hinge energy k |kb|^2 in kb space.
+def _rod_hinge_weights(kb: wp.vec3, k: float, kb0: float) -> tuple[wp.vec3, wp.mat33, wp.mat33]:
+  """Gradient, Hessian, and damping weight of a single rod hinge in kb space.
 
-  The gradient is 2k kb and the Hessian 2k I. The damping weight 2k n n', n = kb / |kb|, damps
-  only the rate of |kb|, so rigid rotations are not damped; it is isotropic at a straight hinge.
+  The energy is k |kb|^2 for a straight reference (kb0 = 0), with gradient 2k kb and Hessian 2k I,
+  and k (|kb| - kb0)^2 for a curved one, smoothed at kb = 0, with the Hessian projected to PSD. The
+  damping weight 2k n n', n = kb / |kb|, damps only the rate of |kb|, so rigid rotations are not
+  damped; it is isotropic at kb = 0.
   """
   r = wp.length(kb)
-  Wd = (2.0 * k) * wp.identity(n=3, dtype=float)
+  I3 = wp.identity(n=3, dtype=float)
+  Wd = (2.0 * k) * I3
+  nn = wp.mat33(0.0)
   if r >= MJ_MINVAL:
     n = kb / r
-    Wd = (2.0 * k) * wp.outer(n, n)
-  return (2.0 * k) * kb, Wd
+    nn = wp.outer(n, n)
+    Wd = (2.0 * k) * nn
+
+  if kb0 == 0.0:
+    return (2.0 * k) * kb, (2.0 * k) * I3, Wd
+
+  # energy k (rho - gam)^2 kb0^2, with rho = sqrt((|kb| / kb0)^2 + e^2) and gam = sqrt(1 + e^2)
+  e2 = wp.static(_ROD_SMOOTH * _ROD_SMOOTH)
+  gam = wp.static((1.0 + _ROD_SMOOTH * _ROD_SMOOTH) ** 0.5)
+  c = r / kb0
+  rho2 = c * c + e2
+  rho = wp.sqrt(rho2)
+  s = 1.0 - gam / rho
+  g = (2.0 * k * s) * kb
+
+  # Hessian: tangential 2k s and radial 2k (1 - gam e^2 / rho^3), clamped to PSD
+  Wk = wp.mat33(0.0)
+  if r >= MJ_MINVAL:
+    tang = wp.max(0.0, s)
+    rad = wp.max(0.0, 1.0 - gam * e2 / (rho * rho2))
+    Wk = (2.0 * k) * (tang * (I3 - nn) + rad * nn)
+  return g, Wk, Wd
+
+
+@wp.func
+def _rod_pair(x0: wp.vec3, x1: wp.vec3, x2: wp.vec3, x3: wp.vec3) -> tuple[bool, wp.vec4, mat43, mat43, mat43, mat43]:
+  """Curvature binormals of a rod hinge pair in a frame orthogonal to their shared edge.
+
+  Returns whether the pair is valid, om = (kba.u, kba.v, kbb.u, kbb.v) for the hinges
+  (x0, x1, x2) and (x1, x2, x3) and axes (u, v) orthogonal to the edge (x1, x2), and the 4x3
+  Jacobian blocks d(om)/dx of the four vertices. The axes are held fixed: the hinge pair energy
+  does not depend on their rotation about the edge.
+  """
+  oka, kba, A0, A1 = _rod_hinge(x0, x1, x2)
+  okb, kbb, B0, B1 = _rod_hinge(x1, x2, x3)
+  edge = x2 - x1
+  ledge = wp.length(edge)
+  if not oka or not okb or ledge < MJ_MINVAL:
+    return False, wp.vec4(0.0), mat43(), mat43(), mat43(), mat43()
+
+  u, v = math.orthogonals(edge / ledge)
+  om = wp.vec4(wp.dot(kba, u), wp.dot(kba, v), wp.dot(kbb, u), wp.dot(kbb, v))
+
+  # rows u'd(kb)/dx and v'd(kb)/dx of the Jacobians [-A0, A0 - A1, A1] and [-B0, B0 - B1, B1]
+  ua0 = wp.transpose(A0) * u
+  va0 = wp.transpose(A0) * v
+  ua1 = wp.transpose(A1) * u
+  va1 = wp.transpose(A1) * v
+  ub0 = wp.transpose(B0) * u
+  vb0 = wp.transpose(B0) * v
+  ub1 = wp.transpose(B1) * u
+  vb1 = wp.transpose(B1) * v
+  z3 = wp.vec3(0.0)
+
+  J0 = mat43()
+  J0[0] = -ua0
+  J0[1] = -va0
+  J0[2] = z3
+  J0[3] = z3
+
+  J1 = mat43()
+  J1[0] = ua0 - ua1
+  J1[1] = va0 - va1
+  J1[2] = -ub0
+  J1[3] = -vb0
+
+  J2 = mat43()
+  J2[0] = ua1
+  J2[1] = va1
+  J2[2] = ub0 - ub1
+  J2[3] = vb0 - vb1
+
+  J3 = mat43()
+  J3[0] = z3
+  J3[1] = z3
+  J3[2] = ub1
+  J3[3] = vb1
+
+  return True, om, J0, J1, J2, J3
+
+
+@wp.func
+def _rod_pair_weights(om: wp.vec4, w0: float, w1: float, om0: wp.vec4) -> tuple[wp.vec4, wp.mat44, wp.mat44]:
+  """Gradient, Hessian, and damping weight of a rod hinge pair in om space.
+
+  The energy is min_a w0 |oma - R(a) om0a|^2 + w1 |omb - R(a) om0b|^2 over rotations R(a) about
+  the shared edge, smoothed at om = 0, with the Hessian projected to PSD. The damping weight
+  excludes the rate of rotation about the edge, so rigid rotations are not damped.
+  """
+  w = wp.vec4(w0, w0, w1, w1)
+  wmax = wp.max(w0, w1)
+  if wmax <= 0.0:
+    return wp.vec4(0.0), wp.mat44(0.0), wp.mat44(0.0)
+
+  # weights relative to wmax
+  u0 = w0 / wmax
+  u1 = w1 / wmax
+  diag = wp.diag(2.0 * w)
+
+  # damping: 2 diag(w), without the rate of rotation about the shared edge (direction t)
+  t = wp.vec4(-om[1], om[0], -om[3], om[2])
+  ut = wp.vec4(u0 * t[0], u0 * t[1], u1 * t[2], u1 * t[3])
+  tnorm = wp.sqrt(wp.dot(t, ut))
+  Wd = diag
+  if tnorm >= MJ_MINVAL:
+    nt = ut / tnorm
+    Wd = diag - (2.0 * wmax) * wp.outer(nt, nt)
+
+  # straight reference: energy w0 |oma|^2 + w1 |omb|^2
+  r = u0 * (om0[0] * om0[0] + om0[1] * om0[1]) + u1 * (om0[2] * om0[2] + om0[3] * om0[3])
+  if r <= 0.0:
+    return diag * om, diag, Wd
+
+  # weighted reference om0 and om0 rotated by 90 degrees about the edge
+  c = wp.vec4(u0 * om0[0], u0 * om0[1], u1 * om0[2], u1 * om0[3])
+  s = wp.vec4(-u0 * om0[1], u0 * om0[0], -u1 * om0[3], u1 * om0[2])
+
+  # cosine and sine terms of the rotation aligning om0 with om, relative to the reference
+  cs = wp.dot(c, om) / r
+  sn = wp.dot(s, om) / r
+
+  # energy w.om.om - 2 gam wmax r rho, up to a constant, with rho = sqrt(cs^2 + sn^2 + e^2)
+  e2 = wp.static(_ROD_SMOOTH * _ROD_SMOOTH)
+  gam = wp.static((1.0 + _ROD_SMOOTH * _ROD_SMOOTH) ** 0.5)
+  rho2 = cs * cs + sn * sn + e2
+  rho = wp.sqrt(rho2)
+  g = diag * om - (2.0 * gam * wmax / rho) * (cs * c + sn * s)
+
+  # Hessian with gam / rho clamped to 1, so that it is PSD
+  q = (cs * s - sn * c) / rho
+  scl = 2.0 * wmax * wp.min(1.0, gam / rho) / r
+  Wk = diag - scl * (wp.outer(q, q) + (e2 / rho2) * (wp.outer(c, c) + wp.outer(s, s)))
+  return g, Wk, Wd
+
+
+@wp.func
+def _rod_rows(a: wp.mat33) -> mat43:
+  """Pads a 3x3 single hinge Jacobian block to the 4x3 block of a rod hinge record."""
+  res = mat43()
+  res[0] = a[0]
+  res[1] = a[1]
+  res[2] = a[2]
+  return res
+
+
+@wp.func
+def _rod_pad44(a: wp.mat33) -> wp.mat44:
+  """Pads a 3x3 single hinge weight to the 4x4 weight of a rod hinge record."""
+  res = wp.mat44(0.0)
+  for i in range(3):
+    for j in range(3):
+      res[i, j] = a[i, j]
+  return res
+
+
+@wp.func
+def rod_stencil(
+  # Model:
+  flex_bending: wp.array[float],
+  # Data in:
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  # In:
+  worldid: int,
+  vbase: int,
+  adr: int,
+) -> tuple[bool, wp.vec4i, mat43, mat43, mat43, mat43, wp.vec4, wp.mat44, wp.mat44]:
+  """Vertices, Jacobian, and weights of the 1D rod hinge record at flex_bending[adr].
+
+  A record is a single hinge [v0, v1, v2, -1, k, 0, kb0, 0, 0, 0] (energy in kb space, last
+  vertex -1 and last Jacobian row 0) or a hinge pair [v0, v1, v2, v3, w0, w1, om0] (energy in om
+  space), see _rod_hinge_weights and _rod_pair_weights. Returns whether the record is valid, its
+  global vertex ids, the Jacobian blocks J0..J3 of its vertices, and the gradient g, Hessian Wk,
+  and damping weight Wd, so that the forces are -J'g and the stiffness is J'WkJ.
+  """
+  v0 = vbase + int(flex_bending[adr])
+  v1 = vbase + int(flex_bending[adr + 1])
+  v2 = vbase + int(flex_bending[adr + 2])
+  x0 = flexvert_xpos_in[worldid, v0]
+  x1 = flexvert_xpos_in[worldid, v1]
+  x2 = flexvert_xpos_in[worldid, v2]
+
+  # straight hinges only: [v0, v1, v2, k]
+  if wp.static(ROD_HINGE_SIZE == 4):
+    v3 = -1
+    k = flex_bending[adr + 3]
+    kb0 = 0.0
+  else:
+    v3 = int(flex_bending[adr + 3])
+    k = flex_bending[adr + 4]
+    kb0 = flex_bending[adr + 6]
+
+  if v3 < 0:
+    ok, kb, A0, A1 = _rod_hinge(x0, x1, x2)
+    if not ok:
+      return False, wp.vec4i(-1), mat43(), mat43(), mat43(), mat43(), wp.vec4(0.0), wp.mat44(0.0), wp.mat44(0.0)
+    gh, Wkh, Wdh = _rod_hinge_weights(kb, k, kb0)
+    return (
+      True,
+      wp.vec4i(v0, v1, v2, -1),
+      _rod_rows(-A0),
+      _rod_rows(A0 - A1),
+      _rod_rows(A1),
+      mat43(),
+      wp.vec4(gh[0], gh[1], gh[2], 0.0),
+      _rod_pad44(Wkh),
+      _rod_pad44(Wdh),
+    )
+
+  v3 += vbase
+  ok, om, J0, J1, J2, J3 = _rod_pair(x0, x1, x2, flexvert_xpos_in[worldid, v3])
+  if not ok:
+    return False, wp.vec4i(-1), mat43(), mat43(), mat43(), mat43(), wp.vec4(0.0), wp.mat44(0.0), wp.mat44(0.0)
+  om0 = wp.vec4(flex_bending[adr + 6], flex_bending[adr + 7], flex_bending[adr + 8], flex_bending[adr + 9])
+  g, Wk, Wd = _rod_pair_weights(om, flex_bending[adr + 4], flex_bending[adr + 5], om0)
+  return True, wp.vec4i(v0, v1, v2, v3), J0, J1, J2, J3, g, Wk, Wd
+
+
+@wp.func
+def rod_stencil_jacobian(J0: mat43, J1: mat43, J2: mat43, J3: mat43, i: int) -> mat43:
+  """Block i (0..3) of the Jacobian of a 1D rod hinge record, see rod_stencil."""
+  if i == 0:
+    return J0
+  if i == 1:
+    return J1
+  if i == 2:
+    return J2
+  return J3
 
 
 @cache_kernel
@@ -2559,7 +2783,7 @@ def _flex_rod_mul(check_skip: bool, nv: int, deterministic: bool = False):
   module_options = {"enable_backward": False}
   if deterministic:
     module_options["deterministic"] = wp.DeterministicMode.RUN_TO_RUN
-    module_options["deterministic_max_records"] = 3 * nv
+    module_options["deterministic_max_records"] = 4 * nv
 
   @wp.kernel(module="unique", module_options=module_options, grid_stride=False)
   def kernel(
@@ -2616,68 +2840,33 @@ def _flex_rod_mul(check_skip: bool, nv: int, deterministic: bool = False):
     if s1 == 0.0 and sd == 0.0:
       return
 
-    vbase = flex_vertadr[f]
-    va = vbase + int(flex_bending[adr])
-    vv = vbase + int(flex_bending[adr + 1])
-    vb = vbase + int(flex_bending[adr + 2])
-    ok, kb, A0, A1 = rod_hinge(flexvert_xpos_in[worldid, va], flexvert_xpos_in[worldid, vv], flexvert_xpos_in[worldid, vb])
+    ok, verts, J0, J1, J2, J3, _, Wk, Wd = rod_stencil(flex_bending, flexvert_xpos_in, worldid, flex_vertadr[f], adr)
     if not ok:
       return
+    W = s1 * Wk + sd * Wd
+    nvert = 3 if verts[3] < 0 else 4
 
-    # W = s1 * Wk + s2 * damping * Wd, with Wk = 2k I
-    k = flex_bending[adr + 3]
-    _, Wd = rod_hinge_weights(kb, k)
-    W = (2.0 * s1 * k) * wp.identity(n=3, dtype=float) + sd * Wd
-
-    # J' W J vec, without forming the 9x9 hinge stiffness
-    wa = flex_gather_vert(
-      body_rootid,
-      body_weldid,
-      body_dofnum,
-      body_dofadr,
-      body_simple,
-      dof_parentid,
-      flex_vertbodyid,
-      subtree_com_in,
-      cdof_in,
-      flexvert_xpos_in,
-      vec_in,
-      worldid,
-      va,
-    )
-    wv = flex_gather_vert(
-      body_rootid,
-      body_weldid,
-      body_dofnum,
-      body_dofadr,
-      body_simple,
-      dof_parentid,
-      flex_vertbodyid,
-      subtree_com_in,
-      cdof_in,
-      flexvert_xpos_in,
-      vec_in,
-      worldid,
-      vv,
-    )
-    wb = flex_gather_vert(
-      body_rootid,
-      body_weldid,
-      body_dofnum,
-      body_dofadr,
-      body_simple,
-      dof_parentid,
-      flex_vertbodyid,
-      subtree_com_in,
-      cdof_in,
-      flexvert_xpos_in,
-      vec_in,
-      worldid,
-      vb,
-    )
-    w = W * (A0 * (wv - wa) + A1 * (wb - wv))
-    verts = wp.vec3i(va, vv, vb)
-    for i in range(3):
+    # J' W J vec, without forming the hinge stiffness
+    u = wp.vec4(0.0)
+    for i in range(nvert):
+      vel_i = flex_gather_vert(
+        body_rootid,
+        body_weldid,
+        body_dofnum,
+        body_dofadr,
+        body_simple,
+        dof_parentid,
+        flex_vertbodyid,
+        subtree_com_in,
+        cdof_in,
+        flexvert_xpos_in,
+        vec_in,
+        worldid,
+        verts[i],
+      )
+      u += rod_stencil_jacobian(J0, J1, J2, J3, i) * vel_i
+    w = W * u
+    for i in range(nvert):
       flex_scatter_vert(
         body_rootid,
         body_weldid,
@@ -2691,7 +2880,7 @@ def _flex_rod_mul(check_skip: bool, nv: int, deterministic: bool = False):
         flexvert_xpos_in,
         worldid,
         verts[i],
-        wp.transpose(rod_hinge_jacobian(A0, A1, i)) * w,
+        wp.transpose(rod_stencil_jacobian(J0, J1, J2, J3, i)) * w,
         1.0,
         res_out,
       )
@@ -2909,7 +3098,7 @@ def _flex_rod_bending(nv: int, deterministic: bool = False):
   module_options = {"enable_backward": False}
   if deterministic:
     module_options["deterministic"] = wp.DeterministicMode.RUN_TO_RUN
-    module_options["deterministic_max_records"] = 3 * nv
+    module_options["deterministic_max_records"] = 4 * nv
 
   @wp.kernel(module="unique", module_options=module_options)
   def kernel(
@@ -2937,7 +3126,7 @@ def _flex_rod_bending(nv: int, deterministic: bool = False):
     qfrc_spring_out: wp.array2d[float],
     qfrc_damper_out: wp.array2d[float],
   ):
-    """Passive forces of 1D rod bending: energy k |kb|^2 per hinge, damping on the rate of |kb|."""
+    """Passive forces of 1D rod bending, see rod_stencil; damping excludes rigid rotations."""
     worldid, hingeid = wp.tid()
     mapping = flex_rodhinge_map[hingeid]
     f = mapping[0]
@@ -2949,69 +3138,37 @@ def _flex_rod_bending(nv: int, deterministic: bool = False):
     if not has_spring and not has_damper:
       return
 
-    vbase = flex_vertadr[f]
-    va = vbase + int(flex_bending[adr])
-    vv = vbase + int(flex_bending[adr + 1])
-    vb = vbase + int(flex_bending[adr + 2])
-    ok, kb, A0, A1 = rod_hinge(flexvert_xpos_in[worldid, va], flexvert_xpos_in[worldid, vv], flexvert_xpos_in[worldid, vb])
+    ok, verts, J0, J1, J2, J3, g, _, Wd = rod_stencil(flex_bending, flexvert_xpos_in, worldid, flex_vertadr[f], adr)
     if not ok:
       return
-    g, Wd = rod_hinge_weights(kb, flex_bending[adr + 3])
+    nvert = 3 if verts[3] < 0 else 4
 
-    # damper weight Wd * d(kb)/dt, from the vertex velocities J * qvel
-    wd = wp.vec3(0.0)
+    # damper weight Wd * J * qvel
+    wd = wp.vec4(0.0)
     if has_damper:
-      vel_a = flex_gather_vert(
-        body_rootid,
-        body_weldid,
-        body_dofnum,
-        body_dofadr,
-        body_simple,
-        dof_parentid,
-        flex_vertbodyid,
-        subtree_com_in,
-        cdof_in,
-        flexvert_xpos_in,
-        qvel_in,
-        worldid,
-        va,
-      )
-      vel_v = flex_gather_vert(
-        body_rootid,
-        body_weldid,
-        body_dofnum,
-        body_dofadr,
-        body_simple,
-        dof_parentid,
-        flex_vertbodyid,
-        subtree_com_in,
-        cdof_in,
-        flexvert_xpos_in,
-        qvel_in,
-        worldid,
-        vv,
-      )
-      vel_b = flex_gather_vert(
-        body_rootid,
-        body_weldid,
-        body_dofnum,
-        body_dofadr,
-        body_simple,
-        dof_parentid,
-        flex_vertbodyid,
-        subtree_com_in,
-        cdof_in,
-        flexvert_xpos_in,
-        qvel_in,
-        worldid,
-        vb,
-      )
-      wd = Wd * (A0 * (vel_v - vel_a) + A1 * (vel_b - vel_v))
+      udot = wp.vec4(0.0)
+      for i in range(nvert):
+        vel_i = flex_gather_vert(
+          body_rootid,
+          body_weldid,
+          body_dofnum,
+          body_dofadr,
+          body_simple,
+          dof_parentid,
+          flex_vertbodyid,
+          subtree_com_in,
+          cdof_in,
+          flexvert_xpos_in,
+          qvel_in,
+          worldid,
+          verts[i],
+        )
+        udot += rod_stencil_jacobian(J0, J1, J2, J3, i) * vel_i
+      wd = Wd * udot
 
     # vertex forces -J' g and -J' wd
-    verts = wp.vec3i(va, vv, vb)
-    for i in range(3):
-      JT = wp.transpose(rod_hinge_jacobian(A0, A1, i))
+    for i in range(nvert):
+      JT = wp.transpose(rod_stencil_jacobian(J0, J1, J2, J3, i))
       if has_spring:
         flex_scatter_vert(
           body_rootid,

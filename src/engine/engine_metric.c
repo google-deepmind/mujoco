@@ -553,7 +553,10 @@ static size_t effCholFlexPairs(const mjModel* m) {
   size_t np = (size_t)m->nflexedge;
   for (int f=0; f < m->nflex; f++) {
     if (m->flex_dim[f] == 1 && !m->flex_rigid[f] && m->flex_bendingadr[f] >= 0) {
-      np += (size_t)(int)m->flex_bending[m->flex_bendingadr[f]];
+      const mjtNum* bend = m->flex_bending + m->flex_bendingadr[f];
+      for (int h=0; h < (int)bend[0]; h++) {
+        np += mj_rodHingeVert(bend + 1 + mjROD_HINGE_SIZE*h) == 3 ? 1 : 3;
+      }
     }
   }
   return np;
@@ -642,19 +645,26 @@ static int effCholGraph(mjData* d, const mjModel* m, int nb, const int* dofid, c
     }
     if (m->flex_dim[f] == 1 && !m->flex_rigid[f] && m->flex_bendingadr[f] >= 0) {
       const mjtNum* bend = m->flex_bending + m->flex_bendingadr[f];
+      // vertex spans not covered by flex edges: (0, 2), plus (1, 3) and (0, 3) for a hinge pair
+      static const int span[3][2] = {{0, 2}, {1, 3}, {0, 3}};
       for (int h=0; h < (int)bend[0]; h++) {
         const mjtNum* hinge = bend + 1 + mjROD_HINGE_SIZE*h;
-        int ke[2];
-        for (int s=0; s < 2; s++) {
-          int v = (int)hinge[2*s];
+        int nr = mj_rodHingeVert(hinge);
+        int kv[4];
+        for (int s=0; s < nr; s++) {
+          int v = (int)hinge[s];
           int b = m->flex_vertbodyid[m->flex_vertadr[f]+v];
           int da = (b >= 0 && m->body_dofnum[b] == 3) ? m->body_dofadr[b] : -1;
-          ke[s] = (da >= 0 && blk[da] >= 0 && dofid[blk[da]] == da) ? blk[da] : -1;
+          kv[s] = (da >= 0 && blk[da] >= 0 && dofid[blk[da]] == da) ? blk[da] : -1;
         }
-        if (ke[0] >= 0 && ke[1] >= 0 && ke[0] != ke[1]) {
-          apair[2*np] = ke[0];
-          apair[2*np+1] = ke[1];
-          np++;
+        int nspan = (nr == 3) ? 1 : 3;
+        for (int p=0; p < nspan; p++) {
+          int k0 = kv[span[p][0]], k1 = kv[span[p][1]];
+          if (k0 >= 0 && k1 >= 0 && k0 != k1) {
+            apair[2*np] = k0;
+            apair[2*np+1] = k1;
+            np++;
+          }
         }
       }
     }

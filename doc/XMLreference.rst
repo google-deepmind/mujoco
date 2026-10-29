@@ -4824,17 +4824,23 @@ For 1D flexes, elasticity is a twist-free, isotropic `discrete elastic rod
 :ref:`section<flex-elasticity-section>`. Every vertex shared by exactly two edges stores the energy
 :math:`k |\kappa b|^2`, where :math:`\kappa b` is the discrete curvature binormal and
 :math:`k = E I / (\ell_0 + \ell_1)`, with :math:`I` the second moment of area of the cross-section and
-:math:`\ell_{0,1}` the reference lengths of the two edges. The reference configuration ``qpos0`` must be straight: a
-compiler error is raised if any such vertex is bent by more than :math:`10^{-4}` rad, since without material frames an
-isotropic rod with a curved reference would only resist the magnitude of its curvature, not its direction. A curved
-initial pose, e.g. coiled or draped, can be set with ``qpos`` or a :ref:`keyframe<keyframe>`; the rod then starts with
-stored bending energy and is pushed toward straightening. Rods with a curved rest shape, such as coil springs, can use
-the :ref:`cable<CComposite>` composite instead. Twist is assumed to relax instantly, which is exact unless the
-orientation of both ends of the rod is constrained. Stretching is not included; use :ref:`edge<flex-edge>` constraints
-(or edge stiffness under integrators other than ``discrete``) instead. Rod bending is integrated implicitly by the
-:ref:`discrete<option-integrator>` integrator, using a positive semi-definite approximation of its Hessian, and
-explicitly by ``Euler`` and ``RK4`` (not supported under ``implicit`` and ``implicitfast``). It is not supported by
-:ref:`dof<body-flexcomp-dof>` **trilinear** and **quadratic**.
+:math:`\ell_{0,1}` the reference lengths of the two edges. Vertices bent by more than :math:`10^{-4}` rad in the
+reference configuration ``qpos0`` keep their reference curvature, so that a rod with a curved reference, such as a ring
+or an arc, is at rest in that shape. A bent vertex without bent neighbors stores
+:math:`k (|\kappa b| - |\kappa b_0|)^2`, with :math:`\kappa b_0` the reference binormal, so only its curvature magnitude
+is held and its bending plane is free. Without material frames, the binormals of adjacent bent vertices are compared in
+pairs with their reference values, up to a common rotation about the shared edge, so the rod has no torsional
+stiffness: it resists changes in curvature magnitude, but a curved rod can deform out of its plane at constant curvature
+(e.g. an arc can coil into a helix) with a resistance that vanishes as the discretization is refined. Rods with
+torsional stiffness, such as coil springs, can use the :ref:`cable<CComposite>` composite instead. Vertices bent by less
+than :math:`10^{-4}` rad are treated as straight; a curved initial pose of a straight rod, e.g. coiled or draped, can be
+set with ``qpos`` or a :ref:`keyframe<keyframe>`, and the rod then starts with stored bending energy. Twist is assumed
+to relax instantly, which is exact for a straight reference unless the orientation of both ends of the rod is
+constrained. Stretching is not included; use :ref:`edge<flex-edge>` constraints (or edge stiffness under integrators
+other than ``discrete``) instead. Rod bending is integrated implicitly by the :ref:`discrete<option-integrator>`
+integrator, using a positive semi-definite approximation of its Hessian, and explicitly by ``Euler`` and ``RK4`` (not
+supported under ``implicit`` and ``implicitfast``). It is not supported by :ref:`dof<body-flexcomp-dof>` **trilinear**
+and **quadratic**.
 
 .. _flex-elasticity-young:
 

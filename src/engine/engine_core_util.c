@@ -1991,6 +1991,24 @@ void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
 
 //-------------------------- 1D rod bending --------------------------------------------------------
 
+// smoothing of curved rod references at zero curvature, relative to the reference curvature
+#define mjROD_SMOOTH ((mjtNum)1e-4)
+
+
+// orthonormal axes (u, v) orthogonal to the edge (x1, x2); returns 0 if the edge is degenerate
+static int rodEdgeFrame(const mjtNum x1[3], const mjtNum x2[3], mjtNum u[3], mjtNum v[3]) {
+  mjtNum frame[9] = {0};
+  mji_sub3(frame, x2, x1);
+  if (mju_normalize3(frame) < mjMINVAL) {
+    return 0;
+  }
+  mju_makeFrame(frame);
+  mji_copy3(u, frame+3);
+  mji_copy3(v, frame+6);
+  return 1;
+}
+
+
 // curvature binormal of a rod hinge and its Jacobian, see Bergou et al., "Discrete Elastic Rods"
 int mj_rodHinge(const mjtNum xa[3], const mjtNum xv[3], const mjtNum xb[3],
                 mjtNum kb[3], mjtNum J[27]) {
@@ -2038,23 +2056,171 @@ int mj_rodHinge(const mjtNum xa[3], const mjtNum xv[3], const mjtNum xb[3],
 }
 
 
-// gradient, Hessian, and damping weights of k |kb|^2 in kb space
+// gradient, Hessian, and damping weights of a single rod hinge in kb space
 void mj_rodHingeWeights(mjtNum g[3], mjtNum Wk[9], mjtNum Wd[9],
-                        const mjtNum kb[3], mjtNum k) {
-  // gradient 2k kb
-  if (g) mji_scl3(g, kb, 2*k);
-
-  // Hessian 2k I; damping 2k n n' with n = kb/|kb|, isotropic at a straight hinge
+                        const mjtNum kb[3], mjtNum k, mjtNum kb0) {
   mjtNum r = mju_norm3(kb);
   mjtNum n[3] = {0, 0, 0};
   if (r >= mjMINVAL) {
     mji_scl3(n, kb, 1/r);
   }
+
+  // straight reference: energy k |kb|^2, gradient 2k kb, Hessian 2k I
+  if (kb0 == 0) {
+    if (g) mji_scl3(g, kb, 2*k);
+    for (int i=0; i < 3; i++) {
+      for (int j=0; j < 3; j++) {
+        mjtNum w = (i == j) ? 2*k : 0;
+        if (Wk) Wk[3*i+j] = w;
+        if (Wd) Wd[3*i+j] = r < mjMINVAL ? w : 2*k*n[i]*n[j];
+      }
+    }
+    return;
+  }
+
+  // curved reference: energy k (rho - gam)^2 kb0^2, with rho = sqrt((|kb|/kb0)^2 + e^2) the
+  // smoothed relative curvature and gam = sqrt(1 + e^2) its reference value
+  mjtNum e2 = mjROD_SMOOTH*mjROD_SMOOTH;
+  mjtNum gam = mju_sqrt(1 + e2);
+  mjtNum c = r/kb0;
+  mjtNum rho2 = c*c + e2;
+  mjtNum rho = mju_sqrt(rho2);
+  mjtNum s = 1 - gam/rho;
+  if (g) mji_scl3(g, kb, 2*k*s);
+
+  // Hessian: tangential 2k s and radial 2k (1 - gam e^2 / rho^3), clamped to PSD
+  mjtNum tang = mju_max(0, s);
+  mjtNum rad = mju_max(0, 1 - gam*e2/(rho*rho2));
   for (int i=0; i < 3; i++) {
     for (int j=0; j < 3; j++) {
-      mjtNum w = (i == j) ? 2*k : 0;
-      if (Wk) Wk[3*i+j] = w;
-      if (Wd) Wd[3*i+j] = r < mjMINVAL ? w : 2*k*n[i]*n[j];
+      mjtNum delta = (i == j) ? 1 : 0;
+      if (Wk) {
+        Wk[3*i+j] = r < mjMINVAL ? 0 : 2*k*(tang*(delta - n[i]*n[j]) + rad*n[i]*n[j]);
+      }
+      if (Wd) {
+        Wd[3*i+j] = r < mjMINVAL ? 2*k*delta : 2*k*n[i]*n[j];
+      }
+    }
+  }
+}
+
+
+// curvature binormals of a rod hinge pair in a frame orthogonal to their shared edge
+int mj_rodPair(const mjtNum x0[3], const mjtNum x1[3], const mjtNum x2[3], const mjtNum x3[3],
+               mjtNum om[4], mjtNum J[48]) {
+  mjtNum kba[3], kbb[3], Ja[27], Jb[27], u[3], v[3];
+  if (!mj_rodHinge(x0, x1, x2, kba, J ? Ja : NULL) ||
+      !mj_rodHinge(x1, x2, x3, kbb, J ? Jb : NULL) ||
+      !rodEdgeFrame(x1, x2, u, v)) {
+    return 0;
+  }
+
+  om[0] = mju_dot3(kba, u);
+  om[1] = mju_dot3(kba, v);
+  om[2] = mju_dot3(kbb, u);
+  om[3] = mju_dot3(kbb, v);
+  if (!J) {
+    return 1;
+  }
+
+  // rows of J: u'Ja and v'Ja on columns x0..x2, u'Jb and v'Jb on columns x1..x3
+  mju_zero(J, 48);
+  for (int k=0; k < 9; k++) {
+    J[k]      = u[0]*Ja[k] + u[1]*Ja[9+k] + u[2]*Ja[18+k];
+    J[12+k]   = v[0]*Ja[k] + v[1]*Ja[9+k] + v[2]*Ja[18+k];
+    J[27+k]   = u[0]*Jb[k] + u[1]*Jb[9+k] + u[2]*Jb[18+k];
+    J[39+k]   = v[0]*Jb[k] + v[1]*Jb[9+k] + v[2]*Jb[18+k];
+  }
+  return 1;
+}
+
+
+// gradient, Hessian, and damping weights of a rod hinge pair in om space
+void mj_rodPairWeights(mjtNum g[4], mjtNum Wk[16], mjtNum Wd[16],
+                       const mjtNum om[4], mjtNum w0, mjtNum w1, const mjtNum om0[4]) {
+  mjtNum w[4] = {w0, w0, w1, w1};
+  mjtNum wmax = mju_max(w0, w1);
+  if (wmax <= 0) {
+    if (g) mju_zero(g, 4);
+    if (Wk) mju_zero(Wk, 16);
+    if (Wd) mju_zero(Wd, 16);
+    return;
+  }
+
+  // weights relative to wmax
+  mjtNum u0 = w0/wmax, u1 = w1/wmax;
+
+  // damping: 2 diag(w), without the rate of rotation about the shared edge (direction t)
+  if (Wd) {
+    mjtNum t[4] = {-om[1], om[0], -om[3], om[2]};
+    mjtNum ut[4] = {u0*t[0], u0*t[1], u1*t[2], u1*t[3]};
+    mjtNum tnorm = mju_sqrt(t[0]*ut[0] + t[1]*ut[1] + t[2]*ut[2] + t[3]*ut[3]);
+    if (tnorm >= mjMINVAL) {
+      for (int i=0; i < 4; i++) ut[i] /= tnorm;
+    }
+    mjtNum scl = tnorm < mjMINVAL ? 0 : 2*wmax;
+    for (int i=0; i < 4; i++) {
+      for (int j=0; j < 4; j++) {
+        Wd[4*i+j] = (i == j ? 2*w[i] : 0) - scl*ut[i]*ut[j];
+      }
+    }
+  }
+
+  // straight reference: energy sum_i w_i |om_i|^2
+  mjtNum r = u0*(om0[0]*om0[0] + om0[1]*om0[1]) + u1*(om0[2]*om0[2] + om0[3]*om0[3]);
+  if (r <= 0) {
+    if (g) {
+      for (int i=0; i < 4; i++) g[i] = 2*w[i]*om[i];
+    }
+    if (Wk) {
+      for (int i=0; i < 4; i++) {
+        for (int j=0; j < 4; j++) Wk[4*i+j] = (i == j) ? 2*w[i] : 0;
+      }
+    }
+    return;
+  }
+
+  // weighted reference om0 and om0 rotated by 90 degrees about the edge
+  mjtNum c[4] = {u0*om0[0], u0*om0[1], u1*om0[2], u1*om0[3]};
+  mjtNum s[4] = {-u0*om0[1], u0*om0[0], -u1*om0[3], u1*om0[2]};
+
+  // cosine and sine terms of the rotation aligning om0 with om, relative to the reference
+  mjtNum cs = 0, sn = 0;
+  for (int i=0; i < 4; i++) {
+    cs += c[i]*om[i];
+    sn += s[i]*om[i];
+  }
+  cs /= r;
+  sn /= r;
+
+  // energy sum_i w_i |om_i|^2 - 2 gam wmax r rho, up to a constant, where rho = sqrt(cs^2 + sn^2 +
+  // e^2) is the smoothed alignment after the optimal rotation and gam = sqrt(1 + e^2) its reference
+  // value
+  mjtNum e2 = mjROD_SMOOTH*mjROD_SMOOTH;
+  mjtNum gam = mju_sqrt(1 + e2);
+  mjtNum rho2 = cs*cs + sn*sn + e2;
+  mjtNum rho = mju_sqrt(rho2);
+  if (g) {
+    mjtNum scl = 2*gam*wmax/rho;
+    for (int i=0; i < 4; i++) {
+      g[i] = 2*w[i]*om[i] - scl*(cs*c[i] + sn*s[i]);
+    }
+  }
+
+  // Hessian: 2 diag(w) - 2 gam wmax / (r rho) (q q' + e^2 / rho^2 (c c' + s s')), with
+  // q = (cs s - sn c) / rho and gam / rho clamped to 1 so that it is PSD
+  if (Wk) {
+    mjtNum q[4];
+    for (int i=0; i < 4; i++) {
+      q[i] = (cs*s[i] - sn*c[i]) / rho;
+    }
+    mjtNum scl = 2*wmax*mju_min(1, gam/rho) / r;
+    mjtNum ratio = e2/rho2;
+    for (int i=0; i < 4; i++) {
+      for (int j=0; j < 4; j++) {
+        mjtNum diag = (i == j) ? 2*w[i] : 0;
+        Wk[4*i+j] = diag - scl*(q[i]*q[j] + ratio*(c[i]*c[j] + s[i]*s[j]));
+      }
     }
   }
 }

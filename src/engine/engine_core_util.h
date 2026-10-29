@@ -233,9 +233,24 @@ void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
 
 //-------------------------- 1D rod bending --------------------------------------------------------
 
-// per-hinge data layout in flex_bending for 1D flexes, after a leading hinge count:
-//   [v_prev, v, v_next, k], energy k |kb|^2 (the reference configuration is straight)
-#define mjROD_HINGE_SIZE 4
+// per-record data layout in flex_bending for 1D flexes, after a leading record count; a record is a
+// single hinge (v0, v1, v2) or a pair of adjacent curved hinges (v0, v1, v2) and (v1, v2, v3):
+//   single: [v0, v1, v2, -1, k, 0, kb0, 0, 0, 0], energy k (|kb| - kb0)^2, with kb0 = |kb| in the
+//           reference (0 if straight, then the energy is k |kb|^2)
+//   pair:   [v0, v1, v2, v3, w0, w1, om0[4]], energy min_a sum_i w_i |om_i - R(a) om0_i|^2, with
+//           om the curvature binormals of both hinges in a frame orthogonal to the shared edge
+//           (v1, v2), om0 their reference values and R(a) a rotation about the edge
+// k = EI / (l0 + l1) is the stiffness of each hinge; adjacent curved hinges are paired across every
+// shared edge, splitting the stiffness of each hinge evenly among its pairs (w0, w1). There are no
+// material frames, so the rod has no torsional stiffness: the minimization over the edge rotation
+// lets the bending planes of adjacent hinges rotate relative to each other at no cost in the limit
+// of fine discretization, and only the curvature magnitude is resisted (as for a single hinge).
+#define mjROD_HINGE_SIZE 10
+
+// number of vertices of a 1D rod bending record: 3 (single hinge) or 4 (hinge pair)
+static inline int mj_rodHingeVert(const mjtNum* hinge) {
+  return hinge[3] < 0 ? 3 : 4;
+}
 
 // curvature binormal kb = 2 e0 x e1 / (|e0||e1| + e0.e1) of hinge (xa, xv, xb), with
 // e0 = xv - xa and e1 = xb - xv, and its Jacobian J (3x9, columns xa, xv, xb);
@@ -243,13 +258,27 @@ void mj_flexHessianMul(const mjModel* m, const mjData* d, int f, mjtNum* res,
 int mj_rodHinge(const mjtNum xa[3], const mjtNum xv[3], const mjtNum xb[3],
                 mjtNum kb[3], mjtNum J[27]);
 
-// weights of the hinge energy in kb space, both including the factor 2k:
+// weights of the single hinge energy in kb space, all including the factor 2k:
 //   g:  gradient dE/d(kb)
-//   Wk: Hessian d2E/d(kb)2
+//   Wk: Hessian d2E/d(kb)2, projected to PSD (exact at the reference)
 //   Wd: Rayleigh damping weight, restricted to the rate of |kb| (rotation invariant)
-// each output is optional
+// a curved reference (kb0 > 0) is smoothed at kb = 0; each output is optional
 void mj_rodHingeWeights(mjtNum g[3], mjtNum Wk[9], mjtNum Wd[9],
-                        const mjtNum kb[3], mjtNum k);
+                        const mjtNum kb[3], mjtNum k, mjtNum kb0);
+
+// curvature binormals om[4] of hinges (x0, x1, x2) and (x1, x2, x3) in a frame orthogonal to the
+// edge (x1, x2), and their Jacobian J (4x12, columns x0..x3, frame held fixed: the energy does not
+// depend on the frame); returns 0 if either hinge or the shared edge is degenerate
+int mj_rodPair(const mjtNum x0[3], const mjtNum x1[3], const mjtNum x2[3], const mjtNum x3[3],
+               mjtNum om[4], mjtNum J[48]);
+
+// weights of the hinge pair energy in om space:
+//   g:  gradient dE/d(om)
+//   Wk: Hessian d2E/d(om)2, projected to PSD (exact at the reference)
+//   Wd: Rayleigh damping weight, orthogonal to rotations about the shared edge
+// the energy is smoothed at om = 0; each output is optional
+void mj_rodPairWeights(mjtNum g[4], mjtNum Wk[16], mjtNum Wd[16],
+                       const mjtNum om[4], mjtNum w0, mjtNum w1, const mjtNum om0[4]);
 
 // element-local geometry, quadratic edge response, and stiffness contractions shared by
 // passive forces and both solver paths; keep the helpers visible to the compiler so the

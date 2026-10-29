@@ -26,9 +26,8 @@ from mujoco.mjx.third_party.mujoco_warp._src import util_misc
 from mujoco.mjx.third_party.mujoco_warp._src.passive import build_efm_contact
 from mujoco.mjx.third_party.mujoco_warp._src.passive import ellipsoid_max_moment
 from mujoco.mjx.third_party.mujoco_warp._src.passive import geom_semiaxes
-from mujoco.mjx.third_party.mujoco_warp._src.passive import rod_hinge
-from mujoco.mjx.third_party.mujoco_warp._src.passive import rod_hinge_jacobian
-from mujoco.mjx.third_party.mujoco_warp._src.passive import rod_hinge_weights
+from mujoco.mjx.third_party.mujoco_warp._src.passive import rod_stencil
+from mujoco.mjx.third_party.mujoco_warp._src.passive import rod_stencil_jacobian
 from mujoco.mjx.third_party.mujoco_warp._src.support import next_act
 from mujoco.mjx.third_party.mujoco_warp._src.types import EFM_CON_MAX_DOF
 from mujoco.mjx.third_party.mujoco_warp._src.types import FLEX_INTERP_MAX_NODES
@@ -2510,22 +2509,15 @@ def _eff_flex_rod_stiff(deterministic: bool = False):
     if s1 == 0.0 and sd == 0.0:
       return
 
-    vbase = flex_vertadr[f]
-    verts = wp.vec3i(vbase + int(flex_bending[adr]), vbase + int(flex_bending[adr + 1]), vbase + int(flex_bending[adr + 2]))
-    ok, kb, A0, A1 = rod_hinge(
-      flexvert_xpos_in[worldid, verts[0]], flexvert_xpos_in[worldid, verts[1]], flexvert_xpos_in[worldid, verts[2]]
-    )
+    ok, verts, J0, J1, J2, J3, _, Wk, Wd = rod_stencil(flex_bending, flexvert_xpos_in, worldid, flex_vertadr[f], adr)
     if not ok:
       return
+    W = s1 * Wk + sd * Wd
+    nvert = 3 if verts[3] < 0 else 4
 
-    # W = s1 * Wk + s2 * damping * Wd, with Wk = 2k I
-    k = flex_bending[adr + 3]
-    _, Wd = rod_hinge_weights(kb, k)
-    W = (2.0 * s1 * k) * wp.identity(n=3, dtype=float) + sd * Wd
-
-    dofs = wp.vec3i(-1, -1, -1)
-    bodies = wp.vec3i(-1, -1, -1)
-    for i in range(3):
+    dofs = wp.vec4i(-1)
+    bodies = wp.vec4i(-1)
+    for i in range(nvert):
       bodyid = flex_vertbodyid[verts[i]]
       if bodyid >= 0:
         bi = body_weldid[bodyid]
@@ -2533,15 +2525,15 @@ def _eff_flex_rod_stiff(deterministic: bool = False):
         if body_dofnum[bi] == 3:
           dofs[i] = body_dofadr[bi]
 
-    for i in range(3):
+    for i in range(4):
       dof_i = dofs[i]
       if dof_i >= 0 and efm_K_rownnz[dof_i] > 0:
-        JiT_W = wp.transpose(rod_hinge_jacobian(A0, A1, i)) * W
+        JiT_W = wp.transpose(rod_stencil_jacobian(J0, J1, J2, J3, i)) * W
         R_bi_T = wp.transpose(xmat_in[worldid, bodies[i]])
-        for j in range(3):
+        for j in range(4):
           dof_j = dofs[j]
           if dof_j >= 0:
-            blkd = R_bi_T * (JiT_W * rod_hinge_jacobian(A0, A1, j)) * xmat_in[worldid, bodies[j]]
+            blkd = R_bi_T * (JiT_W * rod_stencil_jacobian(J0, J1, J2, J3, j)) * xmat_in[worldid, bodies[j]]
             for r in range(3):
               row = dof_i + r
               idx = _find_csr_col(efm_K_rowadr[row], efm_K_rownnz[row], dof_j, efm_K_colind)

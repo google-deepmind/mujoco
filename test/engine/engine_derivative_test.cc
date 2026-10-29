@@ -3439,9 +3439,9 @@ TEST_F(DerivativeTest, FlexStiffAssemble) {
   }
 }
 
-// 1D rod bending stiffness: at the (straight) rest configuration the energy
-// gradient vanishes, so the PSD Gauss-Newton Hessian used by the metric is
-// exact. Checked against central differences of the spring force
+// 1D rod bending stiffness: at rest (straight, hinge pairs, and a curved single
+// hinge) the energy gradient vanishes, so the PSD Gauss-Newton Hessian used by
+// the metric is exact. Checked against central differences of the spring force
 TEST_F(DerivativeTest, FlexRodHessianAtRest) {
   static const char* const kStraight = R"(
   <mujoco>
@@ -3458,39 +3458,76 @@ TEST_F(DerivativeTest, FlexRodHessianAtRest) {
     </worldbody>
   </mujoco>
   )";
-  char error[1024];
-  MjModelPtr model = LoadModelFromString(kStraight, error, sizeof(error));
-  ASSERT_THAT(model.get(), NotNull()) << error;
-  int nv = model->nv;
-  MjDataPtr data = MakeData(model);
-  mj_forward(model.get(), data.get());
+  static const char* const kHelix = R"(
+  <mujoco>
+    <option integrator="discrete" gravity="0 0 0"/>
+    <worldbody>
+      <body name="turned" euler="20 30 40">
+        <flexcomp name="helix" type="direct" dim="1" radius="0.01" mass="1"
+                  element="0 1  1 2  2 3  3 4  4 5"
+                  point="0.15 0.00 0.00   0.106 0.106 0.04   0.00 0.15 0.08
+                         -0.106 0.106 0.12   -0.15 0.00 0.16
+                         -0.106 -0.106 0.20">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static const char* const kVee = R"(
+  <mujoco>
+    <option integrator="discrete" gravity="0 0 0"/>
+    <worldbody>
+      <body name="turned" euler="20 30 40">
+        <flexcomp name="vee" type="direct" dim="1" radius="0.01" mass="1"
+                  element="0 1  1 2" point="0 0 0  0.1 0 0  0.18 0.06 0.02">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  for (const char* xml : {kStraight, kHelix, kVee}) {
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    SCOPED_TRACE(model->names + model->name_flexadr[0]);
+    int nv = model->nv;
+    MjDataPtr data = MakeData(model);
+    mj_forward(model.get(), data.get());
 
-  vector<mjtNum> vec(nv), res(nv, 0);
-  for (int i = 0; i < nv; i++) {
-    vec[i] = mju_Halton(i, 3) - 0.5;
+    vector<mjtNum> vec(nv), res(nv, 0);
+    for (int i = 0; i < nv; i++) {
+      vec[i] = mju_Halton(i, 3) - 0.5;
+    }
+    mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
+
+    // central differences of the spring force
+    mjtNum eps = MjEps(1e-6, 1e-3);
+    mjData* plus = mj_copyData(NULL, model.get(), data.get());
+    mjData* minus = mj_copyData(NULL, model.get(), data.get());
+    mju_addToScl(plus->qpos, vec.data(), eps, nv);
+    mju_addToScl(minus->qpos, vec.data(), -eps, nv);
+    mj_forward(model.get(), plus);
+    mj_forward(model.get(), minus);
+
+    mjtNum max_err = 0, scale = 0;
+    for (int i = 0; i < nv; i++) {
+      mjtNum fd = -(plus->qfrc_spring[i] - minus->qfrc_spring[i]) / (2 * eps);
+      max_err = mju_max(max_err, mju_abs(res[i] - fd));
+      scale = mju_max(scale, mju_abs(fd));
+    }
+    EXPECT_GT(scale, 1e-3)
+        << "test should exercise nontrivial bending stiffness";
+    EXPECT_LT(max_err, MjTol(1e-5, 1e-2) * scale)
+        << "rod bending Hessian is not the Jacobian of the force at rest";
+    mj_deleteData(plus);
+    mj_deleteData(minus);
   }
-  mjd_flexStretch_mul(model.get(), data.get(), res.data(), vec.data(), 1, 0);
-
-  // central differences of the spring force
-  mjtNum eps = MjEps(1e-6, 1e-3);
-  mjData* plus = mj_copyData(NULL, model.get(), data.get());
-  mjData* minus = mj_copyData(NULL, model.get(), data.get());
-  mju_addToScl(plus->qpos, vec.data(), eps, nv);
-  mju_addToScl(minus->qpos, vec.data(), -eps, nv);
-  mj_forward(model.get(), plus);
-  mj_forward(model.get(), minus);
-
-  mjtNum max_err = 0, scale = 0;
-  for (int i = 0; i < nv; i++) {
-    mjtNum fd = -(plus->qfrc_spring[i] - minus->qfrc_spring[i]) / (2 * eps);
-    max_err = mju_max(max_err, mju_abs(res[i] - fd));
-    scale = mju_max(scale, mju_abs(fd));
-  }
-  EXPECT_GT(scale, 1e-3) << "test should exercise nontrivial bending stiffness";
-  EXPECT_LT(max_err, MjTol(1e-5, 1e-2) * scale)
-      << "rod bending Hessian is not the Jacobian of the force at rest";
-  mj_deleteData(plus);
-  mj_deleteData(minus);
 }
 
 // 1D rod bending stiffness away from rest: symmetric, positive semi-definite,
@@ -3503,6 +3540,20 @@ TEST_F(DerivativeTest, FlexRodStiffAssemble) {
       <body name="turned" euler="20 30 40">
         <flexcomp name="rod" type="grid" count="6 1 1" spacing="0.1 0.1 0.1"
                   radius="0.01" dim="1" mass="1">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7" damping="0.1"/>
+        </flexcomp>
+        <flexcomp name="ring" type="circle" count="7 1 1"
+                  spacing="0.12 0.12 0.12"
+                  pos="0 0.5 0" radius="0.01" dim="1" mass="1">
+          <pin id="0"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7" damping="0.1"/>
+        </flexcomp>
+        <flexcomp name="vee" type="direct" dim="1" radius="0.01" mass="1"
+                  element="0 1  1 2" point="0 0 0  0.1 0 0  0.18 0.06 0.02"
+                  pos="0 -0.5 0">
           <pin id="0"/>
           <contact selfcollide="none" contype="0" conaffinity="0"/>
           <elasticity young="1e7" damping="0.1"/>
