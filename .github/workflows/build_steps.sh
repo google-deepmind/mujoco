@@ -380,7 +380,7 @@ test_python_bindings() {
     pytest -v --pyargs mujoco
     if _has_studio_platform build; then
         echo "Smoke testing Studio Python modules..."
-        python -c "import mujoco._render_filament, mujoco.studio.window, mujoco.studio.ux, mujoco.studio.sim, mujoco.studio.native_viewer, mujoco.experimental.studio.messages"
+        python -c "import mujoco._render_filament, mujoco.studio.window, mujoco.studio.ux, mujoco.studio.sim, mujoco.studio.native_viewer"
         if [[ "${RUNNER_OS:-}" != "Windows" ]]; then
             python -c "import mujoco.studio.web.headless_ui, mujoco.studio.web.state_payload"
         fi
