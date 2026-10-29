@@ -693,7 +693,8 @@ describe('MuJoCo WASM Bindings', () => {
       ['Shadow', '1', 'S'], ['Wireframe', '0', 'W'], ['Reflection', '1', 'R'],
       ['Additive', '0', 'L'], ['Skybox', '1', 'K'], ['Fog', '0', 'G'],
       ['Haze', '1', '/'], ['Depth', '0', ''], ['Segment', '0', ','],
-      ['Id Color', '0', ''], ['Cull Face', '1', '']
+      ['Id Color', '0', ''], ['Cull Face', '1', ''],
+      ['Post Processing', '1', ''],
     ]);
     expect(mujoco.mjFRAMESTRING.length).toEqual(mujoco.mjtFrame.mjNFRAME.value);
     expect(mujoco.mjVISSTRING.length)

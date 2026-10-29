@@ -4372,6 +4372,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjRND_SEGMENT", mjRND_SEGMENT)
     .value("mjRND_IDCOLOR", mjRND_IDCOLOR)
     .value("mjRND_CULL_FACE", mjRND_CULL_FACE)
+    .value("mjRND_POST_PROCESSING", mjRND_POST_PROCESSING)
     .value("mjNRNDFLAG", mjNRNDFLAG);
   enum_<mjtSDFType>("mjtSDFType")
     .value("mjSDFTYPE_SINGLE", mjSDFTYPE_SINGLE)

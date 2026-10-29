@@ -152,6 +152,7 @@ typedef enum mjtRndFlag_ {        // flags enabling rendering effects
   mjRND_SEGMENT,                  // segmentation with random color
   mjRND_IDCOLOR,                  // segmentation with segid+1 color
   mjRND_CULL_FACE,                // cull backward faces
+  mjRND_POST_PROCESSING,          // post-processing (e.g. color grading, bloom, etc.)
 
   mjNRNDFLAG                      // number of rendering flags
 } mjtRndFlag;

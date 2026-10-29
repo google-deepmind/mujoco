@@ -141,7 +141,7 @@ class Viewer(abc.ABC):
     else:
       self.render_flags = ux.RenderFlags()
       # Initted to match mujoco/src/engine/engine_vis_init.c
-      self.render_flags.flags = [1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1]
+      self.render_flags.flags = [1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1]
 
     # Plugin infrastructure.
     all_plugins = [self] + list(plugins or [])

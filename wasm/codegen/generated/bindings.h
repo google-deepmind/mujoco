@@ -7765,7 +7765,7 @@ struct MjvScene {
   // skinvertadr field is handled manually in template file struct declaration
   // skinvertnum field is handled manually in template file struct declaration
   emscripten::val flags() const {
-    return emscripten::val(emscripten::typed_memory_view(11, ptr_->flags));
+    return emscripten::val(emscripten::typed_memory_view(12, ptr_->flags));
   }
   emscripten::val framergb() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->framergb));

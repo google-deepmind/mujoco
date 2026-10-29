@@ -598,6 +598,7 @@ Renderer::View App::GetSceneView() {
   }
   view.shadows = render_flags_[mjRND_SHADOW];
   view.reflections = render_flags_[mjRND_REFLECTION];
+  view.post_processing = render_flags_[mjRND_POST_PROCESSING];
   if (model()->vis.headlight.active) {
     view.headlight = Renderer::View::Headlight();
     view.headlight->color[0] = model()->vis.headlight.diffuse[0];

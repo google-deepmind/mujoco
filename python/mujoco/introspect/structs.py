@@ -11235,7 +11235,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(11,),
+                     extents=(12,),
                  ),
                  doc='rendering flags (indexed by mjtRndFlag)',
              ),

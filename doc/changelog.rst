@@ -98,6 +98,10 @@ Filament Rendering
 - Added :ref:`mjrf_flush` (``mjrf.Context.flush`` in Python) to flush pending operations to the rendering backend and
   invoke any completed callbacks.
 
+Rendering
+^^^^^^^^^
+- Added :ref:`mjRND_POST_PROCESSING<mjtRndFlag>` rendering flag.
+
 Python bindings
 ^^^^^^^^^^^^^^^
 - Removed support for Python 3.10, now that it's `deprecated upstream <https://devguide.python.org/versions>`__.

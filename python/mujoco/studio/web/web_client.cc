@@ -483,6 +483,7 @@ static mujoco::Renderer::View GetSceneView() {
   view.reflections = g_app.render_flags[mjRND_REFLECTION];
   view.skybox = g_app.render_flags[mjRND_SKYBOX];
   view.haze = g_app.render_flags[mjRND_HAZE];
+  view.post_processing = g_app.render_flags[mjRND_POST_PROCESSING];
   if (model->vis.headlight.active) {
     view.headlight = mujoco::Renderer::View::Headlight();
     view.headlight->color[0] = model->vis.headlight.diffuse[0];

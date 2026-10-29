@@ -104,17 +104,18 @@ const char* mjVISSTRING[mjNVISFLAG][3] = {
 
 // render options: {name, initial value, shortcut}
 const char* mjRNDSTRING[mjNRNDFLAG][3] = {
-  {"Shadow",      "1", "S"},
-  {"Wireframe",   "0", "W"},
-  {"Reflection",  "1", "R"},
-  {"Additive",    "0", "L"},
-  {"Skybox",      "1", "K"},
-  {"Fog",         "0", "G"},
-  {"Haze",        "1", "/"},
-  {"Depth",       "0", ""},
-  {"Segment",     "0", ","},
-  {"Id Color",    "0", ""},
-  {"Cull Face",   "1", ""}
+  {"Shadow",          "1", "S"},
+  {"Wireframe",       "0", "W"},
+  {"Reflection",      "1", "R"},
+  {"Additive",        "0", "L"},
+  {"Skybox",          "1", "K"},
+  {"Fog",             "0", "G"},
+  {"Haze",            "1", "/"},
+  {"Depth",           "0", ""},
+  {"Segment",         "0", ","},
+  {"Id Color",        "0", ""},
+  {"Cull Face",       "1", ""},
+  {"Post Processing", "1", ""}
 };
 
 

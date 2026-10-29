@@ -556,6 +556,9 @@ static vector<unsigned char> RenderFilament(const mjModel*   m,
   if (rnd_flags[mjRND_REFLECTION] >= 0) { request.reflections = rnd_flags[mjRND_REFLECTION]; }
   if (rnd_flags[mjRND_SKYBOX] >= 0) { request.skybox = rnd_flags[mjRND_SKYBOX]; }
   if (rnd_flags[mjRND_HAZE] >= 0) { request.haze = rnd_flags[mjRND_HAZE]; }
+  if (rnd_flags[mjRND_POST_PROCESSING] >= 0) {
+    request.post_processing = rnd_flags[mjRND_POST_PROCESSING];
+  }
 
   // prepare output buffer
   vector<unsigned char> rgb(width * height * 3);

@@ -177,6 +177,9 @@ class NativeViewer(viewer_protocol.Viewer):
         reflections=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_REFLECTION],
         skybox=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_SKYBOX],
         haze=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_HAZE],
+        post_processing=self.render_flags.flags[
+            mujoco.mjtRndFlag.mjRND_POST_PROCESSING
+        ],
         headlight=self.model.vis.headlight.active != 0,
         headlight_color=tuple(self.model.vis.headlight.diffuse),
         headlight_intensity=self._model_scene.get_headlight_intensity()

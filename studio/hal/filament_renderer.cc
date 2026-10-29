@@ -249,6 +249,7 @@ void FilamentRenderer::BuildMainRenderRequest(mjrfRenderRequest* request, const 
   request->viewport = viewport;
   request->shadows = render_flags_[mjRND_SHADOW];
   request->reflections = render_flags_[mjRND_REFLECTION];
+  request->post_processing = render_flags_[mjRND_POST_PROCESSING];
   request->headlight = vis.headlight.active;
   request->headlight_color[0] = vis.headlight.diffuse[0];
   request->headlight_color[1] = vis.headlight.diffuse[1];
