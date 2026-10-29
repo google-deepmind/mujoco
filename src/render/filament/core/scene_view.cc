@@ -179,8 +179,8 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   headlight_params.cast_shadow = 0;
   headlight_params.intensity = 0.0f;
   headlight_ = std::make_unique<Light>(engine, headlight_params);
-  headlight_->AddToScene(scene_);
   headlight_->Disable();
+  AddToScene(headlight_.get());
 
   // Rotate the fog to align with mujoco's +Z up space.
   auto fog = main_view_->getFogEntity();
@@ -212,15 +212,12 @@ SceneView::~SceneView() {
   for (auto& light : lights_) {
     light->RemoveFromScene(scene_);
   }
-  if (headlight_) {
-    headlight_->RemoveFromScene(scene_);
-    headlight_.reset();
-  }
   for (auto& renderable : renderables_) {
     renderable->RemoveFromScene(scene_);
   }
   lights_.clear();
   renderables_.clear();
+  headlight_.reset();
   haze_.reset();
   engine->destroyCameraComponent(reflect_camera_->getEntity());
   engine->destroy(reflect_view_);
