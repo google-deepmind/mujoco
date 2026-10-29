@@ -392,6 +392,7 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
   geom->specular     = 0.5;
   geom->shininess    = 0.5;
   geom->reflectance  = 0;
+  geom->castshadow   = 1;
   geom->label[0]     = 0;
   geom->modelrbound  = 0;
 }
@@ -1091,8 +1092,9 @@ static void addGeomGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                   d->geom_xpos+3*i, d->geom_xmat+9*i, NULL);
     thisgeom->dataid = m->geom_dataid[i];
 
-    // copy rbound from model
+    // copy rbound and castshadow from model
     thisgeom->modelrbound = (float)m->geom_rbound[i];
+    thisgeom->castshadow = m->geom_castshadow[i];
 
     // set material properties
     float* rgba = m->geom_rgba+4*i;

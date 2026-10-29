@@ -279,6 +279,7 @@ UniquePtr<mjrfRenderable> CreateGeomRenderable(const mjvGeom& geom,
                                                SceneObjects* scene_objs) {
   mjrfRenderableParams params;
   mjrf_defaultRenderableParams(&params);
+  params.cast_shadow = geom.castshadow;
   auto renderable = CreateRenderable(ctx, params);
   PrepareGeomMeshes(renderable.get(), geom, model_objs, scene_objs);
   UpdateGeomMaterial(renderable.get(), geom, model_objs);

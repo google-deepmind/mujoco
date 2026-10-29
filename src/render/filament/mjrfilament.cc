@@ -313,6 +313,10 @@ void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]) {
   mujoco::Renderable::downcast(renderable)->SetSize(fsize);
 }
 
+void mjrf_setRenderableCastShadow(mjrfRenderable* renderable, mjtBool enabled) {
+  mujoco::Renderable::downcast(renderable)->SetCastShadows(enabled);
+}
+
 void mjrf_addSceneLight(mjrfScene* scene, mjrfLight* light) {
   mujoco::SceneView::downcast(scene)->AddToScene(
       mujoco::Light::downcast(light));

@@ -901,6 +901,15 @@ mjrf_renderable.def("set_size", [](
 , py::arg("size")
 );
 
+mjrf_renderable.def("set_cast_shadow", [](
+  PyRenderable& renderable,
+  bool enabled
+) {
+    return mjrf_setRenderableCastShadow(renderable.get(), enabled);
+}
+, py::arg("enabled")
+);
+
 mjrf_render_target.def("resize", [](
   PyRenderTarget& render_target,
   int width,

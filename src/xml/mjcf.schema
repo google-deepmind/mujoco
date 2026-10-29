@@ -1136,6 +1136,7 @@ element geom : mjsGeom {
   mesh               : ref<mesh> (field=meshname)
   fitscale           : double = 1 (writing=custom, dim=1)  # compile directive: not saved
   rgba               : float[4] = {0.5, 0.5, 0.5, 1} (dim=1)
+  castshadow         : bool = true
   fluidshape         : enum<fluidshape> (field=fluid_ellipsoid, reading=custom)
   fluidcoef          : double[1..5] = {0.5, 0.25, 1.5, 1, 1} (field=fluid_coefs, dim=1)
   user               : double[] (field=userdata, dim=opaque)

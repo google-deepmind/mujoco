@@ -1280,6 +1280,7 @@ public unsafe struct mjModel_ {
   public int* geom_priority;
   public int* geom_plugin;
   public byte* geom_sameframe;
+  public byte* geom_castshadow;
   public double* geom_solmix;
   public double* geom_solref;
   public double* geom_solimp;
@@ -6081,6 +6082,7 @@ public unsafe struct mjvGeom_ {
   public float shininess;
   public float reflectance;
   public fixed float texrepeat[2];
+  public byte castshadow;
   public fixed char label[100];
   public float camdist;
   public float modelrbound;

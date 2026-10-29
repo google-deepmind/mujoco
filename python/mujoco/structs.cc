@@ -1332,6 +1332,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(specular);
   X(shininess);
   X(reflectance);
+  X(castshadow);
   X(camdist);
   X(modelrbound);
   X(transparent);

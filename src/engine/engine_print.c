@@ -1821,6 +1821,7 @@ void mj_printFormattedScene(const mjvScene* s, const char* filename, const char*
     printNum(fp, "    specular", geom->specular, float_format);
     printNum(fp, "    shininess", geom->shininess, float_format);
     printNum(fp, "    reflectance", geom->reflectance, float_format);
+    printInt(fp, "    castshadow", geom->castshadow);
     fprintf(fp,  "\n");
   }
   fprintf(fp,  "\n");

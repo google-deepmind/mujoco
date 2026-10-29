@@ -2935,6 +2935,13 @@ helps clarify the role of bodies and geoms in MuJoCo.
    only. This is not as flexible as the material mechanism, but is more convenient and is often sufficient. If the value
    of this attribute is different from the internal default, it takes precedence over the material.
 
+.. _body-geom-castshadow:
+
+:at:`castshadow`: :at-val:`[false, true], "true"`
+   If this attribute is "true", the geom casts shadows when illuminated by shadow-casting lights (those with
+   :ref:`castshadow<body-light-castshadow>` set to "true"). Setting this to "false" disables shadow casting for this
+   geom while still allowing it to receive shadows and be lit normally.
+
 .. _body-geom-friction:
 
 :at:`friction`: :at-val:`real(3), "1 0.005 0.0001"`
@@ -3469,8 +3476,8 @@ Attributes may be applied or ignored depending on the lighting model being used.
 .. _body-light-castshadow:
 
 :at:`castshadow`: :at-val:`[false, true], "true"`
-   If this attribute is "true" the light will cast shadows. More precisely, the geoms illuminated by the light will cast
-   shadows, however this is a property of lights rather than geoms. Since each shadow-casting light causes one extra
+   If this attribute is "true" the light will cast shadows. More precisely, geoms with
+   :ref:`castshadow<body-geom-castshadow>` enabled that are illuminated by the light will cast shadows. Since each shadow-casting light causes one extra
    rendering pass through all geoms, this attribute should be used with caution. Higher quality of the shadows is
    achieved by increasing the value of the shadowsize attribute of :ref:`quality <visual-quality>`, as well as
    positioning spotlights closer to the surface on which shadows appear, and limiting the volume in which shadows are
@@ -10533,6 +10540,8 @@ if omitted.
 .. _default-geom-fitscale:
 
 .. _default-geom-rgba:
+
+.. _default-geom-castshadow:
 
 .. _default-geom-fluidshape:
 

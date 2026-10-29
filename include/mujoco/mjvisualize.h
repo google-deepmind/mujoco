@@ -250,6 +250,7 @@ typedef struct mjvGeom_ {         // abstract geom
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
   float    texrepeat[2];          // texture repetition for 2d mapping
+  mjtByte  castshadow;            // does geom cast shadows
 
   char     label[100];            // text label
 

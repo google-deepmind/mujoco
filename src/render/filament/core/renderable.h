@@ -112,14 +112,11 @@ class Renderable : public mjrfRenderable {
   // Sets the coarse draw priority [0..7] for this renderable (defaults to 4).
   void SetPriority(std::uint8_t priority);
 
-  // Disables this renderable from casting shadows.
+  // Enables or disables whether this renderable casts shadows.
   void SetCastShadows(bool cast_shadow);
 
-  // Disables this renderable from receiving shadows.
+  // Enables or disables whether this renderable receives shadows.
   void SetReceiveShadows(bool receive_shadow);
-
-  // If true, forces this renderable to use wireframe rendering.
-  void SetWireframe(bool wireframe);
 
   // Adds this renderable to the filament Scene.
   void AddToScene(filament::Scene* scene);
@@ -195,6 +192,9 @@ class Renderable : public mjrfRenderable {
   void SetHiddenParts(std::uint8_t hidden_parts);
   std::uint8_t PartLayerMask(int index) const;
   void UpdateTransform();
+  void ApplyCastShadows(bool cast_shadow);
+  void ApplyReceiveShadows(bool receive_shadow);
+  void SetWireframe(bool wireframe);
 
   filament::Engine* GetEngine();
 

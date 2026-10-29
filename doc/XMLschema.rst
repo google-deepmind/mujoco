@@ -972,6 +972,9 @@
                :ref:`rgba<body-geom-rgba>`
 
             .. grid-item::
+               :ref:`castshadow<body-geom-castshadow>`
+
+            .. grid-item::
                :ref:`fluidshape<body-geom-fluidshape>`
 
             .. grid-item::
@@ -5812,6 +5815,9 @@
 
             .. grid-item::
                :ref:`rgba<default-geom-rgba>`
+
+            .. grid-item::
+               :ref:`castshadow<default-geom-castshadow>`
 
             .. grid-item::
                :ref:`fluidshape<default-geom-fluidshape>`

@@ -427,6 +427,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjString* material;              // name of material
   float rgba[4];                   // rgba when material is omitted
   int group;                       // group
+  mjtBool castshadow;              // does geom cast shadows
 
   // other
   mjString* hfieldname;            // heightfield attached to geom

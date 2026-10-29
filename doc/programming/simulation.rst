@@ -789,7 +789,7 @@ Exceptions to the general rule that **integer** types are **not safe to change**
      - Unsafe
      - This is a possible to do safely if ``body_contype`` and ``body_conaffinity`` of the parent body are updated to be
        the bitwise OR over all child geoms.
-   * - ``geom_condim`` |br| ``geom_priority``
+   * - ``geom_condim`` |br| ``geom_priority`` |br| ``geom_castshadow``
      - Safe
      -
    * - ``cam_resolution``

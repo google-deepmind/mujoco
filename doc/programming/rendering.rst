@@ -215,10 +215,11 @@ objects are configured and drawn.
      material also carries texture bindings (color, normal, metallic, roughness, occlusion, packed
      ORM, emissive), UV scale/offset, selection highlighting (``selected``), and object/island IDs for segmentation and
      solver-island visualization.
-   - **Pose and size**: On each frame, :ref:`mjrf_setRenderablePose` updates the renderable's 3D position and
-     rotation matrix in place, and :ref:`mjrf_setRenderableSize` updates its scale (handling non-uniform primitive
-     scaling such as keeping capsule end-caps spherical). Renderables are added to or removed from a scene with
-     :ref:`mjrf_addSceneRenderable` and :ref:`mjrf_removeSceneRenderable`.
+   - **Pose, size, and shadows**: On each frame, :ref:`mjrf_setRenderablePose` updates the renderable's 3D position and
+     rotation matrix in place, :ref:`mjrf_setRenderableSize` updates its scale (handling non-uniform primitive scaling
+     such as keeping capsule end-caps spherical), and :ref:`mjrf_setRenderableCastShadow` toggles whether it casts
+     shadows. Renderables are added to or removed from a scene with :ref:`mjrf_addSceneRenderable` and
+     :ref:`mjrf_removeSceneRenderable`.
 
 **Lights** (:ref:`mjrfLight`)
    :ref:`mjrfLight` represents directional, spot, point, or image-based (IBL environment cubemap) light sources added to

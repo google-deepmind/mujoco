@@ -3737,6 +3737,15 @@ Sets the size of the renderable. Note that, for most renderables, this is equiva
 the scale. However, for some geom-based renderables, the size scale is not applied uniformly
 (e.g. the spherical ends of a capsule are scaled such that they always remain spherical).
 
+.. _mjrf_setRenderableCastShadow:
+
+`mjrf_setRenderableCastShadow <#mjrf_setRenderableCastShadow>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_setRenderableCastShadow
+
+Enables or disables whether or not the renderable casts shadows.
+
 .. _mjrf_defaultRenderTargetConfig:
 
 `mjrf_defaultRenderTargetConfig <#mjrf_defaultRenderTargetConfig>`__

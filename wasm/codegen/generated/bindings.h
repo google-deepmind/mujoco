@@ -2004,6 +2004,12 @@ struct MjvGeom {
   emscripten::val texrepeat() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->texrepeat));
   }
+  mjtByte castshadow() const {
+    return ptr_->castshadow;
+  }
+  void set_castshadow(mjtByte value) {
+    ptr_->castshadow = value;
+  }
   emscripten::val label() const {
     return emscripten::val(emscripten::typed_memory_view(100, ptr_->label));
   }
@@ -4777,6 +4783,9 @@ struct MjModel {
   emscripten::val geom_sameframe() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_sameframe));
   }
+  emscripten::val geom_castshadow() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, reinterpret_cast<uint8_t*>(ptr_->geom_castshadow)));
+  }
   emscripten::val geom_solmix() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_solmix));
   }
@@ -6553,6 +6562,12 @@ struct MjsGeom {
   }
   void set_group(int value) {
     ptr_->group = value;
+  }
+  mjtBool castshadow() const {
+    return ptr_->castshadow;
+  }
+  void set_castshadow(mjtBool value) {
+    ptr_->castshadow = value;
   }
   mjString hfieldname() const {
     return (ptr_ && ptr_->hfieldname) ? *(ptr_->hfieldname) : "";

@@ -3052,9 +3052,10 @@ void mjCModel::CopyTree(mjModel* m) {
       } else {
         m->geom_dataid[gid] = -1;
       }
-      m->geom_matid[gid]    = pg->matid;
-      m->geom_group[gid]    = pg->group;
-      m->geom_priority[gid] = pg->priority;
+      m->geom_matid[gid]      = pg->matid;
+      m->geom_group[gid]      = pg->group;
+      m->geom_priority[gid]   = pg->priority;
+      m->geom_castshadow[gid] = (mjtBool)pg->castshadow;
       mjuu_copyvec(m->geom_size + 3 * gid, pg->size, 3);
       mjuu_copyvec(m->geom_aabb + 6 * gid, pg->aabb, 6);
       mjuu_copyvec(m->geom_pos + 3 * gid, pg->pos, 3);

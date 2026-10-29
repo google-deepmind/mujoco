@@ -400,6 +400,9 @@ void mjrf_setRenderablePose(mjrfRenderable* renderable, const float position[3],
 // (e.g. the spherical ends of a capsule are scaled such that they always remain spherical).
 void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]);
 
+// Enables or disables whether or not the renderable casts shadows.
+void mjrf_setRenderableCastShadow(mjrfRenderable* renderable, mjtBool enabled);
+
 // Parameters for creating a render target (mjrfRenderTarget).
 typedef struct mjrfRenderTargetConfig_ {
   int width;                              // texture width

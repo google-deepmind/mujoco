@@ -2189,6 +2189,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ngeom',),
              ),
              StructFieldDecl(
+                 name='geom_castshadow',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtBool'),
+                 ),
+                 doc='does geom cast shadows',
+                 array_extent=('ngeom',),
+             ),
+             StructFieldDecl(
                  name='geom_solmix',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -8257,6 +8265,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='group',
              ),
              StructFieldDecl(
+                 name='castshadow',
+                 type=ValueType(name='mjtBool'),
+                 doc='does geom cast shadows',
+             ),
+             StructFieldDecl(
                  name='hfieldname',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),
@@ -10774,6 +10787,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='texture repetition for 2d mapping',
+             ),
+             StructFieldDecl(
+                 name='castshadow',
+                 type=ValueType(name='mjtByte'),
+                 doc='does geom cast shadows',
              ),
              StructFieldDecl(
                  name='label',

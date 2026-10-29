@@ -381,6 +381,7 @@ inline constexpr mjXAttr kGeomAttrs[] = {
   {"mesh", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsGeom, meshname)},
   {"fitscale", mjXAttr::kDouble, 1, true, false, false, true, (int)offsetof(mjsGeom, fitscale)},
   {"rgba", mjXAttr::kFloat, 4, true, false, false, false, (int)offsetof(mjsGeom, rgba)},
+  {"castshadow", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsGeom, castshadow)},
   {"fluidcoef", mjXAttr::kNum, 5, false, false, false, false, (int)offsetof(mjsGeom, fluid_coefs)},
   {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsGeom, userdata)},
 };

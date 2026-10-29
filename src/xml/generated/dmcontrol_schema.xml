@@ -365,6 +365,7 @@
                 <attribute name="mesh" type="reference" reference_namespace="mesh"/>
                 <attribute name="fitscale" type="float" default="1"/>
                 <attribute name="rgba" type="array" array_type="float" array_size="4" default="0.5 0.5 0.5 1"/>
+                <attribute name="castshadow" type="keyword" valid_values="false true" default="true"/>
                 <attribute name="fluidshape" type="keyword" valid_values="none ellipsoid"/>
                 <attribute name="fluidcoef" type="array" array_type="float" array_size="5" default="0.5 0.25 1.5 1 1"/>
                 <attribute name="user" type="array" array_type="float"/>
@@ -785,6 +786,7 @@
             <attribute name="mesh" type="reference" reference_namespace="mesh"/>
             <attribute name="fitscale" type="float" default="1"/>
             <attribute name="rgba" type="array" array_type="float" array_size="4" default="0.5 0.5 0.5 1"/>
+            <attribute name="castshadow" type="keyword" valid_values="false true" default="true"/>
             <attribute name="fluidshape" type="keyword" valid_values="none ellipsoid"/>
             <attribute name="fluidcoef" type="array" array_type="float" array_size="5" default="0.5 0.25 1.5 1 1"/>
             <attribute name="user" type="array" array_type="float"/>
@@ -1354,6 +1356,7 @@
                 <attribute name="mesh" type="reference" reference_namespace="mesh"/>
                 <attribute name="fitscale" type="float" default="1"/>
                 <attribute name="rgba" type="array" array_type="float" array_size="4" default="0.5 0.5 0.5 1"/>
+                <attribute name="castshadow" type="keyword" valid_values="false true" default="true"/>
                 <attribute name="fluidshape" type="keyword" valid_values="none ellipsoid"/>
                 <attribute name="fluidcoef" type="array" array_type="float" array_size="5" default="0.5 0.25 1.5 1 1"/>
                 <attribute name="user" type="array" array_type="float"/>
@@ -1680,6 +1683,7 @@
             <attribute name="mesh" type="reference" reference_namespace="mesh"/>
             <attribute name="fitscale" type="float" default="1"/>
             <attribute name="rgba" type="array" array_type="float" array_size="4" default="0.5 0.5 0.5 1"/>
+            <attribute name="castshadow" type="keyword" valid_values="false true" default="true"/>
             <attribute name="fluidshape" type="keyword" valid_values="none ellipsoid"/>
             <attribute name="fluidcoef" type="array" array_type="float" array_size="5" default="0.5 0.25 1.5 1 1"/>
             <attribute name="user" type="array" array_type="float"/>

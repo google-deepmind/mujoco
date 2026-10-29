@@ -1517,6 +1517,7 @@
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="rgba" type="float4" default="0.5 0.5 0.5 1"/>
+    <xs:attribute name="castshadow" type="kw_bool" default="true"/>
     <xs:attribute name="fluidshape" type="kw_fluidshape"/>
     <xs:attribute name="fluidcoef" type="double1to5" default="0.5 0.25 1.5 1 1"/>
     <xs:attribute name="user" type="doublelist"/>
@@ -2300,6 +2301,7 @@
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="rgba" type="float4" default="0.5 0.5 0.5 1"/>
+    <xs:attribute name="castshadow" type="kw_bool" default="true"/>
     <xs:attribute name="fluidshape" type="kw_fluidshape"/>
     <xs:attribute name="fluidcoef" type="double1to5" default="0.5 0.25 1.5 1 1"/>
     <xs:attribute name="user" type="doublelist"/>

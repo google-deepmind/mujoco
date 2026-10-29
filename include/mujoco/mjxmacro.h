@@ -377,6 +377,7 @@
     X   ( int,     geom_priority,         ngeom,         1                    ) \
     X   ( int,     geom_plugin,           ngeom,         1                    ) \
     X   ( mjtByte, geom_sameframe,        ngeom,         1                    ) \
+    X   ( mjtBool, geom_castshadow,       ngeom,         1                    ) \
     X   ( mjtNum,  geom_solmix,           ngeom,         1                    ) \
     X   ( mjtNum,  geom_solref,           ngeom,         mjNREF               ) \
     X   ( mjtNum,  geom_solimp,           ngeom,         mjNIMP               ) \

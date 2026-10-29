@@ -50,6 +50,10 @@ General
      **Migration:** Remove joints from the parent/ancestor body of an unpinned flex, or pin at least one vertex/node to
      the parent body with :ref:`pin<flexcomp-pin>`.
 
+- Added a :ref:`castshadow<body-geom-castshadow>` attribute to :ref:`geom<body-geom>` (``mjsGeom.castshadow``,
+  ``mjModel.geom_castshadow``, ``mjvGeom.castshadow``; default ``true``) to disable shadow casting per geom in both the
+  classic OpenGL and Filament renderers.
+
 Engine
 ^^^^^^
 - Flex improvements:
@@ -97,6 +101,8 @@ Filament Rendering
   (:ref:`mjRND_HAZE<mjtRndFlag>` and :ref:`mjRND_SKYBOX<mjtRndFlag>`).
 - Added :ref:`mjrf_flush` (``mjrf.Context.flush`` in Python) to flush pending operations to the rendering backend and
   invoke any completed callbacks.
+- Added :ref:`mjrf_setRenderableCastShadow` (``mjrf.Renderable.set_cast_shadow`` in Python) to dynamically toggle
+  whether a renderable casts shadows.
 
 Rendering
 ^^^^^^^^^

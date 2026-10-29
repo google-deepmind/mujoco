@@ -522,5 +522,75 @@ TEST_F(MjvSceneTest, ContactSurfaceVelocityArrow) {
   FreeSceneObjects();
 }
 
+TEST_F(MjvSceneTest, GeomCastshadow) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <default>
+      <default class="noshadow">
+        <geom castshadow="false"/>
+      </default>
+    </default>
+    <worldbody>
+      <geom name="default_geom" type="sphere" size="0.1"/>
+      <geom name="noshadow_explicit" type="sphere" size="0.1" castshadow="false"/>
+      <geom name="noshadow_class" class="noshadow" type="sphere" size="0.1"/>
+      <geom name="override_class" class="noshadow" type="sphere" size="0.1" castshadow="true"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  MjModelPtr model = LoadModelFromString(kXml);
+  ASSERT_THAT(model.get(), NotNull());
+  ASSERT_EQ(model->ngeom, 4);
+  EXPECT_EQ(model->geom_castshadow[0], 1);
+  EXPECT_EQ(model->geom_castshadow[1], 0);
+  EXPECT_EQ(model->geom_castshadow[2], 0);
+  EXPECT_EQ(model->geom_castshadow[3], 1);
+
+  // XML save/load round-trip preserves geom_castshadow
+  const std::string saved_xml = SaveAndReadXml(model.get());
+  MjModelPtr reloaded = LoadModelFromString(saved_xml);
+  ASSERT_THAT(reloaded.get(), NotNull());
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_EQ(reloaded->geom_castshadow[i], model->geom_castshadow[i])
+        << "i=" << i;
+  }
+
+  // mjv_initGeom defaults castshadow to 1
+  mjvGeom init_geom;
+  mjv_initGeom(&init_geom, mjGEOM_SPHERE, nullptr, nullptr, nullptr, nullptr);
+  EXPECT_EQ(init_geom.castshadow, 1);
+
+  // mjv_updateScene propagates model->geom_castshadow and picks up runtime
+  // edits
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  InitSceneObjects(model.get());
+  mjv_defaultOption(&opt_);
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_STATIC,
+                  &scn_);
+
+  for (int g = 0; g < scn_.ngeom; ++g) {
+    const mjvGeom& geom = scn_.geoms[g];
+    if (geom.objtype == mjOBJ_GEOM) {
+      EXPECT_EQ(geom.castshadow, model->geom_castshadow[geom.objid])
+          << "objid=" << geom.objid;
+    }
+  }
+
+  model->geom_castshadow[0] = 0;
+  model->geom_castshadow[1] = 1;
+  mjv_updateScene(model.get(), data.get(), &opt_, &pert_, &cam_, mjCAT_STATIC,
+                  &scn_);
+  for (int g = 0; g < scn_.ngeom; ++g) {
+    const mjvGeom& geom = scn_.geoms[g];
+    if (geom.objtype == mjOBJ_GEOM) {
+      EXPECT_EQ(geom.castshadow, model->geom_castshadow[geom.objid])
+          << "objid=" << geom.objid;
+    }
+  }
+
+  FreeSceneObjects();
+}
 }  // namespace
 }  // namespace mujoco

@@ -150,8 +150,8 @@ void Renderable::InitPartEntity(Part& part) {
   } else {
     builder.culling(false);
   }
-  builder.castShadows(params_.cast_shadow);
-  builder.receiveShadows(params_.receive_shadow);
+  builder.castShadows(curr_state_.cast_shadow);
+  builder.receiveShadows(curr_state_.receive_shadow);
   builder.blendOrder(0, params_.blend_order);
   builder.priority(priority_);
   builder.screenSpaceContactShadows(true);
@@ -421,8 +421,8 @@ void Renderable::BindMaterialInstance(const mjrfRenderRequest& request) {
 
   const DrawState& state = draw_queue_.front();
   SetHiddenParts(state.hidden_parts);
-  SetCastShadows(state.cast_shadow);
-  SetReceiveShadows(state.receive_shadow);
+  ApplyCastShadows(state.cast_shadow);
+  ApplyReceiveShadows(state.receive_shadow);
   SetWireframe(state.wireframe);
   SetMaterialInstance(state.material_key);
   curr_state_ = state;
@@ -496,6 +496,14 @@ void Renderable::SetPriority(std::uint8_t priority) {
 }
 
 void Renderable::SetCastShadows(bool cast_shadow) {
+  params_.cast_shadow = cast_shadow;
+}
+
+void Renderable::SetReceiveShadows(bool receive_shadow) {
+  params_.receive_shadow = receive_shadow;
+}
+
+void Renderable::ApplyCastShadows(bool cast_shadow) {
   if (curr_state_.cast_shadow != cast_shadow) {
     curr_state_.cast_shadow = cast_shadow;
 
@@ -506,7 +514,7 @@ void Renderable::SetCastShadows(bool cast_shadow) {
   }
 }
 
-void Renderable::SetReceiveShadows(bool receive_shadow) {
+void Renderable::ApplyReceiveShadows(bool receive_shadow) {
   if (curr_state_.receive_shadow != receive_shadow) {
     curr_state_.receive_shadow = receive_shadow;
 

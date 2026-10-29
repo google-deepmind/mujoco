@@ -426,6 +426,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(material, "name of material");
       FIELD(rgba, "rgba when material is omitted");
       FIELD(group, "group");
+      FIELD(castshadow, "does geom cast shadows");
       FIELD(hfieldname, "heightfield attached to geom");
       FIELD(meshname, "mesh attached to geom");
       FIELD(fitscale, "scale mesh uniformly");

@@ -834,6 +834,7 @@ typedef struct mjModel_ {
   int*      geom_priority;        // geom contact priority                    (ngeom x 1)
   int*      geom_plugin;          // plugin instance id; -1: not in use       (ngeom x 1)
   mjtByte*  geom_sameframe;       // same frame as body (mjtSameframe)        (ngeom x 1)
+  mjtBool*  geom_castshadow;      // does geom cast shadows                   (ngeom x 1)
   mjtNum*   geom_solmix;          // mixing coef for solref/imp in geom pair  (ngeom x 1)
   mjtNum*   geom_solref;          // constraint solver reference: contact     (ngeom x mjNREF)
   mjtNum*   geom_solimp;          // constraint solver impedance: contact     (ngeom x mjNIMP)
@@ -2021,6 +2022,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjString* material;              // name of material
   float rgba[4];                   // rgba when material is omitted
   int group;                       // group
+  mjtBool castshadow;              // does geom cast shadows
 
   // other
   mjString* hfieldname;            // heightfield attached to geom
@@ -3388,6 +3390,7 @@ typedef struct mjvGeom_ {         // abstract geom
   float    shininess;             // shininess coef
   float    reflectance;           // reflectance coef
   float    texrepeat[2];          // texture repetition for 2d mapping
+  mjtByte  castshadow;            // does geom cast shadows
 
   char     label[100];            // text label
 
@@ -3757,6 +3760,7 @@ void mjrf_getRenderableMaterial(mjrfRenderable* renderable, mjrfMaterial* materi
 void mjrf_setRenderablePose(mjrfRenderable* renderable, const float position[3],
                       const float rotation[9]);
 void mjrf_setRenderableSize(mjrfRenderable* renderable, const float size[3]);
+void mjrf_setRenderableCastShadow(mjrfRenderable* renderable, mjtBool enabled);
 void mjrf_defaultRenderTargetConfig(mjrfRenderTargetConfig* config);
 mjrfRenderTarget* mjrf_createRenderTarget(mjrfContext* ctx, const mjrfRenderTargetConfig* config);
 void mjrf_destroyRenderTarget(mjrfRenderTarget* render_target);

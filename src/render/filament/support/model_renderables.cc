@@ -263,6 +263,7 @@ void ModelRenderables::Update(const mjData* data) {
 
     mjrfMaterial material = GetMaterial(mjOBJ_GEOM, i, data);
     mjrf_setRenderableMaterial(geoms_[i].get(), &material);
+    mjrf_setRenderableCastShadow(geoms_[i].get(), model->geom_castshadow[i]);
   }
 
   for (int i = 0; i < model->nsite; ++i) {
@@ -417,6 +418,7 @@ void ModelRenderables::AddGeomGeoms() {
 
     mjrfRenderableParams params;
     mjrf_defaultRenderableParams(&params);
+    params.cast_shadow = model->geom_castshadow[i];
     auto renderable = CreateRenderable(ctx, params);
 
     SetGeomMesh(renderable.get(), model_resources_, type,
