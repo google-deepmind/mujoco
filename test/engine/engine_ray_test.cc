@@ -201,7 +201,7 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   // compute intersections with multiray functions
   mjtNum dist_multiray[N * M];
   int rgeomid_multiray[N * M];
-  mj_multiRay(m.get(), d.get(), pnt, vec, NULL, 1, -1, rgeomid_multiray,
+  mj_multiRay(m.get(), d.get(), pnt, vec, nullptr, 1, -1, rgeomid_multiray,
               dist_multiray, nullptr, N * M, mjMAXVAL);
 
   // compare results with single ray function
@@ -211,8 +211,8 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < M; ++j) {
       int idx = i * M + j;
-      dist = mj_ray(m.get(), d.get(), pnt, vec + 3 * idx, NULL, 1, -1, &rgeomid,
-                    nullptr);
+      dist = mj_ray(m.get(), d.get(), pnt, vec + 3 * idx, nullptr, 1, -1,
+                    &rgeomid, nullptr);
       EXPECT_MJTNUM_EQ(dist, dist_multiray[idx]);
       EXPECT_EQ(rgeomid, rgeomid_multiray[idx]);
       nhits += dist >= 0;
@@ -417,7 +417,7 @@ mjtNum _rayMesh(const mjModel* m, const mjData* d, int geomid,
     }
 
     // solve
-    sol = ray_triangle(v, lpnt, lvec, b0, b1, nullptr);
+    sol = mju_rayTriangle(v, lpnt, lvec, b0, b1, nullptr);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {

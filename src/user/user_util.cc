@@ -910,7 +910,7 @@ bool mjuu_isabspath(std::string path) {
   if (str[0] == '\\' || str[0] == '/') { return true; }
 
   // find ":/" or ":\"
-  if (path.find(":/") != std::string::npos || path.find(":\\") != std::string::npos) {
+  if (path.find(":/") != std::string::npos || path.find(":\\") != std::string::npos) {  // NOLINT
     return true;
   }
 
@@ -1191,10 +1191,10 @@ std::string VectorToString(const std::vector<T>& v) {
   return s;
 }
 
-template MJAPI std::string VectorToString(const std::vector<int>& v);
-template MJAPI std::string VectorToString(const std::vector<float>& v);
-template MJAPI std::string VectorToString(const std::vector<double>& v);
-template MJAPI std::string VectorToString(const std::vector<std::string>& v);
+template std::string VectorToString(const std::vector<int>& v);
+template std::string VectorToString(const std::vector<float>& v);
+template std::string VectorToString(const std::vector<double>& v);
+template std::string VectorToString(const std::vector<std::string>& v);
 
 namespace {
 
@@ -1265,12 +1265,12 @@ std::vector<T> StringToVector(char* cs) {
 }
 
 template <>
-MJAPI std::vector<std::string> StringToVector(char* cs) {
+std::vector<std::string> StringToVector(char* cs) {
   return StringToVector<std::string>(std::string(cs));
 }
 
 template <>
-MJAPI std::vector<std::string> StringToVector(const std::string& s) {
+std::vector<std::string> StringToVector(const std::string& s) {
   std::vector<std::string> v;
   std::stringstream        ss(s);
   std::string              word;
@@ -1278,19 +1278,19 @@ MJAPI std::vector<std::string> StringToVector(const std::string& s) {
   return v;
 }
 
-template MJAPI std::vector<int> StringToVector(char* cs);
-template MJAPI std::vector<float> StringToVector(char* cs);
-template MJAPI std::vector<double> StringToVector(char* cs);
-template MJAPI std::vector<unsigned char> StringToVector(char* cs);
+template std::vector<int>           StringToVector(char* cs);
+template std::vector<float>         StringToVector(char* cs);
+template std::vector<double>        StringToVector(char* cs);
+template std::vector<unsigned char> StringToVector(char* cs);
 
 
 template <typename T>
 std::vector<T> StringToVector(const std::string& s) {
   return StringToVector<T>(const_cast<char*>(s.c_str()));
 }
-template MJAPI std::vector<int> StringToVector(const std::string& s);
-template MJAPI std::vector<float> StringToVector(const std::string& s);
-template MJAPI std::vector<double> StringToVector(const std::string& s);
-template MJAPI std::vector<unsigned char> StringToVector(const std::string& s);
+template std::vector<int>           StringToVector(const std::string& s);
+template std::vector<float>         StringToVector(const std::string& s);
+template std::vector<double>        StringToVector(const std::string& s);
+template std::vector<unsigned char> StringToVector(const std::string& s);
 
 }  // namespace mujoco::user

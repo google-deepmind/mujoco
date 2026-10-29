@@ -324,7 +324,7 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
         value *= 0.6;
         saturation *= 0.7;
       }
-      hsv2rgb(material.color, hue, saturation, value);
+      mjv_hsv2rgb(material.color, hue, saturation, value);
       material.color[3] = 1;
 
       // Remove textures so they don't interfere with the island color.

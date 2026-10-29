@@ -129,8 +129,8 @@ static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum x[2]) {
 
 
 // intersect ray with triangle
-mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
-                    const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]) {
+mjtNum mju_rayTriangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
+                       const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]) {
   // clear normal if given
   if (normal) mju_zero3(normal);
 
@@ -668,7 +668,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
         {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]},
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]}
       };
-      mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
+      mjtNum sol = mju_rayTriangle(va, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
         if (normal) mju_copy3(normal_local, normal_tri);
@@ -680,7 +680,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
         {dx*(c+0)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+0)]*size[2]}
       };
-      sol = ray_triangle(vb, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
+      sol = mju_rayTriangle(vb, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
         if (normal) mju_copy3(normal_local, normal_tri);
@@ -844,7 +844,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
       }
 
       // solve
-      sol = ray_triangle(v, lpnt, lvec, b0, b1, normal ? normal_local : NULL);
+      sol = mju_rayTriangle(v, lpnt, lvec, b0, b1, normal ? normal_local : NULL);
 
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1153,7 +1153,7 @@ mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
           mju_copy3(v[j], vptr[i][j]);
 
         // intersect ray with triangle
-        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, normal ? normal_local : NULL);
+        mjtNum sol = mju_rayTriangle(v, pnt, vec, b0, b1, normal ? normal_local : NULL);
 
         // update
         if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1252,7 +1252,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
     }
 
     // solve
-    mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, NULL);
+    mjtNum sol = mju_rayTriangle(v, pnt, vec, b0, b1, NULL);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {

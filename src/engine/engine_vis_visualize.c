@@ -73,7 +73,7 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 
 // convert HSV to RGB
-void hsv2rgb(float *RGB, float H, float S, float V) {
+void mjv_hsv2rgb(float *RGB, float H, float S, float V) {
   float R, G, B;
 
   if (S <= 0) {
@@ -131,7 +131,7 @@ static void islandColor(float rgba[4], int h, int awake) {
     saturation *= 0.7;
   }
 
-  hsv2rgb(rgba, hue, saturation, value);
+  mjv_hsv2rgb(rgba, hue, saturation, value);
   rgba[3] = 1;
 }
 

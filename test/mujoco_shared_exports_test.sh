@@ -60,7 +60,7 @@ allowed="$(awk '
       name = s
       sub(/.*[^A-Za-z0-9_]/, "", name)
     }
-    if (name ~ /^(mj|_mjPRIVATE_)/ && name !~ /^mjuu_/) print name
+    if (name ~ /^(mj|_mjPRIVATE_)/) print name
   }' "${headers[@]}" | sort -u)"
 
 # Ignore the __start_*/__stop_* section bounds the linker itself adds for named
