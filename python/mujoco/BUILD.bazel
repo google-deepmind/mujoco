@@ -595,6 +595,6 @@ py_test(
 py_test(
     name = "egl_test",
     srcs = ["egl_test.py"],
-    data = ["//python/mujoco/egl:__init__.py"],
+    data = ["egl/__init__.py"],
     deps = ["//python/mujoco/pypi:absltest"],
 )
