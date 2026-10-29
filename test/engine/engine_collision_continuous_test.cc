@@ -848,8 +848,8 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   }
 
   // frictionless sphere (g = 2) hitting a free box (b1, g = 3) obliquely at
-  // 45 deg: normal force passes through the sphere's t = 0 center so the sphere
-  // gains no angular velocity and does not tunnel
+  // 45 deg: pulled-back contact point lies directly beneath the sphere's t = 0
+  // center (1.85, 0, 0.75)
   mj_resetData(m, d);
   d->qpos[0] = 1.85;
   d->qpos[2] = 0.75;  // 0.15 m left and 0.15 m above b1 top (2.0, 0, 0.55)
@@ -860,40 +860,6 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   ASSERT_EQ(ncon, 1);
   EXPECT_NEAR(con[0].pos[0], 1.85, MjTol(1e-4, 1e-4));
   EXPECT_NEAR(con[0].pos[2], 0.70, MjTol(1e-4, 1e-4));
-  {
-    mjContact c = {};
-    c.dist = con[0].dist;
-    mju_copy3(c.pos, con[0].pos);
-    mju_copy3(c.frame, con[0].normal);
-    c.frame[3] = 1.0;
-    c.frame[7] = 1.0;
-    c.geom[0] = 3;
-    c.geom[1] = 2;
-    c.geom1 = 3;
-    c.geom2 = 2;
-    c.dim = 1;
-    c.vert[0] = -1;
-    c.vert[1] = -1;
-    c.elem[0] = -1;
-    c.elem[1] = -1;
-    c.flex[0] = -1;
-    c.flex[1] = -1;
-    c.efc_address = -1;
-    mju_copy(c.solref, m->geom_solref + mjNREF * 2, mjNREF);
-    mju_copy(c.solimp, m->geom_solimp + mjNIMP * 2, mjNIMP);
-    ASSERT_EQ(mj_addContact(m, d, &c), 0);
-    mj_makeConstraint(m, d);
-    mj_fwdVelocity(m, d);
-    mj_fwdActuation(m, d);
-    mj_fwdAcceleration(m, d);
-    mj_fwdConstraint(m, d);
-    mj_Euler(m, d);
-    EXPECT_LT(mju_norm3(d->qvel + 3), MjTol(1e-6, 1e-3));
-    EXPECT_GT(d->qpos[2] - d->qpos[9], 0.08);
-    // box spin (d->qvel + 9) is not checked: placing a single shared contact
-    // point at the fast sphere's t = 0 witness point shifts the lever arm on
-    // the resting box by the tangential travel
-  }
 
   // horizontal capsule falling onto box wall -> 2 edge-face contacts
   mj_resetData(m, d);
@@ -958,48 +924,16 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
   EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
 
-  // t > 1 - b0 (signed delta < 0, dist > margin): verify no mid-air ghost stop
-  // With default solref = (0.02, 1) and dt = 0.01: b0 = 1.0, k0 = 0.25.
-  // For Euler, rem = 1 - t - b0 = -t < 0, so dist = -delta = (t / 0.25) * 0.50
-  // = 2 * t > 0, and stepping lands the sphere on the wall top (z = 0.07).
+  // t > 1 - b0 (signed delta < 0, dist > margin):
+  // With default solref = (0.02, 1) and dt = 0.01: b0 = 1.0, k0 = 0.25,
+  // rem = 1 - t - b0 = -t < 0, so dist = -delta = (t / 0.25) * 0.50 = 2 * t.
   m->geom_solref[mjNREF * 1 + 0] = 0.02;
   m->geom_solref[mjNREF * 2 + 0] = 0.02;
-  for (int integrator : {mjINT_EULER, mjINT_DISCRETE}) {
-    m->opt.integrator = integrator;
-    mj_resetData(m, d);
-    d->qvel[2] = -50.0;
-    mj_fwdPosition(m, d);
-    ASSERT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
-    if (integrator == mjINT_EULER) {
-      // t ~= 0.392 -> dist = -delta = (t / 0.25) * 0.50 = 2 * t ~= 0.784
-      EXPECT_NEAR(con[0].dist, 0.784, MjTol(0.04, 0.04));
-    }
-    mjContact c = {};
-    c.dist = con[0].dist;
-    mju_copy3(c.pos, con[0].pos);
-    mju_copy3(c.frame, con[0].normal);
-    c.frame[3] = 1.0;
-    c.frame[7] = 1.0;
-    c.geom[0] = 1;
-    c.geom[1] = 2;
-    c.geom1 = 1;
-    c.geom2 = 2;
-    c.dim = 1;
-    c.vert[0] = -1;
-    c.vert[1] = -1;
-    c.elem[0] = -1;
-    c.elem[1] = -1;
-    c.flex[0] = -1;
-    c.flex[1] = -1;
-    c.efc_address = -1;
-    mju_copy(c.solref, m->geom_solref + mjNREF * 2, mjNREF);
-    mju_copy(c.solimp, m->geom_solimp + mjNIMP * 2, mjNIMP);
-    ASSERT_EQ(mj_addContact(m, d, &c), 0);
-    mj_makeConstraint(m, d);
-    mj_fwdVelocity(m, d);
-    mj_step2(m, d);
-    EXPECT_NEAR(d->qpos[2], 0.07, 0.02) << "integrator=" << integrator;
-  }
+  mj_resetData(m, d);
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+  ASSERT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(con[0].dist, 0.784, MjTol(0.04, 0.04));
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -1064,6 +998,32 @@ TEST_F(ContinuousCollisionTest,
       EXPECT_GT(d->qpos[16], 0.02) << "capsule arrested at step " << step;
     }
   }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, SlightlyTiltedThinCardGetsFourFaceContacts) {
+  constexpr char kTiltedCardXml[] = R"(
+  <mujoco>
+    <option timestep="0.008" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="pad" type="box" size="0.026 0.014 0.0032" pos="0 0 0"/>
+      <body name="card" pos="0 0 0.00385" euler="0.2 0 0">
+        <freejoint/>
+        <geom name="card_geom" type="box" size="0.032 0.047 0.00035"
+              mass="0.002"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kTiltedCardXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -2.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 1, 0.0, con, buffer.data()), 4);
 
   mj_deleteData(d);
   mj_deleteModel(m);

@@ -1746,7 +1746,8 @@ int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
     // plane geoms always use multicontact
     int has_plane = (type1 == mjGEOM_PLANE || type2 == mjGEOM_PLANE);
     if (buffer && (has_plane || !mjDISABLED(mjDSBL_MULTICCD))) {
-      mjtNum pad = 2.0 * mju_max(0.0, dist) + m->opt.ccd_tolerance;
+      mjtNum pad = 2.0 * mju_max(0.0, dist) + (1.0 - t) * closing_dist +
+                   m->opt.ccd_tolerance;
       obj1.margin = pad;
       obj2.margin = pad;
       mji_addToScl3(x1_all, normal, 0.5 * pad);
