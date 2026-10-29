@@ -218,6 +218,25 @@ target_link_libraries(
 
 if(NOT EMSCRIPTEN)
   target_link_libraries(mujoco PRIVATE Threads::Threads)
+  if(APPLE)
+    target_link_options(
+      mujoco PRIVATE "-Wl,-unexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/mujoco.unexported_symbols"
+    )
+    set_property(
+      TARGET mujoco
+      APPEND
+      PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/mujoco.unexported_symbols"
+    )
+  elseif(UNIX)
+    target_link_options(
+      mujoco PRIVATE "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/mujoco.lds"
+    )
+    set_property(
+      TARGET mujoco
+      APPEND
+      PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/mujoco.lds"
+    )
+  endif()
 endif()
 
 set_target_properties(
