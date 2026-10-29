@@ -269,9 +269,10 @@ static void effBlockRaw(const mjModel* m, const mjData* d, int i, mjtNum* Bk) {
 
 
 //------------------ sparse Cholesky metric preconditioner ----------------------------------------
-// When every covered flex is a 1D rod or (under mjENBL_IPC) a 2D flex (effChol12D), the covered
-// block of M + K is factored by a reverse-order sparse Cholesky, blocked by vertex, rather than by
-// its 3x3 diagonal blocks only.
+// When every covered flex is a 1D rod or a 2D flex (effChol12D), the covered block of M + K is
+// factored by a reverse-order sparse Cholesky, blocked by vertex, rather than by its 3x3 diagonal
+// blocks only. 2D flexes take the factor only where the constraint solver folds into it (IPC, or
+// monolithic CG: effCholApplies, mj_effFoldMonolithic); 3D flexes keep the blocks.
 // The ordering is the model's: mj_setConst orders the vertices of the model's efm_K pattern by
 // minimum degree (mj_effCholSetConst, into efmC_perm). The symbolic factorization depends only on
 // the efm_K pattern: each step analyses the pattern it assembled under that ordering
@@ -392,7 +393,7 @@ static int effCholReserved(const mjData* d) {
 }
 
 // per-island flex/triple lists, packed into efm_L after the 9*nefmdof 3x3 blocks when islands are
-// active (and IPC is disabled, so effCholReserve is unused):
+// active, IPC is disabled and no sparse factor is reserved (effCholReserve):
 //   [9*nb 3x3 blocks][EFF_ISLAND_TAG][nisland, nb, nbd, nflex, cov_adr, cov_ind, bend_adr, ...]
 typedef struct {
   int nisland, nb, nbd, nflex;
@@ -751,9 +752,17 @@ static void effCholFinish(const mjEffCholPass* p, mjEffChol* c) {
                                 nb, 3, p->scratch);
 }
 
-// return 1 if every covered flex qualifies for the sparse Cholesky factor (currently all-or-nothing
-// across covered flexes since efm_dofid and nefmCvert index all covered triples together)
-static int effChol12D(const mjModel* m, int ipc) {
+// a constraint solve with this solver can fold its efc rows into the sparse factor
+// (mj_effPrecFold): CG over a pyramidal cone, without sleep, which needs the island path
+// (mj_effFoldMonolithic)
+static int effFoldPossible(const mjModel* m, int solver) {
+  return solver == mjSOL_CG && m->opt.cone != mjCONE_ELLIPTIC && !mjENABLED(mjENBL_SLEEP);
+}
+
+// return 1 if every covered flex qualifies for the sparse Cholesky factor: 1D rods and, if
+// allow2d, 2D flexes, not interpolated (currently all-or-nothing across covered flexes since
+// efm_dofid and nefmCvert index all covered triples together)
+static int effChol12D(const mjModel* m, int allow2d) {
   for (int f=0; f < m->nflex; f++) {
     int covered = mjd_flexStiff_active(m, f, /*flg_bend=*/1, /*flg_stretch=*/1) ||
                   mjd_flexInterp_processed(m, f) || mj_effFlexContactPossible(m, f);
@@ -763,16 +772,20 @@ static int effChol12D(const mjModel* m, int ipc) {
     if (m->flex_interp[f]) {
       return 0;
     }
-    if (m->flex_dim[f] != 1 && !(ipc && m->flex_dim[f] == 2)) {
+    if (m->flex_dim[f] != 1 && !(allow2d && m->flex_dim[f] == 2)) {
       return 0;
     }
   }
   return 1;
 }
 
+// the step uses the sparse factor. 2D flexes need a consumer that folds the contact rows into it:
+// on its own the factor makes each constraint-solver iteration costlier than the iterations it
+// saves, so 2D flexes take it under IPC or when CG folds, and keep the 3x3 blocks otherwise
 static int effCholApplies(const mjModel* m, int nb, const int* dofid) {
+  int allow2d = mjENABLED(mjENBL_IPC) || effFoldPossible(m, m->opt.solver);
   if (!nb || nb > EFF_CHOL_MAXVERT || !m->nefmCvert || m->efmC_perm[0] < 0 ||
-      !effChol12D(m, mjENABLED(mjENBL_IPC))) {
+      !effChol12D(m, allow2d)) {
     return 0;
   }
   if (mjd_flexInterpAssemblable(m)) {
@@ -825,7 +838,9 @@ void mj_effCholSetConst(mjModel* m, mjData* d) {
     return;
   }
   for (int t=0; t < ncap; t++) m->efmC_perm[t] = -1;
-  if (!effChol12D(m, /*ipc=*/1)) {
+  // the ordering is structural: computed for every model that can use the factor, whatever the
+  // solver options (effCholApplies decides per step)
+  if (!effChol12D(m, /*allow2d=*/1)) {
     return;
   }
   mj_markStack(d);
@@ -1455,6 +1470,10 @@ int mj_effCholFoldSize(const mjData* d) {
   return EFF_HDR + c.nL;
 }
 
+int mj_effFoldMonolithic(const mjModel* m, const mjData* d, int solver) {
+  return d->efm_active && effFoldPossible(m, solver) && effCholReserved(d);
+}
+
 static size_t effCholApplyScratch(const mjData* d) {
   if (!effCholReserved(d)) {
     return 0;
@@ -1469,8 +1488,8 @@ static size_t effCholApplyScratch(const mjData* d) {
 // d->efm_L, 9 numbers per covered vertex: O(n) to build and apply, approximate where the sparse
 // factorization it replaces was exact. Both consumers use the blocks as a preconditioner: the CG
 // constraint solver (Mgrad = Mtilde \ grad) and the qacc_smooth PCG in mj_effSolve, which
-// supplies the accuracy. Under IPC the buffer can also hold a sparse factor of the covered
-// block, which then replaces the blocks (effCholReserve).
+// supplies the accuracy. For 1D rods and 2D flexes the buffer can also hold a sparse factor of the
+// covered block, which then replaces the blocks (effCholReserve).
 static void effBlocks(const mjModel* m, mjData* d) {
   int nv = m->nv;
 

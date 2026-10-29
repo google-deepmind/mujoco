@@ -2061,9 +2061,10 @@ TEST_F(IpcTest, SparseFactorMatchesBlocks) {
   mj_deleteModel(m);
 }
 
-// the factor applies under the run-time IPC flag only: clearing the flag
-// switches to the blocks, setting it again switches back
-TEST_F(IpcTest, SparseFactorFollowsIpcFlag) {
+// for a 2D flex the factor applies under the run-time IPC flag or when CG folds
+// into it: clearing the flag keeps the factor under CG, an elliptic cone (no
+// fold) switches to the blocks, restoring the pyramidal cone switches back
+TEST_F(IpcTest, SparseFactorFollowsIpcFlagAndSolver) {
   mjModel* m = Load(kHanging);
   ASSERT_THAT(m, NotNull());
   mjData* d = mj_makeData(m);
@@ -2072,8 +2073,11 @@ TEST_F(IpcTest, SparseFactorFollowsIpcFlag) {
   EXPECT_TRUE(FactorUsed(d));
   m->opt.enableflags &= ~mjENBL_IPC;
   mj_step(m, d);
+  EXPECT_TRUE(FactorUsed(d));
+  m->opt.cone = mjCONE_ELLIPTIC;
+  mj_step(m, d);
   EXPECT_TRUE(BlocksUsed(d));
-  m->opt.enableflags |= mjENBL_IPC;
+  m->opt.cone = mjCONE_PYRAMIDAL;
   mj_step(m, d);
   EXPECT_TRUE(FactorUsed(d));
 
@@ -2108,21 +2112,73 @@ TEST_F(IpcTest, SparseFactorSaveLoad) {
   mj_deleteModel(m);
 }
 
-// a model without the compile-time IPC flag has no ordering: enabling the flag
-// at run time uses the blocks
-TEST_F(IpcTest, SparseFactorNeedsCompileTimeIpc) {
+// a model compiled without the IPC flag has the ordering too: CG without IPC
+// uses the factor, and so does enabling the flag at run time
+TEST_F(IpcTest, SparseFactorWithoutCompileTimeIpc) {
   std::string xml(kHanging);
   xml.erase(xml.find("<flag ipc=\"enable\"/>"),
             std::string("<flag ipc=\"enable\"/>").size());
   mjModel* m = Load(xml.c_str());
   ASSERT_THAT(m, NotNull());
-  EXPECT_EQ(m->nefmCvert, 0);
-  m->opt.enableflags |= mjENBL_IPC;
+  EXPECT_GT(OrderedVertices(m), 0);
   mjData* d = mj_makeData(m);
   mj_step(m, d);
-  EXPECT_TRUE(BlocksUsed(d));
+  EXPECT_TRUE(FactorUsed(d));
+  m->opt.enableflags |= mjENBL_IPC;
+  mj_step(m, d);
+  EXPECT_TRUE(FactorUsed(d));
   EXPECT_FALSE(d->warning[mjWARN_BADQACC].number);
   mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+// without IPC, the CG fold into the sparse factor and the 3x3 blocks on the
+// island path precondition the same solves: from the same state, one step gives
+// the same accelerations up to the solver tolerances
+TEST_F(IpcTest, SparseFactorFoldMatchesBlocksWithoutIpc) {
+  std::string xml(kSheets);
+  xml.erase(xml.find("<flag ipc=\"enable\"/>"),
+            std::string("<flag ipc=\"enable\"/>").size());
+  size_t pos = xml.find("iterations=\"400\"");
+  xml.replace(pos, std::string("iterations=\"400\"").size(),
+              "iterations=\"4000\" tolerance=\"1e-12\"");
+  mjModel* m = Load(xml.c_str());
+  ASSERT_THAT(m, NotNull());
+  ASSERT_GT(OrderedVertices(m), 0);
+  mjModel* mb = BlocksCopy(m);
+  mjData* d = mj_makeData(m);
+  mjData* db = mj_makeData(mb);
+
+  bool contact = false;
+  mjtNum rel = 0, rel_smooth = 0;
+  for (int s = 0; s < 150; s++) {
+    mj_copyData(db, mb, d);
+    mj_step(m, d);
+    mj_step(mb, db);
+    ASSERT_TRUE(FactorUsed(d)) << "step " << s;
+    // the blocks copy runs on the island path, which appends the island lists
+    // after the blocks once there are contacts
+    ASSERT_FALSE(FactorUsed(db)) << "step " << s;
+    contact = contact || mju_norm(d->qfrc_constraint, m->nv) > 0;
+
+    mjtNum scale = 0, diff = 0, scale_s = 0, diff_s = 0;
+    for (int i = 0; i < m->nv; i++) {
+      scale = mju_max(scale, mju_abs(db->qacc[i]));
+      diff = mju_max(diff, mju_abs(d->qacc[i] - db->qacc[i]));
+      scale_s = mju_max(scale_s, mju_abs(db->qacc_smooth[i]));
+      diff_s = mju_max(diff_s, mju_abs(d->qacc_smooth[i] - db->qacc_smooth[i]));
+    }
+    rel = mju_max(rel, diff / scale);
+    rel_smooth = mju_max(rel_smooth, diff_s / scale_s);
+  }
+  EXPECT_LE(rel_smooth, MjTol(2e-11, 2e-4)) << "qacc_smooth";
+  EXPECT_LE(rel, MjTol(1e-4, 2e-4)) << "qacc";
+  EXPECT_TRUE(contact) << "the sheets must collide";
+  EXPECT_FALSE(d->warning[mjWARN_BADQACC].number);
+
+  mj_deleteData(db);
+  mj_deleteData(d);
+  mj_deleteModel(mb);
   mj_deleteModel(m);
 }
 
@@ -2293,13 +2349,15 @@ TEST_F(IpcTest, SparseFactorPatternChange) {
   mj_deleteModel(m);
 }
 
-// the coverage rules: the compiler sizes the ordering for models with IPC and a
-// 2D flex, mj_setConst orders the vertices of the engine's own stencils, and
-// models with a covered non-2D flex, or without IPC, use the blocks
+// the coverage rules: the compiler sizes the ordering for models with a 2D flex
+// or an elastic rod, mj_setConst orders the vertices of the engine's own
+// stencils, and models with a covered 3D flex use the blocks. A 2D flex uses
+// the factor under IPC or when CG folds into it (pyramidal cone, no sleep), and
+// the blocks otherwise
 TEST_F(IpcTest, SparseFactorCoverage) {
   static constexpr char kTemplate[] = R"(
   <mujoco>
-    <option timestep="0.002" integrator="discrete" solver="CG" iterations="400">
+    <option timestep="0.002" integrator="discrete" iterations="400" %s>
       %s
     </option>
     <worldbody>
@@ -2307,6 +2365,7 @@ TEST_F(IpcTest, SparseFactorCoverage) {
     </worldbody>
   </mujoco>
   )";
+  static constexpr char kCG[] = R"(solver="CG")";
   static constexpr char kIpc[] = R"(<flag ipc="enable"/>)";
   static constexpr char kSheet[] = R"(
       <flexcomp name="sheet" type="grid" dim="2" count="7 6 1" spacing=".04 .04 1"
@@ -2348,32 +2407,45 @@ TEST_F(IpcTest, SparseFactorCoverage) {
   };
   struct Case {
     std::string name;
+    std::string attrs;
     std::string option;
     std::string bodies;
     bool sized;  // the model has ordering slots
-    bool used;   // the CG step uses the factor (efm_K is assembled)
+    bool used;   // the step uses the factor (efm_K is assembled)
   };
   std::vector<Case> cases = {
-      {"stretch and bending", kIpc, sheet("both", ""), true, true},
-      {"pins", kIpc, sheet("both", R"(<pin id="0 6 35 41"/>)"), true, true},
-      {"stretch only", kIpc, sheet("stretch", ""), true, true},
-      {"bending only", kIpc, sheet("bend", ""), true, false},
-      {"two sheets", kIpc, sheet("both", "") + kSecond, true, true},
-      {"joint before the sheet", kIpc, std::string(kHinge) + sheet("both", ""),
-       true, true},
-      {"sheet and cable", kIpc, sheet("both", "") + kCable, true, true},
-      {"sheet and elastic rod", kIpc, sheet("both", "") + kRod, true, true},
-      {"elastic rod, no IPC", "", kRod, true, true},
-      {"sheet and elastic rod, no IPC", "", sheet("both", "") + kRod, true,
+      {"stretch and bending", kCG, kIpc, sheet("both", ""), true, true},
+      {"pins", kCG, kIpc, sheet("both", R"(<pin id="0 6 35 41"/>)"), true,
+       true},
+      {"stretch only", kCG, kIpc, sheet("stretch", ""), true, true},
+      {"bending only", kCG, kIpc, sheet("bend", ""), true, false},
+      {"two sheets", kCG, kIpc, sheet("both", "") + kSecond, true, true},
+      {"joint before the sheet", kCG, kIpc,
+       std::string(kHinge) + sheet("both", ""), true, true},
+      {"sheet and cable", kCG, kIpc, sheet("both", "") + kCable, true, true},
+      {"sheet and elastic rod", kCG, kIpc, sheet("both", "") + kRod, true,
+       true},
+      {"elastic rod, no IPC", kCG, "", kRod, true, true},
+      {"sheet and elastic rod, no IPC", kCG, "", sheet("both", "") + kRod, true,
+       true},
+      {"sheet and solid", kCG, kIpc, sheet("both", "") + kSolid, true, false},
+      {"solid", kCG, kIpc, kSolid, false, false},
+      {"no IPC", kCG, "", sheet("both", ""), true, true},
+      {"no IPC, two sheets", kCG, "", sheet("both", "") + kSecond, true, true},
+      {"no IPC, Newton", R"(solver="Newton")", "", sheet("both", ""), true,
        false},
-      {"sheet and solid", kIpc, sheet("both", "") + kSolid, true, false},
-      {"solid", kIpc, kSolid, false, false},
-      {"no IPC", "", sheet("both", ""), false, false},
+      {"no IPC, elliptic", R"(solver="CG" cone="elliptic")", "",
+       sheet("both", ""), true, false},
+      {"no IPC, sleep", kCG, R"(<flag sleep="enable"/>)", sheet("both", ""),
+       true, false},
+      {"elastic rod, no IPC, Newton", R"(solver="Newton")", "", kRod, true,
+       true},
   };
   for (const Case& c : cases) {
     SCOPED_TRACE(c.name);
     char xml[4096];
-    snprintf(xml, sizeof(xml), kTemplate, c.option.c_str(), c.bodies.c_str());
+    snprintf(xml, sizeof(xml), kTemplate, c.attrs.c_str(), c.option.c_str(),
+             c.bodies.c_str());
     mjModel* m = Load(xml);
     ASSERT_THAT(m, NotNull());
     EXPECT_EQ(m->nefmCvert > 0, c.sized);

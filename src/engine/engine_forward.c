@@ -1223,8 +1223,10 @@ static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
-  // check if islands are supported (IPC folds its subproblem monolithically)
-  int islands_supported = flg_island && nisland > 0 && !mjENABLED(mjENBL_IPC);
+  // check if islands are supported: IPC folds its subproblem monolithically, and so does CG when it
+  // folds into the step's sparse flex factor
+  int islands_supported = flg_island && nisland > 0 && !mjENABLED(mjENBL_IPC) &&
+                          !mj_effFoldMonolithic(m, d, solver);
 
   // run solver over constraint islands
   if (islands_supported) {

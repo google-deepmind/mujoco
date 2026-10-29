@@ -2378,13 +2378,12 @@ void mjCModel::SetSizes() {
   }
 
   // sparse metric factor ordering slots, filled by mj_setConst
-  // (mj_effCholSetConst): 1D rods and, when IPC is enabled, 2D flexes use the
-  // factor; the covered vertices are disjoint dof triples
+  // (mj_effCholSetConst): 1D rods and 2D flexes use the factor; the covered
+  // vertices are disjoint dof triples
   nefmCvert = 0;
   for (int i = 0; i < nflex; i++) {
     if (flexes_[i]->interpolated || flexes_[i]->rigid) { continue; }
-    if ((flexes_[i]->dim == 1 && !flexes_[i]->bending.empty()) ||
-        ((option.enableflags & mjENBL_IPC) && flexes_[i]->dim == 2)) {
+    if ((flexes_[i]->dim == 1 && !flexes_[i]->bending.empty()) || flexes_[i]->dim == 2) {
       nefmCvert += flexes_[i]->nvert;
     }
   }

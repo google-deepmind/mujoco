@@ -1134,11 +1134,17 @@ typedef struct {
 } mjPrimalContext;
 
 
-// IPC folds the efc rows in their quadratic zone (its contact pairs among them) and the metric's
-// rank-1 classes into a solver-owned copy of the metric blocks (mj_effPrecFold): monolithic CG
-// with a live metric
-static int effFoldWanted(const mjModel* m, const mjData* d, int island, int is_elliptic) {
-  return d->efm_active && island < 0 && !is_elliptic && mjENABLED(mjENBL_IPC);
+// fold the efc rows in their quadratic zone (contact pairs among them) and the metric's rank-1
+// classes into a solver-owned copy of the metric blocks (mj_effPrecFold): monolithic solve with a
+// live metric, pyramidal cone. IPC folds for both primal solvers (Newton only for its
+// certificate); otherwise CG folds whenever the step holds a sparse factor of the covered flex
+// block (1D rods, 2D flexes), which mj_effFoldMonolithic keeps off the island path
+static int effFoldWanted(const mjModel* m, const mjData* d, int island, int is_elliptic,
+                         int flg_Newton) {
+  if (!d->efm_active || island >= 0 || is_elliptic) {
+    return 0;
+  }
+  return mjENABLED(mjENBL_IPC) || (!flg_Newton && mj_effFoldMonolithic(m, d, mjSOL_CG));
 }
 
 
@@ -1315,10 +1321,10 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       nInt += (count);         \
   } while (0)
 
-  // IPC fold, with the dense uncovered-dof blocks for CG (Newton folds only for its
+  // metric fold, with the dense uncovered-dof blocks for CG (Newton folds only for its
   // certificate, and its Hessian needs the stack). Sizing the blocks takes a frame that the
   // fold's scratch bounds
-  int flg_fold = effFoldWanted(m, d, ctx->island, is_elliptic);
+  int flg_fold = effFoldWanted(m, d, ctx->island, is_elliptic, flg_Newton);
   int nu = 0, ncomp = 0, nS = 0;
   if (flg_fold && !flg_Newton && mj_stackBytesAvailable(d) >= mj_effFoldScratch(m, d, 1)) {
     nS = mj_effFoldDenseSize(m, d, nefc, ctx->efc_D, is_sparse, ctx->J_rownnz, ctx->J_rowadr,

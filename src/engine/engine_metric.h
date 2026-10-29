@@ -125,6 +125,10 @@ MJAPI void mj_effCholSetConst(mjModel* m, mjData* d);
 // length of a fold's copy of the sparse factor (mjEffFold.F), 0 when the step has none
 MJAPI int mj_effCholFoldSize(const mjData* d);
 
+// the constraint solve with this solver folds the efc rows into the step's sparse factor of the
+// covered flex block (1D rods, 2D flexes), which has no island-local form: run it monolithically
+int mj_effFoldMonolithic(const mjModel* m, const mjData* d, int solver);
+
 // analyse and factor this solve's contact-adaptive sparse factor, allocated on the stack of d in
 // the caller's frame (it lives until the solve ends); falls back to the step's pattern in
 // fold->F and returns NULL when not needed or the arena cannot hold the contact-adaptive factor
