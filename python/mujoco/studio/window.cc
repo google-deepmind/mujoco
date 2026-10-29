@@ -70,6 +70,14 @@ class Window {
     ImPlot::CreateContext();
   }
 
+  ~Window() {
+    pybind11::gil_scoped_release no_gil;
+    if (ImPlot::GetCurrentContext() != nullptr) {
+      ImPlot::DestroyContext(nullptr);
+    }
+    window_.reset();
+  }
+
   bool NewFrame() {
     pybind11::gil_scoped_release no_gil;
     const mujoco::studio::Window::Status window_status = window_->NewFrame();

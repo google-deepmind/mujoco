@@ -180,6 +180,9 @@ Window::Window(std::string_view title, int width, int height, Config config)
 
 Window::~Window() {
   ImGui_ImplSDL2_Shutdown();
+  if (ImGui::GetCurrentContext() != nullptr) {
+    ImGui::DestroyContext(nullptr);
+  }
   SDL_DestroyWindow(sdl_window_);
   SDL_Quit();
 }

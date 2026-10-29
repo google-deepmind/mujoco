@@ -193,6 +193,9 @@ App::~App() {
   // changes and plugin visibility would be lost. window_ owns the ImGui context
   // and outlives this body.
   SaveSettings();
+  if (ImPlot::GetCurrentContext() != nullptr) {
+    ImPlot::DestroyContext(nullptr);
+  }
   mjv_freeScene(&plugin_scene_);
   model_holder_.reset();
   mj_deleteVFS(&vfs_);
