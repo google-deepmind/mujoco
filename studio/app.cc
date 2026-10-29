@@ -596,6 +596,8 @@ Renderer::View App::GetSceneView() {
   } else {
     view.draw_mode = mjDRAW_MODE_DEFAULT;
   }
+  view.haze = render_flags_[mjRND_HAZE];
+  view.skybox = render_flags_[mjRND_SKYBOX];
   view.shadows = render_flags_[mjRND_SHADOW];
   view.reflections = render_flags_[mjRND_REFLECTION];
   view.post_processing = render_flags_[mjRND_POST_PROCESSING];
