@@ -1547,7 +1547,10 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     mjs_setStringVec(dflex.material, material.c_str());
   }
   ReadAttr(elem, "rgba", 4, dflex.rgba, text);
-  if (MapValue(elem, "flatskin", &n, bool_map, 2)) { dflex.flatskin = (n == 1); }
+  if (MapValue(elem, "flatskin", &n, bool_map, 2)) {
+    dflex.flatskin     = (n == 1);
+    fcomp.has_flatskin = true;
+  }
   if (ReadAttrInt(elem, "dim", &dflex.dim)) { fcomp.has_dim = true; }
   ReadAttr(elem, "radius", 1, &dflex.radius, text);
   ReadAttrInt(elem, "group", &dflex.group);
@@ -1590,6 +1593,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "poisson", 1, &dflex.poisson, text);
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
+    ReadAttr(elasticity, "yield", 1, &dflex.stressyield, text);
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
     MapValue(elasticity, "section", &dflex.section, flexsection_map, flexsection_sz);
     ReadAttr(elasticity, "sectionsize", 2, dflex.sectionsize, text);

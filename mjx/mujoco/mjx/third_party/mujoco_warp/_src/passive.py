@@ -1173,11 +1173,13 @@ def stretch_elongation(
   flex_elemedge: wp.array[int],
   flexedge_length0: wp.array[float],
   # Data in:
+  plastic_in: wp.array2d[float],
   flexedge_length_in: wp.array2d[float],
   # In:
   worldid: int,
   elemedge_adr: int,
   edge_adr: int,
+  padr: int,
   nedge: int,
 ) -> vec6:
   elongation = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -1185,7 +1187,10 @@ def stretch_elongation(
     e_idx = edge_adr + flex_elemedge[elemedge_adr + e]
     deformed = flexedge_length_in[worldid, e_idx]
     reference = flexedge_length0[e_idx]
-    elongation[e] = deformed * deformed - reference * reference
+    val = deformed * deformed - reference * reference
+    if padr >= 0:
+      val -= plastic_in[worldid, padr + e]
+    elongation[e] = val
   return elongation
 
 
@@ -1240,15 +1245,19 @@ def stretch_stiffness(
   flexedge_length0: wp.array[float],
   flex_stiffness: wp.array[float],
   # Data in:
+  plastic_in: wp.array2d[float],
   flexedge_length_in: wp.array2d[float],
   # In:
   worldid: int,
   stiffness_adr: int,
   elemedge_adr: int,
   edge_adr: int,
+  padr: int,
   nedge: int,
 ) -> tuple[mat66, vec6]:
-  elongation = stretch_elongation(flex_elemedge, flexedge_length0, flexedge_length_in, worldid, elemedge_adr, edge_adr, nedge)
+  elongation = stretch_elongation(
+    flex_elemedge, flexedge_length0, plastic_in, flexedge_length_in, worldid, elemedge_adr, edge_adr, padr, nedge
+  )
   metric, tension = stretch_elasticity(flex_stiffness, stiffness_adr, elongation, nedge)
   for e in range(nedge):
     tension[e] = wp.max(tension[e], 0.0)
@@ -1834,6 +1843,7 @@ def _flex_hessian_elem(deterministic: bool = False):
     flex_elemdataadr: wp.array[int],
     flex_stiffnessadr: wp.array[int],
     flex_elemedgeadr: wp.array[int],
+    flex_plasticadr: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_elem: wp.array[int],
     flex_elemedge: wp.array[int],
@@ -1844,6 +1854,7 @@ def _flex_hessian_elem(deterministic: bool = False):
     flex_rigid: wp.array[bool],
     flex_elemflexid: wp.array[int],
     # Data in:
+    plastic_in: wp.array2d[float],
     flexvert_xpos_in: wp.array2d[wp.vec3],
     flex_hessian_valid_in: wp.array2d[bool],
     flexedge_length_in: wp.array2d[float],
@@ -1874,6 +1885,7 @@ def _flex_hessian_elem(deterministic: bool = False):
     ee_base = flex_elemedgeadr[f] + local_elemid * nedge
     stiffness_adr = flex_stiffnessadr[f] + local_elemid * (FLEX_STIFFNESS_3D if dim == 3 else 21)
     snh = wp.static(FLEX_STIFFNESS_3D == 24) and dim == 3 and flex_stiffness[stiffness_adr + 21] != 0.0
+    padr = flex_plasticadr[f] + local_elemid * nedge if flex_plasticadr[f] >= 0 else -1
 
     elem_verts = wp.vec4i(-1, -1, -1, -1)
     vert_xpos = mat43()
@@ -1893,7 +1905,9 @@ def _flex_hessian_elem(deterministic: bool = False):
     skew = wp.vec3(0.0, 0.0, 0.0)
 
     if snh:
-      elongation = stretch_elongation(flex_elemedge, flexedge_length0, flexedge_length_in, worldid, ee_base, ebase, 6)
+      elongation = stretch_elongation(
+        flex_elemedge, flexedge_length0, plastic_in, flexedge_length_in, worldid, ee_base, ebase, padr, 6
+      )
       active, rotation, proj_grad, stretch, symmetric, skew = snh_project(
         flex_vert0,
         flex_stiffness,
@@ -1908,7 +1922,17 @@ def _flex_hessian_elem(deterministic: bool = False):
         return
     else:
       metric, tension = stretch_stiffness(
-        flex_elemedge, flexedge_length0, flex_stiffness, flexedge_length_in, worldid, stiffness_adr, ee_base, ebase, nedge
+        flex_elemedge,
+        flexedge_length0,
+        flex_stiffness,
+        plastic_in,
+        flexedge_length_in,
+        worldid,
+        stiffness_adr,
+        ee_base,
+        ebase,
+        padr,
+        nedge,
       )
 
     edges = stretch_edge_endpoints(dim)
@@ -2011,6 +2035,7 @@ def flex_hessian(m: Model, d: Data):
         m.flex_elemdataadr,
         m.flex_stiffnessadr,
         m.flex_elemedgeadr,
+        m.flex_plasticadr,
         m.flex_edge,
         m.flex_elem,
         m.flex_elemedge,
@@ -2020,6 +2045,7 @@ def flex_hessian(m: Model, d: Data):
         m.flex_stiffness,
         m.flex_rigid,
         m.flex_elemflexid,
+        d.plastic,
         d.flexvert_xpos,
         d.flex_hessian_valid,
         d.flexedge_length,
@@ -2740,6 +2766,7 @@ def _flex_elasticity(deterministic: bool = False):
     flex_elemdataadr: wp.array[int],
     flex_stiffnessadr: wp.array[int],
     flex_elemedgeadr: wp.array[int],
+    flex_plasticadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_elem: wp.array[int],
     flex_elemedge: wp.array[int],
@@ -2748,6 +2775,7 @@ def _flex_elasticity(deterministic: bool = False):
     flex_damping: wp.array[float],
     flex_elemflexid: wp.array[int],
     # Data in:
+    plastic_in: wp.array2d[float],
     xipos_in: wp.array2d[wp.vec3],
     flexvert_xpos_in: wp.array2d[wp.vec3],
     flexedge_length_in: wp.array2d[float],
@@ -2813,11 +2841,12 @@ def _flex_elasticity(deterministic: bool = False):
 
     elemedge_adr = flex_elemedgeadr[f] + local_elemid * nedge
     edge_adr = flex_edgeadr[f]
+    padr = flex_plasticadr[f] + local_elemid * nedge if flex_plasticadr[f] >= 0 else -1
 
     elongation_spring = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     if not dsbl_spring:
       elongation_spring = stretch_elongation(
-        flex_elemedge, flexedge_length0, flexedge_length_in, worldid, elemedge_adr, edge_adr, nedge
+        flex_elemedge, flexedge_length0, plastic_in, flexedge_length_in, worldid, elemedge_adr, edge_adr, padr, nedge
       )
 
     metric, tension_spring = stretch_elasticity(flex_stiffness, stiffness_adr, elongation_spring, nedge)
@@ -4077,6 +4106,7 @@ def passive(m: Model, d: Data):
         m.flex_elemdataadr,
         m.flex_stiffnessadr,
         m.flex_elemedgeadr,
+        m.flex_plasticadr,
         m.flex_vertbodyid,
         m.flex_elem,
         m.flex_elemedge,
@@ -4084,6 +4114,7 @@ def passive(m: Model, d: Data):
         m.flex_stiffness,
         m.flex_damping,
         m.flex_elemflexid,
+        d.plastic,
         d.xipos,
         d.flexvert_xpos,
         d.flexedge_length,

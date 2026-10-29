@@ -2641,6 +2641,35 @@ TEST_F(PlasticityTest, NegativeSpringYieldError) {
   m = LoadModelFromString(tendon_xml, error, sizeof(error));
   EXPECT_THAT(m.get(), IsNull());
   EXPECT_THAT(error, HasSubstr("springyield cannot be negative"));
+
+  static constexpr char flex_neg_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <elasticity young="1000" yield="-0.1"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  m = LoadModelFromString(flex_neg_xml, error, sizeof(error));
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("yield cannot be negative"));
+
+  static constexpr char flex_1d_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="rod" type="grid" dim="1" count="3 1 1" spacing="0.1 0.1 0.1">
+        <elasticity young="1000" yield="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  m = LoadModelFromString(flex_1d_xml, error, sizeof(error));
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(
+      error,
+      HasSubstr("flex plasticity requires a non-interpolated 2d or 3d flex"));
 }
 
 TEST_F(PlasticityTest, SlideAndHingeReturnMappingAndState) {
@@ -2898,6 +2927,11 @@ TEST_F(PlasticityTest, XmlAndBinarySaveLoadRoundTrip) {
         <joint name="h" type="hinge" stiffness="10" springyield="30"/>
         <geom size="0.1" mass="1"/>
       </body>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.25" yield="0.04"/>
+      </flexcomp>
     </worldbody>
     <tendon>
       <fixed name="t" stiffness="20" springyield="0.25">
@@ -2912,6 +2946,7 @@ TEST_F(PlasticityTest, XmlAndBinarySaveLoadRoundTrip) {
   ASSERT_THAT(m.get(), NotNull()) << error;
   EXPECT_NEAR(m->jnt_springyield[0], 30.0 * mjPI / 180.0, MjTol(1e-12, 1e-5));
   EXPECT_NEAR(m->tendon_springyield[0], 0.25, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(m->flex_yield[0], 0.04, MjTol(1e-12, 1e-5));
 
   // XML round-trip
   std::string saved_xml = SaveAndReadXml(m.get());
@@ -2920,6 +2955,7 @@ TEST_F(PlasticityTest, XmlAndBinarySaveLoadRoundTrip) {
   EXPECT_EQ(m_xml->nplastic, m->nplastic);
   EXPECT_NEAR(m_xml->jnt_springyield[0], m->jnt_springyield[0], 1e-6);
   EXPECT_NEAR(m_xml->tendon_springyield[0], m->tendon_springyield[0], 1e-6);
+  EXPECT_NEAR(m_xml->flex_yield[0], m->flex_yield[0], 1e-6);
 
   // Binary MJB round-trip
   mjtSize buf_sz = mj_sizeModel(m.get());
@@ -2930,8 +2966,10 @@ TEST_F(PlasticityTest, XmlAndBinarySaveLoadRoundTrip) {
   EXPECT_EQ(m_bin->nplastic, m->nplastic);
   EXPECT_EQ(m_bin->jnt_plasticadr[0], m->jnt_plasticadr[0]);
   EXPECT_EQ(m_bin->tendon_plasticadr[0], m->tendon_plasticadr[0]);
+  EXPECT_EQ(m_bin->flex_plasticadr[0], m->flex_plasticadr[0]);
   EXPECT_MJTNUM_EQ(m_bin->jnt_springyield[0], m->jnt_springyield[0]);
   EXPECT_MJTNUM_EQ(m_bin->tendon_springyield[0], m->tendon_springyield[0]);
+  EXPECT_MJTNUM_EQ(m_bin->flex_yield[0], m->flex_yield[0]);
   mj_deleteModel(m_bin);
 }
 
@@ -3015,6 +3053,11 @@ TEST_F(PlasticityTest, RecompilePreservesPlasticState) {
         <joint name="j1" type="slide" stiffness="100" springyield="0.1"/>
         <geom size="0.1" mass="1"/>
       </body>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.25" yield="0.05"/>
+      </flexcomp>
     </worldbody>
     <tendon>
       <fixed name="t1" stiffness="100" springyield="0.2">
@@ -3031,11 +3074,15 @@ TEST_F(PlasticityTest, RecompilePreservesPlasticState) {
   ASSERT_THAT(m, NotNull());
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
+  ASSERT_EQ(m->nplastic, 9);  // j1 (1) + t1 (2) + tet (6)
 
   // Set non-initial plastic references
   d->plastic[0] = 0.42;
   d->plastic[1] = 0.15;
   d->plastic[2] = 0.35;
+  for (int i = 0; i < 6; i++) {
+    d->plastic[3 + i] = 0.01 * (i + 1);
+  }
 
   // Add a new body and joint to spec and recompile
   mjsBody* b2 = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
@@ -3047,11 +3094,14 @@ TEST_F(PlasticityTest, RecompilePreservesPlasticState) {
   g2->size[0] = 0.1;
 
   ASSERT_EQ(mj_recompile(spec, nullptr, m, d), 0) << mjs_getError(spec);
-  ASSERT_EQ(m->nplastic, 4);  // j1 (1) + j2 (1) + t1 (2)
+  ASSERT_EQ(m->nplastic, 10);  // j1 (1) + j2 (1) + t1 (2) + tet (6)
   EXPECT_NEAR(d->plastic[0], 0.42, MjTol(1e-12, 1e-5));
   EXPECT_NEAR(d->plastic[1], 0.0, MjTol(1e-12, 1e-5));
   EXPECT_NEAR(d->plastic[2], 0.15, MjTol(1e-12, 1e-5));
   EXPECT_NEAR(d->plastic[3], 0.35, MjTol(1e-12, 1e-5));
+  for (int i = 0; i < 6; i++) {
+    EXPECT_NEAR(d->plastic[4 + i], 0.01 * (i + 1), MjTol(1e-12, 1e-5));
+  }
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -3128,6 +3178,300 @@ TEST_F(PlasticityTest, UnilateralTendonAndKeyframesAndSleep) {
   mj_Euler(m.get(), d.get());
   EXPECT_NEAR(d->plastic[0], 0.15, MjTol(1e-12, 1e-5));
   EXPECT_NEAR(d->plastic[2], 0.6, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(PlasticityTest, Flex3DStretchPlasticity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.25" damping="0.001" yield="0.05"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+  ASSERT_EQ(m->nplastic, 6);
+  EXPECT_EQ(m->flex_plasticadr[0], 0);
+  EXPECT_NEAR(m->flex_yield[0], 0.05, MjTol(1e-12, 1e-5));
+
+  MjDataPtr d = MakeData(m);
+  for (int e = 0; e < 6; e++) {
+    EXPECT_EQ(d->plastic[e], 0.0);
+  }
+
+  // 1. Pure hydrostatic expansion: scale all vertices by lambda = 1.2 (20% > 5%
+  // yield). Because J2 plasticity is purely deviatoric (isochoric), hydrostatic
+  // strain must produce zero plastic strain!
+  {
+    static constexpr char xml_free[] = R"(
+    <mujoco>
+      <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+      <worldbody>
+        <flexcomp name="tet" type="direct" dim="3" mass="1"
+                  point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+          <contact contype="0" conaffinity="0" selfcollide="none"/>
+          <elasticity young="1000" poisson="0.25" damping="0.001" yield="0.05"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+    MjModelPtr mf = LoadModelFromString(xml_free, error, sizeof(error));
+    ASSERT_THAT(mf.get(), NotNull()) << error;
+    MjDataPtr df = MakeData(mf);
+    mj_forward(mf.get(), df.get());
+    std::vector<mjtNum> rest(df->flexvert_xpos, df->flexvert_xpos + 12);
+    for (int v = 0; v < 4; v++) {
+      int adr = mf->body_dofadr[mf->flex_vertbodyid[v]];
+      df->qpos[adr + 0] = 0.2 * rest[3 * v + 0];
+      df->qpos[adr + 1] = 0.2 * rest[3 * v + 1];
+      df->qpos[adr + 2] = 0.2 * rest[3 * v + 2];
+    }
+    mj_step(mf.get(), df.get());
+    for (int e = 0; e < 6; e++) {
+      EXPECT_NEAR(df->plastic[e], 0.0, MjTol(1e-10, 1e-5));
+    }
+  }
+
+  // 2. Uniaxial / deviatoric stretch of vertex 3 along z:
+  // First small displacement below yield (dz = 0.02 -> E_zz ~ 0.02 < 0.05): no
+  // plastic strain
+  d->qpos[2] = 0.02;
+  mj_step(m.get(), d.get());
+  for (int e = 0; e < 6; e++) {
+    EXPECT_NEAR(d->plastic[e], 0.0, MjTol(1e-12, 1e-5));
+  }
+
+  // Now displace vertex 3 along z beyond yield (dz = 0.2 -> E_zz = 0.22):
+  d->qpos[2] = 0.2;
+  mj_forward(m.get(), d.get());
+  mjtNum fz_before_yield = d->qfrc_spring[2];
+  EXPECT_LT(fz_before_yield, -1.0);
+
+  mj_step(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  mjtNum fz_after_yield = d->qfrc_spring[2];
+
+  // Plastic strain must be non-zero on the z-incident edges, and restoring
+  // force magnitude reduced
+  mjtNum pnorm = mju_norm(d->plastic, 6);
+  EXPECT_GT(pnorm, 0.05);
+  EXPECT_LT(mju_abs(fz_after_yield), mju_abs(fz_before_yield));
+
+  // Stepping again at the same configuration produces no additional plastic
+  // flow (on yield surface)
+  std::vector<mjtNum> p_saved(d->plastic, d->plastic + 6);
+  mj_step(m.get(), d.get());
+  for (int e = 0; e < 6; e++) {
+    EXPECT_NEAR(d->plastic[e], p_saved[e], MjTol(1e-12, 1e-5));
+  }
+
+  // When returned to rest (qpos[2] = 0), residual force pushes in the opposite
+  // (+z) direction
+  d->qpos[2] = 0.0;
+  mj_forward(m.get(), d.get());
+  EXPECT_GT(d->qfrc_spring[2], 0.1);
+
+  // Resetting data clears plastic strain and restores zero force at rest
+  mj_resetData(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  for (int e = 0; e < 6; e++) {
+    EXPECT_EQ(d->plastic[e], 0.0);
+  }
+  EXPECT_NEAR(d->qfrc_spring[2], 0.0, MjTol(1e-12, 1e-5));
+
+  // Put flex bodies to sleep and displace beyond yield: sleeping flex should
+  // not yield
+  for (int b = 1; b < m->nbody; b++) {
+    d->body_awake[b] = mjS_ASLEEP;
+  }
+  for (int t = 0; t < m->ntree; t++) {
+    d->tree_awake[t] = 0;
+  }
+  d->ntree_awake = 0;
+  d->qpos[2] = 0.2;
+  mj_Euler(m.get(), d.get());
+  for (int e = 0; e < 6; e++) {
+    EXPECT_EQ(d->plastic[e], 0.0);
+  }
+
+  // 3. Test Stable Neo-Hookean (elastic3d = 1) and mjsFlex::stressyield via
+  // mjSpec:
+  {
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, error, sizeof(error));
+    ASSERT_THAT(spec, NotNull()) << error;
+    spec->option.integrator = mjINT_DISCRETE;
+    mjsFlex* flex = mjs_asFlex(mjs_findElement(spec, mjOBJ_FLEX, "tet"));
+    ASSERT_THAT(flex, NotNull());
+    EXPECT_NEAR(flex->stressyield, 0.05, MjTol(1e-12, 1e-5));
+    flex->elastic3d = 1;
+    flex->stressyield = 0.04;
+    MjModelPtr m_snh(mj_compile(spec, nullptr));
+    mj_deleteSpec(spec);
+    ASSERT_THAT(m_snh.get(), NotNull());
+    EXPECT_NEAR(m_snh->flex_yield[0], 0.04, MjTol(1e-12, 1e-5));
+
+    MjDataPtr d_snh = MakeData(m_snh);
+    d_snh->qpos[2] = 0.2;
+    mj_forward(m_snh.get(), d_snh.get());
+    mjtNum fz_snh_before = d_snh->qfrc_spring[2];
+    EXPECT_LT(fz_snh_before, -1.0);
+
+    mj_step(m_snh.get(), d_snh.get());
+    mj_forward(m_snh.get(), d_snh.get());
+    mjtNum fz_snh_after = d_snh->qfrc_spring[2];
+    EXPECT_GT(mju_norm(d_snh->plastic, 6), 0.05);
+    EXPECT_LT(mju_abs(fz_snh_after), mju_abs(fz_snh_before));
+
+    // Large plastic stretch (dz = 1.0 -> lambda_z = 2.0): verify exact
+    // nonlinear volume preservation det(G(g + s_p)) == det(G(g))
+    d_snh->qpos[2] = 1.0;
+    mj_step(m_snh.get(), d_snh.get());
+    auto gram_det = [](const mjtNum q[6]) {
+      mjtNum a = q[0], b = q[2], c = q[4];
+      mjtNum d = 0.5 * (q[0] + q[2] - q[1]);
+      mjtNum e = 0.5 * (q[0] + q[4] - q[5]);
+      mjtNum f = 0.5 * (q[2] + q[4] - q[3]);
+      return a * (b * c - f * f) - d * (d * c - e * f) + e * (d * f - b * e);
+    };
+    mjtNum g0[6], gp[6];
+    for (int e = 0; e < 6; e++) {
+      int idx = m_snh->flex_elemedge[e];
+      g0[e] = m_snh->flexedge_length0[idx] * m_snh->flexedge_length0[idx];
+      gp[e] = g0[e] + d_snh->plastic[e];
+    }
+    EXPECT_NEAR(gram_det(gp), gram_det(g0), MjTol(1e-10, 1e-4));
+  }
+}
+
+TEST_F(PlasticityTest, Flex2DStretchPlasticity) {
+  // Two triangles sharing edge (0, 1) along the x-axis:
+  // v0=(0,0,0), v1=(1,0,0), v2=(0.5, 0.5, 0), v3=(0.5, -0.5, 0)
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+    <worldbody>
+      <flexcomp name="shell" type="direct" dim="2" mass="1"
+                point="0 0 0  1 0 0  0.5 0.5 0  0.5 -0.5 0"
+                element="0 1 2  0 3 1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.3" thickness="0.02" elastic2d="both" yield="0.01"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+  // 2 triangles * 3 edges = 6 stretch plastic entries
+  ASSERT_EQ(m->nplastic, 3 * m->flex_elemnum[0]);
+
+  MjDataPtr d = MakeData(m);
+
+  // Small in-plane stretch below yield: plastic strain stays zero
+  d->qpos[1] = -0.002;
+  mj_step(m.get(), d.get());
+  for (int i = 0; i < m->nplastic; i++) {
+    EXPECT_NEAR(d->plastic[i], 0.0, MjTol(1e-12, 1e-5));
+  }
+
+  // In-plane membrane stretching beyond yield (pull v3 from y=-0.5 to y=-0.7):
+  d->qpos[0] = 0.0;
+  d->qpos[1] = -0.2;
+  d->qpos[2] = 0.0;
+  mj_forward(m.get(), d.get());
+  mjtNum fy_before = d->qfrc_spring[1];
+  EXPECT_GT(fy_before, 1.0);
+
+  mj_step(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  mjtNum fy_after = d->qfrc_spring[1];
+  EXPECT_GT(mju_norm(d->plastic, m->nplastic), 0.01);
+  EXPECT_LT(mju_abs(fy_after), mju_abs(fy_before));
+
+  // Stepping again at the same configuration produces no additional plastic
+  // flow
+  std::vector<mjtNum> p_saved(d->plastic, d->plastic + m->nplastic);
+  mj_step(m.get(), d.get());
+  for (int i = 0; i < m->nplastic; i++) {
+    EXPECT_NEAR(d->plastic[i], p_saved[i], MjTol(1e-12, 1e-5));
+  }
+
+  // Equibiaxial in-plane tension (alpha > 0, s_dev = 0) yields via out-of-plane
+  // thinning (alpha_pos), whereas equibiaxial compression (alpha < 0, s_dev =
+  // 0) does not yield:
+  {
+    static constexpr char xml_tri[] = R"(
+    <mujoco>
+      <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+      <worldbody>
+        <flexcomp name="tri" type="direct" dim="2" mass="1"
+                  point="0 0 0  1 0 0  0 1 0" element="0 1 2">
+          <contact contype="0" conaffinity="0" selfcollide="none"/>
+          <elasticity young="1000" poisson="0.3" thickness="0.02" elastic2d="stretch" yield="0.05"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+    MjModelPtr mt = LoadModelFromString(xml_tri, error, sizeof(error));
+    ASSERT_THAT(mt.get(), NotNull()) << error;
+    MjDataPtr dt = MakeData(mt);
+    mj_forward(mt.get(), dt.get());
+    std::vector<mjtNum> rest(dt->flexvert_xpos, dt->flexvert_xpos + 9);
+
+    // Equibiaxial compression by 10% (lambda = 0.9 -> alpha < 0, s_dev = 0):
+    for (int v = 0; v < 3; v++) {
+      int adr = mt->body_dofadr[mt->flex_vertbodyid[v]];
+      dt->qpos[adr + 0] = -0.1 * rest[3 * v + 0];
+      dt->qpos[adr + 1] = -0.1 * rest[3 * v + 1];
+    }
+    mj_step(mt.get(), dt.get());
+    EXPECT_NEAR(mju_norm(dt->plastic, 3), 0.0, MjTol(1e-10, 1e-5));
+
+    // Equibiaxial tension by 10% (lambda = 1.1 -> alpha = 0.21 > 0.05):
+    for (int v = 0; v < 3; v++) {
+      int adr = mt->body_dofadr[mt->flex_vertbodyid[v]];
+      dt->qpos[adr + 0] = 0.1 * rest[3 * v + 0];
+      dt->qpos[adr + 1] = 0.1 * rest[3 * v + 1];
+    }
+    mj_step(mt.get(), dt.get());
+    EXPECT_GT(mju_norm(dt->plastic, 3), 0.05);
+  }
+
+  // Also test discrete integrator with 3D plastic flex (exercises
+  // mj_flexHessian invalidation)
+  static constexpr char xml_discrete[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" timestep="0.005"/>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="500" poisson="0.25" damping="0.1" yield="0.05"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr md = LoadModelFromString(xml_discrete, error, sizeof(error));
+  ASSERT_THAT(md.get(), NotNull()) << error;
+  MjDataPtr dd = MakeData(md);
+  dd->qpos[2] = 0.3;
+  for (int step = 0; step < 50; step++) {
+    mj_step(md.get(), dd.get());
+  }
+  EXPECT_GT(mju_norm(dd->plastic, 6), 0.05);
 }
 
 }  // namespace

@@ -314,6 +314,13 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig) {
         mjtNum* ptr = mj_stateElemPtr(m, d, element);
         mju_copy(ptr, state + adr, size);
         adr += size;
+        if (element == mjSTATE_PLASTIC && d->flex_hessian_valid) {
+          for (int f=0; f < m->nflex; f++) {
+            if (m->flex_plasticadr[f] >= 0) {
+              d->flex_hessian_valid[f] = 0;
+            }
+          }
+        }
       }
     }
   }
@@ -350,6 +357,13 @@ void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig) {
         mjtNum* dst_ptr = mj_stateElemPtr(m, dst, element);
         const mjtNum* src_ptr = mj_stateElemConstPtr(m, src, element);
         mju_copy(dst_ptr, src_ptr, size);
+        if (element == mjSTATE_PLASTIC && dst->flex_hessian_valid) {
+          for (int f=0; f < m->nflex; f++) {
+            if (m->flex_plasticadr[f] >= 0) {
+              dst->flex_hessian_valid[f] = 0;
+            }
+          }
+        }
       }
     }
   }

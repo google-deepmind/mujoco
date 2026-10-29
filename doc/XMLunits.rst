@@ -576,6 +576,8 @@
      - :math:`T`
    * - :ref:`flexcomp/elasticity/thickness<flexcomp-elasticity-thickness>`
      - :math:`L`
+   * - :ref:`flexcomp/elasticity/yield<flexcomp-elasticity-yield>`
+     - :math:`1`
    * - :ref:`flexcomp/elasticity/sectionsize<flexcomp-elasticity-sectionsize>`
      - :math:`L`
    * - :ref:`flexcomp/contact/friction<flexcomp-contact-friction>`

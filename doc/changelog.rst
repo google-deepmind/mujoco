@@ -16,9 +16,20 @@ Significant new features
   (:ref:`spatial<tendon-spatial-springyield>`, :ref:`fixed<tendon-fixed-springyield>`) springs, with stateful plastic
   spring references in ``mjData.plastic`` (``mjSTATE_PLASTIC``).
 
-.. raw:: html
+.. image:: https://www.gstatic.com/mujoco/doc/images/changelog/clay.gif
+   :align: right
+   :width: 40%
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/clay.xml
 
-   <div style="clear: both;"></div>
+- Added continuum elasto-plasticity (:ref:`yield<flex-elasticity-yield>`) for non-interpolated 2D and 3D
+  :ref:`flexes<deformable-flex>`, with volumetric-deviatoric (von Mises :math:`J_2`) stretching return mapping in
+  ``mjData.plastic``.
+
+.. container:: custom-clear
+
+   .. raw:: html
+
+      <div style="clear: both;"></div>
 
 General
 ^^^^^^^

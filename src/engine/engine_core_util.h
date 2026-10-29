@@ -289,10 +289,12 @@ static inline void mj_stretchMetric(mjtNum metric[36], const mjtNum* packed, int
 
 // gather squared-length differences in local edge order
 static inline void mj_stretchElongation(mjtNum elongation[6], const int* edge,
-                                        const mjtNum* length, const mjtNum* reference, int nedge) {
+                                        const mjtNum* length, const mjtNum* reference,
+                                        const mjtNum* plastic, int nedge) {
   for (int e = 0; e < nedge; e++) {
     int idx = edge[e];
-    elongation[e] = length[idx]*length[idx] - reference[idx]*reference[idx];
+    elongation[e] = length[idx]*length[idx] - reference[idx]*reference[idx] -
+                    (plastic ? plastic[e] : 0);
   }
 }
 
@@ -337,9 +339,9 @@ static inline void mj_stretchForce(mjtNum* force, const int* vert, const mjtNum 
 // prepare the material and geometric coefficients shared by both solver paths
 static inline void mj_stretchStiffness(mjtNum metric[36], mjtNum tension[6], const mjtNum* packed,
                                        const int* edge, const mjtNum* length,
-                                       const mjtNum* reference, int nedge) {
+                                       const mjtNum* reference, const mjtNum* plastic, int nedge) {
   mjtNum elongation[6];
-  mj_stretchElongation(elongation, edge, length, reference, nedge);
+  mj_stretchElongation(elongation, edge, length, reference, plastic, nedge);
   mj_stretchElasticity(metric, tension, packed, elongation, nedge);
 
   // a compressed edge's geometric block is negative semidefinite; keep only the tensile

@@ -305,6 +305,7 @@
     X   ( double,         poisson,       1      ) \
     X   ( double,         damping,       1      ) \
     X   ( double,         thickness,     1      ) \
+    X   ( double,         stressyield,   1      ) \
     X   ( int,            elastic2d,     1      ) \
     X   ( int,            elastic3d,     1      ) \
     X   ( mjtFlexSection, section,       1      ) \

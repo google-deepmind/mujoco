@@ -80,6 +80,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
   doftype      = mjFCOMPDOF_FULL;
   has_dim      = false;
   has_origin   = false;
+  has_flatskin = false;
   file_or_mesh = false;
 
   mjs_defaultPlugin(&plugin);
@@ -207,10 +208,10 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
   }
   if (!res) { return false; }
 
-  // force flatskin shading for box, cylinder and 3D grid
-  if (type == mjFCOMPTYPE_BOX ||
-      type == mjFCOMPTYPE_CYLINDER ||
-      (type == mjFCOMPTYPE_GRID && dflex->dim == 3)) {
+  // default flatskin shading for box, cylinder and 3D grid unless explicitly set
+  if (!has_flatskin && (type == mjFCOMPTYPE_BOX ||
+                        type == mjFCOMPTYPE_CYLINDER ||
+                        (type == mjFCOMPTYPE_GRID && dflex->dim == 3))) {
     dflex->flatskin = true;
   }
 
@@ -2198,12 +2199,14 @@ mjCFlex::mjCFlex(mjCModel* _model) {
   if (_model) compiler = &_model->spec.compiler;
 
   // clear internal variables
-  nvert    = 0;
-  nnode    = 0;
-  nedge    = 0;
-  nelem    = 0;
-  rigid    = false;
-  centered = false;
+  nvert       = 0;
+  nnode       = 0;
+  nedge       = 0;
+  nelem       = 0;
+  plasticadr_ = -1;
+  plasticnum_ = 0;
+  rigid       = false;
+  centered    = false;
 
   PointToLocal();
   CopyFromSpec();
@@ -2220,9 +2223,49 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
     this->spec                    = other.spec;
     *static_cast<mjCFlex_*>(this) = static_cast<const mjCFlex_&>(other);
     *static_cast<mjsFlex*>(this)  = static_cast<const mjsFlex&>(other);
+    plasticadr_                   = -1;
+    plasticnum_                   = 0;
   }
   PointToLocal();
   return *this;
+}
+
+
+void mjCFlex::ResetId() {
+  id          = -1;
+  plasticadr_ = -1;
+  plasticnum_ = 0;
+}
+
+
+void mjCFlex::ForgetKeyframes(const std::vector<std::string>& names, bool keep) {
+  for (auto it = plastic_.begin(); it != plastic_.end();) {
+    bool found = std::find(names.begin(), names.end(), it->first) != names.end();
+    if (found != keep) {
+      it = plastic_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+
+int mjCFlex::PlasticNum() const {
+  if (!stiffness.empty() || !bending.empty()) {
+    if (stressyield > 0 && !interpolated && dim >= 2 && !stiffness.empty() && stiffness[0] != 0) {
+      return (dim == 2 ? 3 : 6) * nelem;
+    }
+    return 0;
+  }
+  if (spec.stressyield <= 0 || !spec_nodebody_.empty() || spec.dim < 2 || spec.young <= 0) {
+    return 0;
+  }
+  int num_elem = (int)spec_elem_.size() / (spec.dim + 1);
+  if (num_elem <= 0) { return 0; }
+  if ((spec.dim == 2 && spec.elastic2d >= 2 && spec.thickness > 0) || spec.dim == 3) {
+    return (spec.dim == 2 ? 3 : 6) * num_elem;
+  }
+  return 0;
 }
 
 
@@ -2863,6 +2906,12 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
   if (elastic3d == 1 && model->option.integrator != mjINT_DISCRETE) {
     throw mjCError(this, "stable Neo-Hookean elasticity requires integrator='discrete'");
+  }
+
+  // yield checks
+  if (stressyield < 0) { throw mjCError(this, "yield cannot be negative"); }
+  if (stressyield > 0 && (interpolated || dim < 2)) {
+    throw mjCError(this, "flex plasticity requires a non-interpolated 2d or 3d flex");
   }
 
   // set nvert, rigid, centered; check size

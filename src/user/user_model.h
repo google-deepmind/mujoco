@@ -334,6 +334,7 @@ class mjCModel : public mjCModel_, private mjSpec {
     std::unordered_map<mjCJoint*, std::vector<mjtNum>>    qacc_warmstart;
     std::unordered_map<mjCJoint*, std::vector<mjtNum>>    jnt_plastic;
     std::unordered_map<mjCTendon*, std::array<mjtNum, 2>> tendon_plastic;
+    std::unordered_map<mjCFlex*, std::vector<mjtNum>>     flex_plastic;
     std::unordered_map<mjCBody*, std::array<mjtNum, 6>>   xfrc_applied;
     std::unordered_map<mjCEquality*, mjtByte>             eq_active;
     std::unordered_map<mjCActuator*, std::vector<mjtNum>> actuator_history;
@@ -536,6 +537,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   // element resets; for a body, also to the bodies and joints of its subtree
   void CopyCompiled(mjCBase* dest, const mjCBase* source) {}
   void CopyCompiled(mjCBody* dest, const mjCBody* source);
+  void CopyCompiled(mjCFlex* dest, const mjCFlex* source);
   void CopyCompiled(mjCTendon* dest, const mjCTendon* source);
   void CopyCompiled(mjCEquality* dest, const mjCEquality* source);
   void CopyCompiled(mjCActuator* dest, const mjCActuator* source);

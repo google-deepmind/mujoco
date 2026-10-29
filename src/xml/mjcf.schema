@@ -1337,6 +1337,7 @@ element elasticity : mjsFlex {
   poisson            : double (dim=1)
   damping            : double (dim=T)
   thickness          : double = -1 (dim=L)
+  yield              : double (field=stressyield, dim=1)
   elastic2d          : enum<elastic2d>
   section            : enum<flexsection>
   sectionsize        : double[2] (dim=L)

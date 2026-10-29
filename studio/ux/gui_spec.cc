@@ -544,6 +544,7 @@ void ElementSpecGui(mjsElement* element, SpecEditor* editor) {
       FIELD(poisson, "Poisson's ratio");
       FIELD(damping, "Rayleigh's damping");
       FIELD(thickness, "thickness (2D only)");
+      FIELD(stressyield, "yield strain threshold; 0: elastic");
       FIELD(elastic2d, "2D passive forces; 0: none, 1: bending, 2: stretching, 3: both");
       FIELD(section, "1D cross-section (mjtFlexSection)");
       FIELD(sectionsize, "1D box cross-section half-sizes");

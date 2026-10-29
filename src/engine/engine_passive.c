@@ -610,6 +610,7 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
   mjtNum* vel = d->flexedge_velocity + m->flex_edgeadr[f];
   mjtNum* deformed = d->flexedge_length + m->flex_edgeadr[f];
   mjtNum* reference = m->flexedge_length0 + m->flex_edgeadr[f];
+  const mjtNum* plastic = m->flex_plasticadr[f] >= 0 ? d->plastic + m->flex_plasticadr[f] : NULL;
 
   mj_markStack(d);
   mjtNum* frc = mjSTACKALLOC(d, 3*m->flex_vertnum[f], mjtNum);
@@ -628,7 +629,8 @@ static void mj_flexPassiveStretch(const mjModel* m, mjData* d, int f,
     // shared quadratic energy in squared-edge-length differences
     const mjtNum* packed = k + (dim == 3 ? 24 : 21)*t;
     mjtNum elongation[6];
-    mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference, nedge);
+    mj_stretchElongation(elongation, edgeelem + t*nedge, deformed, reference,
+                         plastic ? plastic + nedge*t : NULL, nedge);
     mj_stretchElasticity(metric, tension, packed, elongation, nedge);
 
     mjtNum grad[4][3], pressure = 0;

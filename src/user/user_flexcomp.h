@@ -93,6 +93,7 @@ class mjCFlexcomp {
   mjtDof       doftype;       // dof type, all vertices or trilinear interpolation
   bool         has_dim;       // whether dim was explicitly specified
   bool         has_origin;    // whether origin was explicitly specified
+  bool         has_flatskin;  // whether flatskin was explicitly specified
   bool         file_or_mesh;  // file could also have been a mesh name (mjs_makeFlex)
 
   // pin specifications

@@ -2674,6 +2674,12 @@ struct MjsFlex {
   void set_thickness(double value) {
     ptr_->thickness = value;
   }
+  double stressyield() const {
+    return ptr_->stressyield;
+  }
+  void set_stressyield(double value) {
+    ptr_->stressyield = value;
+  }
   int elastic2d() const {
     return ptr_->elastic2d;
   }
@@ -5071,6 +5077,9 @@ struct MjModel {
   emscripten::val flex_bendingadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bendingadr));
   }
+  emscripten::val flex_plasticadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_plasticadr));
+  }
   emscripten::val flex_shellnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_shellnum));
   }
@@ -5160,6 +5169,9 @@ struct MjModel {
   }
   emscripten::val flex_damping() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_damping));
+  }
+  emscripten::val flex_yield() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_yield));
   }
   emscripten::val flex_edgestiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_edgestiffness));

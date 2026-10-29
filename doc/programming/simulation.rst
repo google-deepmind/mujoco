@@ -288,8 +288,9 @@ History buffer: ``history``
 
 Plastic state: ``plastic``
   When joints or tendons have a positive :at:`springyield` attribute (:ref:`joints<body-joint-springyield>`,
-  :ref:`tendons<tendon-spatial-springyield>`), this buffer stores the mutable plastic spring reference configurations
-  and resting lengths, updated via return mapping at each step.
+  :ref:`tendons<tendon-spatial-springyield>`) or flexes have a positive :at:`yield` attribute
+  (:ref:`flexes<flex-elasticity-yield>`), this buffer stores the mutable plastic spring reference configurations,
+  resting lengths, and element plastic strains, updated via return mapping at each step.
 
 .. _siFullPhysics:
 

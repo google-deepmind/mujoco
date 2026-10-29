@@ -854,11 +854,13 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
     nu: int,
     na: int,
     nbody: int,
+    nflex: int,
     neq: int,
     nmocap: int,
     nuserdata: int,
     nhistory: int,
     nplastic: int,
+    flex_plasticadr: wp.array[int],
     # In:
     sig_in: int,
     active_in: wp.array[bool],
@@ -878,6 +880,7 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
     mocap_pos_out: wp.array2d[wp.vec3],
     mocap_quat_out: wp.array2d[wp.quat],
     userdata_out: wp.array2d[float],
+    flex_hessian_valid_out: wp.array2d[bool],
   ):
     worldid = wp.tid()
 
@@ -912,6 +915,9 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
           for j in range(nplastic):
             plastic_out[worldid, j] = state_in[worldid, adr + j]
           adr += nplastic
+          for f in range(nflex):
+            if flex_plasticadr[f] >= 0:
+              flex_hessian_valid_out[worldid, f] = False
         elif element == State.WARMSTART:
           for j in range(nv):
             qacc_warmstart_out[worldid, j] = state_in[worldid, adr + j]
@@ -973,11 +979,13 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       m.nu,
       m.na,
       m.nbody,
+      m.nflex,
       m.neq,
       m.nmocap,
       m.nuserdata,
       m.nhistory,
       m.nplastic,
+      m.flex_plasticadr,
       int(sig),
       active or wp.ones(d.nworld, dtype=bool),
       state,
@@ -997,6 +1005,7 @@ def set_state(m: Model, d: Data, state: wp.array2d[float], sig: int, active: Opt
       d.mocap_pos,
       d.mocap_quat,
       d.userdata,
+      d.flex_hessian_valid,
     ],
   )
 

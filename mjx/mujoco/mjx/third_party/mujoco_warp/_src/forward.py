@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import warp as wp
 
@@ -535,6 +535,204 @@ def _next_plastic_tendon(
     plastic_out[worldid, padr + 1] = upper + delta
 
 
+@wp.func
+def _face_trpk(g: vec6, metric: passive.mat66, a: int, b: int, c: int) -> float:
+  dab = g[a] + g[b] - g[c]
+  dac = g[a] + g[c] - g[b]
+  dbc = g[b] + g[c] - g[a]
+  return 0.5 * (dab * dab * metric[a, b] + dac * dac * metric[a, c] + dbc * dbc * metric[b, c])
+
+
+@wp.func
+def _gram_det_3d(q: vec6) -> Tuple[float, vec6]:
+  a = q[0]
+  b = q[2]
+  c = q[4]
+  d = 0.5 * (q[0] + q[2] - q[1])
+  e = 0.5 * (q[0] + q[4] - q[5])
+  f = 0.5 * (q[2] + q[4] - q[3])
+  c0 = b * c - f * f
+  c1 = a * c - e * e
+  c2 = a * b - d * d
+  c3 = e * f - c * d
+  c4 = d * f - b * e
+  c5 = d * e - a * f
+  grad = vec6(c0 + c3 + c4, -c3, c1 + c3 + c5, -c5, c2 + c4 + c5, -c4)
+  return a * c0 + d * c3 + e * c4, grad
+
+
+@wp.kernel
+def _next_plastic_flex_stretch(
+  # Model:
+  opt_timestep: wp.array[float],
+  opt_enableflags: int,
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  body_simple: wp.array[int],
+  dof_parentid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_edgeadr: wp.array[int],
+  flex_elemadr: wp.array[int],
+  flex_elemdataadr: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_elemedgeadr: wp.array[int],
+  flex_plasticadr: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_elem: wp.array[int],
+  flex_elemedge: wp.array[int],
+  flexedge_length0: wp.array[float],
+  flex_stiffness: wp.array[float],
+  flex_yield: wp.array[float],
+  flex_elemflexid: wp.array[int],
+  # Data in:
+  qvel_in: wp.array2d[float],
+  plastic_in: wp.array2d[float],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  body_awake_in: wp.array2d[int],
+  # Data out:
+  plastic_out: wp.array2d[float],
+  flex_hessian_valid_out: wp.array2d[bool],
+):
+  worldid, elemid = wp.tid()
+  f = flex_elemflexid[elemid]
+  padr_base = flex_plasticadr[f]
+  if padr_base < 0:
+    return
+  yield_ = wp.max(0.0, flex_yield[f])
+  dim = flex_dim[f]
+  if (dim != 2 and dim != 3) or flex_interp[f] != 0:
+    return
+  stiffness_adr_base = flex_stiffnessadr[f]
+  if stiffness_adr_base < 0 or flex_stiffness[stiffness_adr_base] == 0.0:
+    return
+
+  local_elemid = elemid - flex_elemadr[f]
+  nedge = 3 if dim == 2 else 6
+  stride = 21 if dim == 2 else 24
+  padr = padr_base + local_elemid * nedge
+  vbase = flex_vertadr[f]
+  ebase = flex_edgeadr[f]
+  elem_data_adr = flex_elemdataadr[f] + local_elemid * (dim + 1)
+  ee_base = flex_elemedgeadr[f] + local_elemid * nedge
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+
+  if opt_enableflags & EnableBit.SLEEP:
+    any_awake = bool(False)
+    for v in range(dim + 1):
+      gvert = vbase + flex_elem[elem_data_adr + v]
+      bid = flex_vertbodyid[gvert]
+      if bid >= 0 and body_awake_in[worldid, bid] == SleepState.AWAKE:
+        any_awake = bool(True)
+    if not any_awake:
+      return
+
+  xpos_next = passive.mat43()
+  for v in range(dim + 1):
+    vi = flex_elem[elem_data_adr + v]
+    gvert = vbase + vi
+    vel = passive.flex_gather_vert(
+      body_rootid,
+      body_weldid,
+      body_dofnum,
+      body_dofadr,
+      body_simple,
+      dof_parentid,
+      flex_vertbodyid,
+      subtree_com_in,
+      cdof_in,
+      flexvert_xpos_in,
+      qvel_in,
+      worldid,
+      gvert,
+    )
+    xpos_next[v] = flexvert_xpos_in[worldid, gvert] + timestep * vel
+
+  edges = passive.stretch_edge_endpoints(dim)
+  g = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  s_el = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  for e in range(nedge):
+    dx = xpos_next[edges[e, 0]] - xpos_next[edges[e, 1]]
+    L_sq = wp.dot(dx, dx)
+    L0 = flexedge_length0[ebase + flex_elemedge[ee_base + e]]
+    g_e = L0 * L0
+    g[e] = g_e
+    s_el[e] = L_sq - g_e - plastic_in[worldid, padr + e]
+
+  stiff_adr = stiffness_adr_base + stride * local_elemid
+  metric, f_vec = passive.stretch_elasticity(flex_stiffness, stiff_adr, s_el, nedge)
+  h_vec = passive.stretch_tension(metric, g, nedge)
+
+  g_h = wp.dot(g, h_vec)
+  if wp.abs(g_h) <= MJ_MINVAL:
+    return
+  alpha = wp.dot(g, f_vec) / g_h
+
+  s_dev = s_el - alpha * g
+  f_dev = f_vec - alpha * h_vec
+
+  trPK = float(0.0)
+  for a in range(nedge):
+    trPK += g[a] * g[a] * metric[a, a]
+  if dim == 2:
+    trPK += _face_trpk(g, metric, 0, 1, 2)
+  else:
+    trPK += _face_trpk(g, metric, 0, 1, 2)
+    trPK += _face_trpk(g, metric, 0, 4, 5)
+    trPK += _face_trpk(g, metric, 1, 3, 5)
+    trPK += _face_trpk(g, metric, 2, 3, 4)
+    s0 = g[0] + g[3]
+    s1 = g[1] + g[4]
+    s2 = g[2] + g[5]
+    d03 = s1 - s2
+    d14 = s2 - s0
+    d25 = s0 - s1
+    trPK += 0.5 * (d03 * d03 * metric[0, 3] + d14 * d14 * metric[1, 4] + d25 * d25 * metric[2, 5])
+
+  mu_t = (trPK - g_h / float(dim)) / float(nedge - 1)
+  if mu_t <= MJ_MINVAL:
+    return
+
+  dev_norm_sq = wp.max(0.0, wp.dot(s_dev, f_dev) / (4.0 * mu_t))
+  alpha_pos = wp.max(0.0, alpha) if dim == 2 else 0.0
+  eps_eq = wp.sqrt((2.0 * dev_norm_sq) / 3.0 + alpha_pos * alpha_pos)
+  if eps_eq > yield_:
+    scale = 1.0 - yield_ / eps_eq
+    if dim == 2:
+      for e in range(3):
+        s_p = plastic_in[worldid, padr + e] + scale * (s_dev[e] + alpha_pos * g[e])
+        plastic_out[worldid, padr + e] = wp.max(s_p, -0.99 * g[e])
+    else:
+      sp_dev = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+      for e in range(6):
+        sp_dev[e] = plastic_in[worldid, padr + e] + scale * s_dev[e]
+      beta = wp.dot(h_vec, sp_dev) / g_h
+      sp_dev = sp_dev - beta * g
+
+      c3, _ = _gram_det_3d(g)
+      c0, grad = _gram_det_3d(sp_dev)
+      c1 = wp.dot(grad, g)
+      u = float(1.0)
+      if c3 > MJ_MINVAL:
+        m2 = wp.max(0.0, -c1 / (3.0 * c3))
+        if m2 > MJ_MINVAL:
+          m_val = wp.sqrt(m2)
+          R = (c3 - c0) / (2.0 * c3 * m_val * m2)
+          if R >= 1.0:
+            w_cbrt = wp.pow(R + wp.sqrt(wp.max(0.0, R * R - 1.0)), 1.0 / 3.0)
+            u = m_val * (w_cbrt + 1.0 / w_cbrt)
+          else:
+            u = 2.0 * m_val * wp.cos(wp.acos(wp.max(-1.0, R)) / 3.0)
+      for e in range(6):
+        plastic_out[worldid, padr + e] = wp.max(sp_dev[e] + (u - 1.0) * g[e], -0.99 * g[e])
+    flex_hessian_valid_out[worldid, f] = False
+
+
 def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None):
   """Advance state and time given activation derivatives and acceleration."""
   # TODO(team): can we assume static timesteps?
@@ -632,6 +830,43 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
         d.tree_awake,
       ],
       outputs=[d.plastic],
+    )
+    wp.launch(
+      _next_plastic_flex_stretch,
+      dim=(d.nworld, m.nflexelem),
+      inputs=[
+        m.opt.timestep,
+        m.opt.enableflags,
+        m.body_rootid,
+        m.body_weldid,
+        m.body_dofnum,
+        m.body_dofadr,
+        m.body_simple,
+        m.dof_parentid,
+        m.flex_dim,
+        m.flex_interp,
+        m.flex_vertadr,
+        m.flex_edgeadr,
+        m.flex_elemadr,
+        m.flex_elemdataadr,
+        m.flex_stiffnessadr,
+        m.flex_elemedgeadr,
+        m.flex_plasticadr,
+        m.flex_vertbodyid,
+        m.flex_elem,
+        m.flex_elemedge,
+        m.flexedge_length0,
+        m.flex_stiffness,
+        m.flex_yield,
+        m.flex_elemflexid,
+        qvel_in,
+        d.plastic,
+        d.subtree_com,
+        d.cdof,
+        d.flexvert_xpos,
+        d.body_awake,
+      ],
+      outputs=[d.plastic, d.flex_hessian_valid],
     )
 
   # advance history buffers before time advance
@@ -942,6 +1177,15 @@ def rungekutta4(m: Model, d: Data):
     ten_length_t0 = None
     ten_J_t0 = None
 
+  if m.nplastic > 0 and m.nflexvert > 0:
+    flexvert_xpos_t0 = wp.clone(d.flexvert_xpos)
+    cdof_t0 = wp.clone(d.cdof)
+    subtree_com_t0 = wp.clone(d.subtree_com)
+  else:
+    flexvert_xpos_t0 = None
+    cdof_t0 = None
+    subtree_com_t0 = None
+
   # stage velocities with the RKMK correction (rates of the rotation vectors of ball and free joints); the first
   # stage has a zero rotation vector, so it needs no correction
   qvel_stage = wp.clone(d.qvel)
@@ -970,6 +1214,11 @@ def rungekutta4(m: Model, d: Data):
   if ten_length_t0 is not None:
     wp.copy(d.ten_length, ten_length_t0)
     wp.copy(d.ten_J, ten_J_t0)
+
+  if flexvert_xpos_t0 is not None:
+    wp.copy(d.flexvert_xpos, flexvert_xpos_t0)
+    wp.copy(d.cdof, cdof_t0)
+    wp.copy(d.subtree_com, subtree_com_t0)
 
   _advance(m, d, qacc_rk, qvel_rk)
 

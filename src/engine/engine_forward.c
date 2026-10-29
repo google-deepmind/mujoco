@@ -1423,6 +1423,26 @@ static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
 }
 
 
+// Gram determinant and optional gradient for 6 squared edge lengths in mj_stretchEdges[1] order
+static mjtNum gramDet3D(mjtNum grad[6], const mjtNum q[6]) {
+  mjtNum a = q[0], b = q[2], c = q[4];
+  mjtNum d = 0.5 * (q[0] + q[2] - q[1]);
+  mjtNum e = 0.5 * (q[0] + q[4] - q[5]);
+  mjtNum f = 0.5 * (q[2] + q[4] - q[3]);
+  mjtNum c0 = b*c - f*f, c1 = a*c - e*e, c2 = a*b - d*d;
+  mjtNum c3 = e*f - c*d, c4 = d*f - b*e, c5 = d*e - a*f;
+  if (grad) {
+    grad[0] = c0 + c3 + c4;
+    grad[1] = -c3;
+    grad[2] = c1 + c3 + c5;
+    grad[3] = -c5;
+    grad[4] = c2 + c4 + c5;
+    grad[5] = -c4;
+  }
+  return a*c0 + d*c3 + e*c4;
+}
+
+
 // the work every integrator does after it wrote the new state: time, plugin states, plastic springs
 static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
   // advance time
@@ -1520,6 +1540,163 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
         lengthspring[0] += delta;
         lengthspring[1] += delta;
       }
+    }
+
+    // flexes
+    for (int f = 0; f < m->nflex; f++) {
+      if (m->flex_plasticadr[f] < 0 ||
+          m->flex_interp[f] != 0 || m->flex_dim[f] < 2) {
+        continue;
+      }
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) != mjS_AWAKE) {
+        continue;
+      }
+
+      int dim = m->flex_dim[f];
+      int nedge = (dim == 2) ? 3 : 6;
+      int vertnum = m->flex_vertnum[f];
+      int edgenum = m->flex_edgenum[f];
+      int elemnum = m->flex_elemnum[f];
+      mjtNum yield = mju_max(0, m->flex_yield[f]);
+      mjtNum* plastic = d->plastic + m->flex_plasticadr[f];
+
+      mj_markStack(d);
+      mjtNum* xpos = mjSTACKALLOC(d, 3 * vertnum, mjtNum);
+      mj_flexGather(m, d, f, xpos, qvel);
+      mju_addScl(xpos, d->flexvert_xpos + 3 * m->flex_vertadr[f], xpos,
+                 m->opt.timestep, 3 * vertnum);
+
+      // element stretch return mapping (von Mises / J2 deviatoric strain)
+      int stiffnessadr = m->flex_stiffnessadr[f];
+      if (stiffnessadr >= 0 && m->flex_stiffness[stiffnessadr] != 0 && elemnum > 0) {
+        const mjtNum* k = m->flex_stiffness + stiffnessadr;
+        const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
+        const int* edges = m->flex_edge + 2 * m->flex_edgeadr[f];
+        const mjtNum* rest = m->flexedge_length0 + m->flex_edgeadr[f];
+        int stride = (dim == 2) ? 21 : 24;
+
+        mjtNum* deformed_sq = mjSTACKALLOC(d, edgenum, mjtNum);
+        for (int e = 0; e < edgenum; e++) {
+          mjtNum diff[3];
+          mju_sub3(diff, xpos + 3 * edges[2*e + 1], xpos + 3 * edges[2*e]);
+          deformed_sq[e] = mju_dot3(diff, diff);
+        }
+
+        for (int t = 0; t < elemnum; t++) {
+          const mjtNum* packed = k + stride * t;
+          const int* te = eelem + nedge * t;
+          mjtNum* splastic = plastic + nedge * t;
+
+          mjtNum g[6], s_el[6];
+          for (int e = 0; e < nedge; e++) {
+            int idx = te[e];
+            g[e] = rest[idx] * rest[idx];
+            s_el[e] = deformed_sq[idx] - g[e] - splastic[e];
+          }
+
+          mjtNum metric[36], f_vec[6], h_vec[6];
+          mj_stretchElasticity(metric, f_vec, packed, s_el, nedge);
+          mj_stretchTension(h_vec, metric, g, nedge);
+
+          mjtNum g_h = mju_dot(g, h_vec, nedge);
+          if (mju_abs(g_h) <= mjMINVAL) {
+            continue;
+          }
+          mjtNum alpha = mju_dot(g, f_vec, nedge) / g_h;
+
+          mjtNum s_dev[6], f_dev[6];
+          for (int e = 0; e < nedge; e++) {
+            s_dev[e] = s_el[e] - alpha * g[e];
+            f_dev[e] = f_vec[e] - alpha * h_vec[e];
+          }
+
+          // compute tr(P * K_t) where P_ab = (e0_a . e0_b)^2
+          mjtNum trPK = 0;
+          for (int a = 0; a < nedge; a++) {
+            trPK += g[a] * g[a] * metric[nedge * a + a];
+          }
+          if (dim == 2) {
+            mjtNum d01 = g[0] + g[1] - g[2];
+            mjtNum d02 = g[0] + g[2] - g[1];
+            mjtNum d12 = g[1] + g[2] - g[0];
+            trPK += 0.5 * (d01 * d01 * metric[3*0 + 1] +
+                           d02 * d02 * metric[3*0 + 2] +
+                           d12 * d12 * metric[3*1 + 2]);
+          } else {
+            static const int faces[4][3] = {
+              {0, 1, 2}, {0, 4, 5}, {1, 3, 5}, {2, 3, 4}
+            };
+            for (int fi = 0; fi < 4; fi++) {
+              int a = faces[fi][0], b = faces[fi][1], c = faces[fi][2];
+              mjtNum dab = g[a] + g[b] - g[c];
+              mjtNum dac = g[a] + g[c] - g[b];
+              mjtNum dbc = g[b] + g[c] - g[a];
+              trPK += 0.5 * (dab * dab * metric[6*a + b] +
+                             dac * dac * metric[6*a + c] +
+                             dbc * dbc * metric[6*b + c]);
+            }
+            mjtNum s0 = g[0] + g[3];
+            mjtNum s1 = g[1] + g[4];
+            mjtNum s2 = g[2] + g[5];
+            mjtNum d03 = s1 - s2, d14 = s2 - s0, d25 = s0 - s1;
+            trPK += 0.5 * (d03 * d03 * metric[6*0 + 3] +
+                           d14 * d14 * metric[6*1 + 4] +
+                           d25 * d25 * metric[6*2 + 5]);
+          }
+
+          mjtNum mu_t = (trPK - g_h / dim) / (nedge - 1);
+          if (mu_t <= mjMINVAL) {
+            continue;
+          }
+
+          mjtNum dev_norm_sq = mju_max(0, mju_dot(s_dev, f_dev, nedge) / (4 * mu_t));
+          mjtNum alpha_pos = (dim == 2) ? mju_max(0, alpha) : 0;
+          mjtNum eps_eq = mju_sqrt((2 * dev_norm_sq) / 3 + alpha_pos * alpha_pos);
+          if (eps_eq > yield) {
+            mjtNum scale = 1 - yield / eps_eq;
+            if (dim == 2) {
+              for (int e = 0; e < 3; e++) {
+                splastic[e] += scale * (s_dev[e] + alpha_pos * g[e]);
+                splastic[e] = mju_max(splastic[e], -0.99 * g[e]);
+              }
+            } else {
+              mjtNum sp_dev[6], grad[6];
+              for (int e = 0; e < 6; e++) {
+                sp_dev[e] = splastic[e] + scale * s_dev[e];
+              }
+              mjtNum beta = mju_dot(h_vec, sp_dev, 6) / g_h;
+              for (int e = 0; e < 6; e++) {
+                sp_dev[e] -= beta * g[e];
+              }
+
+              // solve det(G(u*g + sp_dev)) = det(G(g)) via depressed cubic c3*u^3 + c1*u + c0 - c3 = 0
+              mjtNum c3 = gramDet3D(NULL, g);
+              mjtNum c0 = gramDet3D(grad, sp_dev);
+              mjtNum c1 = mju_dot(grad, g, 6);
+              mjtNum u = 1;
+              if (c3 > mjMINVAL) {
+                mjtNum m2 = mju_max(0, -c1 / (3 * c3));
+                if (m2 > mjMINVAL) {
+                  mjtNum m_val = mju_sqrt(m2);
+                  mjtNum R = (c3 - c0) / (2 * c3 * m_val * m2);
+                  if (R >= 1) {
+                    mjtNum w_cbrt = mju_pow(R + mju_sqrt(mju_max(0, R*R - 1)), 1.0 / 3.0);
+                    u = m_val * (w_cbrt + 1 / w_cbrt);
+                  } else {
+                    u = 2 * m_val * mju_cos(mju_acos(mju_max(-1, R)) / 3);
+                  }
+                }
+              }
+              for (int e = 0; e < 6; e++) {
+                splastic[e] = mju_max(sp_dev[e] + (u - 1) * g[e], -0.99 * g[e]);
+              }
+            }
+            d->flex_hessian_valid[f] = 0;
+          }
+        }
+      }
+
+      mj_freeStack(d);
     }
   }
 }
@@ -1756,6 +1933,19 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
       mju_copy(ten_J0, d->ten_J, m->nJten);
     }
   }
+  mjtNum *flexvert_xpos0 = NULL, *cdof0 = NULL, *subtree_com0 = NULL;
+  if (m->nplastic && m->nflexvert) {
+    flexvert_xpos0 = mjSTACKALLOC(d, 3 * m->nflexvert, mjtNum);
+    mju_copy(flexvert_xpos0, d->flexvert_xpos, 3 * m->nflexvert);
+    if (m->nv) {
+      cdof0 = mjSTACKALLOC(d, 6 * m->nv, mjtNum);
+      mju_copy(cdof0, d->cdof, 6 * m->nv);
+    }
+    if (m->nbody) {
+      subtree_com0 = mjSTACKALLOC(d, 3 * m->nbody, mjtNum);
+      mju_copy(subtree_com0, d->subtree_com, 3 * m->nbody);
+    }
+  }
 
   // compute the remaining X[i], F[i]
   for (int i=1; i < N; i++) {
@@ -1807,6 +1997,15 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
     mju_copy(d->ten_length, ten_length0, m->ntendon);
     if (ten_J0) {
       mju_copy(d->ten_J, ten_J0, m->nJten);
+    }
+  }
+  if (flexvert_xpos0) {
+    mju_copy(d->flexvert_xpos, flexvert_xpos0, 3 * m->nflexvert);
+    if (cdof0) {
+      mju_copy(d->cdof, cdof0, 6 * m->nv);
+    }
+    if (subtree_com0) {
+      mju_copy(d->subtree_com, subtree_com0, 3 * m->nbody);
     }
   }
 

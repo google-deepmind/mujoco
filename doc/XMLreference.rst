@@ -4264,12 +4264,13 @@ element is used to adjust the properties of all edges in the flex.
 .. _flexcomp-elasticity-poisson:
 .. _flexcomp-elasticity-damping:
 .. _flexcomp-elasticity-thickness:
+.. _flexcomp-elasticity-yield:
 .. _flexcomp-elasticity-elastic2d:
 .. _flexcomp-elasticity-section:
 .. _flexcomp-elasticity-sectionsize:
 
 .. |body/flexcomp/elasticity attrib list| replace::
-   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`, :at:`elastic2d`, :at:`section`, :at:`sectionsize`
+   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`, :at:`yield`, :at:`elastic2d`, :at:`section`, :at:`sectionsize`
 
 |body/flexcomp/elasticity attrib list|
    Same as in :ref:`flex/elasticity<flex-elasticity>`.
@@ -4853,6 +4854,19 @@ explicitly by ``Euler`` and ``RK4`` (not supported under ``implicit`` and ``impl
    Shell thickness, units of length; only for used 2D flexes. Used to scale the stretching stiffness.
    This thickness can be set equal to 2 times the :ref:`radius <deformable-flex-radius>` in order to match the geometry,
    but is exposed separately since the radius might be constrained by considerations related to collision detection.
+
+.. image:: https://www.gstatic.com/mujoco/doc/images/changelog/clay.gif
+   :width: 40%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/clay.xml
+
+.. _flex-elasticity-yield:
+
+:at:`yield`: :at-val:`real(1), "0"`
+   Dimensionless plastic yield strain threshold :math:`\varepsilon_y` for non-interpolated 2D and 3D flexes. If zero,
+   the flex is purely elastic. If positive, each element's elastic stretching strain tensor is bounded by the von Mises
+   (:math:`J_2`) yield criterion (3D isochoric in 3D, plane-stress with out-of-plane thinning in tension in 2D) via
+   radial return mapping.
 
 .. _flex-elasticity-elastic2d:
 

@@ -1376,6 +1376,7 @@ public unsafe struct mjModel_ {
   public int* flex_stiffnessadr;
   public int* flex_elemedgeadr;
   public int* flex_bendingadr;
+  public int* flex_plasticadr;
   public int* flex_shellnum;
   public int* flex_shelldataadr;
   public int* flex_texcoordadr;
@@ -1406,6 +1407,7 @@ public unsafe struct mjModel_ {
   public double* efm0_L;
   public int* efmC_perm;
   public double* flex_damping;
+  public double* flex_yield;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
   public int* flex_edgeequality;

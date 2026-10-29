@@ -2957,6 +2957,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_plasticadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='plastic state address; -1: elastic',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_shellnum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -3194,6 +3202,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc="Rayleigh's damping coefficient",
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
+                 name='flex_yield',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='yield strain threshold; 0: elastic',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -8834,6 +8850,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='thickness',
                  type=ValueType(name='double'),
                  doc='thickness (2D only)',
+             ),
+             StructFieldDecl(
+                 name='stressyield',
+                 type=ValueType(name='double'),
+                 doc='yield strain threshold; 0: elastic',
              ),
              StructFieldDecl(
                  name='elastic2d',

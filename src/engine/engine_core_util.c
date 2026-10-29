@@ -1907,20 +1907,22 @@ void mj_flexHessian(const mjModel* m, mjData* d, int f) {
   const mjtNum* xpos = d->flexvert_xpos + 3*va;
   const mjtNum* length = d->flexedge_length + ea;
   const mjtNum* rest = m->flexedge_length0 + ea;
+  const mjtNum* plastic = m->flex_plasticadr[f] >= 0 ? d->plastic + m->flex_plasticadr[f] : NULL;
 
   for (int t=0; t < m->flex_elemnum[f]; t++) {
     const int* vert = elem + (dim+1)*t;
     const mjtNum* packed = k + stride*t;
+    const mjtNum* eplastic = plastic ? plastic + nedge*t : NULL;
     mjtNum edges[6][3], metric[36], tension[6];
     mjSnhHessian projected;
     mj_stretchEdgeVectors(edges, xpos, vert, dim);
     if (snh) {
       mjtNum elongation[6];
-      mj_stretchElongation(elongation, eelem + 6*t, length, rest, 6);
+      mj_stretchElongation(elongation, eelem + 6*t, length, rest, eplastic, 6);
       snhProject(&projected, packed, edges, elongation, m->flex_vert0 + 3*va, vert,
                  m->flex_size + 3*f);
     } else {
-      mj_stretchStiffness(metric, tension, packed, eelem + nedge*t, length, rest, nedge);
+      mj_stretchStiffness(metric, tension, packed, eelem + nedge*t, length, rest, eplastic, nedge);
     }
     // assemble one block per edge, oriented from its first endpoint to its second
     // the opposite block is its transpose by Hessian symmetry
