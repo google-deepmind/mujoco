@@ -27,8 +27,8 @@ To open the standalone Studio viewer from the command line with optional :ref:`p
      --hot_reload=all
 
 From Python, `launch_native.run
-<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/launch_native.py>`__ spawns ``NativeViewer``
-on a background daemon thread and runs the blocking simulation sync loop on the calling thread. Pass ``model_path=...``
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/launch_native.py>`__ starts ``NativeViewer``
+and runs the blocking simulation sync loop until the window closes. Pass ``model_path=...``
 to load a model file on the simulation thread so UI **Reload** and model :ref:`hot reload <StudioHotReload>` stay
 enabled, or pass an in-memory ``model=...`` with optional ``data=...``:
 
@@ -84,6 +84,10 @@ Key details when driving a ``ViewerHandle`` loop directly:
   physics inside ``handle.sync()`` during ``StepEvent``.
 - **Mutations**: Keep ``model.opt`` mutations inside step-event handlers so ``ViewerHandle.sync()``'s
   :ref:`diff-based sync <StudioDiffSync>` detects and forwards them to the viewer.
+- **macOS (``mjpython``)**: AppKit requires native windows to be created and serviced on the OS main thread. Blocking
+  mode (``python -m mujoco.studio.viewer`` and ``launch_native.run``) works under standard ``python``, whereas
+  non-blocking ``launch_native.launch`` requires running your script with ``mjpython`` (unlike :ref:`launch_web
+  <StudioWebViewer>`, which works under standard ``python``).
 
 See `custom_sim_loop.py
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/custom_sim_loop.py>`__ for a complete
@@ -103,3 +107,6 @@ Set ``ViewerConfig.gfx`` or pass ``--gfx`` on the command line to select the nat
   rendering.
 - ``'opengl_software'`` / ``'vulkan_software'``: Software-rasterized OpenGL or Vulkan for headless CI machines without
   GPUs.
+
+On Linux, direct window rendering expects X11 (``'opengl'`` is rejected under Wayland). In a Wayland session, omitting
+``gfx`` falls back to ``'opengl_headless'``; for direct GPU presentation, use an X11 session.

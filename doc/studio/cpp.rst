@@ -12,22 +12,47 @@ Build & Launch
 The native C++ Studio application lives in `studio/
 <https://github.com/google-deepmind/mujoco/tree/main/studio>`__. To build and launch ``mujoco_studio`` from the
 repository root, use the ``build_studio_cpp_viewer`` step in `.github/workflows/build_steps.sh
-<https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build_steps.sh>`__. See the workflows `README
-<https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/README.md>`__ and Studio `README
-<https://github.com/google-deepmind/mujoco/blob/main/studio/README.md>`__ for prerequisites and standalone CMake build
-instructions:
+<https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build_steps.sh>`__ (see the workflows `README
+<https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/README.md>`__ for prerequisites), or run
+`studio/build.sh <https://github.com/google-deepmind/mujoco/blob/main/studio/build.sh>`__ (which also supports Git Bash
+on Windows, ``debug``/``configure``/``build`` arguments, and ``CMAKE_ARGS``):
 
 .. code-block:: shell
 
    bash .github/workflows/build_steps.sh build_studio_cpp_viewer
-   ./build_host/bin/mujoco_studio model/humanoid/humanoid.xml --gfx=opengl
+   ./build_host/bin/mujoco_studio model/humanoid/humanoid.xml
 
-The C++ binary supports the following ``--gfx`` graphics modes (`graphics_mode.h
+To configure an isolated CMake build tree manually without helper scripts:
+
+.. code-block:: shell
+
+   cmake -B build-studio \
+     -DCMAKE_BUILD_TYPE=Release \
+     -DUSE_STATIC_LIBCXX=OFF \
+     -DBUILD_SHARED_LIB=OFF \
+     -DMUJOCO_USE_FILAMENT=ON \
+     -DMUJOCO_BUILD_EXAMPLES=OFF \
+     -DMUJOCO_BUILD_SIMULATE=OFF \
+     -DMUJOCO_BUILD_TESTS=OFF \
+     -DMUJOCO_TEST_PYTHON_UTIL=OFF \
+     -DMUJOCO_WITH_USD=OFF \
+     -DMUJOCO_BUILD_STUDIO=ON \
+     -DFILAMENT_SKIP_SAMPLES=ON \
+     -DCMAKE_CXX_FLAGS=-Wno-error=deprecated-declarations \
+     -DFILAMENT_SHORTEN_MSVC_COMPILATION=OFF
+   cmake --build build-studio --config Release --target mujoco_studio --parallel
+   ./build-studio/bin/mujoco_studio model/humanoid/humanoid.xml
+
+``mujoco_studio`` resolves its staged font and Filament assets relative to the executable directory, and supports the
+following ``--gfx`` graphics modes (`graphics_mode.h
 <https://github.com/google-deepmind/mujoco/blob/main/studio/hal/graphics_mode.h>`__):
 
 - ``opengl`` / ``opengl_headless`` / ``opengl_software``: :ref:`Filament <FilamentRendering>` OpenGL desktop window,
-  offscreen headless context, or software rasterizer.
+  offscreen headless context (blitted to a software SDL2 window in the C++ app), or software rasterizer.
 - ``vulkan`` / ``vulkan_software``: Filament Vulkan desktop window or software rasterizer.
+
+On Linux, direct window rendering expects X11 (``--gfx=opengl`` is rejected under Wayland). In a Wayland session,
+omitting ``--gfx`` falls back to ``opengl_headless``; for direct GPU presentation, use an X11 session.
 
 Custom C++ executables can embed and launch Studio via ``mujoco::studio::LaunchStudio`` declared in `launcher.h
 <https://github.com/google-deepmind/mujoco/blob/main/studio/launcher.h>`__ after calling ``absl::ParseCommandLine``.
