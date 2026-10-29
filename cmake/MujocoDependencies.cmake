@@ -86,10 +86,19 @@ set(BUILD_SHARED_LIBS
 include(third_party_deps/lodepng)
 
 if(NOT TARGET marchingcubecpp)
+  find_package(Git REQUIRED)
+  _mujoco_ensure_git_retry_script()
   FetchContent_Declare(
     marchingcubecpp
-    GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
-    GIT_TAG ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+    # GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
+    # GIT_TAG ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+    DOWNLOAD_COMMAND
+      ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
+      COMMAND ${GIT_EXECUTABLE} init <SOURCE_DIR>
+      COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> remote add origin https://github.com/aparis69/MarchingCubeCpp.git
+      COMMAND ${CMAKE_COMMAND} -P "${_MUJOCO_GIT_RETRY_SCRIPT}" -- ${GIT_EXECUTABLE} -C <SOURCE_DIR> fetch --depth 1 origin ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
+      COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> -c advice.detachedHead=false checkout FETCH_HEAD
+    UPDATE_DISCONNECTED TRUE
   )
 
   FetchContent_GetProperties(marchingcubecpp)
@@ -349,10 +358,19 @@ if(MUJOCO_TEST_PYTHON_UTIL)
     # Support new IN_LIST if() operator.
     set(CMAKE_POLICY_DEFAULT_CMP0057 NEW)
 
+    find_package(Git REQUIRED)
+    _mujoco_ensure_git_retry_script()
     FetchContent_Declare(
       Eigen3
-      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-      GIT_TAG ${MUJOCO_DEP_VERSION_Eigen3}
+      # GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+      # GIT_TAG ${MUJOCO_DEP_VERSION_Eigen3}
+      DOWNLOAD_COMMAND
+        ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
+        COMMAND ${GIT_EXECUTABLE} init <SOURCE_DIR>
+        COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> remote add origin https://gitlab.com/libeigen/eigen.git
+        COMMAND ${CMAKE_COMMAND} -P "${_MUJOCO_GIT_RETRY_SCRIPT}" -- ${GIT_EXECUTABLE} -C <SOURCE_DIR> fetch --depth 1 origin ${MUJOCO_DEP_VERSION_Eigen3}
+        COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> -c advice.detachedHead=false checkout FETCH_HEAD
+      UPDATE_DISCONNECTED TRUE
     )
 
     FetchContent_GetProperties(Eigen3)

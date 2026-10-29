@@ -146,14 +146,13 @@ jobs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: ${{ runner.temp }}/external_deps
-        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ contains(matrix.cmake_args, 'MUJOCO_BUILD_STUDIO:BOOL=ON') && 'studio' || 'core' }}-${{ hashFiles('cmake/**', 'python/mujoco/CMakeLists.txt') }}
         restore-keys: |
-          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ contains(matrix.cmake_args, 'MUJOCO_BUILD_STUDIO:BOOL=ON') && 'studio' || 'core' }}-
 
     - name: Configure MuJoCo
       env:
         TMPDIR: ${{ matrix.tmpdir }}
-        EXTERNAL_DEPS: "eigen3"
         EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh configure_mujoco
@@ -218,6 +217,7 @@ jobs:
       working-directory: sample
       env:
         TMPDIR: ${{ matrix.tmpdir }}
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ../.github/workflows/build_steps.sh configure_samples
 
@@ -231,6 +231,7 @@ jobs:
       working-directory: simulate
       env:
         TMPDIR: ${{ matrix.tmpdir }}
+        EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ matrix.cmake_args }}
       run: bash ../.github/workflows/build_steps.sh configure_simulate
 
@@ -334,9 +335,10 @@ jobs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: ${{ runner.temp }}/external_deps
-        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        key: external-deps-posix-wasm-${{ hashFiles('cmake/**') }}
         restore-keys: |
-          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+          external-deps-posix-wasm-
+          external-deps-posix-studio-
 
     - name: Build and Test WASM bindings
       env:
@@ -348,7 +350,6 @@ jobs:
 
     - name: Build MuJoCo Studio WASM
       env:
-        EXTERNAL_DEPS: "eigen3"
         EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
         CMAKE_ARGS: ${{ env.cmake_args }}
       run: bash ./.github/workflows/build_steps.sh build_studio_wasm
@@ -415,13 +416,13 @@ jobs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: ${{ runner.temp }}/external_deps
-        key: external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-${{ hashFiles('cmake/MujocoDependencies.cmake') }}
+        key: external-deps-posix-mjx-${{ hashFiles('cmake/**', 'python/mujoco/CMakeLists.txt') }}
         restore-keys: |
-          external-deps-${{ runner.os == 'Windows' && 'windows' || 'posix' }}-
+          external-deps-posix-mjx-
+          external-deps-posix-core-
 
     - name: Configure MuJoCo
       env:
-        EXTERNAL_DEPS: "eigen3"
         EXTERNAL_DEPS_DIR: ${{ runner.temp }}/external_deps
       run: bash ./.github/workflows/build_steps.sh configure_mujoco
 
