@@ -104,6 +104,7 @@ struct NumArray {
 using Float3 = NumArray<float, 3>;
 using Float4 = NumArray<float, 4>;
 using Float9 = NumArray<float, 9>;
+using Float16 = NumArray<float, 16>;
 
 template <typename T> struct is_object : std::false_type {};
 template <> struct is_object<PyContext> : std::true_type {};
@@ -118,6 +119,7 @@ template <typename T> struct is_num_array : std::false_type {};
 template <> struct is_num_array<Float3> : std::true_type {};
 template <> struct is_num_array<Float4> : std::true_type {};
 template <> struct is_num_array<Float9> : std::true_type {};
+template <> struct is_num_array<Float16> : std::true_type {};
 
 void Free(mjrfReadRequest& data) {
   data.output = nullptr;
@@ -169,6 +171,10 @@ void Setter(T& dst, const U& src) {
     }
   } else if constexpr (std::is_same_v<T, float[9]>) {
     for (int i = 0; i < 9; ++i) {
+      dst[i] = src[i];
+    }
+  } else if constexpr (std::is_same_v<T, float[16]>) {
+    for (int i = 0; i < 16; ++i) {
       dst[i] = src[i];
     }
   } else if constexpr (std::is_same_v<U, std::vector<mjrVertexAttribute>>) {
