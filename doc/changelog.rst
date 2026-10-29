@@ -120,6 +120,10 @@ Filament Rendering
   invoke any completed callbacks.
 - Added :ref:`mjrf_setRenderableCastShadow` (``mjrf.Renderable.set_cast_shadow`` in Python) to dynamically toggle
   whether a renderable casts shadows.
+- When no light specifies an :ref:`intensity<body-light-intensity>`, the fallback intensity given to each light is now
+  scaled by the brightness of its diffuse color, which is factored out of the light's color. Lights look the same,
+  but the brightest directional light now casts the shadows, rather than an arbitrary one that could differ between
+  runs.
 
 Rendering
 ^^^^^^^^^
