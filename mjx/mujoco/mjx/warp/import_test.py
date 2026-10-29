@@ -22,6 +22,8 @@ from absl.testing import absltest
 
 # Simulates a warp-lang that imports but is incompatible with the bundled
 # mujoco_warp, as when warp-lang is older than the version mujoco_warp requires.
+# Only the import in mujoco/mjx/warp/__init__.py is failed; warp/types.py
+# already tolerates import failures on its own.
 _INCOMPATIBLE_WARP_SCRIPT = textwrap.dedent("""
     import builtins
 
@@ -34,6 +36,7 @@ _INCOMPATIBLE_WARP_SCRIPT = textwrap.dedent("""
           name == 'mujoco.mjx.third_party'
           and fromlist
           and 'mujoco_warp' in fromlist
+          and globals_ is not None
           and globals_.get('__name__') == 'mujoco.mjx.warp'
       ):
         raise TypeError(
