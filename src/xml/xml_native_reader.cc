@@ -432,6 +432,7 @@ void mjXReader::Option(XMLElement* section, mjSpec* s, mjOption* opt) {
     READENBL("sleep",       mjENBL_SLEEP)
     READENBL("diagexact",   mjENBL_DIAGEXACT)
     READENBL("ipc",         mjENBL_IPC)
+    READENBL("speculative", mjENBL_SPECULATIVE)
     // clang-format on
 #undef READENBL
   }

@@ -2501,8 +2501,9 @@ typedef enum mjtEnableBit {       // enable optional feature bitflags
   mjENBL_SLEEP        = 1<<4,     // sleeping
   mjENBL_DIAGEXACT    = 1<<5,     // exact diagonal of constraint inertia
   mjENBL_IPC          = 1<<6,     // IPC flex contact mode of the discrete integrator
+  mjENBL_SPECULATIVE  = 1<<7,     // speculative contacts
 
-  mjNENABLE           = 7         // number of enable flags
+  mjNENABLE           = 8         // number of enable flags
 } mjtEnableBit;
 typedef enum mjtJoint {           // type of degree of freedom
   mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)
@@ -3575,7 +3576,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "InvDiscrete",
   "Sleep",
   "DiagExact",
-  "IPC"
+  "IPC",
+  "Speculative"
 };
 const char* mjTIMERSTRING[mjNTIMER]= {
   "step",

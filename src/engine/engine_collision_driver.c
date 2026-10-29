@@ -241,9 +241,9 @@ static int filterSphereBox(const mjtNum s[3], mjtNum bound, const mjtNum aabb[6]
 
 // return 1 if speculative collisions are enabled
 static inline int speculativeEnabled(const mjModel* m) {
-  // TODO(kylebayes): replace m->opt.timestep < 0 with an enable flag
-  return m->opt.timestep < 0 && !mjDISABLED(mjDSBL_NATIVECCD);
+  return mjENABLED(mjENBL_SPECULATIVE) && !mjDISABLED(mjDSBL_NATIVECCD);
 }
+
 
 // return minimum AABB half-thickness of geom g
 static inline mjtNum geomMinSize(const mjModel* m, int g) {

@@ -795,6 +795,13 @@ from its default.
    commits, so after :ref:`mj_step` they read as under the plain ``discrete`` integrator; a user or plugin sensor
    at the acceleration stage is evaluated twice per step. Inverse dynamics is not supported.
 
+.. _option-flag-speculative:
+
+:at:`speculative`: :at-val:`[disable, enable], "disable"`
+   This flag enables speculative contacts for fast-moving convex geoms, adding contacts before impact to prevent
+   tunneling through thin obstacles within a single timestep. See :ref:`speculative contacts<coSpeculative>` for more
+   details.
+
 .. _compiler:
 
 **compiler** |*|

@@ -93,7 +93,7 @@ class EnableBit(enum.IntFlag):
   """
 
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND, DIAGEXACT
+  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND, DIAGEXACT, SPECULATIVE
   SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
   IPC = mujoco.mjtEnableBit.mjENBL_IPC
 

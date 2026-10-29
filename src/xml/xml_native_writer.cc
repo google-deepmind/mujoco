@@ -2048,6 +2048,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("sleep",          mjENBL_SLEEP)
     WRITEENBL("diagexact",      mjENBL_DIAGEXACT)
     WRITEENBL("ipc",            mjENBL_IPC)
+    WRITEENBL("speculative",    mjENBL_SPECULATIVE)
     // clang-format on
 #undef WRITEENBL
   }

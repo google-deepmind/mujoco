@@ -19,6 +19,7 @@ filegroup(
         "//model/replicate",
         "//model/sleep",
         "//model/slider_crank",
+        "//model/speculative",
         "//model/tactile",
         "//model/tendon_arm",
         "//model/welcome",

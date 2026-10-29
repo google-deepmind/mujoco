@@ -939,11 +939,12 @@ TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   mj_deleteModel(m);
 }
 
-TEST_F(ContinuousCollisionTest,
-       DISABLED_HighSpeedConvexGeomsDoNotTunnelInMjStep) {
+TEST_F(ContinuousCollisionTest, HighSpeedConvexGeomsDoNotTunnelInMjStep) {
   constexpr char kXml[] = R"(
   <mujoco>
-    <option timestep="0.01" gravity="0 0 0"/>
+    <option timestep="0.01" gravity="0 0 0">
+      <flag speculative="enable"/>
+    </option>
     <worldbody>
       <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -2"/>
       <geom name="thin_wall" type="box" size="1.0 1.0 0.02" pos="0 0 0"/>
@@ -963,23 +964,27 @@ TEST_F(ContinuousCollisionTest,
   </mujoco>)";
   mjModel* m = Load(kXml);
   mjData* d = mj_makeData(m);
+  EXPECT_TRUE(m->opt.enableflags & mjENBL_SPECULATIVE);
 
-  // First verify that with mjDSBL_NATIVECCD enabled, all 3 fast geoms tunnel
+  // First verify that with mjENBL_SPECULATIVE disabled, all 3 fast geoms tunnel
   // straight through z = 0
-  m->opt.disableflags |= mjDSBL_NATIVECCD;
+  m->opt.enableflags &= ~mjENBL_SPECULATIVE;
   mj_resetData(m, d);
   d->qvel[2] =
       -50.0;  // sphere vz = -50 m/s (0.50 m/step vs 0.04 m wall thickness)
   d->qvel[8] = -50.0;   // box vz = -50 m/s
   d->qvel[14] = -50.0;  // capsule vz = -50 m/s
   mj_step(m, d);
-  EXPECT_LT(d->qpos[2], -0.20) << "sphere tunnels when CCD is disabled";
-  EXPECT_LT(d->qpos[9], -0.20) << "box tunnels when CCD is disabled";
-  EXPECT_LT(d->qpos[16], -0.20) << "capsule tunnels when CCD is disabled";
+  EXPECT_LT(d->qpos[2], -0.20)
+      << "sphere tunnels when speculative contacts are off";
+  EXPECT_LT(d->qpos[9], -0.20)
+      << "box tunnels when speculative contacts are off";
+  EXPECT_LT(d->qpos[16], -0.20)
+      << "capsule tunnels when speculative contacts are off";
 
-  // Re-enable native CCD and verify all 3 fast convex geoms are caught and stay
-  // above the wall under both mjINT_EULER and mjINT_DISCRETE
-  m->opt.disableflags &= ~mjDSBL_NATIVECCD;
+  // Re-enable mjENBL_SPECULATIVE and verify all 3 fast convex geoms are caught
+  // and stay above the wall under both mjINT_EULER and mjINT_DISCRETE
+  m->opt.enableflags |= mjENBL_SPECULATIVE;
   for (int integrator : {mjINT_EULER, mjINT_DISCRETE}) {
     m->opt.integrator = integrator;
     mj_resetData(m, d);

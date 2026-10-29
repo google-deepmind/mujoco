@@ -157,7 +157,8 @@ public enum mjtEnableBit : int{
   mjENBL_SLEEP = 16,
   mjENBL_DIAGEXACT = 32,
   mjENBL_IPC = 64,
-  mjNENABLE = 7,
+  mjENBL_SPECULATIVE = 128,
+  mjNENABLE = 8,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,

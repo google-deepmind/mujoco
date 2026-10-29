@@ -1229,6 +1229,7 @@ exceptions:
 
 - :ref:`mjENBL_OVERRIDE <mjtEnablebit>` is not available.
 - :ref:`mjENBL_FWDINV <mjtEnablebit>` is not available.
+- :ref:`mjENBL_SPECULATIVE <mjtEnablebit>` is not available.
 
 Additional MJWarp-only options are available:
 

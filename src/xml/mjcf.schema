@@ -704,6 +704,7 @@ element flag {
   sleep              : enum<enable> = disable
   diagexact          : enum<enable> = disable
   ipc                : enum<enable> = disable
+  speculative        : enum<enable> = disable
 }
 
 

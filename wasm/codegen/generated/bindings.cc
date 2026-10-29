@@ -4090,6 +4090,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjENBL_SLEEP", mjENBL_SLEEP)
     .value("mjENBL_DIAGEXACT", mjENBL_DIAGEXACT)
     .value("mjENBL_IPC", mjENBL_IPC)
+    .value("mjENBL_SPECULATIVE", mjENBL_SPECULATIVE)
     .value("mjNENABLE", mjNENABLE);
   enum_<mjtEq>("mjtEq")
     .value("mjEQ_CONNECT", mjEQ_CONNECT)

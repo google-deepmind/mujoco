@@ -79,7 +79,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "InvDiscrete",
   "Sleep",
   "DiagExact",
-  "IPC"
+  "IPC",
+  "Speculative"
 };
 
 

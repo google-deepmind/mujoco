@@ -111,6 +111,7 @@
             <attribute name="sleep" type="keyword" valid_values="disable enable" default="disable"/>
             <attribute name="diagexact" type="keyword" valid_values="disable enable" default="disable"/>
             <attribute name="ipc" type="keyword" valid_values="disable enable" default="disable"/>
+            <attribute name="speculative" type="keyword" valid_values="disable enable" default="disable"/>
           </attributes>
         </element>
       </children>

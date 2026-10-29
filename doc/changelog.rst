@@ -7,6 +7,10 @@ Upcoming Version (not yet released)
 
 Significant new features
 ^^^^^^^^^^^^^^^^^^^^^^^^
+- Added the :ref:`speculative<option-flag-speculative>` enable flag for :doc:`speculative contacts
+  <computation/speculative>` to prevent fast-moving convex geoms from tunneling through thin obstacles within a single
+  timestep.
+
 .. image:: https://www.gstatic.com/mujoco/doc/images/changelog/wire.gif
    :align: right
    :width: 40%

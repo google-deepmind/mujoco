@@ -5,6 +5,7 @@ Computation
     :hidden:
 
     fluid
+    speculative
 
 
 Introduction
@@ -1784,8 +1785,9 @@ Filtering
       check. This is usually the case but there are exceptions (for example plane-plane collisions are not supported),
       and furthermore the user may override the default table of collision functions with NULL pointers, effectively
       disabling collisions between certain geom types.
-   2. A bounding sphere test is applied, taking into account the contact margin. If one of the geoms in the pair is a
-      plane, this becomes a plane-sphere test.
+   2. A bounding sphere test is applied, taking into account the contact margin (and the geoms' motion over the timestep
+      when :ref:`speculative<option-flag-speculative>` is enabled). If one of the geoms in the pair is a plane, this
+      becomes a plane-sphere test.
    3. The two geoms cannot belong to the same body. Furthermore, they cannot belong to a parent and a child body, unless
       the parent is the world body. The motivation is to avoid permanent contacts within bodies and joints. Note that if
       several bodies are welded together in the sense that there are no joints between them, they are treated as a
@@ -1871,6 +1873,25 @@ single-shot pipeline
   :ref:`nativeccd<option-flag-nativeccd>` flag is enabled. As this pipeline is one-shot and most of the geom analysis
   is done at compilation time, there is very little performance overhead. Supported geoms are capsules, cylinders,
   boxes, and meshes.
+
+.. _coSpeculative:
+
+Speculative contacts
+^^^^^^^^^^^^^^^^^^^^
+Fast-moving or thin objects can pass completely through each other within a single timestep without overlapping at the
+discrete evaluation points, an artifact known as *tunneling*. Enabling the :ref:`speculative<option-flag-speculative>`
+flag prevents tunneling by sweeping geoms along their pre-step linear and angular velocities over the timestep to detect
+upcoming collisions and adding speculative contacts before penetration occurs. Broadphase AABBs and the bounding-sphere
+filter are expanded to account for each fast geom's motion over the step, and narrowphase uses conservative advancement
+with GJK to find the normalized time of impact (TOI) :math:`t \in [0, 1]` along with a raycast between the :math:`t = 0`
+witness points to reject contacts occluded by intervening geometry. Speculative contacts are populated in
+``mjData.contact`` prior to surface contact with an effective ``dist`` obtained by inverting the reference acceleration
+equation :eq:`eq:aref` so that the constraint solver arrests :math:`(1 - t)` of the relative normal velocity and lands
+the geom on the contact surface at the end of the step (which means contact and touch sensors can trigger a step early).
+See the :doc:`Speculative contacts <speculative>` chapter for further details. This feature requires the
+:ref:`nativeccd<option-flag-nativeccd>` pipeline and supports planes, spheres, capsules, ellipsoids, cylinders, boxes,
+and convex meshes (as well as :ref:`multiccd<option-flag-multiccd>` for multi-point surface contacts); height fields,
+SDFs, and flexes are not supported.
 
 .. _coDistance:
 

@@ -191,6 +191,9 @@
             .. grid-item::
                :ref:`ipc<option-flag-ipc>`
 
+            .. grid-item::
+               :ref:`speculative<option-flag-speculative>`
+
 
    .. dropdown:: :ref:`compiler<compiler>` |*|
 
