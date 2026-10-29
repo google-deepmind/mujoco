@@ -1210,7 +1210,7 @@ void mjCModel::ComputeSparseSizes() {
   if (nv > 0) {
     std::vector<bool> dof_bitmap(nv, false);
     for (const auto* tendon : tendons_) {
-      if (!tendon->path.empty() && tendon->path[0]->Type() == mjWRAP_JOINT) {
+      if (tendon->Type() == mjTENDON_FIXED) {
         nJten += tendon->path.size();
         continue;
       }
@@ -3337,7 +3337,7 @@ int mjCModel::CountTendonDofs(const mjModel* m, int id) {
   int adr = m->tendon_adr[id];
   int num = m->tendon_num[id];
 
-  if (m->wrap_type[adr] == mjWRAP_JOINT) { return num; }
+  if (m->tendon_type[id] == mjTENDON_FIXED) { return num; }
 
   std::fill(dof_used.begin(), dof_used.end(), false);
   for (int j = 0; j < num; j++) {
@@ -4029,6 +4029,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjCTendon* pte = tendons_[i];
 
     // set fields
+    m->tendon_type[i]       = pte->Type();
     m->tendon_adr[i]        = adr;
     m->tendon_num[i]        = (int)pte->path.size();
     m->tendon_matid[i]      = pte->matid;

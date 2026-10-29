@@ -646,6 +646,7 @@
     X   ( mjtNum,  eq_data,               neq,           mjNEQDATA            )
 
 #define MJMODEL_POINTERS_TENDON                                                 \
+    X   ( int,     tendon_type,           ntendon,       1                    ) \
     X   ( int,     tendon_adr,            ntendon,       1                    ) \
     X   ( int,     tendon_num,            ntendon,       1                    ) \
     X   ( int,     tendon_matid,          ntendon,       1                    ) \
@@ -996,6 +997,7 @@
     X( eq_obj2id,            0,          mjSC_IN,    0,          0          ) \
     X( eq_objtype,           0,          mjSC_IN,    0,          0          ) \
     X( eq_data,              0,          mjSC_INOUT, 0,          0          ) \
+    X( tendon_type,          mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
     X( tendon_adr,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
     X( tendon_num,           mjSC_IN,    mjSC_IN,    mjSC_IN,    mjSC_IN    ) \
     X( tendon_actuatorid,    mjSC_OUT,   0,          mjSC_IN,    0          ) \

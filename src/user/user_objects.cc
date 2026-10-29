@@ -7632,6 +7632,16 @@ int mjCTendon::Linear() const {
 }
 
 
+// tendon type: fixed if the path is non-empty and has only joints, otherwise spatial
+mjtTendon mjCTendon::Type() const {
+  if (path.empty()) { return mjTENDON_SPATIAL; }
+  for (const mjCWrap* wrap : path) {
+    if (wrap->Type() != mjWRAP_JOINT) { return mjTENDON_SPATIAL; }
+  }
+  return mjTENDON_FIXED;
+}
+
+
 // scale the compiled copy by the gauge of the path, or back; the coefficient of a joint converts
 // its coordinate to the length of the tendon, so it takes the ratio of their factors
 void mjCTendon::ApplyGauge(bool inverse) {
@@ -7696,7 +7706,7 @@ void mjCTendon::Compile(void) {
   }
 
   // determine type
-  bool spatial = (path[0]->Type() != mjWRAP_JOINT);
+  bool spatial = (Type() == mjTENDON_SPATIAL);
 
   // require at least two objects in spatial path
   if (spatial && sz < 2) {

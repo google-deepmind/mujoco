@@ -2082,6 +2082,9 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   mjtNum* plastic(const std::string& state_name);
   void    ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
 
+  // tendon type: fixed if the path is non-empty and has only joints, otherwise spatial
+  mjtTendon Type() const;
+
  private:
   void Compile(void);  // compiler
   void ResetId();

@@ -406,6 +406,7 @@ def _put_model_jax(
       (m.actuator_trntype, types.TrnType, mujoco.mjtTrn),
       (m.eq_type, types.EqType, mujoco.mjtEq),
       (m.sensor_type, types.SensorType, mujoco.mjtSensor),
+      (m.tendon_type, types.TendonType, mujoco.mjtTendon),
       (m.wrap_type, types.WrapType, mujoco.mjtWrap),
   ):
     missing = set(enum_field) - set(enum_type)

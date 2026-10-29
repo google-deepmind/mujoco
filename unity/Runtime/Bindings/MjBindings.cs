@@ -258,6 +258,10 @@ public enum mjtEq : int{
   mjEQ_FLEXSTRAIN = 6,
   mjEQ_DISTANCE = 7,
 }
+public enum mjtTendon : int{
+  mjTENDON_FIXED = 0,
+  mjTENDON_SPATIAL = 1,
+}
 public enum mjtWrap : int{
   mjWRAP_NONE = 0,
   mjWRAP_JOINT = 1,
@@ -1523,6 +1527,7 @@ public unsafe struct mjModel_ {
   public double* eq_solref;
   public double* eq_solimp;
   public double* eq_data;
+  public int* tendon_type;
   public int* tendon_adr;
   public int* tendon_num;
   public int* tendon_matid;

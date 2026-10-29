@@ -1105,6 +1105,7 @@ typedef struct mjModel_ {
   mjtNum*   eq_data;              // numeric data for constraint              (neq x mjNEQDATA)
 
   // tendons
+  int*      tendon_type;          // type of tendon (mjtTendon)               (ntendon x 1)
   int*      tendon_adr;           // address of first object in tendon's path (ntendon x 1)
   int*      tendon_num;           // number of objects in tendon's path       (ntendon x 1)
   int*      tendon_matid;         // material id for rendering                (ntendon x 1)
@@ -2607,6 +2608,10 @@ typedef enum mjtEq {              // type of equality constraint
   mjEQ_FLEXSTRAIN,                // constrain strain of a trilinear/quadratic flex (B-bar)
   mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
+typedef enum mjtTendon {          // type of tendon
+  mjTENDON_FIXED      = 0,        // linear combination of joint coordinates
+  mjTENDON_SPATIAL                // path through sites, around geoms
+} mjtTendon;
 typedef enum mjtWrap {            // type of tendon wrap object
   mjWRAP_NONE         = 0,        // null object
   mjWRAP_JOINT,                   // constant moment arm

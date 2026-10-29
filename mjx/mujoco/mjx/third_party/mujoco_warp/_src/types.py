@@ -798,6 +798,19 @@ class EqType(enum.IntEnum):
   # unsupported: DISTANCE
 
 
+class TendonType(enum.IntEnum):
+  """Type of tendon.
+
+  Attributes:
+    FIXED: linear combination of joint coordinates
+    SPATIAL: path through sites, around geoms
+  """
+
+  # TODO(team): use mujoco.mjtTendon when mujoco>=3.17.1 is required
+  FIXED = 0
+  SPATIAL = 1
+
+
 class WrapType(enum.IntEnum):
   """Type of tendon wrapping object.
 
@@ -1462,6 +1475,7 @@ class Model:
     eq_solref: constraint solver reference                   (*, neq, mjNREF)
     eq_solimp: constraint solver impedance                   (*, neq, mjNIMP)
     eq_data: numeric data for constraint                     (*, neq, mjNEQDATA)
+    tendon_type: type of tendon (TendonType)                 (ntendon,)
     tendon_adr: address of first object in tendon's path     (ntendon,)
     tendon_num: number of objects in tendon's path           (ntendon,)
     tendon_actuatorid: actuator adding damping/armature      (ntendon,)
@@ -2012,6 +2026,7 @@ class Model:
   eq_solref: array("*", "neq", wp.vec2)
   eq_solimp: array("*", "neq", vec5)
   eq_data: array("*", "neq", vec12)
+  tendon_type: array("ntendon", int)
   tendon_adr: array("ntendon", int)
   tendon_num: array("ntendon", int)
   tendon_actuatorid: array("ntendon", int)

@@ -5518,6 +5518,9 @@ struct MjModel {
   emscripten::val eq_data() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->neq * mjNEQDATA, ptr_->eq_data));
   }
+  emscripten::val tendon_type() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_type));
+  }
   emscripten::val tendon_adr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_adr));
   }

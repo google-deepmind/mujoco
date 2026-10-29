@@ -810,7 +810,7 @@ static void makeTendonSparse(mjModel* m) {
     int num = m->tendon_num[i];
 
     // joint tendon: each wrap object is a joint, colind is its dofadr
-    if (m->wrap_type[adr] == mjWRAP_JOINT) {
+    if (m->tendon_type[i] == mjTENDON_FIXED) {
       for (int j = 0; j < num; j++) {
         colind[rowadr[i] + j] = m->jnt_dofadr[m->wrap_objid[adr + j]];
       }

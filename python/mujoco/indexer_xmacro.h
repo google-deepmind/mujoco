@@ -248,6 +248,7 @@
   X( int,   skin_, pathadr,     nskin, 1 )
 
 #define MJMODEL_TENDON                                             \
+  X( int,     tendon, _type,         ntendon, 1                  ) \
   X( int,     tendon, _adr,          ntendon, 1                  ) \
   X( int,     tendon, _num,          ntendon, 1                  ) \
   X( int,     tendon, _matid,        ntendon, 1                  ) \

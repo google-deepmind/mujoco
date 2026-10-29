@@ -990,11 +990,16 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
 
   m.nJfs = m.flexstrain_J_colind.size
 
+  # tendon type: older mujoco versions imply it from the first wrap object
+  if not util_pkg.check_version("mujoco>=3.17.1"):
+    is_fixed = mjm.wrap_type[mjm.tendon_adr] == mujoco.mjtWrap.mjWRAP_JOINT
+    m.tendon_type = np.where(is_fixed, types.TendonType.FIXED, types.TendonType.SPATIAL)
+
   # fixed tendon
   m.tendon_jnt_adr, m.wrap_jnt_adr = [], []
   for i in range(mjm.ntendon):
     adr = mjm.tendon_adr[i]
-    if mjm.wrap_type[adr] == mujoco.mjtWrap.mjWRAP_JOINT:
+    if m.tendon_type[i] == types.TendonType.FIXED:
       tendon_num = mjm.tendon_num[i]
       for j in range(tendon_num):
         m.tendon_jnt_adr.append(i)

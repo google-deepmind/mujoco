@@ -250,6 +250,46 @@ TEST_F(UserModelTest, FixedTendonSparsity) {
   EXPECT_THAT(std::vector<int>(colind, colind + 3), ElementsAre(0, 1, 2));
 }
 
+TEST_F(UserModelTest, TendonType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="s0"/>
+      <body pos="1 0 0">
+        <joint name="j"/>
+        <geom size=".1"/>
+        <site name="s1"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed>
+        <joint joint="j" coef="1"/>
+      </fixed>
+      <spatial>
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // a tendon added through the spec API is typed by its path
+  mjsTendon* tendon = mjs_addTendon(spec, nullptr);
+  mjs_wrapJoint(tendon, "j", 2);
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->tendon_type[0], mjTENDON_FIXED);
+  EXPECT_EQ(m->tendon_type[1], mjTENDON_SPATIAL);
+  EXPECT_EQ(m->tendon_type[2], mjTENDON_FIXED);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
   static constexpr char xml[] = R"(
   <mujoco>

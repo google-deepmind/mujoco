@@ -313,6 +313,7 @@ def _tendon_shim(
     tendon_jnt_adr: wp.array[int],
     tendon_num: wp.array[int],
     tendon_site_pair_adr: wp.array[int],
+    tendon_type: wp.array[int],
     wrap_geom_adr: wp.array[int],
     wrap_jnt_adr: wp.array[int],
     wrap_objid: wp.array[int],
@@ -360,6 +361,7 @@ def _tendon_shim(
   _m.tendon_jnt_adr = tendon_jnt_adr
   _m.tendon_num = tendon_num
   _m.tendon_site_pair_adr = tendon_site_pair_adr
+  _m.tendon_type = tendon_type
   _m.wrap_geom_adr = wrap_geom_adr
   _m.wrap_jnt_adr = wrap_jnt_adr
   _m.wrap_objid = wrap_objid
@@ -453,6 +455,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m._impl.tendon_jnt_adr,
       m.tendon_num,
       m._impl.tendon_site_pair_adr,
+      m.tendon_type,
       m._impl.wrap_geom_adr,
       m._impl.wrap_jnt_adr,
       m.wrap_objid,

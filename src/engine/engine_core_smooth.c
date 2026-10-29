@@ -792,7 +792,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
     int tendon_num = m->tendon_num[i];
 
     // process fixed tendon
-    if (m->wrap_type[adr] == mjWRAP_JOINT) {
+    if (m->tendon_type[i] == mjTENDON_FIXED) {
       // process all defined joints
       for (int j=0; j < tendon_num; j++) {
         // get joint id
@@ -947,8 +947,7 @@ mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec) {
   }
 
   // fixed tendon has zero Jdot: return
-  int adr = m->tendon_adr[id];
-  if (m->wrap_type[adr] == mjWRAP_JOINT) {
+  if (m->tendon_type[id] == mjTENDON_FIXED) {
     return 0;
   }
 
@@ -964,6 +963,7 @@ mjtNum mj_tendonDot(const mjModel* m, mjData* d, int id, const mjtNum* vec) {
   // process spatial tendon
   mjtNum divisor = 1;
   int wraptype, j = 0;
+  int adr = m->tendon_adr[id];
   int num = m->tendon_num[id];
   while (j < num-1) {
     // get 1st and 2nd object
@@ -2518,7 +2518,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
     for (int t=0; t < ntendon; t++) {
       // fixed tendon: acts through the joints
-      if (m->wrap_type[m->tendon_adr[t]] == mjWRAP_JOINT) {
+      if (m->tendon_type[t] == mjTENDON_FIXED) {
         continue;
       }
 

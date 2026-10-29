@@ -229,6 +229,15 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjEQ_DISTANCE', 7),
          ]),
      )),
+    ('mjtTendon',
+     EnumDecl(
+         name='mjtTendon',
+         declname='enum mjtTendon',
+         values=dict([
+             ('mjTENDON_FIXED', 0),
+             ('mjTENDON_SPATIAL', 1),
+         ]),
+     )),
     ('mjtWrap',
      EnumDecl(
          name='mjtWrap',

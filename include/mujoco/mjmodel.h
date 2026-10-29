@@ -738,6 +738,7 @@ typedef struct mjModel_ {
   mjtNum*   eq_data;              // numeric data for constraint              (neq x mjNEQDATA)
 
   // tendons
+  int*      tendon_type;          // type of tendon (mjtTendon)               (ntendon x 1)
   int*      tendon_adr;           // address of first object in tendon's path (ntendon x 1)
   int*      tendon_num;           // number of objects in tendon's path       (ntendon x 1)
   int*      tendon_matid;         // material id for rendering                (ntendon x 1)

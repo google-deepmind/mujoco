@@ -4133,6 +4133,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('neq', 'mjNEQDATA'),
              ),
              StructFieldDecl(
+                 name='tendon_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='type of tendon (mjtTendon)',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
                  name='tendon_adr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

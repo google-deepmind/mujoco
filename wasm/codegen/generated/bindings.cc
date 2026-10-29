@@ -4487,6 +4487,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjSTEREO_NONE", mjSTEREO_NONE)
     .value("mjSTEREO_QUADBUFFERED", mjSTEREO_QUADBUFFERED)
     .value("mjSTEREO_SIDEBYSIDE", mjSTEREO_SIDEBYSIDE);
+  enum_<mjtTendon>("mjtTendon")
+    .value("mjTENDON_FIXED", mjTENDON_FIXED)
+    .value("mjTENDON_SPATIAL", mjTENDON_SPATIAL);
   enum_<mjtTexture>("mjtTexture")
     .value("mjTEXTURE_2D", mjTEXTURE_2D)
     .value("mjTEXTURE_CUBE", mjTEXTURE_CUBE)
@@ -5477,6 +5480,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tendon_stiffnesspoly", &MjModel::tendon_stiffnesspoly)
     .property("tendon_treeid", &MjModel::tendon_treeid)
     .property("tendon_treenum", &MjModel::tendon_treenum)
+    .property("tendon_type", &MjModel::tendon_type)
     .property("tendon_user", &MjModel::tendon_user)
     .property("tendon_width", &MjModel::tendon_width)
     .property("tex_adr", &MjModel::tex_adr)

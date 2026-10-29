@@ -297,6 +297,16 @@ Equality constraint types. These values are used in ``m->eq_type``.
 .. mujoco-include:: mjtEq
 
 
+.. _mjtTendon:
+
+mjtTendon
+~~~~~~~~~
+
+Tendon types. These values are used in ``m->tendon_type``.
+
+.. mujoco-include:: mjtTendon
+
+
 .. _mjtWrap:
 
 mjtWrap

@@ -483,6 +483,7 @@ def _forward_shim(
     tendon_solref_lim: wp.array2d[wp.vec2],
     tendon_stiffness: wp.array2d[float],
     tendon_stiffnesspoly: wp.array2d[wp.vec2],
+    tendon_type: wp.array[int],
     tree_dofadr: wp.array[int],
     tree_dofnum: wp.array[int],
     tree_sleep_policy: wp.array[int],
@@ -1183,6 +1184,7 @@ def _forward_shim(
   _m.tendon_solref_lim = tendon_solref_lim
   _m.tendon_stiffness = tendon_stiffness
   _m.tendon_stiffnesspoly = tendon_stiffnesspoly
+  _m.tendon_type = tendon_type
   _m.tree_dofadr = tree_dofadr
   _m.tree_dofnum = tree_dofnum
   _m.tree_sleep_policy = tree_sleep_policy
@@ -2629,6 +2631,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.tendon_solref_lim,
       m.tendon_stiffness,
       m.tendon_stiffnesspoly,
+      m.tendon_type,
       m._impl.tree_dofadr,
       m._impl.tree_dofnum,
       m._impl.tree_sleep_policy,
@@ -3494,6 +3497,7 @@ def _step_shim(
     tendon_springyield: wp.array2d[float],
     tendon_stiffness: wp.array2d[float],
     tendon_stiffnesspoly: wp.array2d[wp.vec2],
+    tendon_type: wp.array[int],
     tree_dofadr: wp.array[int],
     tree_dofnum: wp.array[int],
     tree_sleep_policy: wp.array[int],
@@ -4210,6 +4214,7 @@ def _step_shim(
   _m.tendon_springyield = tendon_springyield
   _m.tendon_stiffness = tendon_stiffness
   _m.tendon_stiffnesspoly = tendon_stiffnesspoly
+  _m.tendon_type = tendon_type
   _m.tree_dofadr = tree_dofadr
   _m.tree_dofnum = tree_dofnum
   _m.tree_sleep_policy = tree_sleep_policy
@@ -5695,6 +5700,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.tendon_springyield,
       m.tendon_stiffness,
       m.tendon_stiffnesspoly,
+      m.tendon_type,
       m._impl.tree_dofadr,
       m._impl.tree_dofnum,
       m._impl.tree_sleep_policy,

@@ -208,6 +208,7 @@ class ModelIOTest(parameterized.TestCase):
     np.testing.assert_allclose(mx.actuator_biastype, m.actuator_biastype)
     np.testing.assert_allclose(mx.actuator_trnid, m.actuator_trnid)
 
+    np.testing.assert_equal(mx.tendon_type, m.tendon_type)
     np.testing.assert_equal(mx.wrap_type, m.wrap_type)
     np.testing.assert_equal(mx.wrap_objid, m.wrap_objid)
     np.testing.assert_almost_equal(mx.wrap_prm, m.wrap_prm)

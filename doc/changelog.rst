@@ -64,6 +64,8 @@ General
 - Added a :ref:`castshadow<body-geom-castshadow>` attribute to :ref:`geom<body-geom>` (``mjsGeom.castshadow``,
   ``mjModel.geom_castshadow``, ``mjvGeom.castshadow``; default ``true``) to disable shadow casting per geom in both the
   classic OpenGL and Filament renderers.
+- Added ``mjModel.tendon_type`` with values from the new :ref:`mjtTendon` enum, distinguishing fixed and spatial
+  tendons. Previously, the type was implied by whether the first path element was a joint.
 
 Engine
 ^^^^^^

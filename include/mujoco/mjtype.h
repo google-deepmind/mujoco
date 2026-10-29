@@ -223,6 +223,12 @@ typedef enum mjtEq {              // type of equality constraint
 } mjtEq;
 
 
+typedef enum mjtTendon {          // type of tendon
+  mjTENDON_FIXED      = 0,        // linear combination of joint coordinates
+  mjTENDON_SPATIAL                // path through sites, around geoms
+} mjtTendon;
+
+
 typedef enum mjtWrap {            // type of tendon wrap object
   mjWRAP_NONE         = 0,        // null object
   mjWRAP_JOINT,                   // constant moment arm
