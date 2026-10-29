@@ -152,7 +152,8 @@ Browser Sandboxing
 ==================
 
 Unlike native desktop applications, web browsers execute pages inside a security sandbox that restricts multithreading,
-network requests, filesystem access, and memory. The points below summarize how browser sandboxing affects
+network requests, filesystem access, and memory, and keep WebAssembly modules resident for the life of the page rather
+than running a fresh OS process per session. The points below summarize how these browser behaviors affect
 ``WebViewer`` and ``MuJoCo Live``:
 
 - **COOP/COEP headers and WebAssembly multithreading** (*both* ``WebViewer`` *and* ``MuJoCo Live``): In WebAssembly, C++
@@ -192,3 +193,22 @@ network requests, filesystem access, and memory. The points below summarize how 
   512 MiB on iOS; in **WebViewer** this limit applies only to the browser's rendering scene while the simulation uses
   host RAM, whereas in **MuJoCo Live** the entire simulation and history buffer reside inside the browser's WebAssembly
   heap.
+- **WebAssembly module lifetime & persistent C++ state** (``MuJoCo Live`` *and sequential Python sessions*): Unlike a
+  standalone desktop executable whose entire address space is reclaimed by the OS when the process exits, a compiled
+  WebAssembly module and its linear memory remain resident for as long as the page keeps the module loaded. When an
+  embedding page stops and restarts the viewer across JavaScript ``deinit`` and ``init`` calls, all C++ global and
+  ``static`` variables persist across runs:
+
+  - **Global UI contexts and singletons**: Libraries such as Dear ImGui and ImPlot track their active state through
+    global context pointers, and creating a new context does not free an existing one—if teardown skips
+    ``DestroyContext``, the next ``CreateContext`` allocates and leaks a new context while leaving the global pointer
+    bound to the stale previous one (or leaks the old context's buffers if the global pointer is reassigned). Studio
+    destroys its UI contexts during window and app teardown so each ``init`` starts cleanly and returns freed blocks
+    to the allocator inside the WebAssembly heap; custom C++ plugins and bindings must reset any global or ``static``
+    state the same way. Note that while C++ destructors make freed memory reusable within the module, a
+    ``WebAssembly.Memory`` buffer can grow up to the browser ceiling but never shrinks back to the OS until the tab
+    reloads or drops all references to the module.
+  - **Same behavior in Python**: Compiled C++ extension modules remain loaded in the Python interpreter process rather
+    than unloading when a viewer window or ``with`` block closes, so C++ global and ``static`` state persists—and
+    leaks if not torn down—across sequential viewer windows, notebook cells, and tests in a single process in the
+    exact same way.
