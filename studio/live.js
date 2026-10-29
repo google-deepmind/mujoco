@@ -208,6 +208,7 @@ var Module = {
       "assets/outline_jumpflood.filamat",
       "assets/decor.filamat",
       "assets/decor_fade.filamat",
+      "assets/haze.filamat",
       "assets/unlit_depth.filamat",
       "assets/unlit_segmentation.filamat",
       "assets/unlit_ui.filamat"

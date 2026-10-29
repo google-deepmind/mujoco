@@ -118,7 +118,9 @@ static MaterialManager::MaterialKey BuildMaterialKey(
 
 MaterialManager::MaterialType MaterialManager::GetMaterialType(
     const mjrfMaterial& material, const Mesh* mesh) {
-  if (material.decor) {
+  if (material.haze_ratio >= 0) {
+    return ObjectManager::kHaze;
+  } else if (material.decor) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
     } else if (material.color[3] < 1.0f) {
@@ -266,6 +268,13 @@ void MaterialManager::UpdateMaterialInstance(
   if (fmaterial->hasParameter("BaseColorFactor")) {
     instance->setParameter("BaseColorFactor", filament::RgbaType::sRGB,
                            ReadFloat4(material.color));
+  }
+  if (fmaterial->hasParameter("HazeColor")) {
+    instance->setParameter("HazeColor", filament::RgbaType::LINEAR,
+                           ReadFloat4(material.color));
+  }
+  if (fmaterial->hasParameter("HazeRatio")) {
+    instance->setParameter("HazeRatio", material.haze_ratio);
   }
   if (fmaterial->hasParameter("SegmentationColor")) {
     const uint8_t r = material.segmentation_id >> 0;

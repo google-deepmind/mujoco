@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -28,13 +29,13 @@
 #include <filament/Material.h>
 #include <filament/Options.h>
 #include <filament/RenderTarget.h>
-#include <filament/RenderableManager.h>
 #include <filament/Renderer.h>
 #include <filament/Skybox.h>
 #include <filament/TransformManager.h>
 #include <filament/View.h>
 #include <filament/Viewport.h>
 #include <math/TVecHelpers.h>
+#include <math/mat3.h>
 #include <math/mat4.h>
 #include <math/mathfwd.h>
 #include <math/scalar.h>
@@ -43,6 +44,7 @@
 #include <utils/EntityManager.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
+#include "render/filament/core/builtins.h"
 #include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/light.h"
 #include "render/filament/core/material_manager.h"
@@ -58,7 +60,9 @@ namespace mujoco {
 
 using filament::math::float3;
 using filament::math::float4;
+using filament::math::mat3f;
 using filament::math::mat4;
+using filament::math::mat4f;
 
 static constexpr filament::color::ColorSpace REC709_LINEAR_D65 =
     filament::color::Rec709 - filament::color::Linear -
@@ -184,6 +188,17 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   tm.create(fog);
   tm.setTransform(tm.getInstance(fog),
                   mat4::rotation(filament::math::f::PI / 2, float3{-1, 0, 0}));
+
+  mjrfRenderableParams haze_params;
+  mjrf_defaultRenderableParams(&haze_params);
+  haze_params.cast_shadow = false;
+  haze_params.receive_shadow = false;
+  haze_ = std::make_unique<Renderable>(engine, haze_params, material_mgr_);
+  haze_->SetPriority(0);
+  SetHaze(0.3f, nullptr);
+  haze_->SetMesh(
+      object_mgr_->GetBuiltins(numstacks_, numslices_, numquads_)->Haze());
+  AddToScene(haze_.get());
 }
 
 SceneView::~SceneView() {
@@ -206,6 +221,7 @@ SceneView::~SceneView() {
   }
   lights_.clear();
   renderables_.clear();
+  haze_.reset();
   engine->destroyCameraComponent(reflect_camera_->getEntity());
   engine->destroy(reflect_view_);
   engine->destroyCameraComponent(camera_->getEntity());
@@ -324,14 +340,55 @@ void SceneView::Render(filament::Renderer* renderer,
     headlight_->Disable();
   }
 
+  // with a skybox, center the horizon disks of infinite planes beneath the
+  // camera and place the haze on the nearest plane below it
+  const bool show_skybox = skybox_ != nullptr && ShowsSkybox(request);
+  const float3 cam_pos = ReadFloat3(request.camera.pos);
+  const float horizon = kHorizonFarRatio * request.camera.frustum_far;
+  float haze_elevation = std::numeric_limits<float>::infinity();
+  float3 haze_center;
+  mat3f haze_rotation;
+
   std::vector<Renderable*> selected_renderables;
-  for (auto& iter : renderables_) {
-    iter->BindMaterialInstance(request);
-    if (iter->GetMaterial().selected &&
+  for (Renderable* renderable : renderables_) {
+    renderable->BindMaterialInstance(request);
+    if (renderable->GetMaterial().selected &&
         request.draw_mode == mjDRAW_MODE_DEFAULT) {
-      selected_renderables.push_back(iter);
+      selected_renderables.push_back(renderable);
+    }
+    if (show_skybox && renderable->IsInfinitePlane()) {
+      const mat4f& transform = renderable->GetTransform();
+      const float3 normal = normalize(transform[2].xyz);
+      const float elevation = dot(cam_pos - transform[3].xyz, normal);
+      const float3 center = cam_pos - elevation * normal;
+      const mat3f rotation(normalize(transform[0].xyz),
+                           normalize(transform[1].xyz), normal);
+      // part 1 of an infinite plane is its horizon disk
+      renderable->SetPartTransform(
+          1, mat4f(rotation, center) *
+                 mat4f::scaling(float3{horizon, horizon, 1.0f}));
+      if (elevation > 0.0f && elevation < haze_elevation) {
+        haze_elevation = elevation;
+        haze_center = center;
+        haze_rotation = rotation;
+      }
     }
   }
+
+  const bool show_haze =
+      show_skybox && request.haze &&
+      haze_elevation < std::numeric_limits<float>::infinity();
+  if (show_haze) {
+    haze_->SetTransform(haze_center, haze_rotation);
+    haze_->SetSize(float3{horizon, horizon, haze_elevation});
+  }
+
+  main_view_->setVisibleLayers(
+      kLayerMask_Skybox | kLayerMask_Haze,
+      (show_skybox ? kLayerMask_Skybox : 0) |
+          (show_haze ? kLayerMask_Haze : 0));
+  reflect_view_->setVisibleLayers(
+      0xff, kLayerMask_Object | (show_skybox ? kLayerMask_Skybox : 0));
 
   const int num_reflective = reflection_mgr_->GetNumRenderables();
   for (int i = 0; i < num_reflective; ++i) {
@@ -489,8 +546,31 @@ void SceneView::SetMsaa(int samples) {
   main_view_->setMultiSampleAntiAliasingOptions(msaa);
 }
 
+void SceneView::SetHaze(float ratio, const float rgba[4]) {
+  mjrfMaterial material = haze_->GetMaterial();
+  material.haze_ratio = std::clamp(ratio, 0.0f, 1.0f);
+  if (rgba) {
+    std::copy(rgba, rgba + 4, material.color);
+  }
+  haze_->UpdateMaterial(material);
+}
+
+float SceneView::GetHazeRatio() const {
+  return haze_->GetMaterial().haze_ratio;
+}
+
+float4 SceneView::GetHazeColor() const {
+  return ReadFloat4(haze_->GetMaterial().color);
+}
+
 void SceneView::Configure(const mjModel* model) {
   SetMsaa(model->vis.quality.offsamples);
+  numstacks_ = model->vis.quality.numstacks;
+  numslices_ = std::max(3, model->vis.quality.numslices);
+  numquads_ = model->vis.quality.numquads;
+  haze_->SetMesh(
+      object_mgr_->GetBuiltins(numstacks_, numslices_, numquads_)->Haze());
+  SetHaze(model->vis.map.haze, model->vis.rgba.haze);
 
   auto cg = color_grading_options_;
   cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);

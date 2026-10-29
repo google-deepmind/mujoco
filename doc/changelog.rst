@@ -91,6 +91,10 @@ Engine
 
 Filament Rendering
 ^^^^^^^^^^^^^^^^^^
+- Added horizon haze and skybox visibility support: infinite planes are centered beneath the camera and blend smoothly
+  into the skybox horizon according to :ref:`visual/map/haze<visual-map-haze>` and
+  :ref:`visual/rgba/haze<visual-rgba-haze>`, toggled per view via ``haze`` and ``skybox`` on :ref:`mjrfRenderRequest`
+  (:ref:`mjRND_HAZE<mjtRndFlag>` and :ref:`mjRND_SKYBOX<mjtRndFlag>`).
 - Added :ref:`mjrf_flush` (``mjrf.Context.flush`` in Python) to flush pending operations to the rendering backend and
   invoke any completed callbacks.
 

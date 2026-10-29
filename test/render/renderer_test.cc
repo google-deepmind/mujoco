@@ -590,5 +590,273 @@ TEST_F(RendererTest, TextureDestroyedBeforeUploadReleasesData) {
   EXPECT_EQ(released, 1);
 }
 
+static UniquePtr<mjrfTexture> MakeSkyboxTexture(mjrfContext* ctx,
+                                                const uint8_t color[3]) {
+  mjrfTextureConfig config;
+  mjrf_defaultTextureConfig(&config);
+  config.width = 1;
+  config.height = 1;
+  config.format = mjPIXEL_FORMAT_RGB8;
+  config.color_space = mjCOLORSPACE_LINEAR;
+  config.sampler_type = mjTEXTURE_SKYBOX;
+  UniquePtr<mjrfTexture> texture = CreateTexture(ctx, config);
+
+  mjrfTextureData data;
+  mjrf_defaultTextureData(&data);
+  data.bytes = color;
+  data.num_bytes = 3;
+  mjrf_uploadTexture(texture.get(), &data);
+  return texture;
+}
+
+TEST_F(RendererTest, HorizonHazeAndSkyboxFlags) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  constexpr int kSize = 64;
+  mjrfRenderTargetConfig color_cfg;
+  mjrf_defaultRenderTargetConfig(&color_cfg);
+  color_cfg.width = kSize;
+  color_cfg.height = kSize;
+  color_cfg.color_format = mjPIXEL_FORMAT_RGB8;
+  color_cfg.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle color_target =
+      renderer.CreateRenderTarget("color", color_cfg);
+  ASSERT_NE(color_target, Renderer::kInvalidRenderTarget);
+
+  mjrfRenderTargetConfig float_cfg;
+  mjrf_defaultRenderTargetConfig(&float_cfg);
+  float_cfg.width = kSize;
+  float_cfg.height = kSize;
+  float_cfg.color_format = mjPIXEL_FORMAT_R32F;
+  float_cfg.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle float_target =
+      renderer.CreateRenderTarget("float", float_cfg);
+  ASSERT_NE(float_target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene = renderer.GetScene("scene");
+  Renderer::SceneHandle scene_handle = renderer.GetSceneHandle("scene");
+
+  // Blue skybox and pure red haze configured from mjModel.
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(mj_makeSpec(),
+                                                         mj_deleteSpec);
+  spec->visual.map.haze = 0.5f;
+  spec->visual.rgba.haze[0] = 1.0f;
+  spec->visual.rgba.haze[1] = 0.0f;
+  spec->visual.rgba.haze[2] = 0.0f;
+  spec->visual.rgba.haze[3] = 1.0f;
+  std::unique_ptr<mjModel, decltype(&mj_deleteModel)> model(
+      mj_compile(spec.get(), nullptr), mj_deleteModel);
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  mjrf_configureSceneFromModel(scene, model.get());
+
+  UniquePtr<mjrfTexture> skybox = MakeSkyboxTexture(ctx, kBlue);
+  mjrf_setSceneSkybox(scene, skybox.get());
+
+  // Infinite green plane at z = 0 (size x=0, y=0).
+  mjrfRenderableParams plane_params;
+  mjrf_defaultRenderableParams(&plane_params);
+  plane_params.cast_shadow = false;
+  plane_params.receive_shadow = false;
+  UniquePtr<mjrfRenderable> plane = CreateRenderable(ctx, plane_params);
+  mjrf_setRenderableGeomMesh(plane.get(), mjGEOM_PLANE, 1, 28, 4);
+  const float kInfiniteSize[3] = {0.0f, 0.0f, 1.0f};
+  const float kOrigin[3] = {0.0f, 0.0f, 0.0f};
+  const float kIdentityRot[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  mjrf_setRenderableSize(plane.get(), kInfiniteSize);
+  mjrf_setRenderablePose(plane.get(), kOrigin, kIdentityRot);
+
+  UniquePtr<mjrfTexture> green_tex = MakeTexture(ctx, kGreen);
+  mjrfMaterial plane_mat;
+  mjrf_defaultMaterial(&plane_mat);
+  plane_mat.color[0] = 0.0f;
+  plane_mat.color[1] = 1.0f;
+  plane_mat.color[2] = 0.0f;
+  plane_mat.color[3] = 1.0f;
+  plane_mat.emissive = 1.0f;
+  plane_mat.emissive_texture = green_tex.get();
+  plane_mat.metallic = 0.0f;
+  plane_mat.segmentation_id = 42;
+  mjrf_setRenderableMaterial(plane.get(), &plane_mat);
+  mjrf_addSceneRenderable(scene, plane.get());
+
+  // Perspective camera far from origin in XY (verifies infinite-plane
+  // re-centering) at elevation z = 20 looking horizontally along +Y.
+  Renderer::View views[1];
+  Renderer::View& view = views[0];
+  view.scene = scene_handle;
+  view.render_target = color_target;
+  view.post_processing = false;
+  view.shadows = false;
+  view.reflections = false;
+  view.camera.orthographic = false;
+  view.camera.pos[0] = 100.0f;
+  view.camera.pos[1] = -200.0f;
+  view.camera.pos[2] = 20.0f;
+  view.camera.forward[0] = 0.0f;
+  view.camera.forward[1] = 1.0f;
+  view.camera.forward[2] = 0.0f;
+  view.camera.up[0] = 0.0f;
+  view.camera.up[1] = 0.0f;
+  view.camera.up[2] = 1.0f;
+  view.camera.frustum_center = 0.0f;
+  view.camera.frustum_width = 0.1f;
+  view.camera.frustum_bottom = -0.1f;
+  view.camera.frustum_top = 0.1f;
+  view.camera.frustum_near = 0.1f;
+  view.camera.frustum_far = 100.0f;
+
+  auto pixel_at = [&](int x, int y) {
+    std::span<const std::byte> pixels = renderer.GetPixels(color_target);
+    int idx = (y * kSize + x) * 3;
+    return std::make_tuple(static_cast<uint8_t>(pixels[idx + 0]),
+                           static_cast<uint8_t>(pixels[idx + 1]),
+                           static_cast<uint8_t>(pixels[idx + 2]));
+  };
+
+  // 1. With skybox=true and haze=true:
+  //    - y=5: pure blue skybox above the haze cone
+  //    - y=36: upper haze stack blending red haze over blue skybox
+  //    - y=41: near the plane disk rim (r=70), dominated by red haze
+  //    - y=45: lower haze stack blending red haze over green ground plane
+  //    - y=60: foreground green plane inside the inner haze ring
+  view.skybox = true;
+  view.haze = true;
+  renderer.Render(views);
+  {
+    auto [r_sky, g_sky, b_sky] = pixel_at(32, 5);
+    EXPECT_EQ(r_sky, 0);
+    EXPECT_EQ(g_sky, 0);
+    EXPECT_GT(b_sky, 150);
+
+    auto [r_upper, g_upper, b_upper] = pixel_at(32, 36);
+    EXPECT_GT(r_upper, 40);
+    EXPECT_EQ(g_upper, 0);
+    EXPECT_GT(b_upper, 40);
+
+    auto [r_rim, g_rim, b_rim] = pixel_at(32, 41);
+    EXPECT_GT(r_rim, 140);
+    EXPECT_LT(g_rim, 40);
+    EXPECT_LT(b_rim, 40);
+
+    auto [r_lower, g_lower, b_lower] = pixel_at(32, 45);
+    EXPECT_GT(r_lower, 40);
+    EXPECT_GT(g_lower, 40);
+    EXPECT_EQ(b_lower, 0);
+
+    auto [r_fg, g_fg, b_fg] = pixel_at(32, 60);
+    EXPECT_EQ(r_fg, 0);
+    EXPECT_EQ(g_fg, 255);
+    EXPECT_EQ(b_fg, 0);
+  }
+
+  // 2. With skybox=true and haze=false: sharp transition at the plane disk rim,
+  //    with zero red haze in either skybox or plane regions.
+  view.haze = false;
+  renderer.Render(views);
+  {
+    auto [r_upper, g_upper, b_upper] = pixel_at(32, 36);
+    EXPECT_EQ(r_upper, 0);
+    EXPECT_EQ(g_upper, 0);
+    EXPECT_GT(b_upper, 150);
+
+    auto [r_beyond_disk, g_beyond_disk, b_beyond_disk] = pixel_at(32, 39);
+    EXPECT_EQ(r_beyond_disk, 0);
+    EXPECT_EQ(g_beyond_disk, 0);
+    EXPECT_GT(b_beyond_disk, 150);
+
+    auto [r_lower, g_lower, b_lower] = pixel_at(32, 45);
+    EXPECT_EQ(r_lower, 0);
+    EXPECT_EQ(g_lower, 255);
+    EXPECT_EQ(b_lower, 0);
+  }
+
+  // 3. With skybox=false (even if haze=true): skybox and haze are both hidden.
+  view.skybox = false;
+  view.haze = true;
+  renderer.Render(views);
+  {
+    auto [r_sky, g_sky, b_sky] = pixel_at(32, 5);
+    EXPECT_EQ(r_sky, 0);
+    EXPECT_EQ(g_sky, 0);
+    EXPECT_EQ(b_sky, 0);
+
+    auto [r_rim, g_rim, b_rim] = pixel_at(32, 41);
+    EXPECT_EQ(r_rim, 0);
+    EXPECT_EQ(b_rim, 0);
+  }
+
+  // 4. Depth, segmentation, and wireframe passes suppress skybox and haze.
+  view.skybox = true;
+  view.haze = true;
+  view.draw_mode = mjDRAW_MODE_WIREFRAME;
+  renderer.Render(views);
+  {
+    auto [r_sky, g_sky, b_sky] = pixel_at(32, 5);
+    EXPECT_EQ(r_sky, 0);
+    EXPECT_EQ(g_sky, 0);
+    EXPECT_EQ(b_sky, 0);
+
+    auto [r_rim, g_rim, b_rim] = pixel_at(32, 41);
+    EXPECT_EQ(r_rim, 0);
+    EXPECT_EQ(b_rim, 0);
+  }
+
+  view.render_target = float_target;
+  for (mjrDrawMode mode : {mjDRAW_MODE_DEPTH, mjDRAW_MODE_SEGMENTATION_BY_ID}) {
+    view.draw_mode = mode;
+    view.haze = false;
+    renderer.Render(views);
+    std::span<const std::byte> no_haze_bytes = renderer.GetPixels(float_target);
+    std::vector<std::byte> expected(no_haze_bytes.begin(), no_haze_bytes.end());
+
+    view.haze = true;
+    renderer.Render(views);
+    std::span<const std::byte> with_haze_bytes =
+        renderer.GetPixels(float_target);
+    EXPECT_EQ(
+        std::vector<std::byte>(with_haze_bytes.begin(), with_haze_bytes.end()),
+        expected);
+  }
+  view.draw_mode = mjDRAW_MODE_DEFAULT;
+  view.render_target = color_target;
+
+  // 5. Opaque foreground geometry in front of the haze cone occludes haze.
+  static constexpr uint8_t kCyan[3] = {0, 255, 255};
+  UniquePtr<mjrfTexture> cyan_tex = MakeTexture(ctx, kCyan);
+  UniquePtr<mjrfRenderable> blocker = CreateRenderable(ctx, plane_params);
+  mjrf_setRenderableGeomMesh(blocker.get(), mjGEOM_BOX, 1, 28, 4);
+  const float kBoxSize[3] = {5.0f, 1.0f, 5.0f};
+  const float kBoxPos[3] = {100.0f, -180.0f, 14.3f};
+  mjrf_setRenderableSize(blocker.get(), kBoxSize);
+  mjrf_setRenderablePose(blocker.get(), kBoxPos, kIdentityRot);
+  mjrfMaterial box_mat = plane_mat;
+  box_mat.color[0] = 0.0f;
+  box_mat.color[1] = 1.0f;
+  box_mat.color[2] = 1.0f;
+  box_mat.emissive_texture = cyan_tex.get();
+  mjrf_setRenderableMaterial(blocker.get(), &box_mat);
+  mjrf_addSceneRenderable(scene, blocker.get());
+
+  view.skybox = true;
+  view.haze = true;
+  renderer.Render(views);
+  {
+    auto [r_box, g_box, b_box] = pixel_at(32, 41);
+    EXPECT_EQ(r_box, 0);
+    EXPECT_EQ(g_box, 255);
+    EXPECT_EQ(b_box, 255);
+  }
+  mjrf_removeSceneRenderable(scene, blocker.get());
+
+  // 6. Camera below the infinite plane (elevation < 0) does not render haze.
+  view.camera.pos[2] = -5.0f;
+  renderer.Render(views);
+  std::span<const std::byte> below_pixels = renderer.GetPixels(color_target);
+  for (size_t i = 0; i < below_pixels.size(); i += 3) {
+    EXPECT_EQ(static_cast<uint8_t>(below_pixels[i]), 0);
+  }
+}
+
 }  // namespace
 }  // namespace mujoco

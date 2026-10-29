@@ -106,6 +106,8 @@ class View:
   post_processing: bool = True
   reflections: bool = True
   shadows: bool = True
+  skybox: bool = True
+  haze: bool = True
   headlight: bool = False
   headlight_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
   headlight_intensity: float = 0.0
@@ -214,6 +216,8 @@ class Renderer:
       req.post_processing = view.post_processing
       req.reflections = view.reflections
       req.shadows = view.shadows
+      req.skybox = view.skybox
+      req.haze = view.haze
       req.headlight = view.headlight
       req.headlight_color = view.headlight_color
       req.headlight_intensity = view.headlight_intensity

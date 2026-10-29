@@ -71,6 +71,8 @@ class CompatContext {
 
  private:
   mjrDrawMode draw_mode_ = mjDRAW_MODE_DEFAULT;
+  bool skybox_ = true;
+  bool haze_ = true;
   UniquePtr<mjrfContext> context_{nullptr, nullptr};
   UniquePtr<mjrfScene> scene_{nullptr, nullptr};
   std::unique_ptr<SceneBridge> scene_bridge_;
@@ -103,12 +105,16 @@ void CompatContext::Render(const mjrRect& viewport, const mjvScene* scene) {
   } else {
     draw_mode_ = mjDRAW_MODE_DEFAULT;
   }
+  skybox_ = draw_mode_ == mjDRAW_MODE_DEFAULT && scene->flags[mjRND_SKYBOX];
+  haze_ = draw_mode_ == mjDRAW_MODE_DEFAULT && scene->flags[mjRND_HAZE];
 
   if (framebuffer_ == mjFB_WINDOW) {
     mjrfRenderRequest req;
     mjrf_defaultRenderRequest(&req);
     req.scene = scene_.get();
     req.draw_mode = draw_mode_;
+    req.skybox = skybox_;
+    req.haze = haze_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
     SetHeadlight(&req);
@@ -139,6 +145,8 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     mjrf_defaultRenderRequest(&req);
     req.scene = scene_.get();
     req.draw_mode = draw_mode_;
+    req.skybox = skybox_;
+    req.haze = haze_;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
     req.target = color_target_.get();
@@ -168,6 +176,8 @@ void CompatContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     mjrf_defaultRenderRequest(&req);
     req.scene = scene_.get();
     req.draw_mode = mjDRAW_MODE_DEPTH;
+    req.skybox = false;
+    req.haze = false;
     req.camera = scene_bridge_->GetCamera();
     req.viewport = viewport;
     req.target = depth_target_.get();

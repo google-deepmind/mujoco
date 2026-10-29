@@ -530,6 +530,18 @@ void DrawFogGui(SceneView* scene_view) {
   }
 }
 
+void DrawHazeGui(SceneView* scene_view) {
+  float ratio = scene_view->GetHazeRatio();
+  float4 color = scene_view->GetHazeColor();
+  bool changed = false;
+  changed |= Ui("Ratio", &ratio, {.min = 0.0f, .max = 1.0f});
+  changed |= ImGui::ColorEdit4("Color", &color.x);
+  if (changed) {
+    const float rgba[4] = {color.x, color.y, color.z, color.w};
+    scene_view->SetHaze(ratio, rgba);
+  }
+}
+
 void DrawVignetteGui(SceneView* scene_view) {
   filament::View* view = scene_view->GetDefaultRenderView();
   auto opts = view->getVignetteOptions();
@@ -677,6 +689,10 @@ void DrawSceneEditor(mjrfScene* scene) {
   }
   if (ImGui::TreeNodeEx("Shadowing")) {
     mujoco::DrawShadowingGui(scene_view);
+    ImGui::TreePop();
+  }
+  if (ImGui::TreeNodeEx("Haze")) {
+    mujoco::DrawHazeGui(scene_view);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Post Processing")) {

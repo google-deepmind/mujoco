@@ -86,6 +86,8 @@ typedef struct mjrfRenderRequest_ {
   mjtBool post_processing;           // enable post processing, enabled by default
   mjtBool reflections;               // enable reflections, enabled by default
   mjtBool shadows;                   // enable shadows, enabled by default
+  mjtBool skybox;                    // enable skybox rendering, enabled by default
+  mjtBool haze;                      // enable horizon haze, enabled by default
 
   // The headlight is a directional light aligned with this request's camera. It
   // is a property of the request rather than of the scene, so that a scene
@@ -347,9 +349,10 @@ typedef struct mjrfMaterial_ {
   const mjrfTexture* occlusion_texture;   // ambient occlusion texture (R8)
   const mjrfTexture* orm_texture;         // occlusion/roughness/metallic texture (RGB8)
   const mjrfTexture* emissive_texture;    // emissive texture (RGB8)
-  const mjrfTexture* reflection_texture;  // reflection texture, for internal use only
+  const mjrfTexture* reflection_texture;  // reflection texture (internal)
   float reflection_normal[3];      // mirror normal, gates reflection to front face (internal)
   float reflection_view_proj[16];  // main camera view-proj for reflection UV mapping (internal)
+  float haze_ratio;                // horizon haze ratio [0, 1]; disabled if < 0 (internal)
 } mjrfMaterial;
 
 // Initializes the mjrfMaterial to default values.
