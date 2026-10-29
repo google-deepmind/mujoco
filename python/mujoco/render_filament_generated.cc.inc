@@ -893,7 +893,7 @@ mjrf_renderable.def("set_cast_shadow", [](
   PyRenderable& renderable,
   bool enabled
 ) {
-    return mjrf_setRenderableCastShadow(renderable.get(), enabled);
+  return mjrf_setRenderableCastShadow(renderable.get(), enabled);
 }
 , py::arg("enabled")
 );
@@ -908,3 +908,4 @@ mjrf_render_target.def("resize", [](
 , py::arg("width")
 , py::arg("height")
 );
+

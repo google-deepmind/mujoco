@@ -50,8 +50,7 @@ _EXCLUDED = [
     'mjrfReadRequest.num_bytes',
     # mjrfTextureData implements a custom `set_image` function.
     'mjrfTextureData.num_bytes',
-    # mjrfMeshConfig implements a custom `set_attributes` function.
-    'mjrfMeshConfig.attributes',
+    # mjrfMeshConfig.attributes is list-assignable, so don't expose the num.
     'mjrfMeshConfig.num_attributes',
     # mjrfMeshData implements a custom `set_vertices` function.
     'mjrfMeshData.num_vertices',
@@ -230,6 +229,8 @@ def _get_field_type(field: ast_nodes.StructFieldDecl) -> str:
       return 'Float' + field.decltype[start:end].strip()
     elif 'int' in field.decltype:
       return 'Int' + field.decltype[start:end].strip()
+    else:
+      return 'Vector<' + field.decltype[:start - 1].strip() + '>'
 
   if '*' in field.decltype:
     obj_type = field.decltype.replace(' *', '').replace('const ', '')
@@ -249,6 +250,8 @@ def _get_init_arg_type(struct_name: str, field: ast_nodes.StructFieldDecl) -> st
     field_type = field_type + '::Ref'
   if struct_name + '.' + field.name in _CAST_AS:
     field_type = _CAST_AS[struct_name + '.' + field.name]
+  if 'Vector' in field_type:
+    return f'std::optional<{field_type.replace('Vector', 'std::vector')}>'
   return f'std::optional<{field_type}>'
 
 
@@ -303,7 +306,12 @@ def _make_struct(code: code_builder.CodeBuilder, struct: ast_nodes.StructDecl) -
   assignments = []
   for field in fields:
     optional_args.append(f'{_get_init_arg_type(struct.name, field)} {field.name}')
-    assignments.append(f'if ({field.name}) Setter(obj.{field.name}, *{field.name});')
+
+    field_type = _get_field_type(field)
+    if 'Vector' in field_type:
+      assignments.append(f'if ({field.name}) {{ Setter(obj.{field.name}, *{field.name}); obj.num_{field.name} = {field.name}->size(); }}')
+    else:
+      assignments.append(f'if ({field.name}) Setter(obj.{field.name}, *{field.name});')
 
   code.line(f'{ident}.def(py::init([](')
   with code.block(braces=False):
@@ -329,6 +337,10 @@ def _make_struct(code: code_builder.CodeBuilder, struct: ast_nodes.StructDecl) -
     stripped = _try_strip_all_prefixes(field.name)
     field_type = _get_field_type(field)
     member_ref = f'&{struct.name}::{field.name}'
+
+    # Vector fields cannot be bound as properties.
+    if 'Vector' in field_type:
+      continue
 
     if f'{struct.name}.{field.name}' in _CAST_AS:
       field_type = _CAST_AS[f'{struct.name}.{field.name}']
