@@ -9,9 +9,8 @@ rendering:
 - :ref:`Filament rendering <FilamentRendering>` (``mjrf``): A modern, physically-based rendering (PBR) engine supporting
   OpenGL, Vulkan, Metal, and WebGL. It uses a **retained-mode**, asynchronous architecture in which meshes, textures,
   lights, and :ref:`renderables <mjrfRenderable>` are created once from :ref:`mjModel` and updated in place from
-  :ref:`mjData` each frame. Filament powers `MuJoCo Studio
-  <https://github.com/google-deepmind/mujoco/blob/main/studio>`__ and is the recommended renderer for
-  new applications.
+  :ref:`mjData` each frame. Filament powers :ref:`MuJoCo Studio <Studio>` and is the recommended renderer for new
+  applications.
 - :ref:`OpenGL rendering <ClassicRendering>` (``mjr``): The classic fixed-function OpenGL 1.5 renderer, now in
   maintenance mode. It uses an **immediate-mode** scene architecture in which :ref:`mjv_updateScene` populates an
   :ref:`mjvScene` with all geometric objects and lights on every frame, and :ref:`mjr_render` draws it. It powers the
@@ -61,9 +60,8 @@ Filament rendering
 
 MuJoCo provides a renderer based on `Filament <https://github.com/google/filament>`__, Google's real-time physically
 based rendering engine. Filament has a small and fast runtime, runs on Linux, Windows, macOS, Android, iOS and the Web,
-and supports the OpenGL, Vulkan, Metal and WebGL graphics backends. The Filament renderer powers `MuJoCo Studio
-<https://github.com/google-deepmind/mujoco/blob/main/studio>`__ and `live.mujoco.org
-<https://live.mujoco.org>`__.
+and supports the OpenGL, Vulkan, Metal and WebGL graphics backends. The Filament renderer powers :ref:`MuJoCo Studio
+<Studio>` and `live.mujoco.org <https://live.mujoco.org>`__.
 
 The Filament renderer is an optional, self-contained library named ``mujoco_filament``. It implements the ``mjrf``
 :ref:`types<tyFilamentRenderStructure>` and :ref:`functions<FilamentRenderingApi>` defined in `mjrfilament.h
