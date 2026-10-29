@@ -456,10 +456,7 @@ mjrf_material.def(py::init([](
   PyTexture* roughness_texture,
   PyTexture* occlusion_texture,
   PyTexture* orm_texture,
-  PyTexture* emissive_texture,
-  PyTexture* reflection_texture,
-  std::optional<Float3::Ref> reflection_normal,
-  std::optional<Float16::Ref> reflection_view_proj
+  PyTexture* emissive_texture
 ) {
   mjrfMaterial obj;
   Init(obj);
@@ -486,9 +483,6 @@ mjrf_material.def(py::init([](
   if (occlusion_texture) Setter(obj.occlusion_texture, *occlusion_texture);
   if (orm_texture) Setter(obj.orm_texture, *orm_texture);
   if (emissive_texture) Setter(obj.emissive_texture, *emissive_texture);
-  if (reflection_texture) Setter(obj.reflection_texture, *reflection_texture);
-  if (reflection_normal) Setter(obj.reflection_normal, *reflection_normal);
-  if (reflection_view_proj) Setter(obj.reflection_view_proj, *reflection_view_proj);
   return obj;
 })
 , py::arg("color").none(true) = py::none()
@@ -514,9 +508,6 @@ mjrf_material.def(py::init([](
 , py::arg("occlusion_texture").none(true) = py::none()
 , py::arg("orm_texture").none(true) = py::none()
 , py::arg("emissive_texture").none(true) = py::none()
-, py::arg("reflection_texture").none(true) = py::none()
-, py::arg("reflection_normal").none(true) = py::none()
-, py::arg("reflection_view_proj").none(true) = py::none()
 );
 DefProperty<Float4>(mjrf_material, "color", &mjrfMaterial::color);
 DefProperty<int32_t>(mjrf_material, "segmentation_id", &mjrfMaterial::segmentation_id);
@@ -541,9 +532,6 @@ DefProperty<PyTexture>(mjrf_material, "roughness_texture", &mjrfMaterial::roughn
 DefProperty<PyTexture>(mjrf_material, "occlusion_texture", &mjrfMaterial::occlusion_texture);
 DefProperty<PyTexture>(mjrf_material, "orm_texture", &mjrfMaterial::orm_texture);
 DefProperty<PyTexture>(mjrf_material, "emissive_texture", &mjrfMaterial::emissive_texture);
-DefProperty<PyTexture>(mjrf_material, "reflection_texture", &mjrfMaterial::reflection_texture);
-DefProperty<Float3>(mjrf_material, "reflection_normal", &mjrfMaterial::reflection_normal);
-DefProperty<Float16>(mjrf_material, "reflection_view_proj", &mjrfMaterial::reflection_view_proj);
 
 py::class_<mjrfRenderableParams> mjrf_renderable_params(m, "RenderableParams", py::module_local());
 mjrf_renderable_params.def(py::init([](

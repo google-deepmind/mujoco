@@ -61,6 +61,11 @@ _EXCLUDED = [
     'mjrfMeshData.index_type',
     # placeholder field, not intended to be used
     'mjrfSceneParams.unused',
+    # material properties for internal use only
+    'mjrfMaterial.reflection_texture',
+    'mjrfMaterial.reflection_normal',
+    'mjrfMaterial.reflection_view_proj',
+    'mjrfMaterial.haze_ratio',
     # This getter is implemented with an output pointer, but we want the python
     # implementation to return the value directly.
     'mjrf_getRenderableMaterial',
