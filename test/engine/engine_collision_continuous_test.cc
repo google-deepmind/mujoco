@@ -1193,5 +1193,46 @@ TEST_F(ContinuousCollisionTest,
   mj_deleteModel(m);
 }
 
+TEST_F(ContinuousCollisionTest,
+       DISABLED_ThickMovingGeomCatchesThinStationaryGeomAndCardVsMesh) {
+  constexpr char kAsymmetricXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <asset>
+      <mesh name="wedge"
+            vertex="-0.04 -0.04 0  0.04 -0.04 0  0 0.04 0
+                    -0.04 -0.04 0.02  0.04 -0.04 0.02  0 0.04 0.01"/>
+    </asset>
+    <worldbody>
+      <geom name="stationary_card" type="box" size="0.045 0.032 0.00035"
+            pos="0 0 0"/>
+      <body name="moving_finger" pos="0 0 0.012">
+        <freejoint/>
+        <geom name="finger_pad" type="sphere" size="0.010" mass="0.2"/>
+      </body>
+      <geom name="wedge_geom" type="mesh" mesh="wedge" pos="0.3 0 0.02"/>
+      <body name="fast_card" pos="0.3 0 0.045">
+        <freejoint/>
+        <geom name="fast_card_geom" type="box" size="0.03 0.02 0.00035"
+              mass="0.005"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kAsymmetricXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -0.8;
+  d->qvel[8] = -4.0;
+  mj_step1(m, d);
+  EXPECT_GE(d->ncon, 2)
+      << "both thick-finger-vs-thin-card and fast-card-vs-mesh must be caught";
+  mj_step2(m, d);
+  EXPECT_GT(d->qpos[2], 0.008)
+      << "moving finger arrested above stationary 0.7 mm card";
+  EXPECT_GT(d->qpos[9], 0.010)
+      << "fast 0.7 mm card arrested above convex mesh wedge";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
 }  // namespace
 }  // namespace mujoco
