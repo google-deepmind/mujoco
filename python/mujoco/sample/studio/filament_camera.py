@@ -24,7 +24,7 @@ from mujoco.studio import sim
 from mujoco.studio import window
 import numpy as np
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
+from mujoco.studio.dear_imgui import dear_imgui as imgui
 
 
 def main(argv: Sequence[str]) -> None:

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_PYTHON_EXPERIMENTAL_DEAR_IMGUI_DEAR_IMGUI_MACROS_H_
-#define MUJOCO_PYTHON_EXPERIMENTAL_DEAR_IMGUI_DEAR_IMGUI_MACROS_H_
+#ifndef MUJOCO_PYTHON_STUDIO_DEAR_IMGUI_DEAR_IMGUI_MACROS_H_
+#define MUJOCO_PYTHON_STUDIO_DEAR_IMGUI_DEAR_IMGUI_MACROS_H_
 
 // WARNING: This file is intended for internal use by dear_imgui libraries ONLY!
 //
@@ -323,4 +323,4 @@
 
 // NOLINTEND(whitespace/line_length)
 
-#endif  // MUJOCO_PYTHON_EXPERIMENTAL_DEAR_IMGUI_DEAR_IMGUI_MACROS_H_
+#endif  // MUJOCO_PYTHON_STUDIO_DEAR_IMGUI_DEAR_IMGUI_MACROS_H_

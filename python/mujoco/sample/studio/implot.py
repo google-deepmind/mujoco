@@ -28,8 +28,8 @@ from mujoco.studio import plugin
 from mujoco.studio import viewer_app
 import numpy as np
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
-from mujoco.experimental.implot import implot
+from mujoco.studio.dear_imgui import dear_imgui as imgui
+from mujoco.studio.implot import implot
 
 _N_HISTORY = 100
 

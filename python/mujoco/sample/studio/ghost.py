@@ -27,7 +27,7 @@ from mujoco.studio import messages
 from mujoco.studio import plugin
 import numpy as np
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
+from mujoco.studio.dear_imgui import dear_imgui as imgui
 
 _PRIMITIVE_GEOM_TYPES = frozenset({
     mujoco.mjtGeom.mjGEOM_PLANE,

@@ -25,7 +25,7 @@ directly from the command line with :ref:`live hot reload <StudioHotReload>`:
 
 .. code-block:: python
 
-   from mujoco.experimental import dear_imgui as imgui
+   from mujoco.studio.dear_imgui import dear_imgui as imgui
    from mujoco.studio import messages, plugin
 
 
@@ -171,7 +171,7 @@ When writing :ref:`viewer plugins <StudioViewerPlugins>`:
   upstream.
 
 MuJoCo provides its own `Python bindings for Dear ImGui
-<https://github.com/google-deepmind/mujoco/tree/main/python/mujoco/experimental/dear_imgui>`__ that mirror the C++ API
+<https://github.com/google-deepmind/mujoco/tree/main/python/mujoco/studio/dear_imgui>`__ that mirror the C++ API
 and share the viewer's active Dear ImGui context. To see what Dear ImGui is capable of and browse available widgets
 alongside their code, try the interactive `online demo <https://pthom.github.io/imgui_explorer/?lib=imgui>`__ or call
 ``imgui.ShowDemoWindow()`` from a ``BuildGuiEvent`` handler. When building user interfaces, consult the `Getting

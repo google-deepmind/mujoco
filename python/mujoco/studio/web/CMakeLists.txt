@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(NETIMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../experimental/netimgui)
+set(NETIMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../netimgui)
 
 if(EMSCRIPTEN)
   add_subdirectory(${NETIMGUI_DIR} ${CMAKE_CURRENT_BINARY_DIR}/netimgui)

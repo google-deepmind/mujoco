@@ -27,7 +27,7 @@ from mujoco.studio import sim
 from mujoco.studio import ux
 import numpy as np
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
+from mujoco.studio.dear_imgui import dear_imgui as imgui
 
 
 def handle_vis_options_keyboard_events(

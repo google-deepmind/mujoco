@@ -31,7 +31,7 @@ static constexpr const ImVec4 ImVec4_One = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 
 PYBIND11_MODULE(implot, m) {
   // Import dear_imgui to make types like ImVec2 available.
-  py::module_::import("mujoco.experimental.dear_imgui.dear_imgui");
+  py::module_::import("mujoco.studio.dear_imgui.dear_imgui");
 
   // Each pybind module holds its own ImGui/ImPlot context globals
   m.def(

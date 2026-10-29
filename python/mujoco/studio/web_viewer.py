@@ -56,8 +56,8 @@ from mujoco.studio.web import state_payload
 from mujoco.studio.web import web_server
 import numpy as np
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
-from mujoco.experimental.implot import implot
+from mujoco.studio.dear_imgui import dear_imgui as imgui
+from mujoco.studio.implot import implot
 
 # File extensions a dropped file may load as a model.
 _MODEL_EXTENSIONS = ('.xml', '.urdf', '.mjb', '.mjz', '.zip')

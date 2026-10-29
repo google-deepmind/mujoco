@@ -30,8 +30,8 @@ from mujoco.studio import viewer_protocol
 from mujoco.studio import window
 import numpy as np
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
-from mujoco.experimental.implot import implot
+from mujoco.studio.dear_imgui import dear_imgui as imgui
+from mujoco.studio.implot import implot
 
 
 class NativeViewer(viewer_protocol.Viewer):

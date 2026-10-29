@@ -50,7 +50,7 @@ from mujoco.studio import viewer_app_events
 from mujoco.studio import viewer_protocol
 from mujoco.studio import viewer_utils
 
-from mujoco.experimental.dear_imgui import dear_imgui as imgui
+from mujoco.studio.dear_imgui import dear_imgui as imgui
 
 
 class _StudioLogHandler(logging.Handler):
