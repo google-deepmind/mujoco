@@ -1126,8 +1126,9 @@ TEST_F(EngineUtilSolveTest, CholFactorNumericClampDecouples) {
 
 // ----------------------------- dense LU --------------------------------------
 
-// mju_cholFactorSymbolicBlocked on a block pattern computes the same arrays,
-// entry for entry, as mju_cholFactorSymbolic on the expanded dof pattern
+// mju_cholFactorSymbolicBlocked on a block pattern computes the same L arrays,
+// entry for entry, as mju_cholFactorSymbolic on the expanded dof pattern, and
+// the block transpose of its LT arrays
 TEST_F(EngineUtilSolveTest, CholFactorSymbolicBlocked) {
   std::mt19937 rng(7);
   for (int bs = 1; bs <= 3; bs++) {
@@ -1167,36 +1168,51 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicBlocked) {
 
       // counting
       vector<int> L_rownnz(n), L_rowadr(n), LT_rownnz(n), LT_rowadr(n);
-      vector<int> bL_rownnz(n), bL_rowadr(n), bLT_rownnz(n), bLT_rowadr(n);
+      vector<int> bL_rownnz(n), bL_rowadr(n), BT_adr(nb + 1);
       vector<int> scratch(3 * nb);
       int nnz = mju_cholFactorSymbolic(
           nullptr, L_rownnz.data(), L_rowadr.data(), nullptr, LT_rownnz.data(),
           LT_rowadr.data(), nullptr, drownnz.data(), drowadr.data(),
           dcolind.data(), n, nullptr);
       int bnnz = mju_cholFactorSymbolicBlocked(
-          nullptr, bL_rownnz.data(), bL_rowadr.data(), nullptr,
-          bLT_rownnz.data(), bLT_rowadr.data(), nullptr, rownnz.data(),
-          rowadr.data(), colind.data(), nb, bs, scratch.data());
+          nullptr, bL_rownnz.data(), bL_rowadr.data(), BT_adr.data(), nullptr,
+          nullptr, rownnz.data(), rowadr.data(), colind.data(), nb, bs,
+          scratch.data());
       ASSERT_EQ(bnnz, nnz) << "bs " << bs << " trial " << trial;
       EXPECT_EQ(bL_rownnz, L_rownnz);
       EXPECT_EQ(bL_rowadr, L_rowadr);
-      EXPECT_EQ(bLT_rownnz, LT_rownnz);
-      EXPECT_EQ(bLT_rowadr, LT_rowadr);
 
       // filling
       vector<int> L_colind(nnz), LT_colind(nnz), LT_map(nnz);
-      vector<int> bL_colind(nnz), bLT_colind(nnz), bLT_map(nnz);
+      vector<int> bL_colind(nnz), BT_row(BT_adr[nb]), BT_off(BT_adr[nb]);
       mju_cholFactorSymbolic(L_colind.data(), L_rownnz.data(), L_rowadr.data(),
                              LT_colind.data(), LT_rownnz.data(),
                              LT_rowadr.data(), LT_map.data(), drownnz.data(),
                              drowadr.data(), dcolind.data(), n, nullptr);
       mju_cholFactorSymbolicBlocked(
-          bL_colind.data(), L_rownnz.data(), L_rowadr.data(), bLT_colind.data(),
-          LT_rownnz.data(), LT_rowadr.data(), bLT_map.data(), rownnz.data(),
-          rowadr.data(), colind.data(), nb, bs, scratch.data());
+          bL_colind.data(), L_rownnz.data(), L_rowadr.data(), BT_adr.data(),
+          BT_row.data(), BT_off.data(), rownnz.data(), rowadr.data(),
+          colind.data(), nb, bs, scratch.data());
       EXPECT_EQ(bL_colind, L_colind) << "bs " << bs << " trial " << trial;
-      EXPECT_EQ(bLT_colind, LT_colind) << "bs " << bs << " trial " << trial;
-      EXPECT_EQ(bLT_map, LT_map) << "bs " << bs << " trial " << trial;
+
+      // the block transpose: the first dof of each block row below the
+      // diagonal block in the transpose row of the first dof of each column
+      vector<int> eBT_adr(nb + 1, 0), eBT_row, eBT_off;
+      for (int q = 0; q < nb; q++) {
+        eBT_adr[q] = eBT_row.size();
+        for (int e = LT_rowadr[bs * q];
+             e < LT_rowadr[bs * q] + LT_rownnz[bs * q]; e++) {
+          int r = LT_colind[e];
+          if (r >= bs * (q + 1) && r % bs == 0) {
+            eBT_row.push_back(r / bs);
+            eBT_off.push_back(LT_map[e] - L_rowadr[r]);
+          }
+        }
+      }
+      eBT_adr[nb] = eBT_row.size();
+      EXPECT_EQ(BT_adr, eBT_adr) << "bs " << bs << " trial " << trial;
+      EXPECT_EQ(BT_row, eBT_row) << "bs " << bs << " trial " << trial;
+      EXPECT_EQ(BT_off, eBT_off) << "bs " << bs << " trial " << trial;
     }
   }
 }

@@ -1445,7 +1445,6 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
       ctx->ep->nS = nS;
       ctx->ep->partial = 0;
       ctx->ep->S_valid = 0;
-      ctx->ep->factor = NULL;
       if (!nF) {
         ctx->ep->F = NULL;
       } else if (pass) {
@@ -3056,8 +3055,8 @@ static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, i
       }
     }
   } else if (!flg_done && ctx.ep && ctx.ep->F) {
-    ctx.ep->factor = mj_effCholFoldFactor(m, d, ctx.ep, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J,
-                                          ctx.J_rownnz, ctx.J_rowadr, ctx.J_colind);
+    mj_effCholFoldFactor(m, d, ctx.ep, ctx.nefc, ctx.efc_D, ctx.is_sparse, ctx.J, ctx.J_rownnz,
+                         ctx.J_rowadr, ctx.J_colind);
     PrimalUpdateMgrad(&ctx, /*flg_Newton=*/0);
   }
 

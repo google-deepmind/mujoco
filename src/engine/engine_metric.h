@@ -94,16 +94,13 @@ void mj_effPrecIsland(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* b,
                       const int* M_rownnz, const int* M_rowadr,
                       const int* M_colind);
 
-// a constraint solve's contact-adaptive sparse factor
-typedef struct mjEffFactor_ mjEffFactor;
-
 // caller-owned copy of the metric preconditioner, with the rank-1 classes and the efc rows
 // folded in (mj_effPrecFold): the covered 3x3 blocks, optionally a copy of the sparse factor of
 // the covered dofs, which then replaces the blocks, and optionally dense factors of the block S
 // of the uncovered (non-flex) dofs, one per connected component of S, which then replace the
 // backbone solve on the dofs they cover. The caller sizes the arrays with mj_effFoldDenseSize
-// and mj_effCholFoldSize, sets nu, ncomp, nS and optionally factor (mj_effCholFoldFactor);
-// mj_effPrecFold fills them.
+// and mj_effCholFoldSize and sets nu, ncomp and nS; mj_effPrecFold fills them (and
+// mj_effCholFoldFactor the sparse factor's copy F).
 typedef struct {
   mjtNum* L;           // covered 3x3 blocks, factored                       (9*nefmdof)
   int nu;              // uncovered dofs in the components, 0: no dense block
@@ -116,7 +113,6 @@ typedef struct {
   int partial;         // some uncovered dofs are in no component: backbone solve on them
   int S_valid;         // S holds the factors, set by mj_effPrecFold
   mjtNum* F;           // sparse factor: status, values, or NULL       (mj_effCholFoldSize)
-  mjEffFactor* factor;  // this solve's sparse factor (mj_effCholFoldFactor), or NULL
 } mjEffFold;
 
 // the model's vertex ordering of the sparse factor, into efmC_perm (from mj_setConst)
@@ -129,13 +125,12 @@ MJAPI int mj_effCholFoldSize(const mjData* d);
 // covered flex block (1D rods, 2D flexes), which has no island-local form: run it monolithically
 int mj_effFoldMonolithic(const mjModel* m, const mjData* d, int solver);
 
-// analyse and factor this solve's contact-adaptive sparse factor, allocated on the stack of d in
-// the caller's frame (it lives until the solve ends); falls back to the step's pattern in
-// fold->F and returns NULL when not needed or the arena cannot hold the contact-adaptive factor
-MJAPI mjEffFactor* mj_effCholFoldFactor(const mjModel* m, mjData* d, const mjEffFold* fold,
-                                        int nefc, const mjtNum* efc_D, int is_sparse,
-                                        const mjtNum* J, const int* J_rownnz,
-                                        const int* J_rowadr, const int* J_colind);
+// factor the solve's copy of the sparse factor (fold->F) with the efc rows and the rank-1 classes
+// folded in, on the step's analysis, which holds the vertex pairs of the rows mj_makeConstraint
+// made; pairs off it are complemented on the diagonal
+MJAPI void mj_effCholFoldFactor(const mjModel* m, mjData* d, const mjEffFold* fold, int nefc,
+                                const mjtNum* efc_D, int is_sparse, const mjtNum* J,
+                                const int* J_rownnz, const int* J_rowadr, const int* J_colind);
 
 // size the dense blocks of a fold over the given efc rows: the uncovered dofs are partitioned
 // into the connected components of S (trees joined by an efc row with D > 0 or a rank-1 term

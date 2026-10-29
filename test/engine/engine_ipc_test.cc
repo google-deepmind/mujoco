@@ -2470,7 +2470,7 @@ TEST_F(IpcTest, SparseFactorCoverage) {
 
 // the solver's preconditioner folded with rows (mj_effPrecFold) with a copy of
 // the sparse factor (mjEffFold.F), applied to b into x (mj_effPrecBlocks);
-// returns whether the fold made this solve's contact-adaptive factor
+// returns whether the fold factored its copy (rows folded in)
 static bool SparseFoldApply(const mjModel* m, mjData* d, const FoldRows& rows,
                             const mjtNum* b, mjtNum* x) {
   std::vector<mjtNum> L(9 * d->nefmdof), F(mj_effCholFoldSize(d));
@@ -2479,11 +2479,11 @@ static bool SparseFoldApply(const mjModel* m, mjData* d, const FoldRows& rows,
   fold.F = F.empty() ? nullptr : F.data();
   mj_markStack(d);
   int nefc = static_cast<int>(rows.D.size());
-  fold.factor = mj_effCholFoldFactor(
-      m, d, &fold, nefc, nefc ? rows.D.data() : nullptr,
-      /*is_sparse=*/1, nefc ? rows.J.data() : nullptr,
-      nefc ? rows.rownnz.data() : nullptr, nefc ? rows.rowadr.data() : nullptr,
-      nefc ? rows.colind.data() : nullptr);
+  mj_effCholFoldFactor(m, d, &fold, nefc, nefc ? rows.D.data() : nullptr,
+                       /*is_sparse=*/1, nefc ? rows.J.data() : nullptr,
+                       nefc ? rows.rownnz.data() : nullptr,
+                       nefc ? rows.rowadr.data() : nullptr,
+                       nefc ? rows.colind.data() : nullptr);
   size_t pstack0 = d->pstack;
   bool folded = mj_effPrecFold(
       m, d, &fold, nefc, nefc ? rows.D.data() : nullptr,
@@ -2494,15 +2494,15 @@ static bool SparseFoldApply(const mjModel* m, mjData* d, const FoldRows& rows,
   EXPECT_EQ(d->pstack, pstack0);
   mj_effPrecBlocks(m, d, x, b, &fold);
   mj_freeStack(d);
-  return fold.factor != nullptr;
+  return fold.F && fold.F[0] == 1;
 }
 
-// a solve's contact-adaptive factor holds the vertex pairs its terms couple: a
-// row coupling two vertices that share no flex edge, folded on a sheet without
-// dropped pairs, adds exactly J' D J to the factored matrix W of the fold
-// without rows: x = (W + J' D J)^-1 b satisfies x + W^-1 J' D J x = W^-1 b. On
-// the step's pattern the pair would be replaced by its rank-1 complement
-TEST_F(IpcTest, SparseFactorContactPattern) {
+// a row coupling two vertices off the step's pattern (rows the step did not
+// see), folded on a sheet without dropped pairs, adds its complement
+// C = 2 D (J_k' J_k + J_q' J_q) >= J' D J, on the vertices' diagonal blocks, to
+// the factored matrix W of the fold without rows: x = (W + C)^-1 b satisfies
+// x + W^-1 C x = W^-1 b
+TEST_F(IpcTest, SparseFactorContactComplement) {
   char xml[2048];
   snprintf(xml, sizeof(xml), kStretchSheet, "");
   mjModel* m = Load(xml);
@@ -2522,13 +2522,14 @@ TEST_F(IpcTest, SparseFactorContactPattern) {
   for (int i = 0; i < nv; i++) {
     b[i] = std::sin(1.0 + i);
   }
-  EXPECT_TRUE(SparseFoldApply(m, d, rows, b.data(), x.data()))
-      << "the fold must analyse the solve's own pattern";
+  EXPECT_TRUE(SparseFoldApply(m, d, rows, b.data(), x.data()));
 
-  // W^-1 b and W^-1 J' D J x, without rows: the step's analysis, exact
-  FoldRows none;
+  // W^-1 b and W^-1 C x, without rows
+  FoldRows none, parts;
+  parts.Add(0.02, {a0, a0 + 1, a0 + 2}, {0.3, -0.7, 1});
+  parts.Add(0.02, {a1, a1 + 1, a1 + 2}, {-0.5, 0.2, 0.9});
   EXPECT_FALSE(SparseFoldApply(m, d, none, b.data(), w.data()));
-  rows.MulAdd(cx.data(), x.data());
+  parts.MulAdd(cx.data(), x.data());
   SparseFoldApply(m, d, none, cx.data(), wcx.data());
   mjtNum scale = 0, diff = 0, coupling = 0;
   for (int i = 0; i < nv; i++) {
