@@ -74,6 +74,21 @@ prepare_linux() {
 }
 
 
+# Install a hash-pinned requirements file into the active virtualenv. When uv
+# is available, try an offline install from UV_CACHE_DIR first so warm CI runs
+# make zero network requests to PyPI, falling back to an online install on
+# cache misses.
+_pip_install_requirements() {
+    local req_file="$1"
+    if command -v uv > /dev/null 2>&1; then
+        uv pip install --offline --require-hashes -r "${req_file}" || \
+            uv pip install --require-hashes -r "${req_file}"
+    else
+        python -m pip install --upgrade --require-hashes -r "${req_file}"
+    fi
+}
+
+
 prepare_python() {
     echo "Preparing Python..."
     repo="${PWD}"
@@ -90,17 +105,27 @@ prepare_python() {
         ln -sf ../Scripts/activate venv/bin/activate
     fi
     source venv/bin/activate
-    # Install build deps with uv when available (set up by setup-uv in CI on
-    # POSIX) - much faster than pip. Fall back to pip otherwise (e.g. Windows,
-    # local dev). The venv is still created by `python -m venv`, so pip stays
-    # available for later steps (pip wheel / python -m build).
-    if command -v uv > /dev/null 2>&1; then
-        uv pip install --require-hashes -r "${repo}/python/build_requirements.txt"
-        uv pip install --require-hashes -r "${repo}/python/build_requirements_usd.txt"
-    else
-        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
-        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+    # Bootstrap the hash-pinned uv binary into the venv on POSIX (restoring from
+    # UV_CACHE_DIR on cache hits so no network request is made). Windows stays on
+    # pip to keep the venv activate fixup path untouched there. The venv is still
+    # created by `python -m venv`, so pip stays available for later steps (pip
+    # wheel / python -m build).
+    local uv_req="${repo}/.github/workflows/uv_requirements.txt"
+    if [[ "${RUNNER_OS:-}" != "Windows" && -f "${uv_req}" ]]; then
+        if [[ -n "${UV_CACHE_DIR:-}" && -x "${UV_CACHE_DIR}/bin/uv" && -f "${UV_CACHE_DIR}/bin/uv_requirements.txt" ]] && \
+           cmp -s "${uv_req}" "${UV_CACHE_DIR}/bin/uv_requirements.txt"; then
+            cp -p "${UV_CACHE_DIR}/bin/uv" venv/bin/uv
+        else
+            python -m pip install --no-deps --require-hashes -r "${uv_req}"
+            if [[ -n "${UV_CACHE_DIR:-}" && -x venv/bin/uv ]]; then
+                mkdir -p "${UV_CACHE_DIR}/bin"
+                cp -p venv/bin/uv "${UV_CACHE_DIR}/bin/uv"
+                cp -p "${uv_req}" "${UV_CACHE_DIR}/bin/uv_requirements.txt"
+            fi
+        fi
     fi
+    _pip_install_requirements "${repo}/python/build_requirements.txt"
+    _pip_install_requirements "${repo}/python/build_requirements_usd.txt"
     popd > /dev/null
 }
 
@@ -467,11 +492,7 @@ install_mjx() {
     source ${TMPDIR}/venv/bin/activate
     # The MJX requirements (jax, jaxlib, scipy, ...) are a big install; use uv when
     # available. Keep pip for the local --no-index wheel.
-    if command -v uv > /dev/null 2>&1; then
-        uv pip install --require-hashes -r requirements.txt
-    else
-        pip install --require-hashes -r requirements.txt
-    fi
+    _pip_install_requirements requirements.txt
     pip install --no-deps --no-index dist/mujoco_mjx-*.whl
     pip check
 }
@@ -591,11 +612,7 @@ _install_python_wheel() {
     # viewer server) with hash verification, then --force-reinstall --no-deps
     # --no-index to replace whatever mujoco is installed with the one just built
     # without disturbing the rest of the environment.
-    if command -v uv > /dev/null 2>&1; then
-        uv pip install --require-hashes -r python/build_requirements.txt
-    else
-        pip install --require-hashes -r python/build_requirements.txt
-    fi
+    _pip_install_requirements python/build_requirements.txt
     pip install --force-reinstall --no-deps --no-index python/dist/mujoco-*.whl
 }
 
