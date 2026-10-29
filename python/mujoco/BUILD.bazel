@@ -591,3 +591,10 @@ py_test(
         "//python/mujoco/pypi:absltest",
     ],
 )
+
+py_test(
+    name = "egl_test",
+    srcs = ["egl_test.py"],
+    data = ["//python/mujoco/egl:__init__.py"],
+    deps = ["//python/mujoco/pypi:absltest"],
+)
