@@ -62,8 +62,8 @@ class ModelRenderables {
   // Sets the visualization options on the renderables. The following options
   // are supported:
   // - shows/hides renderables based on the group visibility
-  // - shows/hides renderables based on mjVIS_SKIN, mjVIS_FLEXSKIN,
-  //   mjVIS_TENDON, and mjVIS_ACTUATOR flags
+  // - shows/hides renderables based on mjVIS_STATIC, mjVIS_SKIN,
+  //   mjVIS_FLEXSKIN, mjVIS_TENDON, and mjVIS_ACTUATOR flags
   // - switches meshes to convex hull mode if mjVIS_CONVEXHULL is enabled
   void SetOptions(const mjvOption& opt);
 

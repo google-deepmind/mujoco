@@ -432,7 +432,9 @@ void ModelRenderables::AddGeomGeoms() {
       mjrf_setRenderableSize(renderable.get(), size);
     }
 
-    if (vopts_.geomgroup[model->geom_group[i]]) {
+    const mjtCatBit category = GetBodyCategory(model, model->geom_bodyid[i]);
+    if (vopts_.geomgroup[model->geom_group[i]] &&
+        (category != mjCAT_STATIC || vopts_.flags[mjVIS_STATIC])) {
       mjrf_addSceneRenderable(scene_, renderable.get());
     }
     geoms_.emplace_back(std::move(renderable));
@@ -462,7 +464,9 @@ void ModelRenderables::AddSiteGeoms() {
       mjrf_setRenderableSize(renderable.get(), size);
     }
 
-    if (vopts_.sitegroup[model->site_group[i]]) {
+    const mjtCatBit category = GetBodyCategory(model, model->site_bodyid[i]);
+    if (vopts_.sitegroup[model->site_group[i]] &&
+        (category != mjCAT_STATIC || vopts_.flags[mjVIS_STATIC])) {
       mjrf_addSceneRenderable(scene_, renderable.get());
     }
     sites_.push_back(std::move(renderable));
@@ -1105,10 +1109,12 @@ namespace {
 enum VisibilityOp { kNoop, kShow, kHide };
 }
 
-static void DetermineVisibilities(VisibilityOp* ops, mjtByte* vis_by_group,
-                                  mjtByte* vis_by_flag, int idx, bool visible) {
+static void GetVisibilityOps(VisibilityOp* ops, const mjtByte* vis_by_group,
+                             const mjtByte* vis_by_flag, int idx,
+                             bool visible) {
   const bool prev_global_vis = vis_by_flag ? *vis_by_flag : true;
-  const bool curr_global_vis = idx == mjNGROUP ? visible : prev_global_vis;
+  const bool curr_global_vis =
+      (vis_by_flag && idx == mjNGROUP) ? visible : prev_global_vis;
 
   for (int i = 0; i < mjNGROUP; ++i) {
     const bool prev_group_vis = vis_by_group[i];
@@ -1124,12 +1130,6 @@ static void DetermineVisibilities(VisibilityOp* ops, mjtByte* vis_by_group,
     } else {
       ops[i] = kHide;
     }
-  }
-
-  if (idx < mjNGROUP) {
-    vis_by_group[idx] = visible;
-  } else if (vis_by_flag) {
-    *vis_by_flag = visible;
   }
 }
 
@@ -1149,45 +1149,53 @@ static void ApplyVisibility(VisibilityOp* ops, int group, mjrfScene* scene,
 
 void ModelRenderables::SetVisibility(mjtObj obj_type, int idx, bool visible) {
   const mjModel* model = model_resources_->GetModel();
+  const mjtByte* static_flag = &vopts_.flags[mjVIS_STATIC];
 
   VisibilityOp ops[mjNGROUP] = {kNoop};
+  VisibilityOp static_ops[mjNGROUP] = {kNoop};
   switch (obj_type) {
     case mjOBJ_GEOM:
-      DetermineVisibilities(ops, vopts_.geomgroup, nullptr, idx, visible);
+      GetVisibilityOps(ops, vopts_.geomgroup, nullptr, idx, visible);
+      GetVisibilityOps(static_ops, vopts_.geomgroup, static_flag, idx, visible);
       for (int i = 0; i < model->ngeom; ++i) {
-        ApplyVisibility(ops, model->geom_group[i], scene_, {&geoms_[i], 1});
+        const int category = GetBodyCategory(model, model->geom_bodyid[i]);
+        VisibilityOp* vis_ops = (category == mjCAT_STATIC) ? static_ops : ops;
+        ApplyVisibility(vis_ops, model->geom_group[i], scene_, {&geoms_[i], 1});
       }
       break;
     case mjOBJ_SITE:
-      DetermineVisibilities(ops, vopts_.sitegroup, nullptr, idx, visible);
+      GetVisibilityOps(ops, vopts_.sitegroup, nullptr, idx, visible);
+      GetVisibilityOps(static_ops, vopts_.sitegroup, static_flag, idx, visible);
       for (int i = 0; i < model->nsite; ++i) {
-        ApplyVisibility(ops, model->site_group[i], scene_, {&sites_[i], 1});
+        const int category = GetBodyCategory(model, model->site_bodyid[i]);
+        VisibilityOp* vis_ops = (category == mjCAT_STATIC) ? static_ops : ops;
+        ApplyVisibility(vis_ops, model->site_group[i], scene_, {&sites_[i], 1});
       }
       break;
     case mjOBJ_FLEX:
-      DetermineVisibilities(ops, vopts_.flexgroup,
-                            &vopts_.flags[mjVIS_FLEXSKIN], idx, visible);
+      GetVisibilityOps(ops, vopts_.flexgroup, &vopts_.flags[mjVIS_FLEXSKIN],
+                       idx, visible);
       for (int i = 0; i < model->nflex; ++i) {
         ApplyVisibility(ops, model->flex_group[i], scene_, flexes_[i]);
       }
       break;
     case mjOBJ_SKIN:
-      DetermineVisibilities(ops, vopts_.skingroup, &vopts_.flags[mjVIS_SKIN],
-                            idx, visible);
+      GetVisibilityOps(ops, vopts_.skingroup, &vopts_.flags[mjVIS_SKIN], idx,
+                       visible);
       for (int i = 0; i < model->nskin; ++i) {
         ApplyVisibility(ops, model->skin_group[i], scene_, {&skins_[i], 1});
       }
       break;
     case mjOBJ_TENDON:
-      DetermineVisibilities(ops, vopts_.tendongroup,
-                            &vopts_.flags[mjVIS_TENDON], idx, visible);
+      GetVisibilityOps(ops, vopts_.tendongroup, &vopts_.flags[mjVIS_TENDON],
+                       idx, visible);
       for (int i = 0; i < model->ntendon; ++i) {
         ApplyVisibility(ops, model->tendon_group[i], scene_, tendons_[i]);
       }
       break;
     case mjOBJ_ACTUATOR:
-      DetermineVisibilities(ops, vopts_.actuatorgroup,
-                            &vopts_.flags[mjVIS_ACTUATOR], idx, visible);
+      GetVisibilityOps(ops, vopts_.actuatorgroup, &vopts_.flags[mjVIS_ACTUATOR],
+                       idx, visible);
       for (int i = 0; i < model->nactuator; ++i) {
         auto it = slider_cranks_.find(i);
         if (it == slider_cranks_.end()) {
@@ -1205,37 +1213,52 @@ void ModelRenderables::SetVisibility(mjtObj obj_type, int idx, bool visible) {
 void ModelRenderables::SetOptions(const mjvOption& opt) {
   const mjModel* model = model_resources_->GetModel();
 
+  if (vopts_.flags[mjVIS_STATIC] != opt.flags[mjVIS_STATIC]) {
+    SetVisibility(mjOBJ_GEOM, mjNGROUP, opt.flags[mjVIS_STATIC]);
+    SetVisibility(mjOBJ_SITE, mjNGROUP, opt.flags[mjVIS_STATIC]);
+    vopts_.flags[mjVIS_STATIC] = opt.flags[mjVIS_STATIC];
+  }
   for (int i = 0; i < mjNGROUP; ++i) {
     if (vopts_.geomgroup[i] != opt.geomgroup[i]) {
       SetVisibility(mjOBJ_GEOM, i, opt.geomgroup[i]);
+      vopts_.geomgroup[i] = opt.geomgroup[i];
     }
     if (vopts_.sitegroup[i] != opt.sitegroup[i]) {
       SetVisibility(mjOBJ_SITE, i, opt.sitegroup[i]);
+      vopts_.sitegroup[i] = opt.sitegroup[i];
     }
     if (vopts_.skingroup[i] != opt.skingroup[i]) {
       SetVisibility(mjOBJ_SKIN, i, opt.skingroup[i]);
+      vopts_.skingroup[i] = opt.skingroup[i];
     }
     if (vopts_.flexgroup[i] != opt.flexgroup[i]) {
       SetVisibility(mjOBJ_FLEX, i, opt.flexgroup[i]);
+      vopts_.flexgroup[i] = opt.flexgroup[i];
     }
     if (vopts_.tendongroup[i] != opt.tendongroup[i]) {
       SetVisibility(mjOBJ_TENDON, i, opt.tendongroup[i]);
+      vopts_.tendongroup[i] = opt.tendongroup[i];
     }
     if (vopts_.actuatorgroup[i] != opt.actuatorgroup[i]) {
       SetVisibility(mjOBJ_ACTUATOR, i, opt.actuatorgroup[i]);
+      vopts_.actuatorgroup[i] = opt.actuatorgroup[i];
     }
   }
   if (vopts_.flags[mjVIS_SKIN] != opt.flags[mjVIS_SKIN]) {
     SetVisibility(mjOBJ_SKIN, mjNGROUP, opt.flags[mjVIS_SKIN]);
+    vopts_.flags[mjVIS_SKIN] = opt.flags[mjVIS_SKIN];
   }
   if (vopts_.flags[mjVIS_FLEXSKIN] != opt.flags[mjVIS_FLEXSKIN]) {
     SetVisibility(mjOBJ_FLEX, mjNGROUP, opt.flags[mjVIS_FLEXSKIN]);
+    vopts_.flags[mjVIS_FLEXSKIN] = opt.flags[mjVIS_FLEXSKIN];
   }
   if (vopts_.flags[mjVIS_TENDON] != opt.flags[mjVIS_TENDON]) {
     SetVisibility(mjOBJ_TENDON, mjNGROUP, opt.flags[mjVIS_TENDON]);
+    vopts_.flags[mjVIS_TENDON] = opt.flags[mjVIS_TENDON];
   }
   if (vopts_.flags[mjVIS_ACTUATOR] != opt.flags[mjVIS_ACTUATOR]) {
     SetVisibility(mjOBJ_ACTUATOR, mjNGROUP, opt.flags[mjVIS_ACTUATOR]);
+    vopts_.flags[mjVIS_ACTUATOR] = opt.flags[mjVIS_ACTUATOR];
   }
 
   if (vopts_.flags[mjVIS_CONVEXHULL] != opt.flags[mjVIS_CONVEXHULL]) {
