@@ -54,6 +54,11 @@ using filament::math::mat4f;
 static constexpr float kArrowScale = 1.f / 6.f;
 static constexpr float kArrowHeadSize = 1.75f;
 
+// Planes are either squares or disks. A plane Renderable will store both meshes
+// as separate parts, but only one should be visible at a time.
+static constexpr std::uint8_t kHideDiskPlane = 0x02;
+static constexpr std::uint8_t kHideSquarePlane = 0x01;
+
 Renderable::Renderable(filament::Engine* engine,
                        const mjrfRenderableParams& params,
                        MaterialManager* material_mgr)
@@ -156,7 +161,8 @@ void Renderable::InitPartEntity(Part& part) {
   builder.priority(priority_);
   builder.screenSpaceContactShadows(true);
   if (layer_mask_ != 0 || curr_state_.hidden_parts != 0) {
-    builder.layerMask(0xff, PartLayerMask(&part - parts_.data()));
+    const int part_index = &part - parts_.data();
+    builder.layerMask(0xff, GetPartLayerMask(part_index));
   }
 
   builder.build(*GetEngine(), part.entity);
@@ -281,20 +287,15 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
   draw_queue_.clear();
 
   for (const mjrfRenderRequest* request : requests) {
-    DrawState draw_state;
-    draw_state.cast_shadow = params_.cast_shadow;
-    draw_state.receive_shadow = params_.receive_shadow;
     mjrfMaterial material = material_;
-
     // Selected materials are handled in a separate pass, so clear the value
     // here to take advantage of shared materials.
     material.selected = false;
 
+    DrawState draw_state;
+    draw_state.cast_shadow = material.decor ? false : params_.cast_shadow;
+    draw_state.receive_shadow = material.decor ? false : params_.receive_shadow;
     draw_state.wireframe = (request->draw_mode == mjDRAW_MODE_WIREFRAME);
-    if (material.decor) {
-      draw_state.cast_shadow = false;
-      draw_state.receive_shadow = false;
-    }
 
     if (request->draw_mode == mjDRAW_MODE_SEGMENTATION_BY_COLOR) {
       constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
@@ -343,8 +344,6 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
     }
 
     if (geom_type_ == mjGEOM_PLANE) {
-      // planes hold a square (part 0) and a horizon disk (part 1)
-      draw_state.hidden_parts = 0x02;
       const float3 camera_pos = ReadFloat3(request->camera.pos);
       const float3 plane_normal = normalize(trs_.rotation[2]);
       const float elevation = dot(camera_pos - trs_.translation, plane_normal);
@@ -353,10 +352,13 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
         draw_state.receive_shadow = false;
       }
 
-      // with a skybox, infinite planes draw a disk centered beneath the camera
-      // whose rim meets the haze; shift the uvs so the texture stays put
+      // By default, assume we want a square plane.
+      draw_state.hidden_parts = kHideDiskPlane;
+
+      // When rendered with a skybox, infinite planes are drawn as disks.
       if (infinite_plane_ && scene_has_skybox && ShowsSkybox(*request)) {
-        draw_state.hidden_parts = 0x01;
+        draw_state.hidden_parts = kHideSquarePlane;
+
         static constexpr float kBasePlaneScale = 0.5f * mjMAXPLANEGRID;
         const float3 plane_center = camera_pos - elevation * plane_normal;
         const float3 shift = plane_center - trs_.translation;
@@ -450,13 +452,13 @@ std::uint8_t Renderable::SetLayerMask(std::uint8_t mask) {
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (int i = 0; i < parts_.size(); ++i) {
       rm.setLayerMask(rm.getInstance(parts_[i].entity), 0xff,
-                      PartLayerMask(i));
+                      GetPartLayerMask(i));
     }
   }
   return prev;
 }
 
-std::uint8_t Renderable::PartLayerMask(int index) const {
+std::uint8_t Renderable::GetPartLayerMask(int index) const {
   return (curr_state_.hidden_parts >> index) & 1 ? 0 : layer_mask_;
 }
 
@@ -466,7 +468,7 @@ void Renderable::SetHiddenParts(std::uint8_t hidden_parts) {
     filament::RenderableManager& rm = GetEngine()->getRenderableManager();
     for (int i = 0; i < parts_.size(); ++i) {
       rm.setLayerMask(rm.getInstance(parts_[i].entity), 0xff,
-                      PartLayerMask(i));
+                      GetPartLayerMask(i));
     }
   }
 }
@@ -484,7 +486,8 @@ std::uint16_t Renderable::SetBlendOrder(std::uint16_t blend_order) {
   return prev;
 }
 
-void Renderable::SetPriority(std::uint8_t priority) {
+std::uint8_t Renderable::SetPriority(std::uint8_t priority) {
+  std::uint8_t prev = priority_;
   if (priority != priority_) {
     priority_ = priority;
 
@@ -493,6 +496,7 @@ void Renderable::SetPriority(std::uint8_t priority) {
       rm.setPriority(rm.getInstance(part.entity), priority_);
     }
   }
+  return prev;
 }
 
 void Renderable::SetCastShadows(bool cast_shadow) {
@@ -567,7 +571,7 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
     case mjGEOM_PLANE:
       AppendMesh(builtins->Plane());
       AppendMesh(builtins->Disk());
-      SetHiddenParts(0x02);
+      SetHiddenParts(kHideDiskPlane);
       break;
     case mjGEOM_SPHERE:
       AppendMesh(builtins->Sphere());

@@ -32,11 +32,10 @@
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/mesh.h"
 #include "render/filament/core/reflection_manager.h"
-#include "render/filament/core/types.h"
 
 namespace mujoco {
 
-enum LayerMask : uint8_t {
+enum LayerMask : std::uint8_t {
   // Filament's Skybox occupies layer 0 by default; renderables use the rest.
   kLayerMask_Skybox = 0x01 << 0,
   kLayerMask_Object = 0x01 << 1,
@@ -110,7 +109,8 @@ class Renderable : public mjrfRenderable {
   std::uint16_t SetBlendOrder(std::uint16_t blend_order);
 
   // Sets the coarse draw priority [0..7] for this renderable (defaults to 4).
-  void SetPriority(std::uint8_t priority);
+  // Returns the previous priority.
+  std::uint8_t SetPriority(std::uint8_t priority);
 
   // Enables or disables whether this renderable casts shadows.
   void SetCastShadows(bool cast_shadow);
@@ -190,11 +190,12 @@ class Renderable : public mjrfRenderable {
   void AppendMesh(const Mesh* mesh);
   void InitPartEntity(Part& part);
   void SetHiddenParts(std::uint8_t hidden_parts);
-  std::uint8_t PartLayerMask(int index) const;
   void UpdateTransform();
   void ApplyCastShadows(bool cast_shadow);
   void ApplyReceiveShadows(bool receive_shadow);
   void SetWireframe(bool wireframe);
+
+  std::uint8_t GetPartLayerMask(int index) const;
 
   filament::Engine* GetEngine();
 
@@ -209,8 +210,8 @@ class Renderable : public mjrfRenderable {
   filament::math::mat4f transform_;
   GetTransformFn get_transform_fn_;
   Trs trs_;
-  uint8_t layer_mask_ = 0x00;
-  uint8_t priority_ = 4;
+  std::uint8_t layer_mask_ = 0x00;
+  std::uint8_t priority_ = 4;
   bool infinite_plane_ = false;
 };
 
