@@ -16,6 +16,10 @@ Significant new features
   (:ref:`spatial<tendon-spatial-springyield>`, :ref:`fixed<tendon-fixed-springyield>`) springs, with stateful plastic
   spring references in ``mjData.plastic`` (``mjSTATE_PLASTIC``).
 
+.. raw:: html
+
+   <div style="clear: both;"></div>
+
 General
 ^^^^^^^
 .. admonition:: Breaking API changes
