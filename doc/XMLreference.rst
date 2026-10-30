@@ -4819,6 +4819,16 @@ to large displacements (finite rotations) and small strains, since it uses a non
 stress-strain relationship. See also :ref:`deformable <CDeformable>` objects and `this model
 <https://github.com/google-deepmind/mujoco/blob/main/model/flex/floppy.xml>`__.
 
+For 3D flexes, the stretching energy density is :math:`\mu \, \textrm{tr}(\varepsilon^2) + \frac{\lambda}{2}
+\textrm{tr}(\varepsilon)^2`, where :math:`\varepsilon` is the Green strain and :math:`\mu = E / (2 (1 + \nu))`,
+:math:`\lambda = E \nu / ((1 + \nu) (1 - 2 \nu))` are the Lamé parameters given by :ref:`young<flex-elasticity-young>`
+:math:`E` and :ref:`poisson<flex-elasticity-poisson>` :math:`\nu`. For 2D flexes (shells of
+:ref:`thickness<flex-elasticity-thickness>` :math:`t`), the stretching (membrane) energy per unit area is :math:`t` times
+the same density with the plane-stress parameter :math:`\lambda^* = E \nu / (1 - \nu^2)` instead of :math:`\lambda`.
+The bending energy of 2D flexes is a discrete hinge model for flat references, normalized so that bending a flat sheet
+into a cylinder of curvature :math:`\kappa` stores the Kirchhoff plate energy :math:`D \kappa^2 / 2` per unit area, with
+bending rigidity :math:`D = E t^3 / (12 (1 - \nu^2))`. Poisson's ratio enters the bending energy only through :math:`D`.
+
 For 1D flexes, elasticity is a twist-free, isotropic `discrete elastic rod
 <https://www.cs.columbia.edu/cg/pdfs/143-rods.pdf>`__ bending model with the cross-section given by
 :ref:`section<flex-elasticity-section>`. Every vertex shared by exactly two edges stores the energy
@@ -4864,7 +4874,8 @@ and **quadratic**.
 .. _flex-elasticity-thickness:
 
 :at:`thickness`: :at-val:`real(1), "-1"`
-   Shell thickness, units of length; only for used 2D flexes. Used to scale the stretching stiffness.
+   Shell thickness, units of length; only used for 2D flexes. The stretching stiffness of 2D flexes is proportional to
+   the thickness :math:`t` and their bending stiffness to :math:`t^3`, see :ref:`elasticity<flex-elasticity>`.
    This thickness can be set equal to 2 times the :ref:`radius <deformable-flex-radius>` in order to match the geometry,
    but is exposed separately since the radius might be constrained by considerations related to collision detection.
 

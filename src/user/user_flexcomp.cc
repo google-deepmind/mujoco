@@ -1321,6 +1321,7 @@ void inline ComputeBasis<Stencil3D>(double        basis[9],
 }
 
 // compute stiffness for a single element
+//   thickness: shell thickness for triangles, unused for tetrahedra
 template <typename T>
 void inline ComputeStiffness(std::vector<double>&       stiffness,
                              const std::vector<double>& body_pos,
@@ -1328,13 +1329,19 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
                              int                        t,
                              double                     E,
                              double                     nu,
-                             double                     thickness = 4) {
-  // triangles area
-  double volume = ComputeVolume<T>(body_pos.data(), v);
+                             double                     thickness = 1) {
+  // element measure: triangle area times thickness, or tetrahedron volume
+  double volume  = ComputeVolume<T>(body_pos.data(), v);
+  double measure = std::abs(volume) * (T::kNumVerts == 3 ? thickness : 1);
 
-  // material parameters
-  double mu = E / (2 * (1 + nu)) * std::abs(volume) / 4 * thickness;
-  double la = E * nu / ((1 + nu) * (1 - 2 * nu)) * std::abs(volume) / 4 * thickness;
+  // Lamé parameters, plane stress for triangles (thin shells)
+  double mu     = E / (2 * (1 + nu));
+  double lambda = T::kNumVerts == 3 ? E * nu / (1 - nu * nu) : E * nu / ((1 + nu) * (1 - 2 * nu));
+
+  // with s = L^2 - L0^2, sum_e s_e basis_e = 2 * (Green strain), so the energy s' K s / 4 is
+  // measure * (mu * tr(strain^2) + la * tr(strain)^2): Saint Venant-Kirchhoff needs la = lambda / 2
+  double mu_k = mu * measure;
+  double la_k = lambda / 2 * measure;
 
   // local geometric quantities
   double basis[T::kNumEdges][9] = {{0}};
@@ -1350,7 +1357,7 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
   }
 
   // compute metric tensor
-  MetricTensor<T>(stiffness.data(), t, mu, la, basis, T::kNumVerts == 4 ? 24 : 21);
+  MetricTensor<T>(stiffness.data(), t, mu_k, la_k, basis, T::kNumVerts == 4 ? 24 : 21);
 }
 
 // stable Neo-Hookean quadratic metric and three signed-volume/cubic coefficients
@@ -1476,9 +1483,9 @@ double inline ComputeVolume(const double* x, const int v[Stencil2D::kNumVerts]) 
 }
 
 // compute bending stiffness for a single edge
+//   rigidity: plate bending rigidity D = E t^3 / (12 (1 - nu^2))
 template <typename T>
-void inline ComputeBending(
-    double* bending, double* pos, const int v[4], double mu, double thickness) {
+void inline ComputeBending(double* bending, double* pos, const int v[4], double rigidity) {
   int vadj[3] = {v[1], v[0], v[3]};
 
   if (v[3] == -1) {
@@ -1489,13 +1496,16 @@ void inline ComputeBending(
   // cotangent operator from Wardetzky at al., "Discrete Quadratic Curvature
   // Energies", https://cims.nyu.edu/gcl/papers/wardetzky2007dqb.pdf
 
-  double a01       = cot(pos, v[0], v[1], v[2]);
-  double a02       = cot(pos, v[0], v[3], v[1]);
-  double a03       = cot(pos, v[1], v[2], v[0]);
-  double a04       = cot(pos, v[1], v[0], v[3]);
-  double c[4]      = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
-  double volume    = ComputeVolume(pos, v) + ComputeVolume(pos, vadj);
-  double stiffness = 3 * mu * pow(thickness, 3) / (24 * volume);
+  double a01    = cot(pos, v[0], v[1], v[2]);
+  double a02    = cot(pos, v[0], v[3], v[1]);
+  double a03    = cot(pos, v[1], v[2], v[0]);
+  double a04    = cot(pos, v[1], v[0], v[3]);
+  double c[4]   = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
+  double volume = ComputeVolume(pos, v) + ComputeVolume(pos, vadj);
+
+  // normalized so that bending a flat sheet into a cylinder of curvature k (an isometry) has
+  // energy density D k^2 / 2, as in Kirchhoff plate theory
+  double stiffness = rigidity / volume;
 
   // Garg et al., "Cubic Shells", https://cims.nyu.edu/gcl/papers/garg2007cs.pdf
   const double* v0        = pos + 3 * v[0];
@@ -3362,12 +3372,13 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && !interpolated) {
       bending.assign(nedge * 17, 0);
 
+      // plate bending rigidity
+      double rigidity = young * thickness * thickness * thickness / (12 * (1 - poisson * poisson));
       for (unsigned int e = 0; e < nedge; e++) {
         ComputeBending<StencilFlap>(bending.data() + 17 * e,
                                     vertxpos.data(),
                                     flaps[e].vertices,
-                                    young / (2 * (1 + poisson)),
-                                    thickness);
+                                    rigidity);
       }
       // store 2D shell thickness in unused slot stiffness[6] (stiffness[0:6] holds 2D stretch
       // metric)

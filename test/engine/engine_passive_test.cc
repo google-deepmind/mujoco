@@ -531,7 +531,7 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
   <worldbody>
     <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
               radius=".025" name="test" dim="2">
-      <elasticity young="2" poisson="0" thickness="1" elastic2d="stretch"/>
+      <elasticity young="2" poisson="0.3" thickness="0.5" elastic2d="stretch"/>
       <edge equality="false"/>
     </flexcomp>
   </worldbody>
@@ -548,13 +548,18 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
   mjtNum* metric =
       m->flex_stiffness + kFlexStiffnessStride2D * m->flex_elemadr[0];
 
-  // check that if the entire geometry is rescaled by a factor "scale", then
-  // trace(strain^2) = 2*scale^2
+  // if the edge elongations are s = scale * L0^2, then sum_e s_e basis_e is
+  // the tensor scale * I in the plane of the element, and s' K s equals the
+  // plane-stress energy density mu tr(T^2) + lambda/2 tr(T)^2 times the
+  // element volume (area times thickness)
+  const mjtNum young = 2, poisson = 0.3, thickness = 0.5;
+  const mjtNum mu = young / (2 * (1 + poisson));
+  const mjtNum lambda = young * poisson / (1 - poisson * poisson);
 
   for (mjtNum scale = 1; scale < 4; scale++) {
     for (int t = 0; t < m->flex_elemnum[0]; t++) {
       mjtNum energy = 0;
-      mjtNum volume = 1. / 2.;
+      mjtNum volume = thickness / 2;
       int idx = 0;
       for (int e1 = 0; e1 < 3; e1++) {
         for (int e2 = e1; e2 < 3; e2++) {
@@ -568,8 +573,108 @@ TEST_F(ElasticityTest, ElasticEnergyMembrane) {
                     elong2 * (e1 == e2 ? 1. : 2.);
         }
       }
+      mjtNum expected = mu * 2 * scale * scale + lambda / 2 * 4 * scale * scale;
       const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-5);
-      EXPECT_NEAR(4 * energy / volume, 2 * scale * scale, tol);
+      EXPECT_NEAR(energy / volume / expected, 1, tol);
+    }
+  }
+}
+
+// map flex vertices to their x, y, z slider qpos addresses
+static std::vector<int> FlexVertexQpos(const mjModel* m, int f) {
+  std::vector<int> qadr(3 * m->flex_vertnum[f], -1);
+  for (int v = 0; v < m->flex_vertnum[f]; v++) {
+    int b = m->flex_vertbodyid[m->flex_vertadr[f] + v];
+    if (m->body_jntnum[b] != 3) continue;
+    for (int k = 0; k < 3; k++) {
+      int j = m->body_jntadr[b] + k;
+      if (m->jnt_type[j] != mjJNT_SLIDE || m->jnt_axis[3 * j + k] != 1) {
+        return {};
+      }
+      qadr[3 * v + k] = m->jnt_qposadr[j];
+    }
+  }
+  return qadr;
+}
+
+// elastic energy stored by moving from qpos0 to qpos0 + dq, computed as the
+// work of qfrc_spring along a straight path; exact for polynomial energies of
+// degree up to 8 in dq
+static mjtNum SpringWork(const mjModel* m, mjData* d,
+                         const std::vector<mjtNum>& dq) {
+  static constexpr mjtNum kNode[4] = {0.0694318442029737, 0.3300094782075719,
+                                      0.6699905217924281, 0.9305681557970263};
+  static constexpr mjtNum kWeight[4] = {0.1739274225687269, 0.3260725774312731,
+                                        0.3260725774312731, 0.1739274225687269};
+  mjtNum work = 0;
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < m->nq; j++) {
+      d->qpos[j] = m->qpos0[j] + kNode[i] * dq[j];
+    }
+    mj_forward(m, d);
+    work -= kWeight[i] * mju_dot(d->qfrc_spring, dq.data(), m->nv);
+  }
+  return work;
+}
+
+// energy of homogeneous deformations x = F X of a unit square sheet, compared
+// to plane-stress Saint Venant-Kirchhoff: thickness * (mu tr(E^2) +
+// lambda*/2 tr(E)^2), with lambda* = young poisson / (1 - poisson^2)
+TEST_F(ElasticityTest, ShellMembranePlaneStress) {
+  for (mjtNum poisson : {0.0, 0.3, 0.45}) {
+    char xml[1024];
+    std::snprintf(xml, sizeof(xml), R"(
+    <mujoco>
+      <option gravity="0 0 0"/>
+      <worldbody>
+        <flexcomp type="grid" count="5 5 1" spacing=".25 .25 .25" radius=".001"
+                  name="sheet" dim="2" mass="1">
+          <contact contype="0" conaffinity="0" selfcollide="none"/>
+          <elasticity young="1e3" poisson="%g" thickness="0.01" elastic2d="stretch"/>
+          <edge equality="false"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )",
+                  poisson);
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    MjDataPtr d = MakeData(m);
+    std::vector<int> qadr = FlexVertexQpos(m.get(), 0);
+    ASSERT_FALSE(qadr.empty());
+    mj_forward(m.get(), d.get());
+    std::vector<mjtNum> x0(d->flexvert_xpos,
+                           d->flexvert_xpos + 3 * m->flex_vertnum[0]);
+
+    const mjtNum young = 1e3, thickness = 0.01, area = 1;
+    const mjtNum mu = young / (2 * (1 + poisson));
+    const mjtNum lambda = young * poisson / (1 - poisson * poisson);
+
+    // uniaxial, biaxial, simple shear, and a large mixed deformation
+    const mjtNum deformations[4][4] = {{1.01, 0, 0, 1},
+                                       {1.01, 0, 0, 1.01},
+                                       {1, 0.01, 0, 1},
+                                       {1.3, 0.2, -0.1, 0.8}};
+    for (const auto& F : deformations) {
+      std::vector<mjtNum> dq(m->nq, 0);
+      for (int v = 0; v < m->flex_vertnum[0]; v++) {
+        const mjtNum* X = x0.data() + 3 * v;
+        dq[qadr[3 * v + 0]] = F[0] * X[0] + F[1] * X[1] - X[0];
+        dq[qadr[3 * v + 1]] = F[2] * X[0] + F[3] * X[1] - X[1];
+      }
+      mjtNum energy = SpringWork(m.get(), d.get(), dq);
+
+      // Green strain E = (F'F - I) / 2
+      mjtNum e00 = (F[0] * F[0] + F[2] * F[2] - 1) / 2;
+      mjtNum e11 = (F[1] * F[1] + F[3] * F[3] - 1) / 2;
+      mjtNum e01 = (F[0] * F[1] + F[2] * F[3]) / 2;
+      mjtNum tr = e00 + e11;
+      mjtNum trsq = e00 * e00 + e11 * e11 + 2 * e01 * e01;
+      mjtNum expected = area * thickness * (mu * trsq + lambda / 2 * tr * tr);
+      EXPECT_NEAR(energy / expected, 1, MjTol(1e-8, 1e-3))
+          << "poisson " << poisson << ", F " << F[0] << " " << F[1] << " "
+          << F[2] << " " << F[3];
     }
   }
 }
@@ -619,6 +724,125 @@ TEST_F(ElasticityTest, ElasticEnergySolid) {
       }
       const mjtNum tol = MjTol(std::numeric_limits<float>::epsilon(), 1e-4);
       EXPECT_NEAR(energy / volume, 3 * scale * scale, tol);
+    }
+  }
+}
+
+// energy of homogeneous deformations x = F X of a unit cube, compared to Saint
+// Venant-Kirchhoff: mu tr(E^2) + lambda/2 tr(E)^2
+TEST_F(ElasticityTest, SolidStVKEnergy) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp type="grid" count="3 3 3" spacing=".5 .5 .5" radius=".001"
+                name="cube" dim="3" mass="1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1e3" poisson="0.3"/>
+        <edge equality="false"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  std::vector<int> qadr = FlexVertexQpos(m.get(), 0);
+  ASSERT_FALSE(qadr.empty());
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> x0(d->flexvert_xpos,
+                         d->flexvert_xpos + 3 * m->flex_vertnum[0]);
+
+  const mjtNum young = 1e3, poisson = 0.3, volume = 1;
+  const mjtNum mu = young / (2 * (1 + poisson));
+  const mjtNum lambda = young * poisson / ((1 + poisson) * (1 - 2 * poisson));
+
+  // dilatation, simple shear, and a large mixed deformation
+  const mjtNum deformations[3][9] = {{1.01, 0, 0, 0, 1.01, 0, 0, 0, 1.01},
+                                     {1, 0.01, 0, 0, 1, 0, 0, 0, 1},
+                                     {1.2, 0.1, 0, 0, 0.9, 0.05, 0.02, 0, 1.1}};
+  for (const auto& F : deformations) {
+    std::vector<mjtNum> dq(m->nq, 0);
+    for (int v = 0; v < m->flex_vertnum[0]; v++) {
+      mjtNum x[3];
+      mju_mulMatVec3(x, F, x0.data() + 3 * v);
+      for (int k = 0; k < 3; k++) {
+        dq[qadr[3 * v + k]] = x[k] - x0[3 * v + k];
+      }
+    }
+    mjtNum energy = SpringWork(m.get(), d.get(), dq);
+
+    // Green strain E = (F'F - I) / 2
+    mjtNum C[9], E[9];
+    mju_mulMatTMat(C, F, F, 3, 3, 3);
+    for (int i = 0; i < 9; i++) {
+      E[i] = (C[i] - (i % 4 == 0)) / 2;
+    }
+    mjtNum tr = E[0] + E[4] + E[8];
+    mjtNum trsq = mju_dot(E, E, 9);
+    mjtNum expected = volume * (mu * trsq + lambda / 2 * tr * tr);
+    EXPECT_NEAR(energy / expected, 1, MjTol(1e-8, 1e-3));
+  }
+}
+
+// -------------------------------- shell bending ------------------------------
+// bending a flat sheet into a cylinder of curvature k is an isometry with
+// Kirchhoff energy density D k^2 / 2, D = E t^3 / (12 (1 - nu^2)), for any nu;
+// boundary hinges are not included, so the discrete energy converges as 1/n
+TEST_F(ElasticityTest, ShellBendingCylinder) {
+  for (mjtNum poisson : {0.0, 0.3}) {
+    mjtNum prev_error = 1;
+    for (int n : {8, 16, 32}) {
+      char xml[1024];
+      std::snprintf(xml, sizeof(xml), R"(
+      <mujoco>
+        <option gravity="0 0 0"/>
+        <worldbody>
+          <flexcomp type="grid" count="%d %d 1" spacing="%.17g %.17g 1"
+                    radius=".001" name="sheet" dim="2" mass="1">
+            <contact contype="0" conaffinity="0" selfcollide="none"/>
+            <elasticity young="1e5" poisson="%g" thickness="0.01"
+                        elastic2d="bend"/>
+            <edge equality="false"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      )",
+                    n + 1, n + 1, 1.0 / n, 1.0 / n, poisson);
+      char error[1024] = {0};
+      MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+      ASSERT_THAT(m.get(), NotNull()) << error;
+      MjDataPtr d = MakeData(m);
+      std::vector<int> qadr = FlexVertexQpos(m.get(), 0);
+      ASSERT_FALSE(qadr.empty());
+      mj_forward(m.get(), d.get());
+      std::vector<mjtNum> x0(d->flexvert_xpos,
+                             d->flexvert_xpos + 3 * m->flex_vertnum[0]);
+      mjtNum xmean = 0;
+      for (int v = 0; v < m->flex_vertnum[0]; v++) xmean += x0[3 * v];
+      xmean /= m->flex_vertnum[0];
+
+      // displace by z = k x^2 / 2; for a flat reference the bending force is
+      // linear in the positions, so the energy is -qfrc_spring' dq / 2
+      const mjtNum k = 1e-2;
+      std::vector<mjtNum> dq(m->nq, 0);
+      for (int v = 0; v < m->flex_vertnum[0]; v++) {
+        mjtNum x = x0[3 * v] - xmean;
+        dq[qadr[3 * v + 2]] = k * x * x / 2;
+      }
+      mju_copy(d->qpos, dq.data(), m->nq);
+      mj_forward(m.get(), d.get());
+      mjtNum energy = -mju_dot(d->qfrc_spring, dq.data(), m->nv) / 2;
+
+      const mjtNum young = 1e5, thickness = 0.01, area = 1;
+      mjtNum D = young * thickness * thickness * thickness /
+                 (12 * (1 - poisson * poisson));
+      mjtNum ratio = energy / (D * k * k / 2 * area);
+      EXPECT_NEAR(ratio, 1 - 1.0 / n, MjTol(1e-6, 1e-3))
+          << "n " << n << ", poisson " << poisson;
+      EXPECT_LT(1 - ratio, prev_error);
+      prev_error = 1 - ratio;
     }
   }
 }

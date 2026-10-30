@@ -121,6 +121,34 @@ Engine
 
 - Flex improvements:
 
+  - .. admonition:: Breaking change
+       :class: attention
+
+       Fixed the elastic constants of non-interpolated :ref:`flexes<deformable-flex>` (**full** and **radial**
+       :ref:`dofs<body-flexcomp-dof>`), which now match :ref:`young<flex-elasticity-young>`,
+       :ref:`poisson<flex-elasticity-poisson>` and :ref:`thickness<flex-elasticity-thickness>` as documented, and the
+       interpolated flexes:
+
+       - 3D Saint Venant-Kirchhoff stretching used twice the first Lamé parameter :math:`\lambda`.
+       - 2D stretching used a quarter of the shear modulus :math:`\mu` and half of the 3D :math:`\lambda`, instead of
+         :math:`\mu` and the plane-stress :math:`\lambda^* = E \nu / (1 - \nu^2)`.
+       - 2D bending used :math:`\tfrac{3}{4}(1-\nu) D` instead of the plate bending rigidity
+         :math:`D = E t^3 / (12 (1 - \nu^2))`.
+
+       Models with these flexes become stiffer, except 3D models with zero Poisson's ratio, which are unchanged.
+
+       **Migration:** To keep the previous behavior, use these parameters:
+
+       - 3D: :math:`\nu' = 2\nu / (1 + 2\nu)` and :math:`E' = E (1 + \nu') / (1 + \nu)`.
+       - 2D bending only (``elastic2d="bend"``): :math:`E' = \tfrac{3}{4}(1 - \nu) E`.
+       - 2D stretching (``elastic2d="stretch"`` or ``"both"``): :math:`\nu' = 2\nu`, which is exact for
+         :math:`\nu < 1/4` (so that :math:`\nu' < 1/2`). Then:
+
+         - ``"stretch"``: :math:`E' = E (1 + 2\nu) / (4 (1 + \nu))`.
+         - ``"both"``: :math:`t' = t \sqrt{3 (1 - 2\nu)}` and :math:`E' = E t (1 + 2\nu) / (4 (1 + \nu) t')`.
+
+       The flex models in ``model/flex`` were remapped in this way, so their behavior is unchanged.
+
   - Volumetric interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>` with ``elastic2d="none"``)
     now integrate cell stiffness and lump nodal masses over the mesh volume using Finite Cell Method (FCM) subcell
     quadrature instead of treating every non-empty grid cell as a full cube. This changes the stiffness and nodal mass

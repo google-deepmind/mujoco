@@ -1451,7 +1451,7 @@ static constexpr char kStretchSheet[] = R"(
     <flexcomp name="sheet" type="grid" dim="2" count="9 9 1" spacing=".04 .04 1"
               radius=".004" mass=".3" pos="0 0 .5">
       <contact selfcollide="none"/>
-      <elasticity young="1e5" poisson=".2" thickness="2e-3"
+      <elasticity young="29166.6666666667" poisson=".4" thickness="2e-3"
                   elastic2d="stretch"/>
       <pin id="0 8"/>
     </flexcomp>
@@ -1728,7 +1728,7 @@ static constexpr char kBoxPairs[] = R"(
     <flexcomp name="sheet" type="grid" dim="2" count="7 7 1" spacing=".04 .04 1"
               radius=".004" mass=".2" pos="0 0 .4">
       <contact selfcollide="none"/>
-      <elasticity young="1e5" poisson=".2" thickness="2e-3"
+      <elasticity young="29166.6666666667" poisson=".4" thickness="2e-3"
                   elastic2d="stretch"/>
       <pin id="0 6"/>
     </flexcomp>
