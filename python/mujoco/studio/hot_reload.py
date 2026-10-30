@@ -33,9 +33,9 @@ When a watched ``.py`` file is saved, ``tick()`` does the following:
 
 Watched modules are the modules of the registry's plugins plus the ``.py``
 modules they import from their own directory. Built-in plugins such as
-``ViewerApp``, ``StepControl``, and ``SimHistory`` are regular plugins and are
-hot-reloaded like any other plugin. Framework modules (the modules of the
-registry's host and what they import, ``messages``, ``plugin``,
+``studio_app.App``, ``StepControl``, and ``SimHistory`` are regular
+plugins and are hot-reloaded like any other plugin. Framework modules (the
+modules of the registry's host and what they import, ``messages``, ``plugin``,
 ``plugin_registry``, ``hot_reload_utils``, and this module) are never reloaded;
 editing one logs "restart required" (later, when manual restart prompting is
 wired into WebViewer, this will also surface a restart button there). Plugins
@@ -45,8 +45,8 @@ Design goal: a hard boundary between reloadable and fixed code:
 
 - **Reloadable:**
   - The modules of registered plugins (both user plugins and built-in plugins
-    such as ``ViewerApp``, ``StepControl``, and ``SimHistory``) and their local
-    imports (here).
+    such as ``studio_app.App``, ``StepControl``, and ``SimHistory``)
+    and their local imports (here).
   - The model file shown and its includes and assets (``ViewerHandle``, via
     ``watch_files``).
 - **Fixed:**
@@ -64,7 +64,7 @@ break that plugin, never the loop. In practice, the minimal live-coding hook is
 one registered viewer plugin and one registered sim plugin whose module you
 own; those can grow into anything (new handlers are discovered on the swap),
 while adding another instance needs a restart. When adding custom behavior,
-prefer registering small separate plugins next to ``ViewerApp`` or
+prefer registering small separate plugins next to ``studio_app.App`` or
 ``StepControl`` over subclassing them: handlers are discovered by method name,
 so a subclass can accidentally shadow a base-class handler.
 

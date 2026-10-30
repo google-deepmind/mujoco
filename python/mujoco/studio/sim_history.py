@@ -17,7 +17,7 @@
 step, handles scrub requests, and broadcasts buffer metadata via
 ``SimHistorySnapshot``.
 
-Viewer plugins (e.g. ``ViewerApp``) add scrubbing UI by handling
+Viewer plugins (e.g. ``studio_app.App``) add scrubbing UI by handling
 ``SimHistorySnapshot`` and sending one back with the desired index. There is
 no need to couple such a viewer plugin to ``SimHistory`` explicitly: the
 message is the only contract between them.

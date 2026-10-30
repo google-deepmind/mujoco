@@ -34,8 +34,8 @@ def launch(
   """Launches the viewer in a daemon thread without blocking.
 
   The viewer runs on the rendering thread and renders the scene along with any
-  GUI built by registered plugins (such as ``ViewerApp``). The caller keeps
-  running and pushes state via ``handle.sync()``.
+  GUI built by registered plugins (such as ``studio_app.App``). The
+  caller keeps running and pushes state via ``handle.sync()``.
 
   Args:
     config: Viewer window configuration.

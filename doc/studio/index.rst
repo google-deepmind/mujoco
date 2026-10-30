@@ -32,12 +32,12 @@ Quick Start
   .. code-block:: python
 
      import mujoco
-     from mujoco.studio import launch_native, viewer_app  # or launch_web
+     from mujoco.studio import app as studio_app, launch_native  # or launch_web
 
      model = mujoco.MjModel.from_xml_path('humanoid.xml')
      data = mujoco.MjData(model)
 
-     with launch_native.launch(plugins=[viewer_app.ViewerApp()]) as handle:
+     with launch_native.launch(plugins=[studio_app.App()]) as handle:
        while handle.is_running():
          model, data = handle.sync(model, data)
          mujoco.mj_step(model, data)
@@ -69,12 +69,12 @@ MuJoCo Studio is organized around five building blocks shared across C++ and Pyt
 
 - **Studio Viewer Application**: The full-featured interactive visualizer, implemented as ``mujoco::studio::App``
   (`app.h <https://github.com/google-deepmind/mujoco/blob/main/studio/app.h>`__) in :ref:`C++ <StudioCpp>` and
-  ``ViewerApp`` (`viewer_app.py
-  <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/viewer_app.py>`__) in :ref:`Python
+  ``studio_app.App`` (`app/plugins.py
+  <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/app/plugins.py>`__) in :ref:`Python
   <StudioViewerPlugins>`. It provides model loading, simulation history scrubbing, step controls, performance profiling,
   an integrated log and warning console, and scene hierarchy inspection.
 - **Composable Plugins**: Modular components that extend the viewer UI, 3D scene, and physics stepping.
-  In Python, the standard Studio UI (:ref:`ViewerApp <StudioViewerPlugins>`), real-time physics stepping
+  In Python, the standard Studio UI (:ref:`studio_app.App <StudioViewerPlugins>`), real-time physics stepping
   (:ref:`StepControl <StudioSimPlugins>`), and trajectory history recording (:ref:`SimHistory <StudioSimPlugins>`) are
   themselves implemented as :ref:`ViewerPlugin and SimPlugin <StudioPythonPlugins>` subclasses communicating over
   non-blocking :ref:`message channels <StudioMessaging>`.
@@ -108,7 +108,7 @@ Legacy Visualizers
      - MuJoCo Studio
    * - **GUI Framework**
      - Fixed custom C :ref:`mjUI <Ui>` panels (:ref:`simulate <saSimulate>`)
-     - Dockable `Dear ImGui <https://github.com/ocornut/imgui>`__ windows (``ViewerApp`` is the port of :ref:`simulate
+     - Dockable `Dear ImGui <https://github.com/ocornut/imgui>`__ windows (``studio_app.App`` is the port of :ref:`simulate
        <saSimulate>`)
    * - **3D Renderer**
      - Fixed-function :ref:`classic OpenGL <ClassicRendering>` (``mjr_``)

@@ -34,8 +34,8 @@ enabled, or pass an in-memory ``model=...`` with optional ``data=...``:
 
 .. code-block:: python
 
+   from mujoco.studio import app as studio_app
    from mujoco.studio import launch_native
-   from mujoco.studio import viewer_app
    from mujoco.studio import viewer_protocol
 
    config = viewer_protocol.ViewerConfig(title='MuJoCo Studio', gfx='opengl')
@@ -43,7 +43,7 @@ enabled, or pass an in-memory ``model=...`` with optional ``data=...``:
    launch_native.run(
        config,
        model_path='humanoid.xml',  # Or model=model, data=data for an in-memory model.
-       plugins=[viewer_app.ViewerApp(), *viewer_app.SIM_PLUGINS],
+       plugins=[studio_app.App(), *studio_app.SIM_PLUGINS],
    )
 
 .. _StudioExecutionModes:
@@ -61,13 +61,13 @@ manager. It starts ``NativeViewer`` on a daemon thread and returns a ``ViewerHan
 
    import time
    import mujoco
+   from mujoco.studio import app as studio_app
    from mujoco.studio import launch_native
-   from mujoco.studio import viewer_app
 
    model = mujoco.MjModel.from_xml_path('humanoid.xml')
    data = mujoco.MjData(model)
 
-   with launch_native.launch(plugins=[viewer_app.ViewerApp()]) as handle:
+   with launch_native.launch(plugins=[studio_app.App()]) as handle:
      while handle.is_running():
        tick = time.perf_counter()
        model, data = handle.sync(model, data)
@@ -80,7 +80,7 @@ Key details when driving a ``ViewerHandle`` loop directly:
   ``data`` if your script created a new model object, and returns replacement ``model`` and ``data`` objects whenever UI
   **Reload**, a dropped file, or a plugin's ``handle.set_model()`` swaps the active model.
 - **Stepping and pacing**: ``handle.sync()`` never sleeps. If you omit ``StepControl()``, advance ``data`` and pace the
-  loop yourself after ``handle.sync()``; if you include ``*viewer_app.SIM_PLUGINS``, ``StepControl()`` steps and paces
+  loop yourself after ``handle.sync()``; if you include ``*studio_app.SIM_PLUGINS``, ``StepControl()`` steps and paces
   physics inside ``handle.sync()`` during ``StepEvent``.
 - **Mutations**: Keep ``model.opt`` mutations inside step-event handlers so ``ViewerHandle.sync()``'s
   :ref:`diff-based sync <StudioDiffSync>` detects and forwards them to the viewer.

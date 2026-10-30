@@ -28,7 +28,7 @@ reference implementations.
 See `python/mujoco/sample/studio/implot.py` (`BodyInspector`) for a
 complete viewer UI plugin demonstrating how to:
 
--   Subscribe to `ViewerAppInitEvent` to cache `event.viewer_app` references.
+-   Subscribe to `studio_app.InitEvent` to cache `event.app` references.
 -   Draw responsive ImPlot charts during `BuildGuiEvent` (preparing any heavy
     frame data or texture uploads earlier in `UpdateEvent`).
 -   Use persistent window IDs (`###`) to preserve docking and window state
@@ -117,9 +117,10 @@ See the module docstring of `python/mujoco/studio/hot_reload.py`
 for full design details:
 
 -   **Reloadable vs. fixed boundary**: Registered plugin modules (both user
-    plugins and built-ins like `ViewerApp`, `StepControl`, and `SimHistory`),
-    same-directory helper modules, and the active XML/URDF model file (including
-    its `<include>`s and assets) reload on save. Framework modules, `__main__`,
+    plugins and built-ins like `studio_app.App`, `StepControl`, and
+    `SimHistory`), same-directory helper modules, and the active XML/URDF model
+    file (including its `<include>`s and assets) reload on save. Framework
+    modules, `__main__`,
     the C++ binary, and the list of registered plugin instances are fixed.
     Always keep plugins in separate module files rather than `__main__` (and if
     a user's script defines plugins inline in `__main__`, ask whether to extract

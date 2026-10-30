@@ -47,8 +47,9 @@ freshly read) on entering and leaving the `with` block and sends only the
 messages whose values changed:
 
 -   **Viewer side**: `viewer.send_if_changes(...)` wraps UI mutation blocks
-    (`ViewerApp.update()`, `build_gui()`, and Inspector panels). Incoming sim
-    snapshots are applied *outside* those blocks, preventing echo loops.
+    (`studio_app.App.update()`, `build_gui()`, and Inspector panels).
+    Incoming sim snapshots are applied *outside* those blocks, preventing echo
+    loops.
 -   **Sim side**: `ViewerHandle.sync()` wraps `PreStepEvent`, `StepEvent`, and
     `PostStepEvent` dispatch for `model.opt`, and plugins that own mirrored
     state wrap their own mutations in `handle.send_if_changes` (for example,
@@ -80,10 +81,10 @@ startup through per-frame/per-step execution to teardown:
 3.  **`PostModelEvent`** — Dispatched locally by `Viewer` immediately after
     `ModelEvent` has initialized `viewer.model` and `viewer.data`. Carries
     `(model, data, path)`: reloading the same `path` preserves viewer UI state
-    (camera, pause, and playback speed in `ViewerApp`), whereas a different or
-    empty `path` resets it. Subscribe to `PostModelEvent` (not `ModelEvent`)
-    when resetting viewer-plugin state on model changes so `viewer.model` and
-    `viewer.data` are already up to date.
+    (camera, pause, and playback speed in `studio_app.App`), whereas a
+    different or empty `path` resets it. Subscribe to `PostModelEvent` (not
+    `ModelEvent`) when resetting viewer-plugin state on model changes so
+    `viewer.model` and `viewer.data` are already up to date.
 4.  **`UpdateEvent`** — Dispatched every frame (after incoming sim events and
     snapshots are applied) to update visuals, camera, perturbations, and
     transient geoms, and prepare GUI data or upload textures (e.g.,
@@ -141,9 +142,9 @@ startup through per-frame/per-step execution to teardown:
 
 ### Plugin-Dispatched Lifecycle Events
 
--   **`ViewerAppInitEvent`** (`viewer_app.ViewerAppInitEvent`) — Dispatched by
-    the `ViewerApp` viewer plugin on startup so sibling viewer plugins can cache
-    application state and window handles (`event.viewer_app`).
+-   **`studio_app.InitEvent`** — Dispatched by `studio_app.App` on
+    startup so sibling viewer plugins can cache application state and window
+    handles (`event.app`).
 
 ## 4. Handler Priorities vs. `Pre*`/`Post*` Lifecycle Events
 

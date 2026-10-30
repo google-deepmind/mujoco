@@ -23,9 +23,9 @@ that down).
 import argparse
 import os
 
+from mujoco.studio import app as studio_app
 from mujoco.studio import launch_passive
 from mujoco.studio import plugin
-from mujoco.studio import viewer_app
 from mujoco.studio import viewer_protocol
 
 vp = viewer_protocol
@@ -103,8 +103,8 @@ def main() -> None:
       config,
       model_path=_resolve(model_path),
       plugins=[
-          viewer_app.ViewerApp(),
-          *viewer_app.SIM_PLUGINS,
+          studio_app.App(),
+          *studio_app.SIM_PLUGINS,
           *user_plugins,
       ],
   )

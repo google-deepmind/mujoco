@@ -23,9 +23,9 @@ Run with the Studio viewer::
 import math
 
 import mujoco
+from mujoco.studio import app as studio_app
 from mujoco.studio import messages
 from mujoco.studio import plugin
-from mujoco.studio import viewer_app
 import numpy as np
 
 from mujoco.studio.dear_imgui import dear_imgui as imgui
@@ -95,16 +95,16 @@ class BodyInspector(plugin.ViewerPlugin):
   """Handler that draws body-inspection plots using ImGui/ImPlot."""
 
   def __init__(self) -> None:
-    self._app: viewer_app.ViewerApp | None = None
+    self._app: studio_app.App | None = None
     self._centroid: list[np.ndarray] = [np.zeros(3) for _ in range(_N_HISTORY)]
     self._euler: list[np.ndarray] = [np.zeros(3) for _ in range(_N_HISTORY)]
     self._body_id: int = -1
 
   @messages.handler
-  def on_viewer_app_init(self, event: viewer_app.ViewerAppInitEvent) -> None:
-    """Caches the ViewerApp reference on startup."""
-    assert isinstance(event.viewer_app, viewer_app.ViewerApp)
-    self._app = event.viewer_app
+  def on_studio_app_init(self, event: studio_app.InitEvent) -> None:
+    """Caches the studio_app App reference on startup."""
+    assert isinstance(event.app, studio_app.App)
+    self._app = event.app
 
   @messages.handler
   def on_post_model(self, event: messages.PostModelEvent) -> None:

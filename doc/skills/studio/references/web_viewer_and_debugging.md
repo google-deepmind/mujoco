@@ -91,8 +91,9 @@ continuous heartbeat ping-pongs over `/ui` and `/state`:
 
 Host-side and browser-side logs surface in different places:
 
-1.  **Host Logs (Python & MuJoCo Engine)**: Once `ViewerApp` is initialized (and
-    in the C++ Studio app), MuJoCo engine messages (`mju_warning`,
+1.  **Host Logs (Python & MuJoCo Engine)**: Once `studio_app.App` is
+    initialized (and in the C++ Studio app), MuJoCo engine messages
+    (`mju_warning`,
     `mju_message`, ...), Python `logging` records, `warnings.warn` calls, and
     uncaught exceptions from any thread are captured into the Studio Console
     (`ux.console_gui` / `Console::WindowGui`) while still forwarding to existing

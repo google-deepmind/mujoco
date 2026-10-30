@@ -13,7 +13,7 @@
 # limitations under the License.
 """Simulation-agnostic native viewer for MuJoCo models.
 
-See the documentation for viewer_app.py for more details on the architecture
+See the documentation for app/plugins.py for more details on the architecture
 separating the viewer and simulation.
 """
 

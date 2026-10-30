@@ -29,9 +29,9 @@ Plugins can be wired up in two ways:
 
 * **In code:** import your plugin modules and pass instances in
   ``plugins=[...]`` to ``launch_passive.run`` (or ``launch_web`` /
-  ``launch_native``), as ``viewer.py`` does for ``ViewerApp``, ``StepControl``,
-  and ``SimHistory``. Plugins can then take constructor arguments and use any
-  dependency of the entry point.
+  ``launch_native``), as ``viewer.py`` does for ``studio_app.App``,
+  ``StepControl``, and ``SimHistory``. Plugins can then take constructor
+  arguments and use any dependency of the entry point.
 * **From files:** ``viewer.py --plugins=a.py,b.py`` calls ``load_plugins``,
   which imports each file and instantiates every ``ViewerPlugin`` and
   ``SimPlugin`` subclass defined in it with ``cls()``.

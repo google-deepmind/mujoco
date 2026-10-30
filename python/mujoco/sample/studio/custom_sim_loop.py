@@ -33,11 +33,11 @@ import argparse
 import time
 
 import mujoco
+from mujoco.studio import app as studio_app
 from mujoco.studio import launch_web
 from mujoco.studio import messages
 from mujoco.studio import plugin
 from mujoco.studio import sim
-from mujoco.studio import viewer_app
 from mujoco.studio import viewer_protocol
 
 
@@ -96,7 +96,8 @@ def main() -> None:
 
   with launch_web.launch(
       config,
-      plugins=[viewer_app.ViewerApp(), controls],  # No StepControl: loop paces.
+      # No StepControl: loop paces.
+      plugins=[studio_app.App(), controls],
   ) as handle:
     while handle.is_running():
       tick = time.perf_counter()
