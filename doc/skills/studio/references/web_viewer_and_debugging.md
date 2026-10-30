@@ -102,7 +102,12 @@ Host-side and browser-side logs surface in different places:
         counts—click it to toggle the Console. Right-click inside the Console to
         clear lines, copy all lines, or adjust `mju_setLogConfig` (terminal
         printing, `MUJOCO_LOG.TXT` file output, and active info topics; the
-        Console itself captures regardless).
+        Console itself captures regardless). In the browser builds (`WebViewer`
+        and MuJoCo Live), copying from the UI writes the browser's clipboard
+        through `MaybeSaveToClipboard` (`imgui_widgets.cc`); it needs a recent
+        click and, for the Clipboard API, https or localhost (plain http falls
+        back to `execCommand('copy')`), and logs failures to the browser
+        console.
     -   **Programmatic Inspection**: Tests and scripts can inspect captured host
         logs via `ux.get_console_lines()` and `ux.get_console_counts()`.
 2.  **Browser Logs (WebViewer Rendering, WASM, or WebSocket Errors)**: Client

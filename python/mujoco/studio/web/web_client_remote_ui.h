@@ -90,7 +90,7 @@ class RemoteUi {
   }
 
   // Sends the CmdVersion handshake when the socket is newly open, then drains
-  // all incoming commands (draw frames, textures) for this frame.
+  // all incoming commands (draw frames, textures, clipboard) for this frame.
   void ReceiveAndProcessCommands(int frame);
 
   // Captures ImGui input and sends it to the remote client. Must run before
@@ -118,6 +118,9 @@ class RemoteUi {
 
   void ProcessCmdDrawFrame(NetImgui::Internal::CmdDrawFrame* cmd);
   void ProcessCmdTexture(NetImgui::Internal::CmdTexture* cmd);
+  // Puts text the remote client copied on this browser's clipboard, or opens
+  // it in a new tab if it is a URL marked as one to open.
+  void ProcessCmdClipboard(NetImgui::Internal::CmdClipboard* cmd);
 
  private:
   Callbacks& callbacks_;

@@ -25,10 +25,30 @@
 #include <vector>
 
 #include <imgui.h>
+#include "studio/ux/imgui_widgets.h"
 #include <NetImgui_CmdPackets.h>
 #include <NetImgui_Network.h>
 #include "google/logging.h"
 #include "google/network_status.h"
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/em_js.h>
+
+// Opens url in a new tab. Needs a recent user gesture, which the click that
+// made the server send the URL provides; the popup blocker refuses it
+// otherwise, which is logged to the browser console.
+EM_JS(void, OpenBrowserUrl, (const char* url), {
+  const str = UTF8ToString(url);
+  const opened = window.open(str, "_blank");
+  if (opened) {
+    opened.opener = null;
+  } else {
+    console.warn("Opening URL was blocked by the browser:", str);
+  }
+});
+#else
+void OpenBrowserUrl(const char* url) {}
+#endif  // defined(__EMSCRIPTEN__)
 
 namespace mujoco::studio {
 
@@ -38,6 +58,11 @@ namespace {
 
 // Delta-compress the GUI stream (relayed to the client via CmdInput).
 constexpr bool kUseCompression = true;
+
+// Clipboard text with this prefix is a URL for this browser to open in a new
+// tab rather than something to copy: the headless server has no browser of its
+// own, and the clipboard is the only text channel NetImgui offers it.
+constexpr char kOpenUrlPrefix[] = "\x01OPEN_URL:";
 
 void LogUnmappedTexture(
     RemoteUi::ClientTextureID client_tex_id, size_t map_size, uint32_t draw_idx,
@@ -71,8 +96,9 @@ void LogCmdReceived(CmdHeader::eCommands cmd_type, uint32_t cmd_size,
     VLOG(2, "Received Texture #%d (size=%u)", textures, cmd_size);
   } else if (cmd_type == CmdHeader::eCommands::Background) {
     VLOG(2, "Received Background cmd (size=%u)", cmd_size);
+  } else if (cmd_type == CmdHeader::eCommands::Clipboard) {
+    VLOG(2, "Received Clipboard cmd (size=%u)", cmd_size);
   } else if (cmd_type != CmdHeader::eCommands::Count &&
-             cmd_type != CmdHeader::eCommands::Clipboard &&
              cmd_type != CmdHeader::eCommands::Input) {
     VLOG(2, "Received UNKNOWN cmd: type=%d, size=%u",
          static_cast<int>(cmd_type), cmd_size);
@@ -247,6 +273,9 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
       textures_received_++;
       ProcessCmdTexture(
           reinterpret_cast<CmdTexture*>(pending_receive_.pCommand));
+    } else if (cmd_type == CmdHeader::eCommands::Clipboard) {
+      ProcessCmdClipboard(
+          reinterpret_cast<CmdClipboard*>(pending_receive_.pCommand));
     }
 
     if (pending_receive_.bAutoFree)
@@ -255,6 +284,26 @@ void RemoteUi::ReceiveAndProcessCommands(int frame) {
   }
 
   VLOG(2, "Frame %d: processed %d commands", frame, cmds_this_frame);
+}
+
+// The headless server's ImGui called SetClipboardText, e.g. for the Console's
+// Copy All, and NetImgui forwarded the text here. MaybeSaveToClipboard copies
+// it, so the caller can free the command afterwards. Text prefixed with
+// kOpenUrlPrefix is a URL to open instead (see OpenBrowserUrl).
+void RemoteUi::ProcessCmdClipboard(CmdClipboard* cmd_clipboard) {
+  if (!cmd_clipboard) return;
+  if (!cmd_clipboard->ToPointers()) {
+    LOG(Warning, "ProcessCmdClipboard: dropping invalid clipboard command");
+    return;
+  }
+  const char* text = cmd_clipboard->mContentUTF8.Get();
+  if (text == nullptr) return;
+  constexpr size_t kPrefixLength = sizeof(kOpenUrlPrefix) - 1;
+  if (std::strncmp(text, kOpenUrlPrefix, kPrefixLength) == 0) {
+    OpenBrowserUrl(text + kPrefixLength);
+    return;
+  }
+  MaybeSaveToClipboard(text);
 }
 
 void RemoteUi::UpdateTextures() {
