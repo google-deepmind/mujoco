@@ -616,47 +616,10 @@ void MainLoopImpl() {
 
   BuildBrowserGui();
 
-  // Finalize the local ImGui draw data. ImguiBridge::Update() (called inside
-  // Filament's Render) will call ImGui::Render() again, but that is a no-op
-  // once the frame has already been rendered.
-  ImGui::Render();
-
-  // Inject remote draw lists into the local ImDrawData so that Filament's
-  // ImguiBridge renders them alongside the local UI. Remote lists are inserted
-  // first (background) and local lists are re-added after (foreground), so the
-  // local UI always renders on top of remote content. Note that
-  // ImGui::GetDrawData() is only valid after ImGui::Render() and until the next
-  // call to ImGui::NewFrame().
-  ImDrawData* remote_draw_data = g_app.remote_ui.RemoteDrawData();
-  if (remote_draw_data && remote_draw_data->Valid &&
-      g_app.session.Role() == SessionRole::kControlling) {
-    ImDrawData* local_draw_data = ImGui::GetDrawData();
-    if (local_draw_data) {
-      // Save local draw lists.
-      ImVector<ImDrawList*> local_lists;
-      local_lists.reserve(local_draw_data->CmdLists.Size);
-      for (int i = 0; i < local_draw_data->CmdLists.Size; ++i) {
-        local_lists.push_back(local_draw_data->CmdLists[i]);
-      }
-
-      // Clear and rebuild: remote first, then local.
-      local_draw_data->CmdLists.resize(0);
-      local_draw_data->TotalVtxCount = 0;
-      local_draw_data->TotalIdxCount = 0;
-
-      // Remote draw lists (background).
-      for (int i = 0; i < remote_draw_data->CmdLists.Size; ++i) {
-        local_draw_data->AddDrawList(remote_draw_data->CmdLists[i]);
-      }
-
-      // Local draw lists (foreground).
-      for (int i = 0; i < local_lists.Size; ++i) {
-        local_draw_data->AddDrawList(local_lists[i]);
-      }
-    }
-  }
-
-  // Render the scene and all ImGui UI (local and remote).
+  // Sync the 3D scene before ImGui::Render() because ModelScene::Sync() calls
+  // DrawTextAt, which emits 3D label text into the active ImGui frame via
+  // ImGui::Begin("labels", ...).
+  bool can_submit = false;
   if (g_app.renderer && g_app.model_holder && g_app.model_holder->ok()) {
     // Apply backend state if available.
     if (g_app.backend_state_dirty && !g_app.download_status.is_downloading) {
@@ -686,11 +649,69 @@ void MainLoopImpl() {
             {0, 0, width, height}, &g_app.vis_options, &g_app.perturb,
             &g_app.camera, std::span(g_app.extra_geoms));
       }
-      g_app.imgui_bridge->Update();
-
-      mujoco::Renderer::View views[2] = {GetSceneView(), GetUxView()};
-      g_app.renderer->Render(views);
+      can_submit = true;
     }
+  }
+
+  // Finalize the local ImGui draw data. ImguiBridge::Update() will call
+  // ImGui::Render() again, but that is a no-op once the frame has already been
+  // rendered.
+  ImGui::Render();
+
+  // Inject remote draw lists into the local ImDrawData so that Filament's
+  // ImguiBridge renders them alongside the local UI. 3D scene labels render
+  // behind remote UI, and browser-local UI (role/disconnect overlays) renders
+  // in the foreground. Note that ImGui::GetDrawData() is only valid after
+  // ImGui::Render() and until the next call to ImGui::NewFrame().
+  ImDrawData* remote_draw_data = g_app.remote_ui.RemoteDrawData();
+  if (remote_draw_data && remote_draw_data->Valid &&
+      g_app.session.Role() == SessionRole::kControlling) {
+    ImDrawData* local_draw_data = ImGui::GetDrawData();
+    if (local_draw_data) {
+      // Save local draw lists.
+      ImVector<ImDrawList*> local_lists;
+      local_lists.reserve(local_draw_data->CmdLists.Size);
+      for (int i = 0; i < local_draw_data->CmdLists.Size; ++i) {
+        local_lists.push_back(local_draw_data->CmdLists[i]);
+      }
+
+      // Clear and rebuild: 3D scene labels first, then remote, then local UI.
+      local_draw_data->CmdLists.resize(0);
+      local_draw_data->TotalVtxCount = 0;
+      local_draw_data->TotalIdxCount = 0;
+
+      auto is_label_list = [](const ImDrawList* list) {
+        return list->_OwnerName != nullptr &&
+               std::strncmp(list->_OwnerName, "labels", 6) == 0;
+      };
+
+      // 3D scene labels (background).
+      for (int i = 0; i < local_lists.Size; ++i) {
+        if (is_label_list(local_lists[i])) {
+          local_draw_data->AddDrawList(local_lists[i]);
+        }
+      }
+
+      // Remote draw lists.
+      for (int i = 0; i < remote_draw_data->CmdLists.Size; ++i) {
+        local_draw_data->AddDrawList(remote_draw_data->CmdLists[i]);
+      }
+
+      // Local browser overlay draw lists (foreground).
+      for (int i = 0; i < local_lists.Size; ++i) {
+        if (!is_label_list(local_lists[i])) {
+          local_draw_data->AddDrawList(local_lists[i]);
+        }
+      }
+    }
+  }
+
+  // Render the scene and all ImGui UI (local and remote).
+  if (can_submit) {
+    g_app.imgui_bridge->Update();
+
+    mujoco::Renderer::View views[2] = {GetSceneView(), GetUxView()};
+    g_app.renderer->Render(views);
   }
 
   g_app.window->Present();
