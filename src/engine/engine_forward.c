@@ -1568,7 +1568,9 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
 
       // element stretch return mapping (von Mises / J2 deviatoric strain)
       int stiffnessadr = m->flex_stiffnessadr[f];
+      int stretch_pnum = 0;
       if (stiffnessadr >= 0 && m->flex_stiffness[stiffnessadr] != 0 && elemnum > 0) {
+        stretch_pnum = nedge * elemnum;
         const mjtNum* k = m->flex_stiffness + stiffnessadr;
         const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
         const int* edges = m->flex_edge + 2 * m->flex_edgeadr[f];
@@ -1692,6 +1694,59 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
               }
             }
             d->flex_hessian_valid[f] = 0;
+          }
+        }
+      }
+
+      // 2D shell bending return mapping in dihedral angle space
+      int bendingadr = m->flex_bendingadr[f];
+      if (dim == 2 && bendingadr >= 0 && stiffnessadr >= 0) {
+        // 2D shell thickness is stored in stiffness[6] (stiffness[0:6] holds the 2D stretch metric)
+        mjtNum thickness = m->flex_stiffness[stiffnessadr + 6];
+        if (thickness > mjMINVAL) {
+          mjtNum* bend_plastic = plastic + stretch_pnum;
+          const mjtNum* b = m->flex_bending + bendingadr;
+          const mjtNum* rest = m->flexedge_length0 + m->flex_edgeadr[f];
+          mjtNum kappa_yield = 2 * yield / thickness;
+
+          for (int e = 0; e < edgenum; e++) {
+            const int* edge = m->flex_edge + 2 * (e + m->flex_edgeadr[f]);
+            const int* flap = m->flex_edgeflap + 2 * (e + m->flex_edgeadr[f]);
+            int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+            if (v[3] == -1) {
+              continue;
+            }
+            const mjtNum* be = b + 17 * e;
+            mjtNum b23 = be[11];
+            if (b23 <= mjMINVAL) {
+              continue;
+            }
+
+            mjtNum ed[3][3], frc2[3], frc3[3];
+            mji_sub3(ed[0], xpos + 3*v[1], xpos + 3*v[0]);
+            mji_sub3(ed[1], xpos + 3*v[2], xpos + 3*v[0]);
+            mji_sub3(ed[2], xpos + 3*v[3], xpos + 3*v[0]);
+            mji_cross(frc2, ed[2], ed[0]);
+            mji_cross(frc3, ed[0], ed[1]);
+
+            mjtNum two_a1 = mju_norm3(frc3);
+            mjtNum two_a2 = mju_norm3(frc2);
+            mjtNum l0 = rest[e];
+            mjtNum denom = two_a1 * two_a2;
+            if (denom <= mjMINVAL || l0 <= mjMINVAL) {
+              continue;
+            }
+
+            mjtNum omega = mju_dot3(ed[2], frc3);
+            mjtNum theta = mju_atan2(omega * l0, mju_dot3(frc2, frc3));
+            mjtNum theta_p = mju_atan2(-(be[16] + bend_plastic[e]) * l0, b23);
+            mjtNum theta_yield = 0.5 * (two_a1 + two_a2) / l0 * kappa_yield;
+            mjtNum theta_el = theta - theta_p;
+            if (theta_el > theta_yield || theta_el < -theta_yield) {
+              theta_p = (theta_el > theta_yield) ? theta - theta_yield : theta + theta_yield;
+              theta_p = mju_clip(theta_p, -1.3, 1.3);
+              bend_plastic[e] = -(b23 / l0) * mju_tan(theta_p) - be[16];
+            }
           }
         }
       }

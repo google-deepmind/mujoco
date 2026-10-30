@@ -3688,8 +3688,10 @@ TEST_F(PlasticityTest, Flex2DStretchPlasticity) {
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(m.get(), NotNull()) << error;
   ASSERT_EQ(m->nflex, 1);
-  // 2 triangles * 3 edges = 6 stretch plastic entries
-  ASSERT_EQ(m->nplastic, 3 * m->flex_elemnum[0]);
+  // 2 triangles * 3 edges = 6 stretch plastic entries + 5 bend plastic entries
+  int stretch_pnum = 3 * m->flex_elemnum[0];
+  int bend_pnum = m->flex_edgenum[0];
+  ASSERT_EQ(m->nplastic, stretch_pnum + bend_pnum);
 
   MjDataPtr d = MakeData(m);
 
@@ -3701,6 +3703,7 @@ TEST_F(PlasticityTest, Flex2DStretchPlasticity) {
   }
 
   // In-plane membrane stretching beyond yield (pull v3 from y=-0.5 to y=-0.7):
+  // stretch entries yield while bending entries stay zero
   d->qpos[0] = 0.0;
   d->qpos[1] = -0.2;
   d->qpos[2] = 0.0;
@@ -3711,7 +3714,9 @@ TEST_F(PlasticityTest, Flex2DStretchPlasticity) {
   mj_step(m.get(), d.get());
   mj_forward(m.get(), d.get());
   mjtNum fy_after = d->qfrc_spring[1];
-  EXPECT_GT(mju_norm(d->plastic, m->nplastic), 0.01);
+  EXPECT_GT(mju_norm(d->plastic, stretch_pnum), 0.01);
+  EXPECT_NEAR(mju_norm(d->plastic + stretch_pnum, bend_pnum), 0.0,
+              MjTol(1e-12, 1e-5));
   EXPECT_LT(mju_abs(fy_after), mju_abs(fy_before));
 
   // Stepping again at the same configuration produces no additional plastic
@@ -3786,6 +3791,121 @@ TEST_F(PlasticityTest, Flex2DStretchPlasticity) {
     mj_step(md.get(), dd.get());
   }
   EXPECT_GT(mju_norm(dd->plastic, 6), 0.05);
+}
+
+TEST_F(PlasticityTest, Flex2DBendPlasticity) {
+  // Two triangles sharing interior hinge edge (0, 1) along the x-axis:
+  // v0=(0,0,0), v1=(1,0,0), v2=(0.5, 0.5, 0), v3=(0.5, -0.5, 0)
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+    <worldbody>
+      <flexcomp name="shell" type="direct" dim="2" mass="1"
+                point="0 0 0  1 0 0  0.5 0.5 0  0.5 -0.5 0"
+                element="0 1 2  0 3 1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.3" thickness="0.02" elastic2d="bend" yield="0.002"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+  // elastic2d="bend" only allocates bending plastic entries (1 per edge = 5)
+  ASSERT_EQ(m->nplastic, m->flex_edgenum[0]);
+  ASSERT_EQ(m->nplastic, 5);
+
+  MjDataPtr d = MakeData(m);
+
+  // Small out-of-plane displacement below yield: plastic state stays zero
+  d->qpos[2] = 0.01;
+  mj_step(m.get(), d.get());
+  for (int i = 0; i < m->nplastic; i++) {
+    EXPECT_NEAR(d->plastic[i], 0.0, MjTol(1e-12, 1e-5));
+  }
+
+  // Fold flap vertex v3 upward along +z beyond yield (dz = 0.2):
+  d->qpos[0] = 0.0;
+  d->qpos[1] = 0.0;
+  d->qpos[2] = 0.2;
+  mj_forward(m.get(), d.get());
+  mjtNum fz_before = d->qfrc_spring[2];
+  EXPECT_LT(fz_before, -5e-4);
+
+  mj_step(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  mjtNum fz_after = d->qfrc_spring[2];
+  EXPECT_GT(mju_norm(d->plastic, m->nplastic), 5e-4);
+  EXPECT_LT(mju_abs(fz_after), mju_abs(fz_before));
+
+  // Stepping again at the same configuration produces no additional plastic
+  // flow
+  std::vector<mjtNum> p_saved(d->plastic, d->plastic + m->nplastic);
+  mj_step(m.get(), d.get());
+  for (int i = 0; i < m->nplastic; i++) {
+    EXPECT_NEAR(d->plastic[i], p_saved[i], MjTol(1e-12, 1e-5));
+  }
+
+  // When returned to flat (z = 0), residual plastic curvature pushes v3 toward
+  // +z
+  d->qpos[2] = 0.0;
+  mj_forward(m.get(), d.get());
+  EXPECT_GT(d->qfrc_spring[2], 3e-4);
+
+  // Near-zero yield threshold with pure out-of-plane rotation of v3 around the
+  // hinge edge (y = -0.5 * cos(theta), z = 0.5 * sin(theta), so A_1 == A_2):
+  // tangential bending torque around the hinge drops to zero after one step
+  m->flex_yield[0] = 1e-12;
+  mj_resetData(m.get(), d.get());
+  mjtNum theta = 0.2;
+  d->qpos[1] = 0.5 * (1.0 - std::cos(theta));
+  d->qpos[2] = 0.5 * std::sin(theta);
+  mj_step(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  mjtNum tau_hinge =
+      d->qfrc_spring[1] * std::sin(theta) + d->qfrc_spring[2] * std::cos(theta);
+  EXPECT_NEAR(tau_hinge, 0.0, MjTol(1e-10, 1e-5));
+
+  // Dynamic fold-and-release test (timestep > 0, edge equality="true"):
+  // fold v3 to 45 deg, yield, and release dynamically; verify the residual
+  // fold angle is retained without reverse yielding on springback
+  static constexpr char xml_dyn[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="discrete" timestep="0.002"/>
+    <worldbody>
+      <flexcomp name="shell" type="direct" dim="2" mass="1"
+                point="0 0 0  1 0 0  0.5 0.5 0  0.5 -0.5 0"
+                element="0 1 2  0 3 1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <edge equality="true" solref="0.002 1"/>
+        <elasticity young="1000" poisson="0.3" thickness="0.02" elastic2d="bend" damping="0.05" yield="0.005"/>
+        <pin id="0 1 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr md = LoadModelFromString(xml_dyn, error, sizeof(error));
+  ASSERT_THAT(md.get(), NotNull()) << error;
+  MjDataPtr dd = MakeData(md);
+  mjtNum theta_fold = 0.8;
+  dd->qpos[1] = 0.5 * (1.0 - std::cos(theta_fold));
+  dd->qpos[2] = 0.5 * std::sin(theta_fold);
+  mj_step(md.get(), dd.get());
+  std::vector<mjtNum> p_folded(dd->plastic, dd->plastic + md->nplastic);
+  for (int step = 0; step < 300; step++) {
+    mj_step(md.get(), dd.get());
+  }
+  for (int i = 0; i < md->nplastic; i++) {
+    EXPECT_NEAR(dd->plastic[i], p_folded[i], MjTol(1e-10, 1e-5));
+  }
+  mjtNum y3 = -0.5 + dd->qpos[1];
+  mjtNum z3 = dd->qpos[2];
+  mjtNum theta_final = std::atan2(z3, -y3);
+  EXPECT_GT(theta_final, 0.65);
 }
 
 }  // namespace

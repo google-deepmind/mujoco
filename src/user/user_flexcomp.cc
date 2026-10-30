@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -2332,25 +2333,38 @@ void mjCFlex::ForgetKeyframes(const std::vector<std::string>& names, bool keep) 
   }
 }
 
-
 int mjCFlex::PlasticNum() const {
   if (!stiffness.empty() || !bending.empty()) {
-    if (stressyield > 0 && !interpolated && dim >= 2 && !stiffness.empty() && stiffness[0] != 0) {
-      return (dim == 2 ? 3 : 6) * nelem;
+    int pnum = 0;
+    if (stressyield > 0 && !interpolated && dim >= 2) {
+      if (!stiffness.empty() && stiffness[0] != 0) { pnum += (dim == 2 ? 3 : 6) * nelem; }
+      if (dim == 2 && !bending.empty() && thickness > 0) { pnum += nedge; }
     }
-    return 0;
+    return pnum;
   }
   if (spec.stressyield <= 0 || !spec_nodebody_.empty() || spec.dim < 2 || spec.young <= 0) {
     return 0;
   }
   int num_elem = (int)spec_elem_.size() / (spec.dim + 1);
   if (num_elem <= 0) { return 0; }
+  int pnum = 0;
   if ((spec.dim == 2 && spec.elastic2d >= 2 && spec.thickness > 0) || spec.dim == 3) {
-    return (spec.dim == 2 ? 3 : 6) * num_elem;
+    pnum += (spec.dim == 2 ? 3 : 6) * num_elem;
   }
-  return 0;
+  if (spec.dim == 2 && (spec.elastic2d == 1 || spec.elastic2d == 3) && spec.thickness > 0) {
+    std::unordered_set<std::pair<int, int>, PairHash> unique_edges;
+    for (int f = 0; f < num_elem; f++) {
+      const int* v = spec_elem_.data() + 3 * f;
+      for (int e = 0; e < 3; e++) {
+        int v0 = v[eledge[1][e][0]];
+        int v1 = v[eledge[1][e][1]];
+        unique_edges.insert({std::min(v0, v1), std::max(v0, v1)});
+      }
+    }
+    pnum += (int)unique_edges.size();
+  }
+  return pnum;
 }
-
 
 void mjCFlex::PointToLocal() {
   spec.element      = static_cast<mjsElement*>(this);
@@ -3334,6 +3348,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
                                     young / (2 * (1 + poisson)),
                                     thickness);
       }
+      // store 2D shell thickness in unused slot stiffness[6] (stiffness[0:6] holds 2D stretch
+      // metric)
+      if (stressyield > 0 && !stiffness.empty()) { stiffness[6] = thickness; }
     }
   }
 

@@ -449,6 +449,13 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
   int edgenum = m->flex_edgenum[f];
   mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
   mjtNum* b = m->flex_bending + bendingadr;
+  const mjtNum* bend_plastic = NULL;
+  if (m->flex_plasticadr[f] >= 0) {
+    int stiffnessadr = m->flex_stiffnessadr[f];
+    int stretch_pnum = (stiffnessadr >= 0 && m->flex_stiffness[stiffnessadr] != 0)
+                       ? 3 * m->flex_elemnum[f] : 0;
+    bend_plastic = d->plastic + m->flex_plasticadr[f] + stretch_pnum;
+  }
 
   mj_markStack(d);
   mjtNum* vvel = enbl_damper ? mjSTACKALLOC(d, 3*vertnum, mjtNum) : NULL;
@@ -488,6 +495,7 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
     frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
 
     // accumulate world-space bending forces per vertex
+    mjtNum b16 = b[17*e+16] + (bend_plastic ? bend_plastic[e] : 0);
     for (int i = 0; i < 4; i++) {
       for (int x = 0; x < 3; x++) {
         for (int j = 0; j < 4; j++) {
@@ -499,7 +507,7 @@ static void mj_flexPassiveBend(const mjModel* m, mjData* d, int f,
         }
 
         // curved reference contribution
-        if (enbl_spring) spring[3*v[i]+x] += b[17*e+16] * frc[i][x];
+        if (enbl_spring) spring[3*v[i]+x] += b16 * frc[i][x];
       }
     }
   }

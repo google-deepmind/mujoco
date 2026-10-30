@@ -733,6 +733,131 @@ def _next_plastic_flex_stretch(
     flex_hessian_valid_out[worldid, f] = False
 
 
+@wp.kernel
+def _next_plastic_flex_bend(
+  # Model:
+  opt_timestep: wp.array[float],
+  opt_enableflags: int,
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  body_simple: wp.array[int],
+  dof_parentid: wp.array[int],
+  flex_dim: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_vertadr: wp.array[int],
+  flex_edgeadr: wp.array[int],
+  flex_elemnum: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_bendingadr: wp.array[int],
+  flex_plasticadr: wp.array[int],
+  flex_vertbodyid: wp.array[int],
+  flex_edge: wp.array[wp.vec2i],
+  flex_edgeflap: wp.array[wp.vec2i],
+  flexedge_length0: wp.array[float],
+  flex_stiffness: wp.array[float],
+  flex_bending: wp.array[float],
+  flex_yield: wp.array[float],
+  flex_edgeflexid: wp.array[int],
+  # Data in:
+  qvel_in: wp.array2d[float],
+  plastic_in: wp.array2d[float],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  flexvert_xpos_in: wp.array2d[wp.vec3],
+  body_awake_in: wp.array2d[int],
+  # Data out:
+  plastic_out: wp.array2d[float],
+):
+  worldid, edgeid = wp.tid()
+  f = flex_edgeflexid[edgeid]
+  padr_base = flex_plasticadr[f]
+  if padr_base < 0:
+    return
+  if flex_dim[f] != 2 or flex_interp[f] != 0:
+    return
+  bending_adr_base = flex_bendingadr[f]
+  stiffness_adr_base = flex_stiffnessadr[f]
+  if bending_adr_base < 0 or stiffness_adr_base < 0:
+    return
+  thickness = flex_stiffness[stiffness_adr_base + 6]
+  if thickness <= MJ_MINVAL:
+    return
+  flap = flex_edgeflap[edgeid]
+  if flap[1] == -1:
+    return
+
+  eid = edgeid - flex_edgeadr[f]
+  bbase = bending_adr_base + 17 * eid
+  b23 = flex_bending[bbase + 11]
+  if b23 <= MJ_MINVAL:
+    return
+
+  edge = flex_edge[edgeid]
+  vbase = flex_vertadr[f]
+  v = wp.vec4i(vbase + edge[0], vbase + edge[1], vbase + flap[0], vbase + flap[1])
+
+  if opt_enableflags & EnableBit.SLEEP:
+    any_awake = bool(False)
+    for j in range(4):
+      bid = flex_vertbodyid[v[j]]
+      if bid >= 0 and body_awake_in[worldid, bid] == SleepState.AWAKE:
+        any_awake = bool(True)
+    if not any_awake:
+      return
+
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+  vpos = passive.mat43()
+  for j in range(4):
+    vel = passive.flex_gather_vert(
+      body_rootid,
+      body_weldid,
+      body_dofnum,
+      body_dofadr,
+      body_simple,
+      dof_parentid,
+      flex_vertbodyid,
+      subtree_com_in,
+      cdof_in,
+      flexvert_xpos_in,
+      qvel_in,
+      worldid,
+      v[j],
+    )
+    vpos[j] = flexvert_xpos_in[worldid, v[j]] + timestep * vel
+
+  ed0 = vpos[1] - vpos[0]
+  ed1 = vpos[2] - vpos[0]
+  ed2 = vpos[3] - vpos[0]
+  frc2 = wp.cross(ed2, ed0)
+  frc3 = wp.cross(ed0, ed1)
+
+  two_a1 = wp.length(frc3)
+  two_a2 = wp.length(frc2)
+  l0 = flexedge_length0[edgeid]
+  denom = two_a1 * two_a2
+  if denom <= MJ_MINVAL or l0 <= MJ_MINVAL:
+    return
+
+  yield_ = wp.max(0.0, flex_yield[f])
+  kappa_yield = 2.0 * yield_ / thickness
+  omega = wp.dot(ed2, frc3)
+  theta = wp.atan2(omega * l0, wp.dot(frc2, frc3))
+  theta_yield = 0.5 * (two_a1 + two_a2) / l0 * kappa_yield
+
+  stretch_pnum = 3 * flex_elemnum[f] if flex_stiffness[stiffness_adr_base] != 0.0 else 0
+  padr = padr_base + stretch_pnum + eid
+  b16_0 = flex_bending[bbase + 16]
+  b_p = plastic_in[worldid, padr]
+  theta_p = wp.atan2(-(b16_0 + b_p) * l0, b23)
+  theta_el = theta - theta_p
+  if theta_el > theta_yield or theta_el < -theta_yield:
+    theta_p = theta - theta_yield if theta_el > theta_yield else theta + theta_yield
+    theta_p = wp.clamp(theta_p, -1.3, 1.3)
+    plastic_out[worldid, padr] = -(b23 / l0) * wp.tan(theta_p) - b16_0
+
+
 def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None):
   """Advance state and time given activation derivatives and acceleration."""
   # TODO(team): can we assume static timesteps?
@@ -867,6 +992,43 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
         d.body_awake,
       ],
       outputs=[d.plastic, d.flex_hessian_valid],
+    )
+    wp.launch(
+      _next_plastic_flex_bend,
+      dim=(d.nworld, m.nflexedge),
+      inputs=[
+        m.opt.timestep,
+        m.opt.enableflags,
+        m.body_rootid,
+        m.body_weldid,
+        m.body_dofnum,
+        m.body_dofadr,
+        m.body_simple,
+        m.dof_parentid,
+        m.flex_dim,
+        m.flex_interp,
+        m.flex_vertadr,
+        m.flex_edgeadr,
+        m.flex_elemnum,
+        m.flex_stiffnessadr,
+        m.flex_bendingadr,
+        m.flex_plasticadr,
+        m.flex_vertbodyid,
+        m.flex_edge,
+        m.flex_edgeflap,
+        m.flexedge_length0,
+        m.flex_stiffness,
+        m.flex_bending,
+        m.flex_yield,
+        m.flex_edgeflexid,
+        qvel_in,
+        d.plastic,
+        d.subtree_com,
+        d.cdof,
+        d.flexvert_xpos,
+        d.body_awake,
+      ],
+      outputs=[d.plastic],
     )
 
   # advance history buffers before time advance

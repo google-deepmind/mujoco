@@ -1180,6 +1180,9 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
           if (m->flex_stiffnessadr[j] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[j]] != 0) {
             pnum += ((m->flex_dim[j] == 2) ? 3 : 6) * m->flex_elemnum[j];
           }
+          if (m->flex_dim[j] == 2 && m->flex_bendingadr[j] >= 0) {
+            pnum += m->flex_edgenum[j];
+          }
           for (int d=0; d < pnum; d++) {
             if (m->key_plastic[i*m->nplastic + adr + d] != 0) {
               k = 7;

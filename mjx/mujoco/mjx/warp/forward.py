@@ -200,6 +200,7 @@ def _forward_shim(
     flex_elemedgeadr: wp.array[int],
     flex_elemflexid: wp.array[int],
     flex_elemlayer: wp.array[int],
+    flex_elemnum: wp.array[int],
     flex_face: wp.array2d[int],
     flex_face_map: wp.array[wp.vec2i],
     flex_faceadr: wp.array[int],
@@ -871,6 +872,7 @@ def _forward_shim(
   _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemflexid = flex_elemflexid
   _m.flex_elemlayer = flex_elemlayer
+  _m.flex_elemnum = flex_elemnum
   _m.flex_face = flex_face
   _m.flex_face_map = flex_face_map
   _m.flex_faceadr = flex_faceadr
@@ -2348,6 +2350,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemedgeadr,
       m._impl.flex_elemflexid,
       m._impl.flex_elemlayer,
+      m._impl.flex_elemnum,
       m._impl.flex_face,
       m._impl.flex_face_map,
       m._impl.flex_faceadr,
@@ -3205,6 +3208,7 @@ def _step_shim(
     flex_elemedgeadr: wp.array[int],
     flex_elemflexid: wp.array[int],
     flex_elemlayer: wp.array[int],
+    flex_elemnum: wp.array[int],
     flex_face: wp.array2d[int],
     flex_face_map: wp.array[wp.vec2i],
     flex_faceadr: wp.array[int],
@@ -3891,6 +3895,7 @@ def _step_shim(
   _m.flex_elemedgeadr = flex_elemedgeadr
   _m.flex_elemflexid = flex_elemflexid
   _m.flex_elemlayer = flex_elemlayer
+  _m.flex_elemnum = flex_elemnum
   _m.flex_face = flex_face
   _m.flex_face_map = flex_face_map
   _m.flex_faceadr = flex_faceadr
@@ -5408,6 +5413,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_elemedgeadr,
       m._impl.flex_elemflexid,
       m._impl.flex_elemlayer,
+      m._impl.flex_elemnum,
       m._impl.flex_face,
       m._impl.flex_face_map,
       m._impl.flex_faceadr,

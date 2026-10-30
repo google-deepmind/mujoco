@@ -1353,6 +1353,9 @@ void mj_resetPlastic(const mjModel* m, mjData* d) {
         if (m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
           n += (dim == 2 ? 3 : 6) * m->flex_elemnum[f];
         }
+        if (dim == 2 && m->flex_bendingadr[f] >= 0) {
+          n += m->flex_edgenum[f];
+        }
         mju_zero(d->plastic + adr, n);
         if (d->flex_hessian_valid) {
           d->flex_hessian_valid[f] = 0;
@@ -2255,6 +2258,9 @@ const char* mj_validateReferences(const mjModel* m) {
     int dim = m->flex_dim[f];
     int nplastic = (m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0)
                    ? (dim == 2 ? 3 : 6) * m->flex_elemnum[f] : 0;
+    if (dim == 2 && m->flex_bendingadr[f] >= 0) {
+      nplastic += m->flex_edgenum[f];
+    }
     if (m->flex_plasticadr[f] < -1 ||
         (m->flex_plasticadr[f] >= 0 && m->flex_plasticadr[f] + nplastic > m->nplastic)) {
       return "Invalid model: flex_plasticadr out of bounds.";

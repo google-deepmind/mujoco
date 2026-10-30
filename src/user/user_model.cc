@@ -2458,14 +2458,7 @@ void mjCModel::SetSizes() {
   for (int i = 0; i < ntendon; i++) {
     if (tendons_[i]->springyield > 0) { nplastic += 2; }
   }
-  for (int i = 0; i < nflex; i++) {
-    mjCFlex* pfl = flexes_[i];
-    if (pfl->stressyield > 0 && !pfl->interpolated && pfl->dim >= 2) {
-      if (!pfl->stiffness.empty() && pfl->stiffness[0] != 0) {
-        nplastic += (pfl->dim == 2 ? 3 : 6) * pfl->nelem;
-      }
-    }
-  }
+  for (int i = 0; i < nflex; i++) { nplastic += flexes_[i]->PlasticNum(); }
 
   // nnumericdata
   for (int i = 0; i < nnumeric; i++) { nnumericdata += numerics_[i]->size; }
@@ -3648,14 +3641,9 @@ void mjCModel::CopyObjects(mjModel* m) {
                    pfl->bending.data(),
                    pfl->bending.size());
     }
-    m->flex_damping[i] = (mjtNum)pfl->damping;
-    m->flex_yield[i]   = (mjtNum)pfl->stressyield;
-    int flex_pnum      = 0;
-    if (pfl->stressyield > 0 && !pfl->interpolated && pfl->dim >= 2) {
-      if (!pfl->stiffness.empty() && pfl->stiffness[0] != 0) {
-        flex_pnum = (pfl->dim == 2 ? 3 : 6) * pfl->nelem;
-      }
-    }
+    m->flex_damping[i]     = (mjtNum)pfl->damping;
+    m->flex_yield[i]       = (mjtNum)pfl->stressyield;
+    int flex_pnum          = pfl->PlasticNum();
     m->flex_plasticadr[i]  = flex_pnum > 0 ? flex_padr : -1;
     pfl->plasticadr_       = m->flex_plasticadr[i];
     pfl->plasticnum_       = flex_pnum;
@@ -6451,8 +6439,21 @@ void mjCModel::ScaleKeyframe(
   }
   for (const mjCFlex* flex : flexes_) {
     if (plastic && flex->plasticadr_ >= 0 && flex->plasticnum_ > 0) {
-      const double f = flex->BodyGauge().Shape(1);
-      for (int j = 0; j < flex->plasticnum_; j++) { scale(plastic[flex->plasticadr_ + j], f * f); }
+      const mjCGauge g           = flex->BodyGauge();
+      const double   f           = g.Shape(1);
+      const double   fb          = g.Force(-1, 1);
+      int            stretch_num = 0;
+      if (!flex->stiffness.empty()) {
+        if (flex->stiffness[0] != 0) { stretch_num = (flex->dim == 2 ? 3 : 6) * flex->nelem; }
+      } else if ((flex->spec.dim == 2 && flex->spec.elastic2d >= 2 && flex->spec.thickness > 0) ||
+                 flex->spec.dim == 3) {
+        int num_elem = (int)flex->spec_elem_.size() / (flex->spec.dim + 1);
+        stretch_num  = (flex->spec.dim == 2 ? 3 : 6) * num_elem;
+      }
+      for (int j = 0; j < stretch_num; j++) { scale(plastic[flex->plasticadr_ + j], f * f); }
+      for (int j = stretch_num; j < flex->plasticnum_; j++) {
+        scale(plastic[flex->plasticadr_ + j], fb);
+      }
     }
   }
   for (const mjCActuator* actuator : actuators_) {

@@ -3226,14 +3226,19 @@ def _flex_bending(deterministic: bool = False):
     flex_interp: wp.array[int],
     flex_vertadr: wp.array[int],
     flex_edgeadr: wp.array[int],
+    flex_elemnum: wp.array[int],
+    flex_stiffnessadr: wp.array[int],
     flex_bendingadr: wp.array[int],
+    flex_plasticadr: wp.array[int],
     flex_vertbodyid: wp.array[int],
     flex_edge: wp.array[wp.vec2i],
     flex_edgeflap: wp.array[wp.vec2i],
+    flex_stiffness: wp.array[float],
     flex_bending: wp.array[float],
     flex_damping: wp.array[float],
     flex_edgeflexid: wp.array[int],
     # Data in:
+    plastic_in: wp.array2d[float],
     xipos_in: wp.array2d[wp.vec3],
     subtree_com_in: wp.array2d[wp.vec3],
     flexvert_xpos_in: wp.array2d[wp.vec3],
@@ -3289,6 +3294,11 @@ def _flex_bending(deterministic: bool = False):
 
     bbase = bendingadr + 17 * eid
     c16 = flex_bending[bbase + 16]
+    padr_base = flex_plasticadr[f]
+    if padr_base >= 0:
+      stiffness_adr = flex_stiffnessadr[f]
+      stretch_pnum = 3 * flex_elemnum[f] if (stiffness_adr >= 0 and flex_stiffness[stiffness_adr] != 0.0) else 0
+      c16 += plastic_in[worldid, padr_base + stretch_pnum + eid]
     frc = mat43()
     if has_spring and c16 != 0.0:
       ed0 = vpos[1] - vpos[0]
@@ -4297,13 +4307,18 @@ def passive(m: Model, d: Data):
         m.flex_interp,
         m.flex_vertadr,
         m.flex_edgeadr,
+        m.flex_elemnum,
+        m.flex_stiffnessadr,
         m.flex_bendingadr,
+        m.flex_plasticadr,
         m.flex_vertbodyid,
         m.flex_edge,
         m.flex_edgeflap,
+        m.flex_stiffness,
         m.flex_bending,
         m.flex_damping,
         m.flex_edgeflexid,
+        d.plastic,
         d.xipos,
         d.subtree_com,
         d.flexvert_xpos,
