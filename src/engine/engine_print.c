@@ -1177,11 +1177,20 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
         if (m->flex_plasticadr[j] >= 0) {
           int adr = m->flex_plasticadr[j];
           int pnum = 0;
-          if (m->flex_stiffnessadr[j] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[j]] != 0) {
-            pnum += ((m->flex_dim[j] == 2) ? 3 : 6) * m->flex_elemnum[j];
-          }
-          if (m->flex_dim[j] == 2 && m->flex_bendingadr[j] >= 0) {
-            pnum += m->flex_edgenum[j];
+          if (m->flex_interp[j] > 0) {
+            pnum = 6 * m->flex_cellnum[3*j+0] * m->flex_cellnum[3*j+1] * m->flex_cellnum[3*j+2];
+          } else if (m->flex_interp[j] < 0) {
+            int cx = m->flex_cellnum[3*j+0];
+            int cy = m->flex_cellnum[3*j+1];
+            int cz = m->flex_cellnum[3*j+2];
+            pnum = 3 * 2 * (cy*cz + cx*cz + cx*cy);
+          } else {
+            if (m->flex_stiffnessadr[j] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[j]] != 0) {
+              pnum += ((m->flex_dim[j] == 2) ? 3 : 6) * m->flex_elemnum[j];
+            }
+            if (m->flex_dim[j] == 2 && m->flex_bendingadr[j] >= 0) {
+              pnum += m->flex_edgenum[j];
+            }
           }
           for (int d=0; d < pnum; d++) {
             if (m->key_plastic[i*m->nplastic + adr + d] != 0) {

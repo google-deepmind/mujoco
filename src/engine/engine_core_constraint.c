@@ -789,13 +789,51 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         int na1 = (normal_axis + 2) % 3;
 
         // compute corotational rotation from 2D deformation gradient at face center
-        mjtNum p[2] = {.5, .5};
-        mju_flexInterpRotation2D(order, xpos_e, npe, na0, na1, normal_axis, p, elem_quat);
+        mjtNum d0 = refpos_e[3*(npe - 1) + na0] - refpos_e[na0];
+        mjtNum d1 = refpos_e[3*(npe - 1) + na1] - refpos_e[na1];
+        mjtNum t1[3] = {0, 0, 0}, t2[3] = {0, 0, 0};
+        int idx = 0;
+        for (int l0 = 0; l0 <= order; l0++) {
+          for (int l1 = 0; l1 <= order; l1++) {
+            mjtNum grad0 = mju_flexDphi(0.5, l0, order) * mju_flexPhi(0.5, l1, order);
+            mjtNum grad1 = mju_flexPhi(0.5, l0, order) * mju_flexDphi(0.5, l1, order);
+            for (int c = 0; c < 3; c++) {
+              t1[c] += xpos_e[3*idx + c] * grad0;
+              t2[c] += xpos_e[3*idx + c] * grad1;
+            }
+            idx++;
+          }
+        }
+        if (d0 > mjMINVAL) mju_scl3(t1, t1, 1 / d0);
+        if (d1 > mjMINVAL) mju_scl3(t2, t2, 1 / d1);
+        mjtNum normal[3];
+        mju_cross(normal, t1, t2);
+        mjtNum mat[9] = {0};
+        mjtNum* vecs[3];
+        vecs[na0] = t1;
+        vecs[na1] = t2;
+        vecs[normal_axis] = normal;
+        for (int col = 0; col < 3; col++) {
+          mat[0*3 + col] = vecs[col][0];
+          mat[1*3 + col] = vecs[col][1];
+          mat[2*3 + col] = vecs[col][2];
+        }
+        mju_flexPolarRotation(elem_quat, mat);
+        mju_negQuat(elem_quat, elem_quat);
       } else {
         mjtNum center[3] = {0.5, 0.5, 0.5};
         mjtNum mat[9];
         mju_defGradient(mat, center, xpos_e, order);
-        mju_mat2Rot(elem_quat, mat);
+        for (int col = 0; col < 3; col++) {
+          mjtNum dc = refpos_e[3*(npe - 1) + col] - refpos_e[col];
+          if (dc > mjMINVAL) {
+            mjtNum inv = 1 / dc;
+            mat[0*3 + col] *= inv;
+            mat[1*3 + col] *= inv;
+            mat[2*3 + col] *= inv;
+          }
+        }
+        mju_flexPolarRotation(elem_quat, mat);
         mju_negQuat(elem_quat, elem_quat);
       }
 

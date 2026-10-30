@@ -1433,15 +1433,16 @@ static void mjd_flexInterp_kernel(const mjModel* m, mjData* d,
         }
       } else {
         // gather element-local node positions and rotation
+        const mjtNum* xpos0 = m->flex_node0 + 3*m->flex_nodeadr[f];
         mjtNum quat[4];
         if (shell_mode) {
-          mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, NULL,
+          mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos, NULL, xpos0,
                                   xpos_c, NULL, NULL, gindices, quat);
         } else {
           int ci = fe / (cy * cz);
           int cj = (fe / cz) % cy;
           int ck = fe % cz;
-          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, NULL,
+          mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos, NULL, xpos0,
                                   xpos_c, NULL, NULL, gindices, quat);
         }
 

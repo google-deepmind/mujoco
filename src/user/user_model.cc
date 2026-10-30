@@ -6439,6 +6439,7 @@ void mjCModel::ScaleKeyframe(
   }
   for (const mjCFlex* flex : flexes_) {
     if (plastic && flex->plasticadr_ >= 0 && flex->plasticnum_ > 0) {
+      if (flex->interpolated || !flex->spec_nodebody_.empty()) { continue; }
       const mjCGauge g           = flex->BodyGauge();
       const double   f           = g.Shape(1);
       const double   fb          = g.Force(-1, 1);

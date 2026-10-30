@@ -130,6 +130,31 @@ static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
       mji_addScl3(displ_e+3*n, xpos_e+3*n, xpos0_e+3*n, -1);
     }
 
+    // subtract cell-center plastic displacement in corotational frame
+    if (m->flex_plasticadr[f] >= 0) {
+      if (shell_mode) {
+        int normal_axis = (fe < 2*cy*cz) ? 0 : (fe < 2*(cy*cz + cx*cz)) ? 1 : 2;
+        int axis0 = (normal_axis + 1) % 3;
+        int axis1 = (normal_axis + 2) % 3;
+        const mjtNum* sp = d->plastic + m->flex_plasticadr[f] + 3 * fe;
+        for (int n = 0; n < npe; n++) {
+          mjtNum dx0_0 = xpos0_e[3*n + axis0] - xpos0_e[axis0];
+          mjtNum dx0_1 = xpos0_e[3*n + axis1] - xpos0_e[axis1];
+          displ_e[3*n + axis0] -= sp[0]*dx0_0 + 0.5*sp[2]*dx0_1;
+          displ_e[3*n + axis1] -= 0.5*sp[2]*dx0_0 + sp[1]*dx0_1;
+        }
+      } else {
+        const mjtNum* sp = d->plastic + m->flex_plasticadr[f] + 6 * fe;
+        for (int n = 0; n < npe; n++) {
+          mjtNum dx0[3];
+          mji_sub3(dx0, xpos0_e + 3*n, xpos0_e);
+          displ_e[3*n + 0] -= sp[0]*dx0[0] + 0.5*sp[3]*dx0[1] + 0.5*sp[4]*dx0[2];
+          displ_e[3*n + 1] -= 0.5*sp[3]*dx0[0] + sp[1]*dx0[1] + 0.5*sp[5]*dx0[2];
+          displ_e[3*n + 2] -= 0.5*sp[4]*dx0[0] + 0.5*sp[5]*dx0[1] + sp[2]*dx0[2];
+        }
+      }
+    }
+
     // compute force in corotational frame
     if (enbl_spring) {
       mju_mulMatVec(frc_e, k_elem, displ_e, 3*npe, 3*npe);
@@ -249,13 +274,14 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
 
   // precompute per-face cache: each face appears in multiple bending edges,
   // so caching avoids redundant position gathering and quaternion computation
+  const mjtNum* xpos0 = m->flex_node0 + 3*m->flex_nodeadr[f];
   int nfaces = 2*(cy*cz + cx*cz + cx*cy);
   mjtNum* face_xpos = mjSTACKALLOC(d, nfaces * 3*npe, mjtNum);
   int* face_gidx = mjSTACKALLOC(d, nfaces * npe, int);
   mjtNum* face_quat = mjSTACKALLOC(d, nfaces * 4, mjtNum);
   for (int fi = 0; fi < nfaces; fi++) {
     mju_flexGatherFaceState(order, cx, cy, cz, fi, xpos_g,
-                            NULL, NULL,
+                            NULL, xpos0,
                             face_xpos + fi * 3*npe, NULL, NULL,
                             face_gidx + fi * npe, face_quat + fi * 4);
   }

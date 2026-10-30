@@ -29,6 +29,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import sleep
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
 from mujoco.mjx.third_party.mujoco_warp._src import util_misc
+from mujoco.mjx.third_party.mujoco_warp._src.support import mat33_to_quat_polar
 from mujoco.mjx.third_party.mujoco_warp._src.support import next_act
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
@@ -858,6 +859,255 @@ def _next_plastic_flex_bend(
     plastic_out[worldid, padr] = -(b23 / l0) * wp.tan(theta_p) - b16_0
 
 
+@wp.kernel
+def _next_plastic_flex_interp(
+  # Model:
+  opt_timestep: wp.array[float],
+  opt_enableflags: int,
+  body_rootid: wp.array[int],
+  body_weldid: wp.array[int],
+  body_dofnum: wp.array[int],
+  body_dofadr: wp.array[int],
+  body_simple: wp.array[int],
+  dof_parentid: wp.array[int],
+  flex_interp: wp.array[int],
+  flex_cellnum: wp.array[wp.vec3i],
+  flex_nodeadr: wp.array[int],
+  flex_stiffnessadr: wp.array[int],
+  flex_plasticadr: wp.array[int],
+  flex_nodebodyid: wp.array[int],
+  flex_node0: wp.array[wp.vec3],
+  flex_stiffness: wp.array[float],
+  flex_yield: wp.array[float],
+  flex_faceadr: wp.array[int],
+  flex_cell_map: wp.array[wp.vec4i],
+  flex_face: wp.array2d[int],
+  # Data in:
+  qvel_in: wp.array2d[float],
+  plastic_in: wp.array2d[float],
+  subtree_com_in: wp.array2d[wp.vec3],
+  cdof_in: wp.array2d[wp.spatial_vector],
+  body_awake_in: wp.array2d[int],
+  flexnode_xpos_in: wp.array2d[wp.vec3],
+  # Data out:
+  plastic_out: wp.array2d[float],
+):
+  worldid, cellid = wp.tid()
+  mapping = flex_cell_map[cellid]
+  f = mapping[0]
+  ci = mapping[1]
+  cj = mapping[2]
+  ck = mapping[3]
+
+  padr_base = flex_plasticadr[f]
+  if padr_base < 0:
+    return
+  order = flex_interp[f]
+  if order == 0:
+    return
+  shell_mode = order < 0
+  order_abs = -order if shell_mode else order
+  npc = (order_abs + 1) * (order_abs + 1) if shell_mode else (order_abs + 1) * (order_abs + 1) * (order_abs + 1)
+  ndof_cell = 3 * npc
+
+  cellnum = flex_cellnum[f]
+  cx = cellnum[0]
+  cy = cellnum[1]
+  cz = cellnum[2]
+  nstart = flex_nodeadr[f]
+  ny_g = cy * order_abs + 1
+  nz_g = cz * order_abs + 1
+
+  stiffness_adr_base = flex_stiffnessadr[f]
+  if stiffness_adr_base < 0:
+    return
+  cell_idx = ci if shell_mode else ci * cy * cz + cj * cz + ck
+  k_base = stiffness_adr_base + cell_idx * ndof_cell * ndof_cell
+  if not shell_mode and flex_stiffness[k_base] == 0.0:
+    return
+
+  op1 = order_abs + 1
+  if opt_enableflags & EnableBit.SLEEP:
+    any_awake = bool(False)
+    for idx_j in range(npc):
+      if shell_mode:
+        node_j = flex_face[flex_faceadr[f] + ci, idx_j]
+      else:
+        li_j = idx_j // (op1 * op1)
+        lj_j = (idx_j // op1) % op1
+        lk_j = idx_j % op1
+        gidx_j = (ci * order_abs + li_j) * ny_g * nz_g + (cj * order_abs + lj_j) * nz_g + (ck * order_abs + lk_j)
+        node_j = nstart + gidx_j
+      bid = flex_nodebodyid[node_j]
+      if bid >= 0 and body_awake_in[worldid, bid] == SleepState.AWAKE:
+        any_awake = bool(True)
+    if not any_awake:
+      return
+
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+  f0 = wp.vec3(0.0)
+  f1 = wp.vec3(0.0)
+  f2 = wp.vec3(0.0)
+  for idx_j in range(npc):
+    if shell_mode:
+      node_j = flex_face[flex_faceadr[f] + ci, idx_j]
+    else:
+      li_j = idx_j // (op1 * op1)
+      lj_j = (idx_j // op1) % op1
+      lk_j = idx_j % op1
+      gidx_j = (ci * order_abs + li_j) * ny_g * nz_g + (cj * order_abs + lj_j) * nz_g + (ck * order_abs + lk_j)
+      node_j = nstart + gidx_j
+    vel_j = passive.flex_gather_vert(
+      body_rootid,
+      body_weldid,
+      body_dofnum,
+      body_dofadr,
+      body_simple,
+      dof_parentid,
+      flex_nodebodyid,
+      subtree_com_in,
+      cdof_in,
+      flexnode_xpos_in,
+      qvel_in,
+      worldid,
+      node_j,
+    )
+    xpos_j = flexnode_xpos_in[worldid, node_j] + timestep * vel_j
+    if shell_mode:
+      l0 = idx_j // op1
+      l1 = idx_j % op1
+      dphi0 = float(l0 - 1) if order_abs == 2 else (-1.0 + 2.0 * float(l0))
+      dphi1 = float(l1 - 1) if order_abs == 2 else (-1.0 + 2.0 * float(l1))
+      phi0 = wp.where(l0 == 1, 1.0, 0.0) if order_abs == 2 else 0.5
+      phi1 = wp.where(l1 == 1, 1.0, 0.0) if order_abs == 2 else 0.5
+      f0 += xpos_j * (dphi0 * phi1)
+      f1 += xpos_j * (phi0 * dphi1)
+    else:
+      dphi_x = float(li_j - 1) if order_abs == 2 else (-1.0 + 2.0 * float(li_j))
+      dphi_y = float(lj_j - 1) if order_abs == 2 else (-1.0 + 2.0 * float(lj_j))
+      dphi_z = float(lk_j - 1) if order_abs == 2 else (-1.0 + 2.0 * float(lk_j))
+      phi_x = wp.where(li_j == 1, 1.0, 0.0) if order_abs == 2 else 0.5
+      phi_y = wp.where(lj_j == 1, 1.0, 0.0) if order_abs == 2 else 0.5
+      phi_z = wp.where(lk_j == 1, 1.0, 0.0) if order_abs == 2 else 0.5
+      f0 += xpos_j * (dphi_x * phi_y * phi_z)
+      f1 += xpos_j * (phi_x * dphi_y * phi_z)
+      f2 += xpos_j * (phi_x * phi_y * dphi_z)
+
+  yield_ = wp.max(0.0, flex_yield[f])
+  if shell_mode:
+    normal_axis = 0 if ci < 2 * cy * cz else (1 if ci < 2 * (cy * cz + cx * cz) else 2)
+    axis0 = (normal_axis + 1) % 3
+    axis1 = (normal_axis + 2) % 3
+    node_0 = flex_face[flex_faceadr[f] + ci, 0]
+    node_last = flex_face[flex_faceadr[f] + ci, npc - 1]
+    dref = flex_node0[node_last] - flex_node0[node_0]
+    d0 = dref[axis0]
+    d1 = dref[axis1]
+    if d0 <= MJ_MINVAL or d1 <= MJ_MINVAL:
+      return
+    t1_phys = f0 / d0
+    t2_phys = f1 / d1
+    normal = wp.cross(t1_phys, t2_phys)
+    F = wp.mat33(0.0)
+    if normal_axis == 0:
+      F = wp.mat33(normal[0], t1_phys[0], t2_phys[0], normal[1], t1_phys[1], t2_phys[1], normal[2], t1_phys[2], t2_phys[2])
+    elif normal_axis == 1:
+      F = wp.mat33(t2_phys[0], normal[0], t1_phys[0], t2_phys[1], normal[1], t1_phys[1], t2_phys[2], normal[2], t1_phys[2])
+    else:
+      F = wp.mat33(t1_phys[0], t2_phys[0], normal[0], t1_phys[1], t2_phys[1], normal[1], t1_phys[2], t2_phys[2], normal[2])
+    cell_quat = mat33_to_quat_polar(F)
+    cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
+    t1_rot = wp.quat_rotate(cell_quat_inv, f0)
+    t2_rot = wp.quat_rotate(cell_quat_inv, f1)
+    padr = padr_base + 3 * cell_idx
+    sp0 = plastic_in[worldid, padr + 0]
+    sp1 = plastic_in[worldid, padr + 1]
+    sp2 = plastic_in[worldid, padr + 2]
+    e0 = (t1_rot[axis0] / d0 - 1.0) - sp0
+    e1 = (t2_rot[axis1] / d1 - 1.0) - sp1
+    g01 = (t2_rot[axis0] / d1 + t1_rot[axis1] / d0) - sp2
+    alpha = 0.5 * (e0 + e1)
+    alpha_pos = wp.max(0.0, alpha)
+    dev0 = 0.5 * (e0 - e1)
+    dev1 = -dev0
+    dev_norm_sq = 2.0 * dev0 * dev0 + 0.5 * g01 * g01
+    eps_eq = wp.sqrt((2.0 * dev_norm_sq) / 3.0 + alpha_pos * alpha_pos)
+    if eps_eq > yield_:
+      scale = 1.0 - yield_ / eps_eq
+      sp0 += scale * (dev0 + alpha_pos)
+      sp1 += scale * (dev1 + alpha_pos)
+      sp2 += scale * g01
+      fnorm_sq = sp0 * sp0 + sp1 * sp1 + 0.5 * sp2 * sp2
+      if fnorm_sq > 0.1225:
+        clamp_scale = 0.35 / wp.sqrt(fnorm_sq)
+        sp0 *= clamp_scale
+        sp1 *= clamp_scale
+        sp2 *= clamp_scale
+      plastic_out[worldid, padr + 0] = sp0
+      plastic_out[worldid, padr + 1] = sp1
+      plastic_out[worldid, padr + 2] = sp2
+  else:
+    node_0 = nstart + (ci * order_abs) * ny_g * nz_g + (cj * order_abs) * nz_g + (ck * order_abs)
+    node_last = nstart + ((ci + 1) * order_abs) * ny_g * nz_g + ((cj + 1) * order_abs) * nz_g + ((ck + 1) * order_abs)
+    dref = flex_node0[node_last] - flex_node0[node_0]
+    dx = dref[0]
+    dy = dref[1]
+    dz = dref[2]
+    if dx <= MJ_MINVAL or dy <= MJ_MINVAL or dz <= MJ_MINVAL:
+      return
+    f0_phys = f0 / dx
+    f1_phys = f1 / dy
+    f2_phys = f2 / dz
+    F = wp.mat33(f0_phys[0], f1_phys[0], f2_phys[0], f0_phys[1], f1_phys[1], f2_phys[1], f0_phys[2], f1_phys[2], f2_phys[2])
+    cell_quat = mat33_to_quat_polar(F)
+    cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
+    f0_rot = wp.quat_rotate(cell_quat_inv, f0)
+    f1_rot = wp.quat_rotate(cell_quat_inv, f1)
+    f2_rot = wp.quat_rotate(cell_quat_inv, f2)
+    padr = padr_base + 6 * cell_idx
+    sp0 = plastic_in[worldid, padr + 0]
+    sp1 = plastic_in[worldid, padr + 1]
+    sp2 = plastic_in[worldid, padr + 2]
+    sp3 = plastic_in[worldid, padr + 3]
+    sp4 = plastic_in[worldid, padr + 4]
+    sp5 = plastic_in[worldid, padr + 5]
+    e0 = (f0_rot[0] / dx - 1.0) - sp0
+    e1 = (f1_rot[1] / dy - 1.0) - sp1
+    e2 = (f2_rot[2] / dz - 1.0) - sp2
+    g01 = (f1_rot[0] / dy + f0_rot[1] / dx) - sp3
+    g02 = (f2_rot[0] / dz + f0_rot[2] / dx) - sp4
+    g12 = (f2_rot[1] / dz + f1_rot[2] / dy) - sp5
+    mean = (e0 + e1 + e2) / 3.0
+    dev0 = e0 - mean
+    dev1 = e1 - mean
+    dev2 = e2 - mean
+    dev_norm_sq = dev0 * dev0 + dev1 * dev1 + dev2 * dev2 + 0.5 * (g01 * g01 + g02 * g02 + g12 * g12)
+    eps_eq = wp.sqrt((2.0 * dev_norm_sq) / 3.0)
+    if eps_eq > yield_:
+      scale = 1.0 - yield_ / eps_eq
+      sp0 += scale * dev0
+      sp1 += scale * dev1
+      sp2 += scale * dev2
+      sp3 += scale * g01
+      sp4 += scale * g02
+      sp5 += scale * g12
+      fnorm_sq = sp0 * sp0 + sp1 * sp1 + sp2 * sp2 + 0.5 * (sp3 * sp3 + sp4 * sp4 + sp5 * sp5)
+      if fnorm_sq > 0.1225:
+        clamp_scale = 0.35 / wp.sqrt(fnorm_sq)
+        sp0 *= clamp_scale
+        sp1 *= clamp_scale
+        sp2 *= clamp_scale
+        sp3 *= clamp_scale
+        sp4 *= clamp_scale
+        sp5 *= clamp_scale
+      plastic_out[worldid, padr + 0] = sp0
+      plastic_out[worldid, padr + 1] = sp1
+      plastic_out[worldid, padr + 2] = sp2
+      plastic_out[worldid, padr + 3] = sp3
+      plastic_out[worldid, padr + 4] = sp4
+      plastic_out[worldid, padr + 5] = sp5
+
+
 def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None):
   """Advance state and time given activation derivatives and acceleration."""
   # TODO(team): can we assume static timesteps?
@@ -1027,6 +1277,39 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
         d.cdof,
         d.flexvert_xpos,
         d.body_awake,
+      ],
+      outputs=[d.plastic],
+    )
+    wp.launch(
+      _next_plastic_flex_interp,
+      dim=(d.nworld, m.nflexintcell),
+      inputs=[
+        m.opt.timestep,
+        m.opt.enableflags,
+        m.body_rootid,
+        m.body_weldid,
+        m.body_dofnum,
+        m.body_dofadr,
+        m.body_simple,
+        m.dof_parentid,
+        m.flex_interp,
+        m.flex_cellnum,
+        m.flex_nodeadr,
+        m.flex_stiffnessadr,
+        m.flex_plasticadr,
+        m.flex_nodebodyid,
+        m.flex_node0,
+        m.flex_stiffness,
+        m.flex_yield,
+        m.flex_faceadr,
+        m.flex_cell_map,
+        m.flex_face,
+        qvel_in,
+        d.plastic,
+        d.subtree_com,
+        d.cdof,
+        d.body_awake,
+        d.flexnode_xpos,
       ],
       outputs=[d.plastic],
     )

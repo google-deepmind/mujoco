@@ -2563,6 +2563,7 @@ def _eff_flex_interp_stiff(deterministic: bool = False):
     flex_nodeadr: wp.array[int],
     flex_stiffnessadr: wp.array[int],
     flex_nodebodyid: wp.array[int],
+    flex_node0: wp.array[wp.vec3],
     flex_stiffness: wp.array[float],
     flex_damping: wp.array[float],
     flex_centered: wp.array[bool],
@@ -2621,7 +2622,7 @@ def _eff_flex_interp_stiff(deterministic: bool = False):
     if shell_mode:
       cell_quat = face_quat_in[worldid, flex_faceadr[f] + ci]
     else:
-      cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+      cell_quat = support.compute_interp_cell_quat(flex_node0, flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
     R = wp.quat_to_matrix(cell_quat)
     RT = wp.transpose(R)
 
@@ -2900,6 +2901,7 @@ def _eff_flex_interp_mul(check_skip: bool, is_shift: bool, nv: int, deterministi
     flex_nodeadr: wp.array[int],
     flex_stiffnessadr: wp.array[int],
     flex_nodebodyid: wp.array[int],
+    flex_node0: wp.array[wp.vec3],
     flex_stiffness: wp.array[float],
     flex_damping: wp.array[float],
     flex_faceadr: wp.array[int],
@@ -2969,7 +2971,7 @@ def _eff_flex_interp_mul(check_skip: bool, is_shift: bool, nv: int, deterministi
     if shell_mode:
       cell_quat = face_quat_in[worldid, flex_faceadr[f] + ci]
     else:
-      cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+      cell_quat = support.compute_interp_cell_quat(flex_node0, flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
     cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
 
     op1 = order_abs + 1
@@ -3475,6 +3477,7 @@ def eff_build(m: Model, d: Data):
           m.flex_nodeadr,
           m.flex_stiffnessadr,
           m.flex_nodebodyid,
+          m.flex_node0,
           m.flex_stiffness,
           m.flex_damping,
           m.flex_centered,
@@ -3608,6 +3611,7 @@ def eff_shift(m: Model, d: Data):
         m.flex_nodeadr,
         m.flex_stiffnessadr,
         m.flex_nodebodyid,
+        m.flex_node0,
         m.flex_stiffness,
         m.flex_damping,
         m.flex_faceadr,
@@ -3963,6 +3967,7 @@ def eff_mul_m(
           m.flex_nodeadr,
           m.flex_stiffnessadr,
           m.flex_nodebodyid,
+          m.flex_node0,
           m.flex_stiffness,
           m.flex_damping,
           m.flex_faceadr,

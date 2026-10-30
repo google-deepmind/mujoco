@@ -724,12 +724,46 @@ void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, in
 }
 
 
+// polar rotation of a 3x3 matrix; for large rotations (non-positive trace), warm-start from the
+// Gram-Schmidt rotation of the first two columns so that the iteration does not stall at the
+// identity saddle point (e.g. 180 degree rotations)
+void mju_flexPolarRotation(mjtNum quat[4], const mjtNum mat[9]) {
+  quat[0] = 1;
+  quat[1] = 0;
+  quat[2] = 0;
+  quat[3] = 0;
+  mjtNum c0[3] = {mat[0], mat[3], mat[6]};
+  mjtNum c1[3] = {mat[1], mat[4], mat[7]};
+  if (mat[0] + mat[4] + mat[8] <= 0 && mju_normalize3(c0) > mjMINVAL) {
+    mju_addToScl3(c1, c0, -mju_dot3(c0, c1));
+    if (mju_normalize3(c1) > mjMINVAL) {
+      mjtNum c2[3];
+      mju_cross(c2, c0, c1);
+      mjtNum rot[9] = {c0[0], c1[0], c2[0],
+                       c0[1], c1[1], c2[1],
+                       c0[2], c1[2], c2[2]};
+      mju_mat2Quat(quat, rot);
+    }
+  }
+  mju_mat2Rot(quat, mat);
+}
+
+
 static void flexInterpRotation(int order, const mjtNum* xpos_c,
-                               const mjtNum local[3], mjtNum* quat) {
+                               const mjtNum dref[3], const mjtNum local[3],
+                               mjtNum* quat) {
   mjtNum mat[9] = {0};
 
   if (order > 0) {
     mju_defGradient(mat, local, xpos_c, order);
+    for (int col = 0; col < 3; col++) {
+      if (dref[col] > mjMINVAL) {
+        mjtNum inv = 1 / dref[col];
+        mat[0*3 + col] *= inv;
+        mat[1*3 + col] *= inv;
+        mat[2*3 + col] *= inv;
+      }
+    }
   } else {
     // order 0: fallback to identity matrix
     mat[0] = 1;
@@ -738,11 +772,7 @@ static void flexInterpRotation(int order, const mjtNum* xpos_c,
   }
 
   // find rotation
-  quat[0] = 1;
-  quat[1] = 0;
-  quat[2] = 0;
-  quat[3] = 0;
-  mju_mat2Rot(quat, mat);
+  mju_flexPolarRotation(quat, mat);
   mju_negQuat(quat, quat);
 }
 
@@ -776,7 +806,13 @@ void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, int ck,
 
   if (quat && xpos_c) {
     mjtNum p[3] = {.5, .5, .5};
-    flexInterpRotation(order, xpos_c, p, quat);
+    mjtNum dref[3] = {1, 1, 1};
+    if (xpos0_g && order > 0) {
+      int gidx0 = (ci*order)*ny_g*nz_g + (cj*order)*nz_g + (ck*order);
+      int gidx1 = ((ci+1)*order)*ny_g*nz_g + ((cj+1)*order)*nz_g + ((ck+1)*order);
+      mju_sub3(dref, xpos0_g + 3*gidx1, xpos0_g + 3*gidx0);
+    }
+    flexInterpRotation(order, xpos_c, dref, p, quat);
   }
 }
 
@@ -821,11 +857,7 @@ void mju_flexInterpRotation2D(int order, const mjtNum* xpos_f, int npe,
   }
 
   // extract rotation via polar decomposition
-  quat[0] = 1;
-  quat[1] = 0;
-  quat[2] = 0;
-  quat[3] = 0;
-  mju_mat2Rot(quat, mat);
+  mju_flexPolarRotation(quat, mat);
   mju_negQuat(quat, quat);
 }
 
@@ -884,6 +916,7 @@ void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
 
   // gather nodes
   int local = 0;
+  int gidx0 = 0, gidx1 = 0;
   for (int l0 = 0; l0 <= order; l0++) {
     for (int l1 = 0; l1 <= order; l1++) {
       int g[3];
@@ -891,6 +924,8 @@ void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
       g[na0] = q0 * order + l0;
       g[na1] = q1 * order + l1;
       int gidx = g[0] * ny_g * nz_g + g[1] * nz_g + g[2];
+      if (local == 0) gidx0 = gidx;
+      gidx1 = gidx;
 
       if (xpos_f && xpos_g) mju_copy3(xpos_f + 3*local, xpos_g + 3*gidx);
       if (vel_f && vel_g) mju_copy3(vel_f + 3*local, vel_g + 3*gidx);
@@ -902,8 +937,43 @@ void mju_flexGatherFaceState(int order, int cx, int cy, int cz,
   }
 
   if (quat && xpos_f) {
-    mjtNum p[2] = {.5, .5};
-    mju_flexInterpRotation2D(order, xpos_f, npe, na0, na1, normal_axis, p, quat);
+    if (xpos0_g && order > 0) {
+      mjtNum d0 = xpos0_g[3*gidx1 + na0] - xpos0_g[3*gidx0 + na0];
+      mjtNum d1 = xpos0_g[3*gidx1 + na1] - xpos0_g[3*gidx0 + na1];
+      mjtNum t1[3] = {0, 0, 0};
+      mjtNum t2[3] = {0, 0, 0};
+      int idx = 0;
+      for (int l0 = 0; l0 <= order; l0++) {
+        for (int l1 = 0; l1 <= order; l1++) {
+          mjtNum grad0 = dphi(0.5, l0, order) * phi(0.5, l1, order);
+          mjtNum grad1 = phi(0.5, l0, order) * dphi(0.5, l1, order);
+          for (int d = 0; d < 3; d++) {
+            t1[d] += xpos_f[3*idx + d] * grad0;
+            t2[d] += xpos_f[3*idx + d] * grad1;
+          }
+          idx++;
+        }
+      }
+      if (d0 > mjMINVAL) mju_scl3(t1, t1, 1 / d0);
+      if (d1 > mjMINVAL) mju_scl3(t2, t2, 1 / d1);
+      mjtNum normal[3];
+      mju_cross(normal, t1, t2);
+      mjtNum mat[9] = {0};
+      mjtNum* vecs[3];
+      vecs[na0] = t1;
+      vecs[na1] = t2;
+      vecs[normal_axis] = normal;
+      for (int col = 0; col < 3; col++) {
+        mat[0*3 + col] = vecs[col][0];
+        mat[1*3 + col] = vecs[col][1];
+        mat[2*3 + col] = vecs[col][2];
+      }
+      mju_flexPolarRotation(quat, mat);
+      mju_negQuat(quat, quat);
+    } else {
+      mjtNum p[2] = {.5, .5};
+      mju_flexInterpRotation2D(order, xpos_f, npe, na0, na1, normal_axis, p, quat);
+    }
   }
 }
 

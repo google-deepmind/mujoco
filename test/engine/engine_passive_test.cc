@@ -2981,9 +2981,7 @@ TEST_F(PlasticityTest, NegativeSpringYieldError) {
   )";
   m = LoadModelFromString(flex_1d_xml, error, sizeof(error));
   EXPECT_THAT(m.get(), IsNull());
-  EXPECT_THAT(
-      error,
-      HasSubstr("flex plasticity requires a non-interpolated 2d or 3d flex"));
+  EXPECT_THAT(error, HasSubstr("flex plasticity requires a 2d or 3d flex"));
 }
 
 TEST_F(PlasticityTest, SlideAndHingeReturnMappingAndState) {
@@ -3906,6 +3904,205 @@ TEST_F(PlasticityTest, Flex2DBendPlasticity) {
   mjtNum z3 = dd->qpos[2];
   mjtNum theta_final = std::atan2(z3, -y3);
   EXPECT_GT(theta_final, 0.65);
+}
+
+TEST_F(PlasticityTest, FlexInterpStretchPlasticity) {
+  // 1. 3D Trilinear (order = 1) single non-cubic cell:
+  static constexpr char xml_3d_trilin[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+    <worldbody>
+      <flexcomp name="box1" type="grid" dim="3" dof="trilinear"
+                count="2 2 2" cellcount="1 1 1" spacing="2 1 0.5" mass="1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.25" damping="0.001" yield="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml_3d_trilin, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nflex, 1);
+  ASSERT_EQ(m->flex_interp[0], 1);
+  ASSERT_EQ(m->nplastic, 6);  // 1 cell * 6 strain components
+
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  std::vector<mjtNum> rest(m->flex_node0, m->flex_node0 + 3 * m->nflexnode);
+
+  // Pure hydrostatic expansion (scale all nodes by 1.2 -> 20% > 5% yield):
+  // deviatoric strain is zero, so plastic strain remains zero
+  for (int i = 0; i < m->nflexnode; i++) {
+    int adr = m->body_dofadr[m->flex_nodebodyid[i]];
+    d->qpos[adr + 0] = 0.2 * rest[3 * i + 0];
+    d->qpos[adr + 1] = 0.2 * rest[3 * i + 1];
+    d->qpos[adr + 2] = 0.2 * rest[3 * i + 2];
+  }
+  mj_step(m.get(), d.get());
+  for (int k = 0; k < 6; k++) {
+    EXPECT_NEAR(d->plastic[k], 0.0, MjTol(1e-12, 1e-5));
+  }
+
+  // Uniaxial stretch along z below yield (eps_zz = 0.02 < 0.05):
+  mj_resetData(m.get(), d.get());
+  for (int i = 0; i < m->nflexnode; i++) {
+    int adr = m->body_dofadr[m->flex_nodebodyid[i]];
+    d->qpos[adr + 2] = 0.02 * (rest[3 * i + 2] - rest[2]);
+  }
+  mj_step(m.get(), d.get());
+  for (int k = 0; k < 6; k++) {
+    EXPECT_NEAR(d->plastic[k], 0.0, MjTol(1e-12, 1e-5));
+  }
+
+  // Combined stretch and shear beyond yield on non-cubic cell:
+  mj_resetData(m.get(), d.get());
+  for (int i = 0; i < m->nflexnode; i++) {
+    int adr = m->body_dofadr[m->flex_nodebodyid[i]];
+    mjtNum dx0 = rest[3 * i + 0] - rest[0];
+    mjtNum dy0 = rest[3 * i + 1] - rest[1];
+    mjtNum dz0 = rest[3 * i + 2] - rest[2];
+    d->qpos[adr + 0] = 0.1 * dy0 + 0.08 * dz0;
+    d->qpos[adr + 1] = 0.1 * dx0 + 0.06 * dz0;
+    d->qpos[adr + 2] = 0.2 * dz0 + 0.08 * dx0 + 0.06 * dy0;
+  }
+  mj_forward(m.get(), d.get());
+  mjtNum f_norm_before = mju_norm(d->qfrc_spring, m->nv);
+  EXPECT_GT(f_norm_before, 10.0);
+
+  mj_step(m.get(), d.get());
+  mj_forward(m.get(), d.get());
+  mjtNum f_norm_after = mju_norm(d->qfrc_spring, m->nv);
+  EXPECT_GT(mju_norm(d->plastic, 6), 0.05);
+  EXPECT_GT(mju_abs(d->plastic[3]), 0.01);
+  EXPECT_GT(mju_abs(d->plastic[4]), 0.01);
+  EXPECT_GT(mju_abs(d->plastic[5]), 0.01);
+  // Trace of plastic strain must be zero (volume-preserving J2 flow)
+  EXPECT_NEAR(d->plastic[0] + d->plastic[1] + d->plastic[2], 0.0,
+              MjTol(1e-12, 1e-5));
+  EXPECT_LT(f_norm_after, f_norm_before);
+
+  // Stepping again at the same configuration produces no additional flow
+  std::vector<mjtNum> p_saved(d->plastic, d->plastic + 6);
+  mj_step(m.get(), d.get());
+  for (int k = 0; k < 6; k++) {
+    EXPECT_NEAR(d->plastic[k], p_saved[k], MjTol(1e-12, 1e-5));
+  }
+
+  // At the exact plastic rest configuration rotated by an arbitrary 3D rigid
+  // rotation R, spring forces must be identically zero:
+  mjtNum axis[3] = {1.0, 2.0, -1.5};
+  mju_normalize3(axis);
+  mjtNum quat_rot[4];
+  mju_axisAngle2Quat(quat_rot, axis, 0.7);
+  for (int i = 0; i < m->nflexnode; i++) {
+    mjtNum dx0[3] = {rest[3 * i + 0] - rest[0], rest[3 * i + 1] - rest[1],
+                     rest[3 * i + 2] - rest[2]};
+    mjtNum x_p[3];
+    x_p[0] = rest[3 * i + 0] + d->plastic[0] * dx0[0] +
+             0.5 * d->plastic[3] * dx0[1] + 0.5 * d->plastic[4] * dx0[2];
+    x_p[1] = rest[3 * i + 1] + 0.5 * d->plastic[3] * dx0[0] +
+             d->plastic[1] * dx0[1] + 0.5 * d->plastic[5] * dx0[2];
+    x_p[2] = rest[3 * i + 2] + 0.5 * d->plastic[4] * dx0[0] +
+             0.5 * d->plastic[5] * dx0[1] + d->plastic[2] * dx0[2];
+    mjtNum x_rot[3];
+    mju_rotVecQuat(x_rot, x_p, quat_rot);
+    int adr = m->body_dofadr[m->flex_nodebodyid[i]];
+    d->qpos[adr + 0] = x_rot[0] - rest[3 * i + 0];
+    d->qpos[adr + 1] = x_rot[1] - rest[3 * i + 1];
+    d->qpos[adr + 2] = x_rot[2] - rest[3 * i + 2];
+  }
+  mj_forward(m.get(), d.get());
+  EXPECT_NEAR(mju_norm(d->qfrc_spring, m->nv), 0.0, MjTol(1e-7, 1e-3));
+
+  // 2. 3D Quadratic (order = 2) single non-cubic cell (27 nodes):
+  static constexpr char xml_3d_quad[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+    <worldbody>
+      <flexcomp name="box2" type="grid" dim="3" dof="quadratic"
+                count="2 2 2" cellcount="1 1 1" spacing="2 1 0.5" mass="1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.25" damping="0.001" yield="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr mq = LoadModelFromString(xml_3d_quad, error, sizeof(error));
+  ASSERT_THAT(mq.get(), NotNull()) << error;
+  ASSERT_EQ(mq->flex_interp[0], 2);
+  ASSERT_EQ(mq->nplastic, 6);
+  MjDataPtr dq = MakeData(mq);
+  mj_forward(mq.get(), dq.get());
+  std::vector<mjtNum> rest_q(mq->flex_node0,
+                             mq->flex_node0 + 3 * mq->nflexnode);
+  for (int i = 0; i < mq->nflexnode; i++) {
+    int adr = mq->body_dofadr[mq->flex_nodebodyid[i]];
+    dq->qpos[adr + 0] = 0.25 * (rest_q[3 * i + 0] - rest_q[0]);
+  }
+  mj_step(mq.get(), dq.get());
+  EXPECT_GT(mju_norm(dq->plastic, 6), 0.1);
+  EXPECT_NEAR(dq->plastic[0] + dq->plastic[1] + dq->plastic[2], 0.0,
+              MjTol(1e-12, 1e-5));
+  for (int i = 0; i < mq->nflexnode; i++) {
+    mjtNum dx0[3] = {rest_q[3 * i + 0] - rest_q[0],
+                     rest_q[3 * i + 1] - rest_q[1],
+                     rest_q[3 * i + 2] - rest_q[2]};
+    int adr = mq->body_dofadr[mq->flex_nodebodyid[i]];
+    dq->qpos[adr + 0] = dq->plastic[0] * dx0[0];
+    dq->qpos[adr + 1] = dq->plastic[1] * dx0[1];
+    dq->qpos[adr + 2] = dq->plastic[2] * dx0[2];
+  }
+  mj_forward(mq.get(), dq.get());
+  EXPECT_NEAR(mju_norm(dq->qfrc_spring, mq->nv), 0.0, MjTol(1e-9, 1e-4));
+
+  // 3. 2D Shell Mode (interp < 0, elastic2d = "both"):
+  static constexpr char xml_2d_shell[] = R"(
+  <mujoco>
+    <option gravity="0 0 0" integrator="Euler" timestep="0"/>
+    <worldbody>
+      <flexcomp name="shell1" type="grid" dim="3" dof="trilinear"
+                count="2 2 2" cellcount="1 1 1" spacing="0.5 0.5 0.5" mass="1">
+        <contact contype="0" conaffinity="0" selfcollide="none"/>
+        <elasticity young="1000" poisson="0.3" thickness="0.02"
+                    elastic2d="both" damping="0.001" yield="0.05"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr ms = LoadModelFromString(xml_2d_shell, error, sizeof(error));
+  ASSERT_THAT(ms.get(), NotNull()) << error;
+  ASSERT_EQ(ms->flex_interp[0], -1);
+  // 6 boundary faces * 3 strain components = 18
+  ASSERT_EQ(ms->nplastic, 18);
+  MjDataPtr ds = MakeData(ms);
+  mj_forward(ms.get(), ds.get());
+  std::vector<mjtNum> rest_s(ms->flex_node0,
+                             ms->flex_node0 + 3 * ms->nflexnode);
+
+  // Stretch along x by 20% (> 5% yield):
+  for (int i = 0; i < ms->nflexnode; i++) {
+    int adr = ms->body_dofadr[ms->flex_nodebodyid[i]];
+    ds->qpos[adr + 0] = 0.2 * (rest_s[3 * i + 0] - rest_s[0]);
+  }
+  mj_forward(ms.get(), ds.get());
+  mjtNum fs_before = mju_norm(ds->qfrc_spring, ms->nv);
+  EXPECT_GT(fs_before, 1.0);
+
+  mj_step(ms.get(), ds.get());
+  mj_forward(ms.get(), ds.get());
+  mjtNum fs_after = mju_norm(ds->qfrc_spring, ms->nv);
+  EXPECT_GT(mju_norm(ds->plastic, ms->nplastic), 0.1);
+  EXPECT_LT(fs_after, fs_before);
+
+  // Stepping again at the same configuration produces no additional plastic
+  // flow
+  std::vector<mjtNum> ps_saved(ds->plastic, ds->plastic + ms->nplastic);
+  mj_step(ms.get(), ds.get());
+  for (int k = 0; k < ms->nplastic; k++) {
+    EXPECT_NEAR(ds->plastic[k], ps_saved[k], MjTol(1e-12, 1e-5));
+  }
 }
 
 }  // namespace

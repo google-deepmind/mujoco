@@ -1643,6 +1643,7 @@ def _equality_flexstrain(is_sparse: bool, newton: bool, is_discrete: bool = Fals
       cell_quat = face_quat_in[worldid, cell_idx]
     else:
       cell_quat = support.compute_interp_cell_quat(
+        flex_node0,
         flexnode_xpos_in,
         1,
         ci,

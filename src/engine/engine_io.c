@@ -1350,11 +1350,20 @@ void mj_resetPlastic(const mjModel* m, mjData* d) {
       if (adr >= 0) {
         int dim = m->flex_dim[f];
         int n = 0;
-        if (m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
-          n += (dim == 2 ? 3 : 6) * m->flex_elemnum[f];
-        }
-        if (dim == 2 && m->flex_bendingadr[f] >= 0) {
-          n += m->flex_edgenum[f];
+        if (m->flex_interp[f] > 0) {
+          n = 6 * m->flex_cellnum[3*f+0] * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2];
+        } else if (m->flex_interp[f] < 0) {
+          int cx = m->flex_cellnum[3*f+0];
+          int cy = m->flex_cellnum[3*f+1];
+          int cz = m->flex_cellnum[3*f+2];
+          n = 3 * 2 * (cy*cz + cx*cz + cx*cy);
+        } else {
+          if (m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0) {
+            n += (dim == 2 ? 3 : 6) * m->flex_elemnum[f];
+          }
+          if (dim == 2 && m->flex_bendingadr[f] >= 0) {
+            n += m->flex_edgenum[f];
+          }
         }
         mju_zero(d->plastic + adr, n);
         if (d->flex_hessian_valid) {
@@ -2256,10 +2265,20 @@ const char* mj_validateReferences(const mjModel* m) {
       }
     }
     int dim = m->flex_dim[f];
-    int nplastic = (m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0)
-                   ? (dim == 2 ? 3 : 6) * m->flex_elemnum[f] : 0;
-    if (dim == 2 && m->flex_bendingadr[f] >= 0) {
-      nplastic += m->flex_edgenum[f];
+    int nplastic = 0;
+    if (m->flex_interp[f] > 0) {
+      nplastic = 6 * ncell;
+    } else if (m->flex_interp[f] < 0) {
+      int cx = m->flex_cellnum[3*f+0];
+      int cy = m->flex_cellnum[3*f+1];
+      int cz = m->flex_cellnum[3*f+2];
+      nplastic = 3 * 2 * (cy*cz + cx*cz + cx*cy);
+    } else {
+      nplastic = (m->flex_stiffnessadr[f] >= 0 && m->flex_stiffness[m->flex_stiffnessadr[f]] != 0)
+                 ? (dim == 2 ? 3 : 6) * m->flex_elemnum[f] : 0;
+      if (dim == 2 && m->flex_bendingadr[f] >= 0) {
+        nplastic += m->flex_edgenum[f];
+      }
     }
     if (m->flex_plasticadr[f] < -1 ||
         (m->flex_plasticadr[f] >= 0 && m->flex_plasticadr[f] + nplastic > m->nplastic)) {

@@ -3368,6 +3368,7 @@ def _flex_passive_interp(deterministic: bool = False):
     flex_cellnum: wp.array[wp.vec3i],
     flex_nodeadr: wp.array[int],
     flex_stiffnessadr: wp.array[int],
+    flex_plasticadr: wp.array[int],
     flex_nodebodyid: wp.array[int],
     flex_node: wp.array[wp.vec3],
     flex_node0: wp.array[wp.vec3],
@@ -3379,6 +3380,7 @@ def _flex_passive_interp(deterministic: bool = False):
     flex_cell_map: wp.array[wp.vec4i],
     flex_face: wp.array2d[int],
     # Data in:
+    plastic_in: wp.array2d[float],
     xipos_in: wp.array2d[wp.vec3],
     subtree_com_in: wp.array2d[wp.vec3],
     cvel_in: wp.array2d[wp.spatial_vector],
@@ -3434,7 +3436,7 @@ def _flex_passive_interp(deterministic: bool = False):
     if shell_mode:
       cell_quat = face_quat_in[worldid, flex_faceadr[f] + ci]
     else:
-      cell_quat = support.compute_interp_cell_quat(flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
+      cell_quat = support.compute_interp_cell_quat(flex_node0, flexnode_xpos_in, order_abs, ci, cj, ck, cy, cz, ny_g, nz_g, nstart, worldid)
 
     # mju_negQuat: conjugate (R⁻¹) — negate xyz, keep w
     cell_quat_inv = wp.quat(-cell_quat[0], -cell_quat[1], -cell_quat[2], cell_quat[3])
@@ -3442,6 +3444,33 @@ def _flex_passive_interp(deterministic: bool = False):
     # Pre-compute displacements and velocities in corotational frame
     # (matches C: rotate all positions/velocities once, then K*u)
     op1 = order_abs + 1
+    node_0 = flex_face[flex_faceadr[f] + ci, 0] if shell_mode else nstart + (ci * order_abs) * ny_g * nz_g + (cj * order_abs) * nz_g + (ck * order_abs)
+    refpos_0 = flex_node0[node_0]
+    padr_base = flex_plasticadr[f]
+    cx = cellnum[0]
+    normal_axis = 0 if ci < 2 * cy * cz else (1 if ci < 2 * (cy * cz + cx * cz) else 2)
+    axis0 = (normal_axis + 1) % 3
+    axis1 = (normal_axis + 2) % 3
+    sp0 = float(0.0)
+    sp1 = float(0.0)
+    sp2 = float(0.0)
+    sp3 = float(0.0)
+    sp4 = float(0.0)
+    sp5 = float(0.0)
+    if not dsbl_spring and padr_base >= 0:
+      if shell_mode:
+        padr = padr_base + 3 * cell_idx
+        sp0 = plastic_in[worldid, padr + 0]
+        sp1 = plastic_in[worldid, padr + 1]
+        sp2 = plastic_in[worldid, padr + 2]
+      else:
+        padr = padr_base + 6 * cell_idx
+        sp0 = plastic_in[worldid, padr + 0]
+        sp1 = plastic_in[worldid, padr + 1]
+        sp2 = plastic_in[worldid, padr + 2]
+        sp3 = plastic_in[worldid, padr + 3]
+        sp4 = plastic_in[worldid, padr + 4]
+        sp5 = plastic_in[worldid, padr + 5]
     for idx_j in range(npc):
       if shell_mode:
         node_j = flex_face[flex_faceadr[f] + ci, idx_j]
@@ -3457,7 +3486,17 @@ def _flex_passive_interp(deterministic: bool = False):
       if not dsbl_spring:
         refpos_j = flex_node0[node_j]
         xrot_j = wp.quat_rotate(cell_quat_inv, xpos_j)
-        displ_scratch_out[worldid, cellid, idx_j] = xrot_j - refpos_j
+        displ_j = xrot_j - refpos_j
+        if padr_base >= 0:
+          dx0 = refpos_j - refpos_0
+          if shell_mode:
+            displ_j[axis0] -= sp0 * dx0[axis0] + 0.5 * sp2 * dx0[axis1]
+            displ_j[axis1] -= 0.5 * sp2 * dx0[axis0] + sp1 * dx0[axis1]
+          else:
+            displ_j[0] -= sp0 * dx0[0] + 0.5 * sp3 * dx0[1] + 0.5 * sp4 * dx0[2]
+            displ_j[1] -= 0.5 * sp3 * dx0[0] + sp1 * dx0[1] + 0.5 * sp5 * dx0[2]
+            displ_j[2] -= 0.5 * sp4 * dx0[0] + 0.5 * sp5 * dx0[1] + sp2 * dx0[2]
+        displ_scratch_out[worldid, cellid, idx_j] = displ_j
 
       if not dsbl_damper:
         bodyid_j = flex_nodebodyid[node_j]
@@ -4391,6 +4430,7 @@ def passive(m: Model, d: Data):
         m.flex_cellnum,
         m.flex_nodeadr,
         m.flex_stiffnessadr,
+        m.flex_plasticadr,
         m.flex_nodebodyid,
         m.flex_node,
         m.flex_node0,
@@ -4401,6 +4441,7 @@ def passive(m: Model, d: Data):
         m.flex_faceadr,
         m.flex_cell_map,
         m.flex_face,
+        d.plastic,
         d.xipos,
         d.subtree_com,
         d.cvel,

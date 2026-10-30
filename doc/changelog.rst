@@ -25,7 +25,7 @@ Significant new features
    :width: 40%
    :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/clay.xml
 
-- Added continuum elasto-plasticity (:ref:`yield<flex-elasticity-yield>`) for non-interpolated 2D and 3D
+- Added continuum elasto-plasticity (:ref:`yield<flex-elasticity-yield>`) for 2D and 3D
   :ref:`flexes<deformable-flex>`, with volumetric-deviatoric (von Mises :math:`J_2`) stretching and 2D shell bending
   return mapping in ``mjData.plastic``.
 

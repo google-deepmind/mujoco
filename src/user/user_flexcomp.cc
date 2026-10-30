@@ -2334,15 +2334,36 @@ void mjCFlex::ForgetKeyframes(const std::vector<std::string>& names, bool keep) 
 }
 
 int mjCFlex::PlasticNum() const {
-  if (!stiffness.empty() || !bending.empty()) {
+  bool compiled  = !stiffness.empty() || !bending.empty();
+  bool is_interp = compiled ? interpolated : !spec_nodebody_.empty();
+  if (is_interp) {
+    double yld  = compiled ? stressyield : spec.stressyield;
+    double yng  = compiled ? young : spec.young;
+    int    el2d = compiled ? elastic2d : spec.elastic2d;
+    double thk  = compiled ? thickness : spec.thickness;
+    bool   rgd  = compiled ? rigid : (!spec_vert_.empty() && spec_vertbody_.size() == 1);
+    if (rgd || yld <= 0 || yng <= 0 || has_strain_eq) { return 0; }
+    if (model) {
+      for (auto* equality : model->Equalities()) {
+        if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) { return 0; }
+      }
+    }
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    if (cx <= 0 || cy <= 0 || cz <= 0) { return 0; }
+    if (el2d == 0) { return 6 * cx * cy * cz; }
+    if ((el2d & 2) && thk > 0) { return 3 * 2 * (cy * cz + cx * cz + cx * cy); }
+    return 0;
+  }
+  if (compiled) {
     int pnum = 0;
-    if (stressyield > 0 && !interpolated && dim >= 2) {
+    if (stressyield > 0 && !interpolated && !rigid && dim >= 2) {
       if (!stiffness.empty() && stiffness[0] != 0) { pnum += (dim == 2 ? 3 : 6) * nelem; }
       if (dim == 2 && !bending.empty() && thickness > 0) { pnum += nedge; }
     }
     return pnum;
   }
-  if (spec.stressyield <= 0 || !spec_nodebody_.empty() || spec.dim < 2 || spec.young <= 0) {
+  bool rgd = !spec_vert_.empty() && spec_vertbody_.size() == 1;
+  if (rgd || spec.stressyield <= 0 || !spec_nodebody_.empty() || spec.dim < 2 || spec.young <= 0) {
     return 0;
   }
   int num_elem = (int)spec_elem_.size() / (spec.dim + 1);
@@ -3007,8 +3028,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // yield checks
   if (stressyield < 0) { throw mjCError(this, "yield cannot be negative"); }
-  if (stressyield > 0 && (interpolated || dim < 2)) {
-    throw mjCError(this, "flex plasticity requires a non-interpolated 2d or 3d flex");
+  if (stressyield > 0 && dim < 2 && !interpolated) {
+    throw mjCError(this, "flex plasticity requires a 2d or 3d flex");
   }
 
   // set nvert, rigid, centered; check size

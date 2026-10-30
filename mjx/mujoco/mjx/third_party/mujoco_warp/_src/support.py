@@ -68,7 +68,23 @@ def next_act(
 
 @wp.func
 def mat33_to_quat_polar(F: wp.mat33) -> wp.quat:
+  # for large rotations (non-positive trace), warm start from the Gram-Schmidt rotation of the first
+  # two columns so that the iteration does not stall at the identity saddle point (e.g. 180 degree
+  # rotations)
   cell_quat = wp.quat(0.0, 0.0, 0.0, 1.0)
+  c0 = wp.vec3(F[0, 0], F[1, 0], F[2, 0])
+  c1 = wp.vec3(F[0, 1], F[1, 1], F[2, 1])
+  n0 = wp.length(c0)
+  if F[0, 0] + F[1, 1] + F[2, 2] <= 0.0 and n0 > MJ_MINVAL:
+    c0 = c0 / n0
+    c1 = c1 - wp.dot(c0, c1) * c0
+    n1 = wp.length(c1)
+    if n1 > MJ_MINVAL:
+      c1 = c1 / n1
+      c2 = wp.cross(c0, c1)
+      cell_quat = wp.normalize(
+        wp.quat_from_matrix(wp.mat33(c0[0], c1[0], c2[0], c0[1], c1[1], c2[1], c0[2], c1[2], c2[2]))
+      )
   for _iter in range(50):
     rot = wp.quat_to_matrix(cell_quat)
     rot_t = wp.transpose(rot)
@@ -102,6 +118,8 @@ def mat33_to_quat_polar(F: wp.mat33) -> wp.quat:
 
 @wp.func
 def compute_interp_cell_quat(
+  # Model:
+  flex_node0: wp.array[wp.vec3],
   # Data in:
   flexnode_xpos_in: wp.array2d[wp.vec3],
   # In:
@@ -131,12 +149,12 @@ def compute_interp_cell_quat(
 
           node_pos = flexnode_xpos_in[worldid, nstart + gidx]
 
-          dphi_x = float(-1) if li == 0 else float(1)
-          dphi_y = float(-1) if lj == 0 else float(1)
-          dphi_z = float(-1) if lk == 0 else float(1)
-          phi_x = float(0.5)
-          phi_y = float(0.5)
-          phi_z = float(0.5)
+          dphi_x = float(li - 1) if order == 2 else (-1.0 + 2.0 * float(li))
+          dphi_y = float(lj - 1) if order == 2 else (-1.0 + 2.0 * float(lj))
+          dphi_z = float(lk - 1) if order == 2 else (-1.0 + 2.0 * float(lk))
+          phi_x = wp.where(li == 1, 1.0, 0.0) if order == 2 else 0.5
+          phi_y = wp.where(lj == 1, 1.0, 0.0) if order == 2 else 0.5
+          phi_z = wp.where(lk == 1, 1.0, 0.0) if order == 2 else 0.5
 
           grad_x = dphi_x * phi_y * phi_z
           grad_y = phi_x * dphi_y * phi_z
@@ -148,6 +166,17 @@ def compute_interp_cell_quat(
             F[r, 2] += node_pos[r] * grad_z
 
           idx += 1
+
+  node_0 = nstart + (ci * order) * ny_g * nz_g + (cj * order) * nz_g + (ck * order)
+  node_last = nstart + ((ci + 1) * order) * ny_g * nz_g + ((cj + 1) * order) * nz_g + ((ck + 1) * order)
+  dref = flex_node0[node_last] - flex_node0[node_0]
+  for c in range(3):
+    dc = dref[c]
+    if dc > MJ_MINVAL:
+      inv_dc = 1.0 / dc
+      F[0, c] *= inv_dc
+      F[1, c] *= inv_dc
+      F[2, c] *= inv_dc
 
   return mat33_to_quat_polar(F)
 
@@ -1196,6 +1225,8 @@ def gather_face_node_index(
 
 @wp.func
 def compute_interp_face_quat(
+  # Model:
+  flex_node0: wp.array[wp.vec3],
   # Data in:
   flexnode_xpos_in: wp.array2d[wp.vec3],
   # In:
@@ -1219,6 +1250,8 @@ def compute_interp_face_quat(
   t2 = wp.vec3(0.0)
 
   npc = (order_abs + 1) * (order_abs + 1)
+  gidx0 = int(0)
+  gidx1 = int(0)
 
   for local_idx in range(9):
     if local_idx < npc:
@@ -1232,21 +1265,34 @@ def compute_interp_face_quat(
         local_idx,
         order_abs,
       )
+      if local_idx == 0:
+        gidx0 = gidx
+      gidx1 = gidx
       node_pos = flexnode_xpos_in[worldid, nstart + gidx]
 
       l0 = local_idx // (order_abs + 1)
       l1 = local_idx % (order_abs + 1)
 
-      dphi0 = -1.0 + 2.0 * float(l0)
-      dphi1 = -1.0 + 2.0 * float(l1)
-      phi0 = 0.5
-      phi1 = 0.5
+      dphi0 = float(l0 - 1) if order_abs == 2 else (-1.0 + 2.0 * float(l0))
+      dphi1 = float(l1 - 1) if order_abs == 2 else (-1.0 + 2.0 * float(l1))
+      phi0 = wp.where(l0 == 1, 1.0, 0.0) if order_abs == 2 else 0.5
+      phi1 = wp.where(l1 == 1, 1.0, 0.0) if order_abs == 2 else 0.5
 
       grad0 = dphi0 * phi1
       grad1 = phi0 * dphi1
 
       t1 += node_pos * grad0
       t2 += node_pos * grad1
+
+  axis0 = (normal_axis + 1) % 3
+  axis1 = (normal_axis + 2) % 3
+  dref = flex_node0[nstart + gidx1] - flex_node0[nstart + gidx0]
+  d0 = dref[axis0]
+  d1 = dref[axis1]
+  if d0 > MJ_MINVAL:
+    t1 = t1 / d0
+  if d1 > MJ_MINVAL:
+    t2 = t2 / d1
 
   normal = wp.cross(t1, t2)
 

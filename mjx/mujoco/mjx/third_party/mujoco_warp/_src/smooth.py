@@ -496,6 +496,7 @@ def _flex_face_kinematics(
   # Model:
   flex_interp: wp.array[int],
   flex_cellnum: wp.array[wp.vec3i],
+  flex_node0: wp.array[wp.vec3],
   flex_face_map: wp.array[wp.vec2i],
   flex_face: wp.array2d[int],
   # Data in:
@@ -518,9 +519,14 @@ def _flex_face_kinematics(
   cz = cellnum[2]
   t1 = wp.vec3(0.0)
   t2 = wp.vec3(0.0)
+  gidx0 = int(-1)
+  gidx1 = int(-1)
   for local_idx in range(9):
     gidx = flex_face[face_id, local_idx]
     if gidx != -1:
+      if local_idx == 0:
+        gidx0 = gidx
+      gidx1 = gidx
       node_pos = flexnode_xpos_in[worldid, gidx]
 
       face_xpos_out[worldid, face_id, local_idx] = node_pos
@@ -541,9 +547,19 @@ def _flex_face_kinematics(
     else:
       face_xpos_out[worldid, face_id, local_idx] = wp.vec3(0.0)
 
-  normal = wp.cross(t1, t2)
-
   normal_axis, _, _, _, _, _ = support.get_face_metadata(cx, cy, cz, face_elem_idx, order_abs)
+  axis0 = (normal_axis + 1) % 3
+  axis1 = (normal_axis + 2) % 3
+  if gidx0 != -1 and gidx1 != -1:
+    dref = flex_node0[gidx1] - flex_node0[gidx0]
+    d0 = dref[axis0]
+    d1 = dref[axis1]
+    if d0 > MJ_MINVAL:
+      t1 = t1 / d0
+    if d1 > MJ_MINVAL:
+      t2 = t2 / d1
+
+  normal = wp.cross(t1, t2)
 
   F = wp.mat33(0.0)
   if normal_axis == 0:
@@ -659,6 +675,7 @@ def flex(m: Model, d: Data):
     inputs=[
       m.flex_interp,
       m.flex_cellnum,
+      m.flex_node0,
       m.flex_face_map,
       m.flex_face,
       d.flexnode_xpos,
