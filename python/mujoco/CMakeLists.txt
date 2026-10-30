@@ -328,9 +328,10 @@ target_sources(mujoco_private_api_header INTERFACE private.h)
 set_target_properties(mujoco_private_api_header PROPERTIES PUBLIC_HEADER private.h)
 target_link_libraries(mujoco_private_api_header INTERFACE mujoco)
 
-# enum_traits.h, function_traits.h and specs.cc.inc are pre-generated into the
-# sdist by make_sdist.sh, so only the EXISTS branches below are taken by any
-# build we run: CI and Kokoro both build the wheel from an sdist.
+# enum_traits.h, function_traits.h, specs.cc.inc and
+# render_filament_generated.cc.inc are pre-generated into the sdist by
+# make_sdist.sh, so only the EXISTS branches below are taken by any build we
+# run: CI and Kokoro both build the wheel from an sdist.
 #
 # The else() branches are stale and are not known to work. The generators do
 # `from mujoco.introspect import ...`, which needs the *parent* of the mujoco
@@ -556,6 +557,15 @@ if(TARGET mujoco::platform)
               structs_header
               mujoco::platform
   )
+
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/render_filament_generated.cc.inc)
+    add_custom_command(
+      OUTPUT render_filament_generated.cc.inc
+      COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco/python ${Python3_EXECUTABLE}
+              ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_mjrf_bindings.py > render_filament_generated.cc.inc
+      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_mjrf_bindings.py
+    )
+  endif()
 
   mujoco_pybind11_module(
     _render_filament

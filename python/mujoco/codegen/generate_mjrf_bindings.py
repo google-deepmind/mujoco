@@ -24,14 +24,18 @@ import re
 import typing
 
 from absl import app
-from mujoco.codegen import code_builder
+from codegen import code_builder
 from introspect import ast_nodes
 from introspect.codegen import ast_processor
+
+import subprocess
 
 # pylint: disable=line-too-long
 
 _CLANG_AST_JSON_PATH = 'mjrfilament.h.json'
-_MUJOCO_INCLUDE_DIR = 'include'
+_MUJOCO_INCLUDE_DIR = os.path.join(
+    os.path.dirname(__file__), '..', '..', '..', 'include', 'mujoco'
+)
 
 # mjrf structs to be treated as objects.
 _OBJECTS = [
@@ -100,12 +104,33 @@ _RELEASE_GIL = [
 
 
 def _get_json_path() -> str:
+  if not os.path.exists(_CLANG_AST_JSON_PATH):
+    header = os.path.join(_MUJOCO_INCLUDE_DIR, 'mjrfilament.h')
+    include_dir = os.path.dirname(_MUJOCO_INCLUDE_DIR)
+    cmd = [
+        'clang',
+        '-ffreestanding',
+        f'-I{include_dir}',
+        '-Xclang',
+        '-ast-dump=json',
+        '-fsyntax-only',
+        '-fparse-all-comments',
+        '-x',
+        'c',
+        header,
+    ]
+    with open(_CLANG_AST_JSON_PATH, 'w', encoding='utf-8') as f:
+      subprocess.run(cmd, stdout=f, check=True)
   return _CLANG_AST_JSON_PATH
 
 
 def _get_header_paths() -> list[str]:
   header_dir = _MUJOCO_INCLUDE_DIR
-  header_paths = [os.path.join(header_dir, p) for p in os.listdir(header_dir)]
+  header_paths = [
+      os.path.join(header_dir, p)
+      for p in os.listdir(header_dir)
+      if p.endswith('.h')
+  ]
   return header_paths
 
 
