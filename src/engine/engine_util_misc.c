@@ -72,6 +72,12 @@ static mjtNum length_circle(const mjtNum* p0, const mjtNum* p1, int ind, mjtNum 
 }
 
 
+// signed angle swept from p to q around the origin, in (-pi, pi]
+static mjtNum winding_angle(const mjtNum p[2], const mjtNum q[2]) {
+  return mju_atan2(p[0]*q[1] - p[1]*q[0], p[0]*q[0] + p[1]*q[1]);
+}
+
+
 // 2D circle wrap
 //  input:  pair of 2D endpoints in end[4], optional 2D side point in side[2], radius
 //  output: return length of circular wrap or -1
@@ -101,9 +107,22 @@ static mjtNum wrap_circle(mjtNum pnt[4], const mjtNum end[4], const mjtNum* side
     a = 1;
   }
 
-  // check for intersection and side
+  // check for intersection
   mjtNum tmp[2] = {a*dif[0] + end[0], a*dif[1] + end[1]};
-  if (tmp[0]*tmp[0]+tmp[1]*tmp[1] > sqrad && (!side || mju_dot(side, tmp, 2) >= 0)) {
+  int clear = tmp[0]*tmp[0] + tmp[1]*tmp[1] > sqrad;
+
+  // side: the path is homotopic to the polyline end0 -> side -> end1, whose winding angle around
+  // the center determines the wrap orientation; the segment end0 -> end1 is in the same homotopy
+  // class iff its winding angle is the same (they differ by multiples of 2*pi)
+  int ccw = 0;
+  mjtNum wside = 0;
+  if (side) {
+    wside = winding_angle(end, side) + winding_angle(side, end+2);
+    if (clear && mju_abs(wside - winding_angle(end, end+2)) < mjPI) {
+      return -1;
+    }
+    ccw = (wside > 0);
+  } else if (clear) {
     return -1;
   }
 
@@ -120,15 +139,9 @@ static mjtNum wrap_circle(mjtNum pnt[4], const mjtNum end[4], const mjtNum* side
     sol[i][1][0] = (end[2]*sqrad - sgn*radius*end[3]*sqrt1)/sqlen1;
     sol[i][1][1] = (end[3]*sqrad + sgn*radius*end[2]*sqrt1)/sqlen1;
 
-    // goodness: close to sd, or shorter path
-    if (side) {
-      mju_add(tmp, sol[i][0], sol[i][1], 2);
-      mju_normalize(tmp, 2);
-      good[i] = mju_dot(tmp, side, 2);
-    } else {
-      mju_sub(tmp, sol[i][0], sol[i][1], 2);
-      good[i] = -mju_dot(tmp, tmp, 2);
-    }
+    // goodness: shorter path
+    mju_sub(tmp, sol[i][0], sol[i][1], 2);
+    good[i] = -mju_dot(tmp, tmp, 2);
 
     // penalize for intersection
     if (is_intersect(end, sol[i][0], end+2, sol[i][1])) {
@@ -136,8 +149,8 @@ static mjtNum wrap_circle(mjtNum pnt[4], const mjtNum end[4], const mjtNum* side
     }
   }
 
-  // select the better solution
-  int i = (good[0] > good[1] ? 0 : 1);
+  // select the solution: with side, by orientation (i=1 is counterclockwise), otherwise the better
+  int i = side ? ccw : (good[0] > good[1] ? 0 : 1);
   pnt[0] = sol[i][0][0];
   pnt[1] = sol[i][0][1];
   pnt[2] = sol[i][1][0];
@@ -146,6 +159,13 @@ static mjtNum wrap_circle(mjtNum pnt[4], const mjtNum end[4], const mjtNum* side
   // check for intersection
   if (is_intersect(end, pnt, end+2, pnt+2)) {
     return -1;
+  }
+
+  // side: the path winds like the polyline, so the arc angle is its winding minus that of the
+  // tangent segments; unlike length_circle, this is accurate for wraps close to 2*pi
+  if (side) {
+    mjtNum arc = wside - winding_angle(end, pnt) - winding_angle(pnt+2, end+2);
+    return radius*mju_abs(arc);
   }
 
   // return curve length

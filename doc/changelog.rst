@@ -79,6 +79,46 @@ General
 
 Engine
 ^^^^^^
+.. admonition:: Breaking changes
+   :class: attention
+
+   - Changed the semantics of :ref:`sidesite<spatial-geom-sidesite>`: the tendon now goes around the geom the same way
+     as the path from the first endpoint, through the side site, to the second endpoint (thin grey line below).
+     Formally, the tendon is the shortest path homotopic to this polyline in the wrapping plane with the geom removed.
+
+     .. image:: images/XMLreference/sidesite_homotopy_light.svg
+        :align: center
+        :width: 90%
+        :class: only-light
+
+     .. image:: images/XMLreference/sidesite_homotopy_dark.svg
+        :align: center
+        :width: 90%
+        :class: only-dark
+
+     Previously, a half-plane test was used, which could make the tendon jump onto the geom, a discontinuity in tendon
+     length, when the segment between the endpoints moved away from the side site while clear of the geom. It could
+     also select the wrong side for wraps longer than 180 degrees. Top row: old rule; bottom row: new rule.
+
+     .. image:: images/changelog/sidesite_old_vs_new_light.svg
+        :align: center
+        :width: 90%
+        :class: only-light
+
+     .. image:: images/changelog/sidesite_old_vs_new_dark.svg
+        :align: center
+        :width: 90%
+        :class: only-dark
+
+     The new rule has a single discontinuity: when an endpoint crosses the ray opposite the side site, the path
+     through the side site changes its winding around the geom and the tendon snaps off. This can change the behavior
+     of existing models.
+
+     **Migration:** Place side sites so that the endpoints do not cross this ray over the range of motion, typically
+     near the middle of the wrapped arc. For example, the side sites of the
+     `two-link arm <https://github.com/google-deepmind/mujoco/blob/main/model/tendon_arm/arm26.xml>`__ were moved from
+     directly below the joints to 45 degrees below the arm, which reproduces the previous tendon lengths exactly.
+
 - Flex improvements:
 
   - Volumetric interpolated flexes (**trilinear** or **quadratic** :ref:`dofs<body-flexcomp-dof>` with ``elastic2d="none"``)

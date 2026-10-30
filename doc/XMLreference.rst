@@ -5727,9 +5727,27 @@ constrained to pass through the geom instead of passing around it.
 
 :at:`sidesite`: :at-val:`string, optional`
    To prevent the tendon path from snapping from one side of the geom to the other as the model configuration varies,
-   the user can define a preferred "side" of the geom. At runtime, the wrap that is closer to the specified site is
-   automatically selected. Specifying a side site is often needed in practice. If the side site is inside the geom, the
-   tendon is constrained to pass through the interior of the geom.
+   the user can define a preferred "side" of the geom. The tendon then goes around the geom the same way as the path
+   from the first endpoint :math:`p_1`, through the side site :math:`s` (projected onto the surface of the geom), to the
+   second endpoint :math:`p_2`. If the straight segment between the endpoints already passes the geom that way, the
+   tendon does not wrap. Formally, the tendon is the shortest path from :math:`p_1` to :math:`p_2` that is homotopic to
+   the polyline :math:`p_1 \to s \to p_2` in the wrapping plane with the geom removed, i.e., that has the same winding
+   angle around the geom center. In the images below, the side site is green and the polyline is the thin grey line.
+
+   .. image:: images/XMLreference/sidesite_homotopy_light.svg
+      :align: center
+      :width: 90%
+      :class: only-light
+
+   .. image:: images/XMLreference/sidesite_homotopy_dark.svg
+      :align: center
+      :width: 90%
+      :class: only-dark
+
+   The tendon snaps off the geom when an endpoint crosses the ray opposite the side site, so side sites should be placed
+   such that the endpoints do not cross this ray over the range of motion, typically near the middle of the wrapped
+   arc. Specifying a side site is often needed in practice. If the side site is inside the geom, the tendon is
+   constrained to pass through the interior of the geom.
 
 
 .. _spatial-pulley:

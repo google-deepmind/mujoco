@@ -300,6 +300,277 @@ TEST_F(UtilMiscTest, WrapCircleOnset) {
   }
 }
 
+// wrap onset is robust to perturbing an endpoint by a few ulps
+TEST_F(UtilMiscTest, WrapCircleOnsetUlp) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum radius = 1.92;
+  const mjtNum end[4] = {16.0, 0, MjEps(-26.864008298238332, -14.2271366f),
+                         MjEps(5.1811203325342365, 3.65365791f)};
+  for (int k = -4; k <= 4; k++) {
+    for (int coord = 2; coord < 4; coord++) {
+      mjtNum x[4] = {end[0], end[1], end[2], end[3]};
+      const mjtNum toward = k > 0 ? mjMAXVAL : -mjMAXVAL;
+      for (int n = 0; n < std::abs(k); n++) {
+        x[coord] = std::nextafter(x[coord], toward);
+      }
+      const mjtNum x0[3] = {x[0], x[1], 0};
+      const mjtNum x1[3] = {x[2], x[3], 0};
+      mjtNum wpnt[6] = {0};
+      mjtNum wlen =
+          mju_wrap(wpnt, x0, x1, xpos, xmat, radius, mjWRAP_CYLINDER, nullptr);
+      EXPECT_LT(wlen, MjTol(1e-6, 1e-3)) << "k=" << k << " coord=" << coord;
+    }
+  }
+}
+
+// with a sidesite on the far side, a wrap close to 2*pi keeps its length
+TEST_F(UtilMiscTest, WrapCircleSidesiteFullWrap) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum side[3] = {-1, 0, 0};
+  for (mjtNum h : {1e-3, 0.0}) {
+    for (mjtNum g : {1e-2, 1e-7}) {
+      // endpoints just outside the unit circle on either side of (1, 0); the
+      // wrap goes clockwise around the far side
+      const mjtNum x0[3] = {1 + h, -g, 0};
+      const mjtNum x1[3] = {1 + h, g, 0};
+      // tangent angle acos(1/d) = atan(sqrt(d^2 - 1)), without the cancellation
+      mjtNum tangent = mju_atan2(mju_sqrt(2 * h + h * h + g * g), 1);
+      mjtNum expected = 2 * mjPI - 2 * mju_atan2(g, 1 + h) - 2 * tangent;
+      mjtNum wpnt[6] = {0};
+      mjtNum wlen =
+          mju_wrap(wpnt, x0, x1, xpos, xmat, 1, mjWRAP_CYLINDER, side);
+      EXPECT_NEAR(wlen, expected, MjTol(1e-9, 2e-5)) << "h=" << h << " g=" << g;
+    }
+  }
+}
+
+// sidesite at the arc midpoint selects that arc, including arcs longer than pi
+TEST_F(UtilMiscTest, WrapCircleSidesiteSelectsArc) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum r = 0.5;
+
+  // distance from origin to segment p-q
+  auto segdist = [](const mjtNum p[2], const mjtNum q[2]) {
+    mjtNum d[2] = {q[0] - p[0], q[1] - p[1]};
+    mjtNum a = -(d[0] * p[0] + d[1] * p[1]) / (d[0] * d[0] + d[1] * d[1]);
+    a = mju_clip(a, 0, 1);
+    return mju_sqrt(mju_pow(p[0] + a * d[0], 2) + mju_pow(p[1] + a * d[1], 2));
+  };
+
+  // strict crossing of segments p1-p2 and p3-p4
+  auto crossing = [](const mjtNum p1[2], const mjtNum p2[2], const mjtNum p3[2],
+                     const mjtNum p4[2]) {
+    auto orient = [](const mjtNum a[2], const mjtNum b[2], const mjtNum c[2]) {
+      return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    };
+    return orient(p1, p2, p3) * orient(p1, p2, p4) < 0 &&
+           orient(p3, p4, p1) * orient(p3, p4, p2) < 0;
+  };
+
+  // construct the wrap first (start angle a, wrap angle th, direction dir),
+  // then extend the tangent rays to get the endpoints; the expected tangent
+  // points and length are exact
+  int nmajor = 0, nminor = 0;
+  for (mjtNum a : {0.1, 1.3, 2.9, 4.4, 5.8}) {
+    for (mjtNum th : {0.4, 1.5, 2.8, 3.5, 4.5, 5.5}) {
+      for (int dir : {1, -1}) {
+        for (mjtNum len0 : {0.1, 0.6, 2.0}) {
+          for (mjtNum len1 : {0.15, 0.8, 1.7}) {
+            mjtNum b = a + dir * th;
+            mjtNum t0[2] = {r * mju_cos(a), r * mju_sin(a)};
+            mjtNum t1[2] = {r * mju_cos(b), r * mju_sin(b)};
+            mjtNum p0[2] = {t0[0] + len0 * dir * mju_sin(a),
+                            t0[1] - len0 * dir * mju_cos(a)};
+            mjtNum p1[2] = {t1[0] - len1 * dir * mju_sin(b),
+                            t1[1] + len1 * dir * mju_cos(b)};
+
+            // keep valid wraps whose straight segment cuts the circle
+            if (crossing(p0, t0, t1, p1) || segdist(p0, p1) >= r) {
+              continue;
+            }
+            (th > mjPI ? nmajor : nminor)++;
+
+            mjtNum m = a + dir * th / 2;
+            const mjtNum side[3] = {2 * r * mju_cos(m), 2 * r * mju_sin(m), 0};
+            const mjtNum x0[3] = {p0[0], p0[1], 0};
+            const mjtNum x1[3] = {p1[0], p1[1], 0};
+            for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+              mjtNum wpnt[6] = {0};
+              mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, r, type, side);
+              EXPECT_NEAR(wlen, r * th, MjTol(1e-10, 1e-4))
+                  << "a=" << a << " th=" << th;
+              EXPECT_NEAR(wpnt[0], t0[0], MjTol(1e-10, 1e-4));
+              EXPECT_NEAR(wpnt[1], t0[1], MjTol(1e-10, 1e-4));
+              EXPECT_NEAR(wpnt[3], t1[0], MjTol(1e-10, 1e-4));
+              EXPECT_NEAR(wpnt[4], t1[1], MjTol(1e-10, 1e-4));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // both regimes are exercised
+  EXPECT_GT(nmajor, 10);
+  EXPECT_GT(nminor, 10);
+}
+
+// signed angle swept from p to q around the origin
+static mjtNum SweptAngle(const mjtNum p[2], const mjtNum q[2]) {
+  return mju_atan2(p[0] * q[1] - p[1] * q[0], p[0] * q[0] + p[1] * q[1]);
+}
+
+// distance from the origin to the segment p-q
+static mjtNum SegmentDistance(const mjtNum p[2], const mjtNum q[2]) {
+  mjtNum d[2] = {q[0] - p[0], q[1] - p[1]};
+  mjtNum a = mju_clip(
+      -(d[0] * p[0] + d[1] * p[1]) / (d[0] * d[0] + d[1] * d[1]), 0, 1);
+  return mju_sqrt(mju_pow(p[0] + a * d[0], 2) + mju_pow(p[1] + a * d[1], 2));
+}
+
+// the wrap is the shortest path homotopic to the polyline p0 -> s -> p1, with s
+// the sidesite projected onto the circle; checked with winding numbers around
+// the center
+TEST_F(UtilMiscTest, WrapCircleSidesiteHomotopy) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum r = 0.5;
+
+  int nwrap = 0, nstraight = 0;
+  for (int k0 = 0; k0 < 12; k0++) {
+    for (int k1 = 0; k1 < 12; k1++) {
+      for (int ks = 0; ks < 12; ks++) {
+        for (mjtNum rho0 : {0.6, 1.5}) {
+          for (mjtNum rho1 : {0.8, 2.0}) {
+            mjtNum a0 = 2 * mjPI * k0 / 12 + 0.11,
+                   a1 = 2 * mjPI * k1 / 12 + 0.37;
+            mjtNum as = 2 * mjPI * ks / 12 + 0.23;
+            mjtNum p0[2] = {rho0 * mju_cos(a0), rho0 * mju_sin(a0)};
+            mjtNum p1[2] = {rho1 * mju_cos(a1), rho1 * mju_sin(a1)};
+            mjtNum s[2] = {r * mju_cos(as), r * mju_sin(as)};
+
+            // winding of the reference polyline and of the straight segment
+            mjtNum wref = SweptAngle(p0, s) + SweptAngle(s, p1);
+            mjtNum wline = SweptAngle(p0, p1);
+            bool clear = SegmentDistance(p0, p1) > r;
+
+            const mjtNum x0[3] = {p0[0], p0[1], 0};
+            const mjtNum x1[3] = {p1[0], p1[1], 0};
+            const mjtNum side[3] = {3 * s[0], 3 * s[1], 0};
+            mjtNum wpnt[6] = {0};
+            mjtNum wlen =
+                mju_wrap(wpnt, x0, x1, xpos, xmat, r, mjWRAP_CYLINDER, side);
+
+            if (wlen < 0) {
+              // no wrap: the segment clears the circle and is in the reference
+              // class
+              nstraight++;
+              EXPECT_TRUE(clear);
+              EXPECT_LT(mju_abs(wline - wref), mjPI);
+            } else {
+              // wrap: in the reference class, and the segment is not a shorter
+              // valid path
+              nwrap++;
+              mjtNum t0[2] = {wpnt[0], wpnt[1]}, t1[2] = {wpnt[3], wpnt[4]};
+              mjtNum orient = t0[0] * (t0[1] - p0[1]) - t0[1] * (t0[0] - p0[0]);
+              mjtNum warc = (orient > 0 ? 1 : -1) * wlen / r;
+              mjtNum wpath = SweptAngle(p0, t0) + warc + SweptAngle(t1, p1);
+              EXPECT_LT(mju_abs(wpath - wref), mjPI)
+                  << "a0=" << a0 << " a1=" << a1;
+              EXPECT_FALSE(clear && mju_abs(wline - wref) < mjPI);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // both outcomes are exercised
+  EXPECT_GT(nwrap, 100);
+  EXPECT_GT(nstraight, 100);
+}
+
+// a sidesite more than 90 degrees from the segment does not force a wrap around
+// the far side
+TEST_F(UtilMiscTest, WrapCircleSidesiteNoSpuriousWrap) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum x0[3] = {-4.17, -0.44, 0};
+  const mjtNum x1[3] = {-1.13, -1.53, 0};
+  const mjtNum side[3] = {-0.79 * 1.5, 0.61 * 1.5, 0};
+  mjtNum wpnt[6];
+  for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+    EXPECT_EQ(mju_wrap(wpnt, x0, x1, xpos, xmat, 1, type, side), -1);
+  }
+}
+
+// a segment passing exactly through the center wraps on the side of the
+// sidesite
+TEST_F(UtilMiscTest, WrapCircleSidesiteThroughCenter) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum x0[3] = {0, 2, 0};
+  const mjtNum x1[3] = {0, -1, 0};
+  for (mjtNum sx : {1.5, -1.5}) {
+    const mjtNum side[3] = {sx, 0, 0};
+    for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+      mjtNum wpnt[6];
+      mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, 0.5, type, side);
+      EXPECT_GT(wlen, 0);
+      EXPECT_GT(wpnt[0] * sx, 0);
+      EXPECT_GT(wpnt[3] * sx, 0);
+    }
+  }
+}
+
+// with the endpoints away from the far side of the sidesite, tendon length is
+// 1-Lipschitz in the endpoint position (no jumps)
+TEST_F(UtilMiscTest, WrapCircleSidesiteContinuity) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum r = 0.5;
+
+  // total length of the path, wrapped or straight
+  auto pathlen = [&](const mjtNum x0[3], const mjtNum x1[3],
+                     const mjtNum side[3]) {
+    mjtNum wpnt[6];
+    mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, r, mjWRAP_CYLINDER, side);
+    if (wlen < 0) {
+      return mju_dist3(x0, x1);
+    }
+    return mju_dist3(x0, wpnt) + wlen + mju_dist3(wpnt + 3, x1);
+  };
+
+  const int nstep = 400;
+  const mjtNum sector = 2 * mjPI / 3;
+  const mjtNum rho1 = 1.2;
+  for (mjtNum as : {0.0, 1.0, 2.5, 4.0}) {
+    const mjtNum side[3] = {2 * r * mju_cos(as), 2 * r * mju_sin(as), 0};
+    for (mjtNum da1 : {-1.8, -0.6, 0.4, 1.9}) {
+      for (mjtNum rho : {0.7, 1.4}) {
+        const mjtNum x1[3] = {rho1 * mju_cos(as + da1),
+                              rho1 * mju_sin(as + da1), 0};
+        mjtNum prev = 0, prevx[3] = {0};
+        for (int k = 0; k <= nstep; k++) {
+          mjtNum a0 = as - sector + 2 * sector * k / nstep;
+          const mjtNum x0[3] = {rho * mju_cos(a0), rho * mju_sin(a0), 0};
+          mjtNum len = pathlen(x0, x1, side);
+          if (k > 0) {
+            EXPECT_LE(mju_abs(len - prev),
+                      mju_dist3(x0, prevx) + MjTol(1e-10, 1e-4))
+                << "as=" << as << " da1=" << da1 << " k=" << k;
+          }
+          prev = len;
+          mju_copy3(prevx, x0);
+        }
+      }
+    }
+  }
+}
+
 // compute time constant as in Millard et al. (2013)
 // https://doi.org/10.1115/1.4023390
 mjtNum muscleDynamicsMillard(mjtNum ctrl, mjtNum act, const mjtNum prm[2]) {
