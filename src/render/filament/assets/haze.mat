@@ -19,7 +19,6 @@ material {
     depthWrite : false,
     culling : front,
     flipUV : false,
-    variantFilter : [ skinning, shadowReceiver, vsm, fog ],
     parameters : [
         { type : float4, name : HazeColor },
         { type : float, name : HazeRatio }
