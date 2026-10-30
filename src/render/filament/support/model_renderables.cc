@@ -673,10 +673,12 @@ void ModelRenderables::UpdateSpatialTendons(const mjData* data, int tendon_id) {
 
   mjrfMaterial material = GetMaterial(mjOBJ_TENDON, tendon_id, data);
 
-  // If tendon has no explicit color then color it using limit impedance.
-  if (model->tendon_matid[tendon_id] == -1 && material.color[0] == 0.5 &&
-      material.color[1] == 0.5 && material.color[2] == 0.5 &&
-      material.color[3] == 1) {
+  // If tendon has no explicit color then color it using limit impedance. We
+  // use the model color not the material color since the material color may
+  // have been overridden.
+  const float* rgba = model->tendon_rgba + (4 * tendon_id);
+  if (model->tendon_matid[tendon_id] == -1 && rgba[0] == 0.5 &&
+      rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
     mjtNum imp = 0;
     int efc_start = data->ne + data->nf;
     int efc_end = efc_start + data->nl;
@@ -803,6 +805,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
   int matid = -1;
   int dataid = -1;
   mjtGeom geom_type = mjGEOM_NONE;
+  mjtCatBit category = mjCAT_STATIC;
   const float* rgba = nullptr;
   const mjtNum* size = nullptr;
   const mjtNum* pos = nullptr;
@@ -811,6 +814,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
   switch (obj_type) {
     case mjOBJ_GEOM:
       geom_type = (mjtGeom)model->geom_type[obj_index];
+      category = GetBodyCategory(model, model->geom_bodyid[obj_index]);
       rgba = model->geom_rgba + (4 * obj_index);
       size = model->geom_size + (3 * obj_index);
       pos = model->geom_pos + (3 * obj_index);
@@ -820,6 +824,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
       break;
     case mjOBJ_SITE:
       geom_type = (mjtGeom)model->site_type[obj_index];
+      category = GetBodyCategory(model, model->site_bodyid[obj_index]);
       rgba = model->site_rgba + (4 * obj_index);
       size = model->site_size + (3 * obj_index);
       matid = model->site_matid[obj_index];
@@ -827,6 +832,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
       break;
     case mjOBJ_FLEX:
       geom_type = mjGEOM_FLEX;
+      category = mjCAT_DYNAMIC;
       rgba = model->flex_rgba + (4 * obj_index);
       size = model->flex_size + (3 * obj_index);
       if (model->flex_elemnum[obj_index] > 0) {
@@ -835,11 +841,13 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
       break;
     case mjOBJ_SKIN:
       geom_type = mjGEOM_SKIN;
+      category = mjCAT_DYNAMIC;
       rgba = model->skin_rgba + (4 * obj_index);
       matid = model->skin_matid[obj_index];
       break;
     case mjOBJ_TENDON:
       geom_type = mjGEOM_CAPSULE;
+      category = mjCAT_DYNAMIC;
       rgba = model->tendon_rgba + (4 * obj_index);
       size = model->tendon_width + obj_index;
       matid = model->tendon_matid[obj_index];
@@ -1021,12 +1029,9 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
 
   material.segmentation_id = GetSegmentationId(obj_type, obj_index);
 
-  // Apply transparency to dynamic geoms.
-  if (obj_type == mjOBJ_GEOM && vopts_.flags[mjVIS_TRANSPARENT]) {
-    const int category = GetBodyCategory(model, model->geom_bodyid[obj_index]);
-    if (category == mjCAT_DYNAMIC) {
-      material.color[3] *= model->vis.map.alpha;
-    }
+  // Apply transparency to dynamic objects.
+  if (vopts_.flags[mjVIS_TRANSPARENT] && category == mjCAT_DYNAMIC) {
+    material.color[3] *= model->vis.map.alpha;
   }
 
   // Highlight selected objects.
