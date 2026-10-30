@@ -733,9 +733,13 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
   //  [ s1_y, s2_y, s3_y, s4_y ],
   //  [ s1_z, s2_z, s3_z, s4_z ],
   //  [ 1,    1,    1,    1    ]]
-  mjtNum M_14 = s2[1]*s3[2] - s2[2]*s3[1] - s1[1]*s3[2] + s1[2]*s3[1] + s1[1]*s2[2] - s1[2]*s2[1];
-  mjtNum M_24 = s2[0]*s3[2] - s2[2]*s3[0] - s1[0]*s3[2] + s1[2]*s3[0] + s1[0]*s2[2] - s1[2]*s2[0];
-  mjtNum M_34 = s2[0]*s3[1] - s2[1]*s3[0] - s1[0]*s3[1] + s1[1]*s3[0] + s1[0]*s2[1] - s1[1]*s2[0];
+  // form areas from edge differences to avoid cancellation for small simplices far from origin
+  mjtNum e21[3], e31[3];
+  sub3(e21, s2, s1);
+  sub3(e31, s3, s1);
+  mjtNum M_14 = e21[1]*e31[2] - e21[2]*e31[1];
+  mjtNum M_24 = e21[0]*e31[2] - e21[2]*e31[0];
+  mjtNum M_34 = e21[0]*e31[1] - e21[1]*e31[0];
 
   // exclude the axis with the largest projection of the simplex using the computed minors
   mjtNum M_max = 0;
@@ -788,16 +792,16 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
   //  [ 1,                    1,                    1                    ]]
 
   // C31 corresponds to the signed area of 2-simplex: (p_o_2D, s2_2D, s3_2D)
-  mjtNum C31 = p_o_2D[0]*s2_2D[1] + p_o_2D[1]*s3_2D[0] + s2_2D[0]*s3_2D[1]
-             - p_o_2D[0]*s3_2D[1] - p_o_2D[1]*s2_2D[0] - s3_2D[0]*s2_2D[1];
+  mjtNum C31 = (s2_2D[0]-p_o_2D[0])*(s3_2D[1]-p_o_2D[1])
+             - (s2_2D[1]-p_o_2D[1])*(s3_2D[0]-p_o_2D[0]);
 
   // C32 corresponds to the signed area of 2-simplex: (_po_2D, s1_2D, s3_2D)
-  mjtNum C32 = p_o_2D[0]*s3_2D[1] + p_o_2D[1]*s1_2D[0] + s3_2D[0]*s1_2D[1]
-             - p_o_2D[0]*s1_2D[1] - p_o_2D[1]*s3_2D[0] - s1_2D[0]*s3_2D[1];
+  mjtNum C32 = (s3_2D[0]-p_o_2D[0])*(s1_2D[1]-p_o_2D[1])
+             - (s3_2D[1]-p_o_2D[1])*(s1_2D[0]-p_o_2D[0]);
 
   // C33 corresponds to the signed area of 2-simplex: (p_o_2D, s1_2D, s2_2D)
-  mjtNum C33 = p_o_2D[0]*s1_2D[1] + p_o_2D[1]*s2_2D[0] + s1_2D[0]*s2_2D[1]
-             - p_o_2D[0]*s2_2D[1] - p_o_2D[1]*s1_2D[0] - s2_2D[0]*s1_2D[1];
+  mjtNum C33 = (s1_2D[0]-p_o_2D[0])*(s2_2D[1]-p_o_2D[1])
+             - (s1_2D[1]-p_o_2D[1])*(s2_2D[0]-p_o_2D[0]);
 
   int comp1 = sameSign2(M_max, C31),
       comp2 = sameSign2(M_max, C32),
@@ -805,9 +809,11 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
 
   // all the same sign, p_o is inside the 2-simplex
   if (comp1 && comp2 && comp3) {
-    lambda[0] = C31 / M_max;
-    lambda[1] = C32 / M_max;
-    lambda[2] = C33 / M_max;
+    // normalize by the sum of the same areas to keep the barycentric weights consistent
+    mjtNum sum = C31 + C32 + C33;
+    lambda[0] = C31 / sum;
+    lambda[1] = C32 / sum;
+    lambda[2] = C33 / sum;
     return;
   }
 
