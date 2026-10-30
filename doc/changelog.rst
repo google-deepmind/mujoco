@@ -189,6 +189,8 @@ Bug fixes
   ``qpos_spring``. Previously their cached poses could be left at ``qpos_spring``. It also no longer overwrites
   ``cam_xpos``, ``cam_xmat``, ``light_xpos`` and ``light_xdir`` in :ref:`mjData`, which left static cameras and lights
   with tracking or targeting at their fixed-mode poses.
+- Planar reflections in the Filament renderer are no longer drawn upside down on the Vulkan backend: the reflective
+  materials now sample the reflection render target through Filament's ``uvToRenderTargetUV``.
 
 Documentation
 ^^^^^^^^^^^^^
