@@ -33,6 +33,8 @@ MJ_MINAWAKE = mujoco.mjMINAWAKE  # minimum number of timesteps before sleeping
 FLEX_STIFFNESS_3D = 24 if util_pkg.check_version("mujoco>=3.14.1.dev989511280") else 21
 
 
+# TODO(team): Remove dynamic version probe once minimum MuJoCo version
+# supports curved rod references and set ROD_HINGE_SIZE = 10 directly.
 def _rod_hinge_size() -> int:
   """Size of a 1D rod bending record in flex_bending of the installed MuJoCo.
 
@@ -59,6 +61,8 @@ def _rod_hinge_size() -> int:
   try:
     nflexbending = mujoco.MjModel.from_xml_string(xml).nflexbending
   except ValueError:  # MuJoCo without 1D flex elasticity
+    return 4
+  if not isinstance(nflexbending, int):
     return 4
   # one hinge: nflexbending = 1 + record size, or 0 if 1D young is ignored
   size = nflexbending - 1 if nflexbending else 4
