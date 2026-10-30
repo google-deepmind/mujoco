@@ -86,6 +86,7 @@ class Light : public mjrfLight {
  private:
   filament::Engine* engine_ = nullptr;
   filament::IndirectLight* ibl_ = nullptr;
+  filament::Scene* assigned_scene_ = nullptr;
   utils::Entity entity_;
   mjrfLightParams params_;
   bool enabled_ = true;

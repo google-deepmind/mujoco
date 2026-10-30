@@ -127,19 +127,31 @@ Light::~Light() noexcept {
 }
 
 void Light::AddToScene(filament::Scene* scene) {
+  if (assigned_scene_) {
+    if (assigned_scene_ != scene) {
+      mju_error("Cannot add light to multiple scenes.");
+    }
+    // Entities are already added to the scene.
+    return;
+  }
   if (ibl_) {
     scene->setIndirectLight(ibl_);
   } else {
     scene->addEntity(entity_);
   }
+  assigned_scene_ = scene;
 }
 
 void Light::RemoveFromScene(filament::Scene* scene) {
+  if (assigned_scene_ != scene) {
+    mju_error("Attempting to remove light from wrong scene.");
+  }
   if (ibl_) {
     scene->setIndirectLight(nullptr);
   } else {
     scene->remove(entity_);
   }
+  assigned_scene_ = nullptr;
 }
 
 void Light::SetTransform(filament::math::float3 position,
