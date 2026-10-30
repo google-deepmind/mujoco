@@ -1013,7 +1013,14 @@ build_wheel() {
 
 test_bazel() {
     echo "Building and testing MuJoCo with Bazel..."
-    bazel test --test_output=errors //...
+    local test_flags=()
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # GitHub's macOS runners have no hardware OpenGL, which mujoco.cgl
+        # requires, so skip the rendering tests there (like the CMake job's
+        # MUJOCO_GL=disable). On Linux they use headless EGL.
+        test_flags+=(--test_env=MUJOCO_GL=disable)
+    fi
+    bazel test --test_output=errors "${test_flags[@]}" //...
 
     echo "Building standalone sample Bzlmod module..."
     pushd sample > /dev/null

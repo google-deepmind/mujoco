@@ -1000,8 +1000,8 @@ same way shares the engine with the bindings.
 To run the bindings' tests from the root of the cloned repository, use ``bazel test //python/...``.
 
 The Bazel build supports the Python versions listed in ``MODULE.bazel``, and installs the bindings' PyPI dependencies
-from ``pypi.org``. It covers the core bindings; rendering (``mujoco.Renderer`` and the GL contexts), the interactive
-viewer, MJX, and the USD exporter are not yet supported.
+from ``pypi.org``. It covers the core bindings and offscreen rendering (``mujoco.Renderer`` and the GL contexts, see
+:ref:`PyRender`); the interactive viewer, MJX, and the USD exporter are not yet supported.
 
 
 .. _PyModule:

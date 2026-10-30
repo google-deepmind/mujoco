@@ -86,6 +86,7 @@ py_library(
         "//python/mujoco/pypi:numpy",  # buildcleaner: keep
         "//python/mujoco/pypi:pyopengl",
         "//python/mujoco/pypi:websockets",
+        "//python/mujoco/rendering",
     ],
 )
 
@@ -398,6 +399,36 @@ cc_library(
     deps = ["//:libmujoco_hdrs"],
 )
 
+py_test(
+    name = "renderer_test",
+    srcs = ["renderer_test.py"],
+    env = select({
+        "@platforms//os:linux": {"MUJOCO_GL": "egl"},
+        "//conditions:default": {},
+    }),
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+        "//python/mujoco/pypi:parameterized",
+    ],
+)
+
+py_test(
+    name = "render_test",
+    srcs = ["render_test.py"],
+    env = select({
+        "@platforms//os:linux": {"MUJOCO_GL": "egl"},
+        "//conditions:default": {},
+    }),
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absl_flags",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+    ],
+)
+
 mujoco_pybind_extension(
     name = "_batch",
     srcs = ["batch.cc"],
@@ -595,6 +626,6 @@ py_test(
 py_test(
     name = "egl_test",
     srcs = ["egl_test.py"],
-    data = ["egl/__init__.py"],
+    data = ["//python/mujoco/egl:__init__.py"],
     deps = ["//python/mujoco/pypi:absltest"],
 )
