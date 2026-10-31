@@ -192,7 +192,7 @@ def install_console_hooks() -> None:
       web_logger.addHandler(_STUDIO_LOG_HANDLER)
 
 
-@dataclasses.dataclass(frozen=True, init=False)
+@dataclasses.dataclass(frozen=True)
 class InitEvent(messages.Event):
   """Lifecycle event dispatched once when the studio_app App is initialised.
 
@@ -201,19 +201,6 @@ class InitEvent(messages.Event):
   """
 
   app: 'App'
-
-  def __init__(
-      self, app: 'App | None' = None, *, viewer_app: 'App | None' = None
-  ) -> None:
-    resolved = app if app is not None else viewer_app
-    if resolved is None:
-      raise TypeError("InitEvent() missing required argument: 'app'")
-    object.__setattr__(self, 'app', resolved)
-
-  @property
-  def viewer_app(self) -> 'App':
-    """Deprecated compatibility alias for ``app``."""
-    return self.app
 
 
 @dataclasses.dataclass
