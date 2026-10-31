@@ -14,6 +14,15 @@ description: >-
 
 > [!TIP]
 >
+> **Official MuJoCo documentation (`doc/*.rst`):** Read
+> [`../../programming/modeledit.rst`](../../programming/modeledit.rst)
+> (`.. _meOverview:`), [`../../modeling.rst`](../../modeling.rst)
+> (`.. _ProceduralModeling:`, `.. _Mechanisms:`),
+> [`../../XMLreference.rst`](../../XMLreference.rst), and
+> [`../../python.rst`](../../python.rst) (`.. _PyModelEdit:`) for full schema
+> and API details (grep literal `.. _Label:` anchors locally; online at
+> `https://mujoco.readthedocs.io/en/stable/<path>.html`, or `/en/latest/`).
+>
 > **Related skills:**
 >
 > -   [mujoco-python](../python/SKILL.md) — Simulation lifecycle, stepping, and
@@ -113,11 +122,15 @@ Only **one** orientation specification can be used at a time:
 -   `zaxis=[x, y, z]`
 
 Angles in `euler` and `axisangle` are in degrees unless
-`spec.compiler.degree = False`.
+`spec.compiler.degree = False` (see [modeling.rst](../../modeling.rst),
+`.. _COrientation:`, and [XMLreference.rst](../../XMLreference.rst),
+`.. _body-geom:`).
 
 ## 3. Sub-model Composition & Attachments
 
-Compose models modularly by attaching sub-specs with prefix namespaces:
+Compose models modularly by attaching sub-specs with prefix namespaces (see
+[programming/modeledit.rst](../../programming/modeledit.rst),
+`.. _meAttachment:` and `.. _meAttributeMerging:`):
 
 ```python
 parent = mujoco.MjSpec()
@@ -222,11 +235,15 @@ vel.set_to_velocity(kv=10.0)
 >
 > The helper functions `set_to_position()` and `set_to_motor()` configure gains
 > but do **not** set the transmission. You must always specify
-> `trntype=mujoco.mjtTrn.mjTRN_JOINT` (or another valid transmission type).
+> `trntype=mujoco.mjtTrn.mjTRN_JOINT` (or another valid transmission type). See
+> [modeling.rst](../../modeling.rst) (`.. _CActuators:`, `.. _CActShortcuts:`)
+> and [XMLreference.rst](../../XMLreference.rst) (`.. _actuator:`).
 
 ## 6. Default Classes (Inheritance & Styling)
 
-Default classes (`MjsDefault`) provide cascaded styling and properties:
+Default classes (`MjsDefault`) provide cascaded styling and properties (see
+[modeling.rst](../../modeling.rst), `.. _CDefault:`, and
+[programming/modeledit.rst](../../programming/modeledit.rst), `.. _meDefault:`):
 
 ```python
 # Create child class under root 'main' class
@@ -305,39 +322,38 @@ spec.add_sensor(name='torso_gyro', type=mujoco.mjtSensor.mjSENS_GYRO,
 2.  **`classname` takes an object**: `geom.classname = 'rubber'` raises a
     `TypeError`. Pass the `MjsDefault` instance: `geom.classname = rubber`.
 3.  **Always assign `recompile()`**: `spec.recompile(m, d)` produces newly
-    allocated model and data instances. Reassign them: `m, d = spec.recompile(m, d)`.
+    allocated model and data instances. Reassign them:
+    `m, d = spec.recompile(m, d)` (see
+    [programming/modeledit.rst](../../programming/modeledit.rst),
+    `.. _meRecompilation:`).
 4.  **Declare high-contact "hub" bodies first (reverse-Cholesky fill-in)**:
-    MuJoCo's sparse Newton solver (`mju_cholFactorSparse`) eliminates DOFs in
-    reverse order (`nv - 1` down to `0`, leaves to root). Eliminating a DOF $r$
-    creates fill-in edges between all lower-indexed DOFs ($c < r$) coupled to $r$.
-    In scenes where a moving body with DOFs (e.g., an actuated sieve, tray,
-    container, or robot base) contacts many independent bodies (e.g., hundreds
-    of balls or clutter objects), always add the hub body **before** the
-    independent objects so it gets the lowest DOF indices ($O(N)$ arrowhead
-    factorization with zero fill-in rather than a dense $O(N^3)$ clique). Static
-    geoms welded to `worldbody` have 0 DOFs and are unaffected by ordering.
+    When a moving body with DOFs (e.g., an actuated tray, sieve, container, or
+    robot base) contacts many independent clutter bodies, declare the hub body
+    **before** the independent bodies so `mju_cholFactorSparse` factors the
+    mass/Hessian arrowhead in $O(N)$ with zero fill-in rather than $O(N^3)$.
+    Static geoms on `worldbody` have 0 DOFs and are unaffected — see the full
+    derivation in [modeling.rst](../../modeling.rst) (`.. _CBodyOrdering:`).
 5.  **Never add `<freejoint/>` (or joints) to the parent body of an unpinned
     `<flexcomp>`**:
     For `<flexcomp>` with `dof="full"`, `"trilinear"`, or `"quadratic"`
-    and `rigid="false"`, every unpinned vertex or interpolation cage node is a
-    child body with 3 orthogonal slide joints. They already provide
-    the full 3D translational and rotational motion of the deformable object. If no
-    vertices/nodes are pinned via `<pin>`, the parent body (and its ancestor
-    bodies) must **not** have a `<freejoint/>` or other joints—and do **not**
-    add a dummy `<inertial/>` on the parent body to work around mass checks. A
-    joint on the parent body is only valid when at least one vertex/node is
-    pinned to it (`<pin>`), when `rigid="true"`, or when `dof="radial"` / `"2d"`. To
-    reposition an unpinned `<flexcomp>` in a static parent body, set `pos`/`quat`
-    on the static parent body (at compile time) or offset the node/vertex slide
-    joint `qpos` values at runtime.
+    and `rigid="false"`, unpinned vertices/nodes already carry 3 orthogonal
+    slide joints providing full 3D motion. Do not add joints or a dummy
+    `<inertial/>` on the parent body unless at least one vertex/node is pinned
+    via `<pin>`, `rigid="true"`, or `dof="radial"` / `"2d"`. Reposition an
+    unpinned `<flexcomp>` via static parent `pos`/`quat` at compile time or
+    slide-joint `qpos` offsets at runtime — see
+    [modeling.rst](../../modeling.rst) (`.. _CDeformable:`) and
+    [XMLreference.rst](../../XMLreference.rst) (`.. _body-flexcomp:`).
 
 ## 10. Key References
 
 ### Documentation
 
--   [MjSpec & Procedural Model Editing](../../programming/modeledit.rst)
--   [MJCF Modeling Guide](../../modeling.rst)
--   [XML Reference](../../XMLreference.rst)
+-   [MjSpec & Procedural Model Editing](../../programming/modeledit.rst) (`.. _meOverview:`, `.. _meAttachment:`, `.. _meAttributeMerging:`, `.. _meDefault:`, `.. _meRecompilation:`)
+-   [Python Model Editing Bindings](../../python.rst) (`.. _PyModelEdit:`, `.. _PyEditConvenience:`, `.. _PyMJCF:`)
+-   [MJCF Modeling Guide](../../modeling.rst) (`.. _CDefault:`, `.. _COrientation:`, `.. _CContact:`, `.. _CBodyOrdering:`, `.. _CActuators:`, `.. _CDeformable:`)
+-   [MJCF XML Schema Reference](../../XMLreference.rst) (`.. _body-geom:`, `.. _body-joint:`, `.. _actuator:`, `.. _equality:`, `.. _body-flexcomp:`)
+-   [C Model Editing API Functions](../../APIreference/functions.rst) (`.. _Parseandcompile:`, `.. _Attachment:`, `.. _AddTreeElements:`, `.. _AddNonTreeElements:`)
 
 ### Source Code Examples
 

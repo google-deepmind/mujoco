@@ -13,6 +13,15 @@ description: >-
 
 > [!TIP]
 >
+> **Official MuJoCo documentation (`doc/*.rst`):** Read
+> [`../../mjx.rst`](../../mjx.rst) (`.. _Mjx:`, `.. _MjxWarp:`, `.. _MjxJAX:`),
+> [`../../mjx_api.rst`](../../mjx_api.rst),
+> [`../../mjwarp/index.rst`](../../mjwarp/index.rst) (`.. _MJW:`), and
+> [`../../mjwarp/api.rst`](../../mjwarp/api.rst) for complete backend docs,
+> feature parity matrices, and performance tuning (grep literal `.. _Label:`
+> anchors locally; online at `https://mujoco.readthedocs.io/en/stable/`, or
+> `/en/latest/`).
+>
 > **Related skills:**
 >
 > -   [mujoco-python](../python/SKILL.md) — CPU physics simulation, kinematics,
@@ -28,18 +37,22 @@ description: >-
 > MJX and MJWarp are **Python-only** accelerated backends. Standard CPU
 > simulation runs in full `float64` via `import mujoco`.
 
-## 1. Backend Comparison: C++ vs MJX vs MJWarp
+## 1. Backend Comparison: C++ vs MJX-JAX vs MJX-Warp vs MJWarp
 
-| Feature | C++ Engine (Default) | MJX (JAX) | MJWarp (CUDA) |
-| :--- | :--- | :--- | :--- |
-| **Import** | `import mujoco` | `from mujoco import mjx` | `import mujoco_warp as mjw` |
-| **Hardware** | CPU | CPU / GPU / TPU | NVIDIA GPU |
-| **Precision** | float64 | float32 | float32 |
-| **Differentiable** | ❌ No | ✅ Yes (JAX gradients) | ❌ No |
-| **Batch Stepping** | ❌ Serial / multi-threaded | ✅ `jax.vmap` | ✅ Native CUDA batches |
-| **Solvers** | Newton, CG, PGS, **noslip** | Newton, CG | Newton, CG |
-| **Constraint Islands**| ✅ Yes | ❌ No | ✅ Yes |
-| **Plugins** | All engine plugins | ❌ No | SDF plugins only |
+| Feature | C++ Engine (Default) | MJX-JAX (`impl='jax'`) | MJX-Warp (`impl='warp'`) | MJWarp (CUDA) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Import** | `import mujoco` | `from mujoco import mjx` | `from mujoco import mjx` | `import mujoco_warp as mjw` |
+| **Hardware** | CPU | CPU / GPU / TPU | NVIDIA GPU | NVIDIA GPU |
+| **Precision** | float64 | float32 | float32 | float32 |
+| **Differentiable** | ❌ No | ✅ Yes (JAX gradients) | ❌ No | ❌ No |
+| **Batch Stepping** | ❌ Serial / multi-threaded | ✅ `jax.vmap` | ✅ `jax.vmap` (CUDA kernels) | ✅ Native CUDA batches |
+| **Solvers** | Newton, CG, PGS, **noslip** | Newton, CG | Newton, CG | Newton, CG |
+| **Constraint Islands**| ✅ Yes | ❌ No | ✅ Yes | ✅ Yes |
+| **Plugins** | All engine plugins | ❌ No | SDF plugins only | SDF plugins only |
+
+See [mjx.rst](../../mjx.rst) (`.. _MjxWarp:`, `.. _MjxJAX:`,
+`.. _MjxFeatureParity:`) and [mjwarp/index.rst](../../mjwarp/index.rst)
+(`.. _mjwDiff:`) for full feature parity and solver/collision details.
 
 ## 2. MJX Workflow (JAX)
 
@@ -65,6 +78,14 @@ mjx_data = mjx.step(mjx_model, mjx_data)
 mjx.get_data_into(data, model, mjx_data)
 print(data.body('torso').xpos)
 ```
+
+On NVIDIA GPUs when JAX autodiff is not required, pass `impl='warp'` to
+`mjx.put_model(model, impl='warp')` and
+`mjx.make_data(model, impl='warp', naconmax=..., njmax=...)` (`pip install
+mujoco-mjx[warp]`) to run MJWarp's CUDA contact/constraint kernels inside JAX
+(`jax.jit` / `jax.vmap`); use `Data.where(...)` for conditional per-world resets
+and read [mjx.rst](../../mjx.rst) (`.. _MjxWarp:`, `.. _MjxWarpGraphModes:`,
+`.. _MjxPerformanceWarp:`) for CUDA graph modes and batch rendering.
 
 ## 3. High-Throughput Rollouts: jax.vmap and jax.lax.scan
 
@@ -184,29 +205,24 @@ qpos = mjw_data.qpos.numpy()  # (4096, nq)
 mjw.get_data_into(data, model, mjw_data, world_id=0)
 ```
 
-## 7. Supported Geometries & Feature Gaps
+## 7. Feature Parity, Tuning & Gotchas
 
-### Collision Geom Support Matrix
+Instead of relying on static feature snapshots, check the authoritative parity
+and performance sections in the RST manual when choosing colliders, solvers, or
+tuning throughput:
 
-| Geometry Pair | MJX (JAX) | MJWarp (CUDA) |
-| :--- | :--- | :--- |
-| Sphere - Sphere | ✅ Supported | ✅ Supported |
-| Sphere - Plane | ✅ Supported | ✅ Supported |
-| Capsule - Capsule | ✅ Supported | ✅ Supported |
-| Capsule - Plane | ✅ Supported | ✅ Supported |
-| Box - Plane | ✅ Supported | ✅ Supported |
-| Mesh - Primitive | ✅ Convex meshes | ✅ Convex meshes |
-| Mesh - Mesh | ⚠️ Performance sensitive | ✅ Warp accelerated |
+-   **Supported geometries, solvers & differences from CPU MuJoCo**:
+    [mjx.rst](../../mjx.rst) (`.. _MjxFeatureParity:`, `.. _MjxSharpBits:`) and
+    [mjwarp/index.rst](../../mjwarp/index.rst) (`.. _mjwDiff:`,
+    `.. _mjwPairwise:`, `.. _mjwBoxBox:`). Notably, `noslip` and `PGS` solvers
+    are CPU-only, and MJX-JAX solves constraints monolithically without
+    constraint islands.
+-   **Performance tuning, CUDA graphs & domain randomization**:
+    [mjx.rst](../../mjx.rst) (`.. _MjxPerformance:`, `.. _MjxPerformanceJAX:`,
+    `.. _MjxPerformanceWarp:`) and [mjwarp/index.rst](../../mjwarp/index.rst)
+    (`.. _mjwPerf:`, `.. _mjwGC:`, `.. _mjwOverflow:`, `.. _mjwBatch:`).
 
-### Solvers Not Available on GPU
-
--   **noslip solver**: Available only in C++ engine. If exact frictional stick
-    conditions without sliding drift are required, use CPU.
--   **PGS solver**: Not available on GPU backends.
--   **Constraint Islands**: Not used by MJX (solved monolithically); supported
-    by MJWarp.
-
-## 8. Common Gotchas & Numerical Stability
+### High-Frequency Gotchas
 
 1.  **Float32 precision**: GPU backends run in single precision (`float32`).
     Stiff systems may experience numerical drift or NaN errors. Counteract this
@@ -225,12 +241,18 @@ mjw.get_data_into(data, model, mjw_data, world_id=0)
     jax.config.update('jax_compilation_cache_dir', '/tmp/jax_cache')
     ```
 
-## 9. Key References
+## 8. Key References
 
 ### Documentation
 
--   [MJX Guide](../../mjx.rst)
--   [Python Bindings Reference](../../python.rst)
+-   [MJX Guide (`MJX-JAX` & `MJX-Warp`)](../../mjx.rst) (`.. _Mjx:`,
+    `.. _MjxWarp:`, `.. _MjxJAX:`, `.. _MjxFeatureParity:`,
+    `.. _MjxPerformance:`, `.. _MjxSharpBits:`) and
+    [MJX API Reference](../../mjx_api.rst)
+-   [MuJoCo Warp (MJWarp) Guide](../../mjwarp/index.rst) (`.. _MJW:`,
+    `.. _MJW_Usage:`, `.. _mjwPerf:`, `.. _mjwOverflow:`, `.. _mjwBatch:`,
+    `.. _mjwDiff:`) and [MJWarp API Reference](../../mjwarp/api.rst)
+-   [Python Bindings Reference](../../python.rst) (`.. _PyNamed:`)
 
 ### Source Code Examples
 

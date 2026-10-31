@@ -13,6 +13,23 @@ description: >-
 
 # Dear ImGui Development & Architecture Guide
 
+> [!TIP]
+>
+> **Official MuJoCo documentation (`doc/*.rst`) & related skills:**
+>
+> -   [`../../studio/python_plugins.rst`](../../studio/python_plugins.rst)
+>     (`.. _StudioUiPlugins:`, `.. _StudioImGuiTips:`) and
+>     [`../../studio/architecture.rst`](../../studio/architecture.rst)
+>     (`.. _StudioCppComponents:`) — How Dear ImGui and ImPlot integrate into
+>     MuJoCo Studio, `UpdateEvent` vs `BuildGuiEvent`, and C++ (`ux/`) vs Python
+>     widget trade-offs (grep literal `.. _Label:` anchors locally; online at
+>     `https://mujoco.readthedocs.io/en/stable/<path>.html`, or `/en/latest/`).
+> -   [`../../programming/ui.rst`](../../programming/ui.rst) (`.. _UI:`) —
+>     Legacy `mjui` C framework used only in classic `simulate.cc` (distinct
+>     from Studio's Dear ImGui stack).
+> -   [mujoco-studio](../studio/SKILL.md) — Studio viewer launchers, decoupled
+>     sim/viewer threads, plugins, hot reload, and `WebViewer` streaming.
+
 > [!NOTE]
 >
 > Dear ImGui is an immediate-mode GUI framework designed for fast iterations,

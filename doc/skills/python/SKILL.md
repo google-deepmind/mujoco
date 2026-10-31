@@ -13,6 +13,16 @@ description: >-
 
 > [!TIP]
 >
+> **Official MuJoCo documentation (`doc/*.rst`):** Read
+> [`../../python.rst`](../../python.rst) (`.. _PyStructs:`, `.. _PyNamed:`),
+> [`../../programming/simulation.rst`](../../programming/simulation.rst)
+> (`.. _Simulation:`), [`../../computation/index.rst`](../../computation/index.rst)
+> (`.. _Pipeline:`, `.. _geIntegrators:`), and
+> [`../../APIreference/functions.rst`](../../APIreference/functions.rst) for
+> complete API and physics documentation (grep literal `.. _Label:` anchors
+> locally; online at `https://mujoco.readthedocs.io/en/stable/<path>.html`, or
+> `/en/latest/`).
+>
 > **Related skills:**
 >
 > -   [mujoco-spec-editing](../spec_editing/SKILL.md) — Procedural model
@@ -251,27 +261,22 @@ if (key_id >= 0) {
 
 ### Integrators & Numerical Stability
 
-Configured via `model.opt.integrator`:
--   `mjINT_EULER` (default, kept for compatibility): Semi-implicit Euler; only
-    joint damping is integrated implicitly.
--   `mjINT_IMPLICITFAST` (recommended): Implicit in velocity, i.e. one Newton
-    step linearized in velocity using analytical derivatives of velocity-dependent
-    forces (joint/tendon/actuator damping including `kv`, fluid drag, gyroscopic
-    forces of free bodies). Skips Coriolis/centripetal derivatives and
-    symmetrizes the derivative so it can use Cholesky; cost is similar to Euler.
--   `mjINT_IMPLICIT`: Like `implicitfast` but also includes Coriolis/centripetal
-    derivatives (LU factorization). Helps rapidly spinning multi-link chains.
--   `mjINT_RK4`: 4th-order Runge-Kutta. Most accurate for smooth,
-    energy-conserving systems; costs four force evaluations per step.
--   `mjINT_DISCRETE` (experimental): The only integrator that is also implicit
-    in position, so stiff springs and position servos are treated implicitly,
-    including their interaction with contacts.
+Configured via `model.opt.integrator` (full equations and trade-offs in
+[computation/index.rst](../../computation/index.rst), `.. _geIntegrators:`, and
+[XMLreference.rst](../../XMLreference.rst), `.. _option-integrator:`):
 
-> [!NOTE]
->
-> `implicit`/`implicitfast` are not full backward Euler: they are not implicit
-> in position (stiffness) and do not differentiate constraint/contact forces.
-> Their stability benefit is for large velocity-dependent forces.
+-   `mjINT_IMPLICITFAST` (**recommended**): Velocity-implicit (damping, `kv`,
+    fluid drag, free-body gyroscopic forces) via symmetric Cholesky at ~Euler
+    cost.
+-   `mjINT_IMPLICIT`: Adds asymmetric Coriolis/centripetal velocity derivatives
+    (LU factorization) for rapidly spinning multi-link chains.
+-   `mjINT_EULER` (legacy default): Semi-implicit Euler; implicit in joint
+    damping only.
+-   `mjINT_RK4`: 4th-order Runge-Kutta (4 evaluations/step) for smooth,
+    energy-conserving systems.
+-   `mjINT_DISCRETE` (experimental): Also implicit in *position* (stiff springs,
+    position servos, and their coupling with contacts; `implicit`/`implicitfast`
+    are velocity-implicit only).
 
 ## 4. Contact & Force Sensing: Declarative Sensors
 
@@ -289,7 +294,8 @@ for c in data.contact:
 
 ### Declarative Contact Sensors
 
-`<contact>` sensors declaratively filter contacts, reduce them to a fixed
+`<contact>` sensors (see [XMLreference.rst](../../XMLreference.rst),
+`.. _sensor-contact:`) declaratively filter contacts, reduce them to a fixed
 number of slots, and write deterministic vectors directly into `data.sensordata`:
 
 ```xml
@@ -316,7 +322,8 @@ contact_data = data.sensor('grip_contact').data  # Always fixed length
 ### Touch Sensors for Scalar Normal Force
 
 For scalar surface contact forces (e.g., fingertips), use `touch` sensors
-attached to a site. Make sure the site is large enough to encompass the geom:
+([XMLreference.rst](../../XMLreference.rst), `.. _sensor-touch:`) attached to a
+site. Make sure the site is large enough to encompass the geom:
 
 ```python
 site = body.add_site(name='fingertip', pos=[0, 0, 0.05], size=[0.02])
@@ -431,10 +438,12 @@ comparison, refer to [`mujoco-parity`](../parity/SKILL.md).)*
 
 ### Documentation
 
--   [Python Bindings Reference](../../python.rst)
--   [Simulation & Computation Guide](../../programming/simulation.rst)
--   [C API Functions](../../APIreference/APIfunctions.rst)
--   [C API Types & Structs](../../APIreference/APItypes.rst)
+-   [Python Bindings Reference](../../python.rst) (`.. _PyStructs:`, `.. _PyNamed:`, `.. _PyModelEdit:`, `.. _PyMJCF:`, `.. _PyRollout:`)
+-   [Simulation Loop & State Guide](../../programming/simulation.rst) (`.. _siSimulation:`, `.. _siStateControl:`, `.. _siForward:`, `.. _siDiagnostics:`)
+-   [Computation & Integrators](../../computation/index.rst) (`.. _geIntegrators:`, `.. _geState:`, `.. _Pipeline:`)
+-   [MJCF Sensor & Option Reference](../../XMLreference.rst) (`.. _sensor-contact:`, `.. _sensor-touch:`, `.. _option-flag:`, `.. _keyframe:`)
+-   [C API Function Reference](../../APIreference/functions.rst) (`.. _Mainsimulation:`, `.. _Quaternions:`, `.. _Poses:`; rendered online inside [`APIfunctions.rst`](../../APIreference/APIfunctions.rst))
+-   [C API Types & Structs](../../APIreference/APItypes.rst) (`.. _mjModel:`, `.. _mjData:`, `.. _mjtState:`)
 
 ### Source Code Examples
 
