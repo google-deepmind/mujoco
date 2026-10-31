@@ -14,14 +14,20 @@ description: >-
 
 > [!TIP]
 >
-> **Official MuJoCo documentation (`doc/*.rst`):** Read
+> **Official MuJoCo documentation (`doc/*.rst`):** Read short chapters like
 > [`../../programming/modeledit.rst`](../../programming/modeledit.rst)
-> (`.. _meOverview:`), [`../../modeling.rst`](../../modeling.rst)
-> (`.. _ProceduralModeling:`, `.. _Mechanisms:`),
-> [`../../XMLreference.rst`](../../XMLreference.rst), and
-> [`../../python.rst`](../../python.rst) (`.. _PyModelEdit:`) for full schema
-> and API details (grep literal `.. _Label:` anchors locally; online at
-> `https://mujoco.readthedocs.io/en/stable/<path>.html`, or `/en/latest/`).
+> (`.. _meOverview:`) and [`../../overview.rst`](../../overview.rst) directly
+> when in a MuJoCo checkout; for large reference files like
+> [`../../modeling.rst`](../../modeling.rst) (`.. _ProceduralModeling:`,
+> `.. _Mechanisms:`), [`../../XMLreference.rst`](../../XMLreference.rst),
+> [`../../python.rst`](../../python.rst) (`.. _PyModelEdit:`), and
+> [`../../APIreference/functions.rst`](../../APIreference/functions.rst), grep
+> the literal `.. _Label:` anchor. Outside a checkout, fetch
+> `https://mujoco.readthedocs.io/en/latest/<path>.html` (or `/en/stable/` for
+> released pages; `functions.rst` renders inside
+> `APIreference/APIfunctions.html`, and Sphinx anchors lowercase the label,
+> e.g. `.. _meOverview:` → `#meoverview`) and browse repo paths (`../../../`)
+> under `https://github.com/google-deepmind/mujoco/tree/main/`.
 >
 > **Related skills:**
 >
@@ -294,6 +300,12 @@ finger.add_geom(
 )
 ```
 
+For contact softness and solver impedance/reference tuning (`solref`,
+`solimp`, `solmix`) and why parent-child geoms omit collisions by default, read
+[modeling.rst](../../modeling.rst) (`.. _CSolver:`, `.. _CSolverImpedance:`,
+`.. _CSolverReference:`, `.. _CContact:`) and [overview.rst](../../overview.rst)
+(`.. _SurprisingCollisions:`, `.. _Soft:`, `.. _Units:`).
+
 ## 8. Procedural Meshes, Materials & Sensors
 
 ### Procedural Meshes
@@ -345,16 +357,57 @@ spec.add_sensor(name='torso_gyro', type=mujoco.mjtSensor.mjSENS_GYRO,
     [modeling.rst](../../modeling.rst) (`.. _CDeformable:`) and
     [XMLreference.rst](../../XMLreference.rst) (`.. _body-flexcomp:`).
 
-## 10. Key References
+## 10. Reference Models & Key References
+
+### Reference MJCF Models & Fixtures
+
+Before authoring complex mechanisms or specialized elements from scratch, check
+existing models:
+
+-   **Built-in showcase models (`../../../model/`, or online at
+    https://github.com/google-deepmind/mujoco/tree/main/model)**:
+    `model/humanoid/`, `model/tendon_arm/arm26.xml`, `model/car/car.xml`,
+    `model/slider_crank/slider_crank.xml`, `model/flex/` (`bag.xml`,
+    `jelly.xml`, `drape.xml`, `poncho.xml`), `model/replicate/`
+    (`newton_cradle.xml`, `particle.xml`, `bunnies.xml`), `model/plugin/`
+    (cable, elasticity, actuator, SDF), `model/tactile/`, `model/adhesion/`,
+    `model/sleep/`, and `model/speculative/`.
+-   **MuJoCo Menagerie ([models.rst](../../models.rst), `.. _Menagerie:`)**:
+    Production robot descriptions (Franka Panda/FR3, UR5e/UR10e, Unitree
+    G1/H1/Go2, Spot, Barkour, Shadow Hand, Robotiq 2F-85, ALOHA 2, Skydio X2,
+    Flybody) at https://github.com/google-deepmind/mujoco_menagerie.
+-   **Minimal test fixtures (`../../../test/**/testdata/`, or online under
+    https://github.com/google-deepmind/mujoco/tree/main/test)**: Focused
+    single-feature XMLs in `test/user/testdata/` (`MjSpec` & compiler),
+    `test/xml/testdata/` (`parent.xml` / `child.xml` attachment fixtures,
+    OpenUSD), and `test/engine/testdata/` (`collisions.xml`, `connect.xml`,
+    `equality_site.xml`, `catenary.xml`).
 
 ### Documentation
 
--   [MjSpec & Procedural Model Editing](../../programming/modeledit.rst) (`.. _meOverview:`, `.. _meAttachment:`, `.. _meAttributeMerging:`, `.. _meDefault:`, `.. _meRecompilation:`)
--   [Python Model Editing Bindings](../../python.rst) (`.. _PyModelEdit:`, `.. _PyEditConvenience:`, `.. _PyMJCF:`)
--   [MJCF Modeling Guide](../../modeling.rst) (`.. _CDefault:`, `.. _COrientation:`, `.. _CContact:`, `.. _CBodyOrdering:`, `.. _CActuators:`, `.. _CDeformable:`)
--   [MJCF XML Schema Reference](../../XMLreference.rst) (`.. _body-geom:`, `.. _body-joint:`, `.. _actuator:`, `.. _equality:`, `.. _body-flexcomp:`)
--   [C Model Editing API Functions](../../APIreference/functions.rst) (`.. _Parseandcompile:`, `.. _Attachment:`, `.. _AddTreeElements:`, `.. _AddNonTreeElements:`)
+-   [MjSpec & Procedural Model Editing](../../programming/modeledit.rst)
+    (`.. _meOverview:`, `.. _meAttachment:`, `.. _meAttributeMerging:`,
+    `.. _meDefault:`, `.. _meRecompilation:`)
+-   [Python Model Editing & OpenUSD Bindings](../../python.rst)
+    (`.. _PyModelEdit:`, `.. _PyEditConvenience:`, `.. _PyMJCF:`,
+    `.. _PyUSDexport:`) and [OpenUSD Guide](../../OpenUSD/index.rst)
+-   [MJCF Modeling Guide](../../modeling.rst) (`.. _CDefault:`,
+    `.. _COrientation:`, `.. _CSolver:`, `.. _CContact:`, `.. _CBodyOrdering:`,
+    `.. _CActuators:`, `.. _CDeformable:`) and
+    [Modeling Pitfalls & Units](../../overview.rst) (`.. _Clarifications:`,
+    `.. _Units:`, `.. _SurprisingCollisions:`, `.. _Soft:`)
+-   [MJCF XML Schema Reference](../../XMLreference.rst) (`.. _body-geom:`,
+    `.. _body-joint:`, `.. _actuator:`, `.. _equality:`, `.. _body-flexcomp:`,
+    `.. _replicate:`)
+-   [Engine Plugins & Resource Providers](../../programming/extension.rst)
+    (`.. _exExtension:`, `.. _exSDF:`)
+-   [C Model Editing API Functions](../../APIreference/functions.rst)
+    (`.. _Parseandcompile:`, `.. _Attachment:`, `.. _AddTreeElements:`,
+    `.. _AddNonTreeElements:`)
 
-### Source Code Examples
+### Source Code & Notebook Examples
 
--   [MjSpec Tests](../../../python/mujoco/specs_test.py)
+-   `python/mjspec.ipynb` (`MjSpec` tutorial & `dm_control` `PyMJCF`
+    reimplementation; see [python.rst](../../python.rst), `.. _PyMJCF:`),
+    [MjSpec Tests](../../../python/mujoco/specs_test.py), and
+    [C++ Compile Sample](../../programming/samples.rst) (`.. _saCompile:`)

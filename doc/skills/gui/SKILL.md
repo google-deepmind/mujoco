@@ -22,8 +22,11 @@ description: >-
 >     [`../../studio/architecture.rst`](../../studio/architecture.rst)
 >     (`.. _StudioCppComponents:`) — How Dear ImGui and ImPlot integrate into
 >     MuJoCo Studio, `UpdateEvent` vs `BuildGuiEvent`, and C++ (`ux/`) vs Python
->     widget trade-offs (grep literal `.. _Label:` anchors locally; online at
->     `https://mujoco.readthedocs.io/en/stable/<path>.html`, or `/en/latest/`).
+>     widget trade-offs. Read these short `.rst` chapters directly when in a
+>     MuJoCo checkout, or fetch
+>     `https://mujoco.readthedocs.io/en/latest/<path>.html` (or `/en/stable/`
+>     once released; Sphinx anchors lowercase the label, e.g.
+>     `#studioimguitips`).
 > -   [`../../programming/ui.rst`](../../programming/ui.rst) (`.. _UI:`) —
 >     Legacy `mjui` C framework used only in classic `simulate.cc` (distinct
 >     from Studio's Dear ImGui stack).

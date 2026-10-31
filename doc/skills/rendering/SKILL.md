@@ -15,12 +15,18 @@ description: >-
 >
 > **Official MuJoCo documentation (`doc/*.rst`):** Read
 > [`../../programming/rendering.rst`](../../programming/rendering.rst)
-> (`.. _Rendering:`, `.. _FilamentRendering:`, `.. _ClassicRendering:`),
+> (`.. _Rendering:`, `.. _FilamentRendering:`, `.. _ClassicRendering:`) and
 > [`../../programming/visualization.rst`](../../programming/visualization.rst)
-> (`.. _Visualization:`), and [`../../python.rst`](../../python.rst)
-> (`.. _PyRender:`) for full architecture and API details (grep literal
-> `.. _Label:` anchors locally; online at
-> `https://mujoco.readthedocs.io/en/stable/<path>.html`, or `/en/latest/`).
+> (`.. _Visualization:`) directly when in a MuJoCo checkout; for large
+> reference files like [`../../python.rst`](../../python.rst) (`.. _PyRender:`),
+> [`../../XMLreference.rst`](../../XMLreference.rst), and
+> [`../../APIreference/functions.rst`](../../APIreference/functions.rst), grep
+> the literal `.. _Label:` anchor. Outside a checkout, fetch
+> `https://mujoco.readthedocs.io/en/latest/<path>.html` (or `/en/stable/` for
+> released pages; `functions.rst` renders inside
+> `APIreference/APIfunctions.html`, and Sphinx anchors lowercase the label,
+> e.g. `.. _PyRender:` → `#pyrender`) and browse repo paths (`../../../`) under
+> `https://github.com/google-deepmind/mujoco/tree/main/`.
 >
 > **Related skills:**
 >
@@ -274,7 +280,10 @@ OpenGL, Vulkan, Metal, and WebGL support, arbitrary `mjrfRenderTarget` sizes
     and darkening zero-intensity lights). For PBR materials, textures, and
     lighting authoring, read
     [programming/rendering.rst](../../programming/rendering.rst)
-    (`.. _reAuthoring:`, `.. _reMaterials:`, `.. _reLighting:`).
+    (`.. _reAuthoring:`, `.. _reMaterials:`, `.. _reLighting:`) and inspect the
+    reference PBR/IBL test scenes in `../../../test/render/testdata/`
+    (`pbr.xml`, `lighting.xml`, `emissive_bloom.xml`, `reflect_pbr.xml`,
+    `ibl.ktx`) and `../../../model/mug/mug.xml`.
 
 ## 8. Common Gotchas & Best Practices
 
@@ -293,12 +302,25 @@ OpenGL, Vulkan, Metal, and WebGL support, arbitrary `mjrfRenderTarget` sizes
 
 ### Documentation
 
--   [Rendering Guide (Filament `mjrf` & Classic OpenGL `mjr`)](../../programming/rendering.rst) (`.. _Rendering:`, `.. _FilamentRendering:`, `.. _ClassicRendering:`)
--   [Abstract Visualization (`mjvCamera`, `mjvOption`, `mjvScene`)](../../programming/visualization.rst) (`.. _Visualization:`, `.. _viCamera:`, `.. _viOption:`)
--   [Python Rendering Bindings](../../python.rst) (`.. _PyRender:`, `.. _PyFilamentRender:`, `.. _PyClassicRender:`)
--   [MJCF `<visual>` & `<camera>` Reference](../../XMLreference.rst) (`.. _visual-global:`, `.. _body-camera:`) and [Modeling Cameras](../../modeling.rst) (`.. _CCamera:`)
--   [C Rendering API Functions](../../APIreference/functions.rst) (`.. _Visualization-api:`, `.. _OpenGLrendering:`, `.. _FilamentRenderingApi:`)
+-   [Rendering Guide (Filament `mjrf` & Classic OpenGL `mjr`)](../../programming/rendering.rst)
+    (`.. _Rendering:`, `.. _FilamentRendering:`, `.. _ClassicRendering:`)
+-   [Abstract Visualization (`mjvCamera`, `mjvOption`, `mjvScene`)](../../programming/visualization.rst)
+    (`.. _Visualization:`, `.. _viCamera:`, `.. _viOption:`)
+-   [Python Rendering Bindings](../../python.rst) (`.. _PyRender:`,
+    `.. _PyFilamentRender:`, `.. _PyClassicRender:`)
+-   [MJCF `<visual>` & `<camera>` Reference](../../XMLreference.rst)
+    (`.. _visual-global:`, `.. _body-camera:`),
+    [Modeling Cameras](../../modeling.rst) (`.. _CCamera:`), and
+    [MuJoCo Menagerie](../../models.rst) (`.. _Menagerie:`)
+-   [C Rendering API Functions](../../APIreference/functions.rst)
+    (`.. _Visualization-api:`, `.. _OpenGLrendering:`,
+    `.. _FilamentRenderingApi:`) and
+    [C++ Render/Record Samples](../../programming/samples.rst) (`.. _saRender:`,
+    `.. _saRecord:`)
 
-### Source Code Examples
+### Source Code & Model Examples
 
--   [C API Headers](../../../include/mujoco/mujoco.h) and [`mjrfilament.h`](../../../include/mujoco/mjrfilament.h)
+-   [C API Headers](../../../include/mujoco/mujoco.h) and
+    [`mjrfilament.h`](../../../include/mujoco/mjrfilament.h)
+-   [C++ Offscreen & Filament Sample](../../../sample/render.cc) and
+    [Filament PBR Test Scenes](../../../test/render/testdata/pbr.xml)

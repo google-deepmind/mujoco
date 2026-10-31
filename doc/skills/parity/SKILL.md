@@ -18,16 +18,21 @@ description: >-
 
 > [!TIP]
 >
-> **Official MuJoCo documentation (`doc/*.rst`):** Read
+> **Official MuJoCo documentation (`doc/*.rst`):** Read short chapters like
 > [`../../mjwarp/index.rst`](../../mjwarp/index.rst) (`.. _mjwDiff:`,
 > `.. _mjwOverflow:`, `.. _mjwPairwise:`, `.. _mjwBoxBox:`),
-> [`../../mjx.rst`](../../mjx.rst) (`.. _MjxFeatureParity:`),
-> [`../../computation/index.rst`](../../computation/index.rst)
-> (`.. _Pipeline:`, `.. _piStages:`), and
+> [`../../mjx.rst`](../../mjx.rst) (`.. _MjxFeatureParity:`), and
 > [`../../programming/simulation.rst`](../../programming/simulation.rst)
-> (`.. _siIntegrationState:`, `.. _siWarmstart:`) alongside the diagnostic
-> recipes below (grep literal `.. _Label:` anchors locally; online at
-> `https://mujoco.readthedocs.io/en/stable/<path>.html`, or `/en/latest/`).
+> (`.. _siIntegrationState:`, `.. _siWarmstart:`) directly when in a MuJoCo
+> checkout; for large files like
+> [`../../computation/index.rst`](../../computation/index.rst) (`.. _Pipeline:`,
+> `.. _piStages:`) and
+> [`../../APIreference/functions.rst`](../../APIreference/functions.rst), grep
+> the literal `.. _Label:` anchor. Outside a checkout, fetch
+> `https://mujoco.readthedocs.io/en/latest/<path>.html` (or `/en/stable/` for
+> released pages; `functions.rst` renders inside
+> `APIreference/APIfunctions.html`, and Sphinx anchors lowercase the label,
+> e.g. `.. _mjwDiff:` → `#mjwdiff`).
 >
 > **Related skills:**
 >
