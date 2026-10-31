@@ -120,6 +120,33 @@ attributes:
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
   enable/disable flags, control inputs, and mouse perturbations.
 
+- ``set_texts(texts, update_interval=0.0)``: replaces the text overlays with a tuple, or a list of tuples, of
+  ``(font, gridpos, text1, text2)``. Use :ref:`mjtFontScale` for ``font`` and :ref:`mjtGridPos` for
+  ``gridpos``. Passing ``None`` selects ``mjFONTSCALE_150`` and ``mjGRID_TOPLEFT`` for the first two
+  fields, or an empty string for either text column. The text remains visible until replaced or cleared
+  with ``clear_texts()``; it does not need to be submitted on every physics step or ``sync()`` call.
+
+  Text updates wait for the render thread to consume any previously pending text update. For a status
+  display, use the optional ``update_interval`` (finite, nonnegative wall-clock seconds) to limit
+  submissions independently of physics stepping and scene synchronization:
+
+  .. code-block:: python
+
+    mujoco.mj_step(m, d)
+    viewer.set_texts(
+        (None, None, 'Simulation time', f'{d.time:.3f} s'), update_interval=0.5)
+    viewer.sync()
+
+  The first call submits immediately. Calls before the next eligible time are skipped, not queued;
+  the next eligible call submits its own text. Set ``update_interval=0`` (the default) to submit an
+  update unconditionally, for example a final status before stopping. ``clear_texts()`` always clears
+  immediately after any pending submission is consumed, and resets the deadline. This option does
+  not change the model timestep or the frequency of ``sync()`` calls. It does not make an eligible
+  submission nonblocking or remove the cost of formatting strings in user code.
+
+- ``clear_texts()``: removes all text overlays. Like ``set_texts()``, this waits for any pending text
+  update to be consumed by the render thread.
+
 - ``update_hfield(hfieldid)``: updates the height field data at the specified ``hfieldid`` for subsequent renderings.
 
 - ``update_mesh(meshid)``: updates the mesh data at the specified ``meshid`` for subsequent renderings.
