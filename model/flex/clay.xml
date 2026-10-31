@@ -48,14 +48,6 @@
 
     <geom name="ground" type="plane" size="0 0 1" material="matplane" condim="3" friction="1.5 0.005 0.0001"/>
 
-    <!-- Elasto-plastic clay block (17x17x5 grid) anchored at its base -->
-    <flexcomp name="clay" type="grid" dim="3" count="17 17 5" spacing="0.018 0.018 0.025"
-              pos="0 0 0.052" radius="0.002" mass="1.0" flatskin="false" material="clay_mat">
-      <pin gridrange="0 0 0 16 16 0"/>
-      <contact condim="1" solref="0.003 1" solimp="0.98 0.995 0.001" selfcollide="none"/>
-      <elasticity young="4.5e4" poisson="0.0" damping="0.02" yield="0.0016"/>
-    </flexcomp>
-
     <!-- Hinged stamping press behind the clay block (+y) -->
     <body name="base" pos="0 0.28 0" euler="0 0 90">
       <geom name="pedestal" type="box" pos="0 0 0.052" size="0.025 0.045 0.052" material="steel" contype="0" conaffinity="0"/>
@@ -78,6 +70,14 @@
         </body>
       </body>
     </body>
+
+    <!-- Elasto-plastic clay block (17x17x5 grid) anchored at its base -->
+    <flexcomp name="clay" type="grid" dim="3" count="17 17 5" spacing="0.018 0.018 0.025"
+              pos="0 0 0.052" radius="0.002" mass="1.0" flatskin="false" material="clay_mat">
+      <pin gridrange="0 0 0 16 16 0"/>
+      <contact condim="1" solref="0.003 1" solimp="0.98 0.995 0.001" selfcollide="none"/>
+      <elasticity young="4.5e4" poisson="0.0" damping="0.02" yield="0.0016"/>
+    </flexcomp>
   </worldbody>
 
   <actuator>
