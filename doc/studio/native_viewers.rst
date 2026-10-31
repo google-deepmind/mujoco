@@ -5,15 +5,59 @@
 Native Viewers
 ==============
 
+Studio provides two ways to run in a native desktop window, built on the same shared
+:ref:`C++ components <StudioCppComponents>` so both look and behave nearly identically:
+
+- **MuJoCo Studio app** (C++): Prebuilt standalone desktop application for inspecting models out of the box, extending
+  in :ref:`C++ <StudioCpp>`, or compiling to WebAssembly to run serverless in the browser
+  (:ref:`MuJoCo Live <StudioLive>`).
+- **Python** ``NativeViewer``: Drives or attaches to a Python simulation loop and supports
+  :ref:`Python plugins <StudioPythonPlugins>`.
+
+Choose ``NativeViewer`` when scripting or extending in Python, and the C++ application when extending in C++ or
+targeting serverless WebAssembly; any custom components meant to be shared across both should be written in C++ and
+bound to Python (see :ref:`C++ Components <StudioCppComponents>`).
+
+.. _StudioApp:
+
+Standalone Application
+======================
+
+Every `GitHub release <https://github.com/google-deepmind/mujoco/releases>`__ includes a prebuilt standalone Studio
+application alongside :ref:`simulate <saSimulate>`, rendered via :ref:`Filament <FilamentRendering>`:
+
+- **macOS** (``.dmg``): Packaged as the ``MuJoCoStudio.app`` bundle; double-click to launch directly from the disk
+  image or drag it into ``/Applications`` to install.
+- **Windows** (``.zip``): Packaged as ``bin\mujoco_studio.exe`` in the extracted archive; double-click in File Explorer
+  or launch from a terminal.
+- **Linux** (``.tar.gz``): Shipped as ``bin/mujoco_studio`` in the extracted archive.
+
+Once open, load ``.xml``, ``.mjb``, or ``.mjz`` models from the **File** menu or by dragging and dropping onto the
+window. From a terminal on any platform, you can also pass a model path (positional or ``--model_file``) and a ``--gfx``
+:ref:`rendering backend <StudioBackends>`:
+
+.. code-block:: Text
+
+   macOS:    /Applications/MuJoCoStudio.app/Contents/MacOS/mujoco_studio model/humanoid/humanoid.xml
+   Windows:  bin\mujoco_studio model\humanoid\humanoid.xml
+   Linux:    ./bin/mujoco_studio model/humanoid/humanoid.xml
+
+To build ``mujoco_studio`` from source or link custom C++ plugins, see :ref:`Build & Launch <StudioCppLauncher>` in
+:ref:`C++ <StudioCpp>`.
+
+.. _StudioPythonNative:
+
+Python NativeViewer
+===================
+
 In Python, ``NativeViewer`` (`native_viewer.py
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/native_viewer.py>`__) renders both the 3D
 scene and `Dear ImGui <https://github.com/ocornut/imgui>`__ UI locally in an SDL2 desktop window or offscreen buffer via
 :ref:`Filament <FilamentRendering>`. Use **blocking mode** (``launch_native.run``) when Studio drives the simulation
-loop, or **non-blocking mode** (``launch_native.launch``) when attaching a viewer to your own Python loop. For the
-standalone C++ desktop executable ``mujoco_studio``, see :ref:`C++ <StudioCpp>`.
+loop, or **non-blocking mode** (``launch_native.launch``) when attaching a viewer to your own Python loop.
 
 Blocking Mode
-=============
+-------------
 
 To open the standalone Studio viewer from the command line with optional :ref:`plugin files <StudioPythonPlugins>` and
 :ref:`hot reload <StudioHotReload>`:
@@ -49,7 +93,7 @@ enabled, or pass an in-memory ``model=...`` with optional ``data=...``:
 .. _StudioExecutionModes:
 
 Non-Blocking Mode
-=================
+-----------------
 
 When attaching ``NativeViewer`` to an existing Python loop—such as an RL training loop, trajectory replay script, or
 test—use `launch_native.launch

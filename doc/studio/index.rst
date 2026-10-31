@@ -18,7 +18,10 @@ Quick Start
 - **In the browser (zero install)**: Open `live.mujoco.org <https://live.mujoco.org>`__ and drag-and-drop any ``.xml``,
   ``.mjb``, or ``.mjz`` model onto the canvas, or share a model URL via ``?model=github:<org>/<repo>/<branch>/<path>``
   (see :ref:`MuJoCo Live <StudioLive>`).
-- **From the command line**: Launch the standalone Studio application in a :ref:`native window <StudioNativeViewers>`
+- **Standalone desktop app**: Download the `latest release <https://github.com/google-deepmind/mujoco/releases>`__ and
+  open ``MuJoCoStudio.app`` on macOS, ``bin\mujoco_studio.exe`` on Windows, or ``bin/mujoco_studio`` on Linux (see
+  :ref:`Standalone Application <StudioApp>`).
+- **From the Python CLI**: Launch the Studio viewer in a :ref:`native window <StudioNativeViewers>`
   or stream it headlessly to a :ref:`browser <StudioWebViewer>`:
 
   .. code-block:: shell

@@ -10,7 +10,8 @@ Build & Launch
 ==============
 
 The native C++ Studio application lives in `studio/
-<https://github.com/google-deepmind/mujoco/tree/main/studio>`__. To build and launch ``mujoco_studio`` from the
+<https://github.com/google-deepmind/mujoco/tree/main/studio>`__ and ships prebuilt in MuJoCo binary releases (see
+:ref:`Standalone Application <StudioApp>`). To build and launch ``mujoco_studio`` from the
 repository root, use the ``build_studio_cpp_viewer`` step in `.github/workflows/build_steps.sh
 <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build_steps.sh>`__ (see the workflows `README
 <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/README.md>`__ for prerequisites), or run
