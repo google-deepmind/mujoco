@@ -265,6 +265,9 @@ class Viewer(abc.ABC):
     """Renders the scene using the viewer's current model and data."""
     ...
 
+  def sync_idle(self) -> None:
+    """Updates viewer state when prepare_next_frame() returned False."""
+
   @abc.abstractmethod
   def get_drop_file(self) -> str:
     ...
@@ -318,8 +321,8 @@ def run_viewer_loop(viewer: Viewer) -> None:
       for snapshot in viewer.get_sim_snapshots():
         viewer.dispatch(snapshot)
 
-      # Skip rendering when prepare_next_frame returned no active frame.
-      # e.g., no browser is connected to the web viewer.
+      # Skip UI and scene rendering when prepare_next_frame returned no active
+      # frame (e.g., no controller browser is connected to the web viewer).
       if frame:
         # Dispatch lifecycle events.
         viewer.dispatch(messages.UpdateEvent())
@@ -327,6 +330,8 @@ def run_viewer_loop(viewer: Viewer) -> None:
 
         # Render the scene.
         viewer.sync()
+      else:
+        viewer.sync_idle()
   except Exception as ex:
     viewer.exit_reason = messages.describe_exception(ex)
     logger.exception(

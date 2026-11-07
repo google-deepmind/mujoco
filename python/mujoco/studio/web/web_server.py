@@ -924,6 +924,7 @@ def _run_server(
         await ws.close(_WS_CLOSE_SESSION_FULL, "session full")
         return
       state_clients[sid] = ws
+      server._viewer_count = len(state_clients)  # pylint: disable=protected-access
       last_heartbeat[sid] = loop_time()
       logger.info("[StateWS] Browser connected (%d total)", len(state_clients))
       await broadcast_roster()
@@ -1035,6 +1036,7 @@ def _run_server(
         # owns the queue and heartbeat entries.
         if state_clients.get(sid) is ws:
           del state_clients[sid]
+          server._viewer_count = len(state_clients)  # pylint: disable=protected-access
           if sid in control_queue:
             control_queue.remove(sid)
           last_heartbeat.pop(sid, None)
@@ -1235,6 +1237,7 @@ def _run_server(
     try:
       await watch_stop()
     finally:
+      server._viewer_count = 0  # pylint: disable=protected-access
       server._wake_state_streams = None
       enforcer.cancel()
       server._wake_ui_stream = None  # pylint: disable=protected-access
@@ -1311,6 +1314,7 @@ class WebServer:
     self._state_lock = threading.Lock()
     self._state_payload: bytes | None = None
     self._state_generation: int = 0
+    self._viewer_count: int = 0
     self._wake_state_streams: Callable[[], Any] | None = None
     self._client_camera: bytes | None = None
     self._pending_theme: str | None = None
@@ -1467,6 +1471,11 @@ class WebServer:
       if data is not None:
         self._models.move_to_end(crc32)
       return data
+
+  @property
+  def viewer_count(self) -> int:
+    """Number of browsers currently connected to the /state stream."""
+    return self._viewer_count
 
   @property
   def models_generation(self) -> int:

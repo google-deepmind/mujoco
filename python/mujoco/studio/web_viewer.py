@@ -44,6 +44,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 from typing import Any
 import webbrowser
 import zlib
@@ -64,6 +65,10 @@ from mujoco.studio.implot import implot
 
 # File extensions a dropped file may load as a model.
 _MODEL_EXTENSIONS = ('.xml', '.urdf', '.mjb', '.mjz', '.zip')
+
+# Target interval between /state broadcasts when no /ui controller paces the
+# viewer loop (matches HeadlessUi's 60 Hz frame rate).
+_STATE_FRAME_PERIOD = 1.0 / 60.0
 
 _THEMES = {
     'light': ux.GuiTheme.LIGHT,
@@ -242,6 +247,8 @@ class WebViewer(viewer_protocol.Viewer):
 
     # The persistent single-port server (HTTP + /ui + /state + /drop).
     self._model_crc32 = 0
+    self._model_dirty = False
+    self._next_state_time = 0.0
 
     # The browser moves the camera locally at the browser's frame rate rather
     # than once per network round trip.
@@ -263,9 +270,15 @@ class WebViewer(viewer_protocol.Viewer):
     # Dispatch lifecycle event so handlers can cache the viewer reference.
     try:
       self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+      self._publish_state()
     except BaseException:
       self.close()  # The server is already up; nothing else will stop it.
       raise
+
+  @property
+  def port(self) -> int:
+    """Public HTTP/WebSocket port bound by this viewer."""
+    return self._http_port
 
   # ---------------------------------------------------------------------------
   # Server lifecycle.
@@ -296,6 +309,7 @@ class WebViewer(viewer_protocol.Viewer):
     """Swaps the model bytes served at /model without restarting the server."""
     mjb_data = self._serialize_model()
     self._model_crc32 = zlib.crc32(mjb_data)
+    self._model_dirty = True
     if self._web_server is not None:
       self._web_server.update_model(mjb_data, self._model_crc32)
 
@@ -364,38 +378,64 @@ class WebViewer(viewer_protocol.Viewer):
         self._client_camera.apply(self.camera, camera)
     return frame
 
+  def _publish_state(self, *, has_ui_frame: bool = False) -> None:
+    """Serializes and publishes the current scene state to /state."""
+    if self._web_server is None:
+      return
+    now = time.monotonic()
+    if (
+        has_ui_frame
+        or not (now - _STATE_FRAME_PERIOD < self._next_state_time <= now)
+    ):
+      self._next_state_time = now + _STATE_FRAME_PERIOD
+    else:
+      self._next_state_time += _STATE_FRAME_PERIOD
+    self._model_dirty = False
+
+    io = imgui.GetIO() if has_ui_frame else None
+    state_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)
+    state_size = mujoco.mj_stateSize(self.model, state_sig)
+    state = np.empty(state_size, np.float64)
+    mujoco.mj_getState(self.model, self.data, state, state_sig)
+    payload = state_payload.serialize_state_payload(
+        self._model_crc32,
+        state_sig,
+        state.tobytes(),
+        self.camera,
+        self.perturb,
+        self.vis_options,
+        self.model,
+        list(self.render_flags.flags),
+        self.extra_geoms[: state_payload.MAX_EXTRA_GEOMS],
+        state_payload.ViewerInputState(
+            mouse_focus=io is not None and not io.WantCaptureMouse,
+            camera_index=self.camera_index,
+            keyboard_focus=io is not None and not io.WantCaptureKeyboard,
+            camera_generation=self._client_camera.update_generation(
+                self.camera
+            ),
+        ),
+    )
+    self._web_server.update_state(payload)
+
   def sync(self) -> None:
     """Streams state to the browser and ends the headless ImGui frame."""
-    if self._web_server is not None:
-      state_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)
-      state_size = mujoco.mj_stateSize(self.model, state_sig)
-      state = np.empty(state_size, np.float64)
-      mujoco.mj_getState(self.model, self.data, state, state_sig)
-      payload = state_payload.serialize_state_payload(
-          self._model_crc32,
-          state_sig,
-          state.tobytes(),
-          self.camera,
-          self.perturb,
-          self.vis_options,
-          self.model,
-          list(self.render_flags.flags),
-          self.extra_geoms[: state_payload.MAX_EXTRA_GEOMS],
-          state_payload.ViewerInputState(
-              mouse_focus=not imgui.GetIO().WantCaptureMouse,
-              camera_index=self.camera_index,
-              keyboard_focus=not imgui.GetIO().WantCaptureKeyboard,
-              camera_generation=self._client_camera.update_generation(
-                  self.camera
-              ),
-          ),
-      )
-      self._web_server.update_state(payload)
+    self._publish_state(has_ui_frame=True)
 
     # Finish the ImGui frame and send it to the browser.
     self._headless_ui.end_frame()
     if self._web_server is not None:
       self._web_server.notify_ui_frame()
+
+  def sync_idle(self) -> None:
+    """Streams state to spectators when no /ui controller drives frames."""
+    if self._web_server is None:
+      return
+    if self._model_dirty or (
+        self._web_server.viewer_count > 0
+        and time.monotonic() >= self._next_state_time
+    ):
+      self._publish_state()
 
   def close(self) -> None:
     self._stop_server()

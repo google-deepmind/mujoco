@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -1116,6 +1117,32 @@ TEST_F(MjvSceneTest, MjvSelectRespectsFlexAndSkinGroups) {
   EXPECT_EQ(skinid, -1);
 
   FreeSceneObjects();
+}
+
+TEST_F(MjvSceneTest, DefaultInitializersClearAllStructBytes) {
+  mjvOption vopt_zero, vopt_ones, vopt_uninit;
+  std::memset(&vopt_zero, 0x00, sizeof(vopt_zero));
+  std::memset(&vopt_ones, 0xFF, sizeof(vopt_ones));
+  mjv_defaultOption(&vopt_zero);
+  mjv_defaultOption(&vopt_ones);
+  mjv_defaultOption(&vopt_uninit);
+  EXPECT_EQ(std::memcmp(&vopt_zero, &vopt_ones, sizeof(mjvOption)), 0);
+  EXPECT_EQ(std::memcmp(&vopt_zero, &vopt_uninit, sizeof(mjvOption)), 0);
+
+  mjVisual vis_zero, vis_ones, vis_uninit;
+  std::memset(&vis_zero, 0x00, sizeof(vis_zero));
+  std::memset(&vis_ones, 0xFF, sizeof(vis_ones));
+  mj_defaultVisual(&vis_zero);
+  mj_defaultVisual(&vis_ones);
+  mj_defaultVisual(&vis_uninit);
+  EXPECT_EQ(std::memcmp(&vis_zero, &vis_ones, sizeof(mjVisual)), 0);
+  EXPECT_EQ(std::memcmp(&vis_zero, &vis_uninit, sizeof(mjVisual)), 0);
+
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  ASSERT_THAT(model.get(), NotNull());
+  mjStatistic stat_copy;
+  std::memcpy(&stat_copy, &model->stat, sizeof(mjStatistic));
+  EXPECT_EQ(std::memcmp(&model->stat, &stat_copy, sizeof(mjStatistic)), 0);
 }
 }  // namespace
 }  // namespace mujoco
