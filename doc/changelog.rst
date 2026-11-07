@@ -15,6 +15,12 @@ Bug fixes
   :ref:`mju_error`, so one unloadable library in the plugin directory no longer aborts :ref:`simulate<saSimulate>` at
   startup. In the 4.0.0 macOS and Linux archives this happened with the USD decoder plugin, which can only be loaded
   from a Python process.
+- Fixed the inertial frame of bodies whose inertial position is undefined: compilation set it to the pose of the body in
+  its parent, which put the center of mass at about twice the body offset and rotated the inertia by the body
+  orientation; it is now centered at the body origin. This affected geomless bodies given mass by
+  :ref:`boundmass<compiler-boundmass>`, like the dummy bodies of URDF models, bodies in an :ref:`mjSpec` with a mass but
+  no ``ipos``, and the ``xipos`` and ``ximat`` of massless geomless bodies, read for example by
+  :ref:`frame sensors<sensor-framepos>` with ``objtype="body"``.
 
 Version 4.0.0 (November 6, 2026)
 --------------------------------
