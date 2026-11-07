@@ -82,6 +82,13 @@ Like :ref:`launch_native <StudioExecutionModes>`, non-blocking mode is supported
 attaching ``WebViewer`` to an existing simulation loop; see `custom_sim_loop.py
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/custom_sim_loop.py>`__.
 
+``studio_app.App`` is itself optional: omitting it gives you a clean 3D viewport where your own :ref:`plugins
+<StudioPythonPlugins>` define the entire interface. For example, the interactive slideshow sample in
+`overview/slideshow.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/overview/slideshow.py>`__ runs a
+custom viewer without ``studio_app.App``, pairing the built-in playback and history plugins with a minimal caption
+card, timeline scrubbing, and background scene prefetching.
+
 Streaming Architecture
 ----------------------
 

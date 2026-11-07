@@ -8,9 +8,10 @@
 [pypi]: https://pypi.org/project/mujoco/
 
 This package is the canonical Python distribution for the
-[MuJoCo physics engine](https://github.com/google-deepmind/mujoco).
-These bindings are developed and maintained by Google DeepMind, and are kept
-up-to-date with the latest developments in MuJoCo itself.
+[MuJoCo](https://mujoco.org) physics engine
+([GitHub](https://github.com/google-deepmind/mujoco)). These bindings are
+developed and maintained by Google DeepMind, and are kept up-to-date with the
+latest developments in MuJoCo itself.
 
 Installing `mujoco` installs:
 

@@ -1,8 +1,11 @@
 <h1>
-  <a href="#"><img alt="MuJoCo" src="banner.png" width="100%"/></a>
+  <a href="https://mujoco.org"><img alt="MuJoCo" src="banner.png" width="100%"/></a>
 </h1>
 
 <p>
+  <a href="https://mujoco.org" alt="Website">
+    <img src="https://img.shields.io/badge/website-mujoco.org-0053d6">
+  </a>
   <a href="https://github.com/google-deepmind/mujoco/actions/workflows/build.yml?query=branch%3Amain" alt="GitHub Actions">
     <img src="https://img.shields.io/github/actions/workflow/status/google-deepmind/mujoco/build.yml?branch=main">
   </a>
@@ -25,8 +28,8 @@ This repository is maintained by [Google DeepMind](https://www.deepmind.com/).
 MuJoCo has a C API and is intended for researchers and developers. The runtime
 simulation module is tuned to maximize performance and operates on low-level
 data structures that are preallocated by the built-in XML compiler. The library
-includes interactive visualization with a native GUI, rendered in OpenGL. MuJoCo
-further exposes a large number of utility functions for computing
+includes interactive visualization in native desktop windows and web browsers.
+MuJoCo further exposes a large number of utility functions for computing
 physics-related quantities.
 
 We also provide [Python bindings] and a plug-in for the [Unity] game engine.
@@ -39,15 +42,18 @@ features due for the next release can be found in the [changelog] in the
 
 ## Getting Started
 
-There are two easy ways to get started with MuJoCo:
+1. **Try MuJoCo in your browser.**
+Visit [mujoco.org](https://mujoco.org) to explore MuJoCo on desktop or mobile
+with nothing to install, or open [live.mujoco.org](https://live.mujoco.org) to
+inspect and drag and drop your own models in the WebAssembly version of the
+[MuJoCo Studio] app (slower than native C, since it runs in WebAssembly).
 
-1. **Run `simulate` on your machine.**
-[This video](https://www.youtube.com/watch?v=P83tKA1iz2Y) shows a screen capture
-of `simulate`, MuJoCo's native interactive viewer. Follow the steps described in
-the [Getting Started] section of the documentation to get `simulate` running on
-your machine.
+2. **Run a viewer on your machine.**
+Follow the [Getting Started] guide in the documentation to download a prebuilt
+release and run the [MuJoCo Studio] app or the classic `simulate` viewer (shown
+in [this video](https://www.youtube.com/watch?v=P83tKA1iz2Y)) on your machine.
 
-2. **Explore our online IPython notebooks.**
+3. **Explore our online IPython notebooks.**
 If you are a Python user, you might want to start with our tutorial notebooks
 running on Google Colab:
 
@@ -196,6 +202,7 @@ This is not an officially supported Google product.
 
 [build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-from-source
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
+[MuJoCo Studio]: https://mujoco.readthedocs.io/en/latest/studio/
 [Unity]: https://unity.com/
 [releases page]: https://github.com/google-deepmind/mujoco/releases
 [mujoco.readthedocs.io]: https://mujoco.readthedocs.io

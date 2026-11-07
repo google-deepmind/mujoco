@@ -44,6 +44,10 @@ UI framework
 Getting started
 ~~~~~~~~~~~~~~~
 
+To try MuJoCo in your browser with nothing to install, visit `mujoco.org <https://mujoco.org>`__, or open and drag and
+drop your own models at `live.mujoco.org <https://live.mujoco.org>`__, which runs the WebAssembly version of the
+:ref:`MuJoCo Studio <Studio>` app.
+
 MuJoCo is an open-source project. Pre-built dynamic libraries are available for x86_64 and arm64 machines running
 Windows, Linux, and macOS. These can be downloaded from the `GitHub Releases page
 <https://github.com/google-deepmind/mujoco/releases>`_. Users who do not intend to develop or modify core MuJoCo code

@@ -9,7 +9,8 @@
 
 This package provides the MuJoCo Studio interactive viewer (desktop and web) and
 Filament rendering bindings (`mujoco.studio` and `mujoco.mjrf`) for the
-[MuJoCo physics engine](https://github.com/google-deepmind/mujoco).
+[MuJoCo](https://mujoco.org) physics engine
+([GitHub](https://github.com/google-deepmind/mujoco)).
 
 It is automatically installed when you install the full `mujoco` package:
 

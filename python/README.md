@@ -8,9 +8,10 @@
 [pypi]: https://pypi.org/project/mujoco-core/
 
 This package contains the core Python bindings (`mujoco-core`) for the
-[MuJoCo physics engine](https://github.com/google-deepmind/mujoco).
-These bindings are developed and maintained by Google DeepMind, and are kept
-up-to-date with the latest developments in MuJoCo itself.
+[MuJoCo](https://mujoco.org) physics engine
+([GitHub](https://github.com/google-deepmind/mujoco)). These bindings are
+developed and maintained by Google DeepMind, and are kept up-to-date with the
+latest developments in MuJoCo itself.
 
 The `mujoco-core` package provides direct access to raw MuJoCo C API functions,
 structs, constants, and enumerations, with only `numpy` as a required runtime

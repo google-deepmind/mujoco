@@ -12,12 +12,17 @@ Initially developed by Roboti LLC, it was acquired and made `freely available
 May 2022. The MuJoCo codebase is available at the `google-deepmind/mujoco
 <https://github.com/google-deepmind/mujoco>`__ repository on GitHub.
 
+To explore MuJoCo in your browser with nothing to install, visit `mujoco.org <https://mujoco.org>`__. To inspect or
+drag and drop your own models in the browser, open `live.mujoco.org <https://live.mujoco.org>`__, which runs the
+WebAssembly version of the :ref:`MuJoCo Studio <Studio>` app (convenient for zero-install inspection, though slower
+than native C).
+
 MuJoCo is a C/C++ library with a C API, intended for researchers and developers. The runtime simulation module is tuned
 to maximize performance and operates on low-level data structures which are preallocated by the built-in XML parser and
 compiler. The user defines models in the native MJCF scene description language -- an XML file format designed to be as
-human readable and editable as possible. URDF model files can also be loaded. The library includes interactive
-visualization with a native GUI, rendered in OpenGL. MuJoCo further exposes a large number of utility functions for
-computing physics-related quantities.
+human readable and editable as possible. URDF model files can also be loaded. The library includes :ref:`interactive
+visualization <Studio>` in native desktop windows and web browsers. MuJoCo further exposes a large number of utility
+functions for computing physics-related quantities.
 
 MuJoCo can be used to implement model-based computations such as control synthesis, state estimation, system
 identification, mechanism design, data analysis through inverse dynamics, and parallel sampling for machine learning
@@ -112,18 +117,24 @@ Performance
    <siMultithread>`.
 
 Interactive simulation and visualization
-   The native :ref:`3D visualizer <Visualization>` provides rendering of meshes and geometric primitives, textures,
-   reflections, shadows, fog, transparency, wireframes, skyboxes, stereoscopic visualization (on video cards supporting
-   quad-buffered OpenGL). This functionality is used to generate 3D rendering that helps the user gain insight into the
-   physics simulation, including visual aids such as automatically generated model skeletons, equivalent inertia boxes,
-   contact positions and normals, contact forces that can be separated into normal and tangential components, external
-   perturbation forces, local frames, joint and actuator axes, and text labels. The visualizer expects a generic window
-   with an OpenGL rendering context, thereby allowing users to adopt a GUI library of their choice. The code sample
-   :ref:`simulate.cc <saSimulate>` distributed with MuJoCo shows how to do that with the GLFW library. A related
-   usability feature is the ability to "reach into" the simulation, push objects around and see how the physics respond.
-   The user selects the body to which the external forces and torques will be applied, and sees a real-time rendering of
-   the perturbations together with their dynamic consequences. This can be used to debug the model visually, to test the
-   response of a feedback controller, or to configure the model into a desired pose.
+   :ref:`MuJoCo Studio <Studio>` is MuJoCo's modern visualization SDK for C++ and Python, combining physically based
+   :ref:`Filament rendering <FilamentRendering>`, `Dear ImGui <https://github.com/ocornut/imgui>`__ panels, and
+   modular plugins. The Studio app runs natively on desktop (:ref:`standalone app <StudioApp>`) and in the browser via
+   WebAssembly at `live.mujoco.org <https://live.mujoco.org>`__ (:ref:`browser build <StudioLive>`), and Python
+   simulations can attach either a :ref:`native window <StudioPythonNative>` or a headless :ref:`web viewer
+   <StudioWebViewer>`.
+
+   MuJoCo also includes a classic :ref:`OpenGL renderer <ClassicRendering>` (used by the :ref:`simulate.cc <saSimulate>`
+   sample) that renders meshes and geometric primitives, textures, reflections, shadows, fog, transparency, wireframes,
+   skyboxes, and stereoscopic visualization (on video cards supporting quad-buffered OpenGL). Both Studio and
+   ``simulate`` build on the :ref:`abstract 3D visualizer <Visualization>` to help users gain insight into the physics
+   simulation through visual aids such as automatically generated model skeletons, equivalent inertia boxes, contact
+   positions and normals, contact forces separated into normal and tangential components, external perturbation forces,
+   local frames, joint and actuator axes, and text labels. A related usability feature is the ability to "reach into"
+   the simulation, push objects around, and see how the physics respond: the user selects the body to which external
+   forces and torques will be applied, and sees a real-time rendering of the perturbations together with their dynamic
+   consequences. This can be used to debug the model visually, test the response of a feedback controller, or configure
+   the model into a desired pose.
 
 Powerful yet intuitive modeling language
    MuJoCo has its own modeling language called MJCF. The goal of MJCF is to provide access to all of MuJoCo's compute
