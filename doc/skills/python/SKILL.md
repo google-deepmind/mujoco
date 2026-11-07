@@ -1,14 +1,19 @@
 ---
 name: mujoco-python
 description: >-
-  Python simulation lifecycle (MjSpec, MjModel, MjData), simulation stepping
-  (mj_step, mj_step1, mj_step2, mj_forward), named access (data.body, model.geom),
-  bind(), multi-threaded CPU batch simulation (mujoco.batch.Batch, mujoco.rollout),
-  optimization and system ID (mujoco.minimize, mujoco.sysid, mjd_transitionFD),
-  contact and touch sensors, sensordata, keyframe resets, integrators,
-  mju_ spatial math (quaternions, poses), energy diagnostics.
-  Use for Python physics simulation, state access, CPU batching, stepping loops, sensors.
-  Do NOT use for model building/editing (mujoco-spec-editing), headless rendering (mujoco-rendering), GPU/TPU (mujoco-accelerated), cross-engine parity debugging (mujoco-parity), or GUI/viewers (mujoco-gui, mujoco-studio).
+  MuJoCo Python (`import mujoco`) simulation lifecycle (MjSpec, MjModel, MjData),
+  stepping (mj_step, mj_step1, mj_step2, mj_forward), named access (data.body,
+  model.geom), bind(), multi-threaded CPU batch simulation (mujoco.batch.Batch,
+  mujoco.rollout), optimization and system ID (mujoco.minimize, mujoco.sysid,
+  mjd_transitionFD), contact/touch sensors, sensordata, keyframe resets,
+  integrators, mju_ spatial math (quaternions, poses), and energy diagnostics.
+  Use only for MuJoCo Python physics simulation, MjModel/MjData state access,
+  MuJoCo CPU batching, stepping loops, and MuJoCo sensors/sysid. Don't use for
+  custom non-MuJoCo Python/NumPy/C++ ODE or rigid-body simulators, custom
+  finite-difference sysid, or general spatial math without `mujoco`, nor for
+  spec editing (mujoco-spec-editing), rendering (mujoco-rendering), GPU/TPU
+  (mujoco-accelerated), parity (mujoco-parity), or GUI/viewers (mujoco-gui,
+  mujoco-studio).
 ---
 
 # MuJoCo Python: Simulation, Sensors & Math

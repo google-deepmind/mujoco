@@ -4,14 +4,15 @@ description: >-
   Cross-engine physics parity comparison between MuJoCo (CPU, float64) and
   accelerated backends (MJWarp CUDA, MJX JAX, float32): stage-by-stage
   mj_forward vs mjw.forward isolation, normalized tolerances, stiff affine
-  actuator and ill-conditioned mass matrix (qM) float32 rounding bounds,
+  actuator and ill-conditioned mass matrix (qM) float32 bounds,
   actuation-conditioned forward passes, order-insensitive contact matching per
-  geom pair, threshold-grazing contact filtering (includemargin), batched
-  single-step trajectory evaluation, and float32-perturbed CPU baseline
-  rollouts. Use when comparing MuJoCo CPU physics against MJWarp or MJX,
-  debugging sim-to-sim trajectory divergence, missing contacts, or force/qacc
-  discrepancies. Do NOT use for general GPU batch simulation setup
-  (mujoco-accelerated) or CPU-only simulation (mujoco-python).
+  geom pair, includemargin contact filtering, batched single-step evaluation,
+  and float32-perturbed CPU rollouts. Use only when comparing MuJoCo CPU
+  physics against MuJoCo MJWarp or MJX backends, or debugging MuJoCo sim-to-sim
+  trajectory divergence, missing contacts, or force/qacc discrepancies. Don't
+  use for float64-vs-float32 parity testing of non-MuJoCo C/C++/CUDA/JAX
+  physics or PDE solvers, general GPU batch setup (mujoco-accelerated), or
+  CPU-only simulation (mujoco-python).
 ---
 
 # MuJoCo Parity: Comparing CPU (C) vs Accelerated (MJWarp / MJX) Physics

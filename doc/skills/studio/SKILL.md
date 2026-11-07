@@ -3,16 +3,17 @@ name: mujoco-studio
 description: >-
   Builds and launches interactive MuJoCo Studio viewers and plugins in Python
   and C++, covering decoupled sim/viewer threads, Snapshot and Event messaging,
-  lifecycle events, WebViewer browser streaming, and Python hot reload. Use when
-  launching Studio viewers (launch_web, launch_native, launch_passive,
-  LaunchStudio), authoring Python ViewerPlugin/SimPlugin or C++ RegisterPlugin
-  (mjPLUGIN_LIB_INIT) extensions, synchronizing sim and viewer state
-  (ViewerHandle.sync, @messages.handler), hot-reloading Python plugins or models
-  (HotReloadEvent), iterating on a live hot-reload Studio session, configuring
-  graphics modes or WebViewer WASM streaming, or debugging Studio and
-  browser console logs. Don't use for Dear ImGui/ImPlot widget layout or styling
-  (use mujoco-gui), core physics stepping (use mujoco-python), or headless
-  offscreen rendering (use mujoco-rendering).
+  lifecycle events, WebViewer browser streaming, and Python hot reload. Use
+  only when launching MuJoCo Studio viewers (mujoco_studio.launch_web,
+  launch_native, launch_passive, LaunchStudio) for a MuJoCo
+  MjModel/MjData/MjSpec simulation, authoring MuJoCo Studio Python
+  ViewerPlugin/SimPlugin or C++ RegisterPlugin (mjPLUGIN_LIB_INIT) extensions,
+  synchronizing MuJoCo sim/viewer state (ViewerHandle.sync, @messages.handler),
+  hot-reloading plugins/models (HotReloadEvent), configuring WebViewer WASM
+  streaming, or debugging Studio logs. Don't use for non-MuJoCo simulations or
+  generic web viewers/sidecars not using MuJoCo, Dear ImGui/ImPlot layout
+  (mujoco-gui), core stepping (mujoco-python), or headless rendering
+  (mujoco-rendering).
 ---
 
 # MuJoCo Studio: Interactive Simulation, UI & Plugin Architecture

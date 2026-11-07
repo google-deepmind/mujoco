@@ -1,15 +1,19 @@
 ---
 name: mujoco-spec-editing
 description: >-
-  Procedural model authoring, editing, and tuning with MjSpec (Python and C++),
+  MuJoCo procedural model authoring, editing, and tuning with MjSpec
+  (`mujoco.MjSpec` in Python and `mjSpec` in C++):
   bodies, geoms, joints, sites, cameras, sub-model attachment with prefix
   namespaces, actuators (position servos, motors, velocity drives, trntype),
   baseline option/default overrides (implicitfast, elliptic cones, solref,
   solimp, armature, damping), collision bitmasks (contype, conaffinity),
   friction (condim), default classes (MjsDefault), procedural meshes, deletion,
-  spec recompilation (spec.recompile). Use for authoring or tuning MJCF/MjSpec
+  spec recompilation (spec.recompile). Use only for authoring or tuning MuJoCo
+  MJCF/MjSpec
   models, adding bodies/geoms/actuators, and attaching sub-models.
-  Do NOT use for stepping simulations (mujoco-python) or rendering (mujoco-rendering).
+  Don't use for designing custom non-MuJoCo XML/scene-graph APIs when MuJoCo
+  `MjSpec` is not used, stepping simulations (mujoco-python), or rendering
+  (mujoco-rendering).
 ---
 
 # MuJoCo Spec Editing: Building & Modifying Models

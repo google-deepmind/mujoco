@@ -1,14 +1,19 @@
 ---
 name: mujoco-gui
 description: >-
-  Dear ImGui and ImPlot user interfaces across C++ and Python, immediate-mode
-  widget design, layout and multi-row widget/column alignment (Tables API),
-  tooltip length and aspect ratio, naming conventions (build_gui vs render), ID
-  stack rules (## label disambiguation vs ### seed reset override), list
-  virtualization (ImGuiListClipper), theming, input capture
-  (WantCaptureKeyboard). Use for building, aligning, styling, and debugging Dear
-  ImGui widgets and ImPlot charts. Do NOT use for Studio app
-  architecture/plugins (mujoco-studio) or physics (mujoco-python).
+  Dear ImGui and ImPlot user interface design for MuJoCo Studio and MuJoCo
+  viewer plugins (C++ ux/ components and Python ViewerPlugin build_gui panels):
+  immediate-mode widget layout, multi-row widget/column alignment (Tables API),
+  tooltip length and aspect ratio, build_gui vs render separation, ID stack
+  rules (## label disambiguation vs ### seed reset override), list
+  virtualization (ImGuiListClipper), theming, and input capture
+  (WantCaptureKeyboard). Use only when building, aligning, styling, or
+  debugging Dear ImGui widgets and ImPlot charts inside MuJoCo Studio, MuJoCo
+  viewer plugins, or MuJoCo/robotics simulation and control tools. Don't use
+  for general-purpose C++ or Python Dear ImGui / ImPlot / imgui_bundle desktop
+  applications unrelated to MuJoCo or robotics, or for Studio plugin
+  lifecycle/messaging (use mujoco-studio) or core physics stepping (use
+  mujoco-python).
 ---
 
 # Dear ImGui Development & Architecture Guide
