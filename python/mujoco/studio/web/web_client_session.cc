@@ -104,6 +104,7 @@ bool ParseRoster(const char* text, Roster* roster) {
              &parsed.max_spectators) != 5) {
     return false;
   }
+  // role is "controller", "spectator", or "none" (when nobody controls).
   parsed.spectator = strcmp(role, "spectator") == 0;
   *roster = parsed;
   return true;

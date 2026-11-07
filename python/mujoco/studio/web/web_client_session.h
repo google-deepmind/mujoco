@@ -87,7 +87,7 @@ struct Roster {
   int queue_pos = 0;  // 1-based position in the control queue; 0 = unqueued.
   int queue_len = 0;
   int max_spectators = 8;  // Runtime spectator limit.
-  bool spectator = false;  // The server's view: true = not the controller.
+  bool spectator = false;  // The server's view: true = another page controls.
 };
 
 // Parses a roster line; returns false when text is not a roster.

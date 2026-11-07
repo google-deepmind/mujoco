@@ -220,7 +220,7 @@ class UiSession(Protocol):
 
 def _roster_line(
     viewers: int,
-    is_controller: bool,
+    role: str,
     queue_pos: int,
     queue_len: int,
     max_spectators: int,
@@ -234,7 +234,8 @@ def _roster_line(
 
   Args:
     viewers: The number of viewers connected to the server.
-    is_controller: Whether the browser is the controller.
+    role: The browser's role ("controller", "spectator", or "none" when no
+      browser holds the controller slot).
     queue_pos: The browser's position in the control queue (0 if not queued).
     queue_len: The number of browsers in the queue.
     max_spectators: The maximum number of spectators allowed.
@@ -242,7 +243,6 @@ def _roster_line(
   Returns:
     A string representing the roster line.
   """
-  role = "controller" if is_controller else "spectator"
   return (
       f"viewers={viewers};role={role};queue_pos={queue_pos};"
       f"queue_len={queue_len};max_spectators={max_spectators}"
@@ -617,6 +617,12 @@ def _run_server(
       """Sends every browser the counts, its role and its queue position."""
       count = len(state_clients)
       for sid, client in list(state_clients.items()):
+        if controller_sid is None:
+          role = "none"
+        elif sid == controller_sid:
+          role = "controller"
+        else:
+          role = "spectator"
         try:
           pos = control_queue.index(sid) + 1
         except ValueError:
@@ -625,7 +631,7 @@ def _run_server(
           await client.send(
               _roster_line(
                   viewers=count,
-                  is_controller=sid == controller_sid,
+                  role=role,
                   queue_pos=pos,
                   queue_len=len(control_queue),
                   max_spectators=max_spectators,

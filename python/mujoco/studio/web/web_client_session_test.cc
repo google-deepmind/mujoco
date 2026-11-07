@@ -206,7 +206,18 @@ TEST_F(WebClientSessionTest, PacesClaimRetriesAndOustsControllerInstantly) {
 TEST_F(WebClientSessionTest, RosterSettlesClaimingAndGrantProtectsFreshClaim) {
   FakeStateWebSocket* ws = ConnectSocket();
 
-  // While /ui has no socket, a spectator roster settles kClaiming immediately.
+  // When nobody controls the session yet (role=none), a failed /ui attempt
+  // keeps claiming instead of settling into spectating.
+  session_.HandleRemoteUiState(RemoteUiState::kClosedOrError, 1006);
+  EXPECT_EQ(callbacks_.connect_ui_calls, 1);
+  session_.HandleRemoteUiState(RemoteUiState::kClosedOrError, 1006);
+  ws->PushText("viewers=1;role=none;queue_pos=0;queue_len=0;max_spectators=8");
+  session_.Update();
+  EXPECT_EQ(session_.Role(), SessionRole::kClaiming);
+  EXPECT_EQ(callbacks_.shutdown_ui_calls, 0);
+
+  // Once another page holds the slot (role=spectator), a closed /ui attempt
+  // settles kClaiming immediately without waiting for retries.
   ws->PushText(
       "viewers=2;role=spectator;queue_pos=1;queue_len=2;max_spectators=8");
   session_.Update();
@@ -221,13 +232,13 @@ TEST_F(WebClientSessionTest, RosterSettlesClaimingAndGrantProtectsFreshClaim) {
   EXPECT_EQ(view.queue_len, 2);
   EXPECT_EQ(view.max_spectators, 8);
 
-  // Receiving a grant starts a fresh claim and marks /ui as connecting, so the
-  // trailing spectator roster right after the grant does not abort it.
+  // Receiving a grant starts a fresh claim and marks /ui as connecting, so a
+  // trailing roster right after the grant does not abort it.
   ws->PushText("grant");
   ws->PushText(
       "viewers=2;role=spectator;queue_pos=0;queue_len=1;max_spectators=8");
   session_.Update();
-  EXPECT_EQ(callbacks_.connect_ui_calls, 1);
+  EXPECT_EQ(callbacks_.connect_ui_calls, 2);
   EXPECT_EQ(session_.Role(), SessionRole::kClaiming);
   EXPECT_EQ(callbacks_.shutdown_ui_calls, 1);
 }
