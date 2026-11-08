@@ -10,7 +10,7 @@ MuJoCo Studio's architecture rests on three core ideas:
    shared mutable state, communicating strictly through typed :ref:`Snapshot and Event message channels
    <StudioMessaging>`. Any :ref:`Python plugin <StudioPythonPlugins>` therefore works unchanged against both a local
    :ref:`NativeViewer <StudioNativeViewers>` window and a remote :ref:`WebViewer <StudioWebViewers>` browser session.
-2. **Composable extensibility via plugins**: Built-in features—including the standard Studio UI (``viewer_app.ViewerApp``),
+2. **Composable extensibility via plugins**: Built-in features—including the standard Studio UI (``studio_app.App``),
    real-time physics stepping (``step_control.StepControl``), and trajectory history scrubbing
    (``sim_history.SimHistory``)—are implemented as modular :ref:`viewer and simulation plugins <StudioPythonPlugins>`
    that applications can mix, replace, or extend with custom UI panels, 3D overlays, and stepping backends.

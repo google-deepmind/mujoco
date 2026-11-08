@@ -21,10 +21,10 @@
 #include <cstring>
 #include <functional>
 #include <memory>
-#include <queue>
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -34,7 +34,7 @@
 #include <mujoco/mjspec.h>
 #include <mujoco/mjtype.h>
 #include "cc/array_safety.h"
-#include "engine/engine_plugin.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_api.h"
@@ -75,12 +75,14 @@ mjCFlexcomp::mjCFlexcomp(void) {
   equality   = 0;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(quat, 1, 0, 0, 0);
+  frame        = nullptr;
   rigid        = false;
   centered     = false;
   doftype      = mjFCOMPDOF_FULL;
   has_dim      = false;
   has_origin   = false;
   has_flatskin = false;
+  yield_single = false;
   file_or_mesh = false;
 
   mjs_defaultPlugin(&plugin);
@@ -110,6 +112,83 @@ void mjCFlexcomp::MarkEmptyCells(
       }
     }
   }
+}
+
+
+// extract ordered vertices of a single connected open 1D chain of >= 2 edges; returns false if the
+// edge graph is closed, branched, disconnected, or has fewer than 2 edges
+static bool ExtractOpenRodChain(int                                     nvert,
+                                const std::vector<std::pair<int, int>>& edges,
+                                int                                     preferred_start,
+                                std::vector<int>&                       chain_verts) {
+  chain_verts.clear();
+  int nedge = static_cast<int>(edges.size());
+  if (nedge < 2 || nvert < 3) { return false; }
+
+  std::vector<std::vector<int>> neighbors(nvert);
+  for (const auto& e : edges) {
+    if (e.first < 0 ||
+        e.first >= nvert ||
+        e.second < 0 ||
+        e.second >= nvert ||
+        e.first == e.second) {
+      return false;
+    }
+    neighbors[e.first].push_back(e.second);
+    neighbors[e.second].push_back(e.first);
+  }
+
+  int end0 = -1, end1 = -1;
+  for (int v = 0; v < nvert; v++) {
+    if (neighbors[v].size() > 2) { return false; }
+    if (neighbors[v].size() == 1) {
+      if (end0 < 0) {
+        end0 = v;
+      } else if (end1 < 0) {
+        end1 = v;
+      } else {
+        return false;
+      }
+    }
+  }
+  if (end0 < 0 || end1 < 0) { return false; }
+
+  int start = (preferred_start == end0 || preferred_start == end1) ? preferred_start : end0;
+  chain_verts.reserve(nedge + 1);
+  int prev = -1, curr = start;
+  for (int step = 0; step <= nedge; step++) {
+    chain_verts.push_back(curr);
+    if (step == nedge) { break; }
+    int next = -1;
+    for (int nb : neighbors[curr]) {
+      if (nb != prev) {
+        next = nb;
+        break;
+      }
+    }
+    if (next < 0) { return false; }
+    prev = curr;
+    curr = next;
+  }
+  return static_cast<int>(chain_verts.size()) == nedge + 1;
+}
+
+
+static bool ExtractOpenRodChainElem(int                     nvert,
+                                    const std::vector<int>& elem,
+                                    std::vector<int>&       chain_verts) {
+  chain_verts.clear();
+  if (elem.size() < 4 || elem.size() % 2 != 0) { return false; }
+  std::vector<std::pair<int, int>> edges;
+  edges.reserve(elem.size() / 2);
+  for (size_t i = 0; i < elem.size(); i += 2) {
+    int u = std::min(elem[i], elem[i + 1]);
+    int v = std::max(elem[i], elem[i + 1]);
+    if (std::find(edges.begin(), edges.end(), std::make_pair(u, v)) == edges.end()) {
+      edges.emplace_back(u, v);
+    }
+  }
+  return ExtractOpenRodChain(nvert, edges, elem[0], chain_verts);
 }
 
 
@@ -172,6 +251,18 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
   const char* alterr = mjs_resolveOrientation(quat, compiler->degree, compiler->eulerseq, &alt);
   if (alterr) { return comperr(error, alterr, error_sz); }
 
+  // accumulate enclosing frame chain if present
+  for (const mjCFrame* f = frame ? static_cast<const mjCFrame*>(frame->element) : nullptr; f;
+       f                 = f->frame) {
+    double framequat[4];
+    mjuu_copyvec(framequat, f->spec.quat, 4);
+    const char* ferr =
+        mjs_resolveOrientation(framequat, compiler->degree, compiler->eulerseq, &f->spec.alt);
+    if (ferr) { return comperr(error, ferr, error_sz); }
+    mjuu_normvec(framequat, 4);
+    mjuu_frameaccumChild(f->spec.pos, framequat, pos, quat);
+  }
+
   // type-specific constructor: populate point and element, possibly set dim
   bool res;
   switch (type) {
@@ -200,6 +291,13 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       break;
 
     case mjFCOMPTYPE_DIRECT:
+      if (dflex->dim == 1 && element.empty() && point.size() >= 6 && point.size() % 3 == 0) {
+        int n = point.size() / 3;
+        for (int i = 0; i < n - 1; i++) {
+          element.push_back(i);
+          element.push_back(i + 1);
+        }
+      }
       res = true;
       break;
 
@@ -265,6 +363,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     }
   }
 
+  // check per-vertex texcoord size before any vertex compaction
+  if (!texcoord.empty() && elemtexcoord.empty() && (int)texcoord.size() != 2 * npnt) {
+    return comperr(error, "two texture coordinates per vertex expected", error_sz);
+  }
+
   // apply scaling for direct types
   if (direct && (scale[0] != 1 || scale[1] != 1 || scale[2] != 1)) {
     for (int i = 0; i < npnt; i++) {
@@ -293,7 +396,8 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
   }
 
   // construct pinned array
-  int nnode = 0;
+  int nnode          = 0;
+  int count_check[3] = {count[0], count[1], count[2]};
   if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
     int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
     // cellcount applies to all types (see the nodal mesh below), else single cell
@@ -303,16 +407,20 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       cy = cellcount[1];
       cz = cellcount[2];
     }
-    nnode = (cx * order + 1) * (cy * order + 1) * (cz * order + 1);
+    count_check[0] = cx * order + 1;
+    count_check[1] = cy * order + 1;
+    count_check[2] = cz * order + 1;
+    nnode          = count_check[0] * count_check[1] * count_check[2];
   }
-  pinned = vector<bool>(std::max(npnt, nnode), rigid);
+  int npin = nnode ? nnode : npnt;
+  pinned   = vector<bool>(std::max(npnt, nnode), rigid);
 
   // handle pins if user did not specify rigid
   if (!rigid) {
     // process pinid
     for (int i = 0; i < (int)pinid.size(); i++) {
       // check range
-      if (pinid[i] < 0 || pinid[i] >= npnt) {
+      if (pinid[i] < 0 || pinid[i] >= npin) {
         return comperr(error, "pinid out of range", error_sz);
       }
 
@@ -324,9 +432,9 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     for (int i = 0; i < (int)pinrange.size(); i += 2) {
       // check range
       if (pinrange[i] < 0 ||
-          pinrange[i] >= npnt ||
+          pinrange[i] >= npin ||
           pinrange[i + 1] < 0 ||
-          pinrange[i + 1] >= npnt) {
+          pinrange[i + 1] >= npin) {
         return comperr(error, "pinrange out of range", error_sz);
       }
 
@@ -337,12 +445,6 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     // process pingrid
     for (int i = 0; i < (int)pingrid.size(); i += dflex->dim) {
       // check range
-      int count_check[3] = {count[0], count[1], count[2]};
-      if (type != mjFCOMPTYPE_GRID &&
-          (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC)) {
-        int dim        = (doftype == mjFCOMPDOF_TRILINEAR) ? 2 : 3;
-        count_check[0] = count_check[1] = count_check[2] = dim;
-      }
       for (int k = 0; k < dflex->dim; k++) {
         if (pingrid[i + k] < 0 || pingrid[i + k] >= count_check[k]) {
           return comperr(error, "pingrid out of range", error_sz);
@@ -361,7 +463,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     for (int i = 0; i < (int)pingridrange.size(); i += 2 * dflex->dim) {
       // check range
       for (int k = 0; k < 2 * dflex->dim; k++) {
-        if (pingridrange[i + k] < 0 || pingridrange[i + k] >= count[k % dflex->dim]) {
+        if (pingridrange[i + k] < 0 || pingridrange[i + k] >= count_check[k % dflex->dim]) {
           return comperr(error, "pingridrange out of range", error_sz);
         }
       }
@@ -389,7 +491,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
     // check if all or none are pinned
     bool allpin = true, nopin = true;
-    for (int i = 0; i < npnt; i++) {
+    for (int i = 0; i < npin; i++) {
       if (pinned[i]) {
         nopin = false;
       } else {
@@ -433,20 +535,20 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
           point[3 * new_npnt + 1] = point[3 * i + 1];
           point[3 * new_npnt + 2] = point[3 * i + 2];
 
-          if (!texcoord.empty()) {
+          if (!texcoord.empty() && elemtexcoord.empty()) {
             texcoord[2 * new_npnt + 0] = texcoord[2 * i + 0];
             texcoord[2 * new_npnt + 1] = texcoord[2 * i + 1];
           }
 
-          pinned[new_npnt] = pinned[i];
+          if (!nnode) { pinned[new_npnt] = pinned[i]; }
           new_npnt++;
         }
       }
 
       // resize arrays
       point.resize(3 * new_npnt);
-      if (!texcoord.empty()) { texcoord.resize(2 * new_npnt); }
-      pinned.resize(std::max(new_npnt, nnode));
+      if (!texcoord.empty() && elemtexcoord.empty()) { texcoord.resize(2 * new_npnt); }
+      if (!nnode) { pinned.resize(new_npnt); }
       used.assign(new_npnt, true);
 
       // update count
@@ -466,6 +568,10 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
   *flex = def.Flex();
   flex->PointToLocal();
+
+  // a single yield strain is also the bending yield strain only of non-interpolated 2D flexes
+  bool interp = doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC;
+  if (yield_single && (pf->dim != 2 || interp)) { pf->stressyield[1] = 0; }
 
   flex->model = model;
   flex->id    = id;
@@ -497,7 +603,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
     if (!used[i]) { continue; }
 
     // pinned or trilinear or quadratic: parent body
-    if (pinned[i] || doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
+    if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC || pinned[i]) {
       mjs_appendString(pf->vertbody, mjs_getName(body->element)->c_str());
 
       // add plugin
@@ -582,6 +688,63 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
         pplugin->element   = static_cast<mjsElement*>(plugin.element);
         mjs_setString(pplugin->plugin_name, mjs_getString(plugin.plugin_name));
         mjs_setString(pplugin->name, plugin_instance_name.c_str());
+      }
+    }
+  }
+
+  // add per-edge twist hinge bodies and joints for 1D elastic open rods
+  if (pf->dim == 1 &&
+      !rigid &&
+      pf->young > 0 &&
+      pf->section == mjFLEXSECTION_BOX &&
+      doftype != mjFCOMPDOF_FULL) {
+    return comperr(
+        error,
+        "1D flexcomp elasticity with box section requires dof='full' so per-edge twist joints can "
+        "be created",
+        error_sz);
+  }
+  if (pf->dim == 1 && !rigid && doftype == mjFCOMPDOF_FULL && pf->young > 0) {
+    std::vector<int> chain_verts;
+    if (ExtractOpenRodChainElem(npnt, element, chain_verts)) {
+      int  nedge        = static_cast<int>(chain_verts.size()) - 1;
+      bool root_clamped = (pinned[chain_verts[0]] && pinned[chain_verts[1]]);
+      // a pinned last edge clamps the tail like the root (at least 3 edges, so that the free
+      // first edge's joint can still be found from the second edge's, see mjCFlex::Compile)
+      bool tail_clamped =
+          nedge >= 3 && pinned[chain_verts[nedge - 1]] && pinned[chain_verts[nedge]];
+      double polar = pf->section == mjFLEXSECTION_BOX ? (pf->sectionsize[0] * pf->sectionsize[0] +
+                                                         pf->sectionsize[1] * pf->sectionsize[1]) /
+                                                            3
+                                                      : pf->radius * pf->radius / 2;
+      double edgemass     = mass / nedge;
+      double twistinertia = edgemass * polar > mjMINVAL ? edgemass * polar : bodymass;
+      int    e_start      = root_clamped ? 1 : 0;
+      int    e_end        = tail_clamped ? nedge - 1 : nedge;
+      mjsBody* world      = mjs_findBody(&model->spec, "world");
+      for (int e = e_start; e < e_end; e++) {
+        mjsBody* pb = mjs_addBody(world, 0);
+        mjuu_setvec(pb->pos, 0, 0, 0);
+        mjuu_zerovec(pb->ipos, 3);
+        pb->mass             = 1e-9;
+        pb->inertia[0]       = mjMAX(1e-9, twistinertia);
+        pb->inertia[1]       = mjMAX(1e-9, twistinertia);
+        pb->inertia[2]       = mjMAX(1e-9, twistinertia);
+        pb->explicitinertial = true;
+
+        mjsJoint* jnt = mjs_addJoint(pb, 0);
+        jnt->type     = mjJNT_HINGE;
+        mjuu_setvec(jnt->pos, 0, 0, 0);
+        mjuu_setvec(jnt->axis, 1, 0, 0);
+
+        char txt[100];
+        if (e < nedge - 1) {
+          mju::sprintf_arr(txt, "%s_twist_%d", name.c_str(), e);
+        } else {
+          mju::sprintf_arr(txt, "%s_twist", name.c_str());
+        }
+        mjs_setName(pb->element, txt);
+        mjs_setName(jnt->element, txt);
       }
     }
   }
@@ -795,9 +958,22 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
 
 // get point id from grid coordinates
 int mjCFlexcomp::GridID(int ix, int iy) {
+  if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
+    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+    int cy    = cellcount[0] >= 0 ? cellcount[1] : 1;
+    return ix * (cy * order + 1) + iy;
+  }
   return ix * count[1] + iy;
 }
 int mjCFlexcomp::GridID(int ix, int iy, int iz) {
+  if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
+    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+    int cy    = cellcount[0] >= 0 ? cellcount[1] : 1;
+    int cz    = cellcount[0] >= 0 ? cellcount[2] : 1;
+    int ny    = cy * order + 1;
+    int nz    = cz * order + 1;
+    return ix * ny * nz + iy * nz + iz;
+  }
   return ix * count[1] * count[2] + iy * count[2] + iz;
 }
 
@@ -1038,22 +1214,29 @@ bool mjCFlexcomp::MakeMesh(
   point.assign(cmesh->Vert().begin(), cmesh->Vert().end());
   if (!mesh.empty()) { ToAssetFrame(point, cmesh->GetPosPtr(), cmesh->GetQuatPtr()); }
 
-  if (cmesh->HasTexcoord()) {
-    texcoord     = cmesh->Texcoord();
-    elemtexcoord = cmesh->FaceTexcoord();
-  }
+  if (cmesh->HasTexcoord()) { texcoord = cmesh->Texcoord(); }
 
   // copy faces or create 3D mesh
   if (def.spec.flex->dim == 2) {
     element = cmesh->Face();
+    if (cmesh->HasTexcoord()) { elemtexcoord = cmesh->FaceTexcoord(); }
   } else if (def.spec.flex->dim == 1) {
     // extract edge pairs from degenerate triangles (i1, i2, i2)
     const std::vector<int>& face = cmesh->Face();
+    const std::vector<int>& ftc  = cmesh->FaceTexcoord();
     element.clear();
     element.reserve(face.size() * 2 / 3);
+    if (cmesh->HasTexcoord() && !ftc.empty()) {
+      elemtexcoord.clear();
+      elemtexcoord.reserve(ftc.size() * 2 / 3);
+    }
     for (size_t i = 0; i < face.size(); i += 3) {
       element.push_back(face[i]);
       element.push_back(face[i + 1]);
+      if (cmesh->HasTexcoord() && i + 1 < ftc.size()) {
+        elemtexcoord.push_back(ftc[i]);
+        elemtexcoord.push_back(ftc[i + 1]);
+      }
     }
   } else {
     if (!has_origin) {
@@ -1063,7 +1246,12 @@ bool mjCFlexcomp::MakeMesh(
     point.insert(point.begin() + 1, origin[1]);
     point.insert(point.begin() + 2, origin[2]);
     const std::vector<int>& face = cmesh->Face();
-    for (int i = 0; i < face.size(); i += 3) {
+    const std::vector<int>& ftc  = cmesh->FaceTexcoord();
+    if (cmesh->HasTexcoord()) {
+      texcoord.insert(texcoord.begin(), {0.0f, 0.0f});
+      elemtexcoord.clear();
+    }
+    for (int i = 0; i < (int)face.size(); i += 3) {
       // only add tetrahedra with positive volume
       int    tet[3] = {face[i + 0] + 1, face[i + 1] + 1, face[i + 2] + 1};
       double edge1[3], edge2[3], edge3[3];
@@ -1079,6 +1267,12 @@ bool mjCFlexcomp::MakeMesh(
       element.push_back(tet[0]);
       element.push_back(tet[1]);
       element.push_back(tet[2]);
+      if (cmesh->HasTexcoord() && !ftc.empty()) {
+        elemtexcoord.push_back(0);
+        elemtexcoord.push_back(ftc[i + 0] + 1);
+        elemtexcoord.push_back(ftc[i + 1] + 1);
+        elemtexcoord.push_back(ftc[i + 2] + 1);
+      }
     }
   }
 
@@ -1320,6 +1514,7 @@ void inline ComputeBasis<Stencil3D>(double        basis[9],
 }
 
 // compute stiffness for a single element
+//   thickness: shell thickness for triangles, unused for tetrahedra
 template <typename T>
 void inline ComputeStiffness(std::vector<double>&       stiffness,
                              const std::vector<double>& body_pos,
@@ -1327,13 +1522,19 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
                              int                        t,
                              double                     E,
                              double                     nu,
-                             double                     thickness = 4) {
-  // triangles area
-  double volume = ComputeVolume<T>(body_pos.data(), v);
+                             double                     thickness = 1) {
+  // element measure: triangle area times thickness, or tetrahedron volume
+  double volume  = ComputeVolume<T>(body_pos.data(), v);
+  double measure = std::abs(volume) * (T::kNumVerts == 3 ? thickness : 1);
 
-  // material parameters
-  double mu = E / (2 * (1 + nu)) * std::abs(volume) / 4 * thickness;
-  double la = E * nu / ((1 + nu) * (1 - 2 * nu)) * std::abs(volume) / 4 * thickness;
+  // Lamé parameters, plane stress for triangles (thin shells)
+  double mu     = E / (2 * (1 + nu));
+  double lambda = T::kNumVerts == 3 ? E * nu / (1 - nu * nu) : E * nu / ((1 + nu) * (1 - 2 * nu));
+
+  // with s = L^2 - L0^2, sum_e s_e basis_e = 2 * (Green strain), so the energy s' K s / 4 is
+  // measure * (mu * tr(strain^2) + la * tr(strain)^2): Saint Venant-Kirchhoff needs la = lambda / 2
+  double mu_k = mu * measure;
+  double la_k = lambda / 2 * measure;
 
   // local geometric quantities
   double basis[T::kNumEdges][9] = {{0}};
@@ -1349,7 +1550,7 @@ void inline ComputeStiffness(std::vector<double>&       stiffness,
   }
 
   // compute metric tensor
-  MetricTensor<T>(stiffness.data(), t, mu, la, basis, T::kNumVerts == 4 ? 24 : 21);
+  MetricTensor<T>(stiffness.data(), t, mu_k, la_k, basis, T::kNumVerts == 4 ? 24 : 21);
 }
 
 // stable Neo-Hookean quadratic metric and three signed-volume/cubic coefficients
@@ -1475,9 +1676,9 @@ double inline ComputeVolume(const double* x, const int v[Stencil2D::kNumVerts]) 
 }
 
 // compute bending stiffness for a single edge
+//   rigidity: plate bending rigidity D = E t^3 / (12 (1 - nu^2))
 template <typename T>
-void inline ComputeBending(
-    double* bending, double* pos, const int v[4], double mu, double thickness) {
+void inline ComputeBending(double* bending, double* pos, const int v[4], double rigidity) {
   int vadj[3] = {v[1], v[0], v[3]};
 
   if (v[3] == -1) {
@@ -1488,13 +1689,16 @@ void inline ComputeBending(
   // cotangent operator from Wardetzky at al., "Discrete Quadratic Curvature
   // Energies", https://cims.nyu.edu/gcl/papers/wardetzky2007dqb.pdf
 
-  double a01       = cot(pos, v[0], v[1], v[2]);
-  double a02       = cot(pos, v[0], v[3], v[1]);
-  double a03       = cot(pos, v[1], v[2], v[0]);
-  double a04       = cot(pos, v[1], v[0], v[3]);
-  double c[4]      = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
-  double volume    = ComputeVolume(pos, v) + ComputeVolume(pos, vadj);
-  double stiffness = 3 * mu * pow(thickness, 3) / (24 * volume);
+  double a01    = cot(pos, v[0], v[1], v[2]);
+  double a02    = cot(pos, v[0], v[3], v[1]);
+  double a03    = cot(pos, v[1], v[2], v[0]);
+  double a04    = cot(pos, v[1], v[0], v[3]);
+  double c[4]   = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
+  double volume = ComputeVolume(pos, v) + ComputeVolume(pos, vadj);
+
+  // normalized so that bending a flat sheet into a cylinder of curvature k (an isometry) has
+  // energy density D k^2 / 2, as in Kirchhoff plate theory
+  double stiffness = rigidity / volume;
 
   // Garg et al., "Cubic Shells", https://cims.nyu.edu/gcl/papers/garg2007cs.pdf
   const double* v0        = pos + 3 * v[0];
@@ -1521,9 +1725,11 @@ void inline ComputeBending(
     }
   }
 
+  // curved reference coefficient, F/L^2: it multiplies cross products of edges in the engine
   double n[3];
   mjuu_crossvec(n, e0, e1);
-  bending[16] = mjuu_dot3(n, e2) * (a01 - a03) * (a04 - a02) * stiffness / (sqr * sqrt(sqr));
+  double c23  = c[2] * c[3];
+  bending[16] = -mjuu_dot3(n, e2) * c23 * c23 * stiffness / (sqr * sqr);
 }
 
 // bend angle tolerance of a straight 1D flex vertex in the reference configuration
@@ -1554,44 +1760,33 @@ static bool RodCurvatureBinormal(const double* xa,
   return true;
 }
 
-// unit axes (u, v) orthogonal to the edge (x1, x2); any such axes can be used, since the bending
-// energy of a hinge pair does not depend on rotations of the axes about the edge
-static void RodEdgeFrame(const double* x1, const double* x2, double u[3], double v[3]) {
-  double t[3] = {x2[0] - x1[0], x2[1] - x1[1], x2[2] - x1[2]};
-  mjuu_normvec(t, 3);
-
-  // project (0, 1, 0), or (0, 0, 1) if the edge is nearly along y, orthogonal to the edge
-  int    axis = (-0.5 < t[1] && t[1] < 0.5) ? 1 : 2;
-  double a[3] = {0, 0, 0};
-  a[axis]     = 1;
-  double s    = mjuu_dot3(t, a);
-
-  u[0] = a[0] - s * t[0];
-  u[1] = a[1] - s * t[1];
-  u[2] = a[2] - s * t[2];
-  mjuu_normvec(u, 3);
-  mjuu_crossvec(v, t, u);
-}
-
-// compute isotropic rod bending data for a 1D flex, following Bergou et al., "Discrete Elastic
-// Rods", https://www.cs.columbia.edu/cg/pdfs/143-rods.pdf. Every vertex shared by exactly two edges
-// is a hinge with stiffness k = EI / (|e_prev| + |e_next|); vertices with other valences carry no
-// bending energy.
+// compute isotropic rod bending and torsion data for a 1D flex, following Bergou et al., "Discrete
+// Elastic Rods", https://www.cs.columbia.edu/cg/pdfs/143-rods.pdf. Every vertex shared by exactly
+// two edges is a hinge with bending stiffness k = EI / (|e_prev| + |e_next|); vertices with other
+// valences carry no bending energy.
 //   EI: bending rigidity, Young's modulus times the second moment of area of the cross-section
+//   GJ: torsional rigidity, shear modulus times the torsion constant of the cross-section
 // Hinges bent by more than kRodStraightTol in the reference configuration are curved. Adjacent
-// curved hinges are stored as a pair across every edge they share, splitting the stiffness of each
-// hinge evenly among its pairs; all other hinges are stored singly.
+// curved hinges are stored as a pair across every edge they share, splitting the bending stiffness
+// of each hinge evenly among its pairs and adding dihedral torsion stiffness kt = GJ / (2 |e|)
+// across the shared edge e; all other hinges are stored singly.
 //   layout: bending[0] = number of records, then per record
 //           single hinge: [v_prev, v, v_next, -1, k, 0, |kb0|, 0, 0, 0], |kb0| = 0 if straight
-//           hinge pair:   [v0, v1, v2, v3, k1 / n1, k2 / n2, om0[4]] for hinges v1 and v2, with n
-//                         the number of pairs of a hinge and om0 the reference curvature binormals
-//                         of both hinges along the axes of RodEdgeFrame(v1, v2)
+//           hinge pair:   [v0, v1, v2, v3, k1 / n1, k2 / n2, |kb0_1|, |kb0_2|, kt cos(dphi0),
+//                         kt sin(dphi0)] for hinges v1 and v2, with n the number of pairs of a
+//                         hinge and dphi0 the reference dihedral angle between kb0_1 and kb0_2
+//                         about the shared edge (v1, v2)
 // returns 1 on success, or 0 with the id of the first degenerate vertex in *bad
 static int ComputeRodBending(std::vector<double>&                    bending,
                              const double*                           pos,
                              int                                     nvert,
                              const std::vector<std::pair<int, int>>& edges,
-                             double                                  EI,
+                             double                                  EI1,
+                             double                                  EI2,
+                             double                                  GJ,
+                             double                                  psi0,
+                             bool                                    der_chain,
+                             int                                     preferred_start,
                              int*                                    bad) {
   *bad = -1;
 
@@ -1604,6 +1799,8 @@ static int ComputeRodBending(std::vector<double>&                    bending,
 
   // hinge stiffness and reference curvature
   std::vector<double> stiffness(nvert, 0);
+  std::vector<double> dstiffness(nvert, 0);
+  std::vector<double> torsion(nvert, 0);
   std::vector<double> curvature(nvert, 0);
   for (int v = 0; v < nvert; v++) {
     if (neighbors[v].size() != 2) { continue; }
@@ -1615,34 +1812,73 @@ static int ComputeRodBending(std::vector<double>&                    bending,
       *bad = v;
       return 0;
     }
-    stiffness[v] = EI / (l0 + l1);
+    stiffness[v]  = EI1 / (l0 + l1);
+    dstiffness[v] = (EI2 - EI1) / (l0 + l1);
+    torsion[v]    = GJ / (l0 + l1);
 
     // reference curvature binormal magnitude 2*tan(phi/2), approximately the bend angle phi
     double norm = sqrt(mjuu_dot3(kb, kb));
     if (norm > kRodStraightTol) { curvature[v] = norm; }
   }
 
-  // number of pairs of each hinge
+  // open-chain DER rod with explicit per-edge twist DOFs (or box cross-section): emit ordered
+  // single hinges along the chain
+  if (der_chain) {
+    std::vector<int> chain_verts;
+    if (ExtractOpenRodChain(nvert, edges, preferred_start, chain_verts)) {
+      bending.assign(1, 0);
+      for (size_t h = 0; h + 2 < chain_verts.size(); h++) {
+        int v = chain_verts[h + 1];
+        bending.push_back(chain_verts[h]);
+        bending.push_back(v);
+        bending.push_back(chain_verts[h + 2]);
+        bending.push_back(-1);
+        bending.push_back(stiffness[v]);
+        bending.push_back(dstiffness[v]);
+        bending.push_back(curvature[v]);
+        bending.push_back(-1);
+        bending.push_back(torsion[v]);
+        bending.push_back(psi0);
+        bending[0]++;
+      }
+      return 1;
+    }
+  }
+
+  // number of pairs of each hinge (twistless closed loops / raw 1D flexes)
   std::vector<int> npair(nvert, 0);
-  for (const auto& e : edges) {
-    if (curvature[e.first] > 0 && curvature[e.second] > 0) {
-      npair[e.first]++;
-      npair[e.second]++;
+  if (EI1 == EI2 && psi0 == 0) {
+    for (const auto& e : edges) {
+      if (curvature[e.first] > 0 && curvature[e.second] > 0) {
+        npair[e.first]++;
+        npair[e.second]++;
+      }
     }
   }
 
   // hinge pairs across edges shared by curved hinges
   bending.assign(1, 0);
   for (const auto& e : edges) {
+    if (EI1 != EI2 || psi0 != 0) { break; }
     int v1 = e.first;
     int v2 = e.second;
     if (curvature[v1] == 0 || curvature[v2] == 0) { continue; }
     int    v0 = neighbors[v1][0] == v2 ? neighbors[v1][1] : neighbors[v1][0];
     int    v3 = neighbors[v2][0] == v1 ? neighbors[v2][1] : neighbors[v2][0];
-    double kb1[3], kb2[3], u[3], v[3];
-    RodCurvatureBinormal(pos + 3 * v0, pos + 3 * v1, pos + 3 * v2, kb1, nullptr, nullptr);
+    double kb1[3], kb2[3], l1;
+    RodCurvatureBinormal(pos + 3 * v0, pos + 3 * v1, pos + 3 * v2, kb1, nullptr, &l1);
     RodCurvatureBinormal(pos + 3 * v1, pos + 3 * v2, pos + 3 * v3, kb2, nullptr, nullptr);
-    RodEdgeFrame(pos + 3 * v1, pos + 3 * v2, u, v);
+    double t[3] = {pos[3 * v2 + 0] - pos[3 * v1 + 0],
+                   pos[3 * v2 + 1] - pos[3 * v1 + 1],
+                   pos[3 * v2 + 2] - pos[3 * v1 + 2]};
+    mjuu_normvec(t, 3);
+    double r0a = curvature[v1];
+    double r0b = curvature[v2];
+    double cross[3];
+    mjuu_crossvec(cross, kb1, kb2);
+    double cos_dphi0 = mjuu_dot3(kb1, kb2) / (r0a * r0b);
+    double sin_dphi0 = mjuu_dot3(cross, t) / (r0a * r0b);
+    double kt        = GJ / (2 * l1);
 
     bending.push_back(v0);
     bending.push_back(v1);
@@ -1650,10 +1886,10 @@ static int ComputeRodBending(std::vector<double>&                    bending,
     bending.push_back(v3);
     bending.push_back(stiffness[v1] / npair[v1]);
     bending.push_back(stiffness[v2] / npair[v2]);
-    bending.push_back(mjuu_dot3(kb1, u));
-    bending.push_back(mjuu_dot3(kb1, v));
-    bending.push_back(mjuu_dot3(kb2, u));
-    bending.push_back(mjuu_dot3(kb2, v));
+    bending.push_back(r0a);
+    bending.push_back(r0b);
+    bending.push_back(kt * cos_dphi0);
+    bending.push_back(kt * sin_dphi0);
     bending[0]++;
   }
 
@@ -1665,11 +1901,11 @@ static int ComputeRodBending(std::vector<double>&                    bending,
     bending.push_back(neighbors[v][1]);
     bending.push_back(-1);
     bending.push_back(stiffness[v]);
-    bending.push_back(0);
+    bending.push_back(dstiffness[v]);
     bending.push_back(curvature[v]);
-    bending.push_back(0);
-    bending.push_back(0);
-    bending.push_back(0);
+    bending.push_back(-1);
+    bending.push_back(torsion[v]);
+    bending.push_back(psi0);
     bending[0]++;
   }
   return 1;
@@ -2332,25 +2568,115 @@ void mjCFlex::ForgetKeyframes(const std::vector<std::string>& names, bool keep) 
   }
 }
 
-
 int mjCFlex::PlasticNum() const {
-  if (!stiffness.empty() || !bending.empty()) {
-    if (stressyield > 0 && !interpolated && dim >= 2 && !stiffness.empty() && stiffness[0] != 0) {
-      return (dim == 2 ? 3 : 6) * nelem;
+  bool compiled  = !stiffness.empty() || !bending.empty();
+  bool is_interp = compiled ? interpolated : !spec_nodebody_.empty();
+  if (is_interp) {
+    double yld  = compiled ? stressyield[0] : spec.stressyield[0];  // no bending plasticity
+    double yng  = compiled ? young : spec.young;
+    int    el2d = compiled ? elastic2d : spec.elastic2d;
+    double thk  = compiled ? thickness : spec.thickness;
+    bool   rgd  = compiled ? rigid : (!spec_vert_.empty() && spec_vertbody_.size() == 1);
+    if (rgd || yld <= 0 || yng <= 0 || has_strain_eq) { return 0; }
+    if (model) {
+      for (auto* equality : model->Equalities()) {
+        if (equality->spec.type == mjEQ_FLEXSTRAIN && *equality->spec.name1 == name) { return 0; }
+      }
     }
+    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    if (cx <= 0 || cy <= 0 || cz <= 0) { return 0; }
+    if (el2d == 0) { return 6 * cx * cy * cz; }
+    if ((el2d & 2) && thk > 0) { return 3 * 2 * (cy * cz + cx * cz + cx * cy); }
     return 0;
   }
-  if (spec.stressyield <= 0 || !spec_nodebody_.empty() || spec.dim < 2 || spec.young <= 0) {
-    return 0;
+  if (compiled) {
+    // per-edge time-parallel (t, u) reference frames of a 1D DER open rod chain (6*nedge numbers)
+    // followed by the unwrapped reference twist of each hinge (nhinge numbers)
+    if (dim == 1 &&
+        bending.size() >= 1 + mjROD_HINGE_SIZE &&
+        bending[0] > 0 &&
+        bending[1 + 3] < 0 &&
+        (bending[1 + 9] != 0 ||
+         bending[1 + 7] >= 0 ||
+         bending[1 + mjROD_HINGE_SIZE * ((int)bending[0] - 1) + 7] >= 0)) {
+      return 6 * ((int)bending[0] + 1) + (int)bending[0];
+    }
+    return PlasticStretchNum() + (PlasticMode() & 1 ? nedge : 0);
   }
-  int num_elem = (int)spec_elem_.size() / (spec.dim + 1);
-  if (num_elem <= 0) { return 0; }
-  if ((spec.dim == 2 && spec.elastic2d >= 2 && spec.thickness > 0) || spec.dim == 3) {
-    return (spec.dim == 2 ? 3 : 6) * num_elem;
+  bool rgd = !spec_vert_.empty() && spec_vertbody_.size() == 1;
+  if (!rgd && spec.dim == 1 && spec.young > 0 && spec_nodebody_.empty() && model) {
+    // flexcomp names the per-edge twist hinges <name>_twist_0, ..., <name>_twist, omitting the
+    // first for a clamped root and the last for a clamped tail
+    auto is_twist_body = [&](const mjCBase* obj) {
+      if (!obj) { return false; }
+      const mjCBody* body = static_cast<const mjCJoint*>(obj)->body;
+      return body &&
+             body->parent == model->Bodies()[0] &&
+             body->joints.size() == 1 &&
+             body->geoms.empty() &&
+             body->bodies.empty();
+    };
+    bool has_twist = false;
+    for (const char* suffix : {"_twist", "_twist_0", "_twist_1"}) {
+      const mjCBase* twist =
+          !name.empty() ? model->FindObject(mjOBJ_JOINT, name + suffix) : nullptr;
+      if (is_twist_body(twist) && static_cast<const mjCJoint*>(twist)->spec.type == mjJNT_HINGE) {
+        has_twist = true;
+      }
+    }
+    if (spec.section == mjFLEXSECTION_BOX || has_twist) {
+      int max_v = -1;
+      for (int v : spec_elem_) { max_v = std::max(max_v, v); }
+      std::vector<int> chain_verts;
+      if (ExtractOpenRodChainElem(max_v + 1, spec_elem_, chain_verts)) {
+        int nedge = static_cast<int>(chain_verts.size()) - 1;
+        return 6 * nedge + (nedge - 1);
+      }
+    }
   }
-  return 0;
+  if (rgd || !spec_nodebody_.empty() || spec.dim < 2 || spec.young <= 0) { return 0; }
+  int  pnum = PlasticStretchNum();
+  bool bend =
+      spec.dim == 2 && spec.thickness > 0 && (spec.elastic2d & 1) && spec.stressyield[1] > 0;
+  if (bend) {
+    int num_elem = (int)spec_elem_.size() / (spec.dim + 1);
+    std::unordered_set<std::pair<int, int>, PairHash> unique_edges;
+    for (int f = 0; f < num_elem; f++) {
+      const int* v = spec_elem_.data() + 3 * f;
+      for (int e = 0; e < 3; e++) {
+        int v0 = v[eledge[1][e][0]];
+        int v1 = v[eledge[1][e][1]];
+        unique_edges.insert({std::min(v0, v1), std::max(v0, v1)});
+      }
+    }
+    pnum += (int)unique_edges.size();
+  }
+  return pnum;
 }
 
+// number of stretching plastic state entries of a non-interpolated flex, compiled or not; they come
+// first, followed by the bending entries
+int mjCFlex::PlasticStretchNum() const {
+  if (!stiffness.empty() || !bending.empty()) {
+    return !interpolated && (PlasticMode() & 2) ? (dim == 2 ? 3 : 6) * nelem : 0;
+  }
+  bool rgd = !spec_vert_.empty() && spec_vertbody_.size() == 1;
+  if (rgd || !spec_nodebody_.empty() || spec.young <= 0 || spec.stressyield[0] <= 0) { return 0; }
+  bool shell = spec.dim == 2 && spec.thickness > 0 && spec.elastic2d >= 2;
+  if (!shell && spec.dim != 3) { return 0; }
+  return (spec.dim == 2 ? 3 : 6) * ((int)spec_elem_.size() / (spec.dim + 1));
+}
+
+// plastic modes of a compiled flex (1: bending, 2: stretching): a mode has plastic state,
+// stretching first, if and only if its yield strain is positive
+int mjCFlex::PlasticMode() const {
+  if (rigid || dim < 2) { return 0; }
+  if (interpolated) { return PlasticNum() > 0 ? 2 : 0; }
+  int mode = 0;
+  if (!stiffness.empty() && stiffness[0] != 0 && stressyield[0] > 0) { mode |= 2; }
+  if (dim == 2 && !bending.empty() && thickness > 0 && stressyield[1] > 0) { mode |= 1; }
+  return mode;
+}
 
 void mjCFlex::PointToLocal() {
   spec.element      = static_cast<mjsElement*>(this);
@@ -2376,8 +2702,12 @@ void mjCFlex::PointToLocal() {
 
 void mjCFlex::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
-  for (auto& name : spec_vertbody_) { name = m->prefix + name + m->suffix; }
-  for (auto& name : spec_nodebody_) { name = m->prefix + name + m->suffix; }
+  for (auto& name : spec_vertbody_) {
+    if (!name.empty() && name != "world") { name = m->prefix + name + m->suffix; }
+  }
+  for (auto& name : spec_nodebody_) {
+    if (!name.empty() && name != "world") { name = m->prefix + name + m->suffix; }
+  }
   if (model != m) {
     for (auto& mat : spec_material_) {
       if (!mat.empty()) { mat = m->prefix + mat + m->suffix; }
@@ -2477,6 +2807,8 @@ void mjCFlex::ApplyGauge() {
   const double fl  = g.Shape(1);
   radius          *= fl;
   thickness       *= fl;
+  sectionsize[0]  *= fl;
+  sectionsize[1]  *= fl;
   margin          *= fl;
   gap             *= fl;
   solimp[2]       *= fl;
@@ -2967,7 +3299,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
   if (vert_.size() % 3) { throw mjCError(this, "vert size must be a multiple of 3"); }
   if (edgestiffness > 0 && dim > 1) {
-    throw mjCError(this, "edge stiffness only available for dim=1, please use elasticity plugins");
+    throw mjCError(this, "edge stiffness only available for dim=1, please use <elasticity>");
   }
   nelem = (int)elem_.size() / (dim + 1);
 
@@ -2992,9 +3324,14 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // yield checks
-  if (stressyield < 0) { throw mjCError(this, "yield cannot be negative"); }
-  if (stressyield > 0 && (interpolated || dim < 2)) {
-    throw mjCError(this, "flex plasticity requires a non-interpolated 2d or 3d flex");
+  if (stressyield[0] < 0 || stressyield[1] < 0) {
+    throw mjCError(this, "yield cannot be negative");
+  }
+  if ((stressyield[0] > 0 || stressyield[1] > 0) && dim < 2 && !interpolated) {
+    throw mjCError(this, "flex plasticity requires a 2d or 3d flex");
+  }
+  if (stressyield[1] > 0 && (dim != 2 || interpolated)) {
+    throw mjCError(this, "bending yield requires a non-interpolated 2d flex");
   }
 
   // set nvert, rigid, centered; check size
@@ -3042,8 +3379,19 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // check texcoord
+  if (texcoord_.size() % 2) { throw mjCError(this, "texcoord size must be even"); }
   if (!texcoord_.empty() && texcoord_.size() != 2 * nvert && elemtexcoord_.empty()) {
     throw mjCError(this, "two texture coordinates per vertex expected");
+  }
+  if (!elemtexcoord_.empty()) {
+    if (texcoord_.empty()) { throw mjCError(this, "elemtexcoord requires texcoord"); }
+    if ((int)elemtexcoord_.size() != (dim + 1) * nelem) {
+      throw mjCError(this, "elemtexcoord size must be (dim+1)*nelem");
+    }
+    int ntexcoord = static_cast<int>(texcoord_.size() / 2);
+    for (int tc : elemtexcoord_) {
+      if (tc < 0 || tc >= ntexcoord) { throw mjCError(this, "elemtexcoord index out of range"); }
+    }
   }
 
   // no elemtexcoord: copy from faces
@@ -3070,6 +3418,15 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       elemmatid_[e] = (resolved.size() == 1) ? resolved[0] : resolved[e];
     }
   }
+
+  // box-section rods replace radius with the minor half-size below; reject an explicit radius
+  // that would be silently overwritten (checked before the gauge, which scales both alike)
+  mjsFlex default_flex;
+  mjs_defaultFlex(&default_flex);
+  const double box_minor = std::min(sectionsize[0], sectionsize[1]);
+  const bool   box_radius_ok =
+      radius == default_flex.radius || std::abs(radius - box_minor) <= 1e-6 * std::abs(box_minor);
+  const double user_radius = radius;
 
   // resolve body ids
   ResolveReferences(model);
@@ -3216,6 +3573,11 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         int tmp                  = elem_[e * (dim + 1) + 1];
         elem_[e * (dim + 1) + 1] = elem_[e * (dim + 1) + 2];
         elem_[e * (dim + 1) + 2] = tmp;
+        if (!elemtexcoord_.empty()) {
+          int ttmp                         = elemtexcoord_[e * (dim + 1) + 1];
+          elemtexcoord_[e * (dim + 1) + 1] = elemtexcoord_[e * (dim + 1) + 2];
+          elemtexcoord_[e * (dim + 1) + 2] = ttmp;
+        }
       }
     }
   }
@@ -3252,6 +3614,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   if (dim == 2) { CreateFlapStencil(flaps, elem_, edgeidx_); }
 
   // compute elasticity
+  if (shear < 0) { throw mjCError(this, "shear modulus must be non-negative"); }
   if (young > 0) {
     if (poisson < 0 || poisson >= 0.5) {
       throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
@@ -3297,43 +3660,193 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       }
     }
 
-    // rod bending stiffness (1D, not interpolated or rigid)
+    // rod bending and torsion stiffness (1D, not interpolated or rigid)
     if (dim == 1 && !interpolated && !rigid) {
-      double I = 0;
+      double I1 = 0, I2 = 0, J = 0, psi0 = 0;
       if (section == mjFLEXSECTION_CIRCLE) {
         if (radius <= 0) {
           throw mjCError(this, "1D flex elasticity with circle section requires positive radius");
         }
-        I = mjPI * pow(radius, 4) / 4;
+        I1 = mjPI * pow(radius, 4) / 4;
+        I2 = I1;
+        J  = 2 * I1;
       } else if (section == mjFLEXSECTION_BOX) {
         if (sectionsize[0] <= 0 || sectionsize[1] <= 0) {
           throw mjCError(this, "1D flex elasticity with box section requires positive sectionsize");
         }
-        // full sizes; the isotropic model uses the weak axis
-        double w = 2 * sectionsize[0];
-        double h = 2 * sectionsize[1];
-        I        = std::min(w * h * h * h, h * w * w * w) / 12;
+        // half-sizes a >= b: I1 is the weak axis, I2 is the strong axis; slot 9 stores +b when
+        // sectionsize[0] >= sectionsize[1] (psi0 = 0) and -b when sectionsize[0] < sectionsize[1]
+        // (psi0 = pi/2), from which runtime consumers recover both psi0 and (a, b)
+        double a = std::max(sectionsize[0], sectionsize[1]);
+        double b = std::min(sectionsize[0], sectionsize[1]);
+        I1       = 4.0 * a * b * b * b / 3.0;
+        I2       = 4.0 * b * a * a * a / 3.0;
+        J        = a * b * b * b * (16.0 / 3.0 - 3.36 * (b / a) * (1.0 - pow(b / a, 4) / 12.0));
+        psi0     = (sectionsize[0] < sectionsize[1]) ? -b : b;
+
+        // collisions without an oriented-box pair (and rendering without box frames) fall back
+        // to capsules: give them the minor half-size, so the contact geometry follows the section
+        if (!box_radius_ok) {
+          char values[100];
+          std::snprintf(values, sizeof(values), "%g, got %g", box_minor, user_radius);
+          throw mjCError(this,
+                         "1D flex with box section uses the minor half-size of sectionsize as "
+                         "radius; remove radius or set it to that value (%s)",
+                         values);
+        }
+        radius = b;
       } else {
         throw mjCError(this, "unknown 1D flex section %d", nullptr, section);
       }
-      int bad;
-      if (!ComputeRodBending(bending, vertxpos.data(), nvert, edge, young * I, &bad)) {
+      // per-edge twist hinges: flexcomp omits <name>_twist_0 for a clamped root and <name>_twist
+      // for a clamped tail, so one of these exists whenever any does
+      auto is_twist_body = [&](const mjCBase* obj) {
+        if (!obj) { return false; }
+        const mjCBody* body = static_cast<const mjCJoint*>(obj)->body;
+        return body &&
+               body->parent == model->Bodies()[0] &&
+               body->joints.size() == 1 &&
+               body->geoms.empty() &&
+               body->bodies.empty();
+      };
+      bool has_twist = false;
+      for (const char* suffix : {"_twist", "_twist_0", "_twist_1"}) {
+        mjCBase* jobj = name.empty() ? nullptr : model->FindObject(mjOBJ_JOINT, name + suffix);
+        if (is_twist_body(jobj)) { has_twist = true; }
+      }
+      bool   der_chain       = (section == mjFLEXSECTION_BOX) || has_twist;
+      int    preferred_start = elem_.empty() ? -1 : elem_[0];
+      double G               = shear > 0 ? shear : young / (2 * (1 + poisson));
+      int    bad;
+      if (!ComputeRodBending(bending,
+                             vertxpos.data(),
+                             nvert,
+                             edge,
+                             young * I1,
+                             young * I2,
+                             G * J,
+                             psi0,
+                             der_chain,
+                             preferred_start,
+                             &bad)) {
         throw mjCError(this, "degenerate 1D flex hinge at vertex %d", nullptr, bad);
       }
       if (bending[0] == 0) { bending.clear(); }
+
+      // open-chain DER validation and per-edge twist joint binding
+      if (der_chain) {
+        int  nhinge     = bending.empty() ? 0 : (int)bending[0];
+        bool open_chain = (nhinge > 0 && edge.size() == static_cast<size_t>(nhinge + 1));
+        for (int h = 0; h < nhinge && open_chain; h++) {
+          const double* hinge = bending.data() + 1 + mjROD_HINGE_SIZE * h;
+          if (hinge[3] >= 0) { open_chain = false; }
+          if (h > 0) {
+            const double* prev = bending.data() + 1 + mjROD_HINGE_SIZE * (h - 1);
+            if ((int)hinge[0] != (int)prev[1] || (int)hinge[1] != (int)prev[2]) {
+              open_chain = false;
+            }
+          }
+        }
+        if (open_chain) {
+          const double* first = bending.data() + 1;
+          const double* last  = bending.data() + 1 + mjROD_HINGE_SIZE * (nhinge - 1);
+          if ((int)last[1] == (int)first[0] || (int)last[2] == (int)first[0]) {
+            open_chain = false;
+          }
+        }
+        if (section == mjFLEXSECTION_BOX && !open_chain) {
+          throw mjCError(this, "1D flex elasticity with box section requires an open chain");
+        }
+
+        int nbound = 0;
+        if (open_chain) {
+          const double* last = bending.data() + 1 + mjROD_HINGE_SIZE * (nhinge - 1);
+          bool root_clamped  = (vertbodyid[(int)bending[1 + 0]] == vertbodyid[(int)bending[1 + 1]]);
+          bool tail_clamped  = nhinge >= 2 && vertbodyid[(int)last[1]] == vertbodyid[(int)last[2]];
+          int  e_start       = root_clamped ? 1 : 0;
+          int  e_end         = tail_clamped ? nhinge - 1 : nhinge;
+
+          // bind the per-edge twist hinges by name: either every unclamped edge has one or none
+          // does; the engine finds edge 0's joint as the joint of edge 1 minus one, so the
+          // compiler checks that convention (it holds for flexcomp, which adds them in order)
+          auto twist_name = [&](int e) {
+            return (e < nhinge) ? (name + "_twist_" + std::to_string(e)) : (name + "_twist");
+          };
+          if (!name.empty()) {
+            std::vector<int> twist_id(nhinge + 1, -1);
+            for (int e = 0; e <= nhinge; e++) {
+              std::string jname = twist_name(e);
+              mjCBase*    jobj  = model->FindObject(mjOBJ_JOINT, jname);
+              if (!is_twist_body(jobj)) { continue; }
+              mjCJoint* jnt = static_cast<mjCJoint*>(jobj);
+              if (jnt->type != mjJNT_HINGE) {
+                throw mjCError(this, "1D flex twist joint '%s' must be a hinge", jname.c_str());
+              }
+              if (e < e_start || e > e_end) {
+                throw mjCError(this,
+                               "1D flex twist joint '%s' given for an edge clamped by its pinned "
+                               "vertices",
+                               jname.c_str());
+              }
+              twist_id[e] = jnt->id;
+              nbound++;
+            }
+            if (nbound) {
+              for (int e = e_start; e <= e_end; e++) {
+                if (twist_id[e] < 0) {
+                  throw mjCError(this,
+                                 "1D flex with per-edge twist joints is missing joint '%s'",
+                                 twist_name(e).c_str());
+                }
+              }
+              if (e_start == 0 && twist_id[0] != twist_id[1] - 1) {
+                throw mjCError(this,
+                               "1D flex twist joint '%s' must immediately precede the twist joint "
+                               "of the second edge",
+                               twist_name(0).c_str());
+              }
+              for (int e = 1; e <= nhinge; e++) {
+                bending[1 + mjROD_HINGE_SIZE * (e - 1) + 7] = twist_id[e];
+              }
+            }
+          }
+
+          // without twist joints the material frame of a box section would stay locked to its
+          // reference (theta = 0): flexcomp creates them for open elastic rods
+          if (section == mjFLEXSECTION_BOX && !nbound) {
+            if (name.empty()) {
+              throw mjCError(
+                  this,
+                  "1D flex elasticity with box section requires a named flex with per-edge twist "
+                  "joints");
+            }
+            std::string needed = (e_start == e_end)
+                                     ? twist_name(e_start)
+                                     : (twist_name(e_start) + ", ..., " + twist_name(e_end));
+            throw mjCError(this,
+                           "1D flex elasticity with box section requires per-edge twist joints %s "
+                           "(created by flexcomp with dof='full' for named open rods)",
+                           needed.c_str());
+          }
+        }
+      }
     }
 
     // bending stiffness (2D only)
     if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && !interpolated) {
       bending.assign(nedge * 17, 0);
 
+      // plate bending rigidity
+      double rigidity = young * thickness * thickness * thickness / (12 * (1 - poisson * poisson));
       for (unsigned int e = 0; e < nedge; e++) {
         ComputeBending<StencilFlap>(bending.data() + 17 * e,
                                     vertxpos.data(),
                                     flaps[e].vertices,
-                                    young / (2 * (1 + poisson)),
-                                    thickness);
+                                    rigidity);
       }
+      // store 2D shell thickness in unused slot stiffness[6] (stiffness[0:6] holds 2D stretch
+      // metric)
+      if (stressyield[1] > 0 && !stiffness.empty()) { stiffness[6] = thickness; }
     }
   }
 

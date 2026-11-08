@@ -858,5 +858,400 @@ TEST_F(RendererTest, HorizonHazeAndSkyboxFlags) {
   }
 }
 
+TEST_F(RendererTest, DepthProjectionUsesFiniteFar) {
+  constexpr int kSize = 33;
+  constexpr float kNear = 0.1f;
+  constexpr float kFar = 10.0f;
+
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  mjrfRenderTargetConfig depth_cfg;
+  mjrf_defaultRenderTargetConfig(&depth_cfg);
+  depth_cfg.width = kSize;
+  depth_cfg.height = kSize;
+  depth_cfg.color_format = mjPIXEL_FORMAT_R32F;
+  depth_cfg.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle depth_target =
+      renderer.CreateRenderTarget("depth", depth_cfg);
+  ASSERT_NE(depth_target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene = renderer.GetScene("scene");
+  Renderer::SceneHandle scene_handle = renderer.GetSceneHandle("scene");
+
+  mjrfRenderableParams params;
+  mjrf_defaultRenderableParams(&params);
+  params.cast_shadow = false;
+  params.receive_shadow = false;
+
+  UniquePtr<mjrfTexture> white_tex = MakeTexture(ctx, kWhite);
+  mjrfMaterial mat;
+  mjrf_defaultMaterial(&mat);
+  mat.emissive = 1.0f;
+  mat.emissive_texture = white_tex.get();
+
+  const float kIdentityRot[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+  // Center box whose top face sits at world z = 1.5 (planar depth 1.5 from
+  // z=3).
+  UniquePtr<mjrfRenderable> near_box = CreateRenderable(ctx, params);
+  mjrf_setRenderableGeomMesh(near_box.get(), mjGEOM_BOX, 1, 28, 4);
+  const float kNearSize[3] = {0.2f, 0.2f, 0.5f};
+  const float kNearPos[3] = {0.0f, 0.0f, 1.0f};
+  mjrf_setRenderableSize(near_box.get(), kNearSize);
+  mjrf_setRenderablePose(near_box.get(), kNearPos, kIdentityRot);
+  mjrf_setRenderableMaterial(near_box.get(), &mat);
+  mjrf_addSceneRenderable(scene, near_box.get());
+
+  // Off-axis box spanning camera depth [7.0, 20.0] at x in [6.0, 26.0]: its
+  // front face is inside frustum_far (not CPU-culled), while its -X side face
+  // crosses frustum_far = 10.0 and must be hardware-clipped past z_far.
+  UniquePtr<mjrfRenderable> straddling_box = CreateRenderable(ctx, params);
+  mjrf_setRenderableGeomMesh(straddling_box.get(), mjGEOM_BOX, 1, 28, 4);
+  const float kStraddleSize[3] = {10.0f, 20.0f, 6.5f};
+  const float kStraddlePos[3] = {16.0f, 0.0f, -10.5f};
+  mjrf_setRenderableSize(straddling_box.get(), kStraddleSize);
+  mjrf_setRenderablePose(straddling_box.get(), kStraddlePos, kIdentityRot);
+  mjrf_setRenderableMaterial(straddling_box.get(), &mat);
+  mjrf_addSceneRenderable(scene, straddling_box.get());
+
+  // Backdrop box wholly beyond frustum_far (top face at planar depth 11.5).
+  UniquePtr<mjrfRenderable> beyond_far = CreateRenderable(ctx, params);
+  mjrf_setRenderableGeomMesh(beyond_far.get(), mjGEOM_BOX, 1, 28, 4);
+  const float kBeyondSize[3] = {20.0f, 20.0f, 0.5f};
+  const float kBeyondPos[3] = {0.0f, 0.0f, -9.0f};
+  mjrf_setRenderableSize(beyond_far.get(), kBeyondSize);
+  mjrf_setRenderablePose(beyond_far.get(), kBeyondPos, kIdentityRot);
+  mjrf_setRenderableMaterial(beyond_far.get(), &mat);
+  mjrf_addSceneRenderable(scene, beyond_far.get());
+
+  auto depth_at = [&](int x, int y) {
+    std::span<const std::byte> bytes = renderer.GetPixels(depth_target);
+    float value = 0.0f;
+    std::memcpy(&value, bytes.data() + (y * kSize + x) * sizeof(float),
+                sizeof(float));
+    return value;
+  };
+
+  Renderer::View views[1];
+  Renderer::View& view = views[0];
+  view.scene = scene_handle;
+  view.render_target = depth_target;
+  view.draw_mode = mjDRAW_MODE_DEPTH;
+  view.post_processing = false;
+  view.shadows = false;
+  view.reflections = false;
+  view.camera.pos[0] = 0.0f;
+  view.camera.pos[1] = 0.0f;
+  view.camera.pos[2] = 3.0f;
+  view.camera.forward[0] = 0.0f;
+  view.camera.forward[1] = 0.0f;
+  view.camera.forward[2] = -1.0f;
+  view.camera.up[0] = 0.0f;
+  view.camera.up[1] = 1.0f;
+  view.camera.up[2] = 0.0f;
+  view.camera.frustum_center = 0.0f;
+  view.camera.frustum_near = kNear;
+  view.camera.frustum_far = kFar;
+
+  // Perspective camera (90-degree FOV): reversed-Z finite-frustum mapping
+  // d = near * (far - z) / (z * (far - near)).
+  view.camera.orthographic = false;
+  view.camera.frustum_width = 0.1f;
+  view.camera.frustum_bottom = -0.1f;
+  view.camera.frustum_top = 0.1f;
+  renderer.Render(views);
+
+  constexpr float kBoxDepth = 1.5f;
+  constexpr float kExpectedPerspCenter =
+      kNear * (kFar - kBoxDepth) / (kBoxDepth * (kFar - kNear));
+  constexpr float kStraddleFrontDepth = 7.0f;
+  constexpr float kExpectedStraddleFront =
+      kNear * (kFar - kStraddleFrontDepth) /
+      (kStraddleFrontDepth * (kFar - kNear));
+  EXPECT_NEAR(depth_at(kSize / 2, kSize / 2), kExpectedPerspCenter, 1e-4f);
+  EXPECT_NEAR(depth_at(31, kSize / 2), kExpectedStraddleFront, 1e-4f);
+  EXPECT_NEAR(depth_at(24, kSize / 2), 0.0f, 1e-6f);
+  EXPECT_NEAR(depth_at(0, 0), 0.0f, 1e-6f);
+
+  // Orthographic camera: linear reversed-Z mapping d = (far - z) / (far -
+  // near).
+  view.camera.orthographic = true;
+  view.camera.frustum_width = 1.0f;
+  view.camera.frustum_bottom = -1.0f;
+  view.camera.frustum_top = 1.0f;
+  renderer.Render(views);
+
+  constexpr float kExpectedOrthoCenter = (kFar - kBoxDepth) / (kFar - kNear);
+  EXPECT_NEAR(depth_at(kSize / 2, kSize / 2), kExpectedOrthoCenter, 1e-4f);
+  EXPECT_NEAR(depth_at(0, 0), 0.0f, 1e-6f);
+}
+
+TEST_F(RendererTest, WaitForFrameFlushesSubmittedFrame) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+  mjrfScene* scene = renderer.GetScene("scene");
+
+  mjrfTextureConfig tex_config;
+  mjrf_defaultTextureConfig(&tex_config);
+  tex_config.width = 4;
+  tex_config.height = 4;
+  tex_config.format = mjPIXEL_FORMAT_RGB8;
+  UniquePtr<mjrfTexture> texture = CreateTexture(ctx, tex_config);
+
+  std::vector<uint8_t> tex_bytes(4 * 4 * 3, 255);
+  int released = 0;
+  mjrfTextureData tex_data;
+  mjrf_defaultTextureData(&tex_data);
+  tex_data.bytes = tex_bytes.data();
+  tex_data.num_bytes = tex_bytes.size();
+  tex_data.user_data = &released;
+  tex_data.release =
+      +[](void* user_data) { (*static_cast<int*>(user_data))++; };
+  mjrf_uploadTexture(texture.get(), &tex_data);
+
+  mjrfRenderRequest req;
+  mjrf_defaultRenderRequest(&req);
+  req.scene = scene;
+  req.target = nullptr;
+  req.viewport = {0, 0, 16, 16};
+  req.post_processing = false;
+  req.shadows = false;
+  req.reflections = false;
+  req.camera.orthographic = true;
+  req.camera.pos[2] = 1.0f;
+  req.camera.forward[2] = -1.0f;
+  req.camera.up[1] = 1.0f;
+  req.camera.frustum_near = 0.0f;
+  req.camera.frustum_far = 1.0f;
+  req.camera.frustum_center = 8.0f;
+  req.camera.frustum_width = 8.0f;
+  req.camera.frustum_bottom = 16.0f;
+
+  mjrfFrameHandle frame = mjrf_render(ctx, &req, 1, nullptr, 0);
+  EXPECT_GT(frame, 0);
+
+  mjrf_waitForFrame(ctx, frame);
+  EXPECT_EQ(released, 1);
+
+  // Waiting again on an already-completed or zero handle is a safe no-op.
+  mjrf_waitForFrame(ctx, frame);
+  mjrf_waitForFrame(ctx, 0);
+  EXPECT_EQ(released, 1);
+}
+
+TEST_F(RendererTest, MeshReuploadReleasesResources) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+  UniquePtr<mjrfMesh> mesh = MakeQuadMesh(ctx);
+
+  static const float vertices[] = {
+      -256.0f, -256.0f, 256.0f, -256.0f, -256.0f, 256.0f, 256.0f, 256.0f,
+  };
+  static const float uvs[] = {
+      0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+  };
+  static const uint8_t colors[] = {
+      255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255,
+  };
+  static const uint16_t indices[] = {0, 1, 2, 1, 3, 2};
+
+  UniquePtr<mjrfTexture> texture = MakeTexture(ctx, kRed);
+  UniquePtr<mjrfRenderable> renderable =
+      MakeRenderable(ctx, mesh.get(), texture.get());
+
+  mjrfRenderTargetConfig target_config;
+  mjrf_defaultRenderTargetConfig(&target_config);
+  target_config.width = 32;
+  target_config.height = 32;
+  target_config.color_format = mjPIXEL_FORMAT_RGB8;
+  target_config.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle target =
+      renderer.CreateRenderTarget("offscreen_mesh", target_config);
+  ASSERT_NE(target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene = renderer.GetScene("scene");
+  ASSERT_NE(scene, nullptr);
+  mjrf_addSceneRenderable(scene, renderable.get());
+
+  Renderer::View views[1];
+  SetupView(&views[0], renderer.GetSceneHandle("scene"), target, 32, 32);
+
+  int release_count_1 = 0;
+  mjrfMeshData data1;
+  mjrf_defaultMeshData(&data1);
+  data1.num_vertices = 4;
+  data1.vertices[0] = vertices;
+  data1.vertices[1] = uvs;
+  data1.vertices[2] = colors;
+  data1.num_indices = 6;
+  data1.indices = indices;
+  data1.release = +[](void* user) { (*static_cast<int*>(user))++; };
+  data1.user_data = &release_count_1;
+  mjrf_uploadMesh(mesh.get(), &data1);
+
+  renderer.Render(views);
+  EXPECT_EQ(release_count_1, 1);
+
+  int release_count_2 = 0;
+  mjrfMeshData data2;
+  mjrf_defaultMeshData(&data2);
+  data2.num_vertices = 4;
+  data2.vertices[0] = vertices;
+  data2.vertices[1] = uvs;
+  data2.vertices[2] = colors;
+  data2.num_indices = 6;
+  data2.indices = indices;
+  data2.release = +[](void* user) { (*static_cast<int*>(user))++; };
+  data2.user_data = &release_count_2;
+  mjrf_uploadMesh(mesh.get(), &data2);
+
+  renderer.Render(views);
+  EXPECT_EQ(release_count_2, 1);
+
+  mjrf_removeSceneRenderable(scene, renderable.get());
+}
+
+// Submits an empty frame and blocks until Filament has executed every queued
+// command and dispatched the resulting BufferDescriptor release callbacks.
+static void RenderEmptyFrameAndWait(mjrfContext* ctx, mjrfScene* scene) {
+  mjrfRenderRequest req;
+  mjrf_defaultRenderRequest(&req);
+  req.scene = scene;
+  req.target = nullptr;
+  req.viewport = {0, 0, 16, 16};
+  req.post_processing = false;
+  req.shadows = false;
+  req.reflections = false;
+  req.camera.orthographic = true;
+  req.camera.pos[2] = 1.0f;
+  req.camera.forward[2] = -1.0f;
+  req.camera.up[1] = 1.0f;
+  req.camera.frustum_near = 0.0f;
+  req.camera.frustum_far = 1.0f;
+  req.camera.frustum_center = 8.0f;
+  req.camera.frustum_width = 8.0f;
+  req.camera.frustum_bottom = 16.0f;
+  mjrfFrameHandle frame = mjrf_render(ctx, &req, 1, nullptr, 0);
+  mjrf_waitForFrame(ctx, frame);
+}
+
+// Regression test for a use-after-free: mjrf_uploadMesh only queues the vertex
+// and index buffers on Filament's command stream, which references the caller's
+// memory (and Mesh-internal index/orientation scratch buffers) until the
+// backend copies it. Destroying the mesh before that happens (e.g. when
+// ModelResources re-creates meshes) used to run data.release and free the
+// internal buffers synchronously in ~Mesh, so the backend later read freed
+// memory. The release must be deferred until Filament has consumed the buffers.
+TEST_F(RendererTest, MeshDestroyedBeforeFlushDefersRelease) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  // Separate normals and implicit indices exercise every internal allocation:
+  // orientations, the index sequence and the wireframe indices.
+  mjrfMeshConfig config;
+  mjrf_defaultMeshConfig(&config);
+  config.num_attributes = 2;
+  config.attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
+  config.attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config.attributes[1].usage = mjVERTEX_ATTRIBUTE_USAGE_NORMAL;
+  config.attributes[1].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
+  config.max_vertices = 3;
+  config.max_indices = 3;
+  config.interleaved = false;
+  config.index_type = mjINDEX_TYPE_U16;
+  config.primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
+  UniquePtr<mjrfMesh> mesh = CreateMesh(ctx, config);
+
+  struct HeapPayload {
+    std::vector<float> positions = {
+        -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+    };
+    std::vector<float> normals = {
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+    };
+    int* release_count = nullptr;
+  };
+
+  int release_count = 0;
+  auto* payload = new HeapPayload{.release_count = &release_count};
+
+  mjrfMeshData data;
+  mjrf_defaultMeshData(&data);
+  data.num_vertices = 3;
+  data.vertices[0] = payload->positions.data();
+  data.vertices[1] = payload->normals.data();
+  data.num_indices = 3;
+  data.indices = nullptr;
+  data.user_data = payload;
+  data.release = +[](void* user) {
+    auto* p = static_cast<HeapPayload*>(user);
+    (*p->release_count)++;
+    delete p;
+  };
+  EXPECT_EQ(release_count, 0);
+  mjrf_uploadMesh(mesh.get(), &data);
+  EXPECT_EQ(release_count, 0);
+  mesh.reset();
+
+  // Filament has not executed the queued uploads yet, so the payload must
+  // still be alive.
+  EXPECT_EQ(release_count, 0);
+
+  RenderEmptyFrameAndWait(ctx, renderer.GetScene("scene"));
+  EXPECT_EQ(release_count, 1);
+}
+
+// Two uploads queued on the same mesh before a flush each own their buffers
+// until Filament consumes them; the second upload must not drop or release the
+// first upload's data early.
+TEST_F(RendererTest, MeshReuploadBeforeFlushReleasesBothUploads) {
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+  UniquePtr<mjrfMesh> mesh = MakeQuadMesh(ctx);
+
+  struct HeapQuad {
+    std::vector<float> vertices = {
+        -256.0f, -256.0f, 256.0f, -256.0f, -256.0f, 256.0f, 256.0f, 256.0f,
+    };
+    std::vector<float> uvs = {
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
+    };
+    std::vector<uint8_t> colors = std::vector<uint8_t>(16, 255);
+    std::vector<uint16_t> indices = {0, 1, 2, 1, 3, 2};
+    int* release_count = nullptr;
+  };
+
+  auto upload = [&](int* count) {
+    auto* quad = new HeapQuad{.release_count = count};
+    mjrfMeshData data;
+    mjrf_defaultMeshData(&data);
+    data.num_vertices = 4;
+    data.vertices[0] = quad->vertices.data();
+    data.vertices[1] = quad->uvs.data();
+    data.vertices[2] = quad->colors.data();
+    data.num_indices = 6;
+    data.indices = quad->indices.data();
+    data.user_data = quad;
+    data.release = +[](void* user) {
+      auto* q = static_cast<HeapQuad*>(user);
+      (*q->release_count)++;
+      delete q;
+    };
+    mjrf_uploadMesh(mesh.get(), &data);
+  };
+
+  int release_count_1 = 0;
+  int release_count_2 = 0;
+  upload(&release_count_1);
+  upload(&release_count_2);
+  EXPECT_EQ(release_count_1, 0);
+  EXPECT_EQ(release_count_2, 0);
+
+  RenderEmptyFrameAndWait(ctx, renderer.GetScene("scene"));
+  EXPECT_EQ(release_count_1, 1);
+  EXPECT_EQ(release_count_2, 1);
+}
 }  // namespace
 }  // namespace mujoco

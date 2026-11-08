@@ -152,7 +152,6 @@ inline constexpr mjXAttr kHeadlightAttrs[] = {
   {"ambient", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjVisual, headlight.ambient)},
   {"diffuse", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjVisual, headlight.diffuse)},
   {"specular", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjVisual, headlight.specular)},
-  {"active", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjVisual, headlight.active)},
 };
 inline constexpr int kHeadlightAttrsN = sizeof(kHeadlightAttrs) / sizeof(kHeadlightAttrs[0]);
 
@@ -449,9 +448,9 @@ inline constexpr int kLightAttrsN = sizeof(kLightAttrs) / sizeof(kLightAttrs[0])
 inline constexpr mjXAttr kElasticityAttrs[] = {
   {"young", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, young)},
   {"poisson", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, poisson)},
+  {"shear", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, shear)},
   {"damping", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, damping)},
   {"thickness", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, thickness)},
-  {"yield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, stressyield)},
   {"elastic2d", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, elastic2d), elastic2d_map, elastic2d_sz},
   {"section", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, section), flexsection_map, flexsection_sz},
   {"sectionsize", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsFlex, sectionsize)},

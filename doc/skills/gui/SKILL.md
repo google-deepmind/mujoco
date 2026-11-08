@@ -1,17 +1,43 @@
 ---
 name: mujoco-gui
 description: >-
-  Dear ImGui and ImPlot user interfaces across C++ and Python, immediate-mode
-  widget design, layout and multi-row widget/column alignment (Tables API),
-  naming conventions (build_gui vs render), ID stack rules (## label
-  disambiguation vs ### seed reset override), list virtualization
-  (ImGuiListClipper), theming, input capture (WantCaptureKeyboard). Use for
-  building, aligning, styling, and debugging Dear ImGui widgets and ImPlot
-  charts. Do NOT use for Studio app architecture/plugins (mujoco-studio) or
-  physics (mujoco-python).
+  Dear ImGui and ImPlot user interface design for MuJoCo Studio and MuJoCo
+  viewer plugins (C++ ux/ components and Python ViewerPlugin build_gui panels):
+  immediate-mode widget layout, multi-row widget/column alignment (Tables API),
+  tooltip length and aspect ratio, build_gui vs render separation, ID stack
+  rules (## label disambiguation vs ### seed reset override), list
+  virtualization (ImGuiListClipper), theming, and input capture
+  (WantCaptureKeyboard). Use only when building, aligning, styling, or
+  debugging Dear ImGui widgets and ImPlot charts inside MuJoCo Studio, MuJoCo
+  viewer plugins, or MuJoCo/robotics simulation and control tools. Don't use
+  for general-purpose C++ or Python Dear ImGui / ImPlot / imgui_bundle desktop
+  applications unrelated to MuJoCo or robotics, or for Studio plugin
+  lifecycle/messaging (use mujoco-studio) or core physics stepping (use
+  mujoco-python).
 ---
 
 # Dear ImGui Development & Architecture Guide
+
+> [!TIP]
+>
+> **Official MuJoCo documentation (`doc/*.rst`) & related skills:**
+>
+> -   [`../../studio/python_plugins.rst`](../../studio/python_plugins.rst)
+>     (`.. _StudioUiPlugins:`, `.. _StudioImGuiTips:`) and
+>     [`../../studio/architecture.rst`](../../studio/architecture.rst)
+>     (`.. _StudioCppComponents:`) — How Dear ImGui and ImPlot integrate into
+>     MuJoCo Studio, `UpdateEvent` vs `BuildGuiEvent`, and C++ (`ux/`) vs Python
+>     widget trade-offs. Read these short `.rst` chapters directly when present
+>     locally or in `pip install mujoco` under
+>     `pathlib.Path(mujoco.__file__).parent / 'doc'`, or fetch
+>     `https://mujoco.readthedocs.io/en/latest/<path>.html` (or `/en/stable/`
+>     once released; Sphinx anchors lowercase the label, e.g.
+>     `#studioimguitips`).
+> -   [`../../programming/ui.rst`](../../programming/ui.rst) (`.. _UI:`) —
+>     Legacy `mjui` C framework used only in classic `simulate.cc` (distinct
+>     from Studio's Dear ImGui stack).
+> -   [mujoco-studio](../studio/SKILL.md) — Studio viewer launchers, decoupled
+>     sim/viewer threads, plugins, hot reload, and `WebViewer` streaming.
 
 > [!NOTE]
 >
@@ -36,7 +62,7 @@ ImGui code does not render pixels to the screen directly. Instead, calling ImGui
 functions builds and records **draw command lists** (vertex buffers, index
 buffers, clip rects, and texture references) that are processed, rasterized,
 and rendered later in the frame pipeline (via OpenGL, Vulkan, or
-WebGL/NetImgui).
+WebGL/WebViewer).
 
 -   **Use `build_gui()` or `build_xxx_gui()`** (in Python) or `BuildGui()` /
     `BuildXxxGui()` (in C++) for all functions and methods that submit ImGui
@@ -127,8 +153,8 @@ When rendering lists, tables, or log views that may contain many items (e.g.,
 
 -   **Always Virtualize with `ImGuiListClipper` / `imgui.ListClipper`**:
     Without clipping, ImGui generates vertices and text layouts for every item
-    in the list even when offscreen. In remote streaming backends (NetImgui /
-    WebViewer), unclipped tables saturate the WebSocket stream. In C++, use
+    in the list even when offscreen. In remote streaming backends
+    (`WebViewer`), unclipped tables saturate the WebSocket stream. In C++, use
     `ImGuiListClipper clipper; clipper.Begin(...)`; in Python, use
     `clipper = imgui.ListClipper(); clipper.Begin(...)`.
 -   **Clipper Usage**: The clipper calculates the visible range and only submits
@@ -255,7 +281,7 @@ details and patterns:
     scrolling subplots. Call `implot.ShowDemoWindow()` to inspect
     implementations.
 
-## 7. UI Design & Aesthetics: Grid Alignment (Tables API) & Theming Costs
+## 7. UI Design & Aesthetics: Grid Alignment (Tables API), Tooltips & Theming Costs
 
 High-quality ImGui tools balance immediate-mode simplicity with clean visual
 structure and consistent styling:
@@ -288,6 +314,17 @@ structure and consistent styling:
             trailing labels in their own `WidthFixed` column—calling
             `SetNextItemWidth(-1)` directly on a widget with a visible label
             sizes the frame box to the full column width and clips the label.
+
+-   **Tooltip Length & Aspect Ratio**:
+    -   Keep tooltips concise—avoid overly wordy descriptions that stretch into
+        a wide single-line banner across the viewport.
+    -   Because `SetTooltip` and `SetItemTooltip` do not wrap text
+        automatically, insert explicit newlines (`\n`) to keep the tooltip box
+        at a pleasing, compact aspect ratio (~25–40 characters per line across
+        2–3 lines) rather than a long horizontal strip.
+    -   Split lines at natural phrase, clause, or sentence boundaries (for
+        example, between the primary action summary and secondary status or
+        context) so each line reads cleanly on its own.
 
 -   **Costs of Overriding Colors & Styles (Theming Impact)**:
     -   Dear ImGui manages color palettes and visual metrics globally

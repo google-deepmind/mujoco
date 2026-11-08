@@ -29,6 +29,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_core_util.h"
 #include "src/user/user_flexcomp.h"
 #include "test/fixture.h"
 
@@ -1509,6 +1510,49 @@ TEST_F(UserFlexTest, MechanismRods) {
     mj_deleteData(d);
     mj_deleteModel(m);
   }
+}
+
+// the dipper arm is attached by points on its axis, so only the twist joint
+// equality at the fulcrum keeps its box section from rolling about the axis
+TEST_F(UserFlexTest, DipperArmDoesNotRoll) {
+  const std::string xml_path = GetModelPath("flex/mechanisms/dipper.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  int f = mj_name2id(m, mjOBJ_FLEX, "arm_flex");
+  ASSERT_GE(f, 0);
+  int nelem = m->flex_elemnum[f];
+  std::vector<mjtNum> elem_mat(9 * nelem);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+  ASSERT_EQ(mj_rodBoxEdge(m, d, f, elem_mat.data(), nullptr), 1);
+
+  // material director (m1 or m2) that starts along the fulcrum axis (world y)
+  int col = std::abs(elem_mat[3]) > std::abs(elem_mat[4]) ? 0 : 1;
+  for (int e = 0; e < nelem; e++) {
+    ASSERT_GT(std::abs(elem_mat[9 * e + 3 + col]), 1 - 1e-6) << "elem " << e;
+  }
+
+  // the director stays along the projection of y normal to the edge tangent, so
+  // lateral bending of the arm (which tilts the director with the tangent) is
+  // not counted as roll: |cos(roll)| > cos(0.1)
+  mjtNum min_cos = 1;
+  for (int i = 0; i < 5000; i++) {
+    mj_step(m, d);
+    mj_rodBoxEdge(m, d, f, elem_mat.data(), nullptr);
+    for (int e = 0; e < nelem; e++) {
+      const mjtNum* mat = elem_mat.data() + 9 * e;
+      mjtNum t[3] = {mat[2], mat[5], mat[8]};
+      mjtNum dir[3] = {mat[col], mat[3 + col], mat[6 + col]};
+      mjtNum yperp[3] = {-t[1] * t[0], 1 - t[1] * t[1], -t[1] * t[2]};
+      mjtNum norm = mju_norm3(yperp);
+      ASSERT_GT(norm, 0.5) << "elem " << e;
+      min_cos = std::min(min_cos, std::abs(mju_dot3(dir, yperp)) / norm);
+    }
+  }
+  EXPECT_GT(min_cos, std::cos(0.1));
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
 
 TEST_F(UserFlexTest, EmptyCellNodePinningMesh) {
@@ -4650,6 +4694,768 @@ TEST_F(UserFlexTest, UnpinnedParentBodyWithJointsFails) {
   MjModelPtr m_2d_ok =
       LoadModelFromString(xml_2d_ok, error.data(), error.size());
   EXPECT_THAT(m_2d_ok.get(), NotNull()) << error.data();
+}
+
+TEST_F(UserFlexTest, InterpolatedFlexcompPinIndexing) {
+  std::array<char, 1024> error;
+
+  // Non-grid trilinear flexcomp with cellcount="2 2 2" has a 3x3x3 nodal grid
+  // (27 nodes), so grid="2 0 0" is valid and pins node 18.
+  static constexpr char xml_pingrid_cellcount[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="direct" dim="3" dof="trilinear" cellcount="2 2 2"
+                point="0 0 0  1 0 0  0 1 0  0 0 1"
+                element="0 1 2 3">
+        <contact selfcollide="none"/>
+        <pin grid="2 0 0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_cell =
+      LoadModelFromString(xml_pingrid_cellcount, error.data(), error.size());
+  ASSERT_THAT(m_cell.get(), NotNull()) << error.data();
+
+  // Single-cell trilinear flexcomp (2x2x2 = 8 nodes): grid="1 0 0" strides by
+  // nodal count (2) rather than raw count (10), pinning exactly 1 node (7 free
+  // node bodies + world = 8 bodies).
+  static constexpr char xml_pingrid_stride[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="direct" dim="3" dof="trilinear" count="10 10 10"
+                point="0 0 0  1 0 0  0 1 0  0 0 1"
+                element="0 1 2 3">
+        <contact selfcollide="none"/>
+        <pin grid="1 0 0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_stride =
+      LoadModelFromString(xml_pingrid_stride, error.data(), error.size());
+  ASSERT_THAT(m_stride.get(), NotNull()) << error.data();
+  EXPECT_EQ(m_stride->nbody, 8);
+  EXPECT_EQ(m_stride->flex_nodebodyid[4], 0);
+
+  // 4-vertex tetrahedron with trilinear DOF (8 nodes): pinning nodes 0..3
+  // leaves nodes 4..7 unpinned (4 bodies), not rigid; pinning node 7 (which is
+  // >= npnt=4 but < nnode=8) succeeds; pinid=8 (>= nnode=8) fails even when
+  // npnt > 8.
+  static constexpr char xml_partial_pin[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="tet" type="direct" dim="3" dof="trilinear"
+                point="0 0 0  1 0 0  0 1 0  0 0 1"
+                element="0 1 2 3">
+        <contact selfcollide="none"/>
+        <pin range="0 3" id="7"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_partial =
+      LoadModelFromString(xml_partial_pin, error.data(), error.size());
+  ASSERT_THAT(m_partial.get(), NotNull()) << error.data();
+  EXPECT_EQ(m_partial->flex_rigid[0], 0);
+  EXPECT_EQ(m_partial->nbody, 1 + 3);
+
+  static constexpr char xml_oob_node_pin[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="grid" type="grid" count="3 3 3" spacing="0.1 0.1 0.1"
+                dim="3" dof="trilinear">
+        <contact selfcollide="none"/>
+        <pin id="8"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_oob =
+      LoadModelFromString(xml_oob_node_pin, error.data(), error.size());
+  EXPECT_THAT(m_oob.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("pinid out of range"));
+
+  // Quadratic box flexcomp with count="2 2 2" has a 3x3x3 nodal grid (27
+  // nodes). Pinning the ix=0 face via gridrange="0 0 0 0 2 2" pins 9 nodes and
+  // leaves 18 unpinned node bodies.
+  static constexpr char xml_gridrange[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="box" type="box" count="2 2 2" spacing="0.1 0.1 0.1"
+                dim="3" dof="quadratic">
+        <contact selfcollide="none"/>
+        <pin gridrange="0 0 0 0 2 2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_gridrange =
+      LoadModelFromString(xml_gridrange, error.data(), error.size());
+  ASSERT_THAT(m_gridrange.get(), NotNull()) << error.data();
+  EXPECT_EQ(m_gridrange->nbody, 1 + 18);
+
+  // Unused vertex compaction on an interpolated direct flexcomp must preserve
+  // nodal pin flags.
+  static constexpr char xml_unused_vert_pin[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="direct" dim="3" dof="trilinear"
+                point="9 9 9  0 0 0  1 0 0  0 1 0  0 0 1"
+                element="1 2 3 4">
+        <contact selfcollide="none"/>
+        <pin id="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_unused_pin =
+      LoadModelFromString(xml_unused_vert_pin, error.data(), error.size());
+  ASSERT_THAT(m_unused_pin.get(), NotNull()) << error.data();
+  EXPECT_EQ(m_unused_pin->flex_nodebodyid[0], 0);
+  EXPECT_EQ(m_unused_pin->nbody, 1 + 7);
+}
+
+TEST_F(UserFlexTest, FlexElemTexcoordValidationTetFlipAndMesh3D) {
+  std::array<char, 1024> error;
+
+  // Odd texcoord size must be rejected.
+  {
+    mjSpec* spec = mj_makeSpec();
+    mjsBody* b0 = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+    mjs_setName(b0->element, "b0");
+    mjsBody* b1 = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+    mjs_setName(b1->element, "b1");
+    b1->pos[0] = 1;
+    mjsBody* b2 = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+    mjs_setName(b2->element, "b2");
+    b2->pos[1] = 1;
+    mjsFlex* f = mjs_addFlex(spec);
+    mjs_setName(f->element, "f");
+    f->dim = 2;
+    mjs_setStringVec(f->vertbody, "b0 b1 b2");
+    const int elem[3] = {0, 1, 2};
+    mjs_setInt(f->elem, elem, 3);
+    const float tc_odd[3] = {0, 0, 1};
+    mjs_setFloat(f->texcoord, tc_odd, 3);
+    const int etc[3] = {0, 0, 0};
+    mjs_setInt(f->elemtexcoord, etc, 3);
+    MjModelPtr m_odd(mj_compile(spec, nullptr));
+    EXPECT_THAT(m_odd.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec), HasSubstr("texcoord size must be even"));
+    mj_deleteSpec(spec);
+  }
+
+  // Wrong elemtexcoord size must be rejected.
+  static constexpr char xml_bad_size[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b0" pos="0 0 0"/>
+      <body name="b1" pos="1 0 0"/>
+      <body name="b2" pos="0 1 0"/>
+    </worldbody>
+    <deformable>
+      <flex name="f" dim="2" body="b0 b1 b2" element="0 1 2"
+            texcoord="0 0  1 0  0 1" elemtexcoord="0 1"/>
+    </deformable>
+  </mujoco>
+  )";
+  MjModelPtr m_bad_size =
+      LoadModelFromString(xml_bad_size, error.data(), error.size());
+  EXPECT_THAT(m_bad_size.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("elemtexcoord size"));
+
+  // Out-of-range elemtexcoord index must be rejected.
+  static constexpr char xml_bad_idx[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b0" pos="0 0 0"/>
+      <body name="b1" pos="1 0 0"/>
+      <body name="b2" pos="0 1 0"/>
+    </worldbody>
+    <deformable>
+      <flex name="f" dim="2" body="b0 b1 b2" element="0 1 2"
+            texcoord="0 0  1 0  0 1" elemtexcoord="0 1 3"/>
+    </deformable>
+  </mujoco>
+  )";
+  MjModelPtr m_bad_idx =
+      LoadModelFromString(xml_bad_idx, error.data(), error.size());
+  EXPECT_THAT(m_bad_idx.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("elemtexcoord index out of range"));
+
+  // 3D tetrahedron orientation flip must also swap elemtexcoord[1] and [2].
+  static constexpr char xml_tet_flip[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b0" pos="0 0 0"/>
+      <body name="b1" pos="1 0 0"/>
+      <body name="b2" pos="0 1 0"/>
+      <body name="b3" pos="0 0 1"/>
+    </worldbody>
+    <deformable>
+      <flex name="tet" dim="3" body="b0 b1 b2 b3" element="0 1 2 3"
+            texcoord="0 0  0.1 0.2  0.3 0.4  0.5 0.6"/>
+    </deformable>
+  </mujoco>
+  )";
+  MjModelPtr m_tet =
+      LoadModelFromString(xml_tet_flip, error.data(), error.size());
+  ASSERT_THAT(m_tet.get(), NotNull()) << error.data();
+  ASSERT_EQ(m_tet->nflexelemdata, 4);
+  for (int k = 0; k < 4; ++k) {
+    EXPECT_EQ(m_tet->flex_elemtexcoord[k], m_tet->flex_elem[k]) << "k=" << k;
+  }
+
+  // 3D flexcomp consuming a textured surface mesh with origin must produce
+  // valid 4-index elemtexcoord per tetrahedron.
+  static constexpr char xml_mesh3d_uv[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet_uv"
+            vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  1 2 3  2 0 3"
+            texcoord="0.1 0.1  0.2 0.2  0.3 0.3  0.4 0.4"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="soft" mesh="tet_uv" dim="3" origin="0.25 0.25 0.25"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_mesh3d =
+      LoadModelFromString(xml_mesh3d_uv, error.data(), error.size());
+  ASSERT_THAT(m_mesh3d.get(), NotNull()) << error.data();
+  EXPECT_EQ(m_mesh3d->nflexvert, 5);
+  EXPECT_EQ(m_mesh3d->nflexelem, 4);
+  EXPECT_EQ(m_mesh3d->nflextexcoord, 5);
+  for (int i = 0; i < 4 * m_mesh3d->nflexelem; ++i) {
+    EXPECT_EQ(m_mesh3d->flex_elemtexcoord[i], m_mesh3d->flex_elem[i])
+        << "i=" << i;
+  }
+}
+
+TEST_F(UserFlexTest, FlexcompUnusedVertexPreservesFaceTexcoords) {
+  std::array<char, 1024> error;
+
+  // Vertex 0 is unreferenced by face="1 2 3"; face-indexed UVs must be
+  // preserved intact rather than compacted by vertex index.
+  static constexpr char xml_mesh[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="m" inertia="shell"
+            vertex="9 9 9  0 0 0  1 0 0  0 1 0"
+            face="1 2 3"
+            texcoord="0.0 0.0  0.1 0.2  0.3 0.4  0.5 0.6"/>
+    </asset>
+    <worldbody>
+      <flexcomp name="f" mesh="m" dim="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m = LoadModelFromString(xml_mesh, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  ASSERT_EQ(m->nflexvert, 3);
+  ASSERT_EQ(m->nflexelem, 1);
+  ASSERT_EQ(m->nflexelemdata, 3);
+
+  const float expected_uv[3][2] = {{0.1f, 0.2f}, {0.3f, 0.4f}, {0.5f, 0.6f}};
+  for (int k = 0; k < 3; ++k) {
+    int tc_idx = m->flex_elemtexcoord[k];
+    ASSERT_GE(tc_idx, 0);
+    ASSERT_LT(tc_idx, m->nflextexcoord) << "k=" << k;
+    EXPECT_FLOAT_EQ(m->flex_texcoord[2 * tc_idx + 0], expected_uv[k][0])
+        << "k=" << k;
+    EXPECT_FLOAT_EQ(m->flex_texcoord[2 * tc_idx + 1], expected_uv[k][1])
+        << "k=" << k;
+  }
+
+  // Malformed per-vertex texcoord on a direct flexcomp with unused vertices is
+  // rejected cleanly without out-of-bounds reads.
+  static constexpr char xml_bad_tc[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="direct" dim="2"
+                point="9 9 9  0 0 0  1 0 0  0 1 0"
+                element="1 2 3"
+                texcoord="0 0  1 0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr m_bad_tc =
+      LoadModelFromString(xml_bad_tc, error.data(), error.size());
+  EXPECT_THAT(m_bad_tc.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("two texture coordinates per vertex"));
+}
+
+TEST_F(UserFlexTest, FlexcompEnclosingFrame) {
+  static constexpr char xml_framed[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame pos="1 2 3" euler="0 0 90">
+        <frame pos="0.5 0 0">
+          <flexcomp name="f" type="grid" count="2 2 1" spacing="0.2 0.2 0.2"
+                    pos="0 0.1 0" dim="2" radius="0.01">
+            <edge equality="true"/>
+          </flexcomp>
+        </frame>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  // outer frame rotates +90 deg around Z: local (0.5, 0.1, 0) -> (-0.1, 0.5, 0)
+  // plus outer pos (1, 2, 3) = (0.9, 2.5, 3.0) with +90 deg Z rotation
+  static constexpr char xml_direct[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="grid" count="2 2 1" spacing="0.2 0.2 0.2"
+                pos="0.9 2.5 3" euler="0 0 90" dim="2" radius="0.01">
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m_framed =
+      LoadModelFromString(xml_framed, error.data(), error.size());
+  ASSERT_THAT(m_framed.get(), NotNull()) << error.data();
+  MjModelPtr m_direct =
+      LoadModelFromString(xml_direct, error.data(), error.size());
+  ASSERT_THAT(m_direct.get(), NotNull()) << error.data();
+
+  ASSERT_EQ(m_framed->nbody, m_direct->nbody);
+  for (int b = 1; b < m_framed->nbody; b++) {
+    for (int k = 0; k < 3; k++) {
+      EXPECT_NEAR(m_framed->body_pos[3 * b + k], m_direct->body_pos[3 * b + k],
+                  MjTol(1e-12, 1e-6));
+    }
+  }
+}
+
+TEST_F(UserFlexTest, Direct1DAutoEdges) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="rod" type="direct" dim="1" mass="0.1" radius="0.01"
+                point="0 0 0  0.1 0 0  0.2 0 0.05  0.3 0.05 0.05">
+        <edge equality="true"/>
+        <elasticity young="1e6" poisson="0.3"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  EXPECT_EQ(m->nflex, 1);
+  EXPECT_EQ(m->flex_vertnum[0], 4);
+  EXPECT_EQ(m->flex_elemnum[0], 3);
+  EXPECT_EQ(m->flex_edgenum[0], 3);
+  for (int e = 0; e < 3; ++e) {
+    EXPECT_EQ(m->flex_elem[2 * e + 0], e);
+    EXPECT_EQ(m->flex_elem[2 * e + 1], e + 1);
+  }
+}
+
+// a positive shear modulus overrides G = E / (2 (1 + poisson)) in the 1D rod
+// torsional stiffness kt = G J / (l0 + l1)
+TEST_F(UserFlexTest, RodShearModulus) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <flexcomp name="zrod" type="direct" dim="1" radius="0.01" mass="1"
+                point="0 1 0  0 0 0  1 0 0  1 1 0">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7" poisson="0.25" %s/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char xml[2048];
+  char error[1024] = {0};
+  const double J = mjPI * std::pow(0.01, 4) / 2;
+
+  // kt is the 9th entry of each 10-number DER hinge record, after the count
+  auto kt_of = [](const mjModel* m) {
+    const mjtNum* b = m->flex_bending + m->flex_bendingadr[0];
+    EXPECT_EQ(b[0], 2);
+    EXPECT_EQ(b[1 + 8], b[1 + 10 + 8]);
+    return b[1 + 8];
+  };
+
+  // default: G = E / (2 (1 + poisson)), l0 + l1 = 2
+  std::snprintf(xml, sizeof(xml), xml_template, "");
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  const double kt_default = (1e7 / 2.5) * J / 2;
+  EXPECT_NEAR(kt_of(m.get()), kt_default, MjTol(1e-12, 1e-6) * kt_default);
+
+  // explicit shear modulus
+  std::snprintf(xml, sizeof(xml), xml_template, R"(shear="1e8")");
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  SpecPtr spec(mj_parseXMLString(xml, nullptr, error, sizeof(error)),
+               mj_deleteSpec);
+  ASSERT_THAT(spec.get(), NotNull()) << error;
+  mjsFlex* flex = mjs_asFlex(mjs_findElement(spec.get(), mjOBJ_FLEX, "zrod"));
+  ASSERT_THAT(flex, NotNull());
+  EXPECT_EQ(flex->shear, 1e8);
+  m.reset(mj_compile(spec.get(), nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(spec.get());
+  const double kt_shear = 1e8 * J / 2;
+  EXPECT_NEAR(kt_of(m.get()), kt_shear, MjTol(1e-12, 1e-6) * kt_shear);
+  EXPECT_GT(std::abs(kt_of(m.get()) - kt_default), 0.1 * kt_default);
+
+  // XML round-trip preserves the shear modulus
+  std::array<char, 8192> saved;
+  ASSERT_GE(mj_saveXMLString(spec.get(), saved.data(), saved.size(), error,
+                             sizeof(error)),
+            0)
+      << error;
+  EXPECT_THAT(saved.data(), HasSubstr("shear="));
+  MjModelPtr m2 = LoadModelFromString(saved.data(), error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+  EXPECT_NEAR(kt_of(m2.get()), kt_shear, MjTol(1e-12, 1e-6) * kt_shear);
+
+  // the saved model keeps the twist joints, the rod state and their binding
+  EXPECT_EQ(m2->nv, m->nv);
+  EXPECT_EQ(m2->nplastic, m->nplastic);
+  ASSERT_EQ(m2->flex_bending[m2->flex_bendingadr[0]], 2);
+  for (int h = 0; h < 2; h++) {
+    EXPECT_EQ(m2->flex_bending[m2->flex_bendingadr[0] + 1 + 10 * h + 7],
+              m->flex_bending[m->flex_bendingadr[0] + 1 + 10 * h + 7]);
+  }
+  for (int e = 0; e < 3; e++) {
+    EXPECT_GE(mj_rodChainTwistJnt(m2.get(), 0, e), 0) << "edge " << e;
+  }
+
+  // negative shear modulus is a compile error
+  std::snprintf(xml, sizeof(xml), xml_template, R"(shear="-1")");
+  m = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error, HasSubstr("shear modulus must be non-negative"));
+}
+
+// the compiler binds the per-edge twist hinges of a 1D rod by name and
+// validates them, including the implicit "edge 0 = edge 1 - 1" joint convention
+TEST_F(UserFlexTest, RodTwistJointValidation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="rod" type="grid" count="5 1 1" spacing="0.1 0.1 0.1"
+                radius="0.01" dim="1" mass="1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  auto parse = [&]() {
+    SpecPtr spec(mj_parseXMLString(xml, nullptr, error, sizeof(error)),
+                 mj_deleteSpec);
+    EXPECT_THAT(spec.get(), NotNull()) << error;
+    return spec;
+  };
+  auto add_hinge = [](mjSpec* s, const char* name) {
+    mjsBody* body = mjs_addBody(mjs_findBody(s, "world"), nullptr);
+    body->mass = 1e-3;
+    body->inertia[0] = body->inertia[1] = body->inertia[2] = 1e-6;
+    body->explicitinertial = true;
+    mjsJoint* jnt = mjs_addJoint(body, nullptr);
+    jnt->type = mjJNT_HINGE;
+    mjs_setName(jnt->element, name);
+    return jnt;
+  };
+
+  // unmodified: edge 0's joint is the joint of edge 1 minus one
+  {
+    SpecPtr spec = parse();
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(m.get(), NotNull()) << mjs_getError(spec.get());
+    int j0 = mj_name2id(m.get(), mjOBJ_JOINT, "rod_twist_0");
+    int j1 = mj_name2id(m.get(), mjOBJ_JOINT, "rod_twist_1");
+    ASSERT_GE(j0, 0);
+    EXPECT_EQ(j1, j0 + 1);
+    EXPECT_EQ(mj_rodChainTwistJnt(m.get(), 0, 0), j0);
+    EXPECT_EQ(mj_rodChainTwistJnt(m.get(), 0, 1), j1);
+    EXPECT_EQ(mj_rodChainTwistJnt(m.get(), 0, 3),
+              mj_name2id(m.get(), mjOBJ_JOINT, "rod_twist"));
+    for (int e = 0; e < m->flex_elemnum[0]; e++) {
+      EXPECT_EQ(mj_rodEdgeTwistJnt(m.get(), 0, e, nullptr),
+                mj_rodChainTwistJnt(m.get(), 0, e));
+    }
+  }
+
+  // missing edge 0 joint: an unrelated joint would silently take its place
+  {
+    SpecPtr spec = parse();
+    ASSERT_EQ(mjs_delete(spec.get(), mjs_findElement(spec.get(), mjOBJ_JOINT,
+                                                     "rod_twist_0")),
+              0);
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("missing joint 'rod_twist_0'"));
+  }
+
+  // edge 0 joint that does not immediately precede the edge 1 joint
+  {
+    SpecPtr spec = parse();
+    ASSERT_EQ(mjs_delete(spec.get(), mjs_findElement(spec.get(), mjOBJ_JOINT,
+                                                     "rod_twist_0")),
+              0);
+    add_hinge(spec.get(), "rod_twist_0");
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()),
+                HasSubstr("must immediately precede"));
+  }
+
+  // pinned last edge: clamped like the root, so flexcomp omits rod_twist, and a
+  // twist joint given for it is an error
+  {
+    static constexpr char xml_tail[] = R"(
+    <mujoco>
+      <worldbody>
+        <flexcomp name="rod" type="grid" count="6 1 1" spacing="0.1 0.1 0.1"
+                  radius="0.01" dim="1" mass="1">
+          <pin id="0 1 4 5"/>
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e7"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+    SpecPtr spec(mj_parseXMLString(xml_tail, nullptr, error, sizeof(error)),
+                 mj_deleteSpec);
+    ASSERT_THAT(spec.get(), NotNull()) << error;
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    ASSERT_THAT(m.get(), NotNull()) << mjs_getError(spec.get());
+    EXPECT_EQ(mj_name2id(m.get(), mjOBJ_JOINT, "rod_twist_0"), -1);
+    EXPECT_EQ(mj_name2id(m.get(), mjOBJ_JOINT, "rod_twist"), -1);
+    for (int e = 1; e <= 3; e++) {
+      std::string name = "rod_twist_" + std::to_string(e);
+      int jnt = mj_name2id(m.get(), mjOBJ_JOINT, name.c_str());
+      EXPECT_GE(jnt, 0) << name;
+      EXPECT_EQ(mj_rodChainTwistJnt(m.get(), 0, e), jnt) << name;
+    }
+    EXPECT_EQ(mj_rodChainTwistJnt(m.get(), 0, 4), -1);
+    EXPECT_EQ(m->nplastic, 6 * 5 + 4);
+
+    add_hinge(spec.get(), "rod_twist");
+    m.reset(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()), HasSubstr("clamped"));
+  }
+
+  // twist joint of the wrong type
+  {
+    SpecPtr spec = parse();
+    mjsJoint* jnt =
+        mjs_asJoint(mjs_findElement(spec.get(), mjOBJ_JOINT, "rod_twist_2"));
+    ASSERT_THAT(jnt, NotNull());
+    jnt->type = mjJNT_SLIDE;
+    MjModelPtr m(mj_compile(spec.get(), nullptr));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(mjs_getError(spec.get()), HasSubstr("must be a hinge"));
+  }
+
+  // raw circle <flex name="rope"> with an unrelated hinge named "rope_twist" on
+  // a normal body compiles without treating the joint as a rod twist DOF
+  {
+    static constexpr char xml_unrelated[] = R"(
+    <mujoco>
+      <worldbody>
+        <body name="pendulum" pos="0 0 1">
+          <joint name="rope_twist" type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size="0.02"/>
+        </body>
+        <body name="v0" pos="0 0 0">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+        </body>
+        <body name="v1" pos="0.1 0 0">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+        </body>
+        <body name="v2" pos="0.2 0 0">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+        </body>
+      </worldbody>
+      <deformable>
+        <flex name="rope" dim="1" radius="0.005" body="v0 v1 v2"
+              element="0 1  1 2">
+          <contact selfcollide="none" contype="0" conaffinity="0"/>
+          <elasticity young="1e6"/>
+        </flex>
+      </deformable>
+    </mujoco>
+    )";
+    MjModelPtr m = LoadModelFromString(xml_unrelated, error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    EXPECT_EQ(mj_rodHasTwist(m.get(), 0), 0);
+    EXPECT_EQ(m->nplastic, 0);
+  }
+
+  // box-section flexcomp with dof="2d" explains that dof="full" is required;
+  // root-clamped raw box flex omits <name>_twist_0 from the missing-joint error
+  {
+    static constexpr char xml_box_2d[] = R"(
+    <mujoco>
+      <worldbody>
+        <flexcomp name="rod" type="grid" count="4 1 1" spacing="0.1 0.1 0.1"
+                  dim="1" dof="2d" mass="0.1">
+          <elasticity young="1e6" section="box" sectionsize="0.01 0.004"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+    MjModelPtr m = LoadModelFromString(xml_box_2d, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(error, HasSubstr("dof='full'"));
+
+    static constexpr char xml_box_clamped[] = R"(
+    <mujoco>
+      <worldbody>
+        <body name="base">
+          <inertial pos="0 0 0" mass="0.1" diaginertia="1e-5 1e-5 1e-5"/>
+        </body>
+        <body name="v2" pos="0.2 0 0">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+        </body>
+        <body name="v3" pos="0.3 0 0">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 1 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+        </body>
+      </worldbody>
+      <deformable>
+        <flex name="rod" dim="1" radius="0.004" body="base base v2 v3"
+              vertex="0 0 0  0.1 0 0  0 0 0  0 0 0" element="0 1  1 2  2 3">
+          <elasticity young="1e6" section="box" sectionsize="0.01 0.004"/>
+        </flex>
+      </deformable>
+    </mujoco>
+    )";
+    m = LoadModelFromString(xml_box_clamped, error, sizeof(error));
+    EXPECT_THAT(m.get(), IsNull());
+    EXPECT_THAT(error, HasSubstr("rod_twist_1, ..., rod_twist"));
+    EXPECT_THAT(error, testing::Not(HasSubstr("rod_twist_0")));
+  }
+}
+
+// a rod flexcomp attached to a frame of another model through mjSpec: its twist
+// bodies stay world children (single-dof trees), and its joints stay bound
+TEST_F(UserFlexTest, RodTwistAttachedSpec) {
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="rod" type="grid" count="5 1 1" spacing="0.1 0.1 0.1"
+                dim="1" mass="0.1">
+        <contact selfcollide="none" contype="0" conaffinity="0"/>
+        <elasticity young="1e7" shear="4e6" section="box" sectionsize="0.01 0.004"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <option integrator="discrete" solver="CG" gravity="0 0 0"/>
+    <worldbody>
+      <frame name="mount" pos="0 0 1" euler="0 0 30"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024] = {0};
+  using SpecPtr = std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)>;
+  SpecPtr child(mj_parseXMLString(child_xml, nullptr, error, sizeof(error)),
+                mj_deleteSpec);
+  ASSERT_THAT(child.get(), NotNull()) << error;
+  SpecPtr parent(mj_parseXMLString(parent_xml, nullptr, error, sizeof(error)),
+                 mj_deleteSpec);
+  ASSERT_THAT(parent.get(), NotNull()) << error;
+  mjsFrame* mount =
+      mjs_asFrame(mjs_findElement(parent.get(), mjOBJ_FRAME, "mount"));
+  ASSERT_THAT(mount, NotNull());
+  ASSERT_THAT(mjs_attach(mount->element, child->element, "c_", ""), NotNull())
+      << mjs_getError(parent.get());
+  MjModelPtr m(mj_compile(parent.get(), nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(parent.get());
+  int f = mj_name2id(m.get(), mjOBJ_FLEX, "c_rod");
+  ASSERT_GE(f, 0);
+  EXPECT_TRUE(mj_rodHasTwist(m.get(), f));
+  for (int e = 0; e < 4; e++) {
+    int jnt = mj_rodChainTwistJnt(m.get(), f, e);
+    ASSERT_GE(jnt, 0) << "edge " << e;
+    int dof = m->jnt_dofadr[jnt];
+    EXPECT_EQ(m->body_parentid[m->jnt_bodyid[jnt]], 0) << "edge " << e;
+    EXPECT_EQ(m->M_rownnz[dof], 1) << "edge " << e;
+  }
+  MjDataPtr d = MakeData(m);
+  for (int i = 0; i < 20; i++) mj_step(m.get(), d.get());
+  for (int i = 0; i < m->nq; i++) {
+    EXPECT_TRUE(std::isfinite(d->qpos[i])) << "qpos " << i;
+  }
+}
+
+TEST_F(UserFlexTest, CableCoilBeltModels) {
+  for (const char* path :
+       {"flex/cable.xml", "flex/coil.xml", "flex/belt.xml"}) {
+    MjModelPtr m(LoadModelFromPath(path));
+    ASSERT_THAT(m.get(), NotNull()) << path;
+    MjDataPtr d = MakeData(m);
+    for (int i = 0; i < 20; ++i) {
+      mj_step(m.get(), d.get());
+    }
+    for (int i = 0; i < m->nq; ++i) {
+      EXPECT_TRUE(std::isfinite(d->qpos[i])) << path << " qpos[" << i << "]";
+    }
+  }
+}
+
+// box-section rods use the minor half-size as radius: an explicit radius that
+// differs from it would be silently overwritten, so it is a compile error
+TEST_F(UserFlexTest, BoxSectionRadius) {
+  auto xml = [](const char* radius) {
+    return std::string(R"(
+    <mujoco>
+      <worldbody>
+        <flexcomp name="rod" type="grid" count="5 1 1" spacing="0.1 0.1 0.1"
+                  dim="1" mass="0.1" )") +
+           radius + R"(>
+          <elasticity young="1e7" section="box" sectionsize="0.01 0.004"/>
+        </flexcomp>
+      </worldbody>
+    </mujoco>
+    )";
+  };
+  std::array<char, 1024> error;
+
+  // omitted or equal to the minor half-size: radius is the minor half-size
+  for (const char* radius : {"", R"(radius="0.004")"}) {
+    MjModelPtr m =
+        LoadModelFromString(xml(radius).c_str(), error.data(), error.size());
+    ASSERT_THAT(m.get(), NotNull()) << radius << ": " << error.data();
+    EXPECT_MJTNUM_EQ(m->flex_radius[0], 0.004) << radius;
+  }
+
+  // any other explicit value is an error
+  MjModelPtr m = LoadModelFromString(xml(R"(radius="0.01")").c_str(),
+                                     error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("minor half-size of sectionsize"));
 }
 
 }  // namespace

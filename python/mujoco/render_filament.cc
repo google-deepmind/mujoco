@@ -74,23 +74,37 @@ namespace mujoco::python {
 namespace {
 
 // Initializers for structs.
-void Init(mjrfContextConfig& obj)      { mjrf_defaultContextConfig(&obj); }
-void Init(mjrfFrameStats& obj)         { mjrf_defaultFrameStats(&obj); }
-void Init(mjrfLightParams& obj)        { mjrf_defaultLightParams(&obj); }
-void Init(mjrfMaterial& obj)           { mjrf_defaultMaterial(&obj); }
-void Init(mjrfMeshConfig& obj)         { mjrf_defaultMeshConfig(&obj); }
-void Init(mjrfMeshData& obj)           { mjrf_defaultMeshData(&obj); }
-void Init(mjrfReadRequest& obj)        { mjrf_defaultReadRequest(&obj); }
-void Init(mjrfRenderableParams& obj)   { mjrf_defaultRenderableParams(&obj); }
-void Init(mjrfRenderRequest& obj)      { mjrf_defaultRenderRequest(&obj); }
-void Init(mjrfRenderTargetConfig& obj) { mjrf_defaultRenderTargetConfig(&obj); }
-void Init(mjrfSceneParams& obj)        { mjrf_defaultSceneParams(&obj); }
-void Init(mjrfTextureConfig& obj)      { mjrf_defaultTextureConfig(&obj); }
-void Init(mjrfTextureData& obj)        { mjrf_defaultTextureData(&obj); }
-void Init(mjrRect& obj)                { std::memset(&obj, 0, sizeof(obj)); }
-void Init(mjrCamera& obj)              { std::memset(&obj, 0, sizeof(obj)); }
-void Init(mjrVertexAttribute& obj)     { std::memset(&obj, 0, sizeof(obj)); }
-
+void Init(mjrfContextConfig& obj)        { mjrf_defaultContextConfig(&obj); }
+void Init(mjrfFrameStats& obj)           { mjrf_defaultFrameStats(&obj); }
+void Init(mjrfLightParams& obj)          { mjrf_defaultLightParams(&obj); }
+void Init(mjrfMaterial& obj)             { mjrf_defaultMaterial(&obj); }
+void Init(mjrfMeshConfig& obj)           { mjrf_defaultMeshConfig(&obj); }
+void Init(mjrfMeshData& obj)             { mjrf_defaultMeshData(&obj); }
+void Init(mjrfReadRequest& obj)          { mjrf_defaultReadRequest(&obj); }
+void Init(mjrfRenderableParams& obj)     { mjrf_defaultRenderableParams(&obj); }
+void Init(mjrfRenderRequest& obj)        { mjrf_defaultRenderRequest(&obj); }
+void Init(mjrfRenderTargetConfig& obj)   { mjrf_defaultRenderTargetConfig(&obj); }
+void Init(mjrfSceneParams& obj)          { mjrf_defaultSceneParams(&obj); }
+void Init(mjrfTextureConfig& obj)        { mjrf_defaultTextureConfig(&obj); }
+void Init(mjrfTextureData& obj)          { mjrf_defaultTextureData(&obj); }
+void Init(mjrfRenderOpts& obj)           { mjrf_defaultRenderOpts(&obj); }
+void Init(mjrfAmbientOcclusionOpts& obj) { mjrf_defaultAmbientOcclusionOpts(&obj); }
+void Init(mjrfAntialiasingOpts& obj)     { mjrf_defaultAntialiasingOpts(&obj); }
+void Init(mjrfBloomOpts& obj)            { mjrf_defaultBloomOpts(&obj); }
+void Init(mjrfColorGradingOpts& obj)     { mjrf_defaultColorGradingOpts(&obj); }
+void Init(mjrfDepthOfFieldOpts& obj)     { mjrf_defaultDepthOfFieldOpts(&obj); }
+void Init(mjrfDitheringOpts& obj)        { mjrf_defaultDitheringOpts(&obj); }
+void Init(mjrfFogOpts& obj)              { mjrf_defaultFogOpts(&obj); }
+void Init(mjrfHazeOpts& obj)             { mjrf_defaultHazeOpts(&obj); }
+void Init(mjrfHeadlightOpts& obj)        { mjrf_defaultHeadlightOpts(&obj); }
+void Init(mjrfMaterialOpts& obj)         { mjrf_defaultMaterialOpts(&obj); }
+void Init(mjrfReflectionOpts& obj)       { mjrf_defaultReflectionOpts(&obj); }
+void Init(mjrfShadowOpts& obj)           { mjrf_defaultShadowOpts(&obj); }
+void Init(mjrfSkyboxOpts& obj)           { mjrf_defaultSkyboxOpts(&obj); }
+void Init(mjrfVignetteOpts& obj)         { mjrf_defaultVignetteOpts(&obj); }
+void Init(mjrRect& obj)                  { std::memset(&obj, 0, sizeof(obj)); }
+void Init(mjrCamera& obj)                { std::memset(&obj, 0, sizeof(obj)); }
+void Init(mjrVertexAttribute& obj)       { std::memset(&obj, 0, sizeof(obj)); }
 
 
 template <typename T, std::size_t N>
@@ -178,7 +192,11 @@ void Setter(T& dst, const U& src) {
       dst[i] = src[i];
     }
   } else if constexpr (std::is_same_v<U, std::vector<mjrVertexAttribute>>) {
-    for (int i = 0; i < src.size(); ++i) {
+    if (src.size() > std::size(dst)) {
+      throw py::value_error("Too many vertex attributes, maximum allowed is " +
+                            std::to_string(std::size(dst)));
+    }
+    for (size_t i = 0; i < src.size(); ++i) {
       dst[i] = src[i];
     }
   } else if constexpr (is_object<std::decay_t<U>>::value) {
@@ -218,55 +236,8 @@ void DefProperty(pybind11::class_<C, O...>& c, const char* name, T C::* prop) {
 PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
 #include "render_filament_generated.cc.inc"
 
-  // Explicit bindings for creation functions.
-  mjrf_context.def(
-      py::init([](mjrfContextConfig& config) {
-        return std::make_unique<PyContext>(&config);
-      }),
-      py::arg("config"));
+  // Explicit bindings for memory management functions.
 
-  mjrf_context.def(
-      "create_mesh",
-      [](PyContext& ctx, mjrfMeshConfig& config) {
-        return std::make_unique<PyMesh>(ctx.get(), &config);
-      },
-      py::arg("params"), py::keep_alive<0, 1>());
-  mjrf_context.def(
-      "create_texture",
-      [](PyContext& ctx, mjrfTextureConfig& config) {
-        return std::make_unique<PyTexture>(ctx.get(), &config);
-      },
-      py::arg("config"), py::keep_alive<0, 1>());
-
-  mjrf_context.def(
-      "create_scene",
-      [](PyContext& ctx, mjrfSceneParams& params) {
-        return std::make_unique<PyScene>(ctx.get(), &params);
-      },
-      py::arg("params"), py::keep_alive<0, 1>());
-
-  mjrf_context.def(
-      "create_render_target",
-      [](PyContext& ctx, mjrfRenderTargetConfig& config) {
-        return std::make_unique<PyRenderTarget>(ctx.get(), &config);
-      },
-      py::arg("config"), py::keep_alive<0, 1>());
-
-  mjrf_context.def(
-      "create_light",
-      [](PyContext& ctx, mjrfLightParams& params) {
-        return std::make_unique<PyLight>(ctx.get(), &params);
-      },
-      py::arg("params"), py::keep_alive<0, 1>());
-
-  mjrf_context.def(
-      "create_renderable",
-      [](PyContext& ctx, mjrfRenderableParams& params) {
-        return std::make_unique<PyRenderable>(ctx.get(), &params);
-      },
-      py::arg("params"), py::keep_alive<0, 1>());
-
-  // memory management
   // Note: ReadRequest stores a raw pointer to `buffer`; the caller must
   // keep the underlying Python buffer object alive until rendering finishes.
   mjrf_read_request.def(
@@ -295,19 +266,15 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       data.num_bytes = sv.size();
     }, py::arg("bytes"));
 
-  mjrf_mesh_config.def(
-      "attributes",
-      [](mjrfMeshConfig& config, int i) {
-        if (i < 0 || i >= mjMAX_VERTEX_ATTRIBUTES) {
-          throw py::index_error("Index out of range");
-        }
-        return config.attributes[i];
-      },
-      py::arg("i"));
-
   mjrf_mesh_data.def(
       "set_vertices",
       [](mjrfMeshData& data, const mjrfMeshConfig& config, py::bytes vertices) {
+        if (config.num_attributes < 0 ||
+            config.num_attributes >
+                static_cast<int>(std::size(data.vertices))) {
+          throw py::value_error("Invalid num_attributes: " +
+                                std::to_string(config.num_attributes));
+        }
         FreeMeshDataVertices(data);
         std::string_view sv(vertices);
         if (sv.empty()) {
@@ -397,14 +364,26 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
       },
       py::arg("config"), py::arg("indices"));
 
-  // other
-  mjrf_scene.def(
-      "configure_from_model",
-      [](PyScene& scene, const MjModelWrapper& model) {
-        return mjrf_configureSceneFromModel(scene.get(), model.get());
+  // Allow users to read a specific attribute from the MeshConfig.
+  mjrf_mesh_config.def(
+      "attributes",
+      [](mjrfMeshConfig& config, int i) {
+        if (i < 0 || i >= mjMAX_VERTEX_ATTRIBUTES) {
+          throw py::index_error("Index out of range");
+        }
+        return config.attributes[i];
       },
-      py::arg("model"));
+      py::arg("i"));
 
+  // mjrf_getRenderableMaterial takes a pointer to the mjrfMaterial. For python,
+  // we return a copy.
+  mjrf_renderable.def("get_material", [](PyRenderable& renderable) {
+    mjrfMaterial material;
+    mjrf_getRenderableMaterial(renderable.get(), &material);
+    return material;
+  });
+
+  // mjrf_render converts Python lists into C-style arrays.
   mjrf_context.def("render",
     [](PyContext& ctx, const std::vector<mjrfRenderRequest>& req,
         const std::vector<mjrfReadRequest>& read) {
@@ -413,12 +392,6 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
     },
     py::arg("req"), py::arg("read"),
     py::call_guard<py::gil_scoped_release>());
-
-  mjrf_renderable.def("get_material", [](PyRenderable& renderable) {
-    mjrfMaterial material;
-    mjrf_getRenderableMaterial(renderable.get(), &material);
-    return material;
-  });
 
   using ModelResources = mujoco::ModelResources;
   {

@@ -616,7 +616,6 @@ class mjCBody : public mjCBody_, private mjsBody {
   friend class mjCGeom;
   friend class mjCSite;
   friend class mjCCamera;
-  friend class mjCComposite;
   friend class mjCFrame;
   friend class mjCLight;
   friend class mjCFlex;
@@ -723,7 +722,7 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   void Compile(void);          // compiler
   void ApplyGauge();           // scale the compiled copy by the gauge
-  void InertiaFromGeom(void);  // get inertial info from geoms
+  bool InertiaFromGeom(void);  // get inertial info from geoms
 
   // true if compilation infers the inertial of this body from its geoms
   bool InfersInertial() const;
@@ -1288,6 +1287,8 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
 
   std::vector<double>& plastic(const std::string& state_name) { return plastic_[state_name]; }
   int                  PlasticNum() const;
+  int                  PlasticMode() const;
+  int                  PlasticStretchNum() const;
 
   // gauge of the lowest frame or body which contains the bodies of the vertices and nodes
   mjCGauge BodyGauge() const;
@@ -2249,7 +2250,8 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void CopyPlugin();
 
   // scale the compiled copy by the gauge, or back
-  void ApplyGauge(bool inverse = false);
+  void   ApplyGauge(bool inverse = false);
+  double CoordinateFactor(const mjCGauge& g) const;
 
   void ForgetKeyframes(const std::vector<std::string>& names, bool keep = false);
   void ResetId();

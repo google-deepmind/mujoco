@@ -20,7 +20,9 @@ messages to them in priority order. Plugins run on one of two endpoints:
 * ``ViewerPlugin`` subclasses run on the viewer side (UI, rendering) and get
   the ``viewer_protocol.Viewer`` as ``self.viewer``.
 * ``SimPlugin`` subclasses run on the simulation side (physics, control) and
-  get the ``viewer_handle.ViewerHandle`` as ``self.handle``.
+  get the ``viewer_handle.ViewerHandle`` as ``self.handle``. A ``SimPlugin``
+  that handles ``LoadModelEvent`` can provide the model (a scene built in
+  Python); see ``viewer_handle.ViewerHandle.set_model``.
 
 The launchers accept both kinds in one ``plugins`` list and route each to its
 endpoint (see ``split_plugins``).
@@ -29,9 +31,9 @@ Plugins can be wired up in two ways:
 
 * **In code:** import your plugin modules and pass instances in
   ``plugins=[...]`` to ``launch_passive.run`` (or ``launch_web`` /
-  ``launch_native``), as ``viewer.py`` does for ``ViewerApp``, ``StepControl``,
-  and ``SimHistory``. Plugins can then take constructor arguments and use any
-  dependency of the entry point.
+  ``launch_native``), as ``viewer.py`` does for ``studio_app.App``,
+  ``StepControl``, and ``SimHistory``. Plugins can then take constructor
+  arguments and use any dependency of the entry point.
 * **From files:** ``viewer.py --plugins=a.py,b.py`` calls ``load_plugins``,
   which imports each file and instantiates every ``ViewerPlugin`` and
   ``SimPlugin`` subclass defined in it with ``cls()``.
@@ -51,6 +53,7 @@ from mujoco.studio import viewer_protocol
 # modules that dispatch them so plugin authors only need this module.
 SimInitEvent = viewer_handle.SimInitEvent
 ViewerInitEvent = viewer_protocol.ViewerInitEvent
+ThemeEvent = viewer_protocol.ThemeEvent
 
 
 class SimPlugin:

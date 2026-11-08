@@ -781,6 +781,7 @@ class Model(PyTreeNode):
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
+  mesh_facenum: np.ndarray
   mesh_bvhadr: np.ndarray
   mesh_bvhnum: np.ndarray
   mesh_octadr: np.ndarray

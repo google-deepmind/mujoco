@@ -34,8 +34,8 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -55,6 +55,7 @@
 #include "studio/render/model_scene.h"
 #include "studio/sim/model_holder.h"
 #include "studio/sim/step_control.h"
+#include "studio/ux/camera_control.h"
 #include "studio/ux/console.h"
 #include "studio/ux/file_dialog.h"
 #include "studio/ux/gui.h"
@@ -646,6 +647,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     if (tmp_holder->ok()) {
       preserve_camera_on_load_ = true;
       model_holder_ = std::move(tmp_holder);
+      tmp_.curr_element = nullptr;
       RestoreKeyframeSelection(saved_key);
       OnModelLoaded("", model_kind_);
     } else {
@@ -653,6 +655,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     }
   } else if (std::holds_alternative<RecompileModel>(info)) {
     const KeyframeSelection saved_key = CaptureKeyframeSelection(/*is_reload=*/true);
+    tmp_.curr_element = nullptr;
     model_holder_->Recompile();
     if (!model_holder_->ok()) {
       SetLoadError(std::string(model_holder_->error()));
@@ -667,6 +670,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     profiler_.ResetTimers();
   } else if (std::holds_alternative<EmptyModel>(info)) {
     model_holder_.reset();
+    tmp_.curr_element = nullptr;
     mj_deleteVFS(&vfs_);
     mj_defaultVFS(&vfs_);
     model_holder_ = ModelHolder::FromSpec(mj_makeSpec(), &vfs_);
@@ -680,6 +684,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     const std::string resolved_file = ResolveFile(load.filepath, search_paths_);
     const KeyframeSelection saved_key = CaptureKeyframeSelection(preserve_camera_on_load_);
     model_holder_.reset();
+    tmp_.curr_element = nullptr;
     mj_deleteVFS(&vfs_);
     mj_defaultVFS(&vfs_);
     model_holder_ = ModelHolder::FromFile(resolved_file, &vfs_);
@@ -712,6 +717,7 @@ void App::BuildModel(const BuildModelInfo& info) {
     auto& load = std::get<BufferModel>(info);
     const KeyframeSelection saved_key = CaptureKeyframeSelection(preserve_camera_on_load_);
     model_holder_.reset();
+    tmp_.curr_element = nullptr;
     mj_deleteVFS(&vfs_);
     mj_defaultVFS(&vfs_);
     model_holder_ = ModelHolder::FromBuffer(load.buffer, load.content_type, load.name, &vfs_);
@@ -733,6 +739,7 @@ void App::BuildModel(const BuildModelInfo& info) {
 
 void App::OnModelLoaded(std::string_view filename, ModelKind model_kind) {
   load_error_ = "";
+  tmp_.curr_element = nullptr;
 
   timer_prev_ = {};
   profiler_.Clear();
@@ -876,7 +883,6 @@ void App::HandleMouseEvents() {
   const float mouse_y = io.MousePos.y / io.DisplaySize.y;
   const float mouse_dx = io.MouseDelta.x / io.DisplaySize.x;
   const float mouse_dy = io.MouseDelta.y / io.DisplaySize.y;
-  const float mouse_scroll = io.MouseWheel / 50.0f;
   const bool is_mouse_moving = (mouse_dx != 0.0f || mouse_dy != 0.0f);
   const bool is_any_mouse_down = ImGui::IsMouseDown(ImGuiMouseButton_Left) ||
                                  ImGui::IsMouseDown(ImGuiMouseButton_Right) ||
@@ -911,35 +917,9 @@ void App::HandleMouseEvents() {
       MovePerturb(model(), data(), &camera_, &perturb_, action, mouse_dx, mouse_dy);
     }
   }
-  // Handle camera movement actions.
-  else if (is_mouse_dragging) {
-    if (tmp_.camera_idx == kFreeCameraIdx) {
-      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        mjv_moveCamera(model(), mjMOUSE_TURN_H, mouse_dx, 0.f, &camera_);
-        mjv_moveCamera(model(), mjMOUSE_TURN_V, 0.f, mouse_dy, &camera_);
-      }
-    } else {
-      if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        mjv_moveCamera(model(), mjMOUSE_ROTATE_H, mouse_dx, 0.f, &camera_);
-        mjv_moveCamera(model(), mjMOUSE_ROTATE_V, 0.f, mouse_dy, &camera_);
-      } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        mjv_moveCamera(model(), mjMOUSE_ZOOM, 0.f, mouse_dy, &camera_);
-      }
-    }
 
-    // Right mouse movement is relative to the horizontal and vertical planes.
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && io.KeyShift) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_H, mouse_dx, mouse_dy, &camera_);
-    } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_V, mouse_dx, mouse_dy, &camera_);
-    }
-  }
-
-  // Mouse scroll zooms the camera towards/away from the lookat point.
-  // Ignored by user-centered free cameras which don't have a lookat point.
-  if (mouse_scroll != 0.0f && tmp_.camera_idx != kFreeCameraIdx) {
-    mjv_moveCamera(model(), mjMOUSE_ZOOM, 0.f, -mouse_scroll, &camera_);
-  }
+  // Camera drags and wheel (Ctrl drags are left to the perturbation above).
+  MoveCameraWithMouse(model(), &camera_, tmp_.camera_idx == kFreeCameraIdx, ReadImGuiCameraInput());
 
   // Left double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -1165,50 +1145,9 @@ void App::HandleKeyboardEvents() {
     tmp_.camera_idx = SetCamera(model(), &camera_, tmp_.camera_idx - 1);
   } else if (has_model() && ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
     tmp_.camera_idx = SetCamera(model(), &camera_, tmp_.camera_idx + 1);
-    // WASD camera controls for free camera.
-  } else if (is_freecam_wasd && (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_S) ||
-                                 ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_D) ||
-                                 ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_E))) {
-    bool moved = false;
-
-    // Move (dolly) forward/backward using W and S keys.
-    if (ImGui::IsKeyDown(ImGuiKey_W)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, 0, tmp_.cam_speed, &camera_);
-      moved = true;
-    } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, 0, -tmp_.cam_speed, &camera_);
-      moved = true;
-    }
-
-    // Strafe (truck) left/right using A and D keys.
-    if (ImGui::IsKeyDown(ImGuiKey_A)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, -tmp_.cam_speed, 0, &camera_);
-      moved = true;
-    } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_H_REL, tmp_.cam_speed, 0, &camera_);
-      moved = true;
-    }
-
-    // Move (pedestal) up/down using Q and E keys.
-    if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_V_REL, 0, tmp_.cam_speed, &camera_);
-      moved = true;
-    } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-      mjv_moveCamera(model(), mjMOUSE_MOVE_V_REL, 0, -tmp_.cam_speed, &camera_);
-      moved = true;
-    }
-
-    if (moved) {
-      tmp_.cam_speed += 0.001f;
-
-      const float max_speed = ImGui::GetIO().KeyShift ? 0.1 : 0.01f;
-      if (tmp_.cam_speed > max_speed) {
-        tmp_.cam_speed = max_speed;
-      }
-    } else {
-      tmp_.cam_speed = 0.001f;
-    }
-  } else {
+  } else if (!is_freecam_wasd ||
+             !MoveCameraWithKeys(model(), &camera_, ReadImGuiCameraInput(), &tmp_.cam_speed)) {
+    // Unless WASD/QE flew the fly camera, offer the keys to plugins.
     ForEachPlugin<KeyHandlerPlugin>([&](auto* plugin) {
       if (plugin->key_chord && plugin->on_key_pressed) {
         if (ImGui_IsChordJustPressed(plugin->key_chord)) {
@@ -1261,6 +1200,11 @@ void App::ApplyWindowStateStorage() {
       ++it;  // Window not submitted yet; try again next frame.
       continue;
     }
+    // Windows that opt out of saved settings may keep non-boolean state in their storage.
+    if (window->Flags & ImGuiWindowFlags_NoSavedSettings) {
+      it = window_state_storage_.erase(it);
+      continue;
+    }
     const ImGuiID id = std::strtoul(it->first.c_str() + sep + 1, nullptr, 16);
     window->StateStorage.SetInt(id, std::stoi(it->second) != 0);
     it = window_state_storage_.erase(it);
@@ -1288,6 +1232,9 @@ void App::SaveSettings() {
     KeyValues window_state_storage = window_state_storage_;
     ImGuiContext& g = *ImGui::GetCurrentContext();
     for (ImGuiWindow* window : g.Windows) {
+      if (window->Flags & ImGuiWindowFlags_NoSavedSettings) {
+        continue;
+      }
       for (const ImGuiStoragePair& pair : window->StateStorage.Data) {
         window_state_storage[WindowStateStorageKey(window->Name, pair.key)] =
             std::to_string(pair.val_i);
@@ -1490,6 +1437,12 @@ void App::BuildGui() {
       TextOverlay("Realtime", OverlayPos::kTopLeft, workspace_rect, rtlabel, ImVec4(0, 0, 0, 0),
                   2.0f);
     }
+  }
+
+  // XYZ view gizmo.
+  if (tmp_.view_gizmo && has_model() && has_data()) {
+    ViewGizmoGui(model(), data(), camera_, tmp_.camera_idx, tmp_.view_gizmo_animation,
+                 workspace_rect);
   }
 
   // Display a drag-and-drop message if no model is loaded.
@@ -2305,6 +2258,9 @@ void App::MainMenuGui() {
       }
       if (ImGui::MenuItem("Toolbar", nullptr, tmp_.toolbar)) {
         tmp_.toolbar = !tmp_.toolbar;
+      }
+      if (ImGui::MenuItem("View Gizmo", nullptr, tmp_.view_gizmo)) {
+        tmp_.view_gizmo = !tmp_.view_gizmo;
       }
       if (ImGui::MenuItem("Status Bar", nullptr, tmp_.status_bar)) {
         tmp_.status_bar = !tmp_.status_bar;

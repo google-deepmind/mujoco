@@ -86,7 +86,6 @@ CONFLICTS = {
 SINGLETONS = {
     ('body', 'freejoint'), ('body', 'inertial'),
     ('compiler', 'lengthrange'),
-    ('composite', 'geom'), ('composite', 'site'), ('composite', 'skin'),
     ('default', 'adhesion'), ('default', 'camera'), ('default', 'cylinder'),
     ('default', 'damper'), ('default', 'equality'), ('default', 'general'),
     ('default', 'geom'), ('default', 'intvelocity'), ('default', 'joint'),
@@ -122,8 +121,8 @@ NAMESPACE_OVERRIDES = {
 # 'deformable')
 CONTEXT_NAMESPACE = {('deformable', 'skin'): 'deformable'}
 # attributes that are PyMJCF identifiers although the schema types them as
-# plain strings (composite prefixes namescope the generated elements)
-IDENTIFIER_OVERRIDES = {('composite', 'prefix')}
+# plain strings
+IDENTIFIER_OVERRIDES: set[tuple[str, str]] = set()
 # the same grouping applied to reference targets
 REF_NS_MAP = {'instance': 'plugin', 'flex': 'deformable',
               'skin': 'deformable', 'pair': 'contact', 'exclude': 'contact'}
@@ -226,6 +225,8 @@ class _Emitter:
       return f'type="file"{ns_part}'
     if attr.type == 'enum':
       keywords = ' '.join(k for k, _ in self.schema.enums[attr.target].items)
+      if (element.name, attr.name) == ('headlight', 'active'):
+        keywords += ' 0 1 2'  # legacy int literals still accepted by the reader
       return f'type="keyword" valid_values={saxutils.quoteattr(keywords)}'
     if attr.type == 'bool':
       return 'type="keyword" valid_values="false true"'

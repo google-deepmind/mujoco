@@ -4,19 +4,38 @@ description: >-
   Cross-engine physics parity comparison between MuJoCo (CPU, float64) and
   accelerated backends (MJWarp CUDA, MJX JAX, float32): stage-by-stage
   mj_forward vs mjw.forward isolation, normalized tolerances, stiff affine
-  actuator and ill-conditioned mass matrix (qM) float32 rounding bounds,
+  actuator and ill-conditioned mass matrix (qM) float32 bounds,
   actuation-conditioned forward passes, order-insensitive contact matching per
-  geom pair, threshold-grazing contact filtering (includemargin), batched
-  single-step trajectory evaluation, and float32-perturbed CPU baseline
-  rollouts. Use when comparing MuJoCo CPU physics against MJWarp or MJX,
-  debugging sim-to-sim trajectory divergence, missing contacts, or force/qacc
-  discrepancies. Do NOT use for general GPU batch simulation setup
-  (mujoco-accelerated) or CPU-only simulation (mujoco-python).
+  geom pair, includemargin contact filtering, batched single-step evaluation,
+  and float32-perturbed CPU rollouts. Use only when comparing MuJoCo CPU
+  physics against MuJoCo MJWarp or MJX backends, or debugging MuJoCo sim-to-sim
+  trajectory divergence, missing contacts, or force/qacc discrepancies. Don't
+  use for float64-vs-float32 parity testing of non-MuJoCo C/C++/CUDA/JAX
+  physics or PDE solvers, general GPU batch setup (mujoco-accelerated), or
+  CPU-only simulation (mujoco-python).
 ---
 
 # MuJoCo Parity: Comparing CPU (C) vs Accelerated (MJWarp / MJX) Physics
 
 > [!TIP]
+>
+> **Official MuJoCo documentation (`doc/*.rst`):** Read short chapters like
+> [`../../mjwarp/index.rst`](../../mjwarp/index.rst) (`.. _mjwDiff:`,
+> `.. _mjwOverflow:`, `.. _mjwPairwise:`, `.. _mjwBoxBox:`),
+> [`../../mjx.rst`](../../mjx.rst) (`.. _MjxFeatureParity:`), and
+> [`../../programming/simulation.rst`](../../programming/simulation.rst)
+> (`.. _siIntegrationState:`, `.. _siWarmstart:`) directly when in a MuJoCo
+> checkout; for large files like
+> [`../../computation/index.rst`](../../computation/index.rst) (`.. _Pipeline:`,
+> `.. _piStages:`) and
+> [`../../APIreference/functions.rst`](../../APIreference/functions.rst), grep
+> the literal `.. _Label:` anchor. Outside a checkout, the same `doc/*.rst` tree
+> ships offline in `pip install mujoco` at
+> `pathlib.Path(mujoco.__file__).parent / 'doc'`; otherwise fetch
+> `https://mujoco.readthedocs.io/en/latest/<path>.html` (or `/en/stable/` for
+> released pages; `functions.rst` renders inside
+> `APIreference/APIfunctions.html`, and Sphinx anchors lowercase the label,
+> e.g. `.. _mjwDiff:` → `#mjwdiff`).
 >
 > **Related skills:**
 >
@@ -664,3 +683,13 @@ MuJoCo against MJX (`from mujoco import mjx`):
   present in `dx.contact`; active contacts satisfy
   `dx.contact.dist < dx.contact.includemargin` (ignore slots within
   `dist_tolerance` of `includemargin`).
+
+---
+
+## 6. Key References
+
+-   [MJWarp Differences from MuJoCo & Colliders](../../mjwarp/index.rst) (`.. _mjwDiff:`, `.. _mjwOverflow:`, `.. _mjwPairwise:`, `.. _mjwBoxBox:`)
+-   [MJX Feature Parity & Sharp Bits](../../mjx.rst) (`.. _MjxFeatureParity:`, `.. _MjxSharpBits:`)
+-   [Forward Pipeline Stages, Actuation & Solvers](../../computation/index.rst) (`.. _Pipeline:`, `.. _piStages:`, `.. _geActuation:`, `.. _Solver:`, `.. _Collision:`)
+-   [Integration State (`mjSTATE_INTEGRATION`) & Solver Warmstart](../../programming/simulation.rst) (`.. _siIntegrationState:`, `.. _siWarmstart:`)
+-   [C Forward Subcomponent API](../../APIreference/functions.rst) (`.. _Components:`, `.. _Subcomponents:`)

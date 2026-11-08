@@ -511,7 +511,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          StructFieldDecl(
                              name='active',
                              type=ValueType(name='int'),
-                             doc='is headlight active',
+                             doc='is headlight active (0: no, 1: yes, 2: auto)',
                          ),
                      ),
                  ),
@@ -2965,6 +2965,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_plasticmode',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='plastic state bits; 1: bend, 2: stretch',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_shellnum',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -3209,8 +3217,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='yield strain threshold; 0: elastic',
-                 array_extent=('nflex',),
+                 doc='yield strain (stretch, bend); 0: elastic',
+                 array_extent=('nflex', 2),
              ),
              StructFieldDecl(
                  name='flex_edgestiffness',
@@ -5777,7 +5785,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='efm_active',
                  type=ValueType(name='int'),
-                 doc='implicit effective metric M+K is active (see mj_effBuild)',  # pylint: disable=line-too-long
+                 doc='effective metric M+K: 0 off, 1 on, 2 on with general flex CSR',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='nefmK',
@@ -5802,12 +5810,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='nefmdof',
                  type=ValueType(name='int'),
-                 doc='number of 3x3 blocks in the effective-metric preconditioner',  # pylint: disable=line-too-long
+                 doc='number of covered vertex triples in the effective metric',
              ),
              StructFieldDecl(
                  name='nefmL',
                  type=ValueType(name='int'),
-                 doc='size of efm_L (9*nefmdof plus optional Cholesky or island tail)',  # pylint: disable=line-too-long
+                 doc='size of efm_L (packed Cholesky factor or island lists)',
              ),
              StructFieldDecl(
                  name='nY',
@@ -6089,6 +6097,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nbody', 3),
              ),
              StructFieldDecl(
+                 name='xiquat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='Cartesian orientation of body inertia',
+                 array_extent=('nbody', 4),
+             ),
+             StructFieldDecl(
                  name='ximat',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -6121,6 +6137,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ngeom', 3),
              ),
              StructFieldDecl(
+                 name='geom_xquat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='Cartesian geom orientation',
+                 array_extent=('ngeom', 4),
+             ),
+             StructFieldDecl(
                  name='geom_xmat',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -6135,6 +6159,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='Cartesian site position',
                  array_extent=('nsite', 3),
+             ),
+             StructFieldDecl(
+                 name='site_xquat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='Cartesian site orientation',
+                 array_extent=('nsite', 4),
              ),
              StructFieldDecl(
                  name='site_xmat',
@@ -7237,7 +7269,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='factored 3x3 blocks of M+K and packed tail data',
+                 doc='packed Cholesky factor of M+K or island lists',
                  array_extent=('nefmL',),
              ),
              StructFieldDecl(
@@ -8850,6 +8882,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc="Poisson's ratio",
              ),
              StructFieldDecl(
+                 name='shear',
+                 type=ValueType(name='double'),
+                 doc='1D torsion shear modulus; 0: young / (2 (1 + poisson))',
+             ),
+             StructFieldDecl(
                  name='damping',
                  type=ValueType(name='double'),
                  doc="Rayleigh's damping",
@@ -8861,8 +8898,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='stressyield',
-                 type=ValueType(name='double'),
-                 doc='yield strain threshold; 0: elastic',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='yield strain thresholds (stretch, bend); 0: elastic',
              ),
              StructFieldDecl(
                  name='elastic2d',

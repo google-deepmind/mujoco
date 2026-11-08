@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 #include <limits>
 #include <span>
 #include <sstream>
@@ -145,227 +146,6 @@ bool SectionHeader(const char* label, ImGuiTreeNodeFlags flags, float arrow_scal
   return is_open;
 }
 
-void SetupTheme(GuiTheme theme) {
-  ImGuiStyle& s = ImGui::GetStyle();
-  ImVec4* c = s.Colors;
-  if (theme == GuiTheme::kDark) {
-    ImGui::StyleColorsDark(&s);
-
-    // Cool slate backgrounds with subtle blue undertone.
-    c[ImGuiCol_Text] = ImVec4(0.92, 0.93, 0.95, 1.00);
-    c[ImGuiCol_TextDisabled] = ImVec4(0.45, 0.47, 0.50, 1.00);
-    c[ImGuiCol_WindowBg] = ImVec4(0.16, 0.17, 0.19, 1.00);
-    c[ImGuiCol_ChildBg] = ImVec4(0.16, 0.17, 0.19, 1.00);
-    c[ImGuiCol_PopupBg] = ImVec4(0.24, 0.25, 0.28, 1.00);
-    c[ImGuiCol_Border] = ImVec4(0.10, 0.10, 0.12, 0.40);
-    c[ImGuiCol_BorderShadow] = ImVec4(0.00, 0.00, 0.00, 0.00);
-
-    // Input fields: subtle inset, no transparency.
-    c[ImGuiCol_FrameBg] = ImVec4(0.22, 0.23, 0.26, 1.00);
-    c[ImGuiCol_FrameBgHovered] = ImVec4(0.26, 0.27, 0.30, 1.00);
-    c[ImGuiCol_FrameBgActive] = ImVec4(0.30, 0.31, 0.35, 1.00);
-
-    // Title bars: darkest layer.
-    c[ImGuiCol_TitleBg] = ImVec4(0.12, 0.13, 0.15, 1.00);
-    c[ImGuiCol_TitleBgActive] = ImVec4(0.14, 0.15, 0.17, 1.00);
-    c[ImGuiCol_TitleBgCollapsed] = ImVec4(0.12, 0.13, 0.15, 0.90);
-    c[ImGuiCol_MenuBarBg] = ImVec4(0.12, 0.13, 0.15, 1.00);
-
-    // Scrollbars: transparent background, visible thumb only.
-    c[ImGuiCol_ScrollbarBg] = ImVec4(0.00, 0.00, 0.00, 0.00);
-    c[ImGuiCol_ScrollbarGrab] = ImVec4(0.34, 0.35, 0.38, 1.00);
-    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.42, 0.43, 0.46, 1.00);
-    c[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.55, 0.56, 0.60, 1.00);
-
-    // Interactive elements.
-    c[ImGuiCol_CheckMark] = ImVec4(0.35, 0.50, 0.72, 1.00);
-    c[ImGuiCol_SliderGrab] = ImVec4(0.28, 0.40, 0.58, 1.00);
-    c[ImGuiCol_SliderGrabActive] = ImVec4(0.35, 0.50, 0.72, 1.00);
-
-    // Buttons: slightly lighter than frame background (0.22) to provide subtle
-    // but visible contrast.
-    c[ImGuiCol_Button] = ImVec4(0.28, 0.29, 0.33, 1.00);
-    c[ImGuiCol_ButtonHovered] = ImVec4(0.34, 0.36, 0.40, 1.00);
-    c[ImGuiCol_ButtonActive] = ImVec4(0.32, 0.45, 0.66, 1.00);
-
-    // Headers and tree nodes: muted warm-slate accent.
-    c[ImGuiCol_Header] = ImVec4(0.22, 0.23, 0.26, 1.00);
-    c[ImGuiCol_HeaderHovered] = ImVec4(0.32, 0.36, 0.42, 0.60);
-    c[ImGuiCol_HeaderActive] = ImVec4(0.36, 0.41, 0.48, 0.85);
-
-    // Separators: crisp dividers.
-    c[ImGuiCol_Separator] = ImVec4(0.08, 0.08, 0.10, 0.50);
-    c[ImGuiCol_SeparatorHovered] = ImVec4(0.36, 0.41, 0.48, 0.50);
-    c[ImGuiCol_SeparatorActive] = ImVec4(0.36, 0.41, 0.48, 0.80);
-
-    c[ImGuiCol_ResizeGrip] = ImVec4(0.36, 0.41, 0.48, 0.25);
-    c[ImGuiCol_ResizeGripHovered] = ImVec4(0.36, 0.41, 0.48, 0.67);
-    c[ImGuiCol_ResizeGripActive] = ImVec4(0.36, 0.41, 0.48, 0.95);
-
-    c[ImGuiCol_PlotLines] = ImVec4(0.35, 0.50, 0.72, 1.00);
-    c[ImGuiCol_PlotLinesHovered] = ImVec4(1.00, 0.43, 0.35, 1.00);
-    c[ImGuiCol_PlotHistogram] = ImVec4(0.35, 0.50, 0.72, 1.00);
-    c[ImGuiCol_PlotHistogramHovered] = ImVec4(0.36, 0.41, 0.48, 1.00);
-    c[ImGuiCol_TextSelectedBg] = ImVec4(0.32, 0.36, 0.42, 0.50);
-    c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.00, 0.00, 0.00, 0.50);
-    c[ImGuiCol_DragDropTarget] = ImVec4(0.35, 0.50, 0.72, 0.90);
-    c[ImGuiCol_NavCursor] = ImVec4(0.36, 0.41, 0.48, 1.00);
-    c[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00, 1.00, 1.00, 0.70);
-    c[ImGuiCol_NavWindowingDimBg] = ImVec4(0.00, 0.00, 0.00, 0.30);
-
-    // Tabs.
-    c[ImGuiCol_DockingEmptyBg] = ImVec4(0.14, 0.15, 0.17, 1.00);
-    c[ImGuiCol_Tab] = ImVec4(0.16, 0.17, 0.19, 1.00);
-    c[ImGuiCol_TabHovered] = ImVec4(0.32, 0.36, 0.42, 0.60);
-    c[ImGuiCol_TabSelected] = ImVec4(0.22, 0.23, 0.26, 1.00);
-    c[ImGuiCol_TabDimmed] = ImVec4(0.14, 0.15, 0.17, 1.00);
-    c[ImGuiCol_TabDimmedSelected] = ImVec4(0.20, 0.21, 0.24, 1.00);
-    c[ImGuiCol_DockingPreview] = ImVec4(0.36, 0.41, 0.48, 0.40);
-    c[ImGuiCol_TableRowBg] = ImVec4(0.16, 0.17, 0.19, 1.00);
-    c[ImGuiCol_TableRowBgAlt] = ImVec4(0.20, 0.21, 0.24, 1.00);
-  } else if (theme == GuiTheme::kLight) {
-    ImGui::StyleColorsLight(&s);
-
-    // Clean, warm-white palette with blue accent.
-    ImVec4 text = ImVec4(0.14, 0.15, 0.18, 1.00);
-    ImVec4 text_dim = ImVec4(0.45, 0.47, 0.50, 1.00);
-    ImVec4 bg = ImVec4(0.96, 0.96, 0.97, 1.00);
-    ImVec4 surface = ImVec4(1.00, 1.00, 1.00, 1.00);
-    ImVec4 border = ImVec4(0.82, 0.83, 0.85, 1.00);
-    ImVec4 input = ImVec4(0.93, 0.93, 0.95, 1.00);
-    ImVec4 accent = ImVec4(0.38, 0.60, 0.90, 1.00);
-    ImVec4 accent_hover = ImVec4(0.38, 0.60, 0.90, 0.18);
-    ImVec4 accent_dim = ImVec4(0.38, 0.60, 0.90, 0.10);
-    ImVec4 header = ImVec4(0.90, 0.91, 0.92, 1.00);
-    ImVec4 grab = ImVec4(0.70, 0.71, 0.73, 1.00);
-
-    c[ImGuiCol_Text] = text;
-    c[ImGuiCol_TextDisabled] = text_dim;
-    c[ImGuiCol_WindowBg] = bg;
-    c[ImGuiCol_ChildBg] = bg;
-    c[ImGuiCol_PopupBg] = ImVec4(0.94, 0.94, 0.95, 1.00);
-    c[ImGuiCol_Border] = border;
-    c[ImGuiCol_BorderShadow] = ImVec4(0.00, 0.00, 0.00, 0.00);
-
-    c[ImGuiCol_FrameBg] = input;
-    c[ImGuiCol_FrameBgHovered] = accent_hover;
-    c[ImGuiCol_FrameBgActive] = ImVec4(0.38, 0.60, 0.90, 0.30);
-
-    c[ImGuiCol_TitleBg] = header;
-    c[ImGuiCol_TitleBgActive] = ImVec4(0.88, 0.89, 0.90, 1.00);
-    c[ImGuiCol_TitleBgCollapsed] = ImVec4(0.92, 0.93, 0.94, 0.90);
-    c[ImGuiCol_MenuBarBg] = header;
-
-    c[ImGuiCol_ScrollbarBg] = ImVec4(0.00, 0.00, 0.00, 0.00);
-    c[ImGuiCol_ScrollbarGrab] = grab;
-    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.56, 0.57, 0.60, 1.00);
-    c[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.42, 0.43, 0.46, 1.00);
-
-    c[ImGuiCol_CheckMark] = accent;
-    c[ImGuiCol_SliderGrab] = accent;
-    c[ImGuiCol_SliderGrabActive] = ImVec4(0.30, 0.52, 0.82, 1.00);
-
-    // Buttons: slightly darker than frame background (0.93) to provide subtle
-    // but visible contrast.
-    c[ImGuiCol_Button] = ImVec4(0.86, 0.87, 0.89, 1.00);
-    c[ImGuiCol_ButtonHovered] = accent_hover;
-    c[ImGuiCol_ButtonActive] = accent;
-    c[ImGuiCol_Header] = header;
-    c[ImGuiCol_HeaderHovered] = accent_hover;
-    c[ImGuiCol_HeaderActive] = ImVec4(0.38, 0.60, 0.90, 0.30);
-
-    c[ImGuiCol_Separator] = border;
-    c[ImGuiCol_SeparatorHovered] = accent;
-    c[ImGuiCol_SeparatorActive] = accent;
-
-    c[ImGuiCol_ResizeGrip] = accent_dim;
-    c[ImGuiCol_ResizeGripHovered] = accent_hover;
-    c[ImGuiCol_ResizeGripActive] = accent;
-
-    c[ImGuiCol_Tab] = bg;
-    c[ImGuiCol_TabHovered] = accent_hover;
-    c[ImGuiCol_TabSelected] = surface;
-    c[ImGuiCol_TabDimmed] = bg;
-    c[ImGuiCol_TabDimmedSelected] = ImVec4(0.97, 0.97, 0.98, 1.00);
-    c[ImGuiCol_DockingEmptyBg] = header;
-    c[ImGuiCol_DockingPreview] = ImVec4(0.22, 0.47, 0.82, 0.30);
-
-    c[ImGuiCol_TextSelectedBg] = accent_hover;
-    c[ImGuiCol_DragDropTarget] = accent;
-    c[ImGuiCol_NavCursor] = accent;
-    c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.00, 0.00, 0.00, 0.30);
-    c[ImGuiCol_TableRowBg] = surface;
-    c[ImGuiCol_TableRowBgAlt] = ImVec4(0.92, 0.92, 0.94, 1.00);
-  } else {
-    ImGui::StyleColorsDark(&s);
-    ImVec4 black = ImVec4(0.00, 0.00, 0.00, 1.0);
-    ImVec4 window = ImVec4(0.25, 0.25, 0.25, 1.0);
-    ImVec4 font_active = ImVec4(1.00, 1.00, 1.00, 1.0);
-    ImVec4 font_inactive = ImVec4(0.50, 0.50, 0.50, 1.0);
-    ImVec4 thumb = ImVec4(0.12, 0.12, 0.12, 1.0);
-    ImVec4 section = ImVec4(0.40, 0.15, 0.15, 1.0);
-    ImVec4 button = ImVec4(0.60, 0.40, 0.40, 1.0);
-    ImVec4 check = ImVec4(0.40, 0.40, 0.70, 1.0);
-    ImVec4 frame = ImVec4(0.40, 0.30, 0.40, 1.0);
-    ImVec4 slider = ImVec4(0.60, 0.40, 0.60, 1.0);
-
-    c[ImGuiCol_WindowBg] = window;
-    c[ImGuiCol_ChildBg] = black;
-    c[ImGuiCol_PopupBg] = window;
-    c[ImGuiCol_Text] = font_active;
-    c[ImGuiCol_TextDisabled] = font_inactive;
-    c[ImGuiCol_CheckMark] = font_active;
-    c[ImGuiCol_Header] = section;
-    c[ImGuiCol_HeaderHovered] = section;
-    c[ImGuiCol_HeaderActive] = section;
-    c[ImGuiCol_TitleBgActive] = window;
-    c[ImGuiCol_ScrollbarBg] = window;
-    c[ImGuiCol_ScrollbarGrab] = thumb;
-    c[ImGuiCol_ScrollbarGrabHovered] = thumb;
-    c[ImGuiCol_ScrollbarGrabActive] = thumb;
-    c[ImGuiCol_FrameBg] = frame;
-    c[ImGuiCol_FrameBgHovered] = frame;
-    c[ImGuiCol_FrameBgActive] = frame;
-    c[ImGuiCol_SliderGrab] = slider;
-    c[ImGuiCol_SliderGrabActive] = slider;
-    c[ImGuiCol_Button] = window;
-    c[ImGuiCol_ButtonHovered] = button;
-    c[ImGuiCol_ButtonActive] = button;
-    c[ImGuiCol_Tab] = window;
-    c[ImGuiCol_TabHovered] = check;
-    c[ImGuiCol_TabSelected] = check;
-    c[ImGuiCol_TabDimmed] = window;
-    c[ImGuiCol_TabDimmedSelected] = check;
-  }
-
-  float scale = s.FontScaleDpi;
-
-  int hspacing = 3;
-  int vspacing = 2;
-  float rounding = 3.0f;
-  s.DisplaySafeAreaPadding = ImVec2(0, 0);
-  s.WindowPadding = ImTrunc(ImVec2(6.0f * scale, 6.0f * scale));
-  s.FramePadding = ImTrunc(ImVec2(hspacing * scale, 4.0f * scale));
-  s.ItemSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
-  s.ItemInnerSpacing = ImTrunc(ImVec2(hspacing * scale, vspacing * scale));
-  s.WindowRounding = ImTrunc(rounding * scale);
-  s.FrameRounding = ImTrunc(rounding * scale);
-  s.TabRounding = ImTrunc(rounding * scale);
-  s.ScrollbarRounding = ImTrunc(rounding * scale);
-  s.ChildRounding = ImTrunc(rounding * scale);
-  s.GrabRounding = ImTrunc(rounding * scale);
-  s.PopupRounding = ImTrunc(rounding * scale);
-  s.WindowBorderSize = 0.0f;
-  s.FrameBorderSize = 1.0f;
-  s.PopupBorderSize = 1.0f;
-  s.IndentSpacing = ImTrunc(10.0f * scale);
-  s.ScrollbarSize = ImTrunc(10.0f * scale);
-  s.GrabMinSize = ImTrunc(5.0f * scale);
-  s.WindowMenuButtonPosition = ImGuiDir_None;
-  s.TabCloseButtonMinWidthSelected = 0.0f;
-  s.DockingNodeHasCloseButton = false;
-}
-
 std::string GetDefaultIniPath() {
   const char* home = std::getenv("HOME");
   if (!home) {
@@ -464,7 +244,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   const float kInspectorRelWidth = 0.22f;
   const float kPropertiesRelHeight = 0.3f;
   const float kToolsBarHeight = show_toolbar ? 36.f * scale * font_scale : 0.0f;
-  const float kStatusBarHeight = show_status_bar ? 32.f * scale * font_scale : 0.0f;
+  const float status_bar_height = show_status_bar ? kStatusBarHeight * scale * font_scale : 0.0f;
 
   // Lay out from the absolute viewport origin with an explicitly computed
   // menu bar height, NOT from WorkPos/WorkSize: the work area only reflects
@@ -476,7 +256,7 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
   const ImVec2 toolbar_pos{viewport->Pos.x, viewport->Pos.y + menu_bar_height};
   const ImVec2 dockspace_pos{viewport->Pos.x, viewport->Pos.y + menu_bar_height + kToolsBarHeight};
   const ImVec2 dockspace_size{
-      viewport->Size.x, viewport->Size.y - menu_bar_height - kToolsBarHeight - kStatusBarHeight};
+      viewport->Size.x, viewport->Size.y - menu_bar_height - kToolsBarHeight - status_bar_height};
 
   ImGuiID root = ImGui::GetID("Root");
   const bool first_time = (ImGui::DockBuilderGetNode(root) == nullptr);
@@ -566,8 +346,8 @@ ImVec4 ConfigureDockingLayout(bool show_toolbar, bool show_status_bar) {
     style.Var(ImGuiStyleVar_WindowBorderSize, 1.0f);
     style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
     style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
-    ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - status_bar_height), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, status_bar_height), ImGuiCond_Always);
     ImGui::Begin("StatusBar", nullptr, kFixedFlags);
     ImGui::End();
   }
@@ -1329,6 +1109,183 @@ bool CameraSelectionGui(const mjModel* model, mjData* data, mjvCamera& camera, i
   return changed;
 }
 
+bool ViewGizmoGui(const mjModel* model, const mjData* data, mjvCamera& camera, int& camera_index,
+                  ViewGizmoAnimation& animation, const ImVec4& workspace_rect) {
+  if (model == nullptr || data == nullptr) {
+    return false;
+  }
+  // Axis colors and labels.
+  static constexpr ImU32 kAxisColors[3] = {IM_COL32(245, 63, 82, 255), IM_COL32(139, 220, 0, 255),
+                                           IM_COL32(44, 143, 255, 255)};
+  static constexpr const char* kAxisLabels[3] = {"X", "Y", "Z"};
+  static constexpr const char* kNegativeAxisLabels[3] = {"-X", "-Y", "-Z"};
+  constexpr double kAnimationSec = 0.25;
+  constexpr double kDragDegPerPixel = 0.4;
+
+  const float scale = ImGui::GetWindowDpiScale();
+  const float axis_length = 40.0f * scale;
+  const float bubble_radius = 9.0f * scale;
+  const float half_extent = axis_length + bubble_radius;
+  const float margin = 8.0f * scale;
+  const ImVec2 size(2.0f * half_extent, 2.0f * half_extent);
+
+  ImGui::SetNextWindowPos(
+      ImVec2(workspace_rect.x + workspace_rect.z - margin, workspace_rect.y + margin),
+      ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+  ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+  constexpr ImGuiWindowFlags kFlags =
+      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove |
+      ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+      ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoScrollWithMouse;
+  ScopedStyle style;
+  style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  style.Var(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  style.Var(ImGuiStyleVar_WindowMinSize, ImVec2(1, 1));
+  bool changed = false;
+  if (!ImGui::Begin("##ViewGizmo", nullptr, kFlags)) {
+    ImGui::End();
+    return false;
+  }
+
+  const ImVec2 origin = ImGui::GetCursorScreenPos();
+  const ImVec2 center(origin.x + half_extent, origin.y + half_extent);
+  ImGui::InvisibleButton("##Gizmo", size);
+  const bool hovered = ImGui::IsItemHovered();
+  const bool active = ImGui::IsItemActive();
+  const bool released = ImGui::IsItemDeactivated();
+
+  // Project the world axes onto the view (x right, y down, depth away).
+  mjtNum forward[3], up[3], right[3];
+  mjv_cameraFrame(nullptr, forward, up, right, data, &camera);
+  struct Bubble {
+    int axis;
+    int sign;
+    ImVec2 pos;
+    float depth;
+  };
+  Bubble bubbles[6];
+  for (int i = 0; i < 6; ++i) {
+    const int axis = i / 2;
+    const int sign = (i % 2 == 0) ? 1 : -1;
+    bubbles[i] = {axis, sign,
+                  ImVec2(center.x + sign * axis_length * static_cast<float>(right[axis]),
+                         center.y - sign * axis_length * static_cast<float>(up[axis])),
+                  sign * static_cast<float>(forward[axis])};
+  }
+  std::sort(std::begin(bubbles), std::end(bubbles),
+            [](const Bubble& a, const Bubble& b) { return a.depth > b.depth; });
+
+  // The front-most bubble under the mouse.
+  int hot = -1;
+  if (hovered || active) {
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    for (int i = 5; i >= 0; --i) {
+      const float dx = mouse.x - bubbles[i].pos.x;
+      const float dy = mouse.y - bubbles[i].pos.y;
+      if (dx * dx + dy * dy <= bubble_radius * bubble_radius) {
+        hot = i;
+        break;
+      }
+    }
+  }
+
+  const double now = ImGui::GetTime();
+
+  // Fixed cameras ignore azimuth/elevation, so switch to the tumble camera.
+  auto release_fixed_camera = [&] {
+    if (camera.type == mjCAMERA_FIXED) {
+      camera_index = SetCamera(model, &camera, kTumbleCameraIdx);
+      mjv_defaultFreeCamera(model, &camera);
+    }
+  };
+
+  // Dragging orbits the camera.
+  const float drag_threshold = ImGui::GetIO().MouseDragThreshold;
+  const bool dragged = ImGui::GetIO().MouseDragMaxDistanceSqr[0] > drag_threshold * drag_threshold;
+  if (active && dragged) {
+    const ImVec2 delta = ImGui::GetIO().MouseDelta;
+    if (delta.x != 0.0f || delta.y != 0.0f) {
+      release_fixed_camera();
+      camera.azimuth -= delta.x * kDragDegPerPixel;
+      camera.elevation = std::clamp(camera.elevation - delta.y * kDragDegPerPixel, -90.0, 90.0);
+      animation.start_time = -1.0;  // A drag cancels the animation.
+      changed = true;
+    }
+  }
+
+  // Clicking an axis looks along it, or from the other side if it already does.
+  if (released && !dragged && hot >= 0) {
+    double f[3] = {0, 0, 0};  // The new forward direction.
+    f[bubbles[hot].axis] = -bubbles[hot].sign;
+    if (forward[0] * f[0] + forward[1] * f[1] + forward[2] * f[2] > 0.9999) {
+      f[bubbles[hot].axis] = -f[bubbles[hot].axis];
+    }
+    release_fixed_camera();
+    const double el = std::asin(std::clamp(f[2], -1.0, 1.0)) * 180.0 / mjPI;
+    // Looking straight down (up), keep +Y pointing up the screen.
+    const double az =
+        std::abs(f[2]) > 0.5 ? (f[2] < 0 ? 90.0 : -90.0) : std::atan2(f[1], f[0]) * 180.0 / mjPI;
+    animation = {.start_time = now,
+                 .start_azimuth = camera.azimuth,
+                 .start_elevation = camera.elevation,
+                 .target_azimuth = az,
+                 .target_elevation = el};
+  }
+
+  // Animate to the target, the short way around in azimuth.
+  if (animation.start_time >= 0.0) {
+    const double u = std::clamp((now - animation.start_time) / kAnimationSec, 0.0, 1.0);
+    const double ease = u * u * (3.0 - 2.0 * u);  // Smoothstep.
+    const double daz = std::remainder(animation.target_azimuth - animation.start_azimuth, 360.0);
+    camera.azimuth = animation.start_azimuth + daz * ease;
+    camera.elevation =
+        animation.start_elevation + (animation.target_elevation - animation.start_elevation) * ease;
+    if (u >= 1.0) {
+      animation.start_time = -1.0;
+    }
+    changed = true;
+  }
+
+  // Draw back to front, over a faint disc while hovered.
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  if (hovered || active) {
+    dl->AddCircleFilled(center, half_extent, ImGui::GetColorU32(ImGuiCol_Text, 0.12f), 48);
+  }
+  const ImU32 label_color = IM_COL32(20, 20, 20, 255);
+  for (int i = 0; i < 6; ++i) {
+    const Bubble& b = bubbles[i];
+    const ImU32 color = kAxisColors[b.axis];
+    const bool is_hot = (i == hot);
+    if (b.sign > 0) {
+      dl->AddLine(center, b.pos, color, 2.0f * scale);
+      dl->AddCircleFilled(b.pos, bubble_radius, color, 24);
+      const ImVec2 text = ImGui::CalcTextSize(kAxisLabels[b.axis]);
+      dl->AddText(ImVec2(b.pos.x - text.x * 0.5f, b.pos.y - text.y * 0.5f), label_color,
+                  kAxisLabels[b.axis]);
+    } else {
+      dl->AddCircleFilled(b.pos, bubble_radius, (color & ~IM_COL32_A_MASK) | IM_COL32(0, 0, 0, 80),
+                          24);
+      dl->AddCircle(b.pos, bubble_radius, color, 24, 1.5f * scale);
+      if (is_hot) {
+        const char* label = kNegativeAxisLabels[b.axis];
+        const ImVec2 text = ImGui::CalcTextSize(label);
+        dl->AddText(ImVec2(b.pos.x - text.x * 0.5f, b.pos.y - text.y * 0.5f),
+                    ImGui::GetColorU32(ImGuiCol_Text), label);
+      }
+    }
+    if (is_hot) {
+      dl->AddCircle(b.pos, bubble_radius + 1.0f * scale, IM_COL32_WHITE, 24, 1.5f * scale);
+    }
+  }
+  if (hot >= 0) {
+    ImGui::SetTooltip("View from %s%s", bubbles[hot].sign > 0 ? "+" : "-",
+                      kAxisLabels[bubbles[hot].axis]);
+  }
+
+  ImGui::End();
+  return changed;
+}
+
 void SensorGui(const mjModel* model, const mjData* data) {
   if (model->nsensor == 0) {
     return;
@@ -1413,7 +1370,18 @@ void StateGui(const mjModel* model, mjData* data, std::vector<mjtNum>& state, in
       {"MOCAP_QUAT", "Orientations of mocap bodies"},
       {"USERDATA", "User data"},
       {"PLUGIN", "Plugin state"},
+      {"PLASTIC", "Plastic state"},
   };
+  static_assert(
+      [] {
+        for (const auto& row : name_and_tooltip) {
+          if (row[0] == nullptr || row[1] == nullptr) return false;
+        }
+        return true;
+      }(),
+      "name_and_tooltip is missing a row for an mjtState component");
+  static_assert(mjSTATE_INTEGRATION == (1 << mjNSTATE) - 1,
+                "mjNSTATE does not match the number of mjtState components");
 
   int prev_state_sig = state_sig;
 
@@ -1688,14 +1656,17 @@ void VisualizationGui(mjModel* model, mjvOption* vis_options, mjvCamera* camera,
   ImGui::SliderInt("Flex layer", &vis_options->flex_layer, 0, 10);
 
   if (SectionHeader("Headlight")) {
-    ImGui_SwitchToggle("Active", &vis.headlight.active);
+    const char* opts[] = {"Off", "On", "Auto"};
+    ImGui::Combo("Active", &vis.headlight.active, opts, IM_ARRAYSIZE(opts));
     ImGui::ColorEdit3("Ambient", vis.headlight.ambient);
     ImGui::ColorEdit3("Diffuse", vis.headlight.diffuse);
     ImGui::ColorEdit3("Specular", vis.headlight.specular);
     ImGui::TreePop();
   }
   if (SectionHeader("Free Camera")) {
-    ImGui_SwitchToggle("Orthographic", &vis.global.orthographic);
+    if (ImGui_SwitchToggle("Orthographic", &camera->orthographic)) {
+      vis.global.orthographic = camera->orthographic;
+    }
     ImGui_Input("FOV", &vis.global.fovy, {.format = "%0.2f"});
     ImGui_InputN("Center", stat.center, 3, {.format = "%0.2f"});
     ImGui_Input("Azimuth", &vis.global.azimuth, {.format = "%0.2f"});
@@ -2043,7 +2014,6 @@ void ConvergenceGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
           stats, npoints, spec);
     }
 
-
     ImPlot::EndPlot();
   }
 }
@@ -2128,7 +2098,6 @@ void CountsGui(const mjModel* model, mjData* data, ImVec2 plot_size) {
           },
           stats, npoints, spec);
     }
-
 
     ImPlot::EndPlot();
   }

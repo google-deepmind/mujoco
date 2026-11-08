@@ -538,7 +538,7 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
   switch (cam->type) {
   case mjCAMERA_FREE:
   case mjCAMERA_TRACKING:
-    orthographic = m->vis.global.orthographic;
+    orthographic = cam->orthographic;
     fovy = m->vis.global.fovy;
     break;
 
@@ -694,7 +694,7 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             if (con->geom[k] >= 0) {
               movable[k] = (m->body_treeid[m->geom_bodyid[con->geom[k]]] >= 0);
             } else {
-              int body[729];
+              int body[mjMAXFLEXINTERPW];
               int nb = mj_contactBodyWeight(m, d, con, k, body, NULL);
               for (int j=0; j < nb; j++) {
                 if (m->body_treeid[body[j]] >= 0) {
@@ -1232,13 +1232,14 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     // construct geom
     const mjtNum* pos = d->site_xpos+3*i;
     const mjtNum* mat = d->site_xmat+9*i;
-    mjtNum meshpos[3], meshmat[9], meshrot[9];
+    mjtNum meshpos[3], meshmat[9];
     if (m->site_type[i] == mjGEOM_MESH && m->site_dataid[i] >= 0) {
       int meshid = m->site_dataid[i];
+      mjtNum xquat[4];
       mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
       mju_addTo3(meshpos, pos);
-      mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
-      mju_mulMatMat3(meshmat, mat, meshrot);
+      mju_mulQuat(xquat, d->site_xquat+4*i, m->mesh_quat+4*meshid);
+      mju_quat2Mat(meshmat, xquat);
       pos = meshpos;
       mat = meshmat;
     }
@@ -1574,7 +1575,7 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
         setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
 
         // vopt->label: only the first segment
-        if (vopt->label == mjLABEL_TENDON && npoints/2) {
+        if (vopt->label == mjLABEL_TENDON && j == 0) {
           makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
         }
 
@@ -1805,6 +1806,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     }
 
     // control points box
+    mj_markStack(d);
     mjtNum* xpos = mjSTACKALLOC(d, 3*m->flex_nodenum[f], mjtNum);
     int nstart = m->flex_nodeadr[f];
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
@@ -1861,6 +1863,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             if (!shell_mode || nb_boundary) {
               mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
               if (!thisgeom) {
+                mj_freeStack(d);
                 return;
               }
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
@@ -1874,6 +1877,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             if (!shell_mode || nb_boundary) {
               mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
               if (!thisgeom) {
+                mj_freeStack(d);
                 return;
               }
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
@@ -1887,6 +1891,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             if (!shell_mode || nb_boundary) {
               mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
               if (!thisgeom) {
+                mj_freeStack(d);
                 return;
               }
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset3);
@@ -1896,6 +1901,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
         }
       }
     }
+    mj_freeStack(d);
   }
 }
 
@@ -1907,7 +1913,8 @@ static void addMeshBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
   for (int geomid = 0; geomid < m->ngeom; geomid++) {
     int meshid = m->geom_dataid[geomid];
     // skip if not a mesh or if there is an octree
-    if (meshid == -1 || m->geom_type[geomid] == mjGEOM_SDF || m->mesh_octadr[meshid] >= 0) {
+    if (meshid == -1 || m->geom_type[geomid] == mjGEOM_HFIELD ||
+        m->geom_type[geomid] == mjGEOM_SDF || m->mesh_octadr[meshid] >= 0) {
       continue;
     }
 
@@ -2004,8 +2011,6 @@ static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* 
       int geom_id = m->sensor_refid[id];
       mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
       mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
-      mjtNum geom_quat[4];
-      mju_mat2Quat(geom_quat, geom_mat);
 
       // get sensor data
       mjtNum* sensordata = d->sensordata + m->sensor_adr[id];
@@ -2486,13 +2491,14 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         const mjtNum* pos = d->site_xpos+3*j;
         const mjtNum* mat = d->site_xmat+9*j;
-        mjtNum meshpos[3], meshmat[9], meshrot[9];
+        mjtNum meshpos[3], meshmat[9];
         if (m->site_type[j] == mjGEOM_MESH && m->site_dataid[j] >= 0) {
           int meshid = m->site_dataid[j];
+          mjtNum xquat[4];
           mju_mulMatVec3(meshpos, mat, m->mesh_pos+3*meshid);
           mju_addTo3(meshpos, pos);
-          mju_quat2Mat(meshrot, m->mesh_quat+4*meshid);
-          mju_mulMatMat3(meshmat, mat, meshrot);
+          mju_mulQuat(xquat, d->site_xquat+4*j, m->mesh_quat+4*meshid);
+          mju_quat2Mat(meshmat, xquat);
           pos = meshpos;
           mat = meshmat;
         }
@@ -3321,7 +3327,7 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
   case mjCAMERA_FREE:
   case mjCAMERA_TRACKING:
     ipd = m->vis.global.ipd;
-    orthographic = m->vis.global.orthographic;
+    orthographic = cam->orthographic;
     break;
   case mjCAMERA_FIXED: {
     // fixedcamid range already validated by mjv_cameraFrustum
@@ -3511,6 +3517,124 @@ static void copyTex(float* dst, const float* src, int nface, int i0, int i1, int
 }
 
 
+// emit one triangle of a 1D box-section rod element
+static void makeRodBoxTri(float* _face, float* _normal, int nface,
+                          const mjtNum p0[3], const mjtNum p1[3], const mjtNum p2[3],
+                          const mjtNum n0[3], const mjtNum n1[3], const mjtNum n2[3]) {
+  float* face = _face + 9*nface;
+  float* normal = _normal + 9*nface;
+  const mjtNum* pts[3] = {p0, p1, p2};
+  const mjtNum* nrms[3] = {n0, n1, n2};
+  for (int k=0; k < 3; k++) {
+    face[3*k+0] = (float) pts[k][0];
+    face[3*k+1] = (float) pts[k][1];
+    face[3*k+2] = (float) pts[k][2];
+    normal[3*k+0] = (float) nrms[k][0];
+    normal[3*k+1] = (float) nrms[k][1];
+    normal[3*k+2] = (float) nrms[k][2];
+  }
+}
+
+
+// construct 12 faces (4 sides + 2 caps) for one 1D box-section rod element
+static int makeRodBoxElem(float* face, float* normal, float* texdst, const float* texsrc,
+                          int nface, const mjtNum* vertxpos, const int* elem,
+                          int nelem, int e, const mjtNum* elem_mat, const mjtNum box[2],
+                          int smooth) {
+  const int* edata = elem + 2*e;
+  int i0 = edata[0], i1 = edata[1];
+  const mjtNum* x0 = vertxpos + 3*i0;
+  const mjtNum* x1 = vertxpos + 3*i1;
+  const mjtNum* Re = elem_mat + 9*e;
+  mjtNum m1e[3] = {Re[0], Re[3], Re[6]};
+  mjtNum m2e[3] = {Re[1], Re[4], Re[7]};
+  mjtNum te[3]  = {Re[2], Re[5], Re[8]};
+  mjtNum nte[3] = {-te[0], -te[1], -te[2]};
+
+  // cross-section axes at start and end of element (mitered at shared vertices when smooth)
+  mjtNum u0[3] = {m1e[0], m1e[1], m1e[2]};
+  mjtNum w0[3] = {m2e[0], m2e[1], m2e[2]};
+  mjtNum u1[3] = {m1e[0], m1e[1], m1e[2]};
+  mjtNum w1[3] = {m2e[0], m2e[1], m2e[2]};
+  if (smooth) {
+    if (e > 0 && elem[2*(e-1)+1] == i0) {
+      const mjtNum* Rp = elem_mat + 9*(e-1);
+      mjtNum up[3] = {m1e[0] + Rp[0], m1e[1] + Rp[3], m1e[2] + Rp[6]};
+      mjtNum wp[3] = {m2e[0] + Rp[1], m2e[1] + Rp[4], m2e[2] + Rp[7]};
+      if (mju_normalize3(up) > mjMINVAL && mju_normalize3(wp) > mjMINVAL) {
+        mju_copy3(u0, up);
+        mju_copy3(w0, wp);
+      }
+    }
+    if (e + 1 < nelem && elem[2*(e+1)] == i1) {
+      const mjtNum* Rn = elem_mat + 9*(e+1);
+      mjtNum un[3] = {m1e[0] + Rn[0], m1e[1] + Rn[3], m1e[2] + Rn[6]};
+      mjtNum wn[3] = {m2e[0] + Rn[1], m2e[1] + Rn[4], m2e[2] + Rn[7]};
+      if (mju_normalize3(un) > mjMINVAL && mju_normalize3(wn) > mjMINVAL) {
+        mju_copy3(u1, un);
+        mju_copy3(w1, wn);
+      }
+    }
+  }
+
+  // 4 corners at start and end: (+a,-b), (+a,+b), (-a,+b), (-a,-b)
+  mjtNum a = box[0], b = box[1];
+  const mjtNum sa[4] = {+a, +a, -a, -a};
+  const mjtNum sb[4] = {-b, +b, +b, -b};
+  mjtNum c0[4][3], c1[4][3];
+  for (int j=0; j < 4; j++) {
+    for (int d=0; d < 3; d++) {
+      c0[j][d] = x0[d] + sa[j]*u0[d] + sb[j]*w0[d];
+      c1[j][d] = x1[d] + sa[j]*u1[d] + sb[j]*w1[d];
+    }
+  }
+
+  // outward normals for the 4 sides at start and end: +u, +w, -u, -w
+  mjtNum n0[4][3] = {
+    { u0[0],  u0[1],  u0[2]},
+    { w0[0],  w0[1],  w0[2]},
+    {-u0[0], -u0[1], -u0[2]},
+    {-w0[0], -w0[1], -w0[2]}
+  };
+  mjtNum n1[4][3] = {
+    { u1[0],  u1[1],  u1[2]},
+    { w1[0],  w1[1],  w1[2]},
+    {-u1[0], -u1[1], -u1[2]},
+    {-w1[0], -w1[1], -w1[2]}
+  };
+
+  // 4 side quads (8 triangles)
+  for (int j=0; j < 4; j++) {
+    int jn = (j + 1) & 3;
+    makeRodBoxTri(face, normal, nface, c0[j], c0[jn], c1[jn], n0[j], n0[j], n1[j]);
+    copyTex(texdst, texsrc, nface, i0, i0, i1);
+    nface++;
+
+    makeRodBoxTri(face, normal, nface, c0[j], c1[jn], c1[j], n0[j], n1[j], n1[j]);
+    copyTex(texdst, texsrc, nface, i0, i1, i1);
+    nface++;
+  }
+
+  // start cap (2 triangles)
+  makeRodBoxTri(face, normal, nface, c0[0], c0[3], c0[2], nte, nte, nte);
+  copyTex(texdst, texsrc, nface, i0, i0, i0);
+  nface++;
+  makeRodBoxTri(face, normal, nface, c0[0], c0[2], c0[1], nte, nte, nte);
+  copyTex(texdst, texsrc, nface, i0, i0, i0);
+  nface++;
+
+  // end cap (2 triangles)
+  makeRodBoxTri(face, normal, nface, c1[0], c1[1], c1[2], te, te, te);
+  copyTex(texdst, texsrc, nface, i1, i1, i1);
+  nface++;
+  makeRodBoxTri(face, normal, nface, c1[0], c1[2], c1[3], te, te, te);
+  copyTex(texdst, texsrc, nface, i1, i1, i1);
+  nface++;
+
+  return nface;
+}
+
+
 // update visible flexes only
 void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvOption* opt) {
   // save flex visualization flags in scene (needed by renderer)
@@ -3544,12 +3668,51 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
                           m->flex_texcoord + 2*m->flex_texcoordadr[f] : NULL;
     int nmat = flexUniqueMatids(m, f, opt, matids, maxmat);
 
-    // 1D, or face and skin disabled: no faces
-    if (dim == 1 || (!opt->flags[mjVIS_FLEXFACE] && !opt->flags[mjVIS_FLEXSKIN])) {
+    // face and skin disabled: no faces
+    if (!opt->flags[mjVIS_FLEXFACE] && !opt->flags[mjVIS_FLEXSKIN]) {
       scn->flexfaceused[f] = 0;
       for (int k=0; k < nmat; k++) {
         group_offset[k] = 0;
         group_count[k] = 0;
+      }
+    }
+
+    // 1D: oriented box faces when section="box", no faces otherwise
+    else if (dim == 1) {
+      mjtNum box[2];
+      int nelem = m->flex_elemnum[f];
+      if (nelem > 0 && scn->flexfacenum[f] >= 12*nelem && mj_rodBoxSize(m, f, box)) {
+        mj_markStack(d);
+        mjtNum* elem_mat = mjSTACKALLOC(d, 9*nelem, mjtNum);
+        int nface = 0;
+        if (mj_rodBoxEdge(m, d, f, elem_mat, box)) {
+          const int* elem = m->flex_elem + m->flex_elemdataadr[f];
+          int smooth = opt->flags[mjVIS_FLEXSKIN] && !flg_flat;
+          for (int k=0; k < nmat; k++) {
+            group_offset[k] = nface;
+            for (int e=0; e < nelem; e++) {
+              if (nmat > 1 && m->flex_matid[m->flex_elemadr[f]+e] != matids[k]) {
+                continue;
+              }
+              nface = makeRodBoxElem(face, normal, texdst, texsrc, nface,
+                                     vertxpos, elem, nelem, e, elem_mat, box, smooth);
+            }
+            group_count[k] = nface - group_offset[k];
+          }
+        } else {
+          for (int k=0; k < nmat; k++) {
+            group_offset[k] = 0;
+            group_count[k] = 0;
+          }
+        }
+        scn->flexfaceused[f] = nface;
+        mj_freeStack(d);
+      } else {
+        scn->flexfaceused[f] = 0;
+        for (int k=0; k < nmat; k++) {
+          group_offset[k] = 0;
+          group_count[k] = 0;
+        }
       }
     }
 

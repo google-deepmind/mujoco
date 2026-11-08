@@ -775,6 +775,19 @@ static void setFixed(mjModel* m, mjData* d) {
           m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
         }
       }
+      if (m->flex_dim[i] == 1 && m->flex_bendingadr[i] >= 0) {
+        const mjtNum* b = m->flex_bending + m->flex_bendingadr[i];
+        int nhinge = (int)b[0];
+        for (int e = 0; e <= nhinge; ++e) {
+          int jnt = mj_rodChainTwistJnt(m, i, e);
+          if (jnt >= 0) {
+            int treeid = m->dof_treeid[m->jnt_dofadr[jnt]];
+            if (treeid != -1 && m->tree_sleep_policy[treeid] == mjSLEEP_AUTO) {
+              m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+            }
+          }
+        }
+      }
     }
   }
 
@@ -897,9 +910,15 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mju_zeroInt(m->flexedge_J_colind, m->nJfe);
 
   // compute lengths and Jacobians of edges
+  int total_nnz = 0;
   for (int f = 0; f < m->nflex; f++) {
+    int ebase = m->flex_edgeadr[f];
+
     // skip if edges cannot generate forces
     if (m->flex_rigid[f] || m->flex_interp[f]) {
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        rowadr[ebase + e] = total_nnz;
+      }
       continue;
     }
 
@@ -909,15 +928,11 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
 
     // process edges of this flex
     int vbase = m->flex_vertadr[f];
-    int ebase = m->flex_edgeadr[f];
     for (int e = 0; e < m->flex_edgenum[f]; e++) {
+      // set rowadr
+      rowadr[ebase + e] = total_nnz;
       if (skipjacobian) {
         continue;
-      }
-
-      // set rowadr
-      if (ebase + e > 0) {
-        rowadr[ebase + e] = rowadr[ebase + e - 1] + rownnz[ebase + e - 1];
       }
 
       int v1 = m->flex_edge[2 * (ebase + e)];
@@ -931,7 +946,8 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
 
       // copy sparsity info
       rownnz[ebase + e] = NV;
-      mju_copyInt(colind + rowadr[ebase + e], chain, NV);
+      mju_copyInt(colind + total_nnz, chain, NV);
+      total_nnz += NV;
     }
   }
 
@@ -1437,7 +1453,7 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   int* LT_rownnz = mjSTACKALLOC(d, nbd, int);
   int* LT_rowadr = mjSTACKALLOC(d, nbd, int);
   int nnz = mju_cholFactorSymbolic(NULL, m->efm0_L_rownnz, m->efm0_L_rowadr,
-                                   NULL, LT_rownnz, LT_rowadr, NULL,
+                                   NULL, LT_rownnz, LT_rowadr, NULL, NULL,
                                    Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
   if (nnz != m->nefm0L) {
     mj_freeStack(d);
@@ -1449,15 +1465,16 @@ static void setEfm0Factor(mjModel* m, mjData* d) {
   // symbolic factorization: filling phase
   int* LT_colind = mjSTACKALLOC(d, nnz, int);
   int* LT_map = mjSTACKALLOC(d, nnz, int);
+  int* L_super = mjSTACKALLOC(d, nbd, int);
   mju_cholFactorSymbolic(m->efm0_L_colind, m->efm0_L_rownnz, m->efm0_L_rowadr,
-                         LT_colind, LT_rownnz, LT_rowadr, LT_map,
+                         LT_colind, LT_rownnz, LT_rowadr, LT_map, L_super,
                          Hu_rownnz, Hu_rowadr, Hu_colind, nbd, d);
 
   // numeric factorization
   mjtNum* scratch = mjSTACKALLOC(d, nbd, mjtNum);
   int rank = mju_cholFactorNumeric(m->efm0_L, nbd, mjMINVAL,
                                    m->efm0_L_rownnz, m->efm0_L_rowadr, m->efm0_L_colind,
-                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
+                                   LT_rownnz, LT_rowadr, LT_colind, LT_map, L_super,
                                    Hl_val, Hl_rownnz, Hl_rowadr, Hl_colind, scratch);
   if (rank != nbd) {
     // The factor is consumed only when no per-step flex stiffness is assembled (bending-only
@@ -1822,6 +1839,8 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
   if (index < 0 || index >= m->nactuator) {
     mjERROR("invalid actuator index");
   }
+
+  // first output row (remaining rows of multi-output actuators keep compiled values)
   int out = m->actuator_outadr[index];
 
   // skip depending on mode and type
@@ -1841,7 +1860,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
   }
 
   // get transmission id
-  int threadid = m->actuator_trnid[index];
+  int threadid = m->actuator_trnid[2*index];
 
   // use joint and tendon limits if available
   if (opt->uselimit) {
@@ -1906,7 +1925,7 @@ int mj_setLengthRange(mjModel* m, mjData* d, int index,
     }
 
     // assign
-    m->actuator_lengthrange[2*index+side] = (side == 0 ? lmin[side] : lmax[side]);
+    m->actuator_lengthrange[2*out+side] = (side == 0 ? lmin[side] : lmax[side]);
   }
 
   // check range

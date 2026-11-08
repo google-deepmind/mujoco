@@ -237,16 +237,23 @@ void mju_unit4(mjtNum res[4]) {
 
 // res = vec
 void mju_copy4(mjtNum res[4], const mjtNum data[4]) {
+#ifdef mjUSEAVX
+  mju_copy4_avx(res, data);
+#else
   res[0] = data[0];
   res[1] = data[1];
   res[2] = data[2];
   res[3] = data[3];
+#endif
 }
 
 
 // normalize vector, return length before normalization
 mjtNum mju_normalize4(mjtNum vec[4]) {
-  mjtNum norm = mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2] + vec[3]*vec[3]);
+#ifdef mjUSEAVX
+  return mju_normalize4_avx(vec);
+#else
+  mjtNum norm = mju_sqrt((vec[0]*vec[0] + vec[1]*vec[1]) + (vec[2]*vec[2] + vec[3]*vec[3]));
 
   if (norm < mjMINVAL) {
     vec[0] = 1;
@@ -262,6 +269,7 @@ mjtNum mju_normalize4(mjtNum vec[4]) {
   }
 
   return norm;
+#endif
 }
 
 
@@ -451,6 +459,10 @@ void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl,
 
 // normalize vector, return length before normalization
 mjtNum mju_normalize(mjtNum* res, int n) {
+  if (n <= 0) {
+    return 0;
+  }
+
   mjtNum norm = mju_sqrt(mju_dot(res, res, n));
 
   if (norm < mjMINVAL) {

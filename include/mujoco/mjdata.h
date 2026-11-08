@@ -139,13 +139,13 @@ typedef struct mjData_ {
   int     nJ;                // number of non-zeros in constraint Jacobian
 
   // effective metric: per-step activity flag and sizes, set by mj_effBuild
-  int     efm_active;        // implicit effective metric M+K is active (see mj_effBuild)
+  int     efm_active;        // effective metric M+K: 0 off, 1 on, 2 on with general flex CSR
   int     nefmK;             // number of non-zeros in effective-stiffness CSR
   int     nefmcon;           // packed length of the contact rank-1 rows
   int     nefmT;             // number of tendons with terms in the metric
   int     nefmA;             // number of actuators with terms in the metric
-  int     nefmdof;           // number of 3x3 blocks in the effective-metric preconditioner
-  int     nefmL;             // size of efm_L (9*nefmdof plus optional Cholesky or island tail)
+  int     nefmdof;           // number of covered vertex triples in the effective metric
+  int     nefmL;             // size of efm_L (packed Cholesky factor or island lists)
 
   // variable sizes, continued
   int     nY;                // number of non-zeros in constraint inverse inertia square root
@@ -218,12 +218,15 @@ typedef struct mjData_ {
   mjtNum* xquat;             // Cartesian orientation of body frame              (nbody x 4)
   mjtNum* xmat;              // Cartesian orientation of body frame              (nbody x 9)
   mjtNum* xipos;             // Cartesian position of body com                   (nbody x 3)
+  mjtNum* xiquat;            // Cartesian orientation of body inertia            (nbody x 4)
   mjtNum* ximat;             // Cartesian orientation of body inertia            (nbody x 9)
   mjtNum* xanchor;           // Cartesian position of joint anchor               (njnt x 3)
   mjtNum* xaxis;             // Cartesian joint axis                             (njnt x 3)
   mjtNum* geom_xpos;         // Cartesian geom position                          (ngeom x 3)
+  mjtNum* geom_xquat;        // Cartesian geom orientation                       (ngeom x 4)
   mjtNum* geom_xmat;         // Cartesian geom orientation                       (ngeom x 9)
   mjtNum* site_xpos;         // Cartesian site position                          (nsite x 3)
+  mjtNum* site_xquat;        // Cartesian site orientation                       (nsite x 4)
   mjtNum* site_xmat;         // Cartesian site orientation                       (nsite x 9)
   mjtNum* cam_xpos;          // Cartesian camera position                        (ncam x 3)
   mjtNum* cam_xmat;          // Cartesian camera orientation                     (ncam x 9)
@@ -434,7 +437,7 @@ typedef struct mjData_ {
   int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
   int*    efm_con_ind;       // contact rows, packed [nnz, conid, colind...]     (nefmcon x 1)
   mjtNum* efm_con_val;       // contact rows, packed [scale, force, val...]      (nefmcon x 1)
-  mjtNum* efm_L;             // factored 3x3 blocks of M+K and packed tail data  (nefmL x 1)
+  mjtNum* efm_L;             // packed Cholesky factor of M+K or island lists    (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 

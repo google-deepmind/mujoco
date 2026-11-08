@@ -21,6 +21,7 @@ licenses(["notice"])
 exports_files([
     "LICENSE",
     "setup.py",
+    "mujoco_full/setup.py",
     "build_requirements.txt",
     "CMakeLists.txt",
 ])
@@ -33,12 +34,6 @@ mujoco_plugin(
     name = "plugin_actuator",
     library_name = "plugin/libactuator",
     deps = ["//plugin/actuator:register"],
-)
-
-mujoco_plugin(
-    name = "plugin_elasticity",
-    library_name = "plugin/libelasticity",
-    deps = ["//plugin/elasticity:register"],
 )
 
 mujoco_plugin(
@@ -57,6 +52,7 @@ py_library(
     name = "mujoco",
     srcs = [
         "__init__.py",
+        "_version.py",
         "batch.py",
         "gl_context.py",
         "minimize.py",
@@ -75,7 +71,6 @@ py_library(
         ":_specs",
         ":_structs",
         ":plugin_actuator",
-        ":plugin_elasticity",
         ":plugin_sdf",
         ":plugin_sensor",
     ],
@@ -85,7 +80,7 @@ py_library(
         "//python/mujoco/pypi:glfw",
         "//python/mujoco/pypi:numpy",  # buildcleaner: keep
         "//python/mujoco/pypi:pyopengl",
-        "//python/mujoco/pypi:websockets",
+        "//python/mujoco/rendering",
     ],
 )
 
@@ -398,6 +393,36 @@ cc_library(
     deps = ["//:libmujoco_hdrs"],
 )
 
+py_test(
+    name = "renderer_test",
+    srcs = ["renderer_test.py"],
+    env = select({
+        "@platforms//os:linux": {"MUJOCO_GL": "egl"},
+        "//conditions:default": {},
+    }),
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+        "//python/mujoco/pypi:parameterized",
+    ],
+)
+
+py_test(
+    name = "render_test",
+    srcs = ["render_test.py"],
+    env = select({
+        "@platforms//os:linux": {"MUJOCO_GL": "egl"},
+        "//conditions:default": {},
+    }),
+    deps = [
+        ":mujoco",
+        "//python/mujoco/pypi:absl_flags",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:numpy",
+    ],
+)
+
 mujoco_pybind_extension(
     name = "_batch",
     srcs = ["batch.cc"],
@@ -595,6 +620,6 @@ py_test(
 py_test(
     name = "egl_test",
     srcs = ["egl_test.py"],
-    data = ["egl/__init__.py"],
+    data = ["//python/mujoco/egl:__init__.py"],
     deps = ["//python/mujoco/pypi:absltest"],
 )

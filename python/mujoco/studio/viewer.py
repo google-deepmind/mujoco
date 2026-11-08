@@ -14,18 +14,19 @@
 """Interactive Studio GUI viewer for MuJoCo.
 
 Pass ``--plugins=a.py,b.py`` to load ``ViewerPlugin`` and ``SimPlugin``
-subclasses from Python files (see ``plugin.load_plugins``). With
-``--hot_reload=all``, saving those files, the model file, or its assets reloads
-them without restarting (``plugins``, ``model``, or plugin class names narrow
-that down).
+subclasses from Python files (see ``plugin.load_plugins``); a ``SimPlugin``
+that handles ``LoadModelEvent`` provides the model, so ``--model`` is optional.
+With ``--hot_reload=all``, saving those files, the model file, or its assets
+reloads them without restarting (``plugins``, ``model``, or plugin class names
+narrow that down).
 """
 
 import argparse
 import os
 
+from mujoco.studio import app as studio_app
 from mujoco.studio import launch_passive
 from mujoco.studio import plugin
-from mujoco.studio import viewer_app
 from mujoco.studio import viewer_protocol
 
 vp = viewer_protocol
@@ -103,8 +104,8 @@ def main() -> None:
       config,
       model_path=_resolve(model_path),
       plugins=[
-          viewer_app.ViewerApp(),
-          *viewer_app.SIM_PLUGINS,
+          studio_app.App(),
+          *studio_app.SIM_PLUGINS,
           *user_plugins,
       ],
   )

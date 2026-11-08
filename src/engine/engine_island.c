@@ -332,7 +332,7 @@ static int unionContactTrees(const mjModel* m, const mjData* d, int* parent,
   }
 
   // flex: get bodies of both sides
-  int body[729];  // 729 = 27*27, as in mj_contactJacobian
+  int body[2*mjMAXFLEXINTERPW];
   int nb = mj_contactBodyWeight(m, d, con, 0, body, NULL);
   nb += mj_contactBodyWeight(m, d, con, 1, body+nb, NULL);
 
@@ -472,6 +472,24 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
         mj_dsuMerge(parent, tree1, tree2);
       }
     }
+    if (mj_rodHasTwist(m, f)) {
+      int nedge = (int)m->flex_bending[m->flex_bendingadr[f]] + 1;
+      for (int e=0; e < nedge; e++) {
+        int jnt = mj_rodChainTwistJnt(m, f, e);
+        if (jnt < 0) {
+          continue;
+        }
+        int tree2 = m->body_treeid[m->jnt_bodyid[jnt]];
+        if (tree2 < 0 || tree2 == tree1 || !d->tree_awake[tree2]) {
+          continue;
+        }
+        if (tree1 < 0) {
+          tree1 = tree2;
+        } else {
+          mj_dsuMerge(parent, tree1, tree2);
+        }
+      }
+    }
   }
 
   // passive flex contacts (exclude == 4) also carry metric terms without efc rows: union the
@@ -483,7 +501,7 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
       if (con->exclude != 4) {
         continue;
       }
-      int body[729];  // 729 = 27*27, as in mj_contactJacobian
+      int body[2*mjMAXFLEXINTERPW];
       int nb = mj_contactBodyWeight(m, d, con, 0, body, NULL);
       nb += mj_contactBodyWeight(m, d, con, 1, body+nb, NULL);
 

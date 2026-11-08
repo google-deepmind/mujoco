@@ -41,6 +41,7 @@
 #include "studio/sim/sim_history.h"
 #include "studio/sim/sim_profiler.h"
 #include "studio/sim/step_control.h"
+#include "studio/ux/camera_control.h"
 #include "studio/ux/gui.h"
 #include "studio/ux/imgui_widgets.h"
 #include "studio/ux/interaction.h"
@@ -48,6 +49,8 @@
 #include "studio/ux/spec_editor.h"
 
 namespace mujoco::studio {
+
+struct AppTestPeer;
 
 // Owns, updates, and renders a MuJoCo simulation.
 class App {
@@ -103,6 +106,7 @@ class App {
   void Render();
 
  private:
+  friend struct AppTestPeer;
   // The kind of model that is currently loaded.
   enum ModelKind {
     kEmptyModel,
@@ -167,6 +171,7 @@ class App {
     bool picture_in_picture = false;
     bool options_panel = true;
     bool toolbar = false;
+    bool view_gizmo = true;
     bool status_bar = true;
     bool console = false;
     bool inspector_panel = true;
@@ -182,9 +187,12 @@ class App {
     int camera_idx = kTumbleCameraIdx;
     int key_idx = -1;
 
+    // View gizmo camera animation.
+    ViewGizmoAnimation view_gizmo_animation;
+
     // Controls.
     int speed_index = 0;
-    float cam_speed = 0.0f;
+    float cam_speed = kMinFlySpeed;
 
     // Spec editing.
     SpecPropertiesMode spec_prop_mode = SpecPropertiesMode::kSpec;

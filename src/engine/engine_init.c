@@ -110,6 +110,8 @@ void mj_defaultOption(mjOption* opt) {
 
 // set statistics to default values; compute later in compiler
 void mj_defaultStatistic(mjStatistic* stat) {
+  memset(stat, 0, sizeof(mjStatistic));
+
   mju_zero3(stat->center);
   stat->extent = 2;
   stat->meaninertia = 1;
@@ -131,6 +133,8 @@ static void setf4(float* rgba, float r, float g, float b, float a) {
 
 // set visual options to default values
 void mj_defaultVisual(mjVisual* vis) {
+  memset(vis, 0, sizeof(mjVisual));
+
   // global
   vis->global.cameraid            = -1;
   vis->global.orthographic        = 0;
@@ -163,7 +167,7 @@ void mj_defaultVisual(mjVisual* vis) {
   vis->headlight.specular[0]      = 0.5;
   vis->headlight.specular[1]      = 0.5;
   vis->headlight.specular[2]      = 0.5;
-  vis->headlight.active           = 1;
+  vis->headlight.active           = 2;
 
   // map parameters
   vis->map.stiffness              = 100;

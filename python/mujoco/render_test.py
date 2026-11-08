@@ -15,9 +15,11 @@
 """Tests for MuJoCo Python rendering."""
 
 import os
+import pathlib
 import struct
 import subprocess
 import sys
+import types
 from unittest import mock
 import zlib
 
@@ -319,6 +321,66 @@ class MuJoCoRenderTest(absltest.TestCase):
     self.assertIn('MjrRect', rect_repr)
     self.assertIn('left: 1', rect_repr)
 
+  def test_pixel_buffer_validation(self):
+    model = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
+    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    try:
+      mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+      rect = mujoco.MjrRect(0, 0, 10, 10)
+
+      with self.assertRaisesRegex(ValueError, 'rgb buffer is too small'):
+        mujoco.mjr_readPixels(
+            np.empty(10 * 10 * 3 - 1, dtype=np.uint8), None, rect, context
+        )
+      with self.assertRaisesRegex(ValueError, 'depth buffer is too small'):
+        mujoco.mjr_readPixels(
+            None, np.empty(10 * 10 - 1, dtype=np.float32), rect, context
+        )
+      with self.assertRaisesRegex(ValueError, 'rgb buffer must be C-contiguous'):
+        mujoco.mjr_readPixels(
+            np.empty((20, 20, 3), dtype=np.uint8)[::2, ::2, :],
+            None,
+            rect,
+            context,
+        )
+      with self.assertRaisesRegex(
+          ValueError, 'depth buffer must be C-contiguous'
+      ):
+        mujoco.mjr_readPixels(
+            None,
+            np.empty((20, 20), dtype=np.float32)[::2, ::2],
+            rect,
+            context,
+        )
+
+      with self.assertRaisesRegex(ValueError, 'rgb buffer is too small'):
+        mujoco.mjr_drawPixels(
+            np.empty(10 * 10 * 3 - 1, dtype=np.uint8), None, rect, context
+        )
+      with self.assertRaisesRegex(ValueError, 'depth buffer is too small'):
+        mujoco.mjr_drawPixels(
+            None, np.empty(10 * 10 - 1, dtype=np.float32), rect, context
+        )
+
+      neg_rect = mujoco.MjrRect(0, 0, -1, 10)
+      with self.assertRaisesRegex(ValueError, 'non-negative'):
+        mujoco.mjr_readPixels(None, None, neg_rect, context)
+      with self.assertRaisesRegex(ValueError, 'non-negative'):
+        mujoco.mjr_drawPixels(None, None, neg_rect, context)
+
+      # Dimensions whose product overflows 32-bit int (65536 * 65536 = 2^32).
+      huge_rect = mujoco.MjrRect(0, 0, 65536, 65536)
+      with self.assertRaisesRegex(ValueError, 'rgb buffer is too small'):
+        mujoco.mjr_readPixels(
+            np.empty(3, dtype=np.uint8), None, huge_rect, context
+        )
+      with self.assertRaisesRegex(ValueError, 'depth buffer is too small'):
+        mujoco.mjr_drawPixels(
+            None, np.empty(1, dtype=np.float32), huge_rect, context
+        )
+    finally:
+      context.free()
+
 
 @absltest.skipUnless(_EGL_ENABLED, 'MuJoCo is not using the EGL backend')
 class EglDisplayTest(absltest.TestCase):
@@ -390,6 +452,60 @@ class EglDisplayTest(absltest.TestCase):
         [sys.executable, '-c', code], capture_output=True, text=True, check=True
     )
     self.assertNotIn('Exception ignored', result.stderr)
+
+
+class ExternalGLContextLazyImportTest(absltest.TestCase):
+  """Tests the external gl_context.py block when deps are missing."""
+
+  def _exec_external_gl_context(self, env, modules):
+    gl_context_path = (
+        pathlib.Path(mujoco.__file__).parent
+        / 'rendering'
+        / 'classic'
+        / 'gl_context.py'
+    )
+    lines = gl_context_path.read_text().splitlines()
+    if '# _SYSTEM = platform.system()' in lines:
+      start = lines.index('# _SYSTEM = platform.system()')
+      external_code = '\n'.join(
+          line[2:] if line.startswith('# ') else line[1:]
+          for line in lines[start:-1]
+      )
+    else:
+      external_code = '\n'.join(lines)
+    ns = {
+        'ctypes': __import__('ctypes'),
+        'os': os,
+        'platform': __import__('platform'),
+    }
+    with mock.patch.dict(sys.modules, modules), mock.patch.dict(
+        os.environ, env, clear=True
+    ):
+      exec(external_code, ns)  # pylint: disable=exec-used
+    return ns
+
+  def test_missing_backend_defers_import_error_until_instantiation(self):
+    fake_glfw = types.ModuleType('mujoco.glfw')
+
+    def _raise_missing_glfw(name):
+      if name == 'GLContext':
+        raise ModuleNotFoundError("No module named 'glfw'", name='glfw')
+      raise AttributeError(name)
+
+    fake_glfw.__getattr__ = _raise_missing_glfw
+    ns = self._exec_external_gl_context(
+        {'MUJOCO_GL': 'glfw'}, {'mujoco.glfw': fake_glfw}
+    )
+    self.assertIn('GLContext', ns)
+    with self.assertRaisesRegex(
+        ImportError, r"Ensure that 'glfw' and 'pyopengl' are installed"
+    ) as ctx:
+      ns['GLContext'](64, 64)
+    self.assertIsInstance(ctx.exception.__cause__, ModuleNotFoundError)
+
+  def test_disabled_mujoco_gl_leaves_gl_context_undefined(self):
+    ns = self._exec_external_gl_context({'MUJOCO_GL': 'disable'}, {})
+    self.assertNotIn('GLContext', ns)
 
 
 if __name__ == '__main__':

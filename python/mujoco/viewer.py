@@ -27,11 +27,16 @@ import time
 from typing import Callable, List, Optional, Tuple, Union
 import weakref
 
-import glfw
 import mujoco
 from mujoco import _simulate
 import numpy as np
 
+try:
+  import glfw
+except ImportError as _err:
+  raise ImportError(
+      "mujoco.viewer requires 'glfw' to be installed."
+  ) from _err
 if not glfw._glfw:  # pylint: disable=protected-access
   raise RuntimeError('GLFW dynamic library handle is not available')
 else:

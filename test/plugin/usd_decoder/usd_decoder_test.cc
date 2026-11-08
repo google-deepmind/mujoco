@@ -13,13 +13,17 @@
 // limitations under the License.
 
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <ios>
 #include <memory>
 #include <numbers>
 #include <string>
 #include <tuple>
 
 #include <gtest/gtest.h>
+#include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 #include <pxr/base/arch/fileSystem.h>
@@ -35,6 +39,11 @@
 
 namespace mujoco {
 namespace {
+
+// Ensure mujoco_usd is not dead-stripped by the linker so its static
+// initializer registers USD plugins (mjcPhysics, newton, usdMjcf) at load time.
+[[maybe_unused]] const pxr::SdfPath kForceLoadMujocoUsd =
+    mujoco::usd::GetUsdPrimPathUserValue(nullptr);
 
 // Joint kind, compiler angle units, and damping source (none/Newton/MJC/both).
 class UsdJointDampingTest
@@ -968,6 +977,433 @@ def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
   EXPECT_EQ(geom->group, 2);
   EXPECT_EQ(geom->priority, 3);
   EXPECT_EQ(geom->condim, 4);
+}
+
+TEST_F(UsdPreservationSemanticsTest, DiamondGraphKinematicTree) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def PhysicsScene "scene" {}
+def Xform "body2" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "collider" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+}
+def Xform "body3" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "collider" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+}
+def PhysicsFixedJoint "joint_world_body2" {
+    rel physics:body1 = </body2>
+}
+def PhysicsFixedJoint "joint_world_body3" {
+    rel physics:body1 = </body3>
+}
+def PhysicsFixedJoint "joint_body2_body3" {
+    rel physics:body0 = </body2>
+    rel physics:body1 = </body3>
+}
+)"));
+  const std::string path = directory_ + "/diamond.usda";
+  ASSERT_TRUE(stage->GetRootLayer()->Export(path));
+
+  static thread_local std::string captured_error;
+  captured_error.clear();
+  auto old_handler = _mjPRIVATE_setTlsLogHandler(+[](const mjLogMessage* msg) {
+    if (msg->level == mjLOG_ERROR) {
+      captured_error = msg->subject;
+    }
+  });
+  char error[1024] = {};
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+      mj_parse(path.c_str(), nullptr, nullptr, error, sizeof(error)),
+      mj_deleteSpec);
+  _mjPRIVATE_setTlsLogHandler(old_handler);
+
+  EXPECT_EQ(spec, nullptr);
+  EXPECT_NE(captured_error.find("Cycle detected in the kinematic tree"),
+            std::string::npos)
+      << captured_error;
+
+  ASSERT_TRUE(
+      stage->GetPrimAtPath(pxr::SdfPath("/joint_body2_body3"))
+          .CreateAttribute(pxr::TfToken("physics:excludeFromArticulation"),
+                           pxr::SdfValueTypeNames->Bool)
+          .Set(true));
+  auto valid_spec = Parse(stage, "diamond_excluded.usda");
+  ASSERT_NE(valid_spec, nullptr);
+  MjModelPtr model(mj_compile(valid_spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(valid_spec.get());
+  EXPECT_EQ(model->neq, 1);
+}
+
+// tiny RGB 3 x 2 PNG file
+constexpr uint8_t kTinyPng[] = {
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+    0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+    0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x12, 0x16, 0xf1, 0x4d,
+    0x00, 0x00, 0x00, 0x1c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63,
+    0x78, 0xc1, 0xc0, 0xc0, 0xc0, 0xf0, 0xbf, 0xb8, 0xb8, 0x98, 0x81,
+    0xe1, 0x3f, 0xc3, 0xff, 0xff, 0xff, 0xc5, 0xc4, 0xc4, 0x00, 0x46,
+    0xd7, 0x07, 0x7f, 0xd2, 0x52, 0xa1, 0x41, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+
+TEST_F(UsdPreservationSemanticsTest,
+       MissingTextureFileDoesNotCreateOrphanTexture) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+        rel material:binding = </material>
+    }
+}
+def Material "material" {
+    token outputs:surface.connect = </material/surface.outputs:surface>
+    def Shader "surface" {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor.connect = </material/texture.outputs:rgb>
+        token outputs:surface
+    }
+    def Shader "texture" {
+        uniform token info:id = "UsdUVTexture"
+        asset inputs:file = @nonexistent.png@
+        float3 outputs:rgb
+    }
+}
+)"));
+  mock_warning_handler.ExpectWarnings("Could not open");
+  mock_warning_handler.ExpectWarnings("No value or texture for shader input");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_EQ(mjs_findElement(spec.get(), mjOBJ_TEXTURE, "/material/texture"),
+            nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+}
+
+TEST_F(UsdPreservationSemanticsTest, SharedTextureDoesNotCollide) {
+  const std::string png_path = directory_ + "/test.png";
+  std::ofstream(png_path, std::ios::binary)
+      .write(reinterpret_cast<const char*>(kTinyPng), sizeof(kTinyPng));
+
+  auto stage = pxr::UsdStage::CreateInMemory();
+  const std::string usda = std::string(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+        rel material:binding = </material>
+    }
+}
+def Material "material" {
+    token outputs:surface.connect = </material/surface.outputs:surface>
+    def Shader "surface" {
+        uniform token info:id = "UsdPreviewSurface"
+        float inputs:metallic.connect = </material/texture.outputs:r>
+        float inputs:roughness.connect = </material/texture.outputs:r>
+        color3f inputs:diffuseColor.connect = </material/texture.outputs:rgb>
+        token outputs:surface
+    }
+    def Shader "texture" {
+        uniform token info:id = "UsdUVTexture"
+        asset inputs:file = @)") +
+                           png_path + R"(@
+        float outputs:r
+        float3 outputs:rgb
+    }
+}
+)";
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(usda));
+
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_STREQ(mjs_getError(spec.get()), "");
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->ntex, 1);
+  EXPECT_EQ(model->tex_nchannel[0], 3);
+}
+
+TEST_F(UsdPreservationSemanticsTest,
+       FixedTendonCoefMismatchSkipsAndSpatialSegmentZeroPulleyPreserved) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def Sphere "site1" (prepend apiSchemas = ["MjcSiteAPI"]) {
+        double radius = 0.01
+    }
+    def Sphere "site2" (prepend apiSchemas = ["MjcSiteAPI"]) {
+        double radius = 0.01
+    }
+    def PhysicsRevoluteJoint "j1" {
+        rel physics:body1 = </body>
+        uniform token physics:axis = "Z"
+    }
+    def PhysicsRevoluteJoint "j2" {
+        rel physics:body1 = </body>
+        uniform token physics:axis = "Y"
+    }
+}
+def MjcTendon "bad_fixed" {
+    uniform token mjc:type = "fixed"
+    rel mjc:path = [</body/j1>, </body/j2>]
+    uniform double[] mjc:path:coef = [1.5]
+}
+def MjcTendon "spatial_pulley0" {
+    uniform token mjc:type = "spatial"
+    rel mjc:path = [</body/site1>, </body/site2>]
+    uniform int[] mjc:path:segments = [0, 0]
+    uniform double[] mjc:path:divisors = [2.0]
+}
+)"));
+  mock_warning_handler.ExpectWarnings("has 1 coefs but 2 wrap targets");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_EQ(mjs_findElement(spec.get(), mjOBJ_TENDON, "/bad_fixed"), nullptr);
+
+  mjsTendon* spatial = mjs_asTendon(
+      mjs_findElement(spec.get(), mjOBJ_TENDON, "/spatial_pulley0"));
+  ASSERT_NE(spatial, nullptr);
+  ASSERT_EQ(mjs_getWrapNum(spatial), 3);
+  EXPECT_EQ(mjs_getWrap(spatial, 0)->type, mjWRAP_PULLEY);
+  EXPECT_DOUBLE_EQ(mjs_getWrapDivisor(mjs_getWrap(spatial, 0)), 2.0);
+}
+
+TEST_F(UsdPreservationSemanticsTest,
+       SphericalLoopJointWithoutMjcEqualityConnectAPIIsConnect) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "leader" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def PhysicsRevoluteJoint "joint" {
+        rel physics:body1 = </leader>
+    }
+}
+def Xform "follower" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def PhysicsRevoluteJoint "joint" {
+        rel physics:body1 = </follower>
+    }
+}
+def PhysicsSphericalJoint "loop_joint" {
+    rel physics:body0 = </leader>
+    rel physics:body1 = </follower>
+    bool physics:excludeFromArticulation = true
+    point3f physics:localPos0 = (1, 2, 3)
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->neq, 1);
+  EXPECT_EQ(model->eq_type[0], mjEQ_CONNECT);
+  EXPECT_MJTNUM_EQ(model->eq_data[0], 1.0);
+  EXPECT_MJTNUM_EQ(model->eq_data[1], 2.0);
+  EXPECT_MJTNUM_EQ(model->eq_data[2], 3.0);
+}
+
+TEST_F(UsdPreservationSemanticsTest, CylinderAndCapsuleAxisAndScale) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (prepend apiSchemas = ["PhysicsRigidBodyAPI"]) {
+    def Cylinder "cyl_z" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        uniform token axis = "Z"
+        double radius = 0.4
+        double height = 1.6
+        quatf xformOp:orient = (0.70710678, 0.70710678, 0, 0)
+        float3 xformOp:scale = (2, 2, 3)
+        uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]
+    }
+    def Cylinder "cyl_x" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        uniform token axis = "X"
+        double radius = 0.4
+        double height = 1.6
+        quatf xformOp:orient = (0.70710678, 0, 0, 0.70710678)
+        float3 xformOp:scale = (3, 2, 2)
+        uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]
+    }
+    def Cylinder "cyl_y" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        uniform token axis = "Y"
+        double radius = 0.4
+        double height = 1.6
+        quatf xformOp:orient = (0.70710678, 0, 0, 0.70710678)
+        float3 xformOp:scale = (2, 3, 2)
+        uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]
+    }
+    def Capsule "cap_z" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        uniform token axis = "Z"
+        double radius = 0.4
+        double height = 1.6
+        quatf xformOp:orient = (0.70710678, 0.70710678, 0, 0)
+        float3 xformOp:scale = (1, 2.5, 3)
+        uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]
+    }
+    def Capsule "cap_x" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        uniform token axis = "X"
+        double radius = 0.4
+        double height = 1.6
+        quatf xformOp:orient = (0.70710678, 0, 0, 0.70710678)
+        float3 xformOp:scale = (3, 2, 2)
+        uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]
+    }
+    def Capsule "cap_y" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        uniform token axis = "Y"
+        double radius = 0.4
+        double height = 1.6
+        quatf xformOp:orient = (0.70710678, 0, 0, 0.70710678)
+        float3 xformOp:scale = (2, 3, 2)
+        uniform token[] xformOpOrder = ["xformOp:orient", "xformOp:scale"]
+    }
+    def Cylinder "site_cyl_x" (prepend apiSchemas = ["MjcSiteAPI"]) {
+        uniform token axis = "X"
+        double radius = 0.25
+        double height = 1.2
+        float3 xformOp:scale = (4, 2, 2)
+        uniform token[] xformOpOrder = ["xformOp:scale"]
+    }
+}
+)"));
+
+  mock_warning_handler.ExpectWarnings("Non-uniform radial scale");
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  auto data = MakeData(model);
+  ASSERT_NE(data, nullptr);
+  mj_forward(model.get(), data.get());
+
+  struct GeomExpectation {
+    const char* name;
+    mjtGeom type;
+    double radius;
+    double half_height;
+    double world_axis[3];
+  };
+  const GeomExpectation kExpected[] = {
+      {"/body/cyl_z", mjGEOM_CYLINDER, 0.8, 2.4, {0.0, -1.0, 0.0}},
+      {"/body/cyl_x", mjGEOM_CYLINDER, 0.8, 2.4, {0.0, 1.0, 0.0}},
+      {"/body/cyl_y", mjGEOM_CYLINDER, 0.8, 2.4, {-1.0, 0.0, 0.0}},
+      {"/body/cap_z", mjGEOM_CAPSULE, 1.0, 2.4, {0.0, -1.0, 0.0}},
+      {"/body/cap_x", mjGEOM_CAPSULE, 0.8, 2.4, {0.0, 1.0, 0.0}},
+      {"/body/cap_y", mjGEOM_CAPSULE, 0.8, 2.4, {-1.0, 0.0, 0.0}},
+  };
+
+  for (const auto& expected : kExpected) {
+    SCOPED_TRACE(expected.name);
+    int id = mj_name2id(model.get(), mjOBJ_GEOM, expected.name);
+    ASSERT_GE(id, 0);
+    EXPECT_EQ(model->geom_type[id], expected.type);
+    EXPECT_NEAR(model->geom_size[3 * id + 0], expected.radius, 1e-6);
+    EXPECT_NEAR(model->geom_size[3 * id + 1], expected.half_height, 1e-6);
+    // MuJoCo cylinders and capsules are aligned with local +Z (column 2 of
+    // geom_xmat).
+    EXPECT_NEAR(data->geom_xmat[9 * id + 2], expected.world_axis[0], 1e-5);
+    EXPECT_NEAR(data->geom_xmat[9 * id + 5], expected.world_axis[1], 1e-5);
+    EXPECT_NEAR(data->geom_xmat[9 * id + 8], expected.world_axis[2], 1e-5);
+  }
+
+  int site_id = mj_name2id(model.get(), mjOBJ_SITE, "/body/site_cyl_x");
+  ASSERT_GE(site_id, 0);
+  EXPECT_EQ(model->site_type[site_id], mjGEOM_CYLINDER);
+  EXPECT_NEAR(model->site_size[3 * site_id + 0], 0.5, 1e-6);
+  EXPECT_NEAR(model->site_size[3 * site_id + 1], 2.4, 1e-6);
+  EXPECT_NEAR(data->site_xmat[9 * site_id + 2], 1.0, 1e-5);
+  EXPECT_NEAR(data->site_xmat[9 * site_id + 5], 0.0, 1e-5);
+  EXPECT_NEAR(data->site_xmat[9 * site_id + 8], 0.0, 1e-5);
+}
+
+TEST_F(UsdPreservationSemanticsTest, ActuatorGroupDisableOptionParsed) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def PhysicsScene "PhysicsScene" (prepend apiSchemas = ["MjcSceneAPI"]) {
+    uniform int[] mjc:option:actuatorgroupdisable = [0, 2]
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_EQ(spec->option.disableactuator, (1 << 0) | (1 << 2));
+}
+
+TEST_F(UsdPreservationSemanticsTest, KeyframesCompileIntoModel) {
+  auto stage = pxr::UsdStage::CreateInMemory();
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(metersPerUnit = 1)
+def Xform "body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsArticulationRootAPI"]
+) {
+    def Sphere "geom" (prepend apiSchemas = ["PhysicsCollisionAPI"]) {
+        double radius = 0.1
+    }
+    def PhysicsPrismaticJoint "slide" {
+        rel physics:body1 = </body>
+        uniform token physics:axis = "Z"
+    }
+}
+def MjcActuator "motor" {
+    rel mjc:target = </body/slide>
+}
+def MjcKeyframe "home" {
+    double[] mjc:qpos = [0.5]
+    double[] mjc:qvel = [1.5]
+    double[] mjc:ctrl = [0.25]
+}
+def MjcKeyframe "rollout" {
+    double[] mjc:qpos.timeSamples = {
+        1: [2.0],
+        2.5: [3.0],
+    }
+    double[] mjc:qvel.timeSamples = {
+        1: [4.0],
+        2.5: [5.0],
+    }
+    double[] mjc:ctrl.timeSamples = {
+        1: [0.5],
+        2.5: [0.75],
+    }
+}
+)"));
+  auto spec = Parse(stage);
+  ASSERT_NE(spec, nullptr);
+  MjModelPtr model(mj_compile(spec.get(), nullptr));
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->nkey, 3);
+
+  int home_id = mj_name2id(model.get(), mjOBJ_KEY, "home");
+  int rollout0_id = mj_name2id(model.get(), mjOBJ_KEY, "rollout_0");
+  int rollout1_id = mj_name2id(model.get(), mjOBJ_KEY, "rollout_1");
+  ASSERT_GE(home_id, 0);
+  ASSERT_GE(rollout0_id, 0);
+  ASSERT_GE(rollout1_id, 0);
+
+  EXPECT_MJTNUM_EQ(model->key_qpos[home_id], 0.5);
+  EXPECT_MJTNUM_EQ(model->key_qvel[home_id], 1.5);
+  EXPECT_MJTNUM_EQ(model->key_ctrl[home_id], 0.25);
+
+  EXPECT_MJTNUM_EQ(model->key_time[rollout0_id], 1.0);
+  EXPECT_MJTNUM_EQ(model->key_qpos[rollout0_id], 2.0);
+  EXPECT_MJTNUM_EQ(model->key_qvel[rollout0_id], 4.0);
+  EXPECT_MJTNUM_EQ(model->key_ctrl[rollout0_id], 0.5);
+
+  EXPECT_MJTNUM_EQ(model->key_time[rollout1_id], 2.5);
+  EXPECT_MJTNUM_EQ(model->key_qpos[rollout1_id], 3.0);
+  EXPECT_MJTNUM_EQ(model->key_qvel[rollout1_id], 5.0);
+  EXPECT_MJTNUM_EQ(model->key_ctrl[rollout1_id], 0.75);
 }
 
 }  // namespace

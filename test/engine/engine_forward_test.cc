@@ -1046,8 +1046,69 @@ TEST_F(ForwardTest, MjcbControlDisabled) {
   // expect that callback was not used
   EXPECT_EQ(data->ctrl[0], 0.0);
 
+  // same for mj_step1
+  mj_resetData(model.get(), data.get());
+  mj_step1(model.get(), data.get());
+  EXPECT_EQ(data->ctrl[0], 0.0);
+  model->opt.disableflags &= ~mjDSBL_ACTUATION;
+  mj_step1(model.get(), data.get());
+  EXPECT_EQ(data->ctrl[0], 2.0);
+
   // remove global control callback
   mjcb_control = nullptr;
+}
+
+// filtered position servos on a ball joint track a target wound through pi
+TEST_F(ForwardTest, FilteredPositionBallTracksWindingTarget) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast">
+      <flag contact="disable" gravity="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom type="box" size=".05 .07 .03"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position joint="ball" gear="1 0 0" kp="1" dampratio="1"
+        timeconst="0.01"/>
+      <position joint="ball" gear="0 1 0" kp="1" dampratio="1"
+        timeconst="0.01"/>
+      <position joint="ball" gear="0 0 1" kp="1" dampratio="1"
+        timeconst="0.01"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  for (mjtDyn dyntype : {mjDYN_FILTEREXACT, mjDYN_FILTER}) {
+    for (int i = 0; i < m->nu; i++) {
+      m->actuator_dyntype[i] = dyntype;
+    }
+    mj_resetData(m, d);
+
+    // ramp the z target from 0 to 2*pi, expect tracking on the circle
+    const mjtNum rate = 0.5;  // rad/s
+    mjtNum max_error = 0;
+    while (d->time < 2 * mjPI / rate) {
+      d->ctrl[2] = rate * d->time;
+      mj_step(m, d);
+      mjtNum err = d->ctrl[2] - d->actuator_length[2];
+      err -= 2 * mjPI * mju_round(err / (2 * mjPI));
+      max_error = mju_max(max_error, mju_abs(err));
+    }
+    EXPECT_LT(max_error, 0.5) << "dyntype " << dyntype;
+
+    // the filter state is kept as the representative nearest the length
+    EXPECT_LE(mju_abs(d->act[2] - d->actuator_length[2]), mjPI);
+  }
 }
 
 TEST_F(ForwardTest, gravcomp) {
@@ -5405,9 +5466,8 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   EXPECT_THAT(forward_error(model_f.get(), data_f.get()),
               testing::HasSubstr("not yet supported with flex"));
 
-  // interpolated flex anchored to a moving body: Newton needs CSR assembly of
-  // the flex terms, only possible for simple or fixed nodes; such models
-  // require the CG solver
+  // interpolated flex anchored to a moving body: supported under both CG and
+  // Newton via general DOF-level CSR assembly
   static const char* const kXmlInterp = R"(
   <mujoco>
     <option integrator="discrete" solver="CG"/>
@@ -5431,8 +5491,7 @@ TEST_F(ForwardTest, DiscreteUnsupportedOptions) {
   model_i->opt.solver = mjSOL_CG;
   EXPECT_EQ(forward_error(model_i.get(), data_i.get()), "");
   model_i->opt.solver = mjSOL_NEWTON;
-  EXPECT_THAT(forward_error(model_i.get(), data_i.get()),
-              testing::HasSubstr("interpolated flex with non-simple nodes"));
+  EXPECT_EQ(forward_error(model_i.get(), data_i.get()), "");
 
   model->opt.noslip_iterations = 0;
   model->opt.enableflags |= mjENBL_SLEEP;
@@ -5584,6 +5643,386 @@ TEST_F(ForwardTest, DiscreteNewtonMatchesCG) {
       }
       EXPECT_LT(mju_norm(data->qvel, nv), 1e4);
     }
+  }
+}
+
+TEST_F(ForwardTest, DiscreteArticulatedFlexNewtonMatchesCG) {
+  static const char* const kXmls[] = {
+      // articulated 1D elastic rod pinned to a hinged arm in contact
+      R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="2000"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="arm" pos="0 0 .06">
+        <joint name="hinge" type="hinge" axis="0 1 0" damping=".2"/>
+        <geom type="sphere" size=".03" mass=".5"/>
+        <flexcomp name="rod" type="grid" count="5 1 1" spacing=".05 .05 .05"
+                  radius=".01" dim="1" mass=".5" pos="0 0 -.02">
+          <pin id="0"/>
+          <contact selfcollide="none"/>
+          <edge equality="true"/>
+          <elasticity young="5e4" damping=".05"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+      // articulated clamped rod (per-edge twist dofs) on a ball-jointed arm in
+      // contact
+      R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="2000"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="arm" pos="0 0 .06">
+        <joint type="ball" damping=".2"/>
+        <geom type="sphere" size=".03" mass=".5"/>
+        <flexcomp name="rod" type="grid" count="6 1 1" spacing=".05 .05 .05"
+                  radius=".01" dim="1" mass=".5" pos="0 0 -.05">
+          <pin id="0 1"/>
+          <contact selfcollide="none"/>
+          <elasticity young="5e4" poisson=".25" damping=".05"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+      // articulated 2D cloth pinned to a 2-link arm in contact, with a second
+      // separate island
+      R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="2000"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="link1" pos="0 0 .12">
+        <joint type="hinge" axis="0 1 0" damping=".1"/>
+        <geom type="sphere" size=".03" mass=".5"/>
+        <body name="link2" pos=".1 0 0">
+          <joint type="ball" damping=".1"/>
+          <geom type="sphere" size=".03" mass=".5"/>
+          <flexcomp name="cloth" type="grid" count="4 4 1" spacing=".05 .05 .05"
+                    radius=".008" dim="2" mass="1" pos="0 0 -.08" dof="full">
+            <pin id="0 3"/>
+            <contact selfcollide="none"/>
+            <elasticity young="2e3" poisson=".2" damping=".1" elastic2d="both" thickness=".01"/>
+          </flexcomp>
+        </body>
+      </body>
+      <body name="other_island" pos="1 0 .04">
+        <freejoint/>
+        <geom type="sphere" size=".05" mass=".5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+      // articulated 3D solid pinned to a hinged body in contact
+      R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="2000"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="arm" pos="0 0 .082">
+        <joint type="hinge" axis="0 1 0" damping=".2"/>
+        <geom type="sphere" pos=".02 0 .03" size=".02" mass=".5"/>
+        <flexcomp name="solid" type="grid" count="2 2 2" spacing=".05 .05 .05"
+                  radius=".008" dim="3" mass="1" pos="0 0 -.05" dof="full">
+          <pin id="1 3"/>
+          <contact selfcollide="none"/>
+          <elasticity young="5e3" poisson=".25" damping=".1"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+      // articulated trilinear and shell interpolated flexes pinned to a moving
+      // body in contact
+      R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="2000"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="arm" pos="0 0 .13">
+        <joint type="hinge" axis="0 1 0" damping=".2"/>
+        <geom type="sphere" pos=".02 0 .04" size=".02" mass=".5"/>
+        <flexcomp name="tri" type="grid" count="3 3 3" spacing=".05 .05 .05"
+                  radius=".008" dim="3" mass="1" pos="0 0 -.074" dof="trilinear">
+          <pin id="2"/>
+          <contact selfcollide="none"/>
+          <elasticity young="5e3" poisson=".2" damping=".1"/>
+        </flexcomp>
+        <flexcomp name="shell" type="grid" count="4 4 4" spacing=".04 .04 .04"
+                  cellcount="1 2 2" radius=".008" dim="3" mass="1"
+                  pos=".25 0 -.064" dof="trilinear">
+          <pin id="2"/>
+          <contact selfcollide="none"/>
+          <elasticity young="5e3" poisson=".2" damping=".1"
+                      elastic2d="stretch" thickness=".01"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+      // articulated quadratic interpolated flex pinned to a moving body in
+      // contact
+      R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="2000"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="arm" pos="0 0 .13">
+        <joint type="hinge" axis="0 1 0" damping=".2"/>
+        <geom type="sphere" pos=".02 0 .04" size=".02" mass=".5"/>
+        <flexcomp name="quad" type="grid" count="3 3 3" spacing=".05 .05 .05"
+                  cellcount="1 1 1" radius=".008" dim="3" mass="1"
+                  pos="0 0 -.074" dof="quadratic">
+          <pin id="2"/>
+          <contact selfcollide="none"/>
+          <elasticity young="5e3" poisson=".2" damping=".1"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+  };
+
+  for (size_t xml_idx = 0; xml_idx < std::size(kXmls); ++xml_idx) {
+#ifdef mjUSESINGLE
+    // in single precision, CG diverges on a rod clamped to a moving body with
+    // per-edge twist dofs, independently of the articulated assembly
+    if (xml_idx == 1) continue;
+#endif
+    const char* xml = kXmls[xml_idx];
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << error;
+    MjDataPtr data = MakeData(model);
+    int nv = model->nv;
+
+    // rods carry per-edge twist dofs, coupled to the articulated vertices
+    if (mj_name2id(model.get(), mjOBJ_FLEX, "rod") >= 0) {
+      EXPECT_GE(mj_name2id(model.get(), mjOBJ_JOINT, "rod_twist"), 0)
+          << "xml " << xml_idx;
+    }
+
+    for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+      model->opt.cone = cone;
+      model->opt.solver = mjSOL_CG;
+
+      mj_resetData(model.get(), data.get());
+      for (int i = 0; i < 20; i++) {
+        mj_step(model.get(), data.get());
+      }
+
+      mj_forward(model.get(), data.get());
+      EXPECT_GT(data->ncon, 0) << "xml " << xml_idx;
+      EXPECT_GT(data->nefc, 0) << "xml " << xml_idx;
+      int nisl = data->nisland > 0 ? data->nisland : 1;
+#ifndef mjUSESINGLE
+      // the 1e-14 CG tolerance is only reachable in double precision
+      for (int isl = 0; isl < nisl; isl++) {
+        EXPECT_LT(data->solver_niter[isl], model->opt.iterations);
+      }
+#endif
+      std::vector<mjtNum> qacc_cg(data->qacc, data->qacc + nv);
+      std::vector<mjtNum> smooth_cg(data->qacc_smooth, data->qacc_smooth + nv);
+
+      model->opt.solver = mjSOL_NEWTON;
+      mj_forward(model.get(), data.get());
+      EXPECT_GT(data->nefmK, 0);
+      EXPECT_EQ(data->efm_active, 2);
+      // dof 0 is the joint of the arm carrying the flex: the articulated
+      // pull-back is assembled
+      EXPECT_GT(data->efm_K_rownnz[0], 0) << "xml " << xml_idx;
+      for (int isl = 0; isl < nisl; isl++) {
+        EXPECT_LT(data->solver_niter[isl], 25);
+      }
+
+      mjtNum scale = mju_norm(qacc_cg.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
+      for (int i = 0; i < nv; i++) {
+        EXPECT_THAT(data->qacc_smooth[i],
+                    MjNear(smooth_cg[i], 1e-8 * scale, 4e-3 * scale))
+            << "xml " << xml_idx << " cone " << cone << " dof " << i;
+        EXPECT_THAT(data->qacc[i],
+                    MjNear(qacc_cg[i], 1e-6 * scale, 1e-4 * scale))
+            << "xml " << xml_idx << " cone " << cone << " dof " << i;
+      }
+
+      for (int i = 0; i < 100; i++) {
+        mj_step(model.get(), data.get());
+      }
+      EXPECT_LT(mju_norm(data->qvel, nv), 1e4);
+    }
+  }
+}
+
+// Newton with an articulated cloth under the IPC contact flag and under sleep:
+// both paths now reach the general flex assembly, so it must step stably and
+// keep the articulated rows. IPC accepts pins on slide chains only; a single
+// oblique slide is still a general (non-simple) attachment.
+TEST_F(ForwardTest, DiscreteArticulatedFlexNewtonIpcAndSleep) {
+  // sleep: a cloth pinned to a hinged arm
+  static const char* const kSleepXml = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="Newton" iterations="400">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body name="arm" pos="0 0 .12">
+        <joint type="hinge" axis="0 1 0" damping=".2"/>
+        <geom type="sphere" size=".02" pos=".02 0 .03" mass=".3"/>
+        <flexcomp name="cloth" type="grid" dim="2" count="5 5 1" spacing=".04 .04 1"
+                  radius=".004" mass=".1" pos="0 0 -.05">
+          <pin id="0 4"/>
+          <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both"
+                      damping="1e-4"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // IPC: free vertices must not be under jointed bodies and pins must ride
+  // slide chains, so the patch has three free vertices and one on a jointless
+  // child of a body on an oblique slide. There is no plane: the slide would
+  // drive the pinned vertex into it, which the IPC barrier cannot resolve.
+  static const char* const kIpcXml = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="Newton" iterations="400">
+      <flag ipc="enable"/>
+    </option>
+    <worldbody>
+      <body name="v0" pos="0 0 .1">
+        <joint type="slide" axis="1 0 0"/><joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <inertial pos="0 0 0" mass=".05" diaginertia="1e-5 1e-5 1e-5"/>
+      </body>
+      <body name="v1" pos=".1 0 .1">
+        <joint type="slide" axis="1 0 0"/><joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <inertial pos="0 0 0" mass=".05" diaginertia="1e-5 1e-5 1e-5"/>
+      </body>
+      <body name="v2" pos="0 .1 .1">
+        <joint type="slide" axis="1 0 0"/><joint type="slide" axis="0 1 0"/>
+        <joint type="slide" axis="0 0 1"/>
+        <inertial pos="0 0 0" mass=".05" diaginertia="1e-5 1e-5 1e-5"/>
+      </body>
+      <body name="carrier" pos=".1 .1 .1">
+        <joint type="slide" axis="1 0 1" damping=".2"/>
+        <inertial pos="0 0 0" mass=".1" diaginertia="1e-4 1e-4 1e-4"/>
+        <body name="v3"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <flex name="patch" dim="2" body="v0 v1 v2 v3" element="0 1 2 1 3 2" radius=".004">
+        <elasticity young="1e5" poisson=".2" thickness="2e-3" elastic2d="both"
+                    damping="1e-4"/>
+      </flex>
+    </deformable>
+  </mujoco>
+  )";
+
+  for (const char* xml : {kSleepXml, kIpcXml}) {
+    const char* name = xml == kIpcXml ? "ipc" : "sleep";
+    char error[1024];
+    MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model.get(), NotNull()) << name << ": " << error;
+    MjDataPtr data = MakeData(model);
+    int nv = model->nv;
+
+    for (int i = 0; i < 300; i++) {
+      mj_step(model.get(), data.get());
+      ASSERT_FALSE(data->warning[mjWARN_BADQACC].number)
+          << name << ": diverged at step " << i;
+    }
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->efm_active, 2) << name;
+    EXPECT_GT(data->nefmK, 0) << name;
+    EXPECT_LT(mju_norm(data->qvel, nv), 1e2) << name;
+  }
+}
+
+TEST_F(ForwardTest, DiscreteArticulatedFlexSolverFallbackAndCopy) {
+  static const char* const kXml = R"(
+  <mujoco>
+    <option timestep="0.001" integrator="discrete" solver="CG" tolerance="1e-14" iterations="500"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1"/>
+      <body name="arm" pos="0 0 .08">
+        <joint type="ball" damping=".1"/>
+        <geom type="sphere" size=".03" mass=".5"/>
+        <flexcomp name="cloth" type="grid" count="3 3 1" spacing=".05 .05 .05"
+                  radius=".008" dim="2" mass=".2" pos="0 0 -.06" dof="full">
+          <pin id="0 2"/>
+          <contact selfcollide="none"/>
+          <elasticity young="3e3" poisson=".2" damping=".1" elastic2d="both" thickness=".01"/>
+        </flexcomp>
+      </body>
+      <body name="other" pos="1 0 .04">
+        <freejoint/>
+        <geom type="sphere" size=".05" mass=".4"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  int nv = model->nv;
+
+  for (int i = 0; i < 15; i++) {
+    mj_step(model.get(), data.get());
+  }
+
+  std::vector<mjtNum> qacc_cg_noisland;
+  for (int use_island : {0, 1}) {
+    if (use_island) {
+      model->opt.disableflags &= ~mjDSBL_ISLAND;
+    } else {
+      model->opt.disableflags |= mjDSBL_ISLAND;
+    }
+
+    model->opt.solver = mjSOL_CG;
+    mj_forward(model.get(), data.get());
+    EXPECT_GT(data->nefc, 0) << "use_island=" << use_island;
+    if (use_island) {
+      // the island CG path applies the matrix-free operators per island
+      // (flexMatrixFree)
+      EXPECT_GT(data->nisland, 0);
+    }
+    std::vector<mjtNum> qacc_cg(data->qacc, data->qacc + nv);
+    mjtNum scale = mju_norm(qacc_cg.data(), nv) / mju_sqrt((mjtNum)nv) + 1;
+    if (use_island) {
+      // island and monolithic CG solve the same problem, to CG's
+      // sqrt(tolerance) accuracy
+      EXPECT_THAT(qacc_cg, Pointwise(MjNear(1e-6 * scale, 1e-3 * scale),
+                                     qacc_cg_noisland));
+    } else {
+      qacc_cg_noisland = qacc_cg;
+    }
+
+    // Build general CSR metric under Newton, copy mjData, then run constraint
+    // solve under CG (as happens when Newton falls back to CG).
+    model->opt.solver = mjSOL_NEWTON;
+    mj_forward(model.get(), data.get());
+    EXPECT_GT(data->nefmK, 0);
+    EXPECT_EQ(data->efm_active, 2);
+
+    // the general CSR has rows for the ball joint of the arm
+    int arm = mj_name2id(model.get(), mjOBJ_BODY, "arm");
+    EXPECT_GT(data->efm_K_rownnz[model->body_dofadr[arm]], 0);
+
+    mjData* copy = mj_copyData(nullptr, model.get(), data.get());
+    model->opt.solver = mjSOL_CG;
+    mj_fwdConstraint(model.get(), copy);
+
+    EXPECT_THAT(AsVector(copy->qacc, nv),
+                Pointwise(MjNear(1e-10 * scale, 1e-4 * scale), qacc_cg))
+        << "use_island=" << use_island;
+    mj_deleteData(copy);
   }
 }
 
@@ -6024,11 +6463,12 @@ TEST_F(ForwardTest, DiscreteImplicitRowNoslip) {
       <geom type="plane" size="2 2 .1" solref="0.002 1"/>
       <body pos="0 0 0.05">
         <freejoint/>
-        <geom type="box" size=".05 .05 .05" mass="1" solref="0.002 1" condim="6"/>
+        <geom size=".05" mass="1" solref="0.002 1" condim="6"
+          friction="1 0.05 0.05"/>
       </body>
     </worldbody>
     <keyframe>
-      <key name="slide" qvel="2 0 0 0 0 0"/>
+      <key name="slide" qvel="2 0 0 0 0 5"/>
     </keyframe>
   </mujoco>
   )";
@@ -6037,16 +6477,20 @@ TEST_F(ForwardTest, DiscreteImplicitRowNoslip) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   MjDataPtr data = MakeData(model);
   mj_resetDataKeyframe(model.get(), data.get(), 0);
+  mjtNum max_qvel = 0;
   for (int i = 0; i < 200; i++) {
     mj_step(model.get(), data.get());
+    if (i >= 190) {
+      max_qvel = mju_max(max_qvel, mju_norm(data->qvel, 6));
+    }
   }
   int nwarning = 0;
   for (int w = 0; w < mjNWARNING; w++) {
     nwarning += data->warning[w].number;
   }
   EXPECT_EQ(nwarning, 0);
-  EXPECT_LT(mju_norm(data->qvel, 6), MjTol(5e-3, 2e-2));
-  EXPECT_NEAR(data->qpos[2], 0.05, MjTol(2e-3, 2e-3));
+  EXPECT_LT(max_qvel, MjTol(3e-9, 1e-6));
+  EXPECT_NEAR(data->qpos[2], 0.05, MjTol(5e-5, 5e-5));
 }
 
 // stiff ">" leg pressed onto the floor: joint stiffness far beyond the explicit
@@ -8285,6 +8729,201 @@ TEST_F(ForwardTest, CheckWarningCount) {
     EXPECT_EQ(data->warning[mjWARN_BADQACC].number, 1);
     EXPECT_EQ(data->warning[mjWARN_BADQACC].lastinfo, 1);
   }
+}
+
+// after an RK4 step, qacc is the effective acceleration of the step,
+// (qvel_next - qvel) / h, and the warm start is the last stage's acceleration
+TEST_F(ForwardTest, RungeKuttaQaccIsEffectiveAcceleration) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="RK4" timestep="0.1" gravity="0 0 0">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint type="slide" axis="1 0 0" stiffness="4" damping="0.5"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+  d->qpos[0] = 1.0;
+
+  // reference RK4 on the linear spring-damper: a(x, v) = -4 x - 0.5 v
+  auto acc = [](mjtNum x, mjtNum v) { return -4 * x - 0.5 * v; };
+  const mjtNum h = m->opt.timestep;
+
+  for (int i = 0; i < 3; i++) {
+    mj_forward(m, d);
+    mjtNum x0 = d->qpos[0], v0 = d->qvel[0];
+    mjtNum a0 = acc(x0, v0);
+    mjtNum a1 = acc(x0 + h / 2 * v0, v0 + h / 2 * a0);
+    mjtNum v1 = v0 + h / 2 * a0;
+    mjtNum a2 = acc(x0 + h / 2 * v1, v0 + h / 2 * a1);
+    mjtNum v2 = v0 + h / 2 * a1;
+    mjtNum a3 = acc(x0 + h * v2, v0 + h * a2);
+    mjtNum qacc_rk = (a0 + 2 * a1 + 2 * a2 + a3) / 6;
+
+    mj_RungeKutta(m, d, 4);
+    mjtNum qacc_eff = (d->qvel[0] - v0) / h;
+    EXPECT_NEAR(qacc_eff, qacc_rk, MjTol(1e-12, 1e-4));
+    EXPECT_NEAR(d->qacc[0], qacc_rk, MjTol(1e-12, 1e-4));
+    EXPECT_NEAR(d->qacc_warmstart[0], a3, MjTol(1e-12, 1e-4));
+    EXPECT_GT(mju_abs(qacc_rk - a3), 0.01);
+  }
+}
+
+// under RK4, delayed sensors record stage-0 values (a pure time shift of a
+// non-delayed sensor, independent of whether flg_rnepost was set at stage 0)
+TEST_F(ForwardTest, RungeKuttaDelayedAccelerometer) {
+  static const std::string kXmlBoth = R"(
+  <mujoco>
+    <option integrator="RK4" timestep="0.015625">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="j" type="hinge" axis="0 1 0"/>
+        <geom size="0.1" pos="0.3 0 0" mass="1"/>
+        <site name="s" pos="0.3 0 0" euler="20 35 10"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="j"/>
+    </actuator>
+    <sensor>
+      <accelerometer site="s"/>
+      <accelerometer site="s" delay="0.046875" nsample="10" interp="zoh"/>
+      <accelerometer site="s" delay="0.0625" interval="0.03125" nsample="10"
+        interp="zoh"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::string xml_delayed_only = kXmlBoth;
+  const std::string target = "      <accelerometer site=\"s\"/>\n";
+  size_t pos = xml_delayed_only.find(target);
+  ASSERT_NE(pos, std::string::npos);
+  xml_delayed_only.erase(pos, target.size());
+
+  char error[1024];
+  MjModelPtr m1 = LoadModelFromString(kXmlBoth.c_str(), error, sizeof(error));
+  ASSERT_THAT(m1.get(), NotNull()) << error;
+  MjModelPtr m2 =
+      LoadModelFromString(xml_delayed_only.c_str(), error, sizeof(error));
+  ASSERT_THAT(m2.get(), NotNull()) << error;
+
+  MjDataPtr d1 = MakeData(m1);
+  MjDataPtr d2 = MakeData(m2);
+  d1->qvel[0] = 2.5;
+  d2->qvel[0] = 2.5;
+
+  constexpr int kSteps = 10;
+  std::vector<std::array<mjtNum, 3>> nodelay(kSteps);
+  for (int step = 0; step < kSteps; ++step) {
+    mjtNum ctrl = 4.0 * mju_sin(0.7 * step);
+    d1->ctrl[0] = ctrl;
+    d2->ctrl[0] = ctrl;
+    mj_step(m1.get(), d1.get());
+    mj_step(m2.get(), d2.get());
+
+    for (int k = 0; k < 3; ++k) {
+      nodelay[step][k] = d1->sensordata[k];
+    }
+
+    // continuous delay = 3*h: exact shift by 3 steps regardless of flg_rnepost
+    if (step >= 3) {
+      for (int k = 0; k < 3; ++k) {
+        EXPECT_NEAR(d1->sensordata[3 + k], nodelay[step - 3][k],
+                    MjTol(1e-12, 1e-5))
+            << "step " << step << " axis " << k;
+        EXPECT_NEAR(d2->sensordata[k], nodelay[step - 3][k], MjTol(1e-12, 1e-5))
+            << "step " << step << " axis " << k;
+      }
+    }
+
+    // interval = 2*h, delay = 4*h: samples even steps and holds on odd steps
+    if (step >= 4) {
+      int sample_step = ((step - 4) / 2) * 2;
+      for (int k = 0; k < 3; ++k) {
+        EXPECT_NEAR(d1->sensordata[6 + k], nodelay[sample_step][k],
+                    MjTol(1e-12, 1e-5))
+            << "step " << step << " axis " << k;
+        EXPECT_NEAR(d2->sensordata[3 + k], nodelay[sample_step][k],
+                    MjTol(1e-12, 1e-5))
+            << "step " << step << " axis " << k;
+      }
+    }
+  }
+}
+
+// under RK4, rotational setpoint wrapping and DC-motor LuGre bristle updates
+// read stage-0 actuator_length and actuator_velocity rather than stage-3 values
+TEST_F(ForwardTest, RungeKuttaStage0ActuatorState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="RK4" timestep="0.02" gravity="0 0 0">
+      <flag contact="disable"/>
+    </option>
+    <worldbody>
+      <body>
+        <joint name="ball" type="ball"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+      <body pos="1 0 0">
+        <joint name="dc_jnt" type="hinge" axis="0 0 1"/>
+        <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general name="integ" joint="ball" dyntype="integrator" gaintype="fixed"
+               biastype="affine" gainprm="1" biasprm="0 -1 0" gear="1 0 0"/>
+      <position name="filt" joint="ball" kp="1" timeconst="0.1" gear="1 0 0"/>
+      <dcmotor name="dc" joint="dc_jnt" motorconst="1" resistance="1"
+               lugre="100 1 0.5 1.5 0.1"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  mjModel* m = model.get();
+  mjData* d = data.get();
+
+  // ball spins fast around x: stage-0 length is 0, stage-3 length is ~0.4 rad,
+  // so act = pi + 0.1 must wrap to -pi + 0.1 against stage-0 length = 0
+  d->qvel[0] = 20.0;
+  d->act[0] = mjPI + 0.1;
+  d->act[1] = mjPI + 0.1;
+  d->ctrl[1] = mjPI + 0.1;
+
+  // dc_jnt accelerates strongly from v0 = 0.2 so stage-3 velocity differs a lot
+  d->qvel[3] = 0.2;
+  d->qfrc_applied[3] = 50.0;
+  int dc_id = mj_name2id(m, mjOBJ_ACTUATOR, "dc");
+  ASSERT_GE(dc_id, 0);
+  int bristle_adr = m->actuator_actadr[dc_id];
+  d->act[bristle_adr] = 0.01;
+
+  mj_forward(m, d);
+
+  // mj_Euler advances bristle state from stage-0 actuator_velocity
+  MjDataPtr data_ref = MakeData(model);
+  mj_copyData(data_ref.get(), m, d);
+  mj_Euler(m, data_ref.get());
+  mjtNum expected_bristle = data_ref->act[bristle_adr];
+
+  mj_RungeKutta(m, d, 4);
+
+  EXPECT_NEAR(d->act[0], -mjPI + 0.1, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(d->act[1], -mjPI + 0.1, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(d->act[bristle_adr], expected_bristle, MjTol(1e-12, 1e-5));
 }
 
 }  // namespace

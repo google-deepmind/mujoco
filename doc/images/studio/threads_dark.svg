@@ -67,12 +67,12 @@
   <!-- Viewer Subcard 2 -->
   <rect x="534" y="146" width="258" height="72" rx="8" fill="#232832" stroke="#333c4d" stroke-width="1"/>
   <text x="546" y="167" class="font-sans" font-size="12.5" font-weight="700">Lifecycle Events</text>
-  <text x="546" y="187" class="font-mono" font-size="11">ViewerInit · ViewerAppInit · PostModel</text>
+  <text x="546" y="187" class="font-mono" font-size="11">ViewerInit · studio_app.Init · PostModel</text>
   <text x="546" y="205" class="font-mono" font-size="11">Update · BuildGui · Exit</text>
 
   <!-- Viewer Subcard 3 -->
   <rect x="534" y="228" width="258" height="72" rx="8" fill="#232832" stroke="#333c4d" stroke-width="1"/>
   <text x="546" y="249" class="font-sans" font-size="12.5" font-weight="700">Viewer Plugins (<tspan class="font-mono" font-size="11.5" font-weight="400">ViewerPlugin</tspan>)</text>
-  <text x="546" y="269" class="font-mono" font-size="11">ViewerApp</text>
+  <text x="546" y="269" class="font-mono" font-size="11">studio_app.App</text>
   <text x="546" y="287" class="font-sans" font-size="11.5">Custom UI panels &amp; 3D overlays</text>
 </svg>

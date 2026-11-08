@@ -33,3 +33,5 @@
 
 .. sidebar-links::
    :github:
+
+   mujoco.org <https://mujoco.org>

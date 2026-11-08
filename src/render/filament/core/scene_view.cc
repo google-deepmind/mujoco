@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <filament/Color.h>
 #include <filament/ColorGrading.h>
 #include <filament/ColorSpace.h>
 #include <filament/LightManager.h>
@@ -102,9 +103,9 @@ static filament::ColorGrading::Builder ToBuilder(
       .curves(opts.shadow_gamma, opts.mid_point, opts.highlight_scale);
 }
 
-static void SetupCamera(const mjrCamera& cam,
-                        const filament::Viewport& viewport,
+static void SetupCamera(const mjrfRenderRequest& request,
                         filament::Camera* camera) {
+  const mjrCamera& cam = request.camera;
   const filament::Camera::Projection type =
       cam.orthographic ? filament::Camera::Projection::ORTHO
                        : filament::Camera::Projection::PERSPECTIVE;
@@ -112,7 +113,8 @@ static void SetupCamera(const mjrCamera& cam,
   const float3 cam_fwd(cam.forward[0], cam.forward[1], cam.forward[2]);
   const float3 cam_up(cam.up[0], cam.up[1], cam.up[2]);
   const float3 cam_at = cam_pos + cam_fwd;
-  const float aspect_ratio = (float)viewport.width / (float)viewport.height;
+  const float aspect_ratio =
+      (float)request.viewport.width / (float)request.viewport.height;
   const float halfwidth =
       cam.frustum_width
           ? cam.frustum_width
@@ -121,6 +123,12 @@ static void SetupCamera(const mjrCamera& cam,
   camera->setProjection(type, cam.frustum_center - halfwidth,
                         cam.frustum_center + halfwidth, cam.frustum_bottom,
                         cam.frustum_top, cam.frustum_near, cam.frustum_far);
+  if (request.draw_mode == mjDRAW_MODE_DEPTH) {
+    // Filament's setProjection puts the perspective far plane at infinity; use
+    // the finite-far culling frustum so depth maps span [near, far].
+    const mat4 proj = camera->getCullingProjectionMatrix();
+    camera->setCustomProjection(proj, proj, cam.frustum_near, cam.frustum_far);
+  }
 }
 
 // Sets up the `reflection_camera` as a reflection of `src_camera` across the
@@ -160,6 +168,7 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   depth_segment_view_->setScene(scene_);
   depth_segment_view_->setCamera(camera_);
   depth_segment_view_->setVisibleLayers(0xff, kLayerMask_Object);
+  depth_segment_view_->setShadowingEnabled(false);
   depth_segment_view_->setPostProcessingEnabled(false);
 
   reflect_view_ = engine->createView();
@@ -232,7 +241,7 @@ SceneView::~SceneView() {
 
 void SceneView::AddToScene(Light* light) {
   if (lights_.insert(light).second) {
-    light->AddToScene(scene_);
+    light->AddToScene(scene_, [this](Light* light) { RemoveFromScene(light); });
   }
 }
 
@@ -244,7 +253,8 @@ void SceneView::RemoveFromScene(Light* light) {
 
 void SceneView::AddToScene(Renderable* renderable) {
   if (renderables_.insert(renderable).second) {
-    renderable->AddToScene(scene_);
+    renderable->AddToScene(
+        scene_, [this](Renderable* renderable) { RemoveFromScene(renderable); });
   }
 }
 
@@ -306,10 +316,11 @@ void SceneView::Render(filament::Renderer* renderer,
       request.draw_mode == mjDRAW_MODE_SEGMENTATION_BY_ID ||
       request.draw_mode == mjDRAW_MODE_SEGMENTATION_BY_COLOR) {
     view = depth_segment_view_;
+  } else {
+    view->setShadowingEnabled(request.shadows);
+    view->setPostProcessingEnabled(request.post_processing);
   }
   view->setViewport(viewport);
-  view->setShadowingEnabled(request.shadows);
-  view->setPostProcessingEnabled(request.post_processing);
 
   filament::MultiSampleAntiAliasingOptions options =
       view->getMultiSampleAntiAliasingOptions();
@@ -320,7 +331,8 @@ void SceneView::Render(filament::Renderer* renderer,
     view->setMultiSampleAntiAliasingOptions({.enabled = false});
   }
 
-  SetupCamera(request.camera, viewport, camera_);
+  SetupCamera(request, camera_);
+  camera_->setFocusDistance(focus_distance_);
 
   // Aim the headlight along this request's camera. Filament re-gathers the
   // scene's lights for each render() call, so requests batched into one frame
@@ -508,6 +520,16 @@ static OutputColorSpace OutputColorSpaceFromString(
   return OutputColorSpace::kRec709_sRGB_D65;
 }
 
+static filament::RgbaType ColorTypeFromString(std::string_view name) {
+  if (name == "linear") {
+    return filament::RgbaType::LINEAR;
+  } else if (name == "srgb") {
+    return filament::RgbaType::sRGB;
+  }
+  mju_warning("Unknown color type: %s", name.data());
+  return filament::RgbaType::sRGB;
+}
+
 static filament::QualityLevel QualityLevelFromString(std::string_view name) {
   if (name == "low") {
     return filament::QualityLevel::LOW;
@@ -533,7 +555,6 @@ static filament::ShadowType ShadowTypeFromString(std::string_view name) {
   mju_warning("Unknown shadow type: %s", name.data());
   return filament::ShadowType::PCF;
 }
-
 
 void SceneView::SetMsaa(int samples) {
   samples = std::clamp(samples, 1, 255);
@@ -660,5 +681,9 @@ void SceneView::Configure(const mjModel* model) {
   vignette.midPoint =
       ReadElement(model, "filament.vignette.midpoint", vignette.midPoint);
   main_view_->setVignetteOptions(vignette);
+
+  material_mgr_->SetBaseColorType(
+      ColorTypeFromString(ReadElement<std::string_view>(
+          model, "filament.material.base_color_type", "srgb")));
 }
 }  // namespace mujoco

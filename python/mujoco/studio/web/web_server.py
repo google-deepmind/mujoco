@@ -16,12 +16,16 @@
 This server runs on a background daemon thread with one asyncio loop on a single
 public port:
 
-  * Plain HTTP GET   serves static files (index.html, WASM, assets), /model.
-  * WebSocket /ui    serves the bridge to the headless NetImgui client, which
-                     connects over loopback TCP (see headless_ui.cc).
+  * Plain HTTP GET   serves static files (index.html, WASM, assets), /model,
+                     and cached model bundles by content hash
+                     (/model?crc32=...), which browsers prefetch and cache.
+  * WebSocket /ui    streams the headless Studio UI to the controlling browser
+                     and its input back, one Studio UI wire command per
+                     WebSocket message and one frame in flight (see UiSession
+                     and _UI_ACK_PREFIX).
   * WebSocket /state serves the latest-wins state payload broadcast at ~60Hz
                      (see state_payload.h) as binary frames, and session roster
-                     updates as text frames.
+                     and model prefetch updates as text frames.
   * WebSocket /drop  receives models dragged onto the page (one binary frame per
                      file, controller only; see drop_handler).
 
@@ -29,14 +33,15 @@ Because everything is served through one port, one firewall rule, port-forward,
 or HTTPS tunnel exposes the whole viewer. The browser derives its WebSocket URLs
 from the page origin so no client configuration is needed.
 
-One browser at a time controls the interactive session (it owns the /ui bridge);
-later browsers are rejected from /ui with WebSocket close code
+One browser at a time controls the interactive session (it owns the /ui
+stream); later browsers are rejected from /ui with WebSocket close code
 _WS_CLOSE_CONTROLLER_TAKEN and can take the controller slot once it frees up.
 /state connections beyond the spectator limit are closed with close code
 _WS_CLOSE_SESSION_FULL.
 """
 
 import asyncio
+import collections
 import datetime
 import enum
 import functools
@@ -48,8 +53,9 @@ import socket
 import struct
 import sys
 import threading
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, Awaitable, Callable, Protocol
 import urllib.parse
+import zlib
 
 from websockets.asyncio.server import serve
 from websockets.asyncio.server import ServerConnection
@@ -85,20 +91,53 @@ _MAX_SPECTATORS_DEFAULT = 8
 
 # Controller-only message prefix carrying the new spectator limit.
 _MAX_SPECTATORS_PREFIX = "max_spectators="
+# Controller-only message prefix carrying the UI theme ("light", "dark", ...).
+_THEME_PREFIX = "theme="
 # Sent to the page whose control claim the controller slot is reserved for.
 _GRANT_MESSAGE = "grant"
 # Sent by the browser after applying each state payload (keep in sync:
-# web_client_session.cc). Flow control for the /state stream: at most one
-# payload is in flight per client, so a slow link carries the freshest state
-# it can instead of buffering seconds of stale payloads in the socket.
+# web_client_session.cc). Flow control for the /state stream: at most
+# _STATE_MAX_IN_FLIGHT payloads are in flight per client, so a slow link
+# carries the freshest state it can instead of buffering seconds of stale
+# payloads in the socket, while links with non-zero round-trip latency
+# (~20-50ms over reverse proxies) keep streaming smoothly at 60Hz.
 _STATE_ACK_MESSAGE = "state_ack"
+# Sent to every browser when it joins and whenever its list of cached model
+# bundles changes: "prefetch=<crc32>:<bytes>,<crc32>:<bytes>,..." in the order
+# to download them in (see WebServer.prefetch_line); a bare "prefetch=" means
+# there is nothing left to prefetch. Each bundle is fetched as
+# /model?crc32=<crc32> (see _serve_model).
+_PREFETCH_PREFIX = "prefetch="
 
-# A lost ack must not stall the stream forever; after this long the next
-# payload is sent unacked.
-_STATE_ACK_TIMEOUT_SEC = 2.0
+_THEMES = ("light", "dark", "classic")
+
+# Maximum unacknowledged /state payloads in flight per client before
+# send_payloads() waits for an ack and coalesces intermediate updates.
+# An 8-frame window keeps 60-240 FPS streaming across proxy RTTs without
+# letting slow connections build up multi-second queues.
+_STATE_MAX_IN_FLIGHT = 8
+
+# Sent by the browser on /ui after it receives draw frames, followed by the
+# index of the newest: the same flow control for the UI stream, which keeps at
+# most one frame in flight. The index tells the ack of the frame in flight from
+# a late ack of an older one, which must not release the next frame.
+_UI_ACK_PREFIX = "ui_ack="
+
+# A lost ack must not stall a stream forever; after this long the next payload
+# is sent unacked, and so is the next UI frame if the page still sends input
+# (see ui_handler).
+_ACK_TIMEOUT_SEC = 2.0
+
+# How many bytes of model bundles the server keeps for /model?crc32=... (the
+# current model always counts, and is never evicted). Plenty for a playlist of
+# scenes; a browser that asks for an evicted bundle falls back to /model.
+_MODEL_CACHE_BYTES_DEFAULT = 512 * 1024 * 1024
 
 # A control grant must arrive within this window, else it moves down the queue.
 _GRANT_EXPIRY_SEC = 5.0
+
+# A /ui client must complete its Hello handshake within this window.
+_HANDSHAKE_TIMEOUT_SEC = 5.0
 
 
 # A controller whose tab stops running (hidden or closed without a clean
@@ -114,16 +153,6 @@ _SPECTATOR_SILENT_KICK_SEC = 300.0
 # (e.g. by another running viewer).
 _DEFAULT_HTTP_PORT = 8080
 _PORT_SCAN_COUNT = 20
-
-# NetImgui's CmdVersion handshake packet is always 120 bytes.
-_NETIMGUI_CMD_VERSION_SIZE = 120
-
-# How long a browser holding the controller slot waits for the headless NetImgui
-# client to (re)connect over loopback before the slot is released. The client
-# reconnects within ~1s in the normal case; this only bounds the pathological
-# one where it never appears (e.g., the headless UI failed to start), so a stuck
-# controller cannot lock every other browser out forever.
-_UI_TCP_WAIT_SEC = 30.0
 
 # Content types for the static files the HTTP handler serves.
 _CONTENT_TYPES = {
@@ -146,9 +175,52 @@ class _SessionMessage(enum.StrEnum):
   HEARTBEAT = "heartbeat"
 
 
+class UiSession(Protocol):
+  """The headless UI as the /ui stream sees it (headless_ui.HeadlessUi).
+
+  The UI streams to one browser at a time, the controller. A session lasts while
+  that browser is connected: it starts with the browser's handshake, and its
+  first messages re-send everything the browser needs to draw the UI. Every
+  message is one Studio UI wire command, sent as one binary WebSocket message.
+
+  The server thread calls these; the viewer thread runs the UI frames.
+  """
+
+  def start_session(self, handshake: bytes) -> bytes:
+    """Starts a session and returns the reply to the browser's handshake.
+
+    Args:
+      handshake: The browser's first /ui message (Hello handshake).
+
+    Raises:
+      ValueError: The browser cannot talk to this viewer.
+    """
+    ...
+
+  def end_session(self) -> None:
+    """Ends the session; frames are no longer recorded for the browser."""
+    ...
+
+  def push_input(self, message: bytes) -> bool:
+    """Queues browser input for the next frame; False if it is not input."""
+    ...
+
+  def take_messages(self) -> list[bytes]:
+    """Returns the messages to send to the browser now, possibly none.
+
+    A non-empty list ends with one draw frame, after any texture changes; the
+    browser acks it by its index (see last_frame_index and _UI_ACK_PREFIX).
+    """
+    ...
+
+  def last_frame_index(self) -> int:
+    """Returns the index of the last draw frame take_messages() returned."""
+    ...
+
+
 def _roster_line(
     viewers: int,
-    is_controller: bool,
+    role: str,
     queue_pos: int,
     queue_len: int,
     max_spectators: int,
@@ -162,7 +234,8 @@ def _roster_line(
 
   Args:
     viewers: The number of viewers connected to the server.
-    is_controller: Whether the browser is the controller.
+    role: The browser's role ("controller", "spectator", or "none" when no
+      browser holds the controller slot).
     queue_pos: The browser's position in the control queue (0 if not queued).
     queue_len: The number of browsers in the queue.
     max_spectators: The maximum number of spectators allowed.
@@ -170,7 +243,6 @@ def _roster_line(
   Returns:
     A string representing the roster line.
   """
-  role = "controller" if is_controller else "spectator"
   return (
       f"viewers={viewers};role={role};queue_pos={queue_pos};"
       f"queue_len={queue_len};max_spectators={max_spectators}"
@@ -296,32 +368,15 @@ def bind_public_socket(host: str, port: int = 0) -> socket.socket:
   )
 
 
-def bind_loopback_socket(port: int = 0) -> socket.socket:
-  """Binds the loopback socket the headless NetImgui client connects to.
-
-  Defaults to an OS-assigned ephemeral port: both endpoints live in this process
-  tree, so no fixed number is needed and collisions between viewer instances are
-  impossible.
-
-  Args:
-    port: A specific port, or 0 to take the first free port.
-
-  Returns:
-    The bound, listening socket.
-  """
-  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  sock.bind(("127.0.0.1", port))
-  sock.listen()
-  return sock
-
-
 def _session_id(ws: ServerConnection) -> str:
   """The page's session id (?sid=...), tying its /ui and /state together."""
   path = ws.request.path if ws.request else ""
   query = path.split("?", 1)[1] if "?" in path else ""
   for part in query.split("&"):
     if part.startswith("sid="):
-      return part[4:]
+      sid = urllib.parse.unquote(part[4:])[:128]
+      if sid:
+        return sid
   return f"anon-{id(ws)}"
 
 
@@ -373,12 +428,14 @@ def _run_server(
   """The server thread: HTTP + /ui + /state on one port, one event loop."""
 
   http_sock = server.http_sock
-  tcp_sock = server.tcp_sock
   static_dir = server.static_files_dir
   static_root = os.path.realpath(static_dir) if static_dir else None
 
   def _http_headers(
-      content_type: str, content_length: int, cacheable: bool
+      content_type: str,
+      content_length: int,
+      cacheable: bool,
+      immutable: bool = False,
   ) -> Headers:
     headers = Headers()
     headers["Content-Type"] = content_type
@@ -390,19 +447,74 @@ def _run_server(
     if not cacheable:
       headers["Access-Control-Allow-Origin"] = "*"
       headers["Cache-Control"] = "no-store"
+    elif immutable:
+      # A content-addressed resource never changes: let the browser keep it.
+      headers["Access-Control-Allow-Origin"] = "*"
+      headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return headers
+
+  def _serve_model(query_string: str) -> Response:
+    """Builds the response for GET /model and its query forms.
+
+    The current model, which changes on hot-swap and is never cached:
+
+      GET /model                                 -> full bundle bytes
+      GET /model?total_bytes                     -> {"total_bytes": <n>}
+      GET /model?offset_bytes=X&size_bytes=Y     -> bytes [X, X+Y)
+
+    A cached bundle by content hash (the crc32 stamped into state payloads),
+    which the browser prefetches and caches, with the same three forms. Its
+    bytes never change, so the response is marked immutable:
+
+      GET /model?crc32=N[&total_bytes|&offset_bytes=X&size_bytes=Y]
+
+    Args:
+      query_string: The request's query string, possibly empty.
+
+    Returns:
+      The HTTP response.
+    """
+    # total_bytes is a bare flag: keep blank values so it survives parsing.
+    params = urllib.parse.parse_qs(query_string, keep_blank_values=True)
+    if "crc32" in params:
+      try:
+        mjb_data = server.cached_model(int(params["crc32"][0]))
+      except (ValueError, TypeError):
+        return Response(400, "Bad Request", Headers(), b"bad crc32\n")
+      immutable = True
+    else:
+      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model()
+      immutable = False
+    if not mjb_data:
+      return Response(404, "Not Found", Headers(), b"no model\n")
+
+    if "total_bytes" in params:
+      body = json.dumps({"total_bytes": len(mjb_data)}).encode()
+      headers = _http_headers(
+          "application/json", len(body), cacheable=immutable, immutable=True
+      )
+      return Response(200, "OK", headers, body)
+    if "offset_bytes" in params or "size_bytes" in params:
+      try:
+        offset = int(params.get("offset_bytes", [0])[0])
+        size = int(params.get("size_bytes", [0])[0])
+      except (ValueError, TypeError):
+        return Response(400, "Bad Request", Headers(), b"bad params\n")
+      if size <= 0 or offset < 0 or offset >= len(mjb_data):
+        return Response(400, "Bad Request", Headers(), b"bad range\n")
+      mjb_data = mjb_data[offset : min(offset + size, len(mjb_data))]
+    headers = _http_headers(
+        "application/octet-stream",
+        len(mjb_data),
+        cacheable=immutable,
+        immutable=True,
+    )
+    return Response(200, "OK", headers, mjb_data)
 
   def _serve_http(path: str) -> Response:
     """Builds the HTTP response for a non-WebSocket GET request."""
     if path == "/model":
-      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model()
-      if not mjb_data:
-        return Response(404, "Not Found", Headers(), b"no model\n")
-      # The model changes on hot-swap; never serve a cached copy.
-      headers = _http_headers(
-          "application/octet-stream", len(mjb_data), cacheable=False
-      )
-      return Response(200, "OK", headers, mjb_data)
+      return _serve_model("")
 
     if static_root is None:
       return Response(503, "Service Unavailable", Headers(), b"no dist dir\n")
@@ -447,15 +559,20 @@ def _run_server(
     )
 
   async def main_loop() -> None:
-    # The NetImgui client connection (from HeadlessUi, loopback TCP). The client
-    # retries every second, so after a teardown a fresh connection is fast.
-    tcp_reader = None
-    tcp_writer = None
-    tcp_connected = asyncio.Event()
+    # Wakes the /ui sender when the viewer thread has a new UI frame for the
+    # browser (see WebServer.notify_ui_frame()).
+    ui_frame_ready = asyncio.Event()
+    server._wake_ui_stream = (  # pylint: disable=protected-access
+        functools.partial(
+            asyncio.get_running_loop().call_soon_threadsafe, ui_frame_ready.set
+        )
+    )
 
-    # The browser controlling the UI (single slot) and all browsers receiving
-    # the state broadcast (controller + spectators), keyed by session id.
-    active_ui_ws = None
+    # The browser controlling the UI (single slot), any /ui handshake currently
+    # in flight, and all browsers receiving the state broadcast (controller +
+    # spectators), keyed by session id.
+    active_ui_ws: ServerConnection | None = None
+    claiming_ui_ws: ServerConnection | None = None
     controller_sid: str | None = None
     state_clients: dict[str, ServerConnection] = {}
 
@@ -493,10 +610,19 @@ def _run_server(
     last_controller_input = [0.0]
     loop_time = asyncio.get_event_loop().time
 
+    # Whether a browser the UI cannot talk to was logged (see ui_handler).
+    ui_rejection_logged = False
+
     async def broadcast_roster() -> None:
       """Sends every browser the counts, its role and its queue position."""
       count = len(state_clients)
       for sid, client in list(state_clients.items()):
+        if controller_sid is None:
+          role = "none"
+        elif sid == controller_sid:
+          role = "controller"
+        else:
+          role = "spectator"
         try:
           pos = control_queue.index(sid) + 1
         except ValueError:
@@ -505,7 +631,7 @@ def _run_server(
           await client.send(
               _roster_line(
                   viewers=count,
-                  is_controller=sid == controller_sid,
+                  role=role,
                   queue_pos=pos,
                   queue_len=len(control_queue),
                   max_spectators=max_spectators,
@@ -517,7 +643,7 @@ def _run_server(
     async def grant_next() -> None:
       """Offers the free controller slot to the pending or next queued page."""
       nonlocal pending_grant_sid
-      if active_ui_ws is not None:
+      if active_ui_ws is not None or claiming_ui_ws is not None:
         return
 
       if pending_grant_sid is None:
@@ -547,7 +673,11 @@ def _run_server(
       async def expire(granted: str) -> None:
         nonlocal pending_grant_sid
         await asyncio.sleep(_GRANT_EXPIRY_SEC)
-        if pending_grant_sid == granted and active_ui_ws is None:
+        if (
+            pending_grant_sid == granted
+            and active_ui_ws is None
+            and claiming_ui_ws is None
+        ):
           pending_grant_sid = None
           await grant_next()
 
@@ -557,7 +687,7 @@ def _run_server(
 
     async def handle_session_message(sid: str, text: str) -> None:
       """A control or heartbeat message from one browser (/state text)."""
-      nonlocal pending_grant_sid, max_spectators
+      nonlocal claiming_ui_ws, pending_grant_sid, max_spectators
       last_heartbeat[sid] = loop_time()
       if text == _SessionMessage.REQUEST_CONTROL:
         if sid != controller_sid and sid not in control_queue:
@@ -580,6 +710,11 @@ def _run_server(
             await active_ui_ws.close(
                 _WS_CLOSE_CONTROLLER_TAKEN, "control taken"
             )
+          elif claiming_ui_ws is not None:
+            claiming = claiming_ui_ws
+            claiming_ui_ws = None
+            await claiming.close(_WS_CLOSE_CONTROLLER_TAKEN, "control taken")
+            await grant_next()
           else:
             await grant_next()
       elif text == _SessionMessage.HEARTBEAT:
@@ -611,6 +746,12 @@ def _run_server(
               pass
           excess -= 1
         await broadcast_roster()
+      elif text.startswith(_THEME_PREFIX):
+        if sid != controller_sid:
+          return  # Only the controller drives the remote UI.
+        theme = text[len(_THEME_PREFIX) :]
+        if theme in _THEMES:
+          server.set_theme(theme)
 
     async def enforce_activity() -> None:
       """Releases a silent controller when someone waits; kicks silent tabs."""
@@ -636,32 +777,19 @@ def _run_server(
             except (ConnectionClosed, ConnectionError):
               pass
 
-    async def handle_tcp_client(
-        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
-      nonlocal tcp_reader, tcp_writer
-      if tcp_writer is not None:
-        logger.debug("[UiBridge] Replacing previous NetImgui TCP connection")
-        tcp_writer.close()
-      tcp_reader = reader
-      tcp_writer = writer
-      # Disable Nagle's algorithm so small packets (CmdInput ~80 bytes) are
-      # sent immediately instead of being buffered for up to 200ms.
-      sock = writer.get_extra_info("socket")
-      if sock:
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-      tcp_connected.set()
-      logger.debug("[UiBridge] NetImgui TCP connection accepted")
-
-    # --- /ui: bridge the browser to the NetImgui client ----------------------
+    # --- /ui: stream the headless UI to the controlling browser -------------
 
     async def ui_handler(ws: ServerConnection) -> None:
-      nonlocal active_ui_ws, controller_sid, pending_grant_sid
-      nonlocal tcp_reader, tcp_writer
-      if active_ui_ws is not None:
+      nonlocal active_ui_ws, claiming_ui_ws, controller_sid, pending_grant_sid
+      nonlocal ui_rejection_logged
+      ui = server.ui
+      if ui is None:
+        await ws.close(_WS_CLOSE_CONTROLLER_TAKEN, "controller unavailable")
+        return
+      if active_ui_ws is not None or claiming_ui_ws is not None:
         # One controller at a time. The rejected browser spectates and may retry
-        # via its "Take control" button once the controller leaves.
-        logger.debug("[UiBridge] Controller slot taken; rejecting new browser")
+        # via its "Request control" button once the controller leaves.
+        logger.debug("[UiStream] Controller slot taken; rejecting new browser")
         await ws.close(_WS_CLOSE_CONTROLLER_TAKEN, "controller slot taken")
         return
       sid = _session_id(ws)
@@ -669,92 +797,96 @@ def _run_server(
         # The slot is reserved for a granted page (queue fairness).
         await ws.close(_WS_CLOSE_CONTROLLER_TAKEN, "controller slot reserved")
         return
-      if sid == pending_grant_sid:
-        pending_grant_sid = None
-      if sid in control_queue:
-        control_queue.remove(sid)
-      active_ui_ws = ws
-      controller_sid = sid
-      last_controller_input[0] = loop_time()
-      await broadcast_roster()
 
-      # Each browser needs a fresh NetImgui session (full handshake, textures
-      # and draw state). Drop any connection used by a previous bridge and
-      # wait for the client's automatic reconnect.
-      if tcp_writer is not None:
-        tcp_writer.close()
-        tcp_reader = None
-        tcp_writer = None
-        tcp_connected.clear()
-      logger.debug("[UiBridge] Waiting for NetImgui TCP connection...")
-
-      async def wait_for_tcp() -> None:
-        # Loop: the connection can be replaced (and the event cleared)
-        # between the event firing and this task waking up.
-        while tcp_writer is None:
-          await tcp_connected.wait()
-
-      # Wait for the client, but not forever and not blind to the browser: if
-      # the client never appears (bounded by _UI_TCP_WAIT_SEC) or the browser
-      # leaves first, release the controller slot instead of holding it
-      # against every future browser.
-      tcp_task = asyncio.create_task(wait_for_tcp())
-      close_task = asyncio.create_task(ws.wait_closed())
-      done, still_pending = await asyncio.wait(
-          [tcp_task, close_task],
-          timeout=_UI_TCP_WAIT_SEC,
-          return_when=asyncio.FIRST_COMPLETED,
-      )
-      for task in still_pending:
-        task.cancel()
-      if tcp_task not in done or tcp_task.cancelled():
-        logger.debug("[UiBridge] No NetImgui connection; releasing slot")
-        if active_ui_ws is ws:
-          active_ui_ws = None
-          controller_sid = None
-          await grant_next()
-          await broadcast_roster()
-        await ws.close(_WS_CLOSE_CONTROLLER_TAKEN, "controller unavailable")
-        return
-      if tcp_reader is None or tcp_writer is None:
-        logger.debug("[UiBridge] NetImgui reader/writer None; releasing slot")
-        if active_ui_ws is ws:
-          active_ui_ws = None
-          controller_sid = None
-          await grant_next()
-          await broadcast_roster()
-        await ws.close(_WS_CLOSE_CONTROLLER_TAKEN, "controller unavailable")
-        return
-      my_reader = cast(asyncio.StreamReader, tcp_reader)
-      my_writer = cast(asyncio.StreamWriter, tcp_writer)
-
+      claiming_ui_ws = ws
+      session_started = False
       try:
-        # Handshake: browser CmdVersion -> client; client CmdVersion -> browser.
-        browser_version = await ws.recv()
-        my_writer.write(browser_version)  # pyrefly: ignore[bad-argument-type]
-        await my_writer.drain()
-        server_version = await my_reader.readexactly(_NETIMGUI_CMD_VERSION_SIZE)
-        await ws.send(server_version)
-        logger.debug("[UiBridge] Handshake complete. Bridging.")
+        # Handshake: the browser's Hello message, answered with the UI's. A
+        # new session then re-sends everything the browser needs. Only promote
+        # this browser to controller once its handshake has been validated, so
+        # stalled or incompatible clients cannot flip the session roster.
+        try:
+          handshake = await asyncio.wait_for(
+              ws.recv(), timeout=_HANDSHAKE_TIMEOUT_SEC
+          )
+        except asyncio.TimeoutError:
+          await ws.close(CloseCode.POLICY_VIOLATION, "handshake timeout")
+          return
+        if not isinstance(handshake, bytes):
+          await ws.close(CloseCode.POLICY_VIOLATION, "expected a handshake")
+          return
+        if claiming_ui_ws is not ws:
+          return
+        try:
+          reply = ui.start_session(handshake)
+        except ValueError as e:
+          # Such a page (e.g. one still running an older client) retries every
+          # second: say why once.
+          if not ui_rejection_logged:
+            ui_rejection_logged = True
+            logger.warning("[UiStream] Rejected a browser: %s", e)
+          await ws.close(CloseCode.POLICY_VIOLATION, _close_reason(str(e)))
+          return
+        session_started = True
+        await ws.send(reply)
+        if claiming_ui_ws is not ws:
+          return
 
-        async def ws_to_tcp() -> None:
+        claiming_ui_ws = None
+        if sid == pending_grant_sid:
+          pending_grant_sid = None
+        if sid in control_queue:
+          control_queue.remove(sid)
+        active_ui_ws = ws
+        controller_sid = sid
+        last_controller_input[0] = loop_time()
+        await broadcast_roster()
+        logger.debug("[UiStream] Session started.")
+
+        # See _UI_ACK_PREFIX: one frame in flight at a time. The UI keeps
+        # capturing frames meanwhile; only the newest is sent once the browser
+        # has the last one, so a slow link shows a fresh UI, not a backlog.
+        frame_acked = asyncio.Event()
+        frame_acked.set()
+        frame_sent_at = 0.0  # Loop time at which the last frame went out.
+        frame_sent_ack = ""  # The browser's ack of that frame.
+
+        async def send_frames() -> None:
+          nonlocal frame_sent_at, frame_sent_ack
+          while True:
+            await ui_frame_ready.wait()
+            try:
+              await asyncio.wait_for(
+                  frame_acked.wait(), timeout=_ACK_TIMEOUT_SEC
+              )
+            except asyncio.TimeoutError:
+              # A page that still draws sends input every frame, so its ack was
+              # lost: send anyway rather than stall. A hidden tab draws nothing
+              # (no input, no ack) and would only pile frames up unread: keep
+              # waiting until it draws again.
+              if last_controller_input[0] <= frame_sent_at:
+                continue
+            ui_frame_ready.clear()
+            messages = ui.take_messages()
+            if messages:  # Ends with a frame (textures, if any, go first).
+              frame_acked.clear()
+              frame_sent_at = loop_time()
+              frame_sent_ack = f"{_UI_ACK_PREFIX}{ui.last_frame_index()}"
+            for message in messages:
+              await ws.send(message)
+
+        async def receive_input() -> None:
           async for message in ws:
             if isinstance(message, bytes):
               last_controller_input[0] = loop_time()
-              my_writer.write(message)
-              await my_writer.drain()
-
-        async def tcp_to_ws() -> None:
-          while True:
-            data = await my_reader.read(65536)
-            if not data:
-              break
-            await ws.send(data)
+              ui.push_input(message)
+            elif message == frame_sent_ack:  # Not a late ack of an older one.
+              frame_acked.set()
 
         done, pending = await asyncio.wait(
             [
-                asyncio.create_task(ws_to_tcp()),
-                asyncio.create_task(tcp_to_ws()),
+                asyncio.create_task(send_frames()),
+                asyncio.create_task(receive_input()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -762,27 +894,32 @@ def _run_server(
           task.cancel()
         for task in done:
           task.exception()  # Retrieve to avoid "exception never retrieved".
-      except (ConnectionClosed, ConnectionError, asyncio.IncompleteReadError):
+      except (ConnectionClosed, ConnectionError):
         pass
       finally:
-        logger.debug("[UiBridge] Bridge closed.")
-        # Tear down this bridge's TCP connection so the NetImgui client
-        # reconnects and re-sends everything to the next browser.
-        if my_writer is not None:
-          my_writer.close()
-        if tcp_writer is my_writer:
-          tcp_reader = None
-          tcp_writer = None
-          tcp_connected.clear()
+        logger.debug("[UiStream] Session ended.")
+        was_claiming = claiming_ui_ws is ws
+        if was_claiming:
+          claiming_ui_ws = None
+        if session_started:
+          ui.end_session()
         if active_ui_ws is ws:
           active_ui_ws = None
           controller_sid = None
           await grant_next()
           await broadcast_roster()
+        elif (
+            was_claiming
+            and active_ui_ws is None
+            and pending_grant_sid is None
+            and control_queue
+        ):
+          await grant_next()
 
     # --- /state: latest-wins payload broadcast --------------------------------
 
     async def state_handler(ws: ServerConnection) -> None:
+      nonlocal pending_grant_sid
       sid = _session_id(ws)
       # A page reconnecting after a network blip keeps its sid; its stale entry
       # (dead socket, not yet cleaned up) must not count against the limit,
@@ -793,6 +930,7 @@ def _run_server(
         await ws.close(_WS_CLOSE_SESSION_FULL, "session full")
         return
       state_clients[sid] = ws
+      server._viewer_count = len(state_clients)  # pylint: disable=protected-access
       last_heartbeat[sid] = loop_time()
       logger.info("[StateWS] Browser connected (%d total)", len(state_clients))
       await broadcast_roster()
@@ -812,12 +950,12 @@ def _run_server(
           return None
         return gen, data
 
-      # See _STATE_ACK_MESSAGE: one payload in flight at a time, so the latest
-      # wins read below always ships the freshest state a slow link can carry
-      # (the camera rides this stream, so socket buffering shows up directly as
-      # input latency).
+      # See _STATE_ACK_MESSAGE: at most _STATE_MAX_IN_FLIGHT payloads in flight
+      # at a time, so the latest-wins read below ships the freshest state a slow
+      # link can carry without stalling 60Hz ticks over ~20-50ms proxy RTTs.
       payload_acked = asyncio.Event()
       payload_acked.set()
+      in_flight = 0
       # Set initially so a browser that connects between payloads gets the
       # current one right away.
       state_ready = asyncio.Event()
@@ -825,34 +963,61 @@ def _run_server(
       state_waiters.add(state_ready)
 
       async def send_payloads() -> None:
+        nonlocal in_flight
         last_gen = 0
+        # The bundles this browser may prefetch: sent on join and again
+        # whenever its list changes (add_model wakes the stream like a payload
+        # does), so a late joiner and a long-running page see the same list.
+        # The page starts with an empty queue, so a bare line is only sent to
+        # clear a list it was sent earlier.
+        last_models_gen = -1
+        last_prefetch_line = _PREFETCH_PREFIX
         while True:
           await state_ready.wait()
           try:
             await asyncio.wait_for(
-                payload_acked.wait(), timeout=_STATE_ACK_TIMEOUT_SEC
+                payload_acked.wait(), timeout=_ACK_TIMEOUT_SEC
             )
           except asyncio.TimeoutError:
-            pass  # Lost ack; send anyway rather than stalling forever.
+            in_flight = 0
+            payload_acked.set()  # Lost ack; send anyway rather than stalling forever.
           # Cleared before the read: an update racing with it sets the event
           # again and is picked up on the next pass instead of being lost.
           state_ready.clear()
+          models_gen = server.models_generation
+          if models_gen != last_models_gen:
+            last_models_gen = models_gen
+            prefetch_line = server.prefetch_line()
+            if prefetch_line != last_prefetch_line:
+              last_prefetch_line = prefetch_line
+              await ws.send(prefetch_line)
           result = read_state()
           if result is None or result[0] == last_gen:
             continue
           last_gen, data = result
-          payload_acked.clear()
+          in_flight += 1
+          if in_flight >= _STATE_MAX_IN_FLIGHT:
+            payload_acked.clear()
           await ws.send(data)
 
       async def recv_messages() -> None:
+        nonlocal in_flight
         async for message in ws:
+          if isinstance(message, bytes):
+            # The controller's locally moved camera, a ClientCameraMessage
+            # (state_payload.h) for the viewer thread to adopt.
+            if sid == controller_sid:
+              server.set_client_camera(message)
+            continue
           if isinstance(message, str):
             if message == _STATE_ACK_MESSAGE:
               # Deliberately does NOT count as liveness: acks keep flowing from
               # hidden tabs (WebSocket events are not requestAnimationFrame
               # gated), and the inactivity policy must still see those tabs as
               # silent.
-              payload_acked.set()
+              in_flight = max(0, in_flight - 1)
+              if in_flight < _STATE_MAX_IN_FLIGHT:
+                payload_acked.set()
               continue
             await handle_session_message(sid, message)
 
@@ -877,9 +1042,17 @@ def _run_server(
         # owns the queue and heartbeat entries.
         if state_clients.get(sid) is ws:
           del state_clients[sid]
+          server._viewer_count = len(state_clients)  # pylint: disable=protected-access
           if sid in control_queue:
             control_queue.remove(sid)
           last_heartbeat.pop(sid, None)
+          if (
+              pending_grant_sid == sid
+              and active_ui_ws is None
+              and claiming_ui_ws is None
+          ):
+            pending_grant_sid = None
+            await grant_next()
           logger.info(
               "[StateWS] Browser disconnected (%d total)", len(state_clients)
           )
@@ -918,35 +1091,8 @@ def _run_server(
           )
         return None  # Proceed with the WebSocket handshake.
 
-      # Chunked model endpoint: the client fetches /model in parallel chunks
-      #
-      #   GET /model?total_bytes                 -> {"total_bytes": <n>}
-      #   GET /model?offset_bytes=X&size_bytes=Y -> bytes [X, X+Y)
-      #
-      # Full model endpoint: the client fetches /model in a single request
-      #
-      #   GET /model  -> full model bytes
-      mjb_data = server.mjb_data  # Snapshot to prevent race with update_model()
-      if path == "/model" and mjb_data and query_string:
-        params = urllib.parse.parse_qs(query_string)
-        if "total_bytes" in params or query_string == "total_bytes":
-          body = json.dumps({"total_bytes": len(mjb_data)}).encode()
-          headers = _http_headers(
-              "application/json", len(body), cacheable=False
-          )
-          return Response(200, "OK", headers, body)
-        try:
-          offset = int(params.get("offset_bytes", [0])[0])
-          size = int(params.get("size_bytes", [0])[0])
-        except (ValueError, TypeError):
-          return Response(400, "Bad Request", Headers(), b"bad params\n")
-        if size <= 0 or offset < 0 or offset >= len(mjb_data):
-          return Response(400, "Bad Request", Headers(), b"bad range\n")
-        chunk = mjb_data[offset : min(offset + size, len(mjb_data))]
-        headers = _http_headers(
-            "application/octet-stream", len(chunk), cacheable=False
-        )
-        return Response(200, "OK", headers, chunk)
+      if path == "/model":
+        return _serve_model(query_string)
 
       return _serve_http(path)
 
@@ -1058,22 +1204,21 @@ def _run_server(
     async def watch_stop() -> None:
       loop = asyncio.get_running_loop()
       stopped = asyncio.Event()
-
-      def poll() -> None:
-        stop_event.wait()
-        try:
-          loop.call_soon_threadsafe(stopped.set)
-        except RuntimeError:
-          pass  # Loop already closed.
-
-      threading.Thread(target=poll, daemon=True).start()
-      await stopped.wait()
+      with server._state_lock:  # pylint: disable=protected-access
+        server._wake_stop = (  # pylint: disable=protected-access
+            functools.partial(loop.call_soon_threadsafe, stopped.set)
+        )
+        if stop_event.is_set():
+          stopped.set()
+      try:
+        await stopped.wait()
+      finally:
+        with server._state_lock:  # pylint: disable=protected-access
+          server._wake_stop = None  # pylint: disable=protected-access
       logger.debug("[Http] Stop event received; shutting down.")
 
-    tcp_server = await asyncio.start_server(handle_tcp_client, sock=tcp_sock)
-
-    # NetImgui does its own delta compression and the state payload is small;
-    # permessage-deflate would only add latency at 60Hz.
+    # The UI codec does its own delta compression and the state payload is
+    # small; permessage-deflate would only add latency at 60Hz.
     ws_server = await serve(
         ws_handler,
         sock=http_sock,
@@ -1088,21 +1233,20 @@ def _run_server(
         max_size=2**26,
     )
     http_host, http_port = http_sock.getsockname()[:2]
-    tcp_port = tcp_sock.getsockname()[1]
     logger.debug(
-        "[Http] Serving on http://%s:%d "
-        "(/, /model, /ui, /state; NetImgui TCP on 127.0.0.1:%d)",
+        "[Http] Serving on http://%s:%d (/, /model, /ui, /state, /drop)",
         http_host,
         http_port,
-        tcp_port,
     )
 
     enforcer = asyncio.create_task(enforce_activity())
     try:
       await watch_stop()
     finally:
+      server._viewer_count = 0  # pylint: disable=protected-access
       server._wake_state_streams = None
       enforcer.cancel()
+      server._wake_ui_stream = None  # pylint: disable=protected-access
       if server.stop_reason:
         # Tell the browsers why the viewer stopped, so the page can show it;
         # ws_server.close() below only says "going away". Bounded: a browser
@@ -1123,7 +1267,6 @@ def _run_server(
           pass
       # Close listeners explicitly to prevent hanging on open client sockets.
       ws_server.close()
-      tcp_server.close()
 
   _run_cancellable(main_loop)
 
@@ -1131,13 +1274,15 @@ def _run_server(
 class WebServer:
   """The Web Viewer's single-port server.
 
-  Serves the browser page, WASM, and model over HTTP; bridges the NetImgui UI
-  stream at /ui; and broadcasts the state payload at /state on a single public
-  port from a background daemon thread.  State payloads are handed over through
-  a lock-protected reference with latest-wins semantics: update_state() may be
+  Serves the browser page, WASM, and model over HTTP; streams the headless UI at
+  /ui; and broadcasts the state payload at /state on a single public port from a
+  background daemon thread.  State payloads are handed over through a
+  lock-protected reference with latest-wins semantics: update_state() may be
   called at any rate from the viewer thread; browsers only ever see the newest
   payload.  The server thread is started once and persists.  When the model
   changes, update_model() swaps the bytes served at /model, without any restart.
+  Models that may be shown soon can be announced with add_model(): browsers
+  download them in the background and switch to them without a download.
 
   Run the simulation with the web viewer, then visit the printed URL.
   """
@@ -1145,26 +1290,25 @@ class WebServer:
   def __init__(
       self,
       http_sock: socket.socket,
-      tcp_sock: socket.socket,
+      ui: UiSession | None = None,
       static_files_dir: str | None = None,
       mjb_data: bytes | None = None,
       drop_queue: queue.Queue[Any] | None = None,
   ) -> None:
-    """Initializes the server around pre-bound listening sockets.
+    """Initializes the server around a pre-bound listening socket.
 
-    The sockets are bound by the viewer (see bind_public_socket /
-    bind_loopback_socket) and shared with the server thread, so bind failures
-    can't occur here.
+    The socket is bound by the viewer (see bind_public_socket) and shared with
+    the server thread, so bind failures can't occur here.
 
     Args:
       http_sock: The listening socket for HTTP and WebSocket traffic.
-      tcp_sock: The listening socket for NetImgui traffic.
+      ui: The headless UI to stream at /ui. Without it, /ui rejects browsers.
       static_files_dir: The directory containing the static files to serve.
       mjb_data: The model data to serve from /model.
       drop_queue: The queue to put dropped files onto.
     """
     self.http_sock = http_sock
-    self.tcp_sock = tcp_sock
+    self.ui = ui
     self.static_files_dir = static_files_dir or _find_static_files_dir()
     self.mjb_data = mjb_data
 
@@ -1176,7 +1320,32 @@ class WebServer:
     self._state_lock = threading.Lock()
     self._state_payload: bytes | None = None
     self._state_generation: int = 0
+    self._viewer_count: int = 0
     self._wake_state_streams: Callable[[], Any] | None = None
+    self._client_camera: bytes | None = None
+    self._pending_theme: str | None = None
+
+    # Model bundles by crc32 (see _serve_model), least recently used first,
+    # including the current model. add_model() announces bundles browsers may
+    # prefetch; the announced ones that have not become current since are kept
+    # in announcement order (latest last). The generation bumps whenever the
+    # prefetch line changes so the /state streams know to resend it.
+    self.model_cache_bytes = _MODEL_CACHE_BYTES_DEFAULT
+    self._models_lock = threading.Lock()
+    self._models: collections.OrderedDict[int, bytes] = (
+        collections.OrderedDict()
+    )
+    self._announced: collections.OrderedDict[int, None] = (
+        collections.OrderedDict()
+    )
+    self._models_generation: int = 0
+    self._current_crc32: int = 0
+    if mjb_data:
+      self.update_model(mjb_data)
+
+    # Wakes the /ui stream's sender; set while the server's event loop runs.
+    self._wake_ui_stream: Callable[[], Any] | None = None
+    self._wake_stop: Callable[[], Any] | None = None
 
     self._stop_event = threading.Event()
     self._thread: threading.Thread | None = None
@@ -1189,6 +1358,10 @@ class WebServer:
     with self._state_lock:
       self._state_payload = payload
       self._state_generation += 1
+    self._wake()
+
+  def _wake(self) -> None:
+    """Wakes the /state streams; a no-op while the server thread is down."""
     # Hop to the server thread's event loop to wake the /state streams; unset
     # while the server thread is not running.
     wake = self._wake_state_streams
@@ -1198,9 +1371,155 @@ class WebServer:
       except RuntimeError:
         pass  # The server's event loop has just closed.
 
-  def update_model(self, mjb_data: bytes) -> None:
-    """Swaps the model bytes served at /model. No server restart needed."""
+  def notify_ui_frame(self) -> None:
+    """Tells the /ui stream that the UI has a new frame for the browser.
+
+    Called from the viewer thread after each HeadlessUi.end_frame(), so the
+    frame goes out as soon as the browser can take it.
+    """
+    wake = self._wake_ui_stream
+    if wake is None:
+      return
+    try:
+      wake()
+    except RuntimeError:
+      pass  # The server's event loop has just closed.
+
+  def update_model(self, mjb_data: bytes, crc32: int | None = None) -> None:
+    """Makes ``mjb_data`` the current model, served at /model.
+
+    The bundle also joins the cache under its crc32, so late-joining browsers
+    can prefetch it and nothing evicts it while it is current.
+
+    Args:
+      mjb_data: The model bundle to serve.
+      crc32: The bundle's crc32 (which must match the one stamped into state
+        payloads), or None to compute it here.
+    """
     self.mjb_data = mjb_data
+    self._add_model(mjb_data, crc32, current=True)
+
+  def add_model(self, mjb_data: bytes, crc32: int | None = None) -> int:
+    """Caches a bundle at /model?crc32=... and tells browsers to prefetch it.
+
+    Browsers download announced bundles in announcement order; announcing a
+    bundle again moves it to the end. The least recently used bundles (other
+    than the current model) are dropped once the cache exceeds
+    model_cache_bytes, where adding, switching to, and serving a bundle all
+    count as uses.
+
+    Args:
+      mjb_data: The model bundle.
+      crc32: The bundle's crc32, or None to compute it here.
+
+    Returns:
+      The bundle's crc32.
+    """
+    return self._add_model(mjb_data, crc32, current=False)
+
+  def _add_model(
+      self, mjb_data: bytes, crc32: int | None, current: bool
+  ) -> int:
+    """Caches a bundle, making it the current model if ``current``."""
+    if crc32 is None:
+      crc32 = zlib.crc32(mjb_data)
+    with self._models_lock:
+      before = self._prefetch_items()
+      if crc32 in self._models:
+        self._models.move_to_end(crc32)  # Most recently used.
+      else:
+        self._models[crc32] = mjb_data
+      if current:
+        self._current_crc32 = crc32
+        self._announced.pop(crc32, None)  # On screen: no longer upcoming.
+      else:
+        self._announced[crc32] = None
+        self._announced.move_to_end(crc32)  # Latest announcement last.
+      total = sum(len(data) for data in self._models.values())
+      for old_crc32 in list(self._models):
+        if total <= self.model_cache_bytes:
+          break
+        if old_crc32 not in (crc32, self._current_crc32):
+          total -= len(self._models.pop(old_crc32))
+          self._announced.pop(old_crc32, None)
+      changed = self._prefetch_items() != before
+      if changed:
+        self._models_generation += 1
+    if changed:
+      self._wake()
+    return crc32
+
+  def _prefetch_items(self) -> list[tuple[int, int]]:
+    """Returns (crc32, size) of the bundles browsers may prefetch, in order.
+
+    Upcoming models (announced and not shown since) come first, in
+    announcement order, followed by previously shown models, most recently
+    used first. The current model is left out: every browser already has it,
+    or is about to fetch it because its state payloads name it. Call with
+    _models_lock held.
+    """
+    current = self._current_crc32
+    upcoming = [c for c in self._announced if c != current]
+    shown = [
+        c
+        for c in reversed(self._models)
+        if c != current and c not in self._announced
+    ]
+    return [(c, len(self._models[c])) for c in upcoming + shown]
+
+  def cached_model(self, crc32: int) -> bytes | None:
+    """Returns the cached bundle with this crc32, or None.
+
+    Serving a bundle counts as a use for eviction (see add_model).
+    """
+    with self._models_lock:
+      data = self._models.get(crc32)
+      if data is not None:
+        self._models.move_to_end(crc32)
+      return data
+
+  @property
+  def viewer_count(self) -> int:
+    """Number of browsers currently connected to the /state stream."""
+    return self._viewer_count
+
+  @property
+  def models_generation(self) -> int:
+    """Counts changes to the prefetch line; see prefetch_line()."""
+    return self._models_generation
+
+  def prefetch_line(self) -> str:
+    """Returns the prefetch line for browsers; see _PREFETCH_PREFIX.
+
+    Lists the bundles in the order to download them (see _prefetch_items); a
+    bare "prefetch=" while nothing but the current model is cached.
+    """
+    with self._models_lock:
+      items = self._prefetch_items()
+    return _PREFETCH_PREFIX + ",".join(f"{c}:{n}" for c, n in items)
+
+  def set_theme(self, theme: str) -> None:
+    """Records a UI theme picked by the controller browser."""
+    with self._state_lock:
+      self._pending_theme = theme
+
+  def pop_theme(self) -> str | None:
+    """Returns and clears any UI theme picked by the controller browser."""
+    with self._state_lock:
+      theme = self._pending_theme
+      self._pending_theme = None
+      return theme
+
+  def set_client_camera(self, camera: bytes) -> None:
+    """Records the latest camera sent by the controlling browser."""
+    with self._state_lock:
+      self._client_camera = camera
+
+  def take_client_camera(self) -> bytes | None:
+    """Returns the camera the controller last sent, once; else None."""
+    with self._state_lock:
+      camera, self._client_camera = self._client_camera, None
+    return camera
 
   def start(self) -> None:
     """Starts the server on a background daemon thread."""
@@ -1227,7 +1546,14 @@ class WebServer:
         which show it on the page.
     """
     self.stop_reason = reason
-    self._stop_event.set()
+    with self._state_lock:
+      self._stop_event.set()
+      wake = self._wake_stop
+    if wake is not None:
+      try:
+        wake()
+      except RuntimeError:
+        pass
     if self._thread is not None:
       self._thread.join(timeout=5.0)
       self._thread = None

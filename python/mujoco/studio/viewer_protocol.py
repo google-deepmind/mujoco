@@ -26,6 +26,7 @@ from mujoco.studio import hot_reload
 from mujoco.studio import messages
 from mujoco.studio import plugin_registry
 from mujoco.studio import ux
+from mujoco.studio.web import client_camera
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,13 @@ class ViewerInitEvent(messages.Event):
   """
 
   viewer: 'Viewer'
+
+
+@dataclasses.dataclass(frozen=True)
+class ThemeEvent(messages.Event):
+  """Dispatched on the viewer when the host changes the UI theme."""
+
+  theme: ux.GuiTheme
 
 
 # -----------------------------------------------------------------------------
@@ -132,7 +140,11 @@ class Viewer(abc.ABC):
 
     # Visual state.
     self.camera = camera or mujoco.MjvCamera()
-    self.cam_speed = 0.001
+    self.cam_speed = ux.MIN_FLY_SPEED
+    self.client_camera: client_camera.ClientCameraSync | None = None
+    # The app's camera mode (a ux camera index, e.g. ux.FREE_CAMERA_IDX), for
+    # viewers whose client moves the camera.
+    self.camera_index = ux.TUMBLE_CAMERA_IDX
     self.perturb = perturb or mujoco.MjvPerturb()
     self.vis_options = vis_options or mujoco.MjvOption()
     self.extra_geoms = extra_geoms or []
@@ -253,6 +265,9 @@ class Viewer(abc.ABC):
     """Renders the scene using the viewer's current model and data."""
     ...
 
+  def sync_idle(self) -> None:
+    """Updates viewer state when prepare_next_frame() returned False."""
+
   @abc.abstractmethod
   def get_drop_file(self) -> str:
     ...
@@ -306,8 +321,8 @@ def run_viewer_loop(viewer: Viewer) -> None:
       for snapshot in viewer.get_sim_snapshots():
         viewer.dispatch(snapshot)
 
-      # Skip rendering when prepare_next_frame returned no active frame.
-      # e.g., no browser is connected to the web viewer.
+      # Skip UI and scene rendering when prepare_next_frame returned no active
+      # frame (e.g., no controller browser is connected to the web viewer).
       if frame:
         # Dispatch lifecycle events.
         viewer.dispatch(messages.UpdateEvent())
@@ -315,6 +330,8 @@ def run_viewer_loop(viewer: Viewer) -> None:
 
         # Render the scene.
         viewer.sync()
+      else:
+        viewer.sync_idle()
   except Exception as ex:
     viewer.exit_reason = messages.describe_exception(ex)
     logger.exception(

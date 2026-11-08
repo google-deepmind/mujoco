@@ -160,9 +160,9 @@ void ModelLights::Prepare() {
     } else {
       mjrfLightParams params;
       mjrf_defaultLightParams(&params);
-      params.color[0] = model->light_diffuse[0];
-      params.color[1] = model->light_diffuse[1];
-      params.color[2] = model->light_diffuse[2];
+      params.color[0] = model->light_diffuse[(3 * i) + 0];
+      params.color[1] = model->light_diffuse[(3 * i) + 1];
+      params.color[2] = model->light_diffuse[(3 * i) + 2];
       params.type = (mjtLightType)model->light_type[i];
       params.cast_shadow = model->light_castshadow[i];
       params.bulb_radius = model->light_bulbradius[i];

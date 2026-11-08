@@ -796,6 +796,48 @@ TEST_F(CoreSmoothTest, RnePostJointForcesAreInternal) {
   }
 }
 
+// mj_rnePostConstraint advances past the actual rows instantiated by
+// mjEQ_FLEXSTRAIN so subsequent equality constraint forces remain aligned.
+TEST_F(CoreSmoothTest, RnePostConstraintFlexstrainRowAdvance) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="f" type="box" count="4 4 4" cellcount="2 1 1"
+                spacing=".02 .02 .02" dim="3" dof="trilinear" radius=".001">
+        <contact selfcollide="none"/>
+      </flexcomp>
+      <body name="b1" pos="0 0 1">
+        <joint name="j1" type="slide" axis="0 0 1"/>
+        <geom size="0.05" mass="1.5"/>
+      </body>
+    </worldbody>
+    <equality>
+      <flexstrain flex="f" cell="0 0 0"/>
+      <connect body1="b1" anchor="0 0 1"/>
+    </equality>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  mj_forward(model.get(), data.get());
+  mj_rnePostConstraint(model.get(), data.get());
+
+  int b1 = mj_name2id(model.get(), mjOBJ_BODY, "b1");
+  int j1 = mj_name2id(model.get(), mjOBJ_JOINT, "j1");
+  ASSERT_GT(b1, 0);
+  ASSERT_GE(j1, 0);
+  int dof = model->jnt_dofadr[j1];
+
+  // b1 is suspended by the connect equality constraint after flexstrain rows;
+  // cfrc_ext vertical force on b1 must match the joint constraint force.
+  EXPECT_GT(data->qfrc_constraint[dof], 10.0);
+  EXPECT_NEAR(data->cfrc_ext[6 * b1 + 5], data->qfrc_constraint[dof],
+              MjTol(1e-10, 1e-4));
+}
+
 // --------------------------- site actuators ----------------------------------
 
 // Test Cartesian position control using site transmission with refsite
@@ -2043,6 +2085,265 @@ TEST_F(CoreSmoothTest, FactorI) {
   mj_deleteModel(model);
 }
 
+TEST_F(CoreSmoothTest, SubtreeVelSleepingChildAngularMomentum) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="asleep_body" pos="1 0 0" sleep="init">
+        <joint name="j1" type="slide" axis="0 1 0"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+      <body name="awake_body" pos="-1 0 0">
+        <joint name="j2" type="slide" axis="0 1 0"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <subtreeangmom body="world"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+
+  MjDataPtr d_sleep = MakeData(model);
+  // Seed stale values in sleeping body subtree buffers to verify they are
+  // cleared before accumulating parent Steiner angular momentum.
+  d_sleep->subtree_linvel[3 * 1 + 1] = 99.0;
+  d_sleep->subtree_angmom[3 * 1 + 2] = 99.0;
+  d_sleep->qvel[1] = 2.0;
+  mj_forward(model.get(), d_sleep.get());
+
+  MjModelPtr model_nosleep = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model_nosleep.get(), NotNull()) << error;
+  model_nosleep->opt.enableflags &= ~mjENBL_SLEEP;
+  MjDataPtr d_nosleep = MakeData(model_nosleep);
+  d_nosleep->qvel[1] = 2.0;
+  mj_forward(model_nosleep.get(), d_nosleep.get());
+
+  EXPECT_EQ(d_sleep->subtree_linvel[3 * 1 + 1], 0.0);
+  EXPECT_EQ(d_sleep->subtree_angmom[3 * 1 + 2], 0.0);
+  EXPECT_NEAR(d_sleep->subtree_angmom[2], d_nosleep->subtree_angmom[2],
+              MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(d_sleep->sensordata[2], d_nosleep->sensordata[2],
+              MjTol(1e-12, 1e-6));
+}
+
+TEST_F(CoreSmoothTest, TendonArmatureAndBiasSkipSleepingDof) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="b0" sleep="init">
+        <joint name="j0" type="hinge" axis="0 0 1"/>
+        <geom size=".1" mass="1"/>
+        <site name="s0" pos="0.2 0.1 0"/>
+      </body>
+      <body name="b1" pos="1 0 0">
+        <joint name="j1" type="hinge" axis="0 0 1"/>
+        <geom size=".1" mass="1"/>
+        <site name="s1" pos="0.2 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="t01" armature="1.5">
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  ASSERT_EQ(data->tree_awake[0], 0);
+  ASSERT_EQ(data->tree_awake[1], 1);
+
+  data->qvel[1] = 2.0;
+  mj_forward(model.get(), data.get());
+  mjtNum m0_first = data->M[model->M_rowadr[0]];
+  mjtNum bias0_first = data->qfrc_bias[0];
+
+  // Repeated forward passes must not accumulate into unzeroed sleeping DOF 0.
+  mj_forward(model.get(), data.get());
+  EXPECT_MJTNUM_EQ(data->M[model->M_rowadr[0]], m0_first);
+  EXPECT_MJTNUM_EQ(data->qfrc_bias[0], bias0_first);
+}
+
+TEST_F(CoreSmoothTest, RnePopulatesCallerBufferWhenSleeping) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -9.81">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="mount" pos="0 0 1">
+        <geom size="0.05"/>
+        <body name="sleep_tree" pos="0 0 0" sleep="init">
+          <joint name="j_sleep" type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size="0.1" pos="0.5 0 0" mass="2"/>
+        </body>
+        <body name="awake_tree" pos="0 1 0">
+          <joint name="j_awake" type="hinge" axis="0 1 0"/>
+          <geom type="sphere" size="0.1" pos="0.5 0 0" mass="2"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  data->qvel[1] = 1.5;
+  mj_forward(model.get(), data.get());
+
+  MjModelPtr model_nosleep = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model_nosleep.get(), NotNull()) << error;
+  model_nosleep->opt.enableflags &= ~mjENBL_SLEEP;
+  MjDataPtr data_nosleep = MakeData(model_nosleep);
+  data_nosleep->qvel[1] = 1.5;
+  mj_forward(model_nosleep.get(), data_nosleep.get());
+  mju_copy(data_nosleep->qacc, data->qacc, model->nv);
+
+  for (int flg_acc : {0, 1}) {
+    std::vector<mjtNum> expected(model->nv, 0.0);
+    mj_rne(model_nosleep.get(), data_nosleep.get(), flg_acc, expected.data());
+
+    std::vector<mjtNum> actual(model->nv, -9999.0);
+    mj_rne(model.get(), data.get(), flg_acc, actual.data());
+    for (int i = 0; i < model->nv; i++) {
+      EXPECT_NEAR(actual[i], expected[i], MjTol(1e-12, 1e-5))
+          << "flg_acc=" << flg_acc << " dof=" << i;
+    }
+  }
+}
+
+TEST_F(CoreSmoothTest, TendonBiasTwoTreeArmatureInversePopulatesSleepingDof) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="b0" sleep="init">
+        <joint name="j0" type="hinge" axis="0 0 1"/>
+        <geom size=".1" mass="1"/>
+        <site name="s0" pos="0.2 0.1 0"/>
+      </body>
+      <body name="b1" pos="1 0 0">
+        <joint name="j1" type="hinge" axis="0 0 1"/>
+        <geom size=".1" mass="1"/>
+        <site name="s1" pos="0.2 0 0"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="t01" armature="1.5">
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  data->qvel[1] = 2.0;
+  mj_forward(model.get(), data.get());
+
+  MjModelPtr model_nosleep = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model_nosleep.get(), NotNull()) << error;
+  model_nosleep->opt.enableflags &= ~mjENBL_SLEEP;
+  MjDataPtr data_nosleep = MakeData(model_nosleep);
+  data_nosleep->qvel[1] = 2.0;
+  mj_forward(model_nosleep.get(), data_nosleep.get());
+  mju_copy(data_nosleep->qacc, data->qacc, model->nv);
+
+  mj_inverse(model.get(), data.get());
+  mj_inverse(model_nosleep.get(), data_nosleep.get());
+
+  EXPECT_NEAR(data->qfrc_inverse[0], data_nosleep->qfrc_inverse[0],
+              MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(data->qfrc_inverse[1], data_nosleep->qfrc_inverse[1],
+              MjTol(1e-12, 1e-5));
+
+  std::vector<mjtNum> qfrc_actual(model->nv, 0.0);
+  std::vector<mjtNum> qfrc_expected(model->nv, 0.0);
+  mj_tendonBias(model.get(), data.get(), qfrc_actual.data());
+  mj_tendonBias(model_nosleep.get(), data_nosleep.get(), qfrc_expected.data());
+  EXPECT_NEAR(qfrc_actual[0], qfrc_expected[0], MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(qfrc_actual[1], qfrc_expected[1], MjTol(1e-12, 1e-5));
+  EXPECT_NE(qfrc_actual[0], 0.0);
+}
+
+TEST_F(CoreSmoothTest, DynamicSleepRneCallerBufferMatchesZeroVelocity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -9.81">
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="b_sleep" pos="0 0 1">
+        <joint name="j_sleep" type="hinge" axis="0 0 1" damping="1"/>
+        <geom type="sphere" size="0.1" pos="0.5 0 0" mass="2"/>
+      </body>
+      <body name="b_awake" pos="0 1 1">
+        <joint name="j_awake" type="hinge" axis="0 0 1"/>
+        <geom type="sphere" size="0.1" pos="0.5 0 0" mass="2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  // Give b_sleep non-zero velocity below sleep tolerance so cvel is non-zero
+  // before transitioning to sleep.
+  data->qvel[0] = 0.5 * model->opt.sleep_tolerance;
+  data->qvel[1] = 1.0;
+
+  for (int step = 0; step < 20; step++) {
+    data->qvel[1] = 1.0;
+    mj_step(model.get(), data.get());
+  }
+  ASSERT_EQ(data->tree_awake[0], 0);
+  ASSERT_EQ(data->tree_awake[1], 1);
+
+  MjModelPtr model_nosleep = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model_nosleep.get(), NotNull()) << error;
+  model_nosleep->opt.enableflags &= ~mjENBL_SLEEP;
+  MjDataPtr data_nosleep = MakeData(model_nosleep);
+  mju_copy(data_nosleep->qpos, data->qpos, model->nq);
+  mju_copy(data_nosleep->qvel, data->qvel, model->nv);
+  mju_copy(data_nosleep->qacc, data->qacc, model->nv);
+  mj_forward(model_nosleep.get(), data_nosleep.get());
+
+  for (int flg_acc : {0, 1}) {
+    std::vector<mjtNum> expected(model->nv, 0.0);
+    mj_rne(model_nosleep.get(), data_nosleep.get(), flg_acc, expected.data());
+
+    std::vector<mjtNum> actual(model->nv, -9999.0);
+    mj_rne(model.get(), data.get(), flg_acc, actual.data());
+
+    for (int i = 0; i < model->nv; i++) {
+      EXPECT_NEAR(actual[i], expected[i], MjTol(1e-12, 1e-5))
+          << "flg_acc=" << flg_acc << " dof=" << i;
+    }
+  }
+}
+
 TEST_F(CoreSmoothTest, SolveLD) {
   const std::string xml_path = GetTestDataFilePath(kInertiaPath);
   char error[1024];
@@ -2186,5 +2487,118 @@ TEST_F(CoreSmoothTest, FactorMClampsSingularPivotAndWarns) {
   }
 }
 
+TEST_F(CoreSmoothTest, KinematicsQuatsMatchMats) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <geom name="w_geom" type="box" size=".1 .1 .1" pos="1 2 3"
+        euler="15 -25 35"/>
+      <site name="w_site" pos="-1 0.5 2" euler="10 20 30"/>
+      <body name="static_b" pos="0.5 -0.5 0" euler="30 10 -20">
+        <geom name="static_g" size=".1" euler="5 15 25"/>
+        <site name="static_s" pos="0.1 0 0" euler="-15 25 10"/>
+      </body>
+      <body name="b_none" pos="0 0 2" euler="12 -18 24">
+        <freejoint/>
+        <inertial pos="0.05 -0.03 0.02" euler="22 -14 31" mass="1.2"
+          diaginertia="0.02 0.03 0.04"/>
+        <geom name="g_none" type="box" size=".1 .2 .15" pos="0.1 -0.2 0.3"
+          euler="33 -19 41"/>
+        <geom name="g_body" type="sphere" size=".1"/>
+        <geom name="g_bodyrot" type="sphere" size=".1" pos="0.2 0.1 -0.1"/>
+        <geom name="g_inertia" type="box" size=".05 .05 .05"
+          pos="0.05 -0.03 0.02" euler="22 -14 31"/>
+        <geom name="g_inertiarot" type="box" size=".05 .05 .05"
+          pos="0.3 0.2 0.1" euler="22 -14 31"/>
+        <site name="s_none" pos="-0.1 0.2 -0.3" euler="-27 13 49"/>
+        <site name="s_body"/>
+        <site name="s_bodyrot" pos="0.15 -0.05 0.2"/>
+        <site name="s_inertia" pos="0.05 -0.03 0.02" euler="22 -14 31"/>
+        <site name="s_inertiarot" pos="-0.2 0.1 0.05" euler="22 -14 31"/>
+        <body name="b_child" pos="0.2 0.1 -0.3" euler="-11 27 -16">
+          <joint type="hinge" axis="1 1 0"/>
+          <geom name="g_child" type="capsule" size=".04 .1" euler="40 -20 10"/>
+          <site name="s_child" pos="0 0 -0.1" euler="18 36 -24"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+
+  data->qvel[0] = 0.4;
+  data->qvel[3] = 1.1;
+  data->qvel[5] = -0.8;
+  data->qvel[6] = 1.5;
+  for (int step = 0; step < 25; ++step) {
+    mj_step(model.get(), data.get());
+  }
+
+  mjtNum mat[9];
+  for (int i = 0; i < model->nbody; ++i) {
+    mju_quat2Mat(mat, data->xiquat + 4 * i);
+    for (int k = 0; k < 9; ++k) {
+      EXPECT_MJTNUM_EQ(mat[k], data->ximat[9 * i + k]) << "body " << i;
+    }
+  }
+  for (int g = 0; g < model->ngeom; ++g) {
+    mju_quat2Mat(mat, data->geom_xquat + 4 * g);
+    for (int k = 0; k < 9; ++k) {
+      EXPECT_MJTNUM_EQ(mat[k], data->geom_xmat[9 * g + k]) << "geom " << g;
+    }
+  }
+  for (int s = 0; s < model->nsite; ++s) {
+    mju_quat2Mat(mat, data->site_xquat + 4 * s);
+    for (int k = 0; k < 9; ++k) {
+      EXPECT_MJTNUM_EQ(mat[k], data->site_xmat[9 * s + k]) << "site " << s;
+    }
+  }
+}
+
+TEST_F(CoreSmoothTest, SliderCrankAfterOrientationActuatorUsesOwnCranklength) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="ref"/>
+      <site name="slider"/>
+      <body>
+        <freejoint/>
+        <geom size="0.1"/>
+        <site name="ee"/>
+      </body>
+      <body>
+        <joint name="j" type="slide" axis="0 0 1"/>
+        <geom size="0.1"/>
+        <site name="crank"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation name="orient" site="ee" refsite="ref" kp="1" dampratio="1"/>
+      <general name="sc" cranksite="crank" slidersite="slider" cranklength="0.5"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  int sc = mj_name2id(model.get(), mjOBJ_ACTUATOR, "sc");
+  ASSERT_EQ(sc, 1);
+  ASSERT_EQ(model->actuator_outadr[sc], 3);
+  EXPECT_MJTNUM_EQ(model->actuator_cranklength[sc], 0.5);
+
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // With crank and slider coincident (vec = 0, av = 0), slider-crank length is
+  // -rod = -0.5.
+  EXPECT_MJTNUM_EQ(data->actuator_length[model->actuator_outadr[sc]], -0.5);
+}
 }  // namespace
 }  // namespace mujoco

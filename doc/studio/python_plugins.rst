@@ -40,16 +40,16 @@ directly from the command line with :ref:`live hot reload <StudioHotReload>`:
 
 Applications can mix and match built-in and custom plugins to suit different workflows:
 
-- **Full ViewerApp UI with Custom Overlays**: Load the viewer application's default plugins—``viewer_app.ViewerApp()``
-  and ``*viewer_app.SIM_PLUGINS`` (`viewer.py
+- **Full Studio UI with Custom Overlays**: Load the viewer application's default plugins—``studio_app.App()``
+  and ``*studio_app.SIM_PLUGINS`` (`viewer.py
   <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/viewer.py>`__)—alongside custom viewer or
-  simulation plugins to add dockable charts, control panels, or 3D overlays while retaining all standard ``ViewerApp``
-  features.
-- **Minimal Viewport**: Omit ``viewer_app.ViewerApp`` and register only a custom ``plugin.ViewerPlugin`` to get an
+  simulation plugins to add dockable charts, control panels, or 3D overlays while retaining all standard
+  ``studio_app.App`` features.
+- **Minimal Viewport**: Omit ``studio_app.App`` and register only a custom ``plugin.ViewerPlugin`` to get an
   uncluttered 3D viewport with a custom control panel.
 - **Custom Stepping Backends**: Replace ``step_control.StepControl()`` with a custom ``plugin.SimPlugin`` to drive the
   viewer from GPU simulations such as :ref:`MuJoCo XLA <Mjx>` or :ref:`MuJoCo Warp <MJW>`, reinforcement learning
-  environments, or recorded trajectories while keeping ``viewer_app.ViewerApp()`` and ``sim_history.SimHistory()`` for
+  environments, or recorded trajectories while keeping ``studio_app.App()`` and ``sim_history.SimHistory()`` for
   inspection and timeline scrubbing.
 
 See `python/mujoco/sample/studio/
@@ -67,14 +67,15 @@ Viewer Plugins
 
 Viewer plugins own the user interface, keyboard and mouse interaction, camera control, and 3D scene overlays.
 
-ViewerApp
----------
+studio_app.App
+--------------
 
-The Studio plugin framework is independent of any particular user interface and gives ``viewer_app.ViewerApp``
-(`viewer_app.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/viewer_app.py>`__) no special
-privileges—it is an ordinary ``ViewerPlugin`` that you can omit or replace entirely with your own UI. ``ViewerApp``
-ports MuJoCo's classic :ref:`simulate <saSimulate>` application to Dear ImGui and is typically paired with
-``*viewer_app.SIM_PLUGINS`` on the simulation side. When included in ``plugins``, it adds the menu bar, model hierarchy
+The Studio plugin framework is independent of any particular user interface and gives ``studio_app.App``
+(`app/plugins.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/app/plugins.py>`__) no special
+privileges—it is an ordinary ``ViewerPlugin`` that you can omit or replace entirely with your own UI.
+``studio_app.App`` ports MuJoCo's classic :ref:`simulate <saSimulate>` application to Dear ImGui and is
+typically paired with ``*studio_app.SIM_PLUGINS`` on the simulation side. When included in ``plugins``, it adds the menu
+bar, model hierarchy
 and property inspector, visualization options panel, simulation profiler, timeline scrubber, status bar, and an
 integrated Studio Console that captures MuJoCo log messages, Python ``logging`` records, ``warnings.warn`` calls, and
 uncaught thread exceptions. Click the status bar counts to toggle the Console, or right-click inside it to clear, copy,
@@ -181,7 +182,7 @@ Started guide <https://github.com/ocornut/imgui/wiki/Getting-Started>`__, the up
 the header comments at the top of `imgui.cpp <https://github.com/ocornut/imgui/blob/master/imgui.cpp>`__:
 
 - **Window granularity & docking**: Implement each viewer plugin as one or two ``imgui.Begin(...)`` windows so panels
-  dock cleanly into ``viewer_app.ViewerApp``'s dockspaces alongside built-in tools.
+  dock cleanly into ``studio_app.App``'s dockspaces alongside built-in tools.
 - **Separate data preparation from layout** (``UpdateEvent`` **vs.** ``BuildGuiEvent``): Dear ImGui builds draw command
   lists rather than rasterizing pixels directly. Prepare plot buffers or upload GUI textures via
   ``self.viewer.upload_image(...)`` during ``UpdateEvent``, and keep ``BuildGuiEvent`` strictly focused on widget
@@ -226,26 +227,66 @@ plugin builds the widgets and sends custom ``*Snapshot`` or ``*Event`` messages 
 and the simulation plugin handles those messages to mutate state or recompile and publish a new model via
 ``self.handle.set_model(...)``.
 
-.. TODO(matijak): Add a split-plugin chain editing sample under sample/studio/ and link to it here once Python modeling
-   via SimPlugin is supported.
+.. _StudioPythonScenes:
+
+Python Scenes
+-------------
+
+A scene built in Python with :ref:`mjSpec` is a ``plugin.SimPlugin`` that handles ``LoadModelEvent``, calls
+``self.handle.set_model(spec)``, and returns ``True`` to consume the event before ``ViewerHandle``'s file loader runs;
+handling ``HotReloadEvent`` and calling ``self.handle.reload()`` rebuilds the scene in place whenever the plugin module
+or a helper module imported from the same directory is saved, preserving camera pose, pause state, and playback speed:
+
+.. code-block:: python
+
+   import mujoco
+   from mujoco.studio import messages
+   from mujoco.studio import plugin
+
+
+   class MyScene(plugin.SimPlugin):
+     height: int = 5
+
+     @messages.handler
+     def on_load_model(self, event: messages.LoadModelEvent) -> bool:
+       if event.path:
+         return False  # Let ViewerHandle load --model or dropped files.
+       spec = mujoco.MjSpec()
+       ...  # Populate spec from self.height.
+       self.handle.set_model(spec)
+       return True
+
+     @messages.handler
+     def on_hot_reload(self, event: messages.HotReloadEvent) -> None:
+       if self in event.plugins:
+         self.handle.reload()
+
+When a Python scene also reads base XML files—for example via ``mujoco.MjSpec.from_file('robot.xml')``—pass them via
+``self.handle.set_model(spec, watch=['robot.xml'])`` so saving those XMLs or their ``<include>`` and mesh assets
+triggers ``reload()`` as well. See `python_scene.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/python_scene.py>`__ for a complete
+parametric scene paired with a Dear ImGui control panel.
 
 Built-in Plugins
 ----------------
 
-``viewer_app.SIM_PLUGINS`` bundles Studio's two standard simulation plugins so they can be unpacked alongside
-``viewer_app.ViewerApp()`` via ``plugins=[viewer_app.ViewerApp(), *viewer_app.SIM_PLUGINS]``, or passed individually
-when replacing one:
+``studio_app.SIM_PLUGINS`` bundles Studio's two standard simulation plugins so they can be unpacked alongside
+``studio_app.App()`` via ``plugins=[studio_app.App(), *studio_app.SIM_PLUGINS]``, or passed
+individually when replacing one:
 
 - ``step_control.StepControl`` (`step_control.py
   <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/step_control.py>`__): Steps CPU physics
   (:ref:`mj_step`) with real-time wall-clock pacing during ``StepEvent``, applies control noise configured from the UI
   (``StepControlSnapshot``), and handles pause (``RequestPauseEvent``) and single-step (``SingleStepEvent``) requests.
+  It reports its settings to the viewer whenever they change, and the speed it achieves whenever it has moved by more
+  than a deadband amount.
 - ``sim_history.SimHistory`` (`sim_history.py
   <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/studio/sim_history.py>`__): Records a frame into an
   authoritative ring buffer after every physics step (``PostStepEvent``), broadcasts buffer metadata to the viewer via
-  ``SimHistorySnapshot``, and loads historical frames when the user scrubs the timeline in ``viewer_app.ViewerApp``.
-  ``viewer_app.ViewerApp`` and ``sim_history.SimHistory`` are decoupled: ``SimHistorySnapshot`` is the sole contract
-  between them.
+  ``SimHistorySnapshot``, and loads historical frames when the user scrubs the timeline in ``studio_app.App``.
+  ``studio_app.App`` and ``sim_history.SimHistory`` are decoupled: ``SimHistorySnapshot`` is the sole contract
+  between them. The buffer holds a bounded number of frames; ``SimHistory(min_seconds=10.0)`` records every Nth step
+  instead, with N chosen per model so the buffer spans at least that much simulated time.
 
 Stepping & Control
 ------------------
@@ -336,7 +377,11 @@ events to ``ViewerPlugin`` instances in chronological order:
    * - ``PostModelEvent(model, data, path)``
      - Dispatched locally once ``viewer.model`` and ``viewer.data`` are initialized. Subscribe here rather than
        ``ModelEvent`` to reset viewer-plugin state; reloading the same ``path`` preserves camera, pause, and playback
-       speed in ``ViewerApp``.
+       speed in ``studio_app.App``.
+   * - ``PreloadModelEvent(model)``
+     - A hint from a simulation plugin that ``model`` may become the current model soon, for example the next scene
+       of a playlist. Viewers may ignore it; the :ref:`web viewer <StudioWebViewers>` serializes the model and has
+       connected browsers download it in the background, so the later ``ModelEvent`` switches without a download.
    * - ``HotReloadEvent(plugins)``
      - Dispatched between frames when :ref:`hot reload <StudioHotReload>` swaps modified plugin classes.
    * - ``UpdateEvent()``
@@ -348,9 +393,9 @@ events to ``ViewerPlugin`` instances in chronological order:
      - Dispatched once when the viewer shuts down. Release resources here; never return ``True`` so teardown reaches
        every plugin.
 
-When ``viewer_app.ViewerApp`` is included in ``plugins``, it also dispatches
-``viewer_app.ViewerAppInitEvent(viewer_app)`` once during startup so companion viewer plugins can cache
-``event.viewer_app``.
+When ``studio_app.App`` is included in ``plugins``, it also dispatches
+``studio_app.InitEvent(app)`` once during startup so companion viewer plugins can cache
+``event.app``.
 
 Simulation Thread
 -----------------
@@ -369,8 +414,9 @@ events to ``SimPlugin`` instances in chronological order:
      - Dispatched once by ``ViewerHandle.__init__``. ``SimPlugin`` caches ``self.handle`` automatically above
        ``Priority.CRITICAL`` before subclass handlers run.
    * - ``LoadModelEvent(path)``
-     - Sent on startup, UI Reload, or file drag-and-drop. ``ViewerHandle`` loads the file and publishes it via
-       ``handle.set_model(model, path=path)``, keeping the previous model if loading fails.
+     - Dispatched on startup, UI Reload, model file hot-reload, or file drag-and-drop. A ``SimPlugin`` can build a
+       :ref:`Python scene <StudioPythonScenes>`, call ``handle.set_model(spec)``, and return ``True`` to consume the
+       event; otherwise ``ViewerHandle`` loads ``path`` when non-empty, keeping the previous model if loading fails.
    * - ``ModelEvent(model, path)``
      - Dispatched when ``handle.set_model(...)`` publishes a model or ``handle.sync(model, data)`` sees a new model
        object, followed immediately by ``PostModelEvent``.
@@ -455,7 +501,7 @@ Handlers for the same message type execute from **highest** numerical ``Priority
      - Intended Use
    * - ``Priority.CRITICAL``
      - ``1000``
-     - Handlers that must run before everything else, such as core viewer state updates and ``ViewerApp`` layout.
+     - Handlers that must run before everything else, such as core viewer state updates and ``studio_app.App`` layout.
    * - ``Priority.USER``
      - ``100``
      - Default priority for user plugins when ``@messages.handler`` is used without arguments.
@@ -500,12 +546,13 @@ Passing ``--hot_reload=all`` to ``viewer.py`` or setting ``ViewerConfig(hot_relo
 restarting the process:
 
 - **Scope**: Accepts ``'all'`` for plugin modules and the active model file, ``'plugins'``, ``'model'``, or
-  comma-separated plugin class names such as ``'VelocityCommandOverlay'`` or ``'model,ViewerApp'``.
+  comma-separated plugin class names such as ``'VelocityCommandOverlay'`` or ``'model,App'``.
 - **Live class swapping**: Saving a registered plugin's ``.py`` file or a helper module imported from the same
   directory reloads the module, swaps ``plugin.__class__`` in place—preserving existing instance attributes, camera
   pose, UI docking layout, and ``WebViewer`` browser connections—and dispatches ``HotReloadEvent(plugins=...)`` so
-  swapped plugins can initialize new buffers or invalidate cached MuJoCo IDs. Saving the watched XML/URDF model file or
-  its ``<include>`` assets automatically triggers a model reload.
+  swapped plugins can reconcile state or call ``self.handle.reload()``. Saving the active XML/URDF model file, files
+  passed to ``handle.set_model(..., watch=[...])``, or their ``<include>`` and mesh assets automatically triggers
+  ``handle.reload()``.
 - **Fixed boundary & error recovery**: Framework modules, ``__main__``, the C++ binary, and the set of registered plugin
   instances are fixed across reloads. Syntax, import, or model compilation errors leave the previous code and model
   running and retry on the next save; exceptions raised by a swapped plugin's handlers are logged once to the Studio

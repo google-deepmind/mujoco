@@ -66,8 +66,8 @@ running on a remote machine:
 
 .. code-block:: python
 
+   from mujoco.studio import app as studio_app
    from mujoco.studio import launch_web
-   from mujoco.studio import viewer_app
    from mujoco.studio import viewer_protocol
 
    config = viewer_protocol.ViewerConfig(title='MuJoCo Studio')
@@ -75,12 +75,19 @@ running on a remote machine:
    launch_web.run(
        config,
        model_path='humanoid.xml',
-       plugins=[viewer_app.ViewerApp(), *viewer_app.SIM_PLUGINS],
+       plugins=[studio_app.App(), *studio_app.SIM_PLUGINS],
    )
 
 Like :ref:`launch_native <StudioExecutionModes>`, non-blocking mode is supported via ``launch_web.launch`` when
 attaching ``WebViewer`` to an existing simulation loop; see `custom_sim_loop.py
 <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/custom_sim_loop.py>`__.
+
+``studio_app.App`` is itself optional: omitting it gives you a clean 3D viewport where your own :ref:`plugins
+<StudioPythonPlugins>` define the entire interface. For example, the interactive slideshow sample in
+`overview/slideshow.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/overview/slideshow.py>`__ runs a
+custom viewer without ``studio_app.App``, pairing the built-in playback and history plugins with a minimal caption
+card, timeline scrubbing, and background scene prefetching.
 
 Streaming Architecture
 ----------------------
@@ -98,19 +105,21 @@ Streaming Architecture
 Python :ref:`Message <StudioMessaging>` types (``Snapshot`` and ``Event``) only travel between the Python simulation and
 viewer endpoints—the host-to-browser wire protocol is fixed and independent of custom plugin message classes:
 
-- **UI Stream (** ``/ui`` **)**: The host executes all ``BuildGuiEvent`` handlers from ``ViewerApp`` and custom Python
-  ``ViewerPlugin`` windows in a headless Dear ImGui context and streams compact 2D vertex/index draw lists via
-  `NetImgui <https://github.com/sammyfreg/netImgui>`__. Because most UI panels and widgets remain static from frame to
-  frame, NetImgui applies per-window delta compression—comparing each window's vertex, index, and draw-command buffers
-  against the previous frame and transmitting only the elements that changed—keeping CPU overhead and bandwidth minimal
-  at a few kilobytes per second while rendering crisp vector UI at native browser resolution. Mouse clicks, drags,
-  scroll wheel events, and keystrokes captured in the browser flow back over ``/ui`` to the host.
+- **UI Stream (** ``/ui`` **)**: The host executes all ``BuildGuiEvent`` handlers from ``studio_app.App`` and custom Python
+  ``ViewerPlugin`` windows in a headless Dear ImGui context and streams compact 2D vertex/index draw lists via Studio's
+  UI wire codec. Because most UI panels and widgets remain static from frame to frame, the codec applies per-window
+  delta compression—comparing each window's vertex, index, and draw-command buffers against the previous frame and
+  transmitting only the elements that changed—keeping CPU overhead and bandwidth minimal at a few kilobytes per second
+  while rendering crisp vector UI at native browser resolution. Mouse clicks, drags, scroll wheel events, and
+  keystrokes captured in the browser flow back over ``/ui`` to the host.
 - **Scene & Model Streams (** ``/model`` **,** ``/state`` **,** ``/drop`` **)**: When a model loads, the host serves the
   compiled :ref:`mjModel` (``.mjb``) and bundled resources over ``/model``, and streams per-frame integration state,
   camera transforms, :ref:`mjvOption` flags, :ref:`mjvPerturb` state, and ``extra_geoms`` over ``/state`` with
   latest-wins semantics so the browser's WebAssembly client can run :ref:`mj_forward` and render via Filament WebGL 2.0.
-  Model files or folders dropped onto the browser canvas upload over ``/drop`` to the host and trigger
-  ``LoadModelEvent`` on the simulation thread.
+  Models that a simulation plugin announces ahead of time with ``PreloadModelEvent`` (for example the next scenes of a
+  playlist) are also served by content hash, and browsers download them in the background so that switching to one of
+  them later needs no download. Model files or folders dropped onto the browser canvas upload over ``/drop`` to the
+  host and trigger ``LoadModelEvent`` on the simulation thread.
 
 Multi-Viewer Sessions
 ---------------------
@@ -118,7 +127,7 @@ Multi-Viewer Sessions
 Multiple browsers can connect to the same ``WebViewer`` URL simultaneously, coordinated by a **Role** indicator UI:
 
 - **Controller vs. Spectators**: Only **one** browser at a time holds the **Controller** role (``CONTROLLING``), which
-  owns the ``/ui`` NetImgui stream, sees and interacts with the Dear ImGui panels, perturbs bodies, and can
+  owns the ``/ui`` stream, sees and interacts with the Dear ImGui panels, perturbs bodies, and can
   drag-and-drop models onto the page. Additional browsers join as **Spectators** (``SPECTATING``): they receive only the
   ``/model`` bundle and ``/state`` simulation stream with no ``/ui`` traffic, and can switch their local camera in the
   Role UI between ``Free: tumble``, ``Free: wasd``, and ``Follow Controller``.

@@ -60,7 +60,7 @@ def is_intersect(p1: wp.vec2, p2: wp.vec2, p3: wp.vec2, p4: wp.vec2) -> bool:
   b0 = (u[0] * w[1] - u[1] * w[0]) * s
   b1 = (u[0] * d[1] - u[1] * d[0]) * s
 
-  return a0 >= 0.0 and a1 <= 0.0 and b0 >= 0.0 and b1 <= 0.0
+  return a0 >= 0.0 and a1 < 0.0 and b0 >= 0.0 and b1 < 0.0
 
 
 @wp.func
@@ -97,11 +97,17 @@ def length_circle(p0: wp.vec2, p1: wp.vec2, ind: int, radius: float) -> float:
   cross = p0[1] * p1[0] - p0[0] * p1[1]
   angle = wp.atan2(wp.abs(cross), wp.dot(p0, p1))
 
-  # flip if necessary
-  if (cross > 0.0 and ind != 0) or (cross < 0.0 and ind == 0):
+  # flip if necessary; avoid a full-circle arc at float32 wrap onset
+  if angle > 1.0e-6 and ((cross > 0.0 and ind != 0) or (cross < 0.0 and ind == 0)):
     angle = 2.0 * wp.pi - angle
 
   return radius * angle
+
+
+@wp.func
+def _winding_angle(p: wp.vec2, q: wp.vec2) -> float:
+  """Signed angle swept from p to q around the origin, in (-pi, pi]."""
+  return wp.atan2(p[0] * q[1] - p[1] * q[0], wp.dot(p, q))
 
 
 @wp.func
@@ -139,9 +145,19 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
   a = -wp.dot(dif, end0) / dd
   a = wp.clamp(a, 0.0, 1.0)
 
-  # check for intersection and side
+  # check for intersection
   tmp = a * dif + end0
-  if (wp.dot(tmp, tmp) > sqrad) and (not valid_side or wp.dot(side, tmp) >= 0.0):
+  clear = wp.dot(tmp, tmp) > sqrad
+
+  # side: the path is homotopic to the polyline end0 -> side -> end1, whose winding angle around
+  # the center determines the wrap orientation; the segment end0 -> end1 is in the same homotopy
+  # class iff its winding angle is the same (they differ by multiples of 2 * pi)
+  wside = float(0.0)
+  if valid_side:
+    wside = _winding_angle(end0, side) + _winding_angle(side, end1)
+    if clear and wp.abs(wside - _winding_angle(end0, end1)) < wp.pi:
+      return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
+  elif clear:
     return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
 
   sqrt0 = wp.sqrt(sqlen0 - sqrad)
@@ -166,17 +182,11 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
     math.safe_div(end[3] * sqrad - radius * end[2] * sqrt1, sqlen1),
   )
 
-  # goodness: close to sd, or shorter path
-  if valid_side:
-    tmp0, _ = math.normalize_with_norm(sol00 + sol01)
-    good0 = wp.dot(tmp0, side)
-    tmp1, _ = math.normalize_with_norm(sol10 + sol11)
-    good1 = wp.dot(tmp1, side)
-  else:
-    tmp0 = sol00 - sol01
-    good0 = -wp.dot(tmp0, tmp0)
-    tmp1 = sol10 - sol11
-    good1 = -wp.dot(tmp1, tmp1)
+  # goodness: shorter path
+  tmp0 = sol00 - sol01
+  good0 = -wp.dot(tmp0, tmp0)
+  tmp1 = sol10 - sol11
+  good1 = -wp.dot(tmp1, tmp1)
 
   # penalize for intersection
   intersect0 = is_intersect(end0, sol00, end1, sol01)
@@ -186,19 +196,30 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
   if intersect1:
     good1 = -10000.0
 
-  # select the better solution
-  if good0 > good1:
-    if intersect0:
-      return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
+  # select the solution: with side, by orientation (ind=1 is counterclockwise), otherwise the better
+  if valid_side:
+    ind = wp.where(wside > 0.0, 1, 0)
+  else:
+    ind = wp.where(good0 > good1, 0, 1)
+
+  if ind == 0:
+    intersect = intersect0
     pnt0 = sol00
     pnt1 = sol01
-    ind = 0
   else:
-    if intersect1:
-      return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
+    intersect = intersect1
     pnt0 = sol10
     pnt1 = sol11
-    ind = 1
+
+  # check for intersection
+  if intersect:
+    return -1.0, wp.vec2(MJ_MAXVAL), wp.vec2(MJ_MAXVAL)
+
+  # side: the path winds like the polyline, so the arc angle is its winding minus that of the
+  # tangent segments; unlike length_circle, this is accurate for wraps close to 2 * pi
+  if valid_side:
+    arc = wside - _winding_angle(end0, pnt0) - _winding_angle(pnt1, end1)
+    return radius * wp.abs(arc), pnt0, pnt1
 
   # return curve length
   return length_circle(pnt0, pnt1, ind, radius), pnt0, pnt1
@@ -420,7 +441,9 @@ def wrap(
       wp.dot(sidepnt, axis1),
     )
 
-    sidepnt_proj, _ = math.normalize_with_norm(sidepnt_proj)
+    sidepnt_proj, sidenrm = math.normalize_with_norm(sidepnt_proj)
+    if sidenrm < MJ_MINVAL:
+      sidepnt_proj = wp.vec2(1.0, 0.0)
     sidepnt_proj *= radius
   else:
     sidepnt_proj = wp.vec2(MJ_MAXVAL)
@@ -783,6 +806,38 @@ def dcmotor_resistance(
     Ta = dynprm[4]
     R *= 1.0 + alpha * (T + Ta - T0)
   return wp.max(MJ_MINVAL, R)
+
+
+@wp.func
+def dcmotor_mech_force(
+  # Data in:
+  act_in: wp.array2d[float],
+  act_dot_in: wp.array2d[float],
+  # In:
+  worldid: int,
+  actadr: int,
+  length: float,
+  dynprm: types.vec10,
+  gainprm: types.vec10,
+  biasprm: types.vec10,
+) -> float:
+  """Compute DC motor mechanical force (cogging torque and LuGre friction)."""
+  mech = 0.0
+
+  # cogging torque
+  A = biasprm[0]
+  if A != 0.0:
+    mech += A * wp.sin(biasprm[1] * length + biasprm[2])
+
+  # LuGre friction
+  sigma0 = dynprm[5]
+  if actadr >= 0 and sigma0 > 0.0:
+    sigma1 = dynprm[6]
+    slots = dcmotor_slots(dynprm, gainprm)
+    adr = actadr + slots[3]
+    mech -= sigma0 * act_in[worldid, adr] + sigma1 * act_dot_in[worldid, adr]
+
+  return mech
 
 
 @wp.func

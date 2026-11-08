@@ -312,7 +312,8 @@ static mjtNum wrapPeriod(const mjModel* m, int i) {
   int servo = m->actuator_gaintype[i] == mjGAIN_FIXED  &&
               m->actuator_biastype[i] == mjBIAS_AFFINE &&
               m->actuator_gainprm[mjNGAIN*i] == -m->actuator_biasprm[mjNBIAS*i+1] &&
-              (dyntype == mjDYN_NONE || dyntype == mjDYN_INTEGRATOR);
+              (dyntype == mjDYN_NONE || dyntype == mjDYN_INTEGRATOR ||
+               dyntype == mjDYN_FILTER || dyntype == mjDYN_FILTEREXACT);
 
   // PID shape: kp and kv are single-sourced in the affine bias
   int pid = m->actuator_gaintype[i] == mjGAIN_PID;
@@ -451,10 +452,14 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
 
     case mjDYN_FILTER:              // linear filter: dynprm = tau
-    case mjDYN_FILTEREXACT:
+    case mjDYN_FILTEREXACT: {
+      // rotational setpoint: filter toward the representative nearest the current act
+      mjtNum period = wrapPeriod(m, i);
+      mjtNum u = period > 0 ? wrapSetpoint(ctrl[uadr], d->act[act_last], period) : ctrl[uadr];
       tau = mju_max(mjMINVAL, dynprm[0]);
-      d->act_dot[act_last] = (ctrl[uadr] - d->act[act_last]) / tau;
+      d->act_dot[act_last] = (u - d->act[act_last]) / tau;
       break;
+    }
 
     case mjDYN_MUSCLE:              // muscle model: dynprm = (tau_act, tau_deact)
       d->act_dot[act_last] = mju_muscleDynamics(ctrl[uadr], d->act[act_last], dynprm);
@@ -1223,10 +1228,10 @@ static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg
   warmstart(m, d);
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
-  // check if islands are supported: IPC folds its subproblem monolithically, and so does CG when it
-  // folds into the step's sparse flex factor
+  // check if islands are supported: IPC solves its subproblem monolithically, and so does CG
+  // when the step holds the sparse flex factor (mj_effCGMonolithic)
   int islands_supported = flg_island && nisland > 0 && !mjENABLED(mjENBL_IPC) &&
-                          !mj_effFoldMonolithic(m, d, solver);
+                          !mj_effCGMonolithic(m, d, solver);
 
   // run solver over constraint islands
   if (islands_supported) {
@@ -1296,8 +1301,7 @@ static void fwdConstraint(const mjModel* m, mjData* d, mjtSolver solver, int flg
 
 // forward constraint solve, using the model's own solver and island policy
 void mj_fwdConstraint(const mjModel* m, mjData* d) {
-  // check for invalid solver type, on the entry callers invoke (mj_fwdConstraintCG pins a valid
-  // one); the condition mirrors fwdConstraint's early-out
+  // check for invalid solver type; the condition mirrors fwdConstraint's early-out
   if (d->nefc && m->opt.solver != mjSOL_PGS &&
       m->opt.solver != mjSOL_CG && m->opt.solver != mjSOL_NEWTON) {
     mjERROR("unknown solver type %d", m->opt.solver);
@@ -1306,20 +1310,24 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 }
 
 
-// forward constraint solve pinned to matrix-free CG over the monolithic problem, for the IPC
-// mode's inner subproblem: the metric operators have no island-local form, and engine_ipc
-// should not have to mutate m->opt to say so
-void mj_fwdConstraintCG(const mjModel* m, mjData* d) {
-  fwdConstraint(m, d, mjSOL_CG, 0);
+//-------------------------- state advancement and integration  ------------------------------------
+
+// return 1 if sensor i is due for delayed history insertion at d->time
+static int isDelayedSensorDue(const mjModel* m, const mjData* d, int i) {
+  if (m->sensor_history[2*i] == 0 || m->sensor_delay[i] <= 0) {
+    return 0;
+  }
+  mjtNum interval = m->sensor_interval[2*i];
+  return interval <= 0 || d->history[m->sensor_historyadr[i]] + interval <= d->time;
 }
 
-
-//-------------------------- state advancement and integration  ------------------------------------
 
 // the work every integrator does at the pre-step state before it writes the new one: history
 // buffers, activations, sleep
 //   act_dot: activation derivatives
-static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
+//   sensordata_delay: optional pre-evaluated values for due delayed sensors (NULL to compute here)
+static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot,
+                         const mjtNum* sensordata_delay) {
   int nactuator = m->nactuator, nsensor = m->nsensor;
 
   // advance history buffers
@@ -1337,6 +1345,7 @@ static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
     }
 
     // advance sensor history buffers
+    const mjtNum* delay_ptr = sensordata_delay;
     for (int i = 0; i < nsensor; i++) {
       int nsample = m->sensor_history[2*i];
       if (nsample == 0) continue;
@@ -1354,8 +1363,13 @@ static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
           buf[0] += interval;  // advance by exact interval (continuous time)
           mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
           if (delay > 0) {
-            // have delay, compute sensor
-            mj_computeSensor(m, d, i, slot);
+            // have delay, copy pre-evaluated sensor or compute
+            if (delay_ptr) {
+              mju_copy(slot, delay_ptr, dim);
+              delay_ptr += dim;
+            } else {
+              mj_computeSensor(m, d, i, slot);
+            }
           } else {
             // no delay, copy from sensordata (already computed)
             mju_copy(slot, d->sensordata + m->sensor_adr[i], dim);
@@ -1364,7 +1378,12 @@ static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
       } else if (delay > 0) {
         // delay-only mode: always compute and insert
         mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
-        mj_computeSensor(m, d, i, slot);
+        if (delay_ptr) {
+          mju_copy(slot, delay_ptr, dim);
+          delay_ptr += dim;
+        } else {
+          mj_computeSensor(m, d, i, slot);
+        }
       } else {
         // history-only mode: copy from sensordata (already computed)
         mjtNum* slot = mju_historyInsert(buf, nsample, dim, d->time);
@@ -1387,7 +1406,9 @@ static void advanceStart(const mjModel* m, mjData* d, const mjtNum* act_dot) {
     // rotational setpoints stored in act: replace with an equivalent bounded representative,
     // like the actrange clamp above, this is a projection applied at integration time
     for (int i=0; i < nactuator; i++) {
-      if (m->actuator_dyntype[i] != mjDYN_INTEGRATOR) {
+      mjtDyn dyntype = m->actuator_dyntype[i];
+      if (dyntype != mjDYN_INTEGRATOR && dyntype != mjDYN_FILTER &&
+          dyntype != mjDYN_FILTEREXACT) {
         continue;
       }
 
@@ -1460,6 +1481,20 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
       if (plugin->advance) {
         plugin->advance(m, d, i);
       }
+    }
+  }
+
+  // carry the twist reference of 1D rods to the configuration of this step
+  if (m->nplastic) {
+    int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+    for (int f = 0; f < m->nflex; f++) {
+      if (m->flex_dim[f] != 1 || m->flex_plasticadr[f] < 0) {
+        continue;
+      }
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) != mjS_AWAKE) {
+        continue;
+      }
+      mj_rodChain(m, d, f, NULL, NULL, NULL, NULL, NULL, NULL, d->plastic + m->flex_plasticadr[f]);
     }
   }
 
@@ -1544,11 +1579,202 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
 
     // flexes
     for (int f = 0; f < m->nflex; f++) {
-      if (m->flex_plasticadr[f] < 0 ||
-          m->flex_interp[f] != 0 || m->flex_dim[f] < 2) {
+      if (m->flex_plasticadr[f] < 0) {
         continue;
       }
       if (sleep_filter && mj_sleepState(m, d, mjOBJ_FLEX, f) != mjS_AWAKE) {
+        continue;
+      }
+
+      mjtNum yield = mju_max(0, m->flex_yield[2*f]);
+      mjtNum yield_bend = mju_max(0, m->flex_yield[2*f + 1]);
+      int mode = m->flex_plasticmode[f];  // 1: bending, 2: stretching
+      mjtNum* plastic = d->plastic + m->flex_plasticadr[f];
+
+      // interpolated flex: cell-center / face-center corotational strain return mapping
+      if (m->flex_interp[f] != 0) {
+        if (m->flex_edgeequality[f] == 3 || !mj_flexHasStiffness(m, f)) {
+          continue;
+        }
+        int order = m->flex_interp[f];
+        int shell_mode = order < 0;
+        order = order < 0 ? -order : order;
+        int cx = m->flex_cellnum[3*f + 0];
+        int cy = m->flex_cellnum[3*f + 1];
+        int cz = m->flex_cellnum[3*f + 2];
+        int npe = shell_mode ? (order + 1) * (order + 1)
+                             : (order + 1) * (order + 1) * (order + 1);
+        int nelem_fe = shell_mode ? 2 * (cy*cz + cx*cz + cx*cy) : cx * cy * cz;
+        int nodenum = m->flex_nodenum[f];
+        int nstart = m->flex_nodeadr[f];
+        const int* bodyid = m->flex_nodebodyid + nstart;
+        const mjtNum* xpos0 = m->flex_node0 + 3 * nstart;
+        const mjtNum* k = m->flex_stiffness + m->flex_stiffnessadr[f];
+
+        mj_markStack(d);
+        mjtNum* xpos_g = mjSTACKALLOC(d, 3 * nodenum, mjtNum);
+        mjtNum* xpos_e = mjSTACKALLOC(d, 3 * npe, mjtNum);
+        mjtNum* xpos0_e = mjSTACKALLOC(d, 3 * npe, mjtNum);
+        mjtNum* displ_e = mjSTACKALLOC(d, 3 * npe, mjtNum);
+
+        for (int i = 0; i < nodenum; i++) {
+          int bid = bodyid[i];
+          if (bid < 0) {
+            mji_zero3(xpos_g + 3*i);
+            continue;
+          }
+          if (m->flex_centered[f] ||
+              (m->flex_node[3*(i + nstart) + 0] == 0 &&
+               m->flex_node[3*(i + nstart) + 1] == 0 &&
+               m->flex_node[3*(i + nstart) + 2] == 0)) {
+            mji_copy3(xpos_g + 3*i, d->xpos + 3*bid);
+          } else {
+            mju_mulMatVec3(xpos_g + 3*i, d->xmat + 9*bid, m->flex_node + 3*(i + nstart));
+            mji_addTo3(xpos_g + 3*i, d->xpos + 3*bid);
+          }
+          int body = m->body_weldid[bid];
+          if (!m->body_dofnum[body]) {
+            continue;
+          }
+          int da = m->body_dofadr[body];
+          mjtNum vnode[3] = {0, 0, 0};
+          if (m->body_simple[body] == 2) {
+            for (int j = 0; j < m->body_dofnum[body]; j++) {
+              mji_addToScl3(vnode, d->cdof + 6*(da + j) + 3, qvel[da + j]);
+            }
+          } else {
+            mjtNum offset[3];
+            mji_sub3(offset, xpos_g + 3*i, d->subtree_com + 3*m->body_rootid[body]);
+            for (int j = da + m->body_dofnum[body] - 1; j >= 0; j = m->dof_parentid[j]) {
+              mjtNum column[3];
+              mji_cross(column, d->cdof + 6*j, offset);
+              mji_addTo3(column, d->cdof + 6*j + 3);
+              mji_addToScl3(vnode, column, qvel[j]);
+            }
+          }
+          mji_addToScl3(xpos_g + 3*i, vnode, m->opt.timestep);
+        }
+
+        for (int fe = 0; fe < nelem_fe; fe++) {
+          const mjtNum* k_elem = k + fe * 3*npe * 3*npe;
+          if (!shell_mode && k_elem[0] == 0) {
+            continue;
+          }
+
+          mjtNum quat[4];
+          if (shell_mode) {
+            mju_flexGatherFaceState(order, cx, cy, cz, fe, xpos_g, NULL, xpos0,
+                                    xpos_e, NULL, xpos0_e, NULL, quat);
+          } else {
+            int ci = fe / (cy * cz);
+            int cj = (fe / cz) % cy;
+            int ck = fe % cz;
+            mju_flexGatherCellState(order, cy, cz, ci, cj, ck, xpos_g, NULL,
+                                    xpos0, xpos_e, NULL, xpos0_e, NULL, quat);
+          }
+
+          for (int n = 0; n < npe; n++) {
+            mju_rotVecQuat(xpos_e + 3*n, xpos_e + 3*n, quat);
+            mji_sub3(displ_e + 3*n, xpos_e + 3*n, xpos0_e + 3*n);
+          }
+
+          if (shell_mode) {
+            int normal_axis = (fe < 2*cy*cz) ? 0 : (fe < 2*(cy*cz + cx*cz)) ? 1 : 2;
+            int axis0 = (normal_axis + 1) % 3;
+            int axis1 = (normal_axis + 2) % 3;
+            mjtNum d0 = xpos0_e[3*(npe - 1) + axis0] - xpos0_e[axis0];
+            mjtNum d1 = xpos0_e[3*(npe - 1) + axis1] - xpos0_e[axis1];
+            if (d0 <= mjMINVAL || d1 <= mjMINVAL) {
+              continue;
+            }
+            mjtNum t1[3] = {0, 0, 0}, t2[3] = {0, 0, 0};
+            int idx = 0;
+            for (int l0 = 0; l0 <= order; l0++) {
+              for (int l1 = 0; l1 <= order; l1++) {
+                mjtNum grad0 = mju_flexDphi(0.5, l0, order) * mju_flexPhi(0.5, l1, order);
+                mjtNum grad1 = mju_flexPhi(0.5, l0, order) * mju_flexDphi(0.5, l1, order);
+                for (int c = 0; c < 3; c++) {
+                  t1[c] += displ_e[3*idx + c] * grad0;
+                  t2[c] += displ_e[3*idx + c] * grad1;
+                }
+                idx++;
+              }
+            }
+            mjtNum* sp = plastic + 3 * fe;
+            mjtNum e0 = t1[axis0] / d0 - sp[0];
+            mjtNum e1 = t2[axis1] / d1 - sp[1];
+            mjtNum g01 = (t2[axis0] / d1 + t1[axis1] / d0) - sp[2];
+            mjtNum alpha = 0.5 * (e0 + e1);
+            mjtNum alpha_pos = mju_max(0, alpha);
+            mjtNum dev0 = 0.5 * (e0 - e1);
+            mjtNum dev1 = -dev0;
+            mjtNum dev_norm_sq = 2 * dev0 * dev0 + 0.5 * g01 * g01;
+            mjtNum eps_eq = mju_sqrt((2 * dev_norm_sq) / 3 + alpha_pos * alpha_pos);
+            if (eps_eq > yield) {
+              mjtNum scale = 1 - yield / eps_eq;
+              sp[0] += scale * (dev0 + alpha_pos);
+              sp[1] += scale * (dev1 + alpha_pos);
+              sp[2] += scale * g01;
+              mjtNum fnorm_sq = sp[0]*sp[0] + sp[1]*sp[1] + 0.5 * sp[2]*sp[2];
+              if (fnorm_sq > 0.1225) {
+                mjtNum clamp_scale = 0.35 / mju_sqrt(fnorm_sq);
+                sp[0] *= clamp_scale;
+                sp[1] *= clamp_scale;
+                sp[2] *= clamp_scale;
+              }
+            }
+          } else {
+            mjtNum dx = xpos0_e[3*(npe - 1) + 0] - xpos0_e[0];
+            mjtNum dy = xpos0_e[3*(npe - 1) + 1] - xpos0_e[1];
+            mjtNum dz = xpos0_e[3*(npe - 1) + 2] - xpos0_e[2];
+            if (dx <= mjMINVAL || dy <= mjMINVAL || dz <= mjMINVAL) {
+              continue;
+            }
+            mjtNum p_center[3] = {0.5, 0.5, 0.5};
+            mjtNum grad_d[9];
+            mju_defGradient(grad_d, p_center, displ_e, order);
+            mjtNum* sp = plastic + 6 * fe;
+            mjtNum e_el[6] = {
+              grad_d[0] / dx - sp[0],
+              grad_d[4] / dy - sp[1],
+              grad_d[8] / dz - sp[2],
+              (grad_d[1] / dy + grad_d[3] / dx) - sp[3],
+              (grad_d[2] / dz + grad_d[6] / dx) - sp[4],
+              (grad_d[5] / dz + grad_d[7] / dy) - sp[5]
+            };
+            mjtNum mean = (e_el[0] + e_el[1] + e_el[2]) / 3;
+            mjtNum dev[6] = {
+              e_el[0] - mean,
+              e_el[1] - mean,
+              e_el[2] - mean,
+              e_el[3],
+              e_el[4],
+              e_el[5]
+            };
+            mjtNum dev_norm_sq = dev[0]*dev[0] + dev[1]*dev[1] + dev[2]*dev[2] +
+                                 0.5 * (dev[3]*dev[3] + dev[4]*dev[4] + dev[5]*dev[5]);
+            mjtNum eps_eq = mju_sqrt((2 * dev_norm_sq) / 3);
+            if (eps_eq > yield) {
+              mjtNum scale = 1 - yield / eps_eq;
+              for (int c = 0; c < 6; c++) {
+                sp[c] += scale * dev[c];
+              }
+              mjtNum fnorm_sq = sp[0]*sp[0] + sp[1]*sp[1] + sp[2]*sp[2] +
+                                0.5 * (sp[3]*sp[3] + sp[4]*sp[4] + sp[5]*sp[5]);
+              if (fnorm_sq > 0.1225) {
+                mjtNum clamp_scale = 0.35 / mju_sqrt(fnorm_sq);
+                for (int c = 0; c < 6; c++) {
+                  sp[c] *= clamp_scale;
+                }
+              }
+            }
+          }
+        }
+        mj_freeStack(d);
+        continue;
+      }
+
+      if (m->flex_dim[f] < 2) {
         continue;
       }
 
@@ -1557,8 +1783,6 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
       int vertnum = m->flex_vertnum[f];
       int edgenum = m->flex_edgenum[f];
       int elemnum = m->flex_elemnum[f];
-      mjtNum yield = mju_max(0, m->flex_yield[f]);
-      mjtNum* plastic = d->plastic + m->flex_plasticadr[f];
 
       mj_markStack(d);
       mjtNum* xpos = mjSTACKALLOC(d, 3 * vertnum, mjtNum);
@@ -1568,7 +1792,8 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
 
       // element stretch return mapping (von Mises / J2 deviatoric strain)
       int stiffnessadr = m->flex_stiffnessadr[f];
-      if (stiffnessadr >= 0 && m->flex_stiffness[stiffnessadr] != 0 && elemnum > 0) {
+      int stretch_pnum = (mode & 2) ? nedge * elemnum : 0;
+      if (stretch_pnum > 0) {
         const mjtNum* k = m->flex_stiffness + stiffnessadr;
         const int* eelem = m->flex_elemedge + m->flex_elemedgeadr[f];
         const int* edges = m->flex_edge + 2 * m->flex_edgeadr[f];
@@ -1696,19 +1921,70 @@ static void advanceFinish(const mjModel* m, mjData* d, const mjtNum* qvel) {
         }
       }
 
+      // 2D shell bending return mapping in dihedral angle space
+      int bendingadr = m->flex_bendingadr[f];
+      if ((mode & 1) && dim == 2 && bendingadr >= 0 && stiffnessadr >= 0) {
+        // 2D shell thickness is stored in stiffness[6] (stiffness[0:6] holds the 2D stretch metric)
+        mjtNum thickness = m->flex_stiffness[stiffnessadr + 6];
+        if (thickness > mjMINVAL) {
+          mjtNum* bend_plastic = plastic + stretch_pnum;
+          const mjtNum* b = m->flex_bending + bendingadr;
+          const mjtNum* rest = m->flexedge_length0 + m->flex_edgeadr[f];
+          mjtNum kappa_yield = 2 * yield_bend / thickness;
+
+          for (int e = 0; e < edgenum; e++) {
+            const int* edge = m->flex_edge + 2 * (e + m->flex_edgeadr[f]);
+            const int* flap = m->flex_edgeflap + 2 * (e + m->flex_edgeadr[f]);
+            int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+            if (v[3] == -1) {
+              continue;
+            }
+            const mjtNum* be = b + 17 * e;
+            mjtNum b23 = be[11];
+            if (b23 <= mjMINVAL) {
+              continue;
+            }
+
+            mjtNum ed[3][3], frc2[3], frc3[3];
+            mji_sub3(ed[0], xpos + 3*v[1], xpos + 3*v[0]);
+            mji_sub3(ed[1], xpos + 3*v[2], xpos + 3*v[0]);
+            mji_sub3(ed[2], xpos + 3*v[3], xpos + 3*v[0]);
+            mji_cross(frc2, ed[2], ed[0]);
+            mji_cross(frc3, ed[0], ed[1]);
+
+            mjtNum two_a1 = mju_norm3(frc3);
+            mjtNum two_a2 = mju_norm3(frc2);
+            mjtNum l0 = rest[e];
+            mjtNum denom = two_a1 * two_a2;
+            if (denom <= mjMINVAL || l0 <= mjMINVAL) {
+              continue;
+            }
+
+            mjtNum omega = mju_dot3(ed[2], frc3);
+            mjtNum theta = mju_atan2(omega * l0, mju_dot3(frc2, frc3));
+            mjtNum theta_p = mju_atan2(-(be[16] + bend_plastic[e]) * l0, b23);
+            mjtNum theta_yield = 0.5 * (two_a1 + two_a2) / l0 * kappa_yield;
+            mjtNum theta_el = theta - theta_p;
+            if (theta_el > theta_yield || theta_el < -theta_yield) {
+              theta_p = (theta_el > theta_yield) ? theta - theta_yield : theta + theta_yield;
+              theta_p = mju_clip(theta_p, -1.3, 1.3);
+              bend_plastic[e] = -(b23 / l0) * mju_tan(theta_p) - be[16];
+            }
+          }
+        }
+      }
+
       mj_freeStack(d);
     }
   }
 }
 
 
-// advance state and time
-//   act_dot: activation derivatives
-//   qacc:    acceleration used to update d->qvel (d->qvel += h*qacc)
-//   qvel:    optional velocity used for position integration; if NULL, use d->qvel
-void mj_advance(const mjModel* m, mjData* d,
-                const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
-  advanceStart(m, d, act_dot);
+// advance state and time, with optional pre-evaluated values for due delayed sensors
+static void advance(const mjModel* m, mjData* d,
+                    const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel,
+                    const mjtNum* sensordata_delay) {
+  advanceStart(m, d, act_dot, sensordata_delay);
 
   // advance velocities
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
@@ -1731,6 +2007,16 @@ void mj_advance(const mjModel* m, mjData* d,
 }
 
 
+// advance state and time
+//   act_dot: activation derivatives
+//   qacc:    acceleration used to update d->qvel (d->qvel += h*qacc)
+//   qvel:    optional velocity used for position integration; if NULL, use d->qvel
+void mj_advance(const mjModel* m, mjData* d,
+                const mjtNum* act_dot, const mjtNum* qacc, const mjtNum* qvel) {
+  advance(m, d, act_dot, qacc, qvel, NULL);
+}
+
+
 // advance state and time to a verified endpoint, for an integrator that solved the step at the
 // position level: the effective acceleration is published first, as it is the step's acceleration
 // at the pre-step state (a delayed acceleration sensor reads it there); then the pre-step work,
@@ -1743,7 +2029,7 @@ void mj_advance(const mjModel* m, mjData* d,
 void mj_commit(const mjModel* m, mjData* d, const mjtNum* act_dot,
                const mjtNum* qpos, const mjtNum* qvel, const mjtNum* qacc) {
   mju_copy(d->qacc, qacc, m->nv);
-  advanceStart(m, d, act_dot);
+  advanceStart(m, d, act_dot, NULL);
   mju_copy(d->qpos, qpos, m->nq);
   mju_copy(d->qvel, qvel, m->nv);
   advanceFinish(m, d, d->qvel);
@@ -1924,6 +2210,27 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
     mju_copy(X[0]+nq+nv, d->act, na);
     mju_copy(F[0]+nv, d->act_dot, na);
   }
+  mjtNum *actuator_length0 = NULL, *actuator_velocity0 = NULL;
+  if (na && m->nout && !mjDISABLED(mjDSBL_ACTUATION)) {
+    int save_len = 0, save_vel = 0;
+    for (int i=0; i < m->nactuator; i++) {
+      mjtDyn dyntype = m->actuator_dyntype[i];
+      if ((dyntype == mjDYN_INTEGRATOR || dyntype == mjDYN_FILTER ||
+           dyntype == mjDYN_FILTEREXACT) && wrapPeriod(m, i) > 0) {
+        save_len = 1;
+      } else if (dyntype == mjDYN_DCMOTOR) {
+        save_vel = 1;
+      }
+    }
+    if (save_len) {
+      actuator_length0 = mjSTACKALLOC(d, m->nout, mjtNum);
+      mju_copy(actuator_length0, d->actuator_length, m->nout);
+    }
+    if (save_vel) {
+      actuator_velocity0 = mjSTACKALLOC(d, m->nout, mjtNum);
+      mju_copy(actuator_velocity0, d->actuator_velocity, m->nout);
+    }
+  }
   mjtNum *ten_length0 = NULL, *ten_J0 = NULL;
   if (m->nplastic && m->ntendon) {
     ten_length0 = mjSTACKALLOC(d, m->ntendon, mjtNum);
@@ -1934,6 +2241,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
     }
   }
   mjtNum *flexvert_xpos0 = NULL, *cdof0 = NULL, *subtree_com0 = NULL;
+  mjtNum *xpos0 = NULL, *xquat0 = NULL, *xmat0 = NULL;
   if (m->nplastic && m->nflexvert) {
     flexvert_xpos0 = mjSTACKALLOC(d, 3 * m->nflexvert, mjtNum);
     mju_copy(flexvert_xpos0, d->flexvert_xpos, 3 * m->nflexvert);
@@ -1944,6 +2252,33 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
     if (m->nbody) {
       subtree_com0 = mjSTACKALLOC(d, 3 * m->nbody, mjtNum);
       mju_copy(subtree_com0, d->subtree_com, 3 * m->nbody);
+      xpos0 = mjSTACKALLOC(d, 3 * m->nbody, mjtNum);
+      mju_copy(xpos0, d->xpos, 3 * m->nbody);
+      xquat0 = mjSTACKALLOC(d, 4 * m->nbody, mjtNum);
+      mju_copy(xquat0, d->xquat, 4 * m->nbody);
+      xmat0 = mjSTACKALLOC(d, 9 * m->nbody, mjtNum);
+      mju_copy(xmat0, d->xmat, 9 * m->nbody);
+    }
+  }
+
+  // pre-evaluate due delayed sensors at stage 0 before stages 1..N-1 overwrite d
+  mjtNum* sensordata_delay0 = NULL;
+  if (m->nhistory > 0) {
+    int ndelaydata = 0;
+    for (int i=0; i < m->nsensor; i++) {
+      if (isDelayedSensorDue(m, d, i)) {
+        ndelaydata += m->sensor_dim[i];
+      }
+    }
+    if (ndelaydata > 0) {
+      sensordata_delay0 = mjSTACKALLOC(d, ndelaydata, mjtNum);
+      mjtNum* ptr = sensordata_delay0;
+      for (int i=0; i < m->nsensor; i++) {
+        if (isDelayedSensorDue(m, d, i)) {
+          mj_computeSensor(m, d, i, ptr);
+          ptr += m->sensor_dim[i];
+        }
+      }
     }
   }
 
@@ -1993,6 +2328,12 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
   mju_copy(d->qpos, X[0], nq);
   mju_copy(d->qvel, X[0]+nq, nv);
   mju_copy(d->act, X[0]+nq+nv, na);
+  if (actuator_length0) {
+    mju_copy(d->actuator_length, actuator_length0, m->nout);
+  }
+  if (actuator_velocity0) {
+    mju_copy(d->actuator_velocity, actuator_velocity0, m->nout);
+  }
   if (ten_length0) {
     mju_copy(d->ten_length, ten_length0, m->ntendon);
     if (ten_J0) {
@@ -2006,11 +2347,20 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
     }
     if (subtree_com0) {
       mju_copy(d->subtree_com, subtree_com0, 3 * m->nbody);
+      mju_copy(d->xpos, xpos0, 3 * m->nbody);
+      mju_copy(d->xquat, xquat0, 4 * m->nbody);
+      mju_copy(d->xmat, xmat0, 9 * m->nbody);
     }
   }
 
   // advance state and time
-  mj_advance(m, d, dX+2*nv, dX+nv, dX);
+  advance(m, d, dX+2*nv, dX+nv, dX, sensordata_delay0);
+
+  // effective acceleration of the step (RK weighted combination)
+  mju_copy(d->qacc, dX+nv, nv);
+
+  // warm start the next step from the last stage's acceleration, the most recent solve
+  mju_copy(d->qacc_warmstart, F[N-1], nv);
 
   mj_freeStack(d);
 }
@@ -2024,10 +2374,9 @@ void mj_checkDiscrete(const mjModel* m) {
     mjERROR("flag ipc requires integrator='discrete'");
   }
 
-  // the inner solves are matrix-free CG: the metric operators are never factored, which keeps
-  // them well defined under stiff contact
-  if (mjENABLED(mjENBL_IPC) && m->opt.solver != mjSOL_CG) {
-    mjERROR("flag ipc requires solver='CG'");
+  // the inner solves use a primal solver (Newton or CG) over the monolithic problem
+  if (mjENABLED(mjENBL_IPC) && m->opt.solver != mjSOL_NEWTON && m->opt.solver != mjSOL_CG) {
+    mjERROR("flag ipc requires solver='Newton' or 'CG'");
   }
 
   // inverse dynamics is not supported under the flag (mj_discreteAcc), and this option runs it
@@ -2075,17 +2424,6 @@ void mj_checkDiscrete(const mjModel* m) {
       mjERROR("discrete integrator: flex edge stiffness and damping are not supported; "
               "use <elasticity> or <edge equality> instead");
     }
-  }
-  if (m->opt.solver == mjSOL_NEWTON) {
-    for (int f=0; f < m->nflex; f++) {
-      if (!m->flex_interp[f] && mj_effFlexStiffPossible(m, f) && !mj_flexSimple(m, f)) {
-        mjERROR("discrete integrator: flex with general attachments requires solver='CG'");
-      }
-    }
-  }
-  if (m->opt.solver == mjSOL_NEWTON && !mjd_flexInterpAssemblable(m)) {
-    mjERROR("discrete integrator: interpolated flex with non-simple nodes not yet "
-            "supported with the Newton solver");
   }
   if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
     // the dual solvers assemble the constraint-space AR from an explicit factorization of
@@ -2398,7 +2736,7 @@ void mj_step1(const mjModel* m, mjData* d) {
     mj_energyVel(m, d);
   }
 
-  if (mjcb_control) {
+  if (mjcb_control && !mjDISABLED(mjDSBL_ACTUATION)) {
     mjcb_control(m, d);
   }
   TM_END(mjTIMER_STEP);

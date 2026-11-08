@@ -45,6 +45,7 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
   mju_zero3(d->xpos);
   mju_unit4(d->xquat);
   mju_zero3(d->xipos);
+  mju_unit4(d->xiquat);
   mju_zero(d->xmat, 9);
   mju_zero(d->ximat, 9);
   d->xmat[0] = d->xmat[4] = d->xmat[8] = 1;
@@ -183,7 +184,7 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
     // assign xquat and xpos, construct xmat
     mji_copy4(d->xquat+4*i, xquat);
     mji_copy3(d->xpos+3*i, xpos);
-    mju_quat2Mat(d->xmat+9*i, xquat);
+    mji_quat2Mat(d->xmat+9*i, xquat);
   }
 }
 
@@ -201,9 +202,9 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
     // skip static body
     if (sleep_enabled && d->body_awake[i] == mjS_STATIC) continue;
 
-    mj_local2Global(d, d->xipos+3*i, d->ximat+9*i,
-                    m->body_ipos+3*i, m->body_iquat+4*i,
-                    i, m->body_sameframe[i]);
+    mj_local2GlobalQuat(d, d->xipos+3*i, d->xiquat+4*i, d->ximat+9*i,
+                        m->body_ipos+3*i, m->body_iquat+4*i,
+                        i, m->body_sameframe[i]);
   }
 
   // compute/copy Cartesian positions and orientations of geoms
@@ -216,9 +217,9 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
     int start = m->body_geomadr[i];
     int end = start + m->body_geomnum[i];
     for (int g=start; g < end; g++) {
-      mj_local2Global(d, d->geom_xpos+3*g, d->geom_xmat+9*g,
-                      m->geom_pos+3*g, m->geom_quat+4*g,
-                      m->geom_bodyid[g], m->geom_sameframe[g]);
+      mj_local2GlobalQuat(d, d->geom_xpos+3*g, d->geom_xquat+4*g, d->geom_xmat+9*g,
+                          m->geom_pos+3*g, m->geom_quat+4*g,
+                          m->geom_bodyid[g], m->geom_sameframe[g]);
     }
   }
 
@@ -230,9 +231,9 @@ void mj_kinematics2(const mjModel* m, mjData* d) {
     // skip site in sleeping or static body
     if (sleep_enabled && d->body_awake[bodyid] != mjS_AWAKE) continue;
 
-    mj_local2Global(d, d->site_xpos+3*i, d->site_xmat+9*i,
-                    m->site_pos+3*i, m->site_quat+4*i,
-                    bodyid, m->site_sameframe[i]);
+    mj_local2GlobalQuat(d, d->site_xpos+3*i, d->site_xquat+4*i, d->site_xmat+9*i,
+                        m->site_pos+3*i, m->site_quat+4*i,
+                        bodyid, m->site_sameframe[i]);
   }
 }
 
@@ -573,50 +574,18 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
       }
     }
 
-    // trilinear/quadratic interpolation
+    // trilinear/quadratic interpolation (interior nodes of shell-mode flexes via TFI)
     else {
       int nodenum = nend - nstart;
-      mj_markStack(d);
-      mjtNum* nodexpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
-      for (int i=nstart; i < nend; i++) {
-        int j = i - nstart;
-        if (m->flex_centered[f] ||
-            (m->flex_node[3*i+0] == 0 &&
-             m->flex_node[3*i+1] == 0 &&
-             m->flex_node[3*i+2] == 0)) {
-          mji_copy3(nodexpos + 3*j, d->xpos + 3*m->flex_nodebodyid[i]);
-        } else {
-          mji_mulMatVec3(nodexpos + 3*j, d->xmat + 9*m->flex_nodebodyid[i], m->flex_node + 3*i);
-          mji_addTo3(nodexpos + 3*j, d->xpos + 3*m->flex_nodebodyid[i]);
-        }
-      }
-
-      int interp = m->flex_interp[f];
-      int order = interp < 0 ? -interp : interp;
-      int cx = m->flex_cellnum[3*f+0];
-      int cy = m->flex_cellnum[3*f+1];
-      int cz = m->flex_cellnum[3*f+2];
-      int nx_g = cx * order + 1;
-      int ny_g = cy * order + 1;
-      int nz_g = cz * order + 1;
-      if (nend - nstart != nx_g * ny_g * nz_g) {
+      int order = m->flex_interp[f] < 0 ? -m->flex_interp[f] : m->flex_interp[f];
+      const int* cn = m->flex_cellnum + 3*f;
+      if (nodenum != (cn[0]*order + 1) * (cn[1]*order + 1) * (cn[2]*order + 1)) {
         mjERROR("flex_interp_order mismatch");
       }
-
-      // shell mode: reconstruct interior node positions from boundary via TFI
-      if (interp < 0) {
-        mju_shellTrackInterior(nodexpos, nx_g, ny_g, nz_g);
-      }
-
-      for (int i=vstart; i < vend; i++) {
-        mju_zero3(d->flexvert_xpos+3*i);
-
-        // cell lookup: get local coords and node indices
-        mjtNum local[3];
-        int nodeindices[27];  // max npc for quadratic: 3^3 = 27
-        mju_cellLookup(m->flex_vert0 + 3*i, m->flex_cellnum+3*f, order, m->flex_vertcell[i], local, nodeindices);
-        mju_interpolate3D(d->flexvert_xpos+3*i, local, nodexpos, order, nodeindices);
-      }
+      mj_markStack(d);
+      mjtNum* nodexpos = mjSTACKALLOC(d, 3*nodenum, mjtNum);
+      mju_flexGatherState(m, d, f, nodexpos, NULL);
+      mj_flexInterpVert(m, f, nodexpos, d->flexvert_xpos + 3*vstart);
       mj_freeStack(d);
     }
   }
@@ -624,6 +593,9 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
   // compute flex element aabb
   for (int f=0; f < m->nflex; f++) {
     int dim = m->flex_dim[f];
+    mjtNum box[2];
+    mjtNum pad = mj_rodBoxSize(m, f, box) ? mju_max(m->flex_radius[f], mju_norm(box, 2))
+                                          : m->flex_radius[f];
 
     // process elements of this flex
     int elemnum = m->flex_elemnum[f];
@@ -648,9 +620,9 @@ void mj_flexSkip(const mjModel* m, mjData* d, int skiprigid) {
       d->flexelem_aabb[6*base+0] = 0.5*(xmax[0]+xmin[0]);
       d->flexelem_aabb[6*base+1] = 0.5*(xmax[1]+xmin[1]);
       d->flexelem_aabb[6*base+2] = 0.5*(xmax[2]+xmin[2]);
-      d->flexelem_aabb[6*base+3] = 0.5*(xmax[0]-xmin[0]) + m->flex_radius[f];
-      d->flexelem_aabb[6*base+4] = 0.5*(xmax[1]-xmin[1]) + m->flex_radius[f];
-      d->flexelem_aabb[6*base+5] = 0.5*(xmax[2]-xmin[2]) + m->flex_radius[f];
+      d->flexelem_aabb[6*base+3] = 0.5*(xmax[0]-xmin[0]) + pad;
+      d->flexelem_aabb[6*base+4] = 0.5*(xmax[1]-xmin[1]) + pad;
+      d->flexelem_aabb[6*base+5] = 0.5*(xmax[2]-xmin[2]) + pad;
     }
   }
 
@@ -1222,7 +1194,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
       {
         // get data
         int idslider = m->actuator_trnid[2*i+1];
-        mjtNum rod = m->actuator_cranklength[out];
+        mjtNum rod = m->actuator_cranklength[i];
         mjtNum axis[3] = {d->site_xmat[9 * idslider + 2],
                           d->site_xmat[9 * idslider + 5],
                           d->site_xmat[9 * idslider + 8]};
@@ -1328,10 +1300,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
         if (!moment_row) moment_row = mjSTACKALLOC(d, nv, mjtNum);
 
         // relative rotation as expmap in the refsite frame
-        mjtNum quat[4], refquat[4], vec[3];
-        mji_mulQuat(quat, d->xquat+4*m->site_bodyid[id], m->site_quat+4*id);
-        mji_mulQuat(refquat, d->xquat+4*m->site_bodyid[refid], m->site_quat+4*refid);
-        mji_subQuat(vec, quat, refquat);
+        mjtNum vec[3];
+        mji_subQuat(vec, d->site_xquat+4*id, d->site_xquat+4*refid);
 
         // relative rotational Jacobian in global frame
         mj_jacSite(m, d, NULL, jacS, id);
@@ -1488,16 +1458,9 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
         // rotational transmission
         if (!mju_isZero(gear+3, 3)) {
-          mjtNum refquat[4];
-
-          // get site and refsite quats from parent bodies (avoiding mju_mat2Quat)
-          mjtNum quat[4];
-          mji_mulQuat(quat, d->xquat+4*m->site_bodyid[id], m->site_quat+4*id);
-          mji_mulQuat(refquat, d->xquat+4*m->site_bodyid[refid], m->site_quat+4*refid);
-
           // convert difference to expmap (axis-angle)
           mjtNum vec[3];
-          mji_subQuat(vec, quat, refquat);
+          mji_subQuat(vec, d->site_xquat+4*id, d->site_xquat+4*refid);
 
           // add length: dot product with gear
           length[out] += mju_dot3(vec, gear+3);
@@ -1705,6 +1668,10 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
 
       // M[i,:] += armature * ten_J[i] * ten_J
       int i = J_colind[j];
+      // TODO: wake trees coupled by two-tree armature tendons in mj_wakeTendon
+      if (sleep_filter && mj_sleepState(m, d, mjOBJ_DOF, i) == mjS_ASLEEP) {
+        continue;
+      }
       int M_adr = M_rowadr[i];
       mju_addToSclSparseInc(d->M + M_adr, ten_J,
                             M_rownnz[i], M_colind + M_adr,
@@ -2100,6 +2067,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 void mj_subtreeVel(const mjModel* m, mjData* d) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
   int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int nparent = sleep_filter ? d->nparent_awake : m->nbody;
 
   mj_markStack(d);
   mjtNum* body_vel = mjSTACKALLOC(d, 6*m->nbody, mjtNum);
@@ -2138,23 +2106,29 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
   }
 
   // subtree angular momentum
-  for (int b=nbody-1; b > 0; b--) {
-    int i = sleep_filter ? d->body_awake_ind[b] : b;
+  for (int b=nparent-1; b >= 0; b--) {
+    int i = sleep_filter ? d->parent_awake_ind[b] : b;
+    if (!i) continue;
 
     int parent = m->body_parentid[i];
-
-    // momentum wrt body i
     mjtNum dx[3], dv[3], dp[3], dL[3];
-    mju_sub3(dx, d->xipos+3*i, d->subtree_com+3*i);
-    mju_sub3(dv, body_vel+6*i+3, d->subtree_linvel+3*i);
-    mju_scl3(dp, dv, m->body_mass[i]);
-    mji_cross(dL, dx, dp);
 
-    // add to subtree i
-    mji_addTo3(d->subtree_angmom+3*i, dL);
+    if (sleep_filter && d->body_awake[i] == mjS_ASLEEP) {
+      mju_zero3(d->subtree_linvel+3*i);
+      mju_zero3(d->subtree_angmom+3*i);
+    } else {
+      // momentum wrt body i
+      mju_sub3(dx, d->xipos+3*i, d->subtree_com+3*i);
+      mju_sub3(dv, body_vel+6*i+3, d->subtree_linvel+3*i);
+      mju_scl3(dp, dv, m->body_mass[i]);
+      mji_cross(dL, dx, dp);
 
-    // add to parent
-    mji_addTo3(d->subtree_angmom+3*parent, d->subtree_angmom+3*i);
+      // add to subtree i
+      mji_addTo3(d->subtree_angmom+3*i, dL);
+
+      // add to parent
+      mji_addTo3(d->subtree_angmom+3*parent, d->subtree_angmom+3*i);
+    }
 
     // momentum wrt parent
     mju_sub3(dx, d->subtree_com+3*i, d->subtree_com+3*parent);
@@ -2177,9 +2151,10 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 
 // RNE: compute M(qpos)*qacc + C(qpos,qvel); flg_acc=0 removes inertial term
 void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  // filter sleeping bodies only for qfrc_bias; caller buffers require all DOFs
+  int sleep_filter = (result == d->qfrc_bias) &&
+                     mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
   int nbody = sleep_filter ? d->nbody_awake : m->nbody;
-  int nparent = sleep_filter ? d->nparent_awake : m->nbody;
   int nv = sleep_filter ? d->nv_awake : m->nv;
 
   mj_markStack(d);
@@ -2222,8 +2197,8 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   mju_zero(loc_cfrc_body, 6);
 
   // backward pass over bodies: accumulate cfrc_body from children
-  for (int b=nparent-1; b > 0; b--) {
-    int i = sleep_filter ? d->parent_awake_ind[b] : b;
+  for (int b=nbody-1; b > 0; b--) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
     int j = m->body_parentid[i];
 
     if (j) {
@@ -2469,22 +2444,12 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
       break;
 
-    case mjEQ_FLEXSTRAIN: {
-      // increment: trilinear uses 2 center (I1,J-1) + 3*ngauss shear, quadratic uses 6*ngauss
-      k = m->eq_obj1id[id];
-      int interp_k = m->flex_interp[k];
-      int order = interp_k < 0 ? -interp_k : interp_k;
-      int nodenum = m->flex_nodenum[k];
-      if (order && nodenum) {
-        int nquad = order + 1;
-        int ngauss = nquad * nquad * nquad;
-        int ncells = m->flex_cellnum[3*k+0]
-                   * m->flex_cellnum[3*k+1]
-                   * m->flex_cellnum[3*k+2];
-        i += ncells * ((order == 1) ? (2 + 3 * ngauss) : (6 * ngauss));
+    case mjEQ_FLEXSTRAIN:
+      // advance past all rows instantiated for this strain constraint
+      while (i < ne && d->efc_id[i] == id) {
+        i++;
       }
       break;
-    }
 
     default:
       mjERROR("unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
@@ -2587,13 +2552,14 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
 // add bias force due to tendon armature
 void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
-  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  int sleep = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  int sleep_filter = (qfrc == d->qfrc_bias) && sleep;
   int ntendon = m->ntendon;
 
   // add bias term due to tendon armature
   for (int i=0; i < ntendon; i++) {
     // skip sleeping tendon
-    if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) == mjS_ASLEEP) {
+    if (sleep && mj_sleepState(m, d, mjOBJ_TENDON, i) == mjS_ASLEEP) {
       continue;
     }
 
@@ -2617,7 +2583,11 @@ void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
       const int* colind = m->ten_J_colind + adr;
       const mjtNum* ten_J = d->ten_J + adr;
       for (int j=0; j < nnz; j++) {
-        qfrc[colind[j]] += coef * ten_J[j];
+        int dof = colind[j];
+        if (sleep_filter && mj_sleepState(m, d, mjOBJ_DOF, dof) == mjS_ASLEEP) {
+          continue;
+        }
+        qfrc[dof] += coef * ten_J[j];
       }
     }
   }

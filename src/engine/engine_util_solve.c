@@ -42,8 +42,8 @@ int mju_cholFactor(mjtNum* restrict mat, int n, mjtNum mindiag) {
       tmp -= mju_dot(mat+j*n, mat+j*n, j);
     }
 
-    // correct diagonal values below threshold
-    int deficient = tmp < mindiag;
+    // correct diagonal values below threshold (negated >= so NaN counts as deficient)
+    int deficient = !(tmp >= mindiag);
     if (deficient) {
       tmp = mindiag;
       rank--;
@@ -111,7 +111,7 @@ int mju_cholUpdate(mjtNum* restrict mat, mjtNum* restrict x, int n, int flg_plus
       // prepare constants
       Lkk = mat[k*(n+1)];
       tmp = Lkk*Lkk + (flg_plus ? x[k]*x[k] : -x[k]*x[k]);
-      if (tmp < mjMINVAL) {
+      if (!(tmp >= mjMINVAL)) {
         tmp = mjMINVAL;
         rank--;
       }
@@ -154,19 +154,26 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
 
     // update row r diagonal
     mjtNum tmp = mat[adr+nnz-1];
-    if (tmp < mindiag) {
+    int deficient = !(tmp >= mindiag);
+    if (deficient) {
       tmp = mindiag;
       rank--;
     }
     mat[adr+nnz-1] = mju_sqrt(tmp);
-    tmp = 1/mat[adr+nnz-1];
 
-    // update row r before diagonal
-    for (int i=0; i < nnz-1; i++) {
-      mat[adr+i] *= tmp;
+    // clear off-diagonals if deficient
+    if (deficient) {
+      mju_zero(mat+adr, nnz-1);
+    } else {
+      tmp = 1/mat[adr+nnz-1];
+
+      // update row r before diagonal
+      for (int i=0; i < nnz-1; i++) {
+        mat[adr+i] *= tmp;
+      }
     }
 
-    // update row c<r where mat(r,c)!=0
+    // update row c<r where mat(r,c)!=0 (zero coefficients still merge the pattern)
     for (int i=0; i < nnz-1; i++) {
       // get column index
       int c = colind[adr+i];
@@ -212,7 +219,7 @@ static inline int upperStart(const int* colind, int start, int end, int r) {
 //   based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
 int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* restrict L_rowadr,
                            int* restrict LT_colind, int* restrict LT_rownnz,
-                           int* restrict LT_rowadr, int* restrict LT_map,
+                           int* restrict LT_rowadr, int* restrict LT_map, int* restrict L_super,
                            const int* restrict rownnz, const int* restrict rowadr,
                            const int* restrict colind, int n, mjData* d) {
   // d supplies stack scratch; if NULL, scratch is heap-allocated
@@ -274,7 +281,7 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
     return nnz;
   }
 
-  // filling phase: populate L_colind, LT_colind, and LT_map
+  // filling phase: populate L_colind, LT_colind, LT_map and L_super
   // cursor[i] tracks next write slot in row i of L (filled right-to-left as r decreases)
   int* restrict cursor = d ? mjSTACKALLOC(d, n, int) : (int*) mju_malloc(sizeof(int)*n);
 
@@ -296,11 +303,15 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
 
     // loop over non-zero columns of upper triangle (> r)
     int end = rowadr[r] + rownnz[r];
+    int overlap = 0;
     for (int c=upperStart(colind, rowadr[r], end, r); c < end; c++) {
       int i = colind[c];
 
       // traverse elimination tree from i toward root, stop when row is already flagged for r
       while (flag[i] != r) {
+        // count rows of LT[r+1] (still flagged r+1) that are also in LT[r]
+        overlap += (flag[i] == r + 1);
+
         // record column r in L[i] and row i (with its L index) in LT[r]
         int L_idx = cursor[i]--;
         L_colind[L_idx] = r;
@@ -318,6 +329,24 @@ int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* 
         i = p;
       }
     }
+
+    // rows r+1 and r merge iff r+1 is a child of r with the same remaining columns in L, and
+    // LT[r] = LT[r+1] + {r}: equal counts alone do not imply equal descendant rows
+    if (r < n-1) {
+      L_super[r+1] = (parent[r+1] == r &&
+                      L_rownnz[r] == L_rownnz[r+1] - 1 &&
+                      LT_rownnz[r] == LT_rownnz[r+1] + 1 &&
+                      overlap == LT_rownnz[r+1]);
+    }
+  }
+
+  // supernode sizes: L_super[r] = number of rows r, r-1, ... (up to 3) that merge
+  if (n > 0) {
+    L_super[0] = 0;
+  }
+  for (int r=n-1; r >= 0; r--) {
+    int merge = L_super[r];
+    L_super[r] = 1 + merge + (merge && r > 0 && L_super[r-1]);
   }
 
   if (d) {
@@ -660,7 +689,7 @@ int cholFactorSupernode(
     mjtNum* restrict row_s = Lptr_s[s];
     int nnz_s = L_nnz - s;
     mjtNum diag = row_s[nnz_s-1];
-    int deficient = diag < mindiag;
+    int deficient = !(diag >= mindiag);
     if (deficient) {
       diag = mindiag;
       rank_dec++;
@@ -694,13 +723,13 @@ int cholFactorSupernode(
 
 // numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
 //  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
-//  LT_map[k] gives index in L for LT_colind[k]
+//  LT_map[k] gives index in L for LT_colind[k], L_super gives supernode sizes
 int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
                           const int* restrict L_rownnz, const int* restrict L_rowadr,
                           const int* restrict L_colind,
                           const int* restrict LT_rownnz, const int* restrict LT_rowadr,
                           const int* restrict LT_colind, const int* restrict LT_map,
-                          const mjtNum* restrict H,
+                          const int* restrict L_super, const mjtNum* restrict H,
                           const int* restrict H_rownnz, const int* restrict H_rowadr,
                           const int* restrict H_colind, mjtNum* restrict scratch) {
   int rank = n;
@@ -714,7 +743,6 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
   for (int r=n-1; r >= 0; r -= ns) {
     int L_adr = L_rowadr[r];
     int L_nnz = L_rownnz[r];
-    const int* restrict L_colptr = L_colind + L_adr;
     mjtNum* restrict Lptr = L + L_adr;
 
     int LT_nnz = LT_rownnz[r];
@@ -729,7 +757,7 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
       ns = 1;
       const mjtNum* restrict Hptr = H + H_adr;
       mjtNum diag = Hptr[L_nnz-1];
-      int deficient = diag < mindiag;
+      int deficient = !(diag >= mindiag);
       if (deficient) {
         diag = mindiag;
         rank--;
@@ -749,15 +777,8 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
       continue;
     }
 
-    // detect target supernode size ns in {1, 2, 3}: consecutive rows (r, r-1, ...) that share
-    // the exact same off-diagonal columns in L and the exact same descendant rows c > r in LT
-    ns = 1;
-    while (ns < 3 && r - ns >= 0 && L_nnz > ns &&
-           L_colptr[L_nnz-1-ns] == r - ns &&
-           L_rownnz[r-ns] == L_nnz - ns &&
-           LT_rownnz[r-ns] == LT_nnz + ns) {
-      ns++;
-    }
+    // supernode size from the symbolic phase
+    ns = L_super[r];
 
     // pass ns as a compile-time literal so cholFactorSupernode specializes per supernode size
     if (ns == 3) {
@@ -780,6 +801,8 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
 
 
 // sparse reverse-order Cholesky solve
+//  requires a complete factor: supernode detection assumes that L(r,c) != 0 (r > c) implies
+//  struct(L(r,0:c)) is a subset of struct(L(c,0:c)), which incomplete factors may violate
 void mju_cholSolveSparse(mjtNum* restrict res, const mjtNum* restrict mat,
                          const mjtNum* vec, int n,
                          const int* restrict rownnz, const int* restrict rowadr,
@@ -936,7 +959,7 @@ int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, 
     // update diagonal, handle rank-deficient case
     mjtNum diag = mat[adr+nnz];
     mjtNum tmp = diag*diag + (flg_plus ? x_row*x_row : -x_row*x_row);
-    if (tmp < mjMINVAL) {
+    if (!(tmp >= mjMINVAL)) {
       tmp = mjMINVAL;
       rank--;
     }
@@ -1039,19 +1062,19 @@ mjtNum mju_cholFactorBand(mjtNum* restrict mat, int ntotal, int nband, int ndens
                      (width_jj == 1 ? mat[adr_jj-1]*mat[adr_jj-1] : 0);
     mjtNum Ljj = diagadd + diagmul*mat[adr_jj] + mat[adr_jj] - left_jj;
 
-    // update mindiag
-    if (Ljj < mindiag || mindiag < 0) {
-      mindiag = Ljj;
-    }
-
     // stop if rank-deficient
-    if (Ljj < mjMINVAL) {
+    if (!(Ljj >= mjMINVAL)) {
       return 0;
     }
 
     // compute Ljj, scale = 1/Ljj
     Ljj = mju_sqrt(Ljj);
     mjtNum scale = 1 / Ljj;
+
+    // update mindiag
+    if (Ljj < mindiag || mindiag < 0) {
+      mindiag = Ljj;
+    }
 
     // compute L(i,j) for i > j, sparse part
     int adr_ij = adr_jj + nband - 1;
@@ -1088,19 +1111,19 @@ mjtNum mju_cholFactorBand(mjtNum* restrict mat, int ntotal, int nband, int ndens
     mjtNum Ljj = diagadd + diagmul*mat[adr_jj] + mat[adr_jj] -
                  mju_dot(mat+adr_jj-j, mat+adr_jj-j, j);
 
-    // update mindiag
-    if (Ljj < mindiag || mindiag < 0) {
-      mindiag = Ljj;
-    }
-
     // stop if rank-deficient
-    if (Ljj < mjMINVAL) {
+    if (!(Ljj >= mjMINVAL)) {
       return 0;
     }
 
     // compute Ljj, scale = 1/Ljj
     Ljj = mju_sqrt(Ljj);
     mjtNum scale = 1 / Ljj;
+
+    // update mindiag
+    if (Ljj < mindiag || mindiag < 0) {
+      mindiag = Ljj;
+    }
 
     // compute L(i,j) for i > j
     int adr_ij = adr_jj + ntotal;
@@ -1606,120 +1629,6 @@ void mju_solve3(mjtNum x[3], const mjtNum A[9], const mjtNum b[3]) {
 }
 
 
-//--------------------------- eigen decomposition --------------------------------------------------
-
-// off-diagonal tolerance and eigenvalue swap threshold, relative to max element
-#ifdef mjUSESINGLE
-static const mjtNum eigTOL = 2e-6f;
-static const mjtNum eigEPS = 1e-5f;
-#else
-static const mjtNum eigTOL = 4e-15;
-static const mjtNum eigEPS = 1e-12;
-#endif
-
-// eigenvalue decomposition of symmetric 3x3 matrix, using eigTOL; returns number of iterations
-int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]) {
-  return mju_eig3Tol(eigval, eigvec, quat, mat, eigTOL);
-}
-
-
-// same as mju_eig3, stop when off-diagonal elements are below reltol times the largest element
-int mju_eig3Tol(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9],
-                mjtNum reltol) {
-  mjtNum D[9], tmp[9];
-  mjtNum tau, t;
-  int iter, rk, ck, rotk;
-
-  // off-diagonal tolerance: no smaller than the roundoff level of D, about 16 epsilons
-  mjtNum scale = 0;
-  for (int i=0; i < 9; i++) {
-    scale = mju_max(scale, mju_abs(mat[i]));
-  }
-  mjtNum tol = scale * mju_max(reltol, eigTOL);
-
-  // initialize with unit quaternion
-  quat[0] = 1;
-  quat[1] = quat[2] = quat[3] = 0;
-
-  // Jacobi iteration
-  for (iter=0; iter < 500; iter++) {
-    // make quaternion matrix eigvec, compute D = eigvec'*mat*eigvec
-    mju_quat2Mat(eigvec, quat);
-    mji_mulMatTMat3(tmp, eigvec, mat);
-    mji_mulMatMat3(D, tmp, eigvec);
-
-    // assign eigenvalues
-    eigval[0] = D[0];
-    eigval[1] = D[4];
-    eigval[2] = D[8];
-
-    // find max off-diagonal element, set indices
-    if (mju_abs(D[1]) > mju_abs(D[2]) && mju_abs(D[1]) > mju_abs(D[5])) {
-      rk = 0;     // row
-      ck = 1;     // column
-      rotk = 2;   // rotation axis
-    } else if (mju_abs(D[2]) > mju_abs(D[5])) {
-      rk = 0;
-      ck = 2;
-      rotk = 1;
-    } else {
-      rk = 1;
-      ck = 2;
-      rotk = 0;
-    }
-
-    // terminate if max off-diagonal element too small
-    if (mju_abs(D[3*rk+ck]) <= tol) {
-      break;
-    }
-
-    // 2x2 symmetric Schur decomposition: t = tan(angle)
-    tau = (D[4*ck]-D[4*rk])/(2*D[3*rk+ck]);
-    if (tau >= 0) {
-      t = 1.0/(tau + mju_sqrt(1 + tau*tau));
-    } else {
-      t = -1.0/(-tau + mju_sqrt(1 + tau*tau));
-    }
-
-    // express rotation as quaternion, using h = tan(angle/2): accurate for small angles
-    mjtNum h = t/(1 + mju_sqrt(1 + t*t));
-    tmp[0] = 1/mju_sqrt(1 + h*h);
-    tmp[1] = tmp[2] = tmp[3] = 0;
-    tmp[rotk+1] = (rotk == 1 ? h : -h) * tmp[0];
-
-    // accumulate quaternion rotation
-    mju_mulQuat(quat, quat, tmp);
-    mju_normalize4(quat);
-  }
-
-  // sort eigenvalues in decreasing order (bubble sort: 0, 1, 0)
-  mjtNum eps = scale * eigEPS;
-  for (int j=0; j < 3; j++) {
-    int j1 = j%2;       // lead index
-
-    // only swap if the eigenvalues are different
-    if (eigval[j1]+eps < eigval[j1+1]) {
-      // swap eigenvalues
-      t = eigval[j1];
-      eigval[j1] = eigval[j1+1];
-      eigval[j1+1] = t;
-
-      // rotate quaternion
-      tmp[0] = 0.707106781186548;  // = cos(pi/4) = sin(pi/4)
-      tmp[1] = tmp[2] = tmp[3] = 0;
-      tmp[(j1+2)%3+1] = tmp[0];
-      mju_mulQuat(quat, quat, tmp);
-      mju_normalize4(quat);
-    }
-  }
-
-  // recompute eigvec
-  mju_quat2Mat(eigvec, quat);
-
-  return iter;
-}
-
-
 //---------------------------------- QCQP ----------------------------------------------------------
 
 // solve QCQP in 2 dimensions:
@@ -2080,7 +1989,7 @@ static int cholInsert(mjtNum* restrict R, mjtNum* restrict temp, mjtNum* restric
 
   // diagonal entry l_22
   mjtNum diag = H[idx*(n+1)] - mju_dot(rowp, rowp, p);
-  if (diag < mjMINVAL) {
+  if (!(diag >= mjMINVAL)) {
     return -1;
   }
   mjtNum l22 = mju_sqrt(diag);
@@ -2180,8 +2089,12 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
 
   // no bounds: return Newton point
   if (!lower && !upper) {
-    // try to factorize
-    mju_copy(R, H, n*n);
+    // try to factorize (only lower triangle of H is read and written to R)
+    for (int i=0; i < n; i++) {
+      for (int j=0; j <= i; j++) {
+        R[i*n+j] = H[i*n+j];
+      }
+    }
     int rank = mju_cholFactor(R, n, mjMINVAL);
     if (rank == n) {
       mju_cholSolve(res, R, g, n);
@@ -2411,16 +2324,16 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       }
       value = oldvalue - reduction;
 
-      // increment and break if step is too small
+      // repeat until relative improvement >= Armijo, or break if step is too small
       nstep++;
-      step = step*backtrack;
-      if (step < minstep) {
-        status = mjBOXQP_MAX_LS_ITER;
-        break;
-      }
-
-      // repeat until relative improvement >= Armijo
       improvement = -reduction / (step*sdotg);
+      if (improvement < armijo) {
+        step = step*backtrack;
+        if (step < minstep) {
+          status = mjBOXQP_MAX_LS_ITER;
+          break;
+        }
+      }
     } while (improvement < armijo);
 
 
@@ -2434,6 +2347,12 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
       if (written > 0) {
         logptr = minInt(logptr + written, logsz);
       }
+    }
+
+    // stop if line search failed without accepting rejected candidate
+    if (status == mjBOXQP_MAX_LS_ITER) {
+      value = oldvalue;
+      break;
     }
 
     // accept candidate

@@ -303,9 +303,10 @@
     X   ( mjStringVec*,   material,      1      ) \
     X   ( double,         young,         1      ) \
     X   ( double,         poisson,       1      ) \
+    X   ( double,         shear,         1      ) \
     X   ( double,         damping,       1      ) \
     X   ( double,         thickness,     1      ) \
-    X   ( double,         stressyield,   1      ) \
+    XVEC( double,         stressyield,   2      ) \
     X   ( int,            elastic2d,     1      ) \
     X   ( int,            elastic3d,     1      ) \
     X   ( mjtFlexSection, section,       1      ) \
