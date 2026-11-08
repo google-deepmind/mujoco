@@ -2894,10 +2894,24 @@ int mjs_setName(mjsElement* element, const char* name) {
     }
 
     // rekey the class name map so that lookups by the new name find this default
-    auto it = model->def_map.find(def->name);
+    std::string oldname = def->name;
+    auto it = model->def_map.find(oldname);
     if (it != model->def_map.end() && it->second == def) { model->def_map.erase(it); }
     def->name               = newname;
     model->def_map[newname] = def;
+
+    // update the elements that refer to the default by name, so that they keep their class and
+    // the saved XML can be loaded again; for bodies and frames this is the childclass
+    auto rename_in = [&](mjtObj type) {
+      for (mjsElement* e = model->NextObject(nullptr, type); e; e = model->NextObject(e, type)) {
+        mjCBase* obj = static_cast<mjCBase*>(e);
+        if (obj->classname == oldname) { obj->classname = newname; }
+      }
+    };
+    for (int type = mjOBJ_UNKNOWN + 1; type < mjNOBJECT; type++) {
+      rename_in(static_cast<mjtObj>(type));
+    }
+    rename_in(mjOBJ_FRAME);
     return 0;
   }
   mjCBase* baseC = static_cast<mjCBase*>(element);
