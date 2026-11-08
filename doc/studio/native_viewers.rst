@@ -118,6 +118,11 @@ manager. It starts ``NativeViewer`` on a daemon thread and returns a ``ViewerHan
        mujoco.mj_step(model, data)
        time.sleep(max(0.0, model.opt.timestep - (time.perf_counter() - tick)))
 
+This minimal loop omits simulation-side plugins, so it does not record history or mirror the viewer's pause and
+playback-speed controls; see `custom_sim_loop.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/custom_sim_loop.py>`__ for how to
+wire up viewer controls in a custom loop.
+
 Key details when driving a ``ViewerHandle`` loop directly:
 
 - **Always rebind** ``model, data = handle.sync(model, data)`` on every iteration. ``sync()`` publishes ``model`` and
@@ -132,10 +137,6 @@ Key details when driving a ``ViewerHandle`` loop directly:
   mode (``python -m mujoco.studio.viewer`` and ``launch_native.run``) works under standard ``python``, whereas
   non-blocking ``launch_native.launch`` requires running your script with ``mjpython`` (unlike :ref:`launch_web
   <StudioWebViewer>`, which works under standard ``python``).
-
-See `custom_sim_loop.py
-<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/custom_sim_loop.py>`__ for a complete
-non-blocking example that mirrors viewer pause and playback-speed controls while dynamically rebuilding the scene.
 
 .. _StudioBackends:
 
