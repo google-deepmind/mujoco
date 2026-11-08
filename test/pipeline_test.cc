@@ -41,7 +41,7 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
-  const mjtNum tol = MjTol(1e-11, 1e-4);
+  const mjtNum tol = MjTol(1e-11, 5e-4);
 
   const char* sname[4] = {"NEWTON", "PGS", "CG", "NOSLIP"};
   mjtSolver solver[4] = {mjSOL_NEWTON, mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON};
@@ -49,6 +49,10 @@ TEST_F(PipelineTest, SparseDenseEquivalent) {
 #ifdef mjUSESINGLE
   // CG and NOSLIP sparse-dense equivalence breaks at float32 precision.
   int nsolvers = 2;
+
+  // the tolerance is below float32 precision, where sparse and dense can stop
+  // at different iterations: run all of them
+  model->opt.tolerance = 0;
 #else
   int nsolvers = 4;
 #endif

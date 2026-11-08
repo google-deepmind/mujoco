@@ -12,12 +12,17 @@ Initially developed by Roboti LLC, it was acquired and made `freely available
 May 2022. The MuJoCo codebase is available at the `google-deepmind/mujoco
 <https://github.com/google-deepmind/mujoco>`__ repository on GitHub.
 
+To explore MuJoCo in your browser with nothing to install, visit `mujoco.org <https://mujoco.org>`__. To inspect or
+drag and drop your own models in the browser, open `live.mujoco.org <https://live.mujoco.org>`__, which runs the
+WebAssembly version of the :ref:`MuJoCo Studio <Studio>` app (convenient for zero-install inspection, though slower
+than native C).
+
 MuJoCo is a C/C++ library with a C API, intended for researchers and developers. The runtime simulation module is tuned
 to maximize performance and operates on low-level data structures which are preallocated by the built-in XML parser and
 compiler. The user defines models in the native MJCF scene description language -- an XML file format designed to be as
-human readable and editable as possible. URDF model files can also be loaded. The library includes interactive
-visualization with a native GUI, rendered in OpenGL. MuJoCo further exposes a large number of utility functions for
-computing physics-related quantities.
+human readable and editable as possible. URDF model files can also be loaded. The library includes :ref:`interactive
+visualization <Studio>` in native desktop windows and web browsers. MuJoCo further exposes a large number of utility
+functions for computing physics-related quantities.
 
 MuJoCo can be used to implement model-based computations such as control synthesis, state estimation, system
 identification, mechanism design, data analysis through inverse dynamics, and parallel sampling for machine learning
@@ -112,18 +117,24 @@ Performance
    <siMultithread>`.
 
 Interactive simulation and visualization
-   The native :ref:`3D visualizer <Visualization>` provides rendering of meshes and geometric primitives, textures,
-   reflections, shadows, fog, transparency, wireframes, skyboxes, stereoscopic visualization (on video cards supporting
-   quad-buffered OpenGL). This functionality is used to generate 3D rendering that helps the user gain insight into the
-   physics simulation, including visual aids such as automatically generated model skeletons, equivalent inertia boxes,
-   contact positions and normals, contact forces that can be separated into normal and tangential components, external
-   perturbation forces, local frames, joint and actuator axes, and text labels. The visualizer expects a generic window
-   with an OpenGL rendering context, thereby allowing users to adopt a GUI library of their choice. The code sample
-   :ref:`simulate.cc <saSimulate>` distributed with MuJoCo shows how to do that with the GLFW library. A related
-   usability feature is the ability to "reach into" the simulation, push objects around and see how the physics respond.
-   The user selects the body to which the external forces and torques will be applied, and sees a real-time rendering of
-   the perturbations together with their dynamic consequences. This can be used to debug the model visually, to test the
-   response of a feedback controller, or to configure the model into a desired pose.
+   :ref:`MuJoCo Studio <Studio>` is MuJoCo's modern visualization SDK for C++ and Python, combining physically based
+   :ref:`Filament rendering <FilamentRendering>`, `Dear ImGui <https://github.com/ocornut/imgui>`__ panels, and
+   modular plugins. The Studio app runs natively on desktop (:ref:`standalone app <StudioApp>`) and in the browser via
+   WebAssembly at `live.mujoco.org <https://live.mujoco.org>`__ (:ref:`browser build <StudioLive>`), and Python
+   simulations can attach either a :ref:`native window <StudioPythonNative>` or a headless :ref:`web viewer
+   <StudioWebViewer>`.
+
+   MuJoCo also includes a classic :ref:`OpenGL renderer <ClassicRendering>` (used by the :ref:`simulate.cc <saSimulate>`
+   sample) that renders meshes and geometric primitives, textures, reflections, shadows, fog, transparency, wireframes,
+   skyboxes, and stereoscopic visualization (on video cards supporting quad-buffered OpenGL). Both Studio and
+   ``simulate`` build on the :ref:`abstract 3D visualizer <Visualization>` to help users gain insight into the physics
+   simulation through visual aids such as automatically generated model skeletons, equivalent inertia boxes, contact
+   positions and normals, contact forces separated into normal and tangential components, external perturbation forces,
+   local frames, joint and actuator axes, and text labels. A related usability feature is the ability to "reach into"
+   the simulation, push objects around, and see how the physics respond: the user selects the body to which external
+   forces and torques will be applied, and sees a real-time rendering of the perturbations together with their dynamic
+   consequences. This can be used to debug the model visually, test the response of a feedback controller, or configure
+   the model into a desired pose.
 
 Powerful yet intuitive modeling language
    MuJoCo has its own modeling language called MJCF. The goal of MJCF is to provide access to all of MuJoCo's compute
@@ -132,11 +143,12 @@ Powerful yet intuitive modeling language
    Sheets (CSS) inlined in HTML. While MJCF has many elements and attributes, the user needs to set surprisingly few of
    them in any given model. This makes MJCF files shorter and more readable than many other formats.
 
-Automated generation of composite flexible objects
-   MuJoCo's soft constraints can be used to model ropes, cloth, and deformable 3D objects. This requires a large
-   collection of regular bodies, joint, tendons and constraints to work together. The modeling language has high-level
-   macros which are automatically expanded by the model compiler into the necessary collections of standard model
-   elements. Importantly, these resulting flexible objects are able to fully interact with the rest of the simulation.
+Deformable objects and automated generation
+   MuJoCo natively models deformable 1D rods and cables, 2D cloths and shells, and 3D soft bodies via the
+   :ref:`flex <deformable-flex>` element, which combines moving vertices with stretchable geometric elements,
+   continuum and discrete-rod elasticity, and deformable collision detection. The high-level
+   :ref:`flexcomp <body-flexcomp>` macro automatically expands meshes, grids, and parametric shapes into the
+   underlying bodies, joints, constraints, and flex elements, which fully interact with the rest of the simulation.
 
 Constraint islands and sleeping
    The constraint solver automatically discovers independent :ref:`constraint islands <soIsland>` -- groups of bodies
@@ -406,8 +418,7 @@ Skinned meshes (or skins) are meshes whose shape can deform at runtime. Their ve
 (called bones in this context) and each vertex can belong to multiple bones, resulting in smooth deformations of the
 skin. Skins are purely visualization objects and do not affect the physics, but nevertheless they can enhance visual
 realism significantly. Skins can be loaded from custom binary files, or embedded directly in the XML, similar to
-meshes. When generating composite flexible objects automatically, the model compiler also generates skins for these
-objects.
+meshes.
 
 Height field
 ^^^^^^^^^^^^
@@ -594,8 +605,10 @@ positional and directional lighting, fog. Lights, or rather the objects illumina
 However, similar to material reflections, each shadow-casting light adds one rendering pass so this feature should be
 used with caution. Documenting the lighting model in detail is beyond the scope of this chapter; see `OpenGL
 documentation <http://www.glprogramming.com/red/chapter05.html>`__ instead. Note that in addition to lights defined
-by the user in the kinematic tree, there is a default headlight that moves with the camera. Its properties are
-adjusted through the mjVisual options.
+by the user in the kinematic tree, there is a built-in headlight that moves with the camera which can be useful for
+inspecting the model in poorly lit conditions. Its properties are adjusted through the mjVisual options, and it is
+"auto" by default to allow the runtime to decide whether or not it should be enabled. (For backwards compatibility,
+legacy renderers assume an "auto" headlight is on.)
 The number of lights is given by ``mjModel.nlight``.
 
 .. _Standalone:

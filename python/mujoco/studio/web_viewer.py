@@ -1,0 +1,503 @@
+# Copyright 2026 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Simulation-agnostic web viewer for MuJoCo models.
+
+See the documentation for app/plugins.py for more details on the architecture
+separating the viewer and simulation.
+
+The WebViewer streams UI and simulation state to a browser:
+
+  * The ImGui UI is built into a headless ImGui context, whose frames are
+    streamed to the browser over a WebSocket using the Studio UI wire codec.
+    Input captured in the browser flows back over the same connection and is
+    injected into the headless context, so all viewer-side plugins work
+    unmodified.
+  * Physics state and render function state are streamed to the browser over
+    a WebSocket with latest-wins semantics. Note that Message types are only
+    streamed between the Python simulation and viewer; the data streamed to
+    the browser is fixed and independent of the user's custom message types.
+  * The browser runs the ``web_client`` WASM app, which renders the MuJoCo
+    scene with Filament and overlays the remote ImGui draw data.
+  * Everything is served through one public port (default 8080): the page and
+    model over HTTP, the UI stream at path /ui and the state stream at /state.
+    Exposing or tunneling that single port exposes the whole viewer.
+  * Models the sim announces ahead of time (``PreloadModelEvent``) are served
+    by content hash as well, so browsers download them in the background and
+    switch to them instantly when they become the current model.
+"""
+
+import os
+import queue
+import shutil
+import socket
+import sys
+import tempfile
+import threading
+import time
+from typing import Any
+import webbrowser
+import zlib
+
+import mujoco
+from mujoco.studio import endpoints
+from mujoco.studio import messages
+from mujoco.studio import ux
+from mujoco.studio import viewer_protocol
+from mujoco.studio.web import client_camera
+from mujoco.studio.web import headless_ui
+from mujoco.studio.web import state_payload
+from mujoco.studio.web import web_server
+import numpy as np
+
+from mujoco.studio.dear_imgui import dear_imgui as imgui
+from mujoco.studio.implot import implot
+
+# File extensions a dropped file may load as a model.
+_MODEL_EXTENSIONS = ('.xml', '.urdf', '.mjb', '.mjz', '.zip')
+
+# Target interval between /state broadcasts when no /ui controller paces the
+# viewer loop (matches HeadlessUi's 60 Hz frame rate).
+_STATE_FRAME_PERIOD = 1.0 / 60.0
+
+_THEMES = {
+    'light': ux.GuiTheme.LIGHT,
+    'dark': ux.GuiTheme.DARK,
+    'classic': ux.GuiTheme.CLASSIC,
+}
+
+
+def _find_assets_dir() -> str:
+  """Locates the Studio assets directory inside the mujoco package."""
+  env_dir = os.environ.get('MUJOCO_STUDIO_ASSETS_DIR')
+  if env_dir and os.path.isdir(env_dir):
+    return env_dir
+  package_dir = os.path.dirname(os.path.abspath(mujoco.__file__))
+  assets_dir = os.path.join(package_dir, 'studio', 'assets')
+  if os.path.isdir(assets_dir):
+    return assets_dir
+  return ''
+
+
+def _print_url_banner(host: str, port: int) -> None:
+  """Prints a prominent boxed banner with the URLs browsers can use."""
+  rows = []
+  if host in ('::', '0.0.0.0'):
+    fqdn = socket.getfqdn()
+    rows.append(('Remote:', f'http://{fqdn}:{port}/'))
+  rows.append(('Local:', f'http://localhost:{port}/'))
+
+  label_width = max(len(label) for label, _ in rows)
+  footer = [
+      '',
+      'Ctrl+C to quit',
+      '',
+      'Warning: No authentication or encryption. Anyone who can reach this',
+      '         port can connect and see your logs and file paths.',
+  ]
+  lines_plain = ['MuJoCo Web Viewer running at:', '']
+  lines_plain += [f'  {label.ljust(label_width)}  {url}' for label, url in rows]
+  lines_plain += footer
+
+  width = max(len(line) for line in lines_plain)
+
+  def _hyperlink(url: str) -> str:
+    return f'\033]8;;{url}\033\\{url}\033]8;;\033\\'
+
+  lines_formatted = ['MuJoCo Web Viewer running at:', '']
+  lines_formatted += [
+      f'  {label.ljust(label_width)}  {_hyperlink(url)}' for label, url in rows
+  ]
+  lines_formatted += footer
+
+  banner = ['+' + '-' * (width + 2) + '+']
+  for plain, formatted in zip(lines_plain, lines_formatted):
+    padding = ' ' * (width - len(plain))
+    banner.append(f'| {formatted}{padding} |')
+  banner.append('+' + '-' * (width + 2) + '+')
+  print('\n'.join(banner), flush=True)
+
+
+def _open_browser(port: int) -> None:
+  """Opens the local web viewer URL in a browser tab if a display is present."""
+  if sys.platform.startswith('linux') and not (
+      os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')
+  ):
+    return
+  url = f'http://localhost:{port}/'
+  threading.Thread(
+      target=webbrowser.open, args=(url,), kwargs={'new': 2}, daemon=True
+  ).start()
+
+
+def _pick_drop_root(paths: list[str]) -> str | None:
+  """Picks the model file to load from a dropped set of files.
+
+  Rules, in order: the only loadable file wins; otherwise, among the loadable
+  files at the shallowest directory depth, prefer one named after its folder
+  (the mjz convention, e.g. cards/cards.xml), then scene.xml (the
+  mujoco_menagerie convention), then the alphabetically first.
+
+  Args:
+    paths: A list of relative file paths.
+
+  Returns:
+    The path to the model file to load, or None if no model file was found.
+  """
+  candidates = [p for p in paths if p.lower().endswith(_MODEL_EXTENSIONS)]
+
+  if not candidates:
+    return None
+
+  if len(candidates) == 1:
+    return candidates[0]
+
+  depth = min(p.count('/') for p in candidates)
+  shallow = sorted(p for p in candidates if p.count('/') == depth)
+  for path in shallow:
+    parts = path.split('/')
+    stem = os.path.splitext(parts[-1])[0]
+    if len(parts) > 1 and stem == parts[-2]:
+      return path
+
+  for path in shallow:
+    if os.path.basename(path) == 'scene.xml':
+      return path
+
+  return shallow[0]
+
+
+class WebViewer(viewer_protocol.Viewer):
+  """Simulation-agnostic web viewer for MuJoCo models."""
+
+  def __init__(
+      self,
+      config: viewer_protocol.ViewerConfig,
+      endpoint: endpoints.ViewerEndpoint,
+      *,
+      model: mujoco.MjModel | None = None,
+      plugins: list[Any] | None = None,
+      camera: mujoco.MjvCamera | None = None,
+      vis_options: mujoco.MjvOption | None = None,
+      perturb: mujoco.MjvPerturb | None = None,
+      render_flags: ux.RenderFlags | None = None,
+      extra_geoms: list[mujoco.MjvGeom] | None = None,
+  ) -> None:
+    """Initializes the WebViewer.
+
+    Args:
+      config: Viewer window configuration.
+      endpoint: The viewer endpoint for communication with the sim side.
+      model: Optional initial MjModel. Forwarded to the base Viewer.
+      plugins: Optional list of plugin instances.
+      camera: Camera parameters. Internal object is created if None.
+      vis_options: Visualization options. Internal object is created if None.
+      perturb: Perturbation parameters. Internal object is created if None.
+      render_flags: Render flags. Internal object is created if None.
+      extra_geoms: List of extra geoms. Internal list is created if None.
+    """
+    super().__init__(
+        config,
+        endpoint,
+        model=model,
+        plugins=plugins,
+        camera=camera,
+        vis_options=vis_options,
+        perturb=perturb,
+        render_flags=render_flags,
+        extra_geoms=extra_geoms,
+    )
+
+    # TODO(matijak): Consider binding to loopback by default, with an opt-in
+    # (e.g. a ViewerConfig.host field and a --host flag) for all interfaces, so
+    # that the viewer is not reachable from the network by default.
+    self._host = '::'
+    # Bind the listening socket up front, in this process, so a bind conflict
+    # surfaces here as one clear error.
+    self._http_sock = web_server.bind_public_socket(
+        self._host, config.http_port
+    )
+    self._http_port = self._http_sock.getsockname()[1]
+
+    # Headless ImGui context whose frames the web server streams at /ui.
+    self._headless_ui = headless_ui.HeadlessUi(
+        config.title or 'MuJoCo Web Viewer',
+        _find_assets_dir(),
+    )
+
+    # Point the Python Dear ImGui bindings at the headless context so that
+    # viewer-side handlers build their GUI into it. The ImPlot context must be
+    # shared in the same way.
+    ctx = self._headless_ui.get_context()
+    imgui.SetCurrentContext(ctx)
+    ux.set_imgui_context(ctx)
+    ux.set_implot_context(self._headless_ui.get_implot_context())
+    implot.set_imgui_context(ctx)
+    implot.set_implot_context(self._headless_ui.get_implot_context())
+
+    # The persistent single-port server (HTTP + /ui + /state + /drop).
+    self._model_crc32 = 0
+    self._model_dirty = False
+    self._next_state_time = 0.0
+
+    # The browser moves the camera locally at the browser's frame rate rather
+    # than once per network round trip.
+    self._client_camera = client_camera.ClientCameraSync()
+    self.client_camera = self._client_camera
+
+    # Files dropped onto the browser page arrive here from the server thread as
+    # a dict of relative path -> bytes.
+    self._drop_queue: queue.Queue[Any] = queue.Queue()
+
+    # Temp dir holding the most recent drop's files; removed when the next drop
+    # supersedes it (its model is already parsed) and on close.
+    self._drop_dir = None
+    self._start_server()
+    _print_url_banner(self._host, self._http_port)
+    if config.open_browser:
+      _open_browser(self._http_port)
+
+    # Dispatch lifecycle event so handlers can cache the viewer reference.
+    try:
+      self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+      self._publish_state()
+    except BaseException:
+      self.close()  # The server is already up; nothing else will stop it.
+      raise
+
+  @property
+  def port(self) -> int:
+    """Public HTTP/WebSocket port bound by this viewer."""
+    return self._http_port
+
+  # ---------------------------------------------------------------------------
+  # Server lifecycle.
+  # ---------------------------------------------------------------------------
+
+  def _start_server(self) -> None:
+    """Creates and starts the web server, serving the current model.
+
+    The server thread is started once and persists.  On model changes, call
+    _update_model() to swap the model bytes served at /model without restarting
+    the server.
+    """
+    mjb_data = self._serialize_model()
+
+    # Identity of the served model, included in every state payload. When it
+    # changes, the browser refetches /model by reloading the page.
+    self._model_crc32 = zlib.crc32(mjb_data)
+
+    self._web_server = web_server.WebServer(
+        http_sock=self._http_sock,
+        ui=self._headless_ui,
+        mjb_data=mjb_data,
+        drop_queue=self._drop_queue,
+    )
+    self._web_server.start()
+
+  def _update_model(self) -> None:
+    """Swaps the model bytes served at /model without restarting the server."""
+    mjb_data = self._serialize_model()
+    self._model_crc32 = zlib.crc32(mjb_data)
+    self._model_dirty = True
+    if self._web_server is not None:
+      self._web_server.update_model(mjb_data, self._model_crc32)
+
+  def _serialize_model(self) -> bytes:
+    """Returns the bytes served at /model: the MJB plus by-reference textures.
+
+    A model compiled with ``passthrough="textures"`` stores only the paths of
+    its textures, which the browser cannot open, so the files are bundled with
+    the MJB. The browser parses the bundle in one step.
+    """
+    return state_payload.serialize_model_bundle(self.model)
+
+  def _stop_server(self) -> None:
+    if self._web_server is not None:
+      self._web_server.stop(reason=self.exit_reason)
+      self._web_server = None
+
+  # ---------------------------------------------------------------------------
+  # Message handlers.
+  # ---------------------------------------------------------------------------
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_post_model(self, event: messages.PostModelEvent) -> None:
+    """Updates the server to serve the newly loaded model.
+
+    The browser notices the changed model identity in the state payload and
+    reloads itself to fetch the new /model.
+    """
+    del event
+    self._update_model()
+    print('Model changed: the browser page reloads automatically.', flush=True)
+
+  @messages.handler(priority=messages.Priority.INTERNAL)
+  def _on_preload_model(self, event: messages.PreloadModelEvent) -> None:
+    """Serves a model the sim may show soon, so browsers can fetch it early.
+
+    The bundle is served by its crc32 and announced on the state stream; the
+    browser downloads it in the background and, when the model's ModelEvent
+    arrives with the same crc32, switches to it without a download.
+    """
+    if self._web_server is None:
+      return
+    mjb_data = state_payload.serialize_model_bundle(event.model)
+    self._web_server.add_model(mjb_data)
+
+  @messages.handler(priority=messages.Priority.CRITICAL)
+  def _on_update(self, _: messages.UpdateEvent) -> None:
+    """Applies any UI theme picked by the controller browser."""
+    if self._web_server is None:
+      return
+    theme = _THEMES.get(self._web_server.pop_theme() or '')
+    if theme is not None:
+      ux.setup_theme(theme)
+      self.dispatch(viewer_protocol.ThemeEvent(theme=theme))
+
+  # ---------------------------------------------------------------------------
+  # Viewer interface.
+  # ---------------------------------------------------------------------------
+
+  def prepare_next_frame(self) -> bool:
+    """Advances to the next headless frame; returns False when disconnected."""
+    frame = self._headless_ui.new_frame()
+    if self._web_server is not None:
+      camera = self._web_server.take_client_camera()
+      if camera is not None:
+        self._client_camera.apply(self.camera, camera)
+    return frame
+
+  def _publish_state(self, *, has_ui_frame: bool = False) -> None:
+    """Serializes and publishes the current scene state to /state."""
+    if self._web_server is None:
+      return
+    now = time.monotonic()
+    if (
+        has_ui_frame
+        or not (now - _STATE_FRAME_PERIOD < self._next_state_time <= now)
+    ):
+      self._next_state_time = now + _STATE_FRAME_PERIOD
+    else:
+      self._next_state_time += _STATE_FRAME_PERIOD
+    self._model_dirty = False
+
+    io = imgui.GetIO() if has_ui_frame else None
+    state_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)
+    state_size = mujoco.mj_stateSize(self.model, state_sig)
+    state = np.empty(state_size, np.float64)
+    mujoco.mj_getState(self.model, self.data, state, state_sig)
+    payload = state_payload.serialize_state_payload(
+        self._model_crc32,
+        state_sig,
+        state.tobytes(),
+        self.camera,
+        self.perturb,
+        self.vis_options,
+        self.model,
+        list(self.render_flags.flags),
+        self.extra_geoms[: state_payload.MAX_EXTRA_GEOMS],
+        state_payload.ViewerInputState(
+            mouse_focus=io is not None and not io.WantCaptureMouse,
+            camera_index=self.camera_index,
+            keyboard_focus=io is not None and not io.WantCaptureKeyboard,
+            camera_generation=self._client_camera.update_generation(
+                self.camera
+            ),
+        ),
+    )
+    self._web_server.update_state(payload)
+
+  def sync(self) -> None:
+    """Streams state to the browser and ends the headless ImGui frame."""
+    self._publish_state(has_ui_frame=True)
+
+    # Finish the ImGui frame and send it to the browser.
+    self._headless_ui.end_frame()
+    if self._web_server is not None:
+      self._web_server.notify_ui_frame()
+
+  def sync_idle(self) -> None:
+    """Streams state to spectators when no /ui controller drives frames."""
+    if self._web_server is None:
+      return
+    if self._model_dirty or (
+        self._web_server.viewer_count > 0
+        and time.monotonic() >= self._next_state_time
+    ):
+      self._publish_state()
+
+  def close(self) -> None:
+    self._stop_server()
+    self._http_sock.close()
+    if self._drop_dir is not None:
+      shutil.rmtree(self._drop_dir, ignore_errors=True)
+      self._drop_dir = None
+    super().close()
+
+  def get_drop_file(self) -> str:
+    """Returns the path of a model file dropped onto the browser page, or ''.
+
+    The browser uploads the dropped files' bytes over the /drop WebSocket
+    (so drops work even when the browser runs on another machine). They are
+    written to a temporary directory here, preserving names and relative
+    paths — a dropped folder's asset references resolve, and the mjz/zip
+    decoder can locate an archive's root XML by the archive's own name —
+    and the regular drop-loading flow applies (studio_app.App sends a
+    LoadModelEvent; the sim thread parses the file).
+    """
+    try:
+      files = self._drop_queue.get_nowait()
+    except queue.Empty:
+      return ''
+
+    # TODO(matijak): This could work without disk access: mjVFS can hold the
+    # dropped files in memory (mj_addBufferVFS) and mj_parse resolves
+    # includes/assets from it (ModelHolder::InitFromBuffer already covers
+    # the single-buffer XML/MJB/ZIP cases). Needs a buffer-based parser
+    # entry point and a viewer drop interface that isn't a file path.
+    # The previous drop's model has already been parsed, so its temp dir can
+    # go now; keeping only the newest avoids leaking one dir per drop.
+    if self._drop_dir is not None:
+      shutil.rmtree(self._drop_dir, ignore_errors=True)
+    self._drop_dir = tempfile.mkdtemp(prefix='mujoco_drop_')
+    drop_dir = self._drop_dir
+    written = []
+    for name, payload in files.items():
+      rel = name.replace('\\', '/').lstrip('/')
+      parts = [p for p in rel.split('/') if p not in ('', '.', '..')]
+      if not parts:
+        continue
+      rel = '/'.join(parts)
+      path = os.path.join(drop_dir, *parts)
+      os.makedirs(os.path.dirname(path), exist_ok=True)
+      with open(path, 'wb') as f:
+        f.write(payload)
+      written.append(rel)
+    root = _pick_drop_root(written)
+    if root is None:
+      print(
+          'Dropped file(s) contain no loadable model '
+          f'({", ".join(_MODEL_EXTENSIONS)}).',
+          flush=True,
+      )
+      return ''
+    return os.path.join(drop_dir, *root.split('/'))
+
+  def upload_image(
+      self, tex_id: int, img: str | bytes, width: int, height: int, bpp: int
+  ) -> int:
+    """Uploads an image to the browser over the UI stream."""
+    if isinstance(img, str):
+      img = img.encode('latin-1')
+    return self._headless_ui.upload_image(tex_id, img, width, height, bpp)

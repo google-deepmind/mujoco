@@ -109,6 +109,57 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
         return dependencies;
       });
 
+  // mj_loadTexture returns its out-parameters: a (height, width, nchannel)
+  // uint8 array which owns the mju_malloc'ed buffer, and the colorspace
+  pymodule.def(
+      "mj_loadTexture",
+      [](const MjModelWrapper& m, int id) {
+        std::array<char, 1024> error;
+        mjtByte* data = nullptr;
+        int width, height, colorspace, status;
+        {
+          py::gil_scoped_release no_gil;
+          status = InterceptMjErrors(::mj_loadTexture)(
+              m.get(), id, &data, &width, &height, &colorspace, error.data(),
+              error.size());
+        }
+        if (status) {
+          throw py::value_error(std::string(error.data()));
+        }
+        int nchannel = m.get()->tex_nchannel[id];
+        py::capsule owner(data, [](void* p) { mju_free(p); });
+        py::array_t<std::uint8_t> pixels({height, width, nchannel}, data,
+                                         owner);
+        return std::make_pair(pixels, colorspace);
+      },
+      py::arg("m"), py::arg("id"),
+      py::doc((std::string(traits::mj_loadTexture::doc) +
+               std::string(" Returns (pixels, colorspace), pixels an array of "
+                           "shape (height, width, nchannel)."))
+                  .c_str()));
+
+  // mj_embedAssets returns a new MjModel which owns the model
+  py::function mjmodel_from_raw_ptr = py::module::import("mujoco._structs")
+                                          .attr("MjModel")
+                                          .attr("_from_model_ptr");
+  pymodule.def(
+      "mj_embedAssets",
+      [mjmodel_from_raw_ptr](const MjModelWrapper& m) -> py::object {
+        std::array<char, 1024> error;
+        raw::MjModel* embedded = nullptr;
+        {
+          py::gil_scoped_release no_gil;
+          embedded = InterceptMjErrors(::mj_embedAssets)(
+              m.get(), error.data(), error.size());
+        }
+        if (!embedded) {
+          throw py::value_error(std::string(error.data()));
+        }
+        // wrapped by _structs, which owns MjModelWrapper's symbols
+        return mjmodel_from_raw_ptr(reinterpret_cast<std::uintptr_t>(embedded));
+      },
+      py::arg("m"), py::doc(traits::mj_embedAssets::doc));
+
   // Main simulation
   pymodule.def(
       "mj_step",
@@ -133,7 +184,14 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
 
   // Initialization
   Def<traits::mj_defaultLROpt>(pymodule);
-  Def<traits::mj_defaultSolRefImp>(pymodule);
+  Def<traits::mj_defaultSolRefImp>(
+      pymodule,
+      [](std::optional<Eigen::Ref<Eigen::Vector<mjtNum, mjNREF>>> solref,
+         std::optional<Eigen::Ref<Eigen::Vector<mjtNum, mjNIMP>>> solimp) {
+        return InterceptMjErrors(::mj_defaultSolRefImp)(
+            solref.has_value() ? solref->data() : nullptr,
+            solimp.has_value() ? solimp->data() : nullptr);
+      });
   Def<traits::mj_defaultOption>(pymodule);
   Def<traits::mj_defaultVisual>(pymodule);
   // Skipped: mj_copyModel (have MjModel.__copy__, memory managed by MjModel)
@@ -866,7 +924,49 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
       py::arg("vertid") = std::nullopt, py::arg("normal") = std::nullopt,
       py::doc(traits::mj_rayFlex::doc),
       py::call_guard<py::gil_scoped_release>());
-  Def<traits::mju_raySkin>(pymodule);
+  Def<traits::mju_raySkin>(
+      pymodule,
+      [](int nface, int nvert,
+         Eigen::Ref<const Eigen::Array<int, Eigen::Dynamic, Eigen::Dynamic,
+                                       Eigen::RowMajor>>
+             face,
+         Eigen::Ref<const Eigen::Array<float, Eigen::Dynamic, Eigen::Dynamic,
+                                       Eigen::RowMajor>>
+             vert,
+         const mjtNum(*pnt)[3], const mjtNum(*vec)[3],
+         std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> vertid) {
+        if (nface < 0 || nvert < 0) {
+          throw py::value_error("nface and nvert must be non-negative");
+        }
+        if (face.size() != 3 * static_cast<Eigen::Index>(nface)) {
+          throw py::type_error("face should be of size 3*nface");
+        }
+        if (vert.size() != 3 * static_cast<Eigen::Index>(nvert)) {
+          throw py::type_error("vert should be of size 3*nvert");
+        }
+        Eigen::Array<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+            face_copy;
+        const int* face_ptr = face.data();
+        if (face.outerStride() != face.cols()) {
+          face_copy = face;
+          face_ptr = face_copy.data();
+        }
+        Eigen::Array<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+            vert_copy;
+        const float* vert_ptr = vert.data();
+        if (vert.outerStride() != vert.cols()) {
+          vert_copy = vert;
+          vert_ptr = vert_copy.data();
+        }
+        for (Eigen::Index i = 0; i < face.size(); ++i) {
+          if (face_ptr[i] < 0 || face_ptr[i] >= nvert) {
+            throw py::value_error("face vertex index out of bounds");
+          }
+        }
+        return InterceptMjErrors(::mju_raySkin)(
+            nface, nvert, face_ptr, vert_ptr, &(*pnt)[0], &(*vec)[0],
+            vertid.has_value() ? vertid->data() : nullptr);
+      });
 
   // Interaction
   Def<traits::mjv_defaultCamera>(pymodule);

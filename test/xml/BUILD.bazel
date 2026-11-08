@@ -12,7 +12,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -37,7 +36,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -63,7 +61,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -80,7 +77,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -90,7 +86,6 @@ cc_test(
     deps = [
         "//:mujoco",
         "//plugin/actuator:register",
-        "//plugin/elasticity:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
         "//src/xml:xml_numeric_format",
@@ -107,7 +102,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -119,7 +113,6 @@ cc_test(
     deps = [
         "//:mujoco",
         "//plugin/actuator:register",
-        "//plugin/elasticity:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
         "//src/xml:xml_numeric_format",
@@ -136,7 +129,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -153,7 +145,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -171,7 +162,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],

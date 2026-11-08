@@ -57,7 +57,7 @@ using MjDouble5 = Eigen::Map<Eigen::Matrix<double, 5, 1>>;
 using MjDouble6 = Eigen::Map<Eigen::Matrix<double, 6, 1>>;
 using MjDouble9 = Eigen::Map<Eigen::Matrix<double, 9, 1>>;
 using MjDouble10 = Eigen::Map<Eigen::Matrix<double, 10, 1>>;
-using MjDouble11 = Eigen::Map<Eigen::Matrix<double, 11, 1>>;
+using MjDouble12 = Eigen::Map<Eigen::Matrix<double, 12, 1>>;
 using MjDoubleVec = Eigen::Map<Eigen::VectorXd>;
 using MjNum2 = Eigen::Map<Eigen::Matrix<mjtNum, 2, 1>>;
 using MjNum3 = Eigen::Map<Eigen::Matrix<mjtNum, 3, 1>>;
@@ -75,11 +75,27 @@ using MjDoubleRef5 = Eigen::Ref<const Eigen::Matrix<double, 5, 1>>;
 using MjDoubleRef6 = Eigen::Ref<const Eigen::Matrix<double, 6, 1>>;
 using MjDoubleRef9 = Eigen::Ref<const Eigen::Matrix<double, 9, 1>>;
 using MjDoubleRef10 = Eigen::Ref<const Eigen::Matrix<double, 10, 1>>;
-using MjDoubleRef11 = Eigen::Ref<const Eigen::Matrix<double, 11, 1>>;
+using MjDoubleRef12 = Eigen::Ref<const Eigen::Matrix<double, 12, 1>>;
 using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
 using MjNumRef2 = Eigen::Ref<const Eigen::Matrix<mjtNum, 2, 1>>;
 using MjNumRef3 = Eigen::Ref<const Eigen::Matrix<mjtNum, 3, 1>>;
 using MjNumRef5 = Eigen::Ref<const Eigen::Matrix<mjtNum, 5, 1>>;
+
+namespace {
+mjVFS* GetOpenVfs(MjVfs* vfs) {
+  if (vfs) {
+    if (!vfs->is_open()) {
+      throw py_runtime_error("VFS is closed");
+    }
+    return vfs->get();
+  }
+  return nullptr;
+}
+
+mjVFS* GetOpenVfs(std::optional<MjVfs*> vfs) {
+  return GetOpenVfs(vfs.value_or(nullptr));
+}
+}  // namespace
 
 template <typename LoadFunc>
 static raw::MjSpec* LoadSpecFileImpl(const std::string& filename,
@@ -302,7 +318,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       .def("__setitem__",
            [](MjVfs& self, const std::string& name, py::bytes data) {
              if (!self.is_open()) {
-               throw std::runtime_error("VFS is closed");
+               throw py_runtime_error("VFS is closed");
              }
              std::string_view buffer = data;
              const int err = mj_addBufferVFS(self.get(), name.c_str(),
@@ -316,7 +332,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       .def("__delitem__",
            [](MjVfs& self, const std::string& name) {
              if (!self.is_open()) {
-               throw std::runtime_error("VFS is closed");
+               throw py_runtime_error("VFS is closed");
              }
              if (mj_deleteFileVFS(self.get(), name.c_str())) {
                throw py::key_error(name);
@@ -324,7 +340,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
            })
       .def("__contains__", [](MjVfs& self, const std::string& name) {
         if (!self.is_open()) {
-          throw std::runtime_error("VFS is closed");
+          throw py_runtime_error("VFS is closed");
         }
         return mj_containsBufferVFS(self.get(), name.c_str()) == 1;
       });
@@ -342,13 +358,14 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
           throw py::value_error(
               "Cannot specify both 'vfs' and 'include'/'assets'.");
         }
-        if (vfs) {
+        mjVFS* vfs_ptr = GetOpenVfs(vfs);
+        if (vfs_ptr) {
           raw::MjSpec* spec;
           {
             py::gil_scoped_release no_gil;
             char error[1024];
             spec = InterceptMjErrors(mj_parse)(
-                filename.c_str(), nullptr, vfs->get(), error, sizeof(error));
+                filename.c_str(), nullptr, vfs_ptr, error, sizeof(error));
             if (!spec) {
               throw py::value_error(error);
             }
@@ -404,12 +421,13 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
           throw py::value_error(
               "Cannot specify both 'vfs' and 'include'/'assets'.");
         }
-        if (vfs) {
+        mjVFS* vfs_ptr = GetOpenVfs(vfs);
+        if (vfs_ptr) {
           raw::MjSpec* spec;
           {
             py::gil_scoped_release no_gil;
             char error[1024];
-            spec = InterceptMjErrors(mj_parseXMLString)(xml.c_str(), vfs->get(),
+            spec = InterceptMjErrors(mj_parseXMLString)(xml.c_str(), vfs_ptr,
                                                         error, sizeof(error));
             if (!spec) {
               throw py::value_error(error);
@@ -465,11 +483,27 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         include or assets.
   )mydelimiter",
       py::return_value_policy::move);
-  mjSpec.def("recompile", [mjmodel_mjdata_from_spec_ptr](
-                              const MjSpec& self, py::object m, py::object d) {
-    return mjmodel_mjdata_from_spec_ptr(reinterpret_cast<uintptr_t>(self.ptr),
-                                        m, d);
-  });
+  mjSpec.def(
+      "recompile",
+      [mjmodel_mjdata_from_spec_ptr](MjSpec& self, py::object m, py::object d,
+                                     std::optional<MjVfs*> vfs) {
+        mjVFS* user_vfs = GetOpenVfs(vfs);
+        std::optional<mjVFS> local_vfs;
+        mjVFS* vfs_ptr = self.AssetsVfs(user_vfs, local_vfs);
+        struct LocalVfsGuard {
+          mjVFS* vfs;
+          bool active;
+          ~LocalVfsGuard() {
+            if (active) {
+              mj_deleteVFS(vfs);
+            }
+          }
+        } guard{vfs_ptr, local_vfs.has_value()};
+        return mjmodel_mjdata_from_spec_ptr(
+            reinterpret_cast<uintptr_t>(self.ptr), m, d,
+            reinterpret_cast<uintptr_t>(vfs_ptr));
+      },
+      py::arg("m"), py::arg("d"), py::arg("vfs") = py::none());
   mjSpec.def("copy", [](const MjSpec& self) -> MjSpec { return MjSpec(self); });
   mjSpec.def_property_readonly("_address", [](const MjSpec& self) {
     return reinterpret_cast<uintptr_t>(self.ptr);
@@ -504,7 +538,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       "compile",
       [mjmodel_from_raw_ptr](MjSpec& self,
                              std::optional<MjVfs*> vfs) -> py::object {
-        mjVFS* vfs_ptr = vfs.has_value() ? (*vfs)->get() : nullptr;
+        mjVFS* vfs_ptr = GetOpenVfs(vfs);
         return mjmodel_from_raw_ptr(
             reinterpret_cast<uintptr_t>(self.Compile(vfs_ptr)));
       },
@@ -512,7 +546,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
   mjSpec.def(
       "fuse_static",
       [](MjSpec& self, std::optional<MjVfs*> vfs) {
-        self.FuseStatic(vfs.has_value() ? (*vfs)->get() : nullptr);
+        return self.FuseStatic(GetOpenVfs(vfs));
       },
       py::arg("vfs") = py::none(),
       R"mydelimiter(
@@ -520,7 +554,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
 
     Each fused body becomes a frame in its parent, holding what the body held.
     Objects referring to the fused bodies must not be used afterwards. Assets
-    are read as in compile().
+    are read as in compile(). Returns the number of bodies fused.
 
     Parameters
     ----------
@@ -530,7 +564,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
   mjSpec.def(
       "discard_visual",
       [](MjSpec& self, std::optional<MjVfs*> vfs) {
-        self.DiscardVisual(vfs.has_value() ? (*vfs)->get() : nullptr);
+        return self.DiscardVisual(GetOpenVfs(vfs));
       },
       py::arg("vfs") = py::none(),
       R"mydelimiter(
@@ -540,7 +574,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
     collide and are not referenced, and the meshes which are then not used.
     Objects referring to the discarded elements must not be used afterwards.
     Assets are read as in compile(), and only if body inertia is inferred from
-    a discarded geom.
+    a discarded geom. Returns the number of elements discarded.
 
     Parameters
     ----------
@@ -548,9 +582,21 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         A VFS to read assets from. Cannot be used with assets.
     )mydelimiter");
   mjSpec.def(
+      "dedup_assets", [](MjSpec& self) { return self.DedupAssets(); },
+      R"mydelimiter(
+    Merges the duplicate textures and meshes of the spec.
+
+    Textures and meshes which would compile to the same asset, with the same
+    resolved file or buffers and the same parameters, are merged: the first of
+    each group keeps its name, every reference to the others is rewritten to it
+    and the others are deleted. Objects referring to the deleted elements must
+    not be used afterwards. Nothing is read from disk. Returns the number of
+    assets merged.
+    )mydelimiter");
+  mjSpec.def(
       "adopt_inertial",
       [](MjSpec& self, raw::MjsBody* body, std::optional<MjVfs*> vfs) {
-        self.AdoptInertial(body, vfs.has_value() ? (*vfs)->get() : nullptr);
+        self.AdoptInertial(body, GetOpenVfs(vfs));
       },
       py::arg("body"), py::arg("vfs") = py::none(),
       R"mydelimiter(
@@ -702,7 +748,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         }
         const char* p = prefix.has_value() ? prefix.value().c_str() : "/";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
-        raw::MjsElement* attached_frame = nullptr;
+        raw::MjsElement* parent_elem = nullptr;
         if (frame.has_value()) {
           raw::MjsFrame* frame_ptr = nullptr;
           try {
@@ -718,11 +764,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
             throw pybind11::value_error(
                 "Frame spec does not match parent spec.");
           }
-          attached_frame =
-              mjs_attach(frame_ptr->element, child.ptr->element, p, s);
-          if (!attached_frame) {
-            throw pybind11::value_error(mjs_getError(self.ptr));
-          }
+          parent_elem = frame_ptr->element;
         }
         if (site.has_value()) {
           raw::MjsSite* site_ptr = nullptr;
@@ -739,24 +781,32 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
             throw pybind11::value_error(
                 "Site spec does not match parent spec.");
           }
-          attached_frame =
-              mjs_attach(site_ptr->element, child.ptr->element, p, s);
-          if (!attached_frame) {
-            throw pybind11::value_error(mjs_getError(self.ptr));
-          }
+          parent_elem = site_ptr->element;
         }
         // add prefix and suffix to the assets keys
         std::string pre(p);
         std::string suf(s);
+        std::vector<std::pair<py::str, py::object>> new_assets;
+        new_assets.reserve(child.assets.size());
         for (const auto& asset : child.assets) {
-          std::string asset_name =
-              addPrefixAndSuffix(asset.first.cast<std::string>(), pre, suf);
-          if (self.assets.contains(asset_name) && !self.override_assets) {
-            throw pybind11::value_error("Asset " +
-                                        asset.first.cast<std::string>() +
+          std::string key = asset.first.cast<std::string>();
+          std::string asset_name = addPrefixAndSuffix(key, pre, suf);
+          py::str py_asset_name(asset_name);
+          if (self.assets.contains(py_asset_name) && !self.override_assets) {
+            throw pybind11::value_error("Asset " + key +
                                         " already exists in parent spec.");
           }
-          self.assets[py::str(asset_name)] = asset.second;
+          new_assets.emplace_back(
+              std::move(py_asset_name),
+              py::reinterpret_borrow<py::object>(asset.second));
+        }
+        raw::MjsElement* attached_frame =
+            mjs_attach(parent_elem, child.ptr->element, p, s);
+        if (!attached_frame) {
+          throw pybind11::value_error(mjs_getError(self.ptr));
+        }
+        for (const auto& [asset_name, asset_val] : new_assets) {
+          self.assets[asset_name] = asset_val;
         }
         raw::MjsElement* mesh = mjs_firstElement(child.ptr, mjOBJ_MESH);
         raw::MjsElement* tex = mjs_firstElement(child.ptr, mjOBJ_TEXTURE);
@@ -955,7 +1005,7 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
           }
           file_str = mesh->c_str();
         }
-        const mjVFS* vfs_ptr = vfs ? vfs->get() : nullptr;
+        const mjVFS* vfs_ptr = GetOpenVfs(vfs);
 
         int count_arr[3] = {10, 10, 10};
         if (count.has_value()) {
@@ -1968,6 +2018,15 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
       throw pybind11::value_error(mjs_getError(self.ptr));
     }
   });
+  mjsTexture.def_property(
+      "classname",
+      [](raw::MjsTexture& self) -> raw::MjsDefault* {
+        return mjs_getDefault(self.element);
+      },
+      [](raw::MjsTexture& self, raw::MjsDefault& default_) -> void {
+        mjs_setDefault(self.element, &default_);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSKEY ======================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsKey& obj) {

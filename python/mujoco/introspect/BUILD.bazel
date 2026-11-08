@@ -11,6 +11,11 @@ package(default_visibility = [
     "//wasm:__subpackages__",
 ])
 
+exports_files(
+    ["functions.py"],
+    visibility = ["//test:__pkg__"],
+)
+
 py_library(
     name = "ast_nodes",
     srcs = ["ast_nodes.py"],

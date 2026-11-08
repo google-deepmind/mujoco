@@ -23,11 +23,15 @@ cc_library(
     hdrs = ["xml.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -56,10 +60,14 @@ cc_library(
     hdrs = ["xml_api.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -74,8 +82,8 @@ cc_library(
         ":xml_util",
         "//:libmujoco_hdrs",
         "//src/engine:engine_io",
+        "//src/engine:engine_util_errmem",
         "//src/user:user_resource",
-        "//src/user:user_vfs",
     ],
 )
 
@@ -88,11 +96,15 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -100,7 +112,6 @@ cc_library(
     deps = [
         ":xml_util",
         "//:libmujoco_hdrs",
-        "//src/user:user_composite",
         "//src/user:user_model",
         "@tinyxml2",
     ],
@@ -112,11 +123,15 @@ cc_library(
     hdrs = ["xml_global.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -139,11 +154,15 @@ cc_library(
     hdrs = ["xml_native_reader.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -154,7 +173,6 @@ cc_library(
         ":xml_util",
         "//:libmujoco_hdrs",
         "//src/engine:engine_util_misc",
-        "//src/user:user_composite",
         "//src/user:user_model",
         "//src/user:user_util",
         "@tinyxml2",
@@ -170,11 +188,15 @@ cc_library(
     hdrs = ["xml_native_writer.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -201,11 +223,15 @@ cc_library(
     hdrs = ["xml_urdf.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -228,11 +254,15 @@ cc_library(
     hdrs = ["xml_util.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -255,10 +285,14 @@ cc_library(
     hdrs = ["xml_numeric_format.h"],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",

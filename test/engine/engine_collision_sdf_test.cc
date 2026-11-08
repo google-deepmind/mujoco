@@ -146,12 +146,6 @@ TEST_F(SdfTest, FlexSdfCollision) {
   EXPECT_TRUE(has_flex_contact) << "Expected at least one flex contact";
 }
 
-extern "C" {
-mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid);
-void oct_gradient(const mjModel* m, mjtNum grad[3], const mjtNum point[3],
-                  int meshid);
-}
-
 TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
   static constexpr char kCubeXml[] = R"(
   <mujoco>
@@ -169,6 +163,15 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
   ASSERT_THAT(model.get(), NotNull()) << error;
   ASSERT_GT(model->mesh_octnum[0], 0);
 
+  const mjpPlugin* plugin = nullptr;
+  int meshid = 0;
+  mjtGeom geomtype = mjGEOM_SDF;
+  mjSDF sdf{};
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.id = &meshid;
+  sdf.plugin = &plugin;
+  sdf.geomtype = &geomtype;
+
   const mjtNum points[][3] = {
       {0.8, 0.4, -0.2},
       {0.2, -0.3, 0.5},
@@ -179,7 +182,7 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
 
   for (const auto& point : points) {
     mjtNum grad_analytic[3];
-    oct_gradient(model.get(), grad_analytic, point, 0);
+    mjc_gradient(model.get(), nullptr, &sdf, grad_analytic, point);
 
     mjtNum grad_fd[3];
     for (int k = 0; k < 3; ++k) {
@@ -187,8 +190,8 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
       mjtNum p_minus[3] = {point[0], point[1], point[2]};
       p_plus[k] += eps;
       p_minus[k] -= eps;
-      mjtNum d_plus = oct_distance(model.get(), p_plus, 0);
-      mjtNum d_minus = oct_distance(model.get(), p_minus, 0);
+      mjtNum d_plus = mjc_distance(model.get(), nullptr, &sdf, p_plus);
+      mjtNum d_minus = mjc_distance(model.get(), nullptr, &sdf, p_minus);
       grad_fd[k] = (d_plus - d_minus) / (2.0 * eps);
     }
 
@@ -225,7 +228,8 @@ TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {
   mj_forward(model.get(), data.get());
 
   mjPreContact con[mjMAXCONPAIR];
-  int ncon = mjc_MeshSDF(model.get(), data.get(), con, 0, 1, 0.0);
+  int ncon = mjCOLLISIONFUNC[mjGEOM_MESH][mjGEOM_SDF](model.get(), data.get(),
+                                                      con, 0, 1, 0.0);
   ASSERT_GT(ncon, 0);
 
   // Mesh bottom face is at z = 0.45, SDF top face is at z = 0.50
@@ -241,7 +245,6 @@ TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {
 TEST_F(SdfTest, SdfCollisionExcessContactsNoCrash) {
   static constexpr char kSdfSdfXml[] = R"(
   <mujoco>
-    <option sdf_initpoints="50"/>
     <asset>
       <mesh name="cube" vertex="-0.5 -0.5 -0.5  0.5 -0.5 -0.5  -0.5 0.5 -0.5  0.5 0.5 -0.5
                                 -0.5 -0.5  0.5  0.5 -0.5  0.5  -0.5 0.5  0.5  0.5 0.5  0.5"/>
@@ -259,14 +262,204 @@ TEST_F(SdfTest, SdfCollisionExcessContactsNoCrash) {
   char error[1024];
   MjModelPtr model = LoadModelFromString(kSdfSdfXml, error, sizeof(error));
   ASSERT_THAT(model.get(), NotNull()) << error;
+  // More starting points than contact slots must stop before writing past the
+  // buffer.
+  model->opt.sdf_initpoints = 2 * mjMAXCONPAIR;
   MjDataPtr data = MakeData(model);
   ASSERT_THAT(data, NotNull());
   mj_forward(model.get(), data.get());
 
   mjPreContact con[mjMAXCONPAIR];
-  int ncon = mjc_SDF(model.get(), data.get(), con, 0, 1, 0.0);
-  EXPECT_LE(ncon, mjMAXCONPAIR);
-  EXPECT_GT(ncon, 0);
+  int ncon = mjCOLLISIONFUNC[mjGEOM_SDF][mjGEOM_SDF](model.get(), data.get(),
+                                                     con, 0, 1, 0.0);
+  EXPECT_EQ(ncon, mjMAXCONPAIR);
+}
+
+TEST_F(SdfTest, MeshSdfSmallInitPointsDoesNotOverflowArena) {
+  static constexpr char kMeshSdfXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" vertex="-0.5 -0.5 -0.5  0.5 -0.5 -0.5  -0.5 0.5 -0.5  0.5 0.5 -0.5
+                                -0.5 -0.5  0.5  0.5 -0.5  0.5  -0.5 0.5  0.5  0.5 0.5  0.5"/>
+      <mesh name="small_cube" vertex="-0.1 -0.1 -0.1  0.1 -0.1 -0.1  -0.1 0.1 -0.1  0.1 0.1 -0.1
+                                      -0.1 -0.1  0.1  0.1 -0.1  0.1  -0.1 0.1  0.1  0.1 0.1  0.1"/>
+    </asset>
+    <worldbody>
+      <body pos="0 0 0.4">
+        <freejoint/>
+        <geom name="geom1" type="mesh" mesh="small_cube"/>
+      </body>
+      <body pos="0 0 0">
+        <geom name="geom2" type="sdf" mesh="cube"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kMeshSdfXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  model->opt.sdf_initpoints = 1;
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+  mj_forward(model.get(), data.get());
+
+  // Multi-face mesh-SDF collision produces > sdf_initpoints contacts safely
+  // within mjMAXCONPAIR without overflowing conbuffer on d->arena.
+  EXPECT_GT(data->ncon, 1);
+  EXPECT_LE(data->ncon, mjMAXCONPAIR);
+}
+
+TEST_F(SdfTest, PlaneSdfSmallInitPointsDoesNotOverflowArena) {
+  static constexpr char kPlaneSdfXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" vertex="-0.5 -0.5 -0.5  0.5 -0.5 -0.5  -0.5 0.5 -0.5  0.5 0.5 -0.5
+                                -0.5 -0.5  0.5  0.5 -0.5  0.5  -0.5 0.5  0.5  0.5 0.5  0.5"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 0.1"/>
+      <body pos="0 0 0.45">
+        <freejoint/>
+        <geom name="box_sdf" type="sdf" mesh="cube"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kPlaneSdfXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  model->opt.sdf_initpoints = 1;
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+  mj_forward(model.get(), data.get());
+
+  // mjc_PlaneConvex emits 4 face-corner contacts even when sdf_initpoints == 1.
+  EXPECT_EQ(data->ncon, 4);
+}
+
+TEST_F(SdfTest, PrimitiveGradientAndDistanceSingularities) {
+  static constexpr char kPrimitivesXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="sphere" type="sphere" size="1"/>
+      <geom name="capsule" type="capsule" size="0.2 1"/>
+      <geom name="box" type="box" size="1 2 3"/>
+      <geom name="ellipsoid" type="ellipsoid" size="1 2 3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(kPrimitivesXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  mjSDF sdf{};
+  const mjpPlugin* null_plugin = nullptr;
+  sdf.plugin = &null_plugin;
+  sdf.type = mjSDFTYPE_SINGLE;
+
+  mjtNum gradient[3];
+  const mjtNum origin[3] = {0, 0, 0};
+
+  // Sphere origin: gradient is zero.
+  int sphere_id = 0;
+  mjtGeom sphere_type = mjGEOM_SPHERE;
+  sdf.id = &sphere_id;
+  sdf.geomtype = &sphere_type;
+  gradient[0] = gradient[1] = gradient[2] = 9.0;
+  mjc_gradient(model.get(), data.get(), &sdf, gradient, origin);
+  EXPECT_MJTNUM_EQ(gradient[0], 0.0);
+  EXPECT_MJTNUM_EQ(gradient[1], 0.0);
+  EXPECT_MJTNUM_EQ(gradient[2], 0.0);
+
+  // Capsule axis: gradient is zero.
+  int capsule_id = 1;
+  mjtGeom capsule_type = mjGEOM_CAPSULE;
+  sdf.id = &capsule_id;
+  sdf.geomtype = &capsule_type;
+  const mjtNum axis_point[3] = {0, 0, 0.5};
+  gradient[0] = gradient[1] = gradient[2] = 9.0;
+  mjc_gradient(model.get(), data.get(), &sdf, gradient, axis_point);
+  EXPECT_MJTNUM_EQ(gradient[0], 0.0);
+  EXPECT_MJTNUM_EQ(gradient[1], 0.0);
+  EXPECT_MJTNUM_EQ(gradient[2], 0.0);
+
+  // Ellipsoid origin: distance is -min(size) and gradient is zero.
+  int ellipsoid_id = 3;
+  mjtGeom ellipsoid_type = mjGEOM_ELLIPSOID;
+  sdf.id = &ellipsoid_id;
+  sdf.geomtype = &ellipsoid_type;
+  EXPECT_MJTNUM_EQ(mjc_distance(model.get(), data.get(), &sdf, origin), -1.0);
+  gradient[0] = gradient[1] = gradient[2] = 9.0;
+  mjc_gradient(model.get(), data.get(), &sdf, gradient, origin);
+  EXPECT_MJTNUM_EQ(gradient[0], 0.0);
+  EXPECT_MJTNUM_EQ(gradient[1], 0.0);
+  EXPECT_MJTNUM_EQ(gradient[2], 0.0);
+
+  // Box faces and edges: unit outward normals.
+  int box_id = 2;
+  mjtGeom box_type = mjGEOM_BOX;
+  sdf.id = &box_id;
+  sdf.geomtype = &box_type;
+
+  const mjtNum faces[6][3] = {{1, 0, 0},  {-1, 0, 0}, {0, 2, 0},
+                              {0, -2, 0}, {0, 0, 3},  {0, 0, -3}};
+  const mjtNum expected[6][3] = {{1, 0, 0},  {-1, 0, 0}, {0, 1, 0},
+                                 {0, -1, 0}, {0, 0, 1},  {0, 0, -1}};
+  for (int f = 0; f < 6; ++f) {
+    mjc_gradient(model.get(), data.get(), &sdf, gradient, faces[f]);
+    EXPECT_MJTNUM_EQ(gradient[0], expected[f][0]);
+    EXPECT_MJTNUM_EQ(gradient[1], expected[f][1]);
+    EXPECT_MJTNUM_EQ(gradient[2], expected[f][2]);
+  }
+
+  const mjtNum edge[3] = {1, 2, 0};
+  mjc_gradient(model.get(), data.get(), &sdf, gradient, edge);
+  EXPECT_NEAR(mju_norm3(gradient), 1.0, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(gradient[0], gradient[1], MjTol(1e-12, 1e-6));
+  EXPECT_MJTNUM_EQ(gradient[2], 0.0);
+}
+
+TEST_F(SdfTest, ObtuseMeshTriangleNotPrunedByCircumradius) {
+  // Obtuse triangle [(1, 0, 0), (0, -0.1, -0.1), (0, 0.1, -0.1)] has
+  // circumradius ~0.5075 < max centroid-to-vertex distance ~0.6700. At x =
+  // -1.49 against a [-0.5, 0.5]^3 SDF box, centroid SDF distance is ~0.653
+  // (exceeding circumradius while the tip at x = -0.49 penetrates by 0.01).
+  static constexpr char kObtuseMeshSdfXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="obtuse_tet"
+            vertex="1 0 0  0 -0.1 -0.1  0 0.1 -0.1  0 0 0.2"/>
+      <mesh name="cube"
+            vertex="-0.5 -0.5 -0.5  0.5 -0.5 -0.5
+                    -0.5  0.5 -0.5  0.5  0.5 -0.5
+                    -0.5 -0.5  0.5  0.5 -0.5  0.5
+                    -0.5  0.5  0.5  0.5  0.5  0.5"/>
+    </asset>
+    <worldbody>
+      <body pos="-1.49 0 0">
+        <freejoint/>
+        <geom name="tet" type="mesh" mesh="obtuse_tet"/>
+      </body>
+      <geom name="sdf" type="sdf" mesh="cube"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(kObtuseMeshSdfXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  ASSERT_THAT(data, NotNull());
+  mj_forward(model.get(), data.get());
+
+  ASSERT_GE(data->ncon, 1);
+  mjtNum min_dist = 0;
+  for (int i = 0; i < data->ncon; ++i) {
+    min_dist = mju_min(min_dist, data->contact[i].dist);
+  }
+  EXPECT_NEAR(min_dist, -0.01, MjTol(2e-3, 2e-3));
 }
 
 }  // namespace

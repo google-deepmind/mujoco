@@ -45,6 +45,19 @@ MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 // Recompile spec to model, preserving the state, return 0 on success.
 MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
+// Decode texture id into pixels; return 0 on success.
+MJAPI int mj_loadTexture(const mjModel* m,
+                         int            id,
+                         mjtByte**      data,
+                         int*           width,
+                         int*           height,
+                         int*           colorspace,
+                         char*          error,
+                         int            error_sz);
+
+// Copy of m with every by-reference asset loaded into it.
+MJAPI mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz);
+
 // Copy spec.
 MJAPI mjSpec* mj_copySpec(const mjSpec* s);
 
@@ -274,7 +287,7 @@ MJAPI mjsHField* mjs_addHField(mjSpec* s);
 MJAPI mjsSkin* mjs_addSkin(mjSpec* s);
 
 // Add texture.
-MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
+MJAPI mjsTexture* mjs_addTexture(mjSpec* s, const mjsDefault* def);
 
 // Add material.
 MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
@@ -504,11 +517,14 @@ MJAPI const char* mjs_resolveOrientation(double                quat[4],
                                          const char*           sequence,
                                          const mjsOrientation* orientation);
 
-// Fuse the static bodies of the spec with their parents, return 0 on success.
+// Fuse the static bodies of the spec with their parents; return the number fused, -1 on error.
 MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
 
-// Discard the visual elements of the spec, return 0 on success.
+// Discard the visual elements of the spec; return the number discarded, -1 on error.
 MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
+
+// Merge duplicate textures and meshes in the spec; return the number merged, -1 on error.
+MJAPI int mjs_dedupAssets(mjSpec* s);
 
 // Make the inertial which compilation infers for a body part of the spec, return 0 on success.
 MJAPI int mjs_adoptInertial(mjsBody* body, const mjVFS* vfs);

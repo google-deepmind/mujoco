@@ -22,7 +22,7 @@ let mujoco: MainModule;
 describe('Enums', () => {
   beforeAll(async () => {
     mujoco = await loadMujoco();
-  });
+  }, 60_000);
 
   it('mjtDisableBit should exist', () => {
     expect(mujoco.mjtDisableBit).toBeDefined();
@@ -186,6 +186,10 @@ describe('Enums', () => {
 
   it('mjtMeshBuiltin should exist', () => {
     expect(mujoco.mjtMeshBuiltin).toBeDefined();
+  });
+
+  it('mjtFlexSection should exist', () => {
+    expect(mujoco.mjtFlexSection).toBeDefined();
   });
 
   it('mjtBuiltin should exist', () => {

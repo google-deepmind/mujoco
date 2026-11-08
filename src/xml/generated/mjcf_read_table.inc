@@ -44,6 +44,7 @@ inline constexpr mjXAttr kCompilerAttrs[] = {
   {"savecanonical", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, savecanonical)},
   {"alignfree", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsCompiler, alignfree)},
   {"conflict", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, conflict), conflict_map, conflict_sz},
+  {"passthrough", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsCompiler, passthrough), passthrough_map, passthrough_sz},
 };
 inline constexpr int kCompilerAttrsN = sizeof(kCompilerAttrs) / sizeof(kCompilerAttrs[0]);
 
@@ -151,7 +152,6 @@ inline constexpr mjXAttr kHeadlightAttrs[] = {
   {"ambient", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjVisual, headlight.ambient)},
   {"diffuse", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjVisual, headlight.diffuse)},
   {"specular", mjXAttr::kFloat, 3, true, false, false, false, (int)offsetof(mjVisual, headlight.specular)},
-  {"active", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjVisual, headlight.active)},
 };
 inline constexpr int kHeadlightAttrsN = sizeof(kHeadlightAttrs) / sizeof(kHeadlightAttrs[0]);
 
@@ -269,7 +269,7 @@ inline constexpr mjXAttr kTextureAttrs[] = {
   {"name", mjXAttr::kName, 1, true, false, true, false, -1},
   {"type", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, type), texture_map, texture_sz},
   {"colorspace", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, colorspace), colorspace_map, colorspace_sz},
-  {"content_type", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsTexture, content_type)},
+  {"content_type", mjXAttr::kString, 1, true, false, true, false, (int)offsetof(mjsTexture, content_type)},
   {"gridsize", mjXAttr::kInt, 2, true, false, false, false, (int)offsetof(mjsTexture, gridsize)},
   {"gridlayout", mjXAttr::kChars, 12, false, false, false, false, (int)offsetof(mjsTexture, gridlayout)},
   {"builtin", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, builtin), builtin_map, builtin_sz},
@@ -283,6 +283,7 @@ inline constexpr mjXAttr kTextureAttrs[] = {
   {"hflip", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsTexture, hflip)},
   {"vflip", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsTexture, vflip)},
   {"nchannel", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsTexture, nchannel)},
+  {"embed", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsTexture, embed), FalseTrueAuto_map, FalseTrueAuto_sz},
 };
 inline constexpr int kTextureAttrsN = sizeof(kTextureAttrs) / sizeof(kTextureAttrs[0]);
 
@@ -343,6 +344,7 @@ inline constexpr mjXAttr kJointAttrs[] = {
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, margin)},
   {"ref", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, ref)},
   {"springref", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, springref)},
+  {"springyield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, springyield)},
   {"armature", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, armature)},
   {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsJoint, damping)},
   {"frictionloss", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsJoint, frictionloss)},
@@ -378,6 +380,7 @@ inline constexpr mjXAttr kGeomAttrs[] = {
   {"mesh", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsGeom, meshname)},
   {"fitscale", mjXAttr::kDouble, 1, true, false, false, true, (int)offsetof(mjsGeom, fitscale)},
   {"rgba", mjXAttr::kFloat, 4, true, false, false, false, (int)offsetof(mjsGeom, rgba)},
+  {"castshadow", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsGeom, castshadow)},
   {"fluidcoef", mjXAttr::kNum, 5, false, false, false, false, (int)offsetof(mjsGeom, fluid_coefs)},
   {"user", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsGeom, userdata)},
 };
@@ -445,9 +448,12 @@ inline constexpr int kLightAttrsN = sizeof(kLightAttrs) / sizeof(kLightAttrs[0])
 inline constexpr mjXAttr kElasticityAttrs[] = {
   {"young", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, young)},
   {"poisson", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, poisson)},
+  {"shear", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, shear)},
   {"damping", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, damping)},
   {"thickness", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, thickness)},
   {"elastic2d", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, elastic2d), elastic2d_map, elastic2d_sz},
+  {"section", mjXAttr::kEnum, 1, true, false, false, false, (int)offsetof(mjsFlex, section), flexsection_map, flexsection_sz},
+  {"sectionsize", mjXAttr::kDouble, 2, true, false, false, false, (int)offsetof(mjsFlex, sectionsize)},
 };
 inline constexpr int kElasticityAttrsN = sizeof(kElasticityAttrs) / sizeof(kElasticityAttrs[0]);
 
@@ -475,7 +481,7 @@ inline constexpr mjXAttr kFlexAttrs[] = {
   {"group", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsFlex, group)},
   {"dim", mjXAttr::kInt, 1, true, false, false, false, (int)offsetof(mjsFlex, dim)},
   {"radius", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsFlex, radius)},
-  {"material", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsFlex, material)},
+  {"material", mjXAttr::kStringVec, 1, true, false, false, true, (int)offsetof(mjsFlex, material)},
   {"rgba", mjXAttr::kFloat, 4, true, false, false, false, (int)offsetof(mjsFlex, rgba)},
   {"flatskin", mjXAttr::kBool, 1, true, false, false, false, (int)offsetof(mjsFlex, flatskin)},
   {"body", mjXAttr::kStringVec, 1, true, true, false, false, (int)offsetof(mjsFlex, vertbody)},
@@ -532,6 +538,7 @@ inline constexpr mjXAttr kSpatialAttrs[] = {
   {"solreffriction", mjXAttr::kNum, mjNREF, false, false, false, false, (int)offsetof(mjsTendon, solref_friction)},
   {"solimpfriction", mjXAttr::kNum, mjNIMP, false, false, false, false, (int)offsetof(mjsTendon, solimp_friction)},
   {"frictionloss", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, frictionloss)},
+  {"springyield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, springyield)},
   {"width", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, width)},
   {"material", mjXAttr::kString, 1, true, false, false, false, (int)offsetof(mjsTendon, material)},
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, margin)},
@@ -556,6 +563,7 @@ inline constexpr mjXAttr kFixedAttrs[] = {
   {"solreffriction", mjXAttr::kNum, mjNREF, false, false, false, false, (int)offsetof(mjsTendon, solref_friction)},
   {"solimpfriction", mjXAttr::kNum, mjNIMP, false, false, false, false, (int)offsetof(mjsTendon, solimp_friction)},
   {"frictionloss", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, frictionloss)},
+  {"springyield", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, springyield)},
   {"margin", mjXAttr::kDouble, 1, true, false, false, false, (int)offsetof(mjsTendon, margin)},
   {"stiffness", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsTendon, stiffness)},
   {"damping", mjXAttr::kDouble, mjNPOLY+1, false, false, false, false, (int)offsetof(mjsTendon, damping)},
@@ -1149,6 +1157,7 @@ inline constexpr mjXAttr kKeyAttrs[] = {
   {"mpos", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, mpos)},
   {"mquat", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, mquat)},
   {"ctrl", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, ctrl)},
+  {"plastic", mjXAttr::kDoubleVec, 1, true, false, false, false, (int)offsetof(mjsKey, plastic)},
 };
 inline constexpr int kKeyAttrsN = sizeof(kKeyAttrs) / sizeof(kKeyAttrs[0]);
 

@@ -195,6 +195,11 @@ create an arbitrary data structure that it requires to function and stores its p
 :ref:`mjData` that is being created. During :ref:`mj_deleteData`, MuJoCo calls the ``destroy`` callback from the same
 :ref:`mjpPlugin`, and the plugin is responsible for deallocating its internal resources associated with the instance.
 
+The ``init`` callback should report an invalid configuration by issuing a :ref:`mju_warning` and returning -1, upon
+which :ref:`mj_makeData` (and model compilation) fails. Plugin callbacks should not call :ref:`mju_error`: error
+handlers which do not return, like those of the Python bindings and the model compiler, skip the destructors of C++
+objects on the stack, in the plugin and in MuJoCo itself.
+
 When :ref:`mjData` is being copied via :ref:`mj_copyData`, MuJoCo will copy over the plugin state. However, the plugin
 code is responsible for setting up the plugin data for the newly copied :ref:`mjData`. To facilitate this, MuJoCo calls
 the ``copy`` callback from :ref:`mjpPlugin` for each plugin instance present.
@@ -246,7 +251,8 @@ For applications that need to be able to load arbitrary user-provided MJCF model
 scan and load all dynamic libraries found without a specific directory. Users who bring along an MJCF that requires a
 plugin can then be instructed to place the requisite plugin libraries in the relevant directory. For example, this is
 what is done in the :ref:`saSimulate` interactive viewer application. The :ref:`mj_loadAllPluginLibraries` function is
-provided for this scan-and-load use case.
+provided for this scan-and-load use case. A library in the directory that fails to load, for example because one of its
+dependencies is missing, is skipped with a warning rather than aborting the application.
 
 .. _exWriting:
 
@@ -273,17 +279,6 @@ actuator
 The plugins in the `actuator/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/actuator>`__ directory
 implement custom actuators, so far only a PID controller. See the `README
 <https://github.com/google-deepmind/mujoco/blob/main/plugin/actuator/README.md>`__ for details.
-
-
-elasticity
-""""""""""
-The plugins in the `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/plugin/elasticity>`__ directory are
-passive forces based on continuum mechanics for 1-dimensional and 2-dimensional bodies. The 1D model is invariant under
-rotations and captures the large deformation of elastic cables, decoupling twisting and bending strains. The 2D model is
-a suitable for computing the bending stiffness of thin elastic plates (i.e. shells having a flat stress-free
-configuration). In this case, the elastic energy is quadratic and therefore the stiffness matrix is constant. For more
-information, please see the `README
-<https://github.com/google-deepmind/mujoco/blob/main/plugin/elasticity/README.md>`__.
 
 
 sensor
@@ -313,7 +308,9 @@ gradient descent iterations is set using :ref:`sdf_iterations<option-sdf_iterati
 While *exact* SDFs---encoding the precise signed distance to the surface---are preferred, collisions are possible with
 any function whose value vanishes at the surface and grows monotonically away from it, with a negative sign in the
 interior. For such functions, it is still possible to find collisions, albeit with a possibly
-increased number of starting points.
+increased number of starting points. Note that if :math:`\|\nabla f\| \neq 1` near the zero level set, contact
+penetration depth is scaled accordingly and gradient-descent projection steps are distorted, so
+:math:`\|\nabla f\| \approx 1` near the surface is recommended.
 
 The ``sdf_distance`` method is called by the compiler to produce a visual mesh for rendering using the marching cubes
 algorithm implemented by `MarchingCubeCpp <https://github.com/aparis69/MarchingCubeCpp>`__.
@@ -386,7 +383,7 @@ A decoder is described by the :ref:`mjpDecoder` struct, which has the following 
   failure, in which case the decoder should write a human-readable reason into the ``error`` buffer of size
   ``error_sz``, if ``error`` is not ``NULL``. This message is propagated to the user, e.g. via the ``error``
   argument of :ref:`mj_parse` or as a compiler error for mesh assets. Non-fatal issues can be reported with
-  :ref:`mju_warning`.
+  :ref:`mju_warning`. Decoders should not call :ref:`mju_error`, see :ref:`plugin state<exPluginState>`.
 
 When a decoder is invoked for a mesh asset, the compiler will reference the first mesh element in the spec returned
 by the ``decode`` callback.

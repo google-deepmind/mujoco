@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 3016001
+#define mjVERSION_HEADER 4000001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -161,6 +161,20 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 // Recompile spec to model, preserving the state; return 0 on success.
 // Nullable: vfs
 MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
+
+// Decode texture id to raw bytes, exactly what compilation would store in tex_data, with
+// tex_nchannel channels; embedded textures are copied from the model. The buffer is allocated with
+// mju_malloc and freed by the caller; colorspace receives the resolved colorspace (mjtColorSpace).
+// Return 0 on success.
+// Nullable: width, height, colorspace, error
+MJAPI int mj_loadTexture(const mjModel* m, int id, mjtByte** data, int* width, int* height,
+                         int* colorspace, char* error, int error_sz);
+
+// Copy of m with every by-reference asset loaded into it, as compilation would have stored it.
+// Return NULL with error on a file that does not resolve. A hermetic MJB file of a model with
+// by-reference assets is mj_embedAssets, then mj_saveModel, then mj_deleteModel.
+// Nullable: error
+MJAPI mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz);
 
 // Update XML data structures with info from low-level model created with mj_loadXML, save as MJCF.
 // If error is not NULL, it must have size error_sz.
@@ -677,7 +691,8 @@ MJAPI void mj_loadPluginLibrary(const char* path);
 
 // Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
 // are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
-// for each dynamic library encountered that registers plugins.
+// for each dynamic library encountered that registers plugins. A library that fails to load is
+// skipped with a warning.
 MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
 
 // Return version number: 1.0.2 is encoded as 102.
@@ -891,7 +906,8 @@ MJAPI void mjr_freeContext(mjrContext* con);
 // Resize offscreen buffers.
 MJAPI void mjr_resizeOffscreen(int width, int height, mjrContext* con);
 
-// Upload texture to GPU, overwriting previous upload if any.
+// Upload texture to GPU, overwriting previous upload if any. A by-reference texture (tex_adr == -1)
+// is decoded with mj_loadTexture.
 MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
 
 // Upload mesh to GPU, overwriting previous upload if any.
@@ -1817,7 +1833,8 @@ MJAPI mjsHField* mjs_addHField(mjSpec* s);
 MJAPI mjsSkin* mjs_addSkin(mjSpec* s);
 
 // Add texture.
-MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
+// Nullable: def
+MJAPI mjsTexture* mjs_addTexture(mjSpec* s, const mjsDefault* def);
 
 // Add material.
 // Nullable: def
@@ -1969,13 +1986,17 @@ MJAPI int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 MJAPI const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                          const mjsOrientation* orientation);
 
-// Fuse the static bodies of the spec with their parents, return 0 on success.
+// Fuse the static bodies of the spec with their parents; return the number fused, -1 on error.
 // Nullable: vfs
 MJAPI int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs);
 
-// Discard the visual elements of the spec, return 0 on success.
+// Discard the visual elements of the spec; return the number discarded, -1 on error.
 // Nullable: vfs
 MJAPI int mjs_discardVisual(mjSpec* s, const mjVFS* vfs);
+
+// Merge the textures and meshes of the spec which would compile to the same asset; return the number
+// merged, -1 on error.
+MJAPI int mjs_dedupAssets(mjSpec* s);
 
 // Make the inertial which compilation infers for a body part of the spec, return 0 on success.
 // Nullable: vfs

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
-#include <string>
+#include <cstring>
+#include <mutex>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "sdf.h"
@@ -25,11 +25,14 @@
 namespace mujoco::plugin::sdf {
 
 bool CheckAttr(const char* name, const mjModel* m, int instance) {
+  // empty or whitespace is valid (default), otherwise a number with optional
+  // surrounding whitespace, as in SdfDefault::GetDefault
+  const char* ws = " \t\n\v\f\r";
+  const char* value = mj_getPluginConfig(m, instance, name);
+  if (!value[std::strspn(value, ws)]) return true;
   char* end;
-  std::string value = mj_getPluginConfig(m, instance, name);
-  value.erase(std::remove_if(value.begin(), value.end(), isspace), value.end());
-  strtod(value.c_str(), &end);
-  return end == value.data() + value.size();
+  strtod(value, &end);
+  return end != value && !end[std::strspn(end, ws)];
 }
 
 SdfVisualizer::SdfVisualizer() {
@@ -38,19 +41,25 @@ SdfVisualizer::SdfVisualizer() {
 }
 
 void SdfVisualizer::AddPoint(const mjtNum point[3]) {
+  std::lock_guard<std::mutex> lock(*mutex_);
   if (!npoints_.empty() && npoints_.back() < points_.size() / 3) {
-    points_[3 * npoints_.back() + 0] = point[0];
-    points_[3 * npoints_.back() + 1] = point[1];
-    points_[3 * npoints_.back() + 2] = point[2];
-    npoints_.back()++;
+    int idx = npoints_.back();
+    points_[3 * idx + 0] = point[0];
+    points_[3 * idx + 1] = point[1];
+    points_[3 * idx + 2] = point[2];
+    npoints_.back() = idx + 1;
   }
 }
 
 void SdfVisualizer::Next() {
+  std::lock_guard<std::mutex> lock(*mutex_);
   npoints_.push_back(npoints_.empty() ? 0 : npoints_.back());
 }
 
-void SdfVisualizer::Reset() { npoints_.clear(); }
+void SdfVisualizer::Reset() {
+  std::lock_guard<std::mutex> lock(*mutex_);
+  npoints_.clear();
+}
 
 void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
                               const mjvOption* opt, mjvScene* scn,
@@ -58,8 +67,15 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
   if (!opt->flags[mjVIS_SDFITER]) {
     return;
   }
-  if (npoints_.empty()) {
-    return;
+  std::vector<int> npoints_copy;
+  std::vector<mjtNum> points_copy;
+  {
+    std::lock_guard<std::mutex> lock(*mutex_);
+    if (npoints_.empty() || npoints_.back() == 0) {
+      return;
+    }
+    npoints_copy = npoints_;
+    points_copy.assign(points_.begin(), points_.begin() + 3 * npoints_.back());
   }
   int tot = 0, n = 0, g = 0;
   for (int i = 0; i < m->ngeom; i++) {
@@ -68,9 +84,9 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
       break;
     }
   }
-  mjtNum* points = points_.data();
-  int* npoints = npoints_.data();
-  int niter = npoints_.size();
+  const mjtNum* points = points_copy.data();
+  const int* npoints = npoints_copy.data();
+  int niter = npoints_copy.size();
   mjtNum geom_mat[9], offset[3], rotation[9], from[3], to[3];
   mjtNum* geom_xpos = d->geom_xpos + 3 * g;
   mjtNum* geom_xmat = d->geom_xmat + 9 * g;
@@ -99,18 +115,18 @@ void SdfVisualizer::Visualize(const mjModel* m, const mjData* d,
           return;
         }
         mjvGeom* thisgeom = scn->geoms + scn->ngeom;
-        mjtNum* p1 = points + (tot + (k == 0 ? (n - 1) * j : j)) * 3;
-        mjtNum* p2 = points + (tot + j + 1) * 3;
+        const mjtNum* p1 = points + (tot + (k == 0 ? (n - 1) * j : j)) * 3;
         mju_mulMatVec3(from, rotation, p1);
         mju_addTo3(from, offset);
-        mju_mulMatVec3(to, rotation, p2);
-        mju_addTo3(to, offset);
         if (k == 0) {
           float rgba[4] = {static_cast<float>(j > 0), 0,
                            static_cast<float>(j == 0), 1};
           mjtNum size = 0.2 * m->stat.meansize;
           mjv_initGeom(thisgeom, mjGEOM_SPHERE, &size, from, geom_xmat, rgba);
         } else {
+          const mjtNum* p2 = points + (tot + j + 1) * 3;
+          mju_mulMatVec3(to, rotation, p2);
+          mju_addTo3(to, offset);
           mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL);
           thisgeom->objtype = mjOBJ_UNKNOWN;
           thisgeom->objid = i;

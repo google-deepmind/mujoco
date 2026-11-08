@@ -33,11 +33,6 @@
 
 namespace mujoco {
 
-template <class T>
-static void Combine(uint64_t& seed, const T* v) {
-  seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
 static void Combine(uint64_t& seed, const mjrfTexture* texture) {
   if (texture) {
     const uint64_t id = Texture::downcast(texture)->Id();
@@ -123,7 +118,9 @@ static MaterialManager::MaterialKey BuildMaterialKey(
 
 MaterialManager::MaterialType MaterialManager::GetMaterialType(
     const mjrfMaterial& material, const Mesh* mesh) {
-  if (material.decor) {
+  if (material.haze_ratio >= 0) {
+    return ObjectManager::kHaze;
+  } else if (material.decor) {
     if (material.color_texture) {
       return ObjectManager::kUnlitUi;
     } else if (material.color[3] < 1.0f) {
@@ -156,7 +153,7 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
       return ObjectManager::kPbr;
     }
   } else if (material.metallic >= 0) {
-    if (material.color[3] < 1.0f) {
+    if (material.opacity_texture || material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
     } else if (material.reflectance > 0) {
       return ObjectManager::kPbrReflect;
@@ -164,7 +161,7 @@ MaterialManager::MaterialType MaterialManager::GetMaterialType(
       return ObjectManager::kPbr;
     }
   } else if (material.roughness >= 0) {
-    if (material.color[3] < 1.0f) {
+    if (material.opacity_texture || material.color[3] < 1.0f) {
       return ObjectManager::kPbrTransparent;
     } else if (material.reflectance > 0) {
       return ObjectManager::kPbrReflect;
@@ -260,6 +257,10 @@ const filament::MaterialInstance* MaterialManager::GetInstance(MaterialKey key) 
   return it->second;
 }
 
+void MaterialManager::SetBaseColorType(filament::RgbaType base_color_type) {
+  base_color_type_ = base_color_type;
+}
+
 void MaterialManager::UpdateMaterialInstance(
     filament::MaterialInstance* instance, const mjrfMaterial& material) {
   if (material.scissor[2] != 0 && material.scissor[3] != 0) {
@@ -269,8 +270,15 @@ void MaterialManager::UpdateMaterialInstance(
 
   const filament::Material* fmaterial = instance->getMaterial();
   if (fmaterial->hasParameter("BaseColorFactor")) {
-    instance->setParameter("BaseColorFactor", filament::RgbaType::sRGB,
+    instance->setParameter("BaseColorFactor", base_color_type_,
                            ReadFloat4(material.color));
+  }
+  if (fmaterial->hasParameter("HazeColor")) {
+    instance->setParameter("HazeColor", filament::RgbaType::LINEAR,
+                           ReadFloat4(material.color));
+  }
+  if (fmaterial->hasParameter("HazeRatio")) {
+    instance->setParameter("HazeRatio", material.haze_ratio);
   }
   if (fmaterial->hasParameter("SegmentationColor")) {
     const uint8_t r = material.segmentation_id >> 0;
@@ -326,13 +334,20 @@ void MaterialManager::UpdateMaterialInstance(
   const auto wrap_mode = material.decor
                              ? filament::TextureSampler::WrapMode::CLAMP_TO_EDGE
                              : filament::TextureSampler::WrapMode::REPEAT;
+  // UI textures are drawn at their native size, and Dear ImGui rasterizes
+  // glyphs with horizontal oversampling (2 atlas texels per pixel), so a
+  // mipmapped minification filter would sample text from a half-resolution
+  // mip level. Sample them without mipmaps, like Dear ImGui's own backends.
+  const auto min_filter =
+      material.decor
+          ? filament::TextureSampler::MinFilter::LINEAR
+          : filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR;
   filament::TextureSampler sampler;
   sampler.setWrapModeR(wrap_mode);
   sampler.setWrapModeS(wrap_mode);
   sampler.setWrapModeT(wrap_mode);
   sampler.setMagFilter(filament::TextureSampler::MagFilter::LINEAR);
-  sampler.setMinFilter(
-      filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR);
+  sampler.setMinFilter(min_filter);
 
   auto TrySetTexture = [&](const char* name, const mjrfTexture* texture,
                            mjtTextureRole role) {

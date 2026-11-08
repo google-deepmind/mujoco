@@ -12,7 +12,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -25,12 +24,33 @@ cc_test(
 )
 
 cc_test(
+    name = "user_texture_test",
+    srcs = ["user_texture_test.cc"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT,
+        "-I" + MJ_ROOT + "/src",
+    ],
+    cxxopts = ["-std=c++20"],
+    data = [
+        "//test/render/testdata:test_mjcf",
+        "//test/user/testdata:test_mjcf",
+    ],
+    deps = [
+        "//:mujoco",
+        "//src/engine:engine_io",
+        "//test:compare_model",
+        "//test:fixture",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "user_mesh_test",
     srcs = ["user_mesh_test.cc"],
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -52,7 +72,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -76,14 +95,13 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
+    data = ["//test/user/testdata:test_mjcf"],
     deps = [
         "//:mujoco",
         "//plugin/actuator:register",
-        "//plugin/elasticity:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
         "//src/user:user_model",
@@ -102,14 +120,12 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
     deps = [
         "//:mujoco",
         "//plugin/actuator:register",
-        "//plugin/elasticity:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
         "//src/xml:xml_api",
@@ -125,7 +141,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -137,7 +152,6 @@ cc_test(
     deps = [
         "//:mujoco",
         "//plugin/actuator:register",
-        "//plugin/elasticity:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
         "//src/xml:xml_api",
@@ -151,32 +165,12 @@ cc_test(
 )
 
 cc_test(
-    name = "user_composite_test",
-    srcs = ["user_composite_test.cc"],
-    conlyopts = ["-std=c11"],
-    copts = [
-        "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
-        "-I" + MJ_ROOT + "/src",
-    ],
-    cxxopts = ["-std=c++20"],
-    deps = [
-        "//:mujoco",
-        "//src/cc:array_safety",
-        "//test:fixture",
-        "@abseil-cpp//absl/strings:str_format",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
     name = "user_flex_test",
     timeout = "long",
     srcs = ["user_flex_test.cc"],
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -186,6 +180,8 @@ cc_test(
     ],
     deps = [
         "//:mujoco",
+        "//src/engine:engine_core_util",
+        "//src/user:user_model",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],
@@ -197,7 +193,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -217,7 +212,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -241,7 +235,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -259,7 +252,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
     ],
     cxxopts = ["-std=c++20"],
@@ -270,6 +262,7 @@ cc_test(
     ],
     deps = [
         "//:libmujoco_hdrs",
+        "//src/engine:engine_util_misc",
         "//src/user:user_resource",
         "//src/user:user_vfs",
         "//test:fixture",
@@ -283,7 +276,6 @@ cc_test(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT,
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
     ],

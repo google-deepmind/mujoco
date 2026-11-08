@@ -27,11 +27,29 @@ if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* ]]; then
 else
   readonly tmp_dir="$(mktemp -d)"
 fi
+trap 'rm -rf "${tmp_dir}"' EXIT
 
-python -m pip install --no-build-isolation --upgrade --require-hashes \
+python -m pip install --no-build-isolation \
+    --index-url "${PYPI_INDEX_URL:-https://pypi.org/simple/}" \
+    --upgrade --require-hashes \
     -r ${package_dir}/make_sdist_requirements.txt
 pushd ${tmp_dir}
-cp -r "${package_dir}"/* .
+for item in "${package_dir}"/*; do
+  if [[ -d "${item}" ]]; then
+    case "${item##*/}" in
+      build*|cmake-build*|dist) continue ;;
+    esac
+  fi
+  cp -r "${item}" .
+done
+rm -rf mujoco_full studio usd mujoco/mujoco_full mujoco/sample/studio mujoco/studio mujoco/usd/MjcPhysics
+rm -f mujoco/render_filament.cc mujoco/render_filament.h
+rm -f mujoco/usd/*.cc mujoco/usd/*.cpp mujoco/usd/*.h \
+      mujoco/usd/CMakeLists.txt mujoco/usd/MANIFEST.in \
+      mujoco/usd/pyproject.toml mujoco/usd/setup.py \
+      mujoco/usd/make_sdist.sh mujoco/usd/_usd_init.py \
+      mujoco/usd/layer_sink_test.py mujoco/usd/test_utils.py \
+      mujoco/usd/writer_test.py
 
 # Generate header files.
 old_pythonpath="${PYTHONPATH}"
@@ -55,11 +73,30 @@ cp "${package_dir}"/../LICENSE .
 mkdir -p mujoco/cmake
 cp -r "${package_dir}"/../cmake/* mujoco/cmake
 
-# Copy over Simulate source code.
-cp -r "${package_dir}"/../simulate mujoco
+# Copy over Simulate source code (excluding local build trees).
+mkdir -p mujoco/simulate
+for item in "${package_dir}"/../simulate/*; do
+  if [[ -d "${item}" ]]; then
+    case "${item##*/}" in
+      build*|cmake-build*) continue ;;
+    esac
+  fi
+  cp -r "${item}" mujoco/simulate/
+done
+
+# Copy over documentation chapters and agent skills (excluding images and scripts).
+mkdir -p mujoco/doc
+(
+  cd "${package_dir}/../doc"
+  find . -path ./internal -prune -o -type f \( -name '*.rst' -o -path './skills/*.md' \) -print0 |
+    while IFS= read -r -d '' f; do
+      mkdir -p "${tmp_dir}/mujoco/doc/${f%/*}"
+      cp "${f}" "${tmp_dir}/mujoco/doc/${f}"
+    done
+)
 
 python -m build --no-isolation . --sdist
-tar -tf dist/mujoco-*.tar.gz
+tar -tf dist/mujoco_core-*.tar.gz
 popd
 
 mkdir -p "${package_dir}"/dist

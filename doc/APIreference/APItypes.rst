@@ -297,6 +297,16 @@ Equality constraint types. These values are used in ``m->eq_type``.
 .. mujoco-include:: mjtEq
 
 
+.. _mjtTendon:
+
+mjtTendon
+~~~~~~~~~
+
+Tendon types. These values are used in ``m->tendon_type``.
+
+.. mujoco-include:: mjtTendon
+
+
 .. _mjtWrap:
 
 mjtWrap
@@ -836,6 +846,56 @@ High-level control for how to draw objects in the scene for Filament rendering.
 .. mujoco-include:: mjrDrawMode
 
 
+.. _mjrQuality:
+
+mjrQuality
+~~~~~~~~~~
+
+Rendering quality level that affects performance and visual fidelity for different options.
+
+.. mujoco-include:: mjrQuality
+
+
+.. _mjrToneMapper:
+
+mjrToneMapper
+~~~~~~~~~~~~~
+
+Tone mapping operators available to use for color grading during post-processing.
+
+.. mujoco-include:: mjrToneMapper
+
+
+.. _mjrShadowType:
+
+mjrShadowType
+~~~~~~~~~~~~~
+
+Types of shadow algorithms available to use.
+
+.. mujoco-include:: mjrShadowType
+
+
+.. _mjrAmbientOcclusionType:
+
+mjrAmbientOcclusionType
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Types of ambient occlusion algorithms available to use.
+
+.. mujoco-include:: mjrAmbientOcclusionType
+
+
+.. _mjrDitheringType:
+
+mjrDitheringType
+~~~~~~~~~~~~~~~~
+
+Types of dithering algorithms available to use.
+
+.. mujoco-include:: mjrDitheringType
+
+
 .. _tyUIEnums:
 
 User Interface
@@ -937,6 +997,26 @@ Whether to align free joints with the inertial frame.
 
 .. mujoco-include:: mjtAlignFree
 
+.. _mjtPassthrough:
+
+mjtPassthrough
+~~~~~~~~~~~~~~
+
+Which assets the compiler leaves :ref:`by reference<CAssetReference>` instead of loading into :ref:`mjModel`, a
+bitmask; see :ref:`compiler/passthrough<compiler-passthrough>`.
+
+.. mujoco-include:: mjtPassthrough
+
+.. _mjtEmbed:
+
+mjtEmbed
+~~~~~~~~
+
+Whether an asset's payload is in the model or the asset is :ref:`by reference<CAssetReference>`; see
+:ref:`texture/embed<asset-texture-embed>`.
+
+.. mujoco-include:: mjtEmbed
+
 .. _mjtInertiaFromGeom:
 
 mjtInertiaFromGeom
@@ -972,6 +1052,15 @@ mjtMeshBuiltin
 Type of built-in procedural mesh.
 
 .. mujoco-include:: mjtMeshBuiltin
+
+.. _mjtFlexSection:
+
+mjtFlexSection
+~~~~~~~~~~~~~~
+
+Cross-section of 1D flex :ref:`elasticity<flex-elasticity>`, see :ref:`section<flex-elasticity-section>`.
+
+.. mujoco-include:: mjtFlexSection
 
 .. _mjtConflict:
 
@@ -1651,6 +1740,165 @@ Information about a single frame of rendering.
 .. mujoco-include:: mjrfFrameStats
 
 
+.. _mjrfAmbientOcclusionOpts:
+
+mjrfAmbientOcclusionOpts
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Rendering options for ambient occlusion. Ambient occlusion is a rendering effect that simulates the blocking of ambient
+light in small spaces.
+
+.. mujoco-include:: mjrfAmbientOcclusionOpts
+
+
+.. _mjrfAntialiasingOpts:
+
+mjrfAntialiasingOpts
+~~~~~~~~~~~~~~~~~~~~
+
+Rendering options for antialiasing used to reduce or eliminate the jagged appearance of lines and edges in a rendered
+image.
+
+.. mujoco-include:: mjrfAntialiasingOpts
+
+
+.. _mjrfBloomOpts:
+
+mjrfBloomOpts
+~~~~~~~~~~~~~
+
+Rendering options for bloom effects. This effect simulates the scattering of intense lights by cameras or the human eye.
+
+.. mujoco-include:: mjrfBloomOpts
+
+
+.. _mjrfColorGradingOpts:
+
+mjrfColorGradingOpts
+~~~~~~~~~~~~~~~~~~~~
+
+Rendering options for color grading (e.g. tone mapping, color correction, etc.). Color grading allows you to adjust the
+final appearance of a rendered image by adjusting parameters such as exposure, contrast, saturation, and white
+balance. It also determines how the HDR (high dynamic range) colours processed by the GPU are converted to LDR (low
+dynamic range) colours that can be displayed on a monitor.
+
+.. mujoco-include:: mjrfColorGradingOpts
+
+
+.. _mjrfDepthOfFieldOpts:
+
+mjrfDepthOfFieldOpts
+~~~~~~~~~~~~~~~~~~~~
+
+Rendering options for depth of field effects for simulating camera focus.
+
+.. mujoco-include:: mjrfDepthOfFieldOpts
+
+
+.. _mjrfDitheringOpts:
+
+mjrfDitheringOpts
+~~~~~~~~~~~~~~~~~
+
+Rendering options for dithering effects. Helps improve smoothness of gradients by adding noise into the final rendered
+image.
+
+.. mujoco-include:: mjrfDitheringOpts
+
+
+.. _mjrfFogOpts:
+
+mjrfFogOpts
+~~~~~~~~~~~
+
+Rendering options for fog effects which can help with depth perception and reduces any "popping" of distance objects.
+
+.. mujoco-include:: mjrfFogOpts
+
+
+.. _mjrfHazeOpts:
+
+mjrfHazeOpts
+~~~~~~~~~~~~
+
+Rendering options for haze effects. The haze is a special effect that can be added infinite planes such that they blend
+nicely with the skybox.
+
+.. mujoco-include:: mjrfHazeOpts
+
+
+.. _mjrfHeadlightOpts:
+
+mjrfHeadlightOpts
+~~~~~~~~~~~~~~~~~
+
+Rendering options for the headlight. The headlight is a special "extra" light that can be used to inspect areas of the
+scene that are dimly lit.
+
+.. mujoco-include:: mjrfHeadlightOpts
+
+
+.. _mjrfMaterialOpts:
+
+mjrfMaterialOpts
+~~~~~~~~~~~~~~~~
+
+Rendering options for configuring how the shader materials interpret material properties such as color, specularity,
+etc.
+
+.. mujoco-include:: mjrfMaterialOpts
+
+
+.. _mjrfReflectionOpts:
+
+mjrfReflectionOpts
+~~~~~~~~~~~~~~~~~~
+
+Rendering options for reflections. Reflections can only be applied to planes with that have a reflective material.
+
+.. mujoco-include:: mjrfReflectionOpts
+
+
+.. _mjrfShadowOpts:
+
+mjrfShadowOpts
+~~~~~~~~~~~~~~
+
+Rendering options for shadows including whether to use hard or soft shadows.
+
+.. mujoco-include:: mjrfShadowOpts
+
+
+.. _mjrfSkyboxOpts:
+
+mjrfSkyboxOpts
+~~~~~~~~~~~~~~
+
+Rendering options for the skybox.
+
+.. mujoco-include:: mjrfSkyboxOpts
+
+
+.. _mjrfVignetteOpts:
+
+mjrfVignetteOpts
+~~~~~~~~~~~~~~~~
+
+Rendering options for vignette effects which darkens the edges of an image similar to a camera lens.
+
+.. mujoco-include:: mjrfVignetteOpts
+
+
+.. _mjrfRenderOpts:
+
+mjrfRenderOpts
+~~~~~~~~~~~~~~
+
+All rendering options combined into a single struct.
+
+.. mujoco-include:: mjrfRenderOpts
+
+
 .. _tyUIStructure:
 
 User Interface
@@ -2182,6 +2430,47 @@ This data structure defines an encoder. It contains a set of callbacks used for 
 
 
 
+.. _tyBatchStructure:
+
+Batched simulation
+^^^^^^^^^^^^^^^^^^
+
+These types are used by the :ref:`batch API<Batchedsimulation>`, declared in `mjbatch.h
+<https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjbatch.h>`__.
+
+
+.. _mjBatch:
+
+mjBatch
+~~~~~~~
+
+An opaque handle to ``nsim`` simulations of one model and the thread pool that runs them, created by
+:ref:`mjb_makeBatch` and freed by :ref:`mjb_deleteBatch`. See :ref:`Batched simulation<siBatch>`.
+
+
+.. _mjBatchConfig:
+
+mjBatchConfig
+~~~~~~~~~~~~~
+
+The parameters of :ref:`mjb_makeBatch`, set to their defaults by :ref:`mjb_defaultConfig`.
+
+.. mujoco-include:: mjBatchConfig
+
+
+.. _mjBatchRecord:
+
+mjBatchRecord
+~~~~~~~~~~~~~
+
+A field or state recorded by :ref:`mjb_rollout` after every substep. ``buf`` holds ``n x nstep x size`` values for the
+``n`` simulations of the call, in call order, where ``size`` is the field's number of elements per simulation, or
+``mj_stateSize(m, spec)`` for a state given by the :ref:`mjtState` bits ``spec``, in which case the values are
+:ref:`mjtNum`.
+
+.. mujoco-include:: mjBatchRecord
+
+
 
 .. _tyFunction:
 
@@ -2425,6 +2714,27 @@ mjfEncode
 This callback populates the :ref:`mjResource<mjResource>` `data` member with bytes representing the
 given spec in the format associated with the owning plugin. This may be called with the associated
 compiled :ref:`mjModel`.
+
+
+.. _tyBatchCallbacks:
+
+Batch callbacks
+^^^^^^^^^^^^^^^
+
+This function type is used by the :ref:`batch API<Batchedsimulation>`.
+
+
+.. _mjfBatchFunc:
+
+mjfBatchFunc
+~~~~~~~~~~~~
+
+.. code-block:: C
+
+   typedef void (*mjfBatchFunc)(const mjModel* m, mjData* d, int sim, void* arg);
+
+This is the function type run by :ref:`mjb_apply` on simulation ``sim``, on a batch thread. The model has the
+simulation's per-simulation fields applied, and ``d`` holds its state.
 
 
 .. _tyNotes:

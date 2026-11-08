@@ -17,7 +17,10 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -46,16 +49,16 @@ class SdfDefault {
     }
   }
 
-  // get a single default value
+  // get a single default value, NaN if the value is invalid
   mjtNum GetDefault(const char* name, const char* value) {
-    if (std::string(value).empty()) {
+    // empty or whitespace, as in CheckAttr
+    if (!value[std::strspn(value, " \t\n\v\f\r")]) {
       return default_[name];
     }
     char* end = nullptr;
     mjtNum num = strtod(value, &end);
-    if (end == value) {
-      mju_error("invalid attribute value for '%s'", name);
-      return 0;
+    if (end == value || end[std::strspn(end, " \t\n\v\f\r")]) {
+      return std::nan("");
     }
     return num;
   }
@@ -76,6 +79,8 @@ class SdfDefault {
 class SdfVisualizer {
  public:
   SdfVisualizer();
+  SdfVisualizer(SdfVisualizer&&) = default;
+  SdfVisualizer& operator=(SdfVisualizer&&) = default;
 
   void Visualize(const mjModel* m, const mjData* d, const mjvOption* opt,
                  mjvScene* scn, int instance);
@@ -85,6 +90,7 @@ class SdfVisualizer {
   void Next();  // adds a new gradient descent trajectory to be visualized
 
  private:
+  std::unique_ptr<std::mutex> mutex_ = std::make_unique<std::mutex>();
   std::vector<mjtNum> points_;  // query points
   std::vector<int> npoints_;    // number of iterations from the starting point
 };

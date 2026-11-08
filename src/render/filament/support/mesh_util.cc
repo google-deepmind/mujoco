@@ -14,6 +14,7 @@
 
 #include "render/filament/support/mesh_util.h"
 
+#include <algorithm>
 #include <cfloat>
 #include <cstddef>
 #include <cstring>
@@ -26,8 +27,8 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_vis_visualize.h"
-#include "render/filament/support/mjrf_ptr.h"
 #include "render/filament/support/filament_util.h"
+#include "render/filament/support/mjrf_ptr.h"
 
 namespace mujoco {
 
@@ -89,7 +90,7 @@ static void AddFlexFace(T* vertices, const mjtNum* src_positions,
   const float sign = radius >= 0 ? 1.f : -1.f;
   if (flatten_normals) {
     const float3 flat = normalize(cross(v1 - v0, v2 - v0));
-    const float4 orientation = CalculateOrientation(sign * flat);
+    const float4 orientation = CalculateOrientation(flat);
     vertices[0].orientation = orientation;
     vertices[1].orientation = orientation;
     vertices[2].orientation = orientation;
@@ -146,11 +147,104 @@ static void UpdateBounds(float3* min_pt, float3* max_pt, const T* vertices) {
   *max_pt = max(*max_pt, vertices[2].position);
 }
 
+static int FlexShellMatid(const mjModel* model, int flex_id, int s) {
+  const int dim = model->flex_dim[flex_id];
+  const int elemnum = model->flex_elemnum[flex_id];
+  const int elemadr = model->flex_elemadr[flex_id];
+  if (elemnum <= 0) {
+    return -1;
+  }
+  const int* sdata =
+      model->flex_shell + model->flex_shelldataadr[flex_id] + s * dim;
+  const int* edata = model->flex_elem + model->flex_elemdataadr[flex_id];
+  for (int e = 0; e < elemnum; ++e) {
+    const int* elem = edata + e * (dim + 1);
+    int matched = 0;
+    for (int j = 0; j < dim; ++j) {
+      for (int k = 0; k <= dim; ++k) {
+        if (sdata[j] == elem[k]) {
+          ++matched;
+          break;
+        }
+      }
+    }
+    if (matched == dim) {
+      return model->flex_matid[elemadr + e];
+    }
+  }
+  return model->flex_matid[elemadr];
+}
+
+namespace {
+
+// Returns unique material IDs of a flex in order of first appearance.
+std::vector<int> GetFlexMaterialIds(const mjModel* model, int flex_id) {
+  const int elemadr = model->flex_elemadr[flex_id];
+  const int elemnum = model->flex_elemnum[flex_id];
+  std::vector<int> matids;
+  for (int e = 0; e < elemnum; ++e) {
+    const int matid = model->flex_matid[elemadr + e];
+    if (std::find(matids.begin(), matids.end(), matid) == matids.end()) {
+      matids.push_back(matid);
+    }
+  }
+  return matids;
+}
+
+}  // namespace
+
+std::vector<FlexMeshSlice> CalculateFlexMeshSlices(const mjModel* model,
+                                                   int flex_id) {
+  const int dim = model->flex_dim[flex_id];
+  const int elemadr = model->flex_elemadr[flex_id];
+  const int elemnum = model->flex_elemnum[flex_id];
+  const int shellnum = model->flex_shellnum[flex_id];
+  const std::vector<int> matids = GetFlexMaterialIds(model, flex_id);
+  const bool multi_mat = matids.size() > 1;
+
+  std::vector<int> shell_matids;
+  if (multi_mat && shellnum > 0) {
+    shell_matids.resize(shellnum);
+    for (int s = 0; s < shellnum; ++s) {
+      shell_matids[s] = FlexShellMatid(model, flex_id, s);
+    }
+  }
+
+  std::vector<FlexMeshSlice> slices;
+  slices.reserve(matids.size());
+  int offset = 0;
+  for (int matid : matids) {
+    int count = 0;
+    if (dim == 2) {
+      for (int e = 0; e < elemnum; ++e) {
+        if (!multi_mat || model->flex_matid[elemadr + e] == matid) {
+          count += 6;
+        }
+      }
+      for (int s = 0; s < shellnum; ++s) {
+        if (!multi_mat || shell_matids[s] == matid) {
+          count += 6;
+        }
+      }
+    } else if (dim == 3) {
+      for (int s = 0; s < shellnum; ++s) {
+        if (!multi_mat || shell_matids[s] == matid) {
+          count += 3;
+        }
+      }
+    }
+    slices.push_back({matid, offset, count});
+    offset += count;
+  }
+  return slices;
+}
+
 template <typename T>
 static void FillFlexVertices(T* vertices, const mjModel* model,
                              const mjData* data, int flex_id, float3* min_pt,
                              float3* max_pt) {
   const int dim = model->flex_dim[flex_id];
+  const int elemadr = model->flex_elemadr[flex_id];
   const int* edata = model->flex_elem + model->flex_elemdataadr[flex_id];
   const int* sdata = model->flex_shell + model->flex_shelldataadr[flex_id];
   const int* tdata =
@@ -207,46 +301,67 @@ static void FillFlexVertices(T* vertices, const mjModel* model,
     }
   }
 
-  if (dim == 2) {
-    for (int e = 0; e < model->flex_elemnum[flex_id]; ++e) {
-      const int* indices = edata + (e * (dim + 1));
-      const int* tex_indices = tdata + (e * (dim + 1));
-
-      AddFlexFace(vertices, src_positions, normals.data(), radius,
-                  flat_shading, indices, 0, 1, 2);
-      AddFaceUvs(vertices, src_uvs, tex_indices, 0, 1, 2);
-      UpdateBounds(min_pt, max_pt, vertices);
-      vertices += 3;
-
-      AddFlexFace(vertices, src_positions, normals.data(), -radius,
-                  flat_shading, indices, 0, 2, 1);
-      AddFaceUvs(vertices, src_uvs, tex_indices, 0, 2, 1);
-      UpdateBounds(min_pt, max_pt, vertices);
-      vertices += 3;
-    }
+  const std::vector<int> matids = GetFlexMaterialIds(model, flex_id);
+  const bool multi_mat = matids.size() > 1;
+  std::vector<int> shell_matids;
+  if (multi_mat && model->flex_shellnum[flex_id] > 0) {
+    shell_matids.resize(model->flex_shellnum[flex_id]);
     for (int s = 0; s < model->flex_shellnum[flex_id]; ++s) {
-      const int* indices = sdata + (s * dim);
-
-      AddSideFace(vertices, src_positions, normals.data(), radius, indices, 0,
-                  1);
-      AddFaceUvs(vertices, src_uvs, indices, 0, 1, 1);
-      UpdateBounds(min_pt, max_pt, vertices);
-      vertices += 3;
-
-      AddSideFace(vertices, src_positions, normals.data(), -radius, indices, 1,
-                  0);
-      AddFaceUvs(vertices, src_uvs, indices, 1, 0, 0);
-      UpdateBounds(min_pt, max_pt, vertices);
-      vertices += 3;
+      shell_matids[s] = FlexShellMatid(model, flex_id, s);
     }
-  } else if (dim == 3) {
-    for (int s = 0; s < model->flex_shellnum[flex_id]; ++s) {
-      const int* indices = sdata + s * dim;
-      AddFlexFace(vertices, src_positions, normals.data(), radius,
-                  flat_shading, indices, 0, 1, 2);
-      AddFaceUvs(vertices, src_uvs, indices, 0, 1, 2);
-      UpdateBounds(min_pt, max_pt, vertices);
-      vertices += 3;
+  }
+
+  for (int matid : matids) {
+    if (dim == 2) {
+      for (int e = 0; e < model->flex_elemnum[flex_id]; ++e) {
+        if (multi_mat && model->flex_matid[elemadr + e] != matid) {
+          continue;
+        }
+        const int* indices = edata + (e * (dim + 1));
+        const int* tex_indices = tdata + (e * (dim + 1));
+
+        AddFlexFace(vertices, src_positions, normals.data(), radius,
+                    flat_shading, indices, 0, 1, 2);
+        AddFaceUvs(vertices, src_uvs, tex_indices, 0, 1, 2);
+        UpdateBounds(min_pt, max_pt, vertices);
+        vertices += 3;
+
+        AddFlexFace(vertices, src_positions, normals.data(), -radius,
+                    flat_shading, indices, 0, 2, 1);
+        AddFaceUvs(vertices, src_uvs, tex_indices, 0, 2, 1);
+        UpdateBounds(min_pt, max_pt, vertices);
+        vertices += 3;
+      }
+      for (int s = 0; s < model->flex_shellnum[flex_id]; ++s) {
+        if (multi_mat && shell_matids[s] != matid) {
+          continue;
+        }
+        const int* indices = sdata + (s * dim);
+
+        AddSideFace(vertices, src_positions, normals.data(), radius, indices, 0,
+                    1);
+        AddFaceUvs(vertices, src_uvs, indices, 0, 1, 1);
+        UpdateBounds(min_pt, max_pt, vertices);
+        vertices += 3;
+
+        AddSideFace(vertices, src_positions, normals.data(), -radius, indices,
+                    1, 0);
+        AddFaceUvs(vertices, src_uvs, indices, 1, 0, 0);
+        UpdateBounds(min_pt, max_pt, vertices);
+        vertices += 3;
+      }
+    } else if (dim == 3) {
+      for (int s = 0; s < model->flex_shellnum[flex_id]; ++s) {
+        if (multi_mat && shell_matids[s] != matid) {
+          continue;
+        }
+        const int* indices = sdata + s * dim;
+        AddFlexFace(vertices, src_positions, normals.data(), radius,
+                    flat_shading, indices, 0, 1, 2);
+        AddFaceUvs(vertices, src_uvs, indices, 0, 1, 2);
+        UpdateBounds(min_pt, max_pt, vertices);
+        vertices += 3;
+      }
     }
   }
 }
@@ -363,13 +478,13 @@ static void FillSkinVertices(T* vertices, const mjModel* model,
 }
 
 static void PrepareMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
-                            int num_vertices, bool has_uvs) {
+                            int num_vertices, int num_indices, bool has_uvs) {
   mjrf_defaultMeshConfig(config);
   config->max_vertices = num_vertices;
   config->num_attributes = has_uvs ? 3 : 2;
   config->interleaved = true;
   config->primitive_type = mjMESH_PRIMITIVE_TYPE_TRIANGLES;
-  config->max_indices = num_vertices;
+  config->max_indices = num_indices;
   config->index_type = mjINDEX_TYPE_U32;
   config->attributes[0].usage = mjVERTEX_ATTRIBUTE_USAGE_POSITION;
   config->attributes[0].type = mjVERTEX_ATTRIBUTE_TYPE_FLOAT3;
@@ -401,7 +516,7 @@ static void PrepareMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
   if (has_uvs) {
     data->vertices[2] = buf + sizeof(float[7]);
   }
-  data->num_indices = num_vertices;
+  data->num_indices = num_indices;
   data->indices = nullptr;
 }
 
@@ -435,7 +550,8 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
 
   mjrfMeshConfig mesh_config;
   mjrfMeshData mesh_data;
-  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, has_uvs);
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, num_vertices,
+                  has_uvs);
 
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
@@ -456,12 +572,12 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
 UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
                                    const mjData* data, int skin_id) {
   const int num_vertices = model->skin_vertnum[skin_id];
+  const int num_indices = 3 * model->skin_facenum[skin_id];
   const bool has_uvs = model->skin_texcoordadr[skin_id] >= 0;
-
 
   mjrfMeshConfig mesh_config;
   mjrfMeshData mesh_data;
-  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, has_uvs);
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, num_indices, has_uvs);
 
   float3 min_pt = float3(FLT_MAX);
   float3 max_pt = float3(FLT_MIN);
@@ -472,7 +588,6 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
     VertexNoUv* vertices = (VertexNoUv*)(mesh_data.user_data);
     FillSkinVertices(vertices, model, data, skin_id, &min_pt, &max_pt);
   }
-  mesh_data.num_indices = 3 * model->skin_facenum[skin_id];
   mesh_data.indices = model->skin_face + 3 * model->skin_faceadr[skin_id];
   SetBounds(&mesh_data, min_pt, max_pt);
 

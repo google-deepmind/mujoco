@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <mujoco/mjspec.h>
+#include <mujoco/mjspecmacro.h>
 #include "user/user_api.h"
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
@@ -294,6 +295,44 @@ void mjCMesh::NameSpace(const mjCModel* m) {
 }
 
 
+// the key under which meshes which would compile to the same asset are deduplicated: every field
+// of the spec which compilation reads, names excluded, with the file resolved as the compiler
+// resolves it, and the sizes of the arrays, whose contents are compared separately; a mesh with a
+// plugin is not deduplicated
+std::string mjCMesh::AssetKey() const {
+#define X(type, name, dim) +1
+#define XVEC(type, name, dim) +1
+  static_assert((0 MJSMESH_FIELDS) == 22,
+                "a field was added to mjsMesh: decide whether AssetKey reads it");
+#undef X
+#undef XVEC
+  const mjsMesh& s = spec;
+  std::string    key;
+  mjuu_addkey(key, ResolvedSpecFile(mjs_getString(compiler->meshdir), spec_file_));
+  mjuu_addkey(key, spec_content_type_);
+  mjuu_addkey(key, spec_material_);
+  mjuu_addkey(key, s.refpos);
+  mjuu_addkey(key, s.refquat);
+  mjuu_addkey(key, s.scale);
+  mjuu_addkey(key, s.inertia);
+  mjuu_addkey(key, s.smoothnormal);
+  mjuu_addkey(key, s.needsdf);
+  mjuu_addkey(key, s.maxhullvert);
+  mjuu_addkey(key, s.octree_maxdepth);
+  for (size_t size : {spec_vert_.size(),
+                      spec_normal_.size(),
+                      spec_texcoord_.size(),
+                      spec_face_.size(),
+                      spec_facenormal_.size(),
+                      spec_facetexcoord_.size(),
+                      spec_node_.size(),
+                      spec_tet_.size()}) {
+    mjuu_addkey(key, size);
+  }
+  return key;
+}
+
+
 void mjCMesh::CopyFromSpec() {
   *static_cast<mjsMesh*>(this) = spec;
   if (InstanceDiagonal()) {
@@ -342,6 +381,12 @@ mjCMesh::~mjCMesh() {
 }
 
 
+// file as opened by Compile, which has already applied strippath to file_
+std::string mjCMesh::ResolvedFilePath() const {
+  return ResolvePath(mjs_getString(compiler->meshdir), file_);
+}
+
+
 // generate mesh using marching cubes
 void mjCMesh::LoadSDF() {
   if (plugin_name.empty() && plugin_instance_name.empty()) {
@@ -381,6 +426,11 @@ void mjCMesh::LoadSDF() {
 
   if (pplugin->sdf_attribute) {
     pplugin->sdf_attribute(attributes.data(), names.data(), values.data());
+  }
+  for (int i = 0; i < pplugin->nattribute; i++) {
+    if (std::isnan(attributes[i])) {
+      throw mjCError(this, "invalid attribute value for '%s'", names[i]);
+    }
   }
 
   mjtNum aabb[6] = {0};
@@ -447,10 +497,13 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   mjCMesh* mesh = new mjCMesh();
 
   // mesh properties
-  mesh->maxhullvert_ = maxhullvert_;
-  mesh->inertia      = inertia;
-  mesh->smoothnormal = smoothnormal;
+  mesh->maxhullvert_    = maxhullvert_;
+  mesh->inertia         = inertia;
+  mesh->smoothnormal    = smoothnormal;
+  mesh->octree_maxdepth = octree_maxdepth;
   std::copy(scale, scale + 3, mesh->scale);
+  std::copy(refpos, refpos + 3, mesh->refpos);
+  std::copy(refquat, refquat + 4, mesh->refquat);
 
   // mesh processed data
   mesh->processed_    = processed_;
@@ -741,6 +794,9 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     FilePath filename    = meshdir_ + FilePath(file_);
     resource_            = LoadResource(owning_spec->modelfiledir->c_str(), filename.Str(), vfs);
 
+    // set content type before the cache lookup, so it does not depend on a cache hit
+    content_type_ = GetAssetContentType(resource_->name, content_type_);
+
     // try loading from cache
     if (cache != nullptr && LoadCachedMesh(cache, resource_)) {
       mju_closeResource(resource_);
@@ -772,7 +828,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
       } else if (vert_.empty()) {
         ProcessVertices(spec_vert_);
       }
-      if (!facenormal_.empty() && !spec_normal_.empty()) {
+      if (!facenormal_.empty() && !spec_facenormal_.empty()) {
         throw mjCError(this, "repeated facenormal specification");
       } else if (facenormal_.empty()) {
         facenormal_ = spec_facenormal_;
@@ -1029,8 +1085,26 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
     // check if normal generation is different
     if (smoothnormal != mesh->smoothnormal) { return false; }
 
+    // check if octree_maxdepth is different
+    if (octree_maxdepth != mesh->octree_maxdepth) { return false; }
+
     // check if scale is different
     if (scale[0] != mesh->scale[0] || scale[1] != mesh->scale[1] || scale[2] != mesh->scale[2]) {
+      return false;
+    }
+
+    // check if refpos is different
+    if (refpos[0] != mesh->refpos[0] ||
+        refpos[1] != mesh->refpos[1] ||
+        refpos[2] != mesh->refpos[2]) {
+      return false;
+    }
+
+    // check if refquat is different
+    if (refquat[0] != mesh->refquat[0] ||
+        refquat[1] != mesh->refquat[1] ||
+        refquat[2] != mesh->refquat[2] ||
+        refquat[3] != mesh->refquat[3]) {
       return false;
     }
 
@@ -1091,8 +1165,6 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
 
 // load MSH binary mesh
 void mjCMesh::LoadMSH(mjResource* resource, bool remove_repeated) {
-  bool righthand = scale[0] * scale[1] * scale[2] > 0;
-
   // get file data in buffer
   char* buffer    = 0;
   int   buffer_sz = mju_readResource(resource, (const void**)&buffer);
@@ -1164,8 +1236,10 @@ void mjCMesh::LoadMSH(mjResource* resource, bool remove_repeated) {
   }
   if (nfbuf) {
     face_.assign(3 * nfbuf, 0);
-    facenormal_.assign(3 * nfbuf, 0);
     memcpy(face_.data(), fdata, 3 * nfbuf * sizeof(int));
+  }
+  if (nfbuf && !normal_.empty()) {
+    facenormal_.assign(3 * nfbuf, 0);
     memcpy(facenormal_.data(), fdata, 3 * nfbuf * sizeof(int));
   }
   if (nfbuf && !texcoord_.empty()) {
@@ -1173,14 +1247,6 @@ void mjCMesh::LoadMSH(mjResource* resource, bool remove_repeated) {
     memcpy(facetexcoord_.data(), fdata, 3 * nfbuf * sizeof(int));
   }
 
-  // rearrange face data if left-handed scaling
-  if (nfbuf && !righthand) {
-    for (int i = 0; i < nfbuf; i++) {
-      int tmp          = face_[3 * i + 1];
-      face_[3 * i + 1] = face_[3 * i + 2];
-      face_[3 * i + 2] = tmp;
-    }
-  }
   ProcessVertices(vert, remove_repeated);
 }
 
@@ -3138,14 +3204,27 @@ void mjCMesh::MakeCenter(const double* dvert) {
 // compute the normals of the polygons
 void mjCMesh::MakePolygonNormals(const double* dvert) {
   for (int i = 0; i < polygons_.size(); ++i) {
-    double n[3];
-    mjuu_makenormal(n,
-                    &dvert[3 * polygons_[i][0]],
-                    &dvert[3 * polygons_[i][1]],
-                    &dvert[3 * polygons_[i][2]]);
-    polygon_normals_[3 * i + 0] = n[0];
-    polygon_normals_[3 * i + 1] = n[1];
-    polygon_normals_[3 * i + 2] = n[2];
+    double n[3]  = {0, 0, 0};
+    int    nvert = polygons_[i].size();
+
+    // compute normal using Newell's method
+    for (int j = 0; j < nvert; ++j) {
+      const double* v0  = &dvert[3 * polygons_[i][j]];
+      const double* v1  = &dvert[3 * polygons_[i][(j + 1) % nvert]];
+      n[0]             += (v0[1] - v1[1]) * (v0[2] + v1[2]);
+      n[1]             += (v0[2] - v1[2]) * (v0[0] + v1[0]);
+      n[2]             += (v0[0] - v1[0]) * (v0[1] + v1[1]);
+    }
+    double nrm = std::sqrt(mjuu_dot3(n, n));
+    if (nrm < mjEPS) {
+      polygon_normals_[3 * i + 0] = 1;
+      polygon_normals_[3 * i + 1] = 0;
+      polygon_normals_[3 * i + 2] = 0;
+    } else {
+      polygon_normals_[3 * i + 0] = n[0] / nrm;
+      polygon_normals_[3 * i + 1] = n[1] / nrm;
+      polygon_normals_[3 * i + 2] = n[2] / nrm;
+    }
   }
 }
 
@@ -3330,12 +3409,6 @@ void MeshPolygon::InsertFace(int v1, int v2, int v3) {
 // return the transverse vertices of the polygon, multiple paths possible if not connected
 std::vector<std::vector<int>> MeshPolygon::Paths() const {
   std::vector<std::vector<int>> paths;
-  // shortcut if polygon is just a triangular face
-  if (edges_.size() == 3) {
-    return {
-        {edges_[0].first, edges_[1].first, edges_[2].first}
-    };
-  }
 
   // go through each connected component of the polygon
   for (int i = 0; i < nisland_; ++i) {
@@ -3512,6 +3585,8 @@ void mjCSkin::PointToLocal() {
 void mjCSkin::NameSpace(const mjCModel* m) {
   mjCBase::NameSpace(m);
   for (auto& name : spec_bodyname_) { name = m->prefix + name + m->suffix; }
+  bone_prefix_ = m->prefix + bone_prefix_;
+  bone_suffix_ = bone_suffix_ + m->suffix;
   if (!spec_material_.empty() && model != m) {
     spec_material_ = m->prefix + spec_material_ + m->suffix;
   }
@@ -3546,6 +3621,12 @@ mjCSkin::~mjCSkin() {
   spec_vertid_.clear();
   spec_vertweight_.clear();
   bodyid.clear();
+}
+
+
+// file as opened by Compile, which has already applied strippath to file_
+std::string mjCSkin::ResolvedFilePath() const {
+  return ResolvePath(mjs_getString(compiler->meshdir), file_);
 }
 
 
@@ -3636,6 +3717,9 @@ void mjCSkin::Compile(const mjVFS* vfs) {
       mju_closeResource(resource);
       throw err;
     }
+
+    // the bones loaded from file take the namespace of the attachments
+    for (auto& name : bodyname_) { name = bone_prefix_ + name + bone_suffix_; }
   }
 
   // make sure all data is present
@@ -3655,6 +3739,12 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     throw mjCError(this, "Vertex and texcoord data incompatible size");
   }
   if (face_.size() % 3) { throw mjCError(this, "Face data must be multiple of 3"); }
+  size_t nvert = vert_.size() / 3;
+  for (size_t i = 0; i < face_.size(); i++) {
+    if (face_[i] < 0 || static_cast<size_t>(face_[i]) >= nvert) {
+      throw mjCError(this, "face vertex index %d out of range in skin", nullptr, face_[i]);
+    }
+  }
 
   // check bone sizes
   size_t nbone = bodyname_.size();
@@ -3676,7 +3766,6 @@ void mjCSkin::Compile(const mjVFS* vfs) {
 
   // set total vertex weights to 0
   std::vector<float> vw;
-  size_t             nvert = vert_.size() / 3;
   vw.resize(nvert);
   fill(vw.begin(), vw.end(), 0.0f);
 

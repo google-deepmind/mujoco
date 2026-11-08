@@ -22,12 +22,15 @@
 
 #include <cmath>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjtype.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_collision_convex.h"
+#include "src/engine/engine_collision_gjk.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -672,5 +675,804 @@ TEST_F(ContinuousCollisionTest, CandidatesCoverARotatingTriangle) {
   mj_deleteModel(m);
 }
 
+TEST_F(ContinuousCollisionTest, GjkDistPositiveDistanceAndWarmstart) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="box" type="box" size="0.1 0.2 0.3" pos="0 0 0"/>
+      <geom name="capsule" type="capsule" size="0.05 0.1" pos="0 0 0.6"/>
+      <geom name="cylinder" type="cylinder" size="0.1 0.15" pos="0.5 0 0"/>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kXml);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, 0, 0);
+  mjc_initCCDObj(&obj2, m, d, 1, 0);
+
+  mjtNum x1[3], x2[3];
+  mjc_center(x1, &obj1);
+  mjc_center(x2, &obj2);
+
+  // box top is at z = 0.3, capsule bottom is at z = 0.6 - (0.1 + 0.05) = 0.45
+  // -> gap = 0.15
+  mjtNum dist_cold = mjc_gjk(&obj1, &obj2, x1, x2, 10.0, 1e-6, 35);
+  EXPECT_NEAR(dist_cold, 0.15, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(x1[2], 0.30, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(x2[2], 0.45, MjTol(1e-6, 1e-4));
+
+  // shift capsule (and its witness point) by dz = -0.02 -> gap = 0.13, query
+  // warm-started
+  obj2.pos[2] -= 0.02;
+  x2[2] -= 0.02;
+  mjtNum dist_warm = mjc_gjk(&obj1, &obj2, x1, x2, 10.0, 1e-6, 35);
+  EXPECT_NEAR(dist_warm, 0.13, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(x2[2], 0.43, MjTol(1e-6, 1e-4));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, EllipsoidCylinderAndMeshGeomDist) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <geom name="cyl" type="cylinder" size="0.2 0.3" pos="0 0 0"/>
+      <geom name="ell" type="ellipsoid" size="0.1 0.2 0.3" pos="1 0 0"/>
+      <geom name="tet" type="mesh" mesh="tet" pos="-2 0 0"/>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kXml);
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  EXPECT_TRUE(mjc_GeomSupported(mjGEOM_CYLINDER));
+  EXPECT_TRUE(mjc_GeomSupported(mjGEOM_ELLIPSOID));
+  EXPECT_TRUE(mjc_GeomSupported(mjGEOM_MESH));
+
+  mjtNum n[3];
+  mjtNum p_cyl_top[3] = {0, 0, 0.5};
+  EXPECT_NEAR(GeomDist(m, d, 0, p_cyl_top, n), 0.2, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(n[2], 1.0, MjTol(1e-5, 1e-3));
+
+  mjtNum p_ell_side[3] = {1.25, 0, 0};
+  EXPECT_NEAR(GeomDist(m, d, 1, p_ell_side, n), 0.15, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(n[0], 1.0, MjTol(1e-5, 1e-3));
+
+  // point below the z = 0 base of the tetrahedron at (-2, 0, 0)
+  mjtNum p_tet_below[3] = {-1.8, 0.2, -0.3};
+  EXPECT_NEAR(GeomDist(m, d, 2, p_tet_below, n), 0.3, MjTol(1e-6, 1e-4));
+  EXPECT_NEAR(n[2], -1.0, MjTol(1e-5, 1e-3));
+
+  // point inside the tetrahedron
+  mjtNum p_tet_inside[3] = {-1.8, 0.2, 0.1};
+  EXPECT_NEAR(GeomDist(m, d, 2, p_tet_inside, n), -0.1, MjTol(1e-6, 1e-4));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <option timestep="0.01"/>
+    <default>
+      <geom solref="0.1 1"/>
+    </default>
+    <worldbody>
+      <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -1"/>
+      <geom name="wall" type="box" size="0.5 0.5 0.02" pos="0 0 0"/>
+      <body name="ball" pos="0 0 0.27">
+        <freejoint/>
+        <geom name="sphere" type="sphere" size="0.05"/>
+      </body>
+      <body name="box1" pos="2 0 0.5">
+        <freejoint/>
+        <geom name="b1" type="box" size="0.05 0.05 0.05" mass="100"/>
+      </body>
+      <body name="box2" pos="2 0 0.8">
+        <freejoint/>
+        <geom name="b2" type="box" size="0.05 0.05 0.05"/>
+      </body>
+      <body name="rod" pos="-2 0 -0.90">
+        <freejoint/>
+        <geom name="cap" type="capsule" size="0.02 0.2" quat="0.70710678 0 0.70710678 0"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kXml);
+  mjData* d = mj_makeData(m);
+
+  // initial distance is 0.27 - 0.02 - 0.05 = 0.20 m
+  // downward speed -50 m/s over dt = 0.01 s -> step travel 0.50 m -> TOI around
+  // 0.20 / 0.50 = 0.40
+  // With dt = 0.01 and solref = (0.1, 1): k0 = 0.01, b0 = 0.2, so
+  // dist = -((0.8 - t) / 0.01) * 0.50 = -50 * (0.8 - t) -> t = 0.8 + dist / 50
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  int ncon = mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon, 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].pos[2], 0.22, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_LT(con[0].dist, 0.0);
+
+  // moving upward (+50 m/s) -> no collision
+  d->qvel[2] = 50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
+
+  // grazing near-miss (skimming 1 cm above the box top at 50 m/s) -> no
+  // collision
+  d->qpos[0] = -0.8;
+  d->qpos[2] = 0.08;
+  d->qvel[0] = 50.0;
+  d->qvel[2] = 0.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
+
+  // plane vs. moving sphere (both g1 = plane and g2 = plane)
+  mj_resetData(m, d);
+  d->qpos[2] = -0.75;  // 0.20 m above ground plane at z = -1 (radius 0.05)
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 50.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], -1.0, MjTol(1e-4, 1e-4));
+
+  // two moving boxes traveling in the same direction at different speeds
+  // initial distance is (0.8 - 0.05) - (0.5 + 0.05) = 0.20 m;
+  // b1 moves at -10 m/s, b2 catches up at -60 m/s (relative closing 0.50 m)
+  mj_resetData(m, d);
+  d->qvel[8] = -10.0;
+  d->qvel[14] = -60.0;
+  mj_fwdPosition(m, d);
+  ncon = mjc_advanceGeomPair(m, d, 3, 4, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon, 4);
+  for (int i = 0; i < ncon; i++) {
+    EXPECT_NEAR(std::abs(con[i].pos[0] - 2.0), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(std::abs(con[i].pos[1]), 0.05, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].pos[2], (0.1 * 0.55 + 0.6 * 0.75) / 0.7,
+                MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
+
+  // frictionless sphere (g = 2) hitting a free box (b1, g = 3) obliquely at
+  // 45 deg: pulled-back contact point lies directly beneath the sphere's t = 0
+  // center (1.85, 0, 0.75)
+  mj_resetData(m, d);
+  d->qpos[0] = 1.85;
+  d->qpos[2] = 0.75;  // 0.15 m left and 0.15 m above b1 top (2.0, 0, 0.55)
+  d->qvel[0] = 30.0;
+  d->qvel[2] = -30.0;
+  mj_fwdPosition(m, d);
+  ncon = mjc_advanceGeomPair(m, d, 3, 2, 0.0, con, buffer.data());
+  ASSERT_EQ(ncon, 1);
+  EXPECT_NEAR(con[0].pos[0], 1.85, MjTol(1e-4, 1e-4));
+  EXPECT_NEAR(con[0].pos[2], 0.70, MjTol(1e-4, 1e-4));
+
+  // horizontal capsule falling onto box wall -> 2 edge-face contacts
+  mj_resetData(m, d);
+  d->qpos[21] = 0.0;
+  d->qpos[22] = 0.0;
+  d->qpos[23] = 0.24;
+  d->qvel[20] = -50.0;
+  mj_fwdPosition(m, d);
+  ncon = mjc_advanceGeomPair(m, d, 1, 5, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon, 2);
+  for (int i = 0; i < ncon; i++) {
+    EXPECT_NEAR(std::abs(con[i].pos[0]), 0.2, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].pos[1], 0.0, MjTol(1e-4, 1e-4));
+    EXPECT_NEAR(con[i].normal[2], 1.0, MjTol(1e-4, 1e-4));
+  }
+
+  // horizontal capsule falling onto ground plane -> 2 edge-face contacts
+  mj_resetData(m, d);
+  d->qvel[20] = -50.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, buffer.data()), 2);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 5, 0, 0.0, con, buffer.data()), 2);
+
+  // rotational motion (dw != 0): horizontal capsule at z = -0.90 rotating about
+  // y-axis so its +x tip swings down into the ground plane at z = -1
+  mj_resetData(m, d);
+  d->qvel[22] = 100.0;  // wy = 100 rad/s -> 1 rad over dt = 0.01 s
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 5, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // line-of-sight ray occlusion: ball at (0, 0, 0.27) falling at -200 m/s
+  // hits wall (g = 1, at z = 0), which occludes ground (g = 0, at z = -1)
+  mj_resetData(m, d);
+  d->qvel[2] = -200.0;
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 0);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 2, 0, 0.0, con, buffer.data()), 0);
+
+  // oblique impact at ~76 deg from normal (d0 = 0.02 m, dz = -0.05 m,
+  // dx = 0.20 m) and with large spin (dw dominating sweep)
+  mj_resetData(m, d);
+  d->qpos[0] = -0.10;
+  d->qpos[2] = 0.09;  // dist0 = 0.09 - 0.02 - 0.05 = 0.02 m above wall
+  d->qvel[0] = 20.0;  // dx = 0.20 m
+  d->qvel[2] = -5.0;  // dz = -0.05 m (TOI = 0.4)
+  mj_fwdPosition(m, d);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // box spinning rapidly about vertical z-axis (rot_sweep >> vn, hitting
+  // 16-step cap and exercising linear extrapolation fallback)
+  d->qpos[7] = -0.10;
+  d->qpos[9] = 0.09;    // dist0 = 0.09 - 0.02 - 0.05 = 0.02 m above wall
+  d->qvel[6] = 20.0;    // dx = 0.20 m
+  d->qvel[8] = -5.0;    // dz = -0.05 m (TOI = 0.4)
+  d->qvel[11] = 500.0;  // large wz spin inflating rot_sweep beyond 16-step cap
+  mj_fwdPosition(m, d);
+  EXPECT_GT(mjc_advanceGeomPair(m, d, 1, 3, 0.0, con, buffer.data()), 0);
+  EXPECT_NEAR(0.8 + con[0].dist / 5.0, 0.392, MjTol(0.02, 0.02));
+  EXPECT_NEAR(con[0].normal[2], 1.0, MjTol(1e-4, 1e-4));
+
+  // t > 1 - b0 (signed delta < 0, dist > margin):
+  // With default solref = (0.02, 1) and dt = 0.01: b0 = 1.0, k0 = 0.25,
+  // rem = 1 - t - b0 = -t < 0, so dist = -delta = (t / 0.25) * 0.50 = 2 * t.
+  m->geom_solref[mjNREF * 1 + 0] = 0.02;
+  m->geom_solref[mjNREF * 2 + 0] = 0.02;
+  mj_resetData(m, d);
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+  ASSERT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_NEAR(con[0].dist, 0.784, MjTol(0.04, 0.04));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, HighSpeedConvexGeomsDoNotTunnelInMjStep) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0">
+      <flag speculative="enable"/>
+    </option>
+    <worldbody>
+      <geom name="ground" type="plane" size="2 2 0.01" pos="0 0 -2"/>
+      <geom name="thin_wall" type="box" size="1.0 1.0 0.02" pos="0 0 0"/>
+      <body name="fast_sphere" pos="-0.4 0 0.25">
+        <freejoint/>
+        <geom type="sphere" size="0.04" gap="0.05" mass="1"/>
+      </body>
+      <body name="fast_box" pos="0 0 0.25">
+        <freejoint/>
+        <geom type="box" size="0.04 0.04 0.04" gap="0.20" mass="1"/>
+      </body>
+      <body name="fast_capsule" pos="0.4 0 0.25">
+        <freejoint/>
+        <geom type="capsule" size="0.03 0.02" mass="1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kXml);
+  mjData* d = mj_makeData(m);
+  EXPECT_TRUE(m->opt.enableflags & mjENBL_SPECULATIVE);
+
+  // First verify that with mjENBL_SPECULATIVE disabled, all 3 fast geoms tunnel
+  // straight through z = 0
+  m->opt.enableflags &= ~mjENBL_SPECULATIVE;
+  mj_resetData(m, d);
+  d->qvel[2] =
+      -50.0;  // sphere vz = -50 m/s (0.50 m/step vs 0.04 m wall thickness)
+  d->qvel[8] = -50.0;   // box vz = -50 m/s
+  d->qvel[14] = -50.0;  // capsule vz = -50 m/s
+  mj_step(m, d);
+  EXPECT_LT(d->qpos[2], -0.20)
+      << "sphere tunnels when speculative contacts are off";
+  EXPECT_LT(d->qpos[9], -0.20)
+      << "box tunnels when speculative contacts are off";
+  EXPECT_LT(d->qpos[16], -0.20)
+      << "capsule tunnels when speculative contacts are off";
+
+  // Re-enable mjENBL_SPECULATIVE and verify all 3 fast convex geoms are caught
+  // and stay above the wall under both mjINT_EULER and mjINT_DISCRETE
+  m->opt.enableflags |= mjENBL_SPECULATIVE;
+  for (int integrator : {mjINT_EULER, mjINT_DISCRETE}) {
+    m->opt.integrator = integrator;
+    mj_resetData(m, d);
+    d->qvel[2] = -50.0;
+    d->qvel[8] = -50.0;
+    d->qvel[14] = -50.0;
+    for (int step = 0; step < 5; step++) {
+      mj_step(m, d);
+      if (step == 0) {
+        EXPECT_NEAR(d->qpos[2], 0.06, 0.02) << "sphere lands on wall";
+        EXPECT_NEAR(d->qpos[9], 0.06, 0.02) << "box lands on wall";
+        EXPECT_NEAR(d->qpos[16], 0.07, 0.02) << "capsule lands on wall";
+      }
+      EXPECT_GT(d->qpos[2], 0.02) << "sphere arrested at step " << step;
+      EXPECT_GT(d->qpos[9], 0.02) << "box arrested at step " << step;
+      EXPECT_GT(d->qpos[16], 0.02) << "capsule arrested at step " << step;
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, SlightlyTiltedThinCardGetsFourFaceContacts) {
+  constexpr char kTiltedCardXml[] = R"(
+  <mujoco>
+    <option timestep="0.008" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="pad" type="box" size="0.026 0.014 0.0032" pos="0 0 0"/>
+      <body name="card" pos="0 0 0.00385" euler="0.2 0 0">
+        <freejoint/>
+        <geom name="card_geom" type="box" size="0.032 0.047 0.00035"
+              mass="0.002"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kTiltedCardXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -2.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 1, 0.0, con, buffer.data()), 4);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, RayOcclusionRespectsContactExclude) {
+  constexpr char kExcludeXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="wall" type="box" size="1 1 0.02" pos="0 0 0"/>
+      <body name="shield" pos="0 0 0.15">
+        <geom name="shield_geom" type="box" size="0.5 0.5 0.02"/>
+      </body>
+      <body name="ball" pos="0 0 0.30">
+        <freejoint/>
+        <geom name="ball_geom" type="sphere" size="0.03" mass="1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <exclude body1="ball" body2="shield"/>
+    </contact>
+  </mujoco>)";
+  mjModel* m = Load(kExcludeXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -50.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, RayOcclusionRespectsExplicitPair) {
+  constexpr char kPairXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <body name="wall1_body" mocap="true" pos="0 0 0">
+        <geom name="wall1" type="box" size="1 1 0.02"
+              contype="0" conaffinity="0"/>
+      </body>
+      <body name="wall2_body" mocap="true" pos="0 0 -0.15">
+        <geom name="wall2" type="box" size="1 1 0.02"
+              contype="0" conaffinity="0"/>
+      </body>
+      <body name="ball" pos="0 0 0.25">
+        <freejoint/>
+        <geom name="ball_geom" type="sphere" size="0.03"
+              contype="0" conaffinity="0" mass="1"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="ball_geom" geom2="wall1"/>
+      <pair geom1="ball_geom" geom2="wall2"/>
+    </contact>
+  </mujoco>)";
+  mjModel* m = Load(kPairXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -60.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 0, 2, 0.0, con, buffer.data()), 1);
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 0);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, RayOcclusionSkipsSameMovingWeld) {
+  constexpr char kRotorXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="target_fin" type="box" pos="0.1864 0.0725 0"
+            euler="0 0 -68.75" size="0.005 0.0015 0.02"/>
+      <body name="rotor" pos="0 0 0">
+        <joint name="spin" type="hinge" axis="0 0 1"/>
+        <geom name="paddle" type="capsule" fromto="0 -0.20 0 0 0.20 0"
+              size="0.003" mass="0.05"/>
+        <geom name="hub" type="cylinder" pos="0 0 0" size="0.175 0.02"
+              mass="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kRotorXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[0] = -150.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_GE(mjc_advanceGeomPair(m, d, 0, 1, 0.0, con, buffer.data()), 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest,
+       RayOcclusionUsesSweptTrajectoriesForOrthogonalCatch) {
+  constexpr char kOrthogonalCatchXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <worldbody>
+      <geom name="overhang" type="box" size="0.05 0.004 0.004"
+            pos="0 -0.01 0.01"/>
+      <body name="finger" pos="0 -0.02 0">
+        <joint name="slide_y" type="slide" axis="0 1 0"/>
+        <geom name="finger_geom" type="sphere" size="0.004" mass="0.2"/>
+      </body>
+      <body name="card" pos="0 0 0.02">
+        <joint name="slide_z" type="slide" axis="0 0 1"/>
+        <geom name="card_geom" type="box" size="0.03 0.02 0.00035" mass="0.01"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kOrthogonalCatchXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[0] = 4.0;
+  d->qvel[1] = -4.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_GE(mjc_advanceGeomPair(m, d, 1, 2, 0.0, con, buffer.data()), 1);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest,
+       RayOcclusionIgnoresSupportingFloorWhenPlateSlidesIntoWall) {
+  constexpr char kSlideXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 -9.81"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="2 2 0.01" margin="0.001"
+            friction="0 0 0"/>
+      <geom name="wall" type="box" size="0.02 0.5 0.2" pos="0.155 0 0"/>
+      <body name="plate" pos="-0.06 0 0.0035">
+        <freejoint/>
+        <geom name="plate_geom" type="box" size="0.05 0.05 0.00035"
+              margin="0.001" friction="0 0 0" mass="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kSlideXml);
+  mjData* d = mj_makeData(m);
+
+  // step twice under gravity so plate settles into floor's margin with vz < 0
+  d->qvel[0] = 5.0;
+  mj_step(m, d);
+  mj_step(m, d);
+  mj_fwdPosition(m, d);
+  EXPECT_LT(d->qvel[2], 0.0);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+  EXPECT_EQ(mjc_advanceGeomPair(m, d, 1, 2, 0.001, con, buffer.data()), 4);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest,
+       DISABLED_ThickMovingGeomCatchesThinStationaryGeomAndCardVsMesh) {
+  constexpr char kAsymmetricXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <asset>
+      <mesh name="wedge"
+            vertex="-0.04 -0.04 0  0.04 -0.04 0  0 0.04 0
+                    -0.04 -0.04 0.02  0.04 -0.04 0.02  0 0.04 0.01"/>
+    </asset>
+    <worldbody>
+      <geom name="stationary_card" type="box" size="0.045 0.032 0.00035"
+            pos="0 0 0"/>
+      <body name="moving_finger" pos="0 0 0.012">
+        <freejoint/>
+        <geom name="finger_pad" type="sphere" size="0.010" mass="0.2"/>
+      </body>
+      <geom name="wedge_geom" type="mesh" mesh="wedge" pos="0.3 0 0.02"/>
+      <body name="fast_card" pos="0.3 0 0.045">
+        <freejoint/>
+        <geom name="fast_card_geom" type="box" size="0.03 0.02 0.00035"
+              mass="0.005"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  mjModel* m = Load(kAsymmetricXml);
+  mjData* d = mj_makeData(m);
+  d->qvel[2] = -0.8;
+  d->qvel[8] = -4.0;
+  mj_step1(m, d);
+  EXPECT_GE(d->ncon, 2)
+      << "both thick-finger-vs-thin-card and fast-card-vs-mesh must be caught";
+  mj_step2(m, d);
+  EXPECT_GT(d->qpos[2], 0.008)
+      << "moving finger arrested above stationary 0.7 mm card";
+  EXPECT_GT(d->qpos[9], 0.010)
+      << "fast 0.7 mm card arrested above convex mesh wedge";
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(ContinuousCollisionTest, ArenaExhaustionIPC) {
+  auto make_xml = [](const std::string& size_tag) {
+    return R"(
+    <mujoco>
+      )" + size_tag +
+           R"(
+      <option timestep="0.01">
+        <flag multiccd="enable"/>
+      </option>
+      <worldbody>
+        <flexcomp name="f1" type="grid" count="5 5 1" spacing="0.05 0.05 0.05"
+                  dim="2" mass="1" pos="0 0 0.05"/>
+        <flexcomp name="f2" type="grid" count="5 5 1" spacing="0.05 0.05 0.05"
+                  dim="2" mass="1" pos="0 0 0.06"/>
+      </worldbody>
+    </mujoco>
+    )";
+  };
+
+  char error[1024];
+  std::string full_xml = make_xml("");
+  MjModelPtr m_full = LoadModelFromString(full_xml, error, sizeof(error));
+  ASSERT_THAT(m_full.get(), NotNull()) << error;
+  MjDataPtr d_full = MakeData(m_full);
+  ASSERT_THAT(d_full, NotNull());
+  mj_kinematics(m_full.get(), d_full.get());
+  mj_flex(m_full.get(), d_full.get());
+
+  std::string tight_xml = make_xml("<size memory=\"16K\"/>");
+  MjModelPtr m = LoadModelFromString(tight_xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_kinematics(m.get(), d.get());
+  mj_flex(m.get(), d.get());
+
+  int nfd = m->nflex;
+  int flist[2], fxadr[2], nfv = 0;
+  for (int k = 0; k < nfd; k++) {
+    flist[k] = k;
+    fxadr[k] = nfv;
+    nfv += m->flex_vertnum[k];
+  }
+  std::vector<mjtNum> x(3 * nfv), radii(nfv);
+  std::vector<int> fidx(nfv), pt2flex(nfv);
+  for (int k = 0; k < nfd; k++) {
+    for (int v = 0; v < m->flex_vertnum[k]; v++) {
+      int pt = fxadr[k] + v, vg = m->flex_vertadr[k] + v;
+      for (int c = 0; c < 3; c++) x[3 * pt + c] = d->flexvert_xpos[3 * vg + c];
+      radii[pt] = m->flex_radius[k];
+      fidx[pt] = pt;
+      pt2flex[pt] = k;
+    }
+  }
+
+  mjcFlexPair* cand_full = nullptr;
+  int nfull = mjc_candidates(
+      m_full.get(), d_full.get(), x.data(), nullptr, nullptr, nullptr, nullptr,
+      0, 0, radii.data(), 0.2, 0.2, x.data(), x.data(), 0.1, nfv, nfv,
+      fidx.data(), nullptr, flist, fxadr, nfd, pt2flex.data(), &cand_full);
+  ASSERT_GT(nfull, 100);
+  EXPECT_EQ(d_full->warning[mjWARN_CONTACTFULL].number, 0);
+
+  mock_warning_handler.ExpectWarnings("IPC: arena full after");
+  mock_warning_handler.ExpectWarnings("Too many contacts");
+  mjcFlexPair* cand = nullptr;
+  int npart = mjc_candidates(m.get(), d.get(), x.data(), nullptr, nullptr,
+                             nullptr, nullptr, 0, 0, radii.data(), 0.2, 0.2,
+                             x.data(), x.data(), 0.1, nfv, nfv, fidx.data(),
+                             nullptr, flist, fxadr, nfd, pt2flex.data(), &cand);
+
+  EXPECT_GT(npart, 0);
+  EXPECT_LT(npart, nfull);
+  EXPECT_EQ(d->warning[mjWARN_CONTACTFULL].number, 1);
+  EXPECT_EQ(d->warning[mjWARN_CONTACTFULL].lastinfo, npart + 1);
+}
+
+TEST_F(ContinuousCollisionTest, ArenaExhaustionIPCMergeActiveSet) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG"
+            iterations="5" gravity="0 0 0">
+      <flag ipc="enable"/>
+    </option>
+    <size memory="220K"/>
+    <worldbody>
+      <geom type="plane" pos="0 0 0.08" size="1 1 0.01"/>
+      <flexcomp name="s1" type="grid" dim="2" count="6 6 1"
+                spacing="0.02 0.02 0.02" pos="0 0 0.05"
+                radius="0.004" mass="0.1">
+        <contact selfcollide="none"/>
+      </flexcomp>
+      <flexcomp name="s2" type="grid" dim="2" count="6 6 1"
+                spacing="0.02 0.02 0.02" pos="0 0 0.085"
+                radius="0.004" mass="0.1">
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  // mark s2 vertices at the active-set age limit so ipc_mergeActiveSet evicts
+  // their initial plane pairs in place when amerge allocation fails
+  for (int v = m->flex_vertadr[1]; v < m->nflexvert; v++) {
+    d->flexvert_conage[v] = 25;
+  }
+
+  mock_warning_handler.ExpectWarnings("Too many contacts");
+  mj_step(m.get(), d.get());
+
+  EXPECT_GE(d->warning[mjWARN_CONTACTFULL].number, 1);
+  EXPECT_GT(d->warning[mjWARN_CONTACTFULL].lastinfo, 1000);
+  EXPECT_GT(d->flexvert_conage[m->nflexvert - 1], 25);
+}
+
+TEST_F(ContinuousCollisionTest, WitnessTransportPreservesToiAndMulticontact) {
+  constexpr char kTransportXml[] = R"(
+  <mujoco>
+    <option timestep="0.01" gravity="0 0 0"/>
+    <asset>
+      <mesh name="octa"
+            vertex=" 0.06  0.00  0.00  -0.06  0.00  0.00
+                     0.00  0.06  0.00   0.00 -0.06  0.00
+                     0.00  0.00  0.06   0.00  0.00 -0.06
+                     0.04  0.04  0.02  -0.04  0.04  0.02
+                     0.04 -0.04  0.02  -0.04 -0.04  0.02"/>
+    </asset>
+    <worldbody>
+      <geom name="floor_box" type="box" size="1.0 1.0 0.02" pos="0 0 0"/>
+      <body name="moving_box" pos="0 0 0.12">
+        <freejoint/>
+        <geom name="box_geom" type="box" size="0.05 0.05 0.02" mass="0.5"/>
+      </body>
+      <body name="moving_cap" pos="0.5 0 0.12">
+        <freejoint/>
+        <geom name="cap_geom" type="capsule" size="0.02 0.04"
+              euler="0 90 0" mass="0.5"/>
+      </body>
+      <geom name="target_ell" type="ellipsoid" size="0.08 0.05 0.03"
+            pos="-3.0 0 0"/>
+      <body name="moving_ell" pos="-3.0 0 0.10" euler="15 -10 25">
+        <freejoint/>
+        <geom name="ell_geom" type="ellipsoid" size="0.03 0.06 0.02"
+              mass="0.5"/>
+      </body>
+      <geom name="target_mesh" type="mesh" mesh="octa" pos="3.0 0 0"/>
+      <body name="moving_mesh" pos="3.0 0 0.18" euler="10 20 -15">
+        <freejoint/>
+        <geom name="mesh_geom" type="mesh" mesh="octa" mass="0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjModel* m = Load(kTransportXml);
+  mjData* d = mj_makeData(m);
+
+  // Set downward linear velocity + angular spin on all 4 moving bodies
+  d->qvel[2] = -25.0;
+  d->qvel[5] = 8.0;
+  d->qvel[8] = -25.0;
+  d->qvel[11] = 10.0;
+  d->qvel[14] = -25.0;
+  d->qvel[15] = 6.0;
+  d->qvel[20] = -25.0;
+  d->qvel[22] = 8.0;
+  mj_fwdPosition(m, d);
+
+  mjPreContact con[4];
+  std::vector<char> buffer(mjc_ccdSize(m->npolygonmax, m->nmeshdegmax, 0));
+
+  int g_floor = mj_name2id(m, mjOBJ_GEOM, "floor_box");
+  int g_box = mj_name2id(m, mjOBJ_GEOM, "box_geom");
+  int g_cap = mj_name2id(m, mjOBJ_GEOM, "cap_geom");
+  int g_target_ell = mj_name2id(m, mjOBJ_GEOM, "target_ell");
+  int g_ell = mj_name2id(m, mjOBJ_GEOM, "ell_geom");
+  int g_target_mesh = mj_name2id(m, mjOBJ_GEOM, "target_mesh");
+  int g_mesh = mj_name2id(m, mjOBJ_GEOM, "mesh_geom");
+
+  // 1. Box vs floor_box recovers all 4 face contacts with witness transport
+  int ncon_box =
+      mjc_advanceGeomPair(m, d, g_floor, g_box, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon_box, 4);
+
+  // 2. Capsule (inflated line core r > 0) vs floor_box recovers 2 line contacts
+  int ncon_cap =
+      mjc_advanceGeomPair(m, d, g_floor, g_cap, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon_cap, 2);
+
+  // 3. Ellipsoid vs ellipsoid under converged reference and default (35)
+  //    ccd_iterations
+  mjPreContact con_ref[4], con_full[4];
+  mjtNum orig_tol = m->opt.ccd_tolerance;
+  m->opt.ccd_iterations = 100;
+  m->opt.ccd_tolerance = 1e-10;
+  int ncon_ell_ref = mjc_advanceGeomPair(m, d, g_target_ell, g_ell, 0.0,
+                                         con_ref, buffer.data());
+  EXPECT_EQ(ncon_ell_ref, 1);
+
+  m->opt.ccd_tolerance = orig_tol;
+  m->opt.ccd_iterations = 35;
+  int ncon_ell_full = mjc_advanceGeomPair(m, d, g_target_ell, g_ell, 0.0,
+                                          con_full, buffer.data());
+  EXPECT_EQ(ncon_ell_full, 1);
+  if (ncon_ell_full == 1 && ncon_ell_ref == 1) {
+    EXPECT_NEAR(con_full[0].dist, con_ref[0].dist, MjTol(1e-5, 1e-3));
+  }
+
+  // 4. Convex mesh vs convex mesh with meshindex persistence + witness
+  // transport matches converged reference
+  m->opt.ccd_iterations = 100;
+  m->opt.ccd_tolerance = 1e-10;
+  int ncon_mesh_ref = mjc_advanceGeomPair(m, d, g_target_mesh, g_mesh, 0.0,
+                                          con_ref, buffer.data());
+  EXPECT_GE(ncon_mesh_ref, 1);
+
+  m->opt.ccd_tolerance = orig_tol;
+  m->opt.ccd_iterations = 35;
+  int ncon_mesh =
+      mjc_advanceGeomPair(m, d, g_target_mesh, g_mesh, 0.0, con, buffer.data());
+  EXPECT_EQ(ncon_mesh, ncon_mesh_ref);
+  if (ncon_mesh >= 1 && ncon_mesh_ref >= 1) {
+    EXPECT_NEAR(con[0].dist, con_ref[0].dist, MjTol(1e-5, 1e-3));
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
 }  // namespace
 }  // namespace mujoco

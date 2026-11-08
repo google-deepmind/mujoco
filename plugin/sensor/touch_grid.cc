@@ -18,6 +18,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -171,23 +172,36 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d, int instance) {
   if (CheckAttr(std::string(mj_getPluginConfig(m, instance, "gamma"))) &&
       CheckAttr(std::string(mj_getPluginConfig(m, instance, "nchannel")))) {
     // nchannel
-    int nchannel = strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
-    if (!nchannel) nchannel = 1;
-    if (nchannel < 1 || nchannel > 6) {
-      mju_error("nchannel must be between 1 and 6");
+    double nchannel_d =
+        strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
+    if (!nchannel_d) nchannel_d = 1;
+    if (!(nchannel_d >= 1 && nchannel_d <= 6)) {
+      mju_warning("nchannel must be between 1 and 6");
       return nullptr;
     }
+    int nchannel = static_cast<int>(nchannel_d);
 
     // size
-    std::vector<int> size;
+    std::vector<mjtNum> size_num;
     std::string size_str = std::string(mj_getPluginConfig(m, instance, "size"));
-    ReadVector(size, size_str.c_str());
-    if (size.size() != 2) {
-      mju_error("Both horizontal and vertical resolutions must be specified");
+    ReadVector(size_num, size_str.c_str());
+    if (size_num.size() != 2) {
+      mju_warning("Both horizontal and vertical resolutions must be specified");
       return nullptr;
     }
-    if (size[0] <= 0 || size[1] <= 0) {
-      mju_error("Horizontal and vertical resolutions must be positive");
+    if (!(size_num[0] >= 1 && size_num[1] >= 1)) {
+      mju_warning("Horizontal and vertical resolutions must be positive");
+      return nullptr;
+    }
+    constexpr int kMaxInt = std::numeric_limits<int>::max();
+    if (!(size_num[0] <= kMaxInt && size_num[1] <= kMaxInt)) {
+      mju_warning("Horizontal and vertical resolutions are too large");
+      return nullptr;
+    }
+    int size[2] = {static_cast<int>(size_num[0]),
+                   static_cast<int>(size_num[1])};
+    if (size[0] > kMaxInt / size[1] || size[0] * size[1] > kMaxInt / nchannel) {
+      mju_warning("Horizontal and vertical resolutions are too large");
       return nullptr;
     }
 
@@ -196,30 +210,39 @@ TouchGrid* TouchGrid::Create(const mjModel* m, mjData* d, int instance) {
     std::string fov_str = std::string(mj_getPluginConfig(m, instance, "fov"));
     ReadVector(fov, fov_str.c_str());
     if (fov.size() != 2) {
-      mju_error(
+      mju_warning(
           "Both horizontal and vertical fields of view must be specified");
       return nullptr;
     }
     if (fov[0] <= 0 || fov[0] > 180) {
-      mju_error("`fov[0]` must be a float between (0, 180] degrees");
+      mju_warning("`fov[0]` must be a float between (0, 180] degrees");
       return nullptr;
     }
     if (fov[1] <= 0 || fov[1] > 90) {
-      mju_error("`fov[1]` must be a float between (0, 90] degrees");
+      mju_warning("`fov[1]` must be a float between (0, 90] degrees");
       return nullptr;
     }
 
     // gamma
     mjtNum gamma = strtod(mj_getPluginConfig(m, instance, "gamma"), nullptr);
     if (gamma < 0 || gamma > 1) {
-      mju_error("`gamma` must be a nonnegative float between [0, 1]");
+      mju_warning("`gamma` must be a nonnegative float between [0, 1]");
       return nullptr;
     }
 
-    return new TouchGrid(m, d, instance, nchannel, size.data(), fov.data(),
-                         gamma);
+    // Make sure sensor is attached to a site.
+    for (int i = 0; i < m->nsensor; ++i) {
+      if (m->sensor_type[i] == mjSENS_PLUGIN &&
+          m->sensor_plugin[i] == instance &&
+          m->sensor_objtype[i] != mjOBJ_SITE) {
+        mju_warning("Touch Grid sensor must be attached to a site");
+        return nullptr;
+      }
+    }
+
+    return new TouchGrid(m, d, instance, nchannel, size, fov.data(), gamma);
   } else {
-    mju_error("Invalid or missing parameters in touch_grid sensor plugin");
+    mju_warning("Invalid or missing parameters in touch_grid sensor plugin");
     return nullptr;
   }
 }
@@ -230,15 +253,6 @@ TouchGrid::TouchGrid(const mjModel* m, mjData* d, int instance, int nchannel,
       size_{size[0], size[1]},
       fov_{fov[0], fov[1]},
       gamma_(gamma) {
-  // Make sure sensor is attached to a site.
-  for (int i = 0; i < m->nsensor; ++i) {
-    if (m->sensor_type[i] == mjSENS_PLUGIN && m->sensor_plugin[i] == instance) {
-      if (m->sensor_objtype[i] != mjOBJ_SITE) {
-        mju_error("Touch Grid sensor must be attached to a site");
-      }
-    }
-  }
-
   // Allocate distance array.
   distance_.resize(size[0] * size[1], 0);
 }
@@ -271,6 +285,8 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   int parent_body = m->body_weldid[m->site_bodyid[site_id]];
   int parent_weld = m->body_weldid[parent_body];
   for (int i = 0; i < d->ncon; i++) {
+    // skip flex contacts (no geom)
+    if (d->contact[i].geom1 < 0 || d->contact[i].geom2 < 0) continue;
     int body1 = m->body_weldid[m->geom_bodyid[d->contact[i].geom1]];
     int body2 = m->body_weldid[m->geom_bodyid[d->contact[i].geom2]];
     if (body1 == parent_weld || body2 == parent_weld) {
@@ -295,6 +311,7 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
   // Get forces and positions in spherical coordinates.
   int contact = 0;
   for (int i = 0; i < d->ncon; i++) {
+    if (d->contact[i].geom1 < 0 || d->contact[i].geom2 < 0) continue;
     int body1 = m->geom_bodyid[d->contact[i].geom1];
     int weld1 = m->body_weldid[body1];
     int body2 = m->geom_bodyid[d->contact[i].geom2];
@@ -310,9 +327,9 @@ void TouchGrid::Compute(const mjModel* m, mjData* d, int instance) {
       mju_mulMatTVec3(tmp1, d->contact[i].frame, tmp_force + 3);
       mju_mulMatTVec3(forces + 6 * contact + 3, site_mat, tmp1);
 
-      // Forces point from the smaller to larger body, so flip sign if
-      // the parent body has smaller id.
-      if (parent_body < mjMAX(body1, body2)) {
+      // Contact force points from geom1 (weld1) to geom2 (weld2), so flip sign
+      // if the sensorized weld body is weld1.
+      if (weld1 == parent_weld) {
         mju_scl(forces + 6 * contact, forces + 6 * contact, -1, 6);
       }
 
@@ -504,12 +521,27 @@ void TouchGrid::RegisterPlugin() {
 
   // Sensor dimension = nchannel * size[0] * size[1]
   plugin.nsensordata = +[](const mjModel* m, int instance, int sensor_id) {
-    int nchannel = strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
-    if (!nchannel) nchannel = 1;
-    std::vector<int> size;
+    double nchannel_d =
+        strtod(mj_getPluginConfig(m, instance, "nchannel"), nullptr);
+    if (!nchannel_d) nchannel_d = 1;
+    if (!(nchannel_d >= 1 && nchannel_d <= 6)) {
+      return 0;
+    }
+    int nchannel = static_cast<int>(nchannel_d);
+    std::vector<mjtNum> size;
     std::string size_str = std::string(mj_getPluginConfig(m, instance, "size"));
     ReadVector(size, size_str.c_str());
-    return nchannel * size[0] * size[1];
+    constexpr int kMaxInt = std::numeric_limits<int>::max();
+    if (size.size() != 2 || !(size[0] >= 1 && size[1] >= 1 &&
+                              size[0] <= kMaxInt && size[1] <= kMaxInt)) {
+      return 0;
+    }
+    int sx = static_cast<int>(size[0]);
+    int sy = static_cast<int>(size[1]);
+    if (sx > kMaxInt / sy || sx * sy > kMaxInt / nchannel) {
+      return 0;
+    }
+    return nchannel * sx * sy;
   };
 
   // Can only run after forces have been computed.

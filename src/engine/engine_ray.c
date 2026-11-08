@@ -99,6 +99,43 @@ static int ray_eliminate(const mjModel* m, const mjData* d, int geomid,
 }
 
 
+// cull geom by bounding sphere, return 1 if ray cannot improve closest hit
+static int ray_cull(const mjModel* m, const mjData* d, int geomid, const mjtNum pnt[3],
+                    const mjtNum dir[3], mjtNum vec_len, mjtNum dist) {
+  // skip unbounded geoms and SDFs (plugin surface is not bounded by mesh AABB)
+  mjtNum rbound = m->geom_rbound[geomid];
+  if (rbound <= 0 || m->geom_type[geomid] == mjGEOM_SDF) {
+    return 0;
+  }
+
+  // tolerance (~1e3 * machine epsilon) for rounding in projection and distance
+#ifdef mjUSESINGLE
+  const mjtNum bound_eps = 1e-4f;
+#else
+  const mjtNum bound_eps = 1e-12;
+#endif
+  mjtNum dif[3];
+  mju_sub3(dif, d->geom_xpos+3*geomid, pnt);
+  mjtNum proj = mju_dot3(dif, dir);
+  mjtNum rpad = rbound + bound_eps*(mju_abs(proj) + rbound);
+
+  // behind origin
+  if (proj + rpad < 0) {
+    return 1;
+  }
+
+  // beyond closest hit
+  if (dist >= 0 && proj - rpad > dist*vec_len) {
+    return 1;
+  }
+
+  // outside bounding sphere
+  mjtNum perp[3];
+  mju_addScl3(perp, dif, dir, -proj);
+  return mju_dot3(perp, perp) > rpad*rpad;
+}
+
+
 // compute both real solutions of a*x^2 + 2*b*x + c = 0, return smallest non-negative solution if any
 static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum x[2]) {
   // compute determinant
@@ -129,8 +166,8 @@ static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum x[2]) {
 
 
 // intersect ray with triangle
-mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
-                    const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]) {
+mjtNum mju_rayTriangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
+                       const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]) {
   // clear normal if given
   if (normal) mju_zero3(normal);
 
@@ -187,6 +224,9 @@ mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
 
   // compute distance
   mjtNum x = -mju_dot3(dif[2], nrm) / denom;
+  if (x < 0) {
+    return -1;
+  }
 
   // compute normal if given
   if (normal) {
@@ -599,10 +639,10 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
   mjtNum x = ray_box(base_pos, xmat, base_size, pnt, vec,
                      NULL, normal ? normal_base : NULL);
 
-  // check top box: done if no intersection
+  // check top box: done if no intersection or degenerate dimensions
   mjtNum all[6];
   mjtNum top_intersect = ray_box(top_pos, xmat, top_size, pnt, vec, all, NULL);
-  if (top_intersect < 0) {
+  if (top_intersect < 0 || nrow < 2 || ncol < 2) {
     if (normal && x >= 0) mju_copy3(normal, normal_base);
     return x;
   }
@@ -668,7 +708,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
         {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]},
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]}
       };
-      mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
+      mjtNum sol = mju_rayTriangle(va, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
         if (normal) mju_copy3(normal_local, normal_tri);
@@ -680,7 +720,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
         {dx*(c+0)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+0)]*size[2]}
       };
-      sol = ray_triangle(vb, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
+      sol = mju_rayTriangle(vb, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
         if (normal) mju_copy3(normal_local, normal_tri);
@@ -844,7 +884,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
       }
 
       // solve
-      sol = ray_triangle(v, lpnt, lvec, b0, b1, normal ? normal_local : NULL);
+      sol = mju_rayTriangle(v, lpnt, lvec, b0, b1, normal ? normal_local : NULL);
 
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
@@ -918,7 +958,13 @@ static mjtNum mj_raySdf(const mjModel* m, const mjData* d, int g,
   ray_map(d->geom_xpos + 3*g, d->geom_xmat + 9*g, pnt, vec, lpnt, lvec);
 
   // unit direction
-  mju_normalize3(lvec);
+  mjtNum norm = mju_normalize3(lvec);
+  if (norm < mjMINVAL) {
+    if (sdf_ptr) {
+      sdf_ptr->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+    }
+    return -1;
+  }
 
   // ray marching, see e.g. https://en.wikipedia.org/wiki/Ray_marching
   for (int i=0; i < 40; i++) {
@@ -932,7 +978,7 @@ static mjtNum mj_raySdf(const mjModel* m, const mjData* d, int g,
         mju_normalize3(normal);
         mju_mulMatVec3(normal, d->geom_xmat + 9*g, normal);
       }
-      return distance_total;
+      return distance_total / norm;
     }
     if (distance > 1e6) {
       // no intersection
@@ -1005,8 +1051,9 @@ mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
                   const mjtNum vec[3], int vertid[1], mjtNum normal[3]) {
   int dim = m->flex_dim[flexid];
 
-  // clear normal if given
+  // clear normal and vertid if given
   if (normal) mju_zero3(normal);
+  if (vertid) *vertid = -1;
 
   // compute bounding box
   mjtNum box[3][2] = {{0, 0}, {0, 0}, {0, 0}};
@@ -1063,7 +1110,7 @@ mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
   mjtNum normal_local[3];
 
   // check edges if rendered, or if skin
-  if (flg_edge || (dim > 1 && flg_skin)) {
+  if ((flg_edge || (dim > 1 && flg_skin)) && m->flex_edgenum[flexid] > 0) {
     int edge_end = m->flex_edgeadr[flexid]+m->flex_edgenum[flexid];
     for (int e=m->flex_edgeadr[flexid]; e < edge_end; e++) {
       // get vertices for this edge
@@ -1153,7 +1200,7 @@ mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
           mju_copy3(v[j], vptr[i][j]);
 
         // intersect ray with triangle
-        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, normal ? normal_local : NULL);
+        mjtNum sol = mju_rayTriangle(v, pnt, vec, b0, b1, normal ? normal_local : NULL);
 
         // update
         if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1190,6 +1237,9 @@ mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
 // intersect ray with skin, return nearest vertex id
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]) {
+  // clear vertid if given
+  if (vertid) *vertid = -1;
+
   // compute bounding box
   mjtNum box[3][2] = {{0, 0}, {0, 0}, {0, 0}};
   for (int i=0; i < nvert; i++) {
@@ -1252,7 +1302,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
     }
 
     // solve
-    mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, NULL);
+    mjtNum sol = mju_rayTriangle(v, pnt, vec, b0, b1, NULL);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1314,9 +1364,14 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtN
   mjtNum* p_normal = normal ? normal_local : NULL;
 
   // check vector length
-  if (mju_norm3(vec) < mjMINVAL) {
+  mjtNum vec_len = mju_norm3(vec);
+  if (vec_len < mjMINVAL) {
     mjERROR("vector length is too small");
   }
+
+  // normalize ray direction
+  mjtNum dir[3];
+  mju_scl3(dir, vec, 1/vec_len);
 
   // clear result
   dist = -1;
@@ -1326,6 +1381,11 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtN
   // loop over geoms not eliminated by mask and bodyexclude
   for (int i=0; i < ngeom; i++) {
     if (!ray_eliminate(m, d, i, geomgroup, flg_static, bodyexclude)) {
+      // cull by bounding sphere
+      if (ray_cull(m, d, i, pnt, dir, vec_len, dist)) {
+        continue;
+      }
+
       int type = m->geom_type[i];
       if (type == mjGEOM_MESH) {
         newdist = mj_rayMesh(m, d, i, pnt, vec, p_normal);
@@ -1383,7 +1443,8 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
       }
 
       // add to geom_eliminate if distance of bounding sphere is above cutoff
-      if (mju_dist3(d->geom_xpos+3*g, pnt) > cutoff+m->geom_rbound[g]) {
+      if (m->geom_rbound[g] > 0 &&
+          mju_dist3(d->geom_xpos+3*g, pnt) > cutoff+m->geom_rbound[g]) {
         geom_eliminate[g] = 1;
         continue;
       }
@@ -1422,7 +1483,10 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
       // add distance-dependent angular margin to account for edge/face curvature
       // margin = atan(max_half_size / dist) bounds the angular deviation of face centers
       mjtNum max_half = mju_max(aabb[3], mju_max(aabb[4], aabb[5]));
-      mjtNum dist = mju_dist3(pnt, xpos);
+      mjtNum center[3];
+      mju_mulMatVec3(center, xmat, aabb);
+      mju_addTo3(center, xpos);
+      mjtNum dist = mju_dist3(pnt, center);
       if (dist > mjMINVAL) {
         mjtNum margin = mju_atan2(max_half, dist);
         AABB[0] -= margin;
@@ -1478,7 +1542,8 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
       mjtNum center[3];
       mjtNum* size = pos + 3;
       mjtNum ssz = size[0]*size[0] + size[1]*size[1] + size[2]*size[2];
-      mju_add3(center, pos, d->xipos+3*b);
+      mju_mulMatVec3(center, d->ximat+9*b, pos);
+      mju_addTo3(center, d->xipos+3*b);
       if (ray_sphere(center, NULL, ssz, pnt, vec, NULL) < 0) {
         continue;
       }
@@ -1556,8 +1621,10 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
 
   // loop over rays
   for (int i=0; i < nray; i++) {
-    if (mju_dot3(vec+3*i, vec+3*i) < mjMINVAL) {
+    if (mju_norm3(vec+3*i) < mjMINVAL) {
       dist[i] = -1;
+      if (geomid) geomid[i] = -1;
+      if (normal) mju_zero3(normal+3*i);
     } else {
       int* p_geomid = geomid ? geomid + i : NULL;
       dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, p_geomid,

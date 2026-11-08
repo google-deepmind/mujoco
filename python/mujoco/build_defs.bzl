@@ -20,9 +20,11 @@ def mujoco_pybind_extension(name, dynamic_deps = [], **kwargs):  # buildifier: d
     """Builds a MuJoCo pybind11 extension module.
 
     In the Bazel build, every extension links the MuJoCo engine dynamically
-    from //python/mujoco:libmujoco, so that all extension modules share one
-    copy of the engine's global state (plugin registry, error handlers,
-    allocators) instead of each linking a private static copy.
+    from //:mujoco_shared, so that all extension modules share one copy of the
+    engine's global state (plugin registry, error handlers, allocators)
+    instead of each linking a private static copy. Each extension exports only
+    its PyInit_ function; pybind11 shares types between extensions through the
+    Python interpreter, not through exported C++ symbols.
 
     Args:
       name: The name of the extension module.
@@ -30,8 +32,19 @@ def mujoco_pybind_extension(name, dynamic_deps = [], **kwargs):  # buildifier: d
         used by the Bazel build.
       **kwargs: Passed through to pybind_extension.
     """
+    lds = Label("//python/mujoco:pybind_extension.lds")
+    exported_symbols = Label("//python/mujoco:pybind_extension.exported_symbols")
+    macos = Label("@platforms//os:macos")
     pybind_extension(
         name = name,
-        dynamic_deps = dynamic_deps + [Label("//python/mujoco:libmujoco")],
+        additional_linker_inputs = select({
+            macos: [exported_symbols],
+            "//conditions:default": [lds],
+        }),
+        dynamic_deps = dynamic_deps + [Label("//:mujoco_shared")],
+        linkopts = select({
+            macos: ["-Wl,-exported_symbols_list,$(execpath %s)" % exported_symbols],
+            "//conditions:default": ["-Wl,--version-script=$(execpath %s)" % lds],
+        }),
         **kwargs
     )

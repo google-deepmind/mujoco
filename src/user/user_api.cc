@@ -15,6 +15,7 @@
 #include "user/user_api.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -34,6 +35,7 @@
 #include <mujoco/mjspecmacro.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
+#include "engine/engine_io.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "user/user_cache.h"
@@ -240,7 +242,9 @@ mjtSize mj_encode(const mjSpec*  s,
     return encode_xml(s, m, filename, error, error_sz);
   }
 
-  if (ext == ".mjb") { return encode_mjb(m, filename, error, error_sz); }
+  if (ext == ".mjb" || (content_type && std::strcmp(content_type, "model/vnd.mujoco.mjb") == 0)) {
+    return encode_mjb(m, filename, error, error_sz);
+  }
 
   if (ext == ".txt" || (content_type && std::strcmp(content_type, "text/plain") == 0)) {
     return encode_txt(m, filename, error, error_sz);
@@ -348,9 +352,265 @@ mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
     }
   } catch (mjCError& e) {
     modelC->SetError(e);
+
+    // m and d are deleted on failure, as when compilation fails
+    if (d) { mj_deleteData(d); }
+    mj_deleteModel(m);
     return -1;
   }
   return 0;
+}
+
+
+// copy a message into the user's error buffer, if any
+static void CopyError(char* error, int error_sz, const std::string& msg) {
+  if (error && error_sz > 0) { mju_strncpy(error, msg.c_str(), error_sz); }
+}
+
+
+// decode texture id into pixels, exactly the bytes compilation would store in tex_data for it
+int mj_loadTexture(const mjModel* m,
+                   int            id,
+                   mjtByte**      data,
+                   int*           width,
+                   int*           height,
+                   int*           colorspace,
+                   char*          error,
+                   int            error_sz) {
+  if (id < 0 || id >= m->ntex) {
+    CopyError(error, error_sz, "texture id " + std::to_string(id) + " out of range");
+    return 1;
+  }
+
+  // embedded: a copy of the slice
+  if (m->tex_adr[id] >= 0) {
+    mjtSize nbytes =
+        static_cast<mjtSize>(m->tex_nchannel[id]) * m->tex_width[id] * m->tex_height[id];
+    *data = static_cast<mjtByte*>(mju_malloc(nbytes));
+    memcpy(*data, m->tex_data + m->tex_adr[id], nbytes);
+    if (width) { *width = m->tex_width[id]; }
+    if (height) { *height = m->tex_height[id]; }
+    if (colorspace) { *colorspace = m->tex_colorspace[id]; }
+    return 0;
+  }
+
+  // by reference: the path and content type are in the model, the file is read with no VFS
+  if (m->tex_pathadr[id] < 0) {
+    CopyError(error, error_sz, "texture " + std::to_string(id) + " has no path");
+    return 1;
+  }
+  const char* path = m->paths + m->tex_pathadr[id];
+  const char* type = m->tex_contenttypeadr[id] >= 0 ? m->paths + m->tex_contenttypeadr[id] : "";
+  std::string content_type = mjCBase::GetAssetContentType(path, type);
+  std::array<char, 1024> err;
+  mjResource*            resource = mju_openResource("", path, nullptr, err.data(), err.size());
+  if (!resource) {
+    CopyError(error, error_sz, err.data());
+    return 1;
+  }
+
+  // decode as the compiler does, with the authored type, channels and colorspace as inputs
+  std::vector<std::byte> image;
+  unsigned int           w, h;
+  bool                   is_srgb;
+  int                    nch = m->tex_nchannel[id];
+  try {
+    mjCTexture::Decode(nullptr, resource, content_type, nch, image, w, h, is_srgb);
+  } catch (mjCError& e) {
+    mju_closeResource(resource);
+    CopyError(error, error_sz, e.message);
+    return 1;
+  }
+  mju_closeResource(resource);
+
+  // cube or skybox from a single file: a square 3-channel image, repeated on the six faces
+  if (m->tex_type[id] != mjTEXTURE_2D) {
+    if (nch != 3) {
+      CopyError(error, error_sz, "cube and skybox textures loaded from files must have 3 channels");
+      return 1;
+    }
+    if (w != h) {
+      CopyError(error, error_sz, "cube and skybox textures loaded from a file must be square");
+      return 1;
+    }
+  }
+
+  *data = static_cast<mjtByte*>(mju_malloc(image.size()));
+  memcpy(*data, image.data(), image.size());
+  if (width) { *width = w; }
+  if (height) { *height = h; }
+  if (colorspace) {
+    *colorspace = m->tex_colorspace[id];
+    if (*colorspace == mjCOLORSPACE_AUTO) {
+      *colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
+    }
+  }
+  return 0;
+}
+
+
+// copy of m with every by-reference asset loaded into it; NULL with error on a file that does not
+// resolve
+mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz) {
+  // the pixels of a by-reference texture, as mj_loadTexture returns them
+  struct Pixels {
+    mjtByte* data  = nullptr;
+    int      width = 0, height = 0, colorspace = 0;
+    mjtSize  nbytes(int nchannel) const { return static_cast<mjtSize>(nchannel) * width * height; }
+  };
+  std::vector<Pixels> pixels(m->ntex);
+  auto                free_pixels = [&pixels]() {
+    for (Pixels& p : pixels) { mju_free(p.data); }
+  };
+
+  // load every by-reference texture before allocating anything, so that a failure leaves nothing
+  mjtSize ntexdata = m->ntexdata;
+  for (int i = 0; i < m->ntex; i++) {
+    if (m->tex_adr[i] != -1) { continue; }
+    Pixels&                p = pixels[i];
+    std::array<char, 1024> err;
+    if (mj_loadTexture(m, i, &p.data, &p.width, &p.height, &p.colorspace, err.data(), err.size())) {
+      free_pixels();
+      CopyError(error, error_sz, "texture " + std::to_string(i) + ": " + err.data());
+      return nullptr;
+    }
+    ntexdata += p.nbytes(m->tex_nchannel[i]);
+  }
+
+  // a new model, with ntexdata and nbuffer for the embedded textures
+  mjModel* dest = nullptr;
+  mj_makeModel(&dest,
+               m->nq,
+               m->nv,
+               m->nu,
+               m->nactuator,
+               m->nout,
+               m->na,
+               m->nbody,
+               m->nbvh,
+               m->nbvhstatic,
+               m->nbvhdynamic,
+               m->noct,
+               m->njnt,
+               m->ntree,
+               m->nM,
+               m->nB,
+               m->nC,
+               m->nD,
+               m->ngeom,
+               m->nsite,
+               m->ncam,
+               m->nlight,
+               m->nflex,
+               m->nflexnode,
+               m->nflexvert,
+               m->nflexedge,
+               m->nflexelem,
+               m->nflexelemdata,
+               m->nflexstiffness,
+               m->nflexbending,
+               m->nefm0dof,
+               m->nefm0L,
+               m->nefmCvert,
+               m->nflexelemedge,
+               m->nflexshelldata,
+               m->nflextexcoord,
+               m->nJfe,
+               m->nmesh,
+               m->nmeshvert,
+               m->nmeshnormal,
+               m->nmeshtexcoord,
+               m->nmeshface,
+               m->nmeshgraph,
+               m->nmeshpoly,
+               m->nmeshpolyvert,
+               m->nmeshpolymap,
+               m->nskin,
+               m->nskinvert,
+               m->nskintexvert,
+               m->nskinface,
+               m->nskinbone,
+               m->nskinbonevert,
+               m->nhfield,
+               m->nhfielddata,
+               m->ntex,
+               ntexdata,
+               m->nmat,
+               m->npair,
+               m->nexclude,
+               m->neq,
+               m->ntendon,
+               m->nJten,
+               m->nwrap,
+               m->nsensor,
+               m->nnumeric,
+               m->nnumericdata,
+               m->ntext,
+               m->ntextdata,
+               m->ntuple,
+               m->ntupledata,
+               m->nkey,
+               m->nmocap,
+               m->nplugin,
+               m->npluginattr,
+               m->nuser_body,
+               m->nuser_jnt,
+               m->nuser_geom,
+               m->nuser_site,
+               m->nuser_cam,
+               m->nuser_tendon,
+               m->nuser_actuator,
+               m->nuser_sensor,
+               m->nnames,
+               m->npaths,
+               m->nplastic);
+  if (!dest) {
+    free_pixels();
+    CopyError(error, error_sz, "could not allocate model");
+    return nullptr;
+  }
+
+  // every scalar field, keeping the new buffer and sizes
+  void*   buffer  = dest->buffer;
+  mjtSize nbuffer = dest->nbuffer;
+  *dest           = *m;
+  dest->buffer    = buffer;
+  dest->nbuffer   = nbuffer;
+  dest->ntexdata  = ntexdata;
+  mj_setPtrModel(dest);
+
+  // every array but tex_data
+  {
+    MJMODEL_POINTERS_PREAMBLE(m)
+#define X(type, name, nr, nc)                                                         \
+  if (static_cast<const void*>(&m->name) != static_cast<const void*>(&m->tex_data)) { \
+    memcpy(dest->name, m->name, sizeof(type) * (m->nr) * nc);                         \
+  }
+    MJMODEL_POINTERS
+#undef X
+  }
+
+  // tex_data in texture order, as compilation lays it out
+  mjtSize adr = 0;
+  for (int i = 0; i < m->ntex; i++) {
+    const Pixels& p = pixels[i];
+    mjtSize       nbytes;
+    if (m->tex_adr[i] >= 0) {
+      nbytes = static_cast<mjtSize>(m->tex_nchannel[i]) * m->tex_width[i] * m->tex_height[i];
+      memcpy(dest->tex_data + adr, m->tex_data + m->tex_adr[i], nbytes);
+    } else {
+      nbytes = p.nbytes(m->tex_nchannel[i]);
+      memcpy(dest->tex_data + adr, p.data, nbytes);
+      dest->tex_width[i]      = p.width;
+      dest->tex_height[i]     = p.height;
+      dest->tex_colorspace[i] = p.colorspace;
+    }
+    dest->tex_adr[i]  = adr;
+    adr              += nbytes;
+  }
+
+  free_pixels();
+  return dest;
 }
 
 
@@ -401,18 +661,29 @@ static mjsElement* attachBody(mjCFrame*      parent,
                               const mjCBody* child,
                               const char*    prefix,
                               const char*    suffix) {
-  mjCBody* mutable_child = const_cast<mjCBody*>(child);
-  mutable_child->prefix  = prefix;
-  mutable_child->suffix  = suffix;
+  mjCBody*    mutable_child = const_cast<mjCBody*>(child);
+  std::string oldprefix     = mutable_child->prefix;
+  std::string oldsuffix     = mutable_child->suffix;
+  mutable_child->prefix     = prefix ? prefix : "";
+  mutable_child->suffix     = suffix ? suffix : "";
+  mjsElement* result        = nullptr;
   try {
-    *parent += *mutable_child;
-  } catch (mjCError& e) {
-    parent->model->SetError(e);
-    return nullptr;
+    *parent               += *mutable_child;
+    result                 = parent->last_attached->element;
+    parent->last_attached  = nullptr;
+  } catch (mjCError& e) { parent->model->SetError(e); }
+
+  // a copy, or a failed attachment, leaves the child as it was; the namespace which the attachment
+  // gives the model of the child is cleared only when it succeeds
+  if (!result || parent->model->GetDeepCopy()) {
+    mutable_child->prefix = oldprefix;
+    mutable_child->suffix = oldsuffix;
   }
-  mjsBody* attached_body = parent->last_attached;
-  parent->last_attached  = nullptr;
-  return attached_body->element;
+  if (!result) {
+    mutable_child->model->prefix.clear();
+    mutable_child->model->suffix.clear();
+  }
+  return result;
 }
 
 
@@ -421,18 +692,29 @@ static mjsElement* attachFrame(mjCBody*        parent,
                                const mjCFrame* child,
                                const char*     prefix,
                                const char*     suffix) {
-  mjCFrame* mutable_child = const_cast<mjCFrame*>(child);
-  mutable_child->prefix   = prefix;
-  mutable_child->suffix   = suffix;
+  mjCFrame*   mutable_child = const_cast<mjCFrame*>(child);
+  std::string oldprefix     = mutable_child->prefix;
+  std::string oldsuffix     = mutable_child->suffix;
+  mutable_child->prefix     = prefix ? prefix : "";
+  mutable_child->suffix     = suffix ? suffix : "";
+  mjsElement* result        = nullptr;
   try {
-    *parent += *mutable_child;
-  } catch (mjCError& e) {
-    parent->model->SetError(e);
-    return nullptr;
+    *parent               += *mutable_child;
+    result                 = parent->last_attached->element;
+    parent->last_attached  = nullptr;
+  } catch (mjCError& e) { parent->model->SetError(e); }
+
+  // a copy, or a failed attachment, leaves the child as it was; the namespace which the attachment
+  // gives the model of the child is cleared only when it succeeds
+  if (!result || parent->model->GetDeepCopy()) {
+    mutable_child->prefix = oldprefix;
+    mutable_child->suffix = oldsuffix;
   }
-  mjsFrame* attached_frame = parent->last_attached;
-  parent->last_attached    = nullptr;
-  return attached_frame->element;
+  if (!result) {
+    mutable_child->model->prefix.clear();
+    mutable_child->model->suffix.clear();
+  }
+  return result;
 }
 
 
@@ -456,7 +738,15 @@ static mjsElement* attachToSite(mjCSite*       parent,
                          spec->compiler.degree,
                          spec->compiler.eulerseq,
                          &parent->spec.alt);
-  return attachBody(frame, child, prefix, suffix);
+
+  // the frame which was added for the attachment is removed if it fails, keeping its error
+  mjsElement* attached = attachBody(frame, child, prefix, suffix);
+  if (!attached) {
+    try {
+      *body->model -= frame;
+    } catch (mjCError&) {}
+  }
+  return attached;
 }
 
 
@@ -482,6 +772,12 @@ static mjsElement* attachFrameToSite(mjCSite*        parent,
                          &parent->spec.alt);
 
   mjsElement* attached_frame = attachFrame(body, child, prefix, suffix);
+  if (!attached_frame) {
+    try {
+      *body->model -= frame;
+    } catch (mjCError&) {}
+    return nullptr;
+  }
   mjs_setFrame(attached_frame, &frame->spec);
   return attached_frame;
 }
@@ -511,6 +807,27 @@ mjsElement* mjs_attach(mjsElement*       parent,
     model->SetError(mjCError(0,
                              "Child spec is already attached by reference; enable deep copy to "
                              "attach a spec more than once."));
+    return nullptr;
+  }
+
+  // check the parent and the child before anything is modified; a spec is attached as a frame
+  if (parent->elemtype != mjOBJ_FRAME &&
+      parent->elemtype != mjOBJ_BODY &&
+      parent->elemtype != mjOBJ_SITE) {
+    model->SetError(mjCError(0, "parent element is not a frame, body or site"));
+    return nullptr;
+  }
+  if (parent->elemtype == mjOBJ_FRAME && !mjs_getParent(parent)) {
+    model->SetError(mjCError(0, "Frame does not have a parent body."));
+    return nullptr;
+  }
+  mjtObj childtype = child->elemtype == mjOBJ_MODEL ? mjOBJ_FRAME : child->elemtype;
+  if (parent->elemtype == mjOBJ_BODY && childtype != mjOBJ_FRAME) {
+    model->SetError(mjCError(0, "child element is not a frame"));
+    return nullptr;
+  }
+  if (childtype != mjOBJ_BODY && childtype != mjOBJ_FRAME) {
+    model->SetError(mjCError(0, "child element is not a body or frame"));
     return nullptr;
   }
 
@@ -582,12 +899,8 @@ mjsElement* mjs_attach(mjsElement*       parent,
                             static_cast<const mjCBody*>(child),
                             prefix,
                             suffix);
-      } else if (child->elemtype == mjOBJ_FRAME) {
-        mjsBody* parent_body = mjs_getParent(parent);
-        if (!parent_body) {
-          model->SetError(mjCError(0, "Frame does not have a parent body."));
-          return nullptr;
-        }
+      } else {
+        mjsBody*    parent_body    = mjs_getParent(parent);
         mjCFrame*   frame          = static_cast<mjCFrame*>(parent);
         mjsElement* attached_frame = attachFrame(static_cast<mjCBody*>(parent_body->element),
                                                  static_cast<const mjCFrame*>(child),
@@ -595,21 +908,13 @@ mjsElement* mjs_attach(mjsElement*       parent,
                                                  suffix);
         if (mjs_setFrame(attached_frame, &frame->spec)) { return nullptr; }
         result = attached_frame;
-      } else {
-        model->SetError(mjCError(0, "child element is not a body or frame"));
-        return nullptr;
       }
       break;
     case mjOBJ_BODY:
-      if (child->elemtype == mjOBJ_FRAME) {
-        result = attachFrame(static_cast<mjCBody*>(parent),
-                             static_cast<const mjCFrame*>(child),
-                             prefix,
-                             suffix);
-      } else {
-        model->SetError(mjCError(0, "child element is not a frame"));
-        return nullptr;
-      }
+      result = attachFrame(static_cast<mjCBody*>(parent),
+                           static_cast<const mjCFrame*>(child),
+                           prefix,
+                           suffix);
       break;
     case mjOBJ_SITE:
       if (child->elemtype == mjOBJ_BODY) {
@@ -617,14 +922,11 @@ mjsElement* mjs_attach(mjsElement*       parent,
                               static_cast<const mjCBody*>(child),
                               prefix,
                               suffix);
-      } else if (child->elemtype == mjOBJ_FRAME) {
+      } else {
         result = attachFrameToSite(static_cast<mjCSite*>(parent),
                                    static_cast<const mjCFrame*>(child),
                                    prefix,
                                    suffix);
-      } else {
-        model->SetError(mjCError(0, "child element is not a body or frame"));
-        return nullptr;
       }
       break;
     default:
@@ -632,8 +934,16 @@ mjsElement* mjs_attach(mjsElement*       parent,
       return nullptr;
   }
 
-  // mark all warnings accumulated so far as attach-phase
-  if (result) { model->SetAttachWarningBoundary(); }
+  if (result) {
+    if (child_spec != &model->spec && (!prefix || !prefix[0])) {
+      model->AddWarning(
+          "Attaching a spec with an empty prefix may prevent the model from being saved "
+          "correctly.");
+    }
+
+    // mark all warnings accumulated so far as attach-phase
+    model->SetAttachWarningBoundary();
+  }
   return result;
 }
 
@@ -995,9 +1305,10 @@ mjsSkin* mjs_addSkin(mjSpec* s) {
 
 
 // add texture to model
-mjsTexture* mjs_addTexture(mjSpec* s) {
+mjsTexture* mjs_addTexture(mjSpec* s, const mjsDefault* defspec) {
   mjCModel*   modelC  = static_cast<mjCModel*>(s->element);
-  mjCTexture* texture = modelC->AddTexture();
+  mjCDef*     def     = defspec ? static_cast<mjCDef*>(defspec->element) : 0;
+  mjCTexture* texture = modelC->AddTexture(def);
   return &texture->spec;
 }
 
@@ -1153,6 +1464,14 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
         return -1;
       }
       int nedge = static_cast<int>(params[0]);
+      if (nedge < 3) {
+        m->SetError(mjCError(0, "Cone nvert must be at least 3"));
+        return -1;
+      }
+      if (!(params[1] >= 0 && params[1] <= 1)) {
+        m->SetError(mjCError(0, "Cone radius must be in [0, 1]"));
+        return -1;
+      }
       meshC->MakeCone(nedge, params[1]);
       return 0;
     }
@@ -1646,10 +1965,14 @@ const char* mjs_setToMuscle(mjsActuator* actuator,
   if (tausmooth < 0) { return "muscle tausmooth cannot be negative"; }
 
   actuator->dynprm[2] = tausmooth;
-  if (timeconst[0] >= 0) actuator->dynprm[0] = timeconst[0];
-  if (timeconst[1] >= 0) actuator->dynprm[1] = timeconst[1];
-  if (range[0] >= 0) actuator->gainprm[0] = range[0];
-  if (range[1] >= 0) actuator->gainprm[1] = range[1];
+  if (timeconst) {
+    if (timeconst[0] >= 0) actuator->dynprm[0] = timeconst[0];
+    if (timeconst[1] >= 0) actuator->dynprm[1] = timeconst[1];
+  }
+  if (range) {
+    if (range[0] >= 0) actuator->gainprm[0] = range[0];
+    if (range[1] >= 0) actuator->gainprm[1] = range[1];
+  }
   if (force >= 0) actuator->gainprm[2] = force;
   if (scale >= 0) actuator->gainprm[3] = scale;
   if (lmin >= 0) actuator->gainprm[4] = lmin;
@@ -1699,6 +2022,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
   double tau0   = nominal ? nominal[1] : 0;        // stall torque
   double omega0 = nominal ? nominal[2] : 0;        // no-load speed
 
+  if (Kt < 0 || Ke < 0) return "DC motor: motor constants must be non-negative";
+
   // derive Ke from nominal: omega0 = vn*Ke / (Ke^2 + R*B)
   if (vn > 0 && Ke <= 0 && omega0 > 0) {
     // viscous damping (linear)
@@ -1726,7 +2051,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
   // derive R from nominal: tau0 = K*vn/R
   if (R == 0 && vn > 0 && tau0 > 0 && K > 0) { R = K * vn / tau0; }
 
-  if (K <= 0) return "DC motor: motor constant K must be positive";
+  // K = 0 decouples the electrical branch of a passive motor
+  if (K <= 0 && ctrlspec != mjINPUT_NONE) return "DC motor: motor constant K must be positive";
   if (R <= 0) return "DC motor: resistance R must be positive";
 
   // set types
@@ -1757,6 +2083,7 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
   if (saturation && (saturation[0] > 0 || saturation[1] > 0)) {
     double tau_max = saturation[0];
     if (tau_max == 0 && saturation[1] > 0) {
+      if (K <= 0) return "DC motor: current limit requires a positive motor constant";
       tau_max = K * saturation[1];  // tau_max = K * i_max
     }
     actuator->forcerange[0] = -tau_max;
@@ -1805,7 +2132,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
     double T0    = thermal[4];  // reference temperature
     double Ta    = thermal[5];  // ambient temperature
 
-    if (tth > 0 && RT > 0 && C == 0) {
+    // any two of RT, C, tth; tth takes precedence over C
+    if (tth > 0 && RT > 0) {
       C = tth / RT;
     } else if (tth > 0 && C > 0 && RT == 0) {
       RT = tth / C;
@@ -2023,8 +2351,7 @@ int mjs_fuseStatic(mjSpec* s, const mjVFS* vfs) {
     return -1;
   }
   try {
-    model->FuseStatic(vfs);
-    return 0;
+    return model->FuseStatic(vfs);
   } catch (mjCError& e) {
     model->SetError(e);
     return -1;
@@ -2040,8 +2367,23 @@ int mjs_discardVisual(mjSpec* s, const mjVFS* vfs) {
     return -1;
   }
   try {
-    model->DiscardVisual(vfs);
-    return 0;
+    return model->DiscardVisual(vfs);
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
+// merge the duplicate textures and meshes of the spec
+int mjs_dedupAssets(mjSpec* s) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (model->IsAttached()) {
+    model->SetError(mjCError(nullptr, "Cannot merge the assets of an attached mjSpec."));
+    return -1;
+  }
+  try {
+    return model->DedupAssets();
   } catch (mjCError& e) {
     model->SetError(e);
     return -1;

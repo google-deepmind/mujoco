@@ -330,7 +330,7 @@ def least_squares(
     g_norm = np.linalg.norm(grad_free)
     if g_norm <= gtol:
       status = Status.G_TOL
-      if g_norm == 0:
+      if g_norm == 0 and verbose > Verbosity.SILENT.value:
         print('Zero gradient norm: exact minimum found?', file=output)
       break
 
@@ -369,7 +369,13 @@ def least_squares(
       # New objective, evaluate reduction.
       ynew = norm.value(rnew)
       reduction = y - ynew
-      armijo = reduction + armijo_c1 * (grad.T @ dx).item()
+
+      # Reject nonfinite trial objectives and retry with more regularization.
+      armijo = (
+          reduction + armijo_c1 * (grad.T @ dx).item()
+          if np.isfinite(ynew)
+          else -np.inf
+      )
 
       if armijo < 0:
         if mu >= mu_max:
@@ -547,8 +553,18 @@ def check_jacobian(
 
   Returns:
     n_res: updated number of residual evaluations.
+
+  Raises:
+    ValueError: If either Jacobian contains nonfinite values or they disagree.
   """
+  # A NaN relative difference would otherwise pass the comparison below.
+  if not np.all(np.isfinite(jac)):
+    raise ValueError(f'User-provided {name} must contain only finite values.')
   jac_fd, n_res = jacobian_fd(residual, x, r, eps, n_res, bounds)
+  if not np.all(np.isfinite(jac_fd)):
+    raise ValueError(
+        f'Finite-difference {name} must contain only finite values.'
+    )
   denom = np.abs(jac).sum() + np.abs(jac_fd).sum() + 1e-8
   rel_diff = np.abs(jac - jac_fd) / denom
   if np.any(rel_diff > 1e-5):
@@ -579,6 +595,12 @@ def check_norm(
   n = np.atleast_2d(norm.value(r))  # norm value as 1x1 array.
   eye = np.eye(r.size)  # Identity projection.
   n_g, n_h = norm.grad_hess(r, eye)  # Gradient and Hessian.
+
+  # A nonfinite Hessian would fail the checks below with misleading errors.
+  if not np.all(np.isfinite(n_h)):
+    raise ValueError(
+        'User-provided norm Hessian must contain only finite values.'
+    )
 
   # Check that Hessian is symmetric.
   if not np.allclose(n_h, n_h.T):

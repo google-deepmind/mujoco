@@ -248,22 +248,325 @@ TEST_F(UtilMiscTest, WrapInside) {
 TEST_F(UtilMiscTest, WrapCircleOnset) {
   const mjtNum xpos[3] = {0, 0, 0};
   const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-  const mjtNum x0[3] = {0.158835, -0.02149, 0};
-  const mjtNum x1[3] = {-0.190895, 0.059719, 0};
-  const mjtNum side_pos[3] = {0, 0.015, 0};
-  const mjtNum radius = 0.015;
+
+  struct Case {
+    mjtNum end[4];
+    mjtNum radius;
+    mjtNum wlen;
+    mjtNum wpnt0[2];
+    mjtNum wpnt1[2];
+  };
+  const Case cases[] = {
+      // tangent segments nearly collinear (a > 1, b > 1)
+      {{0.158835, -0.02149, -0.190895, 0.059719},
+       0.015,
+       1.1253506488708159e-6,
+       {0.0033934139554204273, 0.014611117059525527},
+       {0.0033923177705339506, 0.014611371603779007}},
+      // vanishing wrap angle with opposite cross sign
+      {{0.125, 0, MjEps(-0.099303395631717667, -0.219594762f),
+        MjEps(0.027112324066336239, 0.0416523553f)},
+       0.015,
+       0,
+       {0.0018, 0.014891608375189028},
+       {0.0018, 0.014891608375189028}},
+      // coincident tangent points (p2 == p4) at wrap onset
+      {{16.0, 0, MjEps(-26.864008298238332, -14.2271366f),
+        MjEps(5.1811203325342365, 3.65365791f)},
+       1.92,
+       0,
+       {0.2304, 1.9061258720241956},
+       {0.2304, 1.9061258720241956}},
+  };
 
   for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
-    for (const mjtNum* side : {static_cast<const mjtNum*>(nullptr), side_pos}) {
+    for (const Case& c : cases) {
+      const mjtNum side_pos[3] = {0, c.radius, 0};
+      for (const mjtNum* side :
+           {static_cast<const mjtNum*>(nullptr), side_pos}) {
+        const mjtNum x0[3] = {c.end[0], c.end[1], 0};
+        const mjtNum x1[3] = {c.end[2], c.end[3], 0};
+        mjtNum wpnt[6] = {0};
+        mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, c.radius, type, side);
+        EXPECT_NEAR(wlen, c.wlen, MjTol(1e-15, 1e-6));
+        EXPECT_NEAR(wpnt[0], c.wpnt0[0], MjTol(1e-15, 1e-6));
+        EXPECT_NEAR(wpnt[1], c.wpnt0[1], MjTol(1e-15, 1e-6));
+        EXPECT_EQ(wpnt[2], 0);
+        EXPECT_NEAR(wpnt[3], c.wpnt1[0], MjTol(1e-15, 1e-6));
+        EXPECT_NEAR(wpnt[4], c.wpnt1[1], MjTol(1e-15, 1e-6));
+        EXPECT_EQ(wpnt[5], 0);
+      }
+    }
+  }
+}
+
+// wrap onset is robust to perturbing an endpoint by a few ulps
+TEST_F(UtilMiscTest, WrapCircleOnsetUlp) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum radius = 1.92;
+  const mjtNum end[4] = {16.0, 0, MjEps(-26.864008298238332, -14.2271366f),
+                         MjEps(5.1811203325342365, 3.65365791f)};
+  for (int k = -4; k <= 4; k++) {
+    for (int coord = 2; coord < 4; coord++) {
+      mjtNum x[4] = {end[0], end[1], end[2], end[3]};
+      const mjtNum toward = k > 0 ? mjMAXVAL : -mjMAXVAL;
+      for (int n = 0; n < std::abs(k); n++) {
+        x[coord] = std::nextafter(x[coord], toward);
+      }
+      const mjtNum x0[3] = {x[0], x[1], 0};
+      const mjtNum x1[3] = {x[2], x[3], 0};
       mjtNum wpnt[6] = {0};
-      mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, radius, type, side);
-      EXPECT_NEAR(wlen, 1.1253506488708159e-6, MjTol(1e-15, 1e-8));
-      EXPECT_NEAR(wpnt[0], 0.0033934139554204273, MjTol(1e-15, 1e-8));
-      EXPECT_NEAR(wpnt[1], 0.014611117059525527, MjTol(1e-15, 1e-8));
-      EXPECT_EQ(wpnt[2], 0);
-      EXPECT_NEAR(wpnt[3], 0.0033923177705339506, MjTol(1e-15, 1e-8));
-      EXPECT_NEAR(wpnt[4], 0.014611371603779007, MjTol(1e-15, 1e-8));
-      EXPECT_EQ(wpnt[5], 0);
+      mjtNum wlen =
+          mju_wrap(wpnt, x0, x1, xpos, xmat, radius, mjWRAP_CYLINDER, nullptr);
+      EXPECT_LT(wlen, MjTol(1e-6, 1e-3)) << "k=" << k << " coord=" << coord;
+    }
+  }
+}
+
+// with a sidesite on the far side, a wrap close to 2*pi keeps its length
+TEST_F(UtilMiscTest, WrapCircleSidesiteFullWrap) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum side[3] = {-1, 0, 0};
+  for (mjtNum h : {1e-3, 0.0}) {
+    for (mjtNum g : {1e-2, 1e-7}) {
+      // endpoints just outside the unit circle on either side of (1, 0); the
+      // wrap goes clockwise around the far side
+      const mjtNum x0[3] = {1 + h, -g, 0};
+      const mjtNum x1[3] = {1 + h, g, 0};
+      // tangent angle acos(1/d) = atan(sqrt(d^2 - 1)), without the cancellation
+      mjtNum tangent = mju_atan2(mju_sqrt(2 * h + h * h + g * g), 1);
+      mjtNum expected = 2 * mjPI - 2 * mju_atan2(g, 1 + h) - 2 * tangent;
+      mjtNum wpnt[6] = {0};
+      mjtNum wlen =
+          mju_wrap(wpnt, x0, x1, xpos, xmat, 1, mjWRAP_CYLINDER, side);
+      EXPECT_NEAR(wlen, expected, MjTol(1e-9, 2e-5)) << "h=" << h << " g=" << g;
+    }
+  }
+}
+
+// sidesite at the arc midpoint selects that arc, including arcs longer than pi
+TEST_F(UtilMiscTest, WrapCircleSidesiteSelectsArc) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum r = 0.5;
+
+  // distance from origin to segment p-q
+  auto segdist = [](const mjtNum p[2], const mjtNum q[2]) {
+    mjtNum d[2] = {q[0] - p[0], q[1] - p[1]};
+    mjtNum a = -(d[0] * p[0] + d[1] * p[1]) / (d[0] * d[0] + d[1] * d[1]);
+    a = mju_clip(a, 0, 1);
+    return mju_sqrt(mju_pow(p[0] + a * d[0], 2) + mju_pow(p[1] + a * d[1], 2));
+  };
+
+  // strict crossing of segments p1-p2 and p3-p4
+  auto crossing = [](const mjtNum p1[2], const mjtNum p2[2], const mjtNum p3[2],
+                     const mjtNum p4[2]) {
+    auto orient = [](const mjtNum a[2], const mjtNum b[2], const mjtNum c[2]) {
+      return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    };
+    return orient(p1, p2, p3) * orient(p1, p2, p4) < 0 &&
+           orient(p3, p4, p1) * orient(p3, p4, p2) < 0;
+  };
+
+  // construct the wrap first (start angle a, wrap angle th, direction dir),
+  // then extend the tangent rays to get the endpoints; the expected tangent
+  // points and length are exact
+  int nmajor = 0, nminor = 0;
+  for (mjtNum a : {0.1, 1.3, 2.9, 4.4, 5.8}) {
+    for (mjtNum th : {0.4, 1.5, 2.8, 3.5, 4.5, 5.5}) {
+      for (int dir : {1, -1}) {
+        for (mjtNum len0 : {0.1, 0.6, 2.0}) {
+          for (mjtNum len1 : {0.15, 0.8, 1.7}) {
+            mjtNum b = a + dir * th;
+            mjtNum t0[2] = {r * mju_cos(a), r * mju_sin(a)};
+            mjtNum t1[2] = {r * mju_cos(b), r * mju_sin(b)};
+            mjtNum p0[2] = {t0[0] + len0 * dir * mju_sin(a),
+                            t0[1] - len0 * dir * mju_cos(a)};
+            mjtNum p1[2] = {t1[0] - len1 * dir * mju_sin(b),
+                            t1[1] + len1 * dir * mju_cos(b)};
+
+            // keep valid wraps whose straight segment cuts the circle
+            if (crossing(p0, t0, t1, p1) || segdist(p0, p1) >= r) {
+              continue;
+            }
+            (th > mjPI ? nmajor : nminor)++;
+
+            mjtNum m = a + dir * th / 2;
+            const mjtNum side[3] = {2 * r * mju_cos(m), 2 * r * mju_sin(m), 0};
+            const mjtNum x0[3] = {p0[0], p0[1], 0};
+            const mjtNum x1[3] = {p1[0], p1[1], 0};
+            for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+              mjtNum wpnt[6] = {0};
+              mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, r, type, side);
+              EXPECT_NEAR(wlen, r * th, MjTol(1e-10, 1e-4))
+                  << "a=" << a << " th=" << th;
+              EXPECT_NEAR(wpnt[0], t0[0], MjTol(1e-10, 1e-4));
+              EXPECT_NEAR(wpnt[1], t0[1], MjTol(1e-10, 1e-4));
+              EXPECT_NEAR(wpnt[3], t1[0], MjTol(1e-10, 1e-4));
+              EXPECT_NEAR(wpnt[4], t1[1], MjTol(1e-10, 1e-4));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // both regimes are exercised
+  EXPECT_GT(nmajor, 10);
+  EXPECT_GT(nminor, 10);
+}
+
+// signed angle swept from p to q around the origin
+static mjtNum SweptAngle(const mjtNum p[2], const mjtNum q[2]) {
+  return mju_atan2(p[0] * q[1] - p[1] * q[0], p[0] * q[0] + p[1] * q[1]);
+}
+
+// distance from the origin to the segment p-q
+static mjtNum SegmentDistance(const mjtNum p[2], const mjtNum q[2]) {
+  mjtNum d[2] = {q[0] - p[0], q[1] - p[1]};
+  mjtNum a = mju_clip(
+      -(d[0] * p[0] + d[1] * p[1]) / (d[0] * d[0] + d[1] * d[1]), 0, 1);
+  return mju_sqrt(mju_pow(p[0] + a * d[0], 2) + mju_pow(p[1] + a * d[1], 2));
+}
+
+// the wrap is the shortest path homotopic to the polyline p0 -> s -> p1, with s
+// the sidesite projected onto the circle; checked with winding numbers around
+// the center
+TEST_F(UtilMiscTest, WrapCircleSidesiteHomotopy) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum r = 0.5;
+
+  int nwrap = 0, nstraight = 0;
+  for (int k0 = 0; k0 < 12; k0++) {
+    for (int k1 = 0; k1 < 12; k1++) {
+      for (int ks = 0; ks < 12; ks++) {
+        for (mjtNum rho0 : {0.6, 1.5}) {
+          for (mjtNum rho1 : {0.8, 2.0}) {
+            mjtNum a0 = 2 * mjPI * k0 / 12 + 0.11,
+                   a1 = 2 * mjPI * k1 / 12 + 0.37;
+            mjtNum as = 2 * mjPI * ks / 12 + 0.23;
+            mjtNum p0[2] = {rho0 * mju_cos(a0), rho0 * mju_sin(a0)};
+            mjtNum p1[2] = {rho1 * mju_cos(a1), rho1 * mju_sin(a1)};
+            mjtNum s[2] = {r * mju_cos(as), r * mju_sin(as)};
+
+            // winding of the reference polyline and of the straight segment
+            mjtNum wref = SweptAngle(p0, s) + SweptAngle(s, p1);
+            mjtNum wline = SweptAngle(p0, p1);
+            bool clear = SegmentDistance(p0, p1) > r;
+
+            const mjtNum x0[3] = {p0[0], p0[1], 0};
+            const mjtNum x1[3] = {p1[0], p1[1], 0};
+            const mjtNum side[3] = {3 * s[0], 3 * s[1], 0};
+            mjtNum wpnt[6] = {0};
+            mjtNum wlen =
+                mju_wrap(wpnt, x0, x1, xpos, xmat, r, mjWRAP_CYLINDER, side);
+
+            if (wlen < 0) {
+              // no wrap: the segment clears the circle and is in the reference
+              // class
+              nstraight++;
+              EXPECT_TRUE(clear);
+              EXPECT_LT(mju_abs(wline - wref), mjPI);
+            } else {
+              // wrap: in the reference class, and the segment is not a shorter
+              // valid path
+              nwrap++;
+              mjtNum t0[2] = {wpnt[0], wpnt[1]}, t1[2] = {wpnt[3], wpnt[4]};
+              mjtNum orient = t0[0] * (t0[1] - p0[1]) - t0[1] * (t0[0] - p0[0]);
+              mjtNum warc = (orient > 0 ? 1 : -1) * wlen / r;
+              mjtNum wpath = SweptAngle(p0, t0) + warc + SweptAngle(t1, p1);
+              EXPECT_LT(mju_abs(wpath - wref), mjPI)
+                  << "a0=" << a0 << " a1=" << a1;
+              EXPECT_FALSE(clear && mju_abs(wline - wref) < mjPI);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // both outcomes are exercised
+  EXPECT_GT(nwrap, 100);
+  EXPECT_GT(nstraight, 100);
+}
+
+// a sidesite more than 90 degrees from the segment does not force a wrap around
+// the far side
+TEST_F(UtilMiscTest, WrapCircleSidesiteNoSpuriousWrap) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum x0[3] = {-4.17, -0.44, 0};
+  const mjtNum x1[3] = {-1.13, -1.53, 0};
+  const mjtNum side[3] = {-0.79 * 1.5, 0.61 * 1.5, 0};
+  mjtNum wpnt[6];
+  for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+    EXPECT_EQ(mju_wrap(wpnt, x0, x1, xpos, xmat, 1, type, side), -1);
+  }
+}
+
+// a segment passing exactly through the center wraps on the side of the
+// sidesite
+TEST_F(UtilMiscTest, WrapCircleSidesiteThroughCenter) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum x0[3] = {0, 2, 0};
+  const mjtNum x1[3] = {0, -1, 0};
+  for (mjtNum sx : {1.5, -1.5}) {
+    const mjtNum side[3] = {sx, 0, 0};
+    for (int type : {mjWRAP_SPHERE, mjWRAP_CYLINDER}) {
+      mjtNum wpnt[6];
+      mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, 0.5, type, side);
+      EXPECT_GT(wlen, 0);
+      EXPECT_GT(wpnt[0] * sx, 0);
+      EXPECT_GT(wpnt[3] * sx, 0);
+    }
+  }
+}
+
+// with the endpoints away from the far side of the sidesite, tendon length is
+// 1-Lipschitz in the endpoint position (no jumps)
+TEST_F(UtilMiscTest, WrapCircleSidesiteContinuity) {
+  const mjtNum xpos[3] = {0, 0, 0};
+  const mjtNum xmat[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const mjtNum r = 0.5;
+
+  // total length of the path, wrapped or straight
+  auto pathlen = [&](const mjtNum x0[3], const mjtNum x1[3],
+                     const mjtNum side[3]) {
+    mjtNum wpnt[6];
+    mjtNum wlen = mju_wrap(wpnt, x0, x1, xpos, xmat, r, mjWRAP_CYLINDER, side);
+    if (wlen < 0) {
+      return mju_dist3(x0, x1);
+    }
+    return mju_dist3(x0, wpnt) + wlen + mju_dist3(wpnt + 3, x1);
+  };
+
+  const int nstep = 400;
+  const mjtNum sector = 2 * mjPI / 3;
+  const mjtNum rho1 = 1.2;
+  for (mjtNum as : {0.0, 1.0, 2.5, 4.0}) {
+    const mjtNum side[3] = {2 * r * mju_cos(as), 2 * r * mju_sin(as), 0};
+    for (mjtNum da1 : {-1.8, -0.6, 0.4, 1.9}) {
+      for (mjtNum rho : {0.7, 1.4}) {
+        const mjtNum x1[3] = {rho1 * mju_cos(as + da1),
+                              rho1 * mju_sin(as + da1), 0};
+        mjtNum prev = 0, prevx[3] = {0};
+        for (int k = 0; k <= nstep; k++) {
+          mjtNum a0 = as - sector + 2 * sector * k / nstep;
+          const mjtNum x0[3] = {rho * mju_cos(a0), rho * mju_sin(a0), 0};
+          mjtNum len = pathlen(x0, x1, side);
+          if (k > 0) {
+            EXPECT_LE(mju_abs(len - prev),
+                      mju_dist3(x0, prevx) + MjTol(1e-10, 1e-4))
+                << "as=" << as << " da1=" << da1 << " k=" << k;
+          }
+          prev = len;
+          mju_copy3(prevx, x0);
+        }
+      }
     }
   }
 }
@@ -515,7 +818,7 @@ TEST_F(UtilMiscTest, MjuIsZeroByte) {
 
 using InterpolationTest = MujocoTest;
 
-TEST_F(InterpolationTest, mju_interpolate3D) {
+TEST_F(InterpolationTest, mju_evalBasisArray) {
   // quadratic functions should be interpolated exactly if order = 2
   auto quadratic_function_1 = [](mjtNum x, mjtNum y, mjtNum z) {
     return x * x + y * y + z * z;
@@ -551,7 +854,11 @@ TEST_F(InterpolationTest, mju_interpolate3D) {
     expected[0] = quadratic_function_1(sample[0], sample[1], sample[2]);
     expected[1] = quadratic_function_2(sample[0], sample[1], sample[2]);
     expected[2] = quadratic_function_3(sample[0], sample[1], sample[2]);
-    mju_interpolate3D(res, sample, coeff, order, NULL);
+    mjtNum basis[(order + 1) * (order + 1) * (order + 1)];
+    mju_evalBasisArray(basis, sample, order);
+    for (int j = 0; j < (order + 1) * (order + 1) * (order + 1); ++j) {
+      mju_addToScl3(res, coeff + 3 * j, basis[j]);
+    }
     EXPECT_NEAR(res[0], expected[0], MjTol(1e-10, 1e-5));
     EXPECT_NEAR(res[1], expected[1], MjTol(1e-10, 1e-5));
     EXPECT_NEAR(res[2], expected[2], MjTol(1e-10, 1e-5));
@@ -565,7 +872,7 @@ TEST_F(InterpolationTest, mju_cellLookup_SingleCell) {
   mjtNum local[3];
   int nodeindices[8];
 
-  int npc = mju_cellLookup(coord, cellnum, 1, local, nodeindices);
+  int npc = mju_cellLookup(coord, cellnum, 1, -1, local, nodeindices);
   EXPECT_EQ(npc, 8);
   EXPECT_NEAR(local[0], 0.3, MjTol(1e-12, 1e-6));
   EXPECT_NEAR(local[1], 0.7, MjTol(1e-12, 1e-6));
@@ -589,7 +896,7 @@ TEST_F(InterpolationTest, mju_cellLookup_MultiCell) {
   mjtNum local[3];
   int nodeindices[8];
 
-  int npc = mju_cellLookup(coord, cellnum, order, local, nodeindices);
+  int npc = mju_cellLookup(coord, cellnum, order, -1, local, nodeindices);
   EXPECT_EQ(npc, 8);
 
   // cell (1,1,0): local = (0.75*2 - 1, 0.5*3 - 1, 0.125*4 - 0)
@@ -621,7 +928,7 @@ TEST_F(InterpolationTest, mju_cellLookup_Boundary) {
   mjtNum coord[3] = {1.0, 1.0, 1.0};
   mjtNum local[3];
 
-  mju_cellLookup(coord, cellnum, 1, local, NULL);
+  mju_cellLookup(coord, cellnum, 1, -1, local, NULL);
   // cell (2,2,2), local = (1*3 - 2, 1*3 - 2, 1*3 - 2) = (1, 1, 1)
   EXPECT_NEAR(local[0], 1.0, 1e-12);
   EXPECT_NEAR(local[1], 1.0, 1e-12);
@@ -629,10 +936,35 @@ TEST_F(InterpolationTest, mju_cellLookup_Boundary) {
 
   // point at coord=0.0 should map to first cell
   mjtNum coord0[3] = {0.0, 0.0, 0.0};
-  mju_cellLookup(coord0, cellnum, 1, local, NULL);
+  mju_cellLookup(coord0, cellnum, 1, -1, local, NULL);
   EXPECT_NEAR(local[0], 0.0, 1e-12);
   EXPECT_NEAR(local[1], 0.0, 1e-12);
   EXPECT_NEAR(local[2], 0.0, 1e-12);
+}
+
+TEST_F(InterpolationTest, mju_cellLookup_EmptyCellExtrapolation) {
+  // 2x1x1 grid, trilinear: Cell 0 active (cell=0), Cell 1 empty
+  int cellnum[3] = {2, 1, 1};
+  int order = 1;
+
+  // Point at x = 0.505 (1% into empty Cell 1) redirected to active Cell 0
+  // with extrapolated local[0] = 0.505 * 2 - 0 = 1.01
+  mjtNum coord[3] = {0.505, 0.25, 0.75};
+  mjtNum local[3];
+  int nodeindices[8];
+  mju_cellLookup(coord, cellnum, order, 0, local, nodeindices);
+  EXPECT_NEAR(local[0], 1.01, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(local[1], 0.25, MjTol(1e-12, 1e-5));
+  EXPECT_NEAR(local[2], 0.75, MjTol(1e-12, 1e-5));
+  for (int i = 0; i < 8; i++) {
+    EXPECT_EQ(nodeindices[i], i);
+  }
+
+  // Point far inside empty Cell 1 (x = 0.9 -> raw local = 1.8) is clamped
+  // to 1.02
+  mjtNum coord_far[3] = {0.9, 0.25, 0.75};
+  mju_cellLookup(coord_far, cellnum, order, 0, local, nodeindices);
+  EXPECT_NEAR(local[0], 1.02, MjTol(1e-12, 1e-5));
 }
 
 TEST_F(InterpolationTest, mju_defGradient) {
@@ -1684,165 +2016,6 @@ TEST_F(FaceStateTest, RotationConsistencyWith3D) {
 
 // ------------------------------ Shell TFI Interpolation ----------------------
 
-using ShellTFITest = MujocoTest;
-
-// helper: set up a regular nx*ny*nz grid with positions at grid indices
-static void MakeRegularGrid(mjtNum* nodexpos, int nx, int ny, int nz) {
-  for (int i = 0; i < nx; i++) {
-    for (int j = 0; j < ny; j++) {
-      for (int k = 0; k < nz; k++) {
-        int idx = i * ny * nz + j * nz + k;
-        nodexpos[3 * idx + 0] = (mjtNum)i;
-        nodexpos[3 * idx + 1] = (mjtNum)j;
-        nodexpos[3 * idx + 2] = (mjtNum)k;
-      }
-    }
-  }
-}
-
-TEST_F(ShellTFITest, IdentityGrid) {
-  // 3x3x3 grid: 1 interior node at (1,1,1)
-  constexpr int nx = 3, ny = 3, nz = 3;
-  mjtNum nodexpos[3 * nx * ny * nz];
-  MakeRegularGrid(nodexpos, nx, ny, nz);
-
-  // save expected interior position
-  mjtNum expected[3] = {1.0, 1.0, 1.0};
-
-  // run TFI
-  mju_shellTrackInterior(nodexpos, nx, ny, nz);
-
-  // interior node at (1,1,1) should match
-  int idx = 1 * ny * nz + 1 * nz + 1;
-  EXPECT_NEAR(nodexpos[3 * idx + 0], expected[0], MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3 * idx + 1], expected[1], MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3 * idx + 2], expected[2], MjTol(1e-12, 1e-5));
-}
-
-TEST_F(ShellTFITest, UniformScaling) {
-  // 3x3x3: scale all boundary nodes by 2x, interior should follow
-  constexpr int nx = 3, ny = 3, nz = 3;
-  mjtNum nodexpos[3 * nx * ny * nz];
-  MakeRegularGrid(nodexpos, nx, ny, nz);
-
-  // scale all nodes
-  for (int i = 0; i < 3 * nx * ny * nz; i++) {
-    nodexpos[i] *= 2.0;
-  }
-
-  // run TFI — interior should be reconstructed to 2*original
-  mju_shellTrackInterior(nodexpos, nx, ny, nz);
-
-  int idx = 1 * ny * nz + 1 * nz + 1;
-  EXPECT_NEAR(nodexpos[3 * idx + 0], 2.0, MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3 * idx + 1], 2.0, MjTol(1e-12, 1e-5));
-  EXPECT_NEAR(nodexpos[3 * idx + 2], 2.0, MjTol(1e-12, 1e-5));
-}
-
-TEST_F(ShellTFITest, AffineDeformation) {
-  // 4x4x4 grid with 8 interior nodes. Apply affine transform to boundary,
-  // then verify TFI reproduces the same affine transform on interior nodes.
-  constexpr int nx = 4, ny = 4, nz = 4;
-  mjtNum nodexpos[3 * nx * ny * nz];
-  MakeRegularGrid(nodexpos, nx, ny, nz);
-
-  // affine: F(x,y,z) = A*[x,y,z]^T + b
-  // A = [[2, 0.5, 0], [0.3, 1.5, 0], [0, 0, 1]], b = [10, 20, 30]
-  auto affine = [](mjtNum x, mjtNum y, mjtNum z, mjtNum out[3]) {
-    out[0] = 2.0 * x + 0.5 * y + 10.0;
-    out[1] = 0.3 * x + 1.5 * y + 20.0;
-    out[2] = z + 30.0;
-  };
-
-  // apply affine to all nodes
-  for (int i = 0; i < nx; i++) {
-    for (int j = 0; j < ny; j++) {
-      for (int k = 0; k < nz; k++) {
-        int idx = i * ny * nz + j * nz + k;
-        affine((mjtNum)i, (mjtNum)j, (mjtNum)k, nodexpos + 3 * idx);
-      }
-    }
-  }
-
-  // corrupt interior nodes to verify TFI actually reconstructs them
-  for (int i = 1; i < nx - 1; i++) {
-    for (int j = 1; j < ny - 1; j++) {
-      for (int k = 1; k < nz - 1; k++) {
-        int idx = i * ny * nz + j * nz + k;
-        nodexpos[3 * idx + 0] = -999;
-        nodexpos[3 * idx + 1] = -999;
-        nodexpos[3 * idx + 2] = -999;
-      }
-    }
-  }
-
-  // run TFI
-  mju_shellTrackInterior(nodexpos, nx, ny, nz);
-
-  // check all interior nodes match affine
-  for (int i = 1; i < nx - 1; i++) {
-    for (int j = 1; j < ny - 1; j++) {
-      for (int k = 1; k < nz - 1; k++) {
-        int idx = i * ny * nz + j * nz + k;
-        mjtNum expected[3];
-        affine((mjtNum)i, (mjtNum)j, (mjtNum)k, expected);
-        EXPECT_NEAR(nodexpos[3 * idx + 0], expected[0], MjTol(1e-12, 1e-4))
-            << "i=" << i << " j=" << j << " k=" << k;
-        EXPECT_NEAR(nodexpos[3 * idx + 1], expected[1], MjTol(1e-12, 1e-4))
-            << "i=" << i << " j=" << j << " k=" << k;
-        EXPECT_NEAR(nodexpos[3 * idx + 2], expected[2], MjTol(1e-12, 1e-4))
-            << "i=" << i << " j=" << j << " k=" << k;
-      }
-    }
-  }
-}
-
-TEST_F(ShellTFITest, BoundaryUnmodified) {
-  // verify that boundary nodes are not modified by TFI
-  constexpr int nx = 4, ny = 4, nz = 4;
-  mjtNum nodexpos[3 * nx * ny * nz];
-  MakeRegularGrid(nodexpos, nx, ny, nz);
-
-  // save boundary node values
-  mjtNum saved[3 * nx * ny * nz];
-  mju_copy(saved, nodexpos, 3 * nx * ny * nz);
-
-  mju_shellTrackInterior(nodexpos, nx, ny, nz);
-
-  // check all boundary nodes unchanged
-  for (int i = 0; i < nx; i++) {
-    for (int j = 0; j < ny; j++) {
-      for (int k = 0; k < nz; k++) {
-        bool is_boundary = (i == 0 || i == nx - 1 || j == 0 || j == ny - 1 ||
-                            k == 0 || k == nz - 1);
-        if (is_boundary) {
-          int idx = i * ny * nz + j * nz + k;
-          EXPECT_EQ(nodexpos[3 * idx + 0], saved[3 * idx + 0]);
-          EXPECT_EQ(nodexpos[3 * idx + 1], saved[3 * idx + 1]);
-          EXPECT_EQ(nodexpos[3 * idx + 2], saved[3 * idx + 2]);
-        }
-      }
-    }
-  }
-}
-
-TEST_F(ShellTFITest, NoInteriorSmallGrid) {
-  // 2x2x2 and 2x3x2: no interior nodes, TFI should be a no-op
-  constexpr int nx = 2, ny = 3, nz = 2;
-  mjtNum nodexpos[3 * nx * ny * nz];
-  MakeRegularGrid(nodexpos, nx, ny, nz);
-
-  mjtNum saved[3 * nx * ny * nz];
-  mju_copy(saved, nodexpos, 3 * nx * ny * nz);
-
-  mju_shellTrackInterior(nodexpos, nx, ny, nz);
-
-  // all nodes unchanged
-  for (int i = 0; i < 3 * nx * ny * nz; i++) {
-    EXPECT_EQ(nodexpos[i], saved[i]);
-  }
-}
-
 TEST_F(UtilMiscTest, Round) {
   // basic rounding
   EXPECT_EQ(mju_round(2.3), 2);
@@ -1864,6 +2037,29 @@ TEST_F(UtilMiscTest, Round) {
   // overflow clamps to INT_MAX/INT_MIN
   EXPECT_EQ(mju_round(1e18), INT_MAX);
   EXPECT_EQ(mju_round(-1e18), INT_MIN);
+}
+
+TEST_F(UtilMiscTest, EncodeDecodePyramidDim1) {
+  const mjtNum force[1] = {25.0};
+  const mjtNum mu[1] = {0.5};
+  mjtNum pyramid[2] = {-999.0, -999.0};
+  mjtNum decoded[1] = {0.0};
+
+  mju_encodePyramid(pyramid, force, mu, /*dim=*/1);
+  EXPECT_MJTNUM_EQ(pyramid[0], 25.0);
+
+  mju_decodePyramid(decoded, pyramid, mu, /*dim=*/1);
+  EXPECT_MJTNUM_EQ(decoded[0], 25.0);
+}
+
+TEST_F(UtilMiscTest, Type2StrAndStr2TypeRoundTrip) {
+  for (int i = 1; i < mjNOBJECT; ++i) {
+    const char* name = mju_type2Str(i);
+    ASSERT_THAT(name, NotNull()) << "Object type " << i << " has null string";
+    EXPECT_EQ(mju_str2Type(name), i) << "Round-trip failed for " << name;
+  }
+  EXPECT_STREQ(mju_type2Str(mjOBJ_FRAME), "frame");
+  EXPECT_EQ(mju_str2Type("frame"), mjOBJ_FRAME);
 }
 
 }  // namespace

@@ -794,6 +794,7 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
   obj->center = mjc_center;
   obj->vertindex = -1;
   obj->meshindex = -1;
+  obj->nsupp = 0;
   obj->flex = -1;
   obj->elem = -1;
   obj->vert = -1;
@@ -801,17 +802,19 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
   obj->rotate[0] = 1;
   if (g >= 0) {
     mju_copy(obj->size, m->geom_size+3*g, 3);
-    mju_copy(obj->pos, d->geom_xpos+3*g, 3);
-    mju_copy(obj->mat, d->geom_xmat+9*g, 9);
+    if (d) {
+      mju_copy(obj->pos, d->geom_xpos+3*g, 3);
+      mju_copy(obj->mat, d->geom_xmat+9*g, 9);
+    }
     obj->geom_type = m->geom_type[g];
     mjc_initCCDObjSupport(obj, m, m->geom_dataid[g]);
   } else {
     obj->geom_type = mjGEOM_FLEX;
     obj->data.flex.dim = m->flex_dim;
     obj->support = mjc_flexSupport;
-    obj->data.flex.aabb = d->flexelem_aabb;
+    obj->data.flex.aabb = d ? d->flexelem_aabb : NULL;
     obj->data.flex.elemadr = m->flex_elemadr;
-    obj->data.flex.vert_xpos = d->flexvert_xpos;
+    obj->data.flex.vert_xpos = d ? d->flexvert_xpos : NULL;
     obj->data.flex.vertadr = m->flex_vertadr;
     obj->data.flex.xradius = m->flex_radius;
     obj->data.flex.elemdataadr = m->flex_elemdataadr;
@@ -827,6 +830,7 @@ void mjc_initCCDObjSite(mjCCDObj* obj, const mjModel* m, const mjData* d, int s,
   obj->center = mjc_center;
   obj->vertindex = -1;
   obj->meshindex = -1;
+  obj->nsupp = 0;
   obj->flex = -1;
   obj->elem = -1;
   obj->vert = -1;
@@ -834,18 +838,18 @@ void mjc_initCCDObjSite(mjCCDObj* obj, const mjModel* m, const mjData* d, int s,
   obj->rotate[0] = 1;
   if (s >= 0 && s < m->nsite) {
     int dataid = m->site_dataid[s];
-    mju_copy(obj->size, m->site_size+3*s, 3);
+    mji_copy3(obj->size, m->site_size+3*s);
     obj->size[3] = 0;
-    mju_copy(obj->pos, d->site_xpos+3*s, 3);
-    mju_copy(obj->mat, d->site_xmat+9*s, 9);
     obj->geom_type = m->site_type[s];
     if (obj->geom_type == mjGEOM_MESH && dataid >= 0) {
-      mjtNum meshmat[9], xmat[9];
-      mju_quat2Mat(meshmat, m->mesh_quat+4*dataid);
-      mju_mulMatMat3(xmat, d->site_xmat+9*s, meshmat);
-      mju_mulMatVec3(obj->pos, d->site_xmat+9*s, m->mesh_pos+3*dataid);
-      mju_addTo3(obj->pos, d->site_xpos+3*s);
-      mju_copy9(obj->mat, xmat);
+      mjtNum xquat[4];
+      mji_mulQuat(xquat, d->site_xquat+4*s, m->mesh_quat+4*dataid);
+      mji_quat2Mat(obj->mat, xquat);
+      mji_mulMatVec3(obj->pos, d->site_xmat+9*s, m->mesh_pos+3*dataid);
+      mji_addTo3(obj->pos, d->site_xpos+3*s);
+    } else {
+      mji_copy3(obj->pos, d->site_xpos+3*s);
+      mji_copy9(obj->mat, d->site_xmat+9*s);
     }
     mjc_initCCDObjSupport(obj, m, dataid);
   }
@@ -903,8 +907,8 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 
 // return number of contacts supported by a single pass of narrowphase
 static int maxContacts(const mjModel* m, const mjCCDObj* obj1, const mjCCDObj* obj2) {
-  // single pass not supported for margins nor libccd
-  if (obj1->margin > 0 || obj2->margin > 0 || mjDISABLED(mjDSBL_NATIVECCD)) {
+  // single pass not supported for libccd
+  if (mjDISABLED(mjDSBL_NATIVECCD)) {
     return 1;
   }
 

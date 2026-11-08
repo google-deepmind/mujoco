@@ -218,5 +218,44 @@ TEST_F(MujocoTest, GetXMLDependenciesHandlesCyclicIncludes) {
 
   memxml::g_files = nullptr;
 }
+
+// MjuErrorMessageFrom longjmps out of mju_error; AddressSanitizer /
+// LeakSanitizer checks that no C++ stack objects leaked on that jump.
+TEST_F(MujocoTest, GetXMLDependenciesErrorsDoNotLeakOnLongjmp) {
+  const std::map<std::string, std::string> files = {
+      {"errxml:/some/deep/path/that/exceeds/sso/buffer/broken.xml",
+       "<mujoco><unclosed>"},
+      {"errxml:/some/deep/path/that/exceeds/sso/buffer/missing_inc.xml",
+       "<mujoco><include file=\"nonexistent.xml\"/></mujoco>"},
+  };
+  memxml::g_files = &files;
+
+  mjpResourceProvider provider = {
+      .prefix = "errxml",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  mjStringVec dependencies;
+  auto call_deps = MjuErrorMessageFrom(mju_getXMLDependencies);
+
+  EXPECT_THAT(
+      call_deps("errxml:/some/deep/path/that/exceeds/sso/buffer/broken.xml",
+                &dependencies),
+      testing::HasSubstr("Problem reading XML file"));
+  EXPECT_THAT(
+      call_deps(
+          "errxml:/some/deep/path/that/exceeds/sso/buffer/missing_inc.xml",
+          &dependencies),
+      testing::HasSubstr("Could not open"));
+  EXPECT_THAT(
+      call_deps("errxml:/some/deep/path/that/exceeds/sso/buffer/nope.xml",
+                &dependencies),
+      testing::HasSubstr("Could not open"));
+
+  memxml::g_files = nullptr;
+}
 }  // namespace
 }  // namespace mujoco

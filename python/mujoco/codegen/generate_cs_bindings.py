@@ -469,7 +469,10 @@ def _write_constants(output, constants):
   for name, value in constants.items():
     const_type = type(value).__name__
     const_type = PYTHON_TYPE_TO_CS_TYPE.get(const_type, const_type)
-    const_value = PYTHON_VALUE_TO_CS_VALUE.get(value, value)
+    # only booleans: 1 == True, so ints equal to 1 would be looked up too
+    const_value = (
+        PYTHON_VALUE_TO_CS_VALUE[value] if isinstance(value, bool) else value
+    )
     if name == 'mjVERSION_HEADER':
       output.write('// copy' + 'bara:strip_begin\n')
       output.write(f'public const {const_type} {name} = {const_value};\n')

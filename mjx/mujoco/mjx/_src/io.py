@@ -322,16 +322,8 @@ def _put_option(
   raise NotImplementedError(f'Unsupported implementation: {impl}')
 
 
-def _put_statistic(
-    s: mujoco.MjStatistic, impl: types.Impl
-) -> Union[types.Statistic, types.StatisticWarp]:
+def _put_statistic(s: mujoco.MjStatistic) -> types.Statistic:
   """Puts mujoco.MjStatistic onto a device, resulting in mjx.Statistic."""
-  if impl == types.Impl.WARP:
-    fields = {
-        f.name: _wp_to_np_type(getattr(s, f.name, None), f.name)
-        for f in types.StatisticWarp.fields()
-    }
-    return types.StatisticWarp(**fields)
   return types.Statistic(
       meaninertia=s.meaninertia,
       meanmass=s.meanmass,
@@ -348,6 +340,8 @@ def _put_model_jax(
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
   if m.nflex:
     raise NotImplementedError('Flex not implemented for JAX backend.')
+  if m.nplastic:
+    raise NotImplementedError('Plasticity not implemented for JAX backend.')
 
   # contact sensor
   is_contact_sensor = m.sensor_type == types.SensorType.CONTACT
@@ -412,6 +406,7 @@ def _put_model_jax(
       (m.actuator_trntype, types.TrnType, mujoco.mjtTrn),
       (m.eq_type, types.EqType, mujoco.mjtEq),
       (m.sensor_type, types.SensorType, mujoco.mjtSensor),
+      (m.tendon_type, types.TendonType, mujoco.mjtTendon),
       (m.wrap_type, types.WrapType, mujoco.mjtWrap),
   ):
     missing = set(enum_field) - set(enum_type)
@@ -424,7 +419,7 @@ def _put_model_jax(
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, types.Impl.JAX)
-  fields['stat'] = _put_statistic(m.stat, types.Impl.JAX)
+  fields['stat'] = _put_statistic(m.stat)
 
   fields_jax = {}
   fields_jax['dof_hasfrictionloss'] = fields['dof_frictionloss'] > 0
@@ -495,7 +490,7 @@ def _put_model_warp(
   private_options = {k: getattr(mw.opt, k) for k in option_keys}
   private_options['graph_mode'] = graph_mode
   fields['opt'] = _put_option(m.opt, types.Impl.WARP, private_options)
-  fields['stat'] = _put_statistic(m.stat, types.Impl.WARP)
+  fields['stat'] = _put_statistic(m.stat)
 
   # Use MJW fields directly instead of MjModel, so that shape and dtype are
   # always compatible with MJXW (e.g. cam_mat0/geom_aabb).
@@ -544,7 +539,7 @@ def _put_model_cpp(
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, impl=types.Impl.JAX)
-  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.JAX)
+  fields['stat'] = _put_statistic(m.stat)
 
   # get the pointer address
   # we use a 0-d array
@@ -624,6 +619,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'act': (m.na, float_),
       'history': (m.nhistory, float_),
       'plugin_state': (m.npluginstate, float_),
+      'plastic': (m.nplastic, float_),
       'qacc_warmstart': (m.nv, float_),
       'ctrl': (m.nu, float_),
       'qfrc_applied': (m.nv, float_),
@@ -1188,8 +1184,7 @@ def _put_data_cpp(
       dummy_arg_for_batching,
   )
 
-  new_d = data_list[0]
-  fields = _put_data_public_fields(new_d)
+  fields = {k: copy.copy(v) for k, v in _put_data_public_fields(d).items()}
 
   c_pointers_impl = types.DataCPP(
       pointer_lo=pointer_lo,
@@ -1696,6 +1691,7 @@ _STATE_MAP = {
     mujoco.mjtState.mjSTATE_MOCAP_QUAT: 'mocap_quat',
     mujoco.mjtState.mjSTATE_USERDATA: 'userdata',
     mujoco.mjtState.mjSTATE_PLUGIN: 'plugin_state',
+    mujoco.mjtState.mjSTATE_PLASTIC: 'plastic',
 }
 
 
@@ -1719,6 +1715,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
       'mocap_quat',
       'userdata',
       'plugin_state',
+      'plastic',
   ):
     val = getattr(
         m,
@@ -1735,6 +1732,7 @@ def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
             'mocap_quat': 'nmocap',
             'userdata': 'nuserdata',
             'plugin_state': 'npluginstate',
+            'plastic': 'nplastic',
         }[name],
     )
     if name == 'mocap_pos':

@@ -80,7 +80,7 @@ mujoco_test(
 )
 
 mujoco_test(
-  lu_benchmark_test
+  engine_util_solve_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )
@@ -99,6 +99,12 @@ mujoco_test(
 
 mujoco_test(
   chol_benchmark_test
+  MAIN_TARGET benchmark::benchmark_main
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
+)
+
+mujoco_test(
+  ray_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
   ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
 )

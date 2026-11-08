@@ -25,6 +25,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -323,7 +324,7 @@ TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
   ASSERT_THAT(world, NotNull());
 
   mjsElement* attached =
-      mjs_attach(world->element, child_spec->element, "", "");
+      mjs_attach(world->element, child_spec->element, "child_", "");
   ASSERT_THAT(attached, NotNull());
 
   mjModel* model = mj_compile(parent_spec, &vfs);
@@ -338,13 +339,25 @@ TEST_F(MujocoTest, AttachedSpecDoesNotInheritURI) {
   mj_deleteSpec(child_spec);
 }
 
+static void RegisterPassivePlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+  plugin.name = "mujoco.test.passive";
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
+  plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
+  plugin.compute =
+      +[](const mjModel* m, mjData* d, int instance, int capability_bit) {};
+  mjp_registerPlugin(&plugin);
+}
+
 TEST_F(MujocoTest, ActivatePlugin) {
+  RegisterPassivePlugin();
   mjSpec* spec = mj_makeSpec();
-  mjs_activatePlugin(spec, "mujoco.elasticity.cable");
+  mjs_activatePlugin(spec, "mujoco.test.passive");
 
   // associate plugin to body
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
-  mjs_setString(body->plugin.plugin_name, "mujoco.elasticity.cable");
+  mjs_setString(body->plugin.plugin_name, "mujoco.test.passive");
   body->plugin.element = mjs_addPlugin(spec)->element;
   body->plugin.active = true;
   mjsGeom* geom = mjs_addGeom(body, 0);
@@ -486,6 +499,59 @@ TEST_F(MujocoTest, SetToDCMotorLuGre) {
   EXPECT_EQ(actuator->biasprm[3], 0.5);   // coulomb
   EXPECT_EQ(actuator->biasprm[4], 0.7);   // static
   EXPECT_EQ(actuator->biasprm[5], 10.0);  // stribeck
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorPassiveZeroMotorconst) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // a passive motor can have no electrical branch
+  double motorconst[2] = {0, 0};
+  const char* err =
+      mjs_setToDCMotor(actuator, motorconst, 2.0, nullptr, nullptr, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, mjINPUT_NONE);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->gainprm[1], 0);
+
+  // a driven motor needs a positive motor constant
+  err = mjs_setToDCMotor(actuator, motorconst, 2.0, nullptr, nullptr, nullptr,
+                         nullptr, nullptr, nullptr, nullptr, 0);
+  EXPECT_THAT(err, HasSubstr("motor constant K must be positive"));
+
+  // negative motor constants are rejected
+  double negative[2] = {0.05, -0.05};
+  err = mjs_setToDCMotor(actuator, negative, 2.0, nullptr, nullptr, nullptr,
+                         nullptr, nullptr, nullptr, nullptr, mjINPUT_NONE);
+  EXPECT_THAT(err, HasSubstr("motor constants must be non-negative"));
+
+  // a current limit on a passive motor with zero motor constant is rejected
+  double saturation[3] = {0, 2.0, 0};
+  err =
+      mjs_setToDCMotor(actuator, motorconst, 2.0, nullptr, saturation, nullptr,
+                       nullptr, nullptr, nullptr, nullptr, mjINPUT_NONE);
+  EXPECT_THAT(err,
+              HasSubstr("current limit requires a positive motor constant"));
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToDCMotorThermalTimeconst) {
+  mjSpec* spec = mj_makeSpec();
+  mjsActuator* actuator = mjs_addActuator(spec, 0);
+
+  // with all three given, the capacitance is timeconst / resistance
+  double motorconst[2] = {0.05, 0.05};
+  double thermal[6] = {2.0, 5.0, 4.0, 0, 0, 25.0};
+  const char* err =
+      mjs_setToDCMotor(actuator, motorconst, 2.0, nullptr, nullptr, nullptr,
+                       nullptr, nullptr, thermal, nullptr, 0);
+  EXPECT_STREQ(err, "");
+  EXPECT_EQ(actuator->dynprm[2], 2.0);   // resistance
+  EXPECT_EQ(actuator->dynprm[3], 2.0);   // capacitance
+  EXPECT_EQ(actuator->dynprm[4], 25.0);  // ambient
+  EXPECT_EQ(actuator->actdim, 1);
 
   mj_deleteSpec(spec);
 }
@@ -929,16 +995,17 @@ TEST_F(MujocoTest, DeleteActuatorBeforeCompileDeletesImplicitPlugin) {
 }
 
 TEST_F(MujocoTest, DeleteBodyDeletesPluginReferencedByPointer) {
+  RegisterPassivePlugin();
   mjSpec* spec = mj_makeSpec();
-  mjs_activatePlugin(spec, "mujoco.elasticity.cable");
+  mjs_activatePlugin(spec, "mujoco.test.passive");
 
   // a named instance that only a body references, through its element
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
   mjs_addGeom(body, 0)->size[0] = 0.1;
   mjsPlugin* plugin = mjs_addPlugin(spec);
-  mjs_setName(plugin->element, "cable");
-  mjs_setString(plugin->plugin_name, "mujoco.elasticity.cable");
-  mjs_setString(body->plugin.plugin_name, "mujoco.elasticity.cable");
+  mjs_setName(plugin->element, "passive");
+  mjs_setString(plugin->plugin_name, "mujoco.test.passive");
+  mjs_setString(body->plugin.plugin_name, "mujoco.test.passive");
   body->plugin.element = plugin->element;
   body->plugin.active = true;
 
@@ -1077,15 +1144,16 @@ TEST_F(MujocoTest, DeleteBodyKeepsUnreferencedPlugin) {
 }
 
 TEST_F(MujocoTest, BodyToFrameDeletesImplicitPlugin) {
+  RegisterPassivePlugin();
   static constexpr char xml[] = R"(
   <mujoco>
     <extension>
-      <plugin plugin="mujoco.elasticity.cable"/>
+      <plugin plugin="mujoco.test.passive"/>
     </extension>
     <worldbody>
       <body name="body">
         <geom size=".1"/>
-        <plugin plugin="mujoco.elasticity.cable"/>
+        <plugin plugin="mujoco.test.passive"/>
       </body>
     </worldbody>
   </mujoco>)";
@@ -1273,13 +1341,14 @@ TEST_F(MujocoTest, SetNameDetectsRepeatedNames) {
   // names that arrived through attach are visible to the check
   mjSpec* child = mj_makeSpec();
   mjsBody* child_body = mjs_addBody(mjs_findBody(child, "world"), 0);
-  EXPECT_EQ(mjs_setName(child_body->element, "attached"), 0);
+  EXPECT_EQ(mjs_setName(child_body->element, "body"), 0);
   mjsFrame* frame = mjs_addFrame(world, nullptr);
-  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "", ""),
+  ASSERT_THAT(mjs_attach(frame->element, child_body->element, "attached_", ""),
               NotNull());
   mjsBody* body = mjs_addBody(world, 0);
-  EXPECT_EQ(mjs_setName(body->element, "attached"), -1);
-  EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'attached' in body");
+  EXPECT_EQ(mjs_setName(body->element, "attached_body"), -1);
+  EXPECT_STREQ(mjs_getError(spec),
+               "Error: repeated name 'attached_body' in body");
   EXPECT_EQ(mjs_setName(body->element, "own"), 0);
 
   // the model compiles once names are unique
@@ -1287,7 +1356,7 @@ TEST_F(MujocoTest, SetNameDetectsRepeatedNames) {
   mjModel* model = mj_compile(spec, 0);
   ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(mj_name2id(model, mjOBJ_GEOM, "a"), 1);
-  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached"), 1);
+  EXPECT_EQ(mj_name2id(model, mjOBJ_BODY, "attached_body"), 1);
 
   mj_deleteModel(model);
   mj_deleteSpec(child);
@@ -2128,7 +2197,7 @@ TEST_F(MujocoTest, DisableCache) {
 TEST_F(MujocoTest, TextureFromBuffer) {
   mjSpec* spec = mj_makeSpec();
 
-  mjsTexture* t1 = mjs_addTexture(spec);
+  mjsTexture* t1 = mjs_addTexture(spec, nullptr);
   mjs_setName(t1->element, "tex1");
   t1->type = mjTEXTURE_2D;
   t1->width = 3;
@@ -2136,7 +2205,7 @@ TEST_F(MujocoTest, TextureFromBuffer) {
   t1->nchannel = 3;
   mjs_setBuffer(t1->data, (std::byte*)tex1, 18);
 
-  mjsTexture* t2 = mjs_addTexture(spec);
+  mjsTexture* t2 = mjs_addTexture(spec, nullptr);
   mjs_setName(t2->element, "tex2");
   t2->type = mjTEXTURE_2D;
   t2->width = 3;
@@ -2170,7 +2239,7 @@ TEST_F(MujocoTest, TextureFromBuffer) {
 // not fill it for textures made from a file or a builtin
 TEST_F(MujocoTest, TextureBufferIsAuthored) {
   mjSpec* spec = mj_makeSpec();
-  mjsTexture* texture = mjs_addTexture(spec);
+  mjsTexture* texture = mjs_addTexture(spec, nullptr);
   mjs_setName(texture->element, "texture");
   texture->type = mjTEXTURE_2D;
   texture->width = 2;
@@ -2204,13 +2273,131 @@ TEST_F(MujocoTest, TextureBufferIsAuthored) {
   mj_deleteSpec(spec);
 }
 
+// a texture added with a class takes the class's texture defaults, one
+// added without a class takes the main defaults
+TEST_F(MujocoTest, TextureDefaults) {
+  mjSpec* spec = mj_makeSpec();
+  mjsDefault* main = mjs_getSpecDefault(spec);
+  ASSERT_THAT(main->texture, NotNull());
+  EXPECT_EQ(main->texture->nchannel, 3);
+  EXPECT_EQ(main->texture->type, mjTEXTURE_CUBE);
+
+  mjsDefault* def = mjs_addDefault(spec, "flat", main);
+  def->texture->type = mjTEXTURE_2D;
+  def->texture->builtin = mjBUILTIN_FLAT;
+  def->texture->width = 2;
+  def->texture->height = 3;
+  def->texture->rgb1[0] = 0.25;
+  EXPECT_EQ(mjs_findDefault(spec, "flat")->texture->builtin, mjBUILTIN_FLAT);
+
+  // a child class inherits the texture defaults of its parent
+  mjsDefault* child = mjs_addDefault(spec, "child", def);
+  EXPECT_EQ(child->texture->builtin, mjBUILTIN_FLAT);
+  EXPECT_EQ(child->texture->height, 3);
+
+  mjsTexture* with = mjs_addTexture(spec, def);
+  mjs_setName(with->element, "with");
+  EXPECT_EQ(with->type, mjTEXTURE_2D);
+  EXPECT_EQ(with->builtin, mjBUILTIN_FLAT);
+  EXPECT_EQ(with->width, 2);
+  EXPECT_EQ(with->height, 3);
+  EXPECT_EQ(with->rgb1[0], 0.25);
+  EXPECT_EQ(mjs_getDefault(with->element), def);
+
+  mjsTexture* without = mjs_addTexture(spec, nullptr);
+  mjs_setName(without->element, "without");
+  EXPECT_EQ(without->type, mjTEXTURE_CUBE);
+  EXPECT_EQ(without->builtin, mjBUILTIN_NONE);
+  EXPECT_EQ(without->width, 0);
+  EXPECT_EQ(mjs_getDefault(without->element), main);
+  without->type = mjTEXTURE_2D;
+  without->builtin = mjBUILTIN_CHECKER;
+  without->width = 4;
+  without->height = 4;
+
+  // the model has what the class gave the texture
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->tex_type[0], mjTEXTURE_2D);
+  EXPECT_EQ(model->tex_width[0], 2);
+  EXPECT_EQ(model->tex_height[0], 3);
+  EXPECT_EQ(model->tex_data[0], (mjtByte)(255 * 0.25));
+  EXPECT_EQ(model->tex_width[1], 4);
+
+  // the class and its texture defaults are saved
+  std::string saved = SaveAndReadXml(spec);
+  EXPECT_THAT(saved, HasSubstr("<default class=\"flat\">"));
+  EXPECT_THAT(saved, HasSubstr("name=\"with\" class=\"flat\"/>"));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// texture classes of an attached spec are kept, under the attach prefix
+TEST_F(MujocoTest, AttachKeepsTextureDefaults) {
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <default>
+      <default class="tex">
+        <texture type="2d" builtin="checker" width="4" height="4"/>
+      </default>
+    </default>
+    <asset>
+      <texture name="checker" class="tex"/>
+      <material name="mat" texture="checker"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom size="1" material="mat"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> err;
+  mjSpec* child = mj_parseXMLString(xml_child, 0, err.data(), err.size());
+  ASSERT_THAT(child, NotNull()) << err.data();
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, err.data(), err.size());
+  ASSERT_THAT(parent, NotNull()) << err.data();
+
+  mjsElement* attached =
+      mjs_attach(mjs_findFrame(parent, "frame")->element,
+                 mjs_findBody(child, "body")->element, "child-", "");
+  ASSERT_THAT(attached, NotNull()) << mjs_getError(parent);
+
+  mjsDefault* def = mjs_findDefault(parent, "child-tex");
+  ASSERT_THAT(def, NotNull());
+  EXPECT_EQ(def->texture->builtin, mjBUILTIN_CHECKER);
+  mjsTexture* texture =
+      mjs_asTexture(mjs_findElement(parent, mjOBJ_TEXTURE, "child-checker"));
+  ASSERT_THAT(texture, NotNull());
+  EXPECT_EQ(mjs_getDefault(texture->element), def);
+
+  mjModel* model = mj_compile(parent, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+  EXPECT_EQ(model->ntex, 1);
+  EXPECT_EQ(model->tex_width[0], 4);
+  EXPECT_THAT(SaveAndReadXml(parent),
+              HasSubstr("name=\"child-checker\" class=\"child-tex\"/>"));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
 TEST_F(MujocoTest, TestTextureFlip) {
   mjSpec* spec = mj_makeSpec();
   EXPECT_THAT(spec, NotNull());
 
   std::vector<std::byte> texture_data = {std::byte{1}, std::byte{2},
                                          std::byte{3}, std::byte{4}};
-  mjsTexture* texture = mjs_addTexture(spec);
+  mjsTexture* texture = mjs_addTexture(spec, nullptr);
   mjs_setName(texture->element, "hflipped");
   texture->type = mjTEXTURE_2D;
   texture->width = 2;
@@ -2223,7 +2410,7 @@ TEST_F(MujocoTest, TestTextureFlip) {
                   std::byte{22}, std::byte{23}, std::byte{31}, std::byte{32},
                   std::byte{33}, std::byte{41}, std::byte{42}, std::byte{43}};
 
-  texture = mjs_addTexture(spec);
+  texture = mjs_addTexture(spec, nullptr);
   mjs_setName(texture->element, "vflipped");
   texture->type = mjTEXTURE_2D;
   texture->width = 2;
@@ -2452,6 +2639,7 @@ TEST_F(MujocoTest, AttachSame) {
 }
 
 TEST_F(MujocoTest, AttachSpatialTendonWithoutSidesite) {
+  mock_warning_handler.ExpectWarnings();
   static constexpr char xml_parent[] = R"(
   <mujoco>
     <worldbody>
@@ -2530,6 +2718,7 @@ TEST_F(MujocoTest, AttachSpatialTendonWithoutSidesite) {
 }
 
 TEST_F(MujocoTest, AttachSpatialTendonGitHubIssue3119) {
+  mock_warning_handler.ExpectWarnings();
   static constexpr char parent_xml[] = R"(
   <mujoco>
     <worldbody>
@@ -2915,7 +3104,7 @@ TEST_F(MujocoTest, AttachCompiled) {
   // attach child body to the frame
   mjsBody* to_attach = mjs_findBody(child, "base");
   EXPECT_THAT(to_attach, NotNull()) << mjs_getError(child);
-  mjs_attach(frame->element, to_attach->element, "", "");
+  mjs_attach(frame->element, to_attach->element, "child_", "");
 
   // check that attached model can be compiled
   mjModel* m_attached = mj_compile(parent, 0);
@@ -3236,10 +3425,11 @@ TEST_F(MujocoTest, DeleteFrameInertial) {
 }
 
 TEST_F(MujocoTest, DeleteFramePlugin) {
+  RegisterPassivePlugin();
   static constexpr char xml[] = R"(
   <mujoco>
     <extension>
-      <plugin plugin="mujoco.elasticity.cable"/>
+      <plugin plugin="mujoco.test.passive"/>
       <plugin plugin="mujoco.sdf.torus">
         <instance name="torus"/>
       </plugin>
@@ -3258,7 +3448,7 @@ TEST_F(MujocoTest, DeleteFramePlugin) {
         </geom>
         <body>
           <geom size=".1"/>
-          <plugin plugin="mujoco.elasticity.cable"/>
+          <plugin plugin="mujoco.test.passive"/>
         </body>
       </frame>
     </worldbody>
@@ -3343,6 +3533,188 @@ TEST_F(MujocoTest, AttachToSite) {
   mj_deleteSpec(parent);
   mj_deleteSpec(child);
   mj_deleteModel(model);
+}
+
+// a failed attachment to a site leaves no frame behind, and one to an invalid
+// parent leaves the child spec as it was
+TEST_F(MujocoTest, AttachFailureLeavesSpecs) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site"/>
+    </worldbody>
+  </mujoco>)";
+
+  // the keyframe does not fit the child, which fails the attachment
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="sphere">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <frame name="frame"/>
+    </worldbody>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="body" objname="sphere"/>
+      </tuple>
+    </custom>
+    <keyframe>
+      <key qpos="1 2 3"/>
+    </keyframe>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjsBody* world = mjs_findBody(parent, "world");
+  mjsElement* site = mjs_findElement(parent, mjOBJ_SITE, "site");
+  mjsBody* body = mjs_findBody(child, "sphere");
+  mjsFrame* frame = mjs_findFrame(child, "frame");
+
+  EXPECT_THAT(mjs_attach(site, body->element, "a-", ""), IsNull());
+  EXPECT_THAT(mjs_firstChild(world, mjOBJ_FRAME, 0), IsNull());
+  EXPECT_THAT(mjs_attach(site, frame->element, "b-", ""), IsNull());
+  EXPECT_THAT(mjs_firstChild(world, mjOBJ_FRAME, 0), IsNull());
+
+  // a geom is not a parent: the world of the child does not get a frame
+  mjsBody* childworld = mjs_findBody(child, "world");
+  mjsElement* geom = mjs_addGeom(world, nullptr)->element;
+  EXPECT_THAT(mjs_attach(geom, child->element, "c-", ""), IsNull());
+  EXPECT_THAT(mjs_getError(parent), HasSubstr("not a frame, body or site"));
+  EXPECT_EQ(mjs_firstChild(childworld, mjOBJ_FRAME, 0), frame->element);
+  EXPECT_THAT(mjs_nextChild(childworld, frame->element, 0), IsNull());
+
+  // the child has no namespace left: a deletion keeps what it does not affect
+  ASSERT_EQ(mjs_delete(child, mjs_firstElement(child, mjOBJ_KEY)), 0);
+  ASSERT_EQ(mjs_delete(child, frame->element), 0) << mjs_getError(child);
+  EXPECT_THAT(mjs_findElement(child, mjOBJ_TUPLE, "tuple"), NotNull());
+
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
+// equalities, flexes and tuples which reference the world body, and a tuple
+// which references itself, are attached
+TEST_F(MujocoTest, AttachWorldAndSelfReferences) {
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <flexcomp name="cable" type="grid" count="3 1 1" spacing=".1 .1 .1"
+                dim="1" mass=".1" radius=".01">
+        <pin id="0"/>
+      </flexcomp>
+      <flexcomp name="box" type="grid" count="2 2 2" spacing=".1 .1 .1"
+                dim="3" dof="trilinear" mass=".1" radius=".01">
+        <pin id="0"/>
+      </flexcomp>
+    </worldbody>
+    <equality>
+      <connect body1="body" body2="world" anchor="0 0 0"/>
+      <weld body1="world" body2="body"/>
+    </equality>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="body" objname="body"/>
+        <element objtype="body" objname="world"/>
+        <element objtype="tuple" objname="tuple"/>
+      </tuple>
+    </custom>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjSpec* parent = mj_makeSpec();
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child->element, "p-", ""), NotNull())
+      << mjs_getError(parent);
+
+  mjModel* model = mj_compile(parent, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+  int body = mj_name2id(model, mjOBJ_BODY, "p-body");
+  ASSERT_EQ(model->nflex, 2);
+  EXPECT_EQ(model->flex_vertbodyid[0], 0);
+  EXPECT_GT(model->flex_vertbodyid[1], 0);
+  EXPECT_EQ(model->flex_nodebodyid[0], 0);
+  EXPECT_GT(model->flex_nodebodyid[1], 0);
+  ASSERT_EQ(model->neq, 2);
+  EXPECT_THAT(AsVector(model->eq_obj1id, 2), ElementsAre(body, 0));
+  EXPECT_THAT(AsVector(model->eq_obj2id, 2), ElementsAre(0, body));
+  ASSERT_EQ(model->ntuple, 1);
+  EXPECT_THAT(AsVector(model->tuple_objid, 3), ElementsAre(body, 0, 0));
+
+  mj_deleteModel(model);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
+// deleting a body deletes the skins, flexes and tuples which reference it, and
+// a replicated body is referenced by replicated skins
+TEST_F(MujocoTest, DeleteAndReplicateSkinFlexTuple) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      %s
+      <body name="other">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <deformable>
+      <skin name="skin" vertex="0 0 0 1 0 0 0 1 0" face="0 1 2">
+        <bone body="body" bindpos="0 0 0" bindquat="1 0 0 0" vertid="0 1 2"
+              vertweight="1 1 1"/>
+      </skin>
+      <flex name="flex" dim="1" body="body body" vertex="0 0 0 0 0 1"
+            element="0 1"/>
+    </deformable>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="body" objname="body"/>
+      </tuple>
+    </custom>
+  </mujoco>)";
+  static constexpr char body[] = R"(
+      <body name="body">
+        <geom size=".1"/>
+      </body>)";
+  static constexpr char replicate[] = R"(
+      <replicate count="2" offset="1 0 0">
+        <body name="body">
+          <geom size=".1"/>
+        </body>
+      </replicate>)";
+
+  std::array<char, 1000> er;
+  std::string deleted = absl::StrFormat(xml, body);
+  mjSpec* spec = mj_parseXMLString(deleted.c_str(), 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "body")->element), 0);
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nskin, 0);
+  EXPECT_EQ(model->nflex, 0);
+  EXPECT_EQ(model->ntuple, 0);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+
+  std::string replicated = absl::StrFormat(xml, replicate);
+  spec = mj_parseXMLString(replicated.c_str(), 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nskin, 2);
+  EXPECT_EQ(model->nflex, 2);
+  EXPECT_EQ(model->ntuple, 2);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MujocoTest, AttachFrameToSite) {
@@ -3868,6 +4240,47 @@ void BodyToFrameMergeInertial(bool compile) {
 TEST_F(MujocoTest, BodyToFrameMergeInertial) {
   BodyToFrameMergeInertial(/*compile=*/false);
   BodyToFrameMergeInertial(/*compile=*/true);
+}
+
+// the geoms of a body with a massless inertial carry no mass: once converted,
+// they do not add to the inertia which the parent infers from its own geoms
+TEST_F(MujocoTest, BodyToFrameMasslessInertialKeepsParentInertia) {
+  for (const char* parentgeom : {R"(<geom size=".5" mass="10"/>)", ""}) {
+    std::string xml = absl::StrFormat(R"(
+    <mujoco>
+      <worldbody>
+        <body name="parent">
+          %s
+          <body name="child" pos="1 0 0">
+            <inertial pos="0 0 0" mass="0" diaginertia="0 0 0"/>
+            <geom size=".5" mass="7"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>)",
+                                      parentgeom);
+
+    std::array<char, 1000> er;
+    mjSpec* spec = mj_parseXMLString(xml.c_str(), 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    mjModel* before = mj_compile(spec, 0);
+    ASSERT_THAT(before, NotNull()) << mjs_getError(spec);
+
+    mjsBody* child = mjs_findBody(spec, "child");
+    ASSERT_THAT(mjs_bodyToFrame(&child), NotNull()) << mjs_getError(spec);
+    mjModel* after = mj_compile(spec, 0);
+    ASSERT_THAT(after, NotNull()) << mjs_getError(spec);
+    EXPECT_EQ(after->body_mass[1], before->body_mass[1]) << parentgeom;
+    std::array<mjtNum, 6> inertia_before = BodyInertia(before, 1);
+    std::array<mjtNum, 6> inertia_after = BodyInertia(after, 1);
+    for (int i = 0; i < 6; i++) {
+      EXPECT_NEAR(inertia_after[i], inertia_before[i], MjTol(1e-12, 1e-5));
+    }
+
+    mj_deleteModel(after);
+    mj_deleteModel(before);
+    mj_deleteSpec(spec);
+  }
 }
 
 TEST_F(MujocoTest, BodyToFrameInertialPose) {
@@ -4652,6 +5065,101 @@ TEST_F(MujocoTest, RecompileAttach) {
   mj_deleteSpec(child1);
   mj_deleteSpec(child2);
   mj_deleteSpec(parent);
+}
+
+// a stateless dc motor has no activation in a keyframe which is reassembled
+// after a change to the tree, before and after a compilation
+TEST_F(MujocoTest, KeyframeActStatelessDcMotor) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b1">
+        <joint name="j1"/>
+        <geom size=".1"/>
+      </body>
+      <body name="b2">
+        <joint name="j2"/>
+        <geom size=".1"/>
+      </body>
+      <body name="b3">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="j1" motorconst="1" resistance="1"/>
+      <intvelocity joint="j2" kp="1" actrange="-1 1"/>
+    </actuator>
+    <keyframe>
+      <key act=".5"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  for (bool compile : {false, true}) {
+    std::array<char, 1000> er;
+    mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    if (compile) {
+      mjModel* model = mj_compile(spec, nullptr);
+      ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+      EXPECT_EQ(model->na, 1);
+      mj_deleteModel(model);
+    }
+    EXPECT_EQ(mjs_delete(spec, mjs_findBody(spec, "b3")->element), 0);
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    EXPECT_EQ(model->na, 1);
+    EXPECT_MJTNUM_EQ(model->key_act[0], .5) << compile;
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+// an actuator added before a recompilation takes the neutral control which
+// mj_resetData gives it, the identity for a quaternion, and the controls of
+// the other actuators are kept
+TEST_F(MujocoTest, RecompileNewQuatActuatorCtrl) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="slide"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+  data->ctrl[0] = .5;
+
+  mjsActuator* actuator = mjs_addActuator(spec, nullptr);
+  mjs_setString(actuator->target, "ball");
+  actuator->trntype = mjTRN_JOINT;
+  double kv[1] = {1};
+  ASSERT_STREQ(mjs_setToOrientation(actuator, 5, kv, nullptr, mjCHART_QUAT),
+               "");
+
+  ASSERT_EQ(mj_recompile(spec, nullptr, model, data), 0) << mjs_getError(spec);
+  ASSERT_EQ(model->nu, 5);
+  EXPECT_THAT(AsVector(data->ctrl, model->nu), ElementsAre(.5, 1, 0, 0, 0));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 // the state is kept when a model is attached ahead of a joint of a spec which
@@ -5852,11 +6360,102 @@ TEST_F(MujocoTest, AttachMaterialReferences) {
   mj_deleteModel(models[1]);
 }
 
+TEST_F(MujocoTest, AttachSkinFromFile) {
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <asset>
+      <skin file="triangle_bone.skn"/>
+    </asset>
+    <worldbody>
+      <body name="box">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  // a triangle with one bone on body "box"
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  ASSERT_EQ(
+      mj_addFileVFS(vfs.get(), GetTestDataFilePath("user/testdata").c_str(),
+                    "triangle_bone.skn"),
+      0);
+
+  // the bones loaded from file take the prefixes and suffixes of two nested
+  // attachments, by deep copy and by reference
+  std::array<char, 1000> er;
+  std::array<mjModel*, 2> models;
+  for (bool deepcopy : {true, false}) {
+    mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+    ASSERT_THAT(child, NotNull()) << er.data();
+    mjSpec* middle = mj_makeSpec();
+    mjSpec* parent = mj_makeSpec();
+    mjs_setDeepCopy(middle, deepcopy);
+    mjs_setDeepCopy(parent, deepcopy);
+    mjsBody* body = mjs_addBody(mjs_findBody(middle, "world"), 0);
+    mjs_setName(body->element, "middle");
+    mjsFrame* frame = mjs_addFrame(body, 0);
+    EXPECT_THAT(mjs_attach(frame->element, mjs_findBody(child, "box")->element,
+                           "a_", "_x"),
+                NotNull())
+        << mjs_getError(middle);
+    frame = mjs_addFrame(mjs_findBody(parent, "world"), 0);
+    EXPECT_THAT(mjs_attach(frame->element,
+                           mjs_findBody(middle, "middle")->element, "b_", "_y"),
+                NotNull())
+        << mjs_getError(parent);
+
+    mjModel* model = mj_compile(parent, vfs.get());
+    ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+    ASSERT_EQ(model->nskin, 1);
+    for (int i = 0; i < model->skin_bonenum[0]; i++) {
+      EXPECT_STREQ(mj_id2name(model, mjOBJ_BODY, model->skin_bonebodyid[i]),
+                   "b_a_box_x_y");
+    }
+
+    // the saved model has the bones as data, and loads without the file
+    std::string saved = SaveAndReadXml(parent);
+    EXPECT_EQ(saved.find("triangle_bone.skn"), std::string::npos);
+    MjModelPtr reloaded = LoadModelFromString(saved, er.data(), er.size());
+    ASSERT_THAT(reloaded, NotNull()) << er.data();
+    ASSERT_EQ(reloaded->nskin, 1);
+    ASSERT_EQ(reloaded->nskinbone, model->nskinbone);
+    ASSERT_EQ(reloaded->nskinvert, model->nskinvert);
+    for (int i = 0; i < model->nskinbone; i++) {
+      EXPECT_STREQ(
+          mj_id2name(reloaded.get(), mjOBJ_BODY, reloaded->skin_bonebodyid[i]),
+          "b_a_box_x_y");
+    }
+    for (int i = 0; i < 3 * model->nskinvert; i++) {
+      EXPECT_EQ(reloaded->skin_vert[i], model->skin_vert[i]);
+    }
+    for (int i = 0; i < model->nskinbonevert; i++) {
+      EXPECT_EQ(reloaded->skin_bonevertid[i], model->skin_bonevertid[i]);
+      EXPECT_EQ(reloaded->skin_bonevertweight[i],
+                model->skin_bonevertweight[i]);
+    }
+
+    models[deepcopy] = model;
+    mj_deleteSpec(parent);
+    mj_deleteSpec(middle);
+    mj_deleteSpec(child);
+  }
+
+  // deep copy and attachment by reference give the same model
+  std::string field = "";
+  EXPECT_LE(CompareModel(models[0], models[1], field), 0)
+      << "Different field: " << field;
+
+  mj_deleteModel(models[0]);
+  mj_deleteModel(models[1]);
+  mj_deleteVFS(vfs.get());
+}
+
 TEST_F(MujocoTest, InitTexture) {
   mjSpec* spec = mj_makeSpec();
   EXPECT_THAT(spec, NotNull());
 
-  mjsTexture* texture = mjs_addTexture(spec);
+  mjsTexture* texture = mjs_addTexture(spec, nullptr);
   mjs_setName(texture->element, "checker");
   texture->type = mjTEXTURE_CUBE;
   texture->builtin = mjBUILTIN_CHECKER;
@@ -9132,6 +9731,51 @@ TEST_F(CopyBackTest, WritesVectors) {
   mj_deleteSpec(spec);
 }
 
+// a spring length which was changed is written, in place of one which
+// compilation computed
+TEST_F(CopyBackTest, WritesSpringLength) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slider" type="slide"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <fixed stiffness="1">
+        <joint joint="slider" coef="1"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjsTendon* tendon = mjs_asTendon(mjs_firstElement(spec, mjOBJ_TENDON));
+
+  // unchanged, the computed length stays computed
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_EQ(tendon->springlength[0], -1);
+  EXPECT_EQ(tendon->springlength[1], -1);
+
+  model->tendon_lengthspring[0] = 0.25;
+  model->tendon_lengthspring[1] = 0.5;
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_EQ(tendon->springlength[0], 0.25);
+  EXPECT_EQ(tendon->springlength[1], 0.5);
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(again->tendon_lengthspring[0], 0.25);
+  EXPECT_EQ(again->tendon_lengthspring[1], 0.5);
+
+  mj_deleteModel(again);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 // compilation scales elevation data so that its lowest value is 0 and its
 // highest is 1: data which it would scale again cannot be copied back
 TEST_F(CopyBackTest, RefusesHeightFieldWhichIsScaledAgain) {
@@ -9243,41 +9887,64 @@ TEST_F(CopyBackTest, RefusesComputedAnchorOfConnect) {
   mj_deleteSpec(spec);
 }
 
-// a weld between bodies keeps the relative pose which compilation computes
-// for it, unless that pose is changed in the model or its anchor is
-TEST_F(CopyBackTest, WritesGivenPartsOfWeld) {
+// a weld between bodies which has no relative pose is marked for mj_setConst
+// to compute it: a change to the pose which does not follow from the model
+// cannot be copied back, and a weld which is no longer marked has it written
+TEST_F(CopyBackTest, WritesPoseOfUnmarkedWeld) {
   std::array<char, 1000> er;
   mjSpec* spec =
       mj_parseXMLString(kCopyBackEquality, nullptr, er.data(), er.size());
   ASSERT_THAT(spec, NotNull()) << er.data();
   mjModel* model = mj_compile(spec, nullptr);
   ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
   mjSpec* before = mj_copySpec(spec);
   mjtNum* weld = model->eq_data + mjNEQDATA;
   ASSERT_THAT(AsVector(weld, mjNEQDATA),
-              ElementsAre(0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1));
+              ElementsAre(0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1));
 
-  // the torque scale: the relative pose stays as it was written, computed
+  // the torque scale
   weld[10] = 2;
   ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
   EXPECT_THAT(ChangedFields(before, spec),
               ElementsAre("equality[1] 'weld': data[10]"));
 
-  // the anchor: the relative pose was computed for the anchor as it was, and
-  // is now given
+  // a pose which mj_setConst does not compute
+  weld[3] = 0.5;
+  EXPECT_EQ(mj_copyBack(spec, model), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("the relative pose of a weld"));
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("'weld'"));
+  weld[3] = 1;
+
+  // the anchor, and the pose which mj_setConst computes from it
   weld[0] = 0.25;
+  mj_setConst(model, data);
+  ASSERT_EQ(weld[3], 1.25);
+  ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
+  EXPECT_THAT(ChangedFields(before, spec),
+              ElementsAre("equality[1] 'weld': data[0]",
+                          "equality[1] 'weld': data[10]"));
+  mjModel* again = mj_compile(spec, nullptr);
+  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(again->eq_data + mjNEQDATA, mjNEQDATA),
+            AsVector(weld, mjNEQDATA));
+
+  // no longer marked: the pose is given
+  weld[11] = 0;
   ASSERT_EQ(mj_copyBack(spec, model), 1) << mjs_getError(spec);
   EXPECT_THAT(
       ChangedFields(before, spec),
       ElementsAre("equality[1] 'weld': data[0]", "equality[1] 'weld': data[3]",
                   "equality[1] 'weld': data[6]",
                   "equality[1] 'weld': data[10]"));
-  mjModel* again = mj_compile(spec, nullptr);
-  ASSERT_THAT(again, NotNull()) << mjs_getError(spec);
-  EXPECT_EQ(AsVector(again->eq_data + mjNEQDATA, mjNEQDATA),
+  mjModel* unmarked = mj_compile(spec, nullptr);
+  ASSERT_THAT(unmarked, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(AsVector(unmarked->eq_data + mjNEQDATA, mjNEQDATA),
             AsVector(weld, mjNEQDATA));
 
+  mj_deleteModel(unmarked);
   mj_deleteModel(again);
+  mj_deleteData(data);
   mj_deleteModel(model);
   mj_deleteSpec(before);
   mj_deleteSpec(spec);
@@ -9352,5 +10019,544 @@ TEST_F(CopyBackTest, RefusesValuesWhichDifferBetweenDofs) {
   mj_deleteSpec(before);
   mj_deleteSpec(spec);
 }
+
+TEST_F(MujocoTest, AttachEmptyOrNullPrefixWarning) {
+  mock_warning_handler.ExpectWarnings();
+
+  for (const char* prefix : {"", static_cast<const char*>(nullptr)}) {
+    mjSpec* parent = mj_makeSpec();
+    mjSpec* child = mj_makeSpec();
+    mjsBody* world = mjs_findBody(parent, "world");
+
+    mjsElement* attached =
+        mjs_attach(world->element, child->element, prefix, "");
+    ASSERT_THAT(attached, NotNull());
+    EXPECT_EQ(mjs_numWarnings(parent), 1);
+    EXPECT_THAT(mjs_getWarning(parent, 0),
+                HasSubstr("may prevent the model from being saved correctly"));
+
+    mj_deleteSpec(parent);
+    mj_deleteSpec(child);
+  }
+}
+// a passive plugin whose init fails for the given mjData
+static mjData* fail_init_data = nullptr;
+static void RegisterFailInitPlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+  plugin.name = "mujoco.test.fail_init";
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
+  plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
+  plugin.init = +[](const mjModel* m, mjData* d, int instance) {
+    return d == fail_init_data ? -1 : 0;
+  };
+  plugin.compute =
+      +[](const mjModel* m, mjData* d, int instance, int capability_bit) {};
+  mjp_registerPlugin(&plugin);
+}
+
+// a plugin init which fails when mj_recompile remakes the caller's mjData is a
+// recompile error, and m and d are deleted, as when compilation fails
+TEST_F(MujocoTest, RecompilePluginInitFailure) {
+  RegisterFailInitPlugin();
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.test.fail_init">
+        <instance name="instance"/>
+      </plugin>
+    </extension>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+
+  fail_init_data = d;
+  EXPECT_NE(mj_recompile(spec, nullptr, m, d), 0);
+  fail_init_data = nullptr;
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("plugin init failed"));
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, KeyframePlasticExpandAttachScale) {
+  // 1. ExpandKeyframe: adding a plastic joint to a spec with an existing key
+  static constexpr char expand_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b1">
+        <joint name="j1" type="slide" stiffness="10" springyield="0.1" springref="0.2"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k0" plastic="0.5"/>
+    </keyframe>
+  </mujoco>
+  )";
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(expand_xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* b2 = mjs_addBody(world, 0);
+  mjsJoint* j2 = mjs_addJoint(b2, 0);
+  j2->type = mjJNT_SLIDE;
+  j2->stiffness[0] = 10;
+  j2->springyield = 0.1;
+  j2->springref = 0.3;
+  mjsGeom* g2 = mjs_addGeom(b2, 0);
+  g2->size[0] = 0.1;
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nplastic, 2);
+  EXPECT_NEAR(m->key_plastic[0], 0.5, 1e-6);
+  EXPECT_NEAR(m->key_plastic[1], 0.3, 1e-6);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // 2. StoreKeyframes (attach): attaching a child spec with a plastic keyframe
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="p">
+        <joint name="pj" type="slide" stiffness="10" springyield="0.1" springref="0.1"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" plastic="0.4"/>
+    </keyframe>
+  </mujoco>
+  )";
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="c">
+        <joint name="cj" type="slide" stiffness="10" springyield="0.1" springref="0.2"/>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="k" plastic="0.7"/>
+    </keyframe>
+  </mujoco>
+  )";
+  mjSpec* parent = mj_parseXMLString(parent_xml, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(child_xml, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjsBody* pworld = mjs_findBody(parent, "world");
+  ASSERT_THAT(mjs_attach(pworld->element, child->element, "c_", ""), NotNull());
+
+  m = mj_compile(parent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+  ASSERT_EQ(m->nplastic, 2);
+  ASSERT_EQ(m->nkey, 2);
+  // key 0 ("k"): parent plastic = 0.4, child default = 0.2
+  EXPECT_NEAR(m->key_plastic[0], 0.4, 1e-6);
+  EXPECT_NEAR(m->key_plastic[1], 0.2, 1e-6);
+  // key 1 ("c_k"): parent default = 0.1, child plastic = 0.7
+  EXPECT_NEAR(m->key_plastic[2], 0.1, 1e-6);
+  EXPECT_NEAR(m->key_plastic[3], 0.7, 1e-6);
+  mj_deleteModel(m);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+
+  // 3. ScaleKeyframe: scaling a body with a slide joint and tendon plastic key
+  static constexpr char scale_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="2">
+        <body name="b">
+          <joint name="j" type="slide" axis="1 0 0" stiffness="10" springyield="0.1"/>
+          <geom size="0.1"/>
+          <site name="s1" pos="0 0 0"/>
+        </body>
+        <site name="s0" pos="-1 0 0"/>
+      </frame>
+    </worldbody>
+    <tendon>
+      <spatial name="t" stiffness="10" springyield="0.1" springlength="1 1">
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+    <keyframe>
+      <key name="k" plastic="0.5 1.2 1.4"/>
+    </keyframe>
+  </mujoco>
+  )";
+  spec = mj_parseXMLString(scale_xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nplastic, 3);
+  EXPECT_NEAR(m->key_plastic[0], 1.0, 1e-6);
+  EXPECT_NEAR(m->key_plastic[1], 2.4, 1e-6);
+  EXPECT_NEAR(m->key_plastic[2], 2.8, 1e-6);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, KeyframePlasticScaleFlexModes) {
+  // a shell with bending plasticity only, in a scaled frame, followed by a
+  // second plastic flex: the shell's keyframe entries are all bending entries,
+  // scaled as such, and the second flex is untouched; a reference shell which
+  // also has stretching plasticity gives the bending scale factor
+  auto compile = [](const char* yield, bool second, int nplastic) -> mjModel* {
+    std::string tet = second ? R"(
+      <flexcomp name="tet" type="direct" dim="3" mass="1"
+                point="0 0 0  1 0 0  0 1 0  0 0 1" element="0 1 2 3">
+        <elasticity young="1000" poisson="0.25" yield="0.05"/>
+      </flexcomp>)"
+                             : "";
+    std::string ones;
+    for (int i = 0; i < nplastic; i++) ones += " 1";
+    std::string xml = std::string(R"(
+    <mujoco>
+      <worldbody>
+        <frame scale="2" scaling="geometry">
+          <body name="b">
+            <flexcomp name="shell" type="grid" count="3 3 1" spacing=".1 .1 .1" dim="2">
+              <elasticity young="1000" thickness="0.01" elastic2d="both" yield=")") +
+                      yield + R"("/>
+            </flexcomp>
+          </body>
+        </frame>)" + tet +
+                      R"(
+      </worldbody>
+      <keyframe>
+        <key plastic=")" +
+                      ones + R"("/>
+      </keyframe>
+    </mujoco>
+    )";
+    std::array<char, 1024> er;
+    mjModel* m =
+        LoadModelFromString(xml.c_str(), er.data(), er.size()).release();
+    EXPECT_THAT(m, NotNull()) << er.data();
+    return m;
+  };
+
+  // reference: 3 * 8 stretching entries, then 16 bending entries
+  mjModel* ref = compile("0.01 0.01", false, 40);
+  ASSERT_THAT(ref, NotNull());
+  ASSERT_EQ(ref->nplastic, 40);
+  double fb = ref->key_plastic[24];
+  EXPECT_NEAR(ref->key_plastic[0], 4, 1e-6);  // f^2 for the metric offsets
+  EXPECT_NE(fb, ref->key_plastic[0]);
+  mj_deleteModel(ref);
+
+  for (bool second : {true, false}) {
+    mjModel* m = compile("0 0.01", second, second ? 16 + 6 : 16);
+    ASSERT_THAT(m, NotNull());
+    ASSERT_EQ(m->flex_plasticmode[0], 1);
+    ASSERT_EQ(m->nplastic, second ? 16 + 6 : 16);
+    for (int j = 0; j < 16; j++) {
+      EXPECT_EQ(m->key_plastic[j], fb) << j;
+    }
+    for (int j = 16; j < m->nplastic; j++) {
+      EXPECT_EQ(m->key_plastic[j], 1.0) << j;
+    }
+    mj_deleteModel(m);
+  }
+}
+
+TEST_F(MujocoTest, FindChildDoesNotReturnSelf) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="parent">
+        <body name="leaf">
+          <geom name="leaf" size="0.1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> err;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+
+  mjsBody* parent = mjs_findBody(spec, "parent");
+  ASSERT_THAT(parent, NotNull());
+  mjsBody* leaf = mjs_findChild(parent, "leaf");
+  ASSERT_THAT(leaf, NotNull());
+
+  EXPECT_THAT(mjs_findChild(leaf, "leaf"), IsNull());
+  EXPECT_THAT(mjs_findChild(parent, "parent"), IsNull());
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, SetToMuscleNullArrayPointers) {
+  mjSpec* spec = mj_makeSpec();
+  ASSERT_THAT(spec, NotNull());
+  mjsActuator* act = mjs_addActuator(spec, nullptr);
+  ASSERT_THAT(act, NotNull());
+
+  mjs_setToMuscle(act, /*timeconst=*/nullptr, /*tausmooth=*/0,
+                  /*range=*/nullptr, /*force=*/-1, /*scale=*/-1, /*lmin=*/-1,
+                  /*lmax=*/-1, /*vmax=*/-1, /*fpmax=*/-1, /*fvmax=*/-1);
+  EXPECT_EQ(act->dyntype, mjDYN_MUSCLE);
+  EXPECT_EQ(act->gaintype, mjGAIN_MUSCLE);
+  EXPECT_EQ(act->biastype, mjBIAS_MUSCLE);
+  EXPECT_DOUBLE_EQ(act->dynprm[0], 0.01);
+  EXPECT_DOUBLE_EQ(act->dynprm[1], 0.04);
+  EXPECT_DOUBLE_EQ(act->gainprm[0], 0.75);
+  EXPECT_DOUBLE_EQ(act->gainprm[1], 1.05);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, EncodeMjbContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1000> err;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, err.data(), err.size());
+  ASSERT_THAT(spec, NotNull()) << err.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  const std::string out_path =
+      (std::filesystem::path(testing::TempDir()) / "encoded_mjb_no_ext")
+          .string();
+  mjtSize written = mj_encode(spec, m, out_path.c_str(), "model/vnd.mujoco.mjb",
+                              nullptr, err.data(), err.size());
+  EXPECT_GT(written, 0) << err.data();
+  EXPECT_EQ(written, mj_sizeModel(m));
+
+  std::filesystem::remove(out_path);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+// replicate does not duplicate file-backed skins with empty bone lists on
+// self-attach
+TEST_F(MujocoTest, ReplicateFileSkinDoesNotDuplicateSkin) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <skin file="triangle_bone.skn"/>
+    </asset>
+    <worldbody>
+      <body name="box">
+        <geom size=".1"/>
+      </body>
+      <replicate count="2" offset="1 0 0">
+        <body name="other">
+          <geom size=".1"/>
+        </body>
+      </replicate>
+    </worldbody>
+  </mujoco>)";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  ASSERT_EQ(
+      mj_addFileVFS(vfs.get(), GetTestDataFilePath("user/testdata").c_str(),
+                    "triangle_bone.skn"),
+      0);
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, vfs.get());
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->nskin, 1);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
+}
+
+// deleting a body referenced by a tuple refreshes ids so subsequent tuples are
+// preserved
+TEST_F(MujocoTest, DeleteBodyTupleChainPreservesUnrelatedTuples) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="target">
+        <geom size=".1"/>
+      </body>
+      <body name="other">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <custom>
+      <tuple name="t0">
+        <element objtype="tuple" objname="t1"/>
+      </tuple>
+      <tuple name="t1">
+        <element objtype="body" objname="target"/>
+      </tuple>
+      <tuple name="t2">
+        <element objtype="body" objname="other"/>
+      </tuple>
+      <tuple name="t3">
+        <element objtype="tuple" objname="t3"/>
+      </tuple>
+    </custom>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjsBody* target = mjs_findBody(spec, "target");
+  ASSERT_THAT(target, NotNull());
+  ASSERT_EQ(mjs_delete(spec, target->element), 0);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t0"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t1"), IsNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t2"), NotNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t3"), NotNull());
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->ntuple, 2);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// attaching a spec with a tuple that references an earlier sibling tuple
+// succeeds
+TEST_F(MujocoTest, AttachTupleBackwardSiblingReference) {
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <custom>
+      <tuple name="t0">
+        <element objtype="body" objname="b"/>
+      </tuple>
+      <tuple name="t1">
+        <element objtype="tuple" objname="t0"/>
+      </tuple>
+    </custom>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+  mjSpec* parent = mj_makeSpec();
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child->element, "sub_", ""), NotNull())
+      << mjs_getError(parent);
+  mjModel* model = mj_compile(parent, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(parent);
+  EXPECT_EQ(model->ntuple, 2);
+  mj_deleteModel(model);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
+// mjs_addActuator with dyntype = mjDYN_DCMOTOR and actdim = -1 before compile
+// defaults to stateless in uncompiled keyframe dof offset saving
+TEST_F(MujocoTest, DCMotorActdimDefaultStatelessBeforeCompile) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* b1 = mjs_addBody(world, nullptr);
+  mjsJoint* j1 = mjs_addJoint(b1, nullptr);
+  mjs_setName(j1->element, "j1");
+  mjsGeom* g1 = mjs_addGeom(b1, nullptr);
+  g1->size[0] = 0.1;
+
+  mjsBody* b2 = mjs_addBody(world, nullptr);
+  mjsJoint* j2 = mjs_addJoint(b2, nullptr);
+  mjs_setName(j2->element, "j2");
+  mjsGeom* g2 = mjs_addGeom(b2, nullptr);
+  g2->size[0] = 0.1;
+
+  mjsBody* b3 = mjs_addBody(world, nullptr);
+  mjsGeom* g3 = mjs_addGeom(b3, nullptr);
+  g3->size[0] = 0.1;
+
+  mjsActuator* act1 = mjs_addActuator(spec, nullptr);
+  act1->trntype = mjTRN_JOINT;
+  act1->dyntype = mjDYN_DCMOTOR;
+  act1->dynprm[0] = 0;
+  act1->actearly = 1;
+  act1->actdim = -1;
+  mjs_setString(act1->target, "j1");
+
+  mjsActuator* act2 = mjs_addActuator(spec, nullptr);
+  act2->trntype = mjTRN_JOINT;
+  act2->dyntype = mjDYN_INTEGRATOR;
+  mjs_setString(act2->target, "j2");
+
+  mjsKey* key = mjs_addKey(spec);
+  double act_val = 0.5;
+  mjs_setDouble(key->act, &act_val, 1);
+
+  EXPECT_EQ(mjs_delete(spec, b3->element), 0);
+
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->na, 1);
+  EXPECT_MJTNUM_EQ(model->key_act[0], 0.5);
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, RecompileQuatActuatorMismatchedSavedCtrlKeepsIdentity) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="slide" type="slide"/>
+        <geom size=".1"/>
+      </body>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="act" joint="slide"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+  data->ctrl[0] = .5;
+
+  mjsActuator* act =
+      mjs_asActuator(mjs_findElement(spec, mjOBJ_ACTUATOR, "act"));
+  ASSERT_THAT(act, NotNull());
+  mjs_setString(act->target, "ball");
+  act->trntype = mjTRN_JOINT;
+  double kv[1] = {1};
+  ASSERT_STREQ(mjs_setToOrientation(act, 5, kv, nullptr, mjCHART_QUAT), "");
+
+  ASSERT_EQ(mj_recompile(spec, nullptr, model, data), 0) << mjs_getError(spec);
+  ASSERT_EQ(model->nu, 4);
+  EXPECT_THAT(AsVector(data->ctrl, model->nu), ElementsAre(1, 0, 0, 0));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

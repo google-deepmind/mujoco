@@ -14,6 +14,7 @@
 
 // Tests for structures in the public headers.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -329,6 +330,39 @@ TEST_F(HeaderTest, MjModelPointersOrdered) {
 #undef X
 
   CheckAddressOrdering(pointers, "MJMODEL_POINTER");
+}
+
+TEST_F(HeaderTest, MjModelSetConstOrdered) {
+  mjModel m;
+  std::vector<const void*> model_pointers;
+#define X(type, name, dim1, dim2) \
+  model_pointers.push_back(static_cast<const void*>(&m.name));
+#define XNV X
+  MJMODEL_POINTERS
+#undef XNV
+#undef X
+
+  std::vector<std::pair<const void*, const char*>> setconst;
+#define X(name, fixed, kin0, inert0, spring)                               \
+  static_assert((fixed | kin0 | inert0 | spring) != 0 &&                   \
+                    ((fixed | kin0 | inert0 | spring) & ~mjSC_INOUT) == 0, \
+                "invalid access in MJSETCONST_ARRAYS::" #name);            \
+  setconst.push_back({static_cast<const void*>(&m.name), #name});          \
+  EXPECT_NE(std::find(model_pointers.begin(), model_pointers.end(),        \
+                      static_cast<const void*>(&m.name)),                  \
+            model_pointers.end())                                          \
+      << #name << " is not in MJMODEL_POINTERS.";
+  MJSETCONST_ARRAYS
+#undef X
+
+  CheckAddressOrdering(setconst, "MJSETCONST_ARRAYS");
+
+  std::vector<std::pair<const void*, const char*>> scalars;
+#define X(name) scalars.push_back({static_cast<const void*>(&m.name), #name});
+  MJSETCONST_SCALARS
+#undef X
+
+  CheckAddressOrdering(scalars, "MJSETCONST_SCALARS");
 }
 
 TEST_F(HeaderTest, MjDataPointersOrdered) {

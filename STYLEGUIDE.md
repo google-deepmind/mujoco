@@ -160,6 +160,27 @@ New code should use the C99 convention. When editing an existing function,
 please move existing variable declarations into local scope. Pull requests
 helping us to complete the migration are very welcome.
 
+### Error handling in C++ code
+
+`mju_error` does not always abort the process: the Python bindings and the
+model compiler install error handlers which `longjmp` back to a recovery point.
+A `longjmp` skips the destructors of all C++ objects in the frames it unwinds,
+leaking memory and leaving mutexes locked. Therefore, in C++ code:
+
+-   Don't call `mju_error`, or C functions which may call it, while objects with
+    non-trivial destructors (`std::string`, `std::vector`, smart pointers,
+    locks, ...) are alive in the current or any calling C++ frame.
+-   Report errors caused by user input with exceptions or error codes, e.g.
+    `mjCError` in the compiler and `mjXError` in the XML parser. If a public
+    function reports errors with `mju_error`, catch the error at the API
+    boundary, copy the message into a `char` buffer and call `mju_error` after
+    all C++ objects have been destroyed.
+-   Plugin callbacks, decoders and resource providers should not call
+    `mju_error` either. Don't call them while holding a lock.
+-   Test error paths which user input can reach. `MjuErrorMessageFrom` in
+    `test/fixture.h` installs a `longjmp` error handler like the Python
+    bindings; leaks are detected when the tests run under a leak checker.
+
 ### Python code
 
 For Python code, run `pyink foo.py` to adhere to Google's

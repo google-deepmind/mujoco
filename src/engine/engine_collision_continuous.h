@@ -128,7 +128,7 @@ MJAPI mjtNum mjc_PtTri(const mjtNum* p, const mjtNum* a, const mjtNum* b, const 
 MJAPI mjtNum mjc_SegSeg(const mjtNum* p1, const mjtNum* p2, const mjtNum* q1, const mjtNum* q2,
                         mjtNum* cp1, mjtNum* cp2, mjtNum* st);
 
-// is geom type supported by mjc_GeomDist (plane, sphere, capsule, box, mesh)
+// is geom type supported by mjc_GeomDist (plane, sphere, capsule, ellipsoid, cylinder, box, mesh)
 MJAPI int mjc_GeomSupported(int type);
 
 // signed distance (+ outward unit normal n) from geom gi's surface, at pose
@@ -145,6 +145,16 @@ MJAPI int mjc_GeomVerts(const mjModel* m, int gi, const mjtNum* gpos, const mjtN
 // mesh hull edges, a capsule's axis; return count
 MJAPI int mjc_GeomEdges(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* gmat,
                         mjtNum* out);
+
+// compute the step displacement (dx, dw) over the time interval [0, t] and return the
+// upper bound on the distance traveled by any point on the geom's surface
+MJAPI mjtNum mjc_geomStepMotion(const mjModel* m, const mjData* d, int g, mjtNum t,
+                                mjtNum dx[3], mjtNum dw[3]);
+
+// conservative advancement between two geoms g1 and g2 over the timestep;
+// write up to 4 contacts into con and return number of contacts
+MJAPI int mjc_advanceGeomPair(const mjModel* m, const mjData* d, int g1, int g2,
+                              mjtNum margin, mjPreContact* con, void* buffer);
 
 #ifdef __cplusplus
 }

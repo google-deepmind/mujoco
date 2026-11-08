@@ -1,0 +1,14 @@
+<mujoco model="parent">
+  <asset>
+    <model name="child" file="dedup_assets_child.xml"/>
+  </asset>
+  <worldbody>
+    <attach model="child" body="body" prefix="a_"/>
+    <frame pos="0 1 0">
+      <attach model="child" body="body" prefix="b_"/>
+    </frame>
+    <frame pos="0 2 0">
+      <attach model="child" body="body" prefix="c_"/>
+    </frame>
+  </worldbody>
+</mujoco>

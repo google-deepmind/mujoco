@@ -479,7 +479,7 @@ static int draw_overlay(int font, mjrRect viewport, int skip, int gridpos,
                         const char* overlay, const mjrContext* con) {
   int pos, ncthis, nc, nr, W, H, flg_big = (font == mjFONT_BIG);
   int PAD = 5, sz = mjMIN(mjMAXOVERLAY, (int)strlen(overlay));
-  char text[mjMAXOVERLAY];
+  char text[mjMAXOVERLAY + 1];
 
   // count rows and columns of text rectangle in pixels
   nr = flg_big ? con->charHeightBig : con->charHeight;

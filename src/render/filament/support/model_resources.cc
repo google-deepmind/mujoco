@@ -16,9 +16,13 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -140,19 +144,19 @@ static void FillMeshBuffer(MeshBuilder& builder, const mjModel* model, int meshi
     const float2 uv2 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 1]) : ProjectUv(p2);
     const float2 uv3 = texcoords ? ReadFloat2(texcoords, model->mesh_facetexcoord[face + 2]) : ProjectUv(p3);
 
-    if (UseFaceNormal(face_normal, n1)) {
+    if (!texcoords && UseFaceNormal(face_normal, n1)) {
       builder.Append(p1, CalculateOrientation(face_normal), uv1);
     } else {
       builder.Append(p1, CalculateOrientation(n1), uv1);
     }
 
-    if (UseFaceNormal(face_normal, n2)) {
+    if (!texcoords && UseFaceNormal(face_normal, n2)) {
       builder.Append(p2, CalculateOrientation(face_normal), uv2);
     } else {
       builder.Append(p2, CalculateOrientation(n2), uv2);
     }
 
-    if (UseFaceNormal(face_normal, n3)) {
+    if (!texcoords && UseFaceNormal(face_normal, n3)) {
       builder.Append(p3, CalculateOrientation(face_normal), uv3);
     } else {
       builder.Append(p3, CalculateOrientation(n3), uv3);
@@ -384,16 +388,123 @@ static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
   data->bounds_max[2] = builder->bounds_max.z;
 }
 
+static mjrPixelFormat GetPixelFormat(int nchannel) {
+  switch (nchannel) {
+    case 1:
+      return mjPIXEL_FORMAT_R8;
+    case 3:
+      return mjPIXEL_FORMAT_RGB8;
+    case 4:
+      return mjPIXEL_FORMAT_RGBA8;
+    default:
+      return mjPIXEL_FORMAT_UNKNOWN;
+  }
+}
+
+// The identity of a by-reference texture: two ids with the same key would
+// upload the same bytes, so they share one GPU texture.
+ModelResources::TextureKey::TextureKey(const mjModel* model, int id)
+    : path(model->paths + model->tex_pathadr[id]),
+      content_type(model->tex_contenttypeadr[id] >= 0
+                       ? model->paths + model->tex_contenttypeadr[id]
+                       : ""),
+      type(model->tex_type[id]),
+      nchannel(model->tex_nchannel[id]),
+      colorspace(model->tex_colorspace[id]) {}
+
+bool ModelResources::TextureKey::operator==(const TextureKey& other) const {
+  return path == other.path && content_type == other.content_type &&
+         type == other.type && nchannel == other.nchannel &&
+         colorspace == other.colorspace;
+}
+
+size_t ModelResources::TextureKeyHash::operator()(const TextureKey& key) const {
+  uint64_t seed = 0;
+  Combine(seed, &key.path);
+  Combine(seed, &key.content_type);
+  Combine(seed, &key.type);
+  Combine(seed, &key.nchannel);
+  Combine(seed, &key.colorspace);
+  return seed;
+}
+
+// Creates a texture from data laid out as tex_data holds it: nchannel bytes per
+// texel, or a KTX file as a single row of bytes, which Filament decodes. The
+// data is released with release(user_data) after the upload, if release is not
+// null. Returns nullptr, after a warning, if the data cannot be uploaded.
+static std::shared_ptr<mjrfTexture> MakeTexture(
+    mjrfContext* ctx, int id, int type, int width, int height, int nchannel,
+    int colorspace, const void* bytes, void* user_data,
+    void (*release)(void*)) {
+  mjrfTextureConfig config;
+  mjrf_defaultTextureConfig(&config);
+  config.width = width;
+  config.height = height;
+  config.sampler_type = (mjtTexture)type;
+  config.color_space = (mjtColorSpace)colorspace;
+  config.format = height == 1 && nchannel == 1 ? mjPIXEL_FORMAT_KTX
+                                               : GetPixelFormat(nchannel);
+  if (config.format == mjPIXEL_FORMAT_UNKNOWN) {
+    // skip, like the classic renderer: mju_error here would skip the
+    // destructors of the objects being constructed
+    mju_warning("texture %d: can't upload %d-channel data, skipping", id,
+                nchannel);
+    if (release) release(user_data);
+    return nullptr;
+  }
+
+  mjrfTextureData payload;
+  mjrf_defaultTextureData(&payload);
+  payload.bytes = bytes;
+  payload.num_bytes = (mjtSize)width * height * nchannel;
+  payload.user_data = user_data;
+  payload.release = release;
+
+  auto texture = CreateTexture(ctx, config);
+  mjrf_uploadTexture(texture.get(), &payload);
+  return std::shared_ptr<mjrfTexture>(std::move(texture));
+}
+
+// Uploads a by-reference texture: mj_loadTexture returns the data as an
+// embedded texture holds it, which is released when the upload completes.
+// Returns nullptr, after a warning, if the file cannot be loaded.
+static std::shared_ptr<mjrfTexture> UploadTextureByReference(
+    mjrfContext* ctx, const mjModel* model, int id) {
+  mjtByte* data = nullptr;
+  int width, height, colorspace;
+  char err[1024] = "";
+  if (mj_loadTexture(model, id, &data, &width, &height, &colorspace, err,
+                     sizeof(err))) {
+    mju_warning("texture %d not loaded, left untextured: %s", id, err);
+    return nullptr;
+  }
+  std::shared_ptr<mjrfTexture> result =
+      MakeTexture(ctx, id, model->tex_type[id], width, height,
+                  model->tex_nchannel[id], colorspace, data, data, mju_free);
+  // Flush so this decoded buffer is uploaded and freed (via mju_free) before
+  // the next texture is decoded. Without it, every decoded buffer stays alive
+  // until scene setup ends, which can exhaust the 32-bit WASM heap.
+  mjrf_flush(ctx);
+  return result;
+}
+
 ModelResources::ModelResources(const mjModel* model, mjrfContext* ctx)
     : model_(model), ctx_(ctx) {
-
+  textures_.reserve(model_->ntex);
   for (int i = 0; i < model_->ntex; ++i) {
+    textures_.emplace_back();
     UploadTexture(model_, i);
   }
+  meshes_.reserve(model_->nmesh);
+  convex_hulls_.reserve(model_->nmesh);
   for (int i = 0; i < model_->nmesh; ++i) {
+    meshes_.emplace_back(nullptr, nullptr);
+    convex_hulls_.emplace_back(nullptr, nullptr);
     UploadMesh(model_, i);
   }
+  height_fields_.reserve(model_->nhfield);
   for (int i = 0; i < model_->nhfield; ++i) {
+    height_fields_.emplace_back(nullptr, nullptr);
     UploadHeightField(model_, i);
   }
 
@@ -412,8 +523,8 @@ void ModelResources::UploadMesh(const mjModel* model, int id) {
   if (id < 0 || id >= model->nmesh) {
     mju_error("Invalid mesh index %d", id);
   }
-  meshes_.erase(id);
-  convex_hulls_.erase(id);
+  meshes_[id].reset();
+  convex_hulls_[id].reset();
 
   mjrfMeshConfig config;
   mjrf_defaultMeshConfig(&config);
@@ -423,7 +534,7 @@ void ModelResources::UploadMesh(const mjModel* model, int id) {
 
   auto mesh = CreateMesh(ctx_, config);
   mjrf_uploadMesh(mesh.get(), &data);
-  meshes_.insert_or_assign(id, std::move(mesh));
+  meshes_[id] = std::move(mesh);
 
   if (model->mesh_graphadr[id] >= 0) {
     mjrfMeshConfig convex_hull_config;
@@ -435,7 +546,7 @@ void ModelResources::UploadMesh(const mjModel* model, int id) {
 
     auto convex_hull = CreateMesh(ctx_, convex_hull_config);
     mjrf_uploadMesh(convex_hull.get(), &convex_hull_data);
-    convex_hulls_.insert_or_assign(id, std::move(convex_hull));
+    convex_hulls_[id] = std::move(convex_hull);
   }
 }
 
@@ -447,42 +558,60 @@ void ModelResources::UploadTexture(const mjModel* model, int id) {
     mju_error("Invalid texture index: %d", id);
   }
 
-  mjrfTextureConfig config;
-  mjrf_defaultTextureConfig(&config);
-  config.width = model->tex_width[id];
-  config.height = model->tex_height[id];
-  config.sampler_type = (mjtTexture)model->tex_type[id];
-  config.color_space = (mjtColorSpace)model->tex_colorspace[id];
-  switch (model->tex_nchannel[id]) {
-    case 1:
-      config.format = mjPIXEL_FORMAT_R8;
-      break;
-    case 3:
-      config.format = mjPIXEL_FORMAT_RGB8;
-      break;
-    case 4:
-      config.format = mjPIXEL_FORMAT_RGBA8;
-      break;
-    default:
-      mju_error("Unsupported texture format: %d", model->tex_nchannel[id]);
-      break;
+  // a by-reference id leaves the ids of its previous key, unless it is
+  // re-uploaded with the same key; an embedded texture has no key
+  TextureEntry& entry = textures_[id];
+  std::optional<TextureKey> key;
+  if (model->tex_adr[id] == -1) {
+    key.emplace(model, id);
   }
-  if (config.height == 1 && model->tex_nchannel[id] == 1) {
-    config.format = mjPIXEL_FORMAT_KTX;
+  const bool reload = entry.key && key && *entry.key == *key;
+  if (entry.key && !reload) {
+    RemoveFromKey(id, *entry.key);
   }
+  entry.key = key;
 
-  mjrfTextureData payload;
-  mjrf_defaultTextureData(&payload);
-  payload.bytes = model->tex_data + model->tex_adr[id];
-  payload.num_bytes =
-      model->tex_width[id] * model->tex_height[id] * model->tex_nchannel[id];
-  // We assume that the model has the same lifetime as the engine.
-  payload.user_data = nullptr;
-  payload.release = nullptr;
+  if (key) {
+    entry.texture = LoadByReference(model, id, *key, reload);
+  } else {
+    entry.texture =
+        MakeTexture(ctx_, id, model->tex_type[id], model->tex_width[id],
+                    model->tex_height[id], model->tex_nchannel[id],
+                    model->tex_colorspace[id],
+                    model->tex_data + model->tex_adr[id],
+                    // not released: we assume that the model has the same
+                    // lifetime as the engine
+                    nullptr, nullptr);
+  }
+}
 
-  auto texture = CreateTexture(ctx_, config);
-  mjrf_uploadTexture(texture.get(), &payload);
-  textures_.insert_or_assign(id, std::move(texture));
+void ModelResources::RemoveFromKey(int id, const TextureKey& key) {
+  auto it = ids_by_key_.find(key);
+  if (it != ids_by_key_.end()) {
+    it->second.erase(id);
+    if (it->second.empty()) {
+      ids_by_key_.erase(it);
+    }
+  }
+}
+
+// The file is loaded once per key and shared by the ids with that key, also
+// when it fails (a null texture, which warns once); a re-upload reads the file
+// again, for all of them.
+std::shared_ptr<mjrfTexture> ModelResources::LoadByReference(
+    const mjModel* model, int id, const TextureKey& key, bool reload) {
+  std::unordered_set<int>& ids = ids_by_key_.try_emplace(key).first->second;
+  std::shared_ptr<mjrfTexture> texture;
+  if (ids.empty() || reload) {
+    texture = UploadTextureByReference(ctx_, model, id);
+    for (int other : ids) {
+      textures_[other].texture = texture;
+    }
+  } else {
+    texture = textures_[*ids.begin()].texture;
+  }
+  ids.insert(id);
+  return texture;
 }
 
 void ModelResources::UploadHeightField(const mjModel* model, int id) {
@@ -493,7 +622,7 @@ void ModelResources::UploadHeightField(const mjModel* model, int id) {
     mju_error("Invalid height field index %d", id);
   }
 
-  height_fields_.erase(id);
+  height_fields_[id].reset();
 
   mjrfMeshConfig config;
   mjrf_defaultMeshConfig(&config);
@@ -503,43 +632,43 @@ void ModelResources::UploadHeightField(const mjModel* model, int id) {
 
   auto mesh = CreateMesh(ctx_, config);
   mjrf_uploadMesh(mesh.get(), &data);
-  height_fields_.insert_or_assign(id, std::move(mesh));
+  height_fields_[id] = std::move(mesh);
 }
 
 const mjrfMesh* ModelResources::GetMesh(int data_id) const {
+  if (data_id < 0) {
+    return nullptr;
+  }
   // As defined by mjv_updateScene:
   //   original mesh: mesh_id * 2
   //   convex hull: (mesh_id * 2) + 1
   const int mesh_id = data_id / 2;
   if (data_id % 2 == 0) {
-    auto it = meshes_.find(mesh_id);
-    return it != meshes_.end() ? it->second.get() : nullptr;
+    return mesh_id < meshes_.size() ? meshes_[mesh_id].get() : nullptr;
   } else {
-    auto it = convex_hulls_.find(mesh_id);
-    return it != convex_hulls_.end() ? it->second.get() : nullptr;
+    return mesh_id < convex_hulls_.size() ? convex_hulls_[mesh_id].get()
+                                          : nullptr;
   }
 }
 
 const mjrfMesh* ModelResources::GetHeightField(int hfield_id) const {
-  if (auto it = height_fields_.find(hfield_id); it != height_fields_.end()) {
-    return it->second.get();
+  if (hfield_id < 0 || hfield_id >= height_fields_.size()) {
+    return nullptr;
   }
-  mju_error("Unknown height field %d", hfield_id);
-  return nullptr;
+  return height_fields_[hfield_id].get();
 }
 
 const mjrfTexture* ModelResources::GetTexture(int tex_id) const {
-  if (auto it = textures_.find(tex_id); it != textures_.end()) {
-    return it->second.get();
+  if (tex_id < 0 || tex_id >= textures_.size()) {
+    return nullptr;
   }
-  mju_error("Unknown texture %d", tex_id);
-  return nullptr;
+  return textures_[tex_id].texture.get();
 }
 
 const mjrfTexture* ModelResources::GetSkyboxTexture() const {
-  for (auto& iter : textures_) {
-    if (model_->tex_type[iter.first] == mjTEXTURE_SKYBOX) {
-      return iter.second.get();
+  for (int i = 0; i < textures_.size(); ++i) {
+    if (model_->tex_type[i] == mjTEXTURE_SKYBOX) {
+      return textures_[i].texture.get();
     }
   }
   return nullptr;

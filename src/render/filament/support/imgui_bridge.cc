@@ -15,10 +15,12 @@
 #include "render/filament/support/imgui_bridge.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -53,9 +55,10 @@ ImguiBridge::~ImguiBridge() {
   }
 }
 
-uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
-                                   int width, int height, int bpp) {
-  if (pixels == nullptr) {
+uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id,
+                                   std::span<const std::byte> pixels, int width,
+                                   int height) {
+  if (pixels.empty()) {
     // If the pixels are nullptr, we destroy the texture. This is checked before
     // the bpp validation below: a destruction request carries no pixel format.
     if (tex_id != 0) {
@@ -64,9 +67,14 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     return 0;
   }
 
-  if (bpp != 4 && bpp != 3) {
-    mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
+  if (width <= 0 || height <= 0 ||
+      (pixels.size() != static_cast<size_t>(width * height * 3) &&
+       pixels.size() != static_cast<size_t>(width * height * 4))) {
+    mju_error(
+        "Image size (%zu bytes) does not match %dx%d RGB or RGBA",
+        pixels.size(), width, height);
   }
+  const int bpp = pixels.size() / (width * height);
 
   // Assign a new texture ID.
   if (tex_id == 0) {
@@ -93,8 +101,9 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
 
   // Create a copy of the image to pass it to filament as we don't know the
   // lifetime of the data.
-  const size_t num_bytes = width * height * bpp;
+  const size_t num_bytes = pixels.size();
   std::byte* bytes = new std::byte[num_bytes];
+  std::memcpy(bytes, pixels.data(), num_bytes);
   const auto callback =
       +[](void* user) { delete[] reinterpret_cast<std::byte*>(user); };
 
@@ -104,8 +113,6 @@ uintptr_t ImguiBridge::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
   texture_data.num_bytes = num_bytes;
   texture_data.user_data = bytes;
   texture_data.release = callback;
-
-  std::memcpy(bytes, pixels, num_bytes);
   mjrf_uploadTexture(texture, &texture_data);
   return tex_id;
 }
@@ -247,13 +254,17 @@ void ImguiBridge::Update() {
     data.indices = cmds->IdxBuffer.Data;
     mjrf_uploadMesh(mesh, &data);
 
-    int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
-      const int width = size.x * scale.x;
-      const int height = size.y * scale.y;
+      // The framebuffer's size. The scale is the framebuffer size over the
+      // display size, so the product is a whole number up to float error;
+      // round it, since truncating a 875.99994 to 875 would shift every
+      // scissor (measured from the bottom edge) down a row and clip the top
+      // row of every window.
+      const int width = static_cast<int>(std::lround(size.x * scale.x));
+      const int height = static_cast<int>(std::lround(size.y * scale.y));
 
       UniquePtr<mjrfRenderable>& renderable = renderables_[renderable_index];
-      mjrf_setRenderableMesh(renderable.get(), mesh, index_offset,
+      mjrf_setRenderableMesh(renderable.get(), mesh, command.IdxOffset,
                              command.ElemCount);
 
       mjrfMaterial material;
@@ -278,16 +289,26 @@ void ImguiBridge::Update() {
                                        static_cast<float>(width));
       const float clip_y1 = std::clamp(command.ClipRect.w * scale.y, clip_y0,
                                        static_cast<float>(height));
-      material.scissor[0] = clip_x0;
-      material.scissor[1] = height - clip_y1;
-      material.scissor[2] = clip_x1 - clip_x0;
-      material.scissor[3] = clip_y1 - clip_y0;
+      // Snap the rect outward to whole pixels. At a fractional DPI scale the
+      // clip edges fall between pixels, and filament truncates the scissor
+      // to integers: measured from the bottom (the GL origin), that drops a
+      // row along the top edge of every window, showing whatever is behind
+      // the UI through a one-pixel seam (e.g. the 3D scene above and below
+      // the menu bar). Growing the rect is harmless: the geometry's own
+      // anti-aliased edges end where they should.
+      const float x0 = std::floor(clip_x0);
+      const float y0 = std::floor(clip_y0);
+      const float x1 = std::ceil(clip_x1);
+      const float y1 = std::ceil(clip_y1);
+      material.scissor[0] = x0;
+      material.scissor[1] = height - y1;
+      material.scissor[2] = x1 - x0;
+      material.scissor[3] = y1 - y0;
       mjrf_setRenderableMaterial(renderable.get(), &material);
 
       const float size[] = {scale.x, scale.y, 1.0f};
       mjrf_setRenderableSize(renderable.get(), size);
 
-      index_offset += command.ElemCount;
       ++renderable_index;
     }
   }
@@ -309,26 +330,4 @@ void ImguiBridge::PrepareRenderables(int count) {
     renderables_.pop_back();
   }
 }
-
-mjrCamera ImguiBridge::GetCamera(int width, int height) const {
-  mjrCamera camera;
-  camera.orthographic = true;
-  camera.pos[0] = 0.0f;
-  camera.pos[1] = 0.0f;
-  camera.pos[2] = 1.0f;
-  camera.forward[0] = 0.0f;
-  camera.forward[1] = 0.0f;
-  camera.forward[2] = -1.0f;
-  camera.up[0] = 0.0f;
-  camera.up[1] = 1.0f;
-  camera.up[2] = 0.0f;
-  camera.frustum_top = 0.0f;
-  camera.frustum_near = 0.0f;
-  camera.frustum_far = 1.0f;
-  camera.frustum_center = width / 2.0f;
-  camera.frustum_width = width / 2.0f;
-  camera.frustum_bottom = height;
-  return camera;
-}
-
 }  // namespace mujoco

@@ -1,0 +1,612 @@
+<!doctype html>
+<!--
+Copyright 2026 DeepMind Technologies Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MuJoCo Web Viewer</title>
+    <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #1a1a2e;
+      }
+      canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    <script>
+      // Standard WebSocket close codes.
+      const WS_CLOSE_POLICY_VIOLATION = 1008;
+      const WS_CLOSE_MESSAGE_TOO_BIG = 1009;
+
+      // Our custom WebSocket close codes in range 4xxx.
+      const WS_CLOSE_CONTROLLER_TAKEN = 4001;
+      const WS_CLOSE_SESSION_FULL = 4002;
+      const WS_CLOSE_INACTIVE = 4003;
+      const WS_CLOSE_NOT_CONTROLLER = 4004;
+
+      // Model bundles: download, cache, and prefetch.
+      //
+      // Every bundle is identified by the crc32 the Python side stamps into
+      // each state payload. Bundles this page has loaded stay in modelCache
+      // (least recently used first out once MODEL_CACHE_BYTES is exceeded),
+      // so switching back to a model needs no download. The server lists the
+      // bundles it holds in "prefetch=" lines on /state (forwarded by the
+      // WASM client as Module.onPrefetchHint), upcoming models first; the page
+      // downloads them one at a time in the background once the current model
+      // is on screen, so a later switch to one of them is instant.
+      //
+      // The page keeps the bytes itself rather than relying on the browser's
+      // HTTP cache alone: Chromium refuses cache entries over 1/8 of its disk
+      // cache (40 MiB on the default 320 MiB cache), which a full 64 MiB chunk
+      // below already exceeds, and the rest of the user's browsing can evict
+      // entries at any time.
+      const MODEL_CACHE_BYTES = 256 * 1024 * 1024;
+      const modelCache = new Map(); // crc32 -> Uint8Array; insertion order = LRU order
+      let modelCacheBytes = 0;
+      let currentModelCrc = 0;
+      // The server's latest hint as {crc, size}, in the order to download,
+      // and the part of it not cached yet.
+      let prefetchHint = [];
+      const prefetchQueue = [];
+      let prefetching = false;
+      let foregroundLoads = 0;
+
+      function cacheModel(crc, bytes) {
+        if (!crc || bytes.length > MODEL_CACHE_BYTES) return;
+        if (modelCache.has(crc)) {
+          modelCacheBytes -= modelCache.get(crc).length;
+          modelCache.delete(crc);
+        }
+        modelCache.set(crc, bytes);
+        modelCacheBytes += bytes.length;
+        for (const [oldCrc, old] of modelCache) {
+          if (modelCacheBytes <= MODEL_CACHE_BYTES) break;
+          if (oldCrc === crc || oldCrc === currentModelCrc) continue;
+          modelCache.delete(oldCrc);
+          modelCacheBytes -= old.length;
+        }
+      }
+
+      // Returns the cached bundle, marking it most recently used.
+      function cachedModel(crc) {
+        const bytes = modelCache.get(crc);
+        if (bytes) {
+          modelCache.delete(crc);
+          modelCache.set(crc, bytes);
+        }
+        return bytes || null;
+      }
+
+      // /model serves the current bundle; /model?crc32=N serves a cached one.
+      function modelUrl(crc, query) {
+        const params = [];
+        if (crc) params.push("crc32=" + crc);
+        if (query) params.push(query);
+        return "/model" + (params.length ? "?" + params.join("&") : "");
+      }
+
+      // A download in progress. A background prefetch and a foreground load
+      // of the same bundle share one job (see downloadModel): `report` says
+      // whether its progress drives the DOWNLOADING bar, `priority` is the
+      // fetch priority for the requests still to be issued, and the counters
+      // let a foreground load that joins late pick up the progress so far.
+      function newDownloadJob(report) {
+        return {
+          report: report,
+          priority: report ? "high" : "low",
+          bytesDownloaded: 0,
+          totalBytes: 0,
+          retries: 0,
+          promise: null,
+        };
+      }
+
+      function reportProgress(job) {
+        if (job.report && Module.updateModelDownloadProgress) {
+          Module.updateModelDownloadProgress(job.bytesDownloaded, job.totalBytes, job.retries);
+        }
+      }
+
+      // Parallel chunked model download.
+      //
+      // Fetches a bundle in up to PARALLEL concurrent 64 MiB requests into a
+      // Uint8Array. Each chunk is retried up to MAX_RETRIES times on transient
+      // errors (proxy resets, HTTP2 protocol errors, etc.). Returns the bytes
+      // on success, null on failure, and undefined when the server no longer
+      // has the bundle.
+      async function fetchModelChunked(crc, job) {
+        const CHUNK = 64 * 1024 * 1024; // 64 MiB per request
+        const PARALLEL = 6; // concurrent fetches
+        const MAX_RETRIES = 3; // per-chunk retry limit
+        const RETRY_DELAY = 500; // ms between retries
+        try {
+          const totalSizeResp = await fetch(modelUrl(crc, "total_bytes"), { priority: job.priority });
+          if (totalSizeResp.status === 404 && crc) return undefined;
+          if (!totalSizeResp.ok) return null;
+          const totalSizeData = await totalSizeResp.json();
+          const totalSize = totalSizeData.total_bytes;
+          if (!totalSize || totalSize <= 0) return null;
+
+          const bytes = new Uint8Array(totalSize);
+          const chunks = [];
+          for (let offset = 0; offset < totalSize; offset += CHUNK) {
+            chunks.push({ offset: offset, size: Math.min(CHUNK, totalSize - offset) });
+          }
+
+          job.bytesDownloaded = 0;
+          job.totalBytes = totalSize;
+          job.retries = 0;
+          reportProgress(job);
+          // Bounded-parallelism worker pool with per-chunk retries.
+          let nextIndex = 0;
+          let errors = 0;
+          async function worker() {
+            while (nextIndex < chunks.length) {
+              const index = nextIndex++;
+              const chunk = chunks[index];
+              const url = modelUrl(crc, "offset_bytes=" + chunk.offset + "&size_bytes=" + chunk.size);
+              let ok = false;
+              for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                  if (attempt > 0) {
+                    if (attempt > job.retries) job.retries = attempt;
+                    reportProgress(job);
+                    console.log("[model] chunk", index, "retry", attempt);
+                    await new Promise((r) => setTimeout(r, RETRY_DELAY * attempt));
+                  }
+                  const resp = await fetch(url, { priority: job.priority });
+                  if (!resp.ok) continue;
+                  const buffer = await resp.arrayBuffer();
+                  bytes.set(new Uint8Array(buffer), chunk.offset);
+                  job.bytesDownloaded += chunk.size;
+                  reportProgress(job);
+                  ok = true;
+                  break;
+                } catch (e) {
+                  console.warn("[model] chunk", index, "attempt", attempt, e);
+                }
+              }
+              if (!ok) {
+                console.error("[model] chunk", index, "failed after", MAX_RETRIES, "retries");
+                errors++;
+              }
+            }
+          }
+          const workers = [];
+          for (let i = 0; i < Math.min(PARALLEL, chunks.length); i++) {
+            workers.push(worker());
+          }
+          await Promise.all(workers);
+          if (errors > 0) return null;
+          return bytes;
+        } catch (e) {
+          console.error("[model] chunked fetch failed:", e);
+          return null;
+        }
+      }
+
+      // Single-fetch fallback if chunked download using fetchModelChunked() fails.
+      async function fetchModelSingle(crc, job) {
+        try {
+          const resp = await fetch(modelUrl(crc, ""), { priority: job.priority });
+          if (!resp.ok) return null;
+          const buffer = await resp.arrayBuffer();
+          job.bytesDownloaded = job.totalBytes = buffer.byteLength;
+          reportProgress(job);
+          return new Uint8Array(buffer);
+        } catch (e) {
+          console.error("[model] single fetch failed:", e);
+          return null;
+        }
+      }
+
+      // Downloads a bundle: the chunked download, retried up to 3 times with
+      // increasing delay (falling back to a single fetch for large models hits
+      // the same proxy errors, so retrying chunks is the only viable path),
+      // then the single fetch. Returns the bytes, or null. A bundle already
+      // being downloaded (say, a prefetch the user just switched to) is shared
+      // rather than fetched twice, and a foreground load joining a background
+      // one promotes it: the progress bar starts from the bytes already
+      // downloaded, and the remaining chunks and retries fetch at high
+      // priority (requests already issued keep the priority they were sent
+      // with).
+      const inflightDownloads = new Map(); // crc32 -> download job
+      function downloadModel(crc, report) {
+        let job = crc ? inflightDownloads.get(crc) : undefined;
+        if (job) {
+          if (report && !job.report) {
+            job.report = true;
+            job.priority = "high";
+            reportProgress(job);
+          }
+          return job.promise;
+        }
+        job = newDownloadJob(report);
+        job.promise = downloadModelOnce(crc, job);
+        if (crc) {
+          inflightDownloads.set(crc, job);
+          job.promise.finally(() => inflightDownloads.delete(crc));
+        }
+        return job.promise;
+      }
+
+      async function downloadModelOnce(crc, job) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            console.log("[model] retrying chunked download, attempt", attempt + 1);
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+          }
+          const bytes = await fetchModelChunked(crc, job);
+          if (bytes === undefined) return null; // Gone from the server.
+          if (bytes) return bytes;
+        }
+        console.error("[model] all chunked download attempts failed; trying single-fetch");
+        return (await fetchModelSingle(crc, job)) || null;
+      }
+
+      // Hands a bundle to the WASM client: copies it into the heap, parses it
+      // (which rebuilds the scene), and returns its crc32, or 0 on failure.
+      function loadModelBytes(bytes) {
+        const ptr = Module.allocModelBuffer(bytes.length);
+        if (!ptr) {
+          console.error("[model] failed to allocate WASM buffer of size:", bytes.length);
+          return 0;
+        }
+        try {
+          HEAPU8.set(bytes, ptr);
+          return Module.parseModelBuffer(ptr, bytes.length) >>> 0;
+        } finally {
+          Module.freeModelBuffer(ptr);
+        }
+      }
+
+      // Called from C++ (via EM_ASM) when the Python side swaps the model,
+      // with the new model's crc32 from the state payload, and once at
+      // startup without one (whatever /model serves now). A cached bundle
+      // loads synchronously, so the state payload that announced the switch
+      // already applies to the new model; anything else downloads first. Only
+      // the latest request loads: a download the model changed away from
+      // mid-flight is dropped. The server never evicts the current model, so a
+      // crc32 it does not have means the model changed again, and the request
+      // that follows takes over.
+      let loadGeneration = 0;
+      async function reloadModel(crc) {
+        crc = (crc || 0) >>> 0; // C++ passes the uint32 as a signed int.
+        const generation = ++loadGeneration;
+        const startMs = performance.now();
+        let bytes = crc ? cachedModel(crc) : null;
+        const cached = bytes !== null;
+        if (!cached) {
+          foregroundLoads++;
+          try {
+            bytes = await downloadModel(crc, true);
+          } finally {
+            foregroundLoads--;
+          }
+          if (!bytes) {
+            console.error("[model] could not download model", crc);
+            return;
+          }
+          if (generation !== loadGeneration) return;
+          // Allow ~4 frames (60ms) to elapse so the 100% progress bar paints
+          // before C++ synchronous parsing blocks the thread.
+          await new Promise((resolve) => setTimeout(resolve, 60));
+          if (generation !== loadGeneration) return;
+        }
+        const downloadedMs = performance.now();
+        const loadedCrc = loadModelBytes(bytes);
+        if (loadedCrc) {
+          currentModelCrc = loadedCrc;
+          cacheModel(loadedCrc, bytes);
+        }
+        console.log(
+          "[model] " + (cached ? "cache hit" : "downloaded") + " " + loadedCrc +
+            " (" + (bytes.length / (1024 * 1024)).toFixed(1) + " MiB): download " +
+            (downloadedMs - startMs).toFixed(0) + " ms, parse+scene " +
+            (performance.now() - downloadedMs).toFixed(0) + " ms",
+        );
+        prefetchModels();
+      }
+
+      // "prefetch=<crc32>:<bytes>,..." from the server: the bundles it holds,
+      // upcoming ones first, in the order to download them. A bare line means
+      // there is nothing left to prefetch.
+      function onPrefetchHint(line) {
+        prefetchHint = [];
+        prefetchQueue.length = 0;
+        for (const item of line.slice("prefetch=".length).split(",")) {
+          const [crcText, sizeText] = item.split(":");
+          const crc = Number(crcText) >>> 0;
+          const size = Number(sizeText) || 0;
+          if (!crc || size > MODEL_CACHE_BYTES) continue;
+          prefetchHint.push({ crc: crc, size: size });
+          if (!modelCache.has(crc)) prefetchQueue.push({ crc: crc, size: size });
+        }
+        prefetchModels();
+      }
+
+      // The bytes the cache must keep alongside a prefetch of `crc`: the
+      // current model and the hinted bundles ahead of it that are cached
+      // already. Once those plus the bundle itself exceed the cap, downloading
+      // it would evict a sooner one, so prefetching stops there.
+      function reservedBytesBefore(crc) {
+        const current = modelCache.get(currentModelCrc);
+        let reserved = current ? current.length : 0;
+        for (const item of prefetchHint) {
+          if (item.crc === crc) break;
+          if (item.crc !== currentModelCrc && modelCache.has(item.crc)) reserved += item.size;
+        }
+        return reserved;
+      }
+
+      // Drains the prefetch queue one download at a time, never while a
+      // foreground load is in flight or before the first model is on screen,
+      // and stops at the first bundle that would not fit (see
+      // reservedBytesBefore); that bundle stays queued, since the next model
+      // switch frees room or brings a new hint.
+      async function prefetchModels() {
+        if (prefetching) return;
+        prefetching = true;
+        try {
+          while (prefetchQueue.length) {
+            if (foregroundLoads > 0 || !currentModelCrc) {
+              await new Promise((r) => setTimeout(r, 250));
+              continue;
+            }
+            const { crc, size } = prefetchQueue[0];
+            if (modelCache.has(crc)) {
+              prefetchQueue.shift();
+              continue;
+            }
+            if (reservedBytesBefore(crc) + size > MODEL_CACHE_BYTES) {
+              console.log(
+                "[model] prefetch paused: " + crc + " (" + (size / (1024 * 1024)).toFixed(1) +
+                  " MiB) would evict a sooner model",
+              );
+              break;
+            }
+            prefetchQueue.shift();
+            const bytes = await downloadModel(crc, false);
+            if (bytes) {
+              cacheModel(crc, bytes);
+              console.log(
+                "[model] prefetched " + crc + " (" + (bytes.length / (1024 * 1024)).toFixed(1) +
+                  " MiB), " + modelCache.size + " cached",
+              );
+            }
+          }
+        } finally {
+          prefetching = false;
+        }
+      }
+
+      var Module = {
+        canvas: (() => {
+          const canvas = document.getElementById("canvas");
+          return canvas;
+        })(),
+        locateFile: function (path, prefix) {
+          if (path.endsWith(".data")) {
+            return "web_client.data";
+          }
+          if (path.includes("assets/")) {
+            const filename = path.substring(path.lastIndexOf("/") + 1);
+            return "assets/" + filename;
+          }
+          return prefix + path;
+        },
+        onPrefetchHint: onPrefetchHint,
+        onRuntimeInitialized: async () => {
+          <!-- Keep in sync with assets staged in web/CMakeLists.txt -->
+          const assetsToPrefetch = [
+            "AtkinsonHyperlegibleNext[wght].ttf",
+            "AtkinsonHyperlegibleMono-Regular.ttf",
+            "fontawesome-webfont.ttf",
+            "ibl.ktx",
+            "pbr.filamat",
+            "pbr_reflect.filamat",
+            "pbr_packed_reflect.filamat",
+            "pbr_transparent.filamat",
+            "pbr_packed.filamat",
+            "pbr_packed_transparent.filamat",
+            "phong_2d.filamat",
+            "phong_2d_fade.filamat",
+            "phong_2d_uv.filamat",
+            "phong_2d_uv_fade.filamat",
+            "phong_2d_uv_reflect.filamat",
+            "phong_color.filamat",
+            "phong_color_fade.filamat",
+            "phong_color_reflect.filamat",
+            "phong_cube.filamat",
+            "phong_cube_fade.filamat",
+            "phong_cube_reflect.filamat",
+            "outline_composite.filamat",
+            "outline_flatten.filamat",
+            "outline_jumpflood.filamat",
+            "decor.filamat",
+            "decor_fade.filamat",
+            "haze.filamat",
+            "unlit_depth.filamat",
+            "unlit_segmentation.filamat",
+            "unlit_ui.filamat",
+          ];
+
+          const PARALLEL = 4;
+          const failedAssets = [];
+          let nextIndex = 0;
+
+          async function prefetchWorker() {
+            while (nextIndex < assetsToPrefetch.length) {
+              const filename = assetsToPrefetch[nextIndex++];
+              let loaded = false;
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  if (attempt > 0) {
+                    await new Promise((r) => setTimeout(r, 500 * attempt));
+                  }
+                  const response = await fetch("assets/" + filename);
+                  if (!response.ok) continue;
+                  const buffer = await response.arrayBuffer();
+                  Module.registerAsset(filename, new Uint8Array(buffer));
+                  loaded = true;
+                  break;
+                } catch (error) {
+                  console.warn(`Attempt ${attempt + 1} failed for ${filename}:`, error);
+                }
+              }
+              if (!loaded) {
+                console.error(`Error prefetching asset ${filename} after 3 attempts`);
+                failedAssets.push(filename);
+              }
+            }
+          }
+
+          const workers = [];
+          for (let i = 0; i < Math.min(PARALLEL, assetsToPrefetch.length); i++) {
+            workers.push(prefetchWorker());
+          }
+          await Promise.all(workers);
+
+          if (failedAssets.length > 0) {
+            const msg = `Failed to load required assets (${failedAssets.join(", ")}). Please check server runfiles or connection and reload.`;
+            console.error(msg);
+            const errDiv = document.createElement("div");
+            errDiv.style.cssText =
+              "position:absolute;top:20px;left:20px;right:20px;padding:16px;background:#7a1a1a;color:#fff;font-family:sans-serif;font-size:14px;border-radius:8px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.5);";
+            errDiv.textContent = msg;
+            document.body.appendChild(errDiv);
+            return;
+          }
+
+          Module.startApp();
+          reloadModel();
+        },
+      };
+      // Set only the CSS size; SDL owns canvas.width/height. Use whole
+      // pixels: a fractional size (100vw/100vh under display scaling) makes
+      // the streamed UI relayout — and visibly flicker — every frame.
+      function fitCanvas() {
+        Module.canvas.style.width = Math.floor(window.innerWidth) + "px";
+        Module.canvas.style.height = Math.floor(window.innerHeight) + "px";
+      }
+      fitCanvas();
+      window.addEventListener("resize", fitCanvas);
+
+      // Release the WebGL context on pagehide so Chrome's GPU process
+      // immediately frees VRAM across page reloads instead of retaining
+      // detached contexts until V8 garbage-collects the old document.
+      window.addEventListener("pagehide", () => {
+        const gl =
+          Module.canvas.getContext("webgl2") ||
+          Module.canvas.getContext("webgl");
+        gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      });
+
+      // Drag & drop: upload dropped model files to the viewer over the
+      // /drop WebSocket. Each file is one binary frame ([u32 path length]
+      // [relative path utf-8][file bytes], little-endian), an empty frame
+      // marks the end of the drop, and the server closes once it has
+      // everything (parsed by web_server.py's drop_handler). Folders are
+      // walked recursively so models with separate asset files work; the
+      // viewer picks the root model file (see web_viewer._pick_drop_root).
+      // Loading a model changes the session for everyone, so only the
+      // controller may drop; the server rejects drops from other pages and the
+      // spectator check below just skips the pointless upload.
+      window.addEventListener("dragover", (e) => e.preventDefault());
+      window.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        if (window.Module && Module.isSpectator) {
+          console.warn("Model drop ignored: only the controlling page can load models.");
+          return;
+        }
+        // Capture entries synchronously: DataTransferItems are invalidated
+        // as soon as this handler awaits.
+        const items = e.dataTransfer ? [...e.dataTransfer.items] : [];
+        const entries = items
+          .map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry())
+          .filter(Boolean);
+        const files = []; // {path, file}
+        async function walk(entry, prefix) {
+          if (entry.isFile) {
+            const file = await new Promise((ok, err) => entry.file(ok, err));
+            files.push({ path: prefix + entry.name, file });
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            for (;;) {
+              // readEntries returns batches (<=100); loop until empty.
+              const batch = await new Promise((ok, err) => reader.readEntries(ok, err));
+              if (!batch.length) break;
+              for (const child of batch) {
+                await walk(child, prefix + entry.name + "/");
+              }
+            }
+          }
+        }
+        for (const entry of entries) await walk(entry, "");
+        if (!files.length) return;
+        // The server limits each WebSocket message size. If any file exceeds the limit, the server
+        // closes the connection with WS_CLOSE_MESSAGE_TOO_BIG mid-upload and the entire drop is
+        // discarded. Check client-side first to give a clear message, not a silent failure.
+        const MAX_DROP_FILE_BYTES = 64 * 1024 * 1024;
+        const tooBig = files.find((f) => f.file.size > MAX_DROP_FILE_BYTES);
+        if (tooBig) {
+          console.warn(
+            `Model drop rejected: "${tooBig.path}" is larger than ` +
+              `${MAX_DROP_FILE_BYTES / (1024 * 1024)} MiB.`,
+          );
+          return;
+        }
+        const frames = [];
+        for (const { path, file } of files) {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const name = new TextEncoder().encode(path);
+          const frame = new Uint8Array(4 + name.length + bytes.length);
+          new DataView(frame.buffer).setUint32(0, name.length, true);
+          frame.set(name, 4);
+          frame.set(bytes, 4 + name.length);
+          frames.push(frame);
+        }
+        const proto = location.protocol === "https:" ? "wss://" : "ws://";
+        // The session id tells the server which page is dropping; it only
+        // accepts drops from the controller.
+        const sid = (window.Module && Module.session_id) || "";
+        const dropUrl = proto + location.host + "/drop?sid=" + encodeURIComponent(sid);
+        const ws = new WebSocket(dropUrl);
+        ws.binaryType = "arraybuffer";
+        ws.onopen = () => {
+          for (const frame of frames) ws.send(frame);
+          ws.send(new Uint8Array(0)); // End marker; the server closes.
+        };
+        ws.onclose = (ev) => {
+          if (ev.code === WS_CLOSE_NOT_CONTROLLER) {
+            console.warn("Model drop rejected: only the controlling page can load models.");
+          } else if (ev.code === WS_CLOSE_MESSAGE_TOO_BIG) {
+            console.warn("Model drop rejected: a file exceeded the server's size limit.");
+          }
+        };
+      });
+    </script>
+    <script async src="web_client.js"></script>
+  </body>
+</html>

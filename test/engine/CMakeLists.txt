@@ -24,13 +24,21 @@ mujoco_test(engine_collision_box_test ADDITIONAL_LINK_LIBRARIES ccd boxbox_legac
 
 mujoco_test(engine_collision_box_fuzz_test ADDITIONAL_LINK_LIBRARIES ccd)
 
-mujoco_test(engine_collision_continuous_test)
+mujoco_test(engine_collision_continuous_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_collision_convex_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_collision_driver_test)
 
 mujoco_test(engine_collision_gjk_test ADDITIONAL_LINK_LIBRARIES ccd)
+
+mujoco_test(
+  engine_collision_sdf_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:sdf_plugin>"
+)
+add_dependencies(engine_collision_sdf_test sdf_plugin)
 
 mujoco_test(engine_core_constraint_test)
 
@@ -56,8 +64,9 @@ mujoco_test(
   absl::str_format
   PROPERTIES
   ENVIRONMENT
-  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:actuator>"
 )
+add_dependencies(engine_plugin_test actuator sensor sdf_plugin)
 
 mujoco_test(engine_passive_test)
 

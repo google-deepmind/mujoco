@@ -93,7 +93,7 @@ class EnableBit(enum.IntFlag):
   """
 
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND, DIAGEXACT
+  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND, DIAGEXACT, SPECULATIVE
   SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
   IPC = mujoco.mjtEnableBit.mjENBL_IPC
 
@@ -235,6 +235,18 @@ class EqType(enum.IntEnum):
   JOINT = mujoco.mjtEq.mjEQ_JOINT  # pyrefly: ignore[bad-assignment]
   TENDON = mujoco.mjtEq.mjEQ_TENDON  # pyrefly: ignore[bad-assignment]
   # unsupported: DISTANCE
+
+
+class TendonType(enum.IntEnum):
+  """Type of tendon.
+
+  Attributes:
+    FIXED: linear combination of joint coordinates
+    SPATIAL: path through sites, around geoms
+  """
+
+  FIXED = mujoco.mjtTendon.mjTENDON_FIXED  # pyrefly: ignore[bad-assignment]
+  SPATIAL = mujoco.mjtTendon.mjTENDON_SPATIAL  # pyrefly: ignore[bad-assignment]
 
 
 class WrapType(enum.IntEnum):
@@ -475,13 +487,6 @@ class Statistic(PyTreeNode):
   center: jax.Array
 
 
-class StatisticWarp(mjxw_types.StatisticWarp, Statistic):
-  """Warp-specific model statistics."""
-
-  # NB: StatisticWarp type annotations may not match those on Statistic.
-  pass
-
-
 class OptionJAX(PyTreeNode):
   """JAX-specific option."""
 
@@ -599,6 +604,7 @@ class Model(PyTreeNode):
     nsensordata: number of elements in sensor data vector
     npluginstate: number of plugin state values
     nhistory: number of history buffer elements
+    nplastic: number of plastic reference elements
     opt: physics options
     stat: model statistics
     qpos0: qpos values at default pose
@@ -653,8 +659,9 @@ class Model(PyTreeNode):
   nsensordata: int
   npluginstate: int
   nhistory: int
+  nplastic: int
   opt: Option
-  stat: Union[Statistic, StatisticWarp]
+  stat: Statistic
   qpos0: jax.Array
   qpos_spring: jax.Array
   body_parentid: np.ndarray
@@ -774,6 +781,7 @@ class Model(PyTreeNode):
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
+  mesh_facenum: np.ndarray
   mesh_bvhadr: np.ndarray
   mesh_bvhnum: np.ndarray
   mesh_octadr: np.ndarray
@@ -833,6 +841,7 @@ class Model(PyTreeNode):
   eq_solref: jax.Array
   eq_solimp: jax.Array
   eq_data: jax.Array
+  tendon_type: np.ndarray
   tendon_adr: np.ndarray
   tendon_num: np.ndarray
   tendon_limited: np.ndarray
@@ -903,6 +912,7 @@ class Model(PyTreeNode):
   key_mpos: np.ndarray
   key_mquat: np.ndarray
   key_ctrl: np.ndarray
+  key_plastic: np.ndarray
   name_bodyadr: np.ndarray
   name_jntadr: np.ndarray
   name_geomadr: np.ndarray
@@ -1041,6 +1051,7 @@ class Data(PyTreeNode):
     history: actuator history buffer
     qacc_warmstart: warm start for solver
     plugin_state: plugin state values
+    plastic: plastic spring reference values
     ctrl: control input
     qfrc_applied: applied generalized force
     xfrc_applied: applied Cartesian force/torque
@@ -1091,6 +1102,7 @@ class Data(PyTreeNode):
   history: jax.Array
   qacc_warmstart: jax.Array
   plugin_state: jax.Array
+  plastic: jax.Array
   # control:
   ctrl: jax.Array
   qfrc_applied: jax.Array

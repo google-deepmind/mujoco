@@ -37,8 +37,15 @@ wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
 def _qfrc_eulerdamp(
   # Model:
   opt_timestep: wp.array[float],
+  jnt_actuatorid: wp.array[int],
+  dof_jntid: wp.array[int],
   dof_damping: wp.array2d[float],
   dof_dampingpoly: wp.array2d[wp.vec2],
+  actuator_trntype: wp.array[int],
+  actuator_trnid: wp.array[wp.vec2i],
+  actuator_damping: wp.array2d[float],
+  actuator_dampingpoly: wp.array2d[wp.vec2],
+  actuator_gear: wp.array2d[wp.spatial_vector],
   # Data in:
   qvel_in: wp.array2d[float],
   qacc_in: wp.array2d[float],
@@ -48,12 +55,45 @@ def _qfrc_eulerdamp(
   worldid, dofid = wp.tid()
   timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
-  damping = dof_damping[worldid % dof_damping.shape[0], dofid]
-  dpoly = dof_dampingpoly[worldid % dof_dampingpoly.shape[0], dofid]
+  damping, dpoly = util_misc.dof_damping_total(
+    jnt_actuatorid,
+    dof_jntid,
+    dof_damping,
+    dof_dampingpoly,
+    actuator_trntype,
+    actuator_trnid,
+    actuator_damping,
+    actuator_dampingpoly,
+    actuator_gear,
+    worldid,
+    dofid,
+  )
   v = qvel_in[worldid, dofid]
 
   damp_deriv = util_misc._poly_force_deriv(damping, dpoly, v, 1)
   qfrc_out[worldid, dofid] += timestep * damp_deriv * qacc_in[worldid, dofid]
+
+
+@wp.kernel
+def _mul_qLU(
+  # Model:
+  D_rownnz: wp.array[int],
+  D_rowadr: wp.array[int],
+  D_colind: wp.array[int],
+  # Data in:
+  qLU_in: wp.array2d[float],
+  # In:
+  vec: wp.array2d[float],
+  # Out:
+  res: wp.array2d[float],
+):
+  worldid, dofid = wp.tid()
+  rowadr = D_rowadr[dofid]
+  val = float(0.0)
+  for k in range(D_rownnz[dofid]):
+    adr = rowadr + k
+    val += qLU_in[worldid, adr] * vec[worldid, D_colind[adr]]
+  res[worldid, dofid] = val
 
 
 @wp.kernel
@@ -90,7 +130,7 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
   if m.opt.integrator == IntegratorType.RK4:
     raise NotImplementedError("discrete inverse dynamics is not supported by RK4 integrator")
   elif m.opt.integrator == IntegratorType.EULER:
-    if m.opt.disableflags & DisableBit.EULERDAMP:
+    if m.opt.disableflags & (DisableBit.EULERDAMP | DisableBit.DAMPER):
       wp.copy(qacc, d.qacc)
       return
 
@@ -105,14 +145,43 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d[float]):
     wp.launch(
       _qfrc_eulerdamp,
       dim=(d.nworld, m.nv),
-      inputs=[m.opt.timestep, m.dof_damping, m.dof_dampingpoly, d.qvel, d.qacc],
+      inputs=[
+        m.opt.timestep,
+        m.jnt_actuatorid,
+        m.dof_jntid,
+        m.dof_damping,
+        m.dof_dampingpoly,
+        m.actuator_trntype,
+        m.actuator_trnid,
+        m.actuator_damping,
+        m.actuator_dampingpoly,
+        m.actuator_gear,
+        d.qvel,
+        d.qacc,
+      ],
       outputs=[qfrc],
     )
+  elif m.opt.integrator == IntegratorType.IMPLICIT:
+    # set qLU = M - dt * qDeriv, in scratch: d.qLU holds the forward factorization
+    qLU = wp.empty((d.nworld, m.nD), dtype=float)
+    forward.implicit_qlu(m, d, qLU)
+
+    # set qfrc = qLU * qacc
+    wp.launch(
+      _mul_qLU,
+      dim=(d.nworld, m.nv),
+      inputs=[m.D_rownnz, m.D_rowadr, m.D_colind, qLU, d.qacc],
+      outputs=[qfrc],
+    )
+    forward.implicit_free_body(m, d, d.qacc, qfrc, solve=False)
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
     qDeriv = wp.empty((d.nworld, m.nC), dtype=float)
     derivative.deriv_smooth_vel(m, d, qDeriv)
     mul_m(m, d, qfrc, d.qacc, M=qDeriv)
-    smooth.factor_solve_i(m, d, d.M, d.qLD, d.qLDiagInv, qacc, qfrc)
+
+    # standalone free bodies: overwrite block rows with the unsymmetric local product,
+    # including the bias (gyroscopic) derivative
+    forward.implicit_free_body(m, d, d.qacc, qfrc, solve=False)
   elif m.opt.integrator == IntegratorType.DISCRETE:
     # Under discrete, qacc is already the discrete step map: INVDISCRETE is implied.
     wp.copy(qacc, d.qacc)

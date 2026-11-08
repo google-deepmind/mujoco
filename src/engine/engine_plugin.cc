@@ -209,7 +209,7 @@ bool GlobalTable<mjpPlugin>::ObjectEqual(const mjpPlugin& plugin1, const mjpPlug
     if (plugin1.attributes[i] && !plugin2.attributes[i]) {
       return false;
     }
-    if (plugin1.attributes[i] && !plugin2.attributes[i]) {
+    if (!plugin1.attributes[i] && plugin2.attributes[i]) {
       return false;
     }
     if (plugin1.attributes[i] && plugin2.attributes[i] &&
@@ -648,13 +648,14 @@ void mjp_defaultDecoder(mjpDecoder* decoder) {
 
 // find a decoder that can process a given resource and content_type
 const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type) {
-  auto extension = getext(resource->name);
-  if (strklen(content_type) == -1 && extension.empty()) {
+  auto extension = getext(resource->name ? resource->name : "");
+  bool has_content_type = content_type && strklen(content_type) > 0;
+  if (!has_content_type && extension.empty()) {
     mju_warning("Must provide extension or content_type to mjp_findDecoder.");
     return nullptr;
   }
 
-  if (strklen(content_type) > 0) {
+  if (has_content_type) {
     auto* decoder = GlobalTable<mjpDecoder>::GetSingleton().GetByKey(content_type, nullptr);
     if (decoder && decoder->can_decode(resource)) {
       return decoder;
@@ -776,21 +777,70 @@ int mjp_archiveProviderCount() {
 }
 
 
-// load plugins from a dynamic library
-void mj_loadPluginLibrary(const char* path) {
 #if defined(_WIN32) || defined(__CYGWIN__)
-  LoadLibraryA(path);
+// convert UTF-8 string to wide string
+static std::wstring Utf8ToWide(std::string_view str) {
+  if (str.empty()) {
+    return L"";
+  }
+  int wlen = MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, str.data(), static_cast<int>(str.size()), nullptr, 0);
+  if (wlen <= 0) {
+    return L"";
+  }
+  std::wstring wstr(wlen, L'\0');
+  MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, str.data(), static_cast<int>(str.size()), wstr.data(), wlen);
+  return wstr;
+}
+
+// convert wide string to UTF-8 string
+static std::string WideToUtf8(std::wstring_view wstr) {
+  if (wstr.empty()) {
+    return "";
+  }
+  int len = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wstr.data(),
+                                static_cast<int>(wstr.size()), nullptr, 0, nullptr, nullptr);
+  if (len <= 0) {
+    return "";
+  }
+  std::string str(len, '\0');
+  WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wstr.data(),
+                      static_cast<int>(wstr.size()), str.data(), len, nullptr, nullptr);
+  return str;
+}
+#endif
+
+// load plugins from a dynamic library, return false and write error message on failure
+static bool LoadPluginLibrary(const char* path, char* error, int error_sz) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+  std::wstring wpath = path ? Utf8ToWide(path) : std::wstring();
+  if (wpath.empty() || !LoadLibraryW(wpath.c_str())) {
+    std::snprintf(error, error_sz, "Error loading plugin library '%s': error %lu",
+                  path ? path : "", static_cast<unsigned long>(GetLastError()));
+    return false;
+  }
 #else
   void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
-    const char* error = dlerror();
-    if (error) {
-      mju_error("Error loading plugin library '%s': %s\n", path, error);
+    const char* dlerr = dlerror();
+    if (dlerr) {
+      std::snprintf(error, error_sz, "Error loading plugin library '%s': %s", path, dlerr);
     } else {
-      mju_error("Unknown error loading plugin library '%s'\n", path);
+      std::snprintf(error, error_sz, "Unknown error loading plugin library '%s'", path);
     }
+    return false;
   }
 #endif
+  return true;
+}
+
+// load plugins from a dynamic library
+void mj_loadPluginLibrary(const char* path) {
+  char error[1024];
+  if (!LoadPluginLibrary(path, error, sizeof(error))) {
+    mju_error("%s", error);
+  }
 }
 
 // scan a directory and load all dynamic libraries
@@ -800,13 +850,22 @@ void mj_loadAllPluginLibraries(const char* directory,
                                         const std::string& dso_path) {
     int nplugin_before;
     int nplugin_after;
+    bool loaded;
+    char error[1024];
 
     auto& plugin_table = GlobalTable<mjpPlugin>::GetSingleton();
     {
       auto lock = plugin_table.LockExclusively();
       nplugin_before = mjp_pluginCount();
-      mj_loadPluginLibrary(dso_path.c_str());
+      loaded = LoadPluginLibrary(dso_path.c_str(), error, sizeof(error));
       nplugin_after = mjp_pluginCount();
+    }
+
+    // skip a library that cannot be loaded (e.g. missing dependencies or wrong architecture) with
+    // a warning, so that one bad library in the directory does not abort the application
+    if (!loaded) {
+      mju_warning("%s", error);
+      return;
     }
 
     if (callback) {
@@ -816,24 +875,33 @@ void mj_loadAllPluginLibraries(const char* directory,
     }
   };
 
+  if (!directory || !directory[0]) {
+    return;
+  }
+
   // define platform-specific strings
 #if defined(_WIN32) || defined(__CYGWIN__)
   const std::string sep = "\\";
-  WIN32_FIND_DATAA find_data;
-  HANDLE hfile = FindFirstFileA(
-      (directory + sep + "*.dll").c_str(), &find_data);
-  if (!hfile) {
+  WIN32_FIND_DATAW find_data;
+  std::wstring wpattern = Utf8ToWide(directory + sep + "*.dll");
+  if (wpattern.empty()) {
+    return;
+  }
+  HANDLE hfile = FindFirstFileW(wpattern.c_str(), &find_data);
+  if (hfile == INVALID_HANDLE_VALUE) {
     return;
   }
 
   // go through each file in the directory
   bool keep_going = true;
   while (keep_going) {
-    const std::string name(find_data.cFileName);
-    // load the library and check for plugins
-    const std::string dso_path = directory + sep + name;
-    load_dso_and_call_callback(name.c_str(), dso_path.c_str());
-    keep_going = FindNextFileA(hfile, &find_data);
+    const std::string name = WideToUtf8(find_data.cFileName);
+    if (!name.empty()) {
+      // load the library and check for plugins
+      const std::string dso_path = directory + sep + name;
+      load_dso_and_call_callback(name, dso_path);
+    }
+    keep_going = FindNextFileW(hfile, &find_data);
   }
   FindClose(hfile);
 #else
@@ -859,7 +927,7 @@ void mj_loadAllPluginLibraries(const char* directory,
       // use stat to resolve symlinks and check that the target is a regular file
       struct stat file_stat;
       if (stat(dso_path.c_str(), &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
-        load_dso_and_call_callback(name.c_str(), dso_path.c_str());
+        load_dso_and_call_callback(name, dso_path);
       }
     }
   }

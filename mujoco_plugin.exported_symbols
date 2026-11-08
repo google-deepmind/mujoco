@@ -1,0 +1,1 @@
+# Plugins export no symbols; they register themselves from static constructors.

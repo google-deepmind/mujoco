@@ -24,10 +24,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -50,10 +54,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -76,10 +84,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -102,10 +114,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -128,10 +144,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -154,10 +174,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
@@ -185,10 +209,14 @@ cc_library(
     ],
     conlyopts = ["-std=c11"],
     copts = [
-        "-I" + MJ_ROOT + "/include",
         "-I" + MJ_ROOT + "/src",
+        "-fvisibility=hidden",
     ],
-    cxxopts = ["-std=c++20"],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",

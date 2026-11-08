@@ -308,7 +308,6 @@ static void treeIterInit(const mjModel* m, const mjData* d, int i, mjTreeIter* i
 static int isFlexEquality(const mjModel* m, int efc_type, int efc_id) {
   return efc_type == mjCNSTR_EQUALITY &&
          (m->eq_type[efc_id] == mjEQ_FLEX ||
-          m->eq_type[efc_id] == mjEQ_FLEXVERT ||
           m->eq_type[efc_id] == mjEQ_FLEXSTRAIN);
 }
 
@@ -333,7 +332,7 @@ static int unionContactTrees(const mjModel* m, const mjData* d, int* parent,
   }
 
   // flex: get bodies of both sides
-  int body[729];  // 729 = 27*27, as in mj_contactJacobian
+  int body[2*mjMAXFLEXINTERPW];
   int nb = mj_contactBodyWeight(m, d, con, 0, body, NULL);
   nb += mj_contactBodyWeight(m, d, con, 1, body+nb, NULL);
 
@@ -444,11 +443,8 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
   // effective metric (integrator=discrete) carries the coupling inside the constraint solve. Awake
   // trees only: sleeping trees must stay out of islands (mj_sleep invariant, matching the
   // constraint filter); waking a flex as a unit remains the wake machinery's job.
-  // NOTE: passive flex contact between two DIFFERENT flexes has no efc row either, and nothing
-  // merges their trees. Unreachable while effFlexAny forces a monolithic solve; island-local
-  // flex operators will need a contact-driven merge here (walk exclude==4 contacts, union sides).
   for (int f=0; f < m->nflex; f++) {
-    if (!mj_effFlexStiffPossible(m, f) && !mj_effFlexContactPossible(m, f)) {
+    if (!mj_effFlexPossible(m, f)) {
       continue;
     }
 
@@ -474,6 +470,52 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
         tree1 = tree2;
       } else {
         mj_dsuMerge(parent, tree1, tree2);
+      }
+    }
+    if (mj_rodHasTwist(m, f)) {
+      int nedge = (int)m->flex_bending[m->flex_bendingadr[f]] + 1;
+      for (int e=0; e < nedge; e++) {
+        int jnt = mj_rodChainTwistJnt(m, f, e);
+        if (jnt < 0) {
+          continue;
+        }
+        int tree2 = m->body_treeid[m->jnt_bodyid[jnt]];
+        if (tree2 < 0 || tree2 == tree1 || !d->tree_awake[tree2]) {
+          continue;
+        }
+        if (tree1 < 0) {
+          tree1 = tree2;
+        } else {
+          mj_dsuMerge(parent, tree1, tree2);
+        }
+      }
+    }
+  }
+
+  // passive flex contacts (exclude == 4) also carry metric terms without efc rows: union the
+  // awake trees of their bodies so two flexes (or a flex and a rigid body) coupled by passive
+  // contact share one island
+  if (mj_isMetric(m)) {
+    for (int i=0; i < d->ncon; i++) {
+      const mjContact* con = d->contact + i;
+      if (con->exclude != 4) {
+        continue;
+      }
+      int body[2*mjMAXFLEXINTERPW];
+      int nb = mj_contactBodyWeight(m, d, con, 0, body, NULL);
+      nb += mj_contactBodyWeight(m, d, con, 1, body+nb, NULL);
+
+      int tree1 = -1;
+      for (int j=0; j < nb; j++) {
+        int tree2 = m->body_treeid[body[j]];
+        if (tree2 < 0 || tree2 == tree1 || !d->tree_awake[tree2]) {
+          continue;
+        }
+        if (tree1 < 0) {
+          tree1 = tree2;
+        } else {
+          mj_dsuMerge(parent, tree1, tree2);
+        }
       }
     }
   }
@@ -539,8 +581,9 @@ static const char* unionConstraintTrees(const mjModel* m, const mjData* d, int* 
 void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree = m->ntree;
 
-  // no constraints or islands disabled: quick return
-  if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
+  // no constraints (and no sleeping metric-coupled flexes) or islands disabled: quick return
+  if (mjDISABLED(mjDSBL_ISLAND) ||
+      (!nefc && !(mjENABLED(mjENBL_SLEEP) && mj_isMetric(m) && mj_effFlexAny(m)))) {
     d->nisland = d->nidof = 0;
     return;
   }

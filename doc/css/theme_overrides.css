@@ -42,6 +42,10 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   font-size: 85%;
 }
 
+.code-size {
+  font-size: var(--code-font-size);
+}
+
 .table-small {
   font-size: 93%;
 }
@@ -124,24 +128,11 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   display: none;
 }
 
-.multiccd-enabled.nativeccd-enabled:not(.margin-enabled) .multiccd-native {
+.multiccd-enabled.nativeccd-enabled .multiccd-native {
   display: inline;
 }
 
-.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy,
-.multiccd-enabled.nativeccd-enabled.margin-enabled .multiccd-legacy {
-  display: inline;
-}
-
-.margin-show {
-  display: none;
-}
-
-.margin-enabled .margin-hide {
-  display: none;
-}
-
-.margin-enabled .margin-show {
+.multiccd-enabled:not(.nativeccd-enabled) .multiccd-legacy {
   display: inline;
 }
 
@@ -155,6 +146,21 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
 
 .sidebar-brand-text {
   display: none;
+}
+
+/* Horizontal dividers between top-level LHS toctree groups */
+.sidebar-tree > ul + ul {
+  position: relative;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+.sidebar-tree > ul + ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.28);
 }
 
 h1 {
@@ -213,6 +219,10 @@ ul.simple {
   margin-left: 24px;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+}
+
+dd > ul.simple {
+  margin-left: 0;
 }
 
 ul.simple li {

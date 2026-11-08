@@ -89,6 +89,12 @@ typedef enum mjtMeshBuiltin {      // type of built-in procedural mesh
 } mjtMeshBuiltin;
 
 
+typedef enum mjtFlexSection {      // cross-section of 1D flex elasticity
+  mjFLEXSECTION_CIRCLE = 0,        // circle of the flex radius
+  mjFLEXSECTION_BOX                // box with half-sizes sectionsize
+} mjtFlexSection;
+
+
 typedef enum mjtBuiltin {          // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture
   mjBUILTIN_GRADIENT,              // gradient: rgb1->rgb2
@@ -117,6 +123,19 @@ typedef enum mjtAlignFree {        // whether to align free joints with the iner
   mjALIGNFREE_TRUE,                // align
   mjALIGNFREE_AUTO,                // respect the global compiler flag
 } mjtAlignFree;
+
+
+typedef enum mjtPassthrough {      // which assets the compiler leaves by reference (bitmask)
+  mjPASSTHROUGH_NONE     = 0,      // all assets embedded
+  mjPASSTHROUGH_TEXTURES = 1<<0,   // textures by reference; meshes reserved for a later bit
+} mjtPassthrough;
+
+
+typedef enum mjtEmbed {            // whether an asset's payload is in the model
+  mjEMBED_FALSE = 0,               // by reference
+  mjEMBED_TRUE,                    // embedded
+  mjEMBED_AUTO,                    // respect the global compiler flag
+} mjtEmbed;
 
 
 typedef enum mjtInertiaFromGeom {  // whether to infer body inertias from child geoms
@@ -205,6 +224,7 @@ typedef struct mjsCompiler_ {      // compiler options
   mjtBool savecanonical;           // save quaternions and radians, not the notation of the spec
   mjtBool alignfree;               // align free joints with inertial frame
   mjtConflict conflict;            // conflict resolution for attach
+  mjtPassthrough passthrough;      // assets left by reference (bitmask)
   mjLROpt LRopt;                   // options for lengthrange computation
   mjString* meshdir;               // mesh and hfield directory
   mjString* texturedir;            // texture directory
@@ -342,6 +362,7 @@ typedef struct mjsJoint_ {         // joint specification
   // stiffness
   double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springref;                // spring reference value: qpos_spring
+  double springyield;              // plastic yield threshold (0: elastic)
   double springdamper[2];          // timeconst, dampratio
 
   // limits
@@ -406,6 +427,7 @@ typedef struct mjsGeom_ {          // geom specification
   mjString* material;              // name of material
   float rgba[4];                   // rgba when material is omitted
   int group;                       // group
+  mjtBool castshadow;              // does geom cast shadows
 
   // other
   mjString* hfieldname;            // heightfield attached to geom
@@ -526,14 +548,18 @@ typedef struct mjsFlex_ {          // flex specification
   double edgestiffness;            // edge stiffness
   double edgedamping;              // edge damping
   float rgba[4];                   // rgba when material is omitted
-  mjString* material;              // name of material used for rendering
+  mjStringVec* material;           // name of material used for rendering
   double young;                    // Young's modulus
   double poisson;                  // Poisson's ratio
+  double shear;                    // 1D torsion shear modulus; 0: young / (2 (1 + poisson))
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
+  double stressyield[2];           // yield strain thresholds (stretch, bend); 0: elastic
   int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
   int elastic3d;  // experimental 3D material (mjSpec only); 0: Saint
                   // Venant-Kirchhoff, 1: Stable Neo-Hookean
+  mjtFlexSection section;          // 1D cross-section (mjtFlexSection)
+  double sectionsize[2];           // 1D box cross-section half-sizes
   int cellcount[3];                // grid cell count for finite cell method
   int order;                       // interpolation order (1: trilinear, 2: quadratic)
 
@@ -647,6 +673,9 @@ typedef struct mjsTexture_ {       // texture specification
   mjtBool hflip;                   // horizontal flip
   mjtBool vflip;                   // vertical flip
 
+  // payload
+  mjtEmbed embed;                  // pixels in the model, or the file by reference
+
   // other
   mjString* info;                  // message appended to compiler errors
 } mjsTexture;
@@ -714,6 +743,7 @@ typedef struct mjsTendon_ {        // tendon specification
   // stiffness, damping, friction, armature
   double stiffness[mjNPOLY+1];     // stiffness coefficients
   double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
+  double springyield;              // plastic yield threshold (0: elastic)
   double damping[mjNPOLY+1];       // damping coefficients
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
@@ -864,6 +894,7 @@ typedef struct mjsKey_ {           // keyframe specification
   mjDoubleVec* mpos;               // mocap pos
   mjDoubleVec* mquat;              // mocap quat
   mjDoubleVec* ctrl;               // ctrl
+  mjDoubleVec* plastic;            // plastic
   mjString* info;                  // message appended to compiler errors
 } mjsKey;
 
@@ -877,6 +908,7 @@ typedef struct mjsDefault_ {       // default specification
   mjsLight* light;                 // light defaults
   mjsFlex* flex;                   // flex defaults
   mjsMesh* mesh;                   // mesh defaults
+  mjsTexture* texture;             // texture defaults
   mjsMaterial* material;           // material defaults
   mjsPair* pair;                   // pair defaults
   mjsEquality* equality;           // equality defaults

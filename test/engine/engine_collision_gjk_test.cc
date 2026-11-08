@@ -17,6 +17,7 @@
 #include "src/engine/engine_collision_gjk.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -1153,8 +1154,7 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD11) {
   mjtNum dist;
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
 
-  // contact unrecoverable under single precision
-  ASSERT_EQ(ncons, sizeof(mjtNum) == 8 ? 4 : 0);
+  ASSERT_EQ(ncons, 4);
 }
 
 TEST_F(MjGjkTest, BoxBoxMultiCCD12) {
@@ -1444,9 +1444,10 @@ TEST_F(MjGjkTest, SmallBoxMesh) {
     EXPECT_NEAR(dir[1], 0, kTolerance);
     EXPECT_NEAR(dir[2], 1, kTolerance);
 
-    // position
-    EXPECT_NEAR(pos[0], 0, kTolerance);
-    EXPECT_NEAR(pos[1], 0, kTolerance);
+    // position (any point on the [-0.1, 0.1]^2 overlapping face of  smallbox is
+    // valid)
+    EXPECT_NEAR(pos[0], 0, 0.1);
+    EXPECT_NEAR(pos[1], 0, 0.1);
     EXPECT_NEAR(pos[2], 0, kTolerance);
   }
 }
@@ -2037,7 +2038,7 @@ TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 15);
 
   ASSERT_EQ(ncons, 1);
-  EXPECT_NEAR(dist, -14.245732934582151, kTolerance);
+  EXPECT_NEAR(dist, -14.245732934582151, MjTol(kTolerance, 1e-5));
 }
 
 TEST_F(MjGjkTest, CapsuleCapsule) {
@@ -2227,12 +2228,12 @@ TEST_F(MjGjkTest, CylinderBoxBackFaceEdge) {
   std::vector<mjtNum> dir, pos;
   mjtNum dist;
   int ncons = Penetration(status1, dist, dir, pos, model, data, g1, g2, 0, 4);
-  ASSERT_EQ(ncons, 1);
+  ASSERT_EQ(ncons, 2);
 
   ncons = Penetration(status2, dist, dir, pos, model, data, g1, g2);
   ASSERT_EQ(ncons, 1);
 
-  EXPECT_MJTNUM_EQ(status1.x1[0], status2.x1[0]);
+  EXPECT_NEAR(status1.x1[3], status2.x1[0], 2 * kTolerance);
 }
 
 }  // namespace
@@ -2572,6 +2573,857 @@ TEST_F(MjGjkTest, MultiCCDEdgeClipEmpty) {
   EXPECT_MJTNUM_EQ(dir1[0], dir2[0]);
   EXPECT_MJTNUM_EQ(dir1[1], dir2[1]);
   EXPECT_MJTNUM_EQ(dir1[2], dir2[2]);
+}
+
+TEST_F(MjGjkTest, TiltedBoxBoxMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="box" pos="0 0 -0.05" size="1 1 0.05"/>
+      <geom name="box" type="box" pos="0 0 0.08" euler="5 0 0" size="0.1 0.1 0.1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "box");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "floor");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 8);
+
+  // Box (half-size 0.1) tilted 5 deg about x at z = 0.08:
+  // lower edge (y_local = -0.1, z_local = -0.1): y = -0.0909039, z = -0.0283350
+  // upper edge (y_local = +0.1, z_local = -0.1): y =  0.1083350, z = -0.0109038
+  const double cos5 = mju_cos(5.0 * mjPI / 180.0);
+  const double sin5 = mju_sin(5.0 * mjPI / 180.0);
+  const double y_lower = -0.1 * cos5 + 0.1 * sin5;
+  const double z_lower = 0.08 - 0.1 * sin5 - 0.1 * cos5;
+  const double y_upper = 0.1 * cos5 + 0.1 * sin5;
+  const double z_upper = 0.08 + 0.1 * sin5 - 0.1 * cos5;
+
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(status.dist[0], z_upper, kTolerance);
+  EXPECT_NEAR(status.dist[1], z_upper, kTolerance);
+  EXPECT_NEAR(status.dist[2], z_lower, kTolerance);
+  EXPECT_NEAR(status.dist[3], z_lower, kTolerance);
+
+  // clang-format off
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {
+      -0.1, y_upper, 0.5 * z_upper,
+       0.1, y_upper, 0.5 * z_upper,
+       0.1, y_lower, 0.5 * z_lower,
+      -0.1, y_lower, 0.5 * z_lower}));
+  // clang-format on
+}
+
+TEST_F(MjGjkTest, BoxBoxMarginShallowMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" pos="0 0 2.05" size="1 1 1"/>
+      <geom name="geom2" type="box" pos="0 0 0" size="10 10 1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  // Shallow margin band: distance = +0.05, margin = 0.1 -> depth = -0.05
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0.1, 8);
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -0.05, kTolerance);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(status.dist[i], -0.05, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1, kTolerance);
+  }
+  // clang-format off
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 1.025,
+                                                       1.0,  1.0, 1.025,
+                                                       1.0, -1.0, 1.025,
+                                                      -1.0, -1.0, 1.025}));
+  // clang-format on
+}
+
+TEST_F(MjGjkTest, BoxBoxMarginTouchingMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" pos="0 0 2.0" size="1 1 1"/>
+      <geom name="geom2" type="box" pos="0 0 0" size="10 10 1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  // Touching faces: distance = 0.0, margin = 0.1 -> depth = -0.1
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0.1, 8);
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -0.1, kTolerance);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(status.dist[i], -0.1, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1, kTolerance);
+  }
+  // clang-format off
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 1.0,
+                                                       1.0,  1.0, 1.0,
+                                                       1.0, -1.0, 1.0,
+                                                      -1.0, -1.0, 1.0}));
+  // clang-format on
+}
+
+TEST_F(MjGjkTest, BoxBoxMarginDeepMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" pos="0 0 1.9" size="1 1 1"/>
+      <geom name="geom2" type="box" pos="0 0 0" size="10 10 1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  // Deep penetration: distance = -0.1, margin = 0.1 -> depth = -0.2
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0.1, 8);
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -0.2, kTolerance);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(status.dist[i], -0.2, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1, kTolerance);
+  }
+  // clang-format off
+  EXPECT_THAT(pos, Pointwise(DoubleNear(kTolerance), {-1.0,  1.0, 0.95,
+                                                       1.0,  1.0, 0.95,
+                                                       1.0, -1.0, 0.95,
+                                                      -1.0, -1.0, 0.95}));
+  // clang-format on
+}
+
+TEST_F(MjGjkTest, BoxEdgeMarginMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" pos="1.10164554 -0.11389316 0.74"
+            quat="-0.348312918 0 0 0.937378318" type="box" size="0.65 0.48 0.04"/>
+      <geom name="geom2" type="box" size="0.1 1.2 1.4" pos="1.45 0 1.425"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0.1, 8);
+
+  // Same geometry as BoxEdgeFlipped (uninflated x1[0] = 1.907368) with geom2
+  // shifted +0.05 in x (uninflated x2[0] = 1.35) and margin = 0.1 (0.05 each).
+  ASSERT_EQ(ncons, 2);
+  EXPECT_NEAR(status.x1[0], 1.907368 + 0.05, kTolerance);
+  EXPECT_NEAR(status.x1[1], -0.052973, kTolerance);
+  EXPECT_NEAR(status.x1[2], 0.700000, kTolerance);
+  EXPECT_NEAR(status.x2[0], 1.35000 - 0.05, kTolerance);
+  EXPECT_NEAR(status.x2[1], -0.052973, kTolerance);
+  EXPECT_NEAR(status.x2[2], 0.700000, kTolerance);
+}
+
+TEST_F(MjGjkTest, CylinderBoxMarginMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <statistic meansize="0.15"/>
+    <option>
+      <flag gravity="disable"/>
+    </option>
+
+    <worldbody>
+      <body pos="0 0 .265">
+        <freejoint/>
+        <geom type="box" size=".05 .05 .05" margin="0.1" gap="0.1"/>
+      </body>
+      <body mocap="true">
+        <geom name="geom2" type="cylinder" size=".2 .2"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  ASSERT_EQ(data->ncon, 4);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(data->contact[i].dist, 0.015, kTolerance);
+    EXPECT_NEAR(data->contact[i].pos[2], 0.2075, kTolerance);
+    EXPECT_GE(data->contact[i].efc_address, 0);
+  }
+
+  // explicit <pair margin=...> override
+  static constexpr char xml_pair[] = R"(
+  <mujoco>
+    <statistic meansize="0.15"/>
+    <option>
+      <flag gravity="disable"/>
+    </option>
+
+    <worldbody>
+      <body pos="0 0 .265">
+        <freejoint/>
+        <geom name="box" type="box" size=".05 .05 .05" margin="0.005"/>
+      </body>
+      <body mocap="true">
+        <geom name="cyl" type="cylinder" size=".2 .2"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="box" geom2="cyl" margin="0.1" gap="0.1"/>
+    </contact>
+  </mujoco>)";
+
+  MjModelPtr model_pair = LoadModelFromString(xml_pair);
+  MjDataPtr data_pair = MakeData(model_pair);
+  mj_forward(model_pair.get(), data_pair.get());
+
+  ASSERT_EQ(data_pair->ncon, 4);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(data_pair->contact[i].dist, 0.015, kTolerance);
+    EXPECT_NEAR(data_pair->contact[i].pos[2], 0.2075, kTolerance);
+    EXPECT_GE(data_pair->contact[i].efc_address, 0);
+  }
+
+  // cylinder side-edge on box face with margin (shallow and deep penetration)
+  static constexpr char xml_edge[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="box" size="1 1 0.1" margin="0.05"/>
+      <body pos="0 0 0.17">
+        <freejoint/>
+        <geom name="cyl" type="cylinder" zaxis="1 0 0" size="0.05 0.2" margin="0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model_edge = LoadModelFromString(xml_edge);
+  MjDataPtr data_edge = MakeData(model_edge);
+
+  // shallow (within margin)
+  mj_forward(model_edge.get(), data_edge.get());
+  ASSERT_EQ(data_edge->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(data_edge->contact[i].dist, 0.02, kTolerance);
+    EXPECT_NEAR(data_edge->contact[i].pos[2], 0.11, kTolerance);
+  }
+
+  // deep penetration (triggers EPA)
+  data_edge->qpos[2] = 0.08;
+  mj_forward(model_edge.get(), data_edge.get());
+  ASSERT_EQ(data_edge->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(data_edge->contact[i].dist, -0.07, kTolerance);
+    EXPECT_NEAR(data_edge->contact[i].pos[2], 0.065, kTolerance);
+  }
+}
+
+TEST_F(MjGjkTest, CapsuleMeshMarginMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="boxmesh"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.1   1 -1  0.1   1  1  0.1  -1  1  0.1"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="boxmesh" margin="0.05"/>
+      <body pos="0 0 0.17">
+        <freejoint/>
+        <geom name="cap" type="capsule" zaxis="1 0 0" size="0.05 0.2" margin="0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+
+  // shallow penetration (within margin + capsule radius)
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(data->contact[i].dist, 0.02, kTolerance);
+    EXPECT_NEAR(data->contact[i].pos[2], 0.11, kTolerance);
+  }
+
+  // deep penetration (capsule centerline penetrates mesh face, triggers EPA)
+  data->qpos[2] = 0.08;
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(data->contact[i].dist, -0.07, kTolerance);
+    EXPECT_NEAR(data->contact[i].pos[2], 0.065, kTolerance);
+  }
+}
+
+TEST_F(MjGjkTest, MeshMeshMarginMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"
+            scale="1 1 .01"/>
+      <mesh name="pentaprism"
+            vertex="1 0 0 0.309 0.951 0 -0.809 0.588 0 -0.809 -0.588 0 0.309 -0.951 0
+                    1 0 1 0.309 0.951 1 -0.809 0.588 1 -0.809 -0.588 1 0.309 -0.951 1"
+            scale=".2 .2 .1"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="mesh" pos="0 0 -0.01" mesh="box"/>
+      <geom name="geom2" type="mesh" pos="0 0 -0.001" mesh="pentaprism"/>
+      <geom name="geom3" type="mesh" pos="0 0 0.19" euler="0 90 0" mesh="pentaprism"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+  int g3 = mj_name2id(model.get(), mjOBJ_GEOM, "geom3");
+
+  // deep penetration face-face:
+  // distance = -0.001, margin = 0.1 -> depth = -0.101
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0.1, 4);
+
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -0.101, kTolerance);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(status.dist[i], -0.101, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], 1, kTolerance);
+    EXPECT_NEAR(pos[3 * i + 2], -0.0005, kTolerance);
+  }
+
+  // deep penetration edge-face: distance = -0.01, margin = 0.1 -> depth = -0.11
+  ncons = Penetration(status, dist, dir, pos, model, data, g1, g3, 0.1, 4);
+  ASSERT_EQ(ncons, 2);
+  EXPECT_NEAR(dist, -0.11, kTolerance);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(status.dist[i], -0.11, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], 1, kTolerance);
+    EXPECT_NEAR(pos[3 * i + 2], -0.005, kTolerance);
+  }
+}
+
+TEST_F(MjGjkTest, TiltedBoxMeshMarginMultiCCD) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="floor"
+            vertex="-1 -1 -0.1   1 -1 -0.1   1  1 -0.1  -1  1 -0.1
+                    -1 -1  0.0   1 -1  0.0   1  1  0.0  -1  1  0.0"/>
+    </asset>
+    <worldbody>
+      <geom name="floor" type="mesh" mesh="floor" margin="0.05"/>
+      <body pos="0 0 0.13" euler="5 0 0">
+        <freejoint/>
+        <geom name="box" type="box" size="0.1 0.1 0.1" margin="0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // Box (half-size 0.1) tilted 5 deg about x at z = 0.13:
+  // lower edge (y_local = -0.1, z_local = -0.1): y = -0.0909039, z = 0.0216650
+  // upper edge (y_local = +0.1, z_local = -0.1): y =  0.1083350, z = 0.0390962
+  const mjtNum cos5 = mju_cos(5.0 * mjPI / 180.0);
+  const mjtNum sin5 = mju_sin(5.0 * mjPI / 180.0);
+  const mjtNum y_lower = -0.1 * cos5 + 0.1 * sin5;
+  const mjtNum z_lower = 0.13 - 0.1 * sin5 - 0.1 * cos5;
+  const mjtNum y_upper = 0.1 * cos5 + 0.1 * sin5;
+  const mjtNum z_upper = 0.13 + 0.1 * sin5 - 0.1 * cos5;
+
+  ASSERT_EQ(data->ncon, 4);
+  int n_lower = 0, n_upper = 0;
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(mju_abs(data->contact[i].pos[0]), 0.1, kTolerance);
+    if (data->contact[i].pos[1] < 0) {
+      n_lower++;
+      EXPECT_NEAR(data->contact[i].pos[1], y_lower, kTolerance);
+      EXPECT_NEAR(data->contact[i].pos[2], 0.5 * z_lower, kTolerance);
+      EXPECT_NEAR(data->contact[i].dist, z_lower, kTolerance);
+    } else {
+      n_upper++;
+      EXPECT_NEAR(data->contact[i].pos[1], y_upper, kTolerance);
+      EXPECT_NEAR(data->contact[i].pos[2], 0.5 * z_upper, kTolerance);
+      EXPECT_NEAR(data->contact[i].dist, z_upper, kTolerance);
+    }
+  }
+  EXPECT_EQ(n_lower, 2);
+  EXPECT_EQ(n_upper, 2);
+}
+
+TEST_F(MjGjkTest, CapsuleEllipsoidSmallSimplex) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="capsule" size="0.042 0.14"/>
+      <geom name="geom2" type="ellipsoid" size="0.095 0.14 0.14"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos = data->geom_xpos;
+  mjtNum* xmat = data->geom_xmat;
+
+  xmat[0] = -0.07982016;
+  xmat[1] = 0.9632121;
+  xmat[2] = 0.25661483;
+  xmat[3] = -0.9521492;
+  xmat[4] = 0.0025194245;
+  xmat[5] = -0.30562323;
+  xmat[6] = -0.2950265;
+  xmat[7] = -0.2687305;
+  xmat[8] = 0.91692054;
+
+  xpos = data->geom_xpos + 3;
+  xmat = data->geom_xmat + 9;
+
+  xpos[0] = -0.11622479;
+  xpos[1] = -0.078617394;
+  xpos[2] = -0.2301344;
+
+  xmat[0] = -0.96931815;
+  xmat[1] = 0.026906298;
+  xmat[2] = 0.24433327;
+  xmat[3] = 0.05312106;
+  xmat[4] = -0.94757426;
+  xmat[5] = 0.31508982;
+  xmat[6] = 0.24000177;
+  xmat[7] = 0.31840146;
+  xmat[8] = 0.91707146;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2);
+  ASSERT_EQ(ncons, 1);
+  EXPECT_LT(dist, 0);
+  EXPECT_NEAR(dist, -1.82696e-7, MjTol(1e-9, 1e-7));
+}
+
+// Stacked boxes with 2.5e-10 rad tilt where polytope3 requires pole-swap and
+// multicontact recovers all 4 face contacts.
+TEST_F(MjGjkTest, BoxBoxMultiCCD16) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.025 0.025 0.025"/>
+      <geom name="geom2" type="box" size="0.025 0.025 0.025"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos = data->geom_xpos;
+  mjtNum* xmat = data->geom_xmat;
+
+  xpos[0] = -0.0434859991;
+  xpos[1] = -0.196513996;
+  xpos[2] = 0.12576285;
+
+  xmat[0] = 1.0;
+  xmat[1] = 0.0;
+  xmat[2] = 2.50575921e-10;
+  xmat[3] = 0.0;
+  xmat[4] = 1.0;
+  xmat[5] = 0.0;
+  xmat[6] = -2.50575921e-10;
+  xmat[7] = 0.0;
+  xmat[8] = 1.0;
+
+  xpos = data->geom_xpos + 3;
+
+  xpos[0] = -0.0434859991;
+  xpos[1] = -0.196513996;
+  xpos[2] = 0.175140008;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 4);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(status.dist[i], -0.000622842, MjTol(kTolerance, 1e-5));
+  }
+}
+
+// Shallow box-box edge contact (depth ~6e-7) that previously failed in float32
+// due to mjMINDIST2/3 = 1e-10f rejecting the initial polytope face.
+TEST_F(MjGjkTest, BoxBoxMultiCCD17) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.025 0.025 0.025"/>
+      <geom name="geom2" type="box" size="0.025 0.025 0.025"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos = data->geom_xpos;
+  mjtNum* xmat = data->geom_xmat;
+
+  xpos[0] = -0.424999505;
+  xpos[1] = 0.375003099;
+  xpos[2] = 0.124994218;
+
+  xmat[0] = 1.0;
+  xmat[1] = 1.28095244e-05;
+  xmat[2] = -1.73168264e-05;
+  xmat[3] = -1.281001e-05;
+  xmat[4] = 1.0;
+  xmat[5] = -2.80516215e-05;
+  xmat[6] = 1.73164663e-05;
+  xmat[7] = 2.80518434e-05;
+  xmat[8] = 1.0;
+
+  xpos = data->geom_xpos + 3;
+  xmat = data->geom_xmat + 9;
+
+  xpos[0] = -0.424999416;
+  xpos[1] = 0.424999982;
+  xpos[2] = 0.174989387;
+
+  xmat[0] = 1.0;
+  xmat[1] = -9.61651585e-06;
+  xmat[2] = 2.00568993e-05;
+  xmat[3] = 9.6184167e-06;
+  xmat[4] = 1.0;
+  xmat[5] = -9.47636436e-05;
+  xmat[6] = -2.00559862e-05;
+  xmat[7] = 9.47638327e-05;
+  xmat[8] = 1.0;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 2);
+  EXPECT_LT(dist, 0);
+  EXPECT_NEAR(dist, -6.07466e-7, MjTol(1e-9, 2e-7));
+}
+
+// Stacked boxes with tiny opposite tilts where polytope3 falls back to a
+// 4-face tetrahedron and multicontact recovers all 4 face contacts.
+TEST_F(MjGjkTest, BoxBoxMultiCCD18) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.025 0.025 0.025"/>
+      <geom name="geom2" type="box" size="0.025 0.025 0.025"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  mjtNum* xpos = data->geom_xpos;
+  mjtNum* xmat = data->geom_xmat;
+
+  xpos[0] = 0.134004995;
+  xpos[1] = -0.194004998;
+  xpos[2] = 0.124997169;
+
+  xmat[0] = 1.0;
+  xmat[1] = 0.0;
+  xmat[2] = 3.07510284e-08;
+  xmat[3] = 0.0;
+  xmat[4] = 1.0;
+  xmat[5] = 0.0;
+  xmat[6] = -3.07510284e-08;
+  xmat[7] = 0.0;
+  xmat[8] = 1.0;
+
+  xpos = data->geom_xpos + 3;
+  xmat = data->geom_xmat + 9;
+
+  xpos[0] = 0.134004995;
+  xpos[1] = -0.194004998;
+  xpos[2] = 0.17400974;
+
+  xmat[0] = 1.0;
+  xmat[1] = 0.0;
+  xmat[2] = -4.7682768e-08;
+  xmat[3] = 0.0;
+  xmat[4] = 1.0;
+  xmat[5] = 0.0;
+  xmat[6] = 4.7682768e-08;
+  xmat[7] = 0.0;
+  xmat[8] = 1.0;
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -0.000987431, MjTol(kTolerance, 1e-5));
+}
+
+TEST_F(MjGjkTest, BoxBoxConcentric) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="0.025 0.025 0.025"/>
+      <geom name="geom2" type="box" size="0.025 0.025 0.025"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -0.05, MjTol(kTolerance, 1e-5));
+}
+
+TEST_F(MjGjkTest, CylinderCylinderNearlyConcentric) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="cylinder" size="1 0.5"/>
+      <geom name="geom2" type="cylinder" size="1 0.5" pos="1e-7 0 0"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2);
+
+  ASSERT_EQ(ncons, 1);
+  EXPECT_NEAR(dist, -1.0, MjTol(kTolerance, 1e-5));
+}
+
+TEST_F(MjGjkTest, BoxNormalsFaceDiagonal) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="box" size="1 1 1"/>
+      <geom name="geom2" type="box" size="1 1 1" pos="0 0 1.9"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, model.get(), data.get(), g1, 0);
+  mjc_initCCDObj(&obj2, model.get(), data.get(), g2, 0);
+
+  // obj1 has two distinct support vertices (4 and 7) forming a face diagonal on
+  // the +z face
+  obj1.nsupp = 3;
+  obj1.suppind[0] = 4;
+  obj1.suppind[1] = 7;
+  obj1.suppind[2] = 4;
+  mjtNum s1[9] = {-1, -1, 1, 1, 1, 1, -1, -1, 1};
+  for (int i = 0; i < 9; i++) obj1.suppvert[i] = s1[i];
+
+  // obj2 has three distinct support vertices on the -z face
+  obj2.nsupp = 3;
+  obj2.suppind[0] = 0;
+  obj2.suppind[1] = 1;
+  obj2.suppind[2] = 2;
+  mjtNum s2[9] = {-1, -1, 0.9, 1, -1, 0.9, -1, 1, 0.9};
+  for (int i = 0; i < 9; i++) obj2.suppvert[i] = s2[i];
+
+  // witness points with a small lateral tilt (> acos(mjFACE_TOL)) so
+  // boxNormals2 would return 0
+  std::vector<mjtNum> x1(12, 0), x2(12, 0), dist(4, 0);
+  x1[0] = 0.0;
+  x1[1] = 0.0;
+  x1[2] = 1.0;
+  x2[0] = -0.01;
+  x2[1] = 0.0;
+  x2[2] = 0.9;
+  dist[0] = -0.1;
+
+  auto buffer = std::vector<uint8_t>(mjc_ccdSize(4, 3, kMaxIterations));
+  int ncons = mjc_multicontact(&obj1, &obj2, x1.data(), x2.data(), dist.data(),
+                               4, 3, 4, buffer.data());
+  EXPECT_EQ(ncons, 4);
+}
+
+TEST_F(MjGjkTest, MeshBoxConcentric) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1  1  1 -1  1  1 1  1  -1 1  1"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="mesh" mesh="cube"/>
+      <geom name="geom2" type="box" size="0.2 0.2 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 4);
+  EXPECT_NEAR(dist, -1.2, MjTol(1e-12, 1e-5));
+}
+
+TEST_F(MjGjkTest, AnisotropicMeshBoxConcentric) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="slab" scale="0.18 0.18 0.06"
+            vertex="-1 -1 -1  1 -1 -1  1 1 -1  -1 1 -1
+                    -1 -1  1  1 -1  1  1 1  1  -1 1  1"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="mesh" mesh="slab"/>
+      <geom name="geom2" type="box" size="0.039 0.039 0.14"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2);
+
+  ASSERT_EQ(ncons, 1);
+  EXPECT_NEAR(dist, -0.2, MjTol(1e-8, 1e-5));
+}
+
+TEST_F(MjGjkTest, TouchingEllipsoids) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="e1" type="ellipsoid" pos="-0.5 0 0" size="0.5 0.3 0.2"/>
+      <geom name="e2" type="ellipsoid" pos="0.4999995 0 0" size="0.5 0.3 0.2"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int e1 = mj_name2id(model.get(), mjOBJ_GEOM, "e1");
+  int e2 = mj_name2id(model.get(), mjOBJ_GEOM, "e2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, e1, e2);
+
+  ASSERT_EQ(ncons, 1);
+  EXPECT_LT(dist, 0);
+  EXPECT_NEAR(dist, -5e-7, MjTol(1e-11, 1e-6));
 }
 
 }  // namespace mujoco

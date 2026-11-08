@@ -18,8 +18,15 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <ios>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -243,6 +250,46 @@ TEST_F(UserModelTest, FixedTendonSparsity) {
   EXPECT_THAT(std::vector<int>(colind, colind + 3), ElementsAre(0, 1, 2));
 }
 
+TEST_F(UserModelTest, TendonType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="s0"/>
+      <body pos="1 0 0">
+        <joint name="j"/>
+        <geom size=".1"/>
+        <site name="s1"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <fixed>
+        <joint joint="j" coef="1"/>
+      </fixed>
+      <spatial>
+        <site site="s0"/>
+        <site site="s1"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+
+  // a tendon added through the spec API is typed by its path
+  mjsTendon* tendon = mjs_addTendon(spec, nullptr);
+  mjs_wrapJoint(tendon, "j", 2);
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->tendon_type[0], mjTENDON_FIXED);
+  EXPECT_EQ(m->tendon_type[1], mjTENDON_SPATIAL);
+  EXPECT_EQ(m->tendon_type[2], mjTENDON_FIXED);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
   static constexpr char xml[] = R"(
   <mujoco>
@@ -316,6 +363,58 @@ TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
   EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
+}
+
+// the statistic attribute meaninertia is deprecated: it does not affect
+// simulation, and compilation warns
+TEST_F(UserModelTest, MeanInertiaDeprecated) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag island="disable"/>
+    </option>
+    <worldbody>
+      <geom type="plane" size="1 1 .1"/>
+      <body pos="0 0 .1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(mjs_numWarnings(spec), 0);
+
+  mock_warning_handler.ExpectWarnings("meaninertia");
+  spec->stat.meaninertia = 1000;
+  mjModel* given = mj_compile(spec, nullptr);
+  ASSERT_THAT(given, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(mjs_numWarnings(spec), 1);
+  EXPECT_THAT(mjs_getWarning(spec, 0), HasSubstr("deprecated"));
+  EXPECT_EQ(given->stat.meaninertia, 1000);
+
+  // the same trajectory, for every solver
+  for (int solver : {mjSOL_PGS, mjSOL_CG, mjSOL_NEWTON}) {
+    m->opt.solver = given->opt.solver = solver;
+    mjData* d = mj_makeData(m);
+    mjData* d_given = mj_makeData(given);
+    for (int i = 0; i < 10; i++) {
+      mj_step(m, d);
+      mj_step(given, d_given);
+    }
+    EXPECT_EQ(AsVector(d->qpos, m->nq), AsVector(d_given->qpos, m->nq))
+        << "solver " << solver;
+    mj_deleteData(d_given);
+    mj_deleteData(d);
+  }
+
+  mj_deleteModel(given);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
 }
 
 // settotalmass is deprecated: it still scales the masses, with a warning which
@@ -917,7 +1016,7 @@ TEST_F(FuseStaticTest, FuseStaticOperation) {
   // the operation followed by a compilation without the option
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 1) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(CompareModel(m_option, m, field), 0) << field;
@@ -1014,7 +1113,7 @@ TEST_F(FuseStaticTest, FuseStaticKeepsBody) {
 
   // without the attribute, the operation fuses the body
   mjs_findBody(spec, "kept")->fuse = 1;
-  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 1) << mjs_getError(spec);
   EXPECT_THAT(mjs_findBody(spec, "kept"), IsNull());
 
   mj_deleteModel(m);
@@ -1051,7 +1150,9 @@ TEST_F(FuseStaticTest, FuseStaticBoundMass) {
     mjSpec* spec =
         mj_parseXMLString(model.c_str(), 0, error.data(), error.size());
     ASSERT_THAT(spec, NotNull()) << error.data();
-    EXPECT_EQ(mjs_fuseStatic(spec, nullptr), 0) << mjs_getError(spec);
+    EXPECT_EQ(mjs_fuseStatic(spec, nullptr),
+              std::string(inertiafromgeom) == "true" ? 0 : 1)
+        << mjs_getError(spec);
     MjModelPtr fuse(mj_compile(spec, nullptr));
     ASSERT_THAT(fuse.get(), NotNull()) << mjs_getError(spec);
 
@@ -1849,7 +1950,7 @@ TEST_F(DiscardVisualTest, DiscardVisualOperation) {
   // the operation followed by a compilation without the option
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 8) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(CompareModel(m_option, m, field), 0) << field;
@@ -1946,7 +2047,7 @@ TEST_F(DiscardVisualTest, DiscardVisualKeepsReferencedAssets) {
   std::array<char, 1024> error;
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 3) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
 
@@ -2018,7 +2119,7 @@ TEST_F(DiscardVisualTest, DiscardVisualInertiaFromGeomTrue) {
   ASSERT_THAT(spec, NotNull()) << error.data();
   mjModel* m_full = mj_compile(spec, nullptr);
   ASSERT_THAT(m_full, NotNull()) << mjs_getError(spec);
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 2) << mjs_getError(spec);
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
   EXPECT_EQ(mjs_findBody(spec, "body")->explicitinertial, 0);
   mjModel* m = mj_compile(spec, nullptr);
@@ -2055,7 +2156,7 @@ TEST_F(DiscardVisualTest, DiscardVisualReadsAssetsIfNeeded) {
   mjSpec* spec =
       mj_parseXMLString(xml_explicit.c_str(), 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  EXPECT_EQ(mjs_discardVisual(spec, nullptr), 2) << mjs_getError(spec);
   mjModel* m = mj_compile(spec, nullptr);
   ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
   EXPECT_EQ(m->nmesh, 0);
@@ -2167,7 +2268,7 @@ TEST_F(DiscardVisualTest, DiscardVisualDeletesPluginInstances) {
   ASSERT_THAT(spec, NotNull()) << error.data();
   ASSERT_EQ(instances(spec), 3);
 
-  ASSERT_EQ(mjs_discardVisual(spec, nullptr), 0) << mjs_getError(spec);
+  ASSERT_EQ(mjs_discardVisual(spec, nullptr), 3) << mjs_getError(spec);
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "visual"), IsNull());
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_GEOM, "shares"), IsNull());
   EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "visual"), IsNull());
@@ -2179,6 +2280,457 @@ TEST_F(DiscardVisualTest, DiscardVisualDeletesPluginInstances) {
   EXPECT_EQ(model->nplugin, 1);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
+}
+
+// ------------- test mjs_dedupAssets ------------------------------------------
+
+using DedupAssetsTest = MujocoTest;
+
+// the assets of a model, with duplicates of some of them when dup is true and
+// references to the duplicates in every kind of element, including a default
+// class, a sensor and a tuple; near-duplicates differ in one field each
+std::string DedupAssetsXml(bool dup) {
+  const char* tex = dup ? "tex_dup" : "tex";
+  const char* cube = dup ? "cube_dup" : "cube";
+  const char* mesh = dup ? "mesh_dup" : "mesh";
+  std::string assets = dup ? R"(
+      <texture name="tex_dup" type="2d" builtin="checker" width="8" height="8" rgb1="1 0 0"/>
+      <texture name="cube_dup" type="cube" builtin="gradient" width="4" height="4"/>
+      <mesh name="mesh_dup" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+  )"
+                           : "";
+  return absl::StrFormat(R"(
+  <mujoco>
+    <asset>
+      <texture name="tex" type="2d" builtin="checker" width="8" height="8" rgb1="1 0 0"/>
+      <texture name="cube" type="cube" builtin="gradient" width="4" height="4"/>
+      <mesh name="mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      %s
+      <texture name="tex_hflip" type="2d" builtin="checker" width="8" height="8" rgb1="1 0 0"
+        hflip="true"/>
+      <texture name="tex_rgb" type="2d" builtin="checker" width="8" height="8" rgb1="0 1 0"/>
+      <texture name="tex_height" type="2d" builtin="checker" width="8" height="16" rgb1="1 0 0"/>
+      <texture name="tex_type" type="cube" builtin="checker" width="8" height="8" rgb1="1 0 0"/>
+      <mesh name="mesh_scale" vertex="0 0 0  1 0 0  0 1 0  0 0 1" scale="2 2 2"/>
+      <mesh name="mesh_vert" vertex="0 0 0  1 0 0  0 1 0  0 0 2"/>
+      <mesh name="mesh_inertia" vertex="0 0 0  1 0 0  0 1 0  0 0 1" inertia="shell"/>
+      <mesh name="mesh_hull" vertex="0 0 0  1 0 0  0 1 0  0 0 1" maxhullvert="4"/>
+      <mesh name="mesh_material" vertex="0 0 0  1 0 0  0 1 0  0 0 1" material="mat"/>
+      <material name="mat" texture="tex"/>
+      <material name="mat_dup" texture="%s"/>
+      <material name="mat_hflip" texture="tex_hflip"/>
+      <material name="mat_rgb" texture="tex_rgb"/>
+      <material name="mat_height" texture="tex_height"/>
+      <material name="mat_type" texture="tex_type"/>
+      <material name="mat_cube" texture="%s"/>
+      <material name="mat_class" class="dup"/>
+    </asset>
+    <default>
+      <default class="dup">
+        <geom type="mesh" mesh="%s" material="mat_dup"/>
+        <site type="mesh" mesh="%s"/>
+        <material texture="%s"/>
+      </default>
+    </default>
+    <worldbody>
+      <light name="light" texture="%s"/>
+      <body>
+        <joint/>
+        <geom name="g" type="mesh" mesh="mesh" material="mat"/>
+        <geom name="g_dup" type="mesh" mesh="%s" material="mat_dup"/>
+        <geom name="g_class" class="dup"/>
+        <geom name="g_scale" type="mesh" mesh="mesh_scale"/>
+        <geom name="g_vert" type="mesh" mesh="mesh_vert"/>
+        <geom name="g_inertia" type="mesh" mesh="mesh_inertia"/>
+        <geom name="g_hull" type="mesh" mesh="mesh_hull"/>
+        <geom name="g_material" type="mesh" mesh="mesh_material"/>
+        <site name="s_dup" type="mesh" mesh="%s"/>
+        <site name="s_class" class="dup"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <tactile name="tactile" geom="g" mesh="%s"/>
+    </sensor>
+    <custom>
+      <tuple name="tuple">
+        <element objtype="texture" objname="%s"/>
+        <element objtype="mesh" objname="%s"/>
+      </tuple>
+    </custom>
+  </mujoco>
+  )",
+                         assets, tex, cube, mesh, mesh, tex, tex, mesh, mesh,
+                         mesh, tex, mesh);
+}
+
+// duplicates are merged into the first, with every reference to them;
+// near-duplicates are kept
+TEST_F(DedupAssetsTest, DedupAssets) {
+  std::array<char, 1024> error;
+  std::string field;
+
+  // the model written without the duplicates
+  std::string xml_merged = DedupAssetsXml(/*dup=*/false);
+  mjSpec* spec_merged =
+      mj_parseXMLString(xml_merged.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec_merged, NotNull()) << error.data();
+  mjModel* m_merged = mj_compile(spec_merged, nullptr);
+  ASSERT_THAT(m_merged, NotNull()) << mjs_getError(spec_merged);
+
+  // the operation on the model with the duplicates
+  std::string xml = DedupAssetsXml(/*dup=*/true);
+  mjSpec* spec = mj_parseXMLString(xml.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjsMesh* mesh_dup = mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "mesh_dup"));
+  ASSERT_THAT(mesh_dup, NotNull());
+  EXPECT_EQ(mjs_dedupAssets(spec), 3) << mjs_getError(spec);
+
+  // the duplicates are gone, the survivors keep their names, the rest stays
+  for (const char* name : {"tex_dup", "cube_dup"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TEXTURE, name), IsNull()) << name;
+  }
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, "mesh_dup"), IsNull());
+  for (const char* name :
+       {"tex", "cube", "tex_hflip", "tex_rgb", "tex_height", "tex_type"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TEXTURE, name), NotNull()) << name;
+  }
+  for (const char* name : {"mesh", "mesh_scale", "mesh_vert", "mesh_inertia",
+                           "mesh_hull", "mesh_material"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, name), NotNull()) << name;
+  }
+
+  // the references point at the survivors
+  mjsMaterial* mat_dup =
+      mjs_asMaterial(mjs_findElement(spec, mjOBJ_MATERIAL, "mat_dup"));
+  mjsMaterial* mat_cube =
+      mjs_asMaterial(mjs_findElement(spec, mjOBJ_MATERIAL, "mat_cube"));
+  mjsGeom* g_dup = mjs_asGeom(mjs_findElement(spec, mjOBJ_GEOM, "g_dup"));
+  mjsSite* s_dup = mjs_asSite(mjs_findElement(spec, mjOBJ_SITE, "s_dup"));
+  mjsLight* light = mjs_asLight(mjs_findElement(spec, mjOBJ_LIGHT, "light"));
+  mjsTuple* tuple = mjs_asTuple(mjs_findElement(spec, mjOBJ_TUPLE, "tuple"));
+  mjsSensor* tactile =
+      mjs_asSensor(mjs_findElement(spec, mjOBJ_SENSOR, "tactile"));
+  mjsDefault* def = mjs_findDefault(spec, "dup");
+  ASSERT_THAT(mat_dup, NotNull());
+  ASSERT_THAT(mat_cube, NotNull());
+  ASSERT_THAT(g_dup, NotNull());
+  ASSERT_THAT(s_dup, NotNull());
+  ASSERT_THAT(light, NotNull());
+  ASSERT_THAT(tuple, NotNull());
+  ASSERT_THAT(tactile, NotNull());
+  ASSERT_THAT(def, NotNull());
+  EXPECT_EQ((*mat_dup->textures)[mjTEXROLE_RGB], "tex");
+  EXPECT_EQ((*mat_cube->textures)[mjTEXROLE_RGB], "cube");
+  EXPECT_EQ(*g_dup->meshname, "mesh");
+  EXPECT_EQ(*s_dup->meshname, "mesh");
+  EXPECT_EQ(*light->texture, "tex");
+  EXPECT_THAT(*tuple->objname, ElementsAre("tex", "mesh"));
+  EXPECT_EQ(*tactile->objname, "mesh");
+  EXPECT_EQ(*def->geom->meshname, "mesh");
+  EXPECT_EQ(*def->site->meshname, "mesh");
+  EXPECT_EQ((*def->material->textures)[mjTEXROLE_RGB], "tex");
+
+  // the compiled model is that of the model written without the duplicates
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->ntex, 6);
+  EXPECT_EQ(m->nmesh, 6);
+  EXPECT_EQ(CompareModel(m_merged, m, field), 0) << field;
+
+  // applying it again changes nothing
+  mjSpec* once = mj_copySpec(spec);
+  EXPECT_EQ(mjs_dedupAssets(spec), 0) << mjs_getError(spec);
+  EXPECT_THAT(CompareSpec(once, spec), IsEmpty());
+
+  // compiling again gives the same model
+  mjModel* m_again = mj_compile(spec, nullptr);
+  ASSERT_THAT(m_again, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(CompareModel(m, m_again, field), 0) << field;
+
+  mj_deleteModel(m_again);
+  mj_deleteModel(m);
+  mj_deleteModel(m_merged);
+  mj_deleteSpec(once);
+  mj_deleteSpec(spec);
+  mj_deleteSpec(spec_merged);
+}
+
+// compiled ids are resolved from names: merging after a compilation and
+// compiling again gives the merged model
+TEST_F(DedupAssetsTest, DedupAssetsAfterCompile) {
+  std::array<char, 1024> error;
+  std::string field;
+  std::string xml = DedupAssetsXml(/*dup=*/true);
+  mjSpec* spec = mj_parseXMLString(xml.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m_dup = mj_compile(spec, nullptr);
+  ASSERT_THAT(m_dup, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m_dup->ntex, 8);
+  EXPECT_EQ(m_dup->nmesh, 7);
+  uint64_t signature = spec->element->signature;
+  EXPECT_NE(signature, 0);
+
+  EXPECT_EQ(mjs_dedupAssets(spec), 3) << mjs_getError(spec);
+  EXPECT_EQ(spec->element->signature, 0);
+
+  // no compiled pointer to a merged asset is left: a copy of the spec made
+  // before compiling it again compiles to the same model
+  mjSpec* copy = mj_copySpec(spec);
+  ASSERT_THAT(copy, NotNull());
+  mjModel* m_copy = mj_compile(copy, nullptr);
+  ASSERT_THAT(m_copy, NotNull()) << mjs_getError(copy);
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(CompareModel(m, m_copy, field), 0) << field;
+  mj_deleteModel(m_copy);
+  mj_deleteSpec(copy);
+  EXPECT_EQ(m->ntex, 6);
+  EXPECT_EQ(m->nmesh, 6);
+  EXPECT_NE(m->signature, signature);
+
+  // the geoms and the materials refer to the survivors
+  int mesh = mj_name2id(m, mjOBJ_MESH, "mesh");
+  int tex = mj_name2id(m, mjOBJ_TEXTURE, "tex");
+  for (const char* name : {"g", "g_dup", "g_class"}) {
+    EXPECT_EQ(m->geom_dataid[mj_name2id(m, mjOBJ_GEOM, name)], mesh) << name;
+  }
+  for (const char* name : {"s_dup", "s_class"}) {
+    EXPECT_EQ(m->site_dataid[mj_name2id(m, mjOBJ_SITE, name)], mesh) << name;
+  }
+  for (const char* name : {"mat", "mat_dup", "mat_class"}) {
+    int mat = mj_name2id(m, mjOBJ_MATERIAL, name);
+    EXPECT_EQ(m->mat_texid[mat * mjNTEXROLE + mjTEXROLE_RGB], tex) << name;
+  }
+  EXPECT_EQ(m->light_texid[0], tex);
+  EXPECT_EQ(m->tuple_objid[0], tex);
+  EXPECT_EQ(m->tuple_objid[1], mesh);
+  EXPECT_EQ(m->sensor_objid[0], mesh);
+
+  mj_deleteModel(m);
+  mj_deleteModel(m_dup);
+  mj_deleteSpec(spec);
+}
+
+// meshes with a plugin are never merged, nor are assets which differ only in
+// their buffers
+TEST_F(DedupAssetsTest, DedupAssetsKeepsDistinct) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus"/>
+    </extension>
+    <asset>
+      <mesh name="plugin1">
+        <plugin plugin="mujoco.sdf.torus"/>
+      </mesh>
+      <mesh name="plugin2">
+        <plugin plugin="mujoco.sdf.torus"/>
+      </mesh>
+      <mesh name="normal1" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="1 0 0  1 0 0  1 0 0  1 0 0"/>
+      <mesh name="normal2" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+        normal="0 1 0  0 1 0  0 1 0  0 1 0"/>
+    </asset>
+    <worldbody>
+      <geom type="sdf" mesh="plugin1">
+        <plugin plugin="mujoco.sdf.torus"/>
+      </geom>
+      <geom type="sdf" mesh="plugin2">
+        <plugin plugin="mujoco.sdf.torus"/>
+      </geom>
+      <geom type="mesh" mesh="normal1"/>
+      <geom type="mesh" mesh="normal2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_dedupAssets(spec), 0) << mjs_getError(spec);
+  for (const char* name : {"plugin1", "plugin2", "normal1", "normal2"}) {
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_MESH, name), NotNull()) << name;
+  }
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->nmesh, 4);
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+
+  // textures from buffers are merged only if the buffers are the same
+  spec = mj_makeSpec();
+  mjsTexture* tex1 = mjs_addTexture(spec, nullptr);
+  mjsTexture* tex2 = mjs_addTexture(spec, nullptr);
+  mjs_setName(tex1->element, "buffer1");
+  mjs_setName(tex2->element, "buffer2");
+  std::vector<std::byte> pixels1(3, std::byte{0});
+  std::vector<std::byte> pixels2(3, std::byte{255});
+  for (mjsTexture* tex : {tex1, tex2}) {
+    tex->type = mjTEXTURE_2D;
+    tex->width = 1;
+    tex->height = 1;
+    tex->nchannel = 3;
+  }
+  mjs_setBuffer(tex1->data, pixels1.data(), pixels1.size());
+  mjs_setBuffer(tex2->data, pixels2.data(), pixels2.size());
+  mjSpec* copy = mj_copySpec(spec);
+  EXPECT_EQ(mjs_dedupAssets(spec), 0) << mjs_getError(spec);
+  EXPECT_THAT(CompareSpec(copy, spec), IsEmpty());
+
+  mjs_setBuffer(tex2->data, pixels1.data(), pixels1.size());
+  EXPECT_EQ(mjs_dedupAssets(spec), 1) << mjs_getError(spec);
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TEXTURE, "buffer1"), NotNull());
+  EXPECT_THAT(mjs_findElement(spec, mjOBJ_TEXTURE, "buffer2"), IsNull());
+  mj_deleteSpec(copy);
+  mj_deleteSpec(spec);
+}
+
+// assets whose names repeat cannot be merged, and nothing is changed
+TEST_F(DedupAssetsTest, DedupAssetsRepeatedName) {
+  mjSpec* spec = mj_makeSpec();
+  for (int i = 0; i < 3; i++) {
+    mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+    std::vector<float> vert = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+    mjs_setFloat(mesh->uservert, vert.data(), vert.size());
+
+    // mjs_setName refuses a repeated name, write it directly
+    *mjs_getName(mesh->element) = i == 2 ? "other" : "mesh";
+  }
+  auto names = [](mjSpec* spec) {
+    std::vector<std::string> names;
+    for (mjsElement* el = mjs_firstElement(spec, mjOBJ_MESH); el;
+         el = mjs_nextElement(spec, el)) {
+      names.push_back(*mjs_getName(el));
+    }
+    return names;
+  };
+  EXPECT_EQ(mjs_dedupAssets(spec), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("repeated name 'mesh'"));
+  EXPECT_THAT(names(spec), ElementsAre("mesh", "mesh", "other"));
+  mj_deleteSpec(spec);
+}
+
+// the assets of an attached spec belong to its parent, they cannot be merged
+TEST_F(DedupAssetsTest, DedupAssetsOfAttachedSpec) {
+  mjSpec* child = mj_makeSpec();
+  mjs_addBody(mjs_findBody(child, "world"), nullptr);
+  mjSpec* parent = mj_makeSpec();
+  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
+  ASSERT_THAT(mjs_attach(frame->element, child->element, "child-", ""),
+              NotNull())
+      << mjs_getError(parent);
+  EXPECT_EQ(mjs_dedupAssets(child), -1);
+  EXPECT_THAT(mjs_getError(child),
+              HasSubstr("Cannot merge the assets of an attached mjSpec"));
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
+// a model which attaches the same sub-model three times has three copies of
+// its assets: they are merged into those of the first attachment, and the
+// model renders the same
+TEST_F(DedupAssetsTest, DedupAssetsAttached) {
+  static const char* const kParentPath =
+      "user/testdata/dedup_assets_parent.xml";
+  std::array<char, 1024> error;
+  std::string field;
+  auto parse = [&]() {
+    return mj_parseXML(GetTestDataFilePath(kParentPath).c_str(), 0,
+                       error.data(), error.size());
+  };
+
+  // the model with three copies of the assets
+  mjSpec* spec_full = parse();
+  ASSERT_THAT(spec_full, NotNull()) << error.data();
+  mjModel* m_full = mj_compile(spec_full, nullptr);
+  ASSERT_THAT(m_full, NotNull()) << mjs_getError(spec_full);
+  EXPECT_EQ(m_full->ntex, 6);
+  EXPECT_EQ(m_full->nmesh, 3);
+  EXPECT_EQ(m_full->nmat, 6);
+
+  // merged by hand: the assets of the first attachment are kept, the others
+  // are deleted and what referred to them refers to the first
+  mjSpec* spec_hand = parse();
+  ASSERT_THAT(spec_hand, NotNull()) << error.data();
+  for (const char* prefix : {"b_", "c_"}) {
+    std::string p = prefix;
+    for (const char* tex : {"carpet", "checker"}) {
+      mjsMaterial* mat = mjs_asMaterial(
+          mjs_findElement(spec_hand, mjOBJ_MATERIAL, (p + tex).c_str()));
+      ASSERT_THAT(mat, NotNull());
+      (*mat->textures)[mjTEXROLE_RGB] = std::string("a_") + tex;
+      mjsElement* el =
+          mjs_findElement(spec_hand, mjOBJ_TEXTURE, (p + tex).c_str());
+      ASSERT_THAT(el, NotNull());
+      EXPECT_EQ(mjs_delete(spec_hand, el), 0) << mjs_getError(spec_hand);
+    }
+    mjsBody* body = mjs_findBody(spec_hand, (p + "body").c_str());
+    ASSERT_THAT(body, NotNull());
+    for (mjsElement* el = mjs_firstChild(body, mjOBJ_GEOM, 0); el;
+         el = mjs_nextChild(body, el, 0)) {
+      mjs_setString(mjs_asGeom(el)->meshname, "a_torus");
+    }
+    mjsElement* el =
+        mjs_findElement(spec_hand, mjOBJ_MESH, (p + "torus").c_str());
+    ASSERT_THAT(el, NotNull());
+    EXPECT_EQ(mjs_delete(spec_hand, el), 0) << mjs_getError(spec_hand);
+  }
+  mjModel* m_hand = mj_compile(spec_hand, nullptr);
+  ASSERT_THAT(m_hand, NotNull()) << mjs_getError(spec_hand);
+
+  // merged by the operation
+  mjSpec* spec = parse();
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  EXPECT_EQ(mjs_dedupAssets(spec), 6) << mjs_getError(spec);
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->ntex, 2);
+  EXPECT_EQ(m->nmesh, 1);
+  EXPECT_EQ(m->nmat, 6);
+  EXPECT_EQ(CompareModel(m_hand, m, field), 0) << field;
+
+  // every geom and material refers to the same asset as in the full model,
+  // which has the same data
+  EXPECT_EQ(m->ngeom, m_full->ngeom);
+  for (int i = 0; i < m->ngeom; i++) {
+    int full = m_full->geom_dataid[i];
+    int merged = m->geom_dataid[i];
+    ASSERT_GE(merged, 0);
+    EXPECT_EQ(m_full->mesh_vertnum[full], m->mesh_vertnum[merged]) << i;
+    EXPECT_EQ(m_full->mesh_facenum[full], m->mesh_facenum[merged]) << i;
+    EXPECT_EQ(m->geom_matid[i], m_full->geom_matid[i]) << i;
+  }
+  for (int i = 0; i < m->nmat; i++) {
+    int full = m_full->mat_texid[i * mjNTEXROLE + mjTEXROLE_RGB];
+    int merged = m->mat_texid[i * mjNTEXROLE + mjTEXROLE_RGB];
+    ASSERT_GE(merged, 0);
+    EXPECT_EQ(m_full->tex_width[full], m->tex_width[merged]) << i;
+    EXPECT_EQ(m_full->tex_height[full], m->tex_height[merged]) << i;
+    EXPECT_EQ(m_full->tex_nchannel[full], m->tex_nchannel[merged]) << i;
+    int size =
+        m->tex_width[merged] * m->tex_height[merged] * m->tex_nchannel[merged];
+    EXPECT_EQ(std::memcmp(m_full->tex_data + m_full->tex_adr[full],
+                          m->tex_data + m->tex_adr[merged], size),
+              0)
+        << i;
+  }
+
+  // the physics is the same
+  EXPECT_EQ(m->nbody, m_full->nbody);
+  for (int i = 0; i < m->nbody; i++) {
+    EXPECT_EQ(m->body_mass[i], m_full->body_mass[i]) << i;
+    for (int j = 0; j < 3; j++) {
+      EXPECT_EQ(m->body_inertia[3 * i + j], m_full->body_inertia[3 * i + j]);
+      EXPECT_EQ(m->body_ipos[3 * i + j], m_full->body_ipos[3 * i + j]);
+    }
+  }
+
+  mj_deleteModel(m);
+  mj_deleteModel(m_hand);
+  mj_deleteModel(m_full);
+  mj_deleteSpec(spec);
+  mj_deleteSpec(spec_hand);
+  mj_deleteSpec(spec_full);
 }
 
 // ------------- test lengthrange ----------------------------------------------
@@ -2385,6 +2937,366 @@ TEST_F(MujocoTest, NestedMeshDir) {
   EXPECT_THAT(grandparent_model.get(), NotNull()) << error.data();
 
   mj_deleteVFS(vfs.get());
+}
+
+// ----------------------------- test paths ------------------------------------
+
+static constexpr char kCubeObj[] = R"(
+v -1 -1  1
+v  1 -1  1
+v -1  1  1
+v  1  1  1
+v -1  1 -1
+v  1  1 -1
+v -1 -1 -1
+v  1 -1 -1)";
+
+// the path stored for an asset, "" if none
+static std::string PathAt(const mjModel* m, int pathadr) {
+  return pathadr < 0 ? "" : std::string(m->paths + pathadr);
+}
+
+// normalized filesystem path for platform-independent comparison
+static std::filesystem::path NormalizedPath(const std::string& path) {
+  return std::filesystem::path(path).lexically_normal();
+}
+
+// whether a path stored in mjModel opens on its own, from any directory
+static bool Opens(const std::string& path) {
+  std::array<char, 1024> error;
+  mjResource* resource =
+      mju_openResource("", path.c_str(), nullptr, error.data(), error.size());
+  if (!resource) return false;
+  mju_closeResource(resource);
+  return true;
+}
+
+// write content to dir/name, creating dir
+static void WriteFile(const std::filesystem::path& dir, const std::string& name,
+                      std::string_view content) {
+  std::filesystem::create_directories(dir);
+  std::ofstream((dir / name).string(), std::ios::binary) << content;
+}
+
+// the content of a file under test/
+static std::string ReadTestData(const std::string& path) {
+  std::ifstream file(GetTestDataFilePath(path), std::ios::binary);
+  return std::string((std::istreambuf_iterator<char>(file)), {});
+}
+
+// a child model with a mesh, a height field and a texture from files, under
+// its own asset directories
+static std::string ChildXml(const std::string& meshdir,
+                            const std::string& texturedir) {
+  return absl::StrFormat(R"(
+  <mujoco>
+    <compiler meshdir="%s" texturedir="%s"/>
+    <asset>
+      <mesh name="cube" file="cube.obj"/>
+      <hfield name="terrain" file="hfield.png" size="1 1 .1 .1"/>
+      <texture name="tex" type="2d" file="hfield.png"/>
+      <material name="mat" texture="tex"/>
+    </asset>
+    <worldbody>
+      <body name="box">
+        <geom type="mesh" mesh="cube" material="mat"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )",
+                         meshdir, texturedir);
+}
+
+// paths in mjModel are resolved against the modelfiledir and the asset
+// directories of the spec that owns each asset, so that two attached models
+// with different directories keep their own files
+TEST_F(MujocoTest, PathsResolvedPerAttachedModel) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="a" file="a/a.xml"/>
+      <model name="b" file="b/b.xml"/>
+    </asset>
+    <worldbody>
+      <attach model="a" body="box" prefix="a_"/>
+      <attach model="b" body="box" prefix="b_"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // the two children in sibling directories with different asset directories
+  std::filesystem::path root =
+      std::filesystem::path(testing::TempDir()) / "resolved_paths";
+  std::filesystem::remove_all(root);
+  std::string png = ReadTestData("user/testdata/hfield.png");
+  WriteFile(root, "parent.xml", parent_xml);
+  WriteFile(root / "a", "a.xml", ChildXml("meshes", "textures"));
+  WriteFile(root / "a" / "meshes", "cube.obj", kCubeObj);
+  WriteFile(root / "a" / "meshes", "hfield.png", png);
+  WriteFile(root / "a" / "textures", "hfield.png", png);
+  WriteFile(root / "b", "b.xml", ChildXml("geom", "img"));
+  WriteFile(root / "b" / "geom", "cube.obj", kCubeObj);
+  WriteFile(root / "b" / "geom", "hfield.png", png);
+  WriteFile(root / "b" / "img", "hfield.png", png);
+
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML((root / "parent.xml").string().c_str(), nullptr,
+                          error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->nmesh, 2);
+  ASSERT_EQ(m->nhfield, 2);
+  ASSERT_EQ(m->ntex, 2);
+
+  // each asset's path is its own file, which opens from any directory
+  auto expected = [&](mjtObj type, int i, const std::string& file) {
+    bool a = mj_id2name(m, type, i)[0] == 'a';
+    std::string dir = a ? "a/" : "b/";
+    bool mesh = type != mjOBJ_TEXTURE;
+    dir += mesh ? (a ? "meshes/" : "geom/") : (a ? "textures/" : "img/");
+    return (root / (dir + file)).lexically_normal();
+  };
+  for (int i = 0; i < 2; i++) {
+    EXPECT_EQ(NormalizedPath(PathAt(m, m->mesh_pathadr[i])),
+              expected(mjOBJ_MESH, i, "cube.obj"));
+    EXPECT_EQ(NormalizedPath(PathAt(m, m->hfield_pathadr[i])),
+              expected(mjOBJ_HFIELD, i, "hfield.png"));
+    EXPECT_EQ(NormalizedPath(PathAt(m, m->tex_pathadr[i])),
+              expected(mjOBJ_TEXTURE, i, "hfield.png"));
+    EXPECT_TRUE(Opens(PathAt(m, m->mesh_pathadr[i])));
+    EXPECT_TRUE(Opens(PathAt(m, m->hfield_pathadr[i])));
+    EXPECT_TRUE(Opens(PathAt(m, m->tex_pathadr[i])));
+  }
+  EXPECT_NE(PathAt(m, m->mesh_pathadr[0]), PathAt(m, m->mesh_pathadr[1]));
+
+  mj_deleteModel(m);
+  std::filesystem::remove_all(root);
+}
+
+// the resource provider of the "cubeobj" scheme serves a cube
+static int OpenCube(mjResource* resource) { return 1; }
+static int ReadCube(mjResource* resource, const void** buffer) {
+  *buffer = kCubeObj;
+  return sizeof(kCubeObj) - 1;
+}
+static void CloseCube(mjResource* resource) {}
+
+// an absolute path and a URI with a scheme are stored as authored, a relative
+// one under modelfiledir and meshdir
+TEST_F(MujocoTest, PathsAbsoluteAndScheme) {
+  mjpResourceProvider provider = {
+      .prefix = "cubeobj",
+      .open = OpenCube,
+      .read = ReadCube,
+      .close = CloseCube,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  std::filesystem::path root =
+      std::filesystem::path(testing::TempDir()) / "absolute_paths";
+  std::filesystem::remove_all(root);
+  WriteFile(root / "elsewhere", "cube.obj", kCubeObj);
+  WriteFile(root / "meshes" / "sub", "cube.obj", kCubeObj);
+  std::string absolute =
+      (root / "elsewhere" / "cube.obj").lexically_normal().string();
+  std::string xml = absl::StrFormat(R"(
+  <mujoco>
+    <compiler meshdir="meshes"/>
+    <asset>
+      <mesh name="absolute" file="%s"/>
+      <mesh name="scheme" file="cubeobj://assets/cube.obj"/>
+      <mesh name="relative" file="sub/cube.obj"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="absolute"/>
+      <geom type="mesh" mesh="scheme"/>
+      <geom type="mesh" mesh="relative"/>
+    </worldbody>
+  </mujoco>
+  )",
+                                    absolute);
+
+  std::array<char, 1024> error;
+  mjSpec* spec =
+      mj_parseXMLString(xml.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjs_setString(spec->modelfiledir, root.string().c_str());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  EXPECT_EQ(NormalizedPath(PathAt(m, m->mesh_pathadr[0])),
+            NormalizedPath(absolute));
+  EXPECT_EQ(PathAt(m, m->mesh_pathadr[1]), "cubeobj://assets/cube.obj");
+  EXPECT_EQ(NormalizedPath(PathAt(m, m->mesh_pathadr[2])),
+            (root / "meshes" / "sub" / "cube.obj").lexically_normal());
+  for (int i = 0; i < 3; i++) {
+    EXPECT_TRUE(Opens(PathAt(m, m->mesh_pathadr[i])));
+  }
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+  std::filesystem::remove_all(root);
+}
+
+// strippath drops the directories of the file before it is resolved, and the
+// spec keeps the file as authored
+TEST_F(MujocoTest, PathsStripped) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler meshdir="meshes" strippath="true"/>
+    <asset>
+      <mesh name="cube" file="../ignored/cube.obj"/>
+      <skin name="skin" file="skins/cube.skn"/>
+    </asset>
+    <worldbody>
+      <body name="box">
+        <geom type="mesh" mesh="cube"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::filesystem::path root =
+      std::filesystem::path(testing::TempDir()) / "stripped_paths";
+  std::filesystem::remove_all(root);
+  WriteFile(root / "meshes", "cube.obj", kCubeObj);
+  WriteFile(root / "meshes", "cube.skn",
+            ReadTestData("user/testdata/cube.skn"));
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjs_setString(spec->modelfiledir, root.string().c_str());
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+
+  EXPECT_EQ(NormalizedPath(PathAt(m, m->mesh_pathadr[0])),
+            (root / "meshes" / "cube.obj").lexically_normal());
+  EXPECT_EQ(NormalizedPath(PathAt(m, m->skin_pathadr[0])),
+            (root / "meshes" / "cube.skn").lexically_normal());
+  EXPECT_TRUE(Opens(PathAt(m, m->mesh_pathadr[0])));
+  EXPECT_TRUE(Opens(PathAt(m, m->skin_pathadr[0])));
+  EXPECT_EQ(mjs_getString(
+                mjs_asMesh(mjs_findElement(spec, mjOBJ_MESH, "cube"))->file),
+            std::string("../ignored/cube.obj"));
+  EXPECT_EQ(mjs_getString(
+                mjs_asSkin(mjs_findElement(spec, mjOBJ_SKIN, "skin"))->file),
+            std::string("skins/cube.skn"));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+  std::filesystem::remove_all(root);
+}
+
+// the content type of a texture is stored after the paths when authored, and
+// is -1 otherwise, for embedded textures too; it survives an MJB round trip
+TEST_F(MujocoTest, TextureContentType) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="typed" type="2d" builtin="checker" width="4" height="4"
+        content_type="image/png"/>
+      <texture name="untyped" type="2d" builtin="checker" width="4" height="4"/>
+    </asset>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->ntex, 2);
+
+  // no files, so paths holds only the content type
+  const mjtSize type_size = sizeof("image/png");
+  EXPECT_EQ(m->tex_pathadr[0], -1);
+  EXPECT_EQ(m->tex_pathadr[1], -1);
+  EXPECT_EQ(PathAt(m.get(), m->tex_contenttypeadr[0]), "image/png");
+  EXPECT_EQ(m->tex_contenttypeadr[1], -1);
+  EXPECT_EQ(m->npaths, type_size);
+
+  // round trip through MJB
+  std::vector<char> mjb(mj_sizeModel(m.get()));
+  mj_saveModel(m.get(), nullptr, mjb.data(), mjb.size());
+  MjModelPtr loaded(mj_loadModelBuffer(mjb.data(), mjb.size()));
+  ASSERT_THAT(loaded, NotNull());
+  EXPECT_EQ(loaded->npaths, m->npaths);
+  EXPECT_EQ(loaded->tex_contenttypeadr[0], m->tex_contenttypeadr[0]);
+  EXPECT_EQ(loaded->tex_contenttypeadr[1], -1);
+  EXPECT_EQ(PathAt(loaded.get(), loaded->tex_contenttypeadr[0]), "image/png");
+}
+
+// a model without content types stores only the paths, and attaching keeps the
+// content type of every texture
+TEST_F(MujocoTest, TextureContentTypeAttached) {
+  static constexpr char plain_xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="plain" type="2d" file="hfield.png"/>
+    </asset>
+  </mujoco>
+  )";
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="a" file="child.xml"/>
+      <texture name="plain" type="2d" file="hfield.png"/>
+    </asset>
+    <worldbody>
+      <attach model="a" body="box" prefix="a_"/>
+      <attach model="a" body="box" prefix="b_"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="tex" type="2d" file="hfield.png" content_type="image/png"/>
+      <material name="mat" texture="tex"/>
+    </asset>
+    <worldbody>
+      <body name="box">
+        <geom size="1" material="mat"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::filesystem::path root =
+      std::filesystem::path(testing::TempDir()) / "content_types";
+  std::filesystem::remove_all(root);
+  WriteFile(root, "plain.xml", plain_xml);
+  WriteFile(root, "parent.xml", parent_xml);
+  WriteFile(root, "child.xml", child_xml);
+  WriteFile(root, "hfield.png", ReadTestData("user/testdata/hfield.png"));
+
+  // without content types, paths holds only the paths
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML((root / "plain.xml").string().c_str(), nullptr,
+                          error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->ntex, 1);
+  std::string path = PathAt(m, m->tex_pathadr[0]);
+  const mjtSize path_size = path.size() + 1;
+  const mjtSize type_size = sizeof("image/png");
+  EXPECT_EQ(m->tex_contenttypeadr[0], -1);
+  EXPECT_EQ(m->npaths, path_size);
+  mj_deleteModel(m);
+
+  // the attached textures keep their content type, the parent's has none
+  m = mj_loadXML((root / "parent.xml").string().c_str(), nullptr, error.data(),
+                 error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  ASSERT_EQ(m->ntex, 3);
+  int plain = mj_name2id(m, mjOBJ_TEXTURE, "plain");
+  ASSERT_GE(plain, 0);
+  for (int i = 0; i < m->ntex; i++) {
+    EXPECT_EQ(PathAt(m, m->tex_pathadr[i]), path);
+    EXPECT_EQ(PathAt(m, m->tex_contenttypeadr[i]),
+              i == plain ? "" : "image/png");
+  }
+  EXPECT_EQ(m->npaths, 3 * path_size + 2 * type_size);
+
+  mj_deleteModel(m);
+  std::filesystem::remove_all(root);
 }
 
 TEST_F(MujocoTest, ConvertSpringdamper) {
@@ -2976,6 +3888,55 @@ TEST_F(FrameScaleTest, MeshInstancesDelete) {
   mj_deleteSpec(copy);
   mj_deleteModel(m);
   mj_deleteSpec(spec);
+}
+
+// deleting a joint or an actuator of a compiled model removes its values from
+// the keyframes; those of a model which is not compiled are given for the
+// layout after the deletion
+TEST_F(MujocoTest, DeleteJointAndActuatorKeepsKeyframes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="j1" type="slide" axis="1 0 0"/>
+        <joint name="j2" type="slide" axis="0 1 0"/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="a1" joint="j1"/>
+      <motor name="a2" joint="j2"/>
+    </actuator>
+    <keyframe>
+      <key qpos=".1 .2" ctrl=".3 .4"/>
+    </keyframe>
+  </mujoco>
+  )";
+  for (bool compile : {false, true}) {
+    std::array<char, 1024> error;
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+    ASSERT_THAT(spec, NotNull()) << error.data();
+    if (compile) {
+      mjModel* m = mj_compile(spec, nullptr);
+      ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+      mj_deleteModel(m);
+    } else {
+      mjsKey* key = mjs_asKey(mjs_firstElement(spec, mjOBJ_KEY));
+      const double qpos = .2, ctrl = .4;
+      mjs_setDouble(key->qpos, &qpos, 1);
+      mjs_setDouble(key->ctrl, &ctrl, 1);
+    }
+    ASSERT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_ACTUATOR, "a1")), 0);
+    ASSERT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_JOINT, "j1")), 0);
+    mjModel* m = mj_compile(spec, nullptr);
+    ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+    ASSERT_EQ(m->nq, 1);
+    ASSERT_EQ(m->nu, 1);
+    EXPECT_MJTNUM_EQ(m->key_qpos[0], .2) << compile;
+    EXPECT_MJTNUM_EQ(m->key_ctrl[0], .4) << compile;
+    mj_deleteModel(m);
+    mj_deleteSpec(spec);
+  }
 }
 
 // a flex made from a mesh asset takes the asset at its own scale, also after a
@@ -4413,5 +5374,375 @@ TEST_F(FrameScaleTest, AnisotropicSkin) {
               Pointwise(FloatNear(1e-5), {0, 0, 4, 2, 0, 4}));
 }
 
+TEST_F(FrameScaleTest, FlexBoxSectionSize) {
+  static constexpr char xml_scaled[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="2">
+        <body name="holder">
+          <flexcomp name="rod" type="grid" count="4 1 1" spacing="0.1 0.1 0.1"
+                    dim="1" mass="1" radius="0.01">
+            <elasticity young="1e5" section="box" sectionsize="0.02 0.01"/>
+            <contact selfcollide="none"/>
+          </flexcomp>
+        </body>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml_ref[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="holder">
+        <flexcomp name="rod" type="grid" count="4 1 1" spacing="0.2 0.2 0.2"
+                  dim="1" mass="8" radius="0.02" inertiabox="0.02">
+          <elasticity young="4e5" section="box" sectionsize="0.04 0.02"/>
+          <contact selfcollide="none"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr scaled =
+      LoadModelFromString(xml_scaled, error.data(), error.size());
+  ASSERT_THAT(scaled.get(), NotNull()) << error.data();
+  MjModelPtr ref = LoadModelFromString(xml_ref, error.data(), error.size());
+  ASSERT_THAT(ref.get(), NotNull()) << error.data();
+  ASSERT_EQ(scaled->nflexbending, ref->nflexbending);
+  ASSERT_GT(scaled->nflexbending, 0);
+  const mjtNum tol = MjTol(1e-10, 1e-4);
+  for (int i = 0; i < scaled->nflexbending; ++i) {
+    EXPECT_NEAR(scaled->flex_bending[i], ref->flex_bending[i],
+                tol * (1 + std::abs(ref->flex_bending[i])))
+        << "i=" << i;
+  }
+}
+
+TEST_F(FrameScaleTest, SiteWeldTorqueScaleAndSensors) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="world_site" pos="0 0 0"/>
+      <geom name="world_geom" type="sphere" size="0.1"/>
+      <frame scale="4">
+        <site name="s1" type="box" size="0.5 0.5 0.5"/>
+        <body pos="0 0 0.4">
+          <site name="s2" pos="0.1 0 0"/>
+          <geom name="g1" type="sphere" size="0.1"/>
+        </body>
+        <body pos="0 0 1.2">
+          <site name="s3" pos="0 0.1 0"/>
+          <geom name="g2" type="sphere" size="0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <equality>
+      <weld site1="s2" site2="s3" torquescale="1.5"/>
+      <weld site1="s2" site2="world_site" torquescale="1.5"/>
+    </equality>
+    <sensor>
+      <normal name="nrm_same" geom1="g1" geom2="g2" cutoff="0.5" noise="0.1"/>
+      <normal name="nrm_cross" geom1="g1" geom2="world_geom" cutoff="0.5"
+              noise="0.1"/>
+      <insidesite name="in_bool" objtype="geom" objname="g1" site="s1"
+                  enclosed="false" cutoff="0.5" noise="0.1"/>
+      <insidesite name="in_dist" objtype="geom" objname="g1" site="s1"
+                  enclosed="true" cutoff="0.5" noise="0.1"/>
+      <insidesite name="in_cross" objtype="geom" objname="world_geom" site="s1"
+                  enclosed="true" cutoff="0.5" noise="0.1"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  MjModelPtr m(mj_compile(spec, nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(spec);
+  const mjtNum tol = MjTol(1e-12, 1e-5);
+
+  // Site-anchored weld torquescale (data[10]) scales by mean length gauge:
+  // 4 for two sites in scale=4, and sqrt(4 * 1) = 2 across frame boundary.
+  EXPECT_NEAR(m->eq_data[0 * mjNEQDATA + 10], 6.0, tol);
+  EXPECT_NEAR(m->eq_data[1 * mjNEQDATA + 10], 3.0, tol);
+
+  // Collision normal sensor uses cutoff as dismax (dimension L) while output is
+  // dimensionless unit normal (noise unchanged).
+  EXPECT_NEAR(m->sensor_cutoff[0], 2.0, tol);
+  EXPECT_NEAR(m->sensor_noise[0], 0.1, tol);
+  EXPECT_NEAR(m->sensor_cutoff[1], 1.0, tol);
+  EXPECT_NEAR(m->sensor_noise[1], 0.1, tol);
+
+  // insidesite outputs boolean (dimension 1) when enclosed="false" and
+  // Hausdorff distance (dimension L, averaged across object and site gauges)
+  // when enclosed="true".
+  EXPECT_NEAR(m->sensor_cutoff[2], 0.5, tol);
+  EXPECT_NEAR(m->sensor_noise[2], 0.1, tol);
+  EXPECT_NEAR(m->sensor_cutoff[3], 2.0, tol);
+  EXPECT_NEAR(m->sensor_noise[3], 0.4, tol);
+  EXPECT_NEAR(m->sensor_cutoff[4], 1.0, tol);
+  EXPECT_NEAR(m->sensor_noise[4], 0.2, tol);
+
+  // Verify mj_copyBack + recompile preserves exact inverse scaling.
+  ASSERT_EQ(mj_copyBack(spec, m.get()), 1) << mjs_getError(spec);
+  MjModelPtr m2(mj_compile(spec, nullptr));
+  ASSERT_THAT(m2.get(), NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_EQ(CompareModel(m.get(), m2.get(), field), 0) << field;
+  mj_deleteSpec(spec);
+}
+
+TEST_F(FrameScaleTest, AnisotropicActuatorSensorAndDCMotorGeometry) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame scale="1 8 27" scaling="geometry">
+        <body>
+          <joint name="slide" type="slide" axis="0 0 1"/>
+          <geom type="ellipsoid" size="0.1 0.1 0.1"/>
+        </body>
+      </frame>
+    </worldbody>
+    <actuator>
+      <dcmotor name="dc_pos" joint="slide" input="pos" motorconst="0.05"
+               resistance="2.0" controller="10 5 1 3 4 12"
+               lugre="100 0.5 0.5 0.8 6" cogging="0.2 54 0.1" ctrlrange="-12 12"/>
+      <dcmotor name="dc_ff" joint="slide" input="ff" motorconst="0.05"
+               resistance="2.0" controller="0 0 0 3 0 12" ctrlrange="-5 5"/>
+    </actuator>
+    <sensor>
+      <actuatorpos actuator="dc_pos" cutoff="2" noise="0.5"/>
+      <actuatorvel actuator="dc_pos" cutoff="3" noise="0.25"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  MjModelPtr m(mj_compile(spec, nullptr));
+  ASSERT_THAT(m.get(), NotNull()) << mjs_getError(spec);
+  const mjtNum tol = MjTol(1e-11, 1e-4);
+
+  // Along z-axis, stretch fq = 27 (whereas isotropic cbrt(1*8*27) = 6).
+  // Position-mode dcmotor scales ctrlrange, slewmax (dynprm[7]), Imax
+  // (dynprm[8]), and LuGre Stribeck velocity (biasprm[5]) by fq = 27, and
+  // divides cogging periodicity (biasprm[1]) by fq = 27.
+  EXPECT_NEAR(m->actuator_ctrlrange[1], 12 * 27, tol);
+  EXPECT_NEAR(m->actuator_dynprm[7], 3 * 27, tol);
+  EXPECT_NEAR(m->actuator_dynprm[8], 4 * 27, tol);
+  EXPECT_NEAR(m->actuator_biasprm[1], 54.0 / 27, tol);
+  EXPECT_NEAR(m->actuator_biasprm[5], 6 * 27, tol);
+
+  // Feedforward-only dcmotor slew limit clamps torque (force-class = 1 under
+  // geometry), so dynprm[7] and ctrlrange remain unscaled.
+  EXPECT_NEAR(m->actuator_ctrlrange[3], 5, tol);
+  EXPECT_NEAR(m->actuator_dynprm[mjNDYN + 7], 3, tol);
+
+  // Actuator position/velocity sensors on a slide joint scale by axis stretch
+  // fq = 27 rather than geometric-mean shape factor 6.
+  EXPECT_NEAR(m->sensor_cutoff[0], 2 * 27, tol);
+  EXPECT_NEAR(m->sensor_noise[0], 0.5 * 27, tol);
+  EXPECT_NEAR(m->sensor_cutoff[1], 3 * 27, tol);
+  EXPECT_NEAR(m->sensor_noise[1], 0.25 * 27, tol);
+
+  // Verify mj_copyBack + recompile round-trips cleanly.
+  ASSERT_EQ(mj_copyBack(spec, m.get()), 1) << mjs_getError(spec);
+  MjModelPtr m2(mj_compile(spec, nullptr));
+  ASSERT_THAT(m2.get(), NotNull()) << mjs_getError(spec);
+  std::string field;
+  EXPECT_EQ(CompareModel(m.get(), m2.get(), field), 0) << field;
+  mj_deleteSpec(spec);
+}
+
+// ------------------------- mju_error during compile --------------------------
+
+// mjCModel::Compile turns mju_error into a compile error via longjmp, skipping
+// the destructors of C++ objects on the stack, so errors from bad input must
+// not reach mju_error; the leak checks below come from running under asan
+
+// SDF attribute error in the serial mesh compile path
+TEST_F(UserModelTest, SdfAttributeErrorDoesNotLeak) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler usethread="false"/>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="torus_instance_with_a_long_name_to_defeat_sso">
+          <config key="radius1" value="not_a_number_and_longer_than_sso"/>
+          <config key="radius2" value="0.15"/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="torus">
+        <plugin instance="torus_instance_with_a_long_name_to_defeat_sso"/>
+      </mesh>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid attribute value for 'radius1'"));
+}
+
+// an SDF attribute with trailing characters is invalid
+TEST_F(UserModelTest, SdfAttributeTrailingCharacters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="torus">
+          <config key="radius1" value="0.35m"/>
+          <config key="radius2" value=" 0.15 "/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="torus">
+        <plugin instance="torus"/>
+      </mesh>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid attribute value for 'radius1'"));
+}
+
+// SDF attribute error in the threaded mesh compile path
+TEST_F(UserModelTest, SdfAttributeErrorInWorkerThread) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.torus">
+        <instance name="torus">
+          <config key="radius1" value="not_a_number_and_longer_than_sso"/>
+          <config key="radius2" value="0.15"/>
+        </instance>
+      </plugin>
+    </extension>
+    <asset>
+      <mesh name="torus1">
+        <plugin instance="torus"/>
+      </mesh>
+      <mesh name="torus2">
+        <plugin instance="torus"/>
+      </mesh>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid attribute value for 'radius1'"));
+}
+
+// SDF attribute error in plugin init, for an instance which no mesh uses
+TEST_F(UserModelTest, SdfInitErrorDoesNotLeak) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.sdf.gear">
+        <instance name="gear">
+          <config key="thickness" value="not_a_number_and_longer_than_sso"/>
+        </instance>
+      </plugin>
+    </extension>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("Invalid parameter specification in Gear plugin"));
+}
+
+// ------------- test material textures ----------------------------------------
+
+using MaterialTest = MujocoTest;
+
+// the textures of a material are resolved from the spec: a material which is
+// pointed at another texture compiles once the first texture is deleted
+TEST_F(MaterialTest, TextureFromSpec) {
+  mjSpec* spec = mj_makeSpec();
+  mjsTexture* tex1 = mjs_addTexture(spec, nullptr);
+  mjsTexture* tex2 = mjs_addTexture(spec, nullptr);
+  for (mjsTexture* tex : {tex1, tex2}) {
+    tex->type = mjTEXTURE_2D;
+    tex->builtin = mjBUILTIN_CHECKER;
+    tex->width = 8;
+    tex->height = 8;
+  }
+  mjs_setName(tex1->element, "tex1");
+  mjs_setName(tex2->element, "tex2");
+  mjsMaterial* mat = mjs_addMaterial(spec, nullptr);
+  mjs_setName(mat->element, "mat");
+  (*mat->textures)[mjTEXROLE_RGB] = "tex1";
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->mat_texid[mjTEXROLE_RGB], 0);
+  mj_deleteModel(m);
+
+  (*mat->textures)[mjTEXROLE_RGB] = "tex2";
+  EXPECT_EQ(mjs_delete(spec, tex1->element), 0) << mjs_getError(spec);
+  m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->ntex, 1);
+  EXPECT_EQ(m->mat_texid[mjTEXROLE_RGB], mj_name2id(m, mjOBJ_TEXTURE, "tex2"));
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(UserModelTest, DeleteDefaultErasesFromDefMap) {
+  mjSpec* spec = mj_makeSpec();
+  mjsDefault* def = mjs_addDefault(spec, "test_class", nullptr);
+  mjsBody* world = mjs_findBody(spec, "world");
+  mjsBody* body = mjs_addBody(world, nullptr);
+  mjsGeom* geom = mjs_addGeom(body, def);
+  geom->type = mjGEOM_SPHERE;
+  geom->size[0] = 0.1;
+
+  EXPECT_THAT(mjs_getDefault(geom->element), NotNull());
+  ASSERT_EQ(mjs_delete(spec, def->element), 0) << mjs_getError(spec);
+  EXPECT_THAT(mjs_getDefault(geom->element), IsNull());
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(UserModelTest, CopyBackMaterialPbrAndTexuniform) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <material name="mat" texuniform="false" metallic="0.1" roughness="0.2"/>
+    </asset>
+    <worldbody>
+      <geom size="1" material="mat"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  ASSERT_EQ(m->nmat, 1);
+
+  m->mat_texuniform[0] = 1;
+  m->mat_metallic[0] = 0.75f;
+  m->mat_roughness[0] = 0.85f;
+
+  EXPECT_EQ(mj_copyBack(spec, m), 1) << mjs_getError(spec);
+  mjsMaterial* mat =
+      mjs_asMaterial(mjs_findElement(spec, mjOBJ_MATERIAL, "mat"));
+  ASSERT_THAT(mat, NotNull());
+  EXPECT_EQ(mat->texuniform, 1);
+  EXPECT_FLOAT_EQ(mat->metallic, 0.75f);
+  EXPECT_FLOAT_EQ(mat->roughness, 0.85f);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
 }  // namespace
 }  // namespace mujoco

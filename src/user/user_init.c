@@ -46,6 +46,7 @@ void mjs_defaultSpec(mjSpec* spec) {
   spec->compiler.saveinertial         = 0;
   spec->compiler.savecompiled         = 1;
   spec->compiler.savecanonical        = 1;
+  spec->compiler.passthrough          = mjPASSTHROUGH_NONE;
   mj_defaultLROpt(&spec->compiler.LRopt);
 
   // engine data
@@ -144,6 +145,7 @@ void mjs_defaultGeom(mjsGeom* geom) {
   // color
   geom->rgba[0] = geom->rgba[1] = geom->rgba[2] = 0.5f;
   geom->rgba[3]                                 = 1.0f;
+  geom->castshadow                              = 1;
 
   // fluid forces
   geom->fluid_coefs[0] = 0.5;   // blunt drag
@@ -281,6 +283,7 @@ void mjs_defaultTexture(mjsTexture* texture) {
   texture->random                                        = 0.01;
   texture->gridsize[0] = texture->gridsize[1] = 1;
   texture->nchannel                           = 3;
+  texture->embed                              = mjEMBED_AUTO;
   memcpy(texture->gridlayout, "............", sizeof(texture->gridlayout));
 }
 

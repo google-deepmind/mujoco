@@ -47,6 +47,7 @@ typedef struct mjContact_ {        // result of collision detection functions
   mjtNum  solreffriction[mjNREF];  // constraint solver reference, friction directions
   mjtNum  solimp[mjNIMP];          // constraint solver impedance
   mjtNum  adhesion;                // adhesive force along the contact normal
+  mjtNum  surfacevel[3];           // surface velocity (geom[1] - geom[0]): tangent1, 2, spin
 
   // internal storage used by solver
   mjtNum  mu;                      // friction of regularized cone, set by mj_makeConstraint
@@ -84,7 +85,7 @@ typedef struct mjTimerStat_ {  // timer statistics
 
 
 typedef struct mjSolverStat_ {  // per-iteration solver statistics
-  mjtNum  improvement;          // cost reduction, scaled by 1/trace(M(qpos0))
+  mjtNum  improvement;          // cost reduction, scaled by 1/trace(M)
   mjtNum  gradient;             // gradient norm (primal only, scaled)
   mjtNum  lineslope;            // slope in linesearch
   int     nactive;              // number of active constraints
@@ -138,13 +139,13 @@ typedef struct mjData_ {
   int     nJ;                // number of non-zeros in constraint Jacobian
 
   // effective metric: per-step activity flag and sizes, set by mj_effBuild
-  int     efm_active;        // implicit effective metric M+K is active (see mj_effBuild)
+  int     efm_active;        // effective metric M+K: 0 off, 1 on, 2 on with general flex CSR
   int     nefmK;             // number of non-zeros in effective-stiffness CSR
   int     nefmcon;           // packed length of the contact rank-1 rows
   int     nefmT;             // number of tendons with terms in the metric
   int     nefmA;             // number of actuators with terms in the metric
-  int     nefmdof;           // number of 3x3 blocks in the effective-metric preconditioner
-  int     nefmL;             // size of the effective-metric block storage (9*nefmdof)
+  int     nefmdof;           // number of covered vertex triples in the effective metric
+  int     nefmL;             // size of efm_L (packed Cholesky factor or island lists)
 
   // variable sizes, continued
   int     nY;                // number of non-zeros in constraint inverse inertia square root
@@ -179,6 +180,7 @@ typedef struct mjData_ {
   mjtNum* qvel;              // velocity                                         (nv x 1)
   mjtNum* act;               // actuator activation                              (na x 1)
   mjtNum* history;           // history buffer                                   (nhistory x 1)
+  mjtNum* plastic;           // plastic state                                    (nplastic x 1)
   mjtNum* qacc_warmstart;    // acceleration used for warmstart                  (nv x 1)
   mjtNum* plugin_state;      // plugin state                                     (npluginstate x 1)
 
@@ -216,12 +218,15 @@ typedef struct mjData_ {
   mjtNum* xquat;             // Cartesian orientation of body frame              (nbody x 4)
   mjtNum* xmat;              // Cartesian orientation of body frame              (nbody x 9)
   mjtNum* xipos;             // Cartesian position of body com                   (nbody x 3)
+  mjtNum* xiquat;            // Cartesian orientation of body inertia            (nbody x 4)
   mjtNum* ximat;             // Cartesian orientation of body inertia            (nbody x 9)
   mjtNum* xanchor;           // Cartesian position of joint anchor               (njnt x 3)
   mjtNum* xaxis;             // Cartesian joint axis                             (njnt x 3)
   mjtNum* geom_xpos;         // Cartesian geom position                          (ngeom x 3)
+  mjtNum* geom_xquat;        // Cartesian geom orientation                       (ngeom x 4)
   mjtNum* geom_xmat;         // Cartesian geom orientation                       (ngeom x 9)
   mjtNum* site_xpos;         // Cartesian site position                          (nsite x 3)
+  mjtNum* site_xquat;        // Cartesian site orientation                       (nsite x 4)
   mjtNum* site_xmat;         // Cartesian site orientation                       (nsite x 9)
   mjtNum* cam_xpos;          // Cartesian camera position                        (ncam x 3)
   mjtNum* cam_xmat;          // Cartesian camera orientation                     (ncam x 9)
@@ -242,8 +247,6 @@ typedef struct mjData_ {
   mjtNum*  flexedge_hessian;   // oriented off-diagonal Hessian blocks           (nflexedge x 9)
   mjtNum*  flexedge_J;         // flex edge Jacobian                             (nJfe x 1)
   mjtNum*  flexedge_length;    // flex edge lengths                              (nflexedge x 1)
-  mjtNum*  flexvert_J;         // flex vertex Jacobian                           (nJfv x 2)
-  mjtNum*  flexvert_length;    // flex vertex lengths                            (nflexvert x 2)
   mjtNum*  bvh_aabb_dyn;       // global bounding box (center, size)             (nbvhdynamic x 6)
 
   // AL contact state carried across steps (flag ipc, not in mjtState)
@@ -434,7 +437,7 @@ typedef struct mjData_ {
   int*    efm_dofid;         // block k -> dof address of its vertex triple      (nefmdof x 1)
   int*    efm_con_ind;       // contact rows, packed [nnz, conid, colind...]     (nefmcon x 1)
   mjtNum* efm_con_val;       // contact rows, packed [scale, force, val...]      (nefmcon x 1)
-  mjtNum* efm_L;             // factored 3x3 diagonal blocks of M+K              (nefmL x 1)
+  mjtNum* efm_L;             // packed Cholesky factor of M+K or island lists    (nefmL x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY, CONTROL/ACCELERATION dependent
 

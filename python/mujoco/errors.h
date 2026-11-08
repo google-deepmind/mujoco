@@ -18,7 +18,6 @@
 #include <array>
 #include <csetjmp>
 #include <cstdio>
-#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -104,7 +103,7 @@ class ErrorBase : public pybind11::builtin_exception {
 // C++ exceptions.)
 // Instead, we call setjmp before entering MuJoCo, and do a longjmp from
 // mju_user_error back to C++ to throw an exception.
-static thread_local std::jmp_buf mju_error_jmp_buf;
+static thread_local std::jmp_buf* tls_error_jmp_buf = nullptr;
 static thread_local std::array<char, 2048> mju_error_msg{0};
 
 // The handler to forward non-error messages to.  Set by WrapFunc before each
@@ -129,7 +128,7 @@ static inline void MjErrorHandler(const mjLogMessage* msg) {
     std::snprintf(mju_error_msg.data(), mju_error_msg.size(), "%s",
                   msg->subject);
   }
-  std::longjmp(mju_error_jmp_buf, 1);
+  std::longjmp(*tls_error_jmp_buf, 1);
 }
 
 template <typename InterceptAsType>
@@ -160,20 +159,26 @@ struct MjErrorIntercepter {
       //   If replacing of std::longjmp with `throw` and setjmp with `catch`
       //   would execute a non-trivial destructor for any automatic object, the
       //   behavior of such std::longjmp is undefined.
-      if (setjmp(mju_error_jmp_buf) == 0) {
+      std::jmp_buf local_jmp_buf;
+      std::jmp_buf* prev_jmp_buf = tls_error_jmp_buf;
+      tls_error_jmp_buf = &local_jmp_buf;
+      if (setjmp(local_jmp_buf) == 0) {
         if constexpr (std::is_void_v<decltype(callable(args...))>) {
           callable(args...);
+          tls_error_jmp_buf = prev_jmp_buf;
           mju_forward_handler = old_forward;
           _mjPRIVATE_setTlsLogHandler(prev_handler);
         } else {
           auto ret = callable(args...);
           static_assert(std::is_trivially_destructible_v<decltype(ret)>);
+          tls_error_jmp_buf = prev_jmp_buf;
           mju_forward_handler = old_forward;
           _mjPRIVATE_setTlsLogHandler(prev_handler);
           return ret;
         }
       } else {
         // This branch is entered via a longjmp back from our mju_error handler.
+        tls_error_jmp_buf = prev_jmp_buf;
         mju_forward_handler = old_forward;
         _mjPRIVATE_setTlsLogHandler(prev_handler);
         {
@@ -216,6 +221,18 @@ class UnexpectedError : public _impl::ErrorBase<UnexpectedError> {
                   " (this error not expected to ever occur,"
                   " please report it to MuJoCo developers!)") {}
   virtual ~UnexpectedError() = default;
+};
+
+// Subclass pybind11::builtin_exception so that RuntimeErrors thrown from
+// secondary extension modules (which only register translate_local_exception)
+// are caught within the throwing DSO on Linux builds with static hidden
+// libc++abi, rather than failing cross-DSO std::exception type_info matching.
+class py_runtime_error : public pybind11::builtin_exception {
+ public:
+  using pybind11::builtin_exception::builtin_exception;
+  void set_error() const override {
+    PyErr_SetString(PyExc_RuntimeError, what());
+  }
 };
 
 template <typename Callable>

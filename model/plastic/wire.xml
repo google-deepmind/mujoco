@@ -1,0 +1,260 @@
+<!-- Copyright 2026 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Plastic wires and suspension cables">
+  <compiler autolimits="true"/>
+  <option integrator="implicitfast" timestep="0.002"/>
+
+  <visual>
+    <global elevation="-20" azimuth="130"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="4096"/>
+    <map stiffness="700" fogstart="1" fogend="15" zfar="40" haze="1"/>
+    <headlight ambient="0.08 0.08 0.08" diffuse="0.22 0.22 0.22" specular="0.08 0.08 0.08"/>
+  </visual>
+
+  <statistic meansize="0.025" center="0.23 -0.02 0.34" extent="0.84"/>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="100" height="100"/>
+    <material name="grid" texture="grid" texrepeat="8 8" texuniform="true" reflectance="0.06"/>
+    <material name="clamp" rgba="0.28 0.32 0.38 1" specular="0.6" shininess="0.5" metallic="0.55" roughness="0.32"/>
+    <material name="weight" rgba="0.48 0.52 0.58 1" specular="0.90" shininess="0.85" metallic="0.82" roughness="0.18"/>
+    <material name="steel" rgba="0.46 0.68 0.90 1" specular="0.90" shininess="0.80" metallic="0.82" roughness="0.18"/>
+    <material name="brass" rgba="0.90 0.72 0.30 1" specular="0.92" shininess="0.85" metallic="0.88" roughness="0.18"/>
+    <material name="copper" rgba="0.88 0.46 0.26 1" specular="0.90" shininess="0.80" metallic="0.88" roughness="0.20"/>
+  </asset>
+
+  <default>
+    <site size="0.009" material="clamp"/>
+    <default class="rig">
+      <geom material="clamp" contype="0" conaffinity="0"/>
+    </default>
+    <default class="wire_seg">
+      <geom type="capsule" fromto="0 0 0 0.06 0 0" size="0.012" density="800"/>
+    </default>
+    <default class="elastic_jnt">
+      <joint type="hinge" axis="0 1 0" stiffness="35" damping="1.0"/>
+    </default>
+    <default class="brass_jnt">
+      <joint type="hinge" axis="0 1 0" stiffness="35" damping="1.0" springyield="2.5"/>
+    </default>
+    <default class="copper_jnt">
+      <joint type="hinge" axis="0 1 0" stiffness="35" damping="1.0" springyield="0.5"/>
+    </default>
+    <default class="drop_weight">
+      <geom type="sphere" size="0.048" mass="3.2" material="weight"/>
+    </default>
+    <default class="cable">
+      <tendon width="0.005" springlength="0.25" stiffness="240" damping="8"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light name="key" pos="0.30 -0.95 1.45" dir="-0.05 0.62 -0.78" cutoff="36" softness="1"
+           diffuse=".78 .73 .65" ambient=".12 .12 .12" specular=".30 .28 .25"/>
+    <light name="rim" directional="true" pos="-0.4 0.9 1.1" dir="0.35 -0.75 -0.55" castshadow="false"
+           diffuse=".20 .24 .32" specular=".18 .20 .26"/>
+    <geom name="floor" type="plane" size="0 0 1" material="grid" friction="0.8 0.005 0.0001"/>
+
+    <!-- Open clamp bar and overhead gantry for suspension cables -->
+    <replicate count="2" offset="0 -0.84 0">
+      <geom class="rig" type="cylinder" pos="-0.03 0.42 0.010" size="0.044 0.010"/>
+      <geom class="rig" type="capsule" fromto="-0.03 0.42 0.010 -0.03 0.42 0.70" size="0.016"/>
+      <geom class="rig" type="capsule" fromto="-0.03 0.42 0.70 0.54 0.42 0.70" size="0.015"/>
+    </replicate>
+    <geom name="clamp_bar" class="rig" type="box" pos="-0.03 0 0.45" size="0.028 0.436 0.024"/>
+    <geom name="gantry_bar" class="rig" type="capsule" fromto="0.54 -0.42 0.70 0.54 0.42 0.70" size="0.016"/>
+
+    <!-- Root collets, suspension anchors, and off-center falling spheres that roll away after impact -->
+    <replicate count="3" offset="0 -0.35 0" sep="_">
+      <geom class="rig" type="cylinder" pos="0.004 0.35 0.45" euler="0 90 0" size="0.019 0.008"/>
+      <site name="anchor" pos="0.54 0.35 0.70"/>
+      <body name="weight" pos="0.38 0.358 0.685">
+        <freejoint/>
+        <geom class="drop_weight"/>
+      </body>
+    </replicate>
+
+    <!-- 1. Elastic spring-steel cantilever + elastic suspension cable (springyield = 0) -->
+    <body name="steel_0" pos="0 0.35 0.45">
+      <joint name="steel_j0" class="elastic_jnt"/>
+      <geom class="wire_seg" material="steel"/>
+      <body name="steel_1" pos="0.06 0 0">
+        <joint name="steel_j1" class="elastic_jnt"/>
+        <geom class="wire_seg" material="steel"/>
+        <body name="steel_2" pos="0.06 0 0">
+          <joint name="steel_j2" class="elastic_jnt"/>
+          <geom class="wire_seg" material="steel"/>
+          <body name="steel_3" pos="0.06 0 0">
+            <joint name="steel_j3" class="elastic_jnt"/>
+            <geom class="wire_seg" material="steel"/>
+            <body name="steel_4" pos="0.06 0 0">
+              <joint name="steel_j4" class="elastic_jnt"/>
+              <geom class="wire_seg" material="steel"/>
+              <body name="steel_5" pos="0.06 0 0">
+                <joint name="steel_j5" class="elastic_jnt"/>
+                <geom class="wire_seg" material="steel"/>
+                <body name="steel_6" pos="0.06 0 0">
+                  <joint name="steel_j6" class="elastic_jnt"/>
+                  <geom class="wire_seg" material="steel"/>
+                  <body name="steel_7" pos="0.06 0 0">
+                    <joint name="steel_j7" class="elastic_jnt"/>
+                    <geom class="wire_seg" material="steel"/>
+                    <body name="steel_8" pos="0.06 0 0">
+                      <joint name="steel_j8" class="elastic_jnt"/>
+                      <geom class="wire_seg" material="steel"/>
+                      <site name="tip_steel" pos="0.06 0 0"/>
+                      <body name="steel_9" pos="0.06 0 0">
+                        <joint name="steel_j9" class="elastic_jnt"/>
+                        <geom class="wire_seg" material="steel"/>
+                        <body name="steel_10" pos="0.06 0 0">
+                          <joint name="steel_j10" class="elastic_jnt"/>
+                          <geom class="wire_seg" material="steel"/>
+                          <body name="steel_11" pos="0.06 0 0">
+                            <joint name="steel_j11" class="elastic_jnt"/>
+                            <geom class="wire_seg" material="steel"/>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <!-- 2. Elasto-plastic brass cantilever + elasto-plastic suspension cable -->
+    <body name="brass_0" pos="0 0 0.45">
+      <joint name="brass_j0" class="brass_jnt"/>
+      <geom class="wire_seg" material="brass"/>
+      <body name="brass_1" pos="0.06 0 0">
+        <joint name="brass_j1" class="brass_jnt"/>
+        <geom class="wire_seg" material="brass"/>
+        <body name="brass_2" pos="0.06 0 0">
+          <joint name="brass_j2" class="brass_jnt"/>
+          <geom class="wire_seg" material="brass"/>
+          <body name="brass_3" pos="0.06 0 0">
+            <joint name="brass_j3" class="brass_jnt"/>
+            <geom class="wire_seg" material="brass"/>
+            <body name="brass_4" pos="0.06 0 0">
+              <joint name="brass_j4" class="brass_jnt"/>
+              <geom class="wire_seg" material="brass"/>
+              <body name="brass_5" pos="0.06 0 0">
+                <joint name="brass_j5" class="brass_jnt"/>
+                <geom class="wire_seg" material="brass"/>
+                <body name="brass_6" pos="0.06 0 0">
+                  <joint name="brass_j6" class="brass_jnt"/>
+                  <geom class="wire_seg" material="brass"/>
+                  <body name="brass_7" pos="0.06 0 0">
+                    <joint name="brass_j7" class="brass_jnt"/>
+                    <geom class="wire_seg" material="brass"/>
+                    <body name="brass_8" pos="0.06 0 0">
+                      <joint name="brass_j8" class="brass_jnt"/>
+                      <geom class="wire_seg" material="brass"/>
+                      <site name="tip_brass" pos="0.06 0 0"/>
+                      <body name="brass_9" pos="0.06 0 0">
+                        <joint name="brass_j9" class="brass_jnt"/>
+                        <geom class="wire_seg" material="brass"/>
+                        <body name="brass_10" pos="0.06 0 0">
+                          <joint name="brass_j10" class="brass_jnt"/>
+                          <geom class="wire_seg" material="brass"/>
+                          <body name="brass_11" pos="0.06 0 0">
+                            <joint name="brass_j11" class="brass_jnt"/>
+                            <geom class="wire_seg" material="brass"/>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <!-- 3. Soft copper cantilever + soft copper suspension cable -->
+    <body name="copper_0" pos="0 -0.35 0.45">
+      <joint name="copper_j0" class="copper_jnt"/>
+      <geom class="wire_seg" material="copper"/>
+      <body name="copper_1" pos="0.06 0 0">
+        <joint name="copper_j1" class="copper_jnt"/>
+        <geom class="wire_seg" material="copper"/>
+        <body name="copper_2" pos="0.06 0 0">
+          <joint name="copper_j2" class="copper_jnt"/>
+          <geom class="wire_seg" material="copper"/>
+          <body name="copper_3" pos="0.06 0 0">
+            <joint name="copper_j3" class="copper_jnt"/>
+            <geom class="wire_seg" material="copper"/>
+            <body name="copper_4" pos="0.06 0 0">
+              <joint name="copper_j4" class="copper_jnt"/>
+              <geom class="wire_seg" material="copper"/>
+              <body name="copper_5" pos="0.06 0 0">
+                <joint name="copper_j5" class="copper_jnt"/>
+                <geom class="wire_seg" material="copper"/>
+                <body name="copper_6" pos="0.06 0 0">
+                  <joint name="copper_j6" class="copper_jnt"/>
+                  <geom class="wire_seg" material="copper"/>
+                  <body name="copper_7" pos="0.06 0 0">
+                    <joint name="copper_j7" class="copper_jnt"/>
+                    <geom class="wire_seg" material="copper"/>
+                    <body name="copper_8" pos="0.06 0 0">
+                      <joint name="copper_j8" class="copper_jnt"/>
+                      <geom class="wire_seg" material="copper"/>
+                      <site name="tip_copper" pos="0.06 0 0"/>
+                      <body name="copper_9" pos="0.06 0 0">
+                        <joint name="copper_j9" class="copper_jnt"/>
+                        <geom class="wire_seg" material="copper"/>
+                        <body name="copper_10" pos="0.06 0 0">
+                          <joint name="copper_j10" class="copper_jnt"/>
+                          <geom class="wire_seg" material="copper"/>
+                          <body name="copper_11" pos="0.06 0 0">
+                            <joint name="copper_j11" class="copper_jnt"/>
+                            <geom class="wire_seg" material="copper"/>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial name="cable_steel" class="cable" material="steel">
+      <site site="anchor_0"/>
+      <site site="tip_steel"/>
+    </spatial>
+    <spatial name="cable_brass" class="cable" springyield="0.085" material="brass">
+      <site site="anchor_1"/>
+      <site site="tip_brass"/>
+    </spatial>
+    <spatial name="cable_copper" class="cable" springyield="0.042" material="copper">
+      <site site="anchor_2"/>
+      <site site="tip_copper"/>
+    </spatial>
+  </tendon>
+</mujoco>

@@ -76,17 +76,12 @@ class Texture : public mjrfTexture {
   }
 
  private:
-  void ReleaseData();
-
   uint64_t id_ = 0;
   filament::Engine* engine_ = nullptr;
   filament::Texture* texture_ = nullptr;
   mjrfTextureConfig config_;
   SphericalHarmonics spherical_harmonics_;
   bool has_spherical_harmonics_ = false;
-
-  void* user_data_ = nullptr;
-  void (*release_callback_)(void* user_data) = nullptr;
 };
 }  // namespace mujoco
 

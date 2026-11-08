@@ -39,7 +39,7 @@ SPECS = [
     ('mjsMesh',     'Spec', True,  'meshes',     'mjOBJ_MESH'),
     ('mjsSkin',     'Spec', False, 'skins',      'mjOBJ_SKIN'),
     ('mjsHField',   'Spec', False, 'hfields',    'mjOBJ_HFIELD'),
-    ('mjsTexture',  'Spec', False, 'textures',   'mjOBJ_TEXTURE'),
+    ('mjsTexture',  'Spec', True,  'textures',   'mjOBJ_TEXTURE'),
     ('mjsMaterial', 'Spec', True,  'materials',  'mjOBJ_MATERIAL'),
     ('mjsPair',     'Spec', True,  'pairs',      'mjOBJ_PAIR'),
     ('mjsEquality', 'Spec', True,  'equalities', 'mjOBJ_EQUALITY'),
@@ -199,9 +199,17 @@ def _array_binding_code(
       return MjTypeVec<char>(self.{fullvarname}, {field.extents[0]});
     }},
     []({rawclassname}& self, py::object rhs) {{
+      char buf[{field.extents[0]}] = {{}};
       int i = 0;
       for (auto val : rhs) {{
-        self.{fullvarname}[i++] = py::cast<char>(val);
+        if (i >= {field.extents[0]}) {{
+          throw py::value_error(
+              "{varname} may have at most {field.extents[0]} characters");
+        }}
+        buf[i++] = py::cast<char>(val);
+      }}
+      for (int j = 0; j < {field.extents[0]}; ++j) {{
+        self.{fullvarname}[j] = buf[j];
       }}
     }}, py::return_value_policy::move);"""
   # all other array types
@@ -310,6 +318,13 @@ def _ptr_binding_code(
       }},
     []({rawclassname}& self, py::object rhs) {{
         self.{fullvarname}->clear();
+        if (py::isinstance<py::str>(rhs)) {{
+          auto s = py::cast<std::string>(rhs);
+          if (!s.empty()) {{
+            self.{fullvarname}->push_back(std::move(s));
+          }}
+          return;
+        }}
         self.{fullvarname}->reserve(py::len(rhs));
         for (auto val : rhs) {{
           self.{fullvarname}->push_back(py::cast<std::string>(val));
@@ -667,7 +682,7 @@ def generate_add() -> None:
 
     # include helper functions
     if set_types:
-      for t in set(set_types):
+      for t in sorted(set(set_types)):
         if t == 'orientation':
           code += """\n
            auto set_orientation = [](raw::MjsOrientation& orientation,

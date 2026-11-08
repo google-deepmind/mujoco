@@ -28,8 +28,7 @@ extern "C" {
 MJAPI extern mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES];
 
 // return the maximum number of contacts that can be generated between two geoms
-// if has_margin is -1, then the margin is pulled from the model, otherwise if has_margin > 0
-// indicates that the geoms have a positive margin
+// has_margin is ignored
 MJAPI int mj_maxContact(const mjModel* m, int g1, int g2, int has_margin);
 
 // collision detection entry point
