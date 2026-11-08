@@ -2876,8 +2876,28 @@ mjsPlugin* mjs_asPlugin(mjsElement* element) {
 // set element name
 int mjs_setName(mjsElement* element, const char* name) {
   if (element->elemtype == mjOBJ_DEFAULT) {
-    mjCDef* def = static_cast<mjCDef*>(element);
-    def->name   = std::string(name);
+    mjCDef*     def     = static_cast<mjCDef*>(element);
+    mjCModel*   model   = def->model;
+    std::string newname = std::string(name);
+    if (newname == def->name) { return 0; }
+
+    // the global default is looked up by name, it cannot be renamed
+    if (def->id == 0) {
+      model->SetError(mjCError(nullptr, "cannot rename the global default ('main')"));
+      return -1;
+    }
+
+    // default names must be unique, as in mjs_addDefault
+    if (model->FindDefault(newname)) {
+      model->SetError(mjCError(nullptr, "repeated default name '%s'", newname.c_str()));
+      return -1;
+    }
+
+    // rekey the class name map so that lookups by the new name find this default
+    auto it = model->def_map.find(def->name);
+    if (it != model->def_map.end() && it->second == def) { model->def_map.erase(it); }
+    def->name               = newname;
+    model->def_map[newname] = def;
     return 0;
   }
   mjCBase* baseC = static_cast<mjCBase*>(element);
