@@ -190,28 +190,55 @@ class Renderer:
     read.target.resize(size[0], size[1])
     return read.target
 
-  def render(self, views: list[View]):
-    """Renders all active views."""
+  def render(
+      self, views: list[View], size: tuple[int, int] | None = None
+  ) -> None:
+    """Renders all active views.
+
+    Args:
+      views: the views to render.
+      size: the size (width, height) of the window. Only used by views that
+        render into the window's swap chain, i.e. views whose target name is
+        empty.
+
+    Raises:
+      ValueError: if a view refers to an unknown scene or target, or if a view
+        renders into the window and no size was given.
+    """
     requests: list[mjrf.RenderRequest] = []
     reads: dict[str, mjrf.ReadRequest] = {}
     for view in views:
-      read = self._reads.get(view.target, None)
-      if read is None:
-        raise ValueError(f"Target not found: {view.target}")
-      reads[view.target] = read.request
+      if view.target:
+        read = self._reads.get(view.target, None)
+        if read is None:
+          raise ValueError(f"Target not found: {view.target}")
+        reads[view.target] = read.request
+        target = read.request.target
+        width, height = read.size
+      else:
+        # An empty target name means the window's swap chain. Filament manages
+        # that target itself, so there is nothing to read back and its size is
+        # not known to the renderer.
+        if size is None:
+          raise ValueError(
+              "size is required for views that render into the window."
+          )
+        target = None
+        width, height = size
 
       scene = self._scenes.get(view.scene, None)
       if scene is None:
         raise ValueError(f"Scene not found: {view.scene}")
 
-      req = mjrf.RenderRequest()
+      # The target is passed to the constructor rather than assigned below,
+      # because the property setter doesn't accept None (window rendering).
+      req = mjrf.RenderRequest(target=target)
       req.scene = scene
-      req.target = read.request.target
       req.camera = self._to_mjrf_camera(view.camera)
-      req.viewport.left = int(view.viewport[0] * read.size[0])
-      req.viewport.bottom = int(view.viewport[1] * read.size[1])
-      req.viewport.width = int(view.viewport[2] * read.size[0])
-      req.viewport.height = int(view.viewport[3] * read.size[1])
+      req.viewport.left = int(view.viewport[0] * width)
+      req.viewport.bottom = int(view.viewport[1] * height)
+      req.viewport.width = int(view.viewport[2] * width)
+      req.viewport.height = int(view.viewport[3] * height)
       req.draw_mode = view.draw_mode
       req.post_processing = view.post_processing
       req.reflections = view.reflections

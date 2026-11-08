@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/render/filament/support/imgui_bridge.h>
 #include <mujoco/studio/hal/graphics_mode.h>
 #include <mujoco/studio/render/model_scene.h>
@@ -83,6 +84,16 @@ bool RenderToPixels(int gfx_mode) {
     static_cast<mujoco::studio::GraphicsMode>(gfx_mode));
 }
 
+int GraphicsApi(int gfx_mode) {
+  const auto mode = static_cast<mujoco::studio::GraphicsMode>(gfx_mode);
+  return IsOpenGl(mode) || IsWebGl(mode) ? mjGRAPHICS_API_OPENGL
+                                         : mjGRAPHICS_API_VULKAN;
+}
+
+bool SoftwareRendering(int gfx_mode) {
+  return IsSoftware(static_cast<mujoco::studio::GraphicsMode>(gfx_mode));
+}
+
 }  // namespace
 
 namespace mujoco::python::studio {
@@ -108,6 +119,8 @@ void InitNativeViewer(pybind11::module_& m) {
     cls.def("get_headlight_intensity", &ModelScene::GetHeadlightIntensity);
   }
   m.def("render_to_pixels", &RenderToPixels);
+  m.def("graphics_api", &GraphicsApi);
+  m.def("software_rendering", &SoftwareRendering);
 }
 
 }  // namespace mujoco::python::studio
