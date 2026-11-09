@@ -437,10 +437,6 @@ specified in the model use the defaults listed below. All flag names begin with 
         - bool
         - 0 (false)
         - Enable screen-space cone tracing.
-      * - ``ao.bilateral_threshold``
-        - real
-        - 0.5
-        - Depth difference treated as an edge by the blur filter.
 
 .. collapse:: Bloom
 
@@ -460,18 +456,10 @@ specified in the model use the defaults listed below. All flag names begin with 
         - real
         - [filament default]
         - Strength of the bloom effect, between 0 and 1.
-      * - ``bloom.dirt_strength``
-        - real
-        - [filament default]
-        - Strength of the lens-dirt effect.
       * - ``bloom.quality``
         - string
         - "low"
         - Quality of the bloom passes; "low", "medium", "high", or "ultra".
-      * - ``bloom.resolution``
-        - int
-        - [filament default]
-        - Resolution of the bloom's minor axis, in pixels.
       * - ``bloom.levels``
         - int
         - [filament default]
@@ -562,14 +550,6 @@ specified in the model use the defaults listed below. All flag names begin with 
         - string
         - "srgb"
         - Output color space; "linear" or "srgb".
-      * - ``cg.luminance_scaling``
-        - bool
-        - 0
-        - Scale luminance to desaturate very bright highlights.
-      * - ``cg.gamut_mapping``
-        - bool
-        - 0
-        - Map out-of-gamut colors into the output gamut.
 
 .. collapse:: Exponential height fog
 
@@ -613,14 +593,6 @@ specified in the model use the defaults listed below. All flag names begin with 
         - real
         - [filament default]
         - Falloff of fog density with height.
-      * - ``fog.in_scattering_start``
-        - real
-        - [filament default]
-        - Distance at which light in-scattering starts.
-      * - ``fog.in_scattering_size``
-        - real
-        - [filament default]
-        - Size of the light in-scattering halo (>0 to activate).
 
 .. collapse:: Vignette
 
