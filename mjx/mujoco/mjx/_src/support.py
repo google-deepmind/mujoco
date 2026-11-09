@@ -644,17 +644,15 @@ def _length_circle(
     p0: jax.Array, p1: jax.Array, ind: jax.Array, rad: jax.Array
 ) -> jax.Array:
   """Compute length of circle."""
-  # compute angle between 0 and pi
-  p0n = math.normalize(p0).reshape(-1)
-  p1n = math.normalize(p1).reshape(-1)
-
-  # clip input to closed interval for jp.arccos to prevent potential nan
-  # TODO(taylorhowell): add test for case where clip is necessary
-  angle = jp.arccos(jp.clip(jp.dot(p0n, p1n), -1, 1))
-
-  # flip if necessary
+  # compute angle between 0 and pi, by atan2: arccos loses small angles
   cross = p0[1] * p1[0] - p0[0] * p1[1]
-  flip = ((cross > 0) & (ind != 0)) | ((cross < 0) & (ind == 0))
+  angle = jp.arctan2(jp.abs(cross), jp.dot(p0, p1))
+
+  # flip if necessary; a vanishing angle is not flipped, as in C, so that
+  # rounding in cross at wrap onset does not make it a full circle
+  flip = (angle > 1e-6) & (
+      ((cross > 0) & (ind != 0)) | ((cross < 0) & (ind == 0))
+  )
   angle = jp.where(flip, 2 * jp.pi - angle, angle)
 
   return rad * angle
@@ -664,21 +662,26 @@ def _is_intersect(
     p1: jax.Array, p2: jax.Array, p3: jax.Array, p4: jax.Array
 ) -> jax.Array:
   """Check for intersection between two lines defined by their endpoints."""
-  # compute determinant
-  det = (p4[1] - p3[1]) * (p2[0] - p1[0]) - (p4[0] - p3[0]) * (p2[1] - p1[1])
+  u, v = p2 - p1, p4 - p3
 
-  # compute intersection point on each line
-  a = math.safe_div(
-      (p4[0] - p3[0]) * (p1[1] - p3[1]) - (p4[1] - p3[1]) * (p1[0] - p3[0]), det
-  )
-  b = math.safe_div(
-      (p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0]), det
-  )
+  # compute determinant
+  det = v[1] * u[0] - v[0] * u[1]
+
+  # the intersection's parameter on each line is a = a0 / det, b = b0 / det,
+  # and 1 - a = -a1 / det, 1 - b = -b1 / det: the upper bounds are taken from
+  # p2 - p4 rather than from a and b, which near wrap onset round to 1, and are
+  # strict so that coincident tangent points (p2 == p4) do not intersect
+  s = jp.where(det > 0, 1, -1)
+  w, d = p1 - p3, p2 - p4
+  a0 = (v[0] * w[1] - v[1] * w[0]) * s
+  a1 = (v[0] * d[1] - v[1] * d[0]) * s
+  b0 = (u[0] * w[1] - u[1] * w[0]) * s
+  b1 = (u[0] * d[1] - u[1] * d[0]) * s
 
   return jp.where(
       jp.abs(det) < mujoco.mjMINVAL,
       0,
-      (a >= 0) & (a <= 1) & (b >= 0) & (b <= 1),
+      (a0 >= 0) & (a1 < 0) & (b0 >= 0) & (b1 < 0),
   )
 
 
@@ -788,13 +791,20 @@ def wrap_inside(
     radius: jax.Array,
     maxiter: int,
     tolerance: float,
-    z_init: float,
 ) -> Tuple[jax.Array, jax.Array]:
   """Compute 2D inside wrap point.
+
+  Newton runs on phi = asin(z), as engine_util_misc.c's wrap_inside does since
+  google-deepmind/mujoco@3bc4b769: in z its derivative is singular at the
+  z = 1 it starts next to, and in float32 the iteration missed the tolerance
+  or overshot, both of which return the midpoint. The exits are C's,
+  including the midpoint when the tolerance is not met within maxiter.
 
   Args:
     end: 2D points
     radius: radius of circle
+    maxiter: cap on Newton iterations, 20 in C
+    tolerance: on the residual, 1e-6 in C
 
   Returns:
     status: 0 if wrap, else -1
@@ -839,70 +849,82 @@ def wrap_inside(
   G = jp.arccos(cosG)  # pylint: disable=invalid-name
 
   # initialize solver
-  z = jp.array([z_init])
-  f = jp.arcsin(A * z) + jp.arcsin(B * z) - 2 * jp.arcsin(z) + G
+  phi = jp.full(1, jp.pi / 2, dtype=G.dtype)
+  z = jp.sin(phi)
+  f = jp.arcsin(A * z) + jp.arcsin(B * z) - 2 * phi + G
 
   # make sure initialization is not on the other side
   early_return1 = f > 0
 
-  # iteratively solve with Newton's method
+  # iteratively solve with Newton's method; once converged, a step is a no-op
+  # and none of C's exits apply
   def _newton(carry, _):
     # unpack
-    z, f, status_prev = carry
+    phi, f, _, status_prev = carry
 
     # check current solution
     converged = jp.abs(f) <= tolerance
 
-    # compute derivative
+    # compute derivative with respect to phi
+    z = jp.sin(phi)
     df = (
-        A / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * A * A))
-        + B / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * B * B))
-        - 2 / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z))
+        jp.cos(phi)
+        * (
+            A / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * A * A))
+            + B / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * B * B))
+        )
+        - 2
     )
 
     # check sign; SHOULD NOT OCCUR
-    status0 = df > -mjMINVAL
+    status0 = ~converged & (df > -mjMINVAL)
 
     # new point
-    z_next = z - (1 - converged) * math.safe_div(f, df)
+    phi_next = jp.where(
+        converged, phi, phi - f / jp.where(jp.abs(df) < mjMINVAL, mjMINVAL, df)
+    )
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
-    status1 = z_next > z
+    status1 = ~converged & (phi_next > phi)
 
     # evaluate solution
+    z_next = jp.sin(phi_next)
     f_next = (
-        jp.arcsin(A * z_next)
-        + jp.arcsin(B * z_next)
-        - 2 * jp.arcsin(z_next)
-        + G
+        jp.arcsin(A * z_next) + jp.arcsin(B * z_next) - 2 * phi_next + G
     )
 
     # exit if positive; SHOULD NOT OCCUR
-    status2 = f_next > tolerance
+    status2 = ~converged & (f_next > tolerance)
 
     return (
-        z_next,
+        phi_next,
         f_next,
+        converged,
         status_prev | status0 | status1 | status2,
     ), None
 
   # TODO(taylorhowell): compare performance of jax.lax.scan and jax.lax.while_loop
-  z, _, early_return2 = jax.lax.scan(
-      _newton, (z, f, jp.array([False])), None, maxiter
+  init = (phi, f, jp.array([False]), jp.array([False]))
+  phi, _, converged, early_return2 = jax.lax.scan(
+      _newton, init, None, maxiter
   )[0]
+  # C counts the iterations that update: converging on the last one still
+  # reaches maxiter, and C then returns the midpoint
+  early_return3 = ~converged
+  z = jp.sin(phi)
 
   # finalize: rotation by ang from vec = a or b, depending on cross(a,b) sign
   sign = end[0] * end[3] - end[1] * end[2] > 0
   vec = jp.where(sign, end[:2], end[2:])
   vec = math.normalize(vec)
-  ang = jp.arcsin(z) - jp.where(sign, jp.arcsin(A * z), jp.arcsin(B * z))
+  ang = phi - jp.where(sign, jp.arcsin(A * z), jp.arcsin(B * z))
   pnt_sol = radius * jp.array([
       jp.cos(ang) * vec[0] - jp.sin(ang) * vec[1],
       jp.sin(ang) * vec[0] + jp.cos(ang) * vec[1],
   ]).reshape(-1)
 
   no_wrap = no_wrap0 | no_wrap1 | no_wrap2
-  early_return = early_return0 | early_return1 | early_return2
+  early_return = early_return0 | early_return1 | early_return2 | early_return3
   status = -1 * no_wrap * jp.ones(1)
 
   pnt = jp.where(early_return, pnt_avg, pnt_sol)
@@ -923,7 +945,6 @@ def wrap(
     is_wrap_inside: bool,
     wrap_inside_maxiter: int,
     wrap_inside_tolerance: float,
-    wrap_inside_z_init: float,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Wrap tendon around sphere or cylinder."""
   # map sites to wrap object's local frame
@@ -975,7 +996,7 @@ def wrap(
 
   if is_wrap_inside:
     wlen, pnt = wrap_inside(
-        d, size, wrap_inside_maxiter, wrap_inside_tolerance, wrap_inside_z_init
+        d, size, wrap_inside_maxiter, wrap_inside_tolerance
     )
   else:
     wlen, pnt = wrap_circle(d, sd, sidesite, size)
