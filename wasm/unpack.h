@@ -42,11 +42,12 @@ class WasmBuffer {
   // Note: Embind does not support binding more than one constructor with the
   // same argument count so we bind the factory function fromArray instead
   explicit WasmBuffer(const emscripten::val& array) {
-    std::vector<T> cpp_array = convertJSArrayToNumberVector<T>(array);
-    bytes_.resize(cpp_array.size() * sizeof(T));
-    if (cpp_array.size() > 0) {
-      memcpy(bytes_.data(), cpp_array.data(), bytes_.size());
-    }
+    // Copy straight into the buffer, converting each element with the same
+    // TypedArray.set semantics as convertJSArrayToNumberVector, but without
+    // the intermediate vector.
+    bytes_.resize(array["length"].as<std::size_t>() * sizeof(T));
+    emscripten::val view = GetView();
+    view.call<void>("set", array);
   }
 
  public:

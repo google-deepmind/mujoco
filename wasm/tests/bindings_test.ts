@@ -163,6 +163,43 @@ describe('MuJoCo WASM Bindings', () => {
       expect(buf.GetView()).toBeDefined();
       expectArraysClose(buf.GetView(), array);
     });
+
+    it('should construct an empty buffer from an empty array', () => {
+      for (const array of [[], new Float64Array(0)]) {
+        const buf = mujoco.DoubleBuffer.FromArray(array);
+        expect(buf.GetElementCount()).toBe(0);
+        expect(buf.GetView().length).toBe(0);
+        buf.delete();
+      }
+    });
+
+    it('should convert elements to the buffer type', () => {
+      const values = [1.75, -2.5, 256, '3', null, true];
+      const cases: Array<[any, ArrayLike<number>]> = [
+        [mujoco.DoubleBuffer, Float64Array.from(values as any)],
+        [mujoco.FloatBuffer, Float32Array.from(values as any)],
+        [mujoco.IntBuffer, Int32Array.from(values as any)],
+        [mujoco.Uint8Buffer, Uint8Array.from(values as any)],
+      ];
+      for (const [type, expected] of cases) {
+        const buf = type.FromArray(values);
+        expect(Array.from(buf.GetView())).toEqual(Array.from(expected));
+        buf.delete();
+      }
+      // Typed arrays of a different element type are converted too.
+      const buf = mujoco.IntBuffer.FromArray(new Float64Array([4.9, -7.1]));
+      expect(Array.from(buf.GetView())).toEqual([4, -7]);
+      buf.delete();
+    });
+
+    it('should copy from a view into another buffer', () => {
+      const src = mujoco.DoubleBuffer.FromArray([3, 1, 2]);
+      const dst = mujoco.DoubleBuffer.FromArray(src.GetView());
+      src.GetView().fill(0);
+      expect(Array.from(dst.GetView())).toEqual([3, 1, 2]);
+      src.delete();
+      dst.delete();
+    });
   });
 
   describe('mj_addM', () => {
