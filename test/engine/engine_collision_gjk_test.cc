@@ -3482,4 +3482,42 @@ TEST_F(MjGjkTest, CylinderOnBoxAtRest) {
   EXPECT_NEAR(data->qacc[0], 0.0, MjTol(1e-12, 1e-5));
 }
 
+TEST_F(MjGjkTest, HFieldBoxPenetration) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="2" ncol="2" size="1 1 1 1"/>
+    </asset>
+    <worldbody>
+      <geom type="hfield" hfield="hf"/>
+      <body pos="0 -0.125 -0.125">
+        <freejoint/>
+        <geom type="box" size="0.25 0.25 0.25"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model, ::testing::NotNull());
+  MjDataPtr data = MakeData(model);
+  const mjtNum axis[3] = {1, 0, 0};
+  for (int degrees : {0, 15}) {
+    SCOPED_TRACE(degrees);
+    mj_resetData(model.get(), data.get());
+    mjtNum angle = degrees * mjPI / 180;
+    mju_axisAngle2Quat(data->qpos + 3, axis, angle);
+    mj_forward(model.get(), data.get());
+
+    ASSERT_EQ(data->ncon, 2);
+    // escape through one prism's top or the other's diagonal side
+    mjtNum depth = 0.125 + 0.25 * (mju_sin(angle) + mju_cos(angle));
+    int top = data->contact[0].dist < data->contact[1].dist ? 0 : 1;
+    EXPECT_NEAR(data->contact[top].dist, -depth, MjTol(1e-15, 1e-6));
+    EXPECT_NEAR(data->contact[1 - top].dist, -depth / mju_sqrt(2),
+                MjTol(1e-15, 1e-6));
+    EXPECT_NEAR(data->contact[top].frame[0], 0, MjTol(1e-15, 1e-6));
+    EXPECT_NEAR(data->contact[top].frame[1], 0, MjTol(1e-15, 1e-6));
+    EXPECT_NEAR(data->contact[top].frame[2], 1, MjTol(1e-15, 1e-6));
+  }
+}
+
 }  // namespace mujoco
