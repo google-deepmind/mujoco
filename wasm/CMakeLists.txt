@@ -113,3 +113,14 @@ if(MUJOCO_BUILD_TESTS_WASM)
 
     install(TARGETS mujoco_wasm_benchmark DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})
 endif()
+
+# Keep allocator instrumentation in a separate test module, outside the public API.
+if(MUJOCO_BUILD_TESTS_WASM)
+    add_executable(mujoco_wasm_memory_test ${MUJOCO_WASM_FILES} tests/memory_test.cc)
+    set(MEMORY_TEST_LINKER_FLAGS ${EMCC_LINKER_FLAGS} "--emit-tsd mujoco_wasm_memory_test.d.ts")
+    string(REPLACE ";" " " MEMORY_TEST_LINKER_FLAGS_STR "${MEMORY_TEST_LINKER_FLAGS}")
+    set_target_properties(mujoco_wasm_memory_test PROPERTIES
+        LINK_FLAGS "${MEMORY_TEST_LINKER_FLAGS_STR}"
+    )
+    target_link_libraries(mujoco_wasm_memory_test PRIVATE ${MUJOCO_WASM_LINK_LIBRARIES})
+endif()

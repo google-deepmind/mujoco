@@ -6028,7 +6028,7 @@ struct MjModel {
 struct MjSpec {
   ~MjSpec();
   MjSpec();
-  explicit MjSpec(mjSpec *ptr);
+  explicit MjSpec(mjSpec *ptr, bool owned = false);
   MjSpec(const MjSpec &);
   MjSpec &operator=(const MjSpec &);
   std::unique_ptr<MjSpec> copy();
@@ -7918,7 +7918,10 @@ struct MjvScene {
 
 struct MjVFS {
   MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
-  ~MjVFS() { mj_deleteVFS(ptr_); }
+  ~MjVFS() {
+    mj_deleteVFS(ptr_);
+    delete ptr_;
+  }
   void AddBuffer(const std::string& name, const emscripten::val& buffer) {
     std::vector<uint8_t> vec = emscripten::vecFromJSArray<uint8_t>(buffer);
     int result = mj_addBufferVFS(ptr_, name.c_str(), vec.data(), vec.size());
