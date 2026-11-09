@@ -865,8 +865,6 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
   mjtCatBit category = mjCAT_STATIC;
   const float* rgba = nullptr;
   const mjtNum* size = nullptr;
-  const mjtNum* pos = nullptr;
-  const mjtNum* quat = nullptr;
 
   switch (obj_type) {
     case mjOBJ_GEOM:
@@ -874,8 +872,6 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
       category = GetBodyCategory(model, model->geom_bodyid[obj_index]);
       rgba = model->geom_rgba + (4 * obj_index);
       size = model->geom_size + (3 * obj_index);
-      pos = model->geom_pos + (3 * obj_index);
-      quat = model->geom_quat + (4 * obj_index);
       matid = model->geom_matid[obj_index];
       dataid = model->geom_dataid[obj_index];
       break;
@@ -1003,48 +999,7 @@ mjrfMaterial ModelRenderables::GetMaterial(mjtObj obj_type, int obj_index,
 
       const bool is_infinite_plane =
           geom_type == mjGEOM_PLANE && (fsize[0] <= 0 || fsize[1] <= 0);
-      if (is_infinite_plane) {
-        // With infinite planes, we want to use the UvOffset to account for
-        // the plane's position in world space due to re-centering.
-        //
-        // Infinite planes will use world-space UVs, with a tile size of 1x1
-        // world units by default (texrepeat=(1, 1)).
-        //
-        // The shader computes: uv = uv0 * UvScale + UvOffset
-        // We want:             uv = dot(worldPos, planeAxis) * texFrequency
-        //
-        // Since worldPos = rotation * (objectPos * planeScale) + geomPos:
-        //
-        // dot(worldPos, axisK) = objectPos.k * planeScale + dot(geomPos, axisK)
-        //
-        // Meaning:
-        //   UvScale  = planeScale * texrepeat
-        //   UvOffset = dot(geomPos, planeAxis) * texrepeat
-        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
-
-        float dot_pos_axis_x = 0.0f;
-        float dot_pos_axis_y = 0.0f;
-        if (pos && quat) {
-          mjtNum mat[9];
-          mju_quat2Mat(mat, quat);
-          dot_pos_axis_x = pos[0] * mat[0] + pos[1] * mat[3] + pos[2] * mat[6];
-          dot_pos_axis_y = pos[0] * mat[1] + pos[1] * mat[4] + pos[2] * mat[7];
-        }
-
-        material.uv_scale[0] *= plane_scale;
-        material.uv_scale[1] *= plane_scale;
-        // The vertex UVs in PlaneBuilder are
-        //     u0 =  (0.5 * x) + 0.5
-        //     v0 = -(0.5 * y) + 0.5
-        // To keep the world-space texture coordinate
-        //     u = 0.5 * worldX * texrepeat - 0.5
-        // independent of the snapped geomPos, uv_offset must compensate by
-        // 0.5 * dot_pos.
-        material.uv_offset[0] =
-            (0.5f * dot_pos_axis_x - 0.5f * plane_scale) * tex_repeat[0] - 0.5f;
-        material.uv_offset[1] =
-            (-0.5f * dot_pos_axis_y - 0.5f * plane_scale) * tex_repeat[1] - 0.5f;
-      } else {
+      if (!is_infinite_plane) {
         if (geom_type == mjGEOM_HFIELD ||
             ((geom_type == mjGEOM_MESH || geom_type == mjGEOM_SDF) &&
              dataid >= 0 && model->mesh_texcoordadr[dataid] < 0)) {
