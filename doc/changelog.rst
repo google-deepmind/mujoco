@@ -5,6 +5,10 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+Compiler
+^^^^^^^^
+- Added :ref:`mjs_getInStringVec` to read entries from an :ref:`mjStringVec` by index.
+
 Bug fixes
 ^^^^^^^^^
 

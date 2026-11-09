@@ -485,6 +485,9 @@ MJAPI mjString* mjs_getName(mjsElement* element);
 // Get string contents.
 MJAPI const char* mjs_getString(const mjString* source);
 
+// Get entry in string vector, or NULL if out of bounds.
+MJAPI const char* mjs_getInStringVec(const mjStringVec* source, int i);
+
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 

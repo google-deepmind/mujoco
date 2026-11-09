@@ -171,6 +171,7 @@ _SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
     "mjs_appendIntVec",
     "mjs_appendString",
     "mjs_getDouble",
+    "mjs_getInStringVec",
     "mjs_getPluginAttributes",
     "mjs_getString",
     "mjs_getTimer",

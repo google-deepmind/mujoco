@@ -6578,6 +6578,15 @@ Get element's name.
 
 Get string contents.
 
+.. _mjs_getInStringVec:
+
+`mjs_getInStringVec <#mjs_getInStringVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getInStringVec
+
+Get entry in string vector, or NULL if out of bounds.
+
 .. _mjs_getDouble:
 
 `mjs_getDouble <#mjs_getDouble>`__
