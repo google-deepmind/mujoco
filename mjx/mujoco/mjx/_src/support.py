@@ -646,7 +646,11 @@ def _length_circle(
   """Compute length of circle."""
   # compute angle between 0 and pi, by atan2: arccos loses small angles
   cross = p0[1] * p1[0] - p0[0] * p1[1]
-  angle = jp.arctan2(jp.abs(cross), jp.dot(p0, p1))
+  dot = jp.dot(p0, p1)
+
+  # atan2(0, 0) is 0, as atan2(0, 1) is, but has no derivative
+  zero = (cross == 0) & (dot == 0)
+  angle = jp.arctan2(jp.where(zero, 0, jp.abs(cross)), jp.where(zero, 1, dot))
 
   # flip if necessary; a vanishing angle is not flipped, as in C, so that
   # rounding in cross at wrap onset does not make it a full circle
@@ -687,7 +691,13 @@ def _is_intersect(
 
 def _winding_angle(p: jax.Array, q: jax.Array) -> jax.Array:
   """Signed angle swept from p to q around the origin, in (-pi, pi]."""
-  return jp.arctan2(p[0] * q[1] - p[1] * q[0], p[0] * q[0] + p[1] * q[1])
+  cross = p[0] * q[1] - p[1] * q[0]
+  dot = p[0] * q[0] + p[1] * q[1]
+
+  # atan2(0, 0) is 0, as atan2(0, 1) is, but has no derivative: a site on the
+  # axis is not a wrap, yet its NaN cotangent would survive the selection
+  zero = (cross == 0) & (dot == 0)
+  return jp.arctan2(jp.where(zero, 0, cross), jp.where(zero, 1, dot))
 
 
 def wrap_circle(
@@ -843,8 +853,17 @@ def wrap_inside(
   B = radius / jp.maximum(mjMINVAL, len1)  # pylint: disable=invalid-name
   cosG = (len0 * len0 + len1 * len1 - dd) / jp.maximum(mjMINVAL, 2 * len0 * len1)  # pylint: disable=invalid-name
 
-  no_wrap2 = cosG < -1 + mjMINVAL
-  early_return0 = cosG > 1 - mjMINVAL
+  # in float32, 1 - mjMINVAL rounds to 1, where acos is not differentiable
+  no_wrap2 = (cosG < -1 + mjMINVAL) | (cosG <= -1)
+  early_return0 = (cosG > 1 - mjMINVAL) | (cosG >= 1)
+
+  # past these exits the solution is not selected, and A or B may exceed 1 and
+  # cosG reach -1 or 1: asin, acos or their derivatives are undefined there,
+  # and an unselected NaN still makes the reverse-mode gradient NaN
+  skip = no_wrap0 | no_wrap1 | no_wrap2 | early_return0
+  A = jp.where(skip, 0.5, A)  # pylint: disable=invalid-name
+  B = jp.where(skip, 0.5, B)  # pylint: disable=invalid-name
+  cosG = jp.where(skip, 0, cosG)  # pylint: disable=invalid-name
 
   G = jp.arccos(cosG)  # pylint: disable=invalid-name
 
@@ -1009,17 +1028,13 @@ def wrap(
   res = jp.concatenate([res0, res1])
 
   # perform correction for cylinder case
-  l0 = jp.sqrt(
-      (p0[0] - res[0]) * (p0[0] - res[0]) + (p0[1] - res[1]) * (p0[1] - res[1])
-  )
-  l1 = jp.sqrt(
-      (p1[0] - res[3]) * (p1[0] - res[3]) + (p1[1] - res[4]) * (p1[1] - res[4])
-  )
+  l0 = math.norm(p0[:2] - res[:2])
+  l1 = math.norm(p1[:2] - res[3:5])
   r2 = p0[2] + (p1[2] - p0[2]) * math.safe_div(l0, l0 + wlen + l1)
   r5 = p0[2] + (p1[2] - p0[2]) * math.safe_div(l0 + wlen, l0 + wlen + l1)
   height = jp.abs(r5 - r2)
 
-  wlen = jp.where(is_sphere, wlen, jp.sqrt(wlen * wlen + height * height))
+  wlen = jp.where(is_sphere, wlen, math.norm(jp.array([wlen, height])))
   res = jp.where(
       is_sphere, res, res.at[jp.array([2, 5])].set(jp.concatenate([r2, r5]))
   )
