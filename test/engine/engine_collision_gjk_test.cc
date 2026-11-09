@@ -3426,4 +3426,60 @@ TEST_F(MjGjkTest, TouchingEllipsoids) {
   EXPECT_NEAR(dist, -5e-7, MjTol(1e-11, 1e-6));
 }
 
+TEST_F(MjGjkTest, CylinderEdgeWitnessAngle) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="geom1" type="cylinder" pos="0 0 0.09" zaxis="0 1 0" size="0.1 0.2"/>
+      <geom name="geom2" type="box" pos="0 0 -0.1" size="1 1 0.1"/>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  int g1 = mj_name2id(model.get(), mjOBJ_GEOM, "geom1");
+  int g2 = mj_name2id(model.get(), mjOBJ_GEOM, "geom2");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  ASSERT_EQ(ncons, 2);
+  EXPECT_NEAR(dist, -0.01, kTolerance);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(pos[3 * i + 0], 0.0, kTolerance);
+    EXPECT_NEAR(pos[3 * i + 2], -0.005, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 0], 0.0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 1], 0.0, kTolerance);
+    EXPECT_NEAR(dir[3 * i + 2], -1.0, kTolerance);
+  }
+  EXPECT_NEAR(mju_abs(pos[1] - pos[4]), 0.4, kTolerance);
+}
+
+TEST_F(MjGjkTest, CylinderOnBoxAtRest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="floor" type="box" size="0.12 0.12 0.02"/>
+      <body name="cylinder" pos="0 0 0.0528" quat="0.7071068 0.7071068 0 0">
+        <freejoint/>
+        <geom type="cylinder" size="0.033 0.0615" mass="0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  MjModelPtr model = LoadModelFromString(xml);
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->ncon, 2);
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_NEAR(data->contact[i].pos[0], 0.0, MjTol(1e-12, 1e-6));
+    EXPECT_NEAR(data->contact[i].dist, -0.0002, MjTol(1e-12, 1e-6));
+  }
+  EXPECT_NEAR(data->qacc[0], 0.0, MjTol(1e-12, 1e-5));
+}
+
 }  // namespace mujoco
