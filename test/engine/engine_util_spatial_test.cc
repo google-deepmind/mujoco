@@ -126,6 +126,70 @@ TEST_F(RotVecQuatTest, TestEquivalence) {
   }
 }
 
+using QuatZ2VecTest = MujocoTest;
+
+TEST_F(QuatZ2VecTest, ZeroAndTinyVectorGiveNoRotation) {
+  mjtNum quat[4] = {0, 0, 0, 0};
+  mjtNum zero[3] = {0, 0, 0};
+  mju_quatZ2Vec(quat, zero);
+  EXPECT_THAT(AsVector(quat, 4), ElementsAre(1, 0, 0, 0));
+
+  // below mjMINVAL after normalization, treated as zero
+  mjtNum tiny[3] = {mjMINVAL / 10, 0, 0};
+  mju_quatZ2Vec(quat, tiny);
+  EXPECT_THAT(AsVector(quat, 4), ElementsAre(1, 0, 0, 0));
+}
+
+TEST_F(QuatZ2VecTest, ParallelVectorGivesNoRotation) {
+  mjtNum quat[4] = {0, 0, 0, 0};
+  mjtNum vec[3] = {0, 0, 2.5};
+  mju_quatZ2Vec(quat, vec);
+  EXPECT_THAT(AsVector(quat, 4), ElementsAre(1, 0, 0, 0));
+}
+
+TEST_F(QuatZ2VecTest, AntiParallelVectorGivesHalfTurnAboutX) {
+  mjtNum quat[4] = {0, 0, 0, 0};
+  mjtNum vec[3] = {0, 0, -3};
+  mju_quatZ2Vec(quat, vec);
+  EXPECT_THAT(AsVector(quat, 4), ElementsAre(0, 1, 0, 0));
+}
+
+TEST_F(QuatZ2VecTest, XAxisGivesQuarterTurnAboutY) {
+  mjtNum quat[4];
+  mjtNum vec[3] = {4, 0, 0};
+  mju_quatZ2Vec(quat, vec);
+  const mjtNum tol = MjTol(1e-15, 1e-7);
+  EXPECT_NEAR(quat[0], std::cos(mjPI / 4), tol);
+  EXPECT_NEAR(quat[1], 0, tol);
+  EXPECT_NEAR(quat[2], std::sin(mjPI / 4), tol);
+  EXPECT_NEAR(quat[3], 0, tol);
+}
+
+TEST_F(QuatZ2VecTest, RotatesZToNormalizedVector) {
+  mjtNum vecs[][3] = {{1, 2, 3},    {-1, 0.5, 0.25}, {0.3, -0.7, -2},
+                      {-5, -5, 0},  {1e-3, 0, -1},   {0, 1e-6, 1},
+                      {2, -3, -1e-4}};
+  const mjtNum z[3] = {0, 0, 1};
+  const mjtNum tol = MjTol(1e-14, 1e-6);
+  for (auto& vec : vecs) {
+    mjtNum quat[4], rotated[3], unit[3] = {vec[0], vec[1], vec[2]};
+    mju_normalize3(unit);
+    mju_quatZ2Vec(quat, vec);
+
+    // unit quaternion
+    EXPECT_NEAR(mju_norm(quat, 4), 1, tol);
+
+    // rotation axis is perpendicular to z: the minimal rotation from z to vec
+    EXPECT_EQ(quat[3], 0);
+
+    // z is rotated onto the normalized input vector
+    mju_rotVecQuat(rotated, z, quat);
+    EXPECT_NEAR(rotated[0], unit[0], tol);
+    EXPECT_NEAR(rotated[1], unit[1], tol);
+    EXPECT_NEAR(rotated[2], unit[2], tol);
+  }
+}
+
 using Euler2QuatTest = MujocoTest;
 
 TEST_F(Euler2QuatTest, BadSeq) {
