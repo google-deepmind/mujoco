@@ -146,6 +146,57 @@ TEST_F(MjzEncoderTest, EncodeReturnsPositiveByteCount) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MjzEncoderTest, AssetNamedModelXmlDoesNotReplaceRoot) {
+  const std::string image_path = GetTestDataFilePath("xml/testdata/hfield.png");
+  mjResource* image = mju_openResource("", image_path.c_str(), nullptr, nullptr, 0);
+  ASSERT_THAT(image, NotNull());
+  const void* image_bytes = nullptr;
+  int image_size = mju_readResource(image, &image_bytes);
+  ASSERT_GT(image_size, 0);
+
+  for (const char* directory : {"", "."}) {
+    SCOPED_TRACE(directory);
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    ASSERT_EQ(mj_addBufferVFS(&vfs, "model.xml", image_bytes, image_size), 0);
+    const std::string xml = std::string("<mujoco><compiler texturedir='") +
+        directory + R"('/><asset><texture name="tex" type="2d" file="model.xml"
+        content_type="image/png"/></asset></mujoco>)";
+    char error[1024] = {};
+    mjSpec* spec = mj_parseXMLString(xml.c_str(), &vfs, error, sizeof(error));
+    ASSERT_THAT(spec, NotNull()) << error;
+    mjModel* model = mj_compile(spec, &vfs);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+    const mjpEncoder* encoder = mjp_findEncoder("model.mjz", nullptr);
+    ASSERT_THAT(encoder, NotNull());
+    mjResource resource = {};
+    resource.name = const_cast<char*>("model.mjz");
+    int nbytes = encoder->encode(spec, model, &vfs, &resource);
+    ASSERT_GT(nbytes, 0);
+
+    mjVFS decoded_vfs;
+    mj_defaultVFS(&decoded_vfs);
+    ASSERT_EQ(mj_addBufferVFS(&decoded_vfs, "model.mjz", resource.data, nbytes), 0);
+    mjSpec* decoded = mj_parse("model.mjz", nullptr, &decoded_vfs, error, sizeof(error));
+    ASSERT_THAT(decoded, NotNull()) << error;
+    mjModel* decoded_model = mj_compile(decoded, &decoded_vfs);
+    ASSERT_THAT(decoded_model, NotNull()) << mjs_getError(decoded);
+    EXPECT_EQ(model->ntex, decoded_model->ntex);
+    ASSERT_EQ(model->ntexdata, decoded_model->ntexdata);
+    EXPECT_EQ(std::memcmp(model->tex_data, decoded_model->tex_data, model->ntexdata), 0);
+
+    mj_deleteModel(decoded_model);
+    mj_deleteSpec(decoded);
+    mj_deleteVFS(&decoded_vfs);
+    encoder->close_resource(&resource);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+    mj_deleteVFS(&vfs);
+  }
+  mju_closeResource(image);
+}
+
 TEST_F(MjzEncoderTest, RootFileInArchiveIsNamedModelXml) {
   mjSpec* spec = MakeSimpleSpec();
   mjModel* model = mj_compile(spec, nullptr);
