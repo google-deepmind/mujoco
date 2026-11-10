@@ -3363,6 +3363,15 @@ Initializes the mjrfAmbientOcclusionOpts to default values.
 
 Initializes the mjrfRenderOpts to default values.
 
+.. _mjrf_modelRenderOpts:
+
+`mjrf_modelRenderOpts <#mjrf_modelRenderOpts>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_modelRenderOpts
+
+Configures the rendering options based on the parameters in an mjModel.
+
 .. _mjrf_defaultRenderRequest:
 
 `mjrf_defaultRenderRequest <#mjrf_defaultRenderRequest>`__

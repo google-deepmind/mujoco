@@ -1625,14 +1625,15 @@ typedef struct mjrfMaterialOpts_ {
   mjtBool enable_textures;          // whether or not to display textures
 } mjrfMaterialOpts;
 typedef struct mjrfHeadlightOpts_ {
-  float strength;                    // headlight strength, non-positive = off
+  mjtBool enable;                     // whether or not to enable the headlight
+  float intensity;                    // headlight intensity, defaults to 100,000
 } mjrfHeadlightOpts;
 typedef struct mjrfSkyboxOpts_ {
   mjtBool enable;                 // enables skybox rendering, enabled by default
 } mjrfSkyboxOpts;
 typedef struct mjrfHazeOpts_ {
   mjtBool enable;               // enables haze effects; enabled by default
-  float color[3];               // haze color; defaults to white
+  float color[4];               // haze color; defaults to white
   float ratio;                  // distance-to-horizon ratio covered by haze; defaults to 0.3
   int slices;                   // number of slices for haze cone; defaults to 28
 } mjrfHazeOpts;
@@ -3872,6 +3873,7 @@ void mjrf_defaultColorGradingOpts(mjrfColorGradingOpts* opts);
 void mjrf_defaultAntialiasingOpts(mjrfAntialiasingOpts* opts);
 void mjrf_defaultAmbientOcclusionOpts(mjrfAmbientOcclusionOpts* opts);
 void mjrf_defaultRenderOpts(mjrfRenderOpts* opts);
+void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model);
 void mjrf_defaultRenderRequest(mjrfRenderRequest* request);
 void mjrf_defaultReadRequest(mjrfReadRequest* request);
 mjrfFrameHandle mjrf_render(mjrfContext* ctx, const mjrfRenderRequest* req, int nreq,

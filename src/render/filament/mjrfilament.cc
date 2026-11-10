@@ -17,6 +17,8 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <optional>
+#include <string_view>
 
 #include <filament/Engine.h>
 #include <math/mat3.h>
@@ -30,12 +32,57 @@
 #include "render/filament/core/renderable.h"
 #include "render/filament/core/scene_view.h"
 #include "render/filament/core/texture.h"
+#include "render/filament/support/filament_util.h"
 
 template <int N>
 static void setf(float (&arr)[N], const std::array<float, N>& values) {
   for (int i = 0; i < N; ++i) {
     arr[i] = values[i];
   }
+}
+template <int N>
+static void setf(float (&arr)[N], const float* values) {
+  std::memcpy(arr, values, sizeof(arr));
+}
+
+template <typename E>
+static std::optional<E> parse_enum(std::string_view name) {
+  static_assert(std::is_enum_v<E>, "Unsupported enum type");
+  if (name.empty()) {
+    return std::nullopt;
+  }
+  if constexpr (std::is_same_v<E, mjrShadowType>) {
+    if (name == "none") return mjSHADOW_TYPE_NONE;
+    if (name == "hard") return mjSHADOW_TYPE_HARD;
+    if (name == "soft") return mjSHADOW_TYPE_SOFT;
+    // legacy names
+    if (name == "pcf") return mjSHADOW_TYPE_HARD;
+    if (name == "pcss") return mjSHADOW_TYPE_SOFT;
+  } else if constexpr (std::is_same_v<E, mjrToneMapper>) {
+    if (name == "aces") return mjTONE_MAPPER_ACES;
+    if (name == "aces_legacy") return mjTONE_MAPPER_ACES_LEGACY;
+    if (name == "filmic") return mjTONE_MAPPER_FILMIC;
+    if (name == "linear") return mjTONE_MAPPER_LINEAR;
+    if (name == "pbr_neutral") return mjTONE_MAPPER_PBR_NEUTRAL;
+  } else if constexpr (std::is_same_v<E, mjrColorSpace>) {
+    if (name == "linear") return mjCOLORSPACE_LINEAR;
+    if (name == "srgb") return mjCOLORSPACE_SRGB;
+  } else if constexpr (std::is_same_v<E, mjrQuality>) {
+    if (name == "low") return mjQUALITY_LOW;
+    if (name == "medium") return mjQUALITY_MEDIUM;
+    if (name == "high") return mjQUALITY_HIGH;
+    if (name == "ultra") return mjQUALITY_ULTRA;
+  } else if constexpr (std::is_same_v<E, mjrAmbientOcclusionType>) {
+    if (name == "none") return mjAMBIENT_OCCLUSION_TYPE_NONE;
+    if (name == "scalable") return mjAMBIENT_OCCLUSION_TYPE_SCALABLE;
+    if (name == "ground_truth") return mjAMBIENT_OCCLUSION_TYPE_GROUND_TRUTH;
+  } else if constexpr (std::is_same_v<E, mjrDitheringType>) {
+    if (name == "none") return mjDITHERING_TYPE_NONE;
+    if (name == "temporal") return mjDITHERING_TYPE_TEMPORAL;
+  } else {
+    static_assert(std::is_same_v<E, void>, "Unsupported enum type");
+  }
+  return std::nullopt;
 }
 
 static const char* BackendName(filament::Engine::Backend backend) {
@@ -48,6 +95,32 @@ static const char* BackendName(filament::Engine::Backend backend) {
       return "unknown";
   }
 }
+
+// Helper class for reading values from mjModel custom fields.
+struct ModelReader {
+  explicit ModelReader(const mjModel* model) : model(model) {}
+
+  // Reads a scalar value from the model.
+  template <typename T>
+  void operator()(T& value, const char* name) {
+    value = mujoco::ReadElement(model, name, value);
+  }
+  // Reads a vector value from the model.
+  template <typename T, size_t N>
+  void operator()(T (&arr)[N], const char* name) {
+    mujoco::ReadElement<T>(model, name, arr);
+  }
+  // Reads an enum value from the model (stored as a string).
+  template <typename T>
+  void operator()(int& value, const char* name, T e) {
+    std::string_view id = mujoco::ReadElement<const char*>(model, name, "");
+    const std::optional<T> tmp = parse_enum<T>(id);
+    if (tmp.has_value()) {
+      value = static_cast<int>(tmp.value());
+    }
+  }
+  const mjModel* model;
+};
 
 extern "C" {
 
@@ -142,13 +215,12 @@ void mjrf_defaultShadowOpts(mjrfShadowOpts* opts) {
 
 void mjrf_defaultMaterialOpts(mjrfMaterialOpts* opts) {
   std::memset(opts, 0, sizeof(mjrfMaterialOpts));
-  opts->rgb_color_type = mjCOLORSPACE_LINEAR;
+  opts->rgb_color_type = mjCOLORSPACE_SRGB;
   opts->enable_textures = true;
 }
 
 void mjrf_defaultHeadlightOpts(mjrfHeadlightOpts* opts) {
   std::memset(opts, 0, sizeof(mjrfHeadlightOpts));
-  opts->strength = 0.0f;
 }
 
 void mjrf_defaultSkyboxOpts(mjrfSkyboxOpts* opts) {
@@ -159,7 +231,7 @@ void mjrf_defaultSkyboxOpts(mjrfSkyboxOpts* opts) {
 void mjrf_defaultHazeOpts(mjrfHazeOpts* opts) {
   std::memset(opts, 0, sizeof(mjrfHazeOpts));
   opts->enable = true;
-  setf(opts->color, {1.0f, 1.0f, 1.0f});
+  setf(opts->color, {1.0f, 1.0f, 1.0f, 1.0f});
   opts->ratio = 0.3f;
   opts->slices = 28;
 }
@@ -252,8 +324,8 @@ void mjrf_defaultAmbientOcclusionOpts(mjrfAmbientOcclusionOpts* opts) {
   opts->type = mjAMBIENT_OCCLUSION_TYPE_SCALABLE;
   opts->ssct_enable = false;
   opts->strength = 1.0f;
-  opts->power = 0.3f;
-  opts->radius = 1.0f;
+  opts->power = 1.0f;
+  opts->radius = 0.3f;
   opts->quality = mjQUALITY_LOW;
   opts->low_pass_filter = mjQUALITY_MEDIUM;
   opts->upsampling = mjQUALITY_LOW;
@@ -525,4 +597,146 @@ void mjrf_getFrameStats(mjrfContext* ctx, mjrfFrameHandle frame,
                         mjrfFrameStats* stats_out) {
   mujoco::FilamentContext::downcast(ctx)->GetFrameStats(frame, stats_out);
 }
+
+void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {
+  // Helper class for reading custom flags from the model.
+  ModelReader read(model);
+
+  mjrf_defaultRenderOpts(opts);
+
+  // If there are no physical lights in the model, we use defaults that match the classic renderer.
+  // Users can still override these defaults using custom flags.
+  bool has_physical_lights = false;
+  for (int i = 0; i < model->nlight; ++i) {
+    if (model->light_intensity[i] > 0) {
+      has_physical_lights = true;
+      break;
+    }
+  }
+
+  // Headlight is either off, on, or auto (default). We treat "auto" headlights differently depending on if we're trying
+  // to match the classic renderer or not.
+  auto& headlight = model->vis.headlight;
+
+  float headlight_base_intensity = 100'000.f;
+  read(headlight_base_intensity, "filament.fallback.head_light_intensity");
+  const float headlight_strength =
+      (headlight.diffuse[0] + headlight.diffuse[1] + headlight.diffuse[2]) /
+      3.0f;
+
+  if (model->vis.headlight.active == 1) {
+    opts->headlight.enable = true;
+    opts->headlight.intensity = headlight_base_intensity * headlight_strength;
+  }
+  if (!has_physical_lights) {
+    // Classic renderer treats "auto" active headlights as always on.
+    if (model->vis.headlight.active == 2) {
+      opts->headlight.enable = true;
+      opts->headlight.intensity = headlight_base_intensity * headlight_strength;
+    }
+
+    // Classic renderer has no color grading so use linear output.
+    opts->color_grading.tone_mapper = mjTONE_MAPPER_LINEAR;
+    opts->color_grading.output_color_space = mjCOLORSPACE_LINEAR;
+  }
+
+  // mjrfAmbientOcclusionOpts
+  read(opts->ambient_occlusion.type, "filament.ao.enabled");  // backwards compatibility
+  read(opts->ambient_occlusion.type, "filament.ao.type", mjrAmbientOcclusionType{});
+  read(opts->ambient_occlusion.ssct_enable, "filament.ao.ssct");  // backwards compatibility
+  read(opts->ambient_occlusion.ssct_enable, "filament.ao.ssct_enabled");
+  read(opts->ambient_occlusion.strength, "filament.ao.strength");
+  read(opts->ambient_occlusion.power, "filament.ao.power");
+  read(opts->ambient_occlusion.quality, "filament.ao.quality", mjrQuality{});
+  read(opts->ambient_occlusion.low_pass_filter, "filament.ao.low_pass_filter", mjrQuality{});
+  read(opts->ambient_occlusion.upsampling, "filament.ao.upsampling", mjrQuality{});
+  read(opts->ambient_occlusion.radius, "filament.ao.radius");
+  read(opts->ambient_occlusion.bent_normals, "filament.ao.bent_normals");
+
+  // mjrfAntialiasingOpts
+  read(opts->antialiasing.fxaa_enable, "filament.aa.fxaa");
+  read(opts->antialiasing.tsaa_enable, "filament.aa.tsaa");
+  opts->antialiasing.msaa_samples = model->vis.quality.offsamples;
+
+  // mjrfBloomOpts
+  read(opts->bloom.enable, "filament.bloom.enabled");
+  read(opts->bloom.quality, "filament.bloom.quality", mjrQuality{});
+  read(opts->bloom.strength, "filament.bloom.strength");
+  read(opts->bloom.levels, "filament.bloom.levels");
+  read(opts->bloom.lens_flare, "filament.bloom.lens_flare");
+  read(opts->bloom.starburst, "filament.bloom.starburst");
+
+  // mjrfColorGradingOpts
+  read(opts->color_grading.tone_mapper, "filament.cg.tone_mapping", mjrToneMapper{});
+  read(opts->color_grading.output_color_space, "filament.cg.output_color_space", mjrColorSpace{});
+  read(opts->color_grading.exposure, "filament.cg.exposure");
+  read(opts->color_grading.night_adaptation, "filament.cg.night_adaptation");
+  read(opts->color_grading.contrast, "filament.cg.contrast");
+  read(opts->color_grading.vibrance, "filament.cg.vibrance");
+  read(opts->color_grading.saturation, "filament.cg.saturation");
+  read(opts->color_grading.temperature, "filament.cg.temperature");
+  read(opts->color_grading.tint, "filament.cg.tint");
+  read(opts->color_grading.out_red, "filament.cg.out_red");
+  read(opts->color_grading.out_green, "filament.cg.out_green");
+  read(opts->color_grading.out_blue, "filament.cg.out_blue");
+  read(opts->color_grading.shadows, "filament.cg.shadows");
+  read(opts->color_grading.midtones, "filament.cg.midtones");
+  read(opts->color_grading.highlights, "filament.cg.highlights");
+  read(opts->color_grading.tonal_ranges, "filament.cg.tonal_ranges");
+  read(opts->color_grading.slope, "filament.cg.slope");
+  read(opts->color_grading.offset, "filament.cg.offset");
+  read(opts->color_grading.power, "filament.cg.power");
+  read(opts->color_grading.shadow_gamma, "filament.cg.shadow_gamma");
+  read(opts->color_grading.mid_point, "filament.cg.mid_point");
+  read(opts->color_grading.highlight_scale, "filament.cg.highlight_scale");
+
+  // mjrfDepthOfFieldOpts
+  read(opts->depth_of_field.enable, "filament.dof.enabled");
+  read(opts->depth_of_field.blur_strength, "filament.dof.blur_strength");
+  read(opts->depth_of_field.focus_distance, "filament.dof.focus_distance");
+  read(opts->depth_of_field.aspect_ratio, "filament.dof.aspect_ratio");
+  read(opts->depth_of_field.max_aperture_diameter, "filament.dof.max_aperture_diameter");
+
+  // mjrfDitheringOpts
+  read(opts->dithering.type, "filament.dithering.type", mjrDitheringType{});
+
+  // mjrfFogOpts
+  read(opts->fog.enable, "filament.fog.enabled");
+  read(opts->fog.color, "filament.fog.color");
+  read(opts->fog.density, "filament.fog.density");
+  read(opts->fog.max_opacity, "filament.fog.maximum_opacity");
+  read(opts->fog.distance, "filament.fog.distance");
+  read(opts->fog.cutoff, "filament.fog.cut_off_distance");
+  read(opts->fog.height, "filament.fog.height");
+  read(opts->fog.height_falloff, "filament.fog.height_falloff");
+
+  // mjrfHazeOpts
+  read(opts->haze.enable, "filament.haze.enabled");
+  setf(opts->haze.color, model->vis.rgba.haze);
+  opts->haze.ratio = model->vis.map.haze;
+  opts->haze.slices = model->vis.quality.numslices;
+
+  // mjrfHeadlightOpts, handled explicitly above.
+
+  // mjrfMaterialOpts
+  read(opts->material.rgb_color_type, "filament.material.base_color_type", mjrColorSpace{});
+  read(opts->material.enable_textures, "filament.material.enable_textures");
+
+  // mjrfReflectionOpts
+  read(opts->reflection.enable, "filament.reflections.enabled");
+
+  // mjrfShadowOpts
+  read(opts->shadow.type, "filament.shadows.type", mjrShadowType{});
+
+  // mjrfSkyboxOpts
+  read(opts->skybox.enable, "filament.skybox.enabled");
+
+  // mjrfVignetteOpts
+  read(opts->vignette.enable, "filament.vignette.enabled");
+  read(opts->vignette.color, "filament.vignette.color");
+  read(opts->vignette.mid_point, "filament.vignette.midpoint");
+  read(opts->vignette.roundness, "filament.vignette.roundness");
+  read(opts->vignette.feather, "filament.vignette.feather");
+}
+
 }  // extern "C"

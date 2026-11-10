@@ -132,7 +132,8 @@ void mjrf_defaultMaterialOpts(mjrfMaterialOpts* opts);
 
 // Rendering options that adds an additional "headlight" to the scene.
 typedef struct mjrfHeadlightOpts_ {
-  float strength;                    // headlight strength, non-positive = off
+  mjtBool enable;                     // whether or not to enable the headlight
+  float intensity;                    // headlight intensity, defaults to 100,000
 } mjrfHeadlightOpts;
 
 // Initializes the mjrfHeadlightOpts to default values.
@@ -149,7 +150,7 @@ void mjrf_defaultSkyboxOpts(mjrfSkyboxOpts* opts);
 // Rendering options for haze effects.
 typedef struct mjrfHazeOpts_ {
   mjtBool enable;               // enables haze effects; enabled by default
-  float color[3];               // haze color; defaults to white
+  float color[4];               // haze color; defaults to white
   float ratio;                  // distance-to-horizon ratio covered by haze; defaults to 0.3
   int slices;                   // number of slices for haze cone; defaults to 28
 } mjrfHazeOpts;
@@ -301,6 +302,9 @@ typedef struct mjrfRenderOpts_ {
 
 // Initializes the mjrfRenderOpts to default values.
 void mjrf_defaultRenderOpts(mjrfRenderOpts* opts);
+
+// Configures the rendering options based on the parameters in an mjModel.
+void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model);
 
 // A single rendering operation.
 typedef struct mjrfRenderRequest_ {
