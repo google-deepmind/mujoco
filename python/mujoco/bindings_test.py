@@ -589,6 +589,23 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         4,
     )
 
+  @parameterized.product(field=('bv', 'bvactive'), copied=(False, True))
+  def test_mjvisual_bounding_volume_colors(self, field, copied):
+    model = mujoco.MjModel.from_xml_string('''
+        <mujoco>
+          <visual><rgba bv=".1 .2 .3 .4" bvactive=".5 .6 .7 .8"/></visual>
+        </mujoco>
+    ''')
+    rgba = copy.copy(model.vis.rgba) if copied else model.vis.rgba
+    expected = [0.1, 0.2, 0.3, 0.4] if field == 'bv' else [0.5, 0.6, 0.7, 0.8]
+    color = getattr(rgba, field)
+    self.assertEqual(color.shape, (4,))
+    np.testing.assert_allclose(color, expected)
+    color[:] = [0.9, 0.8, 0.7, 0.6]
+    np.testing.assert_allclose(getattr(rgba, field), [0.9, 0.8, 0.7, 0.6])
+    if copied:
+      np.testing.assert_allclose(getattr(model.vis.rgba, field), expected)
+
   def test_mjvisual_repr(self):
     # Regression test for issue #2488.
     vis_repr = repr(self.model.vis)
