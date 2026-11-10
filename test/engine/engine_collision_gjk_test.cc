@@ -3499,24 +3499,46 @@ TEST_F(MjGjkTest, HFieldBoxPenetration) {
   MjModelPtr model = LoadModelFromString(xml);
   ASSERT_THAT(model, ::testing::NotNull());
   MjDataPtr data = MakeData(model);
+
+  // Query the cell's right-hand prism directly, independently of heightfield
+  // contact filtering or manifold generation.
+  const mjtNum vertices[6][3] = {{-1, -1, -1}, {1, 1, -1}, {1, -1, -1},
+                                 {-1, -1, 0},  {1, 1, 0},  {1, -1, 0}};
+  mjCCDConfig config = {};
+  config.max_iterations = model->opt.ccd_iterations;
+  config.tolerance = model->opt.ccd_tolerance;
+  config.max_contacts = 1;
+  auto buffer =
+      std::vector<std::byte>(mjc_ccdSize(0, 0, config.max_iterations));
+  config.buffer = buffer.data();
+
   const mjtNum axis[3] = {1, 0, 0};
   for (int degrees : {0, 15}) {
     SCOPED_TRACE(degrees);
     mj_resetData(model.get(), data.get());
     mjtNum angle = degrees * mjPI / 180;
     mju_axisAngle2Quat(data->qpos + 3, axis, angle);
-    mj_forward(model.get(), data.get());
+    mj_kinematics(model.get(), data.get());
 
-    ASSERT_EQ(data->ncon, 2);
-    // escape through one prism's top or the other's diagonal side
+    mjCCDObj prism, box;
+    mjc_initCCDObj(&prism, model.get(), data.get(), 0, 0);
+    mjc_initCCDObj(&box, model.get(), data.get(), 1, 0);
+    for (int i = 0; i < 6; ++i) {
+      mju_copy3(prism.data.hfield.prism[i], vertices[i]);
+    }
+
+    // The nearest exit is through the top plane, z = 0.
     mjtNum depth = 0.125 + 0.25 * (mju_sin(angle) + mju_cos(angle));
-    int top = data->contact[0].dist < data->contact[1].dist ? 0 : 1;
-    EXPECT_NEAR(data->contact[top].dist, -depth, MjTol(1e-15, 1e-6));
-    EXPECT_NEAR(data->contact[1 - top].dist, -depth / mju_sqrt(2),
+    mjCCDStatus status;
+    EXPECT_NEAR(mjc_ccd(&config, &status, &prism, &box), -depth,
                 MjTol(1e-15, 1e-6));
-    EXPECT_NEAR(data->contact[top].frame[0], 0, MjTol(1e-15, 1e-6));
-    EXPECT_NEAR(data->contact[top].frame[1], 0, MjTol(1e-15, 1e-6));
-    EXPECT_NEAR(data->contact[top].frame[2], 1, MjTol(1e-15, 1e-6));
+    ASSERT_EQ(status.nx, 1);
+    mjtNum normal[3];
+    mju_sub3(normal, status.x1, status.x2);
+    mju_normalize3(normal);
+    EXPECT_NEAR(normal[0], 0, MjTol(1e-15, 1e-6));
+    EXPECT_NEAR(normal[1], 0, MjTol(1e-15, 1e-6));
+    EXPECT_NEAR(normal[2], 1, MjTol(1e-15, 1e-6));
   }
 }
 
