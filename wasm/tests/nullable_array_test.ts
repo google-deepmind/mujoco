@@ -72,4 +72,46 @@ describe('Nullable array arguments', () => {
       model.delete();
     }
   });
+
+  for (const diag of [null, [2, 3]]) {
+    it(`should compute a matrix product with ${diag ? 'supplied' : 'omitted'} diagonal`, () => {
+      const Buffer = single ? mujoco.FloatBuffer : mujoco.DoubleBuffer;
+      const result = new Buffer(9);
+      try {
+        mujoco.mju_sqrMatTD(result, [1, 2, 3, 4, 5, 6], diag, 2, 3);
+        expect(Array.from(result.GetView())).toEqual(
+            diag ? [50, 64, 78, 64, 83, 102, 78, 102, 126] :
+                   [17, 22, 27, 22, 29, 36, 27, 36, 45]);
+      } finally {
+        result.delete();
+      }
+    });
+  }
+
+  it('should still reject a diagonal with the wrong size', () => {
+    const Buffer = single ? mujoco.FloatBuffer : mujoco.DoubleBuffer;
+    const result = new Buffer(9);
+    try {
+      expect(() => mujoco.mju_sqrMatTD(result, [1, 2, 3, 4, 5, 6], [2], 2, 3))
+          .toThrowError(/diag must have size 2/);
+    } finally {
+      result.delete();
+    }
+  });
+
+  it('should generate a normal sample without the optional second output', () => {
+    expect(Number.isFinite(mujoco.mju_standardNormal(null))).toBeTrue();
+  });
+
+  it('should write the optional second normal sample when supplied', () => {
+    const Buffer = single ? mujoco.FloatBuffer : mujoco.DoubleBuffer;
+    const second = Buffer.FromArray([NaN]);
+    try {
+      expect(Number.isFinite(mujoco.mju_standardNormal(second))).toBeTrue();
+      expect(Number.isFinite(second.GetView()[0])).toBeTrue();
+    } finally {
+      second.delete();
+    }
+  });
+
 });

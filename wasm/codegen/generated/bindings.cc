@@ -3602,10 +3602,10 @@ void mju_sparse2dense_wrapper(const val& res, const NumberArray& mat, int nr, in
   mju_sparse2dense(res_.data(), mat_.data(), nr, nc, rownnz_.data(), rowadr_.data(), colind_.data());
 }
 
-void mju_sqrMatTD_wrapper(const val& res, const NumberArray& mat, const NumberArray& diag, int nr, int nc) {
+void mju_sqrMatTD_wrapper(const val& res, const NumberArray& mat, const NumberArrayOrNull& diag, int nr, int nc) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
-  UNPACK_ARRAY(mjtNum, diag);
+  UNPACK_NULLABLE_ARRAY(mjtNum, diag);
   CHECK_SIZE(mat, nr * nc);
   CHECK_SIZE(res, nc * nc);
   CHECK_SIZE(diag, nr);
@@ -3613,7 +3613,7 @@ void mju_sqrMatTD_wrapper(const val& res, const NumberArray& mat, const NumberAr
 }
 
 mjtNum mju_standardNormal_wrapper(const val& num2) {
-  UNPACK_VALUE(mjtNum, num2);
+  UNPACK_NULLABLE_VALUE(mjtNum, num2);
   return mju_standardNormal(num2_.data());
 }
 
