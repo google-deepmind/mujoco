@@ -8770,6 +8770,37 @@ TEST_F(MujocoTest, CompilationWarningsClearedOnRecompile) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, MjEncodeErrorBufferBounds) {
+  const std::pair<const char*, const char*> cases[] = {
+      {"test.xml", "model is required for XML encoding when spec is null"},
+      {"test.mjb", "model is required for MJB encoding"},
+      {"test.txt", "model is required for TXT encoding"},
+      {"test.unregistered", "no encoder found"},
+  };
+  for (const auto& [filename, message] : cases) {
+    SCOPED_TRACE(filename);
+    for (int size : {-1, 0, 1, 2, 128}) {
+      SCOPED_TRACE(size);
+      std::array<char, 130> error;
+      error.fill('x');
+      EXPECT_EQ(mj_encode(nullptr, nullptr, filename, nullptr, nullptr,
+                          error.data() + 1, size), -1);
+      EXPECT_EQ(error.front(), 'x');
+      EXPECT_EQ(error.back(), 'x');
+      if (size > 0) {
+        EXPECT_EQ(error[size + 1], 'x');
+        EXPECT_EQ(error[size], '\0');
+        EXPECT_EQ(std::string(error.data() + 1), std::string(message).substr(0, size - 1));
+      } else {
+        for (char value : error) {
+          EXPECT_EQ(value, 'x');
+        }
+      }
+    }
+    EXPECT_EQ(mj_encode(nullptr, nullptr, filename, nullptr, nullptr, nullptr, 0), -1);
+  }
+}
+
 TEST_F(MujocoTest, MjEncodeNativeFormats) {
   // simple test spec
   mjSpec* spec = mj_makeSpec();
