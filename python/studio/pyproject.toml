@@ -26,6 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "mujoco-core==4.0.1",
+    "mujoco-studio-wasm==4.0.1",
     "numpy",
     "websockets>=13",
 ]
@@ -49,6 +50,4 @@ include = ["mujoco.studio*"]
 [tool.setuptools.package-data]
 "mujoco.studio" = [
     "assets/*",
-    "web/*.html",
-    "web/dist/*",
 ]

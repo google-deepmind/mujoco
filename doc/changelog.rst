@@ -9,6 +9,12 @@ Compiler
 ^^^^^^^^
 - Added :ref:`mjs_getInStringVec` to read entries from an :ref:`mjStringVec` by index.
 
+Python bindings
+^^^^^^^^^^^^^^^
+- Enabled the MuJoCo Studio Web Viewer (``mujoco-studio --gfx=web`` and ``mujoco.studio.launch_web``) on Windows by
+  shipping the precompiled browser client in a platform-independent ``mujoco-studio-wasm`` wheel installed
+  automatically by ``mujoco-studio``.
+
 Bug fixes
 ^^^^^^^^^
 

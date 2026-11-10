@@ -42,6 +42,7 @@ include-package-data = false
 include = ["mujoco", "mujoco.*"]
 exclude = [
     "mujoco_full*",
+    "studio_wasm*",
     "mujoco._usd*",
     "mujoco.cmake*",
     "mujoco.codegen",
@@ -51,6 +52,7 @@ exclude = [
     "mujoco.sample.studio*",
     "mujoco.simulate*",
     "mujoco.studio*",
+    "mujoco.studio_wasm*",
     "mujoco.usd.MjcPhysics*",
 ]
 

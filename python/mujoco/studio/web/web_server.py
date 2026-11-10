@@ -45,9 +45,11 @@ import collections
 import datetime
 import enum
 import functools
+import importlib
 import json
 import logging
 import os
+import pathlib
 import queue
 import socket
 import struct
@@ -396,12 +398,20 @@ def _close_reason(text: str) -> str:
 def _find_static_files_dir() -> str | None:
   """Locate the web viewer static files.
 
-  The `dist` directory next to this file is populated by the Emscripten build
-  of the `web_client` target. This is the default for packaged installations.
+  Packaged installations serve the precompiled browser client from the
+  `mujoco-studio-wasm` package (`mujoco_studio_wasm.DIST_DIR`), while local
+  source/editable builds prefer a freshly built `dist/` next to this file.
 
   Development option: Set MUJOCO_WEB_VIEWER_DIST to serve from a different
   directory (e.g. a local Emscripten build tree). This allows rapid iteration
   on web_client changes without rebuilding and reinstalling the package.
+
+  Returns:
+    Path to the static files directory, or None if not found.
+
+  Raises:
+    RuntimeError: If `mujoco-studio-wasm` is installed with a version that does
+      not match `mujoco-core`.
   """
   env_dir = os.environ.get("MUJOCO_WEB_VIEWER_DIST")
   if env_dir:
@@ -411,9 +421,43 @@ def _find_static_files_dir() -> str | None:
         "[Http] MUJOCO_WEB_VIEWER_DIST is not a directory: %s", env_dir
     )
 
-  dist_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist")
-  if os.path.isdir(dist_dir):
-    return dist_dir
+  raw_here = pathlib.Path(os.path.abspath(__file__))
+  here = raw_here.resolve()
+  if not any(
+      part.lower() in ("site-packages", "dist-packages")
+      for part in (*raw_here.parts, *here.parts)
+  ):
+    dist_dir = here.parent / "dist"
+    if (dist_dir / "web_client.wasm").is_file():
+      return str(dist_dir)
+
+  try:
+    studio_wasm = importlib.import_module("mujoco_studio_wasm")
+  except ImportError:
+    return None
+
+  wasm_version = getattr(studio_wasm, "__version__", None)
+  try:
+    core_version = importlib.import_module("mujoco._version").__version__
+  except ImportError:
+    core_version = None
+  if (
+      wasm_version is not None
+      and core_version is not None
+      and wasm_version != core_version
+  ):
+    raise RuntimeError(
+        "Version mismatch between 'mujoco-studio-wasm'"
+        f" ({wasm_version}) and 'mujoco-core' ({core_version}). Please"
+        " upgrade all MuJoCo packages together:\n"
+        f"  pip install --upgrade 'mujoco-core=={core_version}'"
+        f" 'mujoco-studio=={core_version}'"
+        f" 'mujoco-studio-wasm=={core_version}'"
+    )
+
+  wasm_dist = getattr(studio_wasm, "DIST_DIR", None)
+  if wasm_dist and os.path.isdir(wasm_dist):
+    return str(wasm_dist)
 
   return None
 
@@ -1532,7 +1576,10 @@ class WebServer:
   def start(self) -> None:
     """Starts the server on a background daemon thread."""
     if not self.static_files_dir:
-      logger.warning("[Http] WARNING: Could not find web viewer static files.")
+      logger.warning(
+          "[Http] Could not find web viewer static files; install"
+          " 'mujoco-studio-wasm' or set MUJOCO_WEB_VIEWER_DIST."
+      )
       return
 
     logger.debug("[Http] Serving web viewer from: %s", self.static_files_dir)
