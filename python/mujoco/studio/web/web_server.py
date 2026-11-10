@@ -141,6 +141,10 @@ _GRANT_EXPIRY_SEC = 5.0
 # A /ui client must complete its Hello handshake within this window.
 _HANDSHAKE_TIMEOUT_SEC = 5.0
 
+# A replaced /state connection may be half-open after a network interruption.
+# Bound its closing handshake so stale sockets cannot remain open indefinitely.
+_RECONNECT_CLOSE_TIMEOUT_SEC = 1.0
+
 
 # A controller whose tab stops running (hidden or closed without a clean
 # disconnect) is released once someone is waiting for control. Detected by
@@ -650,7 +654,7 @@ def _run_server(
     broadcast_roster: Any = None
     grant_next: Any = None
 
-    # Strong references to fire-and-forget tasks (the grant-expiry watchdog):
+    # Strong references to fire-and-forget tasks (grant expiry and stale closes):
     # asyncio holds only a weak reference, so without this a task can be
     # garbage-collected mid-sleep and never run.
     background_tasks: set[asyncio.Task[Any]] = set()
@@ -981,9 +985,19 @@ def _run_server(
         logger.info("[StateWS] Session full; rejecting browser")
         await ws.close(_WS_CLOSE_SESSION_FULL, "session full")
         return
+      previous = state_clients.get(sid)
       state_clients[sid] = ws
       server._viewer_count = len(state_clients)  # pylint: disable=protected-access
       last_heartbeat[sid] = loop_time()
+      if previous is not None:
+        # Register the replacement first: the old handler's finally block must
+        # not remove the new connection's queue and heartbeat entries.
+        previous.close_timeout = _RECONNECT_CLOSE_TIMEOUT_SEC
+        task = asyncio.create_task(
+            previous.close(CloseCode.GOING_AWAY, "reconnected")
+        )
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
       logger.info("[StateWS] Browser connected (%d total)", len(state_clients))
       await broadcast_roster()
 
@@ -1073,21 +1087,20 @@ def _run_server(
               continue
             await handle_session_message(sid, message)
 
+      tasks = [
+          asyncio.create_task(send_payloads()),
+          asyncio.create_task(recv_messages()),
+      ]
       try:
-        done, pending = await asyncio.wait(
-            [
-                asyncio.create_task(send_payloads()),
-                asyncio.create_task(recv_messages()),
-            ],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        for task in pending:
-          task.cancel()
-        for task in done:
-          task.exception()  # Retrieve to avoid "exception never retrieved".
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
       except (ConnectionClosed, ConnectionError):
         pass
       finally:
+        # Shutdown may cancel the handler while its streams are still running.
+        # Always join them and retrieve their exceptions, including on cancel.
+        for task in tasks:
+          task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         state_waiters.discard(state_ready)
         # Only tear down if this socket is still the one registered for sid: a
         # reconnect may have already replaced it, and that newer connection now
