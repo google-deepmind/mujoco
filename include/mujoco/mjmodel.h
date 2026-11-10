@@ -151,7 +151,7 @@ typedef struct mjVisual_ {        // visualization options
     int   numquads;               // number of quads for box rendering
   } quality;
 
-  struct {                        // head light
+  struct mjVisualHeadlight_ {      // head light
     float ambient[3];             // ambient rgb (alpha=1)
     float diffuse[3];             // diffuse rgb (alpha=1)
     float specular[3];            // specular rgb (alpha=1)
@@ -194,7 +194,7 @@ typedef struct mjVisual_ {        // visualization options
     float frustum;                // frustum zfar plane
   } scale;
 
-  struct {                        // color of decor elements
+  struct mjVisualRgba_ {           // color of decor elements
     float fog[4];                 // fog
     float haze[4];                // haze
     float force[4];               // external force
