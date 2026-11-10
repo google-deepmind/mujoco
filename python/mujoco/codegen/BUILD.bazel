@@ -12,12 +12,14 @@ py_library(
     name = "code_builder",
     srcs = ["code_builder.py"],
     imports = [".."],
+    type_checking = True,
     visibility = ["//:visibility"],
 )
 
 py_binary(
     name = "generate_enum_traits",
     srcs = ["generate_enum_traits.py"],
+    type_checking = True,
     deps = [
         "//python/mujoco/introspect:ast_nodes",
         "//python/mujoco/introspect:enums",
@@ -28,6 +30,7 @@ py_binary(
 py_binary(
     name = "generate_function_traits",
     srcs = ["generate_function_traits.py"],
+    type_checking = True,
     deps = [
         "//python/mujoco/introspect:ast_nodes",
         "//python/mujoco/introspect:functions",
@@ -38,6 +41,7 @@ py_binary(
 py_binary(
     name = "generate_spec_bindings",
     srcs = ["generate_spec_bindings.py"],
+    type_checking = True,
     deps = [
         "//python/mujoco/introspect:ast_nodes",
         "//python/mujoco/introspect:enums",

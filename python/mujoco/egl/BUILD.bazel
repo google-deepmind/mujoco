@@ -13,6 +13,7 @@ py_library(
         "__init__.py",
         "egl_ext.py",
     ],
+    type_checking = True,
     visibility = ["//python/mujoco:visibility"],
     deps = ["//python/mujoco/pypi:pyopengl"],
 )

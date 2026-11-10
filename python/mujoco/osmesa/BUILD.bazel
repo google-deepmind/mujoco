@@ -8,6 +8,8 @@ licenses(["notice"])
 py_library(
     name = "osmesa",
     srcs = ["__init__.py"],
+    strict_deps = False,
+    type_checking = True,
     visibility = ["//python/mujoco:visibility"],
     deps = ["//python/mujoco/pypi:pyopengl"],
 )

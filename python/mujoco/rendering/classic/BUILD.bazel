@@ -12,6 +12,7 @@ py_library(
         "gl_context.py",
         "renderer.py",
     ],
+    type_checking = True,
     visibility = ["//python/mujoco:visibility"],
     deps = [
         "//python/mujoco/cgl",
