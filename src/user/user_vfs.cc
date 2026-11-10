@@ -453,6 +453,10 @@ class BufferProvider : public mjpResourceProvider {
     }
 
     BufferProvider* provider = new BufferProvider(std::forward<Args>(args)...);
+    if (!provider->loaded_) {
+      delete provider;
+      return static_cast<int>(mujoco::user::VFS::kFailedToLoad);
+    }
     provider->mount = [](mjResource* res) { return static_cast<int>(mujoco::user::VFS::kSuccess); };
     provider->unmount = [](mjResource* res) {
       delete (BufferProvider*)res->provider;
@@ -492,7 +496,7 @@ class BufferProvider : public mjpResourceProvider {
 
     mujoco::user::FilePath file_path(dir ? dir : "", filename);
     path_     = file_path.StripPath().Lower();
-    contents_ = mujoco::user::FileToMemory(file_path.c_str());
+    contents_ = mujoco::user::FileToMemory(file_path.c_str(), &loaded_);
 
     static constexpr std::uint64_t prime = 0x100000001b3;
 
@@ -523,6 +527,7 @@ class BufferProvider : public mjpResourceProvider {
   mujoco::user::FilePath    path_;
   std::vector<std::uint8_t> contents_;
   std::uint64_t             hash_ = 0;
+  bool                      loaded_ = true;
 };
 
 }  // namespace
