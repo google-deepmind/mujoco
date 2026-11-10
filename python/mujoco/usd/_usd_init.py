@@ -18,6 +18,7 @@ import ctypes
 import glob
 import importlib
 import os
+import sys
 import warnings
 
 import mujoco
@@ -29,7 +30,7 @@ try:
 except ImportError:
   _plug = None
 
-__version__ = '4.0.0'
+__version__ = '4.0.1'
 
 if _core_version != __version__:
   raise ImportError(
@@ -82,7 +83,14 @@ def register_plugins() -> None:
               pass
 
   if hasattr(os, 'add_dll_directory'):
-    dll_dirs = [os.path.dirname(mujoco.__file__), usd_dir]
+    dll_dirs = [
+        os.path.dirname(mujoco.__file__),
+        usd_dir,
+        sys.base_prefix,
+        sys.prefix,
+    ]
+    if sys.executable:
+      dll_dirs.append(os.path.dirname(sys.executable))
     if _plug is not None and getattr(_plug, '__file__', None):
       dll_dirs.append(os.path.dirname(os.path.dirname(_plug.__file__)))
     for dll_dir in dll_dirs:

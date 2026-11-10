@@ -1,0 +1,34 @@
+<mujoco model="Infinite plane UV test">
+  <!-- Verifies that an infinite plane with a 2D texture and skybox horizon disk
+       anchors its world-space UVs to the world origin even when the plane's own
+       geom_pos is displaced in XY:
+         - `floor` is an infinite plane at pos="13.7 -8.4 0" with texrepeat="1 1".
+         - `origin_tile` is a 2x2 finite plane centered at (0, 0, 0.01) with
+           texuniform="true" texrepeat="1 1", marked by four corner spheres at
+           (+-1, +-1). Its A0..H7 pattern must align seamlessly across all four
+           borders with the infinite floor underneath it. -->
+
+  <visual>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.75 0.75 0.75" specular="0.1 0.1 0.1"/>
+  </visual>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1=".18 .22 .30" rgb2=".55 .58 .62" width="32" height="512"/>
+    <texture file="test-pattern.png" type="2d"/>
+    <material name="floor" texture="test-pattern" texrepeat="1 1"/>
+    <material name="origin_ref" texture="test-pattern" texuniform="true" texrepeat="1 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="2 -3 5" dir="-0.3 0.5 -1" diffuse="0.9 0.9 0.9" castshadow="true"/>
+    <camera name="default" pos="0 -3.8 1.5" xyaxes="1 0 0 0 0.259 0.966"/>
+
+    <geom name="floor" type="plane" pos="13.7 -8.4 0" size="0 0 1" material="floor"/>
+    <geom name="origin_tile" type="plane" pos="0 0 0.01" size="1 1 0.01" material="origin_ref"/>
+
+    <geom name="c_nw" type="sphere" pos="-1  1 0.05" size="0.05" rgba="0.95 0.25 0.20 1"/>
+    <geom name="c_ne" type="sphere" pos=" 1  1 0.05" size="0.05" rgba="0.20 0.85 0.30 1"/>
+    <geom name="c_sw" type="sphere" pos="-1 -1 0.05" size="0.05" rgba="0.25 0.55 0.95 1"/>
+    <geom name="c_se" type="sphere" pos=" 1 -1 0.05" size="0.05" rgba="0.95 0.80 0.20 1"/>
+  </worldbody>
+</mujoco>

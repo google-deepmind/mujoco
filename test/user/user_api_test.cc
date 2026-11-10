@@ -10558,5 +10558,28 @@ TEST_F(MujocoTest, RecompileQuatActuatorMismatchedSavedCtrlKeepsIdentity) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, GetInStringVec) {
+  mjSpec* spec = mj_makeSpec();
+  mjsMaterial* mat = mjs_addMaterial(spec, nullptr);
+  mjs_setInStringVec(mat->textures, mjTEXROLE_RGB, "tex_rgb");
+  mjs_setInStringVec(mat->textures, mjTEXROLE_ORM, "tex_orm");
+
+  EXPECT_STREQ(mjs_getInStringVec(mat->textures, mjTEXROLE_RGB), "tex_rgb");
+  EXPECT_STREQ(mjs_getInStringVec(mat->textures, mjTEXROLE_ORM), "tex_orm");
+  EXPECT_STREQ(mjs_getInStringVec(mat->textures, mjTEXROLE_NORMAL), "");
+  EXPECT_EQ(mjs_getInStringVec(mat->textures, -1), nullptr);
+  EXPECT_EQ(mjs_getInStringVec(mat->textures, mjNTEXROLE), nullptr);
+
+  mjsSkin* skin = mjs_addSkin(spec);
+  EXPECT_EQ(mjs_getInStringVec(skin->bodyname, 0), nullptr);
+  mjs_appendString(skin->bodyname, "b0");
+  mjs_appendString(skin->bodyname, "b1");
+  EXPECT_STREQ(mjs_getInStringVec(skin->bodyname, 0), "b0");
+  EXPECT_STREQ(mjs_getInStringVec(skin->bodyname, 1), "b1");
+  EXPECT_EQ(mjs_getInStringVec(skin->bodyname, 2), nullptr);
+
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco

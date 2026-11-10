@@ -1,12 +1,17 @@
 ---
 name: mujoco-accelerated
 description: >-
-  GPU and TPU batch simulation, MJX (JAX), MJWarp (CUDA), parallel rollouts
+  MuJoCo GPU and TPU batch simulation with MJX (mujoco.mjx in JAX) and MJWarp
+  (mujoco_warp in CUDA): parallel rollouts
   (jax.vmap), trajectory scan (jax.lax.scan), differentiability, device memory
   (put_model, put_data), static contact sizing (max_contact_points,
   max_geom_pairs, nconmax, njmax), float32 precision, XLA compilation caching.
-  Use for RL environment batches, GPU rollouts, differentiable physics.
-  Do NOT use for CPU simulation, noslip/PGS solvers (mujoco-python), cross-engine parity debugging (mujoco-parity), rendering (mujoco-rendering), or GUI (mujoco-gui).
+  Use only for MuJoCo MJX or MJWarp GPU/TPU batch rollouts, RL environments, and
+  differentiable MuJoCo physics. Don't use for custom non-MuJoCo JAX or CUDA
+  Warp simulations (e.g. custom 2D games, molecular dynamics, orbital mechanics,
+  DEM granular solvers, or shallow-water PDEs that do not import `mujoco.mjx` or
+  `mujoco_warp`), CPU simulation (mujoco-python), cross-engine parity debugging
+  (mujoco-parity), rendering (mujoco-rendering), or GUI (mujoco-gui).
 ---
 
 # MuJoCo Accelerated: MJX & MJWarp GPU Backends

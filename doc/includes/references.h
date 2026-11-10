@@ -1667,6 +1667,7 @@ typedef struct mjrfReflectionOpts_ {
 typedef struct mjrfDepthOfFieldOpts_ {
   mjtBool enable;                       // enables depth of field
   float blur_strength;                  // strength of blurring [0, 1]; defaults to 1.0
+  float focus_distance;                 // distance from camera to focal plane; defaults to 1.0
   float aspect_ratio;                   // aspect ratio of the circle of confusion; defaults to 1.0
   float max_aperture_diameter;          // maximum aperture diameter; defaults to 0.01
 } mjrfDepthOfFieldOpts;
@@ -1728,6 +1729,7 @@ typedef struct mjrfRenderOpts_ {
   mjrfShadowOpts shadow;
   mjrfSkyboxOpts skybox;
   mjrfVignetteOpts vignette;
+  mjtBool post_processing;        // all post-processing effects; enabled by default
 } mjrfRenderOpts;
 typedef struct mjrfRenderRequest_ {
   mjrfScene* scene;                  // scene to render
@@ -4524,6 +4526,7 @@ void mjs_setDouble(mjDoubleVec* dest, const double* array, int size);
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 mjString* mjs_getName(mjsElement* element);
 const char* mjs_getString(const mjString* source);
+const char* mjs_getInStringVec(const mjStringVec* source, int i);
 const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 int mjs_getWrapNum(const mjsTendon* tendonspec);
 mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);

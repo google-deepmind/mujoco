@@ -14,8 +14,6 @@
 
 #include "experimental/filament/compat/scene_geom_util.h"
 
-#include <cmath>
-#include <cstdint>
 #include <cstring>
 #include <memory>
 
@@ -213,26 +211,7 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
 
       const bool is_infinite_plane =
           geom.type == mjGEOM_PLANE && (geom.size[0] <= 0 || geom.size[1] <= 0);
-      if (is_infinite_plane) {
-        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
-
-        const float dot_pos_axis_x = geom.pos[0] * geom.mat[0] +
-                                     geom.pos[1] * geom.mat[3] +
-                                     geom.pos[2] * geom.mat[6];
-        const float dot_pos_axis_y = geom.pos[0] * geom.mat[1] +
-                                     geom.pos[1] * geom.mat[4] +
-                                     geom.pos[2] * geom.mat[7];
-
-        material.uv_scale[0] *= plane_scale;
-        material.uv_scale[1] *= plane_scale;
-        // The vertex UVs in PlaneBuilder are u0 = 0.5*x + 0.5, v0 = -0.5*y + 0.5.
-        // To keep the world-space texture coordinate u = 0.5*worldX*texrepeat - 0.5
-        // independent of the snapped geomPos, uv_offset must compensate by 0.5*dot_pos.
-        material.uv_offset[0] =
-            (0.5f * dot_pos_axis_x - 0.5f * plane_scale) * tex_repeat[0] - 0.5f;
-        material.uv_offset[1] =
-            (-0.5f * dot_pos_axis_y - 0.5f * plane_scale) * tex_repeat[1] - 0.5f;
-      } else {
+      if (!is_infinite_plane) {
         if ((geom.type == mjGEOM_HFIELD || geom.type == mjGEOM_MESH ||
              geom.type == mjGEOM_SDF) &&
             geom.dataid >= 0 && !geom.texcoord) {

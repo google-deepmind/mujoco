@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 4000000
+#define mjVERSION_HEADER 4000001
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -691,7 +691,8 @@ MJAPI void mj_loadPluginLibrary(const char* path);
 
 // Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
 // are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
-// for each dynamic library encountered that registers plugins.
+// for each dynamic library encountered that registers plugins. A library that fails to load is
+// skipped with a warning.
 MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
 
 // Return version number: 1.0.2 is encoded as 102.
@@ -1958,6 +1959,9 @@ MJAPI mjString* mjs_getName(mjsElement* element);
 
 // Get string contents.
 MJAPI const char* mjs_getString(const mjString* source);
+
+// Get entry in string vector, or NULL if out of bounds.
+MJAPI const char* mjs_getInStringVec(const mjStringVec* source, int i);
 
 // Get double array contents and optionally its size.
 // Nullable: size

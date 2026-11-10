@@ -18,8 +18,8 @@ separating the viewer and simulation.
 
 The WebViewer streams UI and simulation state to a browser:
 
-  * The ImGui UI is built into a headless ImGui context and streamed to the
-    browser with the NetImgui protocol through a WebSocket-to-TCP proxy.
+  * The ImGui UI is built into a headless ImGui context, whose frames are
+    streamed to the browser over a WebSocket using the Studio UI wire codec.
     Input captured in the browser flows back over the same connection and is
     injected into the headless context, so all viewer-side plugins work
     unmodified.
@@ -31,8 +31,7 @@ The WebViewer streams UI and simulation state to a browser:
     scene with Filament and overlays the remote ImGui draw data.
   * Everything is served through one public port (default 8080): the page and
     model over HTTP, the UI stream at path /ui and the state stream at /state.
-    Exposing or tunneling that single port exposes the whole viewer; the other
-    ports are loopback-internal.
+    Exposing or tunneling that single port exposes the whole viewer.
   * Models the sim announces ahead of time (``PreloadModelEvent``) are served
     by content hash as well, so browsers download them in the background and
     switch to them instantly when they become the current model.
@@ -45,6 +44,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 from typing import Any
 import webbrowser
 import zlib
@@ -65,6 +65,10 @@ from mujoco.studio.implot import implot
 
 # File extensions a dropped file may load as a model.
 _MODEL_EXTENSIONS = ('.xml', '.urdf', '.mjb', '.mjz', '.zip')
+
+# Target interval between /state broadcasts when no /ui controller paces the
+# viewer loop (matches HeadlessUi's 60 Hz frame rate).
+_STATE_FRAME_PERIOD = 1.0 / 60.0
 
 _THEMES = {
     'light': ux.GuiTheme.LIGHT,
@@ -188,7 +192,6 @@ class WebViewer(viewer_protocol.Viewer):
       perturb: mujoco.MjvPerturb | None = None,
       render_flags: ux.RenderFlags | None = None,
       extra_geoms: list[mujoco.MjvGeom] | None = None,
-      ui_tcp_port: int = 0,
   ) -> None:
     """Initializes the WebViewer.
 
@@ -202,9 +205,6 @@ class WebViewer(viewer_protocol.Viewer):
       perturb: Perturbation parameters. Internal object is created if None.
       render_flags: Render flags. Internal object is created if None.
       extra_geoms: List of extra geoms. Internal list is created if None.
-      ui_tcp_port: Loopback TCP port the headless NetImgui client connects to. 0
-        (the default) uses an OS-assigned ephemeral port — both endpoints live
-        in this process tree, so no fixed number is needed.
     """
     super().__init__(
         config,
@@ -222,20 +222,16 @@ class WebViewer(viewer_protocol.Viewer):
     # (e.g. a ViewerConfig.host field and a --host flag) for all interfaces, so
     # that the viewer is not reachable from the network by default.
     self._host = '::'
-    # Bind both listening sockets up front, in this process: bind conflicts
-    # surface here as one clear error, and the loopback port is OS-assigned so
-    # viewer instances can never collide on it.
+    # Bind the listening socket up front, in this process, so a bind conflict
+    # surfaces here as one clear error.
     self._http_sock = web_server.bind_public_socket(
         self._host, config.http_port
     )
     self._http_port = self._http_sock.getsockname()[1]
-    self._tcp_sock = web_server.bind_loopback_socket(ui_tcp_port)
-    self._ui_tcp_port = self._tcp_sock.getsockname()[1]
 
-    # Headless ImGui context streaming UI draw data via NetImgui.
+    # Headless ImGui context whose frames the web server streams at /ui.
     self._headless_ui = headless_ui.HeadlessUi(
         config.title or 'MuJoCo Web Viewer',
-        self._ui_tcp_port,
         _find_assets_dir(),
     )
 
@@ -251,6 +247,8 @@ class WebViewer(viewer_protocol.Viewer):
 
     # The persistent single-port server (HTTP + /ui + /state + /drop).
     self._model_crc32 = 0
+    self._model_dirty = False
+    self._next_state_time = 0.0
 
     # The browser moves the camera locally at the browser's frame rate rather
     # than once per network round trip.
@@ -272,9 +270,15 @@ class WebViewer(viewer_protocol.Viewer):
     # Dispatch lifecycle event so handlers can cache the viewer reference.
     try:
       self.dispatch(viewer_protocol.ViewerInitEvent(viewer=self))
+      self._publish_state()
     except BaseException:
       self.close()  # The server is already up; nothing else will stop it.
       raise
+
+  @property
+  def port(self) -> int:
+    """Public HTTP/WebSocket port bound by this viewer."""
+    return self._http_port
 
   # ---------------------------------------------------------------------------
   # Server lifecycle.
@@ -295,7 +299,7 @@ class WebViewer(viewer_protocol.Viewer):
 
     self._web_server = web_server.WebServer(
         http_sock=self._http_sock,
-        tcp_sock=self._tcp_sock,
+        ui=self._headless_ui,
         mjb_data=mjb_data,
         drop_queue=self._drop_queue,
     )
@@ -305,6 +309,7 @@ class WebViewer(viewer_protocol.Viewer):
     """Swaps the model bytes served at /model without restarting the server."""
     mjb_data = self._serialize_model()
     self._model_crc32 = zlib.crc32(mjb_data)
+    self._model_dirty = True
     if self._web_server is not None:
       self._web_server.update_model(mjb_data, self._model_crc32)
 
@@ -373,41 +378,68 @@ class WebViewer(viewer_protocol.Viewer):
         self._client_camera.apply(self.camera, camera)
     return frame
 
+  def _publish_state(self, *, has_ui_frame: bool = False) -> None:
+    """Serializes and publishes the current scene state to /state."""
+    if self._web_server is None:
+      return
+    now = time.monotonic()
+    if (
+        has_ui_frame
+        or not (now - _STATE_FRAME_PERIOD < self._next_state_time <= now)
+    ):
+      self._next_state_time = now + _STATE_FRAME_PERIOD
+    else:
+      self._next_state_time += _STATE_FRAME_PERIOD
+    self._model_dirty = False
+
+    io = imgui.GetIO() if has_ui_frame else None
+    state_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)
+    state_size = mujoco.mj_stateSize(self.model, state_sig)
+    state = np.empty(state_size, np.float64)
+    mujoco.mj_getState(self.model, self.data, state, state_sig)
+    payload = state_payload.serialize_state_payload(
+        self._model_crc32,
+        state_sig,
+        state.tobytes(),
+        self.camera,
+        self.perturb,
+        self.vis_options,
+        self.model,
+        list(self.render_flags.flags),
+        self.extra_geoms[: state_payload.MAX_EXTRA_GEOMS],
+        state_payload.ViewerInputState(
+            mouse_focus=io is not None and not io.WantCaptureMouse,
+            camera_index=self.camera_index,
+            keyboard_focus=io is not None and not io.WantCaptureKeyboard,
+            camera_generation=self._client_camera.update_generation(
+                self.camera
+            ),
+        ),
+    )
+    self._web_server.update_state(payload)
+
   def sync(self) -> None:
     """Streams state to the browser and ends the headless ImGui frame."""
-    if self._web_server is not None:
-      state_sig = int(mujoco.mjtState.mjSTATE_INTEGRATION)
-      state_size = mujoco.mj_stateSize(self.model, state_sig)
-      state = np.empty(state_size, np.float64)
-      mujoco.mj_getState(self.model, self.data, state, state_sig)
-      payload = state_payload.serialize_state_payload(
-          self._model_crc32,
-          state_sig,
-          state.tobytes(),
-          self.camera,
-          self.perturb,
-          self.vis_options,
-          self.model,
-          list(self.render_flags.flags),
-          self.extra_geoms[: state_payload.MAX_EXTRA_GEOMS],
-          state_payload.ViewerInputState(
-              mouse_focus=not imgui.GetIO().WantCaptureMouse,
-              camera_index=self.camera_index,
-              keyboard_focus=not imgui.GetIO().WantCaptureKeyboard,
-              camera_generation=self._client_camera.update_generation(
-                  self.camera
-              ),
-          ),
-      )
-      self._web_server.update_state(payload)
+    self._publish_state(has_ui_frame=True)
 
-    # Finish the ImGui frame; NetImgui sends the draw data to the browser.
+    # Finish the ImGui frame and send it to the browser.
     self._headless_ui.end_frame()
+    if self._web_server is not None:
+      self._web_server.notify_ui_frame()
+
+  def sync_idle(self) -> None:
+    """Streams state to spectators when no /ui controller drives frames."""
+    if self._web_server is None:
+      return
+    if self._model_dirty or (
+        self._web_server.viewer_count > 0
+        and time.monotonic() >= self._next_state_time
+    ):
+      self._publish_state()
 
   def close(self) -> None:
     self._stop_server()
     self._http_sock.close()
-    self._tcp_sock.close()
     if self._drop_dir is not None:
       shutil.rmtree(self._drop_dir, ignore_errors=True)
       self._drop_dir = None
@@ -465,7 +497,7 @@ class WebViewer(viewer_protocol.Viewer):
   def upload_image(
       self, tex_id: int, img: str | bytes, width: int, height: int, bpp: int
   ) -> int:
-    """Uploads an image to the browser over the NetImgui texture channel."""
+    """Uploads an image to the browser over the UI stream."""
     if isinstance(img, str):
       img = img.encode('latin-1')
     return self._headless_ui.upload_image(tex_id, img, width, height, bpp)

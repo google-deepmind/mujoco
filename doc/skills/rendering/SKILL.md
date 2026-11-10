@@ -1,12 +1,16 @@
 ---
 name: mujoco-rendering
 description: >-
-  Offscreen image rendering, Python Renderer class, C++ pipeline (mjrContext,
-  mjvScene, mjr_render, mjr_readPixels), RGB, metric depth maps, segmentation
-  masks (mjtObj), offwidth/offheight framebuffer sizing, MUJOCO_GL (osmesa, egl),
-  cameras (fixed, tracking, free, MjvCamera), scene options (geomgroup, flags).
-  Use for headless camera rendering, dataset recording, visual observations.
-  Do NOT use for interactive viewers/Studio (mujoco-studio) or ImGui controls (mujoco-gui).
+  MuJoCo offscreen image rendering using mujoco.Renderer in Python and the
+  MuJoCo C/C++ rendering pipeline (mjrContext, mjvScene, mjr_render,
+  mjr_readPixels): RGB, metric depth maps, segmentation masks (mjtObj), MJCF
+  offwidth/offheight framebuffer sizing, MUJOCO_GL (osmesa, egl), MuJoCo
+  cameras (fixed, tracking, free, MjvCamera), and mjvOption flags/geomgroup.
+  Use only for headless camera rendering, dataset recording, and visual
+  observations in MuJoCo simulations. Don't use for generic OpenGL/EGL/OSMesa
+  offscreen rendering, glReadPixels depth/segmentation post-processing, or
+  synthetic dataset pipelines that do not use the `mujoco` library, or for
+  interactive viewers/Studio (mujoco-studio) or ImGui controls (mujoco-gui).
 ---
 
 # MuJoCo Rendering: Cameras, Contexts & Offscreen Buffers

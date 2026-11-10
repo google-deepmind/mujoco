@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file implements the Web Viewer Browser Client. NetImgui is used to
-// transmit remote ImGui draw data in a browser and the filament renderer is
-// used to render the UI and the 3D scene.
+// This file implements the Web Viewer Browser Client. The Studio UI wire codec
+// streams remote ImGui draw data over /ui, and the Filament renderer draws
+// both the UI and the 3D scene.
 
 #include <emscripten.h>
 #include <emscripten/bind.h>
@@ -54,12 +54,12 @@
 #include "studio/ux/imgui_widgets.h"
 #include "studio/ux/interaction.h"
 #include "studio/ux/theme.h"
-#include <NetImgui_Api.h>
-#include "google/logging.h"
+#include "logging.h"
 #include "state_payload.h"
 #include "web_client_local_ui.h"
 #include "web_client_remote_ui.h"
 #include "web_client_session.h"
+#include "web_client_websocket.h"
 
 #if !defined(__EMSCRIPTEN__)
 #error "web_client.cc is only supported for Emscripten builds"
@@ -72,15 +72,16 @@
 // This stub eliminates that cost entirely.
 extern "C" GLenum __wrap_glGetError(void) { return GL_NO_ERROR; }
 
-using mujoco::studio::DisconnectNotice;
-using mujoco::studio::GuiTheme;
-using mujoco::studio::RemoteUi;
-using mujoco::studio::RemoteUiState;
-using mujoco::studio::RoleWindow;
-using mujoco::studio::Session;
-using mujoco::studio::SessionRole;
-using mujoco::studio::SessionView;
-using mujoco::studio::StatePayloadView;
+using ::mujoco::studio::DisconnectNotice;
+using ::mujoco::studio::GuiTheme;
+using ::mujoco::studio::OpenWebSocket;
+using ::mujoco::studio::RemoteUi;
+using ::mujoco::studio::RemoteUiState;
+using ::mujoco::studio::RoleWindow;
+using ::mujoco::studio::Session;
+using ::mujoco::studio::SessionRole;
+using ::mujoco::studio::SessionView;
+using ::mujoco::studio::StatePayloadView;
 
 // How a spectating page drives its camera. The free modes control the local
 // camera directly; kSpecCamFollow mirrors the controller's camera from the
@@ -99,10 +100,10 @@ struct Telemetry {
 };
 
 struct ModelDownloadStatus {
-  bool is_downloading = true;
   size_t bytes_downloaded = 0;
   size_t total_bytes = 0;
   int retry_count = 0;
+  bool is_downloading = true;
 };
 
 // The implementation of every interface needed by the session and remote UI.
@@ -454,7 +455,9 @@ void AppCallbacks::OnModelChanged(uint32_t model_crc32) {
   EM_ASM({ reloadModel($0); }, model_crc32);
 }
 
-void AppCallbacks::ConnectRemoteUi() { g_app.remote_ui.Connect(WsUrl("/ui")); }
+void AppCallbacks::ConnectRemoteUi() {
+  g_app.remote_ui.Connect(OpenWebSocket(WsUrl("/ui")));
+}
 
 void AppCallbacks::ShutdownRemoteUi() { g_app.remote_ui.Shutdown(); }
 
@@ -660,7 +663,7 @@ void MainLoopImpl() {
       g_app.frame_count - g_app.last_state_retry_frame > state_retry_interval) {
     g_app.last_state_retry_frame = g_app.frame_count;
     LOG(Info, "State WebSocket down; reconnecting...");
-    g_app.session.Connect(WsUrl("/state"));
+    g_app.session.Connect(OpenWebSocket(WsUrl("/state")));
   }
 
   // Pass the remote UI (/ui) WebSocket state to the session state machine.
@@ -671,7 +674,9 @@ void MainLoopImpl() {
   if (g_app.remote_ui.HasSocket()) {
     switch (g_app.remote_ui.ConnectionState()) {
       case RemoteUi::ReadyState::kOpen:
-        ui_state = RemoteUiState::kOpen;
+        ui_state = g_app.remote_ui.IsSessionAccepted()
+                       ? RemoteUiState::kOpen
+                       : RemoteUiState::kConnecting;
         break;
       case RemoteUi::ReadyState::kClosed:
       case RemoteUi::ReadyState::kError:
@@ -710,12 +715,14 @@ void MainLoopImpl() {
   // For the controller, the camera moves here (HandleControllerCameraInput) and
   // is sent to the headless viewer, while all other scene interaction
   // (perturbation, picking) is handled by the viewer: CaptureAndSendInput()
-  // forwards this frame's input over NetImgui, and the resulting state streams
-  // back over the state WebSocket (see ApplyStatePayload). Spectators have no
-  // input channel; in a free camera mode they drive their local camera
-  // directly.
+  // forwards this frame's input over /ui, and the resulting state streams back
+  // over the state WebSocket (see ApplyStatePayload). Spectators have no input
+  // channel; in a free camera mode they drive their local camera directly.
   g_app.remote_ui.CaptureAndSendInput();
   if (g_app.session.Role() == SessionRole::kControlling) {
+    if (!ImGui::GetIO().WantCaptureMouse) {
+      ImGui::SetMouseCursor(g_app.remote_ui.MouseCursor());
+    }
     HandleControllerCameraInput();
   } else {
     g_app.camera_generation_valid = false;
@@ -876,8 +883,7 @@ void SetupScene(mjModel* m) {
         });
   }
 
-  // Invalidate all texture caches (ImGui font atlas + NetImgui streamed
-  // textures) and re-upload them on the new Filament context.
+  // Upload any CPU-buffered streamed UI textures without GPU handles yet.
   g_app.remote_ui.UpdateTextures();
 
   // Only initialize default camera/perturb/vis_options before the state
@@ -1073,7 +1079,7 @@ void FinishModelLoad() {
   }
   // Connect the state WebSocket to receive simulation state from Python.
   if (!g_app.session.HasSocket()) {
-    g_app.session.Connect(WsUrl("/state"));
+    g_app.session.Connect(OpenWebSocket(WsUrl("/state")));
   }
   g_app.download_status.is_downloading = false;
   LOG(Info, "Model loaded and scene initialized successfully!");
@@ -1201,7 +1207,6 @@ void StartApp() {
     SetupScene(g_app.model_holder->model());
   }
 
-  NetImgui::Internal::Network::Startup();
   SDL_StartTextInput();
 
   const char* saved_fps_str = emscripten_run_script_string(
@@ -1218,7 +1223,7 @@ void StartApp() {
   g_app.callbacks.SetFpsCap(saved_fps_cap);
 
   // The UI stream is a path on the page's own host and port.
-  g_app.remote_ui.Connect(WsUrl("/ui"));
+  g_app.remote_ui.Connect(OpenWebSocket(WsUrl("/ui")));
 
   emscripten_set_main_loop(MainLoop, 0, 0);
 }

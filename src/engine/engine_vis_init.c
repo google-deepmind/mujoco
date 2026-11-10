@@ -316,6 +316,8 @@ void mjv_defaultScene(mjvScene* scn) {
 
 // set default visualization options
 void mjv_defaultOption(mjvOption* vopt) {
+  memset(vopt, 0, sizeof(mjvOption));
+
   vopt->label = mjLABEL_NONE;
   vopt->frame = mjFRAME_NONE;
 

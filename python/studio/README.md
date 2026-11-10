@@ -9,7 +9,8 @@
 
 This package provides the MuJoCo Studio interactive viewer (desktop and web) and
 Filament rendering bindings (`mujoco.studio` and `mujoco.mjrf`) for the
-[MuJoCo physics engine](https://github.com/google-deepmind/mujoco).
+[MuJoCo](https://mujoco.org) physics engine
+([GitHub](https://github.com/google-deepmind/mujoco)).
 
 It is automatically installed when you install the full `mujoco` package:
 
@@ -17,7 +18,8 @@ It is automatically installed when you install the full `mujoco` package:
 pip install mujoco
 ```
 
-Or you can install it directly alongside `mujoco-core`:
+Or you can install it directly (which automatically installs `mujoco-core` and
+the `mujoco-studio-wasm` web viewer client):
 
 ```sh
 pip install mujoco-studio

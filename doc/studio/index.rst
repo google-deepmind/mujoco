@@ -30,20 +30,9 @@ Quick Start
      python -m mujoco.studio.viewer --model=humanoid.xml --gfx=web  # headless web viewer
 
 - **Inside a Python simulation loop**: Attach a non-blocking viewer (``launch_native.launch`` or ``launch_web.launch``)
-  without locking ``model`` or ``data``:
-
-  .. code-block:: python
-
-     import mujoco
-     from mujoco.studio import app as studio_app, launch_native  # or launch_web
-
-     model = mujoco.MjModel.from_xml_path('humanoid.xml')
-     data = mujoco.MjData(model)
-
-     with launch_native.launch(plugins=[studio_app.App()]) as handle:
-       while handle.is_running():
-         model, data = handle.sync(model, data)
-         mujoco.mj_step(model, data)
+  without locking ``model`` or ``data``; see `custom_sim_loop.py
+  <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/sample/studio/custom_sim_loop.py>`__ and
+  :ref:`Non-Blocking Mode <StudioExecutionModes>`.
 
 .. _StudioOverview:
 
@@ -118,7 +107,7 @@ Legacy Visualizers
      - :ref:`Filament <FilamentRendering>` (OpenGL, Vulkan, WebGL, headless/software)
    * - **Web Support**
      - None (requires local display or X11/VNC)
-     - :ref:`MuJoCo Live <StudioLive>` (standalone WASM) & Python :ref:`WebViewer <StudioWebViewer>` (NetImgui + WASM)
+     - :ref:`MuJoCo Live <StudioLive>` (standalone WASM) & Python :ref:`WebViewer <StudioWebViewer>` (streamed ImGui + WASM)
    * - **Architecture**
      - Monolithic loop with coupled UI and physics
      - Composable :ref:`ViewerPlugin / SimPlugin <StudioPythonPlugins>` classes (Python) and :ref:`callback plugins

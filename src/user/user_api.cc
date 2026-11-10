@@ -2978,6 +2978,13 @@ const char* mjs_getString(const mjString* source) {
 }
 
 
+// get entry in string vector
+const char* mjs_getInStringVec(const mjStringVec* source, int i) {
+  if (i < 0 || static_cast<size_t>(i) >= source->size()) { return nullptr; }
+  return (*source)[i].c_str();
+}
+
+
 // get double array
 const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
   if (size) { *size = source->size(); }

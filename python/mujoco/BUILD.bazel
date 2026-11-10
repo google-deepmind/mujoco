@@ -22,6 +22,8 @@ exports_files([
     "LICENSE",
     "setup.py",
     "mujoco_full/setup.py",
+    "studio_wasm/mujoco_studio_wasm/__init__.py",
+    "studio_wasm/setup.py",
     "build_requirements.txt",
     "CMakeLists.txt",
 ])

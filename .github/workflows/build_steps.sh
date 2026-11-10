@@ -404,6 +404,10 @@ make_python_sdist() {
     (cd studio && ./make_sdist.sh) &&
     (cd usd && ./make_sdist.sh) &&
     (cd mujoco_full && ./make_sdist.sh) &&
+    if [[ -f "mujoco/studio/web/dist/web_client.wasm" ]]; then
+        (cd studio_wasm && ./make_sdist.sh) &&
+        mv studio_wasm/dist/mujoco_studio_wasm-*.tar.gz dist/
+    fi &&
     mv studio/dist/mujoco_studio-*.tar.gz usd/dist/mujoco_usd-*.tar.gz mujoco_full/dist/mujoco-*.tar.gz dist/
 }
 
@@ -447,6 +451,9 @@ build_python_bindings() {
           -f "${TMPDIR}/mujoco_install/lib/mujoco_studio_platform.lib" || \
           -f "${TMPDIR}/mujoco_install/bin/Release/mujoco_studio_platform.lib" ]]; then
         sdists+=(mujoco_studio-*.tar.gz mujoco-*.tar.gz)
+        if compgen -G "mujoco_studio_wasm-*.tar.gz" > /dev/null; then
+            sdists+=(mujoco_studio_wasm-*.tar.gz)
+        fi
     fi
     if [[ -f "${TMPDIR}/mujoco_install/lib/libmujoco_usd.so" || \
           -f "${TMPDIR}/mujoco_install/lib64/libmujoco_usd.so" || \
@@ -467,12 +474,28 @@ build_python_bindings() {
 
 install_python_bindings() {
     echo "Installing Python bindings..."
+    local pip_check_out filtered
     source ${TMPDIR}/venv/bin/activate &&
     pip install --no-deps --no-index mujoco_core-*.whl &&
+    if compgen -G "mujoco_studio_wasm-*.whl" > /dev/null; then
+        pip install --no-deps --no-index mujoco_studio_wasm-*.whl
+    fi &&
     if compgen -G "mujoco_studio-*.whl" > /dev/null; then
         pip install --no-deps --no-index mujoco_studio-*.whl mujoco-*.whl
     fi &&
-    pip check &&
+    if compgen -G "mujoco_studio-*.whl" > /dev/null && ! compgen -G "mujoco_studio_wasm-*.whl" > /dev/null; then
+        # Native-only CI jobs omit Emscripten; ignore only the expected missing
+        # mujoco-studio-wasm requirement while checking all other dependencies.
+        pip_check_out="$(pip check)" || {
+            filtered="$(grep -v '^mujoco-studio .* requires mujoco-studio-wasm,' <<< "${pip_check_out}" || true)"
+            if [[ -n "${filtered}" ]]; then
+                echo "${pip_check_out}" >&2
+                return 1
+            fi
+        }
+    else
+        pip check
+    fi &&
     if compgen -G "mujoco_usd-*.whl" > /dev/null; then
         pip install --no-deps --no-index mujoco_usd-*.whl
     fi
@@ -497,10 +520,7 @@ smoke_test_python_bindings() {
     python -c "import mujoco; m = mujoco.MjModel.from_xml_string('<mujoco/>'); mujoco.mj_step(m, mujoco.MjData(m))"
     if _has_studio_platform build; then
         echo "Smoke testing Studio Python modules..."
-        python -c "import mujoco._render_filament, mujoco.studio.window, mujoco.studio.ux, mujoco.studio.sim, mujoco.studio.native_viewer"
-        if [[ "${RUNNER_OS:-}" != "Windows" ]]; then
-            python -c "import mujoco.studio.web.headless_ui, mujoco.studio.web.state_payload"
-        fi
+        python -c "import mujoco._render_filament, mujoco.studio.window, mujoco.studio.ux, mujoco.studio.sim, mujoco.studio.native_viewer, mujoco.studio.web.headless_ui, mujoco.studio.web.state_payload"
     fi
 }
 
@@ -682,7 +702,7 @@ build_mujoco_live() {
 _build_python_wheel() {
     local prefix="$1"
     # A clean python/dist keeps the wheel glob below unambiguous.
-    rm -rf python/dist python/studio/dist python/usd/dist python/mujoco_full/dist
+    rm -rf python/dist python/studio/dist python/studio_wasm/dist python/usd/dist python/mujoco_full/dist
     (cd python && ./make_sdist.sh)
     local sdists=(python/dist/mujoco_core-*.tar.gz)
     if _has_studio_platform "${prefix}"; then
@@ -690,6 +710,11 @@ _build_python_wheel() {
         (cd python/mujoco_full && ./make_sdist.sh)
         mv python/studio/dist/mujoco_studio-*.tar.gz python/mujoco_full/dist/mujoco-*.tar.gz python/dist/
         sdists+=(python/dist/mujoco_studio-*.tar.gz python/dist/mujoco-*.tar.gz)
+        if [[ -f "python/mujoco/studio/web/dist/web_client.wasm" ]]; then
+            (cd python/studio_wasm && ./make_sdist.sh)
+            mv python/studio_wasm/dist/mujoco_studio_wasm-*.tar.gz python/dist/
+            sdists+=(python/dist/mujoco_studio_wasm-*.tar.gz)
+        fi
     fi
     if [[ -f "${prefix}/lib/libmujoco_usd.so" || \
           -f "${prefix}/lib64/libmujoco_usd.so" || \
@@ -741,6 +766,9 @@ _install_python_wheel() {
     # without disturbing the rest of the environment.
     _pip_install_requirements python/build_requirements.txt
     pip install --force-reinstall --no-deps --no-index python/dist/mujoco_core-*.whl
+    if compgen -G "python/dist/mujoco_studio_wasm-*.whl" > /dev/null; then
+        pip install --force-reinstall --no-deps --no-index python/dist/mujoco_studio_wasm-*.whl
+    fi
     if compgen -G "python/dist/mujoco_studio-*.whl" > /dev/null; then
         pip install --force-reinstall --no-deps --no-index python/dist/mujoco_studio-*.whl python/dist/mujoco-*.whl
     fi
@@ -1052,8 +1080,8 @@ build_studio_python() {
 }
 
 
-# Everything Python-facing: build_studio_python plus the browser client, so the
-# installed wheel also carries web/dist.
+# Everything Python-facing: build_studio_python plus the browser client, so
+# mujoco-studio-wasm is also built and installed.
 build_studio_all() {
     echo "Building the complete Studio suite..."
     build_studio_platform_libs
@@ -1063,9 +1091,9 @@ build_studio_all() {
 }
 
 
-# Builds the self-contained wheel: platform libraries, SDK and browser client,
-# then a clean sdist (it carries web/dist, see MANIFEST.in) and the wheel from
-# it. Unlike build_studio_all it does not install the result. The C++ app is
+# Builds the self-contained wheels: platform libraries, SDK and browser client,
+# then clean sdists (including mujoco-studio-wasm) and the wheels from them.
+# Unlike build_studio_all it does not install the result. The C++ app is
 # not built.
 build_wheel() {
     echo "Building the self-contained MuJoCo Python wheel..."

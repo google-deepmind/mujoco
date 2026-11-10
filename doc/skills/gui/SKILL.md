@@ -1,14 +1,19 @@
 ---
 name: mujoco-gui
 description: >-
-  Dear ImGui and ImPlot user interfaces across C++ and Python, immediate-mode
-  widget design, layout and multi-row widget/column alignment (Tables API),
-  tooltip length and aspect ratio, naming conventions (build_gui vs render), ID
-  stack rules (## label disambiguation vs ### seed reset override), list
-  virtualization (ImGuiListClipper), theming, input capture
-  (WantCaptureKeyboard). Use for building, aligning, styling, and debugging Dear
-  ImGui widgets and ImPlot charts. Do NOT use for Studio app
-  architecture/plugins (mujoco-studio) or physics (mujoco-python).
+  Dear ImGui and ImPlot user interface design for MuJoCo Studio and MuJoCo
+  viewer plugins (C++ ux/ components and Python ViewerPlugin build_gui panels):
+  immediate-mode widget layout, multi-row widget/column alignment (Tables API),
+  tooltip length and aspect ratio, build_gui vs render separation, ID stack
+  rules (## label disambiguation vs ### seed reset override), list
+  virtualization (ImGuiListClipper), theming, and input capture
+  (WantCaptureKeyboard). Use only when building, aligning, styling, or
+  debugging Dear ImGui widgets and ImPlot charts inside MuJoCo Studio, MuJoCo
+  viewer plugins, or MuJoCo/robotics simulation and control tools. Don't use
+  for general-purpose C++ or Python Dear ImGui / ImPlot / imgui_bundle desktop
+  applications unrelated to MuJoCo or robotics, or for Studio plugin
+  lifecycle/messaging (use mujoco-studio) or core physics stepping (use
+  mujoco-python).
 ---
 
 # Dear ImGui Development & Architecture Guide
@@ -57,7 +62,7 @@ ImGui code does not render pixels to the screen directly. Instead, calling ImGui
 functions builds and records **draw command lists** (vertex buffers, index
 buffers, clip rects, and texture references) that are processed, rasterized,
 and rendered later in the frame pipeline (via OpenGL, Vulkan, or
-WebGL/NetImgui).
+WebGL/WebViewer).
 
 -   **Use `build_gui()` or `build_xxx_gui()`** (in Python) or `BuildGui()` /
     `BuildXxxGui()` (in C++) for all functions and methods that submit ImGui
@@ -148,8 +153,8 @@ When rendering lists, tables, or log views that may contain many items (e.g.,
 
 -   **Always Virtualize with `ImGuiListClipper` / `imgui.ListClipper`**:
     Without clipping, ImGui generates vertices and text layouts for every item
-    in the list even when offscreen. In remote streaming backends (NetImgui /
-    WebViewer), unclipped tables saturate the WebSocket stream. In C++, use
+    in the list even when offscreen. In remote streaming backends
+    (`WebViewer`), unclipped tables saturate the WebSocket stream. In C++, use
     `ImGuiListClipper clipper; clipper.Begin(...)`; in Python, use
     `clipper = imgui.ListClipper(); clipper.Begin(...)`.
 -   **Clipper Usage**: The clipper calculates the visible range and only submits
