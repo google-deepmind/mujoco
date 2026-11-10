@@ -58,6 +58,7 @@ using emscripten::return_value_policy::take_ownership;
 
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberOrString);
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArray);
+EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArrayOrNull);
 EMSCRIPTEN_DECLARE_VAL_TYPE(String);
 EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
 
