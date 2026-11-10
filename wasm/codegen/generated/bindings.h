@@ -314,6 +314,17 @@ MJMODEL_ACCESSORS
         return val(data_->prefix##var[adr]);                                           \
       }                                                                                \
       return val(typed_memory_view(num * (dim1), data_->prefix##var + adr * (dim1)));  \
+    } else if constexpr (std::string_view(#dim0) == "nplastic") {                     \
+      /* Plastic state is packed by address; elastic objects have no entries. */      \
+      constexpr bool joint = std::string_view(#dim1) == "1";                          \
+      int adr = joint ? model_->jnt_plasticadr[id_] : model_->tendon_plasticadr[id_]; \
+      int count = 0;                                                                  \
+      if (adr >= 0) {                                                                 \
+        count = joint ? ((id_ < model_->njnt - 1 ? model_->jnt_qposadr[id_ + 1]       \
+                                                 : model_->nq) - model_->jnt_qposadr[id_]) \
+                      : 2;                                                            \
+      }                                                                               \
+      return val(typed_memory_view(count, data_->plastic + (adr < 0 ? 0 : adr)));     \
     } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
       int start = model_->sensor_adr[id_];                                             \
       int count = model_->sensor_dim[id_];                                             \
@@ -354,6 +365,18 @@ MJMODEL_ACCESSORS
         val(typed_memory_view(num * (dim1), data_->prefix##var + adr * (dim1)))        \
             .call<void>("set", value);                                                 \
       }                                                                                \
+    } else if constexpr (std::string_view(#dim0) == "nplastic") {                     \
+      /* Plastic state is packed by address; elastic objects have no entries. */      \
+      constexpr bool joint = std::string_view(#dim1) == "1";                          \
+      int adr = joint ? model_->jnt_plasticadr[id_] : model_->tendon_plasticadr[id_]; \
+      int count = 0;                                                                  \
+      if (adr >= 0) {                                                                 \
+        count = joint ? ((id_ < model_->njnt - 1 ? model_->jnt_qposadr[id_ + 1]       \
+                                                 : model_->nq) - model_->jnt_qposadr[id_]) \
+                      : 2;                                                            \
+      }                                                                               \
+      val(typed_memory_view(count, data_->plastic + (adr < 0 ? 0 : adr)))             \
+          .call<void>("set", value);                                                  \
     } else if constexpr (std::string_view(#dim0) == "nsensordata") {                   \
       int start = model_->sensor_adr[id_];                                             \
       int count = model_->sensor_dim[id_];                                             \
