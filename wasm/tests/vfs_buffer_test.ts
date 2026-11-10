@@ -62,4 +62,31 @@ describe('VFS buffer copies', () => {
       }
     });
   }
+
+  it('should upload a heap subarray when copying it grows memory', async () => {
+    // A fresh module ensures that earlier tests have not grown its heap.
+    const mj = await loadMujoco();
+    const probe = new mj.Uint8Buffer(1);
+    const size = probe.GetView().buffer.byteLength;
+    probe.delete();
+    const source = new mj.Uint8Buffer(size + 8);
+    const vfs = new mj.MjVFS();
+    let loaded: MjModel|null = null;
+    try {
+      const input = source.GetView().subarray(4, size + 4);
+      input.fill(32);
+      input.set(new TextEncoder().encode(
+          '<mujoco><worldbody><geom type="sphere" size="1"/></worldbody></mujoco>'));
+      const heapBefore = input.buffer.byteLength;
+      vfs.addBuffer('growth.xml', input);
+      expect(source.GetView().buffer.byteLength).toBeGreaterThan(heapBefore);
+      source.GetView().fill(0);
+      loaded = mj.MjModel.from_xml_path('growth.xml', vfs);
+      expect(loaded.ngeom).toBe(1);
+    } finally {
+      loaded?.delete();
+      vfs.delete();
+      source.delete();
+    }
+  }, 60_000);
 });
