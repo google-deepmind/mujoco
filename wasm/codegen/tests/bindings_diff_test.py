@@ -26,7 +26,7 @@ update.py as described in wasm/README.md""".lstrip()
 class BindingsDiffTest(absltest.TestCase):
 
   def test_bindings_source(self):
-    SCRIPT_DIR = Path(__file__).parent
+    SCRIPT_DIR = Path(__file__).parent.parent
     with open(SCRIPT_DIR / 'generated/bindings.cc', 'r') as f:
       self.generated_src = f.read()
     self.template_path_cc = SCRIPT_DIR / 'templates/bindings.cc'

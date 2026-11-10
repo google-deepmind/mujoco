@@ -54,7 +54,7 @@ def _get_resource_content(file_path: str) -> str:
 def _get_bound_functions_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound functions."""
   content = _get_resource_content(
-      Path(__file__).parent / 'generated/bindings.cc'
+      Path(__file__).parent.parent / 'generated/bindings.cc'
   )
   if not content:
     return set()
@@ -69,7 +69,7 @@ def _get_bound_functions_from_cc() -> set[str]:
 def _get_bound_structs_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound structs."""
   content = _get_resource_content(
-      Path(__file__).parent / 'generated/bindings.cc'
+      Path(__file__).parent.parent / 'generated/bindings.cc'
   )
   if not content:
     return set()
