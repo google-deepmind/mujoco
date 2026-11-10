@@ -233,7 +233,7 @@ void DefProperty(pybind11::class_<C, O...>& c, const char* name, T C::* prop) {
 }
 }  // namespace
 
-PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
+void InitRenderFilament(pybind11::module_& m) {
 #include "render_filament_generated.cc.inc"
 
   // Explicit bindings for memory management functions.
@@ -490,3 +490,9 @@ PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
   }
 }
 }  // namespace mujoco::python
+
+#ifndef MUJOCO_STUDIO_COMBINED_MODULE
+PYBIND11_MODULE(_render_filament, m, pybind11::mod_gil_not_used()) {
+  mujoco::python::InitRenderFilament(m);
+}
+#endif

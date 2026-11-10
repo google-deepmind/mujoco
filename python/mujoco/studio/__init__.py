@@ -35,11 +35,19 @@ try:
 except ImportError:
   pass
 else:
+  _rf = getattr(_studio_ext, '_render_filament', None)
+  if _rf is not None:
+    _rf.__spec__ = _machinery.ModuleSpec('mujoco._render_filament', None)
+    _sys.modules.setdefault('mujoco._render_filament', _rf)
+    if 'mujoco' in _sys.modules and not hasattr(
+        _sys.modules['mujoco'], '_render_filament'
+    ):
+      setattr(_sys.modules['mujoco'], '_render_filament', _rf)
   for _name in ('native_viewer_cc', 'sim', 'ux', 'window'):
     _submod = getattr(_studio_ext, _name, None)
     if _submod is not None:
       _submod.__spec__ = _machinery.ModuleSpec(f'{__name__}.{_name}', None)
       globals()[_name] = _submod
       _sys.modules[f'{__name__}.{_name}'] = _submod
-  del _name, _submod, _studio_ext
+  del _name, _rf, _submod, _studio_ext
 del _importlib, _machinery, _sys

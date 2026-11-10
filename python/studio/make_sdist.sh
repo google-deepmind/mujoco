@@ -43,6 +43,7 @@ fi
 mkdir -p mujoco
 cp -r "${python_dir}"/mujoco/studio mujoco/studio
 rm -rf mujoco/studio/web/dist mujoco/studio/web/index.html
+mv mujoco/studio/_render_filament.py mujoco/_render_filament.py
 cp -r "${python_dir}"/mujoco/util mujoco/util
 cp "${python_dir}"/mujoco/{CMakeLists.txt,gil.h,indexer_xmacro.h,indexers.h,private.h,raw.h,render_filament.cc,render_filament.h,specs_wrapper.h,structs.h} mujoco/
 

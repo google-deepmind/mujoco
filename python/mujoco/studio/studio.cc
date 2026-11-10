@@ -14,6 +14,10 @@
 
 #include <pybind11/pybind11.h>
 
+namespace mujoco::python {
+void InitRenderFilament(pybind11::module_& m);
+}  // namespace mujoco::python
+
 namespace mujoco::python::studio {
 
 void InitNativeViewer(pybind11::module_& m);
@@ -28,6 +32,9 @@ void InitStatePayload(pybind11::module_& m);
 }  // namespace mujoco::python::studio
 
 PYBIND11_MODULE(_studio, m, pybind11::mod_gil_not_used()) {
+  auto render_filament = m.def_submodule("_render_filament");
+  mujoco::python::InitRenderFilament(render_filament);
+
   auto native_viewer_cc = m.def_submodule("native_viewer_cc");
   mujoco::python::studio::InitNativeViewer(native_viewer_cc);
 

@@ -245,7 +245,7 @@ incremental, so any source edit — Python or C++ — needs the step re-run.
 | `build_studio_cpp_viewer` | the C++ Studio viewer app with its plugins, in the host tree | `build_host/bin/mujoco_studio` |
 | `build_studio_platform_libs` | the Studio platform without the app: platform library (and the Filament tools), staged assets, engine plugins | `build_host/` |
 | `build_studio_wasm` | the web viewer browser client (WASM/JS/HTML + assets) via Emscripten | `python/mujoco/studio/web/dist/` |
-| `build_studio_python` | platform libraries + SDK, then the Studio Python extensions (`_studio` — bundling `ux`, `sim`, `window`, `native_viewer_cc`, `headless_ui`, `state_payload` — plus `_render_filament`, `dear_imgui`, `implot`), installed | `build/mujoco_install/`, `python/dist/` |
+| `build_studio_python` | platform libraries + SDK, then the Studio Python extensions (`_studio` — bundling `_render_filament`, `ux`, `sim`, `window`, `native_viewer_cc`, `headless_ui`, `state_payload` — plus `dear_imgui` and `implot`), installed | `build/mujoco_install/`, `python/dist/` |
 | `build_studio_all` | `build_studio_python` plus the browser client | everything above |
 | `build_wheel` | platform libraries + SDK + browser client, then a clean sdist and the wheel from it (no install, no app) | `python/dist/mujoco-*.whl` |
 | `build_mujoco_live` | standalone [MuJoCo Live](https://live.mujoco.org) WASM app (desktop + iOS profiles, used by `live.yml`; run `setup_emsdk` once first) | `build_wasm/bin/`, `build_wasm_ios/bin/` |
@@ -336,8 +336,8 @@ The samples under `python/mujoco/sample/studio/` show ghost
 overlays, ImPlot integration, a hot-reloading Python-generated scene example,
 driving `launch_web.launch` from a custom
 simulation loop, and the Filament Python rendering API
-(`mujoco.rendering.filament`, backed by `_render_filament` and `_studio`'s
-`window` submodule that `build_studio_python` installs).
+(`mujoco.rendering.filament`, backed by `_studio`'s `_render_filament` and
+`window` submodules that `build_studio_python` installs).
 The samples are run from the source tree, so editing one takes effect
 immediately; editing the library behind it needs the step re-run.
 </details>
