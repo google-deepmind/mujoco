@@ -282,13 +282,16 @@ public class MjActuator : MjComponent {
 
   public ActuatorType Type;
 
-  [Tooltip("Joint actuation target. Mutually exclusive with tendon target.")]
+  [Tooltip("Joint actuation target. Mutually exclusive with tendon and site target.")]
   public MjBaseJoint Joint;
 
-  [Tooltip("Tendon actuation target. Mutually exclusive with joint target.")]
+  [Tooltip("Tendon actuation target. Mutually exclusive with joint and site target.")]
   public MjBaseTendon Tendon;
 
-  [Tooltip("Parameters specific to each actuator type.")]
+  [Tooltip("Tendon actuation target. Mutually exclusive with joint and tendon target.")]
+  public MjSite Site;
+
+        [Tooltip("Parameters specific to each actuator type.")]
   [HideInInspector]
   public CustomParameters CustomParams = new CustomParameters();
 
@@ -339,23 +342,26 @@ public class MjActuator : MjComponent {
     }
     Joint = mjcf.GetObjectReferenceAttribute<MjBaseJoint>("joint");
     Tendon = mjcf.GetObjectReferenceAttribute<MjBaseTendon>("tendon");
+    Site = mjcf.GetObjectReferenceAttribute<MjSite>("site");
   }
 
   // Generate implementation specific XML element.
   protected override XmlElement OnGenerateMjcf(XmlDocument doc) {
-    if (Joint == null && Tendon == null) {
-      throw new InvalidOperationException($"Actuator {name} is not assigned a joint nor tendon.");
+    if (Joint == null && Tendon == null && Site == null) {
+      throw new InvalidOperationException($"Actuator {name} is not assigned a joint, tendon or site.");
     }
-    if (Joint != null && Tendon != null) {
+    if (new[]{Joint != null, Tendon != null, Site != null}.Count(x => x) > 1) {
       throw new InvalidOperationException(
-        $"Actuator {name} can't have both a tendon and a joint target.");
+        $"Actuator {name} can't have more than one target, joint, tendon and site are mutually exclusive.");
     }
 
     var mjcf = doc.CreateElement(Type.ToString().ToLowerInvariant());
     if (Joint != null) {
       mjcf.SetAttribute("joint", Joint.MujocoName);
-    } else {
+    } else if(Tendon != null) {
       mjcf.SetAttribute("tendon", Tendon.MujocoName);
+    } else {
+      mjcf.SetAttribute("site", Site.MujocoName);
     }
     CommonParams.ToMjcf(mjcf);
 
