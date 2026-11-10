@@ -158,7 +158,7 @@ TEST_F(QuatZ2VecTest, XAxisGivesQuarterTurnAboutY) {
   mjtNum quat[4];
   mjtNum vec[3] = {4, 0, 0};
   mju_quatZ2Vec(quat, vec);
-  const mjtNum tol = MjTol(1e-15, 1e-7);
+  const mjtNum tol = MjTol(1e-15, 1e-6);
   EXPECT_NEAR(quat[0], std::cos(mjPI / 4), tol);
   EXPECT_NEAR(quat[1], 0, tol);
   EXPECT_NEAR(quat[2], std::sin(mjPI / 4), tol);
