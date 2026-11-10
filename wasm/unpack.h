@@ -45,9 +45,18 @@ class WasmBuffer {
     // Copy straight into the buffer, converting each element with the same
     // TypedArray.set semantics as convertJSArrayToNumberVector, but without
     // the intermediate vector.
-    bytes_.resize(array["length"].as<std::size_t>() * sizeof(T));
+    const std::size_t count = array["length"].as<std::size_t>();
+    const bool on_heap = array["buffer"].strictlyEquals(GetView()["buffer"]);
+    // Allocation can grow the heap and detach the input view. Preserve its
+    // offset and length so it can be recreated on the current heap afterwards.
+    const std::size_t offset =
+        on_heap ? array["byteOffset"].as<std::size_t>() : 0;
+    bytes_.resize(count * sizeof(T));
     emscripten::val view = GetView();
-    view.call<void>("set", array);
+    emscripten::val source = on_heap
+        ? array["constructor"].new_(view["buffer"], offset, count)
+        : array;
+    view.call<void>("set", source);
   }
 
  public:
