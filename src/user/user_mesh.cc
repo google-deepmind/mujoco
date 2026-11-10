@@ -997,8 +997,8 @@ void mjCMesh::CopyPolygonNormals(mjtNum* arr) {
 
 // set geom size to match mesh
 void mjCMesh::FitGeom(mjCGeom* geom, double center[3]) {
-  // use inertial box
-  if (!model->compiler.fitaabb) {
+  // use inertial box, unless the model of the geom, which may be attached, fits to the aabb
+  if (!geom->compiler->fitaabb) {
     // get inertia box type (shell or volume)
     double* boxsz = GetInertiaBoxPtr();
     switch (geom->type) {
