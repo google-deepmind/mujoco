@@ -166,8 +166,8 @@ TEST_F(QuatZ2VecTest, XAxisGivesQuarterTurnAboutY) {
 }
 
 TEST_F(QuatZ2VecTest, RotatesZToNormalizedVector) {
-  mjtNum vecs[][3] = {{1, 2, 3},    {-1, 0.5, 0.25}, {0.3, -0.7, -2},
-                      {-5, -5, 0},  {1e-3, 0, -1},   {0, 1e-6, 1},
+  mjtNum vecs[][3] = {{1, 2, 3},     {-1, 0.5, 0.25}, {0.3, -0.7, -2},
+                      {-5, -5, 0},   {1e-3, 0, -1},   {0, 1e-6, 1},
                       {2, -3, -1e-4}};
   const mjtNum z[3] = {0, 0, 1};
   const mjtNum tol = MjTol(1e-14, 1e-6);
