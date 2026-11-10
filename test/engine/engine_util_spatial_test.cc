@@ -145,15 +145,15 @@ TEST_F(DerivQuatTest, IdentityQuatGivesHalfVelocity) {
 }
 
 TEST_F(DerivQuatTest, MatchesQuaternionProduct) {
-  // the derivative of quat under body-frame angular velocity vel is
-  // 0.5 * quat * (0, vel)
+  // vel is the angular velocity in the global frame, so the derivative of
+  // quat is 0.5 * (0, vel) * quat
   mjtNum quat[4] = {0.3, -0.5, 0.7, 0.1};
   mju_normalize4(quat);
   mjtNum vel[3] = {1.5, -0.25, 0.75};
   mjtNum velquat[4] = {0, vel[0], vel[1], vel[2]};
   mjtNum res[4], expected[4];
   mju_derivQuat(res, quat, vel);
-  mju_mulQuat(expected, quat, velquat);
+  mju_mulQuat(expected, velquat, quat);
   mju_scl(expected, expected, 0.5, 4);
   const mjtNum tol = MjTol(1e-15, 1e-6);
   for (int i = 0; i < 4; i++) {
@@ -168,13 +168,18 @@ TEST_F(DerivQuatTest, MatchesFiniteDifferenceOfQuatIntegrate) {
   mjtNum res[4];
   mju_derivQuat(res, quat, vel);
 
-  // central difference of mju_quatIntegrate, which rotates by vel*scale in
-  // the body frame
+  // mju_quatIntegrate takes the angular velocity in the local frame, so
+  // rotate the global-frame vel into the frame of quat first
+  mjtNum negquat[4], localvel[3];
+  mju_negQuat(negquat, quat);
+  mju_rotVecQuat(localvel, vel, negquat);
+
+  // central difference of mju_quatIntegrate
   const mjtNum h = MjEps(1e-6, 1e-2);
   mjtNum plus[4] = {quat[0], quat[1], quat[2], quat[3]};
   mjtNum minus[4] = {quat[0], quat[1], quat[2], quat[3]};
-  mju_quatIntegrate(plus, vel, h);
-  mju_quatIntegrate(minus, vel, -h);
+  mju_quatIntegrate(plus, localvel, h);
+  mju_quatIntegrate(minus, localvel, -h);
   const mjtNum tol = MjTol(1e-8, 1e-3);
   for (int i = 0; i < 4; i++) {
     EXPECT_NEAR(res[i], (plus[i] - minus[i]) / (2 * h), tol);
