@@ -476,8 +476,8 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZES(lower, res);
   CHECK_SIZES(upper, res);
   CHECK_SIZES(index, res);
-  CHECK_SIZE(R, res_.size() * (res_.size() + 7))
-  CHECK_PERFECT_SQUARE(H);
+  CHECK_SIZE(R, res_.size() * (res_.size() + 7));
+  CHECK_SIZE(H, res_.size() * res_.size());
   CHECK_SIZES(g, res);
   int n = res_.size();
     """.strip(),
