@@ -817,6 +817,53 @@ class MuJoCoRolloutTest(parameterized.TestCase):
             skip_checks=True,
         )
 
+  @parameterized.product(
+      name=('state', 'sensordata'),
+      dtype=(np.float32, np.float64),
+      contiguous=(False, True),
+  )
+  def test_readonly_outputs_rejected(self, name, dtype, contiguous):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = mujoco.MjData(model)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    dim = nstate if name == 'state' else model.nsensordata
+    output = np.empty((2, 3, dim if contiguous else 2 * dim), dtype=dtype)
+    if not contiguous:
+      output = output[..., ::2]
+    output.flags.writeable = False
+    with self.assertRaisesRegex(ValueError, f'{name} must be writable'):
+      rollout.rollout(model, data, zeros(2, nstate), **{name: output})
+
+  @parameterized.parameters('state', 'sensordata')
+  def test_readonly_outputs_skip_checks(self, name):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = mujoco.MjData(model)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    dim = nstate if name == 'state' else model.nsensordata
+    output = empty(2, 3, dim)
+    output.flags.writeable = False
+    with self.assertRaisesRegex(ValueError, f'{name} must be writable'):
+      rollout.rollout(
+          [model, model],
+          [data],
+          zeros(2, nstate),
+          nstep=3,
+          skip_checks=True,
+          **{name: output},
+      )
+
+  def test_readonly_inputs_accepted(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    data = mujoco.MjData(model)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    initial_state, control = randn(2, nstate), randn(2, 3, model.nu)
+    expected = rollout.rollout(model, data, initial_state, control)
+    initial_state.flags.writeable = False
+    control.flags.writeable = False
+    actual = rollout.rollout(model, data, initial_state, control)
+    for want, got in zip(expected, actual):
+      np.testing.assert_array_equal(want, got)
+
   def test_scalar_float_inputs(self):
     xml_1d = """
     <mujoco>

@@ -150,6 +150,9 @@ class Rollout:
         state=state,
         sensordata=sensordata,
     )
+    for name, array in (('state', state), ('sensordata', sensordata)):
+      if isinstance(array, np.ndarray) and not array.flags.writeable:
+        raise ValueError(f'{name} must be writable')
 
     # check number of dimensions
     _check_number_of_dimensions(
