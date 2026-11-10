@@ -1437,7 +1437,9 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 
 // map from body local to global Cartesian position, quaternion and matrix
-void mj_local2GlobalQuat(mjData* d, mjtNum* restrict xpos, mjtNum* restrict xquat,
+// leave xquat unrestricted: MSVC /O2 can omit its stores when q below selects
+// between the optional output and a temporary
+void mj_local2GlobalQuat(mjData* d, mjtNum* restrict xpos, mjtNum* xquat,
                          mjtNum* restrict xmat, const mjtNum pos[3], const mjtNum quat[4],
                          int body, mjtByte sameframe) {
   mjtSameFrame sf = sameframe;
