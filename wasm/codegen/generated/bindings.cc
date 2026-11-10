@@ -1459,10 +1459,14 @@ void mj_addM_wrapper(const MjModel& m, MjData& d, const val& dst, const val& row
   UNPACK_NULLABLE_VALUE(int, rownnz);
   UNPACK_NULLABLE_VALUE(int, rowadr);
   UNPACK_NULLABLE_VALUE(int, colind);
-  CHECK_SIZE(rownnz, m.nv());
-  CHECK_SIZE(rowadr, m.nv());
-  CHECK_SIZE(colind, m.nM());
-  CHECK_SIZE(dst, m.nM());
+  if (rownnz_ && rowadr_ && colind_) {
+    CHECK_SIZE(rownnz, m.nv());
+    CHECK_SIZE(rowadr, m.nv());
+    CHECK_SIZE(colind, m.nM());
+    CHECK_SIZE(dst, m.nM());
+  } else {
+    CHECK_SIZE(dst, m.nv() * m.nv());
+  }
   mj_addM(m.get(), d.get(), dst_.data(), rownnz_.data(), rowadr_.data(), colind_.data());
 }
 

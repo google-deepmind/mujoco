@@ -567,10 +567,14 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   int nnz = res_.size();
     """.strip(),
     "mj_addM": """
-  CHECK_SIZE(rownnz, m.nv());
-  CHECK_SIZE(rowadr, m.nv());
-  CHECK_SIZE(colind, m.nM());
-  CHECK_SIZE(dst, m.nM());
+  if (rownnz_ && rowadr_ && colind_) {
+    CHECK_SIZE(rownnz, m.nv());
+    CHECK_SIZE(rowadr, m.nv());
+    CHECK_SIZE(colind, m.nM());
+    CHECK_SIZE(dst, m.nM());
+  } else {
+    CHECK_SIZE(dst, m.nv() * m.nv());
+  }
     """.strip(),
     "mj_angmomMat": """
   CHECK_SIZE(mat, m.nv() * 3);
