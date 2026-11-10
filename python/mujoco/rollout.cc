@@ -82,6 +82,11 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
   int nbody = m[0]->nbody, neq = m[0]->neq;
   size_t nsensordata = static_cast<size_t>(m[0]->nsensordata);
 
+  // no control buffer: all user inputs are unspecified
+  if (!control) {
+    control_spec = 0;
+  }
+
   // clear user inputs if unspecified
   if (!(control_spec & mjSTATE_CTRL)) {
     mju_zero(d->ctrl, m[0]->nu);
@@ -91,6 +96,9 @@ void _unsafe_rollout(std::vector<const mjModel*>& m, mjData* d, int start_roll,
   }
   if (!(control_spec & mjSTATE_XFRC_APPLIED)) {
     mju_zero(d->xfrc_applied, 6*nbody);
+  }
+  if (!(control_spec & mjSTATE_USERDATA)) {
+    mju_zero(d->userdata, m[0]->nuserdata);
   }
 
   // loop over rollouts
