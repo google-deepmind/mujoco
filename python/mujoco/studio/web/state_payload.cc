@@ -32,6 +32,13 @@
 namespace mujoco::studio {
 namespace {
 
+// Render-state and extra-geom structs are raw-copied across the wire between
+// host Python (LP64 / Windows LLP64) and wasm32 (web_client); assert exact byte
+// sizes so any ABI padding drift fails at compile time.
+static_assert(sizeof(mjtNum) == 8 && alignof(mjtNum) == 8);
+static_assert(kRenderStateSize == 1312);
+static_assert(sizeof(mjvGeom) == 256);
+
 // Appends raw bytes to the payload buffer.
 void AppendBytes(std::vector<std::byte>& buffer, const void* data,
                  size_t size) {

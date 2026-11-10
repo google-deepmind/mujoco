@@ -497,10 +497,7 @@ smoke_test_python_bindings() {
     python -c "import mujoco; m = mujoco.MjModel.from_xml_string('<mujoco/>'); mujoco.mj_step(m, mujoco.MjData(m))"
     if _has_studio_platform build; then
         echo "Smoke testing Studio Python modules..."
-        python -c "import mujoco._render_filament, mujoco.studio.window, mujoco.studio.ux, mujoco.studio.sim, mujoco.studio.native_viewer"
-        if [[ "${RUNNER_OS:-}" != "Windows" ]]; then
-            python -c "import mujoco.studio.web.headless_ui, mujoco.studio.web.state_payload"
-        fi
+        python -c "import mujoco._render_filament, mujoco.studio.window, mujoco.studio.ux, mujoco.studio.sim, mujoco.studio.native_viewer, mujoco.studio.web.headless_ui, mujoco.studio.web.state_payload"
     fi
 }
 

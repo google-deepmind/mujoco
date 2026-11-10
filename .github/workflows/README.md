@@ -245,7 +245,7 @@ incremental, so any source edit — Python or C++ — needs the step re-run.
 | `build_studio_cpp_viewer` | the C++ Studio viewer app with its plugins, in the host tree | `build_host/bin/mujoco_studio` |
 | `build_studio_platform_libs` | the Studio platform without the app: platform library (and the Filament tools), staged assets, engine plugins | `build_host/` |
 | `build_studio_wasm` | the web viewer browser client (WASM/JS/HTML + assets) via Emscripten | `python/mujoco/studio/web/dist/` |
-| `build_studio_python` | platform libraries + SDK, then the Studio Python extensions (`_studio` — bundling `ux`, `sim`, `window`, `native_viewer_cc`, and on POSIX `headless_ui` + `state_payload` — plus `_render_filament`, `dear_imgui`, `implot`), installed | `build/mujoco_install/`, `python/dist/` |
+| `build_studio_python` | platform libraries + SDK, then the Studio Python extensions (`_studio` — bundling `ux`, `sim`, `window`, `native_viewer_cc`, `headless_ui`, `state_payload` — plus `_render_filament`, `dear_imgui`, `implot`), installed | `build/mujoco_install/`, `python/dist/` |
 | `build_studio_all` | `build_studio_python` plus the browser client | everything above |
 | `build_wheel` | platform libraries + SDK + browser client, then a clean sdist and the wheel from it (no install, no app) | `python/dist/mujoco-*.whl` |
 | `build_mujoco_live` | standalone [MuJoCo Live](https://live.mujoco.org) WASM app (desktop + iOS profiles, used by `live.yml`; run `setup_emsdk` once first) | `build_wasm/bin/`, `build_wasm_ios/bin/` |

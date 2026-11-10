@@ -348,7 +348,15 @@ def bind_public_socket(host: str, port: int = 0) -> socket.socket:
   )
   for candidate in candidates:
     sock = socket.socket(family, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if os.name == "posix" and sys.platform != "cygwin":
+      sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    else:
+      # On Windows, SO_REUSEADDR allows binding onto an actively listening port
+      # instead of failing with EADDRINUSE; SO_EXCLUSIVEADDRUSE prevents port
+      # hijacking so the port scan advances across running viewer instances.
+      exclusive_addr = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+      if exclusive_addr is not None:
+        sock.setsockopt(socket.SOL_SOCKET, exclusive_addr, 1)
     if family == socket.AF_INET6:
       # Dual-stack: also accept IPv4 connections (as IPv4-mapped addresses).
       sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
