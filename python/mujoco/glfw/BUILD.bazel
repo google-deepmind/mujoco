@@ -8,7 +8,6 @@ licenses(["notice"])
 py_library(
     name = "glfw",
     srcs = ["__init__.py"],
-    type_checking = True,
     visibility = ["//python/mujoco:visibility"],
     deps = ["//python/mujoco/pypi:glfw"],
 )

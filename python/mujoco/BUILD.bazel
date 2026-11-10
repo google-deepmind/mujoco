@@ -78,7 +78,6 @@ py_library(
         ":plugin_sensor",
     ],
     imports = [".."],
-    type_checking = True,
     visibility = [":visibility"],
     deps = [
         "//python/mujoco/pypi:glfw",
@@ -552,7 +551,6 @@ py_library(
         "msh2obj.py",
     ],
     imports = [".."],
-    type_checking = True,
     deps = [
         "//python/mujoco/pypi:numpy",
     ],

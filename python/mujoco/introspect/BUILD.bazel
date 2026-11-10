@@ -20,7 +20,6 @@ py_library(
     name = "ast_nodes",
     srcs = ["ast_nodes.py"],
     imports = [".."],
-    type_checking = True,
 )
 
 py_test(
@@ -37,7 +36,6 @@ py_library(
     name = "type_parsing",
     srcs = ["type_parsing.py"],
     imports = [".."],
-    type_checking = True,
     deps = [":ast_nodes"],
 )
 
@@ -56,7 +54,6 @@ py_library(
     name = "enums",
     srcs = ["enums.py"],
     imports = [".."],
-    type_checking = True,
     deps = [":ast_nodes"],
 )
 
@@ -74,7 +71,6 @@ py_library(
     name = "functions",
     srcs = ["functions.py"],
     imports = [".."],
-    type_checking = True,
     deps = [":ast_nodes"],
 )
 
@@ -94,7 +90,6 @@ py_library(
     name = "structs",
     srcs = ["structs.py"],
     imports = [".."],
-    type_checking = True,
     deps = [":ast_nodes"],
 )
 
@@ -114,7 +109,6 @@ py_library(
     name = "mjxmacro",
     srcs = ["mjxmacro.py"],
     imports = [".."],
-    type_checking = True,
     deps = [
         ":structs",
     ],
@@ -124,5 +118,4 @@ py_library(
     name = "introspect",
     srcs = ["__init__.py"],
     imports = [".."],
-    type_checking = True,
 )
