@@ -48,6 +48,26 @@ describe('Dense inertia matrix addition', () => {
     });
   }
 
+  for (const joint of ['<freejoint/>', '<joint type="ball"/>']) {
+    it(`should accept the reduced sparse inertia layout for ${joint}`, () => {
+      const model = mujoco.from_xml_string(`<mujoco><worldbody><body>
+        ${joint}<geom size=".1" mass="1"/></body></worldbody></mujoco>`);
+      const data = new mujoco.MjData(model);
+      const Buffer = model.qpos0.BYTES_PER_ELEMENT === 4 ?
+          mujoco.FloatBuffer : mujoco.DoubleBuffer;
+      const dst = new Buffer(model.nC);
+      try {
+        expect(model.nC).toBeLessThan(model.nM);
+        mujoco.mj_forward(model, data);
+        const expected = Array.from(data.M) as number[];
+        mujoco.mj_addM(model, data, dst, model.M_rownnz, model.M_rowadr, model.M_colind);
+        expect(Array.from(dst.GetView())).toEqual(expected);
+        mujoco.mj_addM(model, data, dst, model.M_rownnz, model.M_rowadr, model.M_colind);
+        expect(Array.from(dst.GetView())).toEqual(expected.map(x => 2 * x));
+      } finally { dst.delete(); data.delete(); model.delete(); }
+    });
+  }
+
   it('should reject dense destinations with the wrong size', () => {
     const model = mujoco.from_xml_string(xml);
     const data = new mujoco.MjData(model);

@@ -570,8 +570,8 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   if (rownnz_ && rowadr_ && colind_) {
     CHECK_SIZE(rownnz, m.nv());
     CHECK_SIZE(rowadr, m.nv());
-    CHECK_SIZE(colind, m.nM());
-    CHECK_SIZE(dst, m.nM());
+    CHECK_SIZE(colind, m.nC());
+    CHECK_SIZE(dst, m.nC());
   } else {
     CHECK_SIZE(dst, m.nv() * m.nv());
   }

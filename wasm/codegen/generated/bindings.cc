@@ -1462,8 +1462,8 @@ void mj_addM_wrapper(const MjModel& m, MjData& d, const val& dst, const val& row
   if (rownnz_ && rowadr_ && colind_) {
     CHECK_SIZE(rownnz, m.nv());
     CHECK_SIZE(rowadr, m.nv());
-    CHECK_SIZE(colind, m.nM());
-    CHECK_SIZE(dst, m.nM());
+    CHECK_SIZE(colind, m.nC());
+    CHECK_SIZE(dst, m.nC());
   } else {
     CHECK_SIZE(dst, m.nv() * m.nv());
   }
