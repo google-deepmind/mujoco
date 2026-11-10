@@ -53,10 +53,8 @@ public static class XmlElementExtensions {
 
   public static bool GetAutolimitsEnabled(
       this XmlElement element) {
-    bool autolimits = (element.OwnerDocument?.GetElementsByTagName("compiler")[0]?["compiler"])
-                      ?.GetBoolAttribute("autolimits", true) ??
-                      true;
-    return autolimits;
+    var compiler = element.OwnerDocument?.DocumentElement?["compiler"];
+    return compiler?.GetBoolAttribute("autolimits", true) ?? true;
   }
 
   public static float GetFloatAttribute(
