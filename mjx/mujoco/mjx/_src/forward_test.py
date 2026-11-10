@@ -41,6 +41,52 @@ def _assert_attr_eq(a, b, attr, tol=_TOLERANCE):
 
 class ForwardTest(parameterized.TestCase):
 
+  def test_actuator_disabled_by_group(self):
+    # Four actuators on one joint: group 0 and group 31 stay enabled (31 is
+    # outside the 0..30 range that mj_actuatorDisabled checks), while group 2 is
+    # disabled. The disabled filter owns activation slot 1, not slot 0, so a
+    # wrong owner mapping would hold the wrong actuator; keeping the enabled
+    # ones integrating means a mask that disables everything also fails.
+    xml = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <joint name="j" type="hinge"/>
+          <geom size=".1"/>
+        </body>
+      </worldbody>
+      <actuator>
+        <general joint="j" group="0" dyntype="filter" dynprm="0.5"
+                 gaintype="fixed" gainprm="1" biastype="affine" biasprm="0 -1 0"/>
+        <general joint="j" group="2" dyntype="filter" dynprm="0.5"
+                 gaintype="fixed" gainprm="1" biastype="affine" biasprm="0 -1 0"/>
+        <general joint="j" group="31" dyntype="filter" dynprm="0.5"
+                 gaintype="fixed" gainprm="1" biastype="affine" biasprm="0 -1 0"/>
+        <motor joint="j" group="2"/>
+      </actuator>
+    </mujoco>
+    """
+    m = mujoco.MjModel.from_xml_string(xml)
+    m.opt.disableactuator = 1 << 2  # disable actuator group 2
+    d = mujoco.MjData(m)
+    d.ctrl[:] = 3.0
+    mujoco.mj_step(m, d, 10)
+
+    mx = mjx.put_model(m)
+    dx = mjx.make_data(mx).replace(ctrl=jp.ones(m.nu) * 3.0)
+    step = jax.jit(mjx.step)
+    for _ in range(10):
+      dx = step(mx, dx)
+
+    _assert_attr_eq(d, dx, 'act')
+    _assert_attr_eq(d, dx, 'act_dot')  # reported, unlike the held activation
+    _assert_attr_eq(d, dx, 'qvel')
+    # groups 0 and 31 integrate, group 2 holds its activation at zero
+    self.assertGreater(dx.act[0], 0.1)
+    self.assertEqual(dx.act[1], 0.0)
+    self.assertGreater(dx.act[2], 0.1)
+
+
   def test_forward(self):
     m = test_util.load_test_file('constraints.xml')
     d = mujoco.MjData(m)
