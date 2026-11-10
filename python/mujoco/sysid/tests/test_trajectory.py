@@ -34,6 +34,40 @@ def mock_model():
   return model
 
 
+@pytest.mark.parametrize(
+    "sensor, offset", [("joint_pos", 0), ("joint_vel", 1), ("joint_torque", 2)]
+)
+def test_get_sensordata_slice_interleaved(sensor, offset):
+  model = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint name="j1"/><geom size=".1"/>
+            <body><joint name="j2"/><geom size=".1"/></body>
+          </body>
+        </worldbody>
+        <sensor>
+          <jointpos joint="j1"/><jointvel joint="j1"/>
+          <jointactuatorfrc joint="j1"/>
+          <jointpos joint="j2"/><jointvel joint="j2"/>
+          <jointactuatorfrc joint="j2"/>
+        </sensor>
+      </mujoco>
+  """)
+  t = np.array([0.0, 1.0])
+  values = np.arange(2 * model.nsensordata).reshape(2, -1)
+  trajectory = SystemTrajectory(
+      model=model,
+      control=timeseries.TimeSeries(t, np.empty((2, 0))),
+      sensordata=timeseries.TimeSeries(t, values),
+      initial_state=np.zeros(model.nq + model.nv + 1),
+      state=None,
+  )
+  np.testing.assert_array_equal(
+      trajectory.get_sensordata_slice(sensor), values[:, [offset, offset + 3]]
+  )
+
+
 @pytest.fixture
 def sample_trajectory(mock_model):
   """Create a sample SystemTrajectory for testing."""
