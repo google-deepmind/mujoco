@@ -173,10 +173,9 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
   sdf.geomtype = &geomtype;
 
   const mjtNum points[][3] = {
-      {0.8, 0.4, -0.2},
-      {0.2, -0.3, 0.5},
-      {-0.4, 0.2, -0.6},
-      {0.1, 0.1, 0.1},
+      {0.8, 0.4, -0.2}, {0.2, -0.3, 0.5}, {-0.4, 0.2, -0.6}, {0.1, 0.1, 0.1},
+      {2, 0, 0},        {-2, 0, 0},       {0, 2, 0},         {0, 0, -2},
+      {2, 2, 0},        {-2, 1.5, -2},
   };
   const mjtNum eps = MjTol(1e-6, 1e-3);
 
@@ -199,6 +198,74 @@ TEST_F(SdfTest, OctreeAnalyticGradientMatchesFiniteDiff) {
       EXPECT_NEAR(grad_analytic[k], grad_fd[k], MjTol(1e-3, 0.05));
     }
   }
+}
+
+TEST_F(SdfTest, OctreeExteriorGradientRetainsBoundaryDerivatives) {
+  // one trilinear leaf with nonconstant values along its boundary
+  mjModel model = {};
+  int meshadr = 0;
+  int child[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+  mjtNum box[6] = {};
+  mjtNum coeff[8], geomsize[3] = {1, 1, 1};
+  model.mesh_octadr = &meshadr;
+  model.oct_child = child;
+  model.oct_aabb = box;
+  model.oct_coeff = coeff;
+  model.geom_size = geomsize;
+  const mjpPlugin* plugin = nullptr;
+  mjtGeom geomtype = mjGEOM_SDF;
+  mjSDF sdf = {};
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.id = &meshadr;
+  sdf.plugin = &plugin;
+  sdf.geomtype = &geomtype;
+
+  auto fill_coeff = [&]() {
+    for (int i = 0; i < 8; ++i) {
+      coeff[i] = 0.125 * (i & 1 ? box[3] : -box[3]) +
+                 0.25 * (i & 2 ? box[4] : -box[4]) +
+                 0.5 * (i & 4 ? box[5] : -box[5]);
+    }
+  };
+  const mjtNum patterns[][3] = {
+      {2, 0.2, -0.3}, {-2, 0.3, -0.2}, {0.2, 3, 0},
+      {0.3, -3, 0.1}, {0.1, 0.2, 4},   {0, -0.2, -4},
+      {2, 3, 0.2},    {-2, 3, 4},      {2, -3, -4},
+  };
+  const mjtNum scales[] = {0.01, 1, 1000};
+  for (mjtNum scale : scales) {
+    box[3] = scale;
+    box[4] = 2 * scale;
+    box[5] = 3 * scale;
+    fill_coeff();
+    for (const auto& pattern : patterns) {
+      mjtNum point[3], grad[3];
+      mju_scl3(point, pattern, scale);
+      mjc_gradient(&model, nullptr, &sdf, grad, point);
+      for (int k = 0; k < 3; ++k) {
+        mjtNum plus[3], minus[3];
+        mju_copy3(plus, point);
+        mju_copy3(minus, point);
+        mjtNum eps = MjEps(1e-6, 1e-3) * scale;
+        plus[k] += eps;
+        minus[k] -= eps;
+        mjtNum fd = (mjc_distance(&model, nullptr, &sdf, plus) -
+                     mjc_distance(&model, nullptr, &sdf, minus)) /
+                    (plus[k] - minus[k]);
+        EXPECT_NEAR(grad[k], fd, MjTol(2e-9, 1e-3));
+      }
+    }
+  }
+
+  // a thin, positive root still preserves the two unconstrained derivatives
+  box[3] = 2e-6;
+  box[4] = box[5] = 1;
+  fill_coeff();
+  mjtNum point[3] = {6e-6, 0, 0}, grad[3];
+  mjc_gradient(&model, nullptr, &sdf, grad, point);
+  EXPECT_NEAR(grad[0], 1, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(grad[1], 0.25, MjTol(1e-12, 1e-6));
+  EXPECT_NEAR(grad[2], 0.5, MjTol(1e-12, 1e-6));
 }
 
 TEST_F(SdfTest, PenetrationContactPositionIsMidpoint) {

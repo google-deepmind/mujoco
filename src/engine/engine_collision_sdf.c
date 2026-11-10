@@ -179,31 +179,27 @@ void oct_gradient(const mjModel* m, mjtNum grad[3], const mjtNum point[3], int m
     mjERROR("Octree not found in mesh %d", meshid);
   }
 
-  // analytic in the interior
-  if (boxProjection(p, oct_aabb) <= 0) {
-    mjtNum dw[8][3];
-    int node = findOct(NULL, dw, oct_aabb, oct_child, p);
-    for (int i = 0; i < 8; ++i) {
-      grad[0] += dw[i][0] * oct_coeff[8*node + i];
-      grad[1] += dw[i][1] * oct_coeff[8*node + i];
-      grad[2] += dw[i][2] * oct_coeff[8*node + i];
-    }
-    return;
+  // trilinear gradient at the point, projected into the octree if outside
+  mjtNum boxdist = boxProjection(p, oct_aabb);
+  mjtNum dw[8][3];
+  int node = findOct(NULL, dw, oct_aabb, oct_child, p);
+  for (int i = 0; i < 8; ++i) {
+    grad[0] += dw[i][0] * oct_coeff[8*node + i];
+    grad[1] += dw[i][1] * oct_coeff[8*node + i];
+    grad[2] += dw[i][2] * oct_coeff[8*node + i];
   }
 
-  // finite difference in the exterior
-  mjtNum eps = 1e-8;
-  mjtNum dist0 = oct_distance(m, point, meshid);
-  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
-  mjtNum distX = oct_distance(m, pointX, meshid);
-  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
-  mjtNum distY = oct_distance(m, pointY, meshid);
-  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
-  mjtNum distZ = oct_distance(m, pointZ, meshid);
-
-  grad[0] = (distX - dist0) / eps;
-  grad[1] = (distY - dist0) / eps;
-  grad[2] = (distZ - dist0) / eps;
+  // outside, clamped coordinates contribute only the box-distance gradient;
+  // the remaining coordinates retain the interpolated boundary derivatives
+  if (boxdist > 0) {
+    for (int j = 0; j < 3; ++j) {
+      mjtNum offset = point[j] - oct_aabb[j];
+      mjtNum excess = mju_abs(offset) - oct_aabb[3+j];
+      if (excess >= 0) {
+        grad[j] = (offset > 0 ? excess : -excess) / boxdist;
+      }
+    }
+  }
 }
 
 
