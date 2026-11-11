@@ -114,5 +114,6 @@ if __name__ == "__main__":
   parser.add_argument("-i", "--input", type=str, help="Path to the msh file.")
   parser.add_argument("-o", "--output", type=str, help="Path to the obj file.")
   args = parser.parse_args()
+  obj = msh_to_obj(pathlib.Path(args.input))
   with open(pathlib.Path(args.output), "w") as f:
-    f.write(msh_to_obj(pathlib.Path(args.input)))
+    f.write(obj)
