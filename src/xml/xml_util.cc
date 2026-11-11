@@ -176,6 +176,7 @@ void AccumulateFiles(std::unordered_set<string>& files,
 
   auto accumulate_files = [&](const std::set<string>& candidate_files, optional<FilePath> prefix) {
     for (const auto& file : candidate_files) {
+      if (file.empty()) { continue; }
       FilePath file_with_prefix =
           !prefix.has_value() ? FilePath(file) : prefix.value() + FilePath(file);
       if (file_with_prefix.IsAbs()) {
