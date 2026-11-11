@@ -16,7 +16,8 @@
     "dev:sandbox": "vite --config tests/sandbox/vite.sandbox.config.ts",
     "build:sandbox": "vite build --config tests/sandbox/vite.sandbox.config.ts",
     "dev:demo": "vite --config demo_app/vite.demo.config.ts",
-    "build:demo": "vite build --config demo_app/vite.demo.config.ts"
+    "build:demo": "vite build --config demo_app/vite.demo.config.ts",
+    "typecheck": "tsc --noEmit"
   },
   "author": "Google DeepMind",
   "license": "Apache-2.0",

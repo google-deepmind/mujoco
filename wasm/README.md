@@ -449,6 +449,13 @@ bounds checking and nice error reporting.
    npm run test --prefix ./wasm
    ```
 
+   After building the WASM bindings and benchmark target, check the TypeScript
+   tests and sandbox against the generated declarations with:
+
+   ```sh
+   npm run typecheck --prefix ./wasm
+   ```
+
 2. **JavaScript API benchmark tests.**
    The current benchmark tests check JavaScript/C++ shared memory buffers
    performance. We will increase the coverage of the benchmarks overtime. Run
