@@ -178,6 +178,61 @@ TEST_F(RelativeFrameSensorTest, ReferenceQuatMat) {
   EXPECT_THAT(quat, Pointwise(MjNear(tol, 1e-6), converted_quat));
 }
 
+// camera quaternion sensors respect tracking and target modes
+TEST_F(RelativeFrameSensorTest, CameraQuat) {
+  for (const char* mode : {"fixed", "track", "trackcom", "targetbody", "targetbodycom"}) {
+    SCOPED_TRACE(mode);
+    string xml = R"(
+    <mujoco>
+      <worldbody>
+        <body pos="1 2 3">
+          <freejoint/>
+          <geom size="0.1"/>
+          <camera name="camera" pos="2 3 4" euler="10 20 30" target="target" mode=")";
+    xml += mode;
+    xml += R"("/>
+        </body>
+        <body name="target" pos="-1 -3 -2"><freejoint/><geom size="0.1"/></body>
+        <site name="site" euler="20 40 60"/>
+      </worldbody>
+      <sensor>
+        <framequat objtype="camera" objname="camera"/>
+        <framequat objtype="camera" objname="camera" reftype="site" refname="site"/>
+        <framequat objtype="site" objname="site" reftype="camera" refname="camera"/>
+      </sensor>
+    </mujoco>
+    )";
+    MjModelPtr model = LoadModelFromString(xml);
+    ASSERT_THAT(model.get(), NotNull());
+    MjDataPtr data = MakeData(model);
+
+    // test both the initial pose and a rotated camera parent with a moved target
+    for (mjtNum w : {1.0, 0.5}) {
+      data->qpos[3] = w;
+      data->qpos[4] = data->qpos[5] = data->qpos[6] = (w == 1 ? 0 : 0.5);
+      data->qpos[7] = (w == 1 ? -1 : -4);
+      data->qpos[8] = (w == 1 ? -3 : 1);
+      data->qpos[9] = (w == 1 ? -2 : 2);
+      mj_forward(model.get(), data.get());
+
+      mjtNum mat[9], expected[9];
+      mju_quat2Mat(mat, data->sensordata);
+      EXPECT_THAT(vector<mjtNum>(mat, mat+9),
+                  Pointwise(MjNear(tol, 1e-6), vector<mjtNum>(data->cam_xmat, data->cam_xmat+9)));
+
+      mju_quat2Mat(mat, data->sensordata+4);
+      mju_mulMatTMat3(expected, data->site_xmat, data->cam_xmat);
+      EXPECT_THAT(vector<mjtNum>(mat, mat+9),
+                  Pointwise(MjNear(tol, 1e-6), expected));
+
+      mju_quat2Mat(mat, data->sensordata+8);
+      mju_mulMatTMat3(expected, data->cam_xmat, data->site_xmat);
+      EXPECT_THAT(vector<mjtNum>(mat, mat+9),
+                  Pointwise(MjNear(tol, 1e-6), expected));
+    }
+  }
+}
+
 // compare global frame and initially co-located relative frame on same body
 TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
   constexpr char xml[] = R"(
