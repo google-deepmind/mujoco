@@ -98,8 +98,8 @@ def get_param_unpack_statement(
     return ""
 
   if inner_type.name == "char":
-    # param is Javascript string
-    return ""
+    # Nullable strings need storage that can also represent a null pointer.
+    return f"UNPACK_NULLABLE_STRING({p.name});" if p.nullable else ""
   if inner_type.is_const:
     # param is Javascript number[]
     if p.nullable:
@@ -180,7 +180,7 @@ def get_params_string_maybe_with_conversion(
   for p in ast_params:
     if inner_type := common.get_inner_value_type(p):
       if inner_type.name in constants.PRIMITIVE_TYPES:
-        if inner_type.name == "char":
+        if inner_type.name == "char" and not p.nullable:
           const_qualifier = "const " if inner_type.is_const else ""
           native_params.append(
               f"{p.name}.as<{const_qualifier}std::string>().data()"
