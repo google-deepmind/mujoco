@@ -986,9 +986,9 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   mjData.def("__copy__",
              [](const MjDataWrapper& other) { return MjDataWrapper(other); });
   mjData.def("__deepcopy__", [](const MjDataWrapper& other, py::dict memo) {
-    // Use copy.deepcopy(model) to make a model that Python is aware of.
+    // Preserve shared models in the object graph using deepcopy's memo.
     py::object new_model_py =
-        py::cast(other.model()).attr("__deepcopy__")(memo);
+        py::module_::import("copy").attr("deepcopy")(py::cast(other.model()), memo);
     return MjDataWrapper(other, new_model_py.cast<MjModelWrapper*>());
   });
   mjData.def_property_readonly_static("_all_fields", [](py::object) {

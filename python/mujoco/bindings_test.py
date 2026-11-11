@@ -2296,6 +2296,30 @@ Euler integrator, semi-implicit in velocity.
     self.assertIsNot(data1.model, data2.model)
     self.assertNotEqual(data1.model._address, data2.model._address)
 
+  @parameterized.parameters(False, True)
+  def test_deepcopy_mjdata_preserves_shared_model(self, model_first):
+    data1 = mujoco.MjData(self.model)
+    data2 = mujoco.MjData(self.model)
+    data1.qpos[:] = 0.1
+    data2.qpos[:] = 0.2
+    original = [self.model, data1, data2]
+    if not model_first:
+      original.reverse()
+
+    copied = copy.deepcopy(original)
+    if not model_first:
+      copied.reverse()
+    model, copied_data1, copied_data2 = copied
+
+    self.assertIs(copied_data1.model, model)
+    self.assertIs(copied_data2.model, model)
+    self.assertIsNot(model, self.model)
+    np.testing.assert_array_equal(copied_data1.qpos, data1.qpos)
+    np.testing.assert_array_equal(copied_data2.qpos, data2.qpos)
+    copied_data1.qpos[:] = 0.3
+    np.testing.assert_array_equal(data1.qpos, 0.1)
+    np.testing.assert_array_equal(copied_data2.qpos, 0.2)
+
   def test_texture_size(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML_TEXTURE)
     self.assertEqual(model.tex('tex').data.shape, (512, 512, 3))
