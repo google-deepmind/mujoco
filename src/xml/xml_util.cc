@@ -166,7 +166,6 @@ optional<FilePath> ParseXMLResource(const string& filename, tinyxml2::XMLDocumen
 void AccumulateFiles(std::unordered_set<string>& files,
                      XMLElement*                 root,
                      const FilePath&             model_dir) {
-  optional<FilePath> asset_dir;
   optional<FilePath> mesh_dir;
   optional<FilePath> texture_dir;
   std::set<string>   model_files;
@@ -260,7 +259,9 @@ void AccumulateFiles(std::unordered_set<string>& files,
       continue;
     } else if (!std::strcmp(elem->Value(), "compiler")) {
       auto assetdir_str = mjXUtil::ReadAttrStr(elem, "assetdir", false);
-      if (assetdir_str.has_value()) asset_dir = FilePath(assetdir_str.value());
+      if (assetdir_str.has_value()) {
+        mesh_dir = texture_dir = FilePath(assetdir_str.value());
+      }
       auto meshdir_str = mjXUtil::ReadAttrStr(elem, "meshdir", false);
       if (meshdir_str.has_value()) mesh_dir = FilePath(meshdir_str.value());
       auto texturedir_str = mjXUtil::ReadAttrStr(elem, "texturedir", false);
@@ -307,10 +308,8 @@ void AccumulateFiles(std::unordered_set<string>& files,
   }
   // Then for each non MJCF resource file, add them to the set of files using their respective
   // compiler prefixes (if they exist).
-  accumulate_files(texture_files,
-                   texture_dir.has_value() && !texture_dir->empty() ? texture_dir : asset_dir);
-  accumulate_files(mesh_files,
-                   mesh_dir.has_value() && !mesh_dir->empty() ? mesh_dir : asset_dir);
+  accumulate_files(texture_files, texture_dir);
+  accumulate_files(mesh_files, mesh_dir);
 }
 
 void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies) {

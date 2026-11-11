@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <filesystem>  // NOLINT
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <string>
@@ -188,42 +190,47 @@ TEST_F(MujocoTest, GetXMLDependenciesExpandsIncludesIntoTheModel) {
   memxml::g_files = nullptr;
 }
 
-// Dependency discovery must use the same compiler directories as the parser,
-// including compiler elements expanded in place from included files.
+// Dependency discovery must use the same directories as compilation, including
+// compiler elements expanded in place from included files.
 TEST_F(MujocoTest, GetXMLDependenciesCompilerDirectoryOrder) {
   struct Case {
     const char* sections;
     const char* included;
+    const char* directory;
   };
   const Case cases[] = {
       {R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
-          <compiler assetdir="final" meshdir="final" texturedir="final"/>)", ""},
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)", "", "final/"},
       {R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
           <include file="child.xml"/>)",
-       R"(<compiler assetdir="final" meshdir="final" texturedir="final"/>)"},
+       R"(<compiler assetdir="final" meshdir="final" texturedir="final"/>)", "final/"},
       {R"(<include file="child.xml"/>
           <compiler assetdir="final" meshdir="final" texturedir="final"/>)",
-       R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>)"},
+       R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>)", "final/"},
       {R"(<include file="child.xml"/>)",
        R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
-          <compiler assetdir="final" meshdir="final" texturedir="final"/>)"},
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)", "final/"},
       {R"(<compiler assetdir="final" meshdir="old" texturedir="old"/>
-          <compiler meshdir="" texturedir=""/>)", ""},
+          <compiler meshdir="" texturedir=""/>)", "", ""},
+      {R"(<compiler meshdir="old" texturedir="old"/>
+          <compiler assetdir="final"/>)", "", "final/"},
+      {R"(<compiler assetdir="old" meshdir="final" texturedir="final"/>)", "", "final/"},
+      {R"(<compiler assetdir="old" meshdir="" texturedir=""/>)", "", ""},
   };
-  static std::set<std::string> requested;
+  std::ifstream image(GetTestDataFilePath("xml/testdata/hfield.png"), std::ios::binary);
+  const std::string png((std::istreambuf_iterator<char>(image)), std::istreambuf_iterator<char>());
+  ASSERT_FALSE(png.empty());
   mjpResourceProvider provider = {
       .prefix = "dirxml",
-      .open = [](mjResource* resource) {
-        requested.insert(resource->name);
-        return memxml::Open(resource);
-      },
+      .open = memxml::Open,
       .read = memxml::Read,
       .close = memxml::Close,
   };
   ASSERT_GT(mjp_registerProvider(&provider), 0);
 
-  for (const auto& [sections, included] : cases) {
+  for (const auto& [sections, included, directory] : cases) {
     SCOPED_TRACE(sections);
+    const std::string prefix = std::string("dirxml:/") + directory;
     const std::map<std::string, std::string> files = {
         {"dirxml:/scene.xml", std::string("<mujoco>") + sections + R"(
           <asset>
@@ -233,6 +240,10 @@ TEST_F(MujocoTest, GetXMLDependenciesCompilerDirectoryOrder) {
           </asset>
         </mujoco>)"},
         {"dirxml:/child.xml", std::string("<mujoco>") + included + "</mujoco>"},
+        {prefix + "mesh.obj", "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n"
+                              "f 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n"},
+        {prefix + "texture.png", png},
+        {prefix + "height.png", png},
     };
     memxml::g_files = &files;
 
@@ -240,21 +251,22 @@ TEST_F(MujocoTest, GetXMLDependenciesCompilerDirectoryOrder) {
     mju_getXMLDependencies("dirxml:/scene.xml", &dependencies);
     std::set<std::string> dep_set(dependencies.begin(), dependencies.end());
     std::set<std::string> expected = {
-        "dirxml:/scene.xml", "dirxml:/final/mesh.obj",
-        "dirxml:/final/texture.png", "dirxml:/final/height.png",
+        "dirxml:/scene.xml", prefix + "mesh.obj",
+        prefix + "texture.png", prefix + "height.png",
     };
     if (*included) { expected.insert("dirxml:/child.xml"); }
     EXPECT_EQ(dep_set, expected);
 
-    requested.clear();
+    // Only the expected resources are available. Compilation, rather than
+    // parsing alone, must succeed with these paths.
     char error[1024];
-    mjSpec* spec = mj_parseXML("dirxml:/scene.xml", nullptr, error, sizeof(error));
-    EXPECT_NE(spec, nullptr) << error;
-    if (spec) {
-      EXPECT_THAT(requested, testing::Contains("dirxml:/final/mesh.obj"));
-      EXPECT_THAT(requested, testing::Contains("dirxml:/final/texture.png"));
-      EXPECT_THAT(requested, testing::Contains("dirxml:/final/height.png"));
-      mj_deleteSpec(spec);
+    mjModel* model = mj_loadXML("dirxml:/scene.xml", nullptr, error, sizeof(error));
+    EXPECT_NE(model, nullptr) << error;
+    if (model) {
+      EXPECT_EQ(model->nmesh, 1);
+      EXPECT_EQ(model->ntex, 1);
+      EXPECT_EQ(model->nhfield, 1);
+      mj_deleteModel(model);
     }
     memxml::g_files = nullptr;
   }
