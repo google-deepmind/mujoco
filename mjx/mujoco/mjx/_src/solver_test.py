@@ -115,6 +115,39 @@ class SolverTest(parameterized.TestCase):
     # even without warmstart, newton converges quickly
     _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force', tol=2e-4)
 
+  @parameterized.parameters(
+      (mujoco.mjtSolver.mjSOL_CG,), (mujoco.mjtSolver.mjSOL_NEWTON,)
+  )
+  def test_elliptic_cone_without_contacts(self, solver_):
+    """Elliptic cone with constraints but no contact to put in a cone."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <option cone="elliptic"/>
+        <worldbody>
+          <body pos="0 0 1">
+            <joint name="slide" type="slide" axis="1 0 0" range="-.1 .1"
+                   frictionloss=".5"/>
+            <geom size=".1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    m.opt.solver = solver_
+    d = mujoco.MjData(m)
+    d.qpos[0] = 0.3  # beyond the joint limit
+    d.qvel[0] = 0.1
+    mujoco.mj_forward(m, d)
+    self.assertEqual(d.ncon, 0)
+    self.assertGreater(d.nefc, 0)
+
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.forward)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qacc')
+
+    dx = jax.jit(mjx.step)(mx, mjx.put_data(m, d))
+    mujoco.mj_step(m, d)
+    _assert_attr_eq(d, dx, 'qvel')
+
   @parameterized.parameters(*ConeType)
   def test_single_iteration(self, cone):
     """Test one Newton iteration matches MuJoCo C on a perturbed state."""
