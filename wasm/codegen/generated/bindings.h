@@ -124,6 +124,22 @@ std::string KeyErrorMessage(const mjModel* model, int objtype, int count,
 std::string IndexErrorMessage(int index, int count,
                               std::string_view accessor_name);
 
+// Arena arrays can be unallocated even when their dimensions are nonzero.
+// Preserve allocated views; otherwise return initialized JS-owned storage,
+// matching the Python bindings instead of exposing memory at the null address.
+template <typename T>
+inline val InitDataArray(T* data, std::size_t size, int fill = 0) {
+  if (data) {
+    return val(typed_memory_view(size, data));
+  }
+  val empty = val(typed_memory_view(0, data));
+  val array = empty["constructor"].new_(size);
+  if (fill) {
+    array.call<void>("fill", fill);
+  }
+  return array;
+}
+
 template <typename T>
 inline val ToInt32Array(const T* data, int size) {
   if (!data || size <= 0) {
@@ -7108,536 +7124,536 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->narena, static_cast<uint8_t*>(ptr_->arena)));
   }
   emscripten::val qpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nq, ptr_->qpos));
+    return InitDataArray(ptr_->qpos, model->nq);
   }
   emscripten::val qvel() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qvel));
+    return InitDataArray(ptr_->qvel, model->nv);
   }
   emscripten::val act() const {
-    return emscripten::val(emscripten::typed_memory_view(model->na, ptr_->act));
+    return InitDataArray(ptr_->act, model->na);
   }
   emscripten::val history() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nhistory, ptr_->history));
+    return InitDataArray(ptr_->history, model->nhistory);
   }
   emscripten::val plastic() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nplastic, ptr_->plastic));
+    return InitDataArray(ptr_->plastic, model->nplastic);
   }
   emscripten::val qacc_warmstart() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qacc_warmstart));
+    return InitDataArray(ptr_->qacc_warmstart, model->nv);
   }
   emscripten::val plugin_state() const {
-    return emscripten::val(emscripten::typed_memory_view(model->npluginstate, ptr_->plugin_state));
+    return InitDataArray(ptr_->plugin_state, model->npluginstate);
   }
   emscripten::val ctrl() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nu, ptr_->ctrl));
+    return InitDataArray(ptr_->ctrl, model->nu);
   }
   emscripten::val qfrc_applied() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_applied));
+    return InitDataArray(ptr_->qfrc_applied, model->nv);
   }
   emscripten::val xfrc_applied() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->xfrc_applied));
+    return InitDataArray(ptr_->xfrc_applied, model->nbody * 6);
   }
   emscripten::val eq_active() const {
-    return emscripten::val(emscripten::typed_memory_view(model->neq, reinterpret_cast<uint8_t*>(ptr_->eq_active)));
+    return InitDataArray(reinterpret_cast<uint8_t*>(ptr_->eq_active), model->neq);
   }
   emscripten::val mocap_pos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nmocap * 3, ptr_->mocap_pos));
+    return InitDataArray(ptr_->mocap_pos, model->nmocap * 3);
   }
   emscripten::val mocap_quat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nmocap * 4, ptr_->mocap_quat));
+    return InitDataArray(ptr_->mocap_quat, model->nmocap * 4);
   }
   emscripten::val qacc() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qacc));
+    return InitDataArray(ptr_->qacc, model->nv);
   }
   emscripten::val act_dot() const {
-    return emscripten::val(emscripten::typed_memory_view(model->na, ptr_->act_dot));
+    return InitDataArray(ptr_->act_dot, model->na);
   }
   emscripten::val userdata() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nuserdata, ptr_->userdata));
+    return InitDataArray(ptr_->userdata, model->nuserdata);
   }
   emscripten::val sensordata() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nsensordata, ptr_->sensordata));
+    return InitDataArray(ptr_->sensordata, model->nsensordata);
   }
   emscripten::val tree_asleep() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_asleep));
+    return InitDataArray(ptr_->tree_asleep, model->ntree);
   }
   emscripten::val plugin() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nplugin, ptr_->plugin));
+    return InitDataArray(ptr_->plugin, model->nplugin);
   }
   emscripten::val plugin_data() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nplugin, ptr_->plugin_data));
+    return InitDataArray(ptr_->plugin_data, model->nplugin);
   }
   emscripten::val xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 3, ptr_->xpos));
+    return InitDataArray(ptr_->xpos, model->nbody * 3);
   }
   emscripten::val xquat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 4, ptr_->xquat));
+    return InitDataArray(ptr_->xquat, model->nbody * 4);
   }
   emscripten::val xmat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 9, ptr_->xmat));
+    return InitDataArray(ptr_->xmat, model->nbody * 9);
   }
   emscripten::val xipos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 3, ptr_->xipos));
+    return InitDataArray(ptr_->xipos, model->nbody * 3);
   }
   emscripten::val xiquat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 4, ptr_->xiquat));
+    return InitDataArray(ptr_->xiquat, model->nbody * 4);
   }
   emscripten::val ximat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 9, ptr_->ximat));
+    return InitDataArray(ptr_->ximat, model->nbody * 9);
   }
   emscripten::val xanchor() const {
-    return emscripten::val(emscripten::typed_memory_view(model->njnt * 3, ptr_->xanchor));
+    return InitDataArray(ptr_->xanchor, model->njnt * 3);
   }
   emscripten::val xaxis() const {
-    return emscripten::val(emscripten::typed_memory_view(model->njnt * 3, ptr_->xaxis));
+    return InitDataArray(ptr_->xaxis, model->njnt * 3);
   }
   emscripten::val geom_xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ngeom * 3, ptr_->geom_xpos));
+    return InitDataArray(ptr_->geom_xpos, model->ngeom * 3);
   }
   emscripten::val geom_xquat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ngeom * 4, ptr_->geom_xquat));
+    return InitDataArray(ptr_->geom_xquat, model->ngeom * 4);
   }
   emscripten::val geom_xmat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ngeom * 9, ptr_->geom_xmat));
+    return InitDataArray(ptr_->geom_xmat, model->ngeom * 9);
   }
   emscripten::val site_xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nsite * 3, ptr_->site_xpos));
+    return InitDataArray(ptr_->site_xpos, model->nsite * 3);
   }
   emscripten::val site_xquat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nsite * 4, ptr_->site_xquat));
+    return InitDataArray(ptr_->site_xquat, model->nsite * 4);
   }
   emscripten::val site_xmat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nsite * 9, ptr_->site_xmat));
+    return InitDataArray(ptr_->site_xmat, model->nsite * 9);
   }
   emscripten::val cam_xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ncam * 3, ptr_->cam_xpos));
+    return InitDataArray(ptr_->cam_xpos, model->ncam * 3);
   }
   emscripten::val cam_xmat() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ncam * 9, ptr_->cam_xmat));
+    return InitDataArray(ptr_->cam_xmat, model->ncam * 9);
   }
   emscripten::val light_xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nlight * 3, ptr_->light_xpos));
+    return InitDataArray(ptr_->light_xpos, model->nlight * 3);
   }
   emscripten::val light_xdir() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nlight * 3, ptr_->light_xdir));
+    return InitDataArray(ptr_->light_xdir, model->nlight * 3);
   }
   emscripten::val subtree_com() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 3, ptr_->subtree_com));
+    return InitDataArray(ptr_->subtree_com, model->nbody * 3);
   }
   emscripten::val cdof() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv * 6, ptr_->cdof));
+    return InitDataArray(ptr_->cdof, model->nv * 6);
   }
   emscripten::val cinert() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 10, ptr_->cinert));
+    return InitDataArray(ptr_->cinert, model->nbody * 10);
   }
   emscripten::val flexvert_xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 3, ptr_->flexvert_xpos));
+    return InitDataArray(ptr_->flexvert_xpos, model->nflexvert * 3);
   }
   emscripten::val flexelem_aabb() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexelem * 6, ptr_->flexelem_aabb));
+    return InitDataArray(ptr_->flexelem_aabb, model->nflexelem * 6);
   }
   emscripten::val flexelem_krot() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexstiffness, ptr_->flexelem_krot));
+    return InitDataArray(ptr_->flexelem_krot, model->nflexstiffness);
   }
   emscripten::val flex_hessian_valid() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflex, reinterpret_cast<uint8_t*>(ptr_->flex_hessian_valid)));
+    return InitDataArray(reinterpret_cast<uint8_t*>(ptr_->flex_hessian_valid), model->nflex);
   }
   emscripten::val flexvert_hessian() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 6, ptr_->flexvert_hessian));
+    return InitDataArray(ptr_->flexvert_hessian, model->nflexvert * 6);
   }
   emscripten::val flexedge_hessian() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * 9, ptr_->flexedge_hessian));
+    return InitDataArray(ptr_->flexedge_hessian, model->nflexedge * 9);
   }
   emscripten::val flexedge_J() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJfe, ptr_->flexedge_J));
+    return InitDataArray(ptr_->flexedge_J, model->nJfe);
   }
   emscripten::val flexedge_length() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_length));
+    return InitDataArray(ptr_->flexedge_length, model->nflexedge);
   }
   emscripten::val bvh_aabb_dyn() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));
+    return InitDataArray(ptr_->bvh_aabb_dyn, model->nbvhdynamic * 6);
   }
   emscripten::val flexvert_lambda() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexvert, ptr_->flexvert_lambda));
+    return InitDataArray(ptr_->flexvert_lambda, model->nflexvert);
   }
   emscripten::val flexvert_conage() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexvert, ptr_->flexvert_conage));
+    return InitDataArray(ptr_->flexvert_conage, model->nflexvert);
   }
   emscripten::val ten_wrapadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_wrapadr));
+    return InitDataArray(ptr_->ten_wrapadr, model->ntendon);
   }
   emscripten::val ten_wrapnum() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_wrapnum));
+    return InitDataArray(ptr_->ten_wrapnum, model->ntendon);
   }
   emscripten::val ten_J() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJten, ptr_->ten_J));
+    return InitDataArray(ptr_->ten_J, model->nJten);
   }
   emscripten::val ten_length() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_length));
+    return InitDataArray(ptr_->ten_length, model->ntendon);
   }
   emscripten::val wrap_obj() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nwrap * 2, ptr_->wrap_obj));
+    return InitDataArray(ptr_->wrap_obj, model->nwrap * 2);
   }
   emscripten::val wrap_xpos() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nwrap * 6, ptr_->wrap_xpos));
+    return InitDataArray(ptr_->wrap_xpos, model->nwrap * 6);
   }
   emscripten::val actuator_length() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_length));
+    return InitDataArray(ptr_->actuator_length, model->nout);
   }
   emscripten::val moment_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->moment_rownnz));
+    return InitDataArray(ptr_->moment_rownnz, model->nout);
   }
   emscripten::val moment_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->moment_rowadr));
+    return InitDataArray(ptr_->moment_rowadr, model->nout);
   }
   emscripten::val moment_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJmom, ptr_->moment_colind));
+    return InitDataArray(ptr_->moment_colind, model->nJmom);
   }
   emscripten::val actuator_moment() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nJmom, ptr_->actuator_moment));
+    return InitDataArray(ptr_->actuator_moment, model->nJmom);
   }
   emscripten::val crb() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 10, ptr_->crb));
+    return InitDataArray(ptr_->crb, model->nbody * 10);
   }
   emscripten::val M() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->M));
+    return InitDataArray(ptr_->M, model->nC);
   }
   emscripten::val qLD() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->qLD));
+    return InitDataArray(ptr_->qLD, model->nC);
   }
   emscripten::val qLDiagInv() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qLDiagInv));
+    return InitDataArray(ptr_->qLDiagInv, model->nv);
   }
   emscripten::val bvh_active() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbvh, reinterpret_cast<uint8_t*>(ptr_->bvh_active)));
+    return InitDataArray(reinterpret_cast<uint8_t*>(ptr_->bvh_active), model->nbvh);
   }
   emscripten::val tree_awake() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_awake));
+    return InitDataArray(ptr_->tree_awake, model->ntree);
   }
   emscripten::val body_awake() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody, ptr_->body_awake));
+    return InitDataArray(ptr_->body_awake, model->nbody);
   }
   emscripten::val body_awake_ind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody, ptr_->body_awake_ind));
+    return InitDataArray(ptr_->body_awake_ind, model->nbody);
   }
   emscripten::val parent_awake_ind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody, ptr_->parent_awake_ind));
+    return InitDataArray(ptr_->parent_awake_ind, model->nbody);
   }
   emscripten::val dof_awake_ind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->dof_awake_ind));
+    return InitDataArray(ptr_->dof_awake_ind, model->nv);
   }
   emscripten::val flexedge_velocity() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_velocity));
+    return InitDataArray(ptr_->flexedge_velocity, model->nflexedge);
   }
   emscripten::val ten_velocity() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->ten_velocity));
+    return InitDataArray(ptr_->ten_velocity, model->ntendon);
   }
   emscripten::val actuator_velocity() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_velocity));
+    return InitDataArray(ptr_->actuator_velocity, model->nout);
   }
   emscripten::val cvel() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cvel));
+    return InitDataArray(ptr_->cvel, model->nbody * 6);
   }
   emscripten::val cdof_dot() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv * 6, ptr_->cdof_dot));
+    return InitDataArray(ptr_->cdof_dot, model->nv * 6);
   }
   emscripten::val qfrc_bias() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_bias));
+    return InitDataArray(ptr_->qfrc_bias, model->nv);
   }
   emscripten::val qfrc_spring() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_spring));
+    return InitDataArray(ptr_->qfrc_spring, model->nv);
   }
   emscripten::val qfrc_damper() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_damper));
+    return InitDataArray(ptr_->qfrc_damper, model->nv);
   }
   emscripten::val qfrc_gravcomp() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_gravcomp));
+    return InitDataArray(ptr_->qfrc_gravcomp, model->nv);
   }
   emscripten::val qfrc_fluid() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_fluid));
+    return InitDataArray(ptr_->qfrc_fluid, model->nv);
   }
   emscripten::val qfrc_adhesion() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_adhesion));
+    return InitDataArray(ptr_->qfrc_adhesion, model->nv);
   }
   emscripten::val qfrc_passive() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_passive));
+    return InitDataArray(ptr_->qfrc_passive, model->nv);
   }
   emscripten::val subtree_linvel() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 3, ptr_->subtree_linvel));
+    return InitDataArray(ptr_->subtree_linvel, model->nbody * 3);
   }
   emscripten::val subtree_angmom() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 3, ptr_->subtree_angmom));
+    return InitDataArray(ptr_->subtree_angmom, model->nbody * 3);
   }
   emscripten::val qH() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->qH));
+    return InitDataArray(ptr_->qH, model->nC);
   }
   emscripten::val qHDiagInv() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qHDiagInv));
+    return InitDataArray(ptr_->qHDiagInv, model->nv);
   }
   emscripten::val qDeriv() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nD, ptr_->qDeriv));
+    return InitDataArray(ptr_->qDeriv, model->nD);
   }
   emscripten::val qLU() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nD, ptr_->qLU));
+    return InitDataArray(ptr_->qLU, model->nD);
   }
   emscripten::val actuator_force() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nout, ptr_->actuator_force));
+    return InitDataArray(ptr_->actuator_force, model->nout);
   }
   emscripten::val qfrc_actuator() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_actuator));
+    return InitDataArray(ptr_->qfrc_actuator, model->nv);
   }
   emscripten::val qfrc_smooth() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_smooth));
+    return InitDataArray(ptr_->qfrc_smooth, model->nv);
   }
   emscripten::val qacc_smooth() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qacc_smooth));
+    return InitDataArray(ptr_->qacc_smooth, model->nv);
   }
   emscripten::val qfrc_constraint() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_constraint));
+    return InitDataArray(ptr_->qfrc_constraint, model->nv);
   }
   emscripten::val qfrc_inverse() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->qfrc_inverse));
+    return InitDataArray(ptr_->qfrc_inverse, model->nv);
   }
   emscripten::val cacc() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cacc));
+    return InitDataArray(ptr_->cacc, model->nbody * 6);
   }
   emscripten::val cfrc_int() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cfrc_int));
+    return InitDataArray(ptr_->cfrc_int, model->nbody * 6);
   }
   emscripten::val cfrc_ext() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cfrc_ext));
+    return InitDataArray(ptr_->cfrc_ext, model->nbody * 6);
   }
   // contact field is handled manually in template file struct declaration
   emscripten::val efc_type() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_type));
+    return InitDataArray(ptr_->efc_type, ptr_->nefc);
   }
   emscripten::val efc_id() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_id));
+    return InitDataArray(ptr_->efc_id, ptr_->nefc);
   }
   emscripten::val efc_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_J_rownnz));
+    return InitDataArray(ptr_->efc_J_rownnz, ptr_->nefc);
   }
   emscripten::val efc_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_J_rowadr));
+    return InitDataArray(ptr_->efc_J_rowadr, ptr_->nefc);
   }
   emscripten::val efc_J_rowsuper() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_J_rowsuper));
+    return InitDataArray(ptr_->efc_J_rowsuper, ptr_->nefc);
   }
   emscripten::val efc_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJ, ptr_->efc_J_colind));
+    return InitDataArray(ptr_->efc_J_colind, ptr_->nJ);
   }
   emscripten::val efc_J() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nJ, ptr_->efc_J));
+    return InitDataArray(ptr_->efc_J, ptr_->nJ);
   }
   emscripten::val efc_pos() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_pos));
+    return InitDataArray(ptr_->efc_pos, ptr_->nefc);
   }
   emscripten::val efc_margin() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_margin));
+    return InitDataArray(ptr_->efc_margin, ptr_->nefc);
   }
   emscripten::val efc_frictionloss() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_frictionloss));
+    return InitDataArray(ptr_->efc_frictionloss, ptr_->nefc);
   }
   emscripten::val efc_diagA() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_diagA));
+    return InitDataArray(ptr_->efc_diagA, ptr_->nefc);
   }
   emscripten::val efc_KBIP() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc * 4, ptr_->efc_KBIP));
+    return InitDataArray(ptr_->efc_KBIP, ptr_->nefc * 4);
   }
   emscripten::val efc_D() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_D));
+    return InitDataArray(ptr_->efc_D, ptr_->nefc);
   }
   emscripten::val efc_R() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_R));
+    return InitDataArray(ptr_->efc_R, ptr_->nefc);
   }
   emscripten::val tendon_efcadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->tendon_efcadr));
+    return InitDataArray(ptr_->tendon_efcadr, model->ntendon, -1);
   }
   emscripten::val tree_island() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_island));
+    return InitDataArray(ptr_->tree_island, model->ntree, -1);
   }
   emscripten::val island_ntree() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_ntree));
+    return InitDataArray(ptr_->island_ntree, ptr_->nisland);
   }
   emscripten::val island_itreeadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_itreeadr));
+    return InitDataArray(ptr_->island_itreeadr, ptr_->nisland);
   }
   emscripten::val map_itree2tree() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->map_itree2tree));
+    return InitDataArray(ptr_->map_itree2tree, model->ntree);
   }
   emscripten::val dof_island() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->dof_island));
+    return InitDataArray(ptr_->dof_island, model->nv, -1);
   }
   emscripten::val island_nv() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_nv));
+    return InitDataArray(ptr_->island_nv, ptr_->nisland);
   }
   emscripten::val island_idofadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_idofadr));
+    return InitDataArray(ptr_->island_idofadr, ptr_->nisland);
   }
   emscripten::val island_dofadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_dofadr));
+    return InitDataArray(ptr_->island_dofadr, ptr_->nisland);
   }
   emscripten::val map_dof2idof() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->map_dof2idof));
+    return InitDataArray(ptr_->map_dof2idof, model->nv);
   }
   emscripten::val map_idof2dof() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->map_idof2dof));
+    return InitDataArray(ptr_->map_idof2dof, model->nv);
   }
   emscripten::val ifrc_smooth() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->ifrc_smooth));
+    return InitDataArray(ptr_->ifrc_smooth, ptr_->nidof);
   }
   emscripten::val iacc_smooth() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iacc_smooth));
+    return InitDataArray(ptr_->iacc_smooth, ptr_->nidof);
   }
   emscripten::val iacc() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->iacc));
+    return InitDataArray(ptr_->iacc, ptr_->nidof);
   }
   emscripten::val efc_island() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_island));
+    return InitDataArray(ptr_->efc_island, ptr_->nefc);
   }
   emscripten::val island_ne() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_ne));
+    return InitDataArray(ptr_->island_ne, ptr_->nisland);
   }
   emscripten::val island_nf() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_nf));
+    return InitDataArray(ptr_->island_nf, ptr_->nisland);
   }
   emscripten::val island_nefc() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_nefc));
+    return InitDataArray(ptr_->island_nefc, ptr_->nisland);
   }
   emscripten::val island_iefcadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_iefcadr));
+    return InitDataArray(ptr_->island_iefcadr, ptr_->nisland);
   }
   emscripten::val map_efc2iefc() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->map_efc2iefc));
+    return InitDataArray(ptr_->map_efc2iefc, ptr_->nefc);
   }
   emscripten::val map_iefc2efc() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->map_iefc2efc));
+    return InitDataArray(ptr_->map_iefc2efc, ptr_->nefc);
   }
   emscripten::val iefc_type() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_type));
+    return InitDataArray(ptr_->iefc_type, ptr_->nefc);
   }
   emscripten::val iefc_id() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_id));
+    return InitDataArray(ptr_->iefc_id, ptr_->nefc);
   }
   emscripten::val iefc_frictionloss() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_frictionloss));
+    return InitDataArray(ptr_->iefc_frictionloss, ptr_->nefc);
   }
   emscripten::val iefc_D() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_D));
+    return InitDataArray(ptr_->iefc_D, ptr_->nefc);
   }
   emscripten::val iefc_R() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_R));
+    return InitDataArray(ptr_->iefc_R, ptr_->nefc);
   }
   emscripten::val efc_Y_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_Y_rownnz));
+    return InitDataArray(ptr_->efc_Y_rownnz, ptr_->nefc);
   }
   emscripten::val efc_Y_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_Y_rowadr));
+    return InitDataArray(ptr_->efc_Y_rowadr, ptr_->nefc);
   }
   emscripten::val efc_Y_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nY, ptr_->efc_Y_colind));
+    return InitDataArray(ptr_->efc_Y_colind, ptr_->nY);
   }
   emscripten::val efc_Y() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nY, ptr_->efc_Y));
+    return InitDataArray(ptr_->efc_Y, ptr_->nY);
   }
   emscripten::val efc_AR_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_AR_rownnz));
+    return InitDataArray(ptr_->efc_AR_rownnz, ptr_->nefc);
   }
   emscripten::val efc_AR_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_AR_rowadr));
+    return InitDataArray(ptr_->efc_AR_rowadr, ptr_->nefc);
   }
   emscripten::val efc_AR_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nA, ptr_->efc_AR_colind));
+    return InitDataArray(ptr_->efc_AR_colind, ptr_->nA);
   }
   emscripten::val efc_AR() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nA, ptr_->efc_AR));
+    return InitDataArray(ptr_->efc_AR, ptr_->nA);
   }
   emscripten::val efc_vel() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_vel));
+    return InitDataArray(ptr_->efc_vel, ptr_->nefc);
   }
   emscripten::val efc_aref() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_aref));
+    return InitDataArray(ptr_->efc_aref, ptr_->nefc);
   }
   emscripten::val efm_c() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_c));
+    return InitDataArray(ptr_->efm_c, model->nv);
   }
   emscripten::val efm_diag() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_diag));
+    return InitDataArray(ptr_->efm_diag, model->nv);
   }
   emscripten::val efm_ck() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_ck));
+    return InitDataArray(ptr_->efm_ck, model->nv);
   }
   emscripten::val efm_sdiag() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_sdiag));
+    return InitDataArray(ptr_->efm_sdiag, model->nv);
   }
   emscripten::val efm_fluid() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nC, ptr_->efm_fluid));
+    return InitDataArray(ptr_->efm_fluid, model->nC);
   }
   emscripten::val efm_tid() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->efm_tid));
+    return InitDataArray(ptr_->efm_tid, model->ntendon);
   }
   emscripten::val efm_ts() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->efm_ts));
+    return InitDataArray(ptr_->efm_ts, model->ntendon);
   }
   emscripten::val efm_tk() const {
-    return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->efm_tk));
+    return InitDataArray(ptr_->efm_tk, model->ntendon);
   }
   emscripten::val efm_aid() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nactuator, ptr_->efm_aid));
+    return InitDataArray(ptr_->efm_aid, model->nactuator);
   }
   emscripten::val efm_as() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nactuator, ptr_->efm_as));
+    return InitDataArray(ptr_->efm_as, model->nactuator);
   }
   emscripten::val efm_ak() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nactuator, ptr_->efm_ak));
+    return InitDataArray(ptr_->efm_ak, model->nactuator);
   }
   emscripten::val efm_ca() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_ca));
+    return InitDataArray(ptr_->efm_ca, model->nv);
   }
   emscripten::val efm_K_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_K_rownnz));
+    return InitDataArray(ptr_->efm_K_rownnz, model->nv);
   }
   emscripten::val efm_K_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->efm_K_rowadr));
+    return InitDataArray(ptr_->efm_K_rowadr, model->nv);
   }
   emscripten::val efm_K_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmK, ptr_->efm_K_colind));
+    return InitDataArray(ptr_->efm_K_colind, ptr_->nefmK);
   }
   emscripten::val efm_K_val() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmK, ptr_->efm_K_val));
+    return InitDataArray(ptr_->efm_K_val, ptr_->nefmK);
   }
   emscripten::val efm_dofid() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmdof, ptr_->efm_dofid));
+    return InitDataArray(ptr_->efm_dofid, ptr_->nefmdof);
   }
   emscripten::val efm_con_ind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmcon, ptr_->efm_con_ind));
+    return InitDataArray(ptr_->efm_con_ind, ptr_->nefmcon);
   }
   emscripten::val efm_con_val() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmcon, ptr_->efm_con_val));
+    return InitDataArray(ptr_->efm_con_val, ptr_->nefmcon);
   }
   emscripten::val efm_L() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefmL, ptr_->efm_L));
+    return InitDataArray(ptr_->efm_L, ptr_->nefmL);
   }
   emscripten::val efc_b() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_b));
+    return InitDataArray(ptr_->efc_b, ptr_->nefc);
   }
   emscripten::val iefc_aref() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_aref));
+    return InitDataArray(ptr_->iefc_aref, ptr_->nefc);
   }
   emscripten::val iefc_state() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_state));
+    return InitDataArray(ptr_->iefc_state, ptr_->nefc);
   }
   emscripten::val iefc_force() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->iefc_force));
+    return InitDataArray(ptr_->iefc_force, ptr_->nefc);
   }
   emscripten::val efc_state() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_state));
+    return InitDataArray(ptr_->efc_state, ptr_->nefc);
   }
   emscripten::val efc_force() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_force));
+    return InitDataArray(ptr_->efc_force, ptr_->nefc);
   }
   emscripten::val ifrc_constraint() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nidof, ptr_->ifrc_constraint));
+    return InitDataArray(ptr_->ifrc_constraint, ptr_->nidof);
   }
   uint64_t signature() const {
     return ptr_->signature;
