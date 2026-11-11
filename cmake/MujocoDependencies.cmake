@@ -39,7 +39,7 @@ set(MUJOCO_DEP_VERSION_miniz
     CACHE STRING "Version of `miniz` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    1da510b8155f8fa81924616dcc517ecc4202e4d3
+    48f0b66cb2c41a392f88be7485205f71b97b1a16
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
