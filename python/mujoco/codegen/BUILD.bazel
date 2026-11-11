@@ -3,6 +3,7 @@
 
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = ["//python/mujoco:__pkg__"])
 
@@ -43,5 +44,30 @@ py_binary(
         "//python/mujoco/introspect:enums",
         "//python/mujoco/introspect:structs",
         "//python/mujoco/pypi:absl_app",
+    ],
+)
+
+py_library(
+    name = "generate_cs_bindings",
+    srcs = ["generate_cs_bindings.py"],
+    imports = [".."],
+    deps = [
+        "//python/mujoco/introspect:ast_nodes",
+        "//python/mujoco/introspect:enums",
+        "//python/mujoco/introspect:functions",
+        "//python/mujoco/introspect:structs",
+        "//python/mujoco/pypi:absl_app",
+        "//python/mujoco/pypi:absl_flags",
+    ],
+)
+
+py_test(
+    name = "generate_cs_bindings_test",
+    srcs = ["generate_cs_bindings_test.py"],
+    main_module = "codegen.generate_cs_bindings_test",
+    deps = [
+        ":generate_cs_bindings",
+        "//python/mujoco/pypi:absltest",
+        "//python/mujoco/pypi:parameterized",
     ],
 )

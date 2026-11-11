@@ -15,6 +15,7 @@
 """Generates C# bindings for MuJoCo from introspect modules."""
 
 import ast
+import math
 import operator
 import re
 import sys
@@ -22,6 +23,7 @@ import ctypes
 
 from absl import app
 from absl import flags
+from absl import logging
 from introspect import ast_nodes
 from introspect import enums as introspect_enums
 from introspect import functions as introspect_functions
@@ -363,13 +365,27 @@ def _is_omitted_function(func_name):
   return False
 
 
+def _c_div(a, b):
+  """C division: truncates toward zero for integer operands."""
+  if isinstance(a, int) and isinstance(b, int):
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+  return a / b
+
+
+def _c_mod(a, b):
+  """C remainder: the result takes the sign of the dividend."""
+  if isinstance(a, int) and isinstance(b, int):
+    return a - b * _c_div(a, b)
+  return math.fmod(a, b)
+
+
 _SAFE_BINOPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.FloorDiv: operator.floordiv,
-    ast.Mod: operator.mod,
+    ast.Div: _c_div,
+    ast.Mod: _c_mod,
     ast.LShift: operator.lshift,
     ast.RShift: operator.rshift,
     ast.BitAnd: operator.and_,
@@ -466,8 +482,10 @@ def _parse_constants_from_headers(header_files):
         evaled = _safe_eval_constant_expr(clean_val, constants)
         if isinstance(evaled, (int, float)):
           constants[name] = evaled
-      except Exception:  # pylint: disable=broad-except
-        pass
+      except (ValueError, SyntaxError, TypeError, ArithmeticError) as e:
+        logging.debug(
+            'Skipping unsupported #define %s %r: %s', name, clean_val, e
+        )
 
   return constants
 
