@@ -2033,7 +2033,13 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
       // parse the child
       std::array<char, 1024> error;
-      auto                   filename = modelfiledir_ + ReadAttrFile(elem, "file", vfs).value();
+      // resolve against the model file directory, like other assets: when
+      // the file is found under it, ReadAttrFile returns the bare filename,
+      // so prepend the directory back for mj_parse. Resolving with no
+      // directory instead let the include fallback return the path with the
+      // directory already included, which this prepend then doubled.
+      auto filename =
+          modelfiledir_ + ReadAttrFile(elem, "file", vfs, modelfiledir_).value();
 
       mjSpec* child =
           mj_parse(filename.c_str(), content_type.c_str(), vfs, error.data(), error.size());
