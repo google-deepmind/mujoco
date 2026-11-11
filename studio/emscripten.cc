@@ -239,6 +239,10 @@ void PrimeFetchCache(std::string url, std::string bytes) {
   FetchCache::Instance().Prime(std::move(url), std::move(bytes));
 }
 
+void PrimeFetchCache(std::string url, std::string bytes, std::string filename) {
+  FetchCache::Instance().Prime(std::move(url), std::move(bytes), std::move(filename));
+}
+
 // Javascript-facing wrapper around mju_getXMLDependencies. Returns the
 // list of resource URLs that the given root XML transitively references
 // (meshes, textures, includes, ...), per MuJoCo's compiler rules.
@@ -468,7 +472,12 @@ EMSCRIPTEN_BINDINGS(studio_bindings) {
   // Matches the C-level `mjStringVec` typedef in mjspec.h.
   emscripten::register_vector<std::string>("mjStringVec");
   emscripten::function("registerAsset", &RegisterAsset);
-  emscripten::function("primeFetchCache", &PrimeFetchCache);
+  emscripten::function(
+      "primeFetchCache",
+      emscripten::select_overload<void(std::string, std::string)>(&PrimeFetchCache));
+  emscripten::function(
+      "primeFetchCache",
+      emscripten::select_overload<void(std::string, std::string, std::string)>(&PrimeFetchCache));
   emscripten::function("getXMLDependencies", &GetXMLDependencies);
   emscripten::function("init", &Init);
   emscripten::function("loadFile", &LoadFile);
