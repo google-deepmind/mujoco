@@ -1309,9 +1309,9 @@ void mjXUtil::WriteVector(XMLElement*           elem,
 
 
 // write attribute- string
-void mjXUtil::WriteAttrTxt(XMLElement* elem, string name, string value) {
-  // skip if value is empty
-  if (value.empty()) { return; }
+void mjXUtil::WriteAttrTxt(XMLElement* elem, string name, string value, string def) {
+  // an empty value clears an inherited nonempty default
+  if (value == def) { return; }
 
   // set attribute
   elem->SetAttribute(name.c_str(), value.c_str());

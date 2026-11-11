@@ -910,7 +910,7 @@ void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* material, mjCDe
       Pick(authored_, def->Material().spec.textures, def->Material().textures_);
   bool has_non_rgb = false;
   for (int i = 1; i < mjNTEXROLE; i++) {
-    if (!textures[i].empty() && textures[i] != deftextures[i]) {
+    if (textures[i] != deftextures[i]) {
       if (i != mjTEXROLE_RGB) { has_non_rgb = true; }
     }
   }
@@ -918,16 +918,14 @@ void mjXWriter::OneMaterial(XMLElement* elem, const mjCMaterial* material, mjCDe
   // if we have non-rgb textures, write them as layers
   if (has_non_rgb) {
     for (int i = 1; i < mjNTEXROLE; i++) {
-      if (!textures[i].empty() && textures[i] != deftextures[i]) {
+      if (textures[i] != deftextures[i]) {
         XMLElement* child_elem = InsertEnd(elem, "layer");
-        WriteAttrTxt(child_elem, "texture", textures[i]);
+        WriteAttrTxt(child_elem, "texture", textures[i], deftextures[i]);
         WriteAttrTxt(child_elem, "role", FindValue(texrole_map, 9, i));
       }
     }
   } else {
-    if (textures[mjTEXROLE_RGB] != deftextures[mjTEXROLE_RGB]) {
-      WriteAttrTxt(elem, "texture", textures[mjTEXROLE_RGB]);
-    }
+    WriteAttrTxt(elem, "texture", textures[mjTEXROLE_RGB], deftextures[mjTEXROLE_RGB]);
   }
 
   WriteAttrTable(elem,
@@ -1059,11 +1057,9 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
     }
     WriteAttr(elem, "density", 1, &given.density, &defgiven.density);
     WriteAttr(elem, "fitscale", 1, &given.fitscale, &defgiven.fitscale);
-    if (*given.material != *defgiven.material) { WriteAttrTxt(elem, "material", *given.material); }
-    if (*given.hfieldname != *defgiven.hfieldname) {
-      WriteAttrTxt(elem, "hfield", *given.hfieldname);
-    }
-    if (*given.meshname != *defgiven.meshname) { WriteAttrTxt(elem, "mesh", *given.meshname); }
+    WriteAttrTxt(elem, "material", *given.material, *defgiven.material);
+    WriteAttrTxt(elem, "hfield", *given.hfieldname, *defgiven.hfieldname);
+    WriteAttrTxt(elem, "mesh", *given.meshname, *defgiven.meshname);
     WriteSpecUser(elem, *given.userdata, *defgiven.userdata);
     if (given.plugin.active) { OnePlugin(InsertEnd(elem, "plugin"), &given.plugin); }
     return;
@@ -1118,9 +1114,7 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   } else {
     WriteAttr(elem, "density", 1, &geom->density, &def->Geom().density);
   }
-  if (geom->get_material() != def->Geom().get_material()) {
-    WriteAttrTxt(elem, "material", geom->get_material());
-  }
+  WriteAttrTxt(elem, "material", geom->get_material(), def->Geom().get_material());
 
   // hfield and mesh attributes
   if (geom->type == mjGEOM_HFIELD) {
@@ -1161,8 +1155,8 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
     WriteSpecShape(elem, site, given, defgiven);
 
     WriteAttrTable(elem, &given, &defgiven, kSiteAttrs, kSiteAttrsN);
-    if (*given.material != *defgiven.material) { WriteAttrTxt(elem, "material", *given.material); }
-    if (*given.meshname != *defgiven.meshname) { WriteAttrTxt(elem, "mesh", *given.meshname); }
+    WriteAttrTxt(elem, "material", *given.material, *defgiven.material);
+    WriteAttrTxt(elem, "mesh", *given.meshname, *defgiven.meshname);
     WriteAttr(elem, "rgba", 4, given.rgba, defgiven.rgba);
     WriteSpecUser(elem, *given.userdata, *defgiven.userdata);
     return;
@@ -1193,9 +1187,7 @@ void mjXWriter::OneSite(XMLElement* elem, const mjCSite* site, mjCDef* def, stri
                  &def->Site().spec,
                  kSiteAttrs,
                  kSiteAttrsN);
-  if (site->get_material() != def->Site().get_material()) {
-    WriteAttrTxt(elem, "material", site->get_material());
-  }
+  WriteAttrTxt(elem, "material", site->get_material(), def->Site().get_material());
   if (site->type == mjGEOM_MESH && site->get_meshname() != def->Site().get_meshname()) {
     WriteAttrTxt(elem,
                  "mesh",
@@ -1517,8 +1509,11 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* ptendon, mjCDef* de
     WriteAttr(elem, "springlength", 1, tendon->springlength, deftendon.springlength);
   }
   const string& material = Pick(authored_, base->spec.material, base->get_material());
-  if (!fixed && material != Pick(authored_, deftendon.material, def->Tendon().get_material())) {
-    WriteAttrTxt(elem, "material", material);
+  if (!fixed) {
+    WriteAttrTxt(elem,
+                 "material",
+                 material,
+                 Pick(authored_, deftendon.material, def->Tendon().get_material()));
   }
 
   // userdata
