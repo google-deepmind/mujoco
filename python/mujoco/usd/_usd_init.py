@@ -30,7 +30,7 @@ try:
 except ImportError:
   _plug = None
 
-__version__ = '4.0.1'
+__version__ = '4.0.2'
 
 if _core_version != __version__:
   raise ImportError(
