@@ -188,6 +188,49 @@ TEST_F(MujocoTest, GetXMLDependenciesExpandsIncludesIntoTheModel) {
   memxml::g_files = nullptr;
 }
 
+// Empty file attributes on inline/procedural assets are not dependencies.
+TEST_F(MujocoTest, GetXMLDependenciesIgnoresEmptyAssetFiles) {
+  mjpResourceProvider provider = {
+      .prefix = "emptyasset",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  for (const char* directory : {"", "assets"}) {
+    for (const char* file_attribute : {"", R"(file="")"}) {
+      SCOPED_TRACE(directory);
+      SCOPED_TRACE(file_attribute);
+      const std::string attribute(file_attribute);
+      const std::map<std::string, std::string> files = {
+          {"emptyasset:/scene.xml",
+           std::string(R"(<mujoco><compiler assetdir=")") + directory + R"("/><asset>
+             <mesh name="mesh" vertex="0 0 0 1 0 0 0 1 0 0 0 1"
+                   face="0 2 1 0 1 3 0 3 2 1 2 3" )" + attribute + R"(/>
+             <texture name="texture" type="2d" builtin="flat" width="4" height="4"
+                      rgb1="1 0 0" )" + attribute + R"(/>
+           </asset></mujoco>)"},
+      };
+      memxml::g_files = &files;
+
+      // The model has no external assets; both forms must compile as such.
+      char error[1024];
+      mjModel* model = mj_loadXML("emptyasset:/scene.xml", nullptr, error, sizeof(error));
+      EXPECT_NE(model, nullptr) << error;
+      if (model) {
+        EXPECT_EQ(model->nmesh, 1);
+        EXPECT_EQ(model->ntex, 1);
+        mj_deleteModel(model);
+      }
+      mjStringVec dependencies;
+      mju_getXMLDependencies("emptyasset:/scene.xml", &dependencies);
+      EXPECT_THAT(dependencies, testing::ElementsAre("emptyasset:/scene.xml"));
+      memxml::g_files = nullptr;
+    }
+  }
+}
+
 TEST_F(MujocoTest, GetXMLDependenciesHandlesCyclicIncludes) {
   const std::map<std::string, std::string> files = {
       {"cycxml:/a.xml",
