@@ -244,10 +244,11 @@ void AccumulateFiles(std::unordered_set<string>& files,
 
       // Walk the included elements as part of this model. Nested includes are
       // looked up relative to the included file's directory.
-      XMLElement* child = doc->RootElement()->FirstChildElement();
+      // Push in reverse so the stack visits siblings in document order.
+      XMLElement* child = doc->RootElement()->LastChildElement();
       while (child) {
         elements.push({child, include_dir.value()});
-        child = child->NextSiblingElement();
+        child = child->PreviousSiblingElement();
       }
 
       // Keep the document alive while its elements are on the stack.
@@ -289,10 +290,11 @@ void AccumulateFiles(std::unordered_set<string>& files,
       }
     }
 
-    XMLElement* child = elem->FirstChildElement();
+    // Later compiler elements override earlier directory attributes.
+    XMLElement* child = elem->LastChildElement();
     while (child) {
       elements.push({child, dir});
-      child = child->NextSiblingElement();
+      child = child->PreviousSiblingElement();
     }
   }
 
@@ -310,8 +312,10 @@ void AccumulateFiles(std::unordered_set<string>& files,
   }
   // Then for each non MJCF resource file, add them to the set of files using their respective
   // compiler prefixes (if they exist).
-  accumulate_files(texture_files, texture_dir.has_value() ? texture_dir : asset_dir);
-  accumulate_files(mesh_files, mesh_dir.has_value() ? mesh_dir : asset_dir);
+  accumulate_files(texture_files,
+                   texture_dir.has_value() && !texture_dir->empty() ? texture_dir : asset_dir);
+  accumulate_files(mesh_files,
+                   mesh_dir.has_value() && !mesh_dir->empty() ? mesh_dir : asset_dir);
   accumulate_files(hfield_files, asset_dir);
 }
 

@@ -188,6 +188,78 @@ TEST_F(MujocoTest, GetXMLDependenciesExpandsIncludesIntoTheModel) {
   memxml::g_files = nullptr;
 }
 
+// Dependency discovery must use the same compiler directories as the parser,
+// including compiler elements expanded in place from included files.
+TEST_F(MujocoTest, GetXMLDependenciesCompilerDirectoryOrder) {
+  struct Case {
+    const char* sections;
+    const char* included;
+  };
+  const Case cases[] = {
+      {R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)", ""},
+      {R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
+          <include file="child.xml"/>)",
+       R"(<compiler assetdir="final" meshdir="final" texturedir="final"/>)"},
+      {R"(<include file="child.xml"/>
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)",
+       R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>)"},
+      {R"(<include file="child.xml"/>)",
+       R"(<compiler assetdir="old" meshdir="old" texturedir="old"/>
+          <compiler assetdir="final" meshdir="final" texturedir="final"/>)"},
+      {R"(<compiler assetdir="final" meshdir="old" texturedir="old"/>
+          <compiler meshdir="" texturedir=""/>)", ""},
+  };
+  static std::set<std::string> requested;
+  mjpResourceProvider provider = {
+      .prefix = "dirxml",
+      .open = [](mjResource* resource) {
+        requested.insert(resource->name);
+        return memxml::Open(resource);
+      },
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  for (const auto& [sections, included] : cases) {
+    SCOPED_TRACE(sections);
+    const std::map<std::string, std::string> files = {
+        {"dirxml:/scene.xml", std::string("<mujoco>") + sections + R"(
+          <asset>
+            <mesh name="mesh" file="mesh.obj"/>
+            <texture name="texture" type="2d" file="texture.png"/>
+            <hfield name="height" size="1 1 1 1" file="height.png"/>
+          </asset>
+        </mujoco>)"},
+        {"dirxml:/child.xml", std::string("<mujoco>") + included + "</mujoco>"},
+    };
+    memxml::g_files = &files;
+
+    mjStringVec dependencies;
+    mju_getXMLDependencies("dirxml:/scene.xml", &dependencies);
+    std::set<std::string> dep_set(dependencies.begin(), dependencies.end());
+    std::set<std::string> expected = {
+        "dirxml:/scene.xml", "dirxml:/final/mesh.obj",
+        "dirxml:/final/texture.png", "dirxml:/final/height.png",
+    };
+    if (*included) { expected.insert("dirxml:/child.xml"); }
+    EXPECT_EQ(dep_set, expected);
+
+    requested.clear();
+    char error[1024];
+    mjSpec* spec = mj_parseXML("dirxml:/scene.xml", nullptr, error, sizeof(error));
+    EXPECT_NE(spec, nullptr) << error;
+    if (spec) {
+      EXPECT_THAT(requested, testing::Contains("dirxml:/final/mesh.obj"));
+      EXPECT_THAT(requested, testing::Contains("dirxml:/final/texture.png"));
+      EXPECT_THAT(requested, testing::Contains("dirxml:/final/height.png"));
+      mj_deleteSpec(spec);
+    }
+    memxml::g_files = nullptr;
+  }
+}
+
 TEST_F(MujocoTest, GetXMLDependenciesHandlesCyclicIncludes) {
   const std::map<std::string, std::string> files = {
       {"cycxml:/a.xml",
