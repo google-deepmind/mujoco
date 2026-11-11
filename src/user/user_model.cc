@@ -389,6 +389,10 @@ void mjCModel::SaveDofOffsets(bool computesize) {
   }
 
   for (auto actuator : actuators_) {
+    if (actuator->actdim_ < 0) {
+      actuator->ResolveInput(actuator->spec);
+    }
+
     // an actdim of 0 is explicit
     if (actuator->actdim >= 0) {
       actuator->actdim_ = actuator->actdim;

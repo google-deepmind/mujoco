@@ -5115,8 +5115,8 @@ TEST_F(MujocoTest, KeyframeActStatelessDcMotor) {
   }
 }
 
-// attaching an uncompiled spec uses the same activation layout as compilation
-TEST_F(MujocoTest, AttachKeyframeActPidAndSo3) {
+// attaching an uncompiled spec uses the same actuator layout as compilation
+TEST_F(MujocoTest, AttachKeyframeActuatorLayout) {
   static constexpr char parent_xml[] = R"(
   <mujoco>
     <worldbody>
@@ -5140,8 +5140,15 @@ TEST_F(MujocoTest, AttachKeyframeActPidAndSo3) {
       <general joint="ball" gaintype="so3" biastype="so3" dyntype="integrator"
                gainprm="1" biasprm="0 -1"/>
       <intvelocity joint="hinge" kp="1" actrange="-10 10"/>
+      <orientation joint="ball" kp="1" input="quat"/>
+      <dcmotor joint="hinge" motorconst="1" resistance="1" input="none"/>
+      <dcmotor joint="hinge" motorconst="1" resistance="1" input="pos vel ff voltage"/>
+      <motor joint="hinge"/>
     </actuator>
-    <keyframe><key name="key" act="1 2 3 4 .25 .5 .75 5"/></keyframe>
+    <keyframe>
+      <key name="key" act="1 2 3 4 .25 .5 .75 5"
+           ctrl="1 2 3 4 5 6 7 8 9 10 11 12 .5 .5 .5 .5 13 14 15 16 17"/>
+    </keyframe>
   </mujoco>
   )";
 
@@ -5164,11 +5171,19 @@ TEST_F(MujocoTest, AttachKeyframeActPidAndSo3) {
       MjModelPtr model(mj_compile(parent, nullptr));
       ASSERT_THAT(model.get(), NotNull()) << mjs_getError(parent);
       ASSERT_EQ(model->na, 9);
+      ASSERT_EQ(model->nu, 22);
       ASSERT_EQ(model->nkey, 1);
       EXPECT_THAT(AsVector(model->actuator_actnum, model->nactuator),
-                  ElementsAre(1, 0, 1, 1, 2, 3, 1));
+                  ElementsAre(1, 0, 1, 1, 2, 3, 1, 0, 0, 0, 0));
+      EXPECT_THAT(AsVector(model->actuator_ctrlnum, model->nactuator),
+                  ElementsAre(1, 2, 2, 2, 2, 3, 1, 4, 0, 4, 1));
+      EXPECT_THAT(AsVector(model->actuator_outnum, model->nactuator),
+                  ElementsAre(1, 1, 1, 1, 1, 3, 1, 3, 1, 1, 1));
       EXPECT_THAT(AsVector(model->key_act, model->na),
                   ElementsAre(0, 1, 2, 3, 4, .25, .5, .75, 5));
+      EXPECT_THAT(AsVector(model->key_ctrl, model->nu),
+                  ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                              .5, .5, .5, .5, 13, 14, 15, 16, 17));
       mj_deleteSpec(parent);
       mj_deleteSpec(child);
     }

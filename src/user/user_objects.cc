@@ -8096,7 +8096,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   historyadr_ = -1;
   historynum_ = 0;
 
-  // input and output blocks, set by mjCModel; all actuator types are currently 1x1
+  // input and output blocks, resolved by compilation or a keyframe layout
   ctrladr_  = -1;
   ctrlnum_  = 1;
   ctrlspec_ = 0;
@@ -8309,6 +8309,28 @@ int mjCActuator::DefaultActDim(const mjsActuator& actuator) {
 }
 
 
+// input and output block layout, before or during compilation
+void mjCActuator::ResolveInput(const mjsActuator& actuator) {
+  ctrlspec_ = actuator.ctrlspec;
+  ctrlnum_  = 1;
+  outnum_   = 1;
+  so3_      = actuator.gaintype == mjGAIN_SO3;
+  if (so3_) {
+    ctrlspec_ = actuator.ctrlspec ? actuator.ctrlspec : mjCHART_EXPMAP;
+    ctrlnum_  = ctrlspec_ == mjCHART_QUAT ? 4 : 3;
+    outnum_   = 3;
+  } else if (actuator.gaintype == mjGAIN_PID || actuator.gaintype == mjGAIN_DCMOTOR) {
+    if (!ctrlspec_) {
+      ctrlspec_ = actuator.gaintype == mjGAIN_PID ? mjINPUT_POS | mjINPUT_VEL : mjINPUT_VOLTAGE;
+    }
+    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) +
+               !!(ctrlspec_ & mjINPUT_VEL) +
+               !!(ctrlspec_ & mjINPUT_FF) +
+               !!(ctrlspec_ & mjINPUT_VOLTAGE);
+  }
+}
+
+
 // factor of the coordinate: the stretch along a slide, or that of a length
 double mjCActuator::CoordinateFactor(const mjCGauge& g) const {
   if (!linear_) { return 1; }
@@ -8490,11 +8512,8 @@ void mjCActuator::ApplyGauge(bool inverse) {
 void mjCActuator::Compile(void) {
   CopyFromSpec();
 
-  // reset input/output block widths, resolved below
-  ctrlnum_  = 1;
-  ctrlspec_ = 0;
-  outnum_   = 1;
-  so3_      = false;
+  // resolve input/output block widths, validated below
+  ResolveInput(*this);
 
   // resize userdata
   if (userdata_.size() > model->nuser_actuator) {
@@ -8571,7 +8590,6 @@ void mjCActuator::Compile(void) {
     }
 
     // input chart: expmap (3 controls, default) or quat (4 controls)
-    ctrlspec_ = ctrlspec ? ctrlspec : mjCHART_EXPMAP;
     if (ctrlspec_ == mjCHART_QUAT) {
       if (dyntype != mjDYN_NONE) {
         throw mjCError(this,
@@ -8594,11 +8612,6 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-
-    // input and output blocks
-    ctrlnum_ = ctrlspec_ == mjCHART_QUAT ? 4 : 3;
-    outnum_  = 3;
-    so3_     = true;
   }
 
   // PID servo: validate and resolve input block
@@ -8656,7 +8669,6 @@ void mjCActuator::Compile(void) {
     }
 
     // input block: any subset of [pos, vel, ff], default [pos, vel]
-    ctrlspec_ = ctrlspec ? ctrlspec : (mjINPUT_POS | mjINPUT_VEL);
     if (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
       throw mjCError(this,
                      "pid inputs are a subset of [pos, vel, ff] in actuator '%s' (id = %d)",
@@ -8669,13 +8681,10 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-    ctrlnum_ =
-        !!(ctrlspec_ & mjINPUT_POS) + !!(ctrlspec_ & mjINPUT_VEL) + !!(ctrlspec_ & mjINPUT_FF);
   }
 
   // DC motor: resolve input block (default: raw voltage command)
   if (gaintype == mjGAIN_DCMOTOR) {
-    ctrlspec_ = ctrlspec ? ctrlspec : mjINPUT_VOLTAGE;
     if (ctrlspec_ != mjINPUT_NONE &&
         (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF | mjINPUT_VOLTAGE))) {
       throw mjCError(this,
@@ -8709,10 +8718,6 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) +
-               !!(ctrlspec_ & mjINPUT_VEL) +
-               !!(ctrlspec_ & mjINPUT_FF) +
-               !!(ctrlspec_ & mjINPUT_VOLTAGE);
     if (!controller && dynprm[7] > 0) {
       throw mjCError(this,
                      "dcmotor slew rate limiting requires a controller input [pos, vel, "
@@ -8742,7 +8747,6 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-    ctrlspec_ = ctrlspec;
   }
 
   // muscle and user gains take no input signature
