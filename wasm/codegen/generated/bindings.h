@@ -7102,10 +7102,10 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->energy));
   }
   emscripten::val buffer() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
   }
   emscripten::val arena() const {
-    return emscripten::val(emscripten::typed_memory_view(model->narena, static_cast<uint8_t*>(ptr_->arena)));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->narena, static_cast<uint8_t*>(ptr_->arena)));
   }
   emscripten::val qpos() const {
     return emscripten::val(emscripten::typed_memory_view(model->nq, ptr_->qpos));
