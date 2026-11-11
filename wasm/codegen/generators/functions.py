@@ -222,7 +222,10 @@ def get_compatible_return_code(func: ast_nodes.FunctionDecl) -> str:
 
   if inner_type := common.get_pointer_return_inner_value_type(func):
     if inner_type.name == "char":
-      return f"return std::string({c_call});"
+      return (
+          f"const char* result = {c_call};\n"
+          'return result ? std::string(result) : "";'
+      )
     elif inner_type.name == "mjString":
       return f"return *{c_call};"
     elif inner_type.name not in constants.PRIMITIVE_TYPES:
