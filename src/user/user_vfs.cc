@@ -454,8 +454,10 @@ class BufferProvider : public mjpResourceProvider {
 
     BufferProvider* provider = new BufferProvider(std::forward<Args>(args)...);
     if (!provider->loaded_) {
+      const auto status = impl->ContainsBuffer(provider->path_.c_str()) ?
+          mujoco::user::VFS::kRepeatedName : mujoco::user::VFS::kFailedToLoad;
       delete provider;
-      return static_cast<int>(mujoco::user::VFS::kFailedToLoad);
+      return static_cast<int>(status);
     }
     provider->mount = [](mjResource* res) { return static_cast<int>(mujoco::user::VFS::kSuccess); };
     provider->unmount = [](mjResource* res) {
