@@ -267,9 +267,8 @@ class EllipsoidCollisionTest(parameterized.TestCase):
   """
 
   def test_sphere_ellipsoid(self):
-    """Tests ellipsoid capsule contact."""
+    """Tests ellipsoid sphere contact."""
     d, dx = _collide(self._ELLIPSOID_SPHERE)
-    d.contact.pos[0][2] = 0.03  # MJX finds the point on the surface
     self.assertLess(dx._impl.contact.dist[0], 0)
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(
@@ -298,6 +297,92 @@ class EllipsoidCollisionTest(parameterized.TestCase):
       _assert_attr_eq(
           dx._impl.contact, d.contact, field.name, 'ellipsoid-capsule', 1e-5
       )
+
+  _ELLIPSOID_POSES = """
+    <mujoco>
+      <option ccd_tolerance="1e-8"/>
+      <worldbody>
+        <body>
+          <freejoint/>
+          <geom type="{type}" size="{size}"/>
+        </body>
+        <body>
+          <freejoint/>
+          <geom type="ellipsoid" size=".085 .035 .04"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  @parameterized.parameters(('sphere', '.03'), ('capsule', '.02 .0831'))
+  def test_ellipsoid_random_poses(self, geom_type, size):
+    """Tests sphere and capsule ellipsoid contacts at random poses."""
+    m = mujoco.MjModel.from_xml_string(
+        self._ELLIPSOID_POSES.format(type=geom_type, size=size)
+    )
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    collide = jax.jit(lambda m, d: mjx.collision(m, mjx.kinematics(m, d)))
+    rng = np.random.default_rng(0)
+    ntest = 0
+    while ntest < 20:
+      quat1, quat2 = rng.normal(size=(2, 4))
+      d.qpos = np.concatenate([
+          np.zeros(3),
+          quat1 / np.linalg.norm(quat1),
+          rng.uniform(-0.09, 0.09, 3),
+          quat2 / np.linalg.norm(quat2),
+      ])
+      mujoco.mj_forward(m, d)
+      # C is accurate for penetration up to the radius; the tolerances cover
+      # its own error on these poses, mostly its EPA's in capsule position and
+      # normal
+      if d.ncon != 1 or d.contact.dist[0] < -m.geom_size[0, 0]:
+        continue
+      ntest += 1
+      contact = collide(mx, mjx.put_data(m, d))._impl.contact
+      np.testing.assert_allclose(contact.dist, d.contact.dist, atol=5e-6)
+      np.testing.assert_allclose(contact.pos, d.contact.pos, atol=1e-5)
+      np.testing.assert_allclose(
+          contact.frame[:, 0], d.contact.frame[:, :3], atol=5e-4
+      )
+
+  _ELLIPSOID_CENTER = """
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom type="ellipsoid" size=".15 .03 .05"/>
+        </body>
+        <body {attr}>
+          <freejoint/>
+          <geom type="{type}" size="{size}"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """
+
+  @parameterized.parameters(
+      ('sphere', '.01', ''), ('capsule', '.01 .1', 'euler="0 90 0"')
+  )
+  def test_ellipsoid_center(self, geom_type, size, attr):
+    """Tests a sphere or capsule centered in an ellipsoid."""
+    m = mujoco.MjModel.from_xml_string(
+        self._ELLIPSOID_CENTER.format(type=geom_type, size=size, attr=attr)
+    )
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, mujoco.MjData(m))
+    collide = jax.jit(lambda m, d: mjx.collision(m, mjx.kinematics(m, d)))
+    contact = collide(mx, dx)._impl.contact
+    # the deepest point is the ellipsoid center, at depth .03 + .01 along y
+    np.testing.assert_allclose(contact.dist, [-0.04], atol=1e-6)
+    normal = contact.frame[0, 0]
+    np.testing.assert_allclose(np.abs(normal), [0, 1, 0], atol=1e-6)
+    np.testing.assert_allclose(contact.pos[0], -0.01 * normal, atol=1e-6)
+    # the gradient is finite on the planes of symmetry
+    grad = jax.grad(
+        lambda qpos: collide(mx, dx.replace(qpos=qpos))._impl.contact.dist[0]
+    )(dx.qpos)
+    self.assertTrue(np.all(np.isfinite(grad)))
 
   _ELLIPSOID_CYLINDER = """
     <mujoco>
