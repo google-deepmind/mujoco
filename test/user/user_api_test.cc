@@ -5115,6 +5115,66 @@ TEST_F(MujocoTest, KeyframeActStatelessDcMotor) {
   }
 }
 
+// attaching an uncompiled spec uses the same activation layout as compilation
+TEST_F(MujocoTest, AttachKeyframeActPidAndSo3) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body><joint name="own"/><geom size=".1"/></body>
+      <frame name="mount"/>
+    </worldbody>
+    <actuator><general joint="own" dyntype="filter"/></actuator>
+  </mujoco>
+  )";
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body><joint name="hinge"/><geom size=".1"/></body>
+      <body><joint name="ball" type="ball"/><geom size=".1"/></body>
+    </worldbody>
+    <actuator>
+      <pid joint="hinge" kp="1"/>
+      <pid joint="hinge" kp="1" ki="1"/>
+      <pid joint="hinge" kp="1" slewmax="1"/>
+      <pid joint="hinge" kp="1" ki="1" slewmax="1"/>
+      <general joint="ball" gaintype="so3" biastype="so3" dyntype="integrator"
+               gainprm="1" biasprm="0 -1"/>
+      <intvelocity joint="hinge" kp="1" actrange="-10 10"/>
+    </actuator>
+    <keyframe><key name="key" act="1 2 3 4 .25 .5 .75 5"/></keyframe>
+  </mujoco>
+  )";
+
+  for (bool compiled : {false, true}) {
+    for (bool deepcopy : {false, true}) {
+      SCOPED_TRACE(testing::Message() << "compiled=" << compiled << ", deepcopy=" << deepcopy);
+      std::array<char, 1000> error;
+      mjSpec* parent = mj_parseXMLString(parent_xml, nullptr, error.data(), error.size());
+      ASSERT_THAT(parent, NotNull()) << error.data();
+      mjSpec* child = mj_parseXMLString(child_xml, nullptr, error.data(), error.size());
+      ASSERT_THAT(child, NotNull()) << error.data();
+      if (compiled) {
+        MjModelPtr model(mj_compile(child, nullptr));
+        ASSERT_THAT(model.get(), NotNull()) << mjs_getError(child);
+        EXPECT_EQ(model->na, 8);
+      }
+      mjs_setDeepCopy(parent, deepcopy);
+      ASSERT_THAT(mjs_attach(mjs_findFrame(parent, "mount")->element, child->element, "c_", ""),
+                  NotNull()) << mjs_getError(parent);
+      MjModelPtr model(mj_compile(parent, nullptr));
+      ASSERT_THAT(model.get(), NotNull()) << mjs_getError(parent);
+      ASSERT_EQ(model->na, 9);
+      ASSERT_EQ(model->nkey, 1);
+      EXPECT_THAT(AsVector(model->actuator_actnum, model->nactuator),
+                  ElementsAre(1, 0, 1, 1, 2, 3, 1));
+      EXPECT_THAT(AsVector(model->key_act, model->na),
+                  ElementsAre(0, 1, 2, 3, 4, .25, .5, .75, 5));
+      mj_deleteSpec(parent);
+      mj_deleteSpec(child);
+    }
+  }
+}
+
 // an actuator added before a recompilation takes the neutral control which
 // mj_resetData gives it, the identity for a quaternion, and the controls of
 // the other actuators are kept

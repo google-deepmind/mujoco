@@ -8293,6 +8293,22 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
 }
 
 
+// activation dimension inferred from the dynamics and their parameters
+int mjCActuator::DefaultActDim(const mjsActuator& actuator) {
+  if (actuator.dyntype == mjDYN_DCMOTOR && !actuator.plugin.active) {
+    return (actuator.dynprm[7] > 0) + (actuator.gainprm[5] > 0) +
+           (actuator.dynprm[2] > 0) + (actuator.dynprm[5] > 0) + (actuator.dynprm[0] > 0);
+  }
+  if (actuator.dyntype == mjDYN_PID) {
+    return (actuator.dynprm[1] > 0) + (actuator.gainprm[0] > 0);
+  }
+  if (actuator.dyntype == mjDYN_INTEGRATOR && actuator.gaintype == mjGAIN_SO3) {
+    return 3;
+  }
+  return actuator.dyntype != mjDYN_NONE;
+}
+
+
 // factor of the coordinate: the stretch along a slide, or that of a length
 double mjCActuator::CoordinateFactor(const mjCGauge& g) const {
   if (!linear_) { return 1; }
@@ -8546,7 +8562,7 @@ void mjCActuator::Compile(void) {
                        name.c_str(),
                        id);
       }
-      actdim = 3;
+      actdim = DefaultActDim(*this);
 
       // the act setpoint is re-anchored to a bounded representative at integration time
       if (actlimited == mjLIMITED_TRUE && actrange[0] == 0 && actrange[1] == 0) {
@@ -8628,7 +8644,7 @@ void mjCActuator::Compile(void) {
                        name.c_str(),
                        id);
       }
-      int nslot = (dynprm[1] > 0) + (gainprm[0] > 0);
+      int nslot = DefaultActDim(*this);
       if (actdim > 0 && actdim != nslot) {
         throw mjCError(this,
                        "pid controller states require matching actdim in actuator '%s' "
@@ -8866,8 +8882,7 @@ void mjCActuator::Compile(void) {
 
   // DC motor: one activation per enabled state, as in mj_dcmotorSlots
   if (dyntype == mjDYN_DCMOTOR && !plugin.active) {
-    int nslot =
-        (dynprm[7] > 0) + (gainprm[5] > 0) + (dynprm[2] > 0) + (dynprm[5] > 0) + (dynprm[0] > 0);
+    int nslot = DefaultActDim(*this);
     if (actdim < 0) {
       actdim = nslot;
     } else if (actdim != nslot) {
@@ -8883,7 +8898,7 @@ void mjCActuator::Compile(void) {
   }
 
   // set actdim to 1 if it is unset and type is standard one-activation dyntype
-  if (actdim < 0) { actdim = (dyntype != mjDYN_NONE); }
+  if (actdim < 0) { actdim = DefaultActDim(*this); }
 
   // DC motor always uses actearly
   if (dyntype == mjDYN_DCMOTOR && !actearly) {
