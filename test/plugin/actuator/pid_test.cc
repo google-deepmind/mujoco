@@ -35,6 +35,41 @@ using ::testing::HasSubstr;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
+TEST_F(PidTest, DisableControlClamping) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.pid">
+        <instance name="pid"><config key="kp" value="4"/></instance>
+      </plugin>
+    </extension>
+    <worldbody>
+      <body><joint name="joint"/><geom size="0.1"/></body>
+    </worldbody>
+    <actuator>
+      <plugin joint="joint" instance="pid" ctrllimited="true" ctrlrange="-1 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  for (mjtNum ctrl : {-2.0, 2.0}) {
+    data->ctrl[0] = ctrl;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->actuator_force[0], ctrl > 0 ? 4 : -4);
+
+    model->opt.disableflags |= mjDSBL_CLAMPCTRL;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->actuator_force[0], 4*ctrl);
+
+    model->opt.disableflags &= ~mjDSBL_CLAMPCTRL;
+    mj_forward(model.get(), data.get());
+    EXPECT_EQ(data->actuator_force[0], ctrl > 0 ? 4 : -4);
+  }
+}
+
 TEST_F(PidTest, PGain) {
   constexpr absl::string_view kModelXml = R"(
   <mujoco>
