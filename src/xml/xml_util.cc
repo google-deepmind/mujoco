@@ -172,7 +172,6 @@ void AccumulateFiles(std::unordered_set<string>& files,
   std::set<string>   model_files;
   std::set<string>   texture_files;
   std::set<string>   mesh_files;
-  std::set<string>   hfield_files;
 
   auto accumulate_files = [&](const std::set<string>& candidate_files, optional<FilePath> prefix) {
     for (const auto& file : candidate_files) {
@@ -270,16 +269,12 @@ void AccumulateFiles(std::unordered_set<string>& files,
       // compiler elements don't have children.
       continue;
     } else if (!std::strcmp(elem->Value(), "mesh") ||
+               !std::strcmp(elem->Value(), "hfield") ||
                !std::strcmp(elem->Value(), "flexcomp") ||
                !std::strcmp(elem->Value(), "skin")) {
       // mesh elements don't have children.
       auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
       if (file_attr.has_value()) { mesh_files.insert(file_attr->Str()); }
-      continue;
-    } else if (!std::strcmp(elem->Value(), "hfield")) {
-      // hfield elements don't have children.
-      auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
-      if (file_attr.has_value()) { hfield_files.insert(file_attr->Str()); }
       continue;
     } else if (!std::strcmp(elem->Value(), "texture")) {
       static const char* attributes[] =
@@ -316,7 +311,6 @@ void AccumulateFiles(std::unordered_set<string>& files,
                    texture_dir.has_value() && !texture_dir->empty() ? texture_dir : asset_dir);
   accumulate_files(mesh_files,
                    mesh_dir.has_value() && !mesh_dir->empty() ? mesh_dir : asset_dir);
-  accumulate_files(hfield_files, asset_dir);
 }
 
 void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies) {

@@ -260,6 +260,49 @@ TEST_F(MujocoTest, GetXMLDependenciesCompilerDirectoryOrder) {
   }
 }
 
+// Height fields use meshdir during compilation, just like mesh files.
+TEST_F(MujocoTest, GetXMLDependenciesHeightFieldDirectory) {
+  const int dimensions[] = {2, 2};
+  const float elevation[] = {0, 1, 2, 3};
+  const std::string height =
+      std::string(reinterpret_cast<const char*>(dimensions), sizeof(dimensions)) +
+      std::string(reinterpret_cast<const char*>(elevation), sizeof(elevation));
+  const std::map<std::string, std::string> files = {
+      {"hdirxml:/scene.xml", R"(
+        <mujoco>
+          <compiler assetdir="assets" meshdir="heights"/>
+          <asset><hfield name="height" size="1 1 1 1" file="height.bin"/></asset>
+          <worldbody><geom type="hfield" hfield="height"/></worldbody>
+        </mujoco>)"},
+      {"hdirxml:/heights/height.bin", height},
+  };
+  memxml::g_files = &files;
+  mjpResourceProvider provider = {
+      .prefix = "hdirxml",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+
+  // Only the file in meshdir is available: a successful compile proves the
+  // dependency path agrees with the compiler, not just the XML parser.
+  char error[1024];
+  mjModel* model = mj_loadXML("hdirxml:/scene.xml", nullptr, error, sizeof(error));
+  EXPECT_NE(model, nullptr) << error;
+  if (model) {
+    EXPECT_EQ(model->nhfield, 1);
+    EXPECT_EQ(model->nhfielddata, 4);
+    mj_deleteModel(model);
+  }
+
+  mjStringVec dependencies;
+  mju_getXMLDependencies("hdirxml:/scene.xml", &dependencies);
+  EXPECT_THAT(dependencies, testing::UnorderedElementsAre(
+                                "hdirxml:/scene.xml", "hdirxml:/heights/height.bin"));
+  memxml::g_files = nullptr;
+}
+
 TEST_F(MujocoTest, GetXMLDependenciesHandlesCyclicIncludes) {
   const std::map<std::string, std::string> files = {
       {"cycxml:/a.xml",
