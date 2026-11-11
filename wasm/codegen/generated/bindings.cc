@@ -3562,6 +3562,19 @@ mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const 
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_VALUE(int, vertid);
+  if (nface < 0 || nvert < 0) {
+    mju_error("[mju_raySkin] nface and nvert must be non-negative");
+  }
+  CHECK_SIZE(face, 3 * static_cast<int64_t>(nface));
+  CHECK_SIZE(vert, 3 * static_cast<int64_t>(nvert));
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(vertid, 1);
+  for (std::size_t i = 0; i < face_.size(); ++i) {
+    if (face_.data()[i] < 0 || face_.data()[i] >= nvert) {
+      mju_error("[mju_raySkin] face vertex index out of bounds");
+    }
+  }
   return mju_raySkin(nface, nvert, face_.data(), vert_.data(), pnt_.data(), vec_.data(), vertid_.data());
 }
 
