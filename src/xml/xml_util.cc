@@ -122,7 +122,8 @@ template <typename... Args>
   throw err;
 }
 
-void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies);
+void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies,
+                            std::unordered_set<string>& visited_models);
 
 // Opens and parses the XML resource `filename` into `doc`. Returns the
 // directory of the resource, or nullopt if it cannot be opened. Throws
@@ -165,7 +166,8 @@ optional<FilePath> ParseXMLResource(const string& filename, tinyxml2::XMLDocumen
 
 void AccumulateFiles(std::unordered_set<string>& files,
                      XMLElement*                 root,
-                     const FilePath&             model_dir) {
+                     const FilePath&             model_dir,
+                     std::unordered_set<string>& visited_models) {
   optional<FilePath> asset_dir;
   optional<FilePath> mesh_dir;
   optional<FilePath> texture_dir;
@@ -305,7 +307,7 @@ void AccumulateFiles(std::unordered_set<string>& files,
   for (const auto& file : model_files) {
     mjStringVec subdeps;
     FilePath    full_path = model_dir + FilePath(file);
-    GetXMLDependenciesImpl(full_path.Str().c_str(), &subdeps);
+    GetXMLDependenciesImpl(full_path.Str().c_str(), &subdeps, visited_models);
     for (const auto& subdep : subdeps) { files.insert(subdep); }
   }
   // Then for each non MJCF resource file, add them to the set of files using their respective
@@ -315,13 +317,18 @@ void AccumulateFiles(std::unordered_set<string>& files,
   accumulate_files(hfield_files, asset_dir);
 }
 
-void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies) {
+void GetXMLDependenciesImpl(const char* filename, mjStringVec* dependencies,
+                            std::unordered_set<string>& visited_models) {
+  // Like includes, model assets can form cycles or be referenced more than
+  // once. Keep their visited set across models without sharing compiler scope.
+  if (!visited_models.insert(filename).second) { return; }
+
   tinyxml2::XMLDocument doc;
   optional<FilePath>    model_dir = ParseXMLResource(filename, doc);
   if (!model_dir.has_value()) { ThrowXmlDepsError("Could not open '%s'", filename); }
 
   std::unordered_set<string> files = {filename};
-  AccumulateFiles(files, doc.RootElement(), model_dir.value());
+  AccumulateFiles(files, doc.RootElement(), model_dir.value(), visited_models);
 
   *dependencies = {files.begin(), files.end()};
 }
@@ -340,7 +347,8 @@ void mjCopyError(char* dst, const char* src, int maxlen) {
 void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies) {
   char error[1024] = "";
   try {
-    GetXMLDependenciesImpl(filename, dependencies);
+    std::unordered_set<string> visited_models;
+    GetXMLDependenciesImpl(filename, dependencies, visited_models);
     return;
   } catch (const XmlDepsError& err) { mjCopyError(error, err.message, sizeof(error)); }
   // Called outside the catch block: a longjmp out of a handler would skip the

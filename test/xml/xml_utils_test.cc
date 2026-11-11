@@ -219,6 +219,73 @@ TEST_F(MujocoTest, GetXMLDependenciesHandlesCyclicIncludes) {
   memxml::g_files = nullptr;
 }
 
+// Model assets have their own compiler scope, but their dependency graph can
+// contain cycles or share a submodel. Each resource should be reported once.
+TEST_F(MujocoTest, GetXMLDependenciesHandlesModelGraphs) {
+  const std::map<std::string, std::string> files = {
+      {"modelgraph:/self.xml", R"(<mujoco><asset>
+        <model name="self" file="./self.xml"/>
+        <mesh name="mesh" file="self.obj"/>
+      </asset></mujoco>)"},
+      {"modelgraph:/a.xml", R"(<mujoco><compiler meshdir="a_meshes"/><asset>
+        <model name="b" file="b.xml"/>
+        <mesh name="a" file="a.obj"/>
+      </asset></mujoco>)"},
+      {"modelgraph:/b.xml", R"(<mujoco><compiler meshdir="b_meshes"/><asset>
+        <model name="a" file="a.xml"/>
+        <mesh name="b" file="b.obj"/>
+      </asset></mujoco>)"},
+      {"modelgraph:/diamond.xml", R"(<mujoco><asset>
+        <model name="left" file="left.xml"/>
+        <model name="right" file="right.xml"/>
+      </asset></mujoco>)"},
+      {"modelgraph:/left.xml", R"(<mujoco><compiler meshdir="left_meshes"/><asset>
+        <model name="shared" file="shared.xml"/>
+        <mesh name="left" file="left.obj"/>
+      </asset></mujoco>)"},
+      {"modelgraph:/right.xml", R"(<mujoco><compiler meshdir="right_meshes"/><asset>
+        <model name="shared" file="shared.xml"/>
+        <mesh name="right" file="right.obj"/>
+      </asset></mujoco>)"},
+      {"modelgraph:/shared.xml", R"(<mujoco><asset>
+        <texture name="texture" type="2d" file="shared.png"/>
+      </asset></mujoco>)"},
+  };
+  mjpResourceProvider provider = {
+      .prefix = "modelgraph",
+      .open = memxml::Open,
+      .read = memxml::Read,
+      .close = memxml::Close,
+  };
+  ASSERT_GT(mjp_registerProvider(&provider), 0);
+  memxml::g_files = &files;
+
+  struct Case {
+    const char* root;
+    std::set<std::string> expected;
+  };
+  const Case cases[] = {
+      {"modelgraph:/self.xml", {"modelgraph:/self.xml", "modelgraph:/self.obj"}},
+      {"modelgraph:/a.xml", {"modelgraph:/a.xml", "modelgraph:/b.xml",
+                            "modelgraph:/a_meshes/a.obj", "modelgraph:/b_meshes/b.obj"}},
+      {"modelgraph:/diamond.xml", {"modelgraph:/diamond.xml", "modelgraph:/left.xml",
+                                  "modelgraph:/right.xml", "modelgraph:/shared.xml",
+                                  "modelgraph:/left_meshes/left.obj",
+                                  "modelgraph:/right_meshes/right.obj", "modelgraph:/shared.png"}},
+      // A second top-level call must still discover a previously visited model.
+      {"modelgraph:/shared.xml", {"modelgraph:/shared.xml", "modelgraph:/shared.png"}},
+  };
+  for (const auto& [root, expected] : cases) {
+    SCOPED_TRACE(root);
+    mjStringVec dependencies;
+    mju_getXMLDependencies(root, &dependencies);
+    EXPECT_EQ(std::set<std::string>(dependencies.begin(), dependencies.end()), expected);
+    EXPECT_EQ(dependencies.size(), expected.size());
+  }
+
+  memxml::g_files = nullptr;
+}
+
 // MjuErrorMessageFrom longjmps out of mju_error; AddressSanitizer /
 // LeakSanitizer checks that no C++ stack objects leaked on that jump.
 TEST_F(MujocoTest, GetXMLDependenciesErrorsDoNotLeakOnLongjmp) {
