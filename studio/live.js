@@ -43,6 +43,32 @@ function hideLoading() {
   loadingOverlay.style.display = 'none';
 }
 
+// Asyncify can suspend WASM while a model load or render frame fetches a
+// resource. Serialize entry points so another operation cannot re-enter WASM
+// while the suspended call still holds native locks.
+let wasmTask = Promise.resolve();
+function runWasmTask(task) {
+  const result = wasmTask.then(task);
+  // Keep later operations runnable even when this caller receives an error.
+  wasmTask = result.catch(() => {});
+  return result;
+}
+
+function loadModel(task) {
+  return runWasmTask(async () => {
+    showLoading();
+    try {
+      // Let the browser paint the overlay before entering WASM.
+      await new Promise(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+      return await task();
+    } finally {
+      hideLoading();
+    }
+  });
+}
+
 function isIOSDevice() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -246,7 +272,6 @@ var Module = {
             // suspends the WASM module. We must not start the animation
             // loop until the load completes, otherwise renderFrame will
             // hit "Cannot have multiple async operations in flight".
-            showLoading();
             // Surface prefetch progress on the loading screen.
             const dlEl = document.getElementById('loadingDownload');
             const dlFileEl = document.getElementById('loadingDownloadFile');
@@ -257,22 +282,17 @@ var Module = {
                     `${s.files} files · ${(s.bytes/1024/1024).toFixed(1)} MB`;
               }
             };
-            requestAnimationFrame(() => {
-              requestAnimationFrame(async () => {
-                try {
-                  await prefetchModelAssets(modelUrl, onProgress);
-                  await Module.loadUrl(modelUrl);
-                  if (keyframe !== null) {
-                    Module.loadKeyframe(keyframe);
-                  }
-                } catch (error) {
-                  console.error('Failed to load model from URL:', error);
-                } finally {
-                  if (dlEl) dlEl.style.display = 'none';
-                  hideLoading();
-                  requestAnimationFrame(Module.animate);
-                }
-              });
+            loadModel(async () => {
+              await prefetchModelAssets(modelUrl, onProgress);
+              await Module.loadUrl(modelUrl);
+              if (keyframe !== null) {
+                Module.loadKeyframe(keyframe);
+              }
+            }).catch(error => {
+              console.error('Failed to load model from URL:', error);
+            }).finally(() => {
+              if (dlEl) dlEl.style.display = 'none';
+              requestAnimationFrame(Module.animate);
             });
           } else {
             requestAnimationFrame(Module.animate);
@@ -287,7 +307,7 @@ var Module = {
   },
   animate: async () => {
     try {
-      await Module.renderFrame();
+      await runWasmTask(() => Module.renderFrame());
     } catch (error) {
       console.error('Update error:', error);
     }
@@ -304,19 +324,8 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const buffer = e.target.result;
-    // Show the loading overlay, then defer the blocking WASM call by two
-    // animation frames so the browser has a chance to paint the overlay.
-    showLoading();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        try {
-          Module.loadFile(file.name, buffer);
-        } catch (error) {
-          console.error('Failed to load model from file:', error);
-        } finally {
-          hideLoading();
-        }
-      });
+    loadModel(() => Module.loadFile(file.name, buffer)).catch(error => {
+      console.error('Failed to load model from file:', error);
     });
   };
   reader.onerror = (e) => {
