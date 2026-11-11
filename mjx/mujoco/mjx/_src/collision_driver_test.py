@@ -378,6 +378,53 @@ class CapsuleCollisionTest(parameterized.TestCase):
     </mujoco>
   """
 
+  @parameterized.parameters('plane', 'sphere', 'capsule')
+  def test_capsule_contacts_match_c(self, other):
+    """Tests capsule contacts against C MuJoCo on random poses, in float64.
+
+    Steep capsules on a plane check the tangent frame (it changes friction
+    forces under a pyramidal cone); short capsules check the closest points.
+    """
+    body = '<body><freejoint/><geom type="{}" size="{}"/></body>'
+    first = (
+        '<geom type="plane" size="5 5 .1"/>'
+        if other == 'plane'
+        else body.format(other, '.07' if other == 'sphere' else '.05 .1')
+    )
+    m = mujoco.MjModel.from_xml_string(
+        f'<mujoco><worldbody>{first}{body.format("capsule", ".05 .1")}'
+        '</worldbody></mujoco>'
+    )
+    rng = np.random.default_rng(0)
+    compared = 0
+    with jax.enable_x64(True):
+      mx = mjx.put_model(m)
+      collide_fn = jax.jit(lambda dx: mjx.collision(mx, mjx.kinematics(mx, dx)))
+      for _ in range(100):
+        d = mujoco.MjData(m)
+        for start in range(0, m.nq, 7):
+          quat = rng.normal(size=4)
+          d.qpos[start : start + 7] = [
+              *rng.normal(size=3) * 0.08,
+              *(quat / np.linalg.norm(quat)),
+          ]
+        d.qpos[:3] = 0 if m.nq == 14 else d.qpos[:3]
+        mujoco.mj_kinematics(m, d)
+        mujoco.mj_collision(m, d)
+        contact = collide_fn(mjx.put_data(m, d))._impl.contact
+        touching = np.asarray(contact.dist) < 0
+        expected = d.contact.dist < 0
+        self.assertEqual(touching.sum(), expected.sum())
+        for field in ('dist', 'pos', 'frame'):
+          np.testing.assert_allclose(
+              np.asarray(getattr(contact, field))[touching].ravel(),
+              getattr(d.contact, field)[expected].ravel(),
+              atol=1e-10,
+              err_msg=f'{other}-capsule {field}',
+          )
+        compared += expected.sum()
+    self.assertGreater(compared, 20)
+
   def test_parallel_capsules(self):
     """Tests that two parallel capsules are colliding at the midpoint."""
     _, dx = _collide(self._PARALLEL_CAP)
