@@ -2,11 +2,11 @@
   "compilerOptions": {
     "module": "ESNext",
     "target": "ES2020",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "strict": true,
     "types": ["jasmine"],
-    "ignoreDeprecations": "6.0"
+    "skipLibCheck": true
   },
   "include": ["tests/**/*"]
 }
