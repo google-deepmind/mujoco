@@ -519,7 +519,7 @@ emscripten::val geom_rgba() const {
         wrapped_field_data.declaration,
         ("""
 emscripten::val buffer() const {
-  return emscripten::val(emscripten::typed_memory_view(model->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
+  return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
 }
 """.strip()),
     )

@@ -315,6 +315,8 @@ NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
 # case for fields that are dynamically allocated during the simulation.
 MJDATA_SIZES: tuple[str, ...] = (
     # go/keep-sorted start
+    "arena",
+    "buffer",
     "contact",
     "efc_AR",
     "efc_AR_colind",
