@@ -298,10 +298,6 @@ def sensor_pos(m: Model, d: Data) -> Data:
       def _cam_project(
           target_xpos, xpos, xmat, res, fovy, intrinsic, sensorsize, focal_flag
       ):
-        translation = jp.eye(4).at[0:3, 3].set(-xpos)
-        rotation = jp.eye(4).at[:3, :3].set(xmat.T)
-
-        # focal transformation matrix (3 x 4)
         f = 0.5 / jp.tan(fovy * jp.pi / 360.0) * res[1]
         fx, fy = jp.where(
             focal_flag,
@@ -309,33 +305,19 @@ def sensor_pos(m: Model, d: Data) -> Data:
             f,
         )  # add mjMINVAL to denominator to prevent divide by zero warning
 
-        focal = jp.array([[-fx, 0, 0, 0], [0, fy, 0, 0], [0, 0, 1.0, 0]])
-
-        # image matrix (3 x 3)
-        image = jp.eye(3).at[:2, 2].set(res[0:2] / 2.0)
-
-        # projection matrix (3 x 4): product of all 4 matrices
-        proj = image @ focal @ rotation @ translation
-
-        # projection matrix multiplies homogenous [x, y, z, 1] vectors
-        pos_hom = jp.append(target_xpos, 1.0)
-
-        # project world coordinates into pixel space, see:
-        # https://en.wikipedia.org/wiki/3D_projection#Mathematical_formula
-        pixel_coord_hom = proj @ pos_hom
+        # project the relative position into the camera frame
+        pos = xmat.T @ (target_xpos - xpos)
 
         # avoid dividing by tiny numbers
-        denom = pixel_coord_hom[2]
+        denom = pos[2]
         denom = jp.where(
-            jp.abs(denom) < mujoco.mjMINVAL,
-            jp.clip(denom, -mujoco.mjMINVAL, mujoco.mjMINVAL),
-            denom,
+            denom < 0,
+            jp.minimum(denom, -mujoco.mjMINVAL),
+            jp.maximum(denom, mujoco.mjMINVAL),
         )
 
         # compute projection
-        sensor = pixel_coord_hom / denom
-
-        return sensor[:2]
+        return jp.array([-fx, fy]) * (pos[:2] / denom) + res[:2] / 2.0
 
       sensorsize = m.cam_sensorsize[refid]
       intrinsic = m.cam_intrinsic[refid]
