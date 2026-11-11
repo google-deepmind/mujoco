@@ -445,12 +445,20 @@ BYTE_FIELDS: Dict[str, Dict[str, str]] = {
 FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
     "mj_solveM": """
   CHECK_SIZES(x, y);
+  if (m.nv() == 0) {
+    CHECK_SIZE(x, 0);
+    return;
+  }
   CHECK_DIVISIBLE(x, m.nv());
   int n = x_div.quot;
     """.strip(),
     "mj_solveM2": """
   CHECK_SIZES(x, y);
   CHECK_SIZE(sqrtInvD, m.nv());
+  if (m.nv() == 0) {
+    CHECK_SIZE(x, 0);
+    return;
+  }
   CHECK_DIVISIBLE(x, m.nv());
   int n = x_div.quot;
     """.strip(),
