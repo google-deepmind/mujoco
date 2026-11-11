@@ -2117,41 +2117,41 @@ int mjs_activatePlugin_wrapper(MjSpec& s, const String& name) {
   return mjs_activatePlugin(s.get(), name.as<const std::string>().data());
 }
 
-std::optional<MjsActuator> mjs_addActuator_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsActuator* result = mjs_addActuator(s.get(), def.get());
+std::optional<MjsActuator> mjs_addActuator_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsActuator* result = mjs_addActuator(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
   return MjsActuator(result);
 }
 
-std::optional<MjsBody> mjs_addBody_wrapper(MjsBody& body, const MjsDefault& def) {
-  mjsBody* result = mjs_addBody(body.get(), def.get());
+std::optional<MjsBody> mjs_addBody_wrapper(MjsBody& body, const MjsDefault* def) {
+  mjsBody* result = mjs_addBody(body.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
   return MjsBody(result);
 }
 
-std::optional<MjsCamera> mjs_addCamera_wrapper(MjsBody& body, const MjsDefault& def) {
-  mjsCamera* result = mjs_addCamera(body.get(), def.get());
+std::optional<MjsCamera> mjs_addCamera_wrapper(MjsBody& body, const MjsDefault* def) {
+  mjsCamera* result = mjs_addCamera(body.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
   return MjsCamera(result);
 }
 
-std::optional<MjsDefault> mjs_addDefault_wrapper(MjSpec& s, const String& classname, const MjsDefault& parent) {
+std::optional<MjsDefault> mjs_addDefault_wrapper(MjSpec& s, const String& classname, const MjsDefault* parent) {
   CHECK_VAL(classname);
-  mjsDefault* result = mjs_addDefault(s.get(), classname.as<const std::string>().data(), parent.get());
+  mjsDefault* result = mjs_addDefault(s.get(), classname.as<const std::string>().data(), parent ? parent->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
   return MjsDefault(result);
 }
 
-std::optional<MjsEquality> mjs_addEquality_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsEquality* result = mjs_addEquality(s.get(), def.get());
+std::optional<MjsEquality> mjs_addEquality_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsEquality* result = mjs_addEquality(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2190,8 +2190,8 @@ std::optional<MjsJoint> mjs_addFreeJoint_wrapper(MjsBody& body) {
   return MjsJoint(result);
 }
 
-std::optional<MjsGeom> mjs_addGeom_wrapper(MjsBody& body, const MjsDefault& def) {
-  mjsGeom* result = mjs_addGeom(body.get(), def.get());
+std::optional<MjsGeom> mjs_addGeom_wrapper(MjsBody& body, const MjsDefault* def) {
+  mjsGeom* result = mjs_addGeom(body.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2206,8 +2206,8 @@ std::optional<MjsHField> mjs_addHField_wrapper(MjSpec& s) {
   return MjsHField(result);
 }
 
-std::optional<MjsJoint> mjs_addJoint_wrapper(MjsBody& body, const MjsDefault& def) {
-  mjsJoint* result = mjs_addJoint(body.get(), def.get());
+std::optional<MjsJoint> mjs_addJoint_wrapper(MjsBody& body, const MjsDefault* def) {
+  mjsJoint* result = mjs_addJoint(body.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2222,24 +2222,24 @@ std::optional<MjsKey> mjs_addKey_wrapper(MjSpec& s) {
   return MjsKey(result);
 }
 
-std::optional<MjsLight> mjs_addLight_wrapper(MjsBody& body, const MjsDefault& def) {
-  mjsLight* result = mjs_addLight(body.get(), def.get());
+std::optional<MjsLight> mjs_addLight_wrapper(MjsBody& body, const MjsDefault* def) {
+  mjsLight* result = mjs_addLight(body.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
   return MjsLight(result);
 }
 
-std::optional<MjsMaterial> mjs_addMaterial_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsMaterial* result = mjs_addMaterial(s.get(), def.get());
+std::optional<MjsMaterial> mjs_addMaterial_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsMaterial* result = mjs_addMaterial(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
   return MjsMaterial(result);
 }
 
-std::optional<MjsMesh> mjs_addMesh_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsMesh* result = mjs_addMesh(s.get(), def.get());
+std::optional<MjsMesh> mjs_addMesh_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsMesh* result = mjs_addMesh(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2254,8 +2254,8 @@ std::optional<MjsNumeric> mjs_addNumeric_wrapper(MjSpec& s) {
   return MjsNumeric(result);
 }
 
-std::optional<MjsPair> mjs_addPair_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsPair* result = mjs_addPair(s.get(), def.get());
+std::optional<MjsPair> mjs_addPair_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsPair* result = mjs_addPair(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2278,8 +2278,8 @@ std::optional<MjsSensor> mjs_addSensor_wrapper(MjSpec& s) {
   return MjsSensor(result);
 }
 
-std::optional<MjsSite> mjs_addSite_wrapper(MjsBody& body, const MjsDefault& def) {
-  mjsSite* result = mjs_addSite(body.get(), def.get());
+std::optional<MjsSite> mjs_addSite_wrapper(MjsBody& body, const MjsDefault* def) {
+  mjsSite* result = mjs_addSite(body.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2294,8 +2294,8 @@ std::optional<MjsSkin> mjs_addSkin_wrapper(MjSpec& s) {
   return MjsSkin(result);
 }
 
-std::optional<MjsTendon> mjs_addTendon_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsTendon* result = mjs_addTendon(s.get(), def.get());
+std::optional<MjsTendon> mjs_addTendon_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsTendon* result = mjs_addTendon(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2310,8 +2310,8 @@ std::optional<MjsText> mjs_addText_wrapper(MjSpec& s) {
   return MjsText(result);
 }
 
-std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s, const MjsDefault& def) {
-  mjsTexture* result = mjs_addTexture(s.get(), def.get());
+std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s, const MjsDefault* def) {
+  mjsTexture* result = mjs_addTexture(s.get(), def ? def->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -2326,8 +2326,8 @@ std::optional<MjsTuple> mjs_addTuple_wrapper(MjSpec& s) {
   return MjsTuple(result);
 }
 
-int mjs_adoptInertial_wrapper(MjsBody& body, const MjVFS& vfs) {
-  return mjs_adoptInertial(body.get(), vfs.get());
+int mjs_adoptInertial_wrapper(MjsBody& body, const MjVFS* vfs) {
+  return mjs_adoptInertial(body.get(), vfs ? vfs->get() : nullptr);
 }
 
 std::optional<MjsActuator> mjs_asActuator_wrapper(MjsElement& element) {
@@ -2645,8 +2645,8 @@ void mjs_deleteUserValue_wrapper(MjsElement& element, const String& key) {
   mjs_deleteUserValue(element.get(), key.as<const std::string>().data());
 }
 
-int mjs_discardVisual_wrapper(MjSpec& s, const MjVFS& vfs) {
-  return mjs_discardVisual(s.get(), vfs.get());
+int mjs_discardVisual_wrapper(MjSpec& s, const MjVFS* vfs) {
+  return mjs_discardVisual(s.get(), vfs ? vfs->get() : nullptr);
 }
 
 std::optional<MjsBody> mjs_findBody_wrapper(const MjSpec& s, const String& name) {
@@ -2719,8 +2719,8 @@ std::optional<MjsElement> mjs_firstElement_wrapper(const MjSpec& s, mjtObj type)
   return MjsElement(result);
 }
 
-int mjs_fuseStatic_wrapper(MjSpec& s, const MjVFS& vfs) {
-  return mjs_fuseStatic(s.get(), vfs.get());
+int mjs_fuseStatic_wrapper(MjSpec& s, const MjVFS* vfs) {
+  return mjs_fuseStatic(s.get(), vfs ? vfs->get() : nullptr);
 }
 
 std::optional<MjsCompiler> mjs_getCompiler_wrapper(const MjsElement& element) {
@@ -2835,7 +2835,7 @@ int mjs_isWarning_wrapper(MjSpec& s) {
   return mjs_isWarning(s.get());
 }
 
-std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, const StringOrNull& type, int dim, const StringOrNull& dof, const NumberArray& count, const NumberArray& cellcount, const NumberArray& spacing, const NumberArray& scale, double radius, double mass, double inertiabox, int equality, int rigid, int flatskin, int elastic2d, const NumberArray& pos, const NumberArray& quat, const NumberArray& origin, const StringOrNull& file, const MjVFS& vfs) {
+std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, const StringOrNull& type, int dim, const StringOrNull& dof, const NumberArray& count, const NumberArray& cellcount, const NumberArray& spacing, const NumberArray& scale, double radius, double mass, double inertiabox, int equality, int rigid, int flatskin, int elastic2d, const NumberArray& pos, const NumberArray& quat, const NumberArray& origin, const StringOrNull& file, const MjVFS* vfs) {
   CHECK_VAL(name);
   UNPACK_NULLABLE_ARRAY(int, count);
   UNPACK_NULLABLE_ARRAY(int, cellcount);
@@ -2844,7 +2844,7 @@ std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, c
   UNPACK_NULLABLE_ARRAY(double, pos);
   UNPACK_NULLABLE_ARRAY(double, quat);
   UNPACK_NULLABLE_ARRAY(double, origin);
-  mjsFlex* result = mjs_makeFlex(body.get(), name.as<const std::string>().data(), type.as<const std::string>().data(), dim, dof.as<const std::string>().data(), count_.data(), cellcount_.data(), spacing_.data(), scale_.data(), radius, mass, inertiabox, equality, rigid, flatskin, elastic2d, pos_.data(), quat_.data(), origin_.data(), file.as<const std::string>().data(), vfs.get());
+  mjsFlex* result = mjs_makeFlex(body.get(), name.as<const std::string>().data(), type.as<const std::string>().data(), dim, dof.as<const std::string>().data(), count_.data(), cellcount_.data(), spacing_.data(), scale_.data(), radius, mass, inertiabox, equality, rigid, flatskin, elastic2d, pos_.data(), quat_.data(), origin_.data(), file.as<const std::string>().data(), vfs ? vfs->get() : nullptr);
   if (result == nullptr) {
     return std::nullopt;
   }
@@ -6532,33 +6532,33 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjd_subQuat", &mjd_subQuat_wrapper);
   function("mjd_transitionFD", &mjd_transitionFD_wrapper);
   function("mjs_activatePlugin", &mjs_activatePlugin_wrapper);
-  function("mjs_addActuator", &mjs_addActuator_wrapper);
-  function("mjs_addBody", &mjs_addBody_wrapper);
-  function("mjs_addCamera", &mjs_addCamera_wrapper);
-  function("mjs_addDefault", &mjs_addDefault_wrapper);
-  function("mjs_addEquality", &mjs_addEquality_wrapper);
+  function("mjs_addActuator", &mjs_addActuator_wrapper, emscripten::allow_raw_pointers());
+  function("mjs_addBody", &mjs_addBody_wrapper, emscripten::allow_raw_pointers());
+  function("mjs_addCamera", &mjs_addCamera_wrapper, emscripten::allow_raw_pointers());
+  function("mjs_addDefault", &mjs_addDefault_wrapper, emscripten::allow_raw_pointers());
+  function("mjs_addEquality", &mjs_addEquality_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addExclude", &mjs_addExclude_wrapper);
   function("mjs_addFlex", &mjs_addFlex_wrapper);
   function("mjs_addFrame", &mjs_addFrame_wrapper);
   function("mjs_addFreeJoint", &mjs_addFreeJoint_wrapper);
-  function("mjs_addGeom", &mjs_addGeom_wrapper);
+  function("mjs_addGeom", &mjs_addGeom_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addHField", &mjs_addHField_wrapper);
-  function("mjs_addJoint", &mjs_addJoint_wrapper);
+  function("mjs_addJoint", &mjs_addJoint_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addKey", &mjs_addKey_wrapper);
-  function("mjs_addLight", &mjs_addLight_wrapper);
-  function("mjs_addMaterial", &mjs_addMaterial_wrapper);
-  function("mjs_addMesh", &mjs_addMesh_wrapper);
+  function("mjs_addLight", &mjs_addLight_wrapper, emscripten::allow_raw_pointers());
+  function("mjs_addMaterial", &mjs_addMaterial_wrapper, emscripten::allow_raw_pointers());
+  function("mjs_addMesh", &mjs_addMesh_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addNumeric", &mjs_addNumeric_wrapper);
-  function("mjs_addPair", &mjs_addPair_wrapper);
+  function("mjs_addPair", &mjs_addPair_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addPlugin", &mjs_addPlugin_wrapper);
   function("mjs_addSensor", &mjs_addSensor_wrapper);
-  function("mjs_addSite", &mjs_addSite_wrapper);
+  function("mjs_addSite", &mjs_addSite_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addSkin", &mjs_addSkin_wrapper);
-  function("mjs_addTendon", &mjs_addTendon_wrapper);
+  function("mjs_addTendon", &mjs_addTendon_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addText", &mjs_addText_wrapper);
-  function("mjs_addTexture", &mjs_addTexture_wrapper);
+  function("mjs_addTexture", &mjs_addTexture_wrapper, emscripten::allow_raw_pointers());
   function("mjs_addTuple", &mjs_addTuple_wrapper);
-  function("mjs_adoptInertial", &mjs_adoptInertial_wrapper);
+  function("mjs_adoptInertial", &mjs_adoptInertial_wrapper, emscripten::allow_raw_pointers());
   function("mjs_asActuator", &mjs_asActuator_wrapper);
   function("mjs_asBody", &mjs_asBody_wrapper);
   function("mjs_asCamera", &mjs_asCamera_wrapper);
@@ -6612,7 +6612,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_defaultTuple", &mjs_defaultTuple_wrapper);
   function("mjs_delete", &mjs_delete_wrapper);
   function("mjs_deleteUserValue", &mjs_deleteUserValue_wrapper);
-  function("mjs_discardVisual", &mjs_discardVisual_wrapper);
+  function("mjs_discardVisual", &mjs_discardVisual_wrapper, emscripten::allow_raw_pointers());
   function("mjs_findBody", &mjs_findBody_wrapper);
   function("mjs_findChild", &mjs_findChild_wrapper);
   function("mjs_findDefault", &mjs_findDefault_wrapper);
@@ -6621,7 +6621,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_findSpec", &mjs_findSpec_wrapper);
   function("mjs_firstChild", &mjs_firstChild_wrapper);
   function("mjs_firstElement", &mjs_firstElement_wrapper);
-  function("mjs_fuseStatic", &mjs_fuseStatic_wrapper);
+  function("mjs_fuseStatic", &mjs_fuseStatic_wrapper, emscripten::allow_raw_pointers());
   function("mjs_getCompiler", &mjs_getCompiler_wrapper);
   function("mjs_getDefault", &mjs_getDefault_wrapper);
   function("mjs_getError", &mjs_getError_wrapper);
@@ -6640,7 +6640,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjs_getWrapSideSite", &mjs_getWrapSideSite_wrapper);
   function("mjs_getWrapTarget", &mjs_getWrapTarget_wrapper);
   function("mjs_isWarning", &mjs_isWarning_wrapper);
-  function("mjs_makeFlex", &mjs_makeFlex_wrapper);
+  function("mjs_makeFlex", &mjs_makeFlex_wrapper, emscripten::allow_raw_pointers());
   function("mjs_makeMesh", &mjs_makeMesh_wrapper);
   function("mjs_nextChild", &mjs_nextChild_wrapper);
   function("mjs_nextElement", &mjs_nextElement_wrapper);
