@@ -56,7 +56,7 @@ function page(search = '?model=') {
     },
     requestAnimationFrame: callback => frames.push(callback),
     console: {log() {}, warn() {}, error: (...args) => errors.push(args)},
-    fetch: async () => ({ok: true, arrayBuffer: async () => new ArrayBuffer(0)}),
+    fetch: async () => new Response(new Uint8Array(0)),
     FileReader: class {
       readAsArrayBuffer(file) { this.onload({target: {result: file.buffer}}); }
     },
