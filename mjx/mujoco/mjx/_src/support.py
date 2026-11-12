@@ -836,7 +836,8 @@ def wrap_inside(
   no_wrap2 = cosG < -1 + mjMINVAL
   early_return0 = cosG > 1 - mjMINVAL
 
-  G = jp.arccos(cosG)  # pylint: disable=invalid-name
+  _eps = 1.0e-7
+  G = jp.arccos(jp.clip(cosG, -1.0 + _eps, 1.0 - _eps))  # pylint: disable=invalid-name
 
   # initialize solver
   z = jp.array([z_init])
@@ -855,9 +856,9 @@ def wrap_inside(
 
     # compute derivative
     df = (
-        A / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * A * A))
-        + B / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z * B * B))
-        - 2 / jp.maximum(mjMINVAL, jp.sqrt(1 - z * z))
+        A / jp.maximum(mjMINVAL, jp.sqrt(jp.maximum(mjMINVAL, 1 - z * z * A * A)))
+        + B / jp.maximum(mjMINVAL, jp.sqrt(jp.maximum(mjMINVAL, 1 - z * z * B * B)))
+        - 2 / jp.maximum(mjMINVAL, jp.sqrt(jp.maximum(mjMINVAL, 1 - z * z)))
     )
 
     # check sign; SHOULD NOT OCCUR
@@ -868,6 +869,7 @@ def wrap_inside(
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
     status1 = z_next > z
+    z_next = jp.clip(z_next, -1.0 + _eps, 1.0 - _eps)
 
     # evaluate solution
     f_next = (

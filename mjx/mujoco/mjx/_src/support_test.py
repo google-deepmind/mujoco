@@ -600,6 +600,26 @@ class SupportTest(parameterized.TestCase):
 
     # TODO(taylorhowell): improve wrap_inside testing with additional test cases
 
+  def test_wrap_inside_nan_gradient(self):
+    # issue #3696: for a no-wrap configuration (geom wrap whose sidesite lies inside the wrap geom)
+    # the Newton iterate used to leave [-1, 1], so jp.sqrt and jp.arcsin produced NaN in a branch
+    # that is discarded by the status flags, which destroyed the gradient of ten_length.
+    maxiter = 5
+    tolerance = 1.0e-6
+    z_init = 1.0 - 1.0e-5
+    end = jp.array([0.4, 0.0, -0.14995, 0.01975])
+    radius = jp.array([0.05])
+
+    def pnt_sum(e):
+      return jp.sum(support.wrap_inside(e, radius, maxiter, tolerance, z_init)[1])
+
+    # the wrap point is discarded (no wrap), the primal must stay exactly zero
+    np.testing.assert_equal(pnt_sum(end), jp.array(0.0))
+
+    # ... and the cotangent must stay finite
+    grad = jax.grad(pnt_sum)(end)
+    np.testing.assert_equal(jp.all(jp.isfinite(grad)), jp.array(True))
+
   def test_muscle_gain_length(self):
     lmin = 0.5
     lmax = 1.5
