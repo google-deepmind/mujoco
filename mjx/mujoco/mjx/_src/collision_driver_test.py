@@ -979,6 +979,42 @@ class BodyPairFilterTest(absltest.TestCase):
 class DimTest(parameterized.TestCase):
   """Tests contact dim."""
 
+  @parameterized.product(x64=(False, True), put_data=(False, True))
+  def test_collision_scan(self, x64, put_data):
+    """Collision preserves contact index dtypes across scan iterations."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <geom type="plane" size="1 1 .01"/>
+          <body pos="0 0 .09">
+            <freejoint/>
+            <geom type="sphere" size=".1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    with jax.enable_x64(x64):
+      d = mujoco.MjData(m)
+      mujoco.mj_forward(m, d)
+      mx = mjx.put_model(m)
+      dx = mjx.put_data(m, d) if put_data else mjx.make_data(mx)
+      dx = mjx.kinematics(mx, dx)
+
+      def collide(carry, _):
+        return mjx.collision(mx, carry), None
+
+      result, _ = jax.jit(
+          lambda data: jax.lax.scan(collide, data, None, length=2)
+      )(dx)
+
+      for field in ('geom1', 'geom2', 'geom'):
+        self.assertEqual(
+            getattr(result._impl.contact, field).dtype,
+            getattr(dx._impl.contact, field).dtype,
+        )
+      np.testing.assert_array_equal(result._impl.contact.geom, [[0, 1]])
+      np.testing.assert_allclose(result._impl.contact.dist, [-0.01], atol=1e-7)
+
   def test_ncon(self):
     m = test_util.load_test_file('constraints.xml')
     dim = collision_driver.make_condim(m)

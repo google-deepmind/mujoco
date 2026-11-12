@@ -266,7 +266,9 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
   eps = mujoco.mjMINVAL
 
   for key, geom_ids in _geom_groups(m).items():
-    geom = np.array(geom_ids)
+    geom = np.array(
+        geom_ids, dtype=d._impl.contact.geom.dtype
+    )  # pyrefly: ignore[missing-attribute]
     geom1, geom2, ip = geom.T
     geom1, geom2, ip = geom1[ip == -1], geom2[ip == -1], ip[ip != -1]
     params = []
