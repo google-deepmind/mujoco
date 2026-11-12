@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "engine/engine_util_blas_avx.h"  // IWYU pragma: keep
+#include "engine/engine_util_blas_rvv.h"  // IWYU pragma: keep
 
 
 
@@ -339,6 +340,8 @@ mjtNum mju_L1(const mjtNum* vec, int n) {
 void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 #ifdef mjUSEAVX
   mju_scl_avx(res, vec, scl, n);
+#elif defined(mjUSERVV)
+  mju_scl_rvv(res, vec, scl, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] = vec[i]*scl;
@@ -351,6 +354,8 @@ void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
 #ifdef mjUSEAVX
   mju_add_avx(res, vec1, vec2, n);
+#elif defined(mjUSERVV)
+  mju_add_rvv(res, vec1, vec2, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] = vec1[i] + vec2[i];
@@ -372,6 +377,8 @@ void mju_addInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* 
 void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
 #ifdef mjUSEAVX
   mju_sub_avx(res, vec1, vec2, n);
+#elif defined(mjUSERVV)
+  mju_sub_rvv(res, vec1, vec2, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] = vec1[i] - vec2[i];
@@ -393,6 +400,8 @@ void mju_subInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* 
 void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
 #ifdef mjUSEAVX
   mju_addTo_avx(res, vec, n);
+#elif defined(mjUSERVV)
+  mju_addTo_rvv(res, vec, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] += vec[i];
@@ -414,6 +423,8 @@ void mju_addToInd(mjtNum* res, const mjtNum* vec, const int* ind, int n) {
 void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
 #ifdef mjUSEAVX
   mju_subFrom_avx(res, vec, n);
+#elif defined(mjUSERVV)
+  mju_subFrom_rvv(res, vec, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] -= vec[i];
@@ -426,6 +437,8 @@ void mju_subFrom(mjtNum* res, const mjtNum* vec, int n) {
 void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
 #ifdef mjUSEAVX
   mju_addToScl_avx(res, vec, scl, n);
+#elif defined(mjUSERVV)
+  mju_addToScl_rvv(res, vec, scl, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] += vec[i]*scl;
@@ -449,6 +462,8 @@ void mju_addToSclInd(mjtNum* res, const mjtNum* vec, const int* ind, mjtNum scl,
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
 #ifdef mjUSEAVX
   mju_addScl_avx(res, vec1, vec2, scl, n);
+#elif defined(mjUSERVV)
+  mju_addScl_rvv(res, vec1, vec2, scl, n);
 #else
   for (int i=0; i < n; i++) {
     res[i] = vec1[i] + vec2[i]*scl;
@@ -489,6 +504,8 @@ mjtNum mju_norm(const mjtNum* res, int n) {
 mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
 #ifdef mjUSEAVX
   return mju_dot_avx(vec1, vec2, n);
+#elif defined(mjUSERVV)
+  return mju_dot_rvv(vec1, vec2, n);
 #else
   // do the same order of additions as the AVX intrinsics implementation.
   // this is faster than the simple for loop you'd expect for a dot product,

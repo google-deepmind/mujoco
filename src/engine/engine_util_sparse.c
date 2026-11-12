@@ -26,6 +26,7 @@
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse_avx.h"  // IWYU pragma: keep
+#include "engine/engine_util_sparse_rvv.h"  // IWYU pragma: keep
 
 //------------------------------ sparse operations -------------------------------------------------
 
@@ -36,6 +37,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
   mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
+#elif defined(mjUSERVV)
+  mju_dotSparseX3_rvv(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
 #else
   int i = 0;
 
@@ -186,6 +189,8 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          const int* colind, const int* rowsuper) {
 #ifdef mjUSEAVX
   mju_mulMatVecSparse_avx(res, mat, vec, nr, rownnz, rowadr, colind, rowsuper);
+#elif defined(mjUSERVV)
+  mju_mulMatVecSparse_rvv(res, mat, vec, nr, rownnz, rowadr, colind, rowsuper);
 #else
   // regular sparse dot-product
   for (int r=0; r < nr; r++) {
