@@ -1297,9 +1297,52 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
 //-------------------------- spatial frame utilities -----------------------------------------------
 
+// compute motion of a tracking camera, whose orientation is fixed in the world
+static void trackingCameraMotion(const mjModel* m, const mjData* d, int camid,
+                                 mjtNum res[6], int flg_local, int flg_acc) {
+  int bodyid = m->cam_bodyid[camid];
+  void (*objectMotion)(const mjModel*, const mjData*, int, int, mjtNum[6], int) =
+    flg_acc ? mj_objectAcceleration : mj_objectVelocity;
+
+  // track follows the body origin; a massless trackcom follows the body CoM
+  if (m->cam_mode[camid] == mjCAMLIGHT_TRACK || m->body_subtreemass[bodyid] < mjMINVAL) {
+    int objtype = m->cam_mode[camid] == mjCAMLIGHT_TRACK ? mjOBJ_XBODY : mjOBJ_BODY;
+    objectMotion(m, d, objtype, bodyid, res, 0);
+  }
+
+  // trackcom follows the mass-weighted body CoMs of the subtree
+  else {
+    mju_zero(res, 6);
+    for (int b=bodyid; b < m->nbody; b++) {
+      // end of body subtree
+      if (b > bodyid && m->body_parentid[b] < bodyid) {
+        break;
+      }
+
+      mjtNum motion[6];
+      objectMotion(m, d, mjOBJ_BODY, b, motion, 0);
+      mju_addToScl(res+3, motion+3, m->body_mass[b], 3);
+    }
+    mju_scl3(res+3, res+3, 1/m->body_subtreemass[bodyid]);
+  }
+
+  // tracking cameras do not rotate, including about their position offset
+  mju_zero3(res);
+  if (flg_local) {
+    mju_mulMatTVec3(res+3, d->cam_xmat+9*camid, res+3);
+  }
+}
+
+
 // compute object 6D velocity in object-centered frame, world/local orientation
 void mj_objectVelocity(const mjModel* m, const mjData* d,
                        int objtype, int objid, mjtNum res[6], int flg_local) {
+  if (objtype == mjOBJ_CAMERA &&
+      (m->cam_mode[objid] == mjCAMLIGHT_TRACK || m->cam_mode[objid] == mjCAMLIGHT_TRACKCOM)) {
+    trackingCameraMotion(m, d, objid, res, flg_local, 0);
+    return;
+  }
+
   int bodyid = 0;
   const mjtNum *pos = 0, *rot = 0;
 
@@ -1374,6 +1417,12 @@ void mj_geomSurfaceVelocity(const mjModel* m, const mjData* d, int geomid,
 // compute object 6D acceleration in object-centered frame, world/local orientation
 void mj_objectAcceleration(const mjModel* m, const mjData* d,
                            int objtype, int objid, mjtNum res[6], int flg_local) {
+  if (objtype == mjOBJ_CAMERA &&
+      (m->cam_mode[objid] == mjCAMLIGHT_TRACK || m->cam_mode[objid] == mjCAMLIGHT_TRACKCOM)) {
+    trackingCameraMotion(m, d, objid, res, flg_local, 1);
+    return;
+  }
+
   int bodyid = 0;
   const mjtNum *pos = 0, *rot = 0;
 

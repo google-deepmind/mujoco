@@ -395,6 +395,120 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
   EXPECT_THAT(angvel, Pointwise(MjNear(10 * dt, 2e-3), angvel_findiff));
 }
 
+// Tracking cameras keep a constant world orientation and follow the body origin.
+TEST_F(SensorTest, TrackingCameraFrameMotion) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <freejoint/>
+        <geom size="0.1" mass="2"/>
+        <camera name="camera" mode="track" pos="1 0 0"/>
+        <site name="site" pos="2 0 0"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framelinvel name="linvel" objtype="camera" objname="camera"/>
+      <frameangvel name="angvel" objtype="camera" objname="camera"/>
+      <framelinacc name="linacc" objtype="camera" objname="camera"/>
+      <frameangacc name="angacc" objtype="camera" objname="camera"/>
+      <framelinvel name="relative_linvel" objtype="site" objname="site"
+                   reftype="camera" refname="camera"/>
+      <frameangvel name="relative_angvel" objtype="site" objname="site"
+                   reftype="camera" refname="camera"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  // Spinning the sphere leaves the camera stationary, while the site moves.
+  data->qvel[5] = 1;
+  mj_forward(model.get(), data.get());
+  EXPECT_THAT(AsVector(data->sensordata, 12),
+              Pointwise(MjNear(1e-12, 1e-5), vector<mjtNum>(12, 0)));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "relative_linvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 2, 0}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "relative_angvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 0, 1}));
+
+  // Translation and force change the camera's linear motion only. The relative
+  // site velocities still measure the body's rotation in the camera frame.
+  data->qvel[0] = 1;
+  data->qvel[1] = 2;
+  data->qvel[2] = 3;
+  data->xfrc_applied[6] = 4;
+  data->xfrc_applied[7] = -6;
+  data->xfrc_applied[8] = 8;
+  mj_forward(model.get(), data.get());
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "linvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {1, 2, 3}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "angvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 0, 0}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "linacc"),
+              Pointwise(MjNear(1e-12, 1e-5), {2, -3, 4}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "angacc"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 0, 0}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "relative_linvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 2, 0}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "relative_angvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 0, 1}));
+}
+
+// A world-attached tracking camera follows the whole model's center of mass.
+TEST_F(SensorTest, TrackingComCameraFrameMotion) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <camera name="camera" mode="trackcom" pos="1 0 3"/>
+      <body pos="-1 0 0">
+        <freejoint/>
+        <geom size="0.1" mass="1"/>
+      </body>
+      <body pos="1 0 0">
+        <freejoint/>
+        <geom size="0.1" mass="3"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framelinvel name="linvel" objtype="camera" objname="camera"/>
+      <frameangvel name="angvel" objtype="camera" objname="camera"/>
+      <framelinacc name="linacc" objtype="camera" objname="camera"/>
+      <frameangacc name="angacc" objtype="camera" objname="camera"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  // The two spheres have different velocities, masses and applied forces.
+  data->qvel[0] = 1;
+  data->qvel[1] = 2;
+  data->qvel[2] = 3;
+  data->qvel[5] = 1;
+  data->qvel[6] = -1;
+  data->qvel[8] = 2;
+  data->qvel[10] = 2;
+  data->xfrc_applied[6] = 2;
+  data->xfrc_applied[8] = -1;
+  data->xfrc_applied[13] = 6;
+  data->xfrc_applied[14] = 3;
+  mj_forward(model.get(), data.get());
+
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "linvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {-0.5, 0.5, 2.25}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "angvel"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 0, 0}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "linacc"),
+              Pointwise(MjNear(1e-12, 1e-5), {0.5, 1.5, 0.5}));
+  EXPECT_THAT(GetSensor(model.get(), data.get(), "angacc"),
+              Pointwise(MjNear(1e-12, 1e-5), {0, 0, 0}));
+}
+
 // ------------------------- general sensor tests  -----------------------------
 using SensorTest = MujocoTest;
 
