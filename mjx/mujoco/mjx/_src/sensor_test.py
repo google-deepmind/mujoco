@@ -124,6 +124,35 @@ class SensorTest(parameterized.TestCase):
     # sensor values
     _assert_eq(random_sensor, dx.sensordata, 'sensordata')
 
+  @parameterized.product(
+      depth=(-1.0, -2e-15, -5e-16, 0.0, 5e-16, 2e-15, 1.0),
+      offset=((0.0, 0.0), (0.2, 0.3)),
+      x64=(False, True),
+  )
+  def test_camprojection_near_camera_plane(self, depth, offset, x64):
+    """Projection near zero depth matches MuJoCo's finite, signed clamp."""
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <camera name="camera" resolution="640 480"/>
+          <site name="target" pos="{offset[0]} {offset[1]} {depth}"/>
+        </worldbody>
+        <sensor>
+          <camprojection site="target" camera="camera"/>
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+
+    with jax.enable_x64(x64):
+      dx = jax.jit(mjx.sensor_pos)(mjx.put_model(m), mjx.put_data(m, d))
+
+    self.assertTrue(np.isfinite(dx.sensordata).all())
+    np.testing.assert_allclose(
+        dx.sensordata, d.sensordata, rtol=1e-6, atol=1e-5
+    )
+
   @parameterized.parameters(
       'type="sphere" size=".1"',
       'type="sphere" size=".05" margin=".045"',
