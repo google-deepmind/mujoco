@@ -1116,6 +1116,8 @@ cc_library(
     hdrs = [
         "engine_util_blas.h",
         "engine_util_blas_avx.h",
+        "engine_util_blas_rvv.h",
+        "engine_util_rvv.h",
     ],
     conlyopts = _C_CONLYOPTS + ["-std=c11"],
     copts = [
@@ -1201,6 +1203,7 @@ cc_library(
     hdrs = [
         "engine_util_sparse.h",
         "engine_util_sparse_avx.h",
+        "engine_util_sparse_rvv.h",
     ],
     conlyopts = _C_CONLYOPTS + ["-std=c11"],
     copts = [
