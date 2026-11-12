@@ -1110,7 +1110,8 @@ TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
   }
 
   // numeric factorization using new function
-  mjtNum L_new[16], numeric_scratch[4];
+  mjtNum L_new[16];
+  int numeric_scratch[4];
   int rank_new = mju_cholFactorNumeric(
       L_new, n, 1e-10, L_rownnz, L_rowadr, L_colind, LT_rownnz, LT_rowadr,
       LT_colind, LT_pos, L_super, sparseH, H_rownnz, H_rowadr, H_colind,
@@ -1172,7 +1173,8 @@ TEST_F(EngineUtilSolveTest, CholFactorNumericClampDecouples) {
                          H_colind, n, d.get());
 
   // numeric factorization: only row 1 is clamped
-  mjtNum L[n * n], scratch[n];
+  mjtNum L[n * n];
+  int scratch[n];
   int rank =
       mju_cholFactorNumeric(L, n, mjMINVAL, L_rownnz, L_rowadr, L_colind,
                             LT_rownnz, LT_rowadr, LT_colind, LT_map, L_super,
@@ -1244,7 +1246,8 @@ TEST_F(EngineUtilSolveTest, CholFactorNaNPivotClamps) {
   EXPECT_EQ(L_dense[3 * n + 3], mju_sqrt(mjMINVAL));
 
   // sparse mju_cholFactorNumeric (hits both leaf fast path and supernode path)
-  mjtNum L_num[n * n], scratch[n];
+  mjtNum L_num[n * n];
+  int scratch[n];
   EXPECT_EQ(
       mju_cholFactorNumeric(L_num, n, mjMINVAL, L_rownnz, L_rowadr, L_colind,
                             LT_rownnz, LT_rowadr, LT_colind, LT_map, L_super,
@@ -1354,7 +1357,8 @@ TEST_F(EngineUtilSolveTest, CholFactorNumericRandomTree) {
                            LT_colind.data(), LT_rownnz.data(), LT_rowadr.data(),
                            LT_map.data(), L_super.data(), H_rownnz.data(),
                            H_rowadr.data(), H_colind.data(), n, d.get());
-    vector<mjtNum> L(nnz), scratch(n);
+    vector<mjtNum> L(nnz);
+    vector<int> scratch(n, 0x7f7f7f7f);
     int rank = mju_cholFactorNumeric(
         L.data(), n, mjMINVAL, L_rownnz.data(), L_rowadr.data(),
         L_colind.data(), LT_rownnz.data(), LT_rowadr.data(), LT_colind.data(),
@@ -1383,6 +1387,165 @@ TEST_F(EngineUtilSolveTest, CholFactorNumericRandomTree) {
                         L_rowadr.data(), L_colind.data());
     mju_mulMatVec(Hx.data(), H.data(), x.data(), n, n);
     EXPECT_THAT(Hx, Pointwise(MjNear(eps, eps), rhs)) << "trial " << trial;
+  }
+}
+
+// Verify mju_cholFactorNumeric on multi-DOF supernodes (ns = 1, 2, 3) with
+// fill-in and batched non-suffix descendant updates (covering all 11 (ns,
+// batch) specializations) against mju_cholFactorSparse.
+TEST_F(EngineUtilSolveTest, CholFactorNumericSupernodeNonSuffix) {
+  MjModelPtr model = LoadModelFromString("<mujoco/>");
+  MjDataPtr d = MakeData(model);
+
+  std::mt19937_64 rng(17);
+  std::normal_distribution<double> normal(0.0, 1.0);
+  std::uniform_real_distribution<double> unif(0.0, 1.0);
+
+  auto verify_blocks = [&](const vector<int>& bsize, double density) {
+    int nb = bsize.size();
+    vector<int> badr(nb + 1, 0), blk_of(0);
+    for (int p = 0; p < nb; p++) {
+      badr[p + 1] = badr[p] + bsize[p];
+      for (int a = 0; a < bsize[p]; a++) {
+        blk_of.push_back(p);
+      }
+    }
+    int n = badr[nb];
+
+    vector<vector<bool>> adj(nb, vector<bool>(nb, false));
+    for (int p = 0; p < nb; p++) {
+      adj[p][p] = true;
+      for (int q = p + 1; q < nb; q++) {
+        if (unif(rng) < density) {
+          adj[p][q] = adj[q][p] = true;
+        }
+      }
+    }
+
+    // build SPD block-sparse matrix H = A * A' + n * I
+    vector<mjtNum> A(n * n, 0);
+    for (int p = 0; p < nb; p++) {
+      for (int q = 0; q <= p; q++) {
+        if (!adj[p][q]) continue;
+        for (int a = 0; a < bsize[p]; a++) {
+          for (int b = 0; b < bsize[q]; b++) {
+            A[(badr[p] + a) * n + (badr[q] + b)] = normal(rng);
+          }
+        }
+      }
+    }
+    vector<mjtNum> H_dense(n * n, 0);
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        int p = blk_of[i], q = blk_of[j];
+        bool coupled = false;
+        for (int k = 0; k < nb; k++) {
+          if (adj[p][k] && adj[q][k]) {
+            coupled = true;
+            break;
+          }
+        }
+        if (!coupled) continue;
+        mjtNum sum = (i == j) ? static_cast<mjtNum>(n) : 0;
+        for (int k = 0; k < n; k++) {
+          sum += A[i * n + k] * A[j * n + k];
+        }
+        H_dense[i * n + j] = sum;
+      }
+    }
+
+    // convert H_dense to CSR
+    int max_nnz = n * n;
+    vector<mjtNum> H_val(max_nnz);
+    vector<int> H_rownnz(n), H_rowadr(n), H_colind(max_nnz);
+    ASSERT_EQ(
+        mju_dense2sparse(H_val.data(), H_dense.data(), n, n, H_rownnz.data(),
+                         H_rowadr.data(), H_colind.data(), max_nnz),
+        0);
+    int h_nnz = H_rowadr[n - 1] + H_rownnz[n - 1];
+    H_val.resize(h_nnz);
+    H_colind.resize(h_nnz);
+
+    // symbolic factorization
+    vector<int> L_rownnz(n), L_rowadr(n), LT_rownnz(n), LT_rowadr(n);
+    int l_nnz = mju_cholFactorSymbolic(
+        nullptr, L_rownnz.data(), L_rowadr.data(), nullptr, LT_rownnz.data(),
+        LT_rowadr.data(), nullptr, nullptr, H_rownnz.data(), H_rowadr.data(),
+        H_colind.data(), n, d.get());
+    vector<int> L_colind(l_nnz), LT_colind(l_nnz), LT_map(l_nnz), L_super(n);
+    mju_cholFactorSymbolic(L_colind.data(), L_rownnz.data(), L_rowadr.data(),
+                           LT_colind.data(), LT_rownnz.data(), LT_rowadr.data(),
+                           LT_map.data(), L_super.data(), H_rownnz.data(),
+                           H_rowadr.data(), H_colind.data(), n, d.get());
+
+    // numeric factorization with poison sentinel in scratch to catch unmapped
+    // reads under ASAN
+    vector<mjtNum> L_num(l_nnz);
+    vector<int> scratch(n, 0x7f7f7f7f);
+    int rank_num = mju_cholFactorNumeric(
+        L_num.data(), n, mjMINVAL, L_rownnz.data(), L_rowadr.data(),
+        L_colind.data(), LT_rownnz.data(), LT_rowadr.data(), LT_colind.data(),
+        LT_map.data(), L_super.data(), H_val.data(), H_rownnz.data(),
+        H_rowadr.data(), H_colind.data(), scratch.data());
+    EXPECT_EQ(rank_num, n);
+
+    // reference mju_cholFactorSparse
+    vector<mjtNum> L_ref(l_nnz);
+    vector<int> L_ref_rownnz(n), L_ref_colind(l_nnz);
+    for (int r = 0; r < n; r++) {
+      int lower_nnz = 0;
+      for (int i = 0; i < H_rownnz[r]; i++) {
+        int c = H_colind[H_rowadr[r] + i];
+        if (c <= r) {
+          L_ref[L_rowadr[r] + lower_nnz] = H_val[H_rowadr[r] + i];
+          L_ref_colind[L_rowadr[r] + lower_nnz] = c;
+          lower_nnz++;
+        }
+      }
+      L_ref_rownnz[r] = lower_nnz;
+    }
+    int rank_ref =
+        mju_cholFactorSparse(L_ref.data(), n, mjMINVAL, L_ref_rownnz.data(),
+                             L_rowadr.data(), L_ref_colind.data(), d.get());
+    EXPECT_EQ(rank_ref, n);
+
+    mjtNum eps = MjTol(1e-11, 5e-4);
+    for (int i = 0; i < l_nnz; i++) {
+      EXPECT_NEAR(L_num[i], L_ref[i], eps)
+          << "nb=" << nb << " n=" << n << " density=" << density
+          << " idx=" << i;
+    }
+
+    // verify L' * L * x = rhs
+    vector<mjtNum> rhs(n), sol(n);
+    for (int i = 0; i < n; i++) rhs[i] = normal(rng);
+    mju_cholSolveSparse(sol.data(), L_num.data(), rhs.data(), n,
+                        L_rownnz.data(), L_rowadr.data(), L_colind.data());
+    for (int i = 0; i < n; i++) {
+      mjtNum ax = 0;
+      for (int j = 0; j < n; j++) ax += H_dense[i * n + j] * sol[j];
+      EXPECT_NEAR(ax, rhs[i], eps);
+    }
+  };
+
+  // uniform block sizes
+  for (int bs : {1, 2, 3, 4}) {
+    for (int nb : {6, 12}) {
+      for (double density : {0.25, 0.5}) {
+        verify_blocks(vector<int>(nb, bs), density);
+      }
+    }
+  }
+
+  // mixed per-block sizes in {1, 2, 3, 4} to cover all (ns, batch) pairs
+  for (int trial = 0; trial < 40; trial++) {
+    int nb = 8 + (trial % 7);
+    double density = (trial % 2 == 0) ? 0.25 : 0.4;
+    vector<int> bsize(nb);
+    for (int p = 0; p < nb; p++) {
+      bsize[p] = 1 + static_cast<int>(rng() % 4);
+    }
+    verify_blocks(bsize, density);
   }
 }
 

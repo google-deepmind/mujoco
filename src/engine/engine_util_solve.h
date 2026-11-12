@@ -69,13 +69,13 @@ MJAPI int mju_cholFactorSymbolicBlocked(int* L_colind, int* L_rownnz, int* L_row
 // numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
 //  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
 //  LT_map[k] gives index in L for LT_colind[k], L_super gives supernode sizes
-//  scratch: caller-provided workspace of size n, contents ignored
+//  scratch: caller-provided workspace of n ints, contents ignored
 MJAPI int mju_cholFactorNumeric(mjtNum* L, int n, mjtNum mindiag,
                                 const int* L_rownnz, const int* L_rowadr, const int* L_colind,
                                 const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
                                 const int* LT_map, const int* L_super, const mjtNum* H,
                                 const int* H_rownnz, const int* H_rowadr, const int* H_colind,
-                                mjtNum* scratch);
+                                int* scratch);
 
 // sparse reverse-order Cholesky solve
 MJAPI void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,

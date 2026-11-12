@@ -1381,6 +1381,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
         CARVE_NUM(ctx->LTJ, 6*nv);
       }
       if (is_sparse) {
+        _Static_assert(sizeof(mjtNum) >= sizeof(int), "cholscratch must hold nv ints");
         CARVE_NUM(ctx->cholscratch, nv);
       } else {
         ctx->nL = nv*nv;
@@ -3177,7 +3178,7 @@ static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute)
           ctx->L, nv, mjMINVAL,
           ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
           ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map, ctx->L_super,
-          ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, ctx->cholscratch);
+          ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, (int*)ctx->cholscratch);
       ctx->flg_Lvalid = 1;
     }
   }
@@ -3248,7 +3249,7 @@ static void HessianConeFolded(mjData* d, mjPrimalContext* ctx) {
       ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
       ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map, ctx->L_super,
       Hcone, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind,
-      ctx->cholscratch);
+      (int*)ctx->cholscratch);
   if (rank < nv && ctx->flg_Hdirty) {
     FactorizeHessian(d, ctx, /*flg_recompute=*/1);
   }
@@ -3502,7 +3503,7 @@ static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldst
         ctx->L, nv, mjMINVAL,
         ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
         ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map, ctx->L_super,
-        ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, ctx->cholscratch);
+        ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, (int*)ctx->cholscratch);
     ctx->flg_Lvalid = 1;
     if (rank < nv && ctx->flg_Hdirty) {
       FactorizeHessian(d, ctx, /*flg_recompute=*/1);
