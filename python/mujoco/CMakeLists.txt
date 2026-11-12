@@ -106,7 +106,7 @@ if(NOT TARGET mujoco)
     if(MUJOCO_FRAMEWORK)
       message("MuJoCo framework is at ${MUJOCO_FRAMEWORK}/mujoco.framework")
       set(MUJOCO_LIBRARY
-          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.4.0.1.dylib
+          ${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/libmujoco.4.0.2.dylib
       )
       target_compile_options(mujoco INTERFACE -F${MUJOCO_FRAMEWORK})
       set(MUJOCO_INCLUDE "${MUJOCO_FRAMEWORK}/mujoco.framework/Versions/A/Headers")
@@ -115,7 +115,7 @@ if(NOT TARGET mujoco)
 
   if(NOT MUJOCO_FRAMEWORK)
     find_library(
-      MUJOCO_LIBRARY mujoco mujoco.4.0.1 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
+      MUJOCO_LIBRARY mujoco mujoco.4.0.2 HINTS ${MUJOCO_LIBRARY_DIR} REQUIRED
     )
     find_path(MUJOCO_INCLUDE mujoco/mujoco.h HINTS ${MUJOCO_INCLUDE_DIR} REQUIRED)
     message("MuJoCo is at ${MUJOCO_LIBRARY}")
@@ -296,7 +296,7 @@ findorfetch(
   GIT_REPO
   https://gitlab.com/libeigen/eigen
   GIT_TAG
-  1da510b8155f8fa81924616dcc517ecc4202e4d3
+  48f0b66cb2c41a392f88be7485205f71b97b1a16
   TARGETS
   Eigen3::Eigen
   EXCLUDE_FROM_ALL
@@ -618,7 +618,11 @@ if(MUJOCO_PYTHON_BUILD_STUDIO AND TARGET mujoco::platform)
     INTERFACE render_filament.h
   )
   set_target_properties(_render_filament_header PROPERTIES PUBLIC_HEADER render_filament.h)
-  target_include_directories(_render_filament_header INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_include_directories(
+    _render_filament_header
+    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+              ${CMAKE_CURRENT_BINARY_DIR}
+  )
   target_link_libraries(
     _render_filament_header
     INTERFACE mujoco
@@ -628,27 +632,16 @@ if(MUJOCO_PYTHON_BUILD_STUDIO AND TARGET mujoco::platform)
 
   if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/render_filament_generated.cc.inc)
     add_custom_command(
-      OUTPUT render_filament_generated.cc.inc
+      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/render_filament_generated.cc.inc"
       COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${mujoco_SOURCE_DIR}/mujoco/python ${Python3_EXECUTABLE}
-              ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_mjrf_bindings.py > render_filament_generated.cc.inc
+              ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_mjrf_bindings.py > "${CMAKE_CURRENT_BINARY_DIR}/render_filament_generated.cc.inc"
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/codegen/generate_mjrf_bindings.py
     )
+    add_custom_target(
+      generate_render_filament_inc
+      DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/render_filament_generated.cc.inc"
+    )
   endif()
-
-  mujoco_pybind11_module(
-    _render_filament
-    render_filament.cc
-    render_filament_generated.cc.inc
-  )
-  target_link_libraries(
-    _render_filament
-    PRIVATE Eigen3::Eigen
-            mujoco
-            mujoco::platform
-            raw
-            structs_header
-            _render_filament_header
-  )
 endif()
 
 if(MUJOCO_PYTHON_BUILD_STUDIO)
@@ -674,9 +667,6 @@ if(MUJOCO_PYTHON_BUILD_CORE)
       _specs
       _structs
   )
-endif()
-if(TARGET _render_filament)
-  list(APPEND MUJOCO_CORE_WHEEL_TARGETS _render_filament)
 endif()
 set(LIBRARIES_FOR_WHEEL)
 if(MUJOCO_PYTHON_BUILD_CORE)

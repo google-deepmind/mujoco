@@ -18,12 +18,16 @@ if(NOT TARGET mujoco::platform)
 endif()
 
 set(STUDIO_COMMON_LIBS
+  Eigen3::Eigen
+  mujoco
   mujoco::platform
+  raw
   structs_header
   _render_filament_header
 )
 
 mujoco_pybind11_module(_studio
+  ../render_filament.cc
   studio.cc
   native_viewer.cc
   ux.cc
@@ -32,6 +36,9 @@ mujoco_pybind11_module(_studio
 )
 target_compile_definitions(_studio PRIVATE MUJOCO_STUDIO_COMBINED_MODULE)
 target_link_libraries(_studio PRIVATE ${STUDIO_COMMON_LIBS})
+if(TARGET generate_render_filament_inc)
+  add_dependencies(_studio generate_render_filament_inc)
+endif()
 
 add_subdirectory(web)
 

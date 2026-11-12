@@ -18,7 +18,8 @@ It is automatically installed when you install the full `mujoco` package:
 pip install mujoco
 ```
 
-Or you can install it directly alongside `mujoco-core`:
+Or you can install it directly (which automatically installs `mujoco-core` and
+the `mujoco-studio-wasm` web viewer client):
 
 ```sh
 pip install mujoco-studio

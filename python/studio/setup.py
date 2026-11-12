@@ -132,6 +132,7 @@ class BuildCMakeExtension(build_ext.build_ext):
       assert ext.name.startswith(EXT_PREFIX)
       self.build_extension(ext)
     self._copy_studio_assets()
+    self._copy_render_filament_shim()
 
   def _find_mujoco(self):
     if MUJOCO_PATH not in os.environ:
@@ -163,15 +164,26 @@ class BuildCMakeExtension(build_ext.build_ext):
           break
 
     if assets_src:
-      dst = os.path.join(
-          os.path.dirname(self.get_ext_fullpath(self.extensions[0].name)),
-          'studio/assets',
-      )
+      dst = os.path.join(self.build_lib, 'mujoco', 'studio', 'assets')
       if os.path.exists(dst):
         shutil.rmtree(dst)
       shutil.copytree(assets_src, dst)
     else:
       print('Warning: Studio assets not found in MUJOCO_PATH. Skipping.')
+
+  def _copy_render_filament_shim(self):
+    pkg_root = os.path.dirname(__file__)
+    for rel_src in (
+        os.path.join('mujoco', '_render_filament.py'),
+        os.path.join('mujoco', 'studio', '_render_filament.py'),
+    ):
+      shim_src = os.path.join(pkg_root, rel_src)
+      if os.path.exists(shim_src):
+        dst_dir = os.path.join(self.build_lib, 'mujoco')
+        os.makedirs(dst_dir, exist_ok=True)
+        shutil.copyfile(shim_src, os.path.join(dst_dir, '_render_filament.py'))
+        return
+    raise RuntimeError('Cannot find _render_filament.py compatibility shim')
 
   def _configure_cmake(self):
     """Check for CMake."""
@@ -263,7 +275,6 @@ setuptools.setup(
         build_ext=BuildCMakeExtension,
     ),
     ext_modules=[
-        CMakeExtension('mujoco._render_filament'),
         CMakeExtension('mujoco.studio._studio'),
         CMakeExtension('mujoco.studio.dear_imgui.dear_imgui'),
         CMakeExtension('mujoco.studio.implot.implot'),

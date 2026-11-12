@@ -51,7 +51,7 @@ dependencies (``glfw`` and ``pyopengl``). Depending on your environment, you can
   and RL training). Install ``mujoco-core[rendering]`` to include ``glfw`` and ``pyopengl`` for classic OpenGL rendering
   and ``mujoco.viewer`` without MuJoCo Studio.
 - ``pip install mujoco-studio``: `MuJoCo Studio <https://pypi.org/project/mujoco-studio/>`__ interactive viewer and
-  Filament renderer bindings (automatically installs ``mujoco-core``).
+  Filament renderer bindings (automatically installs ``mujoco-core`` and ``mujoco-studio-wasm``).
 - ``pip install mujoco[usd]`` or ``pip install mujoco-usd``: OpenUSD importer, exporter, and physics schemas; see
   :ref:`USD exporter<PyUSDexport>` and :doc:`OpenUSD/index`.
 
@@ -958,7 +958,9 @@ Building from source
    .. note::
       To build source distributions for the optional sub-packages or top-level
       metapackage as well, run ``(cd studio && bash make_sdist.sh)``
-      (``studio/dist/mujoco_studio-x.y.z.tar.gz``), ``(cd usd && bash make_sdist.sh)``
+      (``studio/dist/mujoco_studio-x.y.z.tar.gz``), ``(cd studio_wasm && bash make_sdist.sh)``
+      (``studio_wasm/dist/mujoco_studio_wasm-x.y.z.tar.gz``, after building the
+      Emscripten web client), ``(cd usd && bash make_sdist.sh)``
       (``usd/dist/mujoco_usd-x.y.z.tar.gz``), or ``(cd mujoco_full && bash make_sdist.sh)``
       (``mujoco_full/dist/mujoco-x.y.z.tar.gz``).
 

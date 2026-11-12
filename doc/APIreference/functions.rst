@@ -3363,6 +3363,15 @@ Initializes the mjrfAmbientOcclusionOpts to default values.
 
 Initializes the mjrfRenderOpts to default values.
 
+.. _mjrf_modelRenderOpts:
+
+`mjrf_modelRenderOpts <#mjrf_modelRenderOpts>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjrf_modelRenderOpts
+
+Configures the rendering options based on the parameters in an mjModel.
+
 .. _mjrf_defaultRenderRequest:
 
 `mjrf_defaultRenderRequest <#mjrf_defaultRenderRequest>`__
@@ -6577,6 +6586,15 @@ Get element's name.
 .. mujoco-include:: mjs_getString
 
 Get string contents.
+
+.. _mjs_getInStringVec:
+
+`mjs_getInStringVec <#mjs_getInStringVec>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getInStringVec
+
+Get entry in string vector, or NULL if out of bounds.
 
 .. _mjs_getDouble:
 

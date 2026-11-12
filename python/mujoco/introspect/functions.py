@@ -12335,6 +12335,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get string contents.',
      )),
+    ('mjs_getInStringVec',
+     FunctionDecl(
+         name='mjs_getInStringVec',
+         return_type=PointerType(
+             inner_type=ValueType(name='char', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='source',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjStringVec', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Get entry in string vector, or NULL if out of bounds.',
+     )),
     ('mjs_getDouble',
      FunctionDecl(
          name='mjs_getDouble',

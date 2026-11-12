@@ -1,5 +1,4 @@
 include LICENSE *.md
-recursive-include mujoco *.h *.cc *.cc.inc *.cpp *.inl *.html CMakeLists.txt *.cmake
-recursive-include mujoco/studio/web *.html
-recursive-include mujoco/studio/web/dist *
-prune mujoco/studio/web/dist/assets
+include mujoco/_render_filament.py
+recursive-include mujoco *.h *.cc *.cc.inc *.cpp *.inl CMakeLists.txt *.cmake
+prune mujoco/studio/web/dist

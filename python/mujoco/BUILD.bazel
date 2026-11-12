@@ -22,8 +22,11 @@ exports_files([
     "LICENSE",
     "setup.py",
     "mujoco_full/setup.py",
+    "studio_wasm/mujoco_studio_wasm/__init__.py",
+    "studio_wasm/setup.py",
     "build_requirements.txt",
     "CMakeLists.txt",
+    "render_filament.cc",
 ])
 
 # The bundled plugins as separate shared libraries in plugin/, linked against
@@ -87,7 +90,7 @@ py_library(
 genrule(
     name = "_genrule_enum_traits.h",
     outs = ["enum_traits.h"],
-    cmd = "$(location //python/mujoco/codegen:generate_enum_traits) > $@",
+    cmd = "$(execpath //python/mujoco/codegen:generate_enum_traits) > $@",
     tools = ["//python/mujoco/codegen:generate_enum_traits"],
 )
 
@@ -176,7 +179,7 @@ mujoco_pybind_extension(
 genrule(
     name = "_genrule_function_traits.h",
     outs = ["function_traits.h"],
-    cmd = "$(location //python/mujoco/codegen:generate_function_traits) > $@",
+    cmd = "$(execpath //python/mujoco/codegen:generate_function_traits) > $@",
     tools = ["//python/mujoco/codegen:generate_function_traits"],
 )
 
@@ -475,7 +478,7 @@ py_test(
 genrule(
     name = "_genrule_specs.cc.inc",
     outs = ["specs.cc.inc"],
-    cmd = "$(location //python/mujoco/codegen:generate_spec_bindings) > $@",
+    cmd = "$(execpath //python/mujoco/codegen:generate_spec_bindings) > $@",
     tools = ["//python/mujoco/codegen:generate_spec_bindings"],
 )
 

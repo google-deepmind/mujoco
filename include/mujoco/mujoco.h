@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 4000001
+#define mjVERSION_HEADER 4000002
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -1959,6 +1959,9 @@ MJAPI mjString* mjs_getName(mjsElement* element);
 
 // Get string contents.
 MJAPI const char* mjs_getString(const mjString* source);
+
+// Get entry in string vector, or NULL if out of bounds.
+MJAPI const char* mjs_getInStringVec(const mjStringVec* source, int i);
 
 // Get double array contents and optionally its size.
 // Nullable: size

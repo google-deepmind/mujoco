@@ -2256,30 +2256,40 @@ static int boxEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* 
 }
 
 
-// recover edge of a cylinder from witness point
-static int cylinderEdgeNormals(mjtNum res[9], mjtNum endverts[9], int dim, mjCCDObj* obj,
-                               mjtNum v[9], int v1i) {
+// recover edge normal of a cylinder
+static inline int cylinderEdgeNormals(mjtNum res[3], int dim, mjCCDObj* obj) {
   if (dim == 1 || dim == 2) {
-    mjtNum sgn = v1i ? 1.0 : -1.0;
-    res[0] = sgn * obj->mat[2];
-    res[1] = sgn * obj->mat[5];
-    res[2] = sgn * obj->mat[8];
-
-    if (obj->margin > 0 && obj->geom >= 0) {
-      mjtNum diff[3], local[2];
-      sub3(diff, v, obj->pos);
-      local[0] = obj->mat[0]*diff[0] + obj->mat[3]*diff[1] + obj->mat[6]*diff[2];
-      local[1] = obj->mat[1]*diff[0] + obj->mat[4]*diff[1] + obj->mat[7]*diff[2];
-      mjtNum n2 = local[0]*local[0] + local[1]*local[1];
-      mjtNum scl = n2 >= mjMINVAL2 ? obj->size[0] / mju_sqrt(n2) : 0;
-      globalcoord(v, obj->mat, obj->pos, scl * local[0], scl * local[1], -sgn * obj->size[1]);
-    }
-
-    // compute endverts = v1 + res * 2 * half_length
-    addScl3(endverts, v, res, 2 * obj->size[1]);
+    res[0] = obj->mat[2];
+    res[1] = obj->mat[5];
+    res[2] = obj->mat[8];
     return 1;
   }
   return 0;
+}
+
+
+// recover contact edge of a cylinder from a colliding geom face normal
+static inline int cylinderEdge(mjtNum res[6], mjCCDObj* obj, const mjtNum normal[3]) {
+  // cylinder size data
+  mjtNum radius = obj->size[0];
+  mjtNum halflen = obj->size[1];
+
+  // project the face normal onto a vector perpendicular to the cylinder axis
+  mjtNum n, proj[3], axis[3] = {obj->mat[2], obj->mat[5], obj->mat[8]};
+  addScl3(proj, normal, axis, -dot3(normal, axis));
+  if ((n = norm3(proj)) < mjMINVAL) {
+    return 0;
+  }
+
+  // scale the projected vector to cylinder radius pointing towards the face
+  mjtNum scl = -radius / n;
+
+  // compute endpoints of cylinder edge parallel to the cylinder axis
+  mjtNum center[3];
+  addScl3(center, obj->pos, proj, scl);
+  addScl3(res + 0, center, axis, -halflen);
+  addScl3(res + 3, center, axis, halflen);
+  return 2;
 }
 
 
@@ -2501,7 +2511,7 @@ static inline int geomEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDO
   } else if (obj->geom_type == mjGEOM_MESH) {
     return meshEdgeNormals(res, endverts, dim, obj, triface, trifacei);
   } else if (obj->geom_type == mjGEOM_CYLINDER) {
-    return cylinderEdgeNormals(res, endverts, dim, obj, triface, trifacei[0]);
+    return cylinderEdgeNormals(res, dim, obj);
   } else if (obj->geom_type == mjGEOM_CAPSULE) {
     return capsuleEdgeNormals(res, endverts, obj, triface, x);
   }
@@ -2647,9 +2657,16 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
 
   // recover geom1 matching edge or face
   if (edgecon1) {
-    copy3(face1, triface1);
-    copy3(face1 + 3, endverts + 3*i);
-    nface1 = 2;
+    if (obj1->geom_type == mjGEOM_CYLINDER) {
+      nface1 = cylinderEdge(face1, obj1, n2 + 3*j);
+      if (!nface1) {
+        return 1;
+      }
+    } else {
+      copy3(face1, triface1);
+      copy3(face1 + 3, endverts + 3*i);
+      nface1 = 2;
+    }
   } else {
     if (obj1->geom_type == mjGEOM_BOX) {
       int ind = (edgecon2 ? idx1[j] : idx1[i]);
@@ -2667,9 +2684,16 @@ int mjc_multicontact(mjCCDObj* obj1, mjCCDObj* obj2, mjtNum* x1, mjtNum* x2, mjt
 
   // recover geom2 matching edge or face
   if (edgecon2) {
-    copy3(face2, triface2);
-    copy3(face2 + 3, endverts + 3*i);
-    nface2 = 2;
+    if (obj2->geom_type == mjGEOM_CYLINDER) {
+      nface2 = cylinderEdge(face2, obj2, n1 + 3*j);
+      if (!nface2) {
+        return 1;
+      }
+    } else {
+      copy3(face2, triface2);
+      copy3(face2 + 3, endverts + 3*i);
+      nface2 = 2;
+    }
   } else {
     if (obj2->geom_type == mjGEOM_BOX) {
       nface2 = boxFace(face2, obj2, idx2[j]);

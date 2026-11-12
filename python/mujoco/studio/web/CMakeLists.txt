@@ -139,13 +139,6 @@ if(EMSCRIPTEN)
     COMMENT "Staging web viewer artifacts + assets into ${WEB_CLIENT_DIST_DIR}"
   )
 else()
-  if(WIN32)
-    # Windows wheels ship without the browser WASM client (Kokoro Windows jobs
-    # have no Emscripten toolchain).
-    message(STATUS "Windows: skipping the Web Viewer Python modules.")
-    return()
-  endif()
-
   if(NOT TARGET mujoco::dep::implot)
     message(WARNING "mujoco::dep::implot target not found. The web viewer "
                     "modules will not be built.")

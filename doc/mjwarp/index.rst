@@ -89,6 +89,13 @@ Installation
 
     pip install mujoco-warp
 
+MJWarp depends only on the core MuJoCo bindings (:ref:`mujoco-core <PyInstallation>`). The ``mjwarp-viewer`` and
+``mjwarp-record`` tools require the ``viewer`` extra:
+
+.. code-block:: shell
+
+    pip install "mujoco-warp[viewer]"
+
 **From source:**
 
 .. code-block:: shell
@@ -214,7 +221,7 @@ Benchmark an environment with _`testspeed`
 
 .. _mjwViewer:
 
-Interactive environment simulation with MJWarp
+Interactive environment simulation with MJWarp (requires ``mujoco-warp[viewer]``)
 
 .. code-block:: shell
 

@@ -598,10 +598,6 @@ void SceneView::Configure(const mjModel* model) {
   cg.temperature =
       ReadElement(model, "filament.cg.temperature", cg.temperature);
   cg.tint = ReadElement(model, "filament.cg.tint", cg.tint);
-  cg.gamut_mapping =
-      ReadElement(model, "filament.cg.gamut_mapping", cg.gamut_mapping);
-  cg.luminance_scaling =
-      ReadElement(model, "filament.cg.luminance_scaling", cg.luminance_scaling);
   cg.slope = ReadElement(model, "filament.cg.slope", cg.slope);
   cg.offset = ReadElement(model, "filament.cg.offset", cg.offset);
   cg.power = ReadElement(model, "filament.cg.power", cg.power);
@@ -632,8 +628,6 @@ void SceneView::Configure(const mjModel* model) {
       model, "filament.ao.low_pass_filter", "ultra"));
   ao.upsampling = QualityLevelFromString(
       ReadElement<std::string_view>(model, "filament.ao.upsampling", "ultra"));
-  ao.bilateralThreshold =
-      ReadElement(model, "filament.ao.bilateral_threshold", 0.5f);
   main_view_->setAmbientOcclusionOptions(ao);
 
   auto shadow_type = main_view_->getShadowType();
@@ -656,22 +650,14 @@ void SceneView::Configure(const mjModel* model) {
   fog_opts.height = ReadElement(model, "filament.fog.height", fog_opts.height);
   fog_opts.heightFalloff =
       ReadElement(model, "filament.fog.height_falloff", fog_opts.heightFalloff);
-  fog_opts.inScatteringStart = ReadElement(
-      model, "filament.fog.in_scattering_start", fog_opts.inScatteringStart);
-  fog_opts.inScatteringSize = ReadElement(
-      model, "filament.fog.in_scattering_size", fog_opts.inScatteringSize);
   main_view_->setFogOptions(fog_opts);
 
   auto bloom = main_view_->getBloomOptions();
   bloom.enabled = ReadElement(model, "filament.bloom.enabled", bloom.enabled);
   bloom.strength =
       ReadElement(model, "filament.bloom.strength", bloom.strength);
-  bloom.dirtStrength =
-      ReadElement(model, "filament.bloom.dirt_strength", bloom.dirtStrength);
   bloom.quality = QualityLevelFromString(
       ReadElement<std::string_view>(model, "filament.bloom.quality", "low"));
-  bloom.resolution =
-      ReadElement(model, "filament.bloom.resolution", bloom.resolution);
   bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
   main_view_->setBloomOptions(bloom);
 

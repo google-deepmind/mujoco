@@ -21,7 +21,7 @@ headless simulation environments (`pip install mujoco-core`). To switch an
 existing `mujoco` installation to `mujoco-core` only, run:
 
 ```sh
-pip uninstall -y mujoco mujoco-studio && pip install --force-reinstall --no-deps mujoco-core
+pip uninstall -y mujoco mujoco-studio mujoco-studio-wasm && pip install --force-reinstall --no-deps mujoco-core
 ```
 
 It is not the aim of this package to provide fully fledged

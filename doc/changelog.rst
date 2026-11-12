@@ -8,19 +8,38 @@ Upcoming Version (not yet released)
 Bug fixes
 ^^^^^^^^^
 
-- Fixed a bug in the sparse Cholesky factorization introduced in 4.0.0, which merged rows with different descendants
-  into one supernode and gave the Newton solver a wrong Hessian factor when the constraint Jacobian is sparse, causing
-  slow convergence, wrong accelerations and divergence (:issue:`3767`).
-- :ref:`mj_loadAllPluginLibraries` now skips a dynamic library that fails to load with a warning instead of calling
-  :ref:`mju_error`, so one unloadable library in the plugin directory no longer aborts :ref:`simulate<saSimulate>` at
-  startup. In the 4.0.0 macOS and Linux archives this happened with the USD decoder plugin, which can only be loaded
-  from a Python process.
 - Fixed the inertial frame of bodies whose inertial position is undefined: compilation set it to the pose of the body in
   its parent, which put the center of mass at about twice the body offset and rotated the inertia by the body
   orientation; it is now centered at the body origin. This affected geomless bodies given mass by
   :ref:`boundmass<compiler-boundmass>`, like the dummy bodies of URDF models, bodies in an :ref:`mjSpec` with a mass but
   no ``ipos``, and the ``xipos`` and ``ximat`` of massless geomless bodies, read for example by
   :ref:`frame sensors<sensor-framepos>` with ``objtype="body"``.
+
+Version 4.0.1 (November 11, 2026)
+---------------------------------
+
+Compiler
+^^^^^^^^
+1. :commit:`21a076966` Added :ref:`mjs_getInStringVec` to read entries from an :ref:`mjStringVec<mjStringVec>` by index.
+
+Python bindings
+^^^^^^^^^^^^^^^
+2. :commit:`a937a4f91` Enabled the MuJoCo Studio Web Viewer (``mujoco-studio --gfx=web`` and
+   ``mujoco.studio.launch_web``) on Windows by shipping the precompiled browser client in a platform-independent
+   ``mujoco-studio-wasm`` wheel installed automatically by ``mujoco-studio``.
+
+Bug fixes
+^^^^^^^^^
+
+3. :commit:`9ae9bad01` Fixed a bug in the sparse Cholesky factorization introduced in 4.0.0, which merged rows with
+   different descendants into one supernode and gave the Newton solver a wrong Hessian factor when the constraint
+   Jacobian is sparse, causing slow convergence, wrong accelerations and divergence (:issue:`3767`).
+4. :commit:`144ede984` :ref:`mj_loadAllPluginLibraries` now skips a dynamic library that fails to load with a warning
+   instead of calling :ref:`mju_error`, so one unloadable library in the plugin directory no longer aborts
+   :ref:`simulate<saSimulate>` at startup. In the 4.0.0 macOS and Linux archives this happened with the USD decoder
+   plugin, which can only be loaded from a Python process.
+5. :commit:`409f981ab` Fixed issues in single-shot :ref:`multicontact<coMultiCCD>` for cylinder edge collisions
+   (:issue:`3748`, :issue:`3752`).
 
 Version 4.0.0 (November 6, 2026)
 --------------------------------

@@ -305,15 +305,7 @@ class ModelWriter {
 
   mjsTexture *GetMaterialTexture(const mjsMaterial *material,
                                  mjtTextureRole role) const {
-    int mat_id = mjs_getId(material->element);
-    if (mat_id < 0 || mat_id >= model_->nmat) {
-      return nullptr;
-    }
-    int tex_id = model_->mat_texid[mat_id * mjNTEXROLE + role];
-    if (tex_id < 0) {
-      return nullptr;
-    }
-    const char *tex_name = mj_id2name(model_, mjOBJ_TEXTURE, tex_id);
+    const char *tex_name = mjs_getInStringVec(material->textures, role);
     if (!tex_name || tex_name[0] == '\0') {
       return nullptr;
     }

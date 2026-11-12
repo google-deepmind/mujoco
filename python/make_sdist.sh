@@ -42,7 +42,7 @@ for item in "${package_dir}"/*; do
   fi
   cp -r "${item}" .
 done
-rm -rf mujoco_full studio usd mujoco/mujoco_full mujoco/sample/studio mujoco/studio mujoco/usd/MjcPhysics
+rm -rf mujoco_full studio studio_wasm usd mujoco/mujoco_full mujoco/sample/studio mujoco/studio mujoco/studio_wasm mujoco/usd/MjcPhysics
 rm -f mujoco/render_filament.cc mujoco/render_filament.h
 rm -f mujoco/usd/*.cc mujoco/usd/*.cpp mujoco/usd/*.h \
       mujoco/usd/CMakeLists.txt mujoco/usd/MANIFEST.in \
