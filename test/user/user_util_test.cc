@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
+#include <cstdlib>
+#include <new>
 #include <random>
 #include <string>
 #include <vector>
@@ -27,6 +29,20 @@
 #include <gmock/gmock.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
+
+// Replacement global allocator that can be told to succeed while leaving errno
+// set to ENOMEM, which C and POSIX permit for a successful allocation.
+static bool g_dirty_errno_on_alloc = false;
+
+void* operator new(std::size_t size) {
+  void* p = std::malloc(size ? size : 1);
+  if (!p) throw std::bad_alloc();
+  if (g_dirty_errno_on_alloc) errno = ENOMEM;
+  return p;
+}
+
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 
 namespace mujoco {
 namespace {
@@ -157,6 +173,26 @@ TEST_F(UserUtilTest, StringToVectorFloat) {
   std::vector<float> v = StringToVector<float>(" 1.2 3.2     5.3 6 ");
   EXPECT_THAT(v, ElementsAre(1.2, 3.2, 5.3, 6));
   EXPECT_EQ(errno, 0);
+}
+
+// A successful allocation that leaves errno set must not be reported as a
+// parse error.
+TEST_F(UserUtilTest, StringToVectorIgnoresErrnoFromAllocation) {
+  g_dirty_errno_on_alloc = true;
+  std::vector<double> v = StringToVector<double>("0.02 1");
+  int err = errno;
+  std::vector<double> nan_v = StringToVector<double>("1 nan 2");
+  int nan_err = errno;
+  std::vector<double> bad_v = StringToVector<double>("1 x 2");
+  int bad_err = errno;
+  g_dirty_errno_on_alloc = false;
+
+  EXPECT_THAT(v, ::testing::ElementsAre(0.02, 1));
+  EXPECT_EQ(err, 0);
+  EXPECT_EQ(nan_v.size(), 3);
+  EXPECT_EQ(nan_err, EDOM);
+  EXPECT_EQ(bad_v.size(), 1);
+  EXPECT_EQ(bad_err, EINVAL);
 }
 
 TEST_F(UserUtilTest, StringToVectorEmpty) {

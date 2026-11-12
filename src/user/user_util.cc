@@ -1249,8 +1249,8 @@ std::vector<T> StringToVector(char* cs) {
   std::vector<T> v;
   char*          ch      = cs;
   bool           has_nan = false;
+  int            status  = 0;
 
-  errno = 0;
   // reserve worst case
   v.reserve((std::strlen(cs) >> 1) + 1);
 
@@ -1265,12 +1265,20 @@ std::vector<T> StringToVector(char* cs) {
       has_nan = true;
       errno   = 0;
     }
-    if (errno) break;  // NaNs are quietly ignored
+    if (errno) {  // NaNs are quietly ignored
+      status = errno;
+      break;
+    }
     v.push_back(num);
   }
-  if (!errno && has_nan) errno = EDOM;
+  if (!status && has_nan) status = EDOM;
 
   v.shrink_to_fit();
+
+  // Report the result through errno last: a successful allocation above may
+  // leave errno nonzero (e.g. ENOMEM), and callers read errno to detect
+  // parse errors. Nothing after this point may allocate.
+  errno = status;
   return v;
 }
 

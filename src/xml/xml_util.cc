@@ -863,13 +863,14 @@ optional<vector<T>> mjXUtil::ReadAttrVec(XMLElement* elem, const char* attr, boo
   const char* raw_cstr = elem->Attribute(attr);
   if (raw_cstr) {
     v = mujoco::user::StringToVector<T>(raw_cstr);
-    if (errno == EDOM) {
+    const int err = errno;
+    if (err == EDOM) {
       mju_warning("XML contains a 'NaN'. Please check it carefully.");
-    } else if (errno == ERANGE) {
+    } else if (err == ERANGE) {
       throw mjXError(elem, "number is too large in attribute '%s'", attr);
-    } else if (errno == EINVAL) {
+    } else if (err == EINVAL) {
       throw mjXError(elem, "bad format in attribute '%s'", attr);
-    } else if (errno != 0) {
+    } else if (err != 0) {
       throw mjXError(elem, "unknown error in attribute '%s'", attr);
     }
   }
