@@ -682,6 +682,53 @@ TEST_F(EnginePluginTest, ActuatorPlugin) {
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
 }
 
+TEST_F(EnginePluginTest, DisabledActuatorGroups) {
+  std::string model_xml = absl::StrReplaceAll(
+      xml, {{"</actuator>",
+             "<motor joint=\"h1\" group=\"3\" forcerange=\"1 2\"/></actuator>"}});
+  MjModelPtr model = LoadModelFromString(model_xml);
+  ASSERT_THAT(model.get(), NotNull());
+  model->actuator_group[0] = 0;
+  model->actuator_group[1] = 1;
+  model->actuator_group[2] = 2;
+  MjDataPtr data = MakeData(model);
+  data->ctrl[3] = 1.5;
+
+  // Actuators 1 and 2 share a plugin instance, but only group 1 is disabled.
+  model->opt.disableactuator = (1 << 1) | (1 << 3);
+  model->actuator_forcelimited[1] = true;
+  model->actuator_forcerange[2] = 1;
+  model->actuator_forcerange[3] = 2;
+  mj_step(model.get(), data.get());
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->actuator_force[0], 0.125);
+  EXPECT_EQ(data->actuator_force[1], 0);
+  EXPECT_EQ(data->actuator_force[2], 0.25);
+  EXPECT_EQ(data->actuator_force[3], 0);
+  EXPECT_EQ(data->qfrc_actuator[1], 0.25);
+  for (int j = 0; j < 3; j++) {
+    EXPECT_EQ(data->act[j], 0);
+    EXPECT_GT(data->act[3+j], 0);
+  }
+
+  // Switch enabled groups at runtime without resetting the shared instance.
+  model->opt.disableactuator = (1 << 2) | (1 << 3);
+  model->actuator_forcelimited[1] = false;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->actuator_force[0], 0.125);
+  EXPECT_EQ(data->actuator_force[1], 0.25);
+  EXPECT_EQ(data->actuator_force[2], 0);
+  EXPECT_EQ(data->actuator_force[3], 0);
+  EXPECT_EQ(data->qfrc_actuator[1], 0.25);
+
+  model->opt.disableactuator = 0;
+  mj_forward(model.get(), data.get());
+  EXPECT_EQ(data->actuator_force[1], 0.25);
+  EXPECT_EQ(data->actuator_force[2], 0.25);
+  EXPECT_EQ(data->actuator_force[3], 1.5);
+  EXPECT_EQ(data->qfrc_actuator[1], 0.5);
+}
+
 TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
   char error[1024] = {0};
   MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
