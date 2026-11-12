@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <array>
 #include <cstddef>  // IWYU pragma: keep
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>  // IWYU pragma: keep
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>  // IWYU pragma: keep
 
@@ -202,43 +205,112 @@ py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
   return list;  // list of pointers, so they can be copied
 }
 
-static std::string addSuffixBeforeExtension(const std::string& original_path,
-                                            const std::string& suffix_to_add) {
-  // Find the position of the last dot
-  size_t dot_pos = original_path.rfind('.');
-
-  // Check if a dot was found
-  if (dot_pos != std::string::npos) {
-    std::string new_path = original_path;
-    new_path.insert(dot_pos, suffix_to_add);
-    return new_path;
-  } else {
-    // No extension found, just append
-    return original_path + suffix_to_add;
-  }
-}
-
-static std::string addPrefixToFileName(const std::string& original_path,
-                                       const std::string& prefix_to_add) {
-  // Find the position of the last slash
-  size_t slash_pos = original_path.find_last_of("/\\");
-
-  // Check if a slash was found
-  if (slash_pos != std::string::npos) {
-    std::string new_path = original_path;
-    new_path.insert(slash_pos + 1, prefix_to_add);
-    return new_path;
-  } else {
-    // No slash found, just prepend
-    return prefix_to_add + original_path;
-  }
-}
-
 static std::string addPrefixAndSuffix(const std::string& original_path,
                                       const std::string& prefix_to_add,
                                       const std::string& suffix_to_add) {
-  std::string prefixed_path = addPrefixToFileName(original_path, prefix_to_add);
-  return addSuffixBeforeExtension(prefixed_path, suffix_to_add);
+  size_t slash = original_path.find_last_of("/\\");
+  size_t filename = slash == std::string::npos ? 0 : slash + 1;
+  size_t extension = original_path.rfind('.');
+  if (extension == std::string::npos || extension < filename) {
+    extension = original_path.size();
+  }
+  return original_path.substr(0, filename) + prefix_to_add +
+         original_path.substr(filename, extension - filename) + suffix_to_add +
+         original_path.substr(extension);
+}
+
+constexpr std::array<mjtObj, 4> kFileAssetTypes = {
+    mjOBJ_MESH, mjOBJ_TEXTURE, mjOBJ_HFIELD, mjOBJ_SKIN};
+
+// Preserve URI and drive prefixes when normalizing a VFS path.
+static std::size_t AssetPathPrefix(const std::string& path) {
+  if (const auto* provider = mjp_findProvider(path.c_str())) {
+    std::size_t n = std::strlen(provider->prefix) + 1;
+    while (n < path.size() && (path[n] == '/' || path[n] == '\\')) ++n;
+    return n;
+  }
+  if (!path.empty() && (path[0] == '/' || path[0] == '\\')) return 1;
+  std::size_t n = path.find(":/");
+  if (n == std::string::npos) n = path.find(":\\");
+  return n == std::string::npos ? 0 : n + 2;
+}
+
+static std::string NormalizeAssetPath(std::string path) {
+  std::replace(path.begin(), path.end(), '\\', '/');
+  std::size_t prefix = AssetPathPrefix(path);
+  std::filesystem::path relative(path.substr(prefix));
+  return path.substr(0, prefix) + relative.lexically_normal().generic_string();
+}
+
+static std::string ResolveAssetPath(raw::MjsElement* asset, std::string path) {
+  const auto* compiler = mjs_getCompiler(asset);
+  auto* origin = mjs_getOriginSpec(asset);
+  if (!origin) origin = mjs_getSpec(asset);
+  if (mjs_getSpec(asset)->strippath) {
+    path = path.substr(path.find_last_of("/\\") + 1);
+  }
+  auto combine = [](const char* dir, const std::string& file) {
+    return NormalizeAssetPath(AssetPathPrefix(file) || !*dir
+                                  ? file : std::string(dir) + "/" + file);
+  };
+  const char* dir = mjs_getString(asset->elemtype == mjOBJ_TEXTURE
+                                    ? compiler->texturedir : compiler->meshdir);
+  return combine(mjs_getString(origin->modelfiledir), combine(dir, path));
+}
+
+static void RenameAssetFiles(raw::MjsElement* asset, const std::string& prefix,
+                             const std::string& suffix,
+                             const std::unordered_set<std::string>& asset_paths,
+                             const std::unordered_set<std::string>& asset_names) {
+  auto renamed_path = [&](const char* path) -> std::optional<std::string> {
+    if (!*path || !asset_names.count(_impl::StripPath(path))) {
+      return std::nullopt;
+    }
+    std::string resolved = ResolveAssetPath(asset, path);
+    // Exact dictionary paths win over providers, which win over the VFS's
+    // legacy case-insensitive basename fallback.
+    if (!asset_paths.count(resolved)) {
+      if (mjp_findProvider(resolved.c_str())) return std::nullopt;
+      for (std::size_t end = resolved.find_last_of("/\\");
+           end != std::string::npos;) {
+        if (mjp_findArchiveProvider(resolved.substr(0, end).c_str())) {
+          return std::nullopt;
+        }
+        if (!end) break;
+        end = resolved.find_last_of("/\\", end - 1);
+      }
+    }
+    return addPrefixAndSuffix(path, prefix, suffix);
+  };
+  mjString* file = nullptr;
+  switch (asset->elemtype) {
+    case mjOBJ_MESH:
+      file = mjs_asMesh(asset)->file;
+      break;
+    case mjOBJ_HFIELD:
+      file = mjs_asHField(asset)->file;
+      break;
+    case mjOBJ_SKIN:
+      file = mjs_asSkin(asset)->file;
+      break;
+    case mjOBJ_TEXTURE: {
+      auto* texture = mjs_asTexture(asset);
+      file = texture->file;
+      for (int i = 0;; ++i) {
+        const char* cubefile = mjs_getInStringVec(texture->cubefiles, i);
+        if (!cubefile) break;
+        if (auto renamed = renamed_path(cubefile)) {
+          mjs_setInStringVec(texture->cubefiles, i, renamed->c_str());
+        }
+      }
+      break;
+    }
+    default:
+      return;
+  }
+  if (auto renamed = renamed_path(mjs_getString(file))) {
+    mjs_setString(file, renamed->c_str());
+  }
 }
 
 PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
@@ -787,9 +859,13 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         std::string pre(p);
         std::string suf(s);
         std::vector<std::pair<py::str, py::object>> new_assets;
+        std::unordered_set<std::string> asset_paths;
+        std::unordered_set<std::string> asset_names;
         new_assets.reserve(child.assets.size());
         for (const auto& asset : child.assets) {
           std::string key = asset.first.cast<std::string>();
+          asset_paths.insert(NormalizeAssetPath(key));
+          asset_names.insert(_impl::StripPath(key.c_str()));
           std::string asset_name = addPrefixAndSuffix(key, pre, suf);
           py::str py_asset_name(asset_name);
           if (self.assets.contains(py_asset_name) && !self.override_assets) {
@@ -800,6 +876,17 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
               std::move(py_asset_name),
               py::reinterpret_borrow<py::object>(asset.second));
         }
+        // Asset elements may be moved or copied by mjs_attach. Remember the
+        // parent's existing elements so only the imported files are renamed.
+        std::unordered_set<raw::MjsElement*> existing_assets;
+        if (!child.assets.empty()) {
+          for (mjtObj type : kFileAssetTypes) {
+            for (auto* asset = mjs_firstElement(self.ptr, type); asset;
+                 asset = mjs_nextElement(self.ptr, asset)) {
+              existing_assets.insert(asset);
+            }
+          }
+        }
         raw::MjsElement* attached_frame =
             mjs_attach(parent_elem, child.ptr->element, p, s);
         if (!attached_frame) {
@@ -808,12 +895,12 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
         for (const auto& [asset_name, asset_val] : new_assets) {
           self.assets[asset_name] = asset_val;
         }
-        raw::MjsElement* mesh = mjs_firstElement(child.ptr, mjOBJ_MESH);
-        raw::MjsElement* tex = mjs_firstElement(child.ptr, mjOBJ_TEXTURE);
-        raw::MjsElement* parent_mesh = mjs_firstElement(self.ptr, mjOBJ_MESH);
-        raw::MjsElement* parent_tex = mjs_firstElement(self.ptr, mjOBJ_TEXTURE);
-        bool child_has_assets = mesh || tex;
-        bool parent_has_assets = parent_mesh || parent_tex;
+        bool child_has_assets = false;
+        bool parent_has_assets = false;
+        for (mjtObj type : kFileAssetTypes) {
+          child_has_assets |= mjs_firstElement(child.ptr, type) != nullptr;
+          parent_has_assets |= mjs_firstElement(self.ptr, type) != nullptr;
+        }
         bool child_use_asset_dict = !child.assets.empty();
         bool parent_use_asset_dict = !self.assets.empty();
         if (!child_use_asset_dict && child_has_assets &&
@@ -833,21 +920,13 @@ PYBIND11_MODULE(_specs, m, pybind11::mod_gil_not_used()) {
               1);
         }
         if (child_use_asset_dict) {
-          while (mesh) {
-            std::string file = mjs_getString(mjs_asMesh(mesh)->file);
-            if (!file.empty()) {
-              std::string mesh_file = addPrefixAndSuffix(file, pre, suf);
-              mjs_setString(mjs_asMesh(mesh)->file, mesh_file.c_str());
+          for (mjtObj type : kFileAssetTypes) {
+            for (auto* asset = mjs_firstElement(self.ptr, type); asset;
+                 asset = mjs_nextElement(self.ptr, asset)) {
+              if (!existing_assets.count(asset)) {
+                RenameAssetFiles(asset, pre, suf, asset_paths, asset_names);
+              }
             }
-            mesh = mjs_nextElement(child.ptr, mesh);
-          }
-          while (tex) {
-            std::string file = mjs_getString(mjs_asTexture(tex)->file);
-            if (!file.empty()) {
-              std::string tex_file = addPrefixAndSuffix(file, pre, suf);
-              mjs_setString(mjs_asTexture(tex)->file, tex_file.c_str());
-            }
-            tex = mjs_nextElement(child.ptr, tex);
           }
         }
         child.parent = &self;
