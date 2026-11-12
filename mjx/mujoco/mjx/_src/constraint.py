@@ -21,6 +21,7 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import math
+from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.dataclasses import PyTreeNode
@@ -51,6 +52,7 @@ class _Efc(PyTreeNode):
   solimp: jax.Array
   margin: jax.Array
   frictionloss: jax.Array
+  jdotv: jax.Array  # Jdot * qvel, subtracted from the reference acceleration
 
 
 def _kbi(
@@ -91,16 +93,18 @@ def _kbi(
   return k, b, imp  # corresponds to K, B, I of efc_KBIP
 
 
-def _row(j: jax.Array, *args) -> _Efc:
+def _row(j: jax.Array, *args, jdotv: Optional[jax.Array] = None) -> _Efc:
   """Creates an efc row, ensuring args all have same row count."""
   if len(j.shape) < 2:
-    return _Efc(j, *args)  # if j isn't batched, ignore
+    jdotv = jp.zeros(()) if jdotv is None else jdotv
+    return _Efc(j, *args, jdotv)  # if j isn't batched, ignore
 
+  jdotv = jp.zeros(j.shape[0]) if jdotv is None else jdotv
   args = list(args)
   for i, arg in enumerate(args):
     if not arg.shape or arg.shape[0] != j.shape[0]:
       args[i] = jp.tile(arg, (j.shape[0],) + (1,) * (len(arg.shape)))
-  return _Efc(j, *args)
+  return _Efc(j, *args, jdotv)
 
 
 def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
@@ -134,7 +138,14 @@ def _efc_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     invweight = m.body_invweight0[body1id, 0] + m.body_invweight0[body2id, 0]
     zero = jp.zeros_like(pos)
 
-    efc = _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
+    # Jdot * qvel of the constraint, as in mj_Jdotv
+    jdotp1, _ = support.jac_dot(m, d, pos1, body1id)
+    jdotp2, _ = support.jac_dot(m, d, pos2, body2id)
+    jdotv = (jdotp1 - jdotp2).T @ d.qvel
+
+    efc = _row(
+        j, pos, pos_imp, invweight, solref, solimp, zero, zero, jdotv=jdotv
+    )
     return jax.tree_util.tree_map(lambda x: x * active, efc)
 
   is_site = m.eq_objtype == ObjType.SITE
@@ -218,7 +229,45 @@ def _efc_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     invweight = jp.repeat(invweight, 3, axis=0)
     zero = jp.zeros_like(pos)
 
-    efc = _row(j, pos, pos_imp, invweight, solref, solimp, zero, zero)
+    # Jdot * qvel of the constraint, as in mj_Jdotv
+    jdotp1, jdotr1 = support.jac_dot(m, d, pos1, body1id)
+    jdotp2, jdotr2 = support.jac_dot(m, d, pos2, body2id)
+    jdotv_pos = (jdotp1 - jdotp2).T @ d.qvel
+    djrdv = (jdotr1 - jdotr2).T @ d.qvel
+
+    # time derivative of the rotation error: product rule on
+    # neg(q1) * (jac0 - jac1) * q0 * relpose, with world-frame angular velocity
+    quat0_full = d.xquat[body1id]
+    quat1_full = d.xquat[body2id]
+    quat_dot0r_relpose = relpose
+    if m.nsite:
+      quat0_full = jp.where(
+          is_site, math.quat_mul(quat0_full, m.site_quat[obj1id]), quat0_full
+      )
+      quat1_full = jp.where(
+          is_site, math.quat_mul(quat1_full, m.site_quat[obj2id]), quat1_full
+      )
+      quat_dot0r_relpose = jp.where(
+          is_site, jp.array([1.0, 0.0, 0.0, 0.0]), relpose
+      )
+    omega1, omega2 = d.cvel[body1id][:3], d.cvel[body2id][:3]
+    domega = omega1 - omega2
+
+    def deriv(q, w):
+      return 0.5 * math.quat_mul(jp.concatenate((jp.zeros(1), w)), q)
+
+    quat_dot0r = math.quat_mul(deriv(quat0_full, omega1), quat_dot0r_relpose)
+    quat_dot1 = deriv(quat1_full, omega2)
+    neg_quat_dot1 = quat_dot1 * jp.array([1.0, -1.0, -1.0, -1.0])
+    term1 = math.quat_mul(math.quat_mul_axis(neg_quat_dot1, domega), quat)
+    term2 = math.quat_mul(math.quat_mul_axis(quat1, djrdv), quat)
+    term3 = math.quat_mul(math.quat_mul_axis(quat1, domega), quat_dot0r)
+    jdotv_rot = 0.5 * (term1 + term2 + term3)[1:] * torquescale
+    jdotv = jp.concatenate((jdotv_pos, jdotv_rot))
+
+    efc = _row(
+        j, pos, pos_imp, invweight, solref, solimp, zero, zero, jdotv=jdotv
+    )
     return jax.tree_util.tree_map(lambda x: x * active, efc)
 
   is_site = m.eq_objtype == ObjType.SITE
@@ -696,9 +745,11 @@ def make_constraint(m: Model, d: Data) -> Data:
   if m.opt.disableflags & DisableBit.CONSTRAINT:
     efcs = ()
   else:
+    # Jdot * qvel of connect and weld needs cvel and cdof_dot at this qvel
+    d_vel = smooth.com_vel(m, d)
     efcs = (
-        _efc_equality_connect(m, d),
-        _efc_equality_weld(m, d),
+        _efc_equality_connect(m, d_vel),
+        _efc_equality_weld(m, d_vel),
         _efc_equality_joint(m, d),
         _efc_equality_tendon(m, d),
         _efc_friction(m, d),
@@ -732,7 +783,7 @@ def make_constraint(m: Model, d: Data) -> Data:
   def fn(efc):
     k, b, imp = _kbi(m, efc.solref, efc.solimp, efc.pos_imp)
     r = jp.maximum(efc.invweight * (1 - imp) / imp, mujoco.mjMINVAL)
-    aref = -b * (efc.J @ d.qvel) - k * imp * efc.pos_aref
+    aref = -b * (efc.J @ d.qvel) - k * imp * efc.pos_aref - efc.jdotv
     return aref, r, efc.pos_aref + efc.margin, efc.margin, efc.frictionloss
 
   aref, r, pos, margin, frictionloss = fn(efc)

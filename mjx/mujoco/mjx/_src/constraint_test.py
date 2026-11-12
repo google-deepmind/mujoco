@@ -60,9 +60,6 @@ class ConstraintTest(parameterized.TestCase):
     # sample a mix of active/inactive constraints at different timesteps
     for key in range(3):
       mujoco.mj_resetDataKeyframe(m, d, key)
-      # scale down velocities to minimize Jdotv effect (not in MJX)
-      # TODO(team): remove this change when mjx supports this feature
-      d.qvel[:] *= 1e-2
       if rand_eq_active:
         d.eq_active[:] = np.random.randint(0, 2, size=m.neq)
       mujoco.mj_forward(m, d)
@@ -84,6 +81,60 @@ class ConstraintTest(parameterized.TestCase):
           dx._impl.efc_frictionloss[order][: d.nefc],
           'efc_frictionloss',
       )
+
+  @parameterized.parameters(
+      '<connect body1="b1" body2="b2" anchor=".1 .05 -.1"/>',
+      '<connect site1="s1" site2="s2"/>',
+      '<weld body1="b1" body2="b2" torquescale="2"/>',
+      '<weld body1="b3" body2="b2"/>',
+      '<weld site1="s1" site2="s2" torquescale="1.5"/>',
+      '<weld body1="b2"/>',
+  )
+  def test_equality_jacobian_dot(self, equality):
+    """Tests that connect and weld include Jdot * qvel in efc_aref."""
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <option gravity="0 0 0">
+          <flag contact="disable"/>
+        </option>
+        <worldbody>
+          <body name="b1" pos="0.1 0.2 0.3" quat="0.9 0.1 0.3 0.2">
+            <freejoint/>
+            <geom size=".1" mass="1"/>
+            <site name="s1" pos=".1 .2 -.1" quat="0.8 0.2 0.1 0.4"/>
+            <body name="b3" pos=".3 0 0">
+              <joint type="ball"/>
+              <geom size=".05" mass=".5"/>
+            </body>
+          </body>
+          <body name="b2" pos="0.5 -0.2 0.1" quat="0.7 0.3 0.1 0.5">
+            <freejoint/>
+            <geom size=".1" mass="1"/>
+            <site name="s2" pos="-.1 .1 .2" quat="0.9 0.1 0.3 0.1"/>
+          </body>
+        </worldbody>
+        <equality>{equality}</equality>
+      </mujoco>""")
+    d = mujoco.MjData(m)
+    rng = np.random.default_rng(2)
+    d.qpos[:] += 0.05 * rng.normal(size=m.nq)
+    mujoco.mj_normalizeQuat(m, d.qpos)
+    d.qvel[:] = rng.normal(size=m.nv)
+    mujoco.mj_forward(m, d)
+
+    # cvel and cdof_dot are zero here, they are only computed by mjx.forward
+    d_init = mujoco.MjData(m)
+    d_init.qpos[:] = d.qpos
+    d_init.qvel[:] = d.qvel
+    dx = mjx.forward(mjx.put_model(m), mjx.put_data(m, d_init))
+    order = test_util.efc_order(m, d, dx)
+    np.testing.assert_allclose(
+        dx._impl.efc_aref[order][: d.nefc],
+        d.efc_aref,
+        rtol=1e-4,
+        atol=1e-4,
+        err_msg='mismatch: efc_aref',
+    )
 
   def test_disable_refsafe(self):
     m = test_util.load_test_file('constraints.xml')
