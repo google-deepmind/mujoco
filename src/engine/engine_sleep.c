@@ -909,11 +909,8 @@ static mjtSleepState mj_subtreeSleepState(const mjModel* m, const mjData* d, int
   // bodies are in depth-first order: the subtree is contiguous after i
   int has_asleep = 0;
   for (int b = i + 1; b < m->nbody; b++) {
-    int p = b;
-    while (p > i) {
-      p = m->body_parentid[p];
-    }
-    if (p != i) {
+    // the first body outside the subtree has a parent preceding its root
+    if (m->body_parentid[b] < i) {
       break;
     }
     if (d->body_awake[b] == mjS_AWAKE) {
