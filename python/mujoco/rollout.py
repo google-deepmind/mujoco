@@ -226,9 +226,12 @@ class Rollout:
 
     # tile input arrays/lists if required (singleton expansion)
     model = model * nbatch if len(model) == 1 else model
-    initial_state = _tile_if_required(initial_state, nbatch)
-    initial_warmstart = _tile_if_required(initial_warmstart, nbatch)
-    control = _tile_if_required(control, nbatch, nstep)
+    outputs = (state, sensordata)
+    initial_state = _tile_if_required(initial_state, nbatch, outputs=outputs)
+    initial_warmstart = _tile_if_required(
+        initial_warmstart, nbatch, outputs=outputs
+    )
+    control = _tile_if_required(control, nbatch, nstep, outputs=outputs)
 
     # allocate output if not provided
     if state is None:
@@ -436,7 +439,7 @@ def _infer_dimension(dim, value, **kwargs):
   return value
 
 
-def _tile_if_required(array, dim0, dim1=None):
+def _tile_if_required(array, dim0, dim1=None, *, outputs=()):
   if array is None:
     return
   reps = np.ones(array.ndim, dtype=int)
@@ -444,4 +447,17 @@ def _tile_if_required(array, dim0, dim1=None):
     reps[0] = dim0
   if dim1 is not None and array.shape[1] == 1:
     reps[1] = dim1
+  if np.all(reps == 1):
+    # Foreign buffers may belong to mjData, which is modified by the rollout.
+    base = array
+    while isinstance(base, np.ndarray):
+      base = base.base
+    # Preserve inputs that overlap outputs written during the rollout.
+    if base is not None or any(
+        np.may_share_memory(array, output)
+        for output in outputs
+        if output is not None
+    ):
+      return array.copy()
+    return array
   return np.tile(array, reps)
