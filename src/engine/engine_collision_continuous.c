@@ -211,7 +211,10 @@ mjtNum mjc_GeomDist(const mjModel* m, int gi, const mjtNum* gpos, const mjtNum* 
       nl[0] = p[0] / (size[0] * size[0]);
       nl[1] = p[1] / (size[1] * size[1]);
       nl[2] = p[2] / (size[2] * size[2]);
-      if (mju_normalize3(nl) == 0) nl[2] = 1;
+      if (mju_normalize3(nl) == 0) {
+        nl[0] = 0;
+        nl[2] = 1;
+      }
     }
   } else {
     return 1e30;  // unsupported geom -> no barrier

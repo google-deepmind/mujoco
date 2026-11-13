@@ -757,6 +757,29 @@ TEST_F(ContinuousCollisionTest, EllipsoidCylinderAndMeshGeomDist) {
   mj_deleteModel(m);
 }
 
+TEST_F(ContinuousCollisionTest, EllipsoidCenterUnitNormal) {
+  constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="ellipsoid" size="0.1 0.2 0.3"/>
+      <geom type="ellipsoid" size="0.1 0.2 0.3" pos="1 2 3" quat="0.5 0.5 0.5 0.5"/>
+    </worldbody>
+  </mujoco>)";
+  MjModelPtr model = LoadModelFromString(kXml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // at the center the fallback normal must remain unit length under rotation
+  for (int g = 0; g < model->ngeom; g++) {
+    mjtNum n[3];
+    const mjtNum* center = data->geom_xpos + 3 * g;
+    EXPECT_NEAR(GeomDist(model.get(), data.get(), g, center, n), -0.1,
+                MjTol(1e-15, 1e-8));
+    EXPECT_NEAR(mju_norm3(n), 1.0, MjTol(1e-15, 1e-7));
+  }
+}
+
 TEST_F(ContinuousCollisionTest, AdvanceGeomPairFindsTimeOfImpact) {
   constexpr char kXml[] = R"(
   <mujoco>
