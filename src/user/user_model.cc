@@ -37,6 +37,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -957,11 +958,11 @@ void mjCModel::operator-=(mjsElement* el) {
   // an element with values in the keyframes of a compiled model: they are now pending, the next
   // compilation reassembles them without it; bodies and frames do this when their subtree is
   // removed. In an uncompiled model, authored keyframe vectors are raw arrays that are laid out
-  // directly at compile time, so only compiled models re-store keyframes upon element deletion.
-  if (IsCompiled() && (el->elemtype == mjOBJ_JOINT ||
-                       el->elemtype == mjOBJ_ACTUATOR ||
-                       el->elemtype == mjOBJ_TENDON ||
-                       el->elemtype == mjOBJ_FLEX)) {
+  // directly at compile time. A retained state layout also needs keyframe storage after failure.
+  if (state_layout_valid && (el->elemtype == mjOBJ_JOINT ||
+                             el->elemtype == mjOBJ_ACTUATOR ||
+                             el->elemtype == mjOBJ_TENDON ||
+                             el->elemtype == mjOBJ_FLEX)) {
     StoreKeyframes(this);
   }
 
@@ -1423,6 +1424,7 @@ void mjCModel::Clear() {
   // internal variables
   hasImplicitPluginElem = false;
   compiled              = false;
+  state_layout_valid    = false;
   errInfo               = mjCError();
   ClearCompileWarnings();
   qpos0.clear();
@@ -4504,6 +4506,46 @@ void mjCModel::SaveState(const std::string& state_name,
 }
 
 
+// preserve the last successful layout while mj_recompile attempts a new one
+std::function<void()> mjCModel::SaveRecompileLayout() {
+  auto visit = [this](const auto& field) {
+    field(this, state_layout_valid, nq, nv, na, nu, nactuator, nout, nmocap,
+          nplastic, nuserdata, qpos0, body_pos0, body_quat0);
+    for (auto* joint : joints_) {
+      field(joint, joint->type, joint->qposadr_, joint->dofadr_, joint->plasticadr_);
+    }
+    for (auto* tendon : tendons_) { field(tendon, tendon->plasticadr_); }
+    for (auto* flex : flexes_) { field(flex, flex->plasticadr_, flex->plasticnum_); }
+    for (auto* actuator : actuators_) {
+      field(actuator, actuator->actdim_, actuator->actadr_, actuator->ctrladr_,
+            actuator->ctrlnum_, actuator->outadr_, actuator->outnum_,
+            actuator->historyadr_, actuator->historynum_);
+    }
+    for (auto* body : bodies_) { field(body, body->bodyadr_, body->mocapid); }
+    for (auto* equality : equalities_) { field(equality, equality->eqadr_); }
+    for (auto* sensor : sensors_) {
+      field(sensor, sensor->historyadr_, sensor->historynum_);
+    }
+    for (auto* plugin : plugins_) {
+      field(plugin, plugin->stateadr_, plugin->statenum_);
+    }
+  };
+  std::unordered_map<const void*, std::function<void()>> saved;
+  visit([&saved](const auto* element, auto&... fields) {
+    saved[element] = [refs = std::tie(fields...),
+                      values = std::make_tuple(fields...)]() mutable {
+      refs = std::move(values);
+    };
+  });
+  return [visit, saved = std::move(saved)]() {
+    // Compiler options can remove elements. Only restore those still present.
+    visit([&saved](const auto* element, auto&...) {
+      if (auto it = saved.find(element); it != saved.end()) { it->second(); }
+    });
+  };
+}
+
+
 // save full integration state for mj_recompile
 void mjCModel::SaveState(const std::string& state_name,
                          const mjModel*     m,
@@ -5067,10 +5109,11 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
     if (equality->model != this) { keep(equality->eqadr_); }
   }
 
-  // the addresses which are computed for the lists serve this function only, in a compiled model
+  // A retained state layout also needs protection after a failed compilation;
+  // compiled stays false because its other caches were cleared.
   std::optional<CompiledLayout> compiledlayout;
   if (!laidout) {
-    if (compiled) { compiledlayout.emplace(this); }
+    if (state_layout_valid) { compiledlayout.emplace(this); }
     SaveDofOffsets(/*computesize=*/true);
     ComputeReference();
   } else {
@@ -5303,7 +5346,7 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
     if (key->inplace_) { inplacekeys_.push_back(key->pending_.name); }
   }
 
-  if (!compiled) { nq = nv = na = nu = nactuator = nout = nmocap = nplastic = 0; }
+  if (!state_layout_valid) { nq = nv = na = nu = nactuator = nout = nmocap = nplastic = 0; }
 
   // the tree of this model changes: until it is compiled again, its keyframes are given their
   // vectors for the tree as it is then
@@ -5945,6 +5988,7 @@ void mjCModel::CopyCompiled(mjCBody* dest, const mjCBody* source) {
   dest->bodyadr_ = source->bodyadr_;
   dest->mocapid  = source->mocapid;
   for (int i = 0; i < dest->joints.size(); i++) {
+    dest->joints[i]->type        = source->joints[i]->type;
     dest->joints[i]->qposadr_    = source->joints[i]->qposadr_;
     dest->joints[i]->dofadr_     = source->joints[i]->dofadr_;
     dest->joints[i]->plasticadr_ = source->joints[i]->plasticadr_;
@@ -5975,7 +6019,9 @@ void mjCModel::CopyCompiled(mjCActuator* dest, const mjCActuator* source) {
   dest->actadr_     = source->actadr_;
   dest->actdim_     = source->actdim_;
   dest->ctrladr_    = source->ctrladr_;
+  dest->ctrlnum_    = source->ctrlnum_;
   dest->outadr_     = source->outadr_;
+  dest->outnum_     = source->outnum_;
   dest->historyadr_ = source->historyadr_;
   dest->historynum_ = source->historynum_;
 }
@@ -6245,8 +6291,9 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool te
   _mjPRIVATE_setTlsLogHandler(prev_tls);
   compiling_ = false;
   if (treeonly) { return nullptr; }
-  compiled  = true;
-  baseline_ = true;
+  compiled           = true;
+  baseline_          = true;
+  state_layout_valid = true;
 
   // play back compile warnings through the normal handler chain
   for (int i = num_attach_warnings_; i < warnings_.size(); ++i) {
