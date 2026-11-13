@@ -52,7 +52,7 @@ class SystemTrajectory:
     return dataclasses.replace(self, **kwargs)
 
   def get_sensordata_slice(self, sensor: str = "joint_pos") -> np.ndarray:
-    """Extract contiguous sensor columns by type.
+    """Extract sensor columns by type, in their model order.
 
     Args:
       sensor: One of ``"joint_pos"``, ``"joint_vel"``, or ``"joint_torque"``.
@@ -79,7 +79,10 @@ class SystemTrajectory:
     start = sensors[0][0]
     total_dim = sum(d for _, d in sensors)
     end = start + total_dim
-    return self.sensordata.data[:, start:end]
+    if sensors[-1][0] + sensors[-1][1] == end:
+      return self.sensordata.data[:, start:end]
+    indices = np.concatenate([np.arange(a, a + d) for a, d in sensors])
+    return self.sensordata.data[:, indices]
 
   @property
   def sensordim(self) -> int:
