@@ -884,6 +884,16 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     }
   }
 
+  // Plugins may share one instance between enabled and disabled actuators.
+  // Clear disabled outputs before applying limits to their combined forces.
+  if (m->opt.disableactuator) {
+    for (int i=0; i < nactuator; i++) {
+      if (mj_actuatorDisabled(m, i)) {
+        mju_zero(force + m->actuator_outadr[i], m->actuator_outnum[i]);
+      }
+    }
+  }
+
   // clamp tendon total actuator force
   if (tendon_frclimited) {
     // compute total force for each tendon
@@ -918,7 +928,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
   // clamp actuator_force
   for (int i=0; i < nactuator; i++) {
-    if (!m->actuator_forcelimited[i]) {
+    if (!m->actuator_forcelimited[i] || mj_actuatorDisabled(m, i)) {
       continue;
     }
     const mjtNum* range = m->actuator_forcerange + 2*i;
