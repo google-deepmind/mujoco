@@ -169,7 +169,7 @@ describe('MuJoCo WASM Bindings', () => {
     let simpleModel: MjModel|null = null;
     let simpleData: MjData|null = null;
     const tempXmlFilename = '/tmp/simple_model.xml';
-    // A simpler model with nv=1 and nM=1 to avoid WASM binding bugs.
+    // A one-DoF model for the sparse matrix tests.
     const simpleXmlContent = `
 <mujoco>
   <worldbody>
@@ -225,7 +225,7 @@ describe('MuJoCo WASM Bindings', () => {
       }
     });
 
-    it('should compute the sparse inertia matrix with null pointers', () => {
+    it('should compute the dense inertia matrix with null pointers', () => {
       const nM = simpleModel!.nM;
       const dstSparse = new mujoco.DoubleBuffer(nM);
       try {
