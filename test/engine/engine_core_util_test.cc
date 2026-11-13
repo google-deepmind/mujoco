@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -32,6 +33,108 @@ namespace {
 
 using ::testing::NotNull;
 using ::testing::Pointwise;
+
+using ObjectMotionTest = MujocoTest;
+
+// Tracking camera motion must differentiate the camera pose rather than a point
+// rigidly attached to the camera body. Include articulated and massless
+// subtrees, a world-attached trackcom camera, and an unrelated moving body.
+TEST_F(ObjectMotionTest, TrackingCameraPoseDerivatives) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity=".3 -.7 -9.5"/>
+    <default><geom contype="0" conaffinity="0"/></default>
+    <worldbody>
+      <camera mode="trackcom" pos="1 2 3" euler="20 30 40"/>
+      <camera mode="track" pos="1 0 0"/>
+      <body pos=".2 -.4 .8" euler="10 20 30">
+        <freejoint/>
+        <inertial pos=".3 .1 -.2" mass="2" diaginertia=".1 .2 .3"/>
+        <camera mode="track" pos="1 2 3" euler="30 40 50"/>
+        <camera mode="trackcom" pos="3 2 1" euler="50 40 30"/>
+        <body pos=".2 .3 .4">
+          <joint type="ball"/>
+          <inertial pos=".1 -.2 .3" mass="3" diaginertia=".2 .3 .4"/>
+        </body>
+        <body pos="-.4 .5 .6">
+          <inertial pos=".1 .2 .3" mass="0" diaginertia="0 0 0"/>
+          <camera mode="trackcom" pos="2 1 3" euler="40 50 30"/>
+        </body>
+      </body>
+      <body pos="4 5 6">
+        <freejoint/>
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  MjDataPtr data = MakeData(model);
+  MjDataPtr before = MakeData(model);
+  MjDataPtr after = MakeData(model);
+  for (int i = 0; i < model->nv; i++) {
+    data->qvel[i] = .2 + .07 * i;
+  }
+  mj_integratePos(model.get(), data->qpos, data->qvel, .23);
+
+  for (bool disable_gravity : {false, true}) {
+    model->opt.disableflags = disable_gravity ? mjDSBL_GRAVITY : 0;
+    mj_forward(model.get(), data.get());
+    for (int i = 0; i < model->nv; i++) {
+      data->qacc[i] = -.3 + .04 * i;
+    }
+    mj_rnePostConstraint(model.get(), data.get());
+
+    const mjtNum eps = MjEps(1e-4, 1e-2);
+    for (auto [sample, dt] :
+         {std::pair{before.get(), -eps}, std::pair{after.get(), eps}}) {
+      mj_copyData(sample, model.get(), data.get());
+      mj_integratePos(model.get(), sample->qpos, data->qvel, dt);
+      mj_integratePos(model.get(), sample->qpos, data->qacc, .5 * dt * dt);
+      mj_fwdPosition(model.get(), sample);
+    }
+
+    for (int cam = 0; cam < model->ncam; cam++) {
+      SCOPED_TRACE(cam);
+      mjtNum velocity[3], acceleration[3];
+      for (int j = 0; j < 3; j++) {
+        int k = 3 * cam + j;
+        velocity[j] = (after->cam_xpos[k] - before->cam_xpos[k]) / (2 * eps);
+        acceleration[j] =
+            (after->cam_xpos[k] - 2 * data->cam_xpos[k] + before->cam_xpos[k]) /
+                (eps * eps) -
+            (disable_gravity ? 0 : model->opt.gravity[j]);
+      }
+      for (int j = 0; j < 9; j++) {
+        EXPECT_EQ(before->cam_xmat[9 * cam + j], data->cam_xmat[9 * cam + j]);
+        EXPECT_EQ(after->cam_xmat[9 * cam + j], data->cam_xmat[9 * cam + j]);
+      }
+
+      for (int local : {0, 1}) {
+        mjtNum expected_vel[3], expected_acc[3], actual_vel[6], actual_acc[6];
+        if (local) {
+          mju_mulMatTVec3(expected_vel, data->cam_xmat + 9 * cam, velocity);
+          mju_mulMatTVec3(expected_acc, data->cam_xmat + 9 * cam, acceleration);
+        } else {
+          mju_copy3(expected_vel, velocity);
+          mju_copy3(expected_acc, acceleration);
+        }
+        mj_objectVelocity(model.get(), data.get(), mjOBJ_CAMERA, cam,
+                          actual_vel, local);
+        mj_objectAcceleration(model.get(), data.get(), mjOBJ_CAMERA, cam,
+                              actual_acc, local);
+        for (int j = 0; j < 3; j++) {
+          EXPECT_EQ(actual_vel[j], 0);
+          EXPECT_EQ(actual_acc[j], 0);
+          EXPECT_THAT(actual_vel[j + 3], MjNear(expected_vel[j], 1e-7, 1e-3));
+          EXPECT_THAT(actual_acc[j + 3], MjNear(expected_acc[j], 2e-6, 5e-2));
+        }
+      }
+    }
+  }
+}
 
 using FlexGatherStateTest = MujocoTest;
 
