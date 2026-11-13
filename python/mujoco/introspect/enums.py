@@ -1071,6 +1071,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
          values=dict([
              ('mjFONTSCALE_50', 50),
              ('mjFONTSCALE_100', 100),
+             ('mjFONTSCALE_125', 125),
              ('mjFONTSCALE_150', 150),
              ('mjFONTSCALE_200', 200),
              ('mjFONTSCALE_250', 250),

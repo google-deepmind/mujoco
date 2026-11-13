@@ -345,7 +345,7 @@ class Simulate {
     {mjITEM_CHECKINT, "Busy Wait",     1, &this->busywait,   ""},
     {mjITEM_SELECT,   "Spacing",       1, &this->spacing,    "Tight\nWide"},
     {mjITEM_SELECT,   "Color",         1, &this->color,      "Default\nOrange\nWhite\nBlack"},
-    {mjITEM_SELECT,   "Font",          1, &this->font,       "50 %\n100 %\n150 %\n200 %\n250 %\n300 %"},
+    {mjITEM_SELECT,   "Font",          1, &this->font,       "50 %\n100 %\n125 %\n150 %\n200 %\n250 %\n300 %"},
     {mjITEM_END}
   };
 

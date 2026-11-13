@@ -29,18 +29,21 @@
 // bitmap font definitions
 #include "render/classic/font/normal50.inc"
 #include "render/classic/font/normal100.inc"
+#include "render/classic/font/normal125.inc"
 #include "render/classic/font/normal150.inc"
 #include "render/classic/font/normal200.inc"
 #include "render/classic/font/normal250.inc"
 #include "render/classic/font/normal300.inc"
 #include "render/classic/font/back50.inc"
 #include "render/classic/font/back100.inc"
+#include "render/classic/font/back125.inc"
 #include "render/classic/font/back150.inc"
 #include "render/classic/font/back200.inc"
 #include "render/classic/font/back250.inc"
 #include "render/classic/font/back300.inc"
 #include "render/classic/font/big50.inc"
 #include "render/classic/font/big100.inc"
+#include "render/classic/font/big125.inc"
 #include "render/classic/font/big150.inc"
 #include "render/classic/font/big200.inc"
 #include "render/classic/font/big250.inc"
@@ -1297,6 +1300,12 @@ static void makeFont(mjrContext* con, int fontscale) {
     font_big = font_big100;
     break;
 
+  case mjFONTSCALE_125:
+    font_normal = font_normal125;
+    font_back = font_back125;
+    font_big = font_big125;
+    break;
+
   case mjFONTSCALE_150:
     font_normal = font_normal150;
     font_back = font_back150;
@@ -1634,7 +1643,9 @@ static int glDebugEnabled(void) {
 void mjr_makeContext_offSize(const mjModel* m, mjrContext* con, int fontscale,
                              int default_offwidth, int default_offheight) {
   // fix fontscale
-  fontscale = 50 * mju_round(((mjtNum)fontscale)/50.0);
+  if (fontscale != mjFONTSCALE_125) {
+    fontscale = 50 * mju_round(((mjtNum)fontscale)/50.0);
+  }
   if (fontscale < 100) {
     fontscale = 100;
   } else if (fontscale > 300) {

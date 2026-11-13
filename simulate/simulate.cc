@@ -15,6 +15,7 @@
 #include "simulate.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <climits>
@@ -91,6 +92,7 @@ inline void Copy(T& dst, const T& src) {
 //------------------------------------------- global -----------------------------------------------
 
 const double zoom_increment = 0.02;  // ratio of one click-wheel zoom increment to vertical extent
+constexpr std::array<int, 7> kFontScales = {50, 100, 125, 150, 200, 250, 300};
 
 // section ids
 enum {
@@ -1690,7 +1692,7 @@ void UiEvent(mjuiState* state) {
         sim->ui0.color = mjui_themeColor(sim->color);
         sim->ui1.color = mjui_themeColor(sim->color);
       } else if (it->pdata == &sim->font) {
-        mjr_changeFont(50 * (sim->font + 1), &sim->platform_ui->mjr_context());
+        mjr_changeFont(kFontScales[sim->font], &sim->platform_ui->mjr_context());
       } else if (it->pdata == &sim->fullscreen) {
         sim->platform_ui->ToggleFullscreen();
       } else if (it->pdata == &sim->vsync) {
@@ -2593,7 +2595,7 @@ void Simulate::LoadOnRenderThread() {
   // re-create scene
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
 
-  this->platform_ui->RefreshMjrContext(this->m_, 50 * (this->font + 1));
+  this->platform_ui->RefreshMjrContext(this->m_, kFontScales[this->font]);
   UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
   UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
 
@@ -3043,7 +3045,8 @@ void Simulate::RenderLoop() {
 
   // select default font
   int fontscale = ComputeFontScale(*this->platform_ui);
-  this->font    = fontscale / 50 - 1;
+  this->font = static_cast<int>(std::find(kFontScales.begin(), kFontScales.end(), fontscale) -
+                                kFontScales.begin());
 
   // make empty context
   this->platform_ui->RefreshMjrContext(nullptr, fontscale);
