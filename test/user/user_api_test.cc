@@ -3118,6 +3118,174 @@ TEST_F(MujocoTest, AttachCompiled) {
   mj_deleteModel(m_child);
 }
 
+TEST_F(MujocoTest, AttachDefaultsWithoutPrefix) {
+  mock_warning_handler.ExpectWarnings("empty prefix");
+  std::array<char, 1024> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco model="parent">
+    <default>
+      <default class="parent_class">
+        <geom size="0.25"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body name="sphere">
+        <geom class="parent_class"/>
+        <frame name="frame"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child2[] = R"(
+  <mujoco model="child">
+    <default>
+      <geom size="0.3"/>
+      <default class="cylinder">
+        <geom type="cylinder" size=".1 1 0"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body name="body">
+        <geom class="cylinder"/>
+        <geom name="sphere_geom"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child2, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  // store the parent's global default before attaching
+  mjsDefault* parent_main = mjs_getSpecDefault(parent);
+
+  // attach child body to parent frame without prefix or suffix
+  mjsFrame* frame = mjs_findFrame(parent, "frame");
+  ASSERT_THAT(frame, NotNull());
+  mjsBody* body = mjs_findBody(child, "body");
+  ASSERT_THAT(body, NotNull());
+  ASSERT_THAT(mjs_attach(frame->element, body->element, "", ""), NotNull())
+      << mjs_getError(parent);
+
+  // the parent's global default must not be clobbered by the child's
+  EXPECT_EQ(mjs_findDefault(parent, "main"), parent_main);
+  EXPECT_THAT(mjs_findDefault(parent, "cylinder"), NotNull());
+
+  // the parent's elements should still resolve to the parent's global default
+  mjsBody* sphere = mjs_findBody(parent, "sphere");
+  ASSERT_THAT(sphere, NotNull());
+  EXPECT_EQ(mjs_getDefault(sphere->element), parent_main);
+
+  // compile and save to XML
+  mjModel* m_attached = mj_compile(parent, 0);
+  ASSERT_THAT(m_attached, NotNull()) << mjs_getError(parent);
+  std::array<char, 4096> xml;
+  ASSERT_GE(mj_saveXMLString(parent, xml.data(), xml.size(), er.data(),
+                             er.size()), 0) << er.data();
+
+  // the saved XML should be loadable and produce the same model
+  MjModelPtr m_reloaded = LoadModelFromString(xml.data(), er.data(), er.size());
+  ASSERT_THAT(m_reloaded, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_reloaded.get(), field), tol)
+            << "Attached and reloaded models are different!\n"
+            << "Different field: " << field << '\n';
+
+  // destroy everything
+  mj_deleteModel(m_attached);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
+TEST_F(MujocoTest, AttachCollidingNamedDefault) {
+  mock_warning_handler.ExpectWarnings("empty prefix");
+  std::array<char, 1024> er;
+  mjtNum tol = 0;
+  std::string field = "";
+
+  static constexpr char xml_parent[] = R"(
+  <mujoco model="parent">
+    <default>
+      <default class="shared">
+        <geom size="0.25"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body name="sphere">
+        <geom name="parent_geom" class="shared"/>
+        <frame name="frame"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco model="child">
+    <default>
+      <default class="shared">
+        <geom size="0.5"/>
+      </default>
+    </default>
+
+    <worldbody>
+      <body name="body">
+        <geom name="child_geom" class="shared"/>
+      </body>
+    </worldbody>
+  </mujoco>)";
+
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, er.data(), er.size());
+  ASSERT_THAT(parent, NotNull()) << er.data();
+  mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
+  ASSERT_THAT(child, NotNull()) << er.data();
+
+  // attach child body to parent frame without prefix or suffix
+  mjsFrame* frame = mjs_findFrame(parent, "frame");
+  ASSERT_THAT(frame, NotNull());
+  mjsBody* body = mjs_findBody(child, "body");
+  ASSERT_THAT(body, NotNull());
+  ASSERT_THAT(mjs_attach(frame->element, body->element, "", ""), NotNull())
+      << mjs_getError(parent);
+
+  // compile and save to XML
+  mjModel* m_attached = mj_compile(parent, 0);
+  ASSERT_THAT(m_attached, NotNull()) << mjs_getError(parent);
+
+  // the parent's geom must keep the parent class value (0.25) and the child's
+  // geom its own class value (0.5): if the child's colliding class overwrote
+  // the parent's entry in the default map, the parent's geom silently
+  // changes size
+  int parent_geom = mj_name2id(m_attached, mjOBJ_GEOM, "parent_geom");
+  int child_geom = mj_name2id(m_attached, mjOBJ_GEOM, "child_geom");
+  ASSERT_GE(parent_geom, 0);
+  ASSERT_GE(child_geom, 0);
+  EXPECT_DOUBLE_EQ(m_attached->geom_size[3 * parent_geom], 0.25);
+  EXPECT_DOUBLE_EQ(m_attached->geom_size[3 * child_geom], 0.5);
+
+  std::array<char, 4096> xml;
+  ASSERT_GE(mj_saveXMLString(parent, xml.data(), xml.size(), er.data(),
+                             er.size()), 0) << er.data();
+
+  // the saved XML must be loadable and produce the same model: a duplicate
+  // <default class="shared"> would fail to reload with
+  // "repeated default class name"
+  MjModelPtr m_reloaded = LoadModelFromString(xml.data(), er.data(), er.size());
+  ASSERT_THAT(m_reloaded, NotNull()) << er.data();
+  EXPECT_LE(CompareModel(m_attached, m_reloaded.get(), field), tol)
+            << "Attached and reloaded models are different!\n"
+            << "Different field: " << field << '\n';
+
+  // destroy everything
+  mj_deleteModel(m_attached);
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+}
+
 void TestDetachBody(bool compile) {
   std::array<char, 1000> er;
   mjtNum tol = 0;
