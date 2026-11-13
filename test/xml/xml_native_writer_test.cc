@@ -3192,6 +3192,44 @@ TEST_F(AsWrittenTest, SavesUnusedInertial) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(AsWrittenTest, SavesImplicitInertialPosition) {
+  for (bool compiled : {false, true}) {
+    for (bool canonical : {false, true}) {
+      SCOPED_TRACE(compiled);
+      SCOPED_TRACE(canonical);
+      mjSpec* spec = mj_makeSpec();
+      spec->compiler.savecompiled = 0;
+      spec->compiler.savecanonical = canonical;
+      mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+      body->explicitinertial = 1;
+      body->mass = 1;
+      body->inertia[0] = 0.02;
+      body->inertia[1] = 0.03;
+      body->inertia[2] = 0.04;
+      mjs_addJoint(body, nullptr);
+      MjModelPtr model;
+      if (compiled) {
+        model.reset(mj_compile(spec, nullptr));
+        ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec);
+      }
+
+      std::string saved = SaveAndReadXml(spec);
+      EXPECT_THAT(saved, HasSubstr(R"(<inertial pos="0 0 0")"));
+      std::array<char, 1024> error;
+      MjModelPtr reloaded = LoadModelFromString(saved.c_str(), error.data(), error.size());
+      EXPECT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+      if (reloaded) {
+        EXPECT_THAT(AsVector(reloaded->body_ipos + 3, 3), ElementsAre(0, 0, 0));
+        EXPECT_EQ(reloaded->body_mass[1], 1);
+        for (int i = 0; i < 3; ++i) {
+          EXPECT_NEAR(reloaded->body_inertia[3 + i], body->inertia[i], MjTol(1e-12, 1e-7));
+        }
+      }
+      mj_deleteSpec(spec);
+    }
+  }
+}
+
 // with saveinertial, the inertial which compilation calculated is saved with
 // the mass before settotalmass scaled it, as the inertials which the spec
 // gives: the saved file scales them all again
