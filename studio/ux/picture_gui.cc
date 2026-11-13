@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "studio/ux/imgui_widgets.h"
 
@@ -53,17 +54,9 @@ static bool PipGuiImpl(const mjModel* model, float aspect_ratio, const PipRender
     ImGui::EndCombo();
   }
 
-  const char* mode_names[] = {"Color", "Depth", "Segmentation"};
   ImGui::SameLine();
   ImGui::SetNextItemWidth(combo_width);
-  if (ImGui::BeginCombo("##PipMode", mode_names[pip->mode])) {
-    for (int i = 0; i < 3; i++) {
-      if (ImGui::Selectable(mode_names[i], (pip->mode == i))) {
-        pip->mode = static_cast<PipState::Mode>(i);
-      }
-    }
-    ImGui::EndCombo();
-  }
+  ImGui_EnumCombo<mjrDrawMode>("##PipMode", pip->draw_mode);
 
   ImGui::SameLine();
   if (ImGui::Button(ICON_FA_TRASH_CAN)) {
