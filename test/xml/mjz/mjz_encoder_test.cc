@@ -146,6 +146,51 @@ TEST_F(MjzEncoderTest, EncodeReturnsPositiveByteCount) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MjzEncoderTest, MissingOrUnreadableAssetsFail) {
+  constexpr char xml[] = R"(
+    <mujoco>
+      <asset><mesh name="box" file="box.obj"/></asset>
+      <worldbody><geom type="mesh" mesh="box"/></worldbody>
+    </mujoco>
+  )";
+  const std::string dir = GetTestDataFilePath("xml/mjz/testdata/disk_mesh/");
+  const mjpEncoder* encoder = mjp_findEncoder("model.mjz", nullptr);
+  ASSERT_THAT(encoder, NotNull());
+
+  for (bool read_failure : {false, true}) {
+    SCOPED_TRACE(read_failure);
+    mjVFS vfs;
+    mj_defaultVFS(&vfs);
+    ASSERT_EQ(mj_addFileVFS(&vfs, dir.c_str(), "box.obj"), 0);
+    char error[1024] = {};
+    mjSpec* spec = mj_parseXMLString(xml, &vfs, error, sizeof(error));
+    ASSERT_THAT(spec, NotNull()) << error;
+    mjModel* model = mj_compile(spec, &vfs);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+
+    ASSERT_EQ(mj_deleteFileVFS(&vfs, "box.obj"), 0);
+    mjpResourceProvider provider;
+    mjp_defaultProvider(&provider);
+    if (read_failure) {
+      provider.open = [](mjResource*) { return 1; };
+      provider.read = [](mjResource*, const void**) { return -1; };
+      provider.close = [](mjResource*) {};
+      ASSERT_EQ(mj_mountVFS(&vfs, "box.obj", &provider), 0);
+    }
+    mock_warning_handler.ExpectWarnings(read_failure ? "failed to read resource" :
+                                                        "failed to open resource");
+    mjResource resource = {};
+    resource.name = const_cast<char*>("model.mjz");
+    EXPECT_EQ(encoder->encode(spec, model, &vfs, &resource), -1);
+    EXPECT_EQ(resource.data, nullptr);
+    encoder->close_resource(&resource);
+
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+    mj_deleteVFS(&vfs);
+  }
+}
+
 TEST_F(MjzEncoderTest, RootFileInArchiveIsNamedModelXml) {
   mjSpec* spec = MakeSimpleSpec();
   mjModel* model = mj_compile(spec, nullptr);
