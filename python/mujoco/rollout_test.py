@@ -817,6 +817,39 @@ class MuJoCoRolloutTest(parameterized.TestCase):
             skip_checks=True,
         )
 
+  def test_valid_chunk_size(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    nbatch = 10
+    nstep = 5
+    initial_state = randn(nbatch, nstate)
+    control = randn(nbatch, nstep, model.nu)
+    threaded_data = [mujoco.MjData(model), mujoco.MjData(model)]
+
+    py_state, py_sensordata = py_rollout(
+        model, mujoco.MjData(model), initial_state, control
+    )
+    # chunk_size 3 leaves a partial last chunk, nbatch fills every job, and
+    # nbatch + 1 schedules the partial chunk alone with no full job.
+    for chunk_size in (3, nbatch, nbatch + 1):
+      # NaN-fill the outputs so a trajectory the scheduler never writes stays
+      # distinguishable from one it wrote correctly.
+      state = np.full((nbatch, nstep, nstate), np.nan, dtype=DTYPE)
+      sensordata = np.full(
+          (nbatch, nstep, model.nsensordata), np.nan, dtype=DTYPE
+      )
+      rollout.rollout(
+          model,
+          threaded_data,
+          initial_state,
+          control,
+          state=state,
+          sensordata=sensordata,
+          chunk_size=chunk_size,
+      )
+      np.testing.assert_array_equal(state, py_state)
+      np.testing.assert_array_equal(sensordata, py_sensordata)
+
   def test_scalar_float_inputs(self):
     xml_1d = """
     <mujoco>
