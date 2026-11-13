@@ -937,6 +937,21 @@ TEST_F(EnginePluginTest, RegisterPluginDifferentAttributes) {
   EXPECT_THAT(err, HasSubstr("already registered"));
 }
 
+TEST_F(MujocoTest, FindDecoderExplicitContentTypeOverridesProbe) {
+  mjpDecoder decoder;
+  mjp_defaultDecoder(&decoder);
+  decoder.content_type = "model/test-explicit-content-type";
+  decoder.extension = ".test-explicit-content-type";
+  decoder.can_decode = [](const mjResource*) { return 0; };
+  decoder.decode = [](mjResource*, const mjVFS*, char*, int) -> mjSpec* { return nullptr; };
+  mjp_registerDecoder(&decoder);
+
+  mjResource resource = {};
+  resource.name = const_cast<char*>("mesh.test-explicit-content-type");
+  EXPECT_THAT(mjp_findDecoder(&resource, nullptr), testing::IsNull());
+  EXPECT_THAT(mjp_findDecoder(&resource, decoder.content_type), testing::NotNull());
+}
+
 TEST_F(MujocoTest, FindDecoderNullContentTypeCrash) {
   char filename[] = "model.xml";
   mjResource resource = {};

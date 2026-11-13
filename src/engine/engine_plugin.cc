@@ -657,7 +657,8 @@ const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* conten
 
   if (has_content_type) {
     auto* decoder = GlobalTable<mjpDecoder>::GetSingleton().GetByKey(content_type, nullptr);
-    if (decoder && decoder->can_decode(resource)) {
+    // an explicit content type takes precedence over filename-based probing
+    if (decoder) {
       return decoder;
     }
   }
