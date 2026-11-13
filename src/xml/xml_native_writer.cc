@@ -1079,7 +1079,11 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
     if (mjGEOMINFO[geom->type]) {
       WriteAttr(elem, "size", mjGEOMINFO[geom->type], geom->size, def->Geom().size);
     }
-    if (mjuu_defined(geom->mass)) { mass = geom->GetVolume() * def->Geom().density; }
+    // the mass which the geom takes from its class if none is written
+    if (mjuu_defined(geom->mass)) {
+      mass = mjuu_defined(def->Geom().mass) ? def->Geom().mass
+                                            : geom->GetVolume() * def->Geom().density;
+    }
 
     // pose: undo the mesh transformation, then the frame
     double pos[3], quat[4];
@@ -1115,7 +1119,17 @@ void mjXWriter::OneGeom(XMLElement* elem, const mjCGeom* geom, mjCDef* def, stri
   if (geom->type != mjGEOM_MESH) {
     WriteAttrKey(elem, "shellinertia", bool_map, 2, geom->typeinertia, def->Geom().typeinertia);
   }
-  if (mjuu_defined(geom->mass)) {
+  if (writingdefaults) {
+    // a class is not compiled: write the mass and density which it gives
+    if (mjuu_defined(geom->mass)) {
+      WriteAttr(elem,
+                "mass",
+                1,
+                &geom->mass,
+                mjuu_defined(def->Geom().mass) ? &def->Geom().mass : nullptr);
+    }
+    WriteAttr(elem, "density", 1, &geom->density, &def->Geom().density);
+  } else if (mjuu_defined(geom->mass)) {
     WriteAttr(elem, "mass", 1, &geom->mass_, &mass);
   } else {
     WriteAttr(elem, "density", 1, &geom->density, &def->Geom().density);
