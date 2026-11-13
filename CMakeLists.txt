@@ -371,6 +371,16 @@ if(NOT EMSCRIPTEN AND NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
           DESTINATION ${CONFIG_PACKAGE_LOCATION}
   )
 
+  # Provide pkg-config metadata for C and C++ consumers on Unix systems.
+  if(UNIX)
+    configure_file(cmake/mujoco.pc.in "${CMAKE_CURRENT_BINARY_DIR}/mujoco.pc" @ONLY)
+    install(
+      FILES "${CMAKE_CURRENT_BINARY_DIR}/mujoco.pc"
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+      COMPONENT dev
+    )
+  endif()
+
   # Install also models into share folder.
   install(
     DIRECTORY model
