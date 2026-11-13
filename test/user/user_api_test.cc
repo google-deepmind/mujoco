@@ -48,6 +48,7 @@ using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
+using ::testing::Not;
 using ::testing::NotNull;
 
 // -------------------------- test model manipulation  -------------------------
@@ -8372,6 +8373,96 @@ TEST_F(MujocoTest, DeleteForeignDefault) {
 
   mj_deleteSpec(other);
   mj_deleteSpec(owner);
+}
+
+TEST_F(MujocoTest, RenameDefault) {
+  mjSpec* spec = mj_makeSpec();
+  mjsDefault* def = mjs_addDefault(spec, "old", nullptr);
+  def->geom->rgba[0] = 0.5;
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  mjsGeom* geom = mjs_addGeom(body, def);
+  geom->size[0] = 1;
+
+  // the default is found by its new name only
+  EXPECT_EQ(mjs_setName(def->element, "new"), 0);
+  EXPECT_THAT(mjs_findDefault(spec, "old"), IsNull());
+  EXPECT_EQ(mjs_findDefault(spec, "new"), def);
+
+  // an element assigned to the renamed default finds it
+  mjs_setDefault(geom->element, def);
+  EXPECT_EQ(mjs_getDefault(geom->element), def);
+
+  // new elements in a body whose childclass is the new name copy its values
+  mjs_setString(body->childclass, "new");
+  mjsGeom* child = mjs_addGeom(body, nullptr);
+  EXPECT_EQ(child->rgba[0], 0.5);
+
+  // the model compiles and saving writes the new name
+  child->size[0] = 1;
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(model->geom_rgba[4], 0.5f);
+  EXPECT_THAT(SaveAndReadXml(spec), HasSubstr("class=\"new\""));
+  mj_deleteModel(model);
+
+  // repeated names and the global default are rejected without changes
+  mjsDefault* other = mjs_addDefault(spec, "other", nullptr);
+  EXPECT_EQ(mjs_setName(other->element, "new"), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("repeated default name 'new'"));
+  EXPECT_EQ(mjs_findDefault(spec, "other"), other);
+  EXPECT_EQ(mjs_findDefault(spec, "new"), def);
+
+  mjsDefault* main = mjs_findDefault(spec, "main");
+  EXPECT_EQ(mjs_setName(main->element, "global"), -1);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("cannot rename the global default"));
+  EXPECT_EQ(mjs_findDefault(spec, "main"), main);
+
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, RenameDefaultUpdatesReferencesAndRoundTrips) {
+  mjSpec* spec = mj_makeSpec();
+  mjsDefault* def = mjs_addDefault(spec, "old", nullptr);
+  def->geom->rgba[0] = 0.5;
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  mjs_setString(body->childclass, "old");
+  mjsGeom* geom = mjs_addGeom(body, def);
+  geom->size[0] = 1;
+  mjsDefault* other = mjs_addDefault(spec, "other", nullptr);
+  mjsGeom* other_geom = mjs_addGeom(body, other);
+  other_geom->size[0] = 1;
+
+  // elements and childclass that named the old class now name the new one
+  EXPECT_EQ(mjs_setName(def->element, "new"), 0);
+  EXPECT_EQ(mjs_getDefault(geom->element), def);
+  EXPECT_EQ(std::string(mjs_getString(body->childclass)), "new");
+  EXPECT_EQ(mjs_getDefault(other_geom->element), other);
+
+  // the saved XML loads again and compiles to the same values
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  std::array<char, 1024> err;
+  int size = mj_saveXMLString(spec, nullptr, 0, err.data(), err.size());
+  ASSERT_GT(size, 0) << err.data();
+  std::vector<char> buffer(size + 1);
+  ASSERT_EQ(mj_saveXMLString(spec, buffer.data(), buffer.size(), err.data(), err.size()), 0)
+      << err.data();
+  std::string xml(buffer.data());
+  EXPECT_THAT(xml, Not(HasSubstr("\"old\"")));
+
+  mjSpec* reloaded = mj_parseXMLString(xml.c_str(), nullptr, err.data(), err.size());
+  ASSERT_THAT(reloaded, NotNull()) << err.data() << "\n" << xml;
+  mjModel* model2 = mj_compile(reloaded, nullptr);
+  ASSERT_THAT(model2, NotNull()) << mjs_getError(reloaded);
+  ASSERT_EQ(model2->ngeom, model->ngeom);
+  for (int i = 0; i < 4 * model->ngeom; i++) {
+    EXPECT_EQ(model2->geom_rgba[i], model->geom_rgba[i]);
+  }
+
+  mj_deleteModel(model2);
+  mj_deleteSpec(reloaded);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
 }
 
 TEST_F(MujocoTest, DeleteForeignElement) {
