@@ -30,6 +30,18 @@ def param_is_primitive_value(param: ast_nodes.FunctionParameterDecl) -> bool:
   return False
 
 
+def param_is_nullable_struct_pointer(
+    param: ast_nodes.FunctionParameterDecl,
+) -> bool:
+  """Whether a parameter needs a nullable pointer to its struct wrapper."""
+  return (
+      param.nullable
+      and isinstance(param.type, ast_nodes.PointerType)
+      and isinstance(param.type.inner_type, ast_nodes.ValueType)
+      and param.type.inner_type.name not in constants.PRIMITIVE_TYPES
+  )
+
+
 def get_const_qualifier(func: ast_nodes.FunctionDecl) -> str:
   """Returns the const qualifier of func's return type."""
   inner_type = common.get_pointer_return_inner_value_type(func)
@@ -124,8 +136,10 @@ def get_param_string(p: ast_nodes.FunctionParameterDecl) -> str:
   ):
     # Pointer to struct parameters
     const_qualifier = "const " if p.type.inner_type.is_const else ""
+    # References reject null in Embind, so preserve nullable struct pointers.
+    indirect = "*" if p.nullable else "&"
     return (
-        f"{const_qualifier}{common.capitalize(p.type.inner_type.name)}&"
+        f"{const_qualifier}{common.capitalize(p.type.inner_type.name)}{indirect}"
         f" {p.name}"
     )
   elif (
@@ -187,6 +201,8 @@ def get_params_string_maybe_with_conversion(
           )
         else:
           native_params.append(f"{p.name}_.data()")
+      elif param_is_nullable_struct_pointer(p):
+        native_params.append(f"{p.name} ? {p.name}->get() : nullptr")
       else:  # struct
         native_params.append(f"{p.name}.get()")
     elif param_is_primitive_value(p):
@@ -295,7 +311,12 @@ def generate(
   for func in sorted(functions, key=lambda f: f.name):
     if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
       w = common.wrapped_function_name(func)
-      function_bindings.append(f'function("{func.name}", &{w});')
+      policy = (
+          ", emscripten::allow_raw_pointers()"
+          if any(param_is_nullable_struct_pointer(p) for p in func.parameters)
+          else ""
+      )
+      function_bindings.append(f'function("{func.name}", &{w}{policy});')
   bindings_content = "\n".join(function_bindings)
 
   return [
