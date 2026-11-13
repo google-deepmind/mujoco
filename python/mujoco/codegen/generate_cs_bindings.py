@@ -14,12 +14,16 @@
 # ==============================================================================
 """Generates C# bindings for MuJoCo from introspect modules."""
 
+import ast
+import math
+import operator
 import re
 import sys
 import ctypes
 
 from absl import app
 from absl import flags
+from absl import logging
 from introspect import ast_nodes
 from introspect import enums as introspect_enums
 from introspect import functions as introspect_functions
@@ -361,6 +365,61 @@ def _is_omitted_function(func_name):
   return False
 
 
+def _c_div(a, b):
+  """C division: truncates toward zero for integer operands."""
+  if isinstance(a, int) and isinstance(b, int):
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+  return a / b
+
+
+def _c_mod(a, b):
+  """C remainder: the result takes the sign of the dividend."""
+  if isinstance(a, int) and isinstance(b, int):
+    return a - b * _c_div(a, b)
+  return math.fmod(a, b)
+
+
+_SAFE_BINOPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: _c_div,
+    ast.Mod: _c_mod,
+    ast.LShift: operator.lshift,
+    ast.RShift: operator.rshift,
+    ast.BitAnd: operator.and_,
+    ast.BitOr: operator.or_,
+    ast.BitXor: operator.xor,
+}
+_SAFE_UNARYOPS = {
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+    ast.Invert: operator.invert,
+}
+
+
+def _safe_eval_constant_expr(expr, constants):
+  """Safely evaluates a simple numeric C constant expression.
+
+  Only numeric literals, known constant names and basic arithmetic/bitwise
+  operators are permitted, avoiding the use of `eval` on untrusted input.
+  """
+
+  def _eval(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+      return node.value
+    if isinstance(node, ast.Name) and node.id in constants:
+      return constants[node.id]
+    if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_BINOPS:
+      return _SAFE_BINOPS[type(node.op)](_eval(node.left), _eval(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_UNARYOPS:
+      return _SAFE_UNARYOPS[type(node.op)](_eval(node.operand))
+    raise ValueError(f'Unsupported constant expression: {expr!r}')
+
+  return _eval(ast.parse(expr, mode='eval').body)
+
+
 def _parse_constants_from_headers(header_files):
   """Parses #define constants from MuJoCo header files."""
   constants = {}
@@ -420,11 +479,13 @@ def _parse_constants_from_headers(header_files):
         pass
 
       try:
-        evaled = eval(clean_val, {'__builtins__': {}}, constants)  # pylint: disable=eval-used
+        evaled = _safe_eval_constant_expr(clean_val, constants)
         if isinstance(evaled, (int, float)):
           constants[name] = evaled
-      except Exception:  # pylint: disable=broad-except
-        pass
+      except (ValueError, SyntaxError, TypeError, ArithmeticError) as e:
+        logging.debug(
+            'Skipping unsupported #define %s %r: %s', name, clean_val, e
+        )
 
   return constants
 
