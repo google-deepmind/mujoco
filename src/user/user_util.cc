@@ -1250,10 +1250,11 @@ std::vector<T> StringToVector(char* cs) {
   char*          ch      = cs;
   bool           has_nan = false;
 
-  errno = 0;
   // reserve worst case
   v.reserve((std::strlen(cs) >> 1) + 1);
 
+  // clear errno after reserve(): a successful allocation may set it (C11 7.5p3)
+  errno = 0;
   for (;;) {
     cs = SkipSpace(ch);      // skip leading spaces
     if (*cs == '\0') break;  // end of string
@@ -1270,7 +1271,10 @@ std::vector<T> StringToVector(char* cs) {
   }
   if (!errno && has_nan) errno = EDOM;
 
+  // shrink_to_fit() may also set errno on success, keep the parse result
+  int err = errno;
   v.shrink_to_fit();
+  errno = err;
   return v;
 }
 
