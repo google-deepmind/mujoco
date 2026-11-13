@@ -2618,6 +2618,33 @@ TEST_F(MjCMeshTest, MakeBuiltinShellInertia) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MjCMeshTest, InvalidMaxhullvertInSpec) {
+  // the XML parser rejects these values, the compiler must as well (not crash
+  // in qhull)
+  for (int maxhullvert : {0, 1, 2, 3, -2}) {
+    mjSpec* spec = mj_makeSpec();
+    mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+    mjs_setName(mesh->element, "tetra");
+    const float vert[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1};
+    mjs_setFloat(mesh->uservert, vert, 15);
+    mesh->maxhullvert = maxhullvert;
+    mjsGeom* geom = mjs_addGeom(mjs_findBody(spec, "world"), nullptr);
+    geom->type = mjGEOM_MESH;
+    mjs_setString(geom->meshname, "tetra");
+
+    EXPECT_THAT(mj_compile(spec, nullptr), IsNull()) << maxhullvert;
+    EXPECT_THAT(mjs_getError(spec),
+                HasSubstr("maxhullvert must be larger than 3"))
+        << maxhullvert;
+
+    // smallest valid value
+    mesh->maxhullvert = 4;
+    MjModelPtr model(mj_compile(spec, nullptr));
+    EXPECT_THAT(model.get(), NotNull()) << mjs_getError(spec);
+    mj_deleteSpec(spec);
+  }
+}
+
 TEST_F(MjCMeshTest, BuiltinProceduralXML) {
   static constexpr char xml[] = R"(
   <mujoco model="procedural_mesh">
