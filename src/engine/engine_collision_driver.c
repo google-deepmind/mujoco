@@ -1404,8 +1404,41 @@ static void makeAAMM(const mjModel* m, mjData* d,
   mjtNum aamm[6];
   mjtNum override_margin = mjENABLED(mjENBL_OVERRIDE) ? 0.5 * m->opt.o_margin : 0;
 
+  // world-welded bodies have zero sweep; project their inertial-frame BVH root
+  // instead of each geom's bound, retaining the plane-type scan over body geoms
+  // the root bounds collidable geoms and is refitted by mj_setConst; dropping
+  // per-geom bounding-sphere tightening only makes this bound more conservative
+  // mocap bodies have their own weld root and do not enter this path
+  // planes are omitted from the BVH, and custom filters can admit zero-mask
+  // geoms outside its bounds, so keep the per-geom path in those cases
+  if (bf > 0 && bf < m->nbody && m->body_weldid[bf] == 0 &&
+      m->body_bvhadr[bf] >= 0 && !mjcb_contactfilter && !hasPlane(m, bf)) {
+    const mjtNum* root = m->bvh_aabb + 6*m->body_bvhadr[bf];  // (center, size) in inertial frame
+    const mjtNum* ipos = d->xipos + 3*bf;
+    const mjtNum* imat = d->ximat + 9*bf;
+    mjtNum margin = override_margin ? override_margin : m->body_margin[bf];
+
+    // world-space position of the root AABB center
+    mjtNum cen[3];
+    mji_mulMatVec3(cen, imat, root);
+    mju_addTo3(cen, ipos);
+
+    for (int j=0; j < 3; j++) {
+      const mjtNum* frame_j = frame + 3*j;
+      mjtNum proj = mju_dot3(cen, frame_j);
+
+      // half-extent of the inertial-frame box projected onto frame_j: the box
+      // axes in world are the columns of ximat, scaled by the root half-sizes
+      mjtNum half = mju_abs(root[3]*(imat[0]*frame_j[0] + imat[3]*frame_j[1] + imat[6]*frame_j[2]))
+                  + mju_abs(root[4]*(imat[1]*frame_j[0] + imat[4]*frame_j[1] + imat[7]*frame_j[2]))
+                  + mju_abs(root[5]*(imat[2]*frame_j[0] + imat[5]*frame_j[1] + imat[8]*frame_j[2]));
+      aamm[j]   = proj - half - margin;
+      aamm[j+3] = proj + half + margin;
+    }
+  }
+
   // body
-  if (bf < m->nbody) {
+  else if (bf < m->nbody) {
     int body = bf;
     int body_geomnum = m->body_geomnum[body];
 
