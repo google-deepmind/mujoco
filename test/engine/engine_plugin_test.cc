@@ -722,6 +722,60 @@ TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
               MjNear(0.5 + expected_act_dot * m->opt.timestep, 1e-6, 1e-4));
 }
 
+TEST_F(EnginePluginTest, TendonActuatorForceLimits) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <extension><plugin plugin="mujoco.test.actuator"/></extension>
+    <worldbody>
+      <body><joint name="joint" type="slide"/><geom size="0.1"/></body>
+    </worldbody>
+    <tendon>
+      <fixed name="tendon" actuatorfrcrange="-1 2">
+        <joint joint="joint" coef="1"/>
+      </fixed>
+    </tendon>
+    <actuator>
+      <plugin tendon="tendon" plugin="mujoco.test.actuator">
+        <config key="multiplier" value="$multiplier1"/>
+      </plugin>
+      <plugin tendon="tendon" plugin="mujoco.test.actuator">
+        <config key="multiplier" value="$multiplier2"/>
+      </plugin>
+      $motor
+    </actuator>
+  </mujoco>
+  )";
+
+  for (bool builtin : {false, true}) {
+    for (mjtNum sign : {-1.0, 1.0}) {
+      std::string model_xml = absl::StrReplaceAll(
+          xml, {{"$multiplier1", std::to_string(4*sign)},
+                {"$multiplier2", std::to_string(2*sign)},
+                {"$motor", builtin ? "<motor tendon=\"tendon\"/>" : ""}});
+      MjModelPtr model = LoadModelFromString(model_xml);
+      ASSERT_THAT(model.get(), NotNull());
+      MjDataPtr data = MakeData(model);
+      if (builtin) {
+        data->ctrl[2] = 2*sign;
+      }
+
+      // Advance the plugin once so it produces its configured constant force.
+      mj_step(model.get(), data.get());
+      mj_forward(model.get(), data.get());
+
+      mjtNum limit = sign < 0 ? -1 : 2;
+      mjtNum scale = limit / (sign * (builtin ? 8 : 6));
+      EXPECT_THAT(data->actuator_force[0], MjNear(4*sign*scale, 1e-14, 1e-6));
+      EXPECT_THAT(data->actuator_force[1], MjNear(2*sign*scale, 1e-14, 1e-6));
+      if (builtin) {
+        EXPECT_THAT(data->actuator_force[2], MjNear(2*sign*scale, 1e-14, 1e-6));
+      }
+      EXPECT_THAT(data->qfrc_actuator[0], MjNear(limit, 1e-14, 1e-6));
+    }
+  }
+}
+
 // a plugin of a compiled child attached by reference starts from its initial
 // state when the parent is recompiled, as an attached copy does
 TEST_F(EnginePluginTest, RecompileAttachByReference) {

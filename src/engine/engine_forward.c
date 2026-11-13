@@ -633,6 +633,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // check for tendon transmission with force limits, including actuator plugins
+    if (ntendon && !tendon_frclimited && m->actuator_trntype[i] == mjTRN_TENDON) {
+      tendon_frclimited = m->tendon_actfrclimited[m->actuator_trnid[2*i]];
+    }
+
     // skip actuator plugins -- these are handled after builtin actuator types
     if (m->actuator_plugin[i] >= 0) {
       continue;
@@ -685,11 +690,6 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
         force[oadr+k] = kp*e[k] + prm[0] + prm[2]*d->actuator_velocity[oadr+k];
       }
       continue;
-    }
-
-    // check for tendon transmission with force limits
-    if (ntendon && !tendon_frclimited && m->actuator_trntype[i] == mjTRN_TENDON) {
-      tendon_frclimited = m->tendon_actfrclimited[m->actuator_trnid[2*i]];
     }
 
     // extract info
