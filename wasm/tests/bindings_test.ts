@@ -91,11 +91,24 @@ function expectArraysEqual(arr1: any, arr2: TypedArray) {
 
 describe('MuJoCo WASM Bindings', () => {
   let mujoco: MainModule;
+  let NumBuffer: MainModule['DoubleBuffer']|MainModule['FloatBuffer'];
+  let NumArray: typeof Float64Array|typeof Float32Array;
+  let num: (value: number) => number;
   let model: MjModel|null = null;
   let data: MjData|null = null;
 
   beforeAll(async () => {
     mujoco = await loadMujoco();
+    const opt = new mujoco.MjOption();
+    try {
+      // Match mjtNum without changing the explicit double-buffer API tests.
+      const single = opt.gravity.BYTES_PER_ELEMENT === 4;
+      NumBuffer = single ? mujoco.FloatBuffer : mujoco.DoubleBuffer;
+      NumArray = single ? Float32Array : Float64Array;
+      num = single ? Math.fround : (value) => value;
+    } finally {
+      opt.delete();
+    }
   }, 60_000);
 
   function unlinkXMLFile(filename: string) {
@@ -196,7 +209,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     it('should compute the sparse inertia matrix', () => {
       const nM = simpleModel!.nM;
-      const dstSparse = new mujoco.DoubleBuffer(nM);
+      const dstSparse = new NumBuffer(nM);
       try {
         mujoco.mj_forward(simpleModel!, simpleData!);
         mujoco.mj_addM(
@@ -212,7 +225,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     it('should throw an error for incorrect sparse matrix dimensions', () => {
       const nM = simpleModel!.nM;
-      const dstSparse = new mujoco.DoubleBuffer(nM + 1);
+      const dstSparse = new NumBuffer(nM + 1);
       try {
         expect(
             () => mujoco.mj_addM(
@@ -227,7 +240,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     it('should compute the sparse inertia matrix with null pointers', () => {
       const nM = simpleModel!.nM;
-      const dstSparse = new mujoco.DoubleBuffer(nM);
+      const dstSparse = new NumBuffer(nM);
       try {
         mujoco.mj_forward(simpleModel!, simpleData!);
         mujoco.mj_addM(simpleModel!, simpleData!, dstSparse, null, null, null);
@@ -242,15 +255,15 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute geom distance without returning fromto', () => {
     mujoco.mj_forward(model!, data!);
     const dist = mujoco.mj_geomDistance(model!, data!, 0, 2, 200, null);
-    expect(dist).toEqual(41.9);
+    expect(dist).toEqual(num(41.9));
   });
 
   it('should handle box QP solver with null optionals', () => {
     const n = 5;
-    const res = new mujoco.DoubleBuffer(n);
-    const r = new mujoco.DoubleBuffer(n * (n + 7));
-    const h = new mujoco.DoubleBuffer(n * n);
-    const g = mujoco.DoubleBuffer.FromArray(new Array(n).fill(1));
+    const res = new NumBuffer(n);
+    const r = new NumBuffer(n * (n + 7));
+    const h = new NumBuffer(n * n);
+    const g = NumBuffer.FromArray(new Array(n).fill(1));
     try {
       for (let i = 0; i < n; i++) {
         h.GetView()[i * (n + 1)] = 1;
@@ -358,10 +371,10 @@ describe('MuJoCo WASM Bindings', () => {
         steps++;
       }
       mujoco.mj_forward(model!, data!);
-      const res = new mujoco.DoubleBuffer(data!.nefc);
+      const res = new NumBuffer(data!.nefc);
       mujoco.mj_mulJacVec(model!, data!, res, data!.qacc);
       mujoco.mju_subFrom(res, data!.efc_aref);
-      const cost = mujoco.DoubleBuffer.FromArray([0]);
+      const cost = NumBuffer.FromArray([0]);
       mujoco.mj_constraintUpdate(
           model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
 
@@ -380,8 +393,8 @@ describe('MuJoCo WASM Bindings', () => {
     const bodyId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const point = [0.1, 0.2, 0.3];
-    const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacp = new NumBuffer(3 * model!.nv);
+    const jacr = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_jac(model!, data!, jacp, jacr, point, bodyId);
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
@@ -398,8 +411,8 @@ describe('MuJoCo WASM Bindings', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
-    const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacp = new NumBuffer(3 * model!.nv);
+    const jacr = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_jacBody(model!, data!, jacp, jacr, bodyId);
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
@@ -416,8 +429,8 @@ describe('MuJoCo WASM Bindings', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
-    const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacp = new NumBuffer(3 * model!.nv);
+    const jacr = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_jacBodyCom(model!, data!, jacp, jacr, bodyId);
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
@@ -434,8 +447,8 @@ describe('MuJoCo WASM Bindings', () => {
     mujoco.mj_forward(model!, data!);
     const geomId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
-    const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacp = new NumBuffer(3 * model!.nv);
+    const jacr = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_jacGeom(model!, data!, jacp, jacr, geomId);
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
@@ -454,8 +467,8 @@ describe('MuJoCo WASM Bindings', () => {
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const point = [0.1, 0.2, 0.3];
     const axis = [0, 0, 1];
-    const jacPoint = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacAxis = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacPoint = new NumBuffer(3 * model!.nv);
+    const jacAxis = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_jacPointAxis(
           model!, data!, jacPoint, jacAxis, point, axis, bodyId);
@@ -476,8 +489,8 @@ describe('MuJoCo WASM Bindings', () => {
     const bodyId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const point = [0.1, 0.2, 0.3];
-    const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacp = new NumBuffer(3 * model!.nv);
+    const jacr = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_jacDot(model!, data!, jacp, jacr, point, bodyId);
       expect(jacp.GetView().length).toBe(3 * model!.nv);
@@ -496,7 +509,7 @@ describe('MuJoCo WASM Bindings', () => {
     const point = [0, 0, 0];
     const bodyId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
-    const qfrcTarget = new mujoco.DoubleBuffer(model!.nv);
+    const qfrcTarget = new NumBuffer(model!.nv);
     try {
       mujoco.mj_forward(model!, data!);
       mujoco.mj_applyFT(
@@ -516,10 +529,10 @@ describe('MuJoCo WASM Bindings', () => {
     const eps = 1e-6;
     const flg_centered = false;
     const dim = 2 * model!.nv + model!.na;
-    const A = new mujoco.DoubleBuffer(dim * dim);
-    const B = new mujoco.DoubleBuffer(dim * model!.nu);
-    const C = new mujoco.DoubleBuffer(model!.nsensordata * dim);
-    const D = new mujoco.DoubleBuffer(model!.nsensordata * model!.nu);
+    const A = new NumBuffer(dim * dim);
+    const B = new NumBuffer(dim * model!.nu);
+    const C = new NumBuffer(model!.nsensordata * dim);
+    const D = new NumBuffer(model!.nsensordata * model!.nu);
     try {
       mujoco.mjd_transitionFD(model!, data!, eps, flg_centered, A, B, C, D);
       expect(norm(A.GetView())).toBeGreaterThan(0);
@@ -541,9 +554,9 @@ describe('MuJoCo WASM Bindings', () => {
     const n = 2;
     const mat = [4, 1, 1, 3];
     const vec = [1, 2];
-    const res = new mujoco.DoubleBuffer(n);
-    const expected = new Float64Array([1 / 11, 7 / 11]);
-    const matFactor = mujoco.DoubleBuffer.FromArray(mat);
+    const res = new NumBuffer(n);
+    const expected = new NumArray([1 / 11, 7 / 11]);
+    const matFactor = NumBuffer.FromArray(mat);
     try {
       const rank = mujoco.mju_cholFactor(matFactor, 1e-9);
       expect(rank).toBe(n);
@@ -561,9 +574,9 @@ describe('MuJoCo WASM Bindings', () => {
     const n = 2;
     const mat = [4, 1, 1, 3];
     const x = [1, 1];
-    const matFactor = mujoco.DoubleBuffer.FromArray(mat);
-    const xBuf = mujoco.DoubleBuffer.FromArray(x);
-    const res = new mujoco.DoubleBuffer(n);
+    const matFactor = NumBuffer.FromArray(mat);
+    const xBuf = NumBuffer.FromArray(x);
+    const res = new NumBuffer(n);
     try {
       // Factorize original matrix.
       mujoco.mju_cholFactor(matFactor, 1e-9);
@@ -579,7 +592,7 @@ describe('MuJoCo WASM Bindings', () => {
       const vec = [7, 6];
       mujoco.mju_cholSolve(res, matFactor.GetView(), vec);
       const result = res.GetView();
-      const expectedSolution = new Float64Array([1, 1]);
+      const expectedSolution = new NumArray([1, 1]);
       expect(result[0]).toBeCloseTo(expectedSolution[0]);
       expect(result[1]).toBeCloseTo(expectedSolution[1]);
     } finally {
@@ -591,10 +604,10 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should multiply a transposed matrix by another matrix', () => {
     const r1 = 3, c1 = 2, c2 = 2;
-    const mat1 = mujoco.DoubleBuffer.FromArray([1, 4, 2, 5, 3, 6]);
-    const mat2 = mujoco.DoubleBuffer.FromArray([7, 8, 9, 10, 11, 12]);
-    const res = new mujoco.DoubleBuffer(c1 * c2);
-    const expected = new Float64Array([58, 64, 139, 154]);
+    const mat1 = NumBuffer.FromArray([1, 4, 2, 5, 3, 6]);
+    const mat2 = NumBuffer.FromArray([7, 8, 9, 10, 11, 12]);
+    const res = new NumBuffer(c1 * c2);
+    const expected = new NumArray([58, 64, 139, 154]);
 
     try {
       mujoco.mju_mulMatTMat(res, mat1.GetView(), mat2.GetView(), r1, c1, c2);
@@ -608,9 +621,9 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should throw an error because of incompatible matrix sizes', () => {
     const r1 = 3, c1 = 2, c2 = 2;
-    const mat1 = mujoco.DoubleBuffer.FromArray([1, 4, 2, 5, 3, 6]);
-    const mat2 = mujoco.DoubleBuffer.FromArray([7, 8, 9, 10, 11]);
-    const res = new mujoco.DoubleBuffer(c1 * c2);
+    const mat1 = NumBuffer.FromArray([1, 4, 2, 5, 3, 6]);
+    const mat2 = NumBuffer.FromArray([7, 8, 9, 10, 11]);
+    const res = new NumBuffer(c1 * c2);
     try {
       expect(
           () => mujoco.mju_mulMatTMat(
@@ -632,11 +645,11 @@ describe('MuJoCo WASM Bindings', () => {
        const rownnz = new mujoco.IntBuffer(nr);
        const rowadr = new mujoco.IntBuffer(nr);
        const colind = new mujoco.IntBuffer(nc);
-       const res = new mujoco.DoubleBuffer(nc);
+       const res = new NumBuffer(nc);
        try {
          const nnz =
              mujoco.mju_dense2sparse(res, mat, nr, nc, rownnz, rowadr, colind);
-         expectArraysEqual(res.GetView(), new Float64Array([1.0, 2.0, 3.0]));
+         expectArraysEqual(res.GetView(), new NumArray([1.0, 2.0, 3.0]));
          expectArraysEqual(rownnz.GetView(), new Int32Array([1, 2]));
          expectArraysEqual(rowadr.GetView(), new Int32Array([0, 1]));
          expectArraysEqual(colind.GetView(), new Int32Array([1, 0, 2]));
@@ -655,8 +668,8 @@ describe('MuJoCo WASM Bindings', () => {
     const rownnz = [1, 2];
     const rowadr = [0, 1];
     const colind = [1, 0, 2];
-    const res = new mujoco.DoubleBuffer(nr * nc);
-    const expected = new Float64Array([0.0, 1.0, 0.0, 2.0, 0.0, 3.0]);
+    const res = new NumBuffer(nr * nc);
+    const expected = new NumArray([0.0, 1.0, 0.0, 2.0, 0.0, 3.0]);
     try {
       mujoco.mju_sparse2dense(res, mat, nr, nc, rownnz, rowadr, colind);
       expectArraysEqual(res.GetView(), expected);
@@ -720,11 +733,11 @@ describe('MuJoCo WASM Bindings', () => {
 
   // Corresponds to bindings_test.py:test_mju_rotVecQuat
   it('should rotate a vector by a quaternion', () => {
-    const res = mujoco.DoubleBuffer.FromArray([0, 0, 0]);
+    const res = NumBuffer.FromArray([0, 0, 0]);
     const vec = [1, 0, 0];
     const angle = 7 * Math.PI / 12;
     const quat = [Math.cos(angle), 0, 0, Math.sin(angle)];
-    const expected = new Float64Array([-0.8660377, -0.5, 0]);
+    const expected = new NumArray([-0.8660377, -0.5, 0]);
     try {
       mujoco.mju_rotVecQuat(res, vec, quat);
       expectArraysClose(res.GetView(), expected, 4);
@@ -774,10 +787,10 @@ describe('MuJoCo WASM Bindings', () => {
   })
 
   it('should add a scaled vector to another vector', () => {
-    const res = mujoco.DoubleBuffer.FromArray([1, 2, 3]);
+    const res = NumBuffer.FromArray([1, 2, 3]);
     const vec = [4, 5, 6];
     const scale = 2;
-    const expected = new Float64Array([9, 12, 15]);
+    const expected = new NumArray([9, 12, 15]);
     try {
       mujoco.mju_addToScl(res, vec, scale);
       expectArraysClose(res.GetView(), expected, 4);
@@ -788,7 +801,7 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should throw an error when mju_addToScl is called with incompatible sizes',
      () => {
-       const res = mujoco.DoubleBuffer.FromArray([1, 2, 3]);
+       const res = NumBuffer.FromArray([1, 2, 3]);
        const vec = [4, 5];
        const scale = 2;
        try {
@@ -803,8 +816,8 @@ describe('MuJoCo WASM Bindings', () => {
      });
 
   it('should sort an array with insertion sort', () => {
-    const arr = mujoco.DoubleBuffer.FromArray([5, 2, 8, 1, 9]);
-    const expected = new Float64Array([1, 2, 5, 8, 9]);
+    const arr = NumBuffer.FromArray([5, 2, 8, 1, 9]);
+    const expected = new NumArray([1, 2, 5, 8, 9]);
     try {
       mujoco.mju_insertionSort(arr);
       expectArraysEqual(arr.GetView(), expected);
@@ -901,8 +914,8 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_can_read_array
   it('should read an array from the model', () => {
     const expected =
-        new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 1, 2, 0, 1, 42, 0, 42]);
-    const bodyPos = new Float64Array(model!.body_pos);
+        new NumArray([0, 0, 0, 0, 0, 0.1, 0, 0, 1, 2, 0, 1, 42, 0, 42]);
+    const bodyPos = new NumArray(model!.body_pos);
     expectArraysEqual(bodyPos, expected);
   });
 
@@ -910,7 +923,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should set an array from the data', () => {
     const value = 0.12345;
     data!.qpos.fill(value);
-    const expected = new Float64Array(data!.qpos.length).fill(value);
+    const expected = new NumArray(data!.qpos.length).fill(value);
     expectArraysEqual(data!.qpos, expected);
   });
 
@@ -919,7 +932,7 @@ describe('MuJoCo WASM Bindings', () => {
     const qposRef = data!.qpos;
     const value = 0.789;
     data!.qpos.fill(value);
-    const expected = new Float64Array(data!.qpos.length).fill(value);
+    const expected = new NumArray(data!.qpos.length).fill(value);
     expectArraysEqual(qposRef, expected);
   });
 
@@ -934,19 +947,19 @@ describe('MuJoCo WASM Bindings', () => {
 
   // Corresponds to bindings_test.py:test_mjmodel_can_read_and_write_opt
   it('should read and write MjOption', () => {
-    expect(model!.opt.timestep).toEqual(0.002);
-    expectArraysEqual(model!.opt.gravity, new Float64Array([0, 0, -9.81]));
+    expect(model!.opt.timestep).toEqual(num(0.002));
+    expectArraysEqual(model!.opt.gravity, new NumArray([0, 0, -9.81]));
 
     const optRef = model!.opt;
     model!.opt.timestep = 0.001;
-    expect(optRef.timestep).toEqual(0.001);
+    expect(optRef.timestep).toEqual(num(0.001));
 
     const gravityRef = optRef.gravity;
     model!.opt.gravity[1] = 0.1;
-    expectArraysEqual(gravityRef, new Float64Array([0, 0.1, -9.81]));
+    expectArraysEqual(gravityRef, new NumArray([0, 0.1, -9.81]));
 
     model!.opt.gravity.fill(0.2);
-    expectArraysEqual(gravityRef, new Float64Array([0.2, 0.2, 0.2]));
+    expectArraysEqual(gravityRef, new NumArray([0.2, 0.2, 0.2]));
   });
 
   // Corresponds to bindings_test.py:test_mjmodel_can_read_and_write_stat
@@ -955,7 +968,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     const statRef = model!.stat;
     model!.stat.meanmass = 1.2;
-    expect(statRef.meanmass).toEqual(1.2);
+    expect(statRef.meanmass).toEqual(num(1.2));
   });
 
   // Corresponds to bindings_test.py:test_mjmodel_can_read_and_write_vis
@@ -990,8 +1003,8 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mjoption_can_make_default
   it('should create a default MjOption', () => {
     const opt = new mujoco.MjOption();
-    expect(opt.timestep).toEqual(0.002);
-    expectArraysEqual(opt.gravity, new Float64Array([0, 0, -9.81]));
+    expect(opt.timestep).toEqual(num(0.002));
+    expectArraysEqual(opt.gravity, new NumArray([0, 0, -9.81]));
   });
 
   // Corresponds to bindings_test.py:test_mjoption_can_copy
@@ -1001,13 +1014,13 @@ describe('MuJoCo WASM Bindings', () => {
     opt1.gravity.set([2, 2, 2]);
 
     const opt2 = opt1.copy();
-    expect(opt2.timestep).toEqual(0.001);
-    expectArraysEqual(opt2.gravity, new Float64Array([2, 2, 2]));
+    expect(opt2.timestep).toEqual(num(0.001));
+    expectArraysEqual(opt2.gravity, new NumArray([2, 2, 2]));
 
     opt1.timestep = 0.005;
     opt1.gravity.set([5, 5, 5]);
-    expect(opt2.timestep).toEqual(0.001);
-    expectArraysEqual(opt2.gravity, new Float64Array([2, 2, 2]));
+    expect(opt2.timestep).toEqual(num(0.001));
+    expectArraysEqual(opt2.gravity, new NumArray([2, 2, 2]));
   });
 
   // Corresponds to bindings_test.py:test_mjdata_can_read_warning_array
@@ -1024,7 +1037,7 @@ describe('MuJoCo WASM Bindings', () => {
     mujoco.mj_forward(model!, data!!);
     const contacts: MjContactVec = data!.contact;
     const originalContact = contacts.get(0)!;
-    const originalPos = new Float64Array(originalContact.pos);
+    const originalPos = new NumArray(originalContact.pos);
     const copiedContact = originalContact.copy();
     copiedContact.delete();
 
@@ -1056,13 +1069,13 @@ describe('MuJoCo WASM Bindings', () => {
     expect(data!.efc_type.length).toEqual(16);
 
     expectArraysClose(
-        contact.get(0)!.pos.slice(0, 2), new Float64Array([-0.1, -0.1]));
+        contact.get(0)!.pos.slice(0, 2), new NumArray([-0.1, -0.1]));
     expectArraysClose(
-        contact.get(1)!.pos.slice(0, 2), new Float64Array([0.1, -0.1]));
+        contact.get(1)!.pos.slice(0, 2), new NumArray([0.1, -0.1]));
     expectArraysClose(
-        contact.get(2)!.pos.slice(0, 2), new Float64Array([-0.1, 0.1]));
+        contact.get(2)!.pos.slice(0, 2), new NumArray([-0.1, 0.1]));
     expectArraysClose(
-        contact.get(3)!.pos.slice(0, 2), new Float64Array([0.1, 0.1]));
+        contact.get(3)!.pos.slice(0, 2), new NumArray([0.1, 0.1]));
 
     mujoco.mj_resetData(model!, data!);
     expect(data!.ncon).toEqual(0);
@@ -1127,23 +1140,23 @@ describe('MuJoCo WASM Bindings', () => {
 
     const sig = mujoco.mjtState.mjSTATE_INTEGRATION.value;
     const size = mujoco.mj_stateSize(model!, sig);
-    const stateBadSize = mujoco.DoubleBuffer.FromArray([size]);
+    const stateBadSize = NumBuffer.FromArray([size]);
     expect(() => {
       mujoco.mj_getState(model!, data!, stateBadSize, sig);
     })
         .toThrowError(
             'MuJoCo Error: [mj_getState] state must have size 81, got 1');
 
-    const state0 = new mujoco.DoubleBuffer(size);
+    const state0 = new NumBuffer(size);
     mujoco.mj_getState(model!, data!, state0, sig);
 
     mujoco.mj_step(model!, data!);
-    const state1a = mujoco.DoubleBuffer.FromArray(new Array(size).fill(1));
+    const state1a = NumBuffer.FromArray(new Array(size).fill(1));
     mujoco.mj_getState(model!, data!, state1a, sig);
 
     mujoco.mj_setState(model!, data!, state0.GetView(), sig);
     mujoco.mj_step(model!, data!);
-    const state1b = mujoco.DoubleBuffer.FromArray(new Array(size).fill(2));
+    const state1b = NumBuffer.FromArray(new Array(size).fill(2));
     mujoco.mj_getState(model!, data!, state1b, sig);
 
     expectArraysEqual(state1a.GetView(), state1b.GetView());
@@ -1162,9 +1175,9 @@ describe('MuJoCo WASM Bindings', () => {
 
     const validKey = 1;
     const time = data!.time;
-    const qpos = new Float64Array(data!.qpos);
-    const qvel = new Float64Array(data!.qvel);
-    const act = new Float64Array(data!.act);
+    const qpos = new NumArray(data!.qpos);
+    const qvel = new NumArray(data!.qvel);
+    const act = new NumArray(data!.act);
     mujoco.mj_setKeyframe(model!, data!, validKey);
 
     mujoco.mj_step(model!, data!);
@@ -1183,14 +1196,14 @@ describe('MuJoCo WASM Bindings', () => {
     mujoco.mj_forward(model!, data!);
     mujoco.mj_subtreeVel(model!, data!);
 
-    const mat = new mujoco.DoubleBuffer(3 * model!.nv);
+    const mat = new NumBuffer(3 * model!.nv);
     try {
       mujoco.mj_angmomMat(model!, data!, mat, 0);
 
-      const qvel = new Float64Array(data!.qvel);
-      const subtreeAngmom = new Float64Array(data!.subtree_angmom.slice(0, 3));
+      const qvel = new NumArray(data!.qvel);
+      const subtreeAngmom = new NumArray(data!.subtree_angmom.slice(0, 3));
       const matView = mat.GetView();
-      const result = new Float64Array(3).fill(0);
+      const result = new NumArray(3).fill(0);
 
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < model!.nv; j++) {
@@ -1208,17 +1221,17 @@ describe('MuJoCo WASM Bindings', () => {
     mujoco.mj_forward(model!, data!);
     const siteId =
         mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_SITE.value, 'mysite');
-    const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
-    const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
+    const jacp = new NumBuffer(3 * model!.nv);
+    const jacr = new NumBuffer(3 * model!.nv);
 
     try {
       mujoco.mj_jacSite(model!, data!, jacp, null, siteId);
-      const expectedJacp = new Float64Array(3 * model!.nv).fill(0);
+      const expectedJacp = new NumArray(3 * model!.nv).fill(0);
       expectedJacp[6] = -1;
       expectArraysClose(jacp.GetView(), expectedJacp);
 
       mujoco.mj_jacSite(model!, data!, null, jacr, siteId);
-      const expectedJacr = new Float64Array(3 * model!.nv).fill(0);
+      const expectedJacr = new NumArray(3 * model!.nv).fill(0);
       expectedJacr[1 * model!.nv + 6] = 1;
       expectArraysClose(jacr.GetView(), expectedJacr, 2);
 
@@ -1228,7 +1241,7 @@ describe('MuJoCo WASM Bindings', () => {
       expectArraysClose(jacp.GetView(), expectedJacp, 2);
       expectArraysClose(jacr.GetView(), expectedJacr, 2);
 
-      const badJacp = new mujoco.DoubleBuffer(3 * 6);
+      const badJacp = new NumBuffer(3 * 6);
       try {
         expect(() => {
           mujoco.mj_jacSite(model!, data!, badJacp, null, siteId);
@@ -1239,7 +1252,7 @@ describe('MuJoCo WASM Bindings', () => {
         badJacp.delete();
       }
 
-      const badJacr = new mujoco.DoubleBuffer(4 * 7);
+      const badJacr = new NumBuffer(4 * 7);
       try {
         expect(() => {
           mujoco.mj_jacSite(model!, data!, null, badJacr, siteId);
@@ -1317,13 +1330,13 @@ describe('MuJoCo WASM Bindings', () => {
     const nsensordata = model!.nsensordata;
     const nC = model!.nC;
 
-    const dfDq = new mujoco.DoubleBuffer(nv * nv);
-    const dfDv = new mujoco.DoubleBuffer(nv * nv);
-    const dfDa = new mujoco.DoubleBuffer(nv * nv);
-    const dsDq = new mujoco.DoubleBuffer(nv * nsensordata);
-    const dsDv = new mujoco.DoubleBuffer(nv * nsensordata);
-    const dsDa = new mujoco.DoubleBuffer(nv * nsensordata);
-    const dmDq = new mujoco.DoubleBuffer(nv * nC);
+    const dfDq = new NumBuffer(nv * nv);
+    const dfDv = new NumBuffer(nv * nv);
+    const dfDa = new NumBuffer(nv * nv);
+    const dsDq = new NumBuffer(nv * nsensordata);
+    const dsDv = new NumBuffer(nv * nsensordata);
+    const dsDa = new NumBuffer(nv * nsensordata);
+    const dmDq = new NumBuffer(nv * nC);
 
     try {
       mujoco.mjd_inverseFD(
@@ -1350,13 +1363,13 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_geom_distance
   it('should compute geom distance', () => {
     mujoco.mj_forward(model!, data!);
-    const fromto = new mujoco.DoubleBuffer(6);
+    const fromto = new NumBuffer(6);
     try {
       const dist = mujoco.mj_geomDistance(model!, data!, 0, 2, 200, fromto);
-      expect(dist).toEqual(41.9);
+      expect(dist).toEqual(num(41.9));
       expectArraysClose(
           fromto.GetView(),
-          new Float64Array([42.0, 0.0, 0.0, 42.0, 0.0, 41.9]));
+          new NumArray([42.0, 0.0, 0.0, 42.0, 0.0, 41.9]));
     } finally {
       fromto.delete();
     }
@@ -1366,10 +1379,10 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute sub quaternion derivatives', () => {
     const quat1 = [0.2, 0.3, 0.3, 0.4];
     const quat2 = [0.1, 0.2, 0.4, 0.5];
-    const d1 = new mujoco.DoubleBuffer(9);
-    const d2 = new mujoco.DoubleBuffer(9);
-    const d3 = new mujoco.DoubleBuffer(9);
-    const d4 = new mujoco.DoubleBuffer(9);
+    const d1 = new NumBuffer(9);
+    const d2 = new NumBuffer(9);
+    const d3 = new NumBuffer(9);
+    const d4 = new NumBuffer(9);
     try {
       mujoco.mjd_subQuat(quat1, quat2, d1, d2);
       mujoco.mjd_subQuat(quat1, quat2, null, d3);
@@ -1388,9 +1401,9 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute quaternion derivatives for integration', () => {
     const scale = 0.1;
     const vel = [0.2, 0.3, 0.3];
-    const dQuat = new mujoco.DoubleBuffer(9);
-    const dVel = new mujoco.DoubleBuffer(9);
-    const dH = new mujoco.DoubleBuffer(3);
+    const dQuat = new NumBuffer(9);
+    const dVel = new NumBuffer(9);
+    const dH = new NumBuffer(3);
     try {
       mujoco.mjd_quatIntegrate(vel, scale, dQuat, dVel, dH);
       expect(norm(dQuat.GetView())).toBeGreaterThan(0);
@@ -1427,27 +1440,27 @@ describe('MuJoCo WASM Bindings', () => {
       4.0,
     ];
     const band =
-        new mujoco.DoubleBuffer(nBand * (nTotal - nDense) + nDense * nTotal);
-    const vec = mujoco.DoubleBuffer.FromArray([2.0, 2.0, 3.0, 4.0]);
-    const res = new mujoco.DoubleBuffer(4);
+        new NumBuffer(nBand * (nTotal - nDense) + nDense * nTotal);
+    const vec = NumBuffer.FromArray([2.0, 2.0, 3.0, 4.0]);
+    const res = new NumBuffer(4);
     try {
       mujoco.mju_dense2Band(band, dense, nTotal, nBand, nDense);
       for (let i = 0; i < 4; i++) {
         const index = mujoco.mju_bandDiag(i, nTotal, nBand, nDense);
         expect(band.GetView()[index]).toEqual(i + 1);
       }
-      const dense2 = new mujoco.DoubleBuffer(nTotal * nTotal);
+      const dense2 = new NumBuffer(nTotal * nTotal);
       const flgSym = true;
       mujoco.mju_band2Dense(
           dense2, band.GetView(), nTotal, nBand, nDense, flgSym);
-      expectArraysEqual(new Float64Array(dense), dense2.GetView());
+      expectArraysEqual(new NumArray(dense), dense2.GetView());
 
       const nVec = 1;
       mujoco.mju_bandMulMatVec(
           res, band.GetView(), vec.GetView(), nTotal, nBand, nDense, nVec,
           flgSym);
 
-      const expected = new Float64Array([2.4, 4.8, 10.2, 17.5]);
+      const expected = new NumArray([2.4, 4.8, 10.2, 17.5]);
       expectArraysClose(res.GetView(), expected);
 
       const diagAdd = 0;
@@ -1456,7 +1469,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mju_cholSolveBand(
           res, band.GetView(), vec.GetView(), nTotal, nBand, nDense);
 
-      const expectedSolved = new Float64Array([1.9111, 0.9111, 0.9111, 0.8333]);
+      const expectedSolved = new NumArray([1.9111, 0.9111, 0.9111, 0.8333]);
       expectArraysClose(res.GetView(), expectedSolved);
     } finally {
       band.delete();
@@ -1468,11 +1481,11 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mju_box_qp
   it('should handle box QP solver', () => {
     const n = 5;
-    const res = new mujoco.DoubleBuffer(n);
-    const r = new mujoco.DoubleBuffer(n * (n + 7));
+    const res = new NumBuffer(n);
+    const r = new NumBuffer(n * (n + 7));
     const index = new mujoco.IntBuffer(n);
-    const h = new mujoco.DoubleBuffer(n * n);
-    const g = mujoco.DoubleBuffer.FromArray(new Array(n).fill(1));
+    const h = new NumBuffer(n * n);
+    const g = NumBuffer.FromArray(new Array(n).fill(1));
     const lower = new Array(n).fill(-1);
     const upper = new Array(n).fill(1);
     try {
@@ -1493,10 +1506,10 @@ describe('MuJoCo WASM Bindings', () => {
 
   // Corresponds to bindings_test.py:test_mju_fill
   it('should fill an array with a value', () => {
-    const res = new mujoco.DoubleBuffer(3);
+    const res = new NumBuffer(3);
     try {
       mujoco.mju_fill(res, 1.5);
-      expectArraysEqual(res.GetView(), new Float64Array([1.5, 1.5, 1.5]));
+      expectArraysEqual(res.GetView(), new NumArray([1.5, 1.5, 1.5]));
     } finally {
       res.delete();
     }
@@ -1504,10 +1517,10 @@ describe('MuJoCo WASM Bindings', () => {
 
   // Corresponds to bindings_test.py:test_mju_eye
   it('should create an identity matrix', () => {
-    const eye3 = new mujoco.DoubleBuffer(3 * 3);
+    const eye3 = new NumBuffer(3 * 3);
     try {
       mujoco.mju_eye(eye3);
-      const expected = new Float64Array([
+      const expected = new NumArray([
         1,
         0,
         0,
@@ -1530,10 +1543,10 @@ describe('MuJoCo WASM Bindings', () => {
       0, 0.066, 0.13, 0.2, 0.26, 0.33, 0.4, 0.46, 0.53, 0.6, 0.66, 0.73, 0.8,
       0.86, 0.93, 1
     ];
-    const res = new mujoco.DoubleBuffer(16);
+    const res = new NumBuffer(16);
     try {
       mujoco.mju_symmetrize(res, mat, 4);
-      const expected = new Float64Array([
+      const expected = new NumArray([
         0, 0.163, 0.33, 0.5, 0.163, 0.33, 0.5, 0.66, 0.33, 0.5, 0.66, 0.83, 0.5,
         0.66, 0.8, 1
       ]);
@@ -1561,7 +1574,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mju_dense_to_sparse
   it('should convert a dense matrix to a sparse matrix', () => {
     const mat = [0.0, 1.0, 0.0, 2.0, 0.0, 3.0];
-    const res = new mujoco.DoubleBuffer(3);
+    const res = new NumBuffer(3);
     const rowNnz = new mujoco.IntBuffer(2);
     const rowAdr = new mujoco.IntBuffer(2);
     const colInd = new mujoco.IntBuffer(3);
@@ -1569,7 +1582,7 @@ describe('MuJoCo WASM Bindings', () => {
       const status =
           mujoco.mju_dense2sparse(res, mat, 2, 3, rowNnz, rowAdr, colInd);
       expect(status).toEqual(0);
-      expectArraysEqual(res.GetView(), new Float64Array([1.0, 2.0, 3.0]));
+      expectArraysEqual(res.GetView(), new NumArray([1.0, 2.0, 3.0]));
       expectArraysEqual(rowNnz.GetView(), new Int32Array([1, 2]));
       expectArraysEqual(rowAdr.GetView(), new Int32Array([0, 1]));
       expectArraysEqual(colInd.GetView(), new Int32Array([1, 0, 2]));
@@ -1583,11 +1596,11 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mju_sparse_to_dense
   it('should convert a sparse matrix to a dense matrix', () => {
     const mat = [1.0, 2.0, 3.0];
-    const expected = new Float64Array([0.0, 1.0, 0.0, 2.0, 0.0, 3.0]);
+    const expected = new NumArray([0.0, 1.0, 0.0, 2.0, 0.0, 3.0]);
     const rowNnz = [1, 2];
     const rowAdr = [0, 1];
     const colInd = [1, 0, 2];
-    const res = new mujoco.DoubleBuffer(6);
+    const res = new NumBuffer(6);
     try {
       mujoco.mju_sparse2dense(res, mat, 2, 3, rowNnz, rowAdr, colInd);
       expectArraysEqual(res.GetView(), expected);
@@ -1598,13 +1611,13 @@ describe('MuJoCo WASM Bindings', () => {
 
   // Corresponds to bindings_test.py:test_mju_euler_to_quat
   it('should convert euler to quaternion', () => {
-    const quat = new mujoco.DoubleBuffer(4);
+    const quat = new NumBuffer(4);
     const euler = [0, Math.PI / 2, 0];
     const seq = 'xyz';
     try {
       mujoco.mju_euler2Quat(quat, euler, seq);
       const expectedQuat = [Math.sqrt(0.5), 0, Math.sqrt(0.5), 0.0];
-      expectArraysClose(quat.GetView(), new Float64Array(expectedQuat));
+      expectArraysClose(quat.GetView(), new NumArray(expectedQuat));
 
       expect(() => {
         mujoco.mju_euler2Quat(quat, euler, 'xy');
@@ -1673,9 +1686,9 @@ describe('MuJoCo WASM Bindings', () => {
       expect(model1.opt.timestep).toEqual(model2.opt.timestep);
       expect(model1.stat.meanmass).toEqual(model2.stat.meanmass);
       model1.opt.timestep = 0.123;
-      expect(model1.opt.timestep).toEqual(0.123);
+      expect(model1.opt.timestep).toEqual(num(0.123));
       expect(model2.opt.timestep).not.toEqual(model1.opt.timestep);
-      expect(model2.opt.timestep).toEqual(0.002);
+      expect(model2.opt.timestep).toEqual(num(0.002));
     } finally {
       model2.delete();
     }
@@ -2019,15 +2032,15 @@ describe('MuJoCo WASM Bindings', () => {
 
       // Test that the indexer is returning a view into the underlying struct.
       const sizeFromIndexer = model!.geom('mybox')!.size;
-      const originalGeomSize = new Float64Array(model!.geom_size);
+      const originalGeomSize = new NumArray(model!.geom_size);
 
       model!.geom_size.set([7, 11, 13], boxId * 3);
-      expectArraysEqual(sizeFromIndexer, new Float64Array([7, 11, 13]));
+      expectArraysEqual(sizeFromIndexer, new NumArray([7, 11, 13]));
 
       model!.geom('mybox')!.size.set([5, 3, 2]);
       expectArraysEqual(
           model!.geom_size.slice(boxId * 3, boxId * 3 + 3),
-          new Float64Array([5, 3, 2]));
+          new NumArray([5, 3, 2]));
     });
 
     // Corresponds to bindings_test.py:test_named_indexing_geom_quat
@@ -2045,12 +2058,12 @@ describe('MuJoCo WASM Bindings', () => {
       const quatFromIndexer = model!.geom('mybox')!.quat;
 
       model!.geom_quat.set([5, 10, 15, 20], boxId * 4);
-      expectArraysEqual(quatFromIndexer, new Float64Array([5, 10, 15, 20]));
+      expectArraysEqual(quatFromIndexer, new NumArray([5, 10, 15, 20]));
 
       model!.geom('mybox')!.quat.set([12, 9, 6, 3]);
       expectArraysEqual(
           model!.geom_quat.slice(boxId * 4, boxId * 4 + 4),
-          new Float64Array([12, 9, 6, 3]));
+          new NumArray([12, 9, 6, 3]));
     });
 
     it('should support named access for Joints', () => {
@@ -2081,7 +2094,7 @@ describe('MuJoCo WASM Bindings', () => {
         expect(j0.type).toBe(mujoco.mjtJoint.mjJNT_FREE.value);
         expect(j0.qposadr).toBe(0);
         expect(j0.dofadr).toBe(0);
-        expect(j0.axis).toEqual(new Float64Array([0, 0, 1]));
+        expect(j0.axis).toEqual(new NumArray([0, 0, 1]));
         expect(j0.type).toEqual(mujoco.mjtJoint.mjJNT_FREE.value);
 
         const j0qposStart = model.jnt_qposadr[j0.id];
@@ -2089,7 +2102,7 @@ describe('MuJoCo WASM Bindings', () => {
             (j0.id < model.njnt - 1) ? model.jnt_qposadr[j0.id + 1] : model.nq;
         const expectedJ0qpos = model.qpos0.slice(j0qposStart, j0qposEnd);
         expectArraysEqual(
-            expectedJ0qpos, new Float64Array([0, 0, 1, 1, 0, 0, 0]));
+            expectedJ0qpos, new NumArray([0, 0, 1, 1, 0, 0, 0]));
         expectArraysEqual(j0.qpos0, expectedJ0qpos);
 
         const j0dofStart = model.jnt_dofadr[j0.id];
@@ -2106,14 +2119,14 @@ describe('MuJoCo WASM Bindings', () => {
         expect(j1.type).toBe(mujoco.mjtJoint.mjJNT_HINGE.value);
         expect(j1.qposadr).toBe(7);
         expect(j1.dofadr).toBe(6);
-        expect(j1.axis).toEqual(new Float64Array([0, 1, 0]));
-        expect(j1.frictionloss).toEqual(new Float64Array([0.4]));
+        expect(j1.axis).toEqual(new NumArray([0, 1, 0]));
+        expect(j1.frictionloss).toEqual(new NumArray([0.4]));
 
         const j1qposStart = model.jnt_qposadr[j1.id];
         const j1qposEnd =
             (j1.id < model.njnt - 1) ? model.jnt_qposadr[j1.id + 1] : model.nq;
         const expectedJ1qpos = model.qpos0.slice(j1qposStart, j1qposEnd);
-        expectArraysEqual(expectedJ1qpos, new Float64Array([0]));
+        expectArraysEqual(expectedJ1qpos, new NumArray([0]));
         expectArraysEqual(j1.qpos0, expectedJ1qpos);
 
         const j1dofStart = model.jnt_dofadr[j1.id];
@@ -2147,7 +2160,7 @@ describe('MuJoCo WASM Bindings', () => {
         expect(hf.name).toBe('hf');
         expect(hf.nrow).toBe(2);
         expect(hf.ncol).toBe(3);
-        expectArraysClose(hf.size, new Float64Array([1, 2, 0.1, 0.2]));
+        expectArraysClose(hf.size, new NumArray([1, 2, 0.1, 0.2]));
         const expectedDataLength =
             model.hfield_nrow[hf.id] * model.hfield_ncol[hf.id];
         expect(expectedDataLength).toBe(6);
@@ -2177,7 +2190,7 @@ describe('MuJoCo WASM Bindings', () => {
         expect(n1.id).toBe(0);
         expect(n1.name).toBe('n1');
         expect(n1.size).toBe(3);
-        expect(expectedN1data).toEqual(new Float64Array([1, 2, 3]));
+        expect(expectedN1data).toEqual(new NumArray([1, 2, 3]));
         expectArraysClose(n1.data, expectedN1data);
 
         const n2 = model.numeric('n2');
@@ -2187,7 +2200,7 @@ describe('MuJoCo WASM Bindings', () => {
         expect(n2.id).toBe(1);
         expect(n2.name).toBe('n2');
         expect(n2.size).toBe(4);
-        expect(expectedN2data).toEqual(new Float64Array([4, 5, 6, 7]));
+        expect(expectedN2data).toEqual(new NumArray([4, 5, 6, 7]));
         expectArraysClose(n2.data, expectedN2data);
       } finally {
         model?.delete();
@@ -2278,80 +2291,80 @@ describe('MuJoCo WASM Bindings', () => {
       expect(actuator.force).toBe(0);
       // the hinge's dof follows the 6 of the free joint
       expectArraysClose(
-          actuator.moment, new Float64Array([0, 0, 0, 0, 0, 0, 1, 0, 0, 0]));
+          actuator.moment, new NumArray([0, 0, 0, 0, 0, 0, 1, 0, 0, 0]));
 
       // Body
       expect(model!.nbody).toBe(5);
       expect(data!.body('mybox').name).toBe('mybox');
       expectArraysClose(
-          data!.body('mybox').xpos, new Float64Array([0, 0, 0.1]));
+          data!.body('mybox').xpos, new NumArray([0, 0, 0.1]));
       expect(data!.body('myhinge-body').name).toBe('myhinge-body');
       expectArraysClose(
-          data!.body('myhinge-body').xpos, new Float64Array([0, 0, 1]));
+          data!.body('myhinge-body').xpos, new NumArray([0, 0, 1]));
       expect(data!.body('myball-body').name).toBe('myball-body');
       expectArraysClose(
-          data!.body('myball-body').xpos, new Float64Array([2, 0, 1]));
+          data!.body('myball-body').xpos, new NumArray([2, 0, 1]));
       expect(data!.body('mocap-body').name).toBe('mocap-body');
       expectArraysClose(
-          data!.body('mocap-body').xpos, new Float64Array([42, 0, 42]));
+          data!.body('mocap-body').xpos, new NumArray([42, 0, 42]));
 
       // Geom
       expect(model!.ngeom).toBe(3);
       expect(data!.geom('myplane').name).toBe('myplane');
       expectArraysClose(
-          data!.geom('myplane').xpos, new Float64Array([0, 0, 0]));
+          data!.geom('myplane').xpos, new NumArray([0, 0, 0]));
       expectArraysClose(
           data!.geom('myplane').xmat,
-          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+          new NumArray([1, 0, 0, 0, 1, 0, 0, 0, 1]));
 
       expect(data!.geom('mybox').name).toBe('mybox');
       expectArraysClose(
-          data!.geom('mybox').xpos, new Float64Array([0, 0, 0.1]));
+          data!.geom('mybox').xpos, new NumArray([0, 0, 0.1]));
       expectArraysClose(
           data!.geom('mybox').xmat,
-          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+          new NumArray([1, 0, 0, 0, 1, 0, 0, 0, 1]));
 
       expect(data!.geom('mocap-sphere').name).toBe('mocap-sphere');
       expectArraysClose(
-          data!.geom('mocap-sphere').xpos, new Float64Array([42, 0, 42]));
+          data!.geom('mocap-sphere').xpos, new NumArray([42, 0, 42]));
       expectArraysClose(
           data!.geom('mocap-sphere').xmat,
-          new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+          new NumArray([1, 0, 0, 0, 1, 0, 0, 0, 1]));
 
       // Joint
       expect(model!.njnt).toBe(3);
       const freeJnt = data!.jnt('myfree');
       expect(freeJnt.name).toBe('myfree');
-      expectArraysClose(freeJnt.xanchor, new Float64Array([0, 0, 0.1]));
-      expectArraysClose(freeJnt.xaxis, new Float64Array([0, 0, 1]));
+      expectArraysClose(freeJnt.xanchor, new NumArray([0, 0, 0.1]));
+      expectArraysClose(freeJnt.xaxis, new NumArray([0, 0, 1]));
 
       const hingeJnt = data!.jnt('myhinge');
       expect(hingeJnt.name).toBe('myhinge');
-      expectArraysClose(hingeJnt.xanchor, new Float64Array([0, 0, 1]));
-      expectArraysClose(hingeJnt.xaxis, new Float64Array([0, 1, 0]));
+      expectArraysClose(hingeJnt.xanchor, new NumArray([0, 0, 1]));
+      expectArraysClose(hingeJnt.xaxis, new NumArray([0, 1, 0]));
 
       const ballJnt = data!.jnt('myball');
       expect(ballJnt.name).toBe('myball');
-      expectArraysClose(ballJnt.xanchor, new Float64Array([2, 0, 1]));
-      expectArraysClose(ballJnt.xaxis, new Float64Array([0, 0, 1]));
+      expectArraysClose(ballJnt.xanchor, new NumArray([2, 0, 1]));
+      expectArraysClose(ballJnt.xaxis, new NumArray([0, 0, 1]));
 
       // Sensor
       expect(model!.nsensor).toBe(2);
       const jointvelSensor = data!.sensor('myjointvel');
       expect(jointvelSensor.name).toBe('myjointvel');
-      expectArraysClose(jointvelSensor.data, new Float64Array([0]));
+      expectArraysClose(jointvelSensor.data, new NumArray([0]));
 
       const accelSensor = data!.sensor('myaccelerometer');
       expect(accelSensor.name).toBe('myaccelerometer');
-      expectArraysClose(accelSensor.data, new Float64Array([0, 0, 9.81]));
+      expectArraysClose(accelSensor.data, new NumArray([0, 0, 9.81]));
 
       // Site
       expect(model!.nsite).toBe(1);
       const site = data!.site('mysite');
       expect(site.name).toBe('mysite');
-      expectArraysClose(site.xpos, new Float64Array([0, 0, 0]));
+      expectArraysClose(site.xpos, new NumArray([0, 0, 0]));
       expectArraysClose(
-          site.xmat, new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+          site.xmat, new NumArray([1, 0, 0, 0, 1, 0, 0, 0, 1]));
     });
 
     // Corresponds to bindings_test.py:test_named_indexing_mimo_actuators
@@ -2393,11 +2406,11 @@ describe('MuJoCo WASM Bindings', () => {
             .toBe(mimoData.actuator_force[4]);
         expectArraysEqual(
             mimoModel.actuator('after').gear,
-            new Float64Array([3, 0, 0, 0, 0, 0]));
+            new NumArray([3, 0, 0, 0, 0, 0]));
 
         // several: all of them
         expectArraysEqual(
-            mimoData.actuator('orient').ctrl, new Float64Array([1, 2, 3, 4]));
+            mimoData.actuator('orient').ctrl, new NumArray([1, 2, 3, 4]));
         expectArraysEqual(
             mimoData.actuator('orient').force,
             mimoData.actuator_force.slice(1, 4));
@@ -2405,7 +2418,7 @@ describe('MuJoCo WASM Bindings', () => {
 
         // moment: a dense copy of the sparse rows
         const moment = mimoData.actuator('after').moment;
-        expectArraysClose(moment, new Float64Array([3, 0, 0, 0]));
+        expectArraysClose(moment, new NumArray([3, 0, 0, 0]));
         expect(mimoData.actuator('orient').moment.length).toBe(3 * 4);
 
         // writes reach mjData
@@ -2514,11 +2527,11 @@ describe('MuJoCo WASM Bindings', () => {
       const qposFromIndexer = ballJnt.qpos;
       const qposIdx = model!.jnt_qposadr[balljointId];
       data!.qpos.set([4, 5, 6, 7], qposIdx);
-      expectArraysEqual(qposFromIndexer, new Float64Array([4, 5, 6, 7]));
-      ballJnt.qpos.set(new Float64Array([9, 8, 7, 6]))
+      expectArraysEqual(qposFromIndexer, new NumArray([4, 5, 6, 7]));
+      ballJnt.qpos.set(new NumArray([9, 8, 7, 6]))
       expectArraysEqual(
           data!.qpos.slice(qposIdx, qposIdx + 4),
-          new Float64Array([9, 8, 7, 6]));
+          new NumArray([9, 8, 7, 6]));
     });
 
     // Corresponds to bindings_test.py:test_named_indexing_ragged2d_cdof
@@ -2536,13 +2549,13 @@ describe('MuJoCo WASM Bindings', () => {
       // Test that the indexer is returning a view into the underlying
       const cdofFromIndexer = freeJnt.cdof;
       const dofIdx = model!.jnt_dofadr[freejointId];
-      const testArray = new Float64Array(36);
+      const testArray = new NumArray(36);
       for (let i = 0; i < 36; i++) {
         testArray[i] = i;
       }
       data!.cdof.set(testArray);
       expectArraysEqual(freeJnt.cdof, testArray);
-      const expectedCdof = new Float64Array(36).fill(42);
+      const expectedCdof = new NumArray(36).fill(42);
       freeJnt.cdof.set(expectedCdof);
       expectArraysEqual(data!.cdof.slice(dofIdx, dofIdx + 36), expectedCdof);
     });
