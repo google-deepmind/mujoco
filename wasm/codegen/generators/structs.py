@@ -407,7 +407,9 @@ def build_struct_header(
       builder.line(f"{w}();")
 
     # constructor passing native ptr
-    if w != "MjData":
+    if w == "MjSpec":
+      builder.line("explicit MjSpec(mjSpec *ptr, bool owned = false);")
+    elif w != "MjData":
       builder.line(f"explicit {w}({s} *ptr);")
     else:
       # special handling for MjData
