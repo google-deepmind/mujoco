@@ -8,22 +8,20 @@ on:
   workflow_run:
     workflows: ["update-live"]
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   build-and-upload-artifacts:
-    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
         ref: live
         persist-credentials: false
-
-    - name: Prepare Linux
-      run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Setup Emscripten
       run: bash ./.github/workflows/build_steps.sh setup_emsdk
