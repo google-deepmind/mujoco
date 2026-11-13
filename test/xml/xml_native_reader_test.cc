@@ -4873,6 +4873,34 @@ TEST_F(SensorParseTest, UserNeedstageAcc) {
   EXPECT_EQ(model->sensor_needstage[2], mjSTAGE_POS);
 }
 
+TEST_F(SensorParseTest, DataKeywordErrorsNameKeyword) {
+  static constexpr char prefix[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="g" size="1"/>
+      <site name="s"/>
+    </worldbody>
+    <sensor>)";
+  struct Case {
+    const char* sensor;
+    const char* expected;
+  };
+  const Case cases[] = {
+      {R"(<contact geom1="g" data="found frce"/>)", "invalid keyword: 'frce'"},
+      {R"(<contact geom1="g" data="found found"/>)",
+       "duplicate keyword: 'found'"},
+      {R"(<rangefinder site="s" data="dist dst"/>)", "invalid keyword: 'dst'"},
+  };
+  std::array<char, 1024> error;
+  for (const Case& c : cases) {
+    std::string xml = std::string(prefix) + c.sensor + "</sensor></mujoco>";
+    MjModelPtr model =
+        LoadModelFromString(xml.c_str(), error.data(), error.size());
+    EXPECT_THAT(model.get(), IsNull()) << c.sensor;
+    EXPECT_THAT(error.data(), HasSubstr(c.expected)) << c.sensor;
+  }
+}
+
 // ------------- test general parsing ------------------------------------------
 
 TEST_F(XMLReaderTest, ZnearZeroNotAllowed) {
