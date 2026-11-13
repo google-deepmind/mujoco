@@ -4241,6 +4241,111 @@ TEST_F(XMLWriterTest, MaterialDefaultLayerRoundtrip) {
   EXPECT_EQ(reloaded->mat_texid[mjNTEXROLE * 0 + mjTEXROLE_NORMAL], 1);
 }
 
+TEST_F(XMLWriterTest, EmptyMaterialAndTextureOverridesRoundtrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <material>
+        <layer role="rgb" texture="tex"/>
+        <layer role="normal" texture="tex"/>
+      </material>
+      <geom material="base"/>
+      <site material="base"/>
+      <tendon material="base"/>
+      <default class="clear">
+        <material>
+          <layer role="rgb" texture=""/>
+          <layer role="normal" texture=""/>
+        </material>
+        <geom material=""/>
+        <site material=""/>
+        <tendon material=""/>
+      </default>
+    </default>
+    <asset>
+      <texture name="tex" type="2d" builtin="flat" width="4" height="4"/>
+      <material name="base"/>
+      <material name="clear_rgb" texture=""/>
+      <material name="clear_normal"><layer role="normal" texture=""/></material>
+      <material name="clear_default" class="clear"/>
+    </asset>
+    <worldbody>
+      <geom name="geom" size="1" material=""/>
+      <geom name="default_geom" class="clear" size="1"/>
+      <site name="start" material=""/>
+      <site name="end" class="clear" pos="0 0 1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="tendon" material="">
+        <site site="start"/>
+        <site site="end"/>
+      </spatial>
+      <spatial name="default_tendon" class="clear">
+        <site site="start"/>
+        <site site="end"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  MjModelPtr model(mj_compile(spec, nullptr));
+  ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec);
+  EXPECT_THAT(AsVector(model->geom_matid, model->ngeom), ElementsAre(-1, -1));
+  EXPECT_THAT(AsVector(model->site_matid, model->nsite), ElementsAre(-1, -1));
+  EXPECT_THAT(AsVector(model->tendon_matid, model->ntendon), ElementsAre(-1, -1));
+
+  // both authored and compiled saves must clear the inherited references
+  for (int compiled : {0, 1}) {
+    spec->compiler.savecompiled = compiled;
+    std::string saved = SaveToString(spec);
+    MjModelPtr reloaded = LoadModelFromString(saved.c_str(), error.data(), error.size());
+    ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+    EXPECT_EQ(AsVector(reloaded->geom_matid, reloaded->ngeom),
+              AsVector(model->geom_matid, model->ngeom));
+    EXPECT_EQ(AsVector(reloaded->site_matid, reloaded->nsite),
+              AsVector(model->site_matid, model->nsite));
+    EXPECT_EQ(AsVector(reloaded->tendon_matid, reloaded->ntendon),
+              AsVector(model->tendon_matid, model->ntendon));
+    EXPECT_EQ(AsVector(reloaded->mat_texid, reloaded->nmat * mjNTEXROLE),
+              AsVector(model->mat_texid, model->nmat * mjNTEXROLE));
+  }
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLWriterTest, EmptyMeshAndHfieldOverridesRoundtrip) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler savecompiled="false"/>
+    <default>
+      <geom mesh="mesh" hfield="hfield"/>
+      <site mesh="mesh"/>
+    </default>
+    <asset>
+      <mesh name="mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <hfield name="hfield" size="1 1 1 1" nrow="2" ncol="2" elevation="0 0 0 0"/>
+    </asset>
+    <worldbody>
+      <geom name="geom" size="2" mesh="" hfield=""/>
+      <site name="site" size="2" mesh=""/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  MjModelPtr model(mj_compile(spec, nullptr));
+  ASSERT_THAT(model.get(), NotNull()) << mjs_getError(spec);
+
+  std::string saved = SaveToString(spec);
+  MjModelPtr reloaded = LoadModelFromString(saved.c_str(), error.data(), error.size());
+  ASSERT_THAT(reloaded.get(), NotNull()) << error.data() << "\n" << saved;
+  std::string field;
+  EXPECT_EQ(CompareModel(model.get(), reloaded.get(), field), 0) << field;
+  mj_deleteSpec(spec);
+}
+
 TEST_F(XMLWriterTest, CameraDefaultSensorsizeAndDefaultLightTexture) {
   static constexpr char xml[] = R"(
   <mujoco>
