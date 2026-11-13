@@ -3072,6 +3072,59 @@ TEST_F(MujocoTest, PathsResolvedPerAttachedModel) {
   std::filesystem::remove_all(root);
 }
 
+// a <model> asset in an included file resolves its file against the directory
+// of the included file; loading "case2/scene.xml" from the directory above
+// case2 used to look the child up at "case2/case2/sub/child.xml" (issue #3835)
+TEST_F(MujocoTest, ModelAssetInIncludedFileRelativePath) {
+  static constexpr char scene_xml[] = R"(
+  <mujoco>
+    <include file="robot.xml"/>
+  </mujoco>
+  )";
+  static constexpr char robot_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="sub/child.xml"/>
+    </asset>
+    <worldbody>
+      <body name="b">
+        <geom size="0.1"/>
+        <attach model="child" body="c" prefix="x_"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="c">
+        <geom size="0.05"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::filesystem::path root =
+      std::filesystem::path(testing::TempDir()) / "model_include_relative";
+  std::filesystem::remove_all(root);
+  WriteFile(root / "case2", "scene.xml", scene_xml);
+  WriteFile(root / "case2", "robot.xml", robot_xml);
+  WriteFile(root / "case2" / "sub", "child.xml", child_xml);
+
+  // load "case2/scene.xml" from the directory above case2, as in the report
+  std::filesystem::path old_cwd = std::filesystem::current_path();
+  std::filesystem::current_path(root);
+  std::array<char, 1024> error;
+  mjModel* m =
+      mj_loadXML("case2/scene.xml", nullptr, error.data(), error.size());
+  std::filesystem::current_path(old_cwd);
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_GE(mj_name2id(m, mjOBJ_BODY, "x_c"), 0);
+
+  mj_deleteModel(m);
+  std::filesystem::remove_all(root);
+}
+
 // the resource provider of the "cubeobj" scheme serves a cube
 static int OpenCube(mjResource* resource) { return 1; }
 static int ReadCube(mjResource* resource, const void** buffer) {
