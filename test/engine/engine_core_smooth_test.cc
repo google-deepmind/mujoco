@@ -2487,6 +2487,26 @@ TEST_F(CoreSmoothTest, FactorMClampsSingularPivotAndWarns) {
   }
 }
 
+TEST_F(CoreSmoothTest, KinematicsRotatedSiteStoresQuaternion) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site euler="10 20 30"/>
+    </worldbody>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+
+  mj_kinematics(model.get(), data.get());
+
+  // a site in the world frame retains its authored orientation
+  for (int k = 0; k < 4; ++k) {
+    EXPECT_MJTNUM_EQ(data->site_xquat[k], model->site_quat[k]);
+  }
+}
+
 TEST_F(CoreSmoothTest, KinematicsQuatsMatchMats) {
   static constexpr char xml[] = R"(
   <mujoco>
