@@ -16,7 +16,9 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -1996,18 +1998,22 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       if (!file.has_value() && hfield->nrow > 0 && hfield->ncol > 0) {
         int nrow = hfield->nrow;
         int ncol = hfield->ncol;
+        if ((int64_t)nrow * (int64_t)ncol > INT_MAX) {
+          throw mjXError(elem, "hfield nrow*ncol overflows int");
+        }
+        size_t npix = (size_t)nrow * (size_t)ncol;
 
         // read user data
         auto userdata = ReadAttrVec<float>(elem, "elevation");
 
         // user data given, copy into data
         if (userdata.has_value()) {
-          if (userdata->size() != nrow * ncol) {
+          if (userdata->size() != npix) {
             throw mjXError(elem, "elevation data length must match nrow*ncol");
           }
 
           // copy in reverse row order, so XML string is top-to-bottom
-          std::vector<float> flipped(nrow * ncol);
+          std::vector<float> flipped(npix);
           for (int i = 0; i < nrow; i++) {
             int flip = nrow - 1 - i;
             for (int j = 0; j < ncol; j++) {
@@ -2020,7 +2026,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
         // user data not given, set to 0
         else {
-          std::vector<float> zero(nrow * ncol);
+          std::vector<float> zero(npix);
           mjs_setFloat(hfield->userdata, zero.data(), zero.size());
         }
       }

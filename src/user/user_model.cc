@@ -30,6 +30,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -2487,6 +2488,9 @@ void mjCModel::SetSizes() {
 
   // nhfielddata
   for (int i = 0; i < nhfield; i++) {
+    if (nhfielddata > std::numeric_limits<int>::max()) {
+      throw mjCError(hfields[i], "hfield_adr overflows int");
+    }
     nhfielddata += static_cast<mjtSize>(hfields[i]->nrow) * hfields[i]->ncol;
   }
 
@@ -3984,7 +3988,7 @@ void mjCModel::CopyObjects(mjModel* m) {
            static_cast<mjtSize>(phf->nrow) * phf->ncol * sizeof(float));
 
     // advance counter
-    data_adr += phf->nrow * phf->ncol;
+    data_adr += static_cast<mjtSize>(phf->nrow) * phf->ncol;
   }
 
   // textures
@@ -6222,6 +6226,16 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool te
     }
 
     // restore handler, return 0
+    _mjPRIVATE_setTlsLogHandler(prev_tls);
+    compiling_ = false;
+    return nullptr;
+  } catch (const std::bad_alloc&) {
+    mj_deleteModel(model);
+    model = nullptr;
+    mj_deleteData(data);
+    data = nullptr;
+    Clear();
+    errInfo = mjCError(0, "could not allocate memory");
     _mjPRIVATE_setTlsLogHandler(prev_tls);
     compiling_ = false;
     return nullptr;

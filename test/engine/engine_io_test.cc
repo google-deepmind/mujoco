@@ -554,6 +554,13 @@ TEST_F(ValidateReferencesTest, HField) {
   model->hfield_adr[0] = 0;
   model->hfield_ncol[0] = 4;
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("hfield_adr"));
+  model->hfield_ncol[0] = -10;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("less than 2"));
+  model->hfield_ncol[0] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("less than 2"));
+  model->hfield_nrow[0] = 46341;
+  model->hfield_ncol[0] = 46341;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("overflows int"));
 }
 
 TEST_F(ValidateReferencesTest, Texture) {

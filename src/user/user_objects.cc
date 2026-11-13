@@ -5652,18 +5652,22 @@ void mjCHField::LoadCustom(mjResource* resource) {
   if (nrow < 2 || ncol < 2) {
     throw mjCError(this, "hfield dimensions must be at least 2 in file '%s'", resource->name);
   }
+  if ((int64_t)nrow * (int64_t)ncol > std::numeric_limits<int>::max()) {
+    throw mjCError(this, "hfield nrow*ncol overflows int in file '%s'", resource->name);
+  }
+  size_t npix = (size_t)nrow * (size_t)ncol;
 
   // check buffer size
-  if (buffer_sz != nrow * ncol * sizeof(float) + 8) {
+  if ((mjtSize)buffer_sz != (mjtSize)npix * (mjtSize)sizeof(float) + 8) {
     throw mjCError(this, "unexpected file size in file '%s'", resource->name);
   }
 
   // allocate
-  data.assign(nrow * ncol, 0);
+  data.assign(npix, 0);
   if (data.empty()) { throw mjCError(this, "could not allocate buffers in hfield"); }
 
   // copy data
-  memcpy(data.data(), (void*)(pint + 2), nrow * ncol * sizeof(float));
+  memcpy(data.data(), (void*)(pint + 2), npix * sizeof(float));
 }
 
 
@@ -5676,9 +5680,12 @@ void mjCHField::LoadPNG(mjResource* resource) {
   if (nrow < 2 || ncol < 2) {
     throw mjCError(this, "hfield dimensions must be at least 2 in file '%s'", resource->name);
   }
+  if ((int64_t)nrow * (int64_t)ncol > std::numeric_limits<int>::max()) {
+    throw mjCError(this, "hfield nrow*ncol overflows int in file '%s'", resource->name);
+  }
 
   // copy image data over with rows reversed
-  data.reserve(nrow * ncol);
+  data.reserve((size_t)nrow * (size_t)ncol);
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < ncol; c++) { data.push_back((float)image[c + (nrow - 1 - r) * ncol]); }
   }
@@ -5692,12 +5699,16 @@ void mjCHField::Compile(const mjVFS* vfs) {
   // copy userdata into data
   if (!userdata_.empty()) {
     if (nrow < 2 || ncol < 2) { throw mjCError(this, "hfield dimensions must be at least 2"); }
-    if (nrow * ncol != userdata_.size()) {
+    if ((int64_t)nrow * (int64_t)ncol > std::numeric_limits<int>::max()) {
+      throw mjCError(this, "hfield nrow*ncol overflows int");
+    }
+    size_t npix = (size_t)nrow * (size_t)ncol;
+    if (npix != userdata_.size()) {
       throw mjCError(this, "elevation data length must match nrow*ncol");
     }
-    data.assign(nrow * ncol, 0);
+    data.assign(npix, 0);
     if (data.empty()) { throw mjCError(this, "could not allocate buffers in hfield"); }
-    memcpy(data.data(), userdata_.data(), nrow * ncol * sizeof(float));
+    memcpy(data.data(), userdata_.data(), npix * sizeof(float));
   }
 
   // check size parameters
@@ -5779,6 +5790,9 @@ void mjCHField::Compile(const mjVFS* vfs) {
   // make sure hfield was specified (from file or manually)
   if (nrow < 1 || ncol < 1 || data.empty()) { throw mjCError(this, "hfield not specified"); }
   if (nrow < 2 || ncol < 2) { throw mjCError(this, "hfield dimensions must be at least 2"); }
+  if ((int64_t)nrow * (int64_t)ncol > std::numeric_limits<int>::max()) {
+    throw mjCError(this, "hfield nrow*ncol overflows int");
+  }
 
   // set elevation data to [0-1] range
   float emin = 1E+10, emax = -1E+10;

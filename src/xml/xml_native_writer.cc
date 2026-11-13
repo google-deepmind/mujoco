@@ -16,7 +16,9 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <optional>
@@ -2457,8 +2459,15 @@ void mjXWriter::Asset(XMLElement* root) {
       const std::vector<float>& userdata =
           authored_ ? phfield->spec_userdata_ : phfield->get_userdata();
       if (!userdata.empty()) {
+        if (nrow <= 0 || ncol <= 0 || (int64_t)nrow * (int64_t)ncol > INT_MAX) {
+          throw mjXError(0, "invalid hfield dimensions in XML write");
+        }
+        size_t npix = (size_t)nrow * (size_t)ncol;
+        if (userdata.size() != npix) {
+          throw mjXError(0, "elevation data length must match nrow*ncol");
+        }
         // copy in reverse row order, so XML string is top-to-bottom
-        std::vector<float> flipped(nrow * ncol);
+        std::vector<float> flipped(npix);
         for (int i = 0; i < nrow; i++) {
           int flip = nrow - 1 - i;
           for (int j = 0; j < ncol; j++) { flipped[i * ncol + j] = userdata[flip * ncol + j]; }

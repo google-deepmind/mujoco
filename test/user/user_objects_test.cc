@@ -1576,6 +1576,50 @@ TEST_F(MjCHFieldTest, PngMap) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCHFieldTest, OverflowUserdata) {
+  mjSpec* spec = mj_makeSpec();
+  mjsHField* hf = mjs_addHField(spec);
+  mjs_setName(hf->element, "hf");
+  hf->nrow = 1073741825;  // 1073741825 * 4 wraps to 4 in 32-bit int
+  hf->ncol = 4;
+  hf->size[0] = hf->size[1] = hf->size[2] = hf->size[3] = 1.0;
+  const float elevation[4] = {0.0f, 1.0f, 2.0f, 3.0f};
+  mjs_setFloat(hf->userdata, elevation, 4);
+
+  EXPECT_THAT(mj_compile(spec, nullptr), IsNull());
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("hfield nrow*ncol overflows int"));
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MjCHFieldTest, OverflowCustomFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" content_type="image/vnd.mujoco.hfield"
+              file="bad.hfield" size="1 1 1 1"/>
+    </asset>
+  </mujoco>
+  )";
+
+  // 8-byte header (nrow=1073741825, ncol=4) + 4 floats = 24 bytes
+  struct Payload {
+    int dims[2];
+    float data[4];
+  } payload = {{1073741825, 4}, {0.0f, 1.0f, 2.0f, 3.0f}};
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  ASSERT_EQ(mj_addBufferVFS(vfs.get(), "bad.hfield", &payload, sizeof(payload)),
+            0);
+
+  std::array<char, 1024> error;
+  MjModelPtr model =
+      LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("hfield nrow*ncol overflows int"));
+  mj_deleteVFS(vfs.get());
+}
+
 // ------------- test textures -------------------------------------------------
 
 using MjCTextureTest = MujocoTest;

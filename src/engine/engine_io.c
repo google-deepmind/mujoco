@@ -2366,7 +2366,14 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int i=0; i < m->nhfield; i++) {
-    mjtSize hfield_adr = m->hfield_adr[i] + ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
+    if (m->hfield_nrow[i] < 2 || m->hfield_ncol[i] < 2) {
+      return "Invalid model: hfield_nrow or hfield_ncol less than 2.";
+    }
+    mjtSize npix = ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
+    if (npix > INT_MAX) {
+      return "Invalid model: hfield_nrow * hfield_ncol overflows int.";
+    }
+    mjtSize hfield_adr = m->hfield_adr[i] + npix;
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
       return "Invalid model: hfield_adr out of bounds.";
     }
