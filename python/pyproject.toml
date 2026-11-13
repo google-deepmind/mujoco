@@ -66,6 +66,7 @@ mujoco = [
     "doc/*/*.rst",
     "doc/skills/*.md",
     "doc/skills/*/*.md",
+    "doc/skills/*/*/*.md",
     "testdata/*.xml",
     "testdata/*.msh",
     "testdata/*.usda",

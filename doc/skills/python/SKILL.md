@@ -11,7 +11,8 @@ description: >-
   MuJoCo CPU batching, stepping loops, and MuJoCo sensors/sysid. Don't use for
   custom non-MuJoCo Python/NumPy/C++ ODE or rigid-body simulators, custom
   finite-difference sysid, or general spatial math without `mujoco`, nor for
-  spec editing (mujoco-spec-editing), rendering (mujoco-rendering), GPU/TPU
+  spec editing (mujoco-spec-editing), deformable flex/cloth/cable modeling
+  (mujoco-deformables), rendering (mujoco-rendering), GPU/TPU
   (mujoco-accelerated), parity (mujoco-parity), or GUI/viewers (mujoco-gui,
   mujoco-studio).
 ---
@@ -45,6 +46,8 @@ description: >-
 >
 > -   [mujoco-spec-editing](../spec_editing/SKILL.md) — Procedural model
 >     editing and composing scenes with `MjSpec`.
+> -   [mujoco-deformables](../deformables/SKILL.md) — Deformable `<flexcomp>`,
+>     `<flex>`, and `<skin>` modeling (rods, cloth, and 3D FEM soft bodies).
 > -   [mujoco-rendering](../rendering/SKILL.md) — Offscreen image rendering,
 >     cameras, depth, and segmentation.
 > -   [mujoco-accelerated](../accelerated/SKILL.md) — GPU/TPU physics simulation
@@ -298,8 +301,10 @@ selection notes in [computation/index.rst](../../computation/index.rst),
 -   `mjINT_RK4`: 4th-order Runge-Kutta (4 evaluations/step) for smooth,
     energy-conserving systems.
 -   `mjINT_DISCRETE` (candidate replacement in trial): Also implicit in
-    *position* (stiff springs, position servos `kp`, and their coupling with
-    contacts; `implicit`/`implicitfast` are velocity-implicit only).
+    *position* (stiff springs, position servos `kp`, `<flex>` `<elasticity>`,
+    and their coupling with contacts; `implicit`/`implicitfast` are
+    velocity-implicit only — see
+    [`mujoco-deformables`](../deformables/SKILL.md)).
 
 ## 4. Contact & Force Sensing: Declarative Sensors
 
