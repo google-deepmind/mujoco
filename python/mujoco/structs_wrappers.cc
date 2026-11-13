@@ -163,7 +163,9 @@ MjVisualRgbaWrapper::MjWrapper()
       X(constraint),
       X(slidercrank),
       X(crankbroken),
-      X(frustum) {}
+      X(frustum),
+      X(bv),
+      X(bvactive) {}
 
 MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
     : WrapperBase(ptr, owner),
@@ -189,7 +191,9 @@ MjVisualRgbaWrapper::MjWrapper(raw::MjVisualRgba* ptr, py::handle owner)
       X(constraint),
       X(slidercrank),
       X(crankbroken),
-      X(frustum) {}
+      X(frustum),
+      X(bv),
+      X(bvactive) {}
 #undef X
 
 MjVisualRgbaWrapper::MjWrapper(const MjVisualRgbaWrapper& other)
