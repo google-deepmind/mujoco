@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "studio/sim/sim_history.h"
 #include "studio/sim/sim_profiler.h"
@@ -213,6 +214,9 @@ void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width);
 // of flags are closely related.
 void RenderingGui(const mjModel* model, mjvOption* vis_options, mjtByte* render_flags,
                   float min_width);
+
+// UX for the mjrfRenderOpts struct and the draw mode.
+void RenderOptsGui(mjrfRenderOpts* render_opts, mjrDrawMode* draw_mode);
 
 // UX for controlling the mjvOption and mjvCamera settings used for visualizing
 // scenes (mjvScene).
