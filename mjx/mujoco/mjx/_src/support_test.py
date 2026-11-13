@@ -480,9 +480,8 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
   def test_wrap_inside(self):
-    maxiter = 5
-    tolerance = 1.0e-4
-    z_init = 1.0 - 1.0e-5
+    maxiter = 20
+    tolerance = 1.0e-6
 
     # len0 <= radius
     np.testing.assert_equal(
@@ -491,7 +490,6 @@ class SupportTest(parameterized.TestCase):
             jp.array([1.0]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -503,7 +501,6 @@ class SupportTest(parameterized.TestCase):
             jp.array([1.0]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -513,7 +510,6 @@ class SupportTest(parameterized.TestCase):
         support.wrap_inside(
             jp.array([1, 0, 0, 1]), jp.array([0.1 * mujoco.mjMINVAL]), maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -525,7 +521,6 @@ class SupportTest(parameterized.TestCase):
             jp.array([0.1 * mujoco.mjMINVAL]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
@@ -537,14 +532,13 @@ class SupportTest(parameterized.TestCase):
             jp.array([0.1 * mujoco.mjMINVAL]),
             maxiter,
             tolerance,
-            z_init,
         )[0],
         jp.array([-1]),
     )
 
     # wrap: p0 = [1, 0], p1 = [0, 1]
     status, pnt = support.wrap_inside(
-        jp.array([1, 0, 0, 1]), jp.array([0.5]), maxiter, tolerance, z_init
+        jp.array([1, 0, 0, 1]), jp.array([0.5]), maxiter, tolerance
     )
     np.testing.assert_allclose(
         pnt,
@@ -556,7 +550,7 @@ class SupportTest(parameterized.TestCase):
 
     # no wrap, point on circle: p0 = [1, 0], p1 = [0, 0.5]
     status, pnt = support.wrap_inside(
-        jp.array([1, 0, 0, 0.5]), jp.array([0.5]), maxiter, tolerance, z_init
+        jp.array([1, 0, 0, 0.5]), jp.array([0.5]), maxiter, tolerance
     )
     np.testing.assert_allclose(
         pnt,
@@ -572,7 +566,6 @@ class SupportTest(parameterized.TestCase):
         jp.array([0.5]),
         maxiter,
         tolerance,
-        z_init,
     )
     np.testing.assert_allclose(
         pnt,
@@ -588,7 +581,6 @@ class SupportTest(parameterized.TestCase):
         jp.array([0.5]),
         maxiter,
         tolerance,
-        z_init,
     )
     np.testing.assert_allclose(
         pnt,
@@ -597,6 +589,18 @@ class SupportTest(parameterized.TestCase):
         rtol=1e-3,
     )
     np.testing.assert_equal(status, jp.array([0]))
+
+    # wrap, asymmetric, where the midpoint is not the solution: C's points
+    # (google-deepmind/mujoco_warp#1713)
+    for end, want in (
+        ([2, 0, -0.7, 0.7], [0.125786, 0.483919]),
+        ([1, 0, -1.4, 1.4], [0.251405, 0.432199]),
+    ):
+      status, pnt = support.wrap_inside(
+          jp.array(end, dtype=float), jp.array([0.5]), maxiter, tolerance
+      )
+      np.testing.assert_allclose(pnt, jp.array(want * 2), atol=1e-6)
+      np.testing.assert_equal(status, jp.array([0]))
 
     # TODO(taylorhowell): improve wrap_inside testing with additional test cases
 

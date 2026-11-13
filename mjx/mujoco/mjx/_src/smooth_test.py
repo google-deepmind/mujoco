@@ -515,6 +515,216 @@ class TendonTest(parameterized.TestCase):
     _assert_eq(d.wrap_obj, dx._impl.wrap_obj, 'wrap_obj')
     _assert_eq(d.wrap_xpos, dx._impl.wrap_xpos, 'wrap_xpos')
 
+  @parameterized.parameters('cylinder', 'sphere')
+  def test_tendon_grazing_wrap(self, geom_type):
+    """Tests a spatial tendon that grazes its wrap geom, in single precision."""
+    # the path's projection passes the geom 1e-5 of its radius away, where the
+    # correct wrap has a nearly zero arc: its two tangent lines are nearly
+    # parallel, and rounding used to make them cross and pick the far side;
+    # without a side site, as with one the side is chosen by winding
+    geom = {
+        'cylinder': 'type="cylinder" size=".04 .1"',
+        'sphere': 'type="sphere" size=".04"',
+    }[geom_type]
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <body>
+            <joint type="slide"/>
+            <geom name="wrap" {geom} contype="0" conaffinity="0"/>
+            <site name="p1"/>
+            <site name="p2"/>
+          </body>
+        </worldbody>
+        <tendon>
+          <spatial>
+            <site site="p1"/>
+            <geom geom="wrap"/>
+            <site site="p2"/>
+          </spatial>
+        </tendon>
+      </mujoco>
+    """)
+    m.site_sameframe[:] = 0  # the site positions are set below
+    d = mujoco.MjData(m)
+    forward = jax.jit(mjx.forward)
+    rng = np.random.default_rng(0)
+    for _ in range(100):
+      u = rng.normal(size=3)
+      if geom_type == 'cylinder':
+        u[2] *= 0.1
+        w = np.cross(u, [0, 0, 1])
+      else:
+        w = np.cross(u, rng.normal(size=3))
+      u, w = u / np.linalg.norm(u), w / np.linalg.norm(w)
+      closest = w * 0.04 * (1 + rng.normal(scale=1e-5))
+      m.site_pos[0] = closest - u * rng.uniform(0.05, 0.3)
+      m.site_pos[1] = closest + u * rng.uniform(0.05, 0.3)
+      mujoco.mj_forward(m, d)
+      dx = forward(mjx.put_model(m), mjx.put_data(m, d))
+      np.testing.assert_allclose(dx.ten_length, d.ten_length, atol=1e-4)
+
+  @parameterized.parameters('cylinder', 'sphere')
+  def test_tendon_inside_wrap(self, geom_type):
+    """Tests inside wraps, the side site at the geom's centre, in float32."""
+    # Newton from next to z = 1 in z stopped short of C's tolerance, or in
+    # float32 overshot it, and either way returned the midpoint
+    geom = {
+        'cylinder': 'type="cylinder" size=".5 1"',
+        'sphere': 'type="sphere" size=".5"',
+    }[geom_type]
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <geom name="wrap" {geom} contype="0" conaffinity="0"/>
+          <site name="side"/>
+          <body>
+            <joint type="slide"/>
+            <geom size=".01" contype="0" conaffinity="0"/>
+            <site name="p1"/>
+            <site name="p2"/>
+          </body>
+        </worldbody>
+        <tendon>
+          <spatial>
+            <site site="p1"/>
+            <geom geom="wrap" sidesite="side"/>
+            <site site="p2"/>
+          </spatial>
+        </tendon>
+      </mujoco>
+    """)
+    m.site_sameframe[:] = 0  # the site positions are set below
+    d = mujoco.MjData(m)
+    rng = np.random.default_rng(0)
+    n = 2000
+    angle = rng.uniform(0, 2 * np.pi, (n, 2))
+    radius = 0.5 * rng.uniform(1.05, 4, (n, 2))
+    site_pos = np.zeros((n, 3, 3))
+    site_pos[:, 1:, 0] = radius * np.cos(angle)
+    site_pos[:, 1:, 1] = radius * np.sin(angle)
+    if geom_type == 'cylinder':
+      site_pos[:, 1:, 2] = rng.uniform(-0.5, 0.5, (n, 2))
+    length = np.zeros(n)
+    for i in range(n):
+      m.site_pos[:] = site_pos[i]
+      mujoco.mj_forward(m, d)
+      length[i] = d.ten_length[0]
+
+    mx, dx = mjx.put_model(m), mjx.make_data(m)
+    self.assertTrue(mx._impl.is_wrap_inside.all())
+    ten_length = jax.jit(jax.vmap(
+        lambda p: mjx.forward(mx.replace(site_pos=p), dx).ten_length[0]
+    ))(jp.asarray(site_pos, jp.float32))
+    np.testing.assert_allclose(ten_length, length, atol=1e-5)
+
+  @parameterized.parameters(
+      ('cylinder', '.01 0 -.1', '.02 0 -.25'),
+      ('sphere', '.01 0 -.1', '.02 0 -.25'),
+      ('sphere', '.09 0 -.1', '.2 0 -.25'),
+  )
+  def test_tendon_wrap_grad(self, geom_type, side, insert):
+    """Tests gradients through wraps against finite differences."""
+    # the cylinder correction took norms with infinite derivatives at zero,
+    # which in unselected branches still made the reverse-mode gradient NaN:
+    # an inside wrap's two wrap points coincide where it wraps, and with no
+    # wrap, a site on the geom's z axis is at zero from its projection
+    geom = {
+        'cylinder': 'type="cylinder" size=".05 .05" euler="90 0 0"',
+        'sphere': 'type="sphere" size=".05"',
+    }[geom_type]
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <site name="origin" pos="0 0 .3"/>
+          <body>
+            <joint type="hinge" axis="0 1 0"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -.3" size=".02"/>
+            <site name="insert" pos="{insert}"/>
+            <geom name="wrap" {geom} pos="0 0 -.1" contype="0" conaffinity="0"/>
+            <site name="side" pos="{side}"/>
+          </body>
+        </worldbody>
+        <tendon>
+          <spatial>
+            <site site="origin"/>
+            <geom geom="wrap" sidesite="side"/>
+            <site site="insert"/>
+          </spatial>
+        </tendon>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    mx, dx = mjx.put_model(m), mjx.make_data(m)
+
+    def tendon(q):
+      dq = mjx.com_pos(mx, mjx.kinematics(mx, dx.replace(qpos=q[None])))
+      dq = mjx.tendon(mx, dq)
+      return jp.stack([dq.ten_length[0], dq._impl.ten_J[0, 0]])
+
+    def tendon_c(q):
+      d.qpos[0] = q
+      mujoco.mj_forward(m, d)
+      ten_J = np.zeros((m.ntendon, m.nv))
+      mujoco.mju_sparse2dense(
+          ten_J, d.ten_J, m.ten_J_rownnz, m.ten_J_rowadr, m.ten_J_colind
+      )
+      return np.array([d.ten_length[0], ten_J[0, 0]])
+
+    jac = jax.jit(jax.jacrev(tendon))
+    eps = 1e-6
+    for q in (0.0, 0.3, 0.6, 1.0):
+      fd = (tendon_c(q + eps) - tendon_c(q - eps)) / (2 * eps)
+      np.testing.assert_allclose(jac(jp.float32(q)), fd, atol=1e-5)
+
+  @parameterized.product(geom_type=('cylinder', 'sphere'), side=('0', '1'))
+  def test_tendon_wrap_grad_finite(self, geom_type, side):
+    """Tests that tendon gradients are finite where wraps degenerate."""
+    # where the wrap solution is not selected, it took asin, acos and atan2
+    # where they or their derivatives are undefined
+    geom = {
+        'cylinder': 'type="cylinder" size=".5 1"',
+        'sphere': 'type="sphere" size=".5"',
+    }[geom_type]
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <geom name="wrap" {geom} contype="0" conaffinity="0"/>
+          <site name="side" pos="{side} 0 0"/>
+          <body>
+            <joint type="slide"/>
+            <geom size=".01" contype="0" conaffinity="0"/>
+            <site name="p1"/>
+            <site name="p2"/>
+          </body>
+        </worldbody>
+        <tendon>
+          <spatial>
+            <site site="p1"/>
+            <geom geom="wrap" sidesite="side"/>
+            <site site="p2"/>
+          </spatial>
+        </tendon>
+      </mujoco>
+    """)
+    site_pos = np.array([
+        [[0.2, 0.1, 0.3], [1.0, -0.4, 0.2]],  # a site inside the circle
+        [[0.0, 0.0, 0.8], [0.9, 0.3, -0.2]],  # a site on the z axis
+        [[0.7, 0.4, 0.3], [-0.7, -0.4, 0.3]],  # mirrored across the z axis
+        [[0.7, 0.4, 0.3], [0.7, 0.4, -0.3]],  # mirrored across z = 0
+        [[0.6, 0.3, 0.2], [1.2, 0.6, 0.4]],  # collinear with the centre
+    ])
+    m.site_sameframe[:] = 0  # the site positions are set below
+    mx, dx = mjx.put_model(m), mjx.make_data(m)
+
+    def tendon(p):
+      mp = mx.replace(site_pos=mx.site_pos.at[1:].set(p))
+      dp = mjx.tendon(mp, mjx.com_pos(mp, mjx.kinematics(mp, dx)))
+      return jp.concatenate([dp.ten_length, dp._impl.ten_J[0]])
+
+    jac = jax.jit(jax.vmap(jax.jacrev(tendon)))(jp.asarray(site_pos))
+    self.assertTrue(np.isfinite(jac).all())
+
   @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
   def test_tendon_armature(self, jacobian):
     """Tests MJX tendon armature matches MuJoCo."""
