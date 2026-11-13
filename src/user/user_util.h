@@ -278,8 +278,8 @@ struct Cleanup {
 };
 
 
-// read file into memory buffer
-std::vector<uint8_t> FileToMemory(const char* filename);
+// read file into memory buffer, optionally reporting whether the read succeeded
+std::vector<uint8_t> FileToMemory(const char* filename, bool* success = nullptr);
 
 // convert vector to string separating elements by whitespace
 template <typename T>
