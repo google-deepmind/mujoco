@@ -55,6 +55,7 @@ typedef enum mjtDepthMap_ {       // depth mapping for `mjr_readPixels`
 typedef enum mjtFontScale_ {      // font scale, used at context creation
   mjFONTSCALE_50      = 50,       // 50% scale, suitable for low-res rendering
   mjFONTSCALE_100     = 100,      // normal scale, suitable in the absence of DPI scaling
+  mjFONTSCALE_125     = 125,      // 125% scale
   mjFONTSCALE_150     = 150,      // 150% scale
   mjFONTSCALE_200     = 200,      // 200% scale
   mjFONTSCALE_250     = 250,      // 250% scale
