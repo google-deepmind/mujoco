@@ -15,11 +15,13 @@
 #ifndef MUJOCO_STUDIO_UX_IMGUI_WIDGETS_H_
 #define MUJOCO_STUDIO_UX_IMGUI_WIDGETS_H_
 
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -483,6 +485,77 @@ bool ImGui_Checkbox(const char* name, T& value) {
     value = b ? 1 : 0;
   }
   return res;
+}
+
+template <typename T>
+std::string PrettyEnumName(std::string_view name) {
+  // remove the lower case "mj?" prefix from the enum name
+  std::string_view enum_name = enum_utils::n<T>();
+  while (!enum_name.empty() && enum_name[0] >= 'a' && enum_name[0] <= 'z') {
+    enum_name.remove_prefix(1);
+  }
+  // remove the lower case "mj?" prefix from the identifier
+  while (!name.empty() && name[0] >= 'a' && name[0] <= 'z') {
+    name.remove_prefix(1);
+  }
+  while (!name.empty()) {
+    char c = name[0];
+    if (c == '_') {
+      name.remove_prefix(1);
+    } else if (!enum_name.empty() && c == std::toupper(enum_name[0])) {
+      name.remove_prefix(1);
+      enum_name.remove_prefix(1);
+    } else {
+      break;
+    }
+  }
+  if (name[0] == '_') {
+    name.remove_prefix(1);
+  }
+  // Convert all characters to lower case, except for the first letter and
+  // any letter that is preceded by an underscore. Then convert all underscores
+  // to spaces.
+  std::string res(name);
+  for (size_t i = 0; i < res.size(); ++i) {
+    if (res[i] == '_') {
+      res[i] = ' ';
+    } else if (i > 0 && name[i - 1] != '_') {
+      res[i] = std::tolower(res[i]);
+    }
+  }
+  return res;
+}
+
+template <typename T>
+bool ImGui_EnumCombo(const char* name, int& value) {
+  static_assert(std::is_enum_v<T>);
+
+  T enum_value = static_cast<T>(value);
+  bool modified = false;
+  auto preview = PrettyEnumName<T>(enum_utils::enum_to_string(enum_value));
+  const int flags = ImGuiComboFlags_NoArrowButton;
+  if (ImGui::BeginCombo(name, preview.c_str(), flags)) {
+    for (const auto& [v, n] : enum_utils::entries_v<T>) {
+      auto value_name = PrettyEnumName<T>(n);
+      if (ImGui::Selectable(value_name.c_str(), value == v)) {
+        value = v;
+        modified = true;
+      }
+    }
+    ImGui::EndCombo();
+  }
+  return modified;
+}
+
+template <typename T>
+bool ImGui_EnumCombo(const char* name, T& value) {
+  static_assert(std::is_enum_v<T>);
+  int int_value = static_cast<int>(value);
+  bool modified = ImGui_EnumCombo<T>(name, int_value);
+  if (modified) {
+    value = static_cast<T>(int_value);
+  }
+  return modified;
 }
 
 template <typename T>

@@ -71,6 +71,16 @@ constexpr auto pretty_name(std::string_view sv) noexcept {
   return sv;
 }
 
+// Returns the name of the enum type E.
+template <typename E>
+constexpr auto n() noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+  return pretty_name({__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__) - 2});
+#elif defined(_MSC_VER)
+  return pretty_name({__FUNCSIG__, sizeof(__FUNCSIG__) - 17});
+#endif
+}
+
 // Returns the name of the V which is an enum value of type E.
 template <typename E, E V>
 constexpr auto n() noexcept {
