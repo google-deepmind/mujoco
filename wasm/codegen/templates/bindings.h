@@ -515,7 +515,20 @@ struct MjVFS {
   MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
   ~MjVFS() { mj_deleteVFS(ptr_); }
   void AddBuffer(const std::string& name, const emscripten::val& buffer) {
-    std::vector<uint8_t> vec = emscripten::vecFromJSArray<uint8_t>(buffer);
+    const std::size_t count = buffer["length"].as<std::size_t>();
+    const emscripten::val heap = emscripten::val(emscripten::typed_memory_view(
+        0, static_cast<uint8_t*>(nullptr)))["buffer"];
+    const bool on_heap = buffer["buffer"].strictlyEquals(heap);
+    // Preserve the source range before allocation can grow the heap and detach
+    // its view, then recreate that view on the current heap.
+    const std::size_t offset =
+        on_heap ? buffer["byteOffset"].as<std::size_t>() : 0;
+    std::vector<uint8_t> vec(count);
+    emscripten::val view(emscripten::typed_memory_view(vec.size(), vec.data()));
+    emscripten::val source = on_heap
+        ? buffer["constructor"].new_(view["buffer"], offset, count)
+        : buffer;
+    view.call<void>("set", source);
     int result = mj_addBufferVFS(ptr_, name.c_str(), vec.data(), vec.size());
     if (result != 0) {
       mju_error("Could not add buffer to VFS: %d", result);
