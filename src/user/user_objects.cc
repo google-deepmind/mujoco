@@ -8110,7 +8110,7 @@ mjCActuator::mjCActuator(mjCModel* _model, mjCDef* _def) {
   historyadr_ = -1;
   historynum_ = 0;
 
-  // input and output blocks, set by mjCModel; all actuator types are currently 1x1
+  // input and output blocks, resolved by compilation or a keyframe layout
   ctrladr_  = -1;
   ctrlnum_  = 1;
   ctrlspec_ = 0;
@@ -8307,6 +8307,44 @@ void mjCActuator::ResolveReferences(const mjCModel* m) {
 }
 
 
+// activation dimension inferred from the dynamics and their parameters
+int mjCActuator::DefaultActDim(const mjsActuator& actuator) {
+  if (actuator.dyntype == mjDYN_DCMOTOR && !actuator.plugin.active) {
+    return (actuator.dynprm[7] > 0) + (actuator.gainprm[5] > 0) +
+           (actuator.dynprm[2] > 0) + (actuator.dynprm[5] > 0) + (actuator.dynprm[0] > 0);
+  }
+  if (actuator.dyntype == mjDYN_PID) {
+    return (actuator.dynprm[1] > 0) + (actuator.gainprm[0] > 0);
+  }
+  if (actuator.dyntype == mjDYN_INTEGRATOR && actuator.gaintype == mjGAIN_SO3) {
+    return 3;
+  }
+  return actuator.dyntype != mjDYN_NONE;
+}
+
+
+// input and output block layout, before or during compilation
+void mjCActuator::ResolveInput(const mjsActuator& actuator) {
+  ctrlspec_ = actuator.ctrlspec;
+  ctrlnum_  = 1;
+  outnum_   = 1;
+  so3_      = actuator.gaintype == mjGAIN_SO3;
+  if (so3_) {
+    ctrlspec_ = actuator.ctrlspec ? actuator.ctrlspec : mjCHART_EXPMAP;
+    ctrlnum_  = ctrlspec_ == mjCHART_QUAT ? 4 : 3;
+    outnum_   = 3;
+  } else if (actuator.gaintype == mjGAIN_PID || actuator.gaintype == mjGAIN_DCMOTOR) {
+    if (!ctrlspec_) {
+      ctrlspec_ = actuator.gaintype == mjGAIN_PID ? mjINPUT_POS | mjINPUT_VEL : mjINPUT_VOLTAGE;
+    }
+    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) +
+               !!(ctrlspec_ & mjINPUT_VEL) +
+               !!(ctrlspec_ & mjINPUT_FF) +
+               !!(ctrlspec_ & mjINPUT_VOLTAGE);
+  }
+}
+
+
 // factor of the coordinate: the stretch along a slide, or that of a length
 double mjCActuator::CoordinateFactor(const mjCGauge& g) const {
   if (!linear_) { return 1; }
@@ -8488,11 +8526,8 @@ void mjCActuator::ApplyGauge(bool inverse) {
 void mjCActuator::Compile(void) {
   CopyFromSpec();
 
-  // reset input/output block widths, resolved below
-  ctrlnum_  = 1;
-  ctrlspec_ = 0;
-  outnum_   = 1;
-  so3_      = false;
+  // resolve input/output block widths, validated below
+  ResolveInput(*this);
 
   // resize userdata
   if (userdata_.size() > model->nuser_actuator) {
@@ -8560,7 +8595,7 @@ void mjCActuator::Compile(void) {
                        name.c_str(),
                        id);
       }
-      actdim = 3;
+      actdim = DefaultActDim(*this);
 
       // the act setpoint is re-anchored to a bounded representative at integration time
       if (actlimited == mjLIMITED_TRUE && actrange[0] == 0 && actrange[1] == 0) {
@@ -8569,7 +8604,6 @@ void mjCActuator::Compile(void) {
     }
 
     // input chart: expmap (3 controls, default) or quat (4 controls)
-    ctrlspec_ = ctrlspec ? ctrlspec : mjCHART_EXPMAP;
     if (ctrlspec_ == mjCHART_QUAT) {
       if (dyntype != mjDYN_NONE) {
         throw mjCError(this,
@@ -8592,11 +8626,6 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-
-    // input and output blocks
-    ctrlnum_ = ctrlspec_ == mjCHART_QUAT ? 4 : 3;
-    outnum_  = 3;
-    so3_     = true;
   }
 
   // PID servo: validate and resolve input block
@@ -8642,7 +8671,7 @@ void mjCActuator::Compile(void) {
                        name.c_str(),
                        id);
       }
-      int nslot = (dynprm[1] > 0) + (gainprm[0] > 0);
+      int nslot = DefaultActDim(*this);
       if (actdim > 0 && actdim != nslot) {
         throw mjCError(this,
                        "pid controller states require matching actdim in actuator '%s' "
@@ -8654,7 +8683,6 @@ void mjCActuator::Compile(void) {
     }
 
     // input block: any subset of [pos, vel, ff], default [pos, vel]
-    ctrlspec_ = ctrlspec ? ctrlspec : (mjINPUT_POS | mjINPUT_VEL);
     if (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF)) {
       throw mjCError(this,
                      "pid inputs are a subset of [pos, vel, ff] in actuator '%s' (id = %d)",
@@ -8667,13 +8695,10 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-    ctrlnum_ =
-        !!(ctrlspec_ & mjINPUT_POS) + !!(ctrlspec_ & mjINPUT_VEL) + !!(ctrlspec_ & mjINPUT_FF);
   }
 
   // DC motor: resolve input block (default: raw voltage command)
   if (gaintype == mjGAIN_DCMOTOR) {
-    ctrlspec_ = ctrlspec ? ctrlspec : mjINPUT_VOLTAGE;
     if (ctrlspec_ != mjINPUT_NONE &&
         (ctrlspec_ & ~(mjINPUT_POS | mjINPUT_VEL | mjINPUT_FF | mjINPUT_VOLTAGE))) {
       throw mjCError(this,
@@ -8707,10 +8732,6 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-    ctrlnum_ = !!(ctrlspec_ & mjINPUT_POS) +
-               !!(ctrlspec_ & mjINPUT_VEL) +
-               !!(ctrlspec_ & mjINPUT_FF) +
-               !!(ctrlspec_ & mjINPUT_VOLTAGE);
     if (!controller && dynprm[7] > 0) {
       throw mjCError(this,
                      "dcmotor slew rate limiting requires a controller input [pos, vel, "
@@ -8740,7 +8761,6 @@ void mjCActuator::Compile(void) {
                      name.c_str(),
                      id);
     }
-    ctrlspec_ = ctrlspec;
   }
 
   // muscle and user gains take no input signature
@@ -8880,8 +8900,7 @@ void mjCActuator::Compile(void) {
 
   // DC motor: one activation per enabled state, as in mj_dcmotorSlots
   if (dyntype == mjDYN_DCMOTOR && !plugin.active) {
-    int nslot =
-        (dynprm[7] > 0) + (gainprm[5] > 0) + (dynprm[2] > 0) + (dynprm[5] > 0) + (dynprm[0] > 0);
+    int nslot = DefaultActDim(*this);
     if (actdim < 0) {
       actdim = nslot;
     } else if (actdim != nslot) {
@@ -8897,7 +8916,7 @@ void mjCActuator::Compile(void) {
   }
 
   // set actdim to 1 if it is unset and type is standard one-activation dyntype
-  if (actdim < 0) { actdim = (dyntype != mjDYN_NONE); }
+  if (actdim < 0) { actdim = DefaultActDim(*this); }
 
   // DC motor always uses actearly
   if (dyntype == mjDYN_DCMOTOR && !actearly) {
