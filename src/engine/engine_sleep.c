@@ -927,6 +927,28 @@ static mjtSleepState mj_subtreeSleepState(const mjModel* m, const mjData* d, int
 }
 
 
+// return sleep state of a camera or light, including its mode-dependent dependencies
+static mjtSleepState mj_camlightSleepState(const mjModel* m, const mjData* d,
+                                          int bodyid, int targetid, mjtCamLight mode) {
+  if (mode == mjCAMLIGHT_TRACKCOM) {
+    return mj_subtreeSleepState(m, d, bodyid);
+  }
+
+  mjtSleepState state = (mjtSleepState) d->body_awake[bodyid];
+  if (targetid < 0 || (mode != mjCAMLIGHT_TARGETBODY && mode != mjCAMLIGHT_TARGETBODYCOM)) {
+    return state;
+  }
+
+  mjtSleepState target = mode == mjCAMLIGHT_TARGETBODYCOM
+                        ? mj_subtreeSleepState(m, d, targetid)
+                        : (mjtSleepState) d->body_awake[targetid];
+  if (state == mjS_AWAKE || target == mjS_AWAKE) {
+    return mjS_AWAKE;
+  }
+  return state == mjS_ASLEEP || target == mjS_ASLEEP ? mjS_ASLEEP : mjS_STATIC;
+}
+
+
 // return sleep state of sensor i (AWAKE or ASLEEP, never STATIC)
 static mjtSleepState mj_sensorSleepState(const mjModel* m, const mjData* d, int i) {
   mjtSensor type = m->sensor_type[i];
@@ -1024,9 +1046,11 @@ mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int 
   case mjOBJ_GEOM:
     return (mjtSleepState) d->body_awake[m->geom_bodyid[i]];
   case mjOBJ_CAMERA:
-    return (mjtSleepState) d->body_awake[m->cam_bodyid[i]];
+    return mj_camlightSleepState(m, d, m->cam_bodyid[i], m->cam_targetbodyid[i],
+                                (mjtCamLight) m->cam_mode[i]);
   case mjOBJ_LIGHT:
-    return (mjtSleepState) d->body_awake[m->light_bodyid[i]];
+    return mj_camlightSleepState(m, d, m->light_bodyid[i], m->light_targetbodyid[i],
+                                (mjtCamLight) m->light_mode[i]);
   case mjOBJ_MESH:
     return mjS_STATIC;
 
