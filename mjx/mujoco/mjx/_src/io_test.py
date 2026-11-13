@@ -920,6 +920,51 @@ class DataIOTest(parameterized.TestCase):
     # calling make_data.  they should be interchangeable for jax functions:
     step_fn_jit(mjx.make_data(m, impl=impl))
 
+  @parameterized.parameters(('jax',))
+  def test_make_matches_put_x64(self, impl):
+    """Test that make_data/put_data stay interchangeable under x64.
+
+    Under jax_enable_x64, jitted MJX functions emit the contact geom
+    indices and the tendon wrap indices with the canonical JAX int
+    dtype (int64), while make_data/put_data used to supply int32, so
+    an AOT-compiled mjx.step rejected make_data output and its own
+    output. See https://github.com/google-deepmind/mujoco/issues/2565.
+    """
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    # NB: jax.config.update is used instead of jax.enable_x64 so the test
+    # works across JAX versions (the enable_x64 helper is deprecated).
+    old_x64 = jax.config.read('jax_enable_x64')
+    try:
+      jax.config.update('jax_enable_x64', True)
+      mx = mjx.put_model(m, impl=impl)
+      d_make = mjx.make_data(mx, impl=impl)
+      d_put = mjx.put_data(m, d, impl=impl)
+
+      # the int fields jitted MJX functions emit with the canonical int
+      # dtype must match it in both make_data and put_data (solver_niter
+      # intentionally stays int32: jitted solvers produce it from
+      # weakly-typed Python ints).
+      int_dtype = jp.zeros(1, int).dtype
+      for data in (d_make, d_put):
+        for fname in ('geom1', 'geom2', 'geom'):
+          self.assertEqual(
+              getattr(data._impl.contact, fname).dtype, int_dtype
+          )
+        for fname in ('ten_wrapadr', 'ten_wrapnum', 'wrap_obj'):
+          self.assertEqual(getattr(data._impl, fname).dtype, int_dtype)
+      self.assertEqual(d_make._impl.solver_niter.dtype, np.int32)
+      self.assertEqual(d_put._impl.solver_niter.dtype, np.int32)
+
+      # the viewer failure mode: an AOT-compiled step must accept
+      # make_data output and its own output on the second call.
+      step_jit = jax.jit(mjx.step).lower(mx, d_put).compile()
+      step_jit(mx, d_make)
+      step_jit(mx, step_jit(mx, d_put))
+    finally:
+      jax.config.update('jax_enable_x64', old_x64)
+
   def test_contact_elliptic_condim1(self):
     """Test that condim=1 with ConeType.ELLIPTIC is not implemented."""
     m = mujoco.MjModel.from_xml_string("""
