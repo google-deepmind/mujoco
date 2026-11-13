@@ -179,6 +179,22 @@ class MuJoCoRolloutTest(parameterized.TestCase):
     np.testing.assert_array_equal(state, py_state)
     np.testing.assert_array_equal(sensordata, py_sensordata)
 
+  def test_data_accepts_a_sequence(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML)
+    nstate = mujoco.mj_stateSize(model, mujoco.mjtState.mjSTATE_FULLPHYSICS)
+    data = [mujoco.MjData(model), mujoco.MjData(model)]
+    initial_state = randn(2, nstate)
+
+    state_list, sensordata_list = rollout.rollout(model, data, initial_state, nstep=2)
+    for d in data:
+      mujoco.mj_resetData(model, d)
+    state_tuple, sensordata_tuple = rollout.rollout(
+        model, tuple(data), initial_state, nstep=2
+    )
+
+    np.testing.assert_array_equal(state_list, state_tuple)
+    np.testing.assert_array_equal(sensordata_list, sensordata_tuple)
+
   @parameterized.parameters(ALL_MODELS.keys())
   def test_one_rollout(self, model_name):
     nstep = 3  # number of timesteps
