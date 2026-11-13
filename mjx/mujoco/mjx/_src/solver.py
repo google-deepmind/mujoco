@@ -31,6 +31,18 @@ from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import OptionJAX
 from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
+import numpy as np
+
+
+def _is_elliptic(m: Model, d: Data) -> bool:
+  """Returns True for an elliptic cone with at least one contact of condim > 1.
+
+  Without such contacts there are no cone constraints, and the elliptic and
+  pyramidal formulations coincide.
+  """
+  return m.opt.cone == ConeType.ELLIPTIC and bool(
+      np.any(d._impl.contact.dim > 1)  # pyrefly: ignore[missing-attribute]
+  )
 
 
 class Context(PyTreeNode):
@@ -88,7 +100,7 @@ class Context(PyTreeNode):
     ma = support.mul_m(m, d, d.qacc)
     nv_0 = jp.zeros(m.nv)
     fri = 0.0
-    if m.opt.cone == ConeType.ELLIPTIC:
+    if _is_elliptic(m, d):
       friction = d._impl.contact.friction[d._impl.contact.dim > 1]
       dim = d._impl.contact.dim[d._impl.contact.dim > 1]
       mu = friction[:, 0] / jp.sqrt(m.opt.impratio)
@@ -176,7 +188,7 @@ class _LSPoint(PyTreeNode):
       qf += linear_pos * jp.array([f * (-0.5 * rf + ctx.Jaref), f * jv, z]).T
       quad = jp.where((linear_neg | linear_pos) & (f[:, None] > 0), qf, quad)
 
-    if m.opt.cone == ConeType.ELLIPTIC:
+    if _is_elliptic(m, d):
       mu, u0 = ctx.fri[:, 0], ctx.u[:, 0]
       n = u0 + alpha * v0
       w_par = u_par + alpha * v_norm
@@ -210,7 +222,7 @@ class _LSPoint(PyTreeNode):
       deriv_1 = jp.sum(
           dm * (jp.square(n1 - mu * t1) + (n / t - mu) * (-mu * det))
       )
-    elif m.opt.cone == ConeType.PYRAMIDAL:
+    elif m.opt.cone in (ConeType.PYRAMIDAL, ConeType.ELLIPTIC):
       quad = jax.vmap(jp.multiply)(quad, active)  # only active
       quad_total += jp.sum(quad, axis=0)
     else:
@@ -292,7 +304,7 @@ def _update_constraint(m: Model, d: Data, ctx: Context) -> Context:
     floss_cost += linear_pos * (-0.5 * r * f * f + f * ctx.Jaref)
     floss_cost = floss_cost.sum()
 
-  if m.opt.cone == ConeType.PYRAMIDAL:
+  if not _is_elliptic(m, d):
     efc_force = d._impl.efc_D * -ctx.Jaref * active + floss_force
     cost = 0.5 * jp.sum(d._impl.efc_D * ctx.Jaref * ctx.Jaref * active)
     dm, u, h = 0.0, 0.0, 0.0
@@ -402,7 +414,7 @@ def _update_gradient(m: Model, d: Data, ctx: Context) -> Context:
   if m.opt.solver == SolverType.CG:
     mgrad = smooth.solve_m(m, d, grad)
   elif m.opt.solver == SolverType.NEWTON:
-    if m.opt.cone == ConeType.ELLIPTIC:
+    if _is_elliptic(m, d):
       cm = jp.diag(d._impl.efc_D * ctx.active)
       efc_address = d._impl.contact.efc_address[d._impl.contact.dim > 1]
       dim = d._impl.contact.dim[d._impl.contact.dim > 1]
@@ -477,7 +489,7 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   quad = jp.stack((0.5 * ctx.Jaref * ctx.Jaref, jv * ctx.Jaref, 0.5 * jv * jv))
   quad = (quad * d._impl.efc_D).T
   u_perp_sq, v0, u_par, v_norm = 0.0, 0.0, 0.0, 0.0
-  if m.opt.cone == ConeType.ELLIPTIC:
+  if _is_elliptic(m, d):
     mask = d._impl.contact.dim > 1
     # complete vector quadratic (for bottom zone)
     efc_con, efc_fri = [], []
