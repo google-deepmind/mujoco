@@ -8091,6 +8091,58 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
   mj_deleteModel(copied_model);
 }
 
+// an attached model fits its geoms to meshes with its own fitaabb, as it does
+// when it is compiled on its own
+TEST_F(MujocoTest, AttachedModelFitsGeomsWithItsOwnSettings) {
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <compiler fitaabb="true"/>
+    <asset>
+      <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 2 0  0 0 3"/>
+    </asset>
+    <worldbody>
+      <body name="child">
+        <geom type="box" mesh="tetrahedron"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <frame name="frame"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  MjModelPtr expected =
+      LoadModelFromString(child_xml, error.data(), error.size());
+  ASSERT_THAT(expected.get(), NotNull()) << error.data();
+
+  mjSpec* child = mj_parseXMLString(child_xml, 0, error.data(), error.size());
+  ASSERT_THAT(child, NotNull()) << error.data();
+  mjSpec* spec = mj_parseXMLString(parent_xml, 0, error.data(), error.size());
+  ASSERT_THAT(spec, NotNull()) << error.data();
+  ASSERT_THAT(mjs_attach(mjs_findFrame(spec, "frame")->element,
+                         mjs_findBody(child, "child")->element, "child_", ""),
+              NotNull())
+      << mjs_getError(spec);
+
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(model->geom_size[i], expected->geom_size[i],
+                MjTol(1e-12, 1e-5));
+    EXPECT_NEAR(model->geom_pos[i], expected->geom_pos[i], MjTol(1e-12, 1e-5));
+  }
+
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+  mj_deleteSpec(child);
+}
+
 TEST_F(MujocoTest, DifferentOptionsInAttachedFrame) {
   static constexpr char xml_parent[] = R"(
   <mujoco>
