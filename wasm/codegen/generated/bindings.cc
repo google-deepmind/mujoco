@@ -1472,7 +1472,7 @@ void mj_angmomMat_wrapper(const MjModel& m, MjData& d, const val& mat, int body)
   mj_angmomMat(m.get(), d.get(), mat_.data(), body);
 }
 
-void mj_applyFT_wrapper(const MjModel& m, MjData& d, const NumberArray& force, const NumberArray& torque, const NumberArray& point, int body, const val& qfrc_target) {
+void mj_applyFT_wrapper(const MjModel& m, MjData& d, const NumberArrayOrNull& force, const NumberArrayOrNull& torque, const NumberArray& point, int body, const val& qfrc_target) {
   UNPACK_NULLABLE_ARRAY(mjtNum, force);
   UNPACK_NULLABLE_ARRAY(mjtNum, torque);
   UNPACK_ARRAY(mjtNum, point);
@@ -1653,13 +1653,13 @@ void mj_implicit_wrapper(const MjModel& m, MjData& d) {
   mj_implicit(m.get(), d.get());
 }
 
-void mj_initCtrlHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArray& times, const NumberArray& values) {
+void mj_initCtrlHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArrayOrNull& times, const NumberArray& values) {
   UNPACK_NULLABLE_ARRAY(mjtNum, times);
   UNPACK_ARRAY(mjtNum, values);
   mj_initCtrlHistory(m.get(), d.get(), id, times_.data(), values_.data());
 }
 
-void mj_initSensorHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArray& times, const NumberArray& values, mjtNum phase) {
+void mj_initSensorHistory_wrapper(const MjModel& m, MjData& d, int id, const NumberArrayOrNull& times, const NumberArray& values, mjtNum phase) {
   UNPACK_NULLABLE_ARRAY(mjtNum, times);
   UNPACK_ARRAY(mjtNum, values);
   mj_initSensorHistory(m.get(), d.get(), id, times_.data(), values_.data(), phase);
@@ -1840,7 +1840,7 @@ void mj_mulM2_wrapper(const MjModel& m, const MjData& d, const val& res, const N
   mj_mulM2(m.get(), d.get(), res_.data(), vec_.data());
 }
 
-void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtBool flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
+void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArrayOrNull& geomgroup, mjtBool flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
@@ -1915,7 +1915,7 @@ void mj_projectConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_projectConstraint(m.get(), d.get());
 }
 
-mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtBool flg_static, int bodyexclude, const val& geomid, const val& normal) {
+mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArrayOrNull& geomgroup, mjtBool flg_static, int bodyexclude, const val& geomid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
@@ -2835,7 +2835,7 @@ int mjs_isWarning_wrapper(MjSpec& s) {
   return mjs_isWarning(s.get());
 }
 
-std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, const StringOrNull& type, int dim, const StringOrNull& dof, const NumberArray& count, const NumberArray& cellcount, const NumberArray& spacing, const NumberArray& scale, double radius, double mass, double inertiabox, int equality, int rigid, int flatskin, int elastic2d, const NumberArray& pos, const NumberArray& quat, const NumberArray& origin, const StringOrNull& file, const MjVFS& vfs) {
+std::optional<MjsFlex> mjs_makeFlex_wrapper(MjsBody& body, const String& name, const StringOrNull& type, int dim, const StringOrNull& dof, const NumberArrayOrNull& count, const NumberArrayOrNull& cellcount, const NumberArrayOrNull& spacing, const NumberArrayOrNull& scale, double radius, double mass, double inertiabox, int equality, int rigid, int flatskin, int elastic2d, const NumberArrayOrNull& pos, const NumberArrayOrNull& quat, const NumberArrayOrNull& origin, const StringOrNull& file, const MjVFS& vfs) {
   CHECK_VAL(name);
   UNPACK_NULLABLE_ARRAY(int, count);
   UNPACK_NULLABLE_ARRAY(int, cellcount);
@@ -3097,7 +3097,7 @@ void mju_bandMulMatVec_wrapper(const val& res, const NumberArray& mat, const Num
   mju_bandMulMatVec(res_.data(), mat_.data(), vec_.data(), ntotal, nband, ndense, nvec, flg_sym);
 }
 
-int mju_boxQP_wrapper(const val& res, const val& R, const val& index, const NumberArray& H, const NumberArray& g, const NumberArray& lower, const NumberArray& upper) {
+int mju_boxQP_wrapper(const val& res, const val& R, const val& index, const NumberArray& H, const NumberArray& g, const NumberArrayOrNull& lower, const NumberArrayOrNull& upper) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_VALUE(mjtNum, R);
   UNPACK_NULLABLE_VALUE(int, index);
@@ -3602,10 +3602,10 @@ void mju_sparse2dense_wrapper(const val& res, const NumberArray& mat, int nr, in
   mju_sparse2dense(res_.data(), mat_.data(), nr, nc, rownnz_.data(), rowadr_.data(), colind_.data());
 }
 
-void mju_sqrMatTD_wrapper(const val& res, const NumberArray& mat, const NumberArray& diag, int nr, int nc) {
+void mju_sqrMatTD_wrapper(const val& res, const NumberArray& mat, const NumberArrayOrNull& diag, int nr, int nc) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
-  UNPACK_ARRAY(mjtNum, diag);
+  UNPACK_NULLABLE_ARRAY(mjtNum, diag);
   CHECK_SIZE(mat, nr * nc);
   CHECK_SIZE(res, nc * nc);
   CHECK_SIZE(diag, nr);
@@ -3613,7 +3613,7 @@ void mju_sqrMatTD_wrapper(const val& res, const NumberArray& mat, const NumberAr
 }
 
 mjtNum mju_standardNormal_wrapper(const val& num2) {
-  UNPACK_VALUE(mjtNum, num2);
+  UNPACK_NULLABLE_VALUE(mjtNum, num2);
   return mju_standardNormal(num2_.data());
 }
 
@@ -3686,7 +3686,7 @@ void mju_threadpool_wrapper(MjData& d, int nthread) {
   mju_threadpool(d.get(), nthread);
 }
 
-void mju_transformSpatial_wrapper(const val& res, const NumberArray& vec, int flg_force, const NumberArray& newpos, const NumberArray& oldpos, const NumberArray& rotnew2old) {
+void mju_transformSpatial_wrapper(const val& res, const NumberArray& vec, int flg_force, const NumberArray& newpos, const NumberArray& oldpos, const NumberArrayOrNull& rotnew2old) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtNum, newpos);
@@ -3833,7 +3833,7 @@ mjtNum mjv_frustumHeight_wrapper(const MjvScene& scn) {
   return mjv_frustumHeight(scn.get());
 }
 
-void mjv_initGeom_wrapper(MjvGeom& geom, int type, const NumberArray& size, const NumberArray& pos, const NumberArray& mat, const NumberArray& rgba) {
+void mjv_initGeom_wrapper(MjvGeom& geom, int type, const NumberArrayOrNull& size, const NumberArrayOrNull& pos, const NumberArrayOrNull& mat, const NumberArrayOrNull& rgba) {
   UNPACK_NULLABLE_ARRAY(mjtNum, size);
   UNPACK_NULLABLE_ARRAY(mjtNum, pos);
   UNPACK_NULLABLE_ARRAY(mjtNum, mat);
@@ -6871,6 +6871,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   // get an accessor by name (string) or id (number).
   emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
+  emscripten::register_type<NumberArrayOrNull>("number[]|null");
   emscripten::register_type<String>("string");
   emscripten::register_type<StringOrNull>("string|null");
 

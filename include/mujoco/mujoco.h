@@ -1237,6 +1237,7 @@ MJAPI void mju_mulMatTMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
                           int r1, int c1, int c2);
 
 // Set res = mat' * diag * mat if diag is not NULL, and res = mat' * mat otherwise.
+// Nullable: diag
 MJAPI void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc);
 
 // Coordinate transform of 6D motion or force vector in rotation:translation format.
@@ -1455,6 +1456,7 @@ MJAPI int mju_isBad(mjtNum x);
 MJAPI int mju_isZero(const mjtNum* vec, int n);
 
 // Standard normal random number generator (optional second number).
+// Nullable: num2
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
 
 // Convert from float to mjtNum.
