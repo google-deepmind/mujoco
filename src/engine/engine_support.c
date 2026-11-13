@@ -933,8 +933,10 @@ void mju_camIntrinsics(const mjModel* m, int camid,
       // intrinsic-based perspective camera
       *fx = intrinsic[0] / sensorsize[0] * width;
       *fy = intrinsic[1] / sensorsize[1] * height;
-      *cx = intrinsic[2] / sensorsize[0] * width;
-      *cy = intrinsic[3] / sensorsize[1] * height;
+      // principal is an offset from the image center, with the sign of the
+      // renderer's frustum (getFrustum in engine_vis_visualize.c)
+      *cx = width / 2.0 - intrinsic[2] / sensorsize[0] * width;
+      *cy = height / 2.0 - intrinsic[3] / sensorsize[1] * height;
     } else {
       // fovy-based perspective camera
       *fx = *fy = 0.5 / mju_tan(m->cam_fovy[camid] * mjPI / 360.0) * height;
@@ -943,11 +945,10 @@ void mju_camIntrinsics(const mjModel* m, int camid,
     }
     break;
   case mjPROJ_ORTHOGRAPHIC:
-    // orthographic: normalize pixel offset to [-1, 1]
-    *fx = (mjtNum)width / 2.0;
-    *fy = (mjtNum)height / 2.0;
-    *cx = *fx;
-    *cy = *fy;
+    // orthographic: square pixels, extent spans the image height
+    *fx = *fy = (mjtNum)height / 2.0;
+    *cx = (mjtNum)width / 2.0;
+    *cy = (mjtNum)height / 2.0;
     break;
   }
 
