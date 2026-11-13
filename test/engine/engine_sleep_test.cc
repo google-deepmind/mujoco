@@ -1599,6 +1599,56 @@ TEST_F(SleepTest, SubtreeSensorStaticParentWithAwakeChild) {
               MjTol(1e-12, 1e-5));
 }
 
+TEST_F(SleepTest, SubtreeSensorSleepStatesRespectSiblingBoundaries) {
+  string xml = R"(
+    <mujoco>
+      <option gravity="0 0 0"><flag sleep="enable" contact="disable"/></option>
+      <worldbody>
+        <geom name="world_geom" size=".01"/>
+        <body name="outer">
+          <body name="static"><body/><body><body/></body></body>
+          <body name="sleeping">
+  )";
+  constexpr int kDepth = 64;
+  for (int b = 0; b < kDepth; b++) {
+    xml += "<body>";
+  }
+  xml += R"(<body sleep="init"><joint/><geom size=".01"/></body>)";
+  for (int b = 0; b < kDepth; b++) {
+    xml += "</body>";
+  }
+  xml += R"(
+          </body>
+          <body name="empty"/>
+          <body name="awake"><body><joint/><geom size=".01"/></body></body>
+        </body>
+        <body name="outside"><joint/><geom size=".01"/></body>
+      </worldbody>
+      <sensor>
+  )";
+  for (const char* body : {"world", "outer", "static", "sleeping", "empty", "awake", "outside"}) {
+    xml += "<contact subtree1=\"" + string(body) + "\"/>";
+    xml += "<contact subtree1=\"" + string(body) + "\" geom2=\"world_geom\"/>";
+  }
+  xml += "</sensor></mujoco>";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+
+  // A static-only subtree stays awake without a reference object, but sleeps
+  // relative to another static object. Sleeping and awake trees remain distinct.
+  EXPECT_THAT(AsVector(data->body_awake, 2), ElementsAre(mjS_STATIC, mjS_STATIC));
+  constexpr mjtSleepState states[] = {
+      mjS_AWAKE, mjS_AWAKE, mjS_AWAKE, mjS_AWAKE,
+      mjS_AWAKE, mjS_ASLEEP, mjS_ASLEEP, mjS_ASLEEP,
+      mjS_AWAKE, mjS_ASLEEP, mjS_AWAKE, mjS_AWAKE, mjS_AWAKE, mjS_AWAKE};
+  for (int i = 0; i < model->nsensor; i++) {
+    SCOPED_TRACE(i);
+    EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_SENSOR, i), states[i]);
+  }
+}
+
 // mjTOPIC_SLEEP debug logging safely clamps buffer position when >300 trees
 // sleep and wake
 TEST_F(SleepTest, SleepTopicLoggingTruncatesSafelyWithManyTrees) {
