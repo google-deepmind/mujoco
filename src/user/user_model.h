@@ -47,6 +47,10 @@ class mjCModel_ : public mjsElement {
  protected:
   bool compiled;  // already compiled flag
 
+  // State addresses can survive a failed recompile even though compiled caches
+  // have been cleared. Temporary keyframe layouts must preserve these addresses.
+  bool state_layout_valid = false;
+
   // the keyframes were stored in the elements since the last compilation, because the tree
   // changed: a vector which a keyframe has now was given to it for the tree as it is now
   bool keysstored = false;
@@ -357,6 +361,10 @@ class mjCModel : public mjCModel_, private mjSpec {
                  const mjModel*     m,
                  const mjData*      d,
                  mjRecompileState*  state);
+
+  // Return a one-shot callback that restores the state layout of surviving
+  // elements if a recompilation fails.
+  std::function<void()> SaveRecompileLayout();
 
   // restore the previously saved state
   template <class T>
