@@ -100,6 +100,8 @@ mujoco_test(engine_util_misc_test)
 
 mujoco_test(engine_util_solve_test)
 
+mujoco_test(engine_util_simd_test)
+
 mujoco_test(engine_util_sparse_test)
 
 mujoco_test(engine_util_spatial_test)
