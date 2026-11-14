@@ -1221,6 +1221,48 @@ TEST_F(XMLReaderTest, IncludeAbsoluteMeshDirTest) {
   mj_deleteModel(model);
 }
 
+TEST_F(XMLReaderTest, IncludeAbsoluteFlexcompMeshDirTest) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <include file="model.xml"/>
+  </mujoco>
+  )";
+  static constexpr char model_xml[] = R"(
+  <mujoco>
+    <compiler meshdir="meshes/"/>
+    <worldbody>
+      <flexcomp name="flex" type="mesh" file="cube.obj" dim="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char cube[] = R"(
+  v -0.500000 -0.500000  0.500000
+  v  0.500000 -0.500000  0.500000
+  v -0.500000  0.500000  0.500000
+  v  0.500000  0.500000  0.500000
+  v -0.500000  0.500000 -0.500000
+  v  0.500000  0.500000 -0.500000
+  v -0.500000 -0.500000 -0.500000
+  v  0.500000 -0.500000 -0.500000
+  f 1 2 3
+  f 3 2 4)";
+
+  MockFilesystem fs("IncludeAbsoluteFlexcompMeshDirTest");
+  fs.AddFile("meshes/cube.obj", (const unsigned char*)cube, sizeof(cube));
+  fs.AddFile("model.xml", (const unsigned char*)model_xml, sizeof(model_xml));
+  fs.AddFile("scene.xml", (const unsigned char*)xml, sizeof(xml));
+  std::string scenepath = fs.FullPath("scene.xml");
+
+  std::array<char, 1024> error;
+  mjModel* model =
+      mj_loadXML(scenepath.c_str(), nullptr, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->nflex, 1);
+
+  mj_deleteModel(model);
+}
+
 TEST_F(XMLReaderTest, ParsePolycoef) {
   static constexpr char xml[] = R"(
   <mujoco>

@@ -1410,7 +1410,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, mjsFrame* frame, co
   ReadAttr(elem, "scale", 3, fcomp.scale, text);
   ReadAttr(elem, "mass", 1, &fcomp.mass, text);
   ReadAttr(elem, "inertiabox", 1, &fcomp.inertiabox, text);
-  auto maybe_file = ReadAttrFile(elem, "file", vfs, modelfiledir_);
+  auto maybe_file = ReadAttrFile(elem, "file", vfs, MeshDir());
   if (maybe_file.has_value()) {
     fcomp.file = std::move(maybe_file.value().Str());
   } else {
