@@ -10581,5 +10581,269 @@ TEST_F(MujocoTest, GetInStringVec) {
   mj_deleteSpec(spec);
 }
 
+// non-subtree element and tuple deletions clean up dependent tuples while
+// preserving unrelated and pre-existing broken tuples, and handle sole tuples
+TEST_F(MujocoTest, DeleteElementTupleCleanupAndSoleTuple) {
+  for (bool compiled : {false, true}) {
+    SCOPED_TRACE(compiled);
+    static constexpr char xml[] = R"(
+    <mujoco>
+      <worldbody>
+        <body>
+          <geom size=".1"/>
+          <site name="s_del"/>
+          <site name="s_keep"/>
+        </body>
+      </worldbody>
+      <custom>
+        <tuple name="t_outer">
+          <element objtype="tuple" objname="t_inner"/>
+        </tuple>
+        <tuple name="t_inner">
+          <element objtype="site" objname="s_del"/>
+        </tuple>
+        <tuple name="t_keep">
+          <element objtype="site" objname="s_keep"/>
+        </tuple>
+        <tuple name="t_self">
+          <element objtype="tuple" objname="t_self"/>
+        </tuple>
+      </custom>
+    </mujoco>)";
+
+    std::array<char, 1000> er;
+    mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+
+    if (compiled) {
+      mjModel* m = mj_compile(spec, nullptr);
+      ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+      mj_deleteModel(m);
+    } else {
+      // an uncompiled tuple with an already-unresolved reference is preserved
+      mjsTuple* broken = mjs_addTuple(spec);
+      mjs_setName(broken->element, "t_broken");
+      int objtype = mjOBJ_SITE;
+      double objprm = 0.0;
+      mjs_setInt(broken->objtype, &objtype, 1);
+      mjs_setStringVec(broken->objname, "missing_site");
+      mjs_setDouble(broken->objprm, &objprm, 1);
+    }
+
+    mjsElement* s_del = mjs_findElement(spec, mjOBJ_SITE, "s_del");
+    ASSERT_THAT(s_del, NotNull());
+    ASSERT_EQ(mjs_delete(spec, s_del), 0) << mjs_getError(spec);
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t_outer"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t_inner"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t_keep"), NotNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t_self"), NotNull());
+    if (!compiled) {
+      mjsElement* t_broken = mjs_findElement(spec, mjOBJ_TUPLE, "t_broken");
+      ASSERT_THAT(t_broken, NotNull());
+      ASSERT_EQ(mjs_delete(spec, t_broken), 0) << mjs_getError(spec);
+    }
+
+    // delete t_self while t_keep remains, then delete the sole remaining tuple
+    mjsElement* t_self = mjs_findElement(spec, mjOBJ_TUPLE, "t_self");
+    ASSERT_THAT(t_self, NotNull());
+    ASSERT_EQ(mjs_delete(spec, t_self), 0) << mjs_getError(spec);
+    mjsElement* t_keep = mjs_findElement(spec, mjOBJ_TUPLE, "t_keep");
+    ASSERT_THAT(t_keep, NotNull());
+    ASSERT_EQ(mjs_delete(spec, t_keep), 0) << mjs_getError(spec);
+    EXPECT_THAT(mjs_firstElement(spec, mjOBJ_TUPLE), IsNull());
+
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    EXPECT_EQ(model->ntuple, 0);
+    EXPECT_EQ(model->nsite, 1);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+// body, frame, and mjs_bodyToFrame deletions clean up subtree references,
+// orphaned plugins, and keyframes without redundant passes
+TEST_F(MujocoTest, DeleteBodyAndFrameWithPluginsKeyframesAndBodyToFrame) {
+  RegisterPassivePlugin();
+  for (bool compiled : {false, true}) {
+    SCOPED_TRACE(compiled);
+    static constexpr char xml[] = R"(
+    <mujoco>
+      <extension>
+        <plugin plugin="mujoco.test.passive">
+          <instance name="p_body"/>
+          <instance name="p_frame"/>
+          <instance name="p_shared"/>
+          <instance name="p_unused"/>
+          <instance name="p_b2f"/>
+        </plugin>
+      </extension>
+      <worldbody>
+        <body name="b_del">
+          <plugin plugin="mujoco.test.passive" instance="p_body"/>
+          <joint name="j_del" type="slide"/>
+          <geom size=".1"/>
+          <body>
+            <plugin plugin="mujoco.test.passive" instance="p_shared"/>
+            <geom size=".1"/>
+          </body>
+        </body>
+        <frame name="f_del">
+          <body name="b_frame">
+            <plugin plugin="mujoco.test.passive" instance="p_frame"/>
+            <joint name="j_frame" type="slide"/>
+            <geom size=".1"/>
+          </body>
+        </frame>
+        <body name="b_b2f" pos="1 0 0">
+          <plugin plugin="mujoco.test.passive" instance="p_b2f"/>
+          <site name="s_b2f"/>
+        </body>
+        <body name="b_keep">
+          <plugin plugin="mujoco.test.passive" instance="p_shared"/>
+          <joint name="j_keep" type="slide"/>
+          <geom size=".1"/>
+        </body>
+      </worldbody>
+      <actuator>
+        <motor name="act_frame" joint="j_frame"/>
+      </actuator>
+      <custom>
+        <tuple name="t_frame">
+          <element objtype="body" objname="b_frame"/>
+        </tuple>
+      </custom>
+      <keyframe>
+        <key qpos="0.1 0.2 0.3"/>
+      </keyframe>
+    </mujoco>)";
+
+    std::array<char, 1000> er;
+    mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+    ASSERT_THAT(spec, NotNull()) << er.data();
+    if (compiled) {
+      mjModel* m = mj_compile(spec, nullptr);
+      ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+      mj_deleteModel(m);
+    }
+
+    mjsBody* b_del = mjs_findBody(spec, "b_del");
+    ASSERT_THAT(b_del, NotNull());
+    ASSERT_EQ(mjs_delete(spec, b_del->element), 0) << mjs_getError(spec);
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_PLUGIN, "p_body"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_PLUGIN, "p_shared"), NotNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_PLUGIN, "p_unused"), NotNull());
+
+    mjsFrame* f_del = mjs_findFrame(spec, "f_del");
+    ASSERT_THAT(f_del, NotNull());
+    ASSERT_EQ(mjs_delete(spec, f_del->element), 0) << mjs_getError(spec);
+    EXPECT_THAT(mjs_findBody(spec, "b_frame"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_ACTUATOR, "act_frame"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_TUPLE, "t_frame"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_PLUGIN, "p_frame"), IsNull());
+
+    mjsBody* b_b2f = mjs_findBody(spec, "b_b2f");
+    ASSERT_THAT(b_b2f, NotNull());
+    mjsFrame* converted = mjs_bodyToFrame(&b_b2f);
+    ASSERT_THAT(converted, NotNull()) << mjs_getError(spec);
+    EXPECT_THAT(b_b2f, IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_PLUGIN, "p_b2f"), IsNull());
+    EXPECT_THAT(mjs_findElement(spec, mjOBJ_SITE, "s_b2f"), NotNull());
+
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+    EXPECT_EQ(model->nq, 1);
+    EXPECT_EQ(model->nu, 0);
+    EXPECT_EQ(model->ntuple, 0);
+    EXPECT_EQ(model->nplugin, 2);
+    EXPECT_MJTNUM_EQ(model->key_qpos[0], 0.3);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
+}
+
+// fast paths without tuples, plugins, or referencing lists preserve compiled
+// state and keyframes across mj_recompile
+TEST_F(MujocoTest, DeleteFastPathsPreserveRecompileState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="b0">
+        <joint name="j0" type="slide"/>
+        <geom type="mesh" mesh="tet"/>
+        <site name="s0"/>
+      </body>
+      <body name="b1">
+        <joint name="j1" type="slide"/>
+        <geom type="mesh" mesh="tet"/>
+        <site name="s1"/>
+      </body>
+      <body name="b_pure">
+        <geom size=".1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general name="a0" joint="j0" dyntype="filter"/>
+      <general name="a1" joint="j1" dyntype="filter"/>
+    </actuator>
+    <keyframe>
+      <key qpos="0.4 0.8" act="0.2 0.6"/>
+    </keyframe>
+  </mujoco>)";
+
+  std::array<char, 1000> er;
+  mjSpec* spec = mj_parseXMLString(xml, 0, er.data(), er.size());
+  ASSERT_THAT(spec, NotNull()) << er.data();
+  mjModel* model = mj_compile(spec, nullptr);
+  ASSERT_THAT(model, NotNull()) << mjs_getError(spec);
+  mjData* data = mj_makeData(model);
+  ASSERT_THAT(data, NotNull());
+
+  data->qpos[0] = 0.11;
+  data->qpos[1] = 0.22;
+  data->qvel[0] = 1.1;
+  data->qvel[1] = 2.2;
+  data->act[0] = 3.3;
+  data->act[1] = 4.4;
+  data->ctrl[0] = 5.5;
+  data->ctrl[1] = 6.6;
+
+  ASSERT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_SITE, "s0")), 0);
+  ASSERT_EQ(mjs_delete(spec, mjs_findElement(spec, mjOBJ_ACTUATOR, "a0")), 0);
+  ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "b0")->element), 0);
+
+  // also exercise the pure-subtree fast path when all referencing lists are
+  // empty
+  mjSpec* pure_spec = mj_makeSpec();
+  mjsBody* pure_world = mjs_findBody(pure_spec, "world");
+  mjsBody* pure_body = mjs_addBody(pure_world, nullptr);
+  mjs_addGeom(pure_body, nullptr)->size[0] = 0.1;
+  ASSERT_EQ(mjs_delete(pure_spec, pure_body->element), 0);
+  mjModel* pure_model = mj_compile(pure_spec, nullptr);
+  ASSERT_THAT(pure_model, NotNull()) << mjs_getError(pure_spec);
+  EXPECT_EQ(pure_model->nbody, 1);
+  mj_deleteModel(pure_model);
+  mj_deleteSpec(pure_spec);
+
+  ASSERT_EQ(mjs_delete(spec, mjs_findBody(spec, "b_pure")->element), 0);
+  ASSERT_EQ(mj_recompile(spec, nullptr, model, data), 0) << mjs_getError(spec);
+  ASSERT_EQ(model->nq, 1);
+  ASSERT_EQ(model->nu, 1);
+  ASSERT_EQ(model->na, 1);
+  EXPECT_MJTNUM_EQ(data->qpos[0], 0.22);
+  EXPECT_MJTNUM_EQ(data->qvel[0], 2.2);
+  EXPECT_MJTNUM_EQ(data->act[0], 4.4);
+  EXPECT_MJTNUM_EQ(data->ctrl[0], 6.6);
+  EXPECT_MJTNUM_EQ(model->key_qpos[0], 0.8);
+  EXPECT_MJTNUM_EQ(model->key_act[0], 0.6);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
 }  // namespace
 }  // namespace mujoco
