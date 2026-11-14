@@ -505,18 +505,18 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   int n = res_.size();
     """.strip(),
     "mju_decodePyramid": """
-  CHECK_SIZE(pyramid, 2 * mu_.size());
+  CHECK_SIZE(pyramid, mu_.size() ? 2 * mu_.size() : 1);
   CHECK_SIZE(force, mu_.size() + 1);
-  int dim = mu_.size();
+  int dim = force_.size();
     """.strip(),
     "mju_dot": """
   CHECK_SIZES(vec1, vec2);
   int n = vec1_.size();
     """.strip(),
     "mju_encodePyramid": """
-  CHECK_SIZE(pyramid, 2 * mu_.size());
+  CHECK_SIZE(pyramid, mu_.size() ? 2 * mu_.size() : 1);
   CHECK_SIZE(force, mu_.size() + 1);
-  int dim = mu_.size();
+  int dim = force_.size();
     """.strip(),
     "mju_eye": """
   CHECK_PERFECT_SQUARE(mat);
