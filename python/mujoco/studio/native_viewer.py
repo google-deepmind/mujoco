@@ -84,9 +84,22 @@ class NativeViewer(viewer_protocol.Viewer):
         gfx_mode,
     )
 
-    mjrf_ctx = mjrf.Context(
-        mjrf.ContextConfig(graphics_api=mjrf.GraphicsApi.GRAPHICS_API_OPENGL)
-    )
+    # Whether the renderer draws into a pixel buffer that the window presents
+    # (headless modes) or directly into the window's swap chain.
+    gfx_mode_int = self._window.GetGraphicsMode()
+    self._render_to_pixels = _viewer.render_to_pixels(gfx_mode_int)
+
+    mjrf_ctx = mjrf.Context(mjrf.ContextConfig(
+        graphics_api=mjrf.GraphicsApi(_viewer.graphics_api(gfx_mode_int)),
+        software_rendering=_viewer.software_rendering(gfx_mode_int),
+        # Filament needs the native window to create the swap chain it renders
+        # into. Pixel-buffer rendering doesn't use one.
+        native_window=(
+            None
+            if self._render_to_pixels
+            else self._window.GetNativeWindowHandle()
+        ),
+    ))
     self._renderer = renderer.Renderer(mjrf_ctx)
     self._model_scene = None
     self._imgui_bridge = _viewer.ImguiBridge(
@@ -134,12 +147,15 @@ class NativeViewer(viewer_protocol.Viewer):
     scale = self._window.GetScale()
 
     pixels = None
-    if _viewer.render_to_pixels(self._window.GetGraphicsMode()):
+    size = None
+    if self._render_to_pixels:
       pixels = np.empty((height, width, 3), dtype=np.uint8)
       self._renderer.target('out', pixels)
     else:
       width = int(width * scale)
       height = int(height * scale)
+      # The swap chain is sized by Filament, but the viewports into it are not.
+      size = (width, height)
 
     self._sync_renderer(self.model)
     self._imgui_bridge.update()
@@ -211,7 +227,7 @@ class NativeViewer(viewer_protocol.Viewer):
     )
 
     # ensure output buffer is of right size (in case of window resize)
-    self._renderer.render([scene_view, ux_view])
+    self._renderer.render([scene_view, ux_view], size=size)
     self._window.Present(pixels)
 
   def close(self) -> None:
