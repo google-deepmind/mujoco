@@ -3409,6 +3409,61 @@ TEST_F(UserObjectsTest, GeomInferredInertiaBoundInertia) {
   EXPECT_THAT(error, HasSubstr("inertia must have positive eigenvalues"));
 }
 
+// the inertial frame of a body without an inertial position, like a geomless
+// dummy body of a URDF model to which boundmass gives mass, is its body frame,
+// not its pose in the parent
+TEST_F(UserObjectsTest, UndefinedIposBoundMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <compiler boundmass="1" boundinertia="0.01"/>
+    <worldbody>
+      <body pos="1 0 2" quat="0 0 0 1">
+        <joint axis="0 1 0"/>
+        <body pos="0 0 -1">
+          <geom size="0.1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  EXPECT_EQ(m->body_mass[1], 1);
+  EXPECT_THAT(AsVector(m->body_ipos + 3, 3), ElementsAre(0, 0, 0));
+  EXPECT_THAT(AsVector(m->body_iquat + 4, 4), ElementsAre(1, 0, 0, 0));
+}
+
+// a body in a spec which gives its mass and inertia but not the position of its
+// inertial frame has its center of mass at its origin; the orientation of the
+// inertial frame which the spec gives is kept
+TEST_F(UserObjectsTest, UndefinedIposExplicitInertial) {
+  mjSpec* spec = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), nullptr);
+  body->pos[0] = 1;
+  body->pos[2] = 2;
+  body->quat[0] = 0;
+  body->quat[3] = 1;
+  mjs_addJoint(body, nullptr);
+  body->explicitinertial = 1;
+  body->mass = 1;
+  body->inertia[0] = 0.02;
+  body->inertia[1] = 0.03;
+  body->inertia[2] = 0.04;
+  body->iquat[0] = 0;
+  body->iquat[1] = 1;
+
+  mjModel* m = mj_compile(spec, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m->body_mass[1], 1);
+  EXPECT_THAT(AsVector(m->body_ipos + 3, 3), ElementsAre(0, 0, 0));
+  EXPECT_THAT(AsVector(m->body_iquat + 4, 4), ElementsAre(0, 1, 0, 0));
+
+  mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
 TEST_F(UserObjectsTest, PairUndefinedSolrefFromGeoms) {
   static constexpr char xml[] = R"(
   <mujoco>

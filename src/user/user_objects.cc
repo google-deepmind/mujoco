@@ -3433,11 +3433,8 @@ void mjCBody::Compile(void) {
   inertia_groups_[0] = compiler->inertiagrouprange[0];
   inertia_groups_[1] = compiler->inertiagrouprange[1];
 
-  // ipos undefined: copy body frame into inertial
-  if (!mjuu_defined(ipos[0])) {
-    mjuu_copyvec(ipos, pos, 3);
-    mjuu_copyvec(iquat, quat, 4);
-  }
+  // ipos undefined: inertial frame centered at the body origin, with the given orientation
+  if (!mjuu_defined(ipos[0])) { mjuu_setvec(ipos, 0, 0, 0); }
 
   // check and correct mass and inertia
   const double unadjusted[4] = {mass, inertia[0], inertia[1], inertia[2]};
