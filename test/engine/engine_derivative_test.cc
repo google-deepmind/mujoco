@@ -862,6 +862,40 @@ TEST_F(DerivativeTest, StepSkipEulerPolyDamping) {
   }
 }
 
+TEST_F(DerivativeTest, EulerPolyDampingWithoutControls) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="Euler" timestep="0.05" gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <joint name="j" type="slide"/>
+        <geom size="0.1" mass="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <dcmotor joint="j" motorconst="0" resistance="1" input="none" damping="0 1"/>
+    </actuator>
+  </mujoco>)";
+  MjModelPtr m = LoadModelFromString(xml);
+  ASSERT_THAT(m.get(), NotNull());
+  ASSERT_EQ(m->nu, 0);
+  ASSERT_EQ(m->nactuator, 1);
+  MjDataPtr d = MakeData(m), dp = MakeData(m), dm = MakeData(m);
+  d->qvel[0] = 2;
+  mjtNum eps = MjEps(1e-6, 1e-3);
+  mjtNum A[4];
+  mjd_transitionFD(m.get(), d.get(), eps, /*flg_centered=*/1, A, nullptr,
+                   nullptr, nullptr);
+
+  // compare the velocity column against full simulation steps
+  dp->qvel[0] = 2 + eps;
+  dm->qvel[0] = 2 - eps;
+  mj_step(m.get(), dp.get());
+  mj_step(m.get(), dm.get());
+  EXPECT_NEAR(A[1], (dp->qpos[0] - dm->qpos[0]) / (2 * eps), MjTol(1e-8, 1e-3));
+  EXPECT_NEAR(A[3], (dp->qvel[0] - dm->qvel[0]) / (2 * eps), MjTol(1e-8, 1e-3));
+}
+
 // Analytic transition matrices for linear dynamical system xn = A*x + B*u
 //   given modified mass matrix H (`data->qH`) and
 //   Ac = H^-1 [diag(-stiffness) diag(-damping)]
