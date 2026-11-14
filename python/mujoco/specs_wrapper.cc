@@ -100,9 +100,21 @@ mjVFS* MjSpec::AssetsVfs(mjVFS* vfs, std::optional<mjVFS>& local_vfs) {
 
     for (const auto& asset : assets) {
       std::string buffer_name = py::cast<std::string>(asset.first).c_str();
-      std::string buffer = py::cast<std::string>(asset.second);
+      py::object owner = py::reinterpret_borrow<py::object>(asset.second);
+      std::string converted;
+      const char* data;
+      std::size_t size;
+      if (PyBytes_Check(owner.ptr())) {
+        // The VFS owns a copy; borrow immutable bytes for that single copy.
+        data = PyBytes_AS_STRING(owner.ptr());
+        size = PyBytes_GET_SIZE(owner.ptr());
+      } else {
+        converted = py::cast<std::string>(owner);
+        data = converted.data();
+        size = converted.size();
+      }
       const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
+          vfs, buffer_name.c_str(), data, size);
       if (vfs_error) {
         mj_deleteVFS(vfs);
         if (vfs_error == 2) {

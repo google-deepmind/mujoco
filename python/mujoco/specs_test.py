@@ -53,6 +53,18 @@ class SpecsTest(absltest.TestCase):
     # This is needed for `create_tempdir()` calls below.
     flags.FLAGS.mark_as_parsed()
 
+  def test_asset_buffer_types(self):
+    obj = b'v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n'
+    for value in (obj, bytearray(obj), obj.decode()):
+      with self.subTest(type=type(value).__name__):
+        spec = mujoco.MjSpec.from_string(
+            '<mujoco><asset><mesh name="mesh" file="mesh.obj"/></asset></mujoco>'
+        )
+        spec.assets = {'mesh.obj': value}
+        model = spec.compile()
+        self.assertEqual(model.nmesh, 1)
+        self.assertEqual(model.nmeshvert, 4)
+
   def test_typing(self):
     spec = mujoco.MjSpec()
     self.assertIsInstance(spec, mujoco.MjSpec)
