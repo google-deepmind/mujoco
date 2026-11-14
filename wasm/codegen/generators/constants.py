@@ -735,6 +735,21 @@ FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
   CHECK_SIZE(res, nr);
   CHECK_SIZE(vec, nc);
     """.strip(),
+    "mju_raySkin": """
+  if (nface < 0 || nvert < 0) {
+    mju_error("[mju_raySkin] nface and nvert must be non-negative");
+  }
+  CHECK_SIZE(face, 3 * static_cast<int64_t>(nface));
+  CHECK_SIZE(vert, 3 * static_cast<int64_t>(nvert));
+  CHECK_SIZE(pnt, 3);
+  CHECK_SIZE(vec, 3);
+  CHECK_SIZE(vertid, 1);
+  for (std::size_t i = 0; i < face_.size(); ++i) {
+    if (face_.data()[i] < 0 || face_.data()[i] >= nvert) {
+      mju_error("[mju_raySkin] face vertex index out of bounds");
+    }
+  }
+    """.strip(),
     "mju_sparse2dense": """
   CHECK_SIZE(res, nr * nc);
   CHECK_SIZE(rownnz, nr);
