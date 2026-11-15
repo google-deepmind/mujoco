@@ -303,7 +303,7 @@ def create_mjcf(
     geom_pos: the default geom position in the body frame
     max_stacked_joints: maximum number of joints to stack for each body
     max_geoms_per_body: maximum number of geoms per body
-    max_contact_excludes: maximum number of bodies to exlude from contact
+    max_contact_excludes: maximum number of bodies to exclude from contact
     max_contact_pairs: maximum number of explicit geom contact pairs in the xml
     disable_actuation_pct: the percentage of time to disable actuation via the
       disable flag

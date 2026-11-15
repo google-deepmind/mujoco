@@ -109,7 +109,7 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_allclose(jacr, jacr_expected.T, atol=5e-5, rtol=5e-5)
 
   def test_xfrc_accumulate(self):
-    """Tests that xfrc_accumulate ouput matches mj_xfrcAccumulate."""
+    """Tests that xfrc_accumulate output matches mj_xfrcAccumulate."""
     np.random.seed(0)
 
     m = test_util.load_test_file('pendula.xml')
