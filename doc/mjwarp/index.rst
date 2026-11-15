@@ -886,6 +886,7 @@ rendering specific fields, and output buffers.
         splat_rgba=rgba,              # Optional (nsplat, 4) 3DGS RGB color and opacity
         splat_adr=adr,                # Optional (ngroup+1,) group offsets for per-world splats
         splat_group_id=group_id,      # Optional (nworld,) splat group index per world
+        backend="warp",               # Ray-casting backend ("warp" or "optix")
     )
 
 Each :class:`mjw.RenderContext <mujoco_warp.RenderContext>` parameter can be applied globally or per camera.
@@ -919,6 +920,22 @@ return processed and reshaped RGB and depth data for a given camera batched for 
     mjw.get_rgb(rc, rgb_data=rgb_data, cam_id=cam_index)
 
 A complete example can be found in the MJWarp tutorial |notebook| |open in colab|.
+
+OptiX Backend
+-------------
+
+An optional hardware-accelerated ray-casting backend built on `warp-optix <https://github.com/NVIDIA/warp-optix>`__ is
+available on NVIDIA RTX GPUs. Install with:
+
+.. code-block:: shell
+
+    pip install "mujoco-warp[optix]"
+
+Pass ``backend="optix"`` to :func:`mjw.create_render_context <mujoco_warp.create_render_context>` (or
+``--render_backend=optix`` to `testspeed`_). If OptiX is unavailable or the scene uses unsupported features (such as
+flexes or 3D Gaussian splats), MJWarp warns and falls back to ``backend="warp"``. OptiX rendering cannot be recorded
+into CUDA graphs (``wp.ScopedCapture``), and :func:`mjw.ray <mujoco_warp.ray>` / :func:`mjw.rays <mujoco_warp.rays>`
+require ``backend="warp"``.
 
 Benchmarks
 ----------
