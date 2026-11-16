@@ -41,8 +41,7 @@ set(EMCC_LINKER_FLAGS
     "-s EXPORT_NAME=loadMujoco"
     "-s DISABLE_EXCEPTION_CATCHING=0"
     "-fexceptions"
-    "-gsource-map"
-    "-g"
+    "--profiling-funcs"
 )
 if(MUJOCO_WASM_THREADS)
     list(APPEND EMCC_LINKER_FLAGS

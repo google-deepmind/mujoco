@@ -36,19 +36,15 @@
       "default": "./mt/mujoco.js"
     },
     "./mujoco.wasm": "./mujoco.wasm",
-    "./mujoco.wasm.map": "./mujoco.wasm.map",
-    "./mt/mujoco.wasm": "./mt/mujoco.wasm",
-    "./mt/mujoco.wasm.map": "./mt/mujoco.wasm.map"
+    "./mt/mujoco.wasm": "./mt/mujoco.wasm"
   },
   "files": [
     "mujoco.js",
     "mujoco.d.ts",
     "mujoco.wasm",
-    "mujoco.wasm.map",
     "mt/mujoco.js",
     "mt/mujoco.d.ts",
     "mt/mujoco.wasm",
-    "mt/mujoco.wasm.map",
     "README.md"
   ],
   "author": "Google DeepMind",
