@@ -785,29 +785,37 @@ class TimeSeries:
     data_shape = self.data.shape
     n_samples = len(self)
 
-    dt_stats = self.dt_statistics()
-    mean_dt = dt_stats["mean"]
-    min_dt = dt_stats["min"]
-    max_dt = dt_stats["max"]
+    # A single sample has no time intervals, and dt_statistics() raises.
+    if n_samples < 2:
+      dt_desc = "dt=n/a (single sample)"
+    else:
+      dt_stats = self.dt_statistics()
+      mean_dt = dt_stats["mean"]
+      min_dt = dt_stats["min"]
+      max_dt = dt_stats["max"]
 
-    is_uniform = dt_stats["std"] / mean_dt < 0.01  # Less than 1% variation.
+      is_uniform = dt_stats["std"] / mean_dt < 0.01  # Less than 1% variation.
+      dt_desc = f"dt={mean_dt:.3g}" + (
+          " (uniform)"
+          if is_uniform
+          else f" (min={min_dt:.3g}, max={max_dt:.3g})"
+      )
 
     # Calculate data range (min/max values).
-    data_min = np.min(self.data)
-    data_max = np.max(self.data)
-    data_range = f"[{data_min:.3g}, {data_max:.3g}]"
+    if self.data.size == 0:
+      # Zero-column data (no signals) has no values to take a range of.
+      data_range = "n/a (no data columns)"
+    else:
+      data_min = np.min(self.data)
+      data_max = np.max(self.data)
+      data_range = f"[{data_min:.3g}, {data_max:.3g}]"
 
     parts = [
         "TimeSeries(",
         f"  samples={n_samples}",
         f"  shape={data_shape}",
         f"  time_range=[{t_start:.3g}, {t_end:.3g}] (duration={duration:.3g})",
-        f"  dt={mean_dt:.3g}"
-        + (
-            " (uniform)"
-            if is_uniform
-            else f" (min={min_dt:.3g}, max={max_dt:.3g})"
-        ),
+        f"  {dt_desc}",
         f"  data_range={data_range}",
         f"  signal_mapping={self.signal_mapping}",
         ")",

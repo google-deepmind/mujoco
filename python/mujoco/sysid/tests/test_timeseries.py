@@ -89,6 +89,22 @@ def test_zero_column_data():
   assert ts.data.shape == (3, 0)
 
 
+def test_repr_single_sample():
+  ts = TimeSeries(np.array([0.5]), np.array([[1.0, 2.0]]))
+  text = repr(ts)
+  assert "samples=1" in text
+  assert "dt=n/a" in text
+
+
+def test_repr_zero_column_data():
+  ts = TimeSeries(times=np.array([0.0, 1.0, 2.0]), data=np.empty((3, 0)))
+  assert "data_range=n/a" in repr(ts)
+
+
+def test_repr_multiple_samples(scalar_ts):
+  assert "(uniform)" in repr(scalar_ts)
+
+
 def test_save_and_load(scalar_ts, multi_ts, tmp_path):
   """Saving to .npz and loading back recovers identical times and data."""
   path = tmp_path / "test.npz"
