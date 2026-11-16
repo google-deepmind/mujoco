@@ -1,0 +1,156 @@
+<mujoco>
+  <asset>
+    <texture name="tex_auto_00" rgb1="0.0 0.0 0.0" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_01" rgb1="0.1 0.1 0.1" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_02" rgb1="0.2 0.2 0.2" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_03" rgb1="0.3 0.3 0.3" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_04" rgb1="0.4 0.4 0.4" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_05" rgb1="0.5 0.5 0.5" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_06" rgb1="0.6 0.6 0.6" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_07" rgb1="0.7 0.7 0.7" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_08" rgb1="0.8 0.8 0.8" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_09" rgb1="0.9 0.9 0.9" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_auto_10" rgb1="1.0 1.0 1.0" colorspace="auto" type="2d" builtin="flat" width="2" height="2"/>
+
+    <texture name="tex_srgb_00" rgb1="0.0 0.0 0.0" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_01" rgb1="0.1 0.1 0.1" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_02" rgb1="0.2 0.2 0.2" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_03" rgb1="0.3 0.3 0.3" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_04" rgb1="0.4 0.4 0.4" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_05" rgb1="0.5 0.5 0.5" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_06" rgb1="0.6 0.6 0.6" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_07" rgb1="0.7 0.7 0.7" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_08" rgb1="0.8 0.8 0.8" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_09" rgb1="0.9 0.9 0.9" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_srgb_10" rgb1="1.0 1.0 1.0" colorspace="sRGB" type="2d" builtin="flat" width="2" height="2"/>
+
+    <texture name="tex_lin_00" rgb1="0.0 0.0 0.0" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_01" rgb1="0.1 0.1 0.1" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_02" rgb1="0.2 0.2 0.2" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_03" rgb1="0.3 0.3 0.3" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_04" rgb1="0.4 0.4 0.4" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_05" rgb1="0.5 0.5 0.5" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_06" rgb1="0.6 0.6 0.6" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_07" rgb1="0.7 0.7 0.7" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_08" rgb1="0.8 0.8 0.8" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_09" rgb1="0.9 0.9 0.9" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+    <texture name="tex_lin_10" rgb1="1.0 1.0 1.0" colorspace="linear" type="2d" builtin="flat" width="2" height="2"/>
+
+    <material name="rgba_00" rgba="0.0 0.0 0.0 1.0"/>
+    <material name="rgba_01" rgba="0.1 0.1 0.1 1.0"/>
+    <material name="rgba_02" rgba="0.2 0.2 0.2 1.0"/>
+    <material name="rgba_03" rgba="0.3 0.3 0.3 1.0"/>
+    <material name="rgba_04" rgba="0.4 0.4 0.4 1.0"/>
+    <material name="rgba_05" rgba="0.5 0.5 0.5 1.0"/>
+    <material name="rgba_06" rgba="0.6 0.6 0.6 1.0"/>
+    <material name="rgba_07" rgba="0.7 0.7 0.7 1.0"/>
+    <material name="rgba_08" rgba="0.8 0.8 0.8 1.0"/>
+    <material name="rgba_09" rgba="0.9 0.9 0.9 1.0"/>
+    <material name="rgba_10" rgba="1.0 1.0 1.0 1.0"/>
+
+    <material name="auto_00" texture="tex_auto_00"/>
+    <material name="auto_01" texture="tex_auto_01"/>
+    <material name="auto_02" texture="tex_auto_02"/>
+    <material name="auto_03" texture="tex_auto_03"/>
+    <material name="auto_04" texture="tex_auto_04"/>
+    <material name="auto_05" texture="tex_auto_05"/>
+    <material name="auto_06" texture="tex_auto_06"/>
+    <material name="auto_07" texture="tex_auto_07"/>
+    <material name="auto_08" texture="tex_auto_08"/>
+    <material name="auto_09" texture="tex_auto_09"/>
+    <material name="auto_10" texture="tex_auto_10"/>
+
+    <material name="lin_00" texture="tex_lin_00"/>
+    <material name="lin_01" texture="tex_lin_01"/>
+    <material name="lin_02" texture="tex_lin_02"/>
+    <material name="lin_03" texture="tex_lin_03"/>
+    <material name="lin_04" texture="tex_lin_04"/>
+    <material name="lin_05" texture="tex_lin_05"/>
+    <material name="lin_06" texture="tex_lin_06"/>
+    <material name="lin_07" texture="tex_lin_07"/>
+    <material name="lin_08" texture="tex_lin_08"/>
+    <material name="lin_09" texture="tex_lin_09"/>
+    <material name="lin_10" texture="tex_lin_10"/>
+
+    <material name="srgb_00" texture="tex_srgb_00"/>
+    <material name="srgb_01" texture="tex_srgb_01"/>
+    <material name="srgb_02" texture="tex_srgb_02"/>
+    <material name="srgb_03" texture="tex_srgb_03"/>
+    <material name="srgb_04" texture="tex_srgb_04"/>
+    <material name="srgb_05" texture="tex_srgb_05"/>
+    <material name="srgb_06" texture="tex_srgb_06"/>
+    <material name="srgb_07" texture="tex_srgb_07"/>
+    <material name="srgb_08" texture="tex_srgb_08"/>
+    <material name="srgb_09" texture="tex_srgb_09"/>
+    <material name="srgb_10" texture="tex_srgb_10"/>
+
+    <material name="red"    rgba="1.0 0.0 0.0 1.0"/>
+    <material name="green"  rgba="0.0 1.0 0.0 1.0"/>
+    <material name="blue"   rgba="0.0 0.0 1.0 1.0"/>
+    <material name="yellow" rgba="1.0 1.0 0.0 1.0"/>
+  </asset>
+
+  <worldbody>
+    <camera name="default" pos="-0.5 0.800 3" xyaxes="0.002 1.000 0.000 -1.000 0.0 0.0"/>
+
+    <body>
+      <!-- red -->
+      <geom name="box_rgba_00" type="box" size="0.1 0.1 0.1" pos="-1.0 0.0 0.1" material="rgba_00"/>
+      <geom name="box_rgba_01" type="box" size="0.1 0.1 0.1" pos="-1.0 0.2 0.1" material="rgba_01"/>
+      <geom name="box_rgba_02" type="box" size="0.1 0.1 0.1" pos="-1.0 0.4 0.1" material="rgba_02"/>
+      <geom name="box_rgba_03" type="box" size="0.1 0.1 0.1" pos="-1.0 0.6 0.1" material="rgba_03"/>
+      <geom name="box_rgba_04" type="box" size="0.1 0.1 0.1" pos="-1.0 0.8 0.1" material="rgba_04"/>
+      <geom name="box_rgba_05" type="box" size="0.1 0.1 0.1" pos="-1.0 1.0 0.1" material="rgba_05"/>
+      <geom name="box_rgba_06" type="box" size="0.1 0.1 0.1" pos="-1.0 1.2 0.1" material="rgba_06"/>
+      <geom name="box_rgba_07" type="box" size="0.1 0.1 0.1" pos="-1.0 1.4 0.1" material="rgba_07"/>
+      <geom name="box_rgba_08" type="box" size="0.1 0.1 0.1" pos="-1.0 1.6 0.1" material="rgba_08"/>
+      <geom name="box_rgba_09" type="box" size="0.1 0.1 0.1" pos="-1.0 1.8 0.1" material="rgba_09"/>
+      <geom name="box_rgba_10" type="box" size="0.1 0.1 0.1" pos="-1.0 2.0 0.1" material="rgba_10"/>
+
+      <!-- green -->
+      <geom name="box_auto_00" type="box" size="0.1 0.1 0.1" pos="-0.8 0.0 0.1" material="auto_00"/>
+      <geom name="box_auto_01" type="box" size="0.1 0.1 0.1" pos="-0.8 0.2 0.1" material="auto_01"/>
+      <geom name="box_auto_02" type="box" size="0.1 0.1 0.1" pos="-0.8 0.4 0.1" material="auto_02"/>
+      <geom name="box_auto_03" type="box" size="0.1 0.1 0.1" pos="-0.8 0.6 0.1" material="auto_03"/>
+      <geom name="box_auto_04" type="box" size="0.1 0.1 0.1" pos="-0.8 0.8 0.1" material="auto_04"/>
+      <geom name="box_auto_05" type="box" size="0.1 0.1 0.1" pos="-0.8 1.0 0.1" material="auto_05"/>
+      <geom name="box_auto_06" type="box" size="0.1 0.1 0.1" pos="-0.8 1.2 0.1" material="auto_06"/>
+      <geom name="box_auto_07" type="box" size="0.1 0.1 0.1" pos="-0.8 1.4 0.1" material="auto_07"/>
+      <geom name="box_auto_08" type="box" size="0.1 0.1 0.1" pos="-0.8 1.6 0.1" material="auto_08"/>
+      <geom name="box_auto_09" type="box" size="0.1 0.1 0.1" pos="-0.8 1.8 0.1" material="auto_09"/>
+      <geom name="box_auto_10" type="box" size="0.1 0.1 0.1" pos="-0.8 2.0 0.1" material="auto_10"/>
+
+      <!-- blue -->
+      <geom name="box_lin_00" type="box" size="0.1 0.1 0.1" pos="-0.6 0.0 0.1" material="lin_00"/>
+      <geom name="box_lin_01" type="box" size="0.1 0.1 0.1" pos="-0.6 0.2 0.1" material="lin_01"/>
+      <geom name="box_lin_02" type="box" size="0.1 0.1 0.1" pos="-0.6 0.4 0.1" material="lin_02"/>
+      <geom name="box_lin_03" type="box" size="0.1 0.1 0.1" pos="-0.6 0.6 0.1" material="lin_03"/>
+      <geom name="box_lin_04" type="box" size="0.1 0.1 0.1" pos="-0.6 0.8 0.1" material="lin_04"/>
+      <geom name="box_lin_05" type="box" size="0.1 0.1 0.1" pos="-0.6 1.0 0.1" material="lin_05"/>
+      <geom name="box_lin_06" type="box" size="0.1 0.1 0.1" pos="-0.6 1.2 0.1" material="lin_06"/>
+      <geom name="box_lin_07" type="box" size="0.1 0.1 0.1" pos="-0.6 1.4 0.1" material="lin_07"/>
+      <geom name="box_lin_08" type="box" size="0.1 0.1 0.1" pos="-0.6 1.6 0.1" material="lin_08"/>
+      <geom name="box_lin_09" type="box" size="0.1 0.1 0.1" pos="-0.6 1.8 0.1" material="lin_09"/>
+      <geom name="box_lin_10" type="box" size="0.1 0.1 0.1" pos="-0.6 2.0 0.1" material="lin_10"/>
+
+      <!-- yellow -->
+      <geom name="box_srgb_00" type="box" size="0.1 0.1 0.1" pos="-0.4 0.0 0.1" material="srgb_00"/>
+      <geom name="box_srgb_01" type="box" size="0.1 0.1 0.1" pos="-0.4 0.2 0.1" material="srgb_01"/>
+      <geom name="box_srgb_02" type="box" size="0.1 0.1 0.1" pos="-0.4 0.4 0.1" material="srgb_02"/>
+      <geom name="box_srgb_03" type="box" size="0.1 0.1 0.1" pos="-0.4 0.6 0.1" material="srgb_03"/>
+      <geom name="box_srgb_04" type="box" size="0.1 0.1 0.1" pos="-0.4 0.8 0.1" material="srgb_04"/>
+      <geom name="box_srgb_05" type="box" size="0.1 0.1 0.1" pos="-0.4 1.0 0.1" material="srgb_05"/>
+      <geom name="box_srgb_06" type="box" size="0.1 0.1 0.1" pos="-0.4 1.2 0.1" material="srgb_06"/>
+      <geom name="box_srgb_07" type="box" size="0.1 0.1 0.1" pos="-0.4 1.4 0.1" material="srgb_07"/>
+      <geom name="box_srgb_08" type="box" size="0.1 0.1 0.1" pos="-0.4 1.6 0.1" material="srgb_08"/>
+      <geom name="box_srgb_09" type="box" size="0.1 0.1 0.1" pos="-0.4 1.8 0.1" material="srgb_09"/>
+      <geom name="box_srgb_10" type="box" size="0.1 0.1 0.1" pos="-0.4 2.0 0.1" material="srgb_10"/>
+
+      <!-- red=rgba, green=auto, blue=lin, yellow=srgb -->
+      <geom name="box_r" type="box" size="0.1 0.1 0.1" pos="-1.0 -0.4 0.1" material="red"/>
+      <geom name="box_g" type="box" size="0.1 0.1 0.1" pos="-0.8 -0.4 0.1" material="green"/>
+      <geom name="box_b" type="box" size="0.1 0.1 0.1" pos="-0.6 -0.4 0.1" material="blue"/>
+      <geom name="box_y" type="box" size="0.1 0.1 0.1" pos="-0.4 -0.4 0.1" material="yellow"/>
+    </body>
+  </worldbody>
+</mujoco>
