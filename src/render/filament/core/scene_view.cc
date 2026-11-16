@@ -64,50 +64,56 @@ using filament::math::mat3f;
 using filament::math::mat4;
 using filament::math::mat4f;
 
-static constexpr filament::color::ColorSpace REC709_LINEAR_D65 =
-    filament::color::Rec709 - filament::color::Linear -
-    filament::color::D65;
-static constexpr filament::color::ColorSpace REC709_SRGB_D65 =
-    filament::color::Rec709 - filament::color::sRGB -
-    filament::color::D65;
+static filament::ColorGrading* BuildFilamentColorGrading(
+    filament::Engine* engine, const mjrfColorGradingOpts& opts) {
+  static constexpr filament::color::ColorSpace REC709_LINEAR_D65 =
+      filament::color::Rec709 - filament::color::Linear - filament::color::D65;
+  static constexpr filament::color::ColorSpace REC709_SRGB_D65 =
+      filament::color::Rec709 - filament::color::sRGB - filament::color::D65;
 
-static std::unique_ptr<filament::ToneMapper> CreateToneMapper(mjrToneMapper type) {
-  filament::ToneMapper* ptr = nullptr;
-  switch (type) {
+  filament::color::ColorSpace output_color_space = REC709_SRGB_D65;
+  if (opts.output_color_space == mjCOLORSPACE_LINEAR) {
+    output_color_space = REC709_LINEAR_D65;
+  }
+
+  const float3 out_red = ReadFloat3(opts.out_red);
+  const float3 out_green = ReadFloat3(opts.out_green);
+  const float3 out_blue = ReadFloat3(opts.out_blue);
+  const float4 shadows = ReadFloat4(opts.shadows);
+  const float4 midtones = ReadFloat4(opts.midtones);
+  const float4 highlights = ReadFloat4(opts.highlights);
+  const float4 ranges = ReadFloat4(opts.tonal_ranges);
+  const float3 slope = ReadFloat3(opts.slope);
+  const float3 offset = ReadFloat3(opts.offset);
+  const float3 power = ReadFloat3(opts.power);
+  const float3 shadow_gamma = ReadFloat3(opts.shadow_gamma);
+  const float3 mid_point = ReadFloat3(opts.mid_point);
+  const float3 highlight_scale = ReadFloat3(opts.highlight_scale);
+
+  std::unique_ptr<filament::ToneMapper> tone_mapper;
+  switch (opts.tone_mapper) {
     case mjTONE_MAPPER_PBR_NEUTRAL:
-      ptr = new filament::PBRNeutralToneMapper();
+      tone_mapper = std::make_unique<filament::PBRNeutralToneMapper>();
       break;
     case mjTONE_MAPPER_ACES:
-      ptr = new filament::ACESToneMapper();
+      tone_mapper = std::make_unique<filament::ACESToneMapper>();
       break;
     case mjTONE_MAPPER_ACES_LEGACY:
-      ptr = new filament::ACESLegacyToneMapper();
+      tone_mapper = std::make_unique<filament::ACESLegacyToneMapper>();
       break;
     case mjTONE_MAPPER_FILMIC:
-      ptr = new filament::FilmicToneMapper();
+      tone_mapper = std::make_unique<filament::FilmicToneMapper>();
       break;
     case mjTONE_MAPPER_LINEAR:
-      ptr = new filament::LinearToneMapper();
+      tone_mapper = std::make_unique<filament::LinearToneMapper>();
       break;
     default:
-      mju_error("Unsupported tone mapper type");
-  }
-  return std::unique_ptr<filament::ToneMapper>(ptr);
-}
-
-static filament::ColorGrading::Builder ToBuilder(
-    const mjrfColorGradingOpts& opts) {
-  filament::color::ColorSpace output_color_space = REC709_SRGB_D65;
-  switch (opts.output_color_space) {
-    case mjCOLORSPACE_LINEAR:
-      output_color_space = REC709_LINEAR_D65;
-      break;
-    case mjCOLORSPACE_SRGB:
-      output_color_space = REC709_SRGB_D65;
-      break;
+      mju_error("Unsupported tone mapper type %d", opts.tone_mapper);
+      return nullptr;
   }
 
   return filament::ColorGrading::Builder()
+      .toneMapper(tone_mapper.get())
       .outputColorSpace(output_color_space)
       .exposure(opts.exposure)
       .nightAdaptation(opts.night_adaptation)
@@ -115,15 +121,11 @@ static filament::ColorGrading::Builder ToBuilder(
       .vibrance(opts.vibrance)
       .saturation(opts.saturation)
       .whiteBalance(opts.temperature, opts.tint)
-      .channelMixer(ReadFloat3(opts.out_red), ReadFloat3(opts.out_green),
-                    ReadFloat3(opts.out_blue))
-      .shadowsMidtonesHighlights(
-          ReadFloat4(opts.shadows), ReadFloat4(opts.midtones),
-          ReadFloat4(opts.highlights), ReadFloat4(opts.tonal_ranges))
-      .slopeOffsetPower(ReadFloat3(opts.slope), ReadFloat3(opts.offset),
-                        ReadFloat3(opts.power))
-      .curves(ReadFloat3(opts.shadow_gamma), ReadFloat3(opts.mid_point),
-              ReadFloat3(opts.highlight_scale));
+      .channelMixer(out_red, out_green, out_blue)
+      .shadowsMidtonesHighlights(shadows, midtones, highlights, ranges)
+      .slopeOffsetPower(slope, offset, power)
+      .curves(shadow_gamma, mid_point, highlight_scale)
+      .build(*engine);
 }
 
 static filament::QualityLevel ToFilamentQuality(mjrQuality quality) {
@@ -513,10 +515,7 @@ void SceneView::Render(filament::Renderer* renderer,
 }
 
 void SceneView::SetColorGradingOptions(const mjrfColorGradingOpts& opts) {
-  auto tone_mapper = CreateToneMapper((mjrToneMapper)opts.tone_mapper);
-  auto color_grading = ToBuilder(opts)
-                           .toneMapper(tone_mapper.get())
-                           .build(*GetEngine());
+  auto color_grading = BuildFilamentColorGrading(GetEngine(), opts);
   main_view_->setColorGrading(color_grading);
   if (color_grading_) {
     GetEngine()->destroy(color_grading_);
