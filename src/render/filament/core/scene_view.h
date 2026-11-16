@@ -106,8 +106,11 @@ class SceneView : public mjrfScene {
   void Apply(const mjrfAntialiasingOpts& opts);
   void Apply(const mjrfBloomOpts& opts);
   void Apply(const mjrfColorGradingOpts& opts);
+  void Apply(const mjrfDepthOfFieldOpts& opts);
+  void Apply(const mjrfDitheringOpts& opts);
   void Apply(const mjrfFogOpts& opts);
   void Apply(const mjrfHazeOpts& opts);
+  void Apply(const mjrfHeadlightOpts& opts);
   void Apply(const mjrfMaterialOpts& opts);
   void Apply(const mjrfShadowOpts& opts);
   void Apply(const mjrfVignetteOpts& opts);

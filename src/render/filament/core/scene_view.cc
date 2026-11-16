@@ -589,12 +589,17 @@ void SceneView::Configure(const mjModel* model) {
     opts.ambient_occlusion.upsampling = mjQUALITY_ULTRA;
   }
 
+  main_view_->setPostProcessingEnabled(opts.post_processing);
+
   Apply(opts.ambient_occlusion);
   Apply(opts.antialiasing);
   Apply(opts.bloom);
   Apply(opts.color_grading);
+  Apply(opts.depth_of_field);
+  Apply(opts.dithering);
   Apply(opts.fog);
   Apply(opts.haze);
+  Apply(opts.headlight);
   Apply(opts.material);
   Apply(opts.shadow);
   Apply(opts.vignette);
@@ -603,6 +608,12 @@ void SceneView::Configure(const mjModel* model) {
 void SceneView::Apply(const mjrfAmbientOcclusionOpts& opts) {
   auto ao = main_view_->getAmbientOcclusionOptions();
   ao.enabled = opts.type != mjAMBIENT_OCCLUSION_TYPE_NONE;
+  ao.aoType = opts.type == mjAMBIENT_OCCLUSION_TYPE_SCALABLE
+                  ? filament::AmbientOcclusionOptions::AmbientOcclusionType::SAO
+                  : filament::AmbientOcclusionOptions::AmbientOcclusionType::GTAO;
+  ao.radius = opts.radius;
+  ao.intensity = opts.strength;
+  ao.power = opts.power;
   ao.bentNormals = opts.bent_normals;
   ao.ssct.enabled = opts.ssct_enable;
   ao.quality = ToFilamentQuality((mjrQuality)opts.quality);
@@ -612,7 +623,17 @@ void SceneView::Apply(const mjrfAmbientOcclusionOpts& opts) {
 }
 
 void SceneView::Apply(const mjrfAntialiasingOpts& opts) {
-  SetMsaa(opts.msaa_samples);
+  main_view_->setAntiAliasing(opts.fxaa_enable ? filament::AntiAliasing::FXAA
+                                               : filament::AntiAliasing::NONE);
+
+  auto maa = main_view_->getMultiSampleAntiAliasingOptions();
+  maa.enabled = opts.msaa_samples > 1;
+  maa.sampleCount = std::clamp(opts.msaa_samples, 1, 255);
+  main_view_->setMultiSampleAntiAliasingOptions(maa);
+
+  auto taa = main_view_->getTemporalAntiAliasingOptions();
+  taa.enabled = opts.tsaa_enable;
+  main_view_->setTemporalAntiAliasingOptions(taa);
 }
 
 void SceneView::Apply(const mjrfBloomOpts& opts) {
@@ -621,11 +642,39 @@ void SceneView::Apply(const mjrfBloomOpts& opts) {
   bloom.strength = opts.strength;
   bloom.quality = ToFilamentQuality((mjrQuality)opts.quality);
   bloom.levels = opts.levels;
+  bloom.lensFlare = opts.lens_flare;
+  bloom.starburst = opts.starburst;
   main_view_->setBloomOptions(bloom);
 }
 
 void SceneView::Apply(const mjrfColorGradingOpts& opts) {
   SetColorGradingOptions(opts);
+}
+
+void SceneView::Apply(const mjrfDepthOfFieldOpts& opts) {
+  auto dof = main_view_->getDepthOfFieldOptions();
+  dof.enabled = opts.enable;
+  dof.cocScale = opts.blur_strength;
+  dof.maxApertureDiameter = opts.max_aperture_diameter;
+  dof.cocAspectRatio = opts.aspect_ratio;
+  focus_distance_ = opts.focus_distance;
+  main_view_->setDepthOfFieldOptions(dof);
+}
+
+void SceneView::Apply(const mjrfDitheringOpts& opts) {
+  auto dither = main_view_->getDithering();
+  switch (opts.type) {
+    case mjDITHERING_TYPE_NONE:
+      dither = filament::Dithering::NONE;
+      break;
+    case mjDITHERING_TYPE_TEMPORAL:
+      dither = filament::Dithering::TEMPORAL;
+      break;
+    default:
+      mju_error("Unknown dithering type: %d", opts.type);
+      break;
+  }
+  main_view_->setDithering(dither);
 }
 
 void SceneView::Apply(const mjrfFogOpts& opts) {
@@ -642,9 +691,25 @@ void SceneView::Apply(const mjrfFogOpts& opts) {
 }
 
 void SceneView::Apply(const mjrfHazeOpts& opts) {
-  SetHaze(opts.ratio, opts.color);
+  mjrfMaterial material = haze_->GetMaterial();
+  material.haze_ratio = std::clamp(opts.ratio, 0.0f, 1.0f);
+  material.color[0] = opts.color[0];
+  material.color[1] = opts.color[1];
+  material.color[2] = opts.color[2];
+  material.color[3] = opts.color[3];
+  haze_->UpdateMaterial(material);
   const Builtins::Slices nslice{opts.slices};
   haze_->SetMesh(object_mgr_->GetBuiltins()->Haze(nslice));
+}
+
+void SceneView::Apply(const mjrfHeadlightOpts& opts) {
+  if (opts.enable) {
+    headlight_->SetColor(float3{1.0f, 1.0f, 1.0f});
+    headlight_->SetIntensity(opts.intensity);
+    headlight_->Enable();
+  } else {
+    headlight_->Disable();
+  }
 }
 
 void SceneView::Apply(const mjrfMaterialOpts& opts) {
@@ -656,6 +721,8 @@ void SceneView::Apply(const mjrfMaterialOpts& opts) {
 }
 
 void SceneView::Apply(const mjrfShadowOpts& opts) {
+  main_view_->setShadowingEnabled(opts.type != mjSHADOW_TYPE_NONE);
+
   auto shadow_type = main_view_->getShadowType();
   if (opts.type == mjSHADOW_TYPE_SOFT) {
     shadow_type = filament::View::ShadowType::PCSS;
