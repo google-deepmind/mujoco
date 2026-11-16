@@ -71,6 +71,30 @@ static constexpr filament::color::ColorSpace REC709_SRGB_D65 =
     filament::color::Rec709 - filament::color::sRGB -
     filament::color::D65;
 
+static std::unique_ptr<filament::ToneMapper> CreateToneMapper(mjrToneMapper type) {
+  filament::ToneMapper* ptr = nullptr;
+  switch (type) {
+    case mjTONE_MAPPER_PBR_NEUTRAL:
+      ptr = new filament::PBRNeutralToneMapper();
+      break;
+    case mjTONE_MAPPER_ACES:
+      ptr = new filament::ACESToneMapper();
+      break;
+    case mjTONE_MAPPER_ACES_LEGACY:
+      ptr = new filament::ACESLegacyToneMapper();
+      break;
+    case mjTONE_MAPPER_FILMIC:
+      ptr = new filament::FilmicToneMapper();
+      break;
+    case mjTONE_MAPPER_LINEAR:
+      ptr = new filament::LinearToneMapper();
+      break;
+    default:
+      mju_error("Unsupported tone mapper type");
+  }
+  return std::unique_ptr<filament::ToneMapper>(ptr);
+}
+
 static filament::ColorGrading::Builder ToBuilder(
     const mjrfColorGradingOpts& opts) {
   filament::color::ColorSpace output_color_space = REC709_SRGB_D65;
@@ -100,30 +124,6 @@ static filament::ColorGrading::Builder ToBuilder(
                         ReadFloat3(opts.power))
       .curves(ReadFloat3(opts.shadow_gamma), ReadFloat3(opts.mid_point),
               ReadFloat3(opts.highlight_scale));
-}
-
-static std::unique_ptr<filament::ToneMapper> CreateToneMapper(mjrToneMapper type) {
-  filament::ToneMapper* ptr = nullptr;
-  switch (type) {
-    case mjTONE_MAPPER_PBR_NEUTRAL:
-      ptr = new filament::PBRNeutralToneMapper();
-      break;
-    case mjTONE_MAPPER_ACES:
-      ptr = new filament::ACESToneMapper();
-      break;
-    case mjTONE_MAPPER_ACES_LEGACY:
-      ptr = new filament::ACESLegacyToneMapper();
-      break;
-    case mjTONE_MAPPER_FILMIC:
-      ptr = new filament::FilmicToneMapper();
-      break;
-    case mjTONE_MAPPER_LINEAR:
-      ptr = new filament::LinearToneMapper();
-      break;
-    default:
-      mju_error("Unsupported tone mapper type");
-  }
-  return std::unique_ptr<filament::ToneMapper>(ptr);
 }
 
 static filament::QualityLevel ToFilamentQuality(mjrQuality quality) {
@@ -600,20 +600,6 @@ void SceneView::Configure(const mjModel* model) {
   Apply(opts.vignette);
 }
 
-void SceneView::Apply(const mjrfAntialiasingOpts& opts) {
-  SetMsaa(opts.msaa_samples);
-}
-
-void SceneView::Apply(const mjrfColorGradingOpts& opts) {
-  SetColorGradingOptions(opts);
-}
-
-void SceneView::Apply(const mjrfHazeOpts& opts) {
-  SetHaze(opts.ratio, opts.color);
-  const Builtins::Slices nslice{opts.slices};
-  haze_->SetMesh(object_mgr_->GetBuiltins()->Haze(nslice));
-}
-
 void SceneView::Apply(const mjrfAmbientOcclusionOpts& opts) {
   auto ao = main_view_->getAmbientOcclusionOptions();
   ao.enabled = opts.type != mjAMBIENT_OCCLUSION_TYPE_NONE;
@@ -625,14 +611,21 @@ void SceneView::Apply(const mjrfAmbientOcclusionOpts& opts) {
   main_view_->setAmbientOcclusionOptions(ao);
 }
 
-void SceneView::Apply(const mjrfShadowOpts& opts) {
-  auto shadow_type = main_view_->getShadowType();
-  if (opts.type == mjSHADOW_TYPE_SOFT) {
-    shadow_type = filament::View::ShadowType::PCSS;
-  } else {
-    shadow_type = filament::View::ShadowType::PCF;
-  }
-  main_view_->setShadowType(shadow_type);
+void SceneView::Apply(const mjrfAntialiasingOpts& opts) {
+  SetMsaa(opts.msaa_samples);
+}
+
+void SceneView::Apply(const mjrfBloomOpts& opts) {
+  auto bloom = main_view_->getBloomOptions();
+  bloom.enabled = opts.enable;
+  bloom.strength = opts.strength;
+  bloom.quality = ToFilamentQuality((mjrQuality)opts.quality);
+  bloom.levels = opts.levels;
+  main_view_->setBloomOptions(bloom);
+}
+
+void SceneView::Apply(const mjrfColorGradingOpts& opts) {
+  SetColorGradingOptions(opts);
 }
 
 void SceneView::Apply(const mjrfFogOpts& opts) {
@@ -648,13 +641,28 @@ void SceneView::Apply(const mjrfFogOpts& opts) {
   main_view_->setFogOptions(fog);
 }
 
-void SceneView::Apply(const mjrfBloomOpts& opts) {
-  auto bloom = main_view_->getBloomOptions();
-  bloom.enabled = opts.enable;
-  bloom.strength = opts.strength;
-  bloom.quality = ToFilamentQuality((mjrQuality)opts.quality);
-  bloom.levels = opts.levels;
-  main_view_->setBloomOptions(bloom);
+void SceneView::Apply(const mjrfHazeOpts& opts) {
+  SetHaze(opts.ratio, opts.color);
+  const Builtins::Slices nslice{opts.slices};
+  haze_->SetMesh(object_mgr_->GetBuiltins()->Haze(nslice));
+}
+
+void SceneView::Apply(const mjrfMaterialOpts& opts) {
+  if (opts.rgb_color_type == mjCOLORSPACE_LINEAR) {
+    material_mgr_->SetBaseColorType(filament::RgbaType::LINEAR);
+  } else {
+    material_mgr_->SetBaseColorType(filament::RgbaType::sRGB);
+  }
+}
+
+void SceneView::Apply(const mjrfShadowOpts& opts) {
+  auto shadow_type = main_view_->getShadowType();
+  if (opts.type == mjSHADOW_TYPE_SOFT) {
+    shadow_type = filament::View::ShadowType::PCSS;
+  } else {
+    shadow_type = filament::View::ShadowType::PCF;
+  }
+  main_view_->setShadowType(shadow_type);
 }
 
 void SceneView::Apply(const mjrfVignetteOpts& opts) {
@@ -665,13 +673,5 @@ void SceneView::Apply(const mjrfVignetteOpts& opts) {
   vignette.feather = opts.feather;
   vignette.roundness = opts.roundness;
   main_view_->setVignetteOptions(vignette);
-}
-
-void SceneView::Apply(const mjrfMaterialOpts& opts) {
-  if (opts.rgb_color_type == mjCOLORSPACE_LINEAR) {
-    material_mgr_->SetBaseColorType(filament::RgbaType::LINEAR);
-  } else {
-    material_mgr_->SetBaseColorType(filament::RgbaType::sRGB);
-  }
 }
 }  // namespace mujoco
