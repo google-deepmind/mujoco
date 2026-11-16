@@ -452,15 +452,15 @@ Tracks A and B run on **`MJWarp` (`mujoco_warp`, `impl='warp'`)** in `float32`
 [`mujoco-accelerated`](../accelerated/SKILL.md)):
 
 -   **Use for batched rollouts:** At `nworld=64` on H100, all 33 runnable flex
-    scenes beat 1 CPU core (`1.3x`-`91x`); at `nworld=1` it is often slower
-    (`gripper_2d.xml`: `3.5x` slower at `1`, `8x` faster at `64` -- use CPU
+    scenes beat 1 CPU core (`1.5x`-`86x`); at `nworld=1` it is often slower
+    (`gripper_2d.xml`: `3.0x` slower at `1`, `6.2x` faster at `64` -- use CPU
     `mujoco.batch.Batch` / `mujoco.rollout` for small batches).
 -   **Integrator & solver regimes:** **`Newton` + `Euler`** is best-supported
-    (14/16 scenes `< 4` ms/step in contact). **`Newton` + `discrete`** is within
-    `1.3x` of one CPU core (up to `2.8x` faster) at `1` world on 7/16 scenes;
-    1D rods (iterative `M+K`, 24-129 PCG iters, `12x`-`37x` slower), cloth/3D
-    contact fill-in (`poncho.xml` `104` ms, `gripper.xml` `29` ms), and passive
-    cloth hold back the rest. `CG` exits early on `improvement < tolerance`.
+    (14/16 scenes `< 4` ms/step in contact). **`Newton` + `discrete`** beats 1
+    CPU core at `1` world on 5/16 scenes (up to `3.1x`), and 1D rods use exact
+    sparse `effChol` (`1.2`-`2.8` ms at `1`, `1.9x`-`8.0x` faster at `64`);
+    cloth/3D contact fill-in (`poncho.xml` `100` ms, `gripper.xml` `29` ms),
+    `efm0_L`, and passive cloth hold back the rest (`CG` exits early).
 -   **Size buffers (`make_data` / `put_data`):** Defaults overflow on 20/33
     scenes (`nefc`, causing `NaN`s); `nconmax >= 16384`, `njmax >= 16384`,
     `njmax_nnz >= 1048576` cleared all 33 (`--measure_alloc` / `d.overflow`).
@@ -491,7 +491,7 @@ Tracks A and B run on **`MJWarp` (`mujoco_warp`, `impl='warp'`)** in `float32`
     `belt.xml`, `pulley.xml`, `mechanisms/cantilever.xml`,
     `mechanisms/slidercrank.xml`, `mechanisms/dipper.xml`.
 -   **2D cloth & shells:** `drape.xml` (`passive="true"`), `poncho*.xml`,
-    `flag.xml`, `plate.xml`, `basket.xml` (`type="box" dim="2"`), `bag.xml`
+    `flag.xml`, `plate.xml`, `basket.xml` (`type="box" dim="2"`), `bag*.xml`
     (`ipc`), `bunny_shell.xml`, `gripper_2d.xml` (`2d`).
 -   **3D solids & plasticity:** `trilinear.xml`, `quadratic.xml`, `bunny_*.xml`,
     `strain.xml`, `hollow_vs_solid.xml`, `sphere_*.xml`, `gripper*.xml`,
