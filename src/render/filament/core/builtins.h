@@ -15,45 +15,62 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_CORE_BUILTINS_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_CORE_BUILTINS_H_
 
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <unordered_map>
 
 #include <filament/Engine.h>
 #include "render/filament/core/mesh.h"
 
 namespace mujoco {
 
-// A collection of meshes that "built in" to the renderer.
+// A collection of meshes (shapes) that are "built in" to the renderer.
 class Builtins {
  public:
-  Builtins(filament::Engine* engine, int nstack, int nslice, int nquad);
+  explicit Builtins(filament::Engine* engine);
+
+  // Strongly typed integers to prevent accidental mixing.
+  enum class Quads : int {};
+  enum class Slices : int {};
+  enum class Stacks : int {};
 
   // Returns a mesh for the corresponding built-in shape.
   const Mesh* Line();
   const Mesh* LineBox();
-  const Mesh* Plane();
-  const Mesh* Haze();
+  const Mesh* Plane(Quads nquad);
+  const Mesh* Haze(Slices nslice);
   const Mesh* Triangle();
-  const Mesh* Box();
-  const Mesh* Sphere();
-  const Mesh* Cone();
-  const Mesh* Disk();
-  const Mesh* DomeTop();
-  const Mesh* DomeBottom();
-  const Mesh* Tube();
+  const Mesh* Box(Quads nquad);
+  const Mesh* Sphere(Stacks nstack, Slices nslice);
+  const Mesh* Cone(Stacks nstack, Slices nslice);
+  const Mesh* Disk(Slices nslice, Quads nquad);
+  const Mesh* DomeTop(Stacks nstack, Slices nslice);
+  const Mesh* DomeBottom(Stacks nstack, Slices nslice);
+  const Mesh* Tube(Stacks nstack, Slices nslice);
 
  private:
-  std::unique_ptr<Mesh> line_;
-  std::unique_ptr<Mesh> line_box_;
-  std::unique_ptr<Mesh> plane_;
-  std::unique_ptr<Mesh> haze_;
-  std::unique_ptr<Mesh> triangle_;
-  std::unique_ptr<Mesh> box_;
-  std::unique_ptr<Mesh> sphere_;
-  std::unique_ptr<Mesh> cone_;
-  std::unique_ptr<Mesh> disk_;
-  std::unique_ptr<Mesh> dome_top_;
-  std::unique_ptr<Mesh> dome_bottom_;
-  std::unique_ptr<Mesh> tube_;
+  using MeshPtr = std::unique_ptr<Mesh>;
+  using MeshMap = std::unordered_map<uint64_t, MeshPtr>;
+
+  // Returns a mesh from the map with the key, creating one using the builder if
+  // it is not found.
+  template <typename Fn>
+  const Mesh* GetMesh(MeshMap& map, uint64_t key, Fn&& builder);
+
+  filament::Engine* engine_;
+  MeshMap lines_;
+  MeshMap line_boxes_;
+  MeshMap planes_;
+  MeshMap hazes_;
+  MeshMap triangles_;
+  MeshMap boxes_;
+  MeshMap spheres_;
+  MeshMap cones_;
+  MeshMap disks_;
+  MeshMap dome_tops_;
+  MeshMap dome_bottoms_;
+  MeshMap tubes_;
 };
 
 }  // namespace mujoco

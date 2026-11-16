@@ -205,8 +205,7 @@ SceneView::SceneView(ObjectManager* object_mgr, MaterialManager* material_mgr,
   haze_ = std::make_unique<Renderable>(engine, haze_params, material_mgr_);
   haze_->SetPriority(0);
   SetHaze(0.3f, nullptr);
-  haze_->SetMesh(
-      object_mgr_->GetBuiltins(numstacks_, numslices_, numquads_)->Haze());
+  haze_->SetMesh(object_mgr_->GetBuiltins()->Haze(Builtins::Slices{28}));
   AddToScene(haze_.get());
 }
 
@@ -583,11 +582,8 @@ float4 SceneView::GetHazeColor() const {
 
 void SceneView::Configure(const mjModel* model) {
   SetMsaa(model->vis.quality.offsamples);
-  numstacks_ = model->vis.quality.numstacks;
-  numslices_ = std::max(3, model->vis.quality.numslices);
-  numquads_ = model->vis.quality.numquads;
-  haze_->SetMesh(
-      object_mgr_->GetBuiltins(numstacks_, numslices_, numquads_)->Haze());
+  const Builtins::Slices nslice{model->vis.quality.numslices};
+  haze_->SetMesh(object_mgr_->GetBuiltins()->Haze(nslice));
   SetHaze(model->vis.map.haze, model->vis.rgba.haze);
 
   auto cg = color_grading_options_;

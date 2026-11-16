@@ -586,30 +586,34 @@ void Renderable::SetWireframe(bool wireframe) {
 
 void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
   ClearParts();
-  Builtins* builtins =
-      material_mgr_->GetObjectManager()->GetBuiltins(nstack, nslice, nquad);
+
+  Builtins::Quads num_quads{nquad};
+  Builtins::Stacks num_stacks{nstack};
+  Builtins::Slices num_slices{nslice};
+  Builtins* builtins = material_mgr_->GetObjectManager()->GetBuiltins();
+
   geom_type_ = type;
 
   switch (type) {
     case mjGEOM_PLANE:
-      AppendMesh(builtins->Plane());
-      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Plane(num_quads));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
       SetHiddenParts(kHideDiskPlane);
       break;
     case mjGEOM_SPHERE:
-      AppendMesh(builtins->Sphere());
+      AppendMesh(builtins->Sphere(num_stacks, num_slices));
       break;
     case mjGEOM_ELLIPSOID:
-      AppendMesh(builtins->Sphere());
+      AppendMesh(builtins->Sphere(num_stacks, num_slices));
       break;
     case mjGEOM_BOX:
-      AppendMesh(builtins->Box());
+      AppendMesh(builtins->Box(num_quads));
       break;
     case mjGEOM_CAPSULE:
       // Capsules are a tube with two domes at the ends.
-      AppendMesh(builtins->Tube());
-      AppendMesh(builtins->DomeTop());
-      AppendMesh(builtins->DomeBottom());
+      AppendMesh(builtins->Tube(num_stacks, num_slices));
+      AppendMesh(builtins->DomeTop(num_stacks, num_slices));
+      AppendMesh(builtins->DomeBottom(num_stacks, num_slices));
 
       get_transform_fn_ = [](int index, const Trs& trs) {
         // We apply an inverse scale to the domes to counteract the capsule's
@@ -640,9 +644,9 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
       break;
     case mjGEOM_CYLINDER:
       // Cylinders are a tube with two disks at the ends.
-      AppendMesh(builtins->Tube());
-      AppendMesh(builtins->Disk());
-      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Tube(num_stacks, num_slices));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
 
       get_transform_fn_ = [](int index, const Trs& trs) {
         if (index == 0) {
@@ -669,10 +673,10 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
       };
       break;
     case mjGEOM_ARROW:
-      AppendMesh(builtins->Tube());
-      AppendMesh(builtins->Cone());
-      AppendMesh(builtins->Disk());
-      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Tube(num_stacks, num_slices));
+      AppendMesh(builtins->Cone(num_stacks, num_slices));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
 
       get_transform_fn_ = [](int index, const Trs& trs) {
         mat4f base = mat4f(trs.rotation, trs.translation);
@@ -704,9 +708,9 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
       };
       break;
     case mjGEOM_ARROW1:
-      AppendMesh(builtins->Tube());
-      AppendMesh(builtins->Cone());
-      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Tube(num_stacks, num_slices));
+      AppendMesh(builtins->Cone(num_stacks, num_slices));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
 
       get_transform_fn_ = [](int index, const Trs& trs) {
         mat4f base = mat4f(trs.rotation, trs.translation);
@@ -731,11 +735,11 @@ void Renderable::SetGeomMesh(mjtGeom type, int nstack, int nslice, int nquad) {
       };
       break;
     case mjGEOM_ARROW2:
-      AppendMesh(builtins->Tube());
-      AppendMesh(builtins->Cone());
-      AppendMesh(builtins->Cone());
-      AppendMesh(builtins->Disk());
-      AppendMesh(builtins->Disk());
+      AppendMesh(builtins->Tube(num_stacks, num_slices));
+      AppendMesh(builtins->Cone(num_stacks, num_slices));
+      AppendMesh(builtins->Cone(num_stacks, num_slices));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
+      AppendMesh(builtins->Disk(num_slices, num_quads));
 
       get_transform_fn_ = [](int index, const Trs& trs) {
         mat4f base = mat4f(trs.rotation, trs.translation);

@@ -121,9 +121,6 @@ class SceneView : public mjrfScene {
   filament::Skybox* skybox_ = nullptr;
   std::unique_ptr<Renderable> haze_;
   float focus_distance_ = 0.0f;
-  int numstacks_ = 16;
-  int numslices_ = 28;
-  int numquads_ = 4;
 
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;

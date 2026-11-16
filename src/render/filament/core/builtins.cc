@@ -43,6 +43,20 @@ static constexpr size_t kNumVerticesPerQuad = 4;
 static constexpr size_t kNumIndicesPerTriangle = 3;
 static constexpr size_t kNumIndicesPerQuad = 6;
 
+// Returns a uint64_t key encoding the given parameters.
+static constexpr uint64_t Key() { return 0; }
+
+static constexpr uint64_t Key(Builtins::Stacks nstack, Builtins::Slices nslice,
+                              Builtins::Quads nquad, bool flip_u = false,
+                              bool flip_v = false) {
+  // Assumes nstack, nslice, and nquad are all less than 2^20.
+  return ((static_cast<uint64_t>(nstack) & 0xFFFFF) << 44) |
+         ((static_cast<uint64_t>(nslice) & 0xFFFFF) << 24) |
+         ((static_cast<uint64_t>(nquad)  & 0xFFFFF) << 4) |
+         ((static_cast<uint64_t>(flip_u) & 0x01)    << 2) |
+         ((static_cast<uint64_t>(flip_v) & 0x01)    << 0);
+}
+
 static void AppendQuadIndices(std::vector<uint16_t>& vec, uint16_t a,
                               uint16_t b, uint16_t c, uint16_t d) {
   vec.push_back(a);
@@ -63,6 +77,10 @@ static std::size_t NumIndicesPerSide(int num_quads_per_axis) {
 
 class BuiltinBuilder {
  public:
+  using Quads = Builtins::Quads;
+  using Slices = Builtins::Slices;
+  using Stacks = Builtins::Stacks;
+
   BuiltinBuilder() {}
   virtual ~BuiltinBuilder() = default;
 
@@ -149,7 +167,8 @@ class LineBuilder : public BuiltinBuilder {
 
 class PlaneBuilder : public BuiltinBuilder {
  public:
-  explicit PlaneBuilder(int num_quads_per_axis) {
+  explicit PlaneBuilder(Quads nquads) {
+    int num_quads_per_axis = static_cast<int>(nquads);
     const int num_vertices = NumVerticesPerSide(num_quads_per_axis);
     positions_.reserve(num_vertices);
     texcoords_.reserve(num_vertices);
@@ -192,11 +211,11 @@ class PlaneBuilder : public BuiltinBuilder {
 // unset so frustum culling is disabled while haze.mat displaces vertices.
 class HazeBuilder : public BuiltinBuilder {
  public:
-  explicit HazeBuilder(int num_slices) {
-    num_slices = std::max(3, num_slices);
+  explicit HazeBuilder(Slices nslice) {
     static constexpr float kBands[3] = {0.0f, 0.5f, 1.0f};
     static constexpr float kWeights[3] = {0.0f, 1.0f, 0.0f};
 
+    const int num_slices = std::max(3, static_cast<int>(nslice));
     const int num_vertices = 3 * num_slices;
     positions_.reserve(num_vertices);
     texcoords_.reserve(num_vertices);
@@ -304,8 +323,8 @@ class BoxBuilder : public BuiltinBuilder {
  public:
   static constexpr int kNumSides = 6;
 
-  explicit BoxBuilder(int num_quads_per_axis)
-      : num_quads_per_axis_(num_quads_per_axis) {
+  explicit BoxBuilder(Quads nquad)
+      : num_quads_per_axis_(static_cast<int>(nquad)) {
     quad_size_ = 2.0f / static_cast<float>(num_quads_per_axis_);
 
     const int vertices_per_side = NumVerticesPerSide(num_quads_per_axis_);
@@ -376,7 +395,10 @@ class BoxBuilder : public BuiltinBuilder {
 
 class TubeBuilder : public BuiltinBuilder {
  public:
-  TubeBuilder(int num_stacks, int num_slices) {
+  TubeBuilder(Stacks nstack, Slices nslice) {
+    const int num_stacks = static_cast<int>(nstack);
+    const int num_slices = static_cast<int>(nslice);
+
     const int verts_per_ring = num_slices + 1;
     const int num_vertices = verts_per_ring * (num_stacks + 1);
     positions_.reserve(num_vertices);
@@ -422,7 +444,10 @@ class TubeBuilder : public BuiltinBuilder {
 
 class ConeBuilder : public BuiltinBuilder {
  public:
-  ConeBuilder(int num_stacks, int num_slices) {
+  ConeBuilder(Stacks nstack, Slices nslice) {
+    const int num_stacks = static_cast<int>(nstack);
+    const int num_slices = static_cast<int>(nslice);
+
     const int num_vertices =
         (num_slices * kNumVerticesPerTriangle) +
         ((num_stacks - 1) * num_slices * kNumVerticesPerQuad);
@@ -509,9 +534,10 @@ class ConeBuilder : public BuiltinBuilder {
 
 class DiskBuilder : public BuiltinBuilder {
  public:
-  explicit DiskBuilder(int num_slices, int num_rings = 1) {
-    num_slices = std::max(3, num_slices);
-    num_rings = std::clamp(num_rings, 1, std::max(1, 65534 / num_slices));
+  explicit DiskBuilder(Slices nslice, Quads nquad) {
+    const int num_slices = std::max(3, static_cast<int>(nslice));
+    const int num_rings =
+        std::clamp(static_cast<int>(nquad), 1, std::max(1, 65534 / num_slices));
 
     const int num_vertices = 1 + num_rings * num_slices;
     positions_.reserve(num_vertices);
@@ -561,7 +587,10 @@ class DiskBuilder : public BuiltinBuilder {
 
 class SphereBuilder : public BuiltinBuilder {
  public:
-  SphereBuilder(int num_stacks, int num_slices) {
+  SphereBuilder(Stacks nstack, Slices nslice) {
+    const int num_stacks = static_cast<int>(nstack);
+    const int num_slices = static_cast<int>(nslice);
+
     // To avoid a UV seam artifact, each latitude ring has num_slices+1
     // vertices: the last vertex is a geometric duplicate of the first but
     // with u=1.0 instead of u=0.0. This prevents the GPU from interpolating
@@ -667,8 +696,10 @@ class SphereBuilder : public BuiltinBuilder {
 
 class DomeBuilder : public BuiltinBuilder {
  public:
-  DomeBuilder(int num_stacks, int num_slices, bool flip_u = false,
+  DomeBuilder(Stacks nstack, Slices nslice, bool flip_u = false,
               bool flip_v = false) {
+    const int num_stacks = static_cast<int>(nstack);
+    const int num_slices = static_cast<int>(nslice);
     // Same seam-fix strategy as SphereBuilder: extra vertex per ring at u=1.0
     // and per-face pole vertices.
 
@@ -754,35 +785,112 @@ class DomeBuilder : public BuiltinBuilder {
   }
 };
 
-Builtins::Builtins(filament::Engine* engine, int nstack, int nslice,
-                   int nquad) {
-  line_ = BuiltinBuilder::Create<LineBuilder>(engine);
-  plane_ = BuiltinBuilder::Create<PlaneBuilder>(engine, nquad);
-  haze_ = BuiltinBuilder::Create<HazeBuilder>(engine, nslice);
-  triangle_ = BuiltinBuilder::Create<TriangleBuilder>(engine);
-  box_ = BuiltinBuilder::Create<BoxBuilder>(engine, nquad);
-  line_box_ = BuiltinBuilder::Create<LineBoxBuilder>(engine);
-  sphere_ = BuiltinBuilder::Create<SphereBuilder>(engine, nstack, nslice);
-  tube_ = BuiltinBuilder::Create<TubeBuilder>(engine, nstack, nslice);
-  disk_ = BuiltinBuilder::Create<DiskBuilder>(engine, nslice, nquad);
-  dome_top_ =
-      BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice, false, true);
-  dome_bottom_ =
-      BuiltinBuilder::Create<DomeBuilder>(engine, nstack, nslice, true, false);
-  cone_ = BuiltinBuilder::Create<ConeBuilder>(engine, nstack, nslice);
+Builtins::Builtins(filament::Engine* engine) : engine_(engine) {}
+
+template <typename Fn>
+const Mesh* Builtins::GetMesh(MeshMap& map, uint64_t key, Fn&& builder) {
+  auto it = map.find(key);
+  if (it == map.end()) {
+    it = map.emplace(key, builder()).first;
+  }
+  return it->second.get();
 }
 
-const Mesh* Builtins::Line() { return line_.get(); }
-const Mesh* Builtins::LineBox() { return line_box_.get(); }
-const Mesh* Builtins::Plane() { return plane_.get(); }
-const Mesh* Builtins::Haze() { return haze_.get(); }
-const Mesh* Builtins::Triangle() { return triangle_.get(); }
-const Mesh* Builtins::Box() { return box_.get(); }
-const Mesh* Builtins::Sphere() { return sphere_.get(); }
-const Mesh* Builtins::Cone() { return cone_.get(); }
-const Mesh* Builtins::Disk() { return disk_.get(); }
-const Mesh* Builtins::DomeTop() { return dome_top_.get(); }
-const Mesh* Builtins::DomeBottom() { return dome_bottom_.get(); }
-const Mesh* Builtins::Tube() { return tube_.get(); }
+const Mesh* Builtins::Line() {
+  auto key = Key();
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<LineBuilder>(engine_);
+  };
+  return GetMesh(lines_, key, build);
+}
 
+const Mesh* Builtins::Plane(Quads nquad) {
+  auto key = Key(Stacks{0}, Slices{0}, nquad);
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<PlaneBuilder>(engine_, nquad);
+  };
+  return GetMesh(planes_, key, build);
+}
+
+const Mesh* Builtins::Haze(Slices nslice) {
+  auto key = Key(Stacks{0}, nslice, Quads{0});
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<HazeBuilder>(engine_, nslice);
+  };
+  return GetMesh(hazes_, key, build);
+}
+
+const Mesh* Builtins::Triangle() {
+  auto key = Key(Stacks{0}, Slices{0}, Quads{0});
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<TriangleBuilder>(engine_);
+  };
+  return GetMesh(triangles_, key, build);
+}
+
+const Mesh* Builtins::Box(Quads nquad) {
+  auto key = Key(Stacks{0}, Slices{0}, nquad);
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<BoxBuilder>(engine_, nquad);
+  };
+  return GetMesh(boxes_, key, build);
+}
+
+const Mesh* Builtins::LineBox() {
+  auto key = Key(Stacks{0}, Slices{0}, Quads{0});
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<LineBoxBuilder>(engine_);
+  };
+  return GetMesh(line_boxes_, key, build);
+}
+
+const Mesh* Builtins::Sphere(Stacks nstack, Slices nslice) {
+  auto key = Key(nstack, nslice, Quads{0});
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<SphereBuilder>(engine_, nstack, nslice);
+  };
+  return GetMesh(spheres_, key, build);
+}
+
+const Mesh* Builtins::Tube(Stacks nstack, Slices nslice) {
+  auto key = Key(nstack, nslice, Quads{0});
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<TubeBuilder>(engine_, nstack, nslice);
+  };
+  return GetMesh(tubes_, key, build);
+}
+
+const Mesh* Builtins::Disk(Slices nslice, Quads nquad) {
+  auto key = Key(Stacks{0}, nslice, nquad);
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<DiskBuilder>(engine_, nslice, nquad);
+  };
+  return GetMesh(disks_, key, build);
+}
+
+const Mesh* Builtins::DomeTop(Stacks nstack, Slices nslice) {
+  auto key = Key(nstack, nslice, Quads{0}, false, true);
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<DomeBuilder>(engine_, nstack, nslice, false,
+                                               true);
+  };
+  return GetMesh(dome_tops_, key, build);
+}
+
+const Mesh* Builtins::DomeBottom(Stacks nstack, Slices nslice) {
+  auto key = Key(nstack, nslice, Quads{0}, true, false);
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<DomeBuilder>(engine_, nstack, nslice, true,
+                                               false);
+  };
+  return GetMesh(dome_bottoms_, key, build);
+}
+
+const Mesh* Builtins::Cone(Stacks nstack, Slices nslice) {
+  auto key = Key(nstack, nslice, Quads{0});
+  auto build = [=, this]() {
+    return BuiltinBuilder::Create<ConeBuilder>(engine_, nstack, nslice);
+  };
+  return GetMesh(cones_, key, build);
+}
 }  // namespace mujoco
