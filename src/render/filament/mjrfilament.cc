@@ -333,6 +333,7 @@ void mjrf_defaultAmbientOcclusionOpts(mjrfAmbientOcclusionOpts* opts) {
 }
 
 void mjrf_defaultRenderOpts(mjrfRenderOpts* opts) {
+  std::memset(opts, 0, sizeof(mjrfRenderOpts));
   mjrf_defaultAmbientOcclusionOpts(&opts->ambient_occlusion);
   mjrf_defaultAntialiasingOpts(&opts->antialiasing);
   mjrf_defaultBloomOpts(&opts->bloom);
