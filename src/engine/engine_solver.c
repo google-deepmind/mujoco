@@ -1226,6 +1226,40 @@ static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* c
     ctx->efc_type         = d->iefc_type         + iefcadr;
     ctx->efc_force        = d->iefc_force        + iefcadr;
     ctx->efc_state        = d->iefc_state        + iefcadr;
+
+    // single island covering all DOFs: mj_island fills map_dof2idof and map_efc2iefc in
+    // ascending order per island, so both maps are the identity and monolithic M, qLD, and J
+    // can be reused directly without copying
+    if (d->nisland == 1 && d->nidof == m->nv && !mj_effUseQH(d)) {
+      ctx->nJ               = d->nJ;
+      ctx->M_rownnz         = m->M_rownnz;
+      ctx->M_rowadr         = m->M_rowadr;
+      ctx->M_colind         = m->M_colind;
+      ctx->M                = d->M;
+      ctx->qLD              = d->qLD;
+      ctx->qLDiagInv        = d->qLDiagInv;
+      ctx->J                = d->efc_J;
+      if (ctx->is_sparse) {
+        ctx->J_rownnz       = d->efc_J_rownnz;
+        ctx->J_rowadr       = d->efc_J_rowadr;
+        ctx->J_rowsuper     = d->efc_J_rowsuper;
+        ctx->J_colind       = d->efc_J_colind;
+      }
+    }
+  }
+
+  // check whether any elliptic contact constraint is actually present
+  if (ctx->is_elliptic) {
+    int has_elliptic = 0;
+    if (d->ncon > 0) {
+      for (int i = ctx->ne + ctx->nf; i < ctx->nefc; i++) {
+        if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
+          has_elliptic = 1;
+          break;
+        }
+      }
+    }
+    ctx->is_elliptic = has_elliptic;
   }
 }
 
@@ -1239,10 +1273,11 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
   int is_sparse = ctx->is_sparse;
   int is_elliptic = ctx->is_elliptic;
   int nJ = is_sparse ? d->nJ : 0;
+  int copy_island = (ctx->island >= 0 && !ctx->M);
 
   // compute island matrix sizes if needed
   int nC = 0;
-  if (ctx->island >= 0) {
+  if (copy_island) {
     // count nC: number of nonzeros in M block of island (always sparse)
     int island = ctx->island;
     int idofadr = d->island_idofadr[island];
@@ -1341,7 +1376,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
     }
 
     // island matrices
-    if (ctx->island >= 0) {
+    if (copy_island) {
       // inertia
       CARVE_INT(ctx->M_rownnz,  nv);
       CARVE_INT(ctx->M_rowadr,  nv);
@@ -1438,7 +1473,7 @@ static void PrimalAllocate(const mjModel* m, mjData* d, mjPrimalContext* ctx, in
 #undef CARVE_INT
 
   // populate island matrices if needed
-  if (ctx->island >= 0) {
+  if (copy_island) {
     int island = ctx->island;
     int idofadr = d->island_idofadr[island];
     int iefcadr = d->island_iefcadr[island];
@@ -1518,7 +1553,8 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
   // update constraints
   mj_constraintUpdate_impl(ctx->ne, ctx->nf, ctx->nefc, ctx->efc_D, ctx->efc_R,
                            ctx->efc_frictionloss, ctx->Jaref, ctx->efc_type, ctx->efc_id,
-                           ctx->contact, ctx->efc_state, ctx->efc_force,
+                           ctx->is_elliptic ? ctx->contact : NULL,
+                           ctx->efc_state, ctx->efc_force,
                            &(ctx->cost), flg_HessianCone);
 
   // compute qfrc_constraint (dense or sparse)
@@ -1532,9 +1568,15 @@ static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
   // count active and cone
   ctx->nactive = 0;
   ctx->ncone = 0;
-  for (int i=0; i < nefc; i++) {
-    ctx->nactive += (ctx->efc_state[i] != mjCNSTRSTATE_SATISFIED);
-    ctx->ncone += (ctx->efc_state[i] == mjCNSTRSTATE_CONE);
+  if (!ctx->is_elliptic) {
+    for (int i=0; i < nefc; i++) {
+      ctx->nactive += (ctx->efc_state[i] != mjCNSTRSTATE_SATISFIED);
+    }
+  } else {
+    for (int i=0; i < nefc; i++) {
+      ctx->nactive += (ctx->efc_state[i] != mjCNSTRSTATE_SATISFIED);
+      ctx->ncone += (ctx->efc_state[i] == mjCNSTRSTATE_CONE);
+    }
   }
 
   // add Gauss cost, set in quadratic[0]
@@ -1623,6 +1665,21 @@ static void PrimalPrepare(mjPrimalContext* ctx) {
   //  quadGauss[0] already computed in PrimalUpdateConstraint
   ctx->quadGauss[1] = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
   ctx->quadGauss[2] = 0.5*mju_dot(v, ctx->Mv, nv);
+
+  // fast path: no elliptic cones
+  if (!ctx->is_elliptic) {
+    for (int i=0; i < nefc; i++) {
+      mjtNum Jv = ctx->Jv[i];
+      mjtNum Jaref = ctx->Jaref[i];
+      mjtNum D = ctx->efc_D[i];
+      mjtNum DJ0 = D*Jaref;
+      mjtNum* quad = ctx->quad + 3*i;
+      quad[0] = 0.5*(Jaref*DJ0);
+      quad[1] = Jv*DJ0;
+      quad[2] = 0.5*(Jv*D*Jv);
+    }
+    return;
+  }
 
   // process constraints
   for (int i=0; i < nefc; i++) {
@@ -1822,146 +1879,160 @@ static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   // init quad with Gauss, shifted: drop quadGauss[0]
   mjtNum quadTotal[3] = {0, ctx->quadGauss[1], ctx->quadGauss[2]};
 
-  // process constraints
-  for (int i=0; i < nefc; i++) {
-    // equality: shifted quad (skip quad[0])
-    if (i < ne) {
-      quadTotal[1] += ctx->quad[3*i+1];
-      quadTotal[2] += ctx->quad[3*i+2];
-      continue;
+  // equality: shifted quad (skip quad[0])
+  for (int i=0; i < ne; i++) {
+    quadTotal[1] += ctx->quad[3*i+1];
+    quadTotal[2] += ctx->quad[3*i+2];
+  }
+
+  // friction: compute cost(alpha) - cost(0) directly
+  for (int i=ne; i < ne + nf; i++) {
+    // search point, friction loss, bound (Rf)
+    mjtNum start = ctx->Jaref[i];
+    mjtNum dir = ctx->Jv[i];
+    mjtNum x = start + alpha*dir;
+    mjtNum f = ctx->efc_frictionloss[i];
+    mjtNum D = ctx->efc_D[i];
+    mjtNum Rf = ctx->efc_R[i]*f;
+
+    // cost delta
+    cost += frictionCostDif(start, x, f, Rf, D);
+
+    // -bound < x < bound : quadratic
+    if (-Rf < x && x < Rf) {
+      deriv[0] += D*x*dir;
+      deriv[1] += D*dir*dir;
     }
 
-    // friction: compute cost(alpha) - cost(0) directly
-    if (i < ne + nf) {
-      // search point, friction loss, bound (Rf)
-      mjtNum start = ctx->Jaref[i];
-      mjtNum dir = ctx->Jv[i];
-      mjtNum x = start + alpha*dir;
-      mjtNum f = ctx->efc_frictionloss[i];
-      mjtNum D = ctx->efc_D[i];
-      mjtNum Rf = ctx->efc_R[i]*f;
-
-      // cost delta
-      cost += frictionCostDif(start, x, f, Rf, D);
-
-      // -bound < x < bound : quadratic
-      if (-Rf < x && x < Rf) {
-        deriv[0] += D*x*dir;
-        deriv[1] += D*dir*dir;
-      }
-
-      // x < -bound : linear negative
-      else if (x <= -Rf) {
-        deriv[0] += -f*dir;
-      }
-
-      // bound < x : linear positive
-      else {
-        deriv[0] += f*dir;
-      }
-      continue;
+    // x < -bound : linear negative
+    else if (x <= -Rf) {
+      deriv[0] += -f*dir;
     }
 
-    // limit and contact
-    if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {         // elliptic cone
-      // extract contact info
-      const mjContact* con = ctx->contact + ctx->efc_id[i];
-      const mjtNum* Jaref = ctx->Jaref + i;
-      const mjtNum* Jv = ctx->Jv + i;
-      const mjtNum* friction = con->friction;
-      mjtNum* quad = ctx->quad + 3*i;
-      int dim = con->dim;
-      mjtNum mu = con->mu;
+    // bound < x : linear positive
+    else {
+      deriv[0] += f*dir;
+    }
+  }
 
-      // unpack quad
-      mjtNum U0 = quad[3];
-      mjtNum V0 = quad[4];
-      mjtNum Dm = quad[6];
-
-      // normal and tangential components at alpha (formed componentwise before squaring)
-      mjtNum N = U0 + alpha*V0;
-      mjtNum V[5], W[5];
-      mjtNum Tsqr = 0, WV = 0, Tsqr_delta = 0;
-      for (int j=0; j < dim-1; j++) {
-        mjtNum Uj = Jaref[j+1]*friction[j];
-        mjtNum Vj = Jv[j+1]*friction[j];
-        mjtNum Wj = Uj + alpha*Vj;
-        V[j] = Vj;
-        W[j] = Wj;
-        Tsqr += Wj*Wj;
-        WV += Wj*Vj;
-        Tsqr_delta += alpha*Vj*(Uj + Wj);
-      }
-      mjtNum T = mju_sqrt(Tsqr);
-
-      // shifted cost
-      cost += ellipticCostDif(quad, alpha, mu, N, T, Tsqr_delta);
-
-      // no tangential force : top or bottom zone
-      if (Tsqr <= 0) {
-        // bottom zone: quadratic derivatives
-        if (N < 0) {
-          deriv[0] += 2*alpha*quad[2] + quad[1];
-          deriv[1] += 2*quad[2];
-        }
-
-        // top zone: nothing to do
-      }
-
-      // otherwise regular processing
-      else {
-        // N>=mu*T : top zone
-        if (N >= mu*T) {
-          // nothing to do
-        }
-
-        // mu*N+T<=0 : bottom zone
-        else if (mu*N+T <= 0) {
-          deriv[0] += 2*alpha*quad[2] + quad[1];
-          deriv[1] += 2*quad[2];
-        }
-
-        // otherwise middle zone
-        else {
-          // unit tangent What = W / T
-          mjtNum What[5];
-          for (int j=0; j < dim-1; j++) {
-            What[j] = W[j] / T;
-          }
-
-          // cross-product norm squared ||What ^ V||^2 via Lagrange identity to avoid cancellation
-          mjtNum det = 0;
-          for (int j=0; j < dim-1; j++) {
-            for (int k=j+1; k < dim-1; k++) {
-              mjtNum djk = What[j]*V[k] - What[k]*V[j];
-              det += djk*djk;
-            }
-          }
-
-          // derivatives
-          mjtNum N1 = V0;
-          mjtNum T1 = WV / T;
-          deriv[0] += Dm*(N-mu*T)*(N1-mu*T1);
-          deriv[1] += Dm*((N1-mu*T1)*(N1-mu*T1) + (N/T - mu)*(-mu*det));
-        }
-      }
-
-      // advance to next constraint
-      i += (dim-1);
-    } else {                                                  // inequality
-      // search point
+  // limit and contact: fast path when no elliptic contacts exist
+  if (!ctx->is_elliptic) {
+    for (int i=ne + nf; i < nefc; i++) {
       mjtNum start = ctx->Jaref[i];
       mjtNum x = start + alpha*ctx->Jv[i];
       mjtNum cost0 = start < 0 ? ctx->quad[3*i] : 0;
 
-      // active
       if (x < 0) {
-        // shifted quad: add quad[1], quad[2] and (quad[0] - cost0)
         quadTotal[0] += ctx->quad[3*i] - cost0;
         quadTotal[1] += ctx->quad[3*i+1];
         quadTotal[2] += ctx->quad[3*i+2];
       } else {
         cost -= cost0;
+      }
+    }
+  } else {
+    // general path with elliptic cones
+    for (int i=ne + nf; i < nefc; i++) {
+      if (ctx->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {       // elliptic cone
+        // extract contact info
+        const mjContact* con = ctx->contact + ctx->efc_id[i];
+        const mjtNum* Jaref = ctx->Jaref + i;
+        const mjtNum* Jv = ctx->Jv + i;
+        const mjtNum* friction = con->friction;
+        mjtNum* quad = ctx->quad + 3*i;
+        int dim = con->dim;
+        mjtNum mu = con->mu;
+
+        // unpack quad
+        mjtNum U0 = quad[3];
+        mjtNum V0 = quad[4];
+        mjtNum Dm = quad[6];
+
+        // normal and tangential components at alpha (formed componentwise before squaring)
+        mjtNum N = U0 + alpha*V0;
+        mjtNum V[5], W[5];
+        mjtNum Tsqr = 0, WV = 0, Tsqr_delta = 0;
+        for (int j=0; j < dim-1; j++) {
+          mjtNum Uj = Jaref[j+1]*friction[j];
+          mjtNum Vj = Jv[j+1]*friction[j];
+          mjtNum Wj = Uj + alpha*Vj;
+          V[j] = Vj;
+          W[j] = Wj;
+          Tsqr += Wj*Wj;
+          WV += Wj*Vj;
+          Tsqr_delta += alpha*Vj*(Uj + Wj);
+        }
+        mjtNum T = mju_sqrt(Tsqr);
+
+        // shifted cost
+        cost += ellipticCostDif(quad, alpha, mu, N, T, Tsqr_delta);
+
+        // no tangential force : top or bottom zone
+        if (Tsqr <= 0) {
+          // bottom zone: quadratic derivatives
+          if (N < 0) {
+            deriv[0] += 2*alpha*quad[2] + quad[1];
+            deriv[1] += 2*quad[2];
+          }
+
+          // top zone: nothing to do
+        }
+
+        // otherwise regular processing
+        else {
+          // N>=mu*T : top zone
+          if (N >= mu*T) {
+            // nothing to do
+          }
+
+          // mu*N+T<=0 : bottom zone
+          else if (mu*N+T <= 0) {
+            deriv[0] += 2*alpha*quad[2] + quad[1];
+            deriv[1] += 2*quad[2];
+          }
+
+          // otherwise middle zone
+          else {
+            // unit tangent What = W / T
+            mjtNum What[5];
+            for (int j=0; j < dim-1; j++) {
+              What[j] = W[j] / T;
+            }
+
+            // cross-product norm squared ||What ^ V||^2 via Lagrange identity to avoid cancellation
+            mjtNum det = 0;
+            for (int j=0; j < dim-1; j++) {
+              for (int k=j+1; k < dim-1; k++) {
+                mjtNum djk = What[j]*V[k] - What[k]*V[j];
+                det += djk*djk;
+              }
+            }
+
+            // derivatives
+            mjtNum N1 = V0;
+            mjtNum T1 = WV / T;
+            deriv[0] += Dm*(N-mu*T)*(N1-mu*T1);
+            deriv[1] += Dm*((N1-mu*T1)*(N1-mu*T1) + (N/T - mu)*(-mu*det));
+          }
+        }
+
+        // advance to next constraint
+        i += (dim-1);
+      } else {                                                  // inequality
+        // search point
+        mjtNum start = ctx->Jaref[i];
+        mjtNum x = start + alpha*ctx->Jv[i];
+        mjtNum cost0 = start < 0 ? ctx->quad[3*i] : 0;
+
+        // active
+        if (x < 0) {
+          // shifted quad: add quad[1], quad[2] and (quad[0] - cost0)
+          quadTotal[0] += ctx->quad[3*i] - cost0;
+          quadTotal[1] += ctx->quad[3*i+1];
+          quadTotal[2] += ctx->quad[3*i+2];
+        } else {
+          cost -= cost0;
+        }
       }
     }
   }

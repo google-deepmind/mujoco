@@ -115,7 +115,7 @@ MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 // compute efc_diagA (approximate or exact), efc_R, efc_D, efc_KBIP in the solve metric
 void mj_regularizeConstraint(const mjModel* m, mjData* d, int flg_AR);
 
-// compute efc_state, efc_force
+// compute efc_state, efc_force; contact may be NULL if no elliptic contact constraints exist
 //  optional: cost(qacc) = s_hat(jar); cone Hessians
 MJAPI void mj_constraintUpdate_impl(int ne, int nf, int nefc,
                                     const mjtNum* D, const mjtNum* R, const mjtNum* floss,
