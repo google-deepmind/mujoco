@@ -2042,6 +2042,39 @@ Euler integrator, semi-implicit in velocity.
     rank = mujoco.mju_boxQP(res, r, index, h, g, lower, upper)
     self.assertGreater(rank, -1)
 
+  def test_keyword_arguments(self):
+    # a binding with all parameters
+    self.assertEqual(mujoco.mju_clip(max=1.0, x=2.0, min=0.0), 1.0)
+
+    # a binding with an omitted parameter: mju_boxQP infers n from res
+    n = 5
+
+    def args():
+      return dict(
+          upper=np.ones((n,), dtype=DTYPE),
+          lower=-np.ones((n,), dtype=DTYPE),
+          g=np.array([2, 0.5, -0.5, -2, 0], dtype=DTYPE),
+          H=np.eye(n, dtype=DTYPE),
+          index=np.zeros(n, np.int32),
+          R=np.zeros((n, n + 7), DTYPE),
+          res=np.zeros(n, DTYPE),
+      )
+
+    kwargs = args()
+    rank = mujoco.mju_boxQP(**kwargs)
+    pos = args()
+    expected_rank = mujoco.mju_boxQP(
+        pos['res'], pos['R'], pos['index'], pos['H'], pos['g'], pos['lower'],
+        pos['upper'],
+    )
+    self.assertEqual(rank, expected_rank)
+    np.testing.assert_array_equal(kwargs['res'], pos['res'])
+    np.testing.assert_array_equal(kwargs['res'], [-1, -0.5, 0.5, 1, 0])
+
+    # the omitted parameter is not an argument
+    with self.assertRaises(TypeError):
+      mujoco.mju_boxQP(n=n, **args())
+
   def test_mju_fill(self):
     res = np.empty(3, DTYPE)
     mujoco.mju_fill(res, 1.5)
