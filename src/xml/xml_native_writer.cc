@@ -2938,11 +2938,9 @@ void mjXWriter::Sensor(XMLElement* root) {
 
   // write all sensors
   for (int i = 0; i < num; i++) {
-    XMLElement*      elem          = 0;
-    mjCSensor*       base          = model->Sensors()[i];
-    const mjsSensor* sensor        = Values<mjsSensor>(base);
-    string           instance_name = "";
-    string           plugin_name   = "";
+    XMLElement*      elem   = 0;
+    mjCSensor*       base   = model->Sensors()[i];
+    const mjsSensor* sensor = Values<mjsSensor>(base);
 
     // write sensor type and type-specific attributes
     switch (sensor->type) {

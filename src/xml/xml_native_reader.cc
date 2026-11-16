@@ -1937,7 +1937,7 @@ void mjXReader::Visual(XMLElement* section) {
 
 // asset section parser
 void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
-  string      text, name;
+  string      name;
   XMLElement* elem;
 
   // iterate over child elements
@@ -2452,7 +2452,7 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame, const 
 
 // contact section parser
 void mjXReader::Contact(XMLElement* section) {
-  string      text, name;
+  string      name;
   XMLElement* elem;
 
   // iterate over child elements
