@@ -33,8 +33,8 @@
 #include <math/scalar.h>
 #include <math/vec3.h>
 #include <mujoco/mjrfilament.h>
-#include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/imgui_editor.h"
+#include <mujoco/mujoco.h>
 #include "render/filament/core/scene_view.h"
 
 namespace mujoco {
@@ -74,14 +74,13 @@ bool IsModified(ImGuiID id, const T& current_value) {
 
 }  // namespace
 
-NameList EnumNames(ToneMapperType v) {
-  static const char* names[] = {"PBR Neutral", "ACES", "ACES Legacy", "Filmic",
-                                "Linear"};
+NameList EnumNames(mjrToneMapper v) {
+  static const char* names[] = {"Linear", "PBR Neutral", "ACES", "ACES Legacy", "Filmic"};
   return names;
 }
 
-NameList EnumNames(OutputColorSpace v) {
-  static const char* names[] = {"Rec709-Linear-D65", "Rec709-sRGB-D65"};
+NameList EnumNames(mjrColorSpace v) {
+  static const char* names[] = {"Auto", "Linear", "sRGB"};
   return names;
 }
 
@@ -108,11 +107,6 @@ NameList EnumNames(filament::TemporalAntiAliasingOptions::BoxClipping v) {
 NameList EnumNames(filament::TemporalAntiAliasingOptions::JitterPattern v) {
   static const char* names[] = {"RGSS_X4", "UNIFORM_HELIX_X4", "HALTON_23_X8",
                                 "HALTON_23_X16", "HALTON_23_X32"};
-  return names;
-}
-
-NameList EnumNames(filament::ColorGrading::LutFormat v) {
-  static const char* names[] = {"Integer", "Float"};
   return names;
 }
 
@@ -221,6 +215,27 @@ bool Ui(std::string_view label, T* value, UiOpts<T> opts = {}) {
   }
 
   return changed;
+}
+
+template <typename T, int N>
+bool UiArr(std::string_view label, T (&arr)[N]) {
+  if constexpr (N == 3) {
+    float3 val(arr[0], arr[1], arr[2]);
+    const bool changed = Ui(label, &val);
+    for (int i = 0; i < N; ++i) {
+      arr[i] = val[i];
+    }
+    return changed;
+  } else if constexpr (N == 4) {
+    float4 val(arr[0], arr[1], arr[2], arr[3]);
+    const bool changed = Ui(label, &val);
+    for (int i = 0; i < N; ++i) {
+      arr[i] = val[i];
+    }
+    return changed;
+  } else {
+    static_assert(dependent_false<T>::value, "Unsupported array size");
+  }
 }
 
 void DrawAmbientOcclusionGui(SceneView* scene_view) {
@@ -424,13 +439,12 @@ void DrawBloomGui(SceneView* scene_view) {
 void DrawColorGradingGui(SceneView* scene_view) {
   auto opts = scene_view->GetColorGradingOptions();
 
+  mjrToneMapper tone_mapper = (mjrToneMapper)opts.tone_mapper;
+  mjrColorSpace output_color_space = (mjrColorSpace)opts.output_color_space;
+
   bool changed = false;
-  changed |= Ui("Tone Mapper", &opts.tone_mapper);
-  changed |= Ui("Output Color Space", &opts.output_color_space);
-  changed |= Ui("Lut Format", &opts.format);
-  changed |= Ui("Lut Dimension", &opts.dimension);
-  changed |= Ui("Luminance Scaling", &opts.luminance_scaling);
-  changed |= Ui("Gamut Mapping", &opts.gamut_mapping);
+  changed |= Ui("Tone Mapper", &tone_mapper);
+  changed |= Ui("Output Color Space", &output_color_space);
   changed |= Ui("Exposure", &opts.exposure, {.step = 0.01f, .fstep = 0.1f});
   changed |= Ui("Night Adaptation", &opts.night_adaptation,
                 {.step = 0.01f, .fstep = 0.1f});
@@ -440,42 +454,44 @@ void DrawColorGradingGui(SceneView* scene_view) {
   changed |=
       Ui("Temperature", &opts.temperature, {.step = 0.01f, .fstep = 0.1f});
   changed |= Ui("Tint", &opts.tint, {.step = 0.01f, .fstep = 0.1f});
-  changed |= Ui("Out Red", &opts.out_red);
-  changed |= Ui("Out Green", &opts.out_green);
-  changed |= Ui("Out Blue", &opts.out_blue);
-  changed |= Ui("Shadows", &opts.shadows);
-  changed |= Ui("Midtones", &opts.midtones);
-  changed |= Ui("Highlights", &opts.highlights);
-  changed |= Ui("Tonal Ranges", &opts.tonal_ranges);
-  changed |= Ui("Slope", &opts.slope);
-  changed |= Ui("Offset", &opts.offset);
-  changed |= Ui("Power", &opts.power);
-  changed |= Ui("Shadow Gamma", &opts.shadow_gamma);
-  changed |= Ui("Mid Point", &opts.mid_point);
-  changed |= Ui("Highlight Scale", &opts.highlight_scale);
+  changed |= UiArr("Out Red", opts.out_red);
+  changed |= UiArr("Out Green", opts.out_green);
+  changed |= UiArr("Out Blue", opts.out_blue);
+  changed |= UiArr("Shadows", opts.shadows);
+  changed |= UiArr("Midtones", opts.midtones);
+  changed |= UiArr("Highlights", opts.highlights);
+  changed |= UiArr("Tonal Ranges", opts.tonal_ranges);
+  changed |= UiArr("Slope", opts.slope);
+  changed |= UiArr("Offset", opts.offset);
+  changed |= UiArr("Power", opts.power);
+  changed |= UiArr("Shadow Gamma", opts.shadow_gamma);
+  changed |= UiArr("Mid Point", opts.mid_point);
+  changed |= UiArr("Highlight Scale", opts.highlight_scale);
 
   opts.contrast = std::clamp(opts.contrast, 0.0f, 2.0f);
   opts.vibrance = std::clamp(opts.vibrance, 0.0f, 2.0f);
   opts.saturation = std::clamp(opts.saturation, 0.0f, 2.0f);
   opts.temperature = std::clamp(opts.temperature, -1.0f, 1.0f);
   opts.tint = std::clamp(opts.tint, -1.0f, 1.0f);
-  opts.slope.x = std::max(0.000001f, opts.slope.x);
-  opts.slope.y = std::max(0.000001f, opts.slope.y);
-  opts.slope.z = std::max(0.000001f, opts.slope.z);
-  opts.power.x = std::max(0.000001f, opts.power.x);
-  opts.power.y = std::max(0.000001f, opts.power.y);
-  opts.power.z = std::max(0.000001f, opts.power.z);
-  opts.shadow_gamma.x = std::max(0.000001f, opts.shadow_gamma.x);
-  opts.shadow_gamma.y = std::max(0.000001f, opts.shadow_gamma.y);
-  opts.shadow_gamma.z = std::max(0.000001f, opts.shadow_gamma.z);
-  opts.mid_point.x = std::max(0.000001f, opts.mid_point.x);
-  opts.mid_point.y = std::max(0.000001f, opts.mid_point.y);
-  opts.mid_point.z = std::max(0.000001f, opts.mid_point.z);
-  if (opts.highlight_scale.x == 0.0f) opts.highlight_scale.x = 0.000001f;
-  if (opts.highlight_scale.y == 0.0f) opts.highlight_scale.y = 0.000001f;
-  if (opts.highlight_scale.z == 0.0f) opts.highlight_scale.z = 0.000001f;
+  opts.slope[0] = std::max(0.000001f, opts.slope[0]);
+  opts.slope[1] = std::max(0.000001f, opts.slope[1]);
+  opts.slope[2] = std::max(0.000001f, opts.slope[2]);
+  opts.power[0] = std::max(0.000001f, opts.power[0]);
+  opts.power[1] = std::max(0.000001f, opts.power[1]);
+  opts.power[2] = std::max(0.000001f, opts.power[2]);
+  opts.shadow_gamma[0] = std::max(0.000001f, opts.shadow_gamma[0]);
+  opts.shadow_gamma[1] = std::max(0.000001f, opts.shadow_gamma[1]);
+  opts.shadow_gamma[2] = std::max(0.000001f, opts.shadow_gamma[2]);
+  opts.mid_point[0] = std::max(0.000001f, opts.mid_point[0]);
+  opts.mid_point[1] = std::max(0.000001f, opts.mid_point[1]);
+  opts.mid_point[2] = std::max(0.000001f, opts.mid_point[2]);
+  if (opts.highlight_scale[0] == 0.0f) opts.highlight_scale[0] = 0.000001f;
+  if (opts.highlight_scale[1] == 0.0f) opts.highlight_scale[1] = 0.000001f;
+  if (opts.highlight_scale[2] == 0.0f) opts.highlight_scale[2] = 0.000001f;
 
   if (changed) {
+    opts.tone_mapper = tone_mapper;
+    opts.output_color_space = output_color_space;
     scene_view->SetColorGradingOptions(opts);
   }
 }

@@ -19,7 +19,6 @@
 #include <limits>
 #include <memory>
 #include <span>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -32,6 +31,7 @@
 #include <filament/RenderTarget.h>
 #include <filament/Renderer.h>
 #include <filament/Skybox.h>
+#include <filament/ToneMapper.h>
 #include <filament/TransformManager.h>
 #include <filament/View.h>
 #include <filament/Viewport.h>
@@ -46,7 +46,6 @@
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/core/builtins.h"
-#include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/light.h"
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/object_manager.h"
@@ -73,34 +72,74 @@ static constexpr filament::color::ColorSpace REC709_SRGB_D65 =
     filament::color::D65;
 
 static filament::ColorGrading::Builder ToBuilder(
-    const ColorGradingOptions& opts) {
+    const mjrfColorGradingOpts& opts) {
   filament::color::ColorSpace output_color_space = REC709_SRGB_D65;
   switch (opts.output_color_space) {
-    case OutputColorSpace::kRec709_Linear_D65:
+    case mjCOLORSPACE_LINEAR:
       output_color_space = REC709_LINEAR_D65;
       break;
-    case OutputColorSpace::kRec709_sRGB_D65:
+    case mjCOLORSPACE_SRGB:
       output_color_space = REC709_SRGB_D65;
       break;
   }
 
   return filament::ColorGrading::Builder()
-      .format(opts.format)
       .outputColorSpace(output_color_space)
-      .dimensions(opts.dimension)
-      .luminanceScaling(opts.luminance_scaling)
-      .gamutMapping(opts.gamut_mapping)
       .exposure(opts.exposure)
       .nightAdaptation(opts.night_adaptation)
       .contrast(opts.contrast)
       .vibrance(opts.vibrance)
       .saturation(opts.saturation)
       .whiteBalance(opts.temperature, opts.tint)
-      .channelMixer(opts.out_red, opts.out_green, opts.out_blue)
-      .shadowsMidtonesHighlights(opts.shadows, opts.midtones, opts.highlights,
-                                 opts.tonal_ranges)
-      .slopeOffsetPower(opts.slope, opts.offset, opts.power)
-      .curves(opts.shadow_gamma, opts.mid_point, opts.highlight_scale);
+      .channelMixer(ReadFloat3(opts.out_red), ReadFloat3(opts.out_green),
+                    ReadFloat3(opts.out_blue))
+      .shadowsMidtonesHighlights(
+          ReadFloat4(opts.shadows), ReadFloat4(opts.midtones),
+          ReadFloat4(opts.highlights), ReadFloat4(opts.tonal_ranges))
+      .slopeOffsetPower(ReadFloat3(opts.slope), ReadFloat3(opts.offset),
+                        ReadFloat3(opts.power))
+      .curves(ReadFloat3(opts.shadow_gamma), ReadFloat3(opts.mid_point),
+              ReadFloat3(opts.highlight_scale));
+}
+
+static std::unique_ptr<filament::ToneMapper> CreateToneMapper(mjrToneMapper type) {
+  filament::ToneMapper* ptr = nullptr;
+  switch (type) {
+    case mjTONE_MAPPER_PBR_NEUTRAL:
+      ptr = new filament::PBRNeutralToneMapper();
+      break;
+    case mjTONE_MAPPER_ACES:
+      ptr = new filament::ACESToneMapper();
+      break;
+    case mjTONE_MAPPER_ACES_LEGACY:
+      ptr = new filament::ACESLegacyToneMapper();
+      break;
+    case mjTONE_MAPPER_FILMIC:
+      ptr = new filament::FilmicToneMapper();
+      break;
+    case mjTONE_MAPPER_LINEAR:
+      ptr = new filament::LinearToneMapper();
+      break;
+    default:
+      mju_error("Unsupported tone mapper type");
+  }
+  return std::unique_ptr<filament::ToneMapper>(ptr);
+}
+
+static filament::QualityLevel ToFilamentQuality(mjrQuality quality) {
+  switch (quality) {
+    case mjQUALITY_LOW:
+      return filament::QualityLevel::LOW;
+    case mjQUALITY_MEDIUM:
+      return filament::QualityLevel::MEDIUM;
+    case mjQUALITY_HIGH:
+      return filament::QualityLevel::HIGH;
+    case mjQUALITY_ULTRA:
+      return filament::QualityLevel::ULTRA;
+    default:
+      mju_error("Unsupported quality level");
+  }
+  return filament::QualityLevel::LOW;
 }
 
 static void SetupCamera(const mjrfRenderRequest& request,
@@ -473,8 +512,8 @@ void SceneView::Render(filament::Renderer* renderer,
   }
 }
 
-void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
-  auto tone_mapper = CreateToneMapper(opts.tone_mapper);
+void SceneView::SetColorGradingOptions(const mjrfColorGradingOpts& opts) {
+  auto tone_mapper = CreateToneMapper((mjrToneMapper)opts.tone_mapper);
   auto color_grading = ToBuilder(opts)
                            .toneMapper(tone_mapper.get())
                            .build(*GetEngine());
@@ -488,71 +527,8 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
 
 filament::View* SceneView::GetDefaultRenderView() { return main_view_; }
 
-ColorGradingOptions SceneView::GetColorGradingOptions() const {
+mjrfColorGradingOpts SceneView::GetColorGradingOptions() const {
   return color_grading_options_;
-}
-
-static ToneMapperType ToneMapperTypeFromString(std::string_view name) {
-  if (name == "aces") {
-    return ToneMapperType::kACES;
-  } else if (name == "aces_legacy") {
-    return ToneMapperType::kACESLegacy;
-  } else if (name == "filmic") {
-    return ToneMapperType::kFilmic;
-  } else if (name == "linear") {
-    return ToneMapperType::kLinear;
-  } else if (name == "pbr_neutral") {
-    return ToneMapperType::kPBRNeutral;
-  }
-  mju_warning("Unknown tone mapper type: %s", name.data());
-  return ToneMapperType::kPBRNeutral;
-}
-
-static OutputColorSpace OutputColorSpaceFromString(
-    std::string_view name) {
-  if (name == "linear") {
-    return OutputColorSpace::kRec709_Linear_D65;
-  } else if (name == "srgb") {
-    return OutputColorSpace::kRec709_sRGB_D65;
-  }
-  mju_warning("Unknown output color space: %s", name.data());
-  return OutputColorSpace::kRec709_sRGB_D65;
-}
-
-static filament::RgbaType ColorTypeFromString(std::string_view name) {
-  if (name == "linear") {
-    return filament::RgbaType::LINEAR;
-  } else if (name == "srgb") {
-    return filament::RgbaType::sRGB;
-  }
-  mju_warning("Unknown color type: %s", name.data());
-  return filament::RgbaType::sRGB;
-}
-
-static filament::QualityLevel QualityLevelFromString(std::string_view name) {
-  if (name == "low") {
-    return filament::QualityLevel::LOW;
-  } else if (name == "medium") {
-    return filament::QualityLevel::MEDIUM;
-  } else if (name == "high") {
-    return filament::QualityLevel::HIGH;
-  } else if (name == "ultra") {
-    return filament::QualityLevel::ULTRA;
-  }
-  mju_warning("Unknown quality level: %s", name.data());
-  return filament::QualityLevel::MEDIUM;
-}
-
-static filament::ShadowType ShadowTypeFromString(std::string_view name) {
-  if (name == "pcf") {
-    return filament::ShadowType::PCF;
-  } else if (name == "vsm") {
-    return filament::ShadowType::VSM;
-  } else if (name == "pcss") {
-    return filament::ShadowType::PCSS;
-  }
-  mju_warning("Unknown shadow type: %s", name.data());
-  return filament::ShadowType::PCF;
 }
 
 void SceneView::SetMsaa(int samples) {
@@ -581,91 +557,121 @@ float4 SceneView::GetHazeColor() const {
 }
 
 void SceneView::Configure(const mjModel* model) {
-  SetMsaa(model->vis.quality.offsamples);
-  const Builtins::Slices nslice{model->vis.quality.numslices};
+  mjrfRenderOpts opts;
+  mjrf_modelRenderOpts(&opts, model);
+
+  // The new RenderOpts struct uses slightly different defaults. For now, we're
+  // going to preserve the old defaults if the user hasn't configured these
+  // options. We will remove this logic, but it will affect rendering so we
+  // need to be mindful of how we deploy it.
+  if (mj_name2id(model, mjOBJ_NUMERIC, "filament.cg.shadows") < 0) {
+    opts.color_grading.shadows[3] = 1.0f;
+  }
+  if (mj_name2id(model, mjOBJ_NUMERIC, "filament.cg.midtones") < 0) {
+    opts.color_grading.midtones[3] = 1.0f;
+  }
+  if (mj_name2id(model, mjOBJ_NUMERIC, "filament.cg.highlights") < 0) {
+    opts.color_grading.highlights[3] = 1.0f;
+  }
+  if (mj_name2id(model, mjOBJ_TEXT, "filament.cg.tone_mapping") < 0) {
+    opts.color_grading.tone_mapper = mjTONE_MAPPER_PBR_NEUTRAL;
+  }
+  if (mj_name2id(model, mjOBJ_TEXT, "filament.cg.output_color_space") < 0) {
+    opts.color_grading.output_color_space = mjCOLORSPACE_SRGB;
+  }
+  if (mj_name2id(model, mjOBJ_TEXT, "filament.ao.quality") < 0) {
+    opts.ambient_occlusion.quality = mjQUALITY_ULTRA;
+  }
+  if (mj_name2id(model, mjOBJ_TEXT, "filament.ao.low_pass_filter") < 0) {
+    opts.ambient_occlusion.low_pass_filter = mjQUALITY_ULTRA;
+  }
+  if (mj_name2id(model, mjOBJ_TEXT, "filament.ao.upsampling") < 0) {
+    opts.ambient_occlusion.upsampling = mjQUALITY_ULTRA;
+  }
+
+  Apply(opts.ambient_occlusion);
+  Apply(opts.antialiasing);
+  Apply(opts.bloom);
+  Apply(opts.color_grading);
+  Apply(opts.fog);
+  Apply(opts.haze);
+  Apply(opts.material);
+  Apply(opts.shadow);
+  Apply(opts.vignette);
+}
+
+void SceneView::Apply(const mjrfAntialiasingOpts& opts) {
+  SetMsaa(opts.msaa_samples);
+}
+
+void SceneView::Apply(const mjrfColorGradingOpts& opts) {
+  SetColorGradingOptions(opts);
+}
+
+void SceneView::Apply(const mjrfHazeOpts& opts) {
+  SetHaze(opts.ratio, opts.color);
+  const Builtins::Slices nslice{opts.slices};
   haze_->SetMesh(object_mgr_->GetBuiltins()->Haze(nslice));
-  SetHaze(model->vis.map.haze, model->vis.rgba.haze);
+}
 
-  auto cg = color_grading_options_;
-  cg.exposure = ReadElement(model, "filament.cg.exposure", cg.exposure);
-  cg.contrast = ReadElement(model, "filament.cg.contrast", cg.contrast);
-  cg.vibrance = ReadElement(model, "filament.cg.vibrance", cg.vibrance);
-  cg.saturation = ReadElement(model, "filament.cg.saturation", cg.saturation);
-  cg.temperature =
-      ReadElement(model, "filament.cg.temperature", cg.temperature);
-  cg.tint = ReadElement(model, "filament.cg.tint", cg.tint);
-  cg.slope = ReadElement(model, "filament.cg.slope", cg.slope);
-  cg.offset = ReadElement(model, "filament.cg.offset", cg.offset);
-  cg.power = ReadElement(model, "filament.cg.power", cg.power);
-  cg.shadow_gamma =
-      ReadElement(model, "filament.cg.shadow_gamma", cg.shadow_gamma);
-  cg.mid_point = ReadElement(model, "filament.cg.mid_point", cg.mid_point);
-  cg.highlight_scale =
-      ReadElement(model, "filament.cg.highlight_scale", cg.highlight_scale);
-  cg.shadows = ReadElement(model, "filament.cg.shadows", cg.shadows);
-  cg.midtones = ReadElement(model, "filament.cg.midtones", cg.midtones);
-  cg.highlights = ReadElement(model, "filament.cg.highlights", cg.highlights);
-  cg.tonal_ranges =
-      ReadElement(model, "filament.cg.tonal_ranges", cg.tonal_ranges);
-  cg.tone_mapper = ToneMapperTypeFromString(ReadElement<std::string_view>(
-      model, "filament.cg.tone_mapping", "pbr_neutral"));
-  cg.output_color_space =
-      OutputColorSpaceFromString(ReadElement<std::string_view>(
-          model, "filament.cg.output_color_space", "srgb"));
-  SetColorGradingOptions(cg);
-
+void SceneView::Apply(const mjrfAmbientOcclusionOpts& opts) {
   auto ao = main_view_->getAmbientOcclusionOptions();
-  ao.enabled = ReadElement(model, "filament.ao.enabled", true);
-  ao.bentNormals = ReadElement(model, "filament.ao.bent_normals", false);
-  ao.ssct.enabled = ReadElement(model, "filament.ao.ssct", ao.ssct.enabled);
-  ao.quality = QualityLevelFromString(
-      ReadElement<std::string_view>(model, "filament.ao.quality", "ultra"));
-  ao.lowPassFilter = QualityLevelFromString(ReadElement<std::string_view>(
-      model, "filament.ao.low_pass_filter", "ultra"));
-  ao.upsampling = QualityLevelFromString(
-      ReadElement<std::string_view>(model, "filament.ao.upsampling", "ultra"));
+  ao.enabled = opts.type != mjAMBIENT_OCCLUSION_TYPE_NONE;
+  ao.bentNormals = opts.bent_normals;
+  ao.ssct.enabled = opts.ssct_enable;
+  ao.quality = ToFilamentQuality((mjrQuality)opts.quality);
+  ao.lowPassFilter = ToFilamentQuality((mjrQuality)opts.low_pass_filter);
+  ao.upsampling = ToFilamentQuality((mjrQuality)opts.upsampling);
   main_view_->setAmbientOcclusionOptions(ao);
+}
 
+void SceneView::Apply(const mjrfShadowOpts& opts) {
   auto shadow_type = main_view_->getShadowType();
-  shadow_type = ShadowTypeFromString(
-      ReadElement<std::string_view>(model, "filament.shadows.type", "pcf"));
+  if (opts.type == mjSHADOW_TYPE_SOFT) {
+    shadow_type = filament::View::ShadowType::PCSS;
+  } else {
+    shadow_type = filament::View::ShadowType::PCF;
+  }
   main_view_->setShadowType(shadow_type);
+}
 
-  auto fog_opts = main_view_->getFogOptions();
-  fog_opts.enabled =
-      ReadElement(model, "filament.fog.enabled", fog_opts.enabled);
-  fog_opts.color = ReadElement(model, "filament.fog.color", fog_opts.color);
-  fog_opts.distance =
-      ReadElement(model, "filament.fog.distance", fog_opts.distance);
-  fog_opts.density =
-      ReadElement(model, "filament.fog.density", fog_opts.density);
-  fog_opts.cutOffDistance = ReadElement(model, "filament.fog.cut_off_distance",
-                                        fog_opts.cutOffDistance);
-  fog_opts.maximumOpacity = ReadElement(model, "filament.fog.maximum_opacity",
-                                        fog_opts.maximumOpacity);
-  fog_opts.height = ReadElement(model, "filament.fog.height", fog_opts.height);
-  fog_opts.heightFalloff =
-      ReadElement(model, "filament.fog.height_falloff", fog_opts.heightFalloff);
-  main_view_->setFogOptions(fog_opts);
+void SceneView::Apply(const mjrfFogOpts& opts) {
+  auto fog = main_view_->getFogOptions();
+  fog.enabled = opts.enable;
+  fog.color = ReadFloat3(opts.color);
+  fog.distance = opts.distance;
+  fog.density = opts.density;
+  fog.cutOffDistance = opts.cutoff;
+  fog.maximumOpacity = opts.max_opacity;
+  fog.height = opts.height;
+  fog.heightFalloff = opts.height_falloff;
+  main_view_->setFogOptions(fog);
+}
 
+void SceneView::Apply(const mjrfBloomOpts& opts) {
   auto bloom = main_view_->getBloomOptions();
-  bloom.enabled = ReadElement(model, "filament.bloom.enabled", bloom.enabled);
-  bloom.strength =
-      ReadElement(model, "filament.bloom.strength", bloom.strength);
-  bloom.quality = QualityLevelFromString(
-      ReadElement<std::string_view>(model, "filament.bloom.quality", "low"));
-  bloom.levels = ReadElement(model, "filament.bloom.levels", bloom.levels);
+  bloom.enabled = opts.enable;
+  bloom.strength = opts.strength;
+  bloom.quality = ToFilamentQuality((mjrQuality)opts.quality);
+  bloom.levels = opts.levels;
   main_view_->setBloomOptions(bloom);
+}
 
+void SceneView::Apply(const mjrfVignetteOpts& opts) {
   auto vignette = main_view_->getVignetteOptions();
-  vignette.enabled =
-      ReadElement(model, "filament.vignette.enabled", vignette.enabled);
-  vignette.midPoint =
-      ReadElement(model, "filament.vignette.midpoint", vignette.midPoint);
+  vignette.enabled = opts.enable;
+  vignette.midPoint = opts.mid_point;
+  vignette.color = ReadFloat4(opts.color);
+  vignette.feather = opts.feather;
+  vignette.roundness = opts.roundness;
   main_view_->setVignetteOptions(vignette);
+}
 
-  material_mgr_->SetBaseColorType(
-      ColorTypeFromString(ReadElement<std::string_view>(
-          model, "filament.material.base_color_type", "srgb")));
+void SceneView::Apply(const mjrfMaterialOpts& opts) {
+  if (opts.rgb_color_type == mjCOLORSPACE_LINEAR) {
+    material_mgr_->SetBaseColorType(filament::RgbaType::LINEAR);
+  } else {
+    material_mgr_->SetBaseColorType(filament::RgbaType::sRGB);
+  }
 }
 }  // namespace mujoco
