@@ -15,6 +15,8 @@
 #ifndef MUJOCO_PYTHON_PRIVATE_H_
 #define MUJOCO_PYTHON_PRIVATE_H_
 
+#include <stddef.h>
+
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjspec.h>
@@ -25,7 +27,7 @@
 extern "C" {
 MJAPI mjfLogHandler _mjPRIVATE_setTlsLogHandler(mjfLogHandler handler);
 MJAPI mjfLogHandler _mjPRIVATE_getGlobalLogHandler(void);
-MJAPI void* mj_arenaAllocByte(mjData* d, int bytes, int alignment);
+MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
 MJAPI void _mjPRIVATE_addRefElement(mjsElement* element);
 MJAPI void _mjPRIVATE_releaseElement(mjsElement* element);
 }
