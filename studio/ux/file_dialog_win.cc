@@ -55,13 +55,15 @@ static std::string WCharToChar(const wchar_t* str) {
 
 static std::unique_ptr<wchar_t[]> CharToWChar(std::string_view str) {
   int len = static_cast<int>(str.size());
-  int num_wchars = MultiByteToWideChar(CP_UTF8, 0, str.data(), len, NULL, 0);
-  assert(num_wchars);
-  num_wchars += 1;  // terminator
+  int num_wchars = len ? MultiByteToWideChar(CP_UTF8, 0, str.data(), len, NULL, 0) : 0;
 
-  wchar_t* ptr = new wchar_t[num_wchars];
-  MultiByteToWideChar(CP_UTF8, 0, str.data(), num_wchars, ptr, num_wchars);
-  ptr[num_wchars - 1] = '\0';
+  // convert exactly `len` input bytes; the output can be shorter than the input for
+  // non-ASCII text, so the output size must not be used as the input size
+  wchar_t* ptr = new wchar_t[num_wchars + 1];
+  if (num_wchars) {
+    MultiByteToWideChar(CP_UTF8, 0, str.data(), len, ptr, num_wchars);
+  }
+  ptr[num_wchars] = '\0';
   return std::unique_ptr<wchar_t[]>(ptr);
 }
 
@@ -102,26 +104,51 @@ static bool AddFilters(IFileDialog* dialog, std::span<std::string_view> filters 
   return true;
 }
 
-static bool SetDefaultPath(IFileDialog* dialog, std::string_view path) {
+// Opens the dialog at the folder of `path` and prefills its file name. `path` may name a
+// folder or a file that does not exist yet (e.g. "C:\dir/model_saved.xml"), and may mix '/'
+// and '\'. A default path that cannot be used is ignored, so it never stops the dialog from
+// opening.
+static void SetDefaultPath(IFileDialog* dialog, std::string_view path) {
   if (path.empty() || path.front() == 0) {
-    return true;
+    return;
   }
 
-  auto wpath = CharToWChar(path);
+  auto set_folder = [dialog](const std::string& folder_path) {
+    auto wpath = CharToWChar(folder_path);
+    IShellItem* item = nullptr;
+    if (!SUCCEEDED(SHCreateItemFromParsingName(wpath.get(), NULL, IID_PPV_ARGS(&item)))) {
+      return false;
+    }
+    SFGAOF attributes = 0;
+    const bool is_folder =
+        SUCCEEDED(item->GetAttributes(SFGAO_FOLDER, &attributes)) && (attributes & SFGAO_FOLDER);
+    if (is_folder) {
+      dialog->SetFolder(item);
+    }
+    item->Release();
+    return is_folder;
+  };
 
-  IShellItem* folder(NULL);
-  HRESULT hresult = SHCreateItemFromParsingName(wpath.get(), NULL, IID_PPV_ARGS(&folder));
-  if (hresult == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) ||
-      hresult == HRESULT_FROM_WIN32(ERROR_INVALID_DRIVE)) {
-    return true;
+  // a path that is itself a folder: open the dialog there
+  std::string native_path(path);
+  for (char& c : native_path) {
+    if (c == '/') {
+      c = '\\';
+    }
   }
-  if (SUCCEEDED(hresult)) {
-    dialog->SetFolder(folder);
-    folder->Release();
-    return true;
+  if (set_folder(native_path)) {
+    return;
   }
 
-  return false;
+  // otherwise a file: open the dialog at its folder, with its name prefilled
+  const DialogDefaultPath split = SplitDialogDefaultPath(native_path, '\\');
+  if (!split.folder.empty()) {
+    set_folder(split.folder);
+  }
+  if (!split.file_name.empty()) {
+    auto wname = CharToWChar(split.file_name);
+    dialog->SetFileName(wname.get());
+  }
 }
 
 template <typename T>
@@ -140,9 +167,7 @@ static DialogResult RunDialog(IFileDialog* dialog, std::string_view default_path
   if (!dialog) {
     return SetError("Could not create dialog.");
   }
-  if (!SetDefaultPath(dialog, default_path)) {
-    return SetError("Could not set path.");
-  }
+  SetDefaultPath(dialog, default_path);
   if (!AddFilters(dialog, filters)) {
     return SetError("Could not create dialog.");
   }
@@ -152,8 +177,10 @@ static DialogResult RunDialog(IFileDialog* dialog, std::string_view default_path
   if (SUCCEEDED(hresult)) {
     IShellItem* item = nullptr;
     hresult = dialog->GetResult(&item);
-    if (!SUCCEEDED(hresult)) {
-      item->Release();
+    if (!SUCCEEDED(hresult) || item == nullptr) {
+      if (item) {
+        item->Release();
+      }
       return SetError("Could not get file path for selected.");
     }
 

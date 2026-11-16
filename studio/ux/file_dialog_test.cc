@@ -37,5 +37,53 @@ TEST(FileDialogTest, FormatFileFilterEmptyAndMalformedCommas) {
   EXPECT_EQ(FormatFileFilter(",xml,,mjb,", ';'), "*.xml;*.mjb");
 }
 
+TEST(FileDialogTest, SplitDialogDefaultPathFileInFolder) {
+  DialogDefaultPath split = SplitDialogDefaultPath("/home/user/robot_saved.xml");
+  EXPECT_EQ(split.folder, "/home/user");
+  EXPECT_EQ(split.file_name, "robot_saved.xml");
+
+  split = SplitDialogDefaultPath("C:\\models\\robot_saved.xml");
+  EXPECT_EQ(split.folder, "C:\\models");
+  EXPECT_EQ(split.file_name, "robot_saved.xml");
+}
+
+TEST(FileDialogTest, SplitDialogDefaultPathMixedSeparators) {
+  // a Windows folder joined to a file name with '/'
+  DialogDefaultPath split =
+      SplitDialogDefaultPath("C:\\generated_robot-mjcf/robot_saved.xml", '\\');
+  EXPECT_EQ(split.folder, "C:\\generated_robot-mjcf");
+  EXPECT_EQ(split.file_name, "robot_saved.xml");
+
+  split = SplitDialogDefaultPath("C:/a\\b/c.mjb", '\\');
+  EXPECT_EQ(split.folder, "C:\\a\\b");
+  EXPECT_EQ(split.file_name, "c.mjb");
+
+  // without a native separator the folder is returned as given
+  split = SplitDialogDefaultPath("C:/a\\b/c.mjb");
+  EXPECT_EQ(split.folder, "C:/a\\b");
+}
+
+TEST(FileDialogTest, SplitDialogDefaultPathRootsAndBareNames) {
+  DialogDefaultPath split = SplitDialogDefaultPath("robot_saved.xml");
+  EXPECT_EQ(split.folder, "");
+  EXPECT_EQ(split.file_name, "robot_saved.xml");
+
+  split = SplitDialogDefaultPath("/robot_saved.xml");
+  EXPECT_EQ(split.folder, "/");
+  EXPECT_EQ(split.file_name, "robot_saved.xml");
+
+  split = SplitDialogDefaultPath("C:/robot_saved.xml", '\\');
+  EXPECT_EQ(split.folder, "C:\\");
+  EXPECT_EQ(split.file_name, "robot_saved.xml");
+
+  split = SplitDialogDefaultPath("C:\\models\\");
+  EXPECT_EQ(split.folder, "C:\\models");
+  EXPECT_EQ(split.file_name, "");
+
+  split = SplitDialogDefaultPath("");
+  EXPECT_EQ(split.folder, "");
+  EXPECT_EQ(split.file_name, "");
+}
+
 }  // namespace
 }  // namespace mujoco::studio

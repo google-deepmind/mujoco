@@ -365,14 +365,18 @@ void App::RestoreKeyframeSelection(const KeyframeSelection& saved) {
 void App::UpdateFilePaths(const std::string& resolved_path) {
   if (!resolved_path.empty()) {
     const std::filesystem::path path(resolved_path);
-    const std::string base_path = path.parent_path().string() + "/";
+    const std::filesystem::path base_path = path.parent_path();
     const std::string model_name = path.stem().string();
-    tmp_.last_path[UiTempState::FileDialog_Load] = base_path + model_name + ".xml";
-    tmp_.last_path[UiTempState::FileDialog_SaveMjb] = base_path + model_name + "_saved.mjb";
-    tmp_.last_path[UiTempState::FileDialog_SaveXml] = base_path + model_name + "_saved.xml";
-    tmp_.last_path[UiTempState::FileDialog_PrintModel] = base_path + model_name + "_MJMODEL.TXT";
-    tmp_.last_path[UiTempState::FileDialog_PrintData] = base_path + model_name + "_MJDATA.TXT";
-    tmp_.last_path[UiTempState::FileDialog_SaveScreenshot] = base_path + "screenshot.webp";
+    // join with std::filesystem so that the separator is the platform's own (a path such as
+    // "C:\dir/model_saved.xml" can be rejected by the Windows file dialog), and so that a model
+    // loaded without a folder does not get paths at the filesystem root
+    auto in_base = [&base_path](const std::string& name) { return (base_path / name).string(); };
+    tmp_.last_path[UiTempState::FileDialog_Load] = in_base(model_name + ".xml");
+    tmp_.last_path[UiTempState::FileDialog_SaveMjb] = in_base(model_name + "_saved.mjb");
+    tmp_.last_path[UiTempState::FileDialog_SaveXml] = in_base(model_name + "_saved.xml");
+    tmp_.last_path[UiTempState::FileDialog_PrintModel] = in_base(model_name + "_MJMODEL.TXT");
+    tmp_.last_path[UiTempState::FileDialog_PrintData] = in_base(model_name + "_MJDATA.TXT");
+    tmp_.last_path[UiTempState::FileDialog_SaveScreenshot] = in_base("screenshot.webp");
   }
 }
 
@@ -2401,6 +2405,9 @@ void App::FileDialogGui() {
     if (res.status != DialogResult::kError) {
       strncpy(tmp_.filename, res.path.c_str(), res.path.size());
       tmp_.filename[res.path.size()] = 0;
+    } else {
+      // the dialog closes without being shown, so say why
+      mju_warning("File dialog failed: %s", res.path.empty() ? "unknown error" : res.path.c_str());
     }
     if (res.status != DialogResult::kPending) {
       tmp_.file_dialog = UiTempState::FileDialog_None;
