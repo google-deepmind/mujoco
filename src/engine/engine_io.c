@@ -235,36 +235,18 @@ static void freeModelBuffers(mjModel* m) {
 
 
 // allocate and initialize mjModel structure
-void mj_makeModel(mjModel** dest,
-    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize nactuator, mjtSize nout, mjtSize na,
-    mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
-    mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
-    mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
-    mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
-    mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
-    mjtSize nefm0dof, mjtSize nefm0L, mjtSize nefmCvert, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflexcell, mjtSize nflextexcoord, mjtSize nJfe,
-    mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
-    mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
-    mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
-    mjtSize nskinbonevert, mjtSize nhfield, mjtSize nhfielddata, mjtSize ntex, mjtSize ntexdata,
-    mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nJten,
-    mjtSize nwrap, mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext,
-    mjtSize ntextdata, mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap,
-    mjtSize nplugin, mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
-    mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
-    mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths, mjtSize nplastic) {
+void mj_makeModel(mjModel** dest, const mjModel* sizes) {
+  // copy the sizes before *dest is cleared, in case they belong to the same model
+#define X(name) mjtSize name = sizes->name;
+  MJMODEL_SIZES_LAYOUT
+#undef X
+
   intptr_t offset = 0;
   int allocate = *dest ? 0 : 1;
   mjModel* m = NULL;
 
   // CHECK SIZE PARAMETERS
   {
-    // dummy variables for MJMODEL_SIZES set after mjModel construction
-    int nnames_map = 0, nJmom = 0, ngravcomp = 0, nemax = 0, njmax = 0, nconmax=0;
-    int npolygonmax = 0, nmeshdegmax = 0;
-    int nuserdata=0, nsensordata=0, npluginstate=0, nhistory=0, narena=0, nbuffer=0;
-
     // sizes must be non-negative and fit in int, except for the byte arrays texdata and textdata
     #define X(name)                                                                   \
       if (name < 0) {                                                                 \
@@ -277,14 +259,8 @@ void mj_makeModel(mjModel** dest,
                     #name, MAX_ARRAY_SIZE, (long long)name);                          \
         return;                                                                       \
       }
-    MJMODEL_SIZES
+    MJMODEL_SIZES_LAYOUT
 #undef X
-
-    // suppress unused variable warnings
-    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
-    (void)npolygonmax; (void)nmeshdegmax;
-    (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)nhistory;
-    (void)narena; (void)nbuffer;
   }
 
   // nbody should always be positive
@@ -307,89 +283,10 @@ void mj_makeModel(mjModel** dest,
   memset(m, 0, sizeof(mjModel));
 
   // set size parameters
-  m->nq = nq;
-  m->nv = nv;
-  m->nu = nu;
-  m->nactuator = nactuator;
-  m->nout = nout;
-  m->na = na;
-  m->nbody = nbody;
-  m->nbvh = nbvh;
-  m->nbvhstatic = nbvhstatic;
-  m->nbvhdynamic = nbvhdynamic;
-  m->noct = noct;
-  m->njnt = njnt;
-  m->ntree = ntree;
-  m->nM = nM;
-  m->nB = nB;
-  m->nC = nC;
-  m->nD = nD;
-  m->ngeom = ngeom;
-  m->nsite = nsite;
-  m->ncam = ncam;
-  m->nlight = nlight;
-  m->nflex = nflex;
-  m->nflexnode = nflexnode;
-  m->nflexvert = nflexvert;
-  m->nflexedge = nflexedge;
-  m->nflexelem = nflexelem;
-  m->nflexelemdata = nflexelemdata;
-  m->nflexstiffness = nflexstiffness;
-  m->nflexbending = nflexbending;
-  m->nefm0dof = nefm0dof;
-  m->nefm0L = nefm0L;
-  m->nefmCvert = nefmCvert;
-  m->nflexelemedge = nflexelemedge;
-  m->nflexshelldata = nflexshelldata;
-  m->nflexcell = nflexcell;
-  m->nflextexcoord = nflextexcoord;
-  m->nJfe = nJfe;
-  m->nmesh = nmesh;
-  m->nmeshvert = nmeshvert;
-  m->nmeshnormal = nmeshnormal;
-  m->nmeshtexcoord = nmeshtexcoord;
-  m->nmeshface = nmeshface;
-  m->nmeshgraph = nmeshgraph;
-  m->nmeshpoly = nmeshpoly;
-  m->nmeshpolyvert = nmeshpolyvert;
-  m->nmeshpolymap = nmeshpolymap;
-  m->nskin = nskin;
-  m->nskinvert = nskinvert;
-  m->nskintexvert = nskintexvert;
-  m->nskinface = nskinface;
-  m->nskinbone = nskinbone;
-  m->nskinbonevert = nskinbonevert;
-  m->nhfield = nhfield;
-  m->nhfielddata = nhfielddata;
-  m->ntex = ntex;
-  m->ntexdata = ntexdata;
-  m->nmat = nmat;
-  m->npair = npair;
-  m->nexclude = nexclude;
-  m->neq = neq;
-  m->ntendon = ntendon;
-  m->nJten = nJten;
-  m->nwrap = nwrap;
-  m->nsensor = nsensor;
-  m->nnumeric = nnumeric;
-  m->nnumericdata = nnumericdata;
-  m->ntext = ntext;
-  m->ntextdata = ntextdata;
-  m->ntuple = ntuple;
-  m->ntupledata = ntupledata;
-  m->nkey = nkey;
-  m->nmocap = nmocap;
-  m->nplugin = nplugin;
-  m->npluginattr = npluginattr;
-  m->nuser_body = nuser_body;
-  m->nuser_jnt = nuser_jnt;
-  m->nuser_geom = nuser_geom;
-  m->nuser_site = nuser_site;
-  m->nuser_cam = nuser_cam;
-  m->nuser_tendon = nuser_tendon;
-  m->nuser_actuator = nuser_actuator;
-  m->nuser_sensor = nuser_sensor;
-  m->nnames = nnames;
+#define X(name) m->name = name;
+  MJMODEL_SIZES_LAYOUT
+#undef X
+
   long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
                     nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nactuator + nsensor +
                     nnumeric + ntext + ntuple + nkey + nplugin;
@@ -399,8 +296,6 @@ void mj_makeModel(mjModel** dest,
     return;
   }
   m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
-  m->npaths = npaths;
-  m->nplastic = nplastic;
 
   // compute buffer size, including padding to align the first array at any buffer address
   m->nbuffer = BUFFER_ALIGN - 1;
@@ -445,24 +340,7 @@ void mj_makeModel(mjModel** dest,
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
-    mj_makeModel(
-        &dest, src->nq, src->nv, src->nu, src->nactuator, src->nout, src->na,
-        src->nbody, src->nbvh, src->nbvhstatic,
-        src->nbvhdynamic, src->noct, src->njnt, src->ntree, src->nM, src->nB, src->nC, src->nD,
-        src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
-        src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
-        src->nflexbending, src->nefm0dof, src->nefm0L, src->nefmCvert, src->nflexelemedge,
-        src->nflexshelldata, src->nflexcell,
-        src->nflextexcoord, src->nJfe, src->nmesh, src->nmeshvert, src->nmeshnormal,
-        src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
-        src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
-        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata, src->ntex,
-        src->ntexdata, src->nmat, src->npair, src->nexclude, src->neq, src->ntendon, src->nJten,
-        src->nwrap, src->nsensor, src->nnumeric, src->nnumericdata, src->ntext, src->ntextdata,
-        src->ntuple, src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
-        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site, src->nuser_cam,
-        src->nuser_tendon, src->nuser_actuator, src->nuser_sensor, src->nnames, src->npaths,
-        src->nplastic);
+    mj_makeModel(&dest, src);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -570,6 +448,22 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize 
 }
 
 
+// check a size in MJMODEL_SIZES_RUNTIME read from a binary model
+static int validRuntimeSize(const char* name, mjtSize size) {
+  // njmax and nconmax are -1 if they are not specified
+  if (!strcmp(name, "njmax") || !strcmp(name, "nconmax")) {
+    return size >= -1 && size < MAX_ARRAY_SIZE;
+  }
+
+  // narena is a number of bytes
+  if (!strcmp(name, "narena")) {
+    return size >= 0;
+  }
+
+  return size >= 0 && size < MAX_ARRAY_SIZE;
+}
+
+
 // load binary MJB model
 mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   mjtSize ptrbuf = 0;
@@ -619,24 +513,21 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   }
 
   // read mjModel construction fields
-  mjtSize sizes[256];
-  bufread(sizes, sizeof(mjtSize)*nsize, buffer_sz, buffer, &ptrbuf);
+  mjtSize raw_sizes[256];
+  bufread(raw_sizes, sizeof(mjtSize)*nsize, buffer_sz, buffer, &ptrbuf);
+
+  // copy the sizes to an mjModel struct, only its sizes are used
+  mjModel sizes;
+  memset(&sizes, 0, sizeof(mjModel));
+  {
+    int int_idx = 0;
+#define X(name) sizes.name = raw_sizes[int_idx++];
+    MJMODEL_SIZES
+#undef X
+  }
 
   // allocate new mjModel
-  mj_makeModel(&m,
-               sizes[0],  sizes[1],  sizes[2],  sizes[3],  sizes[4],  sizes[5],  sizes[6],
-               sizes[7],  sizes[8],  sizes[9],  sizes[10], sizes[11], sizes[12], sizes[13],
-               sizes[14], sizes[15], sizes[16], sizes[17], sizes[18], sizes[19], sizes[20],
-               sizes[21], sizes[22], sizes[23], sizes[24], sizes[25], sizes[26], sizes[27],
-               sizes[28], sizes[29], sizes[30], sizes[31], sizes[32], sizes[33], sizes[34],
-               sizes[35], sizes[36], sizes[37], sizes[38], sizes[39], sizes[40], sizes[41],
-               sizes[42], sizes[43], sizes[44], sizes[45], sizes[46], sizes[47], sizes[48],
-               sizes[49], sizes[50], sizes[51], sizes[52], sizes[53], sizes[54], sizes[55],
-               sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
-               sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
-               sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
-               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81], sizes[82], sizes[83],
-               sizes[84]);
+  mj_makeModel(&m, &sizes);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -644,49 +535,27 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
     return NULL;
   }
 
-  // position of each size in the header
-  enum {
-    #define X(name) SIZE_##name,
-    MJMODEL_SIZES
-    #undef X
-  };
-
-  // the sizes which are not arguments of mj_makeModel and are not computed by it are the only
-  // ones copied from the file; njmax and nconmax can be -1, narena is a number of bytes
-  #define X(name, minval, maxval)                                              \
-    if (sizes[SIZE_##name] < (minval) || sizes[SIZE_##name] >= (maxval)) {     \
-      mju_warning("Corrupted model, " #name " is out of range");               \
-      mj_deleteModel(m);                                                       \
-      return NULL;                                                             \
-    }                                                                          \
-    m->name = sizes[SIZE_##name];
-  X(nJmom,        0,  MAX_ARRAY_SIZE)
-  X(ngravcomp,    0,  MAX_ARRAY_SIZE)
-  X(nemax,        0,  MAX_ARRAY_SIZE)
-  X(njmax,        -1, MAX_ARRAY_SIZE)
-  X(nconmax,      -1, MAX_ARRAY_SIZE)
-  X(npolygonmax,  0,  MAX_ARRAY_SIZE)
-  X(nmeshdegmax,  0,  MAX_ARRAY_SIZE)
-  X(nuserdata,    0,  MAX_ARRAY_SIZE)
-  X(nsensordata,  0,  MAX_ARRAY_SIZE)
-  X(npluginstate, 0,  MAX_ARRAY_SIZE)
-  X(nhistory,     0,  MAX_ARRAY_SIZE)
-  X(narena,       0,  INT64_MAX)
-  #undef X
+  // the sizes which do not affect the model buffer are the only ones copied from the file
+#define X(name)                                                    \
+  if (!validRuntimeSize(#name, sizes.name)) {                      \
+    mju_warning("Corrupted model, " #name " is out of range");     \
+    mj_deleteModel(m);                                             \
+    return NULL;                                                   \
+  }                                                                \
+  m->name = sizes.name;
+  MJMODEL_SIZES_RUNTIME
+#undef X
 
   // the sizes set by mj_makeModel define the layout of the buffer, they are never overwritten:
   // every size in the model must now match the file, including the computed nnames_map and nbuffer
-  {
-    int int_idx = 0;
-    #define X(name)                                                \
-      if (m->name != sizes[int_idx++]) {                           \
-        mju_warning("Corrupted model, wrong " #name " field");     \
-        mj_deleteModel(m);                                         \
-        return NULL;                                               \
-      }
-    MJMODEL_SIZES
-    #undef X
+#define X(name)                                                \
+  if (m->name != sizes.name) {                                 \
+    mju_warning("Corrupted model, wrong " #name " field");     \
+    mj_deleteModel(m);                                         \
+    return NULL;                                               \
   }
+  MJMODEL_SIZES
+#undef X
 
   // read options and buffer
   if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) +
