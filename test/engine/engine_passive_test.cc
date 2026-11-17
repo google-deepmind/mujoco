@@ -5531,6 +5531,173 @@ TEST_F(ElasticityTest, InterpPassiveContactForceAndPin) {
   }
 }
 
+// Elastic and damping forces of an interpolated flex are internal: translating
+// the jointed parent that carries the pinned nodes (and, as their parent, all
+// free node bodies) moves the whole flex rigidly, so the passive force on the
+// parent's slide joint must vanish for any node displacement and velocity. The
+// free nodes' reaction must reach the parent joint, not only the node bodies'
+// own slides.
+TEST_F(ElasticityTest, InterpPassiveJointedParentSlideReaction) {
+  struct Case {
+    const char* name;
+    const char* dof;
+    const char* pin;
+  };
+  const Case cases[] = {
+      {"trilinear", "trilinear", R"(<pin gridrange="0 0 0 0 1 1"/>)"},
+      {"quadratic", "quadratic", R"(<pin gridrange="0 0 0 0 2 2"/>)"},
+  };
+
+  for (const Case& tc : cases) {
+    SCOPED_TRACE(tc.name);
+    std::string xml = std::string(R"(
+    <mujoco>
+      <option integrator="discrete" solver="CG" gravity="0 0 0"/>
+      <worldbody>
+        <body name="mount" pos="0 0 1">
+          <joint name="mount" type="slide" axis="0.6 0 0.8"/>
+          <geom type="box" size="0.02 0.02 0.02" mass="1" contype="0" conaffinity="0"/>
+          <flexcomp name="beam" type="grid" count="5 3 3" spacing="0.05 0.05 0.05"
+                    pos="0.15 0 0" radius="0.005" mass="0.2" dim="3" cellcount="2 1 1"
+                    dof=")") +
+                      tc.dof + R"(">
+            )" + tc.pin +
+                      R"(
+            <elasticity young="1e5" poisson="0.3" damping="0.01"/>
+            <contact contype="0" conaffinity="0" selfcollide="none"/>
+          </flexcomp>
+        </body>
+      </worldbody>
+    </mujoco>
+    )";
+
+    char error[1024] = {0};
+    MjModelPtr m = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << error;
+    int mount = mj_name2id(m.get(), mjOBJ_JOINT, "mount");
+    int mount_qpos = m->jnt_qposadr[mount];
+    int mount_dof = m->jnt_dofadr[mount];
+
+    // deterministic displacement and velocity of the free nodes and the mount
+    MjDataPtr d = MakeData(m);
+    for (int i = 0; i < m->nq; i++) {
+      d->qpos[i] = 0.005 * std::sin(1.3 * i + 0.7);
+    }
+    d->qpos[mount_qpos] = 0.1;
+    for (int i = 0; i < m->nv; i++) {
+      d->qvel[i] = 0.1 * std::cos(0.9 * i + 0.2);
+    }
+    mj_forward(m.get(), d.get());
+
+    mjtNum spring_scale = 0, damper_scale = 0;
+    for (int i = 0; i < m->nv; i++) {
+      spring_scale = mju_max(spring_scale, mju_abs(d->qfrc_spring[i]));
+      damper_scale = mju_max(damper_scale, mju_abs(d->qfrc_damper[i]));
+    }
+    ASSERT_GT(spring_scale, 0);
+    ASSERT_GT(damper_scale, 0);
+    EXPECT_NEAR(d->qfrc_spring[mount_dof], 0,
+                MjTol(1e-10, 1e-4) * spring_scale);
+    EXPECT_NEAR(d->qfrc_damper[mount_dof], 0,
+                MjTol(1e-10, 1e-4) * damper_scale);
+  }
+}
+
+// A pinned node of an interpolated flex that sits exactly at the origin of its
+// jointed parent must not take the direct node-DOF write: the parent's single
+// slide is not a 3-slide node body. Moving the parent frame onto that node (and
+// the flexcomp by the opposite offset) describes the same physical model, so
+// the passive forces must not change.
+TEST_F(ElasticityTest, InterpPassivePinnedNodeAtJointedParentOrigin) {
+  auto make_xml = [](const mjtNum mount_pos[3], const mjtNum flex_pos[3]) {
+    char xml[2048];
+    std::snprintf(xml, sizeof(xml), R"(
+    <mujoco>
+      <option integrator="discrete" solver="CG" gravity="0 0 0"/>
+      <worldbody>
+        <body name="mount" pos="%.17g %.17g %.17g">
+          <joint name="mount" type="slide" axis="1 0 0"/>
+          <geom type="box" size="0.0625 0.0625 0.0625" mass="1" contype="0" conaffinity="0"/>
+          <flexcomp name="block" type="grid" count="3 3 3" spacing="0.25 0.25 0.25"
+                    pos="%.17g %.17g %.17g" radius="0.0625" mass="0.5" dim="3"
+                    dof="trilinear" cellcount="1 1 1">
+            <pin gridrange="0 0 0 0 1 1"/>
+            <elasticity young="1e4" poisson="0.3" damping="0.01"/>
+            <contact contype="0" conaffinity="0" selfcollide="none"/>
+          </flexcomp>
+        </body>
+      </worldbody>
+    </mujoco>
+    )",
+                  mount_pos[0], mount_pos[1], mount_pos[2], flex_pos[0],
+                  flex_pos[1], flex_pos[2]);
+    return std::string(xml);
+  };
+
+  // reference: parent origin away from the pinned nodes
+  const mjtNum mount_ref[3] = {0, 0, 1};
+  const mjtNum flex_ref[3] = {0.5, 0, 0};
+  char error[1024] = {0};
+  MjModelPtr m_ref = LoadModelFromString(make_xml(mount_ref, flex_ref).c_str(),
+                                         error, sizeof(error));
+  ASSERT_THAT(m_ref.get(), NotNull()) << error;
+
+  // find a node pinned to the parent body and its offset in the parent frame
+  int mount_body = mj_name2id(m_ref.get(), mjOBJ_BODY, "mount");
+  int nstart = m_ref->flex_nodeadr[0];
+  int pinned = -1;
+  for (int n = 0; n < m_ref->flex_nodenum[0]; n++) {
+    if (m_ref->flex_nodebodyid[nstart + n] == mount_body) {
+      pinned = n;
+      break;
+    }
+  }
+  ASSERT_GE(pinned, 0);
+  const mjtNum* offset = m_ref->flex_node + 3 * (nstart + pinned);
+  mjtNum mount_pos[3], flex_pos[3];
+  for (int k = 0; k < 3; k++) {
+    mount_pos[k] = mount_ref[k] + offset[k];
+    flex_pos[k] = flex_ref[k] - offset[k];
+  }
+
+  // shifted: parent origin exactly at that pinned node
+  MjModelPtr m = LoadModelFromString(make_xml(mount_pos, flex_pos).c_str(),
+                                     error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_EQ(m->nv, m_ref->nv);
+  ASSERT_EQ(m->flex_nodebodyid[nstart + pinned], mount_body);
+  for (int k = 0; k < 3; k++) {
+    ASSERT_EQ(m->flex_node[3 * (nstart + pinned) + k], 0)
+        << "node not at the parent origin";
+  }
+
+  MjDataPtr d_ref = MakeData(m_ref);
+  MjDataPtr d = MakeData(m);
+  for (int i = 0; i < m->nq; i++) {
+    d_ref->qpos[i] = d->qpos[i] = 0.01 * std::sin(1.3 * i + 0.7);
+  }
+  for (int i = 0; i < m->nv; i++) {
+    d_ref->qvel[i] = d->qvel[i] = 0.1 * std::cos(0.9 * i + 0.2);
+  }
+  mj_forward(m_ref.get(), d_ref.get());
+  mj_forward(m.get(), d.get());
+
+  mjtNum scale = 0;
+  for (int i = 0; i < m->nv; i++) {
+    scale = mju_max(scale, mju_abs(d_ref->qfrc_spring[i]));
+  }
+  ASSERT_GT(scale, 0);
+  for (int i = 0; i < m->nv; i++) {
+    EXPECT_NEAR(d->qfrc_spring[i], d_ref->qfrc_spring[i],
+                MjTol(1e-10, 1e-4) * scale)
+        << "dof " << i;
+    EXPECT_NEAR(
+        d->qfrc_damper[i], d_ref->qfrc_damper[i],
+        MjTol(1e-10, 1e-4) * mju_max(1.0, mju_abs(d_ref->qfrc_damper[i])))
+        << "dof " << i;
+  }
+}
+
 // FCM quadrature scales elastic restoring forces on cut boundary cells by the
 // occupied volume fraction, matches between dim=2 and dim=3, and simulates
 // stably when outer corner cells (including cell 0) are empty.
