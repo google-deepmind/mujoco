@@ -95,9 +95,17 @@ def _validate_buffer(
   return width, height
 
 
+# Name of the target that stands for the window the context was created with.
+WINDOW = ""
+
+
 @dataclasses.dataclass
 class View:
-  """A representation of an mjrf.RenderRequest that works with the Renderer."""
+  """A representation of an mjrf.RenderRequest that works with the Renderer.
+
+  The target is the name of a target defined with Renderer.target(), or WINDOW
+  to render directly into the window.
+  """
   scene: str
   target: str
   viewport: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
@@ -139,6 +147,7 @@ class Renderer:
     self._ctx = ctx
     self._scenes: dict[str, mjrf.Scene] = {}
     self._reads: dict[str, Renderer._Read] = {}
+    self._window_size = (0, 0)
     self._ctx.set_clear_color([0.0, 0.0, 0.0])
 
   @property
@@ -190,28 +199,37 @@ class Renderer:
     read.target.resize(size[0], size[1])
     return read.target
 
+  def resize_window(self, width: int, height: int):
+    """Sets the size in pixels of the window, for views that render into it."""
+    self._window_size = (width, height)
+
   def render(self, views: list[View]):
     """Renders all active views."""
     requests: list[mjrf.RenderRequest] = []
     reads: dict[str, mjrf.ReadRequest] = {}
     for view in views:
-      read = self._reads.get(view.target, None)
-      if read is None:
-        raise ValueError(f"Target not found: {view.target}")
-      reads[view.target] = read.request
-
       scene = self._scenes.get(view.scene, None)
       if scene is None:
         raise ValueError(f"Scene not found: {view.scene}")
 
       req = mjrf.RenderRequest()
       req.scene = scene
-      req.target = read.request.target
+      if view.target == WINDOW:
+        # A request without a target renders into the window, with no pixels
+        # to read back.
+        size = self._window_size
+      else:
+        read = self._reads.get(view.target, None)
+        if read is None:
+          raise ValueError(f"Target not found: {view.target}")
+        reads[view.target] = read.request
+        req.target = read.request.target
+        size = read.size
       req.camera = self._to_mjrf_camera(view.camera)
-      req.viewport.left = int(view.viewport[0] * read.size[0])
-      req.viewport.bottom = int(view.viewport[1] * read.size[1])
-      req.viewport.width = int(view.viewport[2] * read.size[0])
-      req.viewport.height = int(view.viewport[3] * read.size[1])
+      req.viewport.left = int(view.viewport[0] * size[0])
+      req.viewport.bottom = int(view.viewport[1] * size[1])
+      req.viewport.width = int(view.viewport[2] * size[0])
+      req.viewport.height = int(view.viewport[3] * size[1])
       req.draw_mode = view.draw_mode
       req.post_processing = view.post_processing
       req.reflections = view.reflections

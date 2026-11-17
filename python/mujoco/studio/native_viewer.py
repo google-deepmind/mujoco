@@ -84,9 +84,17 @@ class NativeViewer(viewer_protocol.Viewer):
         gfx_mode,
     )
 
-    mjrf_ctx = mjrf.Context(
-        mjrf.ContextConfig(graphics_api=mjrf.GraphicsApi.GRAPHICS_API_OPENGL)
+    # Headless modes render to pixels that the window then presents; the others
+    # render directly into the window, which the context has to know about.
+    self._render_to_pixels = _viewer.render_to_pixels(
+        self._window.GetGraphicsMode()
     )
+    mjrf_config = mjrf.ContextConfig(
+        graphics_api=mjrf.GraphicsApi.GRAPHICS_API_OPENGL
+    )
+    if not self._render_to_pixels:
+      mjrf_config.native_window = self._window.GetNativeWindowHandle()
+    mjrf_ctx = mjrf.Context(mjrf_config)
     self._renderer = renderer.Renderer(mjrf_ctx)
     self._model_scene = None
     self._imgui_bridge = _viewer.ImguiBridge(
@@ -134,12 +142,13 @@ class NativeViewer(viewer_protocol.Viewer):
     scale = self._window.GetScale()
 
     pixels = None
-    if _viewer.render_to_pixels(self._window.GetGraphicsMode()):
+    if self._render_to_pixels:
       pixels = np.empty((height, width, 3), dtype=np.uint8)
       self._renderer.target('out', pixels)
     else:
       width = int(width * scale)
       height = int(height * scale)
+      self._renderer.resize_window(width, height)
 
     self._sync_renderer(self.model)
     self._imgui_bridge.update()
@@ -170,7 +179,7 @@ class NativeViewer(viewer_protocol.Viewer):
 
     scene_view = renderer.View(
         scene='scn',
-        target='out' if pixels is not None else '',
+        target='out' if pixels is not None else renderer.WINDOW,
         camera=mujoco.mjv_camera2GLCamera(self.model, self.data, self.camera),
         draw_mode=draw_mode,
         shadows=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_SHADOW],
@@ -201,7 +210,7 @@ class NativeViewer(viewer_protocol.Viewer):
     )
     ux_view = renderer.View(
         scene='ux',
-        target='out' if pixels is not None else '',
+        target='out' if pixels is not None else renderer.WINDOW,
         camera=ux_camera,
         shadows=False,
         reflections=False,
