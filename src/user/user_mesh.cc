@@ -491,7 +491,7 @@ void mjCMesh::LoadSDF() {
 
 
 void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
-  if (cache == nullptr) return;
+  if (cache == nullptr || cache->Capacity() == 0) return;
 
   // cache mesh data into new mesh object
   mjCMesh* mesh = new mjCMesh();
@@ -515,7 +515,6 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   mesh->facetexcoord_ = facetexcoord_;
   mesh->node_         = node_;
   mesh->tet_          = tet_;
-  mesh->halfedge_     = halfedge_;
   mesh->szgraph_      = szgraph_;
   if (szgraph_) {
     mesh->graph_ = (int*)mju_malloc(szgraph_ * sizeof(int));
@@ -531,14 +530,8 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   std::copy(aamm_, aamm_ + 6, mesh->aamm_);
   std::copy(pos_, pos_ + 3, mesh->pos_);
   std::copy(quat_, quat_ + 4, mesh->quat_);
-  int ncenter = face_.size();
-  if (ncenter) {
-    mesh->center_ = (double*)mju_malloc(ncenter * sizeof(double));
-    std::copy(center_, center_ + ncenter, mesh->center_);
-  }
-  mesh->tree_      = tree_;
-  mesh->face_aabb_ = face_aabb_;
-  mesh->octree_    = octree_;
+  mesh->tree_   = tree_;
+  mesh->octree_ = octree_;
 
   // calculate estimated size of mesh
   std::size_t size = sizeof(mjCMesh) +
@@ -548,16 +541,13 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
                      (sizeof(int) * face_.size()) +
                      (sizeof(int) * facenormal_.size()) +
                      (sizeof(int) * facetexcoord_.size()) +
-                     (sizeof(int) * 2 * halfedge_.size()) +
                      (sizeof(int) * szgraph_) +
                      (sizeof(int) * npolygonvert()) +
                      (sizeof(double) * polygon_normals_.size()) +
                      (sizeof(int) * (szgraph_ ? npolygonmap() : 0)) +
                      (sizeof(double) * 18) +
-                     (sizeof(int) * ncenter) +
                      tree_.Size() +
-                     octree_.Size() +
-                     (sizeof(double) * face_aabb_.size());
+                     octree_.Size();
 
   std::shared_ptr<const void> cached_data(
       mesh,
@@ -855,10 +845,9 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
 
   mesh_timer_[mjCTIMER_MESH_LOAD] = Seconds(Clock::now() - t0).count();
 
-  CheckInitialMesh();
-
   // compute mesh properties
   if (!fromCache) {
+    CheckInitialMesh();
     Process();
     if (!file_.empty()) { CacheMesh(cache, resource_); }
   } else {
@@ -967,21 +956,29 @@ void mjCMesh::CopyGraph(int* arr) const {
 void mjCMesh::CopyPolygons(int* verts, int* adr, int* num, int poly_adr) const {
   int n = polygons_.size(), count = 0;
   for (int i = 0; i < n; ++i) {
-    int m = num[i]  = polygons_[i].size();
-    adr[i]          = poly_adr + count;
-    count          += m;
-    for (int j = 0; j < m; ++j) { verts[adr[i] + j - poly_adr] = polygons_[i][j]; }
+    const auto& poly = polygons_[i];
+    int         m = num[i] = poly.size();
+    adr[i]                 = poly_adr + count;
+    if (m) { std::memcpy(verts + count, poly.data(), m * sizeof(int)); }
+    count += m;
   }
 }
 
 
 void mjCMesh::CopyPolygonMap(int* faces, int* adr, int* num, int poly_adr) const {
+  if (polygon_map_.empty()) {
+    int nv = nvert();
+    std::fill_n(num, nv, 0);
+    std::fill_n(adr, nv, poly_adr);
+    return;
+  }
   int n = polygon_map_.size(), count = 0;
   for (int i = 0; i < n; ++i) {
-    int m = num[i]  = polygon_map_[i].size();
-    adr[i]          = poly_adr + count;
-    count          += m;
-    for (int j = 0; j < m; ++j) { faces[adr[i] + j - poly_adr] = polygon_map_[i][j]; }
+    const auto& pmap = polygon_map_[i];
+    int         m = num[i] = pmap.size();
+    adr[i]                 = poly_adr + count;
+    if (m) { std::memcpy(faces + count, pmap.data(), m * sizeof(int)); }
+    count += m;
   }
 }
 
@@ -1120,7 +1117,6 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
     facetexcoord_ = mesh->facetexcoord_;
     node_         = mesh->node_;
     tet_          = mesh->tet_;
-    halfedge_     = mesh->halfedge_;
 
     // only copy graph if needed
     if (needhull_ || mesh->face_.empty()) {
@@ -1137,7 +1133,7 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
       polygon_normals_ = mesh->polygon_normals_;
       polygon_map_     = mesh->polygon_map_;
     } else {
-      polygon_map_.resize(nvert());
+      polygon_map_.clear();
     }
     surface_ = mesh->surface_;
     volume_  = mesh->volume_;
@@ -1146,15 +1142,8 @@ bool mjCMesh::LoadCachedMesh(mjCCache* cache, const mjResource* resource) {
     std::copy(mesh->pos_, mesh->pos_ + 3, pos_);
     std::copy(mesh->quat_, mesh->quat_ + 4, quat_);
 
-    center_     = nullptr;
-    int ncenter = mesh->face_.size();
-    if (ncenter) {
-      center_ = (double*)mju_malloc(ncenter * sizeof(double));
-      std::copy(mesh->center_, mesh->center_ + ncenter, center_);
-    }
-    tree_      = mesh->tree_;
-    face_aabb_ = mesh->face_aabb_;
-    octree_    = mesh->octree_;
+    tree_   = mesh->tree_;
+    octree_ = mesh->octree_;
     return true;
   };
 
@@ -1523,7 +1512,7 @@ void mjCMesh::Process() {
   if (szgraph_) {
     MakePolygons(dvert.data());
   } else {
-    polygon_map_.resize(nvert());
+    polygon_map_.clear();
   }
 
   // correct winding order for left-handed coordinate systems
@@ -1650,6 +1639,7 @@ void mjCMesh::Process() {
     tree_.AllocateBoundingVolumes(nface());
     for (int i = 0; i < nface(); i++) { SetBoundingVolume(i, dvert.data()); }
     tree_.CreateBVH(model, this);
+    tree_.RemoveInactiveVolumes(0);
   }
   mesh_timer_[mjCTIMER_MESH_BVH] += Seconds(Clock::now() - t0).count();
 

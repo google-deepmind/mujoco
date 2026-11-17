@@ -2638,5 +2638,114 @@ TEST_F(MjCMeshTest, BuiltinProceduralXML) {
   EXPECT_EQ(model->nmesh, 7);
 }
 
+TEST_F(MjCMeshTest, CachedMeshParityVisualCollisionAndSdf) {
+  mjCache* cache = mj_getCache();
+  ASSERT_THAT(cache, NotNull());
+  const std::size_t old_capacity = mj_getCacheCapacity(cache);
+  mj_clearCache(cache);
+
+  const std::string stl_path = GetTestDataFilePath("user/testdata/cube.stl");
+
+  // 1. Visual-only mesh (szgraph == 0, empty polygon map): cold vs warm cache.
+  constexpr char kVisualXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" file="%s"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="cube" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  const std::string visual_xml = absl::StrFormat(kVisualXml, stl_path);
+  MjModelPtr visual_cold = LoadModelFromString(visual_xml);
+  ASSERT_THAT(visual_cold.get(), NotNull());
+  EXPECT_GT(mj_getCacheSize(cache), 0);
+
+  MjModelPtr visual_warm = LoadModelFromString(visual_xml);
+  ASSERT_THAT(visual_warm.get(), NotNull());
+  EXPECT_EQ(visual_cold->mesh_graphadr[0], -1);
+  EXPECT_EQ(visual_warm->mesh_graphadr[0], -1);
+  EXPECT_EQ(visual_cold->nmeshpolymap, 0);
+  EXPECT_EQ(visual_warm->nmeshpolymap, 0);
+  EXPECT_EQ(AsVector(visual_cold->mesh_polymapnum, visual_cold->nmeshvert),
+            std::vector<int>(visual_cold->nmeshvert, 0));
+  EXPECT_EQ(AsVector(visual_warm->mesh_polymapnum, visual_warm->nmeshvert),
+            AsVector(visual_cold->mesh_polymapnum, visual_cold->nmeshvert));
+  EXPECT_EQ(AsVector(visual_warm->mesh_polymapadr, visual_warm->nmeshvert),
+            AsVector(visual_cold->mesh_polymapadr, visual_cold->nmeshvert));
+  EXPECT_EQ(AsVector(visual_warm->bvh_aabb, 6 * visual_warm->nbvh),
+            AsVector(visual_cold->bvh_aabb, 6 * visual_cold->nbvh));
+  EXPECT_EQ(AsVector(visual_warm->bvh_nodeid, visual_warm->nbvh),
+            AsVector(visual_cold->bvh_nodeid, visual_cold->nbvh));
+
+  // 2. Collision mesh with convex hull & polygon map (szgraph > 0): cold vs
+  // warm.
+  constexpr char kCollisionXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" file="%s"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="cube"/>
+    </worldbody>
+  </mujoco>
+  )";
+  const std::string collision_xml = absl::StrFormat(kCollisionXml, stl_path);
+  mj_clearCache(cache);
+  MjModelPtr coll_cold = LoadModelFromString(collision_xml);
+  ASSERT_THAT(coll_cold.get(), NotNull());
+  MjModelPtr coll_warm = LoadModelFromString(collision_xml);
+  ASSERT_THAT(coll_warm.get(), NotNull());
+
+  EXPECT_GT(coll_cold->nmeshgraph, 0);
+  EXPECT_GT(coll_cold->nmeshpolymap, 0);
+  EXPECT_EQ(AsVector(coll_warm->mesh_vert, 3 * coll_warm->nmeshvert),
+            AsVector(coll_cold->mesh_vert, 3 * coll_cold->nmeshvert));
+  EXPECT_EQ(AsVector(coll_warm->mesh_normal, 3 * coll_warm->nmeshnormal),
+            AsVector(coll_cold->mesh_normal, 3 * coll_cold->nmeshnormal));
+  EXPECT_EQ(AsVector(coll_warm->mesh_face, 3 * coll_warm->nmeshface),
+            AsVector(coll_cold->mesh_face, 3 * coll_cold->nmeshface));
+  EXPECT_EQ(AsVector(coll_warm->mesh_graph, coll_warm->nmeshgraph),
+            AsVector(coll_cold->mesh_graph, coll_cold->nmeshgraph));
+  EXPECT_EQ(AsVector(coll_warm->mesh_polyvert, coll_warm->nmeshpolyvert),
+            AsVector(coll_cold->mesh_polyvert, coll_cold->nmeshpolyvert));
+  EXPECT_EQ(AsVector(coll_warm->mesh_polymap, coll_warm->nmeshpolymap),
+            AsVector(coll_cold->mesh_polymap, coll_cold->nmeshpolymap));
+  EXPECT_EQ(AsVector(coll_warm->bvh_aabb, 6 * coll_warm->nbvh),
+            AsVector(coll_cold->bvh_aabb, 6 * coll_cold->nbvh));
+
+  // 3. SDF octree computed on top of an already-cached non-SDF mesh entry.
+  constexpr char kSdfXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cube" file="%s"/>
+    </asset>
+    <worldbody>
+      <geom type="sdf" mesh="cube"/>
+    </worldbody>
+  </mujoco>
+  )";
+  const std::string sdf_xml = absl::StrFormat(kSdfXml, stl_path);
+  MjModelPtr sdf_from_cached = LoadModelFromString(sdf_xml);
+  ASSERT_THAT(sdf_from_cached.get(), NotNull());
+  mj_clearCache(cache);
+  MjModelPtr sdf_cold = LoadModelFromString(sdf_xml);
+  ASSERT_THAT(sdf_cold.get(), NotNull());
+  EXPECT_GT(sdf_cold->noct, 0);
+  EXPECT_EQ(sdf_from_cached->noct, sdf_cold->noct);
+  EXPECT_EQ(AsVector(sdf_from_cached->oct_coeff, 8 * sdf_from_cached->noct),
+            AsVector(sdf_cold->oct_coeff, 8 * sdf_cold->noct));
+
+  // 4. Zero-capacity cache skips mesh insertion cleanly.
+  mj_clearCache(cache);
+  mj_setCacheCapacity(cache, 0);
+  MjModelPtr uncached = LoadModelFromString(collision_xml);
+  ASSERT_THAT(uncached.get(), NotNull());
+  EXPECT_EQ(mj_getCacheSize(cache), 0);
+
+  mj_setCacheCapacity(cache, old_capacity);
+}
+
 }  // namespace
 }  // namespace mujoco
