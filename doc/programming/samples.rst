@@ -63,7 +63,7 @@ Where the command-line options and arguments are
      - override constraint Jacobian type (Dense, Sparse, Auto)
    * - ``--integrator=I``
      - Euler
-     - override integration mode (Euler, RK4, Implicit, ImplicitFast)
+     - override integration mode (Euler, RK4, Implicit, ImplicitFast, Discrete)
    * - ``--iterations=N``
      - 100
      - override solver iterations limit
@@ -76,8 +76,19 @@ Where the command-line options and arguments are
    * - ``--noslip_iterations=N``
      - 0
      - override noslip solver iterations limit
+   * - ``--ctrl=PATH``
+     - (none)
+     - replay control trajectory from file instead of pseudo-random noise
+   * - ``--format=F``
+     - text
+     - output format (text, json)
 
 **Notes:**
+
+- When ``--ctrl=PATH`` is specified, control signals are read from a plain-text file with one row of ``nu`` whitespace-
+  or comma-separated numbers per timestep (empty lines and ``#`` comments are ignored), bypassing ``noisestd`` and
+  ``noiserate``. If ``--nstep`` is omitted, ``nstep`` defaults to the number of rows in the file; if ``--nstep`` exceeds
+  the row count, the last row is held constant for the remaining steps.
 
 - When ``nthread > 1`` is specified, the code allocates a single mjModel and per-thread mjData, and runs ``nthread``
   identical simulations in parallel. This tests performance with all cores active, as in Reinforcement

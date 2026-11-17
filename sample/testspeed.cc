@@ -14,12 +14,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <ratio>
 #include <string>
 #include <string_view>
@@ -56,14 +59,109 @@ mjtNum gettm(void) {
 }
 
 // deallocate and print message
-int finish(const char* msg = NULL, mjModel* m = NULL) {
+int finish(const char* msg = NULL, mjModel* m = NULL, int code = EXIT_SUCCESS) {
   // deallocate model
   if (m) { mj_deleteModel(m); }
 
   // print message
   if (msg) { std::printf("%s\n", msg); }
 
-  return EXIT_SUCCESS;
+  return code;
+}
+
+// load plain-text control trajectory (one row of m->nu numbers per step)
+static bool LoadCtrl(const char*          path,
+                     const mjModel*       m,
+                     bool                 set_nstep,
+                     int*                 nstep,
+                     std::vector<mjtNum>* ctrl,
+                     std::string*         err) {
+  std::ifstream file(path);
+  if (!file.is_open()) {
+    *err = std::string("Could not open --ctrl file: ") + path;
+    return false;
+  }
+
+  std::vector<mjtNum> raw;
+  int                 nrows  = 0;
+  int                 lineno = 0;
+  std::string         line;
+  while (std::getline(file, line)) {
+    lineno++;
+    size_t hash = line.find('#');
+    if (hash != std::string::npos) { line.resize(hash); }
+
+    const char* p = line.c_str();
+    while (*p && std::isspace(static_cast<unsigned char>(*p))) { p++; }
+    if (!*p) { continue; }
+
+    if (m->nu == 0) {
+      *err = "Cannot apply non-empty --ctrl file to model with nu == 0";
+      return false;
+    }
+
+    int ncol = 0;
+    while (*p) {
+      char* end  = nullptr;
+      errno      = 0;
+      double val = std::strtod(p, &end);
+      if (end == p ||
+          errno == ERANGE ||
+          !std::isfinite(val) ||
+          (*end && !std::isspace(static_cast<unsigned char>(*end)) && *end != ',')) {
+        *err = "Invalid floating-point value in --ctrl file at line " + std::to_string(lineno);
+        return false;
+      }
+      raw.push_back(static_cast<mjtNum>(val));
+      ncol++;
+
+      p = end;
+      while (*p && std::isspace(static_cast<unsigned char>(*p))) { p++; }
+      if (*p == ',') {
+        p++;
+        while (*p && std::isspace(static_cast<unsigned char>(*p))) { p++; }
+        if (!*p || *p == ',') {
+          *err = "Malformed comma separator in --ctrl file at line " + std::to_string(lineno);
+          return false;
+        }
+      }
+    }
+
+    if (ncol != m->nu) {
+      *err = "Expected " +
+             std::to_string(m->nu) +
+             " ctrl values at line " +
+             std::to_string(lineno) +
+             ", got " +
+             std::to_string(ncol);
+      return false;
+    }
+    nrows++;
+  }
+
+  if (file.bad()) {
+    *err = std::string("I/O error while reading --ctrl file: ") + path;
+    return false;
+  }
+  if (m->nu == 0) {
+    *err = "Model has no actuators (nu == 0) for --ctrl";
+    return false;
+  }
+  if (nrows == 0) {
+    *err = "--ctrl file contains no control rows";
+    return false;
+  }
+
+  if (!set_nstep) { *nstep = nrows; }
+  ctrl->clear();
+  ctrl->reserve(static_cast<size_t>(*nstep) * m->nu);
+  int copy_rows = mjMIN(*nstep, nrows);
+  ctrl->insert(ctrl->end(), raw.begin(), raw.begin() + static_cast<size_t>(copy_rows) * m->nu);
+  const mjtNum* last_row = raw.data() + static_cast<size_t>(nrows - 1) * m->nu;
+  for (int r = copy_rows; r < *nstep; r++) {
+    ctrl->insert(ctrl->end(), last_row, last_row + m->nu);
+  }
+  return true;
 }
 
 std::vector<mjtNum> CtrlNoise(
@@ -298,6 +396,8 @@ int main(int argc, char** argv) {
       "  --tolerance=X          1e-8      solver tolerance\n"
       "  --sleep_tolerance=X    1e-3      sleep tolerance\n"
       "  --noslip_iterations=N  0         noslip solver iterations limit\n"
+      "  --ctrl=PATH                      replay control trajectory from file (overrides noise)\n"
+      "  --format=F             text      output format (text, json)\n"
       "  --help (or no arguments)         print this help message\n"
       "\n"
       "Note: If the model has a keyframe named \"test\", it will be loaded prior to simulation\n";
@@ -309,13 +409,15 @@ int main(int argc, char** argv) {
   double noiserate = 0.1;
 
   // option override settings
+  bool   set_nstep  = false;
   bool   set_solver = false, set_cone = false, set_jacobian = false, set_integrator = false;
   bool   set_iterations = false, set_tolerance = false, set_sleep_tolerance = false;
   bool   set_noslip_iterations = false;
   int    opt_solver = -1, opt_cone = -1, opt_jacobian = -1, opt_integrator = -1;
-  int    opt_iterations = -1, opt_noslip_iterations = -1;
+  int    opt_iterations = -1, opt_noslip_iterations = -1, opt_format = 0;
   double opt_tolerance = -1.0, opt_sleep_tolerance = -1.0;
 
+  std::string ctrl_file;
   const char* model = nullptr;
   for (int i = 1; i < argc; i++) {
     // helper: given "--key=value" or "--key value", extract the value string
@@ -339,6 +441,7 @@ int main(int argc, char** argv) {
       if (std::sscanf(val, "%d", &nstep) != 1 || nstep <= 0) {
         return finish("Invalid --nstep argument");
       }
+      set_nstep = true;
     } else if ((val = getarg("nthread"))) {
       if (std::sscanf(val, "%d", &nthread) != 1) { return finish("Invalid --nthread argument"); }
     } else if ((val = getarg("noisestd"))) {
@@ -391,6 +494,13 @@ int main(int argc, char** argv) {
         return finish("Invalid --noslip_iterations argument");
       }
       set_noslip_iterations = true;
+    } else if ((val = getarg("ctrl"))) {
+      if (!val[0]) { return finish("Invalid --ctrl argument", nullptr, EXIT_FAILURE); }
+      ctrl_file = val;
+    } else if ((val = getarg("format"))) {
+      int parsed = ParseEnum(val, {"text", "json"});
+      if (parsed < 0 || parsed > 1) { return finish("Invalid --format argument"); }
+      opt_format = parsed;
     } else if (argv[i][0] != '-') {
       // positional argument: model file
       model = argv[i];
@@ -436,6 +546,15 @@ int main(int argc, char** argv) {
   if (set_sleep_tolerance) runner.m->opt.sleep_tolerance = opt_sleep_tolerance;
   if (set_noslip_iterations) runner.m->opt.noslip_iterations = opt_noslip_iterations;
 
+  // load external control trajectory if requested (updates nstep when --nstep was omitted)
+  std::vector<mjtNum> ctrl;
+  if (!ctrl_file.empty()) {
+    std::string ctrl_err;
+    if (!LoadCtrl(ctrl_file.c_str(), runner.m, set_nstep, &nstep, &ctrl, &ctrl_err)) {
+      return finish(ctrl_err.c_str(), runner.m, EXIT_FAILURE);
+    }
+  }
+
   // make per-thread data
   int testkey = mj_name2id(runner.m, mjOBJ_KEY, "test");
   for (int id = 0; id < nthread; id++) {
@@ -453,30 +572,32 @@ int main(int argc, char** argv) {
   // install timer callback for profiling
   mjcb_time = gettm;
 
-  // print physics options if not default
-  PrintOptions(runner.m);
+  if (opt_format == 0) {
+    // print physics options if not default
+    PrintOptions(runner.m);
 
-  // print start
-  std::printf("\nRolling out %d steps%s at dt = %g",
-              nstep,
-              nthread > 1 ? " per thread" : "",
-              runner.m->opt.timestep);
+    // print start
+    std::printf("\nRolling out %d steps%s at dt = %g",
+                nstep,
+                nthread > 1 ? " per thread" : "",
+                runner.m->opt.timestep);
 
-  // print precision
-  if (sizeof(mjtNum) == 4) {
-    std::printf(", using single precision");
-  } else {
-    std::printf(", using double precision");
+    // print precision
+    if (sizeof(mjtNum) == 4) {
+      std::printf(", using single precision");
+    } else {
+      std::printf(", using double precision");
+    }
+
+    // print thread pool size
+    if (nenginethread > 0) {
+      std::printf(", using %d worker thread%s", nenginethread, nenginethread > 1 ? "s" : "");
+    }
+    std::printf("...\n");
   }
 
-  // print thread pool size
-  if (nenginethread > 0) {
-    std::printf(", using %d worker thread%s", nenginethread, nenginethread > 1 ? "s" : "");
-  }
-  std::printf("...\n");
-
-  // create pseudo-random control sequence
-  std::vector<mjtNum> ctrl = CtrlNoise(runner.m, nstep, noisestd, noiserate, testkey);
+  // create pseudo-random control sequence when --ctrl is not provided
+  if (ctrl_file.empty()) { ctrl = CtrlNoise(runner.m, nstep, noisestd, noiserate, testkey); }
 
   // run simulation, record total time
   std::thread th[maxthread];
@@ -484,6 +605,39 @@ int main(int argc, char** argv) {
   for (int id = 0; id < nthread; id++) { th[id] = std::thread(simulate, id, nstep, ctrl.data()); }
   for (int id = 0; id < nthread; id++) { th[id].join(); }
   double tottime = 1e-3 * (gettm() - starttime);  // total time, in seconds
+
+  if (opt_format == 1) {
+    int    number     = runner.d[0]->timer[mjTIMER_STEP].number;
+    mjtNum tstep      = number ? 1000 * runner.d[0]->timer[mjTIMER_STEP].duration / number : 0.0;
+    mjtNum components = 0;
+    for (int i = mjTIMER_POSITION; i <= mjTIMER_ADVANCE; i++) {
+      int num = runner.d[0]->timer[i].number;
+      if (num > 0) { components += 1000 * runner.d[0]->timer[i].duration / num; }
+    }
+    std::printf("{\n");
+    std::printf("  \"steps_per_sec\": %.6g,\n", nstep / runner.simtime[0]);
+    std::printf("  \"us_per_step\": %.6g,\n", 1e6 * runner.simtime[0] / nstep);
+    std::printf("  \"total_steps_per_sec\": %.6g,\n", nthread * nstep / tottime);
+    std::printf("  \"total_us_per_step\": %.6g,\n", 1e6 * tottime / (nthread * nstep));
+    std::printf("  \"realtime_factor\": %.6g,\n",
+                nstep * runner.m->opt.timestep / runner.simtime[0]);
+    std::printf("  \"iters_per_step\": %.6g,\n", static_cast<double>(runner.iterations[0]) / nstep);
+    std::printf("  \"ncon\": %.6g,\n", static_cast<double>(runner.contacts[0]) / nstep);
+    std::printf("  \"nefc\": %.6g,\n", static_cast<double>(runner.constraints[0]) / nstep);
+    std::printf("  \"nv\": %" PRId64 ",\n", runner.m->nv);
+    std::printf("  \"timers\": {\n");
+    for (int i = 0; i < mjNTIMER; i++) {
+      int    num   = runner.d[0]->timer[i].number;
+      mjtNum istep = num ? 1000 * runner.d[0]->timer[i].duration / num : 0.0;
+      std::printf("    \"%s\": %.6g,\n", mjTIMERSTRING[i], istep);
+    }
+    std::printf("    \"other\": %.6g\n", tstep > 0 ? tstep - components : 0.0);
+    std::printf("  }\n");
+    std::printf("}\n");
+
+    for (int id = 0; id < nthread; id++) { mj_deleteData(runner.d[id]); }
+    return finish();
+  }
 
   // all-thread summary
   constexpr char mu_str[3] = "\u00B5";  // unicode mu character
