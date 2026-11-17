@@ -772,6 +772,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   void PointToLocal(void);
   void NameSpace_(const mjCModel* m, bool propagate = true);
   void CopyPlugin();
+  bool TreeListsUnindexed() const;
+  template <typename T>
+  void AppendTreeObject(std::vector<T*>& ml, const std::vector<T*>& bl, T* obj);
 
   // copy src list of elements into dst; set body, model and frame
   template <typename T>

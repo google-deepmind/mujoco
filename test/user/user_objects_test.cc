@@ -3876,5 +3876,188 @@ TEST_F(MujocoTest, AddBodyChildrenWithDeletedChildclassDoesNotInsertNullDef) {
   mj_deleteSpec(spec);
 }
 
+TEST_F(MujocoTest, AddTreeObjectsFastPathAndInteriorFallback) {
+  mjSpec* spec = mj_makeSpec();
+  ASSERT_THAT(spec, NotNull());
+  mjsBody* world = mjs_findBody(spec, "world");
+
+  // Tail-only body builds, including adding to ancestors on the rightmost path
+  // (b1, world) while the last body (b1_a_leaf, b1_b) is deeper.
+  mjsBody* b1 = mjs_addBody(world, nullptr);
+  mjs_setName(b1->element, "b1");
+  mjsBody* b1_a = mjs_addBody(b1, nullptr);
+  mjs_setName(b1_a->element, "b1_a");
+  mjsBody* b1_a_leaf = mjs_addBody(b1_a, nullptr);
+  mjs_setName(b1_a_leaf->element, "b1_a_leaf");
+  mjsBody* b1_b = mjs_addBody(b1, nullptr);
+  mjs_setName(b1_b->element, "b1_b");
+  mjsBody* b2 = mjs_addBody(world, nullptr);
+  mjs_setName(b2->element, "b2");
+
+  // Branch 1: first element of each type on a non-last body (ml.empty()).
+  mjsJoint* j0 = mjs_addJoint(b1, nullptr);
+  j0->axis[0] = 1;
+  j0->axis[2] = 0;
+  mjs_setName(j0->element, "j0");
+  mjsGeom* g0 = mjs_addGeom(b1, nullptr);
+  g0->size[0] = 0.1;
+  mjs_setName(g0->element, "g0");
+  mjsSite* s0 = mjs_addSite(b1, nullptr);
+  mjs_setName(s0->element, "s0");
+  mjsCamera* c0 = mjs_addCamera(b1, nullptr);
+  mjs_setName(c0->element, "c0");
+  mjsLight* l0 = mjs_addLight(b1, nullptr);
+  mjs_setName(l0->element, "l0");
+  mjsFrame* f0 = mjs_addFrame(b1, nullptr);
+  mjs_setName(f0->element, "f0");
+
+  // Branch 2: second element of each type on a non-last body whose previous
+  // element ends the model list (bl.size() > 1 && ml.back() == bl[size - 2]).
+  mjsJoint* j1 = mjs_addJoint(b1, nullptr);
+  mjs_setName(j1->element, "j1");
+  mjsGeom* g1 = mjs_addGeom(b1, nullptr);
+  g1->size[0] = 0.1;
+  mjs_setName(g1->element, "g1");
+  mjsSite* s1 = mjs_addSite(b1, nullptr);
+  mjs_setName(s1->element, "s1");
+  mjsCamera* c1 = mjs_addCamera(b1, nullptr);
+  mjs_setName(c1->element, "c1");
+  mjsLight* l1 = mjs_addLight(b1, nullptr);
+  mjs_setName(l1->element, "l1");
+  mjsFrame* f1 = mjs_addFrame(b1, nullptr);
+  mjs_setName(f1->element, "f1");
+
+  // Branch 3: element of each type on the last body (this == bodies_.back()).
+  mjsJoint* j2 = mjs_addFreeJoint(b2);
+  mjs_setName(j2->element, "j2");
+  mjsGeom* g2 = mjs_addGeom(b2, nullptr);
+  g2->size[0] = 0.1;
+  mjs_setName(g2->element, "g2");
+  mjsSite* s2 = mjs_addSite(b2, nullptr);
+  mjs_setName(s2->element, "s2");
+  mjsCamera* c2 = mjs_addCamera(b2, nullptr);
+  mjs_setName(c2->element, "c2");
+  mjsLight* l2 = mjs_addLight(b2, nullptr);
+  mjs_setName(l2->element, "l2");
+  mjsFrame* f2 = mjs_addFrame(b2, nullptr);
+  mjs_setName(f2->element, "f2");
+
+  // Compile immediately after the tail-only build (no fallback rebuilds) and
+  // check compiled IDs per element type.
+  mjModel* m1 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m1, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m1->nbody, 6);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_BODY, "world"), 0);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_BODY, "b1"), 1);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_BODY, "b1_a"), 2);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_BODY, "b1_a_leaf"), 3);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_BODY, "b1_b"), 4);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_BODY, "b2"), 5);
+
+  EXPECT_EQ(m1->njnt, 3);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_JOINT, "j0"), 0);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_JOINT, "j1"), 1);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_JOINT, "j2"), 2);
+
+  EXPECT_EQ(m1->ngeom, 3);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_GEOM, "g0"), 0);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_GEOM, "g1"), 1);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_GEOM, "g2"), 2);
+
+  EXPECT_EQ(m1->nsite, 3);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_SITE, "s0"), 0);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_SITE, "s1"), 1);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_SITE, "s2"), 2);
+
+  EXPECT_EQ(m1->ncam, 3);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_CAMERA, "c0"), 0);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_CAMERA, "c1"), 1);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_CAMERA, "c2"), 2);
+
+  EXPECT_EQ(m1->nlight, 3);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_LIGHT, "l0"), 0);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_LIGHT, "l1"), 1);
+  EXPECT_EQ(mj_name2id(m1, mjOBJ_LIGHT, "l2"), 2);
+
+  // Post-compile tail append + interior fallback insertions, then recompile.
+  mjsBody* b3 = mjs_addBody(world, nullptr);
+  mjs_setName(b3->element, "b3");
+  mjsGeom* g3 = mjs_addGeom(b3, nullptr);
+  g3->size[0] = 0.1;
+  mjs_setName(g3->element, "g3");
+
+  mjsBody* b1_mid = mjs_addBody(b1, nullptr);
+  mjs_setName(b1_mid->element, "b1_mid");
+  mjsGeom* g1_mid = mjs_addGeom(b1_a, nullptr);
+  g1_mid->size[0] = 0.1;
+  mjs_setName(g1_mid->element, "g1_mid");
+
+  mjModel* m2 = mj_compile(spec, nullptr);
+  ASSERT_THAT(m2, NotNull()) << mjs_getError(spec);
+  EXPECT_EQ(m2->nbody, 8);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_BODY, "b1_b"), 4);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_BODY, "b1_mid"), 5);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_BODY, "b2"), 6);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_BODY, "b3"), 7);
+
+  EXPECT_EQ(m2->ngeom, 5);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_GEOM, "g0"), 0);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_GEOM, "g1"), 1);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_GEOM, "g1_mid"), 2);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_GEOM, "g2"), 3);
+  EXPECT_EQ(mj_name2id(m2, mjOBJ_GEOM, "g3"), 4);
+
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, AddTreeObjectsAttachByReferenceSkipsFastPath) {
+  mjSpec* parent = mj_makeSpec();
+  mjSpec* child = mj_makeSpec();
+  mjSpec* leaf = mj_makeSpec();
+  mjs_setDeepCopy(parent, false);
+  mjs_setDeepCopy(child, false);
+
+  mjsBody* p_world = mjs_findBody(parent, "world");
+  mjsBody* p0 = mjs_addBody(p_world, nullptr);
+  mjs_setName(p0->element, "p0");
+  mjsFrame* pf = mjs_addFrame(p_world, nullptr);
+
+  mjsBody* c_world = mjs_findBody(child, "world");
+  mjsBody* c_body = mjs_addBody(c_world, nullptr);
+  mjs_setName(c_body->element, "c_body");
+  mjsFrame* cf = mjs_addFrame(c_world, nullptr);
+
+  mjsBody* l_world = mjs_findBody(leaf, "world");
+  mjsBody* l_body = mjs_addBody(l_world, nullptr);
+  mjs_setName(l_body->element, "l_body");
+
+  // 1. Attach a body of C into P by reference.
+  ASSERT_THAT(mjs_attach(pf->element, c_body->element, "c_", ""), NotNull())
+      << mjs_getError(parent);
+  // 2. Add a body to P (resets P's own body IDs).
+  mjsBody* p1 = mjs_addBody(p_world, nullptr);
+  mjs_setName(p1->element, "p1");
+  // 3. Attach something into C (indexes shared elements in C).
+  ASSERT_THAT(mjs_attach(cf->element, l_body->element, "l_", ""), NotNull())
+      << mjs_getError(child);
+  // 4. Append a body to P's world and compile P.
+  mjsBody* p2 = mjs_addBody(p_world, nullptr);
+  mjs_setName(p2->element, "p2");
+
+  mjModel* m = mj_compile(parent, nullptr);
+  ASSERT_THAT(m, NotNull()) << mjs_getError(parent);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_BODY, "p0"), 1);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_BODY, "c_c_body"), 2);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_BODY, "p1"), 3);
+  EXPECT_EQ(mj_name2id(m, mjOBJ_BODY, "p2"), 4);
+
+  mj_deleteModel(m);
+  mj_deleteSpec(leaf);
+  mj_deleteSpec(child);
+  mj_deleteSpec(parent);
+}
+
 }  // namespace
 }  // namespace mujoco

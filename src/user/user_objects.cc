@@ -2451,6 +2451,33 @@ void mjCBody::NameSpace_(const mjCModel* m, bool propagate) {
 }
 
 
+// true if all tree lists in model are in the unindexed state produced by ResetTreeLists
+bool mjCBody::TreeListsUnindexed() const {
+  if (model->IsAttached() || !model->specs_.empty()) { return false; }
+  return (model->bodies_.size() <= 1 || model->bodies_[1]->id == -1) &&
+         (model->joints_.empty() || model->joints_[0]->id == -1) &&
+         (model->geoms_.empty() || model->geoms_[0]->id == -1) &&
+         (model->sites_.empty() || model->sites_[0]->id == -1) &&
+         (model->cameras_.empty() || model->cameras_[0]->id == -1) &&
+         (model->lights_.empty() || model->lights_[0]->id == -1) &&
+         (model->frames_.empty() || model->frames_[0]->id == -1);
+}
+
+
+// update model tree list in O(1) when appended element is at DFS tail
+template <typename T>
+void mjCBody::AppendTreeObject(std::vector<T*>& ml, const std::vector<T*>& bl, T* obj) {
+  if (TreeListsUnindexed() && (ml.empty() ||
+                               this == model->bodies_.back() ||
+                               (bl.size() > 1 && ml.back() == bl[bl.size() - 2]))) {
+    ml.push_back(obj);
+  } else {
+    model->ResetTreeLists();
+    model->MakeTreeLists();
+  }
+}
+
+
 // create child body and add it to body
 mjCBody* mjCBody::AddBody(mjCDef* _def) {
   // create body
@@ -2458,14 +2485,24 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
 
   // handle def recursion (i.e. childclass)
   obj->classname = _def ? _def->name : classname;
+  obj->parent    = this;
+
+  bool at_tail = (this == model->bodies_.back());
+  if (!at_tail) {
+    const mjCBody* p = this;
+    while (p->parent && p == p->parent->bodies.back()) { p = p->parent; }
+    at_tail = (p == model->bodies_[0]);
+  }
 
   bodies.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
-
-  obj->parent = this;
+  if (at_tail && TreeListsUnindexed()) {
+    model->bodies_.push_back(obj);
+  } else {
+    model->ResetTreeLists();
+    model->MakeTreeLists();
+  }
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2481,8 +2518,7 @@ mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   obj->body = this;
 
   frames.push_back(obj);
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->frames_, frames, obj);
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2502,8 +2538,7 @@ mjCJoint* mjCBody::AddFreeJoint() {
   joints.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->joints_, joints, obj);
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2529,8 +2564,7 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   joints.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->joints_, joints, obj);
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2549,8 +2583,7 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   geoms.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->geoms_, geoms, obj);
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2569,8 +2602,7 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
   sites.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->sites_, sites, obj);
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2589,8 +2621,7 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   cameras.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->cameras_, cameras, obj);
 
   // invalidate signature
   model->InvalidateSignature();
@@ -2609,8 +2640,7 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
   lights.push_back(obj);
 
   // recompute lists
-  model->ResetTreeLists();
-  model->MakeTreeLists();
+  AppendTreeObject(model->lights_, lights, obj);
 
   // invalidate signature
   model->InvalidateSignature();
