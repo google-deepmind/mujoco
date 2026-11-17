@@ -1269,7 +1269,7 @@ void mj_passive(const mjModel* m, mjData* d) {
 
   // user callback: add custom passive forces
   if (mjcb_passive) {
-    mjcb_passive(m, d);
+    mj_callPassive(m, d);
   }
 
   // plugin: add custom passive forces

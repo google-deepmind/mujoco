@@ -100,6 +100,21 @@
   #define mjUSEASAN
 #endif
 
+// Function attribute to disable CFI and KCFI checks.
+#if defined(__clang__) && defined(__has_attribute)
+  #if __has_attribute(no_sanitize)
+    #if !defined(__apple_build_version__) && __clang_major__ >= 16
+      #define mjNO_SANITIZE_CFI __attribute__((no_sanitize("cfi", "kcfi")))
+    #else
+      #define mjNO_SANITIZE_CFI __attribute__((no_sanitize("cfi")))
+    #endif
+  #else
+    #define mjNO_SANITIZE_CFI
+  #endif
+#else
+  #define mjNO_SANITIZE_CFI
+#endif
+
 // Atomics helper for size_t.
 #if defined(_MSC_VER) && !defined(__clang__)
   #include <intrin.h>

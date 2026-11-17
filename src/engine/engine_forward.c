@@ -595,10 +595,10 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       if (mjcb_act_dyn) {
         if (actnum == 1) {
           // scalar activation dynamics, get act_dot
-          d->act_dot[act_last] = mjcb_act_dyn(m, d, i);
+          d->act_dot[act_last] = mj_callActDyn(m, d, i);
         } else {
           // higher-order dynamics, mjcb_act_dyn writes into act_dot directly
-          mjcb_act_dyn(m, d, i);
+          mj_callActDyn(m, d, i);
         }
       }
     }
@@ -752,7 +752,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     default:                        // user gain
       if (mjcb_act_gain) {
-        gain = mjcb_act_gain(m, d, i);
+        gain = mj_callActGain(m, d, i);
       } else {
         gain = 1;
       }
@@ -856,7 +856,7 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 
     default:                        // user bias
       if (mjcb_act_bias) {
-        bias = mjcb_act_bias(m, d, i);
+        bias = mj_callActBias(m, d, i);
       } else {
         bias = 0;
       }
@@ -2638,7 +2638,7 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
 
   // acceleration-dependent
   if (mjcb_control && !mjDISABLED(mjDSBL_ACTUATION)) {
-    mjcb_control(m, d);
+    mj_callControl(m, d);
   }
 
   mj_fwdActuation(m, d);
@@ -2737,7 +2737,7 @@ void mj_step1(const mjModel* m, mjData* d) {
   }
 
   if (mjcb_control && !mjDISABLED(mjDSBL_ACTUATION)) {
-    mjcb_control(m, d);
+    mj_callControl(m, d);
   }
   TM_END(mjTIMER_STEP);
 }

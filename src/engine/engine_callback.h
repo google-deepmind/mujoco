@@ -32,6 +32,16 @@ MJAPI extern mjfAct      mjcb_act_bias;
 MJAPI extern mjfAct      mjcb_act_gain;
 MJAPI extern mjfAct      mjcb_act_dyn;
 
+// invoke global callbacks (mjcb_* must be called through these wrappers)
+void mj_callPassive(const mjModel* m, mjData* d);
+void mj_callControl(const mjModel* m, mjData* d);
+int mj_callContactFilter(const mjModel* m, mjData* d, int geom1, int geom2);
+void mj_callSensor(const mjModel* m, mjData* d, int stage);
+mjtNum mj_callTime(void);
+mjtNum mj_callActBias(const mjModel* m, const mjData* d, int id);
+mjtNum mj_callActGain(const mjModel* m, const mjData* d, int id);
+mjtNum mj_callActDyn(const mjModel* m, const mjData* d, int id);
+
 
 // reset callbacks to defaults
 MJAPI void mj_resetCallbacks(void);

@@ -16,6 +16,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
+#include "engine/engine_crossplatform.h"
 
 //------------------------- global callback pointers -----------------------------------------------
 
@@ -28,6 +29,46 @@ MJAPI mjfAct     mjcb_act_bias      = 0;
 MJAPI mjfAct     mjcb_act_gain      = 0;
 MJAPI mjfAct     mjcb_act_dyn       = 0;
 
+
+// invoke global callbacks
+mjNO_SANITIZE_CFI void mj_callPassive(const mjModel* m, mjData* d) {
+  mjcb_passive(m, d);
+}
+
+
+mjNO_SANITIZE_CFI void mj_callControl(const mjModel* m, mjData* d) {
+  mjcb_control(m, d);
+}
+
+
+mjNO_SANITIZE_CFI int mj_callContactFilter(const mjModel* m, mjData* d, int geom1, int geom2) {
+  return mjcb_contactfilter(m, d, geom1, geom2);
+}
+
+
+mjNO_SANITIZE_CFI void mj_callSensor(const mjModel* m, mjData* d, int stage) {
+  mjcb_sensor(m, d, stage);
+}
+
+
+mjNO_SANITIZE_CFI mjtNum mj_callTime(void) {
+  return mjcb_time();
+}
+
+
+mjNO_SANITIZE_CFI mjtNum mj_callActBias(const mjModel* m, const mjData* d, int id) {
+  return mjcb_act_bias(m, d, id);
+}
+
+
+mjNO_SANITIZE_CFI mjtNum mj_callActGain(const mjModel* m, const mjData* d, int id) {
+  return mjcb_act_gain(m, d, id);
+}
+
+
+mjNO_SANITIZE_CFI mjtNum mj_callActDyn(const mjModel* m, const mjData* d, int id) {
+  return mjcb_act_dyn(m, d, id);
+}
 
 
 // reset callbacks to defaults

@@ -760,7 +760,7 @@ static int filterCollisionPair(const mjModel* m, mjData* d, int g1, int g2, int 
 
   if (ipair < 0) {
     if (mjcb_contactfilter) {
-      if (mjcb_contactfilter(m, d, g1, g2)) {
+      if (mj_callContactFilter(m, d, g1, g2)) {
         return 0;
       }
     } else if (filterGeomPair(m, g1, g2)) {
@@ -1285,7 +1285,7 @@ static int mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
                             d->geom_xpos + 3*nodeid1, d->geom_xmat + 9*nodeid1,
                             d->geom_xpos + 3*nodeid2, d->geom_xmat + 9*nodeid2,
                             margin + gap, NULL, NULL, &initialize)) {
-            if (!mjcb_contactfilter || !mjcb_contactfilter(m, d, nodeid1, nodeid2)) {
+            if (!mjcb_contactfilter || !mj_callContactFilter(m, d, nodeid1, nodeid2)) {
               npair = pushGeomGeom(m, d, nodeid1, nodeid2, -1, npair);
             }
             if (mark_active) {

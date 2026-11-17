@@ -1515,7 +1515,7 @@ static void compute_or_read_sensor(const mjModel* m, mjData* d, int i, mjtNum* s
 // compute user sensors: call user callback and apply cutoff
 static void compute_user_sensors(const mjModel* m, mjData* d, mjtStage stage) {
   if (mjcb_sensor) {
-    mjcb_sensor(m, d, stage);
+    mj_callSensor(m, d, stage);
   }
 
   // apply cutoff to user sensors

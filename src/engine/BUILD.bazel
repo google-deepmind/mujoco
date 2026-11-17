@@ -396,6 +396,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_crossplatform",
         "//:libmujoco_hdrs",
     ],
 )

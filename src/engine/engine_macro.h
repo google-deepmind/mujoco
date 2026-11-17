@@ -33,12 +33,12 @@
 
 //-------------------------- timer macros ----------------------------------------------------------
 
-#define TM_START mjtNum _tm = (mjcb_time ? mjcb_time() : 0);
-#define TM_RESTART _tm = (mjcb_time ? mjcb_time() : 0);
-#define TM_END(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm); d->timer[i].number++;}
-#define TM_ADD(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm);}
-#define TM_START1 mjtNum _tm1 = (mjcb_time ? mjcb_time() : 0);
-#define TM_END1(i) {d->timer[i].duration += ((mjcb_time ? mjcb_time() : 0) - _tm1); d->timer[i].number++;}
+#define TM_START mjtNum _tm = (mjcb_time ? mj_callTime() : 0);
+#define TM_RESTART _tm = (mjcb_time ? mj_callTime() : 0);
+#define TM_END(i) {d->timer[i].duration += ((mjcb_time ? mj_callTime() : 0) - _tm); d->timer[i].number++;}
+#define TM_ADD(i) {d->timer[i].duration += ((mjcb_time ? mj_callTime() : 0) - _tm);}
+#define TM_START1 mjtNum _tm1 = (mjcb_time ? mj_callTime() : 0);
+#define TM_END1(i) {d->timer[i].duration += ((mjcb_time ? mj_callTime() : 0) - _tm1); d->timer[i].number++;}
 
 //-------------------------- compiler builtin ------------------------------------------------------
 
