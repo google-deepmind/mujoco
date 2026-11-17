@@ -118,10 +118,10 @@ def apply_delay(
   )
   ts_sensor_delayed = ts_sensor.resample(ts.times - delay.value)
 
-  ts_delayed = timeseries.TimeSeries(ts.times, ts.data, ts.signal_mapping)
-  ts_delayed.data[:, indices] = ts_sensor_delayed.data
+  data_out = ts.data.copy()
+  data_out[:, indices] = ts_sensor_delayed.data
 
-  return ts_delayed
+  return timeseries.TimeSeries(ts.times, data_out, ts.signal_mapping)
 
 
 def apply_time_window(
@@ -174,7 +174,7 @@ def apply_delayed_ts_window(
         f"received {min_delay} and {max_delay}"
     )
   return apply_time_window(
-      ts, ts_delayed.times[0] - min_delay, ts_delayed.times[-1] - max_delay
+      ts, ts_delayed.times[0] + max_delay, ts_delayed.times[-1] + min_delay
   )
 
 
@@ -276,9 +276,9 @@ def prepare_sensor_weights(
     return sensor_weights
   else:
     weights = np.ones(n_sensors)
-    ids = get_sensor_indices(model, list(sensor_weights.keys()))
-    for i, w in zip(ids, sensor_weights.values(), strict=True):
-      weights[i] = w
+    for name, w in sensor_weights.items():
+      indices = _get_sensor_indices(model, name)
+      weights[indices] = w
     return weights
 
 

@@ -354,6 +354,13 @@ class ParameterDistribution(ReportSection):
         if show_leg:
           shown_legends.add(trace_name)
 
+        if item.get("conf") is not None:
+          hovertemplate = (
+              f"{trace_name}: %{{y}} ± {item['conf']:.4g}<extra></extra>"
+          )
+        else:
+          hovertemplate = f"{trace_name}: %{{y}}<extra></extra>"
+
         fig.add_trace(
             go.Scatter(
                 x=[0],
@@ -363,10 +370,7 @@ class ParameterDistribution(ReportSection):
                 name=trace_name,
                 showlegend=show_leg,
                 legendgroup=legend_group,
-                hovertemplate=(
-                    f"{trace_name}: %{{y}} ±"
-                    f" {item.get('conf', 0):.4g}<extra></extra>"
-                ),
+                hovertemplate=hovertemplate,
                 error_y=error_y,
             ),
             row=row,

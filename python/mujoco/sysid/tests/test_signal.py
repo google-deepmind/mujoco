@@ -14,6 +14,7 @@
 # ==============================================================================
 """Tests for signal_modifier and SignalTransform."""
 
+import mujoco
 from mujoco.sysid._src import parameter
 from mujoco.sysid._src import signal_modifier
 from mujoco.sysid._src import timeseries
@@ -175,6 +176,25 @@ def test_apply_delayed_ts_window(arm_model):
   assert result.times[-1] <= ts_delayed.times[-1]
 
 
+def test_apply_delayed_ts_window_delays(arm_model):
+  """Windowing with [min_d, max_d] restricts range to [T0+max_d, TN+min_d]."""
+  times = np.linspace(0.0, 1.0, 11)
+  data = np.zeros((11, arm_model.nsensordata))
+  ts = timeseries.TimeSeries(times, data)
+
+  pos_result = signal_modifier.apply_delayed_ts_window(
+      ts, ts, min_delay=0.0, max_delay=0.2
+  )
+  np.testing.assert_allclose(pos_result.times[0], 0.2)
+  np.testing.assert_allclose(pos_result.times[-1], 1.0)
+
+  signed_result = signal_modifier.apply_delayed_ts_window(
+      ts, ts, min_delay=-0.1, max_delay=0.2
+  )
+  np.testing.assert_allclose(signed_result.times[0], 0.2)
+  np.testing.assert_allclose(signed_result.times[-1], 0.9)
+
+
 # ===========================================================================
 # signal_modifier: weighted_diff / normalize_residual
 # ===========================================================================
@@ -201,6 +221,36 @@ def test_weighted_diff_with_weights(arm_model):
   np.testing.assert_allclose(result[:, idx], 0.5)
   other = [i for i in range(n) if i not in idx]
   np.testing.assert_allclose(result[:, other], 1.0)
+
+
+def test_prepare_sensor_weights_multidimensional():
+  """Dictionary sensor weights broadcast to all components of vector sensors."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body name="b">
+        <joint name="j" type="hinge"/>
+        <geom size="0.1"/>
+        <site name="s"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framepos name="p" objtype="site" objname="s"/>
+      <jointpos name="jp" joint="j"/>
+    </sensor>
+  </mujoco>
+  """
+  model = mujoco.MjModel.from_xml_string(xml)
+  weights = signal_modifier.prepare_sensor_weights(
+      {"p": 0.5}, model.nsensordata, model
+  )
+  assert weights.shape == (4,)
+  np.testing.assert_allclose(weights, [0.5, 0.5, 0.5, 1.0])
+
+  flat = signal_modifier.prepare_sensor_weights(
+      np.array([0.5, 0.5, 0.5, 1.0]), model.nsensordata, model
+  )
+  np.testing.assert_allclose(weights, flat)
 
 
 def test_normalize_residual():
@@ -389,3 +439,22 @@ class TestApplyGainsBiasesEquivalence:
 
     transform._apply_gains_biases(ts, "predicted", pdict)
     np.testing.assert_array_equal(ts.data, original_data)
+
+
+def test_apply_delay_does_not_mutate_input():
+  """apply_delay returns delayed data without mutating input TimeSeries.data."""
+  times = np.linspace(0.0, 1.0, 11)
+  data = np.arange(22, dtype=np.float64).reshape(11, 2)
+  mapping = {
+      "s1": (timeseries.SignalType.MjSensor, np.array([0])),
+      "s2": (timeseries.SignalType.MjSensor, np.array([1])),
+  }
+  ts = timeseries.TimeSeries(times, data, mapping)
+  original_data = data.copy()
+
+  delay = parameter.Parameter("delay", [0.1], [0.0], [0.5])
+  delayed_ts = signal_modifier.apply_delay(ts, "s1", delay)
+
+  assert not np.array_equal(delayed_ts.data[:, 0], original_data[:, 0])
+  np.testing.assert_array_equal(delayed_ts.data[:, 1], original_data[:, 1])
+  np.testing.assert_array_equal(ts.data, original_data)

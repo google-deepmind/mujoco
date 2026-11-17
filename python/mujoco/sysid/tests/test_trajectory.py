@@ -177,12 +177,67 @@ def test_create_initial_state_with_names():
   np.testing.assert_allclose(data.qvel[7], 4.4)
 
 
+def test_create_initial_state_multidof_names():
+  """Named mapping supports joints with state width > 1 (freejoint, ball)."""
+  xml = """
+  <mujoco>
+    <worldbody>
+      <body name="box" pos="0 0 1">
+        <freejoint/>
+        <geom type="box" size=".1 .1 .1"/>
+      </body>
+      <body>
+        <joint name="b1" type="ball"/>
+        <geom size="0.1" mass="1"/>
+        <body>
+          <joint name="h1" type="hinge"/>
+          <geom size="0.1" mass="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  """
+  model = mujoco.MjModel.from_xml_string(xml)
+  data = mujoco.MjData(model)
+
+  # box: freejoint (7 qpos, 6 qvel); b1: ball (4 qpos, 3 qvel); h1: hinge (1, 1)
+  qpos_subset = np.array(
+      [0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.5]
+  )
+  qvel_subset = np.array([0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.1, 0.2, 0.3, 2.5])
+  state = create_initial_state(
+      model,
+      qpos_subset,
+      qvel_subset,
+      qpos_names=["box_qpos", "b1_qpos", "h1_qpos"],
+      qvel_names=["box_qvel", "b1_qvel", "h1_qvel"],
+  )
+
+  mujoco.mj_setState(
+      model, data, state, mujoco.mjtState.mjSTATE_FULLPHYSICS.value
+  )
+  np.testing.assert_allclose(data.qpos, qpos_subset)
+  np.testing.assert_allclose(data.qvel, qvel_subset)
+
+  with pytest.raises(ValueError, match="Expected qpos to have shape 12"):
+    create_initial_state(
+        model,
+        np.zeros(3),
+        qpos_names=["box_qpos", "b1_qpos", "h1_qpos"],
+    )
+
+
 def test_split(sample_trajectory):
   """A long trajectory can be split into smaller chunks for batched optimization."""
   traj, *_ = sample_trajectory
   chunks = traj.split(chunk_size=1)
   assert len(chunks) == 3
   assert len(chunks[0].sensordata) == 1
+  for chunk in chunks:
+    assert chunk.control.signal_mapping == traj.control.signal_mapping
+    assert chunk.sensordata.signal_mapping == traj.sensordata.signal_mapping
+    assert chunk.state is not None and traj.state is not None
+    assert chunk.state.signal_mapping == traj.state.signal_mapping
 
 
 def test_check_compatible_sensor_mismatch(box_model):

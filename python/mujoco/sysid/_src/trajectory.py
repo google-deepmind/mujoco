@@ -253,10 +253,14 @@ class SystemTrajectory:
           SystemTrajectory(
               model=self.model,
               control=timeseries.TimeSeries(
-                  control_times_chunk, control_data_chunk
+                  control_times_chunk,
+                  control_data_chunk,
+                  signal_mapping=self.control.signal_mapping,
               ),
               sensordata=timeseries.TimeSeries(
-                  sensordata_times_chunk, sensordata_data_chunk
+                  sensordata_times_chunk,
+                  sensordata_data_chunk,
+                  signal_mapping=self.sensordata.signal_mapping,
               ),
               initial_state=initial_state,
               state=timeseries.TimeSeries(
@@ -346,36 +350,54 @@ def create_initial_state(
   """
   data = mujoco.MjData(model)
 
-  if qpos_names is not None and len(qpos_names) != qpos.shape[0]:
-    raise ValueError(
-      f"Expected qpos to have shape {len(qpos_names)}, got {qpos.shape[0]}"
-    )
-  if qvel is None and qvel_names is not None:
-    raise ValueError("Expected qvel to not be None when qvel_names is not None")
-  if qvel_names is not None and qvel is not None and len(qvel_names) != qvel.shape[0]:
-    raise ValueError(
-        f"Expected qvel to have shape {len(qvel_names)}, got {qvel.shape[0]}"
-    )
-  if act_names is not None:
-    if act is None:
-      raise ValueError("Expected act to not be None when act_names is not None")
-    if len(act_names) != act.shape[0]:
-      raise ValueError(
-          f"Expected act to have shape {len(act_names)}, got {act.shape[0]}"
-      )
-
-  if (qpos_names is not None
+  if (
+      qpos_names is not None
       or qvel_names is not None
-      or act_names is not None):
-    qpos_map, qvel_map, act_map, _ = timeseries.TimeSeries.compute_all_state_mappings(model)
+      or act_names is not None
+  ):
+    qpos_map, qvel_map, act_map, _ = (
+        timeseries.TimeSeries.compute_all_state_mappings(model)
+    )
     if qpos_names is not None:
+      expected_qpos_width = sum(
+          qpos_map[name][1].shape[0] for name in qpos_names
+      )
+      if qpos.shape[0] != expected_qpos_width:
+        raise ValueError(
+            f"Expected qpos to have shape {expected_qpos_width}, got"
+            f" {qpos.shape[0]}"
+        )
       qpos = _map_states(qpos, np.copy(data.qpos), qpos_names, qpos_map, 0)
     if qvel_names is not None:
+      if qvel is None:
+        raise ValueError(
+            "Expected qvel to not be None when qvel_names is not None"
+        )
+      expected_qvel_width = sum(
+          qvel_map[name][1].shape[0] for name in qvel_names
+      )
+      if qvel.shape[0] != expected_qvel_width:
+        raise ValueError(
+            f"Expected qvel to have shape {expected_qvel_width}, got"
+            f" {qvel.shape[0]}"
+        )
       indices_offset = data.qpos.shape[0]
       qvel = _map_states(
           qvel, np.copy(data.qvel), qvel_names, qvel_map, indices_offset
       )
     if act_names is not None:
+      if act is None:
+        raise ValueError(
+            "Expected act to not be None when act_names is not None"
+        )
+      expected_act_width = sum(
+          act_map[name][1].shape[0] for name in act_names
+      )
+      if act.shape[0] != expected_act_width:
+        raise ValueError(
+            f"Expected act to have shape {expected_act_width}, got"
+            f" {act.shape[0]}"
+        )
       indices_offset = data.qpos.shape[0] + data.qvel.shape[0]
       act = _map_states(
           act, np.copy(data.act), act_names, act_map, indices_offset
