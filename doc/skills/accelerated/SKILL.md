@@ -12,6 +12,8 @@ description: >-
   DEM granular solvers, or shallow-water PDEs that do not import `mujoco.mjx` or
   `mujoco_warp`), CPU simulation (mujoco-python), cross-engine parity debugging
   (mujoco-parity), rendering (mujoco-rendering), or GUI (mujoco-gui).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Accelerated: MJX & MJWarp GPU Backends

@@ -14,6 +14,8 @@ description: >-
   applications unrelated to MuJoCo or robotics, or for Studio plugin
   lifecycle/messaging (use mujoco-studio) or core physics stepping (use
   mujoco-python).
+metadata:
+  publisher: google
 ---
 
 # Dear ImGui Development & Architecture Guide

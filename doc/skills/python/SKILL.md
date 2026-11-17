@@ -15,6 +15,8 @@ description: >-
   (mujoco-deformables), rendering (mujoco-rendering), GPU/TPU
   (mujoco-accelerated), parity (mujoco-parity), or GUI/viewers (mujoco-gui,
   mujoco-studio).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Python: Simulation, Sensors & Math

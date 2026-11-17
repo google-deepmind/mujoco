@@ -12,6 +12,8 @@ description: >-
   rigid-only modeling (mujoco-spec-editing), general stepping loops
   (mujoco-python), GPU rollout setup (mujoco-accelerated), cross-engine parity
   (mujoco-parity), or rendering (mujoco-rendering).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Deformables: Modeling, Tuning & Attachments

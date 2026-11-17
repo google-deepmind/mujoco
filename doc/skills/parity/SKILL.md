@@ -13,6 +13,8 @@ description: >-
   use for float64-vs-float32 parity testing of non-MuJoCo C/C++/CUDA/JAX
   physics or PDE solvers, general GPU batch setup (mujoco-accelerated), or
   CPU-only simulation (mujoco-python).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Parity: Comparing CPU (C) vs Accelerated (MJWarp / MJX) Physics

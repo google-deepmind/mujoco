@@ -14,6 +14,8 @@ description: >-
   generic web viewers/sidecars not using MuJoCo, Dear ImGui/ImPlot layout
   (mujoco-gui), core stepping (mujoco-python), or headless rendering
   (mujoco-rendering).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Studio: Interactive Simulation, UI & Plugin Architecture

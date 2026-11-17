@@ -15,6 +15,8 @@ description: >-
   `MjSpec` is not used, deformable flex/cloth/cable modeling
   (mujoco-deformables), stepping simulations (mujoco-python), or rendering
   (mujoco-rendering).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Spec Editing: Building & Modifying Models
