@@ -2257,6 +2257,12 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   void NameSpace(const mjCModel* m);
   void CopyPlugin();
 
+  // activation dimension inferred from the dynamics and their parameters
+  static int DefaultActDim(const mjsActuator& actuator);
+
+  // input and output block layout, before or during compilation
+  void ResolveInput(const mjsActuator& actuator);
+
   // scale the compiled copy by the gauge, or back
   void   ApplyGauge(bool inverse = false);
   double CoordinateFactor(const mjCGauge& g) const;

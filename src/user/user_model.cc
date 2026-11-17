@@ -390,20 +390,17 @@ void mjCModel::SaveDofOffsets(bool computesize) {
   }
 
   for (auto actuator : actuators_) {
+    if (actuator->actdim_ < 0) {
+      actuator->ResolveInput(actuator->spec);
+    }
+
     // an actdim of 0 is explicit
     if (actuator->actdim >= 0) {
       actuator->actdim_ = actuator->actdim;
     } else if (actuator->spec.actdim >= 0) {
       actuator->actdim_ = actuator->spec.actdim;
-    } else if (actuator->spec.dyntype == mjDYN_DCMOTOR && !actuator->spec.plugin.active) {
-      actuator->actdim_ = (actuator->spec.dynprm[7] > 0) +
-                          (actuator->spec.gainprm[5] > 0) +
-                          (actuator->spec.dynprm[2] > 0) +
-                          (actuator->spec.dynprm[5] > 0) +
-                          (actuator->spec.dynprm[0] > 0);
     } else {
-      // TODO: handle SO3 integrator (3) and PID (nslot) actdim before compile
-      actuator->actdim_ = (actuator->spec.dyntype != mjDYN_NONE);
+      actuator->actdim_ = mjCActuator::DefaultActDim(actuator->spec);
     }
     actuator->actadr_  = actuator->actdim_ ? actadr : -1;
     actadr            += actuator->actdim_;
