@@ -778,23 +778,16 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
 }
 
 
-// ray vs axis-aligned bounding box using slab method
-// see Ericson, Real-time Collision Detection section 5.3.3.
-int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
-                const mjtNum xmat[9], const mjtNum pnt[3], const mjtNum vec[3]) {
-  mjtNum tmin = 0.0, tmax = INFINITY;
+// ray vs local axis-aligned bounding box with precomputed inverse direction
+static inline int raySlab(const mjtNum aabb[6], const mjtNum src[3], const mjtNum invdir[3]) {
+  mjtNum tmin = 0, tmax = INFINITY;
 
   // compute min and max
   mjtNum min[3] = {aabb[0] - aabb[3], aabb[1] - aabb[4], aabb[2] - aabb[5]};
   mjtNum max[3] = {aabb[0] + aabb[3], aabb[1] + aabb[4], aabb[2] + aabb[5]};
 
-  // compute ray in local coordinates
-  mjtNum src[3], dir[3];
-  ray_map(xpos, xmat, pnt, vec, src, dir);
-
   // check intersections
-  mjtNum invdir[3] = {1.0 / dir[0], 1.0 / dir[1], 1.0 / dir[2]};
-  for (int d = 0; d < 3; d++) {
+  for (int d=0; d < 3; d++) {
     mjtNum t1 = (min[d] - src[d]) * invdir[d];
     mjtNum t2 = (max[d] - src[d]) * invdir[d];
     mjtNum minval = t1 < t2 ? t1 : t2;
@@ -804,6 +797,20 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
   }
 
   return tmin <= tmax;
+}
+
+
+// ray vs axis-aligned bounding box using slab method
+// see Ericson, Real-time Collision Detection section 5.3.3.
+int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
+                const mjtNum xmat[9], const mjtNum pnt[3], const mjtNum vec[3]) {
+  // compute ray in local coordinates
+  mjtNum src[3], dir[3];
+  ray_map(xpos, xmat, pnt, vec, src, dir);
+
+  // check intersections
+  mjtNum invdir[3] = {1 / dir[0], 1 / dir[1], 1 / dir[2]};
+  return raySlab(aabb, src, invdir);
 }
 
 
@@ -830,9 +837,10 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
   stack[nstack] = 0;
   nstack++;
 
-  // map to local frame
+  // map to local frame and precompute inverse direction
   mjtNum lpnt[3], lvec[3];
   ray_map(d->geom_xpos+3*id, d->geom_xmat+9*id, pnt, vec, lpnt, lvec);
+  mjtNum invdir[3] = {1 / lvec[0], 1 / lvec[1], 1 / lvec[2]};
 
   // construct basis vectors of normal plane
   mjtNum b0[3] = {1, 1, 1}, b1[3];
@@ -858,7 +866,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
     int node = stack[nstack];
 
     // intersection test
-    int intersect = mju_raySlab(bvh+6*node, d->geom_xpos+3*id, d->geom_xmat+9*id, pnt, vec);
+    int intersect = raySlab(bvh+6*node, lpnt, invdir);
 
     // if no intersection, skip
     if (!intersect) {
