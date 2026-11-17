@@ -12,6 +12,10 @@ low-level bindings that are meant to give as close to a direct access to the MuJ
 order to provide an API and semantics that developers would expect in a typical Python library, the bindings
 deliberately diverge from the raw MuJoCo API in a number of places, which are documented throughout this page.
 
+For reinforcement learning and sim-to-real robotics workflows in PyTorch, see
+`MuJoCo Playground <https://playground.mujoco.org>`__ and `reaf-sim <https://reaf-sim.readthedocs.io>`__, which build on
+``mujoco`` and :ref:`MuJoCo Warp <MJW>`.
+
 Google DeepMind’s `dm_control <https://github.com/google-deepmind/dm_control>`__ reinforcement learning library depends
 on the ``mujoco`` package and continues to be supported by Google DeepMind. For code that depends on dm_control versions
 prior to 1.0.0, consult the

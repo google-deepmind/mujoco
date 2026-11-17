@@ -62,17 +62,17 @@ check the canonical models and samples shipped with MuJoCo:
   (`` `.. _PyNotebook:` ``), `python/mjspec.ipynb` (`MjSpec` & `PyMJCF`
   comparison), `python/rollout.ipynb` (`mujoco.rollout`), `python/LQR.ipynb`
   (`mjd_transitionFD` & LQR), `python/least_squares.ipynb`
-  (`mujoco.minimize.least_squares`), `python/mujoco/sysid/sysid.ipynb`
-  (`mujoco.sysid`, `` `.. _PySysid:` ``), and `mjx/tutorial.ipynb`
-  (`` `.. _MjxNotebook:` ``).
+  (`mujoco.minimize.least_squares`), and `python/mujoco/sysid/sysid.ipynb`
+  (`mujoco.sysid`, `` `.. _PySysid:` ``).
 - **RL, Control & Simulation Ecosystem**:
-  - **MuJoCo Playground**
-    (https://github.com/google-deepmind/mujoco_playground) — JAX/MJX
-    (`MJX-JAX` & `MJX-Warp`) RL environments for locomotion, manipulation,
-    dexterous hands, and vision.
-  - **mjlab** (https://github.com/mujocolab/mjlab) — Isaac Lab-style modular
-    manager API for training policies directly with `mujoco_warp` and PyTorch
-    (see `../mjwarp/index.rst`, `` `.. _mjwFAQ:` ``).
+  - **MuJoCo Playground** (https://playground.mujoco.org,
+    https://github.com/google-deepmind/mujoco_playground) — PyTorch sim-to-real
+    robot workflows (RL, teleop, sysid, VLM manipulation) on MuJoCo,
+    `mujoco_warp`, and `reaf-sim` (with JAX/MJX envs in `rss2025/`).
+  - **reaf-sim** (https://reaf-sim.readthedocs.io,
+    https://github.com/google-deepmind/reaf-sim) — PyTorch environment authoring
+    library decoupling hardware/sensor I/O (`DeviceLayer`) from task logic
+    (`TaskLayer`).
   - **MuJoCo Warp** (https://github.com/google-deepmind/mujoco_warp, mirrored in
     `../mjwarp/index.rst`) — Standalone NVIDIA Warp GPU physics repository
     (`notebooks/tutorial.ipynb`, benchmarks, and kernel sources).

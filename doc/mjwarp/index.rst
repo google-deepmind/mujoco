@@ -1062,10 +1062,13 @@ details.
 
 For examples that train policies with MJWarp physics, please see:
 
+- `MuJoCo Playground <https://playground.mujoco.org>`__: Train directly with
+  MJWarp using PyTorch and `reaf-sim <https://reaf-sim.readthedocs.io>`__ (or
+  via :ref:`MJX <mjx>` in
+  `rss2025 <https://github.com/google-deepmind/mujoco_playground/tree/main/rss2025>`__).
 - `Isaac Lab <https://github.com/isaac-sim/IsaacLab>`__: Train via
   `Newton API <https://github.com/newton-physics/newton>`__.
 - `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
-- `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
 
 Features
 --------

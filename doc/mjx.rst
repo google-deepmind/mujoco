@@ -337,16 +337,14 @@ by core contributors to both MuJoCo and Brax.  Brax
 depends on the ``mujoco-mjx`` package, and Brax's existing
 `generalized pipeline <https://github.com/google/brax/tree/main/brax/generalized>`__ is no longer maintained.
 
-.. _MjxNotebook:
+Reinforcement learning
+======================
 
-Tutorial notebook
-=================
-
-The following IPython notebook demonstrates the use of MJX along with reinforcement learning to train humanoid and
-quadruped robots to locomote: |colab|.
-
-.. |colab| image:: https://colab.research.google.com/assets/colab-badge.png
-           :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
+For JAX reinforcement learning environments built on MJX, see the
+`rss2025 <https://github.com/google-deepmind/mujoco_playground/tree/main/rss2025>`__ directory in
+`MuJoCo Playground <https://playground.mujoco.org>`__. For new PyTorch RL and sim-to-real workflows on MuJoCo and
+:ref:`MuJoCo Warp <MJW>`, see `MuJoCo Playground <https://playground.mujoco.org>`__ and
+`reaf-sim <https://reaf-sim.readthedocs.io>`__.
 
 .. _MjxUsage:
 

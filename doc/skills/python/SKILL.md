@@ -507,7 +507,7 @@ for _ in range(1000):
 | **Plugins** | All plugins | Not supported | SDF only |
 
 For GPU and TPU execution patterns (and RL frameworks like `mujoco_playground`
-and `mjlab`), refer to [`mujoco-accelerated`](../accelerated/SKILL.md); for
+and `reaf-sim`), refer to [`mujoco-accelerated`](../accelerated/SKILL.md); for
 cross-engine physics comparison, refer to [`mujoco-parity`](../parity/SKILL.md).
 
 ## 8. Common Gotchas & Best Practices
@@ -569,7 +569,7 @@ cross-engine physics comparison, refer to [`mujoco-parity`](../parity/SKILL.md).
     [C++ Samples](../../programming/samples.rst) (`.. _Sample:`), and
     [C API Header](../../../include/mujoco/mujoco.h)
 -   **Downstream control & RL repos**:
+    [MuJoCo Playground](https://playground.mujoco.org),
+    [`reaf-sim`](https://reaf-sim.readthedocs.io),
     [MuJoCo MPC (`mujoco_mpc`)](https://github.com/google-deepmind/mujoco_mpc),
-    [`dm_control`](https://github.com/google-deepmind/dm_control),
-    [MuJoCo Playground](https://github.com/google-deepmind/mujoco_playground),
-    and [`mjlab`](https://github.com/mujocolab/mjlab)
+    and [`dm_control`](https://github.com/google-deepmind/dm_control)
