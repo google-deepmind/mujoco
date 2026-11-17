@@ -89,7 +89,7 @@ class SensorTest(parameterized.TestCase):
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 10)
     mx = mjx.put_model(m)
-    dx = mjx.forward(mx, mjx.put_data(m, d))
+    dx = jax.jit(mjx.forward)(mx, mjx.put_data(m, d))
 
     def sensor_fn(offset):
       data = jax.tree.map(
@@ -124,13 +124,16 @@ class SensorTest(parameterized.TestCase):
     # sensor values
     _assert_eq(random_sensor, dx.sensordata, 'sensordata')
 
-  @parameterized.parameters(
-      'type="sphere" size=".1"',
-      'type="sphere" size=".05" margin=".045"',
-      'type="capsule" size=".1 .1" euler="0 89 89"',
-      'type="box" size=".1 .1 .1" euler=".05 .075 .1"',
+  @parameterized.product(
+      geom=[
+          'type="sphere" size=".1"',
+          'type="sphere" size=".05" margin=".045"',
+          'type="capsule" size=".1 .1" euler="0 89 89"',
+          'type="box" size=".1 .1 .1" euler=".05 .075 .1"',
+      ],
+      reduce=['mindist', 'maxforce'],
   )
-  def test_sensor_contact(self, geom):
+  def test_sensor_contact(self, geom, reduce):
     """Tests contact sensor."""
 
     field = ['found', 'force', 'torque', 'dist', 'pos', 'normal', 'tangent']
@@ -139,11 +142,44 @@ class SensorTest(parameterized.TestCase):
     )
     datas = list(datas)
 
-    contact_sensors = ''
+    def _make_mjcf(sensors_xml):
+      return f"""
+        <mujoco>
+          <compiler angle="degree"/>
+          <worldbody>
+            <geom name="plane" type="plane" size="10 10 .001"/>
+            <body>
+              <geom name="geom1" {geom}/>
+              <joint type="slide" axis="0 0 1"/>
+            </body>
+            <body>
+              <geom name="sphere2" type="sphere" size=".1"/>
+              <joint type="slide" axis="0 0 1"/>
+            </body>
+          </worldbody>
+          <sensor>
+            {sensors_xml}
+          </sensor>
+          <keyframe>
+            <key qpos=".09 1"/>
+          </keyframe>
+        </mujoco>
+      """
+
+    # run forward physics once for this geom, then evaluate contact sensors in
+    # chunks to avoid compiling a 3500-input concatenate or repeating forward
+    m_base = mujoco.MjModel.from_xml_string(_make_mjcf(''))
+    d_base = mujoco.MjData(m_base)
+    mujoco.mj_resetDataKeyframe(m_base, d_base, 0)
+    dx_base = jax.jit(mjx.forward)(
+        mjx.put_model(m_base), mjx.put_data(m_base, d_base)
+    )
+
     for num in [1, 2, 4, 5]:
-      for data in datas:
-        data = ' '.join(data)
-        for reduce in ['mindist', 'maxforce']:
+      for i in range(0, len(datas), 32):
+        contact_sensors = ''
+        for data in datas[i : i + 32]:
+          data = ' '.join(data)
           for match in [
               '',
               'geom1="plane"',
@@ -162,39 +198,18 @@ class SensorTest(parameterized.TestCase):
                 f' reduce="{reduce}"/>\n'
             )
 
-    _MJCF = f"""
-      <mujoco>
-        <compiler angle="degree"/>
-        <worldbody>
-          <geom name="plane" type="plane" size="10 10 .001"/>
-          <body>
-            <geom name="geom1" {geom}/>
-            <joint type="slide" axis="0 0 1"/>
-          </body>
-          <body>
-            <geom name="sphere2" type="sphere" size=".1"/>
-            <joint type="slide" axis="0 0 1"/>
-          </body>
-        </worldbody>
-        <sensor>
-          {contact_sensors}
-        </sensor>
-        <keyframe>
-          <key qpos=".09 1"/>
-        </keyframe>
-      </mujoco>
-    """
-    m = mujoco.MjModel.from_xml_string(_MJCF)
-    d = mujoco.MjData(m)
-    mujoco.mj_resetDataKeyframe(m, d, 0)
+        m = mujoco.MjModel.from_xml_string(_make_mjcf(contact_sensors))
+        d = mujoco.MjData(m)
+        mujoco.mj_resetDataKeyframe(m, d, 0)
+        mujoco.mj_forward(m, d)
 
-    mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d)
+        mx = mjx.put_model(m)
+        dx = dx_base.replace(sensordata=jp.zeros(m.nsensordata))
+        dx = mjx.sensor_pos(mx, dx)
+        dx = mjx.sensor_vel(mx, dx)
+        dx = mjx.sensor_acc(mx, dx)
 
-    mujoco.mj_forward(m, d)
-    dx = mjx.forward(mx, dx)
-
-    _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
+        _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
 
   def test_sensor_contact_velocity(self):
     """Tests contact sensor linvel and angvel with nonzero velocities."""
