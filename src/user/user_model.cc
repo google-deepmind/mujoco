@@ -3463,9 +3463,8 @@ int mjCModel::CountNJmom(const mjModel* m) {
         }
         break;
       case mjTRN_SLIDERCRANK: {
-        int              id_slider = m->actuator_trnid[2 * i + 1];
-        std::vector<int> chain(m->nv);
-        count += mj_mergeChain(m, chain.data(), m->site_bodyid[id], m->site_bodyid[id_slider], 0);
+        int id_slider = m->actuator_trnid[2 * i + 1];
+        count += mj_mergeChain(m, nullptr, m->site_bodyid[id], m->site_bodyid[id_slider], 0);
       } break;
 
       case mjTRN_TENDON:
@@ -3475,9 +3474,7 @@ int mjCModel::CountNJmom(const mjModel* m) {
       case mjTRN_SITE: {
         int refid    = m->actuator_trnid[2 * i + 1];
         int ref_body = refid >= 0 ? m->site_bodyid[refid] : 0;
-
-        std::vector<int> chain(m->nv);
-        count += mj_mergeChain(m, chain.data(), m->site_bodyid[id], ref_body, /*flg_skipcommon=*/1);
+        count += mj_mergeChain(m, nullptr, m->site_bodyid[id], ref_body, /*flg_skipcommon=*/1);
       } break;
 
       case mjTRN_BODY:

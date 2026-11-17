@@ -390,6 +390,7 @@ cc_test(
         "//plugin/actuator:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
+        "//src/engine:engine_io_hdrs",
         "//src/engine:engine_plugin",
         "//test:fixture",
         "@abseil-cpp//absl/strings",

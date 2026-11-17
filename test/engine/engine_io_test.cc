@@ -26,6 +26,7 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -1314,6 +1315,407 @@ TEST_F(EngineIoTest, LoadModelBufferRejectsOverflowingSizes) {
   if (bad_model) {
     mj_deleteModel(bad_model);
   }
+}
+
+// saves the model to a binary buffer, replacing one of the sizes in its header
+std::vector<char> SaveModelWithSize(const mjModel* model, std::string_view name,
+                                    mjtSize value) {
+  std::vector<char> buffer(mj_sizeModel(model));
+  mj_saveModel(model, nullptr, buffer.data(), buffer.size());
+
+  // find the position of the size
+  int index = -1;
+  int nsize = 0;
+#define X(size)        \
+  if (name == #size) { \
+    index = nsize;     \
+  }                    \
+  nsize++;
+  MJMODEL_SIZES
+#undef X
+  EXPECT_GE(index, 0) << name << " is not a size of mjModel";
+
+  std::memcpy(buffer.data() + 5 * sizeof(int) + index * sizeof(mjtSize), &value,
+              sizeof(mjtSize));
+  return buffer;
+}
+
+// Regression test: nnames_map is derived by mj_makeModel from the other sizes,
+// a binary model which claims a larger value must be rejected rather than read
+// into the smaller names_map array that was allocated.
+TEST_F(EngineIoTest, LoadModelBufferRejectsMismatchedNamesMapSize) {
+  constexpr char xml[] = "<mujoco/>";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+
+  // claim a larger names_map, append the bytes required to read all of it
+  const mjtSize extra = 1 << 16;
+  std::vector<char> buffer =
+      SaveModelWithSize(model.get(), "nnames_map", model->nnames_map + extra);
+  buffer.resize(buffer.size() + extra * sizeof(int));
+
+  MockWarningHandler warning_handler;
+  warning_handler.ExpectWarnings("nnames_map");
+
+  mjModel* bad_model = mj_loadModelBuffer(buffer.data(), buffer.size());
+  EXPECT_THAT(bad_model, IsNull());
+  if (bad_model) {
+    mj_deleteModel(bad_model);
+  }
+}
+
+// The sizes which are not arguments of mj_makeModel are read from the binary
+// model after it is allocated, they must be checked as well.
+TEST_F(EngineIoTest, LoadModelBufferRejectsOutOfRangeSizes) {
+  constexpr char xml[] = "<mujoco/>";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+
+  struct BadSize {
+    const char* name;
+    mjtSize value;
+  };
+  const mjtSize too_large = mjtSize{1} << 40;
+  for (const BadSize& bad : {
+           BadSize{"nJmom", -1},
+           BadSize{"nJmom", too_large},
+           BadSize{"ngravcomp", -1},
+           BadSize{"nemax", -1},
+           BadSize{"njmax", -2},
+           BadSize{"nconmax", -2},
+           BadSize{"npolygonmax", -1},
+           BadSize{"nmeshdegmax", too_large},
+           BadSize{"nuserdata", -1},
+           BadSize{"nuserdata", too_large},
+           BadSize{"nsensordata", -1},
+           BadSize{"npluginstate", -1},
+           BadSize{"nhistory", -1},
+           BadSize{"nhistory", too_large},
+           BadSize{"narena", -1},
+       }) {
+    std::vector<char> buffer =
+        SaveModelWithSize(model.get(), bad.name, bad.value);
+
+    MockWarningHandler warning_handler;
+    warning_handler.ExpectWarnings(bad.name);
+
+    mjModel* bad_model = mj_loadModelBuffer(buffer.data(), buffer.size());
+    EXPECT_THAT(bad_model, IsNull()) << bad.name << " = " << bad.value;
+    if (bad_model) {
+      mj_deleteModel(bad_model);
+    }
+  }
+}
+
+// Regression test: the arrays of mjData are allocated with sizes read from the
+// binary model and filled according to the rest of the model, a size which is
+// too small for the model must be rejected.
+TEST_F(EngineIoTest, LoadModelBufferRejectsTooSmallDataSizes) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <freejoint name="free"/>
+        <geom type="mesh" mesh="tet"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="free" delay="0.01" nsample="4"/>
+    </actuator>
+    <sensor>
+      <framepos objtype="body" objname="body" delay="0.01" nsample="4"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_GT(model->nJmom, 0);
+  ASSERT_GT(model->nhistory, 0);
+  ASSERT_GT(model->npolygonmax, 0);
+  ASSERT_GT(model->nmeshdegmax, 0);
+
+  // the unmodified model can be saved and loaded
+  {
+    std::vector<char> buffer =
+        SaveModelWithSize(model.get(), "nJmom", model->nJmom);
+    MjModelPtr loaded(mj_loadModelBuffer(buffer.data(), buffer.size()));
+    EXPECT_THAT(loaded.get(), NotNull());
+  }
+
+  struct BadSize {
+    const char* name;
+    mjtSize value;
+  };
+  for (const BadSize& bad : {
+           BadSize{"nJmom", model->nJmom - 1},
+           BadSize{"nhistory", model->nhistory - 1},
+           BadSize{"nhistory", 0},
+           BadSize{"nsensordata", 0},
+           BadSize{"npolygonmax", model->npolygonmax - 1},
+           BadSize{"nmeshdegmax", model->nmeshdegmax - 1},
+       }) {
+    std::vector<char> buffer =
+        SaveModelWithSize(model.get(), bad.name, bad.value);
+
+    MockWarningHandler warning_handler;
+    warning_handler.ExpectWarnings("Invalid model");
+
+    mjModel* bad_model = mj_loadModelBuffer(buffer.data(), buffer.size());
+    EXPECT_THAT(bad_model, IsNull()) << bad.name << " = " << bad.value;
+    if (bad_model) {
+      mj_deleteModel(bad_model);
+    }
+  }
+}
+
+TEST_F(ValidateReferencesTest, SiteTransmission) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="ref"/>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+        <site name="site"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor site="site" refsite="ref" gear="1 0 0 0 0 0"/>
+      <motor site="site" gear="1 0 0 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_EQ(model->actuator_trntype[0], mjTRN_SITE);
+  ASSERT_EQ(model->actuator_trnid[3], -1);
+
+  // the reference site is optional
+  model->actuator_trnid[1] = model->nsite;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator_trnid"));
+  model->actuator_trnid[1] = -2;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator_trnid"));
+  model->actuator_trnid[1] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
+TEST_F(ValidateReferencesTest, HistoryAndMoment) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor joint="hinge" delay="0.01" nsample="4"/>
+      <motor joint="hinge"/>
+    </actuator>
+    <sensor>
+      <jointpos joint="hinge" delay="0.01" nsample="4"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // history buffers
+  model->actuator_history[0] = 100;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));
+  model->actuator_history[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));
+  model->actuator_history[0] = 4;
+  model->actuator_historyadr[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));
+  model->actuator_historyadr[0] = 0;
+  model->sensor_historyadr[0] += 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));
+  model->sensor_historyadr[0] -= 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // number of values written by a sensor
+  model->sensor_dim[0] = 2;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[0] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[0] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // output rows of the actuators
+  model->actuator_outadr[1] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator"));
+  model->actuator_outadr[1] = 1;
+  model->actuator_outnum[1] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator"));
+  model->actuator_outnum[1] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // an actuator with more output rows than its transmission writes
+  model->actuator_outnum[0] = 2;
+  model->actuator_outadr[1] = 2;
+  model->nout = 3;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator"));
+  model->actuator_outnum[0] = 1;
+  model->actuator_outadr[1] = 1;
+  model->nout = 2;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // outputs which are not covered by the actuators
+  model->nout = 3;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator"));
+  model->nout = 2;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // dof address of a body without dofs
+  ASSERT_EQ(model->body_dofnum[0], 0);
+  model->body_dofadr[0] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_dofadr"));
+  model->body_dofadr[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // unknown transmission
+  int trntype = model->actuator_trntype[1];
+  model->actuator_trntype[1] = mjTRN_UNDEFINED;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator"));
+  model->actuator_trntype[1] = trntype;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // non-zeros in the actuator moment matrix
+  model->nJmom = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("nJmom"));
+}
+
+TEST_F(ValidateReferencesTest, SensorSize) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="camera" resolution="4 3"/>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+        <site name="site"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <motor name="motor" joint="hinge"/>
+    </actuator>
+    <sensor>
+      <rangefinder camera="camera"/>
+      <rangefinder site="site"/>
+      <actuatorfrc actuator="motor"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // a camera rangefinder writes one ray per pixel
+  ASSERT_EQ(model->sensor_dim[0], 12);
+  model->sensor_dim[0] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[0] = 12;
+  model->cam_resolution[0] = 5;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->cam_resolution[0] = 4;
+
+  // a rangefinder is attached to a site or to a camera
+  model->sensor_objtype[1] = mjOBJ_BODY;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_objtype[1] = mjOBJ_SITE;
+
+  // camera rangefinder pixel count and 3*npixel must not overflow int
+  model->cam_resolution[0] = INT_MAX;
+  model->cam_resolution[1] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->cam_resolution[0] = 30000;
+  model->cam_resolution[1] = 30000;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->cam_resolution[0] = 4;
+  model->cam_resolution[1] = 3;
+  int saved_ray_spec = model->sensor_intprm[0];
+  model->sensor_intprm[0] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_intprm[0] = saved_ray_spec;
+
+  // an actuator sensor writes one value per output of the actuator
+  model->sensor_dim[2] = 3;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[2] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
+TEST_F(ValidateReferencesTest, ContactAndTactileSensorSize) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <body>
+        <geom name="meshgeom" type="mesh" mesh="tet"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <contact geom1="meshgeom" data="force"/>
+      <tactile geom="meshgeom" mesh="tet"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // contact sensor: non-empty data spec, positive slot count, matching dim
+  int saved_spec = model->sensor_intprm[0];
+  model->sensor_intprm[0] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_intprm[0] = saved_spec;
+  int saved_nslot = model->sensor_intprm[2];
+  model->sensor_intprm[2] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_intprm[2] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_intprm[2] = saved_nslot;
+  int saved_dim = model->sensor_dim[0];
+  model->sensor_dim[0] = saved_dim - 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[0] = saved_dim;
+
+  // tactile sensor: mesh object, geom reference, 3*nvert values
+  int saved_tac_dim = model->sensor_dim[1];
+  model->sensor_dim[1] = saved_tac_dim - 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_dim"));
+  model->sensor_dim[1] = saved_tac_dim;
+  model->sensor_refid[1] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_refid[1] = 0;
+  model->sensor_objtype[1] = mjOBJ_BODY;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->sensor_objtype[1] = mjOBJ_MESH;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 }
 
 TEST_F(EngineIoTest, SaveModelAcceptsLargeBufferSize) {

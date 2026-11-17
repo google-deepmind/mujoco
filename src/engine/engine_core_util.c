@@ -87,7 +87,9 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
     if (flg_skipcommon && da1 == da && da2 == da) {
       break;
     }
-    chain[NV] = da;
+    if (chain) {
+      chain[NV] = da;
+    }
     if (da1 == da) {
       da1 = m->dof_parentid[da1];
     }
@@ -98,10 +100,12 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
   }
 
   // reverse order of chain: make it increasing
-  for (int i=0; i < NV/2; i++) {
-    int tmp = chain[i];
-    chain[i] = chain[NV-i-1];
-    chain[NV-i-1] = tmp;
+  if (chain) {
+    for (int i=0; i < NV/2; i++) {
+      int tmp = chain[i];
+      chain[i] = chain[NV-i-1];
+      chain[NV-i-1] = tmp;
+    }
   }
 
   return NV;

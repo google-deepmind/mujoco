@@ -39,6 +39,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_io.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -574,6 +575,38 @@ TEST_F(EnginePluginTest, SaveXml) {
   // make sure that the saved XML can still be compiled
   MjModelPtr m2 = LoadModelFromString(saved_xml, error, sizeof(error));
   ASSERT_THAT(m.get(), testing::NotNull()) << error;
+}
+
+// A plugin writes the number of states that it reports, the model must have
+// room for them.
+TEST_F(EnginePluginTest, ValidatePluginState) {
+  char error[1024] = {0};
+  MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m.get(), testing::NotNull()) << error;
+  EXPECT_THAT(mj_validateReferences(m.get()), testing::IsNull());
+
+  // a plugin with states
+  int id = -1;
+  for (int i = 0; i < m->nplugin; ++i) {
+    if (m->plugin_statenum[i] > 0) {
+      id = i;
+      break;
+    }
+  }
+  ASSERT_GE(id, 0);
+
+  // fewer states than the plugin writes
+  m->plugin_statenum[id]--;
+  EXPECT_THAT(mj_validateReferences(m.get()), HasSubstr("plugin_statenum"));
+  m->plugin_statenum[id]++;
+  EXPECT_THAT(mj_validateReferences(m.get()), testing::IsNull());
+
+  // a plugin which is not registered
+  int slot = m->plugin[id];
+  m->plugin[id] = 1 << 20;
+  EXPECT_THAT(mj_validateReferences(m.get()), HasSubstr("not registered"));
+  m->plugin[id] = slot;
+  EXPECT_THAT(mj_validateReferences(m.get()), testing::IsNull());
 }
 
 TEST_F(EnginePluginTest, SensorPlugin) {

@@ -34,6 +34,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sleep.h"
+#include "engine/engine_support.h"
 #include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -643,18 +644,46 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
     return NULL;
   }
 
-  // check buffer size (last mjtSize field is nbuffer)
-  if (m->nbuffer != sizes[nsize-1]) {
-    mju_warning("Corrupted model, wrong nbuffer field");
-    mj_deleteModel(m);
-    return NULL;
-  }
+  // position of each size in the header
+  enum {
+    #define X(name) SIZE_##name,
+    MJMODEL_SIZES
+    #undef X
+  };
 
-  // set integer fields
+  // the sizes which are not arguments of mj_makeModel and are not computed by it are the only
+  // ones copied from the file; njmax and nconmax can be -1, narena is a number of bytes
+  #define X(name, minval, maxval)                                              \
+    if (sizes[SIZE_##name] < (minval) || sizes[SIZE_##name] >= (maxval)) {     \
+      mju_warning("Corrupted model, " #name " is out of range");               \
+      mj_deleteModel(m);                                                       \
+      return NULL;                                                             \
+    }                                                                          \
+    m->name = sizes[SIZE_##name];
+  X(nJmom,        0,  MAX_ARRAY_SIZE)
+  X(ngravcomp,    0,  MAX_ARRAY_SIZE)
+  X(nemax,        0,  MAX_ARRAY_SIZE)
+  X(njmax,        -1, MAX_ARRAY_SIZE)
+  X(nconmax,      -1, MAX_ARRAY_SIZE)
+  X(npolygonmax,  0,  MAX_ARRAY_SIZE)
+  X(nmeshdegmax,  0,  MAX_ARRAY_SIZE)
+  X(nuserdata,    0,  MAX_ARRAY_SIZE)
+  X(nsensordata,  0,  MAX_ARRAY_SIZE)
+  X(npluginstate, 0,  MAX_ARRAY_SIZE)
+  X(nhistory,     0,  MAX_ARRAY_SIZE)
+  X(narena,       0,  INT64_MAX)
+  #undef X
+
+  // the sizes set by mj_makeModel define the layout of the buffer, they are never overwritten:
+  // every size in the model must now match the file, including the computed nnames_map and nbuffer
   {
     int int_idx = 0;
-    #define X(name) \
-        m->name = sizes[int_idx++];
+    #define X(name)                                                \
+      if (m->name != sizes[int_idx++]) {                           \
+        mju_warning("Corrupted model, wrong " #name " field");     \
+        mj_deleteModel(m);                                         \
+        return NULL;                                               \
+      }
     MJMODEL_SIZES
     #undef X
   }
@@ -1851,17 +1880,19 @@ void mj_deleteData(mjData* d) {
 }
 
 
-static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
-  switch (sensor_type) {
+// return the number of values written by sensor i, -1 if its type or its object type is invalid;
+// assumes that sensor_objid was validated and that the sensor is not a plugin
+static mjtSize sensorSize(const mjModel* m, int i) {
+  int objtype = m->sensor_objtype[i];
+  int objid = m->sensor_objid[i];
+  int dataspec = m->sensor_intprm[i*mjNSENS];
+
+  switch ((mjtSensor) m->sensor_type[i]) {
   case mjSENS_TOUCH:
-  case mjSENS_RANGEFINDER:
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
   case mjSENS_TENDONPOS:
   case mjSENS_TENDONVEL:
-  case mjSENS_ACTUATORPOS:
-  case mjSENS_ACTUATORVEL:
-  case mjSENS_ACTUATORFRC:
   case mjSENS_JOINTACTFRC:
   case mjSENS_TENDONACTFRC:
   case mjSENS_JOINTLIMITPOS:
@@ -1908,10 +1939,56 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_FRAMEQUAT:
     return 4;
 
-  case mjSENS_CONTACT:
+  case mjSENS_ACTUATORPOS:
+  case mjSENS_ACTUATORVEL:
+  case mjSENS_ACTUATORFRC:
+    // one value per output of the actuator
+    return (objtype == mjOBJ_ACTUATOR) ? m->actuator_outnum[objid] : -1;
+
+  case mjSENS_RANGEFINDER:
+    // one ray for a site, one ray per pixel for a camera
+    if (dataspec <= 0 || dataspec >= (1 << mjNRAYDATA)) {
+      return -1;
+    }
+    if (objtype == mjOBJ_SITE) {
+      return mju_raydataSize(dataspec);
+    } else if (objtype == mjOBJ_CAMERA) {
+      int width = m->cam_resolution[2*objid];
+      int height = m->cam_resolution[2*objid+1];
+      // both the output count and 3*npixel (stack-allocated ray vectors) must fit in an int
+      int raysize = mju_raydataSize(dataspec);
+      if (width < 0 || height < 0 ||
+          (mjtSize)width * height > INT_MAX / mjMAX(3, raysize)) {
+        return -1;
+      }
+      return (mjtSize)width * height * raysize;
+    }
+    return -1;
+
+  case mjSENS_CONTACT: {
+    // a number of slots, each with the fields in the data specification: at least one
+    int nslot = m->sensor_intprm[i*mjNSENS+2];
+    if (dataspec <= 0 || dataspec >= (1 << mjNCONDATA) || nslot <= 0) {
+      return -1;
+    }
+    int datasize = mju_condataSize(dataspec);
+    if (datasize <= 0 || (mjtSize)nslot > INT_MAX / datasize) {
+      return -1;
+    }
+    return (mjtSize)nslot * datasize;
+  }
+
   case mjSENS_TACTILE:
+    // 3 values per vertex of the mesh, with a geom reference
+    if (objtype != mjOBJ_MESH || m->sensor_reftype[i] != mjOBJ_GEOM ||
+        m->sensor_refid[i] < 0 || m->mesh_vertnum[objid] <= 0) {
+      return -1;
+    }
+    return 3*(mjtSize)m->mesh_vertnum[objid];
+
   case mjSENS_USER:
-    return sensor_dim;
+    // the size is defined by sensor_dim
+    return m->sensor_dim[i];
 
   case mjSENS_PLUGIN:
     return -1;
@@ -2018,6 +2095,91 @@ static int validateSparse(int nrows, int ncols, mjtSize nnz,
     }
   }
   return 0;
+}
+
+
+// validate a history buffer with nsample samples of dimension dim at address adr,
+// return null if valid, error message otherwise
+static const char* validateHistory(int nsample, int dim, int adr, mjtSize nhistory) {
+  if (nsample < 0) {
+    return "Invalid model: negative number of history samples.";
+  }
+
+  // layout is [user, cursor, times(nsample), values(nsample*dim)]
+  if (nsample > 0 && (adr < 0 || (mjtSize)adr + 2 + nsample + (mjtSize)nsample*dim > nhistory)) {
+    return "Invalid model: history address out of bounds.";
+  }
+  return NULL;
+}
+
+
+// return an upper bound on the number of non-zeros written to actuator_moment by mj_transmission,
+// -1 if a transmission or the output rows of an actuator are invalid: each actuator has as many
+// output rows as its transmission writes, with no gaps between actuators;
+// assumes that the other references of the model were already validated
+static mjtSize momentSize(const mjModel* m) {
+  int nv = m->nv;
+  mjtSize count = 0, outadr = 0;
+  int valid = 1;
+
+  for (int i=0; valid && i < m->nactuator; i++) {
+    int id = m->actuator_trnid[2*i];
+    int refid = m->actuator_trnid[2*i+1];
+    int trntype = m->actuator_trntype[i];
+
+    // rows are written in actuator order, each row starts where the previous one ends
+    int nrow = (trntype == mjTRN_SO3) ? 3 : 1;
+    if (m->actuator_outadr[i] != outadr || m->actuator_outnum[i] != nrow) {
+      valid = 0;
+      break;
+    }
+    outadr += m->actuator_outnum[i];
+
+    int b1 = 0, b2 = 0;
+    switch ((mjtTrn) trntype) {
+    case mjTRN_JOINT:
+    case mjTRN_JOINTINPARENT:
+      count += nVEL[m->jnt_type[id]];
+      break;
+
+    case mjTRN_SLIDERCRANK:
+      b1 = m->site_bodyid[id];
+      b2 = m->site_bodyid[refid];
+      valid = (b1 >= 0 && b2 >= 0);
+      count += valid ? mj_mergeChain(m, NULL, b1, b2, /*flg_skipcommon=*/0) : 0;
+      break;
+
+    case mjTRN_TENDON:
+      count += m->ten_J_rownnz[id];
+      break;
+
+    case mjTRN_SO3:
+      // ball joint: 3 identity rows; site and refsite: 3 dense rows
+      count += (refid == -1) ? 3 : 3*(mjtSize)nv;
+      break;
+
+    case mjTRN_SITE:
+      b1 = m->site_bodyid[id];
+      b2 = (refid >= 0) ? m->site_bodyid[refid] : 0;
+      valid = (b1 >= 0 && b2 >= 0);
+      count += valid ? mj_mergeChain(m, NULL, b1, b2, /*flg_skipcommon=*/1) : 0;
+      break;
+
+    case mjTRN_BODY:
+      count += nv;
+      break;
+
+    default:
+      valid = 0;
+    }
+  }
+
+  // the rows of the actuators cover all of the outputs
+  if (outadr != m->nout) {
+    valid = 0;
+  }
+
+  return valid ? count : -1;
 }
 
 
@@ -2180,6 +2342,15 @@ const char* mj_validateReferences(const mjModel* m) {
     }
     if (m->body_weldid[i] > i || m->body_weldid[i] < 0) {
       return "Invalid model: bad body_weldid.";
+    }
+
+    // the last dof of a body is body_dofadr + body_dofnum - 1, computed without checking
+    // body_dofnum: it is negative for a body without dofs only if its address is -1
+    if (m->body_dofnum[i] == 0 && m->body_dofadr[i] != -1) {
+      return "Invalid model: body_dofadr of a body without dofs is not -1.";
+    }
+    if (i == 0 && m->body_dofnum[i] != 0) {
+      return "Invalid model: world body has dofs.";
     }
     if (i == 0) {
       if (m->B_rownnz[0] != m->nv || (m->nv > 0 && m->B_rowadr[0] != 0)) {
@@ -2574,6 +2745,10 @@ const char* mj_validateReferences(const mjModel* m) {
       if (id < 0 || id >= m->nsite) {
         return "Invalid model: actuator_trnid out of bounds.";
       }
+      // -1 is the value used if the reference site is omitted
+      if (idslider < -1 || idslider >= m->nsite) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
       break;
     case mjTRN_SLIDERCRANK:
       if (id < 0 || id >= m->nsite) {
@@ -2604,27 +2779,50 @@ const char* mj_validateReferences(const mjModel* m) {
       // actuator_trnid not used.
       break;
     }
+
+    const char* historyerr = validateHistory(m->actuator_history[2*i], m->actuator_ctrlnum[i],
+                                             m->actuator_historyadr[i], m->nhistory);
+    if (historyerr) {
+      return historyerr;
+    }
+  }
+
+  // actuator_moment is filled by mj_transmission without bounds checks
+  mjtSize nJmom = momentSize(m);
+  if (nJmom < 0) {
+    return "Invalid model: bad actuator transmission or output address.";
+  }
+  if (m->nJmom < nJmom) {
+    return "Invalid model: nJmom is too small.";
+  }
+
+  // plugin_state is filled by the plugins without bounds checks: a plugin writes the number
+  // of states that it reports, which must be the number that the model has for it
+  for (int i=0; i < m->nplugin; i++) {
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
+    if (!plugin) {
+      return "Invalid model: plugin is not registered.";
+    }
+    if (!plugin->nstate || plugin->nstate(m, i) != m->plugin_statenum[i]) {
+      return "Invalid model: plugin_statenum does not match the states of the plugin.";
+    }
+  }
+
+  // npolygonmax and nmeshdegmax are used to allocate the buffers of the convex collider
+  for (int i=0; i < m->nmeshpoly; i++) {
+    if (m->mesh_polyvertnum[i] > m->npolygonmax) {
+      return "Invalid model: npolygonmax is too small.";
+    }
+  }
+  for (int i=0; i < m->nmeshvert; i++) {
+    if (m->mesh_polymapnum[i] > m->nmeshdegmax) {
+      return "Invalid model: nmeshdegmax is too small.";
+    }
   }
   for (int i=0; i < m->nsensor; i++) {
     mjtSensor sensor_type = m->sensor_type[i];
-    int sensor_size;
-    if (sensor_type == mjSENS_PLUGIN) {
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[m->sensor_plugin[i]]);
-      if (!plugin->nsensordata) {
-        mjERROR("`nsensordata` is a null function pointer for plugin at slot %d",
-                m->plugin[m->sensor_plugin[i]]);
-      }
-      sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
-    } else {
-      sensor_size = sensorSize(sensor_type, m->sensor_dim[i]);
-    }
-    if (sensor_size < 0) {
-      return "Invalid model: Bad sensor_type.";
-    }
-    int sensor_adr = m->sensor_adr[i];
-    if (sensor_adr < 0 || sensor_adr + sensor_size > m->nsensordata) {
-      return "Invalid model: sensor_adr out of bounds.";
-    }
+
+    // the objects of the sensor, its size can depend on them
     int nobj = numObjects(m, m->sensor_objtype[i]);
     if (nobj == -2) {
       return "Invalid model: invalid sensor_objtype";
@@ -2638,6 +2836,43 @@ const char* mj_validateReferences(const mjModel* m) {
     }
     if (nobj != -1 && (m->sensor_refid[i] < -1 || m->sensor_refid[i] >= nobj)) {
       return "Invalid model: invalid sensor_refid";
+    }
+
+    // number of values written by the sensor
+    mjtSize sensor_size;
+    if (sensor_type == mjSENS_PLUGIN) {
+      if (m->sensor_plugin[i] < 0 || m->sensor_plugin[i] >= m->nplugin) {
+        return "Invalid model: sensor_plugin out of bounds.";
+      }
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[m->sensor_plugin[i]]);
+      if (!plugin) {
+        return "Invalid model: sensor plugin is not registered.";
+      }
+      if (!plugin->nsensordata) {
+        mjERROR("`nsensordata` is a null function pointer for plugin at slot %d",
+                m->plugin[m->sensor_plugin[i]]);
+      }
+      sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
+    } else {
+      sensor_size = sensorSize(m, i);
+    }
+    if (sensor_size < 0) {
+      return "Invalid model: Bad sensor_type.";
+    }
+
+    // sensor_dim is the size of the sensor in sensordata and in the history buffer
+    int sensor_dim = m->sensor_dim[i];
+    if (sensor_dim != sensor_size) {
+      return "Invalid model: sensor_dim does not match the size of the sensor.";
+    }
+    int sensor_adr = m->sensor_adr[i];
+    if (sensor_adr < 0 || (mjtSize)sensor_adr + sensor_size > m->nsensordata) {
+      return "Invalid model: sensor_adr out of bounds.";
+    }
+    const char* historyerr = validateHistory(m->sensor_history[2*i], sensor_dim,
+                                             m->sensor_historyadr[i], m->nhistory);
+    if (historyerr) {
+      return historyerr;
     }
     if (sensor_type == mjSENS_TACTILE) {
       int parent_body = m->geom_bodyid[m->sensor_refid[i]];

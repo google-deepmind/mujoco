@@ -950,6 +950,7 @@ cc_library(
         ":engine_memory",
         ":engine_plugin",
         ":engine_sleep",
+        ":engine_support",
         ":engine_thread",
         ":engine_util_blas",
         ":engine_util_errmem",
