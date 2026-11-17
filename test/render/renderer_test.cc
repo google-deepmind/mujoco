@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
+#include "src/render/filament/support/mesh_util.h"
 #include "src/render/filament/support/mjrf_ptr.h"
 #include "src/render/filament/support/model_resources.h"
 #include "test/fixture.h"
@@ -1253,5 +1254,173 @@ TEST_F(RendererTest, MeshReuploadBeforeFlushReleasesBothUploads) {
   EXPECT_EQ(release_count_1, 1);
   EXPECT_EQ(release_count_2, 1);
 }
+
+TEST_F(RendererTest, DiscAndAnnulusDoubleSided) {
+  // Verify mjv_initGeom for mjGEOM_DISC.
+  mjvGeom vgeom;
+  mjv_initGeom(&vgeom, mjGEOM_DISC, nullptr, nullptr, nullptr, nullptr);
+  EXPECT_FLOAT_EQ(vgeom.size[0], 0.1f);
+  EXPECT_FLOAT_EQ(vgeom.size[1], 0.0f);
+  EXPECT_FLOAT_EQ(vgeom.size[2], 0.0f);
+
+  const mjtNum kAnnulusInput[3] = {0.2, 0.12, 0.99};
+  mjv_initGeom(&vgeom, mjGEOM_DISC, kAnnulusInput, nullptr, nullptr, nullptr);
+  EXPECT_FLOAT_EQ(vgeom.size[0], 0.2f);
+  EXPECT_FLOAT_EQ(vgeom.size[1], 0.12f);
+  EXPECT_FLOAT_EQ(vgeom.size[2], 0.0f);
+
+  Renderer renderer(MakeOffscreenConfig());
+  mjrfContext* ctx = renderer.GetContext();
+
+  constexpr int kSize = 64;
+  mjrfRenderTargetConfig color_cfg;
+  mjrf_defaultRenderTargetConfig(&color_cfg);
+  color_cfg.width = kSize;
+  color_cfg.height = kSize;
+  color_cfg.color_format = mjPIXEL_FORMAT_RGB8;
+  color_cfg.depth_format = mjPIXEL_FORMAT_DEPTH32F;
+  Renderer::RenderTargetHandle color_target =
+      renderer.CreateRenderTarget("color", color_cfg);
+  ASSERT_NE(color_target, Renderer::kInvalidRenderTarget);
+
+  mjrfScene* scene = renderer.GetScene("scene");
+  Renderer::SceneHandle scene_handle = renderer.GetSceneHandle("scene");
+
+  // Directional light shining along the camera view direction so we verify
+  // surface normals and shading on both +z and -z sides.
+  mjrfLightParams light_params;
+  mjrf_defaultLightParams(&light_params);
+  light_params.type = mjLIGHT_DIRECTIONAL;
+  light_params.color[0] = 1.0f;
+  light_params.color[1] = 1.0f;
+  light_params.color[2] = 1.0f;
+  light_params.intensity = 100000.0f;
+  light_params.cast_shadow = false;
+  UniquePtr<mjrfLight> light(mjrf_createLight(ctx, &light_params),
+                             mjrf_destroyLight);
+  mjrf_addSceneLight(scene, light.get());
+
+  mjrfRenderableParams params;
+  mjrf_defaultRenderableParams(&params);
+  params.cast_shadow = false;
+  params.receive_shadow = false;
+  UniquePtr<mjrfRenderable> disc = CreateRenderable(ctx, params);
+  UniquePtr<mjrfMesh> solid_mesh = CreateDiscMesh(ctx, 0.0f, 32, 4);
+  UniquePtr<mjrfMesh> annulus_mesh = CreateDiscMesh(ctx, 0.6f, 32, 4);
+  mjrf_setRenderableMesh(disc.get(), solid_mesh.get(), 0, 0);
+
+  const float kOrigin[3] = {0.0f, 0.0f, 0.0f};
+  const float kIdentityRot[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  mjrf_setRenderablePose(disc.get(), kOrigin, kIdentityRot);
+
+  mjrfMaterial mat;
+  mjrf_defaultMaterial(&mat);
+  mat.color[0] = 1.0f;
+  mat.color[1] = 0.0f;
+  mat.color[2] = 0.0f;
+  mat.color[3] = 1.0f;
+  mat.metallic = 0.0f;
+  mat.roughness = 1.0f;
+  mjrf_setRenderableMaterial(disc.get(), &mat);
+  mjrf_addSceneRenderable(scene, disc.get());
+
+  // Orthographic view covering [-0.3, 0.3] x [-0.3, 0.3].
+  Renderer::View views[1];
+  Renderer::View& view = views[0];
+  view.scene = scene_handle;
+  view.render_target = color_target;
+  view.post_processing = false;
+  view.shadows = false;
+  view.reflections = false;
+  view.camera.orthographic = true;
+  view.camera.up[0] = 0.0f;
+  view.camera.up[1] = 1.0f;
+  view.camera.up[2] = 0.0f;
+  view.camera.frustum_center = 0.0f;
+  view.camera.frustum_width = 0.3f;
+  view.camera.frustum_bottom = -0.3f;
+  view.camera.frustum_top = 0.3f;
+  view.camera.frustum_near = 0.1f;
+  view.camera.frustum_far = 5.0f;
+
+  auto pixel_at = [&](int x, int y) {
+    std::span<const std::byte> pixels = renderer.GetPixels(color_target);
+    int idx = (y * kSize + x) * 3;
+    return std::make_tuple(static_cast<uint8_t>(pixels[idx + 0]),
+                           static_cast<uint8_t>(pixels[idx + 1]),
+                           static_cast<uint8_t>(pixels[idx + 2]));
+  };
+
+  auto render_from_side = [&](float cam_z) {
+    const float dir_z = cam_z > 0.0f ? -1.0f : 1.0f;
+    view.camera.pos[0] = 0.0f;
+    view.camera.pos[1] = 0.0f;
+    view.camera.pos[2] = cam_z;
+    view.camera.forward[0] = 0.0f;
+    view.camera.forward[1] = 0.0f;
+    view.camera.forward[2] = dir_z;
+    const float light_pos[3] = {0.0f, 0.0f, cam_z};
+    const float light_dir[3] = {0.0f, 0.0f, dir_z};
+    mjrf_setLightPose(light.get(), light_pos, light_dir);
+    renderer.Render(views);
+  };
+
+  // 1. Solid disc (r_out = 0.2, r_in = 0) viewed and lit from +z and -z.
+  const float kDiscSize[3] = {0.2f, 0.2f, 1.0f};
+  mjrf_setRenderableSize(disc.get(), kDiscSize);
+  for (float cam_z : {1.0f, -1.0f}) {
+    render_from_side(cam_z);
+    // Center (32, 32) -> r = 0 is lit red.
+    auto [rc, gc, bc] = pixel_at(32, 32);
+    EXPECT_GT(rc, 100);
+    EXPECT_LT(gc, 20);
+    EXPECT_LT(bc, 20);
+
+    // Ring sample (32 + 17, 32) -> |x| ~= 0.159m < 0.2m is lit red.
+    auto [rr, gr, br] = pixel_at(32 + 17, 32);
+    EXPECT_GT(rr, 100);
+    EXPECT_LT(gr, 20);
+    EXPECT_LT(br, 20);
+
+    // Outside outer radius (32 + 27, 32) -> |x| ~= 0.253m > 0.2m is black.
+    auto [ro, go, bo] = pixel_at(32 + 27, 32);
+    EXPECT_EQ(ro, 0);
+    EXPECT_EQ(go, 0);
+    EXPECT_EQ(bo, 0);
+  }
+
+  // 2. Annulus (r_out = 0.2, r_in = 0.6 * 0.2 = 0.12) viewed from +z and -z.
+  mjrf_setRenderableMesh(disc.get(), annulus_mesh.get(), 0, 0);
+  for (float cam_z : {1.0f, -1.0f}) {
+    render_from_side(cam_z);
+    // Center hole (32, 32) and inner hole (32 + 6, 32) -> |x| ~= 0.056m <
+    // 0.12m.
+    auto [rc, gc, bc] = pixel_at(32, 32);
+    EXPECT_EQ(rc, 0);
+    EXPECT_EQ(gc, 0);
+    EXPECT_EQ(bc, 0);
+
+    auto [ri, gi, bi] = pixel_at(32 + 6, 32);
+    EXPECT_EQ(ri, 0);
+    EXPECT_EQ(gi, 0);
+    EXPECT_EQ(bi, 0);
+
+    // Annulus band (32 + 17, 32) -> |x| ~= 0.159m in [0.12, 0.20] is lit red.
+    auto [rr, gr, br] = pixel_at(32 + 17, 32);
+    EXPECT_GT(rr, 100);
+    EXPECT_LT(gr, 20);
+    EXPECT_LT(br, 20);
+
+    // Outside outer radius (32 + 27, 32) -> |x| ~= 0.253m > 0.20m is black.
+    auto [ro, go, bo] = pixel_at(32 + 27, 32);
+    EXPECT_EQ(ro, 0);
+    EXPECT_EQ(go, 0);
+    EXPECT_EQ(bo, 0);
+  }
+
+  mjrf_removeSceneRenderable(scene, disc.get());
+  mjrf_removeSceneLight(scene, light.get());
+}
+
 }  // namespace
 }  // namespace mujoco

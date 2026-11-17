@@ -16,8 +16,10 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <numbers>
 #include <vector>
 
 #include <math/TVecHelpers.h>
@@ -590,6 +592,54 @@ UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
   }
   mesh_data.indices = model->skin_face + 3 * model->skin_faceadr[skin_id];
   SetBounds(&mesh_data, min_pt, max_pt);
+
+  auto mesh = CreateMesh(ctx, mesh_config);
+  mjrf_uploadMesh(mesh.get(), &mesh_data);
+  return mesh;
+}
+
+UniquePtr<mjrfMesh> CreateDiscMesh(mjrfContext* ctx, float inner_radius,
+                                   int nslice, int nquad) {
+  const int num_slices = std::max(3, nslice);
+  const int num_rings = std::max(1, nquad);
+  const float r_in = std::clamp(inner_radius, 0.0f, 1.0f);
+  const int num_vertices = 2 * num_rings * num_slices * 6;
+
+  mjrfMeshConfig mesh_config;
+  mjrfMeshData mesh_data;
+  PrepareMeshData(&mesh_config, &mesh_data, num_vertices, num_vertices,
+                  /*has_uvs=*/true);
+
+  auto point = [&](int ring, int slice) {
+    const float t = static_cast<float>(ring) / num_rings;
+    const float radius = r_in + t * (1.0f - r_in);
+    const float angle =
+        2.0f * std::numbers::pi_v<float> * static_cast<float>(slice) /
+        num_slices;
+    return float2(radius * std::cos(angle), radius * std::sin(angle));
+  };
+
+  // each quad between two rings is two triangles, wound counterclockwise when
+  // seen from the side the face points to
+  constexpr int kOrder[2][6] = {{0, 1, 2, 0, 2, 3}, {0, 2, 1, 0, 3, 2}};
+  VertexWithUv* vertices = (VertexWithUv*)(mesh_data.user_data);
+  for (int side = 0; side < 2; ++side) {
+    const float4 orientation =
+        CalculateOrientation(float3(0, 0, side ? -1.0f : 1.0f));
+    for (int r = 0; r < num_rings; ++r) {
+      for (int i = 0; i < num_slices; ++i) {
+        const float2 quad[4] = {point(r, i), point(r + 1, i),
+                                point(r + 1, i + 1), point(r, i + 1)};
+        for (int k : kOrder[side]) {
+          vertices->position = float3(quad[k], 0);
+          vertices->orientation = orientation;
+          vertices->uv = 0.5f + 0.5f * quad[k];
+          ++vertices;
+        }
+      }
+    }
+  }
+  SetBounds(&mesh_data, float3(-1, -1, 0), float3(1, 1, 0));
 
   auto mesh = CreateMesh(ctx, mesh_config);
   mjrf_uploadMesh(mesh.get(), &mesh_data);

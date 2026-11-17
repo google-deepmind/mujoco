@@ -337,13 +337,19 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
       geom->size[2] = (float)size[1];
       break;
 
+    case mjGEOM_DISC:
+      geom->size[0] = (float)size[0];
+      geom->size[1] = (float)size[1];
+      geom->size[2] = 0.0f;
+      break;
+
     default:
       mju_n2f(geom->size, size, 3);
     }
   } else {
     geom->size[0] = 0.1f;
-    geom->size[1] = 0.1f;
-    geom->size[2] = 0.1f;
+    geom->size[1] = (type == mjGEOM_DISC) ? 0.0f : 0.1f;
+    geom->size[2] = (type == mjGEOM_DISC) ? 0.0f : 0.1f;
   }
 
   // set pos

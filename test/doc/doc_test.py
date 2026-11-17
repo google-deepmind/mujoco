@@ -259,6 +259,7 @@ class DocTest(googletest.TestCase):
             'mjGEOM_SKIN',
             'mjGEOM_LABEL',
             'mjGEOM_TRIANGLE',
+            'mjGEOM_DISC',
             'mjGEOM_NONE',
         },
         'texrole': {  # not settable from XML

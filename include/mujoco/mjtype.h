@@ -126,6 +126,7 @@ typedef enum mjtGeom {            // type of geometric shape
   mjGEOM_SKIN,                    // skin
   mjGEOM_LABEL,                   // text label
   mjGEOM_TRIANGLE,                // triangle
+  mjGEOM_DISC,                    // disc or annulus (outer, inner radius)
 
   mjGEOM_NONE         = 1001      // missing geom type
 } mjtGeom;

@@ -14,10 +14,13 @@
 
 #include "experimental/filament/compat/scene_objects.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <tuple>
 #include <utility>
 
 #include <math/vec2.h>
@@ -25,6 +28,7 @@
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
+#include "render/filament/support/mesh_util.h"
 #include "render/filament/support/mjrf_ptr.h"
 
 namespace mujoco {
@@ -198,5 +202,21 @@ const mjrfMesh* SceneObjects::GetSkinMesh(int geom_id) const {
   }
   mju_error("Unknown skin mesh %d", geom_id);
   return nullptr;
+}
+
+const mjrfMesh* SceneObjects::GetDiscMesh(float inner_radius, int nslice,
+                                          int nquad) {
+  // Quantize the inner radius so that the number of cached meshes is bounded.
+  constexpr int kLevels = 256;
+  const int level = std::clamp(
+      static_cast<int>(std::lround(inner_radius * kLevels)), 0, kLevels);
+  const std::tuple<int, int, int> key = {level, nslice, nquad};
+  auto it = discs_.find(key);
+  if (it == discs_.end()) {
+    auto mesh = CreateDiscMesh(ctx_, static_cast<float>(level) / kLevels,
+                               nslice, nquad);
+    it = discs_.emplace(key, std::move(mesh)).first;
+  }
+  return it->second.get();
 }
 }  // namespace mujoco

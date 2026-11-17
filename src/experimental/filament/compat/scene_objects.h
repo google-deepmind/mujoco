@@ -16,6 +16,8 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_COMPAT_SCENE_OBJECTS_H_
 
 #include <cstdint>
+#include <map>
+#include <tuple>
 #include <unordered_map>
 
 #include <mujoco/mjmodel.h>
@@ -38,6 +40,10 @@ class SceneObjects {
   const mjrfMesh* GetSkinMesh(int geom_id) const;
   const mjrfMesh* GetFlexMesh(int geom_id, int data_id = -1) const;
 
+  // Returns a two-sided disc mesh with unit outer radius and the given inner
+  // radius (quantized to 1/256), creating it on first use.
+  const mjrfMesh* GetDiscMesh(float inner_radius, int nslice, int nquad);
+
   SceneObjects(const SceneObjects&) = delete;
   SceneObjects& operator=(const SceneObjects&) = delete;
 
@@ -45,6 +51,7 @@ class SceneObjects {
   mjrfContext* ctx_ = nullptr;
   std::unordered_map<int, UniquePtr<mjrfMesh>> skins_;
   std::unordered_map<uint64_t, UniquePtr<mjrfMesh>> flexes_;
+  std::map<std::tuple<int, int, int>, UniquePtr<mjrfMesh>> discs_;
 };
 
 }  // namespace mujoco

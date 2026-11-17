@@ -12,6 +12,11 @@ Deformables
   cell: their natural cell, or the nearest non-empty cell if it is empty, consistently with the vertex positions
   (``flex_vertcell``). Previously contact weights near pruned cells could weight the pinned nodes of the empty cell.
 
+Rendering
+^^^^^^^^^
+- Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
+  (``size = [r_out, r_in, 0]``).
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 

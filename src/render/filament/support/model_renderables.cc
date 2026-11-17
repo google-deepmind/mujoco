@@ -107,6 +107,7 @@ static bool GetSize(const mjModel* model, mjtGeom type, const mjtNum* size,
     case mjGEOM_HFIELD:
     case mjGEOM_FLEX:
     case mjGEOM_SKIN:
+    case mjGEOM_DISC:
     case mjGEOM_NONE:
     case mjGEOM_LABEL:
       return false;
@@ -140,6 +141,9 @@ static void SetGeomMesh(mjrfRenderable* renderable, ModelResources* model_objs,
       break;
     case mjGEOM_SKIN:
       mju_error("Skin meshes should be handled separately.");
+      break;
+    case mjGEOM_DISC:
+      mju_error("Disc meshes should be handled separately.");
       break;
     case mjGEOM_PLANE:
     case mjGEOM_SPHERE:

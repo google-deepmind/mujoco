@@ -4172,6 +4172,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjGEOM_SKIN", mjGEOM_SKIN)
     .value("mjGEOM_LABEL", mjGEOM_LABEL)
     .value("mjGEOM_TRIANGLE", mjGEOM_TRIANGLE)
+    .value("mjGEOM_DISC", mjGEOM_DISC)
     .value("mjGEOM_NONE", mjGEOM_NONE);
   enum_<mjtGeomInertia>("mjtGeomInertia")
     .value("mjINERTIA_VOLUME", mjINERTIA_VOLUME)

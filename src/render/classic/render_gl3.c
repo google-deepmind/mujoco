@@ -69,7 +69,8 @@ static int isBuiltinWithUV(int type) {
           type == mjGEOM_ARROW ||
           type == mjGEOM_ARROW1 ||
           type == mjGEOM_ARROW2 ||
-          type == mjGEOM_TRIANGLE);
+          type == mjGEOM_TRIANGLE ||
+          type == mjGEOM_DISC);
 }
 
 
@@ -136,8 +137,9 @@ static void settexture(int type, int state, const mjrContext* con, const mjvGeom
         if (geom->size[0] > 0) {
           scl[0] = scl[0] * geom->size[0];
         }
-        if (geom->size[1] > 0) {
-          scl[1] = scl[1] * geom->size[1];
+        float size1 = (geom->type == mjGEOM_DISC) ? geom->size[0] : geom->size[1];
+        if (size1 > 0) {
+          scl[1] = scl[1] * size1;
         }
       }
 
@@ -513,6 +515,55 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
       glEnable(GL_CULL_FACE);
     }
     break;
+
+  case mjGEOM_DISC:                           // disc or annulus
+  {
+    if (size[0] <= 0.0f || size[1] >= size[0]) {
+      break;
+    }
+    const int nslice = 64;
+    const float r_out = size[0];
+    const float r_in = mjMAX(0.0f, size[1]);
+
+    // emit both +z and -z faces with backface culling so lighting works from both sides
+    GLboolean cull = glIsEnabled(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
+    for (int side=0; side < 2; side++) {
+      glNormal3f(0.0f, 0.0f, side == 0 ? 1.0f : -1.0f);
+      if (r_in == 0.0f) {
+        glBegin(GL_TRIANGLE_FAN);
+        glTexCoord2f(0.5f, 0.5f);
+        glVertex3f(0.0f, 0.0f, 0.0f);
+        for (int j=0; j <= nslice; j++) {
+          int k = ((side == 0) ? j : (nslice - j)) % nslice;
+          float angle = (float)(2.0 * mjPI * k) / (float)nslice;
+          float c = cosf(angle);
+          float s = sinf(angle);
+          glTexCoord2f(0.5f + 0.5f*c, 0.5f + 0.5f*s);
+          glVertex3f(r_out*c, r_out*s, 0.0f);
+        }
+        glEnd();
+      } else {
+        float ratio = r_in / r_out;
+        glBegin(GL_QUAD_STRIP);
+        for (int j=0; j <= nslice; j++) {
+          int k = ((side == 0) ? j : (nslice - j)) % nslice;
+          float angle = (float)(2.0 * mjPI * k) / (float)nslice;
+          float c = cosf(angle);
+          float s = sinf(angle);
+          glTexCoord2f(0.5f + 0.5f*ratio*c, 0.5f + 0.5f*ratio*s);
+          glVertex3f(r_in*c, r_in*s, 0.0f);
+          glTexCoord2f(0.5f + 0.5f*c, 0.5f + 0.5f*s);
+          glVertex3f(r_out*c, r_out*s, 0.0f);
+        }
+        glEnd();
+      }
+    }
+    if (!cull) {
+      glDisable(GL_CULL_FACE);
+    }
+    break;
+  }
 
   case mjGEOM_FLEX:                           // flex
   {

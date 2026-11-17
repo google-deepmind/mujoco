@@ -1486,6 +1486,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtGeom.mjGEOM_ARROW1, 101)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_ARROW2, 102)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_TRIANGLE, 108)
+    self.assertEqual(mujoco.mjtGeom.mjGEOM_DISC, 109)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_NONE, 1001)
 
   def test_enum_from_int(self):

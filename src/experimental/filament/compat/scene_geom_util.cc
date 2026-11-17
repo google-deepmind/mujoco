@@ -99,6 +99,17 @@ static void PrepareGeomMeshes(mjrfRenderable* renderable, const mjvGeom& geom,
       mjrf_setRenderableGeomMesh(renderable, geom_type, nstack, nslice, nquad);
       mjrf_setRenderableSize(renderable, geom.size);
       break;
+    case mjGEOM_DISC: {
+      // Discs are unit annuli with the inner radius baked into the mesh, so
+      // only scale the xy-plane by the outer radius.
+      const float r_out = geom.size[0];
+      const float inner = r_out > 0 ? geom.size[1] / r_out : 0.0f;
+      mjrf_setRenderableMesh(
+          renderable, scene_objs->GetDiscMesh(inner, nslice, nquad), 0, 0);
+      const float size[3] = {r_out, r_out, 1.0f};
+      mjrf_setRenderableSize(renderable, size);
+      break;
+    }
     case mjGEOM_FLEX:
       mjrf_setRenderableMesh(
           renderable, scene_objs->GetFlexMesh(geom.objid, geom.dataid), 0, 0);
@@ -230,8 +241,10 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
           if (geom.size[0] > 0) {
             material.uv_scale[0] *= geom.size[0];
           }
-          if (geom.size[1] > 0) {
-            material.uv_scale[1] *= geom.size[1];
+          const float size1 =
+              geom.type == mjGEOM_DISC ? geom.size[0] : geom.size[1];
+          if (size1 > 0) {
+            material.uv_scale[1] *= size1;
           }
         }
       }
@@ -239,8 +252,10 @@ static void UpdateGeomMaterial(mjrfRenderable* renderable, const mjvGeom& geom,
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.
       if (tex_uniform) {
+        const float size1 =
+            geom.type == mjGEOM_DISC ? geom.size[0] : geom.size[1];
         material.uv_scale[0] = 1.0f / (geom.size[0] ? geom.size[0] : 1.0f);
-        material.uv_scale[1] = 1.0f / (geom.size[1] ? geom.size[1] : 1.0f);
+        material.uv_scale[1] = 1.0f / (size1 ? size1 : 1.0f);
         material.uv_scale[2] = 1.0f / (geom.size[2] ? geom.size[2] : 1.0f);
       }
     }
