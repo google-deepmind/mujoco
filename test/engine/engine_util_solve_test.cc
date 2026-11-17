@@ -1825,6 +1825,39 @@ TEST_F(DenseLUTest, Fixed6MatchesGeneric) {
   }
 }
 
+// 6x6 specialization: singularity at each step k = 0..5 and in-place solve
+TEST_F(DenseLUTest, Fixed6SingularAndInPlace) {
+  constexpr int n = 6;
+  for (int zero_row = 0; zero_row < n; zero_row++) {
+    mjtNum A[n * n] = {0};
+    for (int i = 0; i < n; i++) {
+      if (i != zero_row) {
+        A[i * n + i] = i + 1;
+      }
+    }
+    int pivot[n];
+    EXPECT_EQ(mju_factorLU6(A, pivot), 0) << "zero_row=" << zero_row;
+  }
+
+  mjtNum A[n * n] = {
+      10, 1, 2, 0, -1, 3, 2, 9, -1, 1, 0, 2, -1, 3, 8, 2,  1, 0,
+      0,  2, 1, 7, -2, 1, 1, 0, -2, 3, 9, 1, -2, 1, 0, -1, 2, 11,
+  };
+  mjtNum A_ref[n * n];
+  mju_copy(A_ref, A, n * n);
+  int pivot[n], pivot_ref[n];
+  ASSERT_EQ(mju_factorLU6(A, pivot), 1);
+  ASSERT_EQ(mju_factorLU(A_ref, n, pivot_ref), 1);
+
+  mjtNum x[n] = {1, -2, 3, -4, 5, -6};
+  mjtNum b_copy[n], x_ref[n];
+  mju_copy(b_copy, x, n);
+  mju_solveLU6(x, A, x, pivot);
+  mju_solveLU(x_ref, A_ref, b_copy, pivot_ref, n);
+  mjtNum eps = MjTol(1e-14, 1e-5);
+  EXPECT_THAT(AsVector(x, n), Pointwise(MjNear(eps, eps), AsVector(x_ref, n)));
+}
+
 // nonsingular matrix with all-zero diagonal: requires pivoting
 TEST_F(DenseLUTest, ZeroDiagonal) {
   constexpr int n = 3;

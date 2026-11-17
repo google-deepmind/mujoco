@@ -1491,48 +1491,64 @@ void mju_solveLU(mjtNum* restrict x, const mjtNum* LU, const mjtNum* b, const in
 }
 
 
+// single Gaussian-elimination step k in {0..4} of 6x6 dense LU factorization (force inline)
+static mjALWAYS_INLINE
+int factorLU6_step(mjtNum* restrict A, int* restrict pivot, int k) {
+  // initialize pivot
+  pivot[k] = k;
+
+  // find pivot: max absolute value in column k, rows k..5
+  mjtNum maxval = mju_abs(A[k*6+k]);
+  int maxrow = k;
+  for (int i=k+1; i < 6; i++) {
+    mjtNum val = mju_abs(A[i*6+k]);
+    if (val > maxval) {
+      maxval = val;
+      maxrow = i;
+    }
+  }
+
+  // check singularity
+  if (maxval < mjMINVAL) {
+    return 0;
+  }
+
+  // swap rows k and maxrow
+  if (maxrow != k) {
+    pivot[k] = maxrow;
+    for (int j=0; j < 6; j++) {
+      mjtNum tmp = A[k*6+j];
+      A[k*6+j] = A[maxrow*6+j];
+      A[maxrow*6+j] = tmp;
+    }
+  }
+
+  // compute multipliers and update trailing submatrix
+  mjtNum diaginv = 1.0 / A[k*6+k];
+  for (int i=k+1; i < 6; i++) {
+    A[i*6+k] *= diaginv;
+    mjtNum Aik = A[i*6+k];
+    for (int j=k+1; j < 6; j++) {
+      A[i*6+j] -= Aik * A[k*6+j];
+    }
+  }
+
+  return 1;
+}
+
+
 // 6x6 specialization of mju_factorLU: same algorithm with compile-time size,
 // allowing full unrolling; produces identical results
 int mju_factorLU6(mjtNum A[36], int pivot[6]) {
-  for (int k=0; k < 6; k++) {
-    // initialize pivot
-    pivot[k] = k;
+  if (!factorLU6_step(A, pivot, 0)) return 0;
+  if (!factorLU6_step(A, pivot, 1)) return 0;
+  if (!factorLU6_step(A, pivot, 2)) return 0;
+  if (!factorLU6_step(A, pivot, 3)) return 0;
+  if (!factorLU6_step(A, pivot, 4)) return 0;
 
-    // find pivot: max absolute value in column k, rows k..n-1
-    mjtNum maxval = mju_abs(A[k*6+k]);
-    int maxrow = k;
-    for (int i=k+1; i < 6; i++) {
-      mjtNum val = mju_abs(A[i*6+k]);
-      if (val > maxval) {
-        maxval = val;
-        maxrow = i;
-      }
-    }
-
-    // check singularity
-    if (maxval < mjMINVAL) {
-      return 0;
-    }
-
-    // swap rows k and maxrow
-    if (maxrow != k) {
-      pivot[k] = maxrow;
-      for (int j=0; j < 6; j++) {
-        mjtNum tmp = A[k*6+j];
-        A[k*6+j] = A[maxrow*6+j];
-        A[maxrow*6+j] = tmp;
-      }
-    }
-
-    // compute multipliers and update trailing submatrix
-    mjtNum diaginv = 1.0 / A[k*6+k];
-    for (int i=k+1; i < 6; i++) {
-      A[i*6+k] *= diaginv;
-      mjtNum Aik = A[i*6+k];
-      for (int j=k+1; j < 6; j++) {
-        A[i*6+j] -= Aik * A[k*6+j];
-      }
-    }
+  pivot[5] = 5;
+  if (mju_abs(A[35]) < mjMINVAL) {
+    return 0;
   }
 
   return 1;
@@ -1541,32 +1557,39 @@ int mju_factorLU6(mjtNum A[36], int pivot[6]) {
 
 // solve A*x = b given 6x6 LU factorization from mju_factorLU6
 void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int pivot[6]) {
-  for (int i=0; i < 6; i++) {
-    x[i] = b[i];
-  }
-
-  // apply row permutation and forward substitution: solve L*y = P*b
-  for (int i=0; i < 6; i++) {
-    // apply pivot swap
-    if (pivot[i] != i) {
-      mjtNum tmp = x[i];
-      x[i] = x[pivot[i]];
-      x[pivot[i]] = tmp;
-    }
-
-    // subtract known terms
-    for (int j=0; j < i; j++) {
-      x[i] -= LU[i*6+j] * x[j];
+  // apply row permutation
+  mjtNum t[6] = {b[0], b[1], b[2], b[3], b[4], b[5]};
+  for (int i=0; i < 5; i++) {
+    int p = pivot[i];
+    if (p != i) {
+      mjtNum tmp = t[i];
+      t[i] = t[p];
+      t[p] = tmp;
     }
   }
+
+  // forward substitution: solve L*y = P*b
+  mjtNum y0 = t[0];
+  mjtNum y1 = t[1] - LU[1*6+0]*y0;
+  mjtNum y2 = t[2] - LU[2*6+0]*y0 - LU[2*6+1]*y1;
+  mjtNum y3 = t[3] - LU[3*6+0]*y0 - LU[3*6+1]*y1 - LU[3*6+2]*y2;
+  mjtNum y4 = t[4] - LU[4*6+0]*y0 - LU[4*6+1]*y1 - LU[4*6+2]*y2 - LU[4*6+3]*y3;
+  mjtNum y5 = t[5] - LU[5*6+0]*y0 - LU[5*6+1]*y1 - LU[5*6+2]*y2 - LU[5*6+3]*y3 - LU[5*6+4]*y4;
 
   // back substitution: solve U*x = y
-  for (int i=6-1; i >= 0; i--) {
-    for (int j=i+1; j < 6; j++) {
-      x[i] -= LU[i*6+j] * x[j];
-    }
-    x[i] /= LU[i*6+i];
-  }
+  mjtNum x5 = y5 / LU[35];
+  mjtNum x4 = (y4 - LU[4*6+5]*x5) / LU[28];
+  mjtNum x3 = (y3 - LU[3*6+4]*x4 - LU[3*6+5]*x5) / LU[21];
+  mjtNum x2 = (y2 - LU[2*6+3]*x3 - LU[2*6+4]*x4 - LU[2*6+5]*x5) / LU[14];
+  mjtNum x1 = (y1 - LU[1*6+2]*x2 - LU[1*6+3]*x3 - LU[1*6+4]*x4 - LU[1*6+5]*x5) / LU[7];
+  mjtNum x0 = (y0 - LU[1]*x1 - LU[2]*x2 - LU[3]*x3 - LU[4]*x4 - LU[5]*x5) / LU[0];
+
+  x[0] = x0;
+  x[1] = x1;
+  x[2] = x2;
+  x[3] = x3;
+  x[4] = x4;
+  x[5] = x5;
 }
 
 
