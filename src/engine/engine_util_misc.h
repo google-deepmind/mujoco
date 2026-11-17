@@ -95,6 +95,10 @@ MJAPI void mju_evalBasisArray(mjtNum* basis, const mjtNum x[3], int order);
 MJAPI int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order,
                          int cell, mjtNum local[3], int* nodeindices);
 
+// active cell of a point at [0,1]^3 parametric coordinates coord: its (clamped) natural cell if
+// that cell is not empty, otherwise the nearest non-empty cell; cellempty can be NULL
+MJAPI int mju_flexActiveCell(const mjtNum coord[3], const int cellnum[3], const mjtBool* cellempty);
+
 // gather cell-local quantities and optionally compute rotation
 MJAPI void mju_flexGatherCellState(int order, int cy, int cz, int ci, int cj, int ck,
                                    const mjtNum* xpos_g, const mjtNum* vel_g,

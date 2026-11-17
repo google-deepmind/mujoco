@@ -189,6 +189,8 @@ def _forward_shim(
     flex_bending: wp.array[float],
     flex_bendingadr: wp.array[int],
     flex_cell_map: wp.array[wp.vec4i],
+    flex_celladr: wp.array[int],
+    flex_cellempty: wp.array[bool],
     flex_cellnum: wp.array[wp.vec3i],
     flex_centered: wp.array[bool],
     flex_conaffinity: wp.array[int],
@@ -909,6 +911,8 @@ def _forward_shim(
   _m.flex_bending = flex_bending
   _m.flex_bendingadr = flex_bendingadr
   _m.flex_cell_map = flex_cell_map
+  _m.flex_celladr = flex_celladr
+  _m.flex_cellempty = flex_cellempty
   _m.flex_cellnum = flex_cellnum
   _m.flex_centered = flex_centered
   _m.flex_conaffinity = flex_conaffinity
@@ -2502,6 +2506,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_bending,
       m._impl.flex_bendingadr,
       m._impl.flex_cell_map,
+      m._impl.flex_celladr,
+      m._impl.flex_cellempty,
       m._impl.flex_cellnum,
       m._impl.flex_centered,
       m._impl.flex_conaffinity,
@@ -3426,6 +3432,8 @@ def _step_shim(
     flex_bending: wp.array[float],
     flex_bendingadr: wp.array[int],
     flex_cell_map: wp.array[wp.vec4i],
+    flex_celladr: wp.array[int],
+    flex_cellempty: wp.array[bool],
     flex_cellnum: wp.array[wp.vec3i],
     flex_centered: wp.array[bool],
     flex_conaffinity: wp.array[int],
@@ -4164,6 +4172,8 @@ def _step_shim(
   _m.flex_bending = flex_bending
   _m.flex_bendingadr = flex_bendingadr
   _m.flex_cell_map = flex_cell_map
+  _m.flex_celladr = flex_celladr
+  _m.flex_cellempty = flex_cellempty
   _m.flex_cellnum = flex_cellnum
   _m.flex_centered = flex_centered
   _m.flex_conaffinity = flex_conaffinity
@@ -5800,6 +5810,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.flex_bending,
       m._impl.flex_bendingadr,
       m._impl.flex_cell_map,
+      m._impl.flex_celladr,
+      m._impl.flex_cellempty,
       m._impl.flex_cellnum,
       m._impl.flex_centered,
       m._impl.flex_conaffinity,

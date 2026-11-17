@@ -747,6 +747,7 @@ cc_test(
     deps = [
         "//:libmujoco_hdrs",
         "//src/engine:engine_core_util",
+        "//src/engine:engine_util_misc",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],

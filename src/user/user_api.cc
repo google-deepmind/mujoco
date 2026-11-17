@@ -514,6 +514,7 @@ mjModel* mj_embedAssets(const mjModel* m, char* error, int error_sz) {
                m->nefmCvert,
                m->nflexelemedge,
                m->nflexshelldata,
+               m->nflexcell,
                m->nflextexcoord,
                m->nJfe,
                m->nmesh,

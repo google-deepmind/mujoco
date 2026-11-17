@@ -194,6 +194,7 @@
     X( nefmCvert )          \
     X( nflexelemedge )      \
     X( nflexshelldata )     \
+    X( nflexcell )          \
     X( nflextexcoord )      \
     X( nJfe )               \
     X( nmesh )              \
@@ -469,6 +470,7 @@
     X   ( int,     flex_group,            nflex,         1                    ) \
     X   ( int,     flex_interp,           nflex,         1                    ) \
     X   ( int,     flex_cellnum,          nflex,         3                    ) \
+    X   ( int,     flex_celladr,          nflex,         1                    ) \
     X   ( int,     flex_nodeadr,          nflex,         1                    ) \
     X   ( int,     flex_nodenum,          nflex,         1                    ) \
     X   ( int,     flex_vertadr,          nflex,         1                    ) \
@@ -489,6 +491,7 @@
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_vertcell,         nflexvert,     1                    ) \
+    X   ( mjtBool, flex_cellempty,        nflexcell,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     X   ( int,     flex_edgeflap,         nflexedge,     2                    ) \
     X   ( int,     flex_elem,             nflexelemdata, 1                    ) \

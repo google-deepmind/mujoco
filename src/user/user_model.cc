@@ -1382,6 +1382,7 @@ void mjCModel::Clear() {
   nefmCvert      = 0;
   nflexelemedge  = 0;
   nflexshelldata = 0;
+  nflexcell      = 0;
   nflextexcoord  = 0;
   nJfe           = 0;
   nmeshvert      = 0;
@@ -2337,6 +2338,7 @@ void mjCModel::SetSizes() {
     nflexelemdata  += flexes_[i]->nelem * (flexes_[i]->dim + 1);
     nflexelemedge  += flexes_[i]->nelem * mjCFlex::kNumEdges[flexes_[i]->dim - 1];
     nflexshelldata += (int)flexes_[i]->shell.size();
+    nflexcell      += flexes_[i]->NumCells();
     nflextexcoord  += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size() / 2 : 0);
     nflexstiffness += flexes_[i]->stiffness.size();
     nflexbending   += flexes_[i]->bending.size();
@@ -3508,7 +3510,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   std::vector<mjCHField*> hfields = CompiledHFields();
   mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
   mjtSize stiffness_adr, bending_adr;
-  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr;
+  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, cell_adr;
   mjtSize bonevert_adr, graph_adr, data_adr, bvh_adr;
   mjtSize poly_adr, polymap_adr, polyvert_adr;
 
@@ -3663,6 +3665,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   elemdata_adr  = 0;
   elemedge_adr  = 0;
   shelldata_adr = 0;
+  cell_adr      = 0;
   texcoord_adr  = 0;
   stiffness_adr = 0;
   bending_adr   = 0;
@@ -3823,6 +3826,15 @@ void mjCModel::CopyObjects(mjModel* m) {
     // copy vert0 and vertcell
     mjuu_copyvec(m->flex_vert0 + 3 * vert_adr, pfl->vert0_.data(), 3 * pfl->nvert);
     memcpy(m->flex_vertcell + vert_adr, pfl->vertcell_.data(), pfl->nvert * sizeof(int));
+
+    // copy empty cell flags of interpolated flexes
+    int ncell           = pfl->NumCells();
+    m->flex_celladr[i]  = ncell ? cell_adr : -1;
+    bool has_cell_empty = (int)pfl->cell_empty.size() == ncell;
+    for (int k = 0; k < ncell; k++) {
+      m->flex_cellempty[cell_adr + k] = has_cell_empty && pfl->cell_empty[k];
+    }
+    cell_adr += ncell;
 
     // copy node0
     mjuu_copyvec(m->flex_node0 + 3 * node_adr, pfl->node0_.data(), 3 * pfl->nnode);
@@ -7069,6 +7081,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
                nefmCvert,
                nflexelemedge,
                nflexshelldata,
+               nflexcell,
                nflextexcoord,
                nJfe,
                nmesh,

@@ -19,12 +19,15 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <map>
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_util_misc.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -261,6 +264,187 @@ TEST_F(FlexGatherStateTest, InterpWeightsMatchVertexPositions) {
     }
   }
   EXPECT_GT(nsample, 0);
+}
+
+// body weights of the lattice node weights of a point of interpolated flex f
+static std::map<int, mjtNum> NodeBodyWeights(const mjModel* m, int f,
+                                             const int* node,
+                                             const mjtNum* weight, int nn) {
+  std::map<int, mjtNum> bw;
+  for (int q = 0; q < nn; q++) {
+    bw[m->flex_nodebodyid[m->flex_nodeadr[f] + node[q]]] += weight[q];
+  }
+  return bw;
+}
+
+// expect equal body weights (missing bodies have zero weight)
+static void ExpectBodyWeightsNear(std::map<int, mjtNum> actual,
+                                  std::map<int, mjtNum> expected, mjtNum tol,
+                                  const std::string& msg) {
+  for (const auto& [b, w] : expected) {
+    EXPECT_NEAR(actual[b], w, tol) << msg << " body " << b;
+  }
+  for (const auto& [b, w] : actual) {
+    EXPECT_NEAR(w, expected[b], tol) << msg << " body " << b;
+  }
+}
+
+// For a volume-mode flex with an empty (pruned) cell, the active cell of a
+// point is its natural cell, or the nearest non-empty cell if that is empty.
+// The compiler uses this rule for flex_vertcell, and the runtime for any
+// reference point: interpolation weights reproduce the vertex positions, also
+// for redirected vertices, and contact weights use the active cell of the
+// contact point's blended reference coordinates.
+TEST_F(FlexGatherStateTest, InterpWeightsUseActiveCell) {
+  // Cell 1 (x in [0.5, 1]) only contains a 1% sliver x in [0.5, 0.505] and is
+  // pruned as empty, so vertices 1, 3, 5, 7 (x = 0.5) and 8..11 (x = 0.505)
+  // are redirected to cell 0.
+  static constexpr char kSliverXml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body name="parent">
+        <inertial mass="1" pos="0 0 0" diaginertia="0.01 0.01 0.01"/>
+        <flexcomp name="sliver" type="direct" dim="3" dof="DOF_TYPE" mass="1.0"
+                  cellcount="2 1 1" radius="0.001"
+                  point="0.0 0 0  0.5 0 0  0.0 1 0  0.5 1 0
+                         0.0 0 1  0.5 0 1  0.0 1 1  0.5 1 1
+                         0.505 0 0  0.505 1 0  0.505 0 1  0.505 1 1
+                         1.0 0.5 0.5"
+                  element="0 1 2 4  3 2 1 7  5 1 4 7  6 2 4 7  1 2 4 7
+                           1 8 3 5  9 3 8 11  10 8 5 11  7 3 5 11  8 3 5 11">
+          <pin id="0 2 4 6"/>
+          <contact selfcollide="none"/>
+          <elasticity young="1e4" poisson="0.3" elastic2d="none"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  for (const char* dof : {"trilinear", "quadratic"}) {
+    std::string xml = kSliverXml;
+    xml.replace(xml.find("DOF_TYPE"), 8, dof);
+    char error[1024];
+    MjModelPtr m = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(m.get(), NotNull()) << dof << ": " << error;
+    ASSERT_EQ(m->nflex, 1);
+    int f = 0;
+    ASSERT_GT(m->flex_interp[f], 0) << dof << ": expected volume mode";
+    const int* cellnum = m->flex_cellnum + 3 * f;
+    ASSERT_EQ(m->nflexcell, 2);
+    ASSERT_EQ(m->flex_celladr[f], 0);
+    const mjtBool* cellempty = m->flex_cellempty + m->flex_celladr[f];
+    EXPECT_FALSE(cellempty[0]) << dof;
+    EXPECT_TRUE(cellempty[1]) << dof;
+
+    // natural cell of a point
+    auto natural_cell = [&](const mjtNum* coord) {
+      int c[3];
+      for (int i = 0; i < 3; i++) {
+        c[i] = (int)mju_floor(coord[i] * cellnum[i]);
+        c[i] = std::max(0, std::min(cellnum[i] - 1, c[i]));
+      }
+      return c[0] * cellnum[1] * cellnum[2] + c[1] * cellnum[2] + c[2];
+    };
+
+    // (a) the compiler's flex_vertcell is the active cell of each vertex, and
+    // some vertices are redirected away from their natural cell
+    int vadr = m->flex_vertadr[f];
+    std::vector<int> redirected;
+    for (int v = 0; v < m->flex_vertnum[f]; v++) {
+      const mjtNum* coord = m->flex_vert0 + 3 * (vadr + v);
+      EXPECT_EQ(mju_flexActiveCell(coord, cellnum, cellempty),
+                m->flex_vertcell[vadr + v])
+          << dof << " vertex " << v;
+      if (m->flex_vertcell[vadr + v] != natural_cell(coord)) {
+        redirected.push_back(v);
+      }
+    }
+    ASSERT_FALSE(redirected.empty()) << dof;
+    ASSERT_NE(std::find(redirected.begin(), redirected.end(), 8),
+              redirected.end())
+        << dof;
+
+    // perturbed configuration
+    MjDataPtr d = MakeData(m);
+    for (int i = 0; i < m->nq; i++) {
+      d->qpos[i] = m->qpos0[i] + 0.02 * (mju_Halton(i + 1, 2) - 0.5);
+    }
+    mj_forward(m.get(), d.get());
+
+    mjContact con = {};
+    con.geom[0] = con.geom[1] = -1;
+    con.flex[0] = f;
+    con.flex[1] = -1;
+    con.vert[1] = con.elem[1] = -1;
+    int body[mjMAXFLEXINTERPW];
+    mjtNum bweight[mjMAXFLEXINTERPW];
+
+    for (int v = 0; v < m->flex_vertnum[f]; v++) {
+      // (b) weights at the reference coordinates reproduce d->flexvert_xpos
+      int gv = vadr + v;
+      int node[mjMAXFLEXINTERPW];
+      mjtNum weight[mjMAXFLEXINTERPW];
+      int nn = mj_flexInterpWeights(m.get(), f, m->flex_vert0 + 3 * gv, node,
+                                    weight);
+      ASSERT_GT(nn, 0);
+      mjtNum recon[3] = {0, 0, 0};
+      for (int q = 0; q < nn; q++) {
+        mjtNum pos[3];
+        mj_flexNodePos(m.get(), d.get(), f, m->flex_nodeadr[f] + node[q], pos);
+        mju_addToScl3(recon, pos, weight[q]);
+      }
+      for (int c = 0; c < 3; c++) {
+        EXPECT_NEAR(recon[c], d->flexvert_xpos[3 * gv + c], MjTol(1e-10, 1e-5))
+            << dof << " vertex " << v;
+      }
+
+      // (c) vertex contact: contact weights are the vertex weights
+      con.vert[0] = v;
+      con.elem[0] = -1;
+      mju_copy3(con.pos, d->flexvert_xpos + 3 * gv);
+      int nb = mj_contactBodyWeight(m.get(), d.get(), &con, 0, body, bweight);
+      std::map<int, mjtNum> actual;
+      for (int i = 0; i < nb; i++) {
+        actual[body[i]] += bweight[i];
+      }
+      ExpectBodyWeightsNear(actual,
+                            NodeBodyWeights(m.get(), f, node, weight, nn),
+                            MjTol(1e-12, 1e-5),
+                            std::string(dof) + " vertex " + std::to_string(v));
+    }
+
+    // (d) element contact in element 5 (1 8 3 5), whose interior lies in the
+    // empty cell 1: the weights are the basis of the nearest active cell 0 at
+    // the blended reference coordinates
+    const int e = 5;
+    const int* edata = m->flex_elem + m->flex_elemdataadr[f] + 4 * e;
+    const mjtNum lambda[4] = {0.25, 0.25, 0.25, 0.25};
+    con.vert[0] = -1;
+    con.elem[0] = e;
+    mju_zero3(con.pos);
+    mjtNum coord[3] = {0, 0, 0};
+    for (int i = 0; i < 4; i++) {
+      mju_addToScl3(con.pos, d->flexvert_xpos + 3 * (vadr + edata[i]),
+                    lambda[i]);
+      mju_addToScl3(coord, m->flex_vert0 + 3 * (vadr + edata[i]), lambda[i]);
+    }
+    ASSERT_EQ(natural_cell(coord), 1) << dof;
+    ASSERT_EQ(mju_flexActiveCell(coord, cellnum, cellempty), 0) << dof;
+    int order = m->flex_interp[f];
+    int node[27];
+    mjtNum local[3], basis[27];
+    int npc = mju_cellLookup(coord, cellnum, order, 0, local, node);
+    mju_evalBasisArray(basis, local, order);
+    int nb = mj_contactBodyWeight(m.get(), d.get(), &con, 0, body, bweight);
+    std::map<int, mjtNum> actual;
+    for (int i = 0; i < nb; i++) {
+      actual[body[i]] += bweight[i];
+    }
+    ExpectBodyWeightsNear(actual, NodeBodyWeights(m.get(), f, node, basis, npc),
+                          MjTol(1e-10, 1e-5), std::string(dof) + " element 5");
+  }
 }
 
 // Coons TFI of shell-mode flexes reproduces affine motions of the boundary:

@@ -257,6 +257,8 @@ class ModelWarp(PyTreeNode):
   flex_bending: np.ndarray
   flex_bendingadr: np.ndarray
   flex_cell_map: np.ndarray
+  flex_celladr: np.ndarray
+  flex_cellempty: np.ndarray
   flex_cellnum: np.ndarray
   flex_centered: np.ndarray
   flex_conaffinity: np.ndarray
@@ -402,6 +404,7 @@ class ModelWarp(PyTreeNode):
   neq_flexstrain: int
   nflexbend_interp: int
   nflexbending: int
+  nflexcell: int
   nflexedge: int
   nflexelem: int
   nflexelemdata: int
@@ -1114,6 +1117,8 @@ _NDIM = {
         'flex_bending': 1,
         'flex_bendingadr': 1,
         'flex_cell_map': 2,
+        'flex_celladr': 1,
+        'flex_cellempty': 1,
         'flex_cellnum': 2,
         'flex_centered': 1,
         'flex_conaffinity': 1,
@@ -1363,6 +1368,7 @@ _NDIM = {
         'nflex': 0,
         'nflexbend_interp': 0,
         'nflexbending': 0,
+        'nflexcell': 0,
         'nflexedge': 0,
         'nflexelem': 0,
         'nflexelemdata': 0,
@@ -1985,6 +1991,8 @@ _BATCH_DIM = {
         'flex_bending': False,
         'flex_bendingadr': False,
         'flex_cell_map': False,
+        'flex_celladr': False,
+        'flex_cellempty': False,
         'flex_cellnum': False,
         'flex_centered': False,
         'flex_conaffinity': False,
@@ -2234,6 +2242,7 @@ _BATCH_DIM = {
         'nflex': False,
         'nflexbend_interp': False,
         'nflexbending': False,
+        'nflexcell': False,
         'nflexedge': False,
         'nflexelem': False,
         'nflexelemdata': False,

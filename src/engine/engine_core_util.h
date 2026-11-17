@@ -180,8 +180,8 @@ MJAPI void mj_flexNodePos(const mjModel* m, const mjData* d, int f, int n, mjtNu
 // of shell-mode flexes are complete (as from mju_flexGatherState)
 MJAPI void mj_flexInterpVert(const mjModel* m, int f, const mjtNum* nodevec, mjtNum* vertvec);
 
-// lattice node weights of a point at [0,1]^3 reference coordinates coord of interpolated flex f;
-// return number of weights (<= mjMAXFLEXINTERPW)
+// lattice node weights of a point at [0,1]^3 reference coordinates coord of interpolated flex f in
+// its active cell (mju_flexActiveCell); return number of weights (<= mjMAXFLEXINTERPW)
 MJAPI int mj_flexInterpWeights(const mjModel* m, int f, const mjtNum coord[3],
                                int* node, mjtNum* weight);
 

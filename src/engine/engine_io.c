@@ -242,7 +242,7 @@ void mj_makeModel(mjModel** dest,
     mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
     mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
     mjtSize nefm0dof, mjtSize nefm0L, mjtSize nefmCvert, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe,
+    mjtSize nflexshelldata, mjtSize nflexcell, mjtSize nflextexcoord, mjtSize nJfe,
     mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
     mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
     mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
@@ -340,6 +340,7 @@ void mj_makeModel(mjModel** dest,
   m->nefmCvert = nefmCvert;
   m->nflexelemedge = nflexelemedge;
   m->nflexshelldata = nflexshelldata;
+  m->nflexcell = nflexcell;
   m->nflextexcoord = nflextexcoord;
   m->nJfe = nJfe;
   m->nmesh = nmesh;
@@ -450,7 +451,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
         src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
         src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
         src->nflexbending, src->nefm0dof, src->nefm0L, src->nefmCvert, src->nflexelemedge,
-        src->nflexshelldata,
+        src->nflexshelldata, src->nflexcell,
         src->nflextexcoord, src->nJfe, src->nmesh, src->nmeshvert, src->nmeshnormal,
         src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
         src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
@@ -633,7 +634,8 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
                sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
                sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
                sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
-               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81], sizes[82], sizes[83]);
+               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81], sizes[82], sizes[83],
+               sizes[84]);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -2070,6 +2072,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(flex_elemdataadr,   nflex,          nflexelemdata , 0                      ) \
   X(flex_elemedgeadr,   nflex,          nflexelemedge , 0                      ) \
   X(flex_shelldataadr,  nflex,          nflexshelldata, 0                      ) \
+  X(flex_celladr,       nflex,          nflexcell     , 0                      ) \
   X(flex_edge,          nflexedge*2,    nflexvert     , 0                      ) \
   X(flex_elem,          nflexelemdata,  nflexvert     , 0                      ) \
   X(flex_elemedge,      nflexelemedge,  nflexedge     , 0                      ) \
@@ -2309,6 +2312,10 @@ const char* mj_validateReferences(const mjModel* m) {
   for (int f=0; f < m->nflex; f++) {
     int ncell = m->flex_interp[f] ?
                 m->flex_cellnum[3*f+0] * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2] : 0;
+    if (m->flex_interp[f] ? (m->flex_celladr[f] < 0 || m->flex_celladr[f] + ncell > m->nflexcell)
+                          : (m->flex_celladr[f] != -1)) {
+      return "Invalid model: flex_celladr out of bounds.";
+    }
     for (int v=0; v < m->flex_vertnum[f]; v++) {
       int c = m->flex_vertcell[m->flex_vertadr[f] + v];
       if (m->flex_interp[f] ? (c < 0 || c >= ncell) : (c != -1)) {

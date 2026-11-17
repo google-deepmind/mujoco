@@ -1290,6 +1290,11 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   int                  PlasticMode() const;
   int                  PlasticStretchNum() const;
 
+  // number of finite cells of an interpolated flex, 0 otherwise
+  int NumCells() const {
+    return interpolated ? spec.cellcount[0] * spec.cellcount[1] * spec.cellcount[2] : 0;
+  }
+
   // gauge of the lowest frame or body which contains the bodies of the vertices and nodes
   mjCGauge BodyGauge() const;
 

@@ -100,6 +100,7 @@ class mjCModel_ : public mjsElement {
   mjtSize nefmCvert;       // number of sparse metric factor ordering slots
   mjtSize nflexelemedge;   // number of element edges in all flexes
   mjtSize nflexshelldata;  // number of shell fragment vertex ids in all flexes
+  mjtSize nflexcell;       // number of finite cells in all interpolated flexes
   mjtSize nflextexcoord;   // number of vertex texture coordinates in all flexes
   mjtSize nJfe;            // number of non-zeros in sparse flex edge constraint Jacobian
   mjtSize nmeshvert;       // number of vertices in all meshes

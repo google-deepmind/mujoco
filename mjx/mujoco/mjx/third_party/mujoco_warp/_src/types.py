@@ -1273,6 +1273,7 @@ class Model:
     nefm0L: number of non-zeros in zero-mass flex Cholesky factor
     nflexelemedge: number of element edge ids in all flexes
     nflexshelldata: number of shell fragment vertex ids in all flexes
+    nflexcell: number of finite cells in all interpolated flexes
     nJfe: number of non-zeros in sparse flexedge Jacobian
     nmesh: number of meshes
     nmeshvert: number of vertices for all meshes
@@ -1442,6 +1443,7 @@ class Model:
     flex_dim: 1: lines, 2: triangles, 3: tetrahedra          (nflex,)
     flex_interp: interpolation order (0: vertex, 1+: nodes)  (nflex,)
     flex_cellnum: cell count per dimension                   (nflex, 3)
+    flex_celladr: first cell address; -1: not interpolated   (nflex,)
     flex_nodeadr: first node address                         (nflex,)
     flex_nodenum: number of nodes                            (nflex,)
     flex_vertadr: first vertex address                       (nflex,)
@@ -1461,6 +1463,7 @@ class Model:
     flex_nodebodyid: node body ids                           (nflexnode,)
     flex_vertbodyid: vertex body ids                         (nflexvert,)
     flex_vertcell: finite cell index for vertex; -1: none    (nflexvert,)
+    flex_cellempty: is finite cell empty (pruned)            (nflexcell,)
     flex_edge: edge vertex ids (2 per edge)                  (nflexedge, 2)
     flex_edgeflap: adjacent vertex ids (dim=2 only)          (nflexedge, 2)
     flex_elem: element vertex ids (dim+1 per elem)           (nflexelemdata,)
@@ -1863,6 +1866,7 @@ class Model:
   nefm0L: int
   nflexelemedge: int
   nflexshelldata: int
+  nflexcell: int
   nJfe: int
   nmesh: int
   nmeshvert: int
@@ -2032,6 +2036,7 @@ class Model:
   flex_dim: array("nflex", int)
   flex_interp: array("nflex", int)
   flex_cellnum: array("nflex", wp.vec3i)
+  flex_celladr: array("nflex", int)
   flex_nodeadr: array("nflex", int)
   flex_nodenum: array("nflex", int)
   flex_vertadr: array("nflex", int)
@@ -2051,6 +2056,7 @@ class Model:
   flex_nodebodyid: array("nflexnode", int)
   flex_vertbodyid: array("nflexvert", int)
   flex_vertcell: array("nflexvert", int)
+  flex_cellempty: array("nflexcell", bool)
   flex_edge: array("nflexedge", wp.vec2i)
   flex_edgeflap: array("nflexedge", wp.vec2i)
   flex_elem: array("nflexelemdata", int)
