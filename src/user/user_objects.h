@@ -772,6 +772,9 @@ class mjCBody : public mjCBody_, private mjsBody {
   void PointToLocal(void);
   void NameSpace_(const mjCModel* m, bool propagate = true);
   void CopyPlugin();
+  bool TreeListsUnindexed() const;
+  template <typename T>
+  void AppendTreeObject(std::vector<T*>& ml, const std::vector<T*>& bl, T* obj);
 
   // copy src list of elements into dst; set body, model and frame
   template <typename T>
@@ -1289,6 +1292,11 @@ class mjCFlex : public mjCFlex_, private mjsFlex {
   int                  PlasticNum() const;
   int                  PlasticMode() const;
   int                  PlasticStretchNum() const;
+
+  // number of finite cells of an interpolated flex, 0 otherwise
+  int NumCells() const {
+    return interpolated ? spec.cellcount[0] * spec.cellcount[1] * spec.cellcount[2] : 0;
+  }
 
   // gauge of the lowest frame or body which contains the bodies of the vertices and nodes
   mjCGauge BodyGauge() const;

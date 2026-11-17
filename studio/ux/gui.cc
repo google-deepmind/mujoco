@@ -31,6 +31,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <implot.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "studio/sim/sim_history.h"
 #include "studio/sim/sim_profiler.h"
@@ -1768,29 +1769,188 @@ void RenderingGui(const mjModel* model, mjvOption* vis_options, mjtByte* render_
   const float available_width = GetStableAvailWidth() - ImGui::GetTreeNodeToLabelSpacing();
   const int num_cols = std::clamp(static_cast<int>(std::floor(available_width / min_width)), 1, 6);
 
-  if (ImGui::TreeNodeEx("Model Elements", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::BeginTable("##ModelElementsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNVISFLAG; ++i) {
-        ImGui::TableNextColumn();
-        ImGui_ButtonToggle(mjVISSTRING[i][0], &vis_options->flags[i], size);
+  if (vis_options) {
+    if (ImGui::TreeNodeEx("Visualization Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
+      if (ImGui::BeginTable("##ModelElementsTable", num_cols)) {
+        const ImVec2 size = GetFlexElementSize(num_cols);
+        for (int i = 0; i < mjNVISFLAG; ++i) {
+          ImGui::TableNextColumn();
+          ImGui_ButtonToggle(mjVISSTRING[i][0], &vis_options->flags[i], size);
+        }
+        ImGui::EndTable();
       }
-      ImGui::EndTable();
+      ImGui::TreePop();
     }
+  }
+
+  if (render_flags) {
+    if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
+      if (ImGui::BeginTable("##RenderFlagsTable", num_cols)) {
+        const ImVec2 size = GetFlexElementSize(num_cols);
+        for (int i = 0; i < mjNRNDFLAG; ++i) {
+          ImGui::TableNextColumn();
+          ImGui_ButtonToggle(mjRNDSTRING[i][0], &render_flags[i], size);
+        }
+        ImGui::EndTable();
+      }
+      ImGui::TreePop();
+    }
+  }
+}
+
+void RenderOptsGui(mjrfRenderOpts* render_opts, mjrDrawMode* draw_mode) {
+  if (!render_opts || !draw_mode) {
+    return;
+  }
+
+  const float item_width = ImGui::GetWindowWidth() * .6f;
+  ImGui::PushItemWidth(item_width);
+
+  ImGui_EnumCombo("Draw Mode", *draw_mode);
+
+  ImGui_Checkbox("Post Processing", render_opts->post_processing);
+
+  if (SectionHeader("Ambient Occlusion")) {
+    auto& ao = render_opts->ambient_occlusion;
+    ImGui_EnumCombo<mjrAmbientOcclusionType>("Type", ao.type);
+    ImGui_Checkbox("SSCT", ao.ssct_enable);
+    ImGui::SliderFloat("Strength", &ao.strength, 0.0f, 1.0f);
+    ImGui_Input("Power", &ao.power, {.min = 0.0f});
+    ImGui_EnumCombo<mjrQuality>("Quality", ao.quality);
+    ImGui_EnumCombo<mjrQuality>("Low Pass", ao.low_pass_filter);
+    ImGui_EnumCombo<mjrQuality>("Upsampling", ao.upsampling);
+    ImGui::SliderFloat("Radius", &ao.radius, 0.0f, 10.0f);
+    ImGui_Checkbox("Bent Normals", ao.bent_normals);
     ImGui::TreePop();
   }
 
-  if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::BeginTable("##RenderFlagsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNRNDFLAG; ++i) {
-        ImGui::TableNextColumn();
-        ImGui_ButtonToggle(mjRNDSTRING[i][0], &render_flags[i], size);
-      }
-      ImGui::EndTable();
-    }
+  if (SectionHeader("Antialiasing")) {
+    auto& aa = render_opts->antialiasing;
+    ImGui_Checkbox("FXAA", aa.fxaa_enable);
+    ImGui_Checkbox("TSAA", aa.tsaa_enable);
+    ImGui_Input("MSAA Samples", &aa.msaa_samples, {.min = 0, .max = 64});
     ImGui::TreePop();
   }
+
+  if (SectionHeader("Bloom")) {
+    auto& bloom = render_opts->bloom;
+    ImGui_Checkbox("Enable", bloom.enable);
+    ImGui_EnumCombo<mjrQuality>("Quality", bloom.quality);
+    ImGui::SliderFloat("Strength", &bloom.strength, 0.0f, 1.0f);
+    ImGui::SliderInt("Levels", &bloom.levels, 1, 11);
+    ImGui_Checkbox("Lens Flare", bloom.lens_flare);
+    ImGui_Checkbox("Starburst", bloom.starburst);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Color Grading")) {
+    auto& cg = render_opts->color_grading;
+    ImGui_EnumCombo<mjrToneMapper>("Tone Mapper", cg.tone_mapper);
+    ImGui_EnumCombo<mjrColorSpace>("Output Color Space", cg.output_color_space);
+    ImGui_Input("Exposure", &cg.exposure);
+    ImGui::SliderFloat("Night Adaptation", &cg.night_adaptation, 0.0f, 1.0f);
+    ImGui::SliderFloat("Contrast", &cg.contrast, 0.0f, 2.0f);
+    ImGui::SliderFloat("Vibrance", &cg.vibrance, 0.0f, 2.0f);
+    ImGui::SliderFloat("Saturation", &cg.saturation, 0.0f, 2.0f);
+    ImGui::SliderFloat("Temperature", &cg.temperature, -1.0f, 1.0f);
+    ImGui::SliderFloat("Tint", &cg.tint, -1.0f, 1.0f);
+    ImGui_InputN("Out Red", cg.out_red, 3);
+    ImGui_InputN("Out Green", cg.out_green, 3);
+    ImGui_InputN("Out Blue", cg.out_blue, 3);
+    ImGui_InputN("Shadows", cg.shadows, 4);
+    ImGui_InputN("Midtones", cg.midtones, 4);
+    ImGui_InputN("Highlights", cg.highlights, 4);
+    ImGui_InputN("Tonal Ranges", cg.tonal_ranges, 4);
+    ImGui_InputN("Slope", cg.slope, 3);
+    ImGui_InputN("Offset", cg.offset, 3);
+    ImGui_InputN("Power", cg.power, 3);
+    ImGui_InputN("Shadow Gamma", cg.shadow_gamma, 3);
+    ImGui_InputN("Mid Point", cg.mid_point, 3);
+    ImGui_InputN("Highlight Scale", cg.highlight_scale, 3);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Depth of Field")) {
+    auto& dof = render_opts->depth_of_field;
+    ImGui_Checkbox("Enable", dof.enable);
+    ImGui::SliderFloat("Blur Strength", &dof.blur_strength, 0.0f, 1.0f);
+    ImGui_Input("Focus Distance", &dof.focus_distance, {.min = 0.0f});
+    ImGui_Input("Aspect Ratio", &dof.aspect_ratio, {.min = 0.0f});
+    ImGui_Input("Max Aperture", &dof.max_aperture_diameter, {.min = 0.0f});
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Dithering")) {
+    auto& dithering = render_opts->dithering;
+    ImGui_EnumCombo<mjrDitheringType>("Type", dithering.type);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Fog")) {
+    auto& fog = render_opts->fog;
+    ImGui_Checkbox("Enable", fog.enable);
+    ImGui::ColorEdit3("Color", fog.color);
+    ImGui_Input("Density", &fog.density, {.min = 0.0f});
+    ImGui::SliderFloat("Max Opacity", &fog.max_opacity, 0.0f, 1.0f);
+    ImGui_Input("Distance", &fog.distance, {.min = 0.0f});
+    ImGui_Input("Cutoff", &fog.cutoff, {.min = 0.0f});
+    ImGui_Input("Height", &fog.height);
+    ImGui_Input("Height Falloff", &fog.height_falloff, {.min = 0.0f});
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Haze")) {
+    auto& haze = render_opts->haze;
+    ImGui_Checkbox("Enable", haze.enable);
+    ImGui::ColorEdit4("Color", haze.color);
+    ImGui::SliderFloat("Ratio", &haze.ratio, 0.0f, 1.0f);
+    ImGui_Input("Slices", &haze.slices, {.min = 3});
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Headlight")) {
+    auto& headlight = render_opts->headlight;
+    ImGui_Checkbox("Enable", headlight.enable);
+    ImGui_Input("Strength", &headlight.intensity, {.min = 0.0f});
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Material")) {
+    auto& material = render_opts->material;
+    ImGui_EnumCombo<mjrColorSpace>("RGB Color Type", material.rgb_color_type);
+    ImGui_Checkbox("Enable Textures", material.enable_textures);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Reflection")) {
+    auto& reflection = render_opts->reflection;
+    ImGui_Checkbox("Enable", reflection.enable);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Shadow")) {
+    auto& shadow = render_opts->shadow;
+    ImGui_EnumCombo<mjrShadowType>("Type", shadow.type);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Skybox")) {
+    auto& skybox = render_opts->skybox;
+    ImGui_Checkbox("Enable", skybox.enable);
+    ImGui::TreePop();
+  }
+
+  if (SectionHeader("Vignette")) {
+    auto& vignette = render_opts->vignette;
+    ImGui_Checkbox("Enable", vignette.enable);
+    ImGui::ColorEdit4("Color", vignette.color);
+    ImGui::SliderFloat("Mid Point", &vignette.mid_point, 0.0f, 1.0f);
+    ImGui::SliderFloat("Roundness", &vignette.roundness, 0.0f, 1.0f);
+    ImGui::SliderFloat("Feather", &vignette.feather, 0.0f, 1.0f);
+    ImGui::TreePop();
+  }
+
+  ImGui::PopItemWidth();
 }
 
 void GroupsGui(const mjModel* model, mjvOption* vis_options, float min_width) {

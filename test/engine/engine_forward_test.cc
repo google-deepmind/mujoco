@@ -5814,7 +5814,13 @@ TEST_F(ForwardTest, DiscreteArticulatedFlexNewtonMatchesCG) {
         mj_step(model.get(), data.get());
       }
 
+      // with the current flex preconditioner, CG can stagnate on the
+      // improvement criterion before converging: disable it for the reference
+#ifndef mjUSESINGLE
+      model->opt.tolerance = 1e-30;
+#endif
       mj_forward(model.get(), data.get());
+      model->opt.tolerance = 1e-14;
       EXPECT_GT(data->ncon, 0) << "xml " << xml_idx;
       EXPECT_GT(data->nefc, 0) << "xml " << xml_idx;
       int nisl = data->nisland > 0 ? data->nisland : 1;

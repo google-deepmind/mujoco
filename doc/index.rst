@@ -35,3 +35,4 @@
    :github:
 
    mujoco.org <https://mujoco.org>
+   MuJoCo Playground <https://playground.mujoco.org>

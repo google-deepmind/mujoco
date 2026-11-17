@@ -41,6 +41,12 @@ UniquePtr<mjrfMesh> CreateFlexMesh(mjrfContext* ctx, const mjModel* model,
 UniquePtr<mjrfMesh> CreateSkinMesh(mjrfContext* ctx, const mjModel* model,
                                    const mjData* data, int skin_id);
 
+// Creates a two-sided mjrfMesh for a flat annulus in the z = 0 plane, facing
+// both +z and -z, with an outer radius of 1 and the given inner radius in
+// [0, 1); an inner radius of 0 gives a solid disc.
+UniquePtr<mjrfMesh> CreateDiscMesh(mjrfContext* ctx, float inner_radius,
+                                   int nslice, int nquad);
+
 // Populates the set of points that define the given tendon. Points are
 // added in pairs, representing the start and end of a segment of the tendon.
 // The w-component of the point stores the width/radius of the tendon.

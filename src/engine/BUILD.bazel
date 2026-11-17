@@ -396,6 +396,7 @@ cc_library(
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_crossplatform",
         "//:libmujoco_hdrs",
     ],
 )
@@ -476,7 +477,6 @@ cc_library(
         ":engine_util_blas",
         ":engine_util_errmem",
         ":engine_util_misc",
-        ":engine_util_solve",
         ":engine_util_spatial",
         "//:libmujoco_hdrs",
     ],
@@ -950,6 +950,7 @@ cc_library(
         ":engine_memory",
         ":engine_plugin",
         ":engine_sleep",
+        ":engine_support",
         ":engine_thread",
         ":engine_util_blas",
         ":engine_util_errmem",

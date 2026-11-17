@@ -27,6 +27,7 @@ jobs:
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
+        ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag_version) || github.ref }}
         persist-credentials: false
 
     - name: Setup Node.js for WASM bindings
@@ -34,9 +35,6 @@ jobs:
       with:
         node-version: '24.x'
         package-manager-cache: false
-
-    - name: Prepare Linux
-      run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Install NPM Dependencies for WASM bindings
       run: bash ./.github/workflows/build_steps.sh npm_ci

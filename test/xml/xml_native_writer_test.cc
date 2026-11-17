@@ -1850,6 +1850,46 @@ TEST_F(XMLWriterTest, WritesHfield) {
   }
 }
 
+TEST_F(XMLWriterTest, WritesHfieldRejectsDimensionOverflow) {
+  mjSpec* spec = mj_makeSpec();
+  spec->compiler.savecompiled = 0;
+  mjsHField* hf = mjs_addHField(spec);
+  mjs_setName(hf->element, "hf");
+  hf->nrow = 1073741825;  // 1073741825 * 4 wraps to 4 in 32-bit int
+  hf->ncol = 4;
+  hf->size[0] = hf->size[1] = hf->size[2] = hf->size[3] = 1.0;
+  const float elevation[4] = {0.0f, 1.0f, 2.0f, 3.0f};
+  mjs_setFloat(hf->userdata, elevation, 4);
+
+  std::array<char, 1024> xml_buf;
+  std::array<char, 1024> error;
+  EXPECT_EQ(mj_saveXMLString(spec, xml_buf.data(), xml_buf.size(), error.data(),
+                             error.size()),
+            -1);
+  EXPECT_THAT(error.data(), HasSubstr("invalid hfield dimensions"));
+  mj_deleteSpec(spec);
+}
+
+TEST_F(XMLWriterTest, WritesHfieldRejectsMismatchedElevation) {
+  mjSpec* spec = mj_makeSpec();
+  spec->compiler.savecompiled = 0;
+  mjsHField* hf = mjs_addHField(spec);
+  mjs_setName(hf->element, "hf");
+  hf->nrow = 4;
+  hf->ncol = 4;
+  hf->size[0] = hf->size[1] = hf->size[2] = hf->size[3] = 1.0;
+  const float elevation[2] = {0.0f, 1.0f};
+  mjs_setFloat(hf->userdata, elevation, 2);
+
+  std::array<char, 1024> xml_buf;
+  std::array<char, 1024> error;
+  EXPECT_EQ(mj_saveXMLString(spec, xml_buf.data(), xml_buf.size(), error.data(),
+                             error.size()),
+            -1);
+  EXPECT_THAT(error.data(), HasSubstr("elevation data length must match"));
+  mj_deleteSpec(spec);
+}
+
 TEST_F(XMLWriterTest, WritesLight) {
   static constexpr char xml[] = R"(
   <mujoco>

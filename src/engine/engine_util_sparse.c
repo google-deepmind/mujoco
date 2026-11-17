@@ -259,9 +259,6 @@ void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
                          const mjtNum* restrict vec, int n,
                          const int* restrict rownnz, const int* restrict rowadr,
                          const int* restrict colind) {
-  // clear res
-  mju_zero(res, n);
-
   // multiply
   for (int i=0; i < n; i++) {
     int adr = rowadr[i];
@@ -269,16 +266,18 @@ void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
     const mjtNum* row = mat + adr;
 
     // diagonal
-    res[i] = row[diag] * vec[i];
+    mjtNum vec_i = vec[i];
+    mjtNum res_i = row[diag] * vec_i;
 
     // off-diagonals
     const int* ind = colind + adr;
     for (int k=diag-1; k >= 0; k--) {
       int j = ind[k];
       mjtNum val = row[k];
-      res[i] += val * vec[j];  // strict lower
-      res[j] += val * vec[i];  // strict upper
+      res_i += val * vec[j];  // strict lower
+      res[j] += val * vec_i;  // strict upper
     }
+    res[i] = res_i;
   }
 }
 

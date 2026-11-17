@@ -186,8 +186,10 @@ static void mj_flexPassiveInterp(const mjModel* m, mjData* d, int f,
     int bid = bodyid[i];
     int nidx = i + m->flex_nodeadr[f];
 
-    // fast path: node at body origin (not pinned), direct DOF write
-    if (m->body_dofnum[bid] > 0 &&
+    // fast path: node at the origin of its own body with ordered XYZ slides and no moving
+    // ancestors (J = R_body), direct DOF write; otherwise (e.g. nodes on or under a jointed
+    // parent) the force must also reach the ancestor dofs
+    if (m->body_dofnum[bid] == 3 && mj_flexBodySimple(m, bid) &&
         (m->flex_centered[f] ||
          (m->flex_node[3*nidx+0] == 0 &&
           m->flex_node[3*nidx+1] == 0 &&
@@ -429,8 +431,9 @@ static void mj_flexPassiveBendInterp(const mjModel* m, mjData* d, int f,
     int bid = bodyid[i];
     int nidx = i + m->flex_nodeadr[f];
 
-    // fast path: node at body origin, direct DOF write
-    if (m->body_dofnum[bid] > 0 &&
+    // fast path: node at the origin of its own body with ordered XYZ slides and no moving
+    // ancestors (J = R_body), direct DOF write
+    if (m->body_dofnum[bid] == 3 && mj_flexBodySimple(m, bid) &&
         (m->flex_centered[f] ||
          (m->flex_node[3*nidx+0] == 0 &&
           m->flex_node[3*nidx+1] == 0 &&
@@ -1266,7 +1269,7 @@ void mj_passive(const mjModel* m, mjData* d) {
 
   // user callback: add custom passive forces
   if (mjcb_passive) {
-    mjcb_passive(m, d);
+    mj_callPassive(m, d);
   }
 
   // plugin: add custom passive forces

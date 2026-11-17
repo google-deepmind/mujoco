@@ -1273,6 +1273,7 @@ class Model:
     nefm0L: number of non-zeros in zero-mass flex Cholesky factor
     nflexelemedge: number of element edge ids in all flexes
     nflexshelldata: number of shell fragment vertex ids in all flexes
+    nflexcell: number of finite cells in all interpolated flexes
     nJfe: number of non-zeros in sparse flexedge Jacobian
     nmesh: number of meshes
     nmeshvert: number of vertices for all meshes
@@ -1442,6 +1443,7 @@ class Model:
     flex_dim: 1: lines, 2: triangles, 3: tetrahedra          (nflex,)
     flex_interp: interpolation order (0: vertex, 1+: nodes)  (nflex,)
     flex_cellnum: cell count per dimension                   (nflex, 3)
+    flex_celladr: first cell address; -1: not interpolated   (nflex,)
     flex_nodeadr: first node address                         (nflex,)
     flex_nodenum: number of nodes                            (nflex,)
     flex_vertadr: first vertex address                       (nflex,)
@@ -1461,6 +1463,7 @@ class Model:
     flex_nodebodyid: node body ids                           (nflexnode,)
     flex_vertbodyid: vertex body ids                         (nflexvert,)
     flex_vertcell: finite cell index for vertex; -1: none    (nflexvert,)
+    flex_cellempty: is finite cell empty (pruned)            (nflexcell,)
     flex_edge: edge vertex ids (2 per edge)                  (nflexedge, 2)
     flex_edgeflap: adjacent vertex ids (dim=2 only)          (nflexedge, 2)
     flex_elem: element vertex ids (dim+1 per elem)           (nflexelemdata,)
@@ -1644,10 +1647,21 @@ class Model:
   warp only fields:
     nefmK: number of non-zeros in effective flex stiffness matrix
     nefmdof: number of covered flex vertex triples
+    nefmL: number of non-zeros in 1D rod effective Cholesky factor
+    nefmBT: number of off-diagonal 3x3 blocks in 1D rod effective Cholesky factor
     efm_K_rownnz: row non-zeros in effective flex stiffness CSR (nv,)
     efm_K_rowadr: row addresses in effective flex stiffness CSR (nv,)
     efm_K_colind: column indices in effective flex stiffness CSR (nefmK,)
     efm_dofid: starting DOF index for each covered flex triple (nefmdof,)
+    efm_L_dofid: global DOF index for each permuted Cholesky row (3*nefmdof,)
+    efm_L_rownnz: row non-zeros in 1D rod effective Cholesky factor (3*nefmdof,)
+    efm_L_rowadr: row addresses in 1D rod effective Cholesky factor (3*nefmdof,)
+    efm_L_colind: column indices in 1D rod effective Cholesky factor (nefmL,)
+    efm_BT_adr: supernodal update block start addresses (nefmdof+1,)
+    efm_BT_row: supernodal update block row indices (nefmBT,)
+    efm_BT_off: supernodal update block column offsets (nefmBT,)
+    efm_L_M_src: M/qH CSR index for each diagonal block entry in efm_L (nefmL,)
+    efm_L_K_src: efm_K CSR index for each entry in efm_L (nefmL,)
     callback: custom physics callbacks
     nbranch: number of branches (leaf-to-root paths)
     nv_pad: number of degrees of freedom + padding
@@ -1679,6 +1693,9 @@ class Model:
     has_actuator_wrap: whether any wrap-eligible rotational actuator is present
     has_actuator_dcmotor: whether any DC motor actuator is present
     efm0_active: whether zero-mass flex Cholesky preconditioner is active
+    efm_chol_active: whether 1D rod effective Cholesky preconditioner is active
+    efm_all_covered_or_twist: whether all DOFs are covered by efm_L or 1D rod twist
+    efm_prec_exact: whether eff_prec is exact for the effective metric
     flex_interp_assemblable: whether interpolated flex stiffness can be assembled into efm_K
     has_unsupported_flex_interp: whether model has unsupported flex interpolation orders
     has_ellipsoid_geom: whether the model contains ellipsoid geoms
@@ -1849,6 +1866,7 @@ class Model:
   nefm0L: int
   nflexelemedge: int
   nflexshelldata: int
+  nflexcell: int
   nJfe: int
   nmesh: int
   nmeshvert: int
@@ -2018,6 +2036,7 @@ class Model:
   flex_dim: array("nflex", int)
   flex_interp: array("nflex", int)
   flex_cellnum: array("nflex", wp.vec3i)
+  flex_celladr: array("nflex", int)
   flex_nodeadr: array("nflex", int)
   flex_nodenum: array("nflex", int)
   flex_vertadr: array("nflex", int)
@@ -2037,6 +2056,7 @@ class Model:
   flex_nodebodyid: array("nflexnode", int)
   flex_vertbodyid: array("nflexvert", int)
   flex_vertcell: array("nflexvert", int)
+  flex_cellempty: array("nflexcell", bool)
   flex_edge: array("nflexedge", wp.vec2i)
   flex_edgeflap: array("nflexedge", wp.vec2i)
   flex_elem: array("nflexelemdata", int)
@@ -2219,10 +2239,21 @@ class Model:
   # warp only fields:
   nefmK: int
   nefmdof: int
+  nefmL: int
+  nefmBT: int
   efm_K_rownnz: array("nv", int)
   efm_K_rowadr: array("nv", int)
   efm_K_colind: array("nefmK", int)
   efm_dofid: array("nefmdof", int)
+  efm_L_dofid: array("nefm_3dof", int)
+  efm_L_rownnz: array("nefm_3dof", int)
+  efm_L_rowadr: array("nefm_3dof", int)
+  efm_L_colind: array("nefmL", int)
+  efm_BT_adr: array("nefm_bt_adr", int)
+  efm_BT_row: array("nefmBT", int)
+  efm_BT_off: array("nefmBT", int)
+  efm_L_M_src: array("nefmL", int)
+  efm_L_K_src: array("nefmL", int)
   callback: Callback
   nbranch: int
   nv_pad: int
@@ -2252,6 +2283,9 @@ class Model:
   has_actuator_wrap: bool
   has_actuator_dcmotor: bool
   efm0_active: bool
+  efm_chol_active: bool
+  efm_all_covered_or_twist: bool
+  efm_prec_exact: bool
   flex_interp_assemblable: bool
   has_unsupported_flex_interp: bool
   has_ellipsoid_geom: bool
@@ -2613,6 +2647,7 @@ class Data:
     efm_fluid: fluid drag blocks in M's sparsity pattern        (nworld, nC)
     efm_ca: actuation-stage smooth-force shift                  (nworld, nv)
     efm_K_val: effective flex stiffness CSR values              (nworld, nefmK)
+    efm_L_val: 1D rod effective Cholesky factor values          (nworld, nefmL)
     qHLD: factor of modified mass matrix qH                     (nworld, qld_total)
     efm_ts: tendon metric scale h^2*k + h*b                     (nworld, ntendon)
     efm_as: actuator metric scale h^2*gp + h*gv                 (nworld, nactuator)
@@ -2791,6 +2826,7 @@ class Data:
   efm_fluid: array("nworld", "nC", float)
   efm_ca: array("nworld", "nv", float)
   efm_K_val: array("nworld", "nefmK", float)
+  efm_L_val: array("nworld", "nefmL", float)
   qHLD: array("nworld", "qld_total", float)
   efm_ts: array("nworld", "ntendon", float)
   efm_as: array("nworld", "nactuator", float)

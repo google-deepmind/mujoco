@@ -33,6 +33,7 @@
 #endif
 
 #include <mujoco/mjexport.h>
+#include <mujoco/mjtype.h>
 #include "engine/engine_crossplatform.h"  // IWYU pragma: keep
 
 //------------------------- cross-platform aligned malloc/free -------------------------------------
@@ -119,12 +120,38 @@ static inline void mju_alignedFree(void* ptr) {
 #endif
 }
 
+
+mjNO_SANITIZE_CFI static void* call_user_malloc(size_t size) {
+  return mju_user_malloc(size);
+}
+
+
+mjNO_SANITIZE_CFI static void call_user_free(void* ptr) {
+  mju_user_free(ptr);
+}
+
+
+mjNO_SANITIZE_CFI static void call_user_error(const char* msg) {
+  mju_user_error(msg);
+}
+
+
+mjNO_SANITIZE_CFI static void call_user_warning(const char* msg) {
+  mju_user_warning(msg);
+}
+
+
+mjNO_SANITIZE_CFI static void call_log_handler(mjfLogHandler handler, const mjLogMessage* msg) {
+  handler(msg);
+}
+
+
 // allocate memory; byte-align on 64; pad size to multiple of 64
 void* mju_malloc(size_t size) {
   void* ptr = 0;
 
   if (mju_user_malloc) {
-    ptr = mju_user_malloc(size);
+    ptr = call_user_malloc(size);
   } else {
     if (size > 0 && (size % 64)) {
       size += 64 - (size % 64);
@@ -144,7 +171,7 @@ void* mju_malloc(size_t size) {
 void mju_free(void* ptr) {
   if (!ptr) return;
   if (mju_user_free) {
-    mju_user_free(ptr);
+    call_user_free(ptr);
   } else {
     mju_alignedFree(ptr);
   }
@@ -322,13 +349,13 @@ static void mju_defaultLogHandler(const mjLogMessage* msg) {
 
   if (msg->level == mjLOG_ERROR && mju_user_error) {
     char buf[2048];
-    mju_user_error(mju_legacy_text(msg, buf, sizeof(buf)));
+    call_user_error(mju_legacy_text(msg, buf, sizeof(buf)));
     return;
   }
 
   if (msg->level == mjLOG_WARNING && mju_user_warning) {
     char buf[2048];
-    mju_user_warning(mju_legacy_text(msg, buf, sizeof(buf)));
+    call_user_warning(mju_legacy_text(msg, buf, sizeof(buf)));
     return;
   }
 
@@ -378,10 +405,10 @@ void mju_message(const mjLogMessage* msg) {
   // around the call because longjmp would leave it permanently true on this thread
   if (msg->level != mjLOG_ERROR) {
     in_log = true;
-    mju_activeHandler()(msg);
+    call_log_handler(mju_activeHandler(), msg);
     in_log = false;
   } else {
-    mju_activeHandler()(msg);
+    call_log_handler(mju_activeHandler(), msg);
   }
 }
 

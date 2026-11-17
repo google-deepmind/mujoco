@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_ray.h"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 
@@ -1131,6 +1132,49 @@ TEST_F(RayTest, RayCullOffsetMeshVertices) {
   EXPECT_NEAR(dist, 1.0, MjTol(1e-6, 1e-6));
   EXPECT_THAT(normal, ElementsAre(MjNear(1, 1e-6, 1e-6), MjNear(0, 1e-6, 1e-6),
                                   MjNear(0, 1e-6, 1e-6)));
+}
+
+TEST_F(RayTest, RayTreeRotatedAndBvActive) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="box"
+        vertex="-0.5 -0.4 -0.3  0.5 -0.4 -0.3  0.5  0.4 -0.3 -0.5  0.4 -0.3
+                -0.5 -0.4  0.3  0.5 -0.4  0.3  0.5  0.4  0.3 -0.5  0.4  0.3"/>
+    </asset>
+    <worldbody>
+      <body pos="1.2 -0.7 0.4" euler="25 -40 55">
+        <geom name="mesh_geom" type="mesh" mesh="box"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  m->vis.global.bvactive = 1;
+  MjDataPtr d = MakeData(m);
+  ASSERT_THAT(d.get(), NotNull());
+  mj_forward(m.get(), d.get());
+
+  // Shoot along the rotated local -z axis so lvec[0] == lvec[1] == 0 (±Inf
+  // invdir).
+  const mjtNum* xpos = d->geom_xpos;
+  const mjtNum* xmat = d->geom_xmat;
+  mjtNum pnt[3] = {xpos[0] + 2 * xmat[2], xpos[1] + 2 * xmat[5],
+                   xpos[2] + 2 * xmat[8]};
+  mjtNum vec[3] = {-xmat[2], -xmat[5], -xmat[8]};
+  mjtNum normal[3] = {0, 0, 0};
+  std::fill(d->bvh_active, d->bvh_active + m->nbvh, 0);
+
+  mjtNum dist = mj_rayMesh(m.get(), d.get(), 0, pnt, vec, normal);
+  mjtNum dist_ref = _rayMesh(m.get(), d.get(), 0, pnt, vec);
+  EXPECT_MJTNUM_EQ(dist, dist_ref);
+  EXPECT_NEAR(dist, 1.5, MjTol(1e-13, 1e-6));
+  EXPECT_THAT(normal, ElementsAre(MjNear(xmat[2], 1e-13, 1e-6),
+                                  MjNear(xmat[5], 1e-13, 1e-6),
+                                  MjNear(xmat[8], 1e-13, 1e-6)));
+  EXPECT_TRUE(d->bvh_active[m->mesh_bvhadr[0]]);
 }
 
 }  // namespace

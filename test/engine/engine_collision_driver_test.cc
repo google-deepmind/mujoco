@@ -1920,5 +1920,243 @@ TEST_F(MjCollisionTest, ArenaExhaustionPrefixContactsAndUnclampedDemand) {
     EXPECT_MJTNUM_EQ(d->contact[i].pos[2], d_full->contact[i].pos[2]);
   }
 }
+
+TEST_F(MjCollisionTest, SingleCollidingGeomWithVisualGeoms) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="a">
+        <freejoint/>
+        <geom name="a_vis0" size="0.5" contype="0" conaffinity="0"/>
+        <geom name="a_col" pos="1 0 0" size="0.2"/>
+        <geom name="a_vis1" pos="100 0 0" size="50"
+          contype="0" conaffinity="0"/>
+      </body>
+      <body name="b">
+        <freejoint/>
+        <geom name="b_vis" size="0.5" contype="0" conaffinity="0"/>
+        <geom name="b_col" pos="1.3 0 0" size="0.2"/>
+      </body>
+      <body name="c" pos="100 0 0">
+        <freejoint/>
+        <geom name="c_col" size="0.2"/>
+      </body>
+      <body name="d" pos="0.1 0 0">
+        <freejoint/>
+        <geom name="d_vis" size="0.2" contype="0" conaffinity="0"/>
+      </body>
+    </worldbody>
+    <contact>
+      <pair geom1="a_vis0" geom2="d_vis"/>
+    </contact>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  int body_a = mj_name2id(m.get(), mjOBJ_BODY, "a");
+  int body_b = mj_name2id(m.get(), mjOBJ_BODY, "b");
+  ASSERT_EQ(m->body_bvhnum[body_a], 1);
+  ASSERT_EQ(m->body_bvhnum[body_b], 1);
+
+  MjDataPtr d = MakeData(m);
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(
+      colliding_pairs(m.get(), d.get()),
+      ElementsAre(GeomPair("a_col", "b_col"), GeomPair("a_vis0", "d_vis")));
+
+  // bvactive bypasses the single-BVH-node fast-path and marks active BVHs
+  m->vis.global.bvactive = 1;
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(
+      colliding_pairs(m.get(), d.get()),
+      ElementsAre(GeomPair("a_col", "b_col"), GeomPair("a_vis0", "d_vis")));
+  EXPECT_TRUE(d->bvh_active[m->body_bvhadr[body_a]]);
+  EXPECT_TRUE(d->bvh_active[m->body_bvhadr[body_b]]);
+  m->vis.global.bvactive = 0;
+
+  // mjDSBL_MIDPHASE bypasses body_bvhnum == 1 and falls back to all-to-all
+  int a_vis1 = mj_name2id(m.get(), mjOBJ_GEOM, "a_vis1");
+  m->geom_contype[a_vis1] = 1;
+  m->opt.disableflags = mjDSBL_MIDPHASE;
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(
+      colliding_pairs(m.get(), d.get()),
+      ElementsAre(GeomPair("a_col", "b_col"), GeomPair("a_vis0", "d_vis"),
+                  GeomPair("a_vis1", "c_col")));
+}
+
+TEST_F(MjCollisionTest, ContactFilterCallbackIncludesZeroMaskGeoms) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <option>
+      <flag midphase="disable"/>
+    </option>
+    <worldbody>
+      <body name="a">
+        <freejoint/>
+        <geom name="a_zero" size="0.2" contype="0" conaffinity="0"/>
+        <geom name="a_far" pos="100 0 0" size="0.2"/>
+      </body>
+      <body name="b" pos="0.1 0 0">
+        <freejoint/>
+        <geom name="b_col" size="0.2"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()), IsEmpty());
+
+  mjcb_contactfilter = [](const mjModel*, mjData*, int, int) { return 0; };
+  mj_forward(m.get(), d.get());
+  mjcb_contactfilter = nullptr;
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()),
+              ElementsAre(GeomPair("a_zero", "b_col")));
+}
+
+TEST_F(MjCollisionTest, MidphaseLeafBitmaskPrunesSubtree) {
+  // Body a has two geoms: a_far (mask 1) far away so pairCollidable(a, b) is
+  // true, and a_near (mask 2) overlapping body b's multi-geom BVH (mask 1).
+  // Once a descends to leaf a_near, filterGeomBody(a_near, b) prunes b's
+  // entire subtree without traversing b's children.
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <visual>
+      <global bvactive="true"/>
+    </visual>
+    <worldbody>
+      <body name="a">
+        <freejoint/>
+        <geom name="a_near" size="0.5" contype="2" conaffinity="2"/>
+        <geom name="a_far" pos="10 0 0" size="0.1"
+          contype="1" conaffinity="1"/>
+      </body>
+      <body name="b">
+        <freejoint/>
+        <geom name="b0" pos="-0.1 0 0" size="0.05"
+          contype="1" conaffinity="1"/>
+        <geom name="b1" pos="0.1 0 0" size="0.05"
+          contype="1" conaffinity="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()), IsEmpty());
+
+  int body_b = mj_name2id(m.get(), mjOBJ_BODY, "b");
+  int bvhadr_b = m->body_bvhadr[body_b];
+  ASSERT_EQ(m->body_bvhnum[body_b], 3);
+  EXPECT_FALSE(d->bvh_active[bvhadr_b + 1]);
+  EXPECT_FALSE(d->bvh_active[bvhadr_b + 2]);
+}
+
+TEST_F(MjCollisionTest, SpeculativeFastGeomIgnoresNonCollidingGeoms) {
+  // Tiny visual-only geom (1e-4) must not shrink min_size in
+  // bodyPairHasFastGeom and disable BVH midphase under speculative CCD.
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <option timestep="0.01">
+      <flag speculative="enable"/>
+    </option>
+    <visual>
+      <global bvactive="true"/>
+    </visual>
+    <worldbody>
+      <body name="a">
+        <freejoint/>
+        <geom name="a_tiny_vis" size="0.0001" contype="0" conaffinity="0"/>
+        <geom name="a_col0" pos="-0.2 0 0" size="0.1"/>
+        <geom name="a_col1" pos="0.2 0 0" size="0.1"/>
+      </body>
+      <body name="b" pos="0 0 0.15">
+        <freejoint/>
+        <geom name="b_col0" pos="-0.2 0 0" size="0.1"/>
+        <geom name="b_col1" pos="0.2 0 0" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // step sweep = 0.01 * 1.0 = 0.01: > 1e-4 (tiny visual) and < 0.1 (colliders)
+  d->qvel[2] = 1.0;
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(
+      colliding_pairs(m.get(), d.get()),
+      ElementsAre(GeomPair("a_col0", "b_col0"), GeomPair("a_col1", "b_col1")));
+  int body_a = mj_name2id(m.get(), mjOBJ_BODY, "a");
+  EXPECT_TRUE(d->bvh_active[m->body_bvhadr[body_a]]);
+}
+
+TEST_F(MjCollisionTest, BroadphaseSleepMocapAndStaticPlanes) {
+  static constexpr char kXml[] = R"(
+  <mujoco>
+    <option>
+      <flag sleep="enable"/>
+    </option>
+    <worldbody>
+      <body name="floor_body">
+        <geom name="floor" type="plane" size="5 5 0.1"/>
+      </body>
+      <body name="vis_plane_body" pos="20 0 0">
+        <geom name="vis_plane" type="plane" size="5 5 0.1"
+          contype="0" conaffinity="0"/>
+        <geom name="far_obstacle" size="0.1"/>
+      </body>
+      <body name="sleeper1" pos="0 0 0.09" sleep="init">
+        <freejoint/>
+        <geom name="s1" size="0.1"/>
+      </body>
+      <body name="sleeper2" pos="0.15 0 0.09" sleep="init">
+        <freejoint/>
+        <geom name="s2" size="0.1"/>
+      </body>
+      <body name="pusher" mocap="true" pos="5 0 0.09">
+        <geom name="mocap_geom" size="0.1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kXml, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  MjDataPtr d = MakeData(m);
+
+  // All dynamic bodies asleep and mocap far away: no contacts generated.
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()), IsEmpty());
+
+  // Move mocap body to touch only sleeper1 while all dynamic bodies are asleep:
+  // mj_collision must detect mocap-vs-asleep even with nawake == 0, and
+  // mj_forward then wakes the entire sleeping island {sleeper1, sleeper2}.
+  int pusher = mj_name2id(m.get(), mjOBJ_BODY, "pusher");
+  int mocap_id = m->body_mocapid[pusher];
+  d->mocap_pos[3 * mocap_id + 0] = -0.1;
+  mj_kinematics(m.get(), d.get());
+  mj_comPos(m.get(), d.get());
+  mj_collision(m.get(), d.get());
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()),
+              ElementsAre(GeomPair("mocap_geom", "s1")));
+
+  mj_forward(m.get(), d.get());
+  EXPECT_THAT(colliding_pairs(m.get(), d.get()),
+              ElementsAre(GeomPair("floor", "s1"), GeomPair("floor", "s2"),
+                          GeomPair("mocap_geom", "s1"), GeomPair("s1", "s2")));
+}
 }  // namespace
 }  // namespace mujoco

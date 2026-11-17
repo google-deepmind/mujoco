@@ -390,6 +390,7 @@ cc_test(
         "//plugin/actuator:register",
         "//plugin/sdf:register",
         "//plugin/sensor:register",
+        "//src/engine:engine_io_hdrs",
         "//src/engine:engine_plugin",
         "//test:fixture",
         "@abseil-cpp//absl/strings",
@@ -747,6 +748,7 @@ cc_test(
     deps = [
         "//:libmujoco_hdrs",
         "//src/engine:engine_core_util",
+        "//src/engine:engine_util_misc",
         "//test:fixture",
         "@googletest//:gtest_main",
     ],

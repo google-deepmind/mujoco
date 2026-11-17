@@ -30,6 +30,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -1381,6 +1382,7 @@ void mjCModel::Clear() {
   nefmCvert      = 0;
   nflexelemedge  = 0;
   nflexshelldata = 0;
+  nflexcell      = 0;
   nflextexcoord  = 0;
   nJfe           = 0;
   nmeshvert      = 0;
@@ -2336,6 +2338,7 @@ void mjCModel::SetSizes() {
     nflexelemdata  += flexes_[i]->nelem * (flexes_[i]->dim + 1);
     nflexelemedge  += flexes_[i]->nelem * mjCFlex::kNumEdges[flexes_[i]->dim - 1];
     nflexshelldata += (int)flexes_[i]->shell.size();
+    nflexcell      += flexes_[i]->NumCells();
     nflextexcoord  += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size() / 2 : 0);
     nflexstiffness += flexes_[i]->stiffness.size();
     nflexbending   += flexes_[i]->bending.size();
@@ -2487,6 +2490,9 @@ void mjCModel::SetSizes() {
 
   // nhfielddata
   for (int i = 0; i < nhfield; i++) {
+    if (nhfielddata > std::numeric_limits<int>::max()) {
+      throw mjCError(hfields[i], "hfield_adr overflows int");
+    }
     nhfielddata += static_cast<mjtSize>(hfields[i]->nrow) * hfields[i]->ncol;
   }
 
@@ -3457,9 +3463,8 @@ int mjCModel::CountNJmom(const mjModel* m) {
         }
         break;
       case mjTRN_SLIDERCRANK: {
-        int              id_slider = m->actuator_trnid[2 * i + 1];
-        std::vector<int> chain(m->nv);
-        count += mj_mergeChain(m, chain.data(), m->site_bodyid[id], m->site_bodyid[id_slider], 0);
+        int id_slider = m->actuator_trnid[2 * i + 1];
+        count += mj_mergeChain(m, nullptr, m->site_bodyid[id], m->site_bodyid[id_slider], 0);
       } break;
 
       case mjTRN_TENDON:
@@ -3469,9 +3474,7 @@ int mjCModel::CountNJmom(const mjModel* m) {
       case mjTRN_SITE: {
         int refid    = m->actuator_trnid[2 * i + 1];
         int ref_body = refid >= 0 ? m->site_bodyid[refid] : 0;
-
-        std::vector<int> chain(m->nv);
-        count += mj_mergeChain(m, chain.data(), m->site_bodyid[id], ref_body, /*flg_skipcommon=*/1);
+        count += mj_mergeChain(m, nullptr, m->site_bodyid[id], ref_body, /*flg_skipcommon=*/1);
       } break;
 
       case mjTRN_BODY:
@@ -3504,7 +3507,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   std::vector<mjCHField*> hfields = CompiledHFields();
   mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
   mjtSize stiffness_adr, bending_adr;
-  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr;
+  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, cell_adr;
   mjtSize bonevert_adr, graph_adr, data_adr, bvh_adr;
   mjtSize poly_adr, polymap_adr, polyvert_adr;
 
@@ -3659,6 +3662,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   elemdata_adr  = 0;
   elemedge_adr  = 0;
   shelldata_adr = 0;
+  cell_adr      = 0;
   texcoord_adr  = 0;
   stiffness_adr = 0;
   bending_adr   = 0;
@@ -3819,6 +3823,15 @@ void mjCModel::CopyObjects(mjModel* m) {
     // copy vert0 and vertcell
     mjuu_copyvec(m->flex_vert0 + 3 * vert_adr, pfl->vert0_.data(), 3 * pfl->nvert);
     memcpy(m->flex_vertcell + vert_adr, pfl->vertcell_.data(), pfl->nvert * sizeof(int));
+
+    // copy empty cell flags of interpolated flexes
+    int ncell           = pfl->NumCells();
+    m->flex_celladr[i]  = ncell ? cell_adr : -1;
+    bool has_cell_empty = (int)pfl->cell_empty.size() == ncell;
+    for (int k = 0; k < ncell; k++) {
+      m->flex_cellempty[cell_adr + k] = has_cell_empty && pfl->cell_empty[k];
+    }
+    cell_adr += ncell;
 
     // copy node0
     mjuu_copyvec(m->flex_node0 + 3 * node_adr, pfl->node0_.data(), 3 * pfl->nnode);
@@ -3984,7 +3997,7 @@ void mjCModel::CopyObjects(mjModel* m) {
            static_cast<mjtSize>(phf->nrow) * phf->ncol * sizeof(float));
 
     // advance counter
-    data_adr += phf->nrow * phf->ncol;
+    data_adr += static_cast<mjtSize>(phf->nrow) * phf->ncol;
   }
 
   // textures
@@ -6225,6 +6238,16 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m, bool treeonly, bool te
     _mjPRIVATE_setTlsLogHandler(prev_tls);
     compiling_ = false;
     return nullptr;
+  } catch (const std::bad_alloc&) {
+    mj_deleteModel(model);
+    model = nullptr;
+    mj_deleteData(data);
+    data = nullptr;
+    Clear();
+    errInfo = mjCError(0, "could not allocate memory");
+    _mjPRIVATE_setTlsLogHandler(prev_tls);
+    compiling_ = false;
+    return nullptr;
   }
 
   // restore log handler
@@ -7020,91 +7043,11 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // create low-level model
-  mj_makeModel(&m,
-               nq,
-               nv,
-               nu,
-               nactuator,
-               nout,
-               na,
-               nbody,
-               nbvh,
-               nbvhstatic,
-               nbvhdynamic,
-               noct,
-               njnt,
-               ntree,
-               nM,
-               nB,
-               nC,
-               nD,
-               ngeom,
-               nsite,
-               ncam,
-               nlight,
-               nflex,
-               nflexnode,
-               nflexvert,
-               nflexedge,
-               nflexelem,
-               nflexelemdata,
-               nflexstiffness,
-               nflexbending,
-               nefm0dof,
-               nefm0L,
-               nefmCvert,
-               nflexelemedge,
-               nflexshelldata,
-               nflextexcoord,
-               nJfe,
-               nmesh,
-               nmeshvert,
-               nmeshnormal,
-               nmeshtexcoord,
-               nmeshface,
-               nmeshgraph,
-               nmeshpoly,
-               nmeshpolyvert,
-               nmeshpolymap,
-               nskin,
-               nskinvert,
-               nskintexvert,
-               nskinface,
-               nskinbone,
-               nskinbonevert,
-               nhfield,
-               nhfielddata,
-               ntex,
-               ntexdata,
-               nmat,
-               npair,
-               nexclude,
-               neq,
-               ntendon,
-               nJten,
-               nwrap,
-               nsensor,
-               nnumeric,
-               nnumericdata,
-               ntext,
-               ntextdata,
-               ntuple,
-               ntupledata,
-               nkey,
-               nmocap,
-               nplugin,
-               npluginattr,
-               nuser_body,
-               nuser_jnt,
-               nuser_geom,
-               nuser_site,
-               nuser_cam,
-               nuser_tendon,
-               nuser_actuator,
-               nuser_sensor,
-               nnames,
-               npaths,
-               nplastic);
+  mjModel sizes{};
+#define X(name) sizes.name = name;
+  MJMODEL_SIZES_LAYOUT
+#undef X
+  mj_makeModel(&m, &sizes);
   if (!m) { throw mjCError(0, "could not create mjModel"); }
 
   // copy everything into low-level model

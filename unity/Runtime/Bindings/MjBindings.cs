@@ -186,6 +186,7 @@ public enum mjtGeom : int{
   mjGEOM_SKIN = 106,
   mjGEOM_LABEL = 107,
   mjGEOM_TRIANGLE = 108,
+  mjGEOM_DISC = 109,
   mjGEOM_NONE = 1001,
 }
 public enum mjtProjection : int{
@@ -1123,6 +1124,7 @@ public unsafe struct mjModel_ {
   public UInt64 nefmCvert;
   public UInt64 nflexelemedge;
   public UInt64 nflexshelldata;
+  public UInt64 nflexcell;
   public UInt64 nflextexcoord;
   public UInt64 nJfe;
   public UInt64 nmesh;
@@ -1369,6 +1371,7 @@ public unsafe struct mjModel_ {
   public int* flex_group;
   public int* flex_interp;
   public int* flex_cellnum;
+  public int* flex_celladr;
   public int* flex_nodeadr;
   public int* flex_nodenum;
   public int* flex_vertadr;
@@ -1389,6 +1392,7 @@ public unsafe struct mjModel_ {
   public int* flex_nodebodyid;
   public int* flex_vertbodyid;
   public int* flex_vertcell;
+  public byte* flex_cellempty;
   public int* flex_edge;
   public int* flex_edgeflap;
   public int* flex_elem;

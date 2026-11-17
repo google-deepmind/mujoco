@@ -69,12 +69,16 @@ running on Google Colab:
  - The **least-squares** tutorial explains how to use the Python-based nonlinear
    least-squares solver:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb)
- - The **MJX** tutorial provides usage examples of
-   [MuJoCo XLA](https://mujoco.readthedocs.io/en/stable/mjx.html), a branch of MuJoCo written in JAX:
-   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb)
- - The **differentiable physics** tutorial trains locomotion policies with
-   analytical gradients automatically derived from MuJoCo's physics step:
-   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/training_apg.ipynb)
+
+4. **Train and deploy robot policies.**
+Visit [MuJoCo Playground](https://playground.mujoco.org) and the
+[reaf-sim documentation](https://reaf-sim.readthedocs.io) for GPU-accelerated RL
+training, teleoperation, system identification, and sim-to-real deployment in
+PyTorch. For JAX workflows, see
+[MuJoCo XLA (MJX)](https://mujoco.readthedocs.io/en/stable/mjx.html) and the MJX
+environments in Playground's
+[`rss2025`](https://github.com/google-deepmind/mujoco_playground/tree/main/rss2025)
+directory.
 
 ## Installation
 
@@ -129,8 +133,24 @@ GitHub [Issues](https://github.com/google-deepmind/mujoco/issues) are reserved
 for bug reports, feature requests and other development-related subjects.
 
 ## Related software
-MuJoCo is the backbone for numerous environment packages. Below we list several
-bindings and converters.
+MuJoCo is the backbone for numerous robotics and machine learning packages.
+Below we list first-party frameworks, bindings, and converters.
+
+### Robotics and RL
+
+- [MuJoCo Playground](https://playground.mujoco.org)
+  ([GitHub](https://github.com/google-deepmind/mujoco_playground)): Sim-to-real
+  robot workflows (RL, teleoperation, system ID, and VLM-guided manipulation)
+  built on MuJoCo, [MuJoCo Warp](https://github.com/google-deepmind/mujoco_warp),
+  and [reaf-sim](https://github.com/google-deepmind/reaf-sim) in PyTorch (with
+  JAX/[MJX](https://mujoco.readthedocs.io/en/stable/mjx.html) environments in
+  [`rss2025`](https://github.com/google-deepmind/mujoco_playground/tree/main/rss2025)).
+- [reaf-sim](https://reaf-sim.readthedocs.io)
+  ([GitHub](https://github.com/google-deepmind/reaf-sim)): PyTorch environment
+  authoring library that decouples hardware and sensor I/O from task logic for
+  sim-to-real transfer.
+- [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie):
+  Curated collection of high-quality robot models for MuJoCo.
 
 ### Bindings
 

@@ -31,6 +31,7 @@
 #include <variant>
 #include <vector>
 
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 #include "render/filament/support/imgui_bridge.h"
 #include "render/filament/support/renderer.h"
@@ -301,7 +302,8 @@ class App {
   bool has_model() const { return model_holder_ && model_holder_->model(); }
   bool has_data() const { return model_holder_ && model_holder_->data(); }
 
-  std::span<const std::byte> RenderToTexture(mjvCamera* camera, int width, int height);
+  std::span<const std::byte> RenderToTexture(mjvCamera* camera, int width, int height,
+                                             mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT);
 
   std::unique_ptr<Window> window_;
   std::unique_ptr<Renderer> renderer_;

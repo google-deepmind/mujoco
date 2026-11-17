@@ -28,8 +28,6 @@ add_library(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} STATIC)
 
 target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
     PRIVATE
-        hal/filament_renderer.cc
-        hal/filament_renderer.h
         hal/graphics_mode.cc
         hal/graphics_mode.h
         hal/window.cc

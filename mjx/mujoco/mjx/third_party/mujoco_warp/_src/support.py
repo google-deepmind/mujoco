@@ -1771,8 +1771,10 @@ def add_interp_point_weights(
   # Model:
   body_weldid: wp.array[int],
   flex_nodebodyid: wp.array[int],
+  flex_cellempty: wp.array[bool],
   # In:
   coord: wp.vec3,
+  celladr: int,
   scale: float,
   cn: wp.vec3i,
   nstart: int,
@@ -1782,19 +1784,45 @@ def add_interp_point_weights(
   local_bodies: vec_interp_body,
   local_weights: vec_interp_weight,
 ) -> tuple[int, vec_interp_body, vec_interp_weight]:
-  """Accumulates trilinear cell node body weights at reference coord (with Coons TFI in shell mode)."""
+  """Accumulates trilinear cell node body weights at reference coord (with Coons TFI in shell mode).
+
+  The weights are evaluated in the active cell of coord (see mju_flexActiveCell): its natural cell, or
+  the nearest non-empty cell if that cell is empty (celladr: address in flex_cellempty, -1: no cells), in
+  which case the local coordinates are extrapolated within [-0.02, 1.02]^3 (see mju_cellLookup).
+  """
   if scale == 0.0:
     return local_nb, local_bodies, local_weights
   cx = cn[0]
   cy = cn[1]
   cz = cn[2]
-  ci = wp.clamp(int(wp.floor(coord[0] * float(cx))), 0, cx - 1)
-  cj = wp.clamp(int(wp.floor(coord[1] * float(cy))), 0, cy - 1)
-  ck = wp.clamp(int(wp.floor(coord[2] * float(cz))), 0, cz - 1)
+  uc = wp.vec3(coord[0] * float(cx), coord[1] * float(cy), coord[2] * float(cz))
+  ci = wp.clamp(int(wp.floor(uc[0])), 0, cx - 1)
+  cj = wp.clamp(int(wp.floor(uc[1])), 0, cy - 1)
+  ck = wp.clamp(int(wp.floor(uc[2])), 0, cz - 1)
+  lo = float(0.0)
+  hi = float(1.0)
+  if celladr >= 0:
+    if flex_cellempty[celladr + ci * cy * cz + cj * cz + ck]:
+      # nearest non-empty cell (first minimum in cell order), extrapolated
+      best = float(MJ_MAXVAL)
+      for cc in range(cx * cy * cz):
+        if not flex_cellempty[celladr + cc]:
+          d = uc - wp.vec3(
+            wp.clamp(uc[0], float(cc // (cy * cz)), float(cc // (cy * cz) + 1)),
+            wp.clamp(uc[1], float((cc // cz) % cy), float((cc // cz) % cy + 1)),
+            wp.clamp(uc[2], float(cc % cz), float(cc % cz + 1)),
+          )
+          if wp.dot(d, d) < best:
+            best = wp.dot(d, d)
+            ci = cc // (cy * cz)
+            cj = (cc // cz) % cy
+            ck = cc % cz
+            lo = -0.02
+            hi = 1.02
   local = wp.vec3(
-    wp.clamp(coord[0] * float(cx) - float(ci), 0.0, 1.0),
-    wp.clamp(coord[1] * float(cy) - float(cj), 0.0, 1.0),
-    wp.clamp(coord[2] * float(cz) - float(ck), 0.0, 1.0),
+    wp.clamp(uc[0] - float(ci), lo, hi),
+    wp.clamp(uc[1] - float(cj), lo, hi),
+    wp.clamp(uc[2] - float(ck), lo, hi),
   )
   cy1 = cy + 1
   cz1 = cz + 1
@@ -1841,10 +1869,12 @@ def add_flex_interp_weights(
   flex_dim: wp.array[int],
   flex_interp: wp.array[int],
   flex_cellnum: wp.array[wp.vec3i],
+  flex_celladr: wp.array[int],
   flex_nodeadr: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_elemdataadr: wp.array[int],
   flex_nodebodyid: wp.array[int],
+  flex_cellempty: wp.array[bool],
   flex_elem: wp.array[int],
   flex_vert0: wp.array[wp.vec3],
   # Data in:
@@ -1861,7 +1891,11 @@ def add_flex_interp_weights(
   local_bodies: vec_interp_body,
   local_weights: vec_interp_weight,
 ) -> tuple[int, vec_interp_body, vec_interp_weight]:
-  """Accumulates interpolated flex contact side bodies and weights at the blended reference coord."""
+  """Accumulates interpolated flex contact side bodies and weights at the blended reference coord.
+
+  As in mj_contactBodyWeight, the weights are the cell basis at the blended reference coordinates of the contact
+  vertex or element vertices, in their active cell.
+  """
   coord = wp.vec3(0.0)
   if vert_id >= 0:
     coord = flex_vert0[flex_vertadr[f] + vert_id]
@@ -1881,7 +1915,9 @@ def add_flex_interp_weights(
   return add_interp_point_weights(
     body_weldid,
     flex_nodebodyid,
+    flex_cellempty,
     coord,
+    flex_celladr[f],
     scale,
     flex_cellnum[f],
     flex_nodeadr[f],
@@ -2286,6 +2322,7 @@ def contact_bodies_and_weights(
   flex_dim: wp.array[int],
   flex_interp: wp.array[int],
   flex_cellnum: wp.array[wp.vec3i],
+  flex_celladr: wp.array[int],
   flex_nodeadr: wp.array[int],
   flex_vertadr: wp.array[int],
   flex_elemadr: wp.array[int],
@@ -2293,6 +2330,7 @@ def contact_bodies_and_weights(
   flex_elemdataadr: wp.array[int],
   flex_nodebodyid: wp.array[int],
   flex_vertbodyid: wp.array[int],
+  flex_cellempty: wp.array[bool],
   flex_elem: wp.array[int],
   flex_vert0: wp.array[wp.vec3],
   flex_rod_has_twist: wp.array[bool],
@@ -2332,10 +2370,12 @@ def contact_bodies_and_weights(
       flex_dim,
       flex_interp,
       flex_cellnum,
+      flex_celladr,
       flex_nodeadr,
       flex_vertadr,
       flex_elemdataadr,
       flex_nodebodyid,
+      flex_cellempty,
       flex_elem,
       flex_vert0,
       flexvert_xpos_in,

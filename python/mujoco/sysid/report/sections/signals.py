@@ -136,10 +136,7 @@ class SignalReport(ReportSection):
 
     n_plots = len(signal_names)
     n_cols = 3 if n_plots > 1 else 1
-    n_rows = (n_plots + n_cols - 1) // n_cols
-    n_rows += 1
-    n_params = len(mapping)
-    n_rows = math.ceil(n_params / n_cols)
+    n_rows = math.ceil(n_plots / n_cols)
 
     fig = plt_subplots.make_subplots(
         rows=n_rows,

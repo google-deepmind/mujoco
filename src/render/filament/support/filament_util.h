@@ -15,7 +15,9 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_FILAMENT_UTIL_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_SUPPORT_FILAMENT_UTIL_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -35,6 +37,47 @@ namespace mujoco {
 template <class T>
 inline void Combine(uint64_t& seed, const T* v) {
   seed ^= std::hash<T>()(*v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
+// Hashes a struct by memory. Useful for hashing data types like mjrfMaterial
+// and mjrfRenderOpts as these structs should be initialized using memset(0)
+// in their default initialization functions.
+template <typename T>
+inline uint64_t StructHash(const T& obj) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "Only trivially copyable types are hashable.");
+  int num_bytes = sizeof(T);
+  const std::byte* ptr = reinterpret_cast<const std::byte*>(&obj);
+  uint64_t seed = 0;
+  while (num_bytes >= sizeof(uint64_t)) {
+    uint64_t val;
+    std::memcpy(&val, ptr, sizeof(val));
+    Combine(seed, &val);
+    ptr += sizeof(uint64_t);
+    num_bytes -= sizeof(uint64_t);
+  }
+  while (num_bytes >= sizeof(uint32_t)) {
+    uint32_t val;
+    std::memcpy(&val, ptr, sizeof(val));
+    Combine(seed, &val);
+    ptr += sizeof(uint32_t);
+    num_bytes -= sizeof(uint32_t);
+  }
+  while (num_bytes >= sizeof(uint16_t)) {
+    uint16_t val;
+    std::memcpy(&val, ptr, sizeof(val));
+    Combine(seed, &val);
+    ptr += sizeof(uint16_t);
+    num_bytes -= sizeof(uint16_t);
+  }
+  while (num_bytes >= sizeof(uint8_t)) {
+    uint8_t val;
+    std::memcpy(&val, ptr, sizeof(val));
+    Combine(seed, &val);
+    ptr += sizeof(uint8_t);
+    num_bytes -= sizeof(uint8_t);
+  }
+  return seed;
 }
 
 // Reads a float2 from an array buffer in the model/scene.

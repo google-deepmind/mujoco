@@ -40,36 +40,6 @@ static void Combine(uint64_t& seed, const mjrfTexture* texture) {
   }
 }
 
-template <typename T>
-static uint64_t hash(const T& obj) {
-  static_assert(std::is_trivially_copyable_v<T>,
-                "Only trivially copyable types are hashable.");
-  int num_bytes = sizeof(T);
-  const std::byte* ptr = reinterpret_cast<const std::byte*>(&obj);
-  uint64_t seed = 0;
-  while (num_bytes >= sizeof(uint64_t)) {
-    Combine(seed, reinterpret_cast<const uint64_t*>(ptr));
-    ptr += sizeof(uint64_t);
-    num_bytes -= sizeof(uint64_t);
-  }
-  while (num_bytes >= sizeof(uint32_t)) {
-    Combine(seed, reinterpret_cast<const uint32_t*>(ptr));
-    ptr += sizeof(uint32_t);
-    num_bytes -= sizeof(uint32_t);
-  }
-  while (num_bytes >= sizeof(uint16_t)) {
-    Combine(seed, reinterpret_cast<const uint16_t*>(ptr));
-    ptr += sizeof(uint16_t);
-    num_bytes -= sizeof(uint16_t);
-  }
-  while (num_bytes >= sizeof(uint8_t)) {
-    Combine(seed, reinterpret_cast<const uint8_t*>(ptr));
-    ptr += sizeof(uint8_t);
-    num_bytes -= sizeof(uint8_t);
-  }
-  return seed;
-}
-
 MaterialManager::MaterialManager(ObjectManager* object_mgr)
     : object_mgr_(object_mgr) {}
 
@@ -101,7 +71,7 @@ static MaterialManager::MaterialKey BuildMaterialKey(
   // Normally, hashing the struct by memory would be a problem because of
   // padding and other uninitialized data. However, we do a memset(0) on the
   // entire structure in mjr_defaultMaterial so this should be safe.
-  uint64_t key = hash(material);
+  uint64_t key = StructHash(material);
   Combine(key, &geom_type);
   Combine(key, &material_type);
   Combine(key, material.color_texture);

@@ -229,11 +229,23 @@ class ModelWarp(PyTreeNode):
   efm0_L_rownnz: np.ndarray
   efm0_active: bool
   efm0_dofid: np.ndarray
+  efm_BT_adr: np.ndarray
+  efm_BT_off: np.ndarray
+  efm_BT_row: np.ndarray
   efm_K_colind: np.ndarray
   efm_K_rowadr: np.ndarray
   efm_K_rownnz: np.ndarray
+  efm_L_K_src: np.ndarray
+  efm_L_M_src: np.ndarray
+  efm_L_colind: np.ndarray
+  efm_L_dofid: np.ndarray
+  efm_L_rowadr: np.ndarray
+  efm_L_rownnz: np.ndarray
+  efm_all_covered_or_twist: bool
+  efm_chol_active: bool
   efm_con_max_dof: int
   efm_dofid: np.ndarray
+  efm_prec_exact: bool
   eq_connect_adr: np.ndarray
   eq_flex_adr: np.ndarray
   eq_flexstrain_adr: np.ndarray
@@ -245,6 +257,8 @@ class ModelWarp(PyTreeNode):
   flex_bending: np.ndarray
   flex_bendingadr: np.ndarray
   flex_cell_map: np.ndarray
+  flex_celladr: np.ndarray
+  flex_cellempty: np.ndarray
   flex_cellnum: np.ndarray
   flex_centered: np.ndarray
   flex_conaffinity: np.ndarray
@@ -383,11 +397,14 @@ class ModelWarp(PyTreeNode):
   nbranch: int
   nefm0L: int
   nefm0dof: int
+  nefmBT: int
   nefmK: int
+  nefmL: int
   nefmdof: int
   neq_flexstrain: int
   nflexbend_interp: int
   nflexbending: int
+  nflexcell: int
   nflexedge: int
   nflexelem: int
   nflexelemdata: int
@@ -554,6 +571,7 @@ class DataWarp(PyTreeNode):
   efc__vel: jax.Array
   efc_islandid: jax.Array
   efm_K_val: jax.Array
+  efm_L_val: jax.Array
   efm_as: jax.Array
   efm_c: jax.Array
   efm_ca: jax.Array
@@ -793,6 +811,7 @@ _NDIM = {
         'efc__vel': 2,
         'efc_islandid': 2,
         'efm_K_val': 2,
+        'efm_L_val': 2,
         'efm_as': 2,
         'efm_c': 2,
         'efm_ca': 2,
@@ -1061,11 +1080,23 @@ _NDIM = {
         'efm0_L_rownnz': 1,
         'efm0_active': 0,
         'efm0_dofid': 1,
+        'efm_BT_adr': 1,
+        'efm_BT_off': 1,
+        'efm_BT_row': 1,
         'efm_K_colind': 1,
         'efm_K_rowadr': 1,
         'efm_K_rownnz': 1,
+        'efm_L_K_src': 1,
+        'efm_L_M_src': 1,
+        'efm_L_colind': 1,
+        'efm_L_dofid': 1,
+        'efm_L_rowadr': 1,
+        'efm_L_rownnz': 1,
+        'efm_all_covered_or_twist': 0,
+        'efm_chol_active': 0,
         'efm_con_max_dof': 0,
         'efm_dofid': 1,
+        'efm_prec_exact': 0,
         'eq_active0': 1,
         'eq_connect_adr': 1,
         'eq_data': 3,
@@ -1086,6 +1117,8 @@ _NDIM = {
         'flex_bending': 1,
         'flex_bendingadr': 1,
         'flex_cell_map': 2,
+        'flex_celladr': 1,
+        'flex_cellempty': 1,
         'flex_cellnum': 2,
         'flex_centered': 1,
         'flex_conaffinity': 1,
@@ -1325,7 +1358,9 @@ _NDIM = {
         'ncam': 0,
         'nefm0L': 0,
         'nefm0dof': 0,
+        'nefmBT': 0,
         'nefmK': 0,
+        'nefmL': 0,
         'nefmdof': 0,
         'neq': 0,
         'neq_flexstrain': 0,
@@ -1333,6 +1368,7 @@ _NDIM = {
         'nflex': 0,
         'nflexbend_interp': 0,
         'nflexbending': 0,
+        'nflexcell': 0,
         'nflexedge': 0,
         'nflexelem': 0,
         'nflexelemdata': 0,
@@ -1649,6 +1685,7 @@ _BATCH_DIM = {
         'efc__vel': True,
         'efc_islandid': True,
         'efm_K_val': True,
+        'efm_L_val': True,
         'efm_as': True,
         'efm_c': True,
         'efm_ca': True,
@@ -1917,11 +1954,23 @@ _BATCH_DIM = {
         'efm0_L_rownnz': False,
         'efm0_active': False,
         'efm0_dofid': False,
+        'efm_BT_adr': False,
+        'efm_BT_off': False,
+        'efm_BT_row': False,
         'efm_K_colind': False,
         'efm_K_rowadr': False,
         'efm_K_rownnz': False,
+        'efm_L_K_src': False,
+        'efm_L_M_src': False,
+        'efm_L_colind': False,
+        'efm_L_dofid': False,
+        'efm_L_rowadr': False,
+        'efm_L_rownnz': False,
+        'efm_all_covered_or_twist': False,
+        'efm_chol_active': False,
         'efm_con_max_dof': False,
         'efm_dofid': False,
+        'efm_prec_exact': False,
         'eq_active0': False,
         'eq_connect_adr': False,
         'eq_data': True,
@@ -1942,6 +1991,8 @@ _BATCH_DIM = {
         'flex_bending': False,
         'flex_bendingadr': False,
         'flex_cell_map': False,
+        'flex_celladr': False,
+        'flex_cellempty': False,
         'flex_cellnum': False,
         'flex_centered': False,
         'flex_conaffinity': False,
@@ -2181,7 +2232,9 @@ _BATCH_DIM = {
         'ncam': False,
         'nefm0L': False,
         'nefm0dof': False,
+        'nefmBT': False,
         'nefmK': False,
+        'nefmL': False,
         'nefmdof': False,
         'neq': False,
         'neq_flexstrain': False,
@@ -2189,6 +2242,7 @@ _BATCH_DIM = {
         'nflex': False,
         'nflexbend_interp': False,
         'nflexbending': False,
+        'nflexcell': False,
         'nflexedge': False,
         'nflexelem': False,
         'nflexelemdata': False,

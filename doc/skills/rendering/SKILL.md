@@ -11,6 +11,8 @@ description: >-
   offscreen rendering, glReadPixels depth/segmentation post-processing, or
   synthetic dataset pipelines that do not use the `mujoco` library, or for
   interactive viewers/Studio (mujoco-studio) or ImGui controls (mujoco-gui).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Rendering: Cameras, Contexts & Offscreen Buffers

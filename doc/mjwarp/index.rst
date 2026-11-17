@@ -138,7 +138,7 @@ These MJWarp variants mirror their MuJoCo counterparts but have a few key differ
 #. :class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` contain Warp arrays that are copied
    onto device.
 #. Some fields are missing from :class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` for
-   features that are unsupported.
+   features that are unsupported or omitted for GPU performance (see `Differences from MuJoCo`_).
 
 Batch sizes
 -----------
@@ -886,6 +886,7 @@ rendering specific fields, and output buffers.
         splat_rgba=rgba,              # Optional (nsplat, 4) 3DGS RGB color and opacity
         splat_adr=adr,                # Optional (ngroup+1,) group offsets for per-world splats
         splat_group_id=group_id,      # Optional (nworld,) splat group index per world
+        backend="warp",               # Ray-casting backend ("warp" or "optix")
     )
 
 Each :class:`mjw.RenderContext <mujoco_warp.RenderContext>` parameter can be applied globally or per camera.
@@ -919,6 +920,22 @@ return processed and reshaped RGB and depth data for a given camera batched for 
     mjw.get_rgb(rc, rgb_data=rgb_data, cam_id=cam_index)
 
 A complete example can be found in the MJWarp tutorial |notebook| |open in colab|.
+
+OptiX Backend
+-------------
+
+An optional hardware-accelerated ray-casting backend built on `warp-optix <https://github.com/NVIDIA/warp-optix>`__ is
+available on NVIDIA RTX GPUs. Install with:
+
+.. code-block:: shell
+
+    pip install "mujoco-warp[optix]"
+
+Pass ``backend="optix"`` to :func:`mjw.create_render_context <mujoco_warp.create_render_context>` (or
+``--render_backend=optix`` to `testspeed`_). If OptiX is unavailable or the scene uses unsupported features (such as
+flexes or 3D Gaussian splats), MJWarp warns and falls back to ``backend="warp"``. OptiX rendering cannot be recorded
+into CUDA graphs (``wp.ScopedCapture``), and :func:`mjw.ray <mujoco_warp.ray>` / :func:`mjw.rays <mujoco_warp.rays>`
+require ``backend="warp"``.
 
 Benchmarks
 ----------
@@ -1045,10 +1062,13 @@ details.
 
 For examples that train policies with MJWarp physics, please see:
 
+- `MuJoCo Playground <https://playground.mujoco.org>`__: Train directly with
+  MJWarp using PyTorch and `reaf-sim <https://reaf-sim.readthedocs.io>`__ (or
+  via :ref:`MJX <mjx>` in
+  `rss2025 <https://github.com/google-deepmind/mujoco_playground/tree/main/rss2025>`__).
 - `Isaac Lab <https://github.com/isaac-sim/IsaacLab>`__: Train via
   `Newton API <https://github.com/newton-physics/newton>`__.
 - `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
-- `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
 
 Features
 --------
@@ -1100,7 +1120,9 @@ Developments for deterministic results on GPU are tracked in this
 **How are orientations represented?**
 
 Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conventions<siLayout>`:
-``w, x, y, z`` or ``scalar, vector``.
+``w, x, y, z`` or ``scalar, vector``. :class:`mjw.Data <mujoco_warp.Data>` stores Cartesian orientations of bodies,
+body inertias, geoms, and sites as quaternions (``xquat``, ``xiquat``, ``geom_xquat``, ``site_xquat``) and omits the
+corresponding rotation matrix fields (``xmat``, ``ximat``, ``geom_xmat``, ``site_xmat``).
 
 .. admonition:: ``wp.quat``
   :class: note
@@ -1198,6 +1220,15 @@ Differences from MuJoCo
 =======================
 
 This section notes differences between MJWarp and MuJoCo.
+
+Orientations
+------------
+
+To reduce GPU memory bandwidth, :class:`mjw.Data <mujoco_warp.Data>` stores Cartesian orientations of bodies, body
+inertias, geoms, and sites as unit quaternions (``xquat``, ``xiquat``, ``geom_xquat``, and ``site_xquat``) and omits
+the :ref:`mjData` rotation matrix fields (``xmat``, ``ximat``, ``geom_xmat``, and ``site_xmat``).
+:func:`mjw.get_data_into <mujoco_warp.get_data_into>` populates these rotation matrices when copying data to
+:ref:`mjData`.
 
 Warmstart
 ---------

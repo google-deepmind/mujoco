@@ -27,7 +27,6 @@
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/core/color_grading_options.h"
 #include "render/filament/core/light.h"
 #include "render/filament/core/material_manager.h"
 #include "render/filament/core/object_manager.h"
@@ -76,8 +75,8 @@ class SceneView : public mjrfScene {
   filament::View* GetDefaultRenderView();
 
   // Helpers for managing the color grading options for the default render view.
-  ColorGradingOptions GetColorGradingOptions() const;
-  void SetColorGradingOptions(const ColorGradingOptions& opts);
+  mjrfColorGradingOpts GetColorGradingOptions() const;
+  void SetColorGradingOptions(const mjrfColorGradingOpts& opts);
 
   // Reads filament-specific settings from the mjModel and configures the
   // scene view accordingly.
@@ -103,12 +102,25 @@ class SceneView : public mjrfScene {
   }
 
  private:
+  void Apply(const mjrfAmbientOcclusionOpts& opts);
+  void Apply(const mjrfAntialiasingOpts& opts);
+  void Apply(const mjrfBloomOpts& opts);
+  void Apply(const mjrfColorGradingOpts& opts);
+  void Apply(const mjrfDepthOfFieldOpts& opts);
+  void Apply(const mjrfDitheringOpts& opts);
+  void Apply(const mjrfFogOpts& opts);
+  void Apply(const mjrfHazeOpts& opts);
+  void Apply(const mjrfHeadlightOpts& opts);
+  void Apply(const mjrfMaterialOpts& opts);
+  void Apply(const mjrfShadowOpts& opts);
+  void Apply(const mjrfVignetteOpts& opts);
+
   ObjectManager* object_mgr_ = nullptr;
   MaterialManager* material_mgr_ = nullptr;
   filament::Scene* scene_ = nullptr;
   filament::Camera* camera_ = nullptr;
   filament::ColorGrading* color_grading_ = nullptr;
-  ColorGradingOptions color_grading_options_;
+  mjrfColorGradingOpts color_grading_options_;
   filament::View* main_view_;
   filament::View* depth_segment_view_;
 
@@ -121,9 +133,6 @@ class SceneView : public mjrfScene {
   filament::Skybox* skybox_ = nullptr;
   std::unique_ptr<Renderable> haze_;
   float focus_distance_ = 0.0f;
-  int numstacks_ = 16;
-  int numslices_ = 28;
-  int numquads_ = 4;
 
   // Custom view and camera for reflective surfaces.
   filament::View* reflect_view_ = nullptr;

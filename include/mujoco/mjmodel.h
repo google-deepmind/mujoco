@@ -275,6 +275,7 @@ typedef struct mjModel_ {
   mjtSize nefmCvert;              // number of sparse metric factor ordering slots
   mjtSize nflexelemedge;          // number of element edge ids in all flexes
   mjtSize nflexshelldata;         // number of shell fragment vertex ids in all flexes
+  mjtSize nflexcell;              // number of finite cells in all interpolated flexes
   mjtSize nflextexcoord;          // number of vertices with texture coordinates
   mjtSize nJfe;                   // number of non-zeros in sparse flexedge Jacobian matrix
   mjtSize nmesh;                  // number of meshes
@@ -561,6 +562,7 @@ typedef struct mjModel_ {
   int*      flex_group;           // group for visibility                     (nflex x 1)
   int*      flex_interp;          // interpolation (0: vertex, 1: nodes)      (nflex x 1)
   int*      flex_cellnum;         // finite cell num per dimension            (nflex x 3)
+  int*      flex_celladr;         // first cell address; -1: not interpolated (nflex x 1)
   int*      flex_nodeadr;         // first node address                       (nflex x 1)
   int*      flex_nodenum;         // number of nodes                          (nflex x 1)
   int*      flex_vertadr;         // first vertex address                     (nflex x 1)
@@ -581,6 +583,7 @@ typedef struct mjModel_ {
   int*      flex_nodebodyid;      // node body ids                            (nflexnode x 1)
   int*      flex_vertbodyid;      // vertex body ids                          (nflexvert x 1)
   int*      flex_vertcell;        // finite cell index for vertex; -1: none   (nflexvert x 1)
+  mjtBool*  flex_cellempty;       // is finite cell empty (pruned)            (nflexcell x 1)
   int*      flex_edge;            // edge vertex ids (2 per edge)             (nflexedge x 2)
   int*      flex_edgeflap;        // adjacent vertex ids (dim=2 only)         (nflexedge x 2)
   int*      flex_elem;            // element vertex ids (dim+1 per elem)      (nflexelemdata x 1)

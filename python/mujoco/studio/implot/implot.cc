@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <tuple>
 #define NAMESPACE ImPlot
 #include "dear_imgui_macros.h"
 #include <implot.h>
@@ -62,14 +63,24 @@ PYBIND11_MODULE(implot, m) {
   py::class_<ImPlotPoint>(m, "Point")
       .def(py::init<>())
       .def(py::init<double, double>(), py::arg("_x"), py::arg("_y"))
+      .def(py::init([](std::tuple<double, double> v) {
+        return ImPlotPoint(std::get<0>(v), std::get<1>(v));
+      }))
       .def_readwrite("x", &ImPlotPoint::x)
       .def_readwrite("y", &ImPlotPoint::y);
+  py::implicitly_convertible<py::tuple, ImPlotPoint>();
+  py::implicitly_convertible<py::list, ImPlotPoint>();
 
   py::class_<ImPlotRange>(m, "Range")
       .def(py::init<>())
       .def(py::init<double, double>(), py::arg("_min"), py::arg("_max"))
+      .def(py::init([](std::tuple<double, double> v) {
+        return ImPlotRange(std::get<0>(v), std::get<1>(v));
+      }))
       .def_readwrite("min", &ImPlotRange::Min)
       .def_readwrite("max", &ImPlotRange::Max);
+  py::implicitly_convertible<py::tuple, ImPlotRange>();
+  py::implicitly_convertible<py::list, ImPlotRange>();
 
 //   py::class_<ImPlotRect>(m, "Rect")
 //       .def(py::init<>())

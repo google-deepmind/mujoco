@@ -158,105 +158,117 @@
 
 //-------------------------------- mjModel ---------------------------------------------------------
 
+// sizes of mjModel which mj_makeModel uses to allocate it; together with nnames_map,
+// which is computed from them, they define the layout of the model buffer
+#define MJMODEL_SIZES_LAYOUT  \
+    X( nq )                   \
+    X( nv )                   \
+    X( nu )                   \
+    X( nactuator )            \
+    X( nout )                 \
+    X( na )                   \
+    X( nbody )                \
+    X( nbvh )                 \
+    X( nbvhstatic )           \
+    X( nbvhdynamic )          \
+    X( noct )                 \
+    X( njnt )                 \
+    X( ntree )                \
+    X( nM )                   \
+    X( nB )                   \
+    X( nC )                   \
+    X( nD )                   \
+    X( ngeom )                \
+    X( nsite )                \
+    X( ncam )                 \
+    X( nlight )               \
+    X( nflex )                \
+    X( nflexnode )            \
+    X( nflexvert )            \
+    X( nflexedge )            \
+    X( nflexelem )            \
+    X( nflexelemdata )        \
+    X( nflexstiffness )       \
+    X( nflexbending )         \
+    X( nefm0dof )             \
+    X( nefm0L )               \
+    X( nefmCvert )            \
+    X( nflexelemedge )        \
+    X( nflexshelldata )       \
+    X( nflexcell )            \
+    X( nflextexcoord )        \
+    X( nJfe )                 \
+    X( nmesh )                \
+    X( nmeshvert )            \
+    X( nmeshnormal )          \
+    X( nmeshtexcoord )        \
+    X( nmeshface )            \
+    X( nmeshgraph )           \
+    X( nmeshpoly )            \
+    X( nmeshpolyvert )        \
+    X( nmeshpolymap )         \
+    X( nskin )                \
+    X( nskinvert )            \
+    X( nskintexvert )         \
+    X( nskinface )            \
+    X( nskinbone )            \
+    X( nskinbonevert )        \
+    X( nhfield )              \
+    X( nhfielddata )          \
+    X( ntex )                 \
+    X( ntexdata )             \
+    X( nmat )                 \
+    X( npair )                \
+    X( nexclude )             \
+    X( neq )                  \
+    X( ntendon )              \
+    X( nJten )                \
+    X( nwrap )                \
+    X( nsensor )              \
+    X( nnumeric )             \
+    X( nnumericdata )         \
+    X( ntext )                \
+    X( ntextdata )            \
+    X( ntuple )               \
+    X( ntupledata )           \
+    X( nkey )                 \
+    X( nmocap )               \
+    X( nplugin )              \
+    X( npluginattr )          \
+    X( nuser_body )           \
+    X( nuser_jnt )            \
+    X( nuser_geom )           \
+    X( nuser_site )           \
+    X( nuser_cam )            \
+    X( nuser_tendon )         \
+    X( nuser_actuator )       \
+    X( nuser_sensor )         \
+    X( nnames )               \
+    X( npaths )               \
+    X( nplastic )
+
+// sizes of mjModel which are set after it is allocated, they do not affect the model buffer;
+// a binary model can only provide these sizes, see mj_loadModelBuffer
+#define MJMODEL_SIZES_RUNTIME  \
+    X( nJmom )                 \
+    X( ngravcomp )             \
+    X( nemax )                 \
+    X( njmax )                 \
+    X( nconmax )               \
+    X( npolygonmax )           \
+    X( nmeshdegmax )           \
+    X( nuserdata )             \
+    X( nsensordata )           \
+    X( npluginstate )          \
+    X( nhistory )              \
+    X( narena )
+
 // size fields of mjModel
-#define MJMODEL_SIZES       \
-    X( nq )                 \
-    X( nv )                 \
-    X( nu )                 \
-    X( nactuator )          \
-    X( nout )               \
-    X( na )                 \
-    X( nbody )              \
-    X( nbvh )               \
-    X( nbvhstatic )         \
-    X( nbvhdynamic )        \
-    X( noct )               \
-    X( njnt )               \
-    X( ntree )              \
-    X( nM )                 \
-    X( nB )                 \
-    X( nC )                 \
-    X( nD )                 \
-    X( ngeom )              \
-    X( nsite )              \
-    X( ncam )               \
-    X( nlight )             \
-    X( nflex )              \
-    X( nflexnode )          \
-    X( nflexvert )          \
-    X( nflexedge )          \
-    X( nflexelem )          \
-    X( nflexelemdata )      \
-    X( nflexstiffness )     \
-    X( nflexbending )       \
-    X( nefm0dof )           \
-    X( nefm0L )             \
-    X( nefmCvert )          \
-    X( nflexelemedge )      \
-    X( nflexshelldata )     \
-    X( nflextexcoord )      \
-    X( nJfe )               \
-    X( nmesh )              \
-    X( nmeshvert )          \
-    X( nmeshnormal )        \
-    X( nmeshtexcoord )      \
-    X( nmeshface )          \
-    X( nmeshgraph )         \
-    X( nmeshpoly )          \
-    X( nmeshpolyvert )      \
-    X( nmeshpolymap )       \
-    X( nskin )              \
-    X( nskinvert )          \
-    X( nskintexvert )       \
-    X( nskinface )          \
-    X( nskinbone )          \
-    X( nskinbonevert )      \
-    X( nhfield )            \
-    X( nhfielddata )        \
-    X( ntex )               \
-    X( ntexdata )           \
-    X( nmat )               \
-    X( npair )              \
-    X( nexclude )           \
-    X( neq )                \
-    X( ntendon )            \
-    X( nJten )              \
-    X( nwrap )              \
-    X( nsensor )            \
-    X( nnumeric )           \
-    X( nnumericdata )       \
-    X( ntext )              \
-    X( ntextdata )          \
-    X( ntuple )             \
-    X( ntupledata )         \
-    X( nkey )               \
-    X( nmocap )             \
-    X( nplugin )            \
-    X( npluginattr )        \
-    X( nuser_body )         \
-    X( nuser_jnt )          \
-    X( nuser_geom )         \
-    X( nuser_site )         \
-    X( nuser_cam )          \
-    X( nuser_tendon )       \
-    X( nuser_actuator )     \
-    X( nuser_sensor )       \
-    X( nnames )             \
-    X( npaths )             \
-    X( nplastic )           \
-    X( nnames_map )         \
-    X( nJmom )              \
-    X( ngravcomp )          \
-    X( nemax )              \
-    X( njmax )              \
-    X( nconmax )            \
-    X( npolygonmax )        \
-    X( nmeshdegmax )        \
-    X( nuserdata )          \
-    X( nsensordata )        \
-    X( npluginstate )       \
-    X( nhistory )           \
-    X( narena )             \
+// a new size must be added to MJMODEL_SIZES_LAYOUT or to MJMODEL_SIZES_RUNTIME
+#define MJMODEL_SIZES      \
+    MJMODEL_SIZES_LAYOUT   \
+    X( nnames_map )        \
+    MJMODEL_SIZES_RUNTIME  \
     X( nbuffer )
 
     /* nbuffer needs to be the final field */
@@ -469,6 +481,7 @@
     X   ( int,     flex_group,            nflex,         1                    ) \
     X   ( int,     flex_interp,           nflex,         1                    ) \
     X   ( int,     flex_cellnum,          nflex,         3                    ) \
+    X   ( int,     flex_celladr,          nflex,         1                    ) \
     X   ( int,     flex_nodeadr,          nflex,         1                    ) \
     X   ( int,     flex_nodenum,          nflex,         1                    ) \
     X   ( int,     flex_vertadr,          nflex,         1                    ) \
@@ -489,6 +502,7 @@
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_vertcell,         nflexvert,     1                    ) \
+    X   ( mjtBool, flex_cellempty,        nflexcell,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     X   ( int,     flex_edgeflap,         nflexedge,     2                    ) \
     X   ( int,     flex_elem,             nflexelemdata, 1                    ) \

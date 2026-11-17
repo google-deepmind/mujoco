@@ -1104,6 +1104,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of shell fragment vertex ids in all flexes',
              ),
              StructFieldDecl(
+                 name='nflexcell',
+                 type=ValueType(name='mjtSize'),
+                 doc='number of finite cells in all interpolated flexes',
+             ),
+             StructFieldDecl(
                  name='nflextexcoord',
                  type=ValueType(name='mjtSize'),
                  doc='number of vertices with texture coordinates',
@@ -2861,6 +2866,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex', 3),
              ),
              StructFieldDecl(
+                 name='flex_celladr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='first cell address; -1: not interpolated',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_nodeadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -3019,6 +3032,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='finite cell index for vertex; -1: none',
                  array_extent=('nflexvert',),
+             ),
+             StructFieldDecl(
+                 name='flex_cellempty',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtBool'),
+                 ),
+                 doc='is finite cell empty (pruned)',
+                 array_extent=('nflexcell',),
              ),
              StructFieldDecl(
                  name='flex_edge',

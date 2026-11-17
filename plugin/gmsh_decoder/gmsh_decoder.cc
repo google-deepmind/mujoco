@@ -17,6 +17,7 @@
 #include <charconv>
 #include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -109,6 +110,9 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
     if (entityDim < 1 || entityDim > 3) {
       return Fail(err, "Entity must be 1D, 2D or 3D");
     }
+    if (numNodes >= INT_MAX / 3) {
+      return Fail(err, "Invalid number of nodes.");
+    }
     out_dim = entityDim;
 
     for (size_t i = 0; i < numNodes; i++) {
@@ -121,9 +125,6 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
       }
     }
 
-    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
-      return Fail(err, "Invalid number of nodes.");
-    }
     point.reserve(3 * numNodes);
     for (size_t i = 0; i < 3 * numNodes; i++) {
       double x;
@@ -151,8 +152,8 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
     if (numEntityBlocks != 1 || numNodes != numNodesInBlock) {
       return Fail(err, "All nodes must be in single block");
     }
-    if (numNodes < 0) {
-      return Fail(err, "Invalid number of nodes");
+    if (numNodes >= INT_MAX / 3) {
+      return Fail(err, "Invalid number of nodes.");
     }
     if (entityDim < 1 || entityDim > 3) {
       return Fail(err, "Entity must be 1D, 2D or 3D");
@@ -163,7 +164,8 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
     constexpr int componentSize = 8;
     int nodeDataSize = numNodeComponents * componentSize;
 
-    if (nodeend - nodebegin < kGmsh41HeaderSize + numNodes * nodeDataSize) {
+    if (static_cast<int64_t>(nodeend - nodebegin) <
+        kGmsh41HeaderSize + static_cast<int64_t>(numNodes) * nodeDataSize) {
       return Fail(err, "Insufficient byte size of Nodes");
     }
 
@@ -175,9 +177,6 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
       }
     }
 
-    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
-      return Fail(err, "Invalid number of nodes.");
-    }
     point.reserve(3 * numNodes);
     const char* pointbuffer =
         buffer + nodebegin + kGmsh41HeaderSize + componentSize * numNodes;
@@ -203,13 +202,10 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
     if (numEntityBlocks != 1 || numElements != numElementsInBlock) {
       return Fail(err, "All elements must be in single block");
     }
-    if (numElements < 0) {
-      return Fail(err, "Invalid number of elements");
-    }
     if (entityDim != out_dim) {
       return Fail(err, "Inconsistent dimensionality in Elements");
     }
-    if (numElements < 0 || numElements >= INT_MAX / 4) {
+    if (numElements >= INT_MAX / 4) {
       return Fail(err, "Invalid numElements.");
     }
     if ((entityDim == 1 && elementType != 1) ||
@@ -251,9 +247,6 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
     if (numEntityBlocks != 1 || numElements != numElementsInBlock) {
       return Fail(err, "All elements must be in single block");
     }
-    if (numElements < 0) {
-      return Fail(err, "Invalid number of elements");
-    }
     if (entityDim != out_dim) {
       return Fail(err, "Inconsistent dimensionality in Elements");
     }
@@ -262,7 +255,7 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
         (entityDim == 3 && elementType != 4)) {
       return Fail(err, "Element type inconsistent with dimensionality");
     }
-    if (numElements < 0 || numElements >= INT_MAX / 4) {
+    if (numElements >= INT_MAX / 4) {
       return Fail(err, "Invalid numElements.");
     }
 
@@ -270,8 +263,9 @@ bool LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
     constexpr int componentSize = 8;
     int elementDataSize = numElementComponents * componentSize;
 
-    if (elemend - elembegin <
-        kGmsh41HeaderSize + numElements * elementDataSize) {
+    if (static_cast<int64_t>(elemend - elembegin) <
+        kGmsh41HeaderSize +
+            static_cast<int64_t>(numElements) * elementDataSize) {
       return Fail(err, "Insufficient byte size of Elements");
     }
 
@@ -318,7 +312,7 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     }
     numNodes = maxNodeTag;
 
-    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
+    if (numNodes >= INT_MAX / 3) {
       return Fail(err, "Invalid number of nodes.");
     }
 
@@ -340,8 +334,7 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     }
   } else {
     // binary nodes
-    constexpr int nodeHeaderSizeGmshApp = 5;
-    constexpr int nodeHeaderSize = nodeHeaderSizeGmshApp - 1;
+    constexpr int nodeHeaderSize = 4;
     if (nodeend - nodebegin < nodeHeaderSize) {
       return Fail(err, "Invalid nodes header");
     }
@@ -349,7 +342,11 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     char maxNodeTagChar[11] = {0};
     ReadStrFromBuffer(maxNodeTagChar, buffer + nodebegin,
                       std::min(10, nodeend - nodebegin));
-    size_t measuredHeaderSize = std::strlen(maxNodeTagChar) - 1;
+    int headerLen = static_cast<int>(std::strlen(maxNodeTagChar));
+    if (headerLen == 0) {
+      return Fail(err, "Invalid number of nodes");
+    }
+    int measuredHeaderSize = headerLen - 1;
     size_t maxNodeTag = 0;
     auto [node_ptr, node_ec] = std::from_chars(
         maxNodeTagChar, maxNodeTagChar + measuredHeaderSize + 1, maxNodeTag);
@@ -358,26 +355,25 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     }
     numNodes = maxNodeTag;
 
-    if (numNodes < 0) {
-      return Fail(err, "Invalid number of nodes");
+    if (numNodes >= INT_MAX / 3) {
+      return Fail(err, "Invalid number of nodes.");
     }
 
     int nodeSize = sizeof(double);
     int indexSize = sizeof(int);
     int nodeDataSize = indexSize + 3 * nodeSize;
 
-    if (nodeend - nodebegin < nodeHeaderSize + numNodes * nodeDataSize) {
+    const int64_t availableNodeBytes =
+        static_cast<int64_t>(nodeend - nodebegin) - measuredHeaderSize;
+    if (availableNodeBytes < static_cast<int64_t>(numNodes) * nodeDataSize) {
       return Fail(err, "Insufficient byte size of Nodes");
     }
 
-    if (numNodes < 0 || numNodes >= INT_MAX / 3) {
-      return Fail(err, "Invalid number of nodes.");
-    }
     point.reserve(3 * numNodes);
     const char* tagBuffer = buffer + nodebegin + measuredHeaderSize;
     for (size_t i = 0; i < numNodes; i++) {
       int tag_val;
-      int offset = i * (sizeof(int) + sizeof(double) * 3);
+      size_t offset = i * nodeDataSize;
       ReadFromBuffer(&tag_val, tagBuffer + offset);
       for (int k = 0; k < 3; k++) {
         double x;
@@ -405,11 +401,8 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     }
     size_t numElements = maxElementTag;
 
-    if (numElements < 0 || numElements >= INT_MAX / 4) {
+    if (numElements >= INT_MAX / 4) {
       return Fail(err, "Invalid number of elements.");
-    }
-    if (numElements < 0) {
-      return Fail(err, "Invalid number of elements");
     }
 
     int tag_val = 0, elementType = 0, numTags = 0;
@@ -463,7 +456,6 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
   } else {
     // binary elements
     constexpr int elementHeaderSizeGmshApp = 4;
-    constexpr int elementHeaderSizeFtetwild = 17;
     if (elemend - elembegin < elementHeaderSizeGmshApp) {
       return Fail(err, "Invalid elements header");
     }
@@ -471,8 +463,11 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     char maxElementTagChar[11] = {0};
     ReadStrFromBuffer(maxElementTagChar, buffer + elembegin,
                       std::min(10, elemend - elembegin));
-    int measuredHeaderSize =
-        static_cast<int>(std::strlen(maxElementTagChar)) - 1;
+    int headerLen = static_cast<int>(std::strlen(maxElementTagChar));
+    if (headerLen == 0) {
+      return Fail(err, "Invalid number of elements");
+    }
+    int measuredHeaderSize = headerLen - 1;
     int maxElementTag = 0;
     auto [elem_ptr, elem_ec] = std::from_chars(
         maxElementTagChar, maxElementTagChar + measuredHeaderSize + 1,
@@ -486,12 +481,23 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     int nodeTag;
     int elementType;
 
-    if (numElements < 0) {
+    // The first element is read unconditionally below, so there must be at
+    // least one.
+    if (numElements < 1) {
       return Fail(err, "Invalid number of elements");
     }
 
     int componentSize = sizeof(int);
     const char* elementsBuffer = buffer + elembegin + measuredHeaderSize;
+    // Bytes available after the count header; every read below is relative to
+    // elementsBuffer and must stay within them.
+    const int64_t availableBytes =
+        static_cast<int64_t>(elemend - elembegin) - measuredHeaderSize;
+    // The first element's type, tag count, and tag (ints 0, 2, and 3) are read
+    // before the element layout is known.
+    if (availableBytes < 4 * componentSize) {
+      return Fail(err, "Insufficient byte size of Elements");
+    }
     ReadFromBuffer(&elementType, elementsBuffer);
     ReadFromBuffer(&numTags, elementsBuffer + componentSize * 2);
     ReadFromBuffer(&tag_val, elementsBuffer + componentSize * 3);
@@ -521,17 +527,20 @@ bool LoadGMSH22(char* buffer, int binary, int nodeend, int nodebegin,
     int elementDataSizeFtetwild = numComponentsFtetwild * componentSize;
     int elementDataSizeGmshApp = numComponentsGmshApp * componentSize;
 
-    int elementsBufferSizeFtetwild =
-        elementHeaderSizeFtetwild + numElements * elementDataSizeFtetwild;
-    int elementsBufferSizeGmshApp =
-        elementHeaderSizeGmshApp + numElements * elementDataSizeGmshApp;
+    // Bytes the loops below read from elementsBuffer, computed in 64 bits so
+    // an untrusted count cannot wrap and bypass the size checks.
+    const int64_t elementsBufferSizeFtetwild =
+        componentSize * (4 + numNodeTags) +
+        static_cast<int64_t>(numElements - 1) * elementDataSizeFtetwild;
+    const int64_t elementsBufferSizeGmshApp =
+        static_cast<int64_t>(numElements) * elementDataSizeGmshApp;
 
-    if (elemend - elembegin < elementsBufferSizeFtetwild) {
+    if (availableBytes < elementsBufferSizeFtetwild) {
       return Fail(err, "Insufficient byte size of Elements");
     }
 
     if (numTags > 0) {
-      if (elemend - elembegin < elementsBufferSizeGmshApp) {
+      if (availableBytes < elementsBufferSizeGmshApp) {
         return Fail(err, "Insufficient byte size of Elements");
       }
 

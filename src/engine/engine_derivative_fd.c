@@ -38,12 +38,23 @@
 
 // get state=[qpos; qvel; act] and optionally sensordata
 static void getState(const mjModel* m, const mjData* d, mjtNum* state, mjtNum* sensordata) {
-  mj_getState(m, d, state, mjSTATE_PHYSICS);
+  mj_getState(m, d, state, mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT);
   if (sensordata) {
     mju_copy(sensordata, d->sensordata, m->nsensordata);
   }
 }
 
+
+// restore state and optional IPC continuation arrays
+static void restoreState(const mjModel* m, mjData* d, const mjtNum* fullstate,
+                         unsigned int restore_spec, const mjtNum* ipc_lambda,
+                         const int* ipc_conage, int nflexvert) {
+  mj_setState(m, d, fullstate, restore_spec);
+  if (nflexvert > 0) {
+    mju_copy(d->flexvert_lambda, ipc_lambda, nflexvert);
+    mju_copyInt(d->flexvert_conage, ipc_conage, nflexvert);
+  }
+}
 
 // dx = (x2 - x1) / h
 static void diff(mjtNum* restrict dx, const mjtNum* x1, const mjtNum* x2, mjtNum h, int n) {
@@ -390,8 +401,17 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
   // controls
   mjtNum *ctrl = mjSTACKALLOC(d, nu, mjtNum);
 
+  // IPC continuation state
+  int nflexvert = mjENABLED(mjENBL_IPC) ? m->nflexvert : 0;
+  mjtNum *ipc_lambda = mjSTACKALLOC(d, nflexvert, mjtNum);
+  int *ipc_conage    = mjSTACKALLOC(d, nflexvert, int);
+
   // save current inputs
   mj_getState(m, d, fullstate, restore_spec);
+  if (nflexvert > 0) {
+    mju_copy(ipc_lambda, d->flexvert_lambda, nflexvert);
+    mju_copyInt(ipc_conage, d->flexvert_conage, nflexvert);
+  }
   mju_copy(ctrl, d->ctrl, nu);
   getState(m, d, state, NULL);
 
@@ -402,7 +422,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
   getState(m, d, next, sensor);
 
   // restore input
-  mj_setState(m, d, fullstate, restore_spec);
+  restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
 
   // finite-difference controls: skip=mjSTAGE_VEL, handle ctrl at range limits
   if (DyDu || DsDu) {
@@ -419,7 +439,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
         getState(m, d, next_plus, sensor_plus);
 
         // reset
-        mj_setState(m, d, fullstate, restore_spec);
+        restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
       }
 
       // nudge backward, if possible given ctrlrange
@@ -434,7 +454,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        mj_setState(m, d, fullstate, restore_spec);
+        restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
       }
 
       // difference states
@@ -462,7 +482,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      mj_setState(m, d, fullstate, restore_spec);
+      restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
 
       // nudge backward
       if (flg_centered) {
@@ -474,7 +494,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        mj_setState(m, d, fullstate, restore_spec);
+        restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
       }
 
       // difference states
@@ -509,7 +529,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      mj_setState(m, d, fullstate, restore_spec);
+      restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
 
       // nudge backward
       if (flg_centered) {
@@ -521,7 +541,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        mj_setState(m, d, fullstate, restore_spec);
+        restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
       }
 
       // difference states
@@ -558,7 +578,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
       getState(m, d, next_plus, sensor_plus);
 
       // reset
-      mj_setState(m, d, fullstate, restore_spec);
+      restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
 
       // nudge backward
       if (flg_centered) {
@@ -572,7 +592,7 @@ void mjd_stepFD(const mjModel* m, mjData* d, mjtNum eps, mjtBool flg_centered,
         getState(m, d, next_minus, sensor_minus);
 
         // reset
-        mj_setState(m, d, fullstate, restore_spec);
+        restoreState(m, d, fullstate, restore_spec, ipc_lambda, ipc_conage, nflexvert);
       }
 
       // difference states

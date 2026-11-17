@@ -462,6 +462,7 @@ float mjv_rbound(const mjvGeom* geom) {
   const float* s = geom->size;
   switch ((mjtGeom) geom->type) {
   case mjGEOM_SPHERE:
+  case mjGEOM_DISC:
     return s[0];
 
   case mjGEOM_CAPSULE:

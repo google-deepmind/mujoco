@@ -18,12 +18,10 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjtype.h>
 
 #ifdef __cplusplus
-#include <cstddef>
 extern "C" {
-#else
-#include <stddef.h>
 #endif
 
 // internal hash map size factor (2 corresponds to a load factor of 0.5)
@@ -46,26 +44,9 @@ void mj_defaultStatistic(mjStatistic* stat);
 
 //------------------------------- mjModel ----------------------------------------------------------
 
-// allocate mjModel
-void mj_makeModel(mjModel** dest,
-    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize nactuator, mjtSize nout, mjtSize na,
-    mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
-    mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
-    mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
-    mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
-    mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
-    mjtSize nefm0dof, mjtSize nefm0L, mjtSize nefmCvert, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe,
-    mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
-    mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
-    mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
-    mjtSize nskinbonevert, mjtSize nhfield, mjtSize nhfielddata, mjtSize ntex, mjtSize ntexdata,
-    mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nJten,
-    mjtSize nwrap, mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext,
-    mjtSize ntextdata, mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap,
-    mjtSize nplugin, mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
-    mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
-    mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths, mjtSize nplastic);
+// allocate mjModel with the sizes in MJMODEL_SIZES_LAYOUT of the given model,
+// the other fields of sizes are not used
+void mj_makeModel(mjModel** dest, const mjModel* sizes);
 
 // set pointers in mjModel buffer from its sizes
 void mj_setPtrModel(mjModel* m);

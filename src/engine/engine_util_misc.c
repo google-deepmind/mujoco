@@ -701,6 +701,44 @@ int mju_cellLookup(const mjtNum coord[3], const int cellnum[3], int order, int c
 }
 
 
+// active cell of a point at [0,1]^3 parametric coordinates coord: its (clamped) natural cell if
+// that cell is not empty, otherwise the nearest non-empty cell (distance to the cell box in cell
+// units, first minimum in cell order); cellempty can be NULL (no empty cells)
+int mju_flexActiveCell(const mjtNum coord[3], const int cellnum[3], const mjtBool* cellempty) {
+  int cx = cellnum[0], cy = cellnum[1], cz = cellnum[2];
+  int ci = mjMAX(0, mjMIN(cx - 1, (int)mju_floor(coord[0] * cx)));
+  int cj = mjMAX(0, mjMIN(cy - 1, (int)mju_floor(coord[1] * cy)));
+  int ck = mjMAX(0, mjMIN(cz - 1, (int)mju_floor(coord[2] * cz)));
+  int cell = ci*cy*cz + cj*cz + ck;
+  if (!cellempty || !cellempty[cell]) {
+    return cell;
+  }
+
+  // nearest non-empty cell
+  mjtNum u[3] = {coord[0] * cx, coord[1] * cy, coord[2] * cz};
+  mjtNum best = mjMAXVAL;
+  for (int i=0; i < cx; i++) {
+    mjtNum dx = u[0] - mju_clip(u[0], i, i + 1);
+    for (int j=0; j < cy; j++) {
+      mjtNum dy = u[1] - mju_clip(u[1], j, j + 1);
+      for (int k=0; k < cz; k++) {
+        int c = i*cy*cz + j*cz + k;
+        if (cellempty[c]) {
+          continue;
+        }
+        mjtNum dz = u[2] - mju_clip(u[2], k, k + 1);
+        mjtNum dist2 = dx*dx + dy*dy + dz*dz;
+        if (dist2 < best) {
+          best = dist2;
+          cell = c;
+        }
+      }
+    }
+  }
+  return cell;
+}
+
+
 static void flexInterpRotation(int order, const mjtNum* xpos_c,
                                const mjtNum dref[3], const mjtNum local[3],
                                mjtNum* quat) {

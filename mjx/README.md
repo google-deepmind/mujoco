@@ -32,9 +32,12 @@ Once installed, the package can be imported via `from mujoco import mjx`. Please
 consult our [documentation](https://mujoco.readthedocs.io/en/stable/mjx.html)
 for further detail on the package's API.
 
-We recommend going through the tutorial notebook which introduces the MJX API
-and trains a reinforcement learning policy in a few minutes: [![Open In
-Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb)
+For JAX reinforcement learning environments built on MJX, see the
+[`rss2025`](https://github.com/google-deepmind/mujoco_playground/tree/main/rss2025)
+directory in [MuJoCo Playground](https://playground.mujoco.org) (and see
+[MuJoCo Playground](https://playground.mujoco.org) and
+[reaf-sim](https://reaf-sim.readthedocs.io) for PyTorch RL and sim-to-real
+workflows).
 
 ## Versioning
 

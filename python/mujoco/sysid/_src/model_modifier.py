@@ -85,6 +85,8 @@ def _infer_inertial(spec: mujoco.MjSpec, body_name: str) -> mujoco.MjsBody:
   body.inertia = model.body(body_name).inertia
   body.ipos = model.body(body_name).ipos
   body.iquat = model.body(body_name).iquat
+  # The compiled iquat replaces any euler/axisangle/... orientation.
+  body.ialt.type = mujoco.mjtOrientation.mjORIENTATION_QUAT
   return body
 
 
@@ -419,10 +421,10 @@ def apply_body_theta_inertia(
   body.mass = pi[0]
   body.ipos = pi[1:4] / pi[0]
 
-  # This tells the compiler to ignore the diagonal inertia and instead
-  # calculate it from the full inertia.
+  # fullinertia (below) is in body-frame axes, so the inertial frame is the
+  # identity; diagonal inertia must be zero when fullinertia is set.
   body.inertia[:] = 0.0
-  body.iquat[:] = np.nan
+  body.iquat[:] = [1.0, 0.0, 0.0, 0.0]
 
   I_bar = pi[4:].reshape((3, 3))
   skew_ipos = skew(body.ipos)

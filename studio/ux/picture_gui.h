@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::studio {
@@ -33,10 +34,9 @@ struct PipSource {
 
 // Manages the state of a single picture-in-picture widget.
 struct PipState {
-  enum Mode { Color, Depth, Segmentation };
   int camera = 0;
   ImTextureID texture = ImTextureID_Invalid;
-  Mode mode = Color;
+  mjrDrawMode draw_mode = mjDRAW_MODE_DEFAULT;
 };
 
 using PipRenderCallback = std::function<ImTextureID(const PipState&, int, int)>;

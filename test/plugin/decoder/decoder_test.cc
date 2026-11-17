@@ -16,11 +16,13 @@
 
 #include <string.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -707,6 +709,159 @@ TEST_F(DecoderPluginTest, GmshFlexcompInModel) {
                   "flexcomp dim does not match GMSH mesh dimensionality"));
 
   mj_deleteVFS(&vfs);
+}
+
+template <typename T>
+void AppendBytes(std::string& dst, T value) {
+  dst.append(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+// Builds a binary GMSH 2.2 buffer from raw $Nodes and $Elements bodies.
+std::string MakeBinaryGmsh22(std::string_view nodes_body,
+                             std::string_view elems_body) {
+  std::string msh = "$MeshFormat\n2.2 1 8\n";
+  AppendBytes(msh, int{1});  // endianness marker
+  msh += "\n$EndMeshFormat\n$Nodes\n";
+  msh.append(nodes_body);
+  msh += "\n$EndNodes\n$Elements\n";
+  msh.append(elems_body);
+  msh += "\n$EndElements\n";
+  return msh;
+}
+
+// Builds a binary GMSH 2.2 buffer with a valid 4-node tetrahedron node section
+// and an element section containing `element_count` followed by `element_ints`.
+std::string MakeBinaryGmsh22WithNodes(std::string_view element_count,
+                                      const std::vector<int>& element_ints) {
+  std::string nodes = "4\n";
+  const double coords[4][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  for (int i = 0; i < 4; ++i) {
+    AppendBytes(nodes, int{i + 1});
+    for (int k = 0; k < 3; ++k) AppendBytes(nodes, coords[i][k]);
+  }
+  std::string elems(element_count);
+  for (int v : element_ints) AppendBytes(elems, v);
+  return MakeBinaryGmsh22(nodes, elems);
+}
+
+// Builds a binary GMSH 4.1 buffer with the given node counts in its $Nodes
+// header and a minimal 1-element $Elements header.
+std::string MakeBinaryGmsh41(uint64_t num_nodes, uint64_t num_nodes_in_block) {
+  std::string msh = "$MeshFormat\n4.1 1 8\n";
+  AppendBytes(msh, int{1});
+  msh += "\n$EndMeshFormat\n$Nodes\n";
+  AppendBytes(msh, uint64_t{1});         // numEntityBlocks
+  AppendBytes(msh, num_nodes);           // numNodes
+  AppendBytes(msh, uint64_t{1});         // minNodeTag
+  AppendBytes(msh, num_nodes);           // maxNodeTag
+  AppendBytes(msh, int{3});              // entityDim
+  AppendBytes(msh, int{1});              // entityTag
+  AppendBytes(msh, int{0});              // parametric
+  AppendBytes(msh, num_nodes_in_block);  // numNodesInBlock
+  msh += "\n$EndNodes\n$Elements\n";
+  AppendBytes(msh, uint64_t{1});
+  AppendBytes(msh, uint64_t{1});
+  AppendBytes(msh, uint64_t{1});
+  AppendBytes(msh, uint64_t{1});
+  AppendBytes(msh, int{3});
+  AppendBytes(msh, int{1});
+  AppendBytes(msh, int{4});
+  AppendBytes(msh, uint64_t{1});
+  msh += "\n$EndElements\n";
+  return msh;
+}
+
+// Decodes `msh` via the GMSH decoder plugin and returns any error string.
+std::string DecodeGmshError(std::string_view msh) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+  mj_addBufferVFS(&vfs, "test.msh", msh.data(), msh.size());
+  mjResource* resource = mju_openResource("", "test.msh", &vfs, nullptr, 0);
+  EXPECT_THAT(resource, testing::NotNull());
+  const mjpDecoder* decoder = mjp_findDecoder(resource, "model/vnd.gmsh");
+  EXPECT_THAT(decoder, testing::NotNull());
+  char error[1024] = "";
+  mjSpec* spec = decoder->decode(resource, &vfs, error, sizeof(error));
+  if (spec) mj_deleteSpec(spec);
+  mju_closeResource(resource);
+  mj_deleteVFS(&vfs);
+  return error;
+}
+
+TEST_F(DecoderPluginTest, GmshDecoder22BinaryRejectsOverflowingElementCount) {
+  // Baseline: a valid binary 2.2 tetrahedron decodes cleanly.
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22WithNodes(
+                "1\n", {4, 1, 2, 0, 0, 0, 1, 2, 3, 4})),
+            "");
+  // 214748365 elements: 214748365 * 20 and 214748365 * 40 wrap around in
+  // 32-bit int arithmetic to tiny sizes while holding only one tetrahedron.
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22WithNodes(
+                "214748365", {4, 1, 2, 0, 0, 0, 1, 2, 3, 4})),
+            "GMSH decoder: Insufficient byte size of Elements");
+}
+
+TEST_F(DecoderPluginTest, GmshDecoder22BinaryRejectsZeroElements) {
+  // Element 0 is read before the loop, so count 0 must be rejected upfront.
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22WithNodes("0", {4, 1, 2, 0})),
+            "GMSH decoder: Invalid number of elements");
+}
+
+TEST_F(DecoderPluginTest, GmshDecoder22BinaryChecksBytesAfterCountHeader) {
+  // 9-byte element count header "000000001" followed by 31 available bytes (7
+  // ints + 2 trailing bytes + section newline) passes a check against the
+  // 40-byte section but is 1 byte short of the 32 bytes a tetrahedron needs.
+  std::string one_tet_31b = "000000001";
+  for (int v : {4, 1, 0, 1, 1, 2, 3}) AppendBytes(one_tet_31b, v);
+  one_tet_31b.append(2, '\0');
+  std::string valid_nodes = "4\n";
+  const double coords[4][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  for (int i = 0; i < 4; ++i) {
+    AppendBytes(valid_nodes, int{i + 1});
+    for (int k = 0; k < 3; ++k) AppendBytes(valid_nodes, coords[i][k]);
+  }
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22(valid_nodes, one_tet_31b)),
+            "GMSH decoder: Insufficient byte size of Elements");
+
+  // Two fTetWild tetrahedra require 32 + 20 = 52 bytes; 51 available bytes (12
+  // ints + 2 trailing bytes + section newline) must be rejected, while 13 ints
+  // succeed.
+  std::string two_tets_51b = "2\n";
+  for (int v : {4, 2, 0, 1, 1, 2, 3, 4, 2, 1, 2, 3}) {
+    AppendBytes(two_tets_51b, v);
+  }
+  two_tets_51b.append(2, '\0');
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22(valid_nodes, two_tets_51b)),
+            "GMSH decoder: Insufficient byte size of Elements");
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22WithNodes(
+                "2\n", {4, 2, 0, 1, 1, 2, 3, 4, 2, 1, 2, 3, 4})),
+            "");
+
+  // Fewer than 16 bytes after the count header: cannot even read element 0
+  // type, tag count, and tag.
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22WithNodes("1", {4, 1})),
+            "GMSH decoder: Insufficient byte size of Elements");
+
+  // 9-byte node count header "000000001" followed by 27 available bytes (6 ints
+  // + 2 trailing bytes + section newline) totals 36 bytes (>= 4 + 28) but is 1
+  // byte short of the 28 node bytes required.
+  std::string short_nodes = "000000001";
+  for (int v : {1, 0, 0, 0, 0, 0}) AppendBytes(short_nodes, v);
+  short_nodes.append(2, '\0');
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22(short_nodes, "1\n")),
+            "GMSH decoder: Insufficient byte size of Nodes");
+
+  // Leading NUL byte in $Nodes must be rejected rather than underflowing
+  // strlen(maxNodeTagChar) - 1.
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh22(std::string(4, '\0'), "1\n")),
+            "GMSH decoder: Invalid number of nodes");
+}
+
+TEST_F(DecoderPluginTest, GmshDecoder41BinaryRejectsOverflowingNodeCount) {
+  // (1ULL << 59) * 32 wraps 64-bit size_t to 0, bypassing the node byte-size
+  // check unless numNodes is bounded first.
+  constexpr uint64_t kOverflowNodes = uint64_t{1} << 59;
+  EXPECT_EQ(DecodeGmshError(MakeBinaryGmsh41(kOverflowNodes, kOverflowNodes)),
+            "GMSH decoder: Invalid number of nodes.");
 }
 
 }  // namespace

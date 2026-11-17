@@ -105,6 +105,67 @@ def test_apply_body_mass_implicit(oscillator_spec):
   )
 
 
+def test_apply_body_theta_inertia(arm_spec):
+  """Pseudo-inertia parameters compile to the corresponding full inertia."""
+  body_name = "link2"
+  theta = model_modifier.theta_inertia_from_body(arm_spec, body_name)
+  # Perturb mass, stretch, shear and COM so the inertia is non-diagonal.
+  theta += np.array([0.1, 0.2, -0.1, 0.05, 0.1, -0.2, 0.05, 0.01, -0.02, 0.03])
+  pi = model_modifier.pi_from_theta(theta)
+
+  modified_spec = model_modifier.apply_body_theta_inertia(
+      arm_spec, body_name, theta
+  )
+  model = modified_spec.compile()
+
+  body = model.body(body_name)
+  mass = body.mass[0]
+  ipos = body.ipos
+  np.testing.assert_allclose(mass, pi[0])
+  np.testing.assert_allclose(ipos, pi[1:4] / pi[0])
+  # Rotational inertia about the body origin, in body-frame axes.
+  skew_ipos = model_modifier.skew(ipos)
+  inertia_origin = (
+      model_modifier.inertia_to_fullinertia(body.iquat, body.inertia)
+      - mass * skew_ipos @ skew_ipos
+  )
+  np.testing.assert_allclose(
+      inertia_origin, pi[4:].reshape((3, 3)), rtol=1e-9, atol=1e-12
+  )
+  np.testing.assert_allclose(
+      model_modifier.theta_inertia_from_body(modified_spec, body_name),
+      theta,
+      atol=1e-9,
+  )
+
+
+def test_apply_body_theta_inertia_euler():
+  """Pseudo-inertia parameters apply to an inertial oriented with euler."""
+  spec = mujoco.MjSpec.from_string("""
+    <mujoco>
+      <worldbody>
+        <body name="body">
+          <joint axis="0 1 0"/>
+          <inertial pos="0.1 0 0" mass="1" diaginertia="0.03 0.025 0.015"
+                    euler="30 40 50"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  """)
+  body = spec.compile().body("body")
+  inertia = model_modifier.inertia_to_fullinertia(body.iquat, body.inertia)
+
+  theta = model_modifier.theta_inertia_from_body(spec, "body")
+  model = model_modifier.apply_body_theta_inertia(spec, "body", theta).compile()
+
+  body = model.body("body")
+  np.testing.assert_allclose(
+      model_modifier.inertia_to_fullinertia(body.iquat, body.inertia),
+      inertia,
+      atol=1e-12,
+  )
+
+
 def test_remove_visuals(arm_spec):
   """Stripping visuals removes all textures and materials for faster compilation."""
   cleaned_spec = model_modifier.remove_visuals(arm_spec)

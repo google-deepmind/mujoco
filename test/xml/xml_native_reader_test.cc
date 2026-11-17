@@ -3153,6 +3153,37 @@ TEST_F(HfieldParsingTest, HasData) {
   EXPECT_THAT(model->hfield_data[5], FloatEq((2 - offset) / scale));
 }
 
+TEST_F(HfieldParsingTest, DimensionProductOverflowWithData) {
+  // 1073741825 * 4 = 2^32 + 4, which wraps to 4 in 32-bit signed int.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="1073741825" ncol="4" size="0.5 0.5 1 0.1"
+              elevation="1 2 3 4"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("hfield nrow*ncol overflows int"));
+}
+
+TEST_F(HfieldParsingTest, DimensionProductOverflowNoData) {
+  // 46341 * 46341 = 2147488281 > INT_MAX.
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="hf" nrow="46341" ncol="46341" size="0.5 0.5 1 0.1"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("hfield nrow*ncol overflows int"));
+}
+
 // ------------- test relative frame sensor parsing ----------------------------
 
 using RelativeFrameSensorParsingTest = MujocoTest;

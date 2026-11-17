@@ -12,6 +12,8 @@ description: >-
   DEM granular solvers, or shallow-water PDEs that do not import `mujoco.mjx` or
   `mujoco_warp`), CPU simulation (mujoco-python), cross-engine parity debugging
   (mujoco-parity), rendering (mujoco-rendering), or GUI (mujoco-gui).
+metadata:
+  publisher: google
 ---
 
 # MuJoCo Accelerated: MJX & MJWarp GPU Backends
@@ -277,19 +279,22 @@ tuning throughput:
 
 ### Notebooks, Models & RL Ecosystem
 
--   **Tutorials & tests**: `mjx/tutorial.ipynb` (`.. _MjxNotebook:` in
-    [mjx.rst](../../mjx.rst)),
+-   **Tutorials & tests**: [mjx.rst](../../mjx.rst),
     [MJX Support Tests](../../../mjx/mujoco/mjx/_src/support_test.py),
     [Humanoid Models](../../../model/humanoid/humanoid.xml), and
     [Benchmark Test Models](../../../test/benchmark/testdata/100_humanoids_chol.xml)
 -   **RL & simulation ecosystem** (see
     [mjwarp/index.rst](../../mjwarp/index.rst), `.. _mjwFAQ:`):
-    -   [MuJoCo Playground (`google-deepmind/mujoco_playground`)](https://github.com/google-deepmind/mujoco_playground)
-        — JAX/MJX (`MJX-JAX` & `MJX-Warp`) RL environments for locomotion,
-        manipulation, dexterous hands, and vision.
-    -   [`mjlab` (`mujocolab/mjlab`)](https://github.com/mujocolab/mjlab) —
-        Isaac Lab-style manager API for training policies directly with
-        `mujoco_warp` and PyTorch.
+    -   [MuJoCo Playground](https://playground.mujoco.org)
+        ([`google-deepmind/mujoco_playground`](https://github.com/google-deepmind/mujoco_playground))
+        — PyTorch sim-to-real robot workflows (RL, teleop, sysid, VLM
+        manipulation) on MuJoCo, `mujoco_warp`, and
+        [`reaf-sim`](https://reaf-sim.readthedocs.io) (with JAX/MJX RL
+        environments in `rss2025/`).
+    -   [`reaf-sim`](https://reaf-sim.readthedocs.io)
+        ([`google-deepmind/reaf-sim`](https://github.com/google-deepmind/reaf-sim))
+        — PyTorch environment authoring library decoupling `DeviceLayer` from
+        `TaskLayer`.
     -   [MuJoCo Warp (`google-deepmind/mujoco_warp`)](https://github.com/google-deepmind/mujoco_warp)
         — Standalone `mujoco_warp` repository (`notebooks/tutorial.ipynb`,
         benchmarks, and Warp kernels).

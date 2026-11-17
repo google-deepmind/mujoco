@@ -25,6 +25,7 @@
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
+#include "render/filament/support/mesh_util.h"
 #include "render/filament/support/mjrf_ptr.h"
 
 namespace mujoco {
@@ -290,16 +291,25 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
     mjrf_defaultRenderableParams(&params);
     auto renderable = CreateRenderable(ctx_, params);
 
-    mjrf_setRenderableGeomMesh(renderable.get(), geom_type, nstack, nslice,
-                               nquad);
+    float size[3] = {geom.size[0], geom.size[1], geom.size[2]};
+    if (geom_type == mjGEOM_DISC) {
+      // Discs are unit annuli with the inner radius baked into the mesh, so
+      // only scale the xy-plane by the outer radius.
+      const float inner = size[0] > 0 ? size[1] / size[0] : 0.0f;
+      meshes_.push_back(CreateDiscMesh(ctx_, inner, nslice, nquad));
+      mjrf_setRenderableMesh(renderable.get(), meshes_.back().get(), 0, 0);
+      size[1] = size[0];
+      size[2] = 1.0f;
+    } else {
+      mjrf_setRenderableGeomMesh(renderable.get(), geom_type, nstack, nslice,
+                                 nquad);
+    }
     mjrf_setRenderablePose(renderable.get(), geom.pos, geom.mat);
     if (geom_type == mjGEOM_PLANE) {
       // Planes only define an xy size, so set the z-dimension to 1.0f.
-      const float size[3] = {geom.size[0], geom.size[1], 1.0f};
-      mjrf_setRenderableSize(renderable.get(), size);
-    } else {
-      mjrf_setRenderableSize(renderable.get(), geom.size);
+      size[2] = 1.0f;
     }
+    mjrf_setRenderableSize(renderable.get(), size);
 
     mjrfMaterial material;
     mjrf_defaultMaterial(&material);

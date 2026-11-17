@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <random>
 #include <string>
 #include <vector>
@@ -6023,6 +6024,122 @@ TEST_F(DerivativeTest, EffUseQHDiagExactAndGeneralKDiag) {
   int tri_dof = m_gen->nv - 3;
   int tri_diag = m_gen->M_rowadr[tri_dof] + m_gen->M_rownnz[tri_dof] - 1;
   EXPECT_GT(d_gen->qH[tri_diag], d_gen->qLD[tri_diag]);
+}
+
+TEST_F(DerivativeTest, StepFDPlasticityNoOverflow) {
+  static const char* const kPlasticModel = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="Euler"/>
+    <worldbody>
+      <body name="b1" pos="0 0 0">
+        <joint name="j1" type="slide" axis="1 0 0" stiffness="50" springyield="0.05"/>
+        <geom type="sphere" size="0.05" mass="0.5"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="j1" gainprm="10"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kPlasticModel, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_GT(m->nplastic, 0);
+  MjDataPtr d = MakeData(m);
+
+  // Displace past yield and step so d->plastic is populated.
+  d->qpos[0] = 0.2;
+  d->ctrl[0] = 0.5;
+  for (int i = 0; i < 5; i++) {
+    mj_step(m.get(), d.get());
+  }
+  EXPECT_GT(mju_norm(d->plastic, m->nplastic), 0);
+
+  int nv = m->nv, na = m->na, nu = m->nu;
+  int ny = 2 * nv + na;
+  std::vector<mjtNum> saved_plastic(d->plastic, d->plastic + m->nplastic);
+  std::vector<mjtNum> saved_qpos(d->qpos, d->qpos + m->nq);
+  std::vector<mjtNum> A(ny * ny), B(ny * nu);
+
+  // This will ASAN stack-buffer-overflow if state buffers are sized nv+nq+na
+  // but mj_getState copies mjSTATE_PHYSICS (which includes plastic state).
+  mjd_transitionFD(m.get(), d.get(), MjTol(1e-6, 1e-4), 1, A.data(), B.data(),
+                   nullptr, nullptr);
+
+  // mjd_stepFD should cleanly restore state.
+  EXPECT_EQ(std::memcmp(d->plastic, saved_plastic.data(),
+                        sizeof(mjtNum) * m->nplastic),
+            0);
+  EXPECT_EQ(std::memcmp(d->qpos, saved_qpos.data(), sizeof(mjtNum) * m->nq), 0);
+
+  // Compare Jacobian against a second call to catch non-ASAN overflow leaks.
+  std::vector<mjtNum> A2(ny * ny), B2(ny * nu);
+  mjd_transitionFD(m.get(), d.get(), MjTol(1e-6, 1e-4), 1, A2.data(), B2.data(),
+                   nullptr, nullptr);
+
+  EXPECT_EQ(std::memcmp(A.data(), A2.data(), sizeof(mjtNum) * ny * ny), 0);
+  EXPECT_EQ(std::memcmp(B.data(), B2.data(), sizeof(mjtNum) * ny * nu), 0);
+}
+
+TEST_F(DerivativeTest, StepFDIPCRestoresContinuationState) {
+  static const char* const kIpcCloth = R"(
+  <mujoco>
+    <option timestep="0.002" integrator="discrete" solver="CG"
+            iterations="30" tolerance="1e-10">
+      <flag ipc="enable"/>
+    </option>
+    <size memory="8M"/>
+    <worldbody>
+      <geom type="plane" size="2 2 0.05"/>
+      <geom type="box" pos="0 0 0.04" size="0.12 0.12 0.04"/>
+      <flexcomp name="s1" type="grid" dim="2" count="3 3 1"
+                spacing="0.03 0.03 0.03" pos="0 0 0.081"
+                radius="0.004" mass="0.1">
+        <contact selfcollide="auto"/>
+        <elasticity young="5e3" poisson="0.3" thickness="0.002"/>
+      </flexcomp>
+    </worldbody>
+    <actuator>
+      <general body="s1_0" gear="0 0 1 0 0 0"/>
+    </actuator>
+  </mujoco>
+  )";
+  char error[1024];
+  MjModelPtr m = LoadModelFromString(kIpcCloth, error, sizeof(error));
+  ASSERT_THAT(m.get(), NotNull()) << error;
+  ASSERT_GT(m->nflexvert, 0);
+  MjDataPtr d = MakeData(m);
+  MjDataPtr d_ref = MakeData(m);
+
+  for (int s = 0; s < 15; s++) {
+    mj_step(m.get(), d.get());
+    mj_step(m.get(), d_ref.get());
+  }
+  ASSERT_GT(mju_norm(d->flexvert_lambda, m->nflexvert), 0);
+
+  std::vector<mjtNum> saved_lambda(d->flexvert_lambda,
+                                   d->flexvert_lambda + m->nflexvert);
+  std::vector<int> saved_conage(d->flexvert_conage,
+                                d->flexvert_conage + m->nflexvert);
+
+  int nv = m->nv, na = m->na, nu = m->nu;
+  int ny = 2 * nv + na;
+  std::vector<mjtNum> A(ny * ny), B(ny * nu);
+  mjd_transitionFD(m.get(), d.get(), MjTol(1e-6, 1e-4), 1, A.data(), B.data(),
+                   nullptr, nullptr);
+
+  EXPECT_EQ(std::memcmp(d->flexvert_lambda, saved_lambda.data(),
+                        sizeof(mjtNum) * m->nflexvert),
+            0);
+  EXPECT_EQ(std::memcmp(d->flexvert_conage, saved_conage.data(),
+                        sizeof(int) * m->nflexvert),
+            0);
+
+  // Subsequent step after mjd_stepFD must match an unperturbed twin trajectory.
+  mj_step(m.get(), d.get());
+  mj_step(m.get(), d_ref.get());
+  EXPECT_EQ(std::memcmp(d->qpos, d_ref->qpos, sizeof(mjtNum) * m->nq), 0);
+  EXPECT_EQ(std::memcmp(d->qvel, d_ref->qvel, sizeof(mjtNum) * m->nv), 0);
 }
 
 }  // namespace

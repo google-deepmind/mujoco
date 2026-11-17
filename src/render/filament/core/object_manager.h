@@ -16,11 +16,7 @@
 #define MUJOCO_SRC_RENDER_FILAMENT_CORE_OBJECT_MANAGER_H_
 
 #include <array>
-#include <cstddef>
-#include <cstdint>
 #include <memory>
-#include <string_view>
-#include <unordered_map>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
@@ -79,10 +75,8 @@ class ObjectManager {
   filament::VertexBuffer* GetQuadVertexBuffer() const { return quad_vb_; }
   filament::IndexBuffer* GetQuadIndexBuffer() const { return quad_ib_; }
 
-  // Returns the built-in mesh collection with the given dimensions. For
-  // performance reasons, you should consider always using the same dimensions
-  // in order to reuse the same meshes.
-  Builtins* GetBuiltins(int nstack, int nslice, int nquad);
+  // Returns the built-in mesh collection.
+  Builtins* GetBuiltins();
 
   // Returns the filament Engine that owns the assets.
   filament::Engine* GetEngine() const { return engine_; }
@@ -94,9 +88,9 @@ class ObjectManager {
   void CreateQuadBuffers();
 
   filament::Engine* engine_ = nullptr;
+  std::unique_ptr<Builtins> builtins_;
   std::array<filament::Material*, kNumMaterials> materials_;
   std::array<filament::Texture*, mjNTEXROLE> fallback_textures_;
-  std::unordered_map<std::uint64_t, std::unique_ptr<Builtins>> builtins_;
   filament::Texture* fallback_white_ = nullptr;
   filament::Texture* fallback_black_ = nullptr;
   filament::Texture* fallback_normal_ = nullptr;

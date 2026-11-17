@@ -62,17 +62,17 @@ check the canonical models and samples shipped with MuJoCo:
   (`` `.. _PyNotebook:` ``), `python/mjspec.ipynb` (`MjSpec` & `PyMJCF`
   comparison), `python/rollout.ipynb` (`mujoco.rollout`), `python/LQR.ipynb`
   (`mjd_transitionFD` & LQR), `python/least_squares.ipynb`
-  (`mujoco.minimize.least_squares`), `python/mujoco/sysid/sysid.ipynb`
-  (`mujoco.sysid`, `` `.. _PySysid:` ``), and `mjx/tutorial.ipynb`
-  (`` `.. _MjxNotebook:` ``).
+  (`mujoco.minimize.least_squares`), and `python/mujoco/sysid/sysid.ipynb`
+  (`mujoco.sysid`, `` `.. _PySysid:` ``).
 - **RL, Control & Simulation Ecosystem**:
-  - **MuJoCo Playground**
-    (https://github.com/google-deepmind/mujoco_playground) — JAX/MJX
-    (`MJX-JAX` & `MJX-Warp`) RL environments for locomotion, manipulation,
-    dexterous hands, and vision.
-  - **mjlab** (https://github.com/mujocolab/mjlab) — Isaac Lab-style modular
-    manager API for training policies directly with `mujoco_warp` and PyTorch
-    (see `../mjwarp/index.rst`, `` `.. _mjwFAQ:` ``).
+  - **MuJoCo Playground** (https://playground.mujoco.org,
+    https://github.com/google-deepmind/mujoco_playground) — PyTorch sim-to-real
+    robot workflows (RL, teleop, sysid, VLM manipulation) on MuJoCo,
+    `mujoco_warp`, and `reaf-sim` (with JAX/MJX envs in `rss2025/`).
+  - **reaf-sim** (https://reaf-sim.readthedocs.io,
+    https://github.com/google-deepmind/reaf-sim) — PyTorch environment authoring
+    library decoupling hardware/sensor I/O (`DeviceLayer`) from task logic
+    (`TaskLayer`).
   - **MuJoCo Warp** (https://github.com/google-deepmind/mujoco_warp, mirrored in
     `../mjwarp/index.rst`) — Standalone NVIDIA Warp GPU physics repository
     (`notebooks/tutorial.ipynb`, benchmarks, and kernel sources).
@@ -87,6 +87,7 @@ check the canonical models and samples shipped with MuJoCo:
 | :--- | :--- | :--- | :--- |
 | **`mujoco-python`** | [`python/`](python/SKILL.md) | Python simulation lifecycle & physics | `MjSpec` → `MjModel` → `MjData`, `mj_step`, `mj_forward`, named access, `bind()`, `mujoco.batch` (`Batch`), `mujoco.rollout`, `mujoco.minimize`, `mujoco.sysid`, sensors, `mju_*` math. |
 | **`mujoco-spec-editing`** | [`spec_editing/`](spec_editing/SKILL.md) | Procedural model authoring & tuning | Building bodies, geoms, joints, sub-spec attachments with prefixes, actuators (servos, motors), collision bitmasks (`contype`/`conaffinity`), default classes, baseline `<option>`/solver/contact tuning (`.. _CTuning:`). |
+| **`mujoco-deformables`** | [`deformables/`](deformables/SKILL.md) | Deformable objects (`flexcomp`, `flex`, `skin`) | 1D elastic rods (cables, ropes, coils), 2D cloth draping & thin shells, 3D FEM/tetrahedral soft bodies, elasto-plasticity, reduced-DOF interpolation, rigid-body attachments, `make_flex` / `add_flex`. |
 | **`mujoco-rendering`** | [`rendering/`](rendering/SKILL.md) | Offscreen & PBR rendering | Headless RGB, metric depth maps, segmentation masks (`mujoco.Renderer`), Filament PBR (`mujoco.mjrf`, `mujoco.rendering.filament`), C++ `mjr`/`mjrf` pipelines. |
 | **`mujoco-accelerated`** | [`accelerated/`](accelerated/SKILL.md) | GPU & TPU batch simulation | High-throughput batch rollouts with MJX (`MJX-JAX`, `MJX-Warp`, `jax.vmap`, `jax.lax.scan`), differentiability, CUDA batching with MJWarp (`mujoco_warp`), contact/constraint sizing. |
 | **`mujoco-parity`** | [`parity/`](parity/SKILL.md) | Cross-engine physics parity | Comparing CPU (`float64`) vs MJWarp/MJX (`float32`): stage-by-stage `forward` isolation, stiff actuator & `qM` rounding bounds, contact matching, batched 1-step & `float32` baseline rollouts. |
@@ -96,7 +97,8 @@ check the canonical models and samples shipped with MuJoCo:
 ## How to Use These Skills
 
 - **For AI Coding Agents**: Each skill contains standardized YAML frontmatter
-  with `Use when:` triggers and `Don't use for:` exclusions to assist automated
-  orchestrators in choosing the relevant guide.
+  with `Use when:` / `Use for:` triggers and `Don't use for:` /
+  `Do NOT use for:` exclusions to assist automated orchestrators in choosing
+  the relevant guide.
 - **For Developers**: Skills pair quick-start recipes and common pitfalls with
   targeted pointers into the `doc/*.rst` reference manual.

@@ -381,6 +381,80 @@ class MuJoCoRenderTest(absltest.TestCase):
     finally:
       context.free()
 
+  def test_disc_and_annulus_double_sided(self):
+    xml = """
+    <mujoco>
+      <visual>
+        <headlight active="0"/>
+      </visual>
+      <worldbody>
+        <light name="l" directional="true" pos="0 0 2" dir="0 0 -1"
+               diffuse="1 1 1" ambient="0 0 0" specular="0 0 0"
+               castshadow="false"/>
+        <camera name="top" mode="fixed" projection="orthographic"
+                pos="0 0 1" xyaxes="1 0 0 0 1 0" fovy="0.6"/>
+        <camera name="bottom" mode="fixed" projection="orthographic"
+                pos="0 0 -1" xyaxes="-1 0 0 0 1 0" fovy="0.6"/>
+      </worldbody>
+    </mujoco>
+    """
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+    rect = mujoco.MjrRect(0, 0, 128, 128)
+    scene = mujoco.MjvScene(model, maxgeom=10)
+    cam = mujoco.MjvCamera()
+    cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+
+    def render_disc(size, cam_name, light_dir_z):
+      model.light_dir[0] = (0.0, 0.0, light_dir_z)
+      mujoco.mj_forward(model, data)
+      cam.fixedcamid = mujoco.mj_name2id(
+          model, mujoco.mjtObj.mjOBJ_CAMERA, cam_name
+      )
+      mujoco.mjv_updateScene(
+          model, data, mujoco.MjvOption(), None, cam,
+          mujoco.mjtCatBit.mjCAT_ALL, scene,
+      )
+      geom = scene.geoms[scene.ngeom]
+      mujoco.mjv_initGeom(
+          geom,
+          mujoco.mjtGeom.mjGEOM_DISC,
+          np.array(size, dtype=np.float64),
+          np.zeros(3, dtype=np.float64),
+          np.eye(3, dtype=np.float64).ravel(),
+          np.array([1.0, 0.0, 0.0, 1.0], dtype=np.float32),
+      )
+      scene.ngeom += 1
+      mujoco.mjr_render(rect, scene, context)
+      img = np.empty((128, 128, 3), dtype=np.uint8)
+      mujoco.mjr_readPixels(img, None, rect, context)
+      return img
+
+    # Solid disc (r_out = 0.2, r_in = 0) lit from +z and -z.
+    for cam_name, ldir in (('top', -1.0), ('bottom', 1.0)):
+      img = render_disc([0.2, 0.0, 0.0], cam_name, ldir)
+      # Center (64, 64) and ring x-offset +34 (~0.159m) are lit red.
+      self.assertGreater(img[64, 64, 0], 150)
+      self.assertEqual(img[64, 64, 1], 0)
+      self.assertGreater(img[64, 64 + 34, 0], 150)
+      # Outside outer radius (+56 px ~ 0.262m > 0.2m) is empty.
+      np.testing.assert_array_equal(img[64, 64 + 56], [0, 0, 0])
+
+    # Annulus (r_out = 0.2, r_in = 0.12) lit from +z and -z.
+    for cam_name, ldir in (('top', -1.0), ('bottom', 1.0)):
+      img = render_disc([0.2, 0.12, 0.0], cam_name, ldir)
+      # Center hole (64, 64) and inner point (+12 px ~ 0.056m < 0.12m) are empty.
+      np.testing.assert_array_equal(img[64, 64], [0, 0, 0])
+      np.testing.assert_array_equal(img[64, 64 + 12], [0, 0, 0])
+      # Ring band (+34 px ~ 0.159m in [0.12, 0.20]) is lit red.
+      self.assertGreater(img[64, 64 + 34, 0], 150)
+      # Outside outer radius (+56 px ~ 0.262m > 0.2m) is empty.
+      np.testing.assert_array_equal(img[64, 64 + 56], [0, 0, 0])
+
+    context.free()
+
 
 @absltest.skipUnless(_EGL_ENABLED, 'MuJoCo is not using the EGL backend')
 class EglDisplayTest(absltest.TestCase):

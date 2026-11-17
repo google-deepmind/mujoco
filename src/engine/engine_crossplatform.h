@@ -64,13 +64,16 @@
   #define mjUNLIKELY(x) (x)
 #endif
 
-// Force-inline function specifier.
+// Force-inline and no-inline function specifiers.
 #if defined(_MSC_VER) && !defined(__clang__)
   #define mjALWAYS_INLINE __forceinline
+  #define mjNOINLINE __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
   #define mjALWAYS_INLINE inline __attribute__((always_inline))
+  #define mjNOINLINE __attribute__((noinline))
 #else
   #define mjALWAYS_INLINE inline
+  #define mjNOINLINE
 #endif
 
 // Thread-local storage.
@@ -95,6 +98,21 @@
 
 #if defined(ADDRESS_SANITIZER) && !defined(_MSC_VER)
   #define mjUSEASAN
+#endif
+
+// Function attribute to disable CFI and KCFI checks.
+#if defined(__clang__) && defined(__has_attribute)
+  #if __has_attribute(no_sanitize)
+    #if !defined(__apple_build_version__) && __clang_major__ >= 16
+      #define mjNO_SANITIZE_CFI __attribute__((no_sanitize("cfi", "kcfi")))
+    #else
+      #define mjNO_SANITIZE_CFI __attribute__((no_sanitize("cfi")))
+    #endif
+  #else
+    #define mjNO_SANITIZE_CFI
+  #endif
+#else
+  #define mjNO_SANITIZE_CFI
 #endif
 
 // Atomics helper for size_t.

@@ -488,21 +488,199 @@ void cholSuffixUpdate(int ns, int batch, int nlead,
 }
 
 
-// non-suffix scatter of batch descendant rows into dense (batch is a compile-time constant)
+// non-suffix mapped scatter of batch descendant rows directly into supernode L rows
+//  (ns, batch are compile-time constants)
 static mjALWAYS_INLINE
-void cholScatterUpdate(int batch, int num_cols, mjtNum* restrict dense,
-                       const int* restrict colptr,
-                       const mjtNum* restrict p0, const mjtNum* restrict p1,
-                       const mjtNum* restrict p2, const mjtNum* restrict p3,
-                       const mjtNum s[4]) {
-  for (int i=0; i < num_cols; i++) {
-    int col = colptr[i];
-    mjtNum acc = dense[col] - s[0] * p0[i];
-    if (batch >= 2) acc -= s[1] * p1[i];
-    if (batch >= 3) acc -= s[2] * p2[i];
-    if (batch >= 4) acc -= s[3] * p3[i];
-    dense[col] = acc;
+void cholMappedUpdate(int ns, int batch, int nlead, int L_nnz,
+                      const int* restrict pos_map, const int* restrict colptr,
+                      mjtNum* restrict dptr0, mjtNum* restrict dptr1, mjtNum* restrict dptr2,
+                      const mjtNum* restrict p0, const mjtNum* restrict p1,
+                      const mjtNum* restrict p2, const mjtNum* restrict p3,
+                      mjtNum s[3][4]) {
+  // leading columns shared by all ns rows at identical pos_map[colptr[i]]
+  for (int i=0; i < nlead; i++) {
+    int pos = pos_map[colptr[i]];
+    mjtNum v[4] = {p0[i], (batch >= 2) ? p1[i] : 0,
+                   (batch >= 3) ? p2[i] : 0, (batch >= 4) ? p3[i] : 0};
+    mjtNum a0 = dptr0[pos];
+    for (int b=0; b < batch; b++) a0 -= s[0][b] * v[b];
+    dptr0[pos] = a0;
+    if (ns >= 2) {
+      mjtNum a1 = dptr1[pos];
+      for (int b=0; b < batch; b++) a1 -= s[1][b] * v[b];
+      dptr1[pos] = a1;
+    }
+    if (ns >= 3) {
+      mjtNum a2 = dptr2[pos];
+      for (int b=0; b < batch; b++) a2 -= s[2][b] * v[b];
+      dptr2[pos] = a2;
+    }
   }
+
+  // triangular tail: column r - (ns - 2 - u) sits at offset L_nnz - ns + 1 + u
+  for (int u=0; u < ns-1; u++) {
+    int idx = nlead + u;
+    int pos = L_nnz - ns + 1 + u;
+    mjtNum v[4] = {p0[idx], (batch >= 2) ? p1[idx] : 0,
+                   (batch >= 3) ? p2[idx] : 0, (batch >= 4) ? p3[idx] : 0};
+    mjtNum a0 = dptr0[pos];
+    for (int b=0; b < batch; b++) a0 -= s[0][b] * v[b];
+    dptr0[pos] = a0;
+    if (u == 0 && ns >= 3) {
+      mjtNum a1 = dptr1[pos];
+      for (int b=0; b < batch; b++) a1 -= s[1][b] * v[b];
+      dptr1[pos] = a1;
+    }
+  }
+}
+
+
+// initialize supernode L rows from H when fill-in is present (outlined from hot no-fill path)
+static mjNOINLINE
+void cholInitMappedH(int ns, int r, int s_start, int L_nnz, const int* restrict L_colptr,
+                     mjtNum* restrict Lptr0, mjtNum* restrict Lptr1, mjtNum* restrict Lptr2,
+                     const mjtNum* restrict H, const int* restrict H_rownnz,
+                     const int* restrict H_rowadr, const int* restrict H_colind,
+                     int* restrict mapped, int* restrict pos_map) {
+  mjtNum* restrict Lptr_s[3] = {Lptr0, Lptr1, Lptr2};
+  if (!*mapped) {
+    for (int i=0; i < L_nnz; i++) {
+      pos_map[L_colptr[i]] = i;
+    }
+    *mapped = 1;
+  }
+  for (int s=s_start; s < ns; s++) {
+    int row = r - s;
+    int nnz_s = L_nnz - s;
+    int h_adr = H_rowadr[row];
+    int h_nnz = H_rownnz[row];
+    mjtNum* restrict row_s = Lptr_s[s];
+    if (h_nnz >= nnz_s && H_colind[h_adr+nnz_s-1] == row) {
+      mju_copy(row_s, H+h_adr, nnz_s);
+    } else {
+      mju_zero(row_s, nnz_s);
+      for (int i=0; i < h_nnz; i++) {
+        int c = H_colind[h_adr+i];
+        if (c > row) break;
+        row_s[pos_map[c]] = H[h_adr+i];
+      }
+    }
+  }
+}
+
+
+// process consecutive non-suffix descendant rows in LT[r] (ns is a compile-time constant)
+static mjALWAYS_INLINE
+int cholMappedRunImpl(int ns, int k, int LT_nnz, int LT_adr, int L_nnz,
+                      const int* restrict L_colptr,
+                      const mjtNum* restrict L, const int* restrict L_rownnz,
+                      const int* restrict L_rowadr, const int* restrict L_colind,
+                      const int* restrict LT_colind, const int* restrict LT_map,
+                      mjtNum* restrict Lptr0, mjtNum* restrict Lptr1, mjtNum* restrict Lptr2,
+                      int* restrict mapped, int* restrict pos_map) {
+  if (!*mapped) {
+    for (int i=0; i < L_nnz; i++) {
+      pos_map[L_colptr[i]] = i;
+    }
+    *mapped = 1;
+  }
+
+  const int max_batch = (ns == 3) ? 3 : 4;
+  do {
+    int c0 = LT_colind[LT_adr+k];
+    int idx0 = LT_map[LT_adr+k];
+    int c0_adr = L_rowadr[c0];
+    int num_cols = idx0 - c0_adr + 1;
+    const int* restrict colptr = L_colind + c0_adr;
+    if (L_colptr[L_nnz-num_cols] == colptr[0]) {
+      break;
+    }
+
+    const mjtNum* p[4] = {L + c0_adr, NULL, NULL, NULL};
+    int idx[4] = {idx0, 0, 0, 0};
+    int batch = 1;
+    int prev_c = c0, prev_adr = c0_adr;
+
+    while (k + batch < LT_nnz && batch < max_batch) {
+      int next_c = LT_colind[LT_adr+k+batch];
+      int next_idx = LT_map[LT_adr+k+batch];
+      int next_adr = L_rowadr[next_c];
+      if (next_idx - next_adr + 1 != num_cols) break;
+      int hi = next_c > prev_c ? next_c : prev_c;
+      int lo = next_c > prev_c ? prev_c : next_c;
+      int hi_adr = next_c > prev_c ? next_adr : prev_adr;
+      int lo_nnz = L_rownnz[lo];
+      if (lo_nnz >= L_rownnz[hi] || L_colind[hi_adr+lo_nnz-1] != lo) break;
+      prev_c = next_c;
+      prev_adr = next_adr;
+      p[batch] = L + next_adr;
+      idx[batch] = next_idx;
+      batch++;
+    }
+
+    int nlead = num_cols - (ns - 1);
+    mjtNum s[3][4];
+    for (int t=0; t < ns; t++) {
+      for (int b=0; b < batch; b++) {
+        s[t][b] = L[idx[b] - t];
+      }
+    }
+    switch (batch) {
+      case 1:
+        cholMappedUpdate(ns, 1, nlead, L_nnz, pos_map, colptr, Lptr0, Lptr1, Lptr2,
+                         p[0], p[1], p[2], p[3], s);
+        break;
+      case 2:
+        cholMappedUpdate(ns, 2, nlead, L_nnz, pos_map, colptr, Lptr0, Lptr1, Lptr2,
+                         p[0], p[1], p[2], p[3], s);
+        break;
+      case 3:
+        cholMappedUpdate(ns, 3, nlead, L_nnz, pos_map, colptr, Lptr0, Lptr1, Lptr2,
+                         p[0], p[1], p[2], p[3], s);
+        break;
+      case 4:
+        cholMappedUpdate(ns, 4, nlead, L_nnz, pos_map, colptr, Lptr0, Lptr1, Lptr2,
+                         p[0], p[1], p[2], p[3], s);
+        break;
+    }
+    k += batch;
+  } while (k < LT_nnz);
+
+  return k;
+}
+
+
+// outlined ns=1 wrapper for cholMappedRunImpl; returns next index in LT[r]
+static mjNOINLINE int cholMappedRun1(
+    int k, int LT_nnz, int LT_adr, int L_nnz, const int* restrict L_colptr,
+    const mjtNum* restrict L, const int* restrict L_rownnz, const int* restrict L_rowadr,
+    const int* restrict L_colind, const int* restrict LT_colind, const int* restrict LT_map,
+    mjtNum* restrict Lptr0, int* restrict mapped, int* restrict pos_map) {
+  return cholMappedRunImpl(1, k, LT_nnz, LT_adr, L_nnz, L_colptr, L, L_rownnz, L_rowadr,
+                           L_colind, LT_colind, LT_map, Lptr0, NULL, NULL, mapped, pos_map);
+}
+
+
+// outlined ns=2 wrapper for cholMappedRunImpl; returns next index in LT[r]
+static mjNOINLINE int cholMappedRun2(
+    int k, int LT_nnz, int LT_adr, int L_nnz, const int* restrict L_colptr,
+    const mjtNum* restrict L, const int* restrict L_rownnz, const int* restrict L_rowadr,
+    const int* restrict L_colind, const int* restrict LT_colind, const int* restrict LT_map,
+    mjtNum* restrict Lptr0, mjtNum* restrict Lptr1, int* restrict mapped, int* restrict pos_map) {
+  return cholMappedRunImpl(2, k, LT_nnz, LT_adr, L_nnz, L_colptr, L, L_rownnz, L_rowadr,
+                           L_colind, LT_colind, LT_map, Lptr0, Lptr1, NULL, mapped, pos_map);
+}
+
+
+// outlined ns=3 wrapper for cholMappedRunImpl; returns next index in LT[r]
+static mjNOINLINE int cholMappedRun3(
+    int k, int LT_nnz, int LT_adr, int L_nnz, const int* restrict L_colptr,
+    const mjtNum* restrict L, const int* restrict L_rownnz, const int* restrict L_rowadr,
+    const int* restrict L_colind, const int* restrict LT_colind, const int* restrict LT_map,
+    mjtNum* restrict Lptr0, mjtNum* restrict Lptr1, mjtNum* restrict Lptr2,
+    int* restrict mapped, int* restrict pos_map) {
+  return cholMappedRunImpl(3, k, LT_nnz, LT_adr, L_nnz, L_colptr, L, L_rownnz, L_rowadr,
+                           L_colind, LT_colind, LT_map, Lptr0, Lptr1, Lptr2, mapped, pos_map);
 }
 
 
@@ -515,7 +693,7 @@ int cholFactorSupernode(
     const int* restrict LT_colind, const int* restrict LT_map,
     const mjtNum* restrict H,
     const int* restrict H_rownnz, const int* restrict H_rowadr, const int* restrict H_colind,
-    mjtNum* restrict dense) {
+    int* restrict pos_map) {
   int L_adr = L_rowadr[r];
   int L_nnz = L_rownnz[r];
   const int* restrict L_colptr = L_colind + L_adr;
@@ -527,36 +705,19 @@ int cholFactorSupernode(
   mjtNum* restrict Lptr2 = (ns >= 3) ? L + L_rowadr[r-2] : NULL;
   mjtNum* restrict Lptr_s[3] = {Lptr0, Lptr1, Lptr2};
 
-  // initialize L rows for the supernode from H (copy if no fill-in, else scatter/gather)
-  int used_dense = 0;
+  // initialize L rows for the supernode from H (copy if no fill-in, else outlined map into L)
+  int mapped = 0;
   for (int s=0; s < ns; s++) {
     int row = r - s;
     int nnz_s = L_nnz - s;
     int h_adr = H_rowadr[row];
     int h_nnz = H_rownnz[row];
-    mjtNum* restrict row_s = Lptr_s[s];
-
     if (h_nnz >= nnz_s && H_colind[h_adr+nnz_s-1] == row) {
-      mju_copy(row_s, H+h_adr, nnz_s);
-    } else if (ns == 1) {
-      mju_zero(row_s, nnz_s);
-      for (int i=0; i < h_nnz; i++) {
-        int c = H_colind[h_adr+i];
-        if (c > row) break;
-        dense[c] = H[h_adr+i];
-      }
-      used_dense = 1;
+      mju_copy(Lptr_s[s], H+h_adr, nnz_s);
     } else {
-      for (int i=0; i < h_nnz; i++) {
-        int c = H_colind[h_adr+i];
-        if (c > row) break;
-        dense[c] = H[h_adr+i];
-      }
-      for (int i=0; i < nnz_s; i++) {
-        int c = L_colptr[i];
-        row_s[i] = dense[c];
-        dense[c] = 0;
-      }
+      cholInitMappedH(ns, r, s, L_nnz, L_colptr, Lptr0, Lptr1, Lptr2,
+                      H, H_rownnz, H_rowadr, H_colind, &mapped, pos_map);
+      break;
     }
   }
 
@@ -569,45 +730,26 @@ int cholFactorSupernode(
     int idx0 = LT_map[LT_adr+k];
     int c0_adr = L_rowadr[c0];
     int num_cols = idx0 - c0_adr + 1;
+    int col0 = L_colind[c0_adr];
 
     // by Cholesky elimination, cols(L[c, 0:r]) is a subset of cols(L[r, 0:r]) ending at r;
     // it matches the suffix L_colptr[L_nnz-num_cols .. L_nnz-1] iff its first column matches
-    const int* restrict colptr = L_colind + c0_adr;
-    const mjtNum* p[4] = {L + c0_adr, NULL, NULL, NULL};
-    int idx[4] = {idx0, 0, 0, 0};
-    int col0 = colptr[0];
-    int is_suffix = (L_colptr[L_nnz-num_cols] == col0);
-    int batch = 1;
-
-    // fuse up to max_batch descendant rows in LT[r] that share the identical pattern on [0, r]
-    if (is_suffix || ns == 1) {
-      int prev_c = c0, prev_adr = c0_adr;
+    if (L_colptr[L_nnz-num_cols] == col0) {
+      const mjtNum* p[4] = {L + c0_adr, NULL, NULL, NULL};
+      int idx[4] = {idx0, 0, 0, 0};
+      int batch = 1;
       while (k + batch < LT_nnz && batch < max_batch) {
         int next_c = LT_colind[LT_adr+k+batch];
         int next_idx = LT_map[LT_adr+k+batch];
         int next_adr = L_rowadr[next_c];
-        if (next_idx - next_adr + 1 != num_cols) {
+        if (next_idx - next_adr + 1 != num_cols || L_colind[next_adr] != col0) {
           break;
-        }
-        if (is_suffix) {
-          if (L_colind[next_adr] != col0) break;
-        } else {
-          int hi = next_c > prev_c ? next_c : prev_c;
-          int lo = next_c > prev_c ? prev_c : next_c;
-          int hi_adr = next_c > prev_c ? next_adr : prev_adr;
-          int lo_nnz = L_rownnz[lo];
-          if (lo_nnz >= L_rownnz[hi] || L_colind[hi_adr+lo_nnz-1] != lo) break;
-          prev_c = next_c;
-          prev_adr = next_adr;
         }
         p[batch] = L + next_adr;
         idx[batch] = next_idx;
         batch++;
       }
-    }
 
-    // suffix fast path: update target supernode rows contiguously in L
-    if (is_suffix) {
       int off = L_nnz - num_cols;
       int nlead = num_cols - (ns - 1);
       mjtNum* restrict dptr0 = Lptr0 + off;
@@ -633,52 +775,19 @@ int cholFactorSupernode(
           cholSuffixUpdate(ns, 4, nlead, dptr0, dptr1, dptr2, p[0], p[1], p[2], p[3], s);
           break;
       }
+      k += batch;
     }
 
-    // non-suffix subset: scatter row r update into dense; rows r-1, r-2 are revisited below
-    else {
-      used_dense = 1;
-      mjtNum s[4];
-      for (int b=0; b < batch; b++) {
-        s[b] = L[idx[b]];
-      }
-      switch (batch) {
-        case 1: cholScatterUpdate(1, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
-        case 2: cholScatterUpdate(2, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
-        case 3: cholScatterUpdate(3, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
-        case 4: cholScatterUpdate(4, num_cols, dense, colptr, p[0], p[1], p[2], p[3], s); break;
-      }
-    }
-
-    k += batch;
-  }
-
-  // flush non-suffix updates from dense for s = 0 .. ns-1
-  if (used_dense) {
-    for (int s=0; s < ns; s++) {
-      if (s > 0) {
-        for (int j=1; j < LT_nnz; j++) {
-          int c0 = LT_colind[LT_adr+j];
-          int L_cr0_idx = LT_map[LT_adr+j];
-          int c0_adr = L_rowadr[c0];
-          int num_cols = L_cr0_idx - c0_adr + 1;
-          if (L_colptr[L_nnz-num_cols] != L_colind[c0_adr]) {
-            mjtNum scale = L[L_cr0_idx-s];
-            const mjtNum* restrict p0 = L + c0_adr;
-            const int* restrict colptr = L_colind + c0_adr;
-            for (int i=0; i < num_cols-s; i++) {
-              dense[colptr[i]] -= scale * p0[i];
-            }
-          }
-        }
-      }
-      mjtNum* restrict row_s = Lptr_s[s];
-      int nnz_s = L_nnz - s;
-      for (int i=0; i < nnz_s; i++) {
-        int c = L_colptr[i];
-        row_s[i] += dense[c];
-        dense[c] = 0;
-      }
+    // non-suffix run: outlined per ns so hot suffix loop stays small and spill-free
+    else if (ns == 3) {
+      k = cholMappedRun3(k, LT_nnz, LT_adr, L_nnz, L_colptr, L, L_rownnz, L_rowadr,
+                         L_colind, LT_colind, LT_map, Lptr0, Lptr1, Lptr2, &mapped, pos_map);
+    } else if (ns == 2) {
+      k = cholMappedRun2(k, LT_nnz, LT_adr, L_nnz, L_colptr, L, L_rownnz, L_rowadr,
+                         L_colind, LT_colind, LT_map, Lptr0, Lptr1, &mapped, pos_map);
+    } else {
+      k = cholMappedRun1(k, LT_nnz, LT_adr, L_nnz, L_colptr, L, L_rownnz, L_rowadr,
+                         L_colind, LT_colind, LT_map, Lptr0, &mapped, pos_map);
     }
   }
 
@@ -731,12 +840,9 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
                           const int* restrict LT_colind, const int* restrict LT_map,
                           const int* restrict L_super, const mjtNum* restrict H,
                           const int* restrict H_rownnz, const int* restrict H_rowadr,
-                          const int* restrict H_colind, mjtNum* restrict scratch) {
+                          const int* restrict H_colind, int* restrict scratch) {
   int rank = n;
-
-  // zero dense accumulator workspace; each row cleans up its own entries below
-  mjtNum* restrict dense = scratch;
-  mju_zero(dense, n);
+  int* restrict pos_map = scratch;
 
   // backpass over rows
   int ns;
@@ -784,15 +890,15 @@ int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
     if (ns == 3) {
       rank -= cholFactorSupernode(r, 3, mindiag, L, L_rownnz, L_rowadr, L_colind,
                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
-                                  H, H_rownnz, H_rowadr, H_colind, dense);
+                                  H, H_rownnz, H_rowadr, H_colind, pos_map);
     } else if (ns == 2) {
       rank -= cholFactorSupernode(r, 2, mindiag, L, L_rownnz, L_rowadr, L_colind,
                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
-                                  H, H_rownnz, H_rowadr, H_colind, dense);
+                                  H, H_rownnz, H_rowadr, H_colind, pos_map);
     } else {
       rank -= cholFactorSupernode(r, 1, mindiag, L, L_rownnz, L_rowadr, L_colind,
                                   LT_rownnz, LT_rowadr, LT_colind, LT_map,
-                                  H, H_rownnz, H_rowadr, H_colind, dense);
+                                  H, H_rownnz, H_rowadr, H_colind, pos_map);
     }
   }
 
@@ -1385,48 +1491,64 @@ void mju_solveLU(mjtNum* restrict x, const mjtNum* LU, const mjtNum* b, const in
 }
 
 
+// single Gaussian-elimination step k in {0..4} of 6x6 dense LU factorization (force inline)
+static mjALWAYS_INLINE
+int factorLU6_step(mjtNum* restrict A, int* restrict pivot, int k) {
+  // initialize pivot
+  pivot[k] = k;
+
+  // find pivot: max absolute value in column k, rows k..5
+  mjtNum maxval = mju_abs(A[k*6+k]);
+  int maxrow = k;
+  for (int i=k+1; i < 6; i++) {
+    mjtNum val = mju_abs(A[i*6+k]);
+    if (val > maxval) {
+      maxval = val;
+      maxrow = i;
+    }
+  }
+
+  // check singularity
+  if (maxval < mjMINVAL) {
+    return 0;
+  }
+
+  // swap rows k and maxrow
+  if (maxrow != k) {
+    pivot[k] = maxrow;
+    for (int j=0; j < 6; j++) {
+      mjtNum tmp = A[k*6+j];
+      A[k*6+j] = A[maxrow*6+j];
+      A[maxrow*6+j] = tmp;
+    }
+  }
+
+  // compute multipliers and update trailing submatrix
+  mjtNum diaginv = 1.0 / A[k*6+k];
+  for (int i=k+1; i < 6; i++) {
+    A[i*6+k] *= diaginv;
+    mjtNum Aik = A[i*6+k];
+    for (int j=k+1; j < 6; j++) {
+      A[i*6+j] -= Aik * A[k*6+j];
+    }
+  }
+
+  return 1;
+}
+
+
 // 6x6 specialization of mju_factorLU: same algorithm with compile-time size,
 // allowing full unrolling; produces identical results
 int mju_factorLU6(mjtNum A[36], int pivot[6]) {
-  for (int k=0; k < 6; k++) {
-    // initialize pivot
-    pivot[k] = k;
+  if (!factorLU6_step(A, pivot, 0)) return 0;
+  if (!factorLU6_step(A, pivot, 1)) return 0;
+  if (!factorLU6_step(A, pivot, 2)) return 0;
+  if (!factorLU6_step(A, pivot, 3)) return 0;
+  if (!factorLU6_step(A, pivot, 4)) return 0;
 
-    // find pivot: max absolute value in column k, rows k..n-1
-    mjtNum maxval = mju_abs(A[k*6+k]);
-    int maxrow = k;
-    for (int i=k+1; i < 6; i++) {
-      mjtNum val = mju_abs(A[i*6+k]);
-      if (val > maxval) {
-        maxval = val;
-        maxrow = i;
-      }
-    }
-
-    // check singularity
-    if (maxval < mjMINVAL) {
-      return 0;
-    }
-
-    // swap rows k and maxrow
-    if (maxrow != k) {
-      pivot[k] = maxrow;
-      for (int j=0; j < 6; j++) {
-        mjtNum tmp = A[k*6+j];
-        A[k*6+j] = A[maxrow*6+j];
-        A[maxrow*6+j] = tmp;
-      }
-    }
-
-    // compute multipliers and update trailing submatrix
-    mjtNum diaginv = 1.0 / A[k*6+k];
-    for (int i=k+1; i < 6; i++) {
-      A[i*6+k] *= diaginv;
-      mjtNum Aik = A[i*6+k];
-      for (int j=k+1; j < 6; j++) {
-        A[i*6+j] -= Aik * A[k*6+j];
-      }
-    }
+  pivot[5] = 5;
+  if (mju_abs(A[35]) < mjMINVAL) {
+    return 0;
   }
 
   return 1;
@@ -1435,32 +1557,39 @@ int mju_factorLU6(mjtNum A[36], int pivot[6]) {
 
 // solve A*x = b given 6x6 LU factorization from mju_factorLU6
 void mju_solveLU6(mjtNum x[6], const mjtNum LU[36], const mjtNum b[6], const int pivot[6]) {
-  for (int i=0; i < 6; i++) {
-    x[i] = b[i];
-  }
-
-  // apply row permutation and forward substitution: solve L*y = P*b
-  for (int i=0; i < 6; i++) {
-    // apply pivot swap
-    if (pivot[i] != i) {
-      mjtNum tmp = x[i];
-      x[i] = x[pivot[i]];
-      x[pivot[i]] = tmp;
-    }
-
-    // subtract known terms
-    for (int j=0; j < i; j++) {
-      x[i] -= LU[i*6+j] * x[j];
+  // apply row permutation
+  mjtNum t[6] = {b[0], b[1], b[2], b[3], b[4], b[5]};
+  for (int i=0; i < 5; i++) {
+    int p = pivot[i];
+    if (p != i) {
+      mjtNum tmp = t[i];
+      t[i] = t[p];
+      t[p] = tmp;
     }
   }
+
+  // forward substitution: solve L*y = P*b
+  mjtNum y0 = t[0];
+  mjtNum y1 = t[1] - LU[1*6+0]*y0;
+  mjtNum y2 = t[2] - LU[2*6+0]*y0 - LU[2*6+1]*y1;
+  mjtNum y3 = t[3] - LU[3*6+0]*y0 - LU[3*6+1]*y1 - LU[3*6+2]*y2;
+  mjtNum y4 = t[4] - LU[4*6+0]*y0 - LU[4*6+1]*y1 - LU[4*6+2]*y2 - LU[4*6+3]*y3;
+  mjtNum y5 = t[5] - LU[5*6+0]*y0 - LU[5*6+1]*y1 - LU[5*6+2]*y2 - LU[5*6+3]*y3 - LU[5*6+4]*y4;
 
   // back substitution: solve U*x = y
-  for (int i=6-1; i >= 0; i--) {
-    for (int j=i+1; j < 6; j++) {
-      x[i] -= LU[i*6+j] * x[j];
-    }
-    x[i] /= LU[i*6+i];
-  }
+  mjtNum x5 = y5 / LU[35];
+  mjtNum x4 = (y4 - LU[4*6+5]*x5) / LU[28];
+  mjtNum x3 = (y3 - LU[3*6+4]*x4 - LU[3*6+5]*x5) / LU[21];
+  mjtNum x2 = (y2 - LU[2*6+3]*x3 - LU[2*6+4]*x4 - LU[2*6+5]*x5) / LU[14];
+  mjtNum x1 = (y1 - LU[1*6+2]*x2 - LU[1*6+3]*x3 - LU[1*6+4]*x4 - LU[1*6+5]*x5) / LU[7];
+  mjtNum x0 = (y0 - LU[1]*x1 - LU[2]*x2 - LU[3]*x3 - LU[4]*x4 - LU[5]*x5) / LU[0];
+
+  x[0] = x0;
+  x[1] = x1;
+  x[2] = x2;
+  x[3] = x3;
+  x[4] = x4;
+  x[5] = x5;
 }
 
 

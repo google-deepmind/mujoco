@@ -4114,6 +4114,12 @@ struct MjModel {
   void set_nflexshelldata(int value) {
     ptr_->nflexshelldata = static_cast<mjtSize>(value);
   }
+  int nflexcell() const {
+    return static_cast<int>(ptr_->nflexcell);
+  }
+  void set_nflexcell(int value) {
+    ptr_->nflexcell = static_cast<mjtSize>(value);
+  }
   int nflextexcoord() const {
     return static_cast<int>(ptr_->nflextexcoord);
   }
@@ -5044,6 +5050,9 @@ struct MjModel {
   emscripten::val flex_cellnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 3, ptr_->flex_cellnum));
   }
+  emscripten::val flex_celladr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_celladr));
+  }
   emscripten::val flex_nodeadr() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_nodeadr));
   }
@@ -5103,6 +5112,9 @@ struct MjModel {
   }
   emscripten::val flex_vertcell() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertcell));
+  }
+  emscripten::val flex_cellempty() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexcell, reinterpret_cast<uint8_t*>(ptr_->flex_cellempty)));
   }
   emscripten::val flex_edge() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_edge));

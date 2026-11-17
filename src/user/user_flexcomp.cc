@@ -4291,37 +4291,16 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       }
     }
 
-    // assign each vertex to its containing active cell (or nearest active cell if pruned)
-    int cx = spec.cellcount[0], cy = spec.cellcount[1], cz = spec.cellcount[2];
+    // assign each vertex to its active cell: containing cell, or nearest non-empty cell if pruned
+    std::unique_ptr<mjtBool[]> cellempty;
+    if (!cell_empty.empty()) {
+      cellempty = std::make_unique<mjtBool[]>(cell_empty.size());
+      std::copy(cell_empty.begin(), cell_empty.end(), cellempty.get());
+    }
     for (int j = 0; j < nvert; j++) {
-      const double* coord = vert0_.data() + 3 * j;
-      int           ci    = std::clamp(static_cast<int>(std::floor(coord[0] * cx)), 0, cx - 1);
-      int           cj    = std::clamp(static_cast<int>(std::floor(coord[1] * cy)), 0, cy - 1);
-      int           ck    = std::clamp(static_cast<int>(std::floor(coord[2] * cz)), 0, cz - 1);
-      int           c     = ci * cy * cz + cj * cz + ck;
-      if (!cell_empty.empty() && cell_empty[c]) {
-        double u[3]       = {coord[0] * cx, coord[1] * cy, coord[2] * cz};
-        double best_dist2 = mjMAXVAL;
-        for (int ni = 0; ni < cx; ni++) {
-          double dx = u[0] - std::clamp(u[0], static_cast<double>(ni), static_cast<double>(ni + 1));
-          for (int nj = 0; nj < cy; nj++) {
-            double dy =
-                u[1] - std::clamp(u[1], static_cast<double>(nj), static_cast<double>(nj + 1));
-            for (int nk = 0; nk < cz; nk++) {
-              int nc = ni * cy * cz + nj * cz + nk;
-              if (cell_empty[nc]) { continue; }
-              double dz =
-                  u[2] - std::clamp(u[2], static_cast<double>(nk), static_cast<double>(nk + 1));
-              double dist2 = dx * dx + dy * dy + dz * dz;
-              if (dist2 < best_dist2) {
-                best_dist2 = dist2;
-                c          = nc;
-              }
-            }
-          }
-        }
-      }
-      vertcell_[j] = c;
+      mjtNum coord[3];
+      for (int k = 0; k < 3; k++) { coord[k] = static_cast<mjtNum>(vert0_[3 * j + k]); }
+      vertcell_[j] = mju_flexActiveCell(coord, spec.cellcount, cellempty.get());
     }
   } else {
     // non-interpolated: use BVH bounding box (original behavior)

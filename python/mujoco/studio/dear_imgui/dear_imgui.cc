@@ -42,16 +42,26 @@ PYBIND11_MODULE(dear_imgui, m) {
   py::class_<ImVec2>(m, "Vec2")
       .def(py::init<>())
       .def(py::init<float, float>(), py::arg("_x"), py::arg("_y"))
+      .def(py::init([](std::tuple<float, float> v) {
+        return ImVec2(std::get<0>(v), std::get<1>(v));
+      }))
       .def_readwrite("x", &ImVec2::x)
       .def_readwrite("y", &ImVec2::y);
+  py::implicitly_convertible<py::tuple, ImVec2>();
+  py::implicitly_convertible<py::list, ImVec2>();
 
   py::class_<ImVec4>(m, "Vec4")
       .def(py::init<>())
       .def(py::init<float, float, float, float>(), py::arg("_x"), py::arg("_y"), py::arg("_z"), py::arg("_w"))
+      .def(py::init([](std::tuple<float, float, float, float> v) {
+        return ImVec4(std::get<0>(v), std::get<1>(v), std::get<2>(v), std::get<3>(v));
+      }))
       .def_readwrite("x", &ImVec4::x)
       .def_readwrite("y", &ImVec4::y)
       .def_readwrite("z", &ImVec4::z)
       .def_readwrite("w", &ImVec4::w);
+  py::implicitly_convertible<py::tuple, ImVec4>();
+  py::implicitly_convertible<py::list, ImVec4>();
 
   py::class_<ImGuiStyle>(m, "Style")
       .def_readwrite("FontScaleMain", &ImGuiStyle::FontScaleMain)

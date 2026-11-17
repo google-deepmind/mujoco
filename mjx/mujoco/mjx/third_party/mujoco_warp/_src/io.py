@@ -351,6 +351,145 @@ def _get_efm_data(mjm: mujoco.MjModel) -> mujoco.MjData | None:
   return d
 
 
+def _get_efm_chol_info(mjm: mujoco.MjModel, efm_d: mujoco.MjData | None) -> dict:
+  """Extracts 1D rod sparse blocked Cholesky layout and source index mappings from efm_d."""
+  empty = {
+    "active": False,
+    "nefmL": 0,
+    "nefmBT": 0,
+    "L_dofid": np.zeros(0, dtype=np.int32),
+    "L_rownnz": np.zeros(0, dtype=np.int32),
+    "L_rowadr": np.zeros(0, dtype=np.int32),
+    "L_colind": np.zeros(0, dtype=np.int32),
+    "BT_adr": np.zeros(0, dtype=np.int32),
+    "BT_row": np.zeros(0, dtype=np.int32),
+    "BT_off": np.zeros(0, dtype=np.int32),
+    "L_M_src": np.zeros(0, dtype=np.int32),
+    "L_K_src": np.zeros(0, dtype=np.int32),
+  }
+  if efm_d is None or int(efm_d.nefmdof) <= 0 or int(efm_d.nefmL) <= 1 or float(efm_d.efm_L[0]) not in (1.0, 2.0):
+    return empty
+
+  has_flex_passive = bool(
+    mjm.nflex > 0 and np.any((mjm.flex_passive != 0) & (mjm.flex_rigid == 0) & (mjm.flex_interp == 0) & (mjm.flex_dim >= 2))
+  )
+  if has_flex_passive:
+    return empty
+
+  active_stiff_flexes = [f for f in range(mjm.nflex) if not mjm.flex_rigid[f] and _eff_flex_stiff_possible(mjm, f)]
+  if not active_stiff_flexes or not all(
+    int(mjm.flex_dim[f]) == 1 and int(mjm.flex_interp[f]) == 0 and _flex_simple(mjm, f) for f in active_stiff_flexes
+  ):
+    return empty
+
+  nb = int(efm_d.nefmdof)
+  n = 3 * nb
+  A = np.frombuffer(efm_d.efm_L[1:].tobytes(), dtype=np.int32)
+  nL = int(A[0])
+  if nL <= 0 or (nL - 6 * nb) < 0 or (nL - 6 * nb) % 9 != 0:
+    return empty
+  nBT = (nL - 6 * nb) // 9
+  ints = 2 + 8 * nb + nL + 2 * nBT
+  npack = (4 * ints + efm_d.efm_L.itemsize - 1) // efm_d.efm_L.itemsize
+  if int(efm_d.nefmL) != 1 + npack + nL:
+    return empty
+  p = 1
+  perm = A[p : p + nb].copy()
+  if np.any((perm < 0) | (perm >= nb)):
+    return empty
+  p += nb
+  L_rownnz = A[p : p + n].copy()
+  p += n
+  L_rowadr = A[p : p + n].copy()
+  p += n
+  L_colind = A[p : p + nL].copy()
+  p += nL
+  BT_adr = A[p : p + nb + 1].copy()
+  p += nb + 1
+  BT_row = A[p : p + nBT].copy()
+  p += nBT
+  BT_off = A[p : p + nBT].copy()
+
+  dofid = np.asarray(efm_d.efm_dofid, dtype=np.int32)
+  inv_perm = np.empty(nb, dtype=np.int32)
+  inv_perm[perm] = np.arange(nb, dtype=np.int32)
+  L_dofid = np.empty(n, dtype=np.int32)
+  for r_blk in range(nb):
+    base_dof = int(dofid[inv_perm[r_blk]])
+    L_dofid[3 * r_blk] = base_dof
+    L_dofid[3 * r_blk + 1] = base_dof + 1
+    L_dofid[3 * r_blk + 2] = base_dof + 2
+
+  covered_dof_to_r = np.full(mjm.nv, -1, dtype=np.int32)
+  for r in range(n):
+    covered_dof_to_r[L_dofid[r]] = r
+
+  K_rownnz = np.asarray(efm_d.efm_K_rownnz, dtype=np.int32)
+  K_rowadr = np.asarray(efm_d.efm_K_rowadr, dtype=np.int32)
+  K_colind = np.asarray(efm_d.efm_K_colind, dtype=np.int32)
+
+  L_M_src = np.full(nL, -1, dtype=np.int32)
+  L_K_src = np.full(nL, -1, dtype=np.int32)
+  mapped_lower_K = 0
+  for r in range(n):
+    row_dof = int(L_dofid[r])
+    p_blk = r // 3
+    m_start = int(mjm.M_rowadr[row_dof])
+    m_end = m_start + int(mjm.M_rownnz[row_dof])
+    m_cols = mjm.M_colind[m_start:m_end]
+    k_start = int(K_rowadr[row_dof])
+    k_end = k_start + int(K_rownnz[row_dof])
+    k_cols = K_colind[k_start:k_end]
+    l_start = int(L_rowadr[r])
+    l_nnz = int(L_rownnz[r])
+    for idx in range(l_start, l_start + l_nnz):
+      c = int(L_colind[idx])
+      col_dof = int(L_dofid[c])
+      if c // 3 == p_blk:
+        pos_m = int(np.searchsorted(m_cols, col_dof))
+        if pos_m < len(m_cols) and int(m_cols[pos_m]) == col_dof:
+          L_M_src[idx] = m_start + pos_m
+      pos_k = int(np.searchsorted(k_cols, col_dof))
+      if pos_k < len(k_cols) and int(k_cols[pos_k]) == col_dof:
+        L_K_src[idx] = k_start + pos_k
+        mapped_lower_K += 1
+
+  total_lower_K = 0
+  for row_dof in range(mjm.nv):
+    knnz = int(K_rownnz[row_dof])
+    if knnz == 0:
+      continue
+    r = int(covered_dof_to_r[row_dof])
+    if r < 0:
+      return empty
+    k_start = int(K_rowadr[row_dof])
+    for j in range(k_start, k_start + knnz):
+      col_dof = int(K_colind[j])
+      c = int(covered_dof_to_r[col_dof])
+      if c < 0:
+        return empty
+      if c <= r:
+        total_lower_K += 1
+
+  if mapped_lower_K != total_lower_K:
+    return empty
+
+  return {
+    "active": True,
+    "nefmL": nL,
+    "nefmBT": nBT,
+    "L_dofid": L_dofid,
+    "L_rownnz": L_rownnz,
+    "L_rowadr": L_rowadr,
+    "L_colind": L_colind,
+    "BT_adr": BT_adr,
+    "BT_row": BT_row,
+    "BT_off": BT_off,
+    "L_M_src": L_M_src,
+    "L_K_src": L_K_src,
+  }
+
+
 def is_sparse(mjm: mujoco.MjModel) -> bool:
   if mjm.opt.jacobian == mujoco.mjtJacobian.mjJAC_AUTO:
     if mjm.nv > 32:
@@ -601,6 +740,13 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       m.flex_plasticadr = np.full(mjm.nflex, -1, dtype=np.int32)
     if not hasattr(mjm, "flex_plasticmode"):
       m.flex_plasticmode = np.zeros(mjm.nflex, dtype=np.int32)
+  # TODO(team): remove once mujoco >= 4.0.2 is required. Checks the field rather than the version, since
+  # releases up to 4.0.1 and 4.0.2.dev builds before flex_cellempty was added lack it.
+  if not hasattr(mjm, "flex_celladr"):
+    ncell = [int(np.prod(mjm.flex_cellnum[f])) if mjm.flex_interp[f] else 0 for f in range(mjm.nflex)]
+    m.nflexcell = int(sum(ncell))
+    m.flex_celladr = np.array([sum(ncell[:f]) if ncell[f] else -1 for f in range(mjm.nflex)], dtype=np.int32)
+    m.flex_cellempty = np.zeros(m.nflexcell, dtype=bool)
 
   m.opt = opt
   m.callback = types.Callback()
@@ -802,6 +948,19 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
     if (efm_d and not m.efm0_active and efm_d.efm_dofid is not None)
     else np.zeros(0, dtype=np.int32)
   )
+  chol_info = _get_efm_chol_info(mjm, efm_d if not m.efm0_active else None)
+  m.efm_chol_active = bool(chol_info["active"])
+  m.nefmL = int(chol_info["nefmL"])
+  m.nefmBT = int(chol_info["nefmBT"])
+  m.efm_L_dofid = chol_info["L_dofid"]
+  m.efm_L_rownnz = chol_info["L_rownnz"]
+  m.efm_L_rowadr = chol_info["L_rowadr"]
+  m.efm_L_colind = chol_info["L_colind"]
+  m.efm_BT_adr = chol_info["BT_adr"]
+  m.efm_BT_row = chol_info["BT_row"]
+  m.efm_BT_off = chol_info["BT_off"]
+  m.efm_L_M_src = chol_info["L_M_src"]
+  m.efm_L_K_src = chol_info["L_K_src"]
 
   flex_interp_assemblable = True
   for fi in range(mjm.nflex):
@@ -1599,6 +1758,58 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
   m.flex_elem_rodedge = flex_elem_rodedge
   m.flex_vert_rodelem = flex_vert_rodelem
 
+  if m.efm_chol_active:
+    all_twist_chains_exact = True
+    twist_dofs = set()
+    for fi in range(nflex):
+      if mjm.flex_rigid[fi] or not flex_rod_has_twist[fi]:
+        continue
+      b_adr = int(mjm.flex_bendingadr[fi])
+      if b_adr < 0 or int(mjm.flex_bending[b_adr]) <= 0:
+        continue
+      eadr = int(flex_rod_edgeadr[fi])
+      nedge = int(flex_rod_edgenum[fi])
+      e0 = -1
+      e1 = -2
+      for e in range(nedge):
+        jnt = int(m.flex_rodedge_jnt[eadr + e])
+        dof = int(mjm.jnt_dofadr[jnt]) if jnt >= 0 else -1
+        if dof < 0:
+          if e0 >= 0 and e1 < e0:
+            e1 = e - 1
+          continue
+        if e1 >= e0 and e0 >= 0:
+          all_twist_chains_exact = False
+          break
+        if e0 < 0:
+          e0 = e
+        if int(mjm.M_rownnz[dof]) != 1 or int(mjm.tree_dofnum[mjm.dof_treeid[dof]]) != 1:
+          all_twist_chains_exact = False
+          break
+        twist_dofs.add(dof)
+      if e0 < 0 or not all_twist_chains_exact:
+        all_twist_chains_exact = False
+        break
+
+    m.efm_all_covered_or_twist = bool(all_twist_chains_exact and (3 * m.nefmdof + len(twist_dofs) == mjm.nv))
+    tendon_diag_only = not (m.has_tendon_stiffness or m.has_tendon_damping) or m.max_ten_J_rownnz <= 1
+    actuator_diag_only = True
+    if m.has_efm_actuator:
+      for a in range(mjm.nactuator):
+        trntype = int(mjm.actuator_trntype[a])
+        if trntype not in (int(mujoco.mjtTrn.mjTRN_JOINT), int(mujoco.mjtTrn.mjTRN_JOINTINPARENT)):
+          actuator_diag_only = False
+          break
+        jntid = int(mjm.actuator_trnid[a, 0])
+        if int(mjm.jnt_type[jntid]) not in (int(mujoco.mjtJoint.mjJNT_SLIDE), int(mujoco.mjtJoint.mjJNT_HINGE)):
+          actuator_diag_only = False
+          break
+    covered_standalone = all(int(mjm.tree_dofnum[mjm.dof_treeid[int(dof)]]) == 3 for dof in m.efm_dofid)
+    m.efm_prec_exact = bool(covered_standalone and all_twist_chains_exact and tendon_diag_only and actuator_diag_only)
+  else:
+    m.efm_all_covered_or_twist = False
+    m.efm_prec_exact = False
+
   if not flex_bend_interp_map:
     m.nflexbend_interp = 0
     m.flex_bend_interp_map = np.zeros((0, 2), dtype=np.int32)
@@ -1681,6 +1892,8 @@ def put_model(mjm: mujoco.MjModel, batch_sizes: dict[str, int] | None = None) ->
       "nqD_fullm": len(m.qD_fullm_i),
       "nv_plus_1": len(m.M_mulm_rowadr),
       "nM_mulm": len(m.M_mulm_col),
+      "nefm_3dof": len(m.efm_L_dofid),
+      "nefm_bt_adr": len(m.efm_BT_adr),
     }
   )
   for f in dataclasses.fields(types.Model):
@@ -2374,6 +2587,8 @@ def make_data(
   sizes["nflexrodhinge"], sizes["nflexrodedge"] = _get_nflexrod_counts(mjm)
   efm_d = _get_efm_data(mjm)
   sizes["nefmK"] = int(efm_d.nefmK) if efm_d else 0
+  chol_info = _get_efm_chol_info(mjm, efm_d)
+  sizes["nefmL"] = int(chol_info["nefmL"])
 
   # qLD holds the factor: a packed dense region for dense blocks followed
   # by an nC-length LDL region for sparse blocks (present only when some block is sparse). Either
@@ -2621,6 +2836,8 @@ def put_data(
   sizes["nflexrodhinge"], sizes["nflexrodedge"] = _get_nflexrod_counts(mjm)
   efm_d = _get_efm_data(mjm)
   sizes["nefmK"] = int(efm_d.nefmK) if efm_d else 0
+  chol_info = _get_efm_chol_info(mjm, efm_d)
+  sizes["nefmL"] = int(chol_info["nefmL"])
   lay = m_block_layout(mjm)
   qld_total = lay["total"] + (mjm.nC if lay["has_sparse"] else 0)
   sizes["qld_total"] = qld_total
@@ -2818,6 +3035,12 @@ def put_data(
     val = getattr(mjd, f.name, None)
     if f.name == "efm_K_val" and val is not None and val.size != sizes["nefmK"]:
       val = efm_d.efm_K_val if efm_d else None
+    elif f.name == "efm_L_val":
+      val = (
+        mjd.efm_L[-sizes["nefmL"] :]
+        if sizes["nefmL"] > 0 and mjd.nefmL > sizes["nefmL"] and float(mjd.efm_L[0]) == 1.0
+        else None
+      )
     elif f.name == "efm_ts":
       val = np.zeros(mjm.ntendon, dtype=np.float32)
       if mjd.nefmT > 0 and mjd.efm_ts is not None and mjd.efm_tid is not None:

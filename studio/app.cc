@@ -567,11 +567,13 @@ void App::Render() {
   window_->Present(renderer_->GetPixels(target));
 }
 
-std::span<const std::byte> App::RenderToTexture(mjvCamera* camera, int width, int height) {
+std::span<const std::byte> App::RenderToTexture(mjvCamera* camera, int width, int height,
+                                                mjrDrawMode draw_mode) {
   auto target = renderer_->GetRenderTargetHandle("tmp");
   renderer_->ResizeRenderTarget(target, width, height);
 
   Renderer::View views[1] = {GetSceneView()};
+  views[0].draw_mode = draw_mode;
   views[0].camera = mjv_camera2GLCamera(model(), data(), camera);
   views[0].render_target = target;
   renderer_->Render(views);
@@ -1336,22 +1338,13 @@ void App::BuildGui() {
   if (tmp_.picture_in_picture) {
     if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
       auto render_cb = [this](const PipState& pip, int width, int height) {
-        mjtByte* flags = render_flags_;
-        const int prev_depth = flags[mjRND_DEPTH];
-        const int prev_segment = flags[mjRND_SEGMENT];
-        flags[mjRND_DEPTH] = (pip.mode == PipState::Depth) ? 1 : 0;
-        flags[mjRND_SEGMENT] = (pip.mode == PipState::Segmentation) ? 1 : 0;
-
         mjvCamera camera;
         mjv_defaultCamera(&camera);
         camera.type = mjCAMERA_FIXED;
         camera.fixedcamid = pip.camera;
 
-        auto output = RenderToTexture(&camera, width, height);
+        auto output = RenderToTexture(&camera, width, height, pip.draw_mode);
         int id = imgui_bridge_->UploadImage(pip.texture, output, width, height);
-
-        flags[mjRND_DEPTH] = prev_depth;
-        flags[mjRND_SEGMENT] = prev_segment;
         return id;
       };
 

@@ -87,7 +87,9 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
     if (flg_skipcommon && da1 == da && da2 == da) {
       break;
     }
-    chain[NV] = da;
+    if (chain) {
+      chain[NV] = da;
+    }
     if (da1 == da) {
       da1 = m->dof_parentid[da1];
     }
@@ -98,10 +100,12 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2, int flg_skipcomm
   }
 
   // reverse order of chain: make it increasing
-  for (int i=0; i < NV/2; i++) {
-    int tmp = chain[i];
-    chain[i] = chain[NV-i-1];
-    chain[NV-i-1] = tmp;
+  if (chain) {
+    for (int i=0; i < NV/2; i++) {
+      int tmp = chain[i];
+      chain[i] = chain[NV-i-1];
+      chain[NV-i-1] = tmp;
+    }
   }
 
   return NV;
@@ -710,7 +714,9 @@ void mj_flexNodePos(const mjModel* m, const mjData* d, int f, int n, mjtNum pos[
 // lattice nodes: the Lagrange basis of order |flex_interp| of the vertex's cell, where for shell-mode
 // flexes (flex_interp < 0) the interior lattice nodes are in turn the Coons TFI of the boundary
 // nodes. Vertex positions, gather/scatter and contact weights all evaluate this map through the
-// functions in this section (flexVertBasis and flexTFINode), so they agree exactly.
+// functions in this section (flexPointBasis and flexTFINode), so they agree exactly. The cell of a
+// point is its active cell (mju_flexActiveCell): its natural cell, or the nearest non-empty cell if
+// that cell is empty; flex_vertcell caches it for the vertices.
 
 // lattice node counts of interpolated flex f, return interpolation order
 static int flexLattice(const mjModel* m, int f, int dims[3]) {
@@ -764,13 +770,18 @@ static int flexTFINode(int nx, int ny, int nz, int i, int j, int k, int idx[26],
 
 
 // Lagrange basis of a point at [0,1]^3 reference coordinates coord of interpolated flex f in its
-// cell (or precomputed cell >= 0), return number of nodes
+// active cell (or precomputed cell >= 0, e.g. flex_vertcell), return number of nodes
 static int flexPointBasis(const mjModel* m, int f, const mjtNum coord[3], int cell,
                           int nodeindices[27], mjtNum basis[27]) {
   int interp = m->flex_interp[f];
   int order = interp < 0 ? -interp : interp;
   if (order < 1 || order > 2) {
     mjERROR("unsupported interpolation order %d of flex %d", order, f);
+  }
+  if (cell < 0) {
+    int adr = m->flex_celladr[f];
+    const mjtBool* cellempty = adr < 0 ? NULL : m->flex_cellempty + adr;
+    cell = mju_flexActiveCell(coord, m->flex_cellnum + 3*f, cellempty);
   }
   mjtNum local[3];
   int npc = mju_cellLookup(coord, m->flex_cellnum + 3*f, order, cell, local, nodeindices);
@@ -881,9 +892,9 @@ static int flexAddWeight(int* key, mjtNum* weight, int n, int cap, int k, mjtNum
 }
 
 
-// lattice node weights of a point at [0,1]^3 reference coordinates coord of interpolated flex f,
-// consistent with mj_flexInterpVert; node are local lattice node indices (only boundary nodes for
-// shell-mode flexes)
+// lattice node weights of a point at [0,1]^3 reference coordinates coord of interpolated flex f in
+// its active cell, consistent with mj_flexInterpVert; node are local lattice node indices (only
+// boundary nodes for shell-mode flexes)
 //   returns the number of weights, at most mjMAXFLEXINTERPW
 int mj_flexInterpWeights(const mjModel* m, int f, const mjtNum coord[3],
                          int* node, mjtNum* weight) {

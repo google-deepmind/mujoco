@@ -23,6 +23,7 @@
 
 #include <array>
 #include <cstdio>
+#include <new>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -321,6 +322,10 @@ mjSpec* SpecFromXML(std::string_view xml,
     mjCopyError(error, err.message, nerror);
     mj_deleteSpec(spec);
     return nullptr;
+  } catch (const std::bad_alloc&) {
+    mjCopyError(error, "Out of memory while parsing XML", nerror);
+    mj_deleteSpec(spec);
+    return nullptr;
   }
 
   return spec;
@@ -386,6 +391,9 @@ std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
     return writer.Write(error, nerror);
   } catch (mjXError err) {
     mjCopyError(error, err.message, nerror);
+    return "";
+  } catch (const std::bad_alloc&) {
+    mjCopyError(error, "Out of memory while writing XML", nerror);
     return "";
   }
 }

@@ -34,6 +34,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sleep.h"
+#include "engine/engine_support.h"
 #include "engine/engine_thread.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -234,36 +235,18 @@ static void freeModelBuffers(mjModel* m) {
 
 
 // allocate and initialize mjModel structure
-void mj_makeModel(mjModel** dest,
-    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize nactuator, mjtSize nout, mjtSize na,
-    mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
-    mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
-    mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
-    mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
-    mjtSize nflexelemdata, mjtSize nflexstiffness, mjtSize nflexbending,
-    mjtSize nefm0dof, mjtSize nefm0L, mjtSize nefmCvert, mjtSize nflexelemedge,
-    mjtSize nflexshelldata, mjtSize nflextexcoord, mjtSize nJfe,
-    mjtSize nmesh, mjtSize nmeshvert, mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface,
-    mjtSize nmeshgraph, mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap,
-    mjtSize nskin, mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
-    mjtSize nskinbonevert, mjtSize nhfield, mjtSize nhfielddata, mjtSize ntex, mjtSize ntexdata,
-    mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nJten,
-    mjtSize nwrap, mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext,
-    mjtSize ntextdata, mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap,
-    mjtSize nplugin, mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
-    mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
-    mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths, mjtSize nplastic) {
+void mj_makeModel(mjModel** dest, const mjModel* sizes) {
+  // copy the sizes before *dest is cleared, in case they belong to the same model
+#define X(name) mjtSize name = sizes->name;
+  MJMODEL_SIZES_LAYOUT
+#undef X
+
   intptr_t offset = 0;
   int allocate = *dest ? 0 : 1;
   mjModel* m = NULL;
 
   // CHECK SIZE PARAMETERS
   {
-    // dummy variables for MJMODEL_SIZES set after mjModel construction
-    int nnames_map = 0, nJmom = 0, ngravcomp = 0, nemax = 0, njmax = 0, nconmax=0;
-    int npolygonmax = 0, nmeshdegmax = 0;
-    int nuserdata=0, nsensordata=0, npluginstate=0, nhistory=0, narena=0, nbuffer=0;
-
     // sizes must be non-negative and fit in int, except for the byte arrays texdata and textdata
     #define X(name)                                                                   \
       if (name < 0) {                                                                 \
@@ -276,14 +259,8 @@ void mj_makeModel(mjModel** dest,
                     #name, MAX_ARRAY_SIZE, (long long)name);                          \
         return;                                                                       \
       }
-    MJMODEL_SIZES
+    MJMODEL_SIZES_LAYOUT
 #undef X
-
-    // suppress unused variable warnings
-    (void)nnames_map; (void)nJmom; (void)ngravcomp; (void)nemax; (void)njmax; (void)nconmax;
-    (void)npolygonmax; (void)nmeshdegmax;
-    (void)nuserdata; (void)nsensordata; (void)npluginstate; (void)nhistory;
-    (void)narena; (void)nbuffer;
   }
 
   // nbody should always be positive
@@ -306,88 +283,10 @@ void mj_makeModel(mjModel** dest,
   memset(m, 0, sizeof(mjModel));
 
   // set size parameters
-  m->nq = nq;
-  m->nv = nv;
-  m->nu = nu;
-  m->nactuator = nactuator;
-  m->nout = nout;
-  m->na = na;
-  m->nbody = nbody;
-  m->nbvh = nbvh;
-  m->nbvhstatic = nbvhstatic;
-  m->nbvhdynamic = nbvhdynamic;
-  m->noct = noct;
-  m->njnt = njnt;
-  m->ntree = ntree;
-  m->nM = nM;
-  m->nB = nB;
-  m->nC = nC;
-  m->nD = nD;
-  m->ngeom = ngeom;
-  m->nsite = nsite;
-  m->ncam = ncam;
-  m->nlight = nlight;
-  m->nflex = nflex;
-  m->nflexnode = nflexnode;
-  m->nflexvert = nflexvert;
-  m->nflexedge = nflexedge;
-  m->nflexelem = nflexelem;
-  m->nflexelemdata = nflexelemdata;
-  m->nflexstiffness = nflexstiffness;
-  m->nflexbending = nflexbending;
-  m->nefm0dof = nefm0dof;
-  m->nefm0L = nefm0L;
-  m->nefmCvert = nefmCvert;
-  m->nflexelemedge = nflexelemedge;
-  m->nflexshelldata = nflexshelldata;
-  m->nflextexcoord = nflextexcoord;
-  m->nJfe = nJfe;
-  m->nmesh = nmesh;
-  m->nmeshvert = nmeshvert;
-  m->nmeshnormal = nmeshnormal;
-  m->nmeshtexcoord = nmeshtexcoord;
-  m->nmeshface = nmeshface;
-  m->nmeshgraph = nmeshgraph;
-  m->nmeshpoly = nmeshpoly;
-  m->nmeshpolyvert = nmeshpolyvert;
-  m->nmeshpolymap = nmeshpolymap;
-  m->nskin = nskin;
-  m->nskinvert = nskinvert;
-  m->nskintexvert = nskintexvert;
-  m->nskinface = nskinface;
-  m->nskinbone = nskinbone;
-  m->nskinbonevert = nskinbonevert;
-  m->nhfield = nhfield;
-  m->nhfielddata = nhfielddata;
-  m->ntex = ntex;
-  m->ntexdata = ntexdata;
-  m->nmat = nmat;
-  m->npair = npair;
-  m->nexclude = nexclude;
-  m->neq = neq;
-  m->ntendon = ntendon;
-  m->nJten = nJten;
-  m->nwrap = nwrap;
-  m->nsensor = nsensor;
-  m->nnumeric = nnumeric;
-  m->nnumericdata = nnumericdata;
-  m->ntext = ntext;
-  m->ntextdata = ntextdata;
-  m->ntuple = ntuple;
-  m->ntupledata = ntupledata;
-  m->nkey = nkey;
-  m->nmocap = nmocap;
-  m->nplugin = nplugin;
-  m->npluginattr = npluginattr;
-  m->nuser_body = nuser_body;
-  m->nuser_jnt = nuser_jnt;
-  m->nuser_geom = nuser_geom;
-  m->nuser_site = nuser_site;
-  m->nuser_cam = nuser_cam;
-  m->nuser_tendon = nuser_tendon;
-  m->nuser_actuator = nuser_actuator;
-  m->nuser_sensor = nuser_sensor;
-  m->nnames = nnames;
+#define X(name) m->name = name;
+  MJMODEL_SIZES_LAYOUT
+#undef X
+
   long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
                     nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nactuator + nsensor +
                     nnumeric + ntext + ntuple + nkey + nplugin;
@@ -397,8 +296,6 @@ void mj_makeModel(mjModel** dest,
     return;
   }
   m->nnames_map = mjLOAD_MULTIPLE * nnames_map;
-  m->npaths = npaths;
-  m->nplastic = nplastic;
 
   // compute buffer size, including padding to align the first array at any buffer address
   m->nbuffer = BUFFER_ALIGN - 1;
@@ -443,24 +340,7 @@ void mj_makeModel(mjModel** dest,
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
-    mj_makeModel(
-        &dest, src->nq, src->nv, src->nu, src->nactuator, src->nout, src->na,
-        src->nbody, src->nbvh, src->nbvhstatic,
-        src->nbvhdynamic, src->noct, src->njnt, src->ntree, src->nM, src->nB, src->nC, src->nD,
-        src->ngeom, src->nsite, src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert,
-        src->nflexedge, src->nflexelem, src->nflexelemdata, src->nflexstiffness,
-        src->nflexbending, src->nefm0dof, src->nefm0L, src->nefmCvert, src->nflexelemedge,
-        src->nflexshelldata,
-        src->nflextexcoord, src->nJfe, src->nmesh, src->nmeshvert, src->nmeshnormal,
-        src->nmeshtexcoord, src->nmeshface, src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert,
-        src->nmeshpolymap, src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
-        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata, src->ntex,
-        src->ntexdata, src->nmat, src->npair, src->nexclude, src->neq, src->ntendon, src->nJten,
-        src->nwrap, src->nsensor, src->nnumeric, src->nnumericdata, src->ntext, src->ntextdata,
-        src->ntuple, src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
-        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site, src->nuser_cam,
-        src->nuser_tendon, src->nuser_actuator, src->nuser_sensor, src->nnames, src->npaths,
-        src->nplastic);
+    mj_makeModel(&dest, src);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -568,6 +448,22 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize 
 }
 
 
+// check a size in MJMODEL_SIZES_RUNTIME read from a binary model
+static int validRuntimeSize(const char* name, mjtSize size) {
+  // njmax and nconmax are -1 if they are not specified
+  if (!strcmp(name, "njmax") || !strcmp(name, "nconmax")) {
+    return size >= -1 && size < MAX_ARRAY_SIZE;
+  }
+
+  // narena is a number of bytes
+  if (!strcmp(name, "narena")) {
+    return size >= 0;
+  }
+
+  return size >= 0 && size < MAX_ARRAY_SIZE;
+}
+
+
 // load binary MJB model
 mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   mjtSize ptrbuf = 0;
@@ -617,23 +513,21 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
   }
 
   // read mjModel construction fields
-  mjtSize sizes[256];
-  bufread(sizes, sizeof(mjtSize)*nsize, buffer_sz, buffer, &ptrbuf);
+  mjtSize raw_sizes[256];
+  bufread(raw_sizes, sizeof(mjtSize)*nsize, buffer_sz, buffer, &ptrbuf);
+
+  // copy the sizes to an mjModel struct, only its sizes are used
+  mjModel sizes;
+  memset(&sizes, 0, sizeof(mjModel));
+  {
+    int int_idx = 0;
+#define X(name) sizes.name = raw_sizes[int_idx++];
+    MJMODEL_SIZES
+#undef X
+  }
 
   // allocate new mjModel
-  mj_makeModel(&m,
-               sizes[0],  sizes[1],  sizes[2],  sizes[3],  sizes[4],  sizes[5],  sizes[6],
-               sizes[7],  sizes[8],  sizes[9],  sizes[10], sizes[11], sizes[12], sizes[13],
-               sizes[14], sizes[15], sizes[16], sizes[17], sizes[18], sizes[19], sizes[20],
-               sizes[21], sizes[22], sizes[23], sizes[24], sizes[25], sizes[26], sizes[27],
-               sizes[28], sizes[29], sizes[30], sizes[31], sizes[32], sizes[33], sizes[34],
-               sizes[35], sizes[36], sizes[37], sizes[38], sizes[39], sizes[40], sizes[41],
-               sizes[42], sizes[43], sizes[44], sizes[45], sizes[46], sizes[47], sizes[48],
-               sizes[49], sizes[50], sizes[51], sizes[52], sizes[53], sizes[54], sizes[55],
-               sizes[56], sizes[57], sizes[58], sizes[59], sizes[60], sizes[61], sizes[62],
-               sizes[63], sizes[64], sizes[65], sizes[66], sizes[67], sizes[68], sizes[69],
-               sizes[70], sizes[71], sizes[72], sizes[73], sizes[74], sizes[75], sizes[76],
-               sizes[77], sizes[78], sizes[79], sizes[80], sizes[81], sizes[82], sizes[83]);
+  mj_makeModel(&m, &sizes);
 
   // mj_makeModel may fail if the input buffer has invalid sizes
   if (!m) {
@@ -641,21 +535,27 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
     return NULL;
   }
 
-  // check buffer size (last mjtSize field is nbuffer)
-  if (m->nbuffer != sizes[nsize-1]) {
-    mju_warning("Corrupted model, wrong nbuffer field");
-    mj_deleteModel(m);
-    return NULL;
-  }
+  // the sizes which do not affect the model buffer are the only ones copied from the file
+#define X(name)                                                    \
+  if (!validRuntimeSize(#name, sizes.name)) {                      \
+    mju_warning("Corrupted model, " #name " is out of range");     \
+    mj_deleteModel(m);                                             \
+    return NULL;                                                   \
+  }                                                                \
+  m->name = sizes.name;
+  MJMODEL_SIZES_RUNTIME
+#undef X
 
-  // set integer fields
-  {
-    int int_idx = 0;
-    #define X(name) \
-        m->name = sizes[int_idx++];
-    MJMODEL_SIZES
-    #undef X
+  // the sizes set by mj_makeModel define the layout of the buffer, they are never overwritten:
+  // every size in the model must now match the file, including the computed nnames_map and nbuffer
+#define X(name)                                                \
+  if (m->name != sizes.name) {                                 \
+    mju_warning("Corrupted model, wrong " #name " field");     \
+    mj_deleteModel(m);                                         \
+    return NULL;                                               \
   }
+  MJMODEL_SIZES
+#undef X
 
   // read options and buffer
   if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) +
@@ -1849,17 +1749,19 @@ void mj_deleteData(mjData* d) {
 }
 
 
-static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
-  switch (sensor_type) {
+// return the number of values written by sensor i, -1 if its type or its object type is invalid;
+// assumes that sensor_objid was validated and that the sensor is not a plugin
+static mjtSize sensorSize(const mjModel* m, int i) {
+  int objtype = m->sensor_objtype[i];
+  int objid = m->sensor_objid[i];
+  int dataspec = m->sensor_intprm[i*mjNSENS];
+
+  switch ((mjtSensor) m->sensor_type[i]) {
   case mjSENS_TOUCH:
-  case mjSENS_RANGEFINDER:
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
   case mjSENS_TENDONPOS:
   case mjSENS_TENDONVEL:
-  case mjSENS_ACTUATORPOS:
-  case mjSENS_ACTUATORVEL:
-  case mjSENS_ACTUATORFRC:
   case mjSENS_JOINTACTFRC:
   case mjSENS_TENDONACTFRC:
   case mjSENS_JOINTLIMITPOS:
@@ -1906,10 +1808,56 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_FRAMEQUAT:
     return 4;
 
-  case mjSENS_CONTACT:
+  case mjSENS_ACTUATORPOS:
+  case mjSENS_ACTUATORVEL:
+  case mjSENS_ACTUATORFRC:
+    // one value per output of the actuator
+    return (objtype == mjOBJ_ACTUATOR) ? m->actuator_outnum[objid] : -1;
+
+  case mjSENS_RANGEFINDER:
+    // one ray for a site, one ray per pixel for a camera
+    if (dataspec <= 0 || dataspec >= (1 << mjNRAYDATA)) {
+      return -1;
+    }
+    if (objtype == mjOBJ_SITE) {
+      return mju_raydataSize(dataspec);
+    } else if (objtype == mjOBJ_CAMERA) {
+      int width = m->cam_resolution[2*objid];
+      int height = m->cam_resolution[2*objid+1];
+      // both the output count and 3*npixel (stack-allocated ray vectors) must fit in an int
+      int raysize = mju_raydataSize(dataspec);
+      if (width < 0 || height < 0 ||
+          (mjtSize)width * height > INT_MAX / mjMAX(3, raysize)) {
+        return -1;
+      }
+      return (mjtSize)width * height * raysize;
+    }
+    return -1;
+
+  case mjSENS_CONTACT: {
+    // a number of slots, each with the fields in the data specification: at least one
+    int nslot = m->sensor_intprm[i*mjNSENS+2];
+    if (dataspec <= 0 || dataspec >= (1 << mjNCONDATA) || nslot <= 0) {
+      return -1;
+    }
+    int datasize = mju_condataSize(dataspec);
+    if (datasize <= 0 || (mjtSize)nslot > INT_MAX / datasize) {
+      return -1;
+    }
+    return (mjtSize)nslot * datasize;
+  }
+
   case mjSENS_TACTILE:
+    // 3 values per vertex of the mesh, with a geom reference
+    if (objtype != mjOBJ_MESH || m->sensor_reftype[i] != mjOBJ_GEOM ||
+        m->sensor_refid[i] < 0 || m->mesh_vertnum[objid] <= 0) {
+      return -1;
+    }
+    return 3*(mjtSize)m->mesh_vertnum[objid];
+
   case mjSENS_USER:
-    return sensor_dim;
+    // the size is defined by sensor_dim
+    return m->sensor_dim[i];
 
   case mjSENS_PLUGIN:
     return -1;
@@ -2019,6 +1967,91 @@ static int validateSparse(int nrows, int ncols, mjtSize nnz,
 }
 
 
+// validate a history buffer with nsample samples of dimension dim at address adr,
+// return null if valid, error message otherwise
+static const char* validateHistory(int nsample, int dim, int adr, mjtSize nhistory) {
+  if (nsample < 0) {
+    return "Invalid model: negative number of history samples.";
+  }
+
+  // layout is [user, cursor, times(nsample), values(nsample*dim)]
+  if (nsample > 0 && (adr < 0 || (mjtSize)adr + 2 + nsample + (mjtSize)nsample*dim > nhistory)) {
+    return "Invalid model: history address out of bounds.";
+  }
+  return NULL;
+}
+
+
+// return an upper bound on the number of non-zeros written to actuator_moment by mj_transmission,
+// -1 if a transmission or the output rows of an actuator are invalid: each actuator has as many
+// output rows as its transmission writes, with no gaps between actuators;
+// assumes that the other references of the model were already validated
+static mjtSize momentSize(const mjModel* m) {
+  int nv = m->nv;
+  mjtSize count = 0, outadr = 0;
+  int valid = 1;
+
+  for (int i=0; valid && i < m->nactuator; i++) {
+    int id = m->actuator_trnid[2*i];
+    int refid = m->actuator_trnid[2*i+1];
+    int trntype = m->actuator_trntype[i];
+
+    // rows are written in actuator order, each row starts where the previous one ends
+    int nrow = (trntype == mjTRN_SO3) ? 3 : 1;
+    if (m->actuator_outadr[i] != outadr || m->actuator_outnum[i] != nrow) {
+      valid = 0;
+      break;
+    }
+    outadr += m->actuator_outnum[i];
+
+    int b1 = 0, b2 = 0;
+    switch ((mjtTrn) trntype) {
+    case mjTRN_JOINT:
+    case mjTRN_JOINTINPARENT:
+      count += nVEL[m->jnt_type[id]];
+      break;
+
+    case mjTRN_SLIDERCRANK:
+      b1 = m->site_bodyid[id];
+      b2 = m->site_bodyid[refid];
+      valid = (b1 >= 0 && b2 >= 0);
+      count += valid ? mj_mergeChain(m, NULL, b1, b2, /*flg_skipcommon=*/0) : 0;
+      break;
+
+    case mjTRN_TENDON:
+      count += m->ten_J_rownnz[id];
+      break;
+
+    case mjTRN_SO3:
+      // ball joint: 3 identity rows; site and refsite: 3 dense rows
+      count += (refid == -1) ? 3 : 3*(mjtSize)nv;
+      break;
+
+    case mjTRN_SITE:
+      b1 = m->site_bodyid[id];
+      b2 = (refid >= 0) ? m->site_bodyid[refid] : 0;
+      valid = (b1 >= 0 && b2 >= 0);
+      count += valid ? mj_mergeChain(m, NULL, b1, b2, /*flg_skipcommon=*/1) : 0;
+      break;
+
+    case mjTRN_BODY:
+      count += nv;
+      break;
+
+    default:
+      valid = 0;
+    }
+  }
+
+  // the rows of the actuators cover all of the outputs
+  if (outadr != m->nout) {
+    valid = 0;
+  }
+
+  return valid ? count : -1;
+}
+
+
 // validate reference fields in a model; return null if valid, error message otherwise
 const char* mj_validateReferences(const mjModel* m) {
   // for each field in mjModel that refers to another field, call X with:
@@ -2070,6 +2103,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(flex_elemdataadr,   nflex,          nflexelemdata , 0                      ) \
   X(flex_elemedgeadr,   nflex,          nflexelemedge , 0                      ) \
   X(flex_shelldataadr,  nflex,          nflexshelldata, 0                      ) \
+  X(flex_celladr,       nflex,          nflexcell     , 0                      ) \
   X(flex_edge,          nflexedge*2,    nflexvert     , 0                      ) \
   X(flex_elem,          nflexelemdata,  nflexvert     , 0                      ) \
   X(flex_elemedge,      nflexelemedge,  nflexedge     , 0                      ) \
@@ -2177,6 +2211,15 @@ const char* mj_validateReferences(const mjModel* m) {
     }
     if (m->body_weldid[i] > i || m->body_weldid[i] < 0) {
       return "Invalid model: bad body_weldid.";
+    }
+
+    // the last dof of a body is body_dofadr + body_dofnum - 1, computed without checking
+    // body_dofnum: it is negative for a body without dofs only if its address is -1
+    if (m->body_dofnum[i] == 0 && m->body_dofadr[i] != -1) {
+      return "Invalid model: body_dofadr of a body without dofs is not -1.";
+    }
+    if (i == 0 && m->body_dofnum[i] != 0) {
+      return "Invalid model: world body has dofs.";
     }
     if (i == 0) {
       if (m->B_rownnz[0] != m->nv || (m->nv > 0 && m->B_rowadr[0] != 0)) {
@@ -2309,6 +2352,10 @@ const char* mj_validateReferences(const mjModel* m) {
   for (int f=0; f < m->nflex; f++) {
     int ncell = m->flex_interp[f] ?
                 m->flex_cellnum[3*f+0] * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2] : 0;
+    if (m->flex_interp[f] ? (m->flex_celladr[f] < 0 || m->flex_celladr[f] + ncell > m->nflexcell)
+                          : (m->flex_celladr[f] != -1)) {
+      return "Invalid model: flex_celladr out of bounds.";
+    }
     for (int v=0; v < m->flex_vertnum[f]; v++) {
       int c = m->flex_vertcell[m->flex_vertadr[f] + v];
       if (m->flex_interp[f] ? (c < 0 || c >= ncell) : (c != -1)) {
@@ -2366,7 +2413,14 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int i=0; i < m->nhfield; i++) {
-    mjtSize hfield_adr = m->hfield_adr[i] + ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
+    if (m->hfield_nrow[i] < 2 || m->hfield_ncol[i] < 2) {
+      return "Invalid model: hfield_nrow or hfield_ncol less than 2.";
+    }
+    mjtSize npix = ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
+    if (npix > INT_MAX) {
+      return "Invalid model: hfield_nrow * hfield_ncol overflows int.";
+    }
+    mjtSize hfield_adr = m->hfield_adr[i] + npix;
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
       return "Invalid model: hfield_adr out of bounds.";
     }
@@ -2560,6 +2614,10 @@ const char* mj_validateReferences(const mjModel* m) {
       if (id < 0 || id >= m->nsite) {
         return "Invalid model: actuator_trnid out of bounds.";
       }
+      // -1 is the value used if the reference site is omitted
+      if (idslider < -1 || idslider >= m->nsite) {
+        return "Invalid model: actuator_trnid out of bounds.";
+      }
       break;
     case mjTRN_SLIDERCRANK:
       if (id < 0 || id >= m->nsite) {
@@ -2590,27 +2648,50 @@ const char* mj_validateReferences(const mjModel* m) {
       // actuator_trnid not used.
       break;
     }
+
+    const char* historyerr = validateHistory(m->actuator_history[2*i], m->actuator_ctrlnum[i],
+                                             m->actuator_historyadr[i], m->nhistory);
+    if (historyerr) {
+      return historyerr;
+    }
+  }
+
+  // actuator_moment is filled by mj_transmission without bounds checks
+  mjtSize nJmom = momentSize(m);
+  if (nJmom < 0) {
+    return "Invalid model: bad actuator transmission or output address.";
+  }
+  if (m->nJmom < nJmom) {
+    return "Invalid model: nJmom is too small.";
+  }
+
+  // plugin_state is filled by the plugins without bounds checks: a plugin writes the number
+  // of states that it reports, which must be the number that the model has for it
+  for (int i=0; i < m->nplugin; i++) {
+    const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[i]);
+    if (!plugin) {
+      return "Invalid model: plugin is not registered.";
+    }
+    if (!plugin->nstate || plugin->nstate(m, i) != m->plugin_statenum[i]) {
+      return "Invalid model: plugin_statenum does not match the states of the plugin.";
+    }
+  }
+
+  // npolygonmax and nmeshdegmax are used to allocate the buffers of the convex collider
+  for (int i=0; i < m->nmeshpoly; i++) {
+    if (m->mesh_polyvertnum[i] > m->npolygonmax) {
+      return "Invalid model: npolygonmax is too small.";
+    }
+  }
+  for (int i=0; i < m->nmeshvert; i++) {
+    if (m->mesh_polymapnum[i] > m->nmeshdegmax) {
+      return "Invalid model: nmeshdegmax is too small.";
+    }
   }
   for (int i=0; i < m->nsensor; i++) {
     mjtSensor sensor_type = m->sensor_type[i];
-    int sensor_size;
-    if (sensor_type == mjSENS_PLUGIN) {
-      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[m->sensor_plugin[i]]);
-      if (!plugin->nsensordata) {
-        mjERROR("`nsensordata` is a null function pointer for plugin at slot %d",
-                m->plugin[m->sensor_plugin[i]]);
-      }
-      sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
-    } else {
-      sensor_size = sensorSize(sensor_type, m->sensor_dim[i]);
-    }
-    if (sensor_size < 0) {
-      return "Invalid model: Bad sensor_type.";
-    }
-    int sensor_adr = m->sensor_adr[i];
-    if (sensor_adr < 0 || sensor_adr + sensor_size > m->nsensordata) {
-      return "Invalid model: sensor_adr out of bounds.";
-    }
+
+    // the objects of the sensor, its size can depend on them
     int nobj = numObjects(m, m->sensor_objtype[i]);
     if (nobj == -2) {
       return "Invalid model: invalid sensor_objtype";
@@ -2624,6 +2705,43 @@ const char* mj_validateReferences(const mjModel* m) {
     }
     if (nobj != -1 && (m->sensor_refid[i] < -1 || m->sensor_refid[i] >= nobj)) {
       return "Invalid model: invalid sensor_refid";
+    }
+
+    // number of values written by the sensor
+    mjtSize sensor_size;
+    if (sensor_type == mjSENS_PLUGIN) {
+      if (m->sensor_plugin[i] < 0 || m->sensor_plugin[i] >= m->nplugin) {
+        return "Invalid model: sensor_plugin out of bounds.";
+      }
+      const mjpPlugin* plugin = mjp_getPluginAtSlot(m->plugin[m->sensor_plugin[i]]);
+      if (!plugin) {
+        return "Invalid model: sensor plugin is not registered.";
+      }
+      if (!plugin->nsensordata) {
+        mjERROR("`nsensordata` is a null function pointer for plugin at slot %d",
+                m->plugin[m->sensor_plugin[i]]);
+      }
+      sensor_size = plugin->nsensordata(m, m->sensor_plugin[i], i);
+    } else {
+      sensor_size = sensorSize(m, i);
+    }
+    if (sensor_size < 0) {
+      return "Invalid model: Bad sensor_type.";
+    }
+
+    // sensor_dim is the size of the sensor in sensordata and in the history buffer
+    int sensor_dim = m->sensor_dim[i];
+    if (sensor_dim != sensor_size) {
+      return "Invalid model: sensor_dim does not match the size of the sensor.";
+    }
+    int sensor_adr = m->sensor_adr[i];
+    if (sensor_adr < 0 || (mjtSize)sensor_adr + sensor_size > m->nsensordata) {
+      return "Invalid model: sensor_adr out of bounds.";
+    }
+    const char* historyerr = validateHistory(m->sensor_history[2*i], sensor_dim,
+                                             m->sensor_historyadr[i], m->nhistory);
+    if (historyerr) {
+      return historyerr;
     }
     if (sensor_type == mjSENS_TACTILE) {
       int parent_body = m->geom_bodyid[m->sensor_refid[i]];

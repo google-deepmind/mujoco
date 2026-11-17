@@ -3313,55 +3313,69 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
     return;
   }
 
-  // compute unconstrained efc_force
-  for (int i=0; i < nefc; i++) {
+  // ==== equality
+  for (int i=0; i < ne; i++) {
     force[i] = -D[i]*jar[i];
+    if (cost) {
+      s += 0.5*D[i]*jar[i]*jar[i];
+    }
+    state[i] = mjCNSTRSTATE_QUADRATIC;
   }
 
-  // update constraints
-  for (int i=0; i < nefc; i++) {
-    // ==== equality
-    if (i < ne) {
+  // ==== friction
+  for (int i=ne; i < ne + nf; i++) {
+    // linear negative
+    if (jar[i] <= -R[i]*floss[i]) {
+      if (cost) {
+        s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[i];
+      }
+
+      force[i] = floss[i];
+      state[i] = mjCNSTRSTATE_LINEARNEG;
+    }
+
+    // linear positive
+    else if (jar[i] >= R[i]*floss[i]) {
+      if (cost) {
+        s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[i];
+      }
+
+      force[i] = -floss[i];
+      state[i] = mjCNSTRSTATE_LINEARPOS;
+    }
+
+    // quadratic
+    else {
+      force[i] = -D[i]*jar[i];
       if (cost) {
         s += 0.5*D[i]*jar[i]*jar[i];
       }
       state[i] = mjCNSTRSTATE_QUADRATIC;
-      continue;
     }
+  }
 
-    // ==== friction
-    if (i < ne + nf) {
-      // linear negative
-      if (jar[i] <= -R[i]*floss[i]) {
-        if (cost) {
-          s += -0.5*R[i]*floss[i]*floss[i] - floss[i]*jar[i];
-        }
-
-        force[i] = floss[i];
-        state[i] = mjCNSTRSTATE_LINEARNEG;
-      }
-
-      // linear positive
-      else if (jar[i] >= R[i]*floss[i]) {
-        if (cost) {
-          s += -0.5*R[i]*floss[i]*floss[i] + floss[i]*jar[i];
-        }
-
-        force[i] = -floss[i];
-        state[i] = mjCNSTRSTATE_LINEARPOS;
-      }
-
-      // quadratic
-      else {
+  // ==== contact: fast path when no elliptic contacts exist (contact == NULL)
+  if (!contact) {
+    for (int i=ne + nf; i < nefc; i++) {
+      if (jar[i] >= 0) {
+        force[i] = 0;
+        state[i] = mjCNSTRSTATE_SATISFIED;
+      } else {
+        force[i] = -D[i]*jar[i];
         if (cost) {
           s += 0.5*D[i]*jar[i]*jar[i];
         }
         state[i] = mjCNSTRSTATE_QUADRATIC;
       }
-      continue;
     }
+    if (cost) {
+      *cost = s;
+    }
+    return;
+  }
 
-    // ==== contact
+  // update contact constraints (general path with elliptic cones)
+  for (int i=ne + nf; i < nefc; i++) {
 
     // non-negative constraint
     if (type[i] != mjCNSTR_CONTACT_ELLIPTIC) {
@@ -3374,6 +3388,7 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
 
       // quadratic
       else {
+        force[i] = -D[i]*jar[i];
         if (cost) {
           s += 0.5*D[i]*jar[i]*jar[i];
         }
@@ -3407,6 +3422,9 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
 
       // bottom zone
       else if (mu*N+T <= 0 || (T <= 0 && N < 0)) {
+        for (int j=0; j < dim; j++) {
+          force[i+j] = -D[i+j]*jar[i+j];
+        }
         if (cost) {
           for (int j=0; j < dim; j++) {
             s += 0.5*D[i+j]*jar[i+j]*jar[i+j];

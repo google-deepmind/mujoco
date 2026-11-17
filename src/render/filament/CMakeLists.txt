@@ -24,8 +24,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         mjrfilament.cc
         core/builtins.cc
         core/builtins.h
-        core/color_grading_options.cc
-        core/color_grading_options.h
         core/filament_context.cc
         core/filament_context.h
         core/filament_platform_factory.cc

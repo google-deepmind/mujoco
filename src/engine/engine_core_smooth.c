@@ -1845,9 +1845,65 @@ int mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
 }
 
 
+// single-vector sparse backsubstitution:  x = inv(L'*D*L)*x  (no dof skipping)
+static void solveLD1(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv,
+                     const int* rownnz, const int* rowadr, const int* colind) {
+  // x <- L^-T x
+  for (int i = nv - 1; i >= 0; i--) {
+    int d = rownnz[i] - 1;
+    if (d > 0) {
+      mjtNum x_i = x[i];
+      if (x_i) {
+        int adr = rowadr[i];
+        if (d == 1) {
+          x[colind[adr]] -= qLD[adr] * x_i;
+        } else if (d == 2) {
+          x[colind[adr]] -= qLD[adr] * x_i;
+          x[colind[adr+1]] -= qLD[adr+1] * x_i;
+        } else {
+          int end = adr + d;
+          for (; adr < end; adr++) {
+            x[colind[adr]] -= qLD[adr] * x_i;
+          }
+        }
+      }
+    }
+  }
+
+  // x <- D^-1 x
+  for (int i = 0; i < nv; i++) {
+    x[i] *= qLDiagInv[i];
+  }
+
+  // x <- L^-1 x
+  for (int i = 0; i < nv; i++) {
+    int d = rownnz[i] - 1;
+    if (d > 0) {
+      int adr = rowadr[i];
+      if (d == 1) {
+        mjtNum res = qLD[adr] * x[colind[adr]];
+        x[i] -= res;
+      } else if (d == 2) {
+        mjtNum res = qLD[adr] * x[colind[adr]];
+        res += qLD[adr+1] * x[colind[adr+1]];
+        x[i] -= res;
+      } else {
+        x[i] -= mju_dotSparse(qLD + adr, x, d, colind + adr);
+      }
+    }
+  }
+}
+
+
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x  (with dof skipping)
 void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv, int n,
                 const int* rownnz, const int* rowadr, const int* colind, const int* index) {
+  // single vector, no dof skipping: fast path
+  if (n == 1 && !index) {
+    solveLD1(x, qLD, qLDiagInv, nv, rownnz, rowadr, colind);
+    return;
+  }
+
   // x <- L^-T x
   for (int k = nv - 1; k >= 0; k--) {
     int i = index ? index[k] : k;

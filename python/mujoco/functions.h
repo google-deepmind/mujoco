@@ -16,11 +16,13 @@
 #define MUJOCO_PYTHON_FUNCTIONS_H_
 
 #include <array>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 #include <Eigen/Core>
 #include <mujoco/mujoco.h>
@@ -98,50 +100,70 @@ struct py_arg_helper<std::tuple<PyArg...>, std::tuple<OmittedArg...>> {
   static constexpr int n_py_args = std::tuple_size_v<decltype(py_args)>;
   static constexpr int n_omitted_args =
       std::tuple_size_v<decltype(omitted_args)>;
+  static_assert(n_omitted_args <= n_py_args,
+                "more omitted argument names than function parameters");
+  static constexpr int n_kept_args = n_py_args - n_omitted_args;
 
+  // The signature of m.def depends only on the number of named arguments,
+  // which is known from the tuple sizes. Which names are kept is decided by a
+  // loop at module import, so that the cost of compiling a binding is linear in
+  // its number of parameters.
   template <typename... T>
-  MUJOCO_ALWAYS_INLINE
-  constexpr void def(::pybind11::module_& m, T&&... t) {
-    constexpr int NExtras = std::tuple_size_v<std::tuple<T...>>;
-    unpack_tuple_as_py_args<0, NExtras>(m, std::forward<T>(t)...);
-  }
-
-  template <int ArgIdx, int NExtras, typename... T>
-  MUJOCO_ALWAYS_INLINE
-  constexpr void unpack_tuple_as_py_args(::pybind11::module_& m, T&&... t) {
-    if constexpr (ArgIdx == n_py_args) {
-      if constexpr (std::tuple_size_v<std::tuple<T...>> ==
-                    NExtras + n_py_args - n_omitted_args) {
-        m.def(std::forward<T>(t)...);
-      } else {
-        // This should ideally be a static_assert, but we need C++20 consteval
-        // to do that. When using the DEF_WITH_OMITTED_PY_ARGS macro, the
-        // static_assert in that macro would trigger first, rendering this
-        // branch unreachable.
-        throw UnexpectedError(
-            "omitted argument names do not match the underlying function "
-            "parameter names");
+  void def(::pybind11::module_& m, T&&... t) {
+    const auto names = names_array(py_args);
+    const auto omitted = names_array(omitted_args);
+    std::array<const char*, n_kept_args> kept{};
+    int n_kept = 0;
+    for (const char* name : names) {
+      if (is_omitted(name, omitted)) {
+        continue;
       }
-    } else if (is_omitted<ArgIdx>()) {
-      unpack_tuple_as_py_args<ArgIdx+1, NExtras>(m, std::forward<T>(t)...);
-    } else {
-      unpack_tuple_as_py_args<ArgIdx+1, NExtras>(
-          m, std::forward<T>(t)..., ::pybind11::arg(std::get<ArgIdx>(py_args)));
+      if (n_kept < n_kept_args) {
+        kept[n_kept] = name;
+      }
+      ++n_kept;
     }
+    if (n_kept != n_kept_args) {
+      // This should ideally be a static_assert, but we need C++20 consteval
+      // to do that. When using the DEF_WITH_OMITTED_PY_ARGS macro, the
+      // static_assert in that macro would trigger first, rendering this
+      // branch unreachable.
+      throw UnexpectedError(
+          "omitted argument names do not match the underlying function "
+          "parameter names");
+    }
+    def_with_names(m, kept, std::make_index_sequence<n_kept_args>(),
+                   std::forward<T>(t)...);
   }
 
-  template <int ArgIdx, int OmittedIdx = 0>
-  MUJOCO_ALWAYS_INLINE
-  constexpr bool is_omitted() {
-    if constexpr (OmittedIdx == n_omitted_args) {
-      return false;
-    // string_view comparison can be constexpr
-    } else if (std::string_view(std::get<ArgIdx>(py_args)) ==
-               std::string_view(std::get<OmittedIdx>(omitted_args))) {
-      return true;
-    } else {
-      return is_omitted<ArgIdx, OmittedIdx + 1>();
+ private:
+  template <typename... Str>
+  static constexpr std::array<const char*, sizeof...(Str)> names_array(
+      const std::tuple<Str...>& names) {
+    return std::apply(
+        [](const auto&... name) {
+          return std::array<const char*, sizeof...(Str)>{name...};
+        },
+        names);
+  }
+
+  template <std::size_t N>
+  static constexpr bool is_omitted(
+      const char* name, const std::array<const char*, N>& omitted) {
+    for (const char* omitted_name : omitted) {
+      // string_view comparison can be constexpr
+      if (std::string_view(name) == std::string_view(omitted_name)) {
+        return true;
+      }
     }
+    return false;
+  }
+
+  template <std::size_t N, std::size_t... I, typename... T>
+  static void def_with_names(::pybind11::module_& m,
+                             const std::array<const char*, N>& kept,
+                             std::index_sequence<I...>, T&&... t) {
+    m.def(std::forward<T>(t)..., ::pybind11::arg(kept[I])...);
   }
 };
 }  // namespace _impl
