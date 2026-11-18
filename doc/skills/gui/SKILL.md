@@ -8,9 +8,10 @@ description: >-
   rules (## label disambiguation vs ### seed reset override), list
   virtualization (ImGuiListClipper), theming, and input capture
   (WantCaptureKeyboard). Use only when building, aligning, styling, or
-  debugging Dear ImGui widgets and ImPlot charts inside MuJoCo Studio, MuJoCo
-  viewer plugins, or MuJoCo/robotics simulation and control tools. Don't use
-  for general-purpose C++ or Python Dear ImGui / ImPlot / imgui_bundle desktop
+  debugging MuJoCo Studio UI, mobile/HUD or responsive Studio layouts, or Dear
+  ImGui widgets and ImPlot charts inside MuJoCo Studio, MuJoCo viewer plugins,
+  or MuJoCo/robotics simulation and control tools. Don't use for
+  general-purpose C++ or Python Dear ImGui / ImPlot / imgui_bundle desktop
   applications unrelated to MuJoCo or robotics, or for Studio plugin
   lifecycle/messaging (use mujoco-studio) or core physics stepping (use
   mujoco-python).
@@ -57,6 +58,17 @@ metadata:
 > ID stack mechanics, clipper usage, and styling rules translate directly 1-to-1
 > to C++. Guidelines apply both to core Dear ImGui and extension libraries, most
 > importantly ImPlot.
+>
+> **Dear ImGui everywhere (C++ `studio/ux/` for all viewers, Python for
+> Python-only — no HTML/JS overlays)**: Built-in Studio UI that must be shared
+> across **every** Studio viewer (desktop C++ Studio, MuJoCo Live WASM, and both
+> Python viewers) belongs in shared C++ Dear ImGui under `studio/ux/`. For
+> Python-only UIs (`NativeViewer` + `WebViewer`), use a Python Dear ImGui
+> `ViewerPlugin`—which is also a great way to iterate with `--hot_reload` before
+> porting to C++ `studio/ux/` for all viewers. Do not replace or mirror Dear
+> ImGui panels with HTML/CSS/JS overlays or parallel JSON WebSocket UI channels
+> in `WebViewer`; `WebViewer` streams Dear ImGui draw lists over `/ui` so
+> built-in panels and custom `ViewerPlugin` UIs work uniformly in the browser.
 
 ## 1. Naming Conventions: `build_gui` vs `render` / `draw`
 

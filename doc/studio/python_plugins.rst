@@ -170,6 +170,12 @@ When writing :ref:`viewer plugins <StudioViewerPlugins>`:
   Python viewer thread and the WebAssembly browser client when using ``WebViewer``—if a capability is missing there, it
   should be designed as a general-purpose feature for other applications too, so consider opening a pull request
   upstream.
+- **Custom viewport drag tools in** ``WebViewer``: The controlling browser moves the camera itself, and leaves a drag
+  alone only if the host's Dear ImGui wants the mouse (``io.WantCaptureMouse``) when the drag starts. A viewport drag
+  tool must therefore make the host capture the pointer: submit a window over the area, with an
+  ``imgui.InvisibleButton`` inside it as the drag surface, or call ``imgui.SetNextFrameWantCaptureMouse(True)``. The
+  browser cannot change the camera mode (``ClientCameraSync`` drops such messages), so switch modes by setting
+  ``self.viewer.camera`` in the plugin.
 
 MuJoCo provides its own `Python bindings for Dear ImGui
 <https://github.com/google-deepmind/mujoco/tree/main/python/mujoco/studio/dear_imgui>`__ that mirror the C++ API

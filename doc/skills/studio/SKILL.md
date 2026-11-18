@@ -10,10 +10,11 @@ description: >-
   ViewerPlugin/SimPlugin or C++ RegisterPlugin (mjPLUGIN_LIB_INIT) extensions,
   synchronizing MuJoCo sim/viewer state (ViewerHandle.sync, @messages.handler),
   hot-reloading plugins/models (HotReloadEvent), configuring WebViewer WASM
-  streaming, or debugging Studio logs. Don't use for non-MuJoCo simulations or
-  generic web viewers/sidecars not using MuJoCo, Dear ImGui/ImPlot layout
-  (mujoco-gui), core stepping (mujoco-python), or headless rendering
-  (mujoco-rendering).
+  streaming, modifying Studio's built-in UI, WebViewer frontend/server, or
+  camera/touch input controls, or debugging Studio logs. Don't use for
+  non-MuJoCo simulations or generic web viewers/sidecars not using MuJoCo, Dear
+  ImGui/ImPlot layout (mujoco-gui), core stepping (mujoco-python), or headless
+  rendering (mujoco-rendering).
 metadata:
   publisher: google
 ---
@@ -107,6 +108,49 @@ when your task touches these areas:
 | **Web & Remote** | None | **WebViewer** (streamed ImGui UI + state over HTTP/WS) & **MuJoCo Live** (WASM) |
 | **Extensibility** | Hardcoded panels and keybinds | **Plugin Architecture** in Python and C++ |
 | **Threading & Sync** | Shared `model`/`data` with locking | Python & desktop C++: decoupled sim/viewer threads; WASM (`MuJoCo Live`): single-threaded |
+
+### Shared UI, Input & `WebViewer` Wire Contract
+
+When modifying Studio's built-in UI, web frontend, or interaction controls (not
+just authoring an external plugin), preserve three architectural invariants:
+
+-   **Keep UI in Dear ImGui (C++ `studio/ux/` for all viewers, Python for
+    Python-only)**: Built-in UI that needs to be shared across **every** Studio
+    viewer (desktop C++ Studio, MuJoCo Live / `live.mujoco.org`, `mujoco.org`,
+    and both Python viewers) must live in shared C++ Dear ImGui components under
+    `studio/ux/` (compiled natively, bound to Python via `mujoco.studio.ux`, and
+    compiled to WebAssembly). If a UI only needs to support the Python viewers
+    (`NativeViewer` and `WebViewer`), you can write it as a Python Dear ImGui
+    `ViewerPlugin`—which also lets you iterate rapidly with `--hot_reload`
+    before porting it to C++ `studio/ux/` to share with all viewers (note that
+    `viewer.py --plugins=...` always prepends `studio_app.App()`, so to replace
+    the default layout while keeping hot reload, pass
+    `ViewerConfig(hot_reload='all')` and
+    `plugins=[MyAppPlugin(), *studio_app.SIM_PLUGINS]` to `launch_web.run` or
+    `launch_passive.run`, with the plugin class in an importable module rather
+    than `__main__`). Keep `NativeViewer` and `WebViewer` UI-neutral when
+    callers omit `studio_app.App`—never auto-attach optional UI plugins inside
+    the viewer or overwrite `model.vis.scale` defaults. Do **not** build
+    `WebViewer`-only HTML/CSS/JS overlays that replace or duplicate Dear ImGui
+    panels; they diverge from desktop Studio and MuJoCo Live, create a second UI
+    to maintain, and hide custom Python `ViewerPlugin` UIs.
+-   **Keep UI on `/ui` (extend `/state` or HTTP only for 3D scene data)**:
+    `WebViewer` streams delta-compressed Dear ImGui draw lists over `/ui` so
+    that built-in panels and custom Python `ViewerPlugin`s render in the browser
+    with zero web-specific code. Extending `/state` or HTTP endpoints is
+    appropriate when the browser's 3D renderer needs new scene or simulation
+    data (such as batched simulation states or per-world model overrides), but
+    do **not** add parallel JSON WebSocket endpoints to mirror `studio_app.App`
+    UI state or drive HTML widgets from JavaScript.
+-   **Shared C/C++ input, camera & built-in visualization (`studio/hal/`,
+    `studio/ux/`, core C)**: Mouse, keyboard, touch gesture (`SDL_FINGER*`), and
+    camera-transition logic belong in shared C++ (`studio/hal/window.cc`,
+    `studio/ux/camera_control.*`, `studio/ux/interaction.*`) rather than
+    `WebViewer`-only JS touch-to-mouse translators or Python-only helpers in
+    `studio/app/plugins.py`, and built-in visualization modes (such as new
+    coordinate frames) belong in core C MuJoCo (`mjtFrame` / `mjvOption`) rather
+    than per-frame Python `viewer.extra_geoms`, so behavior stays consistent
+    across desktop Studio, MuJoCo Live, and Python.
 
 ### Decoupled Sim & Viewer Threads (Python)
 
