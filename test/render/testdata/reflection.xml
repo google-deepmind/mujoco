@@ -70,5 +70,8 @@
     <!-- box hidden BEHIND the mirror (x < -1.3): unseen by the camera directly, and
          it must not leak into the reflection either -->
     <geom name="behind" type="box" material="behind" size=".3 .3 .4" pos="-3 3 0.4"/>
+
+    <!-- capsule STRADDLING the mirror -->
+    <geom name="capsule" type="capsule" material="behind" size=".06 .7" pos="-1.3 -.9 .7" euler="-30 30 0"/>
   </worldbody>
 </mujoco>
