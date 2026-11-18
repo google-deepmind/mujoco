@@ -44,18 +44,34 @@
 
 
 // table of pairwise collision functions
-mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {
-  /*              PLANE  HFIELD  SPHERE            CAPSULE             ELLIPSOID         CYLINDER            BOX               MESH              SDF */
-  /*PLANE     */ {0,     0,      mjc_PlaneSphere,  mjc_PlaneCapsule,   mjc_PlaneConvex,  mjc_PlaneCylinder,  mjc_PlaneBox,     mjc_PlaneConvex,  mjc_PlaneConvex},
-  /*HFIELD    */ {0,     0,      mjc_ConvexHField, mjc_ConvexHField,   mjc_ConvexHField, mjc_ConvexHField,   mjc_ConvexHField, mjc_ConvexHField, mjc_HFieldSDF},
-  /*SPHERE    */ {0,     0,      mjc_SphereSphere, mjc_SphereCapsule,  mjc_Convex,       mjc_SphereCylinder, mjc_SphereBox,    mjc_Convex,       mjc_SDF},
-  /*CAPSULE   */ {0,     0,      0,                mjc_CapsuleCapsule, mjc_Convex,       mjc_Convex,         mjc_CapsuleBox,   mjc_Convex,       mjc_SDF},
-  /*ELLIPSOID */ {0,     0,      0,                0,                  mjc_Convex,       mjc_Convex,         mjc_Convex,       mjc_Convex,       mjc_SDF},
-  /*CYLINDER  */ {0,     0,      0,                0,                  0,                mjc_Convex,         mjc_Convex,       mjc_Convex,       mjc_SDF},
-  /*BOX       */ {0,     0,      0,                0,                  0,                0,                  mjc_BoxBox,       mjc_Convex,       mjc_SDF},
-  /*MESH      */ {0,     0,      0,                0,                  0,                0,                  0,                mjc_Convex,       mjc_MeshSDF},
-  /*SDF       */ {0,     0,      0,                0,                  0,                0,                  0,                0,                mjc_SDF}
-};
+#define mjCOLLISION_TABLE(X, _)                                                                                                                                         \
+  /*                  PLANE  HFIELD  SPHERE            CAPSULE             ELLIPSOID         CYLINDER            BOX               MESH              SDF */             \
+  X(mjGEOM_PLANE,     _,     _,      mjc_PlaneSphere,  mjc_PlaneCapsule,   mjc_PlaneConvex,  mjc_PlaneCylinder,  mjc_PlaneBox,     mjc_PlaneConvex,  mjc_PlaneConvex)   \
+  X(mjGEOM_HFIELD,    _,     _,      mjc_ConvexHField, mjc_ConvexHField,   mjc_ConvexHField, mjc_ConvexHField,   mjc_ConvexHField, mjc_ConvexHField, mjc_HFieldSDF)     \
+  X(mjGEOM_SPHERE,    _,     _,      mjc_SphereSphere, mjc_SphereCapsule,  mjc_Convex,       mjc_SphereCylinder, mjc_SphereBox,    mjc_Convex,       mjc_SDF)           \
+  X(mjGEOM_CAPSULE,   _,     _,      _,                mjc_CapsuleCapsule, mjc_Convex,       mjc_Convex,         mjc_CapsuleBox,   mjc_Convex,       mjc_SDF)           \
+  X(mjGEOM_ELLIPSOID, _,     _,      _,                _,                  mjc_Convex,       mjc_Convex,         mjc_Convex,       mjc_Convex,       mjc_SDF)           \
+  X(mjGEOM_CYLINDER,  _,     _,      _,                _,                  _,                mjc_Convex,         mjc_Convex,       mjc_Convex,       mjc_SDF)           \
+  X(mjGEOM_BOX,       _,     _,      _,                _,                  _,                _,                  mjc_BoxBox,       mjc_Convex,       mjc_SDF)           \
+  X(mjGEOM_MESH,      _,     _,      _,                _,                  _,                _,                  _,                mjc_Convex,       mjc_MeshSDF)       \
+  X(mjGEOM_SDF,       _,     _,      _,                _,                  _,                _,                  _,                _,                mjc_SDF)
+
+#define MJ_COLLISION_ROW(t1, c0, c1, c2, c3, c4, c5, c6, c7, c8) \
+  MJ_CELL(t1, 0, c0) MJ_CELL(t1, 1, c1) MJ_CELL(t1, 2, c2)       \
+  MJ_CELL(t1, 3, c3) MJ_CELL(t1, 4, c4) MJ_CELL(t1, 5, c5)       \
+  MJ_CELL(t1, 6, c6) MJ_CELL(t1, 7, c7) MJ_CELL(t1, 8, c8)
+#define MJ_NONE(...) 0
+
+#define MJ_ROW(t1, ...) {__VA_ARGS__},
+mjfCollision mjCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES] = {mjCOLLISION_TABLE(MJ_ROW, 0)};
+static const mjfCollision mjDEFAULTCOLLISIONFUNC[mjNGEOMTYPES][mjNGEOMTYPES]
+    = {mjCOLLISION_TABLE(MJ_ROW, 0)};
+#undef MJ_ROW
+
+// return 1 if mjCOLLISIONFUNC has not been modified from defaults
+static inline int isDefaultCollisionFunc(void) {
+  return memcmp(mjCOLLISIONFUNC, mjDEFAULTCOLLISIONFUNC, sizeof(mjCOLLISIONFUNC)) == 0;
+}
 
 
 
@@ -914,7 +930,8 @@ void mj_collision(const mjModel* m, mjData* d) {
                  flexReducible(m, bf2-nbody)) {
         group = ngroup++;
       }
-      ncandidate = mj_collideTree(m, d, bf1, bf2, merged, startadr, pairadr, parena, ncandidate, group);
+      ncandidate = mj_collideTree(m, d, bf1, bf2, merged, startadr, pairadr, parena, ncandidate,
+                                  group);
     }
 
     // process bodyflex pair: all-to-all
@@ -2039,6 +2056,7 @@ typedef struct {
   int npair;                // number of collision pairs
   int chunksize;            // number of pairs to process per task
   int maxcon;               // maximum number of contacts (size of conbuffer)
+  int user_collider;        // 1 if mjCOLLISIONFUNC differs from mjDEFAULTCOLLISIONFUNC
 } mjContactArg;
 
 
@@ -2102,7 +2120,7 @@ static inline int pairMaxContact(const mjModel* m, const mjcPair* pair) {
 // returning 0 for a CCD pair only costs performance (mjc_penetration falls
 // back to per-call stack allocation when no buffer is bound), so the denylist
 // is safe and new analytical colliders don't need to be added for correctness
-static inline int pairNeedsCCD(const mjModel* m, const mjcPair* pair) {
+static inline int pairNeedsCCD(const mjModel* m, const mjcPair* pair, int user_collider) {
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
     return 0;
   }
@@ -2114,6 +2132,16 @@ static inline int pairNeedsCCD(const mjModel* m, const mjcPair* pair) {
       }
       int type1 = m->geom_type[pair->geom_geom.g1];
       int type2 = m->geom_type[pair->geom_geom.g2];
+      if (!user_collider) {
+        switch ((type1 << 4) | type2) {
+#define MJ_CELL(t1, t2, fn) \
+          case ((t1) << 4) | (t2): return (fn == mjc_Convex || fn == mjc_ConvexHField);
+          mjCOLLISION_TABLE(MJ_COLLISION_ROW, 0)
+#undef MJ_CELL
+          default:
+            return 0;
+        }
+      }
       mjfCollision fn = mjCOLLISIONFUNC[type1][type2];
       if (!fn ||
           fn == mjc_PlaneSphere || fn == mjc_PlaneCapsule ||
@@ -2149,6 +2177,7 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
 
   int npair = conargs->npair;
   int n = mjMIN(chunksize, npair - globalidx);
+  int user_collider = conargs->user_collider;
 
   if (epabuffer) {
     mjc_setCCDBuffer(epabuffer + thread_id * conargs->ccd_size);
@@ -2161,10 +2190,26 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
         int g1 = pair[i].geom_geom.g1;
         int g2 = pair[i].geom_geom.g2;
         int ipair = pair[i].geom_geom.ipair;
-        mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
+        int type1 = m->geom_type[g1];
+        int type2 = m->geom_type[g2];
         mjtNum margin = getMargin(m, g1, g2, ipair);
         mjtNum gap = getGap(m, g1, g2, ipair);
-        ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
+        mjPreContact* con = conbuffer + conpos;
+
+        if (user_collider) {
+          mjfCollision fn = mjCOLLISIONFUNC[type1][type2];
+          ncon[i] = fn ? fn(m, d, con, g1, g2, margin + gap) : 0;
+        } else {
+          switch ((type1 << 4) | type2) {
+#define MJ_CELL(t1, t2, fn) \
+            case ((t1) << 4) | (t2): ncon[i] = fn(m, d, con, g1, g2, margin + gap); break;
+            mjCOLLISION_TABLE(MJ_COLLISION_ROW, MJ_NONE)
+#undef MJ_CELL
+            default:
+              ncon[i] = 0;
+              break;
+          }
+        }
         if (speculativeEnabled(m)) {
           // check for active surface contact (in-gap contacts are only replaced if
           // CCD finds a surface hit)
@@ -2476,6 +2521,7 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
   int maxcon = 0;
   int has_flex = 0;
   int has_ccd = 0;
+  int user_collider = !isDefaultCollisionFunc();
   for (int i = 0; i < npair; i++) {
     pairbuffer[i] = buffer[i];
     pairbuffer[i].conpos = maxcon;
@@ -2483,7 +2529,7 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
     if (buffer[i].type == mjCPAIR_GEOM_FLEX) {
       has_flex = 1;
     }
-    if (!has_ccd && pairNeedsCCD(m, buffer + i)) {
+    if (!has_ccd && pairNeedsCCD(m, buffer + i, user_collider)) {
       has_ccd = 1;
     }
   }
@@ -2508,6 +2554,7 @@ static void mj_narrowphase(const mjModel* m, mjData* d, int npair, size_t parena
   arg.npair = npair;
   arg.chunksize = chunksize;
   arg.maxcon = maxcon;
+  arg.user_collider = user_collider;
 
   // dispatch narrowphase to threads with local stack allocation for EPA
   {
