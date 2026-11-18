@@ -16,6 +16,7 @@
 
 #include "src/engine/engine_io.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <climits>
@@ -25,6 +26,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>  // NOLINT
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1539,6 +1541,562 @@ TEST_F(ValidateReferencesTest, SiteTransmission) {
   model->actuator_trnid[1] = -1;
   EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 }
+
+// References which always point to an element are used as indices without
+// further checks, so they cannot be -1 like the optional ones.
+TEST_F(ValidateReferencesTest, RequiredReferences) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint"/>
+        <geom name="geom" size="1"/>
+        <site name="site"/>
+        <camera name="camera"/>
+        <light name="light"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+#define EXPECT_REQUIRED(array)                                          \
+  {                                                                     \
+    int saved = model->array[0];                                        \
+    model->array[0] = -1;                                               \
+    EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr(#array)); \
+    model->array[0] = saved;                                            \
+    EXPECT_THAT(mj_validateReferences(model.get()), IsNull());          \
+  }
+  EXPECT_REQUIRED(jnt_bodyid);
+  EXPECT_REQUIRED(dof_jntid);
+  EXPECT_REQUIRED(dof_treeid);
+  EXPECT_REQUIRED(geom_bodyid);
+  EXPECT_REQUIRED(site_bodyid);
+  EXPECT_REQUIRED(cam_bodyid);
+  EXPECT_REQUIRED(light_bodyid);
+  EXPECT_REQUIRED(name_geomadr);
+#undef EXPECT_REQUIRED
+
+  // references which were not validated
+  model->body_treeid[1] = model->ntree;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_treeid"));
+  model->body_treeid[1] = 0;
+  model->dof_treeid[0] = model->ntree;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("dof_treeid"));
+  model->dof_treeid[0] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // the geom type is an index into the table of collision functions
+  int geom_type = model->geom_type[0];
+  model->geom_type[0] = mjNGEOMTYPES;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("geom_type"));
+  model->geom_type[0] = -1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("geom_type"));
+  model->geom_type[0] = geom_type;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
+// Sets a field of the model to an invalid value, expects the given error, and
+// restores it.
+#define EXPECT_INVALID(field, value, error)                           \
+  {                                                                   \
+    auto saved = model->field;                                        \
+    model->field = (value);                                           \
+    EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr(error)) \
+        << #field " = " #value;                                       \
+    model->field = saved;                                             \
+    EXPECT_THAT(mj_validateReferences(model.get()), IsNull());        \
+  }
+
+// The engine walks the joints and dofs of the bodies and trees without checks.
+TEST_F(ValidateReferencesTest, TreeLayout) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="first">
+        <joint name="slide" type="slide"/>
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+        <body name="child">
+          <joint name="hinge"/>
+          <geom size="1"/>
+        </body>
+      </body>
+      <body name="second">
+        <freejoint/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_EQ(model->ntree, 2);
+
+  // joints and dofs of the bodies
+  EXPECT_INVALID(body_dofnum[1], 7, "Invalid model");
+  EXPECT_INVALID(body_dofnum[1], 3, "body_dofnum");
+  EXPECT_INVALID(body_dofadr[2], 0, "body_dofadr");
+  EXPECT_INVALID(body_jntadr[2], 0, "body_jntadr");
+  EXPECT_INVALID(jnt_bodyid[1], 2, "jnt_bodyid");
+  EXPECT_INVALID(jnt_dofadr[1], 0, "jnt_dofadr");
+  EXPECT_INVALID(jnt_type[0], mjJNT_FREE, "free joint");
+  EXPECT_INVALID(jnt_type[2], mjJNT_BALL, "body_dofnum");
+  EXPECT_INVALID(dof_jntid[1], 0, "dof_jntid");
+  EXPECT_INVALID(dof_bodyid[1], 2, "dof_bodyid");
+
+  // dofs and bodies of the trees
+  EXPECT_INVALID(dof_treeid[0], 1, "dof_treeid");
+  EXPECT_INVALID(tree_dofadr[1], 4, "tree_dofadr");
+  EXPECT_INVALID(tree_dofnum[0], 11, "tree_dofnum");
+  EXPECT_INVALID(body_treeid[2], 1, "body_treeid");
+  EXPECT_INVALID(tree_bodyadr[1], 2, "tree_bodyadr");
+  EXPECT_INVALID(tree_bodynum[0], 3, "tree_bodynum");
+
+  // names: terminator of the last string, slots of the hash map
+  EXPECT_INVALID(names[model->nnames - 1], 'a', "names is not terminated");
+  EXPECT_INVALID(names_map[0], model->nbody, "names_map");
+  EXPECT_INVALID(names_map[0], -2, "names_map");
+  std::vector<int> names_map(model->names_map,
+                             model->names_map + model->nnames_map);
+  std::fill_n(model->names_map, mjLOAD_MULTIPLE * model->nbody, 0);
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("no empty slot"));
+  std::copy(names_map.begin(), names_map.end(), model->names_map);
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
+// The bodies of a tree are used as a contiguous range.
+TEST_F(ValidateReferencesTest, TreeBodiesAreContiguous) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint/>
+        <geom size="1"/>
+        <body>
+          <joint/>
+          <geom size="1"/>
+          <body>
+            <joint/>
+            <geom size="1"/>
+          </body>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_EQ(model->ntree, 1);
+  ASSERT_EQ(model->tree_bodyadr[0], 1);
+  ASSERT_EQ(model->tree_bodynum[0], 3);
+
+  // a static body between two bodies of the tree, with a matching body count
+  model->body_weldid[2] = 0;
+  model->body_treeid[2] = -1;
+  model->tree_bodynum[0] = 2;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("not contiguous"));
+  model->body_weldid[2] = 2;
+  model->body_treeid[2] = 0;
+  model->tree_bodynum[0] = 3;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
+// The id of the object of a sensor is used according to the type of the
+// sensor, which must agree with the type of the object.
+TEST_F(ValidateReferencesTest, SensorObjects) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="hinge"/>
+        <geom name="geom" size="1"/>
+        <site name="site"/>
+        <body name="child">
+          <joint name="ball" type="ball"/>
+          <geom size="1"/>
+        </body>
+      </body>
+    </worldbody>
+    <sensor>
+      <jointpos joint="hinge"/>
+      <ballquat joint="ball"/>
+      <framepos objtype="body" objname="body" reftype="site" refname="site"/>
+      <contact geom1="geom"/>
+      <rangefinder site="site"/>
+      <clock/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // a joint sensor whose object is a body: its id is used as a joint id
+  EXPECT_INVALID(sensor_objtype[0], mjOBJ_BODY, "sensor_objtype");
+  EXPECT_INVALID(sensor_type[0], mjSENS_TOUCH, "sensor_objtype");
+
+  // a ball joint sensor reads 4 positions
+  EXPECT_INVALID(sensor_objid[1], 0, "sensor_objtype");
+
+  // objects have an id if and only if they have a type
+  EXPECT_INVALID(sensor_refid[2], -1, "sensor_reftype");
+  EXPECT_INVALID(sensor_reftype[2], mjOBJ_JOINT, "sensor_reftype");
+  EXPECT_INVALID(sensor_objid[5], 0, "sensor_objtype");
+
+  // data specifications are not empty, the sensor size is divided by their size
+  EXPECT_INVALID(sensor_intprm[mjNSENS * 3], 0, "sensor_type");
+  EXPECT_INVALID(sensor_intprm[mjNSENS * 3], 1 << mjNCONDATA, "sensor_type");
+  EXPECT_INVALID(sensor_intprm[mjNSENS * 3 + 2], 0, "sensor_type");
+  EXPECT_INVALID(sensor_dim[3], model->sensor_dim[3] + 1, "sensor_dim");
+  EXPECT_INVALID(sensor_intprm[mjNSENS * 4], 0, "sensor_type");
+}
+
+// The paths of tendons and the states of actuators are read without checks.
+TEST_F(ValidateReferencesTest, TendonsAndActuators) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="start"/>
+      <geom name="wrap" type="sphere" size=".1" pos="0 0 1"/>
+      <site name="side" pos="0 1 1"/>
+      <body name="body" pos="0 0 2">
+        <joint name="hinge"/>
+        <geom name="geom" size=".1" pos=".2 0 0"/>
+        <site name="end"/>
+      </body>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial">
+        <site site="start"/>
+        <geom geom="wrap" sidesite="side"/>
+        <site site="end"/>
+      </spatial>
+      <fixed name="fixed">
+        <joint joint="hinge" coef="1"/>
+      </fixed>
+    </tendon>
+    <equality>
+      <connect body1="body" anchor="0 0 0"/>
+    </equality>
+    <actuator>
+      <general name="integrator" joint="hinge" dyntype="integrator"/>
+      <general name="filter" joint="hinge" dyntype="filter" dynprm="1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_EQ(model->tendon_type[0], mjTENDON_SPATIAL);
+  ASSERT_EQ(model->wrap_type[1], mjWRAP_SPHERE);
+
+  // tendon paths
+  EXPECT_INVALID(tendon_type[0], 2, "tendon_type");
+  EXPECT_INVALID(tendon_num[0], 1, "tendon_num");
+  EXPECT_INVALID(tendon_num[1], 0, "tendon_num");
+  EXPECT_INVALID(wrap_type[0], mjWRAP_JOINT, "wrap_type");
+  EXPECT_INVALID(wrap_type[0], mjWRAP_PULLEY, "between two sites");
+  EXPECT_INVALID(wrap_type[2], mjWRAP_PULLEY, "between two sites");
+  EXPECT_INVALID(wrap_prm[1], model->nsite, "side site");
+  EXPECT_INVALID(wrap_prm[1], -2, "side site");
+  EXPECT_INVALID(wrap_prm[1], model->nsite - 0.4, "side site");
+  EXPECT_INVALID(wrap_type[3], mjWRAP_SITE, "fixed tendon");
+  EXPECT_INVALID(tendon_treeid[0], -1, "tendon_treeid");
+
+  // an unknown equality type is an error, not an abort
+  EXPECT_INVALID(eq_type[0], 100, "equality");
+
+  // activations of the actuators
+  EXPECT_INVALID(actuator_actnum[0], 0, "actuator_actnum");
+  EXPECT_INVALID(actuator_ctrlnum[0], 2, "actuator_actnum");
+  EXPECT_INVALID(actuator_actnum[1], 0, "actuator_actnum");
+  EXPECT_INVALID(actuator_ctrlnum[1], 0, "actuator_ctrlnum");
+  EXPECT_INVALID(actuator_gaintype[0], mjGAIN_SO3, "SO3");
+
+  // an integrator with fewer activations than controls writes to the
+  // activations of the previous actuator
+  ASSERT_EQ(model->actuator_actadr[1], 1);
+  model->actuator_dyntype[1] = mjDYN_INTEGRATOR;
+  model->actuator_ctrladr[1] = 0;
+  model->actuator_ctrlnum[1] = 2;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("actuator_actnum"));
+  model->actuator_dyntype[1] = mjDYN_FILTER;
+  model->actuator_ctrladr[1] = 1;
+  model->actuator_ctrlnum[1] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // activations and controls of DC motor gains and biases
+  model->actuator_dynprm[0] = 0;
+  EXPECT_INVALID(actuator_gaintype[0], mjGAIN_DCMOTOR, "DC motor");
+  EXPECT_INVALID(actuator_biastype[0], mjBIAS_DCMOTOR, "DC motor");
+  model->actuator_dyntype[0] = mjDYN_NONE;
+  model->actuator_actadr[0] = -1;
+  model->actuator_actnum[0] = 0;
+  model->actuator_gaintype[0] = mjGAIN_DCMOTOR;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+  model->actuator_ctrladr[0] = 0;
+  model->actuator_ctrlnum[0] = 5;
+  model->nu = 6;
+  EXPECT_THAT(mj_validateReferences(model.get()),
+              HasSubstr("actuator_ctrlnum"));
+  model->actuator_ctrlnum[0] = 1;
+  model->nu = 2;
+  model->actuator_gaintype[0] = mjGAIN_FIXED;
+  model->actuator_biastype[0] = mjBIAS_DCMOTOR;
+  model->actuator_dynprm[5] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("DC motor"));
+  model->actuator_dynprm[5] = 0;
+  model->actuator_dynprm[0] = 1;
+  model->actuator_biastype[0] = mjBIAS_NONE;
+  model->actuator_dyntype[0] = mjDYN_INTEGRATOR;
+  model->actuator_actadr[0] = 0;
+  model->actuator_actnum[0] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // contact dimensions
+  EXPECT_INVALID(geom_condim[0], 2, "geom_condim");
+  EXPECT_INVALID(geom_condim[0], 0, "geom_condim");
+  EXPECT_INVALID(site_type[0], mjNGEOMTYPES, "site_type");
+}
+
+// An SO3 servo reads 3 or 4 controls, or 3 activations if it has dynamics.
+TEST_F(ValidateReferencesTest, SO3Actuator) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="camera" resolution="4 3"/>
+      <body>
+        <joint name="ball" type="ball"/>
+        <geom size="1"/>
+        <body pos="1 0 0">
+          <joint name="hinge"/>
+          <geom size="1"/>
+        </body>
+      </body>
+    </worldbody>
+    <actuator>
+      <orientation name="so3" joint="ball" kp="1"/>
+      <general name="filter" joint="hinge" dyntype="filter" dynprm="1"/>
+    </actuator>
+    <sensor>
+      <rangefinder camera="camera"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_EQ(model->actuator_gaintype[0], mjGAIN_SO3);
+  ASSERT_EQ(model->actuator_ctrlnum[0], 3);
+  ASSERT_EQ(model->nu, 4);
+  ASSERT_EQ(model->na, 1);
+
+  EXPECT_INVALID(actuator_ctrlnum[0], 2, "SO3");
+  EXPECT_INVALID(actuator_ctrlspec[0], mjCHART_QUAT, "SO3");
+  EXPECT_INVALID(actuator_trnid[0], 1, "ball joint");
+
+  // quaternion input with dynamics and a single activation
+  model->actuator_ctrlspec[0] = mjCHART_QUAT;
+  model->actuator_ctrlnum[0] = 4;
+  model->actuator_dyntype[0] = mjDYN_FILTER;
+  model->actuator_actadr[0] = 0;
+  model->actuator_actnum[0] = 1;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("SO3"));
+  model->actuator_ctrlspec[0] = mjCHART_EXPMAP;
+  model->actuator_ctrlnum[0] = 3;
+  model->actuator_dyntype[0] = mjDYN_NONE;
+  model->actuator_actadr[0] = -1;
+  model->actuator_actnum[0] = 0;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // a camera rangefinder whose number of values overflows
+  model->cam_resolution[0] = INT_MAX;
+  model->cam_resolution[1] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("sensor_type"));
+  model->cam_resolution[0] = 4;
+  model->cam_resolution[1] = 3;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+}
+
+// Meshes, skins, flexes and bounding volume hierarchies hold indices which are
+// local to the object.
+TEST_F(ValidateReferencesTest, LocalIndices) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="tet" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <texture name="texture" type="2d" builtin="checker" width="4" height="4"/>
+    </asset>
+    <worldbody>
+      <geom name="plane" type="plane" size="1 1 1"/>
+      <body name="body" pos="0 0 2">
+        <freejoint/>
+        <geom name="mesh" type="mesh" mesh="tet"/>
+        <geom name="sphere" size=".1"/>
+      </body>
+      <flexcomp name="flex" type="grid" count="3 3 1" spacing=".1 .1 .1"
+                pos="0 0 1" dim="2" radius=".01"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // geom data
+  int mesh_geom = mj_name2id(model.get(), mjOBJ_GEOM, "mesh");
+  EXPECT_INVALID(geom_dataid[mesh_geom], -1, "geom_dataid");
+
+  // convex hull graph of the mesh
+  int graphadr = model->mesh_graphadr[0];
+  ASSERT_GE(graphadr, 0);
+  int numvert = model->mesh_graph[graphadr];
+  int numface = model->mesh_graph[graphadr + 1];
+  int numedge = numvert + 3 * numface;
+  EXPECT_INVALID(mesh_graph[graphadr], 1 << 20, "mesh_graph");
+  EXPECT_INVALID(mesh_graph[graphadr], 0, "mesh_graph");
+  EXPECT_INVALID(mesh_graph[graphadr + 1], -1, "mesh_graph");
+  EXPECT_INVALID(mesh_graph[graphadr + 2], numedge, "mesh_graph vertex");
+  EXPECT_INVALID(mesh_graph[graphadr + 2 + numvert], model->mesh_vertnum[0],
+                 "mesh_graph vertex");
+  EXPECT_INVALID(mesh_graph[graphadr + 2 + 2 * numvert], numvert,
+                 "mesh_graph edge");
+  EXPECT_INVALID(mesh_graph[graphadr + 2 + 2 * numvert + numedge - 1], 0,
+                 "not terminated");
+  EXPECT_INVALID(mesh_graph[graphadr + 2 + 2 * numvert + numedge],
+                 model->mesh_vertnum[0], "mesh_graph face");
+  EXPECT_INVALID(mesh_extrema[0], numvert, "mesh_extrema");
+
+  // bounding volume hierarchies
+  int bvhadr = model->mesh_bvhadr[0];
+  ASSERT_GT(model->mesh_bvhnum[0], 0);
+  EXPECT_INVALID(bvh_child[2 * bvhadr], 0, "hierarchy of a mesh");
+  EXPECT_INVALID(bvh_child[2 * bvhadr], model->mesh_bvhnum[0],
+                 "hierarchy of a mesh");
+  EXPECT_INVALID(bvh_nodeid[bvhadr], model->mesh_facenum[0],
+                 "hierarchy of a mesh");
+
+  // a node is a leaf with an id, or an internal node with two children
+  ASSERT_GT(model->mesh_bvhnum[0], 1);
+  ASSERT_EQ(model->bvh_nodeid[bvhadr], -1);
+  EXPECT_INVALID(bvh_child[2 * bvhadr], -1, "hierarchy of a mesh");
+  EXPECT_INVALID(bvh_nodeid[bvhadr], 0, "hierarchy of a mesh");
+  int leaf = bvhadr + model->mesh_bvhnum[0] - 1;
+  ASSERT_GE(model->bvh_nodeid[leaf], 0);
+  EXPECT_INVALID(bvh_nodeid[leaf], -1, "hierarchy of a mesh");
+  int body_bvhadr = model->body_bvhadr[1];
+  ASSERT_GT(model->body_bvhnum[1], 0);
+  EXPECT_INVALID(bvh_nodeid[body_bvhadr], model->ngeom, "hierarchy of a body");
+  ASSERT_GT(model->flex_bvhnum[0], 0);
+  EXPECT_INVALID(flex_bvhadr[0], 0, "hierarchy of a flex");
+  EXPECT_INVALID(nbvhdynamic, 0, "hierarchy of a flex");
+
+  // textures
+  EXPECT_INVALID(tex_height[0], -4, "texture");
+  EXPECT_INVALID(tex_width[0], 1 << 30, "tex_adr");
+
+  // flex: vertices and edges are local to the flex
+  ASSERT_EQ(model->flex_dim[0], 2);
+  int vertnum = model->flex_vertnum[0];
+  EXPECT_INVALID(flex_condim[0], 2, "flex_condim");
+  EXPECT_INVALID(flex_condim[0], 0, "flex_condim");
+  EXPECT_INVALID(flex_dim[0], 0, "flex_dim");
+  EXPECT_INVALID(flex_dim[0], 4, "flex_dim");
+  EXPECT_INVALID(flex_interp[0], 3, "Invalid model");
+  EXPECT_INVALID(flex_elem[0], vertnum, "flex_elem");
+  EXPECT_INVALID(flex_elemtexcoord[0], -1, "flex_elemtexcoord");
+  EXPECT_INVALID(flex_edge[0], vertnum, "flex_edge");
+  EXPECT_INVALID(flex_edgeflap[0], vertnum, "flex_edgeflap");
+  EXPECT_INVALID(flex_edgeflap[0], -2, "flex_edgeflap");
+  EXPECT_INVALID(flex_elemedge[0], model->flex_edgenum[0], "flex_elemedge");
+  EXPECT_INVALID(flex_vertbodyid[0], -1, "flex_vertbodyid");
+  EXPECT_INVALID(flex_vertbodyid[0], model->nbody, "flex_vertbodyid");
+  EXPECT_INVALID(flex_stiffnessadr[0], model->nflexstiffness,
+                 "flex_stiffnessadr");
+  EXPECT_INVALID(flex_bendingadr[0], -2, "flex_bendingadr");
+  if (model->flex_shellnum[0] > 0) {
+    EXPECT_INVALID(flex_shell[model->flex_shelldataadr[0]], vertnum,
+                   "flex_shell");
+  }
+}
+
+// The bodies of the nodes of an interpolated flex are used as indices.
+TEST_F(ValidateReferencesTest, FlexNodeBodies) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="box" type="grid" count="3 3 2" spacing=".05 .05 .05"
+                dim="3" pos="0 0 1" radius=".005" mass="1" dof="trilinear">
+        <contact selfcollide="none"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_GT(model->nflexnode, 0);
+  ASSERT_NE(model->flex_interp[0], 0);
+
+  EXPECT_INVALID(flex_nodebodyid[0], model->nbody, "flex_nodebodyid");
+  EXPECT_INVALID(flex_nodebodyid[0], -1, "flex_nodebodyid");
+
+  // the vertices of an interpolated flex have no body, or a valid one
+  ASSERT_EQ(model->flex_vertbodyid[0], -1);
+  EXPECT_INVALID(flex_vertbodyid[0], model->nbody, "flex_vertbodyid");
+}
+
+// A 1D rod with plastic state reads its hinge count from flex_bending.
+TEST_F(ValidateReferencesTest, RodPlasticBending) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="rod" type="grid" count="4 1 1" spacing=".1 .1 .1"
+                dim="1" dof="full" mass=".1">
+        <elasticity young="1e6" section="box" sectionsize=".01 .004"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), NotNull())
+      << "Failed to load model: " << error.data();
+  ASSERT_THAT(mj_validateReferences(model.get()), IsNull());
+  ASSERT_GE(model->flex_plasticadr[0], 0);
+  ASSERT_GE(model->flex_bendingadr[0], 0);
+
+  EXPECT_INVALID(flex_bendingadr[0], model->nflexbending, "flex_bendingadr");
+  int adr = model->flex_bendingadr[0];
+  EXPECT_INVALID(flex_bending[adr], -1, "rod hinge count");
+  EXPECT_INVALID(flex_bending[adr], std::numeric_limits<mjtNum>::quiet_NaN(),
+                 "rod hinge count");
+  EXPECT_INVALID(flex_bending[adr], 1 << 28, "rod hinge count");
+}
+
+#undef EXPECT_INVALID
 
 TEST_F(ValidateReferencesTest, HistoryAndMoment) {
   constexpr char xml[] = R"(

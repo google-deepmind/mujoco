@@ -43,6 +43,22 @@ using ::testing::NotNull;
 using ::testing::Pointwise;
 using UserFlexTest = MujocoTest;
 
+TEST_F(UserFlexTest, InvalidCondim) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="flex" type="grid" dim="2" count="2 2 1" spacing="1 1 1">
+        <contact condim="2"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid condim in flex"));
+}
+
 // SNH is selected through mjSpec, with StVK remaining the default for MJCF.
 TEST_F(UserFlexTest, SNHSpecOnly) {
   static constexpr char xml[] = R"(

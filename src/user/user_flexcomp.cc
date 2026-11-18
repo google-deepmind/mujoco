@@ -3292,6 +3292,9 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // set nelem; check sizes
   if (dim < 1 || dim > 3) { throw mjCError(this, "dim must be 1, 2 or 3"); }
+  if (condim != 1 && condim != 3 && condim != 4 && condim != 6) {
+    throw mjCError(this, "invalid condim in flex");
+  }
   if (elem_.empty()) { throw mjCError(this, "elem is empty"); }
   if (elem_.size() % (dim + 1)) { throw mjCError(this, "elem size must be multiple of (dim+1)"); }
   if (vertbody_.empty() && !interpolated) {

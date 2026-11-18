@@ -1934,6 +1934,37 @@ TEST_F(CameraSpecTest, ParentTargeting) {
 
 using ActuatorTest = MujocoTest;
 
+// The dynamics read their inputs without checks.
+TEST_F(ActuatorTest, DynamicsRequireMatchingInputs) {
+  const std::string prefix = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <joint name="hinge"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" gaintype="dcmotor" gainprm="2 0.05" )";
+  const std::string suffix = R"(/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+
+  // integrator: one activation per input
+  std::string xml = prefix + R"(dyntype="integrator" input="pos vel")" + suffix;
+  MjModelPtr model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("one activation per input"));
+
+  // filter: reads the first input
+  xml = prefix + R"(dyntype="filter" dynprm="1" input="none")" + suffix;
+  model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("require an input"));
+}
+
 TEST_F(ActuatorTest, ActuatorOrderDoesntMatter) {
   static constexpr char xml1[] = R"(
   <mujoco>
@@ -2261,6 +2292,42 @@ TEST_F(ActDimTest, DCMotorMustMatchParameters) {
   ASSERT_THAT(model.get(), IsNull());
   EXPECT_THAT(error.data(), HasSubstr("DC motor parameters in actuator '' (id "
                                       "= 0) require actdim 1, got 2"));
+
+  // DC motor gain or bias with another dynamics type must also match slots
+  static constexpr char bad_gain_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" dyntype="integrator" gaintype="dcmotor"
+               gainprm="1 1" dynprm="0"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(bad_gain_xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("require actdim 0, got 1"));
+
+  static constexpr char bad_bias_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <geom size="1"/>
+        <joint name="hinge"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general joint="hinge" biastype="dcmotor" dynprm="0 0 0 0 0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  model = LoadModelFromString(bad_bias_xml, error.data(), error.size());
+  ASSERT_THAT(model.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("require actdim 1, got 0"));
 }
 
 // ------------- test nuser_xxx fields -----------------------------------------

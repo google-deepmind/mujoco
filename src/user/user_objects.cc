@@ -8909,25 +8909,41 @@ void mjCActuator::Compile(void) {
   }
 
   // DC motor: one activation per enabled state, as in mj_dcmotorSlots
-  if (dyntype == mjDYN_DCMOTOR && !plugin.active) {
-    int nslot =
-        (dynprm[7] > 0) + (gainprm[5] > 0) + (dynprm[2] > 0) + (dynprm[5] > 0) + (dynprm[0] > 0);
-    if (actdim < 0) {
-      actdim = nslot;
-    } else if (actdim != nslot) {
-      char msg[200];
-      mju::sprintf_arr(msg,
-                       "DC motor parameters in actuator '%s' (id = %d) require actdim %d, got %d",
-                       name.c_str(),
-                       id,
-                       nslot,
-                       actdim);
-      throw mjCError(this, "%s", msg);
-    }
-  }
+  int dcmotor_nslot =
+      (dynprm[7] > 0) + (gainprm[5] > 0) + (dynprm[2] > 0) + (dynprm[5] > 0) + (dynprm[0] > 0);
+  if (dyntype == mjDYN_DCMOTOR && !plugin.active && actdim < 0) { actdim = dcmotor_nslot; }
 
   // set actdim to 1 if it is unset and type is standard one-activation dyntype
   if (actdim < 0) { actdim = (dyntype != mjDYN_NONE); }
+
+  // the dynamics read their inputs without checks: an integrator has one activation per input,
+  // filter and muscle dynamics read the first input
+  if (dyntype == mjDYN_INTEGRATOR && actdim < ctrlnum_) {
+    throw mjCError(this,
+                   "integrator dynamics require one activation per input in actuator '%s' "
+                   "(id = %d)",
+                   name.c_str(),
+                   id);
+  }
+  if ((dyntype == mjDYN_FILTER || dyntype == mjDYN_FILTEREXACT || dyntype == mjDYN_MUSCLE) &&
+      ctrlnum_ < 1) {
+    throw mjCError(this,
+                   "filter and muscle dynamics require an input in actuator '%s' (id = %d)",
+                   name.c_str(),
+                   id);
+  }
+  if ((dyntype == mjDYN_DCMOTOR || gaintype == mjGAIN_DCMOTOR || biastype == mjBIAS_DCMOTOR) &&
+      !plugin.active &&
+      actdim != dcmotor_nslot) {
+    char msg[200];
+    mju::sprintf_arr(msg,
+                     "DC motor parameters in actuator '%s' (id = %d) require actdim %d, got %d",
+                     name.c_str(),
+                     id,
+                     dcmotor_nslot,
+                     actdim);
+    throw mjCError(this, "%s", msg);
+  }
 
   // DC motor always uses actearly
   if (dyntype == mjDYN_DCMOTOR && !actearly) {
