@@ -341,6 +341,12 @@ def bind_public_socket(host: str, port: int = 0) -> socket.socket:
       socket.socket(socket.AF_INET6, socket.SOCK_STREAM).close()
     except OSError:
       host = "0.0.0.0"
+  elif host == "127.0.0.1":
+    # IPv6-only hosts have no IPv4 loopback.
+    try:
+      socket.socket(socket.AF_INET, socket.SOCK_STREAM).close()
+    except OSError:
+      host = "::1"
   family = socket.AF_INET6 if ":" in host else socket.AF_INET
 
   candidates = (
@@ -378,9 +384,18 @@ def bind_public_socket(host: str, port: int = 0) -> socket.socket:
   )
 
 
+def _normalize_request_path(raw_path: str) -> str:
+  """Normalizes absolute-form HTTP request targets (http://host/path?q) to /path?q."""
+  if "://" in raw_path:
+    parsed = urllib.parse.urlsplit(raw_path)
+    path = parsed.path or "/"
+    return f"{path}?{parsed.query}" if parsed.query else path
+  return raw_path
+
+
 def _session_id(ws: ServerConnection) -> str:
   """The page's session id (?sid=...), tying its /ui and /state together."""
-  path = ws.request.path if ws.request else ""
+  path = _normalize_request_path(ws.request.path) if ws.request else ""
   query = path.split("?", 1)[1] if "?" in path else ""
   for part in query.split("&"):
     if part.startswith("sid="):
@@ -1118,10 +1133,11 @@ def _run_server(
       del connection
 
       # Split path and query string.
-      if "?" in request.path:
-        path, query_string = request.path.split("?", 1)
+      norm_path = _normalize_request_path(request.path)
+      if "?" in norm_path:
+        path, query_string = norm_path.split("?", 1)
       else:
-        path, query_string = request.path, ""
+        path, query_string = norm_path, ""
       if path in ("/ui", "/state", "/drop"):
         # Plain HTTP requests to a WebSocket path (e.g. browser speculative probe
         # or proxy without Upgrade header) get a clean 426 Upgrade Required
@@ -1241,7 +1257,7 @@ def _run_server(
       if req is None:
         await ws.close(CloseCode.POLICY_VIOLATION, "missing request")
         return
-      path = req.path.split("?")[0]
+      path = _normalize_request_path(req.path).split("?")[0]
       if path == "/ui":
         await ui_handler(ws)
       elif path == "/state":

@@ -218,16 +218,15 @@ class WebViewer(viewer_protocol.Viewer):
         extra_geoms=extra_geoms,
     )
 
-    # TODO(matijak): Consider binding to loopback by default, with an opt-in
-    # (e.g. a ViewerConfig.host field and a --host flag) for all interfaces, so
-    # that the viewer is not reachable from the network by default.
-    self._host = '::'
+    # The viewer is reachable from other machines by default. A private viewer
+    # binds loopback, so only this machine can connect.
+    self._host = '127.0.0.1' if config.private else '::'
     # Bind the listening socket up front, in this process, so a bind conflict
     # surfaces here as one clear error.
     self._http_sock = web_server.bind_public_socket(
         self._host, config.http_port
     )
-    self._http_port = self._http_sock.getsockname()[1]
+    self._host, self._http_port = self._http_sock.getsockname()[:2]
 
     # Headless ImGui context whose frames the web server streams at /ui.
     self._headless_ui = headless_ui.HeadlessUi(
@@ -274,6 +273,11 @@ class WebViewer(viewer_protocol.Viewer):
     except BaseException:
       self.close()  # The server is already up; nothing else will stop it.
       raise
+
+  @property
+  def host(self) -> str:
+    """Address bound by this viewer (a loopback address when private)."""
+    return self._host
 
   @property
   def port(self) -> int:

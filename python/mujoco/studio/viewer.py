@@ -72,6 +72,11 @@ def main() -> None:
       help='Web Viewer port (0 picks first free port >= 8080).',
   )
   parser.add_argument(
+      '--private',
+      action='store_true',
+      help='Accept Web Viewer connections only from this machine (localhost).',
+  )
+  parser.add_argument(
       '--width', type=int, default=1200, help='Width of the output image.'
   )
   parser.add_argument(
@@ -93,6 +98,7 @@ def main() -> None:
       height=args.height,
       gfx=args.gfx or '',
       http_port=args.port,
+      private=args.private,
       hot_reload=args.hot_reload,
   )
 

@@ -55,6 +55,8 @@ class ViewerConfig:
   height: int = 800
   gfx: str = ''  # Graphics mode ('web' launches Web Viewer).
   http_port: int = 0  # Web Viewer port (0 picks first free port >= 8080).
+  # Whether the Web Viewer accepts connections only from this machine.
+  private: bool = False
   open_browser: bool = False  # Open Web Viewer URL in a browser tab on launch.
   # What is reloaded when modified. Options are '', 'plugins', 'model', 'all',
   # 'Plugin1,Plugin2,...'. Default is '', meaning nothing.
