@@ -318,10 +318,11 @@ _configure_logging()
 
 
 def bind_public_socket(host: str, port: int = 0) -> socket.socket:
-  """Binds (but does not listen on) the public HTTP listening socket.
+  """Binds and listens on the public HTTP listening socket.
 
-  The socket is bound in the viewer thread up front so that bind conflicts
-  surface here, synchronously, rather than inside the server thread.
+  The socket is bound and listening in the viewer thread up front so that bind
+  conflicts surface synchronously here and connections arriving before the
+  server thread starts wait in the listen queue instead of being refused.
 
   Args:
     host: Interface to bind. "::" (the default) binds a dual-stack socket that
@@ -331,7 +332,7 @@ def bind_public_socket(host: str, port: int = 0) -> socket.socket:
       _DEFAULT_HTTP_PORT (so several viewers can run side by side).
 
   Returns:
-    The bound socket.
+    The bound, listening socket.
 
   Raises:
     RuntimeError: If the requested port (or every scanned port) is taken.
@@ -370,6 +371,7 @@ def bind_public_socket(host: str, port: int = 0) -> socket.socket:
       sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
     try:
       sock.bind((host, candidate))
+      sock.listen()
       return sock
     except OSError:
       sock.close()
@@ -1596,6 +1598,7 @@ class WebServer:
           "[Http] Could not find web viewer static files; install"
           " 'mujoco-studio-wasm' or set MUJOCO_WEB_VIEWER_DIST."
       )
+      self.http_sock.close()
       return
 
     logger.debug("[Http] Serving web viewer from: %s", self.static_files_dir)
