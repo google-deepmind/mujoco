@@ -508,6 +508,35 @@ TEST_F(ValidateReferencesTest, AddressRangeNegativeNum) {
   model->body_jntadr[1] += 5;
   model->body_jntnum[1] -= 5;
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_jntnum"));
+  model->body_jntadr[1] -= 5;
+  model->body_jntnum[1] += 5;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // addresses close to the largest int, which overflow when a count is added.
+  int qposadr = model->jnt_qposadr[0];
+  model->jnt_qposadr[0] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("jnt_qposadr"));
+  model->jnt_qposadr[0] = qposadr;
+  int plasticadr = model->jnt_plasticadr[0];
+  model->jnt_plasticadr[0] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("jnt_plasticadr"));
+  model->jnt_plasticadr[0] = -2;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("jnt_plasticadr"));
+  model->jnt_plasticadr[0] = plasticadr;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
+
+  // jntadr + jntnum does not fit in an int.
+  int jntadr = model->body_jntadr[1];
+  model->body_jntadr[1] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("body_jntadr"));
+  model->body_jntadr[1] = jntadr;
+
+  // an address which does not fit together with a single element.
+  int bodyid = model->jnt_bodyid[0];
+  model->jnt_bodyid[0] = INT_MAX;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("jnt_bodyid"));
+  model->jnt_bodyid[0] = bodyid;
+  EXPECT_THAT(mj_validateReferences(model.get()), IsNull());
 }
 
 TEST_F(ValidateReferencesTest, GeomCondim) {
@@ -1537,6 +1566,8 @@ TEST_F(ValidateReferencesTest, HistoryAndMoment) {
 
   // history buffers
   model->actuator_history[0] = 100;
+  EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));
+  model->actuator_history[0] = INT_MAX;
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));
   model->actuator_history[0] = -1;
   EXPECT_THAT(mj_validateReferences(model.get()), HasSubstr("history"));

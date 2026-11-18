@@ -234,6 +234,41 @@ static void freeModelBuffers(mjModel* m) {
 }
 
 
+// return 1 if the mjModel size at the given struct offset has a valid value, 0 otherwise
+static int validSize(size_t offset, mjtSize size) {
+  switch (offset) {
+    // njmax and nconmax are -1 if they are not specified
+    case offsetof(mjModel, njmax):
+    case offsetof(mjModel, nconmax):
+      return size >= -1 && size < MAX_ARRAY_SIZE;
+
+    // numbers of bytes are not limited to the range of int
+    case offsetof(mjModel, ntexdata):
+    case offsetof(mjModel, ntextdata):
+    case offsetof(mjModel, narena):
+      return size >= 0;
+
+    default:
+      return size >= 0 && size < MAX_ARRAY_SIZE;
+  }
+}
+
+
+// return 1 if the num elements at address adr are within an array of n elements, 0 otherwise
+static int validRange(mjtSize adr, mjtSize num, mjtSize n) {
+  return adr >= 0 && num >= 0 && num <= n && adr <= n - num;
+}
+
+
+// return a*b, -1 if an argument is negative or if the product is larger than maxval
+static mjtSize boundedProduct(mjtSize a, mjtSize b, mjtSize maxval) {
+  if (a < 0 || b < 0 || maxval < 0 || (a > 0 && b > maxval / a)) {
+    return -1;
+  }
+  return a*b;
+}
+
+
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest, const mjModel* sizes) {
   // copy the sizes before *dest is cleared, in case they belong to the same model
@@ -247,17 +282,10 @@ void mj_makeModel(mjModel** dest, const mjModel* sizes) {
 
   // CHECK SIZE PARAMETERS
   {
-    // sizes must be non-negative and fit in int, except for the byte arrays texdata and textdata
-    #define X(name)                                                                   \
-      if (name < 0) {                                                                 \
-        mju_warning("Invalid model: %s is negative (%lld).", #name, (long long)name); \
-        return;                                                                       \
-      }                                                                               \
-      if (name >= MAX_ARRAY_SIZE &&                                                   \
-          strcmp(#name, "ntexdata") != 0 && strcmp(#name, "ntextdata") != 0) {        \
-        mju_warning("Invalid model: %s is too large. Expected < %d. Got %lld.",       \
-                    #name, MAX_ARRAY_SIZE, (long long)name);                          \
-        return;                                                                       \
+    #define X(name)                                                                       \
+      if (!validSize(offsetof(mjModel, name), name)) {                                    \
+        mju_warning("Invalid model: %s is out of range (%lld).", #name, (long long)name); \
+        return;                                                                           \
       }
     MJMODEL_SIZES_LAYOUT
 #undef X
@@ -287,9 +315,9 @@ void mj_makeModel(mjModel** dest, const mjModel* sizes) {
   MJMODEL_SIZES_LAYOUT
 #undef X
 
-  long nnames_map = (long)nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
-                    nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nactuator + nsensor +
-                    nnumeric + ntext + ntuple + nkey + nplugin;
+  mjtSize nnames_map = nbody + njnt + ngeom + nsite + ncam + nlight + nflex + nmesh + nskin +
+                       nhfield + ntex + nmat + npair + nexclude + neq + ntendon + nactuator +
+                       nsensor + nnumeric + ntext + ntuple + nkey + nplugin;
   if (nnames_map >= INT_MAX / mjLOAD_MULTIPLE) {
     if (allocate) mju_free(m);
     mju_warning("Invalid model: size of nnames_map is larger than INT_MAX");
@@ -448,19 +476,28 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, mjtSize 
 }
 
 
-// check a size in MJMODEL_SIZES_RUNTIME read from a binary model
-static int validRuntimeSize(const char* name, mjtSize size) {
-  // njmax and nconmax are -1 if they are not specified
-  if (!strcmp(name, "njmax") || !strcmp(name, "nconmax")) {
-    return size >= -1 && size < MAX_ARRAY_SIZE;
-  }
+// copy the sizes in MJMODEL_SIZES_RUNTIME read from a binary model to a model allocated with
+// the other sizes, and check that all sizes match; return null if valid, error message otherwise
+static const char* setRuntimeSizes(mjModel* m, const mjModel* sizes) {
+  // the sizes which do not affect the model buffer are the only ones copied from the file
+#define X(name)                                             \
+  if (!validSize(offsetof(mjModel, name), sizes->name)) {   \
+    return "Corrupted model, " #name " is out of range";    \
+  }                                                         \
+  m->name = sizes->name;
+  MJMODEL_SIZES_RUNTIME
+#undef X
 
-  // narena is a number of bytes
-  if (!strcmp(name, "narena")) {
-    return size >= 0;
+  // the sizes set by mj_makeModel define the layout of the buffer, they are never overwritten:
+  // every size in the model must now match the file, including the computed nnames_map and nbuffer
+#define X(name)                                             \
+  if (m->name != sizes->name) {                             \
+    return "Corrupted model, wrong " #name " field";        \
   }
+  MJMODEL_SIZES
+#undef X
 
-  return size >= 0 && size < MAX_ARRAY_SIZE;
+  return NULL;
 }
 
 
@@ -535,27 +572,13 @@ mjModel* mj_loadModelBuffer(const void* buffer, mjtSize buffer_sz) {
     return NULL;
   }
 
-  // the sizes which do not affect the model buffer are the only ones copied from the file
-#define X(name)                                                    \
-  if (!validRuntimeSize(#name, sizes.name)) {                      \
-    mju_warning("Corrupted model, " #name " is out of range");     \
-    mj_deleteModel(m);                                             \
-    return NULL;                                                   \
-  }                                                                \
-  m->name = sizes.name;
-  MJMODEL_SIZES_RUNTIME
-#undef X
-
-  // the sizes set by mj_makeModel define the layout of the buffer, they are never overwritten:
-  // every size in the model must now match the file, including the computed nnames_map and nbuffer
-#define X(name)                                                \
-  if (m->name != sizes.name) {                                 \
-    mju_warning("Corrupted model, wrong " #name " field");     \
-    mj_deleteModel(m);                                         \
-    return NULL;                                               \
+  // set the remaining sizes, check all of them against the file
+  const char* sizeError = setRuntimeSizes(m, &sizes);
+  if (sizeError) {
+    mju_warning("%s", sizeError);
+    mj_deleteModel(m);
+    return NULL;
   }
-  MJMODEL_SIZES
-#undef X
 
   // read options and buffer
   if (ptrbuf + sizeof(mjOption) + sizeof(mjVisual) + sizeof(mjStatistic) +
@@ -1822,15 +1845,11 @@ static mjtSize sensorSize(const mjModel* m, int i) {
     if (objtype == mjOBJ_SITE) {
       return mju_raydataSize(dataspec);
     } else if (objtype == mjOBJ_CAMERA) {
-      int width = m->cam_resolution[2*objid];
-      int height = m->cam_resolution[2*objid+1];
-      // both the output count and 3*npixel (stack-allocated ray vectors) must fit in an int
-      int raysize = mju_raydataSize(dataspec);
-      if (width < 0 || height < 0 ||
-          (mjtSize)width * height > INT_MAX / mjMAX(3, raysize)) {
-        return -1;
-      }
-      return (mjtSize)width * height * raysize;
+      // 3 values per pixel are allocated on the stack, their number must fit in an int,
+      // as must the number of values of the sensor
+      mjtSize npixel = boundedProduct(m->cam_resolution[2*objid], m->cam_resolution[2*objid+1],
+                                      INT_MAX / 3);
+      return boundedProduct(npixel, mju_raydataSize(dataspec), INT_MAX);
     }
     return -1;
 
@@ -1840,11 +1859,7 @@ static mjtSize sensorSize(const mjModel* m, int i) {
     if (dataspec <= 0 || dataspec >= (1 << mjNCONDATA) || nslot <= 0) {
       return -1;
     }
-    int datasize = mju_condataSize(dataspec);
-    if (datasize <= 0 || (mjtSize)nslot > INT_MAX / datasize) {
-      return -1;
-    }
-    return (mjtSize)nslot * datasize;
+    return boundedProduct(nslot, mju_condataSize(dataspec), INT_MAX);
   }
 
   case mjSENS_TACTILE:
@@ -1947,7 +1962,7 @@ static int validateSparse(int nrows, int ncols, mjtSize nnz,
       return 1;
     }
     int adr_r = rowadr[r];
-    if (adr_r < 0 || (mjtSize)adr_r + nnz_r > nnz) {
+    if (!validRange(adr_r, nnz_r, nnz)) {
       return 2;
     }
     for (int k=0; k < nnz_r; k++) {
@@ -1975,7 +1990,7 @@ static const char* validateHistory(int nsample, int dim, int adr, mjtSize nhisto
   }
 
   // layout is [user, cursor, times(nsample), values(nsample*dim)]
-  if (nsample > 0 && (adr < 0 || (mjtSize)adr + 2 + nsample + (mjtSize)nsample*dim > nhistory)) {
+  if (nsample > 0 && !validRange(adr, 2 + (mjtSize)nsample + (mjtSize)nsample*dim, nhistory)) {
     return "Invalid model: history address out of bounds.";
   }
   return NULL;
@@ -2162,19 +2177,14 @@ const char* mj_validateReferences(const mjModel* m) {
   #define X(adrarray, nadrs, ntarget, numarray) {             \
     int *nums = (numarray);                                   \
     for (int i=0; i<m->nadrs; i++) {                          \
-      int adrsmin = m->adrarray[i];                           \
+      int adr = m->adrarray[i];                               \
       int num = (nums ? nums[i] : 1);                         \
       if (num < 0) {                                          \
         return "Invalid model: " #numarray " is negative.";   \
       }                                                       \
-      if (num > MAX_ARRAY_SIZE) {                             \
-        return "Invalid model: " #numarray " is too large.";  \
-      }                                                       \
-      int adrsmax = m->adrarray[i] + num;                     \
-      if (adrsmax > m->ntarget || adrsmin < -1) {             \
-        return "Invalid model: " #adrarray " out of bounds."; \
-      }                                                       \
-      if (nums && adrsmin == -1 && num > 0) {                 \
+      /* -1: no reference, or an empty range */               \
+      if (adr == -1 ? (nums && num > 0)                       \
+                    : !validRange(adr, num, m->ntarget)) {    \
         return "Invalid model: " #adrarray " out of bounds."; \
       }                                                       \
     }                                                         \
@@ -2259,23 +2269,19 @@ const char* mj_validateReferences(const mjModel* m) {
     if (m->jnt_type[i] >= 4 || m->jnt_type[i] < 0) {
       return "Invalid model: jnt_type out of bounds.";
     }
-    int jnt_qposadr = m->jnt_qposadr[i] + nPOS[m->jnt_type[i]];
-    if (jnt_qposadr > m->nq || m->jnt_qposadr[i] < 0) {
+    if (!validRange(m->jnt_qposadr[i], nPOS[m->jnt_type[i]], m->nq)) {
       return "Invalid model: jnt_qposadr out of bounds.";
     }
-    int jnt_dofadr = m->jnt_dofadr[i] + nVEL[m->jnt_type[i]];
-    if (jnt_dofadr > m->nv || m->jnt_dofadr[i] < 0) {
+    if (!validRange(m->jnt_dofadr[i], nVEL[m->jnt_type[i]], m->nv)) {
       return "Invalid model: jnt_dofadr out of bounds.";
     }
-    if (m->jnt_plasticadr[i] < -1 ||
-        (m->jnt_plasticadr[i] >= 0 &&
-         m->jnt_plasticadr[i] + nPOS[m->jnt_type[i]] > m->nplastic)) {
+    if (m->jnt_plasticadr[i] != -1 &&
+        !validRange(m->jnt_plasticadr[i], nPOS[m->jnt_type[i]], m->nplastic)) {
       return "Invalid model: jnt_plasticadr out of bounds.";
     }
   }
   for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_plasticadr[i] < -1 ||
-        (m->tendon_plasticadr[i] >= 0 && m->tendon_plasticadr[i] + 2 > m->nplastic)) {
+    if (m->tendon_plasticadr[i] != -1 && !validRange(m->tendon_plasticadr[i], 2, m->nplastic)) {
       return "Invalid model: tendon_plasticadr out of bounds.";
     }
   }
@@ -2350,12 +2356,15 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int f=0; f < m->nflex; f++) {
-    int ncell = m->flex_interp[f] ?
-                m->flex_cellnum[3*f+0] * m->flex_cellnum[3*f+1] * m->flex_cellnum[3*f+2] : 0;
-    if (m->flex_interp[f] ? (m->flex_celladr[f] < 0 || m->flex_celladr[f] + ncell > m->nflexcell)
+    // number of cells of an interpolated flex, computed without overflow
+    const int* cellnum = m->flex_cellnum + 3*f;
+    mjtSize ncellsize = boundedProduct(boundedProduct(cellnum[0], cellnum[1], INT_MAX),
+                                       cellnum[2], INT_MAX);
+    if (m->flex_interp[f] ? !validRange(m->flex_celladr[f], ncellsize, m->nflexcell)
                           : (m->flex_celladr[f] != -1)) {
       return "Invalid model: flex_celladr out of bounds.";
     }
+    int ncell = m->flex_interp[f] ? (int)ncellsize : 0;
     for (int v=0; v < m->flex_vertnum[f]; v++) {
       int c = m->flex_vertcell[m->flex_vertadr[f] + v];
       if (m->flex_interp[f] ? (c < 0 || c >= ncell) : (c != -1)) {
@@ -2363,20 +2372,24 @@ const char* mj_validateReferences(const mjModel* m) {
       }
     }
     int dim = m->flex_dim[f];
-    int nplastic = 0;
+    mjtSize nplastic = 0;
     if (m->flex_interp[f] > 0) {
-      nplastic = 6 * ncell;
+      nplastic = 6 * (mjtSize)ncell;
     } else if (m->flex_interp[f] < 0) {
-      int cx = m->flex_cellnum[3*f+0];
-      int cy = m->flex_cellnum[3*f+1];
-      int cz = m->flex_cellnum[3*f+2];
-      nplastic = 3 * 2 * (cy*cz + cx*cz + cx*cy);
+      // faces of the grid of cells, computed without overflow
+      mjtSize nyz = boundedProduct(cellnum[1], cellnum[2], INT_MAX);
+      mjtSize nxz = boundedProduct(cellnum[0], cellnum[2], INT_MAX);
+      mjtSize nxy = boundedProduct(cellnum[0], cellnum[1], INT_MAX);
+      if (nyz < 0 || nxz < 0 || nxy < 0) {
+        return "Invalid model: flex_cellnum out of bounds.";
+      }
+      nplastic = 3 * 2 * (nyz + nxz + nxy);
     } else if (dim == 1) {
       if (m->flex_plasticadr[f] >= 0) {
         nplastic = mj_rodStateSize(m, f);
       }
     } else {
-      nplastic = (m->flex_plasticmode[f] & 2) ? (dim == 2 ? 3 : 6) * m->flex_elemnum[f] : 0;
+      nplastic = (m->flex_plasticmode[f] & 2) ? (dim == 2 ? 3 : 6) * (mjtSize)m->flex_elemnum[f] : 0;
       if (m->flex_plasticmode[f] & 1) {
         nplastic += m->flex_edgenum[f];
       }
@@ -2386,8 +2399,8 @@ const char* mj_validateReferences(const mjModel* m) {
         ((mode & 2) && dim < 2) || ((mode & 1) && (dim != 2 || m->flex_interp[f]))) {
       return "Invalid model: flex_plasticmode out of bounds.";
     }
-    if (m->flex_plasticadr[f] < -1 ||
-        (m->flex_plasticadr[f] >= 0 && m->flex_plasticadr[f] + nplastic > m->nplastic)) {
+    if (m->flex_plasticadr[f] != -1 &&
+        !validRange(m->flex_plasticadr[f], nplastic, m->nplastic)) {
       return "Invalid model: flex_plasticadr out of bounds.";
     }
   }
@@ -2416,12 +2429,11 @@ const char* mj_validateReferences(const mjModel* m) {
     if (m->hfield_nrow[i] < 2 || m->hfield_ncol[i] < 2) {
       return "Invalid model: hfield_nrow or hfield_ncol less than 2.";
     }
-    mjtSize npix = ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
-    if (npix > INT_MAX) {
+    mjtSize npix = boundedProduct(m->hfield_nrow[i], m->hfield_ncol[i], INT_MAX);
+    if (npix < 0) {
       return "Invalid model: hfield_nrow * hfield_ncol overflows int.";
     }
-    mjtSize hfield_adr = m->hfield_adr[i] + npix;
-    if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
+    if (!validRange(m->hfield_adr[i], npix, m->nhfielddata)) {
       return "Invalid model: hfield_adr out of bounds.";
     }
   }
@@ -2433,8 +2445,9 @@ const char* mj_validateReferences(const mjModel* m) {
       }
       continue;
     }
-    mjtSize nbytes = ((mjtSize) m->tex_nchannel[i]) * m->tex_height[i] * m->tex_width[i];
-    if (m->tex_adr[i] + nbytes > m->ntexdata || m->tex_adr[i] < 0) {
+    mjtSize npixel = boundedProduct(m->tex_height[i], m->tex_width[i], m->ntexdata);
+    mjtSize nbytes = boundedProduct(npixel, m->tex_nchannel[i], m->ntexdata);
+    if (!validRange(m->tex_adr[i], nbytes, m->ntexdata)) {
       return "Invalid model: tex_adr out of bounds.";
     }
   }
@@ -2451,7 +2464,7 @@ const char* mj_validateReferences(const mjModel* m) {
     int faceadr = m->mesh_faceadr[i];
     for (int f=0; f < m->mesh_facenum[i]; f++) {
       for (int k=0; k < 3; k++) {
-        int j = 3*(faceadr + f) + k;
+        mjtSize j = 3*((mjtSize)faceadr + f) + k;
         int v = m->mesh_face[j];
         if (v < 0 || v >= vertnum) {
           return "Invalid model: mesh_face vertex index out of bounds.";
@@ -2735,7 +2748,7 @@ const char* mj_validateReferences(const mjModel* m) {
       return "Invalid model: sensor_dim does not match the size of the sensor.";
     }
     int sensor_adr = m->sensor_adr[i];
-    if (sensor_adr < 0 || (mjtSize)sensor_adr + sensor_size > m->nsensordata) {
+    if (!validRange(sensor_adr, sensor_size, m->nsensordata)) {
       return "Invalid model: sensor_adr out of bounds.";
     }
     const char* historyerr = validateHistory(m->sensor_history[2*i], sensor_dim,
