@@ -23,6 +23,9 @@ Compiler
 ^^^^^^^^
 - Sequentially appending elements to an :ref:`mjSpec` body tree now runs in :math:`O(1)` instead of rebuilding the
   model's tree lists, making procedural model construction up to ~250x faster.
+- :ref:`strippath<compiler-strippath>` no longer strips file names that match a registered
+  :ref:`resource provider<exProvider>`, such as ``package://`` URIs. These names are not filesystem paths, and the
+  compiler already treats them as absolute when combining them with :ref:`meshdir<compiler-meshdir>`.
 
 Rendering
 ^^^^^^^^^
@@ -39,6 +42,14 @@ Rendering
   (``size = [r_out, r_in, 0]``).
 - Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection
   camera at the mirror plane with an oblique near-plane projection (:issue:`3902`).
+
+Plugins
+^^^^^^^
+- Added a first-party :ref:`resource provider<exProvider>` plugin, ``plugin/package_uri``, that serves ROS-style
+  ``package://`` URIs by locating packages through ``AMENT_PREFIX_PATH`` and ``ROS_PACKAGE_PATH`` without depending on
+  ROS. It is not included in release packages: build it from source and load the resulting shared library with
+  :ref:`mj_loadPluginLibrary` before parsing a model, so that URDF and MJCF files can reference ROS package assets
+  unchanged. Contribution by :github:user:`noah-wardlow`.
 
 Version 4.0.1 (November 11, 2026)
 ---------------------------------

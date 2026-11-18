@@ -297,8 +297,12 @@ std::vector<std::string> StringToVector(const std::string& s);
 
 }  // namespace mujoco::user
 
-// strip path from filename
+// strip path from filename (use when deriving asset names, which are always basenames)
 std::string mjuu_strippath(std::string filename);
+
+// strip path from filename, unless a registered resource provider claims the name
+// (use when applying strippath to asset file paths)
+std::string mjuu_stripLocalPath(std::string filename);
 
 // strip extension from filename
 std::string mjuu_stripext(std::string filename);
