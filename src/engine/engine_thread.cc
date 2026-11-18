@@ -165,18 +165,9 @@ void mju_threadpool(mjData* d, int nthread) {
 }
 
 
-// dispatch ntask tasks to the thread pool; passes arg into func along with
-// thread_id and task_id
-void mju_dispatch(const mjModel* m, mjData* d, mjTaskFunc func, void* arg,
-                  int ntask) {
-  // no thread pool or trivial number of tasks: run on main thread
-  if (!d->threadpool || ntask < 2) {
-    for (int i = 0; i < ntask; i++) {
-      func(m, d, arg, 0, i);
-    }
-    return;
-  }
-
+// internal helper for mju_dispatch: dispatch ntask tasks to an active thread pool
+void mju_dispatchPool(const mjModel* m, mjData* d, mjTaskFunc func, void* arg,
+                      int ntask) {
   ThreadPoolContext& ctx = *reinterpret_cast<ThreadPoolContext*>(d->threadpool);
 
   // lock mjData and mark stack frame, memory will be freed after thread completion
@@ -199,8 +190,8 @@ void mju_dispatch(const mjModel* m, mjData* d, mjTaskFunc func, void* arg,
 }
 
 
-// return total number of threads in the pool (including main thread)
-int mju_numThread(const mjData* d) {
-  ThreadPoolContext* ctx = reinterpret_cast<ThreadPoolContext*>(d->threadpool);
-  return ctx ? ctx->ThreadCount() + 1 : 1;
+// internal helper for mju_numThread: return total threads in an active thread pool
+int mju_numThreadPool(uintptr_t threadpool) {
+  ThreadPoolContext& ctx = *reinterpret_cast<ThreadPoolContext*>(threadpool);
+  return ctx.ThreadCount() + 1;
 }
