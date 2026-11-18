@@ -29,6 +29,7 @@
 
 namespace mujoco {
 
+using filament::math::double4;
 using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat3f;
@@ -60,6 +61,21 @@ mat4 ToReflectionMatrix(const mat4& xform) {
       1.0f
   );
   // clang-format on
+}
+
+mat4 CalculateObliqueProjection(mat4 projection, const double4& plane) {
+  const double4 corner =
+      inverse(projection) * double4(plane.x < 0 ? -1.0 : 1.0,
+                                    plane.y < 0 ? -1.0 : 1.0, 1.0, 1.0);
+  const double denom = dot(plane, corner);
+  if (denom <= 0.0) {
+    return projection;
+  }
+  const double4 row = plane * (2.0 / denom);
+  for (int i = 0; i < 4; ++i) {
+    projection[i][2] = row[i] - projection[i][3];
+  }
+  return projection;
 }
 
 mat4f GetReflectionViewProjectionMatrix(const mjrCamera& cam, int viewport_width,

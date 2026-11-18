@@ -28,6 +28,8 @@ Rendering
 ^^^^^^^^^
 - Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
   (``size = [r_out, r_in, 0]``).
+- Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection
+  camera at the mirror plane with an oblique near-plane projection (:issue:`3902`).
 
 Version 4.0.1 (November 11, 2026)
 ---------------------------------

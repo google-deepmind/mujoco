@@ -35,6 +35,7 @@
 #include <filament/TransformManager.h>
 #include <filament/View.h>
 #include <filament/Viewport.h>
+#include <math/TMatHelpers.h>
 #include <math/TVecHelpers.h>
 #include <math/mat3.h>
 #include <math/mat4.h>
@@ -58,6 +59,8 @@
 
 namespace mujoco {
 
+using filament::math::double3;
+using filament::math::double4;
 using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat3f;
@@ -174,18 +177,31 @@ static void SetupCamera(const mjrfRenderRequest& request,
 
 // Sets up the `reflection_camera` as a reflection of `src_camera` across the
 // plane defined by `surface_xform`, so the reflection texture can be applied to
-// the plane with screen-space uvs.
+// the plane with screen-space uvs. The projection's near plane lies on the
+// mirror, so geometry behind the mirror is clipped out of the reflection.
 static void SetupReflectionCamera(const mat4& surface_xform,
                                   const filament::Camera* src_camera,
                                   filament::Camera* reflection_camera) {
-  const mat4 src_model_matrix = src_camera->getModelMatrix();
-  const mat4 src_projection = src_camera->getCullingProjectionMatrix();
+  const mat4 model =
+      ToReflectionMatrix(surface_xform) * src_camera->getModelMatrix();
+  const mat4 projection = src_camera->getCullingProjectionMatrix();
+  reflection_camera->setModelMatrix(model);
 
-  reflection_camera->setModelMatrix(ToReflectionMatrix(surface_xform) *
-                                    src_model_matrix);
+  // The mirror plane in the reflection camera's view space, positive in front
+  // of the mirror. A camera in front of the mirror reflects to a camera behind
+  // it, on the negative side.
+  const double3 normal = normalize(surface_xform[2].xyz);
+  const double4 world_plane(normal, -dot(normal, surface_xform[3].xyz));
+  double4 plane = transpose(model) * world_plane;
 
-  // Use un-skewed projection to preserve froxel lighting grid and shadow cascades.
-  reflection_camera->setCustomProjection(src_projection, src_projection,
+  // Clipping opens solids that cross the mirror, and the cut would show as a
+  // seam where a solid meets its reflection. Keep a sliver behind the mirror,
+  // in proportion to the camera's distance, so the cut is hidden.
+  plane.w *= 1.0 - 5e-3;
+
+  const mat4 render_projection =
+      plane.w < 0 ? CalculateObliqueProjection(projection, plane) : projection;
+  reflection_camera->setCustomProjection(render_projection, projection,
                                          src_camera->getNear(),
                                          src_camera->getCullingFar());
 }
@@ -440,6 +456,16 @@ void SceneView::Render(filament::Renderer* renderer,
       0xff, kLayerMask_Object | (show_skybox ? kLayerMask_Skybox : 0));
 
   const int num_reflective = reflection_mgr_->GetNumRenderables();
+  if (num_reflective > 0) {
+    // Filament assigns lights to depth slices of its froxel grid by window
+    // depth, assuming a standard projection, which the oblique one is not.
+    // Collapse the slices: with the light depth range squeezed against the far
+    // plane, the first slice spans the whole scene, so every fragment and light
+    // falls in it, leaving a 2D grid that the oblique projection does not
+    // disturb. Culling and shadow cascades keep the un-skewed projection.
+    const double far = camera_->getCullingFar();
+    reflect_view_->setDynamicLightingOptions(0.999 * far, far);
+  }
   for (int i = 0; i < num_reflective; ++i) {
     Renderable* renderable =
         Renderable::downcast(reflection_mgr_->GetRenderable(i));
@@ -448,27 +474,6 @@ void SceneView::Render(filament::Renderer* renderer,
 
     // Hide reflective surface from its own reflection pass.
     std::uint8_t prev_layer_mask = renderable->SetLayerMask(kLayerMask_None);
-
-    // Hide geometry completely behind the mirror plane from the reflection pass.
-    const float3 mirror_pos = transform[3].xyz;
-    const float3 mirror_normal = normalize(transform[2].xyz);
-    std::vector<std::pair<Renderable*, std::uint8_t>> hidden_behind;
-    for (Renderable* other : renderables_) {
-      if (other == renderable) {
-        continue;
-      }
-      const mat4 other_xform(other->GetTransform());
-      const float3 center = other_xform[3].xyz;
-      // The geom's three scaled axes reach every corner, so their summed
-      // lengths conservatively bound it; only hide when the whole bound is
-      // behind the plane.
-      const float radius = length(other_xform[0].xyz) +
-                           length(other_xform[1].xyz) +
-                           length(other_xform[2].xyz);
-      if (dot(center - mirror_pos, mirror_normal) + radius < 0.0f) {
-        hidden_behind.emplace_back(other, other->SetLayerMask(kLayerMask_None));
-      }
-    }
 
     // Render the reflection to its render target.
     viewport.left = 0;
@@ -479,10 +484,7 @@ void SceneView::Render(filament::Renderer* renderer,
     renderer->render(reflect_view_);
     reflect_view_->setRenderTarget(nullptr);
 
-    // Restore the behind-mirror geometry and the reflective surface.
-    for (const auto& [other, mask] : hidden_behind) {
-      other->SetLayerMask(mask);
-    }
+    // Restore the reflective surface.
     renderable->SetLayerMask(prev_layer_mask);
   }
   for (int i = 0; i < num_reflective; ++i) {

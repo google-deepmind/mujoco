@@ -146,6 +146,15 @@ inline filament::math::float3 ToFilamentFrame(
 // Calculates a reflection matrix for a plane defined by its transform.
 filament::math::mat4 ToReflectionMatrix(const filament::math::mat4& xform);
 
+// Returns the GL-convention `projection` with its near plane moved onto
+// `plane`, given in view space with the camera on its negative side, so that
+// the rasterizer clips everything behind the plane. The x, y and w rows are
+// untouched. Returns `projection` unchanged if the far frustum corner is not
+// in front of `plane`. Lengyel, "Oblique View Frustum Depth Projection and
+// Clipping", Journal of Game Development 1(2), 2005.
+filament::math::mat4 CalculateObliqueProjection(
+    filament::math::mat4 projection, const filament::math::double4& plane);
+
 // Calculates the view-projection matrix for reflection screen-space mapping.
 filament::math::mat4f GetReflectionViewProjectionMatrix(
     const mjrCamera& cam, int viewport_width, int viewport_height);
