@@ -16,7 +16,9 @@
 
 #include "src/engine/engine_util_solve.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -473,6 +475,1046 @@ TEST_F(BoxQPTest, BoundedQPvariations) {
   mju_free(g);
   mju_free(lower);
   mju_free(upper);
+}
+
+// ----------------------------- mju_QP ----------------------------------------
+
+using QPTest = MujocoTest;
+
+// a quadratic program and the outputs of mju_QP
+struct QP {
+  int n;
+  int m;
+  vector<mjtNum> H, g, lower, upper, A, alower, aupper, threshold, compliance;
+  vector<mjtNum> res, dual;
+  vector<int> active;
+
+  QP(int n, int m)
+      : n(n),
+        m(m),
+        H(n * n),
+        g(n),
+        lower(n, -mjMAXVAL),
+        upper(n, mjMAXVAL),
+        A(n * m),
+        alower(m, -mjMAXVAL),
+        aupper(m, mjMAXVAL),
+        threshold(n + m, 0),
+        compliance(n + m, 0),
+        res(n),
+        dual(n + m),
+        active(n + m, 0) {}
+
+  int Solve(mjtNum* work = nullptr) {
+    return mju_QP(res.data(), dual.data(), active.data(), work, H.data(),
+                  g.data(), n, lower.data(), upper.data(), A.data(),
+                  alower.data(), aupper.data(), m, threshold.data(),
+                  compliance.data());
+  }
+
+  // largest violation of the optimality conditions, relative to problem scale
+  mjtNum Residual() const {
+    // stationarity: H*x + g + A'*dual = 0
+    vector<mjtNum> grad(n);
+    mju_mulMatVec(grad.data(), H.data(), res.data(), n, n);
+    mjtNum scale = 1 + mju_norm(g.data(), n);
+    for (int i = 0; i < n; i++) {
+      grad[i] += g[i] + dual[i];
+      for (int j = 0; j < m; j++) {
+        grad[i] += A[j * n + i] * dual[n + j];
+      }
+    }
+    mjtNum residual = mju_norm(grad.data(), n) / scale;
+
+    for (int c = 0; c < n + m; c++) {
+      mjtNum lo = c < n ? lower[c] : alower[c - n];
+      mjtNum hi = c < n ? upper[c] : aupper[c - n];
+      mjtNum val = c < n ? res[c] : mju_dot(&A[(c - n) * n], res.data(), n);
+      mjtNum norm = c < n ? 1 : mju_norm(&A[(c - n) * n], n);
+      mjtNum lam = dual[c];
+
+      // violation permitted by the multiplier, and its precision
+      mjtNum slack = compliance[c] * mju_max(0, mju_abs(lam) - threshold[c]);
+      mjtNum eps = std::numeric_limits<mjtNum>::epsilon();
+      mjtNum precision = 4 * eps * compliance[c] * mju_abs(lam);
+
+      // primal feasibility
+      mjtNum viol = mju_max(val - hi - (lam > 0 ? slack : 0),
+                            lo - val - (lam < 0 ? slack : 0));
+      viol = mju_max(0, viol - precision);
+      residual = mju_max(residual, viol / (norm + mju_abs(val)));
+
+      // complementarity
+      if (lam > 0) {
+        viol = mju_max(0, mju_abs(val - hi - slack) - precision);
+        residual = mju_max(residual, viol / (norm + mju_abs(hi) + slack));
+      } else if (lam < 0) {
+        viol = mju_max(0, mju_abs(val - lo + slack) - precision);
+        residual = mju_max(residual, viol / (norm + mju_abs(lo) + slack));
+      }
+
+      // only soft constraints yield
+      if (std::abs(active[c]) == 2 && compliance[c] == 0) {
+        residual = 1;
+      }
+    }
+    return residual;
+  }
+
+  // number of constraints in a given state, regardless of sign
+  int Count(int state) const {
+    int count = 0;
+    for (int a : active) {
+      count += std::abs(a) == state;
+    }
+    return count;
+  }
+};
+
+// make a random QP with neq equalities, feasible if all constraints are hard
+QP RandomQP(int n, int m, int neq, int seed) {
+  std::mt19937_64 rng;
+  rng.seed(seed);
+  std::normal_distribution<double> dist(0, 1);
+  std::uniform_real_distribution<double> uniform(0, 1);
+
+  QP qp(n, m);
+
+  // positive definite H
+  vector<mjtNum> sqrtH(n * n);
+  for (int i = 0; i < n * n; i++) {
+    sqrtH[i] = dist(rng);
+  }
+  mju_mulMatTMat(qp.H.data(), sqrtH.data(), sqrtH.data(), n, n, n);
+  for (int i = 0; i < n; i++) {
+    qp.H[i * (n + 1)] += 0.1;
+    qp.g[i] = 3 * dist(rng);
+  }
+
+  // feasible point
+  vector<mjtNum> x(n);
+  for (int i = 0; i < n; i++) {
+    x[i] = dist(rng);
+  }
+
+  // bounds: half are absent on each side
+  for (int i = 0; i < n; i++) {
+    if (uniform(rng) < 0.5) qp.lower[i] = x[i] - uniform(rng);
+    if (uniform(rng) < 0.5) qp.upper[i] = x[i] + uniform(rng);
+  }
+
+  // rows: equalities, then inequalities with a quarter absent on each side
+  for (int j = 0; j < m; j++) {
+    for (int i = 0; i < n; i++) {
+      qp.A[j * n + i] = dist(rng);
+    }
+    mjtNum val = mju_dot(&qp.A[j * n], x.data(), n);
+    if (j < neq) {
+      qp.alower[j] = qp.aupper[j] = val;
+    } else {
+      if (uniform(rng) < 0.75) qp.alower[j] = val - uniform(rng);
+      if (uniform(rng) < 0.75) qp.aupper[j] = val + uniform(rng);
+    }
+  }
+
+  return qp;
+}
+
+// without constraints the solution is the Newton point
+TEST_F(QPTest, Unconstrained) {
+  QP qp = RandomQP(5, 0, 0, 1);
+  int n = qp.n;
+  EXPECT_EQ(mju_QP(qp.res.data(), nullptr, nullptr, nullptr, qp.H.data(),
+                   qp.g.data(), n, nullptr, nullptr, nullptr, nullptr, nullptr,
+                   0, nullptr, nullptr),
+            0);
+
+  // expect H*res + g = 0
+  vector<mjtNum> grad(n);
+  mju_mulMatVec(grad.data(), qp.H.data(), qp.res.data(), n, n);
+  mju_addTo(grad.data(), qp.g.data(), n);
+  EXPECT_LT(mju_norm(grad.data(), n), MjTol(1e-14, 1e-5));
+}
+
+// a small problem with a known solution
+TEST_F(QPTest, KnownSolution) {
+  // min 0.5*|x|^2 - x0 - x1  s.t.  x0 + x1 <= 1,  x0 - x1 = 0.2
+  mjtNum H[4] = {1, 0, 0, 1};
+  mjtNum g[2] = {-1, -1};
+  mjtNum A[4] = {1, 1, 1, -1};
+  mjtNum alower[2] = {-mjMAXVAL, 0.2};
+  mjtNum aupper[2] = {1, 0.2};
+
+  mjtNum res[2], dual[4];
+  int active[4] = {0, 0, 0, 0};
+  EXPECT_EQ(mju_QP(res, dual, active, nullptr, H, g, 2, nullptr, nullptr, A,
+                   alower, aupper, 2, nullptr, nullptr),
+            2);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-15, 1e-6), {0.6, 0.4}));
+  EXPECT_THAT(dual, Pointwise(MjNear(1e-15, 1e-6), {0.0, 0.0, 0.5, -0.1}));
+  EXPECT_THAT(active, ElementsAre(0, 0, 1, -1));
+}
+
+// with bounds only, the solution matches mju_boxQP
+TEST_F(QPTest, MatchesBoxQP) {
+  for (int n : {3, 10, 40}) {
+    mjtNum *H, *g, *lower, *upper, *res, *R;
+    int* index;
+    mju_boxQPmalloc(&res, &R, &index, &H, &g, n, &lower, &upper);
+    for (int seed = 0; seed < 10; seed++) {
+      randomBoxQP(n, H, g, lower, upper, seed);
+
+      // improve conditioning, so that solutions are comparable
+      for (int i = 0; i < n; i++) {
+        H[i * (n + 1)] += 1;
+      }
+      mju_zero(res, n);
+      ASSERT_GT(mju_boxQP(res, R, index, H, g, n, lower, upper), -1);
+
+      vector<mjtNum> x(n);
+      int nactive =
+          mju_QP(x.data(), nullptr, nullptr, nullptr, H, g, n, lower, upper,
+                 nullptr, nullptr, nullptr, 0, nullptr, nullptr);
+      EXPECT_GE(nactive, 0);
+      for (int i = 0; i < n; i++) {
+        EXPECT_NEAR(x[i], res[i], MjTol(1e-13, 1e-4));
+      }
+    }
+    mju_free(res);
+    mju_free(R);
+    mju_free(index);
+    mju_free(H);
+    mju_free(g);
+    mju_free(lower);
+    mju_free(upper);
+  }
+}
+
+// optimality conditions hold on random feasible problems
+TEST_F(QPTest, RandomFeasible) {
+  int seed = 0;
+  int nactive_total = 0;
+  for (int n : {2, 7, 30}) {
+    for (int m : {0, 3, 2 * n, 6 * n}) {
+      for (int neq : {0, 1, n / 2}) {
+        if (neq > m) continue;
+        for (int rep = 0; rep < 5; rep++) {
+          QP qp = RandomQP(n, m, neq, seed++);
+          int nactive = qp.Solve();
+          EXPECT_GE(nactive, neq) << "n " << n << " m " << m << " neq " << neq;
+          EXPECT_LT(qp.Residual(), MjTol(1e-11, 5e-3))
+              << "n " << n << " m " << m << " neq " << neq;
+          nactive_total += nactive - neq;
+        }
+      }
+    }
+  }
+
+  // inequalities are active
+  EXPECT_GT(nactive_total, 0);
+}
+
+// only the lower triangle of H is read
+TEST_F(QPTest, LowerTriangle) {
+  QP qp = RandomQP(6, 8, 2, 3);
+  ASSERT_GE(qp.Solve(), 0);
+  vector<mjtNum> expected = qp.res;
+
+  for (int i = 0; i < qp.n; i++) {
+    for (int j = i + 1; j < qp.n; j++) {
+      qp.H[i * qp.n + j] = std::numeric_limits<mjtNum>::quiet_NaN();
+    }
+  }
+  mju_zeroInt(qp.active.data(), qp.n + qp.m);
+  ASSERT_GE(qp.Solve(), 0);
+  EXPECT_EQ(qp.res, expected);
+}
+
+// a user-allocated workspace gives the same solution
+TEST_F(QPTest, Workspace) {
+  QP qp = RandomQP(6, 8, 2, 4);
+  ASSERT_GE(qp.Solve(), 0);
+  vector<mjtNum> expected = qp.res;
+
+  int n = qp.n, m = qp.m;
+  vector<mjtNum> work(n * n + (n + m) * (2 * n + m + 13));
+  mju_zeroInt(qp.active.data(), n + m);
+  ASSERT_GE(qp.Solve(work.data()), 0);
+  EXPECT_EQ(qp.res, expected);
+}
+
+// a warmstart from any working set gives the same solution
+TEST_F(QPTest, Warmstart) {
+  for (int seed = 0; seed < 10; seed++) {
+    QP qp = RandomQP(10, 30, 3, seed);
+    int nactive = qp.Solve();
+    ASSERT_GE(nactive, 0);
+    vector<mjtNum> expected = qp.res;
+
+    // from the solution
+    EXPECT_EQ(qp.Solve(), nactive);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-12, 1e-3), expected));
+
+    // from all upper bounds
+    std::fill(qp.active.begin(), qp.active.end(), 1);
+    EXPECT_EQ(qp.Solve(), nactive);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-12, 1e-3), expected));
+
+    // from all lower bounds
+    std::fill(qp.active.begin(), qp.active.end(), -1);
+    EXPECT_EQ(qp.Solve(), nactive);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-12, 1e-3), expected));
+  }
+}
+
+// repeated and redundant constraints are handled
+TEST_F(QPTest, Degenerate) {
+  // min 0.5*|x - (2, 2)|^2, three constraints meet at (1, 1), one is repeated
+  mjtNum H[4] = {1, 0, 0, 1};
+  mjtNum g[2] = {-2, -2};
+  mjtNum A[8] = {1, 0, 0, 1, 1, 1, 1, 1};
+  mjtNum aupper[4] = {1, 1, 2, 2};
+
+  mjtNum res[2], dual[6];
+  EXPECT_GE(mju_QP(res, dual, nullptr, nullptr, H, g, 2, nullptr, nullptr, A,
+                   nullptr, aupper, 4, nullptr, nullptr),
+            0);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), {1.0, 1.0}));
+}
+
+// problems with known solutions from the test suites of quadprog and qpsolvers
+TEST_F(QPTest, ReferenceProblems) {
+  // Goldfarb and Idnani (1983): min 0.5*|x|^2 - 5*x1 with three inequalities
+  {
+    QP qp(3, 3);
+    qp.H = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    qp.g = {0, -5, 0};
+    qp.A = {-4, -3, 0, 2, 1, 0, 0, -2, 1};
+    qp.alower = {-8, 2, 0};
+    EXPECT_EQ(qp.Solve(), 2);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-14, 1e-5),
+                                  {10.0 / 21, 22.0 / 21, 44.0 / 21}));
+    EXPECT_THAT(qp.dual,
+                Pointwise(MjNear(1e-14, 1e-5),
+                          {0.0, 0.0, 0.0, 0.0, -5.0 / 21, -44.0 / 21}));
+  }
+
+  // three equalities, two variables have identical columns
+  {
+    QP qp(5, 3);
+    for (int i = 0; i < 5; i++) qp.H[6 * i] = 1;
+    qp.g = {-0.73727161, -0.75526241, -0.04741426, 0.11260887, 0.11260887};
+    qp.A = {3.6, -3.4, -3.8,  1.6,   1.6, 0, -1.9, -1.7,
+            -4,  -4,   -9.72, -8.67, 0,   0, 0};
+    qp.alower = qp.aupper = {1.02, 0.03, 0.081};
+    EXPECT_EQ(qp.Solve(), 3);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-8, 1e-5),
+                                  {0.07313507, -0.09133482, -0.08677699,
+                                   0.03638213, 0.03638213}));
+    EXPECT_LT(qp.Residual(), MjTol(1e-14, 1e-5));
+  }
+
+  // ill-conditioned H, bounds and two rows
+  {
+    QP qp(3, 2);
+    qp.H = {224.60560028, 181.38561347, 299.23703769,
+            181.38561347, 148.05984179, 238.58321617,
+            299.23703769, 238.58321617, 406.34542188};
+    qp.g = {-239.91135277, -196.08680183, -313.40206452};
+    qp.lower = {0, 0, 0};
+    qp.A = {-1, -1, -1, 1, 1, 1};
+    qp.alower = {-1.19, 0.7};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_LT(qp.Residual(), MjTol(1e-13, 1e-5));
+  }
+
+  // bounds, an equality, an inequality and an infinite bound
+  {
+    QP qp(3, 3);
+    mjtNum M[9] = {1, 2, 0, -8, 3, 2, 0, 1, 1};
+    mju_mulMatTMat(qp.H.data(), M, M, 3, 3, 3);
+    qp.g = {-13, 15, 7};
+    qp.lower = {-0.5, -0.4, -0.5};
+    qp.upper = {1, 1, 1};
+    qp.A = {4, 2, 0, -1, 2, -1, 1, 1, 1};
+    qp.alower = {-mjMAXVAL, -mjMAXVAL, 1};
+    qp.aupper = {mjMAXVAL, -2, 1};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-13, 1e-4), {0.4, -0.4, 1.0}));
+    EXPECT_LT(qp.Residual(), MjTol(1e-13, 1e-4));
+  }
+
+  // an equality that holds at the unconstrained minimum
+  {
+    QP qp(2, 1);
+    qp.H = {1, 0, 0, 1};
+    qp.g = {-1, 1};
+    qp.A = {1, -1};
+    qp.alower = qp.aupper = {2};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-15, 1e-6), {1.0, -1.0}));
+    EXPECT_THAT(qp.dual, Pointwise(MjNear(1e-15, 1e-6), {0.0, 0.0, 0.0}));
+  }
+}
+
+// the working set fills up before the solution is found, then mostly empties
+TEST_F(QPTest, FullWorkingSet) {
+  // min 0.5*|x|^2  s.t.  x >= 1,  z'*x >= 1.01, where z alternates between 1
+  // and -1
+  int n = 20;
+  QP qp(n, 1);
+  for (int i = 0; i < n; i++) {
+    qp.H[i * (n + 1)] = 1;
+    qp.lower[i] = 1;
+    qp.A[i] = (i % 2 ? -1 : 1) + 1e-6 * mju_sin(i);
+  }
+  qp.alower[0] = 1.01;
+  EXPECT_GE(qp.Solve(), 0);
+  EXPECT_LT(qp.Residual(), MjTol(1e-14, 1e-5));
+  EXPECT_EQ(qp.active[n], -1);
+}
+
+// more constraints than variables are active at the solution
+TEST_F(QPTest, DegenerateVertex) {
+  // each triplet of variables is in a pyramid |x0| <= x2, |x1| <= x2
+  // the bias pushes all triplets to the apex, where four constraints are active
+  int npyramid = 4;
+  int n = 3 * npyramid, m = 4 * npyramid;
+  std::mt19937_64 rng(11);
+  std::uniform_real_distribution<double> uniform(0.5, 1.5);
+  for (int trial = 0; trial < 50; trial++) {
+    QP qp = RandomQP(n, m, 0, trial);
+    std::fill(qp.lower.begin(), qp.lower.end(), -mjMAXVAL);
+    std::fill(qp.upper.begin(), qp.upper.end(), mjMAXVAL);
+    std::fill(qp.A.begin(), qp.A.end(), 0);
+    std::fill(qp.aupper.begin(), qp.aupper.end(), mjMAXVAL);
+    std::fill(qp.alower.begin(), qp.alower.end(), 0);
+    for (int p = 0; p < npyramid; p++) {
+      for (int k = 0; k < 4; k++) {
+        mjtNum* row = &qp.A[(4 * p + k) * n + 3 * p];
+        row[k / 2] = k % 2 ? -1 : 1;
+        row[2] = 1;
+      }
+    }
+
+    // g = A'*lam with positive lam: the origin is optimal
+    vector<mjtNum> lam(m);
+    for (mjtNum& v : lam) v = uniform(rng);
+    mju_mulMatTVec(qp.g.data(), qp.A.data(), lam.data(), m, n);
+
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_LT(mju_norm(qp.res.data(), n), MjTol(1e-12, 1e-3));
+  }
+}
+
+// equalities that determine all variables
+TEST_F(QPTest, DeterminedByEqualities) {
+  int n = 4;
+  QP qp = RandomQP(n, n + 1, n, 5);
+  std::fill(qp.lower.begin(), qp.lower.end(), -mjMAXVAL);
+  std::fill(qp.upper.begin(), qp.upper.end(), mjMAXVAL);
+  qp.alower[n] = -mjMAXVAL;
+  qp.aupper[n] = mjMAXVAL;
+  ASSERT_EQ(qp.Solve(), n);
+  vector<mjtNum> x = qp.res;
+  mjtNum val = mju_dot(&qp.A[n * n], x.data(), n);
+
+  // an inequality that holds at the determined point
+  qp.aupper[n] = val + 1;
+  EXPECT_EQ(qp.Solve(), n);
+  EXPECT_THAT(qp.res, Pointwise(MjNear(1e-12, 1e-3), x));
+
+  // an inequality that is violated at the determined point
+  qp.aupper[n] = val - 1;
+  EXPECT_EQ(qp.Solve(), -2);
+
+  // a consistent additional equality
+  qp.alower[n] = qp.aupper[n] = val;
+  EXPECT_GE(qp.Solve(), n);
+  EXPECT_THAT(qp.res, Pointwise(MjNear(1e-12, 1e-3), x));
+
+  // an inconsistent additional equality
+  qp.alower[n] = qp.aupper[n] = val + 1;
+  EXPECT_EQ(qp.Solve(), -2);
+
+  // a bound that is violated at the determined point
+  qp.alower[n] = -mjMAXVAL;
+  qp.aupper[n] = mjMAXVAL;
+  qp.upper[0] = x[0] - 1;
+  EXPECT_EQ(qp.Solve(), -2);
+}
+
+// a warmstart with dependent or too many constraints gives the cold solution
+TEST_F(QPTest, WarmstartDependent) {
+  // an equality that depends on the bounds of the warmstart
+  {
+    QP qp(2, 1);
+    qp.H = {1, 0, 0, 1};
+    qp.g = {-3, -1};
+    qp.upper = {0.5, 0.5};
+    qp.A = {1, 1};
+    qp.alower = qp.aupper = {1};
+    qp.active = {1, 1, 0};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-15, 1e-6), {0.5, 0.5}));
+
+    // the equality still holds when a bound is relaxed
+    qp.upper = {2, 0.5};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-15, 1e-6), {1.5, -0.5}));
+  }
+
+  // more constraints in the warmstart than the working set can hold
+  {
+    QP qp(2, 5);
+    qp.H = {1, 0, 0, 1};
+    qp.g = {-3, -1};
+    qp.A = {1, 0, 0, 1, 1, 1, 1, 0, 1, -1};
+    qp.aupper = {1, 1, 1.5, 5, 0};
+    qp.alower[4] = 0;
+    ASSERT_GE(qp.Solve(), 0);
+    vector<mjtNum> expected = qp.res;
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-15, 1e-6), {0.75, 0.75}));
+
+    std::fill(qp.active.begin(), qp.active.end(), 1);
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-14, 1e-5), expected));
+  }
+}
+
+// nearly parallel constraints are not reported as infeasible
+TEST_F(QPTest, NearlyParallel) {
+  std::mt19937_64 rng(3);
+  std::normal_distribution<double> normal(0, 1);
+  for (mjtNum eps : {1e-3, 1e-6, 1e-9, 1e-12}) {
+    for (int trial = 0; trial < 10; trial++) {
+      // rows 0 and 1 differ by eps, the bias pushes against both
+      int n = 4;
+      QP qp(n, 3);
+      for (int i = 0; i < n; i++) {
+        qp.H[i * (n + 1)] = 1;
+        qp.A[i] = normal(rng);
+        qp.A[n + i] = qp.A[i] + eps * normal(rng);
+        qp.A[2 * n + i] = normal(rng);
+        qp.g[i] = -10 * qp.A[i];
+      }
+      qp.aupper = {1, 1, 1};
+      EXPECT_GE(qp.Solve(), 0) << "eps " << eps;
+      EXPECT_LT(qp.Residual(), MjTol(1e-12, 1e-4)) << "eps " << eps;
+    }
+  }
+}
+
+// failure is reported for infeasible constraints and indefinite H
+TEST_F(QPTest, Failure) {
+  mjtNum H[4] = {1, 0, 0, 1};
+  mjtNum g[2] = {0, 0};
+  mjtNum res[2];
+
+  // inconsistent inequalities: x0 + x1 <= 0, x0 + x1 >= 1
+  mjtNum A[4] = {1, 1, 2, 2};
+  mjtNum alower[2] = {-mjMAXVAL, 2};
+  mjtNum aupper[2] = {0, mjMAXVAL};
+  EXPECT_EQ(mju_QP(res, nullptr, nullptr, nullptr, H, g, 2, nullptr, nullptr, A,
+                   alower, aupper, 2, nullptr, nullptr),
+            -2);
+
+  // inconsistent equalities
+  mjtNum equal[2] = {0, 2};
+  EXPECT_EQ(mju_QP(res, nullptr, nullptr, nullptr, H, g, 2, nullptr, nullptr, A,
+                   equal, equal, 2, nullptr, nullptr),
+            -2);
+
+  // crossed bounds
+  mjtNum lower[2] = {1, 0};
+  mjtNum upper[2] = {0, 1};
+  EXPECT_EQ(mju_QP(res, nullptr, nullptr, nullptr, H, g, 2, lower, upper,
+                   nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+            -2);
+
+  // indefinite H
+  mjtNum Hbad[4] = {1, 0, 0, -1};
+  EXPECT_EQ(mju_QP(res, nullptr, nullptr, nullptr, Hbad, g, 2, nullptr, nullptr,
+                   nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+            -1);
+
+  // required arguments are missing
+  auto error = MjuErrorMessageFrom(mju_QP);
+  EXPECT_THAT(error(nullptr, nullptr, nullptr, nullptr, H, g, 2, nullptr,
+                    nullptr, nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+              ::testing::HasSubstr("must be given"));
+  EXPECT_THAT(error(res, nullptr, nullptr, nullptr, nullptr, g, 2, nullptr,
+                    nullptr, nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+              ::testing::HasSubstr("must be given"));
+  EXPECT_THAT(error(res, nullptr, nullptr, nullptr, H, nullptr, 2, nullptr,
+                    nullptr, nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+              ::testing::HasSubstr("must be given"));
+}
+
+// a singular H is solved if the constraints bound the problem
+TEST_F(QPTest, SingularHessian) {
+  // min 0.5*(x0 + x1 - 1)^2 + x2  s.t.  -1 <= x <= 1,  x0 - x1 = 0.5
+  mjtNum H[9] = {1, 1, 0, 1, 1, 0, 0, 0, 0};
+  mjtNum g[3] = {-1, -1, 1};
+  mjtNum lower[3] = {-1, -1, -1};
+  mjtNum upper[3] = {1, 1, 1};
+  mjtNum A[3] = {1, -1, 0};
+  mjtNum b[1] = {0.5};
+  mjtNum res[3], dual[4];
+  EXPECT_GE(mju_QP(res, dual, nullptr, nullptr, H, g, 3, lower, upper, A, b, b,
+                   1, nullptr, nullptr),
+            0);
+  mjtNum expected_res[3] = {0.75, 0.25, -1};
+  mjtNum expected_dual[4] = {0, 0, -1, 0};
+  EXPECT_THAT(res, Pointwise(MjNear(1e-11, 1e-3), expected_res));
+  EXPECT_THAT(dual, Pointwise(MjNear(1e-13, 1e-5), expected_dual));
+
+  // random low-rank H with bounds: optimality conditions hold
+  std::mt19937_64 rng(7);
+  std::normal_distribution<double> normal(0, 1);
+  for (int trial = 0; trial < 20; trial++) {
+    int n = 12, rank = 4, m = 6;
+    QP qp(n, m);
+    vector<mjtNum> J(rank * n);
+    for (mjtNum& v : J) v = normal(rng);
+    mju_mulMatTMat(qp.H.data(), J.data(), J.data(), rank, n, n);
+    for (int i = 0; i < n; i++) {
+      qp.g[i] = normal(rng);
+      qp.lower[i] = -1;
+      qp.upper[i] = 1;
+    }
+    for (mjtNum& v : qp.A) v = normal(rng);
+    for (int i = 0; i < m; i++) {
+      qp.alower[i] = -1;
+      qp.aupper[i] = 1;
+    }
+    ASSERT_GE(qp.Solve(), 0);
+    EXPECT_LT(qp.Residual(), MjTol(1e-8, 1e-3));
+  }
+
+  // unbounded along the null space of H
+  EXPECT_EQ(mju_QP(res, nullptr, nullptr, nullptr, H, g, 3, nullptr, nullptr,
+                   nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+            -3);
+
+  // bounded by the curvature of H: g is in its range
+  mjtNum grange[3] = {-1, -1, 0};
+  EXPECT_EQ(mju_QP(res, nullptr, nullptr, nullptr, H, grange, 3, nullptr,
+                   nullptr, nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+            0);
+  EXPECT_NEAR(res[0] + res[1], 1, MjTol(3e-12, 3e-6));
+
+  // curvature that is negative within rounding error is not indefinite
+  mjtNum eps = std::numeric_limits<mjtNum>::epsilon();
+  mjtNum Hround[4] = {1, 0, 0, -eps / 10};
+  mjtNum ground[2] = {-0.5, 0};
+  mjtNum lower2[2] = {-1, -1};
+  mjtNum upper2[2] = {1, 1};
+  EXPECT_GE(mju_QP(res, nullptr, nullptr, nullptr, Hround, ground, 2, lower2,
+                   upper2, nullptr, nullptr, nullptr, 0, nullptr, nullptr),
+            0);
+  EXPECT_NEAR(res[0], 0.5, MjTol(1e-9, 1e-3));
+}
+
+// a linear program, H = 0, is solved if the constraints bound the problem
+TEST_F(QPTest, LinearProgram) {
+  // min x0 - 2*x1 + 0.5*x2  s.t.  -1 <= x <= 1
+  {
+    QP qp(3, 0);
+    qp.g = {1, -2, 0.5};
+    qp.lower = {-1, -1, -1};
+    qp.upper = {1, 1, 1};
+    EXPECT_EQ(qp.Solve(), 3);
+    mjtNum expected_res[3] = {-1, 1, -1};
+    mjtNum expected_dual[3] = {-1, 2, -0.5};
+    EXPECT_THAT(qp.res, Pointwise(MjNear(5e-15, 3e-6), expected_res));
+    EXPECT_THAT(qp.dual, Pointwise(MjNear(5e-15, 5e-6), expected_dual));
+    EXPECT_THAT(qp.active, ElementsAre(-1, 1, -1));
+  }
+
+  // min -x0 - x1  s.t.  x >= 0,  x0 + 2*x1 <= 4,  3*x0 + x1 <= 6
+  {
+    QP qp(2, 2);
+    qp.g = {-1, -1};
+    qp.lower = {0, 0};
+    qp.A = {1, 2, 3, 1};
+    qp.aupper = {4, 6};
+    EXPECT_EQ(qp.Solve(), 2);
+    mjtNum expected_res[2] = {1.6, 1.2};
+    mjtNum expected_dual[4] = {0, 0, 0.4, 0.2};
+    EXPECT_THAT(qp.res, Pointwise(MjNear(5e-15, 3e-6), expected_res));
+    EXPECT_THAT(qp.dual, Pointwise(MjNear(5e-15, 5e-6), expected_dual));
+  }
+
+  // min x0 + 2*x1  s.t.  0 <= x <= 2,  x0 + x1 = 1
+  {
+    QP qp(2, 1);
+    qp.g = {1, 2};
+    qp.lower = {0, 0};
+    qp.upper = {2, 2};
+    qp.A = {1, 1};
+    qp.alower = qp.aupper = {1};
+    EXPECT_EQ(qp.Solve(), 2);
+    mjtNum expected_res[2] = {1, 0};
+    mjtNum expected_dual[3] = {0, -1, -1};
+    EXPECT_THAT(qp.res, Pointwise(MjNear(5e-15, 3e-6), expected_res));
+    EXPECT_THAT(qp.dual, Pointwise(MjNear(5e-15, 5e-6), expected_dual));
+
+    // degenerate vertex: the upper bound of x0 also holds at the solution
+    qp.upper = {1, 1};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_THAT(qp.res, Pointwise(MjNear(5e-15, 3e-6), expected_res));
+    EXPECT_LT(qp.Residual(), MjTol(1e-12, 2e-4));
+  }
+
+  // no objective: any feasible point is a solution
+  {
+    QP qp(2, 1);
+    qp.lower = {1, -2};
+    qp.upper = {3, -1};
+    qp.A = {1, 1};
+    qp.aupper = {1};
+    EXPECT_GE(qp.Solve(), 0);
+    EXPECT_LT(qp.Residual(), MjTol(1e-12, 2e-4));
+  }
+
+  // random objectives over a bounded polytope: optimality conditions hold
+  std::mt19937_64 rng(11);
+  std::normal_distribution<double> normal(0, 1);
+  for (int trial = 0; trial < 20; trial++) {
+    int n = 8, m = 6;
+    QP qp(n, m);
+    for (int i = 0; i < n; i++) {
+      qp.g[i] = normal(rng);
+      qp.lower[i] = -1;
+      qp.upper[i] = 1;
+    }
+    for (mjtNum& v : qp.A) v = normal(rng);
+    for (int i = 0; i < m; i++) {
+      qp.alower[i] = -1;
+      qp.aupper[i] = 1;
+    }
+    ASSERT_GE(qp.Solve(), 0);
+    EXPECT_LT(qp.Residual(), MjTol(1e-12, 2e-4));
+  }
+
+  // unbounded: x0 decreases freely
+  {
+    QP qp(2, 0);
+    qp.g = {1, 0};
+    qp.upper = {1, 1};
+    EXPECT_EQ(qp.Solve(), -3);
+  }
+
+  // unbounded along a ray of the feasible cone  x0 >= x1 >= 0
+  {
+    QP qp(2, 1);
+    qp.g = {-1, 0.5};
+    qp.lower = {0, 0};
+    qp.A = {1, -1};
+    qp.alower = {0};
+    EXPECT_EQ(qp.Solve(), -3);
+
+    // a bound on x0 makes it bounded
+    qp.upper = {3, mjMAXVAL};
+    EXPECT_EQ(qp.Solve(), 2);
+    mjtNum expected_res[2] = {3, 0};
+    EXPECT_THAT(qp.res, Pointwise(MjNear(5e-15, 3e-6), expected_res));
+
+    // so does a soft bound: min -x0 + (x0 - 3)^2 / 2 for x0 > 3
+    qp.compliance[0] = 1;
+    EXPECT_GE(qp.Solve(), 0);
+    mjtNum expected_soft[2] = {4, 0};
+    EXPECT_THAT(qp.res, Pointwise(MjNear(2e-10, 2e-4), expected_soft));
+  }
+
+  // indefinite H with a zero diagonal
+  {
+    QP qp(2, 0);
+    qp.H = {0, 1, 1, 0};
+    EXPECT_EQ(qp.Solve(), -1);
+  }
+
+  // a long face along which the objective decreases slowly
+  //  min -x1  s.t.  0 <= x0 <= 1000,  x1 <= 0.001*x0
+  {
+    QP qp(2, 1);
+    qp.g = {0, -1};
+    qp.lower = {0, -mjMAXVAL};
+    qp.upper = {1000, mjMAXVAL};
+    qp.A = {-0.001, 1};
+    qp.aupper = {0};
+    EXPECT_EQ(qp.Solve(), 2);
+    mjtNum expected_res[2] = {1000, 1};
+    EXPECT_THAT(qp.res, Pointwise(MjNear(1e-11, 2e-3), expected_res));
+  }
+}
+
+// a Hessian with weak curvature along some directions, as in damped least
+// squares
+//  min 0.5*|J*x - e|^2 + 0.5*damping*|x|^2, with fewer rows in J than variables
+TEST_F(QPTest, WeakCurvature) {
+  int n = 8, rank = 4, m = 6;
+  for (double damping : {1e-4, 1e-5, 1e-7, 1e-10, 0.0}) {
+    for (int trial = 0; trial < 20; trial++) {
+      std::mt19937_64 rng(trial);
+      std::normal_distribution<double> normal(0, 1);
+      std::uniform_real_distribution<double> uniform(0, 1);
+      QP qp(n, m);
+
+      // H = J'*J + damping*I, relative to the largest diagonal, g = -J'*e
+      vector<mjtNum> J(rank * n), e(rank);
+      for (mjtNum& v : J) v = normal(rng);
+      for (mjtNum& v : e) v = normal(rng);
+      mju_mulMatTMat(qp.H.data(), J.data(), J.data(), rank, n, n);
+      mjtNum hmax = 0;
+      for (int i = 0; i < n; i++) hmax = mju_max(hmax, qp.H[i * (n + 1)]);
+      for (int i = 0; i < n; i++) qp.H[i * (n + 1)] += damping * hmax;
+      mju_mulMatTVec(qp.g.data(), J.data(), e.data(), rank, n);
+      for (mjtNum& v : qp.g) v = -v;
+
+      // the origin is feasible, some constraints are tight there
+      for (mjtNum& v : qp.A) v = normal(rng);
+      for (int c = 0; c < n + m; c++) {
+        mjtNum lo = -0.1 - uniform(rng), hi = 0.1 + uniform(rng);
+        double u = uniform(rng);
+        if (u < 0.15) {
+          hi = 0;
+        } else if (u < 0.3) {
+          lo = 0;
+        }
+        (c < n ? qp.lower[c] : qp.alower[c - n]) = lo;
+        (c < n ? qp.upper[c] : qp.aupper[c - n]) = hi;
+      }
+
+      ASSERT_GE(qp.Solve(), 0) << "damping " << damping << " trial " << trial;
+
+      // constraints hold relative to the norms of their rows
+      for (int c = 0; c < n + m; c++) {
+        mjtNum val =
+            c < n ? qp.res[c] : mju_dot(&qp.A[(c - n) * n], qp.res.data(), n);
+        mjtNum norm = c < n ? 1 : mju_norm(&qp.A[(c - n) * n], n);
+        mjtNum lo = c < n ? qp.lower[c] : qp.alower[c - n];
+        mjtNum hi = c < n ? qp.upper[c] : qp.aupper[c - n];
+        EXPECT_LT(mju_max(val - hi, lo - val), norm * MjTol(3e-7, 2e-3))
+            << "damping " << damping << " trial " << trial;
+      }
+      EXPECT_LT(qp.Residual(), MjTol(8e-8, 7e-4))
+          << "damping " << damping << " trial " << trial;
+    }
+  }
+}
+
+// the solution scales with the variables and is independent of the scale of the
+// objective, for a strictly convex problem and for a linear program
+TEST_F(QPTest, ScaleCovariance) {
+  int n = 8, m = 6;
+  std::mt19937_64 rng(13);
+  std::normal_distribution<double> normal(0, 1);
+  for (int trial = 0; trial < 10; trial++) {
+    // variables and rows are within [-1, 1]
+    QP base(n, m);
+    for (int i = 0; i < n; i++) {
+      base.g[i] = normal(rng);
+      base.lower[i] = -1;
+      base.upper[i] = 1;
+    }
+    for (mjtNum& v : base.A) v = normal(rng);
+    for (int i = 0; i < m; i++) {
+      base.alower[i] = -1;
+      base.aupper[i] = 1;
+    }
+
+    for (bool linear : {false, true}) {
+      for (int i = 0; i < n; i++) base.H[i * (n + 1)] = linear ? 0 : 1;
+      int nactive = base.Solve();
+      ASSERT_GE(nactive, 0);
+
+      for (double sx : {1e-6, 1e-3, 1e3, 1e6}) {
+        for (double sg : {1e-6, 1.0, 1e6}) {
+          // x scales by sx, the objective by sg*sx
+          QP qp = base;
+          std::fill(qp.active.begin(), qp.active.end(), 0);
+          for (int i = 0; i < n; i++) {
+            qp.H[i * (n + 1)] *= sg / sx;
+            qp.g[i] *= sg;
+            qp.lower[i] *= sx;
+            qp.upper[i] *= sx;
+          }
+          for (int i = 0; i < m; i++) {
+            qp.alower[i] *= sx;
+            qp.aupper[i] *= sx;
+          }
+          ASSERT_EQ(qp.Solve(), nactive) << "sx " << sx << " sg " << sg;
+
+          // same solution, and constraints hold relative to the scale of x
+          for (int i = 0; i < n; i++) {
+            EXPECT_NEAR(qp.res[i] / sx, base.res[i], MjTol(6e-14, 3e-5))
+                << "sx " << sx << " sg " << sg;
+          }
+          for (int j = 0; j < m; j++) {
+            mjtNum val = mju_dot(&qp.A[j * n], qp.res.data(), n);
+            mjtNum norm = mju_norm(&qp.A[j * n], n);
+            EXPECT_LT(mju_abs(val) / sx - 1, norm * MjTol(3e-14, 2e-5))
+                << "sx " << sx << " sg " << sg;
+          }
+        }
+      }
+    }
+  }
+}
+
+// a soft constraint holds up to its threshold, then yields with its compliance
+TEST_F(QPTest, SoftKnownSolution) {
+  // min 0.5*x^2 - x  s.t.  x <= 0: holding the constraint takes a multiplier 1
+  mjtNum H[1] = {1};
+  mjtNum g[1] = {-1};
+  mjtNum upper[1] = {0};
+  mjtNum res[1], dual[1];
+  int active[1] = {0};
+
+  // threshold above 1: holds
+  mjtNum threshold[1] = {2};
+  mjtNum compliance[1] = {1};
+  EXPECT_EQ(mju_QP(res, dual, active, nullptr, H, g, 1, nullptr, upper, nullptr,
+                   nullptr, nullptr, 0, threshold, compliance),
+            1);
+  EXPECT_NEAR(res[0], 0, MjTol(1e-14, 1e-6));
+  EXPECT_NEAR(dual[0], 1, MjTol(1e-14, 1e-6));
+  EXPECT_EQ(active[0], 1);
+
+  // threshold below 1: yields, dual = (1 + rho*w) / (1 + rho)
+  threshold[0] = 0.5;
+  compliance[0] = 3;
+  active[0] = 0;
+  EXPECT_EQ(mju_QP(res, dual, active, nullptr, H, g, 1, nullptr, upper, nullptr,
+                   nullptr, nullptr, 0, threshold, compliance),
+            1);
+  EXPECT_NEAR(dual[0], 2.5 / 4, MjTol(1e-14, 1e-6));
+  EXPECT_NEAR(res[0], 3 * (2.5 / 4 - 0.5), MjTol(1e-14, 1e-6));
+  EXPECT_EQ(active[0], 2);
+
+  // no threshold: quadratic penalty, dual = 1 / (1 + rho)
+  active[0] = 0;
+  EXPECT_EQ(mju_QP(res, dual, active, nullptr, H, g, 1, nullptr, upper, nullptr,
+                   nullptr, nullptr, 0, nullptr, compliance),
+            1);
+  EXPECT_NEAR(dual[0], 0.25, MjTol(1e-14, 1e-6));
+  EXPECT_NEAR(res[0], 0.75, MjTol(1e-14, 1e-6));
+  EXPECT_EQ(active[0], 2);
+}
+
+// repeated soft constraints share the multiplier that holds them
+TEST_F(QPTest, SoftDependent) {
+  // min 0.5*x^2 - x  s.t.  x = 0 (three times): holding takes a multiplier 1
+  int n = 1, m = 3;
+  for (mjtNum threshold : {0.2, 0.4, 2.0}) {
+    QP qp(n, m);
+    qp.H[0] = 1;
+    qp.g[0] = -1;
+    for (int j = 0; j < m; j++) {
+      qp.A[j] = 1;
+      qp.alower[j] = qp.aupper[j] = 0;
+      qp.threshold[n + j] = threshold;
+      qp.compliance[n + j] = 0.5;
+    }
+    EXPECT_EQ(qp.Solve(), threshold < 2 ? 3 : 1);
+    EXPECT_LT(qp.Residual(), MjTol(1e-14, 1e-6));
+
+    // thresholds add up to more than 1: constraints hold, otherwise all yield
+    if (3 * threshold > 1) {
+      EXPECT_NEAR(qp.res[0], 0, MjTol(1e-14, 1e-6));
+    } else {
+      EXPECT_NEAR(qp.res[0], 0.4 / 7, MjTol(1e-14, 1e-6));
+      EXPECT_EQ(qp.Count(2), 3);
+    }
+  }
+}
+
+// repeated soft constraints with thresholds that add up to more than the
+// multiplier of the hard constraint are an exact penalty
+TEST_F(QPTest, SoftDuplicates) {
+  int ntested = 0;
+  for (mjtNum scale : {1.0, 1e3}) {
+    for (int seed = 0; seed < 20; seed++) {
+      // rows 0 and 1 are the same upper bound, violated at the unconstrained
+      // minimum
+      int n = 8, m = 10;
+      QP qp = RandomQP(n, m, 0, seed);
+      mju_scl(qp.H.data(), qp.H.data(), scale, n * n);
+      mju_scl(qp.g.data(), qp.g.data(), scale, n);
+      mju_copy(&qp.A[n], &qp.A[0], n);
+      qp.alower[0] = qp.alower[1] = -mjMAXVAL;
+      qp.aupper[0] = qp.aupper[1] = qp.aupper[0] < mjMAXVAL ? qp.aupper[0] : 0;
+
+      // hard solution: the multiplier is carried by one of the two rows
+      if (qp.Solve() < 0) continue;
+      mjtNum lam = qp.dual[n] + qp.dual[n + 1];
+      if (lam < 1e-3 * scale) continue;
+      vector<mjtNum> expected = qp.res;
+
+      // soft, each threshold holds 3/4 of the multiplier
+      qp.threshold[n] = qp.threshold[n + 1] = 0.75 * lam;
+      qp.compliance[n] = qp.compliance[n + 1] = 1 / scale;
+      for (int warm = 0; warm < 2; warm++) {
+        if (!warm) mju_zeroInt(qp.active.data(), n + m);
+        ASSERT_GE(qp.Solve(), 0);
+        EXPECT_THAT(qp.res, Pointwise(MjNear(1e-11, 1e-3), expected));
+        EXPECT_NEAR(qp.dual[n] + qp.dual[n + 1], lam, MjTol(1e-9, 1e-2) * lam);
+      }
+      ntested++;
+    }
+  }
+  EXPECT_GT(ntested, 10);
+}
+
+// soft constraints make an infeasible problem feasible
+TEST_F(QPTest, SoftInfeasible) {
+  int seed = 0;
+  for (int n : {2, 7, 30}) {
+    for (int m : {n, 3 * n}) {
+      for (mjtNum threshold : {0.0, 0.3, 3.0}) {
+        for (mjtNum compliance : {1e-3, 1.0, 1e6}) {
+          QP qp = RandomQP(n, m, n / 2, seed++);
+
+          // shift bounds
+          std::mt19937_64 rng;
+          rng.seed(seed);
+          std::normal_distribution<double> dist(0, 1);
+          for (int j = 0; j < m; j++) {
+            mjtNum shift = dist(rng);
+            if (qp.alower[j] > -mjMAXVAL) qp.alower[j] += shift;
+            if (qp.aupper[j] < mjMAXVAL) qp.aupper[j] += shift;
+          }
+
+          // make the last two rows inconsistent: a*x <= 0, a*x >= 1
+          mju_copy(&qp.A[(m - 1) * n], &qp.A[(m - 2) * n], n);
+          qp.alower[m - 2] = -mjMAXVAL;
+          qp.aupper[m - 2] = 0;
+          qp.alower[m - 1] = 1;
+          qp.aupper[m - 1] = mjMAXVAL;
+
+          // rows are soft, bounds are hard
+          for (int j = 0; j < m; j++) {
+            qp.threshold[n + j] = threshold;
+            qp.compliance[n + j] = compliance;
+          }
+
+          // without soft constraints the problem is infeasible
+          QP hard = qp;
+          std::fill(hard.compliance.begin(), hard.compliance.end(), 0);
+          EXPECT_EQ(hard.Solve(), -2);
+
+          EXPECT_GE(qp.Solve(), 0) << "n " << n << " m " << m << " threshold "
+                                   << threshold << " compliance " << compliance;
+          EXPECT_LT(qp.Residual(), MjTol(1e-10, 0.1))
+              << "n " << n << " m " << m << " threshold " << threshold
+              << " compliance " << compliance;
+          EXPECT_GT(qp.Count(2), 0);
+        }
+      }
+    }
+  }
 }
 
 // ------------------------- band matrices -------------------------------------

@@ -180,6 +180,15 @@ MJAPI int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,
                           mjtNum minstep, mjtNum armijo,
                           char* log, int logsz);
 
+// solve Quadratic Program
+//  min 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, alower <= A*x <= aupper
+// return number of active constraints or negative value on failure
+MJAPI int mju_QP(mjtNum* res, mjtNum* dual, int* active, mjtNum* work,
+                 const mjtNum* H, const mjtNum* g, int n,
+                 const mjtNum* lower, const mjtNum* upper,
+                 const mjtNum* A, const mjtNum* alower, const mjtNum* aupper, int m,
+                 const mjtNum* threshold, const mjtNum* compliance);
+
 #ifdef __cplusplus
 }
 #endif

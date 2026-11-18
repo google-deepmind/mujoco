@@ -1599,6 +1599,73 @@ PYBIND11_MODULE(_functions, pymodule, pybind11::mod_gil_not_used()) {
             lower.has_value() ? lower->data() : nullptr,
             upper.has_value() ? upper->data() : nullptr);
       });
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_QP, "n", "m")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res,
+         std::optional<Eigen::Ref<EigenVectorX>> dual,
+         std::optional<Eigen::Ref<Eigen::Vector<int, Eigen::Dynamic>>> active,
+         std::optional<Eigen::Ref<EigenVectorX>> work,
+         Eigen::Ref<const EigenArrayXX> H,
+         Eigen::Ref<const EigenVectorX> g,
+         std::optional<Eigen::Ref<const EigenVectorX>> lower,
+         std::optional<Eigen::Ref<const EigenVectorX>> upper,
+         std::optional<Eigen::Ref<const EigenArrayXX>> A,
+         std::optional<Eigen::Ref<const EigenVectorX>> alower,
+         std::optional<Eigen::Ref<const EigenVectorX>> aupper,
+         std::optional<Eigen::Ref<const EigenVectorX>> threshold,
+         std::optional<Eigen::Ref<const EigenVectorX>> compliance) {
+        int n = res.size();
+        int m = A.has_value() ? A->rows() : 0;
+        if (H.rows() != n || H.cols() != n) {
+          throw py::type_error("H should be of shape (n, n)");
+        }
+        if (g.size() != n) {
+          throw py::type_error("size of g should equal n");
+        }
+        if (lower.has_value() && (lower->size() != n)) {
+          throw py::type_error("size of lower should equal n");
+        }
+        if (upper.has_value() && (upper->size() != n)) {
+          throw py::type_error("size of upper should equal n");
+        }
+        if (A.has_value() && m > 0 && A->cols() != n) {
+          throw py::type_error("A should be of shape (m, n)");
+        }
+        if (alower.has_value() && (alower->size() != m)) {
+          throw py::type_error("size of alower should equal m");
+        }
+        if (aupper.has_value() && (aupper->size() != m)) {
+          throw py::type_error("size of aupper should equal m");
+        }
+        if (dual.has_value() && (dual->size() != n + m)) {
+          throw py::type_error("size of dual should equal n + m");
+        }
+        if (active.has_value() && (active->size() != n + m)) {
+          throw py::type_error("size of active should equal n + m");
+        }
+        if (threshold.has_value() && (threshold->size() != n + m)) {
+          throw py::type_error("size of threshold should equal n + m");
+        }
+        if (compliance.has_value() && (compliance->size() != n + m)) {
+          throw py::type_error("size of compliance should equal n + m");
+        }
+        if (work.has_value() &&
+            (work->size() < n * n + (n + m) * (2 * n + m + 13))) {
+          throw py::type_error(
+              "size of work should be at least n*n + (n+m)*(2*n+m+13)");
+        }
+        return InterceptMjErrors(::mju_QP)(
+            res.data(), dual.has_value() ? dual->data() : nullptr,
+            active.has_value() ? active->data() : nullptr,
+            work.has_value() ? work->data() : nullptr, H.data(), g.data(), n,
+            lower.has_value() ? lower->data() : nullptr,
+            upper.has_value() ? upper->data() : nullptr,
+            m > 0 ? A->data() : nullptr,
+            alower.has_value() ? alower->data() : nullptr,
+            aupper.has_value() ? aupper->data() : nullptr, m,
+            threshold.has_value() ? threshold->data() : nullptr,
+            compliance.has_value() ? compliance->data() : nullptr);
+      });
   // Miscellaneous
   Def<traits::mju_muscleGain>(pymodule);
   Def<traits::mju_muscleBias>(pymodule);

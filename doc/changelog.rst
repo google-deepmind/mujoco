@@ -5,6 +5,13 @@ Changelog
 Upcoming Version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- Added :ref:`mju_QP`, a dual active-set solver for dense convex quadratic programs with bounds and two-sided linear
+  constraints. Constraints can be soft: a soft constraint holds exactly up to a threshold on its multiplier and then
+  yields with a given compliance, so problems with soft constraints remain feasible. The solver can be warmstarted
+  from a previous active set. The Hessian can be singular or zero (a linear program).
+
 Deformables
 ^^^^^^^^^^^
 - Added ``mjModel.flex_cellempty`` (``nflexcell x 1``) and ``mjModel.flex_celladr``, flagging the empty (pruned) cells

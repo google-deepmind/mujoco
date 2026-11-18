@@ -7762,6 +7762,9 @@ public static unsafe extern int mju_boxQP(double* res, double* R, int* index, do
 public static unsafe extern void mju_boxQPmalloc(double** res, double** R, int** index, double** H, double** g, int n, double** lower, double** upper);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern int mju_QP(double* res, double* dual, int* active, double* work, double* H, double* g, int n, double* lower, double* upper, double* A, double* alower, double* aupper, int m, double* threshold, double* compliance);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_muscleGain(double len, double vel, double* lengthrange, double acc0, double* prm);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

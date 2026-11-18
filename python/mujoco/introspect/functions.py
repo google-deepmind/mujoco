@@ -8984,6 +8984,110 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='allocate heap memory for box-constrained Quadratic Program   as in mju_boxQP, index, lower, and upper are optional   free all pointers with mju_free()',  # pylint: disable=line-too-long
      )),
+    ('mju_QP',
+     FunctionDecl(
+         name='mju_QP',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='res',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dual',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='active',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='work',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='H',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='g',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='n',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='lower',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='upper',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='A',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='alower',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='aupper',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='threshold',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='compliance',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+         ),
+         doc="minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, alower <= A*x <= aupper   inputs:     n           - number of variables     m           - number of rows of A     H           - PSD matrix                n*n     g           - bias vector               n     lower       - lower bounds on x         n     upper       - upper bounds on x         n     A           - constraint matrix         m*n     alower      - lower bounds on A*x       m     aupper      - upper bounds on A*x       m     threshold   - multiplier thresholds     n+m     compliance  - constraint compliances    n+m     active      - active set warmstart      n+m   return value:     number of active constraints, or     -1: H is not PSD, -2: infeasible, -3: unbounded, -4: iteration limit   outputs (required):     res         - solution                  n   outputs (optional):     dual        - constraint multipliers    n+m     active      - constraint states         n+m   notes:     constraints are the n bounds on x followed by the m rows of A     a bound with absolute value mjMAXVAL or larger is ignored, equal bounds are an equality     a positive multiplier corresponds to an upper bound, a negative one to a lower bound     constraint states are 0: inactive, +-1: holds at upper/lower bound, +-2: yields     a constraint with positive compliance is soft: it holds while the absolute value of     its multiplier is below threshold, and is then violated by compliance*(|dual|-threshold)     nonzero values of active are used to warmstart the solver     only the lower triangle of H is read     a singular H is handled with proximal iterations, H = 0 is a linear program     work (if given) must have allocated size n*n + (n+m)*(2*n+m+13)",  # pylint: disable=line-too-long
+     )),
     ('mju_muscleGain',
      FunctionDecl(
          name='mju_muscleGain',

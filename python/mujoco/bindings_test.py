@@ -2076,6 +2076,41 @@ Euler integrator, semi-implicit in velocity.
     with self.assertRaises(TypeError):
       mujoco.mju_boxQP(n=n, **args())
 
+  def test_qp(self):
+    # min 0.5*|x|^2 - x0 - x1  s.t.  x0 + x1 <= 1,  x0 - x1 = 0.2
+    h = np.eye(2, dtype=DTYPE)
+    g = -np.ones((2,), dtype=DTYPE)
+    a = np.array([[1, 1], [1, -1]], dtype=DTYPE)
+    alower = np.array([-mujoco.mjMAXVAL, 0.2], dtype=DTYPE)
+    aupper = np.array([1, 0.2], dtype=DTYPE)
+    res = np.empty((2,), dtype=DTYPE)
+    dual = np.empty((4,), dtype=DTYPE)
+    active = np.zeros((4,), dtype=np.int32)
+    nactive = mujoco.mju_QP(
+        res, dual, active, None, h, g, None, None, a, alower, aupper, None, None
+    )
+    self.assertEqual(nactive, 2)
+    np.testing.assert_allclose(res, [0.6, 0.4], atol=1e-6)
+    np.testing.assert_allclose(dual, [0, 0, 0.5, -0.1], atol=1e-6)
+    np.testing.assert_array_equal(active, [0, 0, 1, -1])
+
+    # soft constraints yield
+    threshold = np.zeros((4,), dtype=DTYPE)
+    compliance = np.ones((4,), dtype=DTYPE)
+    nactive = mujoco.mju_QP(
+        res, None, active, None, h, g, None, None, a, alower, aupper,
+        threshold, compliance
+    )
+    self.assertEqual(nactive, 2)
+    np.testing.assert_array_equal(active, [0, 0, 2, -2])
+
+    # wrong size
+    with self.assertRaisesRegex(TypeError, 'size of alower should equal m'):
+      mujoco.mju_QP(
+          res, None, None, None, h, g, None, None, a, alower[:1], aupper, None,
+          None
+      )
+
   def test_mju_fill(self):
     res = np.empty(3, DTYPE)
     mujoco.mju_fill(res, 1.5)

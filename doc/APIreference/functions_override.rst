@@ -1119,44 +1119,200 @@ Band-dense Cholesky decomposition.
 
 .. _mju_boxQP:
 
-Minimize :math:`\tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u`, return rank or -1 if failed.
+Solve the box-constrained quadratic program
+
+.. math::
+   \min_x \; \tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u
+
+Return the rank of the unconstrained subspace, or -1 on failure.
 
 inputs:
-  ``n``           - problem dimension
+  .. list-table::
+     :width: 85%
+     :widths: 15 20 65
+     :header-rows: 1
+     :align: left
 
-  ``H``           - SPD matrix                ``n*n``
+     * - Argument
+       - Size
+       - Description
+     * - ``n``
+       -
+       - Problem dimension.
+     * - ``H``
+       - :math:`n \times n`
+       - Symmetric positive definite matrix :math:`H`.
+     * - ``g``
+       - :math:`n`
+       - Bias vector :math:`g`.
+     * - ``lower``
+       - :math:`n`
+       - Lower bounds :math:`l` on :math:`x`. Optional.
+     * - ``upper``
+       - :math:`n`
+       - Upper bounds :math:`u` on :math:`x`. Optional.
+     * - ``res``
+       - :math:`n`
+       - Initial value of :math:`x`, used to warmstart the solver.
 
-  ``g``           - bias vector               ``n``
+outputs:
+  .. list-table::
+     :width: 85%
+     :widths: 15 20 65
+     :header-rows: 1
+     :align: left
 
-  ``lower``       - lower bounds              ``n``
-
-  ``upper``       - upper bounds              ``n``
-
-  ``res``         - solution warmstart        ``n``
-
-return value:
-  ``nfree <= n``  - rank of unconstrained subspace, -1 if failure
-
-outputs (required):
-  ``res``         - solution                  ``n``
-
-  ``R``           - subspace Cholesky factor  ``nfree*nfree``,    allocated: ``n*(n+7)``
-
-outputs (optional):
-  ``index``       - set of free dimensions    ``nfree``,          allocated: ``n``
+     * - Argument
+       - Size
+       - Description
+     * - ``res``
+       - :math:`n`
+       - Solution :math:`x`.
+     * - ``R``
+       - :math:`n_{free} \times n_{free}`
+       - Cholesky factor of the unconstrained subspace. Allocated size :math:`n (n + 7)`.
+     * - ``index``
+       - :math:`n_{free}`
+       - Integer array, the set of free dimensions. Allocated size :math:`n`. Optional.
+     * - return value
+       -
+       - Rank :math:`n_{free} \le n` of the unconstrained subspace, or -1 on failure.
 
 notes:
-  The initial value of ``res`` is used to warmstart the solver.
-  ``R`` must have allocated size ``n*(n+7)``, but only ``nfree*nfree`` values are used as output.
-  ``index`` (if given) must have allocated size ``n``, but only ``nfree`` values are used as output.
+  ``R`` must have allocated size :math:`n (n + 7)`, but only :math:`n_{free} \times n_{free}` values are used as
+  output. ``index`` (if given) must have allocated size :math:`n`, but only :math:`n_{free}` values are used as output.
+
   The convenience function :ref:`mju_boxQPmalloc` allocates the required data structures.
-  Only the lower triangles of H and R are read from and written to, respectively.
+
+  Only the lower triangles of :math:`H` and ``R`` are read from and written to, respectively.
 
 .. _mju_boxQPmalloc:
 
 Allocate heap memory for box-constrained Quadratic Program.
 As in :ref:`mju_boxQP`, ``index``, ``lower``, and ``upper`` are optional.
 Free all pointers with ``mju_free()``.
+
+.. _mju_QP:
+
+Solve the quadratic program
+
+.. math::
+   \min_x \; \tfrac{1}{2} x^T H x + x^T g \quad \text{s.t.} \quad l \le x \le u, \quad l_A \le A x \le u_A
+
+with a dual active-set method. Return the number of active constraints, or a negative value on failure.
+
+inputs:
+  .. list-table::
+     :width: 90%
+     :widths: 20 15 65
+     :header-rows: 1
+     :align: left
+
+     * - Argument
+       - Size
+       - Description
+     * - ``n``
+       -
+       - Number of variables.
+     * - ``m``
+       -
+       - Number of rows of :math:`A`.
+     * - ``H``
+       - :math:`n \times n`
+       - Positive semidefinite matrix :math:`H`.
+     * - ``g``
+       - :math:`n`
+       - Bias vector :math:`g`.
+     * - ``lower``
+       - :math:`n`
+       - Lower bounds :math:`l` on :math:`x`. Optional.
+     * - ``upper``
+       - :math:`n`
+       - Upper bounds :math:`u` on :math:`x`. Optional.
+     * - ``A``
+       - :math:`m \times n`
+       - Constraint matrix :math:`A`. Optional.
+     * - ``alower``
+       - :math:`m`
+       - Lower bounds :math:`l_A` on :math:`A x`. Optional.
+     * - ``aupper``
+       - :math:`m`
+       - Upper bounds :math:`u_A` on :math:`A x`. Optional.
+     * - ``threshold``
+       - :math:`n + m`
+       - Multiplier thresholds of soft constraints. Optional.
+     * - ``compliance``
+       - :math:`n + m`
+       - Constraint compliances, positive for soft constraints. Optional.
+     * - ``active``
+       - :math:`n + m`
+       - Integer array, the active set used to warmstart the solver. Optional.
+     * - ``work``
+       - see below
+       - Workspace. Optional.
+
+outputs:
+  .. list-table::
+     :width: 90%
+     :widths: 20 15 65
+     :header-rows: 1
+     :align: left
+
+     * - Argument
+       - Size
+       - Description
+     * - ``res``
+       - :math:`n`
+       - Solution :math:`x`.
+     * - ``dual``
+       - :math:`n + m`
+       - Constraint multipliers :math:`\lambda`. Optional.
+     * - ``active``
+       - :math:`n + m`
+       - Integer array, the constraint states. Optional.
+     * - return value
+       -
+       - | Number of active constraints, or
+         | -1: :math:`H` is not positive semidefinite
+         | -2: constraints are infeasible
+         | -3: objective is unbounded on the feasible set
+         | -4: iteration limit reached
+
+notes:
+  Constraints are the :math:`n` bounds on :math:`x` followed by the :math:`m` rows of :math:`A`. This is the order of
+  ``dual``, ``active``, ``threshold`` and ``compliance``, so that :math:`\lambda = (\lambda_x, \lambda_A)`.
+
+  A bound with absolute value :ref:`mjMAXVAL<glNumeric>` or larger is ignored. Equal lower and upper bounds define an
+  equality constraint.
+
+  A positive multiplier corresponds to an upper bound and a negative one to a lower bound, so that at the solution
+  :math:`H x + g + \lambda_x + A^T \lambda_A = 0`.
+
+  Constraint states are 0: inactive, ±1: holds at its upper/lower bound, ±2: yields.
+
+  A constraint with positive ``compliance`` is soft. It holds exactly while the absolute value of its multiplier is
+  below its threshold :math:`w`. Beyond that it yields, and is violated by :math:`c \, (|\lambda| - w)`, where
+  :math:`c` is its compliance. This is the minimizer of the penalty :math:`w s + s^2 / (2 c)` on the violation
+  :math:`s`. A zero threshold gives a quadratic penalty. A large compliance approaches the exact
+  :math:`\ell_1` penalty: the constraint yields with constant force. Problems where all constraints are soft are
+  always feasible.
+
+  Nonzero values of ``active`` are used to warmstart the solver. Passing the states returned by a previous call
+  speeds up the solution of a sequence of similar problems.
+
+  On failure, ``res`` is the unconstrained minimum corrected by the multipliers found so far.
+
+  Only the lower triangle of :math:`H` is read.
+
+  :math:`H` can be singular, in which case a proximal term is added and iterated to convergence. This includes linear
+  programs, where :math:`H = 0`. If the objective is unbounded on the feasible set, this is detected when a step of the
+  proximal iteration has no curvature, decreases the objective and approaches no bound.
+
+  The method follows the dual active-set approach of
+  `Arnström, Bemporad and Axehill (2022) <https://arxiv.org/abs/2103.16236>`__.
+
+  ``work`` (if given) must have allocated size :math:`n^2 + (n+m)(2n+m+13)`. If not given, a smaller workspace is
+  allocated internally.
 
 .. _mju_symmetrize:
 

@@ -1398,6 +1398,45 @@ MJAPI int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const m
 MJAPI void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index, mjtNum** H, mjtNum** g, int n,
                            mjtNum** lower, mjtNum** upper);
 
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, alower <= A*x <= aupper
+//   inputs:
+//     n           - number of variables
+//     m           - number of rows of A
+//     H           - PSD matrix                n*n
+//     g           - bias vector               n
+//     lower       - lower bounds on x         n
+//     upper       - upper bounds on x         n
+//     A           - constraint matrix         m*n
+//     alower      - lower bounds on A*x       m
+//     aupper      - upper bounds on A*x       m
+//     threshold   - multiplier thresholds     n+m
+//     compliance  - constraint compliances    n+m
+//     active      - active set warmstart      n+m
+//   return value:
+//     number of active constraints, or
+//     -1: H is not PSD, -2: infeasible, -3: unbounded, -4: iteration limit
+//   outputs (required):
+//     res         - solution                  n
+//   outputs (optional):
+//     dual        - constraint multipliers    n+m
+//     active      - constraint states         n+m
+//   notes:
+//     constraints are the n bounds on x followed by the m rows of A
+//     a bound with absolute value mjMAXVAL or larger is ignored, equal bounds are an equality
+//     a positive multiplier corresponds to an upper bound, a negative one to a lower bound
+//     constraint states are 0: inactive, +-1: holds at upper/lower bound, +-2: yields
+//     a constraint with positive compliance is soft: it holds while the absolute value of
+//     its multiplier is below threshold, and is then violated by compliance*(|dual|-threshold)
+//     nonzero values of active are used to warmstart the solver
+//     only the lower triangle of H is read
+//     a singular H is handled with proximal iterations, H = 0 is a linear program
+//     work (if given) must have allocated size n*n + (n+m)*(2*n+m+13)
+// Nullable: dual, active, work, lower, upper, A, alower, aupper, threshold, compliance
+MJAPI int mju_QP(mjtNum* res, mjtNum* dual, int* active, mjtNum* work, const mjtNum* H,
+                 const mjtNum* g, int n, const mjtNum* lower, const mjtNum* upper,
+                 const mjtNum* A, const mjtNum* alower, const mjtNum* aupper, int m,
+                 const mjtNum* threshold, const mjtNum* compliance);
+
 
 //---------------------------------- Miscellaneous -------------------------------------------------
 

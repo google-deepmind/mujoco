@@ -4362,6 +4362,10 @@ int mju_boxQP(mjtNum* res, mjtNum* R, int* index, const mjtNum* H, const mjtNum*
               const mjtNum* lower, const mjtNum* upper);
 void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index, mjtNum** H, mjtNum** g, int n,
                      mjtNum** lower, mjtNum** upper);
+int mju_QP(mjtNum* res, mjtNum* dual, int* active, mjtNum* work, const mjtNum* H,
+           const mjtNum* g, int n, const mjtNum* lower, const mjtNum* upper,
+           const mjtNum* A, const mjtNum* alower, const mjtNum* aupper, int m,
+           const mjtNum* threshold, const mjtNum* compliance);
 mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
                       mjtNum acc0, const mjtNum prm[9]);
 mjtNum mju_muscleBias(mjtNum len, const mjtNum lengthrange[2],

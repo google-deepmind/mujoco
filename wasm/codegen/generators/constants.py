@@ -192,6 +192,7 @@ _SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_readCtrl",
     "mj_readSensor",
+    "mju_QP",  # array sizes depend on two dimensions and are not yet checked
     "mju_closeResource",
     "mju_decodeResource",
     "mju_getResourceDir",
