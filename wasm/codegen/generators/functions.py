@@ -14,6 +14,7 @@
 
 """Helper functions for processing and generating bindings for MuJoCo functions."""
 
+import math
 from typing import Tuple, cast
 
 from codegen import code_builder
@@ -58,6 +59,16 @@ def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
     for p in wrapper_parameters:
       if c_unpack := get_param_unpack_statement(p):
         builder.line(c_unpack)
+
+    # Explicit checks can encode runtime sizes for C array parameters.
+    # Otherwise use the fixed extent recorded in the native declaration.
+    for p in wrapper_parameters:
+      if (
+          isinstance(p.type, ast_nodes.ArrayType)
+          and get_param_unpack_statement(p)
+          and f"CHECK_SIZE({p.name}," not in bound_check_code
+      ):
+        builder.line(f"CHECK_SIZE({p.name}, {math.prod(p.type.extents)});")
 
     if bound_check_code:
       builder.line(bound_check_code)
