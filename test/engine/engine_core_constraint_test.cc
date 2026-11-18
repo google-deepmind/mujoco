@@ -17,7 +17,6 @@
 #include "src/engine/engine_core_constraint.h"
 
 #include <array>
-#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -2144,6 +2143,55 @@ TEST_F(CoreConstraintTest, ZeroJacobianTendonDoesNotSetEfcadr) {
     EXPECT_EQ(d->tendon_efcadr[1], -1);
     EXPECT_EQ(d->tendon_efcadr[2], -1);
   }
+}
+
+TEST_F(CoreConstraintTest, DiscreteCoarseTimestepTangentialStiction) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option timestep="0.02" integrator="discrete" cone="elliptic" impratio="10"/>
+    <worldbody>
+      <geom type="plane" size="2 2 .1" euler="0 20 0" friction="0.5 0.5 0.01"
+            solref="0.002 1"/>
+      <body pos="0.03386 0 0.09303" euler="0 20 0">
+        <freejoint/>
+        <geom type="box" size="0.1 0.1 0.1" mass="1" friction="0.5 0.5 0.01"
+              solref="0.002 1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m.get(), NotNull()) << error.data();
+  MjDataPtr d = MakeData(m);
+
+  mj_forward(m.get(), d.get());
+  ASSERT_GT(d->ncon, 0);
+
+  // compare normal R[0] (clamped by refsafe excess > 1) vs tangential R[1]
+  // (unclamped)
+  int adr = d->contact[0].efc_address;
+  mjtNum R_normal_safe = d->efc_R[adr];
+  mjtNum R_tan_safe = d->efc_R[adr + 1];
+
+  m->opt.disableflags |= mjDSBL_REFSAFE;
+  mj_forward(m.get(), d.get());
+  mjtNum R_normal_unclamped = d->efc_R[adr];
+  mjtNum R_tan_unclamped = d->efc_R[adr + 1];
+
+  // normal R is softened by refsafe to prevent coarse-h rebound,
+  // while tangential R matches the unclamped completed weight
+  EXPECT_GT(R_normal_safe, 10.0 * R_normal_unclamped);
+  EXPECT_NEAR(R_tan_safe, R_tan_unclamped, MjTol(1e-12, 1e-6));
+
+  // re-enable refsafe and simulate 50 coarse steps (1.0 s): block stays in
+  // stiction
+  m->opt.disableflags &= ~mjDSBL_REFSAFE;
+  mj_resetData(m.get(), d.get());
+  for (int step = 0; step < 50; ++step) {
+    mj_step(m.get(), d.get());
+  }
+  EXPECT_LT(mju_norm3(d->qvel), MjTol(1e-3, 5e-3));
 }
 
 }  // namespace

@@ -2046,6 +2046,7 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
     getimpedance(solimp, pos, d->efc_margin[i], &imp, &impP);
 
     // set R and KBIP for all constraint dimensions
+    mjtNum R0_unclamped = 0;
     for (int j=0; j < dim; j++) {
       // R = (1-imp)/imp * diagApprox
       R[i+j] = mju_max(mjMINVAL, (1-imp)*d->efc_diagA[i+j]/imp);
@@ -2090,6 +2091,7 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
       // Floor at mjMAXIMP ceiling to keep weights well-conditioned as timeconst -> 0
       if (metric) {
         mjtNum* kbip = KBIP + 4*(i+j);
+        mjtNum f_unclamped = implicitFactor(kbip, h);
 
         // refsafe: a contact or limit row whose spring the step cannot resolve
         // (h^2*K*I > 1) rebounds on impact with restitution (h^2*K*I - 1)/f. Replace it
@@ -2112,8 +2114,18 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
 
         mjtNum f = implicitFactor(kbip, h);
         mjtNum Rmin = mju_max(mjMINVAL, (1-mjMAXIMP)*d->efc_diagA[i+j]/mjMAXIMP);
+        if (j == 0) {
+          R0_unclamped = mju_max(R[i]/f_unclamped, Rmin);
+        }
         R[i+j] = mju_max(R[i+j]/f, Rmin);
+      } else if (j == 0) {
+        R0_unclamped = R[i];
       }
+    }
+
+    // stash unclamped normal R in R[i+1] for elliptic tangential friction scaling
+    if (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) {
+      R[i+1] = R0_unclamped;
     }
 
     // skip the rest of this constraint
@@ -2129,8 +2141,9 @@ void mj_makeImpedance(const mjModel* m, mjData* d) {
       dim = d->contact[id].dim;
       mjtNum* friction = d->contact[id].friction;
 
-      // set R[1] = R[0]/impratio
-      R[i+1] = R[i]/mju_max(mjMINVAL, m->opt.impratio);
+      // set R[1] = R[0]/impratio (using unclamped normal R[0] for elliptic contacts)
+      mjtNum R0 = (d->efc_type[i] == mjCNSTR_CONTACT_ELLIPTIC) ? R[i+1] : R[i];
+      R[i+1] = R0/mju_max(mjMINVAL, m->opt.impratio);
 
       // set mu of regularized cone = mu[1]*sqrt(R[1]/R[0])
       d->contact[id].mu = friction[0] * mju_sqrt(R[i+1]/R[i]);

@@ -682,13 +682,14 @@ Discrete-time (``discrete``)
    :at:`solref` at any timestep. A contact or limit row whose spring is stiffer than the timestep can resolve
    (:at:`timeconst` :math:`\times` :at:`dampratio` :math:`< h`) would however rebound on impact, so under this
    integrator the :ref:`refsafe<option-flag-refsafe>` flag replaces such rows by the resolved row: the stiffest
-   zero-restitution spring for the timestep at the authored damping ratio.
-   Rows with :at:`timeconst` :math:`\times` :at:`dampratio` :math:`\ge h` and equality rows are left as authored; with
-   :at:`refsafe` disabled, every row is honored and :at:`timeconst` :math:`\to 0` approaches the rigid-constraint limit
-   (the violation is removed in one step) rather than an instability. The row's effective impedance is capped at the
-   maximum impedance ``mjMAXIMP``, which keeps the constraint weights well-conditioned. The cost is extra damping of the
-   constraint response, growing with :math:`h/\mathtt{timeconst}`; the specified damping ratio is recovered as
-   :math:`h \to 0`.
+   zero-restitution spring for the timestep at the authored damping ratio. (For elliptic contacts, tangential friction
+   rows evaluate their regularizing impedance prior to this normal-row replacement, preserving their authored stiction
+   stiffness even when the normal row is clamped.) Rows with :at:`timeconst` :math:`\times` :at:`dampratio`
+   :math:`\ge h` and equality rows are left as authored; with :at:`refsafe` disabled, every row is honored and
+   :at:`timeconst` :math:`\to 0` approaches the rigid-constraint limit (the violation is removed in one step) rather
+   than an instability. The row's effective impedance is capped at the maximum impedance ``mjMAXIMP``, which keeps the
+   constraint weights well-conditioned. The cost is extra damping of the constraint response, growing with
+   :math:`h/\mathtt{timeconst}`; the specified damping ratio is recovered as :math:`h \to 0`.
 
    The :math:`h^2K` term makes ``discrete`` the only integrator which is implicit in *position*: joint, tendon and flex
    stiffness and actuator position feedback are stable at timesteps far beyond the explicit stability limit

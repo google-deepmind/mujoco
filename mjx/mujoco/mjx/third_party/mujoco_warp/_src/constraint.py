@@ -4654,8 +4654,13 @@ def _efc_contact_update(cone_type: types.ConeType, flg_adhesion: bool, is_discre
     else:
       efc_type = ConstraintType.CONTACT_PYRAMIDAL
 
+    row_disableflags = opt_disableflags
+    if wp.static(IS_ELLIPTIC and is_discrete):
+      if dimid > 0:
+        row_disableflags = opt_disableflags | DisableBit.REFSAFE
+
     _efc_row(
-      opt_disableflags,
+      row_disableflags,
       worldid,
       timestep,
       efcid,
@@ -5020,8 +5025,13 @@ def _efc_contact_update_flex(cone_type: types.ConeType, flg_adhesion: bool = Fal
     else:
       efc_type = ConstraintType.CONTACT_PYRAMIDAL
 
+    row_disableflags = opt_disableflags
+    if wp.static(IS_ELLIPTIC and is_discrete):
+      if dimid > 0:
+        row_disableflags = opt_disableflags | DisableBit.REFSAFE
+
     _efc_row(
-      opt_disableflags,
+      row_disableflags,
       worldid,
       timestep,
       efcid,
