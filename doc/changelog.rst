@@ -22,6 +22,12 @@ Rendering
 - Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
   (``size = [r_out, r_in, 0]``).
 
+Bug fixes
+^^^^^^^^^
+- The USD decoder now resolves ``PhysicsFilteredPairsAPI`` relationships on bodies, colliders and articulation
+  roots, and honors ``newton:selfCollisionEnabled``. Collider pairs that cannot be represented by a body exclusion
+  produce a warning and are skipped, preserving unrelated contacts (:issue:`3917`).
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 
