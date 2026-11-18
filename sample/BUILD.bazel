@@ -56,6 +56,9 @@ cc_binary(
     srcs = ["testspeed.cc"],
     conlyopts = ["-std=c11"],
     cxxopts = ["-std=c++20"],
+    visibility = [
+        "@mujoco//test:__subpackages__",
+    ],
     deps = [
         "@mujoco",
         "@mujoco//plugin/actuator:register",
