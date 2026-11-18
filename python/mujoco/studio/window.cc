@@ -103,6 +103,8 @@ class Window {
 
   int GetWidth() { return window_->GetWidth(); }
   int GetHeight() { return window_->GetHeight(); }
+  int GetDrawableWidth() { return window_->GetDrawableWidth(); }
+  int GetDrawableHeight() { return window_->GetDrawableHeight(); }
   float GetScale() { return window_->GetScale(); }
 
   uint64_t GetNativeWindowHandle() {
@@ -138,6 +140,8 @@ void InitWindow(pybind11::module_& m) {
           pybind11::arg("pixels") = pybind11::none());
   cls.def("GetWidth", &Window::GetWidth);
   cls.def("GetHeight", &Window::GetHeight);
+  cls.def("GetDrawableWidth", &Window::GetDrawableWidth);
+  cls.def("GetDrawableHeight", &Window::GetDrawableHeight);
   cls.def("GetScale", &Window::GetScale);
   cls.def("GetDropFile", &Window::GetDropFile);
   cls.def("GetGraphicsMode", &Window::GetGraphicsMode);

@@ -76,6 +76,11 @@ class Window {
   // height derived from the width's scale can be one pixel off.
   int GetDrawableWidth() const { return drawable_width_; }
   int GetDrawableHeight() const { return drawable_height_; }
+  float GetDrawableAspectRatio() const {
+    return drawable_height_ > 0
+               ? static_cast<float>(drawable_width_) / static_cast<float>(drawable_height_)
+               : GetAspectRatio();
+  }
 
   // Returns the path to a file that was dropped on the window. Once called,
   // the value will be cleared until the next time a file is dropped.

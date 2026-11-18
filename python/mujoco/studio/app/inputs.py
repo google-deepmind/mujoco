@@ -401,10 +401,11 @@ def handle_camera_tracking_mouse_events(
 
   # Right double click.
   if imgui.IsMouseDoubleClicked(imgui.MouseButton.Right):
+    view_camera = ux.view_camera(model, data, camera, aspect_ratio)
     picked = ux.Pick(
         model,
         data,
-        camera,
+        view_camera,
         mouse_x,
         mouse_y,
         aspect_ratio,
@@ -452,6 +453,7 @@ def handle_mouse_events(
   mouse_y = io.MousePos.y / io.DisplaySize.y
   mouse_dx = io.MouseDelta.x / io.DisplaySize.x
   mouse_dy = io.MouseDelta.y / io.DisplaySize.y
+  aspect_ratio = io.DisplaySize.x / io.DisplaySize.y
 
   is_mouse_moving = mouse_dx != 0.0 or mouse_dy != 0.0
   is_any_mouse_down = (
@@ -510,6 +512,7 @@ def handle_mouse_events(
           action,
           mouse_dx,
           mouse_dy,
+          aspect_ratio,
       )
 
   # Camera drags and wheel, with the camera controls shared with the C++ Studio
@@ -521,14 +524,13 @@ def handle_mouse_events(
         fly_camera=ux_state.camera_index == ux.FREE_CAMERA_IDX,
     )
 
-  aspect_ratio = io.DisplaySize.x / io.DisplaySize.y
-
   # Left double click.
   if imgui.IsMouseDoubleClicked(imgui.MouseButton.Left):
+    view_camera = ux.view_camera(model, data, camera, aspect_ratio)
     picked = ux.Pick(
         model,
         data,
-        camera,
+        view_camera,
         mouse_x,
         mouse_y,
         aspect_ratio,

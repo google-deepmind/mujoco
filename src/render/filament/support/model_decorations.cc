@@ -54,60 +54,58 @@ void ModelDecorations::Clear() {
   meshes_.clear();
 }
 
-static mat4 CalcClipFromWorld(const mjModel* model, const mjData* data,
-                              mjvCamera mjv_camera, const mjrRect& viewport) {
-  if (mjv_camera.type == mjCAMERA_TRACKING) {
-    int bid = mjv_camera.trackbodyid;
-    if (bid < 0 || bid >= model->nbody) {
-      mju_error("track body id is outside valid range");
-    }
-    mju_copy3(mjv_camera.lookat, data->subtree_com + 3 * bid);
-  }
-
-  mjtNum headpos[3], forward[3], up[3];
-  mjv_cameraFrame(headpos, forward, up, nullptr, data, &mjv_camera);
-  float zver[2], zhor[2], zclip[2] = {0, 0};
-  mjv_cameraFrustum(zver, zhor, zclip, model, &mjv_camera);
-
-  const float frustum_top = zver[0];
-  const float frustum_bottom = -zver[1];
-  const float frustum_center = (zhor[1] - zhor[0]) / 2;
-  const float frustum_width = (zhor[1] + zhor[0]) / 2;
-  const float frustum_near = zclip[0];
-  const float frustum_far = zclip[1];
-
-  bool orthographic = mjv_camera.orthographic;
-  if (mjv_camera.type == mjCAMERA_FIXED) {
-    const int cid = mjv_camera.fixedcamid;
-    if (cid < 0 || cid >= model->ncam) {
-      mju_error("fixed camera id is outside valid range");
-    }
-    orthographic = model->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
-  }
-
-  const float3 cam_pos{headpos[0], headpos[1], headpos[2]};
-  const float3 cam_fwd{forward[0], forward[1], forward[2]};
-  const float3 cam_up{up[0], up[1], up[2]};
+static mat4 CalcClipFromWorld(const mjrCamera& camera,
+                              const mjrRect& viewport) {
+  const float3 cam_pos{camera.pos[0], camera.pos[1], camera.pos[2]};
+  const float3 cam_fwd{camera.forward[0], camera.forward[1], camera.forward[2]};
+  const float3 cam_up{camera.up[0], camera.up[1], camera.up[2]};
   const float3 cam_at = cam_pos + cam_fwd;
-  const float aspect_ratio = (float)viewport.width / (float)viewport.height;
+  const float aspect_ratio =
+      viewport.height > 0 ? static_cast<float>(viewport.width) /
+                                static_cast<float>(viewport.height)
+                          : 1.0f;
   const float halfwidth =
-      frustum_width ? frustum_width
-                    : 0.5f * aspect_ratio * (frustum_top - frustum_bottom);
-  const float left = frustum_center - halfwidth;
-  const float right = frustum_center + halfwidth;
+      camera.frustum_width
+          ? camera.frustum_width
+          : 0.5f * aspect_ratio * (camera.frustum_top - camera.frustum_bottom);
+  const float left = camera.frustum_center - halfwidth;
+  const float right = camera.frustum_center + halfwidth;
 
   mat4 projection;
-  if (orthographic) {
-    projection = mat4::ortho(left, right, frustum_bottom, frustum_top,
-                             frustum_near, frustum_far);
+  if (camera.orthographic) {
+    projection = mat4::ortho(left, right, camera.frustum_bottom,
+                             camera.frustum_top, camera.frustum_near,
+                             camera.frustum_far);
   } else {
-    projection = mat4::frustum(left, right, frustum_bottom, frustum_top,
-                               frustum_near, frustum_far);
+    projection = mat4::frustum(left, right, camera.frustum_bottom,
+                               camera.frustum_top, camera.frustum_near,
+                               camera.frustum_far);
     projection[2][2] = -1.0f;
-    projection[3][2] = -2.0f * frustum_near;
+    projection[3][2] = -2.0f * camera.frustum_near;
   }
   const mat4 look_at = mat4::lookAt(cam_pos, cam_at, cam_up);
   return projection * inverse(look_at);
+}
+
+void ModelDecorations::ProjectLabels(const mjrCamera& camera,
+                                     const mjrRect& viewport,
+                                     DrawTextAtFn draw_text_at_fn) const {
+  if (!draw_text_at_fn) {
+    return;
+  }
+  const mat4 clip_from_world = CalcClipFromWorld(camera, viewport);
+  for (int i = 0; i < mjv_scene_.ngeom; ++i) {
+    const mjvGeom& geom = mjv_scene_.geoms[i];
+    if (geom.label[0] != 0) {
+      const float4 clip_pos =
+          clip_from_world *
+          float4(geom.pos[0], geom.pos[1], geom.pos[2], 1.0f);
+      if (clip_pos.w != 0.0f) {
+        const float3 pos = clip_pos.xyz / clip_pos.w;
+        draw_text_at_fn(geom.label, pos.x, pos.y, pos.z);
+      }
+    }
+  }
 }
 
 void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
@@ -133,18 +131,13 @@ void ModelDecorations::Update(mjData* data, const mjvOption* vis_option,
     ++mjv_scene_.ngeom;
   }
 
-  const mat4 clip_from_world =
-      CalcClipFromWorld(model_, data, *camera, viewport);
+  if (draw_text_at_fn) {
+    ProjectLabels(mjv_camera2GLCamera(model_, data, camera), viewport,
+                  std::move(draw_text_at_fn));
+  }
+
   for (int i = 0; i < mjv_scene_.ngeom; ++i) {
     const mjvGeom& geom = mjv_scene_.geoms[i];
-    if (draw_text_at_fn && geom.label[0] != 0) {
-      const float4 clip_pos =
-          clip_from_world * float4(geom.pos[0], geom.pos[1], geom.pos[2], 1.0f);
-      if (clip_pos.w != 0.0f) {
-        const float3 pos = clip_pos.xyz / clip_pos.w;
-        draw_text_at_fn(geom.label, pos.x, pos.y, pos.z);
-      }
-    }
 
     const mjtGeom geom_type = (mjtGeom)geom.type;
 

@@ -131,15 +131,14 @@ class NativeViewer(viewer_protocol.Viewer):
     """Render the scene and present it to the window."""
     width = self._window.GetWidth()
     height = self._window.GetHeight()
-    scale = self._window.GetScale()
 
     pixels = None
     if _viewer.render_to_pixels(self._window.GetGraphicsMode()):
       pixels = np.empty((height, width, 3), dtype=np.uint8)
       self._renderer.target('out', pixels)
     else:
-      width = int(width * scale)
-      height = int(height * scale)
+      width = self._window.GetDrawableWidth()
+      height = self._window.GetDrawableHeight()
 
     self._sync_renderer(self.model)
     self._imgui_bridge.update()
@@ -168,10 +167,13 @@ class NativeViewer(viewer_protocol.Viewer):
     elif self.vis_options.flags[mujoco.mjtVisFlag.mjVIS_ISLAND]:
       draw_mode = mjrf.DrawMode.DRAW_MODE_ISLANDS
 
+    aspect_ratio = width / height if height > 0 else 1.0
+    gl_camera = ux.view_camera(self.model, self.data, self.camera, aspect_ratio)
+
     scene_view = renderer.View(
         scene='scn',
         target='out' if pixels is not None else '',
-        camera=mujoco.mjv_camera2GLCamera(self.model, self.data, self.camera),
+        camera=gl_camera,
         draw_mode=draw_mode,
         shadows=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_SHADOW],
         reflections=self.render_flags.flags[mujoco.mjtRndFlag.mjRND_REFLECTION],

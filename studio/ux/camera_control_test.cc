@@ -129,6 +129,37 @@ TEST_F(CameraControlTest, RightDragMovesInThePlaneShiftPicks) {
   ExpectSameCamera(camera_, expected);
 }
 
+TEST_F(CameraControlTest, RightDragScalesVerticalPlanarPanInPortrait) {
+  constexpr float kPortraitAspect = 0.5f;
+
+  // Vertical-plane pan (Shift released) scales dy by 1 / aspect_ratio < 1.
+  CameraInput portrait_v = Drag(kDx, kDy);
+  portrait_v.right_button = kButtonPressed;
+  portrait_v.aspect_ratio = kPortraitAspect;
+  const mjvCamera expected_v = Moved({{mjMOUSE_MOVE_V, kDx, kDy / kPortraitAspect}});
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_, /*fly_camera=*/false, portrait_v));
+  ExpectSameCamera(camera_, expected_v);
+
+  // Horizontal-plane pan (Shift held) also scales dy by 1 / aspect_ratio < 1.
+  mjv_defaultFreeCamera(model_, &camera_);
+  CameraInput portrait_h = Drag(kDx, kDy);
+  portrait_h.right_button = kButtonPressed;
+  portrait_h.shift = true;
+  portrait_h.aspect_ratio = kPortraitAspect;
+  const mjvCamera expected_h = Moved({{mjMOUSE_MOVE_H, kDx, kDy / kPortraitAspect}});
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_, /*fly_camera=*/false, portrait_h));
+  ExpectSameCamera(camera_, expected_h);
+
+  // Landscape (> 1:1) leaves dy unchanged.
+  mjv_defaultFreeCamera(model_, &camera_);
+  CameraInput landscape = Drag(kDx, kDy);
+  landscape.right_button = kButtonPressed;
+  landscape.aspect_ratio = 16.0f / 9.0f;
+  const mjvCamera expected_landscape = Moved({{mjMOUSE_MOVE_V, kDx, kDy}});
+  EXPECT_TRUE(MoveCameraWithMouse(model_, &camera_, /*fly_camera=*/false, landscape));
+  ExpectSameCamera(camera_, expected_landscape);
+}
+
 TEST_F(CameraControlTest, CtrlDragMovesNothing) {
   CameraInput input = Drag(kDx, kDy);
   input.left_button = kButtonPressed;

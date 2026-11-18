@@ -24,6 +24,7 @@
 #include "render/filament/support/model_lights.h"
 #include "render/filament/support/model_renderables.h"
 #include "render/filament/support/model_resources.h"
+#include "studio/ux/interaction.h"
 
 namespace mujoco::studio {
 
@@ -73,8 +74,13 @@ void ModelScene::Sync(const mjModel* model, mjData* data, mjrRect viewport,
   }
   model_renderables_->Update(data);
 
-  model_decorations_->Update(data, vis_options, perturb, camera, viewport, draw_text_at_fn_,
-                             extra_geoms);
+  model_decorations_->Update(data, vis_options, perturb, camera, viewport,
+                             /*draw_text_at_fn=*/nullptr, extra_geoms);
+  if (draw_text_at_fn_ && camera && viewport.height > 0) {
+    const float aspect = static_cast<float>(viewport.width) / static_cast<float>(viewport.height);
+    model_decorations_->ProjectLabels(ViewCamera(model, data, camera, aspect), viewport,
+                                      draw_text_at_fn_);
+  }
 }
 
 }  // namespace mujoco::studio

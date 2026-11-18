@@ -26,6 +26,25 @@
 
 namespace mujoco::studio {
 
+float PortraitFovScale(const mjvCamera* camera, float aspect_ratio) {
+  if (camera != nullptr && (camera->type == mjCAMERA_FREE || camera->type == mjCAMERA_TRACKING) &&
+      aspect_ratio > 0.0f && aspect_ratio < 1.0f) {
+    return 1.0f / aspect_ratio;
+  }
+  return 1.0f;
+}
+
+mjrCamera ViewCamera(const mjModel* m, const mjData* d, const mjvCamera* camera,
+                     float aspect_ratio) {
+  mjrCamera gl_camera = mjv_camera2GLCamera(m, d, camera);
+  const float scale = PortraitFovScale(camera, aspect_ratio);
+  if (scale != 1.0f && gl_camera.frustum_width == 0.0f) {
+    gl_camera.frustum_top *= scale;
+    gl_camera.frustum_bottom *= scale;
+  }
+  return gl_camera;
+}
+
 static mjtNum CalculateMovementScale(const mjModel* m, const mjvCamera* cam) {
   float zclip[2] = {0, 0}, zver[2] = {0, 0};
   mjv_cameraFrustum(zver, nullptr, zclip, m, cam);
@@ -124,7 +143,8 @@ void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPer
 }
 
 void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
-                 mjtMouse action, mjtNum reldx, mjtNum reldy) {
+                 mjtMouse action, mjtNum reldx, mjtNum reldy, float aspect_ratio) {
+  reldy *= PortraitFovScale(cam, aspect_ratio);
   const mjtNum xaxis[3] = {1, 0, 0};
   const mjtNum yaxis[3] = {0, 1, 0};
   const mjtNum zaxis[3] = {0, 0, 1};
@@ -212,7 +232,8 @@ void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPer
 }
 
 void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam, CameraMotion motion, mjtNum dx,
-                mjtNum dy) {
+                mjtNum dy, float aspect_ratio) {
+  const mjtNum pan_dy = dy * PortraitFovScale(cam, aspect_ratio);
   switch (motion) {
     case CameraMotion::ZOOM:
       mjv_moveCamera(m, mjMOUSE_ZOOM, 0, dy, cam);
@@ -232,36 +253,40 @@ void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam, CameraMotion 
       mjv_moveCamera(m, mjMOUSE_TURN_V, 0, dy, cam);
       break;
     case CameraMotion::PLANAR_MOVE_V:
-      mjv_moveCamera(m, mjMOUSE_MOVE_V, dx, dy, cam);
+      mjv_moveCamera(m, mjMOUSE_MOVE_V, dx, pan_dy, cam);
       break;
     case CameraMotion::PLANAR_MOVE_H:
-      mjv_moveCamera(m, mjMOUSE_MOVE_H, dx, dy, cam);
+      mjv_moveCamera(m, mjMOUSE_MOVE_H, dx, pan_dy, cam);
       break;
   }
 }
 
-static void MakePickRay(mjtNum pos[3], mjtNum ray[3], const mjModel* m, const mjData* d,
-                        const mjvCamera* camera, float relx, float rely, float aspect_ratio) {
-  mjtNum forward[3], up[3], right[3];
-  mjv_cameraFrame(pos, forward, up, right, d, camera);
+static void MakePickRay(mjtNum pos[3], mjtNum ray[3], const mjrCamera& camera, float relx,
+                        float rely, float aspect_ratio) {
+  pos[0] = camera.pos[0];
+  pos[1] = camera.pos[1];
+  pos[2] = camera.pos[2];
+  const mjtNum forward[3] = {camera.forward[0], camera.forward[1], camera.forward[2]};
+  const mjtNum up[3] = {camera.up[0], camera.up[1], camera.up[2]};
+  mjtNum right[3];
+  mju_cross(right, forward, up);
 
-  float zver[2], zhor[2], zclip[2] = {0, 0};
-  mjv_cameraFrustum(zver, zhor, zclip, m, camera);
+  // Compute frustum halfwidth to match viewport aspect ratio when unset.
+  const mjtNum frustum_height =
+      static_cast<mjtNum>(camera.frustum_top) - static_cast<mjtNum>(camera.frustum_bottom);
+  const mjtNum half_width = camera.frustum_width ? static_cast<mjtNum>(camera.frustum_width)
+                                                 : 0.5 * aspect_ratio * frustum_height;
 
-  // compute frustum halfwidth to match viewport aspect ratio
-  mjtNum half_width = 0.5 * aspect_ratio * (zver[0] + zver[1]);
-  mjtNum frustum_center = (zhor[1] - zhor[0]) / 2;
+  // Compute up and right offsets from normalized cursor.
+  const mjtNum d_up = static_cast<mjtNum>(camera.frustum_bottom) + rely * frustum_height;
+  const mjtNum d_right = static_cast<mjtNum>(camera.frustum_center) + (2 * relx - 1) * half_width;
 
-  // compute up and right offsets from normalized cursor
-  mjtNum d_up = -zver[0] + rely * (zver[0] + zver[1]);
-  mjtNum d_right = frustum_center + (2 * relx - 1) * half_width;
-
-  if (camera->orthographic) {
+  if (camera.orthographic) {
     mju_copy3(ray, forward);
     mju_addToScl3(pos, up, d_up);
     mju_addToScl3(pos, right, d_right);
   } else {
-    mju_scl3(ray, forward, zclip[0]);
+    mju_scl3(ray, forward, camera.frustum_near);
     mju_addToScl3(ray, up, d_up);
     mju_addToScl3(ray, right, d_right);
     mju_normalize3(ray);
@@ -472,11 +497,11 @@ static PickResult PickSkin(const mjModel* m, const mjData* d, const mjtNum ray_p
   return result;
 }
 
-PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
+PickResult Pick(const mjModel* m, const mjData* d, const mjrCamera& camera, float x, float y,
                 float aspect_ratio, const mjvOption* vis_options) {
   mjtNum ray_pos[3];
   mjtNum ray_dir[3];
-  MakePickRay(ray_pos, ray_dir, m, d, camera, x, 1.0 - y, aspect_ratio);
+  MakePickRay(ray_pos, ray_dir, camera, x, 1.0f - y, aspect_ratio);
 
   PickResult results[3];
   results[0] = PickGeom(m, d, ray_pos, ray_dir, vis_options);
@@ -493,6 +518,11 @@ PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, floa
     }
   }
   return best_result;
+}
+
+PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
+                float aspect_ratio, const mjvOption* vis_options) {
+  return Pick(m, d, mjv_camera2GLCamera(m, d, camera), x, y, aspect_ratio, vis_options);
 }
 
 int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx) {

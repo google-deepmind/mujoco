@@ -291,6 +291,7 @@ bool MoveLocalCamera(const mjModel* model, bool wasd, bool viewer_mouse_focus,
   if (rect.z > 0 && rect.w > 0) {
     input.mouse_dx = ImGui::GetIO().MouseDelta.x / rect.z;
     input.mouse_dy = ImGui::GetIO().MouseDelta.y / rect.w;
+    input.aspect_ratio = rect.z / rect.w;
   } else {
     input.mouse_focus = false;
   }
@@ -542,10 +543,15 @@ static mujoco::Renderer::View GetSceneView() {
 
   mujoco::Renderer::View view;
   view.scene = g_app.renderer->GetSceneHandle("studio");
-  view.camera = mjv_camera2GLCamera(model, data, &g_app.camera);
   // The renderer truncates rel_viewport * target size to whole pixels; the
   // half pixel keeps float error from landing one pixel short of the bar.
   const mjrRect viewport = SceneViewport(width, height);
+  const float aspect_ratio =
+      viewport.height > 0 ? static_cast<float>(viewport.width) /
+                                static_cast<float>(viewport.height)
+                          : 1.0f;
+  view.camera =
+      mujoco::studio::ViewCamera(model, data, &g_app.camera, aspect_ratio);
   view.rel_viewport[1] = (viewport.bottom + 0.5f) / height;
   view.rel_viewport[3] = (viewport.height + 0.5f) / height;
   if (g_app.render_flags[mjRND_SEGMENT]) {

@@ -242,6 +242,9 @@ class App {
   // Populates the scene with the recently loaded model.
   void InitModelScene();
 
+  // Returns the primary simulation viewport.
+  mjrRect GetSceneViewport() const;
+
   // Returns the Renderer::View for the main simulation.
   Renderer::View GetSceneView();
 

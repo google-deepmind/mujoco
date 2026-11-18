@@ -172,14 +172,17 @@ Window::Window(std::string_view title, int width, int height, Config config)
 #endif
   }
 
+  SDL_GetWindowSize(sdl_window_, &width_, &height_);
   UpdateDrawableSize();
 }
 
 void Window::UpdateDrawableSize() {
   drawable_width_ = width_;
   drawable_height_ = height_;
-  SDL_GL_GetDrawableSize(sdl_window_, &drawable_width_, &drawable_height_);
-  scale_ = (float)drawable_width_ / (float)width_;
+  if (!IsHeadless(config_.gfx_mode)) {
+    SDL_GetWindowSizeInPixels(sdl_window_, &drawable_width_, &drawable_height_);
+  }
+  scale_ = width_ > 0 ? static_cast<float>(drawable_width_) / static_cast<float>(width_) : 1.0f;
 }
 
 Window::~Window() {
@@ -220,16 +223,18 @@ Window::Status Window::NewFrame() {
     } else if (event.type == SDL_APP_WILLENTERBACKGROUND) {
       should_exit_ = true;
     } else if (event.type == SDL_WINDOWEVENT) {
-      if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-        SDL_GetWindowSize(sdl_window_, &width_, &height_);
-        UpdateDrawableSize();
-      } else if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+      if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
         should_exit_ = true;
       }
     } else if (event.type == SDL_DROPFILE) {
       drop_file_ = event.drop.file;
     }
   }
+
+  // Query sizes each frame rather than relying solely on SDL resize events so
+  // live desktop resizes and WASM CSS/visualViewport canvas changes never lag.
+  SDL_GetWindowSize(sdl_window_, &width_, &height_);
+  UpdateDrawableSize();
 
   ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();

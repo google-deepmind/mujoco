@@ -17,6 +17,7 @@ limitations under the License.
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MuJoCo Web Viewer</title>
     <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
     <style>
@@ -28,6 +29,7 @@ limitations under the License.
       canvas {
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
         display: block;
       }
     </style>
@@ -507,11 +509,16 @@ limitations under the License.
       // pixels: a fractional size (100vw/100vh under display scaling) makes
       // the streamed UI relayout — and visibly flicker — every frame.
       function fitCanvas() {
-        Module.canvas.style.width = Math.floor(window.innerWidth) + "px";
-        Module.canvas.style.height = Math.floor(window.innerHeight) + "px";
+        const vv = window.visualViewport;
+        const useVisualViewport = vv && Math.abs(vv.scale - 1) < 0.01;
+        const width = useVisualViewport ? vv.width : window.innerWidth;
+        const height = useVisualViewport ? vv.height : window.innerHeight;
+        Module.canvas.style.width = Math.floor(width) + "px";
+        Module.canvas.style.height = Math.floor(height) + "px";
       }
       fitCanvas();
       window.addEventListener("resize", fitCanvas);
+      window.visualViewport?.addEventListener("resize", fitCanvas);
 
       // Release the WebGL context on pagehide so Chrome's GPU process
       // immediately frees VRAM across page reloads instead of retaining

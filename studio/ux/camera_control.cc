@@ -18,6 +18,7 @@
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "studio/ux/interaction.h"
 
 namespace mujoco::studio {
 
@@ -52,6 +53,7 @@ CameraInput ReadImGuiCameraInput() {
   if (has_display) {
     input.mouse_dx = io.MouseDelta.x / io.DisplaySize.x;
     input.mouse_dy = io.MouseDelta.y / io.DisplaySize.y;
+    input.aspect_ratio = io.DisplaySize.x / io.DisplaySize.y;
   }
   input.mouse_wheel = io.MouseWheel;
   input.left_button = ReadImGuiButton(ImGuiMouseButton_Left);
@@ -92,8 +94,12 @@ bool MoveCameraWithMouse(const mjModel* m, mjvCamera* cam, bool fly_camera,
     }
 
     // Right drags move relative to the horizontal and vertical planes.
+    // In portrait viewports (0 < aspect_ratio < 1), fovy is reinterpreted as
+    // fovx so the vertical world span expands by 1 / aspect_ratio while
+    // mjv_moveCamera scales both axes by the horizontal span.
     if (right) {
-      mjv_moveCamera(m, input.shift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V, dx, dy, cam);
+      const float pan_dy = dy * PortraitFovScale(cam, input.aspect_ratio);
+      mjv_moveCamera(m, input.shift ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V, dx, pan_dy, cam);
       moved = true;
     }
   }

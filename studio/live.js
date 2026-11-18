@@ -294,11 +294,18 @@ var Module = {
     requestAnimationFrame(Module.animate);
   },
 };
-// Ensure the canvas is resized when the window is resized.
-window.addEventListener("resize", function () {
-  Module.canvas.style.width = window.innerWidth + "px";
-  Module.canvas.style.height = window.innerHeight + "px";
-});
+/** Ensures the canvas matches the window size on load and when resized. */
+function fitCanvas() {
+  const vv = window.visualViewport;
+  const useVisualViewport = vv && Math.abs(vv.scale - 1) < 0.01;
+  const width = useVisualViewport ? vv.width : window.innerWidth;
+  const height = useVisualViewport ? vv.height : window.innerHeight;
+  Module.canvas.style.width = Math.floor(width) + "px";
+  Module.canvas.style.height = Math.floor(height) + "px";
+}
+fitCanvas();
+window.addEventListener("resize", fitCanvas);
+window.visualViewport?.addEventListener("resize", fitCanvas);
 
 function handleFile(file) {
   const reader = new FileReader();

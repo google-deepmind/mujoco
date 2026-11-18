@@ -150,18 +150,15 @@ void InitUx(py::module_& m) {
       .def_property(
           "sim_head_time",
           [](const UxState& self) { return self.timeline.sim_head_time; },
-          [](UxState& self, double val) { self.timeline.sim_head_time = val; }
-      )
+          [](UxState& self, double val) { self.timeline.sim_head_time = val; })
       .def_property(
           "history_size",
           [](const UxState& self) { return self.timeline.history_size; },
-          [](UxState& self, int val) { self.timeline.SetHistorySize(val); }
-      )
+          [](UxState& self, int val) { self.timeline.SetHistorySize(val); })
       .def_property(
           "history_index",
           [](const UxState& self) { return self.timeline.history_index; },
-          [](UxState& self, int val) { self.timeline.SetHistoryIndex(val); }
-      )
+          [](UxState& self, int val) { self.timeline.SetHistoryIndex(val); })
       .def_property(
           "watch_field_name",
           [](const UxState& self) {
@@ -692,15 +689,33 @@ void InitUx(py::module_& m) {
       [](const mujoco::python::MjModelWrapper& model,
          const mujoco::python::MjDataWrapper& data,
          mujoco::python::MjvCameraWrapper& cam,
-         mujoco::studio::CameraMotion motion, mjtNum dx, mjtNum dy) {
+         mujoco::studio::CameraMotion motion, mjtNum dx, mjtNum dy,
+         float aspect_ratio) {
         py::gil_scoped_release no_gil;
         mujoco::studio::MoveCamera(model.get(), data.get(), cam.get(), motion,
-                                   dx, dy);
+                                   dx, dy, aspect_ratio);
       },
       py::arg("model"), py::arg("data"), py::arg("cam"), py::arg("motion"),
-      py::arg("dx"), py::arg("dy"), "Moves the given camera.");
+      py::arg("dx"), py::arg("dy"), py::arg("aspect_ratio") = 1.0f,
+      "Moves the given camera.");
 
   m.attr("MIN_FLY_SPEED") = mujoco::studio::kMinFlySpeed;
+
+  m.def(
+      "view_camera",
+      [](const mujoco::python::MjModelWrapper& model,
+         const mujoco::python::MjDataWrapper& data,
+         const mujoco::python::MjvCameraWrapper& camera, float aspect_ratio) {
+        const mjrCamera gl_camera = mujoco::studio::ViewCamera(
+            model.get(), data.get(), camera.get(), aspect_ratio);
+        py::object py_cam = py::module_::import("mujoco").attr("MjvGLCamera")();
+        *py_cam.cast<mujoco::python::MjvGLCameraWrapper*>()->get() = gl_camera;
+        return py_cam;
+      },
+      py::arg("model"), py::arg("data"), py::arg("camera"),
+      py::arg("aspect_ratio"),
+      "Derives the GL camera for a Studio primary viewport, applying fovy "
+      "along the shorter viewport axis for free and tracking cameras.");
 
   m.def(
       "move_camera_with_mouse",
@@ -751,15 +766,15 @@ void InitUx(py::module_& m) {
          const mujoco::python::MjDataWrapper& data,
          const mujoco::python::MjvCameraWrapper& cam,
          mujoco::python::MjvPerturbWrapper& pert, int action, mjtNum reldx,
-         mjtNum reldy) {
+         mjtNum reldy, float aspect_ratio) {
         py::gil_scoped_release no_gil;
         mujoco::studio::MovePerturb(model.get(), data.get(), cam.get(),
                                     pert.get(), static_cast<mjtMouse>(action),
-                                    reldx, reldy);
+                                    reldx, reldy, aspect_ratio);
       },
       py::arg("model"), py::arg("data"), py::arg("cam"), py::arg("pert"),
       py::arg("action"), py::arg("reldx"), py::arg("reldy"),
-      "Moves mouse perturbation.");
+      py::arg("aspect_ratio") = 1.0f, "Moves mouse perturbation.");
 
   py::class_<mujoco::studio::PickResult>(m, "PickResult")
       .def_readwrite("dist", &mujoco::studio::PickResult::dist)
@@ -777,6 +792,20 @@ void InitUx(py::module_& m) {
             res.point[1] = t[1].cast<mjtNum>();
             res.point[2] = t[2].cast<mjtNum>();
           });
+
+  m.def(
+      "Pick",
+      [](const mujoco::python::MjModelWrapper& model,
+         const mujoco::python::MjDataWrapper& data,
+         const mujoco::python::MjvGLCameraWrapper& cam, float x, float y,
+         float aspect_ratio, const mujoco::python::MjvOptionWrapper& opt) {
+        py::gil_scoped_release no_gil;
+        return mujoco::studio::Pick(model.get(), data.get(), *cam.get(), x, y,
+                                    aspect_ratio, opt.get());
+      },
+      py::arg("model"), py::arg("data"), py::arg("cam"), py::arg("x"),
+      py::arg("y"), py::arg("aspect_ratio"), py::arg("opt"),
+      "Picks object under cursor using an explicit GL camera.");
 
   m.def(
       "Pick",

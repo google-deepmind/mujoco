@@ -45,6 +45,12 @@ class ModelDecorations {
               const mjrRect& viewport, DrawTextAtFn draw_text_at_fn = nullptr,
               std::span<const mjvGeom> extra_geoms = {});
 
+  // Projects labels from the last Update() into clip space using `camera`
+  // (the GL camera actually rendered for the frame) and passes them to
+  // `draw_text_at_fn`.
+  void ProjectLabels(const mjrCamera& camera, const mjrRect& viewport,
+                     DrawTextAtFn draw_text_at_fn) const;
+
   // Removes all decorative renderables from the scene.
   void Clear();
 

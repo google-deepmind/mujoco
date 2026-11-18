@@ -34,6 +34,8 @@ struct CameraInput {
   // Mouse motion this frame, as a fraction of the view's width and height.
   float mouse_dx = 0;
   float mouse_dy = 0;
+  // Aspect ratio (width / height) of the view being controlled.
+  float aspect_ratio = 1.0f;
   // Mouse wheel motion this frame.
   float mouse_wheel = 0;
 

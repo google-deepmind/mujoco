@@ -29,7 +29,27 @@ struct PickResult {
   int skin = -1;
 };
 
-// Returns information about the object (if any) under the mouse cursor.
+// Returns the vertical frustum expansion factor for `camera` in a viewport with
+// the given `aspect_ratio` (width / height). For free and tracking cameras in
+// portrait viewports (0 < aspect_ratio < 1), the authored fovy is applied along
+// the shorter (horizontal) viewport axis, expanding the vertical frustum by
+// 1 / aspect_ratio; otherwise returns 1.
+float PortraitFovScale(const mjvCamera* camera, float aspect_ratio);
+
+// Derives the GL camera for `camera` in a Studio primary viewport of the given
+// `aspect_ratio` (width / height), applying the shorter-axis FOV rule for free
+// and tracking cameras in portrait viewports. Fixed model cameras are left
+// unchanged so they remain faithful to offscreen rendering.
+mjrCamera ViewCamera(const mjModel* m, const mjData* d, const mjvCamera* camera,
+                     float aspect_ratio);
+
+// Returns information about the object (if any) under the mouse cursor using an
+// explicit GL camera (such as one returned by ViewCamera).
+PickResult Pick(const mjModel* m, const mjData* d, const mjrCamera& camera, float x, float y,
+                float aspect_ratio, const mjvOption* vis_options);
+
+// Returns information about the object (if any) under the mouse cursor using
+// the unmodified mjv_camera2GLCamera projection for `camera`.
 PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera, float x, float y,
                 float aspect_ratio, const mjvOption* vis_options);
 
@@ -70,13 +90,13 @@ enum class CameraMotion {
 };
 
 void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam, CameraMotion motion, mjtNum dx,
-                mjtNum dy);
+                mjtNum dy, float aspect_ratio = 1.0f);
 
 void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
                  mjtPertBit active);
 
 void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam, mjvPerturb* pert,
-                 mjtMouse action, mjtNum reldx, mjtNum reldy);
+                 mjtMouse action, mjtNum reldx, mjtNum reldy, float aspect_ratio = 1.0f);
 
 }  // namespace mujoco::studio
 
