@@ -429,10 +429,10 @@ class SkillClaimsTest(absltest.TestCase):
       self.assertEqual(d.warning[mujoco.mjtWarning.mjWARN_BADQACC].number, 0)
       self.assertGreater(float(d.body('ball').xpos[2]), 0.06)
 
-  def test_newton_converges_gradient_in_contact_where_cg_exits_early(self):
+  def test_newton_is_force_accurate_while_cg_is_energy_accurate(self):
     tol = 5e-5 if mujoco.MJTNUM_DTYPE == np.float32 else 1e-6
 
-    def conv_fraction(solver: str) -> float:
+    def run_pad(solver: str) -> tuple[float, float, float, float, float]:
       xml = f"""<mujoco>
         <option timestep="0.002" integrator="discrete" solver="{solver}"
                 tolerance="1e-6" iterations="200"/>
@@ -456,18 +456,37 @@ class SkillClaimsTest(absltest.TestCase):
       </mujoco>"""
       m = mujoco.MjModel.from_xml_string(xml)
       d = mujoco.MjData(m)
-      grads = []
+      grads, imps, below_cap = [], [], []
       for _ in range(250):
         mujoco.mj_step(m, d)
-        if d.nefc > 0 and d.solver_niter[0] > 0:
-          grads.append(float(d.solver[d.solver_niter[0] - 1].gradient))
+        niter = int(d.solver_niter[0])
+        if d.nefc > 0 and niter > 0:
+          stat = d.solver[niter - 1]
+          grads.append(float(stat.gradient))
+          imps.append(float(stat.improvement))
+          below_cap.append(niter < int(m.opt.iterations))
       self.assertGreater(len(grads), 150)
       platen_bottom = float(d.xipos[m.body('platen').id, 2]) - 0.015
       self.assertBetween(platen_bottom, 0.055, 0.081)
-      return float(np.mean(np.array(grads) < tol))
+      return (
+          float(np.median(grads)),
+          float(np.mean(np.array(grads) < tol)),
+          float(np.mean(np.array(imps) < tol)),
+          float(np.mean(below_cap)),
+          platen_bottom,
+      )
 
-    self.assertGreaterEqual(conv_fraction('Newton'), 0.95)
-    self.assertLess(conv_fraction('CG'), 0.10)
+    n_med_grad, n_grad_ok, _, n_below_cap, z_newton = run_pad('Newton')
+    cg_med_grad, cg_grad_ok, cg_imp_ok, cg_below_cap, z_cg = run_pad('CG')
+    if mujoco.MJTNUM_DTYPE != np.float32:
+      self.assertLess(n_med_grad, 1e-12)
+    self.assertGreaterEqual(n_grad_ok, 0.95)
+    self.assertGreaterEqual(n_below_cap, 0.99)
+    self.assertGreater(cg_med_grad, tol)
+    self.assertLess(cg_grad_ok, 0.10)
+    self.assertGreaterEqual(cg_imp_ok, 0.95)
+    self.assertGreaterEqual(cg_below_cap, 0.99)
+    self.assertAlmostEqual(z_newton, z_cg, delta=1e-3)
 
   def test_staggered_plate_beats_grid_bias_within_5pct_kirchhoff(self):
     if mujoco.MJTNUM_DTYPE == np.float32:

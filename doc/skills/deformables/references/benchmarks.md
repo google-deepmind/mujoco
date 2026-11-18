@@ -7,8 +7,31 @@ the first 500 loaded steps (100 steps from a shared draped state in Sec. 12) on
 one core of a shared AMD EPYC 7B13, so compare them relative to each other.
 Errors are signed: negative means the model is too stiff. On constrained
 problems (`nefc > 0`), `grad (%<tol)` reports the median final scaled primal
-gradient `data.solver[k].gradient` (across steps with `solver_niter > 0`) and
-the percentage of constrained steps reaching `gradient < opt.tolerance`.
+force gradient `data.solver[k].gradient` (across steps with `solver_niter > 0`)
+and the percentage of constrained steps reaching `gradient < opt.tolerance`.
+**Energy- vs. force-accurate solvers:** `mj_solPrimal` minimizes a cost (Gauss
+term `0.5 * (a - a_smooth)' * M_hat * (a - a_smooth)` plus constraint penalty
+cost) whose gradient `g` is the unbalanced generalized force
+`M_hat * a - f_smooth - J' * f_c`; `data.solver[k].improvement` is the
+per-iteration cost decrease and `data.solver[k].gradient` the norm of `g`
+(both scaled by the inverse mean inertia). Near the optimum an acceleration
+error `da` costs `0.5 * da' * H * da`; under `discrete` (`dv = h * da`,
+`dx = h^2 * da`), `h^2` times this is the energy of the step error:
+`0.5 * dv' * M * dv` (kinetic) + `0.5 * h * dv' * D * dv` (damping) +
+`0.5 * dx' * K * dx` (elastic), plus soft-constraint terms (kinetic and
+constraint terms only under `Euler`). An energy error `eps` along a mode of
+stiffness `k` thus allows a displacement error `~ sqrt(2 * eps / k)` but a
+force error `~ sqrt(2 * eps * k)`. Both solvers check
+`improvement < tolerance || gradient < tolerance` in the loop, but `Newton` is
+**force-accurate**: once the active set settles, its exact Hessian step lands on
+the minimizer (`gradient ~ 1e-15`), and its 0-iteration warmstart exit also
+requires `gradient < tolerance`. `CG` is **energy-accurate** (called
+cost-accurate in `engine_solver.c`): it stops once `improvement < tolerance`,
+so positions on stiff modes match `Newton` (Sec. 3) while force residuals stay
+at `gradient = O(sqrt(tolerance))` (`~1e-4`-`1e-3` at `tolerance="1e-6"`),
+showing up as small residual velocities (Sec. 11). Genuine `CG`
+non-convergence shows up as hitting `opt.iterations` or residual drift on
+ill-conditioned coupled constraints (Sec. 10, Sec. 11).
 
 **When to rerun:** Rerun the affected `--problems=<section>` tables with
 `scripts/benchmark_flex.py` (and update any derived guardrails in `SKILL.md`)
@@ -61,9 +84,10 @@ edge.
     `+3 spacing / (2 L)`; see Sec. 2 for rods loaded in both.
 -   3D rows have no constraints (`nefc = 0`), so `Newton` and `CG` both reduce
     to the smooth `M + h*D + h^2*K` solve at equal cost. On 1D rods (`<edge
-    equality="true"/>`), `Newton` reaches `~1e-17` gradient (`100%` `< tol`) in
-    0.6-0.7 iterations at the same `0.04-0.07` ms/step where `CG` exits early
-    at `1.5e-3`-`5.4e-3` (`0-2%` `< tol`).
+    equality="true"/>`), `Newton` reaches `~1e-17` force gradient (`100%` `<
+    tol`) in 0.6-0.7 iterations at the same `0.04-0.07` ms/step where
+    energy-accurate `CG` exits on `improvement < tolerance` at `1.5e-3`-`5.4e-3`
+    (`0-2%` `< tol`).
 
 ## 2. Rod Torsion
 
@@ -126,13 +150,16 @@ slide joint, with `solref="0.004 1"` on all contacts. Reference: uniaxial
     whereas `MjSpec`-only Stable Neo-Hookean (`flex.elastic3d = 1`) cuts the
     error to `+2.5%` (remaining offset is contact compliance) and
     `trilinear`/`quadratic` corotational elasticity matches within 0-2%.
--   **`CG`'s lower `ms/step` above ~200 DOFs is not at matched accuracy:**
-    `Newton` converges to `~2e-15` (`100%` of steps `< 1e-6`) in 1.0-1.7
-    iterations, whereas `CG` exits early on `improvement < tolerance` with
-    final scaled gradients `7.6e-5`-`2.5e-4` (`0%` of steps `< 1e-6`, 76-250x
-    above `tolerance`). Default to `Newton`, and fall back to `CG` only when
-    `Newton`'s Cholesky factor becomes prohibitive (e.g. `full` 12x12x12 at
-    1.63 M nonzeros).
+-   **Force-accurate `Newton` vs. energy-accurate `CG` above ~200 DOFs:**
+    Once the active set settles, `Newton`'s exact Hessian step drives force
+    residuals to `~2e-15` (`100%` of steps `< 1e-6`) in 1.0-1.7 iterations,
+    whereas energy-accurate `CG` exits once per-step cost `improvement <
+    tolerance` with final force gradients `7.6e-5`-`2.5e-4` (`~O(sqrt(1e-6))`,
+    matching equilibrium compression to 3 digits here while avoiding `Newton`'s
+    1.63 M-nonzero Cholesky factor on `full` 12x12x12). Use `Newton` when
+    force-level `gradient < opt.tolerance` or stiff coupled contact robustness
+    is required, and `CG` on large/high-fill-in well-conditioned meshes that
+    finish well below `opt.iterations`.
 -   **Heavy bodies on light vertices:** contact stiffness scales with the
     effective mass of the touching flex vertices. With the default
     `solref="0.02 1"` the 20x heavier plate sinks straight through the
@@ -181,10 +208,13 @@ supported, 1 outer ring pinned) and Taylor-Govindjee `0.001265 q a^4 / D =
     cell per side (`spacing = a / (n - 2)`) removes the span loss. Here `nefc =
     0` (0 constraint iterations): on `elastic2d="bend"`-only plates, setting
     `solver="CG"` skips explicit CSR assembly in `mj_effBuild` and reuses the
-    constant `mj_setConst` bending factor (`0.93` vs. `5.68` ms/step at 33x33),
-    whereas once constraints are active (Sec. 11) `CG` stops early with
-    unconverged gradients -- so keep `solver="Newton"` whenever contacts or
-    equalities are present.
+    constant `mj_setConst` bending factor (`0.93` vs. `5.68` ms/step at 33x33);
+    on a freely hanging `discrete` sheet with `<edge equality="true"/>` (Sec.
+    11), `CG`'s `sqrt(tolerance)` residual leaves ~3e-3 m/s (`< 0.01` mm/step)
+    sub-millimeter micro-jitter, whereas `Euler` edge-equality models with
+    softer default `solref="0.02 1"` (`<edge damping>` on `basket`/`plate`) and
+    sustained contact support (`plate.xml`, `basket.xml`, `sphere_full.xml`)
+    settle cleanly under `CG` without visible flutter.
 -   **Documented `mass` split and flat `dim=2` interpolated shells:** per
     `.. _body-flexcomp-mass:` in `XMLreference.rst` (*"pinning some points does
     not affect the mass of the other bodies"*), `<flexcomp>` assigns
@@ -251,8 +281,9 @@ mesh (`2.5 mm = a / 4` on top).
     -7.1% error in 8.56 ms/step (`Newton`, `100%` `< tol`), whereas `trilinear`
     8x8x4 is at -18.1% and `full` 9x9x5 is at -31.0% (and even at `nv = 3043`,
     `full` 13x13x7 is still -13.3%). `CG`'s lower `ms/step` on the fine grids
-    reflects early termination (`gradient` `1.9e-3`-`1.3e-2`, 1900-13,000x
-    above `tolerance="1e-6"`), not faster convergence.
+    comes from energy-accurate termination once `improvement < tolerance` (force
+    `gradient` `1.9e-3`-`1.3e-2` `~ O(sqrt(tolerance))`), whereas `Newton`'s
+    exact Hessian step solves to machine-precision force balance.
 -   **Heavy indenters need both fast `solref` and near-hard `solimp`:** with
     default `solimp="0.9 0.95 0.001"`, constraint compliance adds 0.5-1.3 mm of
     artificial penetration (comparable to the 0.7 mm elastic dent) and prevents
@@ -404,11 +435,11 @@ finger pressed onto a table. Reference sag: `w_self + w_tip` = 20.8 mm (beam),
 | `trilinear` 2x2x2 pad, slide finger | 55 | 0.20 | 1.6e-15 (100%) | 0.20 | 1.0e-03 (0%) | -1.5% | Servo load error +186.6% |
 
 -   **`Newton` is both faster (1.3-2.3x) and far more accurate than `CG` on
-    jointed mounts and equality attachments:** `Newton` factors the coupled
-    system to `~1e-16` (`100%` `< tol`) in 1 iteration, whereas `CG` stops
-    early on `improvement < tolerance` at `1.0e-3`-`1.0e-2` (`0-3%` `< tol`,
-    leaving ~2e-3 m/s residual tip velocity after 10 s on `quadratic`
-    `<connect>`/`<weld>`).
+    jointed mounts and equality attachments:** force-accurate `Newton` solves
+    the coupled system to `~1e-16` (`100%` `< tol`) in 1 iteration, whereas
+    energy-accurate `CG` exits once `improvement < tolerance` at force gradient
+    `1.0e-3`-`1.0e-2` (`0-3%` `< tol`, leaving ~2e-3 m/s residual tip velocity
+    after 10 s on ill-conditioned `quadratic` `<connect>`/`<weld>` equalities).
 -   **Known engine bug (interpolated flexes on jointed parents):** in
     `mj_flexPassiveInterp` / `mj_flexPassiveBendInterp`, the direct-write fast
     path writes `R' f` only into each free node body's own three slide DOFs,
@@ -462,11 +493,16 @@ solref="{timeconst} 1"/>`. Reference elongation of an inextensible cable/sheet:
     vertices at fixed total mass and `timeconst="0.004"` raises peak strain
     from 0.81% to 2.84% (3.5x). Tighten `timeconst` (or raise `solimp` `d0`)
     when refining edge-constrained meshes.
--   **`Newton` converges (`100%` `< tol`, `~3e-16`) while `CG` stops early
-    (`0%` `< tol`, `~3e-4`):** `CG`'s 2.0-2.6x shorter step time on `13x13`
-    cloth reflects early exit on `improvement < tolerance` after 5.5-7.0
-    iterations, which leaves ~3e-3 m/s residual flutter after 10 s (`Newton`
-    settles to rest in 1 iteration per step).
+-   **Force-accurate `Newton` (`100%` `< tol`, `~3e-16`) vs. energy-accurate
+    `CG` (`0%` `< tol`, `~3e-4`):** `Newton`'s exact Hessian step settles the
+    hanging sheet below `1e-5` m/s in 1 iteration/step, while energy-accurate
+    `CG` exits once `improvement < tolerance` after 5.5-7.0 iterations
+    (`2.0`-`2.6x` faster here) with ~3e-3 m/s (`< 0.01` mm/step) sub-millimeter
+    micro-jitter on this light (`0.1` kg), contact-free `discrete` sheet. By
+    contrast, `Euler` edge-equality models with softer default
+    `solref="0.02 1"` (`<edge damping>` on `basket`/`plate`) and sustained
+    contact support (`basket.xml`, `plate.xml`, `sphere_full.xml`) settle to the
+    same velocities as `Newton` with no visible flutter.
 
 ## 12. Cloth Self-Collision Scaling
 
@@ -493,10 +529,11 @@ identical folded state under both solvers (plus a `trilinear` 6x6 shell on a
     5043 to 294 on the same 1681-vertex mesh (`trilinear` 6x6 shell) reduces
     `Newton` step time by 66x, though a 6x6 control grid is too smooth to form
     self-folds.
--   **`Newton` vs. `CG` at large `nv`:** `Newton` drives median scaled
-    gradients to `~5e-17`-`1e-16`, whereas `CG` exits early on `improvement <
-    tolerance` at `~1e-4` (`0%` of steps `< 1e-6`, 79-110x above `tolerance`)
-    across every mesh size. Use `Newton` up to moderate cloth sizes (`11x11`-
-    `21x21`), and switch to `CG` only at high `nv` (`41x41`+, where `Newton`
-    factors 0.8M-2.4M nonzeros per step) after checking `data.solver` gradient
-    residuals for acceptable visual/contact fidelity.
+-   **`Newton` vs. `CG` at large `nv`:** Force-accurate `Newton` drives median
+    scaled force gradients to `~5e-17`-`1e-16`, whereas energy-accurate `CG`
+    exits once `improvement < tolerance` at `~1e-4` (`~O(sqrt(1e-6))`) across
+    every mesh size unless dense self-contacts stall it at `opt.iterations`.
+    Prefer `Newton` on moderate self-colliding cloth (`11x11`-`21x21`, or
+    `poncho.xml` where `CG` hits `opt.iterations`), and switch to `CG` at high
+    `nv` (`41x41`+, where `Newton` factors 0.8M-2.4M nonzeros per step) when
+    `solver_niter` stays below `opt.iterations` and contact fidelity suffices.
