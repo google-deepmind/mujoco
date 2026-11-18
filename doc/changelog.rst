@@ -26,6 +26,15 @@ Compiler
 
 Rendering
 ^^^^^^^^^
+
+.. admonition:: Breaking changes
+   :class: attention
+
+   - Planar reflections in the Filament renderer are now energy conserving: diffuse base color is attenuated by one
+     minus the Fresnel reflection weight (dielectrics only; metals are unchanged), so a surface with
+     ``reflectance="1"`` is a pure mirror regardless of its base color. Previously, reflections were added on top of the
+     fully lit diffuse surface, washing out reflections on bright materials.
+
 - Added :ref:`mjGEOM_DISC<mjtGeom>` rendering-only geom type for flat double-sided discs and annuli
   (``size = [r_out, r_in, 0]``).
 - Fixed Filament planar reflections leaking geometry behind or crossing the mirror plane by clipping the reflection

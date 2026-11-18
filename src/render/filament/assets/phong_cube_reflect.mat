@@ -64,5 +64,8 @@ fragment {
             : step(0.99, dot(getWorldGeometricNormalVector(),
                              materialParams.ReflectionNormal));
     material.postLightingColor = vec4(reflection * fresnel * front, 0.0);
+
+    // Energy conservation: reflected light does not reach the diffuse lobe.
+    material.baseColor.rgb *= max(1.0 - fresnel * front, 0.0);
   }
 }

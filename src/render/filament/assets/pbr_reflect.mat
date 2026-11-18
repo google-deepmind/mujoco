@@ -91,5 +91,13 @@ fragment {
             : step(0.99, dot(getWorldGeometricNormalVector(),
                              materialParams.ReflectionNormal));
     material.postLightingColor = vec4(reflection * fresnel * front, 0.0);
+
+    // Energy conservation: reflected light does not reach the diffuse lobe.
+    // Metals have no diffuse lobe, their base color is left untouched.
+    float f0_dielectric = materialParams.Reflectance;
+    float fresnel_dielectric =
+        f0_dielectric + (1.0 - f0_dielectric) * pow(1.0 - getNdotV(), 5.0);
+    material.baseColor.rgb *=
+        mix(max(1.0 - fresnel_dielectric * front, 0.0), 1.0, material.metallic);
   }
 }
