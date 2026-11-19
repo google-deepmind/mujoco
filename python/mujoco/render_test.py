@@ -194,6 +194,30 @@ class MuJoCoRenderTest(absltest.TestCase):
     self.assertGreater(np.count_nonzero(magenta), 0)
     context.free()
 
+  def test_overlay_long_line(self):
+    model = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
+    context = mujoco.MjrContext(model, mujoco.mjtFontScale.mjFONTSCALE_150)
+    try:
+      mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, context)
+      full_rect = mujoco.MjrRect(0, 0, 640, 480)
+      mujoco.mjr_rectangle(full_rect, 0, 0, 0, 1)
+
+      long_line = 'A' * (mujoco.mjMAXOVERLAY + 10)
+      mujoco.mjr_overlay(
+          mujoco.mjtFont.mjFONT_NORMAL,
+          mujoco.mjtGridPos.mjGRID_TOPLEFT,
+          full_rect,
+          long_line,
+          'B' * mujoco.mjMAXOVERLAY,
+          context,
+      )
+
+      image = np.empty((480, 640, 3), dtype=np.uint8)
+      mujoco.mjr_readPixels(image, None, full_rect, context)
+      self.assertGreater(np.count_nonzero(image), 0)
+    finally:
+      context.free()
+
   def test_safe_to_free_context_twice(self):
     self.model = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
     self.data = mujoco.MjData(self.model)
