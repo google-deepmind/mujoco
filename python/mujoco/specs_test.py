@@ -692,6 +692,16 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
     spec.to_xml()
 
+  def test_default_class_element_classname_and_signature(self):
+    spec = mujoco.MjSpec()
+    child = spec.add_default('c', spec.default)
+    for default in (spec.default, child):
+      for element in (default.actuator, default.joint, default.geom,
+                      default.site):
+        self.assertIsNone(element.classname)
+        with self.assertRaisesRegex(ValueError, 'not attached to a spec'):
+          _ = element.signature
+
   def test_modelname_default_class(self):
     xml = textwrap.dedent("""\
         <mujoco model="test">

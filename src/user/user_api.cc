@@ -2098,7 +2098,8 @@ const char* mjs_setToDCMotor(mjsActuator* actuator,
 
 // get spec from body
 mjSpec* mjs_getSpec(const mjsElement* element) {
-  return &(static_cast<const mjCBase*>(element)->model->spec);
+  mjCModel* model = static_cast<const mjCBase*>(element)->model;
+  return model ? &model->spec : nullptr;  // elements of a default class have no model
 }
 
 
@@ -2126,6 +2127,9 @@ mjSpec* mjs_findSpec(const mjSpec* s, const char* name) {
 // get default
 mjsDefault* mjs_getDefault(const mjsElement* element) {
   const mjCModel* model     = static_cast<const mjCBase*>(element)->model;
+  if (!model) {
+    return nullptr;  // elements of a default class have no model
+  }
   std::string     classname = static_cast<const mjCBase*>(element)->classname;
   auto            it        = model->def_map.find(classname);
   return (it != model->def_map.end()) ? &it->second->spec : nullptr;

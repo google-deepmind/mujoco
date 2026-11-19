@@ -1000,7 +1000,11 @@ def generate_signature() -> None:
     code = f"""\n
       {key}.def_property_readonly("signature",
       [](raw::{titlecase}& self) -> uint64_t {{
-        return mjs_getSpec(self.element)->element->signature;
+        raw::MjSpec* spec = mjs_getSpec(self.element);
+        if (!spec) {{
+          throw pybind11::value_error("Element is not attached to a spec.");
+        }}
+        return spec->element->signature;
       }});
     """
     print(code)
