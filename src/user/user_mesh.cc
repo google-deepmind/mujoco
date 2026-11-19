@@ -2647,6 +2647,9 @@ static void GridData(std::vector<double>& points,
                      int                  dim,
                      bool                 disc,
                      bool                 needtex) {
+  // points are indexed with ints
+  if (mjuu_gridSize(count) < 0) { return; }
+
   // 1D: points only, connectivity is implicit
   if (dim == 1) {
     for (int ix = 0; ix < count[0]; ix++) {
@@ -2834,8 +2837,8 @@ static void BoxData(std::vector<double>& points,
                     BoxShape             shape) {
   double pos[3];
 
-  // at least two points per side are needed
-  if (count[0] < 2 || count[1] < 2 || count[2] < 2) { return; }
+  // at least two points per side are needed, and they are indexed with ints
+  if (count[0] < 2 || count[1] < 2 || count[2] < 2 || mjuu_gridSize(count) < 0) { return; }
 
   // add center point and its texture coordinates
   if (dim == 3) {

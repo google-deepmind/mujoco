@@ -2637,6 +2637,10 @@ TEST_F(MjCMeshTest, MakeBuiltinInvalidParams) {
       // boxes need at least two points per side
       {mjMESH_BUILTIN_BOX, {3, 1, 3, 1, 1, 1, 3}, "at least 2"},
       {mjMESH_BUILTIN_CYLINDER, {3, 3, 1, 1, 1, 1, 2}, "at least 2"},
+      // the number of grid points is used as a size and as an index
+      {mjMESH_BUILTIN_BOX, {2, 65536, 65537, 1, 1, 1, 3}, "too large"},
+      {mjMESH_BUILTIN_GRID, {65536, 65536, 1, 1, 1, 0, 2}, "too large"},
+      {mjMESH_BUILTIN_SQUARE, {65536, 65536, 1, 1, 1, 0}, "too large"},
       // cone nvert >= 3 and radius in [0, 1]
       {mjMESH_BUILTIN_CONE, {2, 0.5}, "at least 3"},
       {mjMESH_BUILTIN_CONE, {-2, 0.5}, "at least 3"},

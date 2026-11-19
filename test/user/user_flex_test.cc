@@ -320,6 +320,41 @@ TEST_F(UserFlexTest, CountTooSmall) {
   EXPECT_THAT(error.data(), HasSubstr("Count too small"));
 }
 
+// The number of grid points is used as a size and as an index.
+TEST_F(UserFlexTest, CountTooLarge) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="box" dim="3" count="2 65536 65537"
+              spacing="1 1 1" radius="0.001"/>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Count too large"));
+}
+
+// The number of nodes of an interpolated flexcomp is used as a size and as an
+// index of the pinned nodes.
+TEST_F(UserFlexTest, CellcountTooLarge) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+  <worldbody>
+    <flexcomp name="test" type="grid" dim="3" count="2 2 2" spacing="1 1 1"
+              radius="0.001" dof="trilinear" cellcount="65535 65535 1">
+      <pin grid="1 0 0"/>
+    </flexcomp>
+  </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  MjModelPtr m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m.get(), IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("cellcount is negative or too large"));
+}
+
 TEST_F(UserFlexTest, CellnumZeroInterpolated) {
   static constexpr char xml[] = R"(
   <mujoco>

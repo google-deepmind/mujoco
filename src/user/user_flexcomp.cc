@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -221,6 +222,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       return comperr(error, "Count too small", error_sz);
     }
   }
+  if (mjuu_gridSize(count) < 0) {
+    return comperr(error,
+                   "Count too large, the number of grid points must fit in an int",
+                   error_sz);
+  }
 
   // check spacing
   double minspace = 2 * dflex->radius + dflex->margin;
@@ -407,10 +413,19 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz, const mjVFS* vf
       cy = cellcount[1];
       cz = cellcount[2];
     }
-    count_check[0] = cx * order + 1;
-    count_check[1] = cy * order + 1;
-    count_check[2] = cz * order + 1;
-    nnode          = count_check[0] * count_check[1] * count_check[2];
+
+    // nodes are indexed with ints
+    int ncell[3] = {cx, cy, cz};
+    for (int k = 0; k < 3; k++) {
+      bool valid     = ncell[k] >= 0 && ncell[k] <= (INT_MAX - 1) / order;
+      count_check[k] = valid ? ncell[k] * order + 1 : -1;
+    }
+    nnode = mjuu_gridSize(count_check);
+    if (nnode < 0) {
+      return comperr(error,
+                     "cellcount is negative or too large, the number of nodes must fit in an int",
+                     error_sz);
+    }
   }
   int npin = nnode ? nnode : npnt;
   pinned   = vector<bool>(std::max(npnt, nnode), rigid);

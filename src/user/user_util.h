@@ -66,6 +66,10 @@ void mjuu_zerovec(float* dest, int n);
 // dot-product in 3D
 double mjuu_dot3(const double* a, const double* b);
 
+// number of points of a grid with count[i] points along axis i; -1 if a count is not positive
+// or if the number does not fit in an int
+int mjuu_gridSize(const int count[3]);
+
 // distance between 3D points
 double mjuu_dist3(const double* a, const double* b);
 

@@ -1422,6 +1422,10 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
           return -1;
         }
       }
+      if (mjuu_gridSize(count) < 0) {
+        m->SetError(mjCError(0, "Grid count too large"));
+        return -1;
+      }
       meshC->MakeGrid(count, spacing, dim, false);
       if ((dim == 3 ? mesh->usertet : mesh->userface)->empty()) {
         m->SetError(mjCError(0, "Failed to create grid mesh"));
@@ -1456,6 +1460,10 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
           m->SetError(mjCError(0, "Box/cylinder/ellipsoid count must be at least 2"));
           return -1;
         }
+      }
+      if (mjuu_gridSize(count) < 0) {
+        m->SetError(mjCError(0, "Box/cylinder/ellipsoid count too large"));
+        return -1;
       }
       if (builtin == mjMESH_BUILTIN_BOX) {
         meshC->MakeBox(count, spacing, dim, false, true);
@@ -1493,6 +1501,10 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
       }
       if (count[2] != 1) {
         m->SetError(mjCError(0, "Square/disc count[2] must be 1"));
+        return -1;
+      }
+      if (mjuu_gridSize(count) < 0) {
+        m->SetError(mjCError(0, "Square/disc count too large"));
         return -1;
       }
       if (builtin == mjMESH_BUILTIN_SQUARE) {
