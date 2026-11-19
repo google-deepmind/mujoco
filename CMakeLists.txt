@@ -200,6 +200,9 @@ target_compile_options(
           ${EXTRA_COMPILE_OPTIONS}
           ${MUJOCO_CXX_FLAGS}
 )
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MSVC))
+  target_compile_options(mujoco PRIVATE -ffp-contract=off)
+endif()
 target_link_options(
   mujoco
   PRIVATE
