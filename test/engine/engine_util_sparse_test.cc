@@ -74,6 +74,37 @@ TEST_F(EngineUtilSparseTest, MjuDot) {
             2 * 8 + 3 * 7 + 4 * 6 + 5 * 5 + 6 * 4 + 7 * 3 + 8 * 2);
 }
 
+TEST_F(EngineUtilSparseTest, MjuDotX3) {
+  constexpr int kMaxNnz = 19;
+  std::vector<mjtNum> v10(kMaxNnz), v11(kMaxNnz), v12(kMaxNnz);
+  std::vector<mjtNum> v2(3 * kMaxNnz);
+  std::vector<int> ind(kMaxNnz);
+
+  for (int k = 0; k < 3 * kMaxNnz; ++k) {
+    v2[k] = mjtNum(1) / (k + 2) - mjtNum(1) / (2 * k + 3);
+  }
+  for (int i = 0; i < kMaxNnz; ++i) {
+    ind[i] = 3 * i + (i % 2);
+    // include terms with cancellation sensitive to reduction association order
+    mjtNum sign = (i & 2) ? -1 : 1;
+    v10[i] = sign * (mjtNum(1) / ((i / 4) + 1)) + mjtNum(1e-7) / (i + 3);
+    v11[i] = mjtNum(i + 1) / (2 * i + 5) - mjtNum(1) / (i + 7);
+    v12[i] = -sign * mjtNum(3) / (i + 2) + mjtNum(1e-6) * (i + 1);
+  }
+
+  for (int nnz = 0; nnz <= kMaxNnz; ++nnz) {
+    mjtNum res0 = -1, res1 = -1, res2 = -1;
+    mju_dotSparseX3(&res0, &res1, &res2, v10.data(), v11.data(), v12.data(),
+                    v2.data(), nnz, ind.data());
+    EXPECT_EQ(res0, mju_dotSparse(v10.data(), v2.data(), nnz, ind.data()))
+        << "nnz=" << nnz;
+    EXPECT_EQ(res1, mju_dotSparse(v11.data(), v2.data(), nnz, ind.data()))
+        << "nnz=" << nnz;
+    EXPECT_EQ(res2, mju_dotSparse(v12.data(), v2.data(), nnz, ind.data()))
+        << "nnz=" << nnz;
+  }
+}
+
 TEST_F(EngineUtilSparseTest, MjuDot2) {
   constexpr int annz = 6;
   constexpr int bnnz = 5;

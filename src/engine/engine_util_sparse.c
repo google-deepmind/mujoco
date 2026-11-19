@@ -38,12 +38,40 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
   mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
 #else
   int i = 0;
+  int n_4 = nnz1 - 4;
 
   // clear result
-  mjtNum RES0 = 0;
-  mjtNum RES1 = 0;
-  mjtNum RES2 = 0;
+  mjtNum r00 = 0, r01 = 0, r02 = 0, r03 = 0;
+  mjtNum r10 = 0, r11 = 0, r12 = 0, r13 = 0;
+  mjtNum r20 = 0, r21 = 0, r22 = 0, r23 = 0;
 
+  for (; i <= n_4; i+=4) {
+    mjtNum v0 = vec2[ind1[i+0]];
+    mjtNum v1 = vec2[ind1[i+1]];
+    mjtNum v2 = vec2[ind1[i+2]];
+    mjtNum v3 = vec2[ind1[i+3]];
+
+    r00 += vec10[i+0] * v0;
+    r01 += vec10[i+1] * v1;
+    r02 += vec10[i+2] * v2;
+    r03 += vec10[i+3] * v3;
+
+    r10 += vec11[i+0] * v0;
+    r11 += vec11[i+1] * v1;
+    r12 += vec11[i+2] * v2;
+    r13 += vec11[i+3] * v3;
+
+    r20 += vec12[i+0] * v0;
+    r21 += vec12[i+1] * v1;
+    r22 += vec12[i+2] * v2;
+    r23 += vec12[i+3] * v3;
+  }
+
+  mjtNum RES0 = (r00 + r02) + (r01 + r03);
+  mjtNum RES1 = (r10 + r12) + (r11 + r13);
+  mjtNum RES2 = (r20 + r22) + (r21 + r23);
+
+  // scalar part
   for (; i < nnz1; i++) {
     mjtNum v2 = vec2[ind1[i]];
 
