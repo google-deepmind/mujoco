@@ -503,16 +503,18 @@ bool App::Update() {
   }
   last_frame_time_ = now;
 
-  const Window::Status status = window_->NewFrame();
-
-  std::unique_lock<std::mutex> lock(physics_mutex_);
-
   // Execute any operations that could not be performed during the actual
-  // BuildGui() flow.
+  // BuildGui() flow. Run before NewFrame() because operations like
+  // SwitchGraphicsMode() recreate window_ and the ImGui context.
   if (pending_op_) {
+    std::unique_lock<std::mutex> lock(physics_mutex_);
     pending_op_();
     pending_op_ = nullptr;
   }
+
+  const Window::Status status = window_->NewFrame();
+
+  std::unique_lock<std::mutex> lock(physics_mutex_);
 
   HandleWindowEvents();
   HandleMouseEvents();
