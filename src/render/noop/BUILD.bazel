@@ -23,6 +23,7 @@ cc_library(
     ],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [

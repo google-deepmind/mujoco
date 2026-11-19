@@ -13,6 +13,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = ["//test/user/testdata:test_mjcf"],
@@ -30,6 +31,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [
@@ -52,6 +54,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = ["//test/user/testdata:test_mjcf"],
@@ -73,6 +76,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = ["//test/user/testdata:test_mjcf"],
@@ -96,6 +100,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = ["//test/user/testdata:test_mjcf"],
@@ -121,6 +126,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     deps = [
@@ -142,6 +148,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [
@@ -172,6 +179,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [
@@ -194,6 +202,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     deps = [
@@ -213,6 +222,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [
@@ -236,6 +246,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     deps = [
@@ -253,6 +264,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [
@@ -278,6 +290,7 @@ cc_test(
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
         "-fexceptions",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     deps = [

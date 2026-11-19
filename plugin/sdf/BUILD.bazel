@@ -25,6 +25,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [
@@ -55,6 +56,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [
@@ -85,6 +87,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [
@@ -115,6 +118,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [
@@ -145,6 +149,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [
@@ -175,6 +180,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [
@@ -210,6 +216,7 @@ cc_library(
     conlyopts = ["-std=c11"],
     copts = [
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
         "-fvisibility=hidden",
     ],
     cxxopts = [

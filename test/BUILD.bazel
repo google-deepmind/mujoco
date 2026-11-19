@@ -36,6 +36,7 @@ cc_library(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     visibility = [
@@ -62,6 +63,7 @@ cc_library(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     visibility = [
@@ -81,6 +83,7 @@ cc_library(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     visibility = [
@@ -98,6 +101,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     tags = mujoco_test_tags,
@@ -116,6 +120,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     tags = mujoco_test_tags,
@@ -133,6 +138,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     tags = mujoco_test_tags,
@@ -150,6 +156,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     tags = mujoco_test_tags,
@@ -166,6 +173,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [
@@ -223,6 +231,7 @@ cc_library(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     deps = ["//:mujoco"],
@@ -242,6 +251,7 @@ cc_test(
     copts = [
         "-I" + MJ_ROOT,
         "-I" + MJ_ROOT + "/src",
+        "-ffp-contract=off",
     ],
     cxxopts = ["-std=c++20"],
     data = [":mujoco_plugin_test_plugin"],
