@@ -427,11 +427,13 @@ void Renderable::Prepare(std::span<const mjrfRenderRequest*> requests,
               : ToFilamentFrame(normalize(transform_[2].xyz));
       reflection_mgr->Register(this, mesh, material, geom_type_, refl_normal,
                                request);
-
-      // Bind the non-reflective material by default so secondary reflection
-      // bounces are suppressed during reflection passes.
-      material.reflectance = 0.0f;
     }
+
+    // Bind the non-reflective material by default so secondary reflection
+    // bounces are suppressed during reflection passes. Geoms that are not
+    // registered mirrors have no reflection texture, and the reflect shaders
+    // would darken them by the Fresnel weight.
+    material.reflectance = 0.0f;
 
     draw_state.material_key = material_mgr_->PrepareMaterialInstance(
         material, draw_mode, geom_type_, mesh);
