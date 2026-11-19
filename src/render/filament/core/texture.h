@@ -16,11 +16,12 @@
 #define MUJOCO_SRC_RENDER_FILAMENT_CORE_TEXTURE_H_
 
 #include <cstdint>
+
 #include <filament/Engine.h>
 #include <filament/Texture.h>
 #include <math/vec3.h>
 #include <mujoco/mjrfilament.h>
-#include "render/filament/core/types.h"
+#include "render/filament/private/types.h"
 
 // Functions for creating filament textures.
 namespace mujoco {

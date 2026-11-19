@@ -23,7 +23,7 @@
 #include <utils/Entity.h>
 #include <mujoco/mjrfilament.h>
 #include <mujoco/mujoco.h>
-#include "render/filament/core/types.h"
+#include "render/filament/private/types.h"
 
 namespace mujoco {
 

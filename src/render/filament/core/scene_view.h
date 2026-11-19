@@ -34,7 +34,7 @@
 #include "render/filament/core/reflection_manager.h"
 #include "render/filament/core/renderable.h"
 #include "render/filament/core/texture.h"
-#include "render/filament/core/types.h"
+#include "render/filament/private/types.h"
 
 namespace mujoco {
 

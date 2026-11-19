@@ -25,7 +25,7 @@
 #include <math/vec4.h>
 #include <mujoco/mjrfilament.h>
 #include "render/filament/core/releaser.h"
-#include "render/filament/core/types.h"
+#include "render/filament/private/types.h"
 
 namespace mujoco {
 

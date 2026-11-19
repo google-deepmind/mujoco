@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_RENDER_FILAMENT_CORE_TYPES_H_
-#define MUJOCO_SRC_RENDER_FILAMENT_CORE_TYPES_H_
+#ifndef MUJOCO_SRC_RENDER_FILAMENT_PRIVATE_TYPES_H_
+#define MUJOCO_SRC_RENDER_FILAMENT_PRIVATE_TYPES_H_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -33,4 +33,4 @@ struct mjrfRenderTarget_ {};
 }  // extern "C"
 #endif
 
-#endif  // MUJOCO_SRC_RENDER_FILAMENT_CORE_TYPES_H_
+#endif  // MUJOCO_SRC_RENDER_FILAMENT_PRIVATE_TYPES_H_

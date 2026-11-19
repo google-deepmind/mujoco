@@ -51,7 +51,6 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         core/scene_view.h
         core/texture.cc
         core/texture.h
-        core/types.h
         support/filament_util.h
         support/filament_util.cc
         support/imgui_bridge.h
@@ -69,6 +68,7 @@ target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
         support/model_resources.cc
         support/renderer.h
         support/renderer.cc
+        private/types.h
 )
 
 target_include_directories(${MUJOCO_FILAMENT_TARGET_NAME}
