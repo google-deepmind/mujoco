@@ -142,6 +142,110 @@ INSTANTIATE_TEST_SUITE_P(JointDamping, UsdJointDampingTest,
                          testing::Combine(testing::Bool(), testing::Bool(),
                                           testing::Values(0, 1, 2, 3)));
 
+// Whether mjc:compiler:inertiaGroupRange:min and :max are authored.
+class UsdInertiaGroupRangeTest
+    : public MujocoTest,
+      public testing::WithParamInterface<std::tuple<bool, bool>> {
+ public:
+  static void SetUpTestSuite() {
+#ifdef USD_DECODER_PLUGIN_PATH
+    mj_loadPluginLibrary(USD_DECODER_PLUGIN_PATH);
+#endif
+  }
+
+ protected:
+  void SetUp() override {
+    directory_ = pxr::ArchMakeTmpSubdir(
+        std::filesystem::temp_directory_path().string(), "usd_inertia_range");
+    ASSERT_FALSE(directory_.empty());
+  }
+
+  void TearDown() override {
+    if (!directory_.empty()) {
+      std::filesystem::remove_all(directory_);
+    }
+  }
+
+  std::string directory_;
+};
+
+// Each end of the range is applied on its own; an end that is not authored
+// keeps its schema fallback, which is MuJoCo's default (0 for min, 5 for max).
+TEST_P(UsdInertiaGroupRangeTest, EndsAreAppliedIndependently) {
+  const auto [author_min, author_max] = GetParam();
+  auto stage = pxr::UsdStage::CreateInMemory();
+  // One geom in each of groups 0, 1 and 2, so that the effect of each end of
+  // the range on the body mass can be seen on its own.
+  ASSERT_TRUE(stage->GetRootLayer()->ImportFromString(R"(#usda 1.0
+(
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def PhysicsScene "scene" (
+    prepend apiSchemas = ["MjcSceneAPI"]
+) {
+}
+def Xform "body" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI"]
+) {
+    def Sphere "group0" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "MjcCollisionAPI"]
+    ) {
+        double radius = 0.1
+        int mjc:group = 0
+    }
+    def Cube "group1" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "MjcCollisionAPI"]
+    ) {
+        double size = 0.2
+        int mjc:group = 1
+    }
+    def Sphere "group2" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "MjcCollisionAPI"]
+    ) {
+        double radius = 0.3
+        int mjc:group = 2
+    }
+}
+)"));
+  if (author_min) {
+    ASSERT_TRUE(stage
+                    ->GetAttributeAtPath(pxr::SdfPath(
+                        "/scene.mjc:compiler:inertiaGroupRange:min"))
+                    .Set(1));
+  }
+  if (author_max) {
+    ASSERT_TRUE(stage
+                    ->GetAttributeAtPath(pxr::SdfPath(
+                        "/scene.mjc:compiler:inertiaGroupRange:max"))
+                    .Set(1));
+  }
+  const std::string path = directory_ + "/scene.usda";
+  ASSERT_TRUE(stage->GetRootLayer()->Export(path));
+  char error[1024] = {};
+  std::unique_ptr<mjSpec, decltype(&mj_deleteSpec)> spec(
+      mj_parse(path.c_str(), nullptr, nullptr, error, sizeof(error)),
+      mj_deleteSpec);
+  ASSERT_NE(spec, nullptr) << error;
+  EXPECT_EQ(spec->compiler.inertiagrouprange[0], author_min ? 1 : 0);
+  EXPECT_EQ(spec->compiler.inertiagrouprange[1], author_max ? 1 : 5);
+
+  std::unique_ptr<mjModel, decltype(&mj_deleteModel)> model(
+      mj_compile(spec.get(), nullptr), mj_deleteModel);
+  ASSERT_NE(model, nullptr) << mjs_getError(spec.get());
+  ASSERT_EQ(model->nbody, 2);
+  // default density 1000
+  const double group0 = 1000 * 4.0 / 3.0 * std::numbers::pi * 0.1 * 0.1 * 0.1;
+  const double group1 = 1000 * 0.2 * 0.2 * 0.2;
+  const double group2 = 1000 * 4.0 / 3.0 * std::numbers::pi * 0.3 * 0.3 * 0.3;
+  const double expected =
+      (author_min ? 0 : group0) + group1 + (author_max ? 0 : group2);
+  EXPECT_NEAR(model->body_mass[1], expected, 1e-6);
+}
+
+INSTANTIATE_TEST_SUITE_P(InertiaGroupRange, UsdInertiaGroupRangeTest,
+                         testing::Combine(testing::Bool(), testing::Bool()));
+
 class UsdMassModelTest : public MujocoTest {
  public:
   static void SetUpTestSuite() {
