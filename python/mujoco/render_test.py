@@ -14,6 +14,7 @@
 # ==============================================================================
 """Tests for MuJoCo Python rendering."""
 
+import gc
 import os
 import pathlib
 import struct
@@ -21,6 +22,7 @@ import subprocess
 import sys
 import types
 from unittest import mock
+import weakref
 import zlib
 
 from absl import flags
@@ -555,7 +557,7 @@ class EglDisplayTest(absltest.TestCase):
 class ExternalGLContextLazyImportTest(absltest.TestCase):
   """Tests the external gl_context.py block when deps are missing."""
 
-  def _exec_external_gl_context(self, env, modules):
+  def _exec_external_gl_context(self, env, modules, system=None):
     gl_context_path = (
         pathlib.Path(mujoco.__file__).parent
         / 'rendering'
@@ -571,10 +573,15 @@ class ExternalGLContextLazyImportTest(absltest.TestCase):
       )
     else:
       external_code = '\n'.join(lines)
+    platform_mod = __import__('platform')
+    if system is not None:
+      fake_platform = types.ModuleType('platform')
+      fake_platform.system = lambda: system
+      platform_mod = fake_platform
     ns = {
         'ctypes': __import__('ctypes'),
         'os': os,
-        'platform': __import__('platform'),
+        'platform': platform_mod,
     }
     with mock.patch.dict(sys.modules, modules), mock.patch.dict(
         os.environ, env, clear=True
@@ -582,7 +589,7 @@ class ExternalGLContextLazyImportTest(absltest.TestCase):
       exec(external_code, ns)  # pylint: disable=exec-used
     return ns
 
-  def test_missing_backend_defers_import_error_until_instantiation(self):
+  def _make_missing_glfw_module(self):
     fake_glfw = types.ModuleType('mujoco.glfw')
 
     def _raise_missing_glfw(name):
@@ -591,15 +598,88 @@ class ExternalGLContextLazyImportTest(absltest.TestCase):
       raise AttributeError(name)
 
     fake_glfw.__getattr__ = _raise_missing_glfw
+    return fake_glfw
+
+  def test_missing_backend_defers_import_error_until_instantiation(self):
     ns = self._exec_external_gl_context(
-        {'MUJOCO_GL': 'glfw'}, {'mujoco.glfw': fake_glfw}
+        {'MUJOCO_GL': 'glfw'},
+        {'mujoco.glfw': self._make_missing_glfw_module()},
     )
     self.assertIn('GLContext', ns)
     with self.assertRaisesRegex(
-        ImportError, r"Ensure that 'glfw' and 'pyopengl' are installed"
-    ) as ctx:
+        ImportError,
+        r"No module named 'glfw'\. Ensure that 'glfw' and 'pyopengl' are"
+        r' installed',
+    ):
       ns['GLContext'](64, 64)
-    self.assertIsInstance(ctx.exception.__cause__, ModuleNotFoundError)
+
+  def test_missing_backend_does_not_retain_caller_locals(self):
+    class _Payload:
+      pass
+
+    def import_with_local_payload():
+      payload = _Payload()
+      ns = self._exec_external_gl_context(
+          {'MUJOCO_GL': 'glfw'},
+          {'mujoco.glfw': self._make_missing_glfw_module()},
+      )
+      return weakref.ref(payload), ns
+
+    payload_ref, ns = import_with_local_payload()
+    gc.collect()
+    self.assertIsNone(payload_ref())
+    self.assertIn('GLContext', ns)
+
+  def test_missing_backend_in_except_block_does_not_retain_caller_locals(self):
+    class _Payload:
+      pass
+
+    def import_inside_except():
+      payload = _Payload()
+      try:
+        raise RuntimeError('outer error')
+      except RuntimeError:
+        ns = self._exec_external_gl_context(
+            {'MUJOCO_GL': 'glfw'},
+            {'mujoco.glfw': self._make_missing_glfw_module()},
+        )
+      return weakref.ref(payload), ns
+
+    payload_ref, ns = import_inside_except()
+    gc.collect()
+    self.assertIsNone(payload_ref())
+    self.assertIn('GLContext', ns)
+
+  def test_missing_darwin_cgl_fallback_does_not_retain_caller_locals(self):
+    class _Payload:
+      pass
+
+    fake_cgl = types.ModuleType('mujoco.cgl')
+
+    def _raise_cgl_error(name):
+      if name == 'GLContext':
+        raise OSError('CGL unavailable')
+      raise AttributeError(name)
+
+    fake_cgl.__getattr__ = _raise_cgl_error
+
+    def import_with_cgl_fallback():
+      payload = _Payload()
+      ns = self._exec_external_gl_context(
+          {'MUJOCO_GL': ''},
+          {
+              'mujoco.cgl': fake_cgl,
+              'mujoco.glfw': self._make_missing_glfw_module(),
+          },
+          system='Darwin',
+      )
+      return weakref.ref(payload), ns
+
+    payload_ref, ns = import_with_cgl_fallback()
+    gc.collect()
+    self.assertIsNone(payload_ref())
+    with self.assertRaisesRegex(ImportError, r"No module named 'glfw'"):
+      ns['GLContext'](64, 64)
 
   def test_disabled_mujoco_gl_leaves_gl_context_undefined(self):
     ns = self._exec_external_gl_context({'MUJOCO_GL': 'disable'}, {})

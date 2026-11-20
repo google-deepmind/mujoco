@@ -53,7 +53,7 @@ if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
       from mujoco.glfw import GLContext as _GLContext
     GLContext = _GLContext
   except ImportError as _err:
-    _import_error = _err
+    _import_error = str(_err)
 
     class _MissingGLContext:
       """Placeholder when OpenGL backend dependencies are not installed."""
@@ -63,6 +63,6 @@ if _MUJOCO_GL not in ('disable', 'disabled', 'off', 'false', '0'):
             f'Failed to import OpenGL backend (MUJOCO_GL={_MUJOCO_GL!r}): '
             f"{_import_error}. Ensure that 'glfw' and 'pyopengl' are "
             'installed.'
-        ) from _import_error
+        )
 
     GLContext = _MissingGLContext
