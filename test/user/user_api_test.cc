@@ -2334,6 +2334,18 @@ TEST_F(MujocoTest, TextureDefaults) {
 }
 
 // texture classes of an attached spec are kept, under the attach prefix
+TEST_F(MujocoTest, DefaultClassElementsHaveNoSpecOrDefault) {
+  mjSpec* spec = mj_makeSpec();
+  mjsDefault* def = mjs_addDefault(spec, "c", mjs_getSpecDefault(spec));
+  for (mjsDefault* d : {mjs_getSpecDefault(spec), def}) {
+    EXPECT_EQ(mjs_getSpec(d->actuator->element), nullptr);
+    EXPECT_EQ(mjs_getDefault(d->actuator->element), nullptr);
+    EXPECT_EQ(mjs_getSpec(d->geom->element), nullptr);
+    EXPECT_EQ(mjs_getDefault(d->geom->element), nullptr);
+  }
+  mj_deleteSpec(spec);
+}
+
 TEST_F(MujocoTest, AttachKeepsTextureDefaults) {
   static constexpr char xml_child[] = R"(
   <mujoco>

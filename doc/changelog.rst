@@ -57,6 +57,13 @@ Plugins
   :ref:`mj_loadPluginLibrary` before parsing a model, so that URDF and MJCF files can reference ROS package assets
   unchanged. Contribution by :github:user:`noah-wardlow`.
 
+Bug fixes
+^^^^^^^^^
+- Reading ``classname`` or ``signature`` of an element of a default class in the Python bindings, such as
+  ``spec.default.actuator.classname``, no longer crashes: ``classname`` returns ``None`` and ``signature`` raises
+  ``ValueError``. :ref:`mjs_getSpec` and :ref:`mjs_getDefault` now return ``NULL`` for such elements, which belong to
+  no model. Contribution by :github:user:`mfinean`.
+
 Version 4.0.1 (November 11, 2026)
 ---------------------------------
 
