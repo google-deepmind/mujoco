@@ -170,6 +170,7 @@ SHARED_CSS_VARIABLES = {
 
 # font-stack--monospace used in code blocks, Inconsolata fits in 100 chars.
 html_theme_options = {
+    'top_of_page_buttons': [],
     'light_css_variables': {
         'color-brand-visited': 'var(--color-brand-content)',
         'font-stack--monospace': 'Inconsolata,Consolas,ui-monospace,monospace',
