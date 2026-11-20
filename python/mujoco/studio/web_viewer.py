@@ -447,7 +447,13 @@ class WebViewer(viewer_protocol.Viewer):
     if self._drop_dir is not None:
       shutil.rmtree(self._drop_dir, ignore_errors=True)
       self._drop_dir = None
-    super().close()
+    try:
+      super().close()
+    finally:
+      # On this (the viewer) thread: ImGui's current context is process-wide,
+      # and the HeadlessUi may be garbage-collected on another thread while a
+      # different viewer draws.
+      self._headless_ui.close()
 
   def get_drop_file(self) -> str:
     """Returns the path of a model file dropped onto the browser page, or ''.

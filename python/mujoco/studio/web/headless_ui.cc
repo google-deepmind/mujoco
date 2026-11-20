@@ -131,7 +131,16 @@ class HeadlessUi {
     ImGui::AddContextHook(context_, &hook);
   }
 
-  ~HeadlessUi() {
+  ~HeadlessUi() { Close(); }
+
+  // Destroys the ImGui and ImPlot contexts; later frames and uploads do
+  // nothing. ImGui's current context is a process-wide global, so call this on
+  // the thread that draws the frames: the destructor runs wherever Python
+  // garbage-collects this object, possibly while another viewer thread draws.
+  void Close() {
+    if (context_ == nullptr) {
+      return;
+    }
     ImGui::SetCurrentContext(context_);
     for (auto& [id, tex] : textures_) {
       if (tex) {
@@ -141,6 +150,9 @@ class HeadlessUi {
     textures_.clear();
     ImPlot::DestroyContext(implot_context_);
     ImGui::DestroyContext(context_);
+    implot_context_ = nullptr;
+    context_ = nullptr;
+    is_drawing_ = false;
   }
 
   // Starts a headless ImGui frame and returns true, once a browser controls the
@@ -149,6 +161,9 @@ class HeadlessUi {
   // drain messages (e.g., to respond to an ExitEvent for shutdown).
   bool NewFrame() {
     py::gil_scoped_release no_gil;
+    if (context_ == nullptr) {
+      return false;  // Closed.
+    }
     ImGui::SetCurrentContext(context_);
     if (!session_.HasInput()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -194,10 +209,10 @@ class HeadlessUi {
   // Ends the frame started by NewFrame() and queues it for the browser.
   void EndFrame() {
     py::gil_scoped_release no_gil;
-    ImGui::SetCurrentContext(context_);
     if (!is_drawing_) {
-      return;  // No frame was started.
+      return;  // No frame was started (or the UI is closed).
     }
+    ImGui::SetCurrentContext(context_);
     is_drawing_ = false;
     const ImGuiMouseCursor cursor = ImGui::GetMouseCursor();
     ImGui::Render();
@@ -239,6 +254,9 @@ class HeadlessUi {
     }
 
     py::gil_scoped_release no_gil;
+    if (context_ == nullptr) {
+      return tex_id;  // Closed.
+    }
     ImGui::SetCurrentContext(context_);
 
     std::unique_ptr<ImTextureData>& tex = textures_[tex_id];
@@ -361,6 +379,11 @@ void InitHeadlessUi(py::module_& m) {
            "caller's loop keeps running and can shut down.")
       .def("end_frame", &HeadlessUi::EndFrame,
            "Ends the frame and queues it for the browser (see take_messages).")
+      .def("close", &HeadlessUi::Close,
+           "Destroys the ImGui and ImPlot contexts; later frames and uploads "
+           "do nothing. Call it on the thread that draws the frames: ImGui's "
+           "current context is process-wide, and the destructor runs wherever "
+           "this object is garbage-collected.")
       .def("get_context", &HeadlessUi::GetContext)
       .def("get_implot_context", &HeadlessUi::GetImPlotContext)
       .def("upload_image", &HeadlessUi::UploadImage)
