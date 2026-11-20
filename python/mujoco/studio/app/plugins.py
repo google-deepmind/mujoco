@@ -706,22 +706,9 @@ class App(plugin.ViewerPlugin):
 
       # -- Status bar ---------------------------------------------------------
       if self.config.show_status_bar:
-        imgui.PushStyleVar(imgui.StyleVar.CellPadding, imgui.Vec2(0, 0))
-        imgui.PushStyleVar(imgui.StyleVar.FramePadding, imgui.Vec2(0, 0))
-        imgui.PushStyleVar(imgui.StyleVar.WindowPadding, imgui.Vec2(0, 0))
-        if imgui.Begin('StatusBar'):
-          if imgui.BeginTable('##StatusBarTable', 2):
-            imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthStretch))
-            imgui.TableSetupColumn('', int(imgui.TableColumnFlags.WidthFixed))
-            imgui.TableNextColumn()
-            imgui.TextUnformatted(self.status)
-            imgui.TableNextColumn()
-            self.config.show_console = ux.console_status_gui(
-                self.config.show_console
-            )
-            imgui.EndTable()
-        imgui.End()
-        imgui.PopStyleVar(3)
+        self.config.show_console = ux.status_bar_gui(
+            self.status, self.config.show_console
+        )
 
     # Mirrored for viewers whose client moves the camera (client_camera), after
     # everything above that can switch the camera mode.

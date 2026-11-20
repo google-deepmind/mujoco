@@ -65,6 +65,7 @@
 #include "studio/ux/interaction.h"
 #include "studio/ux/picture_gui.h"
 #include "studio/ux/plugin.h"
+#include "studio/ux/status_bar.h"
 
 namespace mujoco::studio {
 
@@ -1290,14 +1291,7 @@ void App::BuildGui() {
   }
 
   if (tmp_.status_bar) {
-    ScopedStyle style;
-    style.Var(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
-    style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-    style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    if (ImGui::Begin("StatusBar")) {
-      StatusBarGui();
-    }
-    ImGui::End();
+    StatusBarGui();
   }
 
   if (tmp_.options_panel) {
@@ -1554,15 +1548,14 @@ void App::ModelOptionsGui() {
       .update_threadpool = &tmp_.update_threadpool,
       .reset = [this] { ResetPhysics(); },
       .reload = [this] { RequestModelReload(); },
-      .align =
-          [this] {
-            const int cam_id = model()->vis.global.cameraid;
-            if (cam_id >= 0 && cam_id < model()->ncam) {
-              tmp_.camera_idx = SetCamera(model(), &camera_, cam_id);
-            } else {
-              mjv_defaultFreeCamera(model(), &camera_);
-            }
-          },
+      .align = [this] {
+        const int cam_id = model()->vis.global.cameraid;
+        if (cam_id >= 0 && cam_id < model()->ncam) {
+          tmp_.camera_idx = SetCamera(model(), &camera_, cam_id);
+        } else {
+          mjv_defaultFreeCamera(model(), &camera_);
+        }
+      },
       .save_keyframe = [this] { mj_setKeyframe(model(), data(), tmp_.key_idx); },
   };
   SimulationGui(sim_ctx);
@@ -2122,24 +2115,15 @@ void App::ToolBarGui() {
 }
 
 void App::StatusBarGui() {
-  if (ImGui::BeginTable("##StatusBarTable", 2)) {
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableNextColumn();
-
-    if (!has_model()) {
-      ImGui::Text("No model loaded");
-    } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
-      ImGui::Text("Paused");
-    } else {
-      ImGui::Text("Running");
-    }
-
-    ImGui::TableNextColumn();
-    Console::Get().StatusGui(&tmp_.console);
-
-    ImGui::EndTable();
+  const char* status_text = nullptr;
+  if (!has_model()) {
+    status_text = "No model loaded";
+  } else if (step_control_.GetPauseState() == PauseState::kNormalPaused) {
+    status_text = "Paused";
+  } else {
+    status_text = "Running";
   }
+  mujoco::studio::StatusBarGui(status_text, &tmp_.console);
 }
 
 void App::MainMenuGui() {

@@ -23,6 +23,7 @@
 
 #include <imgui.h>
 #include "studio/ux/imgui_widgets.h"
+#include "studio/ux/status_bar.h"
 #include "logging.h"
 #include "web_client_session.h"
 
@@ -83,14 +84,6 @@ void StatusDot(const ImVec4& color) {
       ImVec2(pos.x + kRadius + 2.0f, pos.y + h * 0.5f), kRadius,
       ImGui::GetColorU32(color));
   ImGui::Dummy(ImVec2(kRadius * 2.0f + 4.0f, h));
-}
-
-// The " · " between bar tokens.
-void DotSeparator() {
-  ImGui::SameLine(0.0f, 6.0f);
-  ImGui::AlignTextToFramePadding();
-  ImGui::TextDisabled("\xC2\xB7");
-  ImGui::SameLine(0.0f, 6.0f);
 }
 
 // A button tinted with color (nullptr for the default button colours).
@@ -217,15 +210,15 @@ void RoleWindow::DrawBar(const SessionView& view, SessionActions& actions,
   } else {
     DrawRoleChip(view);
     if (view.role == SessionRole::kSpectating) {
-      DotSeparator();
+      StatusSeparatorGui();
       DrawCameraToken(view, actions);
     } else if (view.role == SessionRole::kControlling) {
-      DotSeparator();
+      StatusSeparatorGui();
       DrawCapacityToken(view, actions);
     }
-    DotSeparator();
+    StatusSeparatorGui();
     DrawDataRate(view);
-    DotSeparator();
+    StatusSeparatorGui();
     DrawFpsCapToken(view, actions);
 
     // The right-aligned cluster of buttons: placed with last frame's width,

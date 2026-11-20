@@ -33,6 +33,7 @@
 #include <mujoco/studio/ux/gui_helpers.h>
 #include <mujoco/studio/ux/interaction.h>
 #include <mujoco/studio/ux/picture_gui.h>
+#include <mujoco/studio/ux/status_bar.h>
 #include "specs_wrapper.h"
 #include "structs.h"
 #include <pybind11/pybind11.h>
@@ -660,15 +661,14 @@ void InitUx(py::module_& m) {
       "Renders the Studio Console table.");
 
   m.def(
-      "console_status_gui",
-      [](bool show_console) {
+      "status_bar_gui",
+      [](const std::string& status_text, bool show_console) {
         py::gil_scoped_release no_gil;
-        mujoco::studio::Console::Get().StatusGui(&show_console);
+        mujoco::studio::StatusBarGui(status_text.c_str(), &show_console);
         return show_console;
       },
-      py::arg("show_console"),
-      "Renders the Studio Console status bar summary. Returns updated "
-      "show_console state.");
+      py::arg("status_text"), py::arg("show_console"),
+      "Renders Studio's status bar. Returns updated show_console state.");
 
   m.attr("FREE_CAMERA_IDX") = mujoco::studio::kFreeCameraIdx;
   m.attr("TUMBLE_CAMERA_IDX") = mujoco::studio::kTumbleCameraIdx;

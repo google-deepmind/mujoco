@@ -357,10 +357,8 @@ void Console::StatusGui(bool* show_console) {
                 "Logs: %" PRId64 " | Warnings: %" PRId64 " | Errors: %" PRId64 "###ConsoleStatus",
                 counts.messages, counts.warnings, counts.errors);
 
+  // The status bar owns the frame padding (see StatusBarGui).
   ScopedStyle style;
-  const float scale = ImGui::GetWindowDpiScale();
-  style.Var(ImGuiStyleVar_FramePadding, ImVec2(8.0f * scale, 2.0f * scale));
-
   if (counts.errors > 0) {
     style.Color(ImGuiCol_Text, ConsoleTextColor(mjLOG_ERROR));
   } else if (counts.warnings > 0) {
