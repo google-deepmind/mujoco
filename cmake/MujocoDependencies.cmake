@@ -88,6 +88,11 @@ include(third_party_deps/lodepng)
 if(NOT TARGET marchingcubecpp)
   find_package(Git REQUIRED)
   _mujoco_ensure_git_retry_script()
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+    set(_MARCHINGCUBE_EXTRA_ARGS SOURCE_SUBDIR _mujoco_header_only)
+  else()
+    set(_MARCHINGCUBE_EXTRA_ARGS)
+  endif()
   FetchContent_Declare(
     marchingcubecpp
     # GIT_REPOSITORY https://github.com/aparis69/MarchingCubeCpp.git
@@ -99,11 +104,16 @@ if(NOT TARGET marchingcubecpp)
       COMMAND ${CMAKE_COMMAND} -P "${_MUJOCO_GIT_RETRY_SCRIPT}" -- ${GIT_EXECUTABLE} -C <SOURCE_DIR> fetch --depth 1 origin ${MUJOCO_DEP_VERSION_MarchingCubeCpp}
       COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> -c advice.detachedHead=false checkout FETCH_HEAD
     UPDATE_DISCONNECTED TRUE
+    ${_MARCHINGCUBE_EXTRA_ARGS}
   )
 
   FetchContent_GetProperties(marchingcubecpp)
   if(NOT marchingcubecpp_POPULATED)
-    FetchContent_Populate(marchingcubecpp)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+      FetchContent_MakeAvailable(marchingcubecpp)
+    else()
+      FetchContent_Populate(marchingcubecpp)
+    endif()
     include_directories(${marchingcubecpp_SOURCE_DIR})
   endif()
 endif()
@@ -241,18 +251,38 @@ else()
   set(_BUILD_TESTS_WAS_DEFINED FALSE)
 endif()
 set(BUILD_TESTS OFF)
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 fetchpackage(
   PACKAGE_NAME  miniz
   GIT_REPO      https://github.com/richgel999/miniz.git
   GIT_TAG       ${MUJOCO_DEP_VERSION_miniz}
   TARGETS       miniz
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 if(_BUILD_TESTS_WAS_DEFINED)
   set(BUILD_TESTS "${_OLD_BUILD_TESTS}")
 else()
   unset(BUILD_TESTS)
 endif()
 unset(_BUILD_TESTS_WAS_DEFINED)
+
+if(TARGET miniz)
+  target_compile_options(miniz PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+  target_link_options(miniz PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+  if(UNIX)
+    target_compile_definitions(miniz PRIVATE _POSIX_C_SOURCE=200112L)
+  endif()
+  if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR (CMAKE_C_COMPILER_ID MATCHES "Clang" AND NOT MSVC))
+    target_compile_options(miniz PRIVATE -Wno-unused-function)
+  endif()
+endif()
 
 
 if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
@@ -269,6 +299,14 @@ if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
     git --git-dir=. -c core.autocrlf=false -c core.whitespace=cr-at-eol apply --verbose --whitespace=fix --ignore-space-change ${mujoco_SOURCE_DIR}/cmake/abseil-cpp-source_location.patch
   )
   set(ABSL_BUILD_TESTING OFF)
+  if(APPLE)
+    set(_ABSL_CMAKE_C_FLAGS_OLD "${CMAKE_C_FLAGS}")
+    set(_ABSL_CMAKE_CXX_FLAGS_OLD "${CMAKE_CXX_FLAGS}")
+    if(DEFINED MUJOCO_MACOSX_VERSION_MIN)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
+    endif()
+  endif()
   findorfetch(
     USE_SYSTEM_PACKAGE
     OFF
@@ -286,6 +324,12 @@ if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
     PATCH_COMMAND
     ${ABSL_PATCH_COMMAND}
   )
+  if(APPLE)
+    set(CMAKE_C_FLAGS "${_ABSL_CMAKE_C_FLAGS_OLD}")
+    set(CMAKE_CXX_FLAGS "${_ABSL_CMAKE_CXX_FLAGS_OLD}")
+    unset(_ABSL_CMAKE_C_FLAGS_OLD)
+    unset(_ABSL_CMAKE_CXX_FLAGS_OLD)
+  endif()
 
   set(BUILD_TESTING
       ${BUILD_TESTING_OLD}
@@ -354,12 +398,17 @@ endif()
 
 if(MUJOCO_TEST_PYTHON_UTIL)
   add_compile_definitions(EIGEN_MPL2_ONLY)
-  if(NOT TARGET eigen)
+  if(NOT TARGET eigen AND NOT TARGET Eigen3::Eigen)
     # Support new IN_LIST if() operator.
     set(CMAKE_POLICY_DEFAULT_CMP0057 NEW)
 
     find_package(Git REQUIRED)
     _mujoco_ensure_git_retry_script()
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+      set(_EIGEN3_EXTRA_ARGS SOURCE_SUBDIR _mujoco_header_only)
+    else()
+      set(_EIGEN3_EXTRA_ARGS)
+    endif()
     FetchContent_Declare(
       Eigen3
       # GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
@@ -371,17 +420,24 @@ if(MUJOCO_TEST_PYTHON_UTIL)
         COMMAND ${CMAKE_COMMAND} -P "${_MUJOCO_GIT_RETRY_SCRIPT}" -- ${GIT_EXECUTABLE} -C <SOURCE_DIR> fetch --depth 1 origin ${MUJOCO_DEP_VERSION_Eigen3}
         COMMAND ${GIT_EXECUTABLE} -C <SOURCE_DIR> -c advice.detachedHead=false checkout FETCH_HEAD
       UPDATE_DISCONNECTED TRUE
+      ${_EIGEN3_EXTRA_ARGS}
     )
 
     FetchContent_GetProperties(Eigen3)
-    if(NOT Eigen3_POPULATED)
-      FetchContent_Populate(Eigen3)
+    if(NOT eigen3_POPULATED)
+      if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+        FetchContent_MakeAvailable(Eigen3)
+      else()
+        FetchContent_Populate(Eigen3)
+      endif()
 
       # Mark the library as IMPORTED as a workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/15415
-      add_library(Eigen3::Eigen INTERFACE IMPORTED)
-      set_target_properties(
-        Eigen3::Eigen PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${eigen3_SOURCE_DIR}"
-      )
+      if(NOT TARGET Eigen3::Eigen)
+        add_library(Eigen3::Eigen INTERFACE IMPORTED)
+        set_target_properties(
+          Eigen3::Eigen PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${eigen3_SOURCE_DIR}"
+        )
+      endif()
     endif()
   endif()
 endif()

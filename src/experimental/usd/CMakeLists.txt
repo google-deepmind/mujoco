@@ -281,10 +281,16 @@ function(install_newton_usd_plugin install_base_dir)
   set(NEWTON_TARBALL_PATH
       "${MUJOCO_CMAKE_DEP_CACHE}/newton-usd-schemas-${NEWTON_USD_SCHEMAS_TAG}.tar.gz"
   )
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+    set(_NEWTON_USD_EXTRA_ARGS SOURCE_SUBDIR _mujoco_codeless_plugin)
+  else()
+    set(_NEWTON_USD_EXTRA_ARGS)
+  endif()
   if(MUJOCO_CMAKE_DEP_CACHE AND EXISTS "${NEWTON_TARBALL_PATH}")
     FetchContent_Declare(
       newton-usd-schemas
       URL "${NEWTON_TARBALL_PATH}"
+      ${_NEWTON_USD_EXTRA_ARGS}
     )
   else()
     FetchContent_Declare(
@@ -293,12 +299,17 @@ function(install_newton_usd_plugin install_base_dir)
       GIT_TAG ${NEWTON_USD_SCHEMAS_TAG}
       GIT_SHALLOW TRUE
       UPDATE_DISCONNECTED TRUE
+      ${_NEWTON_USD_EXTRA_ARGS}
     )
   endif()
 
   FetchContent_GetProperties(newton-usd-schemas)
   if(NOT newton-usd-schemas_POPULATED)
-    FetchContent_Populate(newton-usd-schemas)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+      FetchContent_MakeAvailable(newton-usd-schemas)
+    else()
+      FetchContent_Populate(newton-usd-schemas)
+    endif()
   endif()
 
   set(NEWTON_USD_DIR "${newton-usd-schemas_SOURCE_DIR}/newton_usd_schemas")

@@ -146,6 +146,9 @@ if(SIMULATE_BUILD_EXECUTABLE)
       PRE_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco.ico
               ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    add_custom_command(
+      TARGET simulate
       POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E rm ${CMAKE_CURRENT_SOURCE_DIR}/mujoco.ico
     )

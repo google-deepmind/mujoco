@@ -13,5 +13,6 @@
 # limitations under the License.
 
 add_library(render_noop STATIC render_noop.c)
+target_compile_definitions(render_noop PRIVATE MJ_STATIC)
 target_link_libraries(render_noop PUBLIC mujoco::mujoco)
 add_library(mujoco::render_noop ALIAS render_noop)

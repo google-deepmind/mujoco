@@ -148,6 +148,9 @@ if(NOT COMMAND FindOrFetch)
         find_package(${_ARGS_PACKAGE_NAME} REQUIRED)
         message(CHECK_PASS "found")
       else()
+        message(CHECK_START
+                "mujoco::FindOrFetch: fetching ${_ARGS_LIBRARY_NAME}"
+        )
         set(USE_LOCAL_TARBALL FALSE)
         if(MUJOCO_CMAKE_DEP_CACHE)
           # Try to find versioned library tarball.
@@ -162,6 +165,15 @@ if(NOT COMMAND FindOrFetch)
           set(_WRAPPED_PATCH_COMMAND)
         endif()
 
+        set(_DECLARE_EXTRA_ARGS)
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28" AND ${_ARGS_EXCLUDE_FROM_ALL})
+          if("${_ARGS_CUSTOM_CMAKE}" STREQUAL "")
+            set(_DECLARE_EXTRA_ARGS EXCLUDE_FROM_ALL)
+          else()
+            set(_DECLARE_EXTRA_ARGS SOURCE_SUBDIR _mujoco_custom_cmake)
+          endif()
+        endif()
+
         set(FETCHCONTENT_QUIET OFF)
         if(USE_LOCAL_TARBALL)
           message(STATUS "mujoco::FindOrFetch: Using package cache for ${_ARGS_LIBRARY_NAME}: ${TARBALL_PATH}")
@@ -169,6 +181,7 @@ if(NOT COMMAND FindOrFetch)
             ${_ARGS_LIBRARY_NAME}
             URL ${TARBALL_PATH}
             PATCH_COMMAND ${_WRAPPED_PATCH_COMMAND}
+            ${_DECLARE_EXTRA_ARGS}
           )
         else()
           find_package(Git REQUIRED)
@@ -185,22 +198,43 @@ if(NOT COMMAND FindOrFetch)
               COMMAND ${CMAKE_COMMAND} -P "${_MUJOCO_GIT_RETRY_SCRIPT}" -- ${GIT_EXECUTABLE} -C <SOURCE_DIR> submodule update --init --recursive --depth 1
             PATCH_COMMAND ${_WRAPPED_PATCH_COMMAND}
             UPDATE_DISCONNECTED TRUE
+            ${_DECLARE_EXTRA_ARGS}
           )
         endif()
         if(${_ARGS_EXCLUDE_FROM_ALL})
-          FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
-          if(NOT ${${_ARGS_LIBRARY_NAME}_POPULATED})
-            FetchContent_Populate(${_ARGS_LIBRARY_NAME})
-            if(NOT "${_ARGS_CUSTOM_CMAKE}" STREQUAL "")
-              file(COPY
-                "${_ARGS_CUSTOM_CMAKE}"
-                DESTINATION "${${_ARGS_LIBRARY_NAME}_SOURCE_DIR}"
+          if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
+            if("${_ARGS_CUSTOM_CMAKE}" STREQUAL "")
+              FetchContent_MakeAvailable(${_ARGS_LIBRARY_NAME})
+            else()
+              string(TOLOWER "${_ARGS_LIBRARY_NAME}" _LIB_NAME_LOWER)
+              FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
+              if(NOT ${${_LIB_NAME_LOWER}_POPULATED})
+                FetchContent_MakeAvailable(${_ARGS_LIBRARY_NAME})
+                file(COPY
+                  "${_ARGS_CUSTOM_CMAKE}"
+                  DESTINATION "${${_LIB_NAME_LOWER}_SOURCE_DIR}"
+                )
+                add_subdirectory(
+                  ${${_LIB_NAME_LOWER}_SOURCE_DIR} ${${_LIB_NAME_LOWER}_BINARY_DIR}
+                  EXCLUDE_FROM_ALL
+                )
+              endif()
+            endif()
+          else()
+            FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
+            if(NOT ${${_ARGS_LIBRARY_NAME}_POPULATED})
+              FetchContent_Populate(${_ARGS_LIBRARY_NAME})
+              if(NOT "${_ARGS_CUSTOM_CMAKE}" STREQUAL "")
+                file(COPY
+                  "${_ARGS_CUSTOM_CMAKE}"
+                  DESTINATION "${${_ARGS_LIBRARY_NAME}_SOURCE_DIR}"
+                )
+              endif()
+              add_subdirectory(
+                ${${_ARGS_LIBRARY_NAME}_SOURCE_DIR} ${${_ARGS_LIBRARY_NAME}_BINARY_DIR}
+                EXCLUDE_FROM_ALL
               )
             endif()
-            add_subdirectory(
-              ${${_ARGS_LIBRARY_NAME}_SOURCE_DIR} ${${_ARGS_LIBRARY_NAME}_BINARY_DIR}
-              EXCLUDE_FROM_ALL
-            )
           endif()
         else()
           FetchContent_MakeAvailable(${_ARGS_LIBRARY_NAME})
