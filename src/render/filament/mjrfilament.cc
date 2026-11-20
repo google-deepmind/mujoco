@@ -330,6 +330,7 @@ void mjrf_defaultAmbientOcclusionOpts(mjrfAmbientOcclusionOpts* opts) {
   opts->low_pass_filter = mjQUALITY_MEDIUM;
   opts->upsampling = mjQUALITY_LOW;
   opts->bent_normals = false;
+  opts->bilateral_threshold = 0.05f;
 }
 
 void mjrf_defaultRenderOpts(mjrfRenderOpts* opts) {
@@ -653,6 +654,7 @@ void mjrf_modelRenderOpts(mjrfRenderOpts* opts, const mjModel* model) {
   read(opts->ambient_occlusion.upsampling, "filament.ao.upsampling", mjrQuality{});
   read(opts->ambient_occlusion.radius, "filament.ao.radius");
   read(opts->ambient_occlusion.bent_normals, "filament.ao.bent_normals");
+  read(opts->ambient_occlusion.bilateral_threshold, "filament.ao.bilateral_threshold");
 
   // mjrfAntialiasingOpts
   read(opts->antialiasing.fxaa_enable, "filament.aa.fxaa");
