@@ -78,6 +78,8 @@ jobs:
     - name: Prepare Windows (setup MSVC)
       if: ${{ runner.os == 'Windows' }}
       shell: pwsh
+      env:
+        USE_CLANG: ${{ contains(matrix.label, 'clang') }}
       run: |
         $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         $vsPath = & $vswhere -products * -latest -prerelease -property installationPath
@@ -86,15 +88,30 @@ jobs:
         Get-ChildItem Env: | ForEach-Object { $before[$_.Name] = $_.Value }
         $lines = cmd.exe /c "`"$vcvars`" x64 >nul && set"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # vcvarsall.bat appends VS's bundled LLVM behind standalone C:\Program Files\LLVM,
+        # which can lag behind the MSVC STL and fail STL1000 compiler version checks.
+        $llvmBin = Join-Path $vsPath "VC\Tools\Llvm\x64\bin"
         foreach ($line in $lines) {
           $idx = $line.IndexOf("=")
           if ($idx -gt 0) {
             $name = $line.Substring(0, $idx)
             $val = $line.Substring($idx + 1)
             if ($before[$name] -ne $val) {
+              if ($env:USE_CLANG -eq "true" -and $name -ieq "Path") {
+                if (Test-Path $llvmBin) {
+                  $entries = $val -split ";" | Where-Object { $_.TrimEnd("\") -ine $llvmBin }
+                  $val = (@($llvmBin) + $entries) -join ";"
+                }
+                $env:Path = $val
+              }
               "$name=$val" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
+        }
+        if ($env:USE_CLANG -eq "true") {
+          Write-Host "Using clang-cl: $((Get-Command clang-cl).Source)"
+          & clang-cl --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
 
     - name: Prepare Linux
