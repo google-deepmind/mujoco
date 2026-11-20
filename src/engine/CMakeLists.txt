@@ -76,6 +76,7 @@ set(MUJOCO_ENGINE_SRCS
     engine_sensor.h
     engine_setconst.c
     engine_setconst.h
+    engine_simd.h
     engine_sleep.c
     engine_sleep.h
     engine_solver.c

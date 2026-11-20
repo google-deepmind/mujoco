@@ -38,12 +38,6 @@
   #include <sanitizer/msan_interface.h>
 #endif
 
-#ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && !defined(mjUSESINGLE)
-    #define mjUSEAVX
-  #endif  // defined(__AVX__) && !defined(mjUSESINGLE)
-#endif  // mjUSEPLATFORMSIMD
-
 
 //-------------------------- utility functions -----------------------------------------------------
 

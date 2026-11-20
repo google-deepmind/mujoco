@@ -82,6 +82,8 @@ mujoco_test(engine_sensor_test)
 
 mujoco_test(engine_setconst_test)
 
+mujoco_test(engine_simd_test)
+
 mujoco_test(engine_sleep_test)
 
 mujoco_test(engine_solver_test)

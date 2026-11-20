@@ -15,12 +15,9 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_BLAS_AVX_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_BLAS_AVX_H_
 
-#ifdef mjUSEPLATFORMSIMD
-#if defined(__AVX__) && !defined(mjUSESINGLE)
+#include "engine/engine_simd.h"
 
-#ifndef mjUSEAVX
-#define mjUSEAVX
-#endif
+#ifdef mjUSEAVX
 
 #include <immintrin.h>
 #include <math.h>
@@ -278,7 +275,6 @@ mjtNum mju_normalize4_avx(mjtNum vec[4]) {
   return norm;
 }
 
-#endif  // defined(__AVX__) && !defined(mjUSESINGLE)
-#endif  // mjUSEPLATFORMSIMD
+#endif  // mjUSEAVX
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_UTIL_BLAS_AVX_H_

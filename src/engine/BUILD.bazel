@@ -78,7 +78,6 @@ cc_library(
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
-        "mjUSEPLATFORMSIMD",
     ],
     visibility = [":_api_visibility"],
     deps = [
@@ -127,7 +126,6 @@ cc_library(
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
-        "mjUSEPLATFORMSIMD",
     ],
     deps = [
         ":engine_core_util",
@@ -163,7 +161,6 @@ cc_library(
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
-        "mjUSEPLATFORMSIMD",
     ],
     deps = [
         ":engine_core",
@@ -741,7 +738,6 @@ cc_library(
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
-        "mjUSEPLATFORMSIMD",
     ],
     deps = [
         ":engine_core_util",
@@ -1093,6 +1089,34 @@ cc_library(
 )
 
 cc_library(
+    name = "engine_simd",
+    hdrs = ["engine_simd.h"],
+    conlyopts = ["-std=c11"],
+    copts = [
+        "-I" + MJ_ROOT + "/src",
+        "-Wshadow",
+        "-ffp-contract=off",
+        "-fvisibility=hidden",
+    ],
+    cxxopts = [
+        "-fvisibility-inlines-hidden",
+        "-std=c++20",
+    ],
+    # Header-only: `defines` (not `local_defines`) propagates to dependents.
+    defines = [
+        "mjUSEPLATFORMSIMD",
+    ],
+    linkstatic = True,
+    local_defines = [
+        "MUJOCO_DLL_EXPORTS",
+        "_GNU_SOURCE",
+    ],
+    deps = [
+        "//:mjtype_hdrs",
+    ],
+)
+
+cc_library(
     name = "engine_sleep",
     srcs = ["engine_sleep.c"],
     hdrs = ["engine_sleep.h"],
@@ -1164,9 +1188,9 @@ cc_library(
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
-        "mjUSEPLATFORMSIMD",
     ],
     deps = [
+        ":engine_simd",
         "//:mjtype_hdrs",
     ],
 )
@@ -1252,11 +1276,11 @@ cc_library(
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
-        "mjUSEPLATFORMSIMD",
     ],
     deps = [
         ":engine_crossplatform",
         ":engine_memory",
+        ":engine_simd",
         ":engine_util_blas",
         ":engine_util_misc",
         "//:libmujoco_hdrs",
@@ -1338,16 +1362,13 @@ cc_library(
         "-fvisibility-inlines-hidden",
         "-std=c++20",
     ],
-    # Header-only: `defines` (not `local_defines`) propagates to dependents.
-    defines = [
-        "mjUSEPLATFORMSIMD",
-    ],
     linkstatic = True,
     local_defines = [
         "MUJOCO_DLL_EXPORTS",
         "_GNU_SOURCE",
     ],
     deps = [
+        ":engine_simd",
         ":engine_util_blas",
         "//:mjtype_hdrs",
     ],

@@ -34,13 +34,6 @@
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_spatial.h"
 
-#ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && !defined(mjUSESINGLE)
-    #define mjUSEAVX
-    #include "immintrin.h"
-  #endif
-#endif
-
 //-------------------------- Constants -------------------------------------------------------------
 
  #define mjVERSION 4000002

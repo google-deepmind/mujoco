@@ -15,12 +15,9 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPATIAL_AVX_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPATIAL_AVX_H_
 
-#ifdef mjUSEPLATFORMSIMD
-#if defined(__AVX__) && !defined(mjUSESINGLE)
+#include "engine/engine_simd.h"
 
-#ifndef mjUSEAVX
-#define mjUSEAVX
-#endif
+#ifdef mjUSEAVX
 
 #include <immintrin.h>
 
@@ -129,7 +126,6 @@ void mju_quat2Mat_avx(mjtNum res[9], const mjtNum quat[4]) {
   _mm_store_sd(res + 8, diag8);
 }
 
-#endif  // defined(__AVX__) && !defined(mjUSESINGLE)
-#endif  // mjUSEPLATFORMSIMD
+#endif  // mjUSEAVX
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPATIAL_AVX_H_
