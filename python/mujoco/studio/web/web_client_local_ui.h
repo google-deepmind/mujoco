@@ -63,8 +63,8 @@ class DisconnectNotice {
 // tooltips. Role transitions raise a short toast at the top of the canvas.
 // The cluster ends with a theme picker for the local UI's theme; the bar
 // only shows and changes it, the app applies and stores it. Owns its
-// presentation state: the transition detector, the toast timer, the
-// measured cluster width, and the spectator-limit edit grace.
+// presentation state: the transition detector, the toast timer, and the
+// spectator-limit edit grace.
 class RoleWindow {
  public:
   void Draw(const SessionView& view, SessionActions& actions, GuiTheme* theme);
@@ -98,16 +98,18 @@ class RoleWindow {
   void DrawFpsCapToken(const SessionView& view, SessionActions& actions);
   void DrawToast(const SessionView& view, double now);
 
+  // Bar sizes in logical pixels at this frame's DPI and font scale.
+  float Px(float pixels) const { return pixels * scale_; }
+
   // The theme being drawn this frame.
   GuiTheme theme_ = GuiTheme::kDark;
+  // This frame's DPI times font scale (see Px).
+  float scale_ = 1.0f;
   // Role changes and the toast each one deserves; a button click registers
   // the wording it expects (see RoleTransitions).
   RoleTransitions transitions_;
   const char* toast_text_ = nullptr;
   double toast_at_ = -1e9;
-  // The right-aligned cluster is measured as it draws; last frame's width
-  // places it this frame (the usual ImGui right-alignment trick).
-  float cluster_width_ = 0.0f;
   int max_spectators_edit_ = -1;
   double max_spectators_edit_time_ = -1e9;
 };
