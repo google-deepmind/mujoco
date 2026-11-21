@@ -415,6 +415,9 @@ def _put_model_jax(
           f'{[mj_type(m) for m in missing]} not supported'
       )
 
+  if m.opt.noslip_iterations > 0:
+    raise NotImplementedError('Noslip not implemented for JAX backend.')
+
   mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
