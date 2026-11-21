@@ -58,3 +58,6 @@ mujoco_test(user_vfs_test)
 
 mujoco_test(user_util_test)
 target_sources(user_util_test PRIVATE ${mujoco_SOURCE_DIR}/src/user/user_util.cc)
+
+mujoco_test(user_util_errno_test)
+target_sources(user_util_errno_test PRIVATE ${mujoco_SOURCE_DIR}/src/user/user_util.cc)
