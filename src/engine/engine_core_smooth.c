@@ -1433,8 +1433,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
           // length: dot product with gear
           length[out] += mju_dot3(vec, gear);
 
-          // jacref: global Jacobian of reference site
-          mj_jacSite(m, d, jacref, NULL, refid);
+          // jacref: global Jacobian of reference body at site position
+          mj_jac(m, d, jacref, NULL, d->site_xpos+3*id, m->site_bodyid[refid]);
 
           // subtract jacref from jac
           mju_subFrom(jac, jacref, 3*nv);

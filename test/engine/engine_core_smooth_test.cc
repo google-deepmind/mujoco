@@ -913,6 +913,92 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   mj_deleteModel(model);
 }
 
+// two free bodies, translational site transmissions w.r.t a refsite on the
+// other body, so the reference frame moves with dofs that the site does not
+static constexpr char kRefsiteOtherTreeXml[] = R"(
+<mujoco>
+  <option integrator="RK4">
+    <flag gravity="disable" contact="disable"/>
+  </option>
+  <worldbody>
+    <body>
+      <freejoint/>
+      <geom type="box" size=".1 .2 .3"/>
+      <site name="reference" pos=".1 .2 0" euler="10 20 30"/>
+    </body>
+    <body pos="1 0 0">
+      <freejoint/>
+      <geom size=".1"/>
+      <site name="end_effector"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor site="end_effector" refsite="reference" gear="1 0 0 0 0 0"/>
+    <motor site="end_effector" refsite="reference" gear="0 1 0 0 0 0"/>
+    <motor site="end_effector" refsite="reference" gear="0 0 1 0 0 0"/>
+  </actuator>
+</mujoco>
+)";
+
+// Test that actuator velocity is the time derivative of actuator length
+TEST_F(CoreSmoothTest, RefsiteVelocityMatchesLengthDerivative) {
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(kRefsiteOtherTreeXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjModel* m = model.get();
+  MjDataPtr data = MakeData(model);
+  mjData* d = data.get();
+
+  for (int i = 0; i < m->nv; i++) {
+    d->qvel[i] = 0.1 * (i + 1) * (i % 2 ? -1 : 1);
+  }
+  mj_forward(m, d);
+  vector<mjtNum> velocity = AsVector(d->actuator_velocity, m->nu);
+
+  // central finite difference of actuator_length along qvel
+  mjtNum h = MjEps(1e-6, 1e-3);
+  vector<mjtNum> qpos = AsVector(d->qpos, m->nq);
+  mj_integratePos(m, d->qpos, d->qvel, h);
+  mj_forward(m, d);
+  vector<mjtNum> length_plus = AsVector(d->actuator_length, m->nu);
+  mju_copy(d->qpos, qpos.data(), m->nq);
+  mj_integratePos(m, d->qpos, d->qvel, -h);
+  mj_forward(m, d);
+  for (int i = 0; i < m->nu; i++) {
+    mjtNum fd = (length_plus[i] - d->actuator_length[i]) / (2 * h);
+    EXPECT_NEAR(velocity[i], fd, MjTol(2e-9, 5e-4)) << "actuator " << i;
+  }
+}
+
+// Test that the actuator forces are internal: total momentum is conserved
+TEST_F(CoreSmoothTest, RefsiteOtherTreeConservesMomentum) {
+  char error[1024];
+  MjModelPtr model =
+      LoadModelFromString(kRefsiteOtherTreeXml, error, sizeof(error));
+  ASSERT_THAT(model.get(), NotNull()) << error;
+  mjModel* m = model.get();
+  MjDataPtr data = MakeData(model);
+  mjData* d = data.get();
+
+  d->ctrl[0] = 1;
+  d->ctrl[1] = -0.5;
+  d->ctrl[2] = 0.3;
+  while (d->time < 0.5) {
+    mjtNum time = d->time;
+    mj_step(m, d);
+    ASSERT_GT(d->time, time) << "Divergence detected";
+  }
+
+  // linear and angular momentum of the whole system remain zero
+  mj_subtreeVel(m, d);
+  EXPECT_THAT(AsVector(d->subtree_linvel, 3), Each(MjNear(0.0, 1e-12, 2e-7)));
+  EXPECT_THAT(AsVector(d->subtree_angmom, 3), Each(MjNear(0.0, 1e-12, 2e-7)));
+
+  // the bodies did move
+  EXPECT_GT(mju_norm(d->qvel, m->nv), 0.1);
+}
+
 // Test smooth tracking of a rotational target ramped through the pi boundary.
 // Rotational transmission lengths live in (-pi, pi]; a servo whose error is
 // computed in the chart rather than on the circle loses the target once it

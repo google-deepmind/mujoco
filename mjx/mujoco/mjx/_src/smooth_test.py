@@ -284,6 +284,7 @@ class SmoothTest(absltest.TestCase):
           <body pos="1 0 0">
             <joint name="slide" type="hinge"/>
             <geom type="box" size=".05 .05 .05" mass="1"/>
+            <site name="site3" pos="0.1 0 0.2"/>
           </body>
         </worldbody>
         <actuator>
@@ -292,6 +293,7 @@ class SmoothTest(absltest.TestCase):
           <position site="site2" kv="0.3" gear="0 3 0 0 0 1"/>
           <position joint="slide" kv="0.05" />
           <position site="site2" refsite="site1" gear="1 2 3 0.5 0.4 0.6"/>
+          <position site="site2" refsite="site3" gear="1 2 3 0.5 0.4 0.6"/>
         </actuator>
         </mujoco>
       """)

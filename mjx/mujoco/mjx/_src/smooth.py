@@ -1298,7 +1298,8 @@ def transmission(m: Model, d: Data) -> Data:
         vecp = site_xmat[1].T @ (site_xpos[0] - site_xpos[1])
         vecr = math.quat_sub(site_quat[0], site_quat[1])
         length += jp.dot(jp.concatenate([vecp, vecr]), gear)
-        jacrefp, jacrefr = support.jac(m, d, site_xpos[1], refid)
+        # reference body Jacobian at the site, includes reference rotation
+        jacrefp, jacrefr = support.jac(m, d, site_xpos[0], refid)
         jacp, jacr = jacp - jacrefp, jacr - jacrefr
         frame_xmat = site_xmat[1]
 
