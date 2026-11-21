@@ -282,6 +282,7 @@ SceneView::~SceneView() {
   }
   lights_.clear();
   renderables_.clear();
+  renderable_positions_.clear();
   headlight_.reset();
   haze_.reset();
   engine->destroyCameraComponent(reflect_camera_->getEntity());
@@ -308,14 +309,19 @@ void SceneView::RemoveFromScene(Light* light) {
 }
 
 void SceneView::AddToScene(Renderable* renderable) {
-  if (renderables_.insert(renderable).second) {
+  auto [it, inserted] = renderable_positions_.try_emplace(renderable);
+  if (inserted) {
+    it->second = renderables_.insert(renderables_.end(), renderable);
     renderable->AddToScene(
         scene_, [this](Renderable* renderable) { RemoveFromScene(renderable); });
   }
 }
 
 void SceneView::RemoveFromScene(Renderable* renderable) {
-  if (renderables_.erase(renderable)) {
+  auto it = renderable_positions_.find(renderable);
+  if (it != renderable_positions_.end()) {
+    renderables_.erase(it->second);
+    renderable_positions_.erase(it);
     renderable->RemoveFromScene(scene_);
   }
 }
