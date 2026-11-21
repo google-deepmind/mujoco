@@ -16,38 +16,30 @@
 
 #include <tuple>
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 namespace mujoco::util {
 namespace {
 
-TEST(TupleToolsTest, Slice) {
-  auto tuple = std::make_tuple(2, 3, 5, 7, 11, 13);
-  EXPECT_EQ((tuple_slice<1, 5>(tuple)), std::make_tuple(3, 5, 7, 11));
-  EXPECT_EQ((tuple_slice<2, 3>(tuple)), std::make_tuple(5));
+TEST(TupleToolsTest, StringIsInTuple) {
+  constexpr auto names = std::make_tuple("res", "n", "vec");
+  static_assert(string_is_in_tuple("n", names));
+  static_assert(string_is_in_tuple("vec", names));
+  static_assert(!string_is_in_tuple("ve", names));
+  static_assert(!string_is_in_tuple("n", std::make_tuple()));
+  EXPECT_TRUE(string_is_in_tuple("res", names));
+  EXPECT_FALSE(string_is_in_tuple("mat", names));
+}
 
-  // negative indices
-  EXPECT_EQ((tuple_slice<1, -2>(tuple)), std::make_tuple(3, 5, 7));
-  EXPECT_EQ((tuple_slice<-4, 6>(tuple)), std::make_tuple(5, 7, 11, 13));
-  EXPECT_EQ((tuple_slice<-3, -1>(tuple)), std::make_tuple(7, 11));
-
-  // empty slices
-  EXPECT_EQ((tuple_slice<0, 0>(tuple)), std::make_tuple());
-  EXPECT_EQ((tuple_slice<3, 3>(tuple)), std::make_tuple());
-  EXPECT_EQ((tuple_slice<-2, -2>(tuple)), std::make_tuple());
-
-  // specify void as the End argument
-  EXPECT_EQ((tuple_slice<2, void>(tuple)), std::make_tuple(5, 7, 11, 13));
-  EXPECT_EQ((tuple_slice<-2, void>(tuple)), std::make_tuple(11, 13));
-
-  // omit the End argument
-  EXPECT_EQ((tuple_slice<2>(tuple)), std::make_tuple(5, 7, 11, 13));
-  EXPECT_EQ((tuple_slice<-2>(tuple)), std::make_tuple(11, 13));
-
-  // empty input tuples
-  EXPECT_EQ((tuple_slice<0>(std::make_tuple())), std::make_tuple());
-  EXPECT_EQ((tuple_slice<0, 0>(std::make_tuple())), std::make_tuple());
+TEST(TupleToolsTest, IsSubsetStrings) {
+  constexpr auto names = std::make_tuple("res", "n", "vec");
+  static_assert(is_subset_strings(std::make_tuple(), names));
+  static_assert(is_subset_strings(std::make_tuple("n"), names));
+  static_assert(is_subset_strings(std::make_tuple("vec", "res"), names));
+  static_assert(!is_subset_strings(std::make_tuple("n", "mat"), names));
+  static_assert(!is_subset_strings(std::make_tuple("n"), std::make_tuple()));
+  EXPECT_TRUE(is_subset_strings(names, names));
+  EXPECT_FALSE(is_subset_strings(std::make_tuple("mat"), names));
 }
 
 }  // namespace

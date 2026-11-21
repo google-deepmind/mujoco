@@ -172,7 +172,6 @@ mujoco_pybind_extension(
         ":enum_traits",
         "//:mujoco",  # buildcleaner: keep
         "//python/mujoco/util:crossplatform",
-        "//python/mujoco/util:tuple_tools",
     ],
 )
 

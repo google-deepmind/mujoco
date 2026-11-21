@@ -506,7 +506,6 @@ if(MUJOCO_PYTHON_BUILD_CORE)
     PRIVATE crossplatform
             enum_traits
             mujoco
-            tuple_tools
   )
 
   mujoco_pybind11_module(_errors errors.cc)

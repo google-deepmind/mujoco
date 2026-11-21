@@ -15,13 +15,12 @@
 #include <cmath>
 #include <cstdint>
 #include <sstream>
-#include <type_traits>
+#include <tuple>
 
 #include <Python.h>
 
 #include "util/crossplatform.h"
 #include "enum_traits.h"
-#include "util/tuple_tools.h"
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 
@@ -134,14 +133,9 @@ void DefEnum(py::module_& m) {
   e.def(py::self >> std::int64_t());
 }
 
-template <typename Tuple>
-void DefAllEnums(py::module_& m, Tuple&& tuple) {
-  using TupleNoRef = std::remove_reference_t<Tuple>;
-  if constexpr (std::tuple_size_v<TupleNoRef> != 0) {
-    using Trait = std::remove_reference_t<std::tuple_element_t<0, TupleNoRef>>;
-    DefEnum<Trait>(m);
-    DefAllEnums(m, util::tuple_slice<1, void>(tuple));
-  }
+template <typename... Trait>
+void DefAllEnums(py::module_& m, const std::tuple<Trait...>&) {
+  (DefEnum<Trait>(m), ...);
 }
 
 PYBIND11_MODULE(_enums, pymodule, pybind11::mod_gil_not_used()) {

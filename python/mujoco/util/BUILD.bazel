@@ -86,9 +86,6 @@ cc_library(
     hdrs = ["tuple_tools.h"],
     conlyopts = ["-std=c11"],
     cxxopts = ["-std=c++20"],
-    deps = [
-        ":crossplatform",
-    ],
 )
 
 cc_test(

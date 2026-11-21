@@ -43,7 +43,6 @@ add_library(tuple_tools INTERFACE)
 target_sources(tuple_tools INTERFACE tuple_tools.h)
 set_target_properties(tuple_tools PROPERTIES PUBLIC_HEADER tuple_tools.h)
 target_include_directories(tuple_tools INTERFACE ${mujoco_SOURCE_DIR}/mujoco)
-target_link_libraries(tuple_tools INTERFACE crossplatform)
 
 add_library(func_wrap INTERFACE)
 target_sources(func_wrap INTERFACE func_wrap.h)
