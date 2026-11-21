@@ -268,7 +268,11 @@ static const mjtNum* get_xquat(const mjModel* m, const mjData* d, mjtObj type, i
   case mjOBJ_SITE:
     return d->site_xquat + 4*id;
   case mjOBJ_CAMERA:
-    mji_mulQuat(cam_quat, d->xquat+4*m->cam_bodyid[id], m->cam_quat+4*id);
+    if (m->cam_mode[id] == mjCAMLIGHT_FIXED) {
+      mji_mulQuat(cam_quat, d->xquat+4*m->cam_bodyid[id], m->cam_quat+4*id);
+    } else {
+      mju_mat2Quat(cam_quat, d->cam_xmat+9*id);
+    }
     return cam_quat;
   default:
     mjERROR("invalid object type in sensor %d", sensor_id);
