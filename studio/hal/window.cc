@@ -131,7 +131,7 @@ Window::Window(std::string_view title, int width, int height, Config config)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 #endif
   } else {
-    mju_error("Unsupported window config: %d", config_.gfx_mode);
+    mju_error("Unsupported window config: %d", static_cast<int>(config_.gfx_mode));
   }
 
   const float content_scale = std::max(1.0f, ImGui_ImplSDL2_GetContentScaleForDisplay(0));

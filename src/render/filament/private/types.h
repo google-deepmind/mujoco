@@ -15,12 +15,11 @@
 #ifndef MUJOCO_SRC_RENDER_FILAMENT_PRIVATE_TYPES_H_
 #define MUJOCO_SRC_RENDER_FILAMENT_PRIVATE_TYPES_H_
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 // These types are only forward declared in the API. We define them concretely
-// here to allow us to use them in the core classes.
+// here to allow us to use them in the core classes. Omit extern "C" here: empty
+// structs are 1 byte in C++ and 0 bytes in C (-Wextern-c-compat), while these
+// definitions are only compiled in C++ and match the struct tags in
+// mjrfilament.h.
 struct mjrfContext_ {};
 struct mjrfTexture_ {};
 struct mjrfMesh_ {};
@@ -28,9 +27,5 @@ struct mjrfScene_ {};
 struct mjrfLight_ {};
 struct mjrfRenderable_ {};
 struct mjrfRenderTarget_ {};
-
-#if defined(__cplusplus)
-}  // extern "C"
-#endif
 
 #endif  // MUJOCO_SRC_RENDER_FILAMENT_PRIVATE_TYPES_H_

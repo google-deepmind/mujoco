@@ -16,6 +16,7 @@
 #define MUJOCO_STUDIO_UX_IMGUI_WIDGETS_H_
 
 #include <cctype>
+#include <cinttypes>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -420,7 +421,7 @@ class ImGui_SpecElementTable : public ImGui_DataPtrTable {
       }
     } else if constexpr (std::is_same_v<T, int64_t>) {
       if (read_only_) {
-        ImGui::Text("%lld", val);
+        ImGui::Text("%" PRId64, val);
       } else {
         if (ImGui::InputScalarN("##", ImGuiDataType_S64, &val, 1)) {
           modified_ = true;

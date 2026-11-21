@@ -336,7 +336,7 @@ static int GetNumVertices(const mjModel* model, int id, MeshType mesh_type) {
 static void UpdateMeshData(mjrfMeshConfig* config, mjrfMeshData* data,
                            const mjModel* model, int id, MeshType mesh_type) {
   if (!IsValidIndex(model, id, mesh_type)) {
-    mju_error("Invalid index %d for type %d", id, mesh_type);
+    mju_error("Invalid index %d for type %d", id, static_cast<int>(mesh_type));
     return;
   }
 
