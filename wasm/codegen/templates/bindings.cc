@@ -283,8 +283,9 @@ MjSpec::MjSpec()
   mjs_defaultSpec(ptr_);
 };
 
-MjSpec::MjSpec(mjSpec *ptr)
+MjSpec::MjSpec(mjSpec *ptr, bool owned)
     : ptr_(ptr),
+      owned_(owned),
       element(ptr_->element),
       compiler(&ptr_->compiler),
       option(&ptr_->option),
@@ -404,7 +405,7 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   if (!ptr) {
     mju_error("Could not create Spec from XML string: %s\n", error);
   }
-  return std::unique_ptr<MjSpec>(new MjSpec(ptr));
+  return std::unique_ptr<MjSpec>(new MjSpec(ptr, true));
 }
 
 std::unique_ptr<MjSpec> parseXMLString_wrapper_2(const std::string &xml, const MjVFS& vfs) {
@@ -413,7 +414,7 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper_2(const std::string &xml, const M
   if (!ptr) {
     mju_error("Could not create Spec from XML string: %s\n", error);
   }
-  return std::unique_ptr<MjSpec>(new MjSpec(ptr));
+  return std::unique_ptr<MjSpec>(new MjSpec(ptr, true));
 }
 
 std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
