@@ -279,6 +279,39 @@ class SensorTest(parameterized.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(m)
 
+  def test_frame_acc_cutoff(self):
+    """Tests frame acceleration sensors apply their cutoff like MuJoCo."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body name="body0" pos="0 0 1">
+            <joint type="hinge" axis="0 1 0" limited="true" range="-1 1"/>
+            <geom size="0.1" pos="0.1 0 0"/>
+            <site name="site0" pos="0.2 0 0"/>
+          </body>
+        </worldbody>
+        <sensor>
+          <framelinacc objtype="site" objname="site0" cutoff="0.5"/>
+          <framelinacc objtype="body" objname="body0" cutoff="2"/>
+          <framelinacc objtype="site" objname="site0"/>
+          <frameangacc objtype="site" objname="site0" cutoff="1"/>
+          <frameangacc objtype="body" objname="body0"/>
+        </sensor>
+      </mujoco>
+    """)
+    d = mujoco.MjData(m)
+    d.qvel = 3.0
+    mx, dx = mjx.put_model(m), mjx.put_data(m, d)
+    mujoco.mj_forward(m, d)
+
+    # the cutoffs clip some, but not all, of the sensor values
+    unclipped = d.sensordata[6:9]
+    self.assertGreater(np.abs(unclipped).max(), 2.0)
+    self.assertEqual(np.abs(d.sensordata[:3]).max(), 0.5)
+
+    dx = jax.jit(mjx.forward)(mx, dx)
+    _assert_eq(dx.sensordata, d.sensordata, 'sensordata')
+
 
 if __name__ == '__main__':
   absltest.main()

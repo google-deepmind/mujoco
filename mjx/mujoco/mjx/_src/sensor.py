@@ -829,6 +829,8 @@ def sensor_acc(m: Model, d: Data) -> Data:
           raise ValueError(f'Unknown sensor type: {sensor_type}')
 
         adrt = adr[idxt, None] + np.arange(3)[None]
+        cutofft = cutoff[idxt]
+        sensor = _apply_cutoff(sensor.reshape(-1, 3), cutofft, data_type[0])
 
         sensors.append(sensor.reshape(-1))
         adrs.append(adrt.reshape(-1))
