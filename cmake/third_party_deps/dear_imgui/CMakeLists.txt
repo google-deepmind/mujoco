@@ -28,6 +28,8 @@ target_sources(dear_imgui
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_widgets.cpp
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/imgui_demo.cpp
 )
+target_compile_options(dear_imgui PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(dear_imgui PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 function(mujoco_add_dear_imgui_sdl2_backend)
   if(TARGET dear_imgui_SDL2 OR NOT TARGET SDL2::SDL2-static)
@@ -46,6 +48,8 @@ function(mujoco_add_dear_imgui_sdl2_backend)
   target_link_libraries(dear_imgui_SDL2
     SDL2::SDL2-static
   )
+  target_compile_options(dear_imgui_SDL2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+  target_link_options(dear_imgui_SDL2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endfunction()
 
 # SDL2 backend. Filament uses base dear_imgui without SDL2; platform calls this
@@ -63,6 +67,8 @@ target_sources(dear_imgui_OpenGL3
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.h
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
+target_compile_options(dear_imgui_OpenGL3 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(dear_imgui_OpenGL3 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 # stdlib
 add_library(dear_imgui_stdlib STATIC)
@@ -75,3 +81,5 @@ target_sources(dear_imgui_stdlib
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/misc/cpp/imgui_stdlib.h
     ${MUJOCO_DEAR_IMGUI_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
 )
+target_compile_options(dear_imgui_stdlib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(dear_imgui_stdlib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})

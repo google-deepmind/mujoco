@@ -25,16 +25,27 @@ set(BUILD_SHARED_LIBS OFF)
 
 # Filament's ShaderMinifier.cpp uses strlen without including <cstring>, and
 # PostProcessManager.h uses std::optional without including <optional>.
+set(CMAKE_C_FLAGS_OLD "${CMAKE_C_FLAGS}")
 set(CMAKE_CXX_FLAGS_OLD "${CMAKE_CXX_FLAGS}")
+set(CMAKE_OBJC_FLAGS_OLD "${CMAKE_OBJC_FLAGS}")
+set(CMAKE_OBJCXX_FLAGS_OLD "${CMAKE_OBJCXX_FLAGS}")
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FI cstring /FI optional")
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include cstring -include optional")
 endif()
 
-# Filament generates deprecated warnings on MacOS.
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-declarations")
+# Filament generates deprecated warnings on macOS and must match MuJoCo's deployment target.
+if(APPLE)
+    if(DEFINED MUJOCO_MACOSX_VERSION_MIN)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
+        set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
+        set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -mmacosx-version-min=${MUJOCO_MACOSX_VERSION_MIN}")
+    endif()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+    set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS} -Wno-deprecated-declarations")
+    set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -Wno-deprecated-declarations")
 endif()
 
 set(FILAMENT_ENABLE_EXPERIMENTAL_GCC_SUPPORT ON)
@@ -80,4 +91,7 @@ unset(MUJOCO_CMAKE_DISABLE_FIND_PACKAGE_ABSL_WAS_DEFINED)
 unset(MUJOCO_CMAKE_DISABLE_FIND_PACKAGE_ABSL_OLD)
 
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_OLD})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_OLD}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_OLD}")
+set(CMAKE_OBJC_FLAGS "${CMAKE_OBJC_FLAGS_OLD}")
+set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS_OLD}")

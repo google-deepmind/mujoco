@@ -31,3 +31,5 @@ target_sources(implot
 target_link_libraries(implot
   dear_imgui
 )
+target_compile_options(implot PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(implot PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})

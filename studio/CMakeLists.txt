@@ -25,6 +25,8 @@ include(third_party_deps/sdl2)
 set(MUJOCO_STUDIO_PLATFORM_TARGET_NAME mujoco_studio_platform)
 
 add_library(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} STATIC)
+target_compile_options(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME} PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 target_sources(${MUJOCO_STUDIO_PLATFORM_TARGET_NAME}
     PRIVATE
@@ -157,6 +159,8 @@ function(configure_studio_target TARGET_NAME)
             ${PROJECT_SOURCE_DIR}/include
             ${PROJECT_SOURCE_DIR}/src
     )
+    target_compile_options(${TARGET_NAME} PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+    target_link_options(${TARGET_NAME} PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
     if (WIN32)
         target_compile_definitions(${TARGET_NAME}
@@ -239,6 +243,9 @@ if(NOT EMSCRIPTEN)
             PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../dist/mujoco_studio.ico
                     ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        add_custom_command(
+            TARGET mujoco_studio
             POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E rm ${CMAKE_CURRENT_SOURCE_DIR}/mujoco_studio.ico
         )
