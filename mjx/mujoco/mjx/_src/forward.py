@@ -100,6 +100,23 @@ def fwd_velocity(m: Model, d: Data) -> Data:
   return d
 
 
+def _actuator_disabled(m: Model) -> np.ndarray:
+  """Returns a per-actuator mask from `mjOption.disableactuator` (by group)."""
+  group = np.asarray(m.actuator_group)
+  flags = int(m.opt._impl.disableactuator)
+  valid = (group >= 0) & (group <= 30)
+  return valid & (((flags >> np.where(valid, group, 0)) & 1) != 0)
+
+
+def _act_disabled(m: Model, disabled: np.ndarray) -> np.ndarray:
+  """Maps the per-actuator mask onto activation slots."""
+  owner = np.full((m.na,), -1, dtype=int)
+  for i, (adr, num) in enumerate(zip(m.actuator_actadr, m.actuator_actnum)):
+    if adr >= 0 and num > 0:
+      owner[adr : adr + num] = i
+  return np.where(owner >= 0, disabled[np.maximum(owner, 0)], False)
+
+
 def _wrap_period(m: Model) -> jax.Array:
   """Returns period of rotational transmission for wrap-eligible servos."""
   is_servo_type = (
@@ -203,6 +220,8 @@ def fwd_actuation(m: Model, d: Data) -> Data:
         group_by='u',
     )
 
+  disabled = _actuator_disabled(m)
+
   ctrl_act = ctrl
   if m.na:
     act_last_dim = d.act[m.actuator_actadr + m.actuator_actnum - 1]
@@ -247,6 +266,10 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       jp.array(m.actuator_acc0),
       group_by='u',
   )
+
+  # actuators disabled by group produce no force (mjOption.disableactuator)
+  if np.any(disabled):
+    force = jp.where(jp.asarray(disabled), 0.0, force)
 
   # tendon total force clamping
   if np.any(m.tendon_actfrclimited):
@@ -390,6 +413,11 @@ def _next_activation(m: Model, d: Data, act_dot: jax.Array) -> jax.Array:
 
   if not m.na:
     return act
+
+  # disabled actuators hold their activation (mj_actuatorDisabled in mj_advance)
+  disabled = _actuator_disabled(m)
+  if np.any(disabled):
+    act_dot = jp.where(jp.asarray(_act_disabled(m, disabled)), 0.0, act_dot)
 
   actrange = jp.where(
       m.actuator_actlimited[:, None],
