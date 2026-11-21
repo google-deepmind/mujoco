@@ -867,19 +867,18 @@ void ParseUsdPhysicsScene(mjSpec* spec,
       mjc_physics_scene.GetInertiaGroupRangeMinAttr();
   auto inertia_group_range_max_attr =
       mjc_physics_scene.GetInertiaGroupRangeMaxAttr();
-  if (inertia_group_range_min_attr.HasAuthoredValue() &&
-      inertia_group_range_max_attr.HasAuthoredValue()) {
+  // Apply each end of the range on its own, like the other compiler
+  // attributes: an end that is not authored keeps its schema fallback, which
+  // is MuJoCo's default (0 for min, 5 for max).
+  if (inertia_group_range_min_attr.HasAuthoredValue()) {
     int inertiagrouprangemin;
     inertia_group_range_min_attr.Get(&inertiagrouprangemin);
+    spec->compiler.inertiagrouprange[0] = inertiagrouprangemin;
+  }
+  if (inertia_group_range_max_attr.HasAuthoredValue()) {
     int inertiagrouprangemax;
     inertia_group_range_max_attr.Get(&inertiagrouprangemax);
-    spec->compiler.inertiagrouprange[0] = inertiagrouprangemin;
     spec->compiler.inertiagrouprange[1] = inertiagrouprangemax;
-  } else if (inertia_group_range_min_attr.HasAuthoredValue() ||
-             inertia_group_range_max_attr.HasAuthoredValue()) {
-    mju_warning(
-        "Only one of inertiaGroupRangeMin and inertiaGroupRangeMax was "
-        "authored, ignoring both.");
   }
 
   auto save_inertial_attr = mjc_physics_scene.GetSaveInertialAttr();
