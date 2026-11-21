@@ -66,6 +66,33 @@ _InternalLoaderType = Union[LoaderType, _LoaderWithPathType]
 
 _Simulate = _simulate.Simulate
 
+# How long `Handle.close` waits for a passive viewer's render thread to exit.
+_CLOSE_TIMEOUT_SECONDS = 10.0
+
+
+def _close_viewer(
+    sim_ref: 'weakref.ref[_Simulate]', thread: Optional[threading.Thread]
+) -> None:
+  """Asks a viewer to exit and waits for its render thread, if any."""
+  sim = sim_ref()
+  if sim is not None:
+    try:
+      sim.exit()
+    except mujoco.UnexpectedError:
+      # The underlying simulate instance has already been deleted in C++.
+      pass
+  # Wait for the render thread to leave the render loop and destroy its
+  # window. Otherwise, at interpreter exit, `glfw.terminate` can run while that
+  # thread is still tearing down the window and its context. Skip the wait when
+  # called from the render thread itself (e.g. from a key callback), and bound
+  # it so that a caller holding the viewer's lock cannot hang.
+  if (
+      thread is not None
+      and thread is not threading.current_thread()
+      and thread.is_alive()
+  ):
+    thread.join(timeout=_CLOSE_TIMEOUT_SECONDS)
+
 
 class Handle:
   """A handle for interacting with a MuJoCo viewer."""
@@ -83,6 +110,9 @@ class Handle:
     self._opt = opt
     self._pert = pert
     self._user_scn = user_scn
+    # The thread running the viewer's render loop, if `close` should wait for
+    # it. Set by `launch_passive` when the viewer runs on a thread it started.
+    self._thread: Optional[threading.Thread] = None
 
   @property
   def cam(self):
@@ -212,9 +242,7 @@ class Handle:
       sim.clear_images()
 
   def close(self):
-    sim = self._sim()
-    if sim is not None:
-      sim.exit()
+    _close_viewer(self._sim, self._thread)
 
   def _get_sim(self) -> Optional[_Simulate]:
     sim = self._sim()
@@ -591,6 +619,16 @@ def launch_passive(
     )
     thread.daemon = True
     thread.start()
+    handle = handle_return.get()
+    # pylint: disable=protected-access
+    handle._thread = thread
+    # Close the viewer at interpreter exit if the caller has not. This runs
+    # before the `glfw.terminate` registered by the render thread, since
+    # `atexit` handlers run in reverse order of registration. Only a weak
+    # reference to the viewer is kept, so the handle can still be collected.
+    atexit.register(_close_viewer, handle._sim, thread)
+    # pylint: enable=protected-access
+    return handle
   else:
     if not isinstance(_MJPYTHON, _MjPythonBase):
       raise RuntimeError(
