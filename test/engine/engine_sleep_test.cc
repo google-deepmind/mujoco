@@ -1332,6 +1332,108 @@ TEST_F(SleepTest, PluginInitKinematics) {
   mju_user_free = nullptr;
 }
 
+TEST_F(SleepTest, CameraSensorsTrackAwakeTarget) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"><flag sleep="enable" contact="disable"/></option>
+    <worldbody>
+      <site name="reference" pos="2 1 0"/>
+      <body name="mount" sleep="init" pos="0 0 3">
+        <joint type="slide"/><geom size=".1"/>
+        <camera name="camera" mode="targetbody" target="target" pos="1 0 0"/>
+      </body>
+      <body name="target" sleep="never" pos="1 0 0">
+        <joint type="slide" axis="1 0 0"/><geom size=".1"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <framezaxis objtype="camera" objname="camera"/>
+      <framepos objtype="site" objname="reference" reftype="camera" refname="camera"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjModelPtr reference_model(mj_copyModel(nullptr, model.get()));
+  reference_model->opt.enableflags &= ~mjENBL_SLEEP;
+  MjDataPtr data = MakeData(model);
+  MjDataPtr reference = MakeData(reference_model);
+
+  for (mjtNum position : {.5, 1.0}) {
+    data->qpos[1] = reference->qpos[1] = position;
+    mj_forward(model.get(), data.get());
+    mj_forward(reference_model.get(), reference.get());
+    ASSERT_EQ(data->body_awake[1], mjS_ASLEEP);
+    ASSERT_EQ(data->body_awake[2], mjS_AWAKE);
+    EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_CAMERA, 0), mjS_AWAKE);
+    for (int sensor = 0; sensor < model->nsensor; sensor++) {
+      EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_SENSOR, sensor), mjS_AWAKE);
+    }
+    EXPECT_THAT(AsVector(data->sensordata, model->nsensordata),
+                ::testing::Pointwise(MjNear(1e-12, 1e-5),
+                                     AsVector(reference->sensordata, model->nsensordata)));
+  }
+}
+
+TEST_F(SleepTest, CameraLightSleepState) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"><flag sleep="enable" contact="disable"/></option>
+    <worldbody>
+      <site name="reference"/>
+      <body name="mount" sleep="init">
+        <joint/><geom size=".1"/>
+        <camera name="camera" target="target"/>
+        <light target="target"/>
+      </body>
+      <body name="target">
+        <body sleep="never"><joint/><geom size=".1"/></body>
+      </body>
+      <body name="static"/>
+    </worldbody>
+    <sensor>
+      <framepos objtype="camera" objname="camera"/>
+      <framepos objtype="site" objname="reference" reftype="camera" refname="camera"/>
+    </sensor>
+  </mujoco>
+  )";
+  MjModelPtr model = LoadModelFromString(xml);
+  ASSERT_THAT(model.get(), NotNull());
+  MjDataPtr data = MakeData(model);
+  mj_forward(model.get(), data.get());
+  ASSERT_EQ(data->body_awake[1], mjS_ASLEEP);
+  int target = mj_name2id(model.get(), mjOBJ_BODY, "target");
+  int static_body = mj_name2id(model.get(), mjOBJ_BODY, "static");
+
+  auto expect_state = [&](mjtCamLight mode, int body, int target_body, mjtSleepState expected) {
+    model->cam_mode[0] = model->light_mode[0] = mode;
+    model->cam_bodyid[0] = model->light_bodyid[0] = body;
+    model->cam_targetbodyid[0] = model->light_targetbodyid[0] = target_body;
+    EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_CAMERA, 0), expected);
+    EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_LIGHT, 0), expected);
+    EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_SENSOR, 0),
+              expected == mjS_ASLEEP ? mjS_ASLEEP : mjS_AWAKE);
+    EXPECT_EQ(mj_sleepState(model.get(), data.get(), mjOBJ_SENSOR, 1),
+              expected == mjS_AWAKE ? mjS_AWAKE : mjS_ASLEEP);
+  };
+
+  // Fixed and track modes ignore the target. COM tracking uses the whole subtree.
+  expect_state(mjCAMLIGHT_FIXED, 1, target, mjS_ASLEEP);
+  expect_state(mjCAMLIGHT_TRACK, 1, target, mjS_ASLEEP);
+  expect_state(mjCAMLIGHT_TRACKCOM, 1, target, mjS_ASLEEP);
+  expect_state(mjCAMLIGHT_TRACKCOM, target, -1, mjS_AWAKE);
+  expect_state(mjCAMLIGHT_TRACKCOM, static_body, -1, mjS_STATIC);
+
+  // Target modes combine attachment and target states, preserving STATIC.
+  expect_state(mjCAMLIGHT_TARGETBODY, 1, target, mjS_ASLEEP);
+  expect_state(mjCAMLIGHT_TARGETBODYCOM, 1, target, mjS_AWAKE);
+  expect_state(mjCAMLIGHT_TARGETBODY, static_body, target, mjS_STATIC);
+  expect_state(mjCAMLIGHT_TARGETBODYCOM, static_body, target, mjS_AWAKE);
+  expect_state(mjCAMLIGHT_TARGETBODYCOM, static_body, static_body, mjS_STATIC);
+  expect_state(mjCAMLIGHT_TARGETBODYCOM, static_body, 1, mjS_ASLEEP);
+  expect_state(mjCAMLIGHT_TARGETBODYCOM, 1, -1, mjS_ASLEEP);
+}
+
 // tactile sensors reference mjOBJ_MESH without aborting in mj_sleepState
 TEST_F(SleepTest, TactileSensorSleepState) {
   static constexpr char xml[] = R"(
