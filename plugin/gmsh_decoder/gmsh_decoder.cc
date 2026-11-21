@@ -822,7 +822,10 @@ mjSpec* DecodeImpl(mjResource* resource, std::string* err) {
     mjs_setInt(mesh->userface, boundary_faces.data(), boundary_faces.size());
   } else {
     // 2D surface mesh
-    std::vector<float> point_f(point.begin(), point.end());
+    std::vector<float> point_f(point.size());
+    for (std::size_t i = 0; i < point.size(); ++i) {
+      point_f[i] = static_cast<float>(point[i]);
+    }
     mjs_setFloat(mesh->uservert, point_f.data(), point_f.size());
     mjs_setInt(mesh->userface, element.data(), element.size());
   }

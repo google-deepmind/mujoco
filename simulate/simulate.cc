@@ -1519,14 +1519,16 @@ void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
   if (old_camera != sim->camera) { sim->pending_.ui_update_rendering = true; }
 
   // logging flags
-  mjLogConfig cfg             = mju_getLogConfig();
-  bool        logging_changed = false;
-  if (sim->log_console != cfg.logto_console) {
-    sim->log_console = cfg.logto_console;
+  mjLogConfig   cfg             = mju_getLogConfig();
+  bool          logging_changed = false;
+  const mjtByte log_console     = static_cast<mjtByte>(cfg.logto_console);
+  if (sim->log_console != log_console) {
+    sim->log_console = log_console;
     logging_changed  = true;
   }
-  if (sim->log_file != cfg.logto_file) {
-    sim->log_file   = cfg.logto_file;
+  const mjtByte log_file = static_cast<mjtByte>(cfg.logto_file);
+  if (sim->log_file != log_file) {
+    sim->log_file   = log_file;
     logging_changed = true;
   }
   for (int i = 0; i < mjNTOPIC; i++) {

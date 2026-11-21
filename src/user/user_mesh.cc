@@ -2759,7 +2759,8 @@ static void SetProcedural(mjsMesh*                   spec,
                           int                        dim) {
   // 1D meshes only have nodes, uservert is needed by surfaces and volumes used by geoms
   if (dim > 1) {
-    std::vector<float> points_f(points.begin(), points.end());
+    std::vector<float> points_f(points.size());
+    mjuu_copyvec(points_f.data(), points.data(), static_cast<int>(points.size()));
     mjs_setFloat(spec->uservert, points_f.data(), points_f.size());
   }
   mjs_setDouble(spec->usernode, points.data(), points.size());

@@ -121,7 +121,8 @@ mjSpec* Decode(mjResource* resource, const mjVFS* vfs, char* error,
       }
 
       Vec3Key key = FloatToKey(v);
-      auto [it, inserted] = vertmap.emplace(key, uservert.size() / 3);
+      auto [it, inserted] =
+          vertmap.emplace(key, static_cast<int>(uservert.size() / 3));
       if (inserted) {
         uservert.push_back(v[0]);
         uservert.push_back(v[1]);

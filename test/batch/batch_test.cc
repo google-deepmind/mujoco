@@ -889,9 +889,9 @@ TEST_F(BatchTest, ThreadModelsKeepUnwrittenArrays) {
     auto* a = static_cast<Args*>(arg);
     const mjModel* m = a->model;
     std::set<std::string> written = {"body_mass", "geom_size"};
-#define X(name, fixed, kin0, inert0, spring)                 \
-  if (((fixed) | (kin0) | (inert0) | (spring)) & mjSC_OUT) { \
-    written.insert(#name);                                   \
+#define X(name, fixed, kin0, inert0, spring)                        \
+  if ((((fixed) | (kin0) | (inert0) | (spring)) & mjSC_OUT) != 0) { \
+    written.insert(#name);                                          \
   }
     MJSETCONST_ARRAYS
 #undef X

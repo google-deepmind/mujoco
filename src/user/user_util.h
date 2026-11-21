@@ -51,7 +51,11 @@ void mjuu_setvec(double* dest, double x, double y);
 // copy real-valued vector
 template <class T1, class T2>
 void mjuu_copyvec(T1* dest, const T2* src, int n) {
-  std::copy(src, src + n, dest);
+  if constexpr (std::is_same_v<T1, T2>) {
+    std::copy(src, src + n, dest);
+  } else {
+    for (int i = 0; i < n; i++) { dest[i] = static_cast<T1>(src[i]); }
+  }
 }
 
 // add to double array

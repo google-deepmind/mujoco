@@ -34,6 +34,9 @@
 
 extern "C" {
 #if defined(_WIN32) || defined(__CYGWIN__)
+  #ifdef APIENTRY
+    #undef APIENTRY
+  #endif
   #include <windows.h>
 #else
   #if defined(__APPLE__)
