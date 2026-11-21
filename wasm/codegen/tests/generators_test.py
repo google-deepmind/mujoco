@@ -185,6 +185,25 @@ class FunctionUtilsTest(absltest.TestCase):
     result = functions.get_params_string_maybe_with_conversion((param,))
     self.assertEqual(result, "s.get()")
 
+  def test_nullable_string_parameters(self):
+    for nullable in (False, True):
+      with self.subTest(nullable=nullable):
+        param = ast_nodes.FunctionParameterDecl(
+            name="text",
+            type=ast_nodes.PointerType(
+                ast_nodes.ValueType("char", is_const=True)
+            ),
+            nullable=nullable,
+        )
+        self.assertEqual(
+            functions.get_param_unpack_statement(param),
+            "UNPACK_NULLABLE_STRING(text);" if nullable else "",
+        )
+        self.assertEqual(
+            functions.get_params_string_maybe_with_conversion((param,)),
+            "text_.data()" if nullable else "text.as<const std::string>().data()",
+        )
+
   def test_get_compatible_return_code(self):
     func = ast_nodes.FunctionDecl(
         name="noop",
