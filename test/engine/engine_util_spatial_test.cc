@@ -575,5 +575,379 @@ TEST_F(MulQuatTest, PoseOperationsInPlace) {
   EXPECT_THAT(inplace_trn_pos, Pointwise(MjNear(1e-12, 1e-5), expected_trn));
 }
 
+using SpatialAlgebraTest = MujocoTest;
+
+TEST_F(SpatialAlgebraTest, CrossKnownValue) {
+  const mjtNum a[3] = {1, 2, 3};
+  const mjtNum b[3] = {4, 5, 6};
+  const mjtNum expected[3] = {-3, 6, -3};
+
+  mjtNum res[3];
+  mju_cross(res, a, b);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, CrossAntiCommutativeAndOrthogonal) {
+  const mjtNum a[3] = {1, 2, 3};
+  const mjtNum b[3] = {-2, 4, 5};
+  const mjtNum tol = MjTol(1e-12, 1e-5);
+
+  mjtNum cross_ab[3], cross_ba[3];
+  mju_cross(cross_ab, a, b);
+  mju_cross(cross_ba, b, a);
+  for (int i = 0; i < 3; i++) {
+    EXPECT_NEAR(cross_ba[i], -cross_ab[i], tol);
+  }
+  EXPECT_NEAR(mju_dot3(a, cross_ab), 0, tol);
+  EXPECT_NEAR(mju_dot3(b, cross_ab), 0, tol);
+}
+
+TEST_F(SpatialAlgebraTest, SubQuatKnownRotation) {
+  const mjtNum qa[4] = {1, 0, 0, 0};
+  const mjtNum s = mju_sqrt(0.5);
+  const mjtNum qb[4] = {s, 0, 0, s};  // 90 degree rotation about z
+  const mjtNum expected[3] = {0, 0, -mjPI / 2};
+
+  mjtNum res[3];
+  mju_subQuat(res, qa, qb);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-15, 1e-6), expected));
+}
+
+TEST_F(SpatialAlgebraTest, SubQuatInverseRelation) {
+  const mjtNum qa[4] = {0.5, 0.5, 0.5, 0.5};
+  const mjtNum s = mju_sqrt(0.5);
+  const mjtNum qb[4] = {s, 0, s, 0};
+
+  mjtNum qneg[4], qdif[4], expected[3];
+  mju_negQuat(qneg, qb);
+  mju_mulQuat(qdif, qneg, qa);
+  mju_quat2Vel(expected, qdif, 1);
+
+  mjtNum res[3];
+  mju_subQuat(res, qa, qb);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, SubQuatEqualQuaternions) {
+  const mjtNum quat[4] = {0.5, -0.5, 0.5, -0.5};
+
+  mjtNum res[3];
+  mju_subQuat(res, quat, quat);
+  EXPECT_THAT(res, Pointwise(MjNear(0, 0), {0, 0, 0}));
+}
+
+TEST_F(SpatialAlgebraTest, Mat2QuatBranches) {
+  // the four quaternions select the four branches of mju_mat2Quat
+  const mjtNum quats[4][4] = {
+      {1, 0, 0, 0},
+      {0.1, 0.9, 0.2, 0.3},
+      {0.1, 0.2, 0.9, 0.3},
+      {0.1, 0.2, 0.3, 0.9},
+  };
+
+  for (const auto& q : quats) {
+    mjtNum quat[4] = {q[0], q[1], q[2], q[3]};
+    mju_normalize4(quat);
+
+    mjtNum mat[9], res[4];
+    mju_quat2Mat(mat, quat);
+    mju_mat2Quat(res, mat);
+    EXPECT_THAT(res, Pointwise(MjNear(1e-15, 1e-6), quat));
+  }
+}
+
+TEST_F(SpatialAlgebraTest, DerivQuatKnownValue) {
+  const mjtNum quat[4] = {0.5, 0.5, 0.5, 0.5};
+  const mjtNum vel[3] = {1, 2, 3};
+  const mjtNum expected[4] = {-1.5, 0, 1, 0.5};
+
+  mjtNum res[4];
+  mju_derivQuat(res, quat, vel);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, DerivQuatIsTangent) {
+  const mjtNum quat[4] = {0.5, 0.5, 0.5, 0.5};
+  const mjtNum vel[3] = {0.3, -0.7, 1.1};
+
+  mjtNum res[4];
+  mju_derivQuat(res, quat, vel);
+  EXPECT_NEAR(mju_dot(quat, res, 4), 0, MjTol(1e-14, 1e-7));
+}
+
+TEST_F(SpatialAlgebraTest, QuatZ2VecDegenerate) {
+  const mjtNum zero[3] = {0, 0, 0};
+  const mjtNum z[3] = {0, 0, 1};
+  const mjtNum neg_z[3] = {0, 0, -1};
+  const mjtNum x[3] = {1, 0, 0};
+  const mjtNum s = mju_sqrt(0.5);
+
+  mjtNum quat[4];
+  mju_quatZ2Vec(quat, zero);
+  EXPECT_THAT(quat, Pointwise(MjNear(0, 0), {1, 0, 0, 0}));
+
+  mju_quatZ2Vec(quat, z);
+  EXPECT_THAT(quat, Pointwise(MjNear(0, 0), {1, 0, 0, 0}));
+
+  mju_quatZ2Vec(quat, neg_z);
+  EXPECT_THAT(quat, Pointwise(MjNear(0, 0), {0, 1, 0, 0}));
+
+  const mjtNum expected_x[4] = {s, 0, s, 0};
+  mju_quatZ2Vec(quat, x);
+  EXPECT_THAT(quat, Pointwise(MjNear(1e-15, 1e-6), expected_x));
+}
+
+TEST_F(SpatialAlgebraTest, QuatZ2VecGeneral) {
+  const mjtNum vec[3] = {1, 2, 3};
+  const mjtNum z[3] = {0, 0, 1};
+
+  mjtNum vec_normalized[3] = {vec[0], vec[1], vec[2]};
+  mju_normalize3(vec_normalized);
+
+  mjtNum quat[4], rotated[3];
+  mju_quatZ2Vec(quat, vec);
+  mju_rotVecQuat(rotated, z, quat);
+  EXPECT_THAT(rotated, Pointwise(MjNear(1e-15, 1e-7), vec_normalized));
+  EXPECT_NEAR(mju_norm(quat, 4), 1, MjTol(1e-14, 1e-6));
+}
+
+TEST_F(SpatialAlgebraTest, MulInertVecPureMass) {
+  const mjtNum inertia[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 2.5};
+  const mjtNum vec[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum expected[6] = {0, 0, 0, 10, 12.5, 15};
+
+  mjtNum res[6];
+  mju_mulInertVec(res, inertia, vec);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, MulInertVecFullMatrix) {
+  const mjtNum inertia[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+  const mjtNum vec[6] = {0.3, -0.7, 1.1, 2.0, -1.0, 0.5};
+
+  // dense form of the 6x6 inertia matrix
+  // clang-format off
+  const mjtNum mat[36] = {
+      1, 4, 5, 0, -9, 8,
+      4, 2, 6, 9, 0, -7,
+      5, 6, 3, -8, 7, 0,
+      0, 9, -8, 10, 0, 0,
+      -9, 0, 7, 0, 10, 0,
+      8, -7, 0, 0, 0, 10,
+  };
+  // clang-format on
+
+  mjtNum expected[6] = {0};
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 6; j++) {
+      expected[i] += mat[6 * i + j] * vec[j];
+    }
+  }
+
+  mjtNum res[6];
+  mju_mulInertVec(res, inertia, vec);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+void ExpectEigReconstruction(const mjtNum (&mat)[9], const mjtNum eigval[3],
+                             const mjtNum eigvec[9], mjtNum double_tol,
+                             mjtNum float_tol) {
+  mjtNum reconstructed[9] = {0};
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int k = 0; k < 3; k++) {
+        reconstructed[3 * i + j] +=
+            eigvec[3 * i + k] * eigval[k] * eigvec[3 * j + k];
+      }
+    }
+  }
+  EXPECT_THAT(reconstructed, Pointwise(MjNear(double_tol, float_tol), mat));
+}
+
+TEST_F(SpatialAlgebraTest, Eig3Diagonal) {
+  const mjtNum mat[9] = {3, 0, 0, 0, 2, 0, 0, 0, 1};
+  const mjtNum expected_val[3] = {3, 2, 1};
+  const mjtNum identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+  mjtNum eigval[3], eigvec[9], quat[4];
+  int iter = mju_eig3(eigval, eigvec, quat, mat);
+  EXPECT_EQ(iter, 0);
+  EXPECT_THAT(eigval, Pointwise(MjNear(1e-12, 1e-5), expected_val));
+  EXPECT_THAT(eigvec, Pointwise(MjNear(1e-12, 1e-5), identity));
+  EXPECT_THAT(quat, Pointwise(MjNear(0, 0), {1, 0, 0, 0}));
+}
+
+TEST_F(SpatialAlgebraTest, Eig3RotatedDiagonal) {
+  const mjtNum rot[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+  const mjtNum diag[9] = {5, 0, 0, 0, 2, 0, 0, 0, -1};
+  const mjtNum expected_val[3] = {5, 2, -1};
+
+  mjtNum tmp[9], mat[9];
+  mju_mulMatMat3(tmp, rot, diag);
+  mju_mulMatMatT3(mat, tmp, rot);
+
+  mjtNum eigval[3], eigvec[9], quat[4], quat_mat[9];
+  int iter = mju_eig3(eigval, eigvec, quat, mat);
+  EXPECT_LE(iter, 500);
+  EXPECT_THAT(eigval, Pointwise(MjNear(1e-14, 1e-6), expected_val));
+  ExpectEigReconstruction(mat, eigval, eigvec, 1e-13, 1e-5);
+  mju_quat2Mat(quat_mat, quat);
+  EXPECT_THAT(quat_mat, Pointwise(MjNear(1e-14, 1e-6), eigvec));
+}
+
+TEST_F(SpatialAlgebraTest, Eig3TolLoose) {
+  const mjtNum mat[9] = {4, 0.1, 0, 0.1, 3, 0.2, 0, 0.2, 2};
+
+  mjtNum eigval_tight[3], eigvec_tight[9], quat_tight[4];
+  mjtNum eigval_loose[3], eigvec_loose[9], quat_loose[4];
+  int iter_tight = mju_eig3(eigval_tight, eigvec_tight, quat_tight, mat);
+  int iter_loose =
+      mju_eig3Tol(eigval_loose, eigvec_loose, quat_loose, mat, 1e-3);
+  EXPECT_LE(iter_loose, iter_tight);
+  EXPECT_THAT(eigval_loose, Pointwise(MjNear(1e-5, 1e-5), eigval_tight));
+  ExpectEigReconstruction(mat, eigval_loose, eigvec_loose, 1e-2, 1e-2);
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialTranslationMotion) {
+  const mjtNum oldpos[3] = {0, 0, 0};
+  const mjtNum newpos[3] = {1, 2, 3};
+  const mjtNum vec[6] = {1, 0, 0, 4, 5, 6};
+  const mjtNum expected[6] = {1, 0, 0, 4, 2, 8};
+  const mjtNum identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+  mjtNum res[6];
+  mju_transformSpatial(res, vec, /*flg_force=*/0, newpos, oldpos, nullptr);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+
+  // an identity rotation is equivalent to omitting the rotation
+  mju_transformSpatial(res, vec, /*flg_force=*/0, newpos, oldpos, identity);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialTranslationForce) {
+  const mjtNum oldpos[3] = {0, 0, 0};
+  const mjtNum newpos[3] = {1, 2, 3};
+  const mjtNum vec[6] = {1, 0, 0, 4, 5, 6};
+  const mjtNum expected[6] = {4, -6, 3, 4, 5, 6};
+  const mjtNum identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+  mjtNum res[6];
+  mju_transformSpatial(res, vec, /*flg_force=*/1, newpos, oldpos, nullptr);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+
+  // an identity rotation is equivalent to omitting the rotation
+  mju_transformSpatial(res, vec, /*flg_force=*/1, newpos, oldpos, identity);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialRotationMotion) {
+  const mjtNum pos[3] = {0, 0, 0};
+  const mjtNum vec[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum expected[6] = {2, -1, 3, 5, -4, 6};
+
+  // new frame axes expressed in the old frame: 90 degree rotation about z
+  const mjtNum rot_z90[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+
+  mjtNum res[6];
+  mju_transformSpatial(res, vec, /*flg_force=*/0, pos, pos, rot_z90);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialRotationForce) {
+  const mjtNum pos[3] = {0, 0, 0};
+  const mjtNum vec[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum expected[6] = {2, -1, 3, 5, -4, 6};
+
+  // new frame axes expressed in the old frame: 90 degree rotation about z
+  const mjtNum rot_z90[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+
+  mjtNum res[6];
+  mju_transformSpatial(res, vec, /*flg_force=*/1, pos, pos, rot_z90);
+  EXPECT_THAT(res, Pointwise(MjNear(1e-12, 1e-5), expected));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialCombinedRoundTripMotion) {
+  const mjtNum oldpos[3] = {1, -2, 3};
+  const mjtNum newpos[3] = {4, 5, -6};
+  const mjtNum vec[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum rot_z90[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+  const mjtNum rot_z90_t[9] = {0, 1, 0, -1, 0, 0, 0, 0, 1};
+
+  // transform to the new frame
+  mjtNum res[6];
+  mju_transformSpatial(res, vec, /*flg_force=*/0, newpos, oldpos, rot_z90);
+
+  // positions of the old frame origin, expressed in the new frame
+  mjtNum shift[3], oldpos_in_new[3];
+  mju_sub3(shift, oldpos, newpos);
+  mju_mulMatTVec3(oldpos_in_new, rot_z90, shift);
+  const mjtNum zero[3] = {0, 0, 0};
+
+  // transform back to the old frame
+  mjtNum back[6];
+  mju_transformSpatial(back, res, /*flg_force=*/0, oldpos_in_new, zero,
+                       rot_z90_t);
+  EXPECT_THAT(back, Pointwise(MjNear(1e-12, 1e-5), vec));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialCombinedRoundTripForce) {
+  const mjtNum oldpos[3] = {1, -2, 3};
+  const mjtNum newpos[3] = {4, 5, -6};
+  const mjtNum vec[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum rot_z90[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+  const mjtNum rot_z90_t[9] = {0, 1, 0, -1, 0, 0, 0, 0, 1};
+
+  // transform to the new frame
+  mjtNum res[6];
+  mju_transformSpatial(res, vec, /*flg_force=*/1, newpos, oldpos, rot_z90);
+
+  // positions of the old frame origin, expressed in the new frame
+  mjtNum shift[3], oldpos_in_new[3];
+  mju_sub3(shift, oldpos, newpos);
+  mju_mulMatTVec3(oldpos_in_new, rot_z90, shift);
+  const mjtNum zero[3] = {0, 0, 0};
+
+  // transform back to the old frame
+  mjtNum back[6];
+  mju_transformSpatial(back, res, /*flg_force=*/1, oldpos_in_new, zero,
+                       rot_z90_t);
+  EXPECT_THAT(back, Pointwise(MjNear(1e-12, 1e-5), vec));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialPowerInvariance) {
+  const mjtNum oldpos[3] = {1, -2, 3};
+  const mjtNum newpos[3] = {4, 5, -6};
+  const mjtNum motion[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum force[6] = {-3, 2, 5, 7, -11, 13};
+  const mjtNum rot_z90[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+
+  mjtNum motion_new[6], force_new[6];
+  mju_transformSpatial(motion_new, motion, /*flg_force=*/0, newpos, oldpos,
+                       rot_z90);
+  mju_transformSpatial(force_new, force, /*flg_force=*/1, newpos, oldpos,
+                       rot_z90);
+  EXPECT_NEAR(mju_dot(force_new, motion_new, 6), mju_dot(force, motion, 6),
+              MjTol(1e-12, 1e-5));
+}
+
+TEST_F(SpatialAlgebraTest, TransformSpatialArbitraryRotationPowerInvariance) {
+  const mjtNum oldpos[3] = {1, -2, 3};
+  const mjtNum newpos[3] = {4, 5, -6};
+  const mjtNum motion[6] = {1, 2, 3, 4, 5, 6};
+  const mjtNum force[6] = {-3, 2, 5, 7, -11, 13};
+
+  // new frame axes expressed in the old frame: 45 degree rotation about z
+  const mjtNum c = mju_sqrt(0.5);
+  const mjtNum rot_z45[9] = {c, -c, 0, c, c, 0, 0, 0, 1};
+
+  mjtNum motion_new[6], force_new[6];
+  mju_transformSpatial(motion_new, motion, /*flg_force=*/0, newpos, oldpos,
+                       rot_z45);
+  mju_transformSpatial(force_new, force, /*flg_force=*/1, newpos, oldpos,
+                       rot_z45);
+  EXPECT_NEAR(mju_dot(force_new, motion_new, 6), mju_dot(force, motion, 6),
+              MjTol(1e-12, 1e-4));
+}
+
 }  // namespace
 }  // namespace mujoco
