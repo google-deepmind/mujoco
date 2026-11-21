@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from codegen import code_builder
 from introspect import ast_nodes
+from introspect import structs as introspect_structs
 
 from wasm.codegen.generators import common
 from wasm.codegen.generators import enums
@@ -292,32 +293,40 @@ void MjvLight::set(mjvLight* ptr) {
     )
 
 
-def test_build_struct_header_with_nested_wrappers(self):
-  self.assertEqual(
-      structs.build_struct_header("mjData", []),
-      "",
-  )
+class StructHeaderCodeBuilderTest(absltest.TestCase):
 
+  def test_build_struct_header_with_nested_wrappers(self):
+    field = next(
+        f for f in introspect_structs.STRUCTS["mjVisual"].fields
+        if f.name == "headlight"
+    )
+    wrapped_field = structs._generate_field_data(field, "MjVisual")
+    result = structs.build_struct_header("mjVisual", [wrapped_field])
+    self.assertIn("explicit MjVisual(mjVisual *ptr);", result)
+    self.assertIn("std::unique_ptr<MjVisual> copy();", result)
+    self.assertIn(" public:\n  MjVisualHeadlight headlight;", result)
+    self.assertEqual(result.count("MjVisualHeadlight headlight;"), 1)
 
-def test_build_struct_header_basic_struct(self):
-  self.assertEqual(
-      structs.build_struct_header("mjLROpt", []),
-      """
+  def test_build_struct_header_basic_struct(self):
+    self.assertEqual(
+        structs.build_struct_header("mjLROpt", []),
+        """
 struct MjLROpt {
+  ~MjLROpt();
   MjLROpt();
+  explicit MjLROpt(mjLROpt *ptr);
   MjLROpt(const MjLROpt &);
   MjLROpt &operator=(const MjLROpt &);
-  explicit MjLROpt(mjLROpt *ptr);
-  ~MjLROpt();
-  mjLROpt* get() const { return ptr_; }
-  void set(mjLROpt* ptr) { ptr_ = ptr; }
+  std::unique_ptr<MjLROpt> copy();
+  mjLROpt* get() const;
+  void set(mjLROpt* ptr);
 
  private:
   mjLROpt* ptr_;
   bool owned_ = false;
 };
 """.strip(),
-  )
+    )
 
 
 class StructFieldCodeBuilderTest(absltest.TestCase):
