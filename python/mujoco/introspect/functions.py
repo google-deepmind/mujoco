@@ -7852,6 +7852,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='nr',
@@ -9439,6 +9440,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
+                 nullable=True,
              ),
          ),
          doc='Standard normal random number generator (optional second number).',  # pylint: disable=line-too-long
