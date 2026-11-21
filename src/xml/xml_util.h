@@ -270,7 +270,10 @@ class mjXUtil {
                           const std::vector<double>& def);
 
   // write attribute- string
-  static void WriteAttrTxt(tinyxml2::XMLElement* elem, std::string name, std::string value);
+  static void WriteAttrTxt(tinyxml2::XMLElement* elem,
+                           std::string           name,
+                           std::string           value,
+                           std::string           def = "");
 
   // write attribute- single int
   static void WriteAttrInt(tinyxml2::XMLElement* elem,
