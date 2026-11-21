@@ -88,6 +88,53 @@ def _ellipsoid(pos: jax.Array, size: jax.Array) -> jax.Array:
   return k0 * (k0 - 1.0) / (k1 + (k1 == 0.0) * 1e-12)
 
 
+def _ellipsoid_closest(
+    pos: jax.Array, size: jax.Array, niter: int = 14
+) -> Tuple[jax.Array, jax.Array]:
+  """Returns the closest point on an ellipsoid surface and its outward normal.
+
+  The closest point to pos is x = size**2 * pos / (t + size**2), where t is the
+  root of |p(t)| = 1, p(t) = size * pos / (t + size**2), with
+  t > -min(size)**2 (D. Eberly, "Distance from a Point to an Ellipse, an
+  Ellipsoid, or a Hyperellipsoid", 2013). 1 / |p(t)| is concave and increasing
+  there, so Newton's method on 1 / |p(t)| = 1 started left of the root
+  increases monotonically to it, as in the trust-region secular equation.
+  Points outside the ellipsoid converge in about 5 iterations, points inside
+  it in about 8, and points inside it near the plane of its smallest axis in
+  up to about 14.
+
+  Args:
+    pos: query point in the ellipsoid frame
+    size: ellipsoid semi-axes
+    niter: number of Newton iterations
+
+  Returns:
+    closest point on the surface and the outward normal there, in the
+    ellipsoid frame
+  """
+  # a zero coordinate on the smallest axis can put the root outside that
+  # interval (Eberly's degenerate case), so move every coordinate off zero
+  eps = 1e-10 * jp.max(size)
+  pos = jp.where(jp.abs(pos) < eps, jp.where(pos < 0, -eps, eps), pos)
+  size2 = size * size
+  # solve for u = t + min(size)**2 > 0, which keeps every denominator
+  # u + gap = t + size**2 a sum of nonnegative terms; gap is factored so that
+  # it is exactly zero on the smallest axis, where u can be tiny
+  smin = jp.min(size)
+  gap = (size - smin) * (size + smin)
+  # the root of each axis alone is a lower bound, and so is t = 0 outside
+  u = jp.max(size * jp.abs(pos) - gap)
+  outside = jp.sum(jp.square(pos / size)) > 1
+  u = jp.where(outside, jp.maximum(u, smin * smin), u)
+  for _ in range(niter):
+    r = 1 / (u + gap)
+    p2 = jp.square(size * pos * r)
+    q = jp.sum(p2)
+    u += q * (jp.sqrt(q) - 1) / jp.sum(p2 * r)
+  x = size2 * pos / (u + gap)
+  return x, math.normalize(x / size2)
+
+
 @jax.custom_jvp
 def _cylinder(pos: jax.Array, size: jax.Array) -> jax.Array:
   a0 = jp.sqrt(pos[0] * pos[0] + pos[1] * pos[1]) - size[0]
@@ -203,11 +250,22 @@ def _optim(
   return dist, pos, math.make_frame(n)
 
 
+def _sphere_ellipsoid(
+    center: jax.Array, radius: jax.Array, e: GeomInfo
+) -> Collision:
+  """Returns the contact between a sphere, given in world frame, and e."""
+  pos = e.mat.T @ (center - e.pos)
+  x, n = _ellipsoid_closest(pos, e.size)
+  # signed distance from the sphere center to the ellipsoid surface
+  dist = jp.dot(pos - x, n) - radius
+  pos = e.mat @ (x + 0.5 * dist * n) + e.pos
+  return dist, pos, math.make_frame(-(e.mat @ n))
+
+
 @collider(ncon=1)
 def sphere_ellipsoid(s: GeomInfo, e: GeomInfo) -> Collision:
   """Calculates contact between a sphere and an ellipsoid."""
-  x0 = 0.5 * (s.pos + e.pos)
-  return _optim(_sphere, _ellipsoid, s, e, x0)
+  return _sphere_ellipsoid(s.pos, s.size[0], e)
 
 
 @collider(ncon=1)
@@ -220,9 +278,43 @@ def sphere_cylinder(s: GeomInfo, c: GeomInfo) -> Collision:
 
 @collider(ncon=1)
 def capsule_ellipsoid(c: GeomInfo, e: GeomInfo) -> Collision:
-  """ "Calculates contact between a capsule and an ellipsoid."""
-  x0 = 0.5 * (c.pos + e.pos)
-  return _optim(_capsule, _ellipsoid, c, e, x0)
+  """Calculates contact between a capsule and an ellipsoid.
+
+  The distance is the minimum over the capsule axis of the signed distance to
+  the ellipsoid, less the capsule radius. This is exact while the axis stays
+  outside the ellipsoid. With the axis inside, it is the depth of the deepest
+  axis point, which is less than the penetration depth when that point lies on
+  the plane of the smallest semi-axis.
+  """
+  # the signed distance to a convex set is convex, so along the capsule axis
+  # c.pos + s * axis, s in [-1, 1], it has a single minimum: bisect on the sign
+  # of its derivative, the outward normal at the closest point dotted with axis
+  axis = c.mat[:, 2] * c.size[1]
+  axis_local = e.mat.T @ axis
+  center_local = e.mat.T @ (c.pos - e.pos)
+
+  def bisect(bracket, _):
+    lo, hi = bracket
+    mid = 0.5 * (lo + hi)
+    # only the sign of the normal is used here, which needs fewer iterations
+    pos = center_local + mid * axis_local
+    _, n = _ellipsoid_closest(pos, e.size, niter=8)
+    rising = jp.dot(n, axis_local) > 0
+    return (jp.where(rising, lo, mid), jp.where(rising, mid, hi)), None
+
+  one = jp.ones_like(c.size[0])
+  (lo, hi), _ = jax.lax.scan(bisect, (-one, one), None, length=30)
+  # a bracket that never left an end has its minimum at that end
+  s = jp.where(lo == -one, lo, jp.where(hi == one, hi, 0.5 * (lo + hi)))
+  # inside the ellipsoid, the distance has a kink where the axis crosses the
+  # plane of the smallest semi-axis, and a minimum there moves with the
+  # crossing: take s from the crossing, so that its derivative is kept
+  k = jp.argmin(e.size)
+  z_lo = center_local[k] + lo * axis_local[k]
+  z_hi = center_local[k] + hi * axis_local[k]
+  kink = z_lo * z_hi < 0
+  s = jp.where(kink, -center_local[k] / jp.where(kink, axis_local[k], 1), s)
+  return _sphere_ellipsoid(c.pos + s * axis, c.size[0], e)
 
 
 @collider(ncon=2)
