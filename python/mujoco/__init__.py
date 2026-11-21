@@ -19,6 +19,7 @@ import ctypes.util
 import os
 import platform
 import subprocess
+import tempfile
 from typing import Any, IO, Sequence, TypeAlias, Union
 import warnings
 import zipfile
@@ -137,21 +138,27 @@ MjStruct: TypeAlias = Union[
 def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
   """Converts an MjSpec to a zip file.
 
+  The archive is written by the MJZ encoder, as ``spec.encode('model.mjz')``
+  writes it, so it holds the files of attached specs too.
+
   Args:
     spec: The mjSpec to save to a file.
     file: The path to the file to save to or the file object to write to.
   """
-  files_to_zip = dict(spec.assets)
-  files_to_zip[spec.modelname + '.xml'] = spec.to_xml()
+  spec.compile()
+  with tempfile.TemporaryDirectory() as tmp:
+    path = os.path.join(tmp, 'model.mjz')
+    spec.encode(path)
+    with open(path, 'rb') as f:
+      data = f.read()
   if isinstance(file, str):
     directory = os.path.dirname(file)
     if directory:
       os.makedirs(directory, exist_ok=True)
-    file = open(file, 'wb')
-  with zipfile.ZipFile(file, 'w') as zip_file:
-    for filename, contents in files_to_zip.items():
-      zip_info = zipfile.ZipInfo(filename)
-      zip_file.writestr(zip_info, contents)
+    with open(file, 'wb') as f:
+      f.write(data)
+  else:
+    file.write(data)
 
 
 def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:

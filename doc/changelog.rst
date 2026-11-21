@@ -48,6 +48,8 @@ Python bindings
 - Fixed a memory leak in ``mujoco-core`` (introduced in 4.0.0) where ``import mujoco`` without ``glfw`` installed
   stored the ``ImportError`` in ``mujoco.rendering.classic.gl_context`` and kept every local variable on the importing
   call stack alive for the life of the process (:issue:`3928`, reported by :github:user:`adenzler-nvidia`).
+- ``MjSpec.to_zip`` now writes the archive with the MJZ encoder, as ``spec.encode`` does, so it includes the files that
+  the model references, those of attached specs among them, and not only ``spec.assets`` (:issue:`3104`).
 
 Plugins
 ^^^^^^^
